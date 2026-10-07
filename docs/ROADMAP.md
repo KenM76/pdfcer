@@ -115,6 +115,22 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 528.0` — point hit test on a dense path transforms only the subpaths near the click (core; answers `pdfcer-gui` `G139` ask 1) — SHIPPED 2026-10-07 (1007th filing)
+
+Commit `d968fceb`. `pdfcer-core` only. No `pub` API change; no `Cargo.toml` change (`cargo tree` unaffected); no writer change.
+
+**Delivered.** `path_hit` used to transform every subpath through the CTM (`PathObject::page_subpaths()`) before testing, so one stroked path of 150,500 two-point subpaths cost ~61 ms per click in release. The click's reach box (point +/- stroke half-width + tolerance) is now mapped into user space once by the inverse CTM, and only subpaths whose control-polygon hull meets it are transformed. The fill test uses reach 0 (a closed subpath whose box misses the point adds winding 0 and an even crossing count). A CTM with no finite inverse tests every subpath as before. Measured release: 61 ms per call to 11.5 ms per call (about 5.3x) on the same path. Every point query benefits (`hit_test_point*`, `_with`, `_deep`).
+
+**Refactor.** Path geometry (`path_hit`, fill containment, outline proximity, flattening, `cubic_at`) moved from `vector/hit.rs` to the new private module `vector/path_geom.rs`; `snap.rs` shares its `cubic_at`. Two code-structure baseline lines deleted (`hit.rs` over the file limit; duplicated `cubic_at`); baseline now 581.
+
+**Verified (engineer-reported).** New tests: culled-vs-unculled equivalence over a 90x90 grid, two tolerances, four paint modes (`f*`, `B`, `S`, `n`), a rotating/shearing CTM, nested rings and a curve (sabotage: hull built without control points fails it); a dense-path test that only nearby subpaths survive. `pdfcer-core` suites 1486 + 2731 + 211 passed, 0 failed. fmt, clippy (-D warnings, all features), structure, string-gaps, public-fns-documented clean.
+
+**`G139` status.** Reply written `_FIXED` for ask 1. Ask 2 (topmost-only: `hit_test_point`/`_with` already stop at the first hit, `_deep` does not) and ask 3 (spatial index) not done, offered. `G140` and `G141` taken up, see *Next up*.
+
+`FEATURES.md`: image-hit row (row 250) gains a one-sentence performance note; no box changed (no capability change).
+
+Ledgers: no decision; next free `Pass 529.0`; next filing 1008th.
+
 ### `Pass 527.0` — `object-list --hit` honours image alpha; summary reports the decompose-divergence counters (CLI over `Pass 526.0`; `G138`) — SHIPPED 2026-10-07 (1006th filing)
 
 Commit `60293e43`; follow-up `7c0b92d6` is a doc-comment-only addition on `ImageAlphaArg::as_str` (`check-public-fns-documented.py` caught it undocumented). CLI only. No `Cargo.toml` change (`cargo tree` unaffected); no writer change.
@@ -21001,6 +21017,11 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> **Taken up from `pdfcer-gui`, 2026-10-07 (1007th filing), not yet Pass-numbered:** the other two of the three performance requests filed with `G139`.
+> - `G140` (`request_G140_an_edit_redecomposes_the_whole_page.md`): after an edit the whole page is re-decomposed.
+> - `G141` (`request_G141_a_move_on_a_shared_stream_costs_the_whole_stream.md`): a move rewrites every stream the page draws, including a shared one.
+> Scope each before numbering (ask the engineer for the Pass ID; next free `Pass 529.0`). `G139` asks 2 and 3 remain offered.
 
 > `Pass 478.0` SHIPPED, 2026-10-04 (945th filing), `27a6ebd6` — see
 > *Shipped*, above. CLI `list-fields`'s 313-line `cmd_list_fields`

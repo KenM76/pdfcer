@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1007th filing) — `Pass 528.0` shipped (point hit test culls subpaths, `G139` ask 1)
+
+**Shipped:**
+- `Pass 528.0` — `d968fceb`. Details in the ROADMAP entry. Core only; no pub API, `Cargo.toml` or writer change.
+
+**Decisions made this session:** None new.
+
+**Findings + decisions:**
+- A point hit on a 150,500-subpath path fell from ~61 ms to 11.5 ms (release, per call, about 5.3x) by mapping the click's reach box into user space and transforming only subpaths whose hull meets it.
+- `G139` replied `_FIXED` for ask 1. Asks 2 (topmost-only for `_deep`) and 3 (spatial index) are offered, not done.
+- `FEATURES.md`: note on row 250 only; no box ticked.
+
+**Still in flight:** `G140` (an edit re-decomposes the whole page) and `G141` (a move on a shared stream costs the whole stream) are taken up in *Next up*, not yet numbered. Push not checked. Next free `Pass 529.0`; next filing 1008th.
+
+**Sourcing note (hard rule 8):** test, timing and gate results engineer-reported; hash as supplied; push/backup/CI colour not checked here; no shell, nothing committed.
+
 ## 2026-10-07 (1006th filing) — `Pass 527.0` shipped (`object-list --hit` image alpha + divergence counters)
 
 **Shipped:**
