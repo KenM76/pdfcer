@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 536.0` — resize and rotate objects inside a form XObject (core + CLI; answers `pdfcer-gui` `G144`) — SHIPPED 2026-10-07 (1016th filing)
+
+Commits `e42e523e` (code), `3f9a723a` (`docs/core-api`). No `Cargo.toml` or dependency change. No decision. Not pushed at filing time (engineer-reported; remote `main` is `d3607b9a`).
+
+**Delivered.**
+- New `EditSession::transform_objects_in_form(page, leaf_indices: &[usize], matrix: Matrix, options: TransformOptions) -> Result<FormSurgeryOutcome, EditError>` in new `crates/pdfcer-core/src/edit/form_transform.rs`.
+- The matrix is page-space (the form is decomposed from its placement); each object is wrapped `q <cm> … Q` inside the form stream. `transform_objects`' options and refusals apply. One invocation of one form; edited in place (decision 076), so `FormSurgeryOutcome` reports the other invocations and pages; one undo entry (`CommandKind::TransformObjects`).
+- Divergence from the ask: no `form_invocation` argument (the leaf indices imply it). No preview twin.
+- CLI: `pdfcer object-transform --leaf` (default pivot the leaves' centre; `--preview --leaf` refused); the output line gains `leaf=0|1`, and `invocations=`/`pages=` under `--leaf`.
+- Internal: `cmd_object_transform` moved from `objects.rs` to new `crates/pdfcer-cli/src/object_transform_cmd.rs` and split under the 80-line limit; its code-structure baseline entry retired.
+- `docs/core-api`: verb row added; public verb count 328 to 329; `EditError` stays 166; `check-core-api-verbs` PASS.
+
+**Verified (engineer-reported).** Core +3 tests (`transform_objects_in_form` module), CLI +3 (`object_transform_leaf` module); `object-transform` had no CLI integration test before this. All six pass; fmt, clippy (full and lite), string-gaps, code-structure and public-fns-documented clean. Full `run-gates` not yet run.
+
+**`G144` status.** Reply written `_FIXED`; ACK removed. The GUI column is `pdfcer-gui`'s to tick when it calls the verb.
+
+`FEATURES.md`: new Implemented row after the `transform_objects_each` row (core `[x]` cli `[x]` gui `[ ]`); *Planned* in-form row narrowed to copy only (`537.0`).
+
+Ledgers: no decision; next free `Pass 538.0`; next filing 1017th.
+
 ### `Pass 535.0` — paint and stroke style of paths inside a form XObject (core + CLI; answers `pdfcer-gui` `G142`) — SHIPPED 2026-10-07 (1015th filing)
 
 Commits `f48855ab` (code), `44f9533c` (`docs/core-api`), `b2007abb` (test). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Not pushed and not in a release at filing time (engineer-reported).
@@ -21155,15 +21175,13 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > `Pass 535.0` (`G142`) SHIPPED `f48855ab` + `44f9533c` + `b2007abb`, 1015th filing; see *Shipped*.
 
-**`Pass 536.0` — `transform_objects_in_form` (core; answers `pdfcer-gui` `G144`) — NEXT UP**
-
-`transform_objects_in_form(page, form_invocation, leaf_indices, matrix)` mirroring `transform_objects`, returning `FormSurgeryOutcome`.
+> `Pass 536.0` (`G144`) SHIPPED `e42e523e` + `3f9a723a`, 1016th filing; see *Shipped*.
 
 **`Pass 537.0` — `copy_objects_in_form` (core; answers `pdfcer-gui` `G145`) — NEXT UP**
 
 `copy_objects_in_form(page, form_invocation, leaf_indices)` returning `copy_objects`' clip type with the form placement baked in, so a paste lands where the leaf was drawn.
 
-Ledgers: no decision; next free `Pass 538.0`; next filing 1016th.
+Ledgers: no decision; next free `Pass 538.0`; next filing 1017th.
 
 > `Pass 478.0` SHIPPED, 2026-10-04 (945th filing), `27a6ebd6` — see
 > *Shipped*, above. CLI `list-fields`'s 313-line `cmd_list_fields`

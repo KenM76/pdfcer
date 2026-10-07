@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1016th filing) — `Pass 536.0` shipped (resize and rotate inside a form XObject, `G144`)
+
+**Shipped:**
+- `Pass 536.0` — `e42e523e` (code), `3f9a723a` (core-api docs). `transform_objects_in_form`, CLI `object-transform --leaf`. Details in the ROADMAP entry.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Tests as engineer-reported: core +3, CLI +3 (all pass); `object-transform` had no CLI integration test before. Full `run-gates` not yet run. Public verb count 328 to 329; `EditError` stays 166.
+- Divergence from the ask recorded: no `form_invocation` argument, no preview twin.
+- Code-structure baseline entry for `cmd_object_transform` retired (moved and split).
+- `FEATURES.md`: new Implemented row (core `[x]` cli `[x]` gui `[ ]`); Planned in-form row narrowed to `537.0` copy only.
+- ROADMAP *Next up* block for 536.0 collapsed to a one-line `>` stub.
+
+**Still in flight:** `Pass 537.0` (`G145`) queued, unchanged. Next free `Pass 538.0`; next filing 1017th. Not pushed (engineer-reported; remote `main` `d3607b9a`).
+
+**Sourcing note (hard rule 8):** facts and hashes engineer-supplied; no shell, nothing committed, push/backup/CI not checked.
+
 ## 2026-10-07 (1015th filing) — `Pass 535.0` shipped (paint and stroke style inside a form XObject, `G142`)
 
 **Shipped:**
