@@ -3007,7 +3007,8 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   panel opens on), `suppressed`, `drawn` (false when it or an ancestor is
   hidden or suppressed), `has_part`, `placements: Range<usize>` (the drawn
   placements of the node and its subtree, indexing `placements()` /
-  `placements_with(any rule)` — same order). Toggling a node's visibility
+  `placements_with(any rule)` — same order). `label() -> String` is the
+  name a row is listed under (`name`, or `occurrence F:I`). Toggling a node's visibility
   is a shell matter: drop that range from what you draw. Errors as
   `placements()`. CLI: `pdfcer 3d-tree IN --index N [--json]`.
 - `Placement::triangle_colours(&mesh) -> Option<Vec<Option<[f64; 4]>>>`: per
@@ -3048,6 +3049,14 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
 - A `Compressed { mesh: None, not_rebuilt: Some(why), .. }` is left out;
   `why` is a sentence fit to show. The CLI prints one
   `note: N compressed mesh(es) left out: <why>` per distinct reason.
+- **Which parts.** `AssembledModel::left_out_parts` and `best_fit_parts:
+  Vec<String>` name the parts drawing a left-out or a best-fit mesh: the
+  deepest tree node holding each such placement, by `ModelNode::label()`
+  (its name, or `occurrence F:I`), in tree order; a label `N` nodes share
+  is listed once as `label xN`. Empty when nothing qualifies or the tree
+  cannot be read. Show them beside the counts; the CLI prints
+  `note: parts missing a left-out mesh (K): A, B x2` and
+  `note: parts drawn by a best-fit mesh (K): ...`.
 - CLI: `3d-mesh -o FILE.stl|.obj`, `3d-render -o FILE.png [--view iso|front|..]
   [--up x|y|z] [--eye X,Y,Z] [--target X,Y,Z] [--ortho] [--fov DEG]
   [--style-alpha zero-unset|style|multiply] [--texture-origin bottom|top]

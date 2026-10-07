@@ -1306,6 +1306,39 @@ mod tests {
         assert_eq!(ranges, [(0, 0..2), (1, 0..1), (1, 1..2)]);
     }
 
+    #[test]
+    fn the_parts_drawing_a_left_out_mesh_are_named_in_tree_order() {
+        let occs = [
+            Occ {
+                sons: &[1, 2, 3],
+                name: Some(Some("Frame")),
+                ..OCC
+            },
+            Occ {
+                part: 1,
+                name: Some(Some("Bolt")),
+                ..OCC
+            },
+            Occ { part: 1, ..OCC },
+            Occ {
+                part: 1,
+                name: Some(None),
+                ..OCC
+            },
+        ];
+        let compressed = crate::PrcFile::parse(include_bytes!(
+            "../../../../fixtures/synthetic/prc/compressed.prc"
+        ))
+        .unwrap();
+        let tess = compressed.file_structures[0].section(crate::SectionKind::Tessellation);
+        let prc = crate::PrcFile::parse(&placed(tess, &occs)).unwrap();
+        let labels = crate::model::part_labels(&prc, &[(0, 0)]);
+        assert_eq!(labels, ["Bolt x2", "occurrence 0:3"]);
+        assert!(crate::model::part_labels(&prc, &[(0, 1)]).is_empty());
+        let square = crate::assemble(&assembly_prc()).unwrap();
+        assert!(square.left_out_parts.is_empty());
+    }
+
     /// A two-occurrence assembly of the unit square: once in place, once
     /// mirrored in x and moved 5 along it. The CLI's placement fixture.
     fn assembly_prc() -> Vec<u8> {
@@ -1327,6 +1360,11 @@ mod tests {
                 ..OCC
             },
         ];
+        placed(tess, &occs)
+    }
+
+    /// One file structure holding `tess` and the occurrence tree `occs`.
+    fn placed(tess: &[u8], occs: &[Occ]) -> Vec<u8> {
         let schema = W::default().uint(0).bytes();
         let mut model = W::default();
         model
@@ -1342,12 +1380,7 @@ mod tests {
             model.uint(id);
         }
         model.uint(1).bit(true);
-        crate::testw::prc_container(
-            &schema,
-            &tree(&occs, 0, false).bytes(),
-            tess,
-            &model.bytes(),
-        )
+        crate::testw::prc_container(&schema, &tree(occs, 0, false).bytes(), tess, &model.bytes())
     }
 
     #[test]

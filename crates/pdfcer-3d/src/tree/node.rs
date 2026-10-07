@@ -53,3 +53,15 @@ pub struct ModelNode {
     /// under it is drawn.
     pub placements: Range<usize>,
 }
+
+impl ModelNode {
+    /// The label the node is listed under: its name, or `occurrence F:I`
+    /// (file structure, occurrence) when it has none.
+    #[must_use]
+    pub fn label(&self) -> String {
+        match &self.name {
+            Some(name) => name.clone(),
+            None => format!("occurrence {}:{}", self.file_structure, self.occurrence),
+        }
+    }
+}

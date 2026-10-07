@@ -54,15 +54,6 @@ fn name_from(n: &pdfcer_3d::ModelNode) -> &'static str {
     }
 }
 
-/// The label a node is listed under: its name, or `occurrence F:I`.
-#[cfg(feature = "3d")]
-fn label(n: &pdfcer_3d::ModelNode) -> String {
-    match &n.name {
-        Some(name) => name.clone(),
-        None => format!("occurrence {}:{}", n.file_structure, n.occurrence),
-    }
-}
-
 #[cfg(feature = "3d")]
 fn print_tree(nodes: &[pdfcer_3d::ModelNode]) {
     let mut borrowed = 0;
@@ -90,7 +81,7 @@ fn print_tree(nodes: &[pdfcer_3d::ModelNode]) {
         } else {
             format!("  [{}]", tags.join(", "))
         };
-        println!("{}{}{tags}", "  ".repeat(n.depth), label(n));
+        println!("{}{}{tags}", "  ".repeat(n.depth), n.label());
     }
     let drawn = nodes.iter().filter(|n| n.drawn).count();
     println!(

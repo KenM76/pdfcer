@@ -242,6 +242,16 @@ fn print_assembly_notes(a: &pdfcer_3d::AssembledModel, drawn: &str) {
     for (why, n) in &a.skipped_why {
         println!("note: {n} compressed mesh(es) left out: {why}");
     }
+    print_parts("parts missing a left-out mesh", &a.left_out_parts);
+    print_parts("parts drawn by a best-fit mesh", &a.best_fit_parts);
+}
+
+/// One note line naming `parts`, as `3d-tree` lists them; nothing when empty.
+#[cfg(feature = "3d")]
+fn print_parts(what: &str, parts: &[String]) {
+    if !parts.is_empty() {
+        println!("note: {what} ({}): {}", parts.len(), parts.join(", "));
+    }
 }
 
 #[cfg(feature = "3d")]

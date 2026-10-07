@@ -36,6 +36,15 @@ pub struct AssembledModel {
     pub compressed: usize,
     /// Each distinct reason a compressed mesh was left out, with its count.
     pub skipped_why: Vec<(String, usize)>,
+    /// The parts that draw a left-out compressed mesh, by the label
+    /// [`ModelNode`](crate::ModelNode) lists them under (its name, or
+    /// `occurrence F:I`), in tree order; a label `N` parts share is listed
+    /// once as `label xN`. Empty when none was left
+    /// out or the assembly tree cannot be read.
+    pub left_out_parts: Vec<String>,
+    /// The parts that draw a best-fit mesh (see [`Self::best_fit`]), labelled
+    /// as [`Self::left_out_parts`].
+    pub best_fit_parts: Vec<String>,
     /// Why placements were not applied (each mesh is then drawn once in its
     /// own coordinates), or `None` when they were.
     pub unplaced: Option<String>,
@@ -173,8 +182,11 @@ pub fn assemble_with_options(
     }
     let prc = PrcFile::parse(data)?;
     let mut model = AssembledModel::default();
-    let by_index = decode_meshes(&prc, options.mesh_fit, &mut model)?;
+    let mut flagged = Flagged::default();
+    let by_index = decode_meshes(&prc, options.mesh_fit, &mut model, &mut flagged)?;
     place(&prc, by_index, options, &mut model);
+    model.left_out_parts = part_labels(&prc, &flagged.left_out);
+    model.best_fit_parts = part_labels(&prc, &flagged.best_fit);
     model.triangles = model.meshes.iter().map(|m| m.triangles.len()).sum();
     if model.triangles == 0 {
         return Err(if model.compressed > 0 {
@@ -196,12 +208,13 @@ fn decode_meshes(
     prc: &PrcFile,
     fit: MeshFit,
     model: &mut AssembledModel,
+    flagged: &mut Flagged,
 ) -> Result<Vec<Vec<Option<TriangleMesh>>>, PrcError> {
     let mut by_index = Vec::new();
-    for fs in &prc.file_structures {
+    for (f, fs) in prc.file_structures.iter().enumerate() {
         let tess = fs.tessellations()?;
         let mut row = Vec::with_capacity(tess.len());
-        for t in tess {
+        for (i, t) in tess.into_iter().enumerate() {
             row.push(match t {
                 Tessellation::Mesh(m) => Some(m),
                 Tessellation::Wire(_) => {
@@ -215,12 +228,16 @@ fn decode_meshes(
                 } if !best_fit || fit == MeshFit::BestFit => {
                     model.rebuilt += 1;
                     model.best_fit += usize::from(best_fit);
+                    if best_fit {
+                        flagged.best_fit.push((f, i));
+                    }
                     Some(m)
                 }
                 Tessellation::Compressed {
                     mesh, not_rebuilt, ..
                 } => {
                     model.compressed += 1;
+                    flagged.left_out.push((f, i));
                     let why = match mesh {
                         Some(_) => BEST_FIT_REFUSED.to_owned(),
                         None => not_rebuilt.unwrap_or_default(),
@@ -240,6 +257,57 @@ fn decode_meshes(
         by_index.push(row);
     }
     Ok(by_index)
+}
+
+/// Compressed tessellations, as (file structure, tessellation) indices,
+/// that [`decode_meshes`] left out or rebuilt by best fit.
+#[derive(Default)]
+struct Flagged {
+    left_out: Vec<(usize, usize)>,
+    best_fit: Vec<(usize, usize)>,
+}
+
+/// The labels of the parts whose placements draw one of `tess`: for each
+/// such placement, the deepest tree node whose range holds it. A label
+/// several such nodes share is listed once, as `label xN`.
+pub(crate) fn part_labels(prc: &PrcFile, tess: &[(usize, usize)]) -> Vec<String> {
+    if tess.is_empty() {
+        return Vec::new();
+    }
+    let (Ok(nodes), Ok(placements)) = (prc.model_tree(), prc.placements()) else {
+        return Vec::new();
+    };
+    let mut owners: Vec<usize> = Vec::new();
+    for (p, pl) in placements.iter().enumerate() {
+        if !tess.contains(&(pl.file_structure, pl.tessellation)) {
+            continue;
+        }
+        let owner = nodes
+            .iter()
+            .enumerate()
+            .filter(|(_, n)| n.placements.contains(&p))
+            .max_by_key(|(_, n)| n.depth)
+            .map(|(k, _)| k);
+        if let Some(k) = owner.filter(|k| !owners.contains(k)) {
+            owners.push(k);
+        }
+    }
+    owners.sort_unstable();
+    let mut counted: Vec<(String, usize)> = Vec::new();
+    for label in owners
+        .into_iter()
+        .filter_map(|k| nodes.get(k))
+        .map(crate::ModelNode::label)
+    {
+        match counted.iter_mut().find(|(l, _)| *l == label) {
+            Some((_, n)) => *n += 1,
+            None => counted.push((label, 1)),
+        }
+    }
+    counted
+        .into_iter()
+        .map(|(l, n)| if n == 1 { l } else { format!("{l} x{n}") })
+        .collect()
 }
 
 /// A 0-1 colour as 8-bit straight RGBA.
