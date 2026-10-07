@@ -49,7 +49,7 @@
 //! encoded data; however, it **shall not distinguish between different
 //! positive K values**." So `K = 4` and `K = 40` select the same decoder
 //! path, and building a per-`K` table would be a bug dressed as
-//! thoroughness. [`encoding_mode`] is that rule and nothing else.
+//! thoroughness. `encoding_mode` is that rule and nothing else.
 //!
 //! ### `BlackIs1` is the polarity trap
 //!
@@ -65,7 +65,7 @@
 //! 2. T.4/T.6 speak in "white runs" and "black runs", not in bit values.
 //!    `hayro-ccitt` reports each pixel through its sink as a `white`
 //!    flag, already XORed with its `invert_black` setting. pdfcer's
-//!    [`BilevelSink`] writes a `1` bit for white. Composing those two
+//!    `BilevelSink` writes a `1` bit for white. Composing those two
 //!    facts gives the mapping this module uses:
 //!    **`invert_black = BlackIs1`** — the direct assignment, not the
 //!    negation.
@@ -97,7 +97,7 @@
 //! 1. `/Rows`, when positive;
 //! 2. otherwise the image dictionary's `/Height`, which is Required by
 //!    Table 89 and is what the image actually is;
-//! 3. otherwise [`row_ceiling`] — a pdfcer-derived bound, never an
+//! 3. otherwise `row_ceiling` — a pdfcer-derived bound, never an
 //!    invented "sensible" number (rule R25).
 //!
 //! In every case the decoder still stops early on EOFB/RTC or on
@@ -109,7 +109,7 @@
 //! `hayro-ccitt` has **no** ceilings of its own: it allocates strictly
 //! from the `columns`/`rows` it is handed, which puts the whole burden
 //! here. Both are checked against [`MAX_IMAGE_DIMENSION`] and
-//! [`MAX_IMAGE_PIXELS`] *before* decoding, and [`BilevelSink`] enforces
+//! [`MAX_IMAGE_PIXELS`] *before* decoding, and `BilevelSink` enforces
 //! a byte budget *during* decoding so an EOFB-less stream with an
 //! over-large row bound cannot allocate past it.
 

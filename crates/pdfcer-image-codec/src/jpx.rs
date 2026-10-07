@@ -201,7 +201,7 @@
 //!
 //! `JPXDecode` is one of the four `no`-parameter filters in Table 6
 //! (with `ASCIIHexDecode`, `ASCII85Decode` and `RunLengthDecode`), which
-//! is why [`decode`] takes no parameter dictionary at all — a difference
+//! is why `decode` takes no parameter dictionary at all — a difference
 //! from the other three codecs that is worth seeing in the signature.
 //! Everything configurable lives in the codestream or in the *image*
 //! dictionary.
@@ -230,8 +230,8 @@
 //! exactly that codestream — **310 bytes, 32 seconds** — within the
 //! first minute of its first campaign. It is a CPU-exhaustion vector,
 //! not a memory one, so neither [`MAX_IMAGE_PIXELS`] nor
-//! [`MAX_WORKING_BYTES`] sees it: 512 Kpx is two orders of magnitude
-//! inside both. [`MAX_TILES`] is the guard that does, and it is a
+//! `MAX_WORKING_BYTES` sees it: 512 Kpx is two orders of magnitude
+//! inside both. `MAX_TILES` is the guard that does, and it is a
 //! textbook case for rule R25 — a ceiling nobody would have thought to
 //! write until a fuzzer wrote the input that needs it.
 //!
@@ -243,7 +243,7 @@
 //! marker segment is a single `MarkerError::Unsupported` from either the
 //! main-header or the tile-part-header parser, with no indication of
 //! *which* marker. A bare "decode failed" there would be exactly the
-//! grey box rule R27 forbids, so [`decode`] runs a bounded marker walk
+//! grey box rule R27 forbids, so `decode` runs a bounded marker walk
 //! **on the error path only** and reports
 //! `"JPX/progression-order-change"` when a `POC` marker (T.800 Table
 //! A.2, code `0xFF5F`) is present and `"JPX/unsupported-marker"`

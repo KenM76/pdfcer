@@ -88,7 +88,7 @@
 //! 3-component transform-0 image at the moment pdfcer has to choose an
 //! output colourspace. Asking for `CMYK` there would allocate a
 //! 4-component buffer and then fail with an unimplemented
-//! `(RGB, CMYK)` mapping. [`passthrough_target`] encodes the fixup on
+//! `(RGB, CMYK)` mapping. `passthrough_target` encodes the fixup on
 //! pdfcer's side so the request is right the first time.
 //!
 //! ## The CMYK-inversion question is SETTLED: never invert (R29)
@@ -112,7 +112,7 @@
 //! Adobe TN #5116 (ISO 32000-1 §7.4.8 footnote *a*), contains the word
 //! "invert" **zero times** — its §13.1 defines the CMYK→YCCK forward
 //! transform on *true ink values* (`R = 255−C` etc., `K` untouched),
-//! so [`ycck_to_cmyk_in_place`]'s inverse recovers true ink directly
+//! so `ycck_to_cmyk_in_place`'s inverse recovers true ink directly
 //! and no further polarity step exists to take. Empirically, pdfcer
 //! pixel-matches pdfium on every four-component JPEG in the corpus
 //! (decision 006 §3.2) — the plausible "invert on APP14" guess that
@@ -139,7 +139,7 @@
 //! the box. What R169 adds is [`CmykJpegPolarity::InvertOnApp14`], for the
 //! operator who *knows* their corpus is old Photoshop output: it
 //! complements all four components for the ambiguous shape alone, and
-//! [`complement_in_place`] documents why that is a convention rather than
+//! `complement_in_place` documents why that is a convention rather than
 //! a transform. The R30 note is raised either way — it describes the file,
 //! not the configuration. R29 is narrowed from "pdfcer never inverts" to
 //! "pdfcer never inverts **unless the operator explicitly asked, for the

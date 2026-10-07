@@ -74,7 +74,7 @@
 //! Unlike CCITT, JBIG2Decode has **no polarity parameter** — Table 12
 //! carries `/JBIG2Globals` and nothing else — so the inversion is
 //! unconditional and belongs here, not to the file. This module
-//! therefore pushes `!black` into [`BilevelSink`], whose contract is
+//! therefore pushes `!black` into `BilevelSink`, whose contract is
 //! "true writes a 1 bit (white)". Every other shipping PDF engine does
 //! the identical flip at the identical place.
 //!
@@ -89,7 +89,6 @@
 //! information segment claiming 65535 × 65535 is refused there rather
 //! than after a 4 Gbit allocation.
 //!
-//! [`BilevelSink`]: super::bilevel::BilevelSink
 
 use hayro_jbig2::Image;
 
