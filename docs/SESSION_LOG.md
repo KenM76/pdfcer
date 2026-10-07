@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1005th filing) — `Pass 526.0` shipped (mask-aware, parallelogram image hit-testing, `G138`)
+
+**Shipped:**
+- `Pass 526.0` — `afab149e`. Details in the ROADMAP entry.
+
+**Decisions made this session:** None new.
+
+**Findings + decisions:**
+- Images are now hit against their placed parallelogram; forms keep the bbox test. The plain queries stay alpha-blind; the `_with` siblings carry `ImageAlpha`.
+- `FEATURES.md`: new row, core `[x]`, cli `—` (no caller), gui `[ ]` until the GUI adopts the `_with` call. Acrobat column `?`, not substantiated.
+
+**Still in flight:** push. Next free `Pass 527.0`; next filing 1006th.
+
+**Sourcing note (hard rule 8):** test and gate results engineer-reported; hash as supplied; push/backup/CI colour not checked here; no shell, nothing committed.
+
 ## 2026-10-07 (1004th filing) — `Pass 525.0` shipped (`text-locate` reports font and synthetic style)
 
 **Shipped:**

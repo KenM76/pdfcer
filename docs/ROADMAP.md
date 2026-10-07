@@ -115,6 +115,18 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 526.0` — mask-aware, parallelogram image hit-testing (core; answers `pdfcer-gui` `G138`) — SHIPPED 2026-10-07 (1005th filing)
+
+Commit `afab149e`. Core only. No `Cargo.toml` change to `pdfcer-core`/`pdfcer-render` (`cargo tree` unaffected); no writer change.
+
+**Delivered.** Every point hit query (`hit_test_point`, `hit_test_point_all`, `hit_test_point_deep`) now tests a raster image against its placed parallelogram (unit square under its CTM, ISO 32000-2 §8.9.4) widened by tolerance, not its axis-aligned bbox, so a rotated image misses at bbox corners; forms keep the bbox test. New `pub` siblings `hit_test_point_with`, `hit_test_point_all_with`, `hit_test_point_deep_with` take `&dyn ImageAlpha`; new `pub` trait `ImageAlpha`, `NoImageAlpha`, `DocumentImageAlpha` (decodes masks, memoized per XObject). A nearest sample that is fully clear is a miss: `/SMask` (§11.6.5.3) over `/Mask`; `/SMaskInData` 1 JPX alpha; `/ImageMask` and stencil `/Mask` (§8.9.6.2/.3; decoded 1 is masked, `/Decode` reverses); colour-key `/Mask` (§8.9.6.4). Undecodable, over 2^26 samples, or inline image stays a hit.
+
+**Verified (engineer-reported).** 10 new fixture tests; `pdfcer-core` suites 1484 + 2731 + 211 passed, 0 failed. New cargo-fuzz target `image_alpha_hit`. clippy (core+cli all-features, lite cli), fmt, code-structure clean; `check-core-api-verbs` PASS. `docs/core-api/01-reading-and-model.md` updated.
+
+`FEATURES.md`: new row under the object-selection row, core `[x]`, cli `—`, gui `[ ]` (the GUI must adopt the `_with` call).
+
+Ledgers: no decision; next free `Pass 527.0`; next filing 1006th.
+
 ### `Pass 525.0` — `text-locate` reports each located run's font and synthetic style (CLI over `GlyphProvenance` + `synth::detect_at`) — SHIPPED 2026-10-07 (1004th filing)
 
 Commit `e8ea75985de31a7dfd388860339e18cdf31cc0f5`. CLI only; no `Cargo.toml` change (`cargo tree` not applicable). Self-scoped follow-on to `Pass 524.0`.
