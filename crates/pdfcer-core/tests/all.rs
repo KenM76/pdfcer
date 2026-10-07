@@ -231,6 +231,7 @@ mod threed_poster;
 mod tounicode_partial_inverse;
 mod transform_objects;
 mod transform_objects_each;
+mod transform_objects_in_form;
 mod trust_store;
 mod unit_dimension_units;
 mod unit_form_script;

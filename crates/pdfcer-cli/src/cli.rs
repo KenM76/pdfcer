@@ -10979,6 +10979,12 @@ pub(crate) enum Command {
         /// 0-based paint-order object indices, comma-separated (`3,4,7`).
         #[arg(long, value_name = "N,N,...")]
         objects: String,
+        /// Treat `--objects` as form-leaf indices (the `leaf index=` rows of
+        /// `object-list`) and transform those objects inside their form
+        /// XObject. Every place the form is drawn changes; the output line
+        /// reports `invocations=` and `pages=`. All leaves must be in one form.
+        #[arg(long)]
+        leaf: bool,
         /// Uniform or `SX,SY` scale factor. A NEGATIVE factor is a mirror and
         /// is perfectly legal; exactly zero is refused (see `--on-singular`).
         #[arg(long, value_name = "S|SX,SY", allow_hyphen_values = true)]

@@ -82,6 +82,7 @@ mod object_set_paint;
 mod object_set_stroke_style;
 mod object_style_in_form;
 mod object_transform_each;
+mod object_transform_leaf;
 mod ocr_addons;
 mod ocr_engine;
 mod ocr_program_addons;
