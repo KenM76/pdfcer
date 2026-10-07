@@ -115,6 +115,32 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 519.0` — a resize reports each bleed, trim or art box it leaves off the sheet — SHIPPED 2026-10-07 (998th filing)
+
+Commit `e9f12989`. Answers GUI request `G136` (reply written). Crates `pdfcer-core`
+and the CLI; no `Cargo.toml` change (`cargo tree` unchanged).
+
+**Delivered.**
+- `MediaBoxChange` (returned by `EditSession::resize_pages`, `set_media_box`,
+  `set_media_boxes`) gains `bleed_box_outside`, `trim_box_outside`, `art_box_outside:
+  Option<page_tree::Rect>`: the page's OWN box when the new media box no longer
+  contains it, else `None`. These boxes are not inheritable (ISO 32000 Table 30), so an
+  inherited box on a Pages node is not reported; absent, they default to the CropBox,
+  already covered by `crop_box_outside`.
+- Disclosed, never repaired: readers intersect them with the media box
+  (ISO 32000 §14.11.2.1), and the boxes stay byte-identical (round-trip invariant).
+- CLI `set-page-size` prints one `note:` per overhanging box; its summary line now
+  ends `crop_followed=N boxes_outside=N`.
+
+**Tests.** Core `a_resize_discloses_each_production_box_it_no_longer_contains`
+(checked by sabotage); CLI `set_page_size_notes_a_bleed_box_left_off_the_sheet`; all 47
+CLI `set_` tests pass. fmt, clippy, `check-string-gaps`, `check-code-structure`,
+`check-core-api-verbs` clean (engineer-reported). `docs/core-api/02-editing-and-saving.md`
+`resize_pages` row updated.
+
+**Boxes.** `FEATURES.md`: "Set a page's size (`/MediaBox`)" row extended; core `[x]`,
+cli `[x]`, gui `[ ]` unchanged (`pdfcer-gui` will consume it).
+
 ### `Pass 518.0` — an assembled mesh names its placement; hidden parts can be drawn; a file with no tree lists an empty one — SHIPPED 2026-10-07 (997th filing)
 
 Commits `13ebd415` (placement link, empty tree), `4e890c25` (`StoredVisibility`,

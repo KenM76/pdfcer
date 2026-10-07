@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (998th filing) — `Pass 519.0` shipped (resize reports overhanging bleed/trim/art boxes, `G136`)
+
+**Shipped:**
+- `Pass 519.0` — `e9f12989`; `pdfcer-core` plus CLI. Details in the ROADMAP entry.
+
+**Decisions made this session:** None new.
+
+**Findings + decisions:**
+- Bleed, trim and art boxes are not inheritable (ISO 32000 Table 30), so only a page's own box is reported; they are disclosed, never repaired.
+- Core test (sabotage-checked) and CLI test added; 47 CLI `set_` tests green; gates clean (engineer-reported).
+- `FEATURES.md`: page-size row extended; boxes unchanged (gui `[ ]`).
+
+**Still in flight:** Backlog "3D compressed meshes still unfit".
+
+**Sourcing note (hard rule 8):** figures and gate results engineer-reported; hash as supplied; push/backup/CI not checked here (no shell).
+
 ## 2026-10-07 (997th filing) — `Pass 518.0` shipped (mesh-to-node link, `--draw-hidden`, empty tree; `G134`/`G135`)
 
 **Shipped:**
