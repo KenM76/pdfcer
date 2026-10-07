@@ -306,7 +306,7 @@ impl OcrRunner {
         pixels: &[u8],
         dpi: Option<f32>,
     ) -> Result<OcrPage, RunnerError> {
-        if let Inner::Program(p) = &self.inner {
+        if let Some(p) = self.as_program() {
             return Ok(p.recognize_page(width, height, pixels, dpi)?);
         }
         let words = match dpi {

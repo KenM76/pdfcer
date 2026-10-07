@@ -97,6 +97,11 @@ LOCAL = {
     "tools/check-fmt-excluded.py": "python tools/check-fmt-excluded.py",
     "tools/check-shipped-assets.py": "python tools/check-shipped-assets.py",
     "cargo clippy": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
+    # The lite CLI build compiles feature-gated enums with fewer variants, so
+    # lints such as `irrefutable_let_patterns` fire only here.
+    "cargo clippy -p pdfcer-cli --no-default-features": (
+        "cargo clippy -p pdfcer-cli --no-default-features --all-targets -- -D warnings"
+    ),
     "cargo doc --workspace": (
         'RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links" cargo doc --workspace --no-deps'
     ),
@@ -245,15 +250,13 @@ def commands_in(path: Path) -> list[tuple[int, str]]:
 
 
 def classify(cmd: str) -> tuple[str, str] | None:
-    for needle, local in LOCAL.items():
-        if needle in cmd:
-            return ("LOCAL", local)
-    for needle, local in LOCAL_VIA.items():
-        if needle in cmd:
-            return ("LOCAL-VIA", local)
-    for needle, why in CI_ONLY.items():
-        if needle in cmd:
-            return ("CI-ONLY", why)
+    """The LONGEST matching needle wins, so a specific command (a
+    `--no-default-features` variant) is not swallowed by the generic one
+    and reported as covered by a run that never builds its configuration."""
+    for state, table in (("LOCAL", LOCAL), ("LOCAL-VIA", LOCAL_VIA), ("CI-ONLY", CI_ONLY)):
+        hits = [needle for needle in table if needle in cmd]
+        if hits:
+            return (state, table[max(hits, key=len)])
     return None
 
 
