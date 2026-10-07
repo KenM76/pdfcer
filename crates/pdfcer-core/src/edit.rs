@@ -30442,8 +30442,9 @@ impl EditSession {
                     .collect();
             }
             if let Some(q) = edit.quadding {
-                field.quadding = match q {
-                    Some(code) => crate::vartext::Quadding::from_code(code),
+                field.own_quadding = q.map(crate::vartext::Quadding::from_code);
+                field.quadding = match field.own_quadding {
+                    Some(own) => own,
                     None => self.inherited_quadding(field.id),
                 };
             }

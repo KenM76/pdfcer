@@ -790,6 +790,13 @@ pub struct Field {
     /// The resolved `/Q` quadding for variable text: the field's own, else
     /// an ancestor's, else the `/AcroForm` `/Q` (Table 218), else left.
     pub quadding: Quadding,
+    /// The quadding the field's OWN dictionary states, or `None` when
+    /// [`Field::quadding`] came from an ancestor, the `/AcroForm` or the
+    /// default. `Some` exactly when the own `/Q` decided `quadding`: an
+    /// integer `/Q` counts (an out-of-range one reads as left, Table 222),
+    /// a non-integer `/Q` is ignored and inheritance applies. Lets a shell
+    /// tell *inherited (centred)* from *centred* without re-reading `/Q`.
+    pub own_quadding: Option<Quadding>,
     /// `/MaxLen` — the maximum text length / comb count (text fields).
     pub max_len: Option<i64>,
     /// `/Opt` — the choice options (export + display), in `/Opt` order
@@ -1605,6 +1612,7 @@ fn walk_field<G: ObjectGraph + ?Sized>(
         default_value,
         default_appearance: da,
         quadding: Quadding::from_code(q_code.unwrap_or(0)),
+        own_quadding: own_q.map(Quadding::from_code),
         max_len,
         options: read_options(graph, &dict),
         top_index: dict
@@ -3631,6 +3639,48 @@ mod tests {
     }
 
     #[test]
+    fn own_quadding_tells_a_stated_q_from_an_inherited_one() {
+        // `/AcroForm` says centred; `a` states nothing, `b` states centred,
+        // `c` states an out-of-range code, `d` a non-integer `/Q`.
+        let doc = doc_with_acroform(
+            "<< /Fields [5 0 R 6 0 R 7 0 R 8 0 R] /Q 1 >>",
+            &[
+                (
+                    5,
+                    b"<< /FT /Tx /T (a) /Subtype /Widget /Rect [0 0 9 9] >>".to_vec(),
+                ),
+                (
+                    6,
+                    b"<< /FT /Tx /T (b) /Q 1 /Subtype /Widget /Rect [0 0 9 9] >>".to_vec(),
+                ),
+                (
+                    7,
+                    b"<< /FT /Tx /T (c) /Q 7 /Subtype /Widget /Rect [0 0 9 9] >>".to_vec(),
+                ),
+                (
+                    8,
+                    b"<< /FT /Tx /T (d) /Q /Right /Subtype /Widget /Rect [0 0 9 9] >>".to_vec(),
+                ),
+            ],
+        );
+        let form = parse_acroform(&doc).unwrap();
+        let got: Vec<_> = form
+            .fields
+            .iter()
+            .map(|f| (f.quadding, f.own_quadding))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                (Quadding::Center, None),
+                (Quadding::Center, Some(Quadding::Center)),
+                (Quadding::Left, Some(Quadding::Left)),
+                (Quadding::Center, None),
+            ]
+        );
+    }
+
+    #[test]
     fn max_len_is_inherited_and_overridden() {
         // Table 229: `/MaxLen` is inheritable.
         let doc = doc_with_acroform(
@@ -3848,6 +3898,7 @@ mod tests {
             default_value: FieldValue::Absent,
             default_appearance: None,
             quadding: Quadding::Left,
+            own_quadding: None,
             max_len: None,
             options: Vec::new(),
             top_index: 0,
@@ -3891,6 +3942,7 @@ mod tests {
             default_value: FieldValue::Absent,
             default_appearance: None,
             quadding: Quadding::Left,
+            own_quadding: None,
             max_len: None,
             options: Vec::new(),
             top_index: 0,
@@ -3928,6 +3980,7 @@ mod tests {
             default_value: FieldValue::Absent,
             default_appearance: None,
             quadding: Quadding::Left,
+            own_quadding: None,
             max_len: None,
             options: Vec::new(),
             top_index: 0,

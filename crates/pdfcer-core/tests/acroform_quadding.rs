@@ -107,3 +107,20 @@ fn clearing_a_fields_q_reads_back_the_acroform_q() {
         .unwrap();
     assert_eq!(field(&s).quadding, Quadding::Right);
 }
+
+#[test]
+fn own_quadding_follows_setting_and_clearing_the_fields_q() {
+    let mut s = session("/Q 1", "");
+    assert_eq!(field(&s).own_quadding, None);
+    s.edit_field("t", &FieldEdit::new().with_quadding(1))
+        .unwrap();
+    let f = field(&s);
+    assert_eq!(
+        (f.quadding, f.own_quadding),
+        (Quadding::Center, Some(Quadding::Center))
+    );
+    s.edit_field("t", &FieldEdit::new().clearing_quadding())
+        .unwrap();
+    let f = field(&s);
+    assert_eq!((f.quadding, f.own_quadding), (Quadding::Center, None));
+}

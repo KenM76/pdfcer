@@ -3779,6 +3779,14 @@ parent carrying `/Q 1` goes back to **centred** when its own key is removed.
 your UI labels the clear action, *"inherit"* is the honest word; *"left"* is
 only correct when nothing above the field states one.
 
+**Own or inherited: `forms::Field::own_quadding: Option<Quadding>`** (request
+`G137`). `Some` exactly when the field's own `/Q` decided `quadding`; `None`
+when it came from an ancestor, the `/AcroForm` or the default. An integer `/Q`
+counts even out of range (it reads as left, Table 222); a non-integer `/Q` is
+ignored and inheritance applies, so do not test the dictionary for a `Q` key
+yourself. Show *Inherited (centred)* for `None` and *Centred* for
+`Some(Center)`; `with_quadding` and `clearing_quadding` move between them.
+
 **Citation corrected.** `/Q` is **§12.7.3.3 Table 222** (PDF 2.0 Table 228), not
 §12.7.4.3 Table 233 — that is the signature-field `/Lock` dictionary. The wrong
 number was in the operator-facing refusal text, so anyone chasing
