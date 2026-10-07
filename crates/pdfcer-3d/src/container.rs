@@ -434,8 +434,9 @@ impl PrcFile {
         rule: crate::StyleAlpha,
         rules: crate::tree::TextureRules,
         scope: crate::EntityOverrides,
+        stored: crate::StoredVisibility,
     ) -> Result<(Vec<crate::Placement>, Vec<crate::ModelNode>), PrcError> {
-        self.walk(rule, scope, Some(rules))
+        self.walk(rule, scope, Some((rules, stored)))
     }
 
     /// The assembly tree as a model-tree panel lists it: every product
@@ -470,7 +471,7 @@ impl PrcFile {
         &self,
         rule: crate::StyleAlpha,
         scope: crate::EntityOverrides,
-        textures: Option<crate::tree::TextureRules>,
+        textures: Option<(crate::tree::TextureRules, crate::StoredVisibility)>,
     ) -> Result<(Vec<crate::Placement>, Vec<crate::ModelNode>), PrcError> {
         use crate::bits::BitReader;
         use crate::tess::Ctx;
@@ -510,7 +511,8 @@ impl PrcFile {
             rule,
             scope,
         );
-        if let Some(rules) = textures {
+        if let Some((rules, stored)) = textures {
+            walk.stored = stored;
             walk.skins = trees
                 .iter()
                 .zip(&self.file_structures)

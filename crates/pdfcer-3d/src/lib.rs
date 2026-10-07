@@ -54,7 +54,7 @@ pub use error::PrcError;
 pub use export::{to_obj, to_stl};
 pub use model::{
     AssembleError, AssembleOptions, AssembledModel, DEFAULT_VIEW_DIRECTION, DEFAULT_VIEW_UP,
-    MeshFit, assemble, assemble_with, assemble_with_options,
+    MeshFit, StoredVisibility, assemble, assemble_with, assemble_with_options,
 };
 #[cfg(feature = "render")]
 pub use model::{render_default_view, render_model};

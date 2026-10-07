@@ -3094,6 +3094,10 @@ pub(crate) enum Command {
         /// leaves it out.
         #[arg(long, value_enum, default_value_t)]
         mesh_fit: MeshFitArg,
+        /// Also write the parts the file stores hidden or suppressed
+        /// (`3d-tree` lists them as `hidden` or `suppressed`).
+        #[arg(long)]
+        draw_hidden: bool,
     },
 
     /// **List a 3D model's assembly tree**: its parts and sub-assemblies.
@@ -3198,6 +3202,10 @@ pub(crate) enum Command {
         /// may admit another shape, so a small detail can differ.
         #[arg(long, value_enum, default_value_t)]
         mesh_fit: MeshFitArg,
+        /// Also draw the parts the file stores hidden or suppressed
+        /// (`3d-tree` lists them as `hidden` or `suppressed`).
+        #[arg(long)]
+        draw_hidden: bool,
         /// Which end of a texture picture is its first row: `bottom`
         /// (default) or `top`. Try `top` if pictures draw upside down.
         #[arg(long, value_enum, default_value_t)]

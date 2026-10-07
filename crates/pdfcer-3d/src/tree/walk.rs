@@ -48,6 +48,8 @@ pub(crate) struct Walk<'t> {
     /// textures are not resolved.
     pub(crate) skins: Skins,
     scope: EntityOverrides,
+    /// Whether stored-hidden and suppressed occurrences are drawn.
+    pub(crate) stored: crate::StoredVisibility,
     /// The entity references of the occurrences being walked, outermost
     /// first; under [`EntityOverrides::Everywhere`], every occurrence's.
     active: Vec<Active<'t>>,
@@ -77,6 +79,7 @@ impl<'t> Walk<'t> {
             palettes,
             skins: std::sync::Arc::from(Vec::new()),
             scope,
+            stored: crate::StoredVisibility::Honour,
             active: Vec::new(),
         };
         if scope == EntityOverrides::Everywhere {
@@ -122,7 +125,8 @@ impl<'t> Walk<'t> {
 
     /// Draws occurrence `index` of structure `fs` under `father`, whose
     /// occurrences' graphics are `graphics`, root first, and lists it as a
-    /// node. A hidden or suppressed subtree is listed but not drawn.
+    /// node. A hidden or suppressed subtree is listed with `drawn` false,
+    /// and placed only under [`crate::StoredVisibility::DrawAll`].
     pub(crate) fn occurrence(
         &mut self,
         fs: usize,
@@ -166,7 +170,8 @@ impl<'t> Walk<'t> {
             has_part: r.part.1 != 0,
             placements: first..first,
         });
-        if drawn && r.part.1 != 0 {
+        let placed = drawn || self.stored == crate::StoredVisibility::DrawAll;
+        if placed && r.part.1 != 0 {
             self.part(r.part.0, r.part.1 as usize - 1, &m, &chain)?;
         }
         let child = At {

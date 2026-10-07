@@ -442,9 +442,10 @@ pub(crate) fn run() -> ExitCode {
             output,
             format,
             mesh_fit,
+            draw_hidden,
         } => {
             let format = format.unwrap_or_else(|| MeshFormat::for_path(&output));
-            cmd_mesh_3d(&input, index, &output, format, mesh_fit)
+            cmd_mesh_3d(&input, index, &output, (format, mesh_fit, draw_hidden))
         }
         Command::ThreeDTree { input, index, json } => cmd_tree_3d(&input, index, json),
         Command::ThreeDRender {
@@ -463,6 +464,7 @@ pub(crate) fn run() -> ExitCode {
             style_alpha,
             entity_overrides,
             mesh_fit,
+            draw_hidden,
             texture_origin,
             texture_wrap_base,
             texture_pictures,
@@ -482,6 +484,7 @@ pub(crate) fn run() -> ExitCode {
             style_alpha,
             entity_overrides,
             mesh_fit,
+            draw_hidden,
             texture_origin,
             texture_wrap_base,
             texture_pictures,

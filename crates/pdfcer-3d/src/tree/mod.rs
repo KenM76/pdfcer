@@ -1460,6 +1460,34 @@ mod tests {
     }
 
     #[test]
+    fn draw_all_places_the_stored_hidden_and_suppressed_parts_too() {
+        let bytes = named_tree_prc();
+        let options = crate::AssembleOptions {
+            stored_visibility: crate::StoredVisibility::DrawAll,
+            ..Default::default()
+        };
+        let m = crate::assemble_with_options(&bytes, &options).unwrap();
+        assert_eq!(m.mesh_placements, [0, 1, 2, 3, 4]);
+        let rows: Vec<_> = m
+            .tree
+            .iter()
+            .map(|n| (n.label(), n.drawn, n.placements.clone()))
+            .collect();
+        let s = String::from;
+        assert_eq!(
+            rows,
+            [
+                (s("Assembly"), true, 0..5),
+                (s("Bolt"), true, 0..1),
+                (s("Bracket"), true, 1..2),
+                (s("Plate"), true, 2..3),
+                (s("Pin"), false, 3..4),
+                (s("Nut"), false, 4..5),
+            ]
+        );
+    }
+
+    #[test]
     fn the_assembly_fixture_places_and_mirrors() {
         let bytes = assembly_prc();
         let f = crate::PrcFile::parse(&bytes).unwrap();
@@ -1891,9 +1919,14 @@ mod tests {
         let red = Some([1.0, 0.0, 0.0, 1.0]);
         let blue = Some([0.0, 0.0, 1.0, 128.0 / 255.0]);
         let walk = |scope| {
-            f.textured_placements(StyleAlpha::default(), TextureRules::default(), scope)
-                .unwrap()
-                .0
+            f.textured_placements(
+                StyleAlpha::default(),
+                TextureRules::default(),
+                scope,
+                crate::StoredVisibility::Honour,
+            )
+            .unwrap()
+            .0
         };
         let p = walk(EntityOverrides::Subtree);
         let xs: Vec<_> = p.iter().map(|p| p.matrix[0][3]).collect();

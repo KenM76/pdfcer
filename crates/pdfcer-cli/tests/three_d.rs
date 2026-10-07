@@ -1092,3 +1092,26 @@ fn a_prc_assembly_tree_is_listed() {
     assert_eq!(out.status.code(), Some(9));
     assert!(String::from_utf8_lossy(&out.stderr).contains("not a PRC model"));
 }
+
+#[cfg(feature = "3d")]
+#[test]
+fn draw_hidden_also_writes_the_parts_the_file_stores_hidden() {
+    let input = with_prc("draw_hidden", "named-tree.prc");
+    let output = input.with_extension("stl");
+    let triangles = |extra: &[&str]| {
+        let out = mesh(&input, "2", &output, extra);
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let stl = std::fs::read(&output).unwrap();
+        u32::from_le_bytes(stl[80..84].try_into().unwrap())
+    };
+    assert_eq!(triangles(&[]), 6, "three visible copies of the square");
+    assert_eq!(
+        triangles(&["--draw-hidden"]),
+        10,
+        "plus the hidden and suppressed copies"
+    );
+}

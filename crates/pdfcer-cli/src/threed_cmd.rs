@@ -117,14 +117,13 @@ pub(crate) fn cmd_mesh_3d(
     input: &Path,
     index: usize,
     output: &Path,
-    format: MeshFormat,
-    fit: MeshFitArg,
+    how: (MeshFormat, MeshFitArg, bool),
 ) -> u8 {
     let data = match artwork_bytes(input, index) {
         Ok((data, _)) => data,
         Err(code) => return code,
     };
-    mesh_from_bytes(input, index, &data, output, (format, fit))
+    mesh_from_bytes(input, index, &data, output, how)
 }
 
 /// The decoded bytes of the 3D artwork at `index` and the view it opens
@@ -183,6 +182,15 @@ fn mesh_fit(fit: MeshFitArg) -> pdfcer_3d::MeshFit {
     }
 }
 
+#[cfg(feature = "3d")]
+fn stored_visibility(draw_hidden: bool) -> pdfcer_3d::StoredVisibility {
+    if draw_hidden {
+        pdfcer_3d::StoredVisibility::DrawAll
+    } else {
+        pdfcer_3d::StoredVisibility::Honour
+    }
+}
+
 /// `3d-render`'s choices where ISO 14739-1 is silent.
 #[cfg(feature = "3d")]
 fn assemble_options(a: &RenderThreeDArgs<'_>) -> pdfcer_3d::AssembleOptions {
@@ -198,6 +206,7 @@ fn assemble_options(a: &RenderThreeDArgs<'_>) -> pdfcer_3d::AssembleOptions {
         EntityOverridesArg::Ignore => pdfcer_3d::EntityOverrides::Ignore,
     };
     options.mesh_fit = mesh_fit(a.mesh_fit);
+    options.stored_visibility = stored_visibility(a.draw_hidden);
     options.texture_origin = match a.texture_origin {
         TextureOriginArg::Bottom => pdfcer_3d::TextureOrigin::BottomLeft,
         TextureOriginArg::Top => pdfcer_3d::TextureOrigin::TopLeft,
@@ -260,7 +269,7 @@ fn mesh_from_bytes(
     index: usize,
     data: &[u8],
     output: &Path,
-    (format, fit): (MeshFormat, MeshFitArg),
+    (format, fit, draw_hidden): (MeshFormat, MeshFitArg, bool),
 ) -> u8 {
     let refuse = |why: String| {
         eprintln!("pdfcer: {}: 3D artwork {index}: {why}", input.display());
@@ -268,6 +277,7 @@ fn mesh_from_bytes(
     };
     let mut options = pdfcer_3d::AssembleOptions::default();
     options.mesh_fit = mesh_fit(fit);
+    options.stored_visibility = stored_visibility(draw_hidden);
     let a = match assemble_with(data, options) {
         Ok(a) => a,
         Err(why) => return refuse(why),
@@ -317,7 +327,7 @@ fn mesh_from_bytes(
     index: usize,
     _data: &[u8],
     _output: &Path,
-    _how: (MeshFormat, MeshFitArg),
+    _how: (MeshFormat, MeshFitArg, bool),
 ) -> u8 {
     no_3d_feature(input, index, "3d-mesh")
 }
@@ -351,6 +361,7 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) style_alpha: StyleAlphaArg,
     pub(crate) entity_overrides: EntityOverridesArg,
     pub(crate) mesh_fit: MeshFitArg,
+    pub(crate) draw_hidden: bool,
     pub(crate) texture_origin: TextureOriginArg,
     pub(crate) texture_wrap_base: TextureWrapBaseArg,
     pub(crate) texture_pictures: TexturePicturesArg,

@@ -91,6 +91,24 @@ pub struct AssembleOptions {
     pub entity_overrides: EntityOverrides,
     /// Whether a compressed mesh only a best-fit search rebuilds is drawn.
     pub mesh_fit: MeshFit,
+    /// Whether occurrences the file stores hidden or suppressed are drawn.
+    pub stored_visibility: StoredVisibility,
+}
+
+/// Whether [`assemble_with_options`] draws product occurrences the file
+/// stores hidden or suppressed [WD 7.3.10]. Either way the model tree lists
+/// them with their stored state ([`ModelNode::drawn`](crate::ModelNode::drawn)).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum StoredVisibility {
+    /// Leave them out, as the file asks.
+    #[default]
+    Honour,
+    /// Draw them too, each mesh still named by
+    /// [`AssembledModel::mesh_placements`], so a shell can start with the
+    /// stored state and let the operator show a hidden part. Entities hidden
+    /// inside a part (by the part or by an entity reference) stay hidden.
+    DrawAll,
 }
 
 /// Whether a compressed mesh only a best-fit search rebuilds is drawn.
@@ -342,31 +360,35 @@ fn place(
         wrap: options.wrap_base,
         origin: options.texture_origin,
     };
-    model.unplaced =
-        match prc.textured_placements(options.style_alpha, rules, options.entity_overrides) {
-            Ok((placements, tree)) if !placements.is_empty() => {
-                let mut textures = Textures::default();
-                for (k, p) in placements.iter().enumerate() {
-                    let mesh = by_index
-                        .get(p.file_structure)
-                        .and_then(|row| row.get(p.tessellation))
-                        .and_then(Option::as_ref);
-                    if let Some(mesh) = mesh {
-                        model.overridden +=
-                            usize::from(p.item_override.is_some() || !p.face_overrides.is_empty());
-                        place_one(p, mesh, &mut textures, model);
-                        model.mesh_placements.resize(model.meshes.len(), k);
-                    }
+    model.unplaced = match prc.textured_placements(
+        options.style_alpha,
+        rules,
+        options.entity_overrides,
+        options.stored_visibility,
+    ) {
+        Ok((placements, tree)) if !placements.is_empty() => {
+            let mut textures = Textures::default();
+            for (k, p) in placements.iter().enumerate() {
+                let mesh = by_index
+                    .get(p.file_structure)
+                    .and_then(|row| row.get(p.tessellation))
+                    .and_then(Option::as_ref);
+                if let Some(mesh) = mesh {
+                    model.overridden +=
+                        usize::from(p.item_override.is_some() || !p.face_overrides.is_empty());
+                    place_one(p, mesh, &mut textures, model);
+                    model.mesh_placements.resize(model.meshes.len(), k);
                 }
-                model.tree = tree;
-                model.textures = textures.drawn;
-                model.texture_notes = textures.notes;
-                None
             }
-            Ok(_) if !prc.stores_tree() => Some("the file stores no assembly tree".to_owned()),
-            Ok(_) => Some("the model's tree places no tessellation".to_owned()),
-            Err(err) => Some(err.to_string()),
-        };
+            model.tree = tree;
+            model.textures = textures.drawn;
+            model.texture_notes = textures.notes;
+            None
+        }
+        Ok(_) if !prc.stores_tree() => Some("the file stores no assembly tree".to_owned()),
+        Ok(_) => Some("the model's tree places no tessellation".to_owned()),
+        Err(err) => Some(err.to_string()),
+    };
     if model.unplaced.is_some() {
         model
             .meshes

@@ -3022,7 +3022,15 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `n` drew mesh `k` iff `n.placements.contains(&mesh_placements[k])`: hide,
   isolate or highlight by that test. A placement can draw no mesh (left out,
   or wire only) or several (one per colour). Both empty when `unplaced` is
-  `Some`. Showing a part the file stores hidden is not offered.
+  `Some`.
+- **Showing a stored-hidden part.** `AssembleOptions::stored_visibility:
+  StoredVisibility::{Honour (default), DrawAll}` (`Copy`, `Hash`,
+  `#[non_exhaustive]`, re-exported at the crate root). `DrawAll` also places
+  occurrences stored hidden or suppressed, so their nodes' ranges are no
+  longer empty; `ModelNode::drawn` still reports the stored state, so start
+  with those nodes' meshes hidden and let the operator show them. Entities
+  hidden inside a part (by the part or an entity reference) stay hidden.
+  CLI: `3d-render` / `3d-mesh --draw-hidden`.
 - `Placement::triangle_colours(&mesh) -> Option<Vec<Option<[f64; 4]>>>`: per
   triangle of that placement's (untransformed) mesh, the colour when faces
   carry their own style (`TESS_Face` line attributes, taking part in the same
