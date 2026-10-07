@@ -115,6 +115,40 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 517.0` — a greedy best-fit reading rebuilds compressed meshes whose choices lie far apart — SHIPPED 2026-10-07 (996th filing)
+
+Commit `86f0dbec`. Second-assembly-sample arc work (follows `515.0`/`516.0`); residue of the
+Backlog item "3D compressed meshes still unfit". Crate `pdfcer-3d` only
+(`compressed.rs`, `compressed/search.rs`); no `pub` API change, no manifest or
+dependency change (`cargo tree` not applicable).
+
+**Delivered.** The best-fit search gains a last reading, `greedy`: it grows one
+choice set a candidate per round, keeping the candidate whose walk reaches
+furthest. It runs with open-continuation-edge-overrides-stored-normal
+(`Walk::open_wins`) and with new "loose" candidates: a fold oriented by a
+stored normal rather than a record's reversed bit is also a search choice
+(`Walk` gains `exact` and `loose`). Why: the depth-first search spent its
+budget under a wrong first choice.
+
+**Measured (local samples, engineer-reported).**
+- Dump set: 19 of 24 meshes rebuilt (was 17, none lost).
+- Second assembly sample: 136 rebuilt / 5 left out (was 134 / 7), same 79 s.
+- Door assembly sample: unchanged 151 / 5, 11 s.
+- The 5 left out per sample all fail "an edge is shared by more than two
+  triangles". 5 dump meshes still stall under greedy.
+
+**Tests.** `pdfcer-3d` 154 passed (140 lib + 3 + 11). New
+`an_inexact_signalled_fold_is_a_candidate_only_when_loose`; sabotage of the
+step-record term fails it. fmt, clippy `-D warnings`, `check-string-gaps`,
+`check-code-structure` clean (engineer-reported).
+
+**Boxes.** `FEATURES.md`: PRC mesh-export row cites `517.0`; core `[x]`, cli
+`[x]` (`3d-mesh` uses it automatically and reports best-fit parts), gui `[ ]`
+unchanged.
+
+**Open follow-up.** The 5 dump meshes greedy cannot rebuild; the 5 left-out
+meshes per sample with over-shared edges (Backlog item updated).
+
 ### `Pass 516.0` — an inferred OCR paragraph keeps a short last line (`G133`) — SHIPPED 2026-10-06 (995th filing)
 
 Commit `420f7657`. Source: `pdfcer-gui` request `G133` (open file
@@ -31167,6 +31201,12 @@ nothing gets forgotten, not as a commitment to build in this order.
 
 ### 3D compressed meshes still unfit (residue of `Pass 512.0`)
 
+- **After `Pass 517.0` (`86f0dbec`): 5 left out in the second assembly sample
+  (was 7), 5 in the door assembly sample; 19 of 24 dumped meshes rebuild.** All
+  still fail "an edge is shared by more than two triangles". 5 dump meshes
+  still stall under the greedy reading (degenerate/collinear apexes involved).
+  The "greedy search: no better" note below is superseded by `517.0` (it works
+  once paired with open-wins and loose candidates).
 - **After `Pass 515.0` (`21428aae`): 7 left out in the second assembly sample
   (was 9), 5 in the door assembly sample.** The 7: 4 brackets (~9.4-10k
   triangles), 2 nuts, one 1780-triangle mesh; all hit the search budget, none

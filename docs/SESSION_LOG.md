@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (996th filing) — `Pass 517.0` shipped (greedy best-fit reading, compressed meshes)
+
+**Shipped:**
+- `Pass 517.0` — `86f0dbec`, `pdfcer-3d` only (`compressed.rs`, `compressed/search.rs`). Greedy reading with `open_wins` and loose candidates. Details in the ROADMAP entry.
+
+**Decisions made this session:** None.
+
+**Findings + decisions:**
+- Second assembly sample 134/7 -> 136/5 rebuilt/left out, same 79 s; door sample unchanged 151/5; dump set 17 -> 19 of 24.
+- Supersedes the 994th-filing note that greedy search was "researched and rejected": it helps once combined with open-wins and loose candidates.
+- Remaining: 5 dump meshes stall under greedy (degenerate/collinear apexes); 5 left out per sample with over-shared edges.
+- `FEATURES.md`: PRC mesh-export row cites `517.0`, boxes unchanged. Backlog item amended in place.
+
+**Still in flight:** Backlog "3D compressed meshes still unfit".
+
+**Sourcing note (hard rule 8):** figures and gate results engineer-reported; push/backup/CI not checked here (no shell).
+
 ## 2026-10-06 (995th filing) — `Pass 516.0` shipped (inferred OCR paragraph keeps a short last line, `G133`)
 
 **Shipped:**
