@@ -3010,7 +3010,19 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `placements_with(any rule)` — same order). `label() -> String` is the
   name a row is listed under (`name`, or `occurrence F:I`). Toggling a node's visibility
   is a shell matter: drop that range from what you draw. Errors as
-  `placements()`. CLI: `pdfcer 3d-tree IN --index N [--json]`.
+  `placements()`; a file storing no assembly tree (`prc.stores_tree()` false:
+  a tessellation-only file, outside ISO 14739-1 but still drawn) lists an
+  empty tree, not an error. CLI: `pdfcer 3d-tree IN --index N [--json]`.
+  Fixture `fixtures/synthetic/prc/named-tree.prc`: parts named directly, by
+  prototype and by part, one stored hidden and one suppressed.
+- `AssembledModel::mesh_placements: Vec<usize>` (parallel to `meshes`) names
+  each mesh's placement; `AssembledModel::tree: Vec<ModelNode>` is the model
+  tree read in the same pass under the same `entity_overrides` (an override
+  can hide a placement and shift the ranges `model_tree()` would give). Node
+  `n` drew mesh `k` iff `n.placements.contains(&mesh_placements[k])`: hide,
+  isolate or highlight by that test. A placement can draw no mesh (left out,
+  or wire only) or several (one per colour). Both empty when `unplaced` is
+  `Some`. Showing a part the file stores hidden is not offered.
 - `Placement::triangle_colours(&mesh) -> Option<Vec<Option<[f64; 4]>>>`: per
   triangle of that placement's (untransformed) mesh, the colour when faces
   carry their own style (`TESS_Face` line attributes, taking part in the same

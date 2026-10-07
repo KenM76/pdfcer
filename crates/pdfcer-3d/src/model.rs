@@ -61,6 +61,17 @@ pub struct AssembledModel {
     /// Each distinct reason a textured surface drew its base colour (or a
     /// texture was drawn only in part), with the placements it affected.
     pub texture_notes: Vec<(String, usize)>,
+    /// Each mesh's placement, an index into the placements
+    /// [`Self::tree`]'s ranges index, parallel to [`Self::meshes`] (empty
+    /// when placements were not applied). A placement draws no mesh when
+    /// its tessellation was left out or is a wire, and several when its
+    /// colours split it.
+    pub mesh_placements: Vec<usize>,
+    /// The model tree, as [`PrcFile::model_tree`] lists it, read with
+    /// [`AssembleOptions::entity_overrides`] (an occurrence's override can
+    /// hide a placement, which shifts the ranges); empty when placements
+    /// were not applied.
+    pub tree: Vec<crate::ModelNode>,
 }
 
 /// How [`assemble_with_options`] reads choices ISO 14739-1 leaves open.
@@ -333,9 +344,9 @@ fn place(
     };
     model.unplaced =
         match prc.textured_placements(options.style_alpha, rules, options.entity_overrides) {
-            Ok(placements) if !placements.is_empty() => {
+            Ok((placements, tree)) if !placements.is_empty() => {
                 let mut textures = Textures::default();
-                for p in &placements {
+                for (k, p) in placements.iter().enumerate() {
                     let mesh = by_index
                         .get(p.file_structure)
                         .and_then(|row| row.get(p.tessellation))
@@ -344,12 +355,15 @@ fn place(
                         model.overridden +=
                             usize::from(p.item_override.is_some() || !p.face_overrides.is_empty());
                         place_one(p, mesh, &mut textures, model);
+                        model.mesh_placements.resize(model.meshes.len(), k);
                     }
                 }
+                model.tree = tree;
                 model.textures = textures.drawn;
                 model.texture_notes = textures.notes;
                 None
             }
+            Ok(_) if !prc.stores_tree() => Some("the file stores no assembly tree".to_owned()),
             Ok(_) => Some("the model's tree places no tessellation".to_owned()),
             Err(err) => Some(err.to_string()),
         };
@@ -359,6 +373,7 @@ fn place(
             .extend(by_index.into_iter().flatten().flatten());
         model.colours.clear();
         model.mesh_textures.clear();
+        model.mesh_placements.clear();
     }
     model.textured = model.mesh_textures.iter().flatten().count();
 }
@@ -564,7 +579,7 @@ pub fn render_model(
 }
 
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::indexing_slicing)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::indexing_slicing)] // Tests fail loudly.
 mod tests {
     use super::*;
 
@@ -622,6 +637,24 @@ mod tests {
         ));
     }
 
+    /// A tessellation-only file lists an empty tree and draws unplaced,
+    /// saying why; a stored tree is read.
+    #[test]
+    fn a_file_with_no_assembly_tree_lists_an_empty_one() {
+        let square = PrcFile::parse(&fixture("square.prc")).unwrap();
+        assert!(!square.stores_tree());
+        assert_eq!(square.model_tree().unwrap(), []);
+        let model = assemble(&fixture("square.prc")).unwrap();
+        assert_eq!(
+            model.unplaced.as_deref(),
+            Some("the file stores no assembly tree")
+        );
+        assert!(model.tree.is_empty() && model.mesh_placements.is_empty());
+        let assembly = PrcFile::parse(&fixture("assembly.prc")).unwrap();
+        assert!(assembly.stores_tree());
+        assert_eq!(assembly.model_tree().unwrap().len(), 3);
+    }
+
     #[cfg(feature = "render")]
     #[test]
     fn the_default_view_draws_the_model_on_white() {
@@ -631,5 +664,31 @@ mod tests {
         let px = |x: usize, y: usize| &image.rgba[(y * 64 + x) * 4..][..4];
         assert_eq!(px(0, 0), [255, 255, 255, 255], "corner is background");
         assert_ne!(px(32, 24), [255, 255, 255, 255], "centre is the model");
+    }
+
+    /// A placement whose faces differ in look draws one mesh per look, each
+    /// naming that placement: the overridden fixture's square given a
+    /// second face, which the second occurrence's face-0 override leaves
+    /// alone.
+    #[test]
+    fn every_mesh_a_split_placement_draws_names_it() {
+        let prc = PrcFile::parse(&fixture("overridden.prc")).unwrap();
+        let mut model = AssembledModel::default();
+        let mut by_index = decode_meshes(
+            &prc,
+            MeshFit::default(),
+            &mut model,
+            &mut Flagged::default(),
+        )
+        .unwrap();
+        for mesh in by_index.iter_mut().flatten().flatten() {
+            let n = mesh.triangles.len();
+            mesh.triangles.extend_from_within(..);
+            mesh.faces = vec![0..n, n..2 * n];
+        }
+        place(&prc, by_index, &AssembleOptions::default(), &mut model);
+        assert_eq!(model.mesh_placements, [0, 1, 1]);
+        assert_eq!(model.meshes.len(), 3);
+        assert_ne!(model.colours[1], model.colours[2]);
     }
 }

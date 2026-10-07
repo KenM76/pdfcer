@@ -1365,6 +1365,11 @@ mod tests {
 
     /// One file structure holding `tess` and the occurrence tree `occs`.
     fn placed(tess: &[u8], occs: &[Occ]) -> Vec<u8> {
+        placed_tree(tess, &tree(occs, 0, false).bytes())
+    }
+
+    /// One file structure holding `tess` and the tree section `tree`.
+    fn placed_tree(tess: &[u8], tree: &[u8]) -> Vec<u8> {
         let schema = W::default().uint(0).bytes();
         let mut model = W::default();
         model
@@ -1380,7 +1385,78 @@ mod tests {
             model.uint(id);
         }
         model.uint(1).bit(true);
-        crate::testw::prc_container(&schema, &tree(occs, 0, false).bytes(), tess, &model.bytes())
+        crate::testw::prc_container(&schema, tree, tess, &model.bytes())
+    }
+
+    /// The square under a root with a part named directly, one named by
+    /// its prototype, one by its part, one stored hidden and one
+    /// suppressed: every state a model-tree panel shows.
+    fn named_tree_prc() -> Vec<u8> {
+        let square = crate::PrcFile::parse(include_bytes!(
+            "../../../../fixtures/synthetic/prc/square.prc"
+        ))
+        .unwrap();
+        let tess = square.file_structures[0].section(crate::SectionKind::Tessellation);
+        let part = |name| Occ {
+            part: 1,
+            name: Some(name),
+            ..OCC
+        };
+        let occs = [
+            Occ {
+                sons: &[1, 2, 3, 4, 5],
+                name: Some(Some("Assembly")),
+                ..OCC
+            },
+            part(Some("Bolt")),
+            Occ {
+                prototype: Some((7, None)),
+                name: Some(None),
+                ..OCC
+            },
+            part(None),
+            Occ {
+                behaviour: Some((0, 0)),
+                ..part(Some("Pin"))
+            },
+            Occ {
+                suppressed: true,
+                ..part(Some("Nut"))
+            },
+            part(Some("Bracket")),
+        ];
+        placed_tree(
+            tess,
+            &tree_with(&occs, 0, false, Some(Some("Plate")), None).bytes(),
+        )
+    }
+
+    #[test]
+    fn the_named_tree_fixture_shows_every_listed_state() {
+        let bytes = named_tree_prc();
+        let f = crate::PrcFile::parse(&bytes).unwrap();
+        let rows: Vec<_> = f
+            .model_tree()
+            .unwrap()
+            .iter()
+            .map(|n| (n.label(), n.name_from, n.hidden, n.suppressed, n.drawn))
+            .collect();
+        let s = String::from;
+        use NameSource::{Occurrence as O, Part, Prototype};
+        assert_eq!(
+            rows,
+            [
+                (s("Assembly"), O, false, false, true),
+                (s("Bolt"), O, false, false, true),
+                (s("Bracket"), Prototype, false, false, true),
+                (s("Plate"), Part, false, false, true),
+                (s("Pin"), O, true, false, false),
+                (s("Nut"), O, false, true, false),
+            ]
+        );
+        let m = crate::assemble(&bytes).unwrap();
+        assert_eq!(m.mesh_placements, [0, 1, 2]);
+        crate::testw::check_fixture("named-tree.prc", &bytes);
     }
 
     #[test]
@@ -1817,6 +1893,7 @@ mod tests {
         let walk = |scope| {
             f.textured_placements(StyleAlpha::default(), TextureRules::default(), scope)
                 .unwrap()
+                .0
         };
         let p = walk(EntityOverrides::Subtree);
         let xs: Vec<_> = p.iter().map(|p| p.matrix[0][3]).collect();
@@ -1844,6 +1921,32 @@ mod tests {
                 .all(|p| p.face_overrides.is_empty() && p.item_override.is_none())
         );
         crate::testw::check_fixture("overridden.prc", &bytes);
+    }
+
+    /// Each mesh names the placement that drew it, and the tree read with
+    /// the same overrides indexes those placements: hiding the third
+    /// occurrence's square shifts nothing before it, and a placement whose
+    /// faces differ in colour draws two meshes.
+    #[test]
+    fn an_assembled_mesh_names_its_placement_under_the_same_overrides() {
+        let bytes = overridden_prc();
+        let read = |scope| {
+            let options = crate::AssembleOptions {
+                entity_overrides: scope,
+                ..crate::AssembleOptions::default()
+            };
+            let m = crate::assemble_with_options(&bytes, &options).unwrap();
+            let ranges: Vec<_> = m.tree.iter().map(|n| n.placements.clone()).collect();
+            (m.mesh_placements, ranges)
+        };
+        assert_eq!(
+            read(EntityOverrides::Subtree),
+            (vec![0, 1], vec![0..2, 0..1, 1..2, 2..2])
+        );
+        assert_eq!(
+            read(EntityOverrides::Ignore),
+            (vec![0, 1, 2], vec![0..3, 0..1, 1..2, 2..3])
+        );
     }
 
     /// Globals with grey, a 2x2 raw-RGB picture in header file 1, a texture

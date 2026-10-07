@@ -400,7 +400,8 @@ impl PrcFile {
     /// representation item's local coordinate system applied last
     /// [WD 7.3.10.1, 7.6.3.2]. Suppressed occurrences and hidden entities
     /// are left out. A tessellation drawn by several occurrences appears
-    /// once per occurrence.
+    /// once per occurrence. Empty when the file stores no assembly tree
+    /// ([`Self::stores_tree`]).
     ///
     /// # Errors
     /// [`PrcError::Unsupported`] for a tree carrying markups (PMI), views,
@@ -427,21 +428,22 @@ impl PrcFile {
 
     /// [`Self::placements_with`], each placement also carrying its styles'
     /// textures, resolved by `rules`, and its entity references applied
-    /// by `scope`.
+    /// by `scope`; with the model tree whose ranges index them.
     pub(crate) fn textured_placements(
         &self,
         rule: crate::StyleAlpha,
         rules: crate::tree::TextureRules,
         scope: crate::EntityOverrides,
-    ) -> Result<Vec<crate::Placement>, PrcError> {
-        Ok(self.walk(rule, scope, Some(rules))?.0)
+    ) -> Result<(Vec<crate::Placement>, Vec<crate::ModelNode>), PrcError> {
+        self.walk(rule, scope, Some(rules))
     }
 
     /// The assembly tree as a model-tree panel lists it: every product
     /// occurrence the model file's roots reach, depth first, with its
     /// display name and stored visibility. Hidden and suppressed subtrees
     /// are listed (with `drawn` false) though [`Self::placements`] leaves
-    /// them out; each node's `placements` range indexes that list.
+    /// them out; each node's `placements` range indexes that list. Empty
+    /// when the file stores no assembly tree (see [`Self::stores_tree`]).
     ///
     /// # Errors
     /// As [`Self::placements`].
@@ -455,6 +457,15 @@ impl PrcFile {
             .1)
     }
 
+    /// Whether the file stores an assembly tree: its model file holds an
+    /// entity. ISO 14739-1 requires one, but a tessellation-only file still
+    /// draws (unplaced), so its absence reads as an empty tree, not an
+    /// error; a tree that is stored but unreadable is still an error.
+    #[must_use]
+    pub fn stores_tree(&self) -> bool {
+        self.model_file.iter().any(|&b| b != 0)
+    }
+
     fn walk(
         &self,
         rule: crate::StyleAlpha,
@@ -463,6 +474,9 @@ impl PrcFile {
     ) -> Result<(Vec<crate::Placement>, Vec<crate::ModelNode>), PrcError> {
         use crate::bits::BitReader;
         use crate::tess::Ctx;
+        if !self.stores_tree() {
+            return Ok((Vec::new(), Vec::new()));
+        }
         let mut trees = Vec::with_capacity(self.file_structures.len());
         for fs in &self.file_structures {
             let schema = fs.schema()?;
