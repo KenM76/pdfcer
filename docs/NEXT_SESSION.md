@@ -4,9 +4,11 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-10-07, after `Pass 523.0` and the 1002nd filing.
+**Written:** 2026-10-07, after `Pass 524.0` and the 1003rd filing.
 
 **v0.80.0 RELEASED 2026-10-06** (tag on bump `dc39139b`; Passes 509.0-512.0; run-gates 45/45, CI green, `verify-release.py` clean; GitHub zip 25,367,016 bytes + three OCR add-ons via `gh-release.py`; OneDrive `pdfcer1` = 0.80.0, `pdfcer2` keeps 0.79.0 -- **the next release writes `pdfcer2`**).
+
+**Pass 524.0 (`3014387c`, filed 1003rd `457a8d42`):** self-scoped -- `pdfcer text-locate FILE --page N --find TEXT` prints `object=I/run=J` / `leaf=I/run=J` text-run operands per occurrence via `vector::locate_text_run`, over the page text as `extract-text --include-artifacts` prints it (a word split across objects lists every piece). Pass 523.0's CI fix went green (run 37608794132). Remaining core-[x]/cli-[ ] candidates: `GlyphProvenance` line width/render mode, diagnostics, `apply_redactions`, `DIVERGENCE_KEYS`. Next Pass 525.0, next filing 1004th.
 
 **Pass 523.0 (`f661cce7`, filed 1002nd `aa290264`):** CI was RED from `7a614685` on: Pass 520.0's `if let Inner::Program` in `OcrRunner::recognize_page` is irrefutable in the lite CLI build. Fixed via `as_program()`. Root cause of the green local sweep: `check-ci-parity.py` matched by first substring, so the lite clippy was classed as covered by the all-features one and `run-gates.sh` never ran it; now longest needle wins and run-gates runs it. Confirm CI green on the push after this. Next Pass 524.0, next filing 1003rd.
 
