@@ -1304,7 +1304,7 @@ write with no read is a control that opens on a guess).
 | half | API |
 |---|---|
 | **read** | `annot::stamp_label_parameters_in(&graph, StreamSource, &Dict) -> Option<StampLabelParameters>` — read-only, no session needed; `EditSession::stamp_label_parameters(annot_id) -> Result<Option<_>, EditError>` delegates to it |
-| **write** | `TextAnnotStyle::font_size: Option<f64>` (+ `stamp_fit: Option<StampFit>`) through `set_text_annot_style` |
+| **write** | `TextAnnotStyle::font_size: Option<f64>` (+ `stamp_fit: Option<StampFit>`) through `set_text_annot_style`; also a `/FreeText`'s `/DA` size (`Pass 538.0`) |
 | **CLI** | `list-annotations` appends `stamp_label=`, `stamp_size=`, `stamp_size_from=`; `set-text-annot-style --font-size POINTS [--stamp-fit grow\|shrink\|clip]` |
 
 `StampLabelParameters { label, size, size_source }`. **The provenance is the
