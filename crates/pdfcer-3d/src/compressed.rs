@@ -243,6 +243,11 @@ struct Walk<'a> {
     /// across a closed edge while the other edge is open gives way, as an
     /// unsignalled fold does (see [`Walk::step`]).
     open_wins: bool,
+    /// Whether the last triangle's fold came from a record's reversed bit.
+    exact: bool,
+    /// Set by the best-fit search: a fold [`Walk::exact`] did not decide is
+    /// a search candidate too.
+    loose: bool,
     /// Whether any apex so far, rewound or not, would move under the
     /// other [`Arrays::ortho_turned`].
     reads_turned: bool,
@@ -280,6 +285,8 @@ impl<'a> Walk<'a> {
             degenerate: false,
             raw: false,
             open_wins: false,
+            exact: false,
+            loose: false,
             reads_turned: false,
         }
     }
@@ -426,6 +433,7 @@ impl<'a> Walk<'a> {
             Orientation::Reused(_) if legacy => fold,
             Orientation::Reversed(rev) => {
                 self.signalled = true;
+                self.exact = true;
                 rev != (t[0] > t[1])
             }
             Orientation::Normal(n) | Orientation::Reused(n) => {
@@ -460,6 +468,7 @@ impl<'a> Walk<'a> {
             }
         }
         self.signalled = false;
+        self.exact = false;
         self.weak = {
             let (p, q, r) = (self.get(ta)?, self.get(tb)?, self.get(tc)?);
             let long = [sub(q, p), sub(r, q), sub(p, r)]

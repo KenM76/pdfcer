@@ -169,7 +169,7 @@ pub(super) fn fits_within(a: &Arrays<'_>, depth: usize) -> bool {
 /// reading: the arrays as read, then [`Arrays::legacy_orient`], then with
 /// slivers oriented by their corner normals ([`Walk::raw`]), then with a
 /// closed continuation edge overriding a stored normal
-/// ([`Walk::open_wins`]). Measured on real producers, a normal can send
+/// ([`Walk::open_wins`]), then [`greedy`]. Measured on real producers, a normal can send
 /// the walk onto an edge two triangles already share, which no choice
 /// after it can repair. The result
 /// consumes every array and stored normal and keeps every planar face
@@ -201,6 +201,47 @@ pub(super) fn best_fit(a: &Arrays<'_>) -> Option<TriangleMesh> {
             Search::Refused | Search::NoFit => None,
         }
     })
+    .or_else(|| greedy(a, a.normals.as_ref()?))
+}
+
+/// The last best-fit reading: one choice set grown a choice at a time,
+/// each round adding the candidate whose walk gets furthest, with
+/// [`Walk::open_wins`] and [`Walk::loose`] candidates. A depth-first
+/// search spends its budget under a wrong first choice; measured on real
+/// producers, the furthest-reaching choice is the needed one at each
+/// failure, so this fits meshes whose choices lie far apart.
+fn greedy(a: &Arrays<'_>, n: &NormalArrays<'_>) -> Option<TriangleMesh> {
+    let mut walker = Resume::new(a, n, SNAP_EVERY, false);
+    walker.w.open_wins = true;
+    walker.w.loose = true;
+    let mut flips = Vec::new();
+    let mut candidates = match walker.attempt(a, n, &flips) {
+        Outcome::Fit(m) => return Some(m),
+        Outcome::Failed(c) => c,
+        Outcome::Dead => return None,
+    };
+    let mut reached = walker.steps.len();
+    while walker.spent < BEST_BUDGET {
+        let mut best: Option<(usize, Choice, Vec<Choice>)> = None;
+        for j in candidates {
+            let mut g = flips.clone();
+            g.push(j);
+            match walker.attempt(a, n, &g) {
+                Outcome::Fit(m) => return Some(m),
+                Outcome::Failed(c) => {
+                    let r = walker.steps.len();
+                    if r > best.as_ref().map_or(reached, |b| b.0) {
+                        best = Some((r, j, c));
+                    }
+                }
+                Outcome::Dead => {}
+            }
+        }
+        let (r, j, c) = best?;
+        flips.push(j);
+        (reached, candidates) = (r, c);
+    }
+    None
 }
 
 /// How one search runs.
@@ -383,7 +424,7 @@ impl<'a> Resume<'a> {
             }
             self.steps.push(Step {
                 start,
-                fold: !self.w.signalled || self.w.weak,
+                fold: !self.w.signalled || self.w.weak || (self.w.loose && !self.w.exact),
                 turn: self.w.degenerate,
             });
         }
@@ -683,5 +724,56 @@ mod tests {
             Search::Refused | Search::NoFit => Vec::new(),
         };
         assert_eq!(fit, tetra);
+    }
+    /// The same tetrahedron: the third triangle's fold comes from a stored
+    /// normal, not a reversed bit, so only a loose walk offers it as a
+    /// candidate, and flipping it fits.
+    #[test]
+    fn an_inexact_signalled_fold_is_a_candidate_only_when_loose() {
+        let pts = [0, 0, 0, 4, 0, 0, -2, 4, 0, 0, 0, 4];
+        let mut status = [0; 12];
+        status[..3].copy_from_slice(&[2, 2, 2]);
+        let mut is_ref = [false; 6];
+        is_ref[4..].copy_from_slice(&[true, true]);
+        let mut binary = [false; 16];
+        binary[13] = true;
+        let angles = [0; 8];
+        let n = NormalArrays {
+            bits: 10,
+            binary: &binary,
+            angles: &angles,
+            planar: &[false],
+            face_of: &[0; 4],
+        };
+        let a = Arrays {
+            tolerance: 0.5,
+            origin: [10.0, 0.0, 0.0],
+            points: &pts,
+            edge_status: &status,
+            triangles: 4,
+            is_reference: &is_ref,
+            references: &[0, 2],
+            ortho_turned: false,
+            legacy_orient: false,
+            normals: Some(n),
+        };
+        let mut out = Vec::new();
+        for loose in [false, true] {
+            let mut r = Resume::new(&a, &n, 1, false);
+            r.w.loose = loose;
+            let c = match r.attempt(&a, &n, &[]) {
+                Outcome::Failed(c) => c,
+                Outcome::Fit(_) | Outcome::Dead => Vec::new(),
+            };
+            let fit = match r.attempt(&a, &n, &[Choice::Fold(2)]) {
+                Outcome::Fit(m) => m.triangles,
+                Outcome::Failed(_) | Outcome::Dead => Vec::new(),
+            };
+            out.push((c, fit));
+        }
+        let tetra = vec![[0, 1, 2], [2, 1, 3], [3, 1, 0], [3, 0, 2]];
+        assert!(out[0].0.is_empty());
+        assert!(out[1].0 == [Choice::Fold(2)]);
+        assert_eq!(out[1].1, tetra);
     }
 }
