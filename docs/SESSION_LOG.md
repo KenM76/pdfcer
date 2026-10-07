@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1004th filing) — `Pass 525.0` shipped (`text-locate` reports font and synthetic style)
+
+**Shipped:**
+- `Pass 525.0` — `e8ea7598`. Details in the ROADMAP entry.
+
+**Decisions made this session:** None new.
+
+**Findings + decisions:**
+- The font must be resolved from the drawing stream's own `/Resources` (enclosing form, else page), or a form with no page-level `/Font` reports `?`; sabotage of that lookup fails the form test.
+- `FEATURES.md`: `GlyphProvenance` row cli `[ ]` to `[x]`; gui stays `[ ]`.
+
+**Still in flight:** push. Next free `Pass 526.0`; next filing 1005th.
+
+**Sourcing note (hard rule 8):** test and gate results engineer-reported; hash as supplied; push/backup/CI colour not checked here; no shell, nothing committed.
+
 ## 2026-10-07 (1003rd filing) — `Pass 524.0` shipped (`pdfcer text-locate`)
 
 **Shipped:**

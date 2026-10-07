@@ -115,6 +115,33 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 525.0` — `text-locate` reports each located run's font and synthetic style (CLI over `GlyphProvenance` + `synth::detect_at`) — SHIPPED 2026-10-07 (1004th filing)
+
+Commit `e8ea75985de31a7dfd388860339e18cdf31cc0f5`. CLI only; no `Cargo.toml` change (`cargo tree` not applicable). Self-scoped follow-on to `Pass 524.0`.
+
+**Delivered.** After each `match` line, `pdfcer text-locate` prints one
+`target match=K ref=R font=F render_mode=M line_width=W synthetic=S` line per located run.
+`font=` is the `/BaseFont` the glyph was shown in, resolved from the drawing stream's own `/Resources`
+(the directly enclosing form's, else the page's, ISO 32000 §7.8.3), so a `Tf` switch mid text object
+names the later run's own face; `?` if unreadable. `render_mode=` is `Tr` 0-7; `line_width=` is the
+user-space width from `GlyphProvenance`. `synthetic=` is `text_edit::synth::detect_at` over the
+provenance: `none`/`bold`/`italic`/`bold-italic`, or `unknown` when no `/BaseFont` can be read.
+
+**Files.** `crates/pdfcer-cli/src/text_locate_cmd.rs`, `tests/text_locate.rs`;
+`docs/core-api/01-reading-and-model.md` (CLI-twin note after the `G087` `detect_at` passage);
+`docs/core-api/index.md` count 3,889 to 3,892.
+
+**Verified (engineer-reported).** `text_locate` module now 7 tests (3 new: synthetic bold+italic after
+`format-text`; mid-object font switch to Courier; form whose page resources carry no `/Font`). Sabotage
+of the form-resource lookup fails the form test; restored. fmt, clippy (full clean; lite not re-run after
+the doc-only edit), code-structure, string-gaps, check-clap-help, check-core-api-verbs,
+check-tests-harnessed clean.
+
+`FEATURES.md`: the "`GlyphProvenance` carries line width and render mode" row goes cli `[x]`; core `[x]`,
+gui `[ ]` unchanged.
+
+Ledgers: no decision; next free `Pass 526.0`; next filing 1005th.
+
 ### `Pass 524.0` — `pdfcer text-locate`: searched text maps to editable runs (CLI over `locate_text_run`, `Pass 317.0`/`G037`) — SHIPPED 2026-10-07 (1003rd filing)
 
 Commit `3014387c6f30773d3b1a1c410d5cd6d10ce96aea`. CLI only; no core change; no `Cargo.toml` change (`cargo tree` not applicable). Self-scoped from a FEATURES core-`[x]`/cli-`[ ]` row.
