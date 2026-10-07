@@ -71,11 +71,10 @@
 //! fuzz target) that is well within a screen pixel at any realistic zoom
 //! for the tolerances selection uses.
 
-use super::decompose::{
-    FillRule, ImageSource, PageObjects, PathObject, Segment, Subpath, TextObject, VectorObject,
-};
-use super::geometry::{Bounds, Matrix, Point};
+use super::decompose::{ImageSource, PageObjects, PathObject, Subpath, TextObject, VectorObject};
+use super::geometry::{Bounds, Point};
 use super::image_hit::{ImageAlpha, NoImageAlpha, image_hit};
+use super::path_geom::{dist_sq_point_segment, flatten, path_hit, point_inside, stroke_half_width};
 
 /// Fixed cubic-flattening subdivision (module docs). 16 chords is
 /// sub-pixel for selection tolerances and bounds the per-object work a
@@ -721,7 +720,7 @@ pub fn subpath_bounds(model: &PageObjects, object_index: usize, subpath: usize) 
 /// Shortest distance from `point` to any segment of these subpaths, or
 /// infinity if they contain no segment.
 ///
-/// Factored out of [`outline_within`]'s shape because [`hit_test_subpaths`]
+/// Factored out of `outline_within`'s shape because [`hit_test_subpaths`]
 /// needs the magnitude to ORDER hits, not merely a yes/no against a threshold.
 /// `outline_within` keeps its early return — it is on the per-object hit path,
 /// where the answer is a bool and stopping at the first segment within range
@@ -754,213 +753,6 @@ fn object_hit(obj: &VectorObject, point: Point, tolerance: f64, alpha: &dyn Imag
     }
 }
 
-/// Whether `point` hits a path object: inside its fill (if filled) or
-/// within the stroke/clip proximity threshold of its outline.
-fn path_hit(path: &PathObject, point: Point, tolerance: f64) -> bool {
-    // A cheap bbox reject first (the object's page bbox widened by the
-    // stroke half-width and tolerance).
-    let half = stroke_half_width(path);
-    if !path.page_bbox.inflate(half + tolerance).contains(point) {
-        return false;
-    }
-
-    let subpaths = path.page_subpaths();
-
-    if let Some(rule) = path.style.fill
-        && point_inside(&subpaths, point, rule)
-    {
-        return true;
-    }
-
-    let threshold = if path.style.stroke {
-        half + tolerance
-    } else {
-        // A filled-only or `n` path: no stroke, but a near-edge click
-        // should still land, so use the tolerance alone as the proximity
-        // band.
-        tolerance
-    };
-    outline_within(&subpaths, point, threshold)
-}
-
-/// The user-space line width scaled into page space by the object's CTM,
-/// halved — the distance the stroke extends either side of the path
-/// centerline (§8.4.3.2). A width-0 hairline gets a tiny nominal value so
-/// it is still selectable.
-fn stroke_half_width(path: &PathObject) -> f64 {
-    if !path.style.stroke {
-        return 0.0;
-    }
-    let scale = ctm_scale(path.ctm);
-    let w = if path.line_width <= 0.0 {
-        0.1
-    } else {
-        path.line_width
-    };
-    (w * scale) / 2.0
-}
-
-/// A scalar page-space scale estimate for a CTM — the square root of the
-/// absolute determinant (the geometric-mean linear scale). Used to map a
-/// user-space line width into page space for stroke proximity. A
-/// degenerate/non-finite CTM yields a harmless 1.0.
-fn ctm_scale(ctm: Matrix) -> f64 {
-    let d = ctm.determinant().abs();
-    if d.is_finite() && d > 0.0 {
-        d.sqrt()
-    } else {
-        1.0
-    }
-}
-
-/// Whether `point` is inside the region the subpaths fill, under `rule`
-/// (every subpath treated as closed — a fill implicitly closes, §8.5.3.1).
-fn point_inside(subpaths: &[Subpath], point: Point, rule: FillRule) -> bool {
-    let mut winding = 0i32;
-    let mut crossings = 0u32;
-    for sp in subpaths {
-        let poly = flatten(sp);
-        accumulate_crossings(&poly, point, &mut winding, &mut crossings);
-    }
-    match rule {
-        FillRule::NonZero => winding != 0,
-        FillRule::EvenOdd => crossings % 2 == 1,
-    }
-}
-
-/// Whether `point` is within `threshold` of any outline segment (stroke /
-/// clip proximity). Closed subpaths include their closing edge.
-fn outline_within(subpaths: &[Subpath], point: Point, threshold: f64) -> bool {
-    let t2 = threshold * threshold;
-    for sp in subpaths {
-        let poly = flatten(sp);
-        let n = poly.len();
-        if n == 0 {
-            continue;
-        }
-        for w in poly.windows(2) {
-            let [a, b] = w else { continue };
-            if dist_sq_point_segment(point, *a, *b) <= t2 {
-                return true;
-            }
-        }
-        // Closing edge, for a closed subpath (a stroked `h`/`re`/`s`).
-        if sp.closed
-            && n >= 2
-            && let (Some(&last), Some(&firstp)) = (poly.last(), poly.first())
-            && dist_sq_point_segment(point, last, firstp) <= t2
-        {
-            return true;
-        }
-    }
-    false
-}
-
-/// Flatten one subpath (page space) to a polyline of on-curve vertices,
-/// cubics subdivided into [`FLATTEN_STEPS`] chords. Non-finite vertices
-/// are dropped (a hostile operand cannot poison the ray cast).
-fn flatten(sp: &Subpath) -> Vec<Point> {
-    let mut out: Vec<Point> = Vec::new();
-    let push = |p: Point, out: &mut Vec<Point>| {
-        if p.is_finite() {
-            out.push(p);
-        }
-    };
-    push(sp.start, &mut out);
-    let mut from = sp.start;
-    for seg in &sp.segments {
-        match *seg {
-            Segment::Line { to } => {
-                push(to, &mut out);
-                from = to;
-            }
-            Segment::Cubic { c1, c2, to } => {
-                for step in 1..=FLATTEN_STEPS {
-                    let t = step as f64 / FLATTEN_STEPS as f64;
-                    push(cubic_at(from, c1, c2, to, t), &mut out);
-                }
-                from = to;
-            }
-        }
-    }
-    out
-}
-
-/// A cubic Bézier point at parameter `t` (de Casteljau, closed form).
-fn cubic_at(p0: Point, c1: Point, c2: Point, p3: Point, t: f64) -> Point {
-    let u = 1.0 - t;
-    let w0 = u * u * u;
-    let w1 = 3.0 * u * u * t;
-    let w2 = 3.0 * u * t * t;
-    let w3 = t * t * t;
-    Point::new(
-        w0 * p0.x + w1 * c1.x + w2 * c2.x + w3 * p3.x,
-        w0 * p0.y + w1 * c1.y + w2 * c2.y + w3 * p3.y,
-    )
-}
-
-/// Fold one closed polygon's edge crossings of the ray `y = point.y,
-/// x ≥ point.x` into the running winding number (signed, for nonzero) and
-/// crossing count (unsigned, for even-odd). Standard robust half-open
-/// (`[y0, y1)`) crossing test.
-fn accumulate_crossings(poly: &[Point], point: Point, winding: &mut i32, crossings: &mut u32) {
-    if poly.len() < 2 {
-        return;
-    }
-    // Every consecutive pair, plus the closing edge (last → first) so the
-    // polygon is treated as closed (a fill implicitly closes).
-    let closing = match (poly.first(), poly.last()) {
-        (Some(&f), Some(&l)) => Some((l, f)),
-        _ => None,
-    };
-    let pairs = poly.windows(2).filter_map(|w| match w {
-        [a, b] => Some((*a, *b)),
-        _ => None,
-    });
-    for (a, b) in pairs.chain(closing) {
-        // Half-open interval avoids double-counting a vertex on the ray.
-        let a_below = a.y <= point.y;
-        let b_below = b.y <= point.y;
-        if a_below == b_below {
-            continue;
-        }
-        // The edge crosses the horizontal line through `point`; find the x
-        // of the intersection.
-        let dy = b.y - a.y;
-        if dy == 0.0 {
-            continue;
-        }
-        let t = (point.y - a.y) / dy;
-        let x = a.x + t * (b.x - a.x);
-        if x >= point.x {
-            *crossings += 1;
-            if b.y > a.y {
-                *winding += 1; // upward edge
-            } else {
-                *winding -= 1; // downward edge
-            }
-        }
-    }
-}
-
-/// Squared distance from `p` to the segment `a`–`b` (avoids a `sqrt` in
-/// the proximity loop). A degenerate segment (`a == b`) reduces to the
-/// point distance.
-fn dist_sq_point_segment(p: Point, a: Point, b: Point) -> f64 {
-    let vx = b.x - a.x;
-    let vy = b.y - a.y;
-    let wx = p.x - a.x;
-    let wy = p.y - a.y;
-    let len2 = vx * vx + vy * vy;
-    if len2 <= 0.0 {
-        return wx * wx + wy * wy;
-    }
-    let t = ((wx * vx + wy * vy) / len2).clamp(0.0, 1.0);
-    let dx = wx - t * vx;
-    let dy = wy - t * vy;
-    dx * dx + dy * dy
-}
-
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -972,6 +764,7 @@ mod tests {
     use super::*;
     use crate::content::ContentStream;
     use crate::vector::decompose::{NoXObjects, decompose};
+    use crate::vector::geometry::Matrix;
 
     fn model(src: &[u8]) -> PageObjects {
         let cs = ContentStream::parse(src.to_vec()).unwrap();

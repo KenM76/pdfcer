@@ -60,6 +60,7 @@ mod image_hit;
 /// whether two of them are parallel or meet at an angle — the pick model a
 /// CAD-style "dimension between these two edges" workflow needs.
 pub mod linepick;
+mod path_geom;
 pub mod snap;
 pub mod text_locate;
 

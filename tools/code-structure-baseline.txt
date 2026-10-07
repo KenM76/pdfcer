@@ -1,4 +1,3 @@
-dup pdfcer-core::cubic_at in pdfcer-core/src/vector/hit.rs, pdfcer-core/src/vector/snap.rs
 dup pdfcer-core::descendant_dict in pdfcer-core/src/font_embed_missing.rs, pdfcer-core/src/font_unembed.rs
 dup pdfcer-core::matches_name in pdfcer-core/src/font_embed_missing.rs, pdfcer-core/src/font_unembed.rs
 dup pdfcer-core::op_span in pdfcer-core/src/redact.rs, pdfcer-core/src/text_edit/edit.rs
@@ -67,7 +66,6 @@ file pdfcer-core/src/text_edit/reflow_apply.rs
 file pdfcer-core/src/vector/clip.rs
 file pdfcer-core/src/vector/decompose.rs
 file pdfcer-core/src/vector/edit.rs
-file pdfcer-core/src/vector/hit.rs
 file pdfcer-core/src/vector/snap.rs
 file pdfcer-fonts/src/fontdata/mod.rs
 file pdfcer-fonts/src/fontdata/tables.rs

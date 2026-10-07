@@ -112,6 +112,7 @@ use std::collections::HashSet;
 use super::centerline::page_candidates;
 use super::decompose::{PageObjects, PathObject, Segment, Subpath, VectorObject};
 use super::geometry::{Bounds, Point};
+use super::path_geom::cubic_at;
 
 /// Fixed cubic-flattening subdivision for on-segment projection and
 /// intersection (the same fixed, bounded subdivision [`super::hit`] uses for
@@ -792,20 +793,6 @@ fn project_cubic(
             source_object: Some(obj_index),
         });
     }
-}
-
-/// A cubic Bézier point at parameter `t` (de Casteljau, closed form) — the
-/// same evaluation [`super::hit`] flattens with.
-fn cubic_at(p0: Point, c1: Point, c2: Point, p3: Point, t: f64) -> Point {
-    let u = 1.0 - t;
-    let w0 = u * u * u;
-    let w1 = 3.0 * u * u * t;
-    let w2 = 3.0 * u * t * t;
-    let w3 = t * t * t;
-    Point::new(
-        w0 * p0.x + w1 * c1.x + w2 * c2.x + w3 * p3.x,
-        w0 * p0.y + w1 * c1.y + w2 * c2.y + w3 * p3.y,
-    )
 }
 
 /// The centre of a circle/ellipse-like path object, or `None` if it is not
