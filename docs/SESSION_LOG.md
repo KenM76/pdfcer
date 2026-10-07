@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1008th filing) — `Pass 529.0` shipped (edit in one unshared stream rewrites that stream alone, `G141`)
+
+**Shipped:**
+- `Pass 529.0` — `86fea180`. Details in the ROADMAP entry. Core only; no pub API or `Cargo.toml` change.
+
+**Decisions made this session:** None new.
+
+**Findings + decisions:**
+- Incremental-save growth per move on a shared-lattice page fell from 3,356,178 bytes to 188 bytes (release, synthetic 150k-subpath case). The verb itself is ~10 ms either way; the GUI's ~170 ms is post-edit re-decomposition, i.e. `G140`.
+- `G141` replied `_FIXED`; its ask 2 (off-UI-thread verb) declined as unnecessary.
+- Pages with `/pdfc_Deco` decorations still fold (decoration refresh reads only a first-stream page).
+- `FEATURES.md`: notes on rows 607 and 199 only; no box changed. Row 199 was already over the 1,200-character cap before this note (the cap gate checks new rows); not trimmed here.
+
+**Still in flight:** `G140` open and next, not yet numbered. Push not checked. Next free `Pass 530.0`; next filing 1009th.
+
+**Sourcing note (hard rule 8):** test, timing and gate results engineer-reported; hash as supplied; push/backup/CI colour not checked here; no shell, nothing committed.
+
 ## 2026-10-07 (1007th filing) — `Pass 528.0` shipped (point hit test culls subpaths, `G139` ask 1)
 
 **Shipped:**

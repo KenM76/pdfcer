@@ -115,6 +115,24 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 529.0` — an edit inside one unshared stream rewrites that stream alone (core; answers `pdfcer-gui` `G141`) — SHIPPED 2026-10-07 (1008th filing)
+
+Commit `86fea180`. `pdfcer-core` only; it changes the behaviour of existing verbs, so no new CLI or GUI surface (the CLI's object and text verbs inherit it). No `Cargo.toml` change (`cargo tree` unaffected); no `pub` API change, so `docs/core-api` is unchanged.
+
+**Delivered.** Every page content surgery (move/transform/delete objects, `edit_text`, `format_text`, `reflow_block`) used to fold the page's concatenated `/Contents` into `/Contents[0]` and empty the extras, or decouple the page onto a fresh copy when a stream was shared. `EditSession::text_edit_command` now first diffs the new buffer against the streams, joined as `ContentStream::from_page` joins them. If every changed byte lies inside one non-empty stream that no other page draws, is listed once in `/Contents`, and is not a pdfcer OCR layer, only that stream is rewritten: no fold, no decoupling, no shared-content disclosure, and the "multi-stream page" disclosure is dropped; reports name the stream written, `extra_objects_emptied 0`. Pages carrying pdfcer text decorations (`/pdfc_Deco`) keep folding, because decoration rule refresh only reads a page whose content is its first stream.
+
+**Measured (release; synthetic 150k-subpath shared lattice plus a one-line own stream).** Incremental-save growth per move 3,356,178 bytes to 188 bytes. The move verb is ~10 ms either way; the ~170 ms the GUI measured is re-decomposition after the edit, which is `G140`. `G141` ask 2 (off-UI-thread verb) declined in the reply as unnecessary for that reason.
+
+**Structure.** New module `crates/pdfcer-core/src/edit/stream_localize.rs`; helper `empty_folded_extras` extracted in `edit.rs`. Structure gate clean, baseline 581, none new.
+
+**Verified (engineer-reported).** core 1491 unit + 2733 integration + 211 doc, all pass. New: 5 unit tests on the diff; integration `a_move_in_a_pages_own_stream_rewrites_only_that_stream` and `a_text_edit_in_a_pages_own_stream_keeps_its_streams` (sabotage: both fail with the path disabled). Two tests that asserted the fold were updated: `content_edit_no_duplication::reflow_keeps_text_added_this_session` now asserts `extra_objects_emptied == 0`; the two-stream case was removed from `shared_page_content_edit::the_session_edit_decouples_and_undoes_cleanly`.
+
+**`G141` status.** Reply written `_FIXED`. `G140` open and next, see *Next up*.
+
+`FEATURES.md`: note on the move/resize/rotate row (607) and the in-place text-edit row (199); no box changed.
+
+Ledgers: no decision; next free `Pass 530.0`; next filing 1009th.
+
 ### `Pass 528.0` — point hit test on a dense path transforms only the subpaths near the click (core; answers `pdfcer-gui` `G139` ask 1) — SHIPPED 2026-10-07 (1007th filing)
 
 Commit `d968fceb`. `pdfcer-core` only. No `pub` API change; no `Cargo.toml` change (`cargo tree` unaffected); no writer change.
@@ -21018,10 +21036,10 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-07 (1007th filing), not yet Pass-numbered:** the other two of the three performance requests filed with `G139`.
-> - `G140` (`request_G140_an_edit_redecomposes_the_whole_page.md`): after an edit the whole page is re-decomposed.
-> - `G141` (`request_G141_a_move_on_a_shared_stream_costs_the_whole_stream.md`): a move rewrites every stream the page draws, including a shared one.
-> Scope each before numbering (ask the engineer for the Pass ID; next free `Pass 529.0`). `G139` asks 2 and 3 remain offered.
+> **Taken up from `pdfcer-gui`, 2026-10-07 (1007th filing, updated 1008th):** the other two of the three performance requests filed with `G139`.
+> - `G141` SHIPPED as `Pass 529.0` (`86fea180`, 1008th filing), see *Shipped*.
+> - `G140` (`request_G140_an_edit_redecomposes_the_whole_page.md`): after an edit the whole page is re-decomposed. **Open, next.** The ~170 ms the GUI measured on a move is this re-decomposition, not the verb (~10 ms).
+> Scope before numbering (ask the engineer for the Pass ID; next free `Pass 530.0`). `G139` asks 2 and 3 remain offered.
 
 > `Pass 478.0` SHIPPED, 2026-10-04 (945th filing), `27a6ebd6` — see
 > *Shipped*, above. CLI `list-fields`'s 313-line `cmd_list_fields`
