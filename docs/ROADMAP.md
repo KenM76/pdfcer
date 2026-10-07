@@ -20602,6 +20602,32 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+### `Pass 514.0` — synthetic best-fit-only PRC fixture (`G132`) — FILED 2026-10-06 (992nd filing)
+
+- **Request:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G132_no_prc_fixture_rebuilt_only_by_a_best_fit.md`,
+  from `pdfcer-gui` at engine pin `dc39139b` (v0.80.0). No API change.
+  Why: the GUI's best-fit disclosure ("N parts were rebuilt by a best
+  fit") cannot be driven or falsified, because no fixture has
+  `AssembledModel::best_fit >= 1` (`overridden.prc`, `coloured.prc` give
+  `best-fit=0`; `compressed.prc` is refused outright).
+- **Acceptance:**
+  - (a) `fixtures/synthetic/prc/best_fit.prc` built by a test-side
+    writer and kept current with `check_fixture`, like the other
+    synthetic PRC fixtures.
+  - (b) `assemble` on it yields `best_fit >= 1`; with `MeshFit::Unique`
+    the mesh is left out with the strict-setting reason.
+  - (c) A CLI test sees the best-fit note on `3d-mesh`.
+  - (d) The fixture comes from a constructed case, never from
+    real-file data (`LEGAL.md` §5).
+- **Known risk:** in `Pass 512.0` a 3M-case random generator found NO
+  case that only best-fit rebuilds, so the case must be DESIGNED:
+  either a mesh needing more than six inverted fold choices (beyond
+  the unique search's deepest stage), or an ambiguous fold that two
+  geometries satisfy. If neither can be constructed, say so in the
+  closing filing rather than weakening (b).
+- **FEATURES.md:** no row changes (test-fixture work; the best-fit
+  capability row is already ticked by `Pass 512.0`/`513.0`).
+
 > `Pass 478.0` SHIPPED, 2026-10-04 (945th filing), `27a6ebd6` — see
 > *Shipped*, above. CLI `list-fields`'s 313-line `cmd_list_fields`
 > split into a new module `fields_list.rs` (8 responsibility-sized
