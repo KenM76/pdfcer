@@ -499,6 +499,32 @@ fn a_rebuilt_compressed_mesh_is_exported_and_disclosed() {
     );
 }
 
+/// A compressed mesh only the best-fit search rebuilds is exported with the
+/// note saying so, and `--mesh-fit unique` leaves it out with its reason.
+#[cfg(feature = "3d")]
+#[test]
+fn a_best_fit_mesh_is_disclosed_and_the_strict_setting_leaves_it_out() {
+    let input = with_prc("mesh_best_fit", "best_fit.prc");
+    let output = input.with_extension("obj");
+    let out = mesh(&input, "2", &output, &["--format", "obj"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "{stdout}");
+    assert!(
+        stdout.contains("triangles=28")
+            && stdout.contains("note: 1 of those were rebuilt by a best-fit search"),
+        "{stdout}"
+    );
+    let strict = input.with_extension("strict.obj");
+    let out = mesh(&input, "2", &strict, &["--mesh-fit", "unique"]);
+    assert_eq!(out.status.code(), Some(9));
+    assert!(!strict.exists());
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("the strict mesh-fit setting draws unique fits only"),
+        "{stderr}"
+    );
+}
+
 #[cfg(feature = "3d")]
 #[test]
 fn a_prc_assembly_renders_both_placed_copies() {

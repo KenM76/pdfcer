@@ -1750,4 +1750,130 @@ pub(crate) mod tests {
         compressed(&mut body, 8137, false, true);
         prc_file(&section(1, &body))
     }
+
+    /// Copies of the one-turn mesh in `best_fit.prc`. Each needs two
+    /// inverted choices, so seven need more than the unique search's
+    /// deepest stage combines, and no walk retry repairs one.
+    const BEST_FIT_COPIES: u32 = 7;
+
+    /// `best_fit.prc`: one compressed mesh, [`BEST_FIT_COPIES`] separate
+    /// copies of the four-triangle planar mesh whose apex needs its frame
+    /// turned, that only [`crate::compressed::rebuild`]'s best-fit search
+    /// rebuilds.
+    fn best_fit_prc() -> Vec<u8> {
+        let one = [0i64, 0, 0, 4, 0, 0, 2, 4, 0, 0, 0, 0, -4, -4, 2];
+        let (mut pts, mut st, mut face_of, mut is_ref, mut refs) =
+            (vec![], vec![], vec![], vec![], vec![]);
+        let (mut angles, mut planar) = (vec![], vec![]);
+        for k in 0..BEST_FIT_COPIES {
+            pts.extend_from_slice(&one);
+            st.extend_from_slice(&[1, 3, 1, 0]);
+            face_of.extend([k; 4]);
+            is_ref.extend([false, false, false, false, false, true]);
+            refs.push(2 + 5 * k);
+            angles.extend([470, 724]);
+            planar.push(true);
+        }
+        st.resize(3 * face_of.len(), 0);
+        let mut w = W::default();
+        w.uint(173).bit(false).bit(true).double(0.5);
+        w.put(0, 32).put(0, 32).put(0, 32);
+        vbn_array(&mut w, &pts, 4);
+        w.bit(false).uint(st.len() as u32);
+        for &x in &st {
+            w.put(x as u64, 8);
+        }
+        w.bit(false);
+        indices(&mut w, &face_of, 2, None);
+        w.uint(is_ref.len() as u32);
+        for &x in &is_ref {
+            w.bit(x);
+        }
+        indices(&mut w, &refs, 4, Some(&[(4, 0b10, 2), (0, 0b11, 2)]));
+        w.bit(false).put(10, 8).uint(2 * angles.len() as u32);
+        for _ in 0..2 * angles.len() {
+            w.bit(false);
+        }
+        w.bit(false).uint(angles.len() as u32);
+        for &a in &angles {
+            w.put(a & 0xff, 8).put(a >> 8, 8);
+        }
+        for &x in &planar {
+            w.bit(x);
+        }
+        w.bit(false).bit(false);
+        w.bit(false).uint(1).put(1, 8).put(0, 8); // line_attribute_array
+        w.bit(true).bit(false);
+        prc_file(&section(1, &w))
+    }
+
+    /// A `CompressedIntegerArray` of `v`, every value `width` bits wide.
+    fn vbn_array(w: &mut W, v: &[i64], width: u64) {
+        w.bit(false).uint(v.len() as u32);
+        for _ in v {
+            w.put(width, 8);
+        }
+        for &x in v {
+            w.bit(x < 0).put(x.unsigned_abs(), width as u32 - 1);
+        }
+    }
+
+    /// A `CompressedIndiceArray` of `v`, every delta `width` bits wide: its
+    /// width differences uncompressed, or Huffman-coded by `leaves`.
+    fn indices(w: &mut W, v: &[u32], width: i32, leaves: Option<&[(u32, u32, u32)]>) {
+        let diffs: Vec<i32> = (0..v.len())
+            .map(|i| if i == 0 { width } else { 0 })
+            .collect();
+        match leaves {
+            Some(l) => {
+                w.huffman(6, 2, l, &diffs);
+            }
+            None => {
+                w.uint(v.len() as u32);
+                for &d in &diffs {
+                    w.put(d as u64, 8);
+                }
+            }
+        }
+        let mut prev = 0;
+        for &x in v {
+            w.bit(false).put(u64::from(x - prev), width as u32 - 1);
+            prev = x;
+        }
+    }
+
+    /// `best_fit.prc` rebuilds only by best fit: drawn by default and
+    /// counted, left out with the strict-setting reason under
+    /// [`crate::MeshFit::Unique`].
+    #[test]
+    fn the_best_fit_fixture_is_current_and_rebuilt_only_by_best_fit() {
+        let bytes = best_fit_prc();
+        let f = crate::PrcFile::parse(&bytes).unwrap();
+        let t = f.file_structures[0].tessellations().unwrap();
+        let [
+            Tessellation::Compressed {
+                triangles,
+                mesh: Some(m),
+                best_fit: true,
+                ..
+            },
+        ] = &t[..]
+        else {
+            panic!("{t:?}");
+        };
+        assert_eq!((*triangles, m.triangles.len()), (28, 28));
+        crate::testw::check_fixture("best_fit.prc", &bytes);
+        let model = crate::assemble(&bytes).unwrap();
+        assert_eq!((model.rebuilt, model.best_fit, model.compressed), (1, 1, 0));
+        let strict = crate::AssembleOptions {
+            mesh_fit: crate::MeshFit::Unique,
+            ..Default::default()
+        };
+        let err = crate::assemble_with_options(&bytes, &strict).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("strict mesh-fit setting draws unique fits only"),
+            "{err}"
+        );
+    }
 }
