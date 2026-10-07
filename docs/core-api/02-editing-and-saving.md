@@ -1539,6 +1539,11 @@ indexes. They share no index space. **Do not join them yourself** — use:
 - Pinned by `crates/pdfcer-core/tests/text_run_locate.rs`: every show operator
   kind, `TJ`, marked content, an inline image between objects, a repeated form,
   and a session view after an edit.
+- CLI twin: `pdfcer text-locate FILE --page N --find TEXT` prints, per
+  occurrence, the `object=I/run=J` / `leaf=I/run=J` operands in the page's
+  text as `extract-text --include-artifacts` prints it — a word drawn by
+  several objects lists every piece. Use it as an oracle when a shell's join
+  disagrees.
 
 #### ★ 1.10.0 `split_text_object` — when "move this line" names nothing (`Pass 306.0`)
 

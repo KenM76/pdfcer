@@ -114,6 +114,7 @@ mod span_from_pin_flag;
 mod stamp_pack;
 mod style_policy;
 mod tab_order;
+mod text_locate;
 mod text_object_split_cli;
 mod three_d;
 mod two_line_dimension;

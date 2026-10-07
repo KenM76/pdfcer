@@ -11266,6 +11266,41 @@ pub(crate) enum Command {
         #[arg(long = "dxf-version", value_enum, default_value_t = DxfVersionArg::R2000)]
         dxf_version: DxfVersionArg,
     },
+    /// **Find which editable text runs draw some text** — the bridge from
+    /// "the word I can see" to the `--object`/`--leaf` and `--run` operands
+    /// the `text-run-*` commands take.
+    ///
+    /// Prints one `match ordinal=K start=S len=L targets=T unresolved=U`
+    /// line per occurrence of `--find` on the page, then a
+    /// `text-locate … matches=N` totals line. `targets=` lists
+    /// `object=I/run=J` (page content) or `leaf=I/run=J` (inside a form
+    /// XObject — an edit there reaches every page the form is drawn on), or
+    /// `none`. `unresolved=` counts glyphs that map to no editable run (a
+    /// Type 3 glyph, replacement `/ActualText`, a repeated form drawn at
+    /// placements that cannot be told apart).
+    ///
+    /// Matching is exact and case-sensitive against the page's text as
+    /// `extract-text --include-artifacts` prints it (`start=` is a byte
+    /// offset into that), so a word drawn in several pieces is found and
+    /// every piece is listed. No match prints `matches=0` and exits 0.
+    ///
+    /// Example — find a word:
+    ///
+    ///     pdfcer text-locate notes.pdf --page 1 --find "DRAFT"
+    ///
+    /// Example — then delete the run it reported as `object=4/run=0`:
+    ///
+    ///     pdfcer text-run-delete notes.pdf --page 1 --object 4 --run 0 -o out.pdf
+    TextLocate {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number.
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        /// The text to find (exact, case-sensitive).
+        #[arg(long, allow_hyphen_values = true)]
+        find: String,
+    },
     /// **Delete ONE text run** — one show operator — out of a text object
     /// (`Pass 32.0`, ISO 32000-1 §9.4).
     ///

@@ -3266,6 +3266,7 @@ pub(crate) fn run() -> ExitCode {
             text: !no_text,
             version: dxf_version,
         }),
+        Command::TextLocate { input, page, find } => cmd_text_locate(&input, page, &find),
         Command::TextRunDelete {
             input,
             page,

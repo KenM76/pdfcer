@@ -559,6 +559,8 @@ mod inspect;
 use inspect::*;
 mod inspect_ink;
 use inspect_ink::*;
+mod text_locate_cmd;
+use text_locate_cmd::*;
 mod ocr_cmd;
 use ocr_cmd::*;
 mod ocr_models;
