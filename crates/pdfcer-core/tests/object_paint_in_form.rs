@@ -179,3 +179,39 @@ fn nothing_to_set_changes_nothing() {
     assert_eq!(out.paint.refused.len(), 1);
     assert!(s.undo_kind().is_none());
 }
+
+/// The request's own case: a Line markup flattened into the page becomes a
+/// leaf of a form, and its colour and opacity must still be settable.
+#[test]
+fn a_flattened_line_markup_can_be_recoloured_and_made_translucent() {
+    use pdfcer_core::annot_author::{Color, LineEnding, MarkupSpec};
+    let mut s = session(&fixture());
+    let id = s
+        .add_markup(
+            0,
+            &MarkupSpec::Line {
+                start: (20.0, 20.0),
+                end: (80.0, 70.0),
+                color: Color::Gray(0.0),
+                width: 1.0,
+                endings: (LineEnding::None, LineEnding::None),
+            },
+        )
+        .unwrap();
+    s.flatten_annotations(0, Some(&[id])).unwrap();
+    let last = s.page_objects(0).unwrap().leaves.len() - 1;
+
+    let out = s
+        .set_object_paint_in_form(0, &[last], None, Some(BLUE))
+        .unwrap();
+    assert_eq!(out.paint.changed, vec![last], "{:?}", out.paint.refused);
+    let style = StrokeStyle {
+        stroke_alpha: Some(0.5),
+        ..StrokeStyle::default()
+    };
+    s.set_object_stroke_style_in_form(0, &[last], &style)
+        .unwrap();
+    let p = leaf(&mut reopened(&s), last);
+    assert!(is_blue(&p.stroke_paint));
+    assert_eq!(p.stroke_alpha, 0.5);
+}
