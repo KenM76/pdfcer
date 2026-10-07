@@ -4,9 +4,11 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-10-07, after `Pass 518.0` and the 997th filing.
+**Written:** 2026-10-07, after `Pass 519.0` and the 998th filing.
 
 **v0.80.0 RELEASED 2026-10-06** (tag on bump `dc39139b`; Passes 509.0-512.0; run-gates 45/45, CI green, `verify-release.py` clean; GitHub zip 25,367,016 bytes + three OCR add-ons via `gh-release.py`; OneDrive `pdfcer1` = 0.80.0, `pdfcer2` keeps 0.79.0 -- **the next release writes `pdfcer2`**).
+
+**Pass 519.0 (`e9f12989`, filed 998th):** GUI request G136 answered (reply written). `MediaBoxChange::{bleed,trim,art}_box_outside` disclose a page's own production box left off a resized sheet (Table 30: not inheritable); CLI `set-page-size` notes each and counts `boxes_outside=`.
 
 **Pass 518.0 (`13ebd415`, `4e890c25`, filed 997th):** GUI requests G134/G135 answered (replies written). `AssembledModel::{mesh_placements, tree}` link a tree node to its meshes; `AssembleOptions::stored_visibility` (`DrawAll`, CLI `--draw-hidden`) places stored-hidden/suppressed parts; `PrcFile::stores_tree()` makes a tessellation-only file an empty tree, not an error; fixture `named-tree.prc`. Missing-parts work resumes at the 517.0 stall list below. CI for `ed930708` was still running at the 518.0 commit.
 
