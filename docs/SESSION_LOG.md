@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1011th filing) — scoping: `Pass 532.0`-`537.0` filed from `pdfcer-gui` (`G142`-`G147`)
+
+**Shipped:** nothing. Scoping only.
+
+**Filed to *Next up*:** `532.0` (`G146`, DEFECT: unit change keeps the scale number, not the calibration; taken first), `533.0` (`G147`, `hit_test_text_runs_of`), `534.0` (`G143`, path line width/dash/opacity), `535.0` (`G142`, `set_object_paint_in_form`), `536.0` (`G144`, `transform_objects_in_form`), `537.0` (`G145`, `copy_objects_in_form`). Acceptance text is in the ROADMAP entries.
+
+**Decisions made this session:** None. ACK replies already written in the FeatureRequests channel (engineer-reported).
+
+**Findings + decisions:** `FEATURES.md`: four new *Planned* rows at the top (532.0; 533.0; 534.0; 535.0-537.0 combined), all boxes unticked. Wording says "ce dimension" throughout.
+
+**Still in flight:** `G139` asks 2 and 3 (offered, not done). Next free `Pass 538.0`; next filing 1012th.
+
+**Sourcing note (hard rule 8):** facts engineer-supplied; the `G14x` ids and the `532.0`-`537.0` ids were grep-checked free in `docs/` before filing. No shell, nothing committed, push/backup/CI not checked. `docs/NEXT_SESSION.md` untouched (engineer-owned; it already mentions a `G14x` id, so it may be ahead or behind this filing).
+
 ## 2026-10-07 (1010th filing) — `Pass 531.0` shipped (image-codec module docs unlink private items)
 
 **Shipped:**

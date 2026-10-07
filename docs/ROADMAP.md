@@ -21071,6 +21071,39 @@ closes out the *prior* filing's business rather than opening this one's.
 > - `G140` SHIPPED as `Pass 530.0` (`cb5b43ec`, 1009th filing), see *Shipped*.
 > `G139` asks 2 and 3 remain offered. Next free `Pass 531.0`.
 
+> **Taken up from `pdfcer-gui`, 2026-10-07 (1011th filing, scoping only): `G142`-`G147` filed as `Pass 532.0`-`537.0` below.** ACK replies are already written in the FeatureRequests channel. Nothing here is built; no `FEATURES.md` box ticked. Order is the engineer's: the defect (`532.0`) first, then the small hit-test fix, then the verbs. Next free `Pass 538.0`.
+
+**`Pass 532.0` — a unit change keeps the calibration, not the scale number (core; DEFECT; answers `pdfcer-gui` `G146`) — NEXT UP**
+
+`ScaleState::Calibrated { scale }` is real display units in the group's top unit per point. Two defects follow from treating it as a bare number:
+
+1. `dimension::style::resolve_style` copies `group.scale` unchanged beside a per-ce-dimension unit override, so an override from mm to `DecimalFeet` mis-reports by 304.8x. Fix: convert a `Calibrated` scale into the override unit.
+2. Add `ScaleState::in_unit(from, to)` and an `EditSession::set_group_unit(group, unit)` verb that converts the calibration (`NeverSet` and `OneToOne` pass through).
+
+**Acceptance.** A group calibrated so a ce dimension reads 1000 mm reads 3.28 ft under both a group unit change via the new verb and a member unit override; undoable; a CLI caller if a CLI group/unit command exists (check by grep at build time, do not assume).
+
+**`Pass 533.0` — hit-test the text runs of a given `TextObject` (core; answers `pdfcer-gui` `G147`) — NEXT UP**
+
+Add `vector::hit::hit_test_text_runs_of(&TextObject, point, tolerance) -> Vec<usize>`; `hit_test_text_runs` delegates to it. Lets a form leaf be hit-tested; the GUI drops its own copy of the rule.
+
+**`Pass 534.0` — set a page path's line width, dash and stroke/fill opacity (core; answers `pdfcer-gui` `G143`) — NEXT UP**
+
+A verb setting line width, dash and stroke/fill opacity (ExtGState `/CA` `/ca`, ISO 32000-2 §8.4.5), all-or-nothing like `set_object_paint`, plus `PathObject` readers for dash and alpha. Spec RAG check before building (rule 1).
+
+**`Pass 535.0` — `set_object_paint_in_form` (core; answers `pdfcer-gui` `G142`) — NEXT UP**
+
+`set_object_paint_in_form(page, form_invocation, leaf_indices, fill, stroke)` with `set_object_paint`'s refusals (named inks, patterns), returning `FormSurgeryOutcome` (invocations/pages). Then the in-form twin of `534.0`'s verb.
+
+**`Pass 536.0` — `transform_objects_in_form` (core; answers `pdfcer-gui` `G144`) — NEXT UP**
+
+`transform_objects_in_form(page, form_invocation, leaf_indices, matrix)` mirroring `transform_objects`, returning `FormSurgeryOutcome`.
+
+**`Pass 537.0` — `copy_objects_in_form` (core; answers `pdfcer-gui` `G145`) — NEXT UP**
+
+`copy_objects_in_form(page, form_invocation, leaf_indices)` returning `copy_objects`' clip type with the form placement baked in, so a paste lands where the leaf was drawn.
+
+Ledgers: no decision; next free `Pass 538.0`; next filing 1012th.
+
 > `Pass 478.0` SHIPPED, 2026-10-04 (945th filing), `27a6ebd6` — see
 > *Shipped*, above. CLI `list-fields`'s 313-line `cmd_list_fields`
 > split into a new module `fields_list.rs` (8 responsibility-sized
