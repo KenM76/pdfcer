@@ -4,9 +4,11 @@
 detail. This file is engineer-owned (write it directly; it is NOT a librarian
 doc). It is replaced each session with the current handoff.
 
-**Written:** 2026-10-07, after `Pass 524.0` and the 1003rd filing.
+**Written:** 2026-10-07, after `Pass 525.0` and the 1004th filing.
 
 **v0.80.0 RELEASED 2026-10-06** (tag on bump `dc39139b`; Passes 509.0-512.0; run-gates 45/45, CI green, `verify-release.py` clean; GitHub zip 25,367,016 bytes + three OCR add-ons via `gh-release.py`; OneDrive `pdfcer1` = 0.80.0, `pdfcer2` keeps 0.79.0 -- **the next release writes `pdfcer2`**).
+
+**Pass 525.0 (`e8ea7598`, filed 1004th):** self-scoped -- `text-locate` prints a `target match=K ref=R font=F render_mode=M line_width=W synthetic=S` line per located run; `/BaseFont` resolved from the drawing stream's own `/Resources` (form's, else page's), `synthetic` via `synth::detect_at`, `unknown` without a name. Lite clippy WAS run clean after the doc edit (the filing says otherwise). Remaining core-[x]/cli-[ ] candidates: diagnostics, `apply_redactions`, `DIVERGENCE_KEYS`. Next Pass 526.0, next filing 1005th.
 
 **Pass 524.0 (`3014387c`, filed 1003rd `457a8d42`):** self-scoped -- `pdfcer text-locate FILE --page N --find TEXT` prints `object=I/run=J` / `leaf=I/run=J` text-run operands per occurrence via `vector::locate_text_run`, over the page text as `extract-text --include-artifacts` prints it (a word split across objects lists every piece). Pass 523.0's CI fix went green (run 37608794132). Remaining core-[x]/cli-[ ] candidates: `GlyphProvenance` line width/render mode, diagnostics, `apply_redactions`, `DIVERGENCE_KEYS`. Next Pass 525.0, next filing 1004th.
 
