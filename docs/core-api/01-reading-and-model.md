@@ -131,7 +131,7 @@ builds `--no-default-features`, so both configurations compile.
 | **Click through an image's transparent pixels** | `vector::hit_test_point_deep_with` / `_with` / `_all_with` + `DocumentImageAlpha::new(&view)` — `vector/hit.rs`, `vector/image_hit.rs` | §8.9.6, §11.6.5.3 |
 | Reach objects drawn **inside** a form XObject | `PageObjects::leaves` → `vector::decompose::FormLeaf` — `vector/decompose.rs` | §10.3 |
 | **Marquee-select a region** | **`vector::hit_test_rect_deep(&PageObjects, Bounds, MarqueeMode, FormMarquee)`** — `vector/hit.rs`. `hit_test_rect` still exists and is **shallow**: it cannot see inside a form, so a rubber band and a click disagree about what is selectable | §10.3 |
-| Drill into which text run / subpath was clicked | `vector::hit_test_text_runs` — `hit.rs`; `vector::hit_test_subpaths` — `hit.rs` | §10.3 |
+| Drill into which text run / subpath was clicked | `vector::hit_test_text_runs` / `hit_test_text_runs_of(&TextObject, ..)` — `hit.rs`; `vector::hit_test_subpaths` / `hit_test_subpaths_of(&PathObject, ..)` — `hit.rs`. The `_of` forms take the object, so they work on a `FormLeaf::object` | §10.3 |
 | Snap a point to geometry | `vector::snap_candidates(Point, &SnapConfig, &PageObjects)` — `vector/snap.rs` | §10.4 |
 | Pick a straight edge (CAD-style measuring) | `vector::linepick::pick_line_in_page` — `vector/linepick.rs` | §10.5 |
 | Classify two picked edges as parallel/angled | `vector::linepick::classify_two_lines` — `vector/linepick.rs` | §10.5 |
@@ -2253,9 +2253,11 @@ ce dimension placed against a line inside a form is a **new annotation on the
 page**, not a change to the form. You still need `target` — to report which
 list the line came from, and to re-resolve it after an edit.
 
-Two lower-level entry points exist if you already hold the path:
-`hit_test_subpaths_of(&PathObject, Point, f64)` and
-`pick_line_of(&PathObject, HitTarget, Point, f64)`. Both take the object
+Three lower-level entry points exist if you already hold the object:
+`hit_test_subpaths_of(&PathObject, Point, f64)`,
+`hit_test_text_runs_of(&TextObject, Point, f64)` (which run of a text leaf;
+`hit_test_text_runs` delegates to it, so the rule is one copy) and
+`pick_line_of(&PathObject, HitTarget, Point, f64)`. All take the object
 rather than an index, because **the geometry never needed the index; only the
 lookup did** — and an index-based API is structurally incapable of naming a
 leaf.
