@@ -344,3 +344,86 @@ fn the_run_hit_test_is_empty_for_a_non_text_or_missing_object() {
     assert!(hit_test_text_runs(&model, 0, Point::new(300.0, 396.0), 2.0).is_empty());
     assert!(hit_test_text_runs(&model, 99, Point::new(0.0, 0.0), 2.0).is_empty());
 }
+
+// ---------------------------------------------------------------------------
+// `hit_test_text_runs_of` — the same rule for a text object in hand (G147)
+// ---------------------------------------------------------------------------
+
+/// One page placing a form (at +100,+100) that draws two Helvetica labels.
+fn form_text_pdf() -> Vec<u8> {
+    let form = "BT /F1 12 Tf 10 10 Td (LEFT) Tj 100 0 Td (RIGHT) Tj ET";
+    let page = "q 1 0 0 1 100 100 cm /Fm1 Do Q";
+    let bodies = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 400] /Contents 4 0 R \
+/Resources << /XObject << /Fm1 5 0 R >> >> >>"
+            .to_owned(),
+        format!("<< /Length {} >>\nstream\n{page}\nendstream", page.len()),
+        format!(
+            "<< /Type /XObject /Subtype /Form /BBox [0 0 300 100] /Resources << /Font << \
+/F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> /Length {} >>\n\
+stream\n{form}\nendstream",
+            form.len()
+        ),
+    ];
+    let mut buf = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in bodies.iter().enumerate() {
+        offsets.push(buf.len());
+        buf.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref_at = buf.len();
+    let size = bodies.len() + 1;
+    buf.extend_from_slice(format!("xref\n0 {size}\n0000000000 65535 f \n").as_bytes());
+    for off in &offsets {
+        buf.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    buf.extend_from_slice(
+        format!("trailer\n<< /Size {size} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n")
+            .as_bytes(),
+    );
+    buf
+}
+
+/// A text object inside a form has no index in `PageObjects::objects`, so only
+/// the object-taking form can name one of its runs.
+#[test]
+fn a_run_inside_a_form_is_hit_through_the_leaf() {
+    use pdfcer_core::vector::hit_test_text_runs_of;
+    let mut s = EditSession::new(Document::from_bytes(form_text_pdf()).unwrap());
+    let model = s.page_objects(0).unwrap();
+    let text = model
+        .leaves
+        .iter()
+        .find_map(|l| match &l.object {
+            VectorObject::Text(t) => Some(t),
+            _ => None,
+        })
+        .expect("the form's text is a leaf");
+    assert_eq!(text.runs.len(), 2, "two laid-out runs");
+    for want in 0..2 {
+        let b = text.runs[want].bounds;
+        assert!(b.min.x >= 100.0, "the leaf is in page space: {b:?}");
+        let mid = Point::new((b.min.x + b.max.x) / 2.0, (b.min.y + b.max.y) / 2.0);
+        assert_eq!(hit_test_text_runs_of(text, mid, 0.5).first(), Some(&want));
+    }
+    assert!(hit_test_text_runs_of(text, Point::new(5.0, 5.0), 0.5).is_empty());
+}
+
+/// The index form delegates: on a page object both answer alike.
+#[test]
+fn the_index_form_and_the_object_form_agree() {
+    use pdfcer_core::vector::hit_test_text_runs_of;
+    let model = page_model("runs-two-explicit.pdf");
+    let VectorObject::Text(t) = &model.objects[0] else {
+        panic!("object 0 is not text");
+    };
+    for run in &t.runs {
+        let p = Point::new(run.bounds.max.x + 1.0, run.bounds.min.y);
+        assert_eq!(
+            hit_test_text_runs(&model, 0, p, 2.0),
+            hit_test_text_runs_of(t, p, 2.0)
+        );
+    }
+}

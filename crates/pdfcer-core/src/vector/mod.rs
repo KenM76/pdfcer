@@ -99,7 +99,8 @@ pub use geometry::{Bounds, Matrix, Point, Rgb, cubic_from_v, cubic_from_y, rect_
 pub use hit::{
     FLATTEN_STEPS, FormMarquee, HitTarget, MarqueeMode, hit_test_point, hit_test_point_all,
     hit_test_point_all_with, hit_test_point_deep, hit_test_point_deep_with, hit_test_point_with,
-    hit_test_rect, hit_test_rect_deep, hit_test_subpaths, hit_test_text_runs, subpath_bounds,
+    hit_test_rect, hit_test_rect_deep, hit_test_subpaths, hit_test_subpaths_of, hit_test_text_runs,
+    hit_test_text_runs_of, subpath_bounds,
 };
 pub use image_hit::{DocumentImageAlpha, ImageAlpha, NoImageAlpha};
 pub use snap::{

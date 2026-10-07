@@ -575,9 +575,17 @@ pub fn hit_test_text_runs(
     point: Point,
     tolerance: f64,
 ) -> Vec<usize> {
-    let Some(VectorObject::Text(text)) = model.objects.get(object_index) else {
-        return Vec::new();
-    };
+    match model.objects.get(object_index) {
+        Some(VectorObject::Text(text)) => hit_test_text_runs_of(text, point, tolerance),
+        _ => Vec::new(),
+    }
+}
+
+/// [`hit_test_text_runs`] for a [`TextObject`] in hand — one in
+/// [`PageObjects::leaves`], which no page-list index can name (see
+/// [`hit_test_subpaths_of`]). Same ordering and contract.
+#[must_use]
+pub fn hit_test_text_runs_of(text: &TextObject, point: Point, tolerance: f64) -> Vec<usize> {
     let mut hits: Vec<(f64, usize)> = Vec::new();
     for (i, run) in text.runs.iter().enumerate() {
         let b = run.bounds;
