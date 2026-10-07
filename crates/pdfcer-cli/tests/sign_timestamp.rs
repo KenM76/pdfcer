@@ -184,6 +184,12 @@ ess_cert_id_chain = no\ness_cert_id_alg = sha256\n";
             )
             .unwrap();
             stream.write_all(&reply).unwrap();
+            // Close gracefully: half-close, then drain until the client hangs
+            // up. Dropping a socket with unread bytes makes Windows send RST,
+            // which the client reports as os error 10054 instead of the reply.
+            let _ = stream.shutdown(std::net::Shutdown::Write);
+            let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(10)));
+            let _ = std::io::copy(&mut reader, &mut std::io::sink());
         });
         url
     }
