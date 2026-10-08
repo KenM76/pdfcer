@@ -115,6 +115,22 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 560.0` — render invisible text visibly (render + CLI; answers `pdfcer-gui` `G169`) — SHIPPED 2026-10-08 (1044th filing)
+
+Commits `1d66768b` (code, tests), `2ef4fae3` (`docs/core-api` 03-capabilities §7.2); push state not verifiable from here. No manifest change, so no dependency change and GUI-core separation unaffected. No decision. Listed in *Next up* as a `>` blockquote stub (1043rd filing); stub replaced by a SHIPPED pointer.
+
+**Delivered.**
+- `pdfcer-render`: public `InvisibleTextPaint { rgb: [u8; 3], only: bool }` (`#[non_exhaustive]`, `new`, `with_only`); `RenderOptions::invisible_text: Option<InvisibleTextPaint>` (default `None`) and `with_invisible_text`.
+- Set: glyphs in text rendering mode 3 or 7 (ISO 32000-1 §9.3.6, Table 106) fill at full opacity in the sRGB colour through the ordinary glyph path; mode 7 still adds to the clip; hidden optional content stays hidden. Type 3 glyphs run their procedure with that fill colour (`d1` take it, `d0` keep their own).
+- `only = true` paints nothing else (paths, images, shadings, visible text, annotations) on a transparent backdrop, so a shell overlays the OCR text layer on its own render. Default `None` is unchanged output.
+- CLI: `render-page --invisible-text RRGGBB [--invisible-text-only]` (`#RRGGBB` also accepted; a bad colour, or `--invisible-text-only` without `--invisible-text`, exits 2).
+
+**Verified (engineer-reported).** 4 new `pdfcer-render` lib tests (revealed colour, revealed mode 7 still clips, only-mode transparent page, revealed Type 3 glyph) + 1 CLI integration test (default / shown / only / bad colour / only without colour). Sabotage: disabling the reveal fill turned 2 tests red; dropping the only-mode path gate turned the only-mode test red. Pre-commit gates clean: fmt, clippy all-features (render, cli) and CLI lite, rustdoc intra-doc links, string-gaps, code-structure (no new debt), public-fns-documented, tests-harnessed, clap-help, core-api-verbs. Full `run-gates.sh` sweep runs after this filing, not yet reported.
+
+`FEATURES.md`: *Planned* `560.0` row moved to *Implemented* (core `[x]` cli `[x]` gui `[ ]`, `pdfcer-gui` not yet wired).
+
+Ledgers: no decision; next free `Pass 561.0`; next filing 1045th.
+
 ### `Pass 559.0` — exact wrap/break line ends for pdfcer's own text blocks (core + CLI; follow-up to `G163`) — SHIPPED 2026-10-08 (1042nd filing)
 
 Commits `765ad7ce` (code, tests), `de133315` (`docs/core-api`); push state not verifiable from here. No manifest change, so no new dependency and `cargo tree` unaffected. No decision. Listed in *Next up* at filing (verified, a blockquote bullet in the 1034th-filing stub), bullet replaced by a SHIPPED pointer.
@@ -21657,7 +21673,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`559.0` all shipped; the batch is complete.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 561.0`; next filing 1044th.
+> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`559.0` all shipped; the batch is complete.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 561.0`; next filing 1045th.
 > - `552.0` (`G162`) SHIPPED (`9be9d44a`, `ea7e80af`, 1035th filing), see *Shipped*.
 > - `553.0` (`G168`) SHIPPED (`8d014437`, `d1800f2a`, 1036th filing), see *Shipped*.
 > - `554.0` (`G163`) SHIPPED (`6fa4bc19`, `ed2bdd4b`, 1037th filing), see *Shipped*.
@@ -21667,12 +21683,7 @@ closes out the *prior* filing's business rather than opening this one's.
 > - `557.0` (`G165`) SHIPPED (`cd82fcac`, `6026af3f`, 1040th filing), see *Shipped*.
 > - `558.0` (`G167`) SHIPPED (`b967c09e`, `d2b21073`, `3dccbdbc`, `77fed3ee`, `fbbd1ae2`, 1041st filing), see *Shipped*.
 
-> **`Pass 560.0` — render invisible text visibly (render + CLI; `pdfcer-gui` request `G169`, filed 1043rd, 2026-10-08). Kind: missing render option. No commits yet; scoping only.** Request file: `pdfce_FeatureRequests/open/request_G169_invisible_text_cannot_be_rendered_visibly.md`. Next free `Pass 561.0`; next filing 1044th. No decision.
-> 1. `pdfcer_render::RenderOptions` gains `invisible_text: Option<InvisibleTextPaint>`; `InvisibleTextPaint { rgb: [u8; 3], only: bool }` is `#[non_exhaustive]`, so out-of-crate callers use `InvisibleTextPaint::new(rgb)` / `.with_only(true)`. Default `None` renders byte-identically to today.
-> 2. With it set, glyphs in text rendering mode 3 and 7 (ISO 32000-1 §9.3.6 Table 106) fill with `rgb` through the ordinary glyph path (same font loading, Tz, Trise, matrices, enclosing clip); mode 7 still adds to the clip.
-> 3. `only: true` paints nothing else (no paths, images, shadings, visible text or annotations) on a transparent background, so a shell composites the layer itself.
-> 4. CLI `render-page` gains `--invisible-text RRGGBB` and `--invisible-text-only`.
-> 5. Tests: mode-3 text paints nothing by default and paints in the given colour with the option; `only` leaves visible content out and the background transparent; mode 7 still clips; a CLI test. `docs/core-api` and render docs updated.
+> **`Pass 560.0` (`G169`, render invisible text visibly) SHIPPED (`1d66768b`, `2ef4fae3`, 1044th filing), see *Shipped*.**
 
 > **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), `547.0` SHIPPED (1029th filing), `548.0` SHIPPED (1030th filing), `549.0` SHIPPED (1031st filing), `550.0` SHIPPED (1032nd filing), `551.0` SHIPPED (1033rd filing), see *Shipped*; the batch is complete. Request files in `pdfce_FeatureRequests/open/`. Each Pass shipped core + CLI; the GUI column is `pdfcer-gui`'s. (Superseded by the stub above: next free `Pass 559.0`; next filing 1035th.)
 

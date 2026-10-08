@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1044th filing) — `Pass 560.0` shipped (render invisible text visibly, `G169`)
+
+**Shipped:** `Pass 560.0`, `1d66768b` (code, tests), `2ef4fae3` (`docs/core-api`). `pdfcer-render` gains `InvisibleTextPaint { rgb, only }` and `RenderOptions::invisible_text` (+ `with_invisible_text`): text modes 3 and 7 fill in the chosen colour at full opacity through the ordinary glyph path (mode 7 still clips, hidden optional content stays hidden, Type 3 `d1` glyphs take the colour); `only` paints nothing else on a transparent backdrop. CLI `render-page --invisible-text RRGGBB [--invisible-text-only]`, bad input exits 2. 4 new render lib tests + 1 CLI test; sabotage checks turned 2 and 1 tests red; listed pre-commit gates clean (engineer-reported). Core and cli delivered; gui `[ ]` (`pdfcer-gui` requested it, not yet wired).
+
+**Files:** ROADMAP: Shipped entry added, the 560.0 stub in *Next up* replaced by a one-line SHIPPED pointer (no `###` in *Next up* touched, count stays 80, re-counted from the heading list), header now next filing 1045th. `FEATURES.md`: *Planned* row removed, *Implemented* row added before the `558.0` row.
+
+**Decisions made this session:** None.
+
+**Still in flight:** full `run-gates.sh` sweep after this filing. Next free `Pass 561.0`; next filing 1045th. Push state not verifiable from here (no shell).
+
 ## 2026-10-08 (1043rd filing) — `Pass 560.0` filed under Next up (render invisible text visibly, `G169`)
 
 **Shipped:** nothing; scoping filing only, no commits yet.
