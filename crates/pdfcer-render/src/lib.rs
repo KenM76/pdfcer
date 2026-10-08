@@ -87,6 +87,7 @@ pub mod gstate;
 pub mod icc;
 pub mod image;
 pub mod interpret;
+mod invisible_text;
 pub mod layer_state;
 pub mod mask;
 pub mod mesh;
@@ -132,6 +133,7 @@ pub use font::{
     RenderOptions, RenderPolicy, StrokeDisplay,
 };
 pub use interpret::{BlendSpaceFrom, Diagnostics};
+pub use invisible_text::InvisibleTextPaint;
 pub use layer_state::LayerVisibility;
 pub use shading::{ColorRamp, Geometry, PaintRoute, Shading, ShadingDiagnostics, ShadingFunction};
 // `RenderedPage::pixmap` is a public field of a `tiny_skia` type, so this
@@ -1085,13 +1087,13 @@ fn render_impl_rasterize(
         // the transparent one must never contain the `1 − a` term and a
         // shared body with a branch inside its pixel loop is where that
         // term would creep back in.
-        let collapsed = match options.backdrop {
+        let collapsed = match options.effective_backdrop() {
             PageBackdrop::White => buffer.to_srgb_over_white(),
             PageBackdrop::Transparent => buffer.to_srgb_transparent(),
         };
         if let Some(collapsed) = collapsed {
             pixmap = collapsed;
-        } else if options.backdrop == PageBackdrop::White {
+        } else if options.effective_backdrop() == PageBackdrop::White {
             flatten_page_group_over_white(&mut pixmap);
         }
         diagnostics.ink_probe = probe_cmyk;
@@ -1100,7 +1102,7 @@ fn render_impl_rasterize(
         // group already holds `(Cg·αg, αg)`, so keeping the page's
         // transparency is declining to add the paper. See
         // `RenderOptions::backdrop`.
-        if options.backdrop == PageBackdrop::White {
+        if options.effective_backdrop() == PageBackdrop::White {
             flatten_page_group_over_white(&mut pixmap);
         }
         diagnostics.ink_probe = options
@@ -2033,6 +2035,114 @@ mod tests {
         assert_eq!(out.diagnostics.unknown_ops, 0);
         assert_eq!(out.diagnostics.tolerated, 0);
         assert_eq!(out.diagnostics.glyphs_notdef, 0);
+    }
+
+    fn reveal(rgb: [u8; 3], only: bool) -> RenderOptions {
+        RenderOptions::default()
+            .with_invisible_text(Some(InvisibleTextPaint::new(rgb).with_only(only)))
+    }
+
+    fn count_rgb(pm: &Pixmap, rgb: (u8, u8, u8)) -> usize {
+        (0..pm.height())
+            .flat_map(|y| (0..pm.width()).map(move |x| (x, y)))
+            .filter(|&(x, y)| pixel(pm, x, y) == rgb && pm.pixel(x, y).unwrap().alpha() == 255)
+            .count()
+    }
+
+    #[test]
+    fn invisible_text_paints_in_the_given_colour_when_revealed() {
+        let (doc, page) = doc_with_font("BT /F1 48 Tf 3 Tr 10 30 Td (Hi) Tj ET", HELVETICA);
+        let out = render_page_with(&doc, &page, 1.0, &reveal([255, 0, 0], false)).unwrap();
+        assert!(
+            count_rgb(&out.pixmap, (255, 0, 0)) > 50,
+            "mode 3 glyphs not revealed in red"
+        );
+        let plain = render_page(&doc, &page, 1.0).unwrap();
+        assert_eq!(
+            ink_bbox(&plain.pixmap),
+            None,
+            "the default must still paint nothing"
+        );
+    }
+
+    #[test]
+    fn revealed_mode_7_text_still_clips() {
+        // Mode 7 adds the glyphs to the clip at `ET`; the blue fill after it
+        // must land only inside them, revealed or not.
+        let (doc, page) = doc_with_font(
+            "BT /F1 48 Tf 7 Tr 10 30 Td (Hi) Tj ET 0 0 1 rg 0 0 100 100 re f",
+            HELVETICA,
+        );
+        let out = render_page_with(&doc, &page, 1.0, &reveal([255, 0, 0], false)).unwrap();
+        assert_eq!(
+            pixel(&out.pixmap, 95, 5),
+            (255, 255, 255),
+            "the clip was lost"
+        );
+        assert!(
+            count_rgb(&out.pixmap, (0, 0, 255)) > 50,
+            "the clipped fill vanished"
+        );
+    }
+
+    #[test]
+    fn only_mode_paints_nothing_but_invisible_text_on_a_transparent_page() {
+        let (doc, page) = doc_with_font(
+            "0 1 0 rg 0 0 40 40 re f BT /F1 30 Tf 0 0 0 rg 10 60 Td (A) Tj 3 Tr 0 -40 Td (Hi) Tj ET",
+            HELVETICA,
+        );
+        let out = render_page_with(&doc, &page, 1.0, &reveal([255, 0, 0], true)).unwrap();
+        assert!(
+            count_rgb(&out.pixmap, (255, 0, 0)) > 50,
+            "the invisible text is missing"
+        );
+        assert_eq!(count_rgb(&out.pixmap, (0, 255, 0)), 0, "a path was painted");
+        assert_eq!(
+            count_rgb(&out.pixmap, (0, 0, 0)),
+            0,
+            "visible text was painted"
+        );
+        assert_eq!(
+            out.pixmap.pixel(99, 0).unwrap().alpha(),
+            0,
+            "the backdrop is not transparent"
+        );
+        let both = render_page_with(&doc, &page, 1.0, &reveal([255, 0, 0], false)).unwrap();
+        assert!(
+            count_rgb(&both.pixmap, (0, 255, 0)) > 50,
+            "without `only` the page is all there"
+        );
+    }
+
+    #[test]
+    fn a_revealed_type3_glyph_paints_in_the_given_colour() {
+        let (doc, page) = doc_with_extra_objects(
+            "BT /F1 40 Tf 3 Tr 10 10 Td (A) Tj ET",
+            "/Resources << /Font << /F1 6 0 R >> >>",
+            &[
+                (
+                    5,
+                    stream_object("", b"1000 0 0 0 1000 1000 d1 0 0 1000 1000 re f"),
+                ),
+                (
+                    6,
+                    b"<< /Type /Font /Subtype /Type3 /FontMatrix [0.001 0 0 0.001 0 0] \
+                      /FontBBox [0 0 1000 1000] /CharProcs << /a 5 0 R >> \
+                      /Encoding << /Differences [65 /a] >> /FirstChar 65 /LastChar 65 \
+                      /Widths [1000] >>"
+                        .to_vec(),
+                ),
+            ],
+        );
+        assert_eq!(
+            ink_bbox(&render_page(&doc, &page, 1.0).unwrap().pixmap),
+            None
+        );
+        let out = render_page_with(&doc, &page, 1.0, &reveal([255, 0, 0], true)).unwrap();
+        assert!(
+            count_rgb(&out.pixmap, (255, 0, 0)) > 1000,
+            "the Type 3 glyph was not revealed"
+        );
     }
 
     #[test]

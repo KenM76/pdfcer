@@ -1085,6 +1085,8 @@ pub(crate) fn run() -> ExitCode {
             overprint_zero_tint_scope,
             spot_colorant_device_model,
             omit_annotations,
+            invisible_text,
+            invisible_text_only,
         } => cmd_render_page(
             &input,
             page,
@@ -1103,6 +1105,9 @@ pub(crate) fn run() -> ExitCode {
             &hide_layers,
             print_state,
             &omit_annotations,
+            invisible_text.map(|rgb| {
+                pdfcer_render::InvisibleTextPaint::new(rgb).with_only(invisible_text_only)
+            }),
         ),
         Command::ExportImage {
             input,

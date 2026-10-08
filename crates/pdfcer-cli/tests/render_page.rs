@@ -2227,3 +2227,85 @@ fn a_spot_ink_beyond_the_plane_roster_is_counted_once_and_disclosed() {
         );
     }
 }
+
+/// `--invisible-text` paints mode-3 text in the given colour, and
+/// `--invisible-text-only` leaves everything else out on a transparent page.
+#[test]
+fn invisible_text_is_painted_in_the_given_colour_and_can_be_isolated() {
+    let dir = TempDir::new("invisible-text");
+    let pdf = dir.write(
+        "a.pdf",
+        &multipage_pdf(&["0 1 0 rg 0 0 50 50 re f BT /F1 40 Tf 3 Tr 60 30 Td (Hi) Tj ET"]),
+    );
+    let png = dir.join("a.png");
+    let render = |extra: &[&str]| {
+        let mut args = vec![
+            "render-page",
+            pdf.to_str().unwrap(),
+            "-o",
+            png.to_str().unwrap(),
+        ];
+        args.extend_from_slice(extra);
+        let out = run(&args);
+        assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
+        let bytes = std::fs::read(&png).unwrap();
+        let mut reader = png::Decoder::new(bytes.as_slice()).read_info().unwrap();
+        let mut buf = vec![0; reader.output_buffer_size()];
+        let info = reader.next_frame(&mut buf).unwrap();
+        assert_eq!(info.color_type, png::ColorType::Rgba);
+        buf.truncate(info.buffer_size());
+        buf
+    };
+    let count = |rgba: &[u8], want: [u8; 4]| rgba.chunks_exact(4).filter(|p| *p == want).count();
+
+    let plain = render(&[]);
+    assert_eq!(
+        count(&plain, [255, 0, 0, 255]),
+        0,
+        "invisible text must stay invisible by default"
+    );
+
+    let shown = render(&["--invisible-text", "ff0000"]);
+    assert!(
+        count(&shown, [255, 0, 0, 255]) > 50,
+        "the text was not painted red"
+    );
+    assert!(
+        count(&shown, [0, 255, 0, 255]) > 50,
+        "the rest of the page is still there"
+    );
+
+    let only = render(&["--invisible-text", "#FF0000", "--invisible-text-only"]);
+    assert!(
+        count(&only, [255, 0, 0, 255]) > 50,
+        "the text was not painted red"
+    );
+    assert_eq!(count(&only, [0, 255, 0, 255]), 0, "a path was painted");
+    assert_eq!(
+        &only[..4],
+        &[0, 0, 0, 0],
+        "the background is not transparent"
+    );
+
+    let bad = run(&[
+        "render-page",
+        pdf.to_str().unwrap(),
+        "-o",
+        png.to_str().unwrap(),
+        "--invisible-text",
+        "red",
+    ]);
+    assert_eq!(code(&bad), 2, "a malformed colour is a usage error");
+    let lone = run(&[
+        "render-page",
+        pdf.to_str().unwrap(),
+        "-o",
+        png.to_str().unwrap(),
+        "--invisible-text-only",
+    ]);
+    assert_eq!(
+        code(&lone),
+        2,
+        "`--invisible-text-only` needs `--invisible-text`"
+    );
+}

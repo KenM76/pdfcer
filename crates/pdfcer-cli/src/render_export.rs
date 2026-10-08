@@ -396,6 +396,7 @@ pub(crate) fn cmd_render_page(
     hide_layers: &[String],
     print_state: bool,
     omit_annotations: &[usize],
+    invisible_text: Option<pdfcer_render::InvisibleTextPaint>,
 ) -> u8 {
     // Build the font environment from any `--font-dir` BEFORE loading the
     // document: the walk is pure shell-side I/O (R61), and a bad font dir
@@ -459,7 +460,7 @@ numbered 1..={})",
             hide_layers,
         },
     ) {
-        Ok(options) => options,
+        Ok(options) => options.with_invisible_text(invisible_text),
         Err(code) => return code,
     };
     let render_options = if omit_annotations.is_empty() {

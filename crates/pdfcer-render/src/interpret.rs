@@ -4251,11 +4251,22 @@ impl<'a> Interpreter<'a> {
         // costs a filter chain is an invisible glyph that costs a filter
         // chain — and §9.3.6 mode 3 is the OCR text layer, which is
         // every glyph on a scanned page.
+        // An invisible glyph is run only when the caller asked to see it
+        // ([`crate::InvisibleTextPaint`]); a visible one is skipped when
+        // the caller asked to see nothing else.
         let ts_fills = self.gs.current.text.fills();
         let ts_strokes = self.gs.current.text.strokes();
-        if !ts_fills && !ts_strokes {
-            return;
-        }
+        let reveal = if ts_fills || ts_strokes {
+            if self.only_invisible_text() {
+                return;
+            }
+            None
+        } else {
+            match self.policy.invisible_text {
+                Some(paint) => Some(paint),
+                None => return,
+            }
+        };
 
         let Some(proc_obj) = t3.proc_for(code) else {
             // §9.6.5 step (b), or §9.6.6.3's "no name at all". Counted,
@@ -4325,6 +4336,14 @@ impl<'a> Interpreter<'a> {
         // `self.gs`.
         let mut inner = self.gs.current.clone();
         inner.set_ctm64(glyph_ctm);
+        // A revealed glyph's procedure paints in the caller's colour, and
+        // must paint even when the render shows only invisible text.
+        let mut policy = self.policy;
+        if let Some(paint) = reveal {
+            inner.fill_color = paint.to_rgb();
+            inner.fill_alpha = 1.0;
+            policy.invisible_text = Some(paint.with_only(false));
+        }
 
         // Table 112's `/Resources`, WITH the fallback that is easy to
         // miss: "If any glyph descriptions refer to named resources but
@@ -4353,7 +4372,7 @@ impl<'a> Interpreter<'a> {
             // unguarded.
             self.active.clone(),
             self.cancel,
-            self.policy,
+            policy,
             self.oc_hidden(),
             self.blend_space,
             // SHAPE-ONLY UNTIL THE STREAM SAYS OTHERWISE. Table 113's
@@ -4413,8 +4432,15 @@ impl<'a> Interpreter<'a> {
         let ts = &self.gs.current.text;
         // Mode 3 (invisible — the OCR text-layer mode) paints nothing and
         // clips nothing. Mode 7 paints nothing but still needs the
-        // outline for the clip (§9.3.6's named trap).
-        if !ts.fills() && !ts.strokes() && !ts.clips() {
+        // outline for the clip (§9.3.6's named trap). Either is painted
+        // when the caller asked to see it ([`crate::InvisibleTextPaint`]).
+        let invisible = !ts.fills() && !ts.strokes();
+        let reveal = if invisible {
+            self.policy.invisible_text
+        } else {
+            None
+        };
+        if invisible && !ts.clips() && reveal.is_none() {
             return;
         }
         let (Some(program), Some(tobj)) = (program, self.text) else {
@@ -4448,7 +4474,11 @@ impl<'a> Interpreter<'a> {
                 .get_or_insert_with(PathBuilder::new)
                 .push_path(&device);
         }
-        if !self.gs.current.text.fills() && !self.gs.current.text.strokes() {
+        if let Some(paint) = reveal {
+            self.paint_revealed_glyph(&path, ctm, paint, canvas);
+            return;
+        }
+        if invisible {
             return;
         }
         // BORROWED, never cloned — see `paint_path`'s note. A glyph is
@@ -4474,7 +4504,8 @@ impl<'a> Interpreter<'a> {
         // §8.11.3.1's "text advance still applies" requires. Suppressing
         // the ADVANCE would reflow the visible text around the hidden
         // run, so a layer toggle would move the rest of the line.
-        let skip_paint = crate::profile::skip_paint() || self.oc_hidden();
+        let skip_paint =
+            crate::profile::skip_paint() || self.oc_hidden() || self.only_invisible_text();
         // §11.7.4.3 lists the elementary graphics objects overprint applies
         // to: "fills, strokes, TEXT, images, and shadings". Text is decided
         // here, before the paints, so the counter and the behaviour come
@@ -5132,6 +5163,29 @@ impl<'a> Interpreter<'a> {
         self.hidden_depth > 0
     }
 
+    /// `true` when the caller asked for invisible text only, so every other
+    /// paint is skipped (clips still apply). See [`crate::InvisibleTextPaint`].
+    fn only_invisible_text(&self) -> bool {
+        self.policy.invisible_text.is_some_and(|paint| paint.only)
+    }
+
+    /// Fill one invisible glyph's outline in the caller's colour, opaque,
+    /// under the current clip; hidden optional content stays hidden.
+    fn paint_revealed_glyph(
+        &mut self,
+        path: &Path,
+        ctm: Transform,
+        paint: crate::InvisibleTextPaint,
+        canvas: &mut Canvas<'_>,
+    ) {
+        if self.oc_hidden() || crate::profile::skip_paint() {
+            return;
+        }
+        let brush = BrushSpec::solid(paint.to_rgb(), 1.0, tiny_skia::BlendMode::SourceOver);
+        let clip = self.gs.current.clip_ref();
+        canvas.fill(path, &brush, FillRule::Winding, ctm, clip);
+    }
+
     /// The default configuration's OFF set, computed on first use.
     ///
     /// Lazy because most content streams contain no optional content at
@@ -5324,7 +5378,7 @@ impl<'a> Interpreter<'a> {
         // §8.11.3.1: hidden optional content is not drawn, and everything
         // else still runs — the shading is still resolved and still
         // counted above, exactly as a hidden path is still consumed.
-        if self.oc_hidden() || crate::profile::skip_paint() {
+        if self.oc_hidden() || crate::profile::skip_paint() || self.only_invisible_text() {
             return;
         }
 
@@ -8351,7 +8405,7 @@ impl<'a> Interpreter<'a> {
         // hidden image's codec diagnostics are absent — which is honest
         // (`images_rendered` means rendered), and `oc_sections_hidden`
         // is what discloses that something was withheld.
-        if self.oc_hidden() {
+        if self.oc_hidden() || self.only_invisible_text() {
             return;
         }
 
@@ -9435,7 +9489,8 @@ impl<'a> Interpreter<'a> {
         // function still runs: the path is consumed, the CTM is taken,
         // and the pending clip below is applied exactly as if it had
         // been painted (§8.11.3.1).
-        let skip_paint = crate::profile::skip_paint() || self.oc_hidden();
+        let skip_paint =
+            crate::profile::skip_paint() || self.oc_hidden() || self.only_invisible_text();
         // A NON-SEPARABLE BLEND MODE REPLACES the ordinary paint, exactly
         // as overprint does — it is a different compositing rule, not a
         // post-pass over a normal one. Painting normally first would knock

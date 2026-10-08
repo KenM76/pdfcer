@@ -5063,6 +5063,16 @@ pub(crate) enum Command {
         /// annotations is refused.
         #[arg(long = "omit-annotation", value_name = "INDEX")]
         omit_annotations: Vec<usize>,
+        /// Paint invisible text (text rendering modes 3 and 7, such as an
+        /// OCR text layer) filled in this `RRGGBB` colour instead of not at
+        /// all, to show where it lies. The file is not changed.
+        #[arg(long, value_name = "RRGGBB", value_parser = parse_hex_rgb)]
+        invisible_text: Option<[u8; 3]>,
+        /// With `--invisible-text`, paint only the invisible text, on a
+        /// transparent background: no paths, images, visible text or
+        /// annotations. For laying the text layer over another render.
+        #[arg(long, requires = "invisible_text")]
+        invisible_text_only: bool,
     },
 
     /// Export page(s) as PNG, JPEG or SVG files — with REAL transparency

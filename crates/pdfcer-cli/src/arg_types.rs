@@ -161,6 +161,19 @@ pub(crate) fn parse_point3(s: &str) -> Result<[f64; 3], String> {
     <[f64; 3]>::try_from(parts).map_err(|_| format!("`{s}` is not three numbers like 1,2.5,-3"))
 }
 
+/// Clap parser for an sRGB colour as `RRGGBB` hex, with or without `#`.
+pub(crate) fn parse_hex_rgb(s: &str) -> Result<[u8; 3], String> {
+    let hex = s.trim().trim_start_matches('#');
+    let byte = |i: usize| {
+        hex.get(i..i + 2)
+            .and_then(|h| u8::from_str_radix(h, 16).ok())
+    };
+    match (hex.len(), byte(0), byte(2), byte(4)) {
+        (6, Some(r), Some(g), Some(b)) => Ok([r, g, b]),
+        _ => Err(format!("`{s}` is not an RRGGBB hex colour like ff0000")),
+    }
+}
+
 /// Clap parser for `--fov`: degrees, above 0 and below 180.
 pub(crate) fn parse_fov(s: &str) -> Result<f64, String> {
     match s.parse::<f64>() {

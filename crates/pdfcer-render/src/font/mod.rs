@@ -788,6 +788,9 @@ pub struct RenderOptions {
     /// one use (dropping the artwork onto another background) and looks
     /// like a defect in every other.
     pub backdrop: PageBackdrop,
+    /// Paint invisible text (Table 106 modes 3 and 7) visibly, or `None`
+    /// to follow the spec and paint none. See [`crate::InvisibleTextPaint`].
+    pub invisible_text: Option<crate::InvisibleTextPaint>,
 }
 
 /// The medium a finished page group is composited onto — §11.4.7's
@@ -978,6 +981,8 @@ pub struct RenderPolicy<'a> {
     pub stroke_display: StrokeDisplay,
     /// See [`RenderOptions::omit_annotations`]. Read by the annotation walk.
     pub omit_annotations: &'a [pdfcer_core::object::ObjId],
+    /// See [`RenderOptions::invisible_text`].
+    pub invisible_text: Option<crate::InvisibleTextPaint>,
 }
 
 /// How strokes are drawn relative to their declared width (`Pass 254.0`).
@@ -1161,6 +1166,7 @@ impl Default for RenderOptions {
             // assumed, because it is right for one use and wrong for the
             // rest.
             backdrop: PageBackdrop::default(),
+            invisible_text: None,
         }
     }
 }
@@ -1236,7 +1242,11 @@ impl RenderOptions {
     /// ```
     #[must_use]
     pub const fn effective_annotation_scope(&self) -> AnnotationScope {
-        if self.annotations {
+        if let Some(paint) = self.invisible_text
+            && paint.only
+        {
+            AnnotationScope::ContentOnly
+        } else if self.annotations {
             self.annotation_scope
         } else {
             AnnotationScope::ContentOnly
@@ -1511,6 +1521,26 @@ impl RenderOptions {
         self
     }
 
+    /// The backdrop a render actually uses: [`Self::backdrop`], except
+    /// that an [`crate::InvisibleTextPaint`] with `only` set forces
+    /// [`PageBackdrop::Transparent`].
+    #[must_use]
+    pub const fn effective_backdrop(&self) -> PageBackdrop {
+        match self.invisible_text {
+            Some(paint) if paint.only => PageBackdrop::Transparent,
+            _ => self.backdrop,
+        }
+    }
+
+    /// Paint invisible text visibly (`Some`) or not at all (`None`, the
+    /// default), returning `self` for chaining. See
+    /// [`crate::InvisibleTextPaint`].
+    #[must_use]
+    pub const fn with_invisible_text(mut self, paint: Option<crate::InvisibleTextPaint>) -> Self {
+        self.invisible_text = paint;
+        self
+    }
+
     /// The rendering-decision subset of these options, as the one value
     /// the interpreter and the annotation walk thread down.
     ///
@@ -1536,6 +1566,7 @@ impl RenderOptions {
             subpixel_culling: self.subpixel_culling,
             stroke_display: self.stroke_display,
             omit_annotations: self.omit_annotations.as_slice(),
+            invisible_text: self.invisible_text,
         }
     }
 }
@@ -1592,7 +1623,10 @@ mod render_policy_tests {
             .with_missing_as(pdfcer_core::settings::MissingAppearanceState::FirstEntry)
             .with_max_cmyk_buffer_bytes(Some(64 * 1024 * 1024))
             .with_layers(hidden.clone())
-            .with_view_magnification(2.5);
+            .with_view_magnification(2.5)
+            .with_invisible_text(Some(
+                crate::InvisibleTextPaint::new([1, 2, 3]).with_only(true),
+            ));
         assert_eq!(
             options.policy(),
             RenderPolicy {
@@ -1628,6 +1662,7 @@ mod render_policy_tests {
                 // default — same carried-field assertion as its sibling.
                 stroke_display: crate::font::StrokeDisplay::Actual,
                 omit_annotations: &[],
+                invisible_text: Some(crate::InvisibleTextPaint::new([1, 2, 3]).with_only(true)),
             }
         );
         assert_ne!(options.policy(), RenderPolicy::default());
