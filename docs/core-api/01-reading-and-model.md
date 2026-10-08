@@ -1548,7 +1548,11 @@ CLI.
 | `text_edit::LineEnd` | `Break`, `Wrap`, `Last` (`#[non_exhaustive]`; `as_str()` gives `break` / `wrap` / `last`). |
 | `model.line_ends(&block) -> Vec<LineEnd>` | One per line, in `block.line_indices` order; the last is `Last`, an empty block gives `[]`. |
 | `model.block_text_with_breaks(&block) -> String` | Lines joined by a space after a `Wrap` and by `\n` after a `Break`: the spelling `edit_block_text` takes, so writing it back keeps the block's lines (`G162`). `block_text` (every line joined by `\n`) is unchanged. |
-| `BlockHit::{text, line_ends}` | `block_at_point` now returns this spelling and the per-line ends. |
+| `BlockHit::{text, line_ends, line_end_source}` | `block_at_point` returns this spelling, the per-line ends and where they were read from. |
+| `text_edit::LineEndSource` | `Marked` (read from pdfcer's own marks: exact) or `Inferred` (`#[non_exhaustive]`; `as_str()` gives `marked` / `inferred`). |
+| `text_edit::LineMarks::scan(&ContentStream) -> LineMarks` | The marks in a page's own content (`ContentStream::from_page`); `is_empty()`. `Default` is no marks. |
+| `model.with_line_marks(marks) -> Self` | Attach them; the model must come from an extraction with provenance. `block_at_point` does this itself. |
+| `model.line_end_source(&block) -> LineEndSource` | Which reading `line_ends` used for `block`. |
 
 **The rule.** A greedy breaker (pdfcer's, and the usual word processor's)
 moves a word down only when it does not fit. So a line is a `Break` when the
@@ -1560,17 +1564,27 @@ a break. The space is the block's median space glyph, else its median word
 gap, else a third of an em. A line is measured from the block's leftmost line
 start.
 
-**The uncertainty, to disclose off-canvas (rule 4).** Both values are
-inferred, for pdfcer's own text as for foreign text: the file carries no
-mark of either. A break typed at a line already too full for the next word
+**pdfcer's own text is exact (`Pass 559.0`).** `edit_block_text` writes its
+block as one `BT … ET` opening with a `/pdfc_TextBlock MP` marked-content
+point and puts a `/pdfc_Break MP` after each line a typed break ends, blank
+lines included (ISO 32000-1 §14.6 Table 320; private second-class names,
+Annex E, which other readers ignore). A block whose glyphs all lie in one such
+text object of the page's own content reads `Break` where a break point sits
+between two lines, else `Wrap`, with `line_end_source == Marked`; and
+`block_text_with_breaks` gives `\n` per break point, so blank lines survive a
+re-edit. Any other block (foreign text, a form XObject, pdfcer text written
+before the marks) is read by the rule above and is `Inferred`.
+
+**The uncertainty, to disclose off-canvas (rule 4), for `Inferred` blocks
+only.** A break typed at a line already too full for the next word
 reads as `Wrap`; a centred or right-aligned short line reads as `Wrap` unless
 it is short enough anyway; a producer that balances its lines instead of
 filling them can produce a `Break` that was a wrap. Show the result as
 inferred, never as a marking on the page.
 
 CLI: `edit-block-text --at x,y` prints `line ends (inferred): wrap,break,last`
-beside `old text:`; `inspect --text-blocks --json` gives each block a
-`"line_ends"` array after `"text"`.
+(or `(marked)`) beside `old text:`; `inspect --text-blocks --json` gives each
+block a `"line_ends"` array after `"text"`, then `"line_end_source"`.
 
 ### 8.4.5 Tagged layout — blocks and tables from the structure tree (`Pass 395.0`)
 
