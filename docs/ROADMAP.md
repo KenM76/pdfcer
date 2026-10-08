@@ -115,6 +115,27 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 540.0` — opacity on any annotation; recolour caret / attachment / sound / screen markers (core + CLI; answers `pdfcer-gui` `G150`) — SHIPPED 2026-10-07 (1022nd filing)
+
+Commits `cb3e9365` (code), `77e8cc87` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Not yet pushed (engineer-reported); not checked here (no shell).
+
+**Basis.** Notes, stamps and media marks could be neither faded nor recoloured. `/CA` is ISO 32000-2 §12.5.2 Table 166; marker `/C` is §12.5.6.11 (Caret), .15 (FileAttachment), .16 (Sound), .18 (Screen).
+
+**Delivered.**
+- `EditSession::set_annot_opacity(annot_id, StyleEdit<f64>) -> AnnotOpacityChange`: sets or removes `/CA` on any subtype; dictionary only, `/AP` untouched. Finite out-of-range is clamped and reported (`clamped`); NaN or infinity refused with `MarkupOpacityOutOfRange`; a no-op commits nothing.
+- `EditSession::set_marker_style(annot_id, &MarkerStyle) -> MarkerStyleChange`: writes `/C` and re-bakes `/AP /N` for `MARKER_SUBTYPES`; keeps `/Sy`, `/Name`, `/FS`. A foreign appearance is refused with new `EditError::MarkerAppearanceForeign` unless `redraw_as_plain` (same contract as `538.0`); `appearance_was_foreign` reported.
+- CLI: `set-annot-opacity --opacity A | --clear`; `set-marker-color --color RRGGBB [--redraw-as-plain]` (exit 9 on a foreign icon). Subcommand count now 215.
+- **Fixed on discovery:** `set_markup_style` wrote a NaN opacity as `/CA NaN` (now refused); `set_text_annot_style` ignored the Locked flag (Table 165 bit 8; now `AnnotationLocked`); authored `/Screen` annotations now write `/C`.
+- `docs/core-api`: verbs 330 to 332, `EditError` 168 to 169; `check-core-api-verbs.py` PASS.
+
+**Verified (engineer-reported).** 9 new core tests (`crates/pdfcer-core/tests/annot_restyle.rs`) and 2 CLI; four sabotages (foreign check, colour precedence, Locked, NaN) each caught. `cargo test -p pdfcer-core -p pdfcer-cli`: 5,349 passed, 0 failed. clippy (all-features and lite), fmt, code-structure (no new violations), clap-help, rustdoc broken-intra-doc-links clean.
+
+**`G150` status.** The GUI column is `pdfcer-gui`'s to tick. Reply `FIXED` written, ACK removed (engineer-reported).
+
+`FEATURES.md`: *Planned* `540.0` row removed; two new Implemented rows (core `[x]` cli `[x]` gui `[ ]`); Locked refusal noted on the stamp/text restyle row.
+
+Ledgers: no decision; next free `Pass 552.0`; next filing 1023rd.
+
 ### `Pass 539.0` — a Line's `interior` (`/IC`) fills its closed line endings (core + CLI; answers `pdfcer-gui` `G153`) — SHIPPED 2026-10-07 (1021st filing)
 
 Commits `2c3b284f` (code), `9562b63c` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Not yet pushed (engineer-reported); not checked here (no shell).
@@ -21231,9 +21252,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), see *Shipped*; `540.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1022nd.
->
-> **`Pass 540.0` — `G150`:** `set_markup_style` widened: `/CA` for every subtype; `/C` for Caret, FileAttachment, Sound and Screen.
+> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), see *Shipped*; `541.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1023rd.
 >
 > **`Pass 541.0` — `G159`:** ce dimension `dash` and `opacity` in `StyleOverrides` and group style, baked into `/AP`.
 >

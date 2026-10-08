@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1022nd filing) — `Pass 540.0` shipped (`/CA` on any annotation, marker recolour, `G150`)
+
+**Shipped:** `Pass 540.0`, code `cb3e9365`, `docs/core-api` `77e8cc87`. `EditSession::set_annot_opacity` (`/CA` on any subtype, clamp-and-report, NaN refused) and `set_marker_style` (`/C` plus `/AP` re-bake for Caret, FileAttachment, Sound, Screen; foreign appearance refused unless `redraw_as_plain`, new `EditError::MarkerAppearanceForeign`). CLI `set-annot-opacity`, `set-marker-color` (215 subcommands). Fixed on discovery: NaN `/CA` from `set_markup_style`, Locked flag ignored by `set_text_annot_style`, `/Screen` authoring dropped `/C`.
+
+**Tests (engineer-reported):** 9 core + 2 CLI new; four sabotages caught; `cargo test -p pdfcer-core -p pdfcer-cli` 5,349 passed, 0 failed; clippy, fmt, code-structure, clap-help, rustdoc clean. core-api verbs 332, `EditError` 169. No manifest change. Not yet pushed.
+
+**Files:** ROADMAP `540.0` stub removed from *Next up*, entry added to *Shipped*, banner "540.0 SHIPPED; 541.0-551.0 remain"; `FEATURES.md` Planned row removed, two Implemented rows added, Locked note on the stamp restyle row.
+
+**Decisions made this session:** None.
+
+**Still in flight:** `Pass 541.0`-`551.0` queued. Next free `Pass 552.0`; next filing 1023rd.
+
+**Sourcing note (hard rule 8):** facts and hashes engineer-supplied; no shell, so push, backup and CI colour not checked here.
+
 ## 2026-10-07 (1021st filing) — `Pass 539.0` shipped (Line `/IC` fills closed endings, `G153`)
 
 **Shipped:** `Pass 539.0`, code `2c3b284f`, `docs/core-api` `9562b63c`. `MarkupSpec::Line.interior: Option<Color>` (breaking for struct literals) is read from, written to and clip-carried as `/IC`. A `ClosedArrow` now fills with `/IC`, hollow when absent (behaviour change: was `/C`). `takes_interior` true for Line; `set_markup_style` sets and clears it. CLI `set-markup-style --interior`, `annotate --fill`.
