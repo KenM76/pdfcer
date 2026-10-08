@@ -1008,6 +1008,10 @@ pub fn text_spec_from_dict<G: ObjectGraph + ?Sized>(
                 multiline: false, // NOT recoverable — see the doc comment.
                 border: read_color(graph, annot, b"C"),
                 border_width: read_border_width(graph, annot),
+                frame: FreeTextFrame {
+                    fill: read_color(graph, annot, FREE_TEXT_FILL_KEY),
+                    dash: read_border_dash(graph, annot),
+                },
             })
         }
         b"Text" => Ok(TextAnnotSpec::Sticky {
@@ -3263,6 +3267,20 @@ impl From<Color> for TextColor {
     }
 }
 
+/// A `/FreeText` box's fill and border dash, the frame properties beyond its
+/// border colour and width.
+#[derive(Debug, Clone, Default, PartialEq)]
+#[non_exhaustive]
+pub struct FreeTextFrame {
+    /// The box's background, painted under the text across the whole
+    /// rectangle; `None` leaves it transparent. Recorded as `/IC`, which no
+    /// standard table defines for FreeText, so a re-bake can recover it.
+    pub fill: Option<Color>,
+    /// `/BS /D`: a dashed border; `None` is solid (Table 168). Drawn only
+    /// with a border.
+    pub dash: Option<BorderDash>,
+}
+
 /// A text-bearing annotation to author (Pass 6.2). See the module section
 /// comment above for why this is separate from [`MarkupSpec`].
 #[derive(Debug, Clone, PartialEq)]
@@ -3291,6 +3309,8 @@ pub enum TextAnnotSpec {
         border: Option<Color>,
         /// Border width in points (used only when `border` is `Some`).
         border_width: f64,
+        /// Fill and border dash ([`FreeTextFrame`]).
+        frame: FreeTextFrame,
     },
     /// `/Text` (§12.5.6.4) — a "sticky note": a small marker on the page
     /// whose `/Contents` opens in a `/Popup`.
@@ -3686,6 +3706,7 @@ pub fn build_text_annotation(spec: &TextAnnotSpec) -> Result<AuthoredTextAnnot, 
             multiline,
             border,
             border_width,
+            frame,
         } => free_text(
             *rect,
             text,
@@ -3696,6 +3717,7 @@ pub fn build_text_annotation(spec: &TextAnnotSpec) -> Result<AuthoredTextAnnot, 
             *multiline,
             *border,
             *border_width,
+            frame,
         ),
         TextAnnotSpec::Sticky {
             rect,
@@ -4940,6 +4962,7 @@ fn free_text(
     multiline: bool,
     border: Option<Color>,
     border_width: f64,
+    frame: &FreeTextFrame,
 ) -> Result<AuthoredTextAnnot, VarTextError> {
     let rect = positive_rect(rect);
     let w = rect.width();
@@ -4962,23 +4985,9 @@ fn free_text(
     }];
     let va = vartext::build_variable_text(bbox, text, &da, quadding, multiline, &resources)?;
 
-    // Optional border, drawn OUTSIDE the /Tx text block (so it is not
-    // clipped by the text clip) — the frame first, then the text body.
-    let mut content = Vec::new();
-    if let (Some(bc), true) = (border, border_width > 0.0) {
-        let mut b = ContentBuilder::new();
-        bc.apply_stroke(&mut b);
-        b.set_line_width(border_width);
-        let inset = border_width / 2.0;
-        b.rect(
-            inset,
-            inset,
-            (w - border_width).max(0.0),
-            (h - border_width).max(0.0),
-        );
-        b.paint(Paint::Stroke);
-        content = b.into_bytes();
-    }
+    // The frame is drawn OUTSIDE the /Tx text block (so the text clip does
+    // not cut it) and before it, so the text sits on the fill.
+    let mut content = free_text_frame(w, h, border, border_width, frame);
     content.extend_from_slice(&va.content);
 
     let mut annot = base_annot(b"FreeText", rect);
@@ -4990,11 +4999,13 @@ fn free_text(
     }
     if let Some(bc) = border {
         annot.insert(Name::from(b"C"), bc.to_array());
-        // Solid, deliberately: `TextAnnotSpec::FreeText` carries no dash
-        // field, so there is no operator intent to express here. A dashed
-        // `/FreeText` frame is a `TextAnnotSpec` question, not a
-        // `MarkupSpec` one, and is not in this Pass.
-        annot.insert(Name::from(b"BS"), border_style(border_width, None));
+        annot.insert(
+            Name::from(b"BS"),
+            border_style(border_width, frame.dash.as_ref()),
+        );
+    }
+    if let Some(fill) = frame.fill {
+        annot.insert(Name::from(FREE_TEXT_FILL_KEY), fill.to_array());
     }
 
     Ok(AuthoredTextAnnot {
@@ -5011,6 +5022,50 @@ fn free_text(
         stamp_label_fit: None,
         unencodable_chars: va.unencodable_chars,
     })
+}
+
+/// The key a `/FreeText`'s fill is written under and read back from.
+///
+/// No standard key carries a FreeText fill (ISO 32000-1 Table 174, 32000-2
+/// Table 177): the appearance stream is the only carrier. `/IC` is pdfcer's
+/// recovery key so a re-bake keeps the fill; readers ignore it. Acrobat
+/// reads `/C` as the fill, but pdfcer's `/C` is the border colour.
+pub(crate) const FREE_TEXT_FILL_KEY: &[u8] = b"IC";
+
+/// A `/FreeText`'s fill and border, in its `[0 0 W H]` appearance box.
+fn free_text_frame(
+    w: f64,
+    h: f64,
+    border: Option<Color>,
+    border_width: f64,
+    frame: &FreeTextFrame,
+) -> Vec<u8> {
+    let stroked = border.filter(|_| border_width > 0.0);
+    if frame.fill.is_none() && stroked.is_none() {
+        return Vec::new();
+    }
+    let mut b = ContentBuilder::new();
+    b.save_state();
+    if let Some(fill) = frame.fill {
+        fill.apply_fill(&mut b);
+        b.rect(0.0, 0.0, w, h);
+        b.paint(Paint::Fill);
+    }
+    if let Some(bc) = stroked {
+        bc.apply_stroke(&mut b);
+        b.set_line_width(border_width);
+        apply_dash(&mut b, frame.dash.as_ref());
+        let inset = border_width / 2.0;
+        b.rect(
+            inset,
+            inset,
+            (w - border_width).max(0.0),
+            (h - border_width).max(0.0),
+        );
+        b.paint(Paint::Stroke);
+    }
+    b.restore_state();
+    b.into_bytes()
 }
 
 /// The `/F` value a sticky note always carries: Print + NoZoom + NoRotate
@@ -6590,6 +6645,7 @@ mod tests {
             multiline: false,
             border: None,
             border_width: 0.0,
+            frame: Default::default(),
         })
         .unwrap();
         // §12.7.3.3: BBox = [0 0 Rect_w Rect_h], NOT the page-space rect.
@@ -6673,6 +6729,7 @@ mod tests {
                 multiline: true,
                 border: Some(Color::Gray(0.0)),
                 border_width: 1.5,
+                frame: Default::default(),
             },
             TextAnnotSpec::Stamp {
                 rect: rect(0.0, 0.0, 200.0, 60.0),

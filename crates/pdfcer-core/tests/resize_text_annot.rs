@@ -90,6 +90,7 @@ fn author_free_text(s: &mut EditSession) -> ObjId {
             multiline: false,
             border: None,
             border_width: 0.0,
+            frame: Default::default(),
         },
     )
     .expect("author a text box")
@@ -228,6 +229,7 @@ SECOND LINE"
                 multiline: true,
                 border: None,
                 border_width: 0.0,
+                frame: Default::default(),
             },
         )
         .expect("author a wrapped text box");

@@ -658,6 +658,7 @@ fn free_text_spec(text: &str, multiline: bool) -> TextAnnotSpec {
         multiline,
         border: Some(Color::Gray(0.0)),
         border_width: 1.0,
+        frame: Default::default(),
     }
 }
 

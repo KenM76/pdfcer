@@ -176,6 +176,7 @@ fn authored_freetext_paints_glyph_pixels_after_reload_r44() {
         multiline: false,
         border: None,
         border_width: 0.0,
+        frame: Default::default(),
     });
 
     let on = render_page_with(
@@ -226,6 +227,7 @@ fn bare_standard14_font_dict_renders_with_no_embedded_program() {
         multiline: false,
         border: None,
         border_width: 0.0,
+        frame: Default::default(),
     });
 
     // Walk to the appearance stream's font dict and assert it is program-free.

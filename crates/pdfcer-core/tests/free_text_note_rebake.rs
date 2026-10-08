@@ -85,6 +85,7 @@ fn free_text(text: &str) -> TextAnnotSpec {
         multiline: false,
         border: Some(Color::Gray(0.0)),
         border_width: 1.0,
+        frame: Default::default(),
     }
 }
 
@@ -214,6 +215,7 @@ fn a_multiline_box_stays_multiline_through_an_edit() {
             multiline: true,
             border,
             border_width,
+            frame: Default::default(),
         },
         other => other,
     };

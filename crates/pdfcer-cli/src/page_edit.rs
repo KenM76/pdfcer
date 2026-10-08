@@ -720,6 +720,8 @@ pub(crate) struct AnnotateArgs<'a> {
     pub(crate) opacity: Option<f64>,
     /// `--dash ON,OFF,...` (`Pass 258.0`). `None` authors a solid border.
     pub(crate) dash: Option<&'a str>,
+    /// `--background RRGGBB`: a `freetext` box's fill.
+    pub(crate) background: Option<&'a str>,
     pub(crate) text: Option<&'a str>,
     pub(crate) font: &'a str,
     pub(crate) size: f64,
@@ -840,6 +842,14 @@ pub(crate) fn cmd_annotate(args: &AnnotateArgs<'_>) -> u8 {
     // clipped reached the operator as silence.
     let mut authored_text: Option<pdfcer_core::edit::TextAnnotOutcome> = None;
     let mut drawn: Option<pdfcer_core::edit::MarkupContentOutcome> = None;
+    if args.background.is_some() && args.kind != AnnotKindArg::Freetext {
+        eprintln!(
+            "pdfcer: {}: --background fills a freetext box; {:?} has no background",
+            input.display(),
+            args.kind
+        );
+        return exit::EDIT_REFUSED;
+    }
     if args.as_content && is_text_bearing(args.kind) {
         eprintln!(
             "pdfcer: {}: --as-content draws geometric shapes only; {:?} is a text-bearing annotation",

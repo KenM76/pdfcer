@@ -1394,6 +1394,11 @@ pub(crate) enum Command {
         /// strike-out, squiggly), which draws no `/BS` border.
         #[arg(long, value_name = "ON,OFF,...")]
         dash: Option<String>,
+        /// A `freetext` box's background as `RRGGBB` hex, painted under the
+        /// text across the whole box. Absent leaves it transparent. Refused
+        /// on every other type.
+        #[arg(long, value_name = "RRGGBB")]
+        background: Option<String>,
         /// The note text this annotation carries (`/Contents`, §12.5.2
         /// Table 164) — what a reviewer's comment panel shows as the comment
         /// (`Pass 150.0`).
@@ -6412,44 +6417,9 @@ pub(crate) enum Command {
         /// Index within that page's `/Annots`, 0-BASED.
         #[arg(long)]
         index: usize,
-        /// Sticky-note icon. `/Text` only.
-        #[arg(long, value_name = "NAME")]
-        icon: Option<StickyIconArg>,
-        /// Colour as `RRGGBB` hex.
-        ///
-        /// There is no `none`: the authoring model gives a note's icon, a
-        /// stamp's face and a text box's frame a REQUIRED colour, so "no
-        /// colour" is not a state it can express and offering the word
-        /// would mean inventing a fallback.
-        #[arg(long, value_name = "RRGGBB")]
-        color: Option<String>,
-        /// **Label size in points** for a `/Stamp` or `/FreeText`
-        /// (`Pass 292.0`).
-        ///
-        /// Refused by name on a `/Text` sticky note, which draws an icon and
-        /// has no label to size. The new size is written to `/DA` and the
-        /// appearance re-baked, so the size survives a later resize.
-        #[arg(long, value_name = "POINTS")]
-        font_size: Option<f64>,
-        /// What a stamp does when the RESIZED label no longer fits its box:
-        /// `grow` (default — widen the box), `shrink` (smaller text, same
-        /// box), `clip` (cut the label).
-        ///
-        /// Only meaningful with `--font-size`, and refused without it. The
-        /// author's original fit intent is NOT recorded anywhere in a PDF,
-        /// so this is your choice rather than a recovered one.
-        #[arg(long, value_enum)]
-        stamp_fit: Option<StampFitArg>,
-        /// Redraw a text box pdfcer cannot redraw faithfully, instead of
-        /// refusing.
-        ///
-        /// Applies to a `/FreeText` another program drew (its wrapping cannot
-        /// be recovered, so it is redrawn wrapped within its box) or one
-        /// holding rich text (`/RC` and `/DS` are removed and the plain
-        /// text is drawn). Without this flag such a box is left unchanged
-        /// and the command exits 9.
-        #[arg(long)]
-        redraw_as_plain: bool,
+        /// The style to apply.
+        #[command(flatten)]
+        style: TextAnnotStyleFlags,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,

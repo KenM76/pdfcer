@@ -139,6 +139,18 @@ pub(crate) fn build_markup_spec(
     }
 }
 
+/// `--background` as a [`FreeTextFrame`](pdfcer_core::annot_author::FreeTextFrame).
+fn free_text_frame(
+    background: Option<&str>,
+) -> Result<pdfcer_core::annot_author::FreeTextFrame, String> {
+    let mut frame = pdfcer_core::annot_author::FreeTextFrame::default();
+    frame.fill = background
+        .map(parse_color)
+        .transpose()
+        .map_err(|e| format!("--background: {e}"))?;
+    Ok(frame)
+}
+
 /// Build a [`TextAnnotSpec`](pdfcer_core::annot_author::TextAnnotSpec) from
 /// the parsed `annotate` flags for a Pass-6.2 text-bearing subtype.
 pub(crate) fn build_text_annot_spec(
@@ -172,6 +184,7 @@ pub(crate) fn build_text_annot_spec(
                 multiline: args.multiline,
                 border,
                 border_width: args.width,
+                frame: free_text_frame(args.background)?,
             })
         }
         AnnotKindArg::Text => {

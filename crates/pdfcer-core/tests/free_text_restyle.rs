@@ -136,6 +136,7 @@ trailer << /Size 4 /Root 1 0 R >>\n"
                 multiline: false,
                 border: None,
                 border_width: 1.0,
+                frame: Default::default(),
             },
         )
         .expect("place");

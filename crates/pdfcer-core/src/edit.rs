@@ -3867,19 +3867,98 @@ fn apply_text_annot_style(
             multiline,
             border,
             border_width,
-        } => TextAnnotSpec::FreeText {
-            rect,
-            text,
-            font,
-            // Written through `/DA`'s `Tf` by the re-bake (G148).
-            font_size: style.font_size.unwrap_or(font_size),
-            color,
-            quadding,
-            // The measured value wins over the reader's placeholder.
-            multiline: measured_multiline.unwrap_or(multiline),
-            border: style.color.or(border),
-            border_width,
-        },
+            frame,
+        } => {
+            let (border, border_width, frame) =
+                restyled_free_text_frame(style, border, border_width, frame);
+            TextAnnotSpec::FreeText {
+                rect,
+                text,
+                font: style.font.unwrap_or(font),
+                // Written through `/DA`'s `Tf` by the re-bake (G148).
+                font_size: style.font_size.unwrap_or(font_size),
+                color: style.text_color.unwrap_or(color),
+                quadding,
+                // The measured value wins over the reader's placeholder.
+                multiline: measured_multiline.unwrap_or(multiline),
+                border,
+                border_width,
+                frame,
+            }
+        }
+    }
+}
+
+/// A `/FreeText`'s border colour, width and frame after `style`. A width on
+/// a borderless box gives it a border, in `style.color` else black; a zero
+/// width removes it.
+fn restyled_free_text_frame(
+    style: &TextAnnotStyle,
+    border: Option<annot_author::Color>,
+    border_width: f64,
+    mut frame: annot_author::FreeTextFrame,
+) -> (
+    Option<annot_author::Color>,
+    f64,
+    annot_author::FreeTextFrame,
+) {
+    let mut border = style.color.or(border);
+    let mut border_width = border_width;
+    if let Some(w) = style.border_width {
+        border_width = w.max(0.0);
+        border = (border_width > 0.0).then(|| border.unwrap_or(annot_author::Color::Gray(0.0)));
+    }
+    match &style.fill {
+        Some(StyleEdit::Set(c)) => frame.fill = Some(*c),
+        Some(StyleEdit::Clear) => frame.fill = None,
+        None => {}
+    }
+    match &style.dash {
+        Some(StyleEdit::Set(d)) => frame.dash = Some(d.clone()),
+        Some(StyleEdit::Clear) => frame.dash = None,
+        None => {}
+    }
+    (border, border_width, frame)
+}
+
+/// Refuse, before anything is written, a [`TextAnnotStyle`] property the
+/// annotation's subtype does not have (`Pass 258.0`: a swallowed request is
+/// worse than a named refusal), and an opacity outside `0.0..=1.0`.
+fn refuse_inapplicable_text_style(
+    id: ObjId,
+    subtype: &[u8],
+    label: &str,
+    style: &TextAnnotStyle,
+) -> Result<(), EditError> {
+    if let Some(StyleEdit::Set(alpha)) = style.opacity
+        && !(0.0..=1.0).contains(&alpha)
+    {
+        return Err(EditError::MarkupOpacityOutOfRange { value: alpha });
+    }
+    let free_text_only = [
+        (style.fill.is_some(), "a text-box fill"),
+        (style.border_width.is_some(), "a border width"),
+        (style.dash.is_some(), "a border dash"),
+        (style.text_color.is_some(), "a text colour"),
+        (style.font.is_some(), "a text face"),
+    ];
+    let refused = if style.icon.is_some() && subtype != b"Text" {
+        Some("a sticky-note icon")
+    } else if style.font_size.is_some() && subtype == b"Text" {
+        // A `/Text` draws an icon: there is no label to size.
+        Some("a label font size")
+    } else if subtype != b"FreeText" {
+        free_text_only.iter().find(|(set, _)| *set).map(|(_, p)| *p)
+    } else {
+        None
+    };
+    match refused {
+        Some(property) => Err(EditError::StylePropertyNotApplicable {
+            id,
+            subtype: label.to_owned(),
+            property,
+        }),
+        None => Ok(()),
     }
 }
 
@@ -6099,6 +6178,10 @@ pub struct MarkupOptions {
     ///
     /// A dashed revision cloud and a dashed leader are ordinary AEC
     /// markup, which is why this is authorable and not only preservable.
+    ///
+    /// On `add_text_annotation_*` it dashes a `/FreeText`'s border unless
+    /// the spec's own `FreeTextFrame::dash` is set; a sticky note or stamp
+    /// ignores it.
     ///
     /// Ignored by the text-markup family — a highlight is a wash and an
     /// underline is its own line; neither draws a `/BS` border. Ask
@@ -21561,6 +21644,25 @@ pub struct TextAnnotStyle {
     /// in [`TextAnnotStyleChange::rich_text_dropped`]. Ignored on the other
     /// subtypes.
     pub redraw_as_plain: bool,
+    /// `/CA`, the annotation's constant opacity `0.0`–`1.0` (§12.5.2 Table
+    /// 170), composited onto the page with the whole appearance. `Clear`
+    /// removes the key (opaque). Any of the three subtypes.
+    pub opacity: Option<StyleEdit<f64>>,
+    /// A `/FreeText`'s background (written as `/IC`, painted under the text
+    /// across its rectangle). `Clear` makes it transparent. `/FreeText`
+    /// only, like every field below.
+    pub fill: Option<StyleEdit<annot_author::Color>>,
+    /// The border width in points (`/BS /W`); `0.0` removes the border. A
+    /// width given to a box with no border draws one in [`Self::color`],
+    /// else black.
+    pub border_width: Option<f64>,
+    /// `/BS /D`: `Set` dashes the border, `Clear` makes it solid.
+    pub dash: Option<StyleEdit<annot_author::BorderDash>>,
+    /// The text colour, the colour operator of `/DA`.
+    pub text_color: Option<crate::vartext::TextColor>,
+    /// The text face, the font of `/DA` (a standard-14 face; symbolic faces
+    /// are refused by the re-bake).
+    pub font: Option<Std14>,
 }
 
 /// A review status a state annotation can carry (§12.5.6.3, Table 171;
@@ -21782,6 +21884,12 @@ pub struct TextAnnotStyleChange {
     /// The rich-text keys (`RC`, `DS`) removed from a `/FreeText` redrawn
     /// under [`TextAnnotStyle::redraw_as_plain`]; empty otherwise.
     pub rich_text_dropped: Vec<String>,
+    /// Whether `/CA` was written or removed.
+    pub opacity_written: bool,
+    /// Whether a `/FreeText`'s fill, border width or dash was rewritten.
+    pub frame_written: bool,
+    /// Whether a `/FreeText`'s text colour or face was rewritten.
+    pub text_style_written: bool,
 }
 
 /// What [`EditSession::place_page_artwork`] placed, and what it decided
@@ -37581,28 +37689,7 @@ impl EditSession {
             });
         }
 
-        // Refuse an inapplicable property BEFORE anything is written, the
-        // posture `Pass 258.0` established: a silently swallowed request is
-        // treated here as worse than a named refusal.
-        if style.icon.is_some() && target.subtype != b"Text" {
-            return Err(EditError::StylePropertyNotApplicable {
-                id: annot_id,
-                subtype: subtype.clone(),
-                property: "a sticky-note icon",
-            });
-        }
-        // The mirror refusal (`Pass 292.0`). A `/Text` draws an ICON: there
-        // is no label to size, so a font size is as inapplicable here as an
-        // icon is on a stamp. Refused by name rather than swallowed, which is
-        // the whole posture `Pass 258.0` established — a control that appears
-        // to work and changes nothing is worse than one that says why.
-        if style.font_size.is_some() && target.subtype == b"Text" {
-            return Err(EditError::StylePropertyNotApplicable {
-                id: annot_id,
-                subtype: subtype.clone(),
-                property: "a label font size",
-            });
-        }
+        refuse_inapplicable_text_style(annot_id, &target.subtype, &subtype, style)?;
 
         let Some(Object::Dict(current)) = self.value(annot_id) else {
             return Err(EditError::NotADictionary {
@@ -37705,6 +37792,17 @@ impl EditSession {
                 }
             }
         }
+        // `/CA` composites the whole appearance onto the page, so it is a
+        // dictionary key, not part of the re-bake (as in `set_markup_style`).
+        match style.opacity {
+            Some(StyleEdit::Set(alpha)) => {
+                regen.updated.insert(Name::from(b"CA"), Object::Real(alpha));
+            }
+            Some(StyleEdit::Clear) => {
+                regen.updated.remove(b"CA");
+            }
+            None => {}
+        }
         let appearance = regen.appearance;
         self.commit_regenerated_markup(annot_id, regen, CommandKind::SetTextAnnotStyle);
 
@@ -37719,6 +37817,11 @@ impl EditSession {
             appearance,
             appearance_was_foreign: foreign_appearance || stamp_appearance_was_foreign,
             rich_text_dropped,
+            opacity_written: style.opacity.is_some(),
+            frame_written: style.fill.is_some()
+                || style.border_width.is_some()
+                || style.dash.is_some(),
+            text_style_written: style.text_color.is_some() || style.font.is_some(),
         })
     }
 
@@ -39276,6 +39379,7 @@ impl EditSession {
             quadding,
             border,
             border_width,
+            frame,
             ..
         } = spec
         else {
@@ -39292,6 +39396,7 @@ impl EditSession {
                 multiline: m,
                 border: *border,
                 border_width: *border_width,
+                frame: frame.clone(),
             };
             annot_author::build_text_annotation(&probe)
                 .is_ok_and(|baked| self.appearance_matches(on_disk, &baked.ap_content))
@@ -39363,6 +39468,7 @@ impl EditSession {
             quadding,
             border,
             border_width,
+            frame,
             ..
         } = original
         else {
@@ -39382,6 +39488,7 @@ impl EditSession {
             multiline,
             border,
             border_width,
+            frame: frame.clone(),
         };
         let multiline = self.measure_free_text_multiline(before, &spec_with(&old_text, false))?;
 
@@ -41308,6 +41415,21 @@ impl EditSession {
         }
 
         // Generate the appearance + annotation dictionary (§12.7.3.3).
+        // `options.dash` is the add route's border dash; on a `/FreeText` it
+        // is drawn into the frame (a spec dash wins). The other two subtypes
+        // draw no `/BS` border, as a text markup draws none.
+        let dashed;
+        let spec = match (spec, &options.dash) {
+            (TextAnnotSpec::FreeText { frame, .. }, Some(d)) if frame.dash.is_none() => {
+                let mut s = spec.clone();
+                if let TextAnnotSpec::FreeText { frame, .. } = &mut s {
+                    frame.dash = Some(d.clone());
+                }
+                dashed = s;
+                &dashed
+            }
+            _ => spec,
+        };
         let authored = annot_author::build_text_annotation(spec)?;
         // Captured BEFORE `authored` is taken apart below (`Pass 291.0`).
         // These four facts are the whole disclosure this verb owes, and each
@@ -65663,6 +65785,7 @@ endstream",
             multiline: false,
             border: None,
             border_width: 0.0,
+            frame: Default::default(),
         }
     }
 
@@ -65793,6 +65916,7 @@ endstream",
                     multiline: false,
                     border: None,
                     border_width: 0.0,
+                    frame: Default::default(),
                 },
             )
             .unwrap_err();

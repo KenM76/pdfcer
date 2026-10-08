@@ -99,6 +99,28 @@ pub(crate) fn parse_dash_edit(
         })
 }
 
+/// Parse an `--opacity 0.0-1.0|none` flag; `None` back means absent, `none`
+/// removes `/CA`.
+///
+/// # Errors
+///
+/// A message naming the flag, for the caller to print.
+pub(crate) fn parse_opacity_edit(
+    value: Option<&str>,
+) -> Result<Option<pdfcer_core::edit::StyleEdit<f64>>, String> {
+    use pdfcer_core::edit::StyleEdit;
+    match value {
+        None => Ok(None),
+        Some(v) if v.eq_ignore_ascii_case("none") => Ok(Some(StyleEdit::Clear)),
+        Some(v) => match v.parse::<f64>() {
+            Ok(a) if (0.0..=1.0).contains(&a) => Ok(Some(StyleEdit::Set(a))),
+            _ => Err(format!(
+                "--opacity: `{v}` is not a number in 0.0..=1.0, or `none`"
+            )),
+        },
+    }
+}
+
 /// Parse a `RRGGBB`-or-`none` colour flag into a
 /// [`StyleEdit`](pdfcer_core::edit::StyleEdit).
 ///
@@ -411,141 +433,6 @@ pub(crate) fn locate_page(
         );
         exit::EDIT_REFUSED
     })
-}
-
-/// Implement `pdfcer set-text-annot-style`.
-// One argument per flag the subcommand accepts, which is how every other
-// command function in this file is shaped; bundling them into a struct would
-// hide the mapping the `Command` match relies on.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn cmd_set_text_annot_style(
-    input: &Path,
-    page: usize,
-    index: usize,
-    icon: Option<StickyIconArg>,
-    color: Option<&str>,
-    font_size: Option<f64>,
-    stamp_fit: Option<StampFitArg>,
-    redraw_as_plain: bool,
-    output: &Path,
-    mode: SaveMode,
-) -> u8 {
-    if icon.is_none() && color.is_none() && font_size.is_none() {
-        eprintln!("pdfcer: nothing to change: pass --icon, --color, --font-size, or several");
-        return exit::EDIT_REFUSED;
-    }
-    // `--stamp-fit` alone changes nothing: it says what to do about a box when
-    // a NEW size no longer fits it, and without a new size there is no re-fit
-    // to police. Said rather than ignored (`Pass 292.0`).
-    if stamp_fit.is_some() && font_size.is_none() {
-        eprintln!(
-            "pdfcer: --stamp-fit only applies with --font-size: it decides what happens to the \
-             box when the RESIZED label no longer fits it"
-        );
-        return exit::EDIT_REFUSED;
-    }
-    // `is_sign_positive` + `is_normal` rather than `!(s > 0.0)`: a NaN is
-    // neither greater nor not-greater than zero, and clippy is right that the
-    // negated comparison hides that.
-    if font_size.is_some_and(|s| !s.is_finite() || s <= 0.0) {
-        eprintln!("pdfcer: --font-size must be a positive number of points");
-        return exit::EDIT_REFUSED;
-    }
-    let parsed_color = match color.map(parse_color) {
-        None => None,
-        Some(Ok(c)) => Some(c),
-        Some(Err(msg)) => {
-            eprintln!("pdfcer: --color: {msg}");
-            return exit::EDIT_REFUSED;
-        }
-    };
-
-    let (source, mut session) = match open_for_edit(input) {
-        Ok(pair) => pair,
-        Err(code) => return code,
-    };
-    let annot_id = match resolve_annotation(&session, input, page, index) {
-        Ok(id) => id,
-        Err(code) => return code,
-    };
-
-    let style = pdfcer_core::edit::TextAnnotStyle {
-        icon: icon.map(StickyIconArg::to_core),
-        color: parsed_color,
-        font_size,
-        stamp_fit: stamp_fit.map(StampFitArg::to_fit),
-        redraw_as_plain,
-    };
-    let change = match session.set_text_annot_style(annot_id, &style) {
-        Ok(c) => c,
-        Err(err) => {
-            eprintln!("pdfcer: {}: {err}", input.display());
-            return exit::EDIT_REFUSED;
-        }
-    };
-
-    let saved = match save_edited(
-        &mut session,
-        &source,
-        output,
-        mode,
-        ProducerArg::Preserve,
-        false,
-    ) {
-        Ok(saved) => saved,
-        Err(code) => return code,
-    };
-
-    println!(
-        "set-text-annot-style {} page {page} index {index} -> {}",
-        input.display(),
-        output.display()
-    );
-    // What the re-bake DECIDED, before the machine-readable line (rule 11).
-    if let Some(fit) = change.stamp_label_fit
-        && fit.is_inference()
-    {
-        report_stamp_label_fit(input, fit);
-    }
-    if change.appearance_was_foreign {
-        eprintln!(
-            "pdfcer: {}: the previous appearance was NOT one pdfcer would have drawn, and \
-             re-baking has replaced it with pdfcer's plain rendering (a stamp's artwork, or a \
-             text box redrawn under --redraw-as-plain, wrapped within its box).",
-            input.display()
-        );
-    }
-    if !change.rich_text_dropped.is_empty() {
-        eprintln!(
-            "pdfcer: {}: removed the text box's rich text ({}); it now shows its plain text.",
-            input.display(),
-            change.rich_text_dropped.join(", ")
-        );
-    }
-    println!(
-        "  obj={} subtype={} icon_written={} color_written={} font_size_written={} \
-rect={:.2},{:.2},{:.2},{:.2} was_foreign={} rich_text_dropped={} appearance={}",
-        change.annot_id.num,
-        change.subtype,
-        u32::from(change.icon_written),
-        u32::from(change.color_written),
-        u32::from(change.font_size_written),
-        change.rect_after.llx,
-        change.rect_after.lly,
-        change.rect_after.urx,
-        change.rect_after.ury,
-        u32::from(change.appearance_was_foreign),
-        change.rich_text_dropped.len(),
-        match change.appearance {
-            pdfcer_core::edit::AppearanceWrite::InPlace(_) => "in-place",
-            pdfcer_core::edit::AppearanceWrite::Created(_) => "created",
-            pdfcer_core::edit::AppearanceWrite::CopiedOnWrite { .. } => "copied",
-            // `AppearanceWrite` is #[non_exhaustive]; a future variant must
-            // print SOMETHING rather than fail to compile a shell.
-            _ => "other",
-        },
-    );
-    finish_edit(input, &saved)
 }
 
 /// Implement `pdfcer set-review-state`.
@@ -908,7 +795,7 @@ pub(crate) fn cmd_set_markup_style(
     mode: SaveMode,
     verify_undo: bool,
 ) -> u8 {
-    use pdfcer_core::edit::{AppearanceWrite, DroppedProperty, MarkupStyle, StyleEdit};
+    use pdfcer_core::edit::{AppearanceWrite, DroppedProperty, MarkupStyle};
 
     // Parse the flags BEFORE opening the file: a mistyped colour should
     // not cost a parse of a large document.
@@ -922,16 +809,12 @@ pub(crate) fn cmd_set_markup_style(
             return exit::EDIT_REFUSED;
         }
     };
-    let opacity = match style.opacity {
-        None => None,
-        Some(v) if v.eq_ignore_ascii_case("none") => Some(StyleEdit::Clear),
-        Some(v) => match v.parse::<f64>() {
-            Ok(a) if (0.0..=1.0).contains(&a) => Some(StyleEdit::Set(a)),
-            _ => {
-                eprintln!("pdfcer: --opacity: `{v}` is not a number in 0.0..=1.0, or `none`");
-                return exit::EDIT_REFUSED;
-            }
-        },
+    let opacity = match parse_opacity_edit(style.opacity) {
+        Ok(o) => o,
+        Err(msg) => {
+            eprintln!("pdfcer: {msg}");
+            return exit::EDIT_REFUSED;
+        }
     };
     let dash = match parse_dash_edit(style.dash) {
         Ok(d) => d,

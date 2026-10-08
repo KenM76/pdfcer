@@ -742,6 +742,7 @@ fn free_text_annotation_preview_equals_saved() {
             multiline: false,
             border: None,
             border_width: 0.0,
+            frame: Default::default(),
         },
     )
     .expect("add_text_annotation applies");

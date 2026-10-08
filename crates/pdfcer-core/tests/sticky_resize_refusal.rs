@@ -136,6 +136,7 @@ fn a_free_text_still_resizes() {
                 multiline: false,
                 border: None,
                 border_width: 0.0,
+                frame: Default::default(),
             },
         )
         .expect("author a text box");

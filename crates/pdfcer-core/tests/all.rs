@@ -101,6 +101,7 @@ mod format_decoration_metrics;
 mod format_decoration_tagged;
 mod format_occurrence;
 mod forms_richtext;
+mod free_text_frame_style;
 mod free_text_note_rebake;
 mod free_text_restyle;
 mod freetext_newline;

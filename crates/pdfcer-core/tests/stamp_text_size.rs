@@ -518,6 +518,7 @@ fn a_freetext_has_no_stamp_fit_to_report() {
         multiline: false,
         border: None,
         border_width: 1.0,
+        frame: Default::default(),
     })
     .expect("builds");
     assert!(a.stamp_label_fit.is_none());

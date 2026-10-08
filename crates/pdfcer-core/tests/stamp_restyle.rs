@@ -123,6 +123,7 @@ fn a_colour_restyle_keeps_the_stamps_own_label() {
                 font_size: None,
                 stamp_fit: None,
                 redraw_as_plain: false,
+                ..Default::default()
             },
         )
         .expect("the restyle succeeds");
@@ -154,6 +155,7 @@ fn a_new_label_size_is_written_and_reads_back() {
                 font_size: Some(20.0),
                 stamp_fit: None,
                 redraw_as_plain: false,
+                ..Default::default()
             },
         )
         .expect("the restyle succeeds");
@@ -189,6 +191,7 @@ fn a_resized_label_refits_its_box_and_reports_it() {
                 font_size: Some(48.0),
                 stamp_fit: None,
                 redraw_as_plain: false,
+                ..Default::default()
             },
         )
         .expect("the restyle succeeds");
@@ -217,6 +220,7 @@ fn the_caller_chooses_the_fit_policy_for_a_resize() {
                 font_size: Some(48.0),
                 stamp_fit: Some(StampFit::ShrinkToBox),
                 redraw_as_plain: false,
+                ..Default::default()
             },
         )
         .expect("the restyle succeeds");
@@ -265,6 +269,7 @@ fn a_font_size_is_refused_on_a_sticky_note() {
                 font_size: Some(20.0),
                 stamp_fit: None,
                 redraw_as_plain: false,
+                ..Default::default()
             },
         )
         .expect_err("a sticky note has no label to size");

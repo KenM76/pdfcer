@@ -119,7 +119,6 @@ fn pdfcer-cli/src/annot_edit.rs::cmd_rotate_annotation
 fn pdfcer-cli/src/annot_edit.rs::cmd_set_annotation_flags
 fn pdfcer-cli/src/annot_edit.rs::cmd_set_markup_note
 fn pdfcer-cli/src/annot_edit.rs::cmd_set_markup_style
-fn pdfcer-cli/src/annot_edit.rs::cmd_set_text_annot_style
 fn pdfcer-cli/src/annot_parse.rs::build_markup_spec
 fn pdfcer-cli/src/bates_cmd.rs::cmd_bates_stamp
 fn pdfcer-cli/src/dimension.rs::cmd_annotation_vertex
@@ -220,7 +219,6 @@ fn pdfcer-core/src/annot_author.rs::decode_spec
 fn pdfcer-core/src/annot_author.rs::encode_spec
 fn pdfcer-core/src/annot_author.rs::file_attachment
 fn pdfcer-core/src/annot_author.rs::fit_stamp_label
-fn pdfcer-core/src/annot_author.rs::free_text
 fn pdfcer-core/src/annot_author.rs::rectangle_like
 fn pdfcer-core/src/annot_author.rs::sound
 fn pdfcer-core/src/annot_author.rs::spec_from_dict

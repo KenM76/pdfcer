@@ -641,6 +641,8 @@ use annot_restyle_cmd::*;
 use stroke_style_cmd::*;
 mod restack_cmd;
 use restack_cmd::*;
+mod text_annot_style_cmd;
+use text_annot_style_cmd::*;
 mod object_list;
 use object_list::*;
 mod objects;

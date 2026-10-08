@@ -595,6 +595,7 @@ fn a_text_box_travels_with_everything_a_model_route_would_have_dropped() {
             multiline: true,
             border: Some(Color::Gray(0.0)),
             border_width: 1.0,
+            frame: Default::default(),
         },
     )
     .expect("author a text box");

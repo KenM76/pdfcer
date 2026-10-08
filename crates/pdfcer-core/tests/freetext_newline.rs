@@ -83,6 +83,7 @@ fn free_text(text: &str, multiline: bool) -> TextAnnotSpec {
         multiline,
         border: None,
         border_width: 0.0,
+        frame: Default::default(),
     }
 }
 
