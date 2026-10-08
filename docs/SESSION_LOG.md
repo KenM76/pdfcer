@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1042nd filing) — `Pass 559.0` shipped (exact wrap/break line ends for pdfcer's own blocks, `G163` follow-up)
+
+**Shipped:** `Pass 559.0`, `765ad7ce` (code), `de133315` (`docs/core-api`). `edit_block_text` writes `/pdfc_TextBlock MP` and `/pdfc_Break MP` marked-content points; `LineMarks`, `LineEndSource {Marked, Inferred}`, `BlockHit.line_end_source`; CLI `edit-block-text --at` and `inspect --text-blocks --json` report the source. Foreign, form-XObject and pre-559 text stay inferred. lib 1515, `--test all` 2897, new CLI test; sabotage checks failed 3 and 2 tests as expected; listed gates clean (engineer-reported). Core and cli delivered; gui `[ ]`.
+
+**Files:** ROADMAP: Shipped entry added; `559.0` bullet in the Next up stub replaced by a SHIPPED pointer, header updated (batch complete, next filing 1043rd). `FEATURES.md`: *Planned* row removed, *Implemented* row added before the `554.0` row, `554.0` row's "until `Pass 559.0`" reworded.
+
+**Decisions made this session:** None.
+
+**Still in flight:** nothing queued from the `G162`-`G168` batch. Next free `Pass 560.0`; next filing 1043rd. Push state not verifiable from here (no shell).
+
 ## 2026-10-08 (1041st filing) — `Pass 558.0` shipped (layout-aware OCR for PaddleOCR-VL, `G167`)
 
 **Shipped:** `Pass 558.0`, `b967c09e`, `d2b21073`, `3dccbdbc` (code), `77fed3ee` (`docs/core-api`, `PRIOR_ART.md`), `fbbd1ae2` (rustdoc link). Layout stage on rten with PP-DocLayoutV3 (optional `layout.onnx`, not shipped), OTSL table parser, per-class task prompts, repetition stop; core `read_page_with_layout`, host `RunOptions::with_layout`, CLI `ocr --layout` / `--region-layers`. Disclosed inferences: line boxes from ink, even-grid table cells, whole-page fallback. 12,602 workspace tests passed, 0 failed; gates 44 of 46 before this filing (the two failures: rustdoc link, since fixed, and `check-commits-filed.py`, which this filing answers) (engineer-reported). Core and cli delivered; gui is `pdfcer-gui`'s.

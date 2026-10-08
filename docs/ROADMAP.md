@@ -115,6 +115,24 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 559.0` — exact wrap/break line ends for pdfcer's own text blocks (core + CLI; follow-up to `G163`) — SHIPPED 2026-10-08 (1042nd filing)
+
+Commits `765ad7ce` (code, tests), `de133315` (`docs/core-api`); push state not verifiable from here. No manifest change, so no new dependency and `cargo tree` unaffected. No decision. Listed in *Next up* at filing (verified, a blockquote bullet in the 1034th-filing stub), bullet replaced by a SHIPPED pointer.
+
+**Delivered.**
+- `edit_block_text` writes the block's `BT … ET` with a `/pdfc_TextBlock MP` after `BT` and a `/pdfc_Break MP` after each line a typed break ends, blank-paragraph lines included. Marked-content points inside a text object: ISO 32000-1 §14.6 Table 320, §8.2 Figure 9; private second-class `pdfc_` names per Annex E (as `pdfc_OCR`).
+- `text_edit`: `LineMarks::scan(&ContentStream)`, `LineMarks::is_empty`, `EditableTextModel::with_line_marks`, `EditableTextModel::line_end_source`, `LineEndSource {Marked, Inferred}` (`as_str`), consts `TEXT_BLOCK_TAG` / `BREAK_TAG`; `BlockHit.line_end_source`.
+- A block whose glyphs all lie in one marked text object of the page's own content reads Break/Wrap exactly from the break points between its lines; `block_text_with_breaks` keeps blank lines (`\n` per break point). Foreign blocks, form-XObject text and pdfcer text written before this Pass stay inferred (554.0 rule) and report `Inferred`. Closes the known 554.0 misreading for pdfcer-written text.
+- CLI: `edit-block-text --at` prints `line ends (marked|inferred): …`; `inspect --text-blocks --json` adds `"line_end_source"`.
+
+**Round-trip.** Only the edited block's content changes (same incremental-save path as 433.0).
+
+**Verified (engineer-reported).** pdfcer-core lib 1515 (+2 `line_marks` unit tests); core `--test all` 2897 incl. two new `edit_block_text` tests (break after a full line reads Break/Marked; blank lines survive, exactly one TextBlock and two Break points); CLI new `pdfcers_own_block_reports_its_line_ends_as_marked`, inspect JSON test asserts `"line_end_source": "inferred"`. Sabotage: removing break emission failed 3 tests; removing the block tag failed 2. fmt, clippy (core all-features, core lite, cli), rustdoc broken-links, string-gaps, code-structure, public-fns-documented, tests-harnessed, clap-help clean.
+
+`FEATURES.md`: *Planned* `559.0` row moved to *Implemented* (core `[x]` cli `[x]` gui `[ ]`); the `554.0` row's "until `Pass 559.0`" clause reworded.
+
+Ledgers: no decision; next free `Pass 560.0`; next filing 1043rd.
+
 ### `Pass 558.0` — layout-aware OCR for PaddleOCR-VL: classed regions, OTSL tables, a layer per region group (core + `pdfcer-ocr-host` + CLI; answers `pdfcer-gui` `G167`) — SHIPPED 2026-10-08 (1041st filing)
 
 Commits `b967c09e` (layout model, OTSL parser), `d2b21073` (VL task prompts, repetition stop, `OcrBlock.region`/`.cell`), `3dccbdbc` (page reader, host, CLI), `77fed3ee` (`docs/core-api` Piece 3f, `PRIOR_ART.md` row), `fbbd1ae2` (rustdoc link fix); all on local `main`, unpushed at filing. No new crate (rten already in use), `cargo tree` unchanged. Layout model PP-DocLayoutV3: Apache-2.0, ADOPTED in `PRIOR_ART.md`, model file not shipped. No decision. Listed in *Next up* at filing (verified, a blockquote bullet in the 1034th-filing stub), bullet replaced by a SHIPPED pointer.
@@ -21639,11 +21657,11 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`558.0` all shipped; only the follow-up `559.0` remains, unstarted.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 560.0`; next filing 1042nd.
+> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`559.0` all shipped; the batch is complete.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 560.0`; next filing 1043rd.
 > - `552.0` (`G162`) SHIPPED (`9be9d44a`, `ea7e80af`, 1035th filing), see *Shipped*.
 > - `553.0` (`G168`) SHIPPED (`8d014437`, `d1800f2a`, 1036th filing), see *Shipped*.
 > - `554.0` (`G163`) SHIPPED (`6fa4bc19`, `ed2bdd4b`, 1037th filing), see *Shipped*.
-> - `559.0` (`G163` follow-up, after `555.0`-`558.0`) — exact break marker for pdfcer's own block text. `edit_block_text` marks each typed paragraph break in the content stream with a marked-content point (`MP`, ISO 32000-2 §14.6) under a pdfcer-private tag; text extraction and the editable text model record it so `line_ends` reports pdfcer-written breaks exactly rather than by inference (closes the one misreading: a break typed after a line already too full for the next word reads as `Wrap`). Acceptance: a block written by `edit_block_text` with a break after a full line reads back `Break`; a foreign file without the marker still uses the inference; the marker survives a round trip and is ignored by other readers.
+> - `559.0` (`G163` follow-up) SHIPPED (`765ad7ce`, `de133315`, 1042nd filing), see *Shipped*.
 > - `555.0` (`G164`) SHIPPED (`50324705`, `d1326e19`, 1038th filing), see *Shipped*.
 > - `556.0` (`G166`) SHIPPED (`224b6357`, `1d178887`, 1039th filing), see *Shipped*.
 > - `557.0` (`G165`) SHIPPED (`cd82fcac`, `6026af3f`, 1040th filing), see *Shipped*.
