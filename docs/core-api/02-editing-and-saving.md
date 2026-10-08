@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 338 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 339 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 338 public `EditSession` methods
+## 1. Verb index — all 339 public `EditSession` methods
 
-**Count: 338.** Established by brace-matched extraction of the
+**Count: 339.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -4197,6 +4197,7 @@ constructed, then committed, under one `&mut`.
 | I want to… | Call | Returns |
 |---|---|---|
 | Place a raster image | `add_image(&mut self, spec: &NewImage<'_>) -> Result<ImageAuthorOutcome, EditError>` | `{ image_id, soft_mask_id, content_id, resource_name, placed_rect, disclosures }`. Image XObject + optional `/SMask` + `q…cm…Do…Q` overlay stream + page patches, ONE undo entry. Additive — originals stay byte-verbatim. |
+| Replace a placed image's pixels | `replace_image(&mut self, page_index: usize, object_index: usize, image: &ImportedImage, fit: ImageFit) -> Result<ImageReplaceOutcome, EditError>` | `Pass 548.0` (G156). `object_index` indexes `page_objects`. The image's `Do`, or its whole inline `BI … EI` (§8.9.7), is replaced in the content stream by a `Do` of a new image XObject, so the CTM in force (position, size, rotation, clip, opacity, layer) and the stacking order are kept. The image fills the unit square under that CTM (§8.9.4): `ImageFit::Stretch` fills it exactly; `ImageFit::Contain` keeps the new picture's aspect, measured against the old image's extent on the page (the lengths of the CTM's two unit-square edges), and centres it under an extra `q … cm … Q`. EXIF orientation is applied as `add_image` applies it. Only this placement changes: other placements of the old XObject keep drawing it, and its bytes remain in an incremental save. `ImageReplaceOutcome { image_id, soft_mask_id, resource_name, replaced: Option<ObjId> (None = was inline), disclosures: ImageAuthorDisclosures }` (`#[non_exhaustive]`); `disclosures.letterboxed` means the new picture does not fill the old area. One undo entry, `CommandKind::ReplaceImage`. Errors: `ReplaceImageOnOther { index, kind }` (new; `kind` is `"path"`, `"text"` or `"form"`), `ImageRectDegenerate`, `VectorEditError::ObjectOutOfRange`, `PageOutOfRange`, `VectorEditNoContents`, `DocumentEncrypted`, `CertificationForbidsChange`, `ObjectCreationWouldExposeHiddenObjects`. CLI: `pdfcer replace-image IN --page N --object I --image FILE [--stretch] [--compression … --quality Q] -o OUT`; output `image_obj= smask= name= replaced=N|inline fit= letterboxed= distorted= eff_dpi= low_res= compression_applied=`. |
 
 #### ★ The pure preview trio on `NewImage` — call these, do not re-derive them
 
@@ -5752,8 +5753,8 @@ borrow it (`tests/image_placement.rs`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**174 variants**, counted at depth 1 inside `pub enum EditError`.
-(`LinkBorderWidthInvalid`, Pass 547.0, is the newest; `SourcePageOutOfRange`: a SOURCE document's page index, kept
+**175 variants**, counted at depth 1 inside `pub enum EditError`.
+(`ReplaceImageOnOther`, Pass 548.0, is the newest; `SourcePageOutOfRange`: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 
 `Pass 270.2` added `AnnotationContentsLocked` — **Table 165 bit 10,
