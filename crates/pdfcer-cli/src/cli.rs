@@ -4638,6 +4638,34 @@ pub(crate) enum Command {
         /// and is never touched by any of these.
         #[arg(long, value_enum, default_value_t = ExistingOcrArg::Replace)]
         existing: ExistingOcrArg,
+        /// Read the page region by region, as PaddleOCR-VL's own pipeline
+        /// does (`--ocr-engine paddle-vl` only).
+        ///
+        /// The PP-DocLayoutV3 layout model (`layout.onnx` in the add-on
+        /// folder) finds the page's regions in reading order: text, titles,
+        /// captions, tables, formulas, charts, seals, headers, footers and
+        /// pictures. Each is read with its own task: a table as a cell grid,
+        /// a formula as LaTeX (written without its `\[ \]` delimiters), a
+        /// picture not at all. One `region` line per region is printed on
+        /// stdout: `index class group score rect read`, the rect in page
+        /// space and `read` one of `yes`, `no` (a picture) or `table-grid`.
+        ///
+        /// Inferred, and said so on stderr: the model reports a table's
+        /// structure but not its cell boxes, so each cell's text sits on an
+        /// even grid over the table and may be off its printed cell; with no
+        /// region found, the whole page is read as one.
+        #[arg(long)]
+        layout: bool,
+        /// With `--layout`, put each region group's text on its own layer:
+        /// "OCR text: table", "OCR text: title" and so on, one per group on
+        /// the page, so a viewer can show or hide tables, headers or body
+        /// text separately.
+        ///
+        /// A layer of that name already in the file is reused, so pages
+        /// read one by one share one layer per group. Routes through the
+        /// same edit as `--in-place`, so either destination works.
+        #[arg(long, requires = "layout")]
+        region_layers: bool,
     },
     /// **List the stamps in an Acrobat-compatible stamp collection**
     /// (`Pass 288.0`).

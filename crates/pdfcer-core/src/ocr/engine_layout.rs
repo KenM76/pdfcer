@@ -1,11 +1,11 @@
 //! The PP-DocLayoutV3 layout model, behind the `ocr-vl` feature: a page
-//! image in, [`LayoutRegion`]s out ([`super::layout`]).
+//! image in, [`LayoutRegion`](crate::ocr::layout::LayoutRegion)s out ([`layout`](crate::ocr::layout)).
 //!
 //! Model: PaddlePaddle/PP-DocLayoutV3 (Apache-2.0, stated in the model
 //! card), the official ONNX export huggingface.co/PaddlePaddle/PP-DocLayoutV3_onnx,
 //! opset 17, loaded by `rten` unchanged. Nothing ships and nothing is
 //! fetched: the file arrives in the PaddleOCR-VL add-on folder as
-//! [`LAYOUT_MODEL`].
+//! [`LAYOUT_MODEL`](crate::ocr::engine_layout::LAYOUT_MODEL).
 //!
 //! Interface (measured against onnxruntime): inputs `im_shape` f32 `[1,2]` =
 //! `[800,800]`, `image` f32 `[1,3,800,800]` RGB 0..=1 after a bicubic resize

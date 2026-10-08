@@ -23,6 +23,9 @@ pub struct RunOptions {
     /// Which word lists recognition may use; see [`Dictionaries`] for what
     /// each engine does with them.
     pub dictionaries: Dictionaries,
+    /// Read the page region by region with the layout model
+    /// (`paddle-vl` only; its add-on folder must hold `layout.onnx`).
+    pub layout: bool,
 }
 
 impl RunOptions {
@@ -34,7 +37,15 @@ impl RunOptions {
             dpi,
             policy: ProgramPolicy::Allow,
             dictionaries: Dictionaries::default(),
+            layout: false,
         }
+    }
+
+    /// These options reading by layout when `layout` is set.
+    #[must_use]
+    pub fn with_layout(mut self, layout: bool) -> Self {
+        self.layout = layout;
+        self
     }
 
     /// These options with `dictionaries`.
@@ -97,6 +108,14 @@ pub enum RunnerError {
         requested: String,
         /// Why not.
         why: &'static str,
+    },
+    /// Layout reading was asked of an engine without a layout model.
+    #[error("OCR model `{name}` ({engine}) cannot read by layout; only `paddle-vl` can")]
+    LayoutUnsupported {
+        /// The model.
+        name: String,
+        /// The engine token.
+        engine: String,
     },
     /// A program add-on refused or failed.
     #[error(transparent)]
@@ -192,11 +211,13 @@ enum Inner {
     Ocrcer(Box<pdfcer_core::ocr::engine_ocrcer::OcrcerEngine>),
     #[cfg(feature = "paddle")]
     Paddle(Box<pdfcer_core::ocr::engine_paddle::PaddleEngine>),
-    /// The engine and the last page's reading, kept for the disclosure.
+    /// The engine, its layout model when reading by layout, and the last
+    /// page's reading, kept for the disclosure.
     #[cfg(feature = "ocr-vl")]
     PaddleVl(
         Box<pdfcer_core::ocr::engine_paddle_vl::PaddleVlEngine>,
-        std::sync::Mutex<Option<pdfcer_core::ocr::engine_paddle_vl::RegionReading>>,
+        Option<Box<pdfcer_core::ocr::engine_layout::LayoutEngine>>,
+        std::sync::Mutex<crate::disclosure::VlLast>,
     ),
 }
 
@@ -230,6 +251,12 @@ impl OcrRunner {
         if model.kind() != AddonKind::Program {
             check_dictionaries(model, &options.dictionaries)?;
         }
+        if options.layout && model.engine != "paddle-vl" {
+            return Err(RunnerError::LayoutUnsupported {
+                name: model.name.clone(),
+                engine: model.engine.clone(),
+            });
+        }
         check_runnable(model, options.policy)?;
         if model.kind() == AddonKind::Program {
             let engine = ProgramEngine::from_model(model, options)?;
@@ -239,7 +266,7 @@ impl OcrRunner {
             name: model.name.clone(),
             source,
         })?;
-        load_data(model).map(|inner| Self {
+        load_data(model, options.layout).map(|inner| Self {
             inner,
             files_verified,
         })
@@ -304,15 +331,8 @@ impl OcrRunner {
                 .recognize(width, height, pixels)
                 .map_err(|e| RunnerError::Engine(e.to_string())),
             #[cfg(feature = "ocr-vl")]
-            Inner::PaddleVl(e, last) => {
-                let reading = e
-                    .read_region(width, height, pixels)
-                    .map_err(|e| RunnerError::Engine(e.to_string()))?;
-                let lines = reading.lines.clone();
-                *last
-                    .lock()
-                    .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(reading);
-                Ok(lines)
+            Inner::PaddleVl(e, layout, last) => {
+                Ok(read_vl(e, layout.as_deref(), last, width, height, pixels)?.words)
             }
         }
     }
@@ -358,6 +378,10 @@ impl OcrRunner {
     ) -> Result<OcrPage, RunnerError> {
         if let Some(p) = self.as_program() {
             return Ok(p.recognize_page(width, height, pixels, dpi)?);
+        }
+        #[cfg(feature = "ocr-vl")]
+        if let Inner::PaddleVl(e, layout, last) = &self.inner {
+            return read_vl(e, layout.as_deref(), last, width, height, pixels);
         }
         let words = match dpi {
             Some(dpi) => self.recognize_at(width, height, pixels, dpi)?,
@@ -415,21 +439,71 @@ impl OcrRunner {
             #[cfg(feature = "paddle")]
             Inner::Paddle(e) => Some(crate::disclosure::paddle_disclosure(e)),
             #[cfg(feature = "ocr-vl")]
-            Inner::PaddleVl(_, last) => {
+            Inner::PaddleVl(_, _, last) => {
                 let last = last
                     .lock()
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
-                Some(crate::disclosure::paddle_vl_disclosure(last.as_ref()))
+                Some(last.disclosure())
             }
             // Unreachable when neither engine feature is enabled.
             #[allow(unreachable_patterns)]
             _ => None,
         }
     }
+
+    /// The last page's layout reading, when this runner reads by layout and
+    /// has read a page: every region found, its class, box and reading.
+    #[cfg(feature = "ocr-vl")]
+    #[must_use]
+    pub fn last_layout(&self) -> Option<pdfcer_core::ocr::vl_page::LayoutReading> {
+        match &self.inner {
+            Inner::PaddleVl(_, _, last) => last
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .layout
+                .clone(),
+            #[allow(unreachable_patterns)]
+            _ => None,
+        }
+    }
+}
+
+/// One PaddleOCR-VL page: region by region when `layout` is loaded, else
+/// the page's ink as one region. Keeps the reading for the disclosure.
+#[cfg(feature = "ocr-vl")]
+fn read_vl(
+    e: &pdfcer_core::ocr::engine_paddle_vl::PaddleVlEngine,
+    layout: Option<&pdfcer_core::ocr::engine_layout::LayoutEngine>,
+    last: &std::sync::Mutex<crate::disclosure::VlLast>,
+    width: u32,
+    height: u32,
+    pixels: &[u8],
+) -> Result<OcrPage, RunnerError> {
+    use crate::disclosure::VlLast;
+    let failed =
+        |e: pdfcer_core::ocr::engine_paddle_vl::PaddleVlError| RunnerError::Engine(e.to_string());
+    let (page, kept) = if let Some(layout) = layout {
+        let read =
+            pdfcer_core::ocr::vl_page::read_page_with_layout(e, layout, width, height, pixels)
+                .map_err(failed)?;
+        (read.page.clone(), VlLast::from_layout(read))
+    } else {
+        let reading = e.read_region(width, height, pixels).map_err(failed)?;
+        let page = OcrPage {
+            words: reading.lines.clone(),
+            confidence_available: true,
+            ..OcrPage::default()
+        };
+        (page, VlLast::from_region(reading))
+    };
+    *last
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = kept;
+    Ok(page)
 }
 
 #[allow(clippy::unnecessary_wraps)] // every arm is compiled out in a lean build
-fn load_data(model: &OcrModel) -> Result<Inner, RunnerError> {
+fn load_data(model: &OcrModel, layout: bool) -> Result<Inner, RunnerError> {
     let failed = |e: &dyn std::fmt::Display| RunnerError::Engine(e.to_string());
     let dir = &model.folder;
     match model.engine.as_str() {
@@ -457,11 +531,22 @@ fn load_data(model: &OcrModel) -> Result<Inner, RunnerError> {
             .map(|e| Inner::Paddle(Box::new(e)))
             .map_err(|e| failed(&e)),
         #[cfg(feature = "ocr-vl")]
-        "paddle-vl" => pdfcer_core::ocr::engine_paddle_vl::PaddleVlEngine::from_model_dir(dir)
-            .map(|e| Inner::PaddleVl(Box::new(e), std::sync::Mutex::default()))
-            .map_err(|e| failed(&e)),
+        "paddle-vl" => {
+            use pdfcer_core::ocr::{engine_layout::LayoutEngine, engine_paddle_vl::PaddleVlEngine};
+            // The small layout model first, so its absence costs no VL load.
+            let layout = layout
+                .then(|| LayoutEngine::from_model_dir(dir).map(Box::new))
+                .transpose()
+                .map_err(|e| failed(&e))?;
+            let engine = PaddleVlEngine::from_model_dir(dir).map_err(|e| failed(&e))?;
+            Ok(Inner::PaddleVl(
+                Box::new(engine),
+                layout,
+                std::sync::Mutex::default(),
+            ))
+        }
         _ => {
-            let _ = (failed, dir);
+            let _ = (failed, dir, layout);
             Err(RunnerError::EngineNotInBuild {
                 name: model.name.clone(),
                 engine: model.engine.clone(),

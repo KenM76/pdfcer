@@ -311,3 +311,77 @@ fn user_words_are_refused_by_an_engine_without_word_lists() {
     assert!(err.contains("this engine takes no word list"), "{err}");
     assert!(!root.join("out.pdf").exists());
 }
+
+/// `--layout` is refused for an engine without a layout model, and
+/// `--region-layers` without `--layout` is a usage error; nothing is written.
+#[cfg(feature = "paddle")]
+#[test]
+fn layout_flags_are_refused_where_they_cannot_apply() {
+    let root = scratch("layout-refusals");
+    let dir = addon(&root, "mine", "paddle");
+    std::fs::write(dir.join("rec.onnx"), b"placeholder").unwrap();
+    let (code, _, err) = ocr_with(&root, &["--ocr-model", "mine", "--layout"]);
+    assert_eq!(code, Some(1), "{err}");
+    assert!(
+        err.contains("--layout needs --ocr-engine paddle-vl"),
+        "{err}"
+    );
+    let (code, _, err) = ocr_with(&root, &["--region-layers"]);
+    assert_eq!(code, Some(2), "{err}");
+    assert!(err.contains("--layout"), "{err}");
+    assert!(!root.join("out.pdf").exists());
+}
+
+/// A `paddle-vl` add-on without `layout.onnx` is refused by `--layout`,
+/// naming the missing file.
+#[cfg(feature = "ocr-vl")]
+#[test]
+fn layout_needs_the_layout_model_in_the_add_on() {
+    let root = scratch("layout-missing");
+    let dir = addon(&root, "vl", "paddle-vl");
+    for f in [
+        "vision_encoder.onnx",
+        "decoder.onnx",
+        "embedding.onnx",
+        "embedding.onnx.data",
+        "tokenizer.json",
+    ] {
+        std::fs::write(dir.join(f), b"not a model").unwrap();
+    }
+    let (code, _, err) = ocr_with(&root, &["--ocr-model", "vl", "--layout"]);
+    assert_eq!(code, Some(1), "{err}");
+    assert!(err.contains("layout.onnx"), "{err}");
+}
+
+/// End to end with layout regions and per-region layers, on a real add-on
+/// folder carrying `layout.onnx` (named by `PDFCER_PADDLE_VL_DIR`).
+#[cfg(feature = "ocr-vl")]
+#[test]
+#[ignore = "needs a PaddleOCR-VL add-on folder with layout.onnx in PDFCER_PADDLE_VL_DIR"]
+fn paddle_vl_layout_puts_regions_on_their_own_layers() {
+    let model = PathBuf::from(std::env::var_os("PDFCER_PADDLE_VL_DIR").unwrap());
+    let input =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/synthetic/ocr/scan_clean.pdf");
+    let out_dir = scratch("paddle-vl-layout");
+    let out = out_dir.join("out.pdf");
+    let (code, _, err) = run(&[
+        "--no-settings".as_ref(),
+        "ocr".as_ref(),
+        input.as_os_str(),
+        "-o".as_ref(),
+        out.as_os_str(),
+        "--ocr-engine".as_ref(),
+        "paddle-vl".as_ref(),
+        "--model-dir".as_ref(),
+        model.as_os_str(),
+        "--layout".as_ref(),
+        "--region-layers".as_ref(),
+    ]);
+    eprintln!("{err}");
+    assert_eq!(code, Some(0), "{err}");
+    assert!(err.contains("region(s) found"), "{err}");
+    assert!(err.contains("OCR text: text"), "{err}");
+    let (code, layers, err) = run(&["list-layers".as_ref(), out.as_os_str()]);
+    assert_eq!(code, Some(0), "{err}");
+    assert!(layers.contains("OCR text: text"), "{layers}");
+}

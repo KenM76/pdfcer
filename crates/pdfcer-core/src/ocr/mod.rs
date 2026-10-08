@@ -119,6 +119,9 @@ pub mod engine_paddle_vl;
 pub mod engine_layout;
 pub mod layout;
 pub mod otsl;
+/// Layout-aware page reading: layout regions, each read with its task.
+#[cfg(feature = "ocr-vl")]
+pub mod vl_page;
 
 // Workspace-internal: pub only so the fuzz crate can drive the PaddleOCR-VL
 // tokenizer and its JSON reader. Not API.

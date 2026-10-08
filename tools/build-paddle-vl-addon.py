@@ -12,7 +12,12 @@ Input: a local copy of the onnx-community/PaddleOCR-VL-1.5-ONNX repository
     SOURCE/onnx/decoder_q8.onnx
     SOURCE/onnx/embedding.onnx (+ embedding.onnx.data)
 
-Output: OUT/ holding the five files the engine reads plus
+Optional: --layout DIR, a local copy of PaddlePaddle/PP-DocLayoutV3_safetensors's
+ONNX export (Apache-2.0): DIR/README.md and DIR/inference.onnx. It is copied
+as layout.onnx, which `pdfcer ocr --layout` needs; without it the add-on
+reads whole pages only.
+
+Output: OUT/ holding the five files the engine reads (six with --layout) plus
 pdfcer-ocr-model.txt with a sha256 line per file. Select it with
 `pdfcer ocr --ocr-model NAME --ocr-folder PARENT_OF_OUT`.
 
@@ -60,6 +65,7 @@ PROCESSOR = {
     "resample": 3,
     "temporal_patch_size": 1,
 }
+LAYOUT = "layout.onnx"  # crates/pdfcer-core/src/ocr/engine_layout.rs LAYOUT_MODEL
 CONFIG = {"eos_token_id": 2, "image_token_id": 100295}
 TOKENS = {
     "</s>": 2,
@@ -252,7 +258,10 @@ def write_manifest(out, name, version):
         f"version = {version}",
         "licence = Apache-2.0",
     ]
-    lines += [f"sha256 = {f} {sha256(out / f)}" for f in (VISION, DECODER, EMBED, EMBED_DATA, TOKENIZER)]
+    names = [VISION, DECODER, EMBED, EMBED_DATA, TOKENIZER]
+    if (out / LAYOUT).is_file():
+        names.append(LAYOUT)
+    lines += [f"sha256 = {f} {sha256(out / f)}" for f in names]
     (out / MANIFEST).write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
@@ -262,8 +271,16 @@ def main():
     ap.add_argument("out", type=Path, help="add-on folder to create (must not exist or be empty)")
     ap.add_argument("--name", default="paddle-vl", help="add-on name (default: paddle-vl)")
     ap.add_argument("--version", default="1.5-q8rr", help="add-on version string")
+    ap.add_argument("--layout", type=Path, metavar="DIR",
+                    help="local PP-DocLayoutV3 ONNX folder (README.md, inference.onnx)")
     args = ap.parse_args()
     files = source_files(args.source)
+    layout = None
+    if args.layout:
+        layout = args.layout / "inference.onnx"
+        if not layout.is_file():
+            fail(f"missing {layout}")
+        check_licence(args.layout / "README.md")
     check_licence(files["readme"])
     check_constants(files)
     out = args.out
@@ -274,6 +291,8 @@ def main():
     for key, dest in (("decoder", DECODER), ("embed", EMBED), ("embed_data", EMBED_DATA),
                       ("tokenizer", TOKENIZER)):
         shutil.copyfile(files[key], out / dest)
+    if layout:
+        shutil.copyfile(layout, out / LAYOUT)
     write_manifest(out, args.name, args.version)
     print(f"wrote {out / MANIFEST}")
 

@@ -563,6 +563,8 @@ mod text_locate_cmd;
 use text_locate_cmd::*;
 mod ocr_cmd;
 use ocr_cmd::*;
+mod ocr_run;
+use ocr_run::*;
 mod ocr_models;
 use ocr_models::*;
 mod render_export;

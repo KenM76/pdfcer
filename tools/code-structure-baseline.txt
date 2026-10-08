@@ -175,7 +175,6 @@ fn pdfcer-cli/src/navigation.rs::cmd_merge_document
 fn pdfcer-cli/src/navigation.rs::cmd_move_bookmark
 fn pdfcer-cli/src/navigation.rs::cmd_tab_order
 fn pdfcer-cli/src/objects.rs::cmd_object_paste
-fn pdfcer-cli/src/ocr_cmd.rs::cmd_ocr
 fn pdfcer-cli/src/offpage.rs::cmd_redact_offpage
 fn pdfcer-cli/src/offpage.rs::cmd_redact_offpage_batch
 fn pdfcer-cli/src/offpage.rs::cmd_scan_offpage

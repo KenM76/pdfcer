@@ -1031,14 +1031,24 @@ pub(crate) fn run() -> ExitCode {
             words,
             dump_image,
             existing,
+            layout,
+            region_layers,
         } => {
             ocr_program::set_refuse_flag(refuse_ocr_programs);
             cmd_ocr(
-                &input,
-                page,
-                output.as_deref(),
-                in_place,
-                dpi,
+                &OcrRequest {
+                    input: &input,
+                    page_number: page,
+                    output: output.as_deref(),
+                    in_place,
+                    dpi,
+                    ocr_lang: &ocr_lang,
+                    show_words: words,
+                    dump_image: dump_image.as_deref(),
+                    existing,
+                    layout,
+                    region_layers,
+                },
                 &OcrModelChoice {
                     engine: ocr_engine,
                     model_dir: model_dir.as_deref(),
@@ -1047,10 +1057,6 @@ pub(crate) fn run() -> ExitCode {
                     no_dictionaries,
                     user_words: &user_words,
                 },
-                &ocr_lang,
-                words,
-                dump_image.as_deref(),
-                existing,
             )
         }
         Command::StampList { input } => cmd_stamp_list(&input),

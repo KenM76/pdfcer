@@ -101,6 +101,32 @@ pub enum RegionGroup {
     Footer,
 }
 
+impl RegionGroup {
+    /// The group's name: `text`, `title`, `caption`, `table`, `figure`,
+    /// `formula`, `chart`, `seal`, `header` or `footer`.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Text => "text",
+            Self::Title => "title",
+            Self::Caption => "caption",
+            Self::Table => "table",
+            Self::Figure => "figure",
+            Self::Formula => "formula",
+            Self::Chart => "chart",
+            Self::Seal => "seal",
+            Self::Header => "header",
+            Self::Footer => "footer",
+        }
+    }
+}
+
+impl std::fmt::Display for RegionGroup {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 const CLASSES: [(LayoutClass, &str); 25] = [
     (LayoutClass::Abstract, "abstract"),
     (LayoutClass::Algorithm, "algorithm"),
