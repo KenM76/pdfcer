@@ -11821,8 +11821,17 @@ pub(crate) enum Command {
         /// Input PDF.
         input: PathBuf,
         /// 0-based paint-order object index on the page.
+        ///
+        /// Pass exactly one of this and `--leaf`.
         #[arg(long)]
-        object: usize,
+        object: Option<usize>,
+        /// 0-based index into this page's form leaves, to address a text
+        /// object inside a form XObject.
+        ///
+        /// The form's stream is SHARED: the edit shows on every page the form
+        /// is drawn on, and the reach is printed.
+        #[arg(long)]
+        leaf: Option<usize>,
         /// 1-based page number.
         #[arg(long, default_value_t = 1)]
         page: u32,
@@ -11866,8 +11875,17 @@ pub(crate) enum Command {
         /// Input PDF.
         input: PathBuf,
         /// 0-based paint-order object index on the page.
+        ///
+        /// Pass exactly one of this and `--leaf`.
         #[arg(long)]
-        object: usize,
+        object: Option<usize>,
+        /// 0-based index into this page's form leaves, to address a text
+        /// object inside a form XObject.
+        ///
+        /// The form's stream is SHARED: the edit shows on every page the form
+        /// is drawn on, and the reach is printed.
+        #[arg(long)]
+        leaf: Option<usize>,
         /// 1-based page number.
         #[arg(long, default_value_t = 1)]
         page: u32,
@@ -11943,8 +11961,18 @@ pub(crate) enum Command {
         #[arg(long, default_value_t = 1)]
         page: u32,
         /// 0-based paint-order object index on the page.
+        ///
+        /// Pass exactly one of this and `--leaf`.
         #[arg(long)]
-        object: usize,
+        object: Option<usize>,
+        /// 0-based index into this page's form leaves, to address a text
+        /// object inside a form XObject.
+        ///
+        /// The form's stream is SHARED: the edit shows on every page the form
+        /// is drawn on, and the reach is printed. Needs `--before`; takes no
+        /// `--dry-run`.
+        #[arg(long)]
+        leaf: Option<usize>,
         /// Where to cut, when `--before` is not given.
         #[arg(long, value_enum, default_value_t = SplitGranularityArg::Line)]
         granularity: SplitGranularityArg,

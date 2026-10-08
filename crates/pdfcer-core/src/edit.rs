@@ -146,6 +146,8 @@ mod link;
 pub use link::{LinkBorder, LinkBorderChange, LinkTarget, LinkTargetChange};
 mod image_replace;
 pub use image_replace::ImageReplaceOutcome;
+mod text_form_reshape;
+pub use text_form_reshape::FormTextOutcome;
 mod image_stamp;
 mod ocr_refold;
 mod page_artwork;
@@ -9746,6 +9748,19 @@ fn find_pattern_matches(hay: &str, pattern: &str, case_insensitive: bool) -> Vec
     out
 }
 
+/// Run `run_index`'s show-operator span, or the out-of-range refusal.
+fn run_span(
+    text: &crate::vector::TextObject,
+    run_index: usize,
+) -> Result<crate::span::ByteSpan, crate::vector::VectorEditError> {
+    text.runs.get(run_index).map(|r| r.bytes).ok_or(
+        crate::vector::VectorEditError::TextRunOutOfRange {
+            index: run_index,
+            count: text.runs.len(),
+        },
+    )
+}
+
 /// Narrow a selectable [`VectorObject`](crate::vector::VectorObject) to a
 /// **path** for the move / drag-node surgeries, or name the refusal.
 ///
@@ -13577,7 +13592,8 @@ impl EditSession {
                 );
             }
         }
-        let mut command = self.form_edit_command(form_id, &form_dict, new_content);
+        let mut command =
+            self.form_edit_command_kind(CommandKind::FormatText, form_id, &form_dict, new_content);
         command.objects.extend(extra);
         self.commit(command);
         self.take_structure_notes(&mut report.disclosures);
@@ -17699,13 +17715,9 @@ impl EditSession {
         if !(width_pts.is_finite() && width_pts > 0.0) {
             return Err(FmtError::BadTargetWidth(width_pts));
         }
-        let model = self.page_objects(page_index).map_err(|e| match e {
-            EditError::PageOutOfRange { index, .. } => FmtError::PageIndex(index),
-            EditError::DocumentEncrypted => FmtError::Encrypted,
-            EditError::VectorEditContent(c) => FmtError::Content(c),
-            EditError::PageTree(t) => FmtError::PageTree(t),
-            other => FmtError::Unsupported(other.to_string()),
-        })?;
+        let model = self
+            .page_objects(page_index)
+            .map_err(text_form_reshape::to_format_error)?;
         let count = model.objects.len();
         let obj = model.objects.get(object_index).ok_or(
             crate::vector::VectorEditError::ObjectOutOfRange {
@@ -17715,14 +17727,28 @@ impl EditSession {
         )?;
         let text = vector_object_as_text(obj, object_index)?;
         let scale = crate::vector::edit::text_run_width_scale(text, run_index)?;
-        let span = text.runs.get(run_index).map(|r| r.bytes).ok_or(
-            crate::vector::VectorEditError::TextRunOutOfRange {
-                index: run_index,
-                count: text.runs.len(),
-            },
-        )?;
-        let mut req = crate::text_edit::FormatRequest::whole_operator(page_index, span)
-            .target(crate::text_edit::EditTarget::PageContents);
+        let span = run_span(text, run_index)?;
+        self.fit_run_to_width(
+            page_index,
+            crate::text_edit::EditTarget::PageContents,
+            span,
+            scale,
+            width_pts,
+        )
+    }
+
+    /// Set the run at `span` in `target` to `width_pts` page points, where
+    /// `scale` is page points per text-space unit along its baseline.
+    fn fit_run_to_width(
+        &mut self,
+        page_index: usize,
+        target: crate::text_edit::EditTarget,
+        span: crate::span::ByteSpan,
+        scale: f64,
+        width_pts: f64,
+    ) -> Result<crate::text_edit::FormatReport, crate::text_edit::FormatError> {
+        let mut req =
+            crate::text_edit::FormatRequest::whole_operator(page_index, span).target(target);
         req.fit_width = Some(width_pts / scale);
         let opts = crate::text_edit::FormatOptions {
             disposition: crate::text_edit::FollowerDisposition::Pin,
@@ -17783,13 +17809,9 @@ impl EditSession {
         if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(FmtError::Encrypted);
         }
-        let model = self.page_objects(page_index).map_err(|e| match e {
-            EditError::PageOutOfRange { index, .. } => FmtError::PageIndex(index),
-            EditError::DocumentEncrypted => FmtError::Encrypted,
-            EditError::VectorEditContent(c) => FmtError::Content(c),
-            EditError::PageTree(t) => FmtError::PageTree(t),
-            other => FmtError::Unsupported(other.to_string()),
-        })?;
+        let model = self
+            .page_objects(page_index)
+            .map_err(text_form_reshape::to_format_error)?;
         let count = model.objects.len();
         let obj = model.objects.get(object_index).ok_or(
             crate::vector::VectorEditError::ObjectOutOfRange {

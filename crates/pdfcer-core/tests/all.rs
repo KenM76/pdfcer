@@ -229,6 +229,7 @@ mod text_edit;
 mod text_edit_span;
 mod text_edit_workarounds;
 mod text_extract;
+mod text_form_reshape;
 mod text_object_split;
 mod text_render_mode;
 mod text_run_delete;

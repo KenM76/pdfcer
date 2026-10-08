@@ -897,15 +897,20 @@ pub(crate) fn target_token(object: Option<usize>, leaf: Option<usize>) -> String
 /// by any confirm step. What it decided here is that one edit changed several
 /// places, which the operator did not ask for and cannot see.
 pub(crate) fn report_form_reach(outcome: Option<&pdfcer_core::edit::FormSurgeryOutcome>) {
-    let Some(o) = outcome else { return };
-    if o.invocations <= 1 && o.pages <= 1 {
+    if let Some(o) = outcome {
+        report_reach(o.form.num, o.invocations, o.pages);
+    }
+}
+
+/// [`report_form_reach`] from the reach's three numbers.
+pub(crate) fn report_reach(form: u32, invocations: usize, pages: usize) {
+    if invocations <= 1 && pages <= 1 {
         return;
     }
     eprintln!(
-        "pdfcer: ★ this object is inside form XObject {} 0 R, which is drawn {} time(s) across \
-         {} page(s). A form has ONE set of bytes, so this edit changed every one of them. Run \
-         `unshare-form` first if you wanted only this page's copy to change.",
-        o.form.num, o.invocations, o.pages
+        "pdfcer: ★ this object is inside form XObject {form} 0 R, which is drawn {invocations} \
+         time(s) across {pages} page(s). A form has ONE set of bytes, so this edit changed every \
+         one of them. Run `unshare-form` first if you wanted only this page's copy to change."
     );
 }
 

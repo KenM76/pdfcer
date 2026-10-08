@@ -1651,6 +1651,14 @@ pub enum FormatError {
     /// No page at the requested index.
     #[error("no page at index {0}")]
     PageIndex(usize),
+    /// No form leaf at the requested index on the page.
+    #[error("form leaf {index} out of range (page has {count})")]
+    FormLeafOutOfRange {
+        /// The index given.
+        index: usize,
+        /// How many form leaves the page has.
+        count: usize,
+    },
     /// The find text was not present in any editable run.
     #[error("text to format ({0:?}) was not found in an editable run on the page")]
     NoMatch(String),

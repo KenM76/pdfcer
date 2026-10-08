@@ -128,6 +128,7 @@ mod stamp_label_edit;
 mod stamp_pack;
 mod style_policy;
 mod tab_order;
+mod text_form_reshape;
 mod text_locate;
 mod text_object_split_cli;
 mod three_d;

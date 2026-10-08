@@ -92,7 +92,11 @@ pub(crate) fn cmd_text_run_delete(args: &TextRunDeleteArgs<'_>) -> u8 {
 pub(crate) struct TextObjectSplitArgs<'a> {
     pub(crate) input: &'a Path,
     pub(crate) page: u32,
-    pub(crate) object: usize,
+    /// The page paint-order index, when addressing a page object.
+    pub(crate) object: Option<usize>,
+    /// The index into this page's form leaves, when addressing a text object
+    /// INSIDE a form XObject; needs explicit `before` cuts.
+    pub(crate) leaf: Option<usize>,
     pub(crate) granularity: SplitGranularityArg,
     /// Explicit cut points; overrides `granularity` when non-empty.
     pub(crate) before: &'a [usize],
@@ -123,6 +127,11 @@ pub(crate) struct TextObjectSplitArgs<'a> {
 ///   mutation, with the same sentences the GUI shows. One core, one answer.
 pub(crate) fn cmd_text_object_split(args: &TextObjectSplitArgs<'_>) -> u8 {
     let page_index = (args.page.max(1) - 1) as usize;
+    let object = match object_or_leaf(args.input, args.object, args.leaf) {
+        Ok(GeometryTarget::Page(o)) => o,
+        Ok(GeometryTarget::Leaf(leaf)) => return text_object_split_in_form(args, page_index, leaf),
+        Err(code) => return code,
+    };
     let (source, mut session) = match open_for_edit(args.input) {
         Ok(pair) => pair,
         Err(code) => return code,
@@ -131,7 +140,7 @@ pub(crate) fn cmd_text_object_split(args: &TextObjectSplitArgs<'_>) -> u8 {
     // Explicit cuts win over a granularity, and skip the inference entirely —
     // so they also carry no disclosure, because nothing was guessed.
     let (points, disclosures): (Vec<usize>, Vec<String>) = if args.before.is_empty() {
-        match session.text_object_split_plan(page_index, args.object, args.granularity.to_core()) {
+        match session.text_object_split_plan(page_index, object, args.granularity.to_core()) {
             Ok(pair) => pair,
             Err(err) => return report_edit_error(args.input, &err),
         }
@@ -141,7 +150,7 @@ pub(crate) fn cmd_text_object_split(args: &TextObjectSplitArgs<'_>) -> u8 {
     report_disclosures(&disclosures);
 
     if args.dry_run {
-        return dry_run_text_object_split(&mut session, args, page_index, &points);
+        return dry_run_text_object_split(&mut session, args, page_index, object, &points);
     }
 
     let Some(output) = args.output else {
@@ -149,7 +158,7 @@ pub(crate) fn cmd_text_object_split(args: &TextObjectSplitArgs<'_>) -> u8 {
         return 2;
     };
 
-    match session.split_text_object(page_index, args.object, &points) {
+    match session.split_text_object(page_index, object, &points) {
         Err(err) => return report_edit_error(args.input, &err),
         Ok(d) => report_disclosures(&d),
     }
@@ -165,14 +174,67 @@ pub(crate) fn cmd_text_object_split(args: &TextObjectSplitArgs<'_>) -> u8 {
         Ok(outcome) => outcome,
         Err(code) => return code,
     };
+    print_text_object_split(args, output, points.len(), &outcome);
+    finish_edit(args.input, &outcome)
+}
+
+/// `text-object-split --leaf`: cut a text object inside a form XObject at the
+/// explicit `--before` runs. The line inference and the dry-run preview read
+/// page objects only, so both are refused here by name.
+fn text_object_split_in_form(args: &TextObjectSplitArgs<'_>, page_index: usize, leaf: usize) -> u8 {
+    if args.before.is_empty() || args.dry_run {
+        eprintln!(
+            "pdfcer: {}: text-object-split --leaf needs explicit --before cuts and takes no \
+             --dry-run (the line inference and the plan preview read page objects only).",
+            args.input.display()
+        );
+        return exit::RUNTIME_ERROR;
+    }
+    let Some(output) = args.output else {
+        eprintln!("pdfcer: text-object-split needs --output unless --dry-run is given");
+        return 2;
+    };
+    let (source, mut session) = match open_for_edit(args.input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    match session.split_text_object_in_form(page_index, leaf, args.before) {
+        Err(err) => return report_edit_error(args.input, &err),
+        Ok(o) => {
+            report_disclosures(&o.disclosures);
+            report_form_reach(Some(&o));
+        }
+    }
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        output,
+        args.mode,
+        ProducerArg::Preserve,
+        args.verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    print_text_object_split(args, output, args.before.len(), &outcome);
+    finish_edit(args.input, &outcome)
+}
+
+/// The `text-object-split …` stdout line.
+fn print_text_object_split(
+    args: &TextObjectSplitArgs<'_>,
+    output: &Path,
+    cuts: usize,
+    outcome: &EditOutcome,
+) {
     let r = &outcome.report;
     println!(
-        "text-object-split {} page {} object={} granularity={} cuts={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        "text-object-split {} page {} {} granularity={} cuts={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
         args.input.display(),
         args.page.max(1),
-        args.object,
+        target_token(args.object, args.leaf),
         split_granularity_name(args),
-        points.len(),
+        cuts,
         args.mode.name(),
         output.display(),
         outcome.changed,
@@ -182,7 +244,6 @@ pub(crate) fn cmd_text_object_split(args: &TextObjectSplitArgs<'_>) -> u8 {
         u32::from(outcome.undo_verified),
         u32::from(outcome.undo_identical),
     );
-    finish_edit(args.input, &outcome)
 }
 
 /// `text-object-split --dry-run`: print the plan, then exit as the real run
@@ -191,9 +252,10 @@ fn dry_run_text_object_split(
     session: &mut pdfcer_core::edit::EditSession,
     args: &TextObjectSplitArgs<'_>,
     page_index: usize,
+    object: usize,
     points: &[usize],
 ) -> u8 {
-    let refusal = match session.text_object_split_refusal(page_index, args.object, points) {
+    let refusal = match session.text_object_split_refusal(page_index, object, points) {
         Ok(r) => r,
         Err(err) => return report_edit_error(args.input, &err),
     };
@@ -201,7 +263,7 @@ fn dry_run_text_object_split(
         "text-object-split-plan {} page {} object={} granularity={} cuts={} runs_before={:?}",
         args.input.display(),
         args.page.max(1),
-        args.object,
+        object,
         split_granularity_name(args),
         points.len(),
         points,
@@ -326,7 +388,11 @@ pub(crate) fn cmd_text_run_move(args: &TextRunMoveArgs<'_>) -> u8 {
 pub(crate) struct TextRunMergeArgs<'a> {
     pub(crate) input: &'a Path,
     pub(crate) page: u32,
-    pub(crate) object: usize,
+    /// The page paint-order index, when addressing a page object.
+    pub(crate) object: Option<usize>,
+    /// The index into this page's form leaves, when addressing a text object
+    /// INSIDE a form XObject.
+    pub(crate) leaf: Option<usize>,
     pub(crate) runs: &'a [usize],
     pub(crate) separator: &'a str,
     pub(crate) fit: MergeFitArg,
@@ -335,15 +401,49 @@ pub(crate) struct TextRunMergeArgs<'a> {
     pub(crate) verify_undo: bool,
 }
 
+/// The reach of a form text edit: form object number, invocations, pages.
+type Reach = Option<(u32, usize, usize)>;
+
+fn reach_of<R>(o: &pdfcer_core::edit::FormTextOutcome<R>) -> Reach {
+    Some((o.form.num, o.invocations, o.pages))
+}
+
+/// Print a text-format refusal and return its exit code.
+fn report_format_error(
+    command: &str,
+    input: &Path,
+    err: &pdfcer_core::text_edit::FormatError,
+) -> u8 {
+    use pdfcer_core::text_edit::FormatError;
+    eprintln!("pdfcer: {command} refused on {}: {err}", input.display());
+    match err {
+        FormatError::Write(_) => exit::SAVE_REFUSED,
+        FormatError::Content(_) | FormatError::PageTree(_) => exit::RUNTIME_ERROR,
+        _ => exit::EDIT_REFUSED,
+    }
+}
+
+/// Print the disclosures and the form reach of a format edit that succeeded.
+fn report_format_outcome(disclosures: &[String], reach: Reach) {
+    report_disclosures(disclosures);
+    if let Some((form, invocations, pages)) = reach {
+        report_reach(form, invocations, pages);
+    }
+}
+
 /// `text-run-merge` — join consecutive show operators into one.
 ///
 /// One `text-run-merge …` line with the merged text, the scale written and
 /// the usual save-report fields, then the exit code from [`finish_edit`].
-/// Disclosures go to stderr. A refusal exits `EDIT_REFUSED` before anything
-/// is written.
+/// Disclosures go to stderr, and with `--leaf` the form's reach too. A
+/// refusal exits `EDIT_REFUSED` before anything is written.
 pub(crate) fn cmd_text_run_merge(args: &TextRunMergeArgs<'_>) -> u8 {
-    use pdfcer_core::text_edit::{FormatError, MergeFit, MergeOptions, MergeSeparator};
+    use pdfcer_core::text_edit::{MergeFit, MergeOptions, MergeSeparator};
     let page_index = (args.page.max(1) - 1) as usize;
+    let target = match object_or_leaf(args.input, args.object, args.leaf) {
+        Ok(t) => t,
+        Err(code) => return code,
+    };
     let separator = match args.separator {
         "none" => MergeSeparator::None,
         "space" => MergeSeparator::Space,
@@ -358,21 +458,21 @@ pub(crate) fn cmd_text_run_merge(args: &TextRunMergeArgs<'_>) -> u8 {
         Ok(pair) => pair,
         Err(code) => return code,
     };
-    let report = match session.merge_text_runs(page_index, args.object, args.runs, &opts) {
-        Ok(r) => r,
-        Err(err) => {
-            eprintln!(
-                "pdfcer: text-run-merge refused on {}: {err}",
-                args.input.display()
-            );
-            return match err {
-                FormatError::Write(_) => exit::SAVE_REFUSED,
-                FormatError::Content(_) | FormatError::PageTree(_) => exit::RUNTIME_ERROR,
-                _ => exit::EDIT_REFUSED,
-            };
-        }
+    let result = match target {
+        GeometryTarget::Page(o) => session
+            .merge_text_runs(page_index, o, args.runs, &opts)
+            .map(|r| (r, None)),
+        GeometryTarget::Leaf(l) => session
+            .merge_text_runs_in_form(page_index, l, args.runs, &opts)
+            .map(|o| (o.report.clone(), reach_of(&o))),
     };
-    report_disclosures(&report.disclosures);
+    let report = match result {
+        Ok((report, reach)) => {
+            report_format_outcome(&report.disclosures, reach);
+            report
+        }
+        Err(err) => return report_format_error("text-run-merge", args.input, &err),
+    };
     let outcome = match save_edited(
         &mut session,
         &source,
@@ -387,10 +487,10 @@ pub(crate) fn cmd_text_run_merge(args: &TextRunMergeArgs<'_>) -> u8 {
     let r = &outcome.report;
     let runs: Vec<String> = args.runs.iter().map(ToString::to_string).collect();
     println!(
-        "text-run-merge {} page {} object={} runs={} merged={} text={:?} h_scale={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        "text-run-merge {} page {} {} runs={} merged={} text={:?} h_scale={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
         args.input.display(),
         args.page.max(1),
-        args.object,
+        target_token(args.object, args.leaf),
         runs.join(","),
         report.runs_merged,
         report.text,
@@ -413,7 +513,11 @@ pub(crate) fn cmd_text_run_merge(args: &TextRunMergeArgs<'_>) -> u8 {
 pub(crate) struct TextRunWidthArgs<'a> {
     pub(crate) input: &'a Path,
     pub(crate) page: u32,
-    pub(crate) object: usize,
+    /// The page paint-order index, when addressing a page object.
+    pub(crate) object: Option<usize>,
+    /// The index into this page's form leaves, when addressing a text object
+    /// INSIDE a form XObject.
+    pub(crate) leaf: Option<usize>,
     pub(crate) run: usize,
     pub(crate) width: f64,
     pub(crate) output: &'a Path,
@@ -421,35 +525,37 @@ pub(crate) struct TextRunWidthArgs<'a> {
     pub(crate) verify_undo: bool,
 }
 
-/// `text-run-width` — fit one show operator to a page width through `Tz`
-///.
+/// `text-run-width` — fit one show operator to a page width through `Tz`.
 ///
 /// One `text-run-width …` line with the usual save-report fields and the
 /// scale that was written, then the exit code from [`finish_edit`]. The
-/// disclosure of the scale goes to stderr. A refusal exits
-/// `EDIT_REFUSED` before anything is written.
+/// disclosure of the scale goes to stderr, and with `--leaf` the form's
+/// reach too. A refusal exits `EDIT_REFUSED` before anything is written.
 pub(crate) fn cmd_text_run_width(args: &TextRunWidthArgs<'_>) -> u8 {
-    use pdfcer_core::text_edit::FormatError;
     let page_index = (args.page.max(1) - 1) as usize;
+    let target = match object_or_leaf(args.input, args.object, args.leaf) {
+        Ok(t) => t,
+        Err(code) => return code,
+    };
     let (source, mut session) = match open_for_edit(args.input) {
         Ok(pair) => pair,
         Err(code) => return code,
     };
-    let report = match session.set_text_run_width(page_index, args.object, args.run, args.width) {
-        Ok(r) => r,
-        Err(err) => {
-            eprintln!(
-                "pdfcer: text-run-width refused on {}: {err}",
-                args.input.display()
-            );
-            return match err {
-                FormatError::Write(_) => exit::SAVE_REFUSED,
-                FormatError::Content(_) | FormatError::PageTree(_) => exit::RUNTIME_ERROR,
-                _ => exit::EDIT_REFUSED,
-            };
-        }
+    let result = match target {
+        GeometryTarget::Page(o) => session
+            .set_text_run_width(page_index, o, args.run, args.width)
+            .map(|r| (r, None)),
+        GeometryTarget::Leaf(l) => session
+            .set_text_run_width_in_form(page_index, l, args.run, args.width)
+            .map(|o| (o.report.clone(), reach_of(&o))),
     };
-    report_disclosures(&report.disclosures);
+    let report = match result {
+        Ok((report, reach)) => {
+            report_format_outcome(&report.disclosures, reach);
+            report
+        }
+        Err(err) => return report_format_error("text-run-width", args.input, &err),
+    };
     let outcome = match save_edited(
         &mut session,
         &source,
@@ -463,10 +569,10 @@ pub(crate) fn cmd_text_run_width(args: &TextRunWidthArgs<'_>) -> u8 {
     };
     let r = &outcome.report;
     println!(
-        "text-run-width {} page {} object={} run={} width={} h_scale={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        "text-run-width {} page {} {} run={} width={} h_scale={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
         args.input.display(),
         args.page.max(1),
-        args.object,
+        target_token(args.object, args.leaf),
         args.run,
         args.width,
         report
