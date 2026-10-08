@@ -147,6 +147,8 @@ mod metadata_remove;
 pub use markup_respan::TextMarkupRespan;
 mod link;
 pub use link::{LinkBorder, LinkBorderChange, LinkTarget, LinkTargetChange};
+mod deskew;
+pub use deskew::{ImageDeskew, MIN_DESKEW_DEGREES};
 mod image_replace;
 pub use image_replace::ImageReplaceOutcome;
 mod text_form_reshape;
@@ -416,6 +418,9 @@ pub enum CommandKind {
     /// A placed image's pixels were replaced by [`EditSession::replace_image`]
     /// (pdfcer-gui request G156).
     ReplaceImage,
+    /// A placed image was straightened by [`EditSession::deskew_image`]
+    /// (pdfcer-gui request G165).
+    DeskewImage,
     /// One `/Ink` stroke, or one point inside one stroke, was edited and the
     /// annotation's appearance re-baked from the new `/InkList`
     /// (`Pass 278.0`, `pdfcer-gui` request 2026-09-08).
@@ -7079,6 +7084,14 @@ pub enum EditError {
         index: usize,
         /// `"path"`, `"text"` or `"form"`.
         kind: &'static str,
+    },
+    /// [`EditSession::deskew_image`] or [`EditSession::detect_image_skew`]
+    /// cannot work on this image; `reason` says why (an inline image, a soft
+    /// mask, an undecodable codestream, an angle out of range).
+    #[error("this image cannot be deskewed: {reason}")]
+    DeskewUnsupported {
+        /// Why, in a sentence fragment.
+        reason: String,
     },
     /// The object named in a page's `/Annots` is a **structural object**, not
     /// an annotation (`Pass 190.1`).

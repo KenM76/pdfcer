@@ -7,7 +7,7 @@ use super::{
 use crate::image_import::ImportedImage;
 use crate::object::{ObjId, Object};
 use crate::page_tree::Rect;
-use crate::vector::{ImageSource, Matrix, VectorObject};
+use crate::vector::{ImageObject, ImageSource, Matrix, VectorObject};
 use crate::writer::content::emit_number;
 
 /// The `/XObject` resource-name prefix a replacement is bound under.
@@ -75,6 +75,29 @@ impl EditSession {
         image: &ImportedImage,
         fit: ImageFit,
     ) -> Result<ImageReplaceOutcome, EditError> {
+        let target = self.editable_placed_image(page_index, object_index)?;
+        let extent = extent(target.ctm);
+        if !(extent.urx > 0.0 && extent.ury > 0.0) {
+            return Err(EditError::ImageRectDegenerate {
+                w: extent.urx,
+                h: extent.ury,
+            });
+        }
+        let spec = NewImage {
+            fit,
+            ..NewImage::new(page_index, extent, image)
+        };
+        self.commit_replace_image(&spec, target.bytes, target.xobject)
+    }
+
+    /// The image placement `object_index` on `page_index`, after the gates
+    /// every image edit shares: encryption, certification and hidden
+    /// objects. Paths, text and form XObjects are refused.
+    pub(super) fn editable_placed_image(
+        &mut self,
+        page_index: usize,
+        object_index: usize,
+    ) -> Result<ImageObject, EditError> {
         if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
@@ -101,18 +124,7 @@ impl EditSession {
                 });
             }
         };
-        let extent = extent(target.ctm);
-        if !(extent.urx > 0.0 && extent.ury > 0.0) {
-            return Err(EditError::ImageRectDegenerate {
-                w: extent.urx,
-                h: extent.ury,
-            });
-        }
-        let spec = NewImage {
-            fit,
-            ..NewImage::new(page_index, extent, image)
-        };
-        self.commit_replace_image(&spec, target.bytes, target.xobject)
+        Ok(target)
     }
 
     fn commit_replace_image(
@@ -121,23 +133,49 @@ impl EditSession {
         span: crate::span::ByteSpan,
         replaced: Option<ObjId>,
     ) -> Result<ImageReplaceOutcome, EditError> {
+        let mut prior = Vec::new();
+        let (image_id, soft_mask_id) = self.stage_image_xobject(spec.image, &mut prior)?;
+        let placed = spec.placed_rect();
+        let name = self.repoint_image_placement(
+            CommandKind::ReplaceImage,
+            spec.page_index,
+            span,
+            image_id,
+            prior,
+            |name| invocation(spec, &placed, name),
+        )?;
+        Ok(ImageReplaceOutcome {
+            image_id,
+            soft_mask_id,
+            resource_name: name,
+            replaced,
+            disclosures: self.image_disclosures(spec, &placed, soft_mask_id.is_some()),
+        })
+    }
+
+    /// Replace the placement at `span` (a `Do`, or a whole inline image) by
+    /// `invocation(name)`, where `name` is a fresh `/XObject` resource name
+    /// bound to `image_id` on the page. `prior` holds the writes that created
+    /// the image. One undo entry of `kind`; returns `name`.
+    pub(super) fn repoint_image_placement(
+        &mut self,
+        kind: CommandKind,
+        page_index: usize,
+        span: crate::span::ByteSpan,
+        image_id: ObjId,
+        mut prior: Vec<ObjectWrite>,
+        invocation: impl FnOnce(&[u8]) -> Vec<u8>,
+    ) -> Result<Vec<u8>, EditError> {
         let pages = self.pages()?;
-        let page = pages
-            .get(spec.page_index)
-            .ok_or(EditError::PageOutOfRange {
-                index: spec.page_index,
-                count: pages.len(),
-            })?;
+        let page = pages.get(page_index).ok_or(EditError::PageOutOfRange {
+            index: page_index,
+            count: pages.len(),
+        })?;
         let content_id = *page
             .contents
             .first()
-            .ok_or(EditError::VectorEditNoContents {
-                page_index: spec.page_index,
-            })?;
+            .ok_or(EditError::VectorEditNoContents { page_index })?;
         let (stream, _) = self.page_content_and_objects(page)?;
-
-        let mut prior = Vec::new();
-        let (image_id, soft_mask_id) = self.stage_image_xobject(spec.image, &mut prior)?;
         let name = self.free_name_in(&page.resources, b"XObject", XOBJECT_PREFIX);
         let (writes, shared) = crate::text_edit::addtext::bind_resource(
             &self.graph(),
@@ -156,27 +194,12 @@ impl EditSession {
         if shared {
             disclosures.push(SHARED_RESOURCES_NOTE.to_owned());
         }
-
-        let placed = spec.placed_rect();
-        let replacement = invocation(spec, &placed, &name);
-        let mut edits = vec![(span.start, span.end(), replacement)];
+        let mut edits = vec![(span.start, span.end(), invocation(&name))];
         let content = crate::text_edit::edit::splice(&stream.buf, &mut edits);
-        let (command, _) = self.text_edit_command(
-            CommandKind::ReplaceImage,
-            content_id,
-            page,
-            content,
-            prior,
-            &mut disclosures,
-        )?;
+        let (command, _) =
+            self.text_edit_command(kind, content_id, page, content, prior, &mut disclosures)?;
         self.commit(command);
-        Ok(ImageReplaceOutcome {
-            image_id,
-            soft_mask_id,
-            resource_name: name,
-            replaced,
-            disclosures: self.image_disclosures(spec, &placed, soft_mask_id.is_some()),
-        })
+        Ok(name)
     }
 }
 

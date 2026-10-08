@@ -515,34 +515,34 @@ pub(crate) fn region_is_inkless(
 /// plus the geometry that describes them, already reconciled between the
 /// dictionary and the codestream.
 #[derive(Debug, Clone)]
-struct Decoded {
-    samples: Vec<u8>,
-    width: u32,
-    height: u32,
-    components: u32,
-    bpc: u32,
+pub(crate) struct Decoded {
+    pub(crate) samples: Vec<u8>,
+    pub(crate) width: u32,
+    pub(crate) height: u32,
+    pub(crate) components: u32,
+    pub(crate) bpc: u32,
     /// Which codec produced the samples (drives the dictionary rewrite).
-    codec: Option<Codec>,
-    color_model: CodecColorModel,
-    icc_profile: Option<Vec<u8>>,
-    embedded_alpha: Option<Vec<u8>>,
+    pub(crate) codec: Option<Codec>,
+    pub(crate) color_model: CodecColorModel,
+    pub(crate) icc_profile: Option<Vec<u8>>,
+    pub(crate) embedded_alpha: Option<Vec<u8>>,
     /// The dictionary's colour space disagreed with the codestream's
     /// component count; the rewrite substitutes a device space.
-    colorspace_substituted: bool,
+    pub(crate) colorspace_substituted: bool,
     /// JPX `/SMaskInData 2`: samples are preblended; the alpha is not
     /// recoverable, so the rewrite drops the transparency.
-    preblended_alpha_dropped: bool,
+    pub(crate) preblended_alpha_dropped: bool,
     /// The bit value a destroyed cell takes: `true` = all ones. The colour
     /// space's no-ink ("paper") sample, `/Decode`-aware (module docs).
-    paper: bool,
+    pub(crate) paper: bool,
 }
 
 /// Why a placement cannot be destroyed. A plain string because every
 /// reason ends up in one report note and nothing branches on it.
-type Blocker = String;
+pub(crate) type Blocker = String;
 
 /// Decode an image stream into [`Decoded`], or say why it cannot be.
-fn decode(
+pub(crate) fn decode(
     view: &DocumentView<'_>,
     dict: &Dict,
     raw: &[u8],
@@ -801,7 +801,7 @@ impl Allocator<'_> {
     }
 
     /// A `FlateDecode` stream object over `data` with `dict`'s entries.
-    fn flate_stream(&mut self, mut dict: Dict, data: &[u8]) -> Object {
+    pub(crate) fn flate_stream(&mut self, mut dict: Dict, data: &[u8]) -> Object {
         let encoded = crate::filters::flate::encode(data);
         let span = self.stage(&encoded);
         dict.insert(
@@ -1528,7 +1528,7 @@ fn tombstone(
 /// chain and its parameters gone (the caller adds `/FlateDecode`), geometry
 /// from the decoded samples, and the codec-specific reconciliations the
 /// module docs describe.
-fn rewrite_dict(
+pub(crate) fn rewrite_dict(
     original: &Dict,
     decoded: &Decoded,
     resources: &Dict,

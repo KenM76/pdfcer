@@ -649,6 +649,8 @@ mod link_cmd;
 use link_cmd::*;
 mod image_replace_cmd;
 use image_replace_cmd::*;
+mod deskew_cmd;
+use deskew_cmd::*;
 mod node_shape_cmd;
 use node_shape_cmd::*;
 mod widget_turn_cmd;

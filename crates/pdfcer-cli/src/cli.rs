@@ -6586,6 +6586,50 @@ pub(crate) enum Command {
         #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
         mode: SaveMode,
     },
+    /// **Straighten scanned pages**: measure each page's skew and rotate its
+    /// scan image to correct it.
+    ///
+    /// On each page in `--pages` the largest image is taken as the scan
+    /// (or `--object`, the 0-based index `object-list` prints). Its skew is
+    /// measured from the lines of text and rules in it; a page whose skew is
+    /// below `--min-angle`, or measured with confidence below
+    /// `--min-confidence`, is left alone. A corrected image is a new,
+    /// losslessly compressed image of the same size, drawn in the same
+    /// place; the uncovered corners take the scan's background colour.
+    /// Without `--output` or `--in-place` nothing is written: each page's
+    /// measurement is printed and the command stops (a dry run).
+    ///
+    /// One line per page: `page N object I: skew=+1.20 confidence=0.84:
+    /// corrected ...` or `... skipped (reason)`. A JPEG scan usually grows,
+    /// and the line shows its old and new stream sizes. Refused, with exit
+    /// code 9: inline images, and images with a soft mask or mask.
+    Deskew {
+        /// Input PDF.
+        input: PathBuf,
+        /// Pages to straighten: `all`, or a list like `1,3-5`.
+        #[arg(long, default_value = "all")]
+        pages: String,
+        /// 0-based page object index of the image, on every page listed,
+        /// instead of each page's largest image.
+        #[arg(long)]
+        object: Option<usize>,
+        /// Rotate by this many degrees instead of measuring: positive
+        /// straightens content that rises to the right.
+        #[arg(long, allow_hyphen_values = true)]
+        angle: Option<f64>,
+        /// Leave pages measured as skewed by less than this, in degrees.
+        #[arg(long, default_value_t = 0.05)]
+        min_angle: f64,
+        /// Leave pages whose measurement confidence (0 to 1) is below this.
+        #[arg(long, default_value_t = 0.2)]
+        min_confidence: f64,
+        /// Output path. Without it, only report (dry run).
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
     /// **Add a link** — a `/Link` annotation over `--rect` that goes to a
     /// page, a named destination or a URI (ISO 32000-1 §12.5.6.5).
     ///

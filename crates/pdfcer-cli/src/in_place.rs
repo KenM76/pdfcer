@@ -56,6 +56,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "delete-field-group",
     "delete-pages",
     "delete-widget",
+    "deskew",
     "detach-file",
     "dimension-add",
     "dimension-area",

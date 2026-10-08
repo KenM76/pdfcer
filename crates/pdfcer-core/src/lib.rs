@@ -57,6 +57,7 @@ pub mod build;
 /// is not something `pdfcer-core` should be offering. The file's own header
 /// comments carry the reasoning and the leap-year cases.
 mod civil_time;
+pub mod deskew;
 pub mod dimension;
 pub mod doc_metadata;
 pub mod edit;
