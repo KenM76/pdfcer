@@ -21657,7 +21657,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`559.0` all shipped; the batch is complete.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 560.0`; next filing 1043rd.
+> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`559.0` all shipped; the batch is complete.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 561.0`; next filing 1044th.
 > - `552.0` (`G162`) SHIPPED (`9be9d44a`, `ea7e80af`, 1035th filing), see *Shipped*.
 > - `553.0` (`G168`) SHIPPED (`8d014437`, `d1800f2a`, 1036th filing), see *Shipped*.
 > - `554.0` (`G163`) SHIPPED (`6fa4bc19`, `ed2bdd4b`, 1037th filing), see *Shipped*.
@@ -21666,6 +21666,13 @@ closes out the *prior* filing's business rather than opening this one's.
 > - `556.0` (`G166`) SHIPPED (`224b6357`, `1d178887`, 1039th filing), see *Shipped*.
 > - `557.0` (`G165`) SHIPPED (`cd82fcac`, `6026af3f`, 1040th filing), see *Shipped*.
 > - `558.0` (`G167`) SHIPPED (`b967c09e`, `d2b21073`, `3dccbdbc`, `77fed3ee`, `fbbd1ae2`, 1041st filing), see *Shipped*.
+
+> **`Pass 560.0` — render invisible text visibly (render + CLI; `pdfcer-gui` request `G169`, filed 1043rd, 2026-10-08). Kind: missing render option. No commits yet; scoping only.** Request file: `pdfce_FeatureRequests/open/request_G169_invisible_text_cannot_be_rendered_visibly.md`. Next free `Pass 561.0`; next filing 1044th. No decision.
+> 1. `pdfcer_render::RenderOptions` gains `invisible_text: Option<InvisibleTextPaint>`; `InvisibleTextPaint { rgb: [u8; 3], only: bool }` is `#[non_exhaustive]`, so out-of-crate callers use `InvisibleTextPaint::new(rgb)` / `.with_only(true)`. Default `None` renders byte-identically to today.
+> 2. With it set, glyphs in text rendering mode 3 and 7 (ISO 32000-1 §9.3.6 Table 106) fill with `rgb` through the ordinary glyph path (same font loading, Tz, Trise, matrices, enclosing clip); mode 7 still adds to the clip.
+> 3. `only: true` paints nothing else (no paths, images, shadings, visible text or annotations) on a transparent background, so a shell composites the layer itself.
+> 4. CLI `render-page` gains `--invisible-text RRGGBB` and `--invisible-text-only`.
+> 5. Tests: mode-3 text paints nothing by default and paints in the given colour with the option; `only` leaves visible content out and the background transparent; mode 7 still clips; a CLI test. `docs/core-api` and render docs updated.
 
 > **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), `547.0` SHIPPED (1029th filing), `548.0` SHIPPED (1030th filing), `549.0` SHIPPED (1031st filing), `550.0` SHIPPED (1032nd filing), `551.0` SHIPPED (1033rd filing), see *Shipped*; the batch is complete. Request files in `pdfce_FeatureRequests/open/`. Each Pass shipped core + CLI; the GUI column is `pdfcer-gui`'s. (Superseded by the stub above: next free `Pass 559.0`; next filing 1035th.)
 

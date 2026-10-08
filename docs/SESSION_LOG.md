@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1043rd filing) — `Pass 560.0` filed under Next up (render invisible text visibly, `G169`)
+
+**Shipped:** nothing; scoping filing only, no commits yet.
+
+**Filed:** `Pass 560.0`, a missing render option requested by `pdfcer-gui` (`G169`): `RenderOptions::invisible_text: Option<InvisibleTextPaint>` painting text modes 3 and 7 in a chosen colour, an `only` form on a transparent background, and CLI `render-page --invisible-text RRGGBB` / `--invisible-text-only`. Five acceptance criteria are in the ROADMAP stub.
+
+**Files:** ROADMAP: new blockquote stub in *Next up* (no new `###`, count unchanged), header ledger now next free `Pass 561.0`, next filing 1044th. `FEATURES.md`: *Planned* row added at the top (core, cli, gui all `[ ]`).
+
+**Decisions made this session:** None.
+
+**Still in flight:** `Pass 560.0` to be built. Next free `Pass 561.0`; next filing 1044th.
+
 ## 2026-10-08 (1042nd filing) — `Pass 559.0` shipped (exact wrap/break line ends for pdfcer's own blocks, `G163` follow-up)
 
 **Shipped:** `Pass 559.0`, `765ad7ce` (code), `de133315` (`docs/core-api`). `edit_block_text` writes `/pdfc_TextBlock MP` and `/pdfc_Break MP` marked-content points; `LineMarks`, `LineEndSource {Marked, Inferred}`, `BlockHit.line_end_source`; CLI `edit-block-text --at` and `inspect --text-blocks --json` report the source. Foreign, form-XObject and pre-559 text stay inferred. lib 1515, `--test all` 2897, new CLI test; sabotage checks failed 3 and 2 tests as expected; listed gates clean (engineer-reported). Core and cli delivered; gui `[ ]`.
