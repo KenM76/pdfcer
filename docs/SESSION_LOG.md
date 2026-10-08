@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1047th filing) — `Pass 562.0` shipped (OCR run options checkable before load, `G170`)
+
+**Shipped:** `Pass 562.0`, `da43a415` (code, tests) and `457ada02` (`docs/core-api` 03-capabilities §5 row; index line count updated by `check-core-api-verbs --fix`). `pdfcer_ocr_host::check_options(model, options)` in `runner.rs`, re-exported from `lib.rs`: no hashing, no model load. Data models: word-list rules. Program models: requested languages' `.traineddata` and user word files readable, via private `check_program_options` in `program.rs` (shares `invocation()` with `ProgramEngine::from_model`). Layout: `LayoutUnsupported` off paddle-vl; `MissingFile { needs: "layout.onnx" }` when absent (cfg `ocr-vl`). `OcrRunner::load` calls it first. Behaviour changes: a paddle-vl folder without `layout.onnx` now gets `MissingFile` from `load` (was `RunnerError::Engine`); for program models option problems now precede model refusals.
+
+**Verified (engineer-reported):** new `tests/check_options.rs`, 5 tests (4 lean; one cfg `ocr-vl`). `pdfcer-ocr-host` all features 27 + 1 ignored (integration binary), no default features 22 + 1 ignored; CLI `layout` filter 6 pass. Sabotage (layout-file check and program arm disabled) turned 3 tests red. clippy both feature sets, rustdoc, fmt, structure, string-gaps, docs gate clean. No `Cargo.toml` change. `G170` FIXED reply written in the FeatureRequests channel.
+
+**Delivered:** core `[x]`; cli none (same refusals via `load`, no new flag); gui is `pdfcer-gui`'s.
+
+**Files:** ROADMAP: new Shipped entry above `v0.81.0`; *Next up* stub replaced by a SHIPPED pointer (blockquote, no `###` touched, count unchanged at 80); ledger line now next free `Pass 563.0`, next filing 1048th. `FEATURES.md`: *Planned* `562.0` row removed, *Implemented* row added at the end (core `[x]` cli `[ ]` gui `[ ]`).
+
+**Decisions made this session:** None.
+
+**Still in flight:** `v0.81.0` (tag on `c0761048`) is built and smoke-tested; the push is pending, not done. Push state not verifiable from here (no shell).
+
 ## 2026-10-08 (1046th filing) — `Pass 562.0` filed under Next up (OCR run options checkable before load, `G170`)
 
 **Shipped:** nothing; scoping filing only. Previous filing was `042ede38` (1045th).
