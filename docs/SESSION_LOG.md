@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1049th filing) — `Pass 564.0` shipped (full-rewrite note as a structured flag, `G172`)
+
+**Shipped:** `Pass 564.0`, `77fffcf8` (code, tests) and `25db8de1` (`docs/core-api`). `MetadataRemoval::needs_full_rewrite: bool` (set whenever anything was removed) and `pub const doc_metadata::FULL_REWRITE_NOTE`. The sentence left `disclosures`, which now holds operator sentences only; private `FULL_REWRITE_DISCLOSURE` deleted. CLI `pdfcer metadata remove` prints the note when the flag is set and the save is not a full rewrite.
+
+**Verified (engineer-reported):** core `metadata_remove` 6 tests (new `removing_nothing_needs_no_full_rewrite`), CLI `remove_metadata` 5; sabotage (flag forced true) turned 1 test red. No manifest change. `G172` FIXED reply written in the FeatureRequests channel.
+
+**Decided:** `bool` chosen over a structured enum (the stub left it open). No numbered decision.
+
+**Sweep (hard rule 11):** the stub named four places that describe `disclosures` (`doc_metadata.rs:236` rustdoc, the CLI printer, `docs/core-api`, FEATURES rows). The engineer reports the code, CLI and core-api halves done; I did not re-read the source this filing, so a survivor in rustdoc is not ruled out. FEATURES: the only row naming metadata removal (the `555.0` row) updated.
+
+**Files:** ROADMAP: new Shipped entry; stub replaced by a SHIPPED pointer (blockquote, `###` count in Next up unchanged at 80); ledger line next filing 1050th, next free `Pass 565.0`. `FEATURES.md`: Planned `564.0` row removed, Implemented metadata row annotated (core `[x]` cli `[x]` gui `[ ]`).
+
+**Still in flight:** `563.0` (`G171`) not started. Ships in the release after `v0.81.0`. Push state not verifiable from here.
+
 ## 2026-10-08 (1048th filing) — `Pass 563.0` and `Pass 564.0` filed under Next up (`G171`, `G172`)
 
 **Shipped:** nothing; scoping filing only. Previous filing was `b1e2e4e7` (1047th).

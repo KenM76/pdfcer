@@ -115,6 +115,23 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 564.0` — full-rewrite note on `remove_metadata` becomes a structured flag (core + CLI; answers `pdfcer-gui` `G172`) — SHIPPED 2026-10-08 (1049th filing)
+
+Commits `77fffcf8` (code, tests) and `25db8de1` (`docs/core-api`); push state not verifiable from here. No `Cargo.toml` change, so the `cargo tree` invariant is untouched. No decision. Stub filed 1048th (`dbbcbaec`); replaced by a SHIPPED pointer. Ships in the release after `v0.81.0`.
+
+**Decision (the stub left it to the engineer).** `needs_full_rewrite: bool`, not a `Vec<MetadataDisclosure>` enum.
+
+**Delivered.**
+- `MetadataRemoval::needs_full_rewrite: bool`, set whenever anything was removed; `pub const pdfcer_core::doc_metadata::FULL_REWRITE_NOTE` is the operator sentence for it.
+- The sentence is no longer in `MetadataRemoval::disclosures`, which now holds operator sentences only. The private `FULL_REWRITE_DISCLOSURE` is gone, so no sentence names a Rust verb.
+- CLI `pdfcer metadata remove` prints `FULL_REWRITE_NOTE` when the flag is set and the save mode is not already a full rewrite (it does not go silent).
+
+**Verified (engineer-reported).** Core `metadata_remove` 6 tests (new `removing_nothing_needs_no_full_rewrite`; the everything-removed test asserts the flag and that the note is absent from `disclosures`); CLI `remove_metadata` 5. Sabotage: forcing the flag true turned 1 test red. The `G172` FIXED reply is written in the FeatureRequests channel.
+
+`FEATURES.md`: *Planned* `564.0` row removed; the *Implemented* metadata-removal row notes the flag (core `[x]` cli `[x]` gui `[ ]`, unchanged).
+
+Ledgers: no decision; next free `Pass 565.0`; next filing 1050th.
+
 ### `Pass 562.0` — ask whether OCR run options are acceptable before loading the model (OCR host core; answers `pdfcer-gui` `G170`) — SHIPPED 2026-10-08 (1047th filing)
 
 Commits `da43a415` (code, tests), `457ada02` (`docs/core-api` 03-capabilities §5 row; `check-core-api-verbs --fix` updated the index line count); push state not verifiable from here. No `Cargo.toml` change, so no dependency change and the `cargo tree` invariant is untouched. No decision. Listed in *Next up* as a `>` blockquote stub (1046th filing, `808badb4`); stub replaced by a SHIPPED pointer.
@@ -21722,7 +21739,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`559.0` all shipped; the batch is complete.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 565.0`; next filing 1049th.
+> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`559.0` all shipped; the batch is complete.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 565.0`; next filing 1050th.
 > - `552.0` (`G162`) SHIPPED (`9be9d44a`, `ea7e80af`, 1035th filing), see *Shipped*.
 > - `553.0` (`G168`) SHIPPED (`8d014437`, `d1800f2a`, 1036th filing), see *Shipped*.
 > - `554.0` (`G163`) SHIPPED (`6fa4bc19`, `ed2bdd4b`, 1037th filing), see *Shipped*.
@@ -21748,16 +21765,7 @@ closes out the *prior* filing's business rather than opening this one's.
 >   5. A FIXED reply in the FeatureRequests channel.
 > - **Not in scope.** The GUI's per-frame workaround (`app::actions::deskew`), `pdfcer-gui`'s. CLI: the single `deskew` verb (`cli.rs:6644`) already measures and straightens in one invocation; no new verb unless the engineer finds one needed.
 
-> **`Pass 564.0` (core; answers `pdfcer-gui` `G172`, O289 item 21) — the full-rewrite disclosure from `remove_metadata` gets an identity the GUI can recognise. Filed 2026-10-08 (1048th filing), not started.** Request: `pdfce_FeatureRequests/open/request_G172_full_rewrite_disclosure_cannot_be_recognised.md`. Pinned engine `v0.81.0` (`c0761048`).
-> - **Why.** `MetadataRemoval::disclosures` is `Vec<String>` (live: `doc_metadata.rs:239`). The full-rewrite sentence is the private `FULL_REWRITE_DISCLOSURE` in `edit/metadata_remove.rs:19`, pushed last (`:125`), and its text names the Rust verb `to_full_bytes_decomposing_containers`. The GUI cannot show it, so `app::actions::remove_metadata::receipt` drops every disclosure whose text contains that identifier; a rewording silently puts the Rust name in front of the operator.
-> - **Scope.** `MetadataRemoval` gains a structured disclosure so the GUI no longer matches on text. The engineer chooses between `needs_full_rewrite: bool` (the sentence moved out of `disclosures`) and a structured `Vec<MetadataDisclosure>` enum (the request notes the second also lets the GUI word the others, e.g. a field's default value left, a skipped signature field, "more than one undo"). `MetadataRemoval` and `NotRemoved` are `#[non_exhaustive]`, so adding a field is not breaking; changing the type of `disclosures` is, and needs the usual API note. Operator wording must not name Rust verbs.
-> - **Acceptance.**
->   1. The GUI can tell the full-rewrite note from the others without matching text (test asserts the structured signal on a default-options removal).
->   2. No disclosure sentence names a Rust identifier (a test scanning every sentence the module can produce).
->   3. CLI output still states the full-rewrite requirement, in operator words (rule 4: fuzzy, never sneaky; the CLI must not go silent when the sentence leaves `disclosures`).
->   4. `docs/core-api` updated.
->   5. A FIXED reply in the FeatureRequests channel.
-> - **Sweep owed at ship (hard rule 11).** If `disclosures` changes meaning, grep for the claim, not the string: `doc_metadata.rs:236` rustdoc ("always that only a full rewrite takes removed data out of the file"), the CLI `remove-metadata` printer (`metadata_cmd.rs:164` prints `report.disclosures`, so moving the sentence out of that list silences the CLI unless it is printed separately), `docs/core-api`, and `FEATURES.md` rows naming metadata removal.
+> **`Pass 564.0` (`G172`, full-rewrite note as a structured flag) SHIPPED (`77fffcf8`, `25db8de1`, 1049th filing), see *Shipped*.**
 
 > **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), `547.0` SHIPPED (1029th filing), `548.0` SHIPPED (1030th filing), `549.0` SHIPPED (1031st filing), `550.0` SHIPPED (1032nd filing), `551.0` SHIPPED (1033rd filing), see *Shipped*; the batch is complete. Request files in `pdfce_FeatureRequests/open/`. Each Pass shipped core + CLI; the GUI column is `pdfcer-gui`'s. (Superseded by the stub above: next free `Pass 559.0`; next filing 1035th.)
 
