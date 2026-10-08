@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1034th filing) — fuzz-target fix (`7bcc7abb`), 7 `pdfcer-gui` requests filed (`Pass 552.0`-`558.0`, `G162`-`G168`)
+
+**Shipped:** `7bcc7abb` `fix(fuzz)`, a follow-up to `Pass 544.0`, no new Pass. `fuzz/fuzz_targets/annot_author.rs` had not been updated for `MarkupSpec::Line { interior }` and `TextAnnotSpec::FreeText { frame }`, so `cd fuzz && cargo check --bins` in `tools/run-gates.sh` failed; fixed with `interior: None` and `frame: Default::default()`. Gate sweep: `tools/run-gates.sh` green on 45 of 46 commands, the one failure being this fuzz check, now fixed. (The `interior` field's own Shipped entry is `Pass 539.0`; the dispatch attributed both fields to `544.0`.)
+
+**Filed (Next up, core/cli/gui all `[ ]`, ACK replies already in `pdfce_FeatureRequests/open/`):** `552.0` `G162` (defect: a paragraph rewritten with its own text splits its widest line); `553.0` `G168` (public named 3D views and up-axis, write `/VA`/`/3DV`); `554.0` `G163` (hard-break vs wrap per line); `555.0` `G164` (metadata inventory and removal); `556.0` `G166` (OCR dictionary choice); `557.0` `G165` (skew detection and deskew); `558.0` `G167` (PaddleOCR-VL layout pass).
+
+**Files:** ROADMAP: one blockquote stub in *Next up* (not a `###` heading, matching the `538.0`-`551.0` batch) and a follow-up footer on the `544.0` Shipped entry. `FEATURES.md`: seven *Planned* rows. The `###` count between *Next up* and *Backlog* is unchanged by this filing; by Grep line numbers over the saved heading list it read 76, not the 80 stated in the dispatch (not reconciled).
+
+**Decisions made this session:** None.
+
+**Still in flight:** all seven queued, none started. Next free `Pass 559.0`; next filing 1035th. Push state not verifiable from here.
+
 ## 2026-10-08 (1033rd filing) — `Pass 551.0` shipped (turn a form widget to any angle, widget opacity, `G160`)
 
 **Shipped:** `Pass 551.0`, code `ec37ae9c`, `docs/core-api` `b302fc23`. `EditSession::turn_widget(fqn, index, degrees)` writes an absolute counterclockwise angle into every `/AP` stream's `/Matrix` on top of `/MK /R` (ISO 32000-2 §12.5.5); `/Rect` becomes the bound of the turned artwork; the angle is read back from the `/N` `/Matrix`; later redraws keep it. `WidgetTurn` (`#[non_exhaustive]`), `CommandKind::TurnWidget`, five new `EditError` variants (core-api 175 to 180), verbs 348 to 349. A turned widget refuses `rotate_widget` and a resize (`WidgetTurned`) until turned back to 0; a move is allowed. `WidgetEdit::with_opacity` / `clearing_opacity` write `/CA`. Disclosed: shared appearances copied, a viewer regenerating from `/MK` alone, a non-uniform fit, strict PDF 2.0 readers ignoring widget `/CA`. CLI `turn-widget` (`--in-place`), `edit-widget --opacity` / `--clear-opacity` (README 224 to 225).

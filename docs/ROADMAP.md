@@ -287,6 +287,8 @@ Commits `0041e8dd` (code), `24f6a95d` (`docs/core-api`). No `Cargo.toml` or depe
 
 Ledgers: no decision; next free `Pass 552.0`; next filing 1027th.
 
+**Follow-up, 2026-10-08 (1034th filing), `7bcc7abb`, no new Pass.** The breaking `MarkupSpec::Line { interior }` and `TextAnnotSpec::FreeText { frame }` additions (the `frame` one is this Pass; the dispatch attributed both to `544.0`, though the `interior` field's own Shipped entry is `Pass 539.0`) left `fuzz/fuzz_targets/annot_author.rs` uncompilable, so `cd fuzz && cargo check --bins` in `tools/run-gates.sh` failed. Fixed with `interior: None` and `frame: Default::default()`. Gate sweep that found it: `tools/run-gates.sh` green on 45 of 46 commands; the one failure was this fuzz check, now fixed.
+
 ### `Pass 543.0` — restack page objects front / back / forward / backward (core + CLI; answers `pdfcer-gui` `G157`) — SHIPPED 2026-10-07 (1025th filing)
 
 Commits `1fb0d267` (code), `5d01412a` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Push state not checked here (no shell).
@@ -21491,7 +21493,16 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), `547.0` SHIPPED (1029th filing), `548.0` SHIPPED (1030th filing), `549.0` SHIPPED (1031st filing), `550.0` SHIPPED (1032nd filing), `551.0` SHIPPED (1033rd filing), see *Shipped*; the batch is complete. Request files in `pdfce_FeatureRequests/open/`. Each Pass shipped core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1034th.
+> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`, none started.** ACK replies are in `pdfce_FeatureRequests/open/`. Core/cli/gui all `[ ]`; the GUI column is `pdfcer-gui`'s. Next free `Pass 559.0`; next filing 1035th.
+> - `552.0` (`G162`, DEFECT) — `edit_block_text`'s default wrap width (the old block's bbox width) packs with no tolerance in `pdfcer_fonts::linebreak::greedy_pack`, so a paragraph rewritten with its own text splits its widest line (lines 2 to 3). Fix: pack the default wrap with the frame's existing EPS tolerance. Acceptance: a two-line paragraph from `add_text`, one character typed into the first line, `lines_before == lines_after == 2`; regression test.
+> - `553.0` (`G168`) — named 3D views (Iso / Front / Back / Left / Right / Top / Bottom) and up-axis (X / Y / Z) made public in `pdfcer-3d`, CLI reuses them; new `EditSession` verb writing 3D views (`/VA`, `/3DV`, ISO 32000-2 §13.6) with a default view into a 3D annotation. Core + CLI.
+> - `554.0` (`G163`) — per-line hard-break vs wrap information on recognised text blocks; foreign text by engine inference with disclosed uncertainty.
+> - `555.0` (`G164`) — metadata inventory (Info incl. custom keys, document and per-object XMP, PieceInfo, thumbnails, JavaScript, attachments, comments, hidden layers, form data, earlier revisions, document ID) with size and preview; removal of selected items as one undo entry, disclosing what could not be removed; a full-rewrite save is needed to drop earlier revisions. Core + CLI.
+> - `556.0` (`G166`) — OCR `RunOptions` dictionary choice (Builtin / None / Builtin + user word files); the report names which were used; engines that cannot honour it say so.
+> - `557.0` (`G165`) — skew detection for a scanned page or image XObject (angle + confidence); `deskew_image` / `deskew_page` as resample with one undo entry and pixel-change disclosure; optional pre-recognition deskew.
+> - `558.0` (`G167`) — PaddleOCR-VL layout pass with classed regions (table, figure, formula, chart, header, footer) and `OcrLayerOptions` routing each class to its own optional-content group, tables as `TableCell` blocks with row/column. Starts by measuring what the model's layout task returns.
+
+> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), `547.0` SHIPPED (1029th filing), `548.0` SHIPPED (1030th filing), `549.0` SHIPPED (1031st filing), `550.0` SHIPPED (1032nd filing), `551.0` SHIPPED (1033rd filing), see *Shipped*; the batch is complete. Request files in `pdfce_FeatureRequests/open/`. Each Pass shipped core + CLI; the GUI column is `pdfcer-gui`'s. (Superseded by the stub above: next free `Pass 559.0`; next filing 1035th.)
 
 > **Taken up from `pdfcer-gui`, 2026-10-07 (1007th filing, updated 1009th):** the other two of the three performance requests filed with `G139`.
 > - `G141` SHIPPED as `Pass 529.0` (`86fea180`, 1008th filing), see *Shipped*.
