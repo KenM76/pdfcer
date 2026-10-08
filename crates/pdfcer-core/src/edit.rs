@@ -144,6 +144,8 @@ mod markup_respan;
 pub use markup_respan::TextMarkupRespan;
 mod link;
 pub use link::{LinkBorder, LinkBorderChange, LinkTarget, LinkTargetChange};
+mod image_replace;
+pub use image_replace::ImageReplaceOutcome;
 mod image_stamp;
 mod ocr_refold;
 mod page_artwork;
@@ -404,6 +406,9 @@ pub enum CommandKind {
     SetLinkTarget,
     /// [`EditSession::set_link_border`].
     SetLinkBorder,
+    /// A placed image's pixels were replaced by [`EditSession::replace_image`]
+    /// (pdfcer-gui request G156).
+    ReplaceImage,
     /// One `/Ink` stroke, or one point inside one stroke, was edited and the
     /// annotation's appearance re-baked from the new `/InkList`
     /// (`Pass 278.0`, `pdfcer-gui` request 2026-09-08).
@@ -7039,6 +7044,15 @@ pub enum EditError {
     LinkBorderWidthInvalid {
         /// The width given.
         given: f64,
+    },
+    /// [`EditSession::replace_image`] was given a page object that is not an
+    /// image: a path, text, or a form XObject.
+    #[error("page object {index} is {kind}, not an image")]
+    ReplaceImageOnOther {
+        /// The object index.
+        index: usize,
+        /// `"path"`, `"text"` or `"form"`.
+        kind: &'static str,
     },
     /// The object named in a page's `/Annots` is a **structural object**, not
     /// an annotation (`Pass 190.1`).

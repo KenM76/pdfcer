@@ -57,6 +57,7 @@ mod format_decoration_flags;
 mod format_text;
 mod free_text_frame_style;
 mod hand_signature;
+mod image_replace;
 mod image_stamp_and_button_icon;
 mod import_data_cli;
 mod import_structure_certified;

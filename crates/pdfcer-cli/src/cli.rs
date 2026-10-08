@@ -6428,6 +6428,43 @@ pub(crate) enum Command {
         #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
         mode: SaveMode,
     },
+    /// **Replace an image's pixels** with another picture file, keeping
+    /// where it is drawn, its size, rotation and stacking order.
+    ///
+    /// `--object` is the 0-based index `object-list` prints. The new picture
+    /// fills the old image's area: by default it keeps its own shape and is
+    /// centred in that area; `--stretch` fills the area exactly. Only this
+    /// placement changes; the old image stays in the file (an incremental
+    /// save keeps its bytes; `redact-apply` removes content).
+    ReplaceImage {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number.
+        #[arg(long)]
+        page: usize,
+        /// 0-based page object index of the image to replace.
+        #[arg(long)]
+        object: usize,
+        /// The new picture: PNG, JPEG, BMP, TIFF or GIF.
+        #[arg(long, value_name = "FILE")]
+        image: PathBuf,
+        /// Fill the old image's area exactly, distorting the new picture if
+        /// its shape differs.
+        #[arg(long)]
+        stretch: bool,
+        /// How the picture's samples are stored; as for `add-image`.
+        #[arg(long, value_enum, default_value_t = CompressionArg::Passthrough)]
+        compression: CompressionArg,
+        /// Encoder quality for `--compression jpeg`, 1-100.
+        #[arg(long, default_value_t = 85, value_parser = clap::value_parser!(u8).range(1..=100))]
+        quality: u8,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
     /// **Add a link** — a `/Link` annotation over `--rect` that goes to a
     /// page, a named destination or a URI (ISO 32000-1 §12.5.6.5).
     ///

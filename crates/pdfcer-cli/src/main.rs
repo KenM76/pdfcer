@@ -647,6 +647,8 @@ mod respan_markup_cmd;
 use respan_markup_cmd::*;
 mod link_cmd;
 use link_cmd::*;
+mod image_replace_cmd;
+use image_replace_cmd::*;
 mod object_list;
 use object_list::*;
 mod objects;

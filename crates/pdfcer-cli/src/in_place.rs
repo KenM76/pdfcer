@@ -127,6 +127,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "rename-field",
     "reorder-annotations",
     "reorder-pages",
+    "replace-image",
     "reset-form",
     "resize-annotation",
     "respan-markup",

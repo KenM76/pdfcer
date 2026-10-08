@@ -124,7 +124,7 @@ pub(crate) fn cmd_add_image(args: &AddImageArgs<'_>) -> u8 {
         Ok(outcome) => outcome,
         Err(err) => return report_edit_error(args.input, &err),
     };
-    report_image_disclosures(args.image, &placed);
+    report_image_disclosures(args.image, &placed.disclosures, Some(placed.placed_rect));
 
     let outcome = match save_edited(
         &mut session,
@@ -317,9 +317,9 @@ pub(crate) fn dpi_source_key(s: pdfcer_core::image_import::DpiSource) -> &'stati
 /// so the set has to live in one place where it can be read as a set.
 pub(crate) fn report_image_disclosures(
     image: &Path,
-    outcome: &pdfcer_core::edit::ImageAuthorOutcome,
+    d: &pdfcer_core::edit::ImageAuthorDisclosures,
+    placed: Option<pdfcer_core::page_tree::Rect>,
 ) {
-    let d = &outcome.disclosures;
     let name = image.display();
     if d.requested_compression != d.applied_compression {
         eprintln!(
@@ -351,12 +351,15 @@ pub(crate) fn report_image_disclosures(
             );
         }
     }
-    if d.letterboxed {
-        let p = outcome.placed_rect;
-        eprintln!(
+    match placed {
+        _ if !d.letterboxed => {}
+        Some(p) => eprintln!(
             "pdfcer: {name}: the image kept its shape and was CENTRED in the rectangle, so it landed at {:.2},{:.2},{:.2},{:.2} rather than filling it. Pass --stretch to fill the rectangle exactly.",
             p.llx, p.lly, p.urx, p.ury
-        );
+        ),
+        None => eprintln!(
+            "pdfcer: {name}: the image kept its shape and was CENTRED in the replaced image's area rather than filling it. Pass --stretch to fill that area exactly."
+        ),
     }
     if d.aspect_distorted {
         eprintln!(

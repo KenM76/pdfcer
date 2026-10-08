@@ -111,6 +111,7 @@ mod image_fade;
 mod image_gif;
 mod image_pixels;
 mod image_placement;
+mod image_replace;
 mod image_stamp_and_button_icon;
 mod image_tiff;
 mod indirect_acroform_entries;
