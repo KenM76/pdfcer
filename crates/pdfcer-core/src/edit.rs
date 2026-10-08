@@ -140,6 +140,8 @@ mod stroke_style;
 pub use annot_restyle::{AnnotOpacityChange, MARKER_SUBTYPES, MarkerStyle, MarkerStyleChange};
 pub use foreign_button::ForeignAppearance;
 pub use form_paint::FormPaintOutcome;
+mod markup_respan;
+pub use markup_respan::TextMarkupRespan;
 mod image_stamp;
 mod ocr_refold;
 mod page_artwork;
@@ -392,6 +394,10 @@ pub enum CommandKind {
         /// Which of the three vertex operations it was.
         edit: VertexEditKind,
     },
+    /// A text markup's `/QuadPoints` were replaced and its appearance
+    /// re-baked by [`EditSession::respan_text_markup`] (pdfcer-gui request
+    /// G152).
+    RespanTextMarkup,
     /// One `/Ink` stroke, or one point inside one stroke, was edited and the
     /// annotation's appearance re-baked from the new `/InkList`
     /// (`Pass 278.0`, `pdfcer-gui` request 2026-09-08).
@@ -6975,6 +6981,18 @@ pub enum EditError {
         "annotation {id} is a {subtype}, not an /Ink -- an /InkList is addressed by (stroke, point) and a /Polygon or /PolyLine by a single vertex index; reshape_annotation is the verb for those, and a /Square or /Circle is defined by its /Rect"
     )]
     InkVerbOnNonInk {
+        /// The annotation.
+        id: ObjId,
+        /// Its `/Subtype`.
+        subtype: String,
+    },
+    /// [`EditSession::respan_text_markup`] was given an annotation that is
+    /// not a Highlight, Underline, StrikeOut or Squiggly. Only those carry
+    /// `/QuadPoints` that cover text.
+    #[error(
+        "annotation {id} is a {subtype}, not a text markup (Highlight, Underline, StrikeOut or Squiggly)"
+    )]
+    TextMarkupVerbOnOther {
         /// The annotation.
         id: ObjId,
         /// Its `/Subtype`.

@@ -6393,6 +6393,41 @@ pub(crate) enum Command {
         #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
         mode: SaveMode,
     },
+    /// **Re-span a highlight, underline, strike-out or squiggly** — replace
+    /// its `/QuadPoints` so it covers different text, and re-bake its
+    /// appearance (ISO 32000-1 §12.5.6.10).
+    ///
+    /// Colour, opacity, the comment, replies and the object id are kept.
+    /// Give the new coverage as `--quads` (one quad per line of text, the
+    /// boxes `find-text` reports suit `--rect`) or `--rect` for one quad. A
+    /// locked annotation (`/F` bit 8) is refused.
+    RespanMarkup {
+        /// Input PDF.
+        input: PathBuf,
+        /// Page, 1-BASED — the `page=` value `list-annotations` prints.
+        #[arg(long)]
+        page: usize,
+        /// Index within that page's `/Annots`, 0-BASED.
+        #[arg(long)]
+        index: usize,
+        /// New quads `x1,y1,…,x8,y8 ; …` in points, each corner order
+        /// upper-left, upper-right, lower-left, lower-right.
+        #[arg(long, conflicts_with = "rect", allow_hyphen_values = true)]
+        quads: Option<String>,
+        /// One quad covering `llx,lly,urx,ury`.
+        #[arg(long, allow_hyphen_values = true)]
+        rect: Option<String>,
+        /// A `/M` modification date to stamp, verbatim (e.g.
+        /// `D:20261007120000Z`). Without it `/M` is left as it was.
+        #[arg(long)]
+        modified: Option<String>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
     /// **Restyle a sticky note, stamp or text box** — its icon and/or its
     /// colour (ISO 32000-1 §12.5.6.4, §12.5.2 Table 164).
     ///

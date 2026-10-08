@@ -129,6 +129,7 @@ mod markup_clip_carry;
 mod markup_note;
 mod markup_note_edit;
 mod markup_opacity;
+mod markup_respan;
 mod merge_document;
 mod merge_relinks_cross_file_bookmarks;
 mod move_objects_each;

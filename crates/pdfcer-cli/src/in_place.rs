@@ -128,6 +128,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "reorder-pages",
     "reset-form",
     "resize-annotation",
+    "respan-markup",
     "rotate",
     "rotate-annotation",
     "rotate-page",

@@ -75,6 +75,7 @@ mod list_fonts;
 mod list_layers_tree;
 mod list_links;
 mod locked_contents_refusal;
+mod markup_respan;
 mod move_annotation;
 mod object_clip_replies;
 mod object_copy_leaf;

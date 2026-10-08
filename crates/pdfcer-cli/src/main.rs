@@ -643,6 +643,8 @@ mod restack_cmd;
 use restack_cmd::*;
 mod text_annot_style_cmd;
 use text_annot_style_cmd::*;
+mod respan_markup_cmd;
+use respan_markup_cmd::*;
 mod object_list;
 use object_list::*;
 mod objects;

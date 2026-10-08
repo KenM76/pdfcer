@@ -1610,6 +1610,23 @@ pub(crate) fn run() -> ExitCode {
             &output,
             mode,
         ),
+        Command::RespanMarkup {
+            input,
+            page,
+            index,
+            quads,
+            rect,
+            modified,
+            output,
+            mode,
+        } => cmd_respan_markup(
+            &input,
+            (page, index),
+            (quads.as_deref(), rect.as_deref()),
+            modified.as_deref(),
+            &output,
+            mode,
+        ),
         Command::SetTextAnnotStyle {
             input,
             page,

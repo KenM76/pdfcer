@@ -795,7 +795,7 @@ pub(crate) fn cmd_set_markup_style(
     mode: SaveMode,
     verify_undo: bool,
 ) -> u8 {
-    use pdfcer_core::edit::{AppearanceWrite, DroppedProperty, MarkupStyle};
+    use pdfcer_core::edit::{AppearanceWrite, MarkupStyle};
 
     // Parse the flags BEFORE opening the file: a mistyped colour should
     // not cost a parse of a large document.
@@ -856,47 +856,7 @@ pub(crate) fn cmd_set_markup_style(
         Err(err) => return report_edit_error(input, &err),
     };
 
-    // The prose half of the disclosure. One sentence per dropped
-    // property, each naming what the appearance no longer draws AND that
-    // the dictionary key survived — because "it is still in the file" and
-    // "it is still on the page" are different, and only the second is
-    // what the operator sees.
-    for dropped in &change.dropped {
-        // NOTE the trailing \-continuations: without them a wrapped Rust
-        // string literal carries every leading space of the next SOURCE
-        // line into the message, which is how the first live run of this
-        // command printed a sentence with ragged gaps in the middle of it.
-        let note = match dropped {
-            DroppedProperty::BorderEffect => {
-                "the /BE cloudy border effect: the regenerated appearance draws a \
-                 straight outline. The /BE key is still in the dictionary, but pdfcer \
-                 paints from /AP."
-            }
-            DroppedProperty::BorderStyle => {
-                "the /BS /S border style: pdfcer authors solid and DASHED strokes, so \
-                 this one is beveled, inset or underline, which it does not."
-            }
-            DroppedProperty::DashPattern => {
-                "the /BS /D dash array: it could not be used, so the regenerated stroke \
-                 is continuous. A dash pdfcer can read is preserved, not dropped."
-            }
-            DroppedProperty::RectDifferences => {
-                "the /RD rectangle differences: pdfcer draws from /Rect (or the \
-                 explicit geometry keys) directly."
-            }
-            DroppedProperty::LineEnding => {
-                "a /LE line ending outside None/OpenArrow/ClosedArrow: it regenerates \
-                 as no ending."
-            }
-            _ => {
-                "the previous appearance stream was NOT one pdfcer would have drawn \
-                 from this annotation's own properties (compared byte for byte), so \
-                 anything it drew beyond the shape — a shadow, a gradient, a raster, \
-                 text — is not in the new one."
-            }
-        };
-        eprintln!("pdfcer: {}: dropped — {note}", input.display());
-    }
+    report_dropped(input, &change.dropped);
     let rect_moved = change.rect_before != Some(change.rect_after);
     if rect_moved {
         eprintln!(
@@ -1829,4 +1789,50 @@ pub(crate) fn cmd_resize_annotation(
         }
     );
     finish_edit(input, &outcome)
+}
+
+/// One prose sentence per property a re-baked appearance no longer draws.
+pub(crate) fn report_dropped(input: &Path, dropped: &[pdfcer_core::edit::DroppedProperty]) {
+    use pdfcer_core::edit::DroppedProperty;
+    // The prose half of the disclosure. One sentence per dropped
+    // property, each naming what the appearance no longer draws AND that
+    // the dictionary key survived — because "it is still in the file" and
+    // "it is still on the page" are different, and only the second is
+    // what the operator sees.
+    for dropped in dropped {
+        // NOTE the trailing \-continuations: without them a wrapped Rust
+        // string literal carries every leading space of the next SOURCE
+        // line into the message, which is how the first live run of this
+        // command printed a sentence with ragged gaps in the middle of it.
+        let note = match dropped {
+            DroppedProperty::BorderEffect => {
+                "the /BE cloudy border effect: the regenerated appearance draws a \
+                 straight outline. The /BE key is still in the dictionary, but pdfcer \
+                 paints from /AP."
+            }
+            DroppedProperty::BorderStyle => {
+                "the /BS /S border style: pdfcer authors solid and DASHED strokes, so \
+                 this one is beveled, inset or underline, which it does not."
+            }
+            DroppedProperty::DashPattern => {
+                "the /BS /D dash array: it could not be used, so the regenerated stroke \
+                 is continuous. A dash pdfcer can read is preserved, not dropped."
+            }
+            DroppedProperty::RectDifferences => {
+                "the /RD rectangle differences: pdfcer draws from /Rect (or the \
+                 explicit geometry keys) directly."
+            }
+            DroppedProperty::LineEnding => {
+                "a /LE line ending outside None/OpenArrow/ClosedArrow: it regenerates \
+                 as no ending."
+            }
+            _ => {
+                "the previous appearance stream was NOT one pdfcer would have drawn \
+                 from this annotation's own properties (compared byte for byte), so \
+                 anything it drew beyond the shape — a shadow, a gradient, a raster, \
+                 text — is not in the new one."
+            }
+        };
+        eprintln!("pdfcer: {}: dropped — {note}", input.display());
+    }
 }
