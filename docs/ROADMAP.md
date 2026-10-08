@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 548.0` — replace a placed image's pixels in place (core + CLI; answers `pdfcer-gui` `G156`) — SHIPPED 2026-10-08 (1030th filing)
+
+Commits `e72c1f08` (code), `dcfbf06e` (`docs/core-api`); push state not verifiable from here. No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Listed in *Next up* at filing (verified), stub removed.
+
+**Basis.** A placed image's pixels could not be swapped. ISO 32000-1 §8.9.7 (inline `BI…EI`), §8.9.4 (image space is the unit square, so the CTM sets the placement).
+
+**Delivered.**
+- `EditSession::replace_image(page_index, object_index, &ImportedImage, ImageFit) -> Result<ImageReplaceOutcome, EditError>`: replaces the image's `Do` (or whole inline `BI…EI`) at the same stream position with a `Do` of a new image XObject, so CTM and stacking order are kept. `Stretch` fills the unit square; `Contain` keeps the new aspect inside the old on-page extent, centred under an extra `q cm Q`; EXIF orientation honoured.
+- Only this placement changes; the old XObject stays (other placements, incremental save). One undo (`CommandKind::ReplaceImage`).
+- `ImageReplaceOutcome { image_id, soft_mask_id, resource_name, replaced: Option<ObjId> (None = inline), disclosures }`, `#[non_exhaustive]`. New `EditError::ReplaceImageOnOther { index, kind }` for paths, text and form XObjects (175 variants). `docs/core-api` verbs 338 to 339.
+- CLI: `pdfcer replace-image IN --page N --object I --image FILE [--stretch] [--compression … --quality Q] -o OUT` (221 working subcommands).
+
+**Verified (engineer-reported).** Core `tests/image_replace.rs` +4, CLI +2. Full runs green: core 1494 + 2832 + 214, CLI 43 + 844. Sabotage (forcing the identity fit, a wrong extent, dropping the CLI disclosure) each failed a test. fmt, both clippies, cargo doc, structure, public-fns, string-gaps and clap-help gates clean.
+
+**`G156` status.** GUI column is `pdfcer-gui`'s to tick. FIXED reply written (`reply_request_G156_an_image_cannot_be_replaced_FIXED.md`, engineer-reported).
+
+`FEATURES.md`: *Planned* `548.0` row removed; new *Implemented* row after the `547.0` links row (core `[x]` cli `[x]` gui `[ ]`).
+
+Ledgers: no decision; next free `Pass 552.0`; next filing 1031st.
+
 ### `Pass 547.0` — author, re-target and re-border links (core + CLI; answers `pdfcer-gui` `G161`) — SHIPPED 2026-10-08 (1029th filing)
 
 Commits `2fd5015f` (code), `3588c66d` (`docs/core-api`); not yet pushed at filing (engineer-reported). No `Cargo.toml` or dependency change (`cargo tree` unchanged). No decision.
@@ -21408,9 +21428,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), `547.0` SHIPPED (1029th filing), see *Shipped*; `548.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1030th.
->
-> **`Pass 548.0` — `G156`:** `replace_image`, keeping the CTM.
+> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), `547.0` SHIPPED (1029th filing), `548.0` SHIPPED (1030th filing), see *Shipped*; `549.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1031st.
 >
 > **`Pass 549.0` — `G158`:** `_in_form` twins of `set_text_run_width`, `merge_text_runs` and `split_text_object`.
 >

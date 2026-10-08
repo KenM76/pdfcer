@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1030th filing) — `Pass 548.0` shipped (replace a placed image in place, `G156`)
+
+**Shipped:** `Pass 548.0`, code `e72c1f08`, `docs/core-api` `dcfbf06e`. New `EditSession::replace_image(page, object, &ImportedImage, ImageFit)`: swaps the image's `Do` (or inline `BI…EI`) for a `Do` of a new XObject at the same stream point, keeping CTM and stacking order; `Stretch` or `Contain` (centred, aspect kept), EXIF honoured. Old XObject stays; one undo. New `EditError::ReplaceImageOnOther` (175 variants); `ImageReplaceOutcome` `#[non_exhaustive]`. CLI `replace-image` (221 subcommands).
+
+**Tests (engineer-reported):** core +4, CLI +2; three sabotages each caught; full runs and all gates green; core-api verbs 339; no manifest change.
+
+**Files:** ROADMAP `548.0` stub removed from *Next up* (it was a blockquote there, `###` count unchanged), entry added to *Shipped*, banner updated; `FEATURES.md` Planned row removed, new *Implemented* row (core/cli `[x]`, gui `[ ]`).
+
+**Decisions made this session:** None.
+
+**Still in flight:** `549.0`-`551.0` queued. Next free `Pass 552.0`; next filing 1031st. Push state not verifiable from here.
+
 ## 2026-10-08 (1029th filing) — `Pass 547.0` shipped (author, re-target and re-border links, `G161`)
 
 **Shipped:** `Pass 547.0`, code `2fd5015f`, `docs/core-api` `3588c66d` (not yet pushed, engineer-reported). New `EditSession::add_link`, `set_link_target`, `set_link_border`; one undo each. No border writes `/Border [0 0 0]`; a border writes `/BS`, `/C` and a baked `/AP`. Re-targeting discloses the replaced action's `/S`. New `EditError::LinkVerbOnOther`, `LinkUriInvalid`, `LinkBorderWidthInvalid` (174 variants). Bug fixed on discovery: named destinations from the legacy `/Dests` dictionary were unreachable by `add_outline_item`; outline items and links now write String vs Name by source. CLI `add-link`, `set-link-target`, `set-link-border` (220 subcommands).
