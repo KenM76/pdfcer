@@ -85,6 +85,9 @@ impl EditSession {
     ///
     /// - [`EditError::MarkupOpacityOutOfRange`] for a NaN or infinite value.
     /// - [`EditError::AnnotationLocked`] — Table 165 bit 8.
+    /// - [`EditError::AnnotationIsCeDimension`] — a ce dimension's opacity is
+    ///   part of its style, set with [`EditSession::set_dimension_style`];
+    ///   a `/CA` written here would be dropped at its next regeneration.
     /// - [`EditError::AnnotationNotFound`], [`EditError::NotADictionary`],
     ///   [`EditError::DocumentEncrypted`] and the certification gate.
     pub fn set_annot_opacity(
@@ -93,6 +96,9 @@ impl EditSession {
         opacity: StyleEdit<f64>,
     ) -> Result<AnnotOpacityChange, EditError> {
         let (current, _) = self.restyle_target(annot_id)?;
+        if self.is_ce_dimension(annot_id, &current) {
+            return Err(EditError::AnnotationIsCeDimension { id: annot_id });
+        }
         let (wanted, clamped) = match opacity {
             StyleEdit::Set(a) if !a.is_finite() => {
                 return Err(EditError::MarkupOpacityOutOfRange { value: a });

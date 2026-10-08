@@ -9511,6 +9511,14 @@ pub(crate) enum Command {
         /// The tolerance's own decimal precision. Omit to follow the nominal's.
         #[arg(long)]
         tolerance_places: Option<u32>,
+        /// Dash pattern for the stroked lines: dash and gap lengths in
+        /// points, comma-separated (`3,1.5`), up to 4 runs; `solid` for an
+        /// explicit solid line. Terminators and the label stay solid.
+        #[arg(long)]
+        dash: Option<String>,
+        /// Opacity, 0.0-1.0, written as the annotation's `/CA`.
+        #[arg(long)]
+        opacity: Option<f64>,
         /// Clear a property back to the factory default (repeatable, or
         /// comma-separated). Property names are the ones
         /// `dimension-list --style` prints.
@@ -9586,6 +9594,14 @@ pub(crate) enum Command {
         /// The tolerance's own decimal precision. Omit to follow the nominal's.
         #[arg(long)]
         tolerance_places: Option<u32>,
+        /// Dash pattern for the stroked lines: dash and gap lengths in
+        /// points, comma-separated (`3,1.5`), up to 4 runs; `solid` for an
+        /// explicit solid line. Terminators and the label stay solid.
+        #[arg(long)]
+        dash: Option<String>,
+        /// Opacity, 0.0-1.0, written as the annotation's `/CA`.
+        #[arg(long)]
+        opacity: Option<f64>,
         /// Clear an override, returning that property to inheritance
         /// (repeatable, or comma-separated).
         #[arg(long, value_enum, value_delimiter = ',')]

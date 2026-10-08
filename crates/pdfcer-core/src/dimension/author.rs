@@ -114,6 +114,11 @@ pub struct DimensionStyle {
     /// The tolerance's own decimal precision; `None` ⇒ the nominal's
     /// (Pass 69.1).
     pub tolerance_places: Option<u32>,
+    /// Stroke dash pattern for the lines; terminators and label stay solid.
+    pub dash: super::dash::DimDash,
+    /// Constant opacity, written as the annotation's `/CA` (§12.5.2 Table
+    /// 166) when below 1; an opaque ce dimension carries no `/CA`.
+    pub opacity: f64,
 }
 
 impl DimensionStyle {
@@ -141,6 +146,8 @@ impl DimensionStyle {
             color: f.color,
             tolerance: f.tolerance,
             tolerance_places: f.tolerance_places,
+            dash: f.dash,
+            opacity: f.opacity,
         }
     }
 }
@@ -237,7 +244,9 @@ impl DimensionStyle {
 /// same annotation.
 /// `/C` is here so a restyle moves the colour mirror with the `/AP`; a reader
 /// that draws a `/Line` from its keys would otherwise keep the old colour.
-pub const AUTHORED_ANNOT_KEYS: [&[u8]; 8] = [
+/// `/CA` is here because a ce dimension's opacity is a style property: an
+/// opaque style removes it.
+pub const AUTHORED_ANNOT_KEYS: [&[u8]; 9] = [
     b"Type",
     b"Subtype",
     b"IT",
@@ -246,6 +255,7 @@ pub const AUTHORED_ANNOT_KEYS: [&[u8]; 8] = [
     b"Vertices",
     b"C",
     b"Contents",
+    b"CA",
 ];
 
 /// The key authoring writes only when the group is calibrated (§12.9 Table
@@ -525,6 +535,10 @@ pub fn author_dimension_with_label(
     b.set_line_width(style.line_width);
     b.set_line_cap(LineCap::Butt);
     b.set_line_join(LineJoin::Miter);
+    // §8.4.3.6. A solid ce dimension emits no `d`, so its bytes are unchanged.
+    if !style.dash.is_solid() {
+        b.set_dash(style.dash.pattern(), 0.0);
+    }
 
     // The label's metrics are needed BEFORE the line is stroked, because under
     // ANSI the line is broken to make room for it. Computing them here rather
@@ -832,6 +846,10 @@ pub fn author_dimension_with_label(
             Object::Real(crate::annot_author::mk_component(style.color.b)),
         ]),
     );
+    // `/CA` only below 1: an opaque ce dimension keeps its pre-541.0 bytes.
+    if style.opacity < 1.0 {
+        annot.insert(Name::from(b"CA"), Object::Real(style.opacity));
+    }
     // A text string (§7.9.2): PDFDocEncoding where it fits, else UTF-16BE, so
     // `°`, `²` and `⌀` decode as written rather than as UTF-8 mojibake.
     annot.insert(
@@ -1317,10 +1335,11 @@ fn arrowhead(
         // back across the base. A closed-and-stroked triangle is a different
         // mark (a hollow triangle), and architectural practice wants the V.
         ArrowForm::Open => {
-            b.move_to(b1.x, b1.y);
-            b.line_to(tip.x, tip.y);
-            b.line_to(b2.x, b2.y);
-            b.paint(Paint::Stroke);
+            stroke_solid(b, style, |b| {
+                b.move_to(b1.x, b1.y);
+                b.line_to(tip.x, tip.y);
+                b.line_to(b2.x, b2.y);
+            });
             bounds.add(tip);
             bounds.add(b1);
             bounds.add(b2);
@@ -1335,9 +1354,10 @@ fn arrowhead(
             let arm = len * 0.5;
             let p1 = Point::new(tip.x - sx * arm, tip.y - sy * arm);
             let p2 = Point::new(tip.x + sx * arm, tip.y + sy * arm);
-            b.move_to(p1.x, p1.y);
-            b.line_to(p2.x, p2.y);
-            b.paint(Paint::Stroke);
+            stroke_solid(b, style, |b| {
+                b.move_to(p1.x, p1.y);
+                b.line_to(p2.x, p2.y);
+            });
             bounds.add(p1);
             bounds.add(p2);
         }
@@ -1354,6 +1374,27 @@ fn arrowhead(
         // the dimension line reaches it and an under-sized `/Rect` would clip
         // the line itself.
         ArrowForm::None => bounds.add(tip),
+    }
+}
+
+/// Build a path with `path` and stroke it solid even when the ce
+/// dimension's lines are dashed: a dashed terminator stops reading as one.
+/// The `q [] 0 d` goes BEFORE the path — §8.2 Figure 9 allows no graphics
+/// state operator inside a path object — and `Q` restores the dash.
+fn stroke_solid(
+    b: &mut ContentBuilder,
+    style: DimensionStyle,
+    path: impl FnOnce(&mut ContentBuilder),
+) {
+    let dashed = !style.dash.is_solid();
+    if dashed {
+        b.save_state();
+        b.set_dash(&[], 0.0);
+    }
+    path(b);
+    b.paint(Paint::Stroke);
+    if dashed {
+        b.restore_state();
     }
 }
 

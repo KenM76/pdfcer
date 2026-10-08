@@ -331,6 +331,9 @@ impl RawAnnotation {
 /// re-bakes the appearance and re-registers the sidecar itself.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
+// A clipboard payload held a handful at a time; boxing the ce-dimension
+// style would cost every consumer a deref to save bytes nobody holds.
+#[allow(clippy::large_enum_variant)]
 pub enum ClipAnnotation {
     /// A markup pdfcer MODELS, carried as its spec **plus the properties
     /// that live beside the spec rather than inside it**.

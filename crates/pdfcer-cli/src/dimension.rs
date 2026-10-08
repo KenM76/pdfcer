@@ -1778,6 +1778,10 @@ pub(crate) enum StylePropArg {
     Tolerance,
     /// Tolerance precision.
     TolerancePlaces,
+    /// Dash pattern.
+    Dash,
+    /// Opacity.
+    Opacity,
 }
 
 /// The terminator forms, mirrored from `pdfcer_core::dimension::ArrowForm`.
@@ -1837,6 +1841,8 @@ pub(crate) struct AppearanceArgs {
     pub(crate) color: Option<String>,
     pub(crate) tolerance: Option<String>,
     pub(crate) tolerance_places: Option<u32>,
+    pub(crate) dash: Option<String>,
+    pub(crate) opacity: Option<f64>,
 }
 
 pub(crate) struct GroupStyleArgs<'a> {
@@ -1959,6 +1965,8 @@ pub(crate) fn cmd_group_style(args: &GroupStyleArgs<'_>) -> u8 {
             StylePropArg::Color => style.color = None,
             StylePropArg::Tolerance => style.tolerance = None,
             StylePropArg::TolerancePlaces => style.tolerance_places = None,
+            StylePropArg::Dash => style.dash = None,
+            StylePropArg::Opacity => style.opacity = None,
             // Named so the refusal says WHICH property and WHY, rather than
             // ignoring the flag and leaving the operator to discover from the
             // saved file that nothing happened.
@@ -1995,6 +2003,12 @@ pub(crate) fn cmd_group_style(args: &GroupStyleArgs<'_>) -> u8 {
             }
             if let Some(v) = a.tolerance_places {
                 style.tolerance_places = Some(v);
+            }
+            if let Some(v) = a.dash {
+                style.dash = Some(v);
+            }
+            if let Some(v) = a.opacity {
+                style.opacity = Some(v);
             }
         }
         Err(msg) => {
@@ -2044,6 +2058,8 @@ pub(crate) struct ResolvedAppearance {
     pub(crate) color: Option<pdfcer_core::vector::Rgb>,
     pub(crate) tolerance: Option<pdfcer_core::dimension::Tolerance>,
     pub(crate) tolerance_places: Option<u32>,
+    pub(crate) dash: Option<pdfcer_core::dimension::DimDash>,
+    pub(crate) opacity: Option<f64>,
 }
 
 /// Validate the appearance flags and convert them to core types.
@@ -2076,6 +2092,30 @@ pub(crate) fn apply_appearance(a: &AppearanceArgs) -> Result<ResolvedAppearance,
             }
             other => other,
         },
+        dash: a.dash.as_deref().map(parse_dash).transpose()?,
+        opacity: a.opacity,
+    })
+}
+
+/// Parse a `--dash` spec: `solid`, or comma-separated run lengths in points.
+pub(crate) fn parse_dash(spec: &str) -> Result<pdfcer_core::dimension::DimDash, String> {
+    use pdfcer_core::dimension::{DimDash, MAX_DASH_RUNS};
+    let s = spec.trim();
+    if s.eq_ignore_ascii_case("solid") {
+        return Ok(DimDash::SOLID);
+    }
+    let runs = s
+        .split(',')
+        .map(|t| {
+            t.trim()
+                .parse::<f64>()
+                .map_err(|_| format!("`{t}` is not a number in --dash `{spec}`"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    DimDash::new(&runs).ok_or_else(|| {
+        format!(
+            "--dash `{spec}` is not a dash pattern (up to {MAX_DASH_RUNS} non-negative runs, not all zero; `solid` for none)"
+        )
     })
 }
 
@@ -2182,6 +2222,8 @@ pub(crate) fn cmd_dimension_style(args: &DimensionStyleArgs<'_>) -> u8 {
             StylePropArg::Color => style.color = None,
             StylePropArg::Tolerance => style.tolerance = None,
             StylePropArg::TolerancePlaces => style.tolerance_places = None,
+            StylePropArg::Dash => style.dash = None,
+            StylePropArg::Opacity => style.opacity = None,
         }
     }
     if let Some(token) = args.unit {
@@ -2245,6 +2287,12 @@ pub(crate) fn cmd_dimension_style(args: &DimensionStyleArgs<'_>) -> u8 {
             }
             if let Some(v) = a.tolerance_places {
                 style.tolerance_places = Some(v);
+            }
+            if let Some(v) = a.dash {
+                style.dash = Some(v);
+            }
+            if let Some(v) = a.opacity {
+                style.opacity = Some(v);
             }
         }
         Err(msg) => {
@@ -2339,6 +2387,11 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
                 st.tolerance
                     .map_or_else(|| "-".to_owned(), format_tolerance_spec),
                 opt_places(st.tolerance_places),
+            );
+            println!(
+                "    group-stroke dash={} opacity={}",
+                st.dash.map_or_else(|| "-".to_owned(), format_dash),
+                opt_num(st.opacity),
             );
         }
     }
@@ -2451,7 +2504,7 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
             };
             let resolved = pdfcer_core::dimension::resolve_style(group, &d.style);
             let prov = pdfcer_core::dimension::style_provenance(group, &d.style);
-            let values: [(&str, String); 11] = [
+            let values: [(&str, String); 13] = [
                 ("unit", resolved.format.unit.token().to_owned()),
                 ("fraction", format_fraction(resolved.format.fraction)),
                 (
@@ -2481,6 +2534,8 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
                     // printed as one.
                     opt_places(resolved.tolerance_places),
                 ),
+                ("dash", format_dash(resolved.dash)),
+                ("opacity", fmt_num(resolved.opacity)),
             ];
             // Paired positionally against `StyleProvenance::each`, whose own
             // doc comment explains why it returns a fixed-size array: a
@@ -2502,6 +2557,18 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
 /// `Some(3.5)` as `3.5`, `None` as `-` (meaning: inherited, not set here).
 pub(crate) fn opt_num(v: Option<f64>) -> String {
     v.map_or_else(|| "-".to_owned(), fmt_num)
+}
+
+/// A dash pattern in the vocabulary `--dash` accepts back.
+pub(crate) fn format_dash(d: pdfcer_core::dimension::DimDash) -> String {
+    if d.is_solid() {
+        return "solid".to_owned();
+    }
+    d.pattern()
+        .iter()
+        .map(|v| fmt_num(*v))
+        .collect::<Vec<_>>()
+        .join(",")
 }
 
 /// A colour as `r,g,b`, or `-` when unset.

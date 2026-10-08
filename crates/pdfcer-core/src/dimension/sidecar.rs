@@ -30,6 +30,7 @@
 use crate::object::{Dict, Name, Object};
 use crate::vector::{AxisConstraint, Point};
 
+use super::dash::DimDash;
 use super::fit::FitCircle;
 use super::group::{
     DimStandard, DimensionId, DimensionKind, DimensionModel, DimensionRecord, Group, GroupId,
@@ -293,6 +294,8 @@ fn serialize_group(g: &Group) -> Object {
             color: g.style.color,
             tolerance: g.style.tolerance,
             tolerance_places: g.style.tolerance_places,
+            dash: g.style.dash,
+            opacity: g.style.opacity,
         },
     );
     Object::Dict(d)
@@ -357,6 +360,8 @@ fn deserialize_group(obj: &Object) -> Option<Group> {
                 color: k.color,
                 tolerance: k.tolerance,
                 tolerance_places: k.tolerance_places,
+                dash: k.dash,
+                opacity: k.opacity,
             }
         },
     })
@@ -693,6 +698,8 @@ fn serialize_dimension(dim: &DimensionRecord) -> Object {
             color: dim.style.color,
             tolerance: dim.style.tolerance,
             tolerance_places: dim.style.tolerance_places,
+            dash: dim.style.dash,
+            opacity: dim.style.opacity,
         },
     );
     Object::Dict(d)
@@ -797,6 +804,8 @@ fn deserialize_dimension(obj: &Object) -> Option<DimensionRecord> {
             color: appearance.color,
             tolerance: appearance.tolerance,
             tolerance_places: appearance.tolerance_places,
+            dash: appearance.dash,
+            opacity: appearance.opacity,
         },
     })
 }
@@ -819,6 +828,8 @@ struct StyleKeys {
     color: Option<Rgb>,
     tolerance: Option<Tolerance>,
     tolerance_places: Option<u32>,
+    dash: Option<DimDash>,
+    opacity: Option<f64>,
 }
 
 /// Write the appearance keys that are actually set. Absent = inherit.
@@ -875,6 +886,16 @@ fn put_style_keys(d: &mut Dict, k: StyleKeys) {
     if let Some(places) = k.tolerance_places {
         d.insert(Name::from(b"TolPlaces"), Object::Integer(i64::from(places)));
     }
+    // `/Dash []` is an explicit solid override, distinct from absent.
+    if let Some(dash) = k.dash {
+        d.insert(
+            Name::from(b"Dash"),
+            Object::Array(dash.pattern().iter().copied().map(Object::Real).collect()),
+        );
+    }
+    if let Some(v) = k.opacity {
+        d.insert(Name::from(b"Opacity"), Object::Real(v));
+    }
 }
 
 /// Read the appearance keys back. Anything absent, malformed, or outside a
@@ -902,6 +923,18 @@ fn read_style_keys(d: &Dict) -> StyleKeys {
             .and_then(Object::as_int)
             .and_then(|v| u32::try_from(v).ok())
             .filter(|p| *p <= 12),
+        dash: match d.get(b"Dash") {
+            Some(Object::Array(a)) => a
+                .iter()
+                .map(Object::as_number)
+                .collect::<Option<Vec<f64>>>()
+                .and_then(|p| DimDash::new(&p)),
+            _ => None,
+        },
+        opacity: d
+            .get(b"Opacity")
+            .and_then(Object::as_number)
+            .filter(|v| super::dash::opacity_in_range(*v)),
     }
 }
 
@@ -1468,6 +1501,8 @@ mod style_sidecar_tests {
             }),
             tolerance: Some(Tolerance::Symmetric { magnitude: 0.25 }),
             tolerance_places: Some(3),
+            dash: DimDash::new(&[3.0, 1.5]),
+            opacity: Some(0.5),
         };
         let first = model.dimensions()[0].id;
         model.dimension_mut(first).unwrap().style = StyleOverrides {
@@ -1488,6 +1523,10 @@ mod style_sidecar_tests {
                 minus: -0.1,
             }),
             tolerance_places: None,
+            // An explicit solid line under a dashed group must survive as
+            // itself, not read back as "inherit the dash".
+            dash: Some(DimDash::SOLID),
+            opacity: None,
         };
 
         let back = deserialize_model(&serialize_model(&model)).expect("round trip");

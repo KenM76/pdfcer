@@ -56068,6 +56068,8 @@ impl EditSession {
     ///
     /// [`EditError::DimensionGroupNotFound`] for an unknown group;
     /// [`EditError::InvalidTolerance`] for a tolerance that cannot be drawn;
+    /// [`EditError::MarkupOpacityOutOfRange`] for an `opacity` outside
+    /// `0.0..=1.0` or not finite;
     /// plus the encryption, enforced-certification and newer-sidecar guards
     /// every ce-dimension mutation carries. Every refusal happens before any
     /// mutation.
@@ -56088,6 +56090,12 @@ impl EditSession {
             t.validate().map_err(|e| EditError::InvalidTolerance {
                 reason: e.to_string(),
             })?;
+        }
+        if let Some(a) = style
+            .opacity
+            .filter(|a| !crate::dimension::opacity_in_range(*a))
+        {
+            return Err(EditError::MarkupOpacityOutOfRange { value: a });
         }
         let mut model = self.read_dimension_model();
         let Some(g) = model.group_mut(group) else {
@@ -56133,6 +56141,8 @@ impl EditSession {
     ///
     /// [`EditError::DimensionNotFound`] for an unknown id;
     /// [`EditError::InvalidTolerance`] for a tolerance that cannot be drawn;
+    /// [`EditError::MarkupOpacityOutOfRange`] for an `opacity` outside
+    /// `0.0..=1.0` or not finite;
     /// plus the encryption, enforced-certification and newer-sidecar guards.
     pub fn set_dimension_style(
         &mut self,
@@ -56149,6 +56159,12 @@ impl EditSession {
             t.validate().map_err(|e| EditError::InvalidTolerance {
                 reason: e.to_string(),
             })?;
+        }
+        if let Some(a) = style
+            .opacity
+            .filter(|a| !crate::dimension::opacity_in_range(*a))
+        {
+            return Err(EditError::MarkupOpacityOutOfRange { value: a });
         }
         let mut model = self.read_dimension_model();
         // Refuse an unknown id BEFORE mutating anything (rule 4: a refusal

@@ -110,8 +110,8 @@ fn a_fresh_ce_dimension_reports_every_property_as_inherited() {
     let s = styles(&doc);
     assert_eq!(
         s.len(),
-        11,
-        "all eleven properties must be disclosed: {s:?}"
+        13,
+        "all thirteen properties must be disclosed: {s:?}"
     );
     assert_eq!(prop(&s, "line-width").1, "0.75", "the factory stroke width");
     assert_eq!(prop(&s, "line-width").2, "factory");
@@ -668,4 +668,96 @@ fn the_listed_tolerance_spec_is_accepted_back_verbatim() {
     ]);
     assert_eq!(code, 0, "feeding the listed spec back must work:\n{stderr}");
     assert_eq!(prop(&styles(&second), "tolerance").1, listed);
+}
+
+/// A group dash and opacity reach the member, are attributed to the group,
+/// and an explicit `--dash solid` override beats them.
+#[test]
+fn dash_and_opacity_cascade_and_bake() {
+    let doc = with_dimension("dash.pdf");
+    let grouped = temp_out("dash-group.pdf");
+    let (code, stdout, stderr) = run(&[
+        "group-style",
+        doc.to_str().expect("utf-8 path"),
+        "--dash",
+        "3,1.5",
+        "--opacity",
+        "0.4",
+        "--mode",
+        "full",
+        "-o",
+        grouped.to_str().expect("utf-8 path"),
+    ]);
+    assert_eq!(
+        code, 0,
+        "{stdout}
+{stderr}"
+    );
+    let s = styles(&grouped);
+    assert_eq!(prop(&s, "dash").1, "3,1.5");
+    assert_eq!(prop(&s, "dash").2, "group");
+    assert_eq!(prop(&s, "opacity").1, "0.4");
+    let text = String::from_utf8_lossy(&std::fs::read(&grouped).expect("output")).into_owned();
+    assert!(text.contains("[3 1.5] 0 d"), "the dash is baked");
+    assert!(
+        text.contains("/CA 0.4"),
+        "the opacity is the annotation's /CA"
+    );
+
+    let solid = temp_out("dash-solid.pdf");
+    let (code, stdout, stderr) = run(&[
+        "dimension-style",
+        grouped.to_str().expect("utf-8 path"),
+        "--dimension",
+        "0",
+        "--dash",
+        "solid",
+        "-o",
+        solid.to_str().expect("utf-8 path"),
+    ]);
+    assert_eq!(
+        code, 0,
+        "{stdout}
+{stderr}"
+    );
+    let s = styles(&solid);
+    assert_eq!(prop(&s, "dash").1, "solid");
+    assert_eq!(prop(&s, "dash").2, "dimension");
+
+    let cleared = temp_out("dash-cleared.pdf");
+    let (code, stdout, stderr) = run(&[
+        "dimension-style",
+        solid.to_str().expect("utf-8 path"),
+        "--dimension",
+        "0",
+        "--clear",
+        "dash",
+        "-o",
+        cleared.to_str().expect("utf-8 path"),
+    ]);
+    assert_eq!(
+        code, 0,
+        "{stdout}
+{stderr}"
+    );
+    assert_eq!(prop(&styles(&cleared), "dash").2, "group");
+}
+
+/// A pattern that is not a dash, and an opacity outside 0-1, are refused.
+#[test]
+fn a_bad_dash_or_opacity_is_refused() {
+    let doc = with_dimension("bad-dash.pdf");
+    let out = temp_out("bad-dash-out.pdf");
+    for args in [["--dash", "0,0"], ["--dash", "1,x"], ["--opacity", "1.5"]] {
+        let (code, _, stderr) = run(&[
+            "group-style",
+            doc.to_str().expect("utf-8 path"),
+            args[0],
+            args[1],
+            "-o",
+            out.to_str().expect("utf-8 path"),
+        ]);
+        assert_eq!(code, EDIT_REFUSED, "{args:?}: {stderr}");
+        assert!(!out.exists(), "{args:?}: no output on refusal");
+    }
 }

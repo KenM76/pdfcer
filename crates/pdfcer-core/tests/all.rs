@@ -47,6 +47,7 @@ mod deletion_collateral_structural;
 mod digital_id_create;
 mod dimension_area;
 mod dimension_circular_placement;
+mod dimension_dash_opacity;
 mod dimension_extension_gap;
 mod dimension_group_unit;
 mod dimension_label_override;

@@ -86,6 +86,7 @@
 use crate::vector::Rgb;
 
 use super::author::DimensionStyle;
+use super::dash::DimDash;
 use super::group::{DimStandard, Group};
 use super::tolerance::Tolerance;
 use super::units::{DecimalMarker, FractionMode, NumberFormat, Unit};
@@ -200,6 +201,10 @@ pub struct StyleDefaults {
     /// expresses as a −3 sentinel hidden inside the digit count; a distinct
     /// absent-value is the same information without the trap.
     pub tolerance_places: Option<u32>,
+    /// Stroke dash pattern (`Pass 541.0`).
+    pub dash: DimDash,
+    /// Constant opacity, written as the annotation's `/CA` (`Pass 541.0`).
+    pub opacity: f64,
 }
 
 impl StyleDefaults {
@@ -215,6 +220,8 @@ impl StyleDefaults {
         // dimension authored before `Pass 69.1` carries.
         tolerance: Tolerance::None,
         tolerance_places: None,
+        dash: DimDash::SOLID,
+        opacity: 1.0,
     };
 }
 
@@ -255,6 +262,10 @@ pub struct GroupStyle {
     /// The group's default tolerance precision; `None` ⇒ factory (follow the
     /// nominal's).
     pub tolerance_places: Option<u32>,
+    /// Stroke dash pattern; `None` ⇒ factory (solid) (`Pass 541.0`).
+    pub dash: Option<DimDash>,
+    /// Opacity in `0..=1`; `None` ⇒ factory (opaque) (`Pass 541.0`).
+    pub opacity: Option<f64>,
 }
 
 impl GroupStyle {
@@ -310,6 +321,13 @@ pub struct StyleOverrides {
     /// This ce dimension's tolerance precision; `None` ⇒ the group's, then
     /// factory (follow the nominal's).
     pub tolerance_places: Option<u32>,
+    /// Stroke dash pattern; `None` ⇒ the group's, then factory (solid).
+    /// `Some(DimDash::SOLID)` keeps this one solid in a dashed group
+    /// (`Pass 541.0`).
+    pub dash: Option<DimDash>,
+    /// Opacity in `0..=1`; `None` ⇒ the group's, then factory (opaque)
+    /// (`Pass 541.0`).
+    pub opacity: Option<f64>,
 }
 
 impl StyleOverrides {
@@ -337,6 +355,8 @@ impl StyleOverrides {
             + usize::from(self.color.is_some())
             + usize::from(self.tolerance.is_some())
             + usize::from(self.tolerance_places.is_some())
+            + usize::from(self.dash.is_some())
+            + usize::from(self.opacity.is_some())
     }
 }
 
@@ -413,6 +433,10 @@ pub struct StyleProvenance {
     pub tolerance: StyleSource,
     /// Source of the tolerance precision.
     pub tolerance_places: StyleSource,
+    /// Source of the dash pattern.
+    pub dash: StyleSource,
+    /// Source of the opacity.
+    pub opacity: StyleSource,
 }
 
 impl StyleProvenance {
@@ -423,7 +447,7 @@ impl StyleProvenance {
     /// gets a compile error, not a silently shorter listing, when a property
     /// is added and this method is not extended.
     #[must_use]
-    pub const fn each(&self) -> [(&'static str, StyleSource); 11] {
+    pub const fn each(&self) -> [(&'static str, StyleSource); 13] {
         [
             ("unit", self.unit),
             ("fraction", self.fraction),
@@ -436,6 +460,8 @@ impl StyleProvenance {
             ("color", self.color),
             ("tolerance", self.tolerance),
             ("tolerance-places", self.tolerance_places),
+            ("dash", self.dash),
+            ("opacity", self.opacity),
         ]
     }
 }
@@ -517,6 +543,8 @@ pub fn resolve_style(group: &Group, over: &StyleOverrides) -> DimensionStyle {
             .tolerance_places
             .or(group.style.tolerance_places)
             .or(f.tolerance_places),
+        dash: over.dash.or(group.style.dash).unwrap_or(f.dash),
+        opacity: over.opacity.or(group.style.opacity).unwrap_or(f.opacity),
     }
 }
 
@@ -572,6 +600,8 @@ pub fn style_provenance(group: &Group, over: &StyleOverrides) -> StyleProvenance
             over.tolerance_places.is_some(),
             group.style.tolerance_places.is_some(),
         ),
+        dash: three(over.dash.is_some(), group.style.dash.is_some()),
+        opacity: three(over.opacity.is_some(), group.style.opacity.is_some()),
     }
 }
 
@@ -637,7 +667,7 @@ mod tests {
         // A property whose group tier is a concrete field never reports
         // Factory — the group always has an answer for it.
         assert_eq!(p.standard, StyleSource::Group);
-        assert_eq!(p.each().len(), 11);
+        assert_eq!(p.each().len(), 13);
     }
 
     /// `follows_group` is the predicate a UI actually needs, and getting it
