@@ -16,6 +16,24 @@ pub(crate) struct OcrModelChoice<'a> {
     pub(crate) model: Option<&'a str>,
     /// `--ocr-folder`, searched after the settings file's folders.
     pub(crate) folders: &'a [PathBuf],
+    /// `--no-dictionaries`.
+    pub(crate) no_dictionaries: bool,
+    /// `--user-words`.
+    pub(crate) user_words: &'a [PathBuf],
+}
+
+impl OcrModelChoice<'_> {
+    /// The word lists the flags ask for.
+    pub(crate) fn dictionaries(&self) -> pdfcer_ocr_host::Dictionaries {
+        let base = if self.no_dictionaries {
+            pdfcer_ocr_host::Dictionaries::none()
+        } else {
+            pdfcer_ocr_host::Dictionaries::builtin()
+        };
+        self.user_words
+            .iter()
+            .fold(base, |d, p| d.with_user_words(p.clone()))
+    }
 }
 
 /// The folder the models were loaded from and how it was chosen.
@@ -33,7 +51,9 @@ pub(crate) fn load_ocr_engine(
     dpi: f32,
 ) -> Result<(pdfcer_ocr_host::OcrRunner, OcrEngineArg, ResolvedModel), u8> {
     let (engine, resolved) = resolve(choice)?;
-    let loaded = load_from(engine, &resolved, ocr_lang, dpi)?;
+    let dictionaries = choice.dictionaries();
+    let loaded = load_from(engine, &resolved, ocr_lang, dpi, &dictionaries)?;
+    eprintln!("pdfcer: ocr: word lists: {}", loaded.dictionary_note());
     Ok((loaded, engine, resolved))
 }
 
@@ -394,12 +414,13 @@ fn load_from(
     resolved: &ResolvedModel,
     lang: &str,
     dpi: f32,
+    dictionaries: &pdfcer_ocr_host::Dictionaries,
 ) -> Result<pdfcer_ocr_host::OcrRunner, u8> {
     if engine == OcrEngineArg::Tesseract {
         if let Some(model) = &resolved.model {
             verify_and_disclose(model)?;
         }
-        return ocr_program::load(&resolved.dir, lang, dpi)
+        return ocr_program::load(&resolved.dir, lang, dpi, dictionaries)
             .map(pdfcer_ocr_host::OcrRunner::from_program);
     }
     let model = resolved.model.clone().unwrap_or_else(|| OcrModel {
@@ -410,7 +431,8 @@ fn load_from(
         manifest: None,
     });
     name_addon(&model);
-    let options = pdfcer_ocr_host::RunOptions::new(lang, dpi);
+    let options =
+        pdfcer_ocr_host::RunOptions::new(lang, dpi).with_dictionaries(dictionaries.clone());
     let runner = pdfcer_ocr_host::OcrRunner::load(&model, &options).map_err(|err| {
         eprintln!("pdfcer: ocr: {err}");
         exit::RUNTIME_ERROR

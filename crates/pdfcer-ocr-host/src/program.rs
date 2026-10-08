@@ -218,8 +218,13 @@ impl ProgramEngine {
             hashed_files: pinned.len(),
         };
         let data = manifest.data.as_deref().unwrap_or(tesseract::TESSDATA_DIR);
-        let invocation = Invocation::new(model.file_path(data), &options.languages, options.dpi)
-            .map_err(ProgramError::Setup)?;
+        let invocation = Invocation::new(
+            model.file_path(data),
+            &options.languages,
+            options.dpi,
+            &options.dictionaries,
+        )
+        .map_err(ProgramError::Setup)?;
         let engine = Self {
             program,
             pinned,
@@ -258,6 +263,7 @@ impl ProgramEngine {
             dir.join(tesseract::TESSDATA_DIR),
             &options.languages,
             options.dpi,
+            &options.dictionaries,
         )
         .map_err(ProgramError::Setup)?;
         Ok(Self {
@@ -284,6 +290,13 @@ impl ProgramEngine {
     #[must_use]
     pub fn languages(&self) -> &str {
         self.invocation.langs()
+    }
+
+    /// Which word lists the program is told to use, and how many user
+    /// words: for the run report.
+    #[must_use]
+    pub fn dictionary_note(&self) -> String {
+        self.invocation.dictionary_note()
     }
 
     /// Re-verify every hashed file, then run the program on an 8-bit

@@ -5,6 +5,7 @@ use pdfcer_core::ocr::addon_manifest::AddonKind;
 use pdfcer_core::ocr::addons::{OcrModel, VerifyError};
 use pdfcer_core::ocr::{OcrPage, RecognizedWord};
 
+use crate::dictionaries::Dictionaries;
 use crate::program::{ProgramEngine, ProgramError, ProgramPolicy, program_status};
 use crate::tesseract;
 
@@ -19,6 +20,9 @@ pub struct RunOptions {
     pub dpi: f32,
     /// Whether program add-ons may run.
     pub policy: ProgramPolicy,
+    /// Which word lists recognition may use; see [`Dictionaries`] for what
+    /// each engine does with them.
+    pub dictionaries: Dictionaries,
 }
 
 impl RunOptions {
@@ -29,7 +33,15 @@ impl RunOptions {
             languages: languages.into(),
             dpi,
             policy: ProgramPolicy::Allow,
+            dictionaries: Dictionaries::default(),
         }
+    }
+
+    /// These options with `dictionaries`.
+    #[must_use]
+    pub fn with_dictionaries(mut self, dictionaries: Dictionaries) -> Self {
+        self.dictionaries = dictionaries;
+        self
     }
 }
 
@@ -74,6 +86,18 @@ pub enum RunnerError {
         #[source]
         source: VerifyError,
     },
+    /// The engine cannot honour the requested word lists.
+    #[error("OCR model `{name}` ({engine}) cannot use {requested}: {why}")]
+    DictionariesUnsupported {
+        /// The model.
+        name: String,
+        /// The engine token.
+        engine: String,
+        /// The request, as [`Dictionaries`] displays it.
+        requested: String,
+        /// Why not.
+        why: &'static str,
+    },
     /// A program add-on refused or failed.
     #[error(transparent)]
     Program(#[from] ProgramError),
@@ -110,6 +134,27 @@ pub fn check_runnable(model: &OcrModel, policy: ProgramPolicy) -> Result<(), Run
         });
     }
     Ok(())
+}
+
+/// Refuse word lists an in-process engine cannot honour: none of them takes
+/// user words, and PaddleOCR-VL's language model cannot be turned off.
+fn check_dictionaries(model: &OcrModel, dictionaries: &Dictionaries) -> Result<(), RunnerError> {
+    let why = if !dictionaries.user_words().is_empty() {
+        Some("this engine takes no word list")
+    } else if !dictionaries.uses_builtin() && model.engine == "paddle-vl" {
+        Some("its language model cannot be turned off")
+    } else {
+        None
+    };
+    match why {
+        Some(why) => Err(RunnerError::DictionariesUnsupported {
+            name: model.name.clone(),
+            engine: model.engine.clone(),
+            requested: dictionaries.to_string(),
+            why,
+        }),
+        None => Ok(()),
+    }
 }
 
 /// The files an in-process engine needs, or `None` when it is not built.
@@ -180,6 +225,11 @@ impl OcrRunner {
     /// [`RunnerError`] naming the refusal, the changed file or the engine's
     /// complaint.
     pub fn load(model: &OcrModel, options: &RunOptions) -> Result<Self, RunnerError> {
+        // An option the engine cannot honour is the operator's to fix, so
+        // it is reported before anything about the folder.
+        if model.kind() != AddonKind::Program {
+            check_dictionaries(model, &options.dictionaries)?;
+        }
         check_runnable(model, options.policy)?;
         if model.kind() == AddonKind::Program {
             let engine = ProgramEngine::from_model(model, options)?;
@@ -318,6 +368,22 @@ impl OcrRunner {
             confidence_available: self.reports_confidence(),
             ..OcrPage::default()
         })
+    }
+
+    /// Which word lists recognition uses, for the run report: Tesseract's
+    /// as requested, the in-process engines' none.
+    #[must_use]
+    pub fn dictionary_note(&self) -> String {
+        match &self.inner {
+            Inner::Program(p) => p.dictionary_note(),
+            #[cfg(feature = "ocr-vl")]
+            Inner::PaddleVl(..) => {
+                "no word lists; the vision-language model's own language model applies".to_owned()
+            }
+            // Unreachable when no in-process engine feature is enabled.
+            #[allow(unreachable_patterns)]
+            _ => "no word lists (this engine reads characters only)".to_owned(),
+        }
     }
 
     /// Whether the engine reports a per-word confidence.

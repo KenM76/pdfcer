@@ -2,6 +2,8 @@
 //! answers with words naming what it was run as. Word 1 is its own file
 //! stem, word 2 the `--tessdata-dir` folder name, word 3 the `-l` value,
 //! word 4 `pgm` when stdin held a binary PGM, word 5 the `--dpi` value.
+//! Then `nodawg` when both built-in word lists are turned off, and
+//! `words:` plus the `--user-words` file's lines joined by commas.
 
 use std::io::Read as _;
 
@@ -35,10 +37,22 @@ fn main() {
     println!(
         "level\tpage_num\tblock_num\tpar_num\tline_num\tword_num\tleft\ttop\twidth\theight\tconf\ttext"
     );
-    for (i, word) in [stem, data_name, langs, image.to_owned(), dpi]
+    let mut words = vec![stem, data_name, langs, image.to_owned(), dpi];
+    if ["load_system_dawg=0", "load_freq_dawg=0"]
         .iter()
-        .enumerate()
+        .all(|s| args.iter().any(|a| a == s))
     {
+        words.push("nodawg".to_owned());
+    }
+    let user_words = value_after("--user-words");
+    if !user_words.is_empty() {
+        let text = std::fs::read_to_string(&user_words).unwrap_or_default();
+        words.push(format!(
+            "words:{}",
+            text.lines().collect::<Vec<_>>().join(",")
+        ));
+    }
+    for (i, word) in words.iter().enumerate() {
         println!("5\t1\t1\t1\t1\t{}\t{}\t0\t8\t8\t90\t{word}", i + 1, i * 10);
     }
 }

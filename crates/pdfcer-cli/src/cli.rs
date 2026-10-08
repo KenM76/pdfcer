@@ -4586,6 +4586,23 @@ pub(crate) enum Command {
         /// which have no language choice.
         #[arg(long, default_value = "eng")]
         ocr_lang: String,
+        /// Read words from their letters alone, without the engine's
+        /// built-in word lists.
+        ///
+        /// Better for part numbers, grid labels and codes a dictionary would
+        /// "correct". Tesseract is run with load_system_dawg=0 and
+        /// load_freq_dawg=0. The engines inside pdfcer use no word list
+        /// anyway; PaddleOCR-VL refuses, as its language model cannot be
+        /// turned off.
+        #[arg(long)]
+        no_dictionaries: bool,
+        /// A UTF-8 word file, one word per line, added to the word lists
+        /// (repeatable).
+        ///
+        /// For a project's vocabulary. Only Tesseract takes one; the other
+        /// engines refuse rather than ignore it.
+        #[arg(long, value_name = "FILE")]
+        user_words: Vec<PathBuf>,
         /// Never run an OCR program (Tesseract): refuse instead, as the
         /// settings key `ocr_program_addons = refuse` does. Engines inside
         /// pdfcer are unaffected.

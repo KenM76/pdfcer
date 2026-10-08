@@ -34,12 +34,17 @@ pub(crate) fn status(model: &OcrModel) -> Result<(), String> {
 /// Load the Tesseract program in `dir`: the add-on whose manifest is there,
 /// or, with no manifest, the stock install `--model-dir` named (run as
 /// named, nothing hashed). Prints which program will run.
-pub(crate) fn load(dir: &Path, lang: &str, dpi: f32) -> Result<ProgramEngine, u8> {
+pub(crate) fn load(
+    dir: &Path,
+    lang: &str,
+    dpi: f32,
+    dictionaries: &pdfcer_ocr_host::Dictionaries,
+) -> Result<ProgramEngine, u8> {
     let failed = |err: &dyn std::fmt::Display| {
         eprintln!("pdfcer: ocr: {err}");
         exit::RUNTIME_ERROR
     };
-    let mut options = RunOptions::new(lang, dpi);
+    let mut options = RunOptions::new(lang, dpi).with_dictionaries(dictionaries.clone());
     options.policy = policy();
     let engine = if dir.join(MANIFEST_FILE).is_file() {
         let found = discover_ocr_models(&[dir.to_path_buf()]);

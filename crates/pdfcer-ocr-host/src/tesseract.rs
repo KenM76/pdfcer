@@ -9,6 +9,8 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 use pdfcer_core::ocr::OcrPage;
+
+use crate::dictionaries::{Dictionaries, MergedWords};
 use pdfcer_core::ocr::tesseract_tsv;
 
 /// The engine token, and the `models/` folder name of a stock layout.
@@ -56,11 +58,19 @@ pub(crate) struct Invocation {
     tessdata: PathBuf,
     langs: String,
     dpi: u32,
+    builtin_words: bool,
+    user_words: Option<std::sync::Arc<MergedWords>>,
 }
 
 impl Invocation {
     /// Check the languages and that each has a `.traineddata` in `tessdata`.
-    pub(crate) fn new(tessdata: PathBuf, langs: &str, dpi: f32) -> Result<Self, String> {
+    /// Merge the user word files `dictionaries` names.
+    pub(crate) fn new(
+        tessdata: PathBuf,
+        langs: &str,
+        dpi: f32,
+        dictionaries: &Dictionaries,
+    ) -> Result<Self, String> {
         let langs = check_languages(langs)?;
         let missing: Vec<String> = langs
             .split('+')
@@ -80,7 +90,22 @@ impl Invocation {
             tessdata,
             langs: langs.to_owned(),
             dpi: whole_dpi(dpi),
+            builtin_words: dictionaries.uses_builtin(),
+            user_words: MergedWords::merge(dictionaries.user_words())?,
         })
+    }
+
+    /// What the program is told about word lists, for the run disclosure.
+    pub(crate) fn dictionary_note(&self) -> String {
+        let builtin = if self.builtin_words {
+            format!("Tesseract's built-in word lists for {}", self.langs)
+        } else {
+            "no built-in word lists (load_system_dawg=0, load_freq_dawg=0)".to_owned()
+        };
+        match &self.user_words {
+            Some(m) => format!("{builtin} + {} user word(s)", m.words()),
+            None => builtin,
+        }
     }
 
     /// The checked `-l` value, for the run disclosure.
@@ -112,6 +137,7 @@ impl Invocation {
             // Set directly rather than via the `tsv` config name, which needs
             // a `tessdata/configs` file not every install carries.
             .args(["-c", "tessedit_create_tsv=1", "-c", "tessedit_create_txt=0"])
+            .args(self.dictionary_args())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -125,6 +151,23 @@ impl Invocation {
         let text = String::from_utf8(stdout)
             .map_err(|_| format!("{}: output is not UTF-8", program.display()))?;
         tesseract_tsv::parse_tsv_page(&text).map_err(|e| e.to_string())
+    }
+}
+
+impl Invocation {
+    fn dictionary_args(&self) -> Vec<std::ffi::OsString> {
+        let mut args: Vec<std::ffi::OsString> = Vec::new();
+        if !self.builtin_words {
+            for setting in ["load_system_dawg=0", "load_freq_dawg=0"] {
+                args.push("-c".into());
+                args.push(setting.into());
+            }
+        }
+        if let Some(m) = &self.user_words {
+            args.push("--user-words".into());
+            args.push(m.path().into());
+        }
+        args
     }
 }
 

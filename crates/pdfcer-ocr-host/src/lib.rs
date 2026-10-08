@@ -45,11 +45,13 @@
     clippy::indexing_slicing
 )]
 
+mod dictionaries;
 mod disclosure;
 mod program;
 mod runner;
 pub mod tesseract;
 
+pub use dictionaries::{Dictionaries, MAX_USER_WORDS_BYTES};
 #[cfg(feature = "paddle")]
 pub use disclosure::paddle_disclosure;
 #[cfg(feature = "ocr-vl")]

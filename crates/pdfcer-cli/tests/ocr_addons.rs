@@ -294,3 +294,20 @@ fn paddle_vl_reads_the_clean_scan() {
     assert_eq!(code, Some(0), "{err}");
     assert!(found.contains("sleeping"), "{found}");
 }
+
+/// `--user-words` with an engine that takes no word list is refused by
+/// name, and nothing is written.
+#[cfg(feature = "paddle")]
+#[test]
+fn user_words_are_refused_by_an_engine_without_word_lists() {
+    let root = scratch("user-words");
+    let dir = addon(&root, "mine", "paddle");
+    std::fs::write(dir.join("rec.onnx"), b"placeholder").unwrap();
+    let words = root.join("words.txt");
+    std::fs::write(&words, "FLANGE\n").unwrap();
+    let words = words.to_str().unwrap();
+    let (code, _, err) = ocr_with(&root, &["--ocr-model", "mine", "--user-words", words]);
+    assert_eq!(code, Some(1), "{err}");
+    assert!(err.contains("this engine takes no word list"), "{err}");
+    assert!(!root.join("out.pdf").exists());
+}
