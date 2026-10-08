@@ -155,6 +155,54 @@ pub fn check_runnable(model: &OcrModel, policy: ProgramPolicy) -> Result<(), Run
     Ok(())
 }
 
+/// Whether `model` can honour `options`, without loading it or hashing
+/// anything: the check an options dialog makes while the operator chooses.
+/// [`OcrRunner::load`] makes it first, so the same sentence comes back
+/// either way. It says nothing about the model itself; pair it with
+/// [`check_runnable`].
+///
+/// - Data models: no engine takes user word lists, and `paddle-vl`'s
+///   language model cannot be turned off.
+/// - Program models: the requested languages' data and any user word files
+///   must be readable.
+/// - Layout reading needs the `paddle-vl` engine and the layout model
+///   (`layout.onnx`) in its folder.
+///
+/// # Errors
+///
+/// [`RunnerError::DictionariesUnsupported`], [`RunnerError::LayoutUnsupported`],
+/// [`RunnerError::MissingFile`] (no layout model) or [`RunnerError::Program`]
+/// (missing language data, unreadable word file).
+pub fn check_options(model: &OcrModel, options: &RunOptions) -> Result<(), RunnerError> {
+    if model.kind() == AddonKind::Program {
+        crate::program::check_program_options(model, options)?;
+    } else {
+        check_dictionaries(model, &options.dictionaries)?;
+    }
+    if !options.layout {
+        return Ok(());
+    }
+    if model.engine != "paddle-vl" {
+        return Err(RunnerError::LayoutUnsupported {
+            name: model.name.clone(),
+            engine: model.engine.clone(),
+        });
+    }
+    // Without `ocr-vl` the engine itself is absent: `check_runnable` says so.
+    #[cfg(feature = "ocr-vl")]
+    {
+        use pdfcer_core::ocr::engine_layout::LAYOUT_MODEL;
+        if !model.has_files(&[LAYOUT_MODEL]) {
+            return Err(RunnerError::MissingFile {
+                name: model.name.clone(),
+                folder: model.folder.display().to_string(),
+                needs: LAYOUT_MODEL.to_owned(),
+            });
+        }
+    }
+    Ok(())
+}
+
 /// Refuse word lists an in-process engine cannot honour: none of them takes
 /// user words, and PaddleOCR-VL's language model cannot be turned off.
 fn check_dictionaries(model: &OcrModel, dictionaries: &Dictionaries) -> Result<(), RunnerError> {
@@ -248,15 +296,7 @@ impl OcrRunner {
     pub fn load(model: &OcrModel, options: &RunOptions) -> Result<Self, RunnerError> {
         // An option the engine cannot honour is the operator's to fix, so
         // it is reported before anything about the folder.
-        if model.kind() != AddonKind::Program {
-            check_dictionaries(model, &options.dictionaries)?;
-        }
-        if options.layout && model.engine != "paddle-vl" {
-            return Err(RunnerError::LayoutUnsupported {
-                name: model.name.clone(),
-                engine: model.engine.clone(),
-            });
-        }
+        check_options(model, options)?;
         check_runnable(model, options.policy)?;
         if model.kind() == AddonKind::Program {
             let engine = ProgramEngine::from_model(model, options)?;

@@ -13,6 +13,8 @@
 //! a recogniser out, whichever engine the model is for.
 //! [`check_runnable`] answers "can this model run here, and if not why" for
 //! a model list or a drop-down without loading anything.
+//! [`check_options`] answers the same for a [`RunOptions`] (word lists,
+//! languages, layout reading) while the operator is still choosing them.
 //!
 //! Supported program protocols: `tesseract` (PGM on stdin, TSV on stdout).
 //!
@@ -60,4 +62,4 @@ pub use program::{
     PROGRAM_ENGINES, ProgramEngine, ProgramError, ProgramPolicy, ProgramRefusal, ProgramSource,
     program_status,
 };
-pub use runner::{OcrRunner, RunOptions, RunnerError, check_runnable};
+pub use runner::{OcrRunner, RunOptions, RunnerError, check_options, check_runnable};

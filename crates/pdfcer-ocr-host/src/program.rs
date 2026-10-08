@@ -217,14 +217,7 @@ impl ProgramEngine {
             name: model.name.clone(),
             hashed_files: pinned.len(),
         };
-        let data = manifest.data.as_deref().unwrap_or(tesseract::TESSDATA_DIR);
-        let invocation = Invocation::new(
-            model.file_path(data),
-            &options.languages,
-            options.dpi,
-            &options.dictionaries,
-        )
-        .map_err(ProgramError::Setup)?;
+        let invocation = invocation(model, manifest.data.as_deref(), options)?;
         let engine = Self {
             program,
             pinned,
@@ -411,4 +404,35 @@ fn open_shared_read(path: &Path) -> std::io::Result<File> {
 #[cfg(not(windows))]
 fn open_shared_read(path: &Path) -> std::io::Result<File> {
     File::open(path)
+}
+
+/// The program's command for `options`, reading the language data under
+/// `data` (default [`tesseract::TESSDATA_DIR`]) and any user word files;
+/// nothing is hashed or started.
+fn invocation(
+    model: &OcrModel,
+    data: Option<&str>,
+    options: &RunOptions,
+) -> Result<Invocation, ProgramError> {
+    let data = data.unwrap_or(tesseract::TESSDATA_DIR);
+    Invocation::new(
+        model.file_path(data),
+        &options.languages,
+        options.dpi,
+        &options.dictionaries,
+    )
+    .map_err(ProgramError::Setup)
+}
+
+/// Whether a program add-on can honour `options` (languages present, word
+/// files readable), without hashing or starting it. A model with no
+/// manifest passes: [`crate::check_runnable`] is the one to refuse it.
+pub(crate) fn check_program_options(
+    model: &OcrModel,
+    options: &RunOptions,
+) -> Result<(), ProgramError> {
+    match &model.manifest {
+        Some(m) => invocation(model, m.data.as_deref(), options).map(drop),
+        None => Ok(()),
+    }
 }
