@@ -160,6 +160,7 @@ fn spec(c: &mut Cursor<'_>) -> MarkupSpec {
             color: c.color(),
             width,
             endings: (LineEnding::OpenArrow, LineEnding::ClosedArrow),
+            interior: None,
         },
         3 => {
             let n = 2 + usize::from(c.byte() % 5);
@@ -285,6 +286,7 @@ fn text_spec(c: &mut Cursor<'_>, data: &[u8]) -> TextAnnotSpec {
                 None
             },
             border_width: f64::from(c.byte() % 6),
+            frame: Default::default(),
         },
         1 => TextAnnotSpec::Sticky {
             rect,
