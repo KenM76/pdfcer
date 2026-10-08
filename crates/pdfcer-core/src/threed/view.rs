@@ -37,6 +37,11 @@ pub struct ThreeDSavedView {
     /// `/P /OB` (Table 305, PDF 1.7): how the near plane is additionally
     /// scaled to fit the annotation. Default [`OrthoBinding::Absolute`].
     pub ortho_binding: OrthoBinding,
+    /// `/P /FOV` of a perspective view (Table 305), in degrees: the full
+    /// angle across the annotation's width (`/PS` default `/W`). `None`
+    /// when orthographic, absent (a reader then uses 90°), or outside
+    /// `0..=180`.
+    pub field_of_view: Option<f64>,
     /// Width and height, in default user space units, of the annotation's
     /// 3D view box (`/3DB`, else its `/Rect`; Table 298), which the
     /// projection's target coordinate system is centred on. `None` without
@@ -45,7 +50,8 @@ pub struct ThreeDSavedView {
 }
 
 impl Default for ThreeDSavedView {
-    /// No name and no camera matrix; perspective, `OS` 1, `/Absolute`.
+    /// No name and no camera matrix; perspective with no `/FOV`, `OS` 1,
+    /// `/Absolute`.
     fn default() -> Self {
         Self {
             name: String::new(),
@@ -54,6 +60,7 @@ impl Default for ThreeDSavedView {
             orthographic: false,
             ortho_scale: 1.0,
             ortho_binding: OrthoBinding::Absolute,
+            field_of_view: None,
             view_box: None,
         }
     }
@@ -218,6 +225,11 @@ fn read_view<G: ObjectGraph + ?Sized>(graph: &G, view: &Dict) -> ThreeDSavedView
         Some(b"Max") => OrthoBinding::Max,
         _ => OrthoBinding::Absolute,
     };
+    let field_of_view = projection
+        .filter(|_| !orthographic)
+        .and_then(|p| p.get(b"FOV"))
+        .and_then(|o| graph.resolve(o).as_number())
+        .filter(|f| f.is_finite() && *f > 0.0 && *f <= 180.0);
     ThreeDSavedView {
         name,
         camera_to_world,
@@ -225,6 +237,7 @@ fn read_view<G: ObjectGraph + ?Sized>(graph: &G, view: &Dict) -> ThreeDSavedView
         orthographic,
         ortho_scale,
         ortho_binding,
+        field_of_view,
         view_box: None,
     }
 }

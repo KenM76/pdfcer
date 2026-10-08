@@ -3329,6 +3329,52 @@ pub(crate) enum Command {
         mode: SaveMode,
     },
 
+    /// **Write named views into a 3D annotation**, so a 3D reader lists them
+    /// and opens on one.
+    ///
+    /// Each `--view` (`iso`, `front`, `back`, `left`, `right`, `top`,
+    /// `bottom`) is fitted to the model exactly as `3d-render` fits it, with
+    /// `--up` the model's vertical axis, and written under its name (`Iso`,
+    /// `Front`, ...). The views REPLACE the annotation's existing ones; the
+    /// reader opens on `--default` (else the first). `--clear` removes every
+    /// view so the reader opens on the model's own. Needs a PRC model pdfcer
+    /// can mesh (except `--clear`). A `note:` line says when an orthographic
+    /// view's scale is pdfcer's reading, or when the 3D data is shared with
+    /// other annotations, which then get the same views. A DRY RUN unless
+    /// `--apply`.
+    #[command(name = "3d-views")]
+    ThreeDViews {
+        /// Input PDF.
+        input: PathBuf,
+        /// Which 3D artwork, as numbered by `3d-list`.
+        #[arg(long)]
+        index: usize,
+        /// A named view to write; repeat for several, in list order.
+        #[arg(long = "view", value_enum, required_unless_present = "clear")]
+        views: Vec<ThreeDView>,
+        /// The model axis that points up. Default: z.
+        #[arg(long, value_enum, default_value_t)]
+        up: Axis3,
+        /// Parallel (orthographic) views instead of perspective.
+        #[arg(long)]
+        ortho: bool,
+        /// The view the reader opens on. Default: the first `--view`.
+        #[arg(long, value_enum)]
+        default: Option<ThreeDView>,
+        /// Remove every view instead.
+        #[arg(long, conflicts_with_all = ["views", "default", "ortho"])]
+        clear: bool,
+        /// Actually write the output. Without it this is a DRY RUN.
+        #[arg(long)]
+        apply: bool,
+        /// Output path. Required with `--apply`.
+        #[arg(long, short)]
+        output: Option<PathBuf>,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
+
     /// **Attach a file to a PDF** as a document-level embedded file
     /// (§7.11.4.1, `/Names /EmbeddedFiles`).
     ///

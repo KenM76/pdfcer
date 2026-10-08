@@ -160,6 +160,7 @@ mod stream_localize;
 #[cfg(feature = "svg-import")]
 mod svg;
 mod threed_poster;
+mod threed_views;
 
 pub use button_icon::ButtonIconEdit;
 use checkpoint::Entry;
@@ -660,6 +661,9 @@ pub enum CommandKind {
     /// [`EditSession::set_3d_poster`] replaced a `/3D` annotation's
     /// `/AP /N` poster.
     SetThreeDPoster,
+    /// [`EditSession::set_3d_views`] rewrote a 3D stream's `/VA` and `/DV`
+    /// and its annotation's `/3DV`.
+    SetThreeDViews,
     /// [`EditSession::set_text_annot_style`] changed a text-bearing
     /// annotation's icon or colour and re-baked its appearance.
     SetTextAnnotStyle,

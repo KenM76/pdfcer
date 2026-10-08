@@ -1,31 +1,5 @@
 use super::*;
 
-/// `--compression` for [`Command::AddImage`].
-///
-/// A `clap`-side mirror of [`pdfcer_core::image_import::ImageCompression`]
-/// rather than a re-export, for the reason [`HandleArg`] gives: the core type
-/// is not a `ValueEnum`, and making it one would put a CLI-parsing concern
-/// into the GUI-free core crate. It also lets the CLI carry `--quality` as a
-/// separate flag while the core type carries it inside the variant.
-/// How deep `object-list --hit` looks.
-///
-/// # Two answers exist and both are shipped, per standing rule `R206`
-///
-/// The consuming shell asked for either a changed `--hit` or a separate
-/// `--hit-deep` and said it had no preference it could justify. Making it a
-/// mode rather than a second flag keeps ONE query path with a switch on it,
-/// instead of two flags whose implementations can drift apart — which is the
-/// exact failure this whole area has produced twice.
-///
-/// The DEFAULT is the one the GUI does, because this flag's documented job is
-/// to be authoritative about the GUI's behaviour, and a default that is not
-/// that makes the documentation false again the moment anyone reads it.
-/// Whether a structure dump includes stream data, and in what form.
-///
-/// The shell mirror of `pdfcer_core::structure::StreamMode`. Deliberately a
-/// separate type rather than a `ValueEnum` derive on the core enum: `clap` is a
-/// GUI-adjacent concern and `pdfcer-core` does not depend on it, which is the
-/// crate-separation invariant rather than a preference.
 /// A named direction `3d-render` looks from, fitted to the model.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
 pub(crate) enum ThreeDView {
@@ -47,21 +21,26 @@ pub(crate) enum ThreeDView {
 }
 
 impl ThreeDView {
+    /// The engine's named view (one table for every shell).
+    #[cfg(feature = "3d")]
+    pub(crate) fn named(self) -> pdfcer_3d::NamedView {
+        use pdfcer_3d::NamedView;
+        match self {
+            ThreeDView::Iso => NamedView::Iso,
+            ThreeDView::Front => NamedView::Front,
+            ThreeDView::Back => NamedView::Back,
+            ThreeDView::Left => NamedView::Left,
+            ThreeDView::Right => NamedView::Right,
+            ThreeDView::Top => NamedView::Top,
+            ThreeDView::Bottom => NamedView::Bottom,
+        }
+    }
+
     /// The view direction and the image's up direction, for a model whose
-    /// vertical axis is `up`.
+    /// vertical axis is `up` ([`pdfcer_3d::NamedView::direction`]).
     #[cfg(feature = "3d")]
     pub(crate) fn direction(self, up: Axis3) -> ([f64; 3], [f64; 3]) {
-        // In a z-up frame: front looks along +y, right along -x.
-        let (dir, image_up) = match self {
-            ThreeDView::Iso => ([-1.0, 1.0, -1.0], [0.0, 0.0, 1.0]),
-            ThreeDView::Front => ([0.0, 1.0, 0.0], [0.0, 0.0, 1.0]),
-            ThreeDView::Back => ([0.0, -1.0, 0.0], [0.0, 0.0, 1.0]),
-            ThreeDView::Left => ([1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
-            ThreeDView::Right => ([-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
-            ThreeDView::Top => ([0.0, 0.0, -1.0], [0.0, 1.0, 0.0]),
-            ThreeDView::Bottom => ([0.0, 0.0, 1.0], [0.0, 1.0, 0.0]),
-        };
-        (up.orient(dir), up.orient(image_up))
+        self.named().direction(up.axis())
     }
 }
 
@@ -155,21 +134,20 @@ pub(crate) enum Axis3 {
 }
 
 impl Axis3 {
+    /// The engine's up axis.
+    #[cfg(feature = "3d")]
+    pub(crate) fn axis(self) -> pdfcer_3d::UpAxis {
+        match self {
+            Axis3::X => pdfcer_3d::UpAxis::X,
+            Axis3::Y => pdfcer_3d::UpAxis::Y,
+            Axis3::Z => pdfcer_3d::UpAxis::Z,
+        }
+    }
+
     /// The unit vector along this axis.
     #[cfg(feature = "3d")]
     pub(crate) fn vector(self) -> [f64; 3] {
-        self.orient([0.0, 0.0, 1.0])
-    }
-
-    /// Rotate a z-up direction so z maps onto this axis (a proper
-    /// rotation, so handedness is kept).
-    #[cfg(feature = "3d")]
-    fn orient(self, [a, b, c]: [f64; 3]) -> [f64; 3] {
-        match self {
-            Axis3::Z => [a, b, c],
-            Axis3::Y => [a, c, -b],
-            Axis3::X => [c, a, b],
-        }
+        self.axis().vector()
     }
 }
 
@@ -214,6 +192,12 @@ impl MeshFormat {
     }
 }
 
+/// Whether a structure dump includes stream data, and in what form.
+///
+/// The shell mirror of `pdfcer_core::structure::StreamMode`. Deliberately a
+/// separate type rather than a `ValueEnum` derive on the core enum: `clap` is a
+/// GUI-adjacent concern and `pdfcer-core` does not depend on it, which is the
+/// crate-separation invariant rather than a preference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum StreamDump {
     /// Report each stream's dictionary and its length; omit the data. Default.
@@ -287,6 +271,9 @@ impl OcrEngineArg {
     }
 }
 
+/// How deep `object-list --hit` looks. A mode rather than a second flag,
+/// so there is one query path (standing rule `R206`); the default is the
+/// GUI's, because this flag's job is to say what the GUI does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum HitScope {
     /// Descend into form XObjects; never name a form itself. The GUI's
@@ -297,6 +284,7 @@ pub(crate) enum HitScope {
     Page,
 }
 
+/// `object-list --image-alpha`: whether a transparent image sample takes a hit.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum ImageAlphaArg {
     /// A click on a fully transparent image sample falls through to what
@@ -316,6 +304,13 @@ impl ImageAlphaArg {
     }
 }
 
+/// `--compression` for [`Command::AddImage`].
+///
+/// A `clap`-side mirror of [`pdfcer_core::image_import::ImageCompression`]
+/// rather than a re-export, for the reason [`HandleArg`] gives: the core type
+/// is not a `ValueEnum`, and making it one would put a CLI-parsing concern
+/// into the GUI-free core crate. It also lets the CLI carry `--quality` as a
+/// separate flag while the core type carries it inside the variant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum CompressionArg {
     /// Embed the source's own compressed bytes unchanged. The default.
@@ -861,12 +856,6 @@ impl From<GotoViewArg> for pdfcer_core::edit::PageView {
     }
 }
 
-/// Which save path an **editing** subcommand uses.
-///
-/// Deliberately a separate enum from [`RoundTripMode`], which carries a
-/// verification-only `append-identity` variant that has no meaning for
-/// an edit — merging them would put a mode in `--help` that cannot do
-/// what its name suggests.
 /// `scale-pages --mode`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum ScaleModeArg {
@@ -896,6 +885,12 @@ pub(crate) enum ScaleOrientationArg {
     Exact,
 }
 
+/// Which save path an **editing** subcommand uses.
+///
+/// Deliberately a separate enum from [`RoundTripMode`], which carries a
+/// verification-only `append-identity` variant that has no meaning for
+/// an edit — merging them would put a mode in `--help` that cannot do
+/// what its name suggests.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum SaveMode {
     /// Append a §7.5.6 revision, leaving every prior byte intact. The

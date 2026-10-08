@@ -25,6 +25,7 @@ pub(crate) const SIGNING_COMMANDS: &[&str] = &["add-ltv", "sign", "timestamp"];
 pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "3d-embed",
     "3d-poster",
+    "3d-views",
     "add-bookmark",
     "add-caret",
     "add-check-box",

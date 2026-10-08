@@ -6,8 +6,7 @@ use crate::annot_author::{self, AuthoredTextAnnot, Color};
 use crate::image_import::ImportedImage;
 use crate::object::{Dict, Name, ObjId, Object, Stream};
 use crate::threed::{
-    ThreeDEmbedError, ThreeDEmbedOutcome, ThreeDFormat, ThreeDPoster, ThreeDPosterOutcome,
-    ThreeDSpec,
+    ThreeDEmbedOutcome, ThreeDFormat, ThreeDPoster, ThreeDPosterOutcome, ThreeDSpec,
 };
 
 impl EditSession {
@@ -147,27 +146,12 @@ impl EditSession {
         annot_id: ObjId,
         image: &ImportedImage,
     ) -> Result<ThreeDPosterOutcome, EditError> {
-        let (_slots, page_id) = self.annotation_author_target(page_index)?;
-        let target = crate::annot::page_annotations(&self.graph(), page_id)
-            .into_iter()
-            .find(|a| a.id == Some(annot_id))
-            .ok_or(EditError::AnnotationNotFound { id: annot_id })?;
-        let subtype = String::from_utf8_lossy(&target.subtype).into_owned();
-        if target.subtype != b"3D" {
-            return Err(ThreeDEmbedError::NotA3dAnnotation { subtype }.into());
-        }
-        if target.flags.locked() {
-            return Err(EditError::AnnotationLocked {
-                id: annot_id,
-                subtype,
-            });
-        }
+        let (target, dict) = self.three_d_annot(page_index, annot_id)?;
         let rect = target
             .rect
-            .ok_or(EditError::AnnotationRectMissing { subtype })?;
-        let Some(Object::Dict(dict)) = self.value(annot_id).cloned() else {
-            return Err(EditError::AnnotationNotFound { id: annot_id });
-        };
+            .ok_or_else(|| EditError::AnnotationRectMissing {
+                subtype: "3D".to_owned(),
+            })?;
         let mut objects = Vec::new();
         let mut authored = annot_author::three_d_placeholder(rect, Color::Gray(0.0));
         let poster_image_id = self.attach_fitted_image(&mut authored, image, &mut objects)?;

@@ -8,10 +8,12 @@ use pdfcer_core::threed::{ThreeDArtwork, ThreeDSource, extract_3d, list_3d_with_
 mod aim;
 mod embed;
 mod tree;
+mod views;
 #[cfg(feature = "3d")]
 use aim::aim_camera;
 pub(crate) use embed::{EmbedThreeDArgs, PosterThreeDArgs, cmd_embed_3d, cmd_set_3d_poster};
 pub(crate) use tree::cmd_tree_3d;
+pub(crate) use views::{ViewsThreeDArgs, cmd_views_3d};
 
 fn format_label(art: &ThreeDArtwork) -> String {
     art.declared

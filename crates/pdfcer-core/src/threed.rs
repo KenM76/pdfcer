@@ -35,10 +35,13 @@ use crate::view::DocumentView;
 mod poster;
 mod view;
 mod view_aim;
+mod view_write;
 pub(crate) use poster::default_poster;
 pub use poster::{PlaceholderReason, RenderedPoster, ThreeDPoster, ThreeDPosterOutcome};
 pub use view::{OrthoBinding, ThreeDSavedView, default_3d_view};
 pub use view_aim::{SavedViewAim, ViewFit};
+pub use view_write::{MAX_3D_VIEWS, ThreeDViewsOutcome};
+pub(crate) use view_write::{check_view, view_dict};
 
 /// Ceiling on how many artworks one listing reports (a pdfcer guard; the
 /// spec sets none).
@@ -555,11 +558,51 @@ pub enum ThreeDEmbedError {
     },
     /// [`crate::edit::EditSession::set_3d_poster`] was pointed at an
     /// annotation that is not `/Subtype /3D`.
-    #[error("the {subtype} annotation is not a 3D annotation; only a 3D annotation has a poster")]
+    #[error(
+        "the {subtype} annotation is not a 3D annotation; only a 3D annotation has a poster or 3D views"
+    )]
     NotA3dAnnotation {
         /// The annotation's `/Subtype`.
         subtype: String,
     },
+    /// [`crate::edit::EditSession::set_3d_views`]: view `index` has an empty
+    /// name; a reader lists views by name (Table 304 `/XN` is required).
+    #[error("3D view {index} has no name; a reader lists views by name")]
+    ViewNameEmpty {
+        /// The view's position in the list.
+        index: usize,
+    },
+    /// [`crate::edit::EditSession::set_3d_views`]: view `index` cannot be
+    /// written as a Table 304 view.
+    #[error("3D view {index} cannot be written: {why}")]
+    ViewInvalid {
+        /// The view's position in the list.
+        index: usize,
+        /// What is wrong with it.
+        why: String,
+    },
+    /// [`crate::edit::EditSession::set_3d_views`]: the default view is not
+    /// one of the views given.
+    #[error("the default 3D view {index} is not one of the {count} views given")]
+    DefaultViewOutOfRange {
+        /// The default asked for.
+        index: usize,
+        /// How many views were given.
+        count: usize,
+    },
+    /// [`crate::edit::EditSession::set_3d_views`]: more than
+    /// [`MAX_3D_VIEWS`] views.
+    #[error("{count} 3D views is more than the {max} pdfcer writes")]
+    TooManyViews {
+        /// How many views were given.
+        count: usize,
+        /// [`MAX_3D_VIEWS`].
+        max: usize,
+    },
+    /// [`crate::edit::EditSession::set_3d_views`]: the annotation's `/3DD`
+    /// names no 3D stream to hold views (absent, or not a stream).
+    #[error("the 3D annotation has no 3D stream to hold views")]
+    NoThreeDStream,
 }
 
 /// A U3D or PRC model to embed as a `/3D` annotation with

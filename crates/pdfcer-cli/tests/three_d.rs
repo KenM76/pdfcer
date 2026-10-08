@@ -1115,3 +1115,101 @@ fn draw_hidden_also_writes_the_parts_the_file_stores_hidden() {
         "plus the hidden and suppressed copies"
     );
 }
+
+#[cfg(feature = "3d")]
+fn views_3d(input: &Path, extra: &[&str]) -> Output {
+    let mut args = vec!["3d-views", input.to_str().unwrap(), "--index", "2"];
+    args.extend_from_slice(extra);
+    run(&args)
+}
+
+#[cfg(feature = "3d")]
+#[test]
+fn named_views_are_written_and_listed() {
+    let input = with_prc_square("views_write");
+    let output = input.with_extension("views.pdf");
+    let out = views_3d(
+        &input,
+        &[
+            "--view",
+            "front",
+            "--view",
+            "top",
+            "--default",
+            "top",
+            "--apply",
+            "-o",
+            output.to_str().unwrap(),
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("views=0 -> 2 [Front,Top] default=Top shared=0"),
+        "{stdout}"
+    );
+    let listed = run(&["3d-list", output.to_str().unwrap()]);
+    let listed = String::from_utf8_lossy(&listed.stdout);
+    assert!(
+        listed.contains("3d index=2 page=1 format=PRC views=2 "),
+        "{listed}"
+    );
+
+    let cleared = output.with_extension("cleared.pdf");
+    let out = views_3d(
+        &output,
+        &["--clear", "--apply", "-o", cleared.to_str().unwrap()],
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(String::from_utf8_lossy(&out.stdout).contains("views=2 -> 0 [] default=-"));
+    let listed = run(&["3d-list", cleared.to_str().unwrap()]);
+    assert!(String::from_utf8_lossy(&listed.stdout).contains("format=PRC views=0 "));
+}
+
+#[cfg(feature = "3d")]
+#[test]
+fn an_orthographic_views_dry_run_discloses_and_writes_nothing() {
+    let input = with_prc_square("views_dry");
+    let output = input.with_extension("dry.pdf");
+    let out = views_3d(
+        &input,
+        &["--view", "iso", "--ortho", "-o", output.to_str().unwrap()],
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("note: an orthographic view's scale"),
+        "{stderr}"
+    );
+    assert!(String::from_utf8_lossy(&out.stdout).contains("applied=0"));
+    assert!(!output.exists());
+}
+
+#[cfg(feature = "3d")]
+#[test]
+fn views_on_a_u3d_model_or_a_richmedia_index_are_refused() {
+    let input = three_d_pdf("views_u3d");
+    for index in ["0", "1"] {
+        let out = run(&[
+            "3d-views",
+            input.to_str().unwrap(),
+            "--index",
+            index,
+            "--view",
+            "front",
+        ]);
+        assert_eq!(out.status.code(), Some(9), "index {index}");
+    }
+}

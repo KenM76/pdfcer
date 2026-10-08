@@ -32,6 +32,7 @@ mod container;
 mod error;
 mod export;
 mod model;
+mod named_view;
 #[cfg(feature = "render")]
 mod raster;
 #[cfg(feature = "render")]
@@ -58,6 +59,7 @@ pub use model::{
 };
 #[cfg(feature = "render")]
 pub use model::{render_default_view, render_model};
+pub use named_view::{NamedView, UnknownName, UpAxis};
 #[cfg(feature = "render")]
 pub use render::{
     Bounds, Camera, Image, MAX_RENDER_PIXELS, Projection, RenderError, RenderOptions, render,
