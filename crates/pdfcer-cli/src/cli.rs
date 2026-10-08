@@ -7341,6 +7341,43 @@ pub(crate) enum Command {
         #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
         mode: SaveMode,
     },
+    /// **Turn a form-field widget to any angle**, counterclockwise, on top
+    /// of any quarter turn `rotate-widget` gave it.
+    ///
+    /// The angle is absolute: turning to 30 twice leaves it at 30, and 0
+    /// stands it back up. The field's artwork is turned as it is, and its
+    /// rectangle grows to the upright box around the turned artwork, centred
+    /// where it was. Filling or restyling the field later keeps the angle.
+    ///
+    /// Multiples of 90 are refused: use `rotate-widget`, which every viewer
+    /// keeps. A viewer that redraws the field from its properties keeps only
+    /// that quarter turn, which is printed on stderr. Resizing or
+    /// quarter-turning a turned widget is refused until it is turned back to
+    /// 0; moving it is fine.
+    TurnWidget {
+        /// Input PDF.
+        input: PathBuf,
+        /// The field's fully-qualified name, as `list-fields` reports it.
+        #[arg(long)]
+        name: String,
+        /// Which widget, numbered from 0 in the order `list-fields` reports
+        /// the field's widgets.
+        #[arg(long, default_value_t = 0)]
+        index: usize,
+        /// Degrees counterclockwise; any angle that is not a multiple of 90,
+        /// or 0 to stand the widget up.
+        #[arg(long, allow_negative_numbers = true)]
+        degrees: f64,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// **Rotate a form-field widget** (Pass 177.0): write `/MK /R` and redraw
     /// the field's appearance in the rotated frame.
     ///
@@ -7895,6 +7932,14 @@ pub(crate) enum Command {
         /// (`/MK /TP`). Refused on any other kind of field.
         #[arg(long, value_enum)]
         caption_position: Option<CaptionPositionArg>,
+        /// The widget's opacity, `/CA`: 0 is invisible, 1 is opaque. Some
+        /// strict PDF 2.0 readers ignore it when they draw the field, which
+        /// is printed when the value is below 1.
+        #[arg(long, value_name = "0-1", conflicts_with = "clear_opacity")]
+        opacity: Option<f64>,
+        /// Remove the widget's `/CA`, so it draws opaque.
+        #[arg(long)]
+        clear_opacity: bool,
 
         /// Output path.
         #[arg(short, long)]

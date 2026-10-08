@@ -1046,6 +1046,8 @@ pub(crate) struct EditWidgetArgs<'a> {
     pub(crate) clear_button_icon: bool,
     /// `--caption-position`: `/MK /TP`.
     pub(crate) caption_position: Option<CaptionPositionArg>,
+    /// `--opacity` / `--clear-opacity`: `/CA` set, removed, or left.
+    pub(crate) opacity: Option<Option<f64>>,
     pub(crate) output: &'a Path,
     pub(crate) mode: SaveMode,
 }
@@ -1184,6 +1186,11 @@ fn widget_edit_from_args(args: &EditWidgetArgs<'_>) -> Result<pdfcer_core::edit:
         args.clear_button_icon,
         args.caption_position,
     )?;
+    edit = match args.opacity {
+        Some(Some(v)) => edit.with_opacity(v),
+        Some(None) => edit.clearing_opacity(),
+        None => edit,
+    };
     Ok(edit
         .with_resize(args.resize)
         .with_foreign_appearance(args.foreign_appearance.into()))
@@ -1244,6 +1251,9 @@ fn disclose_widget_edit(args: &EditWidgetArgs<'_>, outcome: &pdfcer_core::edit::
     let who = format!("field {:?} widget {}", args.name, args.index);
     if let Some(stale) = &outcome.appearance_stale {
         eprintln!("pdfcer: {who}: ★ {stale}");
+    }
+    if let Some(note) = &outcome.opacity_disclosure {
+        eprintln!("pdfcer: {who}: {note}.");
     }
     if outcome.foreign_appearance_replaced {
         eprintln!(

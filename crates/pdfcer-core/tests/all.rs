@@ -264,6 +264,7 @@ mod widget_border_dash;
 mod widget_colour_appearance;
 mod widget_colour_at_creation;
 mod widget_resize_appearance;
+mod widget_turn;
 mod writer_roundtrip;
 mod xref_eol;
 mod xref_recover;

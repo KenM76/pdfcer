@@ -138,6 +138,7 @@ mod group_unit;
 mod node_shape;
 mod restack;
 mod stroke_style;
+mod widget_angle;
 pub use annot_restyle::{AnnotOpacityChange, MARKER_SUBTYPES, MarkerStyle, MarkerStyleChange};
 pub use foreign_button::ForeignAppearance;
 pub use form_paint::FormPaintOutcome;
@@ -149,6 +150,7 @@ mod image_replace;
 pub use image_replace::ImageReplaceOutcome;
 mod text_form_reshape;
 pub use text_form_reshape::FormTextOutcome;
+pub use widget_angle::WidgetTurn;
 mod image_stamp;
 mod ocr_refold;
 mod page_artwork;
@@ -1007,6 +1009,10 @@ pub enum CommandKind {
         /// The rotation stored, counterclockwise, reduced into `[0, 360)`.
         degrees: i64,
     },
+    /// A form-field widget was **turned to a free angle**: its appearance
+    /// streams' `/Matrix` and its `/Rect` were rewritten. ONE undoable
+    /// command. See [`EditSession::turn_widget`].
+    TurnWidget,
     /// ONE ce dimension's **text override** was set, replaced or cleared
     /// (`Pass 175.0`, decision 097) and its baked `/AP` regenerated. ONE
     /// undoable command. See [`EditSession::set_dimension_label`].
@@ -7376,6 +7382,62 @@ pub enum EditError {
     WidgetRotationNotQuarterTurn {
         /// The angle that was asked for.
         degrees: i64,
+    },
+    /// [`EditSession::turn_widget`] was asked for a non-zero multiple of 90:
+    /// that is `/MK /R`, which [`EditSession::rotate_widget`] writes so that a
+    /// regenerating viewer keeps it.
+    #[error(
+        "{degrees} degrees is a quarter turn; use rotate_widget, which writes it as /MK /R (ISO 32000-1 12.5.6.19) where every viewer keeps it"
+    )]
+    WidgetTurnIsQuarterTurn {
+        /// The angle that was asked for.
+        degrees: f64,
+    },
+    /// [`EditSession::turn_widget`] found no normal appearance stream with a
+    /// `/BBox` to turn.
+    #[error(
+        "widget {index} of field {name:?} has no appearance stream to turn; give it an appearance (fill or restyle it) first"
+    )]
+    WidgetTurnNeedsAppearance {
+        /// The field's fully-qualified name.
+        name: String,
+        /// The widget index.
+        index: usize,
+    },
+    /// [`EditSession::turn_widget`] would have to copy an appearance stream
+    /// another widget shares, and the file is encrypted, so the copy cannot
+    /// be written under a new object number.
+    #[error(
+        "widget {index} of field {name:?} shares its appearance with another widget and the file is encrypted, so it cannot be given its own copy to turn; nothing was changed"
+    )]
+    WidgetTurnSharedAppearance {
+        /// The field's fully-qualified name.
+        name: String,
+        /// The widget index.
+        index: usize,
+    },
+    /// The widget is turned to a free angle, and this operation cannot keep
+    /// that angle.
+    #[error(
+        "widget {index} of field {name:?} is turned {degrees} degrees; {operation} cannot keep that angle, so set it to 0 with turn_widget first"
+    )]
+    WidgetTurned {
+        /// The field's fully-qualified name.
+        name: String,
+        /// The widget index.
+        index: usize,
+        /// The free angle the widget is at.
+        degrees: f64,
+        /// What was refused.
+        operation: &'static str,
+    },
+    /// A widget opacity outside `0.0..=1.0` or not finite.
+    #[error(
+        "widget opacity {value} is outside 0.0..=1.0 (ISO 32000-2 Table 166 /CA); nothing was changed"
+    )]
+    WidgetOpacityOutOfRange {
+        /// The value that was asked for.
+        value: f64,
     },
     /// [`EditSession::set_button_action`] was called on a field that is not
     /// a push button (`Pass 182.0`).
@@ -25969,6 +26031,9 @@ pub struct WidgetEdit {
     /// A push button's caption position, `/MK /TP` (Table 189). See
     /// [`Self::with_caption_position`].
     pub caption_position: Option<annot_author::CaptionPosition>,
+    /// The widget's constant opacity `/CA` (ISO 32000-2 Table 166): set,
+    /// or cleared to opaque. `None` leaves it. See [`Self::with_opacity`].
+    pub opacity: Option<Option<f64>>,
 }
 
 impl FieldEdit {
@@ -26681,6 +26746,10 @@ pub struct WidgetEditOutcome {
     /// alongside [`AppearanceOutcome::Regenerated`]; owed a disclosure,
     /// because the widget no longer looks the way its producer drew it.
     pub foreign_appearance_replaced: bool,
+    /// Set when the edit left the widget translucent (`/CA` below 1): a
+    /// strict PDF 2.0 reader may ignore `/CA` when it draws the appearance
+    /// stream, so the field can look opaque elsewhere. pdfcer applies it.
+    pub opacity_disclosure: Option<String>,
 }
 
 /// What a [`EditSession::rename_field`] changed.
@@ -29604,6 +29673,7 @@ impl EditSession {
                 widgets: field.widgets.len(),
             });
         };
+        self.refuse_if_turned(fqn, index, &widget, "rotate_widget")?;
         let was = widget.rotation;
 
         let Some(Object::Dict(dict)) = self.value(widget.id) else {
@@ -29801,6 +29871,14 @@ impl EditSession {
                 (Some(current), Some(target), !same_extent)
             }
         };
+        if resized {
+            self.refuse_if_turned(fqn, index, &widget, "a resize")?;
+        }
+        if let Some(Some(v)) = edit.opacity
+            && !(v.is_finite() && (0.0..=1.0).contains(&v))
+        {
+            return Err(EditError::WidgetOpacityOutOfRange { value: v });
+        }
 
         let Some(Object::Dict(widget_dict)) = self.value(widget.id) else {
             return Err(EditError::NotADictionary {
@@ -29809,6 +29887,7 @@ impl EditSession {
             });
         };
         let mut updated = widget_dict.clone();
+        let opacity_disclosure = Self::write_widget_opacity(&mut updated, edit.opacity);
         if let Some(r) = rect_after {
             updated.insert(
                 Name::from(b"Rect"),
@@ -30156,6 +30235,7 @@ impl EditSession {
             layout,
             appearance_stale,
             foreign_appearance_replaced,
+            opacity_disclosure,
         })
     }
 
@@ -44985,10 +45065,12 @@ impl EditSession {
             // route rebuilds and was wrong in the same direction; nobody had
             // looked because an empty text field's stretched border reads as
             // a border.
-            let (rw, rh) = pending
-                .rect_for(widget.id)
-                .or(widget.rect)
-                .map_or((0.0, 0.0), |r| (r.width(), r.height()));
+            let (rw, rh) = self.turned_size(widget).unwrap_or_else(|| {
+                pending
+                    .rect_for(widget.id)
+                    .or(widget.rect)
+                    .map_or((0.0, 0.0), |r| (r.width(), r.height()))
+            });
 
             // THE WIDGET'S ROTATION IS PART OF WHAT "REGENERATE THIS
             // APPEARANCE" MEANS (`Pass 177.0`), and threading it through HERE
@@ -45063,7 +45145,7 @@ impl EditSession {
             // `/MK /R` is counterclockwise too, so there is NO SIGN FLIP here.
             // The instinct to negate comes from the page's `/Rotate`, which is
             // the clockwise outlier.
-            if let Some(m) = Self::quarter_turn_matrix(quarter) {
+            if let Some(m) = self.redraw_matrix(widget, quarter) {
                 ap_dict.insert(
                     Name::from(b"Matrix"),
                     Object::Array(m.iter().map(|v| Object::Real(*v)).collect()),
@@ -45408,13 +45490,10 @@ impl EditSession {
             let Some(old) = widget.rect else {
                 return Ok(None);
             };
-            let plan = self.button_ap_plan(
-                widget,
-                kind,
-                old.width(),
-                old.height(),
-                (stored_da.clone(), fonts),
-            )?;
+            let (w, h) = self
+                .turned_size(widget)
+                .unwrap_or((old.width(), old.height()));
+            let plan = self.button_ap_plan(widget, kind, w, h, (stored_da.clone(), fonts))?;
             let slot = match plan {
                 Some(plan) => ButtonSlot::Own(plan),
                 None if pending.replace_foreign_for(widget.id) => {
@@ -45443,10 +45522,12 @@ impl EditSession {
         caption_fallback: &str,
         (da, fonts): (Option<Vec<u8>>, &[FontResource]),
     ) -> Result<Vec<annot_author::CheckBoxStateAppearance>, EditError> {
-        let (w, h) = pending
-            .rect_for(widget.id)
-            .or(widget.rect)
-            .map_or((0.0, 0.0), |r| (r.width(), r.height()));
+        let (w, h) = self.turned_size(widget).unwrap_or_else(|| {
+            pending
+                .rect_for(widget.id)
+                .or(widget.rect)
+                .map_or((0.0, 0.0), |r| (r.width(), r.height()))
+        });
         let caption = pending.caption_for(widget.id).unwrap_or(caption_fallback);
         let chrome = pending
             .chrome_for(widget.id)
@@ -45455,7 +45536,7 @@ impl EditSession {
         let icon = pending
             .icon_for(widget.id)
             .unwrap_or_else(|| self.stored_button_icon(widget.id));
-        self.build_button_states(
+        let mut states = self.build_button_states(
             kind,
             &ButtonLook {
                 w,
@@ -45467,7 +45548,9 @@ impl EditSession {
                 fonts,
                 icon,
             },
-        )
+        )?;
+        self.apply_free_turn(widget, quarter, &mut states);
+        Ok(states)
     }
 
     /// Overwrite pdfcer's own appearance streams `slots` with `redrawn`, in

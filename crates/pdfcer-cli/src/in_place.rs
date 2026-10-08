@@ -174,6 +174,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "text-run-move",
     "text-run-width",
     "to-pdfa",
+    "turn-widget",
     "unembed-font",
     "unshare-form",
 ];

@@ -1898,6 +1898,23 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         }),
+        Command::TurnWidget {
+            input,
+            name,
+            index,
+            degrees,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_turn_widget(&TurnWidgetArgs {
+            input: &input,
+            name: &name,
+            index,
+            degrees,
+            output: &output,
+            mode,
+            verify_undo,
+        }),
         Command::RotateWidget {
             input,
             name,
@@ -2074,6 +2091,8 @@ pub(crate) fn run() -> ExitCode {
             button_icon,
             clear_button_icon,
             caption_position,
+            opacity,
+            clear_opacity,
             output,
             mode,
         } => cmd_edit_widget(&EditWidgetArgs {
@@ -2096,6 +2115,11 @@ pub(crate) fn run() -> ExitCode {
             button_icon: button_icon.as_deref(),
             clear_button_icon,
             caption_position,
+            opacity: if clear_opacity {
+                Some(None)
+            } else {
+                opacity.map(Some)
+            },
             output: &output,
             mode,
         }),
