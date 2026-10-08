@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 554.0` — a block's wrapped line ends told apart from typed breaks (core + CLI; answers `pdfcer-gui` `G163`, inference half) — SHIPPED 2026-10-08 (1037th filing)
+
+Commits `6fa4bc19` (code), `ed2bdd4b` (`docs/core-api`); push state not verifiable from here. No `Cargo.toml` change, so `cargo tree` unchanged. No writer change. No decision. Listed in *Next up* at filing (verified, a blockquote bullet in the 1034th-filing stub), bullet replaced by a SHIPPED pointer.
+
+**Delivered.**
+- `EditableTextModel::line_ends(&Block) -> Vec<LineEnd>`; `LineEnd { Break, Wrap, Last }` is `#[non_exhaustive]` with `as_str()`.
+- `EditableTextModel::block_text_with_breaks(&Block) -> String`: wrap joins with a space, break with `\n`, the spelling `edit_block_text` takes.
+- Rule: a line is `Break` when the next line's first word, after one space, would have fitted within the block's wrap width (cell wrap width, else widest line extent, plus the breaker's fit tolerance); else `Wrap`. Space = median space glyph, else median word gap, else 0.33 em. Inferred, so disclosed as inferred (rule 4).
+- `BlockHit` gains `line_ends`; `BlockHit::text` CHANGED to the break-aware spelling (was all lines joined by a space).
+- CLI: `edit-block-text` prints `line ends (inferred): wrap,break,last`; `inspect --text-blocks --json` gives each block a `"line_ends"` array. `docs/core-api`: verb count unchanged at 350.
+- Fixed on discovery: a broken rustdoc intra-doc link in the `553.0` 3D poster code that would have failed CI's rustdoc gate.
+
+**Known misreading.** A break typed after a line already too full for the next word reads as `Wrap`; closed by `Pass 559.0` (exact marker for pdfcer's own text).
+
+**Verified (engineer-reported).** 3 new core tests (wraps; a typed break; write-back keeps breaks, each fails under sabotage) and 2 CLI assertions. `cargo test --workspace --all-features --no-fail-fast` green. fmt, clippy (all targets, all features, plus lite CLI), rustdoc, code-structure, public-fns-documented, tests-harnessed, clap-help, string-gaps green.
+
+**`G163` status.** FIXED (inference half); reply filed in the request channel. GUI column is `pdfcer-gui`'s.
+
+`FEATURES.md`: *Planned* `554.0` row replaced by the `559.0` row; new *Implemented* row after the `552.0` row (core `[x]` cli `[x]` gui `[ ]`).
+
+Ledgers: no decision; next free `Pass 560.0`; next filing 1038th.
+
 ### `Pass 553.0` — named 3D views and up axis public; write 3D views into a 3D annotation (core + CLI; answers `pdfcer-gui` `G168`) — SHIPPED 2026-10-08 (1036th filing)
 
 Commits `8d014437` (code), `d1800f2a` (`docs/core-api`); push state not verifiable from here. No `Cargo.toml` change, so `cargo tree` unchanged. Spec: ISO 32000-1 §13.6.3 (Tables 298, 300, 304, 305). No decision. Listed in *Next up* at filing (verified, a blockquote bullet in the 1034th-filing stub), bullet replaced by a SHIPPED pointer.
@@ -21532,10 +21554,11 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0` and `553.0` shipped, `554.0`-`558.0` not started.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 559.0`; next filing 1037th.
+> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`554.0` shipped, `555.0`-`558.0` not started.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 560.0`; next filing 1038th.
 > - `552.0` (`G162`) SHIPPED (`9be9d44a`, `ea7e80af`, 1035th filing), see *Shipped*.
 > - `553.0` (`G168`) SHIPPED (`8d014437`, `d1800f2a`, 1036th filing), see *Shipped*.
-> - `554.0` (`G163`) — per-line hard-break vs wrap information on recognised text blocks; foreign text by engine inference with disclosed uncertainty.
+> - `554.0` (`G163`) SHIPPED (`6fa4bc19`, `ed2bdd4b`, 1037th filing), see *Shipped*.
+> - `559.0` (`G163` follow-up, after `555.0`-`558.0`) — exact break marker for pdfcer's own block text. `edit_block_text` marks each typed paragraph break in the content stream with a marked-content point (`MP`, ISO 32000-2 §14.6) under a pdfcer-private tag; text extraction and the editable text model record it so `line_ends` reports pdfcer-written breaks exactly rather than by inference (closes the one misreading: a break typed after a line already too full for the next word reads as `Wrap`). Acceptance: a block written by `edit_block_text` with a break after a full line reads back `Break`; a foreign file without the marker still uses the inference; the marker survives a round trip and is ignored by other readers.
 > - `555.0` (`G164`) — metadata inventory (Info incl. custom keys, document and per-object XMP, PieceInfo, thumbnails, JavaScript, attachments, comments, hidden layers, form data, earlier revisions, document ID) with size and preview; removal of selected items as one undo entry, disclosing what could not be removed; a full-rewrite save is needed to drop earlier revisions. Core + CLI.
 > - `556.0` (`G166`) — OCR `RunOptions` dictionary choice (Builtin / None / Builtin + user word files); the report names which were used; engines that cannot honour it say so.
 > - `557.0` (`G165`) — skew detection for a scanned page or image XObject (angle + confidence); `deskew_image` / `deskew_page` as resample with one undo entry and pixel-change disclosure; optional pre-recognition deskew.
