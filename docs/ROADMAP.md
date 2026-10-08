@@ -115,6 +115,27 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 550.0` — add a node to a path, convert a node or a segment (core + CLI; answers `pdfcer-gui` `G154`) — SHIPPED 2026-10-08 (1032nd filing)
+
+Commits `3b4271f2` (code), `666129b1` (`docs/core-api`); push state not verifiable from here. No `Cargo.toml` change, so `cargo tree` unchanged; no writer change beyond content-stream splices, so round-trip is unaffected. No decision. Listed in *Next up* at filing (verified, a blockquote stub), stub removed.
+
+**Basis.** A page path could not gain a node or have a node or segment changed in kind.
+
+**Delivered.**
+- `EditSession::insert_node`, `convert_node`, `convert_segment` and `_in_form` twins (six verbs; `docs/core-api` verbs 342 to 348). Pure planners `vector::plan_insert_node`, `plan_convert_node`, `plan_convert_segment`.
+- `NodeKind { Corner, Smooth, Symmetric }` and `SegmentKind { Line, Curve }` (`#[non_exhaustive]`); `VectorEditError` gained `InvalidSegmentParameter`, `NoSegmentHere`, `NodeHasOneSide`; `CommandKind` gained `InsertNode`, `ConvertNode`, `ConvertSegment`.
+- Insert splits the segment by de Casteljau at `t`, so the drawing is unchanged; conversions never move the anchor. Disclosed, not silent (rule 4): line-to-curve promotion, the `re` to `m l l l h` rewrite, and any clipping-path change.
+- CLI `node-insert`, `node-convert`, `segment-convert` (`--object` or `--leaf`); README working-subcommand count 221 to 224.
+- Shared `vector::geometry::sub` replaced a duplicated helper in the DXF exporter (code-structure gate).
+
+**Verified (engineer-reported).** 20 core (`tests/vector_node_shape.rs`), 5 CLI (`tests/node_shape.rs`), 3 doctests. Full runs: core 1494 lib / 2856 integration, CLI 217 integration / 43 unit; 0 failed. Sabotage-checked four ways.
+
+**`G154` status.** Reply `reply_request_G154_a_node_cannot_be_added_or_converted_FIXED.md` written to the channel. GUI column is `pdfcer-gui`'s to tick.
+
+`FEATURES.md`: *Planned* `550.0` row removed; new *Implemented* row after the node-move rows (core `[x]` cli `[x]` gui `[ ]`).
+
+Ledgers: no decision; next free `Pass 552.0`; next filing 1033rd.
+
 ### `Pass 549.0` — width, merge and split text inside a form XObject (core + CLI; answers `pdfcer-gui` `G158`) — SHIPPED 2026-10-08 (1031st filing)
 
 Commits `ec1940df` (code), `e5096085` (`docs/core-api`); push state not verifiable from here. No `Cargo.toml` change, so `cargo tree` was not re-run; no packaging change. No decision. Listed in *Next up* at filing (verified, a blockquote stub), stub removed.
@@ -21448,9 +21469,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), `547.0` SHIPPED (1029th filing), `548.0` SHIPPED (1030th filing), `549.0` SHIPPED (1031st filing), see *Shipped*; `550.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1032nd.
->
-> **`Pass 550.0` — `G154`:** `insert_node` + `convert_node`, with in-form twins and `plan_*` previews.
+> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), `547.0` SHIPPED (1029th filing), `548.0` SHIPPED (1030th filing), `549.0` SHIPPED (1031st filing), `550.0` SHIPPED (1032nd filing), see *Shipped*; `551.0` remains. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1033rd.
 >
 > **`Pass 551.0` — `G160`:** widget rotation to any angle via the appearance `/Matrix`; also opacity `/CA` in `WidgetEdit`. Answer given to `pdfcer-gui`: in scope. The verb discloses that a viewer regenerating from `/MK /R` drops the free angle (rule 4).
 

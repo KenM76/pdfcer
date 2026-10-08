@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1032nd filing) — `Pass 550.0` shipped (add a node, convert a node or a segment, `G154`)
+
+**Shipped:** `Pass 550.0`, code `3b4271f2`, `docs/core-api` `666129b1`. `EditSession::insert_node`, `convert_node`, `convert_segment` plus `_in_form` twins (six verbs, core-api 342 to 348); planners `plan_insert_node/convert_node/convert_segment`; `NodeKind`, `SegmentKind`; three new `VectorEditError` variants; three new `CommandKind`s. Insert is a de Casteljau split (drawing unchanged); conversions keep the anchor; line-to-curve promotion, `re` rewrite and clip changes disclosed. CLI `node-insert`, `node-convert`, `segment-convert` (README 221 to 224). Shared `vector::geometry::sub` replaced a duplicated DXF-exporter helper.
+
+**Tests (engineer-reported):** core +20, CLI +5, 3 doctests; core 1494 lib / 2856 integration, CLI 217 / 43, 0 failed; four sabotages; no manifest change.
+
+**Files:** ROADMAP `550.0` blockquote stub removed from *Next up*, entry added to *Shipped*, banner updated; `###` headings between *Next up* and *Backlog* counted 80 from Grep line numbers, unchanged. `FEATURES.md` Planned row removed, new *Implemented* row (core/cli `[x]`, gui `[ ]`).
+
+**Decisions made this session:** None.
+
+**Still in flight:** `551.0` (`G160`) queued. Next free `Pass 552.0`; next filing 1033rd. Push state not verifiable from here.
+
 ## 2026-10-08 (1031st filing) — `Pass 549.0` shipped (width, merge and split text inside a form, `G158`)
 
 **Shipped:** `Pass 549.0`, code `ec1940df`, `docs/core-api` `e5096085`. `EditSession::set_text_run_width_in_form`, `merge_text_runs_in_form`, `split_text_object_in_form`, addressed by leaf index into `PageObjects::leaves`; the form is edited in place (decision 076), one undo each. Width and merge return `FormTextOutcome<R>`; `FormatError::FormLeafOutOfRange` added; split returns `FormSurgeryOutcome`. Fixed on discovery: `format_text`'s form route now records `FormatText`, not `EditText`. CLI `--leaf N` on `text-run-width`, `text-run-merge`, `text-object-split` (221 subcommands unchanged).
