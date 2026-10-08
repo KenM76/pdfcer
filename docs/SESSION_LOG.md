@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1028th filing) — `Pass 546.0` shipped (re-span a text markup, `G152`)
+
+**Shipped:** `Pass 546.0`, code `9b663eec`, `docs/core-api` `cfb42bfe` (not yet pushed, engineer-reported). New `EditSession::respan_text_markup` replacing a Highlight/Underline/StrikeOut/Squiggly's `/QuadPoints` and re-baking `/Rect` and `/AP`, keeping colour, `/CA`, `/Contents`, replies and object id; one undo (`CommandKind::RespanTextMarkup`); report `TextMarkupRespan`. New `EditError::TextMarkupVerbOnOther` (171 variants). CLI `respan-markup` (README count 216 to 217).
+
+**Tests (engineer-reported):** core +6, CLI +3; sabotage caught in both (2 core, 1 CLI); full runs and all gates green; core-api verbs 335; no manifest change.
+
+**Files:** ROADMAP `546.0` stub removed from *Next up* (`###` count stays 80), entry added to *Shipped*, banner updated; `FEATURES.md` Planned row removed, new *Implemented* row (core/cli `[x]`, gui `[ ]`).
+
+**Decisions made this session:** None.
+
+**Still in flight:** `Pass 547.0` (`G161`, `add_link` / `set_link_target` / link border) next; `548.0`-`551.0` queued. Next free `Pass 552.0`; next filing 1029th. Push state not verifiable from here (no shell).
+
 ## 2026-10-07 (1027th filing) — `Pass 545.0` shipped (change a placed stamp's words, `G151`)
 
 **Shipped:** `Pass 545.0`, code `8a06950a`, `docs/core-api` `a09c9a12`. New `EditSession::set_stamp_label`, shorthand for new `TextAnnotStyle::label`; re-bakes `/AP` keeping size, `/C`, `/Contents` and object id; one undo. New `EditError::StampLabelEmpty` (170 variants). Bug fixed on discovery: `StylePropertyNotApplicable` strings had a leading article ("has no a text-box fill"); dropped from all seven (small breaking change for string matchers, disclosed to `pdfcer-gui`). CLI `set-text-annot-style --label | --reset-label`; output gains `label_written=`.

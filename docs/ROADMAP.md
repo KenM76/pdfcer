@@ -115,6 +115,27 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 546.0` — re-span a text markup (core + CLI; answers `pdfcer-gui` `G152`) — SHIPPED 2026-10-08 (1028th filing)
+
+Commits `9b663eec` (code), `cfb42bfe` (`docs/core-api`); not yet pushed at filing (engineer-reported). No `Cargo.toml` or dependency change (`cargo tree` unchanged). No decision.
+
+**Basis.** A text markup's span could not be changed after placement. ISO 32000-1 §12.5.6.10: `/QuadPoints` carry the marked region, so a re-span rewrites them and re-bakes the appearance.
+
+**Delivered.**
+- `EditSession::respan_text_markup(annot_id, quads: &[Quad], modified: Option<&str>) -> Result<TextMarkupRespan, EditError>`: replaces a Highlight/Underline/StrikeOut/Squiggly's `/QuadPoints` (in the session's `quad_point_order`) and re-bakes `/Rect` and `/AP` from one bake, keeping colour, `/CA`, `/Contents`, replies and the object id. One undo (`CommandKind::RespanTextMarkup`). "From a character span" means the shell computes the quads as for `add_markup`; the engine takes quads only.
+- `TextMarkupRespan` (`non_exhaustive`): `annot_id, subtype, quads_before, quads_after, rect_before, rect_after, appearance, dropped, mod_date_written`.
+- Refusals: new `EditError::TextMarkupVerbOnOther { id, subtype }` (`EditError` now 171 variants); `EmptyGeometry`; `AnnotationVertexNotPlaceable` for non-finite corners; `AnnotationLocked` for `/F` bit 8 (`LockedContents`, bit 10, does not refuse).
+- CLI: new subcommand `respan-markup --page --index (--quads | --rect) [--modified] -o`; `set-markup-style`'s dropped-property prose extracted into a shared `report_dropped`. README subcommand count 216 to 217; CLI subcommands with help 219.
+- `docs/core-api`: new row "Re-span a text markup"; verbs 334 to 335.
+
+**Verified (engineer-reported).** Core `markup_respan.rs` +6, CLI `markup_respan.rs` +3. Sabotage (substituting the old quads) failed 2 core tests; sabotage of `--quads` parsing failed 1 CLI test. Full core, CLI and render runs exit 0; fmt, clippy (full and lite), rustdoc, code-structure, string-gaps, public-fns, clap-help and core-api-verbs clean.
+
+**`G152` status.** GUI column is `pdfcer-gui`'s to tick.
+
+`FEATURES.md`: *Planned* `546.0` row removed; new *Implemented* row after the `545.0` stamp row (core `[x]` cli `[x]` gui `[ ]`).
+
+Ledgers: no decision; next free `Pass 552.0`; next filing 1029th.
+
 ### `Pass 545.0` — change a placed stamp's words (core + CLI; answers `pdfcer-gui` `G151`) — SHIPPED 2026-10-07 (1027th filing)
 
 Commits `8a06950a` (code), `a09c9a12` (`docs/core-api`). No `Cargo.toml` or dependency change. No decision. Push state not checked here (no shell).
@@ -21365,9 +21386,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), see *Shipped*; `546.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1028th.
->
-> **`Pass 546.0` — `G152`:** respan a text markup's `/QuadPoints`.
+> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), see *Shipped*; `547.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1029th.
 >
 > **`Pass 547.0` — `G161`:** `add_link`, `set_link_target`, link border width / colour / dash.
 >
