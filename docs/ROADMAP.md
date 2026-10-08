@@ -115,6 +115,27 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 542.0` — fade an image or form through `set_object_stroke_style` (core + CLI; answers `pdfcer-gui` `G155`) — SHIPPED 2026-10-07 (1024th filing)
+
+Commits `a85d4872` (code), `7a0a71f4` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Not yet pushed (engineer-reported); not checked here (no shell).
+
+**Basis.** "An image cannot be faded." `Do` on an image is a non-stroking operation, so only `/ca` applies (ISO 32000-2 §11.6.4.4); a form's content inherits graphics state, so width and dash must never be written around it.
+
+**Delivered.**
+- `EditSession::set_object_stroke_style` and `set_object_stroke_style_in_form` accept image and form objects for **opacity only**, each wrapped `q /pdfcerGS<n> gs <Do | BI…EI> Q`. New crate-private per-object-prefix planner `plan_wrap_each`.
+- An image reads `fill_alpha` only; a form reads both alphas. An image or form given no alpha it reads is refused by index as `PaintRefusalReason::NotAPath`.
+- `ImageObject` gains public `fill_alpha` and `stroke_alpha` (the `/ca`, `/CA` in force at the `Do`/`EI`). **Breaking for struct literals** outside the crate.
+- New `pub const fn StrokeStyle::fades(&self, source: ImageSource) -> bool`.
+- CLI `set-object-stroke-style`: help and refusal wording updated (`--fill-alpha` fades an image; a form reads either alpha).
+
+**Verified (engineer-reported).** New `crates/pdfcer-core/tests/image_fade.rs` (6 tests, incl. in-form twin and one-undo); CLI `tests/object_set_stroke_style.rs` now 5. Pre-commit gate: core lib 1,494 + core integration 2,790; CLI 214 + 43 + 826; all pass. fmt, clippy (full and lite), rustdoc, structure, public-fns, string-gaps, clap-help clean.
+
+**`G155` status.** GUI column is `pdfcer-gui`'s to tick. Reply `reply_request_G155_an_image_cannot_be_faded_FIXED.md` written, ACK removed (engineer-reported).
+
+`FEATURES.md`: *Planned* `542.0` row removed; the `534.0`/`535.0` set-object-stroke-style row extended (core `[x]` cli `[x]` gui `[ ]`).
+
+Ledgers: no decision; next free `Pass 552.0`; next filing 1025th.
+
 ### `Pass 541.0` — ce dimension `dash` and `opacity` in the style cascade (core + CLI; answers `pdfcer-gui` `G159`) — SHIPPED 2026-10-07 (1023rd filing)
 
 Commits `0e9f65c2` (code), `be548165` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Not yet pushed (engineer-reported); not checked here (no shell).
@@ -21275,9 +21296,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), see *Shipped*; `542.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1024th.
->
-> **`Pass 542.0` — `G155`:** image fade via `set_object_stroke_style` alpha (`/ca` ExtGState around `Do`).
+> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), see *Shipped*; `543.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1025th.
 >
 > **`Pass 543.0` — `G157`:** `restack_objects(page, &indices, how)`; front / back / forward / backward.
 >

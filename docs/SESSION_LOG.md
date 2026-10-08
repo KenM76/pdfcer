@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1024th filing) — `Pass 542.0` shipped (fade an image or form, `G155`)
+
+**Shipped:** `Pass 542.0`, code `a85d4872`, `docs/core-api` `7a0a71f4`. `set_object_stroke_style` and `_in_form` accept image and form objects for opacity only (`q /pdfcerGS<n> gs <Do|BI…EI> Q`); width and dash never written, so a form's content never inherits them. Image reads `fill_alpha` only (§11.6.4.4); form reads both; a missing alpha is `NotAPath` by index. `ImageObject` gained public `fill_alpha`/`stroke_alpha` (struct-literal break); new `StrokeStyle::fades`. CLI help and refusal wording updated.
+
+**Tests (engineer-reported):** 6 new core (`image_fade.rs`), CLI file now 5; core lib 1,494 + integration 2,790, CLI 214 + 43 + 826 pass; all gates clean. No manifest change. Not yet pushed.
+
+**Files:** ROADMAP `542.0` stub removed from *Next up* (`###` count stays 80, stubs carry none), entry added to *Shipped*, banner updated; `FEATURES.md` Planned row removed, the set-object-stroke-style row extended.
+
+**Decisions made this session:** None.
+
+**Still in flight:** `Pass 543.0` (`G157`, restack) next; `544.0`-`551.0` queued. Next free `Pass 552.0`; next filing 1025th.
+
 ## 2026-10-07 (1023rd filing) — `Pass 541.0` shipped (ce dimension dash and opacity, `G159`)
 
 **Shipped:** `Pass 541.0`, code `0e9f65c2`, `docs/core-api` `be548165`. Two new cascaded ce dimension style properties (13 in all): `dash` (`DimDash`, up to 4 runs, `SOLID` a real value; baked as `[a b] 0 d`; stroked terminators and label stay solid) and `opacity` (`/CA`, only below 1.0). Sidecar keys `/Dash`, `/Opacity`; out-of-range or NaN opacity refused (`MarkupOpacityOutOfRange`). CLI `--dash`, `--opacity` on the group-style and dimension-style subcommands. Breaking for struct literals (four style structs gained public fields).
