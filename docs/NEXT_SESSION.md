@@ -5,14 +5,14 @@ Engineer-owned; replaced each session. The previous long-form handoff
 (gate-sweep history, the carried OWED list, benchmark recipes) is in git:
 `git show 78635459:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-08, after `Pass 558.0` and the 1041st filing.
+**Written:** 2026-10-08, after `Pass 559.0` and the 1042nd filing.
 
 ## State
 
 - **Release:** v0.80.0 is the latest (2026-10-06). OneDrive `pdfcer1` = 0.80.0,
   `pdfcer2` = 0.79.0, so **the next release writes `pdfcer2`**. Everything
-  from `Pass 532.0` to `558.0` is unreleased.
-- **Ledgers:** next free Pass **560.0**; next filing **1042nd**; no decision
+  from `Pass 532.0` to `559.0` is unreleased.
+- **Ledgers:** next free Pass **560.0**; next filing **1043rd**; no decision
   added since 183. Core-api verb count **355**.
 - **Shipped since the last handoff** (all filed, all pushed with
   `78635459`): `538.0`–`552.0` (annotation/vector/form/image/text editing
@@ -20,9 +20,10 @@ Engineer-owned; replaced each session. The previous long-form handoff
   typed line ends, G163), `555.0` (metadata inventory/removal, G164),
   `556.0` (OCR word lists, G166), `557.0` (deskew, G165), `558.0` (PaddleOCR-VL
   layout regions via PP-DocLayoutV3, OTSL tables, VL task prompts, repetition
-  stop, per-region OCR layers, `pdfcer ocr --layout --region-layers`, G167).
-- **Open in Next up:** `Pass 559.0` — exact wrap/break marker for pdfcer's
-  own text (closes the known `Wrap` misreading from 554.0). Unstarted.
+  stop, per-region OCR layers, `pdfcer ocr --layout --region-layers`, G167),
+  `559.0` (exact wrap/break marks in pdfcer-written blocks: `pdfc_TextBlock`
+  / `pdfc_Break` `MP` points, `LineEndSource`; G163 reply updated).
+- **Next up is empty of open Passes.** Take the operator's ordered plan below.
 - **Inbound:** G142–G168 all have FIXED replies. Older requests still sit in
   the `open/` folder (`check-requests-scoped.py` is green, so each is scoped
   or answered). The one open GitHub issue (text layer position after OCR)
