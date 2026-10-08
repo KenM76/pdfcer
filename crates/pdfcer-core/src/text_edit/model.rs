@@ -102,12 +102,14 @@
 mod cells;
 mod gutter;
 mod line_ends;
+mod line_marks;
 mod lists;
 mod navigate;
 mod stages;
 
 pub use cells::{CellRegion, detect_cell_regions};
-pub use line_ends::LineEnd;
+pub use line_ends::{LineEnd, LineEndSource};
+pub use line_marks::{BREAK_TAG, LineMarks, TEXT_BLOCK_TAG};
 pub(crate) use lists::{Hanging, glyph_text, hanging};
 
 use crate::page_tree::Rect;
@@ -446,6 +448,7 @@ pub struct EditableTextModel<'a> {
     columns: usize,
     cells: Vec<CellRegion>,
     diagnostics: BlockDiagnostics,
+    marks: LineMarks,
 }
 
 impl<'a> EditableTextModel<'a> {
@@ -554,6 +557,7 @@ impl<'a> EditableTextModel<'a> {
             columns,
             cells: cells.to_vec(),
             diagnostics,
+            marks: LineMarks::default(),
         }
     }
 

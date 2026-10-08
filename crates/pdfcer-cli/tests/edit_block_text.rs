@@ -79,3 +79,33 @@ fn an_unencodable_character_refuses_by_name_and_writes_nothing() {
     );
     assert!(!path.exists(), "no output on refusal");
 }
+
+#[test]
+fn pdfcers_own_block_reports_its_line_ends_as_marked() {
+    let (out, path) = run(&["--block", "0", "--text", "Dear reader,\nSynthetic words."]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let again = Command::new(BIN)
+        .arg("edit-block-text")
+        .arg(&path)
+        .args([
+            "--at",
+            "100,701",
+            "--text",
+            "Dear reader,\nSynthetic words.",
+        ])
+        .arg("--output")
+        .arg(path.with_extension("2.pdf"))
+        .output()
+        .expect("the binary runs");
+    let stdout = String::from_utf8_lossy(&again.stdout);
+    assert!(
+        stdout.contains("line ends (marked): break,last"),
+        "{stdout}"
+    );
+    let _ = std::fs::remove_file(path.with_extension("2.pdf"));
+    let _ = std::fs::remove_file(path);
+}

@@ -5,7 +5,7 @@ use super::{CommandKind, EditSession, PermissionBit};
 use crate::text_edit::block_text::{block_looks, plan_block_text};
 use crate::text_edit::{
     BlockEditError, BlockEditOptions, BlockEditPreview, BlockEditReport, BlockHit,
-    EditableTextModel, ReflowApplyError, UnsupportedCause, detect_cell_regions,
+    EditableTextModel, LineMarks, ReflowApplyError, UnsupportedCause, detect_cell_regions,
     reflow_recognition_options,
 };
 use crate::text_extract::{self, ExtractOptions};
@@ -137,11 +137,14 @@ impl EditSession {
             .map_err(ReflowApplyError::from)?;
         let cells = detect_cell_regions(&view, page_index)
             .map_err(crate::text_edit::reflow_apply::table_error)?;
+        let content = crate::content::ContentStream::from_page(&view, page)
+            .map_err(ReflowApplyError::from)?;
         let model = EditableTextModel::recognize_with_cells(
             &extracted,
             &reflow_recognition_options(),
             &cells,
-        );
+        )
+        .with_line_marks(LineMarks::scan(&content));
         let Some(block_index) = model.hit_test(x, y).and_then(|p| model.block_at(p)) else {
             return Ok(None);
         };
@@ -149,6 +152,7 @@ impl EditSession {
             block_index,
             text: model.block_text_with_breaks(b),
             line_ends: model.line_ends(b),
+            line_end_source: model.line_end_source(b),
             bbox: b.bbox,
             looks: block_looks(&view, page, &model, b),
         }))

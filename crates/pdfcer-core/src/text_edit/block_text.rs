@@ -196,12 +196,15 @@ pub struct BlockHit {
     /// The block's text spelled for `edit_block_text`: a line that wrapped
     /// joins the next with a space, a line ended by a typed break with `\n`
     /// ([`EditableTextModel::block_text_with_breaks`](super::EditableTextModel::block_text_with_breaks)).
-    /// The breaks are inferred; [`Self::line_ends`] carries them per line.
+    /// [`Self::line_ends`] carries the ends per line.
     pub text: String,
     /// How each of the block's lines ends, top to bottom
-    /// ([`EditableTextModel::line_ends`](super::EditableTextModel::line_ends)):
-    /// inferred from the layout, so a shell discloses them as inferred.
+    /// ([`EditableTextModel::line_ends`](super::EditableTextModel::line_ends)).
     pub line_ends: Vec<super::LineEnd>,
+    /// Whether [`Self::line_ends`] were read from the marks `edit_block_text`
+    /// writes (exact) or inferred from the layout, which a shell discloses
+    /// as inferred.
+    pub line_end_source: super::LineEndSource,
     /// The block's box.
     pub bbox: Rect,
     /// [`BlockEditReport::looks`] for this block; `None` when

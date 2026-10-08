@@ -13,8 +13,10 @@ use crate::text_edit::reflow_fit::cell_wrap_width;
 
 /// How a recognised line ends, as [`EditableTextModel::line_ends`] reads it.
 ///
-/// Inferred from the layout, never from a mark in the file (rule 4: a shell
-/// shows a block re-opened with these as inferred).
+/// Exact for a block inside a text object pdfcer wrote (its
+/// [`LineMarks`](super::LineMarks)); otherwise inferred from the layout, and
+/// the uncertainty below applies. [`EditableTextModel::line_end_source`]
+/// says which, so a shell discloses inferred ends as inferred (rule 4).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum LineEnd {
@@ -43,6 +45,27 @@ impl LineEnd {
     }
 }
 
+/// Where [`EditableTextModel::line_ends`] read a block's line ends from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum LineEndSource {
+    /// From the marks `edit_block_text` writes: exact.
+    Marked,
+    /// From the layout: each [`LineEnd`] states its uncertainty.
+    Inferred,
+}
+
+impl LineEndSource {
+    /// The lower-case name: `marked` or `inferred`.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Marked => "marked",
+            Self::Inferred => "inferred",
+        }
+    }
+}
+
 /// Positions along a line's writing direction, in points.
 #[derive(Debug, Clone, Copy)]
 struct Extent {
@@ -59,8 +82,13 @@ const WORD_GAP_EM: f64 = 0.15;
 const FALLBACK_SPACE_EM: f64 = 0.33;
 
 impl EditableTextModel<'_> {
-    /// How each of `block`'s lines ends, in [`Block::line_indices`] order:
-    /// [`LineEnd::Break`] when the next line's first word would have fitted
+    /// How each of `block`'s lines ends, in [`Block::line_indices`] order.
+    ///
+    /// A block inside one text object pdfcer wrote reads its ends from the
+    /// marks ([`LineMarks`](super::LineMarks), attached with
+    /// [`Self::with_line_marks`]): [`LineEnd::Break`] where a break point sits
+    /// between two lines, else [`LineEnd::Wrap`]. Any other block is
+    /// inferred: [`LineEnd::Break`] when the next line's first word would have fitted
     /// on it within the block's wrap width, else [`LineEnd::Wrap`]; the last
     /// line is [`LineEnd::Last`]. Each variant states its uncertainty.
     ///
@@ -73,6 +101,18 @@ impl EditableTextModel<'_> {
     /// word gap, else a third of an em.
     #[must_use]
     pub fn line_ends(&self, block: &Block) -> Vec<LineEnd> {
+        if let Some(gaps) = self.marked_gaps(block) {
+            let mut ends: Vec<LineEnd> = gaps
+                .iter()
+                .map(|&n| if n > 0 { LineEnd::Break } else { LineEnd::Wrap })
+                .collect();
+            ends.push(LineEnd::Last);
+            return ends;
+        }
+        self.inferred_line_ends(block)
+    }
+
+    fn inferred_line_ends(&self, block: &Block) -> Vec<LineEnd> {
         let lines: Vec<&Line> = block
             .line_indices
             .iter()
@@ -121,9 +161,24 @@ impl EditableTextModel<'_> {
     /// lines with a space, a break with `\n`. The spelling
     /// [`EditSession::edit_block_text`](crate::edit::EditSession::edit_block_text)
     /// takes, so a block re-opened this way and written back keeps both its
-    /// wraps and its breaks.
+    /// wraps and its breaks. A marked block also keeps its blank lines: two
+    /// break points between lines give `\n\n`.
     #[must_use]
     pub fn block_text_with_breaks(&self, block: &Block) -> String {
+        if let Some(gaps) = self.marked_gaps(block) {
+            let mut out = String::new();
+            for (i, &li) in block.line_indices.iter().enumerate() {
+                if let Some(line) = self.lines.get(li) {
+                    out.push_str(self.line_text(line).trim_end());
+                }
+                match gaps.get(i) {
+                    Some(0) => out.push(' '),
+                    Some(&n) => out.push_str(&"\n".repeat(n)),
+                    None => {}
+                }
+            }
+            return out;
+        }
         let ends = self.line_ends(block);
         let mut out = String::new();
         for (i, &li) in block.line_indices.iter().enumerate() {

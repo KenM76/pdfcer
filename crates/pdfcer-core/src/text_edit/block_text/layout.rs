@@ -99,6 +99,8 @@ pub(super) struct PlacedLine {
     pub(super) baseline_y: f64,
     pub(super) width: f64,
     pub(super) per_gap: f64,
+    /// The line ends its paragraph and another follows: a typed break.
+    pub(super) typed_break: bool,
 }
 
 /// Plan replacing block `block_index` on page `page_index` with `text`.
@@ -308,8 +310,11 @@ impl Measure {
 /// line of the block keeps its indent, baselines step by the leading across
 /// paragraphs, and a blank paragraph is a blank line.
 fn place(words: &Words, frame: &Frame, m: &Measure) -> Vec<PlacedLine> {
-    let mut out = Vec::new();
+    let mut out: Vec<PlacedLine> = Vec::new();
     for (pi, para) in words.paragraphs.iter().enumerate() {
+        if let Some(prev) = out.last_mut() {
+            prev.typed_break = true;
+        }
         let widths: Vec<f64> = para.iter().map(|r| m.width(r.clone())).collect();
         let space = para
             .first()
@@ -366,6 +371,7 @@ fn placed(
         baseline_y: frame.first_baseline - frame.leading * index as f64,
         width: natural,
         per_gap,
+        typed_break: false,
     }
 }
 

@@ -392,3 +392,53 @@ fn a_block_rewritten_with_its_own_spelling_keeps_its_breaks() {
     assert_eq!(after.text, before.text);
     assert_eq!(after.line_ends, before.line_ends);
 }
+
+#[test]
+fn a_break_typed_after_a_full_line_reads_back_exactly() {
+    use pdfcer_core::text_edit::{LineEnd, LineEndSource};
+    let mut s = block_of(&[
+        "Alpha bravo charlie delta echo foxtrot",
+        "golf hotel india juliet kilo lima.",
+    ]);
+    let before = s
+        .block_at_point(0, 100.0, 701.0)
+        .expect("ok")
+        .expect("a block");
+    assert_eq!(before.line_end_source, LineEndSource::Inferred);
+    let text = "Alpha bravo charlie delta echo foxtrot\ngolf hotel india juliet kilo lima.";
+    s.edit_block_text(0, before.block_index, text, &BlockEditOptions::default())
+        .expect("edits");
+    let after = s
+        .block_at_point(0, 100.0, 701.0)
+        .expect("ok")
+        .expect("a block");
+    assert_eq!(after.line_end_source, LineEndSource::Marked);
+    assert_eq!(after.line_ends, [LineEnd::Break, LineEnd::Last]);
+    assert_eq!(after.text, text);
+    assert_eq!(LineEndSource::Marked.as_str(), "marked");
+}
+
+#[test]
+fn a_marked_block_keeps_its_wraps_and_its_blank_lines() {
+    use pdfcer_core::text_edit::LineEndSource;
+    let mut s = block_of(&[
+        "Alpha bravo charlie delta echo foxtrot",
+        "golf hotel india juliet kilo lima.",
+    ]);
+    let text = "Dear reader,\n\nAlpha bravo charlie delta echo foxtrot golf hotel india.";
+    s.edit_block_text(0, 0, text, &BlockEditOptions::default())
+        .expect("edits");
+    let after = s
+        .block_at_point(0, 100.0, 701.0)
+        .expect("ok")
+        .expect("a block");
+    assert_eq!(after.line_end_source, LineEndSource::Marked);
+    assert_eq!(after.text, text);
+    let d = Document::from_bytes(full_bytes(&s)).expect("reload");
+    let view = d.view();
+    let pages = page_tree::pages_in(&view).expect("pages");
+    let cs = ContentStream::from_page(&view, &pages[0]).expect("parses");
+    let content = String::from_utf8_lossy(&cs.buf).into_owned();
+    assert_eq!(content.matches("/pdfc_TextBlock MP").count(), 1);
+    assert_eq!(content.matches("/pdfc_Break MP").count(), 2);
+}

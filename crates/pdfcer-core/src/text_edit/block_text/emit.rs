@@ -4,6 +4,7 @@
 use crate::content::ContentStream;
 use crate::text_edit::edit::block_encode::BlockEncoding;
 use crate::text_edit::edit::{EditLayout, TextEditPreview, emit_tm, mat_mul};
+use crate::text_edit::model::{BREAK_TAG, TEXT_BLOCK_TAG};
 use crate::text_edit::reflow_apply::{ReflowApplyError, origin_to_tm};
 use crate::text_edit::reflow_style::{Current, Item, code_bytes, emit_items, restore_bytes};
 use crate::text_edit::reflow_walk::SpanStyle;
@@ -37,14 +38,18 @@ pub(super) struct Emitted {
 /// Write one `BT … ET` holding every line: a `Tm` at each line origin, the
 /// line's codes in one show run with the justify slack after each word gap,
 /// and the text-state restore the replaced region owes the operators after
-/// it (R88).
+/// it (R88). The line-end marks go in too: a `pdfc_TextBlock` point after
+/// `BT` and a `pdfc_Break` point after each line a typed break ends
+/// (ISO 32000-1 §14.6; [`LineMarks`](crate::text_edit::LineMarks)).
 pub(super) fn emit_lines(input: &EmitInput<'_>) -> Result<Emitted, ReflowApplyError> {
     let loc = input.located;
     let mut style = loc.style.clone();
     style.font.clone_from(&input.enc.font_resource);
     let bytes = input.enc.font.bytes_per_code();
     let mut cur = Current::at_entry(&loc.region);
-    let mut body = b"BT\n".to_vec();
+    let mut body = b"BT\n/".to_vec();
+    body.extend_from_slice(TEXT_BLOCK_TAG);
+    body.extend_from_slice(b" MP\n");
     let mut glyphs = Vec::new();
     for line in input.lines {
         let (e, f) = origin_to_tm(line.origin_x, line.baseline_y, &loc.prov)?;
@@ -54,6 +59,11 @@ pub(super) fn emit_lines(input: &EmitInput<'_>) -> Result<Emitted, ReflowApplyEr
         body.push(b'\n');
         let items = line_items(input, line, &style, bytes);
         emit_items(&loc.prov, &items, &mut cur, &mut body);
+        if line.typed_break {
+            body.extend_from_slice(b"\n/");
+            body.extend_from_slice(BREAK_TAG);
+            body.extend_from_slice(b" MP\n");
+        }
         glyph_matrices(input, line, &style, tm, &mut glyphs);
     }
     let restore = restore_bytes(&loc.region, &cur)?;

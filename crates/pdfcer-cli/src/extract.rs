@@ -1159,7 +1159,13 @@ pub(crate) fn cmd_inspect_text_blocks(input: &Path, pages_spec: &str, json: bool
             Ok(cells) => cells,
             Err(code) => return code,
         };
-        let model = EditableTextModel::recognize_with_cells(&page, &recog, &cells);
+        // A page whose content does not parse has no marks; its blocks then
+        // report `"line_end_source": "inferred"`, which is the truth.
+        let marks = pdfcer_core::content::ContentStream::from_page(&doc.view(), &page_list[index])
+            .map(|c| pdfcer_core::text_edit::LineMarks::scan(&c))
+            .unwrap_or_default();
+        let model =
+            EditableTextModel::recognize_with_cells(&page, &recog, &cells).with_line_marks(marks);
         let d = model.diagnostics();
 
         total_lines += d.lines_recognized;
@@ -1336,6 +1342,10 @@ pub(crate) fn append_page_json(
             .map(|e| format!("\"{}\"", e.as_str()))
             .collect();
         out.push_str(&format!("\"line_ends\": [{}], ", ends.join(", ")));
+        out.push_str(&format!(
+            "\"line_end_source\": \"{}\", ",
+            model.line_end_source(block).as_str()
+        ));
         out.push_str("\"lines\": [");
         for (i, &li) in block.line_indices.iter().enumerate() {
             if i > 0 {
