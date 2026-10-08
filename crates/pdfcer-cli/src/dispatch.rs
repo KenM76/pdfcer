@@ -706,6 +706,26 @@ pub(crate) fn run() -> ExitCode {
             output,
             mode,
         } => cmd_detach_file(&input, &name, apply, output.as_deref(), mode),
+        Command::ListMetadata { input, json } => cmd_list_metadata(&input, json),
+        Command::RemoveMetadata {
+            input,
+            items,
+            kinds,
+            all,
+            document_id,
+            apply,
+            output,
+            mode,
+        } => cmd_remove_metadata(&RemoveMetadataArgs {
+            input: &input,
+            items: &items,
+            kinds: &kinds,
+            all,
+            document_id,
+            apply,
+            output: output.as_deref(),
+            mode,
+        }),
         Command::ListLayers { input, tree } => cmd_list_layers(&input, tree),
         Command::ListHandSignatures { input, page } => {
             hand_sig_cmd::cmd_list_hand_signatures(&input, page)

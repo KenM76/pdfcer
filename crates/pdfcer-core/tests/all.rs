@@ -135,6 +135,7 @@ mod markup_opacity;
 mod markup_respan;
 mod merge_document;
 mod merge_relinks_cross_file_bookmarks;
+mod metadata_remove;
 mod move_objects_each;
 mod node_edit_materialized;
 mod node_multi_move;

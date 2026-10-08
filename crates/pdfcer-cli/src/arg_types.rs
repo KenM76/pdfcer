@@ -642,6 +642,15 @@ pub(crate) enum DxfVersionArg {
     R2004,
 }
 
+/// What `remove-metadata` does with the file identifier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum DocumentIdArg {
+    /// Write a fresh random identifier pair.
+    Regenerate,
+    /// Delete /ID from the trailer.
+    Remove,
+}
+
 /// `/Producer` policy, as a CLI value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum ProducerArg {

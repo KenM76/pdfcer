@@ -58,6 +58,7 @@ pub mod build;
 /// comments carry the reasoning and the leap-year cases.
 mod civil_time;
 pub mod dimension;
+pub mod doc_metadata;
 pub mod edit;
 pub mod editable;
 pub mod emf_import;

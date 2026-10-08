@@ -216,6 +216,9 @@ use crate::object::{Dict, Name, ObjId, Object};
 pub struct DirtySet {
     entries: BTreeMap<ObjId, Change>,
     trailer_patch: Dict,
+    /// Trailer keys the new revision must NOT carry; applied after
+    /// [`Self::trailer_patch`].
+    trailer_removals: Vec<Name>,
     /// Authored stream bytes the session staged (R45, Pass 6.1). Empty
     /// for every pre-6.1 edit, which keeps their save path byte-for-byte
     /// unchanged (the combined-source construction below is skipped when
@@ -299,6 +302,7 @@ impl DirtySet {
         Self {
             entries: ids.into_iter().map(|id| (id, Change::Reemit)).collect(),
             trailer_patch: Dict::new(),
+            trailer_removals: Vec::new(),
             staging: Vec::new(),
         }
     }
@@ -387,11 +391,37 @@ impl DirtySet {
         self.trailer_patch.insert(key, value);
     }
 
+    /// Record that the new revision's trailer must not carry `key`, which
+    /// the base trailer has. Like [`Self::patch_trailer`], only for a key
+    /// the session genuinely removed; it counts as a content change.
+    pub fn remove_trailer_key(&mut self, key: Name) {
+        if !self.trailer_removals.contains(&key) {
+            self.trailer_removals.push(key);
+        }
+    }
+
+    /// The trailer keys [`Self::remove_trailer_key`] recorded.
+    #[must_use]
+    pub fn trailer_removals(&self) -> &[Name] {
+        &self.trailer_removals
+    }
+
+    /// Apply [`Self::trailer_patch`] then [`Self::trailer_removals`] to a
+    /// trailer copied from the base.
+    pub(super) fn apply_trailer_changes(&self, trailer: &mut Dict) {
+        for (key, value) in self.trailer_patch.iter() {
+            trailer.insert(key.clone(), value.clone());
+        }
+        trailer
+            .0
+            .retain(|(k, _)| !self.trailer_removals.contains(k));
+    }
+
     /// Whether the set names nothing at all — the condition under which
     /// [`save_incremental`] guarantees whole-file byte identity.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.entries.is_empty() && self.trailer_patch.is_empty()
+        self.entries.is_empty() && self.trailer_patch.is_empty() && self.trailer_removals.is_empty()
     }
 
     /// How many object definitions the next revision will carry.
@@ -414,6 +444,7 @@ impl DirtySet {
     #[must_use]
     pub fn changes_content(&self) -> bool {
         !self.trailer_patch.is_empty()
+            || !self.trailer_removals.is_empty()
             || self
                 .entries
                 .values()

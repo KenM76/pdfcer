@@ -294,9 +294,7 @@ fn section_trailer(
     let mut trailer = copy_trailer_without_prev(doc.trailer());
     // Patches go on FIRST so the writer's own `/Prev` and `/Size` can never be
     // displaced by one (§7.5.5).
-    for (key, value) in dirty.trailer_patch().iter() {
-        trailer.insert(key.clone(), value.clone());
-    }
+    dirty.apply_trailer_changes(&mut trailer);
     trailer.insert(
         Name::from(b"Prev"),
         Object::Integer(i64::try_from(doc.base_startxref()).unwrap_or(0)),

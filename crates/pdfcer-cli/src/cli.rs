@@ -3642,6 +3642,64 @@ pub(crate) enum Command {
         mode: SaveMode,
     },
 
+    /// List every place the document carries metadata or hidden information.
+    ///
+    /// One row per item: its id (what `remove-metadata --item` takes), kind,
+    /// size in bytes, where it is and a short preview. Kinds: `info` (one per
+    /// document information key), `document-xmp`, `object-xmp`, `pieceinfo`,
+    /// `thumbnail`, `javascript`, `attachment`, `comment`, `hidden-layer`,
+    /// `form-data`, `earlier-revisions`, `document-id`. Read-only.
+    ListMetadata {
+        /// Input PDF.
+        input: PathBuf,
+        /// One JSON object instead of text rows.
+        #[arg(long)]
+        json: bool,
+    },
+
+    /// Remove metadata and hidden information listed by `list-metadata`.
+    ///
+    /// Choose items with `--item ID` (repeatable), `--kind KIND`
+    /// (repeatable), or `--all`. Comments, attachments, hidden layers and
+    /// their content, and form values go as `delete-annotation`,
+    /// `detach-file`, `delete-layer` and `reset-form` would remove them; form
+    /// fields go back to their default value, which is reported. The file
+    /// identifier is replaced with a fresh random one unless
+    /// `--document-id remove`. Ids that name nothing and items that could not
+    /// be removed are printed, and make the exit code 9.
+    ///
+    /// The save is a FULL rewrite by default, with object streams holding a
+    /// changed object unpacked, so nothing removed stays in the file and the
+    /// earlier revisions go too. `/Producer` is left as it is. `--mode
+    /// incremental` keeps everything in the earlier revision, and says so.
+    /// Does a DRY RUN unless `--apply` is given.
+    RemoveMetadata {
+        /// Input PDF.
+        input: PathBuf,
+        /// An item id, as `list-metadata` prints it.
+        #[arg(long = "item", value_name = "ID")]
+        items: Vec<String>,
+        /// Every item of this kind.
+        #[arg(long = "kind", value_name = "KIND")]
+        kinds: Vec<String>,
+        /// Every item.
+        #[arg(long)]
+        all: bool,
+        /// `regenerate` (default) or `remove` the file identifier.
+        #[arg(long, value_enum, default_value_t = DocumentIdArg::Regenerate)]
+        document_id: DocumentIdArg,
+        /// Actually write the output. Without it this is a DRY RUN.
+        #[arg(long)]
+        apply: bool,
+        /// Output path. Required with `--apply`.
+        #[arg(long, short)]
+        output: Option<PathBuf>,
+        /// Which save path to use. `full` is the one that leaves nothing
+        /// removed in the file.
+        #[arg(long, value_enum, default_value_t = SaveMode::Full)]
+        mode: SaveMode,
+    },
+
     /// **Send pages to a printer.** Does a DRY RUN unless `--send` is
     /// given.
     ///

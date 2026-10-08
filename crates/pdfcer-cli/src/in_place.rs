@@ -125,6 +125,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "redact-mark",
     "reflow",
     "remove-encryption",
+    "remove-metadata",
     "regenerate-appearances",
     "rename-bookmark",
     "rename-field",

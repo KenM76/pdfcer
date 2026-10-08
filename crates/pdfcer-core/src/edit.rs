@@ -143,6 +143,7 @@ pub use annot_restyle::{AnnotOpacityChange, MARKER_SUBTYPES, MarkerStyle, Marker
 pub use foreign_button::ForeignAppearance;
 pub use form_paint::FormPaintOutcome;
 mod markup_respan;
+mod metadata_remove;
 pub use markup_respan::TextMarkupRespan;
 mod link;
 pub use link::{LinkBorder, LinkBorderChange, LinkTarget, LinkTargetChange};
@@ -708,6 +709,9 @@ pub enum CommandKind {
     FillTextField,
     /// [`EditSession::reset_form`] — §12.7.5.3.
     ResetForm,
+    /// [`EditSession::remove_metadata`] removed metadata items, with the
+    /// verbs it ran folded in.
+    RemoveMetadata,
     /// [`EditSession::purge_password_values`] — §12.7.4.3 Table 228 bit 14.
     PurgePasswordValues,
     /// [`EditSession::promote_inline_dr_fonts`] moved inline `/AcroForm /DR
@@ -10541,6 +10545,11 @@ impl EditSession {
         for (key, value) in self.trailer.iter() {
             if self.base.trailer().get(key.as_bytes()) != Some(value) {
                 dirty.patch_trailer(key.clone(), value.clone());
+            }
+        }
+        for (key, _) in self.base.trailer().iter() {
+            if self.trailer.get(key.as_bytes()).is_none() {
+                dirty.remove_trailer_key(key.clone());
             }
         }
         // R45: hand the writer the authored-stream staging buffer so a
@@ -51240,7 +51249,7 @@ pub(crate) fn decompose_object_stream_containers(
 /// untrusted input, and a recursive walk over an object *graph* — as
 /// opposed to over one object's small value tree — is a stack overflow
 /// waiting for a deep enough file.
-fn reachable<G: ObjectGraph + ?Sized>(
+pub(crate) fn reachable<G: ObjectGraph + ?Sized>(
     graph: &G,
     roots: &[ObjId],
     skip_parent_of: &HashSet<ObjId>,

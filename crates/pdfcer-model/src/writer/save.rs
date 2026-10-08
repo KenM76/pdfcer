@@ -651,9 +651,7 @@ pub fn save_full(
 
     let mut trailer = copy_trailer_without_prev(doc.trailer());
     // Operator trailer changes first; the writer's own keys below win.
-    for (key, value) in dirty.trailer_patch().iter() {
-        trailer.insert(key.clone(), value.clone());
-    }
+    dirty.apply_trailer_changes(&mut trailer);
     // A single section has no predecessor and no hybrid companion.
     trailer.0.retain(|(k, _)| k.as_bytes() != b"XRefStm");
     bump_size(&mut trailer, highest);
@@ -1008,9 +1006,7 @@ fn full_reencode(
     let deleted = apply_free_list(&mut entries, doc, dirty);
 
     let mut trailer = copy_trailer_without_prev(doc.trailer());
-    for (key, value) in dirty.trailer_patch().iter() {
-        trailer.insert(key.clone(), value.clone());
-    }
+    dirty.apply_trailer_changes(&mut trailer);
     trailer.0.retain(|(k, _)| k.as_bytes() != b"XRefStm");
     if let Some(enc) = enc {
         // §7.5.5: /Encrypt names the security handler dictionary; /ID is
