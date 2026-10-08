@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 556.0` — OCR word-list choice (core `pdfcer-ocr-host` + CLI; answers `pdfcer-gui` `G166`) — SHIPPED 2026-10-08 (1039th filing)
+
+Commits `224b6357` (code), `1c90614e` (test-hygiene fix, below), `1d178887` (`docs/core-api`); push state not verifiable from here. No dependency change; no core/render manifest change, so `cargo tree` unchanged. No decision. Listed in *Next up* at filing (verified, a blockquote bullet in the 1034th-filing stub), bullet replaced by a SHIPPED pointer.
+
+**Delivered.**
+- `RunOptions::with_dictionaries(Dictionaries)`. `Dictionaries::builtin()` (default), `Dictionaries::none()`, and `.with_user_words(path)` (repeatable).
+- Tesseract: `none()` passes `-c load_system_dawg=0 -c load_freq_dawg=0` (punctuation and number patterns stay on). User-word files are merged, de-duplicated, BOM- and CRLF-tolerant, into one temp `--user-words` file deleted when the runner drops. UTF-8 only, must hold a word, total <= `MAX_USER_WORDS_BYTES` (16 MiB), else `ProgramError::Setup` naming the file.
+- In-process engines (ocrs, OCRcer, PaddleOCR) accept `none()` and refuse user words with `RunnerError::DictionariesUnsupported`; PaddleOCR-VL also refuses `none()` (its language model cannot be turned off). The word-list check runs before the model-folder check.
+- `OcrRunner::dictionary_note()` is the rule-4 disclosure line.
+- CLI: `pdfcer ocr ... --no-dictionaries --user-words FILE` (repeatable); prints `pdfcer: ocr: word lists: ...`. `docs/core-api` rows for the choice and the disclosure.
+- Fixed on discovery (`1c90614e`): two CLI test files (`settings_file`, `ocr_program_addons`) copied the 56 MB binary into per-process temp folders and never removed them (~560 MB per run); 43 GB had accumulated, filled the system drive and failed 14 tests with "not enough space on the disk". A shared `Scratch` drop-guard (`tests/scratch_dir.rs`) now removes them; zero left after a full run. RAG: `D:\dev\rag\rust\integration_test_that_copies_a_binary_to_temp_must_clean_up_via_a_drop_guard.md`.
+
+**Verified (engineer-reported).** On the real Tesseract 5 bundle: flags accepted, 49 words recognised, disclosure printed. 8 new `pdfcer-ocr-host` tests (`tests/dictionaries.rs`) + 1 new CLI test; `pdfcer-cli` 863 passed / 1 ignored; `pdfcer-ocr-host` suites green. Sabotage (empty dictionary arguments) failed 2 tests. clippy, fmt, code-structure, public-fns, tests-harnessed, clap-help (230 subcommands) clean.
+
+**`G166` status.** FIXED; reply filed in the request channel. GUI column is `pdfcer-gui`'s.
+
+`FEATURES.md`: *Planned* `556.0` row removed; new *Implemented* row after the `555.0` row (core `[x]` cli `[x]` gui `[ ]`).
+
+Ledgers: no decision; next free `Pass 560.0`; next filing 1040th.
+
 ### `Pass 555.0` — metadata inventory and removal of hidden information (core + CLI; answers `pdfcer-gui` `G164`) — SHIPPED 2026-10-08 (1038th filing)
 
 Commits `50324705` (code), `d1326e19` (`docs/core-api`); push state not verifiable from here. No `Cargo.toml` change, so `cargo tree` unchanged. Spec: ISO 32000-2 §14.3.3 (`/Info`), §14.3.2 (XMP), §14.5 (`/PieceInfo`), §12.3.4 (`/Thumb`), §14.4 (`/ID`). No decision. Listed in *Next up* at filing (verified, a blockquote bullet in the 1034th-filing stub), bullet replaced by a SHIPPED pointer.
@@ -21574,13 +21594,13 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`555.0` shipped, `556.0`-`558.0` not started.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 560.0`; next filing 1039th.
+> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`556.0` shipped, `557.0`-`558.0` not started.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 560.0`; next filing 1040th.
 > - `552.0` (`G162`) SHIPPED (`9be9d44a`, `ea7e80af`, 1035th filing), see *Shipped*.
 > - `553.0` (`G168`) SHIPPED (`8d014437`, `d1800f2a`, 1036th filing), see *Shipped*.
 > - `554.0` (`G163`) SHIPPED (`6fa4bc19`, `ed2bdd4b`, 1037th filing), see *Shipped*.
 > - `559.0` (`G163` follow-up, after `555.0`-`558.0`) — exact break marker for pdfcer's own block text. `edit_block_text` marks each typed paragraph break in the content stream with a marked-content point (`MP`, ISO 32000-2 §14.6) under a pdfcer-private tag; text extraction and the editable text model record it so `line_ends` reports pdfcer-written breaks exactly rather than by inference (closes the one misreading: a break typed after a line already too full for the next word reads as `Wrap`). Acceptance: a block written by `edit_block_text` with a break after a full line reads back `Break`; a foreign file without the marker still uses the inference; the marker survives a round trip and is ignored by other readers.
 > - `555.0` (`G164`) SHIPPED (`50324705`, `d1326e19`, 1038th filing), see *Shipped*.
-> - `556.0` (`G166`) — OCR `RunOptions` dictionary choice (Builtin / None / Builtin + user word files); the report names which were used; engines that cannot honour it say so.
+> - `556.0` (`G166`) SHIPPED (`224b6357`, `1d178887`, 1039th filing), see *Shipped*.
 > - `557.0` (`G165`) — skew detection for a scanned page or image XObject (angle + confidence); `deskew_image` / `deskew_page` as resample with one undo entry and pixel-change disclosure; optional pre-recognition deskew.
 > - `558.0` (`G167`) — PaddleOCR-VL layout pass with classed regions (table, figure, formula, chart, header, footer) and `OcrLayerOptions` routing each class to its own optional-content group, tables as `TableCell` blocks with row/column. Starts by measuring what the model's layout task returns.
 

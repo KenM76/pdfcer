@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1039th filing) — `Pass 556.0` shipped (OCR word-list choice, `G166`)
+
+**Shipped:** `Pass 556.0`, `224b6357` (code), `1c90614e` (test fix) and `1d178887` (`docs/core-api`). `RunOptions::with_dictionaries(Dictionaries)` (built-in / none / user word files) in `pdfcer-ocr-host`; Tesseract honours all, in-process engines accept none and refuse user words by name; CLI `ocr --no-dictionaries --user-words FILE`; the run prints which lists were used. Found and fixed: two CLI test files leaked a 56 MB binary copy per run into temp (43 GB accumulated, 14 tests failed on a full disk); now removed by a shared drop-guard. 9 new tests; suites and gates green (engineer-reported). Core and cli delivered; gui is `pdfcer-gui`'s.
+
+**Files:** ROADMAP: Shipped entry added; `556.0` bullet in the Next up stub replaced by a SHIPPED pointer; stub header updated. `FEATURES.md`: *Planned* `556.0` row removed, new *Implemented* row after the `555.0` row (core `[x]` cli `[x]` gui `[ ]`). RAG: new `D:\dev\rag\rust\integration_test_that_copies_a_binary_to_temp_must_clean_up_via_a_drop_guard.md` plus its `index.md` bullet.
+
+**Decisions made this session:** None.
+
+**Still in flight:** `557.0`-`558.0` then `559.0` queued, none started. Next free `Pass 560.0`; next filing 1040th. Push state not verifiable from here (no shell).
+
 ## 2026-10-08 (1038th filing) — `Pass 555.0` shipped (metadata inventory and removal of hidden information, `G164`)
 
 **Shipped:** `Pass 555.0`, `50324705` (code) and `d1326e19` (`docs/core-api`). `EditSession::metadata_inventory` / `remove_metadata` over 12 kinds of metadata and hidden data; CLI `list-metadata` and `remove-metadata`. A writer defect fixed on discovery: `DirtySet` could not drop a trailer key, so removing `/Info` saved a dangling reference. 10 new tests (5 core, 5 CLI); suites and gates green (engineer-reported). Core and cli delivered; gui is `pdfcer-gui`'s.
