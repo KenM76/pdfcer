@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 342 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 348 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 342 public `EditSession` methods
+## 1. Verb index — all 348 public `EditSession` methods
 
-**Count: 342.** Established by brace-matched extraction of the
+**Count: 348.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -96,7 +96,7 @@ added `add_file_attachment_annotation`, and at 274 when `Pass 261.1` added
 `add_caret_annotation` and `add_replace_text`, and at 275 when `Pass 261.2`
 added `add_sound_annotation`, and at 276 when `Pass 261.3` added
 `add_screen_annotation`, and at 277 when `Pass 142.3` added
-`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed.
+`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins.
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -1487,6 +1487,9 @@ said nothing about identity across edits — this section is that gap closed.*
 | Transform a selection **each by its own page-space matrix** (arrange on a circle with rotate, per-object turn about its own centre), ONE undo entry, any kind, all-or-nothing. An object named twice refuses with `DuplicateObjectInMove { index }`; a contained/overlapping span with `OverlappingObjectSpans`. See the `transform_objects` section | `transform_objects_each(page_index, transforms: &[(usize, Matrix)], options: TransformOptions) -> Result<TransformOutcome, EditError>` |
 | Delete a multi-object selection, ONE undo entry | `delete_objects(page_index, object_indices: &[usize])` |
 | Delete one anchor node | `delete_node(page_index, object_index, node_index)` |
+| **Add a node** on the segment leaving `node_index`, shape unchanged (`G154`); `t` in (0, 1) is the curve parameter; later nodes renumber up by one | `insert_node(page_index, object_index, node_index, t) -> Result<Vec<String>, EditError>` |
+| **Make a node a corner, smooth or symmetric** (`G154`); the anchor stays, only its two handles change | `convert_node(page_index, object_index, node_index, NodeKind) -> Result<Vec<String>, EditError>` |
+| **Make the segment leaving a node a line or a curve** (`G154`) | `convert_segment(page_index, object_index, node_index, SegmentKind) -> Result<Vec<String>, EditError>` |
 | Delete one subpath | `delete_subpath(page_index, object_index, subpath_index)` |
 | Delete one show operator (text run) | `delete_text_run(page_index, object_index, run_index)` |
 | Move one subpath | `move_subpath(page_index, object_index, subpath_index, dx, dy)` |
@@ -1638,10 +1641,43 @@ These verbs are addressed by an index into `PageObjects::leaves`:
 | Delete objects | `delete_objects_in_form(page_index, leaf_indices: &[usize])` |
 | **Delete one subpath** | `delete_subpath_in_form(page_index, leaf_index, subpath_index)` |
 | **Delete one anchor node** | `delete_node_in_form(page_index, leaf_index, node_index)` |
+| **Add a node** (`G154`) | `insert_node_in_form(page_index, leaf_index, node_index, t) -> Result<FormSurgeryOutcome, EditError>` |
+| **Make a node corner / smooth / symmetric** (`G154`) | `convert_node_in_form(page_index, leaf_index, node_index, NodeKind) -> Result<FormSurgeryOutcome, EditError>` |
+| **Make a segment a line or a curve** (`G154`) | `convert_segment_in_form(page_index, leaf_index, node_index, SegmentKind) -> Result<FormSurgeryOutcome, EditError>` |
 | **Delete one show operator (text run)** | `delete_text_run_in_form(page_index, leaf_index, run_index)` |
 | **Fit one show operator to a width** (`G158`) | `set_text_run_width_in_form(page_index, leaf_index, run_index, width_pts) -> Result<FormTextOutcome<FormatReport>, FormatError>` |
 | **Merge consecutive show operators** (`G158`) | `merge_text_runs_in_form(page_index, leaf_index, runs: &[usize], &MergeOptions) -> Result<FormTextOutcome<MergeReport>, FormatError>` |
 | **Cut one text object into several** (`G158`) | `split_text_object_in_form(page_index, leaf_index, before_runs: &[usize]) -> Result<FormSurgeryOutcome, EditError>` |
+
+**Node shape (`G154`).** Node numbering is `delete_node`'s and `move_node`'s
+(decomposition order across subpaths). `insert_node` splits the segment by de
+Casteljau at `t` (a line at the point `t` of the way along), so the drawing is
+unchanged; the new node is `node_index + 1`. `convert_node`: `Corner` collapses
+both handles onto the anchor (the original `c` is respelled `v`/`y` where a
+handle now equals its end point); `Smooth` makes the two handles collinear
+through the anchor, each keeping its length, and beside a straight side aligns
+the curve's handle with the line; `Symmetric` also equalises their lengths
+(the mean). A straight side that must become a curve for this is promoted to a
+straight-looking cubic (handles at thirds), and that is disclosed.
+`convert_segment(.., Curve)` is that same promotion; `Line` drops a curve's
+handles. Every verb returns disclosures (the form twins in
+`FormSurgeryOutcome::disclosures`): a `re` rewritten as `m l l l h`, a line
+promoted to a curve, a clipping path whose region changes. Converting the
+closing edge of a closed subpath to a curve inserts a `c` before its `h`.
+Enums `vector::NodeKind { Corner, Smooth, Symmetric }` and
+`vector::SegmentKind { Line, Curve }` are `#[non_exhaustive]`. Pure planners:
+`vector::plan_insert_node`, `plan_convert_node`, `plan_convert_segment`
+(`&ContentStream, &PathObject, ..) -> Result<PlannedEdit, VectorEditError>`).
+Refusals (`VectorEditError`, new): `InvalidSegmentParameter` (`t` not strictly
+inside (0, 1) or not finite), `NoSegmentHere { index }` (the last node of an
+open subpath), `NodeHasOneSide { index }` (smooth/symmetric at an open end);
+plus the existing `NodeOutOfRange`, `NotAPath`, `ObjectOutOfRange`. Undo kinds
+`CommandKind::InsertNode`, `ConvertNode`, `ConvertSegment`, one entry each.
+CLI: `pdfcer node-insert IN (--object I | --leaf L) --node N --at T -o OUT`,
+`node-convert .. --kind corner|smooth|symmetric`, `segment-convert .. --to
+line|curve`; stdout `<cmd> IN page P object=I|leaf=L node=N at=T|kind=K|to=K
+mode=M -> OUT; changed= objects= appended= out_bytes= undo_verified=
+undo_identical=`; disclosures and a form's reach on stderr.
 
 The width and merge twins return the page verb's report inside
 `FormTextOutcome<R> { report, form, invocations, pages }` (`#[non_exhaustive]`)
