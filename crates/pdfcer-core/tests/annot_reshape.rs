@@ -149,6 +149,7 @@ fn line() -> MarkupSpec {
         color: Color::Gray(0.0),
         width: 1.0,
         endings: (LineEnding::None, LineEnding::OpenArrow),
+        interior: None,
     }
 }
 

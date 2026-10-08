@@ -222,6 +222,7 @@ fn a_line_moves_its_two_endpoints() {
         color: Color::Gray(0.0),
         width: 1.0,
         endings: (LineEnding::None, LineEnding::None),
+        interior: None,
     };
     let (mut s, id) = with_markup(&spec);
     let before = reload(&s);

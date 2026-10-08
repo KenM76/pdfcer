@@ -448,6 +448,7 @@ fn replying_to_a_ce_dimension_is_refused() {
                     pdfcer_core::annot_author::LineEnding::None,
                     pdfcer_core::annot_author::LineEnding::None,
                 ),
+                interior: None,
             },
         )
         .expect("place a plain line");

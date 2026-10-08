@@ -3785,7 +3785,7 @@ enum AppearanceSlot {
 /// # The two shapes that look like bugs and are not
 ///
 /// **`interior` on a subtype with no interior is ignored, not an error.**
-/// A `Line` has no `/IC` in §12.5.6.7 and no way to fill anything. A
+/// `PolyLine` and `Ink` have no `/IC` and nothing to fill. A
 /// Format tab that shows one set of controls for every markup type will
 /// send `interior` along with everything else; refusing would make the
 /// colour change fail because an unrelated control had a value.
@@ -3985,9 +3985,11 @@ fn apply_markup_style(
             color,
             width: w,
             endings,
+            interior,
         } => MarkupSpec::Line {
             start,
             end,
+            interior: colour(interior, style.interior),
             color: required(color, style.stroke),
             width: width(w),
             // `Clear` draws no endings AND drops the key; the
@@ -5623,7 +5625,8 @@ pub struct MarkupStyle {
     /// `/C` — the stroke/border colour (§12.5.6).
     pub stroke: Option<StyleEdit<annot_author::Color>>,
     /// `/IC` — the interior (fill) colour. Meaningful for `Square`,
-    /// `Circle` and `Polygon`; ignored by the subtypes that have no
+    /// `Circle` and `Polygon`, and for `Line`, where it fills the closed
+    /// line endings (§12.5.6.7 Table 175); ignored by the subtypes that have no
     /// interior, which is a property of the shape and not an error.
     pub interior: Option<StyleEdit<annot_author::Color>>,
     /// `/BS` `/W` — the stroke width in points.
@@ -5738,7 +5741,7 @@ pub struct MarkupStyle {
 /// | `/Square`, `/Circle` | yes | yes | no |
 /// | `/Polygon` (incl. cloudy) | yes | yes | no |
 /// | `/PolyLine`, `/Ink` | yes | no | no |
-/// | `/Line` | yes | no | **yes** |
+/// | `/Line` | yes | yes (fills closed endings) | **yes** |
 /// | `/Highlight`, `/Underline`, `/StrikeOut`, `/Squiggly` | **no** | no | no |
 ///
 /// `stroke` and `opacity` are omitted because every subtype takes both —
@@ -5752,7 +5755,7 @@ pub struct MarkupStyleSupport {
     /// line, and neither is drawn from a border style.
     pub takes_border: bool,
     /// The subtype has an `/IC` interior, so [`MarkupStyle::interior`]
-    /// means something (§12.5.6.8, §12.5.6.13).
+    /// means something (§12.5.6.7, §12.5.6.8, §12.5.6.13).
     pub takes_interior: bool,
     /// The subtype has `/LE` line endings, so [`MarkupStyle::endings`]
     /// means something. `/Line` only — Table 176's `/LE` is declared for
@@ -5807,7 +5810,7 @@ impl MarkupStyleSupport {
             },
             b"Line" => Self {
                 takes_border: true,
-                takes_interior: false,
+                takes_interior: true,
                 takes_endings: true,
                 takes_border_effect: false,
             },
@@ -64428,6 +64431,7 @@ mod tests {
                         crate::annot_author::LineEnding::None,
                         crate::annot_author::LineEnding::None,
                     ),
+                    interior: None,
                 },
             )
             .unwrap();
@@ -64485,6 +64489,7 @@ mod tests {
                             crate::annot_author::LineEnding::None,
                             crate::annot_author::LineEnding::None,
                         ),
+                        interior: None,
                     },
                 )
                 .unwrap();
@@ -65153,6 +65158,7 @@ endstream",
                         crate::annot_author::LineEnding::None,
                         crate::annot_author::LineEnding::None,
                     ),
+                    interior: None,
                 },
             )
             .unwrap();
@@ -65226,6 +65232,7 @@ endstream",
                         crate::annot_author::LineEnding::None,
                         crate::annot_author::LineEnding::None,
                     ),
+                    interior: None,
                 },
             )
             .unwrap();
@@ -65320,6 +65327,7 @@ endstream",
                         crate::annot_author::LineEnding::ClosedArrow,
                         crate::annot_author::LineEnding::OpenArrow,
                     ),
+                    interior: None,
                 },
             )
             .unwrap();

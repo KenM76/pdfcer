@@ -123,6 +123,7 @@ fn every_variant() -> Vec<(&'static str, MarkupSpec)> {
                 color: Color::Rgb(0.0, 0.5, 0.25),
                 width: 1.75,
                 endings: (LineEnding::OpenArrow, LineEnding::ClosedArrow),
+                interior: None,
             },
         ),
         (

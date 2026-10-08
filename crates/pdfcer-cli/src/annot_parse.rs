@@ -63,6 +63,7 @@ pub(crate) fn build_markup_spec(
                 color,
                 width: args.width,
                 endings: (LineEnding::OpenArrow, LineEnding::OpenArrow),
+                interior,
             })
         }
         AnnotKindArg::Ink => {

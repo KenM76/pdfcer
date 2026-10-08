@@ -195,6 +195,7 @@ fn a_flattened_line_markup_can_be_recoloured_and_made_translucent() {
                 color: Color::Gray(0.0),
                 width: 1.0,
                 endings: (LineEnding::None, LineEnding::None),
+                interior: None,
             },
         )
         .unwrap();

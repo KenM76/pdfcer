@@ -370,6 +370,10 @@ pub enum MarkupSpec {
         width: f64,
         /// Line-ending style at each end (`/LE`). Default Open/Open.
         endings: (LineEnding, LineEnding),
+        /// Interior colour `/IC` (§12.5.6.7 Table 175, PDF 1.4): fills the
+        /// closed line endings. `None` writes no `/IC` and leaves a closed
+        /// ending hollow — stroked in `color`, not filled.
+        interior: Option<Color>,
     },
     /// `/Ink` (§12.5.6.12) — one or more freehand strokes (`/InkList`).
     Ink {
@@ -653,6 +657,7 @@ pub fn spec_from_dict<G: ObjectGraph + ?Sized>(
                 color: color(b"C").unwrap_or(Color::Gray(0.0)),
                 width,
                 endings: read_line_endings(graph, annot),
+                interior: color(b"IC"),
             })
         }
         b"Ink" => {
@@ -1468,10 +1473,12 @@ pub fn encode_spec(spec: &MarkupSpec) -> Object {
             color,
             width,
             endings,
+            interior,
         } => {
             tag(&mut d, b"line");
             d.insert(Name::from(b"P"), points_object(&[*start, *end]));
             put_colour(&mut d, b"C", Some(color));
+            put_colour(&mut d, b"IC", interior.as_ref());
             d.insert(Name::from(b"W"), Object::Real(*width));
             d.insert(
                 Name::from(b"LE"),
@@ -1621,6 +1628,7 @@ pub fn decode_spec(obj: &Object) -> Result<MarkupSpec, SpecReadError> {
                 color: border.unwrap_or(Color::Gray(0.0)),
                 width: width()?,
                 endings: ends,
+                interior,
             }
         }
         b"ink" => {
@@ -1948,7 +1956,8 @@ fn build_appearance_inner(spec: &MarkupSpec, opts: &AppearanceOptions) -> Author
             color,
             width,
             endings,
-        } => line(*start, *end, *color, *width, *endings, dash),
+            interior,
+        } => line(*start, *end, *color, *width, *endings, *interior, dash),
         MarkupSpec::Ink {
             strokes,
             color,
@@ -2276,13 +2285,15 @@ fn emit_ellipse(b: &mut ContentBuilder, cx: f64, cy: f64, rx: f64, ry: f64) {
     b.close_subpath();
 }
 
-/// `/Line` with optional arrowheads.
+/// `/Line` with optional arrowheads; `interior` (`/IC`) fills the closed
+/// endings.
 fn line(
     start: (f64, f64),
     end: (f64, f64),
     color: Color,
     width: f64,
     endings: (LineEnding, LineEnding),
+    interior: Option<Color>,
     dash: Option<&BorderDash>,
 ) -> AuthoredAppearance {
     // Arrowheads and stroke width extend past the endpoints; the margin
@@ -2302,6 +2313,9 @@ fn line(
         ]),
     );
     annot.insert(Name::from(b"C"), color.to_array());
+    if let Some(ic) = interior {
+        annot.insert(Name::from(b"IC"), ic.to_array());
+    }
     annot.insert(Name::from(b"BS"), border_style(width, dash));
     annot.insert(
         Name::from(b"LE"),
@@ -2313,7 +2327,9 @@ fn line(
 
     let mut b = ContentBuilder::new();
     color.apply_stroke(&mut b);
-    color.apply_fill(&mut b); // for a ClosedArrow fill
+    if let Some(ic) = interior {
+        ic.apply_fill(&mut b);
+    }
     b.set_line_width(width);
     b.set_line_cap(LineCap::Butt);
     b.set_line_join(LineJoin::Miter);
@@ -2323,8 +2339,9 @@ fn line(
     b.paint(Paint::Stroke);
     // Arrowheads: the start ending points back along the line from `start`
     // toward `end`'s direction reversed; the end ending points forward.
-    emit_line_ending(&mut b, start, end, endings.0, width);
-    emit_line_ending(&mut b, end, start, endings.1, width);
+    let filled = interior.is_some();
+    emit_line_ending(&mut b, start, end, endings.0, width, filled);
+    emit_line_ending(&mut b, end, start, endings.1, width, filled);
 
     AuthoredAppearance {
         annot,
@@ -2343,13 +2360,14 @@ fn arrow_length(width: f64) -> f64 {
 
 /// Emit one line ending at `tip`, with the shaft arriving from `other`.
 /// `None` emits nothing; `OpenArrow` strokes a `<` outline; `ClosedArrow`
-/// fills a triangle.
+/// strokes a triangle, filled in the current fill colour when `filled`.
 fn emit_line_ending(
     b: &mut ContentBuilder,
     tip: (f64, f64),
     other: (f64, f64),
     ending: LineEnding,
     width: f64,
+    filled: bool,
 ) {
     if ending == LineEnding::None {
         return;
@@ -2385,7 +2403,11 @@ fn emit_line_ending(
             b.line_to(barb1.0, barb1.1);
             b.line_to(barb2.0, barb2.1);
             b.close_subpath();
-            b.paint(Paint::FillStroke);
+            b.paint(if filled {
+                Paint::FillStroke
+            } else {
+                Paint::Stroke
+            });
         }
         LineEnding::None => {}
     }
@@ -5440,6 +5462,7 @@ pub fn transform_spec(spec: &MarkupSpec, m: crate::vector::Matrix) -> (MarkupSpe
             color,
             width,
             endings,
+            interior,
         } => (
             MarkupSpec::Line {
                 start: pt(start),
@@ -5447,6 +5470,7 @@ pub fn transform_spec(spec: &MarkupSpec, m: crate::vector::Matrix) -> (MarkupSpe
                 color: *color,
                 width: w(*width),
                 endings: *endings,
+                interior: *interior,
             },
             false,
         ),
@@ -6371,6 +6395,7 @@ mod tests {
             color: Color::Rgb(1.0, 0.0, 0.0),
             width: 2.0,
             endings: (LineEnding::OpenArrow, LineEnding::OpenArrow),
+            interior: None,
         });
         assert_eq!(
             a.annot.get(b"L").unwrap().as_array().unwrap().len(),
@@ -6524,6 +6549,7 @@ mod tests {
                 color: Color::Rgb(0.0, 0.0, 1.0),
                 width: 1.0,
                 endings: (LineEnding::ClosedArrow, LineEnding::None),
+                interior: None,
             },
             MarkupSpec::Ink {
                 strokes: vec![vec![(0.0, 0.0), (5.5, 9.25), (12.0, 3.0)]],

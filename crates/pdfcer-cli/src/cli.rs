@@ -1352,7 +1352,8 @@ pub(crate) enum Command {
         #[arg(long)]
         color: Option<String>,
         /// Interior fill colour as `RRGGBB` hex (`square`/`circle`/
-        /// `polygon`). Absent ⇒ transparent interior.
+        /// `polygon`; on `line`, fills closed arrowheads). Absent ⇒
+        /// transparent interior.
         #[arg(long)]
         fill: Option<String>,
         /// Border/stroke width in points.
@@ -6631,7 +6632,8 @@ pub(crate) enum Command {
         #[arg(long, value_name = "RRGGBB|none")]
         color: Option<String>,
         /// Interior (fill) colour as `RRGGBB` hex, or `none` for a
-        /// transparent interior. `Square`, `Circle` and `Polygon` only.
+        /// transparent interior. `Square`, `Circle` and `Polygon`; on a
+        /// `Line` it fills the closed arrowheads.
         #[arg(long, value_name = "RRGGBB|none")]
         interior: Option<String>,
         /// Border width in points. On every subtype except `Square` and

@@ -409,6 +409,7 @@ fn line_spec() -> MarkupSpec {
             pdfcer_core::annot_author::LineEnding::OpenArrow,
             pdfcer_core::annot_author::LineEnding::None,
         ),
+        interior: None,
     }
 }
 
@@ -582,7 +583,7 @@ fn the_support_matrix_answers_in_advance() {
     }
     let line = MarkupStyleSupport::for_subtype(b"Line");
     assert!(line.takes_border);
-    assert!(!line.takes_interior);
+    assert!(line.takes_interior, "/IC fills a /Line's closed endings");
     assert!(line.takes_endings, "/LE is a /Line property");
 
     let ink = MarkupStyleSupport::for_subtype(b"Ink");
