@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1040th filing) — `Pass 557.0` shipped (skew detection and deskew of a scanned image, `G165`)
+
+**Shipped:** `Pass 557.0`, `cd82fcac` (code) and `6026af3f` (`docs/core-api`). `detect_skew` (projection profile, +/-15 degrees) and `EditSession::detect_image_skew`, `page_scan_image`, `deskew_image` (resample into a new image, one undo entry, disclosed); `EditError::DeskewUnsupported`; CLI `pdfcer deskew` (dry run without an output). Core and cli delivered; gui is `pdfcer-gui`'s. Tests and gates green, sabotage check failed 3 core tests (engineer-reported).
+
+**Files:** ROADMAP: Shipped entry added; `557.0` bullet in the Next up stub replaced by a SHIPPED pointer; stub header updated (`552.0`-`557.0` shipped). `FEATURES.md`: *Planned* `557.0` row removed, new *Implemented* row before the `556.0` row (core `[x]` cli `[x]` gui `[ ]`; pre-recognition deskew stated as not done).
+
+**Decisions made this session:** None.
+
+**Still in flight:** `558.0` then `559.0` queued, none started. The deskew-before-OCR option is not filed (the `G165` reply leaves it to `pdfcer-gui`). Next free `Pass 560.0`; next filing 1041st. Push state not verifiable from here.
+
 ## 2026-10-08 (1039th filing) — `Pass 556.0` shipped (OCR word-list choice, `G166`)
 
 **Shipped:** `Pass 556.0`, `224b6357` (code), `1c90614e` (test fix) and `1d178887` (`docs/core-api`). `RunOptions::with_dictionaries(Dictionaries)` (built-in / none / user word files) in `pdfcer-ocr-host`; Tesseract honours all, in-process engines accept none and refuse user words by name; CLI `ocr --no-dictionaries --user-words FILE`; the run prints which lists were used. Found and fixed: two CLI test files leaked a 56 MB binary copy per run into temp (43 GB accumulated, 14 tests failed on a full disk); now removed by a shared drop-guard. 9 new tests; suites and gates green (engineer-reported). Core and cli delivered; gui is `pdfcer-gui`'s.

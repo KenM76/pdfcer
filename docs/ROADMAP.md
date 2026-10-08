@@ -115,6 +115,29 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 557.0` — skew detection and deskew of a scanned image (core + CLI; answers `pdfcer-gui` `G165`) — SHIPPED 2026-10-08 (1040th filing)
+
+Commits `cd82fcac` (code: core, CLI, tests, README count), `6026af3f` (`docs/core-api`); push state not verifiable from here. No `Cargo.toml` change, so no new dependency and `cargo tree` unaffected. No decision. Listed in *Next up* at filing (verified, a blockquote bullet in the 1034th-filing stub), bullet replaced by a SHIPPED pointer.
+
+**Delivered.**
+- `pdfcer_core::deskew::detect_skew(width, height, grey)`: projection profile with linear binning, coarse search in 0.5 degree steps then fine in 0.05; confidence = 1 - median/best; about 1 px over the text-line length; maximum +/-15 degrees.
+- `EditSession::page_scan_image` (largest non-form image on the page by area); `detect_image_skew` (read-only, `Option<SkewEstimate { angle_degrees, confidence }>`).
+- `EditSession::deskew_image(page, object, angle)`: new FlateDecode image XObject with the same size, colour space, `/Decode` and bpc, repointing only that placement's `Do`. Bilinear at 8+ bpc, nearest neighbour for 1/2/4-bit and `/Indexed`; uncovered corners take the border-mode (paper) value. One undo entry (`CommandKind::DeskewImage`); the resample is disclosed in `notes[0]` (rule 4).
+- `EditError::DeskewUnsupported { reason }`: inline images, `/SMask`, `/Mask`, embedded or preblended alpha, undecodable samples, an angle non-finite, beyond 15 degrees or below `MIN_DESKEW_DEGREES` (0.01).
+- No separate `deskew_page` verb, deliberately: it is `page_scan_image` + `deskew_image`.
+- CLI: `pdfcer deskew IN [--pages all] [--object I] [--angle DEG] [--min-angle 0.05] [--min-confidence 0.2] [-o OUT | --in-place]`. Dry run without an output; a batch skips a page whose scan cannot be deskewed; a named `--object` is refused with exit 9. README subcommand count 228 -> 229 working (231 in the enum, 2 unimplemented).
+- `docs/core-api`: verbs 352 -> 355, `EditError` 180 -> 181; the stale `CommandKind` count (stated 110, actual 135) corrected.
+
+**Not shipped.** The optional deskew-before-recognition option on `OcrRunner`: the `G165` reply tells `pdfcer-gui` to file it separately if wanted; not filed as a Pass.
+
+**Verified (engineer-reported).** pdfcer-core 2893 passed / 2 ignored (7 new deskew tests included); pdfcer-cli bin 43; CLI integration 866 passed / 1 ignored, plus 3 new deskew tests. Sabotage (rotation sign flipped) failed 3 core tests; code restored. fmt, clippy (core, cli, lite) clean; structure, public-fns, string-gaps, clap-help, core-api-verbs gates pass.
+
+**`G165` status.** FIXED; reply `reply_request_G165_no_deskew_FIXED.md` in `pdfce_FeatureRequests/open/`, ACK deleted. GUI column is `pdfcer-gui`'s.
+
+`FEATURES.md`: *Planned* `557.0` row removed; new *Implemented* row before the `556.0` row (core `[x]` cli `[x]` gui `[ ]`).
+
+Ledgers: no decision; next free `Pass 560.0`; next filing 1041st.
+
 ### `Pass 556.0` — OCR word-list choice (core `pdfcer-ocr-host` + CLI; answers `pdfcer-gui` `G166`) — SHIPPED 2026-10-08 (1039th filing)
 
 Commits `224b6357` (code), `1c90614e` (test-hygiene fix, below), `1d178887` (`docs/core-api`); push state not verifiable from here. No dependency change; no core/render manifest change, so `cargo tree` unchanged. No decision. Listed in *Next up* at filing (verified, a blockquote bullet in the 1034th-filing stub), bullet replaced by a SHIPPED pointer.
@@ -21594,14 +21617,14 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`556.0` shipped, `557.0`-`558.0` not started.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 560.0`; next filing 1040th.
+> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`557.0` shipped, `558.0` not started.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 560.0`; next filing 1041st.
 > - `552.0` (`G162`) SHIPPED (`9be9d44a`, `ea7e80af`, 1035th filing), see *Shipped*.
 > - `553.0` (`G168`) SHIPPED (`8d014437`, `d1800f2a`, 1036th filing), see *Shipped*.
 > - `554.0` (`G163`) SHIPPED (`6fa4bc19`, `ed2bdd4b`, 1037th filing), see *Shipped*.
 > - `559.0` (`G163` follow-up, after `555.0`-`558.0`) — exact break marker for pdfcer's own block text. `edit_block_text` marks each typed paragraph break in the content stream with a marked-content point (`MP`, ISO 32000-2 §14.6) under a pdfcer-private tag; text extraction and the editable text model record it so `line_ends` reports pdfcer-written breaks exactly rather than by inference (closes the one misreading: a break typed after a line already too full for the next word reads as `Wrap`). Acceptance: a block written by `edit_block_text` with a break after a full line reads back `Break`; a foreign file without the marker still uses the inference; the marker survives a round trip and is ignored by other readers.
 > - `555.0` (`G164`) SHIPPED (`50324705`, `d1326e19`, 1038th filing), see *Shipped*.
 > - `556.0` (`G166`) SHIPPED (`224b6357`, `1d178887`, 1039th filing), see *Shipped*.
-> - `557.0` (`G165`) — skew detection for a scanned page or image XObject (angle + confidence); `deskew_image` / `deskew_page` as resample with one undo entry and pixel-change disclosure; optional pre-recognition deskew.
+> - `557.0` (`G165`) SHIPPED (`cd82fcac`, `6026af3f`, 1040th filing), see *Shipped*.
 > - `558.0` (`G167`) — PaddleOCR-VL layout pass with classed regions (table, figure, formula, chart, header, footer) and `OcrLayerOptions` routing each class to its own optional-content group, tables as `TableCell` blocks with row/column. Starts by measuring what the model's layout task returns.
 
 > **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), `547.0` SHIPPED (1029th filing), `548.0` SHIPPED (1030th filing), `549.0` SHIPPED (1031st filing), `550.0` SHIPPED (1032nd filing), `551.0` SHIPPED (1033rd filing), see *Shipped*; the batch is complete. Request files in `pdfce_FeatureRequests/open/`. Each Pass shipped core + CLI; the GUI column is `pdfcer-gui`'s. (Superseded by the stub above: next free `Pass 559.0`; next filing 1035th.)
