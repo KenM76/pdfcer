@@ -10716,6 +10716,48 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// Move page objects to the front, to the back, or one step forward or
+    /// backward in paint order, changing what covers what and nothing else.
+    ///
+    /// Pick objects by the `index=` `object-list` prints for the page;
+    /// several keep their order relative to each other. `forward` and
+    /// `backward` step past the nearest other object whose bounds overlap,
+    /// and leave an object with none where it is. Each moved object is
+    /// drawn exactly as before: its colours, line style, opacity and
+    /// position go with it, and a new graphics-state entry on the page
+    /// undoes opacity or blending it would otherwise pick up.
+    ///
+    /// An object never leaves its own clip, layer or tagged-structure
+    /// element: it goes as far as it can, and gets a stderr line saying so.
+    /// Prints one `restack-objects` line: `indices=` each object's new
+    /// index in the order given (valid for the next `object-list`),
+    /// `moved=` the old indices of those that moved (`none` when nothing
+    /// did; the output is still written) and `limited=` how many did not
+    /// get where asked.
+    ///
+    /// Exit 9 when an index is out of range; nothing is changed.
+    RestackObjects {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based page number.
+        #[arg(long, default_value_t = 1)]
+        page: u32,
+        /// 0-based paint-order object indices, comma-separated.
+        #[arg(long, value_delimiter = ',', required = true)]
+        objects: Vec<usize>,
+        /// Where to move them.
+        #[arg(long, value_enum)]
+        to: StackMoveArg,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Save mode.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Reload and verify the edit undoes byte-identically.
+        #[arg(long)]
+        verify_undo: bool,
+    },
     /// Edit a layer's properties: rename it, set whether it is visible when
     /// the document opens, lock it, and set whether it prints or exports.
     ///

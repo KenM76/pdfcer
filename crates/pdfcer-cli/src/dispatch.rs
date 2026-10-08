@@ -2996,6 +2996,23 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         }),
+        Command::RestackObjects {
+            input,
+            page,
+            objects,
+            to,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_restack_objects(&RestackArgs {
+            input: &input,
+            page,
+            objects: &objects,
+            to,
+            output: &output,
+            mode,
+            verify_undo,
+        }),
         Command::SetObjectLayer {
             input,
             page,

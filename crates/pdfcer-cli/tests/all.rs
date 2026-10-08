@@ -102,6 +102,7 @@ mod refusal_names_a_font;
 mod render_page;
 mod reset_form_cli;
 mod resize_annotation;
+mod restack_objects;
 mod rotate_annotation;
 mod rotate_annotation_absolute;
 mod rotate_widget;

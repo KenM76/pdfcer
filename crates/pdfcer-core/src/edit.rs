@@ -135,6 +135,7 @@ mod form_copy;
 mod form_paint;
 mod form_transform;
 mod group_unit;
+mod restack;
 mod stroke_style;
 pub use annot_restyle::{AnnotOpacityChange, MARKER_SUBTYPES, MarkerStyle, MarkerStyleChange};
 pub use foreign_button::ForeignAppearance;
@@ -1115,6 +1116,8 @@ pub enum CommandKind {
     SetObjectPaint,
     /// [`EditSession::set_object_stroke_style`].
     SetObjectStrokeStyle,
+    /// [`EditSession::restack_objects`].
+    RestackObjects,
     /// One anchor **node** of a path object was dragged (Pass 9c-min,
     /// decision 011 §2.5): exactly one coordinate pair was rewritten in an
     /// `m`/`l`/`c`/`v`/`y` operand list (surgery, R46/§5.7). ONE undoable

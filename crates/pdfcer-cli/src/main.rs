@@ -639,6 +639,8 @@ mod annot_restyle_cmd;
 mod stroke_style_cmd;
 use annot_restyle_cmd::*;
 use stroke_style_cmd::*;
+mod restack_cmd;
+use restack_cmd::*;
 mod object_list;
 use object_list::*;
 mod objects;

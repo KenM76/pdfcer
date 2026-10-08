@@ -61,6 +61,9 @@ mod image_hit;
 /// CAD-style "dimension between these two edges" workflow needs.
 pub mod linepick;
 mod path_geom;
+mod restack;
+mod restack_reset;
+mod restack_state;
 pub mod snap;
 mod stroke_style;
 pub mod text_locate;
@@ -104,6 +107,8 @@ pub use hit::{
     hit_test_text_runs_of, subpath_bounds,
 };
 pub use image_hit::{DocumentImageAlpha, ImageAlpha, NoImageAlpha};
+pub(crate) use restack::{GsResources, plan_restack};
+pub use restack::{RestackLimit, RestackLimitReason, RestackOutcome, StackMove};
 pub use snap::{
     AxisConstraint, MAX_CANDIDATES, MAX_NEIGHBOURHOOD_SEGMENTS, SNAP_FLATTEN_STEPS, SnapCandidate,
     SnapConfig, SnapKind, constrained_second_point, measured_length, polygon_area, polyline_length,
