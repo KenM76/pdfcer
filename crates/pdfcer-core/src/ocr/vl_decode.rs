@@ -7,6 +7,11 @@ pub const DEFAULT_MAX_NEW_TOKENS: usize = 2048;
 /// Hard ceiling on new tokens per region, whatever the caller asks for.
 pub const MAX_NEW_TOKENS_CAP: usize = 8192;
 
+/// Identical consecutive lines after which decoding stops as a loop: the
+/// model, given a picture it cannot read (an unlabelled chart), can repeat
+/// one line until the token ceiling, minutes of CPU for nothing.
+pub const MAX_REPEATED_LINES: usize = 12;
+
 /// Why decoding stopped.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
@@ -15,6 +20,9 @@ pub enum StopReason {
     EndOfSequence,
     /// The token ceiling was reached first; the text may be cut short.
     TokenLimit,
+    /// The last [`MAX_REPEATED_LINES`] lines were identical, so the model
+    /// was looping; the repeats are kept, anything after them is lost.
+    Repetition,
 }
 
 /// The outcome of one greedy decode.
@@ -69,9 +77,25 @@ fn pick(logits: &[f32]) -> Option<(u32, f32)> {
 /// [`DecodeError::Step`] passes a step failure through;
 /// [`DecodeError::NoLogits`] when a step's logits are empty or all
 /// non-finite.
-#[allow(clippy::cast_precision_loss)] // token counts are below MAX_NEW_TOKENS_CAP
 pub fn greedy<E>(
     eos: u32,
+    max_new_tokens: usize,
+    step: impl FnMut(Option<u32>) -> Result<Vec<f32>, E>,
+) -> Result<Decoded, DecodeError<E>> {
+    greedy_guarded(eos, None, max_new_tokens, step)
+}
+
+/// [`greedy`], also stopping with [`StopReason::Repetition`] once the last
+/// [`MAX_REPEATED_LINES`] lines, split on the `newline` token, are identical
+/// and non-empty.
+///
+/// # Errors
+///
+/// As [`greedy`].
+#[allow(clippy::cast_precision_loss)] // token counts are below MAX_NEW_TOKENS_CAP
+pub fn greedy_guarded<E>(
+    eos: u32,
+    newline: Option<u32>,
     max_new_tokens: usize,
     mut step: impl FnMut(Option<u32>) -> Result<Vec<f32>, E>,
 ) -> Result<Decoded, DecodeError<E>> {
@@ -88,6 +112,10 @@ pub fn greedy<E>(
         }
         tokens.push(tok);
         prob_sum += p;
+        if Some(tok) == newline && repeating(&tokens, tok) {
+            stop = StopReason::Repetition;
+            break;
+        }
         if tokens.len() == limit {
             break;
         }
@@ -99,6 +127,21 @@ pub fn greedy<E>(
         stop,
         mean_probability,
     })
+}
+
+/// Whether `tokens`, ending in `newline`, end with [`MAX_REPEATED_LINES`]
+/// identical non-empty lines.
+fn repeating(tokens: &[u32], newline: u32) -> bool {
+    let body = tokens.strip_suffix(&[newline]).unwrap_or(tokens);
+    let mut lines = body.rsplit(|&t| t == newline);
+    let Some(last) = lines.next().filter(|l| !l.is_empty()) else {
+        return false;
+    };
+    lines
+        .take(MAX_REPEATED_LINES - 1)
+        .filter(|l| *l == last)
+        .count()
+        == MAX_REPEATED_LINES - 1
 }
 
 #[cfg(test)]
@@ -154,6 +197,32 @@ mod tests {
             "the cap overrides the caller"
         );
         assert_eq!(steps, MAX_NEW_TOKENS_CAP);
+    }
+
+    #[test]
+    fn a_looping_line_stops_decoding() {
+        // "7 8\n" forever; newline is 9.
+        let cycle = [7usize, 8, 9];
+        let mut n = 0;
+        let d = greedy_guarded::<()>(0, Some(9), 1000, |_| {
+            n += 1;
+            Ok(favour(cycle[(n - 1) % 3], 10))
+        })
+        .unwrap();
+        assert_eq!(d.stop, StopReason::Repetition);
+        assert_eq!(d.tokens.len(), 3 * MAX_REPEATED_LINES);
+        // Distinct lines, blank lines and no newline token never trip it.
+        let mut n = 0;
+        let d = greedy_guarded::<()>(0, Some(9), 200, |_| {
+            n += 1;
+            Ok(favour(if n % 2 == 0 { 9 } else { 1 + n % 7 }, 10))
+        })
+        .unwrap();
+        assert_eq!(d.stop, StopReason::TokenLimit);
+        let d = greedy_guarded::<()>(0, Some(9), 50, |_| Ok(favour(9, 10))).unwrap();
+        assert_eq!(d.stop, StopReason::TokenLimit);
+        let d = greedy_guarded::<()>(0, None, 60, |_| Ok(favour(9, 10))).unwrap();
+        assert_eq!(d.stop, StopReason::TokenLimit);
     }
 
     #[test]

@@ -34,6 +34,38 @@ pub const PROMPT_PREFIX: &str = "<|begin_of_sentence|>User: <|IMAGE_START|>";
 pub const IMAGE_PLACEHOLDER: &str = "<|IMAGE_PLACEHOLDER|>";
 /// Text after the image placeholders: the model's plain-OCR task prompt.
 pub const PROMPT_SUFFIX: &str = "<|IMAGE_END|>OCR:\nAssistant:\n";
+
+/// What the model is asked to read a region as. The prompts are the
+/// PaddleOCR-VL 1.5 model card's.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum VlTask {
+    /// Plain text, one line per output line.
+    #[default]
+    Ocr,
+    /// A table, answered in OTSL (`super::otsl`).
+    Table,
+    /// A formula, answered in LaTeX.
+    Formula,
+    /// A chart, answered as a Markdown-style data table.
+    Chart,
+    /// A seal or stamp, answered as its text.
+    Seal,
+}
+
+impl VlTask {
+    /// The task's prompt text, e.g. `"Table Recognition:"`.
+    #[must_use]
+    pub fn prompt_text(self) -> &'static str {
+        match self {
+            Self::Ocr => "OCR:",
+            Self::Table => "Table Recognition:",
+            Self::Formula => "Formula Recognition:",
+            Self::Chart => "Chart Recognition:",
+            Self::Seal => "Seal Recognition:",
+        }
+    }
+}
 /// The end-of-sequence token's text.
 pub const END_OF_SEQUENCE: &str = "</s>";
 
@@ -300,14 +332,24 @@ pub struct Prompt {
     pub eos: u32,
 }
 
-/// Assemble the OCR prompt around `n_image` placeholders.
+/// Assemble the OCR prompt around `n_image` placeholders:
+/// [`prompt_for`] with [`VlTask::Ocr`].
+///
+/// # Errors
+///
+/// As [`prompt_for`].
+pub fn prompt(tok: &VlTokenizer, n_image: usize) -> Result<Prompt, PrepError> {
+    prompt_for(tok, n_image, VlTask::Ocr)
+}
+
+/// Assemble `task`'s prompt around `n_image` placeholders.
 ///
 /// # Errors
 ///
 /// [`PrepError::MissingToken`] when the tokenizer lacks one of the special
 /// tokens (the prompt would silently tokenise as plain text);
 /// [`PrepError::Tokenizer`] if encoding fails.
-pub fn prompt(tok: &VlTokenizer, n_image: usize) -> Result<Prompt, PrepError> {
+pub fn prompt_for(tok: &VlTokenizer, n_image: usize, task: VlTask) -> Result<Prompt, PrepError> {
     for name in ["<|begin_of_sentence|>", "<|IMAGE_START|>", "<|IMAGE_END|>"] {
         tok.token_id(name).ok_or(PrepError::MissingToken(name))?;
     }
@@ -324,7 +366,10 @@ pub fn prompt(tok: &VlTokenizer, n_image: usize) -> Result<Prompt, PrepError> {
     let mut ids = enc(PROMPT_PREFIX)?;
     let image_at = ids.len();
     ids.extend(std::iter::repeat_n(image, n_image));
-    ids.extend(enc(PROMPT_SUFFIX)?);
+    ids.extend(enc(&format!(
+        "<|IMAGE_END|>{}\nAssistant:\n",
+        task.prompt_text()
+    ))?);
     Ok(Prompt { ids, image_at, eos })
 }
 

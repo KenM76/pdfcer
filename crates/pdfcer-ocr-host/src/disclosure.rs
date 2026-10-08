@@ -49,6 +49,11 @@ pub fn paddle_vl_disclosure(
             "; WARNING: decoding hit the {}-token ceiling, so the text may be cut short",
             r.tokens
         ),
+        Some(StopReason::Repetition) => format!(
+            "; WARNING: the model repeated one line {} times and was stopped as looping, \
+             so text after the repeats is lost",
+            pdfcer_core::ocr::vl_decode::MAX_REPEATED_LINES
+        ),
         Some(_) => format!(
             "; {} token(s) from {} image token(s)",
             r.tokens, r.image_tokens

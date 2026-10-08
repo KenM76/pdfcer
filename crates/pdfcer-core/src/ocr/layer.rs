@@ -8,14 +8,6 @@
 //! **This module is what those types were for**: it takes an [`OcrPage`] whose
 //! words are already in PDF user space and writes them into a document.
 //!
-//! Until this module existed, `pdfcer_core::ocr` had **zero consumers anywhere
-//! in the workspace** — a trait, a coordinate conversion, and nothing that
-//! produced a PDF. The parent module's own header nonetheless described
-//! "writing them into a PDF as an invisible, selectable text layer", which was
-//! a promise the code did not keep. Recorded here rather than quietly fixed,
-//! because a module doc that describes an intention as though it were a
-//! shipped behaviour is exactly the kind of claim `R151` exists to catch.
-//!
 //! # The mechanism, and its one spec citation
 //!
 //! ISO 32000-1 **§9.3.6, Table 106, mode 3**: *"Neither fill nor stroke text
@@ -96,45 +88,24 @@
 //! implementation, because the alternative — per-glyph positioning derived
 //! from per-glyph boxes — needs data most engines do not report.
 //!
-//! # Rule 4 as amended by decision 059 (2026-08-13)
+//! # Rule 4 (decision 059): every word here is a guess
 //!
-//! **OCR is the single largest inference pdfcer makes: every word here is a
-//! guess.** The amended rule 4 says what to do about that, and this module is
-//! shaped by it:
+//! - **The page looks normal the instant the command completes**: mode 3
+//!   adds nothing visible, and low-confidence words are never marked on the
+//!   page (a second rendering path for the same content).
+//! - **The disclosure is [`OcrLayerReport`], off-canvas**: mean confidence,
+//!   words needing review, substituted and skipped words. A shell shows it;
+//!   the CLI prints it.
+//! - **`confidence_available == false` is its own disclosed fact**, never
+//!   flattened into "no low-confidence words".
 //!
-//! - **The result looks normal the instant the command completes.** Mode 3 is
-//!   not a compromise here, it is the whole point — the page renders
-//!   pixel-identically because nothing visible was added. The operator asked
-//!   for exactly this: *"I want OCRed stuff to look normal when the command is
-//!   executed too."* There is **no** highlighting of low-confidence words baked
-//!   into the page, and there must never be: that would be a second rendering
-//!   path for the same content, which is the bug class decision 059 deletes.
-//! - **The disclosure is `OcrLayerReport`, and it is off-canvas.** Mean
-//!   confidence, the count needing review, the words that could not be encoded,
-//!   the words that were skipped and why. A shell shows it in a panel; the CLI
-//!   prints it. What rule 4 forbids is **silence**, not visibility of the text.
-//! - **`confidence_available == false` is disclosed as its own fact**, never
-//!   flattened into "no low-confidence words found". An engine that reports
-//!   nothing must not look better than one that reports honestly — the same
-//!   principle `OcrPage::words_needing_review`
-//!   already encodes by counting unscored words as needing review.
+//! # Where this differs from `add_text`
 //!
-//! # Where this deliberately differs from `add_text`
-//!
-//! [`crate::text_edit::add_text`] **refuses by name** (`R71`) when the chosen
-//! face lacks a glyph for a character the operator typed. That is right for
-//! typed text: the operator typed one string, and silently writing a different
-//! one is the sneaky failure rule 4 names.
-//!
-//! **This module substitutes and discloses instead**, and the difference is
-//! not laziness. OCR output is bulk machine text, hundreds of words per page,
-//! that the operator never typed and cannot proofread in advance. Refusing an
-//! entire page's text layer because one recognised word contains a character
-//! outside WinAnsi would make the feature unusable on exactly the documents
-//! that need it most — and would refuse on a *guess*, which is a strange thing
-//! to hold to a stricter standard than a deliberate keystroke. The substitution
-//! is counted per word and reported (`OcrLayerReport::words_substituted`),
-//! so it is disclosed rather than silent, which is what the rule actually asks.
+//! [`crate::text_edit::add_text`] refuses (`R71`) a character its face cannot
+//! encode, because the operator typed that string. OCR output is bulk machine
+//! text nobody typed: refusing a page's layer over one non-WinAnsi word would
+//! fail exactly the documents that need it, so the word is substituted and
+//! counted (`OcrLayerReport::words_substituted`) instead.
 //!
 //! **The limit this leaves is real and is named**: a Standard-14 WinAnsi face
 //! cannot represent CJK, Cyrillic, Greek or Arabic at all. Recognising those
@@ -157,8 +128,9 @@ use crate::writer::{DirtySet, SaveOptions, WriteError, save_incremental};
 
 use super::OcrPage;
 pub use super::layer_content::build_layer_content;
-use super::layer_content::layer_content;
+use super::layer_content::{OcSectionNames, layer_content};
 pub use super::layer_report::OcrLayerReport;
+use super::layout::RegionGroup;
 
 /// Ascent as a fraction of the font size, for the vertical fit.
 ///
@@ -234,6 +206,9 @@ pub struct OcrLayerOptions {
     /// The optional-content group (a layer in a Layers panel) the text is
     /// written on; see [`Self::on_layer`].
     pub optional_content: Option<ObjId>,
+    /// Per region group, the optional-content group that group's blocks are
+    /// written on; see [`Self::on_region_layer`].
+    pub region_layers: Vec<(RegionGroup, ObjId)>,
 }
 
 /// What removing one OCR layer left behind.
@@ -275,6 +250,7 @@ impl Default for OcrLayerOptions {
             engine: None,
             existing: ExistingLayers::Replace,
             optional_content: None,
+            region_layers: Vec::new(),
         }
     }
 }
@@ -316,6 +292,20 @@ impl OcrLayerOptions {
     #[must_use]
     pub fn on_layer(mut self, group: ObjId) -> Self {
         self.optional_content = Some(group);
+        self
+    }
+
+    /// Write the blocks read from `region`'s layout regions
+    /// ([`super::OcrBlock::region`]) on optional-content group `group`, each
+    /// block in its own `/OC` section; a second call for the same region
+    /// group replaces the first. Blocks with no region, or a region with no
+    /// group, are written as before. With [`Self::on_layer`] as well, a
+    /// region's section nests inside the whole layer's, so it shows only when
+    /// both groups are on (§8.11.3.2).
+    #[must_use]
+    pub fn on_region_layer(mut self, region: RegionGroup, group: ObjId) -> Self {
+        self.region_layers.retain(|(r, _)| *r != region);
+        self.region_layers.push((region, group));
         self
     }
 }
@@ -478,9 +468,9 @@ pub(crate) struct OcrLayerPrep {
     font_subdict_base: Dict,
     /// The collision-free `/Font` name for the OCR font.
     font_name: Vec<u8>,
-    /// A `/Properties` name to bind to the layer's group, when the page has
-    /// none for it yet.
-    new_binding: Option<(Name, ObjId)>,
+    /// `/Properties` names to bind to the layer's groups the page has no
+    /// name for yet.
+    new_bindings: Vec<(Name, ObjId)>,
     /// The page's resolved `/Properties`, which a new binding merges into.
     properties_base: Dict,
     /// The `BT … ET` content-stream bytes for the invisible layer.
@@ -502,9 +492,11 @@ impl OcrLayerPrep {
         font_subdict.insert(Name(self.font_name.clone()), Object::Reference(font_id));
         let mut resources = self.resources_base.clone();
         resources.insert(Name::from(b"Font"), Object::Dict(font_subdict));
-        if let Some((name, group)) = &self.new_binding {
+        if !self.new_bindings.is_empty() {
             let mut props = self.properties_base.clone();
-            props.insert(name.clone(), Object::Reference(*group));
+            for (name, group) in &self.new_bindings {
+                props.insert(name.clone(), Object::Reference(*group));
+            }
             resources.insert(Name::from(b"Properties"), Object::Dict(props));
         }
         new_page.insert(Name::from(b"Resources"), Object::Dict(resources));
@@ -539,6 +531,37 @@ pub(crate) fn existing_layer_strip(
         });
     }
     Ok(plan_strip(view, page, &found))
+}
+
+/// The `/Properties` names the layer's `/OC` sections use, and the
+/// bindings the page still needs.
+fn section_names(
+    graph: &crate::view::DocumentView<'_>,
+    page: &crate::page_tree::Page,
+    opts: &OcrLayerOptions,
+) -> Result<(OcSectionNames, Vec<(Name, ObjId)>), OcrLayerError> {
+    let groups: Vec<ObjId> = opts
+        .optional_content
+        .into_iter()
+        .chain(opts.region_layers.iter().map(|(_, g)| *g))
+        .collect();
+    if let Some(&id) = groups
+        .iter()
+        .find(|&&g| !super::group::is_registered(graph, g))
+    {
+        return Err(OcrLayerError::NotALayerGroup { id });
+    }
+    let named = super::group::property_names(graph, page, &groups);
+    let new_bindings = named
+        .iter()
+        .zip(&groups)
+        .filter(|((_, new), _)| *new)
+        .map(|((n, _), g)| (n.clone(), *g))
+        .collect();
+    let mut it = named.into_iter().map(|(n, _)| n);
+    let whole = opts.optional_content.and_then(|_| it.next());
+    let regions = opts.region_layers.iter().map(|(r, _)| *r).zip(it).collect();
+    Ok((OcSectionNames { whole, regions }, new_bindings))
 }
 
 /// Plan one page's OCR layer against `graph`, allocating nothing.
@@ -592,17 +615,8 @@ pub(crate) fn plan_ocr_layer(
     let mut resources_base = page.resources.clone();
     resources_base.remove(b"Font");
 
-    let (oc_name, new_binding) = match opts.optional_content {
-        Some(group) if !super::group::is_registered(graph, group) => {
-            return Err(OcrLayerError::NotALayerGroup { id: group });
-        }
-        Some(group) => {
-            let (name, new) = super::group::property_name(graph, page, group);
-            (Some(name.clone()), new.then_some((name, group)))
-        }
-        None => (None, None),
-    };
-    let (content_data, mut report) = layer_content(ocr_page, &font_name, oc_name.as_ref(), opts);
+    let (names, new_bindings) = section_names(graph, page, opts)?;
+    let (content_data, mut report) = layer_content(ocr_page, &font_name, &names, opts);
     if report.words_written == 0 {
         return Err(OcrLayerError::NothingToWrite);
     }
@@ -615,7 +629,7 @@ pub(crate) fn plan_ocr_layer(
         resources_base,
         font_subdict_base,
         font_name,
-        new_binding,
+        new_bindings,
         properties_base: super::group::properties(graph, &page.resources),
         content_data,
         font_dict: Object::Dict(standard14_font_dict(opts.font)),

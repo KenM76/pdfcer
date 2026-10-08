@@ -33,22 +33,39 @@ pub(crate) fn is_registered(view: &DocumentView<'_>, group: ObjId) -> bool {
     listed && view.resolved(group).as_dict().is_some()
 }
 
-/// The `/Properties` name page `page` binds to `group`, and whether it is new
-/// (the page has no name for the group yet, so the caller must bind it).
-pub(crate) fn property_name(view: &DocumentView<'_>, page: &Page, group: ObjId) -> (Name, bool) {
+/// The `/Properties` names page `page` binds to each of `groups`, and
+/// whether each is new (the page has no name for the group yet, so the
+/// caller must bind it). New names are distinct from the page's and from
+/// each other; a group listed twice gets one name, new at most once.
+pub(crate) fn property_names(
+    view: &DocumentView<'_>,
+    page: &Page,
+    groups: &[ObjId],
+) -> Vec<(Name, bool)> {
     let props = properties(view, &page.resources);
-    if let Some((name, _)) = props
-        .0
-        .iter()
-        .find(|(_, v)| v.as_reference() == Some(group))
-    {
-        return (name.clone(), false);
+    let mut chosen: Vec<(ObjId, Name)> = Vec::new();
+    let mut out = Vec::with_capacity(groups.len());
+    for &group in groups {
+        if let Some((_, name)) = chosen.iter().find(|(g, _)| *g == group) {
+            out.push((name.clone(), false));
+            continue;
+        }
+        let existing = props
+            .0
+            .iter()
+            .find(|(_, v)| v.as_reference() == Some(group))
+            .map(|(n, _)| n.clone());
+        let new = existing.is_none();
+        let name = existing.unwrap_or_else(|| {
+            (1..)
+                .map(|i| Name(format!("OC{i}").into_bytes()))
+                .find(|n| props.get(&n.0).is_none() && chosen.iter().all(|(_, c)| c != n))
+                .unwrap_or_else(|| Name(Vec::new()))
+        });
+        chosen.push((group, name.clone()));
+        out.push((name, new));
     }
-    let name = (1..)
-        .map(|i| format!("OC{i}").into_bytes())
-        .find(|n| props.get(n).is_none())
-        .unwrap_or_default();
-    (Name(name), true)
+    out
 }
 
 /// `resources`' `/Properties` subdictionary, resolved; empty when absent.

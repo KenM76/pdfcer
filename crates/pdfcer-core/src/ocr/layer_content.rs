@@ -12,7 +12,27 @@ use super::layer::{
     HELVETICA_ASCENT_FRAC, HELVETICA_DESCENT_FRAC, MAX_TZ, MIN_TZ, OcrLayerOptions,
 };
 use super::layer_report::OcrLayerReport;
+use super::layout::RegionGroup;
 use super::structure::{ResolvedBlock, resolve};
+
+/// The `/Properties` names of the layer's `/OC` sections.
+#[derive(Debug, Clone, Default)]
+pub(super) struct OcSectionNames {
+    /// The whole layer's group ([`OcrLayerOptions::on_layer`]).
+    pub(super) whole: Option<Name>,
+    /// Each region group's ([`OcrLayerOptions::on_region_layer`]).
+    pub(super) regions: Vec<(RegionGroup, Name)>,
+}
+
+impl OcSectionNames {
+    fn for_block(&self, block: &ResolvedBlock) -> Option<&Name> {
+        let group = block.region?.group();
+        self.regions
+            .iter()
+            .find(|(g, _)| *g == group)
+            .map(|(_, n)| n)
+    }
+}
 
 /// One word, resolved to the numbers the content stream actually needs.
 ///
@@ -113,15 +133,15 @@ pub fn build_layer_content(
     font_name: &[u8],
     opts: &OcrLayerOptions,
 ) -> (Vec<u8>, OcrLayerReport) {
-    layer_content(page, font_name, None, opts)
+    layer_content(page, font_name, &OcSectionNames::default(), opts)
 }
 
-/// [`build_layer_content`], with the text inside `/OC /oc_name BDC … EMC`
-/// when `oc_name` is given.
+/// [`build_layer_content`], with the text inside `/OC /name BDC … EMC`
+/// for the whole layer's group, and each block routed to its region group's.
 pub(super) fn layer_content(
     page: &OcrPage,
     font_name: &[u8],
-    oc_name: Option<&Name>,
+    names: &OcSectionNames,
     opts: &OcrLayerOptions,
 ) -> (Vec<u8>, OcrLayerReport) {
     let mut out: Vec<u8> = Vec::new();
@@ -151,12 +171,13 @@ pub(super) fn layer_content(
         return (out, report);
     }
 
-    open_layer(&mut out, opts, oc_name);
+    open_layer(&mut out, opts, names.whole.as_ref());
     for block in &blocks {
-        write_block(&mut out, block, &placed, font_name, &mut report);
+        let oc = names.for_block(block);
+        write_block(&mut out, block, &placed, font_name, oc, &mut report);
     }
     out.extend_from_slice(b"Q\n");
-    if oc_name.is_some() {
+    if names.whole.is_some() {
         out.extend_from_slice(b"EMC\n");
     }
     out.extend_from_slice(b"EMC\n");
@@ -164,12 +185,14 @@ pub(super) fn layer_content(
 }
 
 /// One block as one text object (`BT … ET`), its lines and their words in
-/// order; nothing when none of its words could be placed.
+/// order, inside `/OC /oc BDC … EMC` when the block's region is routed;
+/// nothing when none of its words could be placed.
 fn write_block(
     out: &mut Vec<u8>,
     block: &ResolvedBlock,
     placed: &[Option<PlacedWord>],
     font_name: &[u8],
+    oc: Option<&Name>,
     report: &mut OcrLayerReport,
 ) {
     let mut opened = false;
@@ -182,6 +205,9 @@ fn write_block(
             continue;
         }
         if !opened {
+            if let Some(name) = oc {
+                open_oc_section(out, name);
+            }
             out.extend_from_slice(b"BT\n");
             opened = true;
         }
@@ -195,6 +221,9 @@ fn write_block(
     }
     if opened {
         out.extend_from_slice(b"ET\n");
+        if oc.is_some() {
+            out.extend_from_slice(b"EMC\n");
+        }
         report.blocks_written += 1;
     }
 }
@@ -230,17 +259,22 @@ fn open_layer(out: &mut Vec<u8>, opts: &OcrLayerOptions, oc_name: Option<&Name>)
     out.push(b'\n');
     super::marker::open_marker(out, opts.engine.as_deref());
     if let Some(name) = oc_name {
-        out.extend_from_slice(b"/OC ");
-        crate::writer::serialize::write_object(
-            out,
-            &Object::Name(name.clone()),
-            ObjId::new(0, 0),
-            &[],
-            &crate::writer::IdentityEncoder,
-        );
-        out.extend_from_slice(b" BDC\n");
+        open_oc_section(out, name);
     }
     out.extend_from_slice(b"q\n3 Tr\n");
+}
+
+/// `/OC /name BDC` (§8.11.3.2).
+fn open_oc_section(out: &mut Vec<u8>, name: &Name) {
+    out.extend_from_slice(b"/OC ");
+    crate::writer::serialize::write_object(
+        out,
+        &Object::Name(name.clone()),
+        ObjId::new(0, 0),
+        &[],
+        &crate::writer::IdentityEncoder,
+    );
+    out.extend_from_slice(b" BDC\n");
 }
 
 #[cfg(test)]
@@ -523,6 +557,40 @@ mod tests {
         assert_eq!(report.structure, OcrStructureSource::Reported);
         assert_eq!((report.lines_written, report.blocks_written), (3, 2));
         assert!(!report.disclosures().join(" ").contains("inferred"));
+    }
+
+    /// A block whose region group is routed sits in its own `/OC` section,
+    /// nested in the whole layer's; an unrouted region and a block with no
+    /// region are written bare.
+    #[test]
+    fn routed_region_blocks_get_their_own_oc_section() {
+        use crate::ocr::layout::{LayoutClass, RegionGroup};
+        let page = structured(
+            vec![
+                OcrLine::new(vec![0, 1]),
+                OcrLine::new(vec![2]),
+                OcrLine::new(vec![3]),
+            ],
+            vec![
+                OcrBlock::new(OcrBlockKind::TableCell, vec![0]).with_region(LayoutClass::Table),
+                OcrBlock::new(OcrBlockKind::Paragraph, vec![1]).with_region(LayoutClass::Text),
+                OcrBlock::new(OcrBlockKind::Other, vec![2]),
+            ],
+        );
+        let names = OcSectionNames {
+            whole: Some(Name::from(b"OC1")),
+            regions: vec![(RegionGroup::Table, Name::from(b"OC2"))],
+        };
+        let (bytes, report) = layer_content(&page, b"F0", &names, &OcrLayerOptions::new());
+        let s = String::from_utf8_lossy(&bytes);
+        assert_eq!(report.blocks_written, 3);
+        let at = |p: &str| s.find(p).unwrap();
+        assert!(at("/OC /OC1 BDC") < at("/OC /OC2 BDC"));
+        assert!(at("/OC /OC2 BDC") < at("(a) Tj") && at("(b) Tj") < at("(c) Tj"));
+        assert_eq!(s.matches("/OC /OC2 BDC").count(), 1);
+        assert_eq!(s.matches("BDC").count(), s.matches("EMC").count());
+        let table = &s[at("/OC /OC2 BDC")..];
+        assert!(table.find("EMC").unwrap() < table.find("(c) Tj").unwrap());
     }
 
     /// Tesseract's TSV, mapped to page space as the CLI does, is written in

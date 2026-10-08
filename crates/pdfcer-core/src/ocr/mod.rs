@@ -140,7 +140,7 @@ pub mod addon_manifest;
 pub mod addons;
 
 use crate::page_tree::Rect;
-pub use structure::{OcrBlock, OcrBlockKind, OcrLine, OcrStructureSource};
+pub use structure::{CellPosition, OcrBlock, OcrBlockKind, OcrLine, OcrStructureSource};
 
 /// One recognised word, positioned in PDF default user space.
 ///

@@ -26,7 +26,7 @@ use rten_tensor::prelude::*;
 use rten_tensor::{NdTensor, Tensor};
 
 use super::vl_decode::{self, StopReason};
-use super::vl_pre::{self, LinePlacement, PixelBox, PrepError, Prompt};
+use super::vl_pre::{self, LinePlacement, PixelBox, PrepError, Prompt, VlTask};
 use super::vl_tokenizer::{TokenizerError, VlTokenizer};
 use super::{OcrEngine, RecognizedWord};
 
@@ -99,6 +99,7 @@ pub enum PaddleVlError {
     Recognition(String),
 }
 
+/// A runtime failure as [`PaddleVlError::Recognition`].
 pub(super) fn run_err(e: impl std::fmt::Display) -> PaddleVlError {
     PaddleVlError::Recognition(e.to_string())
 }
@@ -316,6 +317,24 @@ impl PaddleVlEngine {
         height: u32,
         pixels: &[u8],
     ) -> Result<RegionReading, PaddleVlError> {
+        self.read_region_as(VlTask::Ocr, width, height, pixels)
+    }
+
+    /// [`PaddleVlEngine::read_region`] with the model asked to read the
+    /// region as `task`. `text` is the model's answer in that task's
+    /// language (OTSL for a table, LaTeX for a formula); `lines` places it
+    /// line by line all the same.
+    ///
+    /// # Errors
+    ///
+    /// As [`PaddleVlEngine::read_region`].
+    pub fn read_region_as(
+        &self,
+        task: VlTask,
+        width: u32,
+        height: u32,
+        pixels: &[u8],
+    ) -> Result<RegionReading, PaddleVlError> {
         let img = vl_pre::grey(width, height, pixels)?;
         let Some(ink) = vl_pre::ink_bbox(&img) else {
             return Ok(RegionReading {
@@ -333,7 +352,7 @@ impl PaddleVlEngine {
         let resized = vl_pre::resize(&region, rw, rh);
         let image = self.encode_image(&resized)?;
         let n_image = image.size(0);
-        let prompt = vl_pre::prompt(&self.tok, n_image)?;
+        let prompt = vl_pre::prompt_for(&self.tok, n_image, task)?;
         let decoded = self.generate(&prompt, &image)?;
         let text = self.tok.decode(&decoded.tokens, true);
         let (lines, placement) = vl_pre::place_lines(&img, ink, &text, decoded.mean_probability);
@@ -441,9 +460,15 @@ impl PaddleVlEngine {
             past = next;
             Ok(logits)
         };
-        vl_decode::greedy(prompt.eos, self.max_new_tokens, step).map_err(|e| match e {
-            vl_decode::DecodeError::Step(e) => e,
-            other => run_err(other),
+        let newline = match self.tok.encode("\n").ok().as_deref() {
+            Some(&[t]) => Some(t),
+            _ => None,
+        };
+        vl_decode::greedy_guarded(prompt.eos, newline, self.max_new_tokens, step).map_err(|e| {
+            match e {
+                vl_decode::DecodeError::Step(e) => e,
+                other => run_err(other),
+            }
         })
     }
 

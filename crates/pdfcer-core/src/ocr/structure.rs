@@ -7,6 +7,7 @@ use crate::page_tree::Rect;
 use crate::text_extract::{ExtractedText, PageText, TextOrigin, TextRun};
 
 use super::OcrPage;
+use super::layout::LayoutClass;
 
 /// One recognised line: indices into [`OcrPage::words`], left to right.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -51,13 +52,66 @@ pub struct OcrBlock {
     pub kind: OcrBlockKind,
     /// Line indices, in reading order within the block.
     pub lines: Vec<usize>,
+    /// The layout region the block was read from, when a layout model ran
+    /// ([`super::layout`]); a layer can route it to that region group's
+    /// optional-content group ([`super::layer::OcrLayerOptions::on_region_layer`]).
+    pub region: Option<LayoutClass>,
+    /// The block's grid square when it is a [`OcrBlockKind::TableCell`].
+    pub cell: Option<CellPosition>,
 }
 
 impl OcrBlock {
     /// A block of `kind` over `lines` (indices into [`OcrPage::lines`]).
     #[must_use]
     pub const fn new(kind: OcrBlockKind, lines: Vec<usize>) -> Self {
-        Self { kind, lines }
+        Self {
+            kind,
+            lines,
+            region: None,
+            cell: None,
+        }
+    }
+
+    /// Tag the block with the layout region it was read from.
+    #[must_use]
+    pub const fn with_region(mut self, region: LayoutClass) -> Self {
+        self.region = Some(region);
+        self
+    }
+
+    /// Give the block a table grid square.
+    #[must_use]
+    pub const fn with_cell(mut self, cell: CellPosition) -> Self {
+        self.cell = Some(cell);
+        self
+    }
+}
+
+/// A table cell's square in its table's grid, in grid units from 0.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub struct CellPosition {
+    /// First row.
+    pub row: usize,
+    /// First column.
+    pub col: usize,
+    /// Rows spanned, at least 1.
+    pub row_span: usize,
+    /// Columns spanned, at least 1.
+    pub col_span: usize,
+}
+
+impl CellPosition {
+    /// A cell at `row`, `col` spanning `row_span` by `col_span` (each at
+    /// least 1).
+    #[must_use]
+    pub fn new(row: usize, col: usize, row_span: usize, col_span: usize) -> Self {
+        Self {
+            row,
+            col,
+            row_span: row_span.max(1),
+            col_span: col_span.max(1),
+        }
     }
 }
 
@@ -80,6 +134,7 @@ pub enum OcrStructureSource {
 pub(super) struct ResolvedBlock {
     pub(super) kind: OcrBlockKind,
     pub(super) lines: Vec<Vec<usize>>,
+    pub(super) region: Option<LayoutClass>,
 }
 
 /// The page's blocks in reading order, every word in exactly one line.
@@ -112,6 +167,7 @@ fn reported(page: &OcrPage) -> Vec<ResolvedBlock> {
         .iter()
         .map(|b| ResolvedBlock {
             kind: b.kind,
+            region: b.region,
             lines: b
                 .lines
                 .iter()
@@ -392,6 +448,7 @@ fn infer(boxes: &[(Rect, &str)], members: &[Vec<usize>]) -> Vec<ResolvedBlock> {
         .iter()
         .map(|b| ResolvedBlock {
             kind: kind_of(&b.kind),
+            region: None,
             lines: b
                 .lines
                 .iter()
@@ -453,6 +510,7 @@ fn cover_every_word(blocks: Vec<ResolvedBlock>, n: usize) -> Vec<ResolvedBlock> 
             out.push(ResolvedBlock {
                 kind: b.kind,
                 lines,
+                region: b.region,
             });
         }
     }
@@ -464,6 +522,7 @@ fn cover_every_word(blocks: Vec<ResolvedBlock>, n: usize) -> Vec<ResolvedBlock> 
         out.push(ResolvedBlock {
             kind: OcrBlockKind::Other,
             lines: rest,
+            region: None,
         });
     }
     out

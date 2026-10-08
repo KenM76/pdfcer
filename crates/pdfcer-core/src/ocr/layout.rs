@@ -8,6 +8,8 @@
 //! duplicates the way PaddleOCR-VL does (same class at IoU > 0.6, any class
 //! at IoU > 0.98) and returns the rest in reading order.
 
+use super::vl_pre::VlTask;
+
 /// PaddleOCR-VL 1.5's score threshold; the model card's own is 0.5.
 pub const DEFAULT_SCORE_THRESHOLD: f32 = 0.3;
 /// Rows read from the model's output; it emits one per query.
@@ -173,6 +175,23 @@ impl LayoutClass {
             | C::Text
             | C::VerticalText
             | C::VisionFootnote => RegionGroup::Text,
+        }
+    }
+}
+
+impl LayoutClass {
+    /// What the vision model is asked to read this class as; `None` for
+    /// pictures, which are not read.
+    #[must_use]
+    pub fn task(self) -> Option<VlTask> {
+        use LayoutClass as C;
+        match self {
+            C::Image | C::HeaderImage | C::FooterImage => None,
+            C::Table => Some(VlTask::Table),
+            C::DisplayFormula | C::InlineFormula => Some(VlTask::Formula),
+            C::Chart => Some(VlTask::Chart),
+            C::Seal => Some(VlTask::Seal),
+            _ => Some(VlTask::Ocr),
         }
     }
 }
