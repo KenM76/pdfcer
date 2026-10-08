@@ -151,6 +151,22 @@ designing anything in this area; do not re-derive it.
   (`style.rs`), with provenance readable per property.
 - **Tolerance** — symmetric, deviation, limit, basic (boxed), min, max — as
   the tenth and eleventh properties of that same cascade (`tolerance.rs`).
+- **Dash and opacity** — the twelfth and thirteenth (`Pass 541.0`, G159).
+  `dash: Option<DimDash>` (`dash.rs`): up to `MAX_DASH_RUNS` (4) dash/gap
+  lengths in points, baked into the `/AP` as `[a b] 0 d` (ISO 32000-2
+  §8.4.3.6) on the dimension, extension and leader lines; stroked
+  terminators (open, slash) and the label stay solid, via a `q [] 0 d … S Q`
+  placed **before** the terminator's path (§8.2 Figure 9 allows no graphics
+  state operator inside a path object). `DimDash::SOLID` is a real value,
+  not "unset": `Some(DimDash::SOLID)` keeps one member solid under a dashed
+  group. `DimDash::new(&[f64])` returns `None` for a negative, non-finite,
+  all-zero or over-long pattern. `opacity: Option<f64>` in `0..=1` is
+  written as the annotation's `/CA` (§12.5.2 Table 166), **not** into the
+  `/AP` — the same mechanism as `set_annot_opacity` — and only below 1.0;
+  `/CA` is an authored key, so an opaque restyle removes it. A solid,
+  opaque ce dimension's bytes are unchanged. ⚠️ **Breaking for struct
+  literals:** `GroupStyle`, `StyleOverrides`, `StyleDefaults` and
+  `DimensionStyle` gained two public fields; use `..Default::default()`.
 - Author from **two picked lines**: parallel ⇒ linear, angled ⇒ angular,
   collinear ⇒ refused by name (`two_lines.rs`).
 - Reposition (drag or numeric), toggle the group's layer, delete
@@ -214,6 +230,7 @@ document. Every persistent change goes through an `EditSession` verb below.
 
 - `resolve_style(&Group, &StyleOverrides) -> DimensionStyle` — `style.rs`
 - `style_provenance(&Group, &StyleOverrides) -> StyleProvenance` — `style.rs`
+- `DimDash::new(&[f64]) -> Option<DimDash>`, `DimDash::SOLID`, `pattern()`, `is_solid()`; `opacity_in_range(f64) -> bool` — `dash.rs`
 - `preview_group_scale(ScaleEntry) -> Option<ScalePreview>` — `units.rs`
 - `format_measurement(points, ScaleState, NumberFormat) -> MeasurementDisplay` — `units.rs`
 - `ScaleState::in_unit(from: Unit, to: Unit) -> ScaleState` — the same calibration for a different top unit. A `Calibrated { scale }` is real units **in the group's unit** per point, so it must be converted whenever the unit it is read in changes; `resolve_style` does this for a per-ce-dimension unit override and `set_group_unit` for the group. A front end that converts on its own should call this instead.
@@ -354,7 +371,7 @@ fn style_rows(session: &pdfcer_core::edit::EditSession, dim: pdfcer_core::dimens
     let resolved = resolve_style(group, &record.style);   // the VALUES the /AP is drawn with
     let prov = style_provenance(group, &record.style);    // WHICH TIER supplied each
 
-    for (name, source) in prov.each() {                   // fixed-size [_; 11]
+    for (name, source) in prov.each() {                   // fixed-size [_; 13]
         let checkbox_ticked = source == StyleSource::Dimension;
         let will_move_on_a_group_edit = source.follows_group(); // TRUE for Factory too
         let _ = (name, checkbox_ticked, will_move_on_a_group_edit, &resolved);
@@ -437,7 +454,7 @@ corrected value the operator never saw is exactly the sneaky case"*
 `true` for `Factory`.**
 
 The cascade is factory → group → ce dimension, **independently for each of
-eleven properties** (`style.rs`). An `Option<T>` per property *is* the
+thirteen properties** (`style.rs`). An `Option<T>` per property *is* the
 operator's override checkbox: `None` = clear = inherit, `Some(v)` = ticked.
 
 `style_provenance()` (`style.rs`) exists so a panel can **render** the
@@ -465,11 +482,12 @@ Four further points a panel gets wrong if it guesses:
   (`style.rs`). Saying "factory" for them "would be a lie an operator
   could act on."
 - **`StyleProvenance::each()` returns a fixed-size `[(&'static str,
-  StyleSource); 11]`** (`style.rs`) so a loop gets a **compile error**,
-  not a silently short list, when a twelfth property lands.
+  StyleSource); 13]`** (`style.rs`) so a loop gets a **compile error**,
+  not a silently short list, when a fourteenth property lands.
   ⚠️ `docs/ui_specs/…-ce-dimension-properties.md` **Amendment B §B.2 says
   "nine"** — that text predates `Pass 69.1` adding `tolerance` and
-  `tolerance_places`. The code at `style.rs` is authoritative: **eleven**.
+  `tolerance_places`, and `Pass 541.0` adding `dash` and `opacity`. The
+  code at `style.rs` is authoritative: **thirteen**.
   Same for §B.4's "the same nine properties".
 - **Clearing an override restores inheritance**, live and in both
   directions — deliberately unlike the reference tool, whose `DeleteStyle`
