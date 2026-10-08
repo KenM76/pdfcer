@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1025th filing) — `Pass 543.0` shipped (restack page objects, `G157`)
+
+**Shipped:** `Pass 543.0`, code `1fb0d267`, `docs/core-api` `5d01412a`. `EditSession::restack_objects(page, &indices, StackMove)` (front/back/forward/backward) with `RestackOutcome`/`RestackLimit`; one undo entry `CommandKind::RestackObjects`. State is replayed inside `q [cm] … Q`; a destination under unseen `gs` operations gets one new `/ExtGState` (`pdfcerRS<n>`); clip and marked-content boundaries limit moves and are reported, never silent. CLI `restack-objects` (216th subcommand). Page objects only, no `_in_form` twin.
+
+**Tests (engineer-reported):** 11 new core, 3 new CLI; core 1,494 + 2,801, CLI 214 + 43; all gates clean. No manifest change.
+
+**Files:** ROADMAP `543.0` stub removed from *Next up* (`###` count stays 80), entry added to *Shipped*, banner updated; `FEATURES.md` Planned row removed, new *Implemented* row under *Vector objects* (gui `?`).
+
+**Decisions made this session:** None.
+
+**Still in flight:** `Pass 544.0` (`G149`) next; `545.0`-`551.0` queued. Next free `Pass 552.0`; next filing 1026th. Push state not verifiable from here (no shell).
+
 ## 2026-10-07 (1024th filing) — `Pass 542.0` shipped (fade an image or form, `G155`)
 
 **Shipped:** `Pass 542.0`, code `a85d4872`, `docs/core-api` `7a0a71f4`. `set_object_stroke_style` and `_in_form` accept image and form objects for opacity only (`q /pdfcerGS<n> gs <Do|BI…EI> Q`); width and dash never written, so a form's content never inherits them. Image reads `fill_alpha` only (§11.6.4.4); form reads both; a missing alpha is `NotAPath` by index. `ImageObject` gained public `fill_alpha`/`stroke_alpha` (struct-literal break); new `StrokeStyle::fades`. CLI help and refusal wording updated.

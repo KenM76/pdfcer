@@ -115,6 +115,29 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 543.0` — restack page objects front / back / forward / backward (core + CLI; answers `pdfcer-gui` `G157`) — SHIPPED 2026-10-07 (1025th filing)
+
+Commits `1fb0d267` (code), `5d01412a` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Push state not checked here (no shell).
+
+**Basis.** "Page objects cannot be restacked." Paint order is content-stream order; graphics state set between the old and new position must be replayed or restored (ISO 32000-2 §8.4.5 Table 57).
+
+**Delivered.**
+- `EditSession::restack_objects(page, &indices, StackMove) -> Result<RestackOutcome, EditError>`. `StackMove::{Front, Back, Forward, Backward}` (non_exhaustive). `RestackOutcome { indices, moved, limited: Vec<RestackLimit { object, reason: RestackLimitReason::{Scope, Entangled} }> }`. One undo entry, `CommandKind::RestackObjects`. Nothing moving commits nothing.
+- The moved object's bytes are re-spliced inside `q [cm] <replayed state> … Q`; the old position receives the state deltas, so nothing else renders differently.
+- A destination under `gs` operations the object never saw gets ONE new `/ExtGState`, bound as `pdfcerRS<n>`, restoring each parameter to its shared-history or page-start value. `SM`/`HTO`/`Font` with no earlier value, or a dict soft mask under a different CTM, refuse that position (reported as `Scope`).
+- Forward/backward step past the nearest unselected bbox-overlapping object. Clip and marked-content (`/OC`, tagged) boundaries limit moves, reported in `limited`, never silent (rule 4).
+- CLI `pdfcer restack-objects --page --objects --to front|back|forward|backward -o --mode --verify-undo` (in-place capable); prints `indices= moved= limited=` plus one stderr line per limited object. README subcommand count 215 to 216.
+- `docs/core-api/02-editing-and-saving.md`: new row; verbs 332 to 333.
+- **Limitation:** page objects only; no `_in_form` twin.
+
+**Verified (engineer-reported).** 11 new core restack tests (sabotaging the initial-alpha table fails 3); 3 new CLI tests. pdfcer-core 1,494 lib + 2,801 integration; pdfcer-cli 214 + 43 bin; all pass (one in-place list omission found and fixed before commit). fmt, clippy (full and lite), structure, string-gaps, public-fns-documented, clap-help, core-api-verbs clean.
+
+**`G157` status.** GUI column is `pdfcer-gui`'s to tick. FIXED reply written, ACK deleted (engineer-reported).
+
+`FEATURES.md`: *Planned* `543.0` row removed; new *Implemented* row under *Vector objects* (core `[x]` cli `[x]` gui `?`).
+
+Ledgers: no decision; next free `Pass 552.0`; next filing 1026th.
+
 ### `Pass 542.0` — fade an image or form through `set_object_stroke_style` (core + CLI; answers `pdfcer-gui` `G155`) — SHIPPED 2026-10-07 (1024th filing)
 
 Commits `a85d4872` (code), `7a0a71f4` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Not yet pushed (engineer-reported); not checked here (no shell).
@@ -21296,9 +21319,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), see *Shipped*; `543.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1025th.
->
-> **`Pass 543.0` — `G157`:** `restack_objects(page, &indices, how)`; front / back / forward / backward.
+> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), see *Shipped*; `544.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1026th.
 >
 > **`Pass 544.0` — `G149`:** FreeText fill, border width/dash, opacity, text colour and face, via `TextAnnotStyle`. Same refuse-or-regenerate contract as `538.0`.
 >
