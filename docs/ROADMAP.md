@@ -115,6 +115,38 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.81.0` — RELEASED (2026-10-08), push and publication to follow (1045th filing)
+
+Release filing (1045th), under the standing release authorisation (decision 121). Commits since the 1044th filing: `132faa3c` and `8e7432bd` (`NEXT_SESSION.md` only; the second dropped a stale carried queue, the four "operator's ordered plan" items `142.0`/`364.0`/`259.0`/`10.11`, all shipped 2026-09-27/28), the bump `f14c5ff3` ("chore: v0.81.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`) and `c0761048` (`Pass 561.0`, below).
+
+**Tag.** `v0.81.0` on `c0761048`. It first sat on `f14c5ff3` locally and was moved before any push, so it was never published there.
+
+**Range since `v0.80.0`** (`dc39139b`): `Pass 532.0`-`561.0`; the `pdfcer-gui` requests `G142`-`G169`.
+
+**Build.** `D:\builds\pdfcer-20261008-1724-c076104` (not `-dirty`). Add-ons: `ocr-addon-ocrcer.zip` 3,789,155 bytes; `ocr-addon-ocrs.zip` 11,352,262; `ocr-addon-tesseract.zip` 4,483,685.
+
+**Fresh-folder smoke test (all passed).** `--version` 0.81.0, revision `v0.81.0`; `rotate --degrees 90`; `render-page --invisible-text FF0000`; `render-page --invisible-text #00FF00 --invisible-text-only`; `--invisible-text-only` alone exits 2.
+
+**Gates.** `tools/run-gates.sh` PASS, 46 commands, on `f14c5ff3`; a re-run follows this filing, before the push (engineer-reported).
+
+**To follow, engineer-reported later; NOT claimed done here:** push of `main` and the tag; GitHub release assets via `tools/gh-release.py`; `tools/verify-release.py v0.81.0`; OneDrive. OneDrive plan: this release writes slot `pdfcer2`; `pdfcer1` keeps `0.80.0`, so the next release writes `pdfcer1`.
+
+Figures engineer-reported; no shell here (hard rule 8).
+
+### `Pass 561.0` — build stamp is `-dirty` only when a build-affecting path changed (build script; found while releasing) — SHIPPED 2026-10-08 (1045th filing)
+
+Commit `c0761048`; push state not verifiable from here. Defect fix shipped on discovery with no *Next up* stub (fix bugs on discovery). No manifest change, no decision.
+
+**Defect.** `crates/pdfcer-core/build.rs` stamped `PDFCER_BUILD_REVISION` from `git describe --tags --always --dirty`, which flags ANY modified file. Uncommitted agent-memory notes under `.claude/` made the first `v0.81.0` release binary print "built from a MODIFIED working tree - this binary is not the commit it names", although the binaries were exactly that commit. `tools/package-portable.py` had already narrowed its own folder suffix to build-affecting paths, so the folder name and the binary disagreed.
+
+**Fix.** New `build_revision()` runs `git describe --tags --always`, then appends `-dirty` only when `git status --porcelain` reports a change under `crates/`, `Cargo.toml`, `Cargo.lock`, `rust-toolchain(.toml)` or `.cargo/`. That is the same set as `package-portable.py`'s `BUILD_AFFECTING`; the doc comment says to keep the two in step.
+
+**Verified (engineer-reported), both ways.** With `build.rs` itself modified the stamp read `v0.81.0-dirty`; the release build of `c0761048`, with only `.claude/` agent-memory files modified, read `v0.81.0`. No automated test: a build script's own tests are never run by cargo (already documented in `build.rs`).
+
+`FEATURES.md`: the *Build provenance stamp* row's "`-dirty` marker" clause narrowed to match; no box changes.
+
+Ledgers: no decision; next free `Pass 562.0`; next filing 1046th.
+
 ### `Pass 560.0` — render invisible text visibly (render + CLI; answers `pdfcer-gui` `G169`) — SHIPPED 2026-10-08 (1044th filing)
 
 Commits `1d66768b` (code, tests), `2ef4fae3` (`docs/core-api` 03-capabilities §7.2); push state not verifiable from here. No manifest change, so no dependency change and GUI-core separation unaffected. No decision. Listed in *Next up* as a `>` blockquote stub (1043rd filing); stub replaced by a SHIPPED pointer.
@@ -21673,7 +21705,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`559.0` all shipped; the batch is complete.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 561.0`; next filing 1045th.
+> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`559.0` all shipped; the batch is complete.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 562.0`; next filing 1046th.
 > - `552.0` (`G162`) SHIPPED (`9be9d44a`, `ea7e80af`, 1035th filing), see *Shipped*.
 > - `553.0` (`G168`) SHIPPED (`8d014437`, `d1800f2a`, 1036th filing), see *Shipped*.
 > - `554.0` (`G163`) SHIPPED (`6fa4bc19`, `ed2bdd4b`, 1037th filing), see *Shipped*.

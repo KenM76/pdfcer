@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1045th filing) — `Pass 561.0` shipped (build stamp `-dirty` only for build-affecting paths) and `v0.81.0` released
+
+**Shipped:** `Pass 561.0`, `c0761048`: `crates/pdfcer-core/build.rs` `build_revision()` appends `-dirty` only when `git status --porcelain` shows a change under `crates/`, `Cargo.toml`, `Cargo.lock`, `rust-toolchain(.toml)` or `.cargo/` (same set as `package-portable.py`'s `BUILD_AFFECTING`). Found while releasing: uncommitted `.claude/` agent-memory notes had made the first `v0.81.0` binary claim a modified tree. Verified both ways (engineer-reported); no automated test possible (build-script tests never run). `v0.81.0` released: tag on `c0761048` (moved from `f14c5ff3` before any push), build `D:\builds\pdfcer-20261008-1724-c076104`, fresh-folder smoke passed, run-gates PASS 46 commands on `f14c5ff3`. Range `Pass 532.0`-`561.0`, `G142`-`G169`. Also filed: `132faa3c`, `8e7432bd` (`NEXT_SESSION.md` only).
+
+**Files:** ROADMAP: two Shipped entries added above `560.0` (`v0.81.0` release, `Pass 561.0`); header ledger line in *Next up* now next free `Pass 562.0`, next filing 1046th. No `###` in *Next up* touched; count re-counted from the heading list, 80. `FEATURES.md`: *Build provenance stamp* row's `-dirty` clause narrowed, no box changes.
+
+**Decisions made this session:** None.
+
+**Still in flight (to follow, engineer-reported later; not claimed done):** run-gates re-run before the push; push of `main` and tag `v0.81.0`; GitHub assets via `gh-release.py`; `verify-release.py v0.81.0`; OneDrive slot `pdfcer2` (`pdfcer1` keeps 0.80.0; next release writes `pdfcer1`). Push state not verifiable from here (no shell).
+
 ## 2026-10-08 (1044th filing) — `Pass 560.0` shipped (render invisible text visibly, `G169`)
 
 **Shipped:** `Pass 560.0`, `1d66768b` (code, tests), `2ef4fae3` (`docs/core-api`). `pdfcer-render` gains `InvisibleTextPaint { rgb, only }` and `RenderOptions::invisible_text` (+ `with_invisible_text`): text modes 3 and 7 fill in the chosen colour at full opacity through the ordinary glyph path (mode 7 still clips, hidden optional content stays hidden, Type 3 `d1` glyphs take the colour); `only` paints nothing else on a transparent backdrop. CLI `render-page --invisible-text RRGGBB [--invisible-text-only]`, bad input exits 2. 4 new render lib tests + 1 CLI test; sabotage checks turned 2 and 1 tests red; listed pre-commit gates clean (engineer-reported). Core and cli delivered; gui `[ ]` (`pdfcer-gui` requested it, not yet wired).
