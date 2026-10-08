@@ -2916,7 +2916,22 @@ onto a target system centred on it). The standard gives `OS` no unit;
 pdfcer reads a binding as the bound side spanning `1/OS` camera units, and
 `Absolute` as one camera unit per `OS` user space units — an
 interpretation, disclosed. `ThreeDSavedView` implements `Default` (no
-matrix, perspective, `OS` 1, `Absolute`).
+matrix, perspective, `OS` 1, `Absolute`). `field_of_view: Option<f64>` is
+`/P /FOV` in degrees for a perspective view (Table 305: horizontal under the
+default `/PS /W`), `None` when absent. The write side of these fields is
+`EditSession::set_3d_views` (`02-editing-and-saving.md`).
+
+**Named views and the up axis** (`pdfcer-3d`, no feature gate).
+`NamedView` — `Iso`, `Front`, `Back`, `Left`, `Right`, `Top`, `Bottom`
+(`ALL`, menu order) — and `UpAxis` — `X`, `Y`, `Z` (`ALL`; default `Z`).
+`view.direction(up) -> ([f64; 3], [f64; 3])` is the look direction and the
+image's up, defined for a Z-up model (Front looks along +Y) and cyclically
+rotated onto `up`, so handedness is kept; `up.vector()` is the unit axis.
+`as_str()` is the lower-case CLI spelling (`front`, `z`), `label()` the
+reader-facing name (`Front`), `Display` prints `as_str`, and `FromStr`
+accepts those names case-insensitively, else `UnknownName` (opaque; its
+message names the kind and the rejected text).
+The type is `UpAxis`, not `Axis`, to leave `Axis` free for geometry.
 
 **The view as a camera.** `view.aim(aspect) -> Option<SavedViewAim>` for an
 image of `aspect` (width / height); `None` without `camera_to_world`.
