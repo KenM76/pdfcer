@@ -37,9 +37,11 @@ refusal is an error at load, never a silent mis-tokenisation. Net new crates:
 
 ## 3. Reading model: one region per page
 
-- This rung has no layout stage. The page's ink bounding box, plus a 16 px
-  margin, is cropped and read as **one region**. The layout model
-  (PP-DocLayoutV2) is the next rung.
+- By default there is no layout stage. The page's ink bounding box, plus a
+  16 px margin, is cropped and read as **one region**. With `--layout`
+  (`RunOptions::with_layout`), PP-DocLayoutV3 (optional `layout.onnx` in the
+  add-on) finds classed regions and each is read with its task prompt
+  (Pass 558.0, G167; `docs/core-api/03-capabilities.md` Piece 3f).
 - The model returns text without coordinates. Line boxes are **inferred**:
   - when the number of non-empty text lines equals the number of inked row
     bands, each line goes on its own band (`LinePlacement::Bands`);

@@ -93,7 +93,8 @@ behind the decision-182 add-on folder:
 
 1. Engine + decode loop + preprocessing in `pdfcer_core::ocr`, line/region
    crops; tool to build the add-on folder (rewrites included).
-2. Layout stage (PP-DocLayoutV2 via paddle2onnx) and region text layer, with
+2. *(Shipped as Pass 558.0 with PP-DocLayoutV3's ONNX export, not V2.)*
+   Layout stage (PP-DocLayoutV2 via paddle2onnx) and region text layer, with
    region-level placement disclosed.
 3. CLI/disclosure, add-on zip release asset.
 4. Optional: per-channel requantisation and decoder reduce-range.
