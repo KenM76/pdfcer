@@ -210,6 +210,7 @@ mod signature_verify;
 mod sound_annotation;
 mod span_from_pin;
 mod stamp_collection;
+mod stamp_label_edit;
 mod stamp_restyle;
 mod stamp_text_size;
 mod sticky_resize_refusal;

@@ -324,7 +324,7 @@ fn an_icon_on_a_stamp_is_refused_by_name() {
             subtype, property, ..
         } => {
             assert_eq!(subtype, "Stamp");
-            assert_eq!(property, "a sticky-note icon");
+            assert_eq!(property, "sticky-note icon");
         }
         other => panic!("expected StylePropertyNotApplicable, got {other:?}"),
     }

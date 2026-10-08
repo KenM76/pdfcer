@@ -2,7 +2,7 @@
 //! re-bake its appearance.
 
 use super::*;
-use pdfcer_core::edit::{TextAnnotStyle, TextAnnotStyleChange};
+use pdfcer_core::edit::{StyleEdit, TextAnnotStyle, TextAnnotStyleChange};
 
 /// The style flags of `set-text-annot-style`.
 #[derive(Debug, Clone, Default, clap::Args)]
@@ -28,7 +28,8 @@ pub(crate) struct TextAnnotStyleFlags {
     /// `grow` (default — widen the box), `shrink` (smaller text, same
     /// box), `clip` (cut the label).
     ///
-    /// Only meaningful with `--font-size`, and refused without it. The
+    /// Only meaningful with `--font-size` or `--label`, and refused
+    /// without one of them. The
     /// author's original fit intent is NOT recorded anywhere in a PDF,
     /// so this is your choice rather than a recovered one.
     #[arg(long, value_enum)]
@@ -66,6 +67,14 @@ pub(crate) struct TextAnnotStyleFlags {
     /// `Times-Bold` or `Courier-Oblique`.
     #[arg(long, value_name = "FACE")]
     pub(crate) font: Option<String>,
+    /// New words for a stamp's face, keeping its colour, size and comment.
+    /// A longer label widens the box unless `--stamp-fit` says otherwise.
+    /// `/Stamp` only.
+    #[arg(long, value_name = "TEXT", conflicts_with = "reset_label")]
+    pub(crate) label: Option<String>,
+    /// Return a stamp's face to the default words of its stamp name.
+    #[arg(long)]
+    pub(crate) reset_label: bool,
 }
 
 impl TextAnnotStyleFlags {
@@ -79,6 +88,8 @@ impl TextAnnotStyleFlags {
             && self.dash.is_none()
             && self.text_color.is_none()
             && self.font.is_none()
+            && self.label.is_none()
+            && !self.reset_label
     }
 
     /// The core style these flags describe, or the message naming the bad
@@ -87,10 +98,14 @@ impl TextAnnotStyleFlags {
         if self.is_empty() {
             return Err("nothing to change: pass at least one style flag".to_owned());
         }
-        if self.stamp_fit.is_some() && self.font_size.is_none() {
+        if self.stamp_fit.is_some()
+            && self.font_size.is_none()
+            && self.label.is_none()
+            && !self.reset_label
+        {
             return Err(
-                "--stamp-fit only applies with --font-size: it decides what happens to \
-                        the box when the RESIZED label no longer fits it"
+                "--stamp-fit only applies with --font-size or --label: it decides what \
+                        happens to the box when the label no longer fits it"
                     .to_owned(),
             );
         }
@@ -123,6 +138,11 @@ impl TextAnnotStyleFlags {
                 .map(resolve_latin_std14)
                 .transpose()
                 .map_err(|e| format!("--font: {e}"))?,
+            label: match (&self.label, self.reset_label) {
+                (Some(text), _) => Some(StyleEdit::Set(text.clone())),
+                (None, true) => Some(StyleEdit::Clear),
+                (None, false) => None,
+            },
         })
     }
 }
@@ -202,7 +222,7 @@ fn report_text_annot_style(input: &Path, change: &TextAnnotStyleChange) {
     }
     println!(
         "  obj={} subtype={} icon_written={} color_written={} font_size_written={} \
-         opacity_written={} frame_written={} text_style_written={} \
+         opacity_written={} frame_written={} text_style_written={} label_written={} \
          rect={:.2},{:.2},{:.2},{:.2} was_foreign={} rich_text_dropped={} appearance={}",
         change.annot_id.num,
         change.subtype,
@@ -212,6 +232,7 @@ fn report_text_annot_style(input: &Path, change: &TextAnnotStyleChange) {
         u32::from(change.opacity_written),
         u32::from(change.frame_written),
         u32::from(change.text_style_written),
+        u32::from(change.label_written),
         change.rect_after.llx,
         change.rect_after.lly,
         change.rect_after.urx,

@@ -3847,7 +3847,12 @@ fn apply_text_annot_style(
         } => TextAnnotSpec::Stamp {
             rect,
             name,
-            label,
+            // `Clear` returns the face to the `/Name`'s default words.
+            label: match &style.label {
+                Some(StyleEdit::Set(text)) => Some(text.clone()),
+                Some(StyleEdit::Clear) => None,
+                None => label,
+            },
             color: style.color.unwrap_or(color),
             style: restyled_stamp_style(stamp_style, style),
         },
@@ -3936,17 +3941,25 @@ fn refuse_inapplicable_text_style(
         return Err(EditError::MarkupOpacityOutOfRange { value: alpha });
     }
     let free_text_only = [
-        (style.fill.is_some(), "a text-box fill"),
-        (style.border_width.is_some(), "a border width"),
-        (style.dash.is_some(), "a border dash"),
-        (style.text_color.is_some(), "a text colour"),
-        (style.font.is_some(), "a text face"),
+        (style.fill.is_some(), "text-box fill"),
+        (style.border_width.is_some(), "border width"),
+        (style.dash.is_some(), "border dash"),
+        (style.text_color.is_some(), "text colour"),
+        (style.font.is_some(), "text face"),
     ];
+    if let Some(StyleEdit::Set(text)) = &style.label
+        && subtype == b"Stamp"
+        && text.trim().is_empty()
+    {
+        return Err(EditError::StampLabelEmpty { id });
+    }
     let refused = if style.icon.is_some() && subtype != b"Text" {
-        Some("a sticky-note icon")
+        Some("sticky-note icon")
     } else if style.font_size.is_some() && subtype == b"Text" {
         // A `/Text` draws an icon: there is no label to size.
-        Some("a label font size")
+        Some("label font size")
+    } else if style.label.is_some() && subtype != b"Stamp" {
+        Some("stamp label")
     } else if subtype != b"FreeText" {
         free_text_only.iter().find(|(set, _)| *set).map(|(_, p)| *p)
     } else {
@@ -3974,12 +3987,11 @@ fn restyled_stamp_style(
     // adds the OTHER half: when the caller asks for a size, it is
     // applied here, and the fit policy comes with it because a new
     // size can stop fitting the old box.
-    match style.font_size {
-        Some(size) => {
-            let fit = style.stamp_fit.unwrap_or_default();
-            stamp_style.with_font_size(Some(size)).with_fit(fit)
-        }
-        None => stamp_style,
+    let fit = style.stamp_fit.unwrap_or_default();
+    match (style.font_size, &style.label) {
+        (Some(size), _) => stamp_style.with_font_size(Some(size)).with_fit(fit),
+        (None, Some(_)) => stamp_style.with_fit(fit),
+        (None, None) => stamp_style,
     }
 }
 
@@ -9438,6 +9450,15 @@ pub enum EditError {
         /// `"border dash"` or `"line endings"`. No leading article: the
         /// message supplies the grammar around it.
         property: &'static str,
+    },
+    /// A `/Stamp` label that is empty or only whitespace. A blank face
+    /// cannot be read back as a label, so the next re-bake would treat the
+    /// stamp as foreign artwork; `StyleEdit::Clear` restores the default
+    /// words instead.
+    #[error("stamp {id}: the label is empty; give it words, or clear it to restore the default")]
+    StampLabelEmpty {
+        /// The stamp that was asked to change.
+        id: ObjId,
     },
     #[error(
         "annotation {id} is a ce dimension; use set_dimension_style, which regenerates its label and witness lines — restyling it as plain markup would silently reduce it to bare geometry"
@@ -21620,8 +21641,8 @@ pub struct TextAnnotStyle {
     /// closed, through a different route.
     pub font_size: Option<f64>,
     /// Which fit policy the re-bake uses when a resized label no longer fits
-    /// its box (`Pass 292.0`). Ignored unless [`Self::font_size`] is set, and
-    /// meaningless on a `/FreeText`.
+    /// its box (`Pass 292.0`). Ignored unless [`Self::font_size`] or
+    /// [`Self::label`] is set, and meaningless on a `/FreeText`.
     ///
     /// `None` means [`crate::annot_author::StampFit::GrowToText`], the
     /// authoring default — the box widens and the operator can SEE that it
@@ -21663,6 +21684,13 @@ pub struct TextAnnotStyle {
     /// The text face, the font of `/DA` (a standard-14 face; symbolic faces
     /// are refused by the re-bake).
     pub font: Option<Std14>,
+    /// A `/Stamp`'s label, the words on its face. `Set` replaces them (an
+    /// empty or blank label is [`EditError::StampLabelEmpty`]); `Clear`
+    /// returns to the default words of the stamp's `/Name`. The recovered
+    /// size is kept and [`Self::stamp_fit`] decides a label that no longer
+    /// fits. `/Contents`, the comment about the stamp, is not touched.
+    /// `/Stamp` only.
+    pub label: Option<StyleEdit<String>>,
 }
 
 /// A review status a state annotation can carry (§12.5.6.3, Table 171;
@@ -21890,6 +21918,8 @@ pub struct TextAnnotStyleChange {
     pub frame_written: bool,
     /// Whether a `/FreeText`'s text colour or face was rewritten.
     pub text_style_written: bool,
+    /// Whether a `/Stamp`'s label was replaced or reset.
+    pub label_written: bool,
 }
 
 /// What [`EditSession::place_page_artwork`] placed, and what it decided
@@ -37822,7 +37852,38 @@ impl EditSession {
                 || style.border_width.is_some()
                 || style.dash.is_some(),
             text_style_written: style.text_color.is_some() || style.font.is_some(),
+            label_written: style.label.is_some(),
         })
+    }
+
+    /// Replace the words on a placed `/Stamp`'s face, keeping its colour,
+    /// size, `/Contents` and object identity (pdfcer-gui request G151). One
+    /// undo entry; the appearance is re-baked.
+    ///
+    /// Shorthand for [`Self::set_text_annot_style`] with only
+    /// [`TextAnnotStyle::label`] set, and the same report: read
+    /// [`TextAnnotStyleChange::stamp_label_fit`] for a longer label that
+    /// widened the box (the default fit) and
+    /// [`TextAnnotStyleChange::appearance_was_foreign`] for custom artwork
+    /// that pdfcer's rendering replaced.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::StampLabelEmpty`] for a blank label;
+    /// [`EditError::StylePropertyNotApplicable`] on any other subtype; and
+    /// every error [`Self::set_text_annot_style`] returns.
+    pub fn set_stamp_label(
+        &mut self,
+        annot_id: ObjId,
+        label: &str,
+    ) -> Result<TextAnnotStyleChange, EditError> {
+        self.set_text_annot_style(
+            annot_id,
+            &TextAnnotStyle {
+                label: Some(StyleEdit::Set(label.to_owned())),
+                ..Default::default()
+            },
+        )
     }
 
     /// Set an annotation's **`/F` display flags** (ISO 32000-1 §12.5.3

@@ -121,6 +121,7 @@ mod sign_into_field;
 mod sign_revocation_sources;
 mod sign_timestamp;
 mod span_from_pin_flag;
+mod stamp_label_edit;
 mod stamp_pack;
 mod style_policy;
 mod tab_order;

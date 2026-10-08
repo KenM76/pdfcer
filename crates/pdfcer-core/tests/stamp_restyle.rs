@@ -278,7 +278,7 @@ fn a_font_size_is_refused_on_a_sticky_note() {
             subtype, property, ..
         } => {
             assert_eq!(subtype, "Text");
-            assert_eq!(property, "a label font size");
+            assert_eq!(property, "label font size");
         }
         other => panic!("expected StylePropertyNotApplicable, got {other:?}"),
     }

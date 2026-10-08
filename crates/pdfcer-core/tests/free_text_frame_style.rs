@@ -299,35 +299,35 @@ fn frame_and_text_properties_are_refused_on_a_note_and_a_stamp() {
                 fill: Some(StyleEdit::Set(Color::Gray(0.5))),
                 ..Default::default()
             },
-            "a text-box fill",
+            "text-box fill",
         ),
         (
             TextAnnotStyle {
                 border_width: Some(1.0),
                 ..Default::default()
             },
-            "a border width",
+            "border width",
         ),
         (
             TextAnnotStyle {
                 dash: Some(StyleEdit::Clear),
                 ..Default::default()
             },
-            "a border dash",
+            "border dash",
         ),
         (
             TextAnnotStyle {
                 text_color: Some(TextColor::Gray(0.2)),
                 ..Default::default()
             },
-            "a text colour",
+            "text colour",
         ),
         (
             TextAnnotStyle {
                 font: Some(Std14::Courier),
                 ..Default::default()
             },
-            "a text face",
+            "text face",
         ),
     ];
     for (style, want) in &cases {
