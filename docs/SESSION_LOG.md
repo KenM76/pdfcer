@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1035th filing) — `Pass 552.0` shipped (a paragraph rewritten with its own text keeps its lines, `G162`)
+
+**Shipped:** `Pass 552.0`, `9be9d44a` (code) and `ea7e80af` (`docs/core-api`). Root cause: the default wrap width was the block bbox width from f32 glyph positions (88.04397583 pt for advances summing to 88.044 pt) and `greedy_pack` tested `<= max_width` with no tolerance, so lines went 2 to 3. Fix: `pdfcer_fonts::linebreak::FIT_TOLERANCE = 0.01`, used by `greedy_pack` and by the overflowing-word checks in `reflow.rs`, `addtext.rs`, `placetext.rs`; reflow's private `EPS` removed. 2 new tests (failed before the fix); 5624 passed, 0 failed across fonts, core and cli; gates clean (engineer-reported). Core and cli delivered; gui is `pdfcer-gui`'s.
+
+**Files:** ROADMAP: Shipped entry added, the `552.0` bullet in the Next up stub replaced by a one-line SHIPPED pointer, stub header updated. `FEATURES.md`: *Planned* row removed, *Implemented* row added in *Text* (core `[x]` cli `[x]` gui `[ ]`). The `###` count between *Next up* and *Backlog* is unchanged (the stub is a blockquote). I measured 29 by line number over a saved heading list, which matches neither the 80 stated nor the 76 of the prior filing; not reconciled.
+
+**Decisions made this session:** None.
+
+**Still in flight:** `553.0`-`558.0` queued, none started. Next free `Pass 559.0`; next filing 1036th. Push state not verifiable from here.
+
 ## 2026-10-08 (1034th filing) — fuzz-target fix (`7bcc7abb`), 7 `pdfcer-gui` requests filed (`Pass 552.0`-`558.0`, `G162`-`G168`)
 
 **Shipped:** `7bcc7abb` `fix(fuzz)`, a follow-up to `Pass 544.0`, no new Pass. `fuzz/fuzz_targets/annot_author.rs` had not been updated for `MarkupSpec::Line { interior }` and `TextAnnotSpec::FreeText { frame }`, so `cd fuzz && cargo check --bins` in `tools/run-gates.sh` failed; fixed with `interior: None` and `frame: Default::default()`. Gate sweep: `tools/run-gates.sh` green on 45 of 46 commands, the one failure being this fuzz check, now fixed. (The `interior` field's own Shipped entry is `Pass 539.0`; the dispatch attributed both fields to `544.0`.)

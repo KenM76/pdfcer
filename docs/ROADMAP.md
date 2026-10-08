@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 552.0` — a paragraph rewritten with its own text keeps its lines (defect fix, core + CLI; answers `pdfcer-gui` `G162`) — SHIPPED 2026-10-08 (1035th filing)
+
+Commits `9be9d44a` (code), `ea7e80af` (`docs/core-api`); push state not verifiable from here. No `Cargo.toml` change, so `cargo tree` unchanged. No decision. Listed in *Next up* at filing (verified, a blockquote bullet in the 1034th-filing stub), bullet removed.
+
+**Root cause.** `edit_block_text`'s default wrap width is the block bbox width, built from f32 glyph positions (88.04397583 pt for a line whose font advances sum to exactly 88.044 pt). `greedy_pack` tested `<= max_width` with no tolerance, so a block rewritten with its own text grew a line (2 to 3).
+
+**Delivered.**
+- New `pub const FIT_TOLERANCE: f64 = 0.01` in `pdfcer_fonts::linebreak` (re-exported as `pdfcer_core::linebreak`), applied in `greedy_pack`'s fit test.
+- The single-word "overflowing word" checks in `text_edit/reflow.rs`, `addtext.rs` and `placetext.rs` use the same constant, so packing and overflow reporting agree; reflow's private `EPS` removed.
+- `docs/core-api/02-editing-and-saving.md`: the `edit_block_text` row states the 0.01 pt tolerance.
+- CLI `edit-block-text` inherits the fix; no CLI code change.
+
+**Verified (engineer-reported).** New `crates/pdfcer-core/tests/block_text_own_width.rs`, 2 tests, both failed before the fix. `pdfcer-fonts` + `pdfcer-core` + `pdfcer-cli` full run 5624 passed, 0 failed. clippy, fmt and structure gates clean.
+
+**`G162` status.** FIXED reply written to the FeatureRequests channel. GUI column is `pdfcer-gui`'s; it can now drop its +0.5 pt slack.
+
+`FEATURES.md`: *Planned* `552.0` row removed; new *Implemented* row in *Text* (core `[x]` cli `[x]` gui `[ ]`).
+
+Ledgers: no decision; next free `Pass 559.0`; next filing 1036th.
+
 ### `Pass 551.0` — turn a form widget to any angle, widget opacity (core + CLI; answers `pdfcer-gui` `G160`) — SHIPPED 2026-10-08 (1033rd filing)
 
 Commits `ec37ae9c` (code), `b302fc23` (`docs/core-api`); push state not verifiable from here. No `Cargo.toml` change, no new dependency, so `cargo tree` unchanged. Spec: ISO 32000-2 §12.5.5. No decision. Listed in *Next up* at filing (verified, a blockquote stub), stub removed.
@@ -21493,8 +21513,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`, none started.** ACK replies are in `pdfce_FeatureRequests/open/`. Core/cli/gui all `[ ]`; the GUI column is `pdfcer-gui`'s. Next free `Pass 559.0`; next filing 1035th.
-> - `552.0` (`G162`, DEFECT) — `edit_block_text`'s default wrap width (the old block's bbox width) packs with no tolerance in `pdfcer_fonts::linebreak::greedy_pack`, so a paragraph rewritten with its own text splits its widest line (lines 2 to 3). Fix: pack the default wrap with the frame's existing EPS tolerance. Acceptance: a two-line paragraph from `add_text`, one character typed into the first line, `lines_before == lines_after == 2`; regression test.
+> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0` shipped, `553.0`-`558.0` not started.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 559.0`; next filing 1036th.
+> - `552.0` (`G162`) SHIPPED (`9be9d44a`, `ea7e80af`, 1035th filing), see *Shipped*.
 > - `553.0` (`G168`) — named 3D views (Iso / Front / Back / Left / Right / Top / Bottom) and up-axis (X / Y / Z) made public in `pdfcer-3d`, CLI reuses them; new `EditSession` verb writing 3D views (`/VA`, `/3DV`, ISO 32000-2 §13.6) with a default view into a 3D annotation. Core + CLI.
 > - `554.0` (`G163`) — per-line hard-break vs wrap information on recognised text blocks; foreign text by engine inference with disclosed uncertainty.
 > - `555.0` (`G164`) — metadata inventory (Info incl. custom keys, document and per-object XMP, PieceInfo, thumbnails, JavaScript, attachments, comments, hidden layers, form data, earlier revisions, document ID) with size and preview; removal of selected items as one undo entry, disclosing what could not be removed; a full-rewrite save is needed to drop earlier revisions. Core + CLI.
