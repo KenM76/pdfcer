@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1029th filing) — `Pass 547.0` shipped (author, re-target and re-border links, `G161`)
+
+**Shipped:** `Pass 547.0`, code `2fd5015f`, `docs/core-api` `3588c66d` (not yet pushed, engineer-reported). New `EditSession::add_link`, `set_link_target`, `set_link_border`; one undo each. No border writes `/Border [0 0 0]`; a border writes `/BS`, `/C` and a baked `/AP`. Re-targeting discloses the replaced action's `/S`. New `EditError::LinkVerbOnOther`, `LinkUriInvalid`, `LinkBorderWidthInvalid` (174 variants). Bug fixed on discovery: named destinations from the legacy `/Dests` dictionary were unreachable by `add_outline_item`; outline items and links now write String vs Name by source. CLI `add-link`, `set-link-target`, `set-link-border` (220 subcommands).
+
+**Tests (engineer-reported):** core +7, CLI +3; three sabotages each caught; full runs and all gates green; core-api verbs 338; no manifest change.
+
+**Files:** ROADMAP `547.0` stub removed from *Next up* (`###` count stays 80), entry added to *Shipped*, banner updated; `FEATURES.md` Planned row removed, new *Implemented* row (core/cli `[x]`, gui `[ ]`).
+
+**Decisions made this session:** None.
+
+**Still in flight:** `Pass 548.0` (`G156`, `replace_image`) next; `549.0`-`551.0` queued. Next free `Pass 552.0`; next filing 1030th. Push state not verifiable from here (no shell).
+
 ## 2026-10-08 (1028th filing) — `Pass 546.0` shipped (re-span a text markup, `G152`)
 
 **Shipped:** `Pass 546.0`, code `9b663eec`, `docs/core-api` `cfb42bfe` (not yet pushed, engineer-reported). New `EditSession::respan_text_markup` replacing a Highlight/Underline/StrikeOut/Squiggly's `/QuadPoints` and re-baking `/Rect` and `/AP`, keeping colour, `/CA`, `/Contents`, replies and object id; one undo (`CommandKind::RespanTextMarkup`); report `TextMarkupRespan`. New `EditError::TextMarkupVerbOnOther` (171 variants). CLI `respan-markup` (README count 216 to 217).

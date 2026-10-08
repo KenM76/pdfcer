@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 547.0` — author, re-target and re-border links (core + CLI; answers `pdfcer-gui` `G161`) — SHIPPED 2026-10-08 (1029th filing)
+
+Commits `2fd5015f` (code), `3588c66d` (`docs/core-api`); not yet pushed at filing (engineer-reported). No `Cargo.toml` or dependency change (`cargo tree` unchanged). No decision.
+
+**Basis.** Links could not be authored or edited. ISO 32000-1 §12.5.6.5: a Link annotation carries `/Dest` or `/A`, and `/Border` or `/BS`; Table 164 makes the default border a visible 1-point rectangle.
+
+**Delivered.**
+- `EditSession::add_link(page_index, rect, &LinkTarget, Option<&LinkBorder>) -> ObjId`; `set_link_target(annot_id, &LinkTarget) -> LinkTargetChange`; `set_link_border(annot_id, Option<&LinkBorder>) -> LinkBorderChange`. One undo each (`CommandKind::AddAnnotation{kind: AnnotKind::Link}`, `SetLinkTarget`, `SetLinkBorder`).
+- No border writes `/Border [0 0 0]`; a border writes `/BS`, `/C` and a baked stroked `/AP`. A URI must be 7-bit ASCII without control characters (ISO 32000-1 §12.6.4.7; the UTF-8 of ISO 32000-2 §12.6.4.8 is a superset).
+- Re-targeting removes `/Dest` and `/A` and reports the replaced action's `/S` (rule 4: a removed script is disclosed; the CLI prints "replaced a /X action").
+- New `EditError::LinkVerbOnOther`, `LinkUriInvalid`, `LinkBorderWidthInvalid` (174 variants). `docs/core-api` verbs 335 to 338.
+- **Fixed on discovery:** `add_outline_item` always wrote a named destination as a String, so a name defined only in the legacy catalog `/Dests` dictionary was unreachable. `DestinationResolver` now records tree-sourced names; outline items and links write a String for `/Names`-tree entries and a Name for `/Dests` entries.
+- CLI: `add-link`, `set-link-target`, `set-link-border` (220 working subcommands; README updated).
+
+**Verified (engineer-reported).** Core `link_author.rs` +7, CLI `link_author.rs` +3. Full runs green: core 1494 + 2828 + 214, CLI 43 + 842. Sabotage (dropping the `/Border [0 0 0]` write; forcing String names; ignoring `--top`) each failed tests and was restored. fmt, clippy (full and lite), code-structure, public-fns, string-gaps, clap-help and core-api-verbs clean.
+
+**`G161` status.** GUI column is `pdfcer-gui`'s to tick. FIXED reply written for `request_G161_links_cannot_be_authored_or_edited.md`; ACK deleted (engineer-reported).
+
+`FEATURES.md`: *Planned* `547.0` row removed; new *Implemented* row after the `546.0` respan row (core `[x]` cli `[x]` gui `[ ]`).
+
+Ledgers: no decision; next free `Pass 552.0`; next filing 1030th.
+
 ### `Pass 546.0` — re-span a text markup (core + CLI; answers `pdfcer-gui` `G152`) — SHIPPED 2026-10-08 (1028th filing)
 
 Commits `9b663eec` (code), `cfb42bfe` (`docs/core-api`); not yet pushed at filing (engineer-reported). No `Cargo.toml` or dependency change (`cargo tree` unchanged). No decision.
@@ -21386,9 +21408,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), see *Shipped*; `547.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1029th.
->
-> **`Pass 547.0` — `G161`:** `add_link`, `set_link_target`, link border width / colour / dash.
+> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), `547.0` SHIPPED (1029th filing), see *Shipped*; `548.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1030th.
 >
 > **`Pass 548.0` — `G156`:** `replace_image`, keeping the CTM.
 >
