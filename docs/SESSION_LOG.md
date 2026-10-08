@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1038th filing) — `Pass 555.0` shipped (metadata inventory and removal of hidden information, `G164`)
+
+**Shipped:** `Pass 555.0`, `50324705` (code) and `d1326e19` (`docs/core-api`). `EditSession::metadata_inventory` / `remove_metadata` over 12 kinds of metadata and hidden data; CLI `list-metadata` and `remove-metadata`. A writer defect fixed on discovery: `DirtySet` could not drop a trailer key, so removing `/Info` saved a dangling reference. 10 new tests (5 core, 5 CLI); suites and gates green (engineer-reported). Core and cli delivered; gui is `pdfcer-gui`'s.
+
+**Files:** ROADMAP: Shipped entry added; `555.0` bullet in the Next up stub replaced by a SHIPPED pointer; stub header updated. `FEATURES.md`: *Planned* `555.0` row removed, new *Implemented* row after the `552.0` row (core `[x]` cli `[x]` gui `[ ]`).
+
+**Decisions made this session:** None.
+
+**Still in flight:** `556.0`-`558.0` then `559.0` queued, none started. Next free `Pass 560.0`; next filing 1039th. Push state not verifiable from here (no shell).
+
 ## 2026-10-08 (1037th filing) — `Pass 554.0` shipped (line ends: wrap vs typed break, inference half, `G163`); `Pass 559.0` filed
 
 **Shipped:** `Pass 554.0`, `6fa4bc19` (code) and `ed2bdd4b` (`docs/core-api`). `EditableTextModel::line_ends` (`LineEnd { Break, Wrap, Last }`) and `block_text_with_breaks`; `BlockHit` gains `line_ends` and its `text` now spells breaks as `\n`; CLI `edit-block-text` and `inspect --text-blocks --json` report them, as inferred. A rustdoc link in the `553.0` code fixed on discovery. 3 core + 2 CLI new tests; workspace tests and all gates green (engineer-reported). Core and cli delivered; gui is `pdfcer-gui`'s.
