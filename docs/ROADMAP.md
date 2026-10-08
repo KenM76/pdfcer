@@ -115,6 +115,25 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 553.0` — named 3D views and up axis public; write 3D views into a 3D annotation (core + CLI; answers `pdfcer-gui` `G168`) — SHIPPED 2026-10-08 (1036th filing)
+
+Commits `8d014437` (code), `d1800f2a` (`docs/core-api`); push state not verifiable from here. No `Cargo.toml` change, so `cargo tree` unchanged. Spec: ISO 32000-1 §13.6.3 (Tables 298, 300, 304, 305). No decision. Listed in *Next up* at filing (verified, a blockquote bullet in the 1034th-filing stub), bullet replaced by a SHIPPED pointer.
+
+**Delivered.**
+- `pdfcer-3d`: `NamedView` (Iso/Front/Back/Left/Right/Top/Bottom) and `UpAxis` (X/Y/Z) public, with `direction(up)`, `label()`, `as_str()`, `FromStr`/`Display`, `UnknownName`. The CLI's private duplicate table removed; `3d-render --view/--up` delegates. The requested name `Axis` became `UpAxis`.
+- `EditSession::set_3d_views(page_index, annot_id, &[ThreeDSavedView], default: Option<usize>) -> Result<ThreeDViewsOutcome, EditError>`: replaces the stream's `/VA`, sets `/DV` and the annotation's `/3DV` to the default index or removes them; empty views clear all three. One undo entry `CommandKind::SetThreeDViews`; model bytes untouched. Disclosures: orthographic scale reading, `/3DRef`-shared stream.
+- `ThreeDSavedView` gains `field_of_view` (parsed from `/FOV`), builders `new`/`with_orbit_distance`/`with_perspective`/`with_orthographic`, and `from_camera` (feature `3d`). New `ThreeDEmbedError` variants: `ViewNameEmpty`, `ViewInvalid`, `DefaultViewOutOfRange`, `TooManyViews` (`MAX_3D_VIEWS` = 4096), `NoThreeDStream`. `set_3d_poster` shares one annotation lookup with it.
+- CLI `3d-views IN --index N --view V... [--up x|y|z] [--ortho] [--default V] [--clear] [--apply -o OUT]` (PRC only; U3D refused). README subcommand count 225 to 226. `docs/core-api`: verbs 349 to 350.
+- Fixed on discovery: five orphaned or welded doc comments in `crates/pdfcer-cli/src/arg_types.rs` (`HitScope`, `StreamDump`, `SaveMode`, `CompressionArg`, `ImageAlphaArg`).
+
+**Verified (engineer-reported).** Core `threed_views` 8 new tests, CLI `three_d` 3 new; `cargo test --all-features` green (35 result lines, rc 0). clippy `-D warnings` clean on pdfcer-3d/core/cli (all features) and lite CLI; fmt clean.
+
+**`G168` status.** FIXED reply written to the FeatureRequests channel; ACK deleted. GUI column is `pdfcer-gui`'s.
+
+`FEATURES.md`: *Planned* `553.0` row removed; new *Implemented* row after the 3D poster row (core `[x]` cli `[x]` gui `[ ]`).
+
+Ledgers: no decision; next free `Pass 559.0`; next filing 1037th.
+
 ### `Pass 552.0` — a paragraph rewritten with its own text keeps its lines (defect fix, core + CLI; answers `pdfcer-gui` `G162`) — SHIPPED 2026-10-08 (1035th filing)
 
 Commits `9be9d44a` (code), `ea7e80af` (`docs/core-api`); push state not verifiable from here. No `Cargo.toml` change, so `cargo tree` unchanged. No decision. Listed in *Next up* at filing (verified, a blockquote bullet in the 1034th-filing stub), bullet removed.
@@ -21513,9 +21532,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0` shipped, `553.0`-`558.0` not started.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 559.0`; next filing 1036th.
+> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0` and `553.0` shipped, `554.0`-`558.0` not started.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 559.0`; next filing 1037th.
 > - `552.0` (`G162`) SHIPPED (`9be9d44a`, `ea7e80af`, 1035th filing), see *Shipped*.
-> - `553.0` (`G168`) — named 3D views (Iso / Front / Back / Left / Right / Top / Bottom) and up-axis (X / Y / Z) made public in `pdfcer-3d`, CLI reuses them; new `EditSession` verb writing 3D views (`/VA`, `/3DV`, ISO 32000-2 §13.6) with a default view into a 3D annotation. Core + CLI.
+> - `553.0` (`G168`) SHIPPED (`8d014437`, `d1800f2a`, 1036th filing), see *Shipped*.
 > - `554.0` (`G163`) — per-line hard-break vs wrap information on recognised text blocks; foreign text by engine inference with disclosed uncertainty.
 > - `555.0` (`G164`) — metadata inventory (Info incl. custom keys, document and per-object XMP, PieceInfo, thumbnails, JavaScript, attachments, comments, hidden layers, form data, earlier revisions, document ID) with size and preview; removal of selected items as one undo entry, disclosing what could not be removed; a full-rewrite save is needed to drop earlier revisions. Core + CLI.
 > - `556.0` (`G166`) — OCR `RunOptions` dictionary choice (Builtin / None / Builtin + user word files); the report names which were used; engines that cannot honour it say so.

@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1036th filing) — `Pass 553.0` shipped (named 3D views and up axis public, `set_3d_views`, `G168`)
+
+**Shipped:** `Pass 553.0`, `8d014437` (code) and `d1800f2a` (`docs/core-api`). `pdfcer-3d` exports `NamedView` and `UpAxis` (the CLI's private table removed); `EditSession::set_3d_views` writes `/VA`, `/DV`, `/3DV` (ISO 32000-1 §13.6.3) as one undo entry with the model bytes untouched; CLI `3d-views` (PRC only). Five orphaned doc comments in `arg_types.rs` fixed on discovery. 8 core + 3 CLI new tests; full `cargo test --all-features` green; clippy and fmt clean (engineer-reported). Core and cli delivered; gui is `pdfcer-gui`'s.
+
+**Files:** ROADMAP: Shipped entry added, `553.0` bullet in the Next up stub replaced by a SHIPPED pointer, stub header updated (`554.0`-`558.0` not started). `FEATURES.md`: *Planned* row removed, *Implemented* row added after the 3D poster row (core `[x]` cli `[x]` gui `[ ]`). The `###` count is unchanged by this filing (stub is a blockquote); not re-measured.
+
+**Decisions made this session:** None.
+
+**Still in flight:** `554.0`-`558.0` queued, none started. Next free `Pass 559.0`; next filing 1037th. Push state not verifiable from here.
+
 ## 2026-10-08 (1035th filing) — `Pass 552.0` shipped (a paragraph rewritten with its own text keeps its lines, `G162`)
 
 **Shipped:** `Pass 552.0`, `9be9d44a` (code) and `ea7e80af` (`docs/core-api`). Root cause: the default wrap width was the block bbox width from f32 glyph positions (88.04397583 pt for advances summing to 88.044 pt) and `greedy_pack` tested `<= max_width` with no tolerance, so lines went 2 to 3. Fix: `pdfcer_fonts::linebreak::FIT_TOLERANCE = 0.01`, used by `greedy_pack` and by the overflowing-word checks in `reflow.rs`, `addtext.rs`, `placetext.rs`; reflow's private `EPS` removed. 2 new tests (failed before the fix); 5624 passed, 0 failed across fonts, core and cli; gates clean (engineer-reported). Core and cli delivered; gui is `pdfcer-gui`'s.
