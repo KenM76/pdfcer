@@ -113,6 +113,13 @@ pub mod onnx_upgrade;
 #[cfg(feature = "ocr-vl")]
 pub mod engine_paddle_vl;
 
+/// The PP-DocLayoutV3 layout model PaddleOCR-VL runs before recognition,
+/// behind the `ocr-vl` feature.
+#[cfg(feature = "ocr-vl")]
+pub mod engine_layout;
+pub mod layout;
+pub mod otsl;
+
 // Workspace-internal: pub only so the fuzz crate can drive the PaddleOCR-VL
 // tokenizer and its JSON reader. Not API.
 #[doc(hidden)]

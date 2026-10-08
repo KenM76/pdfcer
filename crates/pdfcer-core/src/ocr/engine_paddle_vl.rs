@@ -99,7 +99,7 @@ pub enum PaddleVlError {
     Recognition(String),
 }
 
-fn run_err(e: impl std::fmt::Display) -> PaddleVlError {
+pub(super) fn run_err(e: impl std::fmt::Display) -> PaddleVlError {
     PaddleVlError::Recognition(e.to_string())
 }
 
