@@ -93,7 +93,7 @@
 //! - **The page looks normal the instant the command completes**: mode 3
 //!   adds nothing visible, and low-confidence words are never marked on the
 //!   page (a second rendering path for the same content).
-//! - **The disclosure is [`OcrLayerReport`], off-canvas**: mean confidence,
+//! - **The disclosure is [`OcrLayerReport`](crate::ocr::layer::OcrLayerReport), off-canvas**: mean confidence,
 //!   words needing review, substituted and skipped words. A shell shows it;
 //!   the CLI prints it.
 //! - **`confidence_available == false` is its own disclosed fact**, never
