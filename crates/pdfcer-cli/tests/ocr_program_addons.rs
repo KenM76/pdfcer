@@ -4,6 +4,7 @@
 //! in for the program; it does not speak Tesseract's protocol, so a run
 //! that reaches it fails after the disclosure line.
 
+use crate::scratch_dir::Scratch;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -26,7 +27,7 @@ fn sha256_hex(path: &Path) -> String {
 
 /// `root/tess`: a program add-on whose program is a copy of `pdfcer`.
 /// `hashed` decides whether the manifest carries the program's SHA-256.
-fn program_addon(tag: &str, hashed: bool) -> (PathBuf, PathBuf) {
+fn program_addon(tag: &str, hashed: bool) -> (Scratch, PathBuf) {
     let root =
         std::env::temp_dir().join(format!("pdfcer-ocr-program-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&root);
@@ -40,7 +41,7 @@ fn program_addon(tag: &str, hashed: bool) -> (PathBuf, PathBuf) {
         manifest.push_str(&format!("sha256 = {EXE} {}\n", sha256_hex(&dir.join(EXE))));
     }
     std::fs::write(dir.join("pdfcer-ocr-model.txt"), manifest).unwrap();
-    (root, dir)
+    (Scratch(root), dir)
 }
 
 fn run(args: &[&std::ffi::OsStr]) -> (Option<i32>, String, String) {

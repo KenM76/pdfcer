@@ -115,6 +115,7 @@ mod rotate_widget;
 mod run_repertoire;
 mod save_refusal_hints;
 mod scale_pages;
+mod scratch_dir;
 mod set_crop_box;
 mod set_markup_style_cloud;
 mod set_markup_style_line_interior;

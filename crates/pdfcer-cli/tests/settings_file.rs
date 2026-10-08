@@ -12,6 +12,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::scratch_dir::Scratch;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
@@ -25,11 +26,11 @@ fn fixture(rel: &str) -> PathBuf {
 }
 
 /// A fresh per-process, per-test folder.
-fn scratch(tag: &str) -> PathBuf {
+fn scratch(tag: &str) -> Scratch {
     let dir = std::env::temp_dir().join(format!("pdfcer-settings-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
-    dir
+    Scratch(dir)
 }
 
 /// A copy of the binary in `dir`, so a settings file can sit beside it.
