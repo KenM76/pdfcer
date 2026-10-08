@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1033rd filing) — `Pass 551.0` shipped (turn a form widget to any angle, widget opacity, `G160`)
+
+**Shipped:** `Pass 551.0`, code `ec37ae9c`, `docs/core-api` `b302fc23`. `EditSession::turn_widget(fqn, index, degrees)` writes an absolute counterclockwise angle into every `/AP` stream's `/Matrix` on top of `/MK /R` (ISO 32000-2 §12.5.5); `/Rect` becomes the bound of the turned artwork; the angle is read back from the `/N` `/Matrix`; later redraws keep it. `WidgetTurn` (`#[non_exhaustive]`), `CommandKind::TurnWidget`, five new `EditError` variants (core-api 175 to 180), verbs 348 to 349. A turned widget refuses `rotate_widget` and a resize (`WidgetTurned`) until turned back to 0; a move is allowed. `WidgetEdit::with_opacity` / `clearing_opacity` write `/CA`. Disclosed: shared appearances copied, a viewer regenerating from `/MK` alone, a non-uniform fit, strict PDF 2.0 readers ignoring widget `/CA`. CLI `turn-widget` (`--in-place`), `edit-widget --opacity` / `--clear-opacity` (README 224 to 225).
+
+**Tests (engineer-reported):** core +12 (`tests/widget_turn.rs`), CLI +3; 2868 + 1494 + 854 + 218 + 43 passed, 0 failed; sabotage of the angle-preserving redraw paths failed 3 tests, restored; no manifest change.
+
+**Files:** ROADMAP `551.0` blockquote stub removed from *Next up*, entry added to *Shipped*, banner now "batch complete"; the new `###` heading sits before *Next up*, so the count between *Next up* and *Backlog* is unchanged at 80 (not re-counted in full from here). `FEATURES.md` Planned row removed, new *Implemented* row in *Forms* (core/cli `[x]`, gui `[ ]`).
+
+**Decisions made this session:** None.
+
+**Still in flight:** the `G148`-`G161` batch is complete. Next free `Pass 552.0`; next filing 1034th. Push state not verifiable from here.
+
 ## 2026-10-08 (1032nd filing) — `Pass 550.0` shipped (add a node, convert a node or a segment, `G154`)
 
 **Shipped:** `Pass 550.0`, code `3b4271f2`, `docs/core-api` `666129b1`. `EditSession::insert_node`, `convert_node`, `convert_segment` plus `_in_form` twins (six verbs, core-api 342 to 348); planners `plan_insert_node/convert_node/convert_segment`; `NodeKind`, `SegmentKind`; three new `VectorEditError` variants; three new `CommandKind`s. Insert is a de Casteljau split (drawing unchanged); conversions keep the anchor; line-to-curve promotion, `re` rewrite and clip changes disclosed. CLI `node-insert`, `node-convert`, `segment-convert` (README 221 to 224). Shared `vector::geometry::sub` replaced a duplicated DXF-exporter helper.

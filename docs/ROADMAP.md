@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 551.0` — turn a form widget to any angle, widget opacity (core + CLI; answers `pdfcer-gui` `G160`) — SHIPPED 2026-10-08 (1033rd filing)
+
+Commits `ec37ae9c` (code), `b302fc23` (`docs/core-api`); push state not verifiable from here. No `Cargo.toml` change, no new dependency, so `cargo tree` unchanged. Spec: ISO 32000-2 §12.5.5. No decision. Listed in *Next up* at filing (verified, a blockquote stub), stub removed.
+
+**Basis.** A widget could turn only by quarter turns (`/MK /R`), and `WidgetEdit` could not set opacity.
+
+**Delivered.**
+- `EditSession::turn_widget(fqn, index, degrees: f64) -> Result<WidgetTurn, EditError>`: free counterclockwise angle, absolute, written into every `/AP` stream's `/Matrix` on top of `/MK /R`. `/Rect` becomes the bound of the turned artwork, centred on the old rect. The angle is read back from the `/N` stream's `/Matrix` (no private key). Later redraws (text regeneration, button states) keep the angle and draw at the logical `BBox` size. `WidgetTurn` is `#[non_exhaustive]`; `CommandKind::TurnWidget`.
+- A turned widget refuses `rotate_widget` and an `edit_widget` resize (`EditError::WidgetTurned`) until turned back to 0; a move is allowed.
+- `WidgetEdit::with_opacity` / `clearing_opacity` write or remove `/CA`; `WidgetEditOutcome::opacity_disclosure`.
+- Five new `EditError` variants: `WidgetTurnIsQuarterTurn`, `WidgetTurnNeedsAppearance`, `WidgetTurnSharedAppearance`, `WidgetTurned`, `WidgetOpacityOutOfRange`. `docs/core-api`: public verbs 348 to 349, `EditError` variants 175 to 180.
+- Disclosed, not silent (rule 4): shared appearance streams are copied; a viewer regenerating from `/MK` alone drops the angle; a non-uniform-scale fit; strict PDF 2.0 readers may ignore widget `/CA`.
+- CLI `turn-widget` (supports `--in-place`); `edit-widget --opacity 0-1 | --clear-opacity`; README working-subcommand count 224 to 225.
+
+**Verified (engineer-reported).** 12 core tests (`crates/pdfcer-core/tests/widget_turn.rs`), 3 CLI tests. Full runs 2868 + 1494 + 854 + 218 + 43 passed, 0 failed. Sabotage (disabling the angle-preserving redraw paths) failed 3 tests, restored.
+
+**`G160` status.** Reply `reply_request_G160_a_field_turns_only_by_quarter_turns_FIXED.md` written to the channel; ACK deleted. GUI column is `pdfcer-gui`'s to tick.
+
+`FEATURES.md`: *Planned* `551.0` row removed; new *Implemented* row in *Forms* (core `[x]` cli `[x]` gui `[ ]`).
+
+Ledgers: no decision; next free `Pass 552.0`; next filing 1034th.
+
 ### `Pass 550.0` — add a node to a path, convert a node or a segment (core + CLI; answers `pdfcer-gui` `G154`) — SHIPPED 2026-10-08 (1032nd filing)
 
 Commits `3b4271f2` (code), `666129b1` (`docs/core-api`); push state not verifiable from here. No `Cargo.toml` change, so `cargo tree` unchanged; no writer change beyond content-stream splices, so round-trip is unaffected. No decision. Listed in *Next up* at filing (verified, a blockquote stub), stub removed.
@@ -21469,9 +21491,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), `547.0` SHIPPED (1029th filing), `548.0` SHIPPED (1030th filing), `549.0` SHIPPED (1031st filing), `550.0` SHIPPED (1032nd filing), see *Shipped*; `551.0` remains. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1033rd.
->
-> **`Pass 551.0` — `G160`:** widget rotation to any angle via the appearance `/Matrix`; also opacity `/CA` in `WidgetEdit`. Answer given to `pdfcer-gui`: in scope. The verb discloses that a viewer regenerating from `/MK /R` drops the free angle (rule 4).
+> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), `547.0` SHIPPED (1029th filing), `548.0` SHIPPED (1030th filing), `549.0` SHIPPED (1031st filing), `550.0` SHIPPED (1032nd filing), `551.0` SHIPPED (1033rd filing), see *Shipped*; the batch is complete. Request files in `pdfce_FeatureRequests/open/`. Each Pass shipped core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1034th.
 
 > **Taken up from `pdfcer-gui`, 2026-10-07 (1007th filing, updated 1009th):** the other two of the three performance requests filed with `G139`.
 > - `G141` SHIPPED as `Pass 529.0` (`86fea180`, 1008th filing), see *Shipped*.
