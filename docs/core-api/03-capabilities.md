@@ -3180,6 +3180,22 @@ ce dimension. CLI: `render-page --omit-annotation INDEX` (the 0-based
 `index=` from `list-annotations`, repeatable; an index past the end is
 refused).
 
+`invisible_text: Option<InvisibleTextPaint>` / **`with_invisible_text(paint)`**
+(request G169) paints text in rendering modes 3 and 7 (ISO 32000-1 §9.3.6
+Table 106; an OCR text layer is mode 3) filled in a colour you give, instead
+of not at all. Default `None`: the spec's behaviour, byte-identical to before.
+`InvisibleTextPaint::new([r, g, b])` (sRGB, 0–255) paints it alongside the
+page; `.with_only(true)` paints **only** that text: no paths, images,
+shadings, visible text or annotations, on a transparent backdrop
+(`effective_backdrop()` reports `Transparent`, `effective_annotation_scope()`
+`ContentOnly`), so you can lay it over your own render of the same page at
+the same scale. The glyphs go through the ordinary glyph path (same fonts,
+matrices, enclosing clips, hidden `/OC` stays hidden); mode 7 still clips.
+A Type 3 glyph runs its procedure with the fill colour set: an uncoloured
+(`d1`) glyph takes it, a coloured (`d0`) glyph keeps its own. A display aid
+only; nothing in the document changes. CLI: `render-page --invisible-text
+RRGGBB [--invisible-text-only]`.
+
 `stroke_display: StrokeDisplay` sets line weights. It takes one of three
 values:
 
