@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1026th filing) — `Pass 544.0` shipped (text box frame and text styling, `G149`)
+
+**Shipped:** `Pass 544.0`, code `0041e8dd`, `docs/core-api` `24f6a95d`. `TextAnnotStyle` gains opacity, fill, border width, dash, text colour and font; `TextAnnotStyleChange` gains three `*_written` flags. Five FreeText-only fields refused on notes and stamps (`StylePropertyNotApplicable`); opacity on every subtype; one restyle one undo; a re-bake keeps fill and dash. Breaking: `TextAnnotSpec::FreeText` gains `frame: FreeTextFrame`. Bug fixed on discovery: `MarkupOptions::dash` was silently dropped for FreeText creation. CLI `set-text-annot-style` gains six flags; `annotate --type freetext --background`. No new subcommand.
+
+**Tests (engineer-reported):** core +8, CLI +4; full runs green; core-api verbs 333, `EditError` 169 unchanged; no manifest change. Two structure-baseline entries retired.
+
+**Files:** ROADMAP `544.0` stub removed from *Next up* (`###` count stays 80), entry added to *Shipped*, banner updated; `FEATURES.md` Planned row removed, new *Implemented* row (core/cli `[x]`, gui `[ ]`); `personal_rag/pdf` lesson on FreeText fill carrier and `/RD` order.
+
+**Decisions made this session:** None.
+
+**Still in flight:** `Pass 545.0` (`G151`, `set_stamp_label`) next; `546.0`-`551.0` queued. Next free `Pass 552.0`; next filing 1027th. Push state not verifiable from here (no shell).
+
 ## 2026-10-07 (1025th filing) — `Pass 543.0` shipped (restack page objects, `G157`)
 
 **Shipped:** `Pass 543.0`, code `1fb0d267`, `docs/core-api` `5d01412a`. `EditSession::restack_objects(page, &indices, StackMove)` (front/back/forward/backward) with `RestackOutcome`/`RestackLimit`; one undo entry `CommandKind::RestackObjects`. State is replayed inside `q [cm] … Q`; a destination under unseen `gs` operations gets one new `/ExtGState` (`pdfcerRS<n>`); clip and marked-content boundaries limit moves and are reported, never silent. CLI `restack-objects` (216th subcommand). Page objects only, no `_in_form` twin.

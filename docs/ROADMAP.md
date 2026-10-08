@@ -115,6 +115,31 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 544.0` — style a text box's fill, border, dash, opacity and text (core + CLI; answers `pdfcer-gui` `G149`) — SHIPPED 2026-10-07 (1026th filing)
+
+Commits `0041e8dd` (code), `24f6a95d` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Push state not checked here (no shell).
+
+**Basis.** "A text box's frame and text cannot be styled." ISO 32000 has no key carrying a FreeText's background fill (Table 174 in 1.7, Table 177 in 2.0); the appearance stream is the only carrier, so a restyle regenerates it (spec RAG `iso32000__s__12.5.6.6.md`, FT-Q1..Q5).
+
+**Delivered.**
+- `TextAnnotStyle` gains `opacity` (`/CA`, `StyleEdit<f64>`), `fill` (`StyleEdit<Color>`), `border_width` (`f64`; 0 removes the border; a width on a borderless box draws black unless a colour is given), `dash` (`StyleEdit<BorderDash>`), `text_color` (`TextColor`), `font` (`Std14`). `TextAnnotStyleChange` gains `opacity_written`, `frame_written`, `text_style_written`.
+- The five FreeText-only fields are refused on sticky notes and stamps with `StylePropertyNotApplicable` naming the property; opacity applies to every subtype; out-of-range opacity is `MarkupOpacityOutOfRange`. One restyle is one undo. A re-bake now keeps an existing fill and dash (a colour-only restyle used to drop the dash).
+- **Breaking:** `TextAnnotSpec::FreeText` gains `frame: FreeTextFrame { fill, dash }` (`non_exhaustive`, `Default`); `text_spec_from_dict` reads it back.
+- **Bug fixed on discovery:** `MarkupOptions::dash` was silently ignored by `add_text_annotation_*` for a FreeText, so `pdfcer annotate --type freetext --dash` was accepted and dropped. It now dashes the border unless `frame.dash` is set.
+- CLI `set-text-annot-style` gains `--opacity --fill --border-width --dash --text-color --font`; output line gains `opacity_written= frame_written= text_style_written=`. `annotate --type freetext --background RRGGBB` sets the fill at creation (refused, exit 9, on other types). No new subcommand.
+- Two code-structure baseline entries retired (the old CLI `set-text-annot-style` command fn and core `free_text` fn are now under the limits).
+- `docs/core-api`: row extended; verbs 333 (unchanged), `EditError` 169 (unchanged).
+
+**Verified (engineer-reported).** Core +8 and CLI +4 tests (both in `free_text_frame_style.rs`); full core, CLI and render test runs green. core-api verb check PASS.
+
+**Interop note.** `/C` is the border colour here; `/IC` is a private recovery key for re-baking (other readers ignore it). Acrobat reads `/C` as the FreeText fill, so the two differ by design (spec RAG FT-Q1). Filed in `personal_rag/pdf`.
+
+**`G149` status.** GUI column is `pdfcer-gui`'s to tick. Reply `reply_request_G149_a_text_box_frame_and_text_cannot_be_styled_FIXED.md` written (engineer-reported).
+
+`FEATURES.md`: *Planned* `544.0` row removed; new *Implemented* row after the `538.0` text-box row (core `[x]` cli `[x]` gui `[ ]`).
+
+Ledgers: no decision; next free `Pass 552.0`; next filing 1027th.
+
 ### `Pass 543.0` — restack page objects front / back / forward / backward (core + CLI; answers `pdfcer-gui` `G157`) — SHIPPED 2026-10-07 (1025th filing)
 
 Commits `1fb0d267` (code), `5d01412a` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Push state not checked here (no shell).
@@ -21319,9 +21344,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), see *Shipped*; `544.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1026th.
->
-> **`Pass 544.0` — `G149`:** FreeText fill, border width/dash, opacity, text colour and face, via `TextAnnotStyle`. Same refuse-or-regenerate contract as `538.0`.
+> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), see *Shipped*; `545.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1027th.
 >
 > **`Pass 545.0` — `G151`:** `set_stamp_label`.
 >
