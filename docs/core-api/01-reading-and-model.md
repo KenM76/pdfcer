@@ -2087,7 +2087,11 @@ collapsing that into `FontMetrics` would misrepresent confidence
 (`ARCHITECTURE.md` §4, Pass 18.6). **Show the basis if you show the box.**
 
 **`ImageObject`** — `decompose.rs`: `{ctm, page_bbox, source, pixel_size,
-tokens, bytes}`. `ImageSource`: `Inline` | `XObject` | `Form`.
+fill_alpha, stroke_alpha, tokens, bytes}`. `ImageSource`: `Inline` |
+`XObject` | `Form`. `fill_alpha`/`stroke_alpha` are the `/ca`/`/CA` in force
+at the `Do` or inline image (clamped `0..=1`; a soft mask is not reflected):
+an image paints with `fill_alpha`, a form's content starts from both. Plain
+struct — a literal needs both fields.
 
 **`Bounds`** — `geometry.rs`: `{min, max: Point}`, with `EMPTY`,
 `union_point`, `union`, `inflate`, `contains`,
