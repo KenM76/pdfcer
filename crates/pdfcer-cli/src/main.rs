@@ -649,6 +649,8 @@ mod link_cmd;
 use link_cmd::*;
 mod image_replace_cmd;
 use image_replace_cmd::*;
+mod node_shape_cmd;
+use node_shape_cmd::*;
 mod object_list;
 use object_list::*;
 mod objects;

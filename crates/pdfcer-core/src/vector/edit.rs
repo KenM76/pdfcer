@@ -112,6 +112,11 @@ use super::decompose::{
 };
 use super::geometry::{Matrix, Point, Rgb, rect_corners};
 
+mod node_shape;
+pub use node_shape::{
+    NodeKind, SegmentKind, plan_convert_node, plan_convert_segment, plan_insert_node,
+};
+
 /// Why a vector-edit surgery could not be planned.
 ///
 /// Every variant names a condition the operator (or the calling front end)
@@ -342,6 +347,24 @@ pub enum VectorEditError {
         "this point is inherited from the part before it rather than written down, so removing it would change that other part instead"
     )]
     NodeDeleteImplicitStart,
+    /// A node insert named a segment parameter that is not finite and strictly
+    /// between 0 and 1 (0 and 1 are the segment's existing end nodes).
+    #[error("the position along the segment must be strictly between 0 and 1")]
+    InvalidSegmentParameter,
+    /// No segment leaves this node: it is the last node of an open subpath, or
+    /// of a closed one whose closing edge has no length.
+    #[error("node {index} has no segment after it")]
+    NoSegmentHere {
+        /// The object-scoped node index that was asked for.
+        index: usize,
+    },
+    /// A smooth or symmetric node needs a segment on both sides; this node is
+    /// the end of an open subpath.
+    #[error("node {index} is the end of an open path, so it has only one side to line up")]
+    NodeHasOneSide {
+        /// The object-scoped node index that was asked for.
+        index: usize,
+    },
     /// A subpath delete named an index past the object's subpath count.
     #[error("subpath index {index} is out of range (the object has {count} subpath(s))")]
     SubpathOutOfRange {

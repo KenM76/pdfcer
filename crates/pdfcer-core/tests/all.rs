@@ -256,6 +256,7 @@ mod unshare_form;
 mod vector_edit;
 mod vector_model;
 mod vector_multi_target;
+mod vector_node_shape;
 mod whole_operator_pin;
 mod widget_adoption;
 mod widget_appearance_replace;

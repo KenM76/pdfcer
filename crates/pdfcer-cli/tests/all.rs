@@ -79,6 +79,7 @@ mod list_links;
 mod locked_contents_refusal;
 mod markup_respan;
 mod move_annotation;
+mod node_shape;
 mod object_clip_replies;
 mod object_copy_leaf;
 mod object_list;

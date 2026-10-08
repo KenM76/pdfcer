@@ -12074,6 +12074,50 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+    /// **Add a point** to a path without changing its shape: split the
+    /// segment leaving `--node` at `--at`, a position from 0 to 1 along it
+    /// (for a curve, the curve parameter, not the length). The new point is
+    /// `--node` + 1, and every later point in the object is renumbered up by
+    /// one. A rectangle is first rewritten as lines, which is printed on
+    /// stderr.
+    ///
+    /// Refused when `--at` is not strictly between 0 and 1, and when no
+    /// segment leaves the point (the last point of an open path).
+    NodeInsert {
+        #[command(flatten)]
+        target: NodeTargetArgs,
+        /// Where along the segment, strictly between 0 and 1.
+        #[arg(long)]
+        at: f64,
+    },
+    /// **Make a point a corner, smooth or symmetric point**. The point
+    /// stays where it is; only the handles either side of it change.
+    ///
+    /// `smooth` lines the handles up, each keeping its length; beside a
+    /// straight side, the curve's handle lines up with the line. `symmetric`
+    /// also gives both handles the same length. A straight side that has to
+    /// become a curve to do this is reported on stderr. Refused for `smooth`
+    /// and `symmetric` at the end of an open path, which has only one side.
+    NodeConvert {
+        #[command(flatten)]
+        target: NodeTargetArgs,
+        /// What the point becomes.
+        #[arg(long, value_enum)]
+        kind: NodeKindArg,
+    },
+    /// **Make a segment a line or a curve**: the segment leaving
+    /// `--node`. A line becomes a curve that still looks straight, ready to
+    /// bend with `handle-move`; a curve becomes a straight line.
+    ///
+    /// Turning the closing edge of a closed shape into a curve adds a point at
+    /// the end of that shape. Refused when no segment leaves the point.
+    SegmentConvert {
+        #[command(flatten)]
+        target: NodeTargetArgs,
+        /// What the segment becomes.
+        #[arg(long, value_enum)]
+        to: SegmentKindArg,
+    },
     /// **Drag a node** of a path object:
     /// move ONE anchor to a page-space point via surgery.
     /// `--node` is the anchor's 0-based index in decomposition order (start,

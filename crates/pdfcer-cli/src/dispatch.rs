@@ -3549,6 +3549,13 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         }),
+        Command::NodeInsert { target, at } => cmd_node_shape(&target, &NodeShapeOp::Insert(at)),
+        Command::NodeConvert { target, kind } => {
+            cmd_node_shape(&target, &NodeShapeOp::Convert(kind))
+        }
+        Command::SegmentConvert { target, to } => {
+            cmd_node_shape(&target, &NodeShapeOp::Segment(to))
+        }
         Command::NodeMove {
             input,
             page,

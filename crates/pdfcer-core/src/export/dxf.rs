@@ -98,6 +98,7 @@
 //! never a parametric model. It is the right tool for tracing a legacy
 //! drawing or a supplier's PDF, and it is not a route back to a model.
 
+use crate::vector::geometry::sub;
 use crate::vector::{
     Bounds, PageObjects, PathObject, Point, Segment, Subpath, TextObject, VectorObject,
 };
@@ -1190,10 +1191,6 @@ fn circle_fit(sp: &Subpath, tol: f64) -> Option<(Point, f64)> {
 // ---------------------------------------------------------------------------
 // Small geometry helpers
 // ---------------------------------------------------------------------------
-
-fn sub(a: Point, b: Point) -> Point {
-    Point::new(a.x - b.x, a.y - b.y)
-}
 
 fn cross(a: Point, b: Point) -> f64 {
     a.x * b.y - a.y * b.x

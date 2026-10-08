@@ -56,6 +56,11 @@ pub struct Point {
     pub y: f64,
 }
 
+/// `a - b`, componentwise.
+pub(crate) fn sub(a: Point, b: Point) -> Point {
+    Point::new(a.x - b.x, a.y - b.y)
+}
+
 impl Point {
     /// A point from its two coordinates.
     #[must_use]

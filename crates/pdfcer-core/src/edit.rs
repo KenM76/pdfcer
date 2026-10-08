@@ -135,6 +135,7 @@ mod form_copy;
 mod form_paint;
 mod form_transform;
 mod group_unit;
+mod node_shape;
 mod restack;
 mod stroke_style;
 pub use annot_restyle::{AnnotOpacityChange, MARKER_SUBTYPES, MarkerStyle, MarkerStyleChange};
@@ -1215,6 +1216,15 @@ pub enum CommandKind {
     /// pressed Delete meant exactly one of them, and before Pass 36.0 the GUI
     /// gave them the wrong one.
     DeleteNode,
+    /// A node was added on a segment without changing the shape
+    /// ([`EditSession::insert_node`]).
+    InsertNode,
+    /// A node's handles were reset to make it a corner, smooth or symmetric
+    /// node ([`EditSession::convert_node`]).
+    ConvertNode,
+    /// A segment was turned into a line or a curve
+    /// ([`EditSession::convert_segment`]).
+    ConvertSegment,
     /// A raster image was placed on a page: the image XObject, its optional
     /// `/SMask`, the `q … cm … Do … Q` overlay stream, and the page's
     /// `/Contents` + `/Resources /XObject` patches — all ONE undo entry.
