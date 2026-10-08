@@ -1536,6 +1536,42 @@ CLI: `inspect --text-blocks [--json]` prints `kind=table-cell cell=t0r1c0` /
 `"cell": {"table", "row", "column", "rect"}` and the three counters;
 `inspect --reflow-preview` and `reflow` print `cell_overflow`.
 
+### 8.4.4b Wrapped or typed — how each line ends (`Pass 554.0`)
+
+pdfcer-gui request G163. A block's lines are all just lines on the page; the
+engine reads which ended because the text wrapped and which ended at a typed
+break, so a shell re-opening a block for editing gets the same answer as the
+CLI.
+
+| item | contract |
+|---|---|
+| `text_edit::LineEnd` | `Break`, `Wrap`, `Last` (`#[non_exhaustive]`; `as_str()` gives `break` / `wrap` / `last`). |
+| `model.line_ends(&block) -> Vec<LineEnd>` | One per line, in `block.line_indices` order; the last is `Last`, an empty block gives `[]`. |
+| `model.block_text_with_breaks(&block) -> String` | Lines joined by a space after a `Wrap` and by `\n` after a `Break`: the spelling `edit_block_text` takes, so writing it back keeps the block's lines (`G162`). `block_text` (every line joined by `\n`) is unchanged. |
+| `BlockHit::{text, line_ends}` | `block_at_point` now returns this spelling and the per-line ends. |
+
+**The rule.** A greedy breaker (pdfcer's, and the usual word processor's)
+moves a word down only when it does not fit. So a line is a `Break` when the
+next line's first word, after one space, would have fitted on it within the
+block's wrap width; otherwise `Wrap`. The width is the block's own extent
+along its writing direction (a table cell block's inner width); that is never
+wider than the width the producer wrapped at, so a real wrap is never read as
+a break. The space is the block's median space glyph, else its median word
+gap, else a third of an em. A line is measured from the block's leftmost line
+start.
+
+**The uncertainty, to disclose off-canvas (rule 4).** Both values are
+inferred, for pdfcer's own text as for foreign text: the file carries no
+mark of either. A break typed at a line already too full for the next word
+reads as `Wrap`; a centred or right-aligned short line reads as `Wrap` unless
+it is short enough anyway; a producer that balances its lines instead of
+filling them can produce a `Break` that was a wrap. Show the result as
+inferred, never as a marking on the page.
+
+CLI: `edit-block-text --at x,y` prints `line ends (inferred): wrap,break,last`
+beside `old text:`; `inspect --text-blocks --json` gives each block a
+`"line_ends"` array after `"text"`.
+
 ### 8.4.5 Tagged layout — blocks and tables from the structure tree (`Pass 395.0`)
 
 For a tagged file: the same `DocumentLayout` §8.4.3 returns, and the
