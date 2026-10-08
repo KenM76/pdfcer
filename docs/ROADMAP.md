@@ -115,6 +115,27 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 545.0` — change a placed stamp's words (core + CLI; answers `pdfcer-gui` `G151`) — SHIPPED 2026-10-07 (1027th filing)
+
+Commits `8a06950a` (code), `a09c9a12` (`docs/core-api`). No `Cargo.toml` or dependency change. No decision. Push state not checked here (no shell).
+
+**Basis.** "A stamp label cannot be edited." A stamp's face is its baked `/AP`, so changing the words means re-baking it.
+
+**Delivered.**
+- `EditSession::set_stamp_label(annot_id, label) -> Result<TextAnnotStyleChange, EditError>`: replaces a placed `/Stamp`'s face words and re-bakes `/AP`, keeping the recovered label size, `/C`, `/Contents` (the comment) and the object id. One undo (`CommandKind::SetTextAnnotStyle`).
+- It is shorthand for new `TextAnnotStyle::label: Option<StyleEdit<String>>` on `set_text_annot_style` (`Set` replaces; `Clear` restores the `/Name`'s default words). `stamp_fit` now applies with `label` as well as `font_size`; a longer label widens the box under the default fit, reported via `stamp_label_fit` / `rect_after`. `TextAnnotStyleChange::label_written: bool` added.
+- New `EditError::StampLabelEmpty { id }` for a blank or whitespace label (a blank face cannot be read back, so the next re-bake would treat the stamp as foreign artwork). `EditError` is now 170 variants. A label on a non-stamp is `StylePropertyNotApplicable` ("stamp label").
+- **Bug fixed on discovery:** `StylePropertyNotApplicable` property strings from `set_text_annot_style` carried a leading article ("a text-box fill", "a sticky-note icon", "a label font size"...) while the message reads "has no {property}", giving "has no a text-box fill". The article is dropped from all seven. Small breaking change for string matchers; disclosed to `pdfcer-gui` in the reply.
+- CLI `set-text-annot-style --label TEXT | --reset-label` (mutually exclusive, clap exit 2 if both; blank label exit 9); output gains `label_written=`. No new subcommand.
+
+**Verified (engineer-reported).** Core +6 and CLI +3 tests (both in `stamp_label_edit.rs`); sabotage of the core label arm and of the CLI flag mapping each caught. Full core, CLI and render runs green; fmt, clippy (full and lite), rustdoc links, code-structure, string-gaps, public-fns, clap-help and core-api verb check (334 verbs) pass.
+
+**`G151` status.** GUI column is `pdfcer-gui`'s to tick. Reply `reply_request_G151_a_stamp_label_cannot_be_edited_FIXED.md` filed in the `pdfcer-gui` FeatureRequests channel (engineer-reported).
+
+`FEATURES.md`: *Planned* `545.0` row removed; new *Implemented* row after the `544.0` text-box row (core `[x]` cli `[x]` gui `[ ]`).
+
+Ledgers: no decision; next free `Pass 552.0`; next filing 1028th.
+
 ### `Pass 544.0` — style a text box's fill, border, dash, opacity and text (core + CLI; answers `pdfcer-gui` `G149`) — SHIPPED 2026-10-07 (1026th filing)
 
 Commits `0041e8dd` (code), `24f6a95d` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Push state not checked here (no shell).
@@ -21344,9 +21365,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), see *Shipped*; `545.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1027th.
->
-> **`Pass 545.0` — `G151`:** `set_stamp_label`.
+> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), see *Shipped*; `546.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1028th.
 >
 > **`Pass 546.0` — `G152`:** respan a text markup's `/QuadPoints`.
 >

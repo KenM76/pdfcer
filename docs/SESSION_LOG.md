@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1027th filing) — `Pass 545.0` shipped (change a placed stamp's words, `G151`)
+
+**Shipped:** `Pass 545.0`, code `8a06950a`, `docs/core-api` `a09c9a12`. New `EditSession::set_stamp_label`, shorthand for new `TextAnnotStyle::label`; re-bakes `/AP` keeping size, `/C`, `/Contents` and object id; one undo. New `EditError::StampLabelEmpty` (170 variants). Bug fixed on discovery: `StylePropertyNotApplicable` strings had a leading article ("has no a text-box fill"); dropped from all seven (small breaking change for string matchers, disclosed to `pdfcer-gui`). CLI `set-text-annot-style --label | --reset-label`; output gains `label_written=`.
+
+**Tests (engineer-reported):** core +6, CLI +3; sabotage of the core arm and CLI mapping each caught; full runs and all gates green; core-api verbs 334; no manifest change.
+
+**Files:** ROADMAP `545.0` stub removed from *Next up* (`###` count stays 80), entry added to *Shipped*, banner updated; `FEATURES.md` Planned row removed, new *Implemented* row (core/cli `[x]`, gui `[ ]`).
+
+**Decisions made this session:** None.
+
+**Still in flight:** `Pass 546.0` (`G152`, respan `/QuadPoints`) next; `547.0`-`551.0` queued. Next free `Pass 552.0`; next filing 1028th. Push state not verifiable from here (no shell).
+
 ## 2026-10-07 (1026th filing) — `Pass 544.0` shipped (text box frame and text styling, `G149`)
 
 **Shipped:** `Pass 544.0`, code `0041e8dd`, `docs/core-api` `24f6a95d`. `TextAnnotStyle` gains opacity, fill, border width, dash, text colour and font; `TextAnnotStyleChange` gains three `*_written` flags. Five FreeText-only fields refused on notes and stamps (`StylePropertyNotApplicable`); opacity on every subtype; one restyle one undo; a re-bake keeps fill and dash. Breaking: `TextAnnotSpec::FreeText` gains `frame: FreeTextFrame`. Bug fixed on discovery: `MarkupOptions::dash` was silently dropped for FreeText creation. CLI `set-text-annot-style` gains six flags; `annotate --type freetext --background`. No new subcommand.
