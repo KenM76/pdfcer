@@ -76,6 +76,10 @@ pub struct DestinationResolver {
     /// no hint which it meant, and no real file populates both with
     /// colliding keys.
     named: HashMap<Vec<u8>, Object>,
+    /// The keys that came from the `/Names` tree. A referrer names a tree
+    /// entry with a string and a legacy `/Dests` entry with a name object
+    /// (§12.3.2.3), so a writer needs to know which namespace holds a key.
+    in_tree: HashSet<Vec<u8>>,
 }
 
 impl DestinationResolver {
@@ -84,7 +88,7 @@ impl DestinationResolver {
     pub fn new<G: ObjectGraph + ?Sized>(graph: &G) -> Self {
         let mut named = HashMap::new();
         let Some(catalog) = graph.catalog_dict() else {
-            return Self { named };
+            return Self::default();
         };
 
         // §12.3.2.3, the PDF 1.1 form: catalog `/Dests` is a plain
@@ -110,10 +114,31 @@ impl DestinationResolver {
         {
             let mut budget = MAX_NAME_TREE_NODES;
             let mut visited = HashSet::new();
-            flatten_name_tree(graph, tree, 0, &mut budget, &mut visited, &mut named);
+            let mut from_tree = HashMap::new();
+            flatten_name_tree(graph, tree, 0, &mut budget, &mut visited, &mut from_tree);
+            let in_tree = from_tree.keys().cloned().collect();
+            named.extend(from_tree);
+            return Self { named, in_tree };
         }
 
-        Self { named }
+        Self {
+            named,
+            in_tree: HashSet::new(),
+        }
+    }
+
+    /// The object a referrer writes to name `key`: a string for a `/Names`
+    /// tree entry, a name object for a legacy catalog `/Dests` entry
+    /// (§12.3.2.3), `None` when neither defines it.
+    #[must_use]
+    pub(crate) fn reference_to(&self, key: &[u8]) -> Option<Object> {
+        if self.in_tree.contains(key) {
+            Some(Object::String(key.to_vec()))
+        } else {
+            self.named
+                .contains_key(key)
+                .then(|| Object::Name(Name::from(key)))
+        }
     }
 
     /// How many named destinations this document defines.

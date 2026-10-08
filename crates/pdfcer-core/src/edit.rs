@@ -142,6 +142,8 @@ pub use foreign_button::ForeignAppearance;
 pub use form_paint::FormPaintOutcome;
 mod markup_respan;
 pub use markup_respan::TextMarkupRespan;
+mod link;
+pub use link::{LinkBorder, LinkBorderChange, LinkTarget, LinkTargetChange};
 mod image_stamp;
 mod ocr_refold;
 mod page_artwork;
@@ -398,6 +400,10 @@ pub enum CommandKind {
     /// re-baked by [`EditSession::respan_text_markup`] (pdfcer-gui request
     /// G152).
     RespanTextMarkup,
+    /// [`EditSession::set_link_target`].
+    SetLinkTarget,
+    /// [`EditSession::set_link_border`].
+    SetLinkBorder,
     /// One `/Ink` stroke, or one point inside one stroke, was edited and the
     /// annotation's appearance re-baked from the new `/InkList`
     /// (`Pass 278.0`, `pdfcer-gui` request 2026-09-08).
@@ -1324,6 +1330,8 @@ pub enum AnnotKind {
     Screen,
     /// `/3D` with its 3D stream (§13.6.2).
     ThreeD,
+    /// `/Link` (§12.5.6.5).
+    Link,
 }
 
 /// One entry on the undo stack: the set of writes it performed, each
@@ -1517,6 +1525,18 @@ fn dest_array(page: ObjId, view: &crate::outline::DestView) -> Result<Vec<Object
         DestView::Absent => return Err("no-fit-style"),
     }
     Ok(out)
+}
+
+impl EditSession {
+    /// The object a referrer writes to name the destination `name`, or
+    /// [`EditError::NamedDestinationNotFound`] when nothing defines it.
+    fn named_destination_reference(&self, name: &[u8]) -> Result<Object, EditError> {
+        crate::pageops::references::DestinationResolver::new(&self.view())
+            .reference_to(name)
+            .ok_or_else(|| EditError::NamedDestinationNotFound {
+                name: String::from_utf8_lossy(name).into_owned(),
+            })
+    }
 }
 
 /// A stable, operator-showable word for a destination pdfcer cannot author,
@@ -6997,6 +7017,28 @@ pub enum EditError {
         id: ObjId,
         /// Its `/Subtype`.
         subtype: String,
+    },
+    /// A link verb was given an annotation that is not a `/Link`.
+    #[error("annotation {id} is a {subtype}, not a /Link")]
+    LinkVerbOnOther {
+        /// The annotation.
+        id: ObjId,
+        /// Its `/Subtype`.
+        subtype: String,
+    },
+    /// A [`LinkTarget::Uri`] cannot be written as a URI action
+    /// (§12.6.4.7 requires 7-bit ASCII).
+    #[error("the link address cannot be written: {reason}")]
+    LinkUriInvalid {
+        /// Why, for the operator.
+        reason: &'static str,
+    },
+    /// A [`LinkBorder::width`] is not a finite number above zero. For no
+    /// border, pass `None`.
+    #[error("a link border width must be above zero, got {given}; pass no border for none")]
+    LinkBorderWidthInvalid {
+        /// The width given.
+        given: f64,
     },
     /// The object named in a page's `/Annots` is a **structural object**, not
     /// an annotation (`Pass 190.1`).
@@ -52360,20 +52402,10 @@ impl EditSession {
             // Baking `[7 0 R /Fit]` into the bookmark would produce a link
             // that is correct today and silently wrong after the next page
             // move — the failure named destinations were invented to prevent.
+            // The type IS the namespace selector (§12.3.2.3): a string for
+            // a `/Names` tree entry, a name object for a legacy `/Dests` one.
             Some(crate::outline::Destination::Named { name }) => {
-                if crate::pageops::references::DestinationResolver::new(&self.view())
-                    .lookup(name)
-                    .is_none()
-                {
-                    return Err(EditError::NamedDestinationNotFound {
-                        name: String::from_utf8_lossy(name).into_owned(),
-                    });
-                }
-                // A STRING, keying the PDF 1.2 `/Names` tree — not a name
-                // object, which §12.3.2.3 assigns to the PDF 1.1 catalog
-                // `/Dests` dictionary. The type IS the namespace selector,
-                // and it is the only one the standard gives.
-                Some(Object::String(name.clone()))
+                Some(self.named_destination_reference(name)?)
             }
             Some(other) => {
                 return Err(EditError::UnsupportedDestination {

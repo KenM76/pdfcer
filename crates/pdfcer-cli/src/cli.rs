@@ -6428,6 +6428,87 @@ pub(crate) enum Command {
         #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
         mode: SaveMode,
     },
+    /// **Add a link** — a `/Link` annotation over `--rect` that goes to a
+    /// page, a named destination or a URI (ISO 32000-1 §12.5.6.5).
+    ///
+    /// Without `--border-width` the link is invisible (`/Border [0 0 0]`;
+    /// the spec's default is a 1-point border). With one, a stroked
+    /// appearance is baked so every viewer draws the same border.
+    AddLink {
+        /// Input PDF.
+        input: PathBuf,
+        /// Page to put the link on, 1-BASED.
+        #[arg(long)]
+        page: usize,
+        /// Clickable area `llx,lly,urx,ury` in points.
+        #[arg(long, allow_hyphen_values = true)]
+        rect: String,
+        /// Where the link goes.
+        #[command(flatten)]
+        target: LinkTargetFlags,
+        /// An optional visible border.
+        #[command(flatten)]
+        border: LinkBorderFlags,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
+    /// **Re-target a link** — replace its `/Dest` or `/A` with a page, a
+    /// named destination or a URI (ISO 32000-1 §12.5.6.5).
+    ///
+    /// The old action is removed whatever it was, and its type is printed
+    /// (`replaced a /JavaScript action`). Area, border and object id are
+    /// kept. A locked link (`/F` bit 8) is refused.
+    SetLinkTarget {
+        /// Input PDF.
+        input: PathBuf,
+        /// Page, 1-BASED — the `page=` value `list-annotations` prints.
+        #[arg(long)]
+        page: usize,
+        /// Index within that page's `/Annots`, 0-BASED.
+        #[arg(long)]
+        index: usize,
+        /// Where the link goes.
+        #[command(flatten)]
+        target: LinkTargetFlags,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
+    /// **Set or remove a link's border** — width, colour and dash, with a
+    /// baked appearance; `--none` makes the link invisible
+    /// (ISO 32000-1 §12.5.2 Table 164, §12.5.4).
+    ///
+    /// Any existing appearance is replaced; the output says so. The
+    /// target is kept. A locked link is refused.
+    SetLinkBorder {
+        /// Input PDF.
+        input: PathBuf,
+        /// Page, 1-BASED — the `page=` value `list-annotations` prints.
+        #[arg(long)]
+        page: usize,
+        /// Index within that page's `/Annots`, 0-BASED.
+        #[arg(long)]
+        index: usize,
+        /// Remove the border: `/Border [0 0 0]` and no appearance.
+        #[arg(long)]
+        none: bool,
+        /// The new border.
+        #[command(flatten)]
+        border: LinkBorderFlags,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
     /// **Restyle a sticky note, stamp or text box** — its icon and/or its
     /// colour (ISO 32000-1 §12.5.6.4, §12.5.2 Table 164).
     ///

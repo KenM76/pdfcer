@@ -121,6 +121,7 @@ mod layer_edit;
 mod layers;
 mod leaked_page_state;
 mod line_interior;
+mod link_author;
 mod locked_contents;
 mod malformed_opens;
 mod markup_as_content;

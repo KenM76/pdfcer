@@ -645,6 +645,8 @@ mod text_annot_style_cmd;
 use text_annot_style_cmd::*;
 mod respan_markup_cmd;
 use respan_markup_cmd::*;
+mod link_cmd;
+use link_cmd::*;
 mod object_list;
 use object_list::*;
 mod objects;

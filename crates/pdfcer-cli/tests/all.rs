@@ -68,6 +68,7 @@ mod inspect_reflow_preview;
 mod inspect_table_cells;
 mod inspect_text_blocks;
 mod layer_edit;
+mod link_author;
 mod list_annotations_review_state;
 mod list_annotations_rich_text;
 mod list_fields_button_action;
