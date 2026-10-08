@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1023rd filing) — `Pass 541.0` shipped (ce dimension dash and opacity, `G159`)
+
+**Shipped:** `Pass 541.0`, code `0e9f65c2`, `docs/core-api` `be548165`. Two new cascaded ce dimension style properties (13 in all): `dash` (`DimDash`, up to 4 runs, `SOLID` a real value; baked as `[a b] 0 d`; stroked terminators and label stay solid) and `opacity` (`/CA`, only below 1.0). Sidecar keys `/Dash`, `/Opacity`; out-of-range or NaN opacity refused (`MarkupOpacityOutOfRange`). CLI `--dash`, `--opacity` on the group-style and dimension-style subcommands. Breaking for struct literals (four style structs gained public fields).
+
+**Behaviour fix to `540.0`:** `set_annot_opacity` now refuses a ce dimension (`AnnotationIsCeDimension`); a `/CA` there was silently dropped at regeneration. Recorded here and on the `541.0` row, not by rewriting `540.0`'s Shipped entry.
+
+**Tests (engineer-reported):** 8 core + 2 CLI new; core lib 1,494 passed / 1 ignored; CLI style/group 33 passed; two sabotages caught; fmt, both clippies, string-gaps, structure, public-fns green. core-api verbs 332, `EditError` 169 (unchanged). No manifest change. Not yet pushed.
+
+**Files:** ROADMAP `541.0` stub removed from *Next up*, entry added to *Shipped*, banner updated; `FEATURES.md` Planned row removed, one Implemented row added, `540.0` opacity row notes the refusal.
+
+**Decisions made this session:** None.
+
+**Still in flight:** `Pass 542.0` (`G155`, image fade) next; `543.0`-`551.0` queued. Next free `Pass 552.0`; next filing 1024th.
+
+**Sourcing note (hard rule 8):** facts and hashes engineer-supplied; no shell, so push, backup and CI colour not checked here.
+
 ## 2026-10-07 (1022nd filing) — `Pass 540.0` shipped (`/CA` on any annotation, marker recolour, `G150`)
 
 **Shipped:** `Pass 540.0`, code `cb3e9365`, `docs/core-api` `77e8cc87`. `EditSession::set_annot_opacity` (`/CA` on any subtype, clamp-and-report, NaN refused) and `set_marker_style` (`/C` plus `/AP` re-bake for Caret, FileAttachment, Sound, Screen; foreign appearance refused unless `redraw_as_plain`, new `EditError::MarkerAppearanceForeign`). CLI `set-annot-opacity`, `set-marker-color` (215 subcommands). Fixed on discovery: NaN `/CA` from `set_markup_style`, Locked flag ignored by `set_text_annot_style`, `/Screen` authoring dropped `/C`.

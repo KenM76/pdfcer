@@ -115,6 +115,29 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 541.0` — ce dimension `dash` and `opacity` in the style cascade (core + CLI; answers `pdfcer-gui` `G159`) — SHIPPED 2026-10-07 (1023rd filing)
+
+Commits `0e9f65c2` (code), `be548165` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Not yet pushed (engineer-reported); not checked here (no shell).
+
+**Basis.** "A ce dimension cannot be dashed or faded." `/CA` is ISO 32000-2 §12.5.2 Table 166; the dash operator `d` and its graphics-state scoping are §8.4 / §8.2 (Figure 9: a `q ... Q` must enclose a whole path object, not split one).
+
+**Delivered.**
+- Two cascaded ce dimension style properties (factory, group, ce dimension; **13** in all). `dash`: new `pdfcer_core::dimension::DimDash` (`Copy`, up to `MAX_DASH_RUNS` = 4 runs); `DimDash::SOLID` is a real value, so a solid override beats a dashed group. Baked into `/AP` as `[a b] 0 d`; a solid ce dimension emits no `d`, bytes unchanged. Stroked terminators (Open, Slash) stay solid via `q [] 0 d ... S Q` placed outside the path object; the label is solid. `opacity`: the annotation's `/CA`, written only below 1.0; `CA` added to `AUTHORED_ANNOT_KEYS` so an opaque restyle removes it.
+- Sidecar keys `/Dash` (an empty array means explicit solid) and `/Opacity`.
+- `set_group_style` / `set_dimension_style` refuse out-of-range or NaN opacity with `MarkupOpacityOutOfRange` before writing.
+- **Behaviour fix to `540.0`'s verb:** `set_annot_opacity` now refuses a ce dimension with `AnnotationIsCeDimension`; a `/CA` written there was silently dropped at the next regeneration. (`540.0`'s own entry is unaltered.)
+- CLI: `--dash solid|a,b[,..]` and `--opacity` on the group-style and dimension-style subcommands; listings show both; resolved values 13.
+- **Breaking for struct literals:** `GroupStyle`, `StyleOverrides`, `StyleDefaults`, `DimensionStyle` gained public fields.
+- `docs/core-api`: verbs 332 unchanged, `EditError` 169 unchanged; `check-core-api-verbs.py` PASS.
+
+**Verified (engineer-reported).** 8 new core integration tests (`crates/pdfcer-core/tests/dimension_dash_opacity.rs`) and 2 CLI; core lib 1,494 passed / 1 ignored; CLI style/group tests 33 passed. Sabotage-checked: removing `CA` from the authored keys fails 2 tests; moving the `q` after the path fails the terminator test. fmt, clippy (full and no-default-features), string-gaps, code-structure, public-fns gates green.
+
+**`G159` status.** The GUI column is `pdfcer-gui`'s to tick. Reply `FIXED` written, ACK removed (engineer-reported).
+
+`FEATURES.md`: *Planned* `541.0` row removed; new Implemented row (core `[x]` cli `[x]` gui `[ ]`); `AnnotationIsCeDimension` refusal noted on the `540.0` opacity row.
+
+Ledgers: no decision; next free `Pass 552.0`; next filing 1024th.
+
 ### `Pass 540.0` — opacity on any annotation; recolour caret / attachment / sound / screen markers (core + CLI; answers `pdfcer-gui` `G150`) — SHIPPED 2026-10-07 (1022nd filing)
 
 Commits `cb3e9365` (code), `77e8cc87` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Not yet pushed (engineer-reported); not checked here (no shell).
@@ -21252,9 +21275,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), see *Shipped*; `541.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1023rd.
->
-> **`Pass 541.0` — `G159`:** ce dimension `dash` and `opacity` in `StyleOverrides` and group style, baked into `/AP`.
+> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), see *Shipped*; `542.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1024th.
 >
 > **`Pass 542.0` — `G155`:** image fade via `set_object_stroke_style` alpha (`/ca` ExtGState around `Do`).
 >
