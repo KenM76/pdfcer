@@ -13,7 +13,7 @@
 //! | variable | meaning |
 //! |---|---|
 //! | `PDFCER_BUILD_TIMESTAMP` | when this binary was built, RFC 3339 UTC |
-//! | `PDFCER_BUILD_REVISION` | `git describe --tags --always --dirty`, or `unknown` |
+//! | `PDFCER_BUILD_REVISION` | `git describe --tags --always`, `-dirty` when a build-affecting path changed (see `build_revision`), or `unknown` |
 //! | `PDFCER_BUILD_COMMIT_TIMESTAMP` | the committer date of that revision, RFC 3339 UTC, or `unknown` |
 //! | `PDFCER_ICCCE_PROVENANCE` | see "the second half" below |
 //!
@@ -129,7 +129,7 @@ fn main() {
     println!("cargo::rustc-env=PDFCER_BUILD_TIMESTAMP={}", build_time());
     println!(
         "cargo::rustc-env=PDFCER_BUILD_REVISION={}",
-        git(&["describe", "--tags", "--always", "--dirty"])
+        build_revision()
     );
     println!(
         "cargo::rustc-env=PDFCER_BUILD_COMMIT_TIMESTAMP={}",
@@ -139,6 +139,38 @@ fn main() {
         "cargo::rustc-env=PDFCER_ICCCE_PROVENANCE={}",
         iccce_provenance()
     );
+}
+
+/// `git describe --tags --always`, plus `-dirty` only when a path that can
+/// reach the compiler differs from the commit.
+///
+/// `--dirty` alone flags any modified file, so docs or agent notes in the
+/// tree made a release binary claim it was not the commit it names. The
+/// path set matches `tools/package-portable.py`'s `BUILD_AFFECTING`; keep
+/// the two in step. `:/` makes each pathspec relative to the repository
+/// root rather than to this crate.
+fn build_revision() -> String {
+    let described = git(&["describe", "--tags", "--always"]);
+    if described == "unknown" {
+        return described;
+    }
+    let changed = git(&[
+        "status",
+        "--porcelain",
+        "--",
+        ":/crates",
+        ":/Cargo.toml",
+        ":/Cargo.lock",
+        ":/rust-toolchain",
+        ":/rust-toolchain.toml",
+        ":/.cargo",
+    ]);
+    // `git` answers "unknown" for empty output, i.e. a clean tree.
+    if changed == "unknown" {
+        described
+    } else {
+        format!("{described}-dirty")
+    }
 }
 
 /// The build's wall-clock time as RFC 3339 UTC, or `SOURCE_DATE_EPOCH` when
