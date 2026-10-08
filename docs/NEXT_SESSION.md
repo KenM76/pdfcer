@@ -38,9 +38,9 @@ Engineer-owned; replaced each session. The previous long-form handoff
 - **3D missing-parts research on the second assembly sample** is paused.
   Leads: spec RAG `prc__8137__tess_3d_compressed.md`; the local-only probe
   module in `pdfcer-3d` (never commit it).
-- **Operator's ordered plan, still queued:** `Pass 142.0` (embedded-donor
-  `format-text --set-font`), resize-page-contents (Acrobat librarian first),
-  `Pass 259.0` (core-api line citations), `Pass 10.11` (B-T timestamps).
+- **The "operator's ordered plan" carried here earlier is all SHIPPED**
+  (`142.0`, `364.0` resize-page-contents, `259.0`, `10.11`, all 2026-09-27/28);
+  it was a stale carry. Verify any inherited queue against ROADMAP *Shipped*.
 - **Librarian-flagged stale wording** in the decision log (ARCHITECTURE
   around lines 12983 and 13008) about whole-page-only VL reading — the
   librarian's to amend if it judges it wrong.
