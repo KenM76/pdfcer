@@ -86,7 +86,7 @@ pub(crate) fn cmd_set_object_stroke_style(args: &SetObjectStrokeStyleArgs) -> u8
     };
     for refusal in &styled.refused {
         eprintln!(
-            "pdfcer: {}: object {} not styled: it is not a path",
+            "pdfcer: {}: object {} not styled: it is not a path, or an image or form given no opacity it reads",
             input.display(),
             refusal.object
         );

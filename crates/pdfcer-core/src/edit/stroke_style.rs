@@ -28,8 +28,18 @@ impl EditSession {
     /// [`crate::vector::PathObject`]: `line_width`, `dash`, `stroke_alpha`,
     /// `fill_alpha`.
     ///
-    /// All-or-nothing over the paths: every index is resolved first, and a
-    /// text or image object is reported in [`PaintOutcome::refused`] as
+    /// **Images and forms take the opacity only** (pdfcer-gui request G155):
+    /// an image or form object whose paint [`StrokeStyle::fades`] is wrapped
+    /// in `q </GS gs> … Q` around its `Do` (or inline image) — width and dash
+    /// are left out, so a form's own content never inherits them. An image
+    /// reads `fill_alpha` (`/ca`; §11.6.4.4, `Do` on an image is a
+    /// non-stroking operation); a form starts its content from both. The
+    /// values in force are [`crate::vector::ImageObject::fill_alpha`] and
+    /// `stroke_alpha`.
+    ///
+    /// All-or-nothing over the objects: every index is resolved first, and a
+    /// text object, or an image or form the style would not change (no alpha
+    /// it reads), is reported in [`PaintOutcome::refused`] as
     /// [`PaintRefusalReason::NotAPath`] rather than failing the call. An empty
     /// `style` changes nothing and returns the refusals only.
     ///
@@ -53,14 +63,18 @@ impl EditSession {
         let mut changed = Vec::new();
         let mut refused = Vec::new();
         for &i in object_indices {
-            match model.objects.get(i) {
-                Some(VectorObject::Path(_)) => changed.push(i),
-                Some(_) => refused.push(PaintRefusal {
+            let obj = model
+                .objects
+                .get(i)
+                .ok_or(VectorEditError::ObjectOutOfRange { index: i, count })?;
+            if takes_style(obj, style) {
+                changed.push(i);
+            } else {
+                refused.push(PaintRefusal {
                     object: i,
                     reason: PaintRefusalReason::NotAPath,
                     space: None,
-                }),
-                None => return Err(VectorEditError::ObjectOutOfRange { index: i, count }.into()),
+                });
             }
         }
         if changed.is_empty() || style.is_empty() {
@@ -136,8 +150,7 @@ impl EditSession {
                     })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let prefix = style.prefix(gs_name.as_deref());
-        let planned = crate::vector::edit::plan_wrap(&stream, &objs, &prefix)?;
+        let planned = wrap_styled(&stream, &objs, style, gs_name.as_deref())?;
         let (command, _) = self.text_edit_command(
             CommandKind::SetObjectStrokeStyle,
             content_id,
@@ -149,6 +162,35 @@ impl EditSession {
         self.commit(command);
         Ok(())
     }
+}
+
+/// Whether `set_object_stroke_style` changes `obj`: any path, or an image or
+/// form whose paint reads one of the alphas set.
+pub(super) fn takes_style(obj: &VectorObject, style: &StrokeStyle) -> bool {
+    match obj {
+        VectorObject::Path(_) => true,
+        VectorObject::Image(img) => style.fades(img.source),
+        VectorObject::Text(_) => false,
+    }
+}
+
+/// Wrap paths in the full style prefix and images or forms in the alpha one.
+pub(super) fn wrap_styled(
+    stream: &crate::content::ContentStream,
+    objs: &[&VectorObject],
+    style: &StrokeStyle,
+    gs_name: Option<&[u8]>,
+) -> Result<crate::vector::PlannedEdit, VectorEditError> {
+    let full = style.prefix(gs_name);
+    let alpha = StrokeStyle::alpha_prefix(gs_name);
+    let each: Vec<(&VectorObject, &[u8])> = objs
+        .iter()
+        .map(|&o| match o {
+            VectorObject::Path(_) => (o, full.as_slice()),
+            _ => (o, alpha.as_slice()),
+        })
+        .collect();
+    crate::vector::edit::plan_wrap_each(stream, &each)
 }
 
 const SHARED_GS_NOTE: &str = "stroke style: the /ExtGState entry was added to a /Resources \

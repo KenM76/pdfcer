@@ -106,6 +106,7 @@ mod free_text_restyle;
 mod freetext_newline;
 mod hand_signature;
 mod image_alpha_hit;
+mod image_fade;
 mod image_gif;
 mod image_pixels;
 mod image_placement;

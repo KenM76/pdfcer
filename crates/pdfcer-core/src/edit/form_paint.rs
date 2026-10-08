@@ -103,7 +103,8 @@ impl EditSession {
     ///
     /// Addressing and reach as [`Self::set_object_paint_in_form`]. The
     /// opacity's `/ExtGState` is bound in the **form's** `/Resources`, so
-    /// every invocation finds it.
+    /// every invocation finds it. Images and nested forms inside the form
+    /// take the opacity only, as on the page.
     ///
     /// # Errors
     ///
@@ -119,7 +120,7 @@ impl EditSession {
     ) -> Result<FormPaintOutcome, EditError> {
         style.validate()?;
         let (accepted, refused) = self.sort_leaves(page_index, leaf_indices, |obj, i| {
-            (!matches!(obj, VectorObject::Path(_))).then(|| not_a_path(i))
+            (!super::stroke_style::takes_style(obj, style)).then(|| not_a_path(i))
         })?;
         if accepted.is_empty() || style.is_empty() {
             return Ok(no_change(refused));
@@ -131,13 +132,14 @@ impl EditSession {
         } else {
             (FormExtras::default(), None)
         };
-        let prefix = style.prefix(gs_name.as_deref());
         let reach = self.wrap_leaves(
             CommandKind::SetObjectStrokeStyle,
             page_index,
             &accepted,
             extras,
-            |stream, objs| crate::vector::edit::plan_wrap(stream, objs, &prefix),
+            |stream, objs| {
+                super::stroke_style::wrap_styled(stream, objs, style, gs_name.as_deref())
+            },
         )?;
         Ok(changed(accepted, refused, reach))
     }

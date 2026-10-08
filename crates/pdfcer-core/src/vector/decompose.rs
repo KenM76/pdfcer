@@ -476,6 +476,14 @@ pub struct ImageObject {
     /// is reported as missing rather than guessed at from the CTM, which
     /// would be a fabricated number the operator could not check.
     pub pixel_size: Option<(u32, u32)>,
+    /// The non-stroking constant alpha in force at the `Do`/`EI` (`/ca`,
+    /// §11.6.4.4), `0.0..=1.0` — the opacity an image is painted with, and
+    /// the fill opacity a form's content starts from. A soft mask or blend
+    /// mode is not reflected here.
+    pub fill_alpha: f64,
+    /// The stroking constant alpha in force (`/CA`): inert for an image,
+    /// the stroke opacity a form's content starts from.
+    pub stroke_alpha: f64,
     /// The defining-operator token range.
     pub tokens: TokenRange,
     /// The equivalent byte span.
@@ -3848,7 +3856,6 @@ impl<'a> Decomposer<'a> {
     /// page space by `ctm`; `pixel_size` is the sample count for an image
     /// and `None` for a form.
     #[allow(clippy::too_many_arguments)]
-    #[allow(clippy::too_many_arguments)]
     fn emit_image(
         &mut self,
         source: ImageSource,
@@ -3879,6 +3886,8 @@ impl<'a> Decomposer<'a> {
             page_bbox,
             source,
             pixel_size,
+            fill_alpha: self.gs.alpha_fill,
+            stroke_alpha: self.gs.alpha_stroke,
             tokens: TokenRange {
                 start: first,
                 end: op_index + 1,

@@ -1922,30 +1922,40 @@ pub(crate) fn plan_wrap(
     objs: &[&VectorObject],
     prefix: &[u8],
 ) -> Result<PlannedEdit, VectorEditError> {
-    let mut spans: Vec<(usize, usize)> = objs
+    let each: Vec<_> = objs.iter().map(|&o| (o, prefix)).collect();
+    plan_wrap_each(content, &each)
+}
+
+/// [`plan_wrap`] with a prefix per object; a nested span takes its
+/// container's.
+pub(crate) fn plan_wrap_each(
+    content: &ContentStream,
+    objs: &[(&VectorObject, &[u8])],
+) -> Result<PlannedEdit, VectorEditError> {
+    let mut spans: Vec<(usize, usize, &[u8])> = objs
         .iter()
-        .map(|o| {
+        .map(|&(o, prefix)| {
             let s = o.bytes();
-            (s.start, s.end())
+            (s.start, s.end(), prefix)
         })
         .collect();
     spans.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
 
-    let mut kept: Vec<(usize, usize)> = Vec::with_capacity(spans.len());
-    for (start, end) in spans {
+    let mut kept: Vec<(usize, usize, &[u8])> = Vec::with_capacity(spans.len());
+    for (start, end, prefix) in spans {
         match kept.last() {
-            Some(&(_, prev_end)) if end <= prev_end => continue,
-            Some(&(_, prev_end)) if start < prev_end => {
+            Some(&(_, prev_end, _)) if end <= prev_end => continue,
+            Some(&(_, prev_end, _)) if start < prev_end => {
                 return Err(VectorEditError::OverlappingObjectSpans { start, end });
             }
-            _ => kept.push((start, end)),
+            _ => kept.push((start, end, prefix)),
         }
     }
 
     let touched = kept.len();
     let mut edits: Vec<(usize, usize, Vec<u8>)> = kept
         .into_iter()
-        .map(|(s, e)| {
+        .map(|(s, e, prefix)| {
             let mut body = prefix.to_vec();
             // An out-of-range span wraps nothing rather than panicking on
             // untrusted input (`ARCHITECTURE.md` §10); `operators_touched`

@@ -9,6 +9,8 @@
 use crate::content::{ContentToken, ContentTokenKind};
 use crate::object::Object;
 
+use super::ImageSource;
+
 use super::VectorEditError;
 use crate::writer::content::emit_number;
 
@@ -150,6 +152,18 @@ impl StrokeStyle {
         self.dash.as_ref().map_or(Ok(()), Dash::check)
     }
 
+    /// Whether this style changes how an image or form object paints. An
+    /// image takes only the non-stroking alpha (§11.6.4.4: `Do` on an image
+    /// is a non-stroking operation); a form takes either alpha as the
+    /// starting state of its content. Width and dash never reach either.
+    #[must_use]
+    pub const fn fades(&self, source: ImageSource) -> bool {
+        match source {
+            ImageSource::Form => self.sets_alpha(),
+            ImageSource::Inline | ImageSource::XObject => self.fill_alpha.is_some(),
+        }
+    }
+
     /// The `/ExtGState` dictionary for the alphas (§8.4.5 Table 58).
     pub(crate) fn ext_gstate(&self) -> crate::object::Dict {
         use crate::object::{Dict, Name};
@@ -162,6 +176,12 @@ impl StrokeStyle {
             d.insert(Name::from(b"ca"), Object::Real(a));
         }
         d
+    }
+
+    /// The prefix for an image or form object: only the alphas' `gs`, so a
+    /// form's own content never inherits the width or dash.
+    pub(crate) fn alpha_prefix(gs_name: Option<&[u8]>) -> Vec<u8> {
+        Self::default().prefix(gs_name)
     }
 
     /// The operators to put inside the object's `q`, with `gs_name` the

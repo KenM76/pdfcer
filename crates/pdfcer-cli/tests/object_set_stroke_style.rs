@@ -14,18 +14,39 @@ const BIN: &str = env!("CARGO_BIN_EXE_pdfcer");
 
 /// Object 0: a stroked square. Object 1: text.
 fn path_and_text(tag: &str) -> PathBuf {
-    let content = "0 0 10 10 re S BT /F1 12 Tf 20 20 Td (A) Tj ET";
+    page_with(
+        tag,
+        "0 0 10 10 re S BT /F1 12 Tf 20 20 Td (A) Tj ET",
+        "/Font << /F1 5 0 R >>",
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    )
+}
+
+/// Object 0: an image XObject. Object 1: a stroked square.
+fn image_and_path(tag: &str) -> PathBuf {
+    page_with(
+        tag,
+        "q 50 0 0 50 0 0 cm /Im1 Do Q 0 0 10 10 re S",
+        "/XObject << /Im1 5 0 R >>",
+        "<< /Type /XObject /Subtype /Image /Width 1 /Height 1 /BitsPerComponent 8 \
+         /ColorSpace /DeviceGray /Length 1 >>\nstream\nA\nendstream",
+    )
+}
+
+/// One page drawing `content` with `resources`, plus `object5` as `5 0 obj`.
+fn page_with(tag: &str, content: &str, resources: &str, object5: &str) -> PathBuf {
     let bodies = [
         "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
-        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents 4 0 R \
-         /Resources << /Font << /F1 5 0 R >> >> >>"
-            .to_owned(),
+        format!(
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents 4 0 R \
+             /Resources << {resources} >> >>"
+        ),
         format!(
             "<< /Length {} >>\nstream\n{content}\nendstream",
             content.len()
         ),
-        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_owned(),
+        object5.to_owned(),
     ];
     let mut buf = b"%PDF-1.7\n".to_vec();
     let mut offsets = Vec::new();
@@ -135,4 +156,26 @@ fn some_style_option_is_required() {
     let input = path_and_text("none");
     let output = input.with_extension("out.pdf");
     assert!(!run(&input, &output, &["--objects", "0"]).status.success());
+}
+
+#[test]
+fn fill_alpha_fades_an_image_and_width_alone_refuses_it() {
+    let input = image_and_path("fade");
+    let output = input.with_extension("out.pdf");
+    let out = run(&input, &output, &["--objects", "0", "--fill-alpha", "0.4"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "{stdout}");
+    assert!(stdout.contains("changed=0 refused=0"), "{stdout}");
+    let mut s = EditSession::new(Document::from_bytes(std::fs::read(&output).unwrap()).unwrap());
+    let VectorObject::Image(img) = &s.page_objects(0).unwrap().objects[0] else {
+        panic!("object 0 is not an image");
+    };
+    assert!((img.fill_alpha - 0.4).abs() < 1e-6);
+
+    let out = run(&input, &output, &["--objects", "0,1", "--width", "2"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "{stdout}\n{stderr}");
+    assert!(stdout.contains("changed=1 refused=1"), "{stdout}");
+    assert!(stderr.contains("object 0 not styled"), "{stderr}");
 }

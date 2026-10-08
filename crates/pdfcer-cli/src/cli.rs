@@ -10656,16 +10656,21 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
-    /// Set the line width, dash pattern and/or opacity of page paths.
+    /// Set the line width, dash pattern and/or opacity of page paths, and
+    /// fade images and forms.
     ///
-    /// Pick paths by the `index=` `object-list` prints for the page. Only the
-    /// options given change; each replaces the value the path already has.
+    /// Pick objects by the `index=` `object-list` prints for the page. Only
+    /// the options given change; each replaces the value already in force.
+    /// An image or form takes only the opacity: `--fill-alpha` fades an
+    /// image, and a form's content starts from either alpha; width and dash
+    /// never reach them.
     /// Width and dash lengths are in the path's own units (points at the
     /// page's scale). Opacity goes in a new graphics-state entry on the
     /// page (or, with `--leaf`, on the form, which must have resources of
     /// its own). Prints one `set-object-stroke-style` line: `changed=` the
     /// indices styled (`none` when nothing was) and `refused=` how many were
-    /// left alone; each refused object (text, an image) gets a stderr line.
+    /// left alone; each refused object (text, or an image or form given no
+    /// opacity it reads) gets a stderr line.
     ///
     /// Exit 9 when an index is out of range or a value is invalid (a
     /// negative width, an opacity outside 0-1, a dash that is negative or
