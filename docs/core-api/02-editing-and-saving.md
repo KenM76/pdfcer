@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 350 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 352 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 350 public `EditSession` methods
+## 1. Verb index — all 352 public `EditSession` methods
 
-**Count: 350.** Established by brace-matched extraction of the
+**Count: 352.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -96,7 +96,7 @@ added `add_file_attachment_annotation`, and at 274 when `Pass 261.1` added
 `add_caret_annotation` and `add_replace_text`, and at 275 when `Pass 261.2`
 added `add_sound_annotation`, and at 276 when `Pass 261.3` added
 `add_screen_annotation`, and at 277 when `Pass 142.3` added
-`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`, and at 350 when `G168` added `set_3d_views`.
+`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`, and at 350 when `G168` added `set_3d_views`, and at 352 when `G164` added `metadata_inventory` and `remove_metadata`.
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -2101,6 +2101,8 @@ would alter how every pdfcer-authored check box already in the wild renders.
 | Fill a rich-text field, downgrading it | `fill_text_field_downgrading_rich_text(&mut self, fqn, text) -> Result<FillOutcome, EditError>` | **Lossy and deliberate** — clears `/Ff` bit 26, deletes `/RV`. |
 | Select a check box / radio state | `set_button_state(&mut self, fqn, on_state) -> Result<(), EditError>` | Sets `/V` + every widget `/AS`. No regeneration. |
 | Preview a form reset | `reset_preview(&self, only: Option<&[String]>) -> Vec<ResetPreviewRow>` | Rows for **every** field in scope, including ineligible and already-at-default ones. Filtering is the shell's job. |
+| List the document's **metadata** (`G164`) | `metadata_inventory(&self) -> doc_metadata::MetadataInventory` | Read-only; also `pdfcer_core::doc_metadata::metadata_inventory(&DocumentView, file_bytes)`. One `MetadataItem { id, kind, location, preview, bytes }` per removable carrier, in this order: each `/Info` entry (§14.3.3), the catalog's XMP `/Metadata` (§14.3.2), every other object's `/Metadata` (`ObjectXmp`), `/PieceInfo` (§14.5), page `/Thumb` (§12.3.4), JavaScript in `/OpenAction`, `/A` and `/AA` (following `/Next`, §12.6.4.17) and the `/Names /JavaScript` tree, embedded files (§7.11.4), comments (every annotation except Link, Widget, Popup, PrinterMark, TrapNet, Watermark, 3D, RichMedia, Screen, Movie, Sound), optional-content groups hidden in the default configuration (§8.11.4.3), filled form data, earlier revisions (incremental updates, §7.5.6) and the trailer `/ID` (§14.4). `MetadataKind` (12 variants, `as_str()` → `info`, `document-xmp`, `object-xmp`, `pieceinfo`, `thumbnail`, `javascript`, `attachment`, `comment`, `hidden-layer`, `form-data`, `earlier-revisions`, `document-id`; `MetadataKind::ALL`). `preview` is at most 80 characters of decoded text; `bytes` the serialised (or decoded stream) size. `MetadataItemId` is a stable text id (`info/<key>`, `xmp/N-G`, `pieceinfo/N-G`, `thumb/N-G`, `js/N-G/OpenAction`, `js/N-G/A`, `js/N-G/AA/<key>`, `js/names`, `attachment/<name>`, `comment/N-G`, `layer/N-G`, `form-data`, `revisions`, `document-id`), `Display`/`as_str()`/`new()`, so a shell can store it and pass it back. `MetadataInventory { items, truncated }` (`#[non_exhaustive]`); `truncated` = the object walk hit its budget. CLI: `pdfcer list-metadata IN [--json]`. |
+| **Remove** listed metadata (`G164`) | `remove_metadata(&mut self, ids: &[MetadataItemId], options: &MetadataRemoveOptions) -> Result<MetadataRemoval, EditError>` | Comments, attachments, hidden layers and form data go through `delete_annotation`, `detach_file`, `delete_layer(RemoveContent)` and `reset_form(None)` with their own refusals and disclosures; every other id is staged into one direct edit with an orphan sweep (objects no longer reachable are freed); an `/Info` emptied key by key is dropped from the trailer. Everything folds into ONE undo entry (`CommandKind::RemoveMetadata`). `document-id` follows `MetadataRemoveOptions::with_document_id(DocumentIdAction)`: `Regenerate` (default; a fresh random pair, refused under `/Encrypt` because the key derives from `/ID[0]`) or `Remove` (PDF 2.0 requires `/ID`; disclosed). `revisions` is removed by the save, not the session: only a full rewrite drops earlier revisions. `MetadataRemoval { removed, not_found, not_removed: Vec<NotRemoved { id, reason }>, objects_freed, disclosures }` (`#[non_exhaustive]`); an unknown or stale id lands in `not_found`, never an error. ⚠️ **The data leaves the file only on `to_full_bytes_decomposing_containers`**: an incremental save keeps it in the earlier revision, and a plain full rewrite copies object streams verbatim, so an edited compressed `/Info` keeps its old value inside its container. Save with `ProducerPolicy::Preserve` to avoid stamping a new `/Producer`. Errors: `EditError` from a sub-verb's guard. CLI: `pdfcer remove-metadata IN (--item ID | --kind KIND | --all) [--document-id regenerate|remove] [--mode full|incremental] [--apply -o OUT]` — dry run without `--apply`; exit 9 when anything was not found or not removed. |
 | Reset fields to defaults | `reset_form(&mut self, only: Option<&[String]>) -> Result<ResetOutcome, EditError>` | `/V` is **removed**, not blanked. Never writes `/DV`. Never recomputes calculated fields. A choice field's `/I` and `/TI` follow the default (Table 231) and a list box draws it one selection per line, as `set_choice_value` does. |
 | Set a choice selection | `set_choice_value(&mut self, fqn, selections: &[&str]) -> Result<FillOutcome, EditError>` | `/V` + `/I` + regenerated `/AP`. |
 | Export filled data | `export_form_data(&self) -> Option<fdf::FormData>` | `None` ⇒ no interactive form. |
@@ -5276,8 +5278,10 @@ every mutation.
    (`edit.rs`.)
 2. For every id in `deleted`: emit a free entry **only if the base defined it**
    — an id the base never had cannot be deleted into it. (`edit.rs`.)
-3. For every trailer key that differs from the base's: `patch_trailer`.
-   (`edit.rs`.)
+3. For every trailer key that differs from the base's: `patch_trailer`; for
+   every base trailer key the session no longer has: `remove_trailer_key`, so
+   both save paths drop it (a removed `/Info` would otherwise be re-emitted
+   pointing at a freed object). (`edit.rs`.)
 4. If `staging` is non-empty: hand it to the `DirtySet` (R45), so an authored
    appearance stream's span — which points past the base — resolves.
    (`edit.rs`.)
@@ -5300,6 +5304,7 @@ Both are correct; they answer different questions.
 fields private. Relevant public methods: `empty()`, `is_empty()`
 (note: **staging is not consulted**), `len()`, `changes_content()`
 (the §14.4 `/ID[1]` regeneration trigger), `trailer_patch()`,
+`remove_trailer_key(key)`, `trailer_removals()`,
 `staging()`, `combined_source()`.
 
 Executably pinned (`ARCHITECTURE.md` §11.5): **edit → undo → save is
