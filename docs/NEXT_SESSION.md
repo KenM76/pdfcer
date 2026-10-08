@@ -5,14 +5,14 @@ Engineer-owned; replaced each session. The previous long-form handoff
 (gate-sweep history, the carried OWED list, benchmark recipes) is in git:
 `git show 78635459:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-08, after `Pass 559.0` and the 1042nd filing.
+**Written:** 2026-10-08, after `Pass 560.0` and the 1044th filing.
 
 ## State
 
 - **Release:** v0.80.0 is the latest (2026-10-06). OneDrive `pdfcer1` = 0.80.0,
   `pdfcer2` = 0.79.0, so **the next release writes `pdfcer2`**. Everything
-  from `Pass 532.0` to `559.0` is unreleased.
-- **Ledgers:** next free Pass **560.0**; next filing **1043rd**; no decision
+  from `Pass 532.0` to `560.0` is unreleased.
+- **Ledgers:** next free Pass **561.0**; next filing **1045th**; no decision
   added since 183. Core-api verb count **355**.
 - **Shipped since the last handoff** (all filed, all pushed with
   `78635459`): `538.0`–`552.0` (annotation/vector/form/image/text editing
@@ -22,9 +22,11 @@ Engineer-owned; replaced each session. The previous long-form handoff
   layout regions via PP-DocLayoutV3, OTSL tables, VL task prompts, repetition
   stop, per-region OCR layers, `pdfcer ocr --layout --region-layers`, G167),
   `559.0` (exact wrap/break marks in pdfcer-written blocks: `pdfc_TextBlock`
-  / `pdfc_Break` `MP` points, `LineEndSource`; G163 reply updated).
+  / `pdfc_Break` `MP` points, `LineEndSource`; G163 reply updated), `560.0` (`RenderOptions::invisible_text`:
+  OCR/mode-3/7 text painted in a chosen colour, `only` = that layer alone on
+  a transparent page; `render-page --invisible-text`; G169, pushed `ea888d12`).
 - **Next up is empty of open Passes.** Take the operator's ordered plan below.
-- **Inbound:** G142–G168 all have FIXED replies. Older requests still sit in
+- **Inbound:** G142–G169 all have FIXED replies. Older requests still sit in
   the `open/` folder (`check-requests-scoped.py` is green, so each is scoped
   or answered). The one open GitHub issue (text layer position after OCR)
   awaits Ken's OK to close. Check all three channels every session.
