@@ -110,6 +110,7 @@ fn json_mode_is_well_formed_and_carries_provenance() {
     assert!(json.trim_start().starts_with('{'));
     assert!(json.contains("\"blocks\""));
     assert!(json.contains("\"provenance\""));
+    assert!(json.contains("\"line_ends\": [\""), "{json}");
     assert!(json.contains("\"operator_span\""));
     assert!(json.contains("\"font_resource\": \"F1\""));
     // The blue paragraph's fill colour is disclosed; the reset-to-black

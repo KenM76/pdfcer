@@ -1330,6 +1330,12 @@ pub(crate) fn append_page_json(
             "\"text\": \"{}\", ",
             json_escape(&model.block_text(block))
         ));
+        let ends: Vec<String> = model
+            .line_ends(block)
+            .iter()
+            .map(|e| format!("\"{}\"", e.as_str()))
+            .collect();
+        out.push_str(&format!("\"line_ends\": [{}], ", ends.join(", ")));
         out.push_str("\"lines\": [");
         for (i, &li) in block.line_indices.iter().enumerate() {
             if i > 0 {

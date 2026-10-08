@@ -147,7 +147,8 @@ impl EditSession {
         };
         Ok(model.blocks().get(block_index).map(|b| BlockHit {
             block_index,
-            text: model.block_text(b).replace('\n', " "),
+            text: model.block_text_with_breaks(b),
+            line_ends: model.line_ends(b),
             bbox: b.bbox,
             looks: block_looks(&view, page, &model, b),
         }))

@@ -152,7 +152,7 @@ pub use forms::{
 pub use merge::{MergeFit, MergeOptions, MergeReport, MergeSeparator};
 pub use model::{
     Block, BlockDiagnostics, BlockKind, BlockRecognitionOptions, CellRegion, EditableTextModel,
-    GlyphRef, Line, TextPosition, detect_cell_regions,
+    GlyphRef, Line, LineEnd, TextPosition, detect_cell_regions,
 };
 pub use placetext::{
     DEFAULT_MARGIN_PT, PageTemplate, PlaceTextError, PlaceTextReport, Unmappable, blank_document,

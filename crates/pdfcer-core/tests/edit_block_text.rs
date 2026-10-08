@@ -317,3 +317,78 @@ fn stroke_colour_and_horizontal_scale_alone_count_as_looks() {
         assert_eq!((hit, preview), (Some(2), 2), "{mid}");
     }
 }
+
+/// One Helvetica 12 block, one `Tj` per line, 14 pt leading.
+fn block_of(lines: &[&str]) -> EditSession {
+    let body: Vec<String> = lines.iter().map(|l| format!("({l}) Tj")).collect();
+    let content = format!("BT /F1 12 Tf 14 TL 72 700 Td {} ET\n", body.join(" T* "));
+    EditSession::new(super::block_layout::doc_from_pages(&[&content], 0))
+}
+
+#[test]
+fn lines_too_full_for_the_next_word_read_as_wraps() {
+    use pdfcer_core::text_edit::LineEnd;
+    let s = block_of(&[
+        "Alpha bravo charlie delta echo",
+        "foxtrotgolfhotelindia juliet kilo",
+        "lima mike.",
+    ]);
+    let hit = s
+        .block_at_point(0, 100.0, 701.0)
+        .expect("ok")
+        .expect("a block");
+    assert_eq!(hit.line_ends, [LineEnd::Wrap, LineEnd::Wrap, LineEnd::Last]);
+    assert_eq!(
+        hit.text,
+        "Alpha bravo charlie delta echo foxtrotgolfhotelindia juliet kilo lima mike."
+    );
+}
+
+#[test]
+fn a_short_line_the_next_word_would_have_joined_reads_as_a_break() {
+    use pdfcer_core::text_edit::LineEnd;
+    let s = block_of(&[
+        "Dear reader,",
+        "Alpha bravo charlie delta echo foxtrot",
+        "golfhotelindiajuliet kilo.",
+    ]);
+    let hit = s
+        .block_at_point(0, 100.0, 701.0)
+        .expect("ok")
+        .expect("a block");
+    assert_eq!(
+        hit.line_ends,
+        [LineEnd::Break, LineEnd::Wrap, LineEnd::Last]
+    );
+    assert_eq!(
+        hit.text,
+        "Dear reader,\nAlpha bravo charlie delta echo foxtrot golfhotelindiajuliet kilo."
+    );
+    assert_eq!(LineEnd::Break.as_str(), "break");
+}
+
+#[test]
+fn a_block_rewritten_with_its_own_spelling_keeps_its_breaks() {
+    let mut s = block_of(&[
+        "Dear reader,",
+        "Alpha bravo charlie delta echo foxtrot",
+        "golfhotelindiajuliet kilo.",
+    ]);
+    let before = s
+        .block_at_point(0, 100.0, 701.0)
+        .expect("ok")
+        .expect("a block");
+    s.edit_block_text(
+        0,
+        before.block_index,
+        &before.text,
+        &BlockEditOptions::default(),
+    )
+    .expect("edits");
+    let after = s
+        .block_at_point(0, 100.0, 701.0)
+        .expect("ok")
+        .expect("a block");
+    assert_eq!(after.text, before.text);
+    assert_eq!(after.line_ends, before.line_ends);
+}

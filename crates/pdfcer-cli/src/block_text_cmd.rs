@@ -111,6 +111,8 @@ fn resolve_block(
         Ok(Some(hit)) => {
             println!("block: {} (at {x},{y})", hit.block_index);
             println!("old text: {:?}", hit.text);
+            let ends: Vec<&str> = hit.line_ends.iter().map(|e| e.as_str()).collect();
+            println!("line ends (inferred): {}", ends.join(","));
             Ok(hit.block_index)
         }
         Ok(None) => {

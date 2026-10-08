@@ -101,11 +101,13 @@
 
 mod cells;
 mod gutter;
+mod line_ends;
 mod lists;
 mod navigate;
 mod stages;
 
 pub use cells::{CellRegion, detect_cell_regions};
+pub use line_ends::LineEnd;
 pub(crate) use lists::{Hanging, glyph_text, hanging};
 
 use crate::page_tree::Rect;

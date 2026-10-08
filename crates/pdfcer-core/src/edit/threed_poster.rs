@@ -124,7 +124,7 @@ impl EditSession {
     /// [`EditError::ObjectCreationWouldExposeHiddenObjects`],
     /// [`EditError::AnnotationNotFound`] when page `page_index`'s `/Annots`
     /// does not list `annot_id`, [`EditError::ThreeD`] with
-    /// [`ThreeDEmbedError::NotA3dAnnotation`] for another subtype,
+    /// [`ThreeDEmbedError::NotA3dAnnotation`](crate::threed::ThreeDEmbedError::NotA3dAnnotation) for another subtype,
     /// [`EditError::AnnotationLocked`] (Table 165 bit 8),
     /// [`EditError::AnnotationRectMissing`].
     ///

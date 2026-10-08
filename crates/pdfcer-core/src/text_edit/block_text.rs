@@ -193,9 +193,15 @@ impl BlockEditError {
 pub struct BlockHit {
     /// The index `edit_block_text` and `reflow_block` take.
     pub block_index: usize,
-    /// The block's text, its lines joined by single spaces: a starting value
-    /// for `edit_block_text`, where `\n` means a paragraph break.
+    /// The block's text spelled for `edit_block_text`: a line that wrapped
+    /// joins the next with a space, a line ended by a typed break with `\n`
+    /// ([`EditableTextModel::block_text_with_breaks`](super::EditableTextModel::block_text_with_breaks)).
+    /// The breaks are inferred; [`Self::line_ends`] carries them per line.
     pub text: String,
+    /// How each of the block's lines ends, top to bottom
+    /// ([`EditableTextModel::line_ends`](super::EditableTextModel::line_ends)):
+    /// inferred from the layout, so a shell discloses them as inferred.
+    pub line_ends: Vec<super::LineEnd>,
     /// The block's box.
     pub bbox: Rect,
     /// [`BlockEditReport::looks`] for this block; `None` when
