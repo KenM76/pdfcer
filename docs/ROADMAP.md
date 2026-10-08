@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 539.0` — a Line's `interior` (`/IC`) fills its closed line endings (core + CLI; answers `pdfcer-gui` `G153`) — SHIPPED 2026-10-07 (1021st filing)
+
+Commits `2c3b284f` (code), `9562b63c` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Not yet pushed (engineer-reported); not checked here (no shell).
+
+**Basis.** ISO 32000-1 §12.5.6.7 Table 175: `/Line` has `/IC` (PDF 1.4) filling its closed line endings. Before: the reader dropped a file's `/IC` on every restyle, `set_markup_style` ignored `interior` on a Line, and the appearance filled a `ClosedArrow` with `/C` regardless of the dictionary.
+
+**Delivered.**
+- `MarkupSpec::Line` gains `interior: Option<Color>` (**breaking for struct literals**): read from `/IC`, written as `/IC`, carried through the clip format.
+- Appearance: `ClosedArrow` filled with `/IC` when present, stroked hollow when absent. **Behaviour change:** it was filled with `/C`.
+- `MarkupStyleSupport::for_subtype(b"Line").takes_interior` now true; `set_markup_style` sets and clears `/IC` on a Line.
+- CLI: `set-markup-style --interior` and `annotate --fill` reach a line; help text updated.
+
+**Verified (engineer-reported).** Core `line_interior` 3 tests, sabotage-verified (removing the `/IC` reader and forcing the fill both fail them); CLI `set_markup_style_line_interior` 1 test; the support-matrix test in `markup_border_style` that asserted the old `takes_interior: false` was corrected. Core integration 2,767 passed; CLI integration 821 passed; CLI bin 43 passed. clippy (full + lite), fmt, code-structure, public-fns, check-core-api-verbs clean.
+
+**`G153` status.** The GUI column is `pdfcer-gui`'s to tick when it passes `interior` for a Line.
+
+`FEATURES.md`: *Planned* `539.0` row removed; new Implemented row (core `[x]` cli `[x]` gui `[ ]`).
+
+Ledgers: no decision; next free `Pass 552.0`; next filing 1022nd.
+
 ### `Pass 538.0` — DEFECT: restyling a FreeText text box (core + CLI; answers `pdfcer-gui` `G148`) — SHIPPED 2026-10-07 (1020th filing)
 
 Commits `82586606` (code), `95e52032` (`docs/core-api`). No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Push state not checked (no shell).
@@ -21211,9 +21231,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing, see *Shipped*); `539.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1021st.
->
-> **`Pass 539.0` — `G153`:** Line `interior` (`/IC`) fills closed line endings.
+> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), see *Shipped*; `540.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1022nd.
 >
 > **`Pass 540.0` — `G150`:** `set_markup_style` widened: `/CA` for every subtype; `/C` for Caret, FileAttachment, Sound and Screen.
 >

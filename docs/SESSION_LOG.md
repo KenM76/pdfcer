@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-07 (1021st filing) — `Pass 539.0` shipped (Line `/IC` fills closed endings, `G153`)
+
+**Shipped:** `Pass 539.0`, code `2c3b284f`, `docs/core-api` `9562b63c`. `MarkupSpec::Line.interior: Option<Color>` (breaking for struct literals) is read from, written to and clip-carried as `/IC`. A `ClosedArrow` now fills with `/IC`, hollow when absent (behaviour change: was `/C`). `takes_interior` true for Line; `set_markup_style` sets and clears it. CLI `set-markup-style --interior`, `annotate --fill`.
+
+**Tests (engineer-reported):** core `line_interior` 3 (sabotage-verified); CLI `set_markup_style_line_interior` 1; stale `takes_interior: false` assertion in `markup_border_style` corrected. Core integration 2,767, CLI integration 821, CLI bin 43 passed; clippy, fmt, code-structure, public-fns, check-core-api-verbs clean. No manifest change. Not yet pushed.
+
+**Files:** ROADMAP `539.0` stub removed from *Next up*, entry added to *Shipped*, banner now "538.0, 539.0 SHIPPED; 540.0-551.0 remain"; `FEATURES.md` Planned row replaced by an Implemented row (core `[x]` cli `[x]` gui `[ ]`).
+
+**Decisions made this session:** None.
+
+**Still in flight:** `Pass 540.0`-`551.0` queued. Next free `Pass 552.0`; next filing 1022nd.
+
+**Sourcing note (hard rule 8):** all facts and hashes engineer-supplied; no shell, so push, backup and CI colour not checked here. `0889a057` (1020th filing) not separately filed; docs-only.
+
 ## 2026-10-07 (1020th filing) — `Pass 538.0` shipped (DEFECT: FreeText restyle, `G148`)
 
 **Shipped:** `Pass 538.0`, code `82586606`, `docs/core-api` `95e52032`. `set_text_annot_style` on a `/FreeText` now refuses a foreign `/AP` (`FreeTextAppearanceForeign`) and a rich-text box (`FreeTextIsRichText`, `/RC`), leaving it unchanged; opt-in `TextAnnotStyle::redraw_as_plain` redraws wrapped in `/Rect` and drops `/RC`/`/DS`, reported in `TextAnnotStyleChange::rich_text_dropped`; `font_size` now reaches `/DA` and the re-bake. CLI `--redraw-as-plain` (else exit 9). `EditError` 166 to 168; verbs stay 330.
