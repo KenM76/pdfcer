@@ -115,6 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 549.0` — width, merge and split text inside a form XObject (core + CLI; answers `pdfcer-gui` `G158`) — SHIPPED 2026-10-08 (1031st filing)
+
+Commits `ec1940df` (code), `e5096085` (`docs/core-api`); push state not verifiable from here. No `Cargo.toml` change, so `cargo tree` was not re-run; no packaging change. No decision. Listed in *Next up* at filing (verified, a blockquote stub), stub removed.
+
+**Basis.** Text inside a form XObject could not be reshaped. The form is shared, so it is edited in place (decision 076).
+
+**Delivered.**
+- `EditSession::set_text_run_width_in_form`, `merge_text_runs_in_form`, `split_text_object_in_form`, addressed by leaf index into `PageObjects::leaves`. One undo each.
+- Width and merge return `FormTextOutcome<R> { report, form, invocations, pages }` (`#[non_exhaustive]`) and keep `FormatError`, which gained `FormLeafOutOfRange { index, count }`. Split returns `FormSurgeryOutcome`. `docs/core-api` verbs 339 to 342.
+- Fixed on discovery: `format_text`'s form route recorded `CommandKind::EditText`; it now records `FormatText`.
+- CLI: `--leaf N` on `text-run-width`, `text-run-merge`, `text-object-split` (split needs `--before`, refuses `--dry-run`); the form's reach prints on stderr. No new subcommand (still 221).
+
+**Verified (engineer-reported).** Core +4 (`tests/text_form_reshape.rs`), CLI +2. Full runs: core lib 1494 passed / 1 ignored, core integration 2836 / 2 ignored, core others 43, CLI 846 / 1 ignored, CLI integration 214; 0 failed. Three sabotages each failed tests.
+
+**`G158` status.** GUI column is `pdfcer-gui`'s to tick.
+
+`FEATURES.md`: *Planned* `549.0` row removed; new *Implemented* row after the `548.0` image row (core `[x]` cli `[x]` gui `[ ]`).
+
+Ledgers: no decision; next free `Pass 552.0`; next filing 1032nd.
+
 ### `Pass 548.0` — replace a placed image's pixels in place (core + CLI; answers `pdfcer-gui` `G156`) — SHIPPED 2026-10-08 (1030th filing)
 
 Commits `e72c1f08` (code), `dcfbf06e` (`docs/core-api`); push state not verifiable from here. No `Cargo.toml` or dependency change (`cargo tree` unaffected). No decision. Listed in *Next up* at filing (verified), stub removed.
@@ -21428,9 +21448,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), `547.0` SHIPPED (1029th filing), `548.0` SHIPPED (1030th filing), see *Shipped*; `549.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1031st.
->
-> **`Pass 549.0` — `G158`:** `_in_form` twins of `set_text_run_width`, `merge_text_runs` and `split_text_object`.
+> **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), `547.0` SHIPPED (1029th filing), `548.0` SHIPPED (1030th filing), `549.0` SHIPPED (1031st filing), see *Shipped*; `550.0`-`551.0` remain. Request files in `pdfce_FeatureRequests/open/`; ACK replies already written (engineer-reported). Each Pass ships core + CLI; the GUI column is `pdfcer-gui`'s. Next free `Pass 552.0`; next filing 1032nd.
 >
 > **`Pass 550.0` — `G154`:** `insert_node` + `convert_node`, with in-form twins and `plan_*` previews.
 >

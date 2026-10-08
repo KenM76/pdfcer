@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1031st filing) — `Pass 549.0` shipped (width, merge and split text inside a form, `G158`)
+
+**Shipped:** `Pass 549.0`, code `ec1940df`, `docs/core-api` `e5096085`. `EditSession::set_text_run_width_in_form`, `merge_text_runs_in_form`, `split_text_object_in_form`, addressed by leaf index into `PageObjects::leaves`; the form is edited in place (decision 076), one undo each. Width and merge return `FormTextOutcome<R>`; `FormatError::FormLeafOutOfRange` added; split returns `FormSurgeryOutcome`. Fixed on discovery: `format_text`'s form route now records `FormatText`, not `EditText`. CLI `--leaf N` on `text-run-width`, `text-run-merge`, `text-object-split` (221 subcommands unchanged).
+
+**Tests (engineer-reported):** core +4, CLI +2; core lib 1494, core integration 2836, CLI 846 and 214, 0 failed; three sabotages each caught; core-api verbs 342; no manifest change.
+
+**Files:** ROADMAP `549.0` blockquote stub removed from *Next up* (not a `###` heading; the `###` count between *Next up* and *Backlog* measured 80 by Grep line numbers, unchanged), entry added to *Shipped*, banner updated; `FEATURES.md` Planned row removed, new *Implemented* row (core/cli `[x]`, gui `[ ]`).
+
+**Decisions made this session:** None.
+
+**Still in flight:** `550.0`, `551.0` queued. Next free `Pass 552.0`; next filing 1032nd. Push state not verifiable from here.
+
 ## 2026-10-08 (1030th filing) — `Pass 548.0` shipped (replace a placed image in place, `G156`)
 
 **Shipped:** `Pass 548.0`, code `e72c1f08`, `docs/core-api` `dcfbf06e`. New `EditSession::replace_image(page, object, &ImportedImage, ImageFit)`: swaps the image's `Do` (or inline `BI…EI`) for a `Do` of a new XObject at the same stream point, keeping CTM and stacking order; `Stretch` or `Contain` (centred, aspect kept), EXIF honoured. Old XObject stays; one undo. New `EditError::ReplaceImageOnOther` (175 variants); `ImageReplaceOutcome` `#[non_exhaustive]`. CLI `replace-image` (221 subcommands).
