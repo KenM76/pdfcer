@@ -253,6 +253,17 @@ fn parse_riff(bytes: &[u8]) -> Result<(Format, &[u8]), WavError> {
 }
 
 impl SoundData {
+    /// No samples, for drawing a sound annotation's icon without its sound.
+    pub(crate) fn empty() -> Self {
+        Self {
+            rate: 8000,
+            channels: 1,
+            bits: 8,
+            encoding: SoundEncoding::Raw,
+            samples: Vec::new(),
+        }
+    }
+
     /// Import a WAV (RIFF `WAVE`) file as a PDF sound object.
     ///
     /// PCM of 8, 16, 24 or 32 bits keeps its width (8-bit as `/Raw`, wider as

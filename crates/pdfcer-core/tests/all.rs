@@ -11,6 +11,7 @@ mod annot_gates;
 mod annot_move;
 mod annot_reshape;
 mod annot_resize;
+mod annot_restyle;
 mod annot_rotate;
 mod annot_rotate_composable;
 mod annotation_clip_serialisation;

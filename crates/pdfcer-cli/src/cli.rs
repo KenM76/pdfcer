@@ -6331,6 +6331,63 @@ pub(crate) enum Command {
         #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
         mode: SaveMode,
     },
+    /// **Fade any annotation** — set or remove its constant opacity `/CA`
+    /// (ISO 32000-2 §12.5.2 Table 166).
+    ///
+    /// Works on every annotation type, including notes, stamps, carets,
+    /// attachments, sounds, media and links. Only the dictionary changes; the
+    /// annotation's drawing is not redrawn. A value outside 0 to 1 is clamped
+    /// and the clamp is reported.
+    SetAnnotOpacity {
+        /// Input PDF.
+        input: PathBuf,
+        /// Page, 1-BASED — the `page=` value `list-annotations` prints.
+        #[arg(long)]
+        page: usize,
+        /// Index within that page's `/Annots`, 0-BASED.
+        #[arg(long)]
+        index: usize,
+        /// Opacity from 0 (invisible) to 1 (opaque).
+        #[arg(long, value_name = "ALPHA", required_unless_present = "clear")]
+        opacity: Option<f64>,
+        /// Remove `/CA`, making the annotation fully opaque.
+        #[arg(long, conflicts_with = "opacity")]
+        clear: bool,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
+    /// **Recolour a caret, file attachment, sound or media mark** —
+    /// writes `/C` and redraws its icon in the new colour.
+    ///
+    /// The icon name, the attached file or clip and every other entry are
+    /// kept. An icon another program drew is refused (exit 9) unless
+    /// `--redraw-as-plain`, which replaces it with pdfcer's drawing.
+    SetMarkerColor {
+        /// Input PDF.
+        input: PathBuf,
+        /// Page, 1-BASED — the `page=` value `list-annotations` prints.
+        #[arg(long)]
+        page: usize,
+        /// Index within that page's `/Annots`, 0-BASED.
+        #[arg(long)]
+        index: usize,
+        /// Colour as `RRGGBB` hex.
+        #[arg(long, value_name = "RRGGBB")]
+        color: String,
+        /// Redraw an icon another program drew, instead of refusing.
+        #[arg(long)]
+        redraw_as_plain: bool,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
     /// **Restyle a sticky note, stamp or text box** — its icon and/or its
     /// colour (ISO 32000-1 §12.5.6.4, §12.5.2 Table 164).
     ///

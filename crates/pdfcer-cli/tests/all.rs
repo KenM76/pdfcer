@@ -11,6 +11,7 @@ mod add_screen;
 mod add_sound;
 mod add_svg;
 mod add_text;
+mod annot_restyle;
 mod annotate_as_content;
 mod annotate_note;
 mod annotation_address;

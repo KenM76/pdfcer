@@ -141,6 +141,8 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "set-crop-box",
     "set-field-script",
     "set-info",
+    "set-annot-opacity",
+    "set-marker-color",
     "set-markup-note",
     "set-markup-style",
     "set-object-layer",

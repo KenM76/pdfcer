@@ -122,6 +122,7 @@
 //!   bytes is §7.9.2, which is a **recorded gap** in the spec RAG; see
 //!   [`encode_text_string`])
 
+mod annot_restyle;
 mod block_text;
 mod button_icon;
 mod checkpoint;
@@ -135,6 +136,7 @@ mod form_paint;
 mod form_transform;
 mod group_unit;
 mod stroke_style;
+pub use annot_restyle::{AnnotOpacityChange, MARKER_SUBTYPES, MarkerStyle, MarkerStyleChange};
 pub use foreign_button::ForeignAppearance;
 pub use form_paint::FormPaintOutcome;
 mod image_stamp;
@@ -638,6 +640,12 @@ pub enum CommandKind {
     /// [`EditSession::set_text_annot_style`] changed a text-bearing
     /// annotation's icon or colour and re-baked its appearance.
     SetTextAnnotStyle,
+    /// [`EditSession::set_annot_opacity`] set or removed an annotation's
+    /// `/CA`.
+    SetAnnotOpacity,
+    /// [`EditSession::set_marker_style`] recoloured a caret, attachment,
+    /// sound or screen annotation and re-baked its icon.
+    SetMarkerStyle,
     /// [`EditSession::add_review_state`] stamped `/State` + `/StateModel`
     /// onto the state annotation it had just authored.
     AddReviewState,
@@ -9001,6 +9009,17 @@ pub enum EditError {
         "annotation {id} is a text box another program drew; pdfcer cannot redraw it faithfully, so it was left unchanged (ask to redraw it as plain text to proceed)"
     )]
     FreeTextAppearanceForeign {
+        /// The annotation.
+        id: ObjId,
+    },
+    /// A marker recolour was refused because the appearance on disk is not
+    /// pdfcer's drawing of that marker, so a re-bake would replace another
+    /// program's icon (pdfcer-gui request G150). Set
+    /// [`MarkerStyle::redraw_as_plain`] to redraw it anyway.
+    #[error(
+        "annotation {id} has an icon another program drew; recolouring would replace it with pdfcer's drawing, so it was left unchanged (ask to redraw it to proceed)"
+    )]
+    MarkerAppearanceForeign {
         /// The annotation.
         id: ObjId,
     },
@@ -37537,8 +37556,8 @@ impl EditSession {
     /// - [`EditError::VariableText`] — the amended spec cannot be laid out.
     /// - [`EditError::DocumentEncrypted`], the certification gate,
     ///   [`EditError::NotADictionary`], [`EditError::AppearanceHasStates`],
-    ///   [`EditError::ObjectCreationWouldExposeHiddenObjects`] — as for
-    ///   [`Self::set_markup_style`].
+    ///   [`EditError::ObjectCreationWouldExposeHiddenObjects`],
+    ///   [`EditError::AnnotationLocked`] — as for [`Self::set_markup_style`].
     pub fn set_text_annot_style(
         &mut self,
         annot_id: ObjId,
@@ -37551,6 +37570,13 @@ impl EditSession {
 
         let (target, _all) = self.locate_annotation(annot_id)?;
         let subtype = target.subtype_label();
+        // §12.5.3 Table 165 bit 8, as `set_markup_style` honours it.
+        if target.flags.locked() {
+            return Err(EditError::AnnotationLocked {
+                id: annot_id,
+                subtype: subtype.clone(),
+            });
+        }
 
         // Refuse an inapplicable property BEFORE anything is written, the
         // posture `Pass 258.0` established: a silently swallowed request is
@@ -38276,6 +38302,12 @@ impl EditSession {
                 id: annot_id,
                 subtype: String::from_utf8_lossy(&target.subtype).into_owned(),
             });
+        }
+        // Clamping cannot repair NaN; it would be written as `/CA NaN`.
+        if let Some(StyleEdit::Set(alpha)) = style.opacity
+            && !alpha.is_finite()
+        {
+            return Err(EditError::MarkupOpacityOutOfRange { value: alpha });
         }
 
         let Some(Object::Dict(current)) = self.value(annot_id) else {

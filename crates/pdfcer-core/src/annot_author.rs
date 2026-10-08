@@ -769,7 +769,11 @@ pub fn spec_from_dict<G: ObjectGraph + ?Sized>(
 /// 5-component array names no device space, and treating it as an error
 /// would refuse to restyle an annotation over a key the caller is about to
 /// overwrite anyway.
-fn read_color<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict, key: &[u8]) -> Option<Color> {
+pub(crate) fn read_color<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    annot: &Dict,
+    key: &[u8],
+) -> Option<Color> {
     let nums = read_numbers(graph, annot, key);
     match *nums.as_slice() {
         [g] => Some(Color::Gray(g)),
@@ -6076,8 +6080,11 @@ pub(crate) fn screen(spec: &ScreenSpec) -> AuthoredTextAnnot {
     b.close_subpath();
     b.paint(Paint::FillStroke);
 
+    let mut annot = base_annot(b"Screen", rect);
+    annot.insert(Name::from(b"C"), spec.color.to_array());
+
     AuthoredTextAnnot {
-        annot: base_annot(b"Screen", rect),
+        annot,
         ap_dict: text_form_dict(rect, Dict::new()),
         ap_content: b.into_bytes(),
         rect,
