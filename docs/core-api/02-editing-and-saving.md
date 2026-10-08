@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 348 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 349 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 348 public `EditSession` methods
+## 1. Verb index — all 349 public `EditSession` methods
 
-**Count: 348.** Established by brace-matched extraction of the
+**Count: 349.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -96,7 +96,7 @@ added `add_file_attachment_annotation`, and at 274 when `Pass 261.1` added
 `add_caret_annotation` and `add_replace_text`, and at 275 when `Pass 261.2`
 added `add_sound_annotation`, and at 276 when `Pass 261.3` added
 `add_screen_annotation`, and at 277 when `Pass 142.3` added
-`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins.
+`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`.
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -1850,8 +1850,9 @@ only creation verb whose successful result is a control that does not work"*
 | **Abandon a gesture that failed part-way** | `rollback(&mut self, checkpoint: Checkpoint) -> Result<Rollback, CheckpointError>` | Undoes every command pushed since the checkpoint **without putting it on Redo**, then restores the redo stack the first verb cleared — the document bytes and both stacks are as they were. Entries are found by serial, not depth, so it is right at full depth (up to 16 entries the depth bound evicted during the gesture are put back; `Rollback::history_lost` counts any beyond that) and after a `coalesce_last` fold inside the gesture (`Rollback::undone` counts entries, so a fold counts as one). Refuses, changing nothing: `ForeignSession`; `HistoryChanged` (an undo, redo-over or fold crossed the checkpoint); `GestureEvicted { evicted }` (the gesture pushed more than `MAX_UNDO_DEPTH` commands). ★ Replaces any "undo N times, then pop Redo N times" loop — that leaves Redo entries and is wrong at full depth. |
 | **Rotate one widget** | `rotate_widget(&mut self, fqn, index, degrees: i64) -> Result<WidgetRotation, EditError>` | ✅ **`/MK /R` + a REDRAWN appearance** (`Pass 177.0`). ⚠️ **COUNTERCLOCKWISE** — the page's `/Rotate` is the clockwise one. Multiples of 90 only, reduced into `[0, 360)` and the reduction reported. **`/Rect` does not move**; the appearance is redrawn into a `w`/`h`-swapped `/BBox` and stood upright by `/Matrix`. Rotating to `0` **removes** the key. Refuses a non-multiple of 90 with `WidgetRotationNotQuarterTurn`. |
 | Read an existing field's copyable properties | `field_defaults(&self, source: &str) -> Result<FieldDefaults, EditError>` | For `--defaults-from` / "copy style from". |
+| **Turn one widget to any angle** (`G160`) | `turn_widget(&mut self, fqn, index, degrees: f64) -> Result<WidgetTurn, EditError>` | Counterclockwise, ABSOLUTE (twice to 30 stays 30; `0.0` stands it up), on top of `/MK /R`. Every `/AP` stream gets the turn in its `/Matrix`; `/Rect` becomes the upright bound of the turned normal appearance, centred where it was. Nothing is redrawn, so foreign artwork turns too. See "Free-angle widgets" below. |
 | **Change a field's field-scope properties** | `edit_field(&mut self, fqn, edit: &FieldEdit) -> Result<FieldEditOutcome, EditError>` | `Pass 134.0`. Flags, `/MaxLen`, `/TU`, `/Opt`. **Shared by every widget the field owns.** Setting `password` on a text field removes its own `/V` (`password_value_removed`) and redraws it masked. `appearance_stale: Option<String>` is `Some` when a property was written and nothing was drawn (a `/DA` edit on a check box or radio, whose artwork is shapes, not text) — **show it**. A button redraw that reproduces its artwork exactly writes nothing and reports `appearance_regenerated: false`, on this verb, `edit_widget` and `rotate_widget`. A `/MK /CA` caption edit on a text or choice widget is `AppearanceOutcome::RecordedNotPainted`; on a check box or radio it redraws the mark. |
-| **Change ONE widget's properties** | `edit_widget(&mut self, fqn, index, edit: &WidgetEdit) -> Result<WidgetEditOutcome, EditError>` | `Pass 134.0`. `/Rect` (move **and resize**), `/BS`, `/F`, `/MK` `/CA`. **Per placement.** ★ All four are **readable** too since `Pass 146.0` — `forms::Widget::rect` / `border` / `visibility` + `annot_flags` / `caption`. This row listed four writable properties for months while only two could be read, which is how a consuming shell ended up with two controls it could not honestly populate. See `03-capabilities.md`'s `Widget` block. An **unsigned** signature widget (no `/V`) is redrawn as its empty box after a border/colour edit (`Regenerated`); a signed one keeps its bytes (`RecordedNotPainted`). `WidgetEdit::with_foreign_appearance(ForeignAppearance::Replace)` lets a check box or radio whose `/AP` another producer drew be replaced with pdfcer's own (the default, `ReplaceOnIconEdit`, replaces a foreign push button on an icon or caption-position edit) (`WidgetEditOutcome::foreign_appearance_replaced`) — see "Foreign button artwork" below. **Push-button icon** (`Pass 443.0`, G097): `with_button_icon(&ImportedImage)` / `without_button_icon()` / `with_caption_position(CaptionPosition)` — see "Push-button icons" below; on any other field type they are `EditError::NotAPushButton { name }`. |
+| **Change ONE widget's properties** | `edit_widget(&mut self, fqn, index, edit: &WidgetEdit) -> Result<WidgetEditOutcome, EditError>` | `Pass 134.0`. `/Rect` (move **and resize**), `/BS`, `/F`, `/MK` `/CA`. **Per placement.** ★ All four are **readable** too since `Pass 146.0` — `forms::Widget::rect` / `border` / `visibility` + `annot_flags` / `caption`. This row listed four writable properties for months while only two could be read, which is how a consuming shell ended up with two controls it could not honestly populate. See `03-capabilities.md`'s `Widget` block. An **unsigned** signature widget (no `/V`) is redrawn as its empty box after a border/colour edit (`Regenerated`); a signed one keeps its bytes (`RecordedNotPainted`). `WidgetEdit::with_foreign_appearance(ForeignAppearance::Replace)` lets a check box or radio whose `/AP` another producer drew be replaced with pdfcer's own (the default, `ReplaceOnIconEdit`, replaces a foreign push button on an icon or caption-position edit) (`WidgetEditOutcome::foreign_appearance_replaced`) — see "Foreign button artwork" below. **Push-button icon** (`Pass 443.0`, G097): `with_button_icon(&ImportedImage)` / `without_button_icon()` / `with_caption_position(CaptionPosition)` — see "Push-button icons" below; on any other field type they are `EditError::NotAPushButton { name }`. **Opacity** (`G160`): `with_opacity(f64)` / `clearing_opacity()` write or remove the widget's `/CA` (no redraw); outside `0.0..=1.0` is `EditError::WidgetOpacityOutOfRange`; below 1, `WidgetEditOutcome::opacity_disclosure` says a strict PDF 2.0 reader may ignore it. |
 
 #### ★ 1.12b Button actions (`Pass 183.0`/`Pass 183.1`) — and the one disclosure a shell MUST surface
 
@@ -3530,6 +3531,34 @@ CLI: `pdfcer add-named-dest --name X --page N [--top Y]`, then
 > A grey-out on the default group in a group list is the right shell
 > behaviour; the refusal is the backstop, not the UI.
 >
+### Free-angle widgets (`G160`)
+
+`/MK /R` holds only multiples of 90 (Table 189), so `turn_widget` puts a free
+angle in the appearance stream `/Matrix`, composed on the quarter turn, and
+sets `/Rect` to the §12.5.5 bound of the turned `/BBox`. The angle is read
+back from the normal appearance's `/Matrix` (a pure rotation not a multiple
+of 90 away from `/MK /R`), so there is no private key; `WidgetTurn { name,
+index, was, now, rect_before, rect_after, changed, disclosures }`
+(`#[non_exhaustive]`). Later redraws (fill, restyle, caption, a button's
+colours) draw at the widget's logical size (the `/BBox`, not the grown
+`/Rect`) and keep the angle. `disclosures`, always non-empty when `now != 0`:
+a viewer that regenerates from `/MK` keeps only the quarter turn; an
+appearance fitted by a non-uniform scale will stand upright on a later pdfcer
+redraw; an appearance stream shared with another widget was copied so that
+widget stays put. Refusals: `WidgetTurnIsQuarterTurn { degrees }` (a non-zero
+multiple of 90: use `rotate_widget`), `ResizeFactorInvalid { axis: "degrees" }`
+(not finite), `WidgetRectMissing`, `WidgetTurnNeedsAppearance { name, index }`
+(no `/AP /N` stream with a `/BBox`), `WidgetTurnSharedAppearance { name,
+index }` (a shared stream in an encrypted file). A turned widget refuses
+`rotate_widget` and an `edit_widget` resize with `WidgetTurned { name, index,
+degrees, operation }` until it is turned back to 0; a pure move is allowed.
+`changed: false` (already at that angle) writes nothing and pushes no undo
+entry. Undo kind `CommandKind::TurnWidget`. CLI: `pdfcer turn-widget IN
+--name N [--index I] --degrees D -o OUT`; stdout `turn-widget IN name= index=
+was= now= rect=LLX,LLY,URX,URY mode= -> OUT; changed= objects= appended=
+out_bytes= undo_verified= undo_identical=`; disclosures on stderr.
+`edit-widget --opacity 0-1 | --clear-opacity` sets `/CA`.
+
 ### ★★ `rotate_widget` — three things a shell will otherwise get wrong
 
 **1. It is COUNTERCLOCKWISE, and the page's `/Rotate` is CLOCKWISE.**
@@ -5804,7 +5833,7 @@ borrow it (`tests/image_placement.rs`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**175 variants**, counted at depth 1 inside `pub enum EditError`.
+**180 variants**, counted at depth 1 inside `pub enum EditError`.
 (`ReplaceImageOnOther`, Pass 548.0, is the newest; `SourcePageOutOfRange`: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 
