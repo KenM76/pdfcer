@@ -130,7 +130,7 @@ Commits `da43a415` (code, tests), `457ada02` (`docs/core-api` 03-capabilities §
 
 `FEATURES.md`: *Planned* `562.0` row moved to *Implemented* (core `[x]` cli `[ ]` gui `[ ]`).
 
-Ledgers: no decision; next free `Pass 563.0`; next filing 1048th.
+Ledgers: no decision; next free `Pass 565.0`; next filing 1049th.
 
 ### `v0.81.0` — RELEASED (2026-10-08), push and publication to follow (1045th filing)
 
@@ -21722,7 +21722,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`559.0` all shipped; the batch is complete.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 563.0`; next filing 1048th.
+> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`559.0` all shipped; the batch is complete.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 565.0`; next filing 1049th.
 > - `552.0` (`G162`) SHIPPED (`9be9d44a`, `ea7e80af`, 1035th filing), see *Shipped*.
 > - `553.0` (`G168`) SHIPPED (`8d014437`, `d1800f2a`, 1036th filing), see *Shipped*.
 > - `554.0` (`G163`) SHIPPED (`6fa4bc19`, `ed2bdd4b`, 1037th filing), see *Shipped*.
@@ -21735,6 +21735,29 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 560.0` (`G169`, render invisible text visibly) SHIPPED (`1d66768b`, `2ef4fae3`, 1044th filing), see *Shipped*.**
 
 > **`Pass 562.0` (`G170`, OCR run options checkable before load) SHIPPED (`da43a415`, `457ada02`, 1047th filing), see *Shipped*.**
+
+> **`Pass 563.0` (core; answers `pdfcer-gui` `G171`, O289 item 13) — measure a scan's skew off the edit session, and make `coalesce_last` refuse a mixed tail. Filed 2026-10-08 (1048th filing), not started.** Request: `pdfce_FeatureRequests/open/request_G171_deskew_cannot_be_measured_off_the_session.md`. Pinned engine `v0.81.0` (`c0761048`).
+> - **Why.** `page_scan_image`, `detect_image_skew` and `deskew_image` are all `&mut self` on `EditSession` (live: `edit/deskew.rs:58,87,125`), and `EditSession` is neither `Clone` nor `Sync`. Measuring a 1275x1650 scan takes most of a second, so the GUI runs one page per frame on the UI thread (`Arc::get_mut`, render worker cancelled). `detect_image_skew` is documented read-only yet takes `&mut` (it goes through `deskew_target`).
+> - **Scope 1.** A read-only skew measurement for a page image taking `&DocumentView` (or an image from a `ResourceProvider`), not `&mut EditSession`, so the GUI can measure a whole document on a worker thread. The commit stays on the existing `EditSession::deskew_image(page, idx, angle)`. The engineer chooses the exact surface (the request suggests `pdfcer_core::deskew::detect_image_skew_view(view, page, idx)`); the scan-image pick (`page_scan_image`) needs the same read-only treatment or the measurement is half-useful.
+> - **Scope 2.** `EditSession::coalesce_last(n, kind)` refuses, with no fold, when the last `n` undo entries include a different kind, so the caller no longer pre-checks `undo_kinds().take(n)`. Live signature returns `bool` today (`false` already means "stack shorter than `count`", `edit.rs:20337`); the Pass chooses whether the refusal reuses that `false` or becomes an error. Either way the change is observable and must be documented in the method's "What an EXTERNAL caller must know" list, whose miscount warning is now partly retired.
+> - **Acceptance.**
+>   1. The measurement returns the same angle and confidence as `detect_image_skew` on the same image (test over the existing deskew fixtures).
+>   2. The measurement needs no `&mut` (a compile-level test taking a shared reference).
+>   3. A mixed tail is refused by `coalesce_last` and leaves the undo stack unchanged (test asserts `undo_kinds()` before and after).
+>   4. `docs/core-api` updated and `check-core-api-verbs` green.
+>   5. A FIXED reply in the FeatureRequests channel.
+> - **Not in scope.** The GUI's per-frame workaround (`app::actions::deskew`), `pdfcer-gui`'s. CLI: the single `deskew` verb (`cli.rs:6644`) already measures and straightens in one invocation; no new verb unless the engineer finds one needed.
+
+> **`Pass 564.0` (core; answers `pdfcer-gui` `G172`, O289 item 21) — the full-rewrite disclosure from `remove_metadata` gets an identity the GUI can recognise. Filed 2026-10-08 (1048th filing), not started.** Request: `pdfce_FeatureRequests/open/request_G172_full_rewrite_disclosure_cannot_be_recognised.md`. Pinned engine `v0.81.0` (`c0761048`).
+> - **Why.** `MetadataRemoval::disclosures` is `Vec<String>` (live: `doc_metadata.rs:239`). The full-rewrite sentence is the private `FULL_REWRITE_DISCLOSURE` in `edit/metadata_remove.rs:19`, pushed last (`:125`), and its text names the Rust verb `to_full_bytes_decomposing_containers`. The GUI cannot show it, so `app::actions::remove_metadata::receipt` drops every disclosure whose text contains that identifier; a rewording silently puts the Rust name in front of the operator.
+> - **Scope.** `MetadataRemoval` gains a structured disclosure so the GUI no longer matches on text. The engineer chooses between `needs_full_rewrite: bool` (the sentence moved out of `disclosures`) and a structured `Vec<MetadataDisclosure>` enum (the request notes the second also lets the GUI word the others, e.g. a field's default value left, a skipped signature field, "more than one undo"). `MetadataRemoval` and `NotRemoved` are `#[non_exhaustive]`, so adding a field is not breaking; changing the type of `disclosures` is, and needs the usual API note. Operator wording must not name Rust verbs.
+> - **Acceptance.**
+>   1. The GUI can tell the full-rewrite note from the others without matching text (test asserts the structured signal on a default-options removal).
+>   2. No disclosure sentence names a Rust identifier (a test scanning every sentence the module can produce).
+>   3. CLI output still states the full-rewrite requirement, in operator words (rule 4: fuzzy, never sneaky; the CLI must not go silent when the sentence leaves `disclosures`).
+>   4. `docs/core-api` updated.
+>   5. A FIXED reply in the FeatureRequests channel.
+> - **Sweep owed at ship (hard rule 11).** If `disclosures` changes meaning, grep for the claim, not the string: `doc_metadata.rs:236` rustdoc ("always that only a full rewrite takes removed data out of the file"), the CLI `remove-metadata` printer (`metadata_cmd.rs:164` prints `report.disclosures`, so moving the sentence out of that list silences the CLI unless it is printed separately), `docs/core-api`, and `FEATURES.md` rows naming metadata removal.
 
 > **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), `547.0` SHIPPED (1029th filing), `548.0` SHIPPED (1030th filing), `549.0` SHIPPED (1031st filing), `550.0` SHIPPED (1032nd filing), `551.0` SHIPPED (1033rd filing), see *Shipped*; the batch is complete. Request files in `pdfce_FeatureRequests/open/`. Each Pass shipped core + CLI; the GUI column is `pdfcer-gui`'s. (Superseded by the stub above: next free `Pass 559.0`; next filing 1035th.)
 

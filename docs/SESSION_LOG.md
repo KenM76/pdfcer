@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1048th filing) — `Pass 563.0` and `Pass 564.0` filed under Next up (`G171`, `G172`)
+
+**Shipped:** nothing; scoping filing only. Previous filing was `b1e2e4e7` (1047th).
+
+**Filed:** `Pass 563.0` (`G171`): a read-only skew measurement off `&DocumentView`/`ResourceProvider` so a worker thread can measure a document, plus `coalesce_last` refusing a mixed undo tail. `Pass 564.0` (`G172`): `MetadataRemoval` gets a structured full-rewrite signal (`needs_full_rewrite: bool` or `Vec<MetadataDisclosure>`, engineer's choice) so the GUI stops matching on `to_full_bytes_decomposing_containers`. Acceptance criteria are in the ROADMAP stubs.
+
+**Read against live source:** `detect_image_skew`, `page_scan_image` and `deskew_image` are all `&mut self` (`edit/deskew.rs`); `coalesce_last` returns `bool` today, not an error (the stub leaves the form to the engineer); `FULL_REWRITE_DISCLOSURE` is private, `metadata_cmd.rs:164` prints `report.disclosures`, so moving the sentence out of that list would silence the CLI unless printed separately (noted in the `564.0` stub).
+
+**Files:** ROADMAP: two blockquote stubs in *Next up* (no `###` added, count unchanged at 80), ledger line (Shipped `562.0` entry and the *Next up* banner) now next free `Pass 565.0`, next filing 1049th. `FEATURES.md`: two *Planned* rows at the top (core, cli, gui all `[ ]`).
+
+**Decisions made this session:** None.
+
+**Still in flight:** `563.0` and `564.0` to be built; FIXED replies to `G171` and `G172` owed on ship. Push state not verifiable from here (no shell).
+
 ## 2026-10-08 (1047th filing) — `Pass 562.0` shipped (OCR run options checkable before load, `G170`)
 
 **Shipped:** `Pass 562.0`, `da43a415` (code, tests) and `457ada02` (`docs/core-api` 03-capabilities §5 row; index line count updated by `check-core-api-verbs --fix`). `pdfcer_ocr_host::check_options(model, options)` in `runner.rs`, re-exported from `lib.rs`: no hashing, no model load. Data models: word-list rules. Program models: requested languages' `.traineddata` and user word files readable, via private `check_program_options` in `program.rs` (shares `invocation()` with `ProgramEngine::from_model`). Layout: `LayoutUnsupported` off paddle-vl; `MissingFile { needs: "layout.onnx" }` when absent (cfg `ocr-vl`). `OcrRunner::load` calls it first. Behaviour changes: a paddle-vl folder without `layout.onnx` now gets `MissingFile` from `load` (was `RunnerError::Engine`); for program models option problems now precede model refusals.
