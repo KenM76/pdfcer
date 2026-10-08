@@ -2433,7 +2433,8 @@ an API gap.
 | `RecognizedWord { text, rect, confidence: Option<f32> }` | `ocr/mod.rs` |
 | `OcrPage { words, lines, blocks, confidence_available: bool }` — build with `..OcrPage::default()`; `lines`/`blocks` are optional (`Pass 500.6`, G121) | `ocr/mod.rs` |
 | `OcrLine { words: Vec<usize> }` / `OcrLine::new(words)` — indices into `OcrPage::words`, left to right | `ocr/structure.rs` |
-| `OcrBlock { kind: OcrBlockKind, lines: Vec<usize> }` / `OcrBlock::new(kind, lines)` — indices into `OcrPage::lines`; **the `blocks` Vec order is the reading order** | `ocr/structure.rs` |
+| `OcrBlock { kind: OcrBlockKind, lines: Vec<usize>, region: Option<LayoutClass>, cell: Option<CellPosition> }` / `OcrBlock::new(kind, lines)`, `.with_region(class)`, `.with_cell(pos)` — indices into `OcrPage::lines`; **the `blocks` Vec order is the reading order**; `region` is set only by a layout reading (Piece 3f), `cell` only on a `TableCell` | `ocr/structure.rs` |
+| `CellPosition { row, col, row_span, col_span }` / `CellPosition::new(..)` (spans clamped to ≥ 1), `#[non_exhaustive]` | `ocr/structure.rs` |
 | `OcrBlockKind` (`Paragraph` default, `Heading`, `ListItem`, `TableCell`, `Caption`, `Other`) | `ocr/structure.rs` |
 | `OcrStructureSource` (`Reported`, `BlocksInferred`, `Inferred` default) — on `OcrLayerReport::structure` | `ocr/structure.rs` |
 | `OcrPage::mean_confidence() -> Option<f32>` | `ocr/mod.rs` |
@@ -2449,7 +2450,7 @@ an API gap.
 |---|---|
 | `add_ocr_layer(&doc, page_index, &OcrPage, &opts) -> Result<OcrLayerOutcome, OcrLayerError>` | `ocr/layer.rs` |
 | `build_layer_content(&OcrPage, font_name, &opts) -> (Vec<u8>, OcrLayerReport)` — **pure**, no `Document`, no I/O. Writes `q 3 Tr`, then **one `BT … ET` per block**, blocks in reading order, lines and words in order, then `Q`. Structure: the engine's when `blocks` and `lines` are both non-empty; blocks inferred over the reported lines when only `lines` is; lines and blocks inferred from the word boxes (`block_layout`, so columns read column by column) when neither is. When inferring, the recogniser's ink-tight boxes are first re-sized to font boxes, one em per row (the page's median row ink height over 0.93, unless a row is outside 0.7-1.2x of it), so a paragraph on ordinary leading is one block, not one per line. Bad or repeated indices are ignored; words no line names are appended as a final `Other` block, so no word is lost | `ocr/layer_content.rs` |
-| `OcrLayerOptions::new()` / `.with_font(Std14)` / `.with_engine(name)` / `.with_existing(ExistingLayers)` / `.on_layer(group: ObjId)` (`Pass 500.3`, G122: the text goes in an `/OC` section for a group registered in `/OCProperties /OCGs`, nested inside the OCR marker; the page's `/Properties` gains a binding when it has none; an unregistered object is refused with `NotALayerGroup { id }`; the pure `build_layer_content` ignores it) | `ocr/layer.rs` |
+| `OcrLayerOptions::new()` / `.with_font(Std14)` / `.with_engine(name)` / `.with_existing(ExistingLayers)` / `.on_layer(group: ObjId)` (`Pass 500.3`, G122: the text goes in an `/OC` section for a group registered in `/OCProperties /OCGs`, nested inside the OCR marker; the page's `/Properties` gains a binding when it has none; an unregistered object is refused with `NotALayerGroup { id }`; the pure `build_layer_content` ignores it) / `.on_region_layer(RegionGroup, group: ObjId)` (G167: each block whose `region` falls in that group gets its own `/OC` section for `group`, nested inside `on_layer`'s when both are set, so it shows only when both are on (§8.11.3.2); a second call for the same group replaces the first; untagged blocks are written as before) | `ocr/layer.rs` |
 | `OcrLayerRemoval { optional_content: Option<ObjId>, group_emptied: bool }` — what `EditSession::remove_ocr_layer` returns; `group_emptied` is true only when nothing left in the document draws on the group (undecodable content counts as drawing on it) | `ocr/layer.rs` |
 | `AddTextRequest::into_ocr_layer()` / `.with_ocr_layer(engine)` (`Pass 500.4`, G123) — text added through `EditSession::add_text` joins the page's OCR layer (`/Engine (manual)` by default, invisible); listed, removed and replaced with it. Session-only: the free `add_text` refuses with `AddTextError::OcrLayerNeedsSession` | `text_edit/addtext.rs` |
 | `ExistingLayers` (`Replace` default, `Refuse`, `Stack`) — what to do with a layer pdfcer already wrote on the page | `ocr/layer.rs` |
@@ -2550,7 +2551,8 @@ is the region's mean token probability, the same on every line.
 |---|
 | `PaddleVlEngine::from_model_dir(&Path)` — loads the five `REQUIRED_FILES` and checks every graph's interface |
 | `read_region(w, h, &grey) -> Result<RegionReading, PaddleVlError>` — the call to use, because it returns what to disclose; `OcrEngine::recognize` returns `read_region(..).lines` |
-| `RegionReading { text, lines, placement, stop, tokens, image_tokens, ink_box }` — disclose `placement` (`vl_pre::LinePlacement::{Bands, Even, None}`) and warn on `stop == Some(vl_decode::StopReason::TokenLimit)` (the text may be cut short) |
+| `RegionReading { text, lines, placement, stop, tokens, image_tokens, ink_box }` — disclose `placement` (`vl_pre::LinePlacement::{Bands, Even, None}`) and warn on `stop == Some(vl_decode::StopReason::TokenLimit)` (the text may be cut short) or `Some(StopReason::Repetition)` (the model repeated one line `vl_decode::MAX_REPEATED_LINES` = 12 times, a loop, and was stopped) |
+| `read_region_as(VlTask, w, h, &grey)` — the same, with the model asked a task: `VlTask::{Ocr (default), Table, Formula, Chart, Seal}`, `.prompt_text()` (`"Table Recognition:"`, …). `text` is in that task's language: OTSL for `Table` (parse with `ocr::otsl::parse`), LaTeX in `\[ \]` for `Formula` |
 | `with_max_new_tokens(n)` / `max_new_tokens()` — default `vl_decode::DEFAULT_MAX_NEW_TOKENS` (2,048), clamped to `MAX_NEW_TOKENS_CAP` (8,192) |
 | `MODEL_DIR` `"paddle-vl"` · `REQUIRED_FILES` (`vision_encoder.onnx`, `decoder.onnx`, `embedding.onnx`, `embedding.onnx.data`, `tokenizer.json`) |
 | `PaddleVlError` (`ModelMissing`, `ModelLoad`, `Interface { model, reason }`, `Tokenizer { path, source }`, `Prepare(vl_pre::PrepError)`, `Recognition`), `#[non_exhaustive]` |
@@ -2560,6 +2562,31 @@ token on a desktop CPU. `vl_pre` and `vl_decode` are public and runtime-free:
 preprocessing, prompt assembly, line placement, and greedy decoding over a
 step closure. `ocr::vl_tokenizer` and `ocr::json_lite` are `#[doc(hidden)]`
 and public only for the fuzz crate.
+
+**Piece 3f — layout regions for PaddleOCR-VL** (`ocr/layout.rs`, `ocr/engine_layout.rs`, `ocr/otsl.rs`, `ocr/vl_page.rs`; feature `ocr-vl`; G167)
+
+PP-DocLayoutV3 (Apache-2.0) finds a page's regions; each is then read with
+the task its class calls for, so tables, formulas and charts are not read as
+prose and a page is not one region. The model is `layout.onnx` in the same
+add-on folder (`tools/build-paddle-vl-addon.py --layout DIR`). It is
+**optional**: an add-on without it still reads whole pages.
+
+| item |
+|---|
+| `LayoutEngine::from_model_dir(&Path)` (loads `engine_layout::LAYOUT_MODEL` = `layout.onnx`), `.with_score_threshold(f32)` / `.score_threshold()` (default `layout::DEFAULT_SCORE_THRESHOLD` 0.3), `.detect(w, h, &grey) -> Result<Vec<LayoutRegion>, PaddleVlError>` — regions in reading order, boxes in the image's pixels (y down) |
+| `LayoutRegion { class: LayoutClass, score, bbox: [x0, y0, x1, y1], order }` |
+| `LayoutClass` — the model's 25 labels (`Text`, `DocTitle`, `ParagraphTitle`, `Table`, `Image`, `Chart`, `DisplayFormula`, `Seal`, `Header`, `Footer`, …); `.as_str()` / `from_label(&str)` / `from_index(usize)`; `.group() -> RegionGroup`; `.task() -> Option<VlTask>` (`None` = a picture, not read) |
+| `RegionGroup::{Text, Title, Caption, Table, Figure, Formula, Chart, Seal, Header, Footer}` — the coarse groups a UI offers as layers; `.as_str()` (`"text"`, `"title"`, …) and `Display` |
+| `vl_page::read_page_with_layout(&PaddleVlEngine, &LayoutEngine, w, h, &grey) -> Result<LayoutReading, PaddleVlError>` — **the call to use** |
+| `LayoutReading { page: OcrPage, regions: Vec<RegionRead>, whole_page: bool }` — `page` words are image pixels (map as Piece 1); each block carries `region`; a table gives one `TableCell` block per non-empty cell with `cell` set; a formula is one word, delimiters stripped. `whole_page` = the model found no region, so the page was read as one untagged region |
+| `RegionRead { region, task, reading: Option<RegionReading> (page pixels), table: Option<otsl::Table>, grid_placed: bool }` — `task == None` for a picture; `grid_placed` = the cells were laid on an **even grid** over the region (inferred; disclose it) |
+| `otsl::parse(&str) -> Table { rows, cols, cells: Vec<TableCell { row, col, row_span, col_span, text }> }` — tolerant of malformed output; at most `otsl::MAX_CELLS` (10,000) |
+
+Disclose (rule 4): the region count, pictures not read, even-grid tables, a
+whole-page fallback, and any region stopped by `TokenLimit`/`Repetition`.
+`pdfcer_ocr_host::paddle_vl_layout_disclosure(&LayoutReading)` writes that
+text. Expect one vision encoding per region, so a dense page costs several
+times a whole-page read.
 
 **Piece 3c — Tesseract, parse only** (`crates/pdfcer-core/src/ocr/tesseract_tsv.rs`, always compiled)
 
@@ -2652,6 +2679,7 @@ PaddleOCR-VL add-on) loads and runs like any other (G102).
 | run a stock Tesseract folder the operator named | `ProgramEngine::from_operator_folder(dir, &opts)` then `OcrRunner::from_program`: unhashed, so disclose that |
 | check a `-l` value | `tesseract::check_languages(&str)` |
 | choose the word lists (G166) | `RunOptions::new(..).with_dictionaries(d)` with `Dictionaries::builtin()` (default), `Dictionaries::none()` (each word read from its letters alone: part numbers, grid labels, codes), `.with_user_words(path)` (a UTF-8 file, one word per line, repeatable; at most `MAX_USER_WORDS_BYTES` = 16 MiB in total). Only Tesseract takes word lists (`-c load_system_dawg=0 -c load_freq_dawg=0`; user words merged into one temporary `--user-words` file, deduplicated, deleted with the engine). The in-process engines use no word list, so they accept `none()` as is and refuse user words with `RunnerError::DictionariesUnsupported { name, engine, requested, why }`; PaddleOCR-VL also refuses `none()` (its language model cannot be turned off). The refusal comes before any check of the model's folder. An unreadable, non-UTF-8, empty or oversized word file is `ProgramError::Setup` at load |
+| read PaddleOCR-VL by layout region (G167) | `RunOptions::new(..).with_layout(true)`: `load` also loads `layout.onnx` (before the VL model, so a missing one fails fast) and `recognize`/`recognize_page` run `read_page_with_layout`; `recognize_page` keeps the region-tagged blocks. Any other engine is refused with `RunnerError::LayoutUnsupported { name, engine }`. After a page, `OcrRunner::last_layout() -> Option<LayoutReading>` gives the regions (for a region list or per-region layers) and `disclosure()` gives the layout text |
 | say which word lists a run used (rule 4) | `OcrRunner::dictionary_note() -> String` (also `ProgramEngine::dictionary_note()`), e.g. `no built-in word lists (load_system_dawg=0, load_freq_dawg=0) + 2 user word(s)`; `Dictionaries` is `Display` for a settings summary |
 
 - **Settings key `ocr_program_addons = allow|refuse`** belongs to the shells.
