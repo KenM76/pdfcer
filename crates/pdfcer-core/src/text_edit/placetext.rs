@@ -1005,7 +1005,9 @@ fn wrap_paragraphs(
                 // A lone word on a line still wider than the column is the
                 // unbreakable case: pdfcer has no hyphenation dictionary, so it
                 // overflows and is counted rather than cut at a guess.
-                if r.len() == 1 && natural_width(&widths, space_width, r.start, r.end) > wrap_width
+                if r.len() == 1
+                    && natural_width(&widths, space_width, r.start, r.end)
+                        > wrap_width + crate::linebreak::FIT_TOLERANCE
                 {
                     overlong_words += 1;
                 }

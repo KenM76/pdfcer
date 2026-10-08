@@ -122,8 +122,6 @@ const ALIGN_TOL_MIN: f64 = 2.0;
 /// a single "body" line cannot distinguish justified from a short-last-line
 /// left paragraph, so 2-line blocks never infer justified.
 const JUSTIFY_MIN_LINES: usize = 3;
-/// Float slack for "strictly wider than" comparisons, points.
-const EPS: f64 = 1e-6;
 
 /// The block-recognition options every reflow consumer (the engine's own
 /// tests, `pdfcer`'s `reflow` preview path, and `pdfce-gui`'s Pass 15.2
@@ -933,7 +931,8 @@ fn place_lines(
     for (i, r) in ranges.into_iter().enumerate() {
         let gap_count = r.len().saturating_sub(1);
         let natural_width = line_natural_width(widths, frame.space_width, r.start, r.end);
-        let is_overflowing_word = r.len() == 1 && natural_width > frame.wrap_width + EPS;
+        let is_overflowing_word =
+            r.len() == 1 && natural_width > frame.wrap_width + crate::linebreak::FIT_TOLERANCE;
         let is_last = i + 1 == line_count;
         if is_overflowing_word {
             diagnostics.overflowing_words += 1;

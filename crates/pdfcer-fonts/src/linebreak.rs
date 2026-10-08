@@ -70,6 +70,11 @@
 
 use core::ops::Range;
 
+/// How far, in the caller's width units (points for every pdfcer caller),
+/// a line may exceed `max_width` and still fit: 0.01 pt, invisible on the
+/// page and well above `f32` rounding of page coordinates.
+pub const FIT_TOLERANCE: f64 = 0.01;
+
 /// Greedily pack `word_count` words into first-fit lines under `max_width`.
 ///
 /// Returns one [`Range<usize>`] per output line: `start..end` are the
@@ -92,12 +97,17 @@ use core::ops::Range;
 /// The current line is the half-open range `start..end`, always holding at
 /// least one word (`end > start`). For each next word at index `end`:
 ///
-/// - if `line_width(start, end + 1) ≤ max_width`, the word fits — extend
+/// - if `line_width(start, end + 1) ≤ max_width + FIT_TOLERANCE`, the word fits — extend
 ///   the line (`end += 1`);
 /// - otherwise the word overflows — close the current line (`push
 ///   start..end`), and begin a fresh line at that word (`start = end; end =
 ///   start + 1`), which places it unconditionally (so an oversized single
 ///   word lands alone on its own overflowing line).
+///
+/// [`FIT_TOLERANCE`] lets a line that measures its box's own width fit
+/// it: a box recognised from `f32` glyph positions can come out a few
+/// hundred-thousandths of a point narrower than the same line measured from
+/// font advances, and a rewrite would then split its own widest line.
 ///
 /// The final in-progress line is always pushed. This is byte-for-byte the
 /// packing `vartext::wrap_lines` performed inline before the factor-out, so
@@ -144,7 +154,7 @@ where
     let mut end = 1usize;
     while end < word_count {
         // Would adding words[end] keep the whole line within the box?
-        if line_width(start, end + 1) <= max_width {
+        if line_width(start, end + 1) <= max_width + FIT_TOLERANCE {
             end += 1;
         } else {
             lines.push(start..end);

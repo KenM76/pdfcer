@@ -24,6 +24,7 @@ mod bates_stamp;
 mod bezier_handles;
 mod blend_mode_preserved;
 mod block_layout;
+mod block_text_own_width;
 mod brotli_stream_is_reachable;
 mod button_action;
 mod button_action_readback;

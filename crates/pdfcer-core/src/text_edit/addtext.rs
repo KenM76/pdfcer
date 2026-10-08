@@ -1750,8 +1750,8 @@ fn layout_boxed(
                 .collect::<Vec<_>>()
                 .join(" ");
             let gap_count = word_codes.len().saturating_sub(1);
-            let is_overflowing_word =
-                word_codes.len() == 1 && natural_width > wrap_width + OVERFLOW_EPS;
+            let is_overflowing_word = word_codes.len() == 1
+                && natural_width > wrap_width + crate::linebreak::FIT_TOLERANCE;
             lines.push(LaidLine {
                 words: word_codes,
                 text: line_text,
