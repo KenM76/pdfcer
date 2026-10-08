@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 352 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 355 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 352 public `EditSession` methods
+## 1. Verb index — all 355 public `EditSession` methods
 
-**Count: 352.** Established by brace-matched extraction of the
+**Count: 355.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -96,7 +96,7 @@ added `add_file_attachment_annotation`, and at 274 when `Pass 261.1` added
 `add_caret_annotation` and `add_replace_text`, and at 275 when `Pass 261.2`
 added `add_sound_annotation`, and at 276 when `Pass 261.3` added
 `add_screen_annotation`, and at 277 when `Pass 142.3` added
-`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`, and at 350 when `G168` added `set_3d_views`, and at 352 when `G164` added `metadata_inventory` and `remove_metadata`.
+`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`, and at 350 when `G168` added `set_3d_views`, and at 352 when `G164` added `metadata_inventory` and `remove_metadata`, and at 355 when `G165` added `page_scan_image`, `detect_image_skew` and `deskew_image`.
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -4281,6 +4281,9 @@ constructed, then committed, under one `&mut`.
 |---|---|---|
 | Place a raster image | `add_image(&mut self, spec: &NewImage<'_>) -> Result<ImageAuthorOutcome, EditError>` | `{ image_id, soft_mask_id, content_id, resource_name, placed_rect, disclosures }`. Image XObject + optional `/SMask` + `q…cm…Do…Q` overlay stream + page patches, ONE undo entry. Additive — originals stay byte-verbatim. |
 | Replace a placed image's pixels | `replace_image(&mut self, page_index: usize, object_index: usize, image: &ImportedImage, fit: ImageFit) -> Result<ImageReplaceOutcome, EditError>` | `Pass 548.0` (G156). `object_index` indexes `page_objects`. The image's `Do`, or its whole inline `BI … EI` (§8.9.7), is replaced in the content stream by a `Do` of a new image XObject, so the CTM in force (position, size, rotation, clip, opacity, layer) and the stacking order are kept. The image fills the unit square under that CTM (§8.9.4): `ImageFit::Stretch` fills it exactly; `ImageFit::Contain` keeps the new picture's aspect, measured against the old image's extent on the page (the lengths of the CTM's two unit-square edges), and centres it under an extra `q … cm … Q`. EXIF orientation is applied as `add_image` applies it. Only this placement changes: other placements of the old XObject keep drawing it, and its bytes remain in an incremental save. `ImageReplaceOutcome { image_id, soft_mask_id, resource_name, replaced: Option<ObjId> (None = was inline), disclosures: ImageAuthorDisclosures }` (`#[non_exhaustive]`); `disclosures.letterboxed` means the new picture does not fill the old area. One undo entry, `CommandKind::ReplaceImage`. Errors: `ReplaceImageOnOther { index, kind }` (new; `kind` is `"path"`, `"text"` or `"form"`), `ImageRectDegenerate`, `VectorEditError::ObjectOutOfRange`, `PageOutOfRange`, `VectorEditNoContents`, `DocumentEncrypted`, `CertificationForbidsChange`, `ObjectCreationWouldExposeHiddenObjects`. CLI: `pdfcer replace-image IN --page N --object I --image FILE [--stretch] [--compression … --quality Q] -o OUT`; output `image_obj= smask= name= replaced=N|inline fit= letterboxed= distorted= eff_dpi= low_res= compression_applied=`. |
+| Find a page's scan image | `page_scan_image(&mut self, page_index: usize) -> Result<Option<usize>, EditError>` | `Pass 557.0` (G165). The `page_objects` index of the page's largest image by area on the page (`|det CTM|`); form XObjects are not counted. `None` when the page draws no image. Errors as `page_objects`. |
+| Measure a scan's skew | `detect_image_skew(&mut self, page_index: usize, object_index: usize) -> Result<Option<deskew::SkewEstimate>, EditError>` | `Pass 557.0` (G165). Read-only. `SkewEstimate { angle_degrees, confidence }` (`#[non_exhaustive]`): positive = the content rises to the right (counter-clockwise as displayed), measured in the image's own sample grid, so an image placed rotated on the page is measured before that rotation. Projection-profile search over ±`deskew::MAX_SKEW_DEGREES` (15); precision about 1 px over the length of the text lines. `confidence` is 0..1 (1 − median score / best score); below about 0.2 the angle is a guess. `Ok(None)` when the image holds too little ink to measure. Errors as `deskew_image`, without the angle checks. The same measurement on raw 8-bit grey is `deskew::detect_skew(width, height, grey)`. |
+| Straighten a scan | `deskew_image(&mut self, page_index: usize, object_index: usize, angle_degrees: f64) -> Result<ImageDeskew, EditError>` | `Pass 557.0` (G165). Rotates the samples `angle_degrees` clockwise as displayed about the image centre — pass the angle `detect_image_skew` measured. The result is a **new** image XObject, same size, colour space, `/Decode` and bit depth, `FlateDecode`-coded (a JPEG or JBIG2 scan usually grows), drawn by a `Do` that replaces this placement's own; the CTM is unchanged, so the image stays where it was. Bilinear resampling at 8+ bits; nearest neighbour for 1/2/4-bit and `/Indexed`. Uncovered corners take the image's border-mode value (the paper tint), not white. Other placements of the old XObject keep drawing it. `ImageDeskew { image_id, resource_name, replaced, angle_degrees, old_stream_bytes, new_stream_bytes, notes }` (`#[non_exhaustive]`); `notes[0]` discloses the resample (rule 4). One undo entry, `CommandKind::DeskewImage`. Errors: `DeskewUnsupported { reason }` (new) for an inline image, `/SMask` or `/Mask` (would no longer line up), embedded or preblended alpha, undecodable samples, a non-finite angle, one beyond ±15°, or one below `MIN_DESKEW_DEGREES` (0.01); `ReplaceImageOnOther` for a path, text or form; `VectorEditError::ObjectOutOfRange`, `PageOutOfRange`, `VectorEditNoContents`, `DocumentEncrypted`, `CertificationForbidsChange`, `ObjectCreationWouldExposeHiddenObjects`, `ObjectNumbersExhausted`. CLI: `pdfcer deskew IN [--pages all] [--object I] [--angle DEG] [--min-angle 0.05] [--min-confidence 0.2] [-o OUT]`; without `-o` a dry run. Per page `page N object I: skew=±D confidence=C: corrected image_obj= replaced= stream_bytes=A->B` or `: skipped (…)`; a page's own scan that cannot be deskewed is skipped, a named `--object` is refused (exit 9). |
 
 #### ★ The pure preview trio on `NewImage` — call these, do not re-derive them
 
@@ -5192,7 +5195,7 @@ changed).
 
 ### 3.2 Undo granularity — what makes ONE entry
 
-`CommandKind` has **110 variants** (`edit.rs`) and each one's doc comment
+`CommandKind` has **135 variants** (`edit.rs`) and each one's doc comment
 states its granularity explicitly. The rule, stated once: **one operator gesture is one entry**, and
 every object the gesture must touch to leave a valid document goes in that entry.
 
@@ -5839,8 +5842,8 @@ borrow it (`tests/image_placement.rs`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**180 variants**, counted at depth 1 inside `pub enum EditError`.
-(`ReplaceImageOnOther`, Pass 548.0, is the newest; `SourcePageOutOfRange`: a SOURCE document's page index, kept
+**181 variants**, counted at depth 1 inside `pub enum EditError`.
+(`DeskewUnsupported`, Pass 557.0, is the newest; `SourcePageOutOfRange`: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 
 `Pass 270.2` added `AnnotationContentsLocked` — **Table 165 bit 10,
