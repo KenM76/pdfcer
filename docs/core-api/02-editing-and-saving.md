@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 334 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 335 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 334 public `EditSession` methods
+## 1. Verb index — all 335 public `EditSession` methods
 
-**Count: 334.** Established by brace-matched extraction of the
+**Count: 335.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -2176,6 +2176,7 @@ always errors.
 | Ask whether annotation deletion is refused document-wide | `annotation_deletion_refusal(&self) -> Option<EditError>` | ⚠️ Takes no `annot_id`, so it cannot see the three per-annotation refusals. |
 
 | Restyle an existing markup annotation | `set_markup_style(&mut self, annot_id: ObjId, style: &MarkupStyle) -> Result<MarkupStyleChange, EditError>` | Rebuilds the baked `/AP`. **`Pass 258.0`:** `MarkupStyle` is no longer `Copy`; `endings` is now `Option<StyleEdit<..>>` so `/LE` can be REMOVED and not merely set to `[/None /None]`; a new `dash: Option<StyleEdit<BorderDash>>` sets or clears a dashed border. **`Pass 264.3`:** `border_effect: Option<StyleEdit<f64>>` makes the border cloudy (`/BE /S /C /I i`, §12.5.4 Table 167, `i` in `0..=2`, else `BorderEffectIntensityOutOfRange`) or straight again (`Clear` removes `/BE`, and a cloudy square's `/RD`); `None` keeps it. `Square` and `Polygon` only (`MarkupStyleSupport::takes_border_effect`); a polygon made cloudy stays `/Polygon`. The cloud's bulge widens `/Rect` on a square too, so `rect_before != rect_after` there. A cloudy square's `/Rect` is now read back minus its `/RD` -- before, every restyle grew it by one bulge -- and its `/RD` is no longer reported in `dropped`. Refuses `StylePropertyNotApplicable` for a property the subtype has not -- ask `MarkupStyleSupport::for_subtype` first. **`Pass 539.0` (G153):** `interior` now applies to a `/Line` -- its `/IC` (§12.5.6.7 Table 175) fills the closed arrowheads, and `takes_interior` is `true` for `Line`. **BREAKING:** `MarkupSpec::Line` gains `interior: Option<Color>`. A `ClosedArrow` with no `/IC` is now stroked hollow, no longer filled with `/C`; pass `interior` for a solid head. A file's `/IC` on a line now survives a restyle; it used to be dropped. **`Pass 540.0`:** a NaN or infinite `opacity` is refused with `MarkupOpacityOutOfRange`; it used to be written as `/CA NaN`. |
+| **Re-span a text markup** | `respan_text_markup(&mut self, annot_id: ObjId, quads: &[Quad], modified: Option<&str>) -> Result<TextMarkupRespan, EditError>` | edit/markup_respan.rs | `Pass 546.0` (G152). Replaces a Highlight / Underline / StrikeOut / Squiggly's `/QuadPoints` with `quads` (unrotated page space, y-up, one per covered line, written in the session's `quad_point_order`) and re-bakes `/Rect` and `/AP` from one bake; colour, `/CA`, `/Contents`, replies and the object id are kept. **From a character span:** compute that span's quads exactly as you do for `add_markup` and pass them. `modified` stamps `/M` verbatim. One undo entry, `CommandKind::RespanTextMarkup`. `TextMarkupRespan { annot_id, subtype, quads_before, quads_after, rect_before, rect_after, appearance, dropped, mod_date_written }` (`#[non_exhaustive]`); a foreign appearance is named in `dropped`. Errors: `TextMarkupVerbOnOther` (new) on any other subtype, `EmptyGeometry` for no quads, `AnnotationVertexNotPlaceable` for a non-finite corner, `AnnotationLocked` (bit 8; LockedContents does not refuse), plus `reshape_annotation`'s document gates. CLI: `respan-markup --page --index (--quads Q | --rect R) [--modified D]`. |
 | **Reshape a markup annotation — one vertex** | `reshape_annotation(&mut self, annot_id: ObjId, edit: VertexEdit, modified: Option<&str>) -> Result<AnnotationReshape, EditError>` | edit.rs | **`Pass 255.0`, `pdfcer-gui` request 2026-09-05.** Move / insert / remove one vertex of a `/Polygon` (plain or cloudy), `/PolyLine`, or (move only) `/Line`; rebuilds `/Vertices` (or `/L`), `/Rect` AND the `/AP` stream from ONE bake — the same one `add_markup` used, so a reshaped cloud scallops identically to a redrawn one. `modified` stamps `/M` verbatim; `None` leaves it (pdfcer reads no clock). See the box below for the matrix. |
 | Preview a reshape (pure) | `reshape_annotation_preview(&self, annot_id: ObjId, edit: VertexEdit) -> Result<ReshapeForecast, EditError>` | edit.rs | `Pass 255.0`. Same guards, same refusals, same recomputed `/Rect`, nothing written. Grey a handle with this. |
 | Drag one vertex | `move_annotation_vertex(&mut self, annot_id: ObjId, index: usize, dx: f64, dy: f64) -> Result<AnnotationReshape, EditError>` | edit.rs | `Pass 255.0`. `reshape_annotation(id, VertexEdit::Move{..}, None)`. |
@@ -5748,8 +5749,8 @@ borrow it (`tests/image_placement.rs`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**170 variants**, counted at depth 1 inside `pub enum EditError`.
-(`StampLabelEmpty`, Pass 545.0, is the newest; `SourcePageOutOfRange`: a SOURCE document's page index, kept
+**171 variants**, counted at depth 1 inside `pub enum EditError`.
+(`TextMarkupVerbOnOther`, Pass 546.0, is the newest; `SourcePageOutOfRange`: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 
 `Pass 270.2` added `AnnotationContentsLocked` — **Table 165 bit 10,
