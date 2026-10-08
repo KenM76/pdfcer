@@ -115,6 +115,28 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 558.0` — layout-aware OCR for PaddleOCR-VL: classed regions, OTSL tables, a layer per region group (core + `pdfcer-ocr-host` + CLI; answers `pdfcer-gui` `G167`) — SHIPPED 2026-10-08 (1041st filing)
+
+Commits `b967c09e` (layout model, OTSL parser), `d2b21073` (VL task prompts, repetition stop, `OcrBlock.region`/`.cell`), `3dccbdbc` (page reader, host, CLI), `77fed3ee` (`docs/core-api` Piece 3f, `PRIOR_ART.md` row), `fbbd1ae2` (rustdoc link fix); all on local `main`, unpushed at filing. No new crate (rten already in use), `cargo tree` unchanged. Layout model PP-DocLayoutV3: Apache-2.0, ADOPTED in `PRIOR_ART.md`, model file not shipped. No decision. Listed in *Next up* at filing (verified, a blockquote bullet in the 1034th-filing stub), bullet replaced by a SHIPPED pointer.
+
+**Delivered.**
+- `ocr/layout.rs`: 25 PP-DocLayoutV3 classes (`LayoutClass`), `RegionGroup`, `decode_rows`. `ocr/engine_layout.rs`: `LayoutEngine` on rten, loads `layout.onnx`. `ocr/otsl.rs`: tolerant OTSL table parser, `MAX_CELLS` 10,000.
+- `VlTask::{Ocr,Table,Formula,Chart,Seal}` + `read_region_as`; `StopReason::Repetition` (12 identical lines); `OcrBlock.region` / `.cell` (`CellPosition`); `OcrLayerOptions::on_region_layer`.
+- Core `ocr::vl_page::read_page_with_layout` -> `LayoutReading` / `RegionRead`. `pdfcer-ocr-host`: `RunOptions::with_layout`, `OcrRunner::last_layout`, `RunnerError::LayoutUnsupported`, `paddle_vl_layout_disclosure`.
+- CLI: `pdfcer ocr --layout` (paddle-vl only) and `--region-layers` (needs `--layout`; one optional-content layer per region group named "OCR text: <group>", reusing an existing same-named layer). `cmd_ocr` moved to `ocr_run.rs` and split under 80 lines (one code-structure baseline entry removed). `tools/build-paddle-vl-addon.py --layout DIR` adds an optional `layout.onnx` (Apache-2.0 check, hashed in the manifest).
+
+**Inferred and disclosed (rule 4).** Line boxes from each region's ink; table cells laid on an even grid over the region (the model gives cell structure, not boxes); whole-page fallback when no region is found; regions cut by the token limit or the repetition stop; pictures listed, not read.
+
+**Verified (engineer-reported).** `tools/run-gates.sh` (plain): 44 of 46 green; the two failures were the rustdoc broken link (fixed in `fbbd1ae2`, `cargo doc --workspace` clean) and `check-commits-filed.py` (fails until this filing). Workspace 12,602 passed, 0 failed, 9 ignored. New: 6 `vl_page` unit tests; 2 CLI tests (`--layout` refused for a non-paddle-vl engine, `--region-layers` without `--layout` a usage error; an add-on lacking `layout.onnx` refused naming the file); 1 ignored real-model end-to-end (`PDFCER_PADDLE_VL_DIR`) passing locally: 1 region, text on layer "OCR text: text", 99.3% mean confidence on synthetic `scan_clean.pdf`. rten's PP-DocLayoutV3 output matched onnxruntime's on a synthetic page (9 regions).
+
+**`G167` status.** FIXED; reply `reply_request_G167_vision_ocr_has_no_layout_regions_FIXED.md` filed, ACK deleted. GUI column is `pdfcer-gui`'s.
+
+**Follow-up (Backlog line, not a Pass).** Measure table cell boxes (e.g. from ruling lines) instead of the even grid.
+
+`FEATURES.md`: *Planned* "Layout-aware OCR" row moved to *Implemented* (core `[x]` cli `[x]` gui `[ ]`); the "PaddleOCR-VL engine" row corrected (layout stage shipped, PP-DocLayoutV3).
+
+Ledgers: no decision; next free `Pass 560.0` (`559.0` remains in *Next up*); next filing 1042nd.
+
 ### `Pass 557.0` — skew detection and deskew of a scanned image (core + CLI; answers `pdfcer-gui` `G165`) — SHIPPED 2026-10-08 (1040th filing)
 
 Commits `cd82fcac` (code: core, CLI, tests, README count), `6026af3f` (`docs/core-api`); push state not verifiable from here. No `Cargo.toml` change, so no new dependency and `cargo tree` unaffected. No decision. Listed in *Next up* at filing (verified, a blockquote bullet in the 1034th-filing stub), bullet replaced by a SHIPPED pointer.
@@ -21617,7 +21639,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`557.0` shipped, `558.0` not started.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 560.0`; next filing 1041st.
+> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`558.0` all shipped; only the follow-up `559.0` remains, unstarted.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 560.0`; next filing 1042nd.
 > - `552.0` (`G162`) SHIPPED (`9be9d44a`, `ea7e80af`, 1035th filing), see *Shipped*.
 > - `553.0` (`G168`) SHIPPED (`8d014437`, `d1800f2a`, 1036th filing), see *Shipped*.
 > - `554.0` (`G163`) SHIPPED (`6fa4bc19`, `ed2bdd4b`, 1037th filing), see *Shipped*.
@@ -21625,7 +21647,7 @@ closes out the *prior* filing's business rather than opening this one's.
 > - `555.0` (`G164`) SHIPPED (`50324705`, `d1326e19`, 1038th filing), see *Shipped*.
 > - `556.0` (`G166`) SHIPPED (`224b6357`, `1d178887`, 1039th filing), see *Shipped*.
 > - `557.0` (`G165`) SHIPPED (`cd82fcac`, `6026af3f`, 1040th filing), see *Shipped*.
-> - `558.0` (`G167`) — PaddleOCR-VL layout pass with classed regions (table, figure, formula, chart, header, footer) and `OcrLayerOptions` routing each class to its own optional-content group, tables as `TableCell` blocks with row/column. Starts by measuring what the model's layout task returns.
+> - `558.0` (`G167`) SHIPPED (`b967c09e`, `d2b21073`, `3dccbdbc`, `77fed3ee`, `fbbd1ae2`, 1041st filing), see *Shipped*.
 
 > **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), `547.0` SHIPPED (1029th filing), `548.0` SHIPPED (1030th filing), `549.0` SHIPPED (1031st filing), `550.0` SHIPPED (1032nd filing), `551.0` SHIPPED (1033rd filing), see *Shipped*; the batch is complete. Request files in `pdfce_FeatureRequests/open/`. Each Pass shipped core + CLI; the GUI column is `pdfcer-gui`'s. (Superseded by the stub above: next free `Pass 559.0`; next filing 1035th.)
 
@@ -21912,7 +21934,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 442.2`'s first rung is now SHIPPED** — the layout-model rung
 > (PP-DocLayoutV2) is not filed. Known wording defect (shared OCR report
 > says "word(s) written" for this line-level engine) flagged, not fixed
-> this filing. `gui [ ]` not wired.
+> this filing. `gui [ ]` not wired. *(Amended 1041st filing: the layout stage
+> shipped as `Pass 558.0` using PP-DocLayoutV3.)*
 
 > ★★★★★★★★★★★★★★★★★★★★★★★★★★★ **NEW PASS FILED 2026-10-02 (883rd
 > filing) — `Pass 447.0`, `G098`, the Area ce dimension.** A `/Polygon` +
@@ -32088,6 +32111,8 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+> Residue of `Pass 558.0` (1041st filing), not yet a Pass: OCR table cells from PaddleOCR-VL are laid on an even grid over the region; measure real cell boxes (e.g. from ruling lines) instead.
 
 ### 3D compressed meshes still unfit (residue of `Pass 512.0`)
 

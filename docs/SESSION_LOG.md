@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1041st filing) — `Pass 558.0` shipped (layout-aware OCR for PaddleOCR-VL, `G167`)
+
+**Shipped:** `Pass 558.0`, `b967c09e`, `d2b21073`, `3dccbdbc` (code), `77fed3ee` (`docs/core-api`, `PRIOR_ART.md`), `fbbd1ae2` (rustdoc link). Layout stage on rten with PP-DocLayoutV3 (optional `layout.onnx`, not shipped), OTSL table parser, per-class task prompts, repetition stop; core `read_page_with_layout`, host `RunOptions::with_layout`, CLI `ocr --layout` / `--region-layers`. Disclosed inferences: line boxes from ink, even-grid table cells, whole-page fallback. 12,602 workspace tests passed, 0 failed; gates 44 of 46 before this filing (the two failures: rustdoc link, since fixed, and `check-commits-filed.py`, which this filing answers) (engineer-reported). Core and cli delivered; gui is `pdfcer-gui`'s.
+
+**Files:** ROADMAP: Shipped entry added; `558.0` bullet in the Next up stub replaced by a SHIPPED pointer, stub header updated (`552.0`-`558.0` shipped); old `442.2` blockquote got an amendment; Backlog gained a one-line residue note (measured table cell boxes). `FEATURES.md`: *Planned* layout row moved to *Implemented* (core `[x]` cli `[x]` gui `[ ]`); "PaddleOCR-VL engine" row corrected.
+
+**Decisions made this session:** None.
+
+**Still in flight:** `559.0` queued, unstarted. Next free `Pass 560.0`; next filing 1042nd. Push state not verifiable from here (no shell). Stale "no layout stage / PP-DocLayoutV2 next" wording survives outside my remit: `ARCHITECTURE.md` lines 12983 and 13008, `docs/decisions/183-paddle-vl-engine.md` lines 40-42, `docs/paddleocr-vl-feasibility.md` lines 15, 25, 96, `docs/NEXT_SESSION.md` line 59; owed to the engineer.
+
 ## 2026-10-08 (1040th filing) — `Pass 557.0` shipped (skew detection and deskew of a scanned image, `G165`)
 
 **Shipped:** `Pass 557.0`, `cd82fcac` (code) and `6026af3f` (`docs/core-api`). `detect_skew` (projection profile, +/-15 degrees) and `EditSession::detect_image_skew`, `page_scan_image`, `deskew_image` (resample into a new image, one undo entry, disclosed); `EditError::DeskewUnsupported`; CLI `pdfcer deskew` (dry run without an output). Core and cli delivered; gui is `pdfcer-gui`'s. Tests and gates green, sabotage check failed 3 core tests (engineer-reported).
