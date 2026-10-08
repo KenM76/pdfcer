@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1046th filing) — `Pass 562.0` filed under Next up (OCR run options checkable before load, `G170`)
+
+**Shipped:** nothing; scoping filing only. Previous filing was `042ede38` (1045th).
+
+**Filed:** `Pass 562.0`, requested by `pdfcer-gui` (`G170`): public `check_options(model, options)` in `pdfcer-ocr-host` doing the dictionary, layout-engine and layout-file checks with no hashing and no model load; `OcrRunner::load` calls it so the two cannot drift. Seven acceptance criteria are in the ROADMAP stub. Read against live `runner.rs`: `load` checks dictionaries, then the paddle-vl layout rule, then `check_runnable`, then hashes; the stub notes `check_options` must keep that order.
+
+**Files:** ROADMAP: new blockquote stub in *Next up* (no new `###`, count unchanged at 80), ledger line now next free `Pass 563.0`, next filing 1047th. `FEATURES.md`: *Planned* row added at the top (core, cli, gui all `[ ]`).
+
+**Decisions made this session:** None.
+
+**Still in flight:** `Pass 562.0` to be built; FIXED reply to `G170` owed on ship. Push state not verifiable from here.
+
 ## 2026-10-08 (1045th filing) — `Pass 561.0` shipped (build stamp `-dirty` only for build-affecting paths) and `v0.81.0` released
 
 **Shipped:** `Pass 561.0`, `c0761048`: `crates/pdfcer-core/build.rs` `build_revision()` appends `-dirty` only when `git status --porcelain` shows a change under `crates/`, `Cargo.toml`, `Cargo.lock`, `rust-toolchain(.toml)` or `.cargo/` (same set as `package-portable.py`'s `BUILD_AFFECTING`). Found while releasing: uncommitted `.claude/` agent-memory notes had made the first `v0.81.0` binary claim a modified tree. Verified both ways (engineer-reported); no automated test possible (build-script tests never run). `v0.81.0` released: tag on `c0761048` (moved from `f14c5ff3` before any push), build `D:\builds\pdfcer-20261008-1724-c076104`, fresh-folder smoke passed, run-gates PASS 46 commands on `f14c5ff3`. Range `Pass 532.0`-`561.0`, `G142`-`G169`. Also filed: `132faa3c`, `8e7432bd` (`NEXT_SESSION.md` only).

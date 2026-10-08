@@ -21705,7 +21705,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`559.0` all shipped; the batch is complete.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 562.0`; next filing 1046th.
+> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`559.0` all shipped; the batch is complete.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 563.0`; next filing 1047th.
 > - `552.0` (`G162`) SHIPPED (`9be9d44a`, `ea7e80af`, 1035th filing), see *Shipped*.
 > - `553.0` (`G168`) SHIPPED (`8d014437`, `d1800f2a`, 1036th filing), see *Shipped*.
 > - `554.0` (`G163`) SHIPPED (`6fa4bc19`, `ed2bdd4b`, 1037th filing), see *Shipped*.
@@ -21716,6 +21716,13 @@ closes out the *prior* filing's business rather than opening this one's.
 > - `558.0` (`G167`) SHIPPED (`b967c09e`, `d2b21073`, `3dccbdbc`, `77fed3ee`, `fbbd1ae2`, 1041st filing), see *Shipped*.
 
 > **`Pass 560.0` (`G169`, render invisible text visibly) SHIPPED (`1d66768b`, `2ef4fae3`, 1044th filing), see *Shipped*.**
+
+> **`Pass 562.0` (`G170`, `pdfcer-gui`): ask whether a model accepts a `RunOptions` before loading it (OCR host; core + CLI) — filed 2026-10-08 (1046th filing), not started.**
+> `pdfcer_ocr_host::check_runnable(model, policy)` is the cheap pre-load check for a model; nothing equivalent exists for options. The dictionary rule is the private `runner::check_dictionaries`; the layout-engine rule is `OcrRunner::load`'s `LayoutUnsupported` arm (`runner.rs`); whether `layout.onnx` exists is learnt only when `LayoutEngine::from_model_dir` fails inside `load`, after `load` has hashed and loaded the model (seconds for paddle-vl). The GUI therefore restates the layout rule itself, a boundary defect.
+> - **Scope.** `pub fn check_options(model: &OcrModel, options: &RunOptions) -> Result<(), RunnerError>` doing the dictionary, layout-engine and layout-file checks with no hashing and no model load. `OcrRunner::load` calls the same function so the two cannot drift. Documented in `docs/core-api`.
+> - **Acceptance.** (1) `check_options` refuses exactly what `load` refuses for options, same `RunnerError` variants and sentences. (2) It neither hashes nor loads the model. (3) `load` uses it. (4) Tests cover every refusal arm and a pass. (5) Sabotage check run. (6) Decide in the Pass whether a CLI surface helps; at minimum the CLI benefits through `load`. (7) FIXED reply written to `G170`.
+> - **Open point for the Pass.** `load` currently orders the options checks before `check_runnable`; `check_options` should keep that order and say so, so a caller running both sees the same first refusal `load` would.
+> - Request: `pdfce_FeatureRequests/open/request_G170_run_options_cannot_be_checked_before_load.md` (pinned engine `v0.81.0`, `c0761048`). No decision expected.
 
 > **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), `547.0` SHIPPED (1029th filing), `548.0` SHIPPED (1030th filing), `549.0` SHIPPED (1031st filing), `550.0` SHIPPED (1032nd filing), `551.0` SHIPPED (1033rd filing), see *Shipped*; the batch is complete. Request files in `pdfce_FeatureRequests/open/`. Each Pass shipped core + CLI; the GUI column is `pdfcer-gui`'s. (Superseded by the stub above: next free `Pass 559.0`; next filing 1035th.)
 
