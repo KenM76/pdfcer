@@ -162,12 +162,11 @@ fn print_removal(args: &RemoveMetadataArgs<'_>, report: &MetadataRemoval) {
         eprintln!("pdfcer: not removed: {}: {}", miss.id, miss.reason);
     }
     for note in &report.disclosures {
-        // The always-present full-rewrite note only matters when the save
-        // is incremental; a full save is that rewrite.
-        if matches!(args.mode, SaveMode::Full) && note.contains("full rewrite") {
-            continue;
-        }
         eprintln!("pdfcer: {note}");
+    }
+    // A full save is that rewrite, so the note is for incremental saves only.
+    if report.needs_full_rewrite && !matches!(args.mode, SaveMode::Full) {
+        eprintln!("pdfcer: {}", pdfcer_core::doc_metadata::FULL_REWRITE_NOTE);
     }
 }
 

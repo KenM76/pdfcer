@@ -4,7 +4,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pdfcer_core::doc_metadata::{
-    DocumentIdAction, MetadataItemId, MetadataKind, MetadataRemoveOptions,
+    DocumentIdAction, FULL_REWRITE_NOTE, MetadataItemId, MetadataKind, MetadataRemoveOptions,
 };
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::EditSession;
@@ -126,11 +126,13 @@ fn removing_everything_leaves_none_of_it_in_a_full_rewrite() {
     assert_eq!(report.removed.len(), all.len(), "{report:?}");
     assert!(report.not_found.is_empty() && report.not_removed.is_empty());
     assert_eq!(report.objects_freed, 4, "XMP, piece data, thumbnail, info");
+    assert!(report.needs_full_rewrite);
     assert!(
-        report
+        !report
             .disclosures
             .iter()
-            .any(|d| d.contains("full rewrite"))
+            .any(|d| d.contains("to_full_bytes") || d == FULL_REWRITE_NOTE),
+        "the full-rewrite note is the flag's, not a sentence to match: {report:?}"
     );
     assert_eq!(s.undo_depth(), undo_before + 1, "one undo entry");
 
@@ -174,6 +176,19 @@ fn an_unknown_id_is_reported_and_the_identifier_can_be_dropped() {
     assert_eq!(report.removed, [MetadataItemId::new("document-id")]);
     assert_eq!(report.not_found.len(), 2);
     assert!(!ids(&s).contains(&"document-id".to_owned()));
+}
+
+#[test]
+fn removing_nothing_needs_no_full_rewrite() {
+    let mut s = session();
+    let report = s
+        .remove_metadata(
+            &[MetadataItemId::new("nonsense")],
+            &MetadataRemoveOptions::default(),
+        )
+        .unwrap();
+    assert!(report.removed.is_empty());
+    assert!(!report.needs_full_rewrite);
 }
 
 #[test]

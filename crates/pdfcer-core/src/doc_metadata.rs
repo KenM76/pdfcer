@@ -233,11 +233,21 @@ pub struct MetadataRemoval {
     pub not_removed: Vec<NotRemoved>,
     /// Objects deleted because nothing referred to them any more.
     pub objects_freed: usize,
-    /// What the caller must tell the operator: always that only a full
-    /// rewrite takes removed data out of the file, plus anything a removal
-    /// left behind (a field's default value, a skipped signature field).
+    /// What the caller must tell the operator: anything a removal left
+    /// behind (a field's default value, a skipped signature field) or that
+    /// the removal took more than one undo. Operator sentences.
     pub disclosures: Vec<String>,
+    /// Something was removed, so the data leaves the file only on a full
+    /// rewrite that unpacks object streams
+    /// ([`EditSession::to_full_bytes_decomposing_containers`](crate::edit::EditSession::to_full_bytes_decomposing_containers)).
+    /// A caller saving incrementally must tell the operator
+    /// [`FULL_REWRITE_NOTE`]; one saving that way need not.
+    pub needs_full_rewrite: bool,
 }
+
+/// The operator sentence for [`MetadataRemoval::needs_full_rewrite`] when
+/// the save is incremental.
+pub const FULL_REWRITE_NOTE: &str = "removed data leaves the file only when it is saved as a full rewrite; an incremental save keeps it in the earlier revision";
 
 /// Which `/AA`-or-action slot a script sits in.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]

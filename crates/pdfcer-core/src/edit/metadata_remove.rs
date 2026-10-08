@@ -14,10 +14,6 @@ use crate::doc_metadata::{
 };
 use crate::object::{Dict, Name, ObjId, Object};
 
-/// Always disclosed: an incremental save appends, so the removed data
-/// stays readable in the earlier revision.
-const FULL_REWRITE_DISCLOSURE: &str = "removed data leaves the file only on a full rewrite that unpacks object streams (to_full_bytes_decomposing_containers); an incremental save keeps it in the earlier revision";
-
 /// Edits staged for the one direct-edit command.
 #[derive(Default)]
 struct Staged {
@@ -50,7 +46,8 @@ impl EditSession {
     ///   is refused in an encrypted file, whose key derives from it (§7.6.4.3.2).
     /// - `revisions` changes nothing here: earlier revisions leave on a full
     ///   rewrite (`to_full_bytes`), which is also the only save that removes
-    ///   anything else, so [`MetadataRemoval::disclosures`] always says so.
+    ///   anything else, so [`MetadataRemoval::needs_full_rewrite`] is set
+    ///   whenever anything was removed.
     ///
     /// An item that fails is reported in [`MetadataRemoval::not_removed`]
     /// and the rest still go; an id not in the inventory is in
@@ -122,7 +119,7 @@ impl EditSession {
             out.disclosures
                 .push("the removal takes more than one undo".to_owned());
         }
-        out.disclosures.push(FULL_REWRITE_DISCLOSURE.to_owned());
+        out.needs_full_rewrite = !out.removed.is_empty();
         Ok(out)
     }
 
