@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1052nd filing) — `Pass 565.0` shipped (OCR layer removal names its region layers, `G173`)
+
+**Shipped:** `Pass 565.0`, `14062f02` (code, tests) and `b1913746` (`docs/core-api`); both local, push pending until a green `run-gates`. `OcrLayerRemoval::region_groups: Vec<RegionLayerRemoval { group, emptied }>` (`#[non_exhaustive]`, `Copy`); `OcrLayerRemoval` loses `Copy`; types moved to `ocr/layer_removal.rs` (re-exported, paths unchanged; keeps `layer.rs` under 800 lines); `layers::group_in_use` public.
+
+**Bug fixed on discovery:** `optional_content` on `OcrLayerRef`/`OcrLayerRemoval` took the stream's first `/OC` section, so a layer with region layers but no `on_layer` group reported a region group as the whole layer's. `ocr::group::layer_groups` now splits on the layer's `q`.
+
+**Verified (engineer-reported; no shell here, hard rule 8):** `ocr_layer_on_group` 7 tests (2 new); sabotage turned both red; clippy, fmt, structure gate, `check-core-api-verbs` clean; verb count 356 unchanged. `G173` FIXED reply written.
+
+**Files:** ROADMAP: new Shipped entry, Next-up blockquote pointer (no `###` added; count stays 80), stub ledger line next free `Pass 566.0` / next filing 1053rd. FEATURES.md: OCR text-layer row (core only addition) and the optional-content rendering row. Ledgers: no decision.
+
+**Still in flight:** main push (after green `run-gates`).
+
 ## 2026-10-08 (1051st filing) — chore `c6a0cda0`: `workflow_dispatch` on CI; `v0.81.0` publication entry amended
 
 **Shipped:** no Pass. Chore commit `c6a0cda0`, "ci: workflow_dispatch so a release tag can be checked at its own commit". Adds the trigger to the CI workflow and drops the header NOTE describing the pre-Pass-0 workspace (false since Pass 0).

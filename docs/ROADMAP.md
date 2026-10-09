@@ -115,6 +115,23 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 565.0` — OCR layer removal names each region layer it emptied; public `layers::group_in_use` (core; answers `pdfcer-gui` `G173`, `O289` item 17) — SHIPPED 2026-10-08 (1052nd filing)
+
+Commits `14062f02` (code, tests) and `b1913746` (`docs/core-api`); both local, **push pending** (waits on a green `run-gates`). No manifest change, so the `cargo tree` invariant is untouched. No decision. Taken up and shipped in this one filing, so there was no Next-up stub. Ships in the release after `v0.81.0`.
+
+**Delivered.**
+- `OcrLayerRemoval::region_groups: Vec<RegionLayerRemoval>`; `RegionLayerRemoval { group: ObjId, emptied: bool }` is `#[non_exhaustive]` and `Copy`. It lists each `OcrLayerOptions::on_region_layer` group the removed layer's sections used, in stream order, excluding the whole layer's group. `emptied` follows the `group_emptied` rule: undecodable content counts as using the group.
+- `OcrLayerRemoval` is no longer `Copy` (it holds a Vec); it is `#[non_exhaustive]`, and this is pre-release.
+- Both outcome types moved to `ocr/layer_removal.rs`, re-exported at `ocr::layer`, so paths are unchanged; this keeps `layer.rs` under the 800-line limit.
+- `pdfcer_core::layers::group_in_use(&DocumentView, group) -> bool` is public: the one rule both flags use.
+- **Bug fixed on discovery.** `OcrLayerRef::optional_content` and `OcrLayerRemoval::optional_content` took the stream's FIRST `/OC` section, so a layer written with region layers but no `on_layer` group reported a region group as the whole layer's group. The writer opens the whole layer's section before the layer's `q` and each region section after it; `ocr::group::layer_groups` now splits on that, exact for every layer pdfcer writes.
+
+**Verified (engineer-reported; I have no shell and checked none of it against disk).** `ocr_layer_on_group` 7 tests, 2 new (the second pins the bug fix). Sabotage (parser never leaves the pre-`q` state) turned both new tests red. clippy, fmt and the structure gate clean; `check-core-api-verbs` clean, EditSession verb count unchanged at 356 (no new session method). The `G173` FIXED reply is written.
+
+`FEATURES.md`: the OCR text-layer row notes `region_groups` (core `[x]`, cli `[x]` unchanged, gui `[ ]`); no CLI verb removes a single OCR layer, so no cli box changed. The optional-content rendering row notes `layers::group_in_use` as core only.
+
+Ledgers: no decision; next free `Pass 566.0`; next filing 1053rd.
+
 ### `v0.81.0` — PUBLISHED (2026-10-08): release out, `main` pushed and CI green at head; `verify-release.py` has 2 explained residual FAILs (1050th filing, amended 1051st)
 
 Title "pdfcer v0.81.0 - deskew, layout OCR, metadata removal, editing inside forms". Tag `v0.81.0` on `c0761048` (bump `f14c5ff3`; `c0761048` is `Pass 561.0`), pushed. Range `Pass 530.0`-`561.0` (`pdfceGUI` `G142`-`G169`). Figures engineer-reported; I have no shell and checked none of this against disk (hard rule 8).
@@ -21768,7 +21785,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`559.0` all shipped; the batch is complete.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 565.0`; next filing 1051st.
+> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`559.0` all shipped; the batch is complete.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 566.0`; next filing 1053rd.
 > - `552.0` (`G162`) SHIPPED (`9be9d44a`, `ea7e80af`, 1035th filing), see *Shipped*.
 > - `553.0` (`G168`) SHIPPED (`8d014437`, `d1800f2a`, 1036th filing), see *Shipped*.
 > - `554.0` (`G163`) SHIPPED (`6fa4bc19`, `ed2bdd4b`, 1037th filing), see *Shipped*.
@@ -21785,6 +21802,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **`Pass 563.0` (`G171`, skew measured off the edit session; `coalesce_last_same`) SHIPPED (`8eafad79`, `f26e8083`, 1050th filing), see *Shipped*.**
 
 > **`Pass 564.0` (`G172`, full-rewrite note as a structured flag) SHIPPED (`77fffcf8`, `25db8de1`, 1049th filing), see *Shipped*.**
+
+> **`Pass 565.0` (`G173`, OCR layer removal names the region layers it emptied) SHIPPED (`14062f02`, `b1913746`, 1052nd filing), see *Shipped*.**
 
 > **Taken up from `pdfcer-gui`, 2026-10-07 (1019th filing): 14 requests `G148`-`G161` as `Pass 538.0`-`551.0`, in the engineer's order, defect first.** `538.0` SHIPPED (1020th filing), `539.0` SHIPPED (1021st filing), `540.0` SHIPPED (1022nd filing), `541.0` SHIPPED (1023rd filing), `542.0` SHIPPED (1024th filing), `543.0` SHIPPED (1025th filing), `544.0` SHIPPED (1026th filing), `545.0` SHIPPED (1027th filing), `546.0` SHIPPED (1028th filing), `547.0` SHIPPED (1029th filing), `548.0` SHIPPED (1030th filing), `549.0` SHIPPED (1031st filing), `550.0` SHIPPED (1032nd filing), `551.0` SHIPPED (1033rd filing), see *Shipped*; the batch is complete. Request files in `pdfce_FeatureRequests/open/`. Each Pass shipped core + CLI; the GUI column is `pdfcer-gui`'s. (Superseded by the stub above: next free `Pass 559.0`; next filing 1035th.)
 

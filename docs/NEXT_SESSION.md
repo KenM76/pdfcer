@@ -17,17 +17,18 @@ Engineer-owned; replaced each session. The previous long-form handoff
   CI run at the tag (pushed main after later code commits; permanent for
   this tag). From now on push main at the tag first, or
   `gh workflow run CI --ref <tag>` (trigger added in `c6a0cda0`).
-- **Ledgers:** next free Pass **565.0**; next filing **1052nd**; no decision
+- **Ledgers:** next free Pass **566.0**; next filing **1053rd**; no decision
   added since 183. Core-api verb count **356**.
 - **Shipped since the last handoff:** `561.0`, `562.0`, `564.0`
   (`MetadataRemoval::needs_full_rewrite`, G172), `563.0` (deskew measured
   off the session via `deskew::page_scan_image`/`detect_image_skew` on a
-  `&DocumentView`; `EditSession::coalesce_last_same`; G171). G170–G172 have
-  FIXED replies.
+  `&DocumentView`; `EditSession::coalesce_last_same`; G171), `565.0`
+  (`OcrLayerRemoval::region_groups`, public `layers::group_in_use`, G173).
+  G170–G173 have FIXED replies.
 - **Pre-push hook bites:** an unfiled code commit refuses the push of
   `main`. Never pipe the gate scripts through `tail`/`head` in a chain.
 - **Next up is empty of open Passes.** Take the operator's ordered plan below.
-- **Inbound:** G142–G172 all have FIXED replies. Older requests still sit in
+- **Inbound:** G142–G173 all have FIXED replies. Older requests still sit in
   the `open/` folder (`check-requests-scoped.py` is green, so each is scoped
   or answered). The one open GitHub issue (text layer position after OCR)
   awaits Ken's OK to close. Check all three channels every session.
