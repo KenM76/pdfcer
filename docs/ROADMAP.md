@@ -115,14 +115,14 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
-### `v0.81.0` — PUBLISHED (2026-10-08): release out, main push and CI pending (1050th filing)
+### `v0.81.0` — PUBLISHED (2026-10-08): release out, `main` pushed and CI green at head; `verify-release.py` has 2 explained residual FAILs (1050th filing, amended 1051st)
 
 Title "pdfcer v0.81.0 - deskew, layout OCR, metadata removal, editing inside forms". Tag `v0.81.0` on `c0761048` (bump `f14c5ff3`; `c0761048` is `Pass 561.0`), pushed. Range `Pass 530.0`-`561.0` (`pdfceGUI` `G142`-`G169`). Figures engineer-reported; I have no shell and checked none of this against disk (hard rule 8).
 
 - **Build.** `D:\builds\pdfcer-20261008-1724-c076104`; smoke test passed.
 - **GitHub release** via `tools/gh-release.py`: PASS, 8 assets. `pdfcer-v0.81.0-windows-x64.zip` 25,833,454 bytes; `ocr-addon-ocrcer.zip` 3,789,155; `ocr-addon-ocrs.zip` 11,352,262; `ocr-addon-tesseract.zip` 4,483,685; each with a `.sha256` (4 zips + 4 = 8).
 - **OneDrive.** `pdfcer2` = 0.81.0 (69,680,959 bytes); `pdfcer1` keeps 0.80.0. The next release writes `pdfcer1`.
-- **`tools/verify-release.py v0.81.0` currently FAILS 3 checks. It has NOT passed.** All three wait on a push of `main`, blocked until `tools/run-gates.sh` is green: `origin/main` does not contain the tag; CI has not run at the tag; the working tree is not clean (another agent's memory files). Status: release published; main push and CI pending.
+- **`tools/verify-release.py v0.81.0` FAILS 2 checks. It has NOT passed, and will not for this tag.** *Amended 1051st filing (engineer-verified; I have no shell):* `main` was pushed at `94124031` and CI passed there (run `37868153671`, success, 17m19s); the original "origin/main does not contain the tag" FAIL is cleared. The two residual FAILs are explained, not hidden: (1) "working tree clean" — another agent's memory files, not ours to commit; (2) "CI ran at the tagged commit" — **permanent for `v0.81.0`**: the tag was pushed before `main`, and three code commits (`Pass 562.0`, `564.0`, `563.0`) landed on `main` after it before `main` was pushed, so CI ran only at the new head and no run exists at `c0761048` or at a docs-only descendant. The code at the tag is a strict ancestor of `94124031`, where CI is green, and local `tools/run-gates.sh` was green. The workflow had no way to request a run at the tag; `c6a0cda0` adds `workflow_dispatch` (see *Update protocol*, "Release ordering"), but the trigger must exist in the file AT the ref, so `v0.81.0` itself still cannot be dispatched. Original text (1050th): 3 FAILs, all waiting on the `main` push.
 - **Gotcha.** The earlier push of `main` was refused by the pre-push hook (`check-commits-filed`: `77fffcf8` was unfiled at push time). The chained script had piped the gates through `tail`/`head`, which masked their exit codes, so the gates looked green. The hook caught it, which is what the hook exists for. Do not pipe gate output through a pager-style filter in a push chain.
 
 ### `Pass 563.0` — measure a scan's skew off the edit session; `coalesce_last_same` (core; answers `pdfcer-gui` `G171`) — SHIPPED 2026-10-08 (1050th filing)
@@ -46127,6 +46127,14 @@ The marks are derived, not maintained: a rule is marked when its own full text n
   chronological) and appends a `SESSION_LOG.md` entry.
 - Shipped entries are never rewritten. A reverted Pass gets a new
   "Pass NN — revert of Pass MM" entry, not a deletion.
+
+### Release ordering (added 2026-10-08, 1051st filing — procedure, DELIBERATELY NOT A NUMBERED RULE; `R263` stays next free)
+
+**Push `main` at the tagged commit BEFORE committing any further code.** `verify-release.py`'s "CI ran at the tagged commit" check needs a CI run at the tag's own commit (or a docs-only descendant). If code lands between the tag and the first push of `main`, CI runs only at the new head and that check fails for good.
+
+**Fallback, available for every tag cut from `c6a0cda0` onward:** `gh workflow run CI --ref <tag>`, wait for it to finish, then run `tools/verify-release.py <tag>`. The `workflow_dispatch` trigger must exist in `.github/workflows` AT the ref, so tags older than `c6a0cda0` (including `v0.81.0`) cannot use it.
+
+Occurrence: `v0.81.0` (1050th/1051st filings; commit `c6a0cda0`).
 
 ### Same-filing propagation duty (added 2026-08-07 — engineer ruling; ACCEPTED AS SUBSTANCE, DELIBERATELY NOT A NUMBERED RULE)
 

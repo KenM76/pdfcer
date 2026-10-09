@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1051st filing) — chore `c6a0cda0`: `workflow_dispatch` on CI; `v0.81.0` publication entry amended
+
+**Shipped:** no Pass. Chore commit `c6a0cda0`, "ci: workflow_dispatch so a release tag can be checked at its own commit". Adds the trigger to the CI workflow and drops the header NOTE describing the pre-Pass-0 workspace (false since Pass 0).
+
+**Why:** `v0.81.0`'s tag was pushed before `main`; three code commits (`Pass 562.0`, `564.0`, `563.0`) then landed before `main` was pushed, so CI ran only at the new head and `verify-release.py`'s "CI ran at the tagged commit" check has no run to find (none at `c0761048` or a docs-only descendant). The workflow had only push/pull_request triggers.
+
+**Verified (engineer-reported; no shell here, hard rule 8):** `main` pushed at `94124031`; CI green there (run `37868153671`, success, 17m19s). `verify-release.py v0.81.0` now fails exactly 2 checks: "working tree clean" (another agent's memory files) and "CI ran at the tagged commit" (permanent for this tag: `workflow_dispatch` must exist in the file at the ref). Code at the tag is a strict ancestor of `94124031`; local `tools/run-gates.sh` green. It did NOT pass and is not recorded as passing.
+
+**Decided:** release-ordering procedure recorded in ROADMAP *Update protocol* as prose, not a numbered rule (`R263` stays next free): push `main` at the tagged commit before any further code, or run `gh workflow run CI --ref <tag>` and wait before `verify-release.py`.
+
+**Files:** ROADMAP: `v0.81.0` Shipped entry header and verify-release bullet amended; new "Release ordering" subsection in *Update protocol*. SESSION_LOG: this entry. FEATURES.md unaffected. Next-up `###` count untouched (blockquote stubs; 80). Ledgers: no Pass, no decision; next free `Pass 565.0`; next filing 1052nd.
+
+**Still in flight:** nothing from this filing. Working-tree dirt is another agent's memory files.
+
 ## 2026-10-08 (1050th filing) — `Pass 563.0` shipped (`G171`) and `v0.81.0` published (main push and CI pending)
 
 **Shipped:** `Pass 563.0`, `8eafad79` (code, tests) and `f26e8083` (`docs/core-api`). `deskew::page_scan_image` and `detect_image_skew` as read-only `&DocumentView` free functions (same angle and confidence as the session methods; edit refusals deliberately not applied); `EditSession::coalesce_last_same(count, kind) -> bool` in new `edit/undo_fold.rs`. Verb count 356.
