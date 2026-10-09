@@ -115,6 +115,33 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.81.0` — PUBLISHED (2026-10-08): release out, main push and CI pending (1050th filing)
+
+Title "pdfcer v0.81.0 - deskew, layout OCR, metadata removal, editing inside forms". Tag `v0.81.0` on `c0761048` (bump `f14c5ff3`; `c0761048` is `Pass 561.0`), pushed. Range `Pass 530.0`-`561.0` (`pdfceGUI` `G142`-`G169`). Figures engineer-reported; I have no shell and checked none of this against disk (hard rule 8).
+
+- **Build.** `D:\builds\pdfcer-20261008-1724-c076104`; smoke test passed.
+- **GitHub release** via `tools/gh-release.py`: PASS, 8 assets. `pdfcer-v0.81.0-windows-x64.zip` 25,833,454 bytes; `ocr-addon-ocrcer.zip` 3,789,155; `ocr-addon-ocrs.zip` 11,352,262; `ocr-addon-tesseract.zip` 4,483,685; each with a `.sha256` (4 zips + 4 = 8).
+- **OneDrive.** `pdfcer2` = 0.81.0 (69,680,959 bytes); `pdfcer1` keeps 0.80.0. The next release writes `pdfcer1`.
+- **`tools/verify-release.py v0.81.0` currently FAILS 3 checks. It has NOT passed.** All three wait on a push of `main`, blocked until `tools/run-gates.sh` is green: `origin/main` does not contain the tag; CI has not run at the tag; the working tree is not clean (another agent's memory files). Status: release published; main push and CI pending.
+- **Gotcha.** The earlier push of `main` was refused by the pre-push hook (`check-commits-filed`: `77fffcf8` was unfiled at push time). The chained script had piped the gates through `tail`/`head`, which masked their exit codes, so the gates looked green. The hook caught it, which is what the hook exists for. Do not pipe gate output through a pager-style filter in a push chain.
+
+### `Pass 563.0` — measure a scan's skew off the edit session; `coalesce_last_same` (core; answers `pdfcer-gui` `G171`) — SHIPPED 2026-10-08 (1050th filing)
+
+Commits `8eafad79` (code, tests) and `f26e8083` (`docs/core-api`); push state not verifiable from here (main push pending, above). No manifest change, so the `cargo tree` invariant is untouched. No decision. Stub filed 1048th (`dbbcbaec`); replaced by a SHIPPED pointer. Ships in the release after `v0.81.0`.
+
+**Delivered.**
+- `pdfcer_core::deskew::page_scan_image(&DocumentView, page)` and `detect_image_skew(&DocumentView, page, object)`: read-only free functions, twins of the `&mut` session methods, same angle and confidence. Object indices are those of `decompose_page(view, page, IDENTITY)`; on `EditSession::view()` they equal `page_objects`. They deliberately skip the edit refusals (encryption permissions, certification, hidden objects): those guard the correction, not the measurement. The commit stays on `deskew_image`.
+- `EditSession::coalesce_last_same(count, kind) -> bool` (new file `edit/undo_fold.rs`): folds only when each of the last `count` undo entries is already `kind`; otherwise returns `false` with the stack unchanged. Decision (the stub left the form open): a NEW method, not a change to `coalesce_last`, which still folds mixed kinds because `cut_field` and `remove_metadata` rely on that.
+- Verb count now 356. CLI: no new surface; `pdfcer deskew` already measures through the session.
+
+**Verified (engineer-reported).** Core deskew tests 10, of which 3 new. Sabotage: removing the kind check turned the fold test red. The `G171` FIXED reply is written and the ACK deleted.
+
+**Scope note.** The stub's acceptance 3 said `coalesce_last` itself refuses a mixed tail; as shipped that is `coalesce_last_same`, because changing `coalesce_last` would break two callers. Sweep (hard rule 11): the `coalesce_last` "What an EXTERNAL caller must know" miscount warning is not retired by this, since `coalesce_last` is unchanged; I did not re-read source.
+
+`FEATURES.md`: *Planned* `563.0` row removed; the deskew row notes off-session measurement (core `[x]` cli `[x]` gui `[ ]`); the undo row notes `coalesce_last_same` as core only.
+
+Ledgers: no decision; next free `Pass 565.0`; next filing 1051st.
+
 ### `Pass 564.0` — full-rewrite note on `remove_metadata` becomes a structured flag (core + CLI; answers `pdfcer-gui` `G172`) — SHIPPED 2026-10-08 (1049th filing)
 
 Commits `77fffcf8` (code, tests) and `25db8de1` (`docs/core-api`); push state not verifiable from here. No `Cargo.toml` change, so the `cargo tree` invariant is untouched. No decision. Stub filed 1048th (`dbbcbaec`); replaced by a SHIPPED pointer. Ships in the release after `v0.81.0`.
@@ -166,6 +193,8 @@ Release filing (1045th), under the standing release authorisation (decision 121)
 **To follow, engineer-reported later; NOT claimed done here:** push of `main` and the tag; GitHub release assets via `tools/gh-release.py`; `tools/verify-release.py v0.81.0`; OneDrive. OneDrive plan: this release writes slot `pdfcer2`; `pdfcer1` keeps `0.80.0`, so the next release writes `pdfcer1`.
 
 Figures engineer-reported; no shell here (hard rule 8).
+
+*Amended 1050th filing: publication outcome is in the `v0.81.0` entry above `Pass 563.0`; the "to follow" list here is superseded by it.*
 
 ### `Pass 561.0` — build stamp is `-dirty` only when a build-affecting path changed (build script; found while releasing) — SHIPPED 2026-10-08 (1045th filing)
 
@@ -21739,7 +21768,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`559.0` all shipped; the batch is complete.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 565.0`; next filing 1050th.
+> **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`559.0` all shipped; the batch is complete.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. Next free `Pass 565.0`; next filing 1051st.
 > - `552.0` (`G162`) SHIPPED (`9be9d44a`, `ea7e80af`, 1035th filing), see *Shipped*.
 > - `553.0` (`G168`) SHIPPED (`8d014437`, `d1800f2a`, 1036th filing), see *Shipped*.
 > - `554.0` (`G163`) SHIPPED (`6fa4bc19`, `ed2bdd4b`, 1037th filing), see *Shipped*.
@@ -21753,17 +21782,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **`Pass 562.0` (`G170`, OCR run options checkable before load) SHIPPED (`da43a415`, `457ada02`, 1047th filing), see *Shipped*.**
 
-> **`Pass 563.0` (core; answers `pdfcer-gui` `G171`, O289 item 13) — measure a scan's skew off the edit session, and make `coalesce_last` refuse a mixed tail. Filed 2026-10-08 (1048th filing), not started.** Request: `pdfce_FeatureRequests/open/request_G171_deskew_cannot_be_measured_off_the_session.md`. Pinned engine `v0.81.0` (`c0761048`).
-> - **Why.** `page_scan_image`, `detect_image_skew` and `deskew_image` are all `&mut self` on `EditSession` (live: `edit/deskew.rs:58,87,125`), and `EditSession` is neither `Clone` nor `Sync`. Measuring a 1275x1650 scan takes most of a second, so the GUI runs one page per frame on the UI thread (`Arc::get_mut`, render worker cancelled). `detect_image_skew` is documented read-only yet takes `&mut` (it goes through `deskew_target`).
-> - **Scope 1.** A read-only skew measurement for a page image taking `&DocumentView` (or an image from a `ResourceProvider`), not `&mut EditSession`, so the GUI can measure a whole document on a worker thread. The commit stays on the existing `EditSession::deskew_image(page, idx, angle)`. The engineer chooses the exact surface (the request suggests `pdfcer_core::deskew::detect_image_skew_view(view, page, idx)`); the scan-image pick (`page_scan_image`) needs the same read-only treatment or the measurement is half-useful.
-> - **Scope 2.** `EditSession::coalesce_last(n, kind)` refuses, with no fold, when the last `n` undo entries include a different kind, so the caller no longer pre-checks `undo_kinds().take(n)`. Live signature returns `bool` today (`false` already means "stack shorter than `count`", `edit.rs:20337`); the Pass chooses whether the refusal reuses that `false` or becomes an error. Either way the change is observable and must be documented in the method's "What an EXTERNAL caller must know" list, whose miscount warning is now partly retired.
-> - **Acceptance.**
->   1. The measurement returns the same angle and confidence as `detect_image_skew` on the same image (test over the existing deskew fixtures).
->   2. The measurement needs no `&mut` (a compile-level test taking a shared reference).
->   3. A mixed tail is refused by `coalesce_last` and leaves the undo stack unchanged (test asserts `undo_kinds()` before and after).
->   4. `docs/core-api` updated and `check-core-api-verbs` green.
->   5. A FIXED reply in the FeatureRequests channel.
-> - **Not in scope.** The GUI's per-frame workaround (`app::actions::deskew`), `pdfcer-gui`'s. CLI: the single `deskew` verb (`cli.rs:6644`) already measures and straightens in one invocation; no new verb unless the engineer finds one needed.
+> **`Pass 563.0` (`G171`, skew measured off the edit session; `coalesce_last_same`) SHIPPED (`8eafad79`, `f26e8083`, 1050th filing), see *Shipped*.**
 
 > **`Pass 564.0` (`G172`, full-rewrite note as a structured flag) SHIPPED (`77fffcf8`, `25db8de1`, 1049th filing), see *Shipped*.**
 

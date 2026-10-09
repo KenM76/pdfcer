@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-08 (1050th filing) — `Pass 563.0` shipped (`G171`) and `v0.81.0` published (main push and CI pending)
+
+**Shipped:** `Pass 563.0`, `8eafad79` (code, tests) and `f26e8083` (`docs/core-api`). `deskew::page_scan_image` and `detect_image_skew` as read-only `&DocumentView` free functions (same angle and confidence as the session methods; edit refusals deliberately not applied); `EditSession::coalesce_last_same(count, kind) -> bool` in new `edit/undo_fold.rs`. Verb count 356.
+
+**Release:** `v0.81.0` on `c0761048`, tag pushed; range `Pass 530.0`-`561.0`. Build `D:\builds\pdfcer-20261008-1724-c076104`, smoke test passed. GitHub release via `gh-release.py` PASS, 8 assets (windows zip 25,833,454 bytes; three OCR add-on zips 3,789,155 / 11,352,262 / 4,483,685; four `.sha256`). OneDrive `pdfcer2` = 0.81.0 (69,680,959 bytes), `pdfcer1` keeps 0.80.0; next release writes `pdfcer1`.
+
+**NOT done:** `verify-release.py v0.81.0` FAILS 3 checks (tag not on `origin/main`, no CI at the tag, working tree not clean from another agent's memory files). It did not pass. Main push is blocked until `run-gates.sh` is green.
+
+**Decided:** `coalesce_last_same` is a new method; `coalesce_last` unchanged because `cut_field` and `remove_metadata` fold mixed kinds. No numbered decision.
+
+**Findings:** the earlier push of `main` was refused by the pre-push hook (`check-commits-filed`: `77fffcf8` unfiled). The chained script piped the gates through `tail`/`head`, masking their exit codes; the hook caught it. Cause of the masking is the pipe, not the gates.
+
+**Verified (engineer-reported):** core deskew tests 10 (3 new); sabotage (kind check removed) turned the fold test red; no manifest change. `G171` FIXED reply written, ACK deleted. Nothing checked by me against disk (no shell).
+
+**Files:** ROADMAP: new Shipped entries `v0.81.0` publication and `Pass 563.0`, stub replaced by a pointer (blockquote; `###` count in Next up unchanged at 80), amendment line on the 1045th release entry, ledger next filing 1051st, next free `Pass 565.0`. `FEATURES.md`: *Planned* `563.0` row removed; deskew row (core `[x]` cli `[x]` gui `[ ]`) and undo row annotated.
+
+**Still in flight:** main push, CI at the tag, re-run of `verify-release.py`. Push state not verifiable from here.
+
 ## 2026-10-08 (1049th filing) — `Pass 564.0` shipped (full-rewrite note as a structured flag, `G172`)
 
 **Shipped:** `Pass 564.0`, `77fffcf8` (code, tests) and `25db8de1` (`docs/core-api`). `MetadataRemoval::needs_full_rewrite: bool` (set whenever anything was removed) and `pub const doc_metadata::FULL_REWRITE_NOTE`. The sentence left `disclosures`, which now holds operator sentences only; private `FULL_REWRITE_DISCLOSURE` deleted. CLI `pdfcer metadata remove` prints the note when the flag is set and the save is not a full rewrite.

@@ -5,28 +5,27 @@ Engineer-owned; replaced each session. The previous long-form handoff
 (gate-sweep history, the carried OWED list, benchmark recipes) is in git:
 `git show 78635459:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-08, after `Pass 560.0` and the 1044th filing.
+**Written:** 2026-10-08, after `Pass 564.0`/`563.0` and the 1050th filing.
 
 ## State
 
-- **Release:** v0.80.0 is the latest (2026-10-06). OneDrive `pdfcer1` = 0.80.0,
-  `pdfcer2` = 0.79.0, so **the next release writes `pdfcer2`**. Everything
-  from `Pass 532.0` to `560.0` is unreleased.
-- **Ledgers:** next free Pass **561.0**; next filing **1045th**; no decision
-  added since 183. Core-api verb count **355**.
-- **Shipped since the last handoff** (all filed, all pushed with
-  `78635459`): `538.0`–`552.0` (annotation/vector/form/image/text editing
-  requests G148–G162), `553.0` (3D named views, G168), `554.0` (wrapped vs
-  typed line ends, G163), `555.0` (metadata inventory/removal, G164),
-  `556.0` (OCR word lists, G166), `557.0` (deskew, G165), `558.0` (PaddleOCR-VL
-  layout regions via PP-DocLayoutV3, OTSL tables, VL task prompts, repetition
-  stop, per-region OCR layers, `pdfcer ocr --layout --region-layers`, G167),
-  `559.0` (exact wrap/break marks in pdfcer-written blocks: `pdfc_TextBlock`
-  / `pdfc_Break` `MP` points, `LineEndSource`; G163 reply updated), `560.0` (`RenderOptions::invisible_text`:
-  OCR/mode-3/7 text painted in a chosen colour, `only` = that layer alone on
-  a transparent page; `render-page --invisible-text`; G169, pushed `ea888d12`).
+- **Release:** v0.81.0 is the latest (2026-10-08, tag on `c0761048`, 8
+  assets). OneDrive `pdfcer2` = 0.81.0, `pdfcer1` = 0.80.0, so **the next
+  release writes `pdfcer1`**. `562.0`–`564.0` are unreleased.
+  `verify-release.py v0.81.0` passes only once `main` is pushed and CI has
+  run at the tag (the spec-librarian's memory files keep "working tree
+  clean" red; they are not ours to commit).
+- **Ledgers:** next free Pass **565.0**; next filing **1051st**; no decision
+  added since 183. Core-api verb count **356**.
+- **Shipped since the last handoff:** `561.0`, `562.0`, `564.0`
+  (`MetadataRemoval::needs_full_rewrite`, G172), `563.0` (deskew measured
+  off the session via `deskew::page_scan_image`/`detect_image_skew` on a
+  `&DocumentView`; `EditSession::coalesce_last_same`; G171). G170–G172 have
+  FIXED replies.
+- **Pre-push hook bites:** an unfiled code commit refuses the push of
+  `main`. Never pipe the gate scripts through `tail`/`head` in a chain.
 - **Next up is empty of open Passes.** Take the operator's ordered plan below.
-- **Inbound:** G142–G169 all have FIXED replies. Older requests still sit in
+- **Inbound:** G142–G172 all have FIXED replies. Older requests still sit in
   the `open/` folder (`check-requests-scoped.py` is green, so each is scoped
   or answered). The one open GitHub issue (text layer position after OCR)
   awaits Ken's OK to close. Check all three channels every session.
