@@ -152,6 +152,7 @@ builds `--no-default-features`, so both configurations compile.
 | List a PRC model's assembly tree (names, hierarchy, stored visibility) | `pdfcer_3d::PrcFile::model_tree() -> Result<Vec<ModelNode>, PrcError>` — `pdfcer-3d/src/tree/node.rs` | §12.2 |
 | Turn a saved 3D view into a camera (`pdfcer_3d::Camera`) | `ThreeDSavedView::aim(aspect)` → `SavedViewAim::camera(&Bounds, aspect)` / `frame` — `threed/view_aim.rs` | §12.2 |
 | Enumerate optional-content layers + default visibility | `layers::read_layers(&graph)` — `layers.rs` | §12.3 |
+| Whether anything still draws on a layer | `layers::group_in_use(&DocumentView, group: ObjId) -> bool` (G173): page content in an `/OC` section bound to it, an annotation or XObject whose `/OC` names it (directly or via a membership dictionary), or a form that binds it; undecodable content counts as using it — `ocr/group.rs` | §8.11.2.2, §8.11.3.2 |
 | Compute hidden layers, correctly for print/export | `annot::optional_content_default_off(&graph)` — `annot.rs` | §12.3 |
 | Refine layer visibility for on-screen view only | `annot::apply_view_usage(&graph, …)` — `annot.rs` **(never on a print path — T-12.8)** | §12.3 |
 | List annotations on a page with their rects | `annot::page_annotations(&graph, page.id)` — `annot.rs` | §12.4 |
