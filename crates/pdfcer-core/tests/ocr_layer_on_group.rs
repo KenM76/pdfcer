@@ -118,3 +118,88 @@ fn an_unregistered_group_is_refused() {
         "{err:?}"
     );
 }
+
+/// Two words, one read from a table region and one from a title.
+fn table_and_title() -> OcrPage {
+    use pdfcer_core::ocr::layout::LayoutClass;
+    use pdfcer_core::ocr::{OcrBlock, OcrBlockKind, OcrLine};
+    let word = |text: &str, y: f64| RecognizedWord {
+        text: text.to_owned(),
+        rect: Rect::from_corners(72.0, y, 200.0, y + 12.0),
+        confidence: Some(0.9),
+    };
+    OcrPage {
+        words: vec![word("TOTAL", 500.0), word("INVOICE", 600.0)],
+        lines: vec![OcrLine::new(vec![0]), OcrLine::new(vec![1])],
+        blocks: vec![
+            OcrBlock::new(OcrBlockKind::Paragraph, vec![0]).with_region(LayoutClass::Table),
+            OcrBlock::new(OcrBlockKind::Heading, vec![1]).with_region(LayoutClass::DocTitle),
+        ],
+        confidence_available: true,
+    }
+}
+
+fn add_regions(s: &mut EditSession, opts: &OcrLayerOptions) {
+    let recognised = table_and_title();
+    let page = OcrPageLayer {
+        page_index: 0,
+        recognised: &recognised,
+    };
+    s.add_ocr_layer(&[page], opts).unwrap();
+}
+
+#[test]
+fn removal_names_each_region_group_and_whether_it_emptied() {
+    use pdfcer_core::ocr::layout::RegionGroup;
+    let mut s = session();
+    let whole = s.add_layer("OCR text", &LayerEdit::new()).unwrap();
+    let tables = s.add_layer("OCR tables", &LayerEdit::new()).unwrap();
+    let titles = s.add_layer("OCR titles", &LayerEdit::new()).unwrap();
+    s.set_objects_layer(0, &[0], Some(titles)).unwrap();
+    let opts = OcrLayerOptions::new()
+        .on_layer(whole)
+        .on_region_layer(RegionGroup::Table, tables)
+        .on_region_layer(RegionGroup::Title, titles);
+    add_regions(&mut s, &opts);
+
+    let layers = s.find_ocr_layers().unwrap();
+    assert_eq!(layers[0].optional_content, Some(whole));
+    let outcome = s.remove_ocr_layer(&layers[0]).unwrap();
+    assert_eq!(outcome.optional_content, Some(whole));
+    assert!(outcome.group_emptied);
+    let got: Vec<(ObjId, bool)> = outcome
+        .region_groups
+        .iter()
+        .map(|r| (r.group, r.emptied))
+        .collect();
+    assert_eq!(
+        got,
+        vec![(tables, true), (titles, false)],
+        "titles still has the page's text"
+    );
+    assert!(pdfcer_core::layers::group_in_use(&s.view(), titles));
+    assert!(!pdfcer_core::layers::group_in_use(&s.view(), tables));
+}
+
+#[test]
+fn a_region_group_without_a_whole_layer_group_is_not_reported_as_the_layer_group() {
+    use pdfcer_core::ocr::layout::RegionGroup;
+    let mut s = session();
+    let tables = s.add_layer("OCR tables", &LayerEdit::new()).unwrap();
+    add_regions(
+        &mut s,
+        &OcrLayerOptions::new().on_region_layer(RegionGroup::Table, tables),
+    );
+
+    let layers = s.find_ocr_layers().unwrap();
+    assert_eq!(
+        layers[0].optional_content, None,
+        "a region group is not the whole layer's"
+    );
+    let outcome = s.remove_ocr_layer(&layers[0]).unwrap();
+    assert_eq!(outcome.optional_content, None);
+    assert!(!outcome.group_emptied);
+    assert_eq!(outcome.region_groups.len(), 1);
+    assert_eq!(outcome.region_groups[0].group, tables);
+    assert!(outcome.region_groups[0].emptied);
+}

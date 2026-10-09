@@ -211,17 +211,7 @@ pub struct OcrLayerOptions {
     pub region_layers: Vec<(RegionGroup, ObjId)>,
 }
 
-/// What removing one OCR layer left behind.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub struct OcrLayerRemoval {
-    /// The optional-content group the removed text was on, if any.
-    pub optional_content: Option<ObjId>,
-    /// Whether that group now has no content anywhere in the document, so a
-    /// shell can offer to delete it. Content pdfcer cannot decode counts as
-    /// using the group.
-    pub group_emptied: bool,
-}
+pub use super::layer_removal::{OcrLayerRemoval, RegionLayerRemoval};
 
 /// What an OCR write does when the page already carries a layer pdfcer wrote
 /// (found by its marker, [`super::marker`]).

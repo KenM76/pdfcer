@@ -126,7 +126,7 @@ pub fn page_ocr_layers(
                 engine,
                 version,
                 font_names,
-                optional_content: super::group::layer_group(view, page, id),
+                optional_content: super::group::layer_groups(view, page, id).0,
             })
         })
         .collect()

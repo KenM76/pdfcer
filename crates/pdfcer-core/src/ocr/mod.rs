@@ -61,6 +61,7 @@ pub mod models;
 /// text layer over page content that is left byte-identical.
 pub mod layer;
 mod layer_content;
+mod layer_removal;
 mod layer_report;
 mod structure;
 

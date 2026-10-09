@@ -407,6 +407,8 @@ use crate::object::{Dict, ObjId, Object};
 use crate::page_tree::pages_in;
 use crate::textstring::decode_text_string;
 
+pub use crate::ocr::group::group_in_use;
+
 /// Maximum number of distinct layers reported (pdfcer policy,
 /// `ARCHITECTURE.md` §10).
 ///

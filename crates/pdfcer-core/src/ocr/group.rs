@@ -77,16 +77,43 @@ pub(crate) fn properties(view: &DocumentView<'_>, resources: &Dict) -> Dict {
         .unwrap_or_default()
 }
 
-/// The group a layer stream's text is on: the first `/OC /name BDC` inside
-/// it, through `page`'s `/Properties`.
-pub(crate) fn layer_group(view: &DocumentView<'_>, page: &Page, layer: ObjId) -> Option<ObjId> {
-    let cs = ContentStream::parse(super::refold::decoded(view, layer)?).ok()?;
+/// The groups a layer stream's `/OC` sections are on, through `page`'s
+/// `/Properties`: the whole layer's (a section opened before the layer's
+/// `q`, [`OcrLayerOptions::on_layer`](super::layer::OcrLayerOptions::on_layer))
+/// and the region groups' (opened after it,
+/// [`OcrLayerOptions::on_region_layer`](super::layer::OcrLayerOptions::on_region_layer)),
+/// distinct and in stream order, the whole layer's group excluded.
+pub(crate) fn layer_groups(
+    view: &DocumentView<'_>,
+    page: &Page,
+    layer: ObjId,
+) -> (Option<ObjId>, Vec<ObjId>) {
+    let mut whole = None;
+    let mut regions = Vec::new();
+    let Some(cs) = super::refold::decoded(view, layer).and_then(|d| ContentStream::parse(d).ok())
+    else {
+        return (whole, regions);
+    };
     let props = properties(view, &page.resources);
     let b = cs.buf.as_slice();
-    cs.operations().find_map(|op| {
-        let name = oc_section_name(&op, b)?;
-        props.get(name.as_bytes())?.as_reference()
-    })
+    let mut after_q = false;
+    for op in cs.operations() {
+        if op.operator_name(b) == Some(&b"q"[..]) {
+            after_q = true;
+            continue;
+        }
+        let Some(group) =
+            oc_section_name(&op, b).and_then(|n| props.get(n.as_bytes())?.as_reference())
+        else {
+            continue;
+        };
+        if !after_q {
+            whole.get_or_insert(group);
+        } else if whole != Some(group) && !regions.contains(&group) {
+            regions.push(group);
+        }
+    }
+    (whole, regions)
 }
 
 /// The property-list name of `op` when it is `/OC /name BDC`.
@@ -108,7 +135,10 @@ fn oc_section_name<'a>(op: &crate::content::Operation<'a>, b: &'a [u8]) -> Optio
 /// XObject that binds it. Content that cannot be decoded counts as using it:
 /// a wrong "still used" costs an offer to delete, a wrong "empty" costs a
 /// layer.
-pub(crate) fn group_in_use(view: &DocumentView<'_>, group: ObjId) -> bool {
+///
+/// Public as `pdfcer_core::layers::group_in_use`.
+#[must_use]
+pub fn group_in_use(view: &DocumentView<'_>, group: ObjId) -> bool {
     let Ok(pages) = page_tree::pages_in(view) else {
         return true;
     };

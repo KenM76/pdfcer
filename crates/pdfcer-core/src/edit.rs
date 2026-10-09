@@ -14725,8 +14725,9 @@ impl EditSession {
     /// [`Self::add_ocr_layer`] (encryption, certification, hidden objects).
     /// Every refusal happens before anything is committed.
     ///
-    /// The outcome names the optional-content group the text was on and
-    /// whether that group is left with no content.
+    /// The outcome names the optional-content group the text was on, and
+    /// each region group's group it used, with whether each is left with no
+    /// content.
     pub fn remove_ocr_layer(
         &mut self,
         layer: &crate::ocr::marker::OcrLayerRef,
@@ -14747,7 +14748,8 @@ impl EditSession {
             return Err(OlError::HiddenObjects { count: suppressed });
         }
 
-        let (page_id, new_page, strip, found_group) = self.ocr_layer_stripped_page(layer)?;
+        let (page_id, new_page, strip, (found_group, region_groups)) =
+            self.ocr_layer_stripped_page(layer)?;
         let removals = self.ocr_strip_removals(&[(layer.page_index, strip)])?;
         let before = self.value(page_id).cloned();
         self.commit(Command {
@@ -14760,15 +14762,23 @@ impl EditSession {
             removals,
             trailer: None,
         });
+        let view = self.view();
+        let emptied = |g: ObjId| !crate::ocr::group::group_in_use(&view, g);
         Ok(crate::ocr::layer::OcrLayerRemoval {
             optional_content: found_group,
-            group_emptied: found_group
-                .is_some_and(|g| !crate::ocr::group::group_in_use(&self.view(), g)),
+            group_emptied: found_group.is_some_and(emptied),
+            region_groups: region_groups
+                .into_iter()
+                .map(|group| crate::ocr::layer::RegionLayerRemoval {
+                    group,
+                    emptied: emptied(group),
+                })
+                .collect(),
         })
     }
 
-    /// The page dictionary with `layer` stripped, the strip, and the group
-    /// the layer's text was on.
+    /// The page dictionary with `layer` stripped, the strip, and the groups
+    /// the layer's text was on (whole layer, region groups).
     #[allow(clippy::type_complexity)] // a private four-part result, named at its one caller
     fn ocr_layer_stripped_page(
         &self,
@@ -14778,7 +14788,7 @@ impl EditSession {
             ObjId,
             crate::object::Dict,
             crate::ocr::marker::LayerStrip,
-            Option<ObjId>,
+            (Option<ObjId>, Vec<ObjId>),
         ),
         crate::ocr::layer::OcrLayerError,
     > {
@@ -14826,7 +14836,8 @@ impl EditSession {
                 Object::Dict(resources),
             );
         }
-        Ok((page.id, new_page, strip, found.optional_content))
+        let groups = crate::ocr::group::layer_groups(&view, page, found.content);
+        Ok((page.id, new_page, strip, groups))
     }
 
     /// The objects a set of layer strips leaves unreferenced: each stripped
