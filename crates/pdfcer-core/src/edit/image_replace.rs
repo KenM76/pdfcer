@@ -107,24 +107,7 @@ impl EditSession {
             return Err(EditError::ObjectCreationWouldExposeHiddenObjects { count: suppressed });
         }
         let model = self.page_objects(page_index)?;
-        let count = model.objects.len();
-        let target = match model.objects.get(object_index) {
-            None => {
-                return Err(crate::vector::VectorEditError::ObjectOutOfRange {
-                    index: object_index,
-                    count,
-                }
-                .into());
-            }
-            Some(VectorObject::Image(img)) if img.source != ImageSource::Form => *img,
-            Some(other) => {
-                return Err(EditError::ReplaceImageOnOther {
-                    index: object_index,
-                    kind: kind_of(other),
-                });
-            }
-        };
-        Ok(target)
+        placed_image(&model, object_index)
     }
 
     fn commit_replace_image(
@@ -249,6 +232,25 @@ fn invocation(spec: &NewImage<'_>, placed: &Rect, name: &[u8]) -> Vec<u8> {
         out.extend_from_slice(b" Q");
     }
     out
+}
+
+/// The placed (non-form) image `object_index` of `model`.
+pub(super) fn placed_image(
+    model: &crate::vector::PageObjects,
+    object_index: usize,
+) -> Result<ImageObject, EditError> {
+    match model.objects.get(object_index) {
+        None => Err(crate::vector::VectorEditError::ObjectOutOfRange {
+            index: object_index,
+            count: model.objects.len(),
+        }
+        .into()),
+        Some(VectorObject::Image(img)) if img.source != ImageSource::Form => Ok(*img),
+        Some(other) => Err(EditError::ReplaceImageOnOther {
+            index: object_index,
+            kind: kind_of(other),
+        }),
+    }
 }
 
 const fn kind_of(o: &VectorObject) -> &'static str {

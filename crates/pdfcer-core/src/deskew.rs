@@ -23,6 +23,8 @@
 //! because a blend of two bilevel samples or two palette indices is not a
 //! sample of the same kind.
 
+pub use crate::edit::deskew::{detect_image_skew, page_scan_image};
+
 /// The largest skew searched for, either way. Scans are rarely off by more
 /// than a few degrees; past this a page is more likely rotated by 90°, which
 /// is a page-rotation question, not a skew.
@@ -56,7 +58,7 @@ pub struct SkewEstimate {
 /// row-major, top row first, `0` black. Pixels darker than mid-grey are ink.
 ///
 /// This is the entry point for a shell holding a rendered page; for an image
-/// in the document use `EditSession::detect_image_skew`.
+/// in the document use [`detect_image_skew`].
 ///
 /// Returns `None` when the raster is empty, `grey` is shorter than
 /// `width × height`, or there is too little ink to measure.

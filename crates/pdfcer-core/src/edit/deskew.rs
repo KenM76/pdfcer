@@ -4,8 +4,9 @@
 use super::{CommandKind, EditError, EditSession, ObjectWrite};
 use crate::deskew::{MAX_SKEW_DEGREES, Raster, SkewEstimate};
 use crate::object::{Dict, ObjId, Object, Stream};
+use crate::page_tree::{self, Page};
 use crate::redact_image::{Allocator, Decoded, ImageOutcome};
-use crate::vector::{ImageObject, ImageSource, VectorObject};
+use crate::vector::{ImageObject, ImageSource, Matrix, PageObjects, VectorObject, decompose_page};
 use crate::view::DocumentView;
 
 /// The smallest correction [`EditSession::deskew_image`] performs; a smaller
@@ -56,21 +57,7 @@ impl EditSession {
     ///
     /// As [`Self::page_objects`].
     pub fn page_scan_image(&mut self, page_index: usize) -> Result<Option<usize>, EditError> {
-        let model = self.page_objects(page_index)?;
-        let area = |img: &ImageObject| (img.ctm.a * img.ctm.d - img.ctm.b * img.ctm.c).abs();
-        Ok(model
-            .objects
-            .iter()
-            .enumerate()
-            .filter_map(|(i, o)| match o {
-                VectorObject::Image(img) if img.source != ImageSource::Form => Some((i, area(img))),
-                _ => None,
-            })
-            .fold(None, |best: Option<(usize, f64)>, (i, a)| match best {
-                Some((_, b)) if b >= a => best,
-                _ => Some((i, a)),
-            })
-            .map(|(i, _)| i))
+        Ok(largest_image(&*self.page_objects(page_index)?))
     }
 
     /// **Measure the skew** of the image `object_index` on `page_index`
@@ -222,54 +209,150 @@ impl EditSession {
         object_index: usize,
     ) -> Result<Target, EditError> {
         let placed = self.editable_placed_image(page_index, object_index)?;
-        let id = match (placed.source, placed.xobject) {
-            (ImageSource::XObject, Some(id)) => id,
-            _ => return Err(unsupported("it is an inline image")),
-        };
         let pages = self.pages()?;
         let resources = pages
             .get(page_index)
             .map(|p| p.resources.clone())
             .unwrap_or_default();
-        let view = self.view();
-        let Some(Object::Stream(stream)) = view.graph().value(id).cloned() else {
-            return Err(unsupported("its XObject is not a stream"));
-        };
-        for key in [&b"SMask"[..], b"Mask"] {
-            if stream.dict.get(key).is_some() {
-                let key = String::from_utf8_lossy(key);
-                return Err(unsupported(&format!(
-                    "it has a /{key}, which would no longer line up"
-                )));
-            }
-        }
-        let raw = view
-            .slice(stream.data_span)
-            .ok_or_else(|| unsupported("its stream data lies outside the file"))?;
-        let decoded = crate::redact_image::decode(&view, &stream.dict, raw, false, &resources)
-            .map_err(|why| unsupported(&why))?;
-        if decoded.embedded_alpha.is_some() || decoded.preblended_alpha_dropped {
-            return Err(unsupported(
-                "its codestream carries transparency, which would not survive",
-            ));
-        }
-        let raster = Raster {
-            width: decoded.width,
-            height: decoded.height,
-            components: decoded.components,
-            bpc: decoded.bpc,
-            paper_is_ones: decoded.paper,
-            indexed: is_indexed(&view, &stream.dict, &resources),
-        };
-        Ok(Target {
-            placed,
-            id,
-            stream,
-            decoded,
-            raster,
-            resources,
-        })
+        decode_target(&self.view(), placed, resources)
     }
+}
+
+/// The page's largest placed image by area on the page, `None` when it
+/// draws none (form XObjects are not counted).
+fn largest_image(model: &PageObjects) -> Option<usize> {
+    let area = |img: &ImageObject| (img.ctm.a * img.ctm.d - img.ctm.b * img.ctm.c).abs();
+    model
+        .objects
+        .iter()
+        .enumerate()
+        .filter_map(|(i, o)| match o {
+            VectorObject::Image(img) if img.source != ImageSource::Form => Some((i, area(img))),
+            _ => None,
+        })
+        .fold(None, |best: Option<(usize, f64)>, (i, a)| match best {
+            Some((_, b)) if b >= a => best,
+            _ => Some((i, a)),
+        })
+        .map(|(i, _)| i)
+}
+
+/// The page `page_index` of `view` and its decomposition, as
+/// [`EditSession::page_objects`] builds it on the session's own view.
+fn view_page_objects(
+    view: &DocumentView<'_>,
+    page_index: usize,
+) -> Result<(Page, PageObjects), EditError> {
+    let mut pages = page_tree::pages_in(view.graph())?;
+    let count = pages.len();
+    if page_index >= count {
+        return Err(EditError::PageOutOfRange {
+            index: page_index,
+            count,
+        });
+    }
+    let page = pages.swap_remove(page_index);
+    if page.contents.is_empty() {
+        return Err(EditError::VectorEditNoContents { page_index });
+    }
+    let model =
+        decompose_page(view, &page, Matrix::IDENTITY).map_err(EditError::VectorEditContent)?;
+    Ok((page, model))
+}
+
+/// [`EditSession::page_scan_image`] on any [`DocumentView`], read-only: the
+/// index, into [`decompose_page`]`(view, page, Matrix::IDENTITY)`, of the
+/// page's largest image by area. On [`EditSession::view`] it is the index
+/// [`EditSession::page_objects`] uses.
+///
+/// # Errors
+///
+/// [`EditError::PageTree`], [`EditError::PageOutOfRange`],
+/// [`EditError::VectorEditNoContents`], [`EditError::VectorEditContent`].
+pub fn page_scan_image(
+    view: &DocumentView<'_>,
+    page_index: usize,
+) -> Result<Option<usize>, EditError> {
+    Ok(largest_image(&view_page_objects(view, page_index)?.1))
+}
+
+/// [`EditSession::detect_image_skew`] on any [`DocumentView`], read-only:
+/// the same angle and confidence, so a shell can measure on a worker thread
+/// and commit with [`EditSession::deskew_image`]. `object_index` is as in
+/// [`page_scan_image`].
+///
+/// The session method's edit refusals (encryption permissions,
+/// certification, hidden objects) are not applied: they guard the
+/// correction, not the measurement.
+///
+/// # Errors
+///
+/// As [`page_scan_image`], plus [`EditError::DeskewUnsupported`] and
+/// [`EditError::ReplaceImageOnOther`] and
+/// [`crate::vector::VectorEditError::ObjectOutOfRange`] as
+/// [`EditSession::deskew_image`] reports them.
+pub fn detect_image_skew(
+    view: &DocumentView<'_>,
+    page_index: usize,
+    object_index: usize,
+) -> Result<Option<SkewEstimate>, EditError> {
+    let (page, model) = view_page_objects(view, page_index)?;
+    let placed = super::image_replace::placed_image(&model, object_index)?;
+    let t = decode_target(view, placed, page.resources)?;
+    Ok(crate::deskew::detect_in_samples(
+        &t.raster,
+        &t.decoded.samples,
+    ))
+}
+
+/// `placed`, decoded for analysis, after every refusal that does not depend
+/// on the angle.
+fn decode_target(
+    view: &DocumentView<'_>,
+    placed: ImageObject,
+    resources: Dict,
+) -> Result<Target, EditError> {
+    let id = match (placed.source, placed.xobject) {
+        (ImageSource::XObject, Some(id)) => id,
+        _ => return Err(unsupported("it is an inline image")),
+    };
+    let Some(Object::Stream(stream)) = view.graph().value(id).cloned() else {
+        return Err(unsupported("its XObject is not a stream"));
+    };
+    for key in [&b"SMask"[..], b"Mask"] {
+        if stream.dict.get(key).is_some() {
+            let key = String::from_utf8_lossy(key);
+            return Err(unsupported(&format!(
+                "it has a /{key}, which would no longer line up"
+            )));
+        }
+    }
+    let raw = view
+        .slice(stream.data_span)
+        .ok_or_else(|| unsupported("its stream data lies outside the file"))?;
+    let decoded = crate::redact_image::decode(view, &stream.dict, raw, false, &resources)
+        .map_err(|why| unsupported(&why))?;
+    if decoded.embedded_alpha.is_some() || decoded.preblended_alpha_dropped {
+        return Err(unsupported(
+            "its codestream carries transparency, which would not survive",
+        ));
+    }
+    let raster = Raster {
+        width: decoded.width,
+        height: decoded.height,
+        components: decoded.components,
+        bpc: decoded.bpc,
+        paper_is_ones: decoded.paper,
+        indexed: is_indexed(view, &stream.dict, &resources),
+    };
+    Ok(Target {
+        placed,
+        id,
+        stream,
+        decoded,
+        raster,
+        resources,
+    })
 }
 
 fn unsupported(reason: &str) -> EditError {

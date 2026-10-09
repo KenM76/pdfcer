@@ -2,7 +2,7 @@
 //! skewed "scan" is measured, straightened into a new image XObject, and
 //! measured again.
 
-use pdfcer_core::deskew::{MAX_SKEW_DEGREES, detect_skew};
+use pdfcer_core::deskew::{self, MAX_SKEW_DEGREES, detect_skew};
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::{CommandKind, EditError, EditSession};
 use pdfcer_core::object::{ObjId, Object};
@@ -268,4 +268,62 @@ fn a_blank_image_has_no_measurable_skew() {
     );
     let mut s = EditSession::new(Document::from_bytes(bytes).unwrap());
     assert_eq!(s.detect_image_skew(0, 2).unwrap(), None);
+}
+
+#[test]
+fn the_view_measures_what_the_session_measures() {
+    let mut s = grey_session(2.0);
+    let session_skew = s.detect_image_skew(0, 2).unwrap().unwrap();
+    let doc = Document::from_bytes(fixture(
+        "/BitsPerComponent 8 /ColorSpace /DeviceGray",
+        &skewed_grey(2.0),
+    ))
+    .unwrap();
+    for view in [doc.view(), s.view()] {
+        assert_eq!(deskew::page_scan_image(&view, 0).unwrap(), Some(2));
+        let skew = deskew::detect_image_skew(&view, 0, 2).unwrap().unwrap();
+        assert_eq!(skew, session_skew);
+    }
+    // The session view reads the session's edits: after the correction it
+    // measures the new, straight image.
+    s.deskew_image(0, 2, 2.0).unwrap();
+    let after = deskew::detect_image_skew(&s.view(), 0, 2).unwrap().unwrap();
+    assert!(after.angle_degrees.abs() < 0.15, "{after:?}");
+}
+
+#[test]
+fn the_view_refuses_what_the_session_refuses() {
+    let s = grey_session(2.0);
+    let view = s.view();
+    let refusal =
+        |r: Result<Option<deskew::SkewEstimate>, EditError>| format!("{:?}", r.unwrap_err());
+    assert!(refusal(deskew::detect_image_skew(&view, 0, 3)).contains("inline image"));
+    assert!(matches!(
+        deskew::detect_image_skew(&view, 0, 1),
+        Err(EditError::ReplaceImageOnOther { index: 1, .. })
+    ));
+    assert!(matches!(
+        deskew::page_scan_image(&view, 4),
+        Err(EditError::PageOutOfRange { index: 4, count: 1 })
+    ));
+}
+
+#[test]
+fn a_run_of_one_kind_folds_and_a_mixed_run_does_not() {
+    let mut s = grey_session(2.0);
+    s.deskew_image(0, 2, 2.0).unwrap();
+    s.deskew_image(0, 2, 1.0).unwrap();
+    let kinds: Vec<CommandKind> = s.undo_kinds().collect();
+    assert!(!s.coalesce_last_same(2, CommandKind::ReplaceImage));
+    assert!(
+        !s.coalesce_last_same(3, CommandKind::DeskewImage),
+        "too short"
+    );
+    assert_eq!(s.undo_kinds().collect::<Vec<_>>(), kinds, "unchanged");
+    assert!(s.coalesce_last_same(2, CommandKind::DeskewImage));
+    assert_eq!(
+        s.undo_kinds().collect::<Vec<_>>(),
+        [CommandKind::DeskewImage]
+    );
+    assert!(s.coalesce_last_same(0, CommandKind::ReplaceImage));
 }
