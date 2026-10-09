@@ -1,15 +1,5 @@
 # pdfcer CI
 #
-# NOTE (2026-07-23): this workflow is scaffolded ahead of the Cargo
-# workspace it gates — pdfcer is pre-Pass-0 as of this commit, so
-# `pdfcer-core`/`pdfcer-render`/`pdfce-gui`/`pdfcer` don't exist yet.
-# It targets the workspace layout documented in docs/ARCHITECTURE.md
-# §3 and will start actually running (rather than erroring on missing
-# packages) once Pass 0 creates the workspace. This is expected, not a
-# bug — see docs/ROADMAP.md Pass 0 acceptance criteria. Nothing has
-# been pushed to a hosted remote yet, so no failing run is visible
-# anywhere until that changes.
-#
 # Every job here corresponds to a binding rule in
 # .claude/agents/pdfcer-engineer.md and docs/ROADMAP.md's Standing
 # rules — this is the automated enforcement for what was previously
@@ -22,6 +12,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Lets a release tag be checked at its own commit (`gh workflow run CI
+  # --ref vX.Y.Z`) when code commits landed on main after it before the
+  # push; tools/verify-release.py requires a run at the tagged commit.
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
