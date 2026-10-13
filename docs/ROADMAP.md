@@ -115,6 +115,20 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 569.0` — a marker's colour is readable: `EditSession::marker_color`, public `annot_author::color_entry` (core; answers `pdfcer-gui` `G176`) — SHIPPED 2026-10-13 (1056th filing)
+
+Commits `73d68728` (code, tests) and `13ffa912` (`docs/core-api`); both confirmed present in `.git/logs/HEAD`. Push state not verifiable from here (no shell). No manifest change, so the `cargo tree` invariant is untouched. No decision.
+
+- **`marker_color(annot_id) -> Result<MarkerColor, EditError>`.** `#[non_exhaustive] MarkerColor { color: Color, entry: ColorEntry }`. For the four `MARKER_SUBTYPES` (Caret, FileAttachment, Sound, Screen), `color` is the `/C` colour, else the subtype's authoring default; `entry` says which.
+- **`annot_author::ColorEntry { Absent, Empty, Device(Color), Malformed }` and `annot_author::color_entry(graph, dict, key)`.** Now public: the one engine reader of `/C` and `/IC` (ISO 32000-2 Table 166, §8.6.3), shared with the writer's side.
+- **Behaviour change.** An array with a non-number element now reads as `Malformed`, which is treated as absent, instead of being read leniently.
+
+**Verified (engineer-reported; I have no shell and checked none of it against disk).** 3 new tests in `crates/pdfcer-core/tests/annot_restyle.rs`; the whole annot filter (228 tests) and the 22 `annot_author` lib tests pass; clippy clean. `docs/core-api` EditSession verb count now 357.
+
+`FEATURES.md`: the "Read a marker's colour" row ticked core `[x]`; cli `[ ]` (no CLI caller); gui `[ ]` (`pdfcer-gui` has not adopted it). Not rounded up. FIXED reply written to the FeatureRequests channel.
+
+Ledgers: no decision; next free `Pass 581.0`; next filing 1057th.
+
 ### `Passes 567.0` + `568.0` — a repeated inserted page is its own copy; a pasted annotation's geometry moves with its `/Rect` (core; answers `pdfcer-gui` `G185`, `G186`) — SHIPPED 2026-10-13 (1055th filing)
 
 Commit `26cc218c` (filing commit for 566.0 and the stubs was `99dd1576`); push state not verifiable from here (no shell). No manifest change, so the `cargo tree` invariant is untouched. No decision. Both were defects, taken up and shipped in the session that filed them.
@@ -21829,9 +21843,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1056th (updated at the 1055th).
+> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1057th (updated at the 1056th).
 > - `567.0` (`G185`) and `568.0` (`G186`) shipped at the 1055th filing (`26cc218c`); see *Shipped*.
-> - **`569.0` (`G176`) — a marker's `/C` has no public reader.** `set_marker_style` writes it; the Properties colour row needs the current value. Ask: make `annot_author::read_color` public, or a `marker_style_of(graph, id) -> Option<MarkerStyle>` beside `set_marker_style`. Acceptance: a `/Caret`, `/FileAttachment`, `/Sound` or `/Screen` colour reads back as `Gray`/`Rgb`/`Cmyk` by one rule shared with the writer; a malformed `/C` is stated, not guessed.
+> - `569.0` (`G176`) shipped at the 1056th filing (`73d68728`, `13ffa912`); see *Shipped*.
 > - **`570.0` (`G177`) — `forms::Widget` lacks the free angle and `/CA` opacity** that `turn_widget` and `with_opacity` write. Ask: `Widget::free_angle: Option<f64>` and `Widget::opacity: Option<f64>`, filled by the same reader `turn_widget` and `write_widget_opacity` use. Acceptance: both fields read back what the write verbs set, with `free_turn`'s rules for a skewed or mirrored matrix (one reader, not a copy).
 > - **`571.0` (`G178`) — a link's as-written target and border are not readable.** `page_link_destinations` resolves a named link to a page and drops the `/URI` string; no width, colour or dash is read. Ask: `EditSession::link(id) -> Result<LinkReading, EditError>` (or fields on `LinkDestination`) returning `LinkTarget` with a name kept as a name, the `/URI` string, and `Option<LinkBorder>`. Acceptance: a link written with `LinkTarget::Named` reads back `Named`; a web link reads its address; Apply with nothing changed is a no-op; border rules shared with the border writer.
 > - **`572.0` (`G179`) — named destinations cannot be listed.** Only `named_destination_count` is public. Ask: `DestinationReader::named_destinations()` yielding each name with the `Destination` it resolves to, over both §12.3.2.3 namespaces after the resolver's own collision merging. Acceptance: the listing's length equals `named_destination_count`; a name in both namespaces appears once, as the resolver would resolve it. CLI listing verb if one fits the existing link verbs.

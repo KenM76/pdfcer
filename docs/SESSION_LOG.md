@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-13 (1056th filing) — `Pass 569.0` shipped (`G176`, a marker's colour is readable)
+
+**Shipped:** `73d68728` (code) and `13ffa912` (`docs/core-api`), both found in `.git/logs/HEAD`. `EditSession::marker_color` returns `MarkerColor { color, entry }` for Caret, FileAttachment, Sound and Screen (`/C`, else the subtype default). New public `annot_author::ColorEntry` and `color_entry`, the one `/C`/`/IC` reader. Behaviour change: an array with a non-number element reads `Malformed` (treated as absent), not leniently.
+
+**Verified (engineer-reported; no shell here):** 3 new tests in `annot_restyle.rs`; annot filter 228 and `annot_author` lib 22 pass; clippy clean; no manifest change. Verb count 357.
+
+**Files:** ROADMAP (new Shipped entry; the 569.0 Next-up bullet collapsed to a pointer, so the `###` count in Next up is unchanged: it was a bullet, not a `###`). FEATURES.md: marker-colour row core `[x]`, cli `[ ]`, gui `[ ]`. Ledgers: no decision; next free `Pass 581.0`; next filing 1057th.
+
+**For `pdfcer-gui`:** adopt `marker_color` for the Properties colour row.
+
 ## 2026-10-13 (1055th filing) — `Passes 567.0` + `568.0` shipped (`G185`, `G186` defects)
 
 **Shipped:** `26cc218c`. `567.0`: `insert_pages` with a repeated index now imports each repeat with a fresh mapping (was a `/Kids` cycle and a commit-postcondition panic); private `import_pages`; `copy_and_splice` under the 80-line limit, baseline line deleted. `568.0`: `paste_raw_annotation` moves `/L`, `/Vertices`, `/QuadPoints`, `/CL`, `/InkList` with `/Rect` via private `translated_geometry`, shared with `move_annotation`; a by-reference key is rewritten in the pasted object.
