@@ -1566,8 +1566,8 @@ a break. The space is the block's median space glyph, else its median word
 gap, else a third of an em. A line is measured from the block's leftmost line
 start.
 
-**pdfcer's own text is exact (`Pass 559.0`).** `edit_block_text` writes its
-block as one `BT … ET` opening with a `/pdfc_TextBlock MP` marked-content
+**pdfcer's own text is exact (`Pass 559.0`, `Pass 574.0`).** `edit_block_text` writes its
+block (and `add_text` its run, so `place_text` too) as one `BT … ET` opening with a `/pdfc_TextBlock MP` marked-content
 point and puts a `/pdfc_Break MP` after each line a typed break ends, blank
 lines included (ISO 32000-1 §14.6 Table 320; private second-class names,
 Annex E, which other readers ignore). A block whose glyphs all lie in one such
