@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-13 (1064th filing) — `Pass 577.0` shipped (`G180`, transform parts of a form each by its own matrix)
+
+**Shipped:** `10c73fcf` (code) and `6790b2e4` (`docs/core-api`). `EditSession::transform_objects_each_in_form(page_index, &[(leaf, Matrix)], TransformOptions) -> Result<FormSurgeryOutcome, EditError>`: page-space matrix per leaf of one placed form, one undo entry (`TransformObjects`), all-or-nothing; duplicate leaf gives `DuplicateObjectInMove`, empty gives `FormLeafOutOfRange`; edits the form in place (decision 076) and reports invocations and pages. CLI `object-transform-each --leaf` (output adds ` invocations= pages=`). Verb count 359 to 360. No dependency change.
+
+**Verified (engineer-reported; no shell here):** new `tests/transform_objects_each_in_form.rs` (2) plus CLI test `leaf_indices_transform_parts_of_a_placed_form`; sabotage (reversed pairing) failed 1; fmt, clippy, rustdoc, structure and doc gates clean.
+
+**Files:** ROADMAP (new Shipped entry; the 577.0 Next-up item was a bullet, collapsed to a pointer, so the `###` count stays 80; ledger line now "next filing 1065th"). FEATURES.md: the Planned per-leaf-matrix row ticked core `[x]`, cli `[x]`, gui `[ ]`, moved to Implemented. No decision; next free `Pass 581.0`.
+
+**For `pdfcer-gui`:** call the new verb to give each leaf its own matrix (rotating the parts of a Circular dimension becomes possible). FIXED reply is the engineer's.
+
 ## 2026-10-13 (1063rd filing) — `Pass 576.0` shipped (`G174`, stroke width and dash in points)
 
 **Shipped:** `cef7646f` (code) and `c63bc05b` (`docs/core-api`). `StrokeStyle.units: StrokeUnits` (`UserSpace` default, `Page`): with `Page`, each path's width, dash and phase are divided by its own stroke scale (sqrt|det CTM|, the stroke hit-test's measure), so one `set_object_stroke_style` call strokes a mixed-scale selection alike. The in-form route takes the scale from each leaf's page-space CTM. `PathObject` gains `stroke_scale`, `stroke_scale_is_uniform`, `line_width_pt`, `dash_pt`; a non-uniform CTM uses the geometric mean and is disclosed. CLI `set-object-stroke-style --points`. No dependency change; verb count unchanged at 359.

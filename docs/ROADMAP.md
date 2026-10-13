@@ -115,6 +115,21 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 577.0` — parts of a placed form can each be transformed by its own matrix: `EditSession::transform_objects_each_in_form` (core + CLI; answers `pdfcer-gui` `G180`) — SHIPPED 2026-10-13 (1064th filing)
+
+Commits `10c73fcf` (code, tests) and `6790b2e4` (`docs/core-api`). Push state not checked (no shell here). No dependency or manifest change, so the `cargo tree` invariant is untouched. No decision.
+
+- **API.** `transform_objects_each_in_form(&mut self, page_index, transforms: &[(usize, Matrix)], options: TransformOptions) -> Result<FormSurgeryOutcome, EditError>`. Each leaf of one placed form XObject gets its own page-space matrix. One undo entry (`CommandKind::TransformObjects`); all-or-nothing.
+- **Refusals.** A leaf listed twice gives `DuplicateObjectInMove`; an empty list gives `FormLeafOutOfRange`.
+- **Scope.** The form is edited in place (decision 076), and the outcome reports the invocation and page counts. Before this, a form had a per-leaf delta (`move_objects_each_in_form`) and one shared matrix (`transform_objects_in_form`) only.
+- **CLI.** `pdfcer object-transform-each --leaf`; the output line adds ` invocations= pages=`.
+- **core-api.** A row in `02-editing-and-saving.md`; `EditSession` verb count 359 to 360.
+- **Tests (engineer-reported; no shell here).** New `crates/pdfcer-core/tests/transform_objects_each_in_form.rs`, 2 tests; CLI test `leaf_indices_transform_parts_of_a_placed_form`. Sabotage (leaf/matrix pairing reversed) failed 1 test, code restored. fmt, clippy `-D warnings`, rustdoc, structure and doc gates clean.
+
+`FEATURES.md`: the Planned row for per-leaf matrices in a form ticked core `[x]`, cli `[x]`, gui `[ ]` and moved to Implemented.
+
+Ledgers: no decision; next free `Pass 581.0`; next filing 1065th.
+
 ### `Pass 576.0` — stroke width and dash can be given and read in points: `StrokeStyle.units`, `PathObject::line_width_pt` (core + CLI; answers `pdfcer-gui` `G174`) — SHIPPED 2026-10-13 (1063rd filing)
 
 Commits `cef7646f` (code, tests) and `c63bc05b` (`docs/core-api`). Push state not checked (no shell here). No dependency or manifest change, so the `cargo tree` invariant is untouched. No decision.
@@ -21943,7 +21958,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1064th (updated at the 1063rd).
+> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1065th (updated at the 1064th).
 > - `567.0` (`G185`) and `568.0` (`G186`) shipped at the 1055th filing (`26cc218c`); see *Shipped*.
 > - `569.0` (`G176`) shipped at the 1056th filing (`73d68728`, `13ffa912`); see *Shipped*.
 > - `570.0` (`G177`) shipped at the 1057th filing (`3dde42ee`, `7eca1c45`); see *Shipped*.
@@ -21953,7 +21968,7 @@ closes out the *prior* filing's business rather than opening this one's.
 > - `574.0` (`G182`) shipped at the 1062nd filing (`0be139dc`, `5fc688de`); see *Shipped*.
 > - `575.0` (`G183`) shipped at the 1061st filing (`8653c865`, `1663a34a`; before `574.0`); see *Shipped*.
 > - `576.0` (`G174`) shipped at the 1063rd filing (`cef7646f`, `c63bc05b`); see *Shipped*.
-> - **`577.0` (`G180`) — no `transform_objects_each_in_form`.** The page case has `transform_objects_each`; for form leaves only a per-leaf delta (`move_objects_each_in_form`) and one shared matrix (`transform_objects_in_form`) exist. Ask: `EditSession::transform_objects_each_in_form(page, &[(leaf, Matrix)], TransformOptions) -> Result<FormSurgeryOutcome, EditError>`, matrices in page space, every leaf in one form, same refusals, one command. Acceptance: all-or-nothing; one undo step; Circular with rotation on leaves becomes possible.
+> - `577.0` (`G180`) shipped at the 1064th filing (`10c73fcf`, `6790b2e4`); see *Shipped*.
 > - **`578.0` (`G181`) — `DocumentImageAlpha` borrows the view, so its decoded-mask memo cannot outlive one call.** The shell holds the session as `Arc<EditSession>` taken exclusively for edits, so a hover frame over a masked image re-decodes the mask (tens of millions of samples for a 1-bit stencil scan). Ask: an owned cache (`ImageAlphaCache` with `with_view`), or any shape separating the owned decoded coverage from the borrowed view. Acceptance: a second query over the same image does not re-decode; the cache is dropped by the caller on a new edit epoch; `_with` hit tests accept it.
 > - **`579.0` (`G184`) — a session's undo history cannot travel to another process.** Moving a document with unsaved edits to another window carries content but not undo steps (the receiving session's base revision is the carried edits). Ask: `EditSession::export_history(&self) -> Result<Vec<u8>, _>` and `import_history(&mut self, &[u8]) -> Result<(), _>`, the import refusing when the base revision differs. **Largest of the batch; it may need a design decision first** (serialising `Command` kinds, which hold private state, and a base-revision identity); scope it before building.
 
