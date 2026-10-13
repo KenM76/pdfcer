@@ -3420,6 +3420,15 @@ for page in &pages_in(&doc)? {
 `destination_with_diagnostics` when you want the
 `OutlineDiagnostics` the read produced.
 
+`named_destinations(&graph) -> Vec<(Vec<u8>, Option<Destination>)>`
+lists every name both §12.3.2.3 namespaces define, after the resolver's
+collision merge (the name tree wins), sorted byte-wise, with
+`named_destination_count()` entries. Each name is resolved as a link
+naming it would be. `None` means the name's defined value is not a
+destination; the name is still listed, because `LinkTarget::Named` accepts
+it. Build the drop-down for a named link target from this list; show a
+name with `String::from_utf8_lossy`, and pass its bytes back unchanged.
+
 `page_link_destinations(&graph, page_id, &reader)` — `annot.rs` →
 `PageLinks` (`links: Vec<LinkDestination>`,
 `links_without_destination: usize`). `LinkDestination` carries
