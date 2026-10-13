@@ -5,33 +5,29 @@ Engineer-owned; replaced each session. The previous long-form handoff
 (gate-sweep history, the carried OWED list, benchmark recipes) is in git:
 `git show 78635459:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-08, after `Pass 563.0` and the 1051st filing.
+**Written:** 2026-10-13, after `Pass 579.0` and the 1066th filing.
 
 ## State
 
-- **Release:** v0.81.0 is the latest (2026-10-08, tag on `c0761048`, 8
-  assets). OneDrive `pdfcer2` = 0.81.0, `pdfcer1` = 0.80.0, so **the next
-  release writes `pdfcer1`**. `562.0`–`564.0` are unreleased.
-  `main` pushed at `94124031`, CI green. `verify-release.py v0.81.0` keeps
-  two explained FAILs: the spec-librarian's memory files (not ours) and no
-  CI run at the tag (pushed main after later code commits; permanent for
-  this tag). From now on push main at the tag first, or
-  `gh workflow run CI --ref <tag>` (trigger added in `c6a0cda0`).
-- **Ledgers:** next free Pass **566.0**; next filing **1053rd**; no decision
-  added since 183. Core-api verb count **356**.
-- **Shipped since the last handoff:** `561.0`, `562.0`, `564.0`
-  (`MetadataRemoval::needs_full_rewrite`, G172), `563.0` (deskew measured
-  off the session via `deskew::page_scan_image`/`detect_image_skew` on a
-  `&DocumentView`; `EditSession::coalesce_last_same`; G171), `565.0`
-  (`OcrLayerRemoval::region_groups`, public `layers::group_in_use`, G173).
-  G170–G173 have FIXED replies.
-- **Pre-push hook bites:** an unfiled code commit refuses the push of
-  `main`. Never pipe the gate scripts through `tail`/`head` in a chain.
-- **Next up is empty of open Passes.** Take the operator's ordered plan below.
-- **Inbound:** G142–G173 all have FIXED replies. Older requests still sit in
-  the `open/` folder (`check-requests-scoped.py` is green, so each is scoped
-  or answered). The one open GitHub issue (text layer position after OCR)
-  awaits Ken's OK to close. Check all three channels every session.
+- **Release:** v0.81.0 is still the latest (tag on `c0761048`). OneDrive
+  `pdfcer2` = 0.81.0, so **the next release writes `pdfcer1`**. `562.0`-`579.0`
+  are unreleased, including the OCR upscale option (`566.0`, Ken's request).
+- **Push:** `origin/main` was at `33e8620d` (the 1052nd filing) at the start
+  of this handoff; everything since is local until the gates go green and it is
+  pushed. Check `git log origin/main..HEAD`.
+- **Ledgers:** next free Pass **581.0**; next filing **1067th**; no decision
+  added since 183. Core-api verb count **362**.
+- **pdfcer-gui G174-G186 are all shipped as `567.0`-`579.0`**, each with a
+  FIXED reply. `579.0` (G184) added `export_history`/`import_history`: an
+  undo history moves to a fresh session on the same base bytes (format
+  `PDFCERHIST` v1, kinds by variant name, fuzz target `import_history`).
+  The variant list in `src/edit/history_kind.rs` must gain every new
+  `CommandKind` variant; the encoder's exhaustive match will not compile
+  until it does.
+- **Next up holds one open Pass, `580.0`**: the render rasteriser magnifies
+  images nearest-neighbour even without `/Interpolate`. Self-found; fix it.
+- **Inbound:** check all three channels. The open GitHub issue (text layer
+  position after OCR) still awaits Ken's OK to close.
 
 ## Follow-ups worth a Pass
 
