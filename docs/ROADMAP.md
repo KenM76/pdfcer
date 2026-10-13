@@ -115,6 +115,22 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 579.0` — a session's unsaved edits and undo history can move to another process: `EditSession::export_history` / `import_history` (core; answers `pdfcer-gui` `G184`) — SHIPPED 2026-10-13 (1066th filing)
+
+Commits `1601adb6` (code, tests, fuzz target) and `a8558001` (`docs/core-api`, two rows in `02-editing-and-saving.md` §1.4). Push state not checked (no shell here). No dependency or manifest change (`sha2` was already in core), so the `cargo tree` invariant is untouched. No decision.
+
+- **API.** `export_history(&self) -> Vec<u8>`; `import_history(&mut self, &[u8]) -> Result<HistoryImport, HistoryError>`. Carries the unsaved overlay (touched objects, deletions, working trailer, authored stream bytes, the redacted and pending-redaction flags) and both undo/redo stacks to a fresh session opened from the same base bytes. Format `PDFCERHIST` v1, keyed to the base by length plus SHA-256.
+- **Refusals.** `SessionNotPristine`, `BaseMismatch`, `NotAHistory`, `UnsupportedVersion`, `UnknownCommand` (`CommandKind` travels by variant name), `Malformed{offset}`. The session is unchanged after any refusal.
+- **Untrusted input.** Counts are bounded by the bytes remaining, nesting by 256, stream spans by base plus staging.
+- **Not carried.** Checkpoints and evicted commands.
+- **Modules.** New `src/edit/history_codec.rs`, `history_kind.rs`, `history_transfer.rs`. Verb count 360 to 362.
+- **No CLI**: a CLI session ends with its invocation, so it has no history to move. The gui column is `pdfcer-gui`'s; not adopted yet.
+- **Tests (engineer-reported; no shell here).** New `tests/history_transfer.rs`, 3 tests: a round trip with identical saves before and after a redo and a full undo; every refusal leaving the session unchanged; an unknown command refused by name. Sabotage (import drops the staging bytes) failed the round trip, code restored. Fuzz target `import_history`: 87,903 runs in 61 s (about 0.7 ms each), 0 crashes. fmt, clippy `-D warnings`, rustdoc intra-doc links, code-structure, public-fns-documented, string-gaps and tests-harnessed gates green.
+
+`FEATURES.md`: the Planned row for undo-history transfer rewritten in place and ticked core `[x]`, cli `—`, gui `[ ]`.
+
+Ledgers: no decision; next free `Pass 581.0`; next filing 1067th.
+
 ### `Pass 578.0` — a decoded image mask can be kept across frames: `vector::ImageAlphaCache` (core; answers `pdfcer-gui` `G181`) — SHIPPED 2026-10-13 (1065th filing)
 
 Commits `6d8e8a79` (code, tests) and `0d6a29c4` (`docs/core-api`, `01-reading-and-model.md` image-transparency section and feature-table row). Push state not checked (no shell here). No dependency or manifest change, so the `cargo tree` invariant is untouched. No decision.
@@ -21971,7 +21987,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1066th (updated at the 1065th).
+> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1067th (updated at the 1066th).
 > - `567.0` (`G185`) and `568.0` (`G186`) shipped at the 1055th filing (`26cc218c`); see *Shipped*.
 > - `569.0` (`G176`) shipped at the 1056th filing (`73d68728`, `13ffa912`); see *Shipped*.
 > - `570.0` (`G177`) shipped at the 1057th filing (`3dde42ee`, `7eca1c45`); see *Shipped*.
@@ -21983,7 +21999,7 @@ closes out the *prior* filing's business rather than opening this one's.
 > - `576.0` (`G174`) shipped at the 1063rd filing (`cef7646f`, `c63bc05b`); see *Shipped*.
 > - `577.0` (`G180`) shipped at the 1064th filing (`10c73fcf`, `6790b2e4`); see *Shipped*.
 > - `578.0` (`G181`) shipped at the 1065th filing (`6d8e8a79`, `0d6a29c4`); see *Shipped*.
-> - **`579.0` (`G184`) — a session's undo history cannot travel to another process.** Moving a document with unsaved edits to another window carries content but not undo steps (the receiving session's base revision is the carried edits). Ask: `EditSession::export_history(&self) -> Result<Vec<u8>, _>` and `import_history(&mut self, &[u8]) -> Result<(), _>`, the import refusing when the base revision differs. **Largest of the batch; it may need a design decision first** (serialising `Command` kinds, which hold private state, and a base-revision identity); scope it before building.
+> - `579.0` (`G184`) shipped at the 1066th filing (`1601adb6`, `a8558001`); see *Shipped*. The batch `567.0`-`579.0` is complete.
 
 > **`Pass 580.0` — OCR rasterises a low-resolution scan with nearest-neighbour magnification (defect, found at the 1053rd filing while shipping `Pass 566.0`).** `pdfcer-render` magnifies images with `FilterQuality::Nearest` unless the image has `/Interpolate true` (`crates/pdfcer-render/src/interpret.rs`, the `image_geometry` quality choice beside `image_minify`). So `pdfcer ocr --dpi` above the scan's own resolution feeds the engine blocky pixels. Measured: ocrs on a sharp 50 dpi page, 74.5% at 1:1 but 42.6% at `--dpi 150`. Mitigation documented in the CLI help: `--dpi <native> --upscale N`. Candidate fix: a magnify policy beside `MinifyFilter`/`image_minify`, with the OCR rasteriser asking for smooth magnification; display rendering keeps its default (pdfium parity governs it). Acceptance: `ocr --dpi 150` on a 50 dpi scan scores no worse than rendering at native dpi and then upscaling; display rendering output is byte-identical for an image without `/Interpolate`.
 

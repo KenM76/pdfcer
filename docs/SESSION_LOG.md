@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-13 (1066th filing) — `Pass 579.0` shipped (`G184`, undo history moves between processes)
+
+**Shipped:** `1601adb6` (code) and `a8558001` (`docs/core-api`). `EditSession::export_history() -> Vec<u8>` and `import_history(&[u8]) -> Result<HistoryImport, HistoryError>` carry the unsaved overlay and both undo/redo stacks to a fresh session opened from the same base bytes in another process. Format `PDFCERHIST` v1 keyed to the base by length plus SHA-256; `CommandKind` travels by name. Refusals: `SessionNotPristine`, `BaseMismatch`, `NotAHistory`, `UnsupportedVersion`, `UnknownCommand`, `Malformed{offset}`; session unchanged after any. Input treated as untrusted (counts bounded by bytes left, nesting 256, stream spans by base plus staging). Checkpoints and evicted commands do not travel. Verb count 360 to 362. No dependency change.
+
+**Verified (engineer-reported; no shell here):** 3 tests in `tests/history_transfer.rs` (round trip with identical saves; refusals leave session unchanged; unknown command refused by name); sabotage failed the round trip; fuzz `import_history` 87,903 runs in 61 s, 0 crashes; fmt, clippy, rustdoc and the structure and doc gates green.
+
+**Files:** ROADMAP (new Shipped entry; Next-up bullet collapsed to a pointer, `###` count stays 80; ledger "next filing 1067th"). FEATURES.md: Planned row rewritten, core `[x]`, cli `—`, gui `[ ]`. No decision; next free `Pass 581.0`. The `567.0`-`579.0` batch is complete.
+
+**For `pdfcer-gui`:** export before handing a document to another window, import into a session opened from the same base bytes. FIXED reply written by the engineer.
+
 ## 2026-10-13 (1065th filing) — `Pass 578.0` shipped (`G181`, owned image-mask cache)
 
 **Shipped:** `6d8e8a79` (code) and `0d6a29c4` (`docs/core-api`). New `vector::ImageAlphaCache`: owned, `Send + Sync` memo of decoded mask coverage keyed by image `ObjId`; `with_view` yields a `DocumentImageAlpha` that reads and fills it; `len`, `is_empty`, `clear`. Valid for one document state, so the caller drops or clears it on a new edit epoch. `DocumentImageAlpha::new` unchanged. Not a verb (count stays 360). No dependency change.
