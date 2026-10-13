@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-13 (1058th filing) — `Pass 571.0` shipped (`G178`, a link's target and border are readable)
+
+**Shipped:** `46fdaa50` (code) and `2e4a23fc` (`docs/core-api`). `EditSession::link(annot_id)` returns `#[non_exhaustive] LinkReading { annot_id, target, action, border, border_color }`. A name stays `Named`; an array or `/GoTo` `/D` resolves to `Page`; `/URI` reads `Uri`; other actions give `target: None` with `/S` in `action`; `/Dest` wins over `/A`. Border per Tables 164/166/168 (width 0 or empty `/C` gives `None`; absent or malformed `/C` is black, stated by `border_color`). Verb count 358.
+
+**Verified (engineer-reported; no shell here):** new `link_read.rs`, 6 tests; 17 link tests pass; sabotage failed 2 as expected, code restored; no dependency change.
+
+**Known limit:** `set_link_target` refuses a `Page` target with view `Unknown` or `Absent`, so such a target reads but cannot be re-applied unchanged.
+
+**Files:** ROADMAP (new Shipped entry; the 571.0 Next-up bullet collapsed to a pointer, `###` count in Next up unchanged at 80). FEATURES.md: row core `[x]`, cli `[ ]`, gui `[ ]`, moved to Implemented in place. Ledgers: no decision; next free `Pass 581.0`; next filing 1059th.
+
+**For `pdfcer-gui`:** adopt `link` for the link Properties panel.
+
 ## 2026-10-13 (1057th filing) — `Pass 570.0` shipped (`G177`, a widget's free angle and opacity are readable)
 
 **Shipped:** `3dde42ee` (code) and `7eca1c45` (`docs/core-api`). `forms::Widget` gains `free_angle: Option<f64>` and `opacity: Option<f64>`, both filled by the new crate-internal `free_turn_of` (`edit/widget_angle.rs`); `EditSession::free_turn` delegates to it, so read and `turn_widget` share one rule. Verb count 357.

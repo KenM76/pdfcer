@@ -115,6 +115,21 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 571.0` — a link's target and border are readable: `EditSession::link` -> `LinkReading` (core; answers `pdfcer-gui` `G178`) — SHIPPED 2026-10-13 (1058th filing)
+
+Commits `46fdaa50` (code, tests) and `2e4a23fc` (`docs/core-api`). Push state not checked (no shell here). No dependency or manifest change, so the `cargo tree` invariant is untouched. No decision.
+
+- **`link(annot_id) -> Result<LinkReading, EditError>`.** `#[non_exhaustive] LinkReading { annot_id, target: Option<LinkTarget>, action: Option<String>, border: Option<LinkBorder>, border_color: ColorEntry }`. Errors: `AnnotationNotFound`, `LinkVerbOnOther`, `NotADictionary`.
+- **Target.** A name or string `/Dest` stays `LinkTarget::Named`, unresolved. An explicit array or a `/GoTo` `/D` resolves through `DestinationReader` to `LinkTarget::Page`. A `/URI` action reads as `LinkTarget::Uri`. Any other action type gives `target: None` with its `/S` in `action`. `/Dest` wins over `/A`.
+- **Border (ISO 32000-2 Tables 164/166/168).** Width is `/BS /W`, else `/Border[2]`, else 1; the border is `None` when width is 0 or `/C` is empty. Dash from `/BS /S /D` (`/D` defaults to `[3]`) or `/Border[3]`; any other `/BS /S` reads solid. An absent or malformed `/C` gives black, and `border_color` states which.
+- **Known limit.** `set_link_target` refuses a `Page` target whose view is `Unknown` or `Absent`, so such a target can be read but not re-applied unchanged.
+
+**Verified (engineer-reported; not checked against disk by me).** New `crates/pdfcer-core/tests/link_read.rs`, 6 tests; 17 link tests pass in total. A sabotage check failed 2 tests as expected and the code was restored. `docs/core-api` 02-editing-and-saving verb count 357 -> 358.
+
+`FEATURES.md`: the link-read row ticked core `[x]`, moved to Implemented; cli `[ ]` (no CLI caller), gui `[ ]`. Not rounded up. FIXED reply written to the FeatureRequests channel.
+
+Ledgers: no decision; next free `Pass 581.0`; next filing 1059th.
+
 ### `Pass 570.0` — a form field's free angle and opacity are readable: `Widget::free_angle`, `Widget::opacity` (core; answers `pdfcer-gui` `G177`) — SHIPPED 2026-10-13 (1057th filing)
 
 Commits `3dde42ee` (code, tests) and `7eca1c45` (`docs/core-api`). Push state not checked (no shell here). No manifest change, so the `cargo tree` invariant is untouched. No decision.
@@ -21857,11 +21872,11 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1058th (updated at the 1057th).
+> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1059th (updated at the 1058th).
 > - `567.0` (`G185`) and `568.0` (`G186`) shipped at the 1055th filing (`26cc218c`); see *Shipped*.
 > - `569.0` (`G176`) shipped at the 1056th filing (`73d68728`, `13ffa912`); see *Shipped*.
 > - `570.0` (`G177`) shipped at the 1057th filing (`3dde42ee`, `7eca1c45`); see *Shipped*.
-> - **`571.0` (`G178`) — a link's as-written target and border are not readable.** `page_link_destinations` resolves a named link to a page and drops the `/URI` string; no width, colour or dash is read. Ask: `EditSession::link(id) -> Result<LinkReading, EditError>` (or fields on `LinkDestination`) returning `LinkTarget` with a name kept as a name, the `/URI` string, and `Option<LinkBorder>`. Acceptance: a link written with `LinkTarget::Named` reads back `Named`; a web link reads its address; Apply with nothing changed is a no-op; border rules shared with the border writer.
+> - `571.0` (`G178`) shipped at the 1058th filing (`46fdaa50`, `2e4a23fc`); see *Shipped*.
 > - **`572.0` (`G179`) — named destinations cannot be listed.** Only `named_destination_count` is public. Ask: `DestinationReader::named_destinations()` yielding each name with the `Destination` it resolves to, over both §12.3.2.3 namespaces after the resolver's own collision merging. Acceptance: the listing's length equals `named_destination_count`; a name in both namespaces appears once, as the resolver would resolve it. CLI listing verb if one fits the existing link verbs.
 > - **`573.0` (`G175`) — the in-form text split has no plan twin carrying the line-inference disclosure (rule 4).** For a page object `text_object_split_plan` returns a `SplitPlan` with the sentence "line breaks inferred from baselines and spacing"; a form leaf has only `text_object_split_points` (cut indices) and `FormSurgeryOutcome` omits the sentence, so the shell authors it a second time. Ask: `text_object_split_plan_in_form(page, leaf, granularity)` returning the same `SplitPlan`. Acceptance: same disclosure text from one source for both cases; the GUI's `lines_inferred` becomes deletable.
 > - **`574.0` (`G182`) — `add_text` writes no line-break marks.** Only `edit_block_text` writes the private `pdfc_` break marker, so a paragraph typed with `add_text` re-opens `LineEndSource::Inferred`, and a break after a nearly full line reads as a wrap; the next edit joins the lines. Ask: `add_text`, `place_text` and any other pdfcer writer of multi-line text write the same marks. Acceptance: `"A much longer first line\nx"` re-opens `Marked` with `[Break, Last]`; a CLI `add-text` paragraph does too; unmarked foreign text stays `Inferred`.
