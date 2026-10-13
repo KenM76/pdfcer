@@ -760,27 +760,60 @@ pub fn spec_from_dict<G: ObjectGraph + ?Sized>(
     }
 }
 
-/// Read a `/C`-shaped colour array (§12.5.6), length-selecting the device
-/// space exactly as §8.6.3 does.
-///
-/// A **zero-length** array reads as `None` and so does an absent key: the
-/// standard defines `0` components as "no colour", so the two genuinely
-/// mean the same here. Any other length is also `None` — a 2- or
-/// 5-component array names no device space, and treating it as an error
-/// would refuse to restyle an annotation over a key the caller is about to
-/// overwrite anyway.
+/// How a `/C`- or `/IC`-shaped colour entry reads (ISO 32000-2 Table 166,
+/// §12.5.6): the array length selects the device space as §8.6.3 does.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
+pub enum ColorEntry {
+    /// The key is not in the dictionary.
+    Absent,
+    /// A zero-length array: the standard's "no colour" (transparent).
+    Empty,
+    /// One, three or four numbers.
+    Device(Color),
+    /// Not an array, an element that is not a number, or a length other
+    /// than 0, 1, 3 or 4. pdfcer treats it as absent rather than guess.
+    Malformed,
+}
+
+impl ColorEntry {
+    /// The colour, when the entry names one.
+    #[must_use]
+    pub fn color(self) -> Option<Color> {
+        match self {
+            Self::Device(c) => Some(c),
+            _ => None,
+        }
+    }
+}
+
+/// Read the colour entry `key` of an annotation dictionary. The one reader
+/// every pdfcer annotation restyle and appearance redraw uses.
+pub fn color_entry<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict, key: &[u8]) -> ColorEntry {
+    let Some(value) = annot.get(key) else {
+        return ColorEntry::Absent;
+    };
+    let Object::Array(items) = graph.resolve(value) else {
+        return ColorEntry::Malformed;
+    };
+    let nums: Option<Vec<f64>> = items.iter().map(|o| graph.resolve(o).as_number()).collect();
+    match nums.as_deref() {
+        Some([]) => ColorEntry::Empty,
+        Some(&[g]) => ColorEntry::Device(Color::Gray(g)),
+        Some(&[r, g, b]) => ColorEntry::Device(Color::Rgb(r, g, b)),
+        Some(&[c, m, y, k]) => ColorEntry::Device(Color::Cmyk(c, m, y, k)),
+        _ => ColorEntry::Malformed,
+    }
+}
+
+/// [`color_entry`]'s colour, `None` for every other reading: a restyle
+/// over a key the caller is about to overwrite has no reason to refuse.
 pub(crate) fn read_color<G: ObjectGraph + ?Sized>(
     graph: &G,
     annot: &Dict,
     key: &[u8],
 ) -> Option<Color> {
-    let nums = read_numbers(graph, annot, key);
-    match *nums.as_slice() {
-        [g] => Some(Color::Gray(g)),
-        [r, g, b] => Some(Color::Rgb(r, g, b)),
-        [c, m, y, k] => Some(Color::Cmyk(c, m, y, k)),
-        _ => None,
-    }
+    color_entry(graph, annot, key).color()
 }
 
 /// Read the border width: `/BS` `/W` (Table 168), else `/Border`'s third

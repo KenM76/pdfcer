@@ -6,12 +6,25 @@ use super::{
     StyleEdit,
 };
 use crate::annot_author::{
-    self, AttachmentIcon, AuthoredTextAnnot, CaretSpec, CaretSymbol, Color, FileAttachmentSpec,
-    ScreenSpec, SoundIcon, SoundSpec,
+    self, AttachmentIcon, AuthoredTextAnnot, CaretSpec, CaretSymbol, Color, ColorEntry,
+    FileAttachmentSpec, ScreenSpec, SoundIcon, SoundSpec,
 };
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, Name, ObjId, Object};
 use crate::page_tree::Rect;
+
+/// The colour pdfcer draws a marker in when its `/C` names none; `None`
+/// outside [`MARKER_SUBTYPES`]. The authoring specs' own defaults.
+fn marker_default_color(subtype: &[u8]) -> Option<Color> {
+    let rect = Rect::from_corners(0.0, 0.0, 1.0, 1.0);
+    match subtype {
+        b"Caret" => Some(CaretSpec::new(rect).color),
+        b"FileAttachment" => Some(FileAttachmentSpec::new(rect, "", Vec::new()).color),
+        b"Sound" => Some(SoundSpec::new(rect, crate::sound::SoundData::empty()).color),
+        b"Screen" => Some(ScreenSpec::new(rect, "", "", Vec::new()).color),
+        _ => None,
+    }
+}
 
 /// What [`EditSession::set_annot_opacity`] did.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -64,6 +77,18 @@ pub struct MarkerStyleChange {
     /// The appearance on disk was not pdfcer's drawing and was replaced
     /// (only possible with [`MarkerStyle::redraw_as_plain`]).
     pub appearance_was_foreign: bool,
+}
+
+/// A marker's icon colour as [`EditSession::marker_color`] reads it.
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
+pub struct MarkerColor {
+    /// The colour pdfcer draws the icon in: the `/C` colour when it names
+    /// one, else the subtype's authoring default.
+    pub color: Color,
+    /// How `/C` itself read. Anything but [`ColorEntry::Device`] means
+    /// `color` is the default; [`ColorEntry::Malformed`] should be shown.
+    pub entry: ColorEntry,
 }
 
 /// The subtypes [`EditSession::set_marker_style`] recolours.
@@ -213,6 +238,38 @@ impl EditSession {
             subtype,
             appearance,
             appearance_was_foreign: foreign,
+        })
+    }
+
+    /// The icon colour of a marker annotation: the value
+    /// [`Self::set_marker_style`] writes, read by the rule its drawing uses.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::AnnotationNotFound`], [`EditError::NotADictionary`], and
+    /// [`EditError::StylePropertyNotApplicable`] for a subtype outside
+    /// [`MARKER_SUBTYPES`].
+    pub fn marker_color(&self, annot_id: ObjId) -> Result<MarkerColor, EditError> {
+        let (target, _all) = self.locate_annotation(annot_id)?;
+        let graph = self.graph();
+        let dict = graph
+            .resolved(annot_id)
+            .as_dict()
+            .ok_or(EditError::NotADictionary {
+                id: annot_id,
+                key: "C",
+            })?;
+        let default = marker_default_color(&target.subtype).ok_or_else(|| {
+            EditError::StylePropertyNotApplicable {
+                id: annot_id,
+                subtype: target.subtype_label(),
+                property: "marker colour",
+            }
+        })?;
+        let entry = annot_author::color_entry(&graph, dict, b"C");
+        Ok(MarkerColor {
+            color: entry.color().unwrap_or(default),
+            entry,
         })
     }
 

@@ -139,7 +139,9 @@ mod node_shape;
 mod restack;
 mod stroke_style;
 mod widget_angle;
-pub use annot_restyle::{AnnotOpacityChange, MARKER_SUBTYPES, MarkerStyle, MarkerStyleChange};
+pub use annot_restyle::{
+    AnnotOpacityChange, MARKER_SUBTYPES, MarkerColor, MarkerStyle, MarkerStyleChange,
+};
 pub use foreign_button::ForeignAppearance;
 pub use form_paint::FormPaintOutcome;
 mod markup_respan;

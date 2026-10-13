@@ -2,7 +2,7 @@
 //! request G150).
 
 use pdfcer_core::annot_author::{
-    AttachmentIcon, CaretSpec, Color, FileAttachmentSpec, ScreenSpec, SoundSpec,
+    AttachmentIcon, CaretSpec, Color, ColorEntry, FileAttachmentSpec, ScreenSpec, SoundSpec,
 };
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::{
@@ -208,14 +208,20 @@ fn a_non_marker_is_refused_by_name() {
 
 /// A page whose caret draws a blue square another program drew.
 fn foreign_caret() -> Vec<u8> {
+    caret_with("/C [0 0 1]")
+}
+
+/// [`foreign_caret`] with `color_key` in place of its `/C` entry.
+fn caret_with(color_key: &str) -> Vec<u8> {
     let content = "0 0 1 rg 0 0 10 10 re f";
     let bodies = [
         "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
         "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Annots [4 0 R] >>".to_owned(),
-        "<< /Type /Annot /Subtype /Caret /Rect [100 100 110 110] /C [0 0 1] \
-         /AP << /N 5 0 R >> >>"
-            .to_owned(),
+        format!(
+            "<< /Type /Annot /Subtype /Caret /Rect [100 100 110 110] {color_key} \
+             /AP << /N 5 0 R >> >>"
+        ),
         format!(
             "<< /Type /XObject /Subtype /Form /BBox [0 0 10 10] /Length {} >>\nstream\n{content}\nendstream",
             content.len()
@@ -292,5 +298,56 @@ fn set_markup_style_refuses_a_nan_opacity() {
             }
         ),
         Err(EditError::MarkupOpacityOutOfRange { .. })
+    ));
+}
+
+/// G176: the colour `set_marker_style` writes reads back, in every device
+/// space, on every marker subtype.
+#[test]
+fn a_marker_colour_reads_back_what_was_written() {
+    let mut s = session();
+    let colors = [
+        Color::Gray(0.25),
+        Color::Rgb(0.0, 1.0, 0.0),
+        Color::Cmyk(0.1, 0.2, 0.3, 0.4),
+    ];
+    for id in markers(&mut s) {
+        for color in colors {
+            s.set_marker_style(id, &MarkerStyle::new(color)).unwrap();
+            let read = s.marker_color(id).unwrap();
+            assert_eq!(read.color, color);
+            assert_eq!(read.entry, ColorEntry::Device(color));
+        }
+    }
+}
+
+/// An absent, empty or malformed `/C` reads as the subtype's drawing
+/// default, and says which it was rather than guessing a colour.
+#[test]
+fn a_missing_or_malformed_marker_colour_is_stated() {
+    let id = ObjId::new(4, 0);
+    let default = CaretSpec::new(RECT).color;
+    let cases = [
+        ("/C [0 0 1]", ColorEntry::Device(Color::Rgb(0.0, 0.0, 1.0))),
+        ("", ColorEntry::Absent),
+        ("/C []", ColorEntry::Empty),
+        ("/C [0 0]", ColorEntry::Malformed),
+        ("/C [0 (x) 1]", ColorEntry::Malformed),
+        ("/C /Red", ColorEntry::Malformed),
+    ];
+    for (key, entry) in cases {
+        let s = EditSession::new(Document::from_bytes(caret_with(key)).unwrap());
+        let read = s.marker_color(id).unwrap();
+        assert_eq!(read.entry, entry, "{key}");
+        assert_eq!(read.color, entry.color().unwrap_or(default), "{key}");
+    }
+}
+
+#[test]
+fn a_non_marker_colour_read_is_refused() {
+    let s = session();
+    assert!(matches!(
+        s.marker_color(ObjId::new(4, 0)),
+        Err(EditError::StylePropertyNotApplicable { .. })
     ));
 }
