@@ -115,6 +115,20 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 570.0` — a form field's free angle and opacity are readable: `Widget::free_angle`, `Widget::opacity` (core; answers `pdfcer-gui` `G177`) — SHIPPED 2026-10-13 (1057th filing)
+
+Commits `3dde42ee` (code, tests) and `7eca1c45` (`docs/core-api`). Push state not checked (no shell here). No manifest change, so the `cargo tree` invariant is untouched. No decision.
+
+- **`Widget::free_angle: Option<f64>`.** Counterclockwise degrees in (-180, 180], on top of `/MK /R`, read from the first normal appearance stream's `/Matrix`. `None` when the widget is upright, the matrix is not a pure rotation, or the remainder is a multiple of 90.
+- **`Widget::opacity: Option<f64>`.** `/CA` as the file states it (ISO 32000-2 Table 166).
+- **One reader.** Both come from the new crate-internal `free_turn_of` in `edit/widget_angle.rs`; `EditSession::free_turn` now delegates to it, so the read side and `turn_widget` share one rule. `core-api`: 03-capabilities Widget block and the 02 `turn_widget` row; verb count unchanged at 357.
+
+**Verified (engineer-reported; not checked against disk by me).** `crates/pdfcer-core/tests/widget_turn.rs`: 1 new test (`the_free_angle_reads_back_what_a_turn_wrote`) plus new read-back assertions in 2 existing tests; all 13 `widget_turn` tests pass, 573 pass under the `form` filter; a sabotage run failed 3 tests; clippy clean.
+
+`FEATURES.md`: the free-angle/opacity row ticked core `[x]`, moved to Implemented; cli `[ ]` (no CLI read caller), gui `[ ]` (`pdfcer-gui` has not adopted it). FIXED reply written to the FeatureRequests channel.
+
+Ledgers: no decision; next free `Pass 581.0`; next filing 1058th.
+
 ### `Pass 569.0` — a marker's colour is readable: `EditSession::marker_color`, public `annot_author::color_entry` (core; answers `pdfcer-gui` `G176`) — SHIPPED 2026-10-13 (1056th filing)
 
 Commits `73d68728` (code, tests) and `13ffa912` (`docs/core-api`); both confirmed present in `.git/logs/HEAD`. Push state not verifiable from here (no shell). No manifest change, so the `cargo tree` invariant is untouched. No decision.
@@ -21843,10 +21857,10 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1057th (updated at the 1056th).
+> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1058th (updated at the 1057th).
 > - `567.0` (`G185`) and `568.0` (`G186`) shipped at the 1055th filing (`26cc218c`); see *Shipped*.
 > - `569.0` (`G176`) shipped at the 1056th filing (`73d68728`, `13ffa912`); see *Shipped*.
-> - **`570.0` (`G177`) — `forms::Widget` lacks the free angle and `/CA` opacity** that `turn_widget` and `with_opacity` write. Ask: `Widget::free_angle: Option<f64>` and `Widget::opacity: Option<f64>`, filled by the same reader `turn_widget` and `write_widget_opacity` use. Acceptance: both fields read back what the write verbs set, with `free_turn`'s rules for a skewed or mirrored matrix (one reader, not a copy).
+> - `570.0` (`G177`) shipped at the 1057th filing (`3dde42ee`, `7eca1c45`); see *Shipped*.
 > - **`571.0` (`G178`) — a link's as-written target and border are not readable.** `page_link_destinations` resolves a named link to a page and drops the `/URI` string; no width, colour or dash is read. Ask: `EditSession::link(id) -> Result<LinkReading, EditError>` (or fields on `LinkDestination`) returning `LinkTarget` with a name kept as a name, the `/URI` string, and `Option<LinkBorder>`. Acceptance: a link written with `LinkTarget::Named` reads back `Named`; a web link reads its address; Apply with nothing changed is a no-op; border rules shared with the border writer.
 > - **`572.0` (`G179`) — named destinations cannot be listed.** Only `named_destination_count` is public. Ask: `DestinationReader::named_destinations()` yielding each name with the `Destination` it resolves to, over both §12.3.2.3 namespaces after the resolver's own collision merging. Acceptance: the listing's length equals `named_destination_count`; a name in both namespaces appears once, as the resolver would resolve it. CLI listing verb if one fits the existing link verbs.
 > - **`573.0` (`G175`) — the in-form text split has no plan twin carrying the line-inference disclosure (rule 4).** For a page object `text_object_split_plan` returns a `SplitPlan` with the sentence "line breaks inferred from baselines and spacing"; a form leaf has only `text_object_split_points` (cut indices) and `FormSurgeryOutcome` omits the sentence, so the shell authors it a second time. Ask: `text_object_split_plan_in_form(page, leaf, granularity)` returning the same `SplitPlan`. Acceptance: same disclosure text from one source for both cases; the GUI's `lines_inferred` becomes deletable.

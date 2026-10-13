@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-13 (1057th filing) — `Pass 570.0` shipped (`G177`, a widget's free angle and opacity are readable)
+
+**Shipped:** `3dde42ee` (code) and `7eca1c45` (`docs/core-api`). `forms::Widget` gains `free_angle: Option<f64>` and `opacity: Option<f64>`, both filled by the new crate-internal `free_turn_of` (`edit/widget_angle.rs`); `EditSession::free_turn` delegates to it, so read and `turn_widget` share one rule. Verb count 357.
+
+**Verified (engineer-reported; no shell here):** `widget_turn.rs` 1 new test plus assertions in 2 existing; 13 `widget_turn` and 573 `form`-filter tests pass; sabotage run failed 3; clippy clean; no manifest change.
+
+**Files:** ROADMAP (new Shipped entry; 570.0 Next-up bullet collapsed to a pointer). FEATURES.md: row core `[x]`, cli `[ ]`, gui `[ ]`, moved to Implemented in place. Ledgers: no decision; next free `Pass 581.0`; next filing 1058th.
+
+**For `pdfcer-gui`:** adopt `free_angle` and `opacity` on `Widget`.
+
 ## 2026-10-13 (1056th filing) — `Pass 569.0` shipped (`G176`, a marker's colour is readable)
 
 **Shipped:** `73d68728` (code) and `13ffa912` (`docs/core-api`), both found in `.git/logs/HEAD`. `EditSession::marker_color` returns `MarkerColor { color, entry }` for Caret, FileAttachment, Sound and Screen (`/C`, else the subtype default). New public `annot_author::ColorEntry` and `color_entry`, the one `/C`/`/IC` reader. Behaviour change: an array with a non-number element reads `Malformed` (treated as absent), not leniently.
