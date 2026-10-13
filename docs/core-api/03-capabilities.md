@@ -3157,10 +3157,10 @@ gives `RenderError::BadRasterSize { width, height }` (`lib.rs`).
 builders**): `fonts: FontEnvironment`, `annotations: bool`
 , `annotation_scope: AnnotationScope`, `cancel: Option<RenderCancel>`
 , `layers: Option<LayerVisibility>`, `view_magnification: Option<f32>`
-, `cmyk_intent`, `mask_resample`, `image_minify`,
+, `cmyk_intent`, `mask_resample`, `image_minify`, `image_magnify`,
 `cmyk_jpeg_polarity`, `missing_as`. Builders:
 `with_annotations`, `with_annotation_scope`, `with_cmyk_intent`
-, `with_cancel`, `with_mask_resample`, `with_image_minify`
+, `with_cancel`, `with_mask_resample`, `with_image_minify`, `with_image_magnify`
 , `with_cmyk_jpeg_polarity`, `with_layers`,
 `with_view_magnification`, `with_missing_as`,
 `with_max_cmyk_buffer_bytes` (`Pass 132.0` — see **§7.3a**, which is the one

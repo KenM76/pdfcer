@@ -3872,6 +3872,7 @@ line numbers re-measured 2026-08-25:
 | `MeshPatchPadding` | `MSH-A1` — what a type 6/7 mesh-shading PATCH record pads to, when the clause states the rule for a vertex |
 | `MaskResample` | `SM-A1` — which filter resamples a size-mismatched `/SMask` |
 | `MinifyFilter` | `IM-A1` — how an image drawn smaller than its pixel grid is sampled |
+| `MagnifyFilter` | how an image drawn LARGER than its pixel grid, without `/Interpolate true`, is sampled (§8.9.5.3 permits either). Not a `Settings` key: chosen per render call — `PointSample` default for display, `Smooth` for a raster that is read (OCR). `FromStr`/`token()` spell `point-sample` / `smooth`; a bad token is `UnknownMagnifyFilter` |
 | `CmykJpegPolarity` | `DCT-A1` — how a CMYK JPEG with no `/Decode` is read |
 | `UnmappableCode` | what stands in for a character no `/ToUnicode` covers |
 | `ActualTextPrecedence` | whether `/ActualText` overrides the glyphs beneath it |
