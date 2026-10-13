@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 360 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 362 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 360 public `EditSession` methods
+## 1. Verb index — all 362 public `EditSession` methods
 
-**Count: 360.** Established by brace-matched extraction of the
+**Count: 362.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -152,7 +152,7 @@ Read the columns as: **I want to…** → **call this** → **returns / what tha
 | Compute what a save would write | `dirty_set(&self) -> DirtySet` | Structural diff vs base, **right now**. Never consults history. |
 | Show an "unsaved changes" indicator | `is_modified(&self) -> bool` | `!self.dirty_set().is_empty()`. Cannot disagree with the writer. |
 
-### 1.4 Undo / redo (10)
+### 1.4 Undo / redo (12)
 
 | I want to… | Call | Returns |
 |---|---|---|
@@ -166,6 +166,8 @@ Read the columns as: **I want to…** → **call this** → **returns / what tha
 | Show redo depth | `redo_depth(&self) -> usize` | Emptied by any new edit. |
 | List the whole undo history | `undo_kinds(&self) -> impl ExactSizeIterator<Item = CommandKind>` | Newest first: item `n` (0-based) is reached by `n + 1` undos. The page each touched is not carried. |
 | List the whole redo history | `redo_kinds(&self) -> impl ExactSizeIterator<Item = CommandKind>` | Newest first, as `undo_kinds`. |
+| **Hand the session, history included, to another process** | `export_history(&self) -> Vec<u8>` | `Pass 579.0`, pdfcer-gui G184. The unsaved overlay (touched objects, deletions, working trailer, authored stream bytes, the pending-redaction flag) plus both stacks, keyed to the base by length + SHA-256. Does **not** contain the base document. Holds every value still undoable, so content a later edit removed is in it: treat it like the unsaved document. Evicted commands and checkpoints do not travel. Format `PDFCERHIST` v1. |
+| **Restore it there** | `import_history(&mut self, bytes: &[u8]) -> Result<HistoryImport, HistoryError>` | The receiver opens the **same base bytes** in a fresh session, then imports: afterwards content, saves, undo/redo steps and `has_pending_redaction` match the exporter's. `HistoryImport { undo_steps, redo_steps }`. Refusals, all leaving the session unchanged: `SessionNotPristine` (any edit or history), `BaseMismatch`, `UnknownCommand { name }` (a build whose `CommandKind` set differs; kinds travel by variant name), `NotAHistory`, `UnsupportedVersion { found, supported }`, `Malformed { offset }`. Untrusted-input safe (bounded counts and nesting; fuzz target `import_history`). No CLI (a session does not outlive one invocation). |
 
 ### 1.5 Save (5)
 
