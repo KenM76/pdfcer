@@ -148,7 +148,7 @@ mod markup_respan;
 mod metadata_remove;
 pub use markup_respan::TextMarkupRespan;
 mod link;
-pub use link::{LinkBorder, LinkBorderChange, LinkTarget, LinkTargetChange};
+pub use link::{LinkBorder, LinkBorderChange, LinkReading, LinkTarget, LinkTargetChange};
 pub(crate) mod deskew;
 mod undo_fold;
 pub use deskew::{ImageDeskew, MIN_DESKEW_DEGREES};

@@ -5,9 +5,10 @@ use super::{
     AnnotFlags, AnnotKind, Command, CommandKind, Dict, EditError, EditSession, MarkupSpec,
     ObjectWrite, PermissionBit, Stream, dest_array,
 };
-use crate::annot_author::{self, BorderDash, Color};
+use crate::annot_author::{self, BorderDash, Color, ColorEntry};
+use crate::graph::ObjectGraph;
 use crate::object::{Name, ObjId, Object};
-use crate::outline::DestView;
+use crate::outline::{DestView, Destination, DestinationReader};
 use crate::page_tree::Rect;
 
 /// Where a link goes when activated.
@@ -63,6 +64,142 @@ impl LinkBorder {
         self.dash = Some(dash);
         self
     }
+}
+
+/// A link as [`EditSession::link`] reads it: the values
+/// [`EditSession::set_link_target`] and [`EditSession::set_link_border`]
+/// take, so a form seeded from it and applied unchanged writes nothing new.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct LinkReading {
+    /// The link, echoed.
+    pub annot_id: ObjId,
+    /// Where the link goes, as written: a `/Dest` name or string is
+    /// [`LinkTarget::Named`] (never resolved to its page), an explicit
+    /// `/Dest` array or `/GoTo` `/D` is [`LinkTarget::Page`], a `/URI`
+    /// action is [`LinkTarget::Uri`]. `None` when there is no destination,
+    /// when an explicit one names no page of this document, or when the
+    /// action is of another type (see [`Self::action`]).
+    pub target: Option<LinkTarget>,
+    /// `/S` of the link's `/A` when [`Self::target`] cannot state it
+    /// (`GoToR`, `JavaScript`, `Launch`, a `GoTo` or `URI` whose operand is
+    /// unreadable); `"?"` when `/S` itself is unreadable.
+    pub action: Option<String>,
+    /// The visible border, or `None` when none is drawn: a width of 0, or a
+    /// zero-length `/C` (§12.5.2 Table 166 "no colour"). Width is `/BS /W`,
+    /// else `/Border` element 2, else 1 (Tables 164, 168); `/Border` is
+    /// ignored when `/BS` is present. A `/BS /S` other than `/D` reads as
+    /// solid. With no colour stated, `color` is black.
+    pub border: Option<LinkBorder>,
+    /// How `/C` read. [`ColorEntry::Absent`] or [`ColorEntry::Malformed`]
+    /// with a border means its black colour is pdfcer's default, not the
+    /// file's.
+    pub border_color: ColorEntry,
+}
+
+/// The link target a `/Dest` value states, without resolving a name.
+fn dest_target<G: ObjectGraph + ?Sized>(graph: &G, dest: &Object) -> Option<LinkTarget> {
+    match graph.resolve(dest) {
+        Object::Name(name) => Some(LinkTarget::Named(name.as_bytes().to_vec())),
+        Object::String(bytes) => Some(LinkTarget::Named(bytes.clone())),
+        array @ Object::Array(_) => {
+            let mut carrier = Dict::new();
+            carrier.insert(Name::from(b"Dest"), array.clone());
+            match DestinationReader::new(graph).destination(graph, &carrier) {
+                Some(Destination::Page { page_index, view }) => {
+                    Some(LinkTarget::Page { page_index, view })
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+/// A link's target and, when that cannot state it, its action's `/S`.
+/// `/Dest` wins over `/A`, as the outline reader takes it (Table 176).
+fn read_link_target<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    dict: &Dict,
+) -> (Option<LinkTarget>, Option<String>) {
+    if let Some(dest) = dict.get(b"Dest") {
+        return (dest_target(graph, dest), None);
+    }
+    let Some(Object::Dict(action)) = dict.get(b"A").map(|o| graph.resolve(o)) else {
+        return (None, None);
+    };
+    let kind = action
+        .get(b"S")
+        .map(|o| graph.resolve(o))
+        .and_then(Object::as_name)
+        .map_or_else(
+            || "?".to_owned(),
+            |n| String::from_utf8_lossy(n.as_bytes()).into_owned(),
+        );
+    let target = match kind.as_str() {
+        "URI" => match action.get(b"URI").map(|o| graph.resolve(o)) {
+            Some(Object::String(bytes)) => {
+                Some(LinkTarget::Uri(String::from_utf8_lossy(bytes).into_owned()))
+            }
+            _ => None,
+        },
+        "GoTo" => action.get(b"D").and_then(|d| dest_target(graph, d)),
+        _ => None,
+    };
+    match target {
+        Some(t) => (Some(t), None),
+        None => (None, Some(kind)),
+    }
+}
+
+/// A link's visible border as the file states it; see
+/// [`LinkReading::border`].
+fn read_link_border<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    dict: &Dict,
+) -> (Option<LinkBorder>, ColorEntry) {
+    let entry = annot_author::color_entry(graph, dict, b"C");
+    let numbers = |o: Option<&Object>| -> Option<Vec<f64>> {
+        match graph.resolve(o?) {
+            Object::Array(items) => items.iter().map(|i| graph.resolve(i).as_number()).collect(),
+            _ => None,
+        }
+    };
+    let (width, dash) = match dict.get(b"BS").map(|o| graph.resolve(o)) {
+        Some(Object::Dict(bs)) => {
+            let width = bs
+                .get(b"W")
+                .map(|o| graph.resolve(o))
+                .and_then(Object::as_number);
+            let dashed = bs
+                .get(b"S")
+                .map(|o| graph.resolve(o))
+                .and_then(Object::as_name)
+                .is_some_and(|n| n.as_bytes() == b"D");
+            let dash = dashed
+                .then(|| numbers(bs.get(b"D")).unwrap_or_else(|| vec![3.0]))
+                .and_then(BorderDash::new);
+            (width.unwrap_or(1.0), dash)
+        }
+        _ => match dict.get(b"Border").map(|o| graph.resolve(o)) {
+            Some(Object::Array(items)) => (
+                items
+                    .get(2)
+                    .map(|o| graph.resolve(o))
+                    .and_then(Object::as_number)
+                    .unwrap_or(1.0),
+                numbers(items.get(3)).and_then(BorderDash::new),
+            ),
+            _ => (1.0, None),
+        },
+    };
+    let drawn = width.is_finite() && width > 0.0 && entry != ColorEntry::Empty;
+    let border = drawn.then(|| LinkBorder {
+        width,
+        color: entry.color().unwrap_or(Color::Gray(0.0)),
+        dash,
+    });
+    (border, entry)
 }
 
 /// What [`EditSession::set_link_target`] replaced.
@@ -228,6 +365,40 @@ impl EditSession {
         Ok(LinkBorderChange {
             annot_id,
             appearance_replaced,
+        })
+    }
+
+    /// Read the `/Link` `annot_id`'s target and border in the form
+    /// [`Self::set_link_target`] and [`Self::set_link_border`] take.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::AnnotationNotFound`], [`EditError::LinkVerbOnOther`] for
+    /// another subtype, [`EditError::NotADictionary`].
+    pub fn link(&self, annot_id: ObjId) -> Result<LinkReading, EditError> {
+        let (found, _all) = self.locate_annotation(annot_id)?;
+        if found.subtype != b"Link" {
+            return Err(EditError::LinkVerbOnOther {
+                id: annot_id,
+                subtype: String::from_utf8_lossy(&found.subtype).into_owned(),
+            });
+        }
+        let graph = self.graph();
+        let dict = graph
+            .resolved(annot_id)
+            .as_dict()
+            .ok_or(EditError::NotADictionary {
+                id: annot_id,
+                key: "Subtype",
+            })?;
+        let (target, action) = read_link_target(&graph, dict);
+        let (border, border_color) = read_link_border(&graph, dict);
+        Ok(LinkReading {
+            annot_id,
+            target,
+            action,
+            border,
+            border_color,
         })
     }
 
