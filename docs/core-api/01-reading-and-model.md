@@ -2505,6 +2505,7 @@ you are stating in one visible place that you do not handle form contents.
 | `PathObject::page_subpaths()` | user space via `ctm` | **page space**, `f64` | `decompose.rs` |
 | `*::page_bbox`, `TextRun::bounds` | — | **page space** `Bounds`, `f64` | `decompose.rs` |
 | `PathObject::line_width` | **user space** points | — (scaled by `√\|det(ctm)\|` at hit time) | `decompose.rs`; `hit.rs` |
+| `PathObject::line_width_pt()`, `dash_pt()` | user space × `stroke_scale()` | **page-space points** (geometric mean when `!stroke_scale_is_uniform()`) | `vector/stroke_style.rs` |
 | `TextFont::size` | **text space** — raw `Tf` operand, unscaled | — | `decompose.rs` |
 | `ImageObject::pixel_size` | — | **sample count**, not a page size | `decompose.rs` |
 | `hit_test_point/_all/_rect` (and `_with`) point/rect | **page space**, `f64` | index(es) | `hit.rs` |
