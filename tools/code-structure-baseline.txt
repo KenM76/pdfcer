@@ -263,7 +263,6 @@ fn pdfcer-core/src/edit.rs::build_button_states
 fn pdfcer-core/src/edit.rs::button_ap_plan
 fn pdfcer-core/src/edit.rs::catalog_dimension_write
 fn pdfcer-core/src/edit.rs::composite_font_codes
-fn pdfcer-core/src/edit.rs::copy_and_splice
 fn pdfcer-core/src/edit.rs::copy_selection
 fn pdfcer-core/src/edit.rs::cut_selection
 fn pdfcer-core/src/edit.rs::delete_annotation

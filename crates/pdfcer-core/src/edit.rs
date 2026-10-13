@@ -16369,6 +16369,8 @@ impl EditSession {
                     Object::Real(moved.max.y),
                 ]),
             );
+            let (dx, dy) = (moved.min.x - bounds.min.x, moved.min.y - bounds.min.y);
+            self.paste_geometry(&mut dict, &mut objects, dx, dy);
         }
         dict.insert(Name::from(b"Type"), Object::Name(Name::from(b"Annot")));
         dict.insert(Name::from(b"P"), Object::Reference(page_id));
@@ -16387,6 +16389,31 @@ impl EditSession {
             trailer: None,
         });
         Ok(())
+    }
+
+    /// Move a pasted annotation's geometry keys by the same offset as its
+    /// `/Rect`, as [`Self::move_annotation`] does. A key held by reference
+    /// (an object this paste is writing) is rewritten in that object, so the
+    /// paste adds no orphan.
+    fn paste_geometry(&self, dict: &mut Dict, objects: &mut [ObjectWrite], dx: f64, dy: f64) {
+        let resolve = |o: &Object| match o {
+            Object::Reference(r) => objects
+                .iter()
+                .find(|w| w.id == *r)
+                .and_then(|w| w.after.clone())
+                .unwrap_or_else(|| self.graph().resolve(o).clone()),
+            other => other.clone(),
+        };
+        let moved = translated_geometry(dict, &resolve, dx, dy);
+        for (key, value) in moved {
+            let held = dict.get(key).and_then(Object::as_reference);
+            match objects.iter_mut().find(|w| Some(w.id) == held) {
+                Some(write) => write.after = Some(value),
+                None => {
+                    dict.insert(Name::from(key), value);
+                }
+            }
+        }
     }
 
     /// Whether a carried annotation's `/Dest` or `/A` names something that
@@ -36981,44 +37008,12 @@ impl EditSession {
             ]),
         );
 
-        // Every geometry key pdfcer or any other producer may have written, in
-        // a fixed order so the disclosure is stable across runs. `/InkList`
-        // is nested one level deeper than the rest — an array OF stroke
-        // arrays — which is why it is handled separately rather than folded
-        // into the flat loop.
+        let graph = self.graph();
+        let moved_keys = translated_geometry(&updated, &|o| graph.resolve(o).clone(), dx, dy);
         let mut geometry_keys_moved: Vec<String> = Vec::new();
-        for key in [
-            b"L".as_slice(),
-            b"Vertices".as_slice(),
-            b"QuadPoints".as_slice(),
-            b"CL".as_slice(),
-        ] {
-            let resolved = updated.get(key).map(|o| self.graph().resolve(o).clone());
-            if let Some(Object::Array(items)) = resolved
-                && !items.is_empty()
-            {
-                updated.insert(
-                    Name::from(key),
-                    Object::Array(translate_flat(&items, dx, dy)),
-                );
-                geometry_keys_moved.push(String::from_utf8_lossy(key).into_owned());
-            }
-        }
-        let ink = updated
-            .get(b"InkList")
-            .map(|o| self.graph().resolve(o).clone());
-        if let Some(Object::Array(strokes)) = ink
-            && !strokes.is_empty()
-        {
-            let out: Vec<Object> = strokes
-                .iter()
-                .map(|stroke| match self.graph().resolve(stroke) {
-                    Object::Array(pts) => Object::Array(translate_flat(pts, dx, dy)),
-                    other => other.clone(),
-                })
-                .collect();
-            updated.insert(Name::from(b"InkList"), Object::Array(out));
-            geometry_keys_moved.push("InkList".to_owned());
+        for (key, value) in moved_keys {
+            updated.insert(Name::from(key), value);
+            geometry_keys_moved.push(String::from_utf8_lossy(key).into_owned());
         }
 
         let appearance_carried = updated.contains_key(b"AP");
@@ -50330,32 +50325,14 @@ impl EditSession {
 
         let mut scratch: BTreeMap<ObjId, Object> = BTreeMap::new();
         let mut mapping: BTreeMap<ObjId, ObjId> = BTreeMap::new();
-        let mut new_page_ids: Vec<ObjId> = Vec::with_capacity(source_pages.len());
-
-        for index in source_pages {
-            let Some(slot) = source_slots.get(*index) else {
-                continue;
-            };
-            let new_id = self.import_object(source, slot.id, &mut mapping, &mut scratch)?;
-            if let Some(Object::Dict(page)) = scratch.get(&new_id).cloned() {
-                let mut page = page;
-                // Re-point /Parent at the target's node. The source's
-                // parent is meaningless here, and following it during the
-                // copy would have dragged the whole source page tree over.
-                page.insert(Name::from(b"Parent"), Object::Reference(parent_id));
-                // An attribute the source page INHERITED but its new
-                // parent does not supply would silently change the page's
-                // size or resources, so it is written onto the page
-                // itself. Same rule `reorder_pages` applies when a page
-                // changes parent.
-                let landing = crate::page_tree::InheritedRaw::default();
-                for (key, replacement) in preserve_inherited(&page, &slot.inherited, &landing) {
-                    page.insert(Name::from(key), replacement);
-                }
-                scratch.insert(new_id, Object::Dict(page));
-            }
-            new_page_ids.push(new_id);
-        }
+        let new_page_ids = self.import_pages(
+            source,
+            &source_slots,
+            source_pages,
+            parent_id,
+            &mut mapping,
+            &mut scratch,
+        )?;
         if new_page_ids.is_empty() {
             return Ok(None);
         }
@@ -50392,6 +50369,52 @@ impl EditSession {
             source_slots,
             new_page_ids,
         }))
+    }
+
+    /// Copy each of `source_pages` under `parent_id`, in order; returns the
+    /// new page ids.
+    ///
+    /// A page named again gets its own complete copy (a fresh mapping), as a
+    /// separate call would: through the shared mapping a repeat resolved to
+    /// the first copy, and `/Kids` listing one page twice is a cycle to the
+    /// page-tree walk. `mapping` holds each page's first copy only, which is
+    /// what `merge_document`'s field import (never a repeat) needs.
+    fn import_pages(
+        &mut self,
+        source: &DocumentView<'_>,
+        source_slots: &[PageSlot],
+        source_pages: &[usize],
+        parent_id: ObjId,
+        mapping: &mut BTreeMap<ObjId, ObjId>,
+        scratch: &mut BTreeMap<ObjId, Object>,
+    ) -> Result<Vec<ObjId>, EditError> {
+        let mut new_page_ids = Vec::with_capacity(source_pages.len());
+        let mut seen = std::collections::BTreeSet::new();
+        for index in source_pages {
+            let Some(slot) = source_slots.get(*index) else {
+                continue;
+            };
+            let new_id = if seen.insert(*index) {
+                self.import_object(source, slot.id, mapping, scratch)?
+            } else {
+                self.import_object(source, slot.id, &mut BTreeMap::new(), scratch)?
+            };
+            if let Some(Object::Dict(mut page)) = scratch.get(&new_id).cloned() {
+                // Re-point /Parent at the target's node; following the
+                // source's would have dragged its whole page tree over.
+                page.insert(Name::from(b"Parent"), Object::Reference(parent_id));
+                // An attribute the source page INHERITED but its new parent
+                // does not supply is written onto the page itself, as
+                // `reorder_pages` does when a page changes parent.
+                let landing = crate::page_tree::InheritedRaw::default();
+                for (key, replacement) in preserve_inherited(&page, &slot.inherited, &landing) {
+                    page.insert(Name::from(key), replacement);
+                }
+                scratch.insert(new_id, Object::Dict(page));
+            }
+            new_page_ids.push(new_id);
+        }
+        Ok(new_page_ids)
     }
 
     /// Insert pages from **another document** into this session, as
@@ -69617,6 +69640,44 @@ fn flate_encode_for_save(data: &[u8]) -> Option<Vec<u8>> {
     );
     e.write_all(data).ok()?;
     e.finish().ok()
+}
+
+/// An annotation's geometry keys (`/L`, `/Vertices`, `/QuadPoints`, `/CL`,
+/// `/InkList`) translated by `(dx, dy)`, each resolved through `resolve`;
+/// keys absent or empty are omitted. In this fixed order so a disclosure
+/// listing them is stable. `/InkList` is an array OF point arrays.
+fn translated_geometry(
+    dict: &Dict,
+    resolve: &dyn Fn(&Object) -> Object,
+    dx: f64,
+    dy: f64,
+) -> Vec<(&'static [u8], Object)> {
+    let mut out = Vec::new();
+    for key in [
+        b"L".as_slice(),
+        b"Vertices".as_slice(),
+        b"QuadPoints".as_slice(),
+        b"CL".as_slice(),
+    ] {
+        if let Some(Object::Array(items)) = dict.get(key).map(resolve)
+            && !items.is_empty()
+        {
+            out.push((key, Object::Array(translate_flat(&items, dx, dy))));
+        }
+    }
+    if let Some(Object::Array(strokes)) = dict.get(b"InkList").map(resolve)
+        && !strokes.is_empty()
+    {
+        let moved = strokes
+            .iter()
+            .map(|stroke| match resolve(stroke) {
+                Object::Array(pts) => Object::Array(translate_flat(&pts, dx, dy)),
+                other => other,
+            })
+            .collect();
+        out.push((b"InkList".as_slice(), Object::Array(moved)));
+    }
+    out
 }
 
 fn translate_flat(items: &[Object], dx: f64, dy: f64) -> Vec<Object> {
