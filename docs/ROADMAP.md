@@ -115,6 +115,24 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 580.0` — OCR at a dpi above the scan's own resolution no longer reads blocky pixels: `MagnifyFilter`, `RenderOptions::image_magnify`, `pdfcer ocr --magnify` (core + render + CLI; self-found defect) — SHIPPED 2026-10-13 (1067th filing)
+
+Commits `f191b9c0` (code, tests) and `ef27637c` (`docs/core-api`: `01` settings table row, `03` §7.2, index counts). Push state not checked (no shell here). No `Cargo.toml` changed, no new dependency, so the `cargo tree` invariant is untouched. No decision.
+
+- **Defect.** `pdfcer-render` point-sampled every magnified image lacking `/Interpolate true`, so `pdfcer ocr --dpi 150` on a 50 dpi scan fed the engine square pixel blocks.
+- **core.** `pdfcer_core::settings::MagnifyFilter { PointSample (default), Smooth }`, `token()`, `FromStr`, error `UnknownMagnifyFilter`. Not a `Settings` key: chosen per render call. ISO 32000-1 §8.9.5.3 permits interpolation without `/Interpolate` and never forbids it.
+- **render.** `RenderOptions::image_magnify` and `with_image_magnify`, projected into `RenderPolicy::image_magnify`. Image sampling is bilinear when the image is drawn larger than its grid and the policy is `Smooth`; Type 3 glyph masks are excluded. Display default stays `PointSample`, so display rendering is unchanged. The `image_minify` field doc named the wrong default; corrected.
+- **cli.** `pdfcer ocr --magnify smooth|point-sample`, default `smooth`. `--upscale` help corrected.
+- **Tests (engineer-reported; no shell here).** 4 new in `crates/pdfcer-render/tests/ambiguity_settings_reach_the_pixels.rs`: default equals explicit `PointSample` and shows only source values; `Smooth` blends; `Smooth` leaves a minified image alone; `/Interpolate true` smooths under either filter. Sabotage (smooth path forced off) failed `the_magnification_filter_reaches_the_pixels`. clippy, fmt, doc-link and structure gates clean.
+- **Measured** (synthetic `printed.pdf` rendered as a clean 50 dpi scan, one page, 47 truth words; percent of words read). Columns: 1:1 at 50 dpi / `--dpi 150` point-sample / `--dpi 150` smooth / 50 dpi `--upscale 3`. ocrs: 74.5 / 42.6 / 61.7 / 66.0. tesseract: 25.5 / 87.2 / 87.2 / 95.7. paddle (default engine): 100.0 / 91.5 / 100.0 / 95.7. The degraded-50-dpi variant read 2 to 6 percent under every route and engine, so it is uninformative.
+- **Acceptance, partially met.** "`ocr --dpi 150` on a 50 dpi scan scores no worse than native dpi plus upscale": MET for paddle (100.0 vs 95.7), NOT met for ocrs (61.7 vs 66.0) or tesseract (87.2 vs 95.7); for those two, `--dpi <native> --upscale N` remains the better route, as the `--upscale` help says. Display-unchanged: met.
+- **Not shipped.** Bicubic instead of bilinear gave ocrs 68.1, tesseract 91.5, paddle 93.6: mixed, 2 to 4 words on one page, so bilinear kept as best for the default engine.
+- **gui.** Not wired (`pdfcer-gui`'s column).
+
+`FEATURES.md`: Planned defect row deleted; new Implemented row after the main OCR row, core `[x]`, cli `[x]`, gui `[ ]`.
+
+Ledgers: no decision; next free `Pass 581.0`; next filing 1068th.
+
 ### `Pass 579.0` — a session's unsaved edits and undo history can move to another process: `EditSession::export_history` / `import_history` (core; answers `pdfcer-gui` `G184`) — SHIPPED 2026-10-13 (1066th filing)
 
 Commits `1601adb6` (code, tests, fuzz target) and `a8558001` (`docs/core-api`, two rows in `02-editing-and-saving.md` §1.4). Push state not checked (no shell here). No dependency or manifest change (`sha2` was already in core), so the `cargo tree` invariant is untouched. No decision.
@@ -21987,7 +22005,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1067th (updated at the 1066th).
+> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` was self-found at the 1053rd filing, not a GUI request. Ledgers: no decision; next free `Pass 581.0`; next filing 1068th (updated at the 1067th).
 > - `567.0` (`G185`) and `568.0` (`G186`) shipped at the 1055th filing (`26cc218c`); see *Shipped*.
 > - `569.0` (`G176`) shipped at the 1056th filing (`73d68728`, `13ffa912`); see *Shipped*.
 > - `570.0` (`G177`) shipped at the 1057th filing (`3dde42ee`, `7eca1c45`); see *Shipped*.
@@ -22000,8 +22018,9 @@ closes out the *prior* filing's business rather than opening this one's.
 > - `577.0` (`G180`) shipped at the 1064th filing (`10c73fcf`, `6790b2e4`); see *Shipped*.
 > - `578.0` (`G181`) shipped at the 1065th filing (`6d8e8a79`, `0d6a29c4`); see *Shipped*.
 > - `579.0` (`G184`) shipped at the 1066th filing (`1601adb6`, `a8558001`); see *Shipped*. The batch `567.0`-`579.0` is complete.
+> - `580.0` (self-found) shipped at the 1067th filing (`f191b9c0`, `ef27637c`); see *Shipped*.
 
-> **`Pass 580.0` — OCR rasterises a low-resolution scan with nearest-neighbour magnification (defect, found at the 1053rd filing while shipping `Pass 566.0`).** `pdfcer-render` magnifies images with `FilterQuality::Nearest` unless the image has `/Interpolate true` (`crates/pdfcer-render/src/interpret.rs`, the `image_geometry` quality choice beside `image_minify`). So `pdfcer ocr --dpi` above the scan's own resolution feeds the engine blocky pixels. Measured: ocrs on a sharp 50 dpi page, 74.5% at 1:1 but 42.6% at `--dpi 150`. Mitigation documented in the CLI help: `--dpi <native> --upscale N`. Candidate fix: a magnify policy beside `MinifyFilter`/`image_minify`, with the OCR rasteriser asking for smooth magnification; display rendering keeps its default (pdfium parity governs it). Acceptance: `ocr --dpi 150` on a 50 dpi scan scores no worse than rendering at native dpi and then upscaling; display rendering output is byte-identical for an image without `/Interpolate`.
+> **No open item remains in *Next up* as of the 1067th filing.** `Pass 580.0` (the last, self-found at the 1053rd filing) shipped; see *Shipped*.
 
 > **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`559.0` all shipped; the batch is complete.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. (Superseded by the stubs above: next free `Pass 581.0`; next filing 1055th.)
 > - `552.0` (`G162`) SHIPPED (`9be9d44a`, `ea7e80af`, 1035th filing), see *Shipped*.

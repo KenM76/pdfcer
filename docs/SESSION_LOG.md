@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-13 (1067th filing) — `Pass 580.0` shipped (OCR magnification filter)
+
+**Shipped:** `f191b9c0` (code) and `ef27637c` (`docs/core-api`). `pdfcer_core::settings::MagnifyFilter { PointSample, Smooth }`; `RenderOptions::image_magnify`; `pdfcer ocr --magnify smooth|point-sample` (default smooth). Display rendering unchanged. No dependency change, no decision.
+
+**Verified (engineer-reported; no shell here):** 4 new render tests; sabotage failed `the_magnification_filter_reaches_the_pixels`; gates clean. Acceptance PARTIALLY met: paddle 100.0 smooth vs 95.7 upscale-3 (met); ocrs 61.7 vs 66.0 and tesseract 87.2 vs 95.7 (not met, `--dpi <native> --upscale N` still better there). Bicubic trial mixed (ocrs 68.1, tesseract 91.5, paddle 93.6), not shipped.
+
+**Files:** ROADMAP (new Shipped entry; the Next-up `580.0` blockquote replaced by an "empty" note; `###` count in Next up is 80, unchanged because `580.0` was a blockquote, not a `###` heading, so the filing premise of 81 was wrong). FEATURES.md: Planned defect row deleted, new Implemented OCR row, core `[x]` cli `[x]` gui `[ ]`. Next free `Pass 581.0`; next filing 1068th.
+
 ## 2026-10-13 (1066th filing) — `Pass 579.0` shipped (`G184`, undo history moves between processes)
 
 **Shipped:** `1601adb6` (code) and `a8558001` (`docs/core-api`). `EditSession::export_history() -> Vec<u8>` and `import_history(&[u8]) -> Result<HistoryImport, HistoryError>` carry the unsaved overlay and both undo/redo stacks to a fresh session opened from the same base bytes in another process. Format `PDFCERHIST` v1 keyed to the base by length plus SHA-256; `CommandKind` travels by name. Refusals: `SessionNotPristine`, `BaseMismatch`, `NotAHistory`, `UnsupportedVersion`, `UnknownCommand`, `Malformed{offset}`; session unchanged after any. Input treated as untrusted (counts bounded by bytes left, nesting 256, stream spans by base plus staging). Checkpoints and evicted commands do not travel. Verb count 360 to 362. No dependency change.
