@@ -24,6 +24,8 @@ pub(crate) struct OcrRequest<'a> {
     pub(crate) upscale: Option<f32>,
     /// `--upscale-filter`.
     pub(crate) upscale_filter: pdfcer_core::ocr::upscale::UpscaleFilter,
+    /// `--magnify`: how the page render enlarges an image.
+    pub(crate) magnify: pdfcer_core::settings::MagnifyFilter,
 }
 
 /// `ocr` — recognise a scanned page and add an invisible text layer.
@@ -55,7 +57,7 @@ fn run_ocr(req: &OcrRequest<'_>, model_choice: &OcrModelChoice<'_>) -> Result<()
     let (doc, page, index) = open_page(req.input, req.page_number)?;
     let (mut engine, engine_choice, source) =
         load_ocr_engine(model_choice, req.ocr_lang, req.dpi, req.layout)?;
-    let (iw, ih, grey) = rasterise_grey(&doc, &page, req.dpi, req.page_number)?;
+    let (iw, ih, grey) = rasterise_grey(&doc, &page, req.dpi, req.magnify, req.page_number)?;
     set_upscale(&mut engine, req, iw, ih)?;
     if let Some(path) = req.dump_image {
         dump_grey(path, iw, ih, &grey)?;
@@ -191,6 +193,7 @@ fn rasterise_grey(
     doc: &Document,
     page: &Page,
     dpi: f32,
+    magnify: pdfcer_core::settings::MagnifyFilter,
     page_number: u32,
 ) -> Result<(u32, u32, Vec<u8>), u8> {
     let scale = dpi / 72.0;
@@ -198,12 +201,11 @@ fn rasterise_grey(
         eprintln!("pdfcer: ocr: --dpi must be a positive number, got {dpi}");
         return Err(exit::RUNTIME_ERROR);
     }
-    let rendered =
-        pdfcer_render::render_page_with(doc, page, scale, &pdfcer_render::RenderOptions::default())
-            .map_err(|err| {
-                eprintln!("pdfcer: ocr: could not rasterise page {page_number}: {err}");
-                exit::RUNTIME_ERROR
-            })?;
+    let options = pdfcer_render::RenderOptions::default().with_image_magnify(magnify);
+    let rendered = pdfcer_render::render_page_with(doc, page, scale, &options).map_err(|err| {
+        eprintln!("pdfcer: ocr: could not rasterise page {page_number}: {err}");
+        exit::RUNTIME_ERROR
+    })?;
     let (iw, ih) = (rendered.pixmap.width(), rendered.pixmap.height());
     let grey = rendered
         .pixmap

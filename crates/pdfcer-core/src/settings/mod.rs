@@ -1117,6 +1117,58 @@ pub enum MinifyFilter {
     Smooth,
 }
 
+/// How an image drawn LARGER than its own pixel grid is sampled when it
+/// does not carry `/Interpolate true` (ISO 32000-1 §8.9.5.3).
+///
+/// `/Interpolate false` lets a processor skip interpolation; it does not
+/// forbid it. Display rendering keeps [`Self::PointSample`], the pdfium and
+/// Acrobat behaviour that render parity is measured against. A consumer that
+/// reads the raster rather than showing it (OCR) wants [`Self::Smooth`]: a
+/// 50 dpi scan rendered at 150 dpi point-sampled read 42.6 % of words with
+/// `ocrs`, against 74.5 % rendered at its own 50 dpi.
+///
+/// Not a [`Settings`] key: it is chosen per render call, not per viewer.
+/// `/Interpolate true` smooths whatever this is, and an image mask inside a
+/// Type 3 glyph is never smoothed (see `MinifyFilter`'s render rule).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum MagnifyFilter {
+    /// One texel per output pixel: a magnified image shows square blocks.
+    #[default]
+    PointSample,
+    /// Bilinear interpolation between texels.
+    Smooth,
+}
+
+impl MagnifyFilter {
+    /// The command-line spelling: `point-sample` or `smooth`.
+    #[must_use]
+    pub const fn token(self) -> &'static str {
+        match self {
+            Self::PointSample => "point-sample",
+            Self::Smooth => "smooth",
+        }
+    }
+}
+
+/// [`MagnifyFilter::from_str`](std::str::FromStr::from_str) was given
+/// neither `point-sample` nor `smooth`.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[error("unknown magnify filter {0:?}; expected point-sample or smooth")]
+pub struct UnknownMagnifyFilter(pub String);
+
+impl std::str::FromStr for MagnifyFilter {
+    type Err = UnknownMagnifyFilter;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "point-sample" => Ok(Self::PointSample),
+            "smooth" => Ok(Self::Smooth),
+            _ => Err(UnknownMagnifyFilter(s.to_owned())),
+        }
+    }
+}
+
 pub use crate::image_codec::CmykJpegPolarity;
 
 pub use crate::text_extract::{ActualTextPrecedence, UnmappableCode};

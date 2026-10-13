@@ -147,7 +147,7 @@ use crate::font::{FontEnvironment, RenderPolicy, StrokeDisplay};
 use crate::gstate::{GStateStack, GraphicsState, LineCap, LineJoin, Mat64, Rgb};
 use crate::image::{self, ImageError, ImageNotes, ImageOrigin};
 use crate::text::{LoadedFont, TextObject};
-use pdfcer_core::settings::MinifyFilter;
+use pdfcer_core::settings::{MagnifyFilter, MinifyFilter};
 
 /// Maximum nesting of `Do`-invoked form XObjects (pdfcer policy,
 /// ARCHITECTURE.md §10.1).
@@ -9029,10 +9029,15 @@ impl<'a> Interpreter<'a> {
         // This surfaced only because the `image_minify` DEFAULT flipped to
         // `Smooth` on 2026-08-25; the interaction existed silently before
         // that, reachable by any operator who set the option.
+        // Magnification without `/Interpolate` is the render call's choice
+        // (`MagnifyFilter`), under the same Type 3 exclusion.
         let smooth_minified = matches!(self.policy.image_minify, MinifyFilter::Smooth)
             && self.type3_glyph.is_none()
             && self.is_minified(w, h);
-        let quality = if interpolate || smooth_minified {
+        let smooth_magnified = matches!(self.policy.image_magnify, MagnifyFilter::Smooth)
+            && self.type3_glyph.is_none()
+            && self.is_magnified(w, h);
+        let quality = if interpolate || smooth_minified || smooth_magnified {
             FilterQuality::Bilinear
         } else {
             FilterQuality::Nearest
@@ -9221,6 +9226,13 @@ impl<'a> Interpreter<'a> {
             return false;
         }
         sx < w as f32 || sy < h as f32
+    }
+
+    /// Drawn larger than its pixel grid on either axis.
+    fn is_magnified(&self, w: u32, h: u32) -> bool {
+        let ctm = self.gs.current.ctm;
+        let (sx, sy) = (ctm.sx.abs(), ctm.sy.abs());
+        sx.is_finite() && sy.is_finite() && (sx > w as f32 || sy > h as f32)
     }
 
     /// The graphics state's stroke geometry (§8.4.3), shared by path

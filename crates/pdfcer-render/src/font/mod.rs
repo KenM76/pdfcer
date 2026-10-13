@@ -46,7 +46,7 @@ pub(crate) mod webfont;
 // it cannot drift apart across two files.
 use crate::annot::AnnotationScope;
 use pdfcer_core::settings::{
-    CmykIntent, CmykJpegPolarity, MaskResample, MinifyFilter, MissingAppearanceState,
+    CmykIntent, CmykJpegPolarity, MagnifyFilter, MaskResample, MinifyFilter, MissingAppearanceState,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -704,11 +704,18 @@ pub struct RenderOptions {
     /// How an image drawn smaller than its own pixel grid is sampled
     /// (spec ambiguity `IM-A1`, §8.9.5.3).
     ///
-    /// **Default [`MinifyFilter::PointSample`]** — the shipped behaviour.
-    /// **Evidence tier (d)**: a guess. §8.9.5.3 defines interpolation only
-    /// for magnification and never mentions minification, so
-    /// `/Interpolate false` does not actually legislate this direction.
+    /// **Default [`MinifyFilter::Smooth`]**, matching Acrobat Reader as the
+    /// operator observed it (see the type docs). §8.9.5.3 defines
+    /// interpolation only for magnification, so `/Interpolate false` does
+    /// not legislate this direction.
     pub image_minify: MinifyFilter,
+    /// How an image drawn larger than its own pixel grid is sampled when it
+    /// lacks `/Interpolate true` (§8.9.5.3).
+    ///
+    /// **Default [`MagnifyFilter::PointSample`]**, the display behaviour
+    /// render parity is measured against. Set [`MagnifyFilter::Smooth`] when
+    /// the raster is read rather than shown (OCR at a dpi above the scan's).
+    pub image_magnify: MagnifyFilter,
     /// How a four-component JPEG that declares no `/Decode` is read
     /// (spec ambiguity `DCT-A1`, §7.4.8 + Table 13).
     ///
@@ -954,6 +961,8 @@ pub struct RenderPolicy<'a> {
     pub mask_resample: MaskResample,
     /// See [`RenderOptions::image_minify`].
     pub image_minify: MinifyFilter,
+    /// See [`RenderOptions::image_magnify`].
+    pub image_magnify: MagnifyFilter,
     /// See [`RenderOptions::cmyk_jpeg_polarity`].
     pub cmyk_jpeg_polarity: CmykJpegPolarity,
     /// See [`RenderOptions::missing_as`]. Read by the annotation walk
@@ -1150,6 +1159,7 @@ impl Default for RenderOptions {
             mesh_patch_padding: pdfcer_core::settings::MeshPatchPadding::default(),
             mask_resample: MaskResample::default(),
             image_minify: MinifyFilter::default(),
+            image_magnify: MagnifyFilter::default(),
             cmyk_jpeg_polarity: CmykJpegPolarity::default(),
             missing_as: MissingAppearanceState::default(),
             // See the field docs: None means "render the document as the
@@ -1444,6 +1454,13 @@ impl RenderOptions {
         self
     }
 
+    /// Set the image magnification filter, returning `self` for chaining.
+    #[must_use]
+    pub fn with_image_magnify(mut self, filter: MagnifyFilter) -> Self {
+        self.image_magnify = filter;
+        self
+    }
+
     /// Set the CMYK-JPEG polarity rule (`DCT-A1`), returning `self` for
     /// chaining.
     #[must_use]
@@ -1559,6 +1576,7 @@ impl RenderOptions {
             mesh_patch_padding: self.mesh_patch_padding,
             mask_resample: self.mask_resample,
             image_minify: self.image_minify,
+            image_magnify: self.image_magnify,
             cmyk_jpeg_polarity: self.cmyk_jpeg_polarity,
             missing_as: self.missing_as,
             layers: self.layers.as_ref(),
@@ -1624,6 +1642,7 @@ mod render_policy_tests {
             .with_max_cmyk_buffer_bytes(Some(64 * 1024 * 1024))
             .with_layers(hidden.clone())
             .with_view_magnification(2.5)
+            .with_image_magnify(pdfcer_core::settings::MagnifyFilter::Smooth)
             .with_invisible_text(Some(
                 crate::InvisibleTextPaint::new([1, 2, 3]).with_only(true),
             ));
@@ -1649,6 +1668,8 @@ mod render_policy_tests {
                 mesh_patch_padding: pdfcer_core::settings::MeshPatchPadding::None,
                 mask_resample: pdfcer_core::settings::MaskResample::Bilinear,
                 image_minify: pdfcer_core::settings::MinifyFilter::Smooth,
+                // NOT the default (`PointSample`).
+                image_magnify: pdfcer_core::settings::MagnifyFilter::Smooth,
                 cmyk_jpeg_polarity: pdfcer_core::settings::CmykJpegPolarity::InvertOnApp14,
                 missing_as: pdfcer_core::settings::MissingAppearanceState::FirstEntry,
                 layers: Some(&hidden),

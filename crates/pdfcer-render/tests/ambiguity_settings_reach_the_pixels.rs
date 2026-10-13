@@ -54,7 +54,7 @@ use std::path::PathBuf;
 
 use pdfcer_core::document::Document;
 use pdfcer_core::page_tree;
-use pdfcer_core::settings::{CmykJpegPolarity, MaskResample, MinifyFilter};
+use pdfcer_core::settings::{CmykJpegPolarity, MagnifyFilter, MaskResample, MinifyFilter};
 use pdfcer_render::{RenderOptions, RenderedPage, render_page_with};
 
 /// Build an offset-consistent classic PDF from `(number, body)` pairs.
@@ -282,6 +282,79 @@ fn minification_smoothing_does_not_touch_a_magnified_image() {
         pixels(&point),
         pixels(&smooth),
         "the minification setting changed a MAGNIFIED image"
+    );
+}
+
+/// A 2x1 `[0, 255]` image drawn 8x1: magnified 4:1, no `/Interpolate`.
+fn magnified_image_page(dict_extra: &str) -> Vec<u8> {
+    page_with_image(
+        8,
+        1,
+        vec![(5, image_object(dict_extra, 2, 1, &[0x00, 0xFF]))],
+    )
+}
+
+/// Every byte is 0 or 255: no blended texel reached the page.
+fn only_source_values(page: &RenderedPage) -> bool {
+    pixels(page).iter().all(|&b| b == 0x00 || b == 0xFF)
+}
+
+#[test]
+fn the_magnification_default_point_samples() {
+    // Display parity: a viewer shows a magnified scan as square blocks.
+    let default = render(magnified_image_page(""), &RenderOptions::default());
+    let point = render(
+        magnified_image_page(""),
+        &RenderOptions::default().with_image_magnify(MagnifyFilter::PointSample),
+    );
+    assert_eq!(pixels(&default), pixels(&point));
+    assert!(
+        only_source_values(&default),
+        "the default magnification blended texels"
+    );
+}
+
+#[test]
+fn the_magnification_filter_reaches_the_pixels() {
+    let smooth = render(
+        magnified_image_page(""),
+        &RenderOptions::default().with_image_magnify(MagnifyFilter::Smooth),
+    );
+    assert!(
+        !only_source_values(&smooth),
+        "MagnifyFilter::Smooth never left `RenderOptions`: a 0/255 pair \
+         magnified 4:1 bilinearly must produce an intermediate grey"
+    );
+}
+
+#[test]
+fn magnification_smoothing_does_not_touch_a_minified_image() {
+    let default = render(minified_image_page(), &RenderOptions::default());
+    let smooth = render(
+        minified_image_page(),
+        &RenderOptions::default().with_image_magnify(MagnifyFilter::Smooth),
+    );
+    assert_eq!(
+        pixels(&default),
+        pixels(&smooth),
+        "the magnification setting changed a MINIFIED image"
+    );
+}
+
+#[test]
+fn an_interpolate_request_is_smoothed_under_either_magnify_filter() {
+    let point = render(
+        magnified_image_page("/Interpolate true"),
+        &RenderOptions::default().with_image_magnify(MagnifyFilter::PointSample),
+    );
+    let smooth = render(
+        magnified_image_page("/Interpolate true"),
+        &RenderOptions::default().with_image_magnify(MagnifyFilter::Smooth),
+    );
+    assert_eq!(pixels(&point), pixels(&smooth));
+    assert!(
+        !only_source_values(&point),
+        "PointSample overrode the document's own /Interpolate true"
     );
 }
 

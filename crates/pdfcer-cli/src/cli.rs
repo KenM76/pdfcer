@@ -4672,10 +4672,10 @@ pub(crate) enum Command {
         ///
         /// For scans whose text is too small for the engine: faxes and
         /// 50-75 dpi scans with sharp edges. Render at the scan's own
-        /// resolution (`--dpi`) and enlarge with this, rather than raising
-        /// `--dpi`, which enlarges a scan by repeating pixels. On a 50 dpi
-        /// scan, `--dpi 50 --upscale 3` read 96 % of words with
-        /// `tesseract` where `--dpi 50` read 26 % and `--dpi 150` 87 %.
+        /// resolution (`--dpi`) and enlarge with this. On a 50 dpi scan,
+        /// `--dpi 50 --upscale 3` read 96 % of words with `tesseract` where
+        /// `--dpi 50` read 26 %. Raising `--dpi` also enlarges the scan, with
+        /// the cheaper filter `--magnify` picks.
         ///
         /// It invents no detail: on a scan that is already blurred it
         /// spreads the blur and can cost words (`ocrs` and `tesseract` both
@@ -4689,6 +4689,16 @@ pub(crate) enum Command {
         /// better in most measured cases.
         #[arg(long, value_name = "FILTER", requires = "upscale")]
         upscale_filter: Option<pdfcer_core::ocr::upscale::UpscaleFilter>,
+        /// How the page render enlarges a scan when `--dpi` is above the
+        /// scan's own resolution: `smooth` (the default, bilinear) or
+        /// `point-sample`, which repeats pixels into square blocks as a
+        /// viewer does. An image that asks for smoothing (`/Interpolate`)
+        /// is smoothed either way.
+        ///
+        /// On a sharp 50 dpi page read with `ocrs` at `--dpi 150`,
+        /// `point-sample` read 42.6 % of words.
+        #[arg(long, value_name = "FILTER", default_value = "smooth")]
+        magnify: pdfcer_core::settings::MagnifyFilter,
     },
     /// **List the stamps in an Acrobat-compatible stamp collection**
     /// (`Pass 288.0`).
