@@ -11475,6 +11475,12 @@ pub(crate) enum Command {
             allow_hyphen_values = true
         )]
         transforms: Vec<String>,
+        /// Treat each INDEX as a form-leaf index (`object-list`'s
+        /// `kind=leaf:` lines) rather than a page object. The parts must all
+        /// be in one placement of one form, and the edit changes every place
+        /// that form is drawn; `invocations=` and `pages=` say how many.
+        #[arg(long)]
+        leaf: bool,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,

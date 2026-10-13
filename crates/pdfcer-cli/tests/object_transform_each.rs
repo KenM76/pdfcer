@@ -157,3 +157,75 @@ fn a_short_matrix_is_refused_naming_the_shape() {
     assert!(stderr.contains("INDEX,A,B,C,D,E,F"), "{stderr}");
     assert!(!output.exists());
 }
+
+/// Two rectangles in `Fm0` placed at (10,10): `--leaf` moves only leaf 1,
+/// by its own page-space matrix, inside the form.
+#[test]
+fn leaf_indices_transform_parts_of_a_placed_form() {
+    let page = "q 1 0 0 1 10 10 cm /Fm0 Do Q";
+    let fm0 = "0 0 10 4 re S 20 0 6 6 re S";
+    let bodies = [
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R \
+         /Resources << /XObject << /Fm0 5 0 R >> >> >>"
+            .to_owned(),
+        format!("<< /Length {} >>\nstream\n{page}\nendstream", page.len()),
+        format!(
+            "<< /Type /XObject /Subtype /Form /BBox [0 0 40 40] /Length {} >>\nstream\n{fm0}\nendstream",
+            fm0.len()
+        ),
+    ];
+    let mut buf = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in bodies.iter().enumerate() {
+        offsets.push(buf.len());
+        buf.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref_at = buf.len();
+    let size = bodies.len() + 1;
+    buf.extend_from_slice(format!("xref\n0 {size}\n0000000000 65535 f \n").as_bytes());
+    for off in &offsets {
+        buf.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    buf.extend_from_slice(
+        format!("trailer\n<< /Size {size} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n")
+            .as_bytes(),
+    );
+    let input = std::env::temp_dir().join(format!(
+        "pdfcer_transform_each_leaf_{}.pdf",
+        std::process::id()
+    ));
+    std::fs::write(&input, buf).unwrap();
+    let output = input.with_extension("out.pdf");
+    let out = run(
+        &[
+            "--leaf",
+            "--transform",
+            "1,1,0,0,1,5,0",
+            "-o",
+            output.to_str().unwrap(),
+        ],
+        &input,
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        stdout.contains(" transformed=1 invocations=1 pages=1 "),
+        "{stdout}"
+    );
+    let doc = pdfcer_core::document::Document::from_bytes(std::fs::read(&output).unwrap()).unwrap();
+    let mut s = pdfcer_core::edit::EditSession::new(doc);
+    let model = s.page_objects(0).unwrap();
+    let x = |i: usize| model.leaves[i].object.page_bbox().min.x;
+    assert!(
+        (x(0) - 10.0).abs() < 1e-6 && (x(1) - 35.0).abs() < 1e-6,
+        "{} {}",
+        x(0),
+        x(1)
+    );
+}

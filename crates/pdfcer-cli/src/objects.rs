@@ -459,6 +459,8 @@ pub(crate) struct ObjectTransformEachArgs<'a> {
     pub(crate) page: u32,
     /// `--transform` values, unparsed (`INDEX,A,B,C,D,E,F`).
     pub(crate) transforms: &'a [String],
+    /// The indices are form-leaf indices (`transform_objects_each_in_form`).
+    pub(crate) leaf: bool,
     pub(crate) output: &'a Path,
     pub(crate) mode: SaveMode,
     pub(crate) verify_undo: bool,
@@ -503,15 +505,24 @@ pub(crate) fn cmd_object_transform_each(args: &ObjectTransformEachArgs<'_>) -> u
         Ok(pair) => pair,
         Err(code) => return code,
     };
-    let out = match session.transform_objects_each(
-        page_index,
-        &transforms,
-        pdfcer_core::vector::TransformOptions::default(),
-    ) {
+    let options = pdfcer_core::vector::TransformOptions::default();
+    let result = if args.leaf {
+        session
+            .transform_objects_each_in_form(page_index, &transforms, options)
+            .map(|out| {
+                let reach = format!(" invocations={} pages={}", out.invocations, out.pages);
+                (transforms.len() as u64, reach, out.disclosures)
+            })
+    } else {
+        session
+            .transform_objects_each(page_index, &transforms, options)
+            .map(|out| (out.objects_transformed, String::new(), out.disclosures))
+    };
+    let (transformed, reach, disclosures) = match result {
         Ok(out) => out,
         Err(err) => return report_edit_error(args.input, &err),
     };
-    report_disclosures(&out.disclosures);
+    report_disclosures(&disclosures);
     let outcome = match save_edited(
         &mut session,
         &source,
@@ -525,10 +536,9 @@ pub(crate) fn cmd_object_transform_each(args: &ObjectTransformEachArgs<'_>) -> u
     };
     let r = &outcome.report;
     println!(
-        "object-transform-each {} page {} transformed={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        "object-transform-each {} page {} transformed={transformed}{reach} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
         args.input.display(),
         args.page,
-        out.objects_transformed,
         args.mode.name(),
         args.output.display(),
         outcome.changed,
