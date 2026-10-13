@@ -405,6 +405,7 @@ fn a_break_typed_after_a_full_line_reads_back_exactly() {
         .expect("ok")
         .expect("a block");
     assert_eq!(before.line_end_source, LineEndSource::Inferred);
+    assert_eq!(before.line_gaps, None);
     let text = "Alpha bravo charlie delta echo foxtrot\ngolf hotel india juliet kilo lima.";
     s.edit_block_text(0, before.block_index, text, &BlockEditOptions::default())
         .expect("edits");
@@ -434,6 +435,13 @@ fn a_marked_block_keeps_its_wraps_and_its_blank_lines() {
         .expect("a block");
     assert_eq!(after.line_end_source, LineEndSource::Marked);
     assert_eq!(after.text, text);
+    let gaps = after.line_gaps.as_deref().expect("marked");
+    assert_eq!(gaps.len() + 1, after.line_ends.len());
+    assert_eq!(gaps.first(), Some(&2), "a break and one blank line");
+    assert!(
+        gaps.iter().skip(1).all(|&g| g == 0),
+        "the rest wrap: {gaps:?}"
+    );
     let d = Document::from_bytes(full_bytes(&s)).expect("reload");
     let view = d.view();
     let pages = page_tree::pages_in(&view).expect("pages");

@@ -153,6 +153,7 @@ impl EditSession {
             text: model.block_text_with_breaks(b),
             line_ends: model.line_ends(b),
             line_end_source: model.line_end_source(b),
+            line_gaps: model.line_gaps(b),
             bbox: b.bbox,
             looks: block_looks(&view, page, &model, b),
         }))

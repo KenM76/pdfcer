@@ -102,6 +102,16 @@ impl EditableTextModel<'_> {
         }
     }
 
+    /// The marked break count at each line end but the last, in line order:
+    /// 0 is a wrap, 1 a line break, `n` a break followed by `n - 1` blank
+    /// lines. `None` when [`Self::line_end_source`] is
+    /// [`LineEndSource::Inferred`]; the inferred reading has no blank lines.
+    /// One shorter than [`Self::line_ends`], whose entries it refines.
+    #[must_use]
+    pub fn line_gaps(&self, block: &Block) -> Option<Vec<usize>> {
+        self.marked_gaps(block)
+    }
+
     /// For a block wholly inside one marked text object: the break points
     /// between each line and the next. `None` otherwise.
     pub(super) fn marked_gaps(&self, block: &Block) -> Option<Vec<usize>> {

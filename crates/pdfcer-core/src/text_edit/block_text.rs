@@ -205,6 +205,10 @@ pub struct BlockHit {
     /// writes (exact) or inferred from the layout, which a shell discloses
     /// as inferred.
     pub line_end_source: super::LineEndSource,
+    /// The marked break count at each line end but the last; `None` when
+    /// inferred ([`EditableTextModel::line_gaps`](super::EditableTextModel::line_gaps)).
+    /// A count above 1 is a break followed by blank lines.
+    pub line_gaps: Option<Vec<usize>>,
     /// The block's box.
     pub bbox: Rect,
     /// [`BlockEditReport::looks`] for this block; `None` when
