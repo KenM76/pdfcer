@@ -1549,11 +1549,12 @@ CLI.
 | `text_edit::LineEnd` | `Break`, `Wrap`, `Last` (`#[non_exhaustive]`; `as_str()` gives `break` / `wrap` / `last`). |
 | `model.line_ends(&block) -> Vec<LineEnd>` | One per line, in `block.line_indices` order; the last is `Last`, an empty block gives `[]`. |
 | `model.block_text_with_breaks(&block) -> String` | Lines joined by a space after a `Wrap` and by `\n` after a `Break`: the spelling `edit_block_text` takes, so writing it back keeps the block's lines (`G162`). `block_text` (every line joined by `\n`) is unchanged. |
-| `BlockHit::{text, line_ends, line_end_source}` | `block_at_point` returns this spelling, the per-line ends and where they were read from. |
+| `BlockHit::{text, line_ends, line_end_source, line_gaps}` | `block_at_point` returns this spelling, the per-line ends, where they were read from, and the marked break counts. |
 | `text_edit::LineEndSource` | `Marked` (read from pdfcer's own marks: exact) or `Inferred` (`#[non_exhaustive]`; `as_str()` gives `marked` / `inferred`). |
 | `text_edit::LineMarks::scan(&ContentStream) -> LineMarks` | The marks in a page's own content (`ContentStream::from_page`); `is_empty()`. `Default` is no marks. |
 | `model.with_line_marks(marks) -> Self` | Attach them; the model must come from an extraction with provenance. `block_at_point` does this itself. |
 | `model.line_end_source(&block) -> LineEndSource` | Which reading `line_ends` used for `block`. |
+| `model.line_gaps(&block) -> Option<Vec<usize>>` | The marked break count at each line end but the last: 0 wrap, 1 break, `n` a break followed by `n - 1` blank lines (`G183`). `None` when the ends are inferred; inference finds no blank lines. Use it to re-open a paragraph with its blank lines while walking the block's own glyphs. |
 
 **The rule.** A greedy breaker (pdfcer's, and the usual word processor's)
 moves a word down only when it does not fit. So a line is a `Break` when the
