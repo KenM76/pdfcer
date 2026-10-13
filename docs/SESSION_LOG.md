@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-13 (1060th filing) — `Pass 573.0` shipped (`G175`, an in-form text split has its plan and line-inference disclosure)
+
+**Shipped:** `ca9e32a3` (code) and `f4182212` (`docs/core-api`). `EditSession::text_object_split_plan_in_form(page_index, leaf_index, granularity)` returns `(Vec<usize>, Vec<String>)`: the same cuts and disclosures as `text_object_split_plan`, including the rule-4 line-inference sentence for `Line` (none for `Run`); mutates nothing; errors `PageOutOfRange`, `FormLeafOutOfRange`, `VectorEdit`. Both verbs share a private `split_plan_of` in `edit.rs`, so the sentence has one author (the GUI's own copy is now deletable). Verb count 359; index line count 6,539.
+
+**Verified (engineer-reported; no shell here):** new `an_in_form_split_plan_discloses_the_line_inference`; all 36 split tests pass; a sabotage disabling the Line disclosure failed 3, code restored; no dependency change.
+
+**Files:** ROADMAP (new Shipped entry; the 573.0 Next-up bullet collapsed to a pointer, `###` count in Next up unchanged at 80, counted by heading line numbers between `## Next up` and `## Backlog`). FEATURES.md: row core `[x]`, cli `[ ]` (`text-object-split --leaf` takes explicit `--before` and does not call the plan), gui `[ ]`, ticked in place. Ledgers: no decision; next free `Pass 581.0`; next filing 1061st.
+
+**For `pdfcer-gui`:** adopt `text_object_split_plan_in_form` and delete the local `lines_inferred` sentence.
+
 ## 2026-10-13 (1059th filing) — `Pass 572.0` shipped (`G179`, the document's named destinations are listable)
 
 **Shipped:** `410d9c89` (code) and `b54b7458` (`docs/core-api`). `DestinationReader::named_destinations(&graph)` returns `Vec<(Vec<u8>, Option<Destination>)>` over both ISO 32000-2 §12.3.2.3 namespaces; the name tree wins a collision, as in the resolver; sorted by bytes; length equals `named_destination_count()`. Each name resolves as a link naming it would (aliases followed); `None` when the value is not a destination, and the name is still listed. The read context moved into a private `DestinationReader::context()` shared with `destination_with_diagnostics`.

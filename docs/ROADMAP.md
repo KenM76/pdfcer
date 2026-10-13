@@ -115,6 +115,20 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 573.0` — an in-form text split has its plan and line-inference disclosure: `EditSession::text_object_split_plan_in_form` (core; answers `pdfcer-gui` `G175`) — SHIPPED 2026-10-13 (1060th filing)
+
+Commits `ca9e32a3` (code, tests) and `f4182212` (`docs/core-api`). Push state not checked (no shell here). No dependency or manifest change, so the `cargo tree` invariant is untouched. No decision.
+
+- **`text_object_split_plan_in_form(page_index, leaf_index, granularity) -> Result<(Vec<usize>, Vec<String>), EditError>`** in `crates/pdfcer-core/src/edit/text_form_reshape.rs`. For a text leaf inside a form XObject it returns the same cuts and disclosures as `text_object_split_plan`, including the CLAUDE.md rule-4 line-inference sentence for `SplitGranularity::Line`; `Run` returns none. Mutates nothing. Errors: `PageOutOfRange`, `FormLeafOutOfRange`, `VectorEdit` for a non-text leaf.
+- **One author of the sentence.** Both verbs share a private `split_plan_of` in `edit.rs`. Before this, the GUI wrote its own copy.
+- **core-api.** A row in the G158 form-text table of `02-editing-and-saving.md`, replacing the sentence "There is no form twin of text_object_split_plan"; `EditSession` verb count 358 -> 359; index line count 6,536 -> 6,539.
+
+**Verified (engineer-reported; not checked against disk by me).** New test `an_in_form_split_plan_discloses_the_line_inference` in `tests/text_form_reshape.rs`; all 36 split tests pass. A sabotage disabling the Line disclosure failed 3 tests across the page and form paths; the code was restored.
+
+`FEATURES.md`: the in-form split-plan row ticked core `[x]`; cli `[ ]` (`text-object-split --leaf` takes explicit `--before` cuts and does not call the plan), gui `[ ]`. Not rounded up. FIXED reply written to the FeatureRequests channel.
+
+Ledgers: no decision; next free `Pass 581.0`; next filing 1061st.
+
 ### `Pass 572.0` — the document's named destinations are listable: `DestinationReader::named_destinations` (core; answers `pdfcer-gui` `G179`) — SHIPPED 2026-10-13 (1059th filing)
 
 Commits `410d9c89` (code, tests) and `b54b7458` (`docs/core-api`). Push state not checked (no shell here). No dependency or manifest change, so the `cargo tree` invariant is untouched. No decision.
@@ -21888,13 +21902,13 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1060th (updated at the 1059th).
+> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1061st (updated at the 1060th).
 > - `567.0` (`G185`) and `568.0` (`G186`) shipped at the 1055th filing (`26cc218c`); see *Shipped*.
 > - `569.0` (`G176`) shipped at the 1056th filing (`73d68728`, `13ffa912`); see *Shipped*.
 > - `570.0` (`G177`) shipped at the 1057th filing (`3dde42ee`, `7eca1c45`); see *Shipped*.
 > - `571.0` (`G178`) shipped at the 1058th filing (`46fdaa50`, `2e4a23fc`); see *Shipped*.
 > - `572.0` (`G179`) shipped at the 1059th filing (`410d9c89`, `b54b7458`); see *Shipped*.
-> - **`573.0` (`G175`) — the in-form text split has no plan twin carrying the line-inference disclosure (rule 4).** For a page object `text_object_split_plan` returns a `SplitPlan` with the sentence "line breaks inferred from baselines and spacing"; a form leaf has only `text_object_split_points` (cut indices) and `FormSurgeryOutcome` omits the sentence, so the shell authors it a second time. Ask: `text_object_split_plan_in_form(page, leaf, granularity)` returning the same `SplitPlan`. Acceptance: same disclosure text from one source for both cases; the GUI's `lines_inferred` becomes deletable.
+> - `573.0` (`G175`) shipped at the 1060th filing (`ca9e32a3`, `f4182212`); see *Shipped*.
 > - **`574.0` (`G182`) — `add_text` writes no line-break marks.** Only `edit_block_text` writes the private `pdfc_` break marker, so a paragraph typed with `add_text` re-opens `LineEndSource::Inferred`, and a break after a nearly full line reads as a wrap; the next edit joins the lines. Ask: `add_text`, `place_text` and any other pdfcer writer of multi-line text write the same marks. Acceptance: `"A much longer first line\nx"` re-opens `Marked` with `[Break, Last]`; a CLI `add-text` paragraph does too; unmarked foreign text stays `Inferred`.
 > - **`575.0` (`G183`) — a marked blank line's break count is not readable per line end.** `line_ends` collapses the private `marked_gaps` count to `LineEnd::Break`; `block_text_with_breaks` keeps it only as one trimmed string a caller cannot align with a glyph walk. Ask: `line_gaps(&self, block) -> Option<Vec<usize>>` (the marked break count per line end, `None` when inferred), or per-line byte ranges from `block_text_with_breaks`. Acceptance: `"a\n\nb"` reports a count of 2 on its first line end; `None` for an inferred block.
 > - **`576.0` (`G174`) — stroke width and dash cannot be given or read in points.** `StrokeStyle` lengths are in each path's own user space, so a selection under different CTM scales has no single value meaning "5 pt"; the shell groups by scale and folds N calls with `coalesce_last`. Ask, either: a `StrokeUnits::{UserSpace, Page}` field on the style (applied per path through its own CTM), or `PathObject::line_width_pt` / `dash_pt` readers using the engine's own measure. Acceptance: one call sets "5 pt" on paths under different CTMs, one undo entry; the readers and the writer share one scale measure, and a non-uniform CTM is stated (rule 4).
