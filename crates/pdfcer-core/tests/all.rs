@@ -140,6 +140,7 @@ mod merge_document;
 mod merge_relinks_cross_file_bookmarks;
 mod metadata_remove;
 mod move_objects_each;
+mod named_destinations_list;
 mod node_edit_materialized;
 mod node_multi_move;
 mod object_clipboard;

@@ -1816,6 +1816,55 @@ impl DestinationReader {
         self.named.len()
     }
 
+    /// Every named destination the document defines, across **both**
+    /// §12.3.2.3 namespaces after the collision merging the resolver
+    /// applies (the name tree wins a key both define), sorted byte-wise by
+    /// name. There are [`Self::named_destination_count`] entries.
+    ///
+    /// Each name is resolved as a link naming it would be, so a name whose
+    /// value is another name is followed. The destination is `None` when
+    /// the defined value is nothing a destination can be (a number, a
+    /// dangling reference); such a name is still listed, because the file
+    /// defines it and `LinkTarget::Named` accepts it.
+    #[must_use]
+    pub fn named_destinations<G: ObjectGraph + ?Sized>(
+        &self,
+        graph: &G,
+    ) -> Vec<(Vec<u8>, Option<Destination>)> {
+        let mut names: Vec<&Vec<u8>> = self.named.map.keys().collect();
+        names.sort();
+        names
+            .into_iter()
+            .map(|name| {
+                let mut context = self.context();
+                let value = Object::String(name.clone());
+                let resolved = resolve_destination_value(graph, &value, &mut context);
+                (name.clone(), resolved)
+            })
+            .collect()
+    }
+
+    /// A fresh single-read context over this reader's maps.
+    ///
+    /// The budget and visited set are inert for a destination read: they
+    /// bound the outline's sibling/child traversal, which a destination
+    /// read does not perform. They get their ordinary values rather than
+    /// zero, so a future change that consults them is bounded instead of
+    /// refusing every read.
+    fn context(&self) -> ReadContext<'_> {
+        ReadContext {
+            budget: MAX_OUTLINE_ITEMS,
+            visited: HashSet::new(),
+            page_index: &self.page_index,
+            named: &self.named,
+            diagnostics: OutlineDiagnostics {
+                page_tree_error: self.page_tree_error.clone(),
+                named_destinations_defined: self.named.len(),
+                ..OutlineDiagnostics::default()
+            },
+        }
+    }
+
     /// Resolve the destination carried by `carrier`, if it carries one.
     ///
     /// `carrier` is the *dictionary of the thing that was clicked* — a
@@ -1884,24 +1933,7 @@ impl DestinationReader {
         graph: &G,
         carrier: &Dict,
     ) -> (Option<Destination>, OutlineDiagnostics) {
-        // The budget and visited set are inert here: neither
-        // `resolve_item_destination` nor anything it calls reads them —
-        // they bound the *sibling/child* traversal, which this entry
-        // point does not perform. They are given their ordinary values
-        // rather than zero so that a future change which does start
-        // consulting them is bounded correctly instead of refusing every
-        // read.
-        let mut context = ReadContext {
-            budget: MAX_OUTLINE_ITEMS,
-            visited: HashSet::new(),
-            page_index: &self.page_index,
-            named: &self.named,
-            diagnostics: OutlineDiagnostics {
-                page_tree_error: self.page_tree_error.clone(),
-                named_destinations_defined: self.named.len(),
-                ..OutlineDiagnostics::default()
-            },
-        };
+        let mut context = self.context();
         let resolved = resolve_item_destination(graph, carrier, &mut context);
         (resolved, context.diagnostics)
     }
