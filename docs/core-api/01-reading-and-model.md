@@ -128,7 +128,7 @@ builds `--no-default-features`, so both configurations compile.
 | **Find what the user clicked** | **`vector::hit_test_point_deep(&PageObjects, Point, tolerance)` — `vector/hit.rs`** | §10.3 |
 | Find what the user clicked, **page stream only** | `vector::hit_test_point(&PageObjects, Point, tolerance)` — `vector/hit.rs` | §10.3 |
 | Cycle through overlapping objects under the cursor | `vector::hit_test_point_all` — `vector/hit.rs` | §10.3 |
-| **Click through an image's transparent pixels** | `vector::hit_test_point_deep_with` / `_with` / `_all_with` + `DocumentImageAlpha::new(&view)` — `vector/hit.rs`, `vector/image_hit.rs` | §8.9.6, §11.6.5.3 |
+| **Click through an image's transparent pixels** | `vector::hit_test_point_deep_with` / `_with` / `_all_with` + `DocumentImageAlpha::new(&view)`, or an owned `ImageAlphaCache` + `cache.with_view(&view)` across views — `vector/hit.rs`, `vector/image_hit.rs` | §8.9.6, §11.6.5.3 |
 | Reach objects drawn **inside** a form XObject | `PageObjects::leaves` → `vector::decompose::FormLeaf` — `vector/decompose.rs` | §10.3 |
 | **Marquee-select a region** | **`vector::hit_test_rect_deep(&PageObjects, Bounds, MarqueeMode, FormMarquee)`** — `vector/hit.rs`. `hit_test_rect` still exists and is **shallow**: it cannot see inside a form, so a rubber band and a click disagree about what is selectable | §10.3 |
 | Drill into which text run / subpath was clicked | `vector::hit_test_text_runs` / `hit_test_text_runs_of(&TextObject, ..)` — `hit.rs`; `vector::hit_test_subpaths` / `hit_test_subpaths_of(&PathObject, ..)` — `hit.rs`. The `_of` forms take the object, so they work on a `FormLeaf::object` | §10.3 |
@@ -2220,6 +2220,14 @@ let hits = hit_test_point_deep_with(&model, at, tol, &alpha);
 ```
 
 `hit_test_point`, `_all` and `_deep` ignore masks (they pass `NoImageAlpha`).
+**Across views** (Pass 578.0, pdfcer-gui G181): a shell that cannot keep a
+`DocumentView` alive between frames owns a `vector::ImageAlphaCache`
+(`new`, `len`, `is_empty`, `clear`; `Send + Sync`) and borrows a resolver per
+query with `cache.with_view(&view)` (a `DocumentImageAlpha` that reads and
+fills the cache). Entries are keyed by image object only, so the cache is
+valid for ONE document state: drop or `clear` it when the edit epoch
+(`page_content_generation`, undo position) moves.
+
 Their `_with` siblings take any `&dyn ImageAlpha`; `DocumentImageAlpha`
 decodes each image's mask once per XObject and misses an image wherever the
 **nearest sample** is fully transparent, so the click reaches what is drawn
