@@ -169,6 +169,21 @@ fn a_fill_after_a_turn_keeps_the_angle_and_the_size() {
     assert_eq!(rect_of(&s, "T"), rect, "/Rect untouched by a fill");
 }
 
+/// `forms::Widget::free_angle` reads what `turn_widget` wrote, so a grip
+/// drag can add to it (pdfcer-gui G177).
+#[test]
+fn the_free_angle_reads_back_what_a_turn_wrote() {
+    let mut s = session();
+    text(&mut s);
+    assert_eq!(widget(&s, "T").free_angle, None);
+    s.turn_widget("T", 0, 30.0).unwrap();
+    assert_eq!(widget(&s, "T").free_angle, Some(30.0));
+    s.turn_widget("T", 0, -135.0).unwrap();
+    assert_eq!(widget(&s, "T").free_angle, Some(-135.0));
+    s.turn_widget("T", 0, 0.0).unwrap();
+    assert_eq!(widget(&s, "T").free_angle, None);
+}
+
 #[test]
 fn a_free_turn_sits_on_top_of_a_quarter_turn() {
     let mut s = session();
@@ -176,6 +191,8 @@ fn a_free_turn_sits_on_top_of_a_quarter_turn() {
     s.rotate_widget("T", 0, 90).unwrap();
     let out = s.turn_widget("T", 0, 30.0).unwrap();
     assert_eq!(out.was, 0.0, "the quarter turn is /MK /R, not a free angle");
+    let w = widget(&s, "T");
+    assert_eq!((w.rotation, w.free_angle), (Some(90), Some(30.0)));
     s.fill_text_field("T", "x").unwrap();
     for d in normal(&s, "T") {
         assert!(close(&nums(&d, b"Matrix").unwrap(), &turned(120.0)));
@@ -293,6 +310,7 @@ fn opacity_is_written_cleared_and_range_checked() {
         widget_dict(&s, "T").get(b"CA").and_then(Object::as_number),
         Some(0.4)
     );
+    assert_eq!(widget(&s, "T").opacity, Some(0.4));
     assert!(out.opacity_disclosure.is_some());
     let opaque = s
         .edit_widget("T", 0, &WidgetEdit::new().with_opacity(1.0))
@@ -301,6 +319,7 @@ fn opacity_is_written_cleared_and_range_checked() {
     s.edit_widget("T", 0, &WidgetEdit::new().clearing_opacity())
         .unwrap();
     assert!(widget_dict(&s, "T").get(b"CA").is_none());
+    assert_eq!(widget(&s, "T").opacity, None);
     for bad in [1.5, -0.1, f64::NAN] {
         assert!(matches!(
             s.edit_widget("T", 0, &WidgetEdit::new().with_opacity(bad)),

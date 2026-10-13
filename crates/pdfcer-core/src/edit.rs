@@ -157,6 +157,7 @@ pub use image_replace::ImageReplaceOutcome;
 mod text_form_reshape;
 pub use text_form_reshape::FormTextOutcome;
 pub use widget_angle::WidgetTurn;
+pub(crate) use widget_angle::free_turn_of;
 mod image_stamp;
 mod ocr_refold;
 mod page_artwork;

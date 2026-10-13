@@ -606,6 +606,15 @@ pub struct Widget {
     /// is non-conforming, and silently rounding it here would be pdfcer
     /// inventing a rotation the file does not state.
     pub rotation: Option<i64>,
+    /// The free angle on top of [`Self::rotation`]: counterclockwise degrees
+    /// in (-180, 180], read from the first normal appearance stream's
+    /// `/Matrix` by the rule [`crate::edit::EditSession::turn_widget`] reads
+    /// it by. `None` for an upright widget, a `/Matrix` that is not a pure
+    /// rotation, or a remainder that is a multiple of 90.
+    pub free_angle: Option<f64>,
+    /// `/CA` (ISO 32000-2 Table 166) as the file states it; `None` when
+    /// absent or not a number (the reader default is then opaque).
+    pub opacity: Option<f64>,
     /// `/MK /I` — a push button's normal icon, the form XObject it draws
     /// (Table 189). `None` when absent or not an indirect reference.
     pub icon: Option<ObjId>,
@@ -1743,6 +1752,11 @@ fn model_widget<G: ObjectGraph + ?Sized>(
         background,
         border_color,
         rotation,
+        free_angle: crate::edit::free_turn_of(graph, dict, rotation).map(|t| t.degrees),
+        opacity: dict
+            .get(b"CA")
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_number),
         icon,
         caption_position,
         border,

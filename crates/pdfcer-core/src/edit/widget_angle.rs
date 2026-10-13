@@ -49,13 +49,13 @@ pub struct WidgetTurn {
 
 /// A widget's free turn as read from its normal appearance.
 #[derive(Debug, Clone, Copy)]
-pub(super) struct FreeTurn {
+pub(crate) struct FreeTurn {
     /// Counterclockwise degrees on top of the quarter turn, in (-180, 180].
-    pub(super) degrees: f64,
+    pub(crate) degrees: f64,
     /// The widget's logical size in the `/Rect` frame (before the quarter
     /// turn's width/height swap): what `/Rect` would be with no free angle.
-    pub(super) w: f64,
-    pub(super) h: f64,
+    pub(crate) w: f64,
+    pub(crate) h: f64,
 }
 
 /// `degrees` reduced into (-180, 180].
@@ -111,6 +111,75 @@ fn fit(bound: [f64; 4], rect: page_tree::Rect) -> Option<Matrix> {
     })
 }
 
+/// The stream ids in a widget's `/AP` `/N`, `/R` and `/D`, normal first,
+/// each once: the order [`free_turn_of`]'s "first stream" is taken in.
+fn appearance_streams_of<G: ObjectGraph + ?Sized>(graph: &G, dict: &Dict) -> Vec<ObjId> {
+    let Some(Object::Dict(ap)) = dict.get(b"AP").map(|o| graph.resolve(o)) else {
+        return Vec::new();
+    };
+    let mut ids = Vec::new();
+    let mut take = |o: &Object| {
+        if let Object::Reference(id) = o
+            && matches!(graph.value(*id), Some(Object::Stream(_)))
+            && !ids.contains(id)
+        {
+            ids.push(*id);
+        }
+    };
+    for key in [b"N", b"R", b"D"] {
+        match ap.get(key) {
+            Some(o @ Object::Reference(_)) if !matches!(graph.resolve(o), Object::Dict(_)) => {
+                take(o);
+            }
+            Some(o) => {
+                if let Object::Dict(states) = graph.resolve(o) {
+                    states.iter().for_each(|(_, v)| take(v));
+                }
+            }
+            None => {}
+        }
+    }
+    ids
+}
+
+/// A widget's free turn read from its first appearance stream's `/Matrix`,
+/// or `None` when that stream is upright in its `/MK /R` frame, is not a
+/// pure rotation, or has no `/BBox`. A remainder that is itself a multiple
+/// of 90 is a producer's quarter turn, not a free turn. `rotation` is the
+/// widget's `/MK /R` as the file states it.
+pub(crate) fn free_turn_of<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    dict: &Dict,
+    rotation: Option<i64>,
+) -> Option<FreeTurn> {
+    let id = *appearance_streams_of(graph, dict).first()?;
+    let Some(Object::Stream(stream)) = graph.value(id) else {
+        return None;
+    };
+    let m = read_matrix(graph, &stream.dict);
+    let bbox = read_rect_array(graph, stream.dict.get(b"BBox")?)?;
+    if !is_rotation(m) {
+        return None;
+    }
+    let quarter = rotation.map_or(0, |r| r.rem_euclid(360));
+    // Rounded so a 30 written comes back 30, not 29.999999999999996.
+    let free = (normalise(m.b.atan2(m.a).to_degrees() - quarter as f64) * 1e9).round() / 1e9;
+    if is_quarter(free) {
+        return None;
+    }
+    let (bw, bh) = ((bbox[2] - bbox[0]).abs(), (bbox[3] - bbox[1]).abs());
+    let (w, h) = if quarter == 90 || quarter == 270 {
+        (bh, bw)
+    } else {
+        (bw, bh)
+    };
+    Some(FreeTurn {
+        degrees: free,
+        w,
+        h,
+    })
+}
+
 /// One appearance stream's planned rewrite.
 struct Turned {
     id: ObjId,
@@ -163,36 +232,10 @@ impl EditSession {
     /// The stream ids in a widget's `/AP` `/N`, `/R` and `/D`, normal first,
     /// each once.
     fn appearance_stream_ids(&self, widget_id: ObjId) -> Vec<ObjId> {
-        let graph = self.graph();
-        let Some(Object::Dict(dict)) = self.value(widget_id) else {
-            return Vec::new();
-        };
-        let Some(Object::Dict(ap)) = dict.get(b"AP").map(|o| graph.resolve(o).clone()) else {
-            return Vec::new();
-        };
-        let mut ids = Vec::new();
-        let mut take = |o: &Object| {
-            if let Object::Reference(id) = o
-                && self.resolves_to_stream(*id)
-                && !ids.contains(id)
-            {
-                ids.push(*id);
-            }
-        };
-        for key in [b"N", b"R", b"D"] {
-            match ap.get(key) {
-                Some(o @ Object::Reference(_)) if !matches!(graph.resolve(o), Object::Dict(_)) => {
-                    take(o);
-                }
-                Some(o) => {
-                    if let Object::Dict(states) = graph.resolve(o) {
-                        states.iter().for_each(|(_, v)| take(v));
-                    }
-                }
-                None => {}
-            }
+        match self.value(widget_id) {
+            Some(Object::Dict(dict)) => appearance_streams_of(&self.graph(), dict),
+            _ => Vec::new(),
         }
-        ids
     }
 
     /// The widget's free turn, or `None` when its normal appearance is
@@ -200,33 +243,10 @@ impl EditSession {
     /// no `/BBox`). A free angle that is itself a multiple of 90 is not a
     /// free turn: that is a producer's quarter turn, and `/MK /R` governs it.
     pub(super) fn free_turn(&self, widget: &forms::Widget) -> Option<FreeTurn> {
-        let id = *self.appearance_stream_ids(widget.id).first()?;
-        let Some(Object::Stream(stream)) = self.value(id) else {
-            return None;
-        };
-        let graph = self.graph();
-        let m = read_matrix(&graph, &stream.dict);
-        let bbox = read_rect_array(&graph, stream.dict.get(b"BBox")?)?;
-        if !is_rotation(m) {
-            return None;
+        match self.value(widget.id) {
+            Some(Object::Dict(dict)) => free_turn_of(&self.graph(), dict, widget.rotation),
+            _ => None,
         }
-        let quarter = Self::quarter_of(widget.rotation);
-        // Rounded so a 30 written comes back 30, not 29.999999999999996.
-        let free = (normalise(m.b.atan2(m.a).to_degrees() - quarter as f64) * 1e9).round() / 1e9;
-        if is_quarter(free) {
-            return None;
-        }
-        let (bw, bh) = ((bbox[2] - bbox[0]).abs(), (bbox[3] - bbox[1]).abs());
-        let (w, h) = if quarter == 90 || quarter == 270 {
-            (bh, bw)
-        } else {
-            (bw, bh)
-        };
-        Some(FreeTurn {
-            degrees: free,
-            w,
-            h,
-        })
     }
 
     /// The `/Rect`-frame size a redraw of a turned widget draws at, instead
