@@ -1,4 +1,5 @@
-//! The marks `edit_block_text` writes so its own line ends read back exactly.
+//! The marks `edit_block_text` and `add_text` write so pdfcer's own line ends
+//! read back exactly.
 //!
 //! A text object pdfcer writes for a block opens with a `/pdfc_TextBlock MP`
 //! marked-content point, and each line ended by a typed break is followed by a

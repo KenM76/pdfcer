@@ -168,6 +168,7 @@
 
 use crate::crypto::PermissionBit;
 use crate::text_edit::cause::UnsupportedCause;
+use crate::text_edit::model::{BREAK_TAG, TEXT_BLOCK_TAG};
 use std::collections::BTreeSet;
 
 use crate::document::Document;
@@ -1367,7 +1368,7 @@ fn build_content(
     // boundary between the prior stream and this one.
     out.push(b'\n');
     out.extend_from_slice(b"q\n");
-    out.extend_from_slice(b"BT\n");
+    open_text_object(&mut out);
     out.push(b'/');
     out.extend_from_slice(font_name);
     out.push(b' ');
@@ -1387,6 +1388,15 @@ fn build_content(
     out.extend_from_slice(b"ET\n");
     out.push(b'Q');
     out
+}
+
+/// Open the run's text object with the `pdfc_TextBlock` mark, so a re-open
+/// reads its line ends from the `pdfc_Break` marks rather than inferring them
+/// ([`LineMarks`](crate::text_edit::LineMarks); ISO 32000-1 §14.6).
+fn open_text_object(out: &mut Vec<u8>) {
+    out.extend_from_slice(b"BT\n/");
+    out.extend_from_slice(TEXT_BLOCK_TAG);
+    out.extend_from_slice(b" MP\n");
 }
 
 /// Map each character of `text` to its CID in `plan`.
@@ -1431,7 +1441,7 @@ fn build_content_embedded(
     let mut out = Vec::new();
     out.push(b'\n');
     out.extend_from_slice(b"q\n");
-    out.extend_from_slice(b"BT\n");
+    open_text_object(&mut out);
     out.push(b'/');
     out.extend_from_slice(font_name);
     out.push(b' ');
@@ -2051,25 +2061,32 @@ fn build_content_boxed(
     // Leading token separator (§7.2), q/Q isolation (§8.4.2).
     out.push(b'\n');
     out.extend_from_slice(b"q\n");
-    out.extend_from_slice(b"BT\n");
+    open_text_object(&mut out);
     out.push(b'/');
     out.extend_from_slice(font_name);
     out.push(b' ');
     emit_number(&mut out, size);
     out.extend_from_slice(b" Tf\n");
     emit_state_prelude(&mut out, color, render_mode);
-    for line in &layout.lines {
-        if line.blank {
-            continue;
+    let last = layout.lines.len().saturating_sub(1);
+    for (i, line) in layout.lines.iter().enumerate() {
+        if !line.blank {
+            // Absolute placement per line (recipe C): `1 0 0 1 x y Tm`.
+            out.extend_from_slice(b"1 0 0 1 ");
+            emit_number(&mut out, line.origin_x);
+            out.push(b' ');
+            emit_number(&mut out, line.baseline_y);
+            out.extend_from_slice(b" Tm\n");
+            emit_boxed_line_show(&mut out, line, layout.space_code, size);
+            out.push(b'\n');
         }
-        // Absolute placement per line (recipe C): `1 0 0 1 x y Tm`.
-        out.extend_from_slice(b"1 0 0 1 ");
-        emit_number(&mut out, line.origin_x);
-        out.push(b' ');
-        emit_number(&mut out, line.baseline_y);
-        out.extend_from_slice(b" Tm\n");
-        emit_boxed_line_show(&mut out, line, layout.space_code, size);
-        out.push(b'\n');
+        // A blank line is a paragraph of its own, so it adds one break: a
+        // paragraph end followed by `n - 1` blank lines carries `n` marks.
+        if line.is_last_of_para && i < last {
+            out.push(b'/');
+            out.extend_from_slice(BREAK_TAG);
+            out.extend_from_slice(b" MP\n");
+        }
     }
     out.extend_from_slice(b"ET\n");
     out.push(b'Q');

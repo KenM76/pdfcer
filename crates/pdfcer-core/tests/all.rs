@@ -4,6 +4,7 @@
 
 mod acroform_quadding;
 mod add_text;
+mod add_text_line_marks;
 mod annot_ap_cascade_streams;
 mod annot_delete_structural;
 mod annot_deletion;
