@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-13 (1063rd filing) — `Pass 576.0` shipped (`G174`, stroke width and dash in points)
+
+**Shipped:** `cef7646f` (code) and `c63bc05b` (`docs/core-api`). `StrokeStyle.units: StrokeUnits` (`UserSpace` default, `Page`): with `Page`, each path's width, dash and phase are divided by its own stroke scale (sqrt|det CTM|, the stroke hit-test's measure), so one `set_object_stroke_style` call strokes a mixed-scale selection alike. The in-form route takes the scale from each leaf's page-space CTM. `PathObject` gains `stroke_scale`, `stroke_scale_is_uniform`, `line_width_pt`, `dash_pt`; a non-uniform CTM uses the geometric mean and is disclosed. CLI `set-object-stroke-style --points`. No dependency change; verb count unchanged at 359.
+
+**Fixed on discovery:** the page route built the shared-/Resources ExtGState disclosure list and dropped it; `PaintOutcome` (`#[non_exhaustive]`) gains `disclosures`, and the CLI prints them.
+
+**Verified (engineer-reported; no shell here):** new `tests/stroke_units_points.rs` (5) plus one CLI test; core `--test all` 2,933 passed, 0 failed; sabotage no-op conversion failed 3, no scales on the form route failed 1.
+
+**Files:** ROADMAP (new Shipped entry; the 576.0 Next-up item was a bullet, collapsed to a pointer, so the Next up `###` count is unchanged at 80; ledger line now "next filing 1064th"). FEATURES.md: the Planned stroke-in-points row ticked core `[x]`, cli `[x]`, gui `[ ]`. Ledgers: no decision; next free `Pass 581.0`.
+
+**For `pdfcer-gui`:** set `units = Page` instead of grouping by scale and folding with `coalesce_last`; read `line_width_pt` / `dash_pt`. FIXED reply written.
+
 ## 2026-10-13 (1062nd filing) — `Pass 574.0` shipped (`G182`, `add_text` writes the line-end marks)
 
 **Shipped:** `0be139dc` (code) and `5fc688de` (`docs/core-api`). `text_edit/addtext.rs`: a private `open_text_object` writes `BT` plus `/pdfc_TextBlock MP` for the point, embedded-point and boxed emitters; `build_content_boxed` writes `/pdfc_Break MP` after each paragraph-ending line when another line follows (a paragraph end plus n-1 blank lines carries n marks, as in `edit_block_text`). A typed paragraph, or `place_text` output, re-opens `LineEndSource::Marked`; point text reads `Marked`. It fixes a break after a nearly full line reading as a wrap and the next edit joining the lines. Old text is not migrated (still `Inferred` until one `edit_block_text`). No dependency change; verb count unchanged at 359.

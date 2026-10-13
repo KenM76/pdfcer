@@ -115,6 +115,21 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 576.0` — stroke width and dash can be given and read in points: `StrokeStyle.units`, `PathObject::line_width_pt` (core + CLI; answers `pdfcer-gui` `G174`) — SHIPPED 2026-10-13 (1063rd filing)
+
+Commits `cef7646f` (code, tests) and `c63bc05b` (`docs/core-api`). Push state not checked (no shell here). No dependency or manifest change, so the `cargo tree` invariant is untouched. No decision.
+
+- **Units.** `StrokeStyle` gains `units: StrokeUnits` (`UserSpace` default, `Page`). With `Page`, each path's width, dash array and phase are divided by that path's own stroke scale (sqrt|det CTM|, the measure the stroke hit-test already used) before writing, so one `set_object_stroke_style` call strokes a selection under mixed CTM scales alike, as one undo entry.
+- **In form.** `set_object_stroke_style_in_form` takes the scale from each leaf's page-space CTM (form matrix plus placement), not the form-local CTM.
+- **Readers.** `PathObject::stroke_scale()`, `stroke_scale_is_uniform()`, `line_width_pt()`, `dash_pt()` share the writer's measure. A non-uniform CTM uses the geometric mean and a disclosure counts such paths (rule 4).
+- **Fixed on discovery.** The page route of `set_object_stroke_style` built a disclosure list (the shared-/Resources ExtGState note) and silently dropped it. `PaintOutcome` (`#[non_exhaustive]`) gains `disclosures: Vec<String>`; the CLI prints them.
+- **CLI.** `pdfcer set-object-stroke-style --points`.
+- **Tests (engineer-reported; no shell here).** New `crates/pdfcer-core/tests/stroke_units_points.rs`, 5 tests; one new CLI test in `crates/pdfcer-cli/tests/object_set_stroke_style.rs`. Core `--test all`: 2,933 passed, 0 failed. Sabotage: conversion made a no-op failed 3; passing no scales on the form route failed 1. `EditSession` verb count unchanged at 359.
+
+`FEATURES.md`: the stroke-in-points row ticked core `[x]`, cli `[x]`, gui `[ ]` (not adopted). The older object stroke-style row was not edited. FIXED reply written to the FeatureRequests channel.
+
+Ledgers: no decision; next free `Pass 581.0`; next filing 1064th.
+
 ### `Pass 574.0` — `add_text` writes the line-end marks `edit_block_text` does, so a typed paragraph re-opens `Marked` (core; answers `pdfcer-gui` `G182`) — SHIPPED 2026-10-13 (1062nd filing)
 
 Commits `0be139dc` (code, tests) and `5fc688de` (`docs/core-api`). Push state not checked (no shell here). No dependency or manifest change, so the `cargo tree` invariant is untouched. No decision.
@@ -21928,7 +21943,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1063rd (updated at the 1062nd).
+> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1064th (updated at the 1063rd).
 > - `567.0` (`G185`) and `568.0` (`G186`) shipped at the 1055th filing (`26cc218c`); see *Shipped*.
 > - `569.0` (`G176`) shipped at the 1056th filing (`73d68728`, `13ffa912`); see *Shipped*.
 > - `570.0` (`G177`) shipped at the 1057th filing (`3dde42ee`, `7eca1c45`); see *Shipped*.
@@ -21937,7 +21952,7 @@ closes out the *prior* filing's business rather than opening this one's.
 > - `573.0` (`G175`) shipped at the 1060th filing (`ca9e32a3`, `f4182212`); see *Shipped*.
 > - `574.0` (`G182`) shipped at the 1062nd filing (`0be139dc`, `5fc688de`); see *Shipped*.
 > - `575.0` (`G183`) shipped at the 1061st filing (`8653c865`, `1663a34a`; before `574.0`); see *Shipped*.
-> - **`576.0` (`G174`) — stroke width and dash cannot be given or read in points.** `StrokeStyle` lengths are in each path's own user space, so a selection under different CTM scales has no single value meaning "5 pt"; the shell groups by scale and folds N calls with `coalesce_last`. Ask, either: a `StrokeUnits::{UserSpace, Page}` field on the style (applied per path through its own CTM), or `PathObject::line_width_pt` / `dash_pt` readers using the engine's own measure. Acceptance: one call sets "5 pt" on paths under different CTMs, one undo entry; the readers and the writer share one scale measure, and a non-uniform CTM is stated (rule 4).
+> - `576.0` (`G174`) shipped at the 1063rd filing (`cef7646f`, `c63bc05b`); see *Shipped*.
 > - **`577.0` (`G180`) — no `transform_objects_each_in_form`.** The page case has `transform_objects_each`; for form leaves only a per-leaf delta (`move_objects_each_in_form`) and one shared matrix (`transform_objects_in_form`) exist. Ask: `EditSession::transform_objects_each_in_form(page, &[(leaf, Matrix)], TransformOptions) -> Result<FormSurgeryOutcome, EditError>`, matrices in page space, every leaf in one form, same refusals, one command. Acceptance: all-or-nothing; one undo step; Circular with rotation on leaves becomes possible.
 > - **`578.0` (`G181`) — `DocumentImageAlpha` borrows the view, so its decoded-mask memo cannot outlive one call.** The shell holds the session as `Arc<EditSession>` taken exclusively for edits, so a hover frame over a masked image re-decodes the mask (tens of millions of samples for a 1-bit stencil scan). Ask: an owned cache (`ImageAlphaCache` with `with_view`), or any shape separating the owned decoded coverage from the borrowed view. Acceptance: a second query over the same image does not re-decode; the cache is dropped by the caller on a new edit epoch; `_with` hit tests accept it.
 > - **`579.0` (`G184`) — a session's undo history cannot travel to another process.** Moving a document with unsaved edits to another window carries content but not undo steps (the receiving session's base revision is the carried edits). Ask: `EditSession::export_history(&self) -> Result<Vec<u8>, _>` and `import_history(&mut self, &[u8]) -> Result<(), _>`, the import refusing when the base revision differs. **Largest of the batch; it may need a design decision first** (serialising `Command` kinds, which hold private state, and a base-revision identity); scope it before building.
