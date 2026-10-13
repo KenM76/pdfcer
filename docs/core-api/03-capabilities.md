@@ -657,7 +657,7 @@ pdfcer_core::forms::parse_acroform<G: ObjectGraph + ?Sized>(graph: &G) -> Option
 
 `Widget` (`forms.rs`) → `id`, `rect`, `appearance_state`, `on_states`,
 `has_off_appearance`, `page`, `caption` (`/MK /CA`), **`background`** (`/MK /BG`,
-`MkColor`), `rotation` (`/MK /R`), **`border`**, **`visibility`**,
+`MkColor`), `rotation` (`/MK /R`), **`free_angle`** (`Option<f64>`, the free turn on top of `/MK /R` that `turn_widget` writes, read by its own rule; `None` = upright), **`opacity`** (`/CA` as stated; `None` = absent, i.e. opaque), **`border`**, **`visibility`**,
 **`annot_flags`**, `has_normal_appearance`, `merged`, **`icon`** (`/MK /I`,
 `Option<ObjId>` — the push button's icon form), **`caption_position`**
 (`/MK /TP`, `Option<annot_author::CaptionPosition>`; `None` = absent, which
