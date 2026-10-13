@@ -115,6 +115,22 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 572.0` — the document's named destinations are listable: `DestinationReader::named_destinations` (core; answers `pdfcer-gui` `G179`) — SHIPPED 2026-10-13 (1059th filing)
+
+Commits `410d9c89` (code, tests) and `b54b7458` (`docs/core-api`). Push state not checked (no shell here). No dependency or manifest change, so the `cargo tree` invariant is untouched. No decision.
+
+- **`DestinationReader::named_destinations(&graph) -> Vec<(Vec<u8>, Option<Destination>)>`** in `crates/pdfcer-core/src/outline.rs`. Lists every name defined in either ISO 32000-2 §12.3.2.3 namespace (the legacy catalog `/Dests` dictionary and the `/Names` `/Dests` name tree).
+- **Collisions** merge as the resolver does: the name tree wins. Sorted by bytes; the entry count equals `named_destination_count()`.
+- **Values.** Each name resolves the way a link naming it would, aliases followed. `None` when the defined value is not a destination; such a name is still listed because `LinkTarget::Named` accepts it.
+- **Refactor.** The read context is built in a private `DestinationReader::context()`, shared with `destination_with_diagnostics`.
+- **core-api.** The `DestinationReader` paragraph of `01-reading-and-model.md`; index line and clause counts 3,994 -> 4,003 and 227 -> 228. `EditSession` verb count unchanged at 358 (not an `EditSession` verb).
+
+**Verified (engineer-reported; not checked against disk by me).** New `crates/pdfcer-core/tests/named_destinations_list.rs`, 2 tests, both pass. A sabotage replacing the sort with a reverse failed 1 test; the code was restored.
+
+`FEATURES.md`: the named-destinations row ticked core `[x]`; cli `[ ]` (no CLI caller), gui `[ ]`. Not rounded up. FIXED reply written to the FeatureRequests channel.
+
+Ledgers: no decision; next free `Pass 581.0`; next filing 1060th.
+
 ### `Pass 571.0` — a link's target and border are readable: `EditSession::link` -> `LinkReading` (core; answers `pdfcer-gui` `G178`) — SHIPPED 2026-10-13 (1058th filing)
 
 Commits `46fdaa50` (code, tests) and `2e4a23fc` (`docs/core-api`). Push state not checked (no shell here). No dependency or manifest change, so the `cargo tree` invariant is untouched. No decision.
@@ -21872,12 +21888,12 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1059th (updated at the 1058th).
+> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1060th (updated at the 1059th).
 > - `567.0` (`G185`) and `568.0` (`G186`) shipped at the 1055th filing (`26cc218c`); see *Shipped*.
 > - `569.0` (`G176`) shipped at the 1056th filing (`73d68728`, `13ffa912`); see *Shipped*.
 > - `570.0` (`G177`) shipped at the 1057th filing (`3dde42ee`, `7eca1c45`); see *Shipped*.
 > - `571.0` (`G178`) shipped at the 1058th filing (`46fdaa50`, `2e4a23fc`); see *Shipped*.
-> - **`572.0` (`G179`) — named destinations cannot be listed.** Only `named_destination_count` is public. Ask: `DestinationReader::named_destinations()` yielding each name with the `Destination` it resolves to, over both §12.3.2.3 namespaces after the resolver's own collision merging. Acceptance: the listing's length equals `named_destination_count`; a name in both namespaces appears once, as the resolver would resolve it. CLI listing verb if one fits the existing link verbs.
+> - `572.0` (`G179`) shipped at the 1059th filing (`410d9c89`, `b54b7458`); see *Shipped*.
 > - **`573.0` (`G175`) — the in-form text split has no plan twin carrying the line-inference disclosure (rule 4).** For a page object `text_object_split_plan` returns a `SplitPlan` with the sentence "line breaks inferred from baselines and spacing"; a form leaf has only `text_object_split_points` (cut indices) and `FormSurgeryOutcome` omits the sentence, so the shell authors it a second time. Ask: `text_object_split_plan_in_form(page, leaf, granularity)` returning the same `SplitPlan`. Acceptance: same disclosure text from one source for both cases; the GUI's `lines_inferred` becomes deletable.
 > - **`574.0` (`G182`) — `add_text` writes no line-break marks.** Only `edit_block_text` writes the private `pdfc_` break marker, so a paragraph typed with `add_text` re-opens `LineEndSource::Inferred`, and a break after a nearly full line reads as a wrap; the next edit joins the lines. Ask: `add_text`, `place_text` and any other pdfcer writer of multi-line text write the same marks. Acceptance: `"A much longer first line\nx"` re-opens `Marked` with `[Break, Last]`; a CLI `add-text` paragraph does too; unmarked foreign text stays `Inferred`.
 > - **`575.0` (`G183`) — a marked blank line's break count is not readable per line end.** `line_ends` collapses the private `marked_gaps` count to `LineEnd::Break`; `block_text_with_breaks` keeps it only as one trimmed string a caller cannot align with a glyph walk. Ask: `line_gaps(&self, block) -> Option<Vec<usize>>` (the marked break count per line end, `None` when inferred), or per-line byte ranges from `block_text_with_breaks`. Acceptance: `"a\n\nb"` reports a count of 2 on its first line end; `None` for an inferred block.

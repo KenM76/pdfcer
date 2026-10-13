@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-13 (1059th filing) — `Pass 572.0` shipped (`G179`, the document's named destinations are listable)
+
+**Shipped:** `410d9c89` (code) and `b54b7458` (`docs/core-api`). `DestinationReader::named_destinations(&graph)` returns `Vec<(Vec<u8>, Option<Destination>)>` over both ISO 32000-2 §12.3.2.3 namespaces; the name tree wins a collision, as in the resolver; sorted by bytes; length equals `named_destination_count()`. Each name resolves as a link naming it would (aliases followed); `None` when the value is not a destination, and the name is still listed. The read context moved into a private `DestinationReader::context()` shared with `destination_with_diagnostics`.
+
+**Verified (engineer-reported; no shell here):** new `named_destinations_list.rs`, 2 tests pass; a reverse-sort sabotage failed 1, code restored; no dependency change. core-api clause counts 3,994 -> 4,003 and 227 -> 228; verb count unchanged at 358.
+
+**Files:** ROADMAP (new Shipped entry; the 572.0 Next-up bullet collapsed to a pointer, `###` count in Next up unchanged at 80). FEATURES.md: row core `[x]`, cli `[ ]`, gui `[ ]`, ticked in place. Ledgers: no decision; next free `Pass 581.0`; next filing 1060th.
+
+**For `pdfcer-gui`:** adopt `named_destinations` wherever a destination name must be chosen from a list.
+
 ## 2026-10-13 (1058th filing) — `Pass 571.0` shipped (`G178`, a link's target and border are readable)
 
 **Shipped:** `46fdaa50` (code) and `2e4a23fc` (`docs/core-api`). `EditSession::link(annot_id)` returns `#[non_exhaustive] LinkReading { annot_id, target, action, border, border_color }`. A name stays `Named`; an array or `/GoTo` `/D` resolves to `Page`; `/URI` reads `Uri`; other actions give `target: None` with `/S` in `action`; `/Dest` wins over `/A`. Border per Tables 164/166/168 (width 0 or empty `/C` gives `None`; absent or malformed `/C` is black, stated by `border_color`). Verb count 358.
