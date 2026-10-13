@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-13 (1062nd filing) — `Pass 574.0` shipped (`G182`, `add_text` writes the line-end marks)
+
+**Shipped:** `0be139dc` (code) and `5fc688de` (`docs/core-api`). `text_edit/addtext.rs`: a private `open_text_object` writes `BT` plus `/pdfc_TextBlock MP` for the point, embedded-point and boxed emitters; `build_content_boxed` writes `/pdfc_Break MP` after each paragraph-ending line when another line follows (a paragraph end plus n-1 blank lines carries n marks, as in `edit_block_text`). A typed paragraph, or `place_text` output, re-opens `LineEndSource::Marked`; point text reads `Marked`. It fixes a break after a nearly full line reading as a wrap and the next edit joining the lines. Old text is not migrated (still `Inferred` until one `edit_block_text`). No dependency change; verb count unchanged at 359.
+
+**Verified (engineer-reported; no shell here):** new `tests/add_text_line_marks.rs`, 3 tests pass; sabotage suppressing the break marks failed 2 of 3, code restored; core integration binary 2,928 passed, 2 ignored.
+
+**Files:** ROADMAP (new Shipped entry; the 574.0 Next-up bullet collapsed to a pointer, no heading deleted, `###` count in Next up held at 80; ledger line now "next filing 1063rd"). FEATURES.md: the `add_text` row ticked core `[x]` in place; cli `[ ]` (nothing reads the marks back), gui `[ ]`. Ledgers: no decision; next free `Pass 581.0`.
+
+**For `pdfcer-gui`:** `add_text`/`place_text` paragraphs now reopen `Marked`; combine with `line_gaps` (575.0). The FIXED reply is written.
+
 ## 2026-10-13 (1061st filing) — `Pass 575.0` shipped (`G183`, a marked blank line's count is readable per line end)
 
 **Shipped:** `8653c865` (code) and `1663a34a` (`docs/core-api`). `EditableTextModel::line_gaps(&block) -> Option<Vec<usize>>` returns the marked break count at each line end except the last (0 wrap, 1 break, n a break plus n-1 blank lines); `None` when inferred. It exposes the private `marked_gaps`. `BlockHit.line_gaps` (`#[non_exhaustive]` struct) is filled by `block_at_point`. It fixes the GUI reopening `"a\n\nb"` with one break and losing the blank line on the next edit. Verb count unchanged at 359 (model method); 01 index line count 4,003 -> 4,004.
