@@ -115,6 +115,21 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 575.0` — a marked blank line's break count is readable per line end: `EditableTextModel::line_gaps`, `BlockHit.line_gaps` (core; answers `pdfcer-gui` `G183`) — SHIPPED 2026-10-13 (1061st filing)
+
+Commits `8653c865` (code, tests) and `1663a34a` (`docs/core-api`). Push state not checked (no shell here). No dependency or manifest change, so the `cargo tree` invariant is untouched. No decision. Shipped before `Pass 574.0` (`G182`), which is still open.
+
+- **`EditableTextModel::line_gaps(&block) -> Option<Vec<usize>>`** in `crates/pdfcer-core/src/text_edit/model/line_marks.rs`: the marked break count at each line end except the last. 0 is a wrap, 1 a break, n a break followed by n-1 blank lines. `None` when the line ends are inferred. It exposes the previously private `marked_gaps`.
+- **`BlockHit.line_gaps: Option<Vec<usize>>`** (struct is `#[non_exhaustive]`); `block_at_point` fills it.
+- **Why.** `line_ends` collapsed the count to `LineEnd::Break`, so the GUI reopened `"a\n\nb"` with one break and the next edit lost the blank line.
+- **core-api.** A `line_gaps` row in the 01 §8.4.4b line-end table; the field on the `BlockHit` rows in 01 and 02; 01 index line count 4,003 -> 4,004. `EditSession` verb count unchanged at 359 (a model method, not a verb).
+
+**Verified (engineer-reported; not checked against disk by me).** `tests/edit_block_text.rs` asserts a marked block with a blank line has gaps `[2, 0, ...]` and an inferred block has `None`; all 15 tests pass. A sabotage clamping the counts to 1 failed 1 test; the code was restored.
+
+`FEATURES.md`: the row ticked core `[x]` in place; cli `[ ]` (`edit-block-text` and `inspect --text-blocks` print only `line_ends`), gui `[ ]`. Not rounded up. FIXED reply written to the FeatureRequests channel.
+
+Ledgers: no decision; next free `Pass 581.0`; next filing 1062nd.
+
 ### `Pass 573.0` — an in-form text split has its plan and line-inference disclosure: `EditSession::text_object_split_plan_in_form` (core; answers `pdfcer-gui` `G175`) — SHIPPED 2026-10-13 (1060th filing)
 
 Commits `ca9e32a3` (code, tests) and `f4182212` (`docs/core-api`). Push state not checked (no shell here). No dependency or manifest change, so the `cargo tree` invariant is untouched. No decision.
@@ -21902,7 +21917,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1061st (updated at the 1060th).
+> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1062nd (updated at the 1061st).
 > - `567.0` (`G185`) and `568.0` (`G186`) shipped at the 1055th filing (`26cc218c`); see *Shipped*.
 > - `569.0` (`G176`) shipped at the 1056th filing (`73d68728`, `13ffa912`); see *Shipped*.
 > - `570.0` (`G177`) shipped at the 1057th filing (`3dde42ee`, `7eca1c45`); see *Shipped*.
@@ -21910,7 +21925,7 @@ closes out the *prior* filing's business rather than opening this one's.
 > - `572.0` (`G179`) shipped at the 1059th filing (`410d9c89`, `b54b7458`); see *Shipped*.
 > - `573.0` (`G175`) shipped at the 1060th filing (`ca9e32a3`, `f4182212`); see *Shipped*.
 > - **`574.0` (`G182`) — `add_text` writes no line-break marks.** Only `edit_block_text` writes the private `pdfc_` break marker, so a paragraph typed with `add_text` re-opens `LineEndSource::Inferred`, and a break after a nearly full line reads as a wrap; the next edit joins the lines. Ask: `add_text`, `place_text` and any other pdfcer writer of multi-line text write the same marks. Acceptance: `"A much longer first line\nx"` re-opens `Marked` with `[Break, Last]`; a CLI `add-text` paragraph does too; unmarked foreign text stays `Inferred`.
-> - **`575.0` (`G183`) — a marked blank line's break count is not readable per line end.** `line_ends` collapses the private `marked_gaps` count to `LineEnd::Break`; `block_text_with_breaks` keeps it only as one trimmed string a caller cannot align with a glyph walk. Ask: `line_gaps(&self, block) -> Option<Vec<usize>>` (the marked break count per line end, `None` when inferred), or per-line byte ranges from `block_text_with_breaks`. Acceptance: `"a\n\nb"` reports a count of 2 on its first line end; `None` for an inferred block.
+> - `575.0` (`G183`) shipped at the 1061st filing (`8653c865`, `1663a34a`; before `574.0`, which is still open); see *Shipped*.
 > - **`576.0` (`G174`) — stroke width and dash cannot be given or read in points.** `StrokeStyle` lengths are in each path's own user space, so a selection under different CTM scales has no single value meaning "5 pt"; the shell groups by scale and folds N calls with `coalesce_last`. Ask, either: a `StrokeUnits::{UserSpace, Page}` field on the style (applied per path through its own CTM), or `PathObject::line_width_pt` / `dash_pt` readers using the engine's own measure. Acceptance: one call sets "5 pt" on paths under different CTMs, one undo entry; the readers and the writer share one scale measure, and a non-uniform CTM is stated (rule 4).
 > - **`577.0` (`G180`) — no `transform_objects_each_in_form`.** The page case has `transform_objects_each`; for form leaves only a per-leaf delta (`move_objects_each_in_form`) and one shared matrix (`transform_objects_in_form`) exist. Ask: `EditSession::transform_objects_each_in_form(page, &[(leaf, Matrix)], TransformOptions) -> Result<FormSurgeryOutcome, EditError>`, matrices in page space, every leaf in one form, same refusals, one command. Acceptance: all-or-nothing; one undo step; Circular with rotation on leaves becomes possible.
 > - **`578.0` (`G181`) — `DocumentImageAlpha` borrows the view, so its decoded-mask memo cannot outlive one call.** The shell holds the session as `Arc<EditSession>` taken exclusively for edits, so a hover frame over a masked image re-decodes the mask (tens of millions of samples for a 1-bit stencil scan). Ask: an owned cache (`ImageAlphaCache` with `with_view`), or any shape separating the owned decoded coverage from the borrowed view. Acceptance: a second query over the same image does not re-decode; the cache is dropped by the caller on a new edit epoch; `_with` hit tests accept it.

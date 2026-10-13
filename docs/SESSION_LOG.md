@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-13 (1061st filing) — `Pass 575.0` shipped (`G183`, a marked blank line's count is readable per line end)
+
+**Shipped:** `8653c865` (code) and `1663a34a` (`docs/core-api`). `EditableTextModel::line_gaps(&block) -> Option<Vec<usize>>` returns the marked break count at each line end except the last (0 wrap, 1 break, n a break plus n-1 blank lines); `None` when inferred. It exposes the private `marked_gaps`. `BlockHit.line_gaps` (`#[non_exhaustive]` struct) is filled by `block_at_point`. It fixes the GUI reopening `"a\n\nb"` with one break and losing the blank line on the next edit. Verb count unchanged at 359 (model method); 01 index line count 4,003 -> 4,004.
+
+**Verified (engineer-reported; no shell here):** `tests/edit_block_text.rs`, 15 tests pass (marked blank line gives `[2, 0, ...]`; inferred gives `None`); a sabotage clamping counts to 1 failed 1, code restored; no dependency change.
+
+**Order note:** `Pass 574.0` (`G182`, `add_text` writes no break marks) is NOT shipped; it stays open in Next up, and 575.0 shipped ahead of it.
+
+**Files:** ROADMAP (new Shipped entry; the 575.0 Next-up bullet collapsed to a pointer, no heading deleted, `###` count in Next up unchanged at 80). FEATURES.md: row core `[x]`, cli `[ ]`, gui `[ ]`, ticked in place. Ledgers: no decision; next free `Pass 581.0`; next filing 1062nd.
+
+**For `pdfcer-gui`:** read `line_gaps` instead of `line_ends` when reopening a marked block, and keep the blank lines.
+
 ## 2026-10-13 (1060th filing) — `Pass 573.0` shipped (`G175`, an in-form text split has its plan and line-inference disclosure)
 
 **Shipped:** `ca9e32a3` (code) and `f4182212` (`docs/core-api`). `EditSession::text_object_split_plan_in_form(page_index, leaf_index, granularity)` returns `(Vec<usize>, Vec<String>)`: the same cuts and disclosures as `text_object_split_plan`, including the rule-4 line-inference sentence for `Line` (none for `Run`); mutates nothing; errors `PageOutOfRange`, `FormLeafOutOfRange`, `VectorEdit`. Both verbs share a private `split_plan_of` in `edit.rs`, so the sentence has one author (the GUI's own copy is now deletable). Verb count 359; index line count 6,539.
