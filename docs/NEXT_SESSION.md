@@ -5,17 +5,19 @@ Engineer-owned; replaced each session. The previous long-form handoff
 (gate-sweep history, the carried OWED list, benchmark recipes) is in git:
 `git show 78635459:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-13, after `Pass 579.0` and the 1066th filing.
+**Written:** 2026-10-13, after `Pass 580.0` and the 1067th filing.
 
 ## State
 
 - **Release:** v0.81.0 is still the latest (tag on `c0761048`). OneDrive
-  `pdfcer2` = 0.81.0, so **the next release writes `pdfcer1`**. `562.0`-`579.0`
+  `pdfcer2` = 0.81.0, so **the next release writes `pdfcer1`**. `562.0`-`580.0`
   are unreleased, including the OCR upscale option (`566.0`, Ken's request).
+  `target/release/pdfcer.exe` was last built from a reverted bicubic
+  experiment: rebuild before packaging.
 - **Push:** `origin/main` was at `33e8620d` (the 1052nd filing) at the start
   of this handoff; everything since is local until the gates go green and it is
   pushed. Check `git log origin/main..HEAD`.
-- **Ledgers:** next free Pass **581.0**; next filing **1067th**; no decision
+- **Ledgers:** next free Pass **581.0**; next filing **1068th**; no decision
   added since 183. Core-api verb count **362**.
 - **pdfcer-gui G174-G186 are all shipped as `567.0`-`579.0`**, each with a
   FIXED reply. `579.0` (G184) added `export_history`/`import_history`: an
@@ -24,8 +26,13 @@ Engineer-owned; replaced each session. The previous long-form handoff
   The variant list in `src/edit/history_kind.rs` must gain every new
   `CommandKind` variant; the encoder's exhaustive match will not compile
   until it does.
-- **Next up holds one open Pass, `580.0`**: the render rasteriser magnifies
-  images nearest-neighbour even without `/Interpolate`. Self-found; fix it.
+- **`580.0` shipped** (`f191b9c0`, `ef27637c`): `ocr --magnify`, default
+  `smooth` (bilinear); display keeps point-sample. One clean 50 dpi page,
+  % words at `--dpi 150`, point-sample -> smooth: ocrs 42.6 -> 61.7,
+  tesseract 87.2 -> 87.2, paddle 91.5 -> 100. `--dpi 50 --upscale 3` still
+  beats it for ocrs (66.0) and tesseract (95.7). Bicubic was tried and NOT
+  shipped: ocrs 68.1, tesseract 91.5, paddle 93.6 (worse for the default
+  engine; 2-4 words on one page). A multi-page corpus would settle it.
 - **Inbound:** check all three channels. The open GitHub issue (text layer
   position after OCR) still awaits Ken's OK to close.
 
