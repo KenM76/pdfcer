@@ -143,3 +143,41 @@ fn bad_leaves_are_refused_before_any_change() {
     );
     assert_eq!(s.undo_kinds().len(), depth);
 }
+
+#[test]
+fn an_in_form_split_plan_discloses_the_line_inference() {
+    use pdfcer_core::vector::{SplitGranularity, text_object_split_points};
+    let mut s = session();
+    let leaf_text = match &s.page_objects(0).unwrap().leaves[1].object {
+        VectorObject::Text(t) => t.clone(),
+        other => panic!("not text: {other:?}"),
+    };
+    let (cuts, disclosures) = s
+        .text_object_split_plan_in_form(0, 1, SplitGranularity::Line)
+        .unwrap();
+    assert_eq!(
+        cuts,
+        text_object_split_points(&leaf_text, SplitGranularity::Line)
+    );
+    assert_eq!(disclosures.len(), 1);
+    assert!(
+        disclosures[0].contains(&format!("inferred {} line break(s)", cuts.len())),
+        "{disclosures:?}"
+    );
+    let (_, run_disclosures) = s
+        .text_object_split_plan_in_form(0, 1, SplitGranularity::Run)
+        .unwrap();
+    assert!(run_disclosures.is_empty(), "a run split infers nothing");
+    assert!(matches!(
+        s.text_object_split_plan_in_form(0, 99, SplitGranularity::Line),
+        Err(EditError::FormLeafOutOfRange { .. })
+    ));
+    assert!(matches!(
+        s.text_object_split_plan_in_form(0, 3, SplitGranularity::Line),
+        Err(EditError::VectorEdit(_))
+    ));
+    assert_eq!(s.undo_kinds().len(), 0, "planning changes nothing");
+    if !cuts.is_empty() {
+        s.split_text_object_in_form(0, 1, &cuts).unwrap();
+    }
+}

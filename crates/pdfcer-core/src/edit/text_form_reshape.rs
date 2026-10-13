@@ -147,6 +147,28 @@ impl EditSession {
         )
     }
 
+    /// [`Self::text_object_split_plan`] for a text object inside a form
+    /// XObject (`leaf_index` indexes [`crate::vector::PageObjects::leaves`]):
+    /// the cuts to pass to [`Self::split_text_object_in_form`] and the same
+    /// disclosures, including the line-inference sentence for
+    /// [`SplitGranularity::Line`](crate::vector::SplitGranularity::Line).
+    /// Nothing is mutated.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::PageOutOfRange`], [`EditError::FormLeafOutOfRange`], or
+    /// [`EditError::VectorEdit`] for a leaf that is not text.
+    pub fn text_object_split_plan_in_form(
+        &mut self,
+        page_index: usize,
+        leaf_index: usize,
+        granularity: crate::vector::SplitGranularity,
+    ) -> Result<(Vec<usize>, Vec<String>), EditError> {
+        let (leaf, _form) = self.form_leaf_at(page_index, leaf_index)?;
+        let text = super::vector_object_as_text(&leaf.object, leaf_index)?;
+        Ok(super::split_plan_of(text, granularity))
+    }
+
     /// The guards the form text verbs share, then the leaf's form, its
     /// current stream and the model decomposed from the leaf's placement.
     fn form_text_leaf(

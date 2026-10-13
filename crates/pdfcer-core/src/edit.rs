@@ -9897,6 +9897,29 @@ fn plan_text_split(
     )?)
 }
 
+/// The cuts and disclosures [`EditSession::text_object_split_plan`] and its
+/// form twin return for `text`.
+fn split_plan_of(
+    text: &crate::vector::TextObject,
+    granularity: crate::vector::SplitGranularity,
+) -> (Vec<usize>, Vec<String>) {
+    let points = crate::vector::text_object_split_points(text, granularity);
+    let mut disclosures = Vec::new();
+    if matches!(granularity, crate::vector::SplitGranularity::Line) {
+        disclosures.push(format!(
+            "split: pdfcer inferred {} line break(s) among this text object's {} show \
+             operator(s) from baselines and spacing — the file does not record where its \
+             lines are (ISO 32000-1 14.8). Consecutive operators on one baseline were kept \
+             in one piece unless more than one line height of clear space, or a jump back \
+             of more than half a line height, separated them; every baseline change starts \
+             a new one.",
+            points.len(),
+            text.runs.len()
+        ));
+    }
+    (points, disclosures)
+}
+
 fn vector_object_as_text(
     obj: &crate::vector::VectorObject,
     index: usize,
@@ -17642,21 +17665,7 @@ impl EditSession {
             },
         )?;
         let text = vector_object_as_text(obj, object_index)?;
-        let points = crate::vector::text_object_split_points(text, granularity);
-        let mut disclosures = Vec::new();
-        if matches!(granularity, crate::vector::SplitGranularity::Line) {
-            disclosures.push(format!(
-                "split: pdfcer inferred {} line break(s) among this text object's {} show \
-                 operator(s) from baselines and spacing — the file does not record where its \
-                 lines are (ISO 32000-1 14.8). Consecutive operators on one baseline were kept \
-                 in one piece unless more than one line height of clear space, or a jump back \
-                 of more than half a line height, separated them; every baseline change starts \
-                 a new one.",
-                points.len(),
-                text.runs.len()
-            ));
-        }
-        Ok((points, disclosures))
+        Ok(split_plan_of(text, granularity))
     }
 
     /// **Move one subpath** of the path object at paint-order `object_index`
