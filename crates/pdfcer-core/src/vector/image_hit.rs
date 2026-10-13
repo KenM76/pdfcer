@@ -6,8 +6,8 @@
 //! A form XObject keeps its bounding-box test: a form has no samples, and its
 //! `/BBox` is not stored on [`ImageObject`].
 
-use std::cell::RefCell;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex, PoisonError};
 
 use super::decompose::{ImageObject, ImageSource};
 use super::geometry::Point;
@@ -52,10 +52,16 @@ impl ImageAlpha for NoImageAlpha {
 ///
 /// An inline image (no object to decode) and an image whose mask cannot be
 /// decoded are treated as opaque.
+///
+/// [`DocumentImageAlpha::new`] owns its memo, so it lives as long as the
+/// view. To keep decoded masks across views of the same document state, own
+/// an [`ImageAlphaCache`] and borrow a resolver per call with
+/// [`ImageAlphaCache::with_view`].
 #[derive(Debug)]
 pub struct DocumentImageAlpha<'a> {
     view: &'a DocumentView<'a>,
-    cache: RefCell<HashMap<ObjId, Option<Coverage>>>,
+    owned: ImageAlphaCache,
+    shared: Option<&'a ImageAlphaCache>,
 }
 
 impl<'a> DocumentImageAlpha<'a> {
@@ -64,7 +70,8 @@ impl<'a> DocumentImageAlpha<'a> {
     pub fn new(view: &'a DocumentView<'a>) -> Self {
         Self {
             view,
-            cache: RefCell::new(HashMap::new()),
+            owned: ImageAlphaCache::new(),
+            shared: None,
         }
     }
 }
@@ -74,11 +81,102 @@ impl ImageAlpha for DocumentImageAlpha<'_> {
         let Some(id) = image.xobject else {
             return false;
         };
-        let mut cache = self.cache.borrow_mut();
-        let coverage = cache
+        let cache = self.shared.unwrap_or(&self.owned);
+        cache
+            .coverage(self.view, id)
+            .is_some_and(|c| c.is_clear_at(u, v))
+    }
+}
+
+/// An owned memo of decoded image-mask coverage, keyed by image XObject, that
+/// outlives any one [`DocumentView`] (pdfcer-gui request G181).
+///
+/// A shell that cannot keep a view alive (it takes its session exclusively
+/// between frames) keeps one of these instead and asks
+/// [`with_view`](Self::with_view) for a resolver on each query, so a mask is
+/// decoded once, not once per frame.
+///
+/// **Validity contract:** an entry describes the image object as it was when
+/// first decoded. The cache does not observe edits; drop it (or
+/// [`clear`](Self::clear) it) whenever the document state it was filled
+/// from may have changed — for an `EditSession`, whenever
+/// `page_content_generation` or the undo position moves. Keying by object
+/// alone is sound only within one document state.
+///
+/// `Send + Sync`: the memo sits behind a `Mutex`, held while one mask
+/// decodes.
+#[derive(Debug, Default)]
+pub struct ImageAlphaCache {
+    coverage: Mutex<HashMap<ObjId, Option<Arc<Coverage>>>>,
+}
+
+impl ImageAlphaCache {
+    /// An empty cache.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// A resolver over `view` that reads and fills this cache.
+    ///
+    /// ```
+    /// use pdfcer_core::document::Document;
+    /// use pdfcer_core::vector::{ImageAlpha, ImageAlphaCache};
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let pdf = b"%PDF-1.7\n1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n\
+    /// # 2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\ntrailer\n\
+    /// # << /Root 1 0 R /Size 3 >>\n%%EOF\n".to_vec();
+    /// let doc = Document::from_bytes(pdf)?;
+    /// let cache = ImageAlphaCache::new(); // kept by the shell across frames
+    /// {
+    ///     let view = doc.view();
+    ///     let alpha = cache.with_view(&view);
+    ///     let _: &dyn ImageAlpha = &alpha; // pass to hit_test_point_*_with
+    /// }
+    /// assert!(cache.is_empty()); // nothing decoded yet
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn with_view<'a>(&'a self, view: &'a DocumentView<'a>) -> DocumentImageAlpha<'a> {
+        DocumentImageAlpha {
+            view,
+            owned: Self::new(),
+            shared: Some(self),
+        }
+    }
+
+    /// How many image XObjects have been decoded (including ones found
+    /// undecodable, which are remembered as opaque).
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.map().len()
+    }
+
+    /// Whether nothing has been decoded yet.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.map().is_empty()
+    }
+
+    /// Forget every decoded mask (the document state changed).
+    pub fn clear(&mut self) {
+        self.coverage
+            .get_mut()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clear();
+    }
+
+    fn map(&self) -> std::sync::MutexGuard<'_, HashMap<ObjId, Option<Arc<Coverage>>>> {
+        // A panic mid-decode leaves at worst a missing entry; keep serving.
+        self.coverage.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn coverage(&self, view: &DocumentView<'_>, id: ObjId) -> Option<Arc<Coverage>> {
+        self.map()
             .entry(id)
-            .or_insert_with(|| image_coverage(self.view, id));
-        coverage.as_ref().is_some_and(|c| c.is_clear_at(u, v))
+            .or_insert_with(|| image_coverage(view, id).map(Arc::new))
+            .clone()
     }
 }
 

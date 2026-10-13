@@ -107,7 +107,7 @@ pub use hit::{
     hit_test_rect, hit_test_rect_deep, hit_test_subpaths, hit_test_subpaths_of, hit_test_text_runs,
     hit_test_text_runs_of, subpath_bounds,
 };
-pub use image_hit::{DocumentImageAlpha, ImageAlpha, NoImageAlpha};
+pub use image_hit::{DocumentImageAlpha, ImageAlpha, ImageAlphaCache, NoImageAlpha};
 pub(crate) use restack::{GsResources, plan_restack};
 pub use restack::{RestackLimit, RestackLimitReason, RestackOutcome, StackMove};
 pub use snap::{

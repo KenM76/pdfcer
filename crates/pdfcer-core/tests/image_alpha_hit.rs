@@ -10,7 +10,7 @@
 use pdfcer_core::document::Document;
 use pdfcer_core::page_tree;
 use pdfcer_core::vector::{
-    DocumentImageAlpha, HitTarget, Matrix, Point, decompose_page, hit_test_point,
+    DocumentImageAlpha, HitTarget, ImageAlphaCache, Matrix, Point, decompose_page, hit_test_point,
     hit_test_point_all_with, hit_test_point_deep_with, hit_test_point_with,
 };
 
@@ -214,4 +214,48 @@ fn the_tolerance_widens_the_image_edge() {
         topmost(bytes, &[(70.4, 60.0), (72.0, 60.0)]),
         [Some(1), None]
     );
+}
+
+/// `ImageAlphaCache` (pdfcer-gui request G181): the decoded mask survives the
+/// view it was filled from, and is served without re-reading the document,
+/// so a different document state needs `clear`.
+#[test]
+fn a_cache_outlives_its_view_until_cleared() {
+    let sm = format!("/Width 2 /Height 2 {GREY}");
+    let image = format!("/Width 2 /Height 2 {GREY} /SMask 6 0 R");
+    let left_clear = page(
+        LINE_THEN_IMAGE,
+        &image,
+        &[90; 4],
+        Some((&sm, &[0, 255, 0, 255])),
+    );
+    let right_clear = page(
+        LINE_THEN_IMAGE,
+        &image,
+        &[90; 4],
+        Some((&sm, &[255, 0, 255, 0])),
+    );
+    let at = [(40.0, 50.0), (60.0, 50.0)];
+    let hits = |bytes: &[u8], cache: &ImageAlphaCache| {
+        let doc = Document::from_bytes(bytes.to_vec()).unwrap();
+        let page = &page_tree::pages(&doc).unwrap()[0];
+        let view = doc.view();
+        let model = decompose_page(&view, page, Matrix::IDENTITY).unwrap();
+        let alpha = cache.with_view(&view);
+        at.map(|(x, y)| hit_test_point_with(&model, Point::new(x, y), 0.5, &alpha))
+    };
+
+    let mut cache = ImageAlphaCache::new();
+    assert!(cache.is_empty());
+    assert_eq!(hits(&left_clear, &cache), [Some(0), Some(1)]);
+    assert_eq!(cache.len(), 1, "one image decoded");
+    assert_eq!(hits(&left_clear, &cache), [Some(0), Some(1)], "a new view");
+    assert_eq!(cache.len(), 1);
+    assert_eq!(
+        hits(&right_clear, &cache),
+        [Some(0), Some(1)],
+        "served from the memo, not re-decoded"
+    );
+    cache.clear();
+    assert_eq!(hits(&right_clear, &cache), [Some(1), Some(0)]);
 }
