@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-13 (1055th filing) — `Passes 567.0` + `568.0` shipped (`G185`, `G186` defects)
+
+**Shipped:** `26cc218c`. `567.0`: `insert_pages` with a repeated index now imports each repeat with a fresh mapping (was a `/Kids` cycle and a commit-postcondition panic); private `import_pages`; `copy_and_splice` under the 80-line limit, baseline line deleted. `568.0`: `paste_raw_annotation` moves `/L`, `/Vertices`, `/QuadPoints`, `/CL`, `/InkList` with `/Rect` via private `translated_geometry`, shared with `move_annotation`; a by-reference key is rewritten in the pasted object.
+
+**Verified (engineer-reported; no shell here):** 5 new tests in `insert_pages_repeated.rs` and `paste_annotation_geometry.rs`; 171 across the related filters pass; sabotage fails 4 of 5 (the 5th, undo, guards a separate property); clippy, rustdoc, `check-code-structure` (571 baseline entries) clean. No `pub` change, no dependency change.
+
+**Files:** ROADMAP (new Shipped entry; both Next-up bullets collapsed to a pointer; `###` count in Next up unchanged at 80). FEATURES.md: the two rows ticked core `[x]`, cli `—`, gui `[ ]` (left in place in the table, not moved). Replies written to `pdfce_FeatureRequests/open/`. Ledgers: no decision; next free `Pass 581.0`; next filing 1056th.
+
+**For next session / `pdfcer-gui`:** delete workarounds `insertruns` and `pastegeometry::carry` (the latter in the same build or keys move twice).
+
 ## 2026-10-13 (1054th filing) — 13 `pdfcer-gui` requests `G174`-`G186` taken up as `Pass 567.0`-`579.0`
 
 **Shipped:** nothing. Filed as `>` blockquote stubs in *Next up* (no `###` added; count stays 80): `567.0` (`G185`, defect, insert_pages repeated index) and `568.0` (`G186`, defect, pasted raw annotation geometry) both in progress this session; `569.0` `G176`, `570.0` `G177`, `571.0` `G178`, `572.0` `G179`, `573.0` `G175`, `574.0` `G182`, `575.0` `G183`, `576.0` `G174`, `577.0` `G180`, `578.0` `G181`, `579.0` `G184` (largest; may need a design decision first). Acceptance criteria drawn from each request's "Ask". Request files read in `pdfce_FeatureRequests/open/`.

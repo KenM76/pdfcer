@@ -590,8 +590,8 @@ the model or verb exists and only the named shell is missing. The
 
 | core | cli | gui | Acrobat | Feature |
 |:----:|:---:|:---:|:-------:|---------|
-| [ ] | [ ] | [ ] | [x] | **Insert a page named twice as separate copies** — a repeated source index in `insert_pages` lists one page object twice in `/Kids` (a page-tree cycle, broken save); each repeat should get its own copy, as Acrobat does. DEFECT. `Pass 567.0` (`G185`), *Next up*, in progress. |
-| [ ] | [ ] | [ ] | ? | **Pasted raw annotation moves all its geometry** — `paste_raw_annotation` moves `/Rect` only; `/QuadPoints`, `/L`, `/Vertices`, `/CL`, `/InkList` stay at the source. DEFECT. `Pass 568.0` (`G186`), *Next up*, in progress. |
+| [x] | — | [ ] | [x] | **Insert a page named twice as separate copies** — a repeated source index in `insert_pages` now gets its own independent copy, as Acrobat does (was a page-tree cycle). Defect fixed, `Pass 567.0` (`G185`). GUI: `pdfcer-gui` still has a workaround to delete. |
+| [x] | — | [ ] | ? | **Pasted raw annotation moves all its geometry** — `/L`, `/Vertices`, `/QuadPoints`, `/CL`, `/InkList` move with `/Rect`. Defect fixed, `Pass 568.0` (`G186`). GUI: `pdfcer-gui` must remove its `carry` workaround in the same build. |
 | [ ] | [ ] | [ ] | ? | **Read a marker's colour** — public reader for a `/Caret`, `/FileAttachment`, `/Sound` or `/Screen` `/C`. `Pass 569.0` (`G176`), *Next up*. |
 | [ ] | [ ] | [ ] | ? | **Read a form field's free angle and opacity** — `Widget::free_angle`, `Widget::opacity`. `Pass 570.0` (`G177`), *Next up*. |
 | [ ] | [ ] | [ ] | ? | **Read a link's as-written target and border** — name kept as a name, the `/URI` string, `LinkBorder`. `Pass 571.0` (`G178`), *Next up*. |
