@@ -11058,8 +11058,9 @@ pub(crate) enum Command {
     /// An image or form takes only the opacity: `--fill-alpha` fades an
     /// image, and a form's content starts from either alpha; width and dash
     /// never reach them.
-    /// Width and dash lengths are in the path's own units (points at the
-    /// page's scale). Opacity goes in a new graphics-state entry on the
+    /// Width and dash lengths are in each path's own units, or with
+    /// `--points` in page points, converted through each path's scale so a
+    /// selection drawn at different scales strokes alike. Opacity goes in a new graphics-state entry on the
     /// page (or, with `--leaf`, on the form, which must have resources of
     /// its own). Prints one `set-object-stroke-style` line: `changed=` the
     /// indices styled (`none` when nothing was) and `refused=` how many were
@@ -11094,6 +11095,11 @@ pub(crate) enum Command {
         /// Fill opacity, 0.0-1.0.
         #[arg(long, group = "stroke-style")]
         fill_alpha: Option<f64>,
+        /// Read `--width`, `--dash` and `--dash-phase` as page points rather
+        /// than each path's own units. A path stretched more one way than
+        /// the other gets the average of the two, and stderr says so.
+        #[arg(long)]
+        points: bool,
         /// Treat each index as a form-leaf index (`object-list`'s
         /// `kind=leaf:` lines) rather than a page object. The paths must all
         /// be in one placement of one form, and the edit changes every place

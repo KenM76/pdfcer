@@ -115,5 +115,5 @@ pub use snap::{
     SnapConfig, SnapKind, constrained_second_point, measured_length, polygon_area, polyline_length,
     snap_candidates,
 };
-pub use stroke_style::{Dash, StrokeStyle};
+pub use stroke_style::{Dash, StrokeStyle, StrokeUnits};
 pub use text_locate::{TextRunRef, locate_text_run, locate_text_runs};

@@ -9,7 +9,7 @@
 use crate::content::{ContentToken, ContentTokenKind};
 use crate::object::Object;
 
-use super::ImageSource;
+use super::{ImageSource, PathObject};
 
 use super::VectorEditError;
 use crate::writer::content::emit_number;
@@ -62,6 +62,11 @@ impl Dash {
         Ok(())
     }
 
+    /// Every length multiplied by `k`.
+    fn scaled(&self, k: f64) -> Self {
+        Self::new(self.array.iter().map(|v| v * k).collect(), self.phase * k)
+    }
+
     /// `[a b …] phase d `.
     fn emit(&self, out: &mut Vec<u8>) {
         out.push(b'[');
@@ -100,13 +105,26 @@ pub(crate) fn dash_from_parts(items: &[Object], phase: &Object) -> Option<Dash> 
     Some(Dash::new(array, phase.as_number()?))
 }
 
+/// The unit a [`StrokeStyle`]'s `width` and `dash` lengths are in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum StrokeUnits {
+    /// Each path's own user space, as [`PathObject::line_width`] and
+    /// [`PathObject::dash`] report them. One value means different page
+    /// lengths on paths under different CTM scales.
+    #[default]
+    UserSpace,
+    /// Points of default user space. Each path's value is divided by its
+    /// [`PathObject::stroke_scale`] before it is written, so "5 pt" strokes
+    /// 5 pt on every path of a selection, and reads back through
+    /// [`PathObject::line_width_pt`] and [`PathObject::dash_pt`].
+    Page,
+}
+
 /// What [`crate::edit::EditSession::set_object_stroke_style`] sets. `None`
 /// leaves that parameter as the object already paints it.
 ///
-/// `width` and `dash` are in the object's user space, as
-/// [`super::PathObject::line_width`] and [`super::PathObject::dash`] report
-/// them. The alphas are constant opacities in `0.0..=1.0`, replacing (not
-/// multiplying) the ones in force.
+/// `width` and `dash` are in [`Self::units`]. The alphas are constant
+/// opacities in `0.0..=1.0`, replacing (not multiplying) the ones in force.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct StrokeStyle {
     /// Line width, `>= 0`; `0` is the thinnest line the device can draw.
@@ -117,6 +135,8 @@ pub struct StrokeStyle {
     pub stroke_alpha: Option<f64>,
     /// Non-stroking (fill) alpha (`/ca`).
     pub fill_alpha: Option<f64>,
+    /// The unit of `width` and `dash`; user space by default.
+    pub units: StrokeUnits,
 }
 
 impl StrokeStyle {
@@ -150,6 +170,21 @@ impl StrokeStyle {
             return bad("an alpha must be between 0 and 1");
         }
         self.dash.as_ref().map_or(Ok(()), Dash::check)
+    }
+
+    /// This style with `width` and `dash` in the user space of a path whose
+    /// [`PathObject::stroke_scale`] is `scale`. Unchanged for
+    /// [`StrokeUnits::UserSpace`].
+    pub(crate) fn in_user_space(&self, scale: f64) -> Self {
+        if self.units == StrokeUnits::UserSpace {
+            return self.clone();
+        }
+        Self {
+            width: self.width.map(|w| w / scale),
+            dash: self.dash.as_ref().map(|d| d.scaled(1.0 / scale)),
+            units: StrokeUnits::UserSpace,
+            ..self.clone()
+        }
     }
 
     /// Whether this style changes how an image or form object paints. An
@@ -201,6 +236,41 @@ impl StrokeStyle {
             out.extend_from_slice(b" gs ");
         }
         out
+    }
+}
+
+impl PathObject {
+    /// Page-space points per user-space unit of this path's stroke: the
+    /// square root of the CTM's absolute determinant, the geometric mean of
+    /// its two axis scales. Exact under a uniform scale and rotation (see
+    /// [`Self::stroke_scale_is_uniform`]); 1 for a degenerate CTM. The same
+    /// measure the stroke hit-test widens by.
+    #[must_use]
+    pub fn stroke_scale(&self) -> f64 {
+        super::path_geom::ctm_scale(self.ctm)
+    }
+
+    /// Whether the CTM scales both axes alike with no shear, so the stroke
+    /// has one width in page space. When it does not, the width in points
+    /// varies with direction and [`Self::stroke_scale`] is its geometric mean.
+    #[must_use]
+    pub fn stroke_scale_is_uniform(&self) -> bool {
+        let m = self.ctm;
+        let (x, y) = (m.a.hypot(m.b), m.c.hypot(m.d));
+        let tol = 1e-9 * x.max(y);
+        (x - y).abs() <= tol && (m.a * m.c + m.b * m.d).abs() <= tol * x.max(y)
+    }
+
+    /// [`Self::line_width`] in page-space points.
+    #[must_use]
+    pub fn line_width_pt(&self) -> f64 {
+        self.line_width * self.stroke_scale()
+    }
+
+    /// [`Self::dash`] in page-space points.
+    #[must_use]
+    pub fn dash_pt(&self) -> Dash {
+        self.dash.scaled(self.stroke_scale())
     }
 }
 

@@ -179,3 +179,20 @@ fn fill_alpha_fades_an_image_and_width_alone_refuses_it() {
     assert!(stdout.contains("changed=1 refused=1"), "{stdout}");
     assert!(stderr.contains("object 0 not styled"), "{stderr}");
 }
+
+#[test]
+fn points_divide_by_the_paths_scale_and_report_a_stretch() {
+    let input = page_with("points", "q 2 0 0 1 0 0 cm 0 0 10 10 re S Q", "", "null");
+    let output = input.with_extension("out.pdf");
+    let out = run(
+        &input,
+        &output,
+        &["--objects", "0", "--width", "4", "--points"],
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "{stderr}");
+    assert!(stderr.contains("1 path(s)"), "{stderr}");
+    let p = path0(&output);
+    assert!((p.line_width_pt() - 4.0).abs() < 1e-4, "{p:?}");
+    assert!((p.line_width - 4.0 / 2f64.sqrt()).abs() < 1e-4, "{p:?}");
+}

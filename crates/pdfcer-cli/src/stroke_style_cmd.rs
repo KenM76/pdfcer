@@ -2,7 +2,7 @@
 //! paths.
 
 use super::*;
-use pdfcer_core::vector::{Dash, StrokeStyle};
+use pdfcer_core::vector::{Dash, StrokeStyle, StrokeUnits};
 
 /// `set-object-stroke-style` arguments, after clap.
 pub(crate) struct SetObjectStrokeStyleArgs<'a> {
@@ -42,12 +42,18 @@ pub(crate) fn stroke_style_from(
     dash_phase: f64,
     stroke_alpha: Option<f64>,
     fill_alpha: Option<f64>,
+    points: bool,
 ) -> StrokeStyle {
     StrokeStyle {
         width,
         dash: dash.map(|DashArray(array)| Dash::new(array, dash_phase)),
         stroke_alpha,
         fill_alpha,
+        units: if points {
+            StrokeUnits::Page
+        } else {
+            StrokeUnits::UserSpace
+        },
     }
 }
 
@@ -67,7 +73,10 @@ pub(crate) fn cmd_set_object_stroke_style(args: &SetObjectStrokeStyleArgs) -> u8
     } else {
         session
             .set_object_stroke_style(page_index, args.objects, &args.style)
-            .map(|styled| (styled, String::new()))
+            .map(|styled| {
+                report_disclosures(&styled.disclosures);
+                (styled, String::new())
+            })
     };
     let (styled, reach) = match result {
         Ok(pair) => pair,

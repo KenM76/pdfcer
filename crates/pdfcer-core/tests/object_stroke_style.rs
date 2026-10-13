@@ -80,6 +80,7 @@ fn full_style() -> StrokeStyle {
         dash: Some(Dash::new(vec![5.0, 2.0], 1.0)),
         stroke_alpha: Some(0.4),
         fill_alpha: Some(0.6),
+        ..StrokeStyle::default()
     }
 }
 

@@ -125,20 +125,28 @@ impl EditSession {
         if accepted.is_empty() || style.is_empty() {
             return Ok(no_change(refused));
         }
-        let (extras, gs_name) = if style.sets_alpha() {
+        let (mut extras, gs_name) = if style.sets_alpha() {
             let form = self.leaf_form(page_index, &accepted)?;
             let (extras, name) = self.bind_form_ext_gstate(form, style)?;
             (extras, Some(name))
         } else {
             (FormExtras::default(), None)
         };
+        // Scales from the leaves' page-space CTMs: the surgery model's own
+        // CTMs are in form space.
+        let model = self.page_objects(page_index)?;
+        let page_objs: Vec<&VectorObject> = accepted
+            .iter()
+            .filter_map(|&i| model.leaves.get(i).map(|l| &l.object))
+            .collect();
+        let scales = super::stroke_style::page_scales(&page_objs, style, &mut extras.disclosures);
         let reach = self.wrap_leaves(
             CommandKind::SetObjectStrokeStyle,
             page_index,
             &accepted,
             extras,
             |stream, objs| {
-                super::stroke_style::wrap_styled(stream, objs, style, gs_name.as_deref())
+                super::stroke_style::wrap_styled(stream, objs, style, gs_name.as_deref(), &scales)
             },
         )?;
         Ok(changed(accepted, refused, reach))
@@ -287,6 +295,7 @@ fn no_change(refused: Vec<PaintRefusal>) -> FormPaintOutcome {
         paint: PaintOutcome {
             changed: Vec::new(),
             refused,
+            disclosures: Vec::new(),
         },
         reach: None,
     }
@@ -298,7 +307,11 @@ fn changed(
     reach: FormSurgeryOutcome,
 ) -> FormPaintOutcome {
     FormPaintOutcome {
-        paint: PaintOutcome { changed, refused },
+        paint: PaintOutcome {
+            changed,
+            refused,
+            disclosures: Vec::new(),
+        },
         reach: Some(reach),
     }
 }

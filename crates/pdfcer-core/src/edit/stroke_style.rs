@@ -28,6 +28,14 @@ impl EditSession {
     /// [`crate::vector::PathObject`]: `line_width`, `dash`, `stroke_alpha`,
     /// `fill_alpha`.
     ///
+    /// With [`StrokeUnits::Page`](crate::vector::StrokeUnits::Page) the width
+    /// and dash are points: each path gets them divided by its own
+    /// [`PathObject::stroke_scale`](crate::vector::PathObject::stroke_scale),
+    /// so one call strokes a selection under mixed CTM scales alike, and
+    /// `line_width_pt` reads the value back. A path whose CTM scales its axes
+    /// differently gets the geometric mean, and
+    /// [`PaintOutcome::disclosures`] says how many did.
+    ///
     /// **Images and forms take the opacity only** (pdfcer-gui request G155):
     /// an image or form object whose paint [`StrokeStyle::fades`] is wrapped
     /// in `q </GS gs> … Q` around its `Do` (or inline image) — width and dash
@@ -79,18 +87,27 @@ impl EditSession {
         }
         if changed.is_empty() || style.is_empty() {
             changed.clear();
-            return Ok(PaintOutcome { changed, refused });
+            return Ok(PaintOutcome {
+                changed,
+                refused,
+                disclosures: Vec::new(),
+            });
         }
-        self.commit_stroke_style(page_index, &changed, style)?;
-        Ok(PaintOutcome { changed, refused })
+        let disclosures = self.commit_stroke_style(page_index, &changed, style)?;
+        Ok(PaintOutcome {
+            changed,
+            refused,
+            disclosures,
+        })
     }
 
+    /// Commit the edit and return its disclosures.
     fn commit_stroke_style(
         &mut self,
         page_index: usize,
         targets: &[usize],
         style: &StrokeStyle,
-    ) -> Result<(), EditError> {
+    ) -> Result<Vec<String>, EditError> {
         if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(EditError::DocumentEncrypted);
         }
@@ -150,7 +167,8 @@ impl EditSession {
                     })
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let planned = wrap_styled(&stream, &objs, style, gs_name.as_deref())?;
+        let scales = page_scales(&objs, style, &mut disclosures);
+        let planned = wrap_styled(&stream, &objs, style, gs_name.as_deref(), &scales)?;
         let (command, _) = self.text_edit_command(
             CommandKind::SetObjectStrokeStyle,
             content_id,
@@ -160,7 +178,7 @@ impl EditSession {
             &mut disclosures,
         )?;
         self.commit(command);
-        Ok(())
+        Ok(disclosures)
     }
 }
 
@@ -175,22 +193,65 @@ pub(super) fn takes_style(obj: &VectorObject, style: &StrokeStyle) -> bool {
 }
 
 /// Wrap paths in the full style prefix and images or forms in the alpha one.
+/// Wrap each of `objs` in its prefix; `scales[k]` is the page
+/// [`PathObject::stroke_scale`](crate::vector::PathObject::stroke_scale) of
+/// `objs[k]`, which a [`StrokeUnits::Page`](crate::vector::StrokeUnits::Page)
+/// style divides its lengths by.
 pub(super) fn wrap_styled(
     stream: &crate::content::ContentStream,
     objs: &[&VectorObject],
     style: &StrokeStyle,
     gs_name: Option<&[u8]>,
+    scales: &[f64],
 ) -> Result<crate::vector::PlannedEdit, VectorEditError> {
-    let full = style.prefix(gs_name);
     let alpha = StrokeStyle::alpha_prefix(gs_name);
-    let each: Vec<(&VectorObject, &[u8])> = objs
+    let prefixes: Vec<Vec<u8>> = objs
         .iter()
-        .map(|&o| match o {
-            VectorObject::Path(_) => (o, full.as_slice()),
-            _ => (o, alpha.as_slice()),
+        .enumerate()
+        .map(|(k, &o)| match o {
+            VectorObject::Path(_) => {
+                let scale = scales.get(k).copied().unwrap_or(1.0);
+                style.in_user_space(scale).prefix(gs_name)
+            }
+            _ => alpha.clone(),
         })
         .collect();
+    let each: Vec<(&VectorObject, &[u8])> = objs
+        .iter()
+        .zip(&prefixes)
+        .map(|(&o, p)| (o, p.as_slice()))
+        .collect();
     crate::vector::edit::plan_wrap_each(stream, &each)
+}
+
+/// Each object's page stroke scale (1 for a non-path), with the
+/// non-uniform-scale disclosure pushed when a
+/// [`StrokeUnits::Page`](crate::vector::StrokeUnits::Page) style meets a path
+/// whose width in points varies with direction.
+pub(super) fn page_scales(
+    page_objs: &[&VectorObject],
+    style: &StrokeStyle,
+    disclosures: &mut Vec<String>,
+) -> Vec<f64> {
+    let mut skewed = 0usize;
+    let scales = page_objs
+        .iter()
+        .map(|o| match o {
+            VectorObject::Path(p) => {
+                skewed += usize::from(!p.stroke_scale_is_uniform());
+                p.stroke_scale()
+            }
+            _ => 1.0,
+        })
+        .collect();
+    let in_points = style.units == crate::vector::StrokeUnits::Page;
+    if in_points && skewed > 0 && (style.width.is_some() || style.dash.is_some()) {
+        disclosures.push(format!(
+            "stroke style: {skewed} path(s) are drawn under a scale that differs by direction; \
+             their width and dash in points are the geometric mean of the two axes"
+        ));
+    }
+    scales
 }
 
 const SHARED_GS_NOTE: &str = "stroke style: the /ExtGState entry was added to a /Resources \

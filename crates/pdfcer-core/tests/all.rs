@@ -226,6 +226,7 @@ mod stamp_label_edit;
 mod stamp_restyle;
 mod stamp_text_size;
 mod sticky_resize_refusal;
+mod stroke_units_points;
 mod structure_inspect;
 mod style_ladder;
 mod style_off;

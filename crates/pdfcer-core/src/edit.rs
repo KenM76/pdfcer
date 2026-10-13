@@ -17196,6 +17196,7 @@ impl EditSession {
             return Ok(PaintOutcome {
                 changed: Vec::new(),
                 refused,
+                disclosures: Vec::new(),
             });
         }
 
@@ -17217,6 +17218,7 @@ impl EditSession {
         Ok(PaintOutcome {
             changed: accepted,
             refused,
+            disclosures: Vec::new(),
         })
     }
 
@@ -21124,6 +21126,9 @@ pub struct PaintOutcome {
     /// colour space pdfcer will not rewrite needs to say 'nine changed', not
     /// 'done'."*
     pub refused: Vec<PaintRefusal>,
+    /// What the operator is told (rule 4) about a page edit. The in-form
+    /// verbs put theirs on [`FormSurgeryOutcome::disclosures`] instead.
+    pub disclosures: Vec<String>,
 }
 
 /// Why one object was not recoloured.
