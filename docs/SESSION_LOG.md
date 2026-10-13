@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-13 (1054th filing) — 13 `pdfcer-gui` requests `G174`-`G186` taken up as `Pass 567.0`-`579.0`
+
+**Shipped:** nothing. Filed as `>` blockquote stubs in *Next up* (no `###` added; count stays 80): `567.0` (`G185`, defect, insert_pages repeated index) and `568.0` (`G186`, defect, pasted raw annotation geometry) both in progress this session; `569.0` `G176`, `570.0` `G177`, `571.0` `G178`, `572.0` `G179`, `573.0` `G175`, `574.0` `G182`, `575.0` `G183`, `576.0` `G174`, `577.0` `G180`, `578.0` `G181`, `579.0` `G184` (largest; may need a design decision first). Acceptance criteria drawn from each request's "Ask". Request files read in `pdfce_FeatureRequests/open/`.
+
+**Files:** ROADMAP *Next up* (new "Taken up" stub; the 1034th stub's ledger tail marked superseded). FEATURES.md *Planned*: 13 new rows plus the `580.0` row (all unticked; cli `—` on `578.0`/`579.0`, which have no CLI shape). Ledgers: no decision; next free `Pass 581.0`; next filing 1055th.
+
+**Still in flight:** `567.0`, `568.0`.
+
+## 2026-10-13 (1053rd filing) — `Pass 566.0` shipped (OCR upscale before recognition); `Pass 580.0` filed
+
+**Shipped:** `Pass 566.0`, `80c86edb` (code, tests) and `e193d415` (`docs/core-api`). Operator request: *"we need to add an ocr upsampling option to improve detection on poor scans."* New `pdfcer_core::ocr::upscale` (factor 1 to 4, bicubic default or lanczos, PIL-exact), `pdfcer-ocr-host` `RunOptions::with_upscale` / `OcrRunner::set_upscale`, CLI `ocr --upscale N [--upscale-filter]`. Opt-in; paddle-vl refuses.
+
+**Decided:** no automatic mode; benefit depends on engine and scan quality (recorded in the Pass entry, not a numbered decision).
+
+**Findings:** sharp 50 dpi tesseract 25.5% to 95.7% (x3 bicubic), 97.9% lanczos; ocrs 74.5% to 85.1%; fax-thresholded tesseract 14.9% to 63.8%; already-blurred 75 dpi ocrs 83.0% to 76.6% (worse). Bug fixed on discovery: `OcrRunner::load` dropped the upscale option for program add-ons (caught by the new runner test). Defect found, not fixed: the render path magnifies with nearest-neighbour unless `/Interpolate true`, so `ocr --dpi` above native halved ocrs (74.5% to 42.6%); filed as `Pass 580.0`. Lesson written to `C:\personal_rag\pdf\` (index and master index updated).
+
+**Verified (engineer-reported; no shell here, hard rule 8):** core `ocr_upscale` 6 tests, host 2 new; `map_back` sabotage fails both map-back tests; clippy and rustdoc clean; verb count 356 unchanged; no manifest change.
+
+**Files:** ROADMAP: new Shipped entry, `580.0` stub. FEATURES.md: new OCR row (core `[x]` cli `[x]` gui `[ ]`). `C:\personal_rag\pdf\lesson_20261013_...` plus both indexes. Suggestion for the user: `C:\Users\Ken\.claude\CLAUDE.md` need not change (the `pdf` subject is already listed).
+
 ## 2026-10-08 (1052nd filing) — `Pass 565.0` shipped (OCR layer removal names its region layers, `G173`)
 
 **Shipped:** `Pass 565.0`, `14062f02` (code, tests) and `b1913746` (`docs/core-api`); both local, push pending until a green `run-gates`. `OcrLayerRemoval::region_groups: Vec<RegionLayerRemoval { group, emptied }>` (`#[non_exhaustive]`, `Copy`); `OcrLayerRemoval` loses `Copy`; types moved to `ocr/layer_removal.rs` (re-exported, paths unchanged; keeps `layer.rs` under 800 lines); `layers::group_in_use` public.
