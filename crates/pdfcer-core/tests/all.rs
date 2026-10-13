@@ -109,6 +109,7 @@ mod free_text_note_rebake;
 mod free_text_restyle;
 mod freetext_newline;
 mod hand_signature;
+mod history_transfer;
 mod image_alpha_hit;
 mod image_fade;
 mod image_gif;

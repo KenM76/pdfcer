@@ -692,3 +692,10 @@ path = "fuzz_targets/vl_tokenizer.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "import_history"
+path = "fuzz_targets/import_history.rs"
+test = false
+doc = false
+bench = false
