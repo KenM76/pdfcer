@@ -115,6 +115,19 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 578.0` — a decoded image mask can be kept across frames: `vector::ImageAlphaCache` (core; answers `pdfcer-gui` `G181`) — SHIPPED 2026-10-13 (1065th filing)
+
+Commits `6d8e8a79` (code, tests) and `0d6a29c4` (`docs/core-api`, `01-reading-and-model.md` image-transparency section and feature-table row). Push state not checked (no shell here). No dependency or manifest change, so the `cargo tree` invariant is untouched. No decision.
+
+- **API.** `ImageAlphaCache`: an owned, `Send + Sync` (`Mutex`) memo of decoded image-mask coverage keyed by the image XObject `ObjId`. `new()` / `Default`, `with_view(&'a self, &'a DocumentView<'a>) -> DocumentImageAlpha<'a>` (a resolver that reads and fills the cache), `len`, `is_empty`, `clear(&mut self)`. `DocumentImageAlpha::new` is unchanged and still owns its own memo.
+- **Validity contract.** Keyed by object only, so valid for one document state; the caller drops or clears the cache on a new edit epoch.
+- **Not an `EditSession` verb**; the verb count stays 360. No CLI surface (no frame loop to benefit).
+- **Tests (engineer-reported; no shell here).** New `a_cache_outlives_its_view_until_cleared` in `crates/pdfcer-core/tests/image_alpha_hit.rs` (a cache filled from one document state answers a second state from the memo until cleared); 11 tests in that file pass. Doctest on `with_view`. Sabotage (`with_view` ignoring the shared cache) failed the test, code restored. fmt, clippy `-D warnings`, rustdoc, structure and doc gates clean.
+
+`FEATURES.md`: the Planned row deleted; one sentence added to the image-transparency hit-test row, boxes unchanged (core `[x]`, cli `[x]`, gui `[ ]`).
+
+Ledgers: no decision; next free `Pass 581.0`; next filing 1066th.
+
 ### `Pass 577.0` — parts of a placed form can each be transformed by its own matrix: `EditSession::transform_objects_each_in_form` (core + CLI; answers `pdfcer-gui` `G180`) — SHIPPED 2026-10-13 (1064th filing)
 
 Commits `10c73fcf` (code, tests) and `6790b2e4` (`docs/core-api`). Push state not checked (no shell here). No dependency or manifest change, so the `cargo tree` invariant is untouched. No decision.
@@ -21958,7 +21971,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1065th (updated at the 1064th).
+> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` below is self-found at the 1053rd filing, not a GUI request. Ledgers: no decision (`579.0` may need one); next free `Pass 581.0`; next filing 1066th (updated at the 1065th).
 > - `567.0` (`G185`) and `568.0` (`G186`) shipped at the 1055th filing (`26cc218c`); see *Shipped*.
 > - `569.0` (`G176`) shipped at the 1056th filing (`73d68728`, `13ffa912`); see *Shipped*.
 > - `570.0` (`G177`) shipped at the 1057th filing (`3dde42ee`, `7eca1c45`); see *Shipped*.
@@ -21969,7 +21982,7 @@ closes out the *prior* filing's business rather than opening this one's.
 > - `575.0` (`G183`) shipped at the 1061st filing (`8653c865`, `1663a34a`; before `574.0`); see *Shipped*.
 > - `576.0` (`G174`) shipped at the 1063rd filing (`cef7646f`, `c63bc05b`); see *Shipped*.
 > - `577.0` (`G180`) shipped at the 1064th filing (`10c73fcf`, `6790b2e4`); see *Shipped*.
-> - **`578.0` (`G181`) — `DocumentImageAlpha` borrows the view, so its decoded-mask memo cannot outlive one call.** The shell holds the session as `Arc<EditSession>` taken exclusively for edits, so a hover frame over a masked image re-decodes the mask (tens of millions of samples for a 1-bit stencil scan). Ask: an owned cache (`ImageAlphaCache` with `with_view`), or any shape separating the owned decoded coverage from the borrowed view. Acceptance: a second query over the same image does not re-decode; the cache is dropped by the caller on a new edit epoch; `_with` hit tests accept it.
+> - `578.0` (`G181`) shipped at the 1065th filing (`6d8e8a79`, `0d6a29c4`); see *Shipped*.
 > - **`579.0` (`G184`) — a session's undo history cannot travel to another process.** Moving a document with unsaved edits to another window carries content but not undo steps (the receiving session's base revision is the carried edits). Ask: `EditSession::export_history(&self) -> Result<Vec<u8>, _>` and `import_history(&mut self, &[u8]) -> Result<(), _>`, the import refusing when the base revision differs. **Largest of the batch; it may need a design decision first** (serialising `Command` kinds, which hold private state, and a base-revision identity); scope it before building.
 
 > **`Pass 580.0` — OCR rasterises a low-resolution scan with nearest-neighbour magnification (defect, found at the 1053rd filing while shipping `Pass 566.0`).** `pdfcer-render` magnifies images with `FilterQuality::Nearest` unless the image has `/Interpolate true` (`crates/pdfcer-render/src/interpret.rs`, the `image_geometry` quality choice beside `image_minify`). So `pdfcer ocr --dpi` above the scan's own resolution feeds the engine blocky pixels. Measured: ocrs on a sharp 50 dpi page, 74.5% at 1:1 but 42.6% at `--dpi 150`. Mitigation documented in the CLI help: `--dpi <native> --upscale N`. Candidate fix: a magnify policy beside `MinifyFilter`/`image_minify`, with the OCR rasteriser asking for smooth magnification; display rendering keeps its default (pdfium parity governs it). Acceptance: `ocr --dpi 150` on a 50 dpi scan scores no worse than rendering at native dpi and then upscaling; display rendering output is byte-identical for an image without `/Interpolate`.

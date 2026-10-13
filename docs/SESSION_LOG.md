@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-13 (1065th filing) — `Pass 578.0` shipped (`G181`, owned image-mask cache)
+
+**Shipped:** `6d8e8a79` (code) and `0d6a29c4` (`docs/core-api`). New `vector::ImageAlphaCache`: owned, `Send + Sync` memo of decoded mask coverage keyed by image `ObjId`; `with_view` yields a `DocumentImageAlpha` that reads and fills it; `len`, `is_empty`, `clear`. Valid for one document state, so the caller drops or clears it on a new edit epoch. `DocumentImageAlpha::new` unchanged. Not a verb (count stays 360). No dependency change.
+
+**Verified (engineer-reported; no shell here):** new `a_cache_outlives_its_view_until_cleared` (11 tests in `image_alpha_hit.rs` pass), doctest on `with_view`; sabotage failed the test; fmt, clippy, rustdoc, structure and doc gates clean.
+
+**Files:** ROADMAP (new Shipped entry; Next-up bullet collapsed to a pointer, `###` count stays 80; ledger "next filing 1066th"). FEATURES.md: Planned row deleted, sentence added to the image-transparency row, boxes unchanged. No decision; next free `Pass 581.0`.
+
+**For `pdfcer-gui`:** hold an `ImageAlphaCache` beside the session and call `with_view` per frame; clear it on a new edit epoch. FIXED reply is the engineer's.
+
 ## 2026-10-13 (1064th filing) — `Pass 577.0` shipped (`G180`, transform parts of a form each by its own matrix)
 
 **Shipped:** `10c73fcf` (code) and `6790b2e4` (`docs/core-api`). `EditSession::transform_objects_each_in_form(page_index, &[(leaf, Matrix)], TransformOptions) -> Result<FormSurgeryOutcome, EditError>`: page-space matrix per leaf of one placed form, one undo entry (`TransformObjects`), all-or-nothing; duplicate leaf gives `DuplicateObjectInMove`, empty gives `FormLeafOutOfRange`; edits the form in place (decision 076) and reports invocations and pages. CLI `object-transform-each --leaf` (output adds ` invocations= pages=`). Verb count 359 to 360. No dependency change.
