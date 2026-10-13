@@ -281,3 +281,28 @@ fn a_real_tesseract_runs_as_a_program_addon() {
     let blank = vec![255u8; 64 * 64];
     assert!(runner.recognize(64, 64, &blank).unwrap().is_empty());
 }
+
+#[test]
+fn an_upscaled_page_is_read_large_and_mapped_back() {
+    use pdfcer_core::ocr::upscale::{Upscale, UpscaleFilter};
+    let dir = two_engines("upscale");
+    manifest(&dir, &exe("engine-a"), "", &["tessdata/eng.traineddata"]);
+    let twice = Some(Upscale::new(2.0, UpscaleFilter::Lanczos).unwrap());
+    let options = RunOptions::new("eng", 300.0).with_upscale(twice);
+    let runner = OcrRunner::load(&only_model(&dir), &options).unwrap();
+    assert_eq!(runner.upscale(), twice);
+    // The program sees twice the resolution it would have been told.
+    assert_eq!(words(&runner)[4], "600");
+    let at = runner.recognize_at(2, 1, &[0, 255], 150.0).unwrap();
+    assert_eq!(at[4].text, "300");
+    // Word i sits at x = 10 i, 8 px wide, on the enlarged image.
+    let r = at[3].rect;
+    assert!(
+        (r.llx - 15.0).abs() < 1e-9 && (r.urx - 19.0).abs() < 1e-9,
+        "{r:?}"
+    );
+    let mut plain = runner;
+    plain.set_upscale(None).unwrap();
+    let r = plain.recognize(2, 1, &[0, 255]).unwrap()[3].rect;
+    assert!((r.llx - 30.0).abs() < 1e-9, "{r:?}");
+}

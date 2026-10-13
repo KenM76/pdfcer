@@ -345,6 +345,12 @@ impl ProgramEngine {
         self.run(width, height, pixels, dpi)
     }
 
+    /// The resolution the program is told when a page names none.
+    #[allow(clippy::cast_precision_loss)] // a whole DPI well under 2^24
+    pub(crate) fn load_dpi(&self) -> f32 {
+        self.invocation.dpi() as f32
+    }
+
     fn run(
         &self,
         width: u32,

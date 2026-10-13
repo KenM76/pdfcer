@@ -153,6 +153,7 @@ mod ocr_layer_on_group;
 mod ocr_layer_reading_order;
 mod ocr_layer_survives_edits;
 mod ocr_session;
+mod ocr_upscale;
 mod offpage_blank_overhang;
 mod operator_span_invariant;
 mod outline;

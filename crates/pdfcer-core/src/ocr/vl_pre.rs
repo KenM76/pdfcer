@@ -193,105 +193,10 @@ pub fn smart_resize(height: usize, width: usize) -> Result<(usize, usize), PrepE
     Ok((hb, wb))
 }
 
-/// PIL's bicubic kernel (a = -0.5).
-fn cubic(x: f64) -> f64 {
-    let a = -0.5;
-    let x = x.abs();
-    if x < 1.0 {
-        ((a + 2.0) * x - (a + 3.0)) * x * x + 1.0
-    } else if x < 2.0 {
-        (((x - 5.0) * x + 8.0) * x - 4.0) * a
-    } else {
-        0.0
-    }
-}
-
-/// Per output index: the first input index and the normalised weights, as
-/// PIL's `precompute_coeffs` builds them (support widens when shrinking).
-#[allow(
-    clippy::cast_possible_truncation,
-    clippy::cast_sign_loss,
-    clippy::cast_precision_loss
-)] // sizes bounded by MAX_INPUT_PIXELS
-fn coeffs(in_len: usize, out_len: usize) -> Vec<(usize, Vec<f64>)> {
-    let scale = in_len as f64 / out_len as f64;
-    let fscale = scale.max(1.0);
-    let support = 2.0 * fscale;
-    (0..out_len)
-        .map(|i| {
-            let center = (i as f64 + 0.5) * scale;
-            let lo = (center - support + 0.5).floor().max(0.0) as usize;
-            let hi = ((center + support + 0.5).floor() as usize).min(in_len);
-            let mut w: Vec<f64> = (lo..hi)
-                .map(|j| cubic((j as f64 - center + 0.5) / fscale))
-                .collect();
-            let sum: f64 = w.iter().sum();
-            if sum != 0.0 {
-                w.iter_mut().for_each(|v| *v /= sum);
-            }
-            (lo, w)
-        })
-        .collect()
-}
-
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // clamped to 0..=255
-fn to_u8(v: f64) -> u8 {
-    v.round().clamp(0.0, 255.0) as u8
-}
-
-/// One separable pass along rows (`horizontal`) or columns, PIL-style with a
-/// clamp to `u8` after the pass.
-fn resample_pass(img: &Grey, out_len: usize, horizontal: bool) -> Grey {
-    let (in_len, lines) = if horizontal {
-        (img.width, img.height)
-    } else {
-        (img.height, img.width)
-    };
-    let cs = coeffs(in_len, out_len);
-    let (ow, oh) = if horizontal {
-        (out_len, img.height)
-    } else {
-        (img.width, out_len)
-    };
-    let mut out = vec![0u8; ow * oh];
-    for line in 0..lines {
-        for (o, (lo, ws)) in cs.iter().enumerate() {
-            let v: f64 = ws
-                .iter()
-                .enumerate()
-                .map(|(k, w)| {
-                    let (x, y) = if horizontal {
-                        (lo + k, line)
-                    } else {
-                        (line, lo + k)
-                    };
-                    w * f64::from(img.pixels.get(y * img.width + x).copied().unwrap_or(0))
-                })
-                .sum();
-            let (x, y) = if horizontal { (o, line) } else { (line, o) };
-            if let Some(p) = out.get_mut(y * ow + x) {
-                *p = to_u8(v);
-            }
-        }
-    }
-    Grey {
-        width: ow,
-        height: oh,
-        pixels: out,
-    }
-}
-
 /// Bicubic resize to `width x height`, horizontal pass first as PIL does.
 #[must_use]
 pub fn resize(img: &Grey, width: usize, height: usize) -> Grey {
-    let mut cur = img.clone();
-    if width != cur.width {
-        cur = resample_pass(&cur, width, true);
-    }
-    if height != cur.height {
-        cur = resample_pass(&cur, height, false);
-    }
-    cur
+    super::upscale::resample(img, width, height, super::upscale::UpscaleFilter::Bicubic)
 }
 
 /// The vision encoder's `pixel_values`: `[gh * gw, 3, 14, 14]` flattened,

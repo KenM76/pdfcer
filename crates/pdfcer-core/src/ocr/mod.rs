@@ -131,6 +131,7 @@ pub mod json_lite;
 #[doc(hidden)]
 pub mod vl_tokenizer;
 
+pub mod upscale;
 pub mod vl_decode;
 pub mod vl_pre;
 

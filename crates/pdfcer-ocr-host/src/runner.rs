@@ -3,6 +3,7 @@
 
 use pdfcer_core::ocr::addon_manifest::AddonKind;
 use pdfcer_core::ocr::addons::{OcrModel, VerifyError};
+use pdfcer_core::ocr::upscale::{Upscale, upscale_grey};
 use pdfcer_core::ocr::{OcrPage, RecognizedWord};
 
 use crate::dictionaries::Dictionaries;
@@ -26,6 +27,10 @@ pub struct RunOptions {
     /// Read the page region by region with the layout model
     /// (`paddle-vl` only; its add-on folder must hold `layout.onnx`).
     pub layout: bool,
+    /// Enlarge each page raster before recognition; words are mapped back
+    /// to the raster the caller passed. `None` reads it as given. Not for
+    /// `paddle-vl`, which resizes every region to its model's own size.
+    pub upscale: Option<Upscale>,
 }
 
 impl RunOptions {
@@ -38,6 +43,7 @@ impl RunOptions {
             policy: ProgramPolicy::Allow,
             dictionaries: Dictionaries::default(),
             layout: false,
+            upscale: None,
         }
     }
 
@@ -45,6 +51,13 @@ impl RunOptions {
     #[must_use]
     pub fn with_layout(mut self, layout: bool) -> Self {
         self.layout = layout;
+        self
+    }
+
+    /// These options enlarging each page by `upscale` before recognition.
+    #[must_use]
+    pub fn with_upscale(mut self, upscale: Option<Upscale>) -> Self {
+        self.upscale = upscale;
         self
     }
 
@@ -117,6 +130,17 @@ pub enum RunnerError {
         /// The engine token.
         engine: String,
     },
+    /// Upscaling was asked of an engine that resizes its own input.
+    #[error("OCR model `{name}` ({engine}) resizes every region itself; upscaling does not apply")]
+    UpscaleUnsupported {
+        /// The model.
+        name: String,
+        /// The engine token.
+        engine: String,
+    },
+    /// The page raster could not be enlarged.
+    #[error("cannot upscale the page: {0}")]
+    Upscale(#[from] pdfcer_core::ocr::upscale::UpscaleError),
     /// A program add-on refused or failed.
     #[error(transparent)]
     Program(#[from] ProgramError),
@@ -178,6 +202,12 @@ pub fn check_options(model: &OcrModel, options: &RunOptions) -> Result<(), Runne
         crate::program::check_program_options(model, options)?;
     } else {
         check_dictionaries(model, &options.dictionaries)?;
+    }
+    if model.engine == "paddle-vl" && options.upscale.is_some_and(|u| !u.is_identity()) {
+        return Err(RunnerError::UpscaleUnsupported {
+            name: model.name.clone(),
+            engine: model.engine.clone(),
+        });
     }
     if !options.layout {
         return Ok(());
@@ -249,6 +279,7 @@ fn data_files(engine: &str) -> Option<Vec<&'static str>> {
 pub struct OcrRunner {
     inner: Inner,
     files_verified: usize,
+    upscale: Option<Upscale>,
 }
 
 enum Inner {
@@ -300,7 +331,10 @@ impl OcrRunner {
         check_runnable(model, options.policy)?;
         if model.kind() == AddonKind::Program {
             let engine = ProgramEngine::from_model(model, options)?;
-            return Ok(Self::from_program(engine));
+            return Ok(Self {
+                upscale: options.upscale,
+                ..Self::from_program(engine)
+            });
         }
         let files_verified = model.verify().map_err(|source| RunnerError::Verify {
             name: model.name.clone(),
@@ -309,6 +343,7 @@ impl OcrRunner {
         load_data(model, options.layout).map(|inner| Self {
             inner,
             files_verified,
+            upscale: options.upscale,
         })
     }
 
@@ -319,7 +354,32 @@ impl OcrRunner {
         Self {
             inner: Inner::Program(engine),
             files_verified: 0,
+            upscale: None,
         }
+    }
+
+    /// Enlarge each page by `upscale` before recognition, as
+    /// [`RunOptions::upscale`] does for [`Self::load`].
+    ///
+    /// # Errors
+    ///
+    /// [`RunnerError::UpscaleUnsupported`] for `paddle-vl`.
+    pub fn set_upscale(&mut self, upscale: Option<Upscale>) -> Result<(), RunnerError> {
+        #[cfg(feature = "ocr-vl")]
+        if matches!(self.inner, Inner::PaddleVl(..)) && upscale.is_some_and(|u| !u.is_identity()) {
+            return Err(RunnerError::UpscaleUnsupported {
+                name: "paddle-vl".to_owned(),
+                engine: "paddle-vl".to_owned(),
+            });
+        }
+        self.upscale = upscale;
+        Ok(())
+    }
+
+    /// The enlargement applied before recognition, if any.
+    #[must_use]
+    pub fn upscale(&self) -> Option<Upscale> {
+        self.upscale
     }
 
     /// How many of a data model's files [`OcrRunner::load`] checked against
@@ -347,34 +407,16 @@ impl OcrRunner {
     ///
     /// # Errors
     ///
-    /// [`RunnerError::Program`] or [`RunnerError::Engine`].
+    /// [`RunnerError::Program`], [`RunnerError::Engine`] or
+    /// [`RunnerError::Upscale`].
     pub fn recognize(
         &self,
         width: u32,
         height: u32,
         pixels: &[u8],
     ) -> Result<Vec<RecognizedWord>, RunnerError> {
-        #[cfg(any(feature = "ocrs", feature = "ocrcer", feature = "paddle"))]
-        use pdfcer_core::ocr::OcrEngine as _;
-        match &self.inner {
-            Inner::Program(p) => Ok(p.recognize(width, height, pixels)?),
-            #[cfg(feature = "ocrs")]
-            Inner::Ocrs(e) => e
-                .recognize(width, height, pixels)
-                .map_err(|e| RunnerError::Engine(e.to_string())),
-            #[cfg(feature = "ocrcer")]
-            Inner::Ocrcer(e) => e
-                .recognize(width, height, pixels)
-                .map_err(|e| RunnerError::Engine(e.to_string())),
-            #[cfg(feature = "paddle")]
-            Inner::Paddle(e) => e
-                .recognize(width, height, pixels)
-                .map_err(|e| RunnerError::Engine(e.to_string())),
-            #[cfg(feature = "ocr-vl")]
-            Inner::PaddleVl(e, layout, last) => {
-                Ok(read_vl(e, layout.as_deref(), last, width, height, pixels)?.words)
-            }
-        }
+        self.recognize_page(width, height, pixels, None)
+            .map(|page| page.words)
     }
 
     /// [`Self::recognize`] for an image rasterised at `dpi`. A program engine
@@ -391,12 +433,8 @@ impl OcrRunner {
         pixels: &[u8],
         dpi: f32,
     ) -> Result<Vec<RecognizedWord>, RunnerError> {
-        match &self.inner {
-            Inner::Program(p) => Ok(p.recognize_at(width, height, pixels, dpi)?),
-            // Unreachable when no in-process engine feature is enabled.
-            #[allow(unreachable_patterns)]
-            _ => self.recognize(width, height, pixels),
-        }
+        self.recognize_page(width, height, pixels, Some(dpi))
+            .map(|page| page.words)
     }
 
     /// [`Self::recognize`] (`dpi` `None`) or [`Self::recognize_at`] as an
@@ -406,10 +444,36 @@ impl OcrRunner {
     /// y-down; `pdfcer_core::ocr::words_to_page_space_on` keeps their order,
     /// so the indices stay valid after mapping.
     ///
+    /// With an upscale set, the engine reads the enlarged raster (a program
+    /// is told the resolution times the actual ratio) and the words come
+    /// back in the caller's raster's pixels.
+    ///
     /// # Errors
     ///
     /// As [`Self::recognize`].
     pub fn recognize_page(
+        &self,
+        width: u32,
+        height: u32,
+        pixels: &[u8],
+        dpi: Option<f32>,
+    ) -> Result<OcrPage, RunnerError> {
+        let Some(upscale) = self.upscale.filter(|u| !u.is_identity()) else {
+            return self.read_page(width, height, pixels, dpi);
+        };
+        let up = upscale_grey(width, height, pixels, upscale)?;
+        #[allow(clippy::cast_possible_truncation)] // a ratio <= 4
+        let ratio = up.scale_x as f32;
+        let dpi = match self.as_program() {
+            Some(p) => Some(dpi.unwrap_or_else(|| p.load_dpi()) * ratio),
+            None => dpi.map(|d| d * ratio),
+        };
+        let mut page = self.read_page(up.width, up.height, &up.pixels, dpi)?;
+        up.map_back(&mut page.words);
+        Ok(page)
+    }
+
+    fn read_page(
         &self,
         width: u32,
         height: u32,
@@ -423,15 +487,39 @@ impl OcrRunner {
         if let Inner::PaddleVl(e, layout, last) = &self.inner {
             return read_vl(e, layout.as_deref(), last, width, height, pixels);
         }
-        let words = match dpi {
-            Some(dpi) => self.recognize_at(width, height, pixels, dpi)?,
-            None => self.recognize(width, height, pixels)?,
-        };
         Ok(OcrPage {
-            words,
+            words: self.in_process(width, height, pixels)?,
             confidence_available: self.reports_confidence(),
             ..OcrPage::default()
         })
+    }
+
+    #[allow(unused_variables)] // every engine arm is feature-gated
+    fn in_process(
+        &self,
+        width: u32,
+        height: u32,
+        pixels: &[u8],
+    ) -> Result<Vec<RecognizedWord>, RunnerError> {
+        #[cfg(any(feature = "ocrs", feature = "ocrcer", feature = "paddle"))]
+        use pdfcer_core::ocr::OcrEngine as _;
+        match &self.inner {
+            #[cfg(feature = "ocrs")]
+            Inner::Ocrs(e) => e
+                .recognize(width, height, pixels)
+                .map_err(|e| RunnerError::Engine(e.to_string())),
+            #[cfg(feature = "ocrcer")]
+            Inner::Ocrcer(e) => e
+                .recognize(width, height, pixels)
+                .map_err(|e| RunnerError::Engine(e.to_string())),
+            #[cfg(feature = "paddle")]
+            Inner::Paddle(e) => e
+                .recognize(width, height, pixels)
+                .map_err(|e| RunnerError::Engine(e.to_string())),
+            // Program and paddle-vl are read before this is reached.
+            #[allow(unreachable_patterns)]
+            _ => Err(RunnerError::Engine("no in-process engine".to_owned())),
+        }
     }
 
     /// Which word lists recognition uses, for the run report: Tesseract's

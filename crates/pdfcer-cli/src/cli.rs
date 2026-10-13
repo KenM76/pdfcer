@@ -4666,6 +4666,29 @@ pub(crate) enum Command {
         /// same edit as `--in-place`, so either destination works.
         #[arg(long, requires = "layout")]
         region_layers: bool,
+        /// Enlarge the page image by this factor (1 to 4) before the engine
+        /// reads it; the words are mapped back, so the text layer lands in
+        /// the same place either way.
+        ///
+        /// For scans whose text is too small for the engine: faxes and
+        /// 50-75 dpi scans with sharp edges. Render at the scan's own
+        /// resolution (`--dpi`) and enlarge with this, rather than raising
+        /// `--dpi`, which enlarges a scan by repeating pixels. On a 50 dpi
+        /// scan, `--dpi 50 --upscale 3` read 96 % of words with
+        /// `tesseract` where `--dpi 50` read 26 % and `--dpi 150` 87 %.
+        ///
+        /// It invents no detail: on a scan that is already blurred it
+        /// spreads the blur and can cost words (`ocrs` and `tesseract` both
+        /// lost some on a blurred 75 dpi page). Off unless given. `paddle`
+        /// shrinks pages above 2000 pixels on the long side for detection,
+        /// so a large factor buys it little; `paddle-vl` refuses it.
+        #[arg(long, value_name = "FACTOR")]
+        upscale: Option<f32>,
+        /// How `--upscale` interpolates: `bicubic` (the default) or
+        /// `lanczos`, sharper with more ringing. Bicubic was as good or
+        /// better in most measured cases.
+        #[arg(long, value_name = "FILTER", requires = "upscale")]
+        upscale_filter: Option<pdfcer_core::ocr::upscale::UpscaleFilter>,
     },
     /// **List the stamps in an Acrobat-compatible stamp collection**
     /// (`Pass 288.0`).

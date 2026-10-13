@@ -63,6 +63,11 @@ pub(crate) struct Invocation {
 }
 
 impl Invocation {
+    /// The load-time resolution passed when a page names none.
+    pub(crate) fn dpi(&self) -> u32 {
+        self.dpi
+    }
+
     /// Check the languages and that each has a `.traineddata` in `tessdata`.
     /// Merge the user word files `dictionaries` names.
     pub(crate) fn new(

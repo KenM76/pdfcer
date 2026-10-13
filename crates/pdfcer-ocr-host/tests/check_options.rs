@@ -117,3 +117,23 @@ fn a_program_refuses_an_unreadable_word_file() {
         "{err:?}"
     );
 }
+
+#[test]
+fn paddle_vl_refuses_upscaling_and_the_others_take_it() {
+    use pdfcer_core::ocr::upscale::{Upscale, UpscaleFilter};
+    let twice = Some(Upscale::new(2.0, UpscaleFilter::Bicubic).unwrap());
+    let vl = data_model("vl-up", "paddle-vl", &[]);
+    let err = check_options(&vl, &opts().with_upscale(twice)).unwrap_err();
+    assert!(
+        matches!(err, RunnerError::UpscaleUnsupported { .. }),
+        "{err:?}"
+    );
+    // A factor of 1 changes nothing, so it is not refused.
+    let once = Some(Upscale::new(1.0, UpscaleFilter::Bicubic).unwrap());
+    check_options(&vl, &opts().with_upscale(once)).unwrap();
+    check_options(
+        &data_model("ocrs-up", "ocrs", &[]),
+        &opts().with_upscale(twice),
+    )
+    .unwrap();
+}

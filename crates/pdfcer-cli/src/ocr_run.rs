@@ -20,6 +20,10 @@ pub(crate) struct OcrRequest<'a> {
     pub(crate) layout: bool,
     /// `--region-layers`: one layer per region group.
     pub(crate) region_layers: bool,
+    /// `--upscale`: enlarge the raster by this factor before recognition.
+    pub(crate) upscale: Option<f32>,
+    /// `--upscale-filter`.
+    pub(crate) upscale_filter: pdfcer_core::ocr::upscale::UpscaleFilter,
 }
 
 /// `ocr` — recognise a scanned page and add an invisible text layer.
@@ -49,9 +53,10 @@ pub(crate) fn cmd_ocr(req: &OcrRequest<'_>, model_choice: &OcrModelChoice<'_>) -
 fn run_ocr(req: &OcrRequest<'_>, model_choice: &OcrModelChoice<'_>) -> Result<(), u8> {
     let destination = destination(req)?;
     let (doc, page, index) = open_page(req.input, req.page_number)?;
-    let (engine, engine_choice, source) =
+    let (mut engine, engine_choice, source) =
         load_ocr_engine(model_choice, req.ocr_lang, req.dpi, req.layout)?;
     let (iw, ih, grey) = rasterise_grey(&doc, &page, req.dpi, req.page_number)?;
+    set_upscale(&mut engine, req, iw, ih)?;
     if let Some(path) = req.dump_image {
         dump_grey(path, iw, ih, &grey)?;
     }
@@ -105,6 +110,33 @@ recognised={recognised} written={} replaced={} confidence={}",
         },
     );
     disclose(&report, &engine, &source, confidence_available, destination);
+    Ok(())
+}
+
+/// Apply `--upscale` and say what it does: the size the engine actually
+/// reads is visible nowhere else.
+fn set_upscale(
+    engine: &mut pdfcer_ocr_host::OcrRunner,
+    req: &OcrRequest<'_>,
+    iw: u32,
+    ih: u32,
+) -> Result<(), u8> {
+    let Some(factor) = req.upscale else {
+        return Ok(());
+    };
+    let refused = |err: &dyn std::fmt::Display| {
+        eprintln!("pdfcer: ocr: --upscale: {err}");
+        exit::RUNTIME_ERROR
+    };
+    let up = pdfcer_core::ocr::upscale::Upscale::new(factor, req.upscale_filter)
+        .map_err(|e| refused(&e))?;
+    engine.set_upscale(Some(up)).map_err(|e| refused(&e))?;
+    let (ow, oh) = up.output_size(iw, ih);
+    eprintln!(
+        "pdfcer: ocr: upscale: {factor}x {} from {iw}x{ih} to {ow}x{oh} before recognition; \
+         words are mapped back to the {iw}x{ih} page image",
+        up.filter()
+    );
     Ok(())
 }
 

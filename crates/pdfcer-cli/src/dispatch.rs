@@ -1033,6 +1033,8 @@ pub(crate) fn run() -> ExitCode {
             existing,
             layout,
             region_layers,
+            upscale,
+            upscale_filter,
         } => {
             ocr_program::set_refuse_flag(refuse_ocr_programs);
             cmd_ocr(
@@ -1048,6 +1050,8 @@ pub(crate) fn run() -> ExitCode {
                     existing,
                     layout,
                     region_layers,
+                    upscale,
+                    upscale_filter: upscale_filter.unwrap_or_default(),
                 },
                 &OcrModelChoice {
                     engine: ocr_engine,
