@@ -5,7 +5,7 @@ Engineer-owned; replaced each session. The previous long-form handoff
 (gate-sweep history, the carried OWED list, benchmark recipes) is in git:
 `git show 78635459:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-14, after the v0.82.0 release and the 1075th filing.
+**Written:** 2026-10-14, after the v0.82.0 release and the 1076th filing.
 
 ## State
 
@@ -14,8 +14,8 @@ Engineer-owned; replaced each session. The previous long-form handoff
   `pdfcer2`.** Post-release fixes `1d7f12af` (ocr-host retries a spawn that
   hits Linux `ETXTBSY`, which failed CI at the tag once) and `155e2272`
   (package-portable clears a ReadOnly dir when removing a staged add-on).
-- **Ledgers:** next free Pass **590.0** (589.0 is the Backlog det-normalisation
-  investigation); next filing **1076th**; no decision added since 183. Core-api verb count **370**; EditError has 183 variants.
+- **Ledgers:** next free Pass **591.0** (589.0 is the Backlog det-normalisation
+  investigation; 590.0 is G195, `docs/ocr-upscale.md`); next filing **1077th**; no decision added since 183. Core-api verb count **370**; EditError has 183 variants.
 - **G194 shipped as `588.0`** (`475c6f4a`): four pinned OCR sets (`ocrs`,
   `ppocrv5-latin`, `ppocrv4-ch-en`, `ocrcer`), `manifest()` written on fetch,
   `fetch-ocr-models --model NAME`, paddle reads `inference.yml`'s
