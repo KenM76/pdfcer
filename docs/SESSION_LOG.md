@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-14 (1072nd filing) — `f7e2de84` `--in-place` for `paste-fields` and `move-widget-to-field`
+
+**Shipped (CLI, gate fix; engineer-reported, no shell here, push state not checked):** `f7e2de84`. `in_place_covers_every_input_output_subcommand` (`crates/pdfcer-cli/src/tests.rs`) failed in `tools/run-gates.sh` because three new input+output subcommands were unplaced. `paste-fields` (`587.0`) and `move-widget-to-field` (`582.0`, `79870b56`) added to `IN_PLACE_COMMANDS` (`crates/pdfcer-cli/src/in_place.rs`), so they accept `--in-place`; `copy-fields` (writes a clip file, not the edited PDF) joins `NOT_IN_PLACE`. CLI bin tests 43 passed.
+
+**Gotcha (wasm32 gate):** `run-gates.sh`'s wasm32 check failed with autocfg's "output path is not a writable directory" panic in num-traits' build script. 25 `target/*/build/*/out` dirs (wasm32 debug, host release) carried the Windows directory ReadOnly attribute (`attrib` showed `R  I`); autocfg rejects an `OUT_DIR` whose `permissions().readonly()` is true, while cargo and most tools ignore the bit. Fix: Git Bash `attrib -R dir /D` silently did nothing; PowerShell `$i=Get-Item dir; $i.Attributes = $i.Attributes -band (-bnot [IO.FileAttributes]::ReadOnly)` worked (or delete the build dirs). Origin unknown (the `I` NotContentIndexed bit suggests an external tool). Written up: `D:/dev/rag/rust/autocfg_rejects_out_dir_with_windows_readonly_attribute.md` (indexed).
+
+**Filed as:** one bullet on the `Pass 587.0` Shipped entry, a cross-note on `Pass 582.0`, ledger now next filing 1073rd, next free `Pass 588.0`. `FEATURES.md`: `--in-place` noted on the `paste-fields` and `move-widget-to-field` rows (both name CLI flags). No heading added, so `### ` count Next up to Backlog stays 80; sizes not run through `check-register-entry-size.py` (no shell).
+
+**For next session:** push after gates (`tools/check-commits-filed.py` first). Next filing 1073rd.
+
 ## 2026-10-14 (1071st filing) — `0dbe68c4` fuzz fix: clip readers refuse stream data beside a non-dictionary object
 
 **Shipped (core, defect; engineer-reported, no shell here, push state not checked):** `0dbe68c4`. The `ObjectClip`, `ObjectClip` annotation-object and `FieldClip`/`FieldClipSet` readers attached a stream payload to any carried object; the writer emits one only beside a stream dictionary, so the payload vanished on the next write and the clip was unequal to its own round trip. Second `clipboard_payloads` fuzz finding this session (after the NaN/Inf one in `27c7deaa`). Fix: shared `pub(crate) rebuild_stream` in `crates/pdfcer-core/src/vector/clip.rs`, refusal as `ClipError::Content`, used by all three readers. Test `stream_data_beside_a_non_dictionary_is_refused` in `clip_non_finite.rs` (fuzzer input embedded, sabotage-verified). Core `clip` filter 134 passed; fmt, clippy, structure, string-gaps, public-fns, tests-harnessed clean. No manifest change, no decision.

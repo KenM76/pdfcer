@@ -127,12 +127,13 @@ Commits `27c7deaa` (code, tests) and `be42b28b` (`docs/core-api/02-editing-and-s
 - **Tests (engineer-reported; no shell here).** 7 core (`field_set_clipboard.rs`), 2 core (`clip_non_finite.rs`), 3 CLI (`field_set_clip.rs`). Filters: core `field` 301 passed, core `clip` 133 passed, CLI `field` 85 passed. New synthetic fixture `fixtures/synthetic/forms/field-set-form.pdf`.
 - **Acceptance (7 points filed).** All seven addressed by the above; the CLI caller exists, so cli is `[x]`.
 - **Second fuzz finding, fixed `0dbe68c4`** (1071st filing). The `ObjectClip`, `ObjectClip` annotation-object and `FieldClip`/`FieldClipSet` readers attached a stream payload to any carried object, but the writer emits one only beside a stream dictionary, so a payload on e.g. a name vanished on the next write. One shared `rebuild_stream` helper in `vector/clip.rs` now refuses it as `ClipError::Content`. Test `stream_data_beside_a_non_dictionary_is_refused` (`clip_non_finite.rs`, sabotage-verified); core `clip` filter 134 passed (engineer-reported).
+- **Gate fix `f7e2de84`** (1072nd filing). `in_place_covers_every_input_output_subcommand` failed in `tools/run-gates.sh`: `paste-fields` (this Pass) and `move-widget-to-field` (`582.0`) were not placed. Both now in `IN_PLACE_COMMANDS` (`crates/pdfcer-cli/src/in_place.rs`) and accept `--in-place`; `copy-fields` (writes a clip file, not the edited PDF) joins `NOT_IN_PLACE`. CLI bin tests 43 passed (engineer-reported).
 - **Ecosystem finding.** `D:/dev/rag/rust/clap_requires_is_waived_when_its_target_conflicts_with_a_present_arg.md`: clap waives `requires = "X"` when X conflicts with a present arg, so `--as-widgets --copy-value` was accepted; fixed by a runtime check. Audit of the 15 `requires` targeting bool flags found only `annotate --hand-signature` with the same shape, already runtime-guarded.
 - **gui.** `pdfcer-gui`'s column; reply `reply_request_G193_several_form_fields_cannot_be_copied_or_pasted_as_one_FIXED.md` written by the engineer.
 
 `FEATURES.md`: Planned row moved to Implemented (*Forms*), core `[x]`, cli `[x]`, gui `[ ]`.
 
-Ledgers: no decision; next free `Pass 588.0`; next filing 1072nd.
+Ledgers: no decision; next free `Pass 588.0`; next filing 1073rd.
 
 ### `Passes 583.0`-`586.0` — several widgets or annotations move or delete as ONE undo entry: `move_widgets_each`, `move_annotations_each`, `delete_annotations`, `delete_widgets` (core; answers `pdfcer-gui` `G189`-`G192`) — SHIPPED 2026-10-14 (1069th filing)
 
@@ -147,7 +148,7 @@ Commit `c5b7afc0`. Push state not checked (no shell here); gates pending. No `Ca
 
 ### `Pass 582.0` — a radio button moves into another radio group as ONE undo entry: `EditSession::move_widget_to_field`, `WidgetRegroup`, CLI `move-widget-to-field` (core + CLI; answers `pdfcer-gui` `G188`) — SHIPPED 2026-10-14 (1069th filing)
 
-Commit `79870b56`. Push state not checked (no shell here). No `Cargo.toml` changed. No decision.
+Commit `79870b56`; `--in-place` wiring added by `f7e2de84` (see `Pass 587.0`). Push state not checked (no shell here). No `Cargo.toml` changed. No decision.
 
 - **API.** `move_widget_to_field(fqn, index, target_fqn) -> WidgetRegroup { widget, on_state, source_removed, action_targets_orphaned, disclosures }` (`#[non_exhaustive]`), new `CommandKind::MoveWidgetToField`. The widget keeps its object number and `/Annots` slot. A taken state is renamed (`Red` to `Red1`). `/AS` is on only if the target's `/V` names the state.
 - **Shared indirect `/AP`.** A shared indirect `/AP` sub-dictionary is copied inline BEFORE renaming, or the member that stays has its state renamed too.
