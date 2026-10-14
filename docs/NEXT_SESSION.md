@@ -5,15 +5,24 @@ Engineer-owned; replaced each session. The previous long-form handoff
 (gate-sweep history, the carried OWED list, benchmark recipes) is in git:
 `git show 78635459:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-14, after `Pass 587.0` and the 1071st filing.
+**Written:** 2026-10-14, after `Pass 588.0` and the 1073rd filing.
 
 ## State
 
 - **Release:** v0.82.0 is being cut from this state into OneDrive `pdfcer1`
   (v0.81.0 is in `pdfcer2`). If `git tag` shows v0.82.0, the next release
   writes `pdfcer2`.
-- **Ledgers:** next free Pass **588.0**; next filing **1072nd**; no decision
-  added since 183. Core-api verb count **370**; EditError has 183 variants.
+- **Ledgers:** next free Pass **590.0** (589.0 is the Backlog det-normalisation
+  investigation); next filing **1074th**; no decision added since 183. Core-api verb count **370**; EditError has 183 variants.
+- **G194 shipped as `588.0`** (`475c6f4a`): four pinned OCR sets (`ocrs`,
+  `ppocrv5-latin`, `ppocrv4-ch-en`, `ocrcer`), `manifest()` written on fetch,
+  `fetch-ocr-models --model NAME`, paddle reads `inference.yml`'s
+  `character_dict` when `dict.txt` is absent. Not pinned: `paddle-vl` (1.3 GB,
+  hosting is Ken's open question) and `tesseract` (install-from-file).
+- **`589.0` (Backlog):** PaddlePaddle's v5 det config specifies ImageNet
+  normalisation; the engine uses RapidOCR's [-1,1]. A probe was mixed (v5
+  `scan` CER 27%->12%, `scan_rotated_90` 14%->72%), so nothing changed. v5
+  Latin reads `scan.pdf` at 27% CER where v4 reads 0%.
 - **pdfcer-gui G187-G193 are all shipped as `581.0`-`587.0`**, each with a
   FIXED reply. `587.0` (G193) added `copy_fields`/`paste_fields` and the
   `FieldClipSet` clip. The paste is all or nothing, with one undo entry. CLI
@@ -23,6 +32,12 @@ Engineer-owned; replaced each session. The previous long-form handoff
   `clipboard_payloads` found both; a 300 s rerun (3M runs) is clean. On this
   machine libFuzzer writes no crash artifact: add a temporary
   `std::fs::write` of `data` before the failing assert to capture it.
+- **Build gotchas:** `fetch-ocr-models` needs `--features download`, which
+  the release build lacks (use a debug build for an end-to-end fetch). Never
+  wrap a cargo build in `timeout`: it killed the release build (exit 143). If
+  autocfg panics "output path is not a writable directory", clear ReadOnly on
+  `target/*/build/*/out`. `check-code-structure.py` counts braces naively: a
+  `'{'` char literal unbalances a function; spell it `'\u{7b}'`.
 - **clap gotcha:** `requires = "X"` is waived when X `conflicts_with` a present
   arg. Use a runtime check (rust RAG lesson written).
 - **Inbound:** check all three channels. The open GitHub issue (text layer

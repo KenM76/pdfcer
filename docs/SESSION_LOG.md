@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-14 (1073rd filing) — `Pass 588.0` shipped (`G194`, pinned download sources for every OCR engine); `Pass 589.0` filed
+
+**Shipped (core + CLI; engineer-reported, no shell here, push state not checked):** `475c6f4a`. `FETCHABLE_MODELS` now four pinned sets (`ocrs`, `ppocrv5-latin`, `ppocrv4-ch-en`, `ocrcer`), commit-pinned URLs, `FetchableModels::manifest()`; paddle engine reads `inference.yml` `character_dict` when `dict.txt` is absent (disclosed); CLI `fetch-ocr-models --model NAME`. Measured: `ppocrv5-latin` fetch verified 3 files, `ocr-models --verify` runnable, OCR identical to the GUI's bundled v5 folder. Tests: core `ocr::` 139 passed, CLI `ocr_addons` 10 passed. No decision, no core/render manifest change.
+
+**Not pinned:** `paddle-vl` (hosting is an open question to Ken), `tesseract` (install-from-file). **Correction:** `split_ocr_addons` zips every staged model folder except `paddle`, not "paddle only".
+
+**Filed as:** `Pass 588.0` Shipped entry plus Next up stub; `Pass 589.0` (PP-OCRv5 detector normalisation, mixed probe results, nothing changed) under Backlog; `FEATURES.md` download row text updated. `### ` count Next up to Backlog unchanged (no heading added there); sizes not run through `check-register-entry-size.py` (no shell).
+
+**For next session:** push after gates (`tools/check-commits-filed.py` first). Next free `Pass 590.0`; next filing 1074th.
+
 ## 2026-10-14 (1072nd filing) — `f7e2de84` `--in-place` for `paste-fields` and `move-widget-to-field`
 
 **Shipped (CLI, gate fix; engineer-reported, no shell here, push state not checked):** `f7e2de84`. `in_place_covers_every_input_output_subcommand` (`crates/pdfcer-cli/src/tests.rs`) failed in `tools/run-gates.sh` because three new input+output subcommands were unplaced. `paste-fields` (`587.0`) and `move-widget-to-field` (`582.0`, `79870b56`) added to `IN_PLACE_COMMANDS` (`crates/pdfcer-cli/src/in_place.rs`), so they accept `--in-place`; `copy-fields` (writes a clip file, not the edited PDF) joins `NOT_IN_PLACE`. CLI bin tests 43 passed.

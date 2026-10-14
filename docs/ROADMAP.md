@@ -115,6 +115,23 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 588.0` — every downloadable OCR engine set is pinned: `FETCHABLE_MODELS` grows to four sets, `FetchableModels::manifest`, paddle reads `inference.yml`, CLI `fetch-ocr-models --model` (core + CLI; answers `pdfcer-gui` `G194`) — SHIPPED 2026-10-14 (1073rd filing)
+
+Commit `475c6f4a`. Push state not checked (no shell here). Only `fuzz/Cargo.toml` changed, so the `cargo tree` invariant for core/render is untouched; packaging not touched. No decision. Request `pdfce_FeatureRequests/open/request_G194_pinned_download_sources_for_every_ocr_engine.md`; reply `reply_request_G194_..._FIXED.md` in the same folder.
+
+- **Core (`pdfcer_core::ocr::models`).** `FETCHABLE_MODELS` grows from `ocrs` alone to four pinned sets: `ocrs`; `ppocrv5-latin` (PP-OCRv5 mobile det + Latin rec + `inference.yml`, Apache-2.0, the set `pdfcer-gui` bundles); `ppocrv4-ch-en` (byte-identical to pdfcer's bundled paddle folder, held by a test); `ocrcer` (vendored release model, MIT). Hugging Face URLs name a 40-hex commit, never a branch. `FetchableModels` gains `name`, `engine`, `version` and `manifest()`, which renders `pdfcer-ocr-model.txt` (decision 182 format, sha256 lines). New `fetchable_model(name)`; `fetchable_models("paddle")` now returns `ppocrv5-latin`.
+- **Paddle engine.** With no `dict.txt` it reads the `character_dict` list from `inference.yml` (`DictionarySource::Config(PathBuf)`, `INFERENCE_CONFIG`), disclosed. New doc-hidden module `ocr::paddle_config`; new cargo-fuzz target `paddle_config`.
+- **cli.** `fetch-ocr-models --model NAME` (default `ocrs`; possible values are the pinned names) installs to `models/NAME` beside the exe, and writes the manifest only after every file verified. Still behind the opt-in `download` Cargo feature, so cli stays `◐`.
+- **Not pinned.** `paddle-vl` (~1.3 GB, no upstream single-folder artefact; hosting is an open question to Ken); `tesseract` stays install-from-file (release asset `ocr-addon-tesseract.zip`). Shape answered to the GUI: flat folders, no archive, manifest written on fetch.
+- **Measured end to end (engineer).** `fetch-ocr-models --model ppocrv5-latin` downloaded and verified 3 files and wrote the manifest; `ocr-models --verify` verified=3 runnable=yes; OCR with that folder disclosed the `inference.yml` dictionary (836 entries); text and confidence identical to `pdfcer-gui`'s bundled v5 folder.
+- **Tests (engineer-reported; no shell here).** Core `ocr::` 139 passed, 2 ignored; CLI `ocr_addons` 10 passed, 2 ignored; clippy `--all-features`, fmt, structure clean.
+- **Correction.** The GUI's note said `tools/package-portable.py`'s `split_ocr_addons` "produces one for paddle only"; it zips every staged model folder EXCEPT `paddle` (`BUNDLED_MODELS = {"paddle"}`).
+- **Follow-on.** `Pass 589.0` (Backlog): PP-OCRv5 detector normalisation, filed from a reverted probe.
+
+`FEATURES.md`: the *Operator-initiated download* row text updated (four sets, `--model`); boxes unchanged (core `[x]`, cli `◐`, gui `[ ]`).
+
+Ledgers: no decision; next free `Pass 590.0`; next filing 1074th.
+
 ### `Pass 587.0` — several form fields copy and paste as ONE: `EditSession::copy_fields`, `paste_fields`, `FieldClipSet`, CLI `copy-fields` / `paste-fields` (core + CLI; answers `pdfcer-gui` `G193`) — SHIPPED 2026-10-14 (1070th filing)
 
 Commits `27c7deaa` (code, tests) and `be42b28b` (`docs/core-api/02-editing-and-saving.md` §1.26 "Several fields at once", verb count 368 to 370). Push state not checked (no shell here); gates reported clean by the engineer (clippy, fmt, structure). No `Cargo.toml` changed, so the `cargo tree` invariant is untouched. No decision.
@@ -22083,6 +22100,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **Taken up from `pdfcer-gui`, 2026-10-14 (1069th filing): 1 request `G193` as `Pass 587.0`.** Request file `pdfce_FeatureRequests/open/request_G193_*.md`. Ledgers: no decision; next free `Pass 588.0`; next filing 1070th.
 > - `587.0` (`G193`) SHIPPED at the 1070th filing (`27c7deaa`, `be42b28b`); see *Shipped*. The batch is complete. Next free `Pass 588.0`; next filing 1071st.
 
+> **Taken up from `pdfcer-gui`, 2026-10-14 (1073rd filing): 1 request `G194` as `Pass 588.0`; SHIPPED at the same filing (`475c6f4a`), see *Shipped*.** The batch is complete. `Pass 589.0` is a Backlog investigation, not a Next up item. Next free `Pass 590.0`; next filing 1074th.
+
 > **Before the 1068th filing: no open item remained in *Next up*.** `Pass 580.0` (the last, self-found at the 1053rd filing) had shipped; see *Shipped*.
 
 > **Taken up from `pdfcer-gui`, 2026-10-08 (1034th filing): 7 requests `G162`-`G168` as `Pass 552.0`-`558.0`; `552.0`-`559.0` all shipped; the batch is complete.** ACK replies are in `pdfce_FeatureRequests/open/`. The GUI column is `pdfcer-gui`'s. (Superseded by the stubs above: next free `Pass 581.0`; next filing 1055th.)
@@ -32569,6 +32588,14 @@ real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
 
 > Residue of `Pass 558.0` (1041st filing), not yet a Pass: OCR table cells from PaddleOCR-VL are laid on an even grid over the region; measure real cell boxes (e.g. from ruling lines) instead.
+
+### `Pass 589.0` — PP-OCRv5 detector normalisation (investigation; residue of `Pass 588.0`; filed 1073rd filing)
+
+PaddlePaddle's published v5 det `inference.yml` specifies ImageNet normalisation (mean 0.485/0.456/0.406, std 0.229/0.224/0.225), resize_long 960, box_thresh 0.6, unclip 1.5. The engine's `paddle_post.rs` mirrors RapidOCR 1.4 instead: [-1,1] normalisation, short side >= 736, box_thresh 0.5, unclip 1.6.
+
+- **Probe (reverted, not shipped).** CER with spaces stripped against `fixtures/synthetic/ocr` `GROUND_TRUTH.json`, normalisation off to on: `scan` v5 27.0% to 11.6%, v4 0.0% to 0.0%; `scan_clean` v5 0 to 0, v4 0 to 0; `scan_rotated_90` v5 14.3% to 72.2%, v4 39.8% to 39.8%. Mixed, so nothing changed.
+- **Also noted.** v5 Latin reads `scan.pdf` at 27% CER where v4 reads 0%.
+- **Acceptance.** Decide per-model normalisation from the set's own config, measured on all three fixtures, with no fixture regressing.
 
 ### 3D compressed meshes still unfit (residue of `Pass 512.0`)
 
