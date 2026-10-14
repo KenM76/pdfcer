@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 368 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 370 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 368 public `EditSession` methods
+## 1. Verb index — all 370 public `EditSession` methods
 
-**Count: 368.** Established by brace-matched extraction of the
+**Count: 370.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -4497,7 +4497,7 @@ Grep target for "what does this return actually contain".
 
 ---
 
-### 1.26 Form-field clipboard (2) — `Pass 167.0`
+### 1.26 Form-field clipboard (4) — `Pass 167.0`, `Pass 587.0`
 
 Copy a field, carry it out of the process, plant it somewhere else. Added
 2026-08-29 for the two paste chords the operator ruled on: **`Ctrl+V`** = a
@@ -4651,6 +4651,58 @@ spending a placement gesture:
 `copy-field --name <FQN> -o <clip>`, `inspect-field-clip <clip>`, and
 `paste-field --clip <clip> --page N --rect … (--as-new <NAME> | --as-widget-of
 <NAME>)`. Disclosures go to **stderr**, the parseable summary to stdout.
+
+#### Several fields at once — `Pass 587.0` (`G193`)
+
+| I want to… | Call | Returns |
+|---|---|---|
+| Copy a selection of fields | `copy_fields(&self, fqns: &[&str]) -> Result<FieldClipSet, EditError>` | `&self`. A name given twice is copied once; order is first appearance. |
+| Paste the selection | `paste_fields(&mut self, set: &FieldClipSet, page_index: usize, origin: (f64, f64), policy: &FieldSetPastePolicy) -> Result<FieldSetPasteOutcome, EditError>` | **ONE undo entry**, all or nothing. |
+
+Types (all in `pdfcer_core::formclip`, all `#[non_exhaustive]`):
+
+- `FieldClipSet` — `len`, `is_empty`, `source_names() -> Vec<&str>`,
+  `widget_count`, `object_count`, `bbox() -> Option<Rect>` (union of every
+  widget rect), `to_bytes`, `from_bytes`. Magic `FIELD_CLIP_SET_MAGIC`
+  (`PDFCEFST`), distinct from a single `FieldClip`'s: either reader refuses the
+  other's payload with `ClipError::NotAClip`. The members share **one**
+  object closure, so a font, appearance or script two fields use is carried,
+  and pasted, once. Ceiling `MAX_CLIP_SET_FIELDS` (= `MAX_UNDO_DEPTH`, 256);
+  more is `ClipError::ClipTooLarge`.
+- `FieldSetPastePolicy::NewFields { tooltip: PasteTooltip, copy_value, copy_actions }`
+  — one new field per member. **The verb chooses the names**: the source name
+  when free, else the first free `_2`, `_3`, …, checked against the document's
+  terminals and grouping nodes and the batch itself. Every rename is disclosed.
+  With `copy_actions`, a calculate script (`/AA /C /JS`) naming another member
+  as a quoted literal (`"Qty"`, `'Qty'`) is re-pointed at that member's copy,
+  disclosed. Other actions' scripts, and names outside the batch, are left
+  alone. Each pasted calculation is appended to `/AcroForm /CO` as
+  `paste_field` does, in clip order (disclosed).
+- `FieldSetPastePolicy::AdditionalWidgets` — every copied widget becomes a
+  widget of the field with its source name **here**. Radio members commit in
+  order, so each claims an on-state neither the group nor the batch already
+  uses (`FieldPasteOutcome::radio_on_state`).
+- `FieldSetPasteOutcome { fields: Vec<FieldPasteOutcome>, names: Vec<String>, disclosures: Vec<String> }`
+  — `fields` is one entry per paste step (per member for `NewFields`, per
+  widget for `AdditionalWidgets`), each with its `disclosures` emptied into the
+  set-level list; `names` is one per member, in clip order. Show every
+  disclosure off-canvas; each sentence appears once.
+
+**Placement.** Everything is translated by `origin − bbox().ll`, so the
+selection's lower-left lands on `origin` and every field keeps its size and its
+distance from the others. A `/DR` font several members' `/DA` name is installed
+once, under one name.
+
+**Refusals.** `copy_fields`: anything `copy_field` refuses, for the first field
+that fails, plus `Clip(ClipTooLarge)`. `paste_fields`: anything `paste_field`
+refuses for the first refusing member — nothing is written and the undo stack
+is unchanged — plus `SelectionTooLargeForOneUndo` past `MAX_UNDO_DEPTH` steps.
+An empty set pastes nothing.
+
+**CLI.** `copy-fields IN --name A --name B … -o SET` and `paste-fields IN --clip
+SET --page N --at X,Y (--as-new (--carry-tooltip | --no-tooltip)
+[--copy-value] [--copy-actions] | --as-widgets) -o OUT [--mode]
+[--verify-undo]`. stdout ends with one `name="…"` token per field.
 
 ### 1.27 Cut (3) — `Pass 168.0`
 
