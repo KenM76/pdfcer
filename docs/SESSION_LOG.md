@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-14 (1076th filing) — `Pass 590.0` shipped (`G195`, `docs/ocr-upscale.md` was cited but never written)
+
+**Shipped (engineer-reported, no shell here, push state not checked):** `49fc6082` adds `docs/ocr-upscale.md`, cited by the `pdfcer_core::ocr::upscale` module header since `80c86edb` (`Pass 566.0`). Contents: shell defaults (upscale off, bicubic, `MagnifyFilter::Smooth` for OCR renders, `PointSample` for display), the `Pass 566.0` upscale table, the `Pass 580.0` magnify-route table, what was never measured. Documentation only: no code, no `pub` change, no dependency, no decision.
+
+**Findings:** class swept by the engineer; every `docs/*.md` path cited from `crates/`, `tools/`, `fuzz/` resolves except the vendored `engine_ocrcer.rs`, which cites a path in the OCRcer repository (exists there); left alone because the vendored file must stay byte-identical.
+
+**Filed as:** `Pass 590.0` (heading names `G195` for `tools/check-requests-scoped.py`; a reply file also exists), a Next up banner, this entry. `FEATURES.md` untouched. Sizes not run through `check-register-entry-size.py` (no shell).
+
+**For next session:** next free `Pass 591.0`; next filing 1077th. `.claude/agent-memory/pdfcer-spec-librarian/` notes may still be uncommitted.
+
 ## 2026-10-14 (1075th filing) — `v0.82.0` published; ETXTBSY retry `1d7f12af`; ReadOnly-safe packaging `155e2272`
 
 **Release:** `v0.82.0` PUBLISHED. Tag is at `11a4f1ea` (docs-only 1074th filing, descendant of bump `e0ea822e`), correcting the 1074th entry; placed so `git describe --tags` stamps `v0.82.0`. CI run `38598263543` first failed (ubuntu, `dictionaries::none_turns_both_built_in_lists_off`, "Text file busy (os error 26)": ETXTBSY race in the test harness, not `G194`); rerun green. Package `D:\builds\pdfcer-20261014-1301-11a4f1e` (not dirty). Fresh-folder smoke PASS. GitHub release 8 assets (zip 25,943,393 bytes). OneDrive `pdfcer1`, 69,984,575 bytes; next release writes `pdfcer2`. `verify-release.py v0.82.0`: 8 ok, 1 FAIL ("working tree clean": two other-agent memory files plus `tools/package-portable.py` mid-fix); recorded as a FAIL.

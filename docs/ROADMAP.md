@@ -115,6 +115,18 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 590.0` — `docs/ocr-upscale.md` written: the file the `ocr::upscale` module header cited and never had (documentation only; answers `pdfcer-gui` `G195`) — SHIPPED 2026-10-14 (1076th filing)
+
+Commit `49fc6082`. Push state not checked (no shell here). No code, no `pub` change, no dependency, no decision; the `cargo tree` invariant is untouched. Request `pdfce_FeatureRequests/open/request_G195_ocr_upscale_doc_cites_a_missing_file.md`; reply `reply_request_G195_ocr_upscale_doc_cites_a_missing_file_FIXED.md` in the same folder, naming `49fc6082`.
+
+- **Defect.** The `pdfcer_core::ocr::upscale` module header cited `docs/ocr-upscale.md`; the file was never written. The citation dates from `80c86edb` (`Pass 566.0`).
+- **Fix.** `docs/ocr-upscale.md` holds the shell defaults (upscale off, bicubic filter, `MagnifyFilter::Smooth` for an OCR render, `PointSample` for display), the `Pass 566.0` upscale table, the `Pass 580.0` magnify-route table (both lifted from their ROADMAP entries), and what was never measured. The module header is unchanged.
+- **Class swept.** Every `docs/*.md` path cited from `crates/`, `tools/` and `fuzz/` sources resolves, with one exception: the vendored `crates/pdfcer-core/src/ocr/engine_ocrcer.rs` cites `docs/measurements/2026-09-24_pdfcer_binding.md`, a path in the OCRcer repository where the file exists. Left alone: the vendored file must stay byte-identical (`check-ocrcer-vendored`). Engineer-reported; I did not re-run the sweep.
+
+`FEATURES.md`: no box changes; the OCR upscale row not edited (its text could point at `docs/ocr-upscale.md`, optional; rows are size-capped at 1,200 characters and I cannot measure without a shell).
+
+Ledgers: no decision; next free `Pass 591.0`; next filing 1077th.
+
 ### `v0.82.0` — PUBLISHED (2026-10-14): release out, CI green at the tag; `verify-release.py` has 1 explained FAIL ("working tree clean") (1075th filing, amends 1074th)
 
 Bump `e0ea822e` ("chore: v0.82.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`). **Tag correction (1075th):** `v0.82.0` is at `11a4f1ea`, the docs-only 1074th filing commit and a descendant of the bump, NOT at `e0ea822e` as the 1074th filing said; placed there so `git describe --tags` stamps revision `v0.82.0`. Contents: everything shipped since `v0.81.0` (engineer-stated `Pass 565.0`-`588.0`, not verified here). Figures engineer-reported; I have no shell (hard rule 8).
@@ -22123,6 +22135,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > - `587.0` (`G193`) SHIPPED at the 1070th filing (`27c7deaa`, `be42b28b`); see *Shipped*. The batch is complete. Next free `Pass 588.0`; next filing 1071st.
 
 > **Taken up from `pdfcer-gui`, 2026-10-14 (1073rd filing): 1 request `G194` as `Pass 588.0`; SHIPPED at the same filing (`475c6f4a`), see *Shipped*.** The batch is complete. `Pass 589.0` is a Backlog investigation, not a Next up item. Next free `Pass 590.0`; next filing 1074th.
+
+> **Taken up from `pdfcer-gui`, 2026-10-14 (1076th filing): 1 request `G195` as `Pass 590.0`; SHIPPED at the same filing (`49fc6082`), see *Shipped*.** The batch is complete. Next free `Pass 591.0`; next filing 1077th.
 
 > **Before the 1068th filing: no open item remained in *Next up*.** `Pass 580.0` (the last, self-found at the 1053rd filing) had shipped; see *Shipped*.
 
