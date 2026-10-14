@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-14 (1071st filing) — `0dbe68c4` fuzz fix: clip readers refuse stream data beside a non-dictionary object
+
+**Shipped (core, defect; engineer-reported, no shell here, push state not checked):** `0dbe68c4`. The `ObjectClip`, `ObjectClip` annotation-object and `FieldClip`/`FieldClipSet` readers attached a stream payload to any carried object; the writer emits one only beside a stream dictionary, so the payload vanished on the next write and the clip was unequal to its own round trip. Second `clipboard_payloads` fuzz finding this session (after the NaN/Inf one in `27c7deaa`). Fix: shared `pub(crate) rebuild_stream` in `crates/pdfcer-core/src/vector/clip.rs`, refusal as `ClipError::Content`, used by all three readers. Test `stream_data_beside_a_non_dictionary_is_refused` in `clip_non_finite.rs` (fuzzer input embedded, sabotage-verified). Core `clip` filter 134 passed; fmt, clippy, structure, string-gaps, public-fns, tests-harnessed clean. No manifest change, no decision.
+
+**Filed as:** one line amending the `Pass 587.0` Shipped entry in `ROADMAP.md` (so `check-commits-filed.py` finds the hash); its ledger line now reads next filing 1072nd. No `FEATURES.md` change, no new Pass. `### ` count in Next up to Backlog untouched (no heading added).
+
+**For next session:** push after gates (`tools/check-commits-filed.py` first). Next free `Pass 588.0`; next filing 1072nd.
+
 ## 2026-10-14 (1070th filing) — `Pass 587.0` shipped (`G193`, several form fields copy and paste as one)
 
 **Shipped (core + CLI; engineer-reported, no shell here, push state not checked):** `27c7deaa` `copy_fields` / `paste_fields` / `FieldClipSet` (shared closure lands once, all-or-nothing, ONE undo entry; `NewFields` and `AdditionalWidgets` policies; calculations repointed and appended to `/CO`); CLI `copy-fields`, `paste-fields` (README count 232). `be42b28b` `docs/core-api` §1.26, verbs 368 to 370. Tests 7 + 2 core, 3 CLI. No `Cargo.toml` change, no decision.
