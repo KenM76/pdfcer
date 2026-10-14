@@ -115,6 +115,43 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Passes 583.0`-`586.0` — several widgets or annotations move or delete as ONE undo entry: `move_widgets_each`, `move_annotations_each`, `delete_annotations`, `delete_widgets` (core; answers `pdfcer-gui` `G189`-`G192`) — SHIPPED 2026-10-14 (1069th filing)
+
+Commit `c5b7afc0`. Push state not checked (no shell here); gates pending. No `Cargo.toml` changed, so the `cargo tree` invariant is untouched. No decision.
+
+- **API.** `move_widgets_each(&[(&str, usize, f64, f64)]) -> Vec<WidgetMove>`; `move_annotations_each(&[(ObjId, f64, f64)]) -> Vec<AnnotationBatchMove>` (new enum `AnnotationBatchMove { Annotation(AnnotationMove), Dimension { dimension, placement } }`); `delete_annotations(&[ObjId]) -> Vec<AnnotationDeletion>`; `delete_widgets(&[(&str, usize)]) -> Vec<FieldDeletion>`; `dimension_for_annotation(ObjId) -> Option<DimensionId>`. Each verb commits ONE undo entry.
+- **Locked.** `place_dimension` and `move_dimension` now also refuse with `AnnotationLocked`.
+- **Tests (engineer-reported; no shell here).** 9 core in `batch_verbs.rs`. Sabotage caught for coalesce, sort order and the locked check.
+- **cli.** No caller; `FEATURES.md` cli `[ ]`, not rounded up. gui is `pdfcer-gui`'s.
+
+`FEATURES.md`: the four Planned rows replaced by two Implemented rows (*Annotations & markup*; *Forms*), core `[x]`, cli `[ ]`, gui `[ ]`.
+
+### `Pass 582.0` — a radio button moves into another radio group as ONE undo entry: `EditSession::move_widget_to_field`, `WidgetRegroup`, CLI `move-widget-to-field` (core + CLI; answers `pdfcer-gui` `G188`) — SHIPPED 2026-10-14 (1069th filing)
+
+Commit `79870b56`. Push state not checked (no shell here). No `Cargo.toml` changed. No decision.
+
+- **API.** `move_widget_to_field(fqn, index, target_fqn) -> WidgetRegroup { widget, on_state, source_removed, action_targets_orphaned, disclosures }` (`#[non_exhaustive]`), new `CommandKind::MoveWidgetToField`. The widget keeps its object number and `/Annots` slot. A taken state is renamed (`Red` to `Red1`). `/AS` is on only if the target's `/V` names the state.
+- **Shared indirect `/AP`.** A shared indirect `/AP` sub-dictionary is copied inline BEFORE renaming, or the member that stays has its state renamed too.
+- **Source.** A source left with no buttons is removed, with the emptied-parent cascade; a merged source sheds its field keys and lives on as the widget; otherwise a source selected on the moved widget loses its `/V`. A merged target is split first by the extracted shared helper `promote_merged_field` (Shape A to B promotion, also used by paste).
+- **Refusals.** New `EditError::NotARadioGroup`, `WidgetAlreadyInField`; `/Opt` refused with `RadioGroupUsesPositionalOpt`. `rename_field` radio-onto-radio still refuses `RenameCollision`: the request offered either route and the dedicated verb shipped.
+- **cli.** `move-widget-to-field --name --index --into` (README subcommand count 229 to 230).
+- **Tests (engineer-reported; no shell here).** 7 core (`radio_regroup.rs`) plus 3 CLI (`move_widget_to_field.rs`). Sabotage caught for the inline copy and the source `/V` clear. Fixture `fixtures/synthetic/forms/radio-regroup-form.pdf` (`tools/gen-form-radio-regroup-fixture.py`).
+
+`FEATURES.md`: Planned row replaced by an Implemented row (*Forms*), core `[x]`, cli `[x]`, gui `[ ]`.
+
+### `Pass 581.0` — a pasted radio member takes a fresh on-state: `paste_field` with `AdditionalWidget`, `FieldPasteOutcome::radio_on_state` (core + CLI; defect; answers `pdfcer-gui` `G187`) — SHIPPED 2026-10-14 (1069th filing)
+
+Commit `116f48d3`. Push state not checked (no shell here). No `Cargo.toml` changed. No decision.
+
+- **Behaviour.** A taken on-state is renamed to the lowest free stem+n (`Red`, `Red1`, `Red2`) throughout `/AP` (`/N`, `/D`, `/R`, inline or staged); the widget is `/AS Off`; the rename is disclosed. A group carrying `/Opt` still refuses `RadioExportValueTaken`. It replaced the test that asserted the old refusal.
+- **core.** `FieldPasteOutcome` gains `pub radio_on_state: Option<String>`.
+- **cli.** `paste-field` prints ` radio_state=` (`-` when none).
+- **Tests (engineer-reported; no shell here).** 4 core (`radio_member_paste.rs`) plus 1 CLI (`paste_radio_member.rs`). Fixture `fixtures/synthetic/forms/radio-opt-form.pdf` (`tools/gen-form-radio-opt-fixture.py`).
+
+`FEATURES.md`: Planned row replaced by an Implemented row (*Forms*), core `[x]`, cli `[x]`, gui `[ ]`.
+
+Ledgers: no decision; `Pass 587.0` filed in *Next up*; next free `Pass 588.0`; next filing 1070th.
+
 ### `Pass 580.0` — OCR at a dpi above the scan's own resolution no longer reads blocky pixels: `MagnifyFilter`, `RenderOptions::image_magnify`, `pdfcer ocr --magnify` (core + render + CLI; self-found defect) — SHIPPED 2026-10-13 (1067th filing)
 
 Commits `f191b9c0` (code, tests) and `ef27637c` (`docs/core-api`: `01` settings table row, `03` §7.2, index counts). Push state not checked (no shell here). No `Cargo.toml` changed, no new dependency, so the `cargo tree` invariant is untouched. No decision.
@@ -22005,7 +22042,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` was self-found at the 1053rd filing, not a GUI request. Ledgers: no decision; next free `Pass 581.0`; next filing 1068th (updated at the 1067th; superseded at the 1068th by the stub below: next free `Pass 587.0`, next filing 1069th).
+> **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` was self-found at the 1053rd filing, not a GUI request. Ledgers: no decision; next free `Pass 581.0`; next filing 1068th (updated at the 1067th; superseded at the 1068th by the stub below: next free `Pass 587.0`, next filing 1069th; superseded again at the 1069th: next free `Pass 588.0`, next filing 1070th).
 > - `567.0` (`G185`) and `568.0` (`G186`) shipped at the 1055th filing (`26cc218c`); see *Shipped*.
 > - `569.0` (`G176`) shipped at the 1056th filing (`73d68728`, `13ffa912`); see *Shipped*.
 > - `570.0` (`G177`) shipped at the 1057th filing (`3dde42ee`, `7eca1c45`); see *Shipped*.
@@ -22020,13 +22057,11 @@ closes out the *prior* filing's business rather than opening this one's.
 > - `579.0` (`G184`) shipped at the 1066th filing (`1601adb6`, `a8558001`); see *Shipped*. The batch `567.0`-`579.0` is complete.
 > - `580.0` (self-found) shipped at the 1067th filing (`f191b9c0`, `ef27637c`); see *Shipped*.
 
-> **Taken up from `pdfcer-gui`, 2026-10-14 (1068th filing): 6 requests `G187`-`G192` as `Pass 581.0`-`586.0`, defect first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass is core + `docs/core-api`; the GUI column is `pdfcer-gui`'s, which deletes its workaround on adoption. Ledgers: no decision; next free `Pass 587.0`; next filing 1069th. Every verb lists its acceptance below; `pdfcer-gui`'s workaround for each is in the request file.
-> - `581.0` (`G187`, defect) **OPEN.** `EditSession::paste_field` with `FieldPastePolicy::AdditionalWidget` on a RADIO field authors the new member with a fresh on-state the engine picks (the copied value if no member carries it, else the stem plus the lowest free number, `A` -> `A1`), rewrites the copied `/AP /N` and `/D` keys to it, and reports the chosen state in the outcome. Today it always refuses `RadioExportValueTaken`. Acceptance: pasting a member of a 2-member radio group yields a third, mutually exclusive member; `/AA` and custom appearance streams survive; check box and text-field behaviour unchanged.
-> - `582.0` (`G188`) **OPEN.** A verb that re-parents a radio widget into another radio field in one command: a `/Kids` entry whose `/Parent` is the target, a free on-state, the emptied source field removed from `/Fields`. The object number is preserved (moved, not re-authored); `/AA` and appearance survive. `rename_field` of a radio onto an existing radio does the same (Acrobat's behaviour) instead of `RenameCollision`. One undo step.
-> - `583.0` (`G189`) **OPEN.** `move_widgets_each(&[(fqn, index, dx, dy)])`: all-or-nothing, one command, the per-widget `siblings_left_behind` disclosure `move_widget` gives. Request also floats one mixed verb (content + widgets); see `584.0` stretch.
-> - `584.0` (`G190`) **OPEN.** `move_annotations_each(&[(ObjId, dx, dy)])`: all-or-nothing, one command; a ce dimension is placed by the drag rule (`place_dimension`'s page-delta-to-placement rule); a locked annotation (`/F` bit 8) is refused for both kinds. Also: `place_dimension` and `move_dimension` refuse a locked ce dimension (`AnnotationLocked`), and a lookup from an annotation `ObjId` to its `DimensionId` exists. Stretch: one mixed verb taking content, widgets and annotations together (would retire the `583.0`/`584.0` shell workarounds).
-> - `585.0` (`G191`) **OPEN.** `delete_annotations(&[ObjId]) -> Result<Vec<AnnotationDeletion>, EditError>`: all-or-nothing, one command, pre-flighted, tolerant of ids a cascade already took, per-annotation collateral reported. Not `cut_selection` (which copies first and refuses `CutWouldNotSurvive`).
-> - `586.0` (`G192`) **OPEN.** `delete_widgets(&[(fqn, index)]) -> Result<Vec<FieldDeletion>, EditError>`: indices as the caller selected them (the verb owns renumbering, so a field's boxes need no highest-first order), all-or-nothing, one command, per-field collateral reported.
+> **Taken up from `pdfcer-gui`, 2026-10-14 (1068th filing): 6 requests `G187`-`G192` as `Pass 581.0`-`586.0`; ALL SHIPPED at the 1069th filing (`116f48d3`, `79870b56`, `c5b7afc0`), see *Shipped*.** The batch is complete.
+> - `581.0` (`G187`) shipped (`116f48d3`); `582.0` (`G188`) shipped (`79870b56`); `583.0`-`586.0` (`G189`-`G192`) shipped together (`c5b7afc0`).
+
+> **Taken up from `pdfcer-gui`, 2026-10-14 (1069th filing): 1 request `G193` as `Pass 587.0`.** Request file `pdfce_FeatureRequests/open/request_G193_*.md`. Ledgers: no decision; next free `Pass 588.0`; next filing 1070th.
+> - `587.0` (`G193`) **OPEN.** `EditSession::copy_fields(&[fqn]) -> FieldClipSet` (one closure, shared resources such as a `/DR` font carried once, relative layout kept, serialisable like `FieldClip::to_bytes`) and `paste_fields(&FieldClipSet, page, origin, policy) -> FieldPasteOutcome`. All-or-nothing, ONE command. The verb chooses names and radio export values against the document plus the batch. Calculations (`/CO`, calculate scripts) among the pasted fields are re-pointed at the pasted copies. Each disclosure is reported once. Acceptance: (1) copy/paste of 2+ fields round-trips through bytes; (2) a `NewField` batch gets distinct free names; (3) two radio members pasted as additional widgets get distinct states; (4) a refusal mid-batch writes nothing (undo depth unchanged); (5) a shared `/DR` font is not duplicated; (6) a calculation referring to a sibling in the batch names the pasted sibling; (7) a CLI caller (`copy-fields` / `paste-fields`) OR an explicit statement that cli stays `[ ]`. Builds on `581.0`'s radio on-state rename.
 
 > **Before the 1068th filing: no open item remained in *Next up*.** `Pass 580.0` (the last, self-found at the 1053rd filing) had shipped; see *Shipped*.
 

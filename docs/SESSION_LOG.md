@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-14 (1069th filing) — `Pass 581.0`-`586.0` shipped (`G187`-`G192`); `Pass 587.0` (`G193`) filed
+
+**Shipped (core, plus CLI where noted; engineer-reported, no shell here, nothing pushed, gates pending):** `116f48d3` `581.0` pasted radio member takes a fresh on-state (`radio_on_state`; CLI `paste-field` prints `radio_state=`). `79870b56` `582.0` `move_widget_to_field` / `WidgetRegroup` (CLI `move-widget-to-field`, subcommands 229 to 230). `c5b7afc0` `583.0`-`586.0` the four batch verbs, one undo entry each, plus `dimension_for_annotation` and `AnnotationLocked` on `place_dimension`/`move_dimension`; no CLI caller (cli `[ ]`, not rounded up). No `Cargo.toml` change, no decision.
+
+**Filed:** `587.0` (`G193`) `copy_fields` / `paste_fields`, request read in full; 7 acceptance points in *Next up*; core `[ ]`, cli `[ ]` in `FEATURES.md` *Planned*.
+
+**Decisions made:** `581.0` refuses only a group with `/Opt`; `582.0` shipped a dedicated verb rather than extending `rename_field`, which still refuses radio-onto-radio with `RenameCollision`.
+
+**Findings:** (1) `promote_merged_field` was extracted as the shared Shape A to B promotion (a merged field-and-widget dictionary split into parent and kid), used by move and paste. (2) A move between groups must copy a shared indirect `/AP` sub-dictionary inline BEFORE renaming the state, or the member that stays has its state renamed too; `radio_regroup`'s first test proves it.
+
+**Counts:** `###` headings between `## Next up` and `## Backlog` stay 80 (re-counted from a `^### ` listing, 85 matched by pattern, 4 long lines, 9 past the Backlog heading). `581.0`-`586.0` were `>` bullets, not headings, so removing them and adding `587.0` as a bullet changes nothing; the three Shipped entries are `###` headings but sit in *Shipped*.
+
+**Survivor owed (hard rule 11, not edited):** `docs/core-api/02-editing-and-saving.md` ~4598 still says `RadioExportValueTaken` "refuses the same collision for a single widget"; true now only for a group with `/Opt`. Engineer-owned.
+
+**For next session:** push after gates; `587.0` builds on `581.0`.
+
 ## 2026-10-14 (1068th filing) — six `pdfcer-gui` requests filed as `Pass 581.0`-`586.0` (`G187`-`G192`)
 
 **Filed (Next up, nothing shipped):** `581.0` radio `paste_field` fresh on-state (defect); `582.0` move a radio widget between groups (+ `rename_field` radio-onto-radio); `583.0` `move_widgets_each`; `584.0` `move_annotations_each` (+ locked-ce-dimension refusal, `ObjId` -> `DimensionId` lookup, stretch mixed verb); `585.0` `delete_annotations`; `586.0` `delete_widgets`. Source: `pdfce_FeatureRequests/open/request_G187..G192_*.md`, read in full.
