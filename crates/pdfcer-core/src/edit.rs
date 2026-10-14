@@ -123,6 +123,8 @@
 //!   [`encode_text_string`])
 
 mod annot_restyle;
+mod batch;
+pub use batch::AnnotationBatchMove;
 mod block_text;
 mod button_icon;
 mod checkpoint;
@@ -56049,8 +56051,9 @@ impl EditSession {
     ///
     /// # Errors
     ///
-    /// [`EditError::DimensionNotFound`], plus the encryption and
-    /// enforced-certification guards.
+    /// [`EditError::DimensionNotFound`]; [`EditError::AnnotationLocked`]
+    /// when its annotation is locked (Table 165 bit 8); plus the encryption
+    /// and enforced-certification guards.
     ///
     /// # What the two arguments mean per kind (`Pass 68.0`)
     ///
@@ -56075,6 +56078,7 @@ impl EditSession {
         let record = model
             .dimension(dimension)
             .ok_or(EditError::DimensionNotFound { id: dimension.0 })?;
+        self.refuse_locked_dimension(record.annot)?;
         // Every placeable kind carries the same two placement components, in
         // its own geometry's terms: a standoff perpendicular to what is being
         // measured, and a position for the text along it. Only the circular
@@ -57504,8 +57508,10 @@ impl EditSession {
     /// # Errors
     ///
     /// [`EditError::DimensionNotFound`] for an unknown id or one never wired
-    /// into a document, plus the usual encryption / enforced-certification
-    /// guards. Every refusal happens before any mutation (rule 4).
+    /// into a document; [`EditError::AnnotationLocked`] when its annotation is
+    /// locked (Table 165 bit 8); plus the usual encryption /
+    /// enforced-certification guards. Every refusal happens before any
+    /// mutation (rule 4).
     pub fn move_dimension(
         &mut self,
         dimension: DimensionId,
@@ -57522,6 +57528,7 @@ impl EditSession {
         let record = model
             .dimension(dimension)
             .ok_or(EditError::DimensionNotFound { id: dimension.0 })?;
+        self.refuse_locked_dimension(record.annot)?;
         // `.clone()` — `translated` consumes its receiver and `record` is a
         // borrow of the model (`DimensionKind` is not `Copy` since
         // `Pass 107.0`).
