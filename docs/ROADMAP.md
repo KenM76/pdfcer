@@ -115,6 +115,24 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 587.0` — several form fields copy and paste as ONE: `EditSession::copy_fields`, `paste_fields`, `FieldClipSet`, CLI `copy-fields` / `paste-fields` (core + CLI; answers `pdfcer-gui` `G193`) — SHIPPED 2026-10-14 (1070th filing)
+
+Commits `27c7deaa` (code, tests) and `be42b28b` (`docs/core-api/02-editing-and-saving.md` §1.26 "Several fields at once", verb count 368 to 370). Push state not checked (no shell here); gates reported clean by the engineer (clippy, fmt, structure). No `Cargo.toml` changed, so the `cargo tree` invariant is untouched. No decision.
+
+- **API** (`pdfcer_core::formclip`). `copy_fields(&[&str]) -> FieldClipSet` (`to_bytes`/`from_bytes`, `bbox`, magic `FIELD_CLIP_SET_MAGIC`, `MAX_CLIP_SET_FIELDS` = 256 = `MAX_UNDO_DEPTH`); `paste_fields(set, page_index, origin, &FieldSetPastePolicy) -> FieldSetPasteOutcome`. The shared object closure travels and lands once, so a `/DR` font shared by members installs once. All-or-nothing, ONE undo entry.
+- **`NewFields`.** The verb picks free names (`_2`, `_3`) against document plus batch, disclosed. A calculate script naming another pasted member is repointed at that member's copy (disclosed) and appended to `/CO` in clip order.
+- **`AdditionalWidgets`.** Widgets join same-named fields; radio widgets claim fresh on-states (builds on `581.0`).
+- **cli.** `copy-fields --name (repeated) -o`; `paste-fields --clip --page --at X,Y --as-new|--as-widgets`, with `--copy-value/--copy-actions/--carry-tooltip/--no-tooltip` for `--as-new` only. Refuses without a policy and, for `--as-new`, without a tooltip answer. README subcommand count 232.
+- **Defect fixed on discovery** (found by the `clipboard_payloads` fuzz target). `ObjectClip` and `FieldClip` readers accepted NaN/Inf coordinates, which broke the byte round trip (NaN != NaN); `Reader::f64` now refuses non-finite values as `ClipError::Content`.
+- **Tests (engineer-reported; no shell here).** 7 core (`field_set_clipboard.rs`), 2 core (`clip_non_finite.rs`), 3 CLI (`field_set_clip.rs`). Filters: core `field` 301 passed, core `clip` 133 passed, CLI `field` 85 passed. New synthetic fixture `fixtures/synthetic/forms/field-set-form.pdf`.
+- **Acceptance (7 points filed).** All seven addressed by the above; the CLI caller exists, so cli is `[x]`.
+- **Ecosystem finding.** `D:/dev/rag/rust/clap_requires_is_waived_when_its_target_conflicts_with_a_present_arg.md`: clap waives `requires = "X"` when X conflicts with a present arg, so `--as-widgets --copy-value` was accepted; fixed by a runtime check. Audit of the 15 `requires` targeting bool flags found only `annotate --hand-signature` with the same shape, already runtime-guarded.
+- **gui.** `pdfcer-gui`'s column; reply `reply_request_G193_several_form_fields_cannot_be_copied_or_pasted_as_one_FIXED.md` written by the engineer.
+
+`FEATURES.md`: Planned row moved to Implemented (*Forms*), core `[x]`, cli `[x]`, gui `[ ]`.
+
+Ledgers: no decision; next free `Pass 588.0`; next filing 1071st.
+
 ### `Passes 583.0`-`586.0` — several widgets or annotations move or delete as ONE undo entry: `move_widgets_each`, `move_annotations_each`, `delete_annotations`, `delete_widgets` (core; answers `pdfcer-gui` `G189`-`G192`) — SHIPPED 2026-10-14 (1069th filing)
 
 Commit `c5b7afc0`. Push state not checked (no shell here); gates pending. No `Cargo.toml` changed, so the `cargo tree` invariant is untouched. No decision.
@@ -22061,7 +22079,7 @@ closes out the *prior* filing's business rather than opening this one's.
 > - `581.0` (`G187`) shipped (`116f48d3`); `582.0` (`G188`) shipped (`79870b56`); `583.0`-`586.0` (`G189`-`G192`) shipped together (`c5b7afc0`).
 
 > **Taken up from `pdfcer-gui`, 2026-10-14 (1069th filing): 1 request `G193` as `Pass 587.0`.** Request file `pdfce_FeatureRequests/open/request_G193_*.md`. Ledgers: no decision; next free `Pass 588.0`; next filing 1070th.
-> - `587.0` (`G193`) **OPEN.** `EditSession::copy_fields(&[fqn]) -> FieldClipSet` (one closure, shared resources such as a `/DR` font carried once, relative layout kept, serialisable like `FieldClip::to_bytes`) and `paste_fields(&FieldClipSet, page, origin, policy) -> FieldPasteOutcome`. All-or-nothing, ONE command. The verb chooses names and radio export values against the document plus the batch. Calculations (`/CO`, calculate scripts) among the pasted fields are re-pointed at the pasted copies. Each disclosure is reported once. Acceptance: (1) copy/paste of 2+ fields round-trips through bytes; (2) a `NewField` batch gets distinct free names; (3) two radio members pasted as additional widgets get distinct states; (4) a refusal mid-batch writes nothing (undo depth unchanged); (5) a shared `/DR` font is not duplicated; (6) a calculation referring to a sibling in the batch names the pasted sibling; (7) a CLI caller (`copy-fields` / `paste-fields`) OR an explicit statement that cli stays `[ ]`. Builds on `581.0`'s radio on-state rename.
+> - `587.0` (`G193`) SHIPPED at the 1070th filing (`27c7deaa`, `be42b28b`); see *Shipped*. The batch is complete. Next free `Pass 588.0`; next filing 1071st.
 
 > **Before the 1068th filing: no open item remained in *Next up*.** `Pass 580.0` (the last, self-found at the 1053rd filing) had shipped; see *Shipped*.
 

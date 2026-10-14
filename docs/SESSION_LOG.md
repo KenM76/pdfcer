@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-14 (1070th filing) — `Pass 587.0` shipped (`G193`, several form fields copy and paste as one)
+
+**Shipped (core + CLI; engineer-reported, no shell here, push state not checked):** `27c7deaa` `copy_fields` / `paste_fields` / `FieldClipSet` (shared closure lands once, all-or-nothing, ONE undo entry; `NewFields` and `AdditionalWidgets` policies; calculations repointed and appended to `/CO`); CLI `copy-fields`, `paste-fields` (README count 232). `be42b28b` `docs/core-api` §1.26, verbs 368 to 370. Tests 7 + 2 core, 3 CLI. No `Cargo.toml` change, no decision.
+
+**Findings:** (1) The `clipboard_payloads` fuzz target found `ObjectClip`/`FieldClip` readers accepting NaN/Inf, breaking the round trip; `Reader::f64` now refuses them. (2) clap waives `requires = "X"` when X conflicts with a present arg, so `--as-widgets --copy-value` was accepted; runtime check added. Written up at `D:/dev/rag/rust/clap_requires_is_waived_when_its_target_conflicts_with_a_present_arg.md` (engineer-authored, not re-verified here). Audit: of 15 `requires` on bool flags only `annotate --hand-signature` shares the shape, already guarded.
+
+**Not written:** no new `personal_rag/pdf` lesson. The pasted-calculation `/CO` append is already covered by `lesson_20260829_acroform_co_required_when_field_carries_aa_c.md` (found by `Grep` of `C:\personal_rag\pdf`); the spec rule itself is spec-librarian territory.
+
+**Counts:** `###` headings between `## Next up` and `## Backlog` unchanged at 80: the `587.0` item was a `>` bullet (the 1068th/1069th convention), now a one-line shipped pointer; the new Shipped entry sits above Next up. Not re-counted by script (no shell); the edit added no heading in that region.
+
+**Files:** `ROADMAP.md` (new Shipped entry, Next up bullet replaced), `FEATURES.md` (Planned row moved to Implemented, core `[x]`, cli `[x]`, gui `[ ]`), this file. Entry sizes well under the caps; not run through `check-register-entry-size.py`.
+
+**For next session:** push after gates (`tools/check-commits-filed.py` first). Next free `Pass 588.0`; next filing 1071st.
+
 ## 2026-10-14 (1069th filing) — `Pass 581.0`-`586.0` shipped (`G187`-`G192`); `Pass 587.0` (`G193`) filed
 
 **Shipped (core, plus CLI where noted; engineer-reported, no shell here, nothing pushed, gates pending):** `116f48d3` `581.0` pasted radio member takes a fresh on-state (`radio_on_state`; CLI `paste-field` prints `radio_state=`). `79870b56` `582.0` `move_widget_to_field` / `WidgetRegroup` (CLI `move-widget-to-field`, subcommands 229 to 230). `c5b7afc0` `583.0`-`586.0` the four batch verbs, one undo entry each, plus `dimension_for_annotation` and `AnnotationLocked` on `place_dimension`/`move_dimension`; no CLI caller (cli `[ ]`, not rounded up). No `Cargo.toml` change, no decision.
