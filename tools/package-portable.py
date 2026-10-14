@@ -81,6 +81,7 @@ import argparse
 import hashlib
 import re
 import shutil
+import stat
 import subprocess
 import sys
 from datetime import datetime
@@ -193,10 +194,24 @@ def split_ocr_addons(out: Path, dest: Path, build_name: str) -> list[Path]:
             for f in sorted(folder.rglob("*")):
                 if f.is_file():
                     z.write(f, f"{folder.name}/{f.relative_to(folder).as_posix()}")
-        shutil.rmtree(folder)
+        remove_tree(folder)
         zips.append(zip_path)
         print(f"package-portable: add-on {zip_path.name} ({zip_path.stat().st_size:,} bytes)")
     return zips
+
+
+def remove_tree(folder: Path) -> None:
+    """`shutil.rmtree` that clears the Windows ReadOnly attribute it trips on.
+
+    A copied engine folder can carry ReadOnly on a directory; `os.rmdir`
+    then fails with WinError 5 even though the files inside were removed.
+    """
+
+    def clear_and_retry(func, path, _exc):
+        Path(path).chmod(stat.S_IWRITE | stat.S_IREAD | stat.S_IEXEC)
+        func(path)
+
+    shutil.rmtree(folder, onerror=clear_and_retry)
 
 
 def main() -> int:
