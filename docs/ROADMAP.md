@@ -115,6 +115,12 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `v0.82.0` — RELEASING (2026-10-14): publication pending: main push, CI at tag, verify-release (1074th filing)
+
+Bump `e0ea822e` ("chore: v0.82.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`). Tag `v0.82.0` at `e0ea822e`, GitHub release, OneDrive slot `pdfcer1` (`pdfcer2` keeps 0.81.0). Contents: everything shipped since `v0.81.0` (engineer-stated `Pass 565.0`-`588.0`; range not verified here, I have no shell). **Not claimed done:** push of `main` and the tag, CI at the tag, `tools/verify-release.py v0.82.0`, assets, OneDrive. The engineer reports results in a later filing.
+
+Ledgers: no Pass, no decision; next free `Pass 590.0`; next filing 1075th.
+
 ### `Pass 588.0` — every downloadable OCR engine set is pinned: `FETCHABLE_MODELS` grows to four sets, `FetchableModels::manifest`, paddle reads `inference.yml`, CLI `fetch-ocr-models --model` (core + CLI; answers `pdfcer-gui` `G194`) — SHIPPED 2026-10-14 (1073rd filing)
 
 Commit `475c6f4a`. Push state not checked (no shell here). Only `fuzz/Cargo.toml` changed, so the `cargo tree` invariant for core/render is untouched; packaging not touched. No decision. Request `pdfce_FeatureRequests/open/request_G194_pinned_download_sources_for_every_ocr_engine.md`; reply `reply_request_G194_..._FIXED.md` in the same folder.
@@ -127,6 +133,7 @@ Commit `475c6f4a`. Push state not checked (no shell here). Only `fuzz/Cargo.toml
 - **Tests (engineer-reported; no shell here).** Core `ocr::` 139 passed, 2 ignored; CLI `ocr_addons` 10 passed, 2 ignored; clippy `--all-features`, fmt, structure clean.
 - **Correction.** The GUI's note said `tools/package-portable.py`'s `split_ocr_addons` "produces one for paddle only"; it zips every staged model folder EXCEPT `paddle` (`BUNDLED_MODELS = {"paddle"}`).
 - **Follow-on.** `Pass 589.0` (Backlog): PP-OCRv5 detector normalisation, filed from a reverted probe.
+- **Doc-link fix `5cade123`** (1074th filing). The `ocr::models` module doc linked `[FETCHABLE_MODELS]` to the re-export, which did not resolve under CI's rustdoc job (`RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links" cargo doc --workspace --no-deps`); now the path link `crate::ocr::models::FETCHABLE_MODELS`. Introduced by `475c6f4a`; caught by local `tools/run-gates.sh` before any push.
 
 `FEATURES.md`: the *Operator-initiated download* row text updated (four sets, `--model`); boxes unchanged (core `[x]`, cli `◐`, gui `[ ]`).
 
