@@ -29,6 +29,7 @@ use std::path::{Path, PathBuf};
 use rten_tensor::NdTensor;
 use rten_tensor::prelude::*;
 
+use super::paddle_config;
 use super::paddle_post::{self, ModelInput, TextBox};
 use super::{OcrEngine, RecognizedWord};
 
@@ -44,9 +45,15 @@ pub const DETECTION_MODEL: &str = "det.onnx";
 pub const RECOGNITION_MODEL: &str = "rec.onnx";
 
 /// The optional character dictionary inside [`MODEL_DIR`], one entry per
-/// line. Absent, the recognition model's embedded `character` metadata is
-/// used (RapidOCR's exports carry one).
+/// line. Absent, [`INFERENCE_CONFIG`] is read, and failing that the
+/// recognition model's embedded `character` metadata (RapidOCR's exports
+/// carry one).
 pub const DICTIONARY: &str = "dict.txt";
+
+/// The `inference.yml` PaddlePaddle publishes beside a recogniser export;
+/// its `PostProcess.character_dict` is the dictionary when no
+/// [`DICTIONARY`] is present.
+pub const INFERENCE_CONFIG: &str = "inference.yml";
 
 /// Where the engine's character dictionary came from — a shell discloses it,
 /// since a mismatched dictionary reads as confident nonsense.
@@ -55,6 +62,8 @@ pub const DICTIONARY: &str = "dict.txt";
 pub enum DictionarySource {
     /// A dictionary file.
     File(PathBuf),
+    /// The `character_dict` list of an [`INFERENCE_CONFIG`] file.
+    Config(PathBuf),
     /// The recognition model's `character` metadata.
     Embedded,
 }
@@ -124,6 +133,10 @@ impl std::fmt::Debug for PaddleEngine {
     }
 }
 
+fn read_text(path: &Path) -> Result<String, String> {
+    std::fs::read_to_string(path).map_err(|e| e.to_string())
+}
+
 fn load(path: &Path) -> Result<rten::Model, PaddleEngineError> {
     if !path.is_file() {
         return Err(PaddleEngineError::ModelMissing {
@@ -155,17 +168,27 @@ fn load(path: &Path) -> Result<rten::Model, PaddleEngineError> {
 
 impl PaddleEngine {
     /// Load from a directory holding [`DETECTION_MODEL`], [`RECOGNITION_MODEL`]
-    /// and, optionally, [`DICTIONARY`].
+    /// and, optionally, [`DICTIONARY`] or [`INFERENCE_CONFIG`] (the first
+    /// present is the dictionary).
     ///
     /// # Errors
     ///
-    /// As [`Self::from_model_files`].
+    /// As [`Self::from_model_files`]; an [`INFERENCE_CONFIG`] whose
+    /// `character_dict` cannot be read exactly is
+    /// [`PaddleEngineError::Dictionary`].
     pub fn from_model_dir(dir: &Path) -> Result<Self, PaddleEngineError> {
-        let dict = dir.join(DICTIONARY);
-        Self::from_model_files(
+        let (dict, config) = (dir.join(DICTIONARY), dir.join(INFERENCE_CONFIG));
+        let source = if dict.is_file() {
+            Some(DictionarySource::File(dict))
+        } else if config.is_file() {
+            Some(DictionarySource::Config(config))
+        } else {
+            None
+        };
+        Self::load_with(
             &dir.join(DETECTION_MODEL),
             &dir.join(RECOGNITION_MODEL),
-            dict.is_file().then_some(dict.as_path()),
+            source,
         )
     }
 
@@ -185,50 +208,49 @@ impl PaddleEngine {
         recognition: &Path,
         dictionary: Option<&Path>,
     ) -> Result<Self, PaddleEngineError> {
+        let source = dictionary.map(|p| DictionarySource::File(p.to_path_buf()));
+        Self::load_with(detection, recognition, source)
+    }
+
+    fn load_with(
+        detection: &Path,
+        recognition: &Path,
+        source: Option<DictionarySource>,
+    ) -> Result<Self, PaddleEngineError> {
         let det = load(detection)?;
         let rec = load(recognition)?;
-        let (entries, source, named) = match dictionary {
-            Some(path) => {
-                let text =
-                    std::fs::read_to_string(path).map_err(|e| PaddleEngineError::Dictionary {
-                        path: path.to_path_buf(),
-                        reason: e.to_string(),
-                    })?;
-                (
-                    paddle_post::parse_dictionary(&text),
-                    DictionarySource::File(path.to_path_buf()),
-                    path,
-                )
+        let source = source.unwrap_or(DictionarySource::Embedded);
+        let named = match &source {
+            DictionarySource::File(p) | DictionarySource::Config(p) => p.clone(),
+            DictionarySource::Embedded => recognition.to_path_buf(),
+        };
+        let fail = |reason: String| PaddleEngineError::Dictionary {
+            path: named.clone(),
+            reason,
+        };
+        let entries = match &source {
+            DictionarySource::File(path) => {
+                paddle_post::parse_dictionary(&read_text(path).map_err(fail)?)
             }
-            None => {
+            DictionarySource::Config(path) => {
+                paddle_config::parse_config_dictionary(&read_text(path).map_err(fail)?)
+                    .map_err(fail)?
+            }
+            DictionarySource::Embedded => {
                 let text = rec.metadata().get("character").ok_or_else(|| {
-                    PaddleEngineError::Dictionary {
-                        path: recognition.to_path_buf(),
-                        reason: format!(
-                            "the recognition model embeds no `character` list — supply a {DICTIONARY}"
-                        ),
-                    }
+                    fail(format!(
+                        "the recognition model embeds no `character` list — supply a \
+                         {DICTIONARY} or {INFERENCE_CONFIG}"
+                    ))
                 })?;
-                (
-                    paddle_post::parse_dictionary(text),
-                    DictionarySource::Embedded,
-                    recognition,
-                )
+                paddle_post::parse_dictionary(text)
             }
         };
         if entries.is_empty() {
-            return Err(PaddleEngineError::Dictionary {
-                path: named.to_path_buf(),
-                reason: "the dictionary is empty".to_owned(),
-            });
+            return Err(fail("the dictionary is empty".to_owned()));
         }
         if let Some(classes) = fixed_classes(&rec) {
-            paddle_post::space_class(entries.len(), classes).map_err(|e| {
-                PaddleEngineError::Dictionary {
-                    path: named.to_path_buf(),
-                    reason: e.to_string(),
-                }
-            })?;
+            paddle_post::space_class(entries.len(), classes).map_err(|e| fail(e.to_string()))?;
         }
         Ok(Self {
             det,
@@ -397,6 +419,62 @@ mod tests {
         for (i, (g, w)) in got.iter().zip(&want).enumerate() {
             assert!((g - w).abs() < 1e-5, "element {i}: {g} vs {w}");
         }
+    }
+
+    /// A model folder from the synthetic ONNX fixture, which loads as both
+    /// models; `files` are extra `(name, text)` files written beside them.
+    fn model_dir(tag: &str, files: &[(&str, &str)]) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("pdfcer-paddle-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for name in [DETECTION_MODEL, RECOGNITION_MODEL] {
+            std::fs::copy(onnx_fixture("opset7-as13.onnx"), dir.join(name)).unwrap();
+        }
+        for (name, text) in files {
+            std::fs::write(dir.join(name), text).unwrap();
+        }
+        dir
+    }
+
+    #[test]
+    fn an_inference_config_supplies_the_dictionary_when_no_dict_txt_does() {
+        let config = "PostProcess:\n  character_dict:\n  - a\n  - 'b'\n";
+        let dir = model_dir("config", &[(INFERENCE_CONFIG, config)]);
+        let engine = PaddleEngine::from_model_dir(&dir).unwrap();
+        assert_eq!(
+            engine.dictionary_source(),
+            &DictionarySource::Config(dir.join(INFERENCE_CONFIG))
+        );
+        assert_eq!(engine.dictionary_len(), 2);
+
+        let both = model_dir(
+            "both",
+            &[(INFERENCE_CONFIG, config), (DICTIONARY, "x\ny\n")],
+        );
+        let engine = PaddleEngine::from_model_dir(&both).unwrap();
+        assert_eq!(
+            engine.dictionary_source(),
+            &DictionarySource::File(both.join(DICTIONARY))
+        );
+        for d in [dir, both] {
+            let _ = std::fs::remove_dir_all(d);
+        }
+    }
+
+    #[test]
+    fn an_unreadable_inference_config_is_refused_by_name() {
+        let dir = model_dir(
+            "badconfig",
+            &[(INFERENCE_CONFIG, "character_dict:\n- 'a\n")],
+        );
+        match PaddleEngine::from_model_dir(&dir) {
+            Err(PaddleEngineError::Dictionary { path, reason }) => {
+                assert_eq!(path, dir.join(INFERENCE_CONFIG));
+                assert!(reason.contains("unterminated"), "{reason}");
+            }
+            other => panic!("expected Dictionary, got {other:?}"),
+        }
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

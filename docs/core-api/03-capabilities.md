@@ -2512,16 +2512,16 @@ crop**. No angle classifier runs.
 
 | item |
 |---|
-| `PaddleEngine::from_model_dir(&Path)` — loads `det.onnx`, `rec.onnx`, and `dict.txt` if present |
+| `PaddleEngine::from_model_dir(&Path)` — loads `det.onnx`, `rec.onnx`, and the dictionary from `dict.txt` if present, else from the `PostProcess.character_dict` list of `inference.yml` (PaddlePaddle's own export layout, read exactly or refused as `Dictionary`), else the rec model's metadata |
 | `PaddleEngine::from_model_files(det: &Path, rec: &Path, dictionary: Option<&Path>)` — `None` uses the rec model's embedded `character` metadata |
-| `PaddleEngine::dictionary_source() -> &DictionarySource` (`File(PathBuf)`, `Embedded`; `#[non_exhaustive]`) · `dictionary_len()` — **disclose these**: a dictionary that does not match the model reads as confident nonsense |
-| `MODEL_DIR` `"paddle"` · `DETECTION_MODEL` `"det.onnx"` · `RECOGNITION_MODEL` `"rec.onnx"` · `DICTIONARY` `"dict.txt"` |
+| `PaddleEngine::dictionary_source() -> &DictionarySource` (`File(PathBuf)`, `Config(PathBuf)` (an `inference.yml`), `Embedded`; `#[non_exhaustive]`) · `dictionary_len()` — **disclose these**: a dictionary that does not match the model reads as confident nonsense |
+| `MODEL_DIR` `"paddle"` · `DETECTION_MODEL` `"det.onnx"` · `RECOGNITION_MODEL` `"rec.onnx"` · `DICTIONARY` `"dict.txt"` · `INFERENCE_CONFIG` `"inference.yml"` |
 | `PaddleEngineError` (`ModelMissing`, `ModelLoad`, `Dictionary { path, reason }`, `ImageSize`, `Recognition`), `#[non_exhaustive]` |
 
 A dictionary must have exactly `classes − 2` entries (blank and space
 classes) or `classes − 1` (blank only). When the model's class count is
-fixed, a mismatch is refused at load. `ocr::paddle_post` is `#[doc(hidden)]`:
-it is workspace-internal, public only for the fuzz crate.
+fixed, a mismatch is refused at load. `ocr::paddle_post` and `ocr::paddle_config`
+are `#[doc(hidden)]`: workspace-internal, public only for the fuzz crate.
 
 Models exported below ONNX opset 13 load: the operator forms that changed
 (`BatchNormalization` `spatial`, attribute-form `Slice`, pre-13
@@ -2621,7 +2621,7 @@ reference caller.
 | ★ `resolve_model_dir_with(…, required: &[&str])` — a dir only counts if it CONTAINS the files | `models.rs` |
 | `ModelSource` (`OperatorSupplied` / `BesideExecutable` / `UserData`), `.path()` | `models.rs` |
 | `ModelsNotFound { engine, searched }` — **carries every path tried** | `models.rs` |
-| `fetchable_models(engine) -> Option<&'static FetchableModels>` and `FETCHABLE_MODELS` (`Pass 500.2`, G120) — the one pinned download list, plain data, no network. `FetchableModels { engine, folder, files: &[PinnedModelFile { url, sha256, file_name }], licence, licence_url, creator, source, obligation }`; `.attribution()` is the line to show after a fetch (CC-BY-SA requires it). Build a `pdfcer_fetch::PinnedArtifact::new(f.url, f.sha256, f.file_name)` per file and write into `models/<folder>`. Lists `ocrs` only: `paddle` ships in the portable folder and the others are add-on zips. `pdfcer fetch-ocr-models` is built on it | `models/pinned.rs` |
+| `FETCHABLE_MODELS`, `fetchable_model(name)` and `fetchable_models(engine)` (the first set for that engine) -> `Option<&'static FetchableModels>` (`Pass 500.2`, G120; `Pass 588.0`, G194) — the one pinned download list, plain data, no network. `FetchableModels { name, engine, folder, label, languages, version, files: &[PinnedModelFile { url, sha256, file_name }], licence, licence_url, creator, source, obligation }`, `#[non_exhaustive]`. Sets: `ocrs` (CC-BY-SA-4.0), `ppocrv5-latin` (engine `paddle`; PaddlePaddle's PP-OCRv5 det + Latin rec + `inference.yml`, as published; Apache-2.0), `ppocrv4-ch-en` (engine `paddle`; the set the portable folder bundles; Apache-2.0), `ocrcer` (MIT). Every set is a flat folder, so a relative-path file list suffices and no archive is pinned; Hugging Face URLs name a commit. Fetch: build a `pdfcer_fetch::PinnedArtifact::new(f.url, f.sha256, f.file_name)` per file into `<root>/<folder>`, then **after all verify** write `.manifest()` as `pdfcer-ocr-model.txt` there, so discovery finds it by name and `OcrModel::verify` re-checks it. `.attribution()` is the line to show after a fetch. Not listed: `paddle-vl` (built locally by `tools/build-paddle-vl-addon.py`, no public host), `tesseract` (a program add-on, installed from file; release asset `ocr-addon-tesseract.zip`). `pdfcer fetch-ocr-models --model NAME` is built on it | `models/pinned.rs` |
 
 **Piece 4b — model add-on folders** (`crates/pdfcer-core/src/ocr/addons.rs`, not on wasm32; `addon_manifest.rs`, everywhere; decision 182)
 

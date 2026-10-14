@@ -12,6 +12,11 @@ pub fn paddle_disclosure(engine: &pdfcer_core::ocr::engine_paddle::PaddleEngine)
             p.display(),
             engine.dictionary_len()
         ),
+        DictionarySource::Config(p) => format!(
+            "PaddleOCR dictionary: the character_dict list of {} ({} entries)",
+            p.display(),
+            engine.dictionary_len()
+        ),
         _ => format!(
             "PaddleOCR dictionary: no {DICTIONARY}, so the list embedded in \
              rec.onnx was used ({} entries)",

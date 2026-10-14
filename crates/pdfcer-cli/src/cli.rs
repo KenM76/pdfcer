@@ -4332,15 +4332,26 @@ pub(crate) enum Command {
         pages: String,
     },
 
-    /// **Download the OCR model weights**, verified against a pinned
-    /// SHA-256 before anything is written.
+    /// **Download an OCR model set**, verified against a pinned SHA-256
+    /// before anything is written.
     ///
-    /// # When you need this, which is rarely
+    /// # When you need this
     ///
-    /// The weights normally ship **inside the portable folder** at
-    /// `models/ocrs`, so OCR works with no network at all. This exists for a
-    /// build that does not carry them — a `cargo install`, a stripped
-    /// package, or a machine where the folder was not copied.
+    /// The `ocrs` weights normally ship **inside the portable folder** at
+    /// `models/ocrs`, so OCR works with no network at all. This fetches them
+    /// for a build that does not carry them, or fetches another set:
+    ///
+    /// - `ocrs` — the ocrs engine's weights (CC-BY-SA-4.0).
+    /// - `ppocrv5-latin` — PaddleOCR PP-OCRv5, Latin script (English,
+    ///   French) (Apache-2.0).
+    /// - `ppocrv4-ch-en` — PaddleOCR PP-OCRv4, Chinese and English
+    ///   (Apache-2.0); the set the portable folder bundles.
+    /// - `ocrcer` — the OCRcer recogniser (MIT).
+    ///
+    /// Once every file verifies, a `pdfcer-ocr-model.txt` manifest naming
+    /// each file's SHA-256 is written beside them, so `ocr-models --verify`
+    /// re-checks the folder later and `ocr --ocr-model NAME` selects it. The
+    /// licence and creator are printed to stderr.
     ///
     /// # What it will not do
     ///
@@ -4355,8 +4366,17 @@ pub(crate) enum Command {
     ///
     /// Nothing here runs on a timer, at startup, or in the background.
     FetchOcrModels {
-        /// Where to write them. Defaults to `models/ocrs` beside this
-        /// executable, which is where `ocr` looks first.
+        /// Which set to download.
+        #[arg(
+            long,
+            default_value = "ocrs",
+            value_parser = clap::builder::PossibleValuesParser::new(
+                pdfcer_core::ocr::models::FETCHABLE_MODELS.iter().map(|m| m.name)
+            )
+        )]
+        model: String,
+        /// Where to write them. Defaults to `models/NAME` beside this
+        /// executable, where `ocr` and `ocr-models` look first.
         #[arg(long)]
         dir: Option<PathBuf>,
     },

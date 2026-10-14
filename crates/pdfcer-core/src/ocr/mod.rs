@@ -103,6 +103,10 @@ pub mod engine_paddle;
 #[doc(hidden)]
 pub mod paddle_post;
 
+// Workspace-internal, as `paddle_post`: pub for the fuzz crate. Not API.
+#[doc(hidden)]
+pub mod paddle_config;
+
 // Workspace-internal: rewrites a below-opset-13 ONNX model into the operator
 // forms the model runtime reads. Ungated and pub only for the fuzz crate.
 #[doc(hidden)]

@@ -385,3 +385,16 @@ fn paddle_vl_layout_puts_regions_on_their_own_layers() {
     assert_eq!(code, Some(0), "{err}");
     assert!(layers.contains("OCR text: text"), "{layers}");
 }
+
+#[test]
+fn fetch_ocr_models_offers_every_pinned_set_by_name() {
+    let (code, _, err) = run(&[
+        "fetch-ocr-models".as_ref(),
+        "--model".as_ref(),
+        "nope".as_ref(),
+    ]);
+    assert_eq!(code, Some(2), "{err}");
+    for name in ["ocrs", "ppocrv5-latin", "ppocrv4-ch-en", "ocrcer"] {
+        assert!(err.contains(name), "{name} not offered: {err}");
+    }
+}

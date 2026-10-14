@@ -1,16 +1,17 @@
 use super::*;
 
-/// `fetch-ocr-models` — download the pinned `ocrs` weights.
+/// `fetch-ocr-models` — download one pinned model set and write its manifest.
 ///
-/// The pins are `pdfcer_core::ocr::models::fetchable_models("ocrs")`, the one
-/// list every shell fetches from; why each file comes from the host it does is
-/// documented there and in `crates/pdfcer-core/assets/models/ocrs/PROVENANCE.md`.
+/// The pins are `pdfcer_core::ocr::models::FETCHABLE_MODELS`, the one list
+/// every shell fetches from. The manifest is written only after every file
+/// has verified, so a folder holding one is complete.
 #[cfg(feature = "download")]
-pub(crate) fn cmd_fetch_ocr_models(dir: Option<&Path>) -> u8 {
+pub(crate) fn cmd_fetch_ocr_models(model: &str, dir: Option<&Path>) -> u8 {
+    use pdfcer_core::ocr::addon_manifest::MANIFEST_FILE;
     use pdfcer_fetch::{PinnedArtifact, fetch_verified};
 
-    let Some(set) = pdfcer_core::ocr::models::fetchable_models("ocrs") else {
-        eprintln!("pdfcer: fetch-ocr-models: this build lists no fetchable ocrs models");
+    let Some(set) = pdfcer_core::ocr::models::fetchable_model(model) else {
+        eprintln!("pdfcer: fetch-ocr-models: no downloadable model set is named {model:?}");
         return exit::RUNTIME_ERROR;
     };
     let target = match dir {
@@ -41,8 +42,9 @@ pub(crate) fn cmd_fetch_ocr_models(dir: Option<&Path>) -> u8 {
         .collect();
 
     eprintln!(
-        "pdfcer: fetch-ocr-models: downloading {} file(s) to {} — these weights are \
+        "pdfcer: fetch-ocr-models: downloading {} ({} file(s)) to {} — these weights are \
          {}, by {} ({})",
+        set.name,
         artifacts.len(),
         target.display(),
         set.licence,
@@ -58,13 +60,20 @@ pub(crate) fn cmd_fetch_ocr_models(dir: Option<&Path>) -> u8 {
             }
         }
     }
+    let manifest = target.join(MANIFEST_FILE);
+    if let Err(err) = std::fs::write(&manifest, set.manifest()) {
+        eprintln!("pdfcer: {}: {err}", manifest.display());
+        return exit::IO_ERROR;
+    }
     println!(
-        "fetch-ocr-models {} files={} verified=sha256",
+        "fetch-ocr-models {} model={} files={} verified=sha256 manifest={}",
         target.display(),
-        artifacts.len()
+        set.name,
+        artifacts.len(),
+        MANIFEST_FILE
     );
-    // CC-BY-SA requires attribution, and a fetched copy has no PROVENANCE.md
-    // beside it to carry it.
+    // Licences such as CC-BY-SA require attribution, and a fetched copy has
+    // no PROVENANCE.md beside it to carry it.
     eprintln!("pdfcer: fetch-ocr-models: {}", set.attribution());
     exit::SUCCESS
 }
@@ -76,13 +85,12 @@ pub(crate) fn cmd_fetch_ocr_models(dir: Option<&Path>) -> u8 {
 /// than the subcommand quietly not existing. A missing subcommand reads as a
 /// version difference; a named refusal reads as a build choice.
 #[cfg(not(feature = "download"))]
-pub(crate) fn cmd_fetch_ocr_models(_dir: Option<&Path>) -> u8 {
+pub(crate) fn cmd_fetch_ocr_models(_model: &str, _dir: Option<&Path>) -> u8 {
     eprintln!(
         "pdfcer: fetch-ocr-models: this build was compiled without the `download` feature, \
          so it contains no network code at all and cannot fetch anything. The ocrs weights \
-         come as an add-on zip that installs as `models/ocrs` beside the executable; \
-         unzip it there, or point \
-         `ocr --model-dir` at one"
+         come as an add-on zip that installs under `models/` beside the executable; \
+         unzip it there, or point `ocr --model-dir` at one"
     );
     exit::UNIMPLEMENTED
 }

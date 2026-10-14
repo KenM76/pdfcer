@@ -1004,7 +1004,7 @@ pub(crate) fn run() -> ExitCode {
             &pages,
             ocr_layer,
         ),
-        Command::FetchOcrModels { dir } => cmd_fetch_ocr_models(dir.as_deref()),
+        Command::FetchOcrModels { model, dir } => cmd_fetch_ocr_models(&model, dir.as_deref()),
         Command::OcrModels {
             ocr_folder,
             verify,

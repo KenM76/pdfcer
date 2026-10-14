@@ -624,6 +624,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "paddle_config"
+path = "fuzz_targets/paddle_config.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "paddle_post"
 path = "fuzz_targets/paddle_post.rs"
 test = false

@@ -88,7 +88,8 @@
 //! - **The `ocrs` weights are BUNDLED** and found via
 //!   `ModelSource::BesideExecutable` in the single-folder portable layout.
 //!   OCR works out of the box.
-//! - **A shell may also fetch them**, pinned by hash, for a build that does
+//! - **A shell may also fetch them**, or a PaddleOCR or OCRcer set, pinned by
+//!   hash ([`FETCHABLE_MODELS`]), for a build that does
 //!   not carry them.
 //! - **An operator may still name a directory**, which takes precedence over
 //!   both and is never silently overridden.
@@ -110,7 +111,9 @@
 use std::path::{Path, PathBuf};
 
 mod pinned;
-pub use pinned::{FETCHABLE_MODELS, FetchableModels, PinnedModelFile, fetchable_models};
+pub use pinned::{
+    FETCHABLE_MODELS, FetchableModels, PinnedModelFile, fetchable_model, fetchable_models,
+};
 
 /// The subdirectory name an engine's models live under, beside the binary or
 /// in an operator-named folder.
