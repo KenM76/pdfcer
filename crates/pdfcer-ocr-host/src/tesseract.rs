@@ -198,12 +198,31 @@ fn pgm(width: u32, height: u32, pixels: &[u8]) -> Result<Vec<u8>, String> {
     Ok(pgm)
 }
 
+/// Spawn `cmd`, retrying briefly on `ExecutableFileBusy` (Linux `ETXTBSY`).
+///
+/// An executable that was just written (an engine copied into place) can
+/// fail `execve` while any other thread's concurrent `fork` still holds an
+/// inherited write descriptor to it; the window closes once that child
+/// execs. A handful of short waits clears it.
+fn spawn_retrying_busy(mut cmd: Command) -> std::io::Result<std::process::Child> {
+    const ATTEMPTS: u64 = 6;
+    let mut attempt = 1;
+    loop {
+        match cmd.spawn() {
+            Err(e) if e.kind() == std::io::ErrorKind::ExecutableFileBusy && attempt < ATTEMPTS => {
+                std::thread::sleep(std::time::Duration::from_millis(20 * attempt));
+                attempt += 1;
+            }
+            other => return other,
+        }
+    }
+}
+
 /// Start `cmd`, write `input` to its stdin on a thread (so a child writing
 /// before it has read everything cannot deadlock against a full pipe), and
 /// return its stdout once it exits successfully.
-fn feed_and_collect(mut cmd: Command, program: &Path, input: Vec<u8>) -> Result<Vec<u8>, String> {
-    let mut child = cmd
-        .spawn()
+fn feed_and_collect(cmd: Command, program: &Path, input: Vec<u8>) -> Result<Vec<u8>, String> {
+    let mut child = spawn_retrying_busy(cmd)
         .map_err(|e| format!("{}: could not start: {e}", program.display()))?;
     let mut stdin = child.stdin.take().ok_or("no stdin pipe")?;
     let writer = std::thread::spawn(move || stdin.write_all(&input));
