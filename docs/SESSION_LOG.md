@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-14 (1068th filing) — six `pdfcer-gui` requests filed as `Pass 581.0`-`586.0` (`G187`-`G192`)
+
+**Filed (Next up, nothing shipped):** `581.0` radio `paste_field` fresh on-state (defect); `582.0` move a radio widget between groups (+ `rename_field` radio-onto-radio); `583.0` `move_widgets_each`; `584.0` `move_annotations_each` (+ locked-ce-dimension refusal, `ObjId` -> `DimensionId` lookup, stretch mixed verb); `585.0` `delete_annotations`; `586.0` `delete_widgets`. Source: `pdfce_FeatureRequests/open/request_G187..G192_*.md`, read in full.
+
+**Premises checked:** next free `Pass 581.0` confirmed (the only `581.0` hits in `ROADMAP.md` are ledger lines). `###` count between `## Next up` and `## Backlog` re-counted from a `^### ` line listing: 80 (first 23735, last 32466; Backlog heading at 32502). Both premises right. Convention followed: open items live as `>` blockquote bullets (as `580.0` did), not `###`, so the count stays 80.
+
+**Files:** `ROADMAP.md` (the "no open item" stub replaced by a 6-bullet blockquote; the older 1054th-filing ledger line annotated as superseded: next free `Pass 587.0`, next filing 1069th). `FEATURES.md`: six new Planned rows at the head of the table, all `core [ ]`, `gui [ ]`; cli `[ ]` for `581.0`/`582.0` (existing `paste-field`/`rename-field` subcommands should inherit; unverified until built), cli `—` for `583.0`-`586.0` (one-undo batching has no CLI meaning). No decision, no rule.
+
+**For next session:** work `581.0` first (defect). Several requests float a mixed content+widget+annotation verb; folded into the `584.0` stretch, not a separate Pass. No shell here: nothing committed.
+
 ## 2026-10-13 (1067th filing) — `Pass 580.0` shipped (OCR magnification filter)
 
 **Shipped:** `f191b9c0` (code) and `ef27637c` (`docs/core-api`). `pdfcer_core::settings::MagnifyFilter { PointSample, Smooth }`; `RenderOptions::image_magnify`; `pdfcer ocr --magnify smooth|point-sample` (default smooth). Display rendering unchanged. No dependency change, no decision.
