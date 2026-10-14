@@ -679,28 +679,6 @@ fn a_radio_group_carries_every_button_and_lands_as_a_group() {
     );
 }
 
-/// Adding one more button to a group that already exports that value is
-/// refused — two buttons that select together is a broken group.
-#[test]
-fn an_additional_radio_widget_with_a_taken_export_value_is_refused() {
-    let mut s = session("forms/radio-group-form.pdf");
-    let clip = s.copy_field("Priority").expect("copy");
-    let err = s
-        .paste_field(
-            &clip,
-            0,
-            rect(),
-            &FieldPastePolicy::AdditionalWidget {
-                existing: "Priority".to_owned(),
-            },
-        )
-        .expect_err("a duplicate export value must be refused");
-    assert!(
-        matches!(err, EditError::RadioExportValueTaken { .. }),
-        "got {err:?}",
-    );
-}
-
 /// A Shape B text field's several views also travel together.
 #[test]
 fn a_multi_widget_text_field_pastes_all_of_its_views() {

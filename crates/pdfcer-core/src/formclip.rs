@@ -1239,6 +1239,12 @@ pub struct FieldPasteOutcome {
     pub created: bool,
     /// Everything the operator must be told, in plain sentences.
     pub disclosures: Vec<String>,
+    /// For [`FieldPastePolicy::AdditionalWidget`] into a radio group: the
+    /// new member's on-state (its export value). When the copied state was
+    /// already a member's, this is the fresh name pdfcer chose (`A` -> `A1`)
+    /// and the copied `/AP` `/N`, `/D` and `/R` keys were renamed to it.
+    /// `None` for every other paste.
+    pub radio_on_state: Option<String>,
 }
 
 #[cfg(test)]

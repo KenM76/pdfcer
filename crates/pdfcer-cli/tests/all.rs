@@ -96,6 +96,7 @@ mod ocr_engine;
 mod ocr_program_addons;
 mod output_in_place;
 mod password_values;
+mod paste_radio_member;
 mod pin_span;
 mod place_stamp_as_content;
 mod place_text;

@@ -131,6 +131,7 @@ mod checkpoint;
 mod history_codec;
 mod history_kind;
 mod history_transfer;
+mod radio_state;
 pub use history_transfer::{HistoryError, HistoryImport};
 mod content_mark;
 mod decoration_refresh;
@@ -60255,8 +60256,11 @@ impl EditSession {
     /// resolvable `/FT`; [`EditError::FieldNameTaken`] for a `NewField` paste
     /// onto a name in use; [`EditError::FieldNotFound`] for an
     /// `AdditionalWidget` paste naming a field this document does not have;
-    /// [`EditError::RadioExportValueTaken`] when a pasted radio widget would
-    /// duplicate an export value already in the group; plus everything
+    /// [`EditError::RadioExportValueTaken`] when a radio widget pasted into a
+    /// group with `/Opt` would duplicate a member's on-state (without `/Opt`
+    /// the new member takes a fresh one, reported in
+    /// [`FieldPasteOutcome::radio_on_state`](crate::formclip::FieldPasteOutcome::radio_on_state));
+    /// plus everything
     /// `field_authoring_preflight` refuses — an undecided accessibility name,
     /// a degenerate rectangle, encryption, certification, XFA, a page out of
     /// range, and a cross-type name collision.
@@ -61126,6 +61130,7 @@ impl EditSession {
             merged,
             created: true,
             disclosures,
+            radio_on_state: None,
         })
     }
 
@@ -61171,16 +61176,8 @@ impl EditSession {
         widget.insert(Name::from(b"P"), Object::Reference(page_id));
         widget.insert(Name::from(b"Rect"), rect_array(rect));
 
-        // A radio group's export value is the on-state name in its /AP /N
-        // (SS12.7.4.2.3). Two widgets of one group sharing one on-state are
-        // two buttons that select together -- which is a broken group, so it
-        // is refused with the same error `add_radio_button` uses.
-        if let Some(taken) = self.radio_export_collision(id, &widget) {
-            return Err(EditError::RadioExportValueTaken {
-                fqn: name.to_owned(),
-                state: String::from_utf8_lossy(&taken).into_owned(),
-            });
-        }
+        let radio_on_state =
+            self.claim_radio_state(id, name, &mut widget, &mut objects, &mut disclosures)?;
 
         let (merge_writes, widget_id) =
             self.merge_widget_into_field(id, shape, widget, page_id, slots)?;
@@ -61202,6 +61199,7 @@ impl EditSession {
             merged: false,
             created: false,
             disclosures,
+            radio_on_state,
         })
     }
 
@@ -61294,24 +61292,18 @@ impl EditSession {
     }
 
     /// The export value a pasted radio widget would duplicate, if any.
-    fn radio_export_collision(&self, field_id: ObjId, widget: &Dict) -> Option<Vec<u8>> {
+    fn radio_export_collision(
+        &self,
+        field_id: ObjId,
+        widget: &Dict,
+        pending: &[ObjectWrite],
+    ) -> Option<Vec<u8>> {
         let form = forms::parse_acroform(&self.graph())?;
         let field = form.fields.iter().find(|f| f.id == field_id)?;
         if field.button_kind != Some(forms::ButtonKind::Radio) {
             return None;
         }
-        let graph = self.graph();
-        let states: Vec<Vec<u8>> = graph
-            .resolve(widget.get(b"AP")?)
-            .as_dict()
-            .and_then(|ap| graph.resolve(ap.get(b"N")?).as_dict())
-            .map(|n| {
-                n.iter()
-                    .map(|(k, _)| k.as_bytes().to_vec())
-                    .filter(|k| k != b"Off")
-                    .collect()
-            })
-            .unwrap_or_default();
+        let states = self.pending_on_states(widget, pending);
         states.into_iter().find(|state| {
             field
                 .widgets

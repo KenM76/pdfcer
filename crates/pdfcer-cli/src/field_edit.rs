@@ -3130,7 +3130,7 @@ pub(crate) fn cmd_paste_field(args: &PasteFieldArgs<'_>) -> u8 {
     };
     let r = &saved.report;
     println!(
-        "paste-field {} clip={} source_field={:?} policy={} page={} rect={},{},{},{} field={} {} widgets={} created={} merged={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
+        "paste-field {} clip={} source_field={:?} policy={} page={} rect={},{},{},{} field={} {} widgets={} created={} merged={} mode={} -> {}; changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={} radio_state={}",
         args.input.display(),
         args.clip.display(),
         clip.source_name(),
@@ -3157,6 +3157,7 @@ pub(crate) fn cmd_paste_field(args: &PasteFieldArgs<'_>) -> u8 {
         r.bytes_written,
         u32::from(saved.undo_verified),
         u32::from(saved.undo_identical),
+        outcome.radio_on_state.as_deref().unwrap_or("-"),
     );
     finish_edit(args.input, &saved)
 }
