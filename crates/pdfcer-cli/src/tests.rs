@@ -427,6 +427,7 @@ fn round_trip_defaults_are_the_verification_safe_ones() {
 const NOT_IN_PLACE: &[&str] = &[
     // `--output` is a new document or a non-PDF artefact, not the input edited.
     "copy-field",
+    "copy-fields",
     // The output is a 3D model file, not a PDF.
     "3d-extract",
     "3d-mesh",
