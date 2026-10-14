@@ -5965,6 +5965,87 @@ pub(crate) enum Command {
         verify_undo: bool,
     },
 
+    /// Copy several form fields onto ONE clip file (`Pass 587.0`).
+    ///
+    /// Like `copy-field`, for a selection: the fields share one copy of
+    /// anything they both use (a font, an appearance), and their layout
+    /// travels with them. `paste-fields` reads the file. Refused, with
+    /// nothing written, if any one field could not be copied by
+    /// `copy-field`.
+    CopyFields {
+        /// Input PDF.
+        input: PathBuf,
+        /// A field's fully-qualified name, as `list-fields` prints it. Repeat
+        /// for each field; a name given twice is copied once.
+        #[arg(long = "name", required = true)]
+        names: Vec<String>,
+        /// Where to write the clip (a private binary format, not a PDF).
+        #[arg(short, long)]
+        output: PathBuf,
+    },
+
+    /// Paste a `copy-fields` clip onto a page, all or nothing (`Pass 587.0`).
+    ///
+    /// The selection is moved as a unit so the lower-left corner of its
+    /// bounding box lands on `--at`; every field keeps its size and its
+    /// distance from the others.
+    ///
+    /// * `--as-new` — every field becomes a NEW, INDEPENDENT field. pdfcer
+    ///   picks the names: the copied name when it is free, otherwise the
+    ///   first free `_2`, `_3`, …. Each renamed field is reported. With
+    ///   `--copy-actions`, a calculation naming another copied field is
+    ///   pointed at that field's copy.
+    /// * `--as-widgets` — every copied widget becomes another widget of the
+    ///   field with the same name here. A radio button whose on-state is
+    ///   taken gets a fresh one.
+    ///
+    /// If any field is refused, nothing is written. Every disclosure is
+    /// printed to stderr, once; one `name=` token per field goes to stdout.
+    PasteFields {
+        /// Input PDF — the document the fields are pasted INTO.
+        input: PathBuf,
+        /// The clip file written by `copy-fields`.
+        #[arg(long)]
+        clip: PathBuf,
+        /// 1-based page number to place the fields on.
+        #[arg(long)]
+        page: usize,
+        /// Where the selection's lower-left corner lands, `x,y` in PDF user
+        /// space.
+        #[arg(long, value_name = "X,Y", allow_hyphen_values = true)]
+        at: String,
+        /// Paste as NEW, INDEPENDENT fields.
+        #[arg(long, conflicts_with = "as_widgets")]
+        as_new: bool,
+        /// Paste as more widgets of the same-named fields already here.
+        #[arg(long)]
+        as_widgets: bool,
+        /// Also carry each field's VALUE (`--as-new` only).
+        #[arg(long, requires = "as_new")]
+        copy_value: bool,
+        /// Also carry each field's ACTIONS (`--as-new` only). pdfcer never
+        /// runs a script.
+        #[arg(long, requires = "as_new")]
+        copy_actions: bool,
+        /// Reuse each copied field's accessibility name (`--as-new` only).
+        #[arg(long, conflicts_with = "no_tooltip", requires = "as_new")]
+        carry_tooltip: bool,
+        /// Explicitly decline accessibility names (`--as-new` only). One of
+        /// `--carry-tooltip` / `--no-tooltip` is required with `--as-new`.
+        #[arg(long, requires = "as_new")]
+        no_tooltip: bool,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Also verify that undoing the paste reproduces the input byte for
+        /// byte.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+
     /// **Copy whole pages** to a clipboard file, and with `--cut` remove them
     /// too (`Pass 171.0`).
     ///

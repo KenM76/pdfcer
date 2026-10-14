@@ -48,6 +48,7 @@ mod extract_tables;
 mod extract_tags;
 mod extract_text;
 mod extract_text_ocr_layer;
+mod field_set_clip;
 mod fill_field_types;
 mod fill_rich_text;
 mod find_text;

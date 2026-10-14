@@ -744,7 +744,16 @@ impl<'a> Reader<'a> {
 
     fn f64(&mut self) -> Result<f64, ClipError> {
         let b: [u8; 8] = self.take(8)?.try_into().map_err(|_| ClipError::Truncated)?;
-        Ok(f64::from_le_bytes(b))
+        // pdfcer never writes NaN or an infinity, and NaN != NaN would make
+        // the parsed clip unequal to its own round trip.
+        let v = f64::from_le_bytes(b);
+        if v.is_finite() {
+            Ok(v)
+        } else {
+            Err(ClipError::Content(format!(
+                "a coordinate is not a finite number ({v})"
+            )))
+        }
     }
 
     fn bytes(&mut self) -> Result<Vec<u8>, ClipError> {

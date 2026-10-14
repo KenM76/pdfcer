@@ -53,6 +53,13 @@ test: pasting the rich field here must NOT overwrite the destination's own
 pasted field's `/DA` to name it. Without a fixture whose `/TB` DISAGREES, a
 paste that silently clobbered the destination's font would pass.
 
+`field-set-form.pdf` -- one 400x300 page for `Pass 587.0` (several fields
+copied and pasted as one): text fields `Qty` and `Total` whose `/DA` both name
+`/TB`, an INDIRECT Helvetica-Bold whose `/Encoding` is itself a reference (so
+the font cannot be compared by value and must be recognised by object
+identity), `Total`'s calculate script naming `"Qty"`, and a two-member radio
+group `Pick` (on-states `/A` `/B`).
+
 LEGAL
 =====
 `LEGAL.md` SS5 category (a): wholly synthetic, byte-authored by this script,
@@ -179,9 +186,55 @@ rival[3] = (
 )
 
 
+# ---------------------------------------------------------------------------
+# field-set-form.pdf
+# ---------------------------------------------------------------------------
+
+fset = {}
+fset[1] = (
+    b"<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [10 0 R 11 0 R 12 0 R] "
+    b"/CO [11 0 R] /DA (/Helv 0 Tf 0 g) /DR << /Font << "
+    b"/Helv << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> /TB 8 0 R "
+    b">> >> >> >>"
+)
+fset[2] = b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>"
+fset[3] = (
+    b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 300] /Resources << >> "
+    b"/Annots [10 0 R 11 0 R 13 0 R 14 0 R] >>"
+)
+fset[8] = (
+    b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding 9 0 R >>"
+)
+fset[9] = b"<< /Type /Encoding /Differences [32 /space] >>"
+fset[10] = (
+    b"<< /Type /Annot /Subtype /Widget /FT /Tx /T (Qty) /DA (/TB 12 Tf 0 0 1 rg) "
+    b"/Rect [20 240 120 260] /P 3 0 R /F 4 >>"
+)
+fset[11] = (
+    b"<< /Type /Annot /Subtype /Widget /FT /Tx /T (Total) /DA (/TB 12 Tf 0 0 1 rg) "
+    b"/Rect [20 200 120 220] /P 3 0 R /F 4 "
+    b"/AA << /C << /S /JavaScript "
+    b"/JS (event.value = AFSimple_Calculate(\"SUM\", new Array(\"Qty\"));) >> >> >>"
+)
+fset[12] = b"<< /FT /Btn /Ff 49152 /T (Pick) /V /Off /Kids [13 0 R 14 0 R] >>"
+fset[13] = (
+    b"<< /Type /Annot /Subtype /Widget /Parent 12 0 R /Rect [140 240 152 252] "
+    b"/P 3 0 R /F 4 /AS /Off /AP << /N << /A 15 0 R /Off 16 0 R >> >> >>"
+)
+fset[14] = (
+    b"<< /Type /Annot /Subtype /Widget /Parent 12 0 R /Rect [160 240 172 252] "
+    b"/P 3 0 R /F 4 /AS /Off /AP << /N << /B 15 0 R /Off 16 0 R >> >> >>"
+)
+fset[15] = stream_obj(
+    b"<< /Type /XObject /Subtype /Form /BBox [0 0 12 12]", b"0 g 3 3 6 6 re f"
+)
+fset[16] = stream_obj(b"<< /Type /XObject /Subtype /Form /BBox [0 0 12 12]", b"")
+
+
 for path, objs in (
     ("fixtures/synthetic/forms/rich-field-form.pdf", rich),
     ("fixtures/synthetic/forms/rival-font-form.pdf", rival),
+    ("fixtures/synthetic/forms/field-set-form.pdf", fset),
 ):
     data = build(objs, True)
     open(path, "wb").write(data)

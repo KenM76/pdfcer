@@ -1,6 +1,9 @@
-//! Fuzz target: the two CLIPBOARD payload readers —
-//! `pdfcer_core::vector::ObjectClip::from_bytes` and
-//! `pdfcer_core::formclip::FieldClip::from_bytes` (`Pass 120.1` / `Pass 167.0`).
+//! Fuzz target: the CLIPBOARD payload readers —
+//! `pdfcer_core::vector::ObjectClip::from_bytes`,
+//! `pdfcer_core::formclip::FieldClip::from_bytes` and
+//! `pdfcer_core::formclip::FieldClipSet::from_bytes` (`Pass 120.1` /
+//! `Pass 167.0` / `Pass 587.0`). The set nests whole field-clip payloads, so
+//! its framing is a third, recursive surface.
 //!
 //! ## Why these belong in the fuzz corpus, and why one of them is overdue
 //!
@@ -61,7 +64,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfcer_core::formclip::FieldClip;
+use pdfcer_core::formclip::{FieldClip, FieldClipSet};
 use pdfcer_core::vector::ObjectClip;
 
 fuzz_target!(|data: &[u8]| {
@@ -102,6 +105,21 @@ fuzz_target!(|data: &[u8]| {
         }
     }
 
+    // -- the field-set clipboard (Pass 587.0) -----------------------------
+    if let Ok(set) = FieldClipSet::from_bytes(data) {
+        let bytes = set.to_bytes();
+        match FieldClipSet::from_bytes(&bytes) {
+            Ok(again) => assert!(
+                again == set,
+                "the field-set format is TOTAL, so a round trip must converge",
+            ),
+            Err(e) => panic!("a set this build wrote must parse back: {e}"),
+        }
+        for cut in cuts(bytes.len()) {
+            let _ = FieldClipSet::from_bytes(bytes.get(..cut).unwrap_or_default());
+        }
+    }
+
     // -- cross-format confusion -------------------------------------------
     //
     // The two payloads share a shell, a clipboard and a file extension habit,
@@ -109,6 +127,7 @@ fuzz_target!(|data: &[u8]| {
     // on whatever a length prefix reads out of the wrong offset.
     let _ = ObjectClip::from_bytes(data);
     let _ = FieldClip::from_bytes(data);
+    let _ = FieldClipSet::from_bytes(data);
 });
 
 /// A handful of truncation points: the empty payload, a short prefix, the

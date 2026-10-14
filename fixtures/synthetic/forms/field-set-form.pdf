@@ -1,0 +1,68 @@
+%PDF-1.7
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [10 0 R 11 0 R 12 0 R] /CO [11 0 R] /DA (/Helv 0 Tf 0 g) /DR << /Font << /Helv << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> /TB 8 0 R >> >> >> >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 400 300] /Resources << >> /Annots [10 0 R 11 0 R 13 0 R 14 0 R] >>
+endobj
+8 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding 9 0 R >>
+endobj
+9 0 obj
+<< /Type /Encoding /Differences [32 /space] >>
+endobj
+10 0 obj
+<< /Type /Annot /Subtype /Widget /FT /Tx /T (Qty) /DA (/TB 12 Tf 0 0 1 rg) /Rect [20 240 120 260] /P 3 0 R /F 4 >>
+endobj
+11 0 obj
+<< /Type /Annot /Subtype /Widget /FT /Tx /T (Total) /DA (/TB 12 Tf 0 0 1 rg) /Rect [20 200 120 220] /P 3 0 R /F 4 /AA << /C << /S /JavaScript /JS (event.value = AFSimple_Calculate("SUM", new Array("Qty"));) >> >> >>
+endobj
+12 0 obj
+<< /FT /Btn /Ff 49152 /T (Pick) /V /Off /Kids [13 0 R 14 0 R] >>
+endobj
+13 0 obj
+<< /Type /Annot /Subtype /Widget /Parent 12 0 R /Rect [140 240 152 252] /P 3 0 R /F 4 /AS /Off /AP << /N << /A 15 0 R /Off 16 0 R >> >> >>
+endobj
+14 0 obj
+<< /Type /Annot /Subtype /Widget /Parent 12 0 R /Rect [160 240 172 252] /P 3 0 R /F 4 /AS /Off /AP << /N << /B 15 0 R /Off 16 0 R >> >> >>
+endobj
+15 0 obj
+<< /Type /XObject /Subtype /Form /BBox [0 0 12 12] /Length 16 >>
+stream
+0 g 3 3 6 6 re f
+endstream
+endobj
+16 0 obj
+<< /Type /XObject /Subtype /Form /BBox [0 0 12 12] /Length 0 >>
+stream
+
+endstream
+endobj
+xref
+0 17
+0000000000 65535 f 
+0000000015 00000 n 
+0000000238 00000 n 
+0000000295 00000 n 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000421 00000 n 
+0000000512 00000 n 
+0000000574 00000 n 
+0000000705 00000 n 
+0000000937 00000 n 
+0000001018 00000 n 
+0000001173 00000 n 
+0000001328 00000 n 
+0000001443 00000 n 
+trailer
+<< /Size 17 /Root 1 0 R >>
+startxref
+1541
+%%EOF

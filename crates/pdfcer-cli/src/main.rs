@@ -625,6 +625,8 @@ mod dimension_area;
 use dimension_area::*;
 mod field_edit;
 use field_edit::*;
+mod field_set_cmd;
+use field_set_cmd::*;
 mod annot_edit;
 use annot_edit::*;
 mod image;

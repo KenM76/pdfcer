@@ -124,6 +124,7 @@
 
 mod annot_restyle;
 mod batch;
+mod field_set;
 pub use batch::AnnotationBatchMove;
 mod block_text;
 mod button_icon;
@@ -4532,6 +4533,22 @@ fn unique_dest_key(base: &[u8], taken: &BTreeSet<Vec<u8>>) -> Vec<u8> {
     let mut candidate = base.to_vec();
     candidate.extend_from_slice(format!("_{}", taken.len()).as_bytes());
     candidate
+}
+
+/// Refuse a field a clip cannot carry: one with no widget, or a signed
+/// signature field.
+fn copyable_field(field: &forms::Field, fqn: &str) -> Result<(), EditError> {
+    if field.widgets.is_empty() {
+        return Err(EditError::FieldHasNoWidget {
+            name: fqn.to_owned(),
+        });
+    }
+    if field.field_type == Some(forms::FieldType::Signature) && field.value.is_present() {
+        return Err(EditError::SignedFieldNotCopyable {
+            name: fqn.to_owned(),
+        });
+    }
+    Ok(())
 }
 
 /// A field name not already in `taken`, derived from `base`.
@@ -60251,18 +60268,12 @@ impl EditSession {
             .ok_or_else(|| EditError::FieldNotFound {
                 name: fqn.to_owned(),
             })?;
-        if field.widgets.is_empty() {
-            return Err(EditError::FieldHasNoWidget {
-                name: fqn.to_owned(),
-            });
-        }
-        if field.field_type == Some(forms::FieldType::Signature) && field.value.is_present() {
-            return Err(EditError::SignedFieldNotCopyable {
-                name: fqn.to_owned(),
-            });
-        }
+        copyable_field(field, fqn)?;
         let view = self.view();
-        Ok(crate::formclip::build_field_clip(&view, &form, field)?)
+        let mut closure = crate::formclip::Closure::new(&view);
+        let mut clip = crate::formclip::build_field_clip(&mut closure, &view, &form, field)?;
+        clip.objects = closure.objects;
+        Ok(clip)
     }
 
     /// **Paste a copied form field onto a page** (`Pass 167.0`).
@@ -60314,7 +60325,24 @@ impl EditSession {
         rect: page_tree::Rect,
         policy: &crate::formclip::FieldPastePolicy,
     ) -> Result<crate::formclip::FieldPasteOutcome, EditError> {
-        use crate::formclip::{FieldPastePolicy, PasteTooltip};
+        self.paste_field_with(clip, page_index, rect, policy, &mut BTreeMap::new(), None)
+    }
+
+    /// [`Self::paste_field`] with the clip-to-session object map supplied, so
+    /// a batch materialises an object several clips share only once.
+    /// `widget` is the clip widget an `AdditionalWidget` paste takes: `None`
+    /// is the single paste (widget 0, and the "only one of N" disclosure);
+    /// `Some(i)` is one step of a batch that pastes every widget.
+    pub(super) fn paste_field_with(
+        &mut self,
+        clip: &crate::formclip::FieldClip,
+        page_index: usize,
+        rect: page_tree::Rect,
+        policy: &crate::formclip::FieldPastePolicy,
+        imported: &mut BTreeMap<u32, ObjId>,
+        widget: Option<usize>,
+    ) -> Result<crate::formclip::FieldPasteOutcome, EditError> {
+        use crate::formclip::FieldPastePolicy;
 
         let Some(ft) = clip.field_type() else {
             return Err(EditError::FieldClipUntyped {
@@ -60322,11 +60350,62 @@ impl EditSession {
             });
         };
         let mut disclosures: Vec<String> = Vec::new();
+        let tooltip = Self::paste_tooltip_choice(clip, policy, &mut disclosures);
+        let name = policy.target_name().to_owned();
+        let (page_id, slots, path, author_disclosures) = self.field_authoring_preflight(
+            &name,
+            rect,
+            page_index,
+            ft,
+            clip.button_kind(),
+            &tooltip,
+        )?;
+        paste_placement_disclosures(&author_disclosures, &mut disclosures);
 
-        // The accessibility-name decision (R105). `AdditionalWidget` declines
-        // for the widget itself, because the FIELD already carries the answer
-        // and a widget kid is not what a screen reader announces.
-        let tooltip = match policy {
+        match policy {
+            FieldPastePolicy::NewField {
+                copy_value,
+                copy_actions,
+                ..
+            } => self.paste_new_field(
+                clip,
+                &name,
+                page_id,
+                &slots,
+                path,
+                rect,
+                &tooltip,
+                *copy_value,
+                *copy_actions,
+                ft,
+                disclosures,
+                imported,
+            ),
+            FieldPastePolicy::AdditionalWidget { .. } => self.paste_additional_widget(
+                clip,
+                &name,
+                page_id,
+                &slots,
+                path,
+                rect,
+                disclosures,
+                imported,
+                widget,
+            ),
+        }
+    }
+
+    /// The accessibility-name decision (R105) for a paste.
+    fn paste_tooltip_choice(
+        clip: &crate::formclip::FieldClip,
+        policy: &crate::formclip::FieldPastePolicy,
+        disclosures: &mut Vec<String>,
+    ) -> TooltipChoice {
+        use crate::formclip::{FieldPastePolicy, PasteTooltip};
+        // `AdditionalWidget` declines for the widget itself, because the FIELD
+        // already carries the answer and a widget kid is not what a screen
+        // reader announces.
+        match policy {
             FieldPastePolicy::AdditionalWidget { .. } => TooltipChoice::Declined,
             FieldPastePolicy::NewField { tooltip, .. } => match tooltip {
                 PasteTooltip::Undecided => TooltipChoice::Undecided,
@@ -60349,56 +60428,6 @@ impl EditSession {
                     }
                 },
             },
-        };
-
-        let name = policy.target_name().to_owned();
-        let (page_id, slots, path, author_disclosures) = self.field_authoring_preflight(
-            &name,
-            rect,
-            page_index,
-            ft,
-            clip.button_kind(),
-            &tooltip,
-        )?;
-        if author_disclosures.tagged_document {
-            disclosures.push(
-                "paste: this document is tagged (/StructTreeRoot), and the pasted field is NOT in its structure tree -- pdfcer has no structure-tree writer. The source widget's /StructParent was dropped rather than carried, because it indexed the SOURCE document's parent tree and would have pointed at an unrelated element here."
-                    .to_owned(),
-            );
-        }
-        if author_disclosures.structure_tab_order {
-            disclosures.push(
-                "paste: this page declares a structure-derived tab order (/Tabs /S), so where the pasted field lands in the tab sequence is computed from a tag tree it is not in."
-                    .to_owned(),
-            );
-        } else {
-            disclosures.push(
-                "paste: the pasted widget is APPENDED to the page's /Annots, so under an explicit tab order it is last. pdfcer does not re-sort /Annots to place it (R104) -- that would rewrite references it did not logically change, and would restack annotation paint order as a side effect."
-                    .to_owned(),
-            );
-        }
-
-        match policy {
-            FieldPastePolicy::NewField {
-                copy_value,
-                copy_actions,
-                ..
-            } => self.paste_new_field(
-                clip,
-                &name,
-                page_id,
-                &slots,
-                path,
-                rect,
-                &tooltip,
-                *copy_value,
-                *copy_actions,
-                ft,
-                disclosures,
-            ),
-            FieldPastePolicy::AdditionalWidget { .. } => {
-                self.paste_additional_widget(clip, &name, page_id, &slots, path, rect, disclosures)
-            }
         }
     }
 
@@ -60900,6 +60929,7 @@ impl EditSession {
         copy_actions: bool,
         ft: forms::FieldType,
         mut disclosures: Vec<String>,
+        imported: &mut BTreeMap<u32, ObjId>,
     ) -> Result<crate::formclip::FieldPasteOutcome, EditError> {
         // THE REFUSAL THAT MAKES THE TWO CHORDS DISTINCT. The preflight
         // MERGES a same-type terminal, which is exactly what `Ctrl+Shift+V`
@@ -60919,7 +60949,6 @@ impl EditSession {
         let (parent_writes, parent, partial, register_root) =
             self.place_new_field_deferred(deepest, &remaining, field_id)?;
 
-        let mut imported: BTreeMap<u32, ObjId> = BTreeMap::new();
         let mut objects: Vec<ObjectWrite> = parent_writes;
 
         // ---- the field half ------------------------------------------------
@@ -60927,7 +60956,7 @@ impl EditSession {
             .clip_materialize_value(
                 clip.objects(),
                 &Object::Dict(clip.field_dict().clone()),
-                &mut imported,
+                imported,
                 &mut objects,
             )?
             .as_dict()
@@ -60992,11 +61021,26 @@ impl EditSession {
         let mut dr_install: Option<(Vec<u8>, ObjId)> = None;
         if let Some((wanted, clip_object)) = clip.da_font_entry() {
             let font_id =
-                self.clip_materialize(clip.objects(), clip_object, &mut imported, &mut objects)?;
+                self.clip_materialize(clip.objects(), clip_object, imported, &mut objects)?;
             let existing = self.dr_font_object(&wanted);
+            let installed = self.dr_font_name_of(font_id);
             let final_name = match existing {
                 // Already present and identical: nothing to install.
                 Some(present) if self.same_font_object(&present, clip, clip_object) => None,
+                // An earlier paste of the same batch installed this very
+                // object; naming it twice would be two `/DR` entries for one font.
+                _ if installed.is_some() => {
+                    if let Some(installed) = &installed
+                        && *installed != wanted
+                        && let Some(Object::String(da)) = field.get(b"DA").cloned()
+                    {
+                        field.insert(
+                            Name::from(b"DA"),
+                            Object::String(rewrite_da_font(&da, &wanted, installed)),
+                        );
+                    }
+                    None
+                }
                 Some(_) => {
                     let fresh = self.free_dr_font_name(&wanted);
                     disclosures.push(format!(
@@ -61032,7 +61076,7 @@ impl EditSession {
             // field. Matching it keeps a pasted field indistinguishable from
             // an authored one.
             let widget =
-                self.materialize_widget_dict(clip, 0, copy_actions, &mut imported, &mut objects)?;
+                self.materialize_widget_dict(clip, 0, copy_actions, imported, &mut objects)?;
             for (key, value) in widget.iter() {
                 field.insert(key.clone(), value.clone());
             }
@@ -61060,7 +61104,7 @@ impl EditSession {
                     clip,
                     index,
                     copy_actions,
-                    &mut imported,
+                    imported,
                     &mut objects,
                 )?;
                 // R101: a widget kid carries no field keys, or the reader
@@ -61193,6 +61237,8 @@ impl EditSession {
         path: forms_author::FieldPath,
         rect: page_tree::Rect,
         mut disclosures: Vec<String>,
+        imported: &mut BTreeMap<u32, ObjId>,
+        widget: Option<usize>,
     ) -> Result<crate::formclip::FieldPasteOutcome, EditError> {
         // THE MIRROR REFUSAL. `Ctrl+Shift+V` means "another view of THIS
         // field"; a field that is not here has no view to add. Falling back to
@@ -61205,17 +61251,16 @@ impl EditSession {
             });
         };
 
-        if clip.widget_count() > 1 {
+        if clip.widget_count() > 1 && widget.is_none() {
             disclosures.push(format!(
                 "paste: the copied field had {} widgets; ONE was added here. Pasting them all would have given this field several views carrying the same export values, which for a radio group means buttons that select together.",
                 clip.widget_count()
             ));
         }
 
-        let mut imported: BTreeMap<u32, ObjId> = BTreeMap::new();
         let mut objects: Vec<ObjectWrite> = Vec::new();
         let mut widget =
-            self.materialize_widget_dict(clip, 0, true, &mut imported, &mut objects)?;
+            self.materialize_widget_dict(clip, widget.unwrap_or(0), true, imported, &mut objects)?;
         widget.insert(Name::from(b"P"), Object::Reference(page_id));
         widget.insert(Name::from(b"Rect"), rect_array(rect));
 
@@ -61283,6 +61328,19 @@ impl EditSession {
         let dr = graph.resolve(acroform.get(b"DR")?).as_dict()?;
         let fonts = graph.resolve(dr.get(b"Font")?).as_dict()?;
         fonts.get(name).cloned()
+    }
+
+    /// The `/AcroForm /DR /Font` name already bound to object `font`, if any.
+    fn dr_font_name_of(&self, font: ObjId) -> Option<Vec<u8>> {
+        let graph = self.graph();
+        let catalog = graph.catalog_dict()?;
+        let acroform = graph.resolve(catalog.get(b"AcroForm")?).as_dict()?;
+        let dr = graph.resolve(acroform.get(b"DR")?).as_dict()?;
+        let fonts = graph.resolve(dr.get(b"Font")?).as_dict()?;
+        fonts
+            .iter()
+            .find(|(_, v)| matches!(v, Object::Reference(id) if *id == font))
+            .map(|(k, _)| k.as_bytes().to_vec())
     }
 
     /// Whether an existing `/DR` font entry is the same font the clip carries.
@@ -61582,6 +61640,30 @@ fn unsupported_paste_reason(subtype: &str) -> String {
         }
     };
     format!("paste: a /{subtype} annotation was NOT pasted -- {why}.")
+}
+
+/// The two disclosures every paste owes about where the widget lands.
+fn paste_placement_disclosures(
+    author_disclosures: &FieldAuthorDisclosures,
+    disclosures: &mut Vec<String>,
+) {
+    if author_disclosures.tagged_document {
+        disclosures.push(
+            "paste: this document is tagged (/StructTreeRoot), and the pasted field is NOT in its structure tree -- pdfcer has no structure-tree writer. The source widget's /StructParent was dropped rather than carried, because it indexed the SOURCE document's parent tree and would have pointed at an unrelated element here."
+                .to_owned(),
+        );
+    }
+    if author_disclosures.structure_tab_order {
+        disclosures.push(
+            "paste: this page declares a structure-derived tab order (/Tabs /S), so where the pasted field lands in the tab sequence is computed from a tag tree it is not in."
+                .to_owned(),
+        );
+    } else {
+        disclosures.push(
+            "paste: the pasted widget is APPENDED to the page's /Annots, so under an explicit tab order it is last. pdfcer does not re-sort /Annots to place it (R104) -- that would rewrite references it did not logically change, and would restack annotation paint order as a side effect."
+                .to_owned(),
+        );
+    }
 }
 
 /// Where each of a clip's widgets lands.

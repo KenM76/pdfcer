@@ -172,6 +172,12 @@ use crate::vector::clip::{ClipError, ClipObject};
 use crate::view::DocumentView;
 use std::collections::BTreeMap;
 
+mod set;
+pub use set::{
+    FIELD_CLIP_SET_MAGIC, FieldClipSet, FieldSetPasteOutcome, FieldSetPastePolicy,
+    MAX_CLIP_SET_FIELDS,
+};
+
 /// The field-clipboard format version [`FieldClip::to_bytes`] writes.
 ///
 /// Deliberately **separate** from
@@ -491,30 +497,7 @@ impl FieldClip {
             None => out.push(0),
         }
 
-        put_u32(
-            &mut out,
-            u32::try_from(self.objects.len()).unwrap_or(u32::MAX),
-        );
-        for (&id, object) in &self.objects {
-            put_u32(&mut out, id);
-            // A stream's DICTIONARY is what is written; its payload travels
-            // beside it, because `Object::Stream` carries a span into a buffer
-            // that does not exist here.
-            let (value, payload): (Object, Option<&Vec<u8>>) = match &object.value {
-                Object::Stream(stream) => {
-                    (Object::Dict(stream.dict.clone()), object.payload.as_ref())
-                }
-                other => (other.clone(), None),
-            };
-            put_object(&mut out, &value);
-            match payload {
-                Some(bytes) => {
-                    out.push(1);
-                    put_bytes(&mut out, bytes);
-                }
-                None => out.push(0),
-            }
-        }
+        put_objects(&mut out, &self.objects);
         out
     }
 
@@ -583,34 +566,7 @@ impl FieldClip {
             None
         };
 
-        let object_count = r.u32()? as usize;
-        if object_count > MAX_CLIP_OBJECTS {
-            return Err(ClipError::ClipTooLarge {
-                found: object_count,
-                limit: MAX_CLIP_OBJECTS,
-            });
-        }
-        let mut objects = BTreeMap::new();
-        for _ in 0..object_count {
-            let id = r.u32()?;
-            let value = r.object()?;
-            let payload = if r.byte()? == 1 {
-                Some(r.bytes()?)
-            } else {
-                None
-            };
-            // A stream is reconstructed from its dictionary plus its payload;
-            // the span is meaningless by construction, exactly as it was on
-            // the way out.
-            let value = match (&value, &payload) {
-                (Object::Dict(dict), Some(bytes)) => Object::Stream(Stream {
-                    dict: dict.clone(),
-                    data_span: ByteSpan::new(0, bytes.len()),
-                }),
-                _ => value,
-            };
-            objects.insert(id, ClipObject { value, payload });
-        }
+        let objects = read_objects(&mut r)?;
 
         Ok(Self {
             version,
@@ -727,7 +683,9 @@ impl FieldPastePolicy {
 // Copy side — building the clip
 // ---------------------------------------------------------------------------
 
-/// Build a clip from a parsed field and the document it lives in.
+/// Build a clip from a parsed field and the document it lives in, interning
+/// its objects into `closure` (the returned clip's own `objects` is empty, so
+/// several fields can share one closure).
 ///
 /// `field` must be a terminal field from `form`; `view` must be the same
 /// document's view (a session's [`view`](crate::edit::EditSession::view), so
@@ -740,12 +698,12 @@ impl FieldPastePolicy {
 /// [`MAX_CLIP_OBJECTS`], or when it carries more than [`MAX_CLIP_WIDGETS`]
 /// widgets.
 pub(crate) fn build_field_clip(
+    closure: &mut Closure<'_>,
     view: &DocumentView<'_>,
     form: &forms::AcroForm,
     field: &forms::Field,
 ) -> Result<FieldClip, ClipError> {
     let graph = view.graph();
-    let mut closure = Closure::new(view);
 
     // ---- the field half -------------------------------------------------
     //
@@ -865,7 +823,7 @@ pub(crate) fn build_field_clip(
         version: FIELD_CLIP_VERSION,
         field: carried,
         widgets,
-        objects: closure.objects,
+        objects: BTreeMap::new(),
         da_font,
         source_name: field.fully_qualified_name.clone(),
         field_type: field.field_type,
@@ -1052,6 +1010,62 @@ fn put_bytes(out: &mut Vec<u8>, bytes: &[u8]) {
     out.extend_from_slice(bytes);
 }
 
+/// Write an object table: a count, then each number, value and payload.
+fn put_objects(out: &mut Vec<u8>, objects: &BTreeMap<u32, ClipObject>) {
+    put_u32(out, u32::try_from(objects.len()).unwrap_or(u32::MAX));
+    for (&id, object) in objects {
+        put_u32(out, id);
+        // A stream's DICTIONARY is what is written; its payload travels
+        // beside it, because `Object::Stream` carries a span into a buffer
+        // that does not exist here.
+        let (value, payload): (Object, Option<&Vec<u8>>) = match &object.value {
+            Object::Stream(stream) => (Object::Dict(stream.dict.clone()), object.payload.as_ref()),
+            other => (other.clone(), None),
+        };
+        put_object(out, &value);
+        match payload {
+            Some(bytes) => {
+                out.push(1);
+                put_bytes(out, bytes);
+            }
+            None => out.push(0),
+        }
+    }
+}
+
+/// Read a table written by [`put_objects`], refusing a count above
+/// [`MAX_CLIP_OBJECTS`] before allocating.
+fn read_objects(r: &mut Reader<'_>) -> Result<BTreeMap<u32, ClipObject>, ClipError> {
+    let object_count = r.u32()? as usize;
+    if object_count > MAX_CLIP_OBJECTS {
+        return Err(ClipError::ClipTooLarge {
+            found: object_count,
+            limit: MAX_CLIP_OBJECTS,
+        });
+    }
+    let mut objects = BTreeMap::new();
+    for _ in 0..object_count {
+        let id = r.u32()?;
+        let value = r.object()?;
+        let payload = if r.byte()? == 1 {
+            Some(r.bytes()?)
+        } else {
+            None
+        };
+        // A stream is reconstructed from its dictionary plus its payload; the
+        // span is meaningless by construction, exactly as it was on the way out.
+        let value = match (&value, &payload) {
+            (Object::Dict(dict), Some(bytes)) => Object::Stream(Stream {
+                dict: dict.clone(),
+                data_span: ByteSpan::new(0, bytes.len()),
+            }),
+            _ => value,
+        };
+        objects.insert(id, ClipObject { value, payload });
+    }
+    Ok(objects)
+}
+
 /// Write a COS value as PDF syntax, through the crate's own serialiser.
 fn put_object(out: &mut Vec<u8>, value: &Object) {
     use crate::writer::encoder::IdentityEncoder;
@@ -1134,7 +1148,16 @@ impl<'a> Reader<'a> {
 
     fn f64(&mut self) -> Result<f64, ClipError> {
         let b: [u8; 8] = self.take(8)?.try_into().map_err(|_| ClipError::Truncated)?;
-        Ok(f64::from_le_bytes(b))
+        // pdfcer never writes NaN or an infinity, and NaN != NaN would make
+        // the parsed clip unequal to its own round trip.
+        let v = f64::from_le_bytes(b);
+        if v.is_finite() {
+            Ok(v)
+        } else {
+            Err(ClipError::Content(format!(
+                "a coordinate is not a finite number ({v})"
+            )))
+        }
     }
 
     fn bytes(&mut self) -> Result<Vec<u8>, ClipError> {

@@ -303,7 +303,6 @@ fn pdfcer-core/src/edit.rs::move_annotation
 fn pdfcer-core/src/edit.rs::move_outline_item
 fn pdfcer-core/src/edit.rs::page_tab_sequence
 fn pdfcer-core/src/edit.rs::paste_clip_annotations
-fn pdfcer-core/src/edit.rs::paste_field
 fn pdfcer-core/src/edit.rs::paste_new_field
 fn pdfcer-core/src/edit.rs::paste_objects_unlayered
 fn pdfcer-core/src/edit.rs::paste_raw_annotation
@@ -366,7 +365,6 @@ fn pdfcer-core/src/font_embed_missing.rs::target_edits
 fn pdfcer-core/src/font_unembed.rs::plan
 fn pdfcer-core/src/form_script/recompute.rs::plan
 fn pdfcer-core/src/formclip.rs::build_field_clip
-fn pdfcer-core/src/formclip.rs::from_bytes
 fn pdfcer-core/src/forms.rs::model_widget
 fn pdfcer-core/src/forms.rs::parse_acroform
 fn pdfcer-core/src/forms.rs::retarget_inner

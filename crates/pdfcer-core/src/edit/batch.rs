@@ -40,7 +40,7 @@ impl EditSession {
     /// Run `step` once per target as one undo entry labelled `kind`, or not
     /// at all: on the first refusal everything `step` did is undone and
     /// that refusal returned.
-    fn all_or_nothing<T, R>(
+    pub(super) fn all_or_nothing<T, R>(
         &mut self,
         targets: &[T],
         kind: CommandKind,
