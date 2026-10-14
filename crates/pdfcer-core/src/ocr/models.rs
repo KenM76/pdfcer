@@ -89,7 +89,7 @@
 //!   `ModelSource::BesideExecutable` in the single-folder portable layout.
 //!   OCR works out of the box.
 //! - **A shell may also fetch them**, or a PaddleOCR or OCRcer set, pinned by
-//!   hash ([`FETCHABLE_MODELS`]), for a build that does
+//!   hash ([`FETCHABLE_MODELS`](crate::ocr::models::FETCHABLE_MODELS)), for a build that does
 //!   not carry them.
 //! - **An operator may still name a directory**, which takes precedence over
 //!   both and is never silently overridden.
