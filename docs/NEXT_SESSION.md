@@ -5,36 +5,31 @@ Engineer-owned; replaced each session. The previous long-form handoff
 (gate-sweep history, the carried OWED list, benchmark recipes) is in git:
 `git show 78635459:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-13, after `Pass 580.0` and the 1067th filing.
+**Written:** 2026-10-14, after `Pass 587.0` and the 1071st filing.
 
 ## State
 
-- **Release:** v0.81.0 is still the latest (tag on `c0761048`). OneDrive
-  `pdfcer2` = 0.81.0, so **the next release writes `pdfcer1`**. `562.0`-`580.0`
-  are unreleased, including the OCR upscale option (`566.0`, Ken's request).
-  `target/release/pdfcer.exe` was last built from a reverted bicubic
-  experiment: rebuild before packaging.
-- **Push:** `origin/main` was at `33e8620d` (the 1052nd filing) at the start
-  of this handoff; everything since is local until the gates go green and it is
-  pushed. Check `git log origin/main..HEAD`.
-- **Ledgers:** next free Pass **581.0**; next filing **1068th**; no decision
-  added since 183. Core-api verb count **362**.
-- **pdfcer-gui G174-G186 are all shipped as `567.0`-`579.0`**, each with a
-  FIXED reply. `579.0` (G184) added `export_history`/`import_history`: an
-  undo history moves to a fresh session on the same base bytes (format
-  `PDFCERHIST` v1, kinds by variant name, fuzz target `import_history`).
-  The variant list in `src/edit/history_kind.rs` must gain every new
-  `CommandKind` variant; the encoder's exhaustive match will not compile
-  until it does.
-- **`580.0` shipped** (`f191b9c0`, `ef27637c`): `ocr --magnify`, default
-  `smooth` (bilinear); display keeps point-sample. One clean 50 dpi page,
-  % words at `--dpi 150`, point-sample -> smooth: ocrs 42.6 -> 61.7,
-  tesseract 87.2 -> 87.2, paddle 91.5 -> 100. `--dpi 50 --upscale 3` still
-  beats it for ocrs (66.0) and tesseract (95.7). Bicubic was tried and NOT
-  shipped: ocrs 68.1, tesseract 91.5, paddle 93.6 (worse for the default
-  engine; 2-4 words on one page). A multi-page corpus would settle it.
+- **Release:** v0.82.0 is being cut from this state into OneDrive `pdfcer1`
+  (v0.81.0 is in `pdfcer2`). If `git tag` shows v0.82.0, the next release
+  writes `pdfcer2`.
+- **Ledgers:** next free Pass **588.0**; next filing **1072nd**; no decision
+  added since 183. Core-api verb count **370**; EditError has 183 variants.
+- **pdfcer-gui G187-G193 are all shipped as `581.0`-`587.0`**, each with a
+  FIXED reply. `587.0` (G193) added `copy_fields`/`paste_fields` and the
+  `FieldClipSet` clip. The paste is all or nothing, with one undo entry. CLI
+  twins are `copy-fields` and `paste-fields`.
+- **The clip readers refuse what the writer never emits**: NaN/Inf
+  coordinates, and stream data beside a non-dictionary (`rebuild_stream`).
+  `clipboard_payloads` found both; a 300 s rerun (3M runs) is clean. On this
+  machine libFuzzer writes no crash artifact: add a temporary
+  `std::fs::write` of `data` before the failing assert to capture it.
+- **clap gotcha:** `requires = "X"` is waived when X `conflicts_with` a present
+  arg. Use a runtime check (rust RAG lesson written).
 - **Inbound:** check all three channels. The open GitHub issue (text layer
-  position after OCR) still awaits Ken's OK to close.
+  position after OCR) still awaits Ken's OK to close; Ken said the text layer
+  was fixed.
+- **`580.0` OCR `--magnify`** numbers and the unshipped bicubic trial are in
+  the SESSION_LOG entry for the 1067th filing.
 
 ## Follow-ups worth a Pass
 
