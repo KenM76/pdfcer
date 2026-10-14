@@ -7197,6 +7197,47 @@ pub(crate) enum Command {
         verify_undo: bool,
     },
 
+    /// Move ONE radio button into another radio group (ISO 32000-1
+    /// §12.7.4.2.3).
+    ///
+    /// The button keeps its object number and its place on the page; it
+    /// joins `--into` as one undoable edit.
+    ///
+    /// - If `--into` already has a button exporting the same value, the moved
+    ///   button gets the next free one (`Red` becomes `Red1`), reported as
+    ///   `on_state=` and on stderr.
+    /// - It shows selected only if `--into`'s value is its value.
+    /// - If it was its group's last button, that group is removed
+    ///   (`source_removed=1`); otherwise, if the group was selected on it,
+    ///   the group becomes unselected.
+    ///
+    /// Both fields must be radio groups without an `/Opt` array.
+    MoveWidgetToField {
+        /// Input PDF.
+        input: PathBuf,
+        /// The radio group the button belongs to now, as `list-fields`
+        /// reports it.
+        #[arg(long)]
+        name: String,
+        /// Which of its buttons to move, numbered from 0 in `list-fields`
+        /// order.
+        #[arg(long)]
+        index: usize,
+        /// The radio group to move it into.
+        #[arg(long)]
+        into: String,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Also verify that undoing the move reproduces the input byte for
+        /// byte.
+        #[arg(long)]
+        verify_undo: bool,
+    },
+
     /// Set or clear a field's **format**, **validate** or **calculate**
     /// script -- `/AA` `/F`, `/V`, `/C` (`Pass 308.6`).
     ///

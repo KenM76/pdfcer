@@ -1627,6 +1627,23 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
         } => cmd_delete_form_field(&input, &name, Some(index), &output, mode, verify_undo),
+        Command::MoveWidgetToField {
+            input,
+            name,
+            index,
+            into,
+            output,
+            mode,
+            verify_undo,
+        } => cmd_move_widget_to_field(&MoveWidgetToFieldArgs {
+            input: &input,
+            name: &name,
+            index,
+            into: &into,
+            output: &output,
+            mode,
+            verify_undo,
+        }),
         Command::SetMarkupNote {
             input,
             page,

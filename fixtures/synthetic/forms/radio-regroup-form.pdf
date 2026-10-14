@@ -1,0 +1,134 @@
+%PDF-1.7
+%‚„œ”
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [10 0 R 30 0 R 40 0 R 60 0 R 70 0 R] /DA (/Helv 0 Tf 0 g) >> >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Resources << >> /Annots [11 0 R 12 0 R 31 0 R 32 0 R 40 0 R 50 0 R 70 0 R] >>
+endobj
+4 0 obj
+<< /Type /XObject /Subtype /Form /BBox [0 0 12 12] /Length 12 >>
+stream
+3 3 6 6 re f
+endstream
+endobj
+5 0 obj
+<< /Type /XObject /Subtype /Form /BBox [0 0 12 12] /Length 18 >>
+stream
+0.5 0.5 11 11 re S
+endstream
+endobj
+7 0 obj
+<< /Red 4 0 R /Off 5 0 R >>
+endobj
+10 0 obj
+<< /FT /Btn /Ff 49152 /T (Left) /V /Red /Kids [11 0 R 12 0 R] >>
+endobj
+11 0 obj
+<< /Type /Annot /Parent 10 0 R /Subtype /Widget /Rect [20 150 32 162] /P 3 0 R /AS /Red /AP << /N 7 0 R >> >>
+endobj
+12 0 obj
+<< /Type /Annot /Parent 10 0 R /Subtype /Widget /Rect [40 150 52 162] /P 3 0 R /AS /Off /AP << /N << /Blue 4 0 R /Off 5 0 R >> >> >>
+endobj
+30 0 obj
+<< /FT /Btn /Ff 49152 /T (Right) /V /Green /Kids [31 0 R 32 0 R] >>
+endobj
+31 0 obj
+<< /Type /Annot /Parent 30 0 R /Subtype /Widget /Rect [20 120 32 132] /P 3 0 R /AS /Off /AP << /N 7 0 R >> >>
+endobj
+32 0 obj
+<< /Type /Annot /Parent 30 0 R /Subtype /Widget /Rect [40 120 52 132] /P 3 0 R /AS /Green /AP << /N << /Green 4 0 R /Off 5 0 R >> >> >>
+endobj
+40 0 obj
+<< /Type /Annot /Subtype /Widget /FT /Btn /Ff 49152 /T (Solo) /V /Yes /Rect [20 90 32 102] /P 3 0 R /AS /Yes /AP << /N << /Yes 4 0 R /Off 5 0 R >> >> >>
+endobj
+50 0 obj
+<< /Type /Annot /Subtype /Widget /FT /Btn /Ff 49152 /T (Lone) /Parent 60 0 R /V /Off /Rect [20 60 32 72] /P 3 0 R /AS /Off /AP << /N << /Red 4 0 R /Off 5 0 R >> >> >>
+endobj
+60 0 obj
+<< /T (Group) /Kids [50 0 R] >>
+endobj
+70 0 obj
+<< /Type /Annot /Subtype /Widget /FT /Btn /T (Agree) /V /Off /Rect [20 30 32 42] /P 3 0 R /AS /Off /AP << /N << /Yes 4 0 R /Off 5 0 R >> >> >>
+endobj
+xref
+0 71
+0000000000 65535 f 
+0000000015 00000 n 
+0000000146 00000 n 
+0000000203 00000 n 
+0000000350 00000 n 
+0000000460 00000 n 
+0000000000 65535 f 
+0000000576 00000 n 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000619 00000 n 
+0000000700 00000 n 
+0000000826 00000 n 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000975 00000 n 
+0000001059 00000 n 
+0000001185 00000 n 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000001337 00000 n 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000001506 00000 n 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000001689 00000 n 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000000000 65535 f 
+0000001737 00000 n 
+trailer
+<< /Size 71 /Root 1 0 R >>
+startxref
+1896
+%%EOF

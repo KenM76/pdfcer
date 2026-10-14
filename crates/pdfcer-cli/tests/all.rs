@@ -80,6 +80,7 @@ mod list_links;
 mod locked_contents_refusal;
 mod markup_respan;
 mod move_annotation;
+mod move_widget_to_field;
 mod node_shape;
 mod object_clip_replies;
 mod object_copy_leaf;

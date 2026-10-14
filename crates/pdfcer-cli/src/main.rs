@@ -657,6 +657,8 @@ mod node_shape_cmd;
 use node_shape_cmd::*;
 mod widget_turn_cmd;
 use widget_turn_cmd::*;
+mod widget_regroup_cmd;
+use widget_regroup_cmd::*;
 mod object_list;
 use object_list::*;
 mod objects;

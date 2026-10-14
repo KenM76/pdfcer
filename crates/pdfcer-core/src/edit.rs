@@ -132,7 +132,9 @@ mod history_codec;
 mod history_kind;
 mod history_transfer;
 mod radio_state;
+mod regroup;
 pub use history_transfer::{HistoryError, HistoryImport};
+pub use regroup::WidgetRegroup;
 mod content_mark;
 mod decoration_refresh;
 mod editable_source;
@@ -625,6 +627,8 @@ pub enum CommandKind {
     /// unscaled. A regeneration here would rewrite a stream to produce
     /// bytes the placement algorithm already produces for free.
     MoveWidget,
+    /// A radio button changed group — [`EditSession::move_widget_to_field`].
+    MoveWidgetToField,
     /// A markup, link, redaction-mark, stamp or note annotation was
     /// TRANSLATED (`Pass 149.0`) — [`EditSession::move_annotation`].
     ///
@@ -8332,6 +8336,21 @@ pub enum EditError {
     WidgetAlreadyOwned {
         /// The widget's object number.
         id: u32,
+    },
+    /// [`EditSession::move_widget_to_field`] named a field that is not a
+    /// radio-button group; only a radio member's identity is its on-state,
+    /// so only radio members can change group (§12.7.4.2.3).
+    #[error("`{fqn}` is not a radio-button group, so a button cannot move into or out of it")]
+    NotARadioGroup {
+        /// The field's fully-qualified name.
+        fqn: String,
+    },
+    /// [`EditSession::move_widget_to_field`] was asked to move a widget into
+    /// the group it already belongs to.
+    #[error("the button is already a member of `{fqn}`")]
+    WidgetAlreadyInField {
+        /// The group's fully-qualified name.
+        fqn: String,
     },
     /// The name would collide with an existing field (§12.7.3.1).
     ///
@@ -28010,64 +28029,15 @@ impl EditSession {
 
         let mut kids: Vec<Object> = match shape {
             FieldShape::MergedSingleWidget => {
-                // THE PROMOTION. Move the annotation keys off the field.
-                let promoted_id = ObjId::new(self.alloc_number()?, 0);
-                let mut promoted = Dict::new();
-                promoted.insert(Name::from(b"Type"), Object::Name(Name::from(b"Annot")));
-                promoted.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Widget")));
-                promoted.insert(Name::from(b"Parent"), Object::Reference(field_id));
-                for key in forms_author::WIDGET_KEYS_TO_MOVE {
-                    if let Some(v) = field_dict.get(key) {
-                        promoted.insert(Name::from(*key), v.clone());
-                    }
-                    updated_field.remove(key);
-                }
-                // `/Type /Annot` goes too. It is not in the move list because
-                // the new widget gets a FRESH one written rather than a moved
-                // one (so a document that omitted it does not have the
-                // omission propagated) — but leaving it on the field dict
-                // would label a dictionary that is no longer an annotation as
-                // one, which is exactly the confusion `dict_is_widget`'s
-                // defensive fallback then has to guess its way out of.
-                updated_field.remove(b"Type");
-                writes.push(ObjectWrite {
-                    id: promoted_id,
-                    before: None,
-                    after: Some(Object::Dict(promoted)),
-                });
-
-                // STEP 4 — retarget every page that referenced the field
-                // dict as an annotation. `/P` names the page it was on; when
-                // the dict had no `/P`, every page is checked, because an
-                // `/Annots` entry with no back-reference is still an entry.
-                let old_page = field_dict.get(b"P").and_then(Object::as_reference);
-                let candidates: Vec<ObjId> = match old_page {
-                    Some(p) => vec![p],
-                    None => slots.iter().map(|sl| sl.id).collect(),
-                };
-                for page in candidates {
-                    // THE RETARGET AND THE APPEND ARE ONE WRITE when they
-                    // land on the same page — and they usually do, because
-                    // the common merge puts the second widget on the page the
-                    // first is already on.
-                    //
-                    // Two separate whole-dictionary writes to one page in one
-                    // command do not compose: each is computed from the
-                    // pre-command state, so applying both leaves only the
-                    // last. That is not hypothetical — it is precisely the
-                    // defect the R85 preview-equals-saved oracle caught in
-                    // `flatten_fields`, where three page writes in one command
-                    // meant every flattened form lost its visible values. Here
-                    // it showed as `/Annots [<field> <new widget>]`: the
-                    // append had silently replaced the retarget, so the page
-                    // still pointed at a dictionary that was no longer an
-                    // annotation.
-                    let also_append = (page == page_id).then_some(new_widget_id);
-                    writes.extend(self.retarget_annot(page, field_id, promoted_id, also_append)?);
-                    if also_append.is_some() {
-                        appended_here = true;
-                    }
-                }
+                let (promotion, promoted_id, appended) = self.promote_merged_field(
+                    field_id,
+                    &field_dict,
+                    &mut updated_field,
+                    slots,
+                    Some((page_id, new_widget_id)),
+                )?;
+                writes.extend(promotion);
+                appended_here = appended;
                 vec![Object::Reference(promoted_id)]
             }
             FieldShape::KidsWidgets { .. } => field_dict
@@ -28094,6 +28064,79 @@ impl EditSession {
             writes.extend(self.annots_writes(page_id, new_widget_id, slots)?);
         }
         Ok((writes, new_widget_id))
+    }
+
+    /// THE PROMOTION of a Shape A field (one dict that is field and widget,
+    /// §12.7.3.1) to Shape B: the widget keys move to a new object that
+    /// replaces the field in its page's `/Annots`, in place. `append` folds a
+    /// further `/Annots` entry into the same page write when it lands on that
+    /// page; returns the writes, the promoted widget's id, and whether it did.
+    fn promote_merged_field(
+        &mut self,
+        field_id: ObjId,
+        field_dict: &Dict,
+        updated_field: &mut Dict,
+        slots: &[PageSlot],
+        append: Option<(ObjId, ObjId)>,
+    ) -> Result<(Vec<ObjectWrite>, ObjId, bool), EditError> {
+        let mut writes = Vec::new();
+        let mut appended = false;
+        let promoted_id = ObjId::new(self.alloc_number()?, 0);
+        let mut promoted = Dict::new();
+        promoted.insert(Name::from(b"Type"), Object::Name(Name::from(b"Annot")));
+        promoted.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"Widget")));
+        promoted.insert(Name::from(b"Parent"), Object::Reference(field_id));
+        for key in forms_author::WIDGET_KEYS_TO_MOVE {
+            if let Some(v) = field_dict.get(key) {
+                promoted.insert(Name::from(*key), v.clone());
+            }
+            updated_field.remove(key);
+        }
+        // `/Type /Annot` goes too. It is not in the move list because
+        // the new widget gets a FRESH one written rather than a moved
+        // one (so a document that omitted it does not have the
+        // omission propagated) — but leaving it on the field dict
+        // would label a dictionary that is no longer an annotation as
+        // one, which is exactly the confusion `dict_is_widget`'s
+        // defensive fallback then has to guess its way out of.
+        updated_field.remove(b"Type");
+        writes.push(ObjectWrite {
+            id: promoted_id,
+            before: None,
+            after: Some(Object::Dict(promoted)),
+        });
+
+        // STEP 4 — retarget every page that referenced the field
+        // dict as an annotation. `/P` names the page it was on; when
+        // the dict had no `/P`, every page is checked, because an
+        // `/Annots` entry with no back-reference is still an entry.
+        let old_page = field_dict.get(b"P").and_then(Object::as_reference);
+        let candidates: Vec<ObjId> = match old_page {
+            Some(p) => vec![p],
+            None => slots.iter().map(|sl| sl.id).collect(),
+        };
+        for page in candidates {
+            // THE RETARGET AND THE APPEND ARE ONE WRITE when they
+            // land on the same page — and they usually do, because
+            // the common merge puts the second widget on the page the
+            // first is already on.
+            //
+            // Two separate whole-dictionary writes to one page in one
+            // command do not compose: each is computed from the
+            // pre-command state, so applying both leaves only the
+            // last. That is not hypothetical — it is precisely the
+            // defect the R85 preview-equals-saved oracle caught in
+            // `flatten_fields`, where three page writes in one command
+            // meant every flattened form lost its visible values. Here
+            // it showed as `/Annots [<field> <new widget>]`: the
+            // append had silently replaced the retarget, so the page
+            // still pointed at a dictionary that was no longer an
+            // annotation.
+            let also_append = append.and_then(|(p, id)| (p == page).then_some(id));
+            writes.extend(self.retarget_annot(page, field_id, promoted_id, also_append)?);
+            appended |= also_append.is_some();
+        }
+        Ok((writes, promoted_id, appended))
     }
 
     /// Replace one `/Annots` entry with another and — optionally, in the

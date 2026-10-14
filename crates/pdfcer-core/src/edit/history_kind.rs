@@ -235,6 +235,7 @@ kind_codec! {
     DeleteFormField,
     RenameFormField,
     MoveWidget,
+    MoveWidgetToField,
     MoveAnnotation,
     ResizeAnnotation,
     SetMarkupNote,
