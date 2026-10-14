@@ -168,7 +168,7 @@ use crate::graph::ObjectGraph;
 use crate::object::{Dict, Name, ObjId, Object, Stream};
 use crate::page_tree::Rect;
 use crate::span::ByteSpan;
-use crate::vector::clip::{ClipError, ClipObject};
+use crate::vector::clip::{ClipError, ClipObject, rebuild_stream};
 use crate::view::DocumentView;
 use std::collections::BTreeMap;
 
@@ -1052,15 +1052,7 @@ fn read_objects(r: &mut Reader<'_>) -> Result<BTreeMap<u32, ClipObject>, ClipErr
         } else {
             None
         };
-        // A stream is reconstructed from its dictionary plus its payload; the
-        // span is meaningless by construction, exactly as it was on the way out.
-        let value = match (&value, &payload) {
-            (Object::Dict(dict), Some(bytes)) => Object::Stream(Stream {
-                dict: dict.clone(),
-                data_span: ByteSpan::new(0, bytes.len()),
-            }),
-            _ => value,
-        };
+        let value = rebuild_stream(value, payload.as_deref())?;
         objects.insert(id, ClipObject { value, payload });
     }
     Ok(objects)

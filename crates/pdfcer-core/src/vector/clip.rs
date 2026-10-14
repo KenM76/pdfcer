@@ -789,6 +789,25 @@ impl<'a> Reader<'a> {
     }
 }
 
+/// A carried object as the writer had it: a dictionary plus a payload is a
+/// stream (its span is meaningless here, as it was on the way out).
+///
+/// The writer attaches a payload only to a stream's dictionary, so a payload
+/// beside anything else is refused; kept, it would vanish on the next write
+/// and the clip would differ from its own round trip.
+pub(crate) fn rebuild_stream(value: Object, payload: Option<&[u8]>) -> Result<Object, ClipError> {
+    match (value, payload) {
+        (Object::Dict(dict), Some(bytes)) => Ok(Object::Stream(crate::object::Stream {
+            dict,
+            data_span: ByteSpan::new(0, bytes.len()),
+        })),
+        (_, Some(_)) => Err(ClipError::Content(
+            "a carried object has stream data but no stream dictionary".to_owned(),
+        )),
+        (value, None) => Ok(value),
+    }
+}
+
 fn put_matrix(out: &mut Vec<u8>, m: Matrix) {
     for v in [m.a, m.b, m.c, m.d, m.e, m.f] {
         put_f64(out, v);
@@ -1139,16 +1158,7 @@ impl ObjectClip {
             } else {
                 None
             };
-            // A stream is reconstructed from its dictionary plus its payload;
-            // the span is meaningless by construction, exactly as it was on
-            // the way out.
-            let value = match (&value, &payload) {
-                (Object::Dict(dict), Some(bytes)) => Object::Stream(crate::object::Stream {
-                    dict: dict.clone(),
-                    data_span: ByteSpan::new(0, bytes.len()),
-                }),
-                _ => value,
-            };
+            let value = rebuild_stream(value, payload.as_deref())?;
             objects.insert(id, ClipObject { value, payload });
         }
 
@@ -1257,15 +1267,7 @@ impl ObjectClip {
                             } else {
                                 None
                             };
-                            let value = match (&value, &payload) {
-                                (Object::Dict(d), Some(bytes)) => {
-                                    Object::Stream(crate::object::Stream {
-                                        dict: d.clone(),
-                                        data_span: ByteSpan::new(0, bytes.len()),
-                                    })
-                                }
-                                _ => value,
-                            };
+                            let value = rebuild_stream(value, payload.as_deref())?;
                             objects.insert(id, ClipObject { value, payload });
                         }
                         ClipAnnotation::Raw(Box::new(RawAnnotation {
