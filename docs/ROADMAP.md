@@ -115,11 +115,26 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
-### `v0.82.0` — RELEASING (2026-10-14): publication pending: main push, CI at tag, verify-release (1074th filing)
+### `v0.82.0` — PUBLISHED (2026-10-14): release out, CI green at the tag; `verify-release.py` has 1 explained FAIL ("working tree clean") (1075th filing, amends 1074th)
 
-Bump `e0ea822e` ("chore: v0.82.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`). Tag `v0.82.0` at `e0ea822e`, GitHub release, OneDrive slot `pdfcer1` (`pdfcer2` keeps 0.81.0). Contents: everything shipped since `v0.81.0` (engineer-stated `Pass 565.0`-`588.0`; range not verified here, I have no shell). **Not claimed done:** push of `main` and the tag, CI at the tag, `tools/verify-release.py v0.82.0`, assets, OneDrive. The engineer reports results in a later filing.
+Bump `e0ea822e` ("chore: v0.82.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`). **Tag correction (1075th):** `v0.82.0` is at `11a4f1ea`, the docs-only 1074th filing commit and a descendant of the bump, NOT at `e0ea822e` as the 1074th filing said; placed there so `git describe --tags` stamps revision `v0.82.0`. Contents: everything shipped since `v0.81.0` (engineer-stated `Pass 565.0`-`588.0`, not verified here). Figures engineer-reported; I have no shell (hard rule 8).
 
-Ledgers: no Pass, no decision; next free `Pass 590.0`; next filing 1075th.
+- **CI at `11a4f1ea`:** run `38598263543` first FAILED on cargo test (ubuntu-latest), `dictionaries::none_turns_both_built_in_lists_off`, "Text file busy (os error 26)": a Linux ETXTBSY fork/exec race in the test harness, not a `G194` defect. Fixed by `1d7f12af` (below); the failed job was rerun and the run is SUCCESS, so CI is green at the tag.
+- **Package:** `D:\builds\pdfcer-20261014-1301-11a4f1e` (not `-dirty`). The first `package-portable` run died with WinError 5 removing a ReadOnly `models/tesseract/LICENSES` dir (fixed by `155e2272`); re-packaged with `--no-build` from the same release build.
+- **Fresh-folder smoke: PASS.** `--version` revision `v0.82.0`; `rotate --degrees 90`; `render-page --invisible-text FF0000`; `render-page --invisible-text #00FF00 --invisible-text-only`; `--invisible-text-only` alone exits 2; `fetch-ocr-models --model ocrs` refuses with the "compiled without the `download` feature ... no network code" message.
+- **GitHub release** via `tools/gh-release.py`: PASS, 8 assets. `pdfcer-v0.82.0-windows-x64.zip` 25,943,393 bytes; `ocr-addon-ocrcer.zip` 3,789,155; `ocr-addon-ocrs.zip` 11,352,262; `ocr-addon-tesseract.zip` 4,483,685; each with a `.sha256` (4 zips + 4 = 8).
+- **OneDrive.** `deploy-onedrive` wrote slot `pdfcer1` (6 items, 69,984,575 bytes); `pdfcer2` keeps 0.81.0. The next release writes `pdfcer2`.
+- **`tools/verify-release.py v0.82.0`: 8 ok, 1 FAIL ("working tree clean").** It has NOT fully passed. The 3 dirty paths: two `.claude/agent-memory/pdfcer-spec-librarian/` files (another agent's uncommitted notes) and `tools/package-portable.py` (the `155e2272` fix, in progress at run time). None build-affecting; the binaries were built at the clean tag.
+- **Gotcha.** `tools/run-gates.sh` run in the background needs `timeout: 7200000`; the default 30-minute background limit killed one run.
+
+Ledgers: no Pass, no decision; next free `Pass 590.0`; next filing 1076th.
+
+### Fixes `1d7f12af` and `155e2272` — ETXTBSY retry in `ocr-host`; ReadOnly-safe tree removal in `package-portable` (small fixes, no Pass ID; 1075th filing)
+
+- **`1d7f12af` fix(ocr-host).** `feed_and_collect` spawns through a new private `spawn_retrying_busy`: up to 6 attempts, sleeping 20 ms × n between them, retrying on `io::ErrorKind::ExecutableFileBusy` only. Cures the Linux ETXTBSY race that failed CI at the `v0.82.0` tag. Tests (engineer-reported): `pdfcer-ocr-host` 24 passed, 1 ignored, plus 1 doctest. No `pub` change. Lesson: `D:\dev\rag\rust\a_test_that_copies_an_executable_then_spawns_it_races_etxtbsy_under_parallel_tests_on_linux.md`.
+- **`155e2272` fix(tools).** `package-portable.py` gains `remove_tree()`, `shutil.rmtree` with an onerror that clears the ReadOnly attribute and retries; used when removing a staged add-on folder after zipping.
+
+`FEATURES.md` unaffected. Ledgers: no decision; next free `Pass 590.0`; next filing 1076th.
 
 ### `Pass 588.0` — every downloadable OCR engine set is pinned: `FETCHABLE_MODELS` grows to four sets, `FetchableModels::manifest`, paddle reads `inference.yml`, CLI `fetch-ocr-models --model` (core + CLI; answers `pdfcer-gui` `G194`) — SHIPPED 2026-10-14 (1073rd filing)
 

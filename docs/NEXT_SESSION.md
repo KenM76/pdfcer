@@ -5,15 +5,17 @@ Engineer-owned; replaced each session. The previous long-form handoff
 (gate-sweep history, the carried OWED list, benchmark recipes) is in git:
 `git show 78635459:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-14, after `Pass 588.0` and the 1073rd filing.
+**Written:** 2026-10-14, after the v0.82.0 release and the 1075th filing.
 
 ## State
 
-- **Release:** v0.82.0 is being cut from this state into OneDrive `pdfcer1`
-  (v0.81.0 is in `pdfcer2`). If `git tag` shows v0.82.0, the next release
-  writes `pdfcer2`.
+- **Release:** v0.82.0 is published (tag at `11a4f1ea`, GitHub 8 assets,
+  OneDrive `pdfcer1`; `pdfcer2` keeps 0.81.0). **The next release writes
+  `pdfcer2`.** Post-release fixes `1d7f12af` (ocr-host retries a spawn that
+  hits Linux `ETXTBSY`, which failed CI at the tag once) and `155e2272`
+  (package-portable clears a ReadOnly dir when removing a staged add-on).
 - **Ledgers:** next free Pass **590.0** (589.0 is the Backlog det-normalisation
-  investigation); next filing **1074th**; no decision added since 183. Core-api verb count **370**; EditError has 183 variants.
+  investigation); next filing **1076th**; no decision added since 183. Core-api verb count **370**; EditError has 183 variants.
 - **G194 shipped as `588.0`** (`475c6f4a`): four pinned OCR sets (`ocrs`,
   `ppocrv5-latin`, `ppocrv4-ch-en`, `ocrcer`), `manifest()` written on fetch,
   `fetch-ocr-models --model NAME`, paddle reads `inference.yml`'s
@@ -72,7 +74,8 @@ Engineer-owned; replaced each session. The previous long-form handoff
 ## How to push
 
 1. `CARGO_BUILD_JOBS=4 bash tools/run-gates.sh > log 2>&1 < /dev/null` with
-   `run_in_background`; redirect to a file, never pipe (a pipe reports the
+   `run_in_background` **and `timeout: 7200000`** (the 30-minute default
+   killed a run); redirect to a file, never pipe (a pipe reports the
    pipe's exit code). No edits while it runs. Re-run after your last edit.
 2. It runs `cargo doc` with broken intra-doc links denied. **A module with an
    outer doc on its `pub mod` line resolves its inner `//!` links in the

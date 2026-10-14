@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-14 (1075th filing) — `v0.82.0` published; ETXTBSY retry `1d7f12af`; ReadOnly-safe packaging `155e2272`
+
+**Release:** `v0.82.0` PUBLISHED. Tag is at `11a4f1ea` (docs-only 1074th filing, descendant of bump `e0ea822e`), correcting the 1074th entry; placed so `git describe --tags` stamps `v0.82.0`. CI run `38598263543` first failed (ubuntu, `dictionaries::none_turns_both_built_in_lists_off`, "Text file busy (os error 26)": ETXTBSY race in the test harness, not `G194`); rerun green. Package `D:\builds\pdfcer-20261014-1301-11a4f1e` (not dirty). Fresh-folder smoke PASS. GitHub release 8 assets (zip 25,943,393 bytes). OneDrive `pdfcer1`, 69,984,575 bytes; next release writes `pdfcer2`. `verify-release.py v0.82.0`: 8 ok, 1 FAIL ("working tree clean": two other-agent memory files plus `tools/package-portable.py` mid-fix); recorded as a FAIL.
+
+**Fixes:** `1d7f12af` (`spawn_retrying_busy`, 6 attempts, 20 ms × n, `ExecutableFileBusy` only; `pdfcer-ocr-host` 24 passed, 1 ignored, 1 doctest). `155e2272` (`remove_tree()` clears ReadOnly on retry; first package run died with WinError 5 on `models/tesseract/LICENSES`). Small fixes, no Pass ID. RAG lesson already written and indexed under `D:\dev\rag\rust\` (ETXTBSY under parallel tests).
+
+**Gotcha:** background `tools/run-gates.sh` needs `timeout: 7200000`; the 30-minute default killed a run.
+
+**Filed as:** the `v0.82.0` entry rewritten to PUBLISHED, one fixes entry atop Shipped, this entry. `FEATURES.md` untouched. No `### ` added to Next up (count unchanged at 80, taken from the prior filing, not recounted here). Entries kept short; `check-register-entry-size.py` not run (no shell). Engineer-reported; no shell.
+
+**For next session:** next free `Pass 590.0`; next filing 1076th. `.claude/agent-memory/pdfcer-spec-librarian/` notes still uncommitted.
+
 ## 2026-10-14 (1074th filing) — `5cade123` rustdoc link fix; `v0.82.0` release in progress
 
 **Shipped (docs fix; engineer-reported, no shell here, push state not checked):** `5cade123`. `ocr::models` module doc linked `[FETCHABLE_MODELS]` to the re-export, unresolved under CI's `-D rustdoc::broken_intra_doc_links` `cargo doc --workspace --no-deps`; now `crate::ocr::models::FETCHABLE_MODELS`. Introduced by `475c6f4a` (`Pass 588.0`); caught by local `tools/run-gates.sh`.
