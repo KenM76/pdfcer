@@ -258,7 +258,15 @@ pub(super) fn layer_content(
     open_layer(&mut out, opts, names.whole.as_ref());
     for block in &blocks {
         let oc = names.for_block(block);
-        write_block(&mut out, block, &placed, font_name, oc, &mut report);
+        write_block(
+            &mut out,
+            block,
+            &placed,
+            font_name,
+            opts.font,
+            oc,
+            &mut report,
+        );
     }
     out.extend_from_slice(b"Q\n");
     if names.whole.is_some() {
@@ -268,14 +276,15 @@ pub(super) fn layer_content(
     (out, report)
 }
 
-/// One block as one text object (`BT … ET`), its lines and their words in
-/// order, inside `/OC /oc BDC … EMC` when the block's region is routed;
+/// One block as one text object (`BT … ET`), each line one show operator
+/// ([`place_line`]), inside `/OC /oc BDC … EMC` when the block's region is routed;
 /// nothing when none of its words could be placed.
 fn write_block(
     out: &mut Vec<u8>,
     block: &ResolvedBlock,
     placed: &[Option<PlacedWord>],
     font_name: &[u8],
+    font: Std14,
     oc: Option<&Name>,
     report: &mut OcrLayerReport,
 ) {
@@ -285,9 +294,10 @@ fn write_block(
             .iter()
             .filter_map(|&w| placed.get(w).and_then(Option::as_ref))
             .collect();
-        if words.is_empty() {
+        let Some(placed_line) = place_line(&words, font) else {
+            report.words_skipped += words.len();
             continue;
-        }
+        };
         if !opened {
             if let Some(name) = oc {
                 open_oc_section(out, name);
@@ -295,11 +305,11 @@ fn write_block(
             out.extend_from_slice(b"BT\n");
             opened = true;
         }
-        for p in words {
-            write_word(out, p, font_name);
-            report.words_written += 1;
-            report.words_substituted += usize::from(p.substituted);
-            report.words_scale_clamped += usize::from(p.clamped);
+        write_line(out, &placed_line, font_name);
+        report.words_written += words.len();
+        report.words_substituted += words.iter().filter(|p| p.substituted).count();
+        if placed_line.clamped {
+            report.words_scale_clamped += words.len();
         }
         report.lines_written += 1;
     }
@@ -312,33 +322,178 @@ fn write_block(
     }
 }
 
-/// `Tf`, `Tz`, `Tm` and `Tj` for one word. Emitted per word: two adjacent
-/// words almost never share a size, and the layer is machine output.
-fn write_word(out: &mut Vec<u8>, p: &PlacedWord, font_name: &[u8]) {
+/// One recognised line resolved to a single show operator: one size and one
+/// `Tz` for the line, its words joined by the font's space glyph, and a `TJ`
+/// number before each later word landing it on its box's start.
+#[derive(Debug, Clone, PartialEq)]
+pub(super) struct PlacedLine {
+    size: f64,
+    tz: f64,
+    x: f64,
+    baseline_y: f64,
+    rotate: u16,
+    /// Each word's codes (a trailing space on all but the last) and the `TJ`
+    /// number written before it (`0.0` for the first).
+    parts: Vec<(Vec<u8>, f64)>,
+    /// The line's `Tz`, or a word's own fit, hit [`MIN_TZ`] or [`MAX_TZ`].
+    clamped: bool,
+}
+
+/// The displayed reading direction and displayed up, in user space, for a
+/// normalised `/Rotate`: the `Tm` columns [`write_line`] writes.
+fn axes(rotate: u16) -> ((f64, f64), (f64, f64)) {
+    match rotate {
+        90 => ((0.0, 1.0), (-1.0, 0.0)),
+        180 => ((-1.0, 0.0), (0.0, -1.0)),
+        270 => ((0.0, -1.0), (1.0, 0.0)),
+        _ => ((1.0, 0.0), (0.0, 1.0)),
+    }
+}
+
+/// Join a line's fitted words into one show operator, so the text model reads
+/// the line as one run (§9.4.3 for the `TJ` displacement).
+///
+/// The size spans the highest ascender and lowest descender of the words'
+/// fitted glyph boxes, so the run's box covers every word. `Tz` is the summed
+/// ratio of box widths to natural widths at that size, so the line's ink spans
+/// its words on average; each word's START is exact (its `TJ` number) and its
+/// end is within that average. `None` when the line has no measurable width.
+pub(super) fn place_line(words: &[&PlacedWord], font: Std14) -> Option<PlacedLine> {
+    let first = words.first()?;
+    let (d, u) = axes(first.rotate);
+    let along = |p: &PlacedWord| p.x * d.0 + p.baseline_y * d.1;
+    let up = |p: &PlacedWord| p.x * u.0 + p.baseline_y * u.1;
+    let top = words
+        .iter()
+        .map(|p| up(p) + HELVETICA_ASCENT_FRAC * p.size)
+        .fold(f64::NEG_INFINITY, f64::max);
+    let bottom = words
+        .iter()
+        .map(|p| up(p) - HELVETICA_DESCENT_FRAC * p.size)
+        .fold(f64::INFINITY, f64::min);
+    let size = (top - bottom) / (HELVETICA_ASCENT_FRAC + HELVETICA_DESCENT_FRAC);
+    let (box_sum, natural_sum) = words.iter().fold((0.0, 0.0), |(b, n), p| {
+        (
+            b + natural_width(font, p.size, &p.codes) * p.tz / 100.0,
+            n + natural_width(font, size, &p.codes),
+        )
+    });
+    if !(size.is_finite() && size > 0.0 && natural_sum > 0.0) {
+        return None;
+    }
+    let raw_tz = 100.0 * box_sum / natural_sum;
+    let tz = raw_tz.clamp(MIN_TZ, MAX_TZ);
+    let th = tz / 100.0;
+    let space = natural_width(font, size, b" ");
+
+    let to_tj = |shift: f64| -shift * 1000.0 / (size * th);
+    let start = along(first);
+    let mut pen = 0.0;
+    let mut parts = Vec::with_capacity(words.len());
+    for (i, p) in words.iter().enumerate() {
+        let target = along(p) - start;
+        let lead = if i == 0 { 0.0 } else { to_tj(target - pen) };
+        let drawn = natural_width(font, size, &p.codes) * th;
+        let gap = letter_gap(p, font, drawn, size);
+        let last = i + 1 == words.len();
+        let mut glyphs: Vec<Vec<u8>> = if gap.abs() < LETTER_GAP_EPSILON {
+            vec![p.codes.clone()]
+        } else {
+            p.codes.iter().map(|&c| vec![c]).collect()
+        };
+        if !last && let Some(tail) = glyphs.last_mut() {
+            tail.push(b' ');
+        }
+        let gaps = glyphs.len().saturating_sub(1);
+        for (k, codes) in glyphs.into_iter().enumerate() {
+            parts.push((codes, if k == 0 { lead } else { to_tj(gap) }));
+        }
+        #[allow(clippy::cast_precision_loss)] // a word's glyph count
+        let spread = gap * gaps as f64;
+        pen = target + drawn + spread + if last { 0.0 } else { space * th };
+    }
+    let baseline = bottom + HELVETICA_DESCENT_FRAC * size;
+    Some(PlacedLine {
+        size,
+        tz,
+        x: start * d.0 + baseline * u.0,
+        baseline_y: start * d.1 + baseline * u.1,
+        rotate: first.rotate,
+        parts,
+        clamped: (tz - raw_tz).abs() > f64::EPSILON || words.iter().any(|p| p.clamped),
+    })
+}
+
+/// Largest letter-gap widening, as a fraction of the size: under half of the
+/// extractor's default derived-word-space ratio (0.20), so no word splits.
+const MAX_LETTER_WIDEN: f64 = 0.08;
+/// Largest letter-gap tightening, as a fraction of the size: under a third of
+/// the extractor's default backward-jump ratio (0.50), so no line breaks.
+const MAX_LETTER_TIGHTEN: f64 = 0.15;
+/// Below this many points of residual a word is written as one string.
+const LETTER_GAP_EPSILON: f64 = 1e-3;
+
+/// The shift, in points along the line, written between each pair of a
+/// word's glyphs so the word ends on its box although the line shares one
+/// `Tz`. Bounded by [`MAX_LETTER_WIDEN`]/[`MAX_LETTER_TIGHTEN`]; what the bound
+/// leaves over stays as the word end's error. `0.0` for a one-glyph word.
+fn letter_gap(p: &PlacedWord, font: Std14, drawn: f64, size: f64) -> f64 {
+    let gaps = p.codes.len().saturating_sub(1);
+    if gaps == 0 {
+        return 0.0;
+    }
+    let target = natural_width(font, p.size, &p.codes) * p.tz / 100.0;
+    #[allow(clippy::cast_precision_loss)] // a word's glyph count
+    let gap =
+        ((target - drawn) / gaps as f64).clamp(-MAX_LETTER_TIGHTEN * size, MAX_LETTER_WIDEN * size);
+    if gap.abs() < LETTER_GAP_EPSILON {
+        0.0
+    } else {
+        gap
+    }
+}
+
+/// `Tf`, `Tz`, `Tm`, then `Tj` for a one-word line or `TJ` for the rest.
+fn write_line(out: &mut Vec<u8>, line: &PlacedLine, font_name: &[u8]) {
     out.push(b'/');
     out.extend_from_slice(font_name);
     out.push(b' ');
-    emit_number(out, p.size);
+    emit_number(out, line.size);
     out.extend_from_slice(b" Tf\n");
-    emit_number(out, p.tz);
+    emit_number(out, line.tz);
     out.extend_from_slice(b" Tz\n");
     // The text space's x axis is the displayed reading direction, its y axis
     // the displayed up: the inverse of the `/Rotate` display turn.
-    out.extend_from_slice(match p.rotate {
+    out.extend_from_slice(match line.rotate {
         90 => b"0 1 -1 0 ".as_slice(),
         180 => b"-1 0 0 -1 ",
         270 => b"0 -1 1 0 ",
         _ => b"1 0 0 1 ",
     });
-    emit_number(out, p.x);
+    emit_number(out, line.x);
     out.push(b' ');
-    emit_number(out, p.baseline_y);
+    emit_number(out, line.baseline_y);
     out.extend_from_slice(b" Tm\n");
-    emit_literal_string(out, &p.codes);
-    out.extend_from_slice(b" Tj\n");
+    if let [(codes, _)] = line.parts.as_slice() {
+        emit_literal_string(out, codes);
+        out.extend_from_slice(b" Tj\n");
+        return;
+    }
+    out.push(b'[');
+    for (i, (codes, adjust)) in line.parts.iter().enumerate() {
+        if i > 0 {
+            out.push(b' ');
+            emit_number(out, *adjust);
+            out.push(b' ');
+        }
+        emit_literal_string(out, codes);
+    }
+    out.extend_from_slice(b"] TJ\n");
 }
 
-/// The marker, the optional group section, then `q 3 Tr`.
+/// The marker, the optional group section, then `q 3 Tr` and zeroed
+/// `Tc`/`Tw`/`Ts`: `Tw` applies to the space glyph [`place_line`] writes, so
+/// an inherited value would push every later word off its box (§9.3.3).
 ///
 /// `q` first: Tf/Tr/Tz are graphics state and must not leak into the
 /// streams that follow this one in the /Contents array (§8.4.2); `Tr` is a
@@ -352,7 +507,7 @@ fn open_layer(out: &mut Vec<u8>, opts: &OcrLayerOptions, oc_name: Option<&Name>)
     if let Some(name) = oc_name {
         open_oc_section(out, name);
     }
-    out.extend_from_slice(b"q\n3 Tr\n");
+    out.extend_from_slice(b"q\n3 Tr\n0 Tc\n0 Tw\n0 Ts\n");
 }
 
 /// `/OC /name BDC` (§8.11.3.2).
@@ -427,7 +582,10 @@ mod tests {
         let (bytes, _) = page_of(vec![word("x", 0.0, 0.0, 10.0, 10.0)])
             .pipe_build(b"OCR0", &OcrLayerOptions::new());
         let s = String::from_utf8_lossy(&bytes).to_string();
-        assert!(s.contains("q\n3 Tr\nBT\n"), "must open q, 3 Tr, then BT");
+        assert!(
+            s.contains("q\n3 Tr\n0 Tc\n0 Tw\n0 Ts\nBT\n"),
+            "must open q, 3 Tr, zero the spacing, then BT"
+        );
         assert!(
             s.trim_end().ends_with("ET\nQ\nEMC"),
             "must close ET, Q, then the marker's EMC: {s}"
@@ -638,7 +796,8 @@ mod tests {
             assert!((p.tz - upright.tz).abs() < 1e-9, "Tz at {rotate}");
 
             let mut out = Vec::new();
-            write_word(&mut out, &p, b"F0");
+            let line = place_line(&[&p], Std14::Helvetica).expect("one-word line");
+            write_line(&mut out, &line, b"F0");
             let text = String::from_utf8_lossy(&out);
             assert!(text.contains(&format!("\n{tm}")), "{rotate}: {text}");
 
@@ -691,11 +850,24 @@ mod tests {
         assert!(String::from_utf8_lossy(&bytes).contains("/pdfceOcr7 "));
     }
 
+    /// Every shown word, in stream order: each show operator's strings
+    /// joined, then split at the space glyphs that join a line's words.
     fn shown(bytes: &[u8]) -> Vec<String> {
         String::from_utf8_lossy(bytes)
             .lines()
-            .filter_map(|l| l.strip_suffix(") Tj")?.strip_prefix('('))
-            .map(str::to_owned)
+            .filter(|l| l.ends_with(" Tj") || l.ends_with(" TJ"))
+            .flat_map(|l| {
+                let joined: String = l
+                    .split('(')
+                    .skip(1)
+                    .filter_map(|part| part.split_once(')'))
+                    .map(|(text, _)| text)
+                    .collect();
+                joined
+                    .split_whitespace()
+                    .map(str::to_owned)
+                    .collect::<Vec<_>>()
+            })
             .collect()
     }
 
@@ -762,7 +934,7 @@ mod tests {
         assert_eq!(report.blocks_written, 3);
         let at = |p: &str| s.find(p).unwrap();
         assert!(at("/OC /OC1 BDC") < at("/OC /OC2 BDC"));
-        assert!(at("/OC /OC2 BDC") < at("(a) Tj") && at("(b) Tj") < at("(c) Tj"));
+        assert!(at("/OC /OC2 BDC") < at("[(a ) ") && at("(b)] TJ") < at("(c) Tj"));
         assert_eq!(s.matches("/OC /OC2 BDC").count(), 1);
         assert_eq!(s.matches("BDC").count(), s.matches("EMC").count());
         let table = &s[at("/OC /OC2 BDC")..];

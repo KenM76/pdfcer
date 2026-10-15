@@ -20,20 +20,24 @@
 //!
 //! ```text
 //! q                    <- isolate: Tf/Tr/Tz are GRAPHICS state, so Q restores them
-//!   BT
-//!     3 Tr             <- invisible, once, for every word
-//!     /OCR0 <size> Tf  <- per word: the size fitted to that word's box height
-//!     <tz> Tz          <- per word: horizontal scaling fitted to its box width
+//!   3 Tr 0 Tc 0 Tw 0 Ts  <- invisible; spacing zeroed (Tw acts on the space glyph)
+//!   BT                 <- one text object per block
+//!     /OCR0 <size> Tf  <- per line: spans every word's fitted glyph box
+//!     <tz> Tz          <- per line: summed box widths / summed natural widths
 //!     1 0 0 1 <x> <y> Tm
-//!     (<winansi>) Tj
-//!     ...              <- repeated per word
+//!     [(The ) -12 (quick ) 3 (b) -1 (r) ...] TJ  <- one show per line
+//!     ...              <- repeated per line
 //!   ET
 //! Q
 //! ```
 //!
-//! One `BT…ET` for the whole page is correct because `Tm` is **absolute**, not
-//! relative — every word sets its own text matrix outright, so word order in
-//! the stream affects extraction order and nothing else.
+//! One show operator per line makes the text model read a recognised line as
+//! one run, so a shell selects and edits lines and paragraphs, not words
+//! (G201). Words are joined by the font's space glyph; the `TJ` number before
+//! each word lands its start on its box, and small numbers between a word's
+//! letters land its end there too, bounded well inside the extractor's word-
+//! and line-break thresholds so no word splits. `Tm` is absolute, so line
+//! order in the stream affects extraction order and nothing else.
 //!
 //! ## Why `q … Q`, and why it is not optional
 //!

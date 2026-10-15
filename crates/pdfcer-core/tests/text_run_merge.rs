@@ -18,7 +18,7 @@
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::{EditSession, OcrPageLayer};
 use pdfcer_core::ocr::layer::OcrLayerOptions;
-use pdfcer_core::ocr::{OcrPage, RecognizedWord};
+use pdfcer_core::ocr::{OcrBlock, OcrBlockKind, OcrLine, OcrPage, RecognizedWord};
 use pdfcer_core::page_tree::{self, Rect};
 use pdfcer_core::text_edit::{FormatError, MergeFit, MergeOptions, MergeSeparator};
 use pdfcer_core::text_extract::{self, ExtractOptions};
@@ -281,6 +281,9 @@ fn undo_restores_the_original() {
 // OCR: the case the request is for
 // ===========================================================================
 
+/// An engine that reports a split word as two lines (`Inv`, `oice`) leaves
+/// two runs on one baseline; merging them keeps every glyph mode 3. Words an
+/// engine reports on ONE line are already one run.
 #[test]
 fn two_ocr_words_merge_and_stay_invisible() {
     let mut s = session("q Q");
@@ -291,8 +294,9 @@ fn two_ocr_words_merge_and_stay_invisible() {
     };
     let recognised = OcrPage {
         words: vec![word("Inv", 72.0, 95.0), word("oice", 96.0, 130.0)],
+        lines: vec![OcrLine::new(vec![0]), OcrLine::new(vec![1])],
+        blocks: vec![OcrBlock::new(OcrBlockKind::Paragraph, vec![0, 1])],
         confidence_available: true,
-        ..OcrPage::default()
     };
     s.add_ocr_layer(
         &[OcrPageLayer {

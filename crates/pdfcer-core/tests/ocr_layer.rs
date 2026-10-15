@@ -225,12 +225,30 @@ fn extracted_word_positions_land_on_the_reported_boxes() {
             .find(|r| r.text.contains(expected.text.as_str()))
             .unwrap_or_else(|| panic!("run for {:?} not found", expected.text));
 
-        // `bbox` is `Option` because a run of zero-advance glyphs has no
-        // extent; an OCR run always has one, so its absence is itself a defect
-        // worth failing on rather than skipping past.
-        let bbox = found
+        // A line is one run, so the word's extent is its own glyphs': the
+        // first glyph's origin to the last glyph's advance end (which counts
+        // `Tz` but not the `TJ` number after it).
+        let line_box = found
             .bbox
             .unwrap_or_else(|| panic!("the run for {:?} has no bbox", expected.text));
+        let at = found
+            .text
+            .find(expected.text.as_str())
+            .expect("found above");
+        let span = u32::try_from(at).unwrap()..u32::try_from(at + expected.text.len()).unwrap();
+        let glyphs: Vec<_> = found
+            .glyphs
+            .iter()
+            .filter(|g| span.contains(&g.text_start))
+            .collect();
+        let llx = f64::from(glyphs.first().expect("the word has glyphs").x);
+        let last = glyphs.last().expect("the word has glyphs");
+        let bbox = Rect::from_corners(
+            llx,
+            line_box.lly,
+            f64::from(last.x + last.advance),
+            line_box.ury,
+        );
         let dx = (bbox.llx - expected.rect.llx).abs();
         let dy = (bbox.lly - expected.rect.lly).abs();
         assert!(
@@ -355,4 +373,85 @@ fn the_disclosure_report_is_populated() {
         "the count must name a unit true for word- and line-level engines: {joined}"
     );
     assert!(out.report.content_object > 0 && out.report.font_object > 0);
+}
+
+/// G201: a recognised line reads back as ONE run in both the extraction and
+/// the text model, with real space glyphs between its words, and two lines of
+/// a paragraph group into one layout block, so a line or paragraph can be
+/// selected and edited as such.
+#[test]
+fn each_recognised_line_reads_back_as_one_run_and_lines_group_into_a_paragraph() {
+    use pdfcer_core::block_layout::{LayoutOptions, analyze_layout};
+    use pdfcer_core::vector::{Matrix, VectorObject, decompose_page};
+
+    let line = |y: f64, words: [(&str, f64, f64); 3]| {
+        words.map(|(t, x0, x1)| word(t, x0, y, x1, y + 12.0))
+    };
+    let mut words = line(
+        400.0,
+        [
+            ("The", 72.0, 94.0),
+            ("quick", 98.0, 128.0),
+            ("brown", 132.0, 168.0),
+        ],
+    )
+    .to_vec();
+    words.extend(line(
+        386.0,
+        [
+            ("fox", 72.0, 90.0),
+            ("jumps", 94.0, 130.0),
+            ("over", 134.0, 160.0),
+        ],
+    ));
+    let ocr = OcrPage {
+        words,
+        confidence_available: true,
+        ..OcrPage::default()
+    };
+    let out = add_ocr_layer(&load("plain.pdf"), 0, &ocr, &OcrLayerOptions::new()).expect("written");
+    assert_eq!(out.report.lines_written, 2);
+    let saved = Document::from_bytes(out.bytes.clone()).expect("reloads");
+    let pages = page_tree::pages(&saved).expect("page tree");
+
+    let text = text_extract::extract_page(&saved, &pages[0], 0, &ExtractOptions::default())
+        .expect("extracts");
+    let lines: Vec<&str> = text
+        .runs
+        .iter()
+        .filter(|r| r.in_ocr_layer)
+        .map(|r| r.text.as_str())
+        .collect();
+    assert_eq!(lines, ["The quick brown", "fox jumps over"]);
+
+    let model = decompose_page(&saved.view(), &pages[0], Matrix::IDENTITY).expect("decomposes");
+    let runs: usize = model
+        .objects
+        .iter()
+        .filter_map(|o| match o {
+            VectorObject::Text(t) => Some(t.runs.len()),
+            _ => None,
+        })
+        .next_back()
+        .expect("the layer's text object");
+    assert_eq!(runs, 2, "one run per recognised line");
+
+    let layout = analyze_layout(
+        &saved.view(),
+        &ExtractOptions::default(),
+        &LayoutOptions::default(),
+    )
+    .expect("layout runs");
+    let page = &layout.pages[0];
+    let block = page
+        .blocks
+        .iter()
+        .find(|b| b.text(page).contains("quick"))
+        .expect("the OCR paragraph");
+    assert_eq!(block.lines.len(), 2, "{:?}", block.text(page));
+    assert!(
+        block.text(page).contains("fox jumps over"),
+        "{:?}",
+        block.text(page)
+    );
 }
