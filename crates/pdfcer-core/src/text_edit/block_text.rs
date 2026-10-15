@@ -4,10 +4,15 @@
 //!
 //! The block is the one [`ReflowEngine`](super::ReflowEngine) numbers (the
 //! cell-aware model under [`reflow_recognition_options`](super::reflow_recognition_options)).
-//! The new text is set in the block's FIRST run's font, size, text state and
-//! colours, encoded exactly as an `edit_text` of that run would encode it
-//! (code allocation, subset extension, same-face sibling), measured with that
-//! font's widths and packed with the shared greedy breaker
+//! Every character of the new text keeps the look (font, size, text state,
+//! colours) of the old character it survives from, by a diff of the old and
+//! new texts; an inserted character takes the look of the character before
+//! it, or after it at the start. Each font's characters are encoded exactly
+//! as an `edit_text` of that font's first run would encode them (code
+//! allocation, subset extension, same-face sibling). When the looks cannot
+//! all take the text, the whole text falls back to the first run's look and
+//! the report says why. The text is measured with each look's widths and
+//! packed with the shared greedy breaker
 //! ([`crate::linebreak::greedy_pack`]). The block's `BT … ET` region is
 //! replaced by one new text object: one `Tm` per line (§9.4.2), one `Tj`/`TJ`
 //! per line (§9.4.3), justify slack as negative `TJ` numbers after each word
@@ -16,7 +21,9 @@
 //! construction.
 
 mod emit;
+mod encode;
 mod layout;
+mod looks;
 
 use crate::page_tree::Rect;
 use crate::text_edit::cause::UnsupportedCause;
@@ -110,9 +117,14 @@ pub struct BlockEditReport {
     /// The block's alignment (detected; the new lines use it).
     pub alignment: BlockAlignment,
     /// Distinct looks among the block's runs: font, size, fill, stroke and
-    /// every text-state parameter except leading. `1` is a uniform block;
-    /// above `1` the new text flattens them to the first run's look.
+    /// every text-state parameter except leading. `1` is a uniform block.
+    /// Above `1` each surviving character keeps its own look, unless a
+    /// disclosure says the text fell back to the first run's.
     pub looks: usize,
+    /// New non-space characters with no counterpart in the old text, set in
+    /// the look of the character before them (after, at the start). `0` when
+    /// the text fell back to the first run's look.
+    pub inherited_characters: usize,
     /// New block height minus old, points (positive = taller).
     pub height_delta: f64,
     /// How far the last new baseline falls below the block's original last
@@ -121,12 +133,14 @@ pub struct BlockEditReport {
     /// The new block past the page cropbox, when it is. Content is written
     /// at its true position regardless.
     pub page_overflow: Option<PageOverflow>,
-    /// `/BaseFont` of the font the text is set in (subset tag included).
+    /// `/BaseFont` of the font the first look's text is set in (subset tag
+    /// included); [`BlockEditPreview::runs`] names every look's.
     pub base_font: String,
     /// `/BaseFont` of the first run's own font when a same-face sibling
-    /// carries the text instead ([`EditOptions::with_sibling_fonts`]).
+    /// carries its text instead ([`EditOptions::with_sibling_fonts`]).
     pub font_substituted_from: Option<String>,
-    /// Characters the font gained a glyph, code or `/ToUnicode` entry for.
+    /// Characters any of the block's fonts gained a glyph, code or
+    /// `/ToUnicode` entry for.
     pub glyphs_added: Vec<char>,
     /// The `/MCID` of the sequence enclosing the block, if tagged.
     pub tagged_mcid: Option<i64>,
@@ -154,8 +168,9 @@ pub struct BlockEditPreview {
     /// The box the new lines occupy: the wrap width wide, top-anchored.
     pub new_bbox: Rect,
     /// Every glyph, positioned, for drawing (`pdfcer_render::edit_preview`):
-    /// font, colours, render mode and one matrix per code.
-    pub glyphs: TextEditPreview,
+    /// one preview per look the new text uses, each with its font, colours,
+    /// render mode and one matrix per code. A uniform block has one.
+    pub runs: Vec<TextEditPreview>,
     /// What the commit would report (`content_object` and
     /// `extra_objects_emptied` as planned, before any decoupling).
     pub report: BlockEditReport,
@@ -170,8 +185,9 @@ pub enum BlockEditError {
     /// XObject, an encrypted document, …
     #[error(transparent)]
     Block(#[from] ReflowApplyError),
-    /// The first run's font cannot take the new text: every character it
-    /// refuses is named, as `edit_text` names them.
+    /// The first run's font cannot take the new text (the per-look encoding
+    /// having failed first, or the block having one look): every character
+    /// it refuses is named, as `edit_text` names them.
     #[error(transparent)]
     Text(#[from] EditError),
     /// The new text has no non-whitespace character. Deleting a block is a

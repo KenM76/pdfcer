@@ -1,5 +1,5 @@
-//! The shared plan: locate the block, encode the new text in its first run's
-//! font, measure and pack it, and lay the lines out in the block's frame.
+//! The shared plan: locate the block, encode the new text look by look,
+//! measure and pack it, and lay the lines out in the block's frame.
 
 use crate::content::ContentStream;
 use crate::linebreak::greedy_pack;
@@ -10,8 +10,8 @@ use crate::text_state::TextStateParam;
 use crate::view::DocumentView;
 
 use super::emit::{EmitInput, emit_lines};
+use super::encode::{EncodeCtx, Encoded, encode};
 use super::{BlockEditError, BlockEditLine, BlockEditOptions, BlockEditPreview, BlockEditReport};
-use crate::text_edit::edit::block_encode::{BlockEncoding, encode_block};
 use crate::text_edit::edit::{EditPlanTarget, FontWrites, glyph_advance_with, walk_records};
 use crate::text_edit::model::{Block, EditableTextModel};
 use crate::text_edit::reflow::{
@@ -147,25 +147,16 @@ pub(crate) fn plan_block_text(
     let located = locate(&model, block, &stream)?;
     let target = EditPlanTarget::page(page)?;
     let recs = walk_records(doc, &page.resources, &stream);
-    let flat: String = words.flat.iter().collect();
-    let enc = encode_block(
+    let ectx = EncodeCtx {
         doc,
-        &target,
-        &recs,
+        target: &target,
+        recs: &recs,
         page_index,
-        located.anchor_span,
-        &flat,
-        &opts.edit,
-    )?;
-    if enc.codes.len() != words.flat.len() {
-        return Err(BlockEditError::unsupported(
-            UnsupportedCause::CommitFailed {
-                detail: "the encoder did not give one code per character".to_owned(),
-            },
-        ));
-    }
+        opts: &opts.edit,
+    };
+    let enc = encode(&ectx, &model, block, &located, &words.flat)?;
     let frame = frame_of(&model, block, &shape);
-    let measure = Measure::new(&enc, &located.style, &located.prov);
+    let measure = Measure::new(&enc, &located.prov);
     let lines = place(&words, &frame, &measure);
     let ctx = PlanCtx {
         page,
@@ -276,23 +267,31 @@ fn frame_of(model: &EditableTextModel<'_>, block: &Block, shape: &ReflowPreview)
 pub(super) struct Measure {
     /// User-space units per text-space unit along the line (`Tm.a × CTM.a`).
     pub(super) scale: f64,
-    /// Per character of `Words::flat`, its advance in text space (§9.4.4).
+    /// Per character of `Words::flat`, its advance in text space (§9.4.4),
+    /// in its own look's font, size and text state.
     pub(super) advances: Vec<f64>,
 }
 
 impl Measure {
-    fn new(enc: &BlockEncoding, style: &SpanStyle, prov: &BlockProvenance) -> Self {
-        let get = |p| style.ambient.get(p).value;
-        let th = get(TextStateParam::HorizScale) / 100.0;
-        let (tc, tw) = (
-            get(TextStateParam::CharSpacing),
-            get(TextStateParam::WordSpacing),
-        );
-        let single_byte = enc.font.bytes_per_code() == 1;
+    fn new(enc: &Encoded, prov: &BlockProvenance) -> Self {
         let advances = enc
             .codes
             .iter()
-            .map(|&c| glyph_advance_with(&enc.font, c, style.size, tc, tw, th, single_byte))
+            .enumerate()
+            .map(|(i, &c)| {
+                let (look, font) = enc.at(i);
+                let (Some(style), Some(font)) = (enc.looks.styles.get(look), font) else {
+                    return 0.0;
+                };
+                let get = |p| style.ambient.get(p).value;
+                let th = get(TextStateParam::HorizScale) / 100.0;
+                let (tc, tw) = (
+                    get(TextStateParam::CharSpacing),
+                    get(TextStateParam::WordSpacing),
+                );
+                let single_byte = font.font.bytes_per_code() == 1;
+                glyph_advance_with(&font.font, c, style.size, tc, tw, th, single_byte)
+            })
             .collect();
         Self {
             scale: prov.tm_a * prov.ctm_a,
@@ -384,7 +383,7 @@ struct PlanCtx<'p> {
     shape: &'p ReflowPreview,
     frame: &'p Frame,
     words: &'p Words,
-    enc: BlockEncoding,
+    enc: Encoded,
     located: Located,
 }
 
@@ -433,9 +432,11 @@ fn finish(
             width: l.width,
         })
         .collect();
-    let mut glyphs = emitted.glyphs;
-    glyphs.bbox = [new_bbox.llx, new_bbox.lly, new_bbox.urx, new_bbox.ury];
-    glyphs.disclosures.clone_from(&report.disclosures);
+    let mut runs = emitted.runs;
+    for run in &mut runs {
+        run.bbox = [new_bbox.llx, new_bbox.lly, new_bbox.urx, new_bbox.ury];
+        run.disclosures.clone_from(&report.disclosures);
+    }
     let enc = ctx.enc;
     Ok(BlockTextPlan {
         new_content,
@@ -445,7 +446,7 @@ fn finish(
             leading: ctx.frame.leading,
             old_bbox: ctx.shape.old_bbox,
             new_bbox,
-            glyphs,
+            runs,
             report,
         },
     })
@@ -506,6 +507,7 @@ fn report_of(
         wrap_width: ctx.frame.wrap_width,
         alignment: ctx.frame.alignment,
         looks: ctx.located.looks,
+        inherited_characters: ctx.enc.looks.inherited,
         height_delta: new_bbox.height() - old.height(),
         overflow_pt: (drop > EPS).then_some(drop),
         page_overflow: page_overflow(
@@ -514,9 +516,13 @@ fn report_of(
             lines,
             old_last_baseline(ctx.shape) - old.lly,
         ),
-        base_font: ctx.enc.font.base_font.clone(),
-        font_substituted_from: ctx.enc.substituted_from.clone(),
-        glyphs_added: ctx.enc.glyphs_added.clone(),
+        base_font: ctx
+            .enc
+            .first()
+            .map(|f| f.font.base_font.clone())
+            .unwrap_or_default(),
+        font_substituted_from: ctx.enc.first().and_then(|f| f.substituted_from.clone()),
+        glyphs_added: ctx.enc.glyphs_added(),
         tagged_mcid: ctx.located.prov.mcid,
         marked_content_removed: marked_removed,
         content_object,

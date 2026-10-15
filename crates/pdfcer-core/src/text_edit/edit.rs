@@ -2062,6 +2062,24 @@ impl FontWrites {
         Ok(())
     }
 
+    /// Both sets of writes, or `None` when they would write one object
+    /// twice: two fonts gaining decision 173 programs share placeholder ids.
+    pub(crate) fn merged(mut self, other: Self) -> Option<Self> {
+        let ids = |w: &Self| -> Vec<ObjId> {
+            let objs = w.objects.iter().map(|(id, _)| *id);
+            objs.chain(w.streams.iter().map(|(id, _, _)| *id)).collect()
+        };
+        let mine = ids(&self);
+        let clash = ids(&other).iter().any(|id| mine.contains(id));
+        if clash || (!self.fresh.is_empty() && !other.fresh.is_empty()) {
+            return None;
+        }
+        self.objects.extend(other.objects);
+        self.streams.extend(other.streams);
+        self.fresh.extend(other.fresh);
+        Some(self)
+    }
+
     /// The objects with every stream staged after the base file, and the
     /// staging buffer to hand [`write_incremental_with`].
     fn staged(&self, doc: &Document) -> (Vec<(ObjId, Object)>, Vec<u8>) {

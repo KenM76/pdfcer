@@ -63,6 +63,7 @@ mod drawing_on_layer;
 mod dxf_export;
 mod dxf_scale;
 mod edit_block_text;
+mod edit_block_text_looks;
 mod edit_checkpoint;
 mod edit_latency;
 mod edit_text_preview;

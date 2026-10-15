@@ -1,5 +1,5 @@
 //! `EditSession::edit_block_text`: a block's whole text replaced and
-//! re-wrapped in its first run's look, one undo entry, a preview that is the
+//! re-wrapped (each character keeping its look, Pass 596.0), one undo entry, a preview that is the
 //! commit's own plan (Pass 433.0).
 //!
 //! Fixture: `fixtures/synthetic/reflow/block_text.pdf` (generator
@@ -158,8 +158,9 @@ fn the_preview_is_the_commit() {
         assert!((got.1 - want.origin_x).abs() < 0.01, "{got:?} vs {want:?}");
     }
     let chars: usize = preview.lines.iter().map(|l| l.text.chars().count()).sum();
-    assert_eq!(preview.glyphs.glyphs.len(), chars, "a glyph per code");
-    let first = &preview.glyphs.glyphs[0];
+    let glyphs: Vec<_> = preview.runs.iter().flat_map(|r| &r.glyphs).collect();
+    assert_eq!(glyphs.len(), chars, "a glyph per code");
+    let first = &preview.runs[0].glyphs[0];
     assert!((first.matrix[4] - preview.lines[0].origin_x).abs() < 0.01);
     assert!((first.matrix[5] - preview.lines[0].baseline_y).abs() < 0.01);
 }
@@ -305,7 +306,7 @@ fn a_word_in_a_second_colour_is_a_second_look() {
     let (hit, preview, disclosures) = looks_of(&paragraph("1 0 0 rg (red ) Tj 0 g"));
     assert_eq!((hit, preview), (Some(2), 2));
     assert!(
-        disclosures.iter().any(|d| d.contains("mixed 2 looks")),
+        disclosures.iter().any(|d| d.contains("2 looks are kept")),
         "{disclosures:?}"
     );
 }

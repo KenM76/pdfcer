@@ -129,6 +129,18 @@ fn encode_once<'a>(
     })
 }
 
+/// The recorded state (colours, text state) of the show operator `span`
+/// names.
+pub(crate) fn show_at(recs: &[OpRec], page_index: usize, span: ByteSpan) -> Option<ShowData> {
+    let req = EditRequest::whole_operator(page_index, span, "");
+    match recs.get(find_anchor(recs, &req).ok()?) {
+        Some(OpRec {
+            rec: Rec::Show(s), ..
+        }) => Some((**s).clone()),
+        _ => None,
+    }
+}
+
 /// The encoder speaks once per character occurrence; a block repeats them.
 fn distinct(all: Vec<String>) -> Vec<String> {
     let mut out: Vec<String> = Vec::with_capacity(all.len());

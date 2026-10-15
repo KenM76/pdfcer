@@ -169,6 +169,7 @@ fn print_report(r: &BlockEditReport) {
     println!("wrap width: {:.2} pt", r.wrap_width);
     println!("alignment: {:?}", r.alignment);
     println!("looks: {}", r.looks);
+    println!("inherited_characters: {}", r.inherited_characters);
     println!("height change: {:+.2} pt", r.height_delta);
     if let Some(pt) = r.overflow_pt {
         println!("overflow: {pt:.2} pt below the original bottom");
