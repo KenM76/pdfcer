@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 594.0` — OCR layer writes one show operator per recognised line (`G201`, operator request `O295`) — SHIPPED 2026-10-15 (1078th filing)
+
+Commit `191396da` on `main`, not pushed at filing time (engineer-stated; no shell here, not checked). No manifest change, `cargo tree` unchanged. Reply `reply_request_G201_ocr_layer_reads_back_one_run_per_word_FIXED.md` in `pdfce_FeatureRequests/open/`.
+
+- **Defect.** Every OCR word was its own run with its own size, so only words were selectable and `analyze_layout` had no lines to group.
+- **Fix.** `ocr::layer_content::build_layer_content` (signature unchanged) writes each line as one show operator: one `Tf` size per line spanning every word's ascender and descender; one `Tz` from summed box widths over natural widths; words joined by the font's space glyph inside a `TJ` array; a `TJ` number landing each later word's start on its box; bounded intra-word letter-gap `TJ` numbers (+8% / -15% of size, under the 0.20 x size extraction word-break threshold) landing each word's end on its box. The layer opens `q 3 Tr 0 Tc 0 Tw 0 Ts` so an inherited `Tw` cannot push words (ISO 32000-1 §9.3.3). Read back, a line is one `TextRun` and the block's lines group into a paragraph.
+- **Tests.** `tests/ocr_layer.rs`: position test now measures each word's glyph extent inside its line run (dx/dw < 0.01, dy < 1.0); new `each_recognised_line_reads_back_as_one_run_and_lines_group_into_a_paragraph`. `tests/text_run_merge.rs`: `two_ocr_words_merge_and_stay_invisible` now reports lines and a block. `docs/core-api/03-capabilities.md` row updated.
+
+Tests (engineer-reported): `tools/run-gates.sh` PASS, 46 commands, 12,835 tests.
+
+`FEATURES.md`: OCR row core `[x]` cli `[x]` note added (`pdfcer ocr` writes it); gui not ticked (separate project).
+
+Ledgers: no decision; next free `Pass 595.0`; next filing 1079th.
+
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
@@ -22153,6 +22167,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **Taken up from `pdfcer-gui`, 2026-10-14 (1076th filing): 1 request `G195` as `Pass 590.0`; SHIPPED at the same filing (`49fc6082`), see *Shipped*.** The batch is complete. Next free `Pass 591.0`; next filing 1077th.
 
 > **Taken up from `pdfcer-gui`, 2026-10-15 (1077th filing): 2 requests `G197`, `G198` as `Pass 591.0`, `592.0`; plus self-found `Pass 593.0`; all SHIPPED at the same filing (`b479e72f`), see *Shipped*.** The batch is complete. Next free `Pass 594.0`; next filing 1078th.
+
+> **Taken up from `pdfcer-gui`, 2026-10-15 (1078th filing): 1 request `G201` as `Pass 594.0`; SHIPPED at the same filing (`191396da`), see *Shipped*.** The batch is complete. Next free `Pass 595.0`; next filing 1079th.
 
 > **Before the 1068th filing: no open item remained in *Next up*.** `Pass 580.0` (the last, self-found at the 1053rd filing) had shipped; see *Shipped*.
 

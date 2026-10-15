@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-15 (1078th filing) — `Pass 594.0` shipped in `191396da` (`G201`, OCR layer one show operator per line)
+
+**Shipped (engineer-reported, no shell here, push state not checked; engineer says not yet pushed):** `191396da`. `ocr::layer_content::build_layer_content` writes each line as one show operator (per-line `Tf`/`Tz`, words joined by the space glyph in a `TJ` array with positioning numbers, bounded letter-gap numbers, layer opens `q 3 Tr 0 Tc 0 Tw 0 Ts`). A line now reads back as one `TextRun`; lines group into a paragraph. Signature unchanged.
+
+**Findings:** gates `run-gates.sh` PASS, 46 commands, 12,835 tests; no manifest change. Reply for `G201` written by the engineer.
+
+**Filed as:** Shipped entry, Next up banner, `FEATURES.md` OCR row note (core + cli, gui not ticked). Sizes not run through `check-register-entry-size.py` (no shell); the OCR row was already over 1,200 characters before this edit and grew by one sentence.
+
+**For next session:** next free `Pass 595.0`; next filing 1079th. Commit of these docs is the engineer's.
+
 ## 2026-10-15 (1077th filing) — `Pass 591.0`, `592.0`, `593.0` shipped in `b479e72f` (`G197`, `G198`, oriented search quads)
 
 **Shipped (engineer-reported, no shell here, push state not checked; engineer says not yet pushed):** commit `b479e72f`. `591.0` OCR layer follows page `/Rotate` (`G197`; per-word `Tm`, size/`Tz`, line inference in displayed axes; `add_ocr_layer` and `pdfcer ocr` read `/Rotate`). `592.0` `EditSession::upscale_image` + `pdfcer upscale-images` (`G198`; shared kernels in `image_resample.rs`). `593.0` `TextMatch::quad` oriented along glyph direction, found while checking `G197`.
