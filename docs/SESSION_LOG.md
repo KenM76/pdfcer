@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-15 (1083rd filing) — `v0.83.0` published
+
+**Release:** `v0.83.0` PUBLISHED. Bump `3cc1cf10`; annotated tag (object `ef252e78`) at `5e4404ec` (1082nd filing commit); `main` and tag pushed. `run-gates.sh` PASS (46 commands, 2 filing gates; skipped `cargo-about` regeneration and `--all-features` tests, as on prior plain runs). CI green at `5e4404ec` (run `38795600720`, 13m36s). Build `D:\builds\pdfcer-20261015-1538-5e4404e`. Fresh-folder smoke PASS (`--version` 0.83.0 / revision `v0.83.0`; `inspect`; incremental `rotate` with byte-identical prefix; `render-page`; `ocr` with bundled paddle models beside the exe). GitHub release via `gh-release.py`, 8 assets (zip 25,977,734 bytes). OneDrive `pdfcer2` = 0.83.0, 6 items, 70,122,303 bytes; `pdfcer1` keeps 0.82.0; next release writes `pdfcer1`. `verify-release.py v0.83.0`: 8 of 9 ok, 1 FAIL ("working tree clean") from 2 uncommitted other-agent memory files (`.claude/agent-memory/pdfcer-spec-librarian/MEMORY.md`, `project_corpus_state.md`); recorded as a FAIL. Range `Pass 591.0`-`597.0` plus two tooling/ocr-host fixes. Engineer-reported; no shell.
+
+**Filed as:** the `v0.83.0` Shipped entry rewritten to PUBLISHED, this entry. `FEATURES.md` untouched (no box changes). No decisions. `check-register-entry-size.py` not run (no shell).
+
+**For next session:** `pdfcer-gui` can pick up `596.0`'s `BlockEditPreview::glyphs` -> `runs` change. Next free `Pass 598.0`; next filing 1084th. Spec-librarian memory files still uncommitted.
+
 ## 2026-10-15 (1082nd filing) — `v0.83.0` version bump `3cc1cf10`; release in progress
 
 **Release (engineer-reported, no shell here, push state not checked):** `3cc1cf10` ("chore: v0.83.0") moves the workspace version 0.82.0 -> 0.83.0 in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`, and nothing else. Release to GitHub requested by Ken 2026-10-15. Holds `Pass 591.0`-`597.0` shipped since `v0.82.0`, including `594.0` (`G201`), `595.0` (`G200`), `596.0` (`G199`; `BlockEditPreview::glyphs` became `runs`, a GUI-facing API change) and `597.0` (`G196`). Pending, none claimed: gates, tag, CI at tag, packaging, GitHub release, OneDrive deploy (slot `pdfcer2`).

@@ -5,25 +5,18 @@ Engineer-owned; replaced each session. The previous long-form handoff
 (gate-sweep history, the carried OWED list, benchmark recipes) is in git:
 `git show 78635459:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-14, after the v0.82.0 release and the 1076th filing;
-ledgers and the G196-G201 note refreshed 2026-10-15 after the 1081st.
+**Written:** 2026-10-15, after the v0.83.0 release and the 1083rd filing.
 
 ## State
 
-- **Release:** v0.82.0 is published (tag at `11a4f1ea`, GitHub 8 assets,
-  OneDrive `pdfcer1`; `pdfcer2` keeps 0.81.0). **The next release writes
-  `pdfcer2`.** Post-release fixes `1d7f12af` (ocr-host retries a spawn that
-  hits Linux `ETXTBSY`, which failed CI at the tag once) and `155e2272`
-  (package-portable clears a ReadOnly dir when removing a staged add-on).
+- **Release:** v0.83.0 is published (tag at `5e4404ec`, GitHub 8 assets,
+  OneDrive `pdfcer2`; `pdfcer1` keeps 0.82.0). **The next release writes
+  `pdfcer1`.** It carries 591.0-597.0 (G196-G201), including 596.0's GUI
+  API change (`BlockEditPreview::glyphs` became `runs`). `verify-release`
+  failed only "working tree clean", on the uncommitted spec-librarian
+  memory files, which are deliberately left uncommitted.
 - **Ledgers:** next free Pass **598.0** (589.0 is the Backlog det-normalisation
-  investigation; 590.0 is G195, `docs/ocr-upscale.md`); next filing **1082nd**; no decision added since 183. Core-api verb count **371**.
-- **Since the release (all pushed, each with a FIXED reply):** 591.0-593.0,
-  594.0 (G201, OCR layer one show per line), 595.0 (G200, reflow breaks at
-  derived word spaces), 596.0 (G199, `edit_block_text` keeps every
-  character's look; `BlockEditPreview::glyphs` became `runs`, a GUI API
-  change), 597.0 (G196, VL loop guard catches numbered lists and keeps one
-  copy; the smoothed fixture now reads in ~2 min). The next release must
-  carry these; pdfcer-gui is waiting on 596.0's API change.
+  investigation; 590.0 is G195, `docs/ocr-upscale.md`); next filing **1084th**; no decision added since 183. Core-api verb count **371**.
 - **G194 shipped as `588.0`** (`475c6f4a`): four pinned OCR sets (`ocrs`,
   `ppocrv5-latin`, `ppocrv4-ch-en`, `ocrcer`), `manifest()` written on fetch,
   `fetch-ocr-models --model NAME`, paddle reads `inference.yml`'s

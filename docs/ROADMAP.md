@@ -112,9 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.83.0` — version bump `3cc1cf10`; release IN PROGRESS, publication NOT yet recorded (1082nd filing)
+### `v0.83.0` — PUBLISHED (2026-10-15): release out, CI green at the tag; `verify-release.py` has 1 explained FAIL ("working tree clean") (1083rd filing, amends 1082nd)
 
-Bump `3cc1cf10` ("chore: v0.83.0"): workspace version 0.82.0 -> 0.83.0 in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`, nothing else. Release to GitHub requested by Ken 2026-10-15. Contents: `Pass 591.0`-`597.0` shipped since `v0.82.0`, including `594.0` (`G201`), `595.0` (`G200`), `596.0` (`G199`; `BlockEditPreview::glyphs` became `runs`, a GUI-facing API change) and `597.0` (`G196`). Pending, none claimed done: gates, tag, CI at tag, packaging, GitHub release, OneDrive deploy (slot `pdfcer2`). A later filing records publication. Engineer-reported; I have no shell (hard rule 8).
+Bump `3cc1cf10` ("chore: v0.83.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`). Annotated tag `v0.83.0` (tag object `ef252e78`) points at `5e4404ec`, the docs-only 1082nd filing commit and a descendant of the bump (same placement as `v0.82.0`, so `git describe --tags` stamps `v0.83.0`). `main` and the tag are pushed. Contents: `Pass 591.0`-`597.0` (`G197`, `G198`, `G201`, `G200`, `G199`, `G196`) plus two tooling/ocr-host fixes. `pdfcer-gui` can now pick up `596.0`'s API change (`BlockEditPreview::glyphs` became `runs`). All figures engineer-reported; I have no shell (hard rule 8).
+
+- **`tools/run-gates.sh`: PASS**, 46 commands including 2 filing gates. It skipped `cargo-about` regeneration and the `--all-features` test run, as on prior plain runs.
+- **CI green at `5e4404ec`** (GitHub run `38795600720`, 13m36s).
+- **Build** `D:\builds\pdfcer-20261015-1538-5e4404e`. **Fresh-folder smoke: PASS**, from a copy in a new folder: `--version` prints `0.83.0` revision `v0.83.0`; `inspect`; incremental `rotate` (original bytes kept as a byte-identical prefix); `render-page`; `ocr` with the bundled paddle models found beside the exe.
+- **GitHub release** via `tools/gh-release.py`: PASS, 8 assets. `pdfcer-v0.83.0-windows-x64.zip` 25,977,734 bytes; `ocr-addon-ocrcer.zip` 3,789,155; `ocr-addon-ocrs.zip` 11,352,262; `ocr-addon-tesseract.zip` 4,483,685; each with a `.sha256` (4 zips + 4 = 8).
+- **OneDrive:** `pdfcer2` now 0.83.0 (6 items, 70,122,303 bytes); `pdfcer1` keeps 0.82.0. The next release writes `pdfcer1`.
+- **`tools/verify-release.py v0.83.0`: 8 of 9 checks ok, 1 FAIL ("working tree clean").** It has NOT fully passed. Cause: 2 uncommitted paths, `.claude/agent-memory/pdfcer-spec-librarian/MEMORY.md` and `project_corpus_state.md` (another agent's memory files, not in the build, deliberately left uncommitted). Recorded as a FAIL, not as clean.
 
 ### `Pass 597.0` — PaddleOCR-VL loop guard catches a numbered list and keeps one copy (`G196`) — SHIPPED 2026-10-15 (1081st filing)
 
