@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-15 (1082nd filing) — `v0.83.0` version bump `3cc1cf10`; release in progress
+
+**Release (engineer-reported, no shell here, push state not checked):** `3cc1cf10` ("chore: v0.83.0") moves the workspace version 0.82.0 -> 0.83.0 in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`, and nothing else. Release to GitHub requested by Ken 2026-10-15. Holds `Pass 591.0`-`597.0` shipped since `v0.82.0`, including `594.0` (`G201`), `595.0` (`G200`), `596.0` (`G199`; `BlockEditPreview::glyphs` became `runs`, a GUI-facing API change) and `597.0` (`G196`). Pending, none claimed: gates, tag, CI at tag, packaging, GitHub release, OneDrive deploy (slot `pdfcer2`).
+
+**Filed as:** a `v0.83.0` entry atop Shipped in `ROADMAP.md` (same shape as the `v0.82.0` filing) and this entry. `FEATURES.md` untouched (no box changes). No decisions. No `### ` heading added to Next up; sizes not run through `check-register-entry-size.py` (no shell).
+
+**For next session:** a separate filing records publication (push, CI at tag, verify-release, assets, OneDrive). Next free `Pass 598.0`; next filing 1083rd.
+
 ## 2026-10-15 (1081st filing) — `Pass 597.0` shipped in `dacb5262` (`G196`, PaddleOCR-VL loop guard catches a numbered list)
 
 **Shipped (engineer-reported, no shell here, not pushed at filing time):** `dacb5262`. `vl_decode` treats a line as repeated when identical, or when only the first 4 tokens differ over a shared tail of 4+; twelve repeats stop decoding and the tokens are cut back to keep only the first copy (11 invented lines no longer written to the OCR layer); `mean_probability` over kept tokens. Disclosure text in `pdfcer-ocr-host` and `docs/core-api/03-capabilities.md` updated.

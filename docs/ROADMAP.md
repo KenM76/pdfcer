@@ -112,6 +112,10 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.83.0` — version bump `3cc1cf10`; release IN PROGRESS, publication NOT yet recorded (1082nd filing)
+
+Bump `3cc1cf10` ("chore: v0.83.0"): workspace version 0.82.0 -> 0.83.0 in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`, nothing else. Release to GitHub requested by Ken 2026-10-15. Contents: `Pass 591.0`-`597.0` shipped since `v0.82.0`, including `594.0` (`G201`), `595.0` (`G200`), `596.0` (`G199`; `BlockEditPreview::glyphs` became `runs`, a GUI-facing API change) and `597.0` (`G196`). Pending, none claimed done: gates, tag, CI at tag, packaging, GitHub release, OneDrive deploy (slot `pdfcer2`). A later filing records publication. Engineer-reported; I have no shell (hard rule 8).
+
 ### `Pass 597.0` — PaddleOCR-VL loop guard catches a numbered list and keeps one copy (`G196`) — SHIPPED 2026-10-15 (1081st filing)
 
 Commit `dacb5262` on `main`, not pushed at filing time (engineer-stated; no shell here, not checked). No manifest change, `cargo tree` unchanged. Reply `reply_request_G196_..._FIXED.md` in `pdfce_FeatureRequests/open/`; it tells the shell it can drop its paddle-vl `PointSample` special case.
