@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-15 (1080th filing) — `Pass 596.0` shipped in `aa208f45` (`G199`, `edit_block_text` keeps every character's look)
+
+**Shipped (engineer-reported, no shell here, push state not checked):** `aa208f45`. `edit_block_text`/`_preview` diff old vs new non-space text (prefix/suffix + LCS, 4M-cell cap) so surviving characters keep font, size, text state, colours; inserted characters inherit the previous (or next at start) look; fonts encoded once and interleaved; disclosed whole-text fallback to the first run's look on a two-font program conflict or a refused character. `BlockEditPreview::glyphs` became `runs`; `BlockEditReport::inherited_characters` added and printed by the CLI.
+
+**Findings:** gates `run-gates.sh` PASS (46 commands); core lib 1,537, `all` 2,977, CLI 880 passed. New fixture `block_mixed_looks.pdf`, 3 new tests. No manifest change.
+
+**Filed as:** Shipped entry; `FEATURES.md` row *Replace a block's text and re-wrap it* (stale "first run's font only" clause removed; gui not ticked). Sizes not run through `check-register-entry-size.py` (no shell).
+
+**Hard-rule-11 sweep:** fixed the one survivor I found in FEATURES row 570 itself. Not swept in `crates/` or other docs (no shell-free full pass done); engineer should grep case-insensitively for "first run" / "only the first" over the `text_edit` and `edit_block_text` files, and `docs/core-api/`.
+
+**For next session:** next free `Pass 597.0`; next filing 1081st. Commit of these docs is the engineer's.
+
 ## 2026-10-15 (1079th filing) — `Pass 595.0` shipped in `20e56dcf` (`G200`, reflow breaks at derived word spaces)
 
 **Shipped (engineer-reported, no shell here, push state not checked):** `20e56dcf`. `reflow_block`/`apply_reflow` end a word at `TextOrigin::DerivedWordSpace`; new `ReflowDiagnostics::derived_word_breaks` (disclosed in the preview, ISO 32000-1 §14.8); `line_text`/`block_text` insert a space there. A new word gap uses a space glyph the block shows, else code 32 only if the simple font maps it to " " with non-zero width, else a disclosed `TJ` displacement (§9.4.3). `UnsupportedCause::NoSpaceGlyph` no longer produced, variant kept.

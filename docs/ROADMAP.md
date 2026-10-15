@@ -112,6 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 596.0` — `edit_block_text` keeps every character's look (`G199`) — SHIPPED 2026-10-15 (1080th filing)
+
+Commit `aa208f45` on `main`, not pushed at filing time (engineer-stated; no shell here, not checked). No manifest change, `cargo tree` unchanged. Reply `reply_request_G199_..._FIXED.md` in `pdfce_FeatureRequests/open/`.
+
+- **Defect.** `EditSession::edit_block_text`/`edit_block_text_preview` set the whole paragraph in the first run's look.
+- **Fix.** A diff of old and new non-space text (prefix/suffix plus LCS, capped at 4M cells) keeps each surviving character's font, size, text state and colours. An inserted character takes the previous character's look (the next one's at the start); a space takes the previous look. Each distinct font is encoded once, codes interleaved, the fonts' `FontWrite`s merged. Whole-text fallback to the first run's look, disclosed, when two fonts would both gain a program or a font refuses a character.
+- **API change.** `BlockEditPreview::glyphs` replaced by `runs: Vec<TextEditPreview>` (one per look); `BlockEditReport` gains `inherited_characters`; CLI `edit-block-text` prints it. `docs/core-api/02-editing-and-saving.md` updated.
+- **Tests.** New fixture `fixtures/synthetic/reflow/block_mixed_looks.pdf` (`tools/gen-block-mixed-looks-fixture.py`); new `tests/edit_block_text_looks.rs` (3 tests); `edit_block_text.rs` updated.
+
+Tests (engineer-reported): core lib 1,537 passed / 2 ignored; core integration `all` 2,977 / 2 ignored; CLI 880 / 2 ignored; `tools/run-gates.sh` PASS (46 commands); `check-core-api-verbs` PASS.
+
+`FEATURES.md`: *Replace a block's text and re-wrap it* row — dropped the stale "takes only the first run's font" clause, added the per-character note; core `[x]` cli `[x]` gui `[ ]` (not ticked, `pdfcer-gui` has not consumed it).
+
+Ledgers: no decision; next free `Pass 597.0`; next filing 1081st.
+
 ### `Pass 595.0` — reflow breaks at derived word spaces; new word gaps need a usable space glyph or become a `TJ` displacement (`G200`) — SHIPPED 2026-10-15 (1079th filing)
 
 Commit `20e56dcf` on `main`, push state not checked (no shell here). No manifest change, `cargo tree` unchanged. Reply `reply_request_G200_reflow_breaks_only_at_a_real_space_glyph_FIXED.md` in `pdfce_FeatureRequests/open/`.
@@ -22185,7 +22200,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **Taken up from `pdfcer-gui`, 2026-10-15 (1078th filing): 1 request `G201` as `Pass 594.0`; SHIPPED at the same filing (`191396da`), see *Shipped*.** The batch is complete. Next free `Pass 595.0`; next filing 1079th.
 
-> **Taken up from `pdfcer-gui`, 2026-10-15 (1079th filing): 1 request `G200` as `Pass 595.0`; SHIPPED at the same filing (`20e56dcf`), see *Shipped*.** The batch is complete. Next free `Pass 596.0`; next filing 1080th.
+> **Taken up from `pdfcer-gui`, 2026-10-15 (1079th filing): 1 request `G200` as `Pass 595.0`; SHIPPED at the same filing (`20e56dcf`), see *Shipped*.** The batch is complete. Next free `Pass 597.0`; next filing 1081st. (`Pass 596.0`, `G199`, SHIPPED `aa208f45` at the 1080th filing, see *Shipped*.)
 
 > **Before the 1068th filing: no open item remained in *Next up*.** `Pass 580.0` (the last, self-found at the 1053rd filing) had shipped; see *Shipped*.
 
