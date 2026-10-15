@@ -115,6 +115,20 @@ wherever it appears.*
 > **Older entries (before 2026-09-01) are in [`history/roadmap-shipped-before-2026-09.md`](history/roadmap-shipped-before-2026-09.md)** — verbatim, still citation-valid, still scanned by the filing gates.
 > They were moved out of this file on 2026-09-10 because it had reached 168,036 lines and is read every session.
 
+### `Pass 591.0` / `592.0` / `593.0` — OCR layer follows `/Rotate` (`G197`); `EditSession::upscale_image` + `pdfcer upscale-images` (`G198`); search-hit quads follow glyph direction (self-found) — SHIPPED 2026-10-15 (1077th filing)
+
+Commit `b479e72f` on `main`, not pushed at filing time (engineer-stated; I have no shell and did not check). No dependency change, so no `cargo tree` change. Requests `G197`, `G198`; replies `reply_request_G197_ocr_layer_words_ignore_page_rotate_FIXED.md` and `reply_request_G198_no_verb_resamples_a_placed_image_FIXED.md` in `pdfce_FeatureRequests/open/`, naming `b479e72f`.
+
+- **`Pass 591.0` (`G197`).** The OCR layer writer (`crates/pdfcer-core/src/ocr/layer_content.rs`, `ocr/layer.rs`) takes the page's `/Rotate`: per-word `Tm` turned to the displayed axes (`0 1 -1 0` at 90, `-1 0 0 -1` at 180, `0 -1 1 0` at 270), size and `Tz` fitted to the displayed box, line inference along the displayed baseline. `add_ocr_layer` and `pdfcer ocr` read `/Rotate` themselves. Verified end to end with the paddle-vl add-on on a `/Rotate 90` page.
+- **`Pass 592.0` (`G198`).** New `EditSession::upscale_image(page_index, object_index, Upscale) -> Result<ImageUpscale, EditError>`: new XObject FlateDecode, CTM unchanged, `/Indexed` nearest, 1-bit stays bilevel; refusals `EditError::ImageUpscaleUnsupported`; undo `CommandKind::UpscaleImage`. Shared kernels in new module `image_resample.rs`. CLI `pdfcer upscale-images` (dry run without `--output`). Smoke: 850x1100 to 1700x2200, 36,523 to 238,163 bytes (6.5x), renders the same. `docs/core-api/02-editing-and-saving.md` documents it.
+- **`Pass 593.0` (found while checking `G197`).** `TextMatch::quad` assumed left-to-right glyphs; it is now oriented along the matched glyphs' direction (rotated/vertical hits get a turned quad; horizontal unchanged). Test `crates/pdfcer-core/tests/search_rotated.rs`, sabotage-verified. `docs/core-api/01-reading-and-model.md` updated.
+
+Tests (engineer-reported): `tools/run-gates.sh` PASS (46 commands including 2 filing gates); `pdfcer-core` `all` 2,973 passed, core lib 1,531 passed. README subcommand count now 233 working.
+
+`FEATURES.md`: new row *Upscale a placed image* core `[x]` cli `[x]` gui `[ ]` (gui tracks `pdfcer-gui`, not ticked); OCR-layer row and *Find text* row gained a note each (core + cli fixes to existing capabilities, no box change).
+
+Ledgers: no decision; next free `Pass 594.0`; next filing 1078th.
+
 ### `Pass 590.0` — `docs/ocr-upscale.md` written: the file the `ocr::upscale` module header cited and never had (documentation only; answers `pdfcer-gui` `G195`) — SHIPPED 2026-10-14 (1076th filing)
 
 Commit `49fc6082`. Push state not checked (no shell here). No code, no `pub` change, no dependency, no decision; the `cargo tree` invariant is untouched. Request `pdfce_FeatureRequests/open/request_G195_ocr_upscale_doc_cites_a_missing_file.md`; reply `reply_request_G195_ocr_upscale_doc_cites_a_missing_file_FIXED.md` in the same folder, naming `49fc6082`.
@@ -22137,6 +22151,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **Taken up from `pdfcer-gui`, 2026-10-14 (1073rd filing): 1 request `G194` as `Pass 588.0`; SHIPPED at the same filing (`475c6f4a`), see *Shipped*.** The batch is complete. `Pass 589.0` is a Backlog investigation, not a Next up item. Next free `Pass 590.0`; next filing 1074th.
 
 > **Taken up from `pdfcer-gui`, 2026-10-14 (1076th filing): 1 request `G195` as `Pass 590.0`; SHIPPED at the same filing (`49fc6082`), see *Shipped*.** The batch is complete. Next free `Pass 591.0`; next filing 1077th.
+
+> **Taken up from `pdfcer-gui`, 2026-10-15 (1077th filing): 2 requests `G197`, `G198` as `Pass 591.0`, `592.0`; plus self-found `Pass 593.0`; all SHIPPED at the same filing (`b479e72f`), see *Shipped*.** The batch is complete. Next free `Pass 594.0`; next filing 1078th.
 
 > **Before the 1068th filing: no open item remained in *Next up*.** `Pass 580.0` (the last, self-found at the 1053rd filing) had shipped; see *Shipped*.
 

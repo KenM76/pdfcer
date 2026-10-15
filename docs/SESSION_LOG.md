@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-15 (1077th filing) — `Pass 591.0`, `592.0`, `593.0` shipped in `b479e72f` (`G197`, `G198`, oriented search quads)
+
+**Shipped (engineer-reported, no shell here, push state not checked; engineer says not yet pushed):** commit `b479e72f`. `591.0` OCR layer follows page `/Rotate` (`G197`; per-word `Tm`, size/`Tz`, line inference in displayed axes; `add_ocr_layer` and `pdfcer ocr` read `/Rotate`). `592.0` `EditSession::upscale_image` + `pdfcer upscale-images` (`G198`; shared kernels in `image_resample.rs`). `593.0` `TextMatch::quad` oriented along glyph direction, found while checking `G197`.
+
+**Findings:** `G197` verified end to end with paddle-vl on a `/Rotate 90` page; `G198` smoke 850x1100 to 1700x2200, 36,523 to 238,163 bytes; `593.0` test sabotage-verified. Gates: `run-gates.sh` PASS (46 commands); `pdfcer-core` `all` 2,973 passed, lib 1,531. No dependency change. README count 233 subcommands.
+
+**Filed as:** one combined Shipped entry, a Next up banner, `FEATURES.md` (new upscale row, notes on the OCR-layer and Find text rows; gui not ticked). Replies for `G197` and `G198` already written by the engineer, naming `b479e72f` (this entry names it). Entry sizes not run through `check-register-entry-size.py` (no shell).
+
+**For next session:** next free `Pass 594.0`; next filing 1078th. Commit of these docs is the engineer's.
+
 ## 2026-10-14 (1076th filing) — `Pass 590.0` shipped (`G195`, `docs/ocr-upscale.md` was cited but never written)
 
 **Shipped (engineer-reported, no shell here, push state not checked):** `49fc6082` adds `docs/ocr-upscale.md`, cited by the `pdfcer_core::ocr::upscale` module header since `80c86edb` (`Pass 566.0`). Contents: shell defaults (upscale off, bicubic, `MagnifyFilter::Smooth` for OCR renders, `PointSample` for display), the `Pass 566.0` upscale table, the `Pass 580.0` magnify-route table, what was never measured. Documentation only: no code, no `pub` change, no dependency, no decision.
