@@ -55,8 +55,8 @@ pub fn paddle_vl_disclosure(
             r.tokens
         ),
         Some(StopReason::Repetition) => format!(
-            "; WARNING: the model repeated one line {} times and was stopped as looping, \
-             so text after the repeats is lost",
+            "; WARNING: the model repeated one line (or one numbered line) {} times and was stopped as looping; \
+             one copy is kept and anything after the repeats is lost",
             pdfcer_core::ocr::vl_decode::MAX_REPEATED_LINES
         ),
         Some(_) => format!(
@@ -136,7 +136,7 @@ pub fn paddle_vl_layout_disclosure(l: &pdfcer_core::ocr::vl_page::LayoutReading)
         let why = match reading.stop {
             Some(StopReason::TokenLimit) => "hit the token ceiling; its text may be cut short",
             Some(StopReason::Repetition) => {
-                "was stopped as looping; text after the repeats is lost"
+                "was stopped as looping; one copy of the repeated line is kept and text after it is lost"
             }
             _ => continue,
         };

@@ -1,4 +1,4 @@
-//! A whole block's replacement text encoded in its first run's font, for
+//! A block's replacement text (or one look's share of it) encoded in one run's font, for
 //! [`crate::text_edit::block_text`]: the same encode, code allocation,
 //! subset extension and same-face sibling search an `edit_text` of that run
 //! performs (§9.4.3, §9.7.6.2, §9.10.3).
