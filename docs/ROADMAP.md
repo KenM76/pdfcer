@@ -112,6 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 597.0` — PaddleOCR-VL loop guard catches a numbered list and keeps one copy (`G196`) — SHIPPED 2026-10-15 (1081st filing)
+
+Commit `dacb5262` on `main`, not pushed at filing time (engineer-stated; no shell here, not checked). No manifest change, `cargo tree` unchanged. Reply `reply_request_G196_..._FIXED.md` in `pdfce_FeatureRequests/open/`; it tells the shell it can drop its paddle-vl `PointSample` special case.
+
+- **Defect.** PaddleOCR-VL never finished on a smoothly magnified scan. A token trace: the model read the real text, then repeated a numbered line with a rising ordinal ("4. Material: ...", "5. Material: ...") to the token ceiling, at about 0.4 s a token. `vl_decode`'s repetition guard compared lines for exact equality, which the changing ordinal defeats.
+- **Fix** (`crates/pdfcer-core/src/ocr/vl_decode.rs`). A line repeats when identical, or when only its first `MAX_VARYING_PREFIX` = 4 tokens differ over a shared tail of at least `MIN_REPEATED_TAIL` = 4 (both new `pub` consts). Twelve repeats (`MAX_REPEATED_LINES`) still stop decoding. On a stop the tokens are cut back to the first of the twelve lines; the other 11 were invented text, previously written into the OCR layer. `mean_probability` covers the kept tokens only.
+- **Disclosure.** `crates/pdfcer-ocr-host/src/disclosure.rs` warning now says one copy is kept (surfaces through CLI `ocr`). `docs/core-api/03-capabilities.md` `RegionReading` row updated. Same commit fixed a stale module doc in `block_encode.rs` left by Pass 596.0.
+- **Tests.** New `a_looping_numbered_list_stops_decoding`, `repeats_needs_a_long_tail_and_a_short_prefix`; `a_looping_line_stops_decoding` updated.
+- **Measured** (`pdfcer-gui` fixture `synthetic-image-only.pdf`, 300 dpi, `--magnify smooth`, `paddle-vl`, release): before, no result in 420 s; after, 2 min 9 s, 4 lines (heading plus notes 1-3) and the Repetition warning.
+
+Tests (engineer-reported): `tools/run-gates.sh` PASS (46 commands).
+
+`FEATURES.md`: *Layout-aware OCR (PaddleOCR-VL)* row gained the loop-guard clause; core `[x]` cli `[x]` gui `[ ]` (gui untouched).
+
+Ledgers: no decision; next free `Pass 598.0`; next filing 1082nd.
+
 ### `Pass 596.0` — `edit_block_text` keeps every character's look (`G199`) — SHIPPED 2026-10-15 (1080th filing)
 
 Commit `aa208f45` on `main`, not pushed at filing time (engineer-stated; no shell here, not checked). No manifest change, `cargo tree` unchanged. Reply `reply_request_G199_..._FIXED.md` in `pdfce_FeatureRequests/open/`.
@@ -22200,7 +22216,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **Taken up from `pdfcer-gui`, 2026-10-15 (1078th filing): 1 request `G201` as `Pass 594.0`; SHIPPED at the same filing (`191396da`), see *Shipped*.** The batch is complete. Next free `Pass 595.0`; next filing 1079th.
 
-> **Taken up from `pdfcer-gui`, 2026-10-15 (1079th filing): 1 request `G200` as `Pass 595.0`; SHIPPED at the same filing (`20e56dcf`), see *Shipped*.** The batch is complete. Next free `Pass 597.0`; next filing 1081st. (`Pass 596.0`, `G199`, SHIPPED `aa208f45` at the 1080th filing, see *Shipped*.)
+> **Taken up from `pdfcer-gui`, 2026-10-15 (1079th filing): 1 request `G200` as `Pass 595.0`; SHIPPED at the same filing (`20e56dcf`), see *Shipped*.** The batch is complete. (`Pass 596.0`, `G199`, SHIPPED `aa208f45` at the 1080th filing; `Pass 597.0`, `G196`, SHIPPED `dacb5262` at the 1081st filing; see *Shipped*.) Next free `Pass 598.0`; next filing 1082nd.
 
 > **Before the 1068th filing: no open item remained in *Next up*.** `Pass 580.0` (the last, self-found at the 1053rd filing) had shipped; see *Shipped*.
 

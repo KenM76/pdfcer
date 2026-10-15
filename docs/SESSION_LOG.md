@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-15 (1081st filing) — `Pass 597.0` shipped in `dacb5262` (`G196`, PaddleOCR-VL loop guard catches a numbered list)
+
+**Shipped (engineer-reported, no shell here, not pushed at filing time):** `dacb5262`. `vl_decode` treats a line as repeated when identical, or when only the first 4 tokens differ over a shared tail of 4+; twelve repeats stop decoding and the tokens are cut back to keep only the first copy (11 invented lines no longer written to the OCR layer); `mean_probability` over kept tokens. Disclosure text in `pdfcer-ocr-host` and `docs/core-api/03-capabilities.md` updated.
+
+**Findings:** root cause from a token trace: real text read, then a numbered line repeated with a rising ordinal to the token ceiling (about 0.4 s a token). Exact-equality guard defeated by the ordinal. Fixture `synthetic-image-only.pdf`, 300 dpi, `--magnify smooth`: no result in 420 s before; 2 min 9 s, 4 lines plus Repetition warning after. Gates PASS (46 commands). No manifest change.
+
+**Filed as:** Shipped entry, Next up banner, `FEATURES.md` PaddleOCR-VL row (clause added, gui not ticked); `C:\personal_rag\pdf\` lesson `lesson_20261015_vlm_ocr_decoders_loop_on_numbered_lists_exact_line_guards_miss_them.md` plus index entry. Sizes not run through `check-register-entry-size.py` (no shell).
+
+**Hard-rule-11 sweep:** only the FEATURES row 572 phrasing "regions cut by token limit or repetition" described this; amended. Not swept in `crates/` or `docs/core-api/` beyond what the commit touched; engineer should grep case-insensitively for "repetition" over `vl_decode.rs`, `disclosure.rs`, `docs/core-api/03-capabilities.md`.
+
+**For next session:** next free `Pass 598.0`; next filing 1082nd. Commit of these docs is the engineer's.
+
 ## 2026-10-15 (1080th filing) — `Pass 596.0` shipped in `aa208f45` (`G199`, `edit_block_text` keeps every character's look)
 
 **Shipped (engineer-reported, no shell here, push state not checked):** `aa208f45`. `edit_block_text`/`_preview` diff old vs new non-space text (prefix/suffix + LCS, 4M-cell cap) so surviving characters keep font, size, text state, colours; inserted characters inherit the previous (or next at start) look; fonts encoded once and interleaved; disclosed whole-text fallback to the first run's look on a two-font program conflict or a refused character. `BlockEditPreview::glyphs` became `runs`; `BlockEditReport::inherited_characters` added and printed by the CLI.
