@@ -110,7 +110,7 @@ mod stages;
 pub use cells::{CellRegion, detect_cell_regions};
 pub use line_ends::{LineEnd, LineEndSource};
 pub use line_marks::{BREAK_TAG, LineMarks, TEXT_BLOCK_TAG};
-pub(crate) use lists::{Hanging, glyph_text, hanging};
+pub(crate) use lists::{Hanging, derived_space_between, glyph_text, hanging};
 
 use crate::page_tree::Rect;
 use crate::text_extract::{ExtractedGlyph, GlyphProvenance, PageText};
@@ -624,11 +624,17 @@ impl<'a> EditableTextModel<'a> {
     }
 
     /// The characters of one line, concatenated from its glyphs' slices of
-    /// the source run text.
+    /// the source run text, with a space where the extractor derived a word
+    /// space between two glyphs (a positioned gap, no space glyph).
     #[must_use]
     pub fn line_text(&self, line: &Line) -> String {
         let mut out = String::new();
+        let mut prev: Option<GlyphRef> = None;
         for &gref in &line.glyphs {
+            if prev.is_some_and(|p| derived_space_between(self.page, p, gref)) {
+                out.push(' ');
+            }
+            prev = Some(gref);
             if let Some(run) = self.page.runs.get(gref.run)
                 && let Some(g) = run.glyphs.get(gref.glyph)
             {

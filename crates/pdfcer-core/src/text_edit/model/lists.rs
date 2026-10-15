@@ -3,7 +3,7 @@
 
 use super::{GlyphRef, Line};
 use crate::block_layout::list_marker;
-use crate::text_extract::{ExtractedGlyph, PageText};
+use crate::text_extract::{ExtractedGlyph, PageText, TextOrigin};
 
 /// Below this the direction's y component is zero: a list is recognised on
 /// horizontal lines only, where a hanging indent is an x position.
@@ -37,6 +37,17 @@ pub(crate) fn glyph_text(page: &PageText, gref: GlyphRef) -> &str {
             })
         })
         .unwrap_or("")
+}
+
+/// Whether the extractor put a [`TextOrigin::DerivedWordSpace`] run between
+/// glyphs `a` and `b`: a word break the producer drew as a gap, not a space.
+pub(crate) fn derived_space_between(page: &PageText, a: GlyphRef, b: GlyphRef) -> bool {
+    b.run > a.run
+        && page.runs.get(a.run + 1..b.run).is_some_and(|between| {
+            between
+                .iter()
+                .any(|r| matches!(r.origin, TextOrigin::DerivedWordSpace))
+        })
 }
 
 /// The hanging-indent geometry of `line` when it opens a list item: on a

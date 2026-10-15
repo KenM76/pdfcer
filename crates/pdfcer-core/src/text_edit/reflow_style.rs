@@ -34,7 +34,10 @@ pub(super) struct FontInfo {
     pub(super) base_font: String,
     pub(super) embedded: bool,
     bytes_per_code: usize,
-    simple: bool,
+    /// A simple font whose code 32 decodes to U+0020 with a non-zero width:
+    /// a space the reflow may show though the block never did. A subset
+    /// without a space glyph fails this.
+    code32_is_space: bool,
 }
 
 /// The fonts the block shows, resolved, in first-use order.
@@ -107,7 +110,9 @@ pub(super) fn resolve_fonts(
                 base_font: font.base_font.clone(),
                 embedded: font_is_embedded(dict, doc),
                 bytes_per_code: font.bytes_per_code(),
-                simple: font.is_simple(),
+                code32_is_space: font.is_simple()
+                    && font.width(32) > 0.0
+                    && font.unicode_for_code(32).as_deref() == Some(" "),
             },
         );
     }
@@ -149,6 +154,8 @@ pub(super) struct Emitted {
     pub(super) leak_closed: bool,
     /// Word gaps written with a code-32 space the source never showed.
     pub(super) synthetic_spaces: usize,
+    /// Word gaps written as a `TJ` displacement: no space glyph to show.
+    pub(super) positioned_gaps: usize,
 }
 
 /// One glyph to show, and the displacement (points, along the line) to add
@@ -186,8 +193,7 @@ impl Current {
 ///
 /// # Errors
 ///
-/// [`UnsupportedCause::NoSpaceGlyph`], a degenerate CTM, or an unrestorable
-/// exit state.
+/// A degenerate CTM or an unrestorable exit state.
 pub(super) fn emit_block(
     ctx: &EmitCtx<'_, '_>,
     words: &[WordTok],
@@ -199,6 +205,7 @@ pub(super) fn emit_block(
         justified_lines: 0,
         leak_closed: false,
         synthetic_spaces: 0,
+        positioned_gaps: 0,
     };
     let justified = preview.alignment.alignment.is_justified();
     for line in &preview.lines {
@@ -264,10 +271,18 @@ fn line_items<'r>(
         let Some(last_style) = last_style else {
             continue;
         };
-        let (gap, advance) = gap_item(ctx, w, last_style, out)?;
-        width += advance;
-        gaps.push(items.len());
-        items.push(gap);
+        if let Some((gap, advance)) = gap_item(ctx, w, last_style, out)? {
+            width += advance;
+            gaps.push(items.len());
+            items.push(gap);
+        } else if let Some(last) = items.last_mut() {
+            // No space glyph to show: the gap is a displacement after the
+            // word's last glyph, which justification widens the same way.
+            last.after += ctx.synthetic_space;
+            width += ctx.synthetic_space;
+            gaps.push(items.len() - 1);
+            out.positioned_gaps += 1;
+        }
     }
     Ok((items, gaps, width))
 }
@@ -287,13 +302,15 @@ pub(super) fn code_bytes(code: u32, bytes: usize) -> Vec<u8> {
 
 /// The space glyph for the gap after `w`, and its advance: the space that
 /// followed `w` in the source; else a block space in the same font; else any
-/// block space; else a code-32 space in a single-byte font.
+/// block space; else code 32 in a simple font that maps it to a space with a
+/// width. `None` when there is no space glyph to show: the caller writes a
+/// positioned gap.
 fn gap_item<'r>(
     ctx: &EmitCtx<'r, '_>,
     w: &WordTok,
     last_style: &'r SpanStyle,
     out: &mut Emitted,
-) -> Result<(Item<'r>, f64), ReflowApplyError> {
+) -> Result<Option<(Item<'r>, f64)>, ReflowApplyError> {
     // A borrowed space prefers the word's own look, so the gap adds no
     // state change; failing that its font, so the code means a space.
     let source = w.space_after.or_else(|| {
@@ -317,23 +334,19 @@ fn gap_item<'r>(
             code: code_bytes(g.map_or(32, |g| g.code), bytes_per_code(ctx, style)),
             after: 0.0,
         };
-        return Ok((item, ctx.spacing.advance(ctx.model, gref)));
+        return Ok(Some((item, ctx.spacing.advance(ctx.model, gref))));
     }
     let info = ctx.fonts.info.get(&last_style.font);
-    if info.is_some_and(|f| f.simple) {
-        out.synthetic_spaces += 1;
-        let item = Item {
-            style: last_style,
-            code: vec![b' '],
-            after: 0.0,
-        };
-        return Ok((item, ctx.synthetic_space));
+    if !info.is_some_and(|f| f.code32_is_space) {
+        return Ok(None);
     }
-    Err(ReflowApplyError::Unsupported(
-        UnsupportedCause::NoSpaceGlyph {
-            font: info.map(|f| f.base_font.clone()).unwrap_or_default(),
-        },
-    ))
+    out.synthetic_spaces += 1;
+    let item = Item {
+        style: last_style,
+        code: vec![b' '],
+        after: 0.0,
+    };
+    Ok(Some((item, ctx.synthetic_space)))
 }
 
 /// Write a line's items as show operators, one per run of identically

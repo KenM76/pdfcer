@@ -48,10 +48,11 @@
 //! word break: the derived line breaks are the *old* wrapping, discarded
 //! here, but a word never spans two source lines in the LTR simple-font
 //! corpus this Pass targets. Runs of spaces collapse; a space glyph's
-//! advance feeds the representative space width. (Limitation: a word
-//! boundary realised as a `DerivedWordSpace` run rather than a real space
-//! glyph is not seen — disclosed; the synthetic corpus uses real space
-//! glyphs. Composite/CJK/RTL and `Tw`-vs-glyph-space nuance are FF-E/FF-F.)
+//! advance feeds the representative space width. A word boundary the
+//! extractor derived from geometry (a `DerivedWordSpace` run: a `TJ` offset
+//! or a new `Tm` between words, no space glyph) is also a break; the
+//! producer's gap is a space-width sample, and the count is disclosed.
+//! (Composite/CJK/RTL and `Tw`-vs-glyph-space nuance are FF-E/FF-F.)
 //!
 //! ## Alignment auto-detect + preserve (§3.6 / R77 — the differentiator)
 //!
@@ -93,7 +94,8 @@ use crate::page_tree::Rect;
 use crate::text_extract::{ExtractedGlyph, PageText};
 
 use super::model::{
-    Block, BlockKind, BlockRecognitionOptions, EditableTextModel, GlyphRef, glyph_text, hanging,
+    Block, BlockKind, BlockRecognitionOptions, EditableTextModel, GlyphRef, derived_space_between,
+    glyph_text, hanging,
 };
 use super::reflow_fit::{CellOverflow, cell_overflow, cell_wrap_width, page_overflow};
 use super::reflow_spacing::JustifySpacing;
@@ -357,6 +359,10 @@ pub struct ReflowDiagnostics {
     /// Whether [`Self::space_width_pt`] was estimated (no space glyph in the
     /// block) rather than measured.
     pub space_width_estimated: bool,
+    /// Word breaks taken at a gap the extractor read as a word space, where
+    /// the source drew no space glyph (a `TJ` offset or a new `Tm` between
+    /// words). Inferred, so disclosed.
+    pub derived_word_breaks: usize,
     /// Leading (baseline-to-baseline) used, points.
     pub leading_pt: f64,
     /// Whether [`Self::leading_pt`] was estimated (single source line)
@@ -376,6 +382,7 @@ impl ReflowDiagnostics {
             overflowing_words: 0,
             space_width_pt: 0.0,
             space_width_estimated: false,
+            derived_word_breaks: 0,
             leading_pt: 0.0,
             leading_estimated: false,
             disclosures: Vec::new(),
@@ -613,6 +620,10 @@ pub(crate) struct WordTok {
     /// The space glyph that followed the word in the source, when a space
     /// (rather than a line end) closed it.
     pub(crate) space_after: Option<GlyphRef>,
+    /// The word was closed by a gap the extractor read as a word space
+    /// ([`crate::text_extract::TextOrigin::DerivedWordSpace`]) rather than by a
+    /// space glyph.
+    pub(crate) derived_break_after: bool,
 }
 
 /// A kern below this, in points, is extraction rounding rather than a
@@ -671,11 +682,7 @@ impl<'m, 'a> ReflowEngine<'m, 'a> {
             return Err(ReflowError::EmptyBlock(block_index));
         }
         let mut diagnostics = ReflowDiagnostics::new(words.len(), block.line_indices.len());
-        // The block's own median space, else a disclosed 0.25·size estimate.
-        let (space_width, space_estimated) =
-            median(space_samples).map_or((FALLBACK_SPACE_FRAC * size, true), |w| (w, false));
-        diagnostics.space_width_pt = space_width;
-        diagnostics.space_width_estimated = space_estimated;
+        let space_width = word_diagnostics(&words, space_samples, size, &mut diagnostics);
 
         let cell_width = req
             .wrap_width
@@ -1063,12 +1070,23 @@ pub(crate) fn tokenise_block(
             let kern = prev
                 .and_then(|p| model.glyph(p))
                 .map_or(0.0, |p| source_kern(p, g));
+            if prev.is_some_and(|p| derived_space_between(page, p, gref))
+                && let Some(mut w) = current.take()
+            {
+                w.derived_break_after = true;
+                words.push(w);
+                // The producer's own gap is the line's word space.
+                if kern > 0.0 {
+                    spaces.push(kern);
+                }
+            }
             let w = current.get_or_insert_with(|| WordTok {
                 width: 0.0,
                 text: String::new(),
                 glyphs: Vec::new(),
                 kerns: Vec::new(),
                 space_after: None,
+                derived_break_after: false,
             });
             let kern = if w.glyphs.is_empty() { 0.0 } else { kern };
             w.width += kern + spacing.advance(model, gref);
@@ -1153,6 +1171,29 @@ fn range_of(xs: &[f64]) -> f64 {
         hi = hi.max(x);
     }
     if hi >= lo { hi - lo } else { 0.0 }
+}
+
+/// Records the space width (the block's own median space, else a disclosed
+/// 0.25·size estimate) and the inferred word breaks; returns the width.
+fn word_diagnostics(
+    words: &[WordTok],
+    space_samples: Vec<f64>,
+    size: f64,
+    diagnostics: &mut ReflowDiagnostics,
+) -> f64 {
+    let (space_width, space_estimated) =
+        median(space_samples).map_or((FALLBACK_SPACE_FRAC * size, true), |w| (w, false));
+    diagnostics.space_width_pt = space_width;
+    diagnostics.space_width_estimated = space_estimated;
+    diagnostics.derived_word_breaks = words.iter().filter(|w| w.derived_break_after).count();
+    if diagnostics.derived_word_breaks > 0 {
+        diagnostics.disclose(format!(
+            "reflow: {} word break(s) inferred from glyph spacing where the source drew no \
+             space glyph (ISO 32000-1 §14.8 S1-S4: no inter-word signal outside Tagged PDF)",
+            diagnostics.derived_word_breaks
+        ));
+    }
+    space_width
 }
 
 /// The median of `values` (consumes + sorts). `None` for an empty input.

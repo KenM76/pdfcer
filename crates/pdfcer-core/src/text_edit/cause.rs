@@ -114,7 +114,8 @@ pub enum UnsupportedCause {
         operator: String,
     },
     /// A word break on a block shown in this font needs a space glyph, and
-    /// neither the block nor a single-byte font supplies one.
+    /// neither the block nor a single-byte font supplies one. Not produced:
+    /// the reflow writes such a gap as a `TJ` displacement.
     NoSpaceGlyph {
         /// The font's `/BaseFont`.
         font: String,

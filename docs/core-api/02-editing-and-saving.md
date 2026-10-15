@@ -956,10 +956,17 @@ is the CLI's sentence. Switch on the variant, never on the text. Variants:
   and `NoFont` are no longer produced. What a re-emitted block cannot carry
   is refused by name: `OperatorInBlock { operator }` for a path, image,
   XObject, inline image (`"BI"`) or unbalanced `q`/`Q` (`"q/Q (unbalanced)"`)
-  inside the block's byte region; `NoSpaceGlyph { font }` when a new word gap
-  needs a space and neither the block shows one nor the font is single-byte;
-  `MixedScale` for more than one text-matrix or CTM scale. A gap the block
-  never showed is written as code 32 and disclosed.
+  inside the block's byte region; `MixedScale` for more than one text-matrix
+  or CTM scale. A gap the block never showed is written as code 32 when the
+  font is simple and maps code 32 to a space with a width; otherwise it is a
+  `TJ` displacement of the space width. Both are disclosed. `NoSpaceGlyph`
+  is no longer produced.
+- **`reflow_block` breaks at a derived word space** (G200): a word boundary
+  the extractor read from geometry (a `TJ` offset or a new `Tm` between words,
+  `TextOrigin::DerivedWordSpace`) is a break point like a space glyph, and the
+  producer's gap feeds the measured space width.
+  `ReflowDiagnostics::derived_word_breaks` counts them, and a disclosure names
+  the count.
 - **`edit_block_text` and its report** (`Pass 433.0`, G076):
   `BlockEditReport` (`#[non_exhaustive]`) carries `lines_before`/`lines_after`,
   `wrap_width`, `alignment`, `looks`, `height_delta`, `overflow_pt` (below the old

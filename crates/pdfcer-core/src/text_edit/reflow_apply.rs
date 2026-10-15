@@ -675,6 +675,13 @@ fn apply_disclosures(
             emitted.synthetic_spaces, preview.diagnostics.space_width_pt,
         ));
     }
+    if emitted.positioned_gaps > 0 {
+        disclosures.push(format!(
+            "reflow: {} word gap(s) were written as a TJ displacement of {:.2}pt (§9.4.3), not \
+             a glyph: the font has no space glyph to show",
+            emitted.positioned_gaps, preview.diagnostics.space_width_pt,
+        ));
+    }
     if emitted.leak_closed {
         disclosures.push(
             "reflow: the re-emitted text object leaves text state, colour or font different \
@@ -1353,12 +1360,12 @@ mod tests {
         assert!(has_off_page, "some content emitted below the page (y<0)");
     }
 
-    // -- composite with no space glyph ----------------------------------
+    // -- word breaks with no space glyph ------------------------------
 
     #[test]
-    fn composite_block_joining_lines_without_a_space_glyph_is_refused() {
-        // A Type0/Identity-H font that never shows a space: joining its two
-        // lines needs a word gap no code in the block supplies.
+    fn composite_block_without_a_space_glyph_joins_lines_with_a_positioned_gap() {
+        // A Type0/Identity-H font that never shows a space: the word gap
+        // joining its two lines is a TJ displacement, not a glyph.
         let font = b"<< /Type /Font /Subtype /Type0 /BaseFont /F+Sub /Encoding /Identity-H \
                      /DescendantFonts [7 0 R] >>"
             .to_vec();
@@ -1374,15 +1381,63 @@ mod tests {
             &[(7, descendant), (8, descriptor)],
         );
         let doc = load(&src);
-        let err =
-            apply_reflow(&doc, 0, 0, &ReflowRequest::new().with_wrap_width(400.0)).unwrap_err();
+        let out = apply_reflow(&doc, 0, 0, &ReflowRequest::new().with_wrap_width(400.0)).unwrap();
+        assert_eq!(out.report.lines_after, 1);
         assert!(
-            matches!(
-                err,
-                ReflowApplyError::Unsupported(UnsupportedCause::NoSpaceGlyph { .. })
-            ),
-            "got {err:?}"
+            out.report
+                .disclosures
+                .iter()
+                .any(|d| d.contains("TJ displacement")),
+            "{:?}",
+            out.report.disclosures
         );
+        let page = reextract(&out.bytes);
+        let glyphs: Vec<_> = page.runs.iter().flat_map(|r| &r.glyphs).collect();
+        assert_eq!(glyphs.len(), 4);
+        assert!(glyphs.iter().all(|g| (g.y - glyphs[0].y).abs() < 0.01));
+        // B ends at its advance; C starts one estimated space (0.25 x 10pt)
+        // later.
+        let gap = glyphs[2].x - (glyphs[1].x + glyphs[1].advance);
+        assert!((gap - 2.5).abs() < 0.01, "gap {gap}");
+    }
+
+    #[test]
+    fn words_placed_apart_with_no_space_glyph_re_wrap_at_the_gap() {
+        // Each line's two words are separated only by a TJ offset: the
+        // extractor reads a word space there, and the reflow breaks at it.
+        let src = build_pdf(
+            "BT /F1 10 Tf 72 740 Td [(alpha) -600 (beta)] TJ ET\n\
+             BT /F1 10 Tf 72 726 Td [(gamma) -600 (delta)] TJ ET\n",
+            &[courier()],
+            &[],
+        );
+        let source = reextract(&src);
+        let model =
+            EditableTextModel::recognize(&source, &crate::text_edit::reflow_recognition_options());
+        assert_eq!(
+            model.block_text(&model.blocks()[0]),
+            "alpha beta\ngamma delta",
+            "the block's text shows the derived word spaces"
+        );
+        let doc = load(&src);
+        let out = apply_reflow(&doc, 0, 0, &ReflowRequest::new().with_wrap_width(40.0)).unwrap();
+        assert_eq!(out.report.lines_after, 4, "one Courier word per 40pt line");
+        assert!(
+            out.report
+                .disclosures
+                .iter()
+                .any(|d| d.contains("inferred from glyph spacing")),
+            "{:?}",
+            out.report.disclosures
+        );
+        let page = reextract(&out.bytes);
+        let lines: Vec<String> = page
+            .plain_text()
+            .lines()
+            .map(|l| l.trim().to_owned())
+            .filter(|l| !l.is_empty())
+            .collect();
+        assert_eq!(lines, ["alpha", "beta", "gamma", "delta"]);
     }
 
     // -- rotated text refused ------------------------------------------
