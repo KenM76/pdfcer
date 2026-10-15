@@ -1790,6 +1790,23 @@ pub(crate) fn run() -> ExitCode {
             output: output.as_deref(),
             mode,
         }),
+        Command::UpscaleImages {
+            input,
+            pages,
+            object,
+            factor,
+            filter,
+            output,
+            mode,
+        } => cmd_upscale_images(&UpscaleArgs {
+            input: &input,
+            pages: &pages,
+            object,
+            factor,
+            filter,
+            output: output.as_deref(),
+            mode,
+        }),
         Command::RespanMarkup {
             input,
             page,

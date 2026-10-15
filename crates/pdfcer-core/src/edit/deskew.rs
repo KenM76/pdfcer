@@ -3,7 +3,7 @@
 
 use super::{CommandKind, EditError, EditSession, ObjectWrite};
 use crate::deskew::{MAX_SKEW_DEGREES, Raster, SkewEstimate};
-use crate::object::{Dict, ObjId, Object, Stream};
+use crate::object::{Dict, Name, ObjId, Object, Stream};
 use crate::page_tree::{self, Page};
 use crate::redact_image::{Allocator, Decoded, ImageOutcome};
 use crate::vector::{ImageObject, ImageSource, Matrix, PageObjects, VectorObject, decompose_page};
@@ -39,13 +39,13 @@ pub struct ImageDeskew {
 }
 
 /// A placed image decoded for analysis.
-struct Target {
-    placed: ImageObject,
-    id: ObjId,
-    stream: Stream,
-    decoded: Decoded,
-    raster: Raster,
-    resources: Dict,
+pub(super) struct Target {
+    pub(super) placed: ImageObject,
+    pub(super) id: ObjId,
+    pub(super) stream: Stream,
+    pub(super) decoded: Decoded,
+    pub(super) raster: Raster,
+    pub(super) resources: Dict,
 }
 
 impl EditSession {
@@ -122,21 +122,16 @@ impl EditSession {
             unsupported("its samples are shorter than its dimensions require")
         })?;
         let mut prior = Vec::new();
+        let size = (t.raster.width, t.raster.height);
         let (image_id, new_stream_bytes, mut notes) =
-            self.stage_deskewed(&t, &rotated, &mut prior)?;
+            self.stage_resampled(&t, &rotated, size, "deskew:", &mut prior)?;
         let resource_name = self.repoint_image_placement(
             CommandKind::DeskewImage,
             page_index,
             t.placed.bytes,
             image_id,
             prior,
-            |name| {
-                let mut out = vec![b'/'];
-                // `free_name_in` names are regular-character ASCII (§7.3.5).
-                out.extend_from_slice(name);
-                out.extend_from_slice(b" Do");
-                out
-            },
+            do_operator,
         )?;
         notes.insert(
             0,
@@ -155,13 +150,16 @@ impl EditSession {
         })
     }
 
-    /// Stage the straightened image (and any `/ICCBased` stream its
-    /// dictionary rewrite needs) into `prior`; returns its id, its encoded
-    /// size and the rewrite's notes.
-    fn stage_deskewed(
+    /// Stage `samples`, a `width x height` image in `t`'s layout (and any
+    /// `/ICCBased` stream its dictionary rewrite needs), into `prior`;
+    /// returns its id, its encoded size and the rewrite's notes, each
+    /// prefixed `note_prefix`.
+    pub(super) fn stage_resampled(
         &mut self,
         t: &Target,
-        rotated: &[u8],
+        samples: &[u8],
+        (width, height): (u32, u32),
+        note_prefix: &str,
         prior: &mut Vec<ObjectWrite>,
     ) -> Result<(ObjId, usize, Vec<String>), EditError> {
         let image_id = ObjId::new(self.alloc_number()?, 0);
@@ -180,7 +178,10 @@ impl EditSession {
             &mut alloc,
             &mut out,
         );
-        let image = alloc.flate_stream(dict, rotated);
+        let mut dict = dict;
+        dict.insert(Name::from(b"Width"), Object::Integer(i64::from(width)));
+        dict.insert(Name::from(b"Height"), Object::Integer(i64::from(height)));
+        let image = alloc.flate_stream(dict, samples);
         self.next_number = Some(next);
         let new_bytes = match &image {
             Object::Stream(s) => s.data_span.len,
@@ -196,14 +197,14 @@ impl EditSession {
         let notes = out
             .notes
             .into_iter()
-            .map(|n| n.replacen("redaction:", "deskew:", 1))
+            .map(|n| n.replacen("redaction:", note_prefix, 1))
             .collect();
         Ok((image_id, new_bytes, notes))
     }
 
     /// The image placement, decoded, after every refusal that does not
     /// depend on the angle.
-    fn deskew_target(
+    pub(super) fn deskew_target(
         &mut self,
         page_index: usize,
         object_index: usize,
@@ -307,7 +308,7 @@ pub fn detect_image_skew(
 
 /// `placed`, decoded for analysis, after every refusal that does not depend
 /// on the angle.
-fn decode_target(
+pub(super) fn decode_target(
     view: &DocumentView<'_>,
     placed: ImageObject,
     resources: Dict,
@@ -353,6 +354,15 @@ fn decode_target(
         raster,
         resources,
     })
+}
+
+/// The `/name Do` that draws a staged image XObject.
+pub(super) fn do_operator(name: &[u8]) -> Vec<u8> {
+    let mut out = vec![b'/'];
+    // `free_name_in` names are regular-character ASCII (§7.3.5).
+    out.extend_from_slice(name);
+    out.extend_from_slice(b" Do");
+    out
 }
 
 fn unsupported(reason: &str) -> EditError {

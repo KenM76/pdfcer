@@ -1152,7 +1152,7 @@ fn a_search_reports_the_text_it_could_not_read() {
     );
     assert_eq!(
         hit.diagnostics.type3_fonts_without_to_unicode, 2,
-        "and the two that are NOT searchable are reported alongside the hit --          a successful search still owes the operator the rest of the document"
+        "and the two that are NOT searchable are reported alongside the hit -- a successful search still owes the operator the rest of the document"
     );
 
     let miss = session.search_text("zzz", &TextSearchOptions::default());

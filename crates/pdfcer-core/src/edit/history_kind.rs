@@ -211,6 +211,7 @@ kind_codec! {
     SetLinkBorder,
     ReplaceImage,
     DeskewImage,
+    UpscaleImage,
     ReshapeInk { edit: InkEditKind, stroke: usize },
     AddSignatureField,
     SetMediaBoxes { count: usize },

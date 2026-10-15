@@ -75,6 +75,11 @@
 //! sits at `lly + HELVETICA_DESCENT_FRAC × size`, so the glyph box's top lands at
 //! `lly + height` — the reported box top — by construction.
 //!
+//! "Vertical" and "horizontal" are the DISPLAYED axes: on a page with
+//! `/Rotate` the `Tm` turns with the page, so on a quarter turn the size
+//! fits the box's user-space width and `Tz` its height
+//! ([`build_layer_content_on`](crate::ocr::layer::build_layer_content_on)).
+//!
 //! Horizontal: the word's natural width at that size is measured through the
 //! same Standard-14 metric tables the rest of the crate uses, and
 //! `Tz = 100 × target ÷ natural`. `Tz` is a **percentage** and `Th` is the
@@ -127,8 +132,8 @@ use crate::vartext::standard14_font_dict;
 use crate::writer::{DirtySet, SaveOptions, WriteError, save_incremental};
 
 use super::OcrPage;
-pub use super::layer_content::build_layer_content;
 use super::layer_content::{OcSectionNames, layer_content};
+pub use super::layer_content::{build_layer_content, build_layer_content_on};
 pub use super::layer_report::OcrLayerReport;
 use super::layout::RegionGroup;
 
@@ -606,7 +611,7 @@ pub(crate) fn plan_ocr_layer(
     resources_base.remove(b"Font");
 
     let (names, new_bindings) = section_names(graph, page, opts)?;
-    let (content_data, mut report) = layer_content(ocr_page, &font_name, &names, opts);
+    let (content_data, mut report) = layer_content(ocr_page, &font_name, &names, opts, page.rotate);
     if report.words_written == 0 {
         return Err(OcrLayerError::NothingToWrite);
     }

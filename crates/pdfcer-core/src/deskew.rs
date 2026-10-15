@@ -108,16 +108,18 @@ pub(crate) struct Raster {
 }
 
 impl Raster {
-    fn row_bytes(&self) -> usize {
+    /// Bytes per packed row, padded to a whole byte (§8.9.3).
+    pub(crate) fn row_bytes(&self) -> usize {
         (self.width as usize * self.components as usize * self.bpc as usize).div_ceil(8)
     }
 
-    fn max(&self) -> u32 {
+    /// The largest sample value at this bit depth.
+    pub(crate) fn max(&self) -> u32 {
         (1u32 << self.bpc) - 1
     }
 
     /// Sample `c` of pixel `(x, y)`; 0 when out of the buffer.
-    fn get(&self, samples: &[u8], x: u32, y: u32, c: u32) -> u32 {
+    pub(crate) fn get(&self, samples: &[u8], x: u32, y: u32, c: u32) -> u32 {
         let row = y as usize * self.row_bytes();
         let index = (x as usize * self.components as usize + c as usize) * self.bpc as usize;
         match self.bpc {
@@ -136,7 +138,8 @@ impl Raster {
         }
     }
 
-    fn put(&self, samples: &mut [u8], x: u32, y: u32, c: u32, value: u32) {
+    /// Write sample `c` of pixel `(x, y)`; ignored when out of the buffer.
+    pub(crate) fn put(&self, samples: &mut [u8], x: u32, y: u32, c: u32, value: u32) {
         let row = y as usize * self.row_bytes();
         let index = (x as usize * self.components as usize + c as usize) * self.bpc as usize;
         let at = row + index / 8;

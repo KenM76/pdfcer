@@ -6802,6 +6802,49 @@ pub(crate) enum Command {
         #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
         mode: SaveMode,
     },
+    /// **Enlarge scanned pictures**: resample each page's scan image to
+    /// more pixels, keeping its colour space and bit depth.
+    ///
+    /// On each page in `--pages` the largest image is taken as the scan
+    /// (or `--object`, the 0-based index `object-list` prints). It is
+    /// replaced by a new, losslessly compressed image `--factor` times as
+    /// many pixels on each side, drawn at the same place and size, so the
+    /// page looks the same size. Every colour channel is interpolated; a
+    /// black-and-white scan stays black-and-white, and an indexed-colour
+    /// image copies its nearest pixel. No detail is added: this helps a
+    /// reader or recogniser that needs more pixels, and costs file size.
+    /// Without `--output` or `--in-place` nothing is written: each page's
+    /// chosen image is printed and the command stops (a dry run).
+    ///
+    /// One line per page: `page N object I: 1240x1754 -> 2480x3508:
+    /// enlarged image_obj= replaced= stream_bytes=A->B` or `... skipped
+    /// (reason)`. Refused, with exit code 9 when `--object` names it:
+    /// inline images, images with a soft mask or mask, and results over
+    /// 134217728 pixels.
+    UpscaleImages {
+        /// Input PDF.
+        input: PathBuf,
+        /// Pages to enlarge: `all`, or a list like `1,3-5`.
+        #[arg(long, default_value = "all")]
+        pages: String,
+        /// 0-based page object index of the image, on every page listed,
+        /// instead of each page's largest image.
+        #[arg(long)]
+        object: Option<usize>,
+        /// How many times more pixels on each side, above 1 and at most 4.
+        #[arg(long, default_value_t = 2.0)]
+        factor: f32,
+        /// How the pixels are interpolated: `bicubic` (the default) or
+        /// `lanczos`, sharper with more ringing.
+        #[arg(long, value_name = "FILTER", default_value = "bicubic")]
+        filter: pdfcer_core::ocr::upscale::UpscaleFilter,
+        /// Output path. Without it, only report (dry run).
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
     /// **Add a link** — a `/Link` annotation over `--rect` that goes to a
     /// page, a named destination or a URI (ISO 32000-1 §12.5.6.5).
     ///

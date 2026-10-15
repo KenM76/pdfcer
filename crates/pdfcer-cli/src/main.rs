@@ -655,6 +655,8 @@ mod image_replace_cmd;
 use image_replace_cmd::*;
 mod deskew_cmd;
 use deskew_cmd::*;
+mod upscale_cmd;
+use upscale_cmd::*;
 mod node_shape_cmd;
 use node_shape_cmd::*;
 mod widget_turn_cmd;

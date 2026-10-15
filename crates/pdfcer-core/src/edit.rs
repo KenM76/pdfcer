@@ -162,6 +162,8 @@ pub use link::{LinkBorder, LinkBorderChange, LinkReading, LinkTarget, LinkTarget
 pub(crate) mod deskew;
 mod undo_fold;
 pub use deskew::{ImageDeskew, MIN_DESKEW_DEGREES};
+mod upscale_image;
+pub use upscale_image::ImageUpscale;
 mod image_replace;
 pub use image_replace::ImageReplaceOutcome;
 mod text_form_reshape;
@@ -435,6 +437,9 @@ pub enum CommandKind {
     /// A placed image was straightened by [`EditSession::deskew_image`]
     /// (pdfcer-gui request G165).
     DeskewImage,
+    /// A placed image's samples were enlarged by
+    /// [`EditSession::upscale_image`] (pdfcer-gui request G198).
+    UpscaleImage,
     /// One `/Ink` stroke, or one point inside one stroke, was edited and the
     /// annotation's appearance re-baked from the new `/InkList`
     /// (`Pass 278.0`, `pdfcer-gui` request 2026-09-08).
@@ -7122,6 +7127,14 @@ pub enum EditError {
     /// mask, an undecodable codestream, an angle out of range).
     #[error("this image cannot be deskewed: {reason}")]
     DeskewUnsupported {
+        /// Why, in a sentence fragment.
+        reason: String,
+    },
+    /// [`EditSession::upscale_image`] cannot work on this image; `reason`
+    /// says why (an inline image, a soft mask, an undecodable codestream,
+    /// a factor of 1, a result over the pixel ceiling).
+    #[error("this image cannot be upscaled: {reason}")]
+    ImageUpscaleUnsupported {
         /// Why, in a sentence fragment.
         reason: String,
     },
@@ -24856,7 +24869,10 @@ pub struct TextMatch {
     /// stays correct after pages are deleted, inserted or reordered in
     /// this session.
     pub page_index: usize,
-    /// The match's bounding box in unrotated page space.
+    /// The quad around the match in unrotated page space, oriented along
+    /// the text: on rotated text (a `/Rotate` page's OCR layer, a vertical
+    /// label) its corners follow the line, and on horizontal text it is the
+    /// axis-aligned box.
     ///
     /// The same geometry `mark_redactions_by_search` would cover, from
     /// the same scan — deliberately, so a highlight and the redaction
@@ -25287,6 +25303,45 @@ fn is_transparent_format_char(c: char) -> bool {
             | '\u{2066}'..='\u{2069}' // LRI, RLI, FSI, PDI
             | '\u{FEFF}' // ZERO WIDTH NO-BREAK SPACE
     )
+}
+
+/// The quad around a search hit's glyphs, oriented along the run's writing
+/// direction so a hit on rotated text (a `/Rotate` page's OCR layer, a
+/// vertical CAD label) is covered by its own quad, not by a box built as if
+/// the glyphs ran left to right. For horizontal text it is the axis-aligned
+/// rectangle. The descender and ascender are fractions of the size: the
+/// extraction carries no per-font metrics, and a quad on the baseline alone
+/// would sit under the text.
+fn match_quad(
+    glyphs: &[&crate::text_extract::ExtractedGlyph],
+) -> Option<crate::annot_author::Quad> {
+    let first = glyphs.first()?;
+    let (dx, dy) = (f64::from(first.direction.0), f64::from(first.direction.1));
+    let (ux, uy) = (-dy, dx);
+    let (ox, oy) = (f64::from(first.x), f64::from(first.y));
+    let (mut a0, mut a1) = (f64::INFINITY, f64::NEG_INFINITY);
+    let (mut c0, mut c1) = (f64::INFINITY, f64::NEG_INFINITY);
+    for g in glyphs {
+        let size = f64::from(g.size);
+        let (rx, ry) = (f64::from(g.x) - ox, f64::from(g.y) - oy);
+        let along = rx * dx + ry * dy;
+        let across = rx * ux + ry * uy;
+        let end = along + f64::from(g.advance);
+        a0 = a0.min(along.min(end));
+        a1 = a1.max(along.max(end));
+        c0 = c0.min(across - 0.22 * size);
+        c1 = c1.max(across + 0.85 * size);
+    }
+    if !(a0.is_finite() && a1 > a0) {
+        return None;
+    }
+    let at = |a: f64, c: f64| (ox + a * dx + c * ux, oy + a * dy + c * uy);
+    Some(crate::annot_author::Quad {
+        ul: at(a0, c1),
+        ur: at(a1, c1),
+        ll: at(a0, c0),
+        lr: at(a1, c0),
+    })
 }
 
 /// The first character of `chars` that carries a word/non-word signal, or
@@ -41495,8 +41550,6 @@ impl EditSession {
         matcher: &dyn Fn(&str) -> Vec<(usize, usize)>,
         whole_word: Option<WordBoundary>,
     ) -> Result<TextSearch, EditError> {
-        use crate::annot_author::Quad;
-        use crate::page_tree::Rect;
         use crate::text_extract::{self, ExtractOptions, TextOrigin};
 
         let extracted =
@@ -41566,29 +41619,10 @@ impl EditSession {
                     if matched.is_empty() {
                         continue;
                     }
-                    let mut llx = f64::INFINITY;
-                    let mut lly = f64::INFINITY;
-                    let mut urx = f64::NEG_INFINITY;
-                    let mut ury = f64::NEG_INFINITY;
-                    for g in &matched {
-                        let x0 = f64::from(g.x);
-                        let x1 = f64::from(g.x + g.advance);
-                        let size = f64::from(g.size);
-                        // Descender and ascender as fractions of the size:
-                        // the extraction carries no per-font metrics here,
-                        // and a box drawn on the baseline alone would sit
-                        // under the text rather than around it.
-                        let y0 = f64::from(g.y) - 0.22 * size;
-                        let y1 = f64::from(g.y) + 0.85 * size;
-                        llx = llx.min(x0.min(x1));
-                        urx = urx.max(x0.max(x1));
-                        lly = lly.min(y0);
-                        ury = ury.max(y1);
-                    }
-                    if llx.is_finite() && urx > llx {
+                    if let Some(quad) = match_quad(&matched) {
                         matches.push(TextMatch {
                             page_index: page.page_index,
-                            quad: Quad::from_rect(Rect::from_corners(llx, lly, urx, ury)),
+                            quad,
                             text: run.text.get(start..end).unwrap_or_default().to_owned(),
                         });
                     }

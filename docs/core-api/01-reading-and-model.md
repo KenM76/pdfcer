@@ -1681,7 +1681,10 @@ for h in &hits {
 }
 ```
 
-`TextMatch` — `edit.rs`: `page_index`, `quad`, `text`. It needs
+`TextMatch` — `edit.rs`: `page_index`, `quad`, `text`. `quad` follows the
+text's direction: on rotated text (a `/Rotate` page's OCR layer, a vertical
+label) it is a turned quad, so draw all four corners rather than
+`ul`-to-`lr` as a rectangle. It needs
 `&mut self` (an internal cache), so hold the session, not a `&Document`.
 
 **★★ A ZERO MATCH COUNT IS NOT EVIDENCE THE NEEDLE IS ABSENT, and

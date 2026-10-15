@@ -3,7 +3,10 @@
 //! [`super::structure`] into text objects in reading order.
 
 use crate::fontdata::{self, BaseEncoding, Std14};
+use std::borrow::Cow;
+
 use crate::object::{Name, ObjId, Object};
+use crate::page_tree::Rect;
 use crate::vartext::encode_winansi;
 use crate::writer::content::{emit_literal_string, emit_number};
 
@@ -47,6 +50,9 @@ pub(super) struct PlacedWord {
     tz: f64,
     x: f64,
     baseline_y: f64,
+    /// The page's `/Rotate` (0, 90, 180 or 270): the text matrix turns with
+    /// it so the word runs along the printed word as displayed.
+    rotate: u16,
     substituted: bool,
     clamped: bool,
 }
@@ -72,19 +78,35 @@ pub(super) fn natural_width(font: Std14, size: f64, bytes: &[u8]) -> f64 {
 
 /// Fit one recognised word to its box, or reject it as unplaceable.
 ///
+/// `rotate` is the page's `/Rotate`, the clockwise turn applied when the page
+/// is displayed (ISO 32000-1 §7.7.3.3 Table 30). The fit is against the box's
+/// DISPLAYED axes, so on a quarter-turned page the size follows the user-space
+/// width and `Tz` the height, and the origin is the box's displayed lower-left
+/// corner; [`write_word`] writes the matching turned `Tm`.
+///
 /// Returns `None` for a word that cannot be positioned at all: empty text, a
 /// non-finite or non-positive box, or text whose glyphs all have zero advance
 /// (which would make the horizontal fit a division by zero). Each of those is
 /// counted as a skip by the caller rather than being silently dropped.
-pub(super) fn place_word(word: &super::RecognizedWord, font: Std14) -> Option<PlacedWord> {
+pub(super) fn place_word(
+    word: &super::RecognizedWord,
+    font: Std14,
+    rotate: u16,
+) -> Option<PlacedWord> {
     if word.text.is_empty() {
         return None;
     }
     let r = word.rect;
-    let (w, h) = (r.urx - r.llx, r.ury - r.lly);
-    if !w.is_finite() || !h.is_finite() || w <= 0.0 || h <= 0.0 || !r.llx.is_finite() {
+    let (uw, uh) = (r.urx - r.llx, r.ury - r.lly);
+    if !uw.is_finite() || !uh.is_finite() || uw <= 0.0 || uh <= 0.0 || !r.llx.is_finite() {
         return None;
     }
+    let rotate = normalise_rotate(rotate);
+    let (w, h) = if rotate == 90 || rotate == 270 {
+        (uh, uw)
+    } else {
+        (uw, uh)
+    };
 
     let (codes, missing) = encode_winansi(&word.text);
     if codes.is_empty() {
@@ -94,7 +116,15 @@ pub(super) fn place_word(word: &super::RecognizedWord, font: Std14) -> Option<Pl
     // Vertical fit: solve size so the glyph box (ascent+descent) equals the
     // reported box height, then sit the baseline a descender above its bottom.
     let size = h / (HELVETICA_ASCENT_FRAC + HELVETICA_DESCENT_FRAC);
-    let baseline_y = HELVETICA_DESCENT_FRAC.mul_add(size, r.lly);
+    let descent = HELVETICA_DESCENT_FRAC * size;
+    // The baseline origin: the displayed lower-left corner, a descender in
+    // along the displayed up axis (the `Tm` columns in `write_word`).
+    let (x, baseline_y) = match rotate {
+        90 => (r.urx - descent, r.lly),
+        180 => (r.urx, r.ury - descent),
+        270 => (r.llx + descent, r.ury),
+        _ => (r.llx, r.lly + descent),
+    };
 
     // Horizontal fit: solve Tz so the natural advance equals the box width.
     let natural = natural_width(font, size, &codes);
@@ -108,8 +138,9 @@ pub(super) fn place_word(word: &super::RecognizedWord, font: Std14) -> Option<Pl
         codes,
         size,
         tz,
-        x: r.llx,
+        x,
         baseline_y,
+        rotate,
         substituted: missing > 0,
         clamped: (tz - raw_tz).abs() > f64::EPSILON,
     })
@@ -127,25 +158,78 @@ pub(super) fn place_word(word: &super::RecognizedWord, font: Std14) -> Option<Pl
 /// chosen by the caller against the page's existing names so it cannot collide.
 /// [`OcrLayerOptions::optional_content`] needs a `/Properties` name the page
 /// binds, so this builder ignores it; the writers apply it.
+///
+/// The words are written upright; for a page with a `/Rotate` use
+/// [`build_layer_content_on`].
 #[must_use]
 pub fn build_layer_content(
     page: &OcrPage,
     font_name: &[u8],
     opts: &OcrLayerOptions,
 ) -> (Vec<u8>, OcrLayerReport) {
-    layer_content(page, font_name, &OcSectionNames::default(), opts)
+    build_layer_content_on(page, font_name, opts, 0)
 }
 
-/// [`build_layer_content`], with the text inside `/OC /name BDC … EMC`
+/// [`build_layer_content`] for a page whose `/Rotate` is `rotate` (a
+/// multiple of 90, normalised; ISO 32000-1 §7.7.3.3 Table 30).
+///
+/// Each word's text matrix is turned so its baseline runs along the
+/// displayed reading direction, the size fitted to the box's displayed
+/// height and `Tz` to its displayed width; inferred lines and blocks are
+/// read in displayed order. The word boxes are already in user space
+/// ([`super::words_to_page_space_on`]) and are not moved.
+#[must_use]
+pub fn build_layer_content_on(
+    page: &OcrPage,
+    font_name: &[u8],
+    opts: &OcrLayerOptions,
+    rotate: u16,
+) -> (Vec<u8>, OcrLayerReport) {
+    layer_content(page, font_name, &OcSectionNames::default(), opts, rotate)
+}
+
+/// `/Rotate` reduced to 0, 90, 180 or 270; a non-multiple of 90 is 0.
+fn normalise_rotate(rotate: u16) -> u16 {
+    match rotate % 360 {
+        r @ (90 | 180 | 270) => r,
+        _ => 0,
+    }
+}
+
+/// `page` with every word box turned into the displayed frame (y-up), so
+/// line and block inference reads the page as displayed. Only the structure
+/// is taken from it; words are placed from their user-space boxes.
+fn displayed_frame(page: &OcrPage, rotate: u16) -> Cow<'_, OcrPage> {
+    let turn = |x: f64, y: f64| match rotate {
+        90 => (y, -x),
+        180 => (-x, -y),
+        _ => (-y, x),
+    };
+    if rotate == 0 {
+        return Cow::Borrowed(page);
+    }
+    let mut turned = page.clone();
+    for w in &mut turned.words {
+        let r = w.rect;
+        let (ax, ay) = turn(r.llx, r.lly);
+        let (bx, by) = turn(r.urx, r.ury);
+        w.rect = Rect::from_corners(ax, ay, bx, by);
+    }
+    Cow::Owned(turned)
+}
+
+/// [`build_layer_content_on`], with the text inside `/OC /name BDC … EMC`
 /// for the whole layer's group, and each block routed to its region group's.
 pub(super) fn layer_content(
     page: &OcrPage,
     font_name: &[u8],
     names: &OcSectionNames,
     opts: &OcrLayerOptions,
+    rotate: u16,
 ) -> (Vec<u8>, OcrLayerReport) {
     let mut out: Vec<u8> = Vec::new();
-    let (blocks, structure) = resolve(page);
+    let rotate = normalise_rotate(rotate);
+    let (blocks, structure) = resolve(&displayed_frame(page, rotate));
     let mut report = OcrLayerReport {
         words_written: 0,
         words_skipped: 0,
@@ -164,7 +248,7 @@ pub(super) fn layer_content(
     let placed: Vec<Option<PlacedWord>> = page
         .words
         .iter()
-        .map(|w| place_word(w, opts.font))
+        .map(|w| place_word(w, opts.font, rotate))
         .collect();
     report.words_skipped = placed.iter().filter(|p| p.is_none()).count();
     if report.words_skipped == placed.len() {
@@ -238,7 +322,14 @@ fn write_word(out: &mut Vec<u8>, p: &PlacedWord, font_name: &[u8]) {
     out.extend_from_slice(b" Tf\n");
     emit_number(out, p.tz);
     out.extend_from_slice(b" Tz\n");
-    out.extend_from_slice(b"1 0 0 1 ");
+    // The text space's x axis is the displayed reading direction, its y axis
+    // the displayed up: the inverse of the `/Rotate` display turn.
+    out.extend_from_slice(match p.rotate {
+        90 => b"0 1 -1 0 ".as_slice(),
+        180 => b"-1 0 0 -1 ",
+        270 => b"0 -1 1 0 ",
+        _ => b"1 0 0 1 ",
+    });
     emit_number(out, p.x);
     out.push(b' ');
     emit_number(out, p.baseline_y);
@@ -353,8 +444,8 @@ mod tests {
     /// slightly wrong" and is very hard to attribute.
     #[test]
     fn the_glyph_box_top_lands_on_the_reported_box_top() {
-        let p =
-            place_word(&word("Ag", 10.0, 100.0, 60.0, 120.0), Std14::Helvetica).expect("placeable");
+        let p = place_word(&word("Ag", 10.0, 100.0, 60.0, 120.0), Std14::Helvetica, 0)
+            .expect("placeable");
         let top = HELVETICA_ASCENT_FRAC.mul_add(p.size, p.baseline_y);
         assert!((top - 120.0).abs() < 1e-9, "glyph top {top} should be 120");
         assert!(
@@ -374,7 +465,7 @@ mod tests {
     #[test]
     fn the_advance_is_scaled_to_the_reported_box_width() {
         let w = word("Invoice", 10.0, 100.0, 90.0, 112.0);
-        let p = place_word(&w, Std14::Helvetica).expect("placeable");
+        let p = place_word(&w, Std14::Helvetica, 0).expect("placeable");
         let natural = natural_width(Std14::Helvetica, p.size, &p.codes);
         let fitted = natural * p.tz / 100.0;
         assert!(
@@ -423,7 +514,7 @@ mod tests {
             },
             confidence: None,
         };
-        assert!(place_word(&inverted, Std14::Helvetica).is_none());
+        assert!(place_word(&inverted, Std14::Helvetica, 0).is_none());
 
         let nan = RecognizedWord {
             text: "nan".to_owned(),
@@ -435,7 +526,7 @@ mod tests {
             },
             confidence: None,
         };
-        assert!(place_word(&nan, Std14::Helvetica).is_none());
+        assert!(place_word(&nan, Std14::Helvetica, 0).is_none());
     }
 
     /// A non-WinAnsi character is substituted and DISCLOSED, not refused.
@@ -505,6 +596,91 @@ mod tests {
         let (bytes, report) = page_of(vec![]).pipe_build(b"OCR0", &OcrLayerOptions::new());
         assert!(bytes.is_empty());
         assert_eq!(report.words_written, 0);
+    }
+
+    /// `rect` (displayed frame, y-up) taken back to user space on a page
+    /// with `/Rotate rotate`: the inverse of `displayed_frame`'s turn.
+    fn to_user(r: Rect, rotate: u16) -> Rect {
+        let back = |x: f64, y: f64| match rotate {
+            90 => (-y, x),
+            180 => (-x, -y),
+            270 => (y, -x),
+            _ => (x, y),
+        };
+        let (ax, ay) = back(r.llx, r.lly);
+        let (bx, by) = back(r.urx, r.ury);
+        Rect::from_corners(ax, ay, bx, by)
+    }
+
+    /// G197: on a turned page the size and `Tz` match the upright twin's,
+    /// the `Tm` turns with the page, and the glyph box (baseline origin to
+    /// advance, descender to ascender) covers exactly the user-space box.
+    #[test]
+    fn a_rotated_page_turns_the_word_to_its_displayed_axes() {
+        let shown_box = Rect::from_corners(10.0, 100.0, 70.0, 112.0);
+        let upright = place_word(
+            &word(
+                "Powered",
+                shown_box.llx,
+                shown_box.lly,
+                shown_box.urx,
+                shown_box.ury,
+            ),
+            Std14::Helvetica,
+            0,
+        )
+        .expect("placeable");
+        for (rotate, tm) in [(90, "0 1 -1 0 "), (180, "-1 0 0 -1 "), (270, "0 -1 1 0 ")] {
+            let r = to_user(shown_box, rotate);
+            let w = word("Powered", r.llx, r.lly, r.urx, r.ury);
+            let p = place_word(&w, Std14::Helvetica, rotate).expect("placeable");
+            assert!((p.size - upright.size).abs() < 1e-9, "size at {rotate}");
+            assert!((p.tz - upright.tz).abs() < 1e-9, "Tz at {rotate}");
+
+            let mut out = Vec::new();
+            write_word(&mut out, &p, b"F0");
+            let text = String::from_utf8_lossy(&out);
+            assert!(text.contains(&format!("\n{tm}")), "{rotate}: {text}");
+
+            let (a, b, c, d) = match rotate {
+                90 => (0.0, 1.0, -1.0, 0.0),
+                180 => (-1.0, 0.0, 0.0, -1.0),
+                _ => (0.0, -1.0, 1.0, 0.0),
+            };
+            let adv = natural_width(Std14::Helvetica, p.size, &p.codes) * p.tz / 100.0;
+            let corner = |tx: f64, ty: f64| (a * tx + c * ty + p.x, b * tx + d * ty + p.baseline_y);
+            let (x0, y0) = corner(0.0, -HELVETICA_DESCENT_FRAC * p.size);
+            let (x1, y1) = corner(adv, HELVETICA_ASCENT_FRAC * p.size);
+            let got = Rect::from_corners(x0, y0, x1, y1);
+            for (g, e) in [
+                (got.llx, r.llx),
+                (got.lly, r.lly),
+                (got.urx, r.urx),
+                (got.ury, r.ury),
+            ] {
+                assert!((g - e).abs() < 1e-6, "{rotate}: glyph box {got:?} vs {r:?}");
+            }
+        }
+    }
+
+    /// G197: inferred lines read in displayed order. Two words on one
+    /// displayed line of a `/Rotate 90` page share a user-space x, and are
+    /// one line, left to right as displayed.
+    #[test]
+    fn a_rotated_page_infers_lines_along_the_displayed_baseline() {
+        let line = |x0: f64, x1: f64, t: &str| {
+            let r = to_user(Rect::from_corners(x0, 100.0, x1, 112.0), 90);
+            word(t, r.llx, r.lly, r.urx, r.ury)
+        };
+        let below = to_user(Rect::from_corners(10.0, 80.0, 50.0, 92.0), 90);
+        let page = page_of(vec![
+            line(60.0, 100.0, "two"),
+            word("three", below.llx, below.lly, below.urx, below.ury),
+            line(10.0, 50.0, "one"),
+        ]);
+        let (bytes, report) = build_layer_content_on(&page, b"F0", &OcrLayerOptions::new(), 90);
+        assert_eq!(shown(&bytes), ["one", "two", "three"]);
+        assert_eq!(report.lines_written, 2);
     }
 
     /// The font resource name the caller chose is the one emitted.
@@ -581,7 +757,7 @@ mod tests {
             whole: Some(Name::from(b"OC1")),
             regions: vec![(RegionGroup::Table, Name::from(b"OC2"))],
         };
-        let (bytes, report) = layer_content(&page, b"F0", &names, &OcrLayerOptions::new());
+        let (bytes, report) = layer_content(&page, b"F0", &names, &OcrLayerOptions::new(), 0);
         let s = String::from_utf8_lossy(&bytes);
         assert_eq!(report.blocks_written, 3);
         let at = |p: &str| s.find(p).unwrap();

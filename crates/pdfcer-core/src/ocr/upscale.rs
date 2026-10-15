@@ -281,12 +281,17 @@ fn lanczos3(x: f64) -> f64 {
 
 /// Per output index: the first input index and the normalised weights, as
 /// PIL's `precompute_coeffs` builds them (support widens when shrinking).
+// Casts are safe: sizes are bounded by MAX_OUTPUT_PIXELS.
 #[allow(
     clippy::cast_possible_truncation,
     clippy::cast_sign_loss,
     clippy::cast_precision_loss
-)] // sizes bounded by MAX_OUTPUT_PIXELS
-fn coeffs(in_len: usize, out_len: usize, filter: UpscaleFilter) -> Vec<(usize, Vec<f64>)> {
+)]
+pub(crate) fn coeffs(
+    in_len: usize,
+    out_len: usize,
+    filter: UpscaleFilter,
+) -> Vec<(usize, Vec<f64>)> {
     let scale = in_len as f64 / out_len as f64;
     let fscale = scale.max(1.0);
     let support = filter.support() * fscale;

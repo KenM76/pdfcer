@@ -182,6 +182,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "turn-widget",
     "unembed-font",
     "unshare-form",
+    "upscale-images",
 ];
 
 const IN_PLACE_HELP: &str = "Write the result back over the input file instead of to --output. \
