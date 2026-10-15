@@ -112,6 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 595.0` — reflow breaks at derived word spaces; new word gaps need a usable space glyph or become a `TJ` displacement (`G200`) — SHIPPED 2026-10-15 (1079th filing)
+
+Commit `20e56dcf` on `main`, push state not checked (no shell here). No manifest change, `cargo tree` unchanged. Reply `reply_request_G200_reflow_breaks_only_at_a_real_space_glyph_FIXED.md` in `pdfce_FeatureRequests/open/`.
+
+- **Defect.** `reflow_block`/`apply_reflow` tokenised words only at a real space glyph, so a block whose word gaps are `TJ` offsets reflowed as one long word.
+- **Fix.** Tokenisation ends a word at a `TextOrigin::DerivedWordSpace` (a boundary the extractor read from glyph spacing); the producer's gap is a space-width sample. New `pub` field `ReflowDiagnostics::derived_word_breaks` (struct already `#[non_exhaustive]`); the preview discloses the count, citing ISO 32000-1 §14.8. `EditableTextModel::line_text`/`block_text` insert a space at a derived word space.
+- **New word gap.** Uses a space glyph the block already shows; else code 32 only when the simple font maps 32 to " " with a non-zero width (before: any simple font); else a `TJ` displacement of the space width (§9.4.3), disclosed. `UnsupportedCause::NoSpaceGlyph` is no longer produced; the variant is kept and documented as such. `reflow.rs::preview` was split (`word_diagnostics` extracted) to stay under the 80-line gate.
+- **Docs.** `docs/core-api/02-editing-and-saving.md` updated.
+
+Tests (engineer-reported): `tools/run-gates.sh` PASS, 46 commands, 12,837 tests; `text_edit` 189 passed after the split. Sabotage: disabling `derived_space_between` fails the new re-wrap test.
+
+`FEATURES.md`: *Reflow fidelity* row gained a note, core `[x]` cli `[x]` (CLI `reflow` goes through `apply_reflow`) gui `[ ]`, not rounded up.
+
+Ledgers: no decision; next free `Pass 596.0`; next filing 1080th.
+
 ### `Pass 594.0` — OCR layer writes one show operator per recognised line (`G201`, operator request `O295`) — SHIPPED 2026-10-15 (1078th filing)
 
 Commit `191396da` on `main`, not pushed at filing time (engineer-stated; no shell here, not checked). No manifest change, `cargo tree` unchanged. Reply `reply_request_G201_ocr_layer_reads_back_one_run_per_word_FIXED.md` in `pdfce_FeatureRequests/open/`.
@@ -22169,6 +22184,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **Taken up from `pdfcer-gui`, 2026-10-15 (1077th filing): 2 requests `G197`, `G198` as `Pass 591.0`, `592.0`; plus self-found `Pass 593.0`; all SHIPPED at the same filing (`b479e72f`), see *Shipped*.** The batch is complete. Next free `Pass 594.0`; next filing 1078th.
 
 > **Taken up from `pdfcer-gui`, 2026-10-15 (1078th filing): 1 request `G201` as `Pass 594.0`; SHIPPED at the same filing (`191396da`), see *Shipped*.** The batch is complete. Next free `Pass 595.0`; next filing 1079th.
+
+> **Taken up from `pdfcer-gui`, 2026-10-15 (1079th filing): 1 request `G200` as `Pass 595.0`; SHIPPED at the same filing (`20e56dcf`), see *Shipped*.** The batch is complete. Next free `Pass 596.0`; next filing 1080th.
 
 > **Before the 1068th filing: no open item remained in *Next up*.** `Pass 580.0` (the last, self-found at the 1053rd filing) had shipped; see *Shipped*.
 

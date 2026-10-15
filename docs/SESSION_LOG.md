@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-15 (1079th filing) — `Pass 595.0` shipped in `20e56dcf` (`G200`, reflow breaks at derived word spaces)
+
+**Shipped (engineer-reported, no shell here, push state not checked):** `20e56dcf`. `reflow_block`/`apply_reflow` end a word at `TextOrigin::DerivedWordSpace`; new `ReflowDiagnostics::derived_word_breaks` (disclosed in the preview, ISO 32000-1 §14.8); `line_text`/`block_text` insert a space there. A new word gap uses a space glyph the block shows, else code 32 only if the simple font maps it to " " with non-zero width, else a disclosed `TJ` displacement (§9.4.3). `UnsupportedCause::NoSpaceGlyph` no longer produced, variant kept.
+
+**Findings:** gates `run-gates.sh` PASS, 46 commands, 12,837 tests; only failure was the structure gate on `reflow.rs::preview` (over 80 lines), fixed by extracting `word_diagnostics` before commit. Sabotage of `derived_space_between` fails the new test. No manifest change.
+
+**Filed as:** Shipped entry, Next up banner, `FEATURES.md` *Reflow fidelity* row note (core + cli; gui not ticked). Sizes not run through `check-register-entry-size.py` (no shell).
+
+**Hard-rule-11 sweep (survivor, owed, `crates/` not edited by me):** `crates/pdfcer-core/src/text_edit/cause.rs:224-226` still words the `NoSpaceGlyph` Display as a refusal ("refusing rather than guess a code"); the variant is unreachable now, so harmless but stale. Correct and left: `reflow.rs:53`, `reflow_style.rs:157/279`.
+
+**For next session:** next free `Pass 596.0`; next filing 1080th. Commit of these docs is the engineer's.
+
 ## 2026-10-15 (1078th filing) — `Pass 594.0` shipped in `191396da` (`G201`, OCR layer one show operator per line)
 
 **Shipped (engineer-reported, no shell here, push state not checked; engineer says not yet pushed):** `191396da`. `ocr::layer_content::build_layer_content` writes each line as one show operator (per-line `Tf`/`Tz`, words joined by the space glyph in a `TJ` array with positioning numbers, bounded letter-gap numbers, layer opens `q 3 Tr 0 Tc 0 Tw 0 Ts`). A line now reads back as one `TextRun`; lines group into a paragraph. Signature unchanged.
