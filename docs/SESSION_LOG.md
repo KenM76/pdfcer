@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-16 (1088th filing) — `Pass 602.0` shipped in `0505ec42` (draw a compressed 3D mesh no fit rebuilds in part, on request)
+
+**Shipped (engineer-reported, no shell here, unpushed at filing time):** `0505ec42`, after `176bc762` (the 1087th filing). Operator-direct request (not a `G###` exchange): show the sound part of a failed mesh, and optionally continue past the failure. `MeshFit::{Partial, Continue}`, `PartialMesh`, `--mesh-fit best|unique|partial|continue` on `3d-mesh`/`3d-render`, disclosed per rule 4. 12 files, +572/-63. Detail in the Shipped entry.
+
+**Measured:** door sample, 4 open meshes (7060 triangles): `partial` 124 (1.8%), `continue` 2352 (33.3%), 17 parts named, no spikes by eye. Trailer sample not timed (debug exe too slow). pdfcer-3d lib 154/154; CLI `three_d::` 34/34; `run-gates.sh` PASS (46).
+
+**Findings (`C:\personal_rag\pdf\`):** forgiving continuation needs a bounding-box reach guard (spikes otherwise); a probe triangle attached across a degenerate edge cannot test apex position.
+
+**Root cause still OPEN:** the fold-direction oracle rejected five more hypotheses (PDF_Spec RAG `prc__8137__tess_3d_compressed.md` section 2d, X30-X38); Backlog item kept, pointed there. m2 fails on an out-of-range point reference, not a fold.
+
+**Decision:** operator standing directive, same day: only mesh rendering before the next release, then PAUSE for a new session. No release this session; the next one carries `600.0`, `601.0`, `602.0`.
+
+**Filed as:** Shipped entry; Next up banner and Backlog 3D item updated; two `FEATURES.md` rows extended, no new row. No decision. `check-register-entry-size.py` not run here (engineer reports clean).
+
+**For next session:** next free `Pass 603.0`; next filing 1089th. Engineer pushes after this filing.
+
 ## 2026-10-16 (1087th filing) — `Pass 601.0` shipped in `06c13df7` (`G204`, drawable layout preview for recognised-block edits)
 
 **Shipped (engineer-reported, no shell here, unpushed at filing time):** `06c13df7`, after `dc4e5bd6` (the 1086th filing, which already filed `Pass 600.0` and put `601.0` in Next up). `edit_recognised_block_text_preview` now returns `RecognisedBlockEditPreview` (`lines`, `old_bbox`, `new_bbox`, `runs`, `report`), laid out from the commit's own plan by the new `rewrite/layout.rs`: kept words at their operators' slot starts, replaced words from the old first-glyph origin at the fitted `Tz`, deleted words no glyphs; one `TextEditPreview` per font. Works for unchanged text. No manifest change.

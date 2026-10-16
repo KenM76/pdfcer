@@ -39,3 +39,5 @@ Related: [[feedback_windows_paths_need_literal_edits]] (the other way a
 scripted patch silently ships wrong bytes),
 [[feedback_a_gate_that_underreports_looks_green]] (same shape from the gate
 side — green because it was not looking).
+
+**Recurred 2026-10-16** (Pass 601.0): removing a trailing `fn union` with `s.index("}" + newline, i)+2` matched the `Rect { .. }` literal's inner `}` and left a stray `}` at EOF, a parse error. A nested-brace body needs the END found by brace counting or by the item's whole known text, never the first `}`.
