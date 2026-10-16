@@ -72,7 +72,7 @@ pub(super) fn op(
 
 /// Each slot's start along the text line, its advance, and the operator's
 /// total displacement, in text space after scaling (§9.4.4).
-fn replay(font: &ExtractFont, s: &ShowData) -> (Vec<f64>, Vec<f64>, f64) {
+pub(super) fn replay(font: &ExtractFont, s: &ShowData) -> (Vec<f64>, Vec<f64>, f64) {
     let (tfs, th) = (s.tf_size, s.th());
     let mut starts = Vec::with_capacity(s.slots.len());
     let mut advs = Vec::with_capacity(s.slots.len());

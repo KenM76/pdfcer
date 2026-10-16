@@ -5,8 +5,8 @@
 use super::{CommandKind, EditSession, PermissionBit};
 use crate::text_edit::recognised_block::{plan_recognised, recognised_hit};
 use crate::text_edit::{
-    BlockEditError, EditOptions, RecognisedBlockEditReport, RecognisedBlockHit, ReflowApplyError,
-    UnsupportedCause,
+    BlockEditError, EditOptions, RecognisedBlockEditPreview, RecognisedBlockEditReport,
+    RecognisedBlockHit, ReflowApplyError, UnsupportedCause,
 };
 
 impl EditSession {
@@ -85,7 +85,7 @@ impl EditSession {
             .first()
             .ok_or(BlockEditError::unsupported(UnsupportedCause::NoContents))?;
         let plan = plan_recognised(&self.view(), page_index, block_index, text, opts)?;
-        let mut report = plan.report;
+        let mut report = plan.preview.report;
         let Some(new_content) = plan.new_content else {
             return Ok(report);
         };
@@ -114,9 +114,10 @@ impl EditSession {
         Ok(report)
     }
 
-    /// The report [`Self::edit_recognised_block_text`] with the same
-    /// arguments would return, from the same plan; the session is not
-    /// touched.
+    /// The layout [`Self::edit_recognised_block_text`] with the same
+    /// arguments would leave, and the report it would return, from the same
+    /// plan; the session is not touched. Unchanged `text` lays out the block
+    /// as it is, so a shell can draw the paragraph the moment it opens.
     ///
     /// # Errors
     ///
@@ -127,10 +128,10 @@ impl EditSession {
         block_index: usize,
         text: &str,
         opts: &EditOptions,
-    ) -> Result<RecognisedBlockEditReport, BlockEditError> {
+    ) -> Result<RecognisedBlockEditPreview, BlockEditError> {
         if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(ReflowApplyError::Encrypted.into());
         }
-        Ok(plan_recognised(&self.view(), page_index, block_index, text, opts)?.report)
+        Ok(plan_recognised(&self.view(), page_index, block_index, text, opts)?.preview)
     }
 }

@@ -23,6 +23,9 @@ use super::diff::Fate;
 use super::words::Word;
 
 mod emit;
+mod layout;
+
+pub(super) use layout::{Layout, layout};
 
 /// The horizontal-scaling fit stays within these multiples of the
 /// original scaling.
@@ -46,6 +49,9 @@ pub(super) struct Done {
     pub(super) fits: Vec<WordFit>,
     pub(super) glyphs_added: Vec<char>,
     pub(super) disclosures: Vec<String>,
+    /// The replacements and their encodings, for [`layout`].
+    pub(super) reps: Vec<Rep>,
+    pub(super) encs: Vec<BlockEncoding>,
 }
 
 /// What becomes of one slot of a rewritten show operator.
@@ -187,7 +193,7 @@ pub(super) fn rewrite(
     }
     let content = splice(&ctx.stream.buf, &mut edits);
     one_stream(ctx, &content)?;
-    Ok(finish(content, writes, &reps, &encs))
+    Ok(finish(content, writes, reps, encs))
 }
 
 /// Slot actions per affected operator, keyed by its record index.
@@ -385,10 +391,10 @@ fn one_stream(ctx: &Ctx<'_, '_>, content: &[u8]) -> Result<(), BlockEditError> {
     Ok(())
 }
 
-fn finish(content: Vec<u8>, writes: FontWrites, reps: &[Rep], encs: &[BlockEncoding]) -> Done {
+fn finish(content: Vec<u8>, writes: FontWrites, reps: Vec<Rep>, encs: Vec<BlockEncoding>) -> Done {
     let mut glyphs_added: Vec<char> = Vec::new();
     let mut disclosures: Vec<String> = Vec::new();
-    for e in encs {
+    for e in &encs {
         for c in &e.glyphs_added {
             if !glyphs_added.contains(c) {
                 glyphs_added.push(*c);
@@ -416,5 +422,7 @@ fn finish(content: Vec<u8>, writes: FontWrites, reps: &[Rep], encs: &[BlockEncod
         fits,
         glyphs_added,
         disclosures,
+        reps,
+        encs,
     }
 }

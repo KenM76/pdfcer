@@ -20,10 +20,10 @@ mod words;
 use crate::content::ContentStream;
 use crate::page_tree::{self, Page, Rect};
 use crate::text_edit::cause::UnsupportedCause;
-use crate::text_edit::edit::{EditOptions, FontWrites, OpRec, walk_records};
+use crate::text_edit::edit::{EditOptions, FontWrites, OpRec, TextEditPreview, walk_records};
 use crate::text_edit::model::EditableTextModel;
 use crate::text_edit::reflow::reflow_recognition_options;
-use crate::text_edit::{BlockEditError, ReflowApplyError};
+use crate::text_edit::{BlockEditError, BlockEditLine, ReflowApplyError};
 use crate::text_extract::{self, ExtractOptions, PageText};
 use crate::view::DocumentView;
 
@@ -104,12 +104,40 @@ pub struct RecognisedBlockEditReport {
     pub disclosures: Vec<String>,
 }
 
+/// The layout an `edit_recognised_block_text` with the same arguments
+/// would leave, for drawing while the operator types: every surviving word
+/// positioned, kept words where they are and each replacement at its old
+/// word's origin under its [`WordFit`] scaling.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct RecognisedBlockEditPreview {
+    /// The block's lines after the edit, top to bottom: each line's text,
+    /// its first glyph origin, its baseline and its width along the
+    /// baseline. A line whose every word is deleted is absent.
+    pub lines: Vec<BlockEditLine>,
+    /// The block's box before the edit.
+    pub old_bbox: Rect,
+    /// The box the surviving glyphs occupy (advance by ascent-to-descent,
+    /// §9.8 Table 122); `old_bbox` when nothing survives.
+    pub new_bbox: Rect,
+    /// Every surviving glyph, positioned, for drawing
+    /// (`pdfcer_render::edit_preview`): one preview per font resource the
+    /// surviving text uses, each with its font, colours, render mode (3 for
+    /// an OCR layer) and one matrix per code. The matrices are in reading
+    /// order within a preview; a kept and a replaced word in one font share
+    /// a preview.
+    pub runs: Vec<TextEditPreview>,
+    /// What the commit would report (`content_object` as planned, before
+    /// any decoupling).
+    pub report: RecognisedBlockEditReport,
+}
+
 /// A planned recognised-block edit.
 pub(crate) struct RecognisedPlan {
     /// The page's new concatenated content; `None` when nothing changes.
     pub(crate) new_content: Option<Vec<u8>>,
     pub(crate) font_writes: FontWrites,
-    pub(crate) report: RecognisedBlockEditReport,
+    pub(crate) preview: RecognisedBlockEditPreview,
 }
 
 /// The page as both verbs read it: its content, operator records and the
@@ -210,31 +238,7 @@ pub(crate) fn plan_recognised(
         ))?;
     let old = words::block_words(&model, &scene.text, block, &scene.recs);
     let fates = diff::fates(&old, &new_words)?;
-    let mut report = RecognisedBlockEditReport {
-        block_index,
-        words_kept: 0,
-        words_replaced: 0,
-        words_deleted: 0,
-        words_merged: diff::merged(&fates, &new_words),
-        fits: Vec::new(),
-        glyphs_added: Vec::new(),
-        content_object: None,
-        disclosures: Vec::new(),
-    };
-    for f in &fates {
-        match f {
-            Fate::Keep => report.words_kept += 1,
-            Fate::Replace(_) => report.words_replaced += 1,
-            Fate::Delete => report.words_deleted += 1,
-        }
-    }
-    if report.words_replaced + report.words_deleted == 0 {
-        return Ok(RecognisedPlan {
-            new_content: None,
-            font_writes: FontWrites::default(),
-            report,
-        });
-    }
+    let mut report = counted(block_index, &fates, &new_words);
     let ctx = rewrite::Ctx {
         doc,
         page: &scene.page,
@@ -244,7 +248,16 @@ pub(crate) fn plan_recognised(
         text: &scene.text,
         opts,
     };
+    if report.words_replaced + report.words_deleted == 0 {
+        let layout = rewrite::layout(&ctx, &old, &fates, &[], &[])?;
+        return Ok(RecognisedPlan {
+            new_content: None,
+            font_writes: FontWrites::default(),
+            preview: previewed(layout, block.bbox, report),
+        });
+    }
     let done = rewrite::rewrite(&ctx, &old, &fates)?;
+    let layout = rewrite::layout(&ctx, &old, &fates, &done.reps, &done.encs)?;
     report.fits = done.fits;
     report.glyphs_added = done.glyphs_added;
     report.disclosures = done.disclosures;
@@ -253,8 +266,45 @@ pub(crate) fn plan_recognised(
     Ok(RecognisedPlan {
         new_content: Some(done.content),
         font_writes: done.writes,
-        report,
+        preview: previewed(layout, block.bbox, report),
     })
+}
+
+/// The report with its word counts, before any rewrite.
+fn counted(block_index: usize, fates: &[Fate], new_words: &[&str]) -> RecognisedBlockEditReport {
+    let mut report = RecognisedBlockEditReport {
+        block_index,
+        words_kept: 0,
+        words_replaced: 0,
+        words_deleted: 0,
+        words_merged: diff::merged(fates, new_words),
+        fits: Vec::new(),
+        glyphs_added: Vec::new(),
+        content_object: None,
+        disclosures: Vec::new(),
+    };
+    for f in fates {
+        match f {
+            Fate::Keep => report.words_kept += 1,
+            Fate::Replace(_) => report.words_replaced += 1,
+            Fate::Delete => report.words_deleted += 1,
+        }
+    }
+    report
+}
+
+fn previewed(
+    layout: rewrite::Layout,
+    old_bbox: Rect,
+    report: RecognisedBlockEditReport,
+) -> RecognisedBlockEditPreview {
+    RecognisedBlockEditPreview {
+        lines: layout.lines,
+        old_bbox,
+        new_bbox: layout.bbox.unwrap_or(old_bbox),
+        runs: layout.runs,
+        report,
+    }
 }
 
 /// The report's counts and fits as sentences.

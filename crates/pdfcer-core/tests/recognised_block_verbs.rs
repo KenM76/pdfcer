@@ -170,8 +170,119 @@ fn the_preview_changes_nothing_and_matches_the_commit() {
     let mut done = s
         .edit_recognised_block_text(0, b, &text, &EditOptions::default())
         .unwrap();
-    done.content_object = preview.content_object;
-    assert_eq!(done, preview);
+    done.content_object = preview.report.content_object;
+    assert_eq!(done, preview.report);
+}
+
+/// A glyph's page-space origin from its preview matrix.
+fn origin(m: [f64; 6]) -> (f64, f64) {
+    (m[4], m[5])
+}
+
+#[test]
+fn unchanged_text_lays_out_the_block_as_it_is() {
+    let s = session();
+    let h = hit(&s);
+    let p = s
+        .edit_recognised_block_text_preview(0, h.block_index, ORIGINAL, &EditOptions::default())
+        .unwrap();
+    assert_eq!(p.lines.len(), 2, "{:?}", p.lines);
+    assert_eq!(p.lines[0].text, "SITE PLAN REVISION C");
+    assert_eq!(p.lines[1].text, "SCANNED DRAWING SHEET 2");
+    assert!(
+        // The layer sets its baseline a descent above the word box's bottom.
+        (p.lines[0].baseline_y - 700.0).abs() < 1.0,
+        "{:?}",
+        p.lines[0]
+    );
+    assert!(
+        (p.lines[0].origin_x - 72.0).abs() < 0.01,
+        "{:?}",
+        p.lines[0]
+    );
+    assert!(
+        (p.lines[1].baseline_y - 688.0).abs() < 1.0,
+        "{:?}",
+        p.lines[1]
+    );
+    // The line runs from SITE's origin to C's end.
+    assert!(
+        p.lines[0].width > 150.0 && p.lines[0].width < 200.0,
+        "{:?}",
+        p.lines[0]
+    );
+    assert_eq!(p.runs.len(), 1, "one font resource");
+    let run = &p.runs[0];
+    assert_eq!(run.render_mode, 3);
+    let glyphs: usize = ORIGINAL.split_whitespace().map(str::len).sum();
+    assert_eq!(run.glyphs.len(), glyphs);
+    let first = origin(run.glyphs[0].matrix);
+    assert!(
+        (first.0 - 72.0).abs() < 0.01 && (first.1 - 700.0).abs() < 1.0,
+        "{first:?}"
+    );
+    assert_eq!(p.old_bbox, h.bbox);
+    assert!(
+        p.new_bbox.llx <= 72.01 && p.new_bbox.ury >= 700.0,
+        "{:?}",
+        p.new_bbox
+    );
+    assert_eq!(p.report.words_kept, 8);
+    assert_eq!(p.report.content_object, None);
+}
+
+#[test]
+fn a_replaced_word_is_laid_out_in_the_old_words_box() {
+    let s = session();
+    let h = hit(&s);
+    let text = ORIGINAL.replace("PLAN", "PLANS");
+    let p = s
+        .edit_recognised_block_text_preview(0, h.block_index, &text, &EditOptions::default())
+        .unwrap();
+    assert_eq!(p.lines[0].text, "SITE PLANS REVISION C");
+    assert_eq!(
+        p.runs.len(),
+        1,
+        "the replacement is set in the layer's own font"
+    );
+    let run = &p.runs[0];
+    let total = text.split_whitespace().map(str::len).sum::<usize>();
+    assert_eq!(run.glyphs.len(), total);
+    // SITE is 4 glyphs; PLANS follows, starting where PLAN did.
+    let start = origin(run.glyphs[4].matrix);
+    assert!((start.0 - 112.0).abs() < 0.01, "{start:?}");
+    // The glyph after PLANS (REVISION's R) still starts where it did.
+    let after = origin(run.glyphs[9].matrix);
+    assert!((after.0 - 160.0).abs() < 0.01, "{after:?}");
+    // PLANS is set at its fitted Tz: five glyphs inside PLAN's box, each
+    // narrower than PLAN's own were, all at the one scaling the report
+    // states.
+    let was = s
+        .edit_recognised_block_text_preview(0, h.block_index, ORIGINAL, &EditOptions::default())
+        .unwrap();
+    let plan_scale = was.runs[0].glyphs[4].matrix[0];
+    let fitted: Vec<f64> = run.glyphs[4..9].iter().map(|g| g.matrix[0]).collect();
+    assert!(
+        fitted.iter().all(|&f| (f - fitted[0]).abs() < 1e-9),
+        "{fitted:?}"
+    );
+    assert!(fitted[0] < plan_scale, "{fitted:?} vs {plan_scale}");
+    let xs: Vec<f64> = run.glyphs[4..9].iter().map(|g| g.matrix[4]).collect();
+    assert!(xs.windows(2).all(|w| w[0] < w[1]), "{xs:?}");
+    assert!(xs[4] > 112.0 && xs[4] < 154.0, "{xs:?}");
+    let fit = &p.report.fits[0];
+    assert_eq!(fit.new_text, "PLANS");
+    assert!(
+        (p.new_bbox.llx - p.old_bbox.llx).abs() < 0.5,
+        "{:?}",
+        p.new_bbox
+    );
+    assert!(
+        (p.new_bbox.urx - p.old_bbox.urx).abs() < 2.0,
+        "{:?} vs {:?}",
+        p.new_bbox,
+        p.old_bbox
+    );
 }
 
 #[test]

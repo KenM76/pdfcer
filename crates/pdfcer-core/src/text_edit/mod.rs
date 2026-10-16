@@ -159,7 +159,8 @@ pub use placetext::{
     DEFAULT_MARGIN_PT, PageTemplate, PlaceTextError, PlaceTextReport, Unmappable, blank_document,
 };
 pub use recognised_block::{
-    RecognisedBlockEditReport, RecognisedBlockHit, RecognisedWord, WordFit,
+    RecognisedBlockEditPreview, RecognisedBlockEditReport, RecognisedBlockHit, RecognisedWord,
+    WordFit,
 };
 pub use reflow::{
     AlignmentSource, BlockAlignment, DetectedAlignment, PageOverflow, ReflowDiagnostics,

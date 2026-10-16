@@ -145,7 +145,8 @@ fn positioned_apart(
     })
 }
 
-fn union(a: Rect, b: Rect) -> Rect {
+/// The smallest box covering both.
+pub(super) fn union(a: Rect, b: Rect) -> Rect {
     Rect {
         llx: a.llx.min(b.llx),
         lly: a.lly.min(b.lly),
