@@ -727,7 +727,8 @@ mod tests {
     }
     /// The same tetrahedron: the third triangle's fold comes from a stored
     /// normal, not a reversed bit, so only a loose walk offers it as a
-    /// candidate, and flipping it fits.
+    /// candidate, and flipping it fits. The records' normals leave their
+    /// triangles' planes so none is blind.
     #[test]
     fn an_inexact_signalled_fold_is_a_candidate_only_when_loose() {
         let pts = [0, 0, 0, 4, 0, 0, -2, 4, 0, 0, 0, 4];
@@ -737,7 +738,7 @@ mod tests {
         is_ref[4..].copy_from_slice(&[true, true]);
         let mut binary = [false; 16];
         binary[13] = true;
-        let angles = [0; 8];
+        let angles = [0, 512, 0, 512, 0, 512, 0, 512];
         let n = NormalArrays {
             bits: 10,
             binary: &binary,

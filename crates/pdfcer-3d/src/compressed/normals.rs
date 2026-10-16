@@ -55,8 +55,9 @@ type Record = (bool, bool, bool, i32, i32, [u32; 3]);
 pub(super) enum Orientation {
     /// A record read at this triangle: its `triangle_normal_reversed`,
     /// which is relative to `(max - min) x (R - min)` of the triangle's
-    /// own corners [WD 7.8.9.4], so it gives the orientation exactly.
-    Reversed(bool),
+    /// own corners [WD 7.8.9.4], so it gives the orientation exactly,
+    /// and the normal it decodes to.
+    Reversed(bool, V),
     /// The normal of a planar face read at an earlier triangle.
     Normal(V),
     /// The sum of a curved triangle's corner normals, every one read at an
@@ -211,7 +212,11 @@ impl<'a> NormalReader<'a> {
         for (slot, v) in [(lo, p), (1 - lo, q), (2, t[2])] {
             let (n, new) = self.corner(v, t)?;
             if new && fresh.is_none() {
-                fresh = self.records.get(n as usize).map(|r| r.0);
+                let step = self.step();
+                fresh = self
+                    .records
+                    .get(n as usize)
+                    .map(|r| (r.0, decode(pos, r, step)));
             }
             if planar {
                 *self.by_face.get_mut(face)? = Some(n);
@@ -222,8 +227,8 @@ impl<'a> NormalReader<'a> {
             *out.get_mut(slot)? = n;
         }
         self.corners.push(out);
-        if let Some(rev) = fresh {
-            return Some(Orientation::Reversed(rev));
+        if let Some((rev, n)) = fresh {
+            return Some(Orientation::Reversed(rev, n));
         }
         if planar {
             return Some(Orientation::Unknown);

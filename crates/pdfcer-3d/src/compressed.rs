@@ -41,12 +41,13 @@
 //! bit 0 swap for its own continuation. Its normal comes from, in order:
 //! a record read at this triangle, whose `triangle_normal_reversed` bit
 //! gives the orientation exactly (`reversed != (A > B)`, the record being
-//! framed on `(max - min) x (R - min)` [WD 7.8.9.4]); the stored normal
-//! of its planar face, compared geometrically unless the triangle is a
-//! sliver; otherwise none. Without a normal the measured default holds: a
-//! new apex lying exactly in its parent's plane on the parent's side
-//! (`d.z == 0`, `d.y > 0`, a double-sided panel folding back over itself)
-//! is folded. A component (a run started from an empty stack) that fails
+//! framed on `(max - min) x (R - min)` [WD 7.8.9.4]) unless that normal
+//! lies in the triangle's own plane, where the bit is noise; the stored
+//! normal of its planar face, compared geometrically unless the triangle
+//! is a sliver; otherwise none. Without a normal the measured default
+//! holds: a new apex lying exactly in its parent's plane on the parent's
+//! side (`d.z == 0`, `d.y > 0`, a double-sided panel folding back over
+//! itself) is folded. A component (a run started from an empty stack) that fails
 //! to fit is rewound and retried with the fold inverted at its second
 //! triangle, where most measured unsignalled folds sat; failing that, once
 //! more inverted at the last sliver before its first failure. A sliver's
@@ -94,6 +95,16 @@ const MIN_SINE: f64 = 1e-6;
 /// every signalled planar triangle sits at or above one tolerance
 /// (2359/2362); the two false swaps that broke a mesh sat at 0.01 and 0.28.
 const MIN_PLANE_HEIGHT: f64 = 0.5;
+
+/// Below this cosine between a fresh record's normal and the triangle's
+/// winding, the record's `triangle_normal_reversed` bit is noise. The
+/// encoder sets the bit so the frame's Z agrees with the vertex normal
+/// [WD 7.8.9.4]; a vertex normal lying in the triangle's plane (a needle
+/// one quantum tall standing in a wall whose normal it carries) has no
+/// side to agree with, and the bit records the sign of a rounding
+/// residue. Measured on two CAD assemblies: every such noise bit sat
+/// below 0.003, the nearest correct decision at 0.048.
+const BLIND_NORMAL: f64 = 0.01;
 
 /// The height of a triangle measured within the plane of normal `n`:
 /// `|w . n| / |n|` is twice its area projected onto that plane, divided by
@@ -261,6 +272,10 @@ struct Walk<'a> {
     /// Whether the last triangle is a sliver, at most a tolerance from
     /// collinear, whose stored decision decoded noise may have corrupted.
     weak: bool,
+    /// Whether the last triangle is [`Walk::weak`] and collinear to
+    /// [`MIN_SINE`]: the one case a stored decision cannot orient, so the
+    /// default fold stands and the search branches on it.
+    thin: bool,
     /// Set by the search: reverse the next apex's degenerate-frame turn.
     turn: bool,
     /// Whether the last apex's frame was degenerate.
@@ -318,6 +333,7 @@ impl<'a> Walk<'a> {
             sliver: None,
             signalled: false,
             weak: false,
+            thin: false,
             turn: false,
             degenerate: false,
             raw: false,
@@ -437,13 +453,17 @@ impl<'a> Walk<'a> {
 
     /// Whether `t` folds: its winding `(B - A) x (C - A)` points against
     /// its stored normal [WD 7.8.9, 7.8.9.1]. Without a usable normal the
-    /// default `fold` stands. The WD requires every triangle's height to
-    /// exceed the tolerance [WD 7.8.9], so a decoded one at most that thin
-    /// ([`Walk::weak`]) has lost its winding to quantisation and takes the
-    /// default too, unless `legacy`, as does one nearly flat along its
-    /// planar face ([`MIN_PLANE_HEIGHT`]). With [`Walk::raw`], such a
-    /// triangle and a sliver are instead oriented by the sum of their
-    /// corner normals, where the triangle has any.
+    /// default `fold` stands, as it does when a fresh record's normal lies
+    /// in the triangle's plane ([`BLIND_NORMAL`]), where its decision is
+    /// noise and the triangle is left to the search. The WD requires every
+    /// triangle's height to exceed the tolerance [WD 7.8.9]; a decoded one
+    /// at most that thin ([`Walk::weak`]) still carries its winding unless
+    /// it is collinear to [`MIN_SINE`] ([`Walk::thin`]), where quantisation
+    /// has erased it and the default stands, unless `legacy`, as it does
+    /// for one nearly flat along its planar face ([`MIN_PLANE_HEIGHT`]).
+    /// With [`Walk::raw`], such a triangle and a sliver are instead
+    /// oriented by the sum of their corner normals, where the triangle has
+    /// any.
     fn fold(&mut self, t: [u32; 3], fold: bool, legacy: bool) -> Result<bool, String> {
         let ti = self.tris.len();
         let Some(r) = self.normals.as_mut() else {
@@ -461,7 +481,7 @@ impl<'a> Walk<'a> {
         } else {
             [0.0; 3]
         };
-        let thin = self.weak && !legacy;
+        let thin = self.thin && !legacy;
         if self.raw && !legacy && !matches!(o, Orientation::Unknown) {
             let (a, b, c) = (self.get(t[0])?, self.get(t[1])?, self.get(t[2])?);
             let (ab, ac) = (sub(b, a), sub(c, a));
@@ -473,9 +493,15 @@ impl<'a> Walk<'a> {
             }
         }
         Ok(match o {
-            Orientation::Reversed(_) if thin => fold,
+            Orientation::Reversed(..) if thin => fold,
             Orientation::Reused(_) if legacy => fold,
-            Orientation::Reversed(rev) => {
+            Orientation::Reversed(rev, n) => {
+                let (a, b, c) = (self.get(t[0])?, self.get(t[1])?, self.get(t[2])?);
+                let w = cross(sub(b, a), sub(c, a));
+                if dot(n, w).abs() < BLIND_NORMAL * dot(w, w).sqrt() {
+                    self.sliver = Some(ti);
+                    return Ok(fold);
+                }
                 self.signalled = true;
                 self.exact = true;
                 rev != (t[0] > t[1])
@@ -515,15 +541,18 @@ impl<'a> Walk<'a> {
         }
         self.signalled = false;
         self.exact = false;
-        self.weak = {
+        {
             let (p, q, r) = (self.get(ta)?, self.get(tb)?, self.get(tc)?);
-            let long = [sub(q, p), sub(r, q), sub(p, r)]
+            let (pq, pr) = (sub(q, p), sub(r, p));
+            let long = [pq, sub(r, q), sub(p, r)]
                 .iter()
                 .map(|v| dot(*v, *v).sqrt())
                 .fold(0.0, f64::max);
-            let w = cross(sub(q, p), sub(r, p));
-            long > 0.0 && dot(w, w).sqrt() / long <= a.tolerance
-        };
+            let w = cross(pq, pr);
+            let sine = (dot(w, w) / (dot(pq, pq) * dot(pr, pr))).sqrt();
+            self.weak = long > 0.0 && dot(w, w).sqrt() / long <= a.tolerance;
+            self.thin = self.weak && (sine.is_nan() || sine <= MIN_SINE);
+        }
         self.tol = a.tolerance;
         let fold = self.fold(tri, fold, a.legacy_orient)?;
         self.tris.push(tri);
@@ -1017,10 +1046,35 @@ mod tests {
         };
         assert_eq!(both(&mut w, false), [false, true]);
         assert_eq!(both(&mut w, true), [false, false]);
-        w.weak = true;
+        w.thin = true;
         assert_eq!(both(&mut w, false), [false, false]);
         // A fresh record's reversed bit, which would fold it, too.
         assert!(!w.fold([1, 0, 3], false, false).unwrap());
+    }
+
+    /// A fresh record whose normal lies in its triangle's plane carries a
+    /// `triangle_normal_reversed` bit the encoder set from a rounding
+    /// residue ([`BLIND_NORMAL`]): the default fold stands, unsignalled, and
+    /// the triangle is marked for the sliver retry. One whose normal
+    /// leaves the plane decides as before.
+    #[test]
+    fn a_record_normal_in_the_plane_is_blind() {
+        let na = NormalArrays {
+            bits: 10,
+            binary: &[false; 16],
+            angles: &[0, 0, 0, 0, 0, 0, 0, 1023],
+            planar: &[false],
+            face_of: &[0; 8],
+        };
+        let mut w = Walk::new(3, Some(NormalReader::new(&na)));
+        w.pos = vec![[0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 1.0, 0.0]];
+        assert!(!w.fold([0, 1, 2], false, false).unwrap());
+        assert!(!w.signalled);
+        assert_eq!(w.sliver, Some(0));
+        w.sliver = None;
+        assert!(w.fold([1, 0, 3], false, false).unwrap());
+        assert!(w.signalled);
+        assert_eq!(w.sliver, None);
     }
 
     #[test]
