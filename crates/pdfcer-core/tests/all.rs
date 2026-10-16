@@ -21,6 +21,7 @@ mod annotation_rich_text_read;
 mod appearance_aliases_page_content;
 mod attachment_clipboard;
 mod attachments;
+mod batch_transform_verbs;
 mod batch_verbs;
 mod bates_stamp;
 mod bezier_handles;

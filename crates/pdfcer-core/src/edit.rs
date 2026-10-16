@@ -126,6 +126,8 @@ mod annot_restyle;
 mod batch;
 mod field_set;
 pub use batch::AnnotationBatchMove;
+mod batch_transform;
+pub use batch_transform::AnnotationBatchOutcome;
 mod block_text;
 mod button_icon;
 mod checkpoint;
