@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-16 (1086th filing) — `Pass 600.0` shipped in `08071cc2` (3D sliver fold rule); `Pass 601.0` (`G204`) filed as Next up
+
+**Shipped (engineer-reported, no shell here):** `08071cc2`, `crates/pdfcer-3d/src/compressed.rs` only. Status=3 slivers fold only when in-plane height exceeds 0.5 x tessellation tolerance (or the legacy chord test says so). Door sample 151/156 -> 152/156 (gain m76 = `TS-0214-018-1`, not a nut); second assembly sample 136/141 unchanged. pdfcer-3d 149 unit + 3 + 13 integration pass; `run-gates.sh` PASS (46). Spec RAG already has it as R16 (`PDF_Spec/threed/prc__8137__tess_3d_compressed.md` section 2c).
+
+**The operator's nuts are NOT fixed.** m23 + m39 = 14 placements; m23 fails at collinear sliver 484 needing 3+ coordinated flips, beyond the 40-step window. Filed as an OPEN 3D Backlog item with the indices.
+
+**Findings (each a `C:\personal_rag\pdf\lesson_20261016_*` file):** in-plane-height rule; twin-oracle differential method (keep a rule only if it gains on one assembly sample and regresses on neither); collinear sliver undeterminable locally; search stepping the decoder's own `Walk` floods the trace log (keep the probe module out of the tree); LNK1104 during `cargo test` = a still-running test binary holds the exe; part-to-mesh attribution must be measured by placement name, not inferred (m76 was not the nut).
+
+**`Pass 601.0` filed (`G204`):** `RecognisedBlockEditPreview` layout return for `edit_recognised_block_text_preview`; in progress in the engineer's tree. `FEATURES.md`: `599.0` row left unchanged until 601.0 ships; the 3D viewing row gained the 152/156 figure. `check-register-entry-size.py` not run (no shell); the Shipped entry is about 14 lines.
+
+**For next session:** next free `Pass 602.0`; next filing 1087th. The next release carries `600.0` too.
+
 ## 2026-10-16 (1085th filing) — `Pass 599.0` shipped in `cfec75cc` (`G203`, edit a recognised OCR paragraph word by word in place)
 
 **Shipped (engineer-reported, no shell here, not pushed at filing time; origin/main = `b1aebb26`):** `cfec75cc`. New `EditSession` verbs `recognised_block_at_point`, `edit_recognised_block_text` and its `_preview` twin: word-level LCS diff over invisible (render mode 3/7) text, kept words byte-identical, replaced words fitted with `Tz` (clamp 25%..400% disclosed), extra words merged (disclosed), OCR layer stays its own stream (new `UnsupportedCause::EditSpansStreams`). 7 new tests; `run-gates.sh` 45/46 first run, the one failure fixed before commit; core-api verbs 375 -> 378.

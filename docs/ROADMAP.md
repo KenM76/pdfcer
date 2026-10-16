@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 600.0` — PRC compressed-tessellation decoder: fold a status=3 sliver only when the triangle is tall in its own plane — SHIPPED 2026-10-16 (1086th filing)
+
+Commit `08071cc2` on `main` (`crates/pdfcer-3d/src/compressed.rs` only; engineer-stated, push state not checked, no shell here). No manifest change, so no `cargo tree` change. Operator request: "Our 3D engine is still not rendering some small nuts in our test sample" (door sample `TS-0232-16-3D.pdf`, the `ZACON - BVD KIT 2 - NYLOCK HEX NUT GR5 ZINC` placements).
+
+- **Change.** At a status=3 sliver the PRC 8137 decoder takes the geometric fold only when the triangle's in-plane height (`|s|/|n|` / longest edge, `fn plane_height`) exceeds `MIN_PLANE_HEIGHT` (0.5) x the tessellation tolerance (`Walk.tol`), or the legacy chord test already says so. A triangle flat along its face has a small chord for a reason unrelated to folding; the chord-only test misfired on it. Spec RAG: `D:\Dev\Rag-Specialized\PDF_Spec\threed\prc__8137__tess_3d_compressed.md` section 2c, R16.
+- **Measured** (local samples, not fixtures). Door sample 151/156 -> 152/156 meshes rebuild (the gain, m76, is part `TS-0214-018-1`, NOT a nut); the second assembly sample 136/141 -> 136/141 (no regression). Open: door m2, m23, m39, m48; second sample m39, m63, m64, m95, m107; all "an edge is shared by more than two triangles".
+- **The nuts are NOT fixed** (m23 + m39 = 14 placements). m23 fails at an exactly collinear status=3 sliver (triangle 484) whose continuation order no bit, geometry or legacy rule determines. It needs 3 or more coordinated flips (484+485 fails at 843; 484+839 fails at 1779; wall at 1779 with no fix inside the 40-step search window); a forced plain Fold at 484 fails at 487. Search-shape problem, no cheap decoder lever. Open item filed in *Backlog*, 3D bucket.
+- **Tests.** pdfcer-3d 149 unit + 3 + 13 integration pass; new `a_triangle_flat_along_its_face_is_a_sliver`; the "turned fits nothing" test relaxed to `other.is_none() || other == Some(wd.to_vec())`. `tools/run-gates.sh` PASS (46 commands, 2 filing gates).
+
+`FEATURES.md`: the 3D viewing row gains the 152/156 figure and the nut gap; core `[x]` cli `[x]` gui `[ ]` unchanged. RAG: six `C:\personal_rag\pdf\` lessons (`lesson_20261016_*`).
+
+Ledgers: no decision; next free `Pass 602.0` (`601.0` taken, see *Next up*); next filing 1087th.
+
 ### `Pass 599.0` — edit a recognised (OCR-layer) paragraph word by word in place (`G203`, operator request `O295` item 2) — SHIPPED 2026-10-16 (1085th filing)
 
 Commit `cfec75cc` on `main`, not pushed at filing time (engineer-stated; origin/main = `b1aebb26`; no shell here, not checked). No manifest change, so no `cargo tree` change; no dependency change. Reply `reply_request_G203_a_recognised_paragraph_cannot_be_edited_in_place_FIXED.md` in `pdfce_FeatureRequests/open/`.
@@ -22254,6 +22267,10 @@ closes out the *prior* filing's business rather than opening this one's.
 > **Taken up from `pdfcer-gui`, 2026-10-14 (1069th filing): 1 request `G193` as `Pass 587.0`.** Request file `pdfce_FeatureRequests/open/request_G193_*.md`. Ledgers: no decision; next free `Pass 588.0`; next filing 1070th.
 > - `587.0` (`G193`) SHIPPED at the 1070th filing (`27c7deaa`, `be42b28b`); see *Shipped*. The batch is complete. Next free `Pass 588.0`; next filing 1071st.
 
+> **Taken up from `pdfcer-gui`, 2026-10-16 (1086th filing): 1 request `G204` as `Pass 601.0` — IN PROGRESS.** Request file `pdfce_FeatureRequests/request_recognised_block_layout_preview.md` (INDEX.md top row, OPEN). Ledgers: no decision; next free `Pass 602.0`; next filing 1087th.
+> - **`601.0` (`G204`) — `edit_recognised_block_text_preview` returns a drawable layout.** Today it returns only the report; the GUI cannot draw the edit in place while the operator types. New `#[non_exhaustive] pub struct RecognisedBlockEditPreview { lines, old_bbox, new_bbox, runs, report }` in `pdfcer_core::text_edit` (like `BlockEditPreview`: `runs` = `TextEditPreview`s for `pdfcer_render::edit_preview`, `lines` = `BlockEditLine`s). The verb's return type changes (pre-release, no back-compat). Layout comes from the same plan as the edit: kept words from the operators' own slot starts, replaced words from the old word's first glyph origin at the fitted `Tz` (each per its `WordFit`). Must also work when nothing changed (the GUI's first call).
+>   - Acceptance: (1) unchanged text returns every word positioned, lines with baseline/origin/width matching the OCR layer; (2) a replaced word's glyphs start at the old origin and span the old width; (3) one `TextEditPreview` per font resource, render mode 3; (4) `new_bbox` ~ `old_bbox` for same-width edits; (5) the GUI reply is filed FIXED in the channel. `FEATURES.md` row for `599.0` gains the layout preview when this ships.
+
 > **Taken up from `pdfcer-gui`, 2026-10-14 (1073rd filing): 1 request `G194` as `Pass 588.0`; SHIPPED at the same filing (`475c6f4a`), see *Shipped*.** The batch is complete. `Pass 589.0` is a Backlog investigation, not a Next up item. Next free `Pass 590.0`; next filing 1074th.
 
 > **Taken up from `pdfcer-gui`, 2026-10-14 (1076th filing): 1 request `G195` as `Pass 590.0`; SHIPPED at the same filing (`49fc6082`), see *Shipped*.** The batch is complete. Next free `Pass 591.0`; next filing 1077th.
@@ -32748,6 +32765,8 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+> **3D bucket, OPEN, residue of `Pass 600.0` (1086th filing), not yet a Pass: the small nylock nuts still do not render.** Door sample meshes m2, m23, m39, m48 (m23 + m39 = the 14 nut placements) and, in the second assembly sample, m39, m63, m64, m95, m107 fail the compressed-tessellation rebuild ("an edge is shared by more than two triangles"). m23 fails at the exactly collinear status=3 sliver at triangle 484, whose continuation order no bit, geometry or legacy rule determines; the fix needs 3+ coordinated flips (484+485 fails at 843; 484+839 fails at 1779; wall at 1779 with no fix inside the 40-step window; a forced plain Fold at 484 fails at 487). A greedy 1-2 flip search cannot reach it. Next lever is the search shape (window, budget, non-greedy), not a decoder rule.
 
 > Residue of `Pass 558.0` (1041st filing), not yet a Pass: OCR table cells from PaddleOCR-VL are laid on an even grid over the region; measure real cell boxes (e.g. from ruling lines) instead.
 
