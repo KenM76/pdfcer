@@ -191,6 +191,7 @@ mod quadding_redraws;
 mod radio_member_paste;
 mod radio_regroup;
 mod radio_styles;
+mod recognised_block_verbs;
 mod redact_into_session;
 mod redacted_text_granularity;
 mod redaction_residual_sweep;

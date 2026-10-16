@@ -135,6 +135,7 @@ mod history_codec;
 mod history_kind;
 mod history_transfer;
 mod radio_state;
+mod recognised_block;
 mod regroup;
 pub use history_transfer::{HistoryError, HistoryImport};
 pub use regroup::WidgetRegroup;
@@ -177,7 +178,7 @@ mod ocr_refold;
 mod page_artwork;
 mod page_model;
 mod rc4_append;
-mod stream_localize;
+pub(crate) mod stream_localize;
 #[cfg(feature = "svg-import")]
 mod svg;
 mod threed_poster;
@@ -865,6 +866,14 @@ pub enum CommandKind {
         lines_before: usize,
         /// Line count after the edit.
         lines_after: usize,
+    },
+    /// One recognised-block edit
+    /// ([`EditSession::edit_recognised_block_text`]): the changed words of an
+    /// OCR layer's paragraph rewritten in place. Undo restores the
+    /// byte-identical content stream and font objects.
+    EditRecognisedText {
+        /// Old words replaced or removed.
+        words_changed: usize,
     },
     /// One add-new-text operation (Pass 16.0 / FF-D): a fresh `BT…ET` run was
     /// synthesized at operator coordinates and APPENDED as a new content stream

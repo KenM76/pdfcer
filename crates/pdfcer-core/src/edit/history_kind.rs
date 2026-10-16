@@ -271,6 +271,7 @@ kind_codec! {
     FormatText,
     ReflowBlock { lines_before: usize, lines_after: usize },
     EditBlockText { lines_before: usize, lines_after: usize },
+    EditRecognisedText { words_changed: usize },
     AddText,
     StampBates,
     RemoveBates,

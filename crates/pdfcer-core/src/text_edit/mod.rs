@@ -85,6 +85,7 @@ pub mod model;
 /// [`add_text`] rather than adding a second wrapper or a second emitter.
 pub mod placetext;
 pub mod program_glyphs;
+pub mod recognised_block;
 pub mod reflow;
 pub mod reflow_apply;
 pub mod reflow_fit;
@@ -156,6 +157,9 @@ pub use model::{
 };
 pub use placetext::{
     DEFAULT_MARGIN_PT, PageTemplate, PlaceTextError, PlaceTextReport, Unmappable, blank_document,
+};
+pub use recognised_block::{
+    RecognisedBlockEditReport, RecognisedBlockHit, RecognisedWord, WordFit,
 };
 pub use reflow::{
     AlignmentSource, BlockAlignment, DetectedAlignment, PageOverflow, ReflowDiagnostics,

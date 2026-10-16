@@ -5952,7 +5952,11 @@ pub(crate) fn resolve_font_dict<'a>(
 }
 
 /// Resolve a `/Font /<name>` resource to an [`ExtractFont`].
-fn resolve_font(doc: &DocumentView<'_>, resources: &Dict, name: &[u8]) -> Option<ExtractFont> {
+pub(crate) fn resolve_font(
+    doc: &DocumentView<'_>,
+    resources: &Dict,
+    name: &[u8],
+) -> Option<ExtractFont> {
     resolve_font_dict(doc, resources, name).map(|d| ExtractFont::resolve(doc, d))
 }
 

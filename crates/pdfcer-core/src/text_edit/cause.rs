@@ -120,6 +120,9 @@ pub enum UnsupportedCause {
         /// The font's `/BaseFont`.
         font: String,
     },
+    /// The edit would change more than one of the page's `/Contents` streams,
+    /// which would fold an OCR layer stream into the page's own content.
+    EditSpansStreams,
     /// Committing the planned edit to the session failed.
     CommitFailed {
         /// The session's error, in words.
@@ -179,6 +182,9 @@ impl UnsupportedCause {
             }
             Self::ShowOperatorsNotFound => {
                 "the block's show operators were not found in the content stream; refusing"
+            }
+            Self::EditSpansStreams => {
+                "the edit changes text in more than one of the page's content streams; edit one block at a time"
             }
             _ => return None,
         })

@@ -16,7 +16,7 @@ use crate::view::DocumentView;
 impl EditSession {
     /// The command writing `new_content` into the single stream it changed,
     /// or `None` when the change spans streams, lands in a stream another page
-    /// draws (`shared`), in a stream listed twice, or in a pdfcer OCR layer,
+    /// draws (`shared`), in a stream listed twice, or in a pdfcer OCR layer (unless `kind` is a recognised-text edit),
     /// or when the page carries text decorations.
     pub(super) fn localized_text_edit_command(
         &mut self,
@@ -27,7 +27,12 @@ impl EditSession {
         prior: &mut Vec<ObjectWrite>,
         disclosures: &mut Vec<String>,
     ) -> Option<(Command, Option<DecoupledContent>)> {
-        let (id, payload) = changed_stream(&self.view(), contents, new_content, shared)?;
+        // A recognised-text edit rewrites only the layer's own show operators,
+        // so its stream stays one whole layer; any other edit landing in a
+        // layer is refolded so the layer is re-separated from what it gained.
+        let into_layer = matches!(kind, CommandKind::EditRecognisedText { .. });
+        let (id, payload) =
+            changed_stream(&self.view(), contents, new_content, shared, into_layer)?;
         disclosures.retain(|d| !d.starts_with("multi-stream page:"));
         let span = self.stage_bytes(&payload);
         let mut objects = vec![ObjectWrite {
@@ -56,6 +61,7 @@ fn changed_stream(
     contents: &[ObjId],
     folded: &[u8],
     shared: &BTreeSet<ObjId>,
+    into_layer: bool,
 ) -> Option<(ObjId, Vec<u8>)> {
     // Decoration rules are recomputed only for a page whose whole content is
     // its first stream (`refresh_decorations`), so a decorated page folds.
@@ -70,8 +76,9 @@ fn changed_stream(
     let (index, payload) = single_part_change(&parts, folded)?;
     let id = *contents.get(index)?;
     let listed_once = contents.iter().filter(|c| **c == id).count() == 1;
-    let movable =
-        listed_once && !shared.contains(&id) && !crate::ocr::marker::is_layer_stream(view, id);
+    let movable = listed_once
+        && !shared.contains(&id)
+        && (into_layer || !crate::ocr::marker::is_layer_stream(view, id));
     movable.then_some((id, payload))
 }
 
@@ -80,7 +87,7 @@ fn changed_stream(
 /// after the first): `Some((i, payload))` when every differing byte lies
 /// inside non-empty part `i` and its new payload is non-empty, else `None`
 /// (including when nothing differs).
-fn single_part_change(parts: &[Vec<u8>], folded: &[u8]) -> Option<(usize, Vec<u8>)> {
+pub(crate) fn single_part_change(parts: &[Vec<u8>], folded: &[u8]) -> Option<(usize, Vec<u8>)> {
     let mut old = Vec::with_capacity(folded.len());
     let mut ranges = Vec::with_capacity(parts.len());
     for (i, p) in parts.iter().enumerate() {
