@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-15 (1084th filing) — `Pass 598.0` shipped in `e7dc2413` (`G202`, resize/rotate several annotations as one undo entry)
+
+**Shipped (engineer-reported, no shell here, not pushed at filing time):** `e7dc2413`. New `EditSession` verbs `resize_annotations`, `rotate_annotations` and their `_preview` twins (`crates/pdfcer-core/src/edit/batch_transform.rs`). Partial semantics, deliberately unlike the `583.0`-`586.0` all-or-nothing batch verbs: a refused member is left unchanged and reported via `AnnotationBatchOutcome`, the applied members fold into one undo entry, none applied pushes nothing; the only top-level `Err` is `SelectionTooLargeForOneUndo` (over 256 distinct ids). Preview rolls back fully. 5 new tests in `tests/batch_transform_verbs.rs`; `run-gates.sh` PASS (46 commands); core-api verb count 371 -> 375; no manifest change. GUI reply written (`reply_request_G202_..._FIXED.md`).
+
+**Filed as:** Shipped entry in `ROADMAP.md`, new `FEATURES.md` row beside the `584.0`/`585.0` batch row (core `[x]`, cli `[ ]`, gui `[ ]`), `NEXT_SESSION.md` State ledgers. No decisions. `check-register-entry-size.py` not run (no shell); the entry is about 20 lines.
+
+**For next session:** next free `Pass 599.0`; next filing 1085th. The next release carries `598.0` as well as `591.0`-`597.0`, and writes OneDrive `pdfcer1`.
+
 ## 2026-10-15 (1083rd filing) — `v0.83.0` published
 
 **Release:** `v0.83.0` PUBLISHED. Bump `3cc1cf10`; annotated tag (object `ef252e78`) at `5e4404ec` (1082nd filing commit); `main` and tag pushed. `run-gates.sh` PASS (46 commands, 2 filing gates; skipped `cargo-about` regeneration and `--all-features` tests, as on prior plain runs). CI green at `5e4404ec` (run `38795600720`, 13m36s). Build `D:\builds\pdfcer-20261015-1538-5e4404e`. Fresh-folder smoke PASS (`--version` 0.83.0 / revision `v0.83.0`; `inspect`; incremental `rotate` with byte-identical prefix; `render-page`; `ocr` with bundled paddle models beside the exe). GitHub release via `gh-release.py`, 8 assets (zip 25,977,734 bytes). OneDrive `pdfcer2` = 0.83.0, 6 items, 70,122,303 bytes; `pdfcer1` keeps 0.82.0; next release writes `pdfcer1`. `verify-release.py v0.83.0`: 8 of 9 ok, 1 FAIL ("working tree clean") from 2 uncommitted other-agent memory files (`.claude/agent-memory/pdfcer-spec-librarian/MEMORY.md`, `project_corpus_state.md`); recorded as a FAIL. Range `Pass 591.0`-`597.0` plus two tooling/ocr-host fixes. Engineer-reported; no shell.

@@ -112,6 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 598.0` — resize or rotate several annotations as one undo entry (`G202`, operator request `O292`) — SHIPPED 2026-10-15 (1084th filing)
+
+Commit `e7dc2413` on `main`, not pushed at filing time (engineer-stated; no shell here, not checked). No manifest change, so no `cargo tree` change. Reply `reply_request_G202_resize_and_rotate_several_annotations_FIXED.md` in `pdfce_FeatureRequests/open/`.
+
+- **Verbs** (`crates/pdfcer-core/src/edit/batch_transform.rs`). `EditSession::resize_annotations(&[(ObjId, ResizeOptions)], anchor, sx, sy)` and `rotate_annotations(&[ObjId], pivot, degrees)`, both returning `Result<AnnotationBatchOutcome<R>, EditError>`; plus `resize_annotations_preview` and `rotate_annotations_preview`.
+- **Partial, not all-or-nothing** (unlike the `583.0`-`586.0` batch verbs). Each member runs the single-target verb. A refused member is left unchanged and reported; the applied members fold into ONE undo entry (`CommandKind::ResizeAnnotation` / `RotateAnnotation`). If none apply, nothing is pushed.
+- **Result type.** `AnnotationBatchOutcome { results: Vec<(ObjId, Result<R, EditError>)> }`, in input order, a repeated id kept once; helpers `applied()` and `refused()`. The only top-level `Err` is `SelectionTooLargeForOneUndo` (more than 256 distinct ids).
+- **Preview** runs the batch and rolls it back; document, undo and redo stacks unchanged.
+- **Tests.** 5 new, in `crates/pdfcer-core/tests/batch_transform_verbs.rs`. `docs/core-api/02-editing-and-saving.md` and `index.md` updated.
+
+Tests (engineer-reported): `tools/run-gates.sh` PASS (46 commands). Core-api verb count 371 -> 375 (+4 = the four new verbs).
+
+`FEATURES.md`: new row *Resize or rotate several annotations in one command*, beside the `584.0`/`585.0` batch row; core `[x]` cli `[ ]` gui `[ ]` (no CLI caller; gui not ours to tick).
+
+Ledgers: no decision; next free `Pass 599.0`; next filing 1085th.
+
 ### `v0.83.0` — PUBLISHED (2026-10-15): release out, CI green at the tag; `verify-release.py` has 1 explained FAIL ("working tree clean") (1083rd filing, amends 1082nd)
 
 Bump `3cc1cf10` ("chore: v0.83.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`). Annotated tag `v0.83.0` (tag object `ef252e78`) points at `5e4404ec`, the docs-only 1082nd filing commit and a descendant of the bump (same placement as `v0.82.0`, so `git describe --tags` stamps `v0.83.0`). `main` and the tag are pushed. Contents: `Pass 591.0`-`597.0` (`G197`, `G198`, `G201`, `G200`, `G199`, `G196`) plus two tooling/ocr-host fixes. `pdfcer-gui` can now pick up `596.0`'s API change (`BlockEditPreview::glyphs` became `runs`). All figures engineer-reported; I have no shell (hard rule 8).
