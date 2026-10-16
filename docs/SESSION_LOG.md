@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-16 (1087th filing) — `Pass 601.0` shipped in `06c13df7` (`G204`, drawable layout preview for recognised-block edits)
+
+**Shipped (engineer-reported, no shell here, unpushed at filing time):** `06c13df7`, after `dc4e5bd6` (the 1086th filing, which already filed `Pass 600.0` and put `601.0` in Next up). `edit_recognised_block_text_preview` now returns `RecognisedBlockEditPreview` (`lines`, `old_bbox`, `new_bbox`, `runs`, `report`), laid out from the commit's own plan by the new `rewrite/layout.rs`: kept words at their operators' slot starts, replaced words from the old first-glyph origin at the fitted `Tz`, deleted words no glyphs; one `TextEditPreview` per font. Works for unchanged text. No manifest change.
+
+**Tests:** `recognised_block_verbs.rs` 9/9 (2 new); `run-gates.sh` PASS (46 commands, 12883 tests, 0 failed); `check-core-api-verbs.py` PASS.
+
+**Finding:** the fixture layer's baseline is 700.46, not 700.0, and each OCR word carries its own `Tz`, so cross-word glyph `m[0]` ratios are not comparable (recorded in the test).
+
+**Filed as:** Shipped entry; Next up stub collapsed to a pointer; `599.0`'s `FEATURES.md` row extended (no new row). Channel reply FIXED, `INDEX.md` flipped. No decision. `check-register-entry-size.py` not run (no shell).
+
+**For next session:** next free `Pass 602.0`; next filing 1088th. The next release carries `600.0` and `601.0`.
+
 ## 2026-10-16 (1086th filing) — `Pass 600.0` shipped in `08071cc2` (3D sliver fold rule); `Pass 601.0` (`G204`) filed as Next up
 
 **Shipped (engineer-reported, no shell here):** `08071cc2`, `crates/pdfcer-3d/src/compressed.rs` only. Status=3 slivers fold only when in-plane height exceeds 0.5 x tessellation tolerance (or the legacy chord test says so). Door sample 151/156 -> 152/156 (gain m76 = `TS-0214-018-1`, not a nut); second assembly sample 136/141 unchanged. pdfcer-3d 149 unit + 3 + 13 integration pass; `run-gates.sh` PASS (46). Spec RAG already has it as R16 (`PDF_Spec/threed/prc__8137__tess_3d_compressed.md` section 2c).

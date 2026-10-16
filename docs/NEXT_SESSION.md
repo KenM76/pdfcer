@@ -5,18 +5,32 @@ Engineer-owned; replaced each session. The previous long-form handoff
 (gate-sweep history, the carried OWED list, benchmark recipes) is in git:
 `git show 78635459:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-15, after the v0.83.0 release and the 1083rd filing.
+**Written:** 2026-10-16, after Pass 601.0 (G204) and the 1086th filing.
 
 ## State
 
 - **Release:** v0.83.0 is published (tag at `5e4404ec`, GitHub 8 assets,
   OneDrive `pdfcer2`; `pdfcer1` keeps 0.82.0). **The next release writes
   `pdfcer1`.** It carries 591.0-599.0 (G196-G203), including 596.0's GUI
-  API change (`BlockEditPreview::glyphs` became `runs`). `verify-release`
+  API change (`BlockEditPreview::glyphs` became `runs`). Unreleased since:
+  `600.0` (3D sliver rule, `08071cc2`) and `601.0` (G204,
+  `edit_recognised_block_text_preview` returns `RecognisedBlockEditPreview`,
+  a GUI API change; `06c13df7`). `verify-release`
   failed only "working tree clean", on the uncommitted spec-librarian
   memory files, which are deliberately left uncommitted.
-- **Ledgers:** next free Pass **600.0** (589.0 is the Backlog det-normalisation
-  investigation; 590.0 is G195, `docs/ocr-upscale.md`); next filing **1086th**; no decision added since 183. Core-api verb count **378**. G203 shipped as `599.0` (`cfec75cc`), replied FIXED.
+- **Ledgers:** next free Pass **602.0** (589.0 is the Backlog det-normalisation
+  investigation; 590.0 is G195, `docs/ocr-upscale.md`); next filing **1088th**
+  once the 601.0 filing lands (check ROADMAP's newest ledger line); no decision
+  added since 183. Core-api verb count **378**. G203 `599.0` and G204 `601.0`
+  both replied FIXED in the channel.
+- **3D small nuts (door sample, `TS-0232-16-3D.pdf`, 4 placements of
+  m23/m39; second sample 5 meshes) still do not decode** — OPEN Backlog item.
+  `600.0` fixed m76 (a sliver folded only when tall in its own plane,
+  `MIN_PLANE_HEIGHT`). The nuts fail differently: an exactly collinear
+  status-3 sliver at triangle 484 needs three coordinated flips
+  (484+485->843, 484+839->1779) and the wall at 1779 is beyond the 40-step
+  search window; a forced fold of 484 fails at 487. It is a search-shape
+  problem, not a threshold. Door 152/156, second sample 136/141.
 - **G194 shipped as `588.0`** (`475c6f4a`): four pinned OCR sets (`ocrs`,
   `ppocrv5-latin`, `ppocrv4-ch-en`, `ocrcer`), `manifest()` written on fetch,
   `fetch-ocr-models --model NAME`, paddle reads `inference.yml`'s
@@ -53,9 +67,10 @@ Engineer-owned; replaced each session. The previous long-form handoff
 
 - **Table cell boxes are inferred** (even grid over the region; disclosed).
   A later Pass could measure them from ruling lines or the page image.
-- **3D missing-parts research on the second assembly sample** is paused.
-  Leads: spec RAG `prc__8137__tess_3d_compressed.md`; the local-only probe
-  module in `pdfcer-3d` (never commit it).
+- **3D small nuts** (see *State*): widen or reshape the collinear-sliver
+  search in `pdfcer-3d/src/compressed.rs`; lead: spec RAG
+  `prc__8137__tess_3d_compressed.md` §2c. Re-create a local probe if needed;
+  none is in the tree now.
 - **The "operator's ordered plan" carried here earlier is all SHIPPED**
   (`142.0`, `364.0` resize-page-contents, `259.0`, `10.11`, all 2026-09-27/28);
   it was a stale carry. Verify any inherited queue against ROADMAP *Shipped*.
@@ -69,7 +84,6 @@ Engineer-owned; replaced each session. The previous long-form handoff
   `layout.onnx`), any `inference.onnx` in the scratchpad.
 - The operator's real PDFs and their dumps; the reader-field, vl-spike and
   prc-probe folders under `D:\Dev\pdfTests\`.
-- `crates/pdfcer-3d/src/compressed/probe.rs` and its `mod probe;` line.
 - `.claude/agent-memory/pdfcer-spec-librarian/` edits (another agent's).
 
 ## How to push

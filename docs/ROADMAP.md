@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 601.0` — `edit_recognised_block_text_preview` returns a drawable layout (`G204`) — SHIPPED 2026-10-16 (1087th filing)
+
+Commit `06c13df7` on `main`, after `dc4e5bd6`; unpushed at filing time (engineer-stated; no shell here, not checked). No manifest change, so no `cargo tree` change. Reply `reply_request_G204_recognised_block_layout_preview_FIXED.md` in `pdfce_FeatureRequests/open/`; `INDEX.md` top row flipped to FIXED.
+
+- **Change.** The verb returns `pdfcer_core::text_edit::RecognisedBlockEditPreview` (`#[non_exhaustive]`: `lines: Vec<BlockEditLine>`, `old_bbox`, `new_bbox`, `runs: Vec<TextEditPreview>`, `report: RecognisedBlockEditReport`) instead of the bare report. Shaped like `BlockEditPreview` minus `leading` (an OCR layer is never re-wrapped). Return type changed (pre-release, no back-compat).
+- **Layout** (new `crates/pdfcer-core/src/text_edit/recognised_block/rewrite/layout.rs`), built from the commit's own plan: kept words at the positions their show operators give them (slot starts from `emit::replay`), own font and `Tz`; a replaced word from the old word's first glyph origin at its fitted `Tz` (`WordFit::horizontal_scale`) in the encoder's font; deleted words have no glyphs. One `TextEditPreview` per font resource; glyph matrix `[Tfs*Th 0 0 Tfs tx Trise] x Tm x CTM` (ISO 32000-1 §9.4.4); run bbox grown by advance x ascent/descent; `new_bbox` = union of run boxes, `= old_bbox` when nothing survives; lines keyed by the layer's own numbering. Unchanged text lays the layer out as it is (the GUI's first call). `rewrite::Done` now carries `reps`/`encs`; `words::union` shared, not duplicated.
+- **Finding** (recorded in the test). The fixture layer's baseline is 700.46, not 700.0, and each OCR word carries its own `Tz`, so glyph `m[0]` ratios are not comparable across words.
+- **Tests.** `crates/pdfcer-core/tests/recognised_block_verbs.rs` 9/9; two new: `unchanged_text_lays_out_the_block_as_it_is`, `a_replaced_word_is_laid_out_in_the_old_words_box`. `docs/core-api/02-editing-and-saving.md` row updated in the same commit; `check-core-api-verbs.py` PASS. `tools/run-gates.sh` PASS (46 commands, 12883 tests, 0 failed).
+
+`FEATURES.md`: the `599.0` row (*Edit a recognised (OCR) paragraph word by word in place*) gains the layout preview; core `[x]`, cli `[ ]` (n/a for a preview), gui `[ ]` (`pdfcer-gui`'s). No new row.
+
+Ledgers: no decision; next free `Pass 602.0`; next filing 1088th.
+
 ### `Pass 600.0` — PRC compressed-tessellation decoder: fold a status=3 sliver only when the triangle is tall in its own plane — SHIPPED 2026-10-16 (1086th filing)
 
 Commit `08071cc2` on `main` (`crates/pdfcer-3d/src/compressed.rs` only; engineer-stated, push state not checked, no shell here). No manifest change, so no `cargo tree` change. Operator request: "Our 3D engine is still not rendering some small nuts in our test sample" (door sample `TS-0232-16-3D.pdf`, the `ZACON - BVD KIT 2 - NYLOCK HEX NUT GR5 ZINC` placements).
@@ -22267,9 +22280,7 @@ closes out the *prior* filing's business rather than opening this one's.
 > **Taken up from `pdfcer-gui`, 2026-10-14 (1069th filing): 1 request `G193` as `Pass 587.0`.** Request file `pdfce_FeatureRequests/open/request_G193_*.md`. Ledgers: no decision; next free `Pass 588.0`; next filing 1070th.
 > - `587.0` (`G193`) SHIPPED at the 1070th filing (`27c7deaa`, `be42b28b`); see *Shipped*. The batch is complete. Next free `Pass 588.0`; next filing 1071st.
 
-> **Taken up from `pdfcer-gui`, 2026-10-16 (1086th filing): 1 request `G204` as `Pass 601.0` — IN PROGRESS.** Request file `pdfce_FeatureRequests/request_recognised_block_layout_preview.md` (INDEX.md top row, OPEN). Ledgers: no decision; next free `Pass 602.0`; next filing 1087th.
-> - **`601.0` (`G204`) — `edit_recognised_block_text_preview` returns a drawable layout.** Today it returns only the report; the GUI cannot draw the edit in place while the operator types. New `#[non_exhaustive] pub struct RecognisedBlockEditPreview { lines, old_bbox, new_bbox, runs, report }` in `pdfcer_core::text_edit` (like `BlockEditPreview`: `runs` = `TextEditPreview`s for `pdfcer_render::edit_preview`, `lines` = `BlockEditLine`s). The verb's return type changes (pre-release, no back-compat). Layout comes from the same plan as the edit: kept words from the operators' own slot starts, replaced words from the old word's first glyph origin at the fitted `Tz` (each per its `WordFit`). Must also work when nothing changed (the GUI's first call).
->   - Acceptance: (1) unchanged text returns every word positioned, lines with baseline/origin/width matching the OCR layer; (2) a replaced word's glyphs start at the old origin and span the old width; (3) one `TextEditPreview` per font resource, render mode 3; (4) `new_bbox` ~ `old_bbox` for same-width edits; (5) the GUI reply is filed FIXED in the channel. `FEATURES.md` row for `599.0` gains the layout preview when this ships.
+> **Taken up from `pdfcer-gui`, 2026-10-16 (1086th filing): 1 request `G204` as `Pass 601.0`; SHIPPED at the 1087th filing (`06c13df7`), see *Shipped*.** The batch is complete. Next free `Pass 602.0`; next filing 1088th.
 
 > **Taken up from `pdfcer-gui`, 2026-10-14 (1073rd filing): 1 request `G194` as `Pass 588.0`; SHIPPED at the same filing (`475c6f4a`), see *Shipped*.** The batch is complete. `Pass 589.0` is a Backlog investigation, not a Next up item. Next free `Pass 590.0`; next filing 1074th.
 
