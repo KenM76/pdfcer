@@ -71,10 +71,12 @@ use std::collections::HashMap;
 use crate::TriangleMesh;
 
 mod normals;
+mod partial;
 mod search;
 
 pub(crate) use normals::NormalArrays;
 use normals::{NormalMark, NormalReader, Orientation, stored_normals};
+pub use partial::PartialMesh;
 
 type V = [f64; 3];
 
@@ -278,6 +280,13 @@ struct Walk<'a> {
     /// Whether any apex so far, rewound or not, would move under the
     /// other [`Arrays::ortho_turned`].
     reads_turned: bool,
+    /// Set by [`partial::decode`]: a failing [`walk_into`] leaves the walk
+    /// as it stood before the step that failed.
+    partial: bool,
+    /// Set by [`partial::decode`]: an edge may be shared by any number of
+    /// triangles, and stored normals that run out are dropped rather than
+    /// failing the step.
+    forgiving: bool,
 }
 
 /// Where a component starts, to roll back to.
@@ -316,6 +325,8 @@ impl<'a> Walk<'a> {
             exact: false,
             loose: false,
             reads_turned: false,
+            partial: false,
+            forgiving: false,
         }
     }
 
@@ -438,9 +449,13 @@ impl<'a> Walk<'a> {
         let Some(r) = self.normals.as_mut() else {
             return Ok(fold);
         };
-        let o = r
-            .read(ti, t, &self.pos)
-            .ok_or("the stored normals run out")?;
+        let Some(o) = r.read(ti, t, &self.pos) else {
+            if self.forgiving {
+                self.normals = None;
+                return Ok(fold);
+            }
+            return Err("the stored normals run out".into());
+        };
         let corners = if self.raw {
             r.corner_sum(&self.pos)
         } else {
@@ -494,7 +509,7 @@ impl<'a> Walk<'a> {
             *n = n.saturating_add(1);
             let n = *n;
             self.log.push(key(x, y));
-            if n > 2 {
+            if n > 2 && !self.forgiving {
                 return Err("an edge is shared by more than two triangles".into());
             }
         }
@@ -567,19 +582,35 @@ fn oriented_fit(a: &Arrays<'_>) -> Option<TriangleMesh> {
 /// stage; the turned one is kept only as a fit the stored normals confirm.
 ///
 /// A rebuilt mesh and whether it is a best fit, or why none was rebuilt.
-pub(crate) type Rebuilt = Result<(TriangleMesh, bool), String>;
+pub(crate) type Rebuilt = Result<(TriangleMesh, bool), NotRebuilt>;
+
+/// Why no mesh was rebuilt, and what decoded regardless.
+#[derive(Debug)]
+pub(crate) struct NotRebuilt {
+    pub(crate) why: String,
+    /// The triangles that decoded anyway; `None` when the arrays are in a
+    /// form the traversal does not read, or not even a seed decodes.
+    pub(crate) partial: Option<Box<PartialMesh>>,
+}
 
 /// [`reconstruct`], falling back to [`search::best_fit`]; the flag is true
-/// for a best fit, which another geometry might match as well.
+/// for a best fit, which another geometry might match as well. When
+/// neither fits, [`partial::decode`] salvages what it can.
 pub(crate) fn rebuild(a: &Arrays<'_>) -> Rebuilt {
-    let e = match reconstruct(a) {
+    let why = match reconstruct(a) {
         Ok(m) => return Ok((m, false)),
         Err(e) => e,
     };
     if a.edge_status.len() != a.triangles.saturating_mul(3) {
-        return Err(e);
+        return Err(NotRebuilt { why, partial: None });
     }
-    search::best_fit(a).map(|m| (m, true)).ok_or(e)
+    match search::best_fit(a) {
+        Some(m) => Ok((m, true)),
+        None => Err(NotRebuilt {
+            partial: partial::decode(a, &why).map(Box::new),
+            why,
+        }),
+    }
 }
 
 /// A mesh no stage fits is retried with [`Arrays::legacy_orient`]: some
@@ -649,8 +680,19 @@ fn mesh(
 /// [`MIN_SINE`]). A component whose planar faces bend (see [`MAX_BEND`])
 /// counts as failing.
 fn walk<'a>(a: &Arrays<'_>, normals: Option<NormalReader<'a>>) -> Result<Walk<'a>, String> {
+    let mut w = Walk::new(a.triangles, normals);
+    walk_into(a, &mut w)?;
+    if w.slot != a.is_reference.len() || w.ri != a.references.len() || w.pi != a.points.len() {
+        return Err("the decoded triangles do not use up the stored arrays".into());
+    }
+    Ok(w)
+}
+
+/// Walks every component into `w` (see [`walk`]). Under [`Walk::partial`]
+/// a failure leaves `w` as it stood before the step that failed, so the
+/// caller can take that step another way.
+fn walk_into(a: &Arrays<'_>, w: &mut Walk<'_>) -> Result<(), String> {
     let t = a.triangles;
-    let mut w = Walk::new(t, normals);
     let mut start = w.mark(0);
     let (mut flip_at, mut sliver) = (None, None);
     let mut i = 0;
@@ -659,6 +701,7 @@ fn walk<'a>(a: &Arrays<'_>, normals: Option<NormalReader<'a>>) -> Result<Walk<'a
             start = w.mark(i);
             flip_at = None;
         }
+        let before = w.partial.then(|| (w.mark(i), w.next, w.stack.clone()));
         let status = a.edge_status.get(i).copied().unwrap_or(0);
         let stepped = w.step(a, status, flip_at == Some(i)).and_then(|()| {
             if w.next.is_none() && !search::flat(a, &w.pos, &w.tris, start.tri) {
@@ -669,9 +712,9 @@ fn walk<'a>(a: &Arrays<'_>, normals: Option<NormalReader<'a>>) -> Result<Walk<'a
         });
         match stepped {
             Ok(()) => i += 1,
-            Err(e) if i == start.tri => return Err(e),
             Err(e) => {
                 let retry = match flip_at {
+                    _ if i == start.tri => None,
                     None => {
                         sliver = w.sliver.filter(|&s| s > start.tri + 1);
                         Some(start.tri + 1)
@@ -679,17 +722,20 @@ fn walk<'a>(a: &Arrays<'_>, normals: Option<NormalReader<'a>>) -> Result<Walk<'a
                     Some(f) if f == start.tri + 1 => sliver.take(),
                     Some(_) => None,
                 };
-                let Some(f) = retry else { return Err(e) };
+                let Some(f) = retry else {
+                    if let Some((m, next, stack)) = before {
+                        w.rewind(m);
+                        (w.next, w.stack) = (next, stack);
+                    }
+                    return Err(e);
+                };
                 w.rewind(start);
                 flip_at = Some(f);
                 i = start.tri;
             }
         }
     }
-    if w.slot != a.is_reference.len() || w.ri != a.references.len() || w.pi != a.points.len() {
-        return Err("the decoded triangles do not use up the stored arrays".into());
-    }
-    Ok(w)
+    Ok(())
 }
 
 #[cfg(test)]

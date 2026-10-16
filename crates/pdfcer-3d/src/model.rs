@@ -32,6 +32,20 @@ pub struct AssembledModel {
     /// [`Tessellation::Compressed`]): the shape drawn consumes every stored
     /// array, but another shape might as well.
     pub best_fit: usize,
+    /// Compressed tessellations drawn in part under [`MeshFit::Partial`]
+    /// or [`MeshFit::Continue`]: no fit rebuilt them, so what is drawn is
+    /// what decoded, cut where the arrays stopped fitting (`Partial`) or
+    /// carried past it (`Continue`). Disclose it.
+    pub partial: usize,
+    /// Of the triangles [`Self::partial`] meshes hold, how many are drawn:
+    /// `(drawn, total)`.
+    pub partial_triangles: (usize, usize),
+    /// Each distinct reason a partial mesh's sound decode stopped, with its
+    /// count.
+    pub partial_why: Vec<(String, usize)>,
+    /// The parts that draw a partial mesh, labelled as
+    /// [`Self::left_out_parts`].
+    pub partial_parts: Vec<String>,
     /// Compressed tessellations left out.
     pub compressed: usize,
     /// Each distinct reason a compressed mesh was left out, with its count.
@@ -111,17 +125,35 @@ pub enum StoredVisibility {
     DrawAll,
 }
 
-/// Whether a compressed mesh only a best-fit search rebuilds is drawn.
-/// ISO 14739-1 does not specify the decoder, and an encoder's quantisation
-/// can leave the arrays admitting more than one shape.
+/// How far [`assemble_with_options`] goes to draw a compressed mesh the
+/// arrays do not determine. ISO 14739-1 does not specify the decoder, and
+/// an encoder's quantisation can leave the arrays admitting more than one
+/// shape, or none pdfcer's traversal reads. Each step up draws everything
+/// the one below does; everything past `Unique` is disclosed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
 pub enum MeshFit {
-    /// Draw it, counted in [`AssembledModel::best_fit`].
+    /// Draw a mesh only a best-fit search rebuilds, counted in
+    /// [`AssembledModel::best_fit`].
     #[default]
     BestFit,
     /// Leave it out: draw only meshes the arrays determine.
     Unique,
+    /// Also draw, of a mesh no fit rebuilds, the triangles that decoded
+    /// before its arrays stopped fitting ([`crate::PartialMesh::sound`]), counted
+    /// in [`AssembledModel::partial`].
+    Partial,
+    /// As `Partial`, and keep decoding past the first inconsistency until
+    /// the point array runs out or the geometry leaves the sound part's
+    /// neighbourhood ([`crate::PartialMesh::mesh`] entire).
+    Continue,
+}
+
+impl MeshFit {
+    /// Whether a mesh no fit rebuilds is drawn in part.
+    fn draws_partial(self) -> bool {
+        matches!(self, Self::Partial | Self::Continue)
+    }
 }
 
 /// Why a best-fit mesh is left out under [`MeshFit::Unique`].
@@ -216,6 +248,7 @@ pub fn assemble_with_options(
     place(&prc, by_index, options, &mut model);
     model.left_out_parts = part_labels(&prc, &flagged.left_out);
     model.best_fit_parts = part_labels(&prc, &flagged.best_fit);
+    model.partial_parts = part_labels(&prc, &flagged.partial);
     model.triangles = model.meshes.iter().map(|m| m.triangles.len()).sum();
     if model.triangles == 0 {
         return Err(if model.compressed > 0 {
@@ -263,6 +296,24 @@ fn decode_meshes(
                     Some(m)
                 }
                 Tessellation::Compressed {
+                    mesh: None,
+                    partial: Some(p),
+                    ..
+                } if fit.draws_partial() => {
+                    let p = *p;
+                    model.partial += 1;
+                    flagged.partial.push((f, i));
+                    let m = if fit == MeshFit::Continue {
+                        p.mesh
+                    } else {
+                        p.sound_mesh()
+                    };
+                    model.partial_triangles.0 += m.triangles.len();
+                    model.partial_triangles.1 += p.total;
+                    count_why(&mut model.partial_why, p.why);
+                    Some(m)
+                }
+                Tessellation::Compressed {
                     mesh, not_rebuilt, ..
                 } => {
                     model.compressed += 1;
@@ -271,10 +322,7 @@ fn decode_meshes(
                         Some(_) => BEST_FIT_REFUSED.to_owned(),
                         None => not_rebuilt.unwrap_or_default(),
                     };
-                    match model.skipped_why.iter_mut().find(|(w, _)| *w == why) {
-                        Some((_, n)) => *n += 1,
-                        None => model.skipped_why.push((why, 1)),
-                    }
+                    count_why(&mut model.skipped_why, why);
                     None
                 }
                 _ => {
@@ -288,12 +336,21 @@ fn decode_meshes(
     Ok(by_index)
 }
 
+/// Adds one occurrence of `why` to a `(reason, count)` tally.
+fn count_why(tally: &mut Vec<(String, usize)>, why: String) {
+    match tally.iter_mut().find(|(w, _)| *w == why) {
+        Some((_, n)) => *n += 1,
+        None => tally.push((why, 1)),
+    }
+}
+
 /// Compressed tessellations, as (file structure, tessellation) indices,
-/// that [`decode_meshes`] left out or rebuilt by best fit.
+/// that [`decode_meshes`] left out, rebuilt by best fit or drew in part.
 #[derive(Default)]
 struct Flagged {
     left_out: Vec<(usize, usize)>,
     best_fit: Vec<(usize, usize)>,
+    partial: Vec<(usize, usize)>,
 }
 
 /// The labels of the parts whose placements draw one of `tess`: for each

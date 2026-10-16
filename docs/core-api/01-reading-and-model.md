@@ -3179,14 +3179,36 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   and `3d-mesh` print `note: N of those were rebuilt by a best-fit search:
   the shape uses every stored number, but the file may admit another, so a
   small detail can differ (`--mesh-fit unique` leaves them out)`.
-  `AssembleOptions::mesh_fit: MeshFit::{BestFit (default), Unique}`
-  (`Copy`, `Hash`, `#[non_exhaustive]`, re-exported at the crate root) —
-  offer it as a setting; `Unique` leaves such meshes out with the reason
-  `only a best-fit search rebuilds it, and the strict mesh-fit setting
-  draws unique fits only`.
+  `AssembleOptions::mesh_fit: MeshFit::{BestFit (default), Unique, Partial,
+  Continue}` (`Copy`, `Hash`, `#[non_exhaustive]`, re-exported at the crate
+  root) — offer it as a setting; each step up draws everything the one
+  below does. `Unique` leaves best-fit meshes out with the reason `only a
+  best-fit search rebuilds it, and the strict mesh-fit setting draws unique
+  fits only`.
 - A `Compressed { mesh: None, not_rebuilt: Some(why), .. }` is left out;
   `why` is a sentence fit to show. The CLI prints one
   `note: N compressed mesh(es) left out: <why>` per distinct reason.
+- **Partial compressed meshes.** A mesh no fit rebuilds still carries
+  `Compressed { partial: Some(PartialMesh), .. }` when at least a seed
+  triangle decoded: `mesh.triangles[..sound]` decoded before the arrays
+  stopped fitting, the rest came from a forgiving walk that lets an edge
+  carry more than two triangles and stops when the points run out or a
+  triangle reaches more than the sound part's diagonal outside its box;
+  `total` is the entity's triangle count, `why` the sentence the strict
+  rebuild gave; `sound_mesh()` cuts every per-triangle array back to the
+  sound prefix. `MeshFit::Partial` draws the sound prefix, `Continue` the
+  whole decode; under either the mesh leaves `left_out_parts` and
+  `skipped_why` for `AssembledModel::partial: usize`, `partial_triangles:
+  (drawn, total)` summed over such meshes, `partial_why: Vec<(String,
+  usize)>` and `partial_parts: Vec<String>` (named as `best_fit_parts`
+  is). **Disclose it** — the shape past the first inconsistency is a
+  reading the file does not confirm. The CLI prints `note: N compressed
+  mesh(es) no fit rebuilds are drawn in part (K of T triangles); the file
+  does not confirm the shape past where its arrays stopped fitting, so a
+  detail can be wrong or missing`, one `note: N of those stopped fitting
+  because <why>` per reason, and `note: parts drawn by a partial mesh (K):
+  ...`. Fixture: `fixtures/synthetic/prc/partial.prc` (four triangles,
+  the fourth on an edge already carrying two; 3 sound, 4 continued).
 - **Which parts.** `AssembledModel::left_out_parts` and `best_fit_parts:
   Vec<String>` name the parts drawing a left-out or a best-fit mesh: the
   deepest tree node holding each such placement, by `ModelNode::label()`
@@ -3199,7 +3221,8 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   [--up x|y|z] [--eye X,Y,Z] [--target X,Y,Z] [--ortho] [--fov DEG]
   [--style-alpha zero-unset|style|multiply] [--texture-origin bottom|top]
   [--texture-wrap-base zero|one] [--texture-pictures structure|header]
-  [--mesh-fit best|unique]`; `3d-mesh` also takes `--mesh-fit`.
+  [--mesh-fit best|unique|partial|continue]`; `3d-mesh` also takes
+  `--mesh-fit`.
 - Test models: `fixtures/synthetic/prc/coloured.prc` — a square defined in one
   file structure, placed at x 0, 2 and 4 from another whose globals hold
   the colours: opaque red, translucent blue (texture over an alpha-0

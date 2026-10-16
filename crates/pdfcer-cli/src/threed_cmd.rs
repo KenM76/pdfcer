@@ -181,6 +181,8 @@ fn mesh_fit(fit: MeshFitArg) -> pdfcer_3d::MeshFit {
     match fit {
         MeshFitArg::Best => pdfcer_3d::MeshFit::BestFit,
         MeshFitArg::Unique => pdfcer_3d::MeshFit::Unique,
+        MeshFitArg::Partial => pdfcer_3d::MeshFit::Partial,
+        MeshFitArg::Continue => pdfcer_3d::MeshFit::Continue,
     }
 }
 
@@ -250,11 +252,31 @@ fn print_assembly_notes(a: &pdfcer_3d::AssembledModel, drawn: &str) {
         );
     }
     print_best_fit_note(a.best_fit);
+    print_partial_note(a, drawn);
     for (why, n) in &a.skipped_why {
         println!("note: {n} compressed mesh(es) left out: {why}");
     }
     print_parts("parts missing a left-out mesh", &a.left_out_parts);
     print_parts("parts drawn by a best-fit mesh", &a.best_fit_parts);
+    print_parts("parts drawn by a partial mesh", &a.partial_parts);
+}
+
+/// The note for compressed meshes drawn in part under `--mesh-fit partial`
+/// or `continue`: the shape past the first inconsistency is a reading the
+/// file does not confirm.
+#[cfg(feature = "3d")]
+fn print_partial_note(a: &pdfcer_3d::AssembledModel, drawn: &str) {
+    if a.partial == 0 {
+        return;
+    }
+    let (got, of) = a.partial_triangles;
+    println!(
+        "note: {} compressed mesh(es) no fit rebuilds are {drawn} in part ({got} of {of} triangles); the file does not confirm the shape past where its arrays stopped fitting, so a detail can be wrong or missing",
+        a.partial
+    );
+    for (why, n) in &a.partial_why {
+        println!("note: {n} of those stopped fitting because {why}");
+    }
 }
 
 /// One note line naming `parts`, as `3d-tree` lists them; nothing when empty.

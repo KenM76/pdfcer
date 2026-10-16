@@ -76,15 +76,22 @@ pub(crate) enum EntityOverridesArg {
     Ignore,
 }
 
-/// Whether `3d-render` draws a compressed mesh only a best-fit search
-/// rebuilds (ISO 14739-1 does not specify the decoder).
+/// How far `3d-render` goes to draw a compressed mesh the stored arrays do
+/// not determine (ISO 14739-1 does not specify the decoder). Each step up
+/// draws everything the one below does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
 pub(crate) enum MeshFitArg {
-    /// Draw it, and say so. Default.
+    /// Draw a mesh only a best-fit search rebuilds, and say so. Default.
     #[default]
     Best,
     /// Leave it out: draw only meshes the stored arrays determine.
     Unique,
+    /// Also draw, of a mesh no fit rebuilds, the triangles decoded before
+    /// its arrays stopped fitting.
+    Partial,
+    /// As partial, and keep decoding past the first inconsistency until
+    /// the points run out or the shape leaves the sound part's neighbourhood.
+    Continue,
 }
 
 /// Where `3d-render` reads a texture picture's first row from (ISO

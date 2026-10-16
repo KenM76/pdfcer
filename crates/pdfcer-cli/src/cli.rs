@@ -3106,9 +3106,12 @@ pub(crate) enum Command {
         /// (any case), otherwise STL.
         #[arg(long, value_enum)]
         format: Option<MeshFormat>,
-        /// Whether a compressed part only a best-fit search rebuilds is
-        /// written: `best` (default) writes it and prints a note, `unique`
-        /// leaves it out.
+        /// How far to go with a compressed part the file's numbers do not
+        /// determine: `best` (default) writes one a best-fit search rebuilds
+        /// and prints a note, `unique` leaves it out, `partial` also writes
+        /// the triangles of an unrebuildable part that decoded before its
+        /// numbers stopped fitting, `continue` keeps decoding past that
+        /// point until the points run out. The last two print a note.
         #[arg(long, value_enum, default_value_t)]
         mesh_fit: MeshFitArg,
         /// Also write the parts the file stores hidden or suppressed
@@ -3213,10 +3216,14 @@ pub(crate) enum Command {
         /// copy, `ignore` none. Transparent parts usually come from these.
         #[arg(long, value_enum, default_value_t)]
         entity_overrides: EntityOverridesArg,
-        /// Whether a compressed part only a best-fit search rebuilds is
-        /// drawn: `best` (default) draws it and prints a note, `unique`
-        /// leaves it out. A best fit uses every stored number, but the file
-        /// may admit another shape, so a small detail can differ.
+        /// How far to go with a compressed part the file's numbers do not
+        /// determine: `best` (default) draws one a best-fit search rebuilds
+        /// and prints a note (a best fit uses every stored number, but the
+        /// file may admit another shape, so a small detail can differ),
+        /// `unique` leaves it out, `partial` also draws the triangles of an
+        /// unrebuildable part that decoded before its numbers stopped
+        /// fitting, `continue` keeps decoding past that point until the
+        /// points run out. The last two print a note.
         #[arg(long, value_enum, default_value_t)]
         mesh_fit: MeshFitArg,
         /// Also draw the parts the file stores hidden or suppressed

@@ -70,6 +70,11 @@ pub enum Tessellation {
         /// found that consumes every array, where another might as well.
         /// Such a mesh is disclosed as inferred.
         best_fit: bool,
+        /// When `mesh` is `None`: the triangles that decoded regardless,
+        /// drawn only under [`MeshFit::Partial`](crate::MeshFit::Partial)
+        /// or [`MeshFit::Continue`](crate::MeshFit::Continue) and disclosed.
+        /// `None` when not even a seed triangle decodes.
+        partial: Option<Box<crate::PartialMesh>>,
     },
 }
 
@@ -272,15 +277,16 @@ impl Ctx<'_, '_> {
                 }
                 TESS_3D_COMPRESSED => {
                     let (triangles, rebuilt) = self.tess_3d_compressed()?;
-                    let (mesh, not_rebuilt, best_fit) = match rebuilt {
-                        Ok((m, best)) => (Some(m), None, best),
-                        Err(why) => (None, Some(why), false),
+                    let (mesh, not_rebuilt, best_fit, partial) = match rebuilt {
+                        Ok((m, best)) => (Some(m), None, best, None),
+                        Err(e) => (None, Some(e.why), false, e.partial),
                     };
                     Tessellation::Compressed {
                         triangles,
                         mesh,
                         not_rebuilt,
                         best_fit,
+                        partial,
                     }
                 }
                 t => {
@@ -379,6 +385,18 @@ impl Ctx<'_, '_> {
         }
         self.schema
             .skip_added_fields(TESS_3D_COMPRESSED, &mut self.r)?;
+        let graphics = compressed_graphics(&face_of, &multi, &line_attributes, &behaviours, faces);
+        // A partial mesh holds a prefix of the entity's triangles; the
+        // per-triangle arrays are cut to it.
+        let per_face = |m: TriangleMesh, recalc: bool| {
+            let n = m.triangles.len();
+            TriangleMesh {
+                normals_recalculated: recalc,
+                triangle_faces: face_of.get(..n).map(<[u32]>::to_vec).unwrap_or_default(),
+                triangle_graphics: graphics.get(..n).map(<[_]>::to_vec).unwrap_or_default(),
+                ..m
+            }
+        };
         let mesh = crate::compressed::rebuild(&crate::compressed::Arrays {
             tolerance: tol,
             origin,
@@ -399,24 +417,14 @@ impl Ctx<'_, '_> {
                 }
             }),
         })
-        .map(|(m, best)| {
-            let graphics =
-                compressed_graphics(&face_of, &multi, &line_attributes, &behaviours, faces);
-            let m = TriangleMesh {
-                normals_recalculated: recalc,
-                triangle_faces: if face_of.len() == m.triangles.len() {
-                    face_of.clone()
-                } else {
-                    Vec::new()
-                },
-                triangle_graphics: if graphics.len() == m.triangles.len() {
-                    graphics
-                } else {
-                    Vec::new()
-                },
-                ..m
-            };
-            (m, best)
+        .map(|(m, best)| (per_face(m, recalc), best))
+        .map_err(|mut e| {
+            if let Some(p) = e.partial.as_mut() {
+                let m = std::mem::take(&mut p.mesh);
+                let recalc = recalc || m.normals.is_empty();
+                p.mesh = per_face(m, recalc);
+            }
+            e
         });
         Ok((t, mesh))
     }
@@ -1719,6 +1727,7 @@ pub(crate) mod tests {
                 mesh: None,
                 not_rebuilt: Some(_),
                 best_fit: false,
+                partial: None,
             }]
         ));
         crate::testw::check_fixture("compressed.prc", &bytes);
@@ -1732,6 +1741,7 @@ pub(crate) mod tests {
                 mesh: Some(_),
                 not_rebuilt: None,
                 best_fit: false,
+                partial: None,
             }]
         ));
         crate::testw::check_fixture("compressed_triangle.prc", &bytes);
@@ -1875,5 +1885,88 @@ pub(crate) mod tests {
                 .contains("strict mesh-fit setting draws unique fits only"),
             "{err}"
         );
+    }
+
+    /// `partial.prc`: one compressed mesh of four triangles on one face;
+    /// the fourth puts a third triangle on an edge, so no fit rebuilds it,
+    /// and three decode before that.
+    fn partial_prc() -> Vec<u8> {
+        let pts = [0i64, 0, 0, 4, 0, 0, -2, 4, 0, 2, -6, 2];
+        let mut st = vec![3u8, 3];
+        st.resize(12, 0);
+        let is_ref = [false, false, false, false, true, true];
+        let mut w = W::default();
+        w.uint(173).bit(false).bit(true).double(0.5);
+        w.put(0, 32).put(0, 32).put(0, 32);
+        vbn_array(&mut w, &pts, 4);
+        w.bit(false).uint(st.len() as u32);
+        for &x in &st {
+            w.put(u64::from(x), 8);
+        }
+        w.bit(false);
+        indices(&mut w, &[0, 0, 0, 0], 2, None);
+        w.uint(is_ref.len() as u32);
+        for &x in &is_ref {
+            w.bit(x);
+        }
+        indices(&mut w, &[0, 1], 2, None);
+        w.bit(true); // must_recalculate_normals
+        for _ in 0..4 {
+            w.bit(false); // normal_is_reversed
+        }
+        w.double(0.5).put(0, 8);
+        w.bit(false).bit(false);
+        w.bit(false).uint(1).put(1, 8).put(0, 8); // line_attribute_array
+        w.bit(true).bit(false);
+        prc_file(&section(1, &w))
+    }
+
+    /// `partial.prc` rebuilds by no fit: left out by default, drawn in
+    /// part under [`crate::MeshFit::Partial`] (the sound prefix) and
+    /// [`crate::MeshFit::Continue`] (the whole decode), each disclosed.
+    #[test]
+    fn the_partial_fixture_is_current_and_drawn_only_in_part() {
+        let bytes = partial_prc();
+        let f = crate::PrcFile::parse(&bytes).unwrap();
+        let t = f.file_structures[0].tessellations().unwrap();
+        let [
+            Tessellation::Compressed {
+                triangles: 4,
+                mesh: None,
+                best_fit: false,
+                partial: Some(p),
+                ..
+            },
+        ] = &t[..]
+        else {
+            panic!("{t:?}");
+        };
+        assert_eq!((p.sound, p.total, p.mesh.triangles.len()), (3, 4, 4));
+        assert_eq!(p.mesh.triangle_faces, vec![0; 4]);
+        assert_eq!(p.sound_mesh().triangle_faces, vec![0; 3]);
+        crate::testw::check_fixture("partial.prc", &bytes);
+        assert!(matches!(
+            crate::assemble(&bytes),
+            Err(crate::AssembleError::CompressedOnly { .. })
+        ));
+        for (fit, n) in [(crate::MeshFit::Partial, 3), (crate::MeshFit::Continue, 4)] {
+            let options = crate::AssembleOptions {
+                mesh_fit: fit,
+                ..Default::default()
+            };
+            let model = crate::assemble_with_options(&bytes, &options).unwrap();
+            assert_eq!(model.meshes.len(), 1, "{fit:?}");
+            assert_eq!(model.meshes[0].triangles.len(), n, "{fit:?}");
+            assert_eq!(
+                (model.partial, model.partial_triangles, model.compressed),
+                (1, (n, 4), 0),
+                "{fit:?}"
+            );
+            assert_eq!(
+                model.partial_why,
+                vec![("an edge is shared by more than two triangles".to_owned(), 1)]
+            );
+            assert!(model.skipped_why.is_empty() && model.left_out_parts.is_empty());
+        }
     }
 }

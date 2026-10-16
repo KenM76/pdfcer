@@ -525,6 +525,35 @@ fn a_best_fit_mesh_is_disclosed_and_the_strict_setting_leaves_it_out() {
     );
 }
 
+/// A compressed mesh no fit rebuilds is refused by default, written in part
+/// under `--mesh-fit partial` (the triangles decoded before its arrays
+/// stopped fitting) and `continue` (the rest too), each with a note.
+#[cfg(feature = "3d")]
+#[test]
+fn a_partial_mesh_is_written_only_when_asked_and_disclosed() {
+    let input = with_prc("mesh_partial", "partial.prc");
+    let refused = input.with_extension("obj");
+    let out = mesh(&input, "2", &refused, &[]);
+    assert_eq!(out.status.code(), Some(9));
+    assert!(!refused.exists());
+    for (fit, faces) in [("partial", 3), ("continue", 4)] {
+        let output = input.with_extension(format!("{fit}.obj"));
+        let out = mesh(&input, "2", &output, &["--mesh-fit", fit]);
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        assert!(out.status.success(), "{fit}: {stdout}");
+        let obj = std::fs::read_to_string(&output).unwrap();
+        assert_eq!(obj.lines().filter(|l| l.starts_with("f ")).count(), faces);
+        assert!(
+            stdout.contains(&format!(
+                "note: 1 compressed mesh(es) no fit rebuilds are written in part ({faces} of 4 triangles)"
+            )) && stdout.contains(
+                "note: 1 of those stopped fitting because an edge is shared by more than two triangles"
+            ),
+            "{fit}: {stdout}"
+        );
+    }
+}
+
 #[cfg(feature = "3d")]
 #[test]
 fn a_prc_assembly_renders_both_placed_copies() {

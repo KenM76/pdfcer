@@ -47,6 +47,7 @@ mod tree;
 #[cfg_attr(not(feature = "render"), allow(dead_code))]
 mod vec3;
 
+pub use compressed::PartialMesh;
 pub use container::{
     FileStructure, MAX_FILE_STRUCTURES, MAX_INFLATED_BYTES, PRC_READER_VERSION, PrcFile, PrcHeader,
     SectionKind, UniqueId,
