@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-16 (1085th filing) — `Pass 599.0` shipped in `cfec75cc` (`G203`, edit a recognised OCR paragraph word by word in place)
+
+**Shipped (engineer-reported, no shell here, not pushed at filing time; origin/main = `b1aebb26`):** `cfec75cc`. New `EditSession` verbs `recognised_block_at_point`, `edit_recognised_block_text` and its `_preview` twin: word-level LCS diff over invisible (render mode 3/7) text, kept words byte-identical, replaced words fitted with `Tz` (clamp 25%..400% disclosed), extra words merged (disclosed), OCR layer stays its own stream (new `UnsupportedCause::EditSpansStreams`). 7 new tests; `run-gates.sh` 45/46 first run, the one failure fixed before commit; core-api verbs 375 -> 378.
+
+**Finding:** the GUI's "SHEET2 hidden run from outside the layer" was the layer's own `SHEET` + `2` 0.3 pt apart, glued by the general extractor's word-space threshold; not outside text.
+
+**Filed as:** Shipped entry in `ROADMAP.md`, new `FEATURES.md` row (core `[x]`, cli `[ ]`, gui `[ ]`), `NEXT_SESSION.md` ledgers. No decisions. `check-register-entry-size.py` not run (no shell); the entry is about 20 lines.
+
+**For next session:** next free `Pass 600.0`; next filing 1086th. The next release carries `599.0` too.
+
 ## 2026-10-15 (1084th filing) — `Pass 598.0` shipped in `e7dc2413` (`G202`, resize/rotate several annotations as one undo entry)
 
 **Shipped (engineer-reported, no shell here, not pushed at filing time):** `e7dc2413`. New `EditSession` verbs `resize_annotations`, `rotate_annotations` and their `_preview` twins (`crates/pdfcer-core/src/edit/batch_transform.rs`). Partial semantics, deliberately unlike the `583.0`-`586.0` all-or-nothing batch verbs: a refused member is left unchanged and reported via `AnnotationBatchOutcome`, the applied members fold into one undo entry, none applied pushes nothing; the only top-level `Err` is `SelectionTooLargeForOneUndo` (over 256 distinct ids). Preview rolls back fully. 5 new tests in `tests/batch_transform_verbs.rs`; `run-gates.sh` PASS (46 commands); core-api verb count 371 -> 375; no manifest change. GUI reply written (`reply_request_G202_..._FIXED.md`).

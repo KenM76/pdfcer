@@ -11,12 +11,12 @@ Engineer-owned; replaced each session. The previous long-form handoff
 
 - **Release:** v0.83.0 is published (tag at `5e4404ec`, GitHub 8 assets,
   OneDrive `pdfcer2`; `pdfcer1` keeps 0.82.0). **The next release writes
-  `pdfcer1`.** It carries 591.0-598.0 (G196-G202), including 596.0's GUI
+  `pdfcer1`.** It carries 591.0-599.0 (G196-G203), including 596.0's GUI
   API change (`BlockEditPreview::glyphs` became `runs`). `verify-release`
   failed only "working tree clean", on the uncommitted spec-librarian
   memory files, which are deliberately left uncommitted.
-- **Ledgers:** next free Pass **599.0** (589.0 is the Backlog det-normalisation
-  investigation; 590.0 is G195, `docs/ocr-upscale.md`); next filing **1085th**; no decision added since 183. Core-api verb count **375**.
+- **Ledgers:** next free Pass **600.0** (589.0 is the Backlog det-normalisation
+  investigation; 590.0 is G195, `docs/ocr-upscale.md`); next filing **1086th**; no decision added since 183. Core-api verb count **378**. G203 shipped as `599.0` (`cfec75cc`), replied FIXED.
 - **G194 shipped as `588.0`** (`475c6f4a`): four pinned OCR sets (`ocrs`,
   `ppocrv5-latin`, `ppocrv4-ch-en`, `ocrcer`), `manifest()` written on fetch,
   `fetch-ocr-models --model NAME`, paddle reads `inference.yml`'s

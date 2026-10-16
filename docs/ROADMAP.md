@@ -112,6 +112,25 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 599.0` — edit a recognised (OCR-layer) paragraph word by word in place (`G203`, operator request `O295` item 2) — SHIPPED 2026-10-16 (1085th filing)
+
+Commit `cfec75cc` on `main`, not pushed at filing time (engineer-stated; origin/main = `b1aebb26`; no shell here, not checked). No manifest change, so no `cargo tree` change; no dependency change. Reply `reply_request_G203_a_recognised_paragraph_cannot_be_edited_in_place_FIXED.md` in `pdfce_FeatureRequests/open/`.
+
+- **Defect.** `edit_block_text` repacks a paragraph from its line origin, which moved OCR-layer words off the scan and folded streams.
+- **Verbs** (`EditSession`; types in `pdfcer_core::text_edit`: `RecognisedBlockHit`, `RecognisedWord`, `RecognisedBlockEditReport`, `WordFit`): `recognised_block_at_point`, `edit_recognised_block_text`, `edit_recognised_block_text_preview`. Documented in `docs/core-api/02-editing-and-saving.md` beside `block_at_point`.
+- **Lookup** reads only invisible text (render mode 3/7, ISO 32000-2 §9.3.6); words split at whitespace, derived gaps, or `Tm`/`Td`/`ET` between show operators.
+- **Edit.** LCS word diff. Kept words byte-identical in place; a replaced word sits at its old origin with old font and size, `Tz` (§9.3.4) fitted to the old width, clamped 25%..400% (clamp disclosed); removed words dropped; extra words merged into a neighbour (disclosed, `words_merged`). Only operators holding a changed word are rewritten, each ending with the original text matrix, font and `Tz` (§9.4.3). One undo entry `CommandKind::EditRecognisedText { words_changed }`; unchanged text commits nothing.
+- **Streams.** New `UnsupportedCause::EditSpansStreams`. The localized stream write now permits a pdfcer OCR layer stream when the kind is `EditRecognisedText` (other edits still refold), so the layer stays its own stream and nothing folds.
+- **Finding.** The GUI's "SHEET2 hidden run from outside the layer" was the layer's own `SHEET` + `2`, 0.3 pt apart, glued by the general extractor's word-space threshold; not outside text.
+- **Design choice.** `edit_block_text` is unchanged (does not refuse invisible blocks); the GUI routes recognised runs to the new verbs.
+- **Tests.** 7 new, all pass, in `crates/pdfcer-core/tests/recognised_block_verbs.rs`.
+
+Tests (engineer-reported): `tools/run-gates.sh` 45/46 on first run; the one failure (`check-public-fns-documented`: two `pub(super)` helpers without doc comments) fixed before commit. fmt, `clippy -D warnings`, code-structure clean. Core-api verb count 375 -> 378 (+3); `check-core-api-verbs.py` PASS.
+
+`FEATURES.md`: new row *Edit a recognised (OCR) paragraph word by word in place*; core `[x]` cli `[ ]` gui `[ ]` (no CLI caller; gui not ours to tick).
+
+Ledgers: no decision; next free `Pass 600.0`; next filing 1086th.
+
 ### `Pass 598.0` — resize or rotate several annotations as one undo entry (`G202`, operator request `O292`) — SHIPPED 2026-10-15 (1084th filing)
 
 Commit `e7dc2413` on `main`, not pushed at filing time (engineer-stated; no shell here, not checked). No manifest change, so no `cargo tree` change. Reply `reply_request_G202_resize_and_rotate_several_annotations_FIXED.md` in `pdfce_FeatureRequests/open/`.
