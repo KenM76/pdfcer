@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-16 (1089th filing) — `v0.84.0` version bump; release in progress
+
+**Shipped (engineer-reported, no shell here):** bump `3be21aa1` ("chore: v0.84.0"), 0.83.0 -> 0.84.0 in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` only. Carries `598.0`-`602.0`.
+
+**Decision (operator):** Ken asked for a release plus a notice to `pdfcer-gui` and then to keep working the open 3D issue; this supersedes the 1088th filing's pause directive. No architecture decision.
+
+**GUI-facing:** `RecognisedBlockEditPreview` return type (`601.0`); `MeshFit::{Partial, Continue}`, `PartialMesh`, `AssembledModel::{partial, partial_triangles, partial_why, partial_parts}`, CLI `--mesh-fit` (`602.0`). Notice via `pdfce_FeatureRequests` is owed, not yet written.
+
+**Still in flight:** gates, annotated tag at the docs filing commit, CI at tag, packaging, GitHub release, OneDrive slot `pdfcer1` — none claimed.
+
+**Filed as:** `### v0.84.0` Shipped entry; `FEATURES.md` and `NEXT_SESSION.md` untouched. `check-register-entry-size.py` not run (no shell); entry is ~10 lines.
+
+**For next session:** next free `Pass 603.0`; next filing 1090th.
+
 ## 2026-10-16 (1088th filing) — `Pass 602.0` shipped in `0505ec42` (draw a compressed 3D mesh no fit rebuilds in part, on request)
 
 **Shipped (engineer-reported, no shell here, unpushed at filing time):** `0505ec42`, after `176bc762` (the 1087th filing). Operator-direct request (not a `G###` exchange): show the sound part of a failed mesh, and optionally continue past the failure. `MeshFit::{Partial, Continue}`, `PartialMesh`, `--mesh-fit best|unique|partial|continue` on `3d-mesh`/`3d-render`, disclosed per rule 4. 12 files, +572/-63. Detail in the Shipped entry.

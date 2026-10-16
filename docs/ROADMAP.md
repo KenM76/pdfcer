@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.84.0` — version bump; RELEASE IN PROGRESS (1089th filing)
+
+Bump `3be21aa1` ("chore: v0.84.0"): workspace version 0.83.0 -> 0.84.0 in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` and nothing else (lockfile diffs are only the `pdfcer-*` crate versions). Release requested by Ken 2026-10-16 ("release a new version and let pdfcer-gui know of the changes ... then continue trying to fix the issue"); this supersedes the earlier same-day pause recorded at the 1088th filing. All figures engineer-reported; I have no shell (hard rule 8).
+
+- **Contents since `v0.83.0`:** `Pass 598.0` (`e7dc2413`, `G202`), `Pass 599.0` (`cfec75cc`, `G203`), `Pass 600.0` (`08071cc2`), `Pass 601.0` (`06c13df7`, `G204`), `Pass 602.0` (`0505ec42`), plus the filing commits.
+- **GUI-facing API changes for `pdfcer-gui`:** `601.0` — `edit_recognised_block_text_preview` now returns `RecognisedBlockEditPreview` (a changed return type). `602.0` — additions: `MeshFit::{Partial, Continue}`, `PartialMesh`, `AssembledModel::{partial, partial_triangles, partial_why, partial_parts}`, CLI `--mesh-fit partial|continue`. A notice goes out through `D:\Dev\FeatureRequests\pdfce_FeatureRequests` this session (intended and owed; not yet written at filing time).
+- **Pending, NOT claimed:** gates on the bumped tree, annotated tag at the docs filing commit (as for `v0.82.0`/`v0.83.0`), CI at the tag, packaging, GitHub release, OneDrive deploy to slot `pdfcer1` (`pdfcer2` holds 0.83.0). Amend this entry when each lands.
+
+Ledgers: no decision; `FEATURES.md` untouched; next free `Pass 603.0`; next filing 1090th.
+
 ### `Pass 602.0` — draw a compressed PRC mesh no fit rebuilds in part, on request (`--mesh-fit partial|continue`) — SHIPPED 2026-10-16 (1088th filing)
 
 Commit `0505ec42` on `main`, after `176bc762` (the 1087th filing); unpushed at filing time (engineer-stated; no shell here, not checked). 12 files, +572/-63. `cargo tree -p pdfcer-3d`: no GUI crate; no new dependency. Operator request (Ken, 2026-10-16): "when a mesh fails can we at least have the option to show the parts of the mesh that didn't fail?" and "past the failure points can you have the option as well to continue and decode and show the rest of the mesh that doesn't fail?" Standing directive the same day: the only goal before the next release is the mesh rendering problems, then pause for a new session. **No release this session; the next release carries `600.0`, `601.0` and `602.0`.**
