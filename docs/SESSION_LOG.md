@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-16 (1090th filing) — `v0.84.0` PUBLISHED; Acrobat draws the failing nut (X39)
+
+**Shipped (engineer-measured, no shell here):** tag `v0.84.0` (annotated object `a7be47ec`, at `3331dddafbe5`), pushed; CI run 38943446468 green at the tag; GitHub release with 8 assets; OneDrive slot `pdfcer1`; `verify-release.py` 8 ok, 1 expected FAIL (4 uncommitted agent-memory paths). Detail in the `### v0.84.0` Shipped entry.
+
+**Decision (operator):** release gates are change-scoped (Ken: only what changed and is affected between releases). Full gate sweep at `0505ec42` (46/46), bump changed version strings only, so locally only suite-name and commits-filed gates ran; CI ran everything. Cause: a full local run on `3be21aa1` died of a full disk (51 GB in `target/debug/incremental`, deleted). Recorded in engineer memory `feedback_change_scoped_release_gates.md`, committed in the memory commit following the release (hash not supplied at filing). The same commit rewrote `project_mesh_fix_before_release.md`: the earlier "pause, no release" instruction is superseded by Ken's release directive; the mesh fix continues.
+
+**Finding (Acrobat discriminator, spec RAG X39):** Acrobat Reader (not Pro) on the door sample `TS-0232-16-3D.pdf`: selecting the failing placement "ZACON - BVD KIT 2 - NYLOCK HEX NUT GR5 ZINC-52" in its Model Tree highlights a completely drawn nut. So the encoder's fold rule at a sliver exists and a decoder can recover it; 151/156 (152 since R16) is not the ceiling. Filed by the spec-librarian as X39 in `PDF_Spec/threed/prc__8137__tess_3d_compressed.md` (not by me).
+
+**Finding (B-rep caveat ruled out by measurement):** the door PRC (extracted, 963,928 bytes) has 111 file structures; the nut part-definition file structures carry ~900-byte Geometry sections (header only) against ~18.7 KB Tessellation sections. Only two file structures (fs 73: 17,811 B; fs 44: 17,544 B, neither a nut) have non-trivial Geometry; total Geometry ~90 KB. Acrobat therefore drew the nut from the compressed tessellation stream, not from B-rep.
+
+**Still in flight:** the mesh fix (hex-nut meshes fail under every fit; shipped as a known issue in the release notes). `pdfcer-gui` owes exposure of `MeshFit::{Partial, Continue}`.
+
+**Filed as:** `### v0.84.0` Shipped entry amended in place; `FEATURES.md` untouched (no row changes; the 3D rows stay core `[x]` cli `[x]` gui `[ ]`); `NEXT_SESSION.md` untouched (engineer-owned). `check-register-entry-size.py` not run (no shell); the amended entry is ~25 lines.
+
+**For next session:** next free `Pass 603.0`; next filing 1091st.
+
 ## 2026-10-16 (1089th filing) — `v0.84.0` version bump; release in progress
 
 **Shipped (engineer-reported, no shell here):** bump `3be21aa1` ("chore: v0.84.0"), 0.83.0 -> 0.84.0 in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` only. Carries `598.0`-`602.0`.

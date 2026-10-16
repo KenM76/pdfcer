@@ -112,7 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.84.0` — version bump; RELEASE IN PROGRESS (1089th filing)
+### `v0.84.0` — PUBLISHED 2026-10-16 (published at the 1090th filing; bump filed at the 1089th)
+
+**Published (engineer-measured; I have no shell, hard rule 8).** Annotated tag object `a7be47ec28960269ad5eadb5471d8bc412d87fbb` -> commit `3331dddafbe55f290c2ca13e7d94e197440605d8` (the 1089th filing, HEAD at tagging), pushed to origin. CI run 38943446468 at the tagged commit: completed, success (read from GitHub).
+
+- **Gates were CHANGE-SCOPED** (Ken: "minimize your tests to only what was changed and would be affected between releases"). Full `tools/run-gates.sh` passed 46/46 at `0505ec42` (one commit before the bump); the bump changed only version strings, so locally only `check-suite-name-absent.py` (clean) and `check-commits-filed.py` ran, the package build was the compile check, CI ran the full sweep. An earlier full local run on `3be21aa1` died of a full disk (os error 112; 51 GB in `target/debug/incremental`, deleted). Rule is in engineer memory `feedback_change_scoped_release_gates.md`.
+- **Package:** `D:\builds\pdfcer-20261016-1357-3331ddd` (pdfcer.exe 34,573,824 bytes; folder 50,498,679 bytes; bundled `models/paddle/` only). Assets in `D:\builds\release-v0.84.0` (8 incl. `.sha256`): `pdfcer-v0.84.0-windows-x64.zip` 25,980,682 B sha256 `b755ed8f...6500`; `ocr-addon-ocrcer.zip` 3,789,155 B; `ocr-addon-ocrs.zip` 11,352,262 B; `ocr-addon-tesseract.zip` 4,483,685 B. `tools/gh-release.py` -> PASS, 8 assets at local sizes.
+- **Fresh-folder smoke** (`D:\builds\smoke-v0.84.0`), all PASS: `--version` 0.84.0; `inspect`; `rotate` incremental 709 -> 891 bytes, first 709 byte-identical; `render-page` 200x120 PNG; `ocr` with bundled PaddleOCR, mean confidence 99.4%; `3d-render --mesh-fit continue` on the door sample shows the 602.0 disclosure (4 meshes in part, 2352 of 7060 triangles).
+- **OneDrive:** slot `pdfcer1` (was 0.82.0), 6 items, 70,121,279 bytes, VERSION.txt 2026-10-16T18:20:27Z; `pdfcer2` keeps 0.83.0. Next release writes `pdfcer2`.
+- **`verify-release.py v0.84.0`:** 8 ok, 1 FAIL "working tree clean" (4 uncommitted agent-memory paths, none compiled; expected, as in prior releases).
+- **Notice to `pdfcer-gui`:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-10-16_v0.84.0_released.md` (API changes; asks the shell to expose `MeshFit::{Partial, Continue}` with the off-canvas disclosure; no reply owed). Discharges the "owed" notice below.
+- **Known issue shipped in the notes:** hex-nut meshes still fail under every fit; the fix continues (Backlog 3D item).
+
+Original bump entry (1089th filing), kept as filed; its "Pending" line is now discharged by the bullets above:
 
 Bump `3be21aa1` ("chore: v0.84.0"): workspace version 0.83.0 -> 0.84.0 in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` and nothing else (lockfile diffs are only the `pdfcer-*` crate versions). Release requested by Ken 2026-10-16 ("release a new version and let pdfcer-gui know of the changes ... then continue trying to fix the issue"); this supersedes the earlier same-day pause recorded at the 1088th filing. All figures engineer-reported; I have no shell (hard rule 8).
 
@@ -120,7 +132,7 @@ Bump `3be21aa1` ("chore: v0.84.0"): workspace version 0.83.0 -> 0.84.0 in `Cargo
 - **GUI-facing API changes for `pdfcer-gui`:** `601.0` — `edit_recognised_block_text_preview` now returns `RecognisedBlockEditPreview` (a changed return type). `602.0` — additions: `MeshFit::{Partial, Continue}`, `PartialMesh`, `AssembledModel::{partial, partial_triangles, partial_why, partial_parts}`, CLI `--mesh-fit partial|continue`. A notice goes out through `D:\Dev\FeatureRequests\pdfce_FeatureRequests` this session (intended and owed; not yet written at filing time).
 - **Pending, NOT claimed:** gates on the bumped tree, annotated tag at the docs filing commit (as for `v0.82.0`/`v0.83.0`), CI at the tag, packaging, GitHub release, OneDrive deploy to slot `pdfcer1` (`pdfcer2` holds 0.83.0). Amend this entry when each lands.
 
-Ledgers: no decision; `FEATURES.md` untouched; next free `Pass 603.0`; next filing 1090th.
+Ledgers: no decision; `FEATURES.md` untouched; next free `Pass 603.0`; next filing 1091st (1090th = publication, no Pass consumed).
 
 ### `Pass 602.0` — draw a compressed PRC mesh no fit rebuilds in part, on request (`--mesh-fit partial|continue`) — SHIPPED 2026-10-16 (1088th filing)
 
