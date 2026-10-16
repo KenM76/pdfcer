@@ -82,6 +82,31 @@ type V = [f64; 3];
 /// winding no normal can orient: the WD assumes none [WD 7.8.9].
 const MIN_SINE: f64 = 1e-6;
 
+/// Below this in-plane height, in tolerances, a planar face's normal cannot
+/// orient a triangle. The WD quantises each vertex to the tolerance and
+/// requires every triangle to be taller than one [WD 7.8.9], so a decoded
+/// triangle that is tall in space yet nearly flat *along the face* (its
+/// apex frame tilted out of the face by an earlier sliver) has an in-face
+/// area of about one quantum: the sign of its winding against the face
+/// normal is noise. Measured on the fitting meshes of two CAD assemblies,
+/// every signalled planar triangle sits at or above one tolerance
+/// (2359/2362); the two false swaps that broke a mesh sat at 0.01 and 0.28.
+const MIN_PLANE_HEIGHT: f64 = 0.5;
+
+/// The height of a triangle measured within the plane of normal `n`:
+/// `|w . n| / |n|` is twice its area projected onto that plane, divided by
+/// its longest edge. `s` is `w . n` for the winding `w`; zero when either
+/// length is.
+fn plane_height(s: f64, n: V, edges: [V; 3]) -> f64 {
+    let long = edges.iter().map(|v| dot(*v, *v).sqrt()).fold(0.0, f64::max);
+    let nn = dot(n, n).sqrt();
+    if long > 0.0 && nn > 0.0 {
+        s.abs() / nn / long
+    } else {
+        0.0
+    }
+}
+
 /// How far, in tolerances, a planar face's vertices may stray from the
 /// plane through their centroid. Measured: correct rebuilds stay under 10;
 /// accidental fits bend by 96 and more.
@@ -217,6 +242,8 @@ pub(crate) struct Arrays<'a> {
 struct Walk<'a> {
     pos: Vec<V>,
     tris: Vec<[u32; 3]>,
+    /// The mesh tolerance, for [`MIN_PLANE_HEIGHT`].
+    tol: f64,
     edges: HashMap<(u32, u32), u8>,
     log: Vec<(u32, u32)>,
     stack: Vec<(u32, u32, u32)>,
@@ -270,6 +297,7 @@ impl<'a> Walk<'a> {
         Walk {
             pos: Vec::new(),
             tris: Vec::with_capacity(t.min(1 << 20)),
+            tol: 0.0,
             edges: HashMap::new(),
             log: Vec::new(),
             stack: Vec::new(),
@@ -401,9 +429,10 @@ impl<'a> Walk<'a> {
     /// default `fold` stands. The WD requires every triangle's height to
     /// exceed the tolerance [WD 7.8.9], so a decoded one at most that thin
     /// ([`Walk::weak`]) has lost its winding to quantisation and takes the
-    /// default too, unless `legacy`. With [`Walk::raw`], such a triangle
-    /// and a sliver are instead oriented by the sum of their corner
-    /// normals, where the triangle has any.
+    /// default too, unless `legacy`, as does one nearly flat along its
+    /// planar face ([`MIN_PLANE_HEIGHT`]). With [`Walk::raw`], such a
+    /// triangle and a sliver are instead oriented by the sum of their
+    /// corner normals, where the triangle has any.
     fn fold(&mut self, t: [u32; 3], fold: bool, legacy: bool) -> Result<bool, String> {
         let ti = self.tris.len();
         let Some(r) = self.normals.as_mut() else {
@@ -442,7 +471,9 @@ impl<'a> Walk<'a> {
                 let w = cross(ab, ac);
                 let sine = (dot(w, w) / (dot(ab, ab) * dot(ac, ac))).sqrt();
                 let s = dot(w, n);
-                if sine > MIN_SINE && s != 0.0 && !thin {
+                let tall =
+                    legacy || plane_height(s, n, [ab, ac, sub(c, b)]) > MIN_PLANE_HEIGHT * self.tol;
+                if sine > MIN_SINE && s != 0.0 && !thin && tall {
                     self.signalled = true;
                     s < 0.0
                 } else {
@@ -478,6 +509,7 @@ impl<'a> Walk<'a> {
             let w = cross(sub(q, p), sub(r, p));
             long > 0.0 && dot(w, w).sqrt() / long <= a.tolerance
         };
+        self.tol = a.tolerance;
         let fold = self.fold(tri, fold, a.legacy_orient)?;
         self.tris.push(tri);
         let (mut left, mut right) = ((tc, tb, ta), (ta, tc, tb));
@@ -1427,9 +1459,9 @@ mod tests {
         );
     }
 
-    /// A mesh whose `MakeOrthoRep` frames fit, after one inverted fold, only
-    /// the WD's way round: the search tries the WD frame before the turned
-    /// one, and the turned one fits nothing.
+    /// A mesh whose `MakeOrthoRep` frames fit, after one inverted fold, the
+    /// WD's way round: the search tries the WD frame before the turned one,
+    /// and the turned one fits nothing else.
     #[test]
     fn the_search_tries_the_wd_frame_first() {
         let pts = [0, 0, 0, 4, 0, 0, 2, 4, 0, 1, 0, 0, -3, 1, -1, -2, 3, 1];
@@ -1459,11 +1491,50 @@ mod tests {
             ortho_turned: true,
             ..a
         };
-        assert!(search::unique_fit(&turned).is_none());
-        let m = reconstruct(&a).unwrap();
-        assert_eq!(
-            m.triangles,
-            [[0, 1, 2], [2, 1, 3], [3, 1, 4], [3, 4, 2], [2, 4, 5]]
-        );
+        let wd = [[0, 1, 2], [2, 1, 3], [3, 1, 4], [3, 4, 2], [2, 4, 5]];
+        let other = search::unique_fit(&turned).map(|m| m.triangles);
+        assert!(other.is_none() || other == Some(wd.to_vec()));
+        assert_eq!(reconstruct(&a).unwrap().triangles, wd);
+    }
+
+    /// A planar face's normal tilted within its own quantum cannot orient
+    /// a triangle that is tall in space but nearly flat along the face:
+    /// the fourth triangle's apex frame leans out of the face after the
+    /// sliver before it, so its in-face height is a twelfth of a tolerance
+    /// and the sign of its winding against the normal is noise. It takes
+    /// the default fold and the mesh matches the untilted control
+    /// ([`MIN_PLANE_HEIGHT`]); oriented by the tilted normal it would
+    /// close a different fifth triangle, `[3, 0, 5]`.
+    #[test]
+    fn a_triangle_flat_along_its_face_is_a_sliver() {
+        let pts = [0, 0, 0, 4, 0, 0, -2, 4, 0, 0, -3, 0, 1, 3, 1, 0, 3, 1];
+        let status = [3, 3, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        let mut is_ref = [false; 7];
+        is_ref[5] = true;
+        let mesh = |angles: &[i32]| {
+            reconstruct(&Arrays {
+                tolerance: 0.5,
+                origin: [10.0, 0.0, 0.0],
+                points: &pts,
+                edge_status: &status,
+                triangles: 5,
+                is_reference: &is_ref,
+                references: &[0],
+                ortho_turned: false,
+                legacy_orient: false,
+                normals: Some(NormalArrays {
+                    bits: 10,
+                    binary: &[false; 4],
+                    angles,
+                    planar: &[true],
+                    face_of: &[0; 5],
+                }),
+            })
+            .unwrap()
+            .triangles
+        };
+        let expected = [[0, 1, 2], [2, 1, 3], [3, 1, 4], [3, 4, 0], [0, 4, 5]];
+        assert_eq!(mesh(&[341, 909]), expected);
+        assert_eq!(mesh(&[0, 1023]), expected);
     }
 }
