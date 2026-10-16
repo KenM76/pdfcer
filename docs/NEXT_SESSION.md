@@ -5,44 +5,63 @@ Engineer-owned; replaced each session. The previous long-form handoff
 (gate-sweep history, the carried OWED list, benchmark recipes) is in git:
 `git show 78635459:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-16, after Pass 602.0 (partial compressed meshes) and
-the 1088th filing. **Ken's standing instruction: PAUSE before the next
-release so he can start a new session — do not release from this handoff
-without his go-ahead in that session.**
+**Written:** 2026-10-16, after the v0.84.0 release and Pass `603.0`
+(`5fbbbebd`, 1091st filing). Ken's directive that day: "release a new
+version and let pdfcer-gui know of the changes … then continue trying to
+fix the issue" — the earlier "pause, no release" is superseded; releases
+follow the normal standing authorisation again. **Ken's only open goal is
+the 3D compressed-mesh failures below; no feature-request loop and no
+other Passes while it is open.** `603.0` is unreleased; the next release
+writes `pdfcer2`.
 
 ## State
 
-- **Release:** v0.83.0 is published (tag at `5e4404ec`, GitHub 8 assets,
-  OneDrive `pdfcer2`; `pdfcer1` keeps 0.82.0). **The next release writes
-  `pdfcer1`.** It carries 591.0-599.0 (G196-G203), including 596.0's GUI
-  API change (`BlockEditPreview::glyphs` became `runs`). Unreleased since:
-  `600.0` (3D sliver rule, `08071cc2`) and `601.0` (G204,
-  `edit_recognised_block_text_preview` returns `RecognisedBlockEditPreview`,
-  a GUI API change; `06c13df7`) and `602.0` (`MeshFit::{Partial, Continue}`,
-  `PartialMesh`, `--mesh-fit partial|continue`; `0505ec42`). `verify-release`
-  failed only "working tree clean", on the uncommitted spec-librarian
-  memory files, which are deliberately left uncommitted.
-- **Ledgers:** next free Pass **603.0** (589.0 is the Backlog det-normalisation
-  investigation; 590.0 is G195, `docs/ocr-upscale.md`); next filing **1089th**
-  once the 602.0 filing lands (check ROADMAP's newest ledger line); no decision
-  added since 183. Core-api verb count **378**. G203 `599.0` and G204 `601.0`
-  both replied FIXED in the channel.
-- **3D small nuts (door sample, `TS-0232-16-3D.pdf`, meshes m2/m23/m39/m48;
-  trailer `TR-0522.pdf` m39/m63/m64/m95/m107) still do not decode by any
-  fit** — OPEN Backlog item; the root cause (which way the encoder folds at a
-  sliver) is unknown. `602.0` ships Ken's requested floor: `--mesh-fit
-  partial` draws the sound prefix (door: 124 of 7060 triangles of those 4
-  meshes), `continue` a forgiving walk bounded to the sound box widened by
-  its diagonal (2352 of 7060; without the bound it drew spikes and moved
-  the auto camera). Default stays `best`. **Every hypothesis tried is
-  scored against the fold oracle in the spec RAG
-  `threed/prc__8137__tess_3d_compressed.md` §2d (rows X30-X38)** — read it
-  before trying another sign rule; collinear slivers are a coin flip under
-  every sign test, non-thin folds are fully predicted by the stored-normal
-  rule, m2 fails on an out-of-range reference (not a fold). Door 152/156,
-  trailer 136/141 under `best`. The fold oracles (`door.oracle3` 1583 rows,
-  `tr.oracle3`) and probe modules live only in the session scratchpad
-  `p602/`; nothing of them is in the tree.
+- **Release:** v0.84.0 is published (tag object `a7be47ec` at `3331ddda`,
+  GitHub 8 assets, OneDrive `pdfcer1`; `pdfcer2` keeps 0.83.0). **The next
+  release writes `pdfcer2`.** It carries `600.0`-`602.0` (3D sliver rule;
+  G204 `RecognisedBlockEditPreview`; `MeshFit::{Partial, Continue}` with
+  `--mesh-fit partial|continue`). pdfcer-gui was told in
+  `pdfce_FeatureRequests/open/pdfcer_v0.84.0_notice.md` (asked to expose
+  `mesh_fit` and the `partial*` disclosure; no reply owed). Local release
+  gates are **change-scoped** now (Ken, 2026-10-16): test the crates that
+  changed since the last tag + the filing gates + the fresh-folder smoke;
+  `run-gates.sh` is CI's job. `verify-release` fails only "working tree
+  clean", on the uncommitted spec-librarian memory files (deliberate).
+- **Ledgers:** next free Pass **604.0**; next filing **1092nd** (check
+  ROADMAP's newest ledger line); no decision added since 183. Core-api verb
+  count **378**.
+- **3D compressed meshes after `603.0`:** door `TS-0232-16-3D.pdf` 153/156
+  unique (m2 fixed; **m23 m39 m48** fail); trailer `TR-0522.pdf` 123
+  unique / 12 best-fit / 6 failed (**m39 m63 m64 m95 m107 m108**; it was
+  117/19/5 at v0.84.0 — six best-fits became unique, m108 went best-fit →
+  failed, no part lost). `603.0` = the blind-normal rule (`BLIND_NORMAL`
+  0.01: a record normal in the triangle's plane makes its reversed bit
+  noise; default fold, unsignalled, sliver retry) + `thin` narrowed to
+  weak AND collinear. **The spec RAG `threed/prc__8137__tess_3d_compressed.md`
+  is the ledger of every hypothesis: R17, X42–X49; X38/X41 closed** — read
+  §2c/§2d before trying another rule. Known failure classes (all with the
+  chain of flips a greedy search tried): door m23 degenerate frame after
+  collinear 484; m39 `Turn(589)`; m48 a chain of degenerate-frame apexes
+  (51/109/121/turn 87, stuck 157). Trailer m39: triangle 702, a
+  reused-normal reference apex, wrong under every rule; m52/m107 chains
+  from collinear thin 43/16; m115: triangle 1008 at |cos| 0.02 (not blind
+  at 0.01), stuck 5276; m63/m64/m95 unexamined. **First thing to examine:
+  m108** (T=3916, same size as m53/m58 — the trailer nut family): it fit
+  at v0.84.0 and fails now, so either a weak non-collinear triangle there
+  must NOT trust its record (a counterexample to the `thin` narrowing) or
+  it is a second blind-ish case above 0.01 like m115's 1008. Also: m52
+  (66 inverted/59 strong) and m96 (62/56) "best fits" are mirrored wrong
+  fits; m110 hits the search budget. Threshold lesson: 0.2 regressed m90
+  by stage-deepening ambiguity (fit pushed from depth 4 to 5 into a run of
+  unsignalled reused-normal weak triangles 3512..3633), not by a wrong
+  fold — judge any rule by per-mesh U/B/F, not by the fold it changes.
+  Research negative: no public non-GPL description of the encoder's
+  sliver-fold rule; patent US 8,207,965 B2 reads "Expired - Fee Related"
+  on Google Patents only (not USPTO-verified — surfaced to Ken).
+  Baseline recipe: the previous release binary under `D:/builds/` and
+  `3d-render`'s note lines ("N rebuilt / M best-fit / K left out") are the
+  cheapest regression check; use a release build (debug takes >20 min on
+  the trailer). `602.0`'s `--mesh-fit partial|continue` floor is unchanged.
 - **G194 shipped as `588.0`** (`475c6f4a`): four pinned OCR sets (`ocrs`,
   `ppocrv5-latin`, `ppocrv4-ch-en`, `ocrcer`), `manifest()` written on fetch,
   `fetch-ocr-models --model NAME`, paddle reads `inference.yml`'s
@@ -79,12 +98,14 @@ without his go-ahead in that session.**
 
 - **Table cell boxes are inferred** (even grid over the region; disclosed).
   A later Pass could measure them from ruling lines or the page image.
-- **3D small nuts** (see *State*): the remaining lead is the encoder's
-  sliver-fold rule itself (spec RAG §2c/§2d), or a wider search than the
-  40-step window; Ken sanctioned a web-research agent on a cheaper model
-  for it. Never read nanoPRC/libPRC/Asymptote/MuPDF/Ghostscript/Poppler
-  source (licence rule). Re-create a local probe if needed; none is in the
-  tree now. pdfcer-gui does not yet consume `MeshFit::Partial/Continue`.
+- **3D compressed meshes** (see *State*): nine meshes still fail; start
+  with m108, then the degenerate-frame classes. Never read
+  nanoPRC/libPRC/Asymptote/MuPDF/Ghostscript/Poppler source (licence rule,
+  decision 169). The probe modules (`probe.rs`, `probe_test.rs`: `fits`,
+  `audit`, `chain`, `detail`, `blindcensus`, driven by `P603_DIR` pointing
+  at per-mesh array dumps) are backed up in the session scratchpad
+  `p603/probe_src/`; re-create from there, never commit them. pdfcer-gui
+  does not yet consume `MeshFit::Partial/Continue`.
 - **`continue` on the trailer sample is untimed**: the debug exe took >20 min
   per `3d-render` of it; use a release build for any measurement there.
 - **The "operator's ordered plan" carried here earlier is all SHIPPED**
@@ -99,8 +120,10 @@ without his go-ahead in that session.**
 - Model weights: `D:/models/vl-src`, `D:/models/addons/paddle-vl` (incl.
   `layout.onnx`), any `inference.onnx` in the scratchpad.
 - The operator's real PDFs and their dumps; the reader-field, vl-spike and
-  prc-probe folders under `D:\Dev\pdfTests\`; the `p602/` scratchpad
-  (oracles, `probe.rs`/`probe_test.rs`, `signs.py`, `analyze.py`, renders).
+  prc-probe folders under `D:\Dev\pdfTests\`; the `p602/` and `p603/`
+  scratchpads (oracles, `probe_src/`, per-mesh dumps `door/` `tr/`, the
+  `fits_*`/`audit_*`/`chain*.txt` results, renders). Any `// P603 LOCAL`
+  line is probe scaffolding and never ships.
 - `.claude/agent-memory/pdfcer-spec-librarian/` edits (another agent's).
 
 ## How to push

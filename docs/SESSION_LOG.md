@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-16 (1091st filing) — `Pass 603.0` shipped in `5fbbbebd` (PRC compressed decoder: a record normal in the triangle's plane is blind)
+
+**Shipped (engineer-reported, no shell here, unpushed at filing time):** `5fbbbebde832267ab04faee50016cbf3fedb0d9f`, after `742939cb` (the 1090th filing). Operator-direct (Ken: release, then "continue trying to fix the issue"); never pre-filed, filed straight into *Shipped* as `602.0` was. `BLIND_NORMAL = 0.01`: a fresh normal record whose decoded normal lies in its triangle's plane carries a noise `triangle_normal_reversed` bit, so the triangle takes the default fold, stays unsignalled and is marked for the sliver retry; `thin` narrowed to weak AND collinear. Files: `crates/pdfcer-3d/src/compressed.rs`, `compressed/normals.rs`, `compressed/search.rs`. Unreleased.
+
+**Measured (release `3d-render`, v0.84.0 binary vs this commit):** door 152 -> 153 of 156 unique (m2 recovered; parts missing a mesh 17 -> 13); trailer 117/19/5 -> 123/12/6 unique/best-fit/failed (six best-fits became unique, m108 best-fit -> failed, same 5 parts missing a mesh). Noise bits all at |cos| <= 0.003, nearest correct decision 0.048; threshold 0.2 regressed trailer m90 (search pushed a stage deeper into an ambiguous set, then Refused); 0.01 and 0.03 clean. Renders checked by eye, no spikes, camera unchanged. Still failing: door m23 m39 m48; trailer m39 m63 m64 m95 m107 m108.
+
+**Tests/gates (engineer-reported):** pdfcer-3d 155 unit (+1); pdfcer-core 1537 + 2991, pdfcer-cli 227 + 43 + 881; clippy, fmt, structure (`fold()` 61 lines), public-fns-documented, suite-name clean. Change-scoped per Ken's rule. `check-ledger-numbers.py` / `check-passes-filed.py`: not run by me (no shell); the engineer runs them before committing.
+
+**Spec RAG hand-off (on disk, written by `pdfcer-spec-librarian`):** `D:\Dev\Rag-Specialized\PDF_Spec\threed\prc__8137__tess_3d_compressed.md` — rule R17 (blind normal, exception to R7), rows X42-X49 (threshold sweep / stage-deepening ambiguity, guess choice, census facts, open failure classes, mirror detector + m110 budget, research negative); X38 and X41 closed; the `600.0` "trailer 136/141" figure struck as stale (135/141 by any fit).
+
+**Research negative:** a web-research agent (cheaper model, non-GPL sources only, decision 169 respected) found no public description of the encoder's sliver-fold rule. Patent US 8,207,965 B2 (Adobe, PRC compression) shows "Expired - Fee Related" on Google Patents only — NOT USPTO-verified; surfaced to Ken as an open legal point, not a decision.
+
+**Findings (`C:\personal_rag\pdf\`, four lessons):** a coplanar stored normal makes the reversed bit noise (|cos| gap 0.003 vs 0.048); a looser fold threshold fails by stage-deepening ambiguity not by a wrong fold (judge by U/B/F counts); a best fit with dozens of strongly inverted triangles (trailer m52 66/59, m96 62/56) is a mirrored wrong fit; the previous release binary's `3d-render` note line is the cheapest regression baseline (old build kept under `D:/builds/`). Subject index and master index updated.
+
+**Sweep (hard rule 11):** the stale claim is "door 152/156, 4 open". Fixed in `FEATURES.md` (3D viewing row, now 153/156, 3 open) and the Backlog 3D item. No survivor found by case-insensitive grep of `152/156`, `152 of 156`, `4 open` over `FEATURES.md`, `NEXT_SESSION.md`, `docs/core-api/`, `README.md`, `crates/pdfcer-3d/src`, `crates/pdfcer-cli/src`. The `600.0` and `602.0` Shipped entries still say 152/156 and 4 open: correct as filed (history), left as is.
+
+**Filed as:** Shipped entry; Backlog 3D item updated; one `FEATURES.md` row figure corrected, no new row, boxes unchanged (core `[x]` cli `[x]` gui `[ ]`). No decision (183 stands); core-api verbs 378. `NEXT_SESSION.md` untouched (engineer-owned; already consistent).
+
+**For next session:** next free `Pass 604.0`; next filing 1092nd. Engineer pushes after this filing.
+
 ## 2026-10-16 (1090th filing) — `v0.84.0` PUBLISHED; Acrobat draws the failing nut (X39)
 
 **Shipped (engineer-measured, no shell here):** tag `v0.84.0` (annotated object `a7be47ec`, at `3331dddafbe5`), pushed; CI run 38943446468 green at the tag; GitHub release with 8 assets; OneDrive slot `pdfcer1`; `verify-release.py` 8 ok, 1 expected FAIL (4 uncommitted agent-memory paths). Detail in the `### v0.84.0` Shipped entry.
