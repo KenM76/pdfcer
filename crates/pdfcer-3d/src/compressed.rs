@@ -185,19 +185,25 @@ fn unitize(a: V) -> Option<V> {
     Some([a[0] / l, a[1] / l, a[2] / l])
 }
 
-/// `PrcPt::MakeOrthoRep` [WD 12.3] on `X`: `(Y, Z)` with
-/// `Z = unitize(X x (0, 1, 0))`, or `X x (1, 0, 0)` when that is null.
-fn make_ortho_rep(x: V) -> Option<(V, V)> {
+/// The `Z` of `PrcPt::MakeOrthoRep` [WD 12.3] on `X`:
+/// `unitize(X x (0, 1, 0))`, or `X x (1, 0, 0)` when that is null, from
+/// `X` unitized again as the pseudocode does. Only `Z` is taken: the frame
+/// rebuilds `Y` from its own `X` (see [`apex`]).
+fn make_ortho_rep_z(x: V) -> Option<V> {
     let x = unitize(x)?;
-    let z = unitize(cross(x, [0.0, 1.0, 0.0])).or_else(|| unitize(cross(x, [1.0, 0.0, 0.0])))?;
-    Some((unitize(cross(z, x))?, z))
+    unitize(cross(x, [0.0, 1.0, 0.0])).or_else(|| unitize(cross(x, [1.0, 0.0, 0.0])))
 }
 
 /// The apex across `[lo hi]` (`lo` the lower-numbered vertex) opposite `w`,
 /// `d` already scaled by the tolerance [WD 7.8.9.2], and whether its frame
-/// was degenerate. A null `Z` or `Y` comes from `MakeOrthoRep(X)` as the WD
-/// prescribes; a null `X`, an edge the WD's non-degeneracy rule excludes,
-/// is used as it is.
+/// was degenerate. A null `Z` or `Y` takes `MakeOrthoRep(X)`'s `Z` as the
+/// WD prescribes, and `Y = unitize(Z x X)` from the frame's own `X`, not
+/// the copy `MakeOrthoRep` unitized again: `unitize` keeps a vector's
+/// length only to about 1e-8 [WD 12.3 `Length`], the encoder's `Y` carries
+/// its own `X`'s error, and the walk amplifies the difference to whole
+/// tolerances within a thousand triangles (PDF_Spec
+/// `prc__8137__tess_3d_compressed.md` X65). A null `X`, an edge the WD's
+/// non-degeneracy rule excludes, is used as it is.
 ///
 /// A degenerate frame is turned a half-turn about `X` when the sub-epsilon
 /// residue of `(W - O) x X` points against `MakeOrthoRep`'s `Z`, kept when
@@ -214,15 +220,17 @@ fn apex(lo: V, hi: V, w: V, d: V, turned: bool, invert: bool) -> (V, bool) {
     let degenerate = frame.is_none();
     let (y, z) = frame
         .or_else(|| {
-            make_ortho_rep(x).map(|(y, z)| {
-                let along = dot(residue, z);
-                let turn = if along == 0.0 { turned } else { along < 0.0 };
-                if turn != invert {
-                    (mul(y, -1.0), mul(z, -1.0))
-                } else {
-                    (y, z)
-                }
-            })
+            make_ortho_rep_z(x)
+                .and_then(|z| Some((unitize(cross(z, x))?, z)))
+                .map(|(y, z)| {
+                    let along = dot(residue, z);
+                    let turn = if along == 0.0 { turned } else { along < 0.0 };
+                    if turn != invert {
+                        (mul(y, -1.0), mul(z, -1.0))
+                    } else {
+                        (y, z)
+                    }
+                })
         })
         .unwrap_or_default();
     let p = sub(sub(add(o, mul(x, d[0])), mul(y, d[1])), mul(z, d[2]));
@@ -1128,6 +1136,39 @@ mod tests {
         assert_eq!(p, [0.0, -2.0, -3.0]);
         let (p, _) = apex([0.0; 3], [0.0, -2.0, 0.0], [0.0, 5.0, 0.0], d, false, false);
         assert_eq!(p, [-2.0, 0.0, 3.0]);
+    }
+
+    /// A degenerate frame's `Y` comes from the frame's own `X`, whose
+    /// length `unitize` left off by a few 1e-8, not from the copy
+    /// `MakeOrthoRep` unitized again: the two `Y`s differ by that much, and
+    /// the walk turns such a difference into a wrong fold (m23 and m39 of
+    /// the door sample fit with the former only).
+    #[test]
+    fn a_degenerate_frame_takes_y_from_its_own_x() {
+        let (lo, hi) = ([0.1, 0.2, 0.3], [0.7, -0.4, 0.9]);
+        let o = mul(add(lo, hi), 0.5);
+        let x = unitize(sub(lo, hi)).unwrap();
+        let w = add(o, mul(x, 0.37));
+        let d = [1.0, 2.0, 3.0];
+        let z = make_ortho_rep_z(x).unwrap();
+        let (p, degenerate) = apex(lo, hi, w, d, false, false);
+        assert!(degenerate);
+        let own = unitize(cross(z, x)).unwrap();
+        let again = unitize(cross(z, unitize(x).unwrap())).unwrap();
+        assert_ne!(own, again, "the probe must tell the two Ys apart");
+        let sign = if dot(cross(sub(w, o), x), z) < 0.0 {
+            -1.0
+        } else {
+            1.0
+        };
+        let expect = |y: V| {
+            sub(
+                sub(add(o, mul(x, d[0])), mul(y, sign * d[1])),
+                mul(z, sign * d[2]),
+            )
+        };
+        assert_eq!(p, expect(own));
+        assert_ne!(p, expect(again));
     }
 
     /// A strip of thin, non-planar triangles compressed by an encoder
