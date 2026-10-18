@@ -5,8 +5,8 @@ Engineer-owned; replaced each session. The previous long-form handoff
 (gate-sweep history, the carried OWED list, benchmark recipes) is in git:
 `git show 78635459:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-16, after the v0.84.0 release and Pass `603.0`
-(`5fbbbebd`, 1091st filing). Ken's directive that day: "release a new
+**Written:** 2026-10-18, after Pass `604.0` (`be4bbe81`, 1092nd filing);
+`603.0`/`604.0` are unreleased. Ken's directive that day: "release a new
 version and let pdfcer-gui know of the changes … then continue trying to
 fix the issue" — the earlier "pause, no release" is superseded; releases
 follow the normal standing authorisation again. **Ken's only open goal is
@@ -27,12 +27,12 @@ writes `pdfcer2`.
   changed since the last tag + the filing gates + the fresh-folder smoke;
   `run-gates.sh` is CI's job. `verify-release` fails only "working tree
   clean", on the uncommitted spec-librarian memory files (deliberate).
-- **Ledgers:** next free Pass **604.0**; next filing **1092nd** (check
+- **Ledgers:** next free Pass **605.0**; next filing **1093rd** (check
   ROADMAP's newest ledger line); no decision added since 183. Core-api verb
   count **378**.
-- **3D compressed meshes after `603.0`:** door `TS-0232-16-3D.pdf` 153/156
-  unique (m2 fixed; **m23 m39 m48** fail); trailer `TR-0522.pdf` 123
-  unique / 12 best-fit / 6 failed (**m39 m63 m64 m95 m107 m108**; it was
+- **3D compressed meshes after `604.0`:** door `TS-0232-16-3D.pdf` 153/156
+  unique (**m23 m39 m48** fail); trailer `TR-0522.pdf` 125 unique / 11
+  best-fit / 5 failed (**m39 m63 m64 m95 m107**; after `603.0` it was 123/12/6; it was
   117/19/5 at v0.84.0 — six best-fits became unique, m108 went best-fit →
   failed, no part lost). `603.0` = the blind-normal rule (`BLIND_NORMAL`
   0.01: a record normal in the triangle's plane makes its reversed bit
@@ -94,17 +94,48 @@ writes `pdfcer2`.
 - **`580.0` OCR `--magnify`** numbers and the unshipped bicubic trial are in
   the SESSION_LOG entry for the 1067th filing.
 
+## Shipped this session: Pass 604.0 (class-split candidate window)
+
+- `be4bbe81`: after a failed walk the search tries the last 40 unsignalled
+  folds + turns (`PRIMARIES`) and at most 20 signalled weak folds
+  (`SECONDARIES`) among them, instead of the last 40 of everything. m108's
+  wrong fold (unsignalled sliver 2989) was hidden behind 136 signalled weak
+  folds in the old window; a wrong fold consumes every stored number so
+  the fault surfaced only at 3149. Measured (release `3d-render` notes):
+  door 153/0/3 unchanged, trailer 123/12/6 -> **125 unique / 11 best-fit /
+  5 failed** (m108 F->U, m53 B->U). Still failed: door m23/m39/m48, trailer
+  m39 (1351) m63 (1034) m64 (53) m95 (122) m107 (294).
+- **Ken's observation, confirmed (not shipped):** faces before a reported
+  failure are already wrong. A fold-back census (new triangle anti-parallel
+  to a non-sliver neighbour across a shared edge, dot < -0.995, slivers
+  sine < 1e-4 excluded) finds fold-backs in all 12 trailer best-fits, 27 of
+  123 trailer uniques (the nut family, first at ~74% through), 10/153 door.
+  "Unique" is not "right". Rejecting fold-backs in the walk fails every
+  such mesh (trailer 96/2/43, door 143/0/13): no fold/turn flip, no apex
+  mirror rescues them; the nut-family fold-back apexes are REUSED vertices,
+  so the error is upstream traversal, not placement. m44 (thin plate)
+  folds back from triangle 2 as a unique fit, so the detector is a
+  diagnostic, not a rule. Spec RAG X50/X51.
+- **Next lens:** the nut family's reused-vertex fold-back at ~74% — what
+  the walk did one step before the first fold-back (the stack/next choice,
+  not the apex). The probe modules that find it (`probe108.rs`:
+  `calib`, `fbdetail`, `fbgeom`, `automirror`, `brute`, `firstbad`) and
+  the LOCAL `search.rs`/`compressed.rs` with the detector are in
+  `D:\Dev\pdfTests\prc-probe\p603\`; re-apply by hand, never commit.
+  pdfcer-gui has no per-mesh render; ask Ken to eyeball a nut vs a plate.
+
 ## Follow-ups worth a Pass
 
 - **Table cell boxes are inferred** (even grid over the region; disclosed).
   A later Pass could measure them from ruling lines or the page image.
-- **3D compressed meshes** (see *State*): nine meshes still fail; start
-  with m108, then the degenerate-frame classes. Never read
+- **3D compressed meshes** (see *State* and *Shipped this session*): eight
+  meshes still fail; start with the nut family's fold-back, then the
+  degenerate-frame classes. Never read
   nanoPRC/libPRC/Asymptote/MuPDF/Ghostscript/Poppler source (licence rule,
   decision 169). The probe modules (`probe.rs`, `probe_test.rs`: `fits`,
   `audit`, `chain`, `detail`, `blindcensus`, driven by `P603_DIR` pointing
   at per-mesh array dumps) are backed up in the session scratchpad
-  `p603/probe_src/`; re-create from there, never commit them. pdfcer-gui
+  `D:\Dev\pdfTests\prc-probe\p603\`; re-create from there, never commit them. pdfcer-gui
   does not yet consume `MeshFit::Partial/Continue`.
 - **`continue` on the trailer sample is untimed**: the debug exe took >20 min
   per `3d-render` of it; use a release build for any measurement there.

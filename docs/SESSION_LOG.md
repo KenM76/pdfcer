@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-18 (1092nd filing) — `Pass 604.0` shipped in `be4bbe81` (PRC compressed fit search: candidate window split by class); fold-back finding
+
+**Shipped (engineer-reported, no shell here):** `be4bbe81`, after `5babc1e9` (the 1091st filing). Operator-direct continuation of `603.0`. One file, `crates/pdfcer-3d/src/compressed/search.rs`; no manifest change, no `pub` change, no decision (183 stands), core-api verbs 378. `Step` gained `signalled`; a free `window()` keeps the last `PRIMARIES` = 40 unsignalled folds/turns plus at most `SECONDARIES` = 20 signalled (weak) folds, for both the resumed and the fresh walk.
+
+**Mechanism (measured):** trailer m108 (T=3916) dead-ends at triangle 3914; the wrong fold is the unsignalled sliver at triangle 2989, surfacing at 3149 because a wrong fold still consumes every stored number. The old 40-wide window held 143 candidates, 136 signalled weak folds, so 2989 was outside it. Search-shape defect, not a decoder-rule defect.
+
+**Measured (release `3d-render` note lines, local files, vs `5fbbbebd`):** door 153/0/3 unchanged, no mesh changed (m23, m39, m48 still fail); trailer 123/12/6 -> 125/11/5 unique/best-fit/failed (m108 failed -> unique, m53 best-fit -> unique, none worse; m39 m63 m64 m95 m107 still fail). Window sizes 40/20, 20/20, 40/10 identical; 40/40 gave 123/13/5. 40/20 kept for the old primary reach. Parts-missing note lines identical on both files (trailer HEX NUT GR8 BARE-1..4 and TR-0409-LIGHT BAR-1; door's 13 nylock placements).
+
+**Tests/gates (engineer-reported):** new test `a_run_of_signalled_folds_does_not_push_an_unsignalled_one_out`; 43 compressed tests pass (156 in the pdfcer-3d lib); fmt, clippy -D warnings, check-code-structure, check-public-fns-documented clean.
+
+**Second finding (NOT a Pass, nothing shipped):** Ken observed faces before a reported failure already look wrong. A local fold-back detector (dot < -0.995 across a shared edge to a prior non-sliver neighbour; slivers sine < 1e-4 excluded) found fold-backs in all 12 trailer best-fits, 27 of 123 trailer unique meshes (nut family, T about 2680/3916, first at about 74% through) and 10 of 153 door unique meshes. So "unique fit" does not mean geometrically right. Rejecting fold-backs in the walk made every such mesh fail (trailer 96/2/43, door 143/0/13); no fold/turn flip or apex mirror finds a fold-back-free walk, and the fold-back triangles reuse existing vertices (traversal/topology error upstream). Caveat: trailer m44 (74-unit thin plate, tolerance 0.01) folds back from triangle 2 as a unique fit with no alternative, so some are legitimate on thin double-sided plates; the detector is a diagnostic, not an oracle. Next lens: the nut family's reused-vertex fold-backs at about 74%.
+
+**Lesson:** `C:\personal_rag\pdf\lesson_20261018_a_bounded_candidate_window_must_be_split_by_class_and_a_unique_fit_can_still_be_wrong.md`; subject and master indexes updated.
+
+**Sweep (hard rule 11):** claim swept is "trailer 123/12/6". Updated in `FEATURES.md` (3D viewing row, appended) and the Backlog 3D note (dated update). `603.0` Shipped and 1091st log entries keep 123/12/6 as history. The FEATURES row still states door 153/156, correct.
+
+**Filed as:** Shipped entry; Backlog 3D update; `FEATURES.md` row appended, boxes unchanged (core `[x]` cli `[x]` gui `[ ]`). `NEXT_SESSION.md` untouched (engineer-owned).
+
+**For next session:** next free `Pass 605.0`; next filing 1093rd.
+
 ## 2026-10-16 (1091st filing) — `Pass 603.0` shipped in `5fbbbebd` (PRC compressed decoder: a record normal in the triangle's plane is blind)
 
 **Shipped (engineer-reported, no shell here, unpushed at filing time):** `5fbbbebde832267ab04faee50016cbf3fedb0d9f`, after `742939cb` (the 1090th filing). Operator-direct (Ken: release, then "continue trying to fix the issue"); never pre-filed, filed straight into *Shipped* as `602.0` was. `BLIND_NORMAL = 0.01`: a fresh normal record whose decoded normal lies in its triangle's plane carries a noise `triangle_normal_reversed` bit, so the triangle takes the default fold, stays unsignalled and is marked for the sliver retry; `thin` narrowed to weak AND collinear. Files: `crates/pdfcer-3d/src/compressed.rs`, `compressed/normals.rs`, `compressed/search.rs`. Unreleased.
