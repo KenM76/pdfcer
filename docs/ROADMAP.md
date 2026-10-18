@@ -112,7 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.85.0` — BUMPED 2026-10-18 (1094th filing); release PENDING
+### `v0.85.0` — PUBLISHED 2026-10-18 (published at the 1095th filing; bump filed at the 1094th)
+
+**Published (engineer-measured; I have no shell, hard rule 8).** Annotated tag object `f5dedeb9120d35c881ae8ef5a85a5750e7abac8d` -> commit `91f287f36390d602ffc55002131fc0a42eaa03f8` (the 1094th filing, HEAD at tagging), `main` and the tag pushed; `git ls-remote` confirms the tag. CI at `91f287f3`: completed, success (read from GitHub via `gh run list`).
+
+- **Gates were CHANGE-SCOPED** (Ken 2026-10-16): only `pdfcer-3d` changed since v0.84.0; its 157 tests, clippy, fmt clean at `28e9a53f`; `check-suite-name-absent.py`, `check-commits-filed.py`, `check-ledger-numbers.py`, `check-passes-filed.py` clean before each push; the package build was the compile check; CI ran the full sweep.
+- **Package:** `D:\builds\pdfcer-20261018-1250-91f287f` (pdfcer.exe 34,575,360 bytes; folder 50,499,847 bytes; bundled `models/paddle/` only). Assets in `D:\builds\release-v0.85.0` (8 incl. `.sha256`): `pdfcer-v0.85.0-windows-x64.zip` 25,912,283 B; `ocr-addon-ocrcer.zip` 3,789,155 B; `ocr-addon-ocrs.zip` 11,352,262 B; `ocr-addon-tesseract.zip` 4,483,685 B (add-on zips byte-identical in size to v0.84.0's: the models did not change). `tools/gh-release.py` -> PASS, 8 assets at local sizes. Release notes: three 3D decoder fixes, no API change, known issue (five meshes still fail; `--mesh-fit partial|continue` is the workaround).
+- **Fresh-folder smoke** (`D:\builds\smoke-v0.85.0`), all PASS: `--version` 0.85.0 (revision v0.85.0); `inspect` on `fixtures/synthetic/ocr/printed.pdf`; `rotate` incremental 990 -> 1230 bytes, first 990 byte-identical; `render-page --scale 0.25` -> 153x198 PNG; `ocr` on `fixtures/synthetic/ocr/scan.pdf` with bundled PaddleOCR (ppocrv4-ch-en), 49 recognised / 49 written; `3d-render --index 0` on the door sample: 155 compressed meshes rebuilt / 1 left out (v0.84.0 binary: 152 / 4).
+- **OneDrive:** slot `pdfcer2` (was 0.83.0), 6 items, 70,122,815 bytes, VERSION.txt deployed 2026-10-18T17:05:50Z; `pdfcer1` keeps 0.84.0. Next release writes `pdfcer1`.
+- **`verify-release.py v0.85.0`:** 8 ok, 1 FAIL "working tree clean" (2 uncommitted spec-librarian agent-memory paths, none compiled; expected, as in prior releases).
+- **Notice to `pdfcer-gui`:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-10-18_v0.85.0_released.md` (no API change; the 0.84.0 request to expose `MeshFit::{Partial, Continue}` still stands; no reply owed).
+- **Known issue shipped in the notes:** five meshes still fail (door m48; trailer m63, m64, m95, m107); the fix continues (Backlog 3D item).
+
+Original bump entry (1094th filing), kept as filed; its "Pending" line is now discharged by the bullets above:
 
 Bump `7fdfc00b` ("chore: v0.85.0") on `main`, after `2ed8906d` (the 1093rd filing, which filed `Pass 605.0` = `28e9a53f`): workspace version 0.84.0 -> 0.85.0 in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` and nothing else (lockfile diffs are only the `pdfcer-*` crate versions). Unpushed at filing time. Release is standing-authorised (decision 121); the reason it happens now is Ken's 2026-10-16 directive ("release a new version and let pdfcer-gui know of the changes ... then continue trying to fix the issue") with three mesh fixes accumulated. All figures engineer-reported; I have no shell (hard rule 8).
 

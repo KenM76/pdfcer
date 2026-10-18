@@ -9,7 +9,7 @@ The standing goal is the 3D mesh rendering failures (PRC 8137 compressed
 tessellation, the operator's door and trailer samples). No feature-request
 loop and no other Passes while it is open.
 
-**State at 2026-10-18 (after 605.0, `28e9a53f`, unreleased with 603.0/604.0):**
+**State at 2026-10-18 (after 605.0, `28e9a53f`; 603.0–605.0 published as v0.85.0 at `91f287f3`, OneDrive `pdfcer2`; next release writes `pdfcer1`):**
 door 155 unique / 0 / 1 failed (m48); trailer 127 / 10 best-fit / 4 failed
 (m63 m64 m95 m107; m39 best-fit). Trajectory: v0.84.0 door 152, trailer
 117/19/5 → 603.0 153, 123/12/6 → 604.0 153, 125/11/5 → 605.0 155, 127/10/4.

@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-18 (1095th filing) — `v0.85.0` PUBLISHED (no Pass consumed)
+
+**Filed (engineer-measured, no shell here):** tag `v0.85.0` (object `f5dedeb9...`) -> `91f287f3` (the 1094th filing); `main` and tag pushed, `git ls-remote` confirms; CI at `91f287f3` completed, success. Gates change-scoped (Ken 2026-10-16): only `pdfcer-3d` changed, 157 tests, clippy, fmt clean; four filing/ledger checks clean before each push; CI ran the full sweep.
+
+**Shipped artifacts:** package `D:\builds\pdfcer-20261018-1250-91f287f` (pdfcer.exe 34,575,360 B); 8 assets in `D:\builds\release-v0.85.0` (zip 25,912,283 B; add-on zips same sizes as v0.84.0); `gh-release.py` PASS. Fresh-folder smoke all PASS (door `3d-render`: 155 rebuilt / 1 left out, v0.84.0 binary 152 / 4). OneDrive slot `pdfcer2` (was 0.83.0), 70,122,815 B; `pdfcer1` keeps 0.84.0; next release writes `pdfcer1`. `verify-release.py`: 8 ok, 1 expected FAIL (working tree clean; 2 agent-memory paths). Notice to `pdfcer-gui` filed (no API change; 0.84.0 `MeshFit` request stands).
+
+**Filed as:** `### v0.85.0` amended to PUBLISHED in place, same shape as `v0.84.0`. No decision; `FEATURES.md` untouched (no row wrong). Hard-rule-11 sweep: no meaning changed, no survivors. `docs/NEXT_SESSION.md` and `.claude/agent-memory/` not touched; nothing committed.
+
+**For next session:** next free `Pass 606.0`; next filing 1096th. Remaining mesh failures: door m48; trailer m63, m64, m95, m107.
+
 ## 2026-10-18 (1094th filing) — `v0.85.0` version bump `7fdfc00b` filed; release PENDING
 
 **Filed (engineer-reported, no shell here):** bump `7fdfc00b` ("chore: v0.85.0") after `2ed8906d` (1093rd filing). Workspace version 0.84.0 -> 0.85.0 in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` only. Unpushed at filing time. Release standing-authorised (decision 121); prompted by Ken's 2026-10-16 directive and three accumulated mesh fixes (`603.0`, `604.0`, `605.0`, all in `pdfcer-3d` `compressed.rs`, `compressed/normals.rs`, `compressed/search.rs`). No `pub` change (core-api verbs 378), so the `pdfcer-gui` notice is informational.

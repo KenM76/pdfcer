@@ -5,30 +5,33 @@ Engineer-owned; replaced each session. The previous long-form handoff
 (gate-sweep history, the carried OWED list, benchmark recipes) is in git:
 `git show 78635459:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-18, after Pass `605.0` (`28e9a53f`, pushed; filing
-in flight);
-`603.0`–`605.0` are unreleased. Ken's directive that day: "release a new
-version and let pdfcer-gui know of the changes … then continue trying to
-fix the issue" — the earlier "pause, no release" is superseded; releases
-follow the normal standing authorisation again. **Ken's only open goal is
-the 3D compressed-mesh failures below; no feature-request loop and no
-other Passes while it is open.** `603.0` is unreleased; the next release
-writes `pdfcer2`.
+**Written:** 2026-10-18, after `v0.85.0` was published (tag at
+`91f287f3`, carrying `603.0`–`605.0`). Ken's directive 2026-10-16:
+"release a new version and let pdfcer-gui know of the changes … then
+continue trying to fix the issue" — releases follow the normal standing
+authorisation. **Ken's only open goal is the 3D compressed-mesh failures
+below; no feature-request loop and no other Passes while it is open.**
 
 ## State
 
-- **Release:** v0.84.0 is published (tag object `a7be47ec` at `3331ddda`,
-  GitHub 8 assets, OneDrive `pdfcer1`; `pdfcer2` keeps 0.83.0). **The next
-  release writes `pdfcer2`.** It carries `600.0`-`602.0` (3D sliver rule;
-  G204 `RecognisedBlockEditPreview`; `MeshFit::{Partial, Continue}` with
-  `--mesh-fit partial|continue`). pdfcer-gui was told in
-  `pdfce_FeatureRequests/open/pdfcer_v0.84.0_notice.md` (asked to expose
-  `mesh_fit` and the `partial*` disclosure; no reply owed). Local release
-  gates are **change-scoped** now (Ken, 2026-10-16): test the crates that
-  changed since the last tag + the filing gates + the fresh-folder smoke;
-  `run-gates.sh` is CI's job. `verify-release` fails only "working tree
-  clean", on the uncommitted spec-librarian memory files (deliberate).
-- **Ledgers:** next free Pass **606.0**; next filing **1094th** (check
+- **Release:** v0.85.0 is published (tag object `f5dedeb9` at `91f287f3`,
+  GitHub 8 assets, OneDrive `pdfcer2`; `pdfcer1` keeps 0.84.0). **The next
+  release writes `pdfcer1`.** No API change in it. pdfcer-gui was told in
+  `pdfce_FeatureRequests/open/notice_2026-10-18_v0.85.0_released.md` (no
+  reply owed; the 0.84.0 ask to expose `mesh_fit` still stands). Local
+  release gates are **change-scoped** (Ken, 2026-10-16): test the crates
+  that changed since the last tag + the filing gates + the fresh-folder
+  smoke; `run-gates.sh` is CI's job. `verify-release` fails only "working
+  tree clean", on the uncommitted spec-librarian memory files (deliberate).
+  Release recipe that worked: bump `Cargo.toml` + `cargo update -w` (root
+  and `fuzz/`), librarian files the bump, tag the FILING commit, push
+  both, `package-portable.py --note`, zip the build folder with Python
+  (`Compress-Archive` through bash eats the `\$` paths), `sha256sum`,
+  `gh-release.py`, `deploy-onedrive.py --build`, `verify-release.py`.
+  Delete untracked `.rs` probe files before packaging or the build is
+  marked `-dirty`. `render-page` takes `--scale`, not `--width`; the OCR
+  fixtures are `fixtures/synthetic/ocr/{printed,scan}.pdf`.
+- **Ledgers:** next free Pass **606.0**; next filing **1096th** (check
   ROADMAP's newest ledger line); no decision added since 183. Core-api verb
   count **378**.
 - **3D compressed meshes after `605.0`:** door `TS-0232-16-3D.pdf` 155/156
