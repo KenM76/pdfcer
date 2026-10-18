@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-18 (1094th filing) — `v0.85.0` version bump `7fdfc00b` filed; release PENDING
+
+**Filed (engineer-reported, no shell here):** bump `7fdfc00b` ("chore: v0.85.0") after `2ed8906d` (1093rd filing). Workspace version 0.84.0 -> 0.85.0 in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` only. Unpushed at filing time. Release standing-authorised (decision 121); prompted by Ken's 2026-10-16 directive and three accumulated mesh fixes (`603.0`, `604.0`, `605.0`, all in `pdfcer-3d` `compressed.rs`, `compressed/normals.rs`, `compressed/search.rs`). No `pub` change (core-api verbs 378), so the `pdfcer-gui` notice is informational.
+
+**Measured (engineer, release `3d-render`, v0.84.0 -> this tree):** door 152 -> 155 of 156 unique (m48 remains); trailer 117/19/5 -> 127/10/4 unique/best-fit/failed (m63 m64 m95 m107 failed, m39 best-fit); zero per-mesh regressions.
+
+**Pending, NOT claimed:** annotated tag, CI at the tag, packaging, fresh-folder smoke, GitHub release (8 assets), OneDrive slot `pdfcer2`, `verify-release.py`, notice to `pdfcer-gui`. The ROADMAP `v0.85.0` entry will be amended when the engineer sends the figures.
+
+**Filed as:** `### v0.85.0` Shipped entry above `Pass 605.0`. No decision; `FEATURES.md` untouched (no row wrong). Hard-rule-11 sweep: no meaning changed, no survivors. `docs/NEXT_SESSION.md` and `.claude/agent-memory/` not touched, as instructed.
+
+**For next session:** next free `Pass 606.0`; next filing 1095th. Remaining mesh failures: door m48; trailer m63, m64, m95, m107.
+
 ## 2026-10-18 (1093rd filing) — `Pass 605.0` shipped in `28e9a53f` (PRC compressed decoder: a degenerate frame's Y from its own X)
 
 **Shipped (engineer-reported, no shell here):** `28e9a53f`, after `ef873b9a` (the 1092nd filing); pushed to `main` 2026-10-18 (engineer-stated). Operator-direct continuation of `604.0`. One file, `crates/pdfcer-3d/src/compressed.rs`; no manifest change, no `pub` change, no decision (183 stands), core-api verbs 378. At a degenerate apex frame the encoder takes only Z from `MakeOrthoRep(X)` [WD 12.3] (which unitizes its own copy of X) and rebuilds `Y = Unitize(Z × X)` from the frame's own X; we had used MakeOrthoRep's Y. New fn `make_ortho_rep_z`, test `a_degenerate_frame_takes_y_from_its_own_x`. Unreleased (last release `v0.84.0`).

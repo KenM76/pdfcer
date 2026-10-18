@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.85.0` — BUMPED 2026-10-18 (1094th filing); release PENDING
+
+Bump `7fdfc00b` ("chore: v0.85.0") on `main`, after `2ed8906d` (the 1093rd filing, which filed `Pass 605.0` = `28e9a53f`): workspace version 0.84.0 -> 0.85.0 in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` and nothing else (lockfile diffs are only the `pdfcer-*` crate versions). Unpushed at filing time. Release is standing-authorised (decision 121); the reason it happens now is Ken's 2026-10-16 directive ("release a new version and let pdfcer-gui know of the changes ... then continue trying to fix the issue") with three mesh fixes accumulated. All figures engineer-reported; I have no shell (hard rule 8).
+
+- **Contents since `v0.84.0`:** `Pass 603.0` (`5fbbbebd`, blind-normal rule; `thin` narrowed to weak AND collinear), `Pass 604.0` (`be4bbe81`, candidate window split by class), `Pass 605.0` (`28e9a53f`, degenerate frame takes Y from its own X), plus filings `5babc1e9` (1091st), `ef873b9a` (1092nd), `2ed8906d` (1093rd). All three Passes touch only `crates/pdfcer-3d/src/compressed.rs`, `compressed/normals.rs`, `compressed/search.rs`.
+- **GUI-facing API changes for `pdfcer-gui`:** none (no `pub` change; core-api verbs 378). The notice says so and reports the improved PRC compressed-mesh decode.
+- **Measured effect** (release CLI `3d-render`, v0.84.0 -> this tree; operator's local files). Door `TS-0232-16-3D.pdf`: 152 -> 155 of 156 compressed meshes decode uniquely (m48 remains). Trailer `TR-0522.pdf`: unique/best-fit/failed 117/19/5 -> 127/10/4 (m63 m64 m95 m107 remain failed, m39 best-fit). Zero per-mesh regressions at any step.
+- **Gates are change-scoped** (Ken 2026-10-16): only `pdfcer-3d` changed since the tag; pdfcer-3d 157 tests pass, clippy and fmt clean at `28e9a53f`; `check-suite-name-absent.py`, `check-commits-filed.py`, `check-ledger-numbers.py`, `check-passes-filed.py` clean at `2ed8906d`; the package build is the compile check; CI runs the full sweep.
+- **Pending, NOT claimed:** annotated tag at this filing's commit, CI at the tag, packaging (`package-portable.py`), fresh-folder smoke, GitHub release (`gh-release.py`, 8 assets), OneDrive deploy to slot `pdfcer2` (`pdfcer1` holds 0.84.0), `verify-release.py`, notice to `pdfcer-gui` via `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`. Amend this entry when each lands.
+
+Ledgers: no decision; `FEATURES.md` untouched; core-api verbs unchanged (378); next free `Pass 606.0`; next filing 1095th.
+
 ### `Pass 605.0` — PRC compressed-tessellation decoder: a degenerate frame's Y comes from its own X, not from MakeOrthoRep's re-unitized copy — SHIPPED 2026-10-18 (1093rd filing)
 
 Commit `28e9a53f` on `main`, after `ef873b9a` (the 1092nd filing); pushed to `main` 2026-10-18 (engineer-stated; not checked here, no shell). One file: `crates/pdfcer-3d/src/compressed.rs`. No manifest change (no `cargo tree` concern); no `pub` change. Operator-direct continuation of `604.0` (standing goal since 2026-10-16: the PRC 8137 `TESS_3D_Compressed` decode failures on the door and trailer samples). Unreleased; last release `v0.84.0`.
