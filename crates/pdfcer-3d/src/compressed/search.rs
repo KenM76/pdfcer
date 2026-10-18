@@ -19,8 +19,12 @@ const DEEPEST: usize = 6;
 /// offered, and how many choices are combined.
 pub(super) const STAGES: [(bool, usize); 4] =
     [(false, DEPTH), (true, DEPTH), (true, DEEP), (true, DEEPEST)];
-/// How many candidate triangles before a failure are tried.
-const WINDOW: usize = 40;
+/// How many unsignalled folds and turns before a failure are tried.
+const PRIMARIES: usize = 40;
+/// How many signalled folds among them are tried. Fewer than
+/// [`PRIMARIES`]: a run of weak signalled triangles would otherwise fill
+/// the window and hide the one unsignalled sliver whose fold is wrong.
+const SECONDARIES: usize = 20;
 /// Triangle steps a search may spend before giving up undecided.
 const STEP_BUDGET: usize = 2_000_000;
 /// How many inverted choices the best-fit search combines.
@@ -73,7 +77,7 @@ pub(super) fn flat(a: &Arrays<'_>, pos: &[V], tris: &[[u32; 3]], from: usize) ->
 
 /// One inverted decision at a triangle: its fold, or the half-turn of its
 /// degenerate apex frame.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Choice {
     Fold(usize),
     Turn(usize),
@@ -332,13 +336,58 @@ fn search_reading(a: &Arrays<'_>, n: &NormalArrays<'_>, plan: Plan) -> (Search, 
 /// Triangles between the snapshots a resumed walk rewinds to.
 const SNAP_EVERY: usize = 64;
 
-/// What one completed step of a resumed walk offers the search.
+/// What one completed step of a walk offers the search.
 #[derive(Clone, Copy)]
 struct Step {
     /// Whether the step began a component.
     start: bool,
+    /// Whether its fold is a candidate.
     fold: bool,
+    /// Whether its record signalled the fold, so the candidate is a
+    /// secondary one.
+    signalled: bool,
+    /// Whether its turn is a candidate.
     turn: bool,
+}
+
+impl Step {
+    /// The step a walk just took.
+    fn of(w: &Walk, start: bool) -> Self {
+        Step {
+            start,
+            fold: !w.signalled || w.weak || (w.loose && !w.exact),
+            signalled: w.signalled,
+            turn: w.degenerate,
+        }
+    }
+}
+
+/// The candidates a search tries after a failure, from `back`: the steps
+/// before it, nearest first, within its component and after the last
+/// inversion. The last [`PRIMARIES`] unsignalled folds and turns, and at
+/// most [`SECONDARIES`] signalled folds among them, nearest last.
+fn window<'a>(back: impl Iterator<Item = (usize, &'a Step)>) -> Vec<Choice> {
+    let (mut primaries, mut secondaries) = (0, 0);
+    let mut c = Vec::new();
+    for (i, s) in back {
+        if s.turn {
+            c.push(Choice::Turn(i));
+            primaries += 1;
+        }
+        if s.fold && !s.signalled {
+            c.push(Choice::Fold(i));
+            primaries += 1;
+        }
+        if s.fold && s.signalled && secondaries < SECONDARIES {
+            c.push(Choice::Fold(i));
+            secondaries += 1;
+        }
+        if primaries >= PRIMARIES || s.start {
+            break;
+        }
+    }
+    c.reverse();
+    c
 }
 
 /// The walk state before a triangle, beyond what a [`Mark`] holds.
@@ -422,11 +471,7 @@ impl<'a> Resume<'a> {
                     self.candidates(i, after)
                 });
             }
-            self.steps.push(Step {
-                start,
-                fold: !self.w.signalled || self.w.weak || (self.w.loose && !self.w.exact),
-                turn: self.w.degenerate,
-            });
+            self.steps.push(Step::of(&self.w, start));
         }
         let w = &self.w;
         if w.slot != a.is_reference.len() || w.ri != a.references.len() || w.pi != a.points.len() {
@@ -448,25 +493,14 @@ impl<'a> Resume<'a> {
         self.steps.truncate(s.mark.tri);
     }
 
-    /// The last [`WINDOW`] candidates before a failure at `failed`, in its
-    /// component and from `after` on, nearest last.
+    /// The [`window`] of candidates before a failure at `failed`, in its
+    /// component and from `after` on.
     fn candidates(&self, failed: usize, after: usize) -> Vec<Choice> {
-        let mut c = Vec::new();
-        for i in (after..failed).rev() {
-            let Some(s) = self.steps.get(i) else { break };
-            if s.turn {
-                c.push(Choice::Turn(i));
-            }
-            if s.fold {
-                c.push(Choice::Fold(i));
-            }
-            if c.len() >= WINDOW || s.start {
-                break;
-            }
-        }
-        c.truncate(WINDOW);
-        c.reverse();
-        c
+        window(
+            (after..failed)
+                .rev()
+                .map_while(|i| self.steps.get(i).map(|s| (i, s))),
+        )
     }
 }
 
@@ -483,22 +517,20 @@ fn attempt(
     w.raw = raw;
     w.open_wins = open;
     let after = flips.iter().map(|c| c.at() + 1).max().unwrap_or(0);
-    let mut candidates = Vec::new();
+    let mut steps = Vec::new();
     for i in 0..a.triangles {
-        if w.next.is_none() {
-            candidates.clear();
-        }
+        let start = w.next.is_none();
         let status = a.edge_status.get(i).copied().unwrap_or(0);
         w.turn = flips.contains(&Choice::Turn(i));
         if w.step(a, status, flips.contains(&Choice::Fold(i))).is_err() {
-            return Outcome::Failed(candidates);
+            let back = steps.iter().enumerate().rev();
+            return Outcome::Failed(if start {
+                Vec::new()
+            } else {
+                window(back.take_while(|&(j, _)| j >= after))
+            });
         }
-        if (!w.signalled || w.weak) && i >= after {
-            candidates.push(Choice::Fold(i));
-        }
-        if w.degenerate && i >= after {
-            candidates.push(Choice::Turn(i));
-        }
+        steps.push(Step::of(&w, start));
     }
     if w.slot != a.is_reference.len() || w.ri != a.references.len() || w.pi != a.points.len() {
         return Outcome::Dead;
@@ -520,22 +552,44 @@ mod tests {
     /// Edge statuses, points, slots, references and normal angles.
     type Case<'a> = (&'a [i32], Vec<i64>, usize, &'a [u32], &'a [i32]);
 
-    /// A comparable digest of an outcome; a failure's candidates are cut
-    /// to the window the search uses.
+    /// A comparable digest of an outcome.
     fn digest(o: Outcome) -> (u8, Vec<Choice>, Vec<[u32; 3]>, Vec<V>) {
         match o {
             Outcome::Fit(m) => (0, Vec::new(), m.triangles, m.positions),
-            Outcome::Failed(c) => {
-                let skip = c.len().saturating_sub(WINDOW);
-                (
-                    1,
-                    c.into_iter().skip(skip).collect(),
-                    Vec::new(),
-                    Vec::new(),
-                )
-            }
+            Outcome::Failed(c) => (1, c, Vec::new(), Vec::new()),
             Outcome::Dead => (2, Vec::new(), Vec::new(), Vec::new()),
         }
+    }
+
+    /// A step whose fold is a candidate.
+    fn fold_step(signalled: bool) -> Step {
+        Step {
+            start: false,
+            fold: true,
+            signalled,
+            turn: false,
+        }
+    }
+
+    /// One unsignalled fold followed by a run of signalled ones longer
+    /// than the window: the window keeps the unsignalled fold and the
+    /// nearest [`SECONDARIES`] signalled ones, so a run of weak triangles
+    /// cannot hide the one sliver whose fold is wrong.
+    #[test]
+    fn a_run_of_signalled_folds_does_not_push_an_unsignalled_one_out() {
+        let mut steps = vec![fold_step(false)];
+        steps.extend((0..PRIMARIES + SECONDARIES).map(|_| fold_step(true)));
+        let c = window(steps.iter().enumerate().rev());
+        let n = steps.len();
+        assert_eq!(c.len(), SECONDARIES + 1);
+        assert_eq!(c[0], Choice::Fold(0));
+        assert_eq!(c[1], Choice::Fold(n - SECONDARIES));
+        assert_eq!(c[SECONDARIES], Choice::Fold(n - 1));
+        let mut steps = vec![fold_step(false); PRIMARIES + 1];
+        steps[0].start = true;
+        assert_eq!(window(steps.iter().enumerate().rev()).len(), PRIMARIES);
+        steps.truncate(3);
+        assert_eq!(window(steps.iter().enumerate().rev()).len(), 3);
     }
 
     /// Every set of at most two choices over `a`'s triangles, in an order
