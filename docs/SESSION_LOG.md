@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-18 (1093rd filing) — `Pass 605.0` shipped in `28e9a53f` (PRC compressed decoder: a degenerate frame's Y from its own X)
+
+**Shipped (engineer-reported, no shell here):** `28e9a53f`, after `ef873b9a` (the 1092nd filing); pushed to `main` 2026-10-18 (engineer-stated). Operator-direct continuation of `604.0`. One file, `crates/pdfcer-3d/src/compressed.rs`; no manifest change, no `pub` change, no decision (183 stands), core-api verbs 378. At a degenerate apex frame the encoder takes only Z from `MakeOrthoRep(X)` [WD 12.3] (which unitizes its own copy of X) and rebuilds `Y = Unitize(Z × X)` from the frame's own X; we had used MakeOrthoRep's Y. New fn `make_ortho_rep_z`, test `a_degenerate_frame_takes_y_from_its_own_x`. Unreleased (last release `v0.84.0`).
+
+**Measured (release `3d-render` note lines, local files, vs `be4bbe81`; unique/best-fit/failed):** door 153/0/3 -> 155/0/1 (m23, m39 fixed; m48 remains); trailer 125/11/5 -> 127/10/4 (m52, m96 best-fit -> unique; m39 failed -> best-fit); zero regressions. Door m23 at triangle 1216: 13.9 tolerances from its sibling-instance oracle (m45) before, 0.82 after. Rejected, via a local uncommitted probe: skip MakeOrthoRep's re-unitize of X (fixes m23, breaks door m117 and 11 trailer meshes); re-unitize X for the apex's own d.x (breaks every mesh). pdfcer-3d 157 tests, clippy and fmt clean (engineer-reported).
+
+**Findings (`C:\personal_rag\pdf\`):** three new lessons (sibling instance as an exact per-vertex oracle; walk amplifies 1e-13 noise about 1e9; `unitize` accurate to only 1e-8). The fourth requested lesson (class-split window, `604.0`) was ALREADY on disk from the 1092nd filing (`lesson_20261018_a_bounded_candidate_window_must_be_split_by_class_and_a_unique_fit_can_still_be_wrong.md`, read this filing) and was not duplicated. Subject and master indexes updated.
+
+**Sweep (hard rule 11):** claims swept: "door 153/156, 3 open", "trailer 125/11/5". Fixed: `FEATURES.md` 3D viewing row; Backlog 3D item (dated update). **Survivors reported, not edited (engineer-owned):** `docs/NEXT_SESSION.md` lines 34-35, 44 and 105-107 still state 153/156, 125/11/5, and "m23 m39 m48 fail". Also `crates/pdfcer-3d/src/compressed.rs:1144` rustdoc mentions m23 and m39 as examples of the amplification; likely still accurate (they are the cases that motivated it) but unchecked. `604.0`/`603.0` Shipped entries keep their figures as history.
+
+**Filed as:** Shipped entry; Backlog 3D update; one `FEATURES.md` row figure update, boxes unchanged (core `[x]` cli `[x]` gui `[ ]`).
+
+**For next session:** next free `Pass 606.0`; next filing 1094th. Next lens: rare-branch arithmetic and degenerate frames after thin collinear triangles. Remaining: door m48; trailer m63, m64, m95, m107 (m39 best-fit).
+
 ## 2026-10-18 (1092nd filing) — `Pass 604.0` shipped in `be4bbe81` (PRC compressed fit search: candidate window split by class); fold-back finding
 
 **Shipped (engineer-reported, no shell here):** `be4bbe81`, after `5babc1e9` (the 1091st filing). Operator-direct continuation of `603.0`. One file, `crates/pdfcer-3d/src/compressed/search.rs`; no manifest change, no `pub` change, no decision (183 stands), core-api verbs 378. `Step` gained `signalled`; a free `window()` keeps the last `PRIMARIES` = 40 unsignalled folds/turns plus at most `SECONDARIES` = 20 signalled (weak) folds, for both the resumed and the fresh walk.

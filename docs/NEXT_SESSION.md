@@ -5,8 +5,9 @@ Engineer-owned; replaced each session. The previous long-form handoff
 (gate-sweep history, the carried OWED list, benchmark recipes) is in git:
 `git show 78635459:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-18, after Pass `604.0` (`be4bbe81`, 1092nd filing);
-`603.0`/`604.0` are unreleased. Ken's directive that day: "release a new
+**Written:** 2026-10-18, after Pass `605.0` (`28e9a53f`, pushed; filing
+in flight);
+`603.0`–`605.0` are unreleased. Ken's directive that day: "release a new
 version and let pdfcer-gui know of the changes … then continue trying to
 fix the issue" — the earlier "pause, no release" is superseded; releases
 follow the normal standing authorisation again. **Ken's only open goal is
@@ -27,14 +28,20 @@ writes `pdfcer2`.
   changed since the last tag + the filing gates + the fresh-folder smoke;
   `run-gates.sh` is CI's job. `verify-release` fails only "working tree
   clean", on the uncommitted spec-librarian memory files (deliberate).
-- **Ledgers:** next free Pass **605.0**; next filing **1093rd** (check
+- **Ledgers:** next free Pass **606.0**; next filing **1094th** (check
   ROADMAP's newest ledger line); no decision added since 183. Core-api verb
   count **378**.
-- **3D compressed meshes after `604.0`:** door `TS-0232-16-3D.pdf` 153/156
-  unique (**m23 m39 m48** fail); trailer `TR-0522.pdf` 125 unique / 11
-  best-fit / 5 failed (**m39 m63 m64 m95 m107**; after `603.0` it was 123/12/6; it was
-  117/19/5 at v0.84.0 — six best-fits became unique, m108 went best-fit →
-  failed, no part lost). `603.0` = the blind-normal rule (`BLIND_NORMAL`
+- **3D compressed meshes after `605.0`:** door `TS-0232-16-3D.pdf` 155/156
+  unique (**m48** fails); trailer `TR-0522.pdf` 127 unique / 10 best-fit /
+  4 failed (failed **m63 m64 m95 m107**; m39 is now a best-fit; after
+  `604.0` it was 125/11/5, after `603.0` 123/12/6, 117/19/5 at v0.84.0).
+  `605.0` (`28e9a53f`) = at a degenerate apex frame take only `Z` from
+  `MakeOrthoRep(X)` and rebuild `Y = unitize(Z × X)` from the frame's OWN
+  `X` (MakeOrthoRep re-unitizes its copy of `X`; `unitize` is only ~1e-8
+  accurate in length, and the walk amplifies 1e-13 tol of noise to ~5e-4
+  tol by triangle 450, then a degenerate frame flips the `along` sign).
+  Sibling-instance oracle (m23↔m45, m39↔m153) found it: m23@1216 went
+  13.9 tol → 0.82. Spec RAG X60–X65. `603.0` = the blind-normal rule (`BLIND_NORMAL`
   0.01: a record normal in the triangle's plane makes its reversed bit
   noise; default fold, unsignalled, sliver retry) + `thin` narrowed to
   weak AND collinear. **The spec RAG `threed/prc__8137__tess_3d_compressed.md`
@@ -94,9 +101,15 @@ writes `pdfcer2`.
 - **`580.0` OCR `--magnify`** numbers and the unshipped bicubic trial are in
   the SESSION_LOG entry for the 1067th filing.
 
-## Shipped this session: Pass 604.0 (class-split candidate window)
+## Shipped this session: Passes 604.0 and 605.0
 
-- `be4bbe81`: after a failed walk the search tries the last 40 unsignalled
+- `28e9a53f` (`605.0`): see *State*. Rejected by census: skipping
+  MakeOrthoRep's re-unitize entirely (fixes m23, breaks door m117 + 11
+  trailer meshes); re-unitizing `X` for the apex's own `d.x` (breaks
+  everything). The LOCAL `compressed.rs` with the `P603_MOR` /
+  `P603_NOISE` / `P603_FLIPS` knobs, `frame.py`, `sib2.py`, `growth.py`
+  (noise-growth vs a sibling) are in `D:\Dev\pdfTests\prc-probe\p603\`.
+- `be4bbe81` (`604.0`): after a failed walk the search tries the last 40 unsignalled
   folds + turns (`PRIMARIES`) and at most 20 signalled weak folds
   (`SECONDARIES`) among them, instead of the last 40 of everything. m108's
   wrong fold (unsignalled sliver 2989) was hidden behind 136 signalled weak
@@ -128,9 +141,12 @@ writes `pdfcer2`.
 
 - **Table cell boxes are inferred** (even grid over the region; disclosed).
   A later Pass could measure them from ruling lines or the page image.
-- **3D compressed meshes** (see *State* and *Shipped this session*): eight
-  meshes still fail; start with the nut family's fold-back, then the
-  degenerate-frame classes. Never read
+- **3D compressed meshes** (see *State* and *Shipped this session*): five
+  meshes still fail (door m48; trailer m63 m64 m95 m107) and trailer m39
+  is a best-fit. Same lens as `605.0`: rare-branch arithmetic that differs
+  from the encoder by ~1e-8 (every affected mesh fails right after a thin
+  triangle / degenerate frame); use a sibling instance as the oracle where
+  one exists, then the nut family's fold-back. Never read
   nanoPRC/libPRC/Asymptote/MuPDF/Ghostscript/Poppler source (licence rule,
   decision 169). The probe modules (`probe.rs`, `probe_test.rs`: `fits`,
   `audit`, `chain`, `detail`, `blindcensus`, driven by `P603_DIR` pointing
