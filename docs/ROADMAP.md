@@ -22367,6 +22367,16 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+### `Pass 606.0` — PRC compressed-tessellation fit: planar-bend gate + windowed best-first fallback search (DESIGNED, NOT WRITTEN; owner engineer; filed 1096th)
+
+Research-only so far; nothing committed. Samples: door `TS-0232-16-3D.pdf` (156 meshes), trailer `TR-0522.pdf` (141). Census = unique/best-fit/failed. Control at `28e9a53f`: door 155/0/1 (m48), trailer 127/10/4 (m63 m64 m95 m107; m39 best-fit). Probe diff, `HEAD.txt` and results are backed up in `D:\Dev\pdfTests\prc-probe\p603\`; full handoff in `docs/NEXT_SESSION.md` "Resume here". Session record: `SESSION_LOG.md` 1096th.
+
+- **606.0a — incremental planar-bend gate.** In `Walk::step`, reject a candidate whose bend exceeds 10 tol + 3 x running deflection, applying `MAX_BEND` while walking (WD 7.8.9.1). Probe: door 155/1/0 (m48 failed -> best-fit), trailer 127/10/4 per-mesh identical.
+- **606.0b — windowed fallback stage inside `best_fit`.** Window 300, inert-pruned (a flip that does not move the failure is dropped), farthest-first best-first. Result disclosed as best-fit unless proven unique. Probe: m63 fit in 53,668 steps / 27 expansions / 106 ms.
+- **Expected census:** door 155/1/0 or 156/0/0; trailer 127/11/3 (m63 recovered). Then release; the slot is OneDrive `pdfcer1`.
+- **Out of scope (different class):** m64, m95, m107 — the search EXHAUSTS; see the 1096th session entry. Not a Pass yet.
+- Ledgers: no decision; `FEATURES.md` untouched; next free `Pass 607.0`; next filing 1097th.
+
 > **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` was self-found at the 1053rd filing, not a GUI request. Ledgers: no decision; next free `Pass 581.0`; next filing 1068th (updated at the 1067th; superseded at the 1068th by the stub below: next free `Pass 587.0`, next filing 1069th; superseded again at the 1069th: next free `Pass 588.0`, next filing 1070th).
 > - `567.0` (`G185`) and `568.0` (`G186`) shipped at the 1055th filing (`26cc218c`); see *Shipped*.
 > - `569.0` (`G176`) shipped at the 1056th filing (`73d68728`, `13ffa912`); see *Shipped*.

@@ -1,6 +1,6 @@
 ---
 name: project_mesh_fix_before_release
-description: Ken 2026-10-16 — the standing goal is the 3D compressed-mesh decode failures; 603.0 fixed door m2, 604.0 (class-split window) trailer m108/m53, 605.0 (degenerate-frame Y from own X) door m23/m39 + trailer m52/m96; five still fail (door m48, trailer m63/m64/m95/m107) + trailer m39 best-fit; spec RAG R17/X42–X65 is the ledger
+description: Ken 2026-10-16 — the standing goal is the 3D compressed-mesh decode failures; after 605.0 five fail (door m48, trailer m63/m64/m95/m107); 2026-10-19 research designed Pass 606.0 (planar-bend gate + inert-pruned event search: fixes m48+m63; m64/m95/m107 are a REF-closing class, not folds); LOCAL probe edits in the tree; spec RAG R17/X42+ is the ledger
 metadata:
   type: project
 ---
@@ -17,6 +17,21 @@ No regressions at any step. The spec RAG
 `threed/prc__8137__tess_3d_compressed.md` holds every hypothesis scored:
 R17, X42–X65 (X65 = 605.0). Research agent found no public non-GPL fold
 rule; patent US 8,207,965 B2 expiry is Google-Patents-only, unverified.
+
+**State at 2026-10-19 (research only, nothing shipped; Pass 606.0 designed
+in `docs/NEXT_SESSION.md` "Resume here"):** the working tree holds LOCAL
+probe edits in compressed.rs/normals.rs/search.rs — restore from HEAD
+before real work (reverting verb ALONE). Measured: (1) an incremental
+planar-bend gate in `Walk::step` (10 tol + 3×running deflection) is safe
+and turns door m48 F→B (155/1/0; trailer per-mesh identical); (2) a
+windowed (300 steps), inert-pruned, farthest-first fold/turn event search
+finds m63's 21-flip fit in 0.1 s where the naive DFS took 11M steps;
+(3) m64/m95/m107 are NOT fixable by any fold/turn flip — the search space
+exhausts; they stall where a REF closes a fan onto an early vertex (m95
+at step 67, smallest case; m63≈m95 is its nearest oracle); (4) the
+2026-10-18 m48 "axis" findings were measured without 605.0's rule
+(P603_MOR defaulted to 0) and are void. Spec RAG rows X58–X67 (labels X66–X75) filed 2026-10-19;
+next 606.0 results go after X67.
 
 **What the three fixes have in common:** none was a new rule; each was the
 encoder's exact arithmetic in a rare branch (blind normal; window

@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-19 (1096th filing) — PRC compressed-mesh fit research; `Pass 606.0` designed, not written (no Pass shipped, nothing committed)
+
+**Premises (engineer-reported, no shell here):** door `TS-0232-16-3D.pdf` (156 meshes), trailer `TR-0522.pdf` (141); census = unique/best-fit/failed. Control after `605.0`: door 155/0/1 (m48), trailer 127/10/4 (m63 m64 m95 m107 fail; m39 best-fit). Probe edits are LOCAL only (`// P603 LOCAL` in `compressed.rs`, `compressed/normals.rs`, `compressed/search.rs`; untracked `compressed/probe*.rs`); backup with results in `D:\Dev\pdfTests\prc-probe\p603\` (`local.diff`, `HEAD.txt`, `results/`). Handoff: `docs/NEXT_SESSION.md` "Resume here". Ken, 2026-10-19: "finish up your latest attempt and conclusions and make it so we can resume this later in a new session."
+
+**Methodology mishap:** the 2026-10-18 m48 "axis" findings were measured with the probe's MOR static defaulting to 0 (without `605.0`'s rule). Void; do not cite them.
+
+**Findings:**
+- **Collinear-sliver fold is a coin flip over stored data, so it must be searched, not ruled.** `thinfold` census, door: folds [11,0,10,31] vs unfolds [24,0,12,18]; trailer: [42,3,57,36] vs [94,3,57,47].
+- **Stored-normal cosine gate rejected.** |cos| along true fits falls to 0.27 / 0.40; at 0.95 the gate leaves door 132 unique, trailer 98 unique.
+- **Incremental planar-bend gate** (10 tol + 3 x running deflection, in `Walk::step`; `MAX_BEND` applied while walking; WD 7.8.9.1): door 155/1/0 (m48 failed -> best-fit), trailer 127/10/4 per-mesh identical. Candidate `606.0a`.
+- **m63's true fit = 21 fold flips:** F46, F47, F374, F601, F963, F1200, F2146, F2171, F2772, F3195, F3808, F4500, F4501, F4504, F4703, F4739, F4747, F5800, F6173, F8827, F9187. Removing any one fails within +1..+7 steps for 17 of 21 (+37/+65/+206/+248 for the other 4). Coincidence / fold-back / dihedral symptoms occur along the true fit (8 / 39 / 209) so they are not oracles.
+- **Event-DFS explosion (11M steps, 17 s)** is caused by most-recent-first ordering and ~30 INERT slivers per 300-step window (a flip that does not move the failure), not by the uniqueness proof or window size (both measured). Windowed (300), inert-pruned, farthest-first best-first search: m63 fit in 53,668 steps / 27 expansions / 106 ms. Candidate `606.0b` (fallback stage inside `best_fit`; disclosed as best-fit unless proven unique).
+- **m64 / m95 / m107 are a different class:** that search EXHAUSTS (m64 at step 6376, m107 at 3876, m95 at 67); modes "every fold" and "every triangle" find nothing in 12M steps. All three stall where a REF closes a fan onto an early vertex: m64 (3368,3352,3236); m107 (1814,1813,2145)->[1812]; m95 (48,20,47)->[19] after a kind=Unknown REF at ti 57. Siblings m63 ~ m95, m64 ~ m107 (not exact copies).
+
+**Decisions:** none. **Spec RAG:** ledger rows X66-X75 dispatched to `pdfcer-spec-librarian` in parallel (`threed/prc__8137__tess_3d_compressed.md`); not verified from here.
+
+**Filed as:** `### Pass 606.0` in ROADMAP *Next up* (owner engineer, two parts, expected census door 155/1/0 or 156/0/0, trailer 127/11/3; then release to OneDrive `pdfcer1`). `FEATURES.md` untouched (no capability shipped); no Shipped move. Backup currency and git state not verified from here.
+
+**For next session:** write `606.0a` then `606.0b` from the probe diff; confirm census; release. m64/m95/m107 need a different approach (REF fan-closure semantics). Next free `Pass 607.0`; next filing 1097th.
+
 ## 2026-10-18 (1095th filing) — `v0.85.0` PUBLISHED (no Pass consumed)
 
 **Filed (engineer-measured, no shell here):** tag `v0.85.0` (object `f5dedeb9...`) -> `91f287f3` (the 1094th filing); `main` and tag pushed, `git ls-remote` confirms; CI at `91f287f3` completed, success. Gates change-scoped (Ken 2026-10-16): only `pdfcer-3d` changed, 157 tests, clippy, fmt clean; four filing/ledger checks clean before each push; CI ran the full sweep.
