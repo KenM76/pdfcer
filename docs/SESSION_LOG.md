@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1106th filing) — `Pass 613.0` shipped in `ebc02bc6` (a borrowing planar face signals only its tall triangles)
+
+**Shipped (engineer-reported, no shell here):** `613.0` `ebc02bc6`, `pdfcer-3d` `compressed/decide.rs` (`Walk::decide`). A face oriented by its own first tall triangle now signals a later triangle only if taller than 0.5 tol off its plane; shorter ones stay slivers for the event search. Trailer unique/best-fit/failed 127/12/2 -> 127/13/1 (m64 failed -> best-fit, 3.4 s); door 155/1/0 unchanged per mesh. m107 fits slightly differently (91 triangles vs corner normals instead of 90). Slowest trailer mesh 4.5 s. Only m95 still fails. Tests: new `a_borrowing_face_signals_only_its_tall_triangles` (sabotage-checked); pdfcer-3d 166 + 3 + 13; fmt, clippy, structure gate clean.
+
+**Findings:** (1) NEAR negative re-measured on m95: inert candidates within 32 triangles fit only at 8.28M steps (5.4 s); NEAR=16 out of budget at 30M; NEAR=8 and 4 exhaust; on m64 exhausts or runs out. Rejected, order-dependent. (2) X67's "fan-closing REF stall" for m64 is superseded: the stall was the 607.0 signalling of short triangles. (3) Under the current production walk the m95 38-choice "reach 9963" set is dead (2 slots unconsumed, face f134 bent). Spec ledger rows X76-X77 written; the six trailing "m64/m95 remain" notes in that file annotated.
+
+**Flagged, not edited:** `docs/NEXT_SESSION.md` (engineer-owned) still lists m64 as failing. Git, push and backup state not verified from here. No decision.
+
+**For next session:** next free `Pass 614.0`; next filing 1107th; m95 is the only mesh left failing; unreleased since `v0.88.0`.
+
 ## 2026-10-20 (1105th filing) — `v0.88.0` PUBLISHED (no Pass consumed)
 
 **Published (engineer-reported, no shell here):** tag `v0.88.0` -> `a6060224` (the 1104th filing; bump `910dbb93`), pushed with `main`, CI green at the tag. Binary built at `910dbb93` (revision `v0.87.0-6-g910dbb93`; only a docs-only commit follows). Package folder `D:\builds\pdfcer-20261020-1151-a606022`, not dirty. Zips in `D:\builds\release-v0.88.0`: `pdfcer-v0.88.0-windows-x64.zip` 26,010,385 bytes, sha256 `e3970d961d1d99ec0a00f0d079b24c61675914d796c50273e826c0a1b4d79ed4`; the three OCR add-on zips (`ocrcer`, `ocrs`, `tesseract`) unchanged in size from 0.87.0. `tools/gh-release.py` PASS, 8 assets at local sizes. OneDrive `pdfcer1` written; `pdfcer2` keeps 0.87.0, so the next release writes `pdfcer2`.
