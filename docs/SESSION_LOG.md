@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1117th filing) — `Pass 616.3` slice A PARTIAL in `92102894`: discard user data by kind
+
+**Shipped (engineer-reported, no shell here):** `optimize --discard KINDS` / `--keep-data KINDS`, `OptimizeSettings.discard`, profile key `discard`, preset defaults (Screen: Thumbnail + PieceInfo + ObjectXmp). One undo entry, full rollback on failure. Core `optimize::` 33/33, CLI 10/10, suites green. Core `[x]`, cli `[x]`, gui `[ ]`.
+
+**Register:** ROADMAP `616.3` stays in Next up, retitled IN PROGRESS with slice A and the remaining slices listed; FEATURES gains an Implemented row and the Planned row is narrowed to the unbuilt kinds. No decision. Git, push and backup state not verified from here.
+
+**CI follow-up:** commit `a40b9004` (test(cli), Pass 616.2) marked the padded report kind column in the clean-up test `string-gap-exempt`, fixing CI run 39511180265's check-string-gaps failure on `b12095d0`; the engineer's local pre-push audit list had held only the Python gates and missed the two shell gates (`check-string-gaps.sh`, `check-bypass-paths.sh`), and is now built from the CI workflow.
+
 ## 2026-10-20 (1116th filing) — `Pass 616.2` residue closed in `6e409343`: `optimize --compression`
 
 **Shipped (engineer-reported, no shell here):** `pdfcer optimize --compression entire|structure|leave` (CLI only; compositions of existing `streams` and `structure.object_streams` settings; `entire` is the preset default). "Remove compression" is `export-structure`, per decision 191 (optimize never grows a file). Conflicts with `--streams`, `--no-object-streams`, `--keep-structure`. Test `optimize::compression_modes_choose_streams_and_object_streams`; CLI `optimize::` 9/9; sabotage fails it; clippy, fmt and the gates clean. Core `[x]`, cli `[x]`, gui `[ ]`.

@@ -128,3 +128,14 @@ Related: [[feedback_never_bundle_code_into_a_filing_commit]] (the same gate,
 the opposite mistake), [[feedback_gates_i_owe_myself]],
 [[feedback_run_the_projects_own_gates]],
 [[feedback_repo_scoped_gates_run_before_every_push]].
+
+---
+
+## Recurred 2026-10-20: the audit LIST was the weaker check
+
+A pre-push loop over a hand-collected list of 31 `python tools/check-*`
+commands missed `bash tools/check-string-gaps.sh` and `check-bypass-paths.sh`;
+CI run 39511180265 went red on a padded test literal. **How to apply:** build
+the list from the workflow, not from memory or `ls tools`:
+`grep -hE "run: (bash|python) tools/check" .github/workflows/*.yml | sed 's/.*run: //' | sort -u`
+— and union it with any multi-line `run:` gates the grep cannot see.

@@ -24373,9 +24373,13 @@ Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level
 - A before/after report that itemises every lossy change (rule 4).
 - CLI `optimize --preset/--profile/--rule/--object/--dry-run/--json`.
 
-### `Pass 616.3` — Discard objects and user data, each individually selectable — NEXT UP, 2026-10-20
+### `Pass 616.3` — Discard objects and user data, each individually selectable — IN PROGRESS (slice A shipped `92102894`, 2026-10-20)
 
-Wire in the existing 12 `doc_metadata` kinds. Add: alternate images, print settings, search index, tags, bookmarks, form actions, external cross-references, private application data, hidden layers (with visible-layer flatten), embedded thumbnails.
+**Slice A DONE (`92102894`):** `OptimizeSettings.discard: DiscardOptions` (Copy set of `MetadataKind`); `plan_optimize` fills `plan.discard`; `apply_optimize` removes via `remove_metadata` inside the one `Optimize{count}` undo entry, any failure rolls back (`OptimizeError::DiscardFailed`); certification skips with a note; notes for FormData and DocumentId. Presets: Lossless/Archive none, Standard/Print Thumbnail, Screen Thumbnail + PieceInfo + ObjectXmp. Profile key `discard` (list or `"all"`, replaces parent's). CLI `optimize --discard`/`--keep-data`; report and JSON `discard` key. `core-api/03-capabilities.md` §15 updated. Tests: core `optimize::` 33/33 (5/5 sabotages), CLI 10/10 (4/4); core lib 2995, CLI 895, 0 failed. No dependency change.
+
+**Remaining slices (unbuilt):** alternate images, print settings, search index, tags (structure tree), bookmarks (all), form actions, external cross-references, hidden layers + flatten visible layers, object data, "comments, forms and multimedia", merge image fragments, smooth lines.
+
+Original scope: wire in the existing 12 `doc_metadata` kinds. Add: alternate images, print settings, search index, tags, bookmarks, form actions, external cross-references, private application data, hidden layers (with visible-layer flatten), embedded thumbnails.
 
 ### `Pass 616.4` — Images I: downsampling, requality, conversion — NEXT UP, 2026-10-20
 
