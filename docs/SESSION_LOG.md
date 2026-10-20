@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1099th filing) — `v0.86.0` PUBLISHED (no Pass consumed)
+
+**Filed (engineer-reported, no shell here):** annotated tag `v0.86.0` at `bedd8329` (the 1098th filing), pushed; origin/main contains it; CI green at the tagged commit. Package `D:\builds\pdfcer-20261020-0210-bedd832` (50,509,214 B + 3 OCR add-on zips); `--version` revision `v0.86.0`.
+
+**Release:** GitHub `v0.86.0`, 8 assets at local sizes; main zip 25,979,835 B, sha256 `930bd69e...7059`; add-on zips `ocrcer` `146dd743...`, `ocrs` `f169cb72...`, `tesseract` `ee955602...`; notes `D:\builds\release-v0.86.0\NOTES.md`. OneDrive `pdfcer1` 70,132,543 B (6 items); `pdfcer2` keeps 0.85.0; next release writes `pdfcer2`.
+
+**Verified by engineer:** `verify-release v0.86.0` all ok except "working tree clean" (2 spec-librarian memory files, known). Fresh-folder smoke passed: `--version`, `inspect`, `rotate` incremental (identical prefix), `render-page --scale 1`, `ocr` (bundled PaddleOCR), `3d-render` door 156 rebuilt / 1 best-fit / 0 left out.
+
+**Filed as:** `### v0.86.0` amended to PUBLISHED in place, same shape as `v0.85.0`. `pdfcer-gui` notice `notice_2026-10-20_v0.86.0_released.md` (no API change; 0.84.0 `mesh_fit` ask stands). No decision; `FEATURES.md` no row change. Hard-rule-11 sweep: no meaning changed, no survivors. `.claude/agent-memory/` and `docs/NEXT_SESSION.md` not touched. Backup currency and git state not verified from here.
+
+**For next session:** next free `Pass 607.0`; next filing 1100th. Remaining mesh failures: trailer m64, m95, m107 (REF fan-closure semantics).
+
 ## 2026-10-20 (1098th filing) — `v0.86.0` version bump `e1441e0d` filed; release PENDING
 
 **Filed (engineer-reported, no shell here):** bump `e1441e0d` after `72b88780` (1097th filing). Workspace 0.85.0 -> 0.86.0 in `Cargo.toml` and the root + `fuzz/` locks (`cargo update -w`); no dependency or API change, `docs/core-api/` untouched. Contains `Pass 606.0` (`04e769fc`).

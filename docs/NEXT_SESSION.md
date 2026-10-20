@@ -15,10 +15,10 @@ below; no feature-request loop and no other Passes while it is open.**
 
 ## State
 
-- **Release:** v0.85.0 is published (tag object `f5dedeb9` at `91f287f3`,
-  GitHub 8 assets, OneDrive `pdfcer2`; `pdfcer1` keeps 0.84.0). **The next
-  release writes `pdfcer1`.** No API change in it. pdfcer-gui was told in
-  `pdfce_FeatureRequests/open/notice_2026-10-18_v0.85.0_released.md` (no
+- **Release:** v0.86.0 is published (tag `v0.86.0` at `bedd8329`,
+  GitHub 8 assets, OneDrive `pdfcer1`; `pdfcer2` keeps 0.85.0). **The next
+  release writes `pdfcer2`.** No API change in it. pdfcer-gui was told in
+  `pdfce_FeatureRequests/open/notice_2026-10-20_v0.86.0_released.md` (no
   reply owed; the 0.84.0 ask to expose `mesh_fit` still stands). Local
   release gates are **change-scoped** (Ken, 2026-10-16): test the crates
   that changed since the last tag + the filing gates + the fresh-folder

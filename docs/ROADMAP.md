@@ -112,7 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.86.0` — version bump `e1441e0d` filed; release PENDING (1098th filing)
+### `v0.86.0` — PUBLISHED 2026-10-20 (published at the 1099th filing; bump filed at the 1098th)
+
+**Published (engineer-reported; I have no shell, hard rule 8).** Annotated tag `v0.86.0` at `bedd8329` (the 1098th filing, HEAD at tagging), pushed; origin/main contains it; CI green at the tagged commit (`verify-release`).
+
+- **Package:** `D:\builds\pdfcer-20261020-0210-bedd832` (50,509,214 bytes total, plus 3 OCR add-on zips); `pdfcer.exe --version` reports `revision: v0.86.0`.
+- **GitHub release `v0.86.0`, 8 assets** at local sizes: `pdfcer-v0.86.0-windows-x64.zip` (25,979,835 B, sha256 `930bd69e504bfa281c883e065978d0969a2efce0db69c865963f3ab629de7059`); `ocr-addon-ocrcer.zip` (`146dd743...`), `ocr-addon-ocrs.zip` (`f169cb72...`), `ocr-addon-tesseract.zip` (`ee955602...`); plus each zip's `.sha256`. Notes: `D:\builds\release-v0.86.0\NOTES.md`.
+- **Fresh-folder smoke** (copy to a new folder), all passed: `--version`; `inspect`; `rotate` incremental with byte-identical prefix; `render-page --scale 1`; `ocr` with bundled PaddleOCR; `3d-render` on the door sample 156 rebuilt / 1 best-fit / 0 left out.
+- **OneDrive:** `deploy-onedrive.py` wrote `pdfcer1` (6 items, 70,132,543 bytes); `pdfcer2` keeps 0.85.0. The NEXT release writes `pdfcer2`.
+- **`verify-release.py v0.86.0`:** every check ok except "working tree clean" (the 2 uncommitted spec-librarian agent-memory files; known, deliberate exception).
+- **Notice to `pdfcer-gui`:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-10-20_v0.86.0_released.md` (no API change, no reply owed; the 0.84.0 request to expose `mesh_fit` still stands).
+- **Known issue:** trailer m64, m95, m107 still fail (Backlog 3D item).
+
+Original bump entry (1098th filing), kept as filed; its "Plan, NOT claimed done" line is now discharged by the bullets above:
 
 Bump `e1441e0d` ("chore: bump version to 0.86.0") on `main`, after `72b88780` (the 1097th filing, which filed `Pass 606.0` = `04e769fc`): workspace `Cargo.toml` 0.85.0 -> 0.86.0, plus `cargo update -w` on the root and `fuzz/` locks. No dependency change, no `pub`/API change, so `docs/core-api/` is untouched. Contents: `Pass 606.0` (incremental planar-bend check + best-first event search for compressed PRC meshes). Release standing-authorised (decision 121). All figures engineer-reported; I have no shell (hard rule 8).
 
