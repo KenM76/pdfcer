@@ -112,6 +112,10 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.89.0` — version bump filed 2026-10-20 (1108th filing); release PENDING
+
+Bump `b2507313` ("chore: bump version to 0.89.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`) on `main`, after `f71554e1`; the filings `40e7d1d7` (1106th) and `cee34cd0` (1107th) follow the Pass commits it carries. No dependency change (no `cargo tree` concern for `pdfcer-core`/`pdfcer-render`). Contents since `v0.88.0`: `Pass 613.0` (`ebc02bc6`) and `Pass 614.0` (`f71554e1`), both below, both `pdfcer-3d` only. Figures engineer-reported; I have no shell (hard rule 8). **Release plan:** tag on this filing's commit, publish to OneDrive slot `pdfcer2` (`v0.88.0` wrote `pdfcer1`). **Not claimed done:** tag, package, smoke, GitHub release, OneDrive slot, notice to `pdfcer-gui`; publication gets its own later filing (1109th or after). `FEATURES.md`: no change (rows for 613.0/614.0 already filed). Ledgers: no decision; next free `Pass 615.0`; next filing 1109th.
+
 ### `Pass 614.0` — PRC compressed-tessellation fit: the event search may add a choice just before a set's last — SHIPPED 2026-10-20 (1107th filing)
 
 Commit `f71554e1` on `main`, after `40e7d1d7` (the 1106th filing); crate `pdfcer-3d` only (`compressed/search.rs`, `events`). No `Cargo.toml` change (no `cargo tree` concern), no `pub` change. Engineer-reported; I have no shell (hard rule 8). Unreleased; last release `v0.88.0`.

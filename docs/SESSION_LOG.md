@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1108th filing) — `v0.89.0` bump `b2507313` filed (no Pass consumed)
+
+**Filed (engineer-reported, no shell here):** bump `b2507313` ("chore: bump version to 0.89.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`) carries `Pass 613.0` (`ebc02bc6`) and `Pass 614.0` (`f71554e1`) since `v0.88.0`. Filings after the Pass commits: `40e7d1d7` (1106th), `cee34cd0` (1107th). Recorded as a ROADMAP Shipped bump entry, the same way `910dbb93` was in the 1104th.
+
+**Release plan, NOT done:** tag `v0.89.0` on this filing's commit; publish to OneDrive slot `pdfcer2` (`v0.88.0` wrote `pdfcer1`). Publication is filed separately afterwards, as the 1105th was for `v0.88.0`. No decision; `FEATURES.md` no change. Hard-rule-11 sweep: no meaning changed. `docs/NEXT_SESSION.md` not touched (engineer-owned). Git, push and backup state not verified from here.
+
+**For next session:** next free `Pass 615.0`; next filing 1109th; tag and publish `v0.89.0` (slot `pdfcer2`); school/strap/piano not re-measured.
+
 ## 2026-10-20 (1107th filing) — `Pass 614.0` shipped in `f71554e1` (the event search may add a choice just before a set's last)
 
 **Shipped (engineer-reported, no shell here):** `614.0` `f71554e1`, `pdfcer-3d` `compressed/search.rs` (`events`). New `EVENT_BACK = 8` lets a new choice lie up to 8 triangles before a set's last; `EVENT_BUDGET` 1M -> 5M. Trailer m95 needs F830 jointly with F832 (each alone inert or merely moves the failure), which the "only after the last choice" ordering could not reach. Trailer 127/13/1 -> 127/14/0 (m95 failed -> best-fit, 6.9 s, 3,434,966 steps); door 155/1/0 unchanged; no other mesh changed. **No door or trailer mesh fails on the census; the "Mesh fix before release" goal is met on it.** Tests: pdfcer-3d 166 + 3 + 13; fmt, clippy, structure gate clean (569 baseline, none new). Also: `40e7d1d7` committed the 1106th filing.
