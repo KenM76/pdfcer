@@ -5636,6 +5636,38 @@ pub(crate) enum Command {
         show_unreferenced: bool,
     },
 
+    /// **Show where a PDF's bytes go** (Pass 616.0).
+    ///
+    /// Every byte of the file is attributed to exactly one category: content
+    /// streams, images, fonts, form XObjects, annotations, bookmarks, metadata,
+    /// embedded files, the cross-reference, bytes an incremental update left
+    /// behind (`superseded`), objects nothing references, and so on. The
+    /// categories always add up to the file size.
+    ///
+    /// Below the categories come the largest objects, and every image with its
+    /// pixel size, colour space, filters and **effective resolution** where page
+    /// content draws it (ppi). That resolution is what decides whether an image
+    /// can be downsampled without visible loss.
+    ///
+    /// Objects compressed inside an object stream get a share of the
+    /// container's bytes in proportion to their decoded size.
+    ///
+    /// Read-only. With `--diff`, compares two files category by category, for
+    /// example a file before and after `optimize`.
+    AuditSpace {
+        /// Input PDF.
+        input: PathBuf,
+        /// Compare against this PDF and print the change per category.
+        #[arg(long, value_name = "OTHER")]
+        diff: Option<PathBuf>,
+        /// How many of the largest objects to list (0 for none).
+        #[arg(long, default_value_t = 20)]
+        top: usize,
+        /// Print JSON instead of the text report.
+        #[arg(long)]
+        json: bool,
+    },
+
     /// List a PDF's interactive-form (AcroForm) fields (Pass 7).
     ///
     /// Prints one stable, locale-invariant line per terminal field —

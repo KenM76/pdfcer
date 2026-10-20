@@ -1213,6 +1213,12 @@ pub(crate) fn run() -> ExitCode {
             streams,
             max_stream_bytes,
         } => cmd_dump_structure(&input, &root, max_objects, streams, max_stream_bytes),
+        Command::AuditSpace {
+            input,
+            diff,
+            top,
+            json,
+        } => cmd_audit_space(&input, diff.as_deref(), top, json),
         Command::ListObjects {
             input,
             filter_type,

@@ -4415,3 +4415,40 @@ page*, and pdfcer already has every verb for authoring pages; a function that
 also drew artwork would be a second, worse page-authoring API existing only
 here. The caller builds the pages — imported, drawn, or an existing
 document's — and this names them.
+
+## 14. Space audit — where a file's bytes go (`Pass 616.0`)
+
+Read-only; no edit session. `pdfcer_core::space_audit` (CLI: `pdfcer audit-space`).
+
+| Call | Returns |
+|---|---|
+| `space_audit::audit(&Document) -> SpaceAudit` | `file_bytes`; `categories` (every `SpaceCategory`, zero rows included); `objects` largest first; `notes` |
+| `space_audit::diff(&SpaceAudit, &SpaceAudit) -> SpaceDiff` | per-category `before` / `after` and the two file totals |
+| `SpaceAudit::bytes_in(SpaceCategory) -> u64` | one category's bytes |
+| `ImageSpace::max_effective_ppi() -> Option<f64>` | highest resolution any placement draws the image at |
+
+Contract:
+
+- **The category bytes sum exactly to `file_bytes`.** Every byte belongs to
+  one object or one gap. Gaps are `CrossReference` (xref tables, trailers,
+  xref streams), `Superseded` (object bodies an incremental update replaced)
+  or `FileOverhead` (header, EOLs, `%%EOF`).
+- An object's `stored_bytes` is its `N G obj … endobj` span. A compressed
+  object (`in_object_stream: Some(container)`) gets a share of its container,
+  proportional to its decoded length, and the container is not listed itself.
+- `category` is the role of the first root that reaches the object: page
+  tree, then annotations and thumbnails, then the catalog, then the trailer.
+  An object nothing reaches is `Unreferenced`.
+- `ObjectSpace::pages` lists the pages (1-based) whose dictionary or
+  inherited resources reach the object, never through `/Parent` or another
+  page. The catalog, outlines and other document-level objects have none.
+- `ImagePlacement::ppi_x/ppi_y` = pixels × 72 / drawn size in points, taken
+  from the CTM at each `Do`, through nested forms. Soft masks and stencil
+  masks inherit their parent's placements.
+
+⚠️ **Placements come from page content only.** An image drawn only by an
+annotation appearance has none, and `notes` says so. Show "not drawn by page
+content", not "unused".
+
+⚠️ `SpaceCategory`, and every struct here, is `#[non_exhaustive]`. Match
+with a wildcard arm, and show `as_str()` for an unknown category.

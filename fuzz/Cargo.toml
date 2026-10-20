@@ -706,3 +706,10 @@ path = "fuzz_targets/import_history.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "space_audit"
+path = "fuzz_targets/space_audit.rs"
+test = false
+doc = false
+bench = false

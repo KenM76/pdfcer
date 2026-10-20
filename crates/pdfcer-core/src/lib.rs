@@ -99,6 +99,7 @@ pub mod sign;
 pub mod signature;
 pub mod signature_verify;
 pub mod sound;
+pub mod space_audit;
 /// Acrobat-compatible stamp collection files -- one file per category,
 /// one page per stamp, names in the catalog's `/Names` -> `/Pages` tree.
 pub mod stamp_file;

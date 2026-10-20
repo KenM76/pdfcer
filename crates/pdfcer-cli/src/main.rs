@@ -690,6 +690,8 @@ mod block_text_cmd;
 use block_text_cmd::*;
 mod metadata_cmd;
 use metadata_cmd::*;
+mod space_cmd;
+use space_cmd::*;
 #[cfg(test)]
 mod tests;
 use structure::*;

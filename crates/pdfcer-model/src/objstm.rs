@@ -268,6 +268,28 @@ impl ObjectStream {
         self.pairs.iter().map(|&(num, _)| num)
     }
 
+    /// Decoded byte length of each member, in stored (index) order.
+    ///
+    /// A member runs from its pair-table offset to the next larger offset, the
+    /// last to the end of the decoded data. The pair table and its separators,
+    /// which sit before `/First`, are not attributed to any member. Offsets
+    /// out of order or out of range yield 0 for that member rather than an
+    /// error: this answers "how much space", a measurement, not a parse.
+    #[must_use]
+    pub fn member_lengths(&self) -> Vec<usize> {
+        let body = self.data.len().saturating_sub(self.first);
+        let mut starts: Vec<usize> = self.pairs.iter().map(|&(_, rel)| rel.min(body)).collect();
+        starts.sort_unstable();
+        self.pairs
+            .iter()
+            .map(|&(_, rel)| {
+                let rel = rel.min(body);
+                let end = starts.iter().copied().find(|&s| s > rel).unwrap_or(body);
+                end - rel
+            })
+            .collect()
+    }
+
     /// Whether the container holds no objects.
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -418,6 +440,14 @@ mod tests {
         let (num, value) = objstm.object_at(2).unwrap();
         assert_eq!(num, 9);
         assert_eq!(value.as_int(), Some(42));
+    }
+
+    #[test]
+    fn member_lengths_run_to_the_next_offset() {
+        let (dict, data) = build(&[(7, "<< /A 1 >>"), (2, "[1 2 3]"), (9, "42")]);
+        let objstm = ObjectStream::parse(&dict, &data).unwrap();
+        // Each body is followed by one separator space in `build`.
+        assert_eq!(objstm.member_lengths(), [11, 8, 3]);
     }
 
     #[test]
