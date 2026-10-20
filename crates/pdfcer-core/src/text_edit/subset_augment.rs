@@ -69,6 +69,64 @@ pub struct AugmentRequest<'a> {
     pub addressing: ProgramAddressing<'a>,
 }
 
+impl<'a> AugmentRequest<'a> {
+    /// A request to append `chars` to `program`, a simple font's subset named
+    /// `base_font`, with no shown characters and the default policies. Core
+    /// builds its own requests; this is for a shell testing its
+    /// [`SubsetAugmenter`] without an edit session.
+    ///
+    /// ```
+    /// use pdfcer_core::text_edit::{AugmentRequest, OutlineCheck, ProgramAddressing};
+    ///
+    /// let known = [(1, 'A'), (2, 'B')];
+    /// let request = AugmentRequest::new(b"sfnt", "ABCDEF+Face", &['C'])
+    ///     .with_shown(&['A'])
+    ///     .with_outline_check(OutlineCheck::ShownOnly)
+    ///     .with_addressing(ProgramAddressing::CidKeyed(&known));
+    /// assert_eq!(request.chars, ['C']);
+    /// ```
+    #[must_use]
+    pub fn new(program: &'a [u8], base_font: &'a str, chars: &'a [char]) -> Self {
+        Self {
+            program,
+            base_font,
+            chars,
+            shown: &[],
+            outline_check: OutlineCheck::default(),
+            hinting_mismatch: HintingMismatch::default(),
+            addressing: ProgramAddressing::default(),
+        }
+    }
+
+    /// Set the characters the document shows in this font, returning `self`.
+    #[must_use]
+    pub fn with_shown(mut self, shown: &'a [char]) -> Self {
+        self.shown = shown;
+        self
+    }
+
+    /// Set the identity check's scope, returning `self`.
+    #[must_use]
+    pub fn with_outline_check(mut self, check: OutlineCheck) -> Self {
+        self.outline_check = check;
+        self
+    }
+
+    /// Set the hinting policy, returning `self`.
+    #[must_use]
+    pub fn with_hinting_mismatch(mut self, policy: HintingMismatch) -> Self {
+        self.hinting_mismatch = policy;
+        self
+    }
+
+    /// Set how the program's glyphs are reached, returning `self`.
+    #[must_use]
+    pub fn with_addressing(mut self, addressing: ProgramAddressing<'a>) -> Self {
+        self.addressing = addressing;
+        self
+    }
+}
+
 /// A new program: the old one with glyphs appended (rule `R259` as amended).
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -166,11 +224,14 @@ pub trait SubsetAugmenter: Send + Sync + std::fmt::Debug {
     /// Every character a face that could extend this subset maps, for a
     /// typing repertoire over a font whose own data names no character
     /// list to ask about (a composite font). [`Self::addable`] still
-    /// decides; the default names none.
-    fn candidates(&self, request: &AugmentRequest<'_>) -> Vec<char> {
-        let _ = request;
-        Vec::new()
-    }
+    /// decides which of them are offered.
+    ///
+    /// Required, with no default: an empty answer silently removes every
+    /// composite font from the typing repertoire while simple fonts keep
+    /// working, so a wrapper that forwards only [`Self::augment`] and
+    /// [`Self::addable`] must fail to compile rather than lose it (G210).
+    /// Core cannot supply a better default; it has no font parser.
+    fn candidates(&self, request: &AugmentRequest<'_>) -> Vec<char>;
 }
 
 /// The decision 173 settings an edit carries.
