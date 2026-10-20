@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1103rd filing) — `Pass 608.0`-`612.0` filed from `pdfcer-gui` requests `G207`, `G208`, `G209`, `G205`, `G206`
+
+**Filed (engineer-dispatched, no shell here):** five Next up entries in the order given, each read against its request file in `pdfce_FeatureRequests/open/`: `608.0` (`G207`, `format_text` size change garbles a Type0/Identity-H run, plus the NonEmbedded misclassification; data-corrupting defect, first), `609.0` (`G208`, drawn size on provenance and `FormatRequest`), `610.0` (`G209`, Auto word gap, reported per page), `611.0` (`G205`, blank-line gap ends a paragraph; heading number not a column), `612.0` (`G206`, drawing-frame cell not one block). Five `FEATURES.md` Planned rows added at the top, all boxes unticked (cli `—` for `608.0`, `611.0`, `612.0`, which are defect fixes with no new flag; cli `[ ]` for `609.0` and `610.0`).
+
+**Note carried into every Pass:** the request files cite operator PDFs (`SW41177.pdf`, `ROPS-FOPS\Code 4 - Final.pdf`) that are not rights-cleared; regression fixtures are synthetic (`LEGAL.md` §5). Pass IDs checked free by grep before filing. No decision. Hard-rule-11 sweep: no meaning changed. Git state not verified from here.
+
+**For next session:** next free `Pass 613.0`; next filing 1104th. Start with `608.0`.
+
+## 2026-10-20 (1102nd filing) — `v0.87.0` PUBLISHED (no Pass consumed)
+
+**Published (engineer-reported, no shell here):** tag `v0.87.0` -> `d8f4bb44` (the 1101st filing; bump `e6167c24`), pushed with `main`, CI green at the tag. GitHub release with 8 assets (portable zip + 3 OCR add-on zips, each with `.sha256`). OneDrive `pdfcer2` written; `pdfcer1` keeps 0.86.0, so the next release writes `pdfcer1`.
+
+**Smoke (fresh folder), all passed:** `--version` 0.87.0; `inspect`; `rotate` incremental with byte-identical prefix; `render-page`; `ocr` with bundled PaddleOCR; `3d-render` door 156 rebuilt / 1 best-fit / 0 left out, trailer 139 / 12 / 2. `verify-release.py` all ok except "working tree clean" (uncommitted spec-librarian agent-memory files, deliberate). `pdfcer-gui` notice: `pdfce_FeatureRequests/open/notice_2026-10-20_v0.87.0_released.md`. Remaining trailer failures m64, m95 are one part, `TR-0409-LIGHT BAR-1`, placed twice. No decision; `FEATURES.md` no change.
+
 ## 2026-10-20 (1101st filing) — `v0.87.0` version bump `e6167c24` filed; release PENDING
 
 **Filed (engineer-reported, no shell here):** bump `e6167c24` after `22adcfc1` (1100th filing): workspace 0.86.0 -> 0.87.0, `cargo update -w` on root and `fuzz/` locks; no dependency, `pub` or core-api change (verbs 378). Contents since `v0.86.0`: `Pass 607.0` only. Release requested by Ken ("Make the next release so I can confirm"); standing-authorised (decision 121).

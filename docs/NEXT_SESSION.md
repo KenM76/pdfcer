@@ -39,8 +39,12 @@ below; no feature-request loop and no other Passes while it is open.**
 - **Update 1101st filing:** bump `e6167c24` (`v0.87.0`) filed; tag, package,
   GitHub release, OneDrive `pdfcer2`, gui notice NOT done yet. Next filing
   **1102nd**.
-- **Ledgers:** next free Pass **608.0**; next filing **1102nd** (check
-  ROADMAP's newest ledger line); no decision added since 183. Core-api verb
+- **Update 1102nd/1103rd filings:** `v0.87.0` PUBLISHED (tag at `d8f4bb44`,
+  OneDrive `pdfcer2`; **the next release writes `pdfcer1`**). `608.0`-`612.0`
+  filed in ROADMAP *Next up* (pdfcer-gui `G207`, `G208`, `G209`, `G205`,
+  `G206`); start with `608.0` (data-corrupting). Fixtures must be synthetic.
+- **Ledgers:** next free Pass **613.0**; next filing **1104th** (check
+  ROADMAP's newest ledger line; older figures in this file predate it); no decision added since 183. Core-api verb
   count **378**.
 - **3D compressed meshes after `605.0`:** door `TS-0232-16-3D.pdf` 155/156
   unique (**m48** fails); trailer `TR-0522.pdf` 127 unique / 10 best-fit /

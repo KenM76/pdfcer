@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.87.0` — PUBLISHED 2026-10-20 (published at the 1102nd filing; bump filed at the 1101st)
+
+**Published (engineer-reported; I have no shell, hard rule 8).** Annotated tag `v0.87.0` at `d8f4bb44` (the 1101st filing, which filed bump `e6167c24`), pushed with `main`; CI green at the tag.
+
+- **GitHub release `v0.87.0`, 8 assets:** the portable zip and 3 OCR add-on zips, each with its `.sha256`.
+- **OneDrive:** slot `pdfcer2` written; `pdfcer1` keeps 0.86.0. The NEXT release writes `pdfcer1`.
+- **Fresh-folder smoke**, all passed: `--version` 0.87.0; `inspect`; `rotate` incremental with byte-identical prefix; `render-page`; `ocr` (text extracted with bundled PaddleOCR); `3d-render` door 156 rebuilt / 1 best-fit / 0 left out, trailer 139 rebuilt / 12 best-fit / 2 left out.
+- **`verify-release.py`:** every check ok except "working tree clean", a deliberate FAIL (uncommitted spec-librarian agent-memory files, never staged).
+- **Notice to `pdfcer-gui`:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-10-20_v0.87.0_released.md`.
+- **Known issue:** the two trailer meshes still left out (m64, m95) both belong to one part, `TR-0409-LIGHT BAR-1`, placed twice.
+
+The 1101st filing's "Plan, NOT claimed done" line (below) is discharged by the bullets above. `FEATURES.md`: no row changes. Ledgers: no decision; next free `Pass 608.0`; next filing 1103rd (superseded at the 1103rd: `608.0`-`612.0` filed under *Next up*, next free `Pass 613.0`, next filing 1104th).
+
 ### `v0.87.0` — version bump filed 2026-10-20 (1101st filing); release PENDING
 
 Bump `e6167c24` (`e6167c2462921716795b761fd70cad38b39cadaa`, "chore: bump version to 0.87.0") on `main`, after `22adcfc1` (the 1100th filing, which filed `Pass 607.0` = `1b92fc73`): workspace `Cargo.toml` 0.86.0 -> 0.87.0, plus `cargo update -w` on the root and `fuzz/` locks. No dependency change, no `pub`/API change (core-api verbs 378; `docs/core-api/` untouched). Contents since `v0.86.0`: `Pass 607.0` only. Release requested directly by Ken ("Make the next release so I can confirm") and standing-authorised (decision 121). All figures engineer-reported; I have no shell (hard rule 8).
@@ -22431,6 +22444,37 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 (`Pass 606.0` shipped at the 1097th filing, `04e769fc`; see *Shipped*. The residue m64, m95, m107 is not a Pass yet. Release to OneDrive `pdfcer1` is the next step, not done.)
+
+> **Taken up from `pdfcer-gui`, 2026-10-20 (1103rd filing): 5 requests `G207`, `G208`, `G209`, `G205`, `G206` as `Pass 608.0`-`612.0`, in this order (the defect that corrupts data first).** Request files in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\` (named per item). Each Pass delivers core, plus cli where a flag applies; the GUI column is `pdfcer-gui`'s. **Fixtures are synthetic** (`LEGAL.md` §5): the request files cite operator PDFs (`SW41177.pdf`, `ROPS-FOPS\Code 4 - Final.pdf`) that are NOT rights-cleared, so each regression test builds a synthetic file of the same shape. Ledgers: no decision; next free `Pass 613.0`; next filing 1104th.
+>
+> ### `Pass 608.0` — `format_text` size change on a Type0 / Identity-H run garbles its codes (`G207`) — DEFECT, data-corrupting
+> Request: `request_G207_a_size_change_on_an_identity_h_run_garbles_its_text.md` (operator O310, engine v0.84.0; `main` has had no `text_edit` commit since, so v0.86.0 assumed the same).
+> - **Fault:** `EditSession::format_text(&FormatRequest::new(0, "TRUCK BED.").size(1.3333), ..)` on a `/Type0` `/Identity-H` run (`/C2_0`, drawn `1 Tf` under `Tm [13.22835 0 0 13.22835 ..]`) returns `Ok` (`size_change: Some((1.0, 1.3333))`, `Reflow`), and the run then reads back as five U+FFFD for ten characters; the preview refuses ("not found in an editable run"). The decode is right before the write.
+> - **Second defect, same request:** the disclosure calls a subset-tagged Type0 font ("AQHZBV+CenturyGothic") `NonEmbedded` when its descendant carries its own program; the unedited preview reports `source=Embedded`. `glyph_source` classification and the preview's must agree.
+> - **Acceptance:** a size change on a two-byte CID run leaves its codes intact, so it reads back as the same text; `glyph_source` / disclosure classification agrees with the preview's; a unit test on a SYNTHETIC two-byte CID run (subset-tagged Type0, Identity-H, embedded descendant) pins both.
+> - Surface: core. cli: none beyond the existing `format-text` verb's behaviour.
+>
+> ### `Pass 609.0` — the drawn (effective) font size on provenance and `FormatRequest` (`G208`)
+> Request: `request_G208_an_effective_font_size_on_provenance_and_on_formatrequest.md` (operator O309, v0.84.0).
+> - **Need:** CAD exports write `1 Tf` and carry the size in `Tm`; `GlyphProvenance::tf_size` is 1.0 for 13.2 pt text, and a typed 24 becomes `24 Tf` under a 13.2x matrix. The shell carries a workaround (`canvas::textedit::pin::em_scale`: length of text space's vertical unit through `Tm` then the CTM; ignores `Tz`/`Ts`; first glyph only) it wants to delete.
+> - **Deliver:** `GlyphProvenance` effective em height in user-space points (`Tf` x the vertical scale of `Tm`·CTM), and a `FormatRequest` constructor taking a DRAWN size that solves the `Tf` operand per operator itself; state that this arithmetic is the engine's definition.
+> - **Acceptance:** a CAD-style `1 Tf` + scaling `Tm` run reports its drawn size; a drawn-size request lands the drawn size; `docs/core-api/` updated (verb count moves; re-measure it). cli: a flag where `format-text` takes a size (to be decided in the Pass).
+>
+> ### `Pass 610.0` — automatic word gap for text extraction (`G209`)
+> Request: `request_G209_an_automatic_word_gap_ratio.md` (operator O312, v0.84.0). Today `ExtractOptions::word_gap_ratio` is a fixed `0.20` with no spec basis; the shell will not build a second segmentation heuristic.
+> - **Deliver:** `ExtractOptions` gains an Auto word-gap mode (e.g. `WordGap::Ratio(f32) | WordGap::Auto`) deriving the threshold per page from the distribution of inter-glyph gaps on each baseline (letter gaps vs word gaps are two clusters; take the valley), and REPORTS the ratio it chose per page (rule 4: disclosed, never silent). Fixed ratio stays the default unless decided otherwise.
+> - **Acceptance:** a two-cluster synthetic page gives a threshold between the clusters; the chosen ratio is reported; CLI flag; `docs/core-api/` updated.
+>
+> ### `Pass 611.0` — block recognition: a blank-line gap ends a paragraph; a heading number is not a column (`G205`)
+> Request: `request_G205_paragraphs_merge_across_blank_line_gaps_and_a_numbered_heading_makes_a_column.md` (operator O307, v0.84.0; recognition unchanged through v0.86.0).
+> - **Fault (probably one cause):** on a Word-shaped numbered-section page, `recognize_with_cells` under `reflow_recognition_options()` yields a narrow column (x 59.5-84.3) out of the section numbers `1.6`, `1.6.1`, `1.6.2`, splitting heading runs between two blocks, and a 32-line block running through every ~2x-pitch (about 24.7 pt vs 12.6 pt) blank-line gap.
+> - **Acceptance:** a blank-line gap (~2x pitch) ends a paragraph under BOTH the default and `reflow_recognition_options()` (Pass 15.2 rule: both read the same); a column of heading section numbers is not recognised as a column of its own; each heading and each paragraph is its own block. Regression: a SYNTHETIC Word-shaped numbered-section fixture.
+>
+> ### `Pass 612.0` — block recognition: a drawing-frame cell is not one 66-line block (`G206`)
+> Request: `request_G206_a_drawing_frame_reads_as_one_table_cell_holding_every_note.md` (operator O307, v0.84.0).
+> - **Fault:** a SOLIDWORKS drawing's border and title-block rules detect as a table whose cell (0,0) spans the drawing area; since G080 a cell is its own block, so 66 scattered lines (1200 x 800 pt) are one `TableCell` block and no note can open as its own paragraph.
+> - **Deliver, engine's choice:** segment a cell's text into paragraphs (x-overlap, alignment, gap) with the cell as their bound rather than one block; OR do not treat a cell this large and this sparse as a table cell.
+> - **Acceptance:** a three-line left-aligned note set apart from other labels is a block of three lines. Regression: a SYNTHETIC CAD-drawing-frame fixture. Block indices must stay the engine's (`edit_block_text` agreement).
 
 > **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` was self-found at the 1053rd filing, not a GUI request. Ledgers: no decision; next free `Pass 581.0`; next filing 1068th (updated at the 1067th; superseded at the 1068th by the stub below: next free `Pass 587.0`, next filing 1069th; superseded again at the 1069th: next free `Pass 588.0`, next filing 1070th).
 > - `567.0` (`G185`) and `568.0` (`G186`) shipped at the 1055th filing (`26cc218c`); see *Shipped*.

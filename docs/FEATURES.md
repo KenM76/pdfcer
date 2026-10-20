@@ -599,6 +599,11 @@ the model or verb exists and only the named shell is missing. The
 
 | core | cli | gui | Acrobat | Feature |
 |:----:|:---:|:---:|:-------:|---------|
+| [ ] | — | [ ] | ? | **A size change on a two-byte (Identity-H) text run keeps its text** — today `format_text` returns Ok and the run reads back as U+FFFD; also the embedded/non-embedded disclosure disagrees with the preview for a subset-tagged Type0. Defect, `Pass 608.0` (`G207`). |
+| [ ] | [ ] | [ ] | [x] | **Read and set the DRAWN font size** — a CAD run written `1 Tf` under a scaling `Tm` reports 13.2 pt, and a typed size lands as drawn. `Pass 609.0` (`G208`). |
+| [ ] | [ ] | [ ] | ? | **Automatic word gap for extracted text** — threshold measured per page from the gap distribution, ratio reported; fixed 0.20 stays default. `Pass 610.0` (`G209`). |
+| [ ] | — | [ ] | ? | **Paragraphs split at blank-line gaps; a heading number is not a column** — numbered-section Word pages recognise as one paragraph per paragraph. Defect, `Pass 611.0` (`G205`). |
+| [ ] | — | [ ] | ? | **A drawing frame is not one table cell** — notes inside a CAD drawing border open as their own blocks. Defect, `Pass 612.0` (`G206`). |
 | [x] | — | [ ] | [x] | **Insert a page named twice as separate copies** — a repeated source index in `insert_pages` now gets its own independent copy, as Acrobat does (was a page-tree cycle). Defect fixed, `Pass 567.0` (`G185`). GUI: `pdfcer-gui` still has a workaround to delete. |
 | [x] | — | [ ] | ? | **Pasted raw annotation moves all its geometry** — `/L`, `/Vertices`, `/QuadPoints`, `/CL`, `/InkList` move with `/Rect`. Defect fixed, `Pass 568.0` (`G186`). GUI: `pdfcer-gui` must remove its `carry` workaround in the same build. |
 | [x] | [ ] | [ ] | ? | **Read a marker's colour** — `EditSession::marker_color` reads a `/Caret`, `/FileAttachment`, `/Sound` or `/Screen` colour (`/C`, else the subtype default) and states a malformed `/C`; public `annot_author::color_entry` is the one `/C`/`/IC` reader. `Pass 569.0` (`G176`). No CLI caller yet; `pdfcer-gui` has not adopted it. |
