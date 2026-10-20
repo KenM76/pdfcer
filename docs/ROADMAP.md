@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.2` — Lossless structure rebuild: `writer::rebuild` + `optimize` structure options — PARTIALLY SHIPPED 2026-10-20 (1114th filing)
+
+Commit `8d715d05` on `main`, after `6cec4608` (the 1113th filing); not pushed at filing time (push follows this filing). Model + core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Decision 191 governs; no new decision. Reasoning is in the commit message.
+
+- **Model:** `writer::rebuild(&Document, &RebuildOptions, &SaveOptions) -> Result<(Vec<u8>, RebuildReport), WriteError>`. Drops objects unreachable from trailer `/Root` and `/Info`; merges identical objects to a fixpoint (at most 32 rounds; eligible: streams other than page content streams, Font/FontDescriptor/ExtGState/Encoding dicts, non-empty arrays naming no identity object, plain values; pages, catalog, annotations, fields, OCG/OCMD, StructElem keep identity); renumbers densely (dangling reference written as null, ISO 32000-2 §7.3.10, and counted); optionally packs non-stream objects 100 per Flate object stream with an xref stream (§7.5.7, §7.5.8), raising the header to 1.5 if lower. Input ObjStm, XRef streams and linearization dicts are never carried over. Encrypted input refused. Stream data copied as stored. New `WriteError::RewriteReload`.
+- **Core:** `OptimizeSettings::structure: RebuildOptions` (`new()` = `none()`, every preset = `all()`); `EditSession::save_optimized(&SaveOptions, &RebuildOptions) -> Result<(OptimizedFile, Option<RebuildReport>), WriteError>` (**signature change from 616.1**); profile keys `remove-unreferenced`, `merge-duplicates`, `object-streams`.
+- **CLI:** `pdfcer optimize` gains `--keep-structure`, `--keep-unreferenced`, `--keep-duplicates`, `--no-object-streams`; a `structure:` report line listing each merge; `structure` JSON key (null when no rebuild ran). core-api `02` §1.35 and `03` part 15 updated; `check-core-api-verbs.py` passes.
+- **Tests:** 7 model, 2 core, 1 CLI new; model+core+cli suites 6,203 passed, 0 failed. Sabotage (one merge round plus merging page content streams) failed 4 model tests. Structure gate clean (569 baseline, none new); fmt and `clippy -D warnings` clean. No manifest changed, no new dependency, so no `cargo tree` check owed.
+- **Corpus sweep (release binary, every 11th fixture PDF = 303 files):** 293 written, 10 refused (signed or encrypted), 0 crashes, 0 reload failures, 0 page-1 render differences (PNG byte-identical), 0 extract-text differences. Total 7,193,380 to 6,188,533 bytes = −14% (1,004,847 bytes saved over the 293 written files, about 3,430 each; refused files are in neither total).
+- **Residue NOT built (kept in *Next up*):** removal of invalid links, bookmarks and unreferenced named destinations; Acrobat's compress-entire / structure-only / remove / leave modes (`--keep-*` flags cover structure-only and leave only in part). LZW to Flate is NOT claimed from this commit: the `616.1` record (generic streams incl. LZW re-encoded as Flate) already covers it.
+
+`FEATURES.md`: new Implemented row (GC, dedupe, object streams plus xref stream), `[x]` core / `[x]` cli / `[ ]` gui; the Planned *Lossless clean-up* row narrowed to the link/bookmark/destination and mode residue, unticked. Hard-rule-11 sweep: the `616.1` Implemented row said "object-stream and clean-up work is unbuilt" (survivor, corrected); `ARCHITECTURE.md` §5.1 gained the renumber/re-serialise sentence; the `616.1` Shipped entry's "unselected objects byte-identical" (decoded content) stays true, history left. Ledgers: no decision (next free `192`); next free `Pass 617.2`; next filing 1115th. Git, push and backup state not verified from here.
+
 ### `Pass 617.1` — Every enclosing `/OC` on a decomposed object, and `is_hidden_under` (`G211`) — SHIPPED 2026-10-20 (1113th filing)
 
 Commit `bb5f119b` on `main`, after `655ec5c1`; not pushed at filing time. Core (`pdfcer-core` vector model) only; `pdfcer-gui` consumes it for `O317`/`O318`. Engineer-reported; I have no shell (hard rule 8). Outside the `616.x` arc; reasoning is in the commit message.
@@ -24343,9 +24356,9 @@ Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level
 - A before/after report that itemises every lossy change (rule 4).
 - CLI `optimize --preset/--profile/--rule/--object/--dry-run/--json`.
 
-### `Pass 616.2` — Lossless structure clean-up — NEXT UP, 2026-10-20
+### `Pass 616.2` — Lossless structure clean-up — PARTIALLY SHIPPED (1114th filing, `8d715d05`); residue NEXT UP
 
-GC of unreferenced objects; dedupe of identical streams and objects; Flate recompress at a chosen level (covers uncompressed streams and LZW to Flate); object streams plus an xref stream; removal of invalid links and bookmarks and of unreferenced named destinations; Acrobat's compress-entire / structure-only / remove / leave modes. Output is byte-lossless in decoded content.
+Shipped: GC, dedupe, object streams plus xref stream (see *Shipped*). Flate recompression incl. LZW to Flate was already delivered by `616.1`. **Residue, not built:** removal of invalid links and bookmarks and of unreferenced named destinations; Acrobat's compress-entire / structure-only / remove / leave modes (the `--keep-*` flags cover structure-only and leave only in part). Output stays lossless in decoded content.
 
 ### `Pass 616.3` — Discard objects and user data, each individually selectable — NEXT UP, 2026-10-20
 

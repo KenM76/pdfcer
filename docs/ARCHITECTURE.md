@@ -3240,6 +3240,12 @@ re-runs on every writer-touching Pass.
 rewrite to a new file; objects the settings do not select keep their
 decoded content byte-identical, and a signed input is refused unless
 overridden. See §12, 2026-10-20 (1109th filing).
+The structure rebuild (`writer::rebuild`, `Pass 616.2`, `8d715d05`) renumbers
+every object densely and re-serialises every non-stream object (stream data
+is copied as stored, so decoded content is unchanged); it also drops
+unreachable objects, merges identical ones and may pack into object streams.
+Encrypted input is refused; input ObjStm, XRef and linearization dicts are
+never carried over.
 
 ### 5.2 Redaction forbids incremental save
 

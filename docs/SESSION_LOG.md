@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1114th filing) — `Pass 616.2` PARTIALLY shipped in `8d715d05`: lossless structure rebuild
+
+**Shipped (engineer-reported, no shell here):** `pdfcer_model::writer::rebuild` (drop unreachable objects, merge identical objects to a fixpoint of at most 32 rounds, dense renumber with dangling refs as null, optional object streams plus xref stream, header raised to 1.5); `OptimizeSettings::structure`, `EditSession::save_optimized` signature change (adds `&RebuildOptions`, returns `Option<RebuildReport>`); `pdfcer optimize --keep-structure/--keep-unreferenced/--keep-duplicates/--no-object-streams`. Core `[x]`, cli `[x]`, gui `[ ]`. Tests: 7 model, 2 core, 1 CLI; 6,203 passed, 0 failed; sabotage failed 4 model tests; structure gate clean (569 baseline). Corpus sweep, 303 files: 293 written, 10 refused, 0 crashes, 0 render or text differences, 7,193,380 to 6,188,533 bytes (−14%). Commit `8d715d05`, parent `6cec4608`; not pushed at filing time.
+
+**Residue, not rounded up:** invalid links, bookmarks and unreferenced named destinations; compress-entire / structure-only / remove / leave modes (`--keep-*` covers part). LZW to Flate not claimed from this commit; `616.1` already covers it. `616.2` stays in Next up, narrowed.
+
+**Register:** ROADMAP Shipped gains `616.2`; Next-up `616.2` narrowed to residue. `FEATURES.md`: new Implemented row (GC, dedupe, object streams); Planned clean-up row narrowed; `616.1` row's stale "object-stream and clean-up unbuilt" corrected. `ARCHITECTURE.md` §5.1 gains the renumber/re-serialise note citing `8d715d05`. No new decision.
+
+**For next session:** next free `Pass 617.2`, decision `192`; next filing 1115th; engineer pushes `8d715d05` and this filing. Git, push and backup state not verified from here.
+
 ## 2026-10-20 (1113th filing) — `Pass 617.0` (`655ec5c1`, `G212`) and `Pass 617.1` (`bb5f119b`, `G211`) shipped
 
 **Shipped (engineer-reported, no shell here):** `617.0`: `InstalledFaceAugmenter::candidates` returns the letters of the first name-matched face that maps something and passes `identity::check`, not the first name match; no API change. `617.1`: `oc_chain: Vec<ObjId>` on `PathObject`/`TextObject`/`ImageObject`, `VectorObject::oc_chain()`/`is_hidden_under(graph, off)`, page-relative `FormLeaf::oc_chain()`/`is_hidden_under()`; `oc()` unchanged; BREAKING: `ImageObject` no longer `Copy`. Tests: `augment_request_from_a_shell.rs` (`a_same_named_face_that_cannot_serve_is_skipped`), `oc_chain_matches_the_painter.rs` (6 squares, predicate equals raster; innermost-only sabotage fails). `run-gates.sh` PASS (46 commands incl. 2 filing gates) on the tree of `bb5f119b`. No `Cargo.toml` change.
