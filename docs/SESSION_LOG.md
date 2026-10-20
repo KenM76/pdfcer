@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1100th filing) — `Pass 607.0` shipped in `1b92fc73` (borrowed and blind planar normals oriented by the face itself)
+
+**Shipped (engineer-reported, no shell here):** `1b92fc73`, crate `pdfcer-3d` only, after `e6b68472`; unpushed at dispatch. `Orientation::{Borrowed, Blind}` in `normals.rs`; `Planes::oriented` in `bend.rs`; new `compressed/decide.rs` (fold decision split out for the structure gate). Operator-direct ("Continue the 3d mesh work").
+
+**Census (release `3d-render --index 0`):** door 156 rebuilt / 1 best-fit / 0 left out (unchanged); trailer 139 / 12 / 2 (was 138 / 11 / 3); per-mesh trailer 127/12/2 of 141, m107 failed -> best-fit; no mesh worse. Orienting a borrowing face by its first tall triangle agrees with the borrowed sign 6,856 of 6,856 times.
+
+**Negative result (not shipped):** keeping inert event candidates within 32 triangles fits m95 only with `EVENT_BUDGET` above 8M steps; pair/triple expansion fails even at 10M; the 33-fold winning set depends on exploration order, not a rule.
+
+**Still failing:** trailer m64 (about triangle 2698), m95. **Decisions:** none. **Filed:** ROADMAP Shipped entry, Backlog 3D update, FEATURES 3D row figures (boxes unchanged), `docs/NEXT_SESSION.md` numbers. Backup currency and git state not verified from here.
+
+**For next session:** next free `Pass 608.0`; next filing 1101st. Push and release not done.
+
 ## 2026-10-20 (1099th filing) — `v0.86.0` PUBLISHED (no Pass consumed)
 
 **Filed (engineer-reported, no shell here):** annotated tag `v0.86.0` at `bedd8329` (the 1098th filing), pushed; origin/main contains it; CI green at the tagged commit. Package `D:\builds\pdfcer-20261020-0210-bedd832` (50,509,214 B + 3 OCR add-on zips); `--version` revision `v0.86.0`.

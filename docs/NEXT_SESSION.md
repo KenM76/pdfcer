@@ -5,7 +5,7 @@ Engineer-owned; replaced each session. The previous long-form handoff
 (gate-sweep history, the carried OWED list, benchmark recipes) is in git:
 `git show 78635459:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-20, Pass 606.0 shipped (see *Resume here*); earlier: 2026-10-19, mesh research after `v0.85.0` was published (tag
+**Written:** 2026-10-20, Pass 607.0 shipped after `v0.86.0` (see *Resume here*); earlier: 2026-10-19, mesh research after `v0.85.0` was published (tag
 at `91f287f3`, carrying `603.0`–`605.0`; nothing shipped since — see
 *Resume here*). Ken's directive 2026-10-16:
 "release a new version and let pdfcer-gui know of the changes … then
@@ -32,7 +32,11 @@ below; no feature-request loop and no other Passes while it is open.**
   Delete untracked `.rs` probe files before packaging or the build is
   marked `-dirty`. `render-page` takes `--scale`, not `--width`; the OCR
   fixtures are `fixtures/synthetic/ocr/{printed,scan}.pdf`.
-- **Ledgers:** next free Pass **607.0**; next filing **1098th** (check
+- **Update 1100th filing (`607.0`, `1b92fc73`):** trailer now 127 unique /
+  12 best-fit / 2 failed (**m64 m95** fail; m107 -> best-fit); door 155/1/0.
+  Next free Pass **608.0**; next filing **1101st**. Unpushed/unreleased at
+  filing time. The figures below this line predate it.
+- **Ledgers:** next free Pass **608.0**; next filing **1101st** (check
   ROADMAP's newest ledger line); no decision added since 183. Core-api verb
   count **378**.
 - **3D compressed meshes after `605.0`:** door `TS-0232-16-3D.pdf` 155/156
@@ -111,7 +115,22 @@ below; no feature-request loop and no other Passes while it is open.**
 - **`580.0` OCR `--magnify`** numbers and the unshipped bicubic trial are in
   the SESSION_LOG entry for the 1067th filing.
 
-## Resume here: Pass 606.0 SHIPPED (2026-10-20); three trailer meshes left
+## Resume here: Pass 607.0 SHIPPED (2026-10-20); two trailer meshes left
+
+`1b92fc73` (`607.0`, 1100th filing, after `v0.86.0`; unreleased): planar
+faces whose one stored normal is BORROWED (another face's single-normal
+vertex) or BLIND (decoded at a collinear triangle) are oriented by their
+own first tall triangle (`bend::Planes::oriented`, `compressed/decide.rs`).
+Trailer **127/12/2** (m107 F->B), door 155/1/0. Remaining: **m64** (stalls
+~ti 2698, flips `[46,48,378,700,814,815,890,959,1679,1684,2677]`, not yet
+examined) and **m95** (fits ONLY with inert-near-failure candidates kept
+(EVENT_NEAR 32) AND a >8M budget — exploration-order luck, not shipped;
+its winning set is 33 folds incl. triples within a few triangles:
+824/825/830/832, 2117/2119/2120, 9911/9915/9931). The probe harness with
+the `inv` mirror check is `D:\Dev\pdfTests\prc-probe\p603\probe_trace.rs`
+(+ `probe.rs`; add `mod probe; mod probe_trace;` under `#[cfg(test)]`).
+
+### Earlier: Pass 606.0
 
 `04e769fc` (`606.0`, 1097th filing): (a) `compressed/bend.rs`, the
 incremental planar-bend check (10 tol x (1 + 3 x distance / running
@@ -126,8 +145,8 @@ worse, slowest trailer mesh 4.6 s. Probe files are OUT of the tree again
 `C:\Users\Ken\AppData\Local\Temp\claude\D--Dev-pdfcer\9ea26e0e-7096-4476-9831-f1c4c5306c0c\scratchpad\p603\{door,tr}`;
 the PDFs are in `C:\Users\Ken\OneDrive\pdfTests\`.
 
-**Next:** trailer m64, m95, m107 (finding 6 below: the fan-closing REF
-stall class). Start with m95 against m63's fitted geometry, ti 55-67.
+**Next (as of 606.0; m107 since fixed by 607.0):** the fan-closing REF
+stall class, finding 6 below.
 
 **Findings, all measured** (release probe binary, MOR=4; judge = per-mesh
 census vs control door 155/0/1, trailer 127/10/4):
