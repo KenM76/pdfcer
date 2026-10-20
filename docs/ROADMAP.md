@@ -112,7 +112,25 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.89.0` — version bump filed 2026-10-20 (1108th filing); release PENDING
+### `Pass 615.0` — `SubsetAugmenter::candidates` required; `AugmentRequest::new` + builders (`G210`) — SHIPPED 2026-10-20 (1110th filing)
+
+Commit `c1b6d08c` on `main` ("feat(text_edit)!: ..."), after `d40cbb1c` (the 1109th filing); core-only (`pdfcer-core` `text_edit/subset_augment.rs`, out-of-crate test in `pdfcer-render`). Pushed. Engineer-reported; I have no shell (hard rule 8). Unreleased; last release `v0.89.0` (before this Pass).
+
+- **Defect (`G210`):** `candidates` had an empty default, so a shell wrapper forwarding only `augment`/`addable` silently dropped composite (Identity-H) fonts from the typing repertoire.
+- **Breaking:** `SubsetAugmenter::candidates(&AugmentRequest) -> Vec<char>` is now required (no default). In-tree implementer `InstalledFaceAugmenter` already had it.
+- **Added:** public `AugmentRequest::new(program, base_font, chars)` plus `with_shown`, `with_outline_check`, `with_hinting_mismatch`, `with_addressing`, so a shell can build a request and test its augmenter.
+- **Tests:** new out-of-crate `crates/pdfcer-render/tests/augment_request_from_a_shell.rs`, 3 tests. `docs/core-api/02-editing-and-saving.md` corrected.
+- **Invariants:** no `cargo tree` change, no dependency change.
+
+`FEATURES.md`: the `G210` row ticked core `[x]`, cli `—`, gui `[ ]` (the shell must implement `candidates`; not rounded up). Reply `G210` `_FIXED` and a `v0.89.0` notice written to `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`. Hard-rule-11 sweep: the Next-up item (removed) and the 1109th banner (updated) described it as unbuilt; SESSION_LOG 1109th is history. Ledgers: no decision; next free `Pass 617.0`; next filing 1111th.
+
+### `v0.89.0` — PUBLISHED 2026-10-20 (1110th filing)
+
+Tag `v0.89.0` at `1bdf8032` (the 1108th filing commit); version bump `b2507313`. Carries `Pass 613.0` and `Pass 614.0` (`pdfcer-3d` compressed-mesh fixes): door sample 155 unique / 1 best-fit / 0 failed; trailer 127 / 14 / 0. GitHub release has 8 assets: portable zip, three OCR add-on zips, and a `.sha256` for each. Portable zip 25,951,206 bytes, sha256 `76ea7115c5debbd315e71e26d90bea439d649c813e78e7fe2c548c1df5a02518`. Deployed to OneDrive slot `pdfcer2` (`pdfcer2/pdfcer.exe --version` = 0.89.0); `pdfcer1` keeps 0.88.0. Fresh-folder smoke passed; the trailer 3D sample renders correctly in 41 s. Engineer-reported; I have no shell.
+
+`verify-release.py` reported two FAILs, both explained: (a) "working tree clean" fails deliberately, because of uncommitted `.claude/agent-memory/pdfcer-spec-librarian/*` files that are never staged; (b) "CI GREEN at tagged commit" fails because CI at `1bdf8032` was red on the register-entry-size gate (the `FEATURES.md` 3D row was 1237 characters against its 1200 cap); `d40cbb1c` fixed it and the binary is unaffected. Note: the tagged commit itself therefore has a red CI.
+
+### `v0.89.0` — version bump filed 2026-10-20 (1108th filing); release PENDING (superseded: published, entry above)
 
 Bump `b2507313` ("chore: bump version to 0.89.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`) on `main`, after `f71554e1`; the filings `40e7d1d7` (1106th) and `cee34cd0` (1107th) follow the Pass commits it carries. No dependency change (no `cargo tree` concern for `pdfcer-core`/`pdfcer-render`). Contents since `v0.88.0`: `Pass 613.0` (`ebc02bc6`) and `Pass 614.0` (`f71554e1`), both below, both `pdfcer-3d` only. Figures engineer-reported; I have no shell (hard rule 8). **Release plan:** tag on this filing's commit, publish to OneDrive slot `pdfcer2` (`v0.88.0` wrote `pdfcer1`). **Not claimed done:** tag, package, smoke, GitHub release, OneDrive slot, notice to `pdfcer-gui`; publication gets its own later filing (1109th or after). `FEATURES.md`: no change (rows for 613.0/614.0 already filed). Ledgers: no decision; next free `Pass 615.0`; next filing 1109th.
 
@@ -22502,7 +22520,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 (`Pass 606.0` shipped at the 1097th filing, `04e769fc`; see *Shipped*. The residue m64, m95, m107 is not a Pass yet. Release to OneDrive `pdfcer1` is the next step, not done.)
 
-> **Filed 2026-10-20 (1109th filing): `Pass 615.0` (`G210`, from `pdfcer-gui`) and the size-reduction arc `Pass 616.0`-`616.10` (operator-direct, Ken 2026-10-20). None built.** Ledgers: **decision 191** (see `ARCHITECTURE.md` §12); next free `Pass 617.0`; next filing 1110th.
+> **Filed 2026-10-20 (1109th filing): `Pass 615.0` (`G210`, from `pdfcer-gui`) and the size-reduction arc `Pass 616.0`-`616.10` (operator-direct, Ken 2026-10-20).** `615.0` SHIPPED at the 1110th (`c1b6d08c`, see *Shipped*); `616.0`-`616.10` not built. Ledgers: **decision 191** (see `ARCHITECTURE.md` §12); next free `Pass 617.0`; next filing 1111th.
 
 > **Taken up from `pdfcer-gui`, 2026-10-20 (1103rd filing): 5 requests `G207`, `G208`, `G209`, `G205`, `G206` as `Pass 608.0`-`612.0`.** All five shipped at the 1104th filing (`adee0326`, `199a2989`, `b09c77c9`, `9b3e878d`); see *Shipped*. Ledgers: no decision; next free `Pass 613.0`; next filing 1105th. (Superseded at the 1106th: `Pass 613.0` shipped, next free `Pass 614.0`.)
 
@@ -24250,17 +24268,6 @@ closes out the *prior* filing's business rather than opening this one's.
 > annotation/destination scaling, the new ce-dimensions refusal — is at
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
-
-### `Pass 615.0` — `SubsetAugmenter::candidates` becomes required; `AugmentRequest::new` + builders (`G210`) — NEXT UP, 2026-10-20
-
-Request: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G210_a_delegating_subset_augmenter_silently_drops_composite_fonts.md`. Core-only (`pdfcer-core` `text_edit/subset_augment.rs`; out-of-crate test in `pdfcer-render`).
-
-- **Defect:** `candidates` has an empty default (`Vec::new()`). A shell wrapper that forwards only `augment` and `addable` silently drops composite fonts from the typing repertoire. Core has no font parser, so it cannot supply a delegating default.
-- **Change 1:** `SubsetAugmenter::candidates(&self, &AugmentRequest<'_>) -> Vec<char>` loses its default and becomes REQUIRED. Breaking for implementers; the in-tree one is `pdfcer_render::font::augment::installed` (`InstalledFaceAugmenter`), which already implements it.
-- **Change 2:** public, not feature-gated `AugmentRequest::new(program, base_font, chars)` plus builders `with_shown`, `with_outline_check`, `with_hinting_mismatch`, `with_addressing` (struct is `#[non_exhaustive]`, so a shell cannot build one today), so a shell can unit-test its augmenter.
-- **Test:** out-of-crate in `pdfcer-render` (proves the constructor is reachable from another crate); a wrapper that forwards all three methods keeps composite characters.
-- **Docs:** `docs/core-api/02-editing-and-saving.md` (the `Pass 430.1` row) already states `candidates(&AugmentRequest) -> Vec<char>` as required and names this Pass; the older wrong `base_font` signature was not found anywhere else in `docs/` at filing (grep). Engineer to confirm when shipping.
-- **Acceptance:** `cargo test -p pdfcer-core -p pdfcer-render`, `cargo tree -p pdfcer-core` unchanged (no new dependency), clippy `-D warnings`, `fmt`, structure gate.
 
 ### `Pass 616.0` — Space audit (`audit-space`) — NEXT UP, 2026-10-20 (size-reduction arc)
 

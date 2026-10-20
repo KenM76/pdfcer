@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1110th filing) — `v0.89.0` published; `Pass 615.0` shipped in `c1b6d08c` (`G210`)
+
+**Shipped (engineer-reported, no shell here):** (1) `v0.89.0` published: tag at `1bdf8032`, bump `b2507313`, 8 GitHub assets (portable zip 25,951,206 bytes, sha256 `76ea7115...a02518`; three OCR add-on zips; a `.sha256` each); OneDrive slot `pdfcer2` = 0.89.0, `pdfcer1` keeps 0.88.0; fresh-folder smoke passed, trailer 3D renders in 41 s. Contents `613.0`, `614.0`: door 155/1/0, trailer 127/14/0. (2) `Pass 615.0` `c1b6d08c`: `SubsetAugmenter::candidates` required (breaking), `AugmentRequest::new` plus four builders, 3 out-of-crate tests in `pdfcer-render`, core-api doc corrected; core-only, no `cargo tree` change. `G210` `_FIXED` reply and a `v0.89.0` notice written to `pdfce_FeatureRequests/open/`. Pushed `main` at `c1b6d08c`.
+
+**Findings:** `verify-release.py` two FAILs, both explained: dirty tree is the never-staged spec-librarian agent-memory files (deliberate); CI at the tag `1bdf8032` was red on the register-entry-size gate (`FEATURES.md` 3D row 1237 vs 1200 cap), fixed by `d40cbb1c`, binary unaffected. Lesson: the register-size gate must be run before the filing that precedes a tag, not only before push.
+
+**Register:** ROADMAP Shipped gains `615.0` and `v0.89.0` published entries; the Next-up `615.0` item removed; the 1109th banner updated. `FEATURES.md` `G210` row ticked core only (cli `—`, gui `[ ]`). Hard-rule-11 sweep done (see ROADMAP entry). `docs/NEXT_SESSION.md` not touched (engineer-owned). Git, push and backup state not verified from here.
+
+**For next session:** next free `Pass 617.0`; next filing 1111th; `616.0`-`616.10` size-reduction arc is the queue; `pdfcer-gui` must implement `candidates` in its augmenter wrapper.
+
 ## 2026-10-20 (1109th filing) — `Pass 615.0` and the size-reduction arc `Pass 616.0`-`616.10` filed (nothing built); decision 191
 
 **Filed (engineer-dispatched, no shell here, no commit made):** `Pass 615.0` (`G210`, `pdfcer-gui`): `SubsetAugmenter::candidates` required, `AugmentRequest::new` plus four builders, out-of-crate test in `pdfcer-render`; core-only. The arc `616.0`-`616.10` (Ken, operator-direct): space audit, optimize framework, lossless clean-up, discard objects/user data, images I/II, fonts, content-stream, linearization, exceed-tier, compatibility target. All in ROADMAP *Next up* (`###` items, each under the 80-line cap), mirrored in `FEATURES.md` Planned (one `615.0` row; the old "Optimization and linearization" row replaced by eleven unticked rows).
