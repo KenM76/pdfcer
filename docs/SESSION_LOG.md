@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1105th filing) — `v0.88.0` PUBLISHED (no Pass consumed)
+
+**Published (engineer-reported, no shell here):** tag `v0.88.0` -> `a6060224` (the 1104th filing; bump `910dbb93`), pushed with `main`, CI green at the tag. Binary built at `910dbb93` (revision `v0.87.0-6-g910dbb93`; only a docs-only commit follows). Package folder `D:\builds\pdfcer-20261020-1151-a606022`, not dirty. Zips in `D:\builds\release-v0.88.0`: `pdfcer-v0.88.0-windows-x64.zip` 26,010,385 bytes, sha256 `e3970d961d1d99ec0a00f0d079b24c61675914d796c50273e826c0a1b4d79ed4`; the three OCR add-on zips (`ocrcer`, `ocrs`, `tesseract`) unchanged in size from 0.87.0. `tools/gh-release.py` PASS, 8 assets at local sizes. OneDrive `pdfcer1` written; `pdfcer2` keeps 0.87.0, so the next release writes `pdfcer2`.
+
+**Smoke (fresh folder `D:\builds\smoke-v0.88.0`):** `--version` 0.88.0; `extract-text --auto-word-gap` on a fixture PDF exit 0 with text. `verify-release.py v0.88.0` all ok except "working tree clean" (the two uncommitted `.claude/agent-memory/pdfcer-spec-librarian/*` files, deliberate, never staged). `pdfcer-gui` notice: `pdfce_FeatureRequests/open/notice_2026-10-20_v0.88.0_released.md`. Gate note: `tools/check-ui-strings.sh` no longer exists (removed with the in-repo GUI); rc=127 in a hand-run sweep is not a failure and `run-gates.sh` does not call it. No decision; `FEATURES.md` no change (G205-G209 rows filed in the 1104th). Hard-rule-11 sweep: no meaning changed. Backup currency not verifiable from here.
+
+**For next session:** next free `Pass 613.0`; next filing 1106th; next up per handoff: the m64/m95 meshes.
+
 ## 2026-10-20 (1104th filing) — `Pass 608.0`-`612.0` shipped (`G207`, `G208`, `G209`, `G205`, `G206`); `v0.88.0` bump `910dbb93` filed
 
 **Shipped (engineer-reported, no shell here):** `608.0` `adee0326` (a size change on a Type0 / Identity-H run keeps its two-byte codes; the format report reads the descendant CIDFont), `609.0` `199a2989` (`GlyphProvenance::em_scale`/`drawn_size`, `FormatRequest::drawn_size`, `format-text --drawn-size`), `610.0` `b09c77c9` (`ExtractOptions::with_word_gap_auto`, per-page ratio reported, `extract-text --auto-word-gap`), `611.0` and `612.0` together in `9b3e878d` (typical leading measured in a 0.6-1.6 em band; gutter rejects a gap crossed by body lines; a table cell splits into paragraphs). Bump `910dbb93` to 0.88.0; release NOT yet published, its own later filing. Totals: core 1538 lib + 2995 integration; cli 227 + 43 + 883; clippy/fmt clean; structure baseline 569, none new.

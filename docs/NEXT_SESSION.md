@@ -50,7 +50,13 @@ below; no feature-request loop and no other Passes while it is open.**
   pdfcer-written block that has blank lines. Every model whose index reaches
   `edit_block_text`/`reflow_block` must be built with marks. Next: the
   m64/m95 meshes.
-- **Ledgers:** next free Pass **613.0**; next filing **1105th** (check
+- **Update 1105th filing:** `v0.88.0` PUBLISHED (tag at `a6060224`, binary
+  built at `910dbb93`, GitHub release 8 assets, OneDrive `pdfcer1`;
+  **the next release writes `pdfcer2`**, which still holds 0.87.0). Smoke
+  and `verify-release.py` passed (only the deliberate dirty-tree check
+  fails). `pdfcer-gui` notified. `check-ui-strings.sh` is gone; rc=127 from
+  it is not a failure.
+- **Ledgers:** next free Pass **613.0**; next filing **1106th** (check
   ROADMAP's newest ledger line; older figures in this file predate it); no decision added since 183. Core-api verb
   count **378**.
 - **3D compressed meshes after `605.0`:** door `TS-0232-16-3D.pdf` 155/156
