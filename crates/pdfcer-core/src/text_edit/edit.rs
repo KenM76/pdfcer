@@ -5238,6 +5238,24 @@ pub(crate) fn writes_vertically(doc: &DocumentView<'_>, font_dict: &Dict) -> boo
         _ => false,
     }
 }
+/// The dictionary that carries a font's `/FontDescriptor`: the font itself
+/// for a simple font, its descendant CIDFont for a Type 0 font (§9.7.4.1,
+/// Table 117 — the parent never carries one). Reading it from a Type 0
+/// parent misclassifies every composite run as non-embedded.
+pub(crate) fn descriptor_holder(doc: &DocumentView<'_>, font_dict: &Dict, subtype: &[u8]) -> Dict {
+    if subtype != b"Type0" {
+        return font_dict.clone();
+    }
+    font_dict
+        .get(b"DescendantFonts")
+        .map(|o| doc.resolve(o))
+        .and_then(Object::as_array)
+        .and_then(|a| a.first())
+        .map(|o| doc.resolve(o))
+        .and_then(Object::as_dict)
+        .cloned()
+        .unwrap_or_default()
+}
 
 /// Classify the anchor font and apply the font-level refuse triggers
 /// R-INV-2/3/4 (the per-character triggers are the inverse map's job), and
@@ -5323,25 +5341,7 @@ pub(crate) fn classify_font(
         }
     }
 
-    // The descriptor lives on the SIMPLE font dictionary — or, for a Type 0
-    // font, on its descendant CIDFont (§9.7.4.1; Table 117 makes it a
-    // required entry of the CIDFont dictionary, and it is never on the
-    // parent). Reading it from the parent made every composite run
-    // "non-embedded" — a false disclosure on most real documents, and it
-    // silenced the embedded-subset floor for them (pdfcer-gui, 2026-09-05).
-    let descriptor_holder: Dict = if subtype.as_slice() == b"Type0" {
-        font_dict
-            .get(b"DescendantFonts")
-            .map(|o| doc.resolve(o))
-            .and_then(Object::as_array)
-            .and_then(|a| a.first())
-            .map(|o| doc.resolve(o))
-            .and_then(Object::as_dict)
-            .cloned()
-            .unwrap_or_default()
-    } else {
-        font_dict.clone()
-    };
+    let descriptor_holder = descriptor_holder(doc, font_dict, subtype.as_slice());
     let descriptor = descriptor_holder
         .get(b"FontDescriptor")
         .map(|o| doc.resolve(o))

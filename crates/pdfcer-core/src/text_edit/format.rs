@@ -2367,13 +2367,14 @@ pub(crate) fn plan_format_target(
         }
     }
 
-    // The shown codes: single-byte for a simple target (and for no family
-    // change: the run's own codes, which formatting never widens), two-byte
-    // CIDs only for an embedded donor (`Pass 142.0`). `single_byte` gates the
+    // The shown codes: with no family change, the run's own codes at the
+    // run's own width (two-byte CIDs for a composite run, §9.7.6.2); on a
+    // family change, single-byte for a simple target and two-byte CIDs for
+    // an embedded donor (`Pass 142.0`). `single_byte` gates the
     // §9.3.3 code-32 `Tw` rule and the emitter.
     let (new_codes, single_byte): (Vec<u32>, bool) = match &font_plan {
         Some(plan) => (plan.new_codes.clone(), !plan.two_byte),
-        None => (m.old_codes.clone(), true),
+        None => (m.old_codes.clone(), orig_font.is_simple()),
     };
     let advance_font: &ExtractFont = font_plan.as_ref().map_or(&orig_font, |p| &p.font);
 
@@ -2450,7 +2451,7 @@ pub(crate) fn plan_format_target(
                 anchor.tc(),
                 anchor.tw(),
                 anchor.th(),
-                true,
+                orig_font.is_simple(),
             )
         })
         .sum();
@@ -6123,12 +6124,18 @@ fn page_resources(page: &crate::page_tree::Page) -> &Dict {
     &page.resources
 }
 
-/// Classify a simple font's embedded/subset status for the REPORT, WITHOUT
+/// Classify a font's embedded/subset status for the REPORT, WITHOUT
 /// the R-INV-2/3/4 refuse triggers — a size/colour-only edit keeps the run's
 /// own codes and must never be gated by the inverse-encoding triggers (a
 /// symbolic or `/ToUnicode`-only font can still be resized/recoloured).
 fn embed_and_subset(doc: &DocumentView<'_>, font_dict: &Dict, font: &ExtractFont) -> (bool, bool) {
-    let embedded = font_dict
+    let subtype = font_dict
+        .get(b"Subtype")
+        .map(|o| doc.resolve(o))
+        .and_then(Object::as_name)
+        .map(|n| n.as_bytes().to_vec())
+        .unwrap_or_default();
+    let embedded = crate::text_edit::edit::descriptor_holder(doc, font_dict, &subtype)
         .get(b"FontDescriptor")
         .map(|o| doc.resolve(o))
         .and_then(Object::as_dict)

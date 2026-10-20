@@ -229,3 +229,36 @@ fn reflow_of_a_vertical_composite_block_is_refused_as_vertical() {
         "{err:?}"
     );
 }
+
+/// A size change on a two-byte (`Identity-H`) run keeps its codes two bytes
+/// wide (G207): the run reads back as the same text, and its embedded
+/// descendant program is reported as embedded. Codes below 256 are the case
+/// that a one-byte emitter silently halves.
+#[test]
+fn a_size_change_on_a_composite_run_keeps_its_text_and_embedding() {
+    use pdfcer_core::text_edit::{EditGlyphSource, FormatOptions, FormatRequest, set_format};
+    let doc = load("composite-editable.pdf");
+    let out = set_format(
+        &doc,
+        &FormatRequest::new(0, "ABC").size(36.0),
+        &FormatOptions::default(),
+    )
+    .expect("a composite run can be resized");
+    assert_eq!(out.report.glyph_source, EditGlyphSource::Embedded);
+    let edited = Document::from_bytes(out.bytes).expect("re-parses");
+    let pages = pdfcer_core::page_tree::pages(&edited).expect("pages");
+    let runs = pdfcer_core::text_extract::extract_page(
+        &edited,
+        &pages[0],
+        0,
+        &pdfcer_core::text_extract::ExtractOptions::default(),
+    )
+    .expect("text")
+    .runs;
+    let text: String = runs.iter().map(|r| r.text.clone()).collect();
+    assert!(
+        text.contains("ABC"),
+        "resized run must read back; got {text:?}"
+    );
+    assert!(!text.contains('\u{FFFD}'), "no garbled codes; got {text:?}");
+}
