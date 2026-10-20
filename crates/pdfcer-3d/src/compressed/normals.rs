@@ -60,6 +60,15 @@ pub(super) enum Orientation {
     Reversed(bool, V),
     /// The normal of a planar face read at an earlier triangle.
     Normal(V),
+    /// A planar face's normal taken from a vertex whose one normal was
+    /// read at another face, with the face. Its sign is the other face's
+    /// and may not be this one's, so the walk orients by the face's own
+    /// first triangle where it has one.
+    Borrowed(usize, V),
+    /// A planar face's normal decoded at a collinear triangle, with the
+    /// face: the triangle's frame, and so the normal's direction, is
+    /// rounding residue, and its sign says nothing.
+    Blind(usize),
     /// The sum of a curved triangle's corner normals, every one read at an
     /// earlier triangle: the WD orients each triangle by "one of its 3
     /// normals" whether read fresh or reused [WD 7.8.9].
@@ -92,6 +101,8 @@ pub(super) struct NormalReader<'a> {
     records: Vec<Record>,
     by_vertex: Vec<(bool, Vec<u32>)>,
     by_face: Vec<Option<u32>>,
+    borrowed: Vec<bool>,
+    blind: Vec<bool>,
     corners: Vec<[u32; 3]>,
     undo: Vec<Undo>,
 }
@@ -106,6 +117,8 @@ impl<'a> NormalReader<'a> {
             records: Vec::new(),
             by_vertex: Vec::new(),
             by_face: vec![None; a.planar.len()],
+            borrowed: vec![false; a.planar.len()],
+            blind: vec![false; a.planar.len()],
             corners: Vec::new(),
             undo: Vec::new(),
         }
@@ -203,7 +216,14 @@ impl<'a> NormalReader<'a> {
         let planar = self.a.planar.get(face).copied().unwrap_or(false);
         if planar && let Some(n) = self.by_face.get(face).copied().flatten() {
             self.corners.push([n; 3]);
-            return Some(Orientation::Normal(self.normal(n, pos)));
+            let v = self.normal(n, pos);
+            if self.blind.get(face).copied().unwrap_or(false) {
+                return Some(Orientation::Blind(face));
+            }
+            if self.borrowed.get(face).copied().unwrap_or(false) {
+                return Some(Orientation::Borrowed(face, v));
+            }
+            return Some(Orientation::Normal(v));
         }
         let lo = usize::from(t[0] > t[1]);
         let (p, q) = if lo == 0 { (t[0], t[1]) } else { (t[1], t[0]) };
@@ -220,6 +240,8 @@ impl<'a> NormalReader<'a> {
             }
             if planar {
                 *self.by_face.get_mut(face)? = Some(n);
+                *self.borrowed.get_mut(face)? = !new;
+                *self.blind.get_mut(face)? = false;
                 self.undo.push(Undo::Face(face));
                 out = [n; 3];
                 break;
@@ -237,6 +259,16 @@ impl<'a> NormalReader<'a> {
             .iter()
             .fold([0.0; 3], |n, &c| add(n, self.normal(c, pos)));
         Some(Orientation::Reused(n))
+    }
+
+    /// Marks the planar face of triangle `ti`, whose normal `ti` just
+    /// decoded, as [`Orientation::Blind`]: `ti` is collinear.
+    pub(super) fn blind(&mut self, ti: usize) {
+        if let Some(&f) = self.a.face_of.get(ti)
+            && let Some(b) = self.blind.get_mut(f as usize)
+        {
+            *b = true;
+        }
     }
 
     /// The sum of the last read triangle's corner normals.
@@ -434,5 +466,34 @@ mod tests {
         let (n, c) = normals(&QUAD, &tris, &[0, 0, 0, 0], &[0, 1023], true).unwrap();
         assert_eq!(c, [[0; 3]; 2]);
         assert!(close(n[0], [0.0, 0.0, 1.0]), "{:?}", n[0]);
+    }
+
+    /// A planar face whose first corner already holds another face's one
+    /// normal borrows it, and says so; marked blind, it says that instead,
+    /// until it is rewound and read again.
+    #[test]
+    fn a_planar_face_borrowing_or_blind_says_so() {
+        let binary = [false; 4];
+        let a = NormalArrays {
+            bits: 10,
+            binary: &binary,
+            angles: &[0, 1023],
+            planar: &[true, true],
+            face_of: &[0, 1, 1],
+        };
+        let mut r = NormalReader::new(&a);
+        let own = r.read(0, [0, 1, 2], &QUAD).unwrap();
+        assert!(matches!(own, Orientation::Reversed(..)));
+        let m = r.mark();
+        r.read(1, [0, 3, 1], &QUAD).unwrap();
+        let next = r.read(2, [3, 0, 2], &QUAD).unwrap();
+        assert!(matches!(next, Orientation::Borrowed(1, _)));
+        r.blind(2);
+        let next = r.read(2, [3, 0, 2], &QUAD).unwrap();
+        assert!(matches!(next, Orientation::Blind(1)));
+        r.rewind(m);
+        r.read(1, [0, 3, 1], &QUAD).unwrap();
+        let next = r.read(2, [3, 0, 2], &QUAD).unwrap();
+        assert!(matches!(next, Orientation::Borrowed(1, _)));
     }
 }

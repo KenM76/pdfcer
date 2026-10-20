@@ -74,6 +74,7 @@ use std::collections::HashMap;
 use crate::TriangleMesh;
 
 mod bend;
+mod decide;
 mod normals;
 mod partial;
 mod search;
@@ -506,38 +507,7 @@ impl<'a> Walk<'a> {
                 return Ok(if s == 0.0 { fold } else { s < 0.0 });
             }
         }
-        Ok(match o {
-            Orientation::Reversed(..) if thin => fold,
-            Orientation::Reused(_) if legacy => fold,
-            Orientation::Reversed(rev, n) => {
-                let (a, b, c) = (self.get(t[0])?, self.get(t[1])?, self.get(t[2])?);
-                let w = cross(sub(b, a), sub(c, a));
-                if dot(n, w).abs() < BLIND_NORMAL * dot(w, w).sqrt() {
-                    self.sliver = Some(ti);
-                    return Ok(fold);
-                }
-                self.signalled = true;
-                self.exact = true;
-                rev != (t[0] > t[1])
-            }
-            Orientation::Normal(n) | Orientation::Reused(n) => {
-                let (a, b, c) = (self.get(t[0])?, self.get(t[1])?, self.get(t[2])?);
-                let (ab, ac) = (sub(b, a), sub(c, a));
-                let w = cross(ab, ac);
-                let sine = (dot(w, w) / (dot(ab, ab) * dot(ac, ac))).sqrt();
-                let s = dot(w, n);
-                let tall =
-                    legacy || plane_height(s, n, [ab, ac, sub(c, b)]) > MIN_PLANE_HEIGHT * self.tol;
-                if sine > MIN_SINE && s != 0.0 && !thin && tall {
-                    self.signalled = true;
-                    s < 0.0
-                } else {
-                    self.sliver = Some(ti);
-                    fold
-                }
-            }
-            Orientation::Unknown => fold,
-        })
+        self.decide(o, t, fold, legacy, thin)
     }
 
     /// Adds one triangle; `flip` inverts the fold decision.
@@ -573,7 +543,10 @@ impl<'a> Walk<'a> {
             && let Some(n) = a.normals.as_ref()
         {
             let t = [self.get(ta)?, self.get(tb)?, self.get(tc)?];
-            self.planes.place(n, self.tris.len(), t, a.tolerance)?;
+            let w = cross(sub(t[1], t[0]), sub(t[2], t[0]));
+            let oriented = (!self.weak).then(|| if fold != flip { mul(w, -1.0) } else { w });
+            self.planes
+                .place(n, self.tris.len(), t, a.tolerance, oriented)?;
         }
         self.tris.push(tri);
         let (mut left, mut right) = ((tc, tb, ta), (ta, tc, tb));
