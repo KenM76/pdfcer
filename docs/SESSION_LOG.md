@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1109th filing) — `Pass 615.0` and the size-reduction arc `Pass 616.0`-`616.10` filed (nothing built); decision 191
+
+**Filed (engineer-dispatched, no shell here, no commit made):** `Pass 615.0` (`G210`, `pdfcer-gui`): `SubsetAugmenter::candidates` required, `AugmentRequest::new` plus four builders, out-of-crate test in `pdfcer-render`; core-only. The arc `616.0`-`616.10` (Ken, operator-direct): space audit, optimize framework, lossless clean-up, discard objects/user data, images I/II, fonts, content-stream, linearization, exceed-tier, compatibility target. All in ROADMAP *Next up* (`###` items, each under the 80-line cap), mirrored in `FEATURES.md` Planned (one `615.0` row; the old "Optimization and linearization" row replaced by eleven unticked rows).
+
+**Decision 191** (`ARCHITECTURE.md` §12): optimisation is an operator-requested structural rewrite, not a side-effect normalisation; unselected objects keep decoded content byte-identical; always a full rewrite to a new file; signed input refused by default with a disclosed override; every lossy change itemised (rule 4); lossy JBIG2 off by default; Brotli opt-in and labelled an extension.
+
+**Findings:** (1) The dispatch said "next decision after 183". The live ceiling is 190 (`ARCHITECTURE.md` §12 ends at decision 190, and `docs/decisions/` stops at `190-`), so this takes 191. Older ledger prose in `ROADMAP.md`/`SESSION_LOG.md` (the 485th-497th filings) says "next decision 192", but no decision 191 body exists anywhere (grep of `docs/` and `crates/`); the engineer should run `python tools/check-ledger-numbers.py` and reconcile. (2) `docs/core-api/02-editing-and-saving.md` (the `Pass 430.1` row) already states `candidates(&AugmentRequest) -> Vec<char>` as required and names `615.0`; no wrong `base_font` signature was found elsewhere in `docs/`. (3) `pdfcer-render`'s `InstalledFaceAugmenter` already implements `candidates` (`font/augment/installed.rs`), so making it required breaks no in-tree implementer. (4) `docs/research/` is still untracked in git status as of the dispatch.
+
+**Still in flight / flagged, not edited:** `ARCHITECTURE.md` §5 should cite decision 191 when `616.1` ships; `docs/NEXT_SESSION.md` (engineer-owned) not touched. Hard-rule-11 sweep: no meaning changed. Git, push and backup state not verified from here.
+
+**For next session:** next free `Pass 617.0`; next filing 1110th; `v0.89.0` tag/publish (slot `pdfcer2`) still owed per the 1108th; acrobat-librarian dispatch not repeated, the `optimize__*` RAG already exists.
+
 ## 2026-10-20 (1108th filing) — `v0.89.0` bump `b2507313` filed (no Pass consumed)
 
 **Filed (engineer-reported, no shell here):** bump `b2507313` ("chore: bump version to 0.89.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`) carries `Pass 613.0` (`ebc02bc6`) and `Pass 614.0` (`f71554e1`) since `v0.88.0`. Filings after the Pass commits: `40e7d1d7` (1106th), `cee34cd0` (1107th). Recorded as a ROADMAP Shipped bump entry, the same way `910dbb93` was in the 1104th.

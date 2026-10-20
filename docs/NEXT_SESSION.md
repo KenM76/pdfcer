@@ -29,8 +29,8 @@ or trailer mesh fails.
   RAG `threed/prc__8137__tess_3d_compressed.md` (X76–X78).
 - **Open on meshes, not failures:** "best-fit" is not "right" — m52/m96 are
   known mirrored best fits, and fold-backs exist even in unique fits (X50/X51).
-  pdfcer-gui still has no per-mesh render and does not consume
-  `MeshFit::Partial/Continue`; the 0.84.0 ask to expose `mesh_fit` stands.
+  pdfcer-gui consumes `MeshFit` (it corrected an earlier handoff that said
+  otherwise); no `mesh_fit` ask is outstanding.
 - **Probe kit (LOCAL):** `probe.rs`, `probe_trace.rs` (`fits` census),
   `probe_ev.rs` (`ev_set/ev_scan/ev_swap/ev_why/ev_conflict/ev_search`) are in
   this session's scratchpad `p613/hold/`; mod lines go in `compressed.rs` and

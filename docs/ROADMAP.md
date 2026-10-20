@@ -22502,6 +22502,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 (`Pass 606.0` shipped at the 1097th filing, `04e769fc`; see *Shipped*. The residue m64, m95, m107 is not a Pass yet. Release to OneDrive `pdfcer1` is the next step, not done.)
 
+> **Filed 2026-10-20 (1109th filing): `Pass 615.0` (`G210`, from `pdfcer-gui`) and the size-reduction arc `Pass 616.0`-`616.10` (operator-direct, Ken 2026-10-20). None built.** Ledgers: **decision 191** (see `ARCHITECTURE.md` §12); next free `Pass 617.0`; next filing 1110th.
+
 > **Taken up from `pdfcer-gui`, 2026-10-20 (1103rd filing): 5 requests `G207`, `G208`, `G209`, `G205`, `G206` as `Pass 608.0`-`612.0`.** All five shipped at the 1104th filing (`adee0326`, `199a2989`, `b09c77c9`, `9b3e878d`); see *Shipped*. Ledgers: no decision; next free `Pass 613.0`; next filing 1105th. (Superseded at the 1106th: `Pass 613.0` shipped, next free `Pass 614.0`.)
 
 > **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` was self-found at the 1053rd filing, not a GUI request. Ledgers: no decision; next free `Pass 581.0`; next filing 1068th (updated at the 1067th; superseded at the 1068th by the stub below: next free `Pass 587.0`, next filing 1069th; superseded again at the 1069th: next free `Pass 588.0`, next filing 1070th).
@@ -24248,6 +24250,75 @@ closes out the *prior* filing's business rather than opening this one's.
 > annotation/destination scaling, the new ce-dimensions refusal — is at
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
+
+### `Pass 615.0` — `SubsetAugmenter::candidates` becomes required; `AugmentRequest::new` + builders (`G210`) — NEXT UP, 2026-10-20
+
+Request: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G210_a_delegating_subset_augmenter_silently_drops_composite_fonts.md`. Core-only (`pdfcer-core` `text_edit/subset_augment.rs`; out-of-crate test in `pdfcer-render`).
+
+- **Defect:** `candidates` has an empty default (`Vec::new()`). A shell wrapper that forwards only `augment` and `addable` silently drops composite fonts from the typing repertoire. Core has no font parser, so it cannot supply a delegating default.
+- **Change 1:** `SubsetAugmenter::candidates(&self, &AugmentRequest<'_>) -> Vec<char>` loses its default and becomes REQUIRED. Breaking for implementers; the in-tree one is `pdfcer_render::font::augment::installed` (`InstalledFaceAugmenter`), which already implements it.
+- **Change 2:** public, not feature-gated `AugmentRequest::new(program, base_font, chars)` plus builders `with_shown`, `with_outline_check`, `with_hinting_mismatch`, `with_addressing` (struct is `#[non_exhaustive]`, so a shell cannot build one today), so a shell can unit-test its augmenter.
+- **Test:** out-of-crate in `pdfcer-render` (proves the constructor is reachable from another crate); a wrapper that forwards all three methods keeps composite characters.
+- **Docs:** `docs/core-api/02-editing-and-saving.md` (the `Pass 430.1` row) already states `candidates(&AugmentRequest) -> Vec<char>` as required and names this Pass; the older wrong `base_font` signature was not found anywhere else in `docs/` at filing (grep). Engineer to confirm when shipping.
+- **Acceptance:** `cargo test -p pdfcer-core -p pdfcer-render`, `cargo tree -p pdfcer-core` unchanged (no new dependency), clippy `-D warnings`, `fmt`, structure gate.
+
+### `Pass 616.0` — Space audit (`audit-space`) — NEXT UP, 2026-10-20 (size-reduction arc)
+
+**Arc inputs (referenced here so the hand-off counts):** `docs/research/pdf-size-reduction-survey.md` (17 non-Adobe tools, a capability matrix, 15 gaps); Acrobat RAG `D:\Dev\Rag-Specialized\Acrobat_Features\optimize__pdfcer_parity_checklist.md` plus its siblings `optimize__images_panel`, `__discard_objects`, `__discard_user_data`, `__clean_up_and_fast_web_view`, `__audit_space_usage`, `__presets_settings_and_batch`, `__edge_cases_signatures_pdfa_refusals`, `__reduce_file_size_one_shot`, `__transparency_flattening`, `__font_unembedding` (and `__font_reporting`, `__font_related_adjacent_operations`). Operator words (Ken, 2026-10-20): *"start working on features to reduce the size of a pdf. Research first what other tools including what Acrobat Includes. I want pdfcer to meet or exceed the capabilities and user friendly options that this and other tools have, including fine tuning and control over what gets compressed and how and which objects down to individual controls on how to handle each one."* Binding design: **decision 191**. Each Pass ships core + cli in the same Pass; the gui column is `pdfcer-gui`'s.
+
+**Research findings that shape the arc:** Acrobat scopes its controls by class only; no tool except PitStop/callas offers per-object control. No tool rounds content-stream numbers. No tool gives a whole-file "never larger" guarantee, or a drill-down audit you can act on.
+
+**Existing primitives (inventory):** `structure::inventory` (per-object `stream_bytes`), `structure::layout`; `doc_metadata` removal of 12 kinds; `font_unembed::plan`; `image_resample` (bicubic and lanczos only, no box/average); `pdfcer_image_codec` decode, all codecs; the `jpeg-encoder` crate; the Flate encoder (fixed level 6); LZW decode; `writer/content.rs reemit_canonical` (a rounding hook); `replace_image`. **Absent:** GC of unreferenced objects, an object-stream writer, a linearization writer, dedupe, CCITT/JBIG2/JPX/RunLength encoders, a Brotli writer, ppi per placement, re-subsetting of embedded fonts, duplicate-subset merging, transparency flattening, any compress/optimize CLI.
+
+**`616.0` scope:** the foundation every later report reuses. Per-category bytes and percentages (fonts, images, content, forms, annotations, bookmarks/dests, metadata, thumbnails, attachments, structure/xref overhead, unreferenced). PLUS per-object rows: id, kind, bytes, filters, page uses, and for images the pixel size, the effective ppi per placement and the maximum across placements. JSON and text output; before/after diff mode. CLI `audit-space`. Read-only; the diff mode is what `616.1`'s before/after report reuses.
+
+### `Pass 616.1` — Optimize framework: settings, presets, profiles, plan/dry-run, apply — NEXT UP, 2026-10-20
+
+Depends on `616.0`. Decision 191 governs.
+
+- `OptimizeSettings` with built-in presets **Lossless, Standard, Screen/Mobile, Print, Archive**, each defined and published by pdfcer (not copied from Acrobat's undocumented values).
+- Saved TOML/JSON profiles with inheritance and import/export. **Rules** selected by class, page range, colourspace, ppi, codec, size or object id, plus **per-object overrides**; rules and overrides are saved together in one profile.
+- A plan/dry-run predicting the outcome and saving per object. Apply is one undoable command; the write is always a full rewrite to a new file.
+- **Never larger:** per object, and for the whole file.
+- Refusals by default for signed, encrypted, PDF/A and compatibility-target conflicts, each with an explicit override and an impact list.
+- A before/after report that itemises every lossy change (rule 4).
+- CLI `optimize --preset/--profile/--rule/--object/--dry-run/--json`.
+
+### `Pass 616.2` — Lossless structure clean-up — NEXT UP, 2026-10-20
+
+GC of unreferenced objects; dedupe of identical streams and objects; Flate recompress at a chosen level (covers uncompressed streams and LZW to Flate); object streams plus an xref stream; removal of invalid links and bookmarks and of unreferenced named destinations; Acrobat's compress-entire / structure-only / remove / leave modes. Output is byte-lossless in decoded content.
+
+### `Pass 616.3` — Discard objects and user data, each individually selectable — NEXT UP, 2026-10-20
+
+Wire in the existing 12 `doc_metadata` kinds. Add: alternate images, print settings, search index, tags, bookmarks, form actions, external cross-references, private application data, hidden layers (with visible-layer flatten), embedded thumbnails.
+
+### `Pass 616.4` — Images I: downsampling, requality, conversion — NEXT UP, 2026-10-20
+
+Downsampling per class (colour, grey, mono): average/box (new), subsample, bicubic and lanczos, with a target ppi and a trigger ppi. Resample to the highest ppi any placement needs. JPEG quality levels plus a numeric quality; ZIP recompression. Colour to grey and to bilevel conversion. Only-if-smaller per image; dedupe identical images. Per-image overrides.
+
+### `Pass 616.5` — Images II: encoders — NEXT UP, 2026-10-20
+
+CCITT G4 encode, RunLength encode, JBIG2 generic lossless encode. **Lossy JBIG2 symbol matching is opt-in, off by default and disclosed**, because it can substitute characters. JPEG2000 encode is subject to a dependency licence check first (`LEGAL.md` §6.1, rule 13).
+
+### `Pass 616.6` — Fonts: re-subset, merge duplicate subsets, unembed — NEXT UP, 2026-10-20
+
+Re-subset embedded fonts to the glyphs actually used; merge duplicate subsets; integrate `font_unembed::plan`; Type1 to CFF conversion later.
+
+### `Pass 616.7` — Content-stream optimisation — NEXT UP, 2026-10-20
+
+Number precision rounding with a tolerance, **disclosed with its maximum displacement**; whitespace minimisation; redundant operator removal. Uses the `reemit_canonical` rounding hook.
+
+### `Pass 616.8` — Linearization writer (fast web view) — NEXT UP, 2026-10-20
+
+Write a linearized file (ISO 32000-2 Annex F). Spec-fidelity rule 1: source the clause from the spec RAG before writing.
+
+### `Pass 616.9` — Exceed-tier: quality target, byte budget, visual diff — NEXT UP, 2026-10-20
+
+A per-image quality target (SSIM) instead of a fixed quality; a byte budget ("fit under N MB"); a visual-diff report rendering each page before and after, with the maximum pixel delta.
+
+### `Pass 616.10` — Compatibility target and transparency report — NEXT UP, 2026-10-20
+
+One-shot "Reduce File Size" by target PDF version, listing used-versus-target features. Transparency detect-and-report only. The transparency flattener is a separate later Backlog item (little size payoff); not minted here.
 
 ### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), ~~**NOT STARTED**~~ **SHIPPED `743830d` — see top of *Shipped***
 

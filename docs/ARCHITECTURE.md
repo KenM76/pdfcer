@@ -13259,3 +13259,46 @@ here; this decision would belong beside it once one exists.
 decision `191`.
 
 **New standing rule.** None — `R263` stays next free.
+
+### 2026-10-20 (1109th filing, operator-direct, Ken) — decision 191: PDF optimisation is an operator-requested structural rewrite, always a full rewrite to a new file
+
+**Trigger.** Ken, 2026-10-20: reduce PDF size, meeting or exceeding Acrobat
+and other tools, with control down to individual objects. Arc `Pass 616.0`
+-`616.10` (`ROADMAP.md` *Next up*). Research:
+`docs/research/pdf-size-reduction-survey.md`; Acrobat RAG
+`Acrobat_Features/optimize__pdfcer_parity_checklist.md` and siblings.
+
+**What this decides.**
+1. Optimisation is **not a side-effect normalisation**. Repacking
+   containers (object streams, xref stream) and re-encoding the objects the
+   settings select ARE the operation, so rule 3 (round-trip / minimal-diff)
+   does not forbid them.
+2. Objects the settings do **not** select keep their **decoded content
+   byte-identical**.
+3. Output is **always a new file by full rewrite**; never an incremental
+   save over the input.
+4. A **signed input is refused by default** (the rewrite invalidates its
+   signatures). It proceeds only with an explicit override, and the
+   override is disclosed.
+5. **Every lossy change is itemised in the report** (rule 4): downsample,
+   JPEG requality, lossy JBIG2, colour conversion, number rounding, font
+   unembed. Fuzzy, never sneaky.
+6. **Lossy JBIG2 is off by default** (symbol matching can substitute
+   characters).
+7. **Brotli output is opt-in and labelled an extension** (not ISO 32000).
+8. "Never larger" holds per object and for the whole file.
+
+**Why.** The one-sentence form of rule 3 ("untouched objects re-emitted
+byte-identical") would otherwise make object streams, GC and dedupe look
+like violations; the line drawn here is selection by the operator's
+settings. Refusing signed input by default follows the project's pattern
+for destructive saves (`EncryptError::SignedDocument`, redaction §11.2).
+
+**Body-section effect.** None edited by this filing (librarian scope: the
+log only); `ARCHITECTURE.md` §5 (round-trip) should cite this decision when
+`Pass 616.1` ships. Flagged, not actioned.
+
+**Decision ceiling.** Fills `191`; ceiling `190` → `191`. Next free
+decision `192`.
+
+**New standing rule.** None — `R263` stays next free.
