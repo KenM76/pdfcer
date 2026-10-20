@@ -692,6 +692,8 @@ mod metadata_cmd;
 use metadata_cmd::*;
 mod space_cmd;
 use space_cmd::*;
+mod optimize_cmd;
+use optimize_cmd::*;
 #[cfg(test)]
 mod tests;
 use structure::*;
@@ -789,6 +791,10 @@ mod exit {
     /// output. Distinct from `SIGNATURE_FAILED`
     /// because "pdfcer cannot say" is not "the document was tampered with".
     pub const SIGNATURE_UNVERIFIABLE: u8 = 13;
+    /// `optimize`: the rewrite would not be strictly smaller than the input,
+    /// so nothing was written (decision 191). Not a failure: the input is
+    /// already as small as the chosen settings make it.
+    pub const NOT_SMALLER: u8 = 14;
     /// The subcommand exists in the surface but is not implemented yet
     /// (Pass 0 stub). Distinct code so a script can tell "you asked for a
     /// feature pdfcer doesn't have yet" apart from a real failure.

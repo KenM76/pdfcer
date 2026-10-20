@@ -332,4 +332,5 @@ kind_codec! {
     UnembedFonts { count: usize },
     EmbedFonts { count: usize },
     ImportEditable,
+    Optimize { count: usize },
 }

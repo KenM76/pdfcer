@@ -175,7 +175,9 @@ fn image_line(o: &ObjectSpace) -> String {
     line
 }
 
-fn diff_text(d: &SpaceDiff) -> String {
+/// The before/after table `optimize` prints: one row per category that
+/// changed, then the total.
+pub(crate) fn diff_text(d: &SpaceDiff) -> String {
     let mut out = String::new();
     let change = |before: u64, after: u64| after as i128 - before as i128;
     let _ = writeln!(
@@ -290,7 +292,8 @@ fn object_json(o: &ObjectSpace) -> String {
     )
 }
 
-fn diff_json(d: &SpaceDiff) -> String {
+/// [`diff_text`] as one JSON object, for `optimize --json`.
+pub(crate) fn diff_json(d: &SpaceDiff) -> String {
     let rows: Vec<String> = d
         .categories
         .iter()

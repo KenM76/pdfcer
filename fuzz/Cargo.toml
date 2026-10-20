@@ -713,3 +713,10 @@ path = "fuzz_targets/space_audit.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "optimize_profile"
+path = "fuzz_targets/optimize_profile.rs"
+test = false
+doc = false
+bench = false

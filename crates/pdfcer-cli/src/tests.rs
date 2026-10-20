@@ -451,6 +451,9 @@ const NOT_IN_PLACE: &[&str] = &[
     "stamp-pack",
     // The input is a text file, not a PDF.
     "place-text",
+    // Declares its own `--in-place`: replacing the input is skipped when the
+    // rewrite is not smaller.
+    "optimize",
 ];
 
 #[test]

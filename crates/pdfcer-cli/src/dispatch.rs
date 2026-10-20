@@ -1219,6 +1219,7 @@ pub(crate) fn run() -> ExitCode {
             top,
             json,
         } => cmd_audit_space(&input, diff.as_deref(), top, json),
+        Command::Optimize { args } => cmd_optimize(&args),
         Command::ListObjects {
             input,
             filter_type,

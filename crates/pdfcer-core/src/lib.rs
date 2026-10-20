@@ -82,6 +82,7 @@ pub mod layers;
 /// the recogniser is a trait, so the engine choice stays a separate decision.
 pub mod ocr;
 pub mod offpage;
+pub mod optimize;
 pub mod outline;
 pub mod page_labels;
 pub mod pageops;

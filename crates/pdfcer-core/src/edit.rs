@@ -159,6 +159,7 @@ pub use foreign_button::ForeignAppearance;
 pub use form_paint::FormPaintOutcome;
 mod markup_respan;
 mod metadata_remove;
+mod optimize;
 pub use markup_respan::TextMarkupRespan;
 mod link;
 pub use link::{LinkBorder, LinkBorderChange, LinkReading, LinkTarget, LinkTargetChange};
@@ -1347,6 +1348,12 @@ pub enum CommandKind {
     /// A hand-edited export was compiled back into the session
     /// ([`EditSession::import_editable`]).
     ImportEditable,
+    /// [`EditSession::apply_optimize`] rewrote streams as an optimize plan
+    /// chose (decision 191). One entry for the whole plan.
+    Optimize {
+        /// How many objects the plan rewrote.
+        count: usize,
+    },
 }
 
 /// Which geometric-markup subtype [`EditSession::add_markup`] authored,

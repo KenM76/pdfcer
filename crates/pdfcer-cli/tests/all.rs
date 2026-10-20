@@ -98,6 +98,7 @@ mod object_transform_leaf;
 mod ocr_addons;
 mod ocr_engine;
 mod ocr_program_addons;
+mod optimize;
 mod output_in_place;
 mod password_values;
 mod paste_radio_member;

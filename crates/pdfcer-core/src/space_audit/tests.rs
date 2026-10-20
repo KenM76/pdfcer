@@ -44,7 +44,8 @@ fn build(bodies: &[Vec<u8>], update: &[(u32, &str)]) -> Vec<u8> {
     buf
 }
 
-fn stream(dict: &str, data: &[u8]) -> Vec<u8> {
+/// A stream object body with `dict` entries and an exact `/Length`.
+pub(crate) fn stream(dict: &str, data: &[u8]) -> Vec<u8> {
     let mut out = format!("<< {dict} /Length {} >>\nstream\n", data.len()).into_bytes();
     out.extend_from_slice(data);
     out.extend_from_slice(b"\nendstream");

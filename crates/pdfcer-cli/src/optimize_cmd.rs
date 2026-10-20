@@ -1,0 +1,397 @@
+//! `optimize`: make a PDF smaller under presets, profiles, rules and
+//! per-object overrides (Pass 616.1, decision 191).
+
+use std::fmt::Write as _;
+
+use pdfcer_core::edit::EditSession;
+use pdfcer_core::optimize::{
+    OptimizeError, OptimizePlan, OptimizeSettings, OptimizedFile, Preset, Refusal, profile,
+};
+use pdfcer_core::space_audit;
+use pdfcer_core::writer::SaveOptions;
+
+use super::*;
+
+/// clap's own code for a usage error, which `exit` reserves.
+const USAGE: u8 = 2;
+
+/// The `optimize` arguments.
+#[derive(Debug, Clone, clap::Args)]
+pub(crate) struct OptimizeArgs {
+    /// Input PDF.
+    #[arg(required_unless_present_any = ["list_presets", "write_profile"])]
+    pub(crate) input: Option<PathBuf>,
+    /// Output PDF. Required unless `--in-place` or `--dry-run`.
+    #[arg(short, long, conflicts_with = "in_place")]
+    pub(crate) output: Option<PathBuf>,
+    /// Replace the input file instead of writing a new one.
+    #[arg(long)]
+    pub(crate) in_place: bool,
+    /// Start from a built-in preset: lossless, standard, screen (alias
+    /// mobile), print or archive. The default is standard.
+    #[arg(long, conflicts_with = "profile")]
+    pub(crate) preset: Option<String>,
+    /// Start from a saved profile (TOML). An `extends` in it names a preset
+    /// or another profile file, relative to the naming one.
+    #[arg(long, value_name = "FILE")]
+    pub(crate) profile: Option<PathBuf>,
+    /// Replace the default stream action: leave, recompress (level 9) or
+    /// recompress-0 to recompress-9.
+    #[arg(long, value_name = "ACTION")]
+    pub(crate) streams: Option<String>,
+    /// Add a rule, after the profile's. Whitespace-separated key=value pairs
+    /// using the profile's `[[rule]]` keys, list values comma-separated:
+    /// "category=fonts,images pages=2- min-bytes=4096 action=leave".
+    /// Repeatable; a later rule beats an earlier one.
+    #[arg(long = "rule", value_name = "SPEC")]
+    pub(crate) rules: Vec<String>,
+    /// Override one object, beating every rule: "12=leave" or
+    /// "12 0=recompress-6". Repeatable.
+    #[arg(long = "object", value_name = "ID=ACTION")]
+    pub(crate) objects: Vec<String>,
+    /// Optimize a signed document anyway. Every signature is invalidated,
+    /// and the report says how many.
+    #[arg(long)]
+    pub(crate) invalidate_signatures: bool,
+    /// Plan and measure without writing anything. The report shows the size
+    /// the output would have.
+    #[arg(long)]
+    pub(crate) dry_run: bool,
+    /// Print the report as JSON.
+    #[arg(long)]
+    pub(crate) json: bool,
+    /// Write the resolved settings as a complete profile to FILE (`-` for
+    /// stdout). Without an input, does only that.
+    #[arg(long, value_name = "FILE")]
+    pub(crate) write_profile: Option<PathBuf>,
+    /// List the presets and what each does, then exit.
+    #[arg(long)]
+    pub(crate) list_presets: bool,
+}
+
+/// Run `optimize`.
+pub(crate) fn cmd_optimize(args: &OptimizeArgs) -> u8 {
+    if args.list_presets {
+        print!("{}", presets_text());
+        return exit::SUCCESS;
+    }
+    let settings = match resolve_settings(args) {
+        Ok(s) => s,
+        Err(message) => {
+            eprintln!("pdfcer: optimize: {message}");
+            return USAGE;
+        }
+    };
+    if let Some(path) = &args.write_profile
+        && let Err(code) = write_profile(path, &settings)
+    {
+        return code;
+    }
+    let Some(input) = &args.input else {
+        return exit::SUCCESS;
+    };
+    let output = match (&args.output, args.in_place, args.dry_run) {
+        (Some(o), _, _) => Some(o.clone()),
+        (None, true, _) => Some(input.clone()),
+        (None, false, true) => None,
+        (None, false, false) => {
+            eprintln!("pdfcer: optimize: name an output with -o, or pass --in-place or --dry-run");
+            return USAGE;
+        }
+    };
+    if output.as_deref() == Some(input.as_path()) && !args.in_place {
+        eprintln!("pdfcer: optimize: -o names the input; pass --in-place to replace it");
+        return USAGE;
+    }
+    run(
+        input,
+        output.filter(|_| !args.dry_run).as_deref(),
+        &settings,
+        args.json,
+    )
+}
+
+fn presets_text() -> String {
+    let mut out = String::new();
+    for p in Preset::ALL {
+        let _ = writeln!(out, "{:<10} {}", p.as_str(), preset_summary(p));
+    }
+    out
+}
+
+fn preset_summary(p: Preset) -> &'static str {
+    match p {
+        Preset::Lossless => "lossless only: recompress generic streams at level 9",
+        Preset::Standard => "the default; lossless until image downsampling ships",
+        Preset::Screen => "smallest for on-screen reading; lossless today",
+        Preset::Print => "keeps print resolution; lossless today",
+        Preset::Archive => "PDF/A-safe; lossless today",
+        _ => "",
+    }
+}
+
+fn resolve_settings(args: &OptimizeArgs) -> Result<OptimizeSettings, String> {
+    let mut settings = match (&args.preset, &args.profile) {
+        (Some(name), _) => Preset::from_name(name)
+            .ok_or_else(|| format!("unknown preset {name:?}; --list-presets lists them"))?
+            .settings(),
+        (None, Some(path)) => load_profile(path)?,
+        (None, None) => Preset::Standard.settings(),
+    };
+    if let Some(a) = &args.streams {
+        settings.streams = pdfcer_core::optimize::StreamAction::parse(a)?;
+    }
+    for spec in &args.rules {
+        settings
+            .rules
+            .push(profile::parse_rule(spec).map_err(|e| e.to_string())?);
+    }
+    for spec in &args.objects {
+        let (id, action) = profile::parse_object(spec).map_err(|e| e.to_string())?;
+        settings.objects.insert(id, action);
+    }
+    settings.allow_signed |= args.invalidate_signatures;
+    Ok(settings)
+}
+
+fn load_profile(path: &Path) -> Result<OptimizeSettings, String> {
+    let read = |p: &Path| std::fs::read_to_string(p).map_err(|e| format!("{}: {e}", p.display()));
+    let text = read(path)?;
+    let base = path.parent().map(Path::to_path_buf).unwrap_or_default();
+    let mut resolve = |name: &str| read(&base.join(name));
+    profile::parse(&path.display().to_string(), &text, &mut resolve).map_err(|e| e.to_string())
+}
+
+fn write_profile(path: &Path, settings: &OptimizeSettings) -> Result<(), u8> {
+    let text = profile::to_profile(settings);
+    if path.as_os_str() == "-" {
+        print!("{text}");
+        return Ok(());
+    }
+    write_output(path, text).map_err(|e| {
+        eprintln!("pdfcer: {}: {e}", path.display());
+        exit::IO_ERROR
+    })
+}
+
+/// What one run produced, for the report.
+struct Outcome {
+    plan: OptimizePlan,
+    original: u64,
+    rewritten: u64,
+    /// The smaller file, or `None` when the rewrite was not smaller.
+    bytes: Option<Vec<u8>>,
+}
+
+fn run(input: &Path, output: Option<&Path>, settings: &OptimizeSettings, json: bool) -> u8 {
+    let doc = match open_document(input) {
+        Ok(d) => d,
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit_code_for_doc(&err);
+        }
+    };
+    let before = space_audit::audit(&doc);
+    let outcome = match optimize(EditSession::new(doc), settings) {
+        Ok(o) => o,
+        Err(code) => return code,
+    };
+    let after = outcome
+        .bytes
+        .as_ref()
+        .and_then(|b| open_document_bytes(b.clone()).ok())
+        .map(|d| space_audit::audit(&d));
+    let diff = after.as_ref().map(|a| space_audit::diff(&before, a));
+    print!(
+        "{}",
+        if json {
+            report_json(&outcome, output, diff.as_ref())
+        } else {
+            report_text(&outcome, output, diff.as_ref())
+        }
+    );
+    let Some(bytes) = &outcome.bytes else {
+        return exit::NOT_SMALLER;
+    };
+    if let Some(path) = output
+        && let Err(e) = write_output(path, bytes)
+    {
+        eprintln!("pdfcer: {}: {e}", path.display());
+        return exit::IO_ERROR;
+    }
+    exit::SUCCESS
+}
+
+fn optimize(mut session: EditSession, settings: &OptimizeSettings) -> Result<Outcome, u8> {
+    let plan = session.plan_optimize(settings).map_err(|e| refused(&e))?;
+    session.apply_optimize(&plan).map_err(|e| refused(&e))?;
+    let original = plan.file_bytes;
+    let file = session
+        .save_optimized(&SaveOptions::default())
+        .map_err(|e| {
+            eprintln!("pdfcer: optimize: {e}");
+            exit::SAVE_REFUSED
+        })?;
+    Ok(match file {
+        OptimizedFile::Smaller(bytes) => Outcome {
+            plan,
+            original,
+            rewritten: bytes.len() as u64,
+            bytes: Some(bytes),
+        },
+        OptimizedFile::KeptOriginal { rewritten, .. } => Outcome {
+            plan,
+            original,
+            rewritten,
+            bytes: None,
+        },
+        _ => Outcome {
+            plan,
+            original,
+            rewritten: original,
+            bytes: None,
+        },
+    })
+}
+
+fn refused(err: &OptimizeError) -> u8 {
+    eprintln!("pdfcer: optimize: {err}");
+    if let OptimizeError::Refused(list) = err {
+        for r in list {
+            match r {
+                Refusal::Signed { .. } => eprintln!(
+                    "pdfcer: hint: --invalidate-signatures optimizes anyway; every signature stops verifying"
+                ),
+                Refusal::Encrypted => eprintln!(
+                    "pdfcer: hint: decrypt it, optimize the copy, then encrypt the result"
+                ),
+                _ => {}
+            }
+        }
+    }
+    exit::EDIT_REFUSED
+}
+
+fn report_text(
+    o: &Outcome,
+    output: Option<&Path>,
+    diff: Option<&space_audit::SpaceDiff>,
+) -> String {
+    let mut out = String::new();
+    let _ = writeln!(
+        out,
+        "planned: {} stream(s) rewritten, {} B saved in stream data",
+        o.plan.changes.len(),
+        o.plan.stream_saving()
+    );
+    for c in &o.plan.changes {
+        let _ = writeln!(
+            out,
+            "  {:<8} {:<20} [{}] -> {}  {} -> {} B{}",
+            c.id.to_string(),
+            c.category.as_str(),
+            if c.filters_before.is_empty() {
+                "none".to_owned()
+            } else {
+                c.filters_before.join(" ")
+            },
+            c.action,
+            c.before_bytes,
+            c.after_bytes,
+            if c.lossy { "  (lossy)" } else { "" }
+        );
+    }
+    if !o.plan.skipped.is_empty() {
+        let _ = writeln!(out, "skipped: {}", o.plan.skipped.len());
+        for s in &o.plan.skipped {
+            let _ = writeln!(out, "  {:<8} {}: {}", s.id.to_string(), s.action, s.reason);
+        }
+    }
+    for n in &o.plan.notes {
+        let _ = writeln!(out, "note: {n}");
+    }
+    match (&o.bytes, output) {
+        (None, _) => {
+            let _ = writeln!(
+                out,
+                "not written: the rewrite would be {} B, not smaller than the input's {} B",
+                o.rewritten, o.original
+            );
+        }
+        (Some(_), Some(path)) => {
+            let _ = writeln!(
+                out,
+                "wrote {} ({} -> {} B)",
+                path.display(),
+                o.original,
+                o.rewritten
+            );
+        }
+        (Some(_), None) => {
+            let _ = writeln!(
+                out,
+                "dry run: the output would be {} -> {} B",
+                o.original, o.rewritten
+            );
+        }
+    }
+    if let Some(d) = diff {
+        out.push('\n');
+        out.push_str(&diff_text(d));
+    }
+    out
+}
+
+fn report_json(
+    o: &Outcome,
+    output: Option<&Path>,
+    diff: Option<&space_audit::SpaceDiff>,
+) -> String {
+    let q = |s: &str| format!("\"{}\"", json_escape(s));
+    let changes: Vec<String> = o
+        .plan
+        .changes
+        .iter()
+        .map(|c| {
+            let filters: Vec<String> = c.filters_before.iter().map(|f| q(f)).collect();
+            format!(
+                "{{\"id\":{},\"category\":{},\"filters_before\":[{}],\"action\":{},\"before_bytes\":{},\"after_bytes\":{},\"lossy\":{}}}",
+                q(&c.id.to_string()),
+                q(c.category.as_str()),
+                filters.join(","),
+                q(&c.action.to_string()),
+                c.before_bytes,
+                c.after_bytes,
+                c.lossy
+            )
+        })
+        .collect();
+    let skipped: Vec<String> = o
+        .plan
+        .skipped
+        .iter()
+        .map(|s| {
+            format!(
+                "{{\"id\":{},\"action\":{},\"reason\":{}}}",
+                q(&s.id.to_string()),
+                q(&s.action.to_string()),
+                q(&s.reason.to_string())
+            )
+        })
+        .collect();
+    let notes: Vec<String> = o.plan.notes.iter().map(|n| q(n)).collect();
+    let written = match (&o.bytes, output) {
+        (Some(_), Some(p)) => q(&p.display().to_string()),
+        _ => "null".to_owned(),
+    };
+    format!(
+        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"diff\":{}}}\n",
+        o.original,
+        o.rewritten,
+        o.bytes.is_some(),
+        changes.join(","),
+        skipped.join(","),
+        notes.join(","),
+        diff.map_or_else(|| "null".to_owned(), |d| diff_json(d).trim_end().to_owned())
+    )
+}

@@ -4452,3 +4452,47 @@ content", not "unused".
 
 ⚠️ `SpaceCategory`, and every struct here, is `#[non_exhaustive]`. Match
 with a wildcard arm, and show `as_str()` for an unknown category.
+
+## 15. Optimize — make a file smaller (`Pass 616.1`, decision 191)
+
+`pdfcer_core::optimize` (CLI: `pdfcer optimize`). Three steps on an
+`EditSession`; nothing changes until step 2, nothing is written until step 3.
+
+| Call | Returns |
+|---|---|
+| `EditSession::plan_optimize(&OptimizeSettings) -> Result<OptimizePlan, OptimizeError>` | every encoding already performed in memory: `changes`, `skipped` (each with a `SkipReason`), `notes`, `file_bytes`, `stream_saving()`, `is_lossy()` |
+| `EditSession::apply_optimize(&OptimizePlan) -> Result<usize, OptimizeError>` | commits the plan as **one** undo entry, `CommandKind::Optimize { count }`; returns the count |
+| `EditSession::save_optimized(&SaveOptions) -> Result<OptimizedFile, WriteError>` | `Smaller(bytes)` (a full rewrite), or `KeptOriginal { original, rewritten }` when it is not strictly smaller |
+| `Preset::{Lossless, Standard, Screen, Print, Archive}.settings()` | starting settings; `Preset::from_name` (accepts `mobile` for `Screen`), `as_str`, `ALL` |
+| `OptimizeSettings { streams, rules, objects, allow_signed }` | default action; ordered `Rule { select: Selector, action }`; per-object `BTreeMap<ObjId, StreamAction>`; signed override |
+| `StreamAction::{Leave, Recompress { level }}` | `parse("recompress-6")`, `to_profile_string()`, `is_lossy()` |
+| `Selector { categories, pages, min_bytes, max_bytes, filters, color_spaces, min_ppi, max_ppi, ids }` | every set field must match (AND); `filters` entry `"none"` = unfiltered; `PageRanges::parse("1-3,7,10-")` |
+| `optimize::profile::parse(name, text, &mut resolve)` / `to_profile(&settings)` | TOML profile ⇄ settings; `extends` names a preset or (via `resolve`) another profile; `ProfileError { profile, line, message }` |
+| `optimize::profile::parse_rule(spec)` / `parse_object(spec)` | one-line `key=value …` rule / `ID=ACTION` override, the forms the CLI takes |
+
+Contract:
+
+- **Precedence**, highest first: `objects[id]`, the last matching rule, the
+  default `streams`.
+- **Never larger**, twice: a stream whose result is not strictly smaller is
+  `SkipReason::NotSmaller` and kept; a whole file that is not strictly
+  smaller is `KeptOriginal` and must not be written over the input.
+- Unselected objects are re-emitted byte-identical by the full rewrite.
+- **Refusals** (`OptimizeError::Refused`, all listed at once): `Signed` unless
+  `allow_signed` (then a `notes` line says how many signatures break);
+  `Encrypted` always (decrypt, optimize, re-encrypt).
+- XMP metadata, object streams, xref streams and external-file (`/F`)
+  streams are never rewritten (`SkipReason::Protected`).
+- `Recompress` decodes only the generic lossless filters (Flate, LZW,
+  ASCIIHex, ASCII85, RunLength) and re-encodes as Flate; any other filter is
+  `SkipReason::UnsupportedFilter`.
+- An object created in this session has no audit row, so only `ids`, size
+  and `filters` selectors can match it.
+- `apply_optimize` returns `StalePlan { id }`, committing nothing, if an
+  object the plan rewrites changed after planning. Re-plan.
+
+⚠️ **Disclose what `plan.skipped` and `plan.notes` say**, off-canvas, next
+to the saving. A skip is not an error; a signature note is a destructive
+consequence the operator chose.
+
+⚠️ Every type here is `#[non_exhaustive]`; match with a wildcard arm.

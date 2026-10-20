@@ -140,11 +140,19 @@ fn inflate_bounded(data: &[u8]) -> Result<Vec<u8>, FilterError> {
 /// panic.
 #[doc(hidden)] // workspace-internal: called by pdfcer-core, not API
 pub fn encode(data: &[u8]) -> Vec<u8> {
+    encode_with_level(data, 6)
+}
+
+/// [`encode`] at zlib `level` (0 stores, 1 is fastest, 9 is smallest;
+/// values above 9 are clamped to 9). Deterministic for a given level.
+#[doc(hidden)] // workspace-internal: called by pdfcer-core, not API
+#[must_use]
+pub fn encode_with_level(data: &[u8], level: u32) -> Vec<u8> {
     // A modest headroom guess. Deflate output for font data runs ~40-60% of
     // input; the buffer grows if that is wrong, so the guess costs nothing
     // when it is.
     let mut out: Vec<u8> = Vec::with_capacity(data.len() / 2 + 64);
-    let mut enc = Compress::new(Compression::default(), true);
+    let mut enc = Compress::new(Compression::new(level.min(9)), true);
     let mut buf = [0u8; 32 * 1024];
     let mut consumed = 0usize;
     loop {

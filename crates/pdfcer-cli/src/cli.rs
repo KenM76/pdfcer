@@ -5668,6 +5668,33 @@ pub(crate) enum Command {
         json: bool,
     },
 
+    /// Make a PDF smaller (Pass 616.1).
+    ///
+    /// Plans every change, performs it in memory, and writes a new file only
+    /// if it is strictly smaller than the input; otherwise nothing is written
+    /// and the exit code is 14. Objects no setting selects are copied
+    /// byte-identical. Every rewritten stream, every skip and its reason, and
+    /// the per-category size change are reported.
+    ///
+    /// What happens to each stream comes from, highest first: an `--object`
+    /// override, the last matching `--rule`, the profile's rules, the
+    /// default (`--streams`, else the preset's).
+    ///
+    /// Signed documents are refused (exit 9) unless `--invalidate-signatures`;
+    /// encrypted ones are refused outright. XMP metadata, object streams and
+    /// cross-reference streams are never rewritten.
+    ///
+    /// Examples:
+    ///   pdfcer optimize in.pdf -o out.pdf
+    ///   pdfcer optimize in.pdf --dry-run --rule "category=fonts action=leave"
+    ///   pdfcer optimize in.pdf -o out.pdf --profile mine.toml --object "12=leave"
+    ///   pdfcer optimize --preset screen --write-profile mine.toml
+    #[command(verbatim_doc_comment)]
+    Optimize {
+        #[command(flatten)]
+        args: OptimizeArgs,
+    },
+
     /// List a PDF's interactive-form (AcroForm) fields (Pass 7).
     ///
     /// Prints one stable, locale-invariant line per terminal field —
