@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1112th filing) — `Pass 616.1` shipped in `e6949a25`: optimize framework (`pdfcer optimize`)
+
+**Shipped (engineer-reported, no shell here):** `pdfcer_core::optimize` (settings, presets, selectors, rules, per-object overrides, TOML profiles, plan/apply/save), `EditSession::plan_optimize`/`apply_optimize`/`save_optimized`, `pdfcer optimize` with exit code 14 `NOT_SMALLER`. Lossless Flate recompression of generic streams only. Core `[x]`, cli `[x]`, gui `[ ]`. Tests: core 18 + 3 doctests, cli 6; fuzz `optimize_profile` 942,049 runs in 91 s, clean; `run-gates.sh` PASS (46 commands). Commit `e6949a25`, parent `c7ec582b`; not pushed at filing time.
+
+**Deviations recorded (not rounded up):** Flate recompression pulled forward from `616.2`; JSON profile import deferred; PDF/A and compatibility refusals deferred to `616.3`/`616.4`/`616.10`; encrypted input has no override (`save_full` cannot write encrypted output); all presets lossless until image Passes land.
+
+**Register:** ROADMAP Shipped gains `616.1`, Next-up header marked moved with residue listed. `FEATURES.md`: new Implemented row; Planned Optimize row narrowed to the remainder. `ARCHITECTURE.md` §5.1 now cites decision 191 (closes the flag from the 1109th filing). No new decision.
+
+**Open `pdfcer-gui` requests (engineer fixing next):** `G211` — `VectorObject`/`FormLeaf` report only the innermost `/OC`; gui asks for an `is_hidden_under` predicate. `G212` — `InstalledFaceAugmenter::candidates` stops at the first name-matched face even when it maps nothing.
+
+**For release notices:** `pdfcer-gui` says the MeshFit exposure is consumed (its file `request_mesh_fit_disclosure_is_already_exposed.md`); future release notices must DROP the "still stands" line.
+
+**For next session:** `G211`, `G212`; then `Pass 616.2` (lossless structure clean-up). Next free `Pass 617.0`, decision `192`; next filing 1113th; engineer pushes `c7ec582b`, `e6949a25`.
+
 ## 2026-10-20 (1111th filing) — `Pass 616.0` shipped in `5ba901d4`: space audit (`audit-space`)
 
 **Shipped (engineer-reported, no shell here):** `pdfcer_core::space_audit` (`audit`, `diff`; 24 categories summing exactly to file length; per-object rows with page uses; image ppi per placement) and `pdfcer audit-space FILE [--diff OTHER] [--top N] [--json]`; new `ObjectStream::member_lengths` in `pdfcer-model`; core-api §14. Core `[x]`, cli `[x]`, gui `[ ]`. Tests: core 10 + 1 doctest, model 1, cli 2; suites green (core 1547, model 401, cli 885); fuzz `space_audit` 73,942 runs in 91 s, 0 crashes; all gates green, no `cargo tree` change. Commit `5ba901d4`, parent `e6127c13`; neither pushed at filing time.

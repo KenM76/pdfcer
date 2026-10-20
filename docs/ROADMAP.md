@@ -112,6 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.1` — Optimize framework: `pdfcer_core::optimize` + `pdfcer optimize` — SHIPPED 2026-10-20 (1112th filing)
+
+Commit `e6949a25` on `main`, after `c7ec582b` (the 1111th filing); not pushed at filing time per the dispatch. Core + cli; gui NOT (`pdfcer-gui` has not consumed it). Engineer-reported; I have no shell (hard rule 8). Second Pass of the size-reduction arc (decision 191); reasoning is in the commit message.
+
+- **Core:** `StreamAction` (leave | recompress-N); `Rule` = `Selector` + action; `OptimizeSettings` (default action, ordered rules, per-object overrides); `Preset` {lossless, standard, screen, print, archive} (alias `mobile` = screen). Precedence: object override > later rule > earlier rule > default. `Selector`: space-audit category, page ranges, byte size min/max, filter chain (`none` = unfiltered), colour space, effective ppi min/max, object ids.
+- **Session:** `EditSession::plan_optimize` / `apply_optimize` / `save_optimized`; one undo entry `CommandKind::Optimize{count}`. `OptimizePlan` lists every change and every skip with a reason (`NotSmaller`, `Protected`, `UnsupportedFilter`...); a stale plan is refused.
+- **Behaviour:** generic streams (unfiltered, Flate, LZW, ASCIIHex, ASCII85, RunLength) are re-encoded as Flate, kept per stream only if smaller; whole file kept only if smaller (`OptimizedFile::KeptOriginal` otherwise). Protected: XMP metadata, ObjStm, XRef streams, external `/F` streams. Image codecs skipped with a reason. Full rewrite, unselected objects byte-identical (decision 191).
+- **Refusals:** signed input (override `allow_signed` / `--invalidate-signatures`); encrypted input (NO override: `save_full` cannot write encrypted output).
+- **Profiles:** in-house TOML subset (no serde/toml dependency), `extends` chains with depth and cycle guards, size cap, line-numbered errors; one-line `--rule` / `--object` specs; `to_profile` round-trips. `pdfcer_model::filters::flate::encode_with_level` added (doc-hidden pub).
+- **CLI:** `pdfcer optimize IN (-o OUT | --in-place | --dry-run)` with `--preset`, `--profile`, `--streams`, `--rule` (repeatable), `--object ID=ACTION` (repeatable), `--invalidate-signatures`, `--json`, `--write-profile FILE|-`, `--list-presets`. Report lists each change/skip plus the space-audit before/after diff. New exit code **14 `NOT_SMALLER`** (nothing written). `optimize` declares its own `--in-place` (in the shared injector's `NOT_IN_PLACE` list). README subcommand count 234 to 235. core-api: `03-capabilities` §15, `02-editing-and-saving` §1.35 (verb count 378 to 381); `check-core-api-verbs` PASS.
+- **Deviations from the `616.1` plan (deliberate, not rounded up):** (1) Flate recompression pulled forward from `616.2` (which keeps the remaining lossless stream work); (2) JSON profile IMPORT deferred (JSON is output only); (3) PDF/A and compatibility-level refusals deferred to `616.3`/`616.4`/`616.10`; (4) encrypted input has no override; (5) all presets are currently lossless (recompress level 9) until the image Passes land, and preset help says so.
+- **Tests:** core 18 (optimize 10, profile 8) + 3 doctests; CLI 6 in `crates/pdfcer-cli/tests/optimize.rs`. New fuzz target `fuzz/fuzz_targets/optimize_profile.rs`: 942,049 runs in 91 s (about 97 µs/run), clean. `tools/run-gates.sh` PASS (46 commands incl. 2 filing gates) on the committed tree; clippy `--workspace --all-targets --all-features` and `pdfcer-cli --no-default-features` clean; wasm32 check of `pdfcer-core` clean. No new dependency; `cargo tree` for core/render unchanged (only `fuzz/Cargo.toml` registers the target).
+
+`FEATURES.md`: *Reduce file size by lossless stream recompression* added to *Implemented* `[x]` core / `[x]` cli / `[ ]` gui; the *Planned* **Optimize framework** row is narrowed to the residue (JSON import, lossy presets, PDF/A and compatibility refusals); image, font, object-stream and clean-up rows stay unticked. `ARCHITECTURE.md` §5.1 now cites decision 191. Ledgers: no decision (191 cited, not minted); next free decision `192`; next free `Pass 617.0`; **next in arc `Pass 616.2`**; next filing 1113th. Git, push and backup state not verified from here.
+
 ### `Pass 616.0` — Space audit: `pdfcer_core::space_audit` + `pdfcer audit-space` — SHIPPED 2026-10-20 (1111th filing)
 
 Commit `5ba901d4` on `main`, after `e6127c13` (the 1110th filing); neither pushed at filing time (engineer pushes). Core + cli; gui is `pdfcer-gui`'s. Engineer-reported; I have no shell (hard rule 8). First Pass of the size-reduction arc (decision 191); scope in the retained `616.0` block under *Next up*.
@@ -24292,9 +24307,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 **`616.0` scope:** the foundation every later report reuses. Per-category bytes and percentages (fonts, images, content, forms, annotations, bookmarks/dests, metadata, thumbnails, attachments, structure/xref overhead, unreferenced). PLUS per-object rows: id, kind, bytes, filters, page uses, and for images the pixel size, the effective ppi per placement and the maximum across placements. JSON and text output; before/after diff mode. CLI `audit-space`. Read-only; the diff mode is what `616.1`'s before/after report reuses.
 
-### `Pass 616.1` — Optimize framework: settings, presets, profiles, plan/dry-run, apply — NEXT UP, 2026-10-20
+### `Pass 616.1` — Optimize framework — MOVED TO *Shipped* (1112th filing, `e6949a25`); residue below stays owed
 
-Depends on `616.0`. Decision 191 governs.
+Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level refusals (with `616.3`/`616.4`/`616.10`); lossy presets (all five are lossless today). Original scope, for reference. Decision 191 governs.
 
 - `OptimizeSettings` with built-in presets **Lossless, Standard, Screen/Mobile, Print, Archive**, each defined and published by pdfcer (not copied from Acrobat's undocumented values).
 - Saved TOML/JSON profiles with inheritance and import/export. **Rules** selected by class, page range, colourspace, ppi, codec, size or object id, plus **per-object overrides**; rules and overrides are saved together in one profile.

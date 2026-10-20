@@ -3235,6 +3235,12 @@ append 2,898/2,898 (100%); per-object verbatim on full rewrite
 name** (see below). `tools/roundtrip` is the executable gate; it
 re-runs on every writer-touching Pass.
 
+**Optimize is the operator-requested exception (decision 191, shipped
+`Pass 616.1`, `e6949a25`).** `EditSession::save_optimized` is always a full
+rewrite to a new file; objects the settings do not select keep their
+decoded content byte-identical, and a signed input is refused unless
+overridden. See §12, 2026-10-20 (1109th filing).
+
 ### 5.2 Redaction forbids incremental save
 
 *(Added 2026-07-31, Pass 3.0, closing decision 007 W2. This was
