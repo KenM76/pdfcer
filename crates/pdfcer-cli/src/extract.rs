@@ -1,5 +1,13 @@
 use super::*;
 
+/// `extract-text`'s on/off switches.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ExtractTextFlags {
+    pub(crate) include_artifacts: bool,
+    pub(crate) spans: bool,
+    pub(crate) word_gap_auto: bool,
+}
+
 /// Implement `pdfcer extract-text`.
 ///
 /// ## Where the two output channels go, and why
@@ -30,10 +38,14 @@ pub(crate) fn cmd_extract_text(
     pages_spec: &str,
     output: Option<&Path>,
     json: bool,
-    include_artifacts: bool,
-    spans: bool,
+    flags: ExtractTextFlags,
     ocr_layer: OcrLayerArg,
 ) -> u8 {
+    let ExtractTextFlags {
+        include_artifacts,
+        spans,
+        word_gap_auto,
+    } = flags;
     use pdfcer_core::text_extract::{self, ExtractOptions};
 
     let doc = match open_document(input) {
@@ -68,6 +80,7 @@ pub(crate) fn cmd_extract_text(
     let options = ExtractOptions::default()
         .with_artifacts(include_artifacts)
         .with_word_gap_ratio(settings.word_gap_ratio)
+        .with_word_gap_auto(settings.word_gap_auto || word_gap_auto)
         // The two EXTRACT-radius R169 knobs. Both move character offsets,
         // so both move what a text search and a text-based redaction
         // match (R35) — which is why they are honoured here rather than
@@ -212,6 +225,8 @@ contents_unresolved={} type3_no_tounicode={} pages_resources_defaulted={}",
 ///   "notes": ["text: ..."],
 ///   "pages": [
 ///     { "page": 1,                       // 1-based
+///       "word_gap_ratio": 0.2,           // ems; the threshold used
+///       "word_gap_measured": false,      // measured from the page (auto)
 ///       "runs": [
 ///         { "origin": "glyphs",          // glyphs | actual_text |
 ///                                        // derived_word_space |
@@ -351,6 +366,10 @@ pub(crate) fn extraction_json(
         }
         out.push_str("\n    {\n");
         out.push_str(&format!("      \"page\": {},\n", page.page_index + 1));
+        out.push_str(&format!(
+            "      \"word_gap_ratio\": {},\n      \"word_gap_measured\": {},\n",
+            page.word_gap_ratio, page.word_gap_measured
+        ));
         out.push_str("      \"runs\": [");
         for (run_index, run) in page.runs.iter().enumerate() {
             if run_index > 0 {
@@ -1120,6 +1139,7 @@ pub(crate) fn cmd_inspect_text_blocks(input: &Path, pages_spec: &str, json: bool
     let options = ExtractOptions::default()
         .with_provenance(true)
         .with_word_gap_ratio(settings.word_gap_ratio)
+        .with_word_gap_auto(settings.word_gap_auto)
         // As the `extract-text` path: `TX-A1` and `AT-A1` both change the
         // characters this subcommand reports, so both are the operator's.
         .with_unmappable_code(settings.unmappable_code)

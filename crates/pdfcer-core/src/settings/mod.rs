@@ -1444,6 +1444,10 @@ pub struct Settings {
     /// callers, which is what made it the register's cheapest win: the
     /// setting was built, just unreachable.
     pub word_gap_ratio: f32,
+    /// Measure the word-gap threshold from each page
+    /// (`ExtractOptions::word_gap_auto`, G209); `word_gap_ratio` is then
+    /// the fallback for a page with no measurable valley.
+    pub word_gap_auto: bool,
     /// How many degrees apart two lines may be and still be dimensioned as
     /// PARALLEL rather than as an angle (ce dimensions, two-line pick).
     ///
@@ -1570,6 +1574,7 @@ impl Default for Settings {
             // `pdfce-gui` is what checks that it does.
             theme: "quiet".to_owned(),
             word_gap_ratio: crate::text_extract::ExtractOptions::default().word_gap_ratio,
+            word_gap_auto: crate::text_extract::ExtractOptions::default().word_gap_auto,
             // Taken from the geometry module's own policy default rather than
             // restated, so the settings file and the classifier cannot come to
             // disagree about the same number — the failure this module's
@@ -2166,6 +2171,16 @@ impl Settings {
                     using: Self::default().word_gap_ratio.to_string(),
                 }),
             },
+            "word_gap_auto" => match value {
+                "true" => self.word_gap_auto = true,
+                "false" => self.word_gap_auto = false,
+                _ => notes.push(SettingNote::BadValue {
+                    key: key.to_owned(),
+                    value: value.to_owned(),
+                    line,
+                    using: Self::default().word_gap_auto.to_string(),
+                }),
+            },
             "page_blend_space_source" => match value {
                 "device_native" => {
                     self.page_blend_space_source = PageBlendSpaceSource::DeviceNative;
@@ -2509,6 +2524,12 @@ impl Settings {
              # together. Accepted range 0.01 to 5.0.\n",
         );
         let _ = writeln!(out, "word_gap_ratio = {}\n", self.word_gap_ratio);
+        out.push_str(
+            "# true: measure that gap from each page instead (the valley between\n\
+             # letter gaps and word gaps), using word_gap_ratio only on a page\n\
+             # where no valley shows. true or false.\n",
+        );
+        let _ = writeln!(out, "word_gap_auto = {}\n", self.word_gap_auto);
 
         out.push_str(
             "# When you dimension between two lines, how many degrees apart they may\n\
@@ -3396,6 +3417,8 @@ mod tests {
             // NOT the default (`PerRecord`), same reason.
             mesh_patch_padding: MeshPatchPadding::None,
             word_gap_ratio: 0.35,
+            // NOT the default (`false`), same reason.
+            word_gap_auto: true,
             // Deliberately NOT the default (0.5): this test exists to catch a
             // field `write_to_string` forgot, and a value equal to the default
             // would pass by accident on the way back in.

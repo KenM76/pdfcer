@@ -1055,6 +1055,7 @@ that "worked" may therefore have lost pages — check the diagnostic.
 |---|---|---|
 | `include_artifacts` | `false` | policy, not conformance — §14.8.2.2 requires nothing |
 | `word_gap_ratio` | `0.20` | derived word space |
+| `word_gap_auto` | `false` | `with_word_gap_auto(true)`: measure the threshold per page (G209) — the midpoint of the widest gap between the page's letter-gap and word-gap clusters, searched in 0.06–0.60 em; a page with no such valley (under 12 positioned gaps, or one cluster) keeps `word_gap_ratio`. Each `PageText` reports `word_gap_ratio: f32` (the threshold used) and `word_gap_measured: bool` — disclose them off-canvas ("spaces at gaps over 0.11 em, measured"). Persisted as `Settings::word_gap_auto`; CLI `extract-text --auto-word-gap` |
 | `line_gap_ratio` | `0.30` | derived line break |
 | `backward_jump_ratio` | `0.50` | two-column detection |
 | `max_form_depth` | `64` | corpus-corrected; a conformant PDF/A file has a 32-deep chain |

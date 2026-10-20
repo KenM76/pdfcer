@@ -133,6 +133,7 @@ pub mod font;
 mod layout;
 mod ocr_layer;
 mod page;
+mod word_gap;
 
 use std::fmt;
 use std::sync::Arc;
@@ -1065,6 +1066,13 @@ pub struct PageText {
     /// that paint no text (an image, a path), so a structure-tree reader can
     /// tell "declared, no text" from "named but absent".
     pub marked_content_ids: Vec<(ContentStreamRef, u32)>,
+    /// The word-gap ratio this page was segmented with, in ems: the
+    /// measured threshold when [`Self::word_gap_measured`], else
+    /// [`ExtractOptions::word_gap_ratio`].
+    pub word_gap_ratio: f32,
+    /// Whether [`Self::word_gap_ratio`] was measured from this page
+    /// ([`ExtractOptions::word_gap_auto`]). DERIVED.
+    pub word_gap_measured: bool,
     /// Whether [`PageText::plain_text`] includes artifact runs.
     ///
     /// Captured from [`ExtractOptions::include_artifacts`] at extraction
@@ -1331,6 +1339,14 @@ pub struct ExtractOptions {
     /// consecutive glyphs on one baseline exceeds this fraction of the
     /// effective font size. Default `0.20`.
     pub word_gap_ratio: f32,
+    /// Measure the word-gap threshold from each page instead (G209):
+    /// the valley between the letter-gap and word-gap clusters of the
+    /// page's inter-glyph gaps. A page with no such valley (too few
+    /// positioned gaps, or spaces drawn as glyphs) keeps
+    /// [`Self::word_gap_ratio`]. What was used is on
+    /// [`PageText::word_gap_ratio`] / [`PageText::word_gap_measured`],
+    /// for an off-canvas disclosure. Default `false`.
+    pub word_gap_auto: bool,
     /// Treat a baseline movement larger than this fraction of the
     /// effective font size as a derived line break. Default `0.30`.
     pub line_gap_ratio: f32,
@@ -1415,6 +1431,7 @@ impl Default for ExtractOptions {
         Self {
             include_artifacts: false,
             word_gap_ratio: 0.20,
+            word_gap_auto: false,
             line_gap_ratio: 0.30,
             backward_jump_ratio: 0.50,
             same_direction_cos: SAME_DIRECTION_COS,
@@ -1519,6 +1536,23 @@ impl ExtractOptions {
         self.word_gap_ratio = word;
         self.line_gap_ratio = line;
         self.backward_jump_ratio = backward;
+        self
+    }
+
+    /// Measure the word-gap threshold per page ([`Self::word_gap_auto`]),
+    /// consuming and returning `self`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_text::text_extract::ExtractOptions;
+    ///
+    /// let auto = ExtractOptions::default().with_word_gap_auto(true);
+    /// assert!(auto.word_gap_auto);
+    /// ```
+    #[must_use]
+    pub const fn with_word_gap_auto(mut self, auto: bool) -> Self {
+        self.word_gap_auto = auto;
         self
     }
 
@@ -1821,10 +1855,13 @@ pub fn extract_page_view(
             page_index + 1
         ));
     }
-    let runs = layout::assemble(items, options, &mut diagnostics);
+    let (used, word_gap_measured) = word_gap::resolve(&items, options);
+    let runs = layout::assemble(items, &used, &mut diagnostics);
     Ok(PageText {
         page_index,
         runs,
+        word_gap_ratio: used.word_gap_ratio,
+        word_gap_measured,
         diagnostics,
         marked_content_ids: declared_mcids,
         include_artifacts: options.include_artifacts,
@@ -1888,6 +1925,8 @@ pub fn extract_document_view(
                     runs: Vec::new(),
                     diagnostics,
                     marked_content_ids: Vec::new(),
+                    word_gap_ratio: options.word_gap_ratio,
+                    word_gap_measured: false,
                     include_artifacts: options.include_artifacts,
                 }
             }
@@ -1951,6 +1990,8 @@ pub fn extract_pages_view(
                 runs: Vec::new(),
                 diagnostics,
                 marked_content_ids: Vec::new(),
+                word_gap_ratio: options.word_gap_ratio,
+                word_gap_measured: false,
                 include_artifacts: options.include_artifacts,
             }
         });

@@ -4106,6 +4106,12 @@ pub(crate) enum Command {
         /// means "not captured", which a zero could not.
         #[arg(long, requires = "json")]
         spans: bool,
+        /// Measure where words break from each page: the gap between the
+        /// page's letter spacing and its word spacing. A page where no such
+        /// gap shows keeps the `word_gap_ratio` setting. `--json` reports
+        /// the threshold each page used and whether it was measured.
+        #[arg(long)]
+        auto_word_gap: bool,
         /// Which text to take: `all`, `only` the OCR layer pdfcer wrote, or
         /// `without` it. Invisible text another tool wrote is not part of a
         /// pdfcer OCR layer, so `without` keeps it.

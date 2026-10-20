@@ -945,14 +945,18 @@ pub(crate) fn run() -> ExitCode {
             json,
             include_artifacts,
             spans,
+            auto_word_gap,
             ocr_layer,
         } => cmd_extract_text(
             &input,
             &pages,
             output.as_deref(),
             json,
-            include_artifacts,
-            spans,
+            crate::extract::ExtractTextFlags {
+                include_artifacts,
+                spans,
+                word_gap_auto: auto_word_gap,
+            },
             ocr_layer,
         ),
         Command::ExtractTags {
