@@ -5,7 +5,7 @@ Engineer-owned; replaced each session. The previous long-form handoff
 (gate-sweep history, the carried OWED list, benchmark recipes) is in git:
 `git show 78635459:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-19, mesh research after `v0.85.0` was published (tag
+**Written:** 2026-10-20, Pass 606.0 shipped (see *Resume here*); earlier: 2026-10-19, mesh research after `v0.85.0` was published (tag
 at `91f287f3`, carrying `603.0`–`605.0`; nothing shipped since — see
 *Resume here*). Ken's directive 2026-10-16:
 "release a new version and let pdfcer-gui know of the changes … then
@@ -32,7 +32,7 @@ below; no feature-request loop and no other Passes while it is open.**
   Delete untracked `.rs` probe files before packaging or the build is
   marked `-dirty`. `render-page` takes `--scale`, not `--width`; the OCR
   fixtures are `fixtures/synthetic/ocr/{printed,scan}.pdf`.
-- **Ledgers:** next free Pass **607.0**; next filing **1097th** (check
+- **Ledgers:** next free Pass **607.0**; next filing **1098th** (check
   ROADMAP's newest ledger line); no decision added since 183. Core-api verb
   count **378**.
 - **3D compressed meshes after `605.0`:** door `TS-0232-16-3D.pdf` 155/156
@@ -111,17 +111,23 @@ below; no feature-request loop and no other Passes while it is open.**
 - **`580.0` OCR `--magnify`** numbers and the unshipped bicubic trial are in
   the SESSION_LOG entry for the 1067th filing.
 
-## Resume here: Pass 606.0 is designed, not written (2026-10-19)
+## Resume here: Pass 606.0 SHIPPED (2026-10-20); three trailer meshes left
 
-Ken, 2026-10-19: "finish up your latest attempt and conclusions and make
-it so we can resume this later." No code was committed. The working
-tree's `compressed.rs` / `normals.rs` / `search.rs` carry LOCAL probe
-edits (`git diff --stat`); the diff, every probe module and the result
-files are in `D:\Dev\pdfTests\prc-probe\p603\` (`local.diff`, `HEAD.txt`,
-`results/`). **Before real work:** `git diff --stat`, then restore the
-three files from HEAD with the reverting verb ALONE in its own call, then
-re-apply by hand only what 606.0 needs. Never commit a `// P603 LOCAL`
-line or `probe*.rs`.
+`04e769fc` (`606.0`, 1097th filing): (a) `compressed/bend.rs`, the
+incremental planar-bend check (10 tol x (1 + 3 x distance / running
+diameter)); (b) `search::events`, best-first, inert-pruned, last in
+`best_fit` after `greedy` (window 300, budget 1M steps). Census exactly as
+predicted: **door 155/1/0 (m48 F->B), trailer 127/11/3 (m63 F->B)**, no mesh
+worse, slowest trailer mesh 4.6 s. Probe files are OUT of the tree again
+(backups in `D:\Dev\pdfTests\prc-probe\p603\`; the trimmed census harness is
+`probe_test_p606_census.rs` there: copy it in as `probe_test.rs` with
+`probe.rs`, and add `mod probe; mod probe_test;` under `#[cfg(test)]` beside
+`mod bend;` to run `fits`). Dumps:
+`C:\Users\Ken\AppData\Local\Temp\claude\D--Dev-pdfcer\9ea26e0e-7096-4476-9831-f1c4c5306c0c\scratchpad\p603\{door,tr}`;
+the PDFs are in `C:\Users\Ken\OneDrive\pdfTests\`.
+
+**Next:** trailer m64, m95, m107 (finding 6 below: the fan-closing REF
+stall class). Start with m95 against m63's fitted geometry, ti 55-67.
 
 **Findings, all measured** (release probe binary, MOR=4; judge = per-mesh
 census vs control door 155/0/1, trailer 127/10/4):
@@ -183,7 +189,7 @@ census vs control door 155/0/1, trailer 127/10/4):
    copies, but m63's fitted geometry is the nearest oracle for m95: start
    there, ti 55–67.
 
-**Pass 606.0 (to write; two parts; judged by census):** (a) make the
+**Pass 606.0 as designed (shipped; kept for the record):** (a) make the
 incremental planar-bend check permanent in `Walk::step` (allowance 10 tol
 + 3 × the face's running deflection; cite WD 7.8.9.1 planar faces; relate
 to `MAX_BEND`; keep `flat()`); (b) add the windowed, inert-pruned,

@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 606.0` — PRC compressed-tessellation fit: planar faces checked while walking + best-first event search — SHIPPED 2026-10-20 (1097th filing)
+
+Commit `04e769fc` on `main`, after `424795b3` (the 1096th filing, which designed it); push state not checked here (no shell, engineer-stated). Crate `pdfcer-3d` only; no `Cargo.toml` change (no `cargo tree` concern), no `pub` change (core-api verbs 378). Operator-direct continuation of `605.0`. Unreleased; last release `v0.85.0`.
+
+- **(a) `compressed/bend.rs` (new, private).** Per planar face a running plane (sum of triangle area vectors + corners); a new vertex farther than 10 tol x (1 + 3 x distance-from-centroid / running diameter) fails the step ("a planar face bends while rebuilding"). `MAX_BEND` applied incrementally [PRC WD 7.8.9.1]; the post-hoc `flat()` check is kept. Skipped for forgiving (partial) walks. 5 unit tests.
+- **(b) `search.rs` `events` reading,** last in `best_fit` after greedy: best-first over choice sets ordered by walk reach (fewer choices first), expanded by trial-walking unsignalled folds + turns within `EVENT_WINDOW`=300 triangles before the failure and after the last choice; candidates whose failure step does not move are pruned as inert; `EVENT_BUDGET` 1,000,000 steps. Returns a best fit (disclosed as best fit), never claimed unique. 1 unit test (`event_candidates`).
+- **Measured** (release build, per-mesh array dumps, operator's two local samples; judged per mesh against the control; unique/best-fit/failed). Door `TS-0232-16-3D.pdf` (156 meshes): 155/0/1 -> 155/1/0 (m48 failed -> best-fit). Trailer `TR-0522.pdf` (141 meshes): 127/10/4 -> 127/11/3 (m63 failed -> best-fit). No mesh worse per mesh; slowest trailer mesh 4.6 s.
+- **Still failed:** trailer m64, m95, m107 (all stall where a REF closes a fan onto an early vertex; not a fold/turn class).
+- **Tests / gates** (engineer-reported). pdfcer-3d 163 lib + 3 + 13 integration pass; `clippy -D warnings`, `fmt`, `cargo doc` broken-intra-doc-links clean; `check-code-structure` clean (569 baseline, none new).
+
+`FEATURES.md`: the 3D viewing row's figures updated and `606.0` named; boxes core `[x]` cli `[x]` gui `[ ]` unchanged. Backlog 3D item updated (dated).
+
+Ledgers: no decision; core-api verbs unchanged (378); next free `Pass 607.0`; next filing 1098th.
+
 ### `v0.85.0` — PUBLISHED 2026-10-18 (published at the 1095th filing; bump filed at the 1094th)
 
 **Published (engineer-measured; I have no shell, hard rule 8).** Annotated tag object `f5dedeb9120d35c881ae8ef5a85a5750e7abac8d` -> commit `91f287f36390d602ffc55002131fc0a42eaa03f8` (the 1094th filing, HEAD at tagging), `main` and the tag pushed; `git ls-remote` confirms the tag. CI at `91f287f3`: completed, success (read from GitHub via `gh run list`).
@@ -22367,15 +22381,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-### `Pass 606.0` — PRC compressed-tessellation fit: planar-bend gate + windowed best-first fallback search (DESIGNED, NOT WRITTEN; owner engineer; filed 1096th)
-
-Research-only so far; nothing committed. Samples: door `TS-0232-16-3D.pdf` (156 meshes), trailer `TR-0522.pdf` (141). Census = unique/best-fit/failed. Control at `28e9a53f`: door 155/0/1 (m48), trailer 127/10/4 (m63 m64 m95 m107; m39 best-fit). Probe diff, `HEAD.txt` and results are backed up in `D:\Dev\pdfTests\prc-probe\p603\`; full handoff in `docs/NEXT_SESSION.md` "Resume here". Session record: `SESSION_LOG.md` 1096th.
-
-- **606.0a — incremental planar-bend gate.** In `Walk::step`, reject a candidate whose bend exceeds 10 tol + 3 x running deflection, applying `MAX_BEND` while walking (WD 7.8.9.1). Probe: door 155/1/0 (m48 failed -> best-fit), trailer 127/10/4 per-mesh identical.
-- **606.0b — windowed fallback stage inside `best_fit`.** Window 300, inert-pruned (a flip that does not move the failure is dropped), farthest-first best-first. Result disclosed as best-fit unless proven unique. Probe: m63 fit in 53,668 steps / 27 expansions / 106 ms.
-- **Expected census:** door 155/1/0 or 156/0/0; trailer 127/11/3 (m63 recovered). Then release; the slot is OneDrive `pdfcer1`.
-- **Out of scope (different class):** m64, m95, m107 — the search EXHAUSTS; see the 1096th session entry. Not a Pass yet.
-- Ledgers: no decision; `FEATURES.md` untouched; next free `Pass 607.0`; next filing 1097th.
+(`Pass 606.0` shipped at the 1097th filing, `04e769fc`; see *Shipped*. The residue m64, m95, m107 is not a Pass yet. Release to OneDrive `pdfcer1` is the next step, not done.)
 
 > **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` was self-found at the 1053rd filing, not a GUI request. Ledgers: no decision; next free `Pass 581.0`; next filing 1068th (updated at the 1067th; superseded at the 1068th by the stub below: next free `Pass 587.0`, next filing 1069th; superseded again at the 1069th: next free `Pass 588.0`, next filing 1070th).
 > - `567.0` (`G185`) and `568.0` (`G186`) shipped at the 1055th filing (`26cc218c`); see *Shipped*.
@@ -32898,6 +32904,7 @@ nothing gets forgotten, not as a commitment to build in this order.
 > **3D bucket, OPEN, residue of `Pass 600.0` (1086th filing), not yet a Pass: the small nylock nuts still do not render.** Door sample meshes m2, m23, m39, m48 (m23 + m39 = the 14 nut placements) and, in the second assembly sample, m39, m63, m64, m95, m107 fail the compressed-tessellation rebuild ("an edge is shared by more than two triangles"). m23 fails at the exactly collinear status=3 sliver at triangle 484, whose continuation order no bit, geometry or legacy rule determines; the fix needs 3+ coordinated flips (484+485 fails at 843; 484+839 fails at 1779; wall at 1779 with no fix inside the 40-step window; a forced plain Fold at 484 fails at 487). A greedy 1-2 flip search cannot reach it. Next lever is the search shape (window, budget, non-greedy), not a decoder rule. **Update, 1088th filing:** the nuts are now drawable in part on request (`Pass 602.0`, `--mesh-fit partial|continue`), but the root cause stays OPEN (which way the encoder folds at a sliver). Rejected against the fold oracle (`PDF_Spec/threed/prc__8137__tess_3d_compressed.md` section 2d, rows X30-X38): branch-frame sign at non-collinear Normal slivers 665/691 vs default 661/691; Reversed-thin branch sign 910/1011 ~ default; collinear slivers ~50% under every sign test; parent-fold inheritance; sign-formula family best 856/899. m2 fails on an out-of-range point reference, not a fold. **Update, 1091st filing (`Pass 603.0`, `5fbbbebd`):** a record normal lying in its triangle's plane makes its reversed bit noise (rule R17, rows X42-X49); door m2 is recovered, so door now has 3 open (m23, m39, m48), trailer 6 failed (m39, m63, m64, m95, m107, m108). Remaining classes: degenerate frames after collinear triangles, a reused-normal reference apex, collinear thin chains, m115's 0.02 cosine.
 **Update, 1092nd filing (`Pass 604.0`, `be4bbe81`):** the fit search's candidate window is now split by class, so weak signalled folds cannot hide an unsignalled one; trailer 123/12/6 -> 125/11/5 unique/best-fit/failed (m108 failed -> unique, m53 best-fit -> unique), door unchanged 153/0/3. Remaining failures: door m23, m39, m48; trailer m39, m63, m64, m95, m107. **Finding (not a Pass, nothing shipped):** a "unique" fit can still be geometrically wrong, because a wrong fold still consumes every stored number. A fold-back census found fold-backs in all 12 trailer best-fits, 27 of 123 trailer unique meshes (the nut family, first fold-back at about 74% through each) and 10 of 153 door unique meshes; rejecting fold-backs inside the walk regressed every such mesh to failed (trailer 96/2/43, door 143/0/13), and the nut family's fold-back triangles reuse existing vertices (a traversal/topology error upstream, not an apex placement). Next lens: that reused-vertex fold-back at about 74%.
 **Update, 1093rd filing (`Pass 605.0`, `28e9a53f`):** a degenerate apex frame now takes Y from its own X (decoder arithmetic, not a search shape); door 153/0/3 -> 155/0/1 (m23, m39 fixed; m48 remains), trailer 125/11/5 -> 127/10/4 (m52, m96 best-fit -> unique; m39 failed -> best-fit). Remaining failures: door m48; trailer m63, m64, m95, m107 (m39 now best-fit). Next lens: rare-branch arithmetic and degenerate frames following thin (collinear) triangles, since every affected mesh failed right after one.
+**Update, 1097th filing (`Pass 606.0`, `04e769fc`):** door 155/1/0 (m48 failed -> best-fit), trailer 127/11/3 (m63 failed -> best-fit). Only trailer m64, m95, m107 still fail; all three stall where a REF closes a fan onto an early vertex (not a fold/turn class). Next lens: REF fan-closure semantics.
 
 > Residue of `Pass 558.0` (1041st filing), not yet a Pass: OCR table cells from PaddleOCR-VL are laid on an even grid over the region; measure real cell boxes (e.g. from ruling lines) instead.
 

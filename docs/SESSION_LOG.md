@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1097th filing) — `Pass 606.0` shipped in `04e769fc` (PRC compressed fit: planar faces checked while walking; best-first event search)
+
+**Shipped (engineer-reported, no shell here):** `04e769fc`, crate `pdfcer-3d` only. (a) private `compressed/bend.rs`: incremental planar-bend gate (`MAX_BEND` applied while walking, WD 7.8.9.1; post-hoc `flat()` kept; skipped for partial walks; 5 tests). (b) `search.rs` `events` reading last in `best_fit`: best-first over choice sets, window 300, inert-pruned, budget 1,000,000 steps; disclosed as best fit (1 test).
+
+**Census (release, per mesh vs control; unique/best-fit/failed):** door 156 meshes 155/0/1 -> 155/1/0 (m48); trailer 141 meshes 127/10/4 -> 127/11/3 (m63). No mesh worse; slowest trailer mesh 4.6 s. 163 lib + 3 + 13 tests, clippy/fmt/doc/structure clean; no manifest or `pub` change.
+
+**Findings:** m64, m95, m107 remain failed; all stall where a REF closes a fan onto an early vertex (not a fold/turn class).
+
+**Decisions:** none. **Filed:** ROADMAP Shipped entry, Next up stub, Backlog 3D update, FEATURES 3D row figures (boxes unchanged). Backup currency and git state not verified from here.
+
+**For next session:** release to OneDrive `pdfcer1` (not done); investigate REF fan-closure semantics for m64/m95/m107. `docs/NEXT_SESSION.md` "Resume here" still describes 606.0 as designed (engineer-owned; not edited). Next free `Pass 607.0`; next filing 1098th.
+
 ## 2026-10-19 (1096th filing) — PRC compressed-mesh fit research; `Pass 606.0` designed, not written (no Pass shipped, nothing committed)
 
 **Premises (engineer-reported, no shell here):** door `TS-0232-16-3D.pdf` (156 meshes), trailer `TR-0522.pdf` (141); census = unique/best-fit/failed. Control after `605.0`: door 155/0/1 (m48), trailer 127/10/4 (m63 m64 m95 m107 fail; m39 best-fit). Probe edits are LOCAL only (`// P603 LOCAL` in `compressed.rs`, `compressed/normals.rs`, `compressed/search.rs`; untracked `compressed/probe*.rs`); backup with results in `D:\Dev\pdfTests\prc-probe\p603\` (`local.diff`, `HEAD.txt`, `results/`). Handoff: `docs/NEXT_SESSION.md` "Resume here". Ken, 2026-10-19: "finish up your latest attempt and conclusions and make it so we can resume this later in a new session."
