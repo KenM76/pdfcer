@@ -1538,7 +1538,11 @@ pub(crate) fn cmd_inspect_reflow_preview(
         Ok(cells) => cells,
         Err(code) => return code,
     };
-    let model = EditableTextModel::recognize_with_cells(&extracted, &recog, &cells);
+    let marks = pdfcer_core::content::ContentStream::from_page(&doc.view(), page)
+        .map(|c| pdfcer_core::text_edit::LineMarks::scan(&c))
+        .unwrap_or_default();
+    let model =
+        EditableTextModel::recognize_with_cells(&extracted, &recog, &cells).with_line_marks(marks);
     let engine = ReflowEngine::new(&model);
 
     let req = ReflowRequest::new()

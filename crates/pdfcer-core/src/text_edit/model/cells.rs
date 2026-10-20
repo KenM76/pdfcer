@@ -171,8 +171,8 @@ fn area(c: &CellRegion) -> f64 {
     c.rect.width() * c.rect.height()
 }
 
-/// One block per cell holding text, ordered by table, row, column; each
-/// block's lines run top to bottom.
+/// The cells' blocks, ordered by table, row, column: each cell's text split
+/// into paragraphs ([`cell_paragraphs`]), each block's lines top to bottom.
 pub(super) fn cell_blocks(lines: &[Line], cells: &[CellRegion]) -> Vec<Block> {
     let mut order: Vec<usize> = (0..cells.len()).collect();
     order.sort_by_key(|&ci| cells.get(ci).map(|c| (c.table, c.row, c.column)));
@@ -189,19 +189,55 @@ pub(super) fn cell_blocks(lines: &[Line], cells: &[CellRegion]) -> Vec<Block> {
             continue;
         };
         members.sort_by(|&a, &b| top_to_bottom(lines.get(a), lines.get(b)));
-        blocks.push(Block {
-            kind: BlockKind::TableCell {
-                table: cell.table,
-                row: cell.row,
-                column: cell.column,
-            },
-            column: lines.get(first).map_or(0, |l| l.column),
-            bbox: union_bbox(lines, &members),
-            line_indices: members,
-            cell_rect: Some(cell.rect),
-        });
+        for paragraph in cell_paragraphs(lines, &members) {
+            blocks.push(Block {
+                kind: BlockKind::TableCell {
+                    table: cell.table,
+                    row: cell.row,
+                    column: cell.column,
+                },
+                column: lines.get(first).map_or(0, |l| l.column),
+                bbox: union_bbox(lines, &paragraph),
+                line_indices: paragraph,
+                cell_rect: Some(cell.rect),
+            });
+        }
     }
     blocks
+}
+
+/// A line continues a cell paragraph when its baseline is at most this many
+/// ems below the paragraph's last line.
+const CELL_PITCH_EM: f32 = 1.6;
+
+/// `members` (top to bottom) grouped into paragraphs: a line joins the
+/// nearest paragraph whose last line sits within [`CELL_PITCH_EM`] above it
+/// and overlaps it horizontally, else starts its own. A one-paragraph cell
+/// stays one block; a drawing frame detected as a cell yields each note and
+/// label as its own block (G206).
+fn cell_paragraphs(lines: &[Line], members: &[usize]) -> Vec<Vec<usize>> {
+    let mut paragraphs: Vec<Vec<usize>> = Vec::new();
+    for &li in members {
+        let Some(line) = lines.get(li) else { continue };
+        let reach = CELL_PITCH_EM * line.size;
+        let joins = paragraphs
+            .iter()
+            .enumerate()
+            .filter_map(|(pi, p)| {
+                let last = lines.get(*p.last()?)?;
+                let drop = last.baseline_y - line.baseline_y;
+                let overlap = last.bbox.urx.min(line.bbox.urx) - last.bbox.llx.max(line.bbox.llx);
+                (drop > 0.0 && drop <= reach.max(CELL_PITCH_EM * last.size) && overlap > 0.0)
+                    .then_some((pi, drop))
+            })
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(pi, _)| pi);
+        match joins.and_then(|pi| paragraphs.get_mut(pi)) {
+            Some(p) => p.push(li),
+            None => paragraphs.push(vec![li]),
+        }
+    }
+    paragraphs
 }
 
 fn top_to_bottom(a: Option<&Line>, b: Option<&Line>) -> std::cmp::Ordering {

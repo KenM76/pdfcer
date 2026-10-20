@@ -451,3 +451,32 @@ fn a_marked_block_keeps_its_wraps_and_its_blank_lines() {
     assert_eq!(content.matches("/pdfc_TextBlock MP").count(), 1);
     assert_eq!(content.matches("/pdfc_Break MP").count(), 2);
 }
+
+#[test]
+fn a_block_after_a_blank_line_block_is_still_the_one_edited() {
+    let content = "BT /F1 12 Tf 72 700 Td (Alpha bravo charlie) Tj ET\n\
+                   BT /F1 12 Tf 14 TL 72 560 Td (Second paragraph) Tj T* (its next line) Tj \
+                   T* (and a last) Tj ET\n";
+    let mut s = EditSession::new(super::block_layout::doc_from_pages(&[content], 0));
+    let first = "Dear reader,\n\nAlpha bravo charlie delta echo foxtrot golf hotel india.";
+    s.edit_block_text(0, 0, first, &BlockEditOptions::default())
+        .expect("edits the first");
+    let second = s
+        .block_at_point(0, 80.0, 561.0)
+        .expect("ok")
+        .expect("a block");
+    assert_eq!(
+        second.block_index, 1,
+        "the blank line did not split block 0"
+    );
+    s.edit_block_text(
+        0,
+        second.block_index,
+        "Changed.",
+        &BlockEditOptions::default(),
+    )
+    .expect("edits the second");
+    let hit = |y| s.block_at_point(0, 80.0, y).expect("ok").map(|h| h.text);
+    assert_eq!(hit(701.0).as_deref(), Some(first));
+    assert_eq!(hit(561.0).as_deref(), Some("Changed."));
+}

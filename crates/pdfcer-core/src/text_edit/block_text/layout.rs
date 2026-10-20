@@ -128,16 +128,17 @@ pub(crate) fn plan_block_text(
     let extracted = text_extract::extract_page_view(doc, page, page_index, &options)
         .map_err(crate::text_edit::ReflowApplyError::from)?;
     let cells = crate::text_edit::detect_cell_regions(doc, page_index).map_err(table_error)?;
+    let stream =
+        ContentStream::from_page(doc, page).map_err(crate::text_edit::ReflowApplyError::from)?;
     let model =
-        EditableTextModel::recognize_with_cells(&extracted, &reflow_recognition_options(), &cells);
+        EditableTextModel::recognize_with_cells(&extracted, &reflow_recognition_options(), &cells)
+            .with_line_marks(crate::text_edit::LineMarks::scan(&stream));
     let req = ReflowRequest::new()
         .with_wrap_width_opt(opts.wrap_width)
         .with_page_cropbox(page.crop_box);
     let shape = ReflowEngine::new(&model)
         .preview(block_index, &req)
         .map_err(crate::text_edit::ReflowApplyError::from)?;
-    let stream =
-        ContentStream::from_page(doc, page).map_err(crate::text_edit::ReflowApplyError::from)?;
     let block = model
         .blocks()
         .get(block_index)

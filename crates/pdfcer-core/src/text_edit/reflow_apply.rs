@@ -516,11 +516,13 @@ pub(crate) fn plan_reflow_from_doc(
     let options = ExtractOptions::default().with_provenance(true);
     let extracted = text_extract::extract_page_view(doc, page, page_index, &options)?;
     let cells = super::detect_cell_regions(doc, page_index).map_err(table_error)?;
+    let stream = ContentStream::from_page(doc, page)?;
     let model = EditableTextModel::recognize_with_cells(
         &extracted,
         &super::reflow::reflow_recognition_options(),
         &cells,
-    );
+    )
+    .with_line_marks(super::LineMarks::scan(&stream));
 
     let req = ReflowRequest {
         page_cropbox: req.page_cropbox.or(Some(page.crop_box)),
@@ -533,7 +535,6 @@ pub(crate) fn plan_reflow_from_doc(
     // audit, re-based on the caller's view in `Pass 257.0`): the block model
     // and the stream it is spliced into must come from one graph, or the
     // plan's byte offsets describe a different stream than the one edited.
-    let stream = ContentStream::from_page(doc, page)?;
     plan_reflow(doc, page, &stream, &model, block_index, &preview)
 }
 

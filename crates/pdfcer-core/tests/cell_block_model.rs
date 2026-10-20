@@ -470,3 +470,80 @@ fn a_reflow_past_the_cell_bottom_is_reported_and_the_grid_stays() {
     let rects = |c: &[CellRegion]| c.iter().map(|c| c.rect).collect::<Vec<_>>();
     assert_eq!(rects(&after), rects(&before), "the cell is not resized");
 }
+
+/// A Word-shaped page: numbered headings with the title at a tab stop, two
+/// body lines at the margin with a 1.15 em pitch, and paragraph spacing
+/// wider than the pitch between every heading and paragraph (G205).
+fn word_sections() -> (PageText, Vec<String>) {
+    let body = "w".repeat(70);
+    let mut runs = Vec::new();
+    let mut want = Vec::new();
+    let mut y = 750.0;
+    for n in 1..=4 {
+        let number = format!("1.{n}");
+        let title = format!("Heading {n}");
+        runs.push(row_run(&[(&number, 72.0), (&title, 108.0)], y));
+        want.push(format!("{number}{title}"));
+        y -= 18.0;
+        runs.push(run_at(&body, 72.0, y));
+        runs.push(run_at(&body, 72.0, y - 11.5));
+        want.push(format!("{body}\n{body}"));
+        y -= 11.5 + 24.0;
+    }
+    (page(runs), want)
+}
+
+#[test]
+fn spaced_paragraphs_break_on_the_line_pitch_not_the_median_gap() {
+    let (p, want) = word_sections();
+    for (name, o) in [
+        ("default", opts()),
+        ("reflow", reflow_recognition_options()),
+    ] {
+        let m = EditableTextModel::recognize(&p, &o);
+        assert_eq!(
+            m.columns(),
+            1,
+            "{name}: a tab stop crossed by body text is not a gutter"
+        );
+        assert_eq!(m.diagnostics().lines_split_by_gutter, 0, "{name}");
+        assert_eq!(
+            block_texts(&m),
+            want,
+            "{name}: one block per heading and paragraph"
+        );
+    }
+}
+
+#[test]
+fn a_drawing_frame_cell_splits_into_its_notes_and_labels() {
+    let p = page(vec![
+        run_at("#1 LOCATE THE MOUNTS", 300.0, 600.0),
+        run_at("AND DRILL THROUGH", 300.0, 588.0),
+        run_at("IN TWO PLACES", 300.0, 576.0),
+        run_at("12", 100.0, 400.0),
+        run_at("FAR SLOT", 450.0, 200.0),
+    ]);
+    let frame = [cell(0, 0, 20.0, 20.0, 760.0, 760.0)];
+    let m = EditableTextModel::recognize_with_cells(&p, &opts(), &frame);
+    assert_eq!(
+        block_texts(&m),
+        [
+            "#1 LOCATE THE MOUNTS\nAND DRILL THROUGH\nIN TWO PLACES",
+            "12",
+            "FAR SLOT"
+        ]
+    );
+    assert_eq!(m.diagnostics().table_cell_blocks, 3);
+    for b in m.blocks() {
+        assert_eq!(
+            b.kind,
+            BlockKind::TableCell {
+                table: 0,
+                row: 0,
+                column: 0
+            }
+        );
+        assert_eq!(b.cell_rect, Some(frame[0].rect));
+    }
+}

@@ -87,10 +87,48 @@ impl EditableTextModel<'_> {
     /// Attach the page's line-end marks, so [`Self::line_ends`] reads
     /// pdfcer's own blocks exactly. The model must have been recognized from
     /// an extraction with provenance (the marks are matched by byte offset).
+    ///
+    /// Adjacent blocks of one kind and column that lie in the same marked
+    /// text object are merged back into one: a block pdfcer wrote is one
+    /// block whatever its blank lines did to the leading rule.
     #[must_use]
     pub fn with_line_marks(mut self, marks: LineMarks) -> Self {
         self.marks = marks;
+        self.merge_marked_blocks();
         self
+    }
+
+    fn merge_marked_blocks(&mut self) {
+        if self.marks.is_empty() {
+            return;
+        }
+        let objects: Vec<_> = self.blocks.iter().map(|b| self.marked_object(b)).collect();
+        let mut merged: Vec<Block> = Vec::with_capacity(self.blocks.len());
+        let mut last_object = None;
+        for (block, object) in std::mem::take(&mut self.blocks).into_iter().zip(objects) {
+            match merged.last_mut() {
+                Some(prev)
+                    if object.is_some()
+                        && object == last_object
+                        && prev.kind == block.kind
+                        && prev.column == block.column =>
+                {
+                    prev.line_indices.extend(block.line_indices);
+                    prev.bbox = super::stages::union_bbox(&self.lines, &prev.line_indices);
+                }
+                _ => merged.push(block),
+            }
+            last_object = object;
+        }
+        for (bi, block) in merged.iter().enumerate() {
+            for &li in &block.line_indices {
+                if let Some(line) = self.lines.get_mut(li) {
+                    line.block = bi;
+                }
+            }
+        }
+        self.diagnostics.blocks_recognized = merged.len() as u64;
+        self.blocks = merged;
     }
 
     /// Whether [`Self::line_ends`] reads `block` from marks or infers it.
@@ -116,6 +154,31 @@ impl EditableTextModel<'_> {
     /// For a block wholly inside one marked text object: the break points
     /// between each line and the next. `None` otherwise.
     pub(super) fn marked_gaps(&self, block: &Block) -> Option<Vec<usize>> {
+        let spans = self.line_spans(block)?;
+        self.marked_holding(&spans)?;
+        Some(
+            spans
+                .iter()
+                .zip(spans.iter().skip(1))
+                .map(|(this, next)| self.marks.breaks_in(this.1..next.0))
+                .collect(),
+        )
+    }
+
+    /// The marked text object wholly holding `block`, if any.
+    fn marked_object(&self, block: &Block) -> Option<Range<usize>> {
+        self.marked_holding(&self.line_spans(block)?).cloned()
+    }
+
+    fn marked_holding(&self, spans: &[(usize, usize)]) -> Option<&Range<usize>> {
+        let first = spans.iter().map(|s| s.0).min()?;
+        let last = spans.iter().map(|s| s.1).max()?;
+        self.marks.block_holding(first, last.saturating_sub(1))
+    }
+
+    /// Each line's operator byte span in the page content; `None` when the
+    /// model has no marks or a glyph is not page content.
+    fn line_spans(&self, block: &Block) -> Option<Vec<(usize, usize)>> {
         if self.marks.is_empty() {
             return None;
         }
@@ -133,16 +196,7 @@ impl EditableTextModel<'_> {
             }
             spans.push(span?);
         }
-        let first = spans.iter().map(|s| s.0).min()?;
-        let last = spans.iter().map(|s| s.1).max()?;
-        self.marks.block_holding(first, last.saturating_sub(1))?;
-        Some(
-            spans
-                .iter()
-                .zip(spans.iter().skip(1))
-                .map(|(this, next)| self.marks.breaks_in(this.1..next.0))
-                .collect(),
-        )
+        Some(spans)
     }
 }
 

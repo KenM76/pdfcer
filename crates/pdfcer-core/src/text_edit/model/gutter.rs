@@ -36,7 +36,10 @@ pub(super) fn split_gutters(
     let gaps = candidate_gaps(page, &raw, options.gutter_min_em);
     let confirmed: Vec<&Gap> = gaps
         .iter()
-        .filter(|g| aligned_lines(&gaps, g) >= options.gutter_min_lines)
+        .filter(|g| {
+            let members = aligned_lines(&gaps, g);
+            members.len() >= options.gutter_min_lines && !crossed(&raw, &members, g)
+        })
         .collect();
     if confirmed.is_empty() {
         return raw;
@@ -89,8 +92,8 @@ fn candidate_gaps(page: &PageText, raw: &[RawLine], min_em: f32) -> Vec<Gap> {
     gaps
 }
 
-/// How many distinct lines carry a gap overlapping `gap` by half an em.
-fn aligned_lines(gaps: &[Gap], gap: &Gap) -> usize {
+/// The distinct lines carrying a gap overlapping `gap` by half an em.
+fn aligned_lines(gaps: &[Gap], gap: &Gap) -> Vec<usize> {
     let need = 0.5 * gap.size;
     let mut lines: Vec<usize> = gaps
         .iter()
@@ -98,7 +101,33 @@ fn aligned_lines(gaps: &[Gap], gap: &Gap) -> usize {
         .map(|o| o.line)
         .collect();
     lines.dedup();
-    lines.len()
+    lines
+}
+
+/// Whether at least as many lines run straight across `gap`, between the
+/// first and last of its aligned `members`, as carry it. A numbered
+/// heading's tab lines up from heading to heading, but the body text
+/// between the headings runs through it, so it is not a gutter (G205).
+fn crossed(raw: &[RawLine], members: &[usize], gap: &Gap) -> bool {
+    let baselines = members
+        .iter()
+        .filter_map(|&li| raw.get(li))
+        .map(|l| l.baseline_y);
+    let lo = baselines.clone().fold(f32::INFINITY, f32::min);
+    let hi = baselines.fold(f32::NEG_INFINITY, f32::max);
+    let crossing = raw
+        .iter()
+        .enumerate()
+        .filter(|(li, l)| {
+            !members.contains(li)
+                && l.cell.is_none()
+                && l.direction.0 >= HORIZONTAL_COS
+                && (lo..=hi).contains(&l.baseline_y)
+                && l.llx <= gap.x0
+                && l.urx >= gap.x1
+        })
+        .count();
+    crossing >= members.len()
 }
 
 /// `line` cut before each glyph index in `cuts` (ascending).

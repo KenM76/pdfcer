@@ -1480,7 +1480,7 @@ let n = found.diagnostics.inferred();           // ruled + aligned tables, merge
 - CLI: `pdfcer extract-tables in.pdf [--json] [-o out] [--pages 1-3]`; `export-xlsx`
   and `export-docx` take the same `--pages` (1-based, order honoured).
 
-### 8.4.4a Cell-aware text blocks — one block per table cell (`Pass 434.0`)
+### 8.4.4a Cell-aware text blocks — each cell's paragraphs as blocks (`Pass 434.0`, `Pass 612.0`)
 
 pdfcer-gui request G080. `text_edit::EditableTextModel::recognize` knows
 nothing of tables: a ruled row's cells share a baseline, so the row becomes
@@ -1506,9 +1506,10 @@ for b in model.blocks() {
 | `detect_cell_regions(&DocumentView, page_index) -> Result<Vec<CellRegion>, TableError>` | `table_detect` on one page, **ruled tables only**: an aligned table is inferred from the same text alignment the model already reads, so it adds no evidence. |
 | `recognize_with_cells(page, options, cells) -> Self`; `model.cells() -> &[CellRegion]` | `recognize` is `recognize_with_cells(.., &[])`, unchanged. A glyph belongs to the smallest cell containing its centre. |
 | `Line::cell: Option<usize>` | Index into `model.cells()`. A line never spans two cells, nor a cell and the body. |
-| `BlockKind::TableCell { table, row, column }`, `Block::cell_rect: Option<Rect>` | One block per non-empty cell. **Order:** every paragraph block first (columns as before), then cell blocks by table, row, column. An empty cell yields no block. |
+| `BlockKind::TableCell { table, row, column }`, `Block::cell_rect: Option<Rect>` | One block per paragraph of each non-empty cell: a line continues the paragraph whose last line sits at most 1.6 em above it and overlaps it horizontally (G206: a drawing border detected as one cell yields each note and label as its own block, all sharing the cell's kind and `cell_rect`). **Order:** every paragraph block first (columns as before), then cell blocks by table, row, column. An empty cell yields no block. |
 | `BlockDiagnostics::{lines_split_by_cell, lines_split_by_gutter, table_cell_blocks}` | Counts. |
-| `BlockRecognitionOptions::{gutter_min_em, gutter_min_lines}` | The column-gutter rule (defaults 1.5 em, 3 lines): a horizontal gap of at least `gutter_min_em` × size, at the same x on at least `gutter_min_lines` consecutive baselines, splits those lines into two columns. Cell lines are exempt. `f64::INFINITY` / `usize::MAX` turn it off. Known cost: a tab-aligned list of 3+ rows with such a gap splits too. |
+| `BlockRecognitionOptions::{gutter_min_em, gutter_min_lines}` | The column-gutter rule (defaults 1.5 em, 3 lines): a horizontal gap of at least `gutter_min_em` × size, at the same x on at least `gutter_min_lines` consecutive baselines, splits those lines into two columns. Cell lines are exempt, and a gap crossed by at least as many body lines as it aligns is a tab stop, not a gutter (G205: numbered headings). `f64::INFINITY` / `usize::MAX` turn it off. |
+| leading break (`paragraph_leading_ratio`, default 0.5) | A gap over `(1 + ratio)` × the column's line pitch starts a paragraph. The pitch is the median of the gaps within 0.6–1.6 × the larger line size (G205: so a page of spaced paragraphs is not measured at its blank-line gap); with no gap in that band, the median of all. |
 
 **Navigation.** Inside a cell, `caret_up`/`caret_down` move to the next line
 in the same cell, else to the nearest line of the cell above/below (the one
@@ -1560,7 +1561,7 @@ CLI.
 | `BlockHit::{text, line_ends, line_end_source, line_gaps}` | `block_at_point` returns this spelling, the per-line ends, where they were read from, and the marked break counts. |
 | `text_edit::LineEndSource` | `Marked` (read from pdfcer's own marks: exact) or `Inferred` (`#[non_exhaustive]`; `as_str()` gives `marked` / `inferred`). |
 | `text_edit::LineMarks::scan(&ContentStream) -> LineMarks` | The marks in a page's own content (`ContentStream::from_page`); `is_empty()`. `Default` is no marks. |
-| `model.with_line_marks(marks) -> Self` | Attach them; the model must come from an extraction with provenance. `block_at_point` does this itself. |
+| `model.with_line_marks(marks) -> Self` | Attach them; the model must come from an extraction with provenance. Also merges adjacent blocks of one kind and column that lie in one marked text object, so a pdfcer-written block with blank lines stays one block. **Block indices change**: build every model whose index you pass to `edit_block_text`/`reflow_block` with marks. `block_at_point`, `edit_block_text` and `reflow_block` do this themselves. |
 | `model.line_end_source(&block) -> LineEndSource` | Which reading `line_ends` used for `block`. |
 | `model.line_gaps(&block) -> Option<Vec<usize>>` | The marked break count at each line end but the last: 0 wrap, 1 break, `n` a break followed by `n - 1` blank lines (`G183`). `None` when the ends are inferred; inference finds no blank lines. Use it to re-open a paragraph with its blank lines while walking the block's own glyphs. |
 

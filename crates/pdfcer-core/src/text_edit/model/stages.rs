@@ -11,7 +11,7 @@ use crate::text_extract::{ExtractedGlyph, PageText, TextOrigin};
 /// A line under construction in Stage 1, before column/block assignment.
 pub(super) struct RawLine {
     pub(super) glyphs: Vec<GlyphRef>,
-    baseline_y: f32,
+    pub(super) baseline_y: f32,
     pub(super) size: f32,
     /// The line's writing direction, from its first glyph.
     pub(super) direction: (f32, f32),
@@ -19,9 +19,9 @@ pub(super) struct RawLine {
     origin: (f32, f32),
     /// The [`CellRegion`] index every glyph of this line falls in.
     pub(super) cell: Option<usize>,
-    llx: f32,
+    pub(super) llx: f32,
     lly: f32,
-    urx: f32,
+    pub(super) urx: f32,
     ury: f32,
 }
 
@@ -201,7 +201,8 @@ impl EditableTextModel<'_> {
     }
 
     /// Stage 3: segment each column's body lines into paragraphs by leading
-    /// gap and first-line indent, then make one block per table cell, and
+    /// gap and first-line indent, then make each table cell's paragraphs
+    /// blocks, and
     /// stamp every line's `block`.
     pub(super) fn segment_blocks(
         page: &PageText,
@@ -287,6 +288,11 @@ struct ColLine {
     size: f32,
 }
 
+/// A baseline gap within this range of the line size, in ems, is one line
+/// pitch: single to one-and-a-half spacing, excluding a sub/superscript
+/// shift and a blank line.
+const PITCH_EM: (f32, f32) = (0.6, 1.6);
+
 /// A column's body lines, top to bottom, with the column's left margin and
 /// median leading.
 fn column_metrics(lines: &[Line], column: usize) -> (Vec<ColLine>, f64, f32) {
@@ -303,15 +309,28 @@ fn column_metrics(lines: &[Line], column: usize) -> (Vec<ColLine>, f64, f32) {
         .collect();
     col_lines.sort_by(|a, b| b.baseline_y.total_cmp(&a.baseline_y));
     let margin = col_lines.iter().map(|c| c.llx).fold(f64::MAX, f64::min);
-    // The median leading is robust to one outsized paragraph gap.
-    let mut gaps: Vec<f32> = col_lines
+    // The leading is the median of the gaps that look like one line pitch.
+    // A page of short paragraphs and headings each set off by a blank line
+    // has more blank-line gaps than pitches, so the median of ALL gaps is a
+    // blank line and no paragraph would break (G205). The plain median is
+    // the fallback for a column with no pitch-sized gap (double spacing).
+    let pairs: Vec<(f32, f32)> = col_lines
         .windows(2)
         .filter_map(|w| match w {
-            [a, b] => Some(a.baseline_y - b.baseline_y),
+            [a, b] => Some((a.baseline_y - b.baseline_y, a.size.max(b.size))),
             _ => None,
         })
         .collect();
-    let typical = median(&mut gaps);
+    let mut pitches: Vec<f32> = pairs
+        .iter()
+        .filter(|&&(gap, size)| (PITCH_EM.0 * size..=PITCH_EM.1 * size).contains(&gap))
+        .map(|&(gap, _)| gap)
+        .collect();
+    let typical = if pitches.is_empty() {
+        median(&mut pairs.iter().map(|&(gap, _)| gap).collect::<Vec<_>>())
+    } else {
+        median(&mut pitches)
+    };
     (col_lines, margin, typical)
 }
 
