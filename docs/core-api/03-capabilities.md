@@ -4460,13 +4460,14 @@ with a wildcard arm, and show `as_str()` for an unknown category.
 
 | Call | Returns |
 |---|---|
-| `EditSession::plan_optimize(&OptimizeSettings) -> Result<OptimizePlan, OptimizeError>` | every encoding already performed in memory: `changes`, `skipped` (each with a `SkipReason`), `notes`, `cleanup: CleanupPlan`, `file_bytes`, `stream_saving()`, `is_lossy()` |
+| `EditSession::plan_optimize(&OptimizeSettings) -> Result<OptimizePlan, OptimizeError>` | every encoding already performed in memory: `changes`, `skipped` (each with a `SkipReason`), `notes`, `cleanup: CleanupPlan`, `discard: Vec<MetadataItem>`, `file_bytes`, `stream_saving()`, `is_lossy()` |
 | `EditSession::apply_optimize(&OptimizePlan) -> Result<usize, OptimizeError>` | commits the plan as **one** undo entry, `CommandKind::Optimize { count }`; returns the count |
 | `EditSession::save_optimized(&SaveOptions, &RebuildOptions) -> Result<(OptimizedFile, Option<RebuildReport>), WriteError>` | `Smaller(bytes)` (a full rewrite, then the structure rebuild unless `RebuildOptions::is_none()`), or `KeptOriginal { original, rewritten }` when it is not strictly smaller; the report is `Some` whenever a rebuild ran |
 | `RebuildOptions { remove_unreferenced, merge_duplicates, object_streams, level }` | `all()` (= `Default`, level 9), `none()`, `is_none()`; also `pdfcer_model::writer::rebuild(&Document, &RebuildOptions, &SaveOptions)` directly |
 | `RebuildReport { objects_in, objects_out, unreferenced, merged, structural_dropped, dangling, object_streams, version_raised }` | input object numbers throughout; `merged` is `(dropped, kept)` pairs |
 | `Preset::{Lossless, Standard, Screen, Print, Archive}.settings()` | starting settings; `Preset::from_name` (accepts `mobile` for `Screen`), `as_str`, `ALL` |
-| `OptimizeSettings { streams, rules, objects, allow_signed, structure, cleanup }` | default action; ordered `Rule { select: Selector, action }`; per-object `BTreeMap<ObjId, StreamAction>`; signed override; `structure: RebuildOptions` (`new()` = `none()`, every preset = `all()`; profile keys `remove-unreferenced`, `merge-duplicates`, `object-streams`); `cleanup: CleanupOptions` |
+| `OptimizeSettings { streams, rules, objects, allow_signed, structure, cleanup }` | default action; ordered `Rule { select: Selector, action }`; per-object `BTreeMap<ObjId, StreamAction>`; signed override; `structure: RebuildOptions` (`new()` = `none()`, every preset = `all()`; profile keys `remove-unreferenced`, `merge-duplicates`, `object-streams`); `cleanup: CleanupOptions`; `discard: DiscardOptions` |
+| `DiscardOptions` (Copy set of `MetadataKind`) | `none()` (= `Default`, = `new()`'s), `all()`, `with(kind)`, `without(kind)`, `contains(kind)`, `is_none()`, `kinds()`; presets: `Lossless`/`Archive` none, `Standard`/`Print` `Thumbnail`, `Screen` `Thumbnail` + `PieceInfo` + `ObjectXmp`; profile key `discard = ["thumbnail", …]` or `"all"`, replacing the parent's list |
 | `CleanupOptions { invalid_links, invalid_bookmarks, unreferenced_destinations }` | `all()` (= `Default`), `none()`, `is_none()`; `new()` = `none()`; every preset turns on the first two, only `Screen` the third; profile keys `remove-invalid-links`, `remove-invalid-bookmarks`, `remove-unreferenced-destinations` |
 | `CleanupPlan { links: Vec<BrokenLink>, bookmarks: Vec<BrokenBookmark>, destinations: Vec<Vec<u8>> }` | `is_empty()`; `BrokenLink { page_index, id, target }`; `BrokenBookmark { id, title, target: Option<BrokenTarget>, descendants }` (topmost deleted items only; each takes its subtree); `destinations` raw name bytes, sorted byte-wise |
 | `BrokenTarget::{MissingPage(ObjId), UndefinedName(Vec<u8>)}` | `Display` is the reason line the CLI prints |
@@ -4528,11 +4529,21 @@ Contract:
   did is rolled back. CLI: `--keep-invalid-links`, `--keep-invalid-bookmarks`,
   `--keep-unreferenced-destinations`, `--remove-unreferenced-destinations`;
   the report's `cleanup` lines / JSON key.
+- **User-data discard** (Pass 616.3) also runs inside `apply_optimize`, in
+  the same undo entry: every `metadata_inventory()` item of a selected kind
+  is removed through `remove_metadata` (the same code as `metadata remove`),
+  and `count` includes each. A certification forbidding structural change
+  skips it with a note; discarding `FormData` notes that fields go back to
+  their defaults, `DocumentId` that a fresh identifier is written.
+  `DiscardFailed { item, reason }` means an item could not be removed;
+  everything the call did is rolled back. CLI: `--discard KINDS` adds to the
+  preset's set, `--keep-data KINDS` takes away (both comma-separated or
+  repeated, `all` accepted); the report's `discard` lines / JSON key.
 
 ⚠️ **Disclose what `plan.skipped` and `plan.notes` say**, off-canvas, next
 to the saving. A skip is not an error; a signature note is a destructive
 consequence the operator chose.
 
-⚠️ Every type here except `CleanupOptions` is `#[non_exhaustive]`; match
+⚠️ Every type here except `CleanupOptions` and `DiscardOptions` is `#[non_exhaustive]`; match
 with a wildcard arm. Disclose `plan.cleanup` the same way as `skipped`: it
 is content the operator did not name one by one.

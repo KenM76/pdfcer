@@ -311,3 +311,37 @@ fn compression_modes_choose_streams_and_object_streams() {
     ]);
     assert_eq!(o.status.code(), Some(2));
 }
+
+#[test]
+fn discard_removes_the_named_kinds_and_keep_data_wins() {
+    let d = dir("discard");
+    let input = write_pdf(
+        &d,
+        "/PieceInfo << /App << /LastModified (D:2020) /Private << /Data (secret app data) >> >> >>",
+    );
+    let path = input.to_str().unwrap();
+    let json = |extra: &[&str]| {
+        let mut args = vec![path, "--dry-run", "--json"];
+        args.extend_from_slice(extra);
+        text(&run(&args))
+    };
+    assert!(json(&[]).contains("\"discard\":[]"), "{}", json(&[]));
+    let asked = json(&["--discard", "pieceinfo,thumbnail"]);
+    assert!(asked.contains("\"kind\":\"pieceinfo\""), "{asked}");
+    assert!(json(&["--preset", "screen"]).contains("\"kind\":\"pieceinfo\""));
+    let kept = json(&["--preset", "screen", "--keep-data", "pieceinfo"]);
+    assert!(kept.contains("\"discard\":[]"), "{kept}");
+    assert!(json(&["--discard", "all", "--keep-data", "all"]).contains("\"discard\":[]"));
+
+    let out = d.join("out.pdf");
+    let o = run(&[path, "-o", out.to_str().unwrap(), "--discard", "pieceinfo"]);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(report.contains("discard: 1 item(s) removed"), "{report}");
+    let written = std::fs::read(&out).unwrap();
+    assert!(!String::from_utf8_lossy(&written).contains("secret app data"));
+
+    let bad = run(&[path, "--dry-run", "--discard", "thumbs"]);
+    assert_ne!(bad.status.code(), Some(0));
+    assert!(String::from_utf8_lossy(&bad.stderr).contains("unknown data kind"));
+}

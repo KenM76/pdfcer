@@ -161,6 +161,7 @@ mod markup_respan;
 mod metadata_remove;
 mod optimize;
 mod optimize_cleanup;
+mod optimize_discard;
 pub use markup_respan::TextMarkupRespan;
 mod link;
 pub use link::{LinkBorder, LinkBorderChange, LinkReading, LinkTarget, LinkTargetChange};

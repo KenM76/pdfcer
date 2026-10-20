@@ -18,6 +18,9 @@ fn full() -> OptimizeSettings {
     s.structure.merge_duplicates = true;
     s.structure.object_streams = true;
     s.cleanup.invalid_bookmarks = true;
+    s.discard = DiscardOptions::none()
+        .with(MetadataKind::Thumbnail)
+        .with(MetadataKind::DocumentXmp);
     s.rules.push(Rule {
         select: Selector {
             categories: vec![SpaceCategory::Fonts, SpaceCategory::ContentStreams],
@@ -203,4 +206,49 @@ remove-invalid-links = false
     assert!(!s.cleanup.invalid_links);
     assert!(s.cleanup.invalid_bookmarks && s.cleanup.unreferenced_destinations);
     assert_eq!(parse("p.toml", &to_profile(&s), &mut none).unwrap(), s);
+}
+
+#[test]
+fn a_discard_list_replaces_the_presets() {
+    let s = parse(
+        "p.toml",
+        "extends = \"screen\"
+discard = [\"info\"]
+",
+        &mut none,
+    )
+    .unwrap();
+    assert_eq!(
+        s.discard.kinds().collect::<Vec<_>>(),
+        [MetadataKind::InfoEntry]
+    );
+    let all = parse(
+        "p.toml",
+        "discard = \"all\"
+",
+        &mut none,
+    )
+    .unwrap();
+    assert_eq!(all.discard, DiscardOptions::all());
+    let empty = parse(
+        "p.toml",
+        "extends = \"screen\"
+discard = []
+",
+        &mut none,
+    )
+    .unwrap();
+    assert!(empty.discard.is_none());
+    assert_eq!(
+        parse("p.toml", &to_profile(&empty), &mut none).unwrap(),
+        empty
+    );
+    let bad = parse(
+        "p.toml",
+        "discard = [\"thumbs\"]
+",
+        &mut none,
+    )
+    .unwrap_err();
+    assert!(bad.message.contains("unknown discard kind"), "{bad}");
 }

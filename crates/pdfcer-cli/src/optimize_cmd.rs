@@ -3,10 +3,11 @@
 
 use std::fmt::Write as _;
 
+use pdfcer_core::doc_metadata::{MetadataItem, MetadataKind};
 use pdfcer_core::edit::EditSession;
 use pdfcer_core::optimize::{
-    CleanupPlan, OptimizeError, OptimizePlan, OptimizeSettings, OptimizedFile, Preset,
-    RebuildReport, Refusal, profile,
+    CleanupPlan, DiscardOptions, OptimizeError, OptimizePlan, OptimizeSettings, OptimizedFile,
+    Preset, RebuildReport, Refusal, profile,
 };
 use pdfcer_core::space_audit;
 use pdfcer_core::writer::SaveOptions;
@@ -92,6 +93,17 @@ pub(crate) struct OptimizeArgs {
     /// preset. A link from another file to one of them stops working.
     #[arg(long)]
     pub(crate) remove_unreferenced_destinations: bool,
+    /// Remove user data of these kinds, on top of the preset's: info,
+    /// document-xmp, object-xmp, pieceinfo, thumbnail, javascript,
+    /// attachment, comment, hidden-layer, form-data, earlier-revisions,
+    /// document-id, or all. Comma-separated or repeated. The standard and
+    /// print presets remove thumbnails; screen also pieceinfo and object-xmp.
+    #[arg(long, value_name = "KINDS", value_delimiter = ',')]
+    pub(crate) discard: Vec<String>,
+    /// Keep user data of these kinds even when the preset or --discard
+    /// removes them. The same names as --discard; all keeps everything.
+    #[arg(long, value_name = "KINDS", value_delimiter = ',')]
+    pub(crate) keep_data: Vec<String>,
     /// Optimize a signed document anyway. Every signature is invalidated,
     /// and the report says how many.
     #[arg(long)]
@@ -222,7 +234,33 @@ fn resolve_settings(args: &OptimizeArgs) -> Result<OptimizeSettings, String> {
     c.unreferenced_destinations = (c.unreferenced_destinations
         || args.remove_unreferenced_destinations)
         && !args.keep_unreferenced_destinations;
+    for name in &args.discard {
+        settings.discard =
+            discard_kind(name)?.map_or_else(DiscardOptions::all, |k| settings.discard.with(k));
+    }
+    for name in &args.keep_data {
+        settings.discard =
+            discard_kind(name)?.map_or_else(DiscardOptions::none, |k| settings.discard.without(k));
+    }
     Ok(settings)
+}
+
+/// A `--discard` name: a metadata kind, or `None` for `all`.
+fn discard_kind(name: &str) -> Result<Option<MetadataKind>, String> {
+    if name == "all" {
+        return Ok(None);
+    }
+    MetadataKind::ALL
+        .into_iter()
+        .find(|k| k.as_str() == name)
+        .map(Some)
+        .ok_or_else(|| {
+            let known: Vec<&str> = MetadataKind::ALL.iter().map(|k| k.as_str()).collect();
+            format!(
+                "unknown data kind {name:?}; one of: {}, all",
+                known.join(", ")
+            )
+        })
 }
 
 fn load_profile(path: &Path) -> Result<OptimizeSettings, String> {
@@ -373,6 +411,7 @@ fn report_text(
         }
     }
     out.push_str(&cleanup_text(&o.plan.cleanup));
+    out.push_str(&discard_text(&o.plan.discard));
     for n in &o.plan.notes {
         let _ = writeln!(out, "note: {n}");
     }
@@ -452,6 +491,42 @@ fn cleanup_text(c: &CleanupPlan) -> String {
         let _ = writeln!(out, "  dest     {:?}", String::from_utf8_lossy(d));
     }
     out
+}
+
+fn discard_text(items: &[MetadataItem]) -> String {
+    let mut out = String::new();
+    if items.is_empty() {
+        return out;
+    }
+    let _ = writeln!(out, "discard: {} item(s) removed", items.len());
+    for i in items {
+        let _ = writeln!(
+            out,
+            "  {:<17} {}  {}, {} B",
+            i.kind.as_str(),
+            i.id,
+            i.location,
+            i.bytes
+        );
+    }
+    out
+}
+
+fn discard_json(items: &[MetadataItem]) -> String {
+    let q = |s: &str| format!("\"{}\"", json_escape(s));
+    let rows: Vec<String> = items
+        .iter()
+        .map(|i| {
+            format!(
+                "{{\"id\":{},\"kind\":{},\"location\":{},\"bytes\":{}}}",
+                q(i.id.as_str()),
+                q(i.kind.as_str()),
+                q(&i.location),
+                i.bytes
+            )
+        })
+        .collect();
+    format!("[{}]", rows.join(","))
 }
 
 fn cleanup_json(c: &CleanupPlan) -> String {
@@ -587,7 +662,7 @@ fn report_json(
         _ => "null".to_owned(),
     };
     format!(
-        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"cleanup\":{},\"structure\":{},\"diff\":{}}}\n",
+        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"cleanup\":{},\"discard\":{},\"structure\":{},\"diff\":{}}}\n",
         o.original,
         o.rewritten,
         o.bytes.is_some(),
@@ -595,6 +670,7 @@ fn report_json(
         skipped.join(","),
         notes.join(","),
         cleanup_json(&o.plan.cleanup),
+        discard_json(&o.plan.discard),
         o.structure
             .as_ref()
             .map_or_else(|| "null".to_owned(), structure_json),

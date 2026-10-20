@@ -33,6 +33,7 @@
 //! [`EditSession::save_optimized`]: crate::edit::EditSession::save_optimized
 
 pub mod cleanup;
+pub mod discard;
 pub mod profile;
 pub(crate) mod select;
 pub(crate) mod streams;
@@ -41,10 +42,12 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 pub use cleanup::{BrokenBookmark, BrokenLink, BrokenTarget, CleanupOptions, CleanupPlan};
+pub use discard::DiscardOptions;
 pub use select::{PageRanges, Selector};
 
 pub use crate::writer::{RebuildOptions, RebuildReport};
 
+use crate::doc_metadata::{MetadataItem, MetadataItemId, MetadataKind};
 use crate::object::ObjId;
 use crate::space_audit::SpaceCategory;
 
@@ -147,6 +150,8 @@ pub struct OptimizeSettings {
     /// Links and bookmarks that go nowhere, and named destinations nothing
     /// names, removed before saving. See [`cleanup`].
     pub cleanup: CleanupOptions,
+    /// User data removed before saving, by metadata kind. See [`discard`].
+    pub discard: DiscardOptions,
 }
 
 impl OptimizeSettings {
@@ -160,6 +165,7 @@ impl OptimizeSettings {
             allow_signed: false,
             structure: RebuildOptions::none(),
             cleanup: CleanupOptions::none(),
+            discard: DiscardOptions::none(),
         }
     }
 
@@ -251,6 +257,17 @@ impl Preset {
             unreferenced_destinations: matches!(self, Self::Screen),
             ..CleanupOptions::all()
         };
+        // Page thumbnails are redrawn by every viewer that shows them; the
+        // smallest-file preset also drops producers' private data and
+        // per-object XMP. Archive keeps everything PDF/A may need.
+        s.discard = match self {
+            Self::Lossless | Self::Archive => DiscardOptions::none(),
+            Self::Standard | Self::Print => DiscardOptions::none().with(MetadataKind::Thumbnail),
+            Self::Screen => DiscardOptions::none()
+                .with(MetadataKind::Thumbnail)
+                .with(MetadataKind::PieceInfo)
+                .with(MetadataKind::ObjectXmp),
+        };
         s
     }
 }
@@ -311,6 +328,15 @@ pub enum OptimizeError {
         /// The link, bookmark or catalog being changed.
         id: ObjId,
         /// The deletion's error.
+        reason: String,
+    },
+    /// A discarded item could not be removed; everything the apply had
+    /// committed was undone.
+    #[error("discarding {item} failed: {reason}; nothing was changed")]
+    DiscardFailed {
+        /// The metadata item.
+        item: MetadataItemId,
+        /// Why it was not removed.
         reason: String,
     },
     /// The session changed after the plan was made.
@@ -409,6 +435,8 @@ pub struct OptimizePlan {
     pub notes: Vec<String>,
     /// Links, bookmarks and named destinations the apply removes.
     pub cleanup: CleanupPlan,
+    /// User data the apply removes, from the metadata inventory.
+    pub discard: Vec<MetadataItem>,
     pub(crate) writes: Vec<streams::Rewrite>,
 }
 
@@ -465,3 +493,6 @@ mod tests;
 
 #[cfg(test)]
 mod cleanup_tests;
+
+#[cfg(test)]
+mod discard_tests;

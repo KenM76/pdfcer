@@ -58,6 +58,7 @@ impl EditSession {
             skipped: Vec::new(),
             notes: Vec::new(),
             cleanup: crate::optimize::CleanupPlan::default(),
+            discard: Vec::new(),
             writes: Vec::new(),
         };
         let view = self.view();
@@ -75,6 +76,7 @@ impl EditSession {
             notes.push("some changes are lossy; each is listed".to_owned());
         }
         plan.cleanup = self.plan_cleanup(&settings.cleanup, &mut notes);
+        plan.discard = self.plan_discard(settings.discard, &mut notes);
         plan.notes = notes;
         Ok(plan)
     }
@@ -114,7 +116,8 @@ impl EditSession {
     ///
     /// [`OptimizeError::StalePlan`] when an object the plan rewrites has
     /// changed since planning, and [`OptimizeError::CleanupFailed`] when a
-    /// clean-up deletion fails. Nothing is committed either way.
+    /// clean-up deletion fails, [`OptimizeError::DiscardFailed`] when a
+    /// discarded item cannot be removed. Nothing is committed in any case.
     pub fn apply_optimize(&mut self, plan: &OptimizePlan) -> Result<usize, OptimizeError> {
         if let Some(w) = plan
             .writes
@@ -124,7 +127,8 @@ impl EditSession {
             return Err(OptimizeError::StalePlan { id: w.id });
         }
         let mut fold = super::optimize_cleanup::Fold::new(self, CommandKind::Optimize { count: 0 });
-        let removed = self.apply_cleanup(&plan.cleanup, &mut fold)?;
+        let removed = self.apply_cleanup(&plan.cleanup, &mut fold)?
+            + self.apply_discard(&plan.discard, &mut fold)?;
         if plan.writes.is_empty() {
             fold.finish(self, removed);
             return Ok(removed);
