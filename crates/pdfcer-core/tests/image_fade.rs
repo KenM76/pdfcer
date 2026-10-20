@@ -68,7 +68,7 @@ fn reopened_objects(s: &EditSession) -> Vec<VectorObject> {
 
 fn image(objs: &[VectorObject], i: usize) -> ImageObject {
     match &objs[i] {
-        VectorObject::Image(img) => *img,
+        VectorObject::Image(img) => img.clone(),
         other => panic!("object {i} is not an image: {other:?}"),
     }
 }

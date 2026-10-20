@@ -52,6 +52,7 @@ mod named_icon_without_ap;
 mod nonisolated_group_sees_its_backdrop;
 mod nonseparable_blend_differential;
 mod nonstd14_widths;
+mod oc_chain_matches_the_painter;
 mod ocr_layer_is_invisible;
 mod output_intent_choice;
 mod overprint_image;

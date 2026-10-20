@@ -245,7 +245,7 @@ pub(super) fn placed_image(
             count: model.objects.len(),
         }
         .into()),
-        Some(VectorObject::Image(img)) if img.source != ImageSource::Form => Ok(*img),
+        Some(VectorObject::Image(img)) if img.source != ImageSource::Form => Ok(img.clone()),
         Some(other) => Err(EditError::ReplaceImageOnOther {
             index: object_index,
             kind: kind_of(other),

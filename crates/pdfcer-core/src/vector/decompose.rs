@@ -390,6 +390,13 @@ pub struct PathObject {
     /// reported as its own `ObjId`, never expanded, and visibility is NOT
     /// resolved here (`pdfcer-gui` request 2026-09-04).
     pub oc: Option<ObjId>,
+    /// Every resolved `/OC` in force when this object was painted,
+    /// **outermost first**: each open `BDC /OC` section, then the
+    /// XObject's own `/OC`. For a [`FormLeaf`]'s object the chain is as the
+    /// PAGE sees it, starting with the sections around the outermost
+    /// form's `Do`. Unresolvable `/OC` names are absent, as the renderer
+    /// treats them as visible. See [`VectorObject::is_hidden_under`].
+    pub oc_chain: Vec<ObjId>,
 }
 
 impl PathObject {
@@ -432,7 +439,7 @@ pub enum ImageSource {
 /// An image/form object — selectable-for-move/delete, bbox only (module
 /// docs). Its page bbox is the image unit square (§8.9.4) or the form
 /// `/BBox` (§8.10.1) mapped by the effective transform.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ImageObject {
     /// The effective CTM at the `Do`/inline-image operator.
     pub ctm: Matrix,
@@ -496,6 +503,13 @@ pub struct ImageObject {
     /// reported as its own `ObjId`, never expanded, and visibility is NOT
     /// resolved here (`pdfcer-gui` request 2026-09-04).
     pub oc: Option<ObjId>,
+    /// Every resolved `/OC` in force when this object was painted,
+    /// **outermost first**: each open `BDC /OC` section, then the
+    /// XObject's own `/OC`. For a [`FormLeaf`]'s object the chain is as the
+    /// PAGE sees it, starting with the sections around the outermost
+    /// form's `Do`. Unresolvable `/OC` names are absent, as the renderer
+    /// treats them as visible. See [`VectorObject::is_hidden_under`].
+    pub oc_chain: Vec<ObjId>,
 }
 
 /// The font in effect at a text object's first show operator.
@@ -793,6 +807,13 @@ pub struct TextObject {
     /// reported as its own `ObjId`, never expanded, and visibility is NOT
     /// resolved here (`pdfcer-gui` request 2026-09-04).
     pub oc: Option<ObjId>,
+    /// Every resolved `/OC` in force when this object was painted,
+    /// **outermost first**: each open `BDC /OC` section, then the
+    /// XObject's own `/OC`. For a [`FormLeaf`]'s object the chain is as the
+    /// PAGE sees it, starting with the sections around the outermost
+    /// form's `Do`. Unresolvable `/OC` names are absent, as the renderer
+    /// treats them as visible. See [`VectorObject::is_hidden_under`].
+    pub oc_chain: Vec<ObjId>,
 }
 
 impl TextObject {
@@ -1115,6 +1136,50 @@ impl VectorObject {
             VectorObject::Image(i) => i.oc,
         }
     }
+
+    /// Every optional-content group enclosing this object, outermost first
+    /// (G211). See the `oc_chain` field on each variant.
+    #[must_use]
+    pub fn oc_chain(&self) -> &[ObjId] {
+        match self {
+            VectorObject::Path(p) => &p.oc_chain,
+            VectorObject::Text(t) => &t.oc_chain,
+            VectorObject::Image(i) => &i.oc_chain,
+        }
+    }
+
+    /// Whether the renderer leaves this object unpainted with the groups in
+    /// `off` turned off (G211): hidden when ANY enclosing `/OC` is hidden,
+    /// by the same [`crate::annot::oc_is_hidden`] the renderer asks at each
+    /// `BDC` and `Do` (§8.11.3).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use pdfcer_core::annot::optional_content_default_off;
+    /// use pdfcer_core::document::Document;
+    /// use pdfcer_core::page_tree::pages;
+    /// use pdfcer_core::vector::{decompose_page, Matrix};
+    ///
+    /// # fn demo(doc: &Document) -> Result<(), Box<dyn std::error::Error>> {
+    /// let view = doc.view();
+    /// let off = optional_content_default_off(&view);
+    /// let model = decompose_page(&view, &pages(doc)?[0], Matrix::IDENTITY)?;
+    /// let shown = model.objects.iter().filter(|o| !o.is_hidden_under(&view, &off));
+    /// println!("{} shown", shown.count());
+    /// # Ok(())
+    /// # }
+    /// ```
+    #[must_use]
+    pub fn is_hidden_under<G: ObjectGraph + ?Sized>(
+        &self,
+        graph: &G,
+        off: &std::collections::BTreeSet<ObjId>,
+    ) -> bool {
+        self.oc_chain()
+            .iter()
+            .any(|&oc| crate::annot::oc_is_hidden(graph, oc, off))
+    }
 }
 
 /// Structural oddities tolerated during decomposition, counted rather than
@@ -1337,15 +1402,31 @@ impl FormLeaf {
         self.containment.last().copied()
     }
 
-    /// The optional-content group (layer) this leaf was painted under
-    /// (`pdfcer-gui` request 2026-09-04). Delegates to the wrapped object,
-    /// which already carries the `/OC` seen inside the form's own content
-    /// stream. A page-level `BDC /OC` enclosing the form's `Do` is NOT folded
-    /// in here (that is the page walk's context) a documented partial for the
-    /// nested case; the common form-interior and XObject-`/OC` cases are exact.
+    /// The innermost optional-content group (layer) seen inside the form's
+    /// own content stream (`pdfcer-gui` request 2026-09-04). Sections around
+    /// the form's `Do` are in [`Self::oc_chain`], not here.
     #[must_use]
     pub fn oc(&self) -> Option<ObjId> {
         self.object.oc()
+    }
+
+    /// Every optional-content group enclosing this leaf as the page sees
+    /// it, outermost first: the sections around each enclosing form's `Do`,
+    /// each form's own `/OC`, then the leaf's own (G211).
+    #[must_use]
+    pub fn oc_chain(&self) -> &[ObjId] {
+        self.object.oc_chain()
+    }
+
+    /// Whether the renderer leaves this leaf unpainted with `off` turned off;
+    /// [`VectorObject::is_hidden_under`] over the page-relative chain.
+    #[must_use]
+    pub fn is_hidden_under<G: ObjectGraph + ?Sized>(
+        &self,
+        graph: &G,
+        off: &std::collections::BTreeSet<ObjId>,
+    ) -> bool {
+        self.object.is_hidden_under(graph, off)
     }
 
     /// Which content stream this leaf's [`VectorObject::tokens`] range indexes.
@@ -2042,7 +2123,7 @@ pub(crate) fn collect_form_leaves_from(
         let Some((content, resources)) = form_content(view, id) else {
             continue;
         };
-        let nested = {
+        let mut nested = {
             let xobjects = DocumentXObjects {
                 view,
                 resources: &resources,
@@ -2050,12 +2131,26 @@ pub(crate) fn collect_form_leaves_from(
             let fonts = DocumentFonts::new(view, &resources);
             decompose_with_fonts(&content, img.ctm, &xobjects, &fonts)
         };
+        // `img.oc_chain` is already page-relative (by induction), so every
+        // depth ends up carrying the full chain the renderer nests through.
+        for child in &mut nested.objects {
+            prefix_oc_chain(child, &img.oc_chain);
+        }
 
         path.push(id);
         push_form_children(&nested.objects, path, img.ctm, root, out);
         collect_form_leaves(view, &nested.objects, path, out, diag, Some(root));
         path.pop();
     }
+}
+
+fn prefix_oc_chain(object: &mut VectorObject, prefix: &[ObjId]) {
+    let chain = match object {
+        VectorObject::Path(p) => &mut p.oc_chain,
+        VectorObject::Text(t) => &mut t.oc_chain,
+        VectorObject::Image(i) => &mut i.oc_chain,
+    };
+    chain.splice(0..0, prefix.iter().copied());
 }
 
 /// Form `id`'s decoded content and the resources it is walked with, or
@@ -3322,6 +3417,7 @@ impl<'a> Decomposer<'a> {
         let oc = self.current_oc();
         let obj = PathObject {
             oc,
+            oc_chain: self.current_oc_chain(None),
             subpaths: pa.subpaths,
             ctm,
             style,
@@ -3780,6 +3876,7 @@ impl<'a> Decomposer<'a> {
         let oc = self.current_oc();
         self.objects.push(VectorObject::Text(TextObject {
             oc,
+            oc_chain: self.current_oc_chain(None),
             page_bbox,
             runs,
             approximate: true,
@@ -3802,6 +3899,19 @@ impl<'a> Decomposer<'a> {
     /// group (non-`/OC`/unresolved sections are `None` and skipped).
     fn current_oc(&self) -> Option<ObjId> {
         self.oc_stack.iter().rev().find_map(|e| *e)
+    }
+
+    /// Every resolved open section's group, outermost first, then `own`
+    /// (an XObject's `/OC`, or the innermost section again) unless it
+    /// already ends the chain.
+    fn current_oc_chain(&self, own: Option<ObjId>) -> Vec<ObjId> {
+        let mut chain: Vec<ObjId> = self.oc_stack.iter().flatten().copied().collect();
+        if let Some(own) = own
+            && chain.last() != Some(&own)
+        {
+            chain.push(own);
+        }
+        chain
     }
 
     fn do_xobject(&mut self, operands: &[ContentToken], first: usize, op_index: usize) {
@@ -3879,9 +3989,11 @@ impl<'a> Decomposer<'a> {
             ImageSource::Form => self.diag.forms += 1,
             ImageSource::Inline | ImageSource::XObject => self.diag.images += 1,
         }
+        let oc_chain = self.current_oc_chain(oc);
         self.objects.push(VectorObject::Image(ImageObject {
             xobject,
             oc,
+            oc_chain,
             ctm,
             page_bbox,
             source,

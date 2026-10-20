@@ -2117,8 +2117,19 @@ connects a canvas selection to a Layers-panel row. Three contract points:
   object still reports `oc == None` — read the counter to tell the two apart.
 - **No default is substituted** — an object under no `/OC` section is `None`,
   never the document's first OCG. `FormLeaf::oc()` delegates to the wrapped
-  object (a page-level `BDC /OC` around the form's `Do` is not folded in — a
-  documented partial for that nested case).
+  object: the innermost `/OC` inside the form's own stream only.
+
+**Hidden or not — ask `is_hidden_under`, not `oc()` (G211).**
+`obj.oc_chain() -> &[ObjId]` (field `oc_chain` on all three types) is **every**
+resolved `/OC` in force, **outermost first**: each open `BDC /OC`, then the
+XObject's own `/OC`. `obj.is_hidden_under(&graph, &off) -> bool` is true when
+**any** entry is hidden by `annot::oc_is_hidden` — the renderer's rule (it hides
+by `BDC` nesting and by a form's `/OC`), so `/OC /Outer BDC /OC /Inner BDC …`
+with Outer off is hidden although `oc()` is the shown Inner.
+`FormLeaf::oc_chain()` / `FormLeaf::is_hidden_under()` are **page-relative**:
+the sections around each enclosing form's `Do` and each form's own `/OC` come
+first. Unresolvable `/OC` names are absent (the renderer draws them).
+`ImageObject` is no longer `Copy` (it holds the chain); clone it.
 
 ### 10.2 The object types
 
