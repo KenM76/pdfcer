@@ -1295,6 +1295,7 @@ Coordinate summary for this section:
 | `ExtractedGlyph::direction` | default user space, **unit vector** | — | `(f32, f32)` |
 | `TextRun::bbox` | default user space | points | `Option<Rect>` (`f64`) |
 | `GlyphProvenance::tf_size` | **text space** — the raw `Tf` operand | unscaled | `f32` |
+| `GlyphProvenance::drawn_size()` / `em_scale()` | default user space — `tf_size × em_scale`, `em_scale` = length of text space's vertical unit through `Tm` then the CTM | points / ratio | `f32` |
 | `GlyphProvenance::{text_matrix, ctm}` | §8.3.3 row-vector `[a b c d e f]` | — | `[f32; 6]` |
 | `GlyphProvenance::operator_span` | decoded-content byte offsets | bytes | `ByteSpan` |
 | `GlyphProvenance::line_width` | **user space**, the `w` operand (§8.4.3.2) | unscaled by the CTM | `f32` |
@@ -1303,6 +1304,12 @@ Note the pairing: `ExtractedGlyph::size` is the **effective** size (the
 y-scale of the text rendering matrix); `GlyphProvenance::tf_size` is the
 **raw operand**. `mod.rs` contrasts them explicitly. Use `size` to
 draw; use `tf_size` only to reason about the source operator.
+`GlyphProvenance::drawn_size()` is the same number from provenance alone
+(`tf_size × em_scale()`; `Tz` and `Ts` do not enter), and
+`FormatRequest::drawn_size(points)` is its inverse: the engine solves the
+`Tf` operand per matched operator, so a CAD run at `1 Tf` under a 13.2×
+`Tm` asked for 24 is drawn at 24 (G208). Show `drawn_size()`, send
+`drawn_size(points)`; a shell needs no matrix arithmetic of its own.
 
 ### 8.4.2 The structure tree — reading order and element types (`Pass 372.0`)
 

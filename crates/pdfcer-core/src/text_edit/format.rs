@@ -621,6 +621,12 @@ pub struct FormatRequest {
     pub target: EditTarget,
     /// New `Tf` font size (points). `None` leaves the size unchanged.
     pub set_size: Option<f64>,
+    /// New **drawn** size in default user-space points (G208): the `Tf`
+    /// operand is solved as `points / em_scale` of the matched operator, the
+    /// same arithmetic as
+    /// [`GlyphProvenance::drawn_size`](crate::text_extract::GlyphProvenance::drawn_size).
+    /// Mutually exclusive with [`Self::set_size`].
+    pub set_drawn_size: Option<f64>,
     /// New fill colour (device space preserved). `None` leaves it unchanged.
     pub set_fill: Option<NewFill>,
     /// New font family/style — an existing page font resource. `None`
@@ -797,6 +803,7 @@ impl FormatRequest {
             find: find.to_owned(),
             pinned_span: None,
             set_size: None,
+            set_drawn_size: None,
             set_fill: None,
             set_font: None,
             set_char_spacing: None,
@@ -953,6 +960,16 @@ impl FormatRequest {
         self
     }
 
+    /// Add a change of the **drawn** size (user-space points, what the page
+    /// shows), returning `self`. The engine solves the `Tf` operand from the
+    /// run's text matrix and CTM, so a CAD run at `1 Tf` under a 13.2× `Tm`
+    /// asked for 24 is written `1.814… Tf`, not `24 Tf`.
+    #[must_use]
+    pub fn drawn_size(mut self, points: f64) -> Self {
+        self.set_drawn_size = Some(points);
+        self
+    }
+
     /// Add a fill-colour change, returning `self`.
     #[must_use]
     pub fn fill(mut self, fill: NewFill) -> Self {
@@ -1074,6 +1091,7 @@ impl FormatRequest {
     #[must_use]
     pub(crate) const fn is_empty(&self) -> bool {
         self.set_size.is_none()
+            && self.set_drawn_size.is_none()
             && self.set_fill.is_none()
             && self.set_font.is_none()
             && self.set_char_spacing.is_none()
@@ -2277,7 +2295,7 @@ pub(crate) fn plan_format_target(
     //     reduction. Every R89 ratio (script rise, script size, relative
     //     `Tc`) is derived from THIS, so a later resize re-derives all of
     //     them consistently rather than carrying a stale operand. ---
-    let base_size = req.set_size.unwrap_or(orig_size);
+    let base_size = requested_size(req, anchor)?.unwrap_or(orig_size);
 
     // --- Pass 19.2: the free-form rise and the script toggle both write
     //     `Ts`, so asking for both is a conflict pdfcer refuses rather than
@@ -2484,7 +2502,7 @@ pub(crate) fn plan_format_target(
     });
 
     // --- build the state-set / state-restore operator sequences ---
-    let size_changed = req.set_size.is_some();
+    let size_changed = req.set_size.is_some() || req.set_drawn_size.is_some();
     let font_changed = font_plan.is_some();
     // A super/subscript reduces `Tfs`, so it touches `Tf` even when no
     // explicit size was asked for.
@@ -3097,6 +3115,29 @@ pub(crate) fn plan_format_target(
         report,
         created_font,
     })
+}
+
+/// The `Tf` operand a request asks for: [`FormatRequest::set_size`] as
+/// written, or [`FormatRequest::set_drawn_size`] divided by the operator's
+/// em scale (`GlyphProvenance::em_scale`'s definition, over `Tm` then the CTM).
+fn requested_size(req: &FormatRequest, anchor: &ShowData) -> Result<Option<f64>, FormatError> {
+    let Some(drawn) = req.set_drawn_size else {
+        return Ok(req.set_size);
+    };
+    if req.set_size.is_some() {
+        return Err(FormatError::Unsupported(
+            "a Tf size and a drawn size both set the font size".to_owned(),
+        ));
+    }
+    let [_, _, c, d, _, _] = anchor.text_matrix;
+    let [a2, b2, c2, d2, _, _] = anchor.ctm;
+    let scale = (c * a2 + d * c2).hypot(c * b2 + d * d2);
+    if !(drawn.is_finite() && drawn > 0.0) || !(scale.is_finite() && scale > STATE_EPS) {
+        return Err(FormatError::Unsupported(format!(
+            "a drawn size of {drawn} pt cannot be solved under a text scale of {scale}"
+        )));
+    }
+    Ok(Some(derived_operand(drawn / scale)))
 }
 
 /// The strikethrough source for the face the formatted text is drawn in:
@@ -6789,6 +6830,44 @@ mod tests {
         assert_eq!(out.report.advance_delta, 0.0, "colour never shifts advance");
         let text = as_text(&out.bytes);
         assert!(text.contains("0 1 1 0 k"), "CMYK stored as k: {text}");
+    }
+
+    /// G208: a CAD-shaped run (`1 Tf` under a scaling `Tm` and CTM) asked
+    /// for a drawn size gets the solved `Tf` operand, and extraction reads the
+    /// drawn size back through the same arithmetic.
+    #[test]
+    fn a_drawn_size_solves_the_tf_operand_through_tm_and_ctm() {
+        let src = fill_pdf(
+            "0.5 0 0 0.5 0 0 cm BT /F1 1 Tf 13.2 0 0 13.2 72 700 Tm (hello) Tj ET
+",
+        );
+        let doc = Document::from_bytes(src).unwrap();
+        let req = FormatRequest::new(0, "hello").drawn_size(24.0);
+        let out = set_format(&doc, &req, &FormatOptions::default()).unwrap();
+        let (from, to) = out.report.size_change.unwrap();
+        assert_eq!(from, 1.0);
+        assert!((to - 24.0 / 6.6).abs() < 1e-5, "solved Tf {to}");
+
+        let edited = Document::from_bytes(out.bytes).unwrap();
+        let pages = page_tree::pages(&edited).unwrap();
+        let opts = crate::text_extract::ExtractOptions::default().with_provenance(true);
+        let page = crate::text_extract::extract_page(&edited, &pages[0], 0, &opts).unwrap();
+        let g = page
+            .runs
+            .iter()
+            .flat_map(|r| r.glyphs.iter())
+            .next()
+            .unwrap();
+        let prov = g.provenance.as_ref().unwrap();
+        assert!(
+            (prov.drawn_size() - 24.0).abs() < 1e-3,
+            "{}",
+            prov.drawn_size()
+        );
+        assert!((g.size - prov.drawn_size()).abs() < 1e-3);
+
+        let both = FormatRequest::new(0, "hello").size(2.0).drawn_size(24.0);
+        assert!(set_format(&doc, &both, &FormatOptions::default()).is_err());
     }
 
     #[test]

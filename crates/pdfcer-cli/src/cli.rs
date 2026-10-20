@@ -9287,6 +9287,12 @@ pub(crate) enum Command {
         /// New font size in points (changes only the `Tf` size operand).
         #[arg(long)]
         set_size: Option<f64>,
+        /// New DRAWN font size in points: what the page shows. The `Tf`
+        /// operand is solved through the text matrix and CTM, so a CAD run
+        /// at `1 Tf` under a 13.2x matrix asked for 24 is drawn at 24.
+        /// Conflicts with --set-size.
+        #[arg(long, value_name = "POINTS", conflicts_with = "set_size")]
+        drawn_size: Option<f64>,
         /// New fill colour as `MODEL:comps`, comma-separated components in
         /// `0..=1`: `rgb:1,0,0` (red), `cmyk:0,1,1,0`, `gray:0.5`. The chosen
         /// device space is STORED (never force-converted to DeviceRGB).

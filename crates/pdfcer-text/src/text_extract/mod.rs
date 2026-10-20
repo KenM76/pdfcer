@@ -492,6 +492,28 @@ pub struct GlyphProvenance {
 }
 
 impl GlyphProvenance {
+    /// The length, in default user space, of text space's vertical unit
+    /// through [`Self::text_matrix`] then [`Self::ctm`] (§9.4.4): with
+    /// `Tm = [.. c d ..]` and `CTM = [a' b' c' d' ..]`, the length of
+    /// `(c·a' + d·c', c·b' + d·d')`. `Tz` scales only the horizontal and `Ts`
+    /// only translates, so neither enters.
+    #[must_use]
+    pub fn em_scale(&self) -> f32 {
+        let [_, _, c, d, _, _] = self.text_matrix;
+        let [a2, b2, c2, d2, _, _] = self.ctm;
+        (c * a2 + d * c2).hypot(c * b2 + d * d2)
+    }
+
+    /// The size the glyph is **drawn** at, in default user-space points:
+    /// [`Self::tf_size`] × [`Self::em_scale`] — what a word processor shows.
+    /// A CAD export writing `1 Tf` under `Tm [13.2 0 0 13.2 ..]` draws at
+    /// 13.2. Equal to [`ExtractedGlyph::size`]; the inverse is
+    /// `FormatRequest::drawn_size` in `pdfcer_core::text_edit`.
+    #[must_use]
+    pub fn drawn_size(&self) -> f32 {
+        self.tf_size * self.em_scale()
+    }
+
     /// The text rendering mode `Tr` in force (§9.3.6 Table 106), `0..=7`.
     ///
     /// The same value as `text_state.params().render_mode`, spelled where a

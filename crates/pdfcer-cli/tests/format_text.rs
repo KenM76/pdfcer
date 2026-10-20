@@ -101,6 +101,39 @@ fn size_change_succeeds_and_is_minimal_diff() {
     let _ = std::fs::remove_file(out_path);
 }
 
+/// `--drawn-size` reaches the engine: an unscaled run's drawn size is its
+/// `Tf` operand, and the flag conflicts with `--set-size`.
+#[test]
+fn drawn_size_flag_is_wired_and_exclusive() {
+    let out_path = temp_path("drawn");
+    let src = fixture("format_color.pdf");
+    let out = run(&[
+        src.to_str().unwrap(),
+        "--find",
+        "hello",
+        "--drawn-size",
+        "18",
+        "-o",
+        out_path.to_str().unwrap(),
+    ]);
+    assert!(out.status.success(), "exit 0: {}", stderr(&out));
+    assert!(stdout(&out).contains("set_size=12->18"), "{}", stdout(&out));
+    let both = run_raw(&[
+        "format-text",
+        src.to_str().unwrap(),
+        "--find",
+        "hello",
+        "--drawn-size",
+        "18",
+        "--set-size",
+        "9",
+        "-o",
+        out_path.to_str().unwrap(),
+    ]);
+    assert!(!both.status.success(), "conflict refused by clap");
+    let _ = std::fs::remove_file(out_path);
+}
+
 #[test]
 fn cmyk_color_change_stores_k_not_devicergb() {
     let out_path = temp_path("cmyk");

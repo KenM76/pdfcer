@@ -24,6 +24,8 @@ pub(crate) struct FormatTextArgs<'a> {
     /// a malformed span fails before any file is opened.
     pub(crate) pin_span: Option<&'a str>,
     pub(crate) set_size: Option<f64>,
+    /// `--drawn-size`: the size the page shows, solved to a `Tf` operand.
+    pub(crate) drawn_size: Option<f64>,
     /// `MODEL:comps` as passed on the command line, e.g. `rgb:1,0,0`.
     pub(crate) set_color: Option<&'a str>,
     /// A target font resource key or `/BaseFont`.
@@ -303,6 +305,9 @@ fn build_format_request(
     }
     if let Some(size) = args.set_size {
         req = req.size(size);
+    }
+    if let Some(size) = args.drawn_size {
+        req = req.drawn_size(size);
     }
     if let Some(f) = flags.fill {
         req = req.fill(f);
