@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1107th filing) — `Pass 614.0` shipped in `f71554e1` (the event search may add a choice just before a set's last)
+
+**Shipped (engineer-reported, no shell here):** `614.0` `f71554e1`, `pdfcer-3d` `compressed/search.rs` (`events`). New `EVENT_BACK = 8` lets a new choice lie up to 8 triangles before a set's last; `EVENT_BUDGET` 1M -> 5M. Trailer m95 needs F830 jointly with F832 (each alone inert or merely moves the failure), which the "only after the last choice" ordering could not reach. Trailer 127/13/1 -> 127/14/0 (m95 failed -> best-fit, 6.9 s, 3,434,966 steps); door 155/1/0 unchanged; no other mesh changed. **No door or trailer mesh fails on the census; the "Mesh fix before release" goal is met on it.** Tests: pdfcer-3d 166 + 3 + 13; fmt, clippy, structure gate clean (569 baseline, none new). Also: `40e7d1d7` committed the 1106th filing.
+
+**Findings:** BACK=4 does not fit (reach 885); BACK=8 fits; BACK=16 fits in 8.9M steps / 6.7 s. Cost is two stalls (~1.45M around reach 1103-1218, ~1.9M at the end). Lesson: a choice inert alone can be needed jointly with a later live one. Spec ledger row X78 written; the "m95 remains" notes annotated.
+
+**Flagged, not edited:** `docs/NEXT_SESSION.md` (engineer-owned) may still list m95 as failing. Git, push and backup state not verified from here. No decision.
+
+**For next session:** next free `Pass 615.0`; next filing 1108th; school/strap/piano not re-measured; unreleased since `v0.88.0`.
+
 ## 2026-10-20 (1106th filing) — `Pass 613.0` shipped in `ebc02bc6` (a borrowing planar face signals only its tall triangles)
 
 **Shipped (engineer-reported, no shell here):** `613.0` `ebc02bc6`, `pdfcer-3d` `compressed/decide.rs` (`Walk::decide`). A face oriented by its own first tall triangle now signals a later triangle only if taller than 0.5 tol off its plane; shorter ones stay slivers for the event search. Trailer unique/best-fit/failed 127/12/2 -> 127/13/1 (m64 failed -> best-fit, 3.4 s); door 155/1/0 unchanged per mesh. m107 fits slightly differently (91 triangles vs corner normals instead of 90). Slowest trailer mesh 4.5 s. Only m95 still fails. Tests: new `a_borrowing_face_signals_only_its_tall_triangles` (sabotage-checked); pdfcer-3d 166 + 3 + 13; fmt, clippy, structure gate clean.

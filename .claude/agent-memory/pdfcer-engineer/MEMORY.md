@@ -102,5 +102,5 @@
 - [Scratchpad is shared between workers](feedback_scratchpad_is_shared_between_workers.md) — parallel workers clobber generic scratch names; prefix with the Pass ID
 - [Sabotage leaves a sabotaged binary](feedback_sabotage_leaves_a_sabotaged_binary.md) — rebuild after restoring; a manual probe after sabotage tests the sabotage
 - [Never background with `&`](feedback_never_background_with_ampersand.md) — a detached `run-gates.sh &` sent no notification and stalled; use run_in_background only
-- [Mesh fix before release](project_mesh_fix_before_release.md) — Ken 2026-10-16: ONLY goal is the 3D compressed-mesh failures; 603.0 fixed m2, nine meshes left, m108 first; RAG R17/X42–X49 is the ledger
+- [Mesh fix goal (met)](project_mesh_fix_before_release.md) — Ken 2026-10-16 goal met 2026-10-20 by 614.0: door 155/1/0, trailer 127/14/0; how to judge mesh rules
 - [Change-scoped release gates](feedback_change_scoped_release_gates.md) — Ken 2026-10-16: test only crates changed since the last tag + filing gates + smoke; run-gates.sh is CI’s job
