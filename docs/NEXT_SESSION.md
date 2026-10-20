@@ -5,14 +5,13 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-20, after Pass 614.0. Ken's directive 2026-10-16 ("only
-goal is the 3D compressed-mesh failures") is **met on the census**: no door
-or trailer mesh fails.
+**Written:** 2026-10-20, during the size-reduction arc (Ken 2026-10-20: "meet
+or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## State
 
-- **Release:** v0.88.0 is published (OneDrive `pdfcer1`). **The next release
-  writes `pdfcer2`.** Release gates are change-scoped (Ken, 2026-10-16): test
+- **Release:** v0.89.0 is published (OneDrive `pdfcer2`). **The next release
+  writes `pdfcer1`.** Release gates are change-scoped (Ken, 2026-10-16): test
   the crates changed since the last tag + the filing gates + the fresh-folder
   smoke; `run-gates.sh` is CI's job. `verify-release` fails only "working tree
   clean", on the uncommitted spec-librarian memory files (deliberate).
@@ -21,16 +20,23 @@ or trailer mesh fails.
   --note`, zip with Python, `sha256sum`, `gh-release.py`, `deploy-onedrive.py
   --build`, `verify-release.py`, notify pdfcer-gui. Move untracked probe `.rs`
   files out first or the build is `-dirty`.
-- **3D compressed meshes:** door `TS-0232-16-3D.pdf` 155 unique / 1 best-fit /
-  0 failed; trailer `TR-0522.pdf` 127 / 14 / 0. `613.0` (`ebc02bc6`): a
-  borrowing planar face signals only its tall triangles (m64). `614.0`
-  (`f71554e1`): the event search may add a choice up to `EVENT_BACK` 8 before
-  a set's last; budget 5M steps (m95, 6.9 s, the slowest mesh). Ledger: spec
-  RAG `threed/prc__8137__tess_3d_compressed.md` (X76–X78).
-- **Open on meshes, not failures:** "best-fit" is not "right" — m52/m96 are
-  known mirrored best fits, and fold-backs exist even in unique fits (X50/X51).
-  pdfcer-gui consumes `MeshFit` (it corrected an earlier handoff that said
-  otherwise); no `mesh_fit` ask is outstanding.
+- **Size-reduction arc (`616.x`):** 616.0 space audit, 616.1 optimize
+  framework (presets, TOML profiles, rules, per-object overrides,
+  never-larger), 616.2 structure rebuild + navigation clean-up +
+  `--compression` modes — all shipped, core + cli. **Next: 616.3** (discard
+  objects and user data, each selectable; wire the 12 `doc_metadata` kinds).
+  Then 616.4-616.10 (images, encoders, fonts, content streams,
+  linearization, quality/byte-budget, compatibility target).
+- **Questions for Ken, raise when the Pass needs them:** lossy JBIG2 off by
+  default? a transparency flattener? Brotli as an opt-in? which JPX/JBIG2
+  encoder (licence check first)?
+- **CI:** 88dfe717 failed the public-fn-docs audit (`emit.rs::write`), fixed
+  in 6d77fac3. Run every `check-ci-parity.py --list` audit before a push —
+  a hand-typed sweep missed it.
+- **3D compressed meshes:** goal met (door 155/1/0, trailer 127/14/0);
+  "best-fit" is not "right" (m52/m96 mirrored, X50/X51). Ledger: spec RAG
+  `threed/prc__8137__tess_3d_compressed.md`. Older detail:
+  `git show 40e7d1d7:docs/NEXT_SESSION.md`.
 - **Probe kit (LOCAL):** `probe.rs`, `probe_trace.rs` (`fits` census),
   `probe_ev.rs` (`ev_set/ev_scan/ev_swap/ev_why/ev_conflict/ev_search`) are in
   this session's scratchpad `p613/hold/`; mod lines go in `compressed.rs` and
@@ -39,9 +45,9 @@ or trailer mesh fails.
 
 ## Next
 
-1. Release v0.89.0 (carries 613.0 + 614.0) to `pdfcer2`; notify pdfcer-gui.
-2. Check the three inbound channels (GitHub issues, both FeatureRequests
-   folders) — the mesh goal no longer blocks the feature-request loop.
+1. Pass 616.3; scope from the Acrobat RAG `optimize__discard_objects.md`.
+2. Each loop tick: the three inbound channels (GitHub issues, both
+   FeatureRequests folders).
 
 ## Follow-ups worth a Pass
 

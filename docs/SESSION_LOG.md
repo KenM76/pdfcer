@@ -4,6 +4,12 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1116th filing) — `Pass 616.2` residue closed in `6e409343`: `optimize --compression`
+
+**Shipped (engineer-reported, no shell here):** `pdfcer optimize --compression entire|structure|leave` (CLI only; compositions of existing `streams` and `structure.object_streams` settings; `entire` is the preset default). "Remove compression" is `export-structure`, per decision 191 (optimize never grows a file). Conflicts with `--streams`, `--no-object-streams`, `--keep-structure`. Test `optimize::compression_modes_choose_streams_and_object_streams`; CLI `optimize::` 9/9; sabotage fails it; clippy, fmt and the gates clean. Core `[x]`, cli `[x]`, gui `[ ]`.
+
+**Register:** ROADMAP `616.2` completion entry gains an addendum; FEATURES Planned *Lossless clean-up, remainder* deleted, Implemented row extended. No decision. `616.2` has no residue. Git, push and backup state not verified from here.
+
 ## 2026-10-20 (1115th filing) — `Pass 616.2` COMPLETE in `6d77fac3`: navigation clean-up in `optimize`
 
 **Shipped (engineer-reported, no shell here):** `optimize::cleanup` (`CleanupOptions`, `CleanupPlan`, `BrokenLink`, `BrokenBookmark`, `BrokenTarget`), `OptimizeSettings.cleanup`/`OptimizePlan.cleanup`, `OptimizeError::CleanupFailed` (whole-apply rollback); removes invalid links, bookmarks (only whole subtrees) and, in Screen only, unreferenced named destinations, inside the one undo entry. CLI: `--keep-invalid-links`, `--keep-invalid-bookmarks`, `--keep-unreferenced-destinations`, `--remove-unreferenced-destinations`; `cleanup:` report lines and JSON key. Core `[x]`, cli `[x]`, gui `[ ]`. Tests: 7 core + 1 profile + 1 CLI; 5 sabotage mutations each failed tests; core lib 1576, integration 2995 + 233 + 43, CLI 893, all pass; clippy, fmt, structure gate, 31 audits clean. Commit `6d77fac3`, parent `88dfe717`; not pushed at filing time.
