@@ -33,8 +33,13 @@ const BEST_DEPTH: usize = 64;
 const BEST_BUDGET: usize = 250_000;
 /// How many triangles before a failure [`events`] looks for candidates.
 const EVENT_WINDOW: usize = 300;
-/// Triangle steps [`events`] may spend.
-const EVENT_BUDGET: usize = 1_000_000;
+/// How many triangles before a set's last choice [`events`] may add a
+/// choice. Measured on trailer m95: a sliver fold can be inert until a
+/// later one is taken, then needed; 4 is too few, 8 fits it.
+const EVENT_BACK: usize = 8;
+/// Triangle steps [`events`] may spend. Measured: trailer m95 fits in
+/// 3.4M.
+const EVENT_BUDGET: usize = 5_000_000;
 
 /// Whether every planar face among `tris[from..]` lies within
 /// [`MAX_BEND`] tolerances of the plane through its centroid, oriented by
@@ -81,7 +86,7 @@ pub(super) fn flat(a: &Arrays<'_>, pos: &[V], tris: &[[u32; 3]], from: usize) ->
 
 /// One inverted decision at a triangle: its fold, or the half-turn of its
 /// degenerate apex frame.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum Choice {
     Fold(usize),
     Turn(usize),
@@ -217,18 +222,20 @@ pub(super) fn best_fit(a: &Arrays<'_>) -> Option<TriangleMesh> {
 /// always expanding the one whose walk reaches furthest (fewer choices
 /// first among equals). A set is expanded by trial-walking each
 /// unsignalled fold and turn within [`EVENT_WINDOW`] triangles before its
-/// failure and after its last choice; a candidate whose walk fails at the
-/// same triangle is dropped as inert.
+/// failure and no more than [`EVENT_BACK`] before its last choice; a
+/// candidate whose walk fails at the same triangle is dropped as inert,
+/// and a set reached before in another order is not walked again.
 ///
 /// Measured on real producers: a wrong sliver fold can survive some 250
 /// triangles before the walk fails, past any window [`window`] keeps, and
 /// several such folds may be needed jointly; most slivers in a window are
 /// inert, and enumerating their subsets is what exhausted the depth-first
 /// searches. Two jointly-needed choices that are each inert alone are
-/// missed; that is accepted.
+/// missed unless the later one is live alone and the earlier lies within
+/// [`EVENT_BACK`] of it; the rest is accepted.
 fn events(a: &Arrays<'_>, n: &NormalArrays<'_>) -> Option<(Vec<Choice>, TriangleMesh)> {
     use std::cmp::Reverse;
-    use std::collections::BinaryHeap;
+    use std::collections::{BinaryHeap, HashSet};
     let mut walker = Resume::new(a, n, SNAP_EVERY, false);
     if let Outcome::Fit(m) = walker.attempt(a, n, &[]) {
         return Some((Vec::new(), m));
@@ -236,22 +243,32 @@ fn events(a: &Arrays<'_>, n: &NormalArrays<'_>) -> Option<(Vec<Choice>, Triangle
     // Per set: its choices and the first triangle a new choice may take.
     let mut sets: Vec<(Vec<Choice>, usize)> = vec![(Vec::new(), 0)];
     let mut heap = BinaryHeap::from([(walker.steps.len(), Reverse(0), 0)]);
+    let mut seen = HashSet::new();
     while let Some((reach, _, id)) = heap.pop() {
         if walker.spent > EVENT_BUDGET {
             return None;
         }
         let (flips, decided) = sets.get(id)?.clone();
         walker.attempt(a, n, &flips);
-        for c in event_candidates(&walker.steps, decided, reach) {
+        let from = decided.saturating_sub(EVENT_BACK);
+        for c in event_candidates(&walker.steps, from, reach) {
+            if flips.contains(&c) {
+                continue;
+            }
             let mut g = flips.clone();
             g.push(c);
+            g.sort_by_key(|c| (c.at(), matches!(c, Choice::Turn(_))));
+            if !seen.insert(g.clone()) {
+                continue;
+            }
             if let Outcome::Fit(m) = walker.attempt(a, n, &g) {
                 return Some((g, m));
             }
             let r = walker.steps.len();
             if r != reach {
+                let last = g.iter().map(|c| c.at() + 1).max().unwrap_or(0);
                 heap.push((r, Reverse(g.len()), sets.len()));
-                sets.push((g, c.at() + 1));
+                sets.push((g, last));
             }
         }
     }
