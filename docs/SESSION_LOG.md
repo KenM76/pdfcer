@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1113th filing) — `Pass 617.0` (`655ec5c1`, `G212`) and `Pass 617.1` (`bb5f119b`, `G211`) shipped
+
+**Shipped (engineer-reported, no shell here):** `617.0`: `InstalledFaceAugmenter::candidates` returns the letters of the first name-matched face that maps something and passes `identity::check`, not the first name match; no API change. `617.1`: `oc_chain: Vec<ObjId>` on `PathObject`/`TextObject`/`ImageObject`, `VectorObject::oc_chain()`/`is_hidden_under(graph, off)`, page-relative `FormLeaf::oc_chain()`/`is_hidden_under()`; `oc()` unchanged; BREAKING: `ImageObject` no longer `Copy`. Tests: `augment_request_from_a_shell.rs` (`a_same_named_face_that_cannot_serve_is_skipped`), `oc_chain_matches_the_painter.rs` (6 squares, predicate equals raster; innermost-only sabotage fails). `run-gates.sh` PASS (46 commands incl. 2 filing gates) on the tree of `bb5f119b`. No `Cargo.toml` change.
+
+**Caveat recorded, not rounded up:** the `617.0` test falsifies the no-cmap half only; `face-b-differs.ttf` likely maps the same characters as `face.ttf`, so the identity-check half is not strictly falsified.
+
+**Register:** ROADMAP Shipped gains `617.1` and `617.0`; Next-up gains a one-line pointer. `FEATURES.md`: `G210` row gains the `G212` clause (core `[x]`, cli `—`, gui `[ ]`); new Implemented row for hidden-under-any-enclosing-layer (core `[x]`, cli `[ ]`, gui `[ ]`). No decision. Both outside the `616.x` arc. Replies `G211`/`G212` `_FIXED` written by the engineer to `pdfce_FeatureRequests/open/`.
+
+**For next session:** `Pass 616.2` (lossless structure clean-up). Next free `Pass 617.2`, decision `192`; next filing 1114th; engineer pushes `bb5f119b`, `655ec5c1` and this filing. Git, push and backup state not verified from here.
+
 ## 2026-10-20 (1112th filing) — `Pass 616.1` shipped in `e6949a25`: optimize framework (`pdfcer optimize`)
 
 **Shipped (engineer-reported, no shell here):** `pdfcer_core::optimize` (settings, presets, selectors, rules, per-object overrides, TOML profiles, plan/apply/save), `EditSession::plan_optimize`/`apply_optimize`/`save_optimized`, `pdfcer optimize` with exit code 14 `NOT_SMALLER`. Lossless Flate recompression of generic streams only. Core `[x]`, cli `[x]`, gui `[ ]`. Tests: core 18 + 3 doctests, cli 6; fuzz `optimize_profile` 942,049 runs in 91 s, clean; `run-gates.sh` PASS (46 commands). Commit `e6949a25`, parent `c7ec582b`; not pushed at filing time.

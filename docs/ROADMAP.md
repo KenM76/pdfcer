@@ -112,6 +112,28 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 617.1` — Every enclosing `/OC` on a decomposed object, and `is_hidden_under` (`G211`) — SHIPPED 2026-10-20 (1113th filing)
+
+Commit `bb5f119b` on `main`, after `655ec5c1`; not pushed at filing time. Core (`pdfcer-core` vector model) only; `pdfcer-gui` consumes it for `O317`/`O318`. Engineer-reported; I have no shell (hard rule 8). Outside the `616.x` arc; reasoning is in the commit message.
+
+- **Defect (`G211`):** `VectorObject`/`FormLeaf` reported only the innermost `/OC`, so an object inside two nested layers, one hidden, could not be reported hidden.
+- **Added:** pub field `oc_chain: Vec<ObjId>` on `PathObject`/`TextObject`/`ImageObject`, outermost first (open `BDC /OC` sections, then the XObject's own `/OC`; an unresolvable name is absent, as the renderer draws it). `VectorObject::oc_chain()`; `VectorObject::is_hidden_under(graph, off)` = any entry hidden per `annot::oc_is_hidden` (the renderer's rule, ISO 32000-2 §8.11.3). `FormLeaf::oc_chain()` / `is_hidden_under()` are page-relative (each enclosing form `Do`'s chain is prefixed while descending in `collect_form_leaves_from`), which closes the documented `FormLeaf::oc()` partial. `oc()` unchanged.
+- **BREAKING:** `ImageObject` is no longer `Copy`.
+- **Test:** `crates/pdfcer-render/tests/oc_chain_matches_the_painter.rs`: 6 squares, predicate equals raster; sabotaging to innermost-only fails it. `docs/core-api/01-reading-and-model.md` §10.1 updated; `check-core-api-verbs.py` green.
+- **Gates:** `tools/run-gates.sh` PASS (46 commands incl. 2 filing gates) on the tree of `bb5f119b`. No `Cargo.toml` change, no new dependency, so no `cargo tree` check owed.
+
+`FEATURES.md`: new Implemented row, hidden under any enclosing layer: `[x]` core, `[ ]` cli (no CLI caller; `object-list` prints `oc()` only), `[ ]` gui. Reply `G211` `_FIXED` written to `pdfce_FeatureRequests/open/`. Hard-rule-11 sweep: the row for `Pass 250.0` still says "membership only", which stays true of `oc()`; the 1112th log entry's "open request" line is history. Ledgers: no decision; next free `Pass 617.2`; next filing 1114th; next in arc `Pass 616.2`. Git, push and backup state not verified from here.
+
+### `Pass 617.0` — `InstalledFaceAugmenter::candidates` skips a same-named face that cannot serve (`G212`) — SHIPPED 2026-10-20 (1113th filing)
+
+Commit `655ec5c1` on `main`, after `5e406fee` (the 1112th filing); not pushed at filing time. Core/render; no API change. Engineer-reported; I have no shell (hard rule 8).
+
+- **Defect (`G212`):** `candidates` took the first name-matched installed face even if it had no cmap, so the typing repertoire came back empty while a later same-named face could serve.
+- **Fix:** `candidates` returns the letters of the first name-matched face that maps something AND passes `identity::check`, i.e. the face `addable`/`augment` would use.
+- **Test:** `crates/pdfcer-render/tests/augment_request_from_a_shell.rs` `a_same_named_face_that_cannot_serve_is_skipped`. **Caveat, not rounded up:** `face-b-differs.ttf` likely maps the same characters as `face.ttf`, so the identity-check half is not strictly falsified by this test; the no-cmap half is.
+
+`FEATURES.md`: the `G210` candidates row gains the `G212` clause; `[x]` core, `—` cli, `[ ]` gui (shell-side). Reply `G212` `_FIXED` written to `pdfce_FeatureRequests/open/`. Ledgers: as the `617.1` entry above.
+
 ### `Pass 616.1` — Optimize framework: `pdfcer_core::optimize` + `pdfcer optimize` — SHIPPED 2026-10-20 (1112th filing)
 
 Commit `e6949a25` on `main`, after `c7ec582b` (the 1111th filing); not pushed at filing time per the dispatch. Core + cli; gui NOT (`pdfcer-gui` has not consumed it). Engineer-reported; I have no shell (hard rule 8). Second Pass of the size-reduction arc (decision 191); reasoning is in the commit message.
@@ -22545,6 +22567,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+(1113th filing: `Pass 617.0` (`G212`) and `617.1` (`G211`) shipped, see *Shipped*; next free `Pass 617.2`, next in the `616.x` arc `Pass 616.2`, next filing 1114th.)
 
 (`Pass 606.0` shipped at the 1097th filing, `04e769fc`; see *Shipped*. The residue m64, m95, m107 is not a Pass yet. Release to OneDrive `pdfcer1` is the next step, not done.)
 
