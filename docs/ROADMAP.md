@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.0` — Space audit: `pdfcer_core::space_audit` + `pdfcer audit-space` — SHIPPED 2026-10-20 (1111th filing)
+
+Commit `5ba901d4` on `main`, after `e6127c13` (the 1110th filing); neither pushed at filing time (engineer pushes). Core + cli; gui is `pdfcer-gui`'s. Engineer-reported; I have no shell (hard rule 8). First Pass of the size-reduction arc (decision 191); scope in the retained `616.0` block under *Next up*.
+
+- **Core:** `audit(&Document) -> SpaceAudit` (`file_bytes`, `categories` = all 24 `SpaceCategory` rows incl. zeros, summing EXACTLY to file length; `objects` largest first with id, category, stored/stream bytes, containing object stream, filters, Type/Subtype, image facts, 1-based `pages`; `notes`). `diff(before, after) -> SpaceDiff`.
+- **Attribution:** each object owns its `N G obj … endobj` span; gaps go to CrossReference, Superseded (bodies replaced by an incremental update) or FileOverhead; an object-stream container is shared among members by decoded length via new `pdfcer_model::objstm::ObjectStream::member_lengths`. Roles by BFS from roots (page tree, then annotations/thumbnails, catalog, trailer); unreached = Unreferenced.
+- **Images:** placements from a CTM walk through nested forms (depth 32, cycle guard); ppi = px·72/drawn pt; SMask/Mask images inherit the parent's placements. Annotation appearances are NOT walked (a note says so).
+- **CLI:** `pdfcer audit-space FILE [--diff OTHER] [--top N] [--json]`. README count 233 to 234 working. `docs/core-api/03-capabilities.md` gains §14 (Space audit).
+- **Acceptance vs `616.0` scope:** all met (category bytes and %, per-object rows, image px and ppi per placement and max, JSON/text, diff, CLI).
+- **Tests:** core `space_audit` 10 (7 audit + 3 byte-attribution) + 1 doctest; model `member_lengths_run_to_the_next_offset`; CLI 2 in `crates/pdfcer-cli/tests/audit_space.rs`. Suites green: core 1547 lib, model 401, cli 885 integration. New fuzz target `space_audit` asserts the sum invariant: 73,942 runs in 91 s, 0 crashes (about 1.2 ms/run). clippy `-D warnings`, fmt, wasm32 check, check-code-structure (no new debt), all python/bash gates green. `cargo tree` unchanged, no new dependency.
+
+`FEATURES.md`: Space audit row moved *Planned* to *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui; no optimize/compress row ticked (`616.1`+ unbuilt). Hard-rule-11 sweep: the 1109th banner (line ~22523) still says `616.0`-`616.10` "not built" (history of that filing, left); the Next-up `616.0` header now says moved. Ledgers: no decision; next free `Pass 617.0`; **next in arc `Pass 616.1`**; next filing 1112th. Git, push and backup state not verified from here.
+
 ### `Pass 615.0` — `SubsetAugmenter::candidates` required; `AugmentRequest::new` + builders (`G210`) — SHIPPED 2026-10-20 (1110th filing)
 
 Commit `c1b6d08c` on `main` ("feat(text_edit)!: ..."), after `d40cbb1c` (the 1109th filing); core-only (`pdfcer-core` `text_edit/subset_augment.rs`, out-of-crate test in `pdfcer-render`). Pushed. Engineer-reported; I have no shell (hard rule 8). Unreleased; last release `v0.89.0` (before this Pass).
@@ -24269,7 +24282,7 @@ closes out the *prior* filing's business rather than opening this one's.
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
 
-### `Pass 616.0` — Space audit (`audit-space`) — NEXT UP, 2026-10-20 (size-reduction arc)
+### `Pass 616.0` — Space audit (`audit-space`) — MOVED TO *Shipped* (1111th filing, `5ba901d4`); arc inputs below stay for `616.1`+
 
 **Arc inputs (referenced here so the hand-off counts):** `docs/research/pdf-size-reduction-survey.md` (17 non-Adobe tools, a capability matrix, 15 gaps); Acrobat RAG `D:\Dev\Rag-Specialized\Acrobat_Features\optimize__pdfcer_parity_checklist.md` plus its siblings `optimize__images_panel`, `__discard_objects`, `__discard_user_data`, `__clean_up_and_fast_web_view`, `__audit_space_usage`, `__presets_settings_and_batch`, `__edge_cases_signatures_pdfa_refusals`, `__reduce_file_size_one_shot`, `__transparency_flattening`, `__font_unembedding` (and `__font_reporting`, `__font_related_adjacent_operations`). Operator words (Ken, 2026-10-20): *"start working on features to reduce the size of a pdf. Research first what other tools including what Acrobat Includes. I want pdfcer to meet or exceed the capabilities and user friendly options that this and other tools have, including fine tuning and control over what gets compressed and how and which objects down to individual controls on how to handle each one."* Binding design: **decision 191**. Each Pass ships core + cli in the same Pass; the gui column is `pdfcer-gui`'s.
 

@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1111th filing) — `Pass 616.0` shipped in `5ba901d4`: space audit (`audit-space`)
+
+**Shipped (engineer-reported, no shell here):** `pdfcer_core::space_audit` (`audit`, `diff`; 24 categories summing exactly to file length; per-object rows with page uses; image ppi per placement) and `pdfcer audit-space FILE [--diff OTHER] [--top N] [--json]`; new `ObjectStream::member_lengths` in `pdfcer-model`; core-api §14. Core `[x]`, cli `[x]`, gui `[ ]`. Tests: core 10 + 1 doctest, model 1, cli 2; suites green (core 1547, model 401, cli 885); fuzz `space_audit` 73,942 runs in 91 s, 0 crashes; all gates green, no `cargo tree` change. Commit `5ba901d4`, parent `e6127c13`; neither pushed at filing time.
+
+**Register:** ROADMAP Shipped gains `616.0`; Next-up `616.0` header marked moved (arc inputs kept for `616.1`+). `FEATURES.md` Space audit row moved to *Implemented*; no optimize rows ticked. No decision filed.
+
+**Known limit:** annotation appearances are not walked for image placements (disclosed by a note in the report).
+
+**For next session:** `Pass 616.1` (optimize framework) is next in the arc; next free `Pass 617.0`; next filing 1112th; engineer pushes `e6127c13` and `5ba901d4`.
+
 ## 2026-10-20 (1110th filing) — `v0.89.0` published; `Pass 615.0` shipped in `c1b6d08c` (`G210`)
 
 **Shipped (engineer-reported, no shell here):** (1) `v0.89.0` published: tag at `1bdf8032`, bump `b2507313`, 8 GitHub assets (portable zip 25,951,206 bytes, sha256 `76ea7115...a02518`; three OCR add-on zips; a `.sha256` each); OneDrive slot `pdfcer2` = 0.89.0, `pdfcer1` keeps 0.88.0; fresh-folder smoke passed, trailer 3D renders in 41 s. Contents `613.0`, `614.0`: door 155/1/0, trailer 127/14/0. (2) `Pass 615.0` `c1b6d08c`: `SubsetAugmenter::candidates` required (breaking), `AugmentRequest::new` plus four builders, 3 out-of-crate tests in `pdfcer-render`, core-api doc corrected; core-only, no `cargo tree` change. `G210` `_FIXED` reply and a `v0.89.0` notice written to `pdfce_FeatureRequests/open/`. Pushed `main` at `c1b6d08c`.
