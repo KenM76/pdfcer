@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1098th filing) — `v0.86.0` version bump `e1441e0d` filed; release PENDING
+
+**Filed (engineer-reported, no shell here):** bump `e1441e0d` after `72b88780` (1097th filing). Workspace 0.85.0 -> 0.86.0 in `Cargo.toml` and the root + `fuzz/` locks (`cargo update -w`); no dependency or API change, `docs/core-api/` untouched. Contains `Pass 606.0` (`04e769fc`).
+
+**Measured (release `3d-render`):** door 156 rebuilt / 1 best-fit / 0 left out (= 155/1/0); trailer 138 rebuilt / 11 best-fit / 3 left out (= 127/11/3 over 141 meshes). Matches the census. Gates change-scoped (Ken 2026-10-16): only `pdfcer-3d` changed; fmt, clippy `-D warnings` OK; 163 + 3 + 13 = 179 tests pass.
+
+**Pending, NOT claimed:** tag `v0.86.0` on this filing commit, package, smoke, GitHub release, OneDrive `pdfcer1` (0.85.0 stays `pdfcer2`); publication gets its own filing.
+
+**Filed as:** `### v0.86.0` Shipped entry above `Pass 606.0`, same shape as `v0.85.0`. No decision; `FEATURES.md` untouched. Hard-rule-11 sweep: no meaning changed, no survivors. `.claude/agent-memory/` and `docs/NEXT_SESSION.md` not touched.
+
+**For next session:** next free `Pass 607.0`; next filing 1099th. Remaining mesh failures: trailer m64, m95, m107.
+
 ## 2026-10-20 (1097th filing) — `Pass 606.0` shipped in `04e769fc` (PRC compressed fit: planar faces checked while walking; best-first event search)
 
 **Shipped (engineer-reported, no shell here):** `04e769fc`, crate `pdfcer-3d` only. (a) private `compressed/bend.rs`: incremental planar-bend gate (`MAX_BEND` applied while walking, WD 7.8.9.1; post-hoc `flat()` kept; skipped for partial walks; 5 tests). (b) `search.rs` `events` reading last in `best_fit`: best-first over choice sets, window 300, inert-pruned, budget 1,000,000 steps; disclosed as best fit (1 test).

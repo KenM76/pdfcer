@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.86.0` — version bump `e1441e0d` filed; release PENDING (1098th filing)
+
+Bump `e1441e0d` ("chore: bump version to 0.86.0") on `main`, after `72b88780` (the 1097th filing, which filed `Pass 606.0` = `04e769fc`): workspace `Cargo.toml` 0.85.0 -> 0.86.0, plus `cargo update -w` on the root and `fuzz/` locks. No dependency change, no `pub`/API change, so `docs/core-api/` is untouched. Contents: `Pass 606.0` (incremental planar-bend check + best-first event search for compressed PRC meshes). Release standing-authorised (decision 121). All figures engineer-reported; I have no shell (hard rule 8).
+
+- **Measured** (release CLI `3d-render` on the two samples; rebuilt / best-fit / left out): door `TS-0232-16-3D.pdf` 156 rebuilt, 1 best-fit, 0 left out (= 155 unique / 1 B / 0 F); trailer `TR-0522.pdf` 138 rebuilt, 11 best-fit, 3 left out (= 127 / 11 / 3, 141 meshes). Matches the `606.0` census.
+- **Gates were CHANGE-SCOPED** (Ken 2026-10-16): only `pdfcer-3d` changed since v0.85.0; `cargo fmt --check` OK, clippy `-D warnings` OK, `cargo test -p pdfcer-3d` 163 + 3 + 13 = 179 passed.
+- **Plan, NOT claimed done:** tag `v0.86.0` on the filing commit of this entry, package, smoke, GitHub release, OneDrive slot `pdfcer1` (0.85.0 stays in `pdfcer2`). Publication gets its own filing.
+
+`FEATURES.md`: no change from the bump (3D row updated at the 1097th filing). Ledgers: no decision; core-api verbs unchanged (378); next free `Pass 607.0`; next filing 1099th.
+
 ### `Pass 606.0` — PRC compressed-tessellation fit: planar faces checked while walking + best-first event search — SHIPPED 2026-10-20 (1097th filing)
 
 Commit `04e769fc` on `main`, after `424795b3` (the 1096th filing, which designed it); push state not checked here (no shell, engineer-stated). Crate `pdfcer-3d` only; no `Cargo.toml` change (no `cargo tree` concern), no `pub` change (core-api verbs 378). Operator-direct continuation of `605.0`. Unreleased; last release `v0.85.0`.
