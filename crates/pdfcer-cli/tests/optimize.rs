@@ -243,7 +243,7 @@ fn unreferenced_destinations_go_only_when_asked_and_are_listed() {
     let t = text(&o);
     assert!(
         t.contains("0 bookmark(s), 2 named destination(s) removed")
-            && t.contains("dest     \"old\"")
+            && t.contains("dest     \"old\"") // string-gap-exempt: the report pads its kind column
             && t.contains("another file"),
         "{t}"
     );
