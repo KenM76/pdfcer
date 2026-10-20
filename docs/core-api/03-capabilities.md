@@ -4493,7 +4493,9 @@ Contract:
   to 1.5 if lower, §7.5.7/§7.5.8), never carries an input linearization
   dictionary, and writes a reference to a missing object as `null`. CLI:
   `--keep-structure`, `--keep-unreferenced`, `--keep-duplicates`,
-  `--no-object-streams`; the report's `structure` line / JSON key.
+  `--no-object-streams`, `--compression entire|structure|leave` (Acrobat's
+  modes; "remove compression" is `export-structure`); the report's
+  `structure` line / JSON key.
 - **Refusals** (`OptimizeError::Refused`, all listed at once): `Signed` unless
   `allow_signed` (then a `notes` line says how many signatures break);
   `Encrypted` always (decrypt, optimize, re-encrypt).

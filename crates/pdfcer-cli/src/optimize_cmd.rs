@@ -50,6 +50,17 @@ pub(crate) struct OptimizeArgs {
     /// "12 0=recompress-6". Repeatable.
     #[arg(long = "object", value_name = "ID=ACTION")]
     pub(crate) objects: Vec<String>,
+    /// Acrobat's compression modes in one switch. entire: recompress
+    /// streams and pack objects into object streams (the presets' default).
+    /// structure: object streams only, every stream's data left as stored.
+    /// leave: neither. For Acrobat's "remove compression" (decoded, larger,
+    /// for inspection), use `pdfcer export-structure`.
+    #[arg(
+        long,
+        value_enum,
+        conflicts_with_all = ["streams", "no_object_streams", "keep_structure"]
+    )]
+    pub(crate) compression: Option<Compression>,
     /// Keep the file's structure: no unreferenced-object removal, no
     /// duplicate merging, no object streams. Same as all three --keep flags.
     #[arg(long)]
@@ -99,6 +110,17 @@ pub(crate) struct OptimizeArgs {
     /// List the presets and what each does, then exit.
     #[arg(long)]
     pub(crate) list_presets: bool,
+}
+
+/// `--compression`'s modes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum Compression {
+    /// Recompress streams and use object streams.
+    Entire,
+    /// Object streams only; stream data left as stored.
+    Structure,
+    /// Neither: stream data as stored, a classic cross-reference table.
+    Leave,
 }
 
 /// Run `optimize`.
@@ -182,6 +204,13 @@ fn resolve_settings(args: &OptimizeArgs) -> Result<OptimizeSettings, String> {
         let (id, action) = profile::parse_object(spec).map_err(|e| e.to_string())?;
         settings.objects.insert(id, action);
     }
+    if matches!(
+        args.compression,
+        Some(Compression::Structure | Compression::Leave)
+    ) {
+        settings.streams = pdfcer_core::optimize::StreamAction::Leave;
+    }
+    settings.structure.object_streams &= args.compression != Some(Compression::Leave);
     settings.allow_signed |= args.invalidate_signatures;
     let st = &mut settings.structure;
     st.remove_unreferenced &= !(args.keep_structure || args.keep_unreferenced);

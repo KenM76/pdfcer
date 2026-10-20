@@ -279,3 +279,35 @@ fn unreferenced_destinations_go_only_when_asked_and_are_listed() {
     ]);
     assert!(text(&o).contains("\"destinations\":[]"), "{}", text(&o));
 }
+
+#[test]
+fn compression_modes_choose_streams_and_object_streams() {
+    let d = dir("compression");
+    let input = write_pdf(&d, "");
+    let path = input.to_str().unwrap();
+    let json = |mode: &str| text(&run(&[path, "--dry-run", "--json", "--compression", mode]));
+    let entire = json("entire");
+    assert!(
+        entire.contains("\"changes\":[{") && !entire.contains("\"object_streams\":0"),
+        "{entire}"
+    );
+    let structure = json("structure");
+    assert!(
+        structure.contains("\"changes\":[]") && !structure.contains("\"object_streams\":0"),
+        "{structure}"
+    );
+    let leave = json("leave");
+    assert!(
+        leave.contains("\"changes\":[]") && leave.contains("\"object_streams\":0"),
+        "{leave}"
+    );
+    let o = run(&[
+        path,
+        "--dry-run",
+        "--compression",
+        "leave",
+        "--streams",
+        "leave",
+    ]);
+    assert_eq!(o.status.code(), Some(2));
+}
