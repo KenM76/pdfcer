@@ -112,6 +112,35 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.88.0` — version bump filed 2026-10-20 (1104th filing); release PENDING
+
+Bump `910dbb93` ("chore: bump version to 0.88.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`) on `main`, after `9b3e878d`. No dependency change (no `cargo tree` concern for `pdfcer-core`/`pdfcer-render`). Contents since `v0.87.0`: `Pass 608.0`-`612.0` (below). Figures engineer-reported; I have no shell (hard rule 8). **Not claimed done:** tag, package, smoke, GitHub release, OneDrive slot (`pdfcer1`, since `v0.87.0` wrote `pdfcer2`), notice to `pdfcer-gui`; publication gets its own filing. `FEATURES.md`: rows for 608.0-612.0 below. Ledgers: no decision; next free `Pass 613.0`; next filing 1105th.
+
+### `Pass 612.0` — block recognition: a drawing-frame table cell splits into its notes (`G206`) — SHIPPED 2026-10-20 (1104th filing)
+
+Commit `9b3e878d` (shared with `Pass 611.0`), core. A SolidWorks drawing's border and title-block rules detect as a ruled table whose cell (0,0) spans the drawing area, so 66 scattered lines were one `TableCell` block. Chosen (the request left it to the engine): `cells.rs` `cell_paragraphs` splits each cell's lines into paragraphs (at most 1.6 em below the previous line, with horizontal overlap), each a `TableCell` block carrying the cell's rect; `table_cell_blocks` counts paragraphs. Test `cell_block_model::a_drawing_frame_cell_splits_into_its_notes_and_labels` (verified to fail without the fix; synthetic fixture, the operator's drawing is not rights-cleared and was checked locally only). RAG: `C:\personal_rag\pdf\lesson_20261020_solidworks_drawing_borders_detect_as_a_ruled_table_so_the_whole_drawing_area_is_one_cell.md`. Reply: `reply_request_G206_..._FIXED.md`.
+
+### `Pass 611.0` — block recognition: a blank-line gap ends a paragraph; a heading number is not a column (`G205`) — SHIPPED 2026-10-20 (1104th filing)
+
+Commit `9b3e878d`, core (cli `inspect --text-blocks` and `reflow-preview` inherit). `column_metrics` typical leading is now the median of gaps inside `PITCH_EM` 0.6-1.6 x size (fallback: median of all), so a blank-line gap (24.7 pt against a 12.6 pt pitch on the reported Word page) breaks a paragraph; the gutter rule rejects a gap crossed by at least as many body lines as it aligns (`gutter::crossed`), so a column of heading numbers is not a column. Tests: `cell_block_model::spaced_paragraphs_break_on_the_line_pitch_not_the_median_gap` (verified to fail without the fix), `edit_block_text::a_block_after_a_blank_line_block_is_still_the_one_edited`.
+
+- **Side effect, a MEANING CHANGE:** `with_line_marks` now merges adjacent same-kind, same-column blocks inside one `pdfc_TextBlock` text object and restamps `Line::block`; so `edit_block_text` layout, `plan_reflow_from_doc` and CLI `reflow-preview` now build their models WITH marks, to keep block indices agreeing with `block_at_point`. **Block indices depend on marks**; documented in `docs/core-api/01-reading-and-model.md` §8.4.4a. Hard-rule-11 sweep (grep of `FEATURES.md`, `ARCHITECTURE.md`, `NEXT_SESSION.md`, `docs/core-api/` for `TableCell`, `table_cell_blocks`, `block_at_point`, "its own block"): no survivor found; sources under `crates/` not swept (outside my remit).
+- **Totals (engineer-reported, whole commit):** core 1538 lib + 2995 integration; cli 227 + 43 + 883; all green; clippy and fmt clean; code-structure baseline 569, none new. Verified on the operator's Word page locally (not a fixture). RAG: `C:\personal_rag\pdf\lesson_20261020_a_median_of_all_line_gaps_on_a_word_page_with_blank_line_spacing_is_the_blank_line_gap.md`.
+
+### `Pass 610.0` — automatic word gap for text extraction (`G209`) — SHIPPED 2026-10-20 (1104th filing)
+
+Commit `b09c77c9`, core + cli. `ExtractOptions::word_gap_auto` / `with_word_gap_auto`: per page, a valley search over the inter-glyph gap distribution (0.06-0.60 em, at least 12 pairs, 3 per side, minimum valley 0.05 em), falling back to `word_gap_ratio` (default 0.20, unchanged). The ratio used is reported per page, never silent: `PageText::word_gap_ratio` and `word_gap_measured`. `Settings::word_gap_auto`; CLI `extract-text --auto-word-gap`, with per-page fields in `--json`. Tests: `pdfcer-text` 32 lib + 61 integration + 17 doc; core settings 38; cli extract 33.
+
+### `Pass 609.0` — the drawn font size on provenance and `FormatRequest` (`G208`) — SHIPPED 2026-10-20 (1104th filing)
+
+Commit `199a2989`, core + cli. `GlyphProvenance::em_scale()` and `drawn_size()` (`pdfcer-text`); `FormatRequest::drawn_size(points)` solves the `Tf` operand per matched operator (a CAD `1 Tf` under a 13.2x `Tm`), exclusive with `.size()`. CLI `format-text --drawn-size`. The arithmetic is the engine's definition of drawn size; `pdfcer-gui`'s `canvas::textedit::pin::em_scale` workaround can go. RAG lesson from the shell side already filed: `lesson_20261020_cad_text_is_set_at_1_tf_with_the_size_in_the_text_matrix.md`.
+
+### `Pass 608.0` — `format_text` size change on a Type0 / Identity-H run (`G207`) — SHIPPED 2026-10-20 (1104th filing)
+
+Commit `adee0326`, core (cli inherits through `format-text`). **Defect, data-corrupting:** a size change re-emitted a composite run's codes one byte each, so it read back as U+FFFD; the code width now follows the font (ISO 32000-2 §9.7.6.2) in both the emitter and the old-advance sum. **Second defect:** the format report read `/FontDescriptor` from the Type0 parent, so composite runs were disclosed non-embedded; it now reads the descendant CIDFont (§9.7.4.1, Table 117). Test `composite_refusal_reachable::a_size_change_on_a_composite_run_keeps_its_text_and_embedding`.
+
+**Filing notes for 608.0-612.0:** replies written to `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_request_G205..G209_..._FIXED.md`. No manifest dependency change. Commits not verified pushed from here (hard rule 8). `FEATURES.md`: four Implemented rows added in *Text*, five Planned rows removed. Premises stated back: next free `Pass 613.0` and next filing 1105th both match the live ledgers; `v0.87.0` published at the 1102nd filing matches.
+
 ### `v0.87.0` — PUBLISHED 2026-10-20 (published at the 1102nd filing; bump filed at the 1101st)
 
 **Published (engineer-reported; I have no shell, hard rule 8).** Annotated tag `v0.87.0` at `d8f4bb44` (the 1101st filing, which filed bump `e6167c24`), pushed with `main`; CI green at the tag.
@@ -22445,36 +22474,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 (`Pass 606.0` shipped at the 1097th filing, `04e769fc`; see *Shipped*. The residue m64, m95, m107 is not a Pass yet. Release to OneDrive `pdfcer1` is the next step, not done.)
 
-> **Taken up from `pdfcer-gui`, 2026-10-20 (1103rd filing): 5 requests `G207`, `G208`, `G209`, `G205`, `G206` as `Pass 608.0`-`612.0`, in this order (the defect that corrupts data first).** Request files in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\` (named per item). Each Pass delivers core, plus cli where a flag applies; the GUI column is `pdfcer-gui`'s. **Fixtures are synthetic** (`LEGAL.md` §5): the request files cite operator PDFs (`SW41177.pdf`, `ROPS-FOPS\Code 4 - Final.pdf`) that are NOT rights-cleared, so each regression test builds a synthetic file of the same shape. Ledgers: no decision; next free `Pass 613.0`; next filing 1104th.
->
-> ### `Pass 608.0` — `format_text` size change on a Type0 / Identity-H run garbles its codes (`G207`) — DEFECT, data-corrupting
-> Request: `request_G207_a_size_change_on_an_identity_h_run_garbles_its_text.md` (operator O310, engine v0.84.0; `main` has had no `text_edit` commit since, so v0.86.0 assumed the same).
-> - **Fault:** `EditSession::format_text(&FormatRequest::new(0, "TRUCK BED.").size(1.3333), ..)` on a `/Type0` `/Identity-H` run (`/C2_0`, drawn `1 Tf` under `Tm [13.22835 0 0 13.22835 ..]`) returns `Ok` (`size_change: Some((1.0, 1.3333))`, `Reflow`), and the run then reads back as five U+FFFD for ten characters; the preview refuses ("not found in an editable run"). The decode is right before the write.
-> - **Second defect, same request:** the disclosure calls a subset-tagged Type0 font ("AQHZBV+CenturyGothic") `NonEmbedded` when its descendant carries its own program; the unedited preview reports `source=Embedded`. `glyph_source` classification and the preview's must agree.
-> - **Acceptance:** a size change on a two-byte CID run leaves its codes intact, so it reads back as the same text; `glyph_source` / disclosure classification agrees with the preview's; a unit test on a SYNTHETIC two-byte CID run (subset-tagged Type0, Identity-H, embedded descendant) pins both.
-> - Surface: core. cli: none beyond the existing `format-text` verb's behaviour.
->
-> ### `Pass 609.0` — the drawn (effective) font size on provenance and `FormatRequest` (`G208`)
-> Request: `request_G208_an_effective_font_size_on_provenance_and_on_formatrequest.md` (operator O309, v0.84.0).
-> - **Need:** CAD exports write `1 Tf` and carry the size in `Tm`; `GlyphProvenance::tf_size` is 1.0 for 13.2 pt text, and a typed 24 becomes `24 Tf` under a 13.2x matrix. The shell carries a workaround (`canvas::textedit::pin::em_scale`: length of text space's vertical unit through `Tm` then the CTM; ignores `Tz`/`Ts`; first glyph only) it wants to delete.
-> - **Deliver:** `GlyphProvenance` effective em height in user-space points (`Tf` x the vertical scale of `Tm`·CTM), and a `FormatRequest` constructor taking a DRAWN size that solves the `Tf` operand per operator itself; state that this arithmetic is the engine's definition.
-> - **Acceptance:** a CAD-style `1 Tf` + scaling `Tm` run reports its drawn size; a drawn-size request lands the drawn size; `docs/core-api/` updated (verb count moves; re-measure it). cli: a flag where `format-text` takes a size (to be decided in the Pass).
->
-> ### `Pass 610.0` — automatic word gap for text extraction (`G209`)
-> Request: `request_G209_an_automatic_word_gap_ratio.md` (operator O312, v0.84.0). Today `ExtractOptions::word_gap_ratio` is a fixed `0.20` with no spec basis; the shell will not build a second segmentation heuristic.
-> - **Deliver:** `ExtractOptions` gains an Auto word-gap mode (e.g. `WordGap::Ratio(f32) | WordGap::Auto`) deriving the threshold per page from the distribution of inter-glyph gaps on each baseline (letter gaps vs word gaps are two clusters; take the valley), and REPORTS the ratio it chose per page (rule 4: disclosed, never silent). Fixed ratio stays the default unless decided otherwise.
-> - **Acceptance:** a two-cluster synthetic page gives a threshold between the clusters; the chosen ratio is reported; CLI flag; `docs/core-api/` updated.
->
-> ### `Pass 611.0` — block recognition: a blank-line gap ends a paragraph; a heading number is not a column (`G205`)
-> Request: `request_G205_paragraphs_merge_across_blank_line_gaps_and_a_numbered_heading_makes_a_column.md` (operator O307, v0.84.0; recognition unchanged through v0.86.0).
-> - **Fault (probably one cause):** on a Word-shaped numbered-section page, `recognize_with_cells` under `reflow_recognition_options()` yields a narrow column (x 59.5-84.3) out of the section numbers `1.6`, `1.6.1`, `1.6.2`, splitting heading runs between two blocks, and a 32-line block running through every ~2x-pitch (about 24.7 pt vs 12.6 pt) blank-line gap.
-> - **Acceptance:** a blank-line gap (~2x pitch) ends a paragraph under BOTH the default and `reflow_recognition_options()` (Pass 15.2 rule: both read the same); a column of heading section numbers is not recognised as a column of its own; each heading and each paragraph is its own block. Regression: a SYNTHETIC Word-shaped numbered-section fixture.
->
-> ### `Pass 612.0` — block recognition: a drawing-frame cell is not one 66-line block (`G206`)
-> Request: `request_G206_a_drawing_frame_reads_as_one_table_cell_holding_every_note.md` (operator O307, v0.84.0).
-> - **Fault:** a SOLIDWORKS drawing's border and title-block rules detect as a table whose cell (0,0) spans the drawing area; since G080 a cell is its own block, so 66 scattered lines (1200 x 800 pt) are one `TableCell` block and no note can open as its own paragraph.
-> - **Deliver, engine's choice:** segment a cell's text into paragraphs (x-overlap, alignment, gap) with the cell as their bound rather than one block; OR do not treat a cell this large and this sparse as a table cell.
-> - **Acceptance:** a three-line left-aligned note set apart from other labels is a block of three lines. Regression: a SYNTHETIC CAD-drawing-frame fixture. Block indices must stay the engine's (`edit_block_text` agreement).
+> **Taken up from `pdfcer-gui`, 2026-10-20 (1103rd filing): 5 requests `G207`, `G208`, `G209`, `G205`, `G206` as `Pass 608.0`-`612.0`.** All five shipped at the 1104th filing (`adee0326`, `199a2989`, `b09c77c9`, `9b3e878d`); see *Shipped*. Ledgers: no decision; next free `Pass 613.0`; next filing 1105th.
 
 > **Taken up from `pdfcer-gui`, 2026-10-13 (1054th filing): 13 requests `G174`-`G186` as `Pass 567.0`-`579.0`, defects first.** Request files in `pdfce_FeatureRequests/open/`. Each Pass ships core + CLI where a CLI surface applies; the GUI column is `pdfcer-gui`'s. `Pass 580.0` was self-found at the 1053rd filing, not a GUI request. Ledgers: no decision; next free `Pass 581.0`; next filing 1068th (updated at the 1067th; superseded at the 1068th by the stub below: next free `Pass 587.0`, next filing 1069th; superseded again at the 1069th: next free `Pass 588.0`, next filing 1070th).
 > - `567.0` (`G185`) and `568.0` (`G186`) shipped at the 1055th filing (`26cc218c`); see *Shipped*.

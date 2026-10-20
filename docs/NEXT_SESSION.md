@@ -43,7 +43,14 @@ below; no feature-request loop and no other Passes while it is open.**
   OneDrive `pdfcer2`; **the next release writes `pdfcer1`**). `608.0`-`612.0`
   filed in ROADMAP *Next up* (pdfcer-gui `G207`, `G208`, `G209`, `G205`,
   `G206`); start with `608.0` (data-corrupting). Fixtures must be synthetic.
-- **Ledgers:** next free Pass **613.0**; next filing **1104th** (check
+- **Update 1104th filing:** `608.0`-`612.0` SHIPPED (`adee0326`,
+  `199a2989`, `b09c77c9`, `9b3e878d`), bump `910dbb93` (`v0.88.0`), release
+  to OneDrive `pdfcer1`. Replies for G205-G209 are in the channel. **Block
+  indices now depend on line marks**: `with_line_marks` merges a
+  pdfcer-written block that has blank lines. Every model whose index reaches
+  `edit_block_text`/`reflow_block` must be built with marks. Next: the
+  m64/m95 meshes.
+- **Ledgers:** next free Pass **613.0**; next filing **1105th** (check
   ROADMAP's newest ledger line; older figures in this file predate it); no decision added since 183. Core-api verb
   count **378**.
 - **3D compressed meshes after `605.0`:** door `TS-0232-16-3D.pdf` 155/156

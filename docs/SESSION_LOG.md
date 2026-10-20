@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1104th filing) — `Pass 608.0`-`612.0` shipped (`G207`, `G208`, `G209`, `G205`, `G206`); `v0.88.0` bump `910dbb93` filed
+
+**Shipped (engineer-reported, no shell here):** `608.0` `adee0326` (a size change on a Type0 / Identity-H run keeps its two-byte codes; the format report reads the descendant CIDFont), `609.0` `199a2989` (`GlyphProvenance::em_scale`/`drawn_size`, `FormatRequest::drawn_size`, `format-text --drawn-size`), `610.0` `b09c77c9` (`ExtractOptions::with_word_gap_auto`, per-page ratio reported, `extract-text --auto-word-gap`), `611.0` and `612.0` together in `9b3e878d` (typical leading measured in a 0.6-1.6 em band; gutter rejects a gap crossed by body lines; a table cell splits into paragraphs). Bump `910dbb93` to 0.88.0; release NOT yet published, its own later filing. Totals: core 1538 lib + 2995 integration; cli 227 + 43 + 883; clippy/fmt clean; structure baseline 569, none new.
+
+**Decision-worthy, but no new decision number:** block indices now depend on line marks (`with_line_marks` merges adjacent same-kind blocks and restamps `Line::block`), so every model feeding `block_at_point` agreement (`edit_block_text`, `plan_reflow_from_doc`, `reflow-preview`) is built with marks; recorded in `docs/core-api/01-reading-and-model.md` §8.4.4a and the `Pass 611.0` Shipped entry. Hard-rule-11 sweep of the docs for the changed block meaning: no survivor found.
+
+**Findings:** two `personal_rag/pdf` lessons written (median-of-all-gaps leading on a blank-line-spaced Word page; SolidWorks drawing border as one ruled-table cell); both indexes updated. The operator's Word page and drawing were checked locally and are not fixtures (`LEGAL.md` §5). Git state, push state and backup currency not verified from here.
+
+**For next session:** next free `Pass 613.0`; next filing 1105th; publish `v0.88.0` (OneDrive slot `pdfcer1`); notify `pdfcer-gui` of the new core surface.
+
 ## 2026-10-20 (1103rd filing) — `Pass 608.0`-`612.0` filed from `pdfcer-gui` requests `G207`, `G208`, `G209`, `G205`, `G206`
 
 **Filed (engineer-dispatched, no shell here):** five Next up entries in the order given, each read against its request file in `pdfce_FeatureRequests/open/`: `608.0` (`G207`, `format_text` size change garbles a Type0/Identity-H run, plus the NonEmbedded misclassification; data-corrupting defect, first), `609.0` (`G208`, drawn size on provenance and `FormatRequest`), `610.0` (`G209`, Auto word gap, reported per page), `611.0` (`G205`, blank-line gap ends a paragraph; heading number not a column), `612.0` (`G206`, drawing-frame cell not one block). Five `FEATURES.md` Planned rows added at the top, all boxes unticked (cli `—` for `608.0`, `611.0`, `612.0`, which are defect fixes with no new flag; cli `[ ]` for `609.0` and `610.0`).
