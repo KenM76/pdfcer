@@ -31,6 +31,10 @@ const STEP_BUDGET: usize = 2_000_000;
 const BEST_DEPTH: usize = 64;
 /// Triangle steps the best-fit search spends on each reading.
 const BEST_BUDGET: usize = 250_000;
+/// How many triangles before a failure [`events`] looks for candidates.
+const EVENT_WINDOW: usize = 300;
+/// Triangle steps [`events`] may spend.
+const EVENT_BUDGET: usize = 1_000_000;
 
 /// Whether every planar face among `tris[from..]` lies within
 /// [`MAX_BEND`] tolerances of the plane through its centroid, oriented by
@@ -173,7 +177,7 @@ pub(super) fn fits_within(a: &Arrays<'_>, depth: usize) -> bool {
 /// reading: the arrays as read, then [`Arrays::legacy_orient`], then with
 /// slivers oriented by their corner normals ([`Walk::raw`]), then with a
 /// closed continuation edge overriding a stored normal
-/// ([`Walk::open_wins`]), then [`greedy`]. Measured on real producers, a normal can send
+/// ([`Walk::open_wins`]), then [`greedy`], then [`events`]. Measured on real producers, a normal can send
 /// the walk onto an edge two triangles already share, which no choice
 /// after it can repair. The result
 /// consumes every array and stored normal and keeps every planar face
@@ -206,6 +210,52 @@ pub(super) fn best_fit(a: &Arrays<'_>) -> Option<TriangleMesh> {
         }
     })
     .or_else(|| greedy(a, a.normals.as_ref()?))
+    .or_else(|| events(a, a.normals.as_ref()?).map(|(_, m)| m))
+}
+
+/// The last best-fit reading: a best-first search over choice sets,
+/// always expanding the one whose walk reaches furthest (fewer choices
+/// first among equals). A set is expanded by trial-walking each
+/// unsignalled fold and turn within [`EVENT_WINDOW`] triangles before its
+/// failure and after its last choice; a candidate whose walk fails at the
+/// same triangle is dropped as inert.
+///
+/// Measured on real producers: a wrong sliver fold can survive some 250
+/// triangles before the walk fails, past any window [`window`] keeps, and
+/// several such folds may be needed jointly; most slivers in a window are
+/// inert, and enumerating their subsets is what exhausted the depth-first
+/// searches. Two jointly-needed choices that are each inert alone are
+/// missed; that is accepted.
+fn events(a: &Arrays<'_>, n: &NormalArrays<'_>) -> Option<(Vec<Choice>, TriangleMesh)> {
+    use std::cmp::Reverse;
+    use std::collections::BinaryHeap;
+    let mut walker = Resume::new(a, n, SNAP_EVERY, false);
+    if let Outcome::Fit(m) = walker.attempt(a, n, &[]) {
+        return Some((Vec::new(), m));
+    }
+    // Per set: its choices and the first triangle a new choice may take.
+    let mut sets: Vec<(Vec<Choice>, usize)> = vec![(Vec::new(), 0)];
+    let mut heap = BinaryHeap::from([(walker.steps.len(), Reverse(0), 0)]);
+    while let Some((reach, _, id)) = heap.pop() {
+        if walker.spent > EVENT_BUDGET {
+            return None;
+        }
+        let (flips, decided) = sets.get(id)?.clone();
+        walker.attempt(a, n, &flips);
+        for c in event_candidates(&walker.steps, decided, reach) {
+            let mut g = flips.clone();
+            g.push(c);
+            if let Outcome::Fit(m) = walker.attempt(a, n, &g) {
+                return Some((g, m));
+            }
+            let r = walker.steps.len();
+            if r != reach {
+                heap.push((r, Reverse(g.len()), sets.len()));
+                sets.push((g, c.at() + 1));
+            }
+        }
+    }
+    None
 }
 
 /// The last best-fit reading: one choice set grown a choice at a time,
@@ -246,6 +296,23 @@ fn greedy(a: &Arrays<'_>, n: &NormalArrays<'_>) -> Option<TriangleMesh> {
         (reached, candidates) = (r, c);
     }
     None
+}
+
+/// The choices [`events`] tries after a failure at `reach`: each turn and
+/// unsignalled fold within [`EVENT_WINDOW`] triangles before it and at or
+/// after `decided`, nearest first.
+fn event_candidates(steps: &[Step], decided: usize, reach: usize) -> Vec<Choice> {
+    let from = decided.max(reach.saturating_sub(EVENT_WINDOW));
+    let mut c = Vec::new();
+    for (i, s) in steps.iter().enumerate().take(reach).skip(from).rev() {
+        if s.fold && !s.signalled {
+            c.push(Choice::Fold(i));
+        }
+        if s.turn {
+            c.push(Choice::Turn(i));
+        }
+    }
+    c
 }
 
 /// How one search runs.
@@ -590,6 +657,28 @@ mod tests {
         assert_eq!(window(steps.iter().enumerate().rev()).len(), PRIMARIES);
         steps.truncate(3);
         assert_eq!(window(steps.iter().enumerate().rev()).len(), 3);
+    }
+
+    #[test]
+    fn event_candidates_are_unsignalled_folds_and_turns_in_the_window() {
+        let mut steps = vec![fold_step(false); EVENT_WINDOW + 10];
+        steps[EVENT_WINDOW + 8].signalled = true;
+        steps[EVENT_WINDOW + 7].turn = true;
+        let reach = EVENT_WINDOW + 9;
+        let c = event_candidates(&steps, 0, reach);
+        assert_eq!(c.len(), EVENT_WINDOW);
+        assert_eq!(c[0], Choice::Fold(EVENT_WINDOW + 7));
+        assert_eq!(c[1], Choice::Turn(EVENT_WINDOW + 7));
+        assert_eq!(c.last(), Some(&Choice::Fold(9)));
+        let c = event_candidates(&steps, EVENT_WINDOW + 7, reach);
+        assert_eq!(
+            c,
+            [
+                Choice::Fold(EVENT_WINDOW + 7),
+                Choice::Turn(EVENT_WINDOW + 7)
+            ]
+        );
+        assert!(event_candidates(&steps, 0, 0).is_empty());
     }
 
     /// Every set of at most two choices over `a`'s triangles, in an order

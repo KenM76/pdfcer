@@ -60,7 +60,9 @@
 //! continues across the open one: the walk never re-enters a closed edge.
 //! And a planar face [WD 7.8.9.1] must rebuild flat: a component whose
 //! planar-face vertices stray more than [`MAX_BEND`] tolerances from their
-//! face's plane fits the arrays by accident and is treated as not fitting.
+//! face's plane fits the arrays by accident and is treated as not fitting;
+//! a vertex that leaves its face's running plane fails as it is placed
+//! ([`bend`]), so a wrong fold there is caught within a few triangles.
 //! A mesh no walk fits is searched last ([`search`]).
 //!
 //! Only the per-triangle `edge_status` form (three entries per triangle,
@@ -71,6 +73,7 @@ use std::collections::HashMap;
 
 use crate::TriangleMesh;
 
+mod bend;
 mod normals;
 mod partial;
 mod search;
@@ -310,6 +313,8 @@ struct Walk<'a> {
     /// triangles, and stored normals that run out are dropped rather than
     /// failing the step.
     forgiving: bool,
+    /// The running planes of the planar faces walked so far.
+    planes: bend::Planes,
 }
 
 /// Where a component starts, to roll back to.
@@ -351,6 +356,7 @@ impl<'a> Walk<'a> {
             reads_turned: false,
             partial: false,
             forgiving: false,
+            planes: bend::Planes::default(),
         }
     }
 
@@ -563,6 +569,12 @@ impl<'a> Walk<'a> {
         }
         self.tol = a.tolerance;
         let fold = self.fold(tri, fold, a.legacy_orient)?;
+        if !self.forgiving
+            && let Some(n) = a.normals.as_ref()
+        {
+            let t = [self.get(ta)?, self.get(tb)?, self.get(tc)?];
+            self.planes.place(n, self.tris.len(), t, a.tolerance)?;
+        }
         self.tris.push(tri);
         let (mut left, mut right) = ((tc, tb, ta), (ta, tc, tb));
         if fold != flip {
