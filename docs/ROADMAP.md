@@ -112,7 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
-### `Pass 616.2` — Lossless structure rebuild: `writer::rebuild` + `optimize` structure options — PARTIALLY SHIPPED 2026-10-20 (1114th filing)
+### `Pass 616.2` (completion) — Navigation clean-up in `optimize`: invalid links, bookmarks, unreferenced named destinations — SHIPPED 2026-10-20 (1115th filing)
+
+Commit `6d77fac3` on `main`, after `88dfe717` (the 1114th filing); not pushed at filing time. Completes `Pass 616.2` together with `8d715d05` (entry below). Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message.
+
+- **Core `optimize::cleanup`:** `CleanupOptions { invalid_links, invalid_bookmarks, unreferenced_destinations }` (`all`/`none`/`is_none`; `Default` = all; `OptimizeSettings::new()` = none), `CleanupPlan { links, bookmarks, destinations }`, `BrokenLink`, `BrokenBookmark`, `BrokenTarget::{MissingPage, UndefinedName}`. New fields `OptimizeSettings.cleanup`, `OptimizePlan.cleanup`; new `OptimizeError::CleanupFailed { id, reason }` rolls the whole apply back. `apply_optimize` applies the clean-up inside the same single undo entry; the count includes removed items.
+- **Rules:** a broken destination names a non-page object or an undefined name; remote, launch, URI and non-reference destinations are never judged broken; nothing is judged when the page tree is unreadable. A bookmark is deleted only when every child is too; only topmost deleted items are reported. A named destination is unreferenced when no `/Dest` or `/D` anywhere names it, following name-to-name chains; skipped with a note when the file holds JavaScript or the name tree is incomplete. Legacy `/Dests` is pruned; `/Names /Dests` is rewritten as one flat leaf sorted byte-wise, with a disclosure note that a `#nameddest` link from another file may break. A certification forbidding structural change skips the clean-up with a note.
+- **Presets:** links and bookmarks cleaned in every preset; unreferenced destinations only in Screen. Profile keys `remove-invalid-links`, `remove-invalid-bookmarks`, `remove-unreferenced-destinations`.
+- **Helpers:** `pageops::references::flatten_name_tree` now reports whether it read the tree completely; new `pub(crate) name_tree_entries`.
+- **CLI:** `pdfcer optimize` gains `--keep-invalid-links`, `--keep-invalid-bookmarks`, `--keep-unreferenced-destinations`, `--remove-unreferenced-destinations`; text report `cleanup:` lines; JSON `cleanup` key. core-api `02`/`03`/index updated; `check-core-api-verbs.py` passes.
+- **CI fix in the same commit:** a doc comment on `pdfcer-model` `writer::rebuild::emit::write` — its absence failed the "every public fn has a doc comment" audit on CI run `39504466482` (commit `88dfe717`).
+- **Tests:** 7 core, 1 profile, 1 CLI new. Sabotage of 5 mutations (verdict, `/D` key scan, chain following, undo fold, grouping) each failed tests. Totals: core lib 1576; core integration 2995 + 233 + 43; CLI 893; all pass. clippy, fmt, code-structure gate and all 31 repo audits clean. No manifest changed, so no `cargo tree` check owed.
+- **Not claimed:** Acrobat's named compress-entire / structure-only / remove / leave modes (the `--keep-*` flags cover part); stays in `FEATURES.md` Planned.
+
+`FEATURES.md`: Implemented *Lossless structure rebuild* row extended (core `[x]`, cli `[x]`, gui `[ ]`); Planned *Lossless clean-up, remainder* narrowed to the named modes. The Next-up `616.2` entry is deleted (complete). Ledgers: no decision (next free `192`); next free `Pass 617.2`; next in arc `616.3`; next filing 1116th. Git, push and backup state not verified from here.
+
+### `Pass 616.2` — Lossless structure rebuild: `writer::rebuild` + `optimize` structure options — PARTIALLY SHIPPED 2026-10-20 (1114th filing; completed by the entry above)
 
 Commit `8d715d05` on `main`, after `6cec4608` (the 1113th filing); not pushed at filing time (push follows this filing). Model + core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Decision 191 governs; no new decision. Reasoning is in the commit message.
 
@@ -22581,7 +22596,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-(1113th filing: `Pass 617.0` (`G212`) and `617.1` (`G211`) shipped, see *Shipped*; next free `Pass 617.2`, next in the `616.x` arc `Pass 616.2`, next filing 1114th.)
+(1115th filing: `Pass 616.2` COMPLETE, see *Shipped*; next in the `616.x` arc `Pass 616.3`, next free `Pass 617.2`, next filing 1116th. The 1113th filing's `617.0`/`617.1` also in *Shipped*.)
 
 (`Pass 606.0` shipped at the 1097th filing, `04e769fc`; see *Shipped*. The residue m64, m95, m107 is not a Pass yet. Release to OneDrive `pdfcer1` is the next step, not done.)
 
@@ -24355,10 +24370,6 @@ Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level
 - Refusals by default for signed, encrypted, PDF/A and compatibility-target conflicts, each with an explicit override and an impact list.
 - A before/after report that itemises every lossy change (rule 4).
 - CLI `optimize --preset/--profile/--rule/--object/--dry-run/--json`.
-
-### `Pass 616.2` — Lossless structure clean-up — PARTIALLY SHIPPED (1114th filing, `8d715d05`); residue NEXT UP
-
-Shipped: GC, dedupe, object streams plus xref stream (see *Shipped*). Flate recompression incl. LZW to Flate was already delivered by `616.1`. **Residue, not built:** removal of invalid links and bookmarks and of unreferenced named destinations; Acrobat's compress-entire / structure-only / remove / leave modes (the `--keep-*` flags cover structure-only and leave only in part). Output stays lossless in decoded content.
 
 ### `Pass 616.3` — Discard objects and user data, each individually selectable — NEXT UP, 2026-10-20
 

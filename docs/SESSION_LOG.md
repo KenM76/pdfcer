@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1115th filing) — `Pass 616.2` COMPLETE in `6d77fac3`: navigation clean-up in `optimize`
+
+**Shipped (engineer-reported, no shell here):** `optimize::cleanup` (`CleanupOptions`, `CleanupPlan`, `BrokenLink`, `BrokenBookmark`, `BrokenTarget`), `OptimizeSettings.cleanup`/`OptimizePlan.cleanup`, `OptimizeError::CleanupFailed` (whole-apply rollback); removes invalid links, bookmarks (only whole subtrees) and, in Screen only, unreferenced named destinations, inside the one undo entry. CLI: `--keep-invalid-links`, `--keep-invalid-bookmarks`, `--keep-unreferenced-destinations`, `--remove-unreferenced-destinations`; `cleanup:` report lines and JSON key. Core `[x]`, cli `[x]`, gui `[ ]`. Tests: 7 core + 1 profile + 1 CLI; 5 sabotage mutations each failed tests; core lib 1576, integration 2995 + 233 + 43, CLI 893, all pass; clippy, fmt, structure gate, 31 audits clean. Commit `6d77fac3`, parent `88dfe717`; not pushed at filing time.
+
+**CI state:** the same commit adds the missing doc comment on `writer::rebuild::emit::write`, which failed the public-fn doc audit on CI run `39504466482` (commit `88dfe717`). Fix is claimed by the engineer; green CI not verified from here.
+
+**Not rounded up:** Acrobat's named compress-entire / structure-only / remove / leave modes remain Planned (narrowed FEATURES row). The 1114th entry's "stays in Next up" is now superseded for the links/bookmarks/destinations part (that entry is history).
+
+**Register:** ROADMAP Shipped gains `616.2` (completion); Next-up `616.2` entry deleted; Next-up banner updated. `FEATURES.md`: Implemented *Lossless structure rebuild* row extended; Planned *Lossless clean-up, remainder* narrowed. No decision.
+
+**For next session:** `Pass 616.3`. Next free `Pass 617.2`, decision `192`; next filing 1116th; engineer pushes `6d77fac3` and this filing. Git, push and backup state not verified from here.
+
 ## 2026-10-20 (1114th filing) — `Pass 616.2` PARTIALLY shipped in `8d715d05`: lossless structure rebuild
 
 **Shipped (engineer-reported, no shell here):** `pdfcer_model::writer::rebuild` (drop unreachable objects, merge identical objects to a fixpoint of at most 32 rounds, dense renumber with dangling refs as null, optional object streams plus xref stream, header raised to 1.5); `OptimizeSettings::structure`, `EditSession::save_optimized` signature change (adds `&RebuildOptions`, returns `Option<RebuildReport>`); `pdfcer optimize --keep-structure/--keep-unreferenced/--keep-duplicates/--no-object-streams`. Core `[x]`, cli `[x]`, gui `[ ]`. Tests: 7 model, 2 core, 1 CLI; 6,203 passed, 0 failed; sabotage failed 4 model tests; structure gate clean (569 baseline). Corpus sweep, 303 files: 293 written, 10 refused, 0 crashes, 0 render or text differences, 7,193,380 to 6,188,533 bytes (−14%). Commit `8d715d05`, parent `6cec4608`; not pushed at filing time.
