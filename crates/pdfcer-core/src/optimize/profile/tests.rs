@@ -15,6 +15,8 @@ fn full() -> OptimizeSettings {
     let mut s = OptimizeSettings::new();
     s.streams = StreamAction::Recompress { level: 6 };
     s.allow_signed = true;
+    s.structure.merge_duplicates = true;
+    s.structure.object_streams = true;
     s.rules.push(Rule {
         select: Selector {
             categories: vec![SpaceCategory::Fonts, SpaceCategory::ContentStreams],
@@ -179,4 +181,14 @@ fn one_line_rules_and_object_overrides_parse() {
     for bad in ["12", "0=leave", "x=leave", "12=squash"] {
         assert!(parse_object(bad).is_err(), "{bad}");
     }
+}
+
+#[test]
+fn a_structure_key_overrides_the_preset() {
+    let text = "extends = \"standard\"
+object-streams = false
+";
+    let s = parse("p.toml", text, &mut none).unwrap();
+    assert!(s.structure.remove_unreferenced && s.structure.merge_duplicates);
+    assert!(!s.structure.object_streams);
 }

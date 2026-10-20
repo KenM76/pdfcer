@@ -5,7 +5,8 @@ use std::fmt::Write as _;
 
 use pdfcer_core::edit::EditSession;
 use pdfcer_core::optimize::{
-    OptimizeError, OptimizePlan, OptimizeSettings, OptimizedFile, Preset, Refusal, profile,
+    OptimizeError, OptimizePlan, OptimizeSettings, OptimizedFile, Preset, RebuildReport, Refusal,
+    profile,
 };
 use pdfcer_core::space_audit;
 use pdfcer_core::writer::SaveOptions;
@@ -49,6 +50,21 @@ pub(crate) struct OptimizeArgs {
     /// "12 0=recompress-6". Repeatable.
     #[arg(long = "object", value_name = "ID=ACTION")]
     pub(crate) objects: Vec<String>,
+    /// Keep the file's structure: no unreferenced-object removal, no
+    /// duplicate merging, no object streams. Same as all three --keep flags.
+    #[arg(long)]
+    pub(crate) keep_structure: bool,
+    /// Keep objects nothing in the document refers to.
+    #[arg(long)]
+    pub(crate) keep_unreferenced: bool,
+    /// Keep identical objects (images, fonts, embedded files) as separate
+    /// copies instead of merging them.
+    #[arg(long)]
+    pub(crate) keep_duplicates: bool,
+    /// Write a classic cross-reference table instead of packing objects into
+    /// compressed object streams. Use for readers older than PDF 1.5.
+    #[arg(long)]
+    pub(crate) no_object_streams: bool,
     /// Optimize a signed document anyway. Every signature is invalidated,
     /// and the report says how many.
     #[arg(long)]
@@ -151,6 +167,10 @@ fn resolve_settings(args: &OptimizeArgs) -> Result<OptimizeSettings, String> {
         settings.objects.insert(id, action);
     }
     settings.allow_signed |= args.invalidate_signatures;
+    let st = &mut settings.structure;
+    st.remove_unreferenced &= !(args.keep_structure || args.keep_unreferenced);
+    st.merge_duplicates &= !(args.keep_structure || args.keep_duplicates);
+    st.object_streams &= !(args.keep_structure || args.no_object_streams);
     Ok(settings)
 }
 
@@ -181,6 +201,8 @@ struct Outcome {
     rewritten: u64,
     /// The smaller file, or `None` when the rewrite was not smaller.
     bytes: Option<Vec<u8>>,
+    /// What the structure rebuild did, when one ran.
+    structure: Option<RebuildReport>,
 }
 
 fn run(input: &Path, output: Option<&Path>, settings: &OptimizeSettings, json: bool) -> u8 {
@@ -226,31 +248,23 @@ fn optimize(mut session: EditSession, settings: &OptimizeSettings) -> Result<Out
     let plan = session.plan_optimize(settings).map_err(|e| refused(&e))?;
     session.apply_optimize(&plan).map_err(|e| refused(&e))?;
     let original = plan.file_bytes;
-    let file = session
-        .save_optimized(&SaveOptions::default())
+    let (file, structure) = session
+        .save_optimized(&SaveOptions::default(), &settings.structure)
         .map_err(|e| {
             eprintln!("pdfcer: optimize: {e}");
             exit::SAVE_REFUSED
         })?;
-    Ok(match file {
-        OptimizedFile::Smaller(bytes) => Outcome {
-            plan,
-            original,
-            rewritten: bytes.len() as u64,
-            bytes: Some(bytes),
-        },
-        OptimizedFile::KeptOriginal { rewritten, .. } => Outcome {
-            plan,
-            original,
-            rewritten,
-            bytes: None,
-        },
-        _ => Outcome {
-            plan,
-            original,
-            rewritten: original,
-            bytes: None,
-        },
+    let (rewritten, bytes) = match file {
+        OptimizedFile::Smaller(bytes) => (bytes.len() as u64, Some(bytes)),
+        OptimizedFile::KeptOriginal { rewritten, .. } => (rewritten, None),
+        _ => (original, None),
+    };
+    Ok(Outcome {
+        plan,
+        original,
+        rewritten,
+        bytes,
+        structure,
     })
 }
 
@@ -310,6 +324,9 @@ fn report_text(
     for n in &o.plan.notes {
         let _ = writeln!(out, "note: {n}");
     }
+    if let Some(r) = &o.structure {
+        out.push_str(&structure_text(r));
+    }
     match (&o.bytes, output) {
         (None, _) => {
             let _ = writeln!(
@@ -340,6 +357,54 @@ fn report_text(
         out.push_str(&diff_text(d));
     }
     out
+}
+
+fn structure_text(r: &RebuildReport) -> String {
+    let mut out = String::new();
+    let _ = writeln!(
+        out,
+        "structure: {} -> {} objects; {} unreferenced removed, {} duplicates merged, {} object stream(s)",
+        r.objects_in,
+        r.objects_out,
+        r.unreferenced.len(),
+        r.merged.len(),
+        r.object_streams
+    );
+    for (dropped, kept) in &r.merged {
+        let _ = writeln!(out, "  merged   {dropped} into {kept}");
+    }
+    if let Some(v) = r.version_raised {
+        let _ = writeln!(out, "note: header raised to PDF {v} for object streams");
+    }
+    if r.dangling > 0 {
+        let _ = writeln!(
+            out,
+            "note: {} reference(s) to missing objects written as null",
+            r.dangling
+        );
+    }
+    out
+}
+
+fn structure_json(r: &RebuildReport) -> String {
+    let id = |id: &pdfcer_core::object::ObjId| format!("\"{id}\"");
+    let unreferenced: Vec<String> = r.unreferenced.iter().map(id).collect();
+    let merged: Vec<String> = r
+        .merged
+        .iter()
+        .map(|(d, k)| format!("{{\"dropped\":{},\"kept\":{}}}", id(d), id(k)))
+        .collect();
+    format!(
+        "{{\"objects_in\":{},\"objects_out\":{},\"unreferenced\":[{}],\"merged\":[{}],\"object_streams\":{},\"version_raised\":{},\"dangling\":{}}}",
+        r.objects_in,
+        r.objects_out,
+        unreferenced.join(","),
+        merged.join(","),
+        r.object_streams,
+        r.version_raised
+            .map_or_else(|| "null".to_owned(), |v| format!("\"{v}\"")),
+        r.dangling
+    )
 }
 
 fn report_json(
@@ -385,13 +450,16 @@ fn report_json(
         _ => "null".to_owned(),
     };
     format!(
-        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"diff\":{}}}\n",
+        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"structure\":{},\"diff\":{}}}\n",
         o.original,
         o.rewritten,
         o.bytes.is_some(),
         changes.join(","),
         skipped.join(","),
         notes.join(","),
+        o.structure
+            .as_ref()
+            .map_or_else(|| "null".to_owned(), structure_json),
         diff.map_or_else(|| "null".to_owned(), |d| diff_json(d).trim_end().to_owned())
     )
 }

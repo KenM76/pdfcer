@@ -123,7 +123,14 @@ fn apply_and_save_keep_decoded_content_and_untouched_bytes() {
     let mut s = session(original);
     let plan = s.plan_optimize(&Preset::Lossless.settings()).unwrap();
     assert_eq!(s.apply_optimize(&plan).unwrap(), 2);
-    let OptimizedFile::Smaller(bytes) = s.save_optimized(&SaveOptions::default()).unwrap() else {
+    let OptimizedFile::Smaller(bytes) = s
+        .save_optimized(
+            &SaveOptions::default(),
+            &crate::optimize::RebuildOptions::none(),
+        )
+        .unwrap()
+        .0
+    else {
         panic!("expected a smaller file");
     };
     let after = Document::from_bytes(bytes).unwrap();
@@ -294,4 +301,42 @@ fn actions_and_presets_round_trip_their_names() {
     );
     assert!(PageRanges::parse("0").is_err());
     assert!(PageRanges::parse("3-1").is_err());
+}
+
+#[test]
+fn a_preset_save_drops_an_orphan_and_packs_the_rest() {
+    let orphan = stream("", &content());
+    let original = sample("", &[orphan]);
+    let before = Document::from_bytes(original.clone()).unwrap();
+    let mut s = session(original);
+    let settings = Preset::Standard.settings();
+    let plan = s.plan_optimize(&settings).unwrap();
+    s.apply_optimize(&plan).unwrap();
+    let (file, report) = s
+        .save_optimized(&SaveOptions::default(), &settings.structure)
+        .unwrap();
+    let report = report.expect("presets rebuild");
+    assert_eq!(report.unreferenced, vec![id(9)]);
+    assert!(report.object_streams >= 1);
+    let OptimizedFile::Smaller(bytes) = file else {
+        panic!("expected a smaller file");
+    };
+    let after = Document::from_bytes(bytes).unwrap();
+    // Objects 1-8 keep their numbers: only the last one was dropped.
+    for n in [4, 5, 6, 7] {
+        assert_eq!(decoded(&after, n), decoded(&before, n), "object {n}");
+    }
+    assert_eq!(
+        raw(&after, 8),
+        raw(&before, 8),
+        "the JPEG is copied as stored"
+    );
+    // Number 9 is free for the first object stream.
+    let Some(Object::Stream(objstm)) = after.get(id(9)).map(|o| o.value.clone()) else {
+        panic!("object 9 is the object stream");
+    };
+    assert_eq!(
+        objstm.dict.get(b"Type"),
+        Some(&Object::Name(b"ObjStm".into()))
+    );
 }

@@ -9,10 +9,14 @@
 //!    results, not estimates, so the plan is also the dry run.
 //! 3. **Apply and save.** [`EditSession::apply_optimize`] commits the plan as
 //!    one undoable command. [`EditSession::save_optimized`] writes a full
-//!    rewrite and keeps the original instead when the rewrite is not smaller.
+//!    rewrite, rebuilds its structure under [`OptimizeSettings::structure`],
+//!    and keeps the original instead when the result is not smaller.
 //!
 //! Decision 191's guarantees:
-//! - An object no action selected is copied byte-identical.
+//! - An object no action selected is copied byte-identical, unless a
+//!   [`OptimizeSettings::structure`] option is on: a structure rebuild
+//!   renumbers and re-serializes every object, still without changing any
+//!   decoded content.
 //! - **Never larger.** An object whose re-encoding is not strictly smaller
 //!   keeps its stored form, and a whole file that is not strictly smaller is
 //!   not written.
@@ -36,6 +40,8 @@ use std::collections::BTreeMap;
 use std::fmt;
 
 pub use select::{PageRanges, Selector};
+
+pub use crate::writer::{RebuildOptions, RebuildReport};
 
 use crate::object::ObjId;
 use crate::space_audit::SpaceCategory;
@@ -132,6 +138,10 @@ pub struct OptimizeSettings {
     pub objects: BTreeMap<ObjId, StreamAction>,
     /// Proceed on a signed document, invalidating its signatures.
     pub allow_signed: bool,
+    /// The structure rebuild done at save: drop unreferenced objects, merge
+    /// identical ones, pack objects into object streams. All off keeps the
+    /// file's structure.
+    pub structure: RebuildOptions,
 }
 
 impl OptimizeSettings {
@@ -143,6 +153,7 @@ impl OptimizeSettings {
             rules: Vec::new(),
             objects: BTreeMap::new(),
             allow_signed: false,
+            structure: RebuildOptions::none(),
         }
     }
 
@@ -168,8 +179,9 @@ impl Default for OptimizeSettings {
 /// pdfcer's built-in settings bundles.
 ///
 /// The values are pdfcer's own, published in `--show-preset` and
-/// `docs/core-api`. In this Pass every preset recompresses eligible streams
-/// at level 9; they diverge as image, font and discard actions arrive.
+/// `docs/core-api`. Today every preset recompresses eligible streams at
+/// level 9 and turns every [`RebuildOptions`] option on; they diverge as
+/// image, font and discard actions arrive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Preset {
@@ -226,6 +238,7 @@ impl Preset {
                 StreamAction::Recompress { level: 9 }
             }
         };
+        s.structure = RebuildOptions::all();
         s
     }
 }

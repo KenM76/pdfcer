@@ -157,6 +157,7 @@ pub mod content;
 pub mod encoder;
 pub mod fileid;
 mod incremental;
+mod rebuild;
 mod save;
 pub mod serialize;
 pub mod xref_out;
@@ -165,6 +166,7 @@ use std::collections::BTreeMap;
 
 pub use encoder::{EncryptingEncoder, IdentityEncoder, ObjectEncoder};
 pub use incremental::save_incremental;
+pub use rebuild::{RebuildOptions, RebuildReport, rebuild};
 pub use save::{EncryptParams, SaveReport, save_full, save_full_decrypted, save_full_encrypted};
 pub use xref_out::XrefOutError;
 
@@ -930,6 +932,12 @@ pub enum WriteError {
     /// written.
     #[error("no secure random source is available to encrypt the saved objects")]
     EntropyUnavailable,
+
+    /// pdfcer could not reload a full rewrite it had just produced, so a
+    /// step that needs the rewrite as a document (an optimize rebuild)
+    /// stopped. A writer bug; nothing was written.
+    #[error("pdfcer could not reload its own full rewrite: {0}")]
+    RewriteReload(#[source] Box<crate::document::DocError>),
 }
 
 #[cfg(test)]

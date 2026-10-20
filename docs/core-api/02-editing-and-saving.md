@@ -5114,7 +5114,7 @@ operator has to get the order of right.
 |---|---|---|
 | Plan a size reduction | `plan_optimize(&self, &optimize::OptimizeSettings) -> Result<optimize::OptimizePlan, optimize::OptimizeError>` | Every encoding performed in memory; changes nothing. Refuses `Encrypted` always and `Signed` unless `allow_signed`. |
 | Commit the plan | `apply_optimize(&mut self, &optimize::OptimizePlan) -> Result<usize, optimize::OptimizeError>` | ONE undo entry, `CommandKind::Optimize { count }`; an empty plan commits nothing. `StalePlan { id }` if an object changed since planning. |
-| Write it, only if smaller | `save_optimized(&self, &SaveOptions) -> Result<optimize::OptimizedFile, WriteError>` | A full rewrite as `Smaller(bytes)`, or `KeptOriginal { original, rewritten }`. ⚠️ Destroys every existing signature, like `to_full_bytes`. |
+| Write it, only if smaller | `save_optimized(&self, &SaveOptions, &optimize::RebuildOptions) -> Result<(optimize::OptimizedFile, Option<optimize::RebuildReport>), WriteError>` | A full rewrite as `Smaller(bytes)`, or `KeptOriginal { original, rewritten }`; then, unless `RebuildOptions::is_none()`, a structure rebuild (unreferenced removal, duplicate merging, object streams) whose report is the second value. ⚠️ Destroys every existing signature, like `to_full_bytes`; a rebuild also renumbers every object. |
 
 **Detail: `03-capabilities.md`, part 15.**
 

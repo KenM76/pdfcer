@@ -6,6 +6,9 @@
 //! extends = "standard"        # a preset name, or another profile
 //! streams = "recompress-9"    # the default action: leave | recompress | recompress-0..9
 //! allow-signed = false
+//! remove-unreferenced = true  # the structure rebuild at save; all three
+//! merge-duplicates = true     # false keeps the file's structure
+//! object-streams = true
 //!
 //! [[rule]]                    # later rules beat earlier ones
 //! category = ["fonts"]        # space-audit category names
@@ -145,6 +148,15 @@ fn apply_table(settings: &mut OptimizeSettings, table: &Table) -> Result<(), (us
                     "extends" => {}
                     "streams" => settings.streams = action(value).map_err(at)?,
                     "allow-signed" => settings.allow_signed = boolean(value).map_err(at)?,
+                    "remove-unreferenced" => {
+                        settings.structure.remove_unreferenced = boolean(value).map_err(at)?;
+                    }
+                    "merge-duplicates" => {
+                        settings.structure.merge_duplicates = boolean(value).map_err(at)?;
+                    }
+                    "object-streams" => {
+                        settings.structure.object_streams = boolean(value).map_err(at)?;
+                    }
                     _ => return Err(at(format!("unknown key {key:?}"))),
                 }
             }
@@ -381,6 +393,10 @@ pub fn to_profile(settings: &OptimizeSettings) -> String {
         syntax::quote(&settings.streams.to_profile_string())
     );
     let _ = writeln!(out, "allow-signed = {}", settings.allow_signed);
+    let st = &settings.structure;
+    let _ = writeln!(out, "remove-unreferenced = {}", st.remove_unreferenced);
+    let _ = writeln!(out, "merge-duplicates = {}", st.merge_duplicates);
+    let _ = writeln!(out, "object-streams = {}", st.object_streams);
     for rule in &settings.rules {
         out.push_str("\n[[rule]]\n");
         write_selector(&mut out, &rule.select);

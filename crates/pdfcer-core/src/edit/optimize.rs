@@ -4,6 +4,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{Command, CommandKind, EditSession, ObjectWrite};
+use crate::document::Document;
 use crate::object::{ObjId, Object, Stream};
 use crate::optimize::select::ObjectFacts;
 use crate::optimize::streams::{self, Rewrite};
@@ -12,7 +13,7 @@ use crate::optimize::{
     StreamAction,
 };
 use crate::space_audit::{self, ObjectSpace, SpaceCategory};
-use crate::writer::{SaveOptions, WriteError};
+use crate::writer::{self, RebuildOptions, RebuildReport, SaveOptions, WriteError};
 
 impl EditSession {
     /// Plan an optimize run over the session as it stands, performing every
@@ -144,18 +145,31 @@ impl EditSession {
         Ok(count)
     }
 
-    /// The full rewrite of this session, **only if it is strictly smaller**
-    /// than the file as opened (decision 191's whole-file rule).
+    /// The full rewrite of this session, rebuilt under `structure`, **only if
+    /// it is strictly smaller** than the file as opened (decision 191's
+    /// whole-file rule). The report is `None` when `structure` is all off and
+    /// the file's structure was kept.
     ///
     /// # Errors
     ///
-    /// As [`Self::to_full_bytes`].
-    pub fn save_optimized(&self, options: &SaveOptions) -> Result<OptimizedFile, WriteError> {
+    /// As [`Self::to_full_bytes`], and [`WriteError::RewriteReload`] if the
+    /// rewrite cannot be reloaded for the rebuild.
+    pub fn save_optimized(
+        &self,
+        options: &SaveOptions,
+        structure: &RebuildOptions,
+    ) -> Result<(OptimizedFile, Option<RebuildReport>), WriteError> {
         let (bytes, _) = self.to_full_bytes(options)?;
-        Ok(crate::optimize::keep_if_smaller(
-            bytes,
-            self.base.bytes().len() as u64,
-        ))
+        let (bytes, report) = if structure.is_none() {
+            (bytes, None)
+        } else {
+            let doc =
+                Document::from_bytes(bytes).map_err(|e| WriteError::RewriteReload(Box::new(e)))?;
+            let (rebuilt, report) = writer::rebuild(&doc, structure, options)?;
+            (rebuilt, Some(report))
+        };
+        let original = self.base.bytes().len() as u64;
+        Ok((crate::optimize::keep_if_smaller(bytes, original), report))
     }
 }
 

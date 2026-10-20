@@ -195,3 +195,32 @@ fn usage_errors_exit_2() {
         assert_eq!(run(&args).status.code(), Some(2), "{args:?}");
     }
 }
+
+#[test]
+fn the_structure_rebuild_reports_and_each_part_can_be_kept() {
+    let d = dir("structure");
+    // Objects 6 and 7 are referenced by nothing without the /AcroForm entry.
+    let input = write_pdf(&d, "");
+    let o = run(&[input.to_str().unwrap(), "--dry-run", "--json"]);
+    let j = text(&o);
+    assert!(
+        j.contains("\"unreferenced\":[\"6 0\",\"7 0\"]") && j.contains("\"version_raised\":null"),
+        "{j}"
+    );
+    let o = run(&[input.to_str().unwrap(), "--dry-run"]);
+    assert!(text(&o).contains("2 unreferenced removed"), "{}", text(&o));
+    let o = run(&[
+        input.to_str().unwrap(),
+        "--dry-run",
+        "--json",
+        "--keep-unreferenced",
+    ]);
+    assert!(text(&o).contains("\"unreferenced\":[]"), "{}", text(&o));
+    let o = run(&[
+        input.to_str().unwrap(),
+        "--dry-run",
+        "--json",
+        "--keep-structure",
+    ]);
+    assert!(text(&o).contains("\"structure\":null"), "{}", text(&o));
+}

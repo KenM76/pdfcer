@@ -4462,9 +4462,11 @@ with a wildcard arm, and show `as_str()` for an unknown category.
 |---|---|
 | `EditSession::plan_optimize(&OptimizeSettings) -> Result<OptimizePlan, OptimizeError>` | every encoding already performed in memory: `changes`, `skipped` (each with a `SkipReason`), `notes`, `file_bytes`, `stream_saving()`, `is_lossy()` |
 | `EditSession::apply_optimize(&OptimizePlan) -> Result<usize, OptimizeError>` | commits the plan as **one** undo entry, `CommandKind::Optimize { count }`; returns the count |
-| `EditSession::save_optimized(&SaveOptions) -> Result<OptimizedFile, WriteError>` | `Smaller(bytes)` (a full rewrite), or `KeptOriginal { original, rewritten }` when it is not strictly smaller |
+| `EditSession::save_optimized(&SaveOptions, &RebuildOptions) -> Result<(OptimizedFile, Option<RebuildReport>), WriteError>` | `Smaller(bytes)` (a full rewrite, then the structure rebuild unless `RebuildOptions::is_none()`), or `KeptOriginal { original, rewritten }` when it is not strictly smaller; the report is `Some` whenever a rebuild ran |
+| `RebuildOptions { remove_unreferenced, merge_duplicates, object_streams, level }` | `all()` (= `Default`, level 9), `none()`, `is_none()`; also `pdfcer_model::writer::rebuild(&Document, &RebuildOptions, &SaveOptions)` directly |
+| `RebuildReport { objects_in, objects_out, unreferenced, merged, structural_dropped, dangling, object_streams, version_raised }` | input object numbers throughout; `merged` is `(dropped, kept)` pairs |
 | `Preset::{Lossless, Standard, Screen, Print, Archive}.settings()` | starting settings; `Preset::from_name` (accepts `mobile` for `Screen`), `as_str`, `ALL` |
-| `OptimizeSettings { streams, rules, objects, allow_signed }` | default action; ordered `Rule { select: Selector, action }`; per-object `BTreeMap<ObjId, StreamAction>`; signed override |
+| `OptimizeSettings { streams, rules, objects, allow_signed, structure }` | default action; ordered `Rule { select: Selector, action }`; per-object `BTreeMap<ObjId, StreamAction>`; signed override; `structure: RebuildOptions` (`new()` = `none()`, every preset = `all()`; profile keys `remove-unreferenced`, `merge-duplicates`, `object-streams`) |
 | `StreamAction::{Leave, Recompress { level }}` | `parse("recompress-6")`, `to_profile_string()`, `is_lossy()` |
 | `Selector { categories, pages, min_bytes, max_bytes, filters, color_spaces, min_ppi, max_ppi, ids }` | every set field must match (AND); `filters` entry `"none"` = unfiltered; `PageRanges::parse("1-3,7,10-")` |
 | `optimize::profile::parse(name, text, &mut resolve)` / `to_profile(&settings)` | TOML profile ⇄ settings; `extends` names a preset or (via `resolve`) another profile; `ProfileError { profile, line, message }` |
@@ -4477,7 +4479,18 @@ Contract:
 - **Never larger**, twice: a stream whose result is not strictly smaller is
   `SkipReason::NotSmaller` and kept; a whole file that is not strictly
   smaller is `KeptOriginal` and must not be written over the input.
-- Unselected objects are re-emitted byte-identical by the full rewrite.
+- Unselected objects are re-emitted byte-identical by the full rewrite,
+  unless a structure rebuild runs: then every object is renumbered densely
+  and re-serialised, stream data is copied as stored, and decoded content is
+  unchanged. The rebuild drops what `/Root` and `/Info` cannot reach, merges
+  identical streams, fonts, font descriptors, encodings, graphics states,
+  arrays and plain values (never pages, page content streams, annotations,
+  fields, layers, structure elements or the catalog), packs non-stream
+  objects 100 per Flate object stream with an xref stream (raising the header
+  to 1.5 if lower, §7.5.7/§7.5.8), never carries an input linearization
+  dictionary, and writes a reference to a missing object as `null`. CLI:
+  `--keep-structure`, `--keep-unreferenced`, `--keep-duplicates`,
+  `--no-object-streams`; the report's `structure` line / JSON key.
 - **Refusals** (`OptimizeError::Refused`, all listed at once): `Signed` unless
   `allow_signed` (then a `notes` line says how many signatures break);
   `Encrypted` always (decrypt, optimize, re-encrypt).
