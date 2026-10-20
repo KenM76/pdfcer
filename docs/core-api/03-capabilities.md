@@ -4460,13 +4460,16 @@ with a wildcard arm, and show `as_str()` for an unknown category.
 
 | Call | Returns |
 |---|---|
-| `EditSession::plan_optimize(&OptimizeSettings) -> Result<OptimizePlan, OptimizeError>` | every encoding already performed in memory: `changes`, `skipped` (each with a `SkipReason`), `notes`, `file_bytes`, `stream_saving()`, `is_lossy()` |
+| `EditSession::plan_optimize(&OptimizeSettings) -> Result<OptimizePlan, OptimizeError>` | every encoding already performed in memory: `changes`, `skipped` (each with a `SkipReason`), `notes`, `cleanup: CleanupPlan`, `file_bytes`, `stream_saving()`, `is_lossy()` |
 | `EditSession::apply_optimize(&OptimizePlan) -> Result<usize, OptimizeError>` | commits the plan as **one** undo entry, `CommandKind::Optimize { count }`; returns the count |
 | `EditSession::save_optimized(&SaveOptions, &RebuildOptions) -> Result<(OptimizedFile, Option<RebuildReport>), WriteError>` | `Smaller(bytes)` (a full rewrite, then the structure rebuild unless `RebuildOptions::is_none()`), or `KeptOriginal { original, rewritten }` when it is not strictly smaller; the report is `Some` whenever a rebuild ran |
 | `RebuildOptions { remove_unreferenced, merge_duplicates, object_streams, level }` | `all()` (= `Default`, level 9), `none()`, `is_none()`; also `pdfcer_model::writer::rebuild(&Document, &RebuildOptions, &SaveOptions)` directly |
 | `RebuildReport { objects_in, objects_out, unreferenced, merged, structural_dropped, dangling, object_streams, version_raised }` | input object numbers throughout; `merged` is `(dropped, kept)` pairs |
 | `Preset::{Lossless, Standard, Screen, Print, Archive}.settings()` | starting settings; `Preset::from_name` (accepts `mobile` for `Screen`), `as_str`, `ALL` |
-| `OptimizeSettings { streams, rules, objects, allow_signed, structure }` | default action; ordered `Rule { select: Selector, action }`; per-object `BTreeMap<ObjId, StreamAction>`; signed override; `structure: RebuildOptions` (`new()` = `none()`, every preset = `all()`; profile keys `remove-unreferenced`, `merge-duplicates`, `object-streams`) |
+| `OptimizeSettings { streams, rules, objects, allow_signed, structure, cleanup }` | default action; ordered `Rule { select: Selector, action }`; per-object `BTreeMap<ObjId, StreamAction>`; signed override; `structure: RebuildOptions` (`new()` = `none()`, every preset = `all()`; profile keys `remove-unreferenced`, `merge-duplicates`, `object-streams`); `cleanup: CleanupOptions` |
+| `CleanupOptions { invalid_links, invalid_bookmarks, unreferenced_destinations }` | `all()` (= `Default`), `none()`, `is_none()`; `new()` = `none()`; every preset turns on the first two, only `Screen` the third; profile keys `remove-invalid-links`, `remove-invalid-bookmarks`, `remove-unreferenced-destinations` |
+| `CleanupPlan { links: Vec<BrokenLink>, bookmarks: Vec<BrokenBookmark>, destinations: Vec<Vec<u8>> }` | `is_empty()`; `BrokenLink { page_index, id, target }`; `BrokenBookmark { id, title, target: Option<BrokenTarget>, descendants }` (topmost deleted items only; each takes its subtree); `destinations` raw name bytes, sorted byte-wise |
+| `BrokenTarget::{MissingPage(ObjId), UndefinedName(Vec<u8>)}` | `Display` is the reason line the CLI prints |
 | `StreamAction::{Leave, Recompress { level }}` | `parse("recompress-6")`, `to_profile_string()`, `is_lossy()` |
 | `Selector { categories, pages, min_bytes, max_bytes, filters, color_spaces, min_ppi, max_ppi, ids }` | every set field must match (AND); `filters` entry `"none"` = unfiltered; `PageRanges::parse("1-3,7,10-")` |
 | `optimize::profile::parse(name, text, &mut resolve)` / `to_profile(&settings)` | TOML profile ⇄ settings; `extends` names a preset or (via `resolve`) another profile; `ProfileError { profile, line, message }` |
@@ -4503,9 +4506,31 @@ Contract:
   and `filters` selectors can match it.
 - `apply_optimize` returns `StalePlan { id }`, committing nothing, if an
   object the plan rewrites changed after planning. Re-plan.
+- **Navigation clean-up** (Pass 616.2) runs inside `apply_optimize`, in
+  the same undo entry; `count` includes every removed link, bookmark
+  (subtree included) and named destination. A destination is **broken**
+  when it names an object that is not a page in the tree, or a named
+  destination neither `/Dests` nor `/Names /Dests` defines; remote, launch,
+  URI and other non-navigation targets, and a destination whose first
+  element is not a reference, are never broken, and nothing is judged when
+  the page tree cannot be walked. A bookmark goes only when it is broken (or
+  only groups) **and** every child goes too, so no working bookmark is lost.
+  A named destination is unreferenced when no `/Dest` or `/D` anywhere names
+  it, directly or through another named destination. That clean-up is
+  skipped, with a note, when the file holds JavaScript or the name tree
+  cannot be read whole; when it runs, the surviving `/Names /Dests` tree is
+  rewritten as one flat sorted leaf and a note warns that a link from
+  another file (`#nameddest=`) to a removed name stops resolving. A
+  certification forbidding structural change skips the clean-up with a note.
+  `CleanupFailed { id, reason }` means a deletion failed; everything the call
+  did is rolled back. CLI: `--keep-invalid-links`, `--keep-invalid-bookmarks`,
+  `--keep-unreferenced-destinations`, `--remove-unreferenced-destinations`;
+  the report's `cleanup` lines / JSON key.
 
 ⚠️ **Disclose what `plan.skipped` and `plan.notes` say**, off-canvas, next
 to the saving. A skip is not an error; a signature note is a destructive
 consequence the operator chose.
 
-⚠️ Every type here is `#[non_exhaustive]`; match with a wildcard arm.
+⚠️ Every type here except `CleanupOptions` is `#[non_exhaustive]`; match
+with a wildcard arm. Disclose `plan.cleanup` the same way as `skipped`: it
+is content the operator did not name one by one.

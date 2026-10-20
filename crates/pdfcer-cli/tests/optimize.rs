@@ -224,3 +224,58 @@ fn the_structure_rebuild_reports_and_each_part_can_be_kept() {
     ]);
     assert!(text(&o).contains("\"structure\":null"), "{}", text(&o));
 }
+
+#[test]
+fn unreferenced_destinations_go_only_when_asked_and_are_listed() {
+    let d = dir("cleanup");
+    let input = write_pdf(
+        &d,
+        "/Dests << /old [3 0 R /Fit] >> /Names << /Dests << /Names [(unused) [3 0 R /Fit]] >> >>",
+    );
+    let path = input.to_str().unwrap();
+    let o = run(&[path, "--dry-run", "--json"]);
+    assert!(
+        text(&o).contains("\"cleanup\":{\"links\":[],\"bookmarks\":[],\"destinations\":[]}"),
+        "{}",
+        text(&o)
+    );
+    let o = run(&[path, "--dry-run", "--remove-unreferenced-destinations"]);
+    let t = text(&o);
+    assert!(
+        t.contains("0 bookmark(s), 2 named destination(s) removed")
+            && t.contains("dest     \"old\"")
+            && t.contains("another file"),
+        "{t}"
+    );
+    let o = run(&[path, "--dry-run", "--json", "--preset", "screen"]);
+    assert!(
+        text(&o).contains("\"destinations\":[\"old\",\"unused\"]"),
+        "{}",
+        text(&o)
+    );
+    let o = run(&[
+        path,
+        "--dry-run",
+        "--json",
+        "--preset",
+        "screen",
+        "--keep-unreferenced-destinations",
+    ]);
+    assert!(text(&o).contains("\"destinations\":[]"), "{}", text(&o));
+    let out = d.join("out.pdf");
+    let o = run(&[
+        path,
+        "-o",
+        out.to_str().unwrap(),
+        "--remove-unreferenced-destinations",
+        "--invalidate-signatures",
+    ]);
+    assert!(o.status.success(), "{}", text(&o));
+    let o = run(&[
+        out.to_str().unwrap(),
+        "--dry-run",
+        "--json",
+        "--remove-unreferenced-destinations",
+    ]);
+    assert!(text(&o).contains("\"destinations\":[]"), "{}", text(&o));
+}

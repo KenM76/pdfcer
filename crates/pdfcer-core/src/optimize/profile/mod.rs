@@ -9,6 +9,9 @@
 //! remove-unreferenced = true  # the structure rebuild at save; all three
 //! merge-duplicates = true     # false keeps the file's structure
 //! object-streams = true
+//! remove-invalid-links = true          # navigation clean-up; every preset
+//! remove-invalid-bookmarks = true      # turns the first two on
+//! remove-unreferenced-destinations = false
 //!
 //! [[rule]]                    # later rules beat earlier ones
 //! category = ["fonts"]        # space-audit category names
@@ -118,6 +121,21 @@ fn parse_chain(
     Ok(settings)
 }
 
+/// The on/off setting a top-level key names.
+fn switch<'a>(settings: &'a mut OptimizeSettings, key: &str) -> Option<&'a mut bool> {
+    let st = &mut settings.structure;
+    let c = &mut settings.cleanup;
+    Some(match key {
+        "remove-unreferenced" => &mut st.remove_unreferenced,
+        "merge-duplicates" => &mut st.merge_duplicates,
+        "object-streams" => &mut st.object_streams,
+        "remove-invalid-links" => &mut c.invalid_links,
+        "remove-invalid-bookmarks" => &mut c.invalid_bookmarks,
+        "remove-unreferenced-destinations" => &mut c.unreferenced_destinations,
+        _ => return None,
+    })
+}
+
 fn inherit(
     chain: &mut Vec<String>,
     parent: &str,
@@ -148,16 +166,11 @@ fn apply_table(settings: &mut OptimizeSettings, table: &Table) -> Result<(), (us
                     "extends" => {}
                     "streams" => settings.streams = action(value).map_err(at)?,
                     "allow-signed" => settings.allow_signed = boolean(value).map_err(at)?,
-                    "remove-unreferenced" => {
-                        settings.structure.remove_unreferenced = boolean(value).map_err(at)?;
+                    k => {
+                        let flag = switch(settings, k)
+                            .ok_or_else(|| at(format!("unknown key {key:?}")))?;
+                        *flag = boolean(value).map_err(at)?;
                     }
-                    "merge-duplicates" => {
-                        settings.structure.merge_duplicates = boolean(value).map_err(at)?;
-                    }
-                    "object-streams" => {
-                        settings.structure.object_streams = boolean(value).map_err(at)?;
-                    }
-                    _ => return Err(at(format!("unknown key {key:?}"))),
                 }
             }
         }
@@ -397,6 +410,14 @@ pub fn to_profile(settings: &OptimizeSettings) -> String {
     let _ = writeln!(out, "remove-unreferenced = {}", st.remove_unreferenced);
     let _ = writeln!(out, "merge-duplicates = {}", st.merge_duplicates);
     let _ = writeln!(out, "object-streams = {}", st.object_streams);
+    let c = &settings.cleanup;
+    let _ = writeln!(out, "remove-invalid-links = {}", c.invalid_links);
+    let _ = writeln!(out, "remove-invalid-bookmarks = {}", c.invalid_bookmarks);
+    let _ = writeln!(
+        out,
+        "remove-unreferenced-destinations = {}",
+        c.unreferenced_destinations
+    );
     for rule in &settings.rules {
         out.push_str("\n[[rule]]\n");
         write_selector(&mut out, &rule.select);

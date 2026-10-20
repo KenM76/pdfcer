@@ -160,6 +160,7 @@ pub use form_paint::FormPaintOutcome;
 mod markup_respan;
 mod metadata_remove;
 mod optimize;
+mod optimize_cleanup;
 pub use markup_respan::TextMarkupRespan;
 mod link;
 pub use link::{LinkBorder, LinkBorderChange, LinkReading, LinkTarget, LinkTargetChange};

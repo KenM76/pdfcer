@@ -20,6 +20,10 @@ const OBJECTS_PER_STREAM: usize = 100;
 
 const PDF_1_5: PdfVersion = PdfVersion { major: 1, minor: 5 };
 
+/// The rebuilt file: `live` renumbered by `renum`, written as a classic
+/// body and table or (with `ropts.object_streams`) as object streams plus
+/// an xref stream, raising the header to 1.5 when that needs it (§7.5.7,
+/// §7.5.8). Fills the byte-level fields of `report`.
 pub(super) fn write(
     doc: &Document,
     live: &BTreeMap<ObjId, &Object>,

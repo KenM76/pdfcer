@@ -57,6 +57,7 @@ impl EditSession {
             changes: Vec::new(),
             skipped: Vec::new(),
             notes: Vec::new(),
+            cleanup: crate::optimize::CleanupPlan::default(),
             writes: Vec::new(),
         };
         let view = self.view();
@@ -73,6 +74,7 @@ impl EditSession {
         if plan.changes.iter().any(|c| c.lossy) {
             notes.push("some changes are lossy; each is listed".to_owned());
         }
+        plan.cleanup = self.plan_cleanup(&settings.cleanup, &mut notes);
         plan.notes = notes;
         Ok(plan)
     }
@@ -106,12 +108,13 @@ impl EditSession {
     }
 
     /// Commit `plan` as ONE undoable command and return how many objects it
-    /// rewrote. Pair with [`Self::save_optimized`].
+    /// rewrote or removed. Pair with [`Self::save_optimized`].
     ///
     /// # Errors
     ///
     /// [`OptimizeError::StalePlan`] when an object the plan rewrites has
-    /// changed since planning. Nothing is committed.
+    /// changed since planning, and [`OptimizeError::CleanupFailed`] when a
+    /// clean-up deletion fails. Nothing is committed either way.
     pub fn apply_optimize(&mut self, plan: &OptimizePlan) -> Result<usize, OptimizeError> {
         if let Some(w) = plan
             .writes
@@ -120,8 +123,11 @@ impl EditSession {
         {
             return Err(OptimizeError::StalePlan { id: w.id });
         }
+        let mut fold = super::optimize_cleanup::Fold::new(self, CommandKind::Optimize { count: 0 });
+        let removed = self.apply_cleanup(&plan.cleanup, &mut fold)?;
         if plan.writes.is_empty() {
-            return Ok(0);
+            fold.finish(self, removed);
+            return Ok(removed);
         }
         let mut objects = Vec::with_capacity(plan.writes.len());
         for w in &plan.writes {
@@ -142,7 +148,8 @@ impl EditSession {
             removals: Vec::new(),
             trailer: None,
         });
-        Ok(count)
+        fold.finish(self, count + removed);
+        Ok(count + removed)
     }
 
     /// The full rewrite of this session, rebuilt under `structure`, **only if

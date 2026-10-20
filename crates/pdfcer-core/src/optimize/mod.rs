@@ -32,6 +32,7 @@
 //! [`EditSession::apply_optimize`]: crate::edit::EditSession::apply_optimize
 //! [`EditSession::save_optimized`]: crate::edit::EditSession::save_optimized
 
+pub mod cleanup;
 pub mod profile;
 pub(crate) mod select;
 pub(crate) mod streams;
@@ -39,6 +40,7 @@ pub(crate) mod streams;
 use std::collections::BTreeMap;
 use std::fmt;
 
+pub use cleanup::{BrokenBookmark, BrokenLink, BrokenTarget, CleanupOptions, CleanupPlan};
 pub use select::{PageRanges, Selector};
 
 pub use crate::writer::{RebuildOptions, RebuildReport};
@@ -142,6 +144,9 @@ pub struct OptimizeSettings {
     /// identical ones, pack objects into object streams. All off keeps the
     /// file's structure.
     pub structure: RebuildOptions,
+    /// Links and bookmarks that go nowhere, and named destinations nothing
+    /// names, removed before saving. See [`cleanup`].
+    pub cleanup: CleanupOptions,
 }
 
 impl OptimizeSettings {
@@ -154,6 +159,7 @@ impl OptimizeSettings {
             objects: BTreeMap::new(),
             allow_signed: false,
             structure: RebuildOptions::none(),
+            cleanup: CleanupOptions::none(),
         }
     }
 
@@ -239,6 +245,12 @@ impl Preset {
             }
         };
         s.structure = RebuildOptions::all();
+        // Removing an unreferenced named destination can break a link from
+        // another file, so only the smallest-file preset does it.
+        s.cleanup = CleanupOptions {
+            unreferenced_destinations: matches!(self, Self::Screen),
+            ..CleanupOptions::all()
+        };
         s
     }
 }
@@ -292,6 +304,15 @@ pub enum OptimizeError {
     /// The document is refused; nothing was planned.
     #[error("optimize refused: {}", join(.0))]
     Refused(Vec<Refusal>),
+    /// A clean-up deletion failed; everything the apply had committed was
+    /// undone.
+    #[error("clean-up of object {id} failed: {reason}; nothing was changed")]
+    CleanupFailed {
+        /// The link, bookmark or catalog being changed.
+        id: ObjId,
+        /// The deletion's error.
+        reason: String,
+    },
     /// The session changed after the plan was made.
     #[error("object {id} changed after the optimize plan was made; plan again")]
     StalePlan {
@@ -386,6 +407,8 @@ pub struct OptimizePlan {
     pub skipped: Vec<Skipped>,
     /// Disclosures: overridden refusals and coverage limits.
     pub notes: Vec<String>,
+    /// Links, bookmarks and named destinations the apply removes.
+    pub cleanup: CleanupPlan,
     pub(crate) writes: Vec<streams::Rewrite>,
 }
 
@@ -439,3 +462,6 @@ pub(crate) fn keep_if_smaller(bytes: Vec<u8>, original: u64) -> OptimizedFile {
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod cleanup_tests;

@@ -17,6 +17,7 @@ fn full() -> OptimizeSettings {
     s.allow_signed = true;
     s.structure.merge_duplicates = true;
     s.structure.object_streams = true;
+    s.cleanup.invalid_bookmarks = true;
     s.rules.push(Rule {
         select: Selector {
             categories: vec![SpaceCategory::Fonts, SpaceCategory::ContentStreams],
@@ -191,4 +192,15 @@ object-streams = false
     let s = parse("p.toml", text, &mut none).unwrap();
     assert!(s.structure.remove_unreferenced && s.structure.merge_duplicates);
     assert!(!s.structure.object_streams);
+}
+
+#[test]
+fn a_cleanup_key_overrides_the_preset() {
+    let text = "extends = \"screen\"
+remove-invalid-links = false
+";
+    let s = parse("p.toml", text, &mut none).unwrap();
+    assert!(!s.cleanup.invalid_links);
+    assert!(s.cleanup.invalid_bookmarks && s.cleanup.unreferenced_destinations);
+    assert_eq!(parse("p.toml", &to_profile(&s), &mut none).unwrap(), s);
 }

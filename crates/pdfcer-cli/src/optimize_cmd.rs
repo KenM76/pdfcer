@@ -5,8 +5,8 @@ use std::fmt::Write as _;
 
 use pdfcer_core::edit::EditSession;
 use pdfcer_core::optimize::{
-    OptimizeError, OptimizePlan, OptimizeSettings, OptimizedFile, Preset, RebuildReport, Refusal,
-    profile,
+    CleanupPlan, OptimizeError, OptimizePlan, OptimizeSettings, OptimizedFile, Preset,
+    RebuildReport, Refusal, profile,
 };
 use pdfcer_core::space_audit;
 use pdfcer_core::writer::SaveOptions;
@@ -65,6 +65,22 @@ pub(crate) struct OptimizeArgs {
     /// compressed object streams. Use for readers older than PDF 1.5.
     #[arg(long)]
     pub(crate) no_object_streams: bool,
+    /// Keep Link annotations whose destination is a missing page or an
+    /// undefined named destination. Every preset deletes them.
+    #[arg(long)]
+    pub(crate) keep_invalid_links: bool,
+    /// Keep bookmarks that go nowhere. Every preset deletes a broken
+    /// bookmark once none of its children works.
+    #[arg(long)]
+    pub(crate) keep_invalid_bookmarks: bool,
+    /// Keep named destinations nothing in the file names (the screen
+    /// preset deletes them).
+    #[arg(long, conflicts_with = "remove_unreferenced_destinations")]
+    pub(crate) keep_unreferenced_destinations: bool,
+    /// Delete named destinations nothing in the file names, under any
+    /// preset. A link from another file to one of them stops working.
+    #[arg(long)]
+    pub(crate) remove_unreferenced_destinations: bool,
     /// Optimize a signed document anyway. Every signature is invalidated,
     /// and the report says how many.
     #[arg(long)]
@@ -171,6 +187,12 @@ fn resolve_settings(args: &OptimizeArgs) -> Result<OptimizeSettings, String> {
     st.remove_unreferenced &= !(args.keep_structure || args.keep_unreferenced);
     st.merge_duplicates &= !(args.keep_structure || args.keep_duplicates);
     st.object_streams &= !(args.keep_structure || args.no_object_streams);
+    let c = &mut settings.cleanup;
+    c.invalid_links &= !args.keep_invalid_links;
+    c.invalid_bookmarks &= !args.keep_invalid_bookmarks;
+    c.unreferenced_destinations = (c.unreferenced_destinations
+        || args.remove_unreferenced_destinations)
+        && !args.keep_unreferenced_destinations;
     Ok(settings)
 }
 
@@ -321,6 +343,7 @@ fn report_text(
             let _ = writeln!(out, "  {:<8} {}: {}", s.id.to_string(), s.action, s.reason);
         }
     }
+    out.push_str(&cleanup_text(&o.plan.cleanup));
     for n in &o.plan.notes {
         let _ = writeln!(out, "note: {n}");
     }
@@ -357,6 +380,91 @@ fn report_text(
         out.push_str(&diff_text(d));
     }
     out
+}
+
+fn cleanup_text(c: &CleanupPlan) -> String {
+    let mut out = String::new();
+    if c.is_empty() {
+        return out;
+    }
+    let _ = writeln!(
+        out,
+        "cleanup: {} link(s), {} bookmark(s), {} named destination(s) removed",
+        c.links.len(),
+        c.bookmarks.len(),
+        c.destinations.len()
+    );
+    for l in &c.links {
+        let _ = writeln!(
+            out,
+            "  link     {:<8} page {}: {}",
+            l.id.to_string(),
+            l.page_index + 1,
+            l.target
+        );
+    }
+    for b in &c.bookmarks {
+        let why = b.target.as_ref().map_or_else(
+            || "groups only removed items".to_owned(),
+            ToString::to_string,
+        );
+        let _ = writeln!(
+            out,
+            "  bookmark {:<8} {:?}: {why}{}",
+            b.id.to_string(),
+            b.title,
+            match b.descendants {
+                0 => String::new(),
+                n => format!(" (with {n} under it)"),
+            }
+        );
+    }
+    for d in &c.destinations {
+        let _ = writeln!(out, "  dest     {:?}", String::from_utf8_lossy(d));
+    }
+    out
+}
+
+fn cleanup_json(c: &CleanupPlan) -> String {
+    let q = |s: &str| format!("\"{}\"", json_escape(s));
+    let links: Vec<String> = c
+        .links
+        .iter()
+        .map(|l| {
+            format!(
+                "{{\"id\":{},\"page\":{},\"reason\":{}}}",
+                q(&l.id.to_string()),
+                l.page_index + 1,
+                q(&l.target.to_string())
+            )
+        })
+        .collect();
+    let bookmarks: Vec<String> = c
+        .bookmarks
+        .iter()
+        .map(|b| {
+            format!(
+                "{{\"id\":{},\"title\":{},\"reason\":{},\"descendants\":{}}}",
+                q(&b.id.to_string()),
+                q(&b.title),
+                b.target
+                    .as_ref()
+                    .map_or_else(|| "null".to_owned(), |t| q(&t.to_string())),
+                b.descendants
+            )
+        })
+        .collect();
+    let dests: Vec<String> = c
+        .destinations
+        .iter()
+        .map(|d| q(&String::from_utf8_lossy(d)))
+        .collect();
+    format!(
+        "{{\"links\":[{}],\"bookmarks\":[{}],\"destinations\":[{}]}}",
+        links.join(","),
+        bookmarks.join(","),
+        dests.join(",")
+    )
 }
 
 fn structure_text(r: &RebuildReport) -> String {
@@ -450,13 +558,14 @@ fn report_json(
         _ => "null".to_owned(),
     };
     format!(
-        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"structure\":{},\"diff\":{}}}\n",
+        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"cleanup\":{},\"structure\":{},\"diff\":{}}}\n",
         o.original,
         o.rewritten,
         o.bytes.is_some(),
         changes.join(","),
         skipped.join(","),
         notes.join(","),
+        cleanup_json(&o.plan.cleanup),
         o.structure
             .as_ref()
             .map_or_else(|| "null".to_owned(), structure_json),

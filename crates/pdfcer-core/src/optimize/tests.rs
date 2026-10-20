@@ -13,7 +13,7 @@ use crate::space_audit::tests::stream;
 use crate::writer::SaveOptions;
 
 /// A classic-xref file whose object `i + 1` is `bodies[i]`.
-fn build(bodies: &[Vec<u8>]) -> Vec<u8> {
+pub(super) fn build(bodies: &[Vec<u8>]) -> Vec<u8> {
     let mut buf = b"%PDF-1.7\n%\xE2\xE3\xCF\xD3\n".to_vec();
     let mut offsets = Vec::new();
     for (i, body) in bodies.iter().enumerate() {
@@ -73,7 +73,8 @@ fn sample(catalog_extra: &str, extra: &[Vec<u8>]) -> Vec<u8> {
     build(&bodies)
 }
 
-fn session(bytes: Vec<u8>) -> EditSession {
+/// A session over `bytes`, which must parse.
+pub(super) fn session(bytes: Vec<u8>) -> EditSession {
     EditSession::new(Document::from_bytes(bytes).unwrap())
 }
 
