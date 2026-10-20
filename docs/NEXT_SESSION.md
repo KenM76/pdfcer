@@ -36,7 +36,10 @@ below; no feature-request loop and no other Passes while it is open.**
   12 best-fit / 2 failed (**m64 m95** fail; m107 -> best-fit); door 155/1/0.
   Next free Pass **608.0**; next filing **1101st**. Unpushed/unreleased at
   filing time. The figures below this line predate it.
-- **Ledgers:** next free Pass **608.0**; next filing **1101st** (check
+- **Update 1101st filing:** bump `e6167c24` (`v0.87.0`) filed; tag, package,
+  GitHub release, OneDrive `pdfcer2`, gui notice NOT done yet. Next filing
+  **1102nd**.
+- **Ledgers:** next free Pass **608.0**; next filing **1102nd** (check
   ROADMAP's newest ledger line); no decision added since 183. Core-api verb
   count **378**.
 - **3D compressed meshes after `605.0`:** door `TS-0232-16-3D.pdf` 155/156

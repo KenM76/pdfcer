@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1101st filing) — `v0.87.0` version bump `e6167c24` filed; release PENDING
+
+**Filed (engineer-reported, no shell here):** bump `e6167c24` after `22adcfc1` (1100th filing): workspace 0.86.0 -> 0.87.0, `cargo update -w` on root and `fuzz/` locks; no dependency, `pub` or core-api change (verbs 378). Contents since `v0.86.0`: `Pass 607.0` only. Release requested by Ken ("Make the next release so I can confirm"); standing-authorised (decision 121).
+
+**Measured:** door 156 rebuilt / 1 best-fit / 0 left out; trailer 139 / 12 / 2 (per-mesh 127/11/3 -> 127/12/2); both left-out meshes are the one part `TR-0409-LIGHT BAR-1` (placed x2). Gates change-scoped (Ken 2026-10-16): `pdfcer-3d` 165 + 3 + 13 pass, clippy, fmt, structure clean.
+
+**Not claimed done:** tag, package, smoke, GitHub release, OneDrive `pdfcer2` (`pdfcer1` keeps 0.86.0), `pdfcer-gui` notice; publication gets its own filing. No decision; `FEATURES.md` no change. Hard-rule-11 sweep: no meaning changed, no survivors. `.claude/agent-memory/` not touched. Backup currency and git state not verified from here.
+
+**For next session:** next free `Pass 608.0`; next filing 1102nd. Remaining trailer failures m64, m95.
+
 ## 2026-10-20 (1100th filing) — `Pass 607.0` shipped in `1b92fc73` (borrowed and blind planar normals oriented by the face itself)
 
 **Shipped (engineer-reported, no shell here):** `1b92fc73`, crate `pdfcer-3d` only, after `e6b68472`; unpushed at dispatch. `Orientation::{Borrowed, Blind}` in `normals.rs`; `Planes::oriented` in `bend.rs`; new `compressed/decide.rs` (fold decision split out for the structure gate). Operator-direct ("Continue the 3d mesh work").

@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.87.0` — version bump filed 2026-10-20 (1101st filing); release PENDING
+
+Bump `e6167c24` (`e6167c2462921716795b761fd70cad38b39cadaa`, "chore: bump version to 0.87.0") on `main`, after `22adcfc1` (the 1100th filing, which filed `Pass 607.0` = `1b92fc73`): workspace `Cargo.toml` 0.86.0 -> 0.87.0, plus `cargo update -w` on the root and `fuzz/` locks. No dependency change, no `pub`/API change (core-api verbs 378; `docs/core-api/` untouched). Contents since `v0.86.0`: `Pass 607.0` only. Release requested directly by Ken ("Make the next release so I can confirm") and standing-authorised (decision 121). All figures engineer-reported; I have no shell (hard rule 8).
+
+- **Measured** (release CLI `3d-render` on the current tree; rebuilt / best-fit / left out): door `TS-0232-16-3D.pdf` 156 / 1 / 0; trailer `TR-0522.pdf` 139 / 12 / 2 (was 138 / 11 / 3 at `v0.86.0`; per-mesh 127/11/3 -> 127/12/2). Both trailer left-out meshes belong to one part, `TR-0409-LIGHT BAR-1` (placed x2).
+- **Gates were CHANGE-SCOPED** (Ken 2026-10-16): only `pdfcer-3d` changed since `v0.86.0`; `cargo test -p pdfcer-3d` 165 + 3 + 13 = 181 passed, clippy `-D warnings`, `fmt`, `check-code-structure` clean.
+- **Plan, NOT claimed done:** tag `v0.87.0` on the filing commit of this entry, package, fresh-folder smoke, GitHub release, OneDrive slot `pdfcer2` (`pdfcer1` keeps 0.86.0), notice to `pdfcer-gui`. Publication gets its own filing.
+
+`FEATURES.md`: no change from the bump. Ledgers: no decision; next free `Pass 608.0`; next filing 1102nd.
+
 ### `Pass 607.0` — PRC compressed-tessellation fit: borrowed and blind planar normals are oriented by the face itself — SHIPPED 2026-10-20 (1100th filing)
 
 Commit `1b92fc73` (`1b92fc7391d50556df2951902c68ee0f70d2b112`) on `main`, after `e6b68472` (the 1099th filing); not pushed at dispatch time (engineer-stated; no shell here). Crate `pdfcer-3d` only; no `Cargo.toml` change (no `cargo tree` concern), no `pub` change (core-api verbs 378), no dependency change. Operator-direct continuation of `606.0` (Ken: "Continue the 3d mesh work"; standing goal = trailer compressed-mesh failures m64/m95/m107). Unreleased; last release `v0.86.0`.
