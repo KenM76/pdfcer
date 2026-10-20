@@ -169,15 +169,24 @@ impl SubsetAugmenter for InstalledFaceAugmenter {
         Vec::new()
     }
 
-    /// Every character the first face named like the subset maps; the
-    /// identity check is left to [`Self::addable`].
+    /// Every character mapped by the first face that is named like the subset,
+    /// maps something and passes the identity check: the same face
+    /// [`Self::addable`] and [`SubsetAugmenter::augment`] would use, so a
+    /// same-named copy that cannot serve does not hide one that can.
     fn candidates(&self, request: &AugmentRequest<'_>) -> Vec<char> {
+        let scope = scope(request);
+        let known = known_pairs(request);
+        let addressing = addressing(known.as_deref());
         self.faces
             .iter()
             .find_map(|(_, data)| {
                 let face = data.bytes();
                 let index = identity::candidate_index(face, request.base_font)?;
-                Some(identity::face_unicode_chars(face, index))
+                let held = identity::face_unicode_chars(face, index);
+                let serves = !held.is_empty()
+                    && identity::check(request.program, (face, index), &[], scope, addressing)
+                        .is_ok();
+                serves.then_some(held)
             })
             .unwrap_or_default()
     }

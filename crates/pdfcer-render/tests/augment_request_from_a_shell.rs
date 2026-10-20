@@ -48,6 +48,21 @@ fn addable_keeps_what_the_face_draws() {
     assert_eq!(augmenter().addable(&request), ['D']);
 }
 
+/// G212: same-named files that cannot serve (no cmap; different outlines)
+/// sorted ahead of the real face must not hide it.
+#[test]
+fn a_same_named_face_that_cannot_serve_is_skipped() {
+    let mut faces = InstalledFaceAugmenter::new();
+    for name in ["cid-subset.ttf", "face-b-differs.ttf", "face.ttf"] {
+        faces.insert(name, FontData::new(fixture(name)));
+    }
+    let program = fixture("cid-subset.ttf");
+    let request = AugmentRequest::new(&program, "ABCDEF+pdfcerAugFace", &[])
+        .with_addressing(ProgramAddressing::CidKeyed(&KNOWN));
+    assert_eq!(faces.candidates(&request), augmenter().candidates(&request));
+    assert!(faces.candidates(&request).contains(&'D'));
+}
+
 #[test]
 fn an_unnamed_face_offers_nothing() {
     let program = fixture("cid-subset.ttf");
