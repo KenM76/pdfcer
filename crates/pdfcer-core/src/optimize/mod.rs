@@ -36,7 +36,10 @@ pub(crate) mod actions;
 pub(crate) mod annots;
 pub mod cleanup;
 pub mod discard;
+// Callers land with the re-subset wiring (Pass 616.6 slice 2, step 6).
 pub(crate) mod fragments;
+#[allow(dead_code)]
+pub(crate) mod glyph_usage;
 pub mod image;
 pub(crate) mod object_data;
 pub mod objects;
