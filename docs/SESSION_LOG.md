@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1142nd filing) — `Pass 616.5` slice E4 in `b1a85853`: images can be written as LZW, on request only
+
+**Shipped:** `Pass 616.5` slice E4 (core + cli, no gui): `pdfcer_model::filters::lzw::encode`, `encode=lzw` (`/LZWDecode`, `/EarlyChange 1` omitted, PNG-predicted like Flate), `ImageChange::flate_bytes` ("Flate would be N bytes"), `ImageSkip::LzwUnderPdfa` / `LzwEncode`, core-api 01/03/index. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
+
+**Decisions:** none new; decision 193 governs. No rule minted.
+
+**Findings:** core optimize 156, CLI optimize 29, model lzw 14 plus doctest; sabotage (PDF/A check off; LZW swapped for Flate) failed the matching tests; fuzz `image_encoders` 478,988 and `optimize_images` 28,626 runs clean. `cargo tree` unchanged. Owed items from the 1140th filing discharged: weezl comments in both `Cargo.toml` files and `lzw.rs`; spec RAG `filter__lzw.md` corrected by the spec-librarian.
+
+**E2/E3 unblocked:** the spec-librarian filed `filter__ccitt_g4_encoder.md` and `filter__jbig2_generic_encoder.md` in `D:\Dev\Rag-Specialized\PDF_Spec\filters\`, clearing decision 193's rule-1 condition. Flags: (a) ISO 32000-1 §7.4.7 says a JBIG2 encoder "shall" build a symbol table (dropped in PDF 2.0), so generic-only is short of 1.7 (not a blocker); (b) TPGDON shared-context rule is not exercised by T.88's test data, so E3 needs a fixture that triggers it, tested against the hayro decoder.
+
+**Still in flight:** `Pass 616.5` NOT complete: E2, E3, E5 auto, E6 version-raise=refuse remain. Acrobat Reader render check per encoder (RunLength, LZW) owed.
+
+**For next session:** E2 or E3. Git, push and backup state not verified from here. Next filing 1143rd.
+
 ## 2026-10-21 (1141st filing) — `Pass 616.5` slice E1 in `44ce3e0e`: images can be written as RunLength
 
 **Shipped:** `Pass 616.5` slice E1 (core + cli, no gui): `filters::runlength::encode` in `pdfcer-model`, `ImageEncode::RunLength` / `encode=runlength` in core, "RunLength" in the CLI report format column, `--streams` help, core-api 01 and 03. Full detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
