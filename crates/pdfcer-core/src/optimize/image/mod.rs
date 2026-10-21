@@ -94,6 +94,12 @@ pub enum ImageEncode {
     /// only on flat, banded artwork, so the never-larger guard usually
     /// keeps the original.
     RunLength,
+    /// `/LZWDecode` (ISO 32000-2 §7.4.4), PNG-predicted like Flate.
+    /// Lossless. Written only when named: Flate is more compact
+    /// (§7.4.4.1 NOTE 1), so the report gives the Flate size too, and an
+    /// image in a document claiming PDF/A is skipped (ISO 19005 forbids
+    /// LZW).
+    Lzw,
 }
 
 impl fmt::Display for ImageEncode {
@@ -103,6 +109,7 @@ impl fmt::Display for ImageEncode {
             Self::Flate { level } => write!(f, "flate-{level}"),
             Self::Jpeg => f.write_str("jpeg"),
             Self::RunLength => f.write_str("runlength"),
+            Self::Lzw => f.write_str("lzw"),
         }
     }
 }
@@ -328,6 +335,7 @@ fn parse_encode(value: &str) -> Result<ImageEncode, String> {
         "flate" => Ok(ImageEncode::Flate { level: 9 }),
         "jpeg" => Ok(ImageEncode::Jpeg),
         "runlength" => Ok(ImageEncode::RunLength),
+        "lzw" => Ok(ImageEncode::Lzw),
         _ => value
             .strip_prefix("flate-")
             .and_then(|n| n.parse::<u8>().ok())
@@ -335,7 +343,7 @@ fn parse_encode(value: &str) -> Result<ImageEncode, String> {
             .map(|level| ImageEncode::Flate { level })
             .ok_or_else(|| {
                 format!(
-                    "image(): unknown encode {value:?}; expected keep, flate, flate-0..9, jpeg or runlength"
+                    "image(): unknown encode {value:?}; expected keep, flate, flate-0..9, jpeg, runlength or lzw"
                 )
             }),
     }
@@ -645,6 +653,8 @@ mod pipeline_copies_tests;
 mod pipeline_jpeg_tests;
 #[cfg(test)]
 mod pipeline_keyed_tests;
+#[cfg(test)]
+mod pipeline_lzw_tests;
 #[cfg(test)]
 mod pipeline_matte_tests;
 #[cfg(test)]

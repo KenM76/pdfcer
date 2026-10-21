@@ -1071,3 +1071,28 @@ fn a_runlength_image_reports_its_format_and_decodes() {
     let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
     assert!(written.contains("/Filter /RunLengthDecode"), "{written}");
 }
+
+#[test]
+fn an_lzw_image_reports_its_format_and_the_flate_size() {
+    let d = dir("image-lzw");
+    let input = noise_image_pdf(&d);
+    let out = d.join("out.pdf");
+    let o = run(&[
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--keep-structure",
+        "--streams",
+        "image(convert=bilevel,threshold=110,encode=lzw)",
+    ]);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(
+        report.contains("format raw/DeviceGray 8 bit -> LZW/DeviceGray 1 bit"),
+        "{report}"
+    );
+    assert!(report.contains("written as lzw"), "{report}");
+    assert!(report.contains("(Flate would be "), "{report}");
+    let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(written.contains("/Filter /LZWDecode"), "{written}");
+}

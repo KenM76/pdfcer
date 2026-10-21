@@ -210,9 +210,8 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 # decode_bytes(inp, out) is what makes MAX_DECODED_LEN enforceable
 # INCREMENTALLY, as filters/mod.rs already promises for Flate.
 #
-# NOTE on weezl's ENCODER: it is compiled in (weezl has no decoder-only
-# feature) and is used in `#[cfg(test)]` ONLY, to build known-good LZW
-# fixtures for the round-trip tests. pdfcer never writes LZW — R28.
+# weezl's ENCODER backs filters::lzw::encode, written only for an explicit
+# `encode=lzw` and never chosen by pdfcer (R28, decision 193).
 weezl = "0.2"
 
 # --- Pass 2.2 -------------------------------------------------------

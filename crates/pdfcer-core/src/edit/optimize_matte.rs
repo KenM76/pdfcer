@@ -70,7 +70,7 @@ impl EditSession {
         settings: &OptimizeSettings,
         (mask, parent): (ObjId, ObjId),
         rows: &BTreeMap<ObjId, &ObjectSpace>,
-        view: &DocumentView<'_>,
+        (view, pdfa): (&DocumentView<'_>, bool),
     ) {
         let Some(Object::Stream(stream)) = self.value(mask) else {
             return;
@@ -106,6 +106,7 @@ impl EditSession {
             blocker: pipeline::mask_blocker(&stream.dict, None, false),
             convert_blocker: pipeline::convert_blocker(&stream.dict, None, true),
             lockstep,
+            pdfa,
         };
         plan_stream(plan, settings, (mask, stream, raw), row, &ctx);
         if lockstep.is_none() {

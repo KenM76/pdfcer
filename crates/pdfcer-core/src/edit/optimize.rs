@@ -96,6 +96,10 @@ impl EditSession {
         rows: &BTreeMap<ObjId, &ObjectSpace>,
     ) {
         let view = self.view();
+        let pdfa = matches!(
+            crate::font_unembed::detect_pdfa(&view),
+            crate::font_unembed::PdfaClaim::Identified { .. }
+        );
         let soft_masks = self.soft_mask_targets(ids);
         let pairs = self.matte_pairs(ids);
         let copies = if settings.structure.merge_duplicates {
@@ -139,11 +143,12 @@ impl EditSession {
                     soft_masks.contains(&id),
                 ),
                 lockstep: None,
+                pdfa,
             };
             plan_stream(plan, settings, (id, stream, raw), row, &ctx);
         }
         for (&mask, &parent) in &pairs {
-            self.plan_matte_mask(plan, settings, (mask, parent), rows, &view);
+            self.plan_matte_mask(plan, settings, (mask, parent), rows, (&view, pdfa));
         }
         super::optimize_copies::disclose(plan, &copies);
     }

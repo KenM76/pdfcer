@@ -1,17 +1,18 @@
-//! PNG prediction for image samples written as `/FlateDecode`
-//! (ISO 32000-2 §7.4.4.4, Table 10 value 15: a per-row filter tag).
+//! PNG prediction for image samples written as `/FlateDecode` or
+//! `/LZWDecode` (ISO 32000-2 §7.4.4.4, Table 10 value 15: a per-row filter
+//! tag; Table 8 gives LZW the same predictor parameters).
 
 use std::fmt;
 
-use crate::filters::flate;
 use crate::filters::predictor::{self, Params};
+use crate::filters::{FilterError, flate, lzw};
 use crate::object::{Dict, Name, Object};
 
-/// Whether Flate-written image samples are PNG-predicted.
+/// Whether Flate- or LZW-written image samples are PNG-predicted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
 pub enum Predictor {
-    /// Plain Flate.
+    /// No prediction.
     Off,
     /// `/Predictor 15`, each row filtered by whichever PNG filter suits it.
     Png,
@@ -47,24 +48,43 @@ impl fmt::Display for Predictor {
     }
 }
 
-/// Samples compressed for `/FlateDecode`.
+/// The compressor behind a predicted filter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Codec {
+    /// zlib at this level.
+    Flate(u8),
+    /// LZW, `/EarlyChange 1`.
+    Lzw,
+}
+
+impl Codec {
+    fn compress(self, data: &[u8]) -> Result<Vec<u8>, FilterError> {
+        match self {
+            Self::Flate(level) => Ok(flate::encode_with_level(data, u32::from(level))),
+            Self::Lzw => lzw::encode(data),
+        }
+    }
+}
+
+/// Samples compressed for `/FlateDecode` or `/LZWDecode`.
 pub(crate) struct Flated {
     pub(crate) data: Vec<u8>,
     /// The `/DecodeParms` a predicted result needs.
     pub(crate) parms: Option<Dict>,
 }
 
-/// Flate `samples` (rows of `columns` samples of `colors` components at
-/// `bpc` bits, byte-padded) at `level`, predicted as `predictor` says.
-pub(crate) fn flate(
+/// Compress `samples` (rows of `columns` samples of `colors` components at
+/// `bpc` bits, byte-padded) with `codec`, predicted as `predictor` says.
+pub(crate) fn compress(
     samples: &[u8],
     (colors, bpc, columns): (u32, u32, u32),
-    level: u8,
+    codec: Codec,
     predictor: Predictor,
-) -> Flated {
-    let plain = || Flated {
-        data: flate::encode_with_level(samples, u32::from(level)),
-        parms: None,
+) -> Result<Flated, FilterError> {
+    let plain = || {
+        codec
+            .compress(samples)
+            .map(|data| Flated { data, parms: None })
     };
     if predictor == Predictor::Off {
         return plain();
@@ -79,16 +99,16 @@ pub(crate) fn flate(
         return plain();
     };
     let predicted = Flated {
-        data: flate::encode_with_level(&rows, u32::from(level)),
+        data: codec.compress(&rows)?,
         parms: Some(parms(&params)),
     };
     if predictor == Predictor::Auto {
-        let base = plain();
+        let base = plain()?;
         if base.data.len() <= predicted.data.len() {
-            return base;
+            return Ok(base);
         }
     }
-    predicted
+    Ok(predicted)
 }
 
 fn parms(p: &Params) -> Dict {

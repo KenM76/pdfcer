@@ -72,13 +72,11 @@
 //! Output accumulates in 64 KiB chunks and the decode aborts the moment
 //! [`MAX_DECODED_LEN`] is crossed — never decompress-then-check.
 //!
-//! ## pdfcer never WRITES LZW (rule R28)
+//! ## Encoder: written only on request (rule R28, decision 193)
 //!
-//! §7.4.4.1 NOTE 1 makes Flate strictly better on every axis except
-//! encode speed. `weezl`'s encoder is compiled in (the crate has no
-//! decoder-only feature) and is referenced **only** from this module's
-//! `#[cfg(test)]` block, to build known-good fixtures. No shipping code
-//! path produces LZW bytes.
+//! [`encode`] writes `/EarlyChange 1` LZW, so the key is omitted. pdfcer
+//! never *chooses* it: §7.4.4.1 NOTE 1 makes Flate more compact, and
+//! `pdfcer optimize` writes LZW only for an explicit `encode=lzw`.
 //!
 //! [`Decoder::with_tiff_size_switch`]: weezl::decode::Decoder::with_tiff_size_switch
 //! [`Decoder::new`]: weezl::decode::Decoder::new
@@ -100,6 +98,35 @@ use crate::object::Dict;
 /// from this 8. It is fixed for PDF — unlike GIF, where the initial
 /// code size varies with the image's bit depth.
 const LZW_CHARACTER_BITS: u8 = 8;
+
+/// Encode `data` as LZW with `/EarlyChange 1` (the default, so a writer
+/// omits the key), MSB-first, 8-bit characters (§7.4.4.2).
+///
+/// # Errors
+///
+/// [`FilterError::Corrupt`] if `weezl` reports an encoder failure; it
+/// never does for in-memory input, but an empty `Ok` would read as
+/// "smaller" to a size guard, so the failure is not swallowed.
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_model::filters::lzw;
+///
+/// let data = b"-----A---B".repeat(50);
+/// let encoded = lzw::encode(&data).unwrap();
+/// assert!(encoded.len() < data.len());
+/// let mut notes = pdfcer_model::filters::FilterNotes::default();
+/// assert_eq!(lzw::decode(&encoded, None, &mut notes).unwrap(), data);
+/// ```
+pub fn encode(data: &[u8]) -> Result<Vec<u8>, FilterError> {
+    weezl::encode::Encoder::with_tiff_size_switch(BitOrder::Msb, LZW_CHARACTER_BITS)
+        .encode(data)
+        .map_err(|e| FilterError::Corrupt {
+            filter: "LZWDecode",
+            detail: e.to_string(),
+        })
+}
 
 /// Decode `data` as LZW and apply any predictor from `parms`.
 ///
@@ -265,13 +292,9 @@ mod tests {
 
     /// Build an LZW stream with weezl's own encoder.
     ///
-    /// **Test-only** (rule R28: pdfcer ships no LZW encoder). `weezl`'s
-    /// encoder is the natural fixture generator because the two
-    /// constructors mirror the decoder's exactly, so `EarlyChange`
-    /// round-trips are testable without hand-assembling bit streams —
-    /// and because a fixture built by the *same* library the decoder
-    /// uses still catches a wrong `BitOrder` or a wrong constructor
-    /// choice on pdfcer's side, which is what these tests are for.
+    /// Builds both `EarlyChange` variants; the constructors mirror the
+    /// decoder's, so a wrong `BitOrder` or constructor choice on pdfcer's
+    /// side still fails these tests.
     fn lzw_encode(data: &[u8], early_change: bool) -> Vec<u8> {
         use weezl::encode::Encoder;
         let mut enc = if early_change {
@@ -280,6 +303,17 @@ mod tests {
             Encoder::new(BitOrder::Msb, LZW_CHARACTER_BITS)
         };
         enc.encode(data).unwrap()
+    }
+
+    #[test]
+    fn the_shipping_encoder_round_trips_with_early_change_omitted() {
+        let original: Vec<u8> = (0..40_000u32).map(|i| ((i * 7) ^ (i >> 5)) as u8).collect();
+        for input in [Vec::new(), b"a".to_vec(), original] {
+            let encoded = encode(&input).unwrap();
+            let mut notes = FilterNotes::default();
+            assert_eq!(decode(&encoded, None, &mut notes).unwrap(), input);
+            assert_eq!(encoded, lzw_encode(&input, true));
+        }
     }
 
     fn parms_with(entries: &[(&[u8], i64)]) -> Dict {

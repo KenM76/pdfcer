@@ -2649,7 +2649,8 @@ Individual filters are also public if you need one directly:
 `ascii::decode_hex` / `decode_85`, `flate::decode`,
 `lzw::decode`, `runlength::decode`, `predictor::Params`
  / `::from_dict` / `unpredict`. Encoders: `flate::encode_with_level`,
-`runlength::encode` (ends with EOD, never fails).
+`runlength::encode` (ends with EOD, never fails), `lzw::encode`
+(`/EarlyChange 1`, so the key is omitted; `Result` because `weezl` returns one).
 
 **★ `decode_stream` deliberately refuses image codecs.** `filters/mod.rs`:
 hitting `DCTDecode`/`CCITTFaxDecode`/`JBIG2Decode`/`JPXDecode` returns

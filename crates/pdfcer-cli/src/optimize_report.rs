@@ -92,6 +92,9 @@ fn image_text(img: &ImageChange) -> String {
     if img.predicted {
         line.push_str(" with PNG prediction");
     }
+    if let Some(n) = img.flate_bytes {
+        line.push_str(&format!(" (Flate would be {n} bytes)"));
+    }
     if img.bpc.0 != img.bpc.1 {
         line.push_str(&format!(", {} -> {} bit", img.bpc.0, img.bpc.1));
     }
@@ -110,6 +113,7 @@ pub(crate) fn format_pair(img: &ImageChange, filters: &[String]) -> String {
     let after = match img.encoded_as {
         ImageEncode::Jpeg => "DCT",
         ImageEncode::RunLength => "RunLength",
+        ImageEncode::Lzw => "LZW",
         _ => "Flate",
     };
     let (cb, ca) = &img.color_space;
@@ -205,7 +209,7 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
         },
     );
     format!(
-        "{{\"size_before\":[{},{}],\"size_after\":[{},{}],\"binding\":{binding},\"encoded_as\":\"{}\",\"bpc\":[{},{}],\"jpeg\":{jpeg},\"method\":{},\"ppi\":{},\"above\":{},\"encode\":{},\"quality\":{},\"chroma\":{},\"progressive\":{},\"min_saving_pct\":{},\"color_space\":[\"{}\",\"{}\"],\"conversion\":{},\"convert\":{},\"threshold\":{},\"colors\":{},\"keyed\":{},\"max_pixels\":{},\"predictor\":{},\"predicted\":{},\"resampled_with\":{},\"copies\":[{}]}}",
+        "{{\"size_before\":[{},{}],\"size_after\":[{},{}],\"binding\":{binding},\"encoded_as\":\"{}\",\"bpc\":[{},{}],\"jpeg\":{jpeg},\"method\":{},\"ppi\":{},\"above\":{},\"encode\":{},\"quality\":{},\"chroma\":{},\"progressive\":{},\"min_saving_pct\":{},\"color_space\":[\"{}\",\"{}\"],\"conversion\":{},\"convert\":{},\"threshold\":{},\"colors\":{},\"keyed\":{},\"max_pixels\":{},\"predictor\":{},\"predicted\":{},\"flate_bytes\":{},\"resampled_with\":{},\"copies\":[{}]}}",
         img.size_before.0,
         img.size_before.1,
         img.size_after.0,
@@ -231,6 +235,7 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
         opt(s.max_pixels.map(|v| (v.value, v.source))),
         src(format!("\"{}\"", s.predictor.value), s.predictor.source),
         img.predicted,
+        img.flate_bytes.map_or("null".to_owned(), |n| n.to_string()),
         img.resampled_with.map_or("null".to_owned(), |p| format!(
             "[{},{}]",
             p.num, p.generation

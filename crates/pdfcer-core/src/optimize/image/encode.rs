@@ -4,7 +4,7 @@
 
 use super::convert;
 use super::pipeline::{Job, Source, Target};
-use super::predict;
+use super::predict::{self, Codec};
 use super::{Conversion, ImageSkip};
 use crate::deskew::Raster;
 use crate::filters;
@@ -25,6 +25,8 @@ pub(crate) struct Written {
     pub(crate) conversion: Option<Conversion>,
     /// Whether the samples were PNG-predicted.
     pub(crate) predicted: bool,
+    /// For LZW output, the Flate level 9 size of the same samples.
+    pub(crate) flate_bytes: Option<u64>,
 }
 
 /// Perform `job` on the image stored as `raw` under `dict`; `view`
@@ -63,25 +65,13 @@ pub(crate) fn run(
             (resized, job.components, bpc, None)
         }
     };
-    let (data, filter, bpc, parms) = match job.target {
-        Target::Flate { level, predictor } => {
-            let shape = (components, bpc, job.out.0);
-            let done = predict::flate(&pixels, shape, level, predictor);
-            (done.data, &b"FlateDecode"[..], bpc, done.parms)
-        }
-        Target::Jpeg(opts) => {
-            let n = u8::try_from(components).unwrap_or(0);
-            let data = jpeg_write::encode(&pixels, job.out.0, job.out.1, n, opts)
-                .map_err(|e| SkipReason::ImageUnsupported(ImageSkip::JpegEncode(e)))?;
-            (data, &b"DCTDecode"[..], 8, None)
-        }
-        Target::RunLength => (
-            filters::runlength::encode(&pixels),
-            &b"RunLengthDecode"[..],
-            bpc,
-            None,
-        ),
-    };
+    let Encoded {
+        data,
+        filter,
+        bpc,
+        parms,
+        flate_bytes,
+    } = encode(job, &pixels, (components, bpc))?;
     guard(job, raw.len() as u64, data.len() as u64)?;
     let mut out = output_dict(dict, job.out, filter, bpc, data.len());
     let predicted = parms.is_some();
@@ -100,6 +90,58 @@ pub(crate) fn run(
         bpc,
         conversion,
         predicted,
+        flate_bytes,
+    })
+}
+
+/// Samples encoded for the job's target.
+struct Encoded {
+    data: Vec<u8>,
+    filter: &'static [u8],
+    bpc: u32,
+    parms: Option<Dict>,
+    flate_bytes: Option<u64>,
+}
+
+fn encode(job: &Job, pixels: &[u8], (components, bpc): (u32, u32)) -> Result<Encoded, SkipReason> {
+    let shape = (components, bpc, job.out.0);
+    let failed =
+        |e: filters::FilterError| SkipReason::ImageUnsupported(ImageSkip::LzwEncode(e.to_string()));
+    let predicted = |codec, predictor| predict::compress(pixels, shape, codec, predictor);
+    let plain = |data, filter| Encoded {
+        data,
+        filter,
+        bpc,
+        parms: None,
+        flate_bytes: None,
+    };
+    Ok(match job.target {
+        Target::Flate { level, predictor } => {
+            let done = predicted(Codec::Flate(level), predictor).map_err(failed)?;
+            Encoded {
+                parms: done.parms,
+                ..plain(done.data, b"FlateDecode")
+            }
+        }
+        Target::Lzw { predictor } => {
+            let done = predicted(Codec::Lzw, predictor).map_err(failed)?;
+            let flate = predicted(Codec::Flate(9), predictor).map_err(failed)?;
+            Encoded {
+                parms: done.parms,
+                flate_bytes: Some(flate.data.len() as u64),
+                ..plain(done.data, b"LZWDecode")
+            }
+        }
+        Target::Jpeg(opts) => {
+            let n = u8::try_from(components).unwrap_or(0);
+            let data = jpeg_write::encode(pixels, job.out.0, job.out.1, n, opts)
+                .map_err(|e| SkipReason::ImageUnsupported(ImageSkip::JpegEncode(e)))?;
+            Encoded {
+                bpc: 8,
+                ..plain(data, b"DCTDecode")
+            }
+        }
+        Target::RunLength => plain(filters::runlength::encode(pixels), b"RunLengthDecode"),
     })
 }
 
@@ -173,8 +215,10 @@ fn source_samples(
             if packed.len() < need {
                 return Err(short(packed.len(), need));
             }
-            if matches!(job.target, Target::Flate { .. } | Target::RunLength)
-                || job.convert.is_some()
+            if matches!(
+                job.target,
+                Target::Flate { .. } | Target::RunLength | Target::Lzw { .. }
+            ) || job.convert.is_some()
             {
                 return Ok((packed, job.bpc));
             }

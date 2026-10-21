@@ -31,7 +31,7 @@ pub struct ImageChange {
     pub binding: Option<ImagePlacement>,
     /// That placement's effective ppi after resampling.
     pub binding_ppi_after: Option<f64>,
-    /// The encoding written: `Flate` or `Jpeg`, never `Keep`.
+    /// The encoding written; never `Keep`.
     pub encoded_as: ImageEncode,
     /// Bits per component before and after.
     pub bpc: (u8, u8),
@@ -42,8 +42,11 @@ pub struct ImageChange {
     /// The colour space before and after, by family name (`DeviceRGB`,
     /// `Indexed DeviceRGB`, …); equal when not converted.
     pub color_space: (String, String),
-    /// Whether the Flate output was PNG-predicted (`/Predictor 15`).
+    /// Whether the Flate or LZW output was PNG-predicted (`/Predictor 15`).
     pub predicted: bool,
+    /// For LZW output, the size Flate level 9 gives the same samples with
+    /// the same predictor choice.
+    pub flate_bytes: Option<u64>,
     /// For a `/Matte` soft mask, the parent image it was resampled with:
     /// its size follows the parent's, not its own settings (ISO 32000-2
     /// §11.6.5.3 requires the two sizes to be equal).
@@ -76,6 +79,7 @@ impl ImageChange {
         self.bpc.1 = u8::try_from(w.bpc).unwrap_or(u8::MAX);
         self.conversion = w.conversion;
         self.predicted = w.predicted;
+        self.flate_bytes = w.flate_bytes;
         (w.dict, w.data)
     }
 }
@@ -111,6 +115,8 @@ pub(crate) enum Target {
     Jpeg(JpegOptions),
     /// `/RunLengthDecode`.
     RunLength,
+    /// `/LZWDecode`, predicted as `predictor` says.
+    Lzw { predictor: Predictor },
 }
 
 /// A planned rewrite, redone on a stream an earlier step of the run
@@ -138,6 +144,8 @@ pub(crate) struct Context<'a, 'v> {
     pub(crate) convert_blocker: Option<ImageSkip>,
     /// Set for a `/Matte` soft mask whose parent was resampled.
     pub(crate) lockstep: Option<Lockstep>,
+    /// Whether the document identifies itself as PDF/A.
+    pub(crate) pdfa: bool,
 }
 
 /// A `/Matte` soft mask resampled to its parent's new size.
@@ -275,6 +283,9 @@ pub(crate) fn decide(
     )
     .map_err(SkipReason::ImageUnsupported)?;
     let encode = settings.encode.value;
+    if encode == ImageEncode::Lzw && ctx.pdfa {
+        return Err(unsupported(ImageSkip::LzwUnderPdfa));
+    }
     let source = match (resized, encode, &convert) {
         (None, ImageEncode::Keep, None) => return Ok(Outcome::Unchanged),
         (None, ImageEncode::Flate { level }, None) if !predictable(settings, dict, space) => {
@@ -305,15 +316,8 @@ pub(crate) fn decide(
     let (target, quality) = if jpeg {
         let (opts, q) = jpeg_options(settings, source, raw);
         (Target::Jpeg(opts), Some(q))
-    } else if encode == ImageEncode::RunLength {
-        (Target::RunLength, None)
     } else {
-        let level = match encode {
-            ImageEncode::Flate { level } => level,
-            _ => 9,
-        };
-        let predictor = settings.predictor.value;
-        (Target::Flate { level, predictor }, None)
+        (lossless_target(encode, settings.predictor.value), None)
     };
     let (w, h) = (space.width, space.height);
     let job = Job {
@@ -331,6 +335,19 @@ pub(crate) fn decide(
     let mut change = change(settings, space, &job, quality);
     change.resampled_with = ctx.lockstep.map(|l| l.parent);
     Ok(Outcome::Rewrite(job, Box::new(change)))
+}
+
+/// The lossless target `encode` names; `Keep` resampled is Flate level 9.
+const fn lossless_target(encode: ImageEncode, predictor: Predictor) -> Target {
+    match encode {
+        ImageEncode::RunLength => Target::RunLength,
+        ImageEncode::Lzw => Target::Lzw { predictor },
+        ImageEncode::Flate { level } => Target::Flate { level, predictor },
+        _ => Target::Flate {
+            level: 9,
+            predictor,
+        },
+    }
 }
 
 /// Whether a same-size Flate recompression goes through the sample
@@ -447,10 +464,12 @@ fn change(
         (b.ppi_x * sx).min(b.ppi_y * sy)
     });
     let (encoded_as, bpc_after) = match job.target {
-        Target::Flate { .. } | Target::RunLength if job.convert.is_some() => {
+        Target::Flate { .. } | Target::RunLength | Target::Lzw { .. } if job.convert.is_some() => {
             (encoded(job.target), 8)
         }
-        Target::Flate { .. } | Target::RunLength => (encoded(job.target), job.bpc),
+        Target::Flate { .. } | Target::RunLength | Target::Lzw { .. } => {
+            (encoded(job.target), job.bpc)
+        }
         Target::Jpeg(_) => (ImageEncode::Jpeg, 8),
     };
     let before = space
@@ -474,6 +493,7 @@ fn change(
         conversion: job.convert.as_ref().map(ConvertJob::conversion),
         color_space: (before, after),
         predicted: false,
+        flate_bytes: None,
         resampled_with: None,
         copies: Vec::new(),
     }
@@ -484,6 +504,7 @@ const fn encoded(target: Target) -> ImageEncode {
         Target::Flate { level, .. } => ImageEncode::Flate { level },
         Target::Jpeg(_) => ImageEncode::Jpeg,
         Target::RunLength => ImageEncode::RunLength,
+        Target::Lzw { .. } => ImageEncode::Lzw,
     }
 }
 

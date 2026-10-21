@@ -66,6 +66,11 @@ pub enum ImageSkip {
     JpegMismatch,
     /// The JPEG encoder failed, with its message.
     JpegEncode(String),
+    /// `encode=lzw` on a document claiming PDF/A, which forbids LZW
+    /// (ISO 19005-1 §6.1.10, -2 §6.1.7.2, -4 §6.1.6.2).
+    LzwUnderPdfa,
+    /// The LZW encoder failed, with its message.
+    LzwEncode(String),
     /// A Separation or DeviceN image has no defined grey.
     NoDefinedGrey {
         /// The colour space family, e.g. `Separation`.
@@ -125,6 +130,8 @@ impl fmt::Display for ImageSkip {
             Self::JpegComponents => f.write_str("JPEG stores 1, 3 or 4 colour components"),
             Self::JpegMismatch => f.write_str("its JPEG data disagrees with its dictionary"),
             Self::JpegEncode(why) => write!(f, "the JPEG encoder failed: {why}"),
+            Self::LzwUnderPdfa => f.write_str("the document claims PDF/A, which forbids LZW"),
+            Self::LzwEncode(why) => write!(f, "the LZW encoder failed: {why}"),
             Self::NoDefinedGrey { space } => {
                 write!(f, "its {space} colour space has no defined grey")
             }
