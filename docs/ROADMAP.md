@@ -24373,7 +24373,7 @@ Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level
 - A before/after report that itemises every lossy change (rule 4).
 - CLI `optimize --preset/--profile/--rule/--object/--dry-run/--json`.
 
-### `Pass 616.3` — Discard objects and user data, each individually selectable — IN PROGRESS (slices A `92102894`, B `07645ef5`, C `19b2af2b`, D `3a1d93f1`, E `16e42db6`, F `9cd6a9d3`, G `7a3f8078` shipped, fix G213 `c50ec207`, 2026-10-20)
+### `Pass 616.3` — Discard objects and user data, each individually selectable — IN PROGRESS (slices A `92102894`, B `07645ef5`, C `19b2af2b`, D `3a1d93f1`, E `16e42db6`, F `9cd6a9d3`, G `7a3f8078`, H `b906182d` shipped, fix F-recompression `5812c665`, fix G213 `c50ec207`, 2026-10-20)
 
 **Fix G213 DONE (`c50ec207`, engineer-reported; no shell here):** a rewrite that is not smaller is still written when the plan removes content. `EditSession::save_optimized` now takes `&OptimizePlan` first (**BREAKING for pdfcer-gui**); new `OptimizedFile::NotSmaller { bytes, original }` and `OptimizePlan::removes_content()` (clean-up, discard or discard_objects non-empty). Decision 191's never-larger rule now applies only to runs that purely save bytes; a caller wanting the size rule alone treats `NotSmaller` as `KeptOriginal`. CLI: such a run is written, exits 0, prints "not smaller: kept anyway, because it removes what was asked for"; JSON `smaller` now reports the real comparison (was "was written"); exit 14 (NOT_SMALLER) now means nothing was written; help and exit doc updated. Same commit documents test helper `optimize::tests::session` (the check-public-fns-documented failure left by `07645ef5`). `core-api/03-capabilities.md` §15 and `02` `save_optimized` row updated. Tests: core lib 2995, 1591 integration, 236 doctests; CLI 897; fmt, clippy, code-structure, check-core-api-verbs clean; sabotage of the removes branch fails the new core test. No manifest change, no `cargo tree` change. Reply: `open/reply_request_G213_optimize_cleanup_lost_when_not_smaller_FIXED.md`.
 
@@ -24423,7 +24423,15 @@ Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level
 - **Sourcing:** implementer convention (PDF4QT, MIT; pikepdf); no ISO or Adobe text; **not yet checked against a real Acrobat-indexed file**. Spec RAG: `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__embedded_search_index.md`. Supersedes the slice B "key unmeasured" wording.
 - **Tests:** 4 core + 1 CLI; sabotage failed 2 of 4; core optimize 64 passed, CLI optimize 17 passed; clippy clean; `check-core-api-verbs` PASS. Core manifests untouched, so `cargo tree` not applicable. `core-api/03-capabilities.md` (DiscardObject row) and the GUI note in FeatureRequests updated.
 
-**Remaining slices (unbuilt):** merge image fragments (NEXT), smooth lines.
+**Fix to slice F DONE (`5812c665`, engineer-reported; no shell here, 1125th filing):** a planned recompression no longer undoes a flattened layer. `EditSession::stream_writes` (`edit/optimize.rs`) now redoes a planned stream rewrite's action on the stream's current value when an earlier step of the same run (flatten-layers rewriting page content) changed it, and skips a stream that step removed; before, the planned bytes overwrote the flattened content. Test in `optimize/flatten_layers_tests.rs`. Also makes slice H's page-content rewrite safe with recompression.
+
+**Slice H DONE (`b906182d`, engineer-reported; no shell here, 1125th filing):** `DiscardObject::MergeImageFragments` (`--discard merge-image-fragments`). `ALL` now has 13.
+- **Does:** a picture stored as many thin strips (consecutive `q a 0 0 d e f cm /Im Do Q` placements stacked edge to edge, same width, matching BitsPerComponent / ColorSpace / Decode / ImageMask / Intent / Interpolate) becomes one Flate image drawn in their place (ISO 32000-2 §8.9.3, Table 87). One item per page, located "page 1: 20 strips into 1 image (16x40)"; bytes measured by merging. Strip names unbound, strips deleted once unreachable. One undo entry.
+- **Refused:** soft mask, mask, `/OC`, `/Alternates`, `/OPI`, `/StructParent`, `/ID`, `/Metadata`, DCT or other image-only filter, a merge not smaller than the strips. **Page skipped** when `/Resources` is inherited, its `/XObject` dictionary is held by anything but pages (§7.8.3), or a form in it lacks its own `/Resources`.
+- **Tests:** 7 core + 1 CLI; core 1620 lib, CLI 903, full core+cli suites green; clippy, fmt, structure gate, project audit gates green. No manifest change, so `cargo tree` unchanged. `core-api/03-capabilities.md` DiscardObject row updated in the commit. GUI note (FeatureRequests `note_discard_object_two_new_kinds_and_object_discard_not_eq.md`) updated to nine kinds.
+- **Known gaps (open, not shipped):** fragment merge inside form XObjects; JPEG (DCT) strips; pages with inherited resources.
+
+**Remaining slices (unbuilt):** smooth lines (NEXT).
 
 Original scope: wire in the existing 12 `doc_metadata` kinds. Add: alternate images, print settings, search index, tags, bookmarks, form actions, external cross-references, private application data, hidden layers (with visible-layer flatten), embedded thumbnails.
 

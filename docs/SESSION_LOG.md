@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1125th filing) — `Pass 616.3` slice H PARTIAL in `b906182d`: merge image fragments; slice F fix `5812c665`
+
+**Shipped (engineer-reported, no shell here):** (1) `5812c665`: `EditSession::stream_writes` redoes a planned rewrite's action on the stream's current value when an earlier step of the same optimize run (flatten-layers) changed it, and skips a stream that step removed; before, planned recompression bytes overwrote the flattened content. (2) `b906182d`: `DiscardObject::MergeImageFragments` (`merge-image-fragments`): consecutive strip placements stacked edge to edge become one Flate image; one item per page ("page 1: 20 strips into 1 image (16x40)"); many refusals (masks, `/OC`, `/Alternates`, DCT, not smaller) and page skips (inherited `/Resources`, shared `/XObject`, form without own `/Resources`). Core `[x]`, cli `[x]`, gui `[ ]`. Core 1620 lib (7 new), CLI 903 (1 new), gates clean, `ALL` = 13. No manifest change. Slice G filing was committed as `4b2d5542`.
+
+**Owed (open):** fragment merge inside forms, JPEG strips, inherited-resources pages. **Next:** smooth lines.
+
+**Register:** ROADMAP header, Fix and Slice H DONE blocks; FEATURES discard-objects row extended, Planned remainder narrowed. No decision. Git, push and backup state not verified from here (premise "both unpushed, origin/main = 4b2d5542" came from the dispatch).
+
 ## 2026-10-20 (1124th filing) — `Pass 616.3` slice G PARTIAL in `7a3f8078`: discard the embedded search index
 
 **Shipped (engineer-reported, no shell here):** `DiscardObject::SearchIndex` (`search-index`): removes catalog `/PieceInfo /SearchIndex`; other `/PieceInfo` entries stay, an only-entry removes the whole key, direct and indirect both handled. Plan note: catalogs that included the file stop finding it until rebuilt. Implementer-sourced (PDF4QT, pikepdf), not yet checked on a real Acrobat file. Core `[x]`, cli `[x]`, gui `[ ]`. Core optimize 64 passed (4 new; sabotage failed 2), CLI optimize 17 (1 new), clippy and `check-core-api-verbs` clean, `ALL` = 12. No manifest change. Slice F filing was committed as `e1048db0` (unpushed).
