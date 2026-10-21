@@ -31,6 +31,7 @@ fn full() -> OptimizeSettings {
             max_bytes: Some(500_000),
             filters: vec!["LZWDecode".into(), "none".into()],
             color_spaces: vec!["DeviceRGB".into()],
+            image_classes: vec![ImageClass::Color, ImageClass::Mono],
             min_ppi: Some(150.0),
             max_ppi: Some(600.5),
             ids: vec![ObjId::new(12, 0), ObjId::new(13, 2)],
@@ -130,6 +131,11 @@ fn errors_name_the_line_and_the_problem() {
             "nope",
         ),
         ("[[rule]]\npages = \"3-1\"\naction = \"leave\"\n", 2, ""),
+        (
+            "[[rule]]\nimage-class = [\"sepia\"]\naction = \"leave\"\n",
+            2,
+            "unknown image class",
+        ),
         ("extends = \"missing\"\n", 1, "no profile missing"),
     ];
     for (text, line, needle) in cases {

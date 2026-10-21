@@ -4425,7 +4425,11 @@ Read-only; no edit session. `pdfcer_core::space_audit` (CLI: `pdfcer audit-space
 | `space_audit::audit(&Document) -> SpaceAudit` | `file_bytes`; `categories` (every `SpaceCategory`, zero rows included); `objects` largest first; `notes` |
 | `space_audit::diff(&SpaceAudit, &SpaceAudit) -> SpaceDiff` | per-category `before` / `after` and the two file totals |
 | `SpaceAudit::bytes_in(SpaceCategory) -> u64` | one category's bytes |
-| `ImageSpace::max_effective_ppi() -> Option<f64>` | highest resolution any placement draws the image at |
+| `ImageSpace::binding_ppi() -> Option<f64>` | effective ppi of the largest drawn placement (the lowest); downsampling to a target keeps that placement at it |
+| `ImageSpace::binding_ppi_x() / binding_ppi_y() -> Option<f64>` | the per-axis minimum over placements; each axis resamples independently |
+| `ImageSpace::binding_placement() -> Option<&ImagePlacement>` | the placement `binding_ppi` comes from (page, drawn size) |
+| `ImageSpace::class() -> ImageClass` | `Indexed` (Indexed colour space), `Mono` (`/ImageMask` or 1 bpc), `Gray` (1 component), else `Color`; `ImageClass::from_name`/`as_str` use `color`, `gray`, `mono`, `indexed` |
+| `ImageSpace.components: Option<u8>`, `ImageSpace.image_mask: bool` | colour components of `/ColorSpace` (ICCBased `/N`, DeviceN's name count; `None` when unresolvable) and `/ImageMask true` |
 
 Contract:
 
@@ -4473,15 +4477,33 @@ with a wildcard arm, and show `as_str()` for an unknown category.
 | `CleanupOptions { invalid_links, invalid_bookmarks, unreferenced_destinations }` | `all()` (= `Default`), `none()`, `is_none()`; `new()` = `none()`; every preset turns on the first two, only `Screen` the third; profile keys `remove-invalid-links`, `remove-invalid-bookmarks`, `remove-unreferenced-destinations` |
 | `CleanupPlan { links: Vec<BrokenLink>, bookmarks: Vec<BrokenBookmark>, destinations: Vec<Vec<u8>> }` | `is_empty()`; `BrokenLink { page_index, id, target }`; `BrokenBookmark { id, title, target: Option<BrokenTarget>, descendants }` (topmost deleted items only; each takes its subtree); `destinations` raw name bytes, sorted byte-wise |
 | `BrokenTarget::{MissingPage(ObjId), UndefinedName(Vec<u8>)}` | `Display` is the reason line the CLI prints |
-| `StreamAction::{Leave, Recompress { level }}` | `parse("recompress-6")`, `to_profile_string()`, `is_lossy()` |
-| `Selector { categories, pages, min_bytes, max_bytes, filters, color_spaces, min_ppi, max_ppi, ids }` | every set field must match (AND); `filters` entry `"none"` = unfiltered; `PageRanges::parse("1-3,7,10-")` |
+| `StreamAction::{Leave, Recompress { level }, Image(ImagePatch)}` | `parse("recompress-6")` / `parse("image(ppi=150,method=average)")`, `to_profile_string()`, `is_lossy()` (an `Image` is lossy when it sets `ppi` and its method is not `off`) |
+| `ImagePatch { reset, method, ppi, above, encode, min_saving_pct }` (Copy, `#[non_exhaustive]`, every field `Option` but `reset`) | `new()`, `parse("image(...)")`, `validate()`, `Display` (the spelling `parse` takes, no spaces). Keys: `method` (`off`/`average`/`subsample`/`bicubic`/`lanczos`), `ppi` (target, ≥ 1), `above` (trigger, ≥ `ppi`), `encode` (`keep`/`flate`/`flate-N`), `min-saving` (0–99 percent), `reset` (drop earlier image settings first) |
+| `ResampleMethod::{Off, Average, Subsample, Bicubic, Lanczos}` / `ImageEncode::{Keep, Flate { level }}` | `ResampleMethod::ALL`, `as_str`, `from_name`, `Display`; default `Bicubic`; `Keep` = output Flate level 9 when a resample forces re-encoding |
+| `ResolvedImage { method, ppi, above, encode, min_saving_pct }` | the folded settings, each a `Sourced<T> { value, source }` with `SettingSource::{BuiltIn, Streams, Rule(n), Object}` (`Display` `default`, `streams`, `rule {n+1}`, `object override`); `resamples()`, `trigger()` (`above`, else 1.5 × `ppi`, never below `ppi`), `to_patch()` |
+| `PlannedChange.image: Option<ImageChange>` | `ImageChange { settings: ResolvedImage, size_before, size_after, binding: Option<ImagePlacement>, binding_ppi_after }`: pixel sizes `(w, h)`, the placement that limited the reduction and its ppi after |
+| `SkipReason::{Unplaced, BelowMinSaving { before, after, pct }, ImageUnsupported(String)}` | an image drawn nowhere has no ppi to measure; a resample saving under `min-saving`; a mask or format this pass does not resample (reason in words) |
+| `Selector { categories, pages, min_bytes, max_bytes, filters, color_spaces, image_classes, min_ppi, max_ppi, ids }` | every set field must match (AND); `filters` entry `"none"` = unfiltered; `image_classes` and `min_ppi`/`max_ppi` (tested against `binding_ppi`) match images only; `PageRanges::parse("1-3,7,10-")` |
 | `optimize::profile::parse(name, text, &mut resolve)` / `to_profile(&settings)` | TOML profile ⇄ settings; `extends` names a preset or (via `resolve`) another profile; `ProfileError { profile, line, message }` |
 | `optimize::profile::parse_rule(spec)` / `parse_object(spec)` | one-line `key=value …` rule / `ID=ACTION` override, the forms the CLI takes |
 
 Contract:
 
 - **Precedence**, highest first: `objects[id]`, the last matching rule, the
-  default `streams`.
+  default `streams`. They fold in the order streams, rules, object: `leave`
+  and `recompress-N` replace the whole state, an `image(...)` patch sets
+  only the keys it names (so `image(method=off)` on one object keeps the
+  rest). A patch over `recompress-N` encodes Flate level N; over `leave`,
+  `keep`. The UI should show each image setting with its `source`.
+- **Image downsampling** (Pass 616.4 slice A): an axis is resampled only
+  when its **binding** ppi (the lowest over every placement, i.e. the use
+  drawn largest; `binding_ppi_x/y`) is above `trigger()`; output length =
+  `round(len × ppi / binding)`, clamped to 1..=len, so the largest use lands
+  at the target. Generic filters only (else `UnsupportedFilter`), output
+  Flate; Indexed images take the nearest sample, never a blend; a `/Matte`
+  soft mask and its parent, and a colour-key `/Mask` array, are
+  `ImageUnsupported`; never larger, then `min-saving`. Every downsample is
+  lossy and itemised in `changes` (rule 4).
 - **Never larger**, twice: a stream whose result is not strictly smaller is
   `SkipReason::NotSmaller` and kept; a whole file that is not strictly
   smaller is `KeptOriginal` and must not be written over the input, unless

@@ -6,7 +6,7 @@ use crate::object::{Dict, Name, ObjId, Object};
 
 /// Filters [`StreamAction::Recompress`] decodes and drops (ISO 32000-2
 /// §7.4, Table 6). Each is generic and lossless.
-const GENERIC: [&[u8]; 5] = [
+pub(crate) const GENERIC: [&[u8]; 5] = [
     b"FlateDecode",
     b"LZWDecode",
     b"ASCIIHexDecode",
@@ -24,6 +24,8 @@ pub(crate) struct Rewrite {
     /// What produced `dict` and `data`, redone on the stream as the run
     /// leaves it when an earlier step of the run rewrote it.
     pub(crate) action: StreamAction,
+    /// The resample to redo instead of `action`, for a downsampled image.
+    pub(crate) image: Option<super::image::pipeline::Job>,
     pub(crate) dict: Dict,
     pub(crate) data: Vec<u8>,
 }
@@ -59,7 +61,8 @@ pub(crate) fn protected(dict: &Dict) -> Option<&'static str> {
 
 /// Apply `action` to a stream stored as `raw` under `dict`.
 ///
-/// `Ok(None)` is [`StreamAction::Leave`]. A result that is not strictly
+/// `Ok(None)` is [`StreamAction::Leave`], and [`StreamAction::Image`]: the
+/// image path resolves those first (`image::pipeline`). A result that is not strictly
 /// smaller than `raw` is refused as [`SkipReason::NotSmaller`].
 pub(crate) fn apply(
     action: StreamAction,
@@ -67,7 +70,7 @@ pub(crate) fn apply(
     raw: &[u8],
 ) -> Result<Option<(Dict, Vec<u8>)>, SkipReason> {
     match action {
-        StreamAction::Leave => Ok(None),
+        StreamAction::Leave | StreamAction::Image(_) => Ok(None),
         StreamAction::Recompress { level } => recompress(dict, raw, level).map(Some),
     }
 }

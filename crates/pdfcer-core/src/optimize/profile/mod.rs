@@ -22,6 +22,7 @@
 //! max-bytes = 500000
 //! filter = ["LZWDecode", "none"]
 //! color-space = ["DeviceRGB"]
+//! image-class = ["color", "gray"]
 //! min-ppi = 150
 //! max-ppi = 600
 //! ids = ["12 0"]
@@ -45,7 +46,7 @@ use syntax::{Kind, Table, Value};
 
 use super::{DiscardOptions, OptimizeSettings, PageRanges, Preset, Rule, Selector, StreamAction};
 use crate::object::ObjId;
-use crate::space_audit::SpaceCategory;
+use crate::space_audit::{ImageClass, SpaceCategory};
 
 /// Largest profile accepted, in bytes.
 pub const MAX_PROFILE_BYTES: usize = 1 << 20;
@@ -235,6 +236,7 @@ fn rule(table: &Table) -> Result<Rule, (usize, String)> {
             "max-bytes" => s.max_bytes = Some(unsigned(value).map_err(at)?),
             "filter" => s.filters = strings(value).map_err(at)?,
             "color-space" => s.color_spaces = strings(value).map_err(at)?,
+            "image-class" => s.image_classes = image_classes(value).map_err(at)?,
             "min-ppi" => s.min_ppi = Some(number(value).map_err(at)?),
             "max-ppi" => s.max_ppi = Some(number(value).map_err(at)?),
             "ids" => s.ids = object_ids(value).map_err(at)?,
@@ -242,6 +244,17 @@ fn rule(table: &Table) -> Result<Rule, (usize, String)> {
         }
     }
     Ok(Rule { select: s, action })
+}
+
+fn image_classes(v: &Value) -> Result<Vec<ImageClass>, String> {
+    strings(v)?
+        .iter()
+        .map(|c| {
+            ImageClass::from_name(c).ok_or_else(|| {
+                format!("unknown image class {c:?}; expected color, gray, mono or indexed")
+            })
+        })
+        .collect()
 }
 
 fn string(v: &Value) -> Result<&str, String> {
@@ -387,7 +400,7 @@ pub fn parse_rule(spec: &str) -> Result<Rule, ProfileError> {
             "min-ppi" | "max-ppi" => raw
                 .parse()
                 .map_or_else(|_| Value::Str(raw.to_owned()), Value::Float),
-            "category" | "filter" | "color-space" | "ids" => {
+            "category" | "filter" | "color-space" | "image-class" | "ids" => {
                 Value::Array(raw.split(',').map(|v| Value::Str(v.to_owned())).collect())
             }
             _ => Value::Str(raw.to_owned()),
@@ -412,7 +425,7 @@ pub fn parse_object(spec: &str) -> Result<(ObjId, StreamAction), ProfileError> {
         message,
     };
     let (id, act) = spec
-        .rsplit_once('=')
+        .split_once('=')
         .ok_or_else(|| err("expected ID=ACTION".to_owned()))?;
     let id = object_ids(&Value::Str(id.trim().to_owned()))
         .map_err(err)?
@@ -489,6 +502,14 @@ fn write_selector(out: &mut String, s: &Selector) {
     }
     if !s.color_spaces.is_empty() {
         let _ = writeln!(out, "color-space = {}", list(s.color_spaces.clone()));
+    }
+    if !s.image_classes.is_empty() {
+        let names = s
+            .image_classes
+            .iter()
+            .map(|c| c.as_str().to_owned())
+            .collect();
+        let _ = writeln!(out, "image-class = {}", list(names));
     }
     if let Some(n) = s.min_ppi {
         let _ = writeln!(out, "min-ppi = {n:?}");

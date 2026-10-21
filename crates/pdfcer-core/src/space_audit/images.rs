@@ -98,7 +98,43 @@ fn facts(doc: &Document, dict: &Dict) -> ImageSpace {
             .unwrap_or(0),
         bits_per_component: int(b"BitsPerComponent").and_then(|v| u8::try_from(v).ok()),
         color_space: color_space.map(|b| String::from_utf8_lossy(&b).into_owned()),
+        components: dict
+            .get(b"ColorSpace")
+            .and_then(|cs| components(doc, doc.resolve(cs))),
+        image_mask: matches!(
+            dict.get(b"ImageMask").map(|o| doc.resolve(o)),
+            Some(Object::Boolean(true))
+        ),
         placements: Vec::new(),
+    }
+}
+
+/// Components per sample of colour space `cs` (ISO 32000-2 §8.6), `/N`
+/// read for `/ICCBased`.
+fn components(doc: &Document, cs: &Object) -> Option<u8> {
+    let (family, params) = match cs {
+        Object::Name(n) => (n.as_bytes(), None),
+        Object::Array(a) => (a.first()?.as_name()?.as_bytes(), a.get(1)),
+        _ => return None,
+    };
+    match family {
+        b"DeviceGray" | b"G" | b"CalGray" | b"Indexed" | b"I" | b"Separation" => Some(1),
+        b"DeviceRGB" | b"RGB" | b"CalRGB" | b"Lab" => Some(3),
+        b"DeviceCMYK" | b"CMYK" => Some(4),
+        b"ICCBased" => match doc.resolve(params?) {
+            Object::Stream(s) => s
+                .dict
+                .get(b"N")
+                .map(|o| doc.resolve(o))
+                .and_then(Object::as_int)
+                .and_then(|n| u8::try_from(n).ok()),
+            _ => None,
+        },
+        b"DeviceN" => match params.map(|o| doc.resolve(o)) {
+            Some(Object::Array(names)) => u8::try_from(names.len()).ok(),
+            _ => None,
+        },
+        _ => None,
     }
 }
 

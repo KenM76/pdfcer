@@ -670,3 +670,70 @@ fn a_requested_removal_is_written_and_exits_0_even_when_not_smaller() {
     let none = args(&["-o", d.join("none.pdf").to_str().unwrap()]);
     assert_eq!(none.status.code(), Some(14), "{}", text(&none));
 }
+
+#[test]
+fn an_image_setting_downsamples_and_reports_size_page_and_source() {
+    let d = dir("image-downsample");
+    let mut x = 0x9E37_79B9u32;
+    let px: String = (0..200 * 200)
+        .map(|_| {
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            char::from(b'a' + (x >> 24) as u8 % 26)
+        })
+        .collect();
+    let draw = "q 50 0 0 50 0 0 cm /Im9 Do Q";
+    let extra = [
+        format!(
+            "<< /Length {} >>\nstream\n{draw}\nendstream",
+            draw.len() + 1
+        ),
+        format!(
+            "<< /Type /XObject /Subtype /Image /Width 200 /Height 200 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length {} >>\nstream\n{px}\nendstream",
+            px.len()
+        ),
+    ];
+    let page = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents 8 0 R /Resources << /XObject << /Im9 9 0 R >> >> >>";
+    let extra: Vec<&str> = extra.iter().map(String::as_str).collect();
+    let input = write_pdf_page(&d, "", page, &extra);
+    let out = d.join("out.pdf");
+    let args = [
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--keep-structure",
+        "--streams",
+        "image(ppi=72)",
+        "--rule",
+        "image-class=gray action=image(method=average)",
+    ];
+    let o = run(&args);
+    let report = text(&o);
+    assert_eq!(
+        o.status.code(),
+        Some(0),
+        "{report}{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    // 200 px over 50 pt is 288 ppi; 72 ppi there is 50 px.
+    assert!(
+        report.contains("200x200 -> 50x50 px, average (rule 1)"),
+        "{report}"
+    );
+    assert!(report.contains("target 72 ppi (streams)"), "{report}");
+    assert!(
+        report.contains("binding use page 1, 50x50 pt, 288 -> 72 ppi"),
+        "{report}"
+    );
+    let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(written.contains("/Width 50"), "{written}");
+    let mut json = args.to_vec();
+    json.extend(["--dry-run", "--json"]);
+    let j = text(&run(&json));
+    assert!(j.contains("\"size_after\":[50,50]"), "{j}");
+    assert!(
+        j.contains("\"method\":{\"value\":\"average\",\"source\":\"rule 1\"}"),
+        "{j}"
+    );
+}

@@ -154,7 +154,9 @@ fn image_placement_gives_effective_ppi() {
     assert!((placement.width_pt - 144.0).abs() < 1e-9);
     assert!((placement.ppi_x - 150.0).abs() < 1e-9);
     assert!((placement.ppi_y - 150.0).abs() < 1e-9);
-    assert_eq!(facts.max_effective_ppi(), Some(150.0));
+    assert_eq!(facts.binding_ppi(), Some(150.0));
+    assert_eq!((facts.components, facts.image_mask), (Some(1), false));
+    assert_eq!(facts.class(), crate::space_audit::ImageClass::Gray);
 }
 
 #[test]

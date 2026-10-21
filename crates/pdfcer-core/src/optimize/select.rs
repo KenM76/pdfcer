@@ -3,7 +3,7 @@
 use std::fmt;
 
 use crate::object::ObjId;
-use crate::space_audit::{ObjectSpace, SpaceCategory};
+use crate::space_audit::{ImageClass, ObjectSpace, SpaceCategory};
 
 /// The facts a selector tests about one object.
 pub(crate) struct ObjectFacts<'a> {
@@ -94,9 +94,13 @@ pub struct Selector {
     pub filters: Vec<String>,
     /// Image colour-space names, such as `DeviceRGB` or `ICCBased`.
     pub color_spaces: Vec<String>,
-    /// Lowest maximum effective image resolution, in ppi.
+    /// Image classes.
+    pub image_classes: Vec<ImageClass>,
+    /// Lowest binding image resolution, in ppi: the effective ppi of the
+    /// image's largest drawn use
+    /// ([`ImageSpace::binding_ppi`](crate::space_audit::ImageSpace::binding_ppi)).
     pub min_ppi: Option<f64>,
-    /// Highest maximum effective image resolution, in ppi.
+    /// Highest binding image resolution, in ppi.
     pub max_ppi: Option<f64>,
     /// Object ids.
     pub ids: Vec<ObjId>,
@@ -127,7 +131,9 @@ impl Selector {
                 || image
                     .and_then(|i| i.color_space.as_deref())
                     .is_some_and(|cs| self.color_spaces.iter().any(|c| c == cs)))
-            && self.ppi_matches(image.and_then(crate::space_audit::ImageSpace::max_effective_ppi))
+            && (self.image_classes.is_empty()
+                || image.is_some_and(|i| self.image_classes.contains(&i.class())))
+            && self.ppi_matches(image.and_then(crate::space_audit::ImageSpace::binding_ppi))
     }
 
     fn filter_matches(&self, chain: &[String]) -> bool {

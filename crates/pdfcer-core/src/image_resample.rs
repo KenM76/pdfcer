@@ -8,7 +8,7 @@
 use std::collections::VecDeque;
 
 use crate::deskew::Raster;
-use crate::ocr::upscale::{UpscaleFilter, coeffs};
+use crate::ocr::upscale::{Kernel, UpscaleFilter, coeffs};
 
 /// `samples` laid out as `raster`, resampled to `out_w x out_h` in the same
 /// layout. Short input reads as zero samples.
@@ -19,16 +19,28 @@ pub(crate) fn resample_samples(
     out_h: u32,
     filter: UpscaleFilter,
 ) -> Vec<u8> {
+    let kernel = (!raster.indexed).then(|| filter.into());
+    resample_with(raster, samples, out_w, out_h, kernel)
+}
+
+/// As [`resample_samples`], with any [`Kernel`]; `None` takes the nearest
+/// source sample (subsampling), which palette images always do.
+pub(crate) fn resample_with(
+    raster: &Raster,
+    samples: &[u8],
+    out_w: u32,
+    out_h: u32,
+    kernel: Option<Kernel>,
+) -> Vec<u8> {
     let out = Raster {
         width: out_w,
         height: out_h,
         ..*raster
     };
     let mut dst = vec![0u8; out.row_bytes() * out_h as usize];
-    if raster.indexed {
-        nearest(raster, samples, &out, &mut dst);
-    } else {
-        convolve(raster, samples, &out, &mut dst, filter);
+    match kernel {
+        Some(k) if !raster.indexed => convolve(raster, samples, &out, &mut dst, k),
+        _ => nearest(raster, samples, &out, &mut dst),
     }
     dst
 }
@@ -57,7 +69,7 @@ fn nearest(src: &Raster, samples: &[u8], out: &Raster, dst: &mut [u8]) {
 /// Horizontal pass per source row (cached while output rows still read it),
 /// then the vertical pass straight into the packed output; memory is the
 /// kernel's height in rows, not a whole intermediate image.
-fn convolve(src: &Raster, samples: &[u8], out: &Raster, dst: &mut [u8], filter: UpscaleFilter) {
+fn convolve(src: &Raster, samples: &[u8], out: &Raster, dst: &mut [u8], filter: Kernel) {
     let comps = src.components as usize;
     let xs = coeffs(src.width as usize, out.width as usize, filter);
     let ys = coeffs(src.height as usize, out.height as usize, filter);

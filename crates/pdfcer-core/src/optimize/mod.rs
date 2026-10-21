@@ -37,6 +37,7 @@ pub(crate) mod annots;
 pub mod cleanup;
 pub mod discard;
 pub(crate) mod fragments;
+pub mod image;
 pub(crate) mod object_data;
 pub mod objects;
 pub mod profile;
@@ -48,8 +49,11 @@ pub(crate) mod streams;
 use std::collections::BTreeMap;
 use std::fmt;
 
+pub use crate::space_audit::ImageClass;
 pub use cleanup::{BrokenBookmark, BrokenLink, BrokenTarget, CleanupOptions, CleanupPlan};
 pub use discard::DiscardOptions;
+pub use image::pipeline::ImageChange;
+pub use image::{ImageEncode, ImagePatch, ResampleMethod, ResolvedImage, SettingSource, Sourced};
 pub use objects::{DiscardObject, ObjectDiscard};
 pub use select::{PageRanges, Selector};
 
@@ -78,6 +82,10 @@ pub enum StreamAction {
         /// zlib level, 0 to 9.
         level: u8,
     },
+    /// Image settings, merged field by field over the actions before it
+    /// (decision 192). A non-image stream gets the last `leave` or
+    /// `recompress-N` before it instead.
+    Image(ImagePatch),
 }
 
 impl StreamAction {
@@ -87,15 +95,20 @@ impl StreamAction {
         match self {
             Self::Leave => "leave".to_owned(),
             Self::Recompress { level } => format!("recompress-{level}"),
+            Self::Image(patch) => patch.to_string(),
         }
     }
 
-    /// Parse the profile spelling. `recompress` alone means level 9.
+    /// Parse the profile spelling. `recompress` alone means level 9;
+    /// `image(...)` is [`ImagePatch::parse`].
     ///
     /// # Errors
     ///
     /// A message naming the accepted spellings.
     pub fn parse(text: &str) -> Result<Self, String> {
+        if text.trim_start().starts_with("image(") {
+            return ImagePatch::parse(text).map(Self::Image);
+        }
         match text {
             "leave" => Ok(Self::Leave),
             "recompress" => Ok(Self::Recompress { level: 9 }),
@@ -106,17 +119,19 @@ impl StreamAction {
                 .map(|level| Self::Recompress { level })
                 .ok_or_else(|| {
                     format!(
-                        "unknown action {text:?}; expected leave, recompress or recompress-0..9"
+                        "unknown action {text:?}; expected leave, recompress, recompress-0..9 or image(...)"
                     )
                 }),
         }
     }
 
-    /// Whether the action can change decoded content.
+    /// Whether the action can change decoded content: an image patch that
+    /// sets a target `ppi` with a method other than `off`.
     #[must_use]
-    pub const fn is_lossy(self) -> bool {
+    pub fn is_lossy(self) -> bool {
         match self {
             Self::Leave | Self::Recompress { .. } => false,
+            Self::Image(p) => p.ppi.is_some() && p.method != Some(ResampleMethod::Off),
         }
     }
 }
@@ -186,16 +201,22 @@ impl OptimizeSettings {
         }
     }
 
-    /// The action for one object, applying the precedence in the module docs.
-    pub(crate) fn action_for(&self, id: ObjId, facts: &select::ObjectFacts<'_>) -> StreamAction {
-        if let Some(action) = self.objects.get(&id) {
-            return *action;
-        }
-        self.rules
+    /// Every action matching one object, folded in the precedence in the
+    /// module docs: `streams`, then matching rules in order, then the
+    /// per-object override.
+    pub(crate) fn resolve(&self, id: ObjId, facts: &select::ObjectFacts<'_>) -> image::Resolved {
+        let rules = self
+            .rules
             .iter()
-            .rev()
-            .find(|r| r.select.matches(id, facts))
-            .map_or(self.streams, |r| r.action)
+            .enumerate()
+            .filter(|(_, r)| r.select.matches(id, facts))
+            .map(|(n, r)| (r.action, SettingSource::Rule(n)));
+        let object = self.objects.get(&id).map(|a| (*a, SettingSource::Object));
+        image::fold(
+            std::iter::once((self.streams, SettingSource::Streams))
+                .chain(rules)
+                .chain(object),
+        )
     }
 }
 
@@ -403,6 +424,9 @@ pub struct PlannedChange {
     pub after_bytes: u64,
     /// Whether decoded content changes.
     pub lossy: bool,
+    /// For a downsampled image: sizes, the binding placement and the
+    /// settings with their sources.
+    pub image: Option<ImageChange>,
 }
 
 /// Why a selected object was left as stored.
@@ -420,6 +444,20 @@ pub enum SkipReason {
     UnsupportedFilter(String),
     /// The stream would not decode.
     Undecodable(String),
+    /// An image drawn on no page: with no placement there is no resolution
+    /// to measure, so it is not resampled.
+    Unplaced,
+    /// The result was smaller, but by less than the `min-saving` percent.
+    BelowMinSaving {
+        /// Stored bytes.
+        before: u64,
+        /// Bytes the re-encoding produced.
+        after: u64,
+        /// The required saving, percent.
+        pct: u8,
+    },
+    /// An image this Pass does not resample, and why.
+    ImageUnsupported(String),
     /// A role this action never rewrites: XMP metadata (PDF/A-1 §6.7.2
     /// forbids a `/Filter` on it), object and cross-reference streams (the
     /// writer owns them) and external-file streams.
@@ -434,6 +472,11 @@ impl fmt::Display for SkipReason {
             }
             Self::UnsupportedFilter(name) => write!(f, "filter {name} is not re-encoded"),
             Self::Undecodable(why) => write!(f, "does not decode: {why}"),
+            Self::Unplaced => f.write_str("drawn on no page, so not resampled"),
+            Self::BelowMinSaving { before, after, pct } => {
+                write!(f, "saves less than {pct}% ({before} B -> {after} B), kept")
+            }
+            Self::ImageUnsupported(why) => write!(f, "not resampled: {why}"),
             Self::Protected(what) => write!(f, "{what} is never rewritten"),
         }
     }

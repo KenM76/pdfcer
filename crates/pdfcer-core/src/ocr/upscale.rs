@@ -39,9 +39,26 @@ impl UpscaleFilter {
             Self::Lanczos => "lanczos",
         }
     }
+}
 
+/// Every convolution kernel the resamplers take: the two public
+/// [`UpscaleFilter`]s plus the area average PIL calls `BOX` (support one
+/// half, weight 1), which shrinking widens into a mean over each output
+/// pixel's footprint.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum Kernel {
+    /// PIL `BOX`.
+    Average,
+    /// PIL `BICUBIC`.
+    Bicubic,
+    /// PIL `LANCZOS`.
+    Lanczos,
+}
+
+impl Kernel {
     const fn support(self) -> f64 {
         match self {
+            Self::Average => 0.5,
             Self::Bicubic => 2.0,
             Self::Lanczos => 3.0,
         }
@@ -49,8 +66,24 @@ impl UpscaleFilter {
 
     fn weight(self, x: f64) -> f64 {
         match self {
+            Self::Average => {
+                if x > -0.5 && x <= 0.5 {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
             Self::Bicubic => cubic(x),
             Self::Lanczos => lanczos3(x),
+        }
+    }
+}
+
+impl From<UpscaleFilter> for Kernel {
+    fn from(f: UpscaleFilter) -> Self {
+        match f {
+            UpscaleFilter::Bicubic => Self::Bicubic,
+            UpscaleFilter::Lanczos => Self::Lanczos,
         }
     }
 }
@@ -287,11 +320,7 @@ fn lanczos3(x: f64) -> f64 {
     clippy::cast_sign_loss,
     clippy::cast_precision_loss
 )]
-pub(crate) fn coeffs(
-    in_len: usize,
-    out_len: usize,
-    filter: UpscaleFilter,
-) -> Vec<(usize, Vec<f64>)> {
+pub(crate) fn coeffs(in_len: usize, out_len: usize, filter: Kernel) -> Vec<(usize, Vec<f64>)> {
     let scale = in_len as f64 / out_len as f64;
     let fscale = scale.max(1.0);
     let support = filter.support() * fscale;
@@ -338,7 +367,7 @@ fn resample_pass(img: &Grey, out_len: usize, horizontal: bool, filter: UpscaleFi
     } else {
         (img.height, img.width)
     };
-    let cs: Vec<(usize, Vec<i32>)> = coeffs(in_len, out_len, filter)
+    let cs: Vec<(usize, Vec<i32>)> = coeffs(in_len, out_len, filter.into())
         .into_iter()
         .map(|(lo, ws)| (lo, ws.into_iter().map(fixed).collect()))
         .collect();

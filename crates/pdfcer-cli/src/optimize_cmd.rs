@@ -37,18 +37,24 @@ pub(crate) struct OptimizeArgs {
     /// or another profile file, relative to the naming one.
     #[arg(long, value_name = "FILE")]
     pub(crate) profile: Option<PathBuf>,
-    /// Replace the default stream action: leave, recompress (level 9) or
-    /// recompress-0 to recompress-9.
+    /// Replace the default stream action: leave, recompress (level 9),
+    /// recompress-0 to recompress-9, or image settings that merge over the
+    /// rest: "image(ppi=150)" downsamples every image whose largest drawn
+    /// use is above 1.5 x 150 ppi to 150 ppi there. Keys: method
+    /// (off|average|subsample|bicubic|lanczos), ppi, above (the trigger),
+    /// encode (keep|flate|flate-N), min-saving (percent), reset.
     #[arg(long, value_name = "ACTION")]
     pub(crate) streams: Option<String>,
     /// Add a rule, after the profile's. Whitespace-separated key=value pairs
     /// using the profile's `[[rule]]` keys, list values comma-separated:
-    /// "category=fonts,images pages=2- min-bytes=4096 action=leave".
+    /// "category=fonts,images pages=2- min-bytes=4096 action=leave", or
+    /// "image-class=color,gray action=image(ppi=150)".
     /// Repeatable; a later rule beats an earlier one.
     #[arg(long = "rule", value_name = "SPEC")]
     pub(crate) rules: Vec<String>,
-    /// Override one object, beating every rule: "12=leave" or
-    /// "12 0=recompress-6". Repeatable.
+    /// Override one object, beating every rule: "12=leave",
+    /// "12 0=recompress-6" or "42=image(method=off)", which keeps every
+    /// other image setting. Repeatable.
     #[arg(long = "object", value_name = "ID=ACTION")]
     pub(crate) objects: Vec<String>,
     /// Acrobat's compression modes in one switch. entire: recompress
@@ -411,29 +417,7 @@ fn report_text(
         o.plan.changes.len(),
         o.plan.stream_saving()
     );
-    for c in &o.plan.changes {
-        let _ = writeln!(
-            out,
-            "  {:<8} {:<20} [{}] -> {}  {} -> {} B{}",
-            c.id.to_string(),
-            c.category.as_str(),
-            if c.filters_before.is_empty() {
-                "none".to_owned()
-            } else {
-                c.filters_before.join(" ")
-            },
-            c.action,
-            c.before_bytes,
-            c.after_bytes,
-            if c.lossy { "  (lossy)" } else { "" }
-        );
-    }
-    if !o.plan.skipped.is_empty() {
-        let _ = writeln!(out, "skipped: {}", o.plan.skipped.len());
-        for s in &o.plan.skipped {
-            let _ = writeln!(out, "  {:<8} {}: {}", s.id.to_string(), s.action, s.reason);
-        }
-    }
+    out.push_str(&optimize_report::changes_text(&o.plan));
     out.push_str(&cleanup_text(&o.plan.cleanup));
     out.push_str(&discard_text(&o.plan.discard));
     out.push_str(&discard_objects_text(&o.plan.discard_objects));
@@ -695,14 +679,15 @@ fn report_json(
         .map(|c| {
             let filters: Vec<String> = c.filters_before.iter().map(|f| q(f)).collect();
             format!(
-                "{{\"id\":{},\"category\":{},\"filters_before\":[{}],\"action\":{},\"before_bytes\":{},\"after_bytes\":{},\"lossy\":{}}}",
+                "{{\"id\":{},\"category\":{},\"filters_before\":[{}],\"action\":{},\"before_bytes\":{},\"after_bytes\":{},\"lossy\":{},\"image\":{}}}",
                 q(&c.id.to_string()),
                 q(c.category.as_str()),
                 filters.join(","),
                 q(&c.action.to_string()),
                 c.before_bytes,
                 c.after_bytes,
-                c.lossy
+                c.lossy,
+                c.image.as_ref().map_or_else(|| "null".to_owned(), optimize_report::image_json)
             )
         })
         .collect();

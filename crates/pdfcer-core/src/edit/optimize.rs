@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::{Command, CommandKind, EditSession, ObjectWrite};
 use crate::document::Document;
 use crate::object::{ObjId, Object, Stream};
+use crate::optimize::image::{self, pipeline::Outcome};
 use crate::optimize::select::ObjectFacts;
 use crate::optimize::streams::{self, Rewrite};
 use crate::optimize::{
@@ -72,7 +73,15 @@ impl EditSession {
                 continue;
             };
             let row = rows.get(&id).copied();
-            plan_stream(&mut plan, settings, id, stream, raw, row);
+            let smask = match stream.dict.get(b"SMask") {
+                Some(Object::Reference(r)) => match self.value(*r) {
+                    Some(Object::Stream(s)) => Some(&s.dict),
+                    _ => None,
+                },
+                _ => None,
+            };
+            let blocker = image::pipeline::mask_blocker(&stream.dict, smask);
+            plan_stream(&mut plan, settings, (id, stream, raw), row, blocker);
         }
         if plan.changes.iter().any(|c| c.lossy) {
             notes.push("some changes are lossy; each is listed".to_owned());
@@ -179,8 +188,10 @@ impl EditSession {
                         if !self.deleted.contains(&w.id)
                             && streams::protected(&s.dict).is_none() =>
                     {
-                        view.slice(s.data_span)
-                            .and_then(|raw| streams::apply(w.action, &s.dict, raw).ok().flatten())
+                        view.slice(s.data_span).and_then(|raw| match &w.image {
+                            Some(job) => image::pipeline::run(job, &s.dict, raw).ok(),
+                            None => streams::apply(w.action, &s.dict, raw).ok().flatten(),
+                        })
                     }
                     _ => None,
                 };
@@ -235,13 +246,13 @@ impl EditSession {
 }
 
 /// Decide and perform one stream's action, recording it in `plan`.
+/// `blocker` is the image's [`image::pipeline::mask_blocker`].
 fn plan_stream(
     plan: &mut OptimizePlan,
     settings: &OptimizeSettings,
-    id: ObjId,
-    stream: &Stream,
-    raw: &[u8],
+    (id, stream, raw): (ObjId, &Stream, &[u8]),
     row: Option<&ObjectSpace>,
+    blocker: Option<&'static str>,
 ) {
     let filters = streams::chain(&stream.dict);
     let facts = ObjectFacts {
@@ -249,7 +260,27 @@ fn plan_stream(
         stored_bytes: raw.len() as u64,
         filters: &filters,
     };
-    let action = settings.action_for(id, &facts);
+    let resolved = settings.resolve(id, &facts);
+    let is_image =
+        matches!(stream.dict.get(b"Subtype"), Some(Object::Name(n)) if n.as_bytes() == b"Image");
+    let (action, job) = match resolved.image {
+        Some(img) if is_image => {
+            let space = row.and_then(|r| r.image.as_ref());
+            match image::pipeline::decide(&img, &stream.dict, space, blocker) {
+                Ok(Outcome::Unchanged) => return,
+                Ok(Outcome::Lossless(level)) => (StreamAction::Recompress { level }, None),
+                Ok(Outcome::Resample(job, change)) => {
+                    (StreamAction::Image(img.to_patch()), Some((job, change)))
+                }
+                Err(reason) => {
+                    let action = StreamAction::Image(img.to_patch());
+                    plan.skipped.push(Skipped { id, action, reason });
+                    return;
+                }
+            }
+        }
+        _ => (resolved.base, None),
+    };
     if action == StreamAction::Leave {
         return;
     }
@@ -259,9 +290,14 @@ fn plan_stream(
             .push(skip(crate::optimize::SkipReason::Protected(what)));
         return;
     }
-    match streams::apply(action, &stream.dict, raw) {
+    let result = match &job {
+        Some((job, _)) => image::pipeline::run(job, &stream.dict, raw).map(Some),
+        None => streams::apply(action, &stream.dict, raw),
+    };
+    match result {
         Ok(None) => {}
         Ok(Some((dict, data))) => {
+            let (job, change) = job.map_or((None, None), |(j, c)| (Some(j), Some(*c)));
             plan.changes.push(PlannedChange {
                 id,
                 category: row.map_or(SpaceCategory::OtherReferenced, |r| r.category),
@@ -269,12 +305,14 @@ fn plan_stream(
                 filters_before: filters,
                 before_bytes: raw.len() as u64,
                 after_bytes: data.len() as u64,
-                lossy: action.is_lossy(),
+                lossy: change.is_some(),
+                image: change,
             });
             plan.writes.push(Rewrite {
                 id,
                 before: Object::Stream(stream.clone()),
                 action,
+                image: job,
                 dict,
                 data,
             });

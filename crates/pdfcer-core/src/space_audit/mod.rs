@@ -207,20 +207,101 @@ pub struct ImageSpace {
     pub bits_per_component: Option<u8>,
     /// The colour-space family name (`DeviceRGB`, `ICCBased`, `Indexed`, …).
     pub color_space: Option<String>,
+    /// Colour components per sample, `/ICCBased` `/N` resolved; `None`
+    /// when the colour space is missing or unreadable.
+    pub components: Option<u8>,
+    /// `/ImageMask true`: a 1-bit stencil with no colour space.
+    pub image_mask: bool,
     /// Where page content draws it. Empty means drawn only by annotation
     /// appearances or not at all; those are not walked yet.
     pub placements: Vec<ImagePlacement>,
 }
 
 impl ImageSpace {
-    /// The highest effective ppi over all placements. A downsample to below
-    /// this would lose detail at that placement.
+    /// The lowest horizontal ppi over all placements: the largest drawn
+    /// use, which a downsample along the image's x axis must keep.
     #[must_use]
-    pub fn max_effective_ppi(&self) -> Option<f64> {
+    pub fn binding_ppi_x(&self) -> Option<f64> {
+        self.placements.iter().map(|p| p.ppi_x).reduce(f64::min)
+    }
+
+    /// The lowest vertical ppi over all placements.
+    #[must_use]
+    pub fn binding_ppi_y(&self) -> Option<f64> {
+        self.placements.iter().map(|p| p.ppi_y).reduce(f64::min)
+    }
+
+    /// The lowest effective ppi over all placements, either axis: the
+    /// resolution every use is drawn at or above (decision 192).
+    #[must_use]
+    pub fn binding_ppi(&self) -> Option<f64> {
+        self.binding_placement().map(ImagePlacement::effective_ppi)
+    }
+
+    /// The placement drawn at the lowest effective ppi.
+    #[must_use]
+    pub fn binding_placement(&self) -> Option<&ImagePlacement> {
         self.placements
             .iter()
-            .map(ImagePlacement::effective_ppi)
-            .reduce(f64::max)
+            .min_by(|a, b| a.effective_ppi().total_cmp(&b.effective_ppi()))
+    }
+
+    /// The image's class, as optimize rules select it: an image mask or a
+    /// 1-bit image is [`ImageClass::Mono`] unless it is palette-indexed.
+    #[must_use]
+    pub fn class(&self) -> ImageClass {
+        if matches!(self.color_space.as_deref(), Some("Indexed" | "I")) {
+            ImageClass::Indexed
+        } else if self.image_mask || self.bits_per_component == Some(1) {
+            ImageClass::Mono
+        } else if self.components == Some(1) {
+            ImageClass::Gray
+        } else {
+            ImageClass::Color
+        }
+    }
+}
+
+/// The image classes optimize settings are grouped by (Acrobat's colour,
+/// greyscale and monochrome panels, plus palette images).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[non_exhaustive]
+pub enum ImageClass {
+    /// More than one colour component.
+    Color,
+    /// One component, more than 1 bit.
+    Gray,
+    /// 1 bit, or an image mask.
+    Mono,
+    /// `/Indexed`: samples are palette indices.
+    Indexed,
+}
+
+impl ImageClass {
+    /// Every class, in declaration order.
+    pub const ALL: [Self; 4] = [Self::Color, Self::Gray, Self::Mono, Self::Indexed];
+
+    /// The profile and CLI name: `color`, `gray`, `mono` or `indexed`.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Color => "color",
+            Self::Gray => "gray",
+            Self::Mono => "mono",
+            Self::Indexed => "indexed",
+        }
+    }
+
+    /// The class named `name`, if any.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|c| c.as_str() == name)
+    }
+}
+
+impl fmt::Display for ImageClass {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
