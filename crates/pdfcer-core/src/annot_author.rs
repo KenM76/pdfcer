@@ -138,11 +138,19 @@ impl Color {
         }
     }
 
-    /// The colour as three `DeviceRGB` numbers, for a key the standard
-    /// types as RGB (a Redact `/IC`, Table 192). Gray is exact; CMYK goes
-    /// through [`pdfcer_color::color::cmyk_to_srgb`], the colour pdfcer
-    /// renders it as.
-    pub(crate) fn to_device_rgb(self) -> [f64; 3] {
+    /// The colour as three 0..1 `DeviceRGB` numbers: what pdfcer renders it
+    /// as, so a shell's swatch matches the page. Gray is exact; CMYK goes
+    /// through [`crate::color::cmyk_to_srgb`]. Also the value written for a
+    /// key the standard types as RGB (a Redact `/IC`, Table 192).
+    ///
+    /// ```
+    /// use pdfcer_core::annot_author::Color;
+    /// assert_eq!(Color::Gray(0.5).to_device_rgb(), [0.5, 0.5, 0.5]);
+    /// let [r, g, b] = Color::Cmyk(0.0, 0.0, 0.0, 1.0).to_device_rgb();
+    /// assert!(r < 0.3 && g < 0.3 && b < 0.3);
+    /// ```
+    #[must_use]
+    pub fn to_device_rgb(self) -> [f64; 3] {
         let srgb = |v: [f32; 3]| v.map(f64::from);
         match self {
             Self::Gray(g) => [g, g, g],
