@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1123rd filing) — `Pass 616.3` slice F PARTIAL in `9cd6a9d3`: flatten visible layers
+
+**Shipped (engineer-reported, no shell here):** `DiscardObject::FlattenLayers` (`flatten-layers`): each layer visible in the default configuration is deleted with `delete_layer` + `KeepUnlayered`, so its drawing stays on the page, on no layer. Hidden layers stay unless `hidden-layer` is also chosen (both = Acrobat's single option). One plan item per visible layer; a refusal fails the whole run, nothing written. Core `[x]`, cli `[x]`, gui `[ ]`. Core lib 1608 passed (4 new; `KeepUnlayered` sabotage failed 2), CLI optimize 16 (1 new), gates clean, `ALL` = 11. No dependency change. The slice E filing was committed as `2e77242f`.
+
+**Next:** slice G, search index, at `/Root /PieceInfo /SearchIndex` per the spec librarian (implementer-sourced from PDF4QT and pikepdf, no ISO or Adobe text, unverified on a real Acrobat file; RAG `adobe_ext__embedded_search_index.md`). Then image fragments, smooth lines.
+
+**Register:** ROADMAP slice F DONE, slice G note added; FEATURES discard-objects row extended (trimmed), Planned remainder narrowed, layer-flatten row got a pointer. No decision. Git, push and backup state not verified from here.
+
 ## 2026-10-20 (1122nd filing) — `Pass 616.3` slice E PARTIAL in `16e42db6`: discard form fields, multimedia and 3D models
 
 **Shipped (engineer-reported, no shell here):** `DiscardObject` classes `form-fields` (widgets + `/AcroForm`, deleted not flattened), `multimedia` (Screen/Movie/Sound/RichMedia annotations, Rendition/Movie/Sound/RichMediaExecute actions, `/Names /Renditions`) and `3d-models` (3D annotations, GoTo3DView; one aimed at RichMedia counts as multimedia). With `comment` they equal Acrobat's "Discard All Comments, Forms And Multimedia". Per-page plan item; orphaned pop-ups and structure OBJR references go too; list removals apply against the current value; certified files refused. Core `[x]`, cli `[x]`, gui `[ ]`. Core lib 1604 passed (5 new; OBJR sabotage failed 3), CLI optimize 15, gates clean. No dependency change. GUI note updated (`ALL` = 10).
