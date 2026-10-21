@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1121st filing) — `Pass 616.3` slice D PARTIAL in `3a1d93f1`: discard object data
+
+**Shipped (engineer-reported, no shell here):** `DiscardObject::ObjectData` (`--discard object-data`): removes `/O /UserProperties` attribute objects (and their revision integers) from structure elements and ClassMap classes, plus the catalog `MarkInfo /UserProperties` flag. Other attributes, `/C`, `/R`, parent tree and content untouched. A one-attribute array stays an array (UP-A1); an emptied class named by `/C` stays (erratum 254); skipped when Tags is selected. Spec hand-off consumed: `iso32000__s__14.7.5.4.md`. Core `[x]`, cli `[x]`, gui `[ ]`. Core lib 1599 passed (4 new; sabotage failed 1 test), CLI optimize 14/14, 33 CI-yml audits pass. No dependency change.
+
+**Owed:** 3D/PRC/U3D attributes in 3D streams not removed (Acrobat scope unverified); `MarkInfo` flag stays with no structure tree; remaining 616.3: search index, layers, comments/forms/multimedia, image fragments, smooth lines.
+
+**Register:** ROADMAP `616.3` stays IN PROGRESS; FEATURES discard-objects row extended, object data removed from the Planned remainder. No decision. Git, push and backup state not verified from here.
+
 ## 2026-10-20 (1120th filing) — `Pass 616.3` slice C PARTIAL in `19b2af2b`: discard form actions and external references
 
 **Shipped (engineer-reported, no shell here):** `DiscardObject::FormActions` (`--discard form-actions`: SubmitForm, ResetForm, ImportData) and `ExternalReferences` (`--discard external-references`: GoToR, Launch, GoToE/Thread with `/F`; URI links stay). Carriers `/A`, `/AA`, catalog `/OpenAction`, `/NA`, `/PA`; Movie `/A` skipped (Table 189). A removed action is spliced out of its `/Next` chain and later actions still run (§12.6.2 NOTE 1); cycles end the chain, depth guard 64; each rewrite applies only if the entry still holds its planned value. Disclosed in the output. Core `[x]`, cli `[x]`, gui `[ ]`. Core lib 1595 passed (4 new), core optimize 47/47, CLI optimize 13/13, 33 CI-yml audits pass. No dependency change.

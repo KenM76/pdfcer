@@ -24373,7 +24373,7 @@ Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level
 - A before/after report that itemises every lossy change (rule 4).
 - CLI `optimize --preset/--profile/--rule/--object/--dry-run/--json`.
 
-### `Pass 616.3` — Discard objects and user data, each individually selectable — IN PROGRESS (slices A `92102894`, B `07645ef5`, C `19b2af2b` shipped, fix G213 `c50ec207`, 2026-10-20)
+### `Pass 616.3` — Discard objects and user data, each individually selectable — IN PROGRESS (slices A `92102894`, B `07645ef5`, C `19b2af2b`, D `3a1d93f1` shipped, fix G213 `c50ec207`, 2026-10-20)
 
 **Fix G213 DONE (`c50ec207`, engineer-reported; no shell here):** a rewrite that is not smaller is still written when the plan removes content. `EditSession::save_optimized` now takes `&OptimizePlan` first (**BREAKING for pdfcer-gui**); new `OptimizedFile::NotSmaller { bytes, original }` and `OptimizePlan::removes_content()` (clean-up, discard or discard_objects non-empty). Decision 191's never-larger rule now applies only to runs that purely save bytes; a caller wanting the size rule alone treats `NotSmaller` as `KeptOriginal`. CLI: such a run is written, exits 0, prints "not smaller: kept anyway, because it removes what was asked for"; JSON `smaller` now reports the real comparison (was "was written"); exit 14 (NOT_SMALLER) now means nothing was written; help and exit doc updated. Same commit documents test helper `optimize::tests::session` (the check-public-fns-documented failure left by `07645ef5`). `core-api/03-capabilities.md` §15 and `02` `save_optimized` row updated. Tests: core lib 2995, 1591 integration, 236 doctests; CLI 897; fmt, clippy, code-structure, check-core-api-verbs clean; sabotage of the removes branch fails the new core test. No manifest change, no `cargo tree` change. Reply: `open/reply_request_G213_optimize_cleanup_lost_when_not_smaller_FIXED.md`.
 
@@ -24394,7 +24394,16 @@ Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level
 - **Tests:** core lib 1595 passed, 0 failed, 2 ignored (4 new in `optimize/actions_tests.rs`; core optimize 47/47); CLI optimize 13/13 incl. `discard_removes_form_actions_and_external_references`; all 33 CI-yml audit commands pass. No manifest change, so `cargo tree` not applicable.
 - **Known gaps:** a Link annotation whose action was removed stays as an inert hotspot; plus the slice B gaps above (2.0 structure destinations, `/SD` in named destinations, XMP `pdfaid` rewriting) and the search-index key.
 
-**Remaining slices (unbuilt):** search index (above), hidden layers + flatten visible layers, object data, "comments, forms and multimedia", merge image fragments, smooth lines.
+**Slice D DONE (`3a1d93f1`, engineer-reported; no shell here, 1121st filing):** `DiscardObject::ObjectData` (`--discard object-data`), covering Acrobat RAG `optimize__discard_user_data.md` row 2, "Discard All Object Data".
+- **Removes:** `/O /UserProperties` attribute objects (ISO 32000-1 §14.7.5.4; 2.0 §14.7.6.4, Tables 361-362) from structure elements' `/A`, including inline elements under `/K`, and from the root's ClassMap classes; each one's trailing revision integer goes with it (§14.7.5.3); the catalog `MarkInfo /UserProperties` flag. **Untouched:** other attributes, `/C`, `/R`, parent tree, content.
+- **Decisions:** an array left holding one attribute stays an array (2.0 permits it, and it keeps that attribute's revision number; ambiguity UP-A1); a `/C` naming a now-empty class stays (2.0 erratum 254); skipped when Tags is also selected (the tree goes with it).
+- **Spec hand-off:** `D:\Dev\Rag-Specialized\PDF_Spec\iso32000\iso32000__s__14.7.5.4.md` (UP-A1) is consumed by this slice.
+- **Disclosure:** "object data goes: the properties a CAD or diagram program attached to drawn objects (part numbers, shape data) are no longer listed; the drawing is unchanged".
+- **Refactor:** plan notes moved into a NOTES table; optimize test modules share a `dict` helper.
+- **Tests:** core lib 1599 passed, 0 failed, 2 ignored (4 new in `optimize/object_data_tests.rs`; a sabotage dropping the revision skip failed 1 test); CLI optimize 14/14 incl. `discard_removes_object_data_and_keeps_the_tags`; all 33 CI-yml audits pass. No manifest change. `core-api/03-capabilities.md` updated in the same commit; `check-core-api-verbs` passes.
+- **Known gaps:** 3D/PRC/U3D CAD attributes inside 3D streams are not removed ("object data" is not a spec term per the spec-librarian; Acrobat's exact scope unverified); `MarkInfo /UserProperties` stays when the file has no structure tree.
+
+**Remaining slices (unbuilt):** search index (above), hidden layers + flatten visible layers, "comments, forms and multimedia", merge image fragments, smooth lines.
 
 Original scope: wire in the existing 12 `doc_metadata` kinds. Add: alternate images, print settings, search index, tags, bookmarks, form actions, external cross-references, private application data, hidden layers (with visible-layer flatten), embedded thumbnails.
 
