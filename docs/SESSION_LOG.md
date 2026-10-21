@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1134th filing) — `Pass 616.4` fixes G214 + G215 in `f4ce1ae7`: typed image skip reasons; JPEG asked below its quality re-encodes
+
+**Shipped (engineer-reported, no shell here):** `SkipReason::ImageUnsupported` now carries a typed `ImageSkip` enum instead of a `String` (G214; Display keeps the old sentences, so the CLI report is unchanged). G215: under `encode=jpeg`, an existing JPEG is re-encoded when the asked quality is below the source's estimated quality, else skipped as `AlreadyJpeg`; before, it got neither change nor skip. `pdfcer-core` only. core-api 03-capabilities updated; GUI replies written.
+
+**Counts:** core optimize 135 passed (was 133), CLI optimize 24; sabotage of each G215 branch caught; fuzz 31,857 runs clean; clippy, gates, code-structure clean (engineer-reported). No manifest change.
+
+**Register:** ROADMAP Shipped entry; FEATURES *Downsample images* row (trimmed, not grown). No decision or rule; slice list unchanged (D3-D6 remain). Next filing 1135th. Git, push and backup state not verified from here.
+
 ## 2026-10-21 (1133rd filing) — `Pass 616.4` fix G217 in `173147ee`: image settings keep a preset's recompression
 
 **Shipped (engineer-reported, no shell here):** `streams = image(...)` replaced a preset's `recompress-9`, leaving non-image streams as stored (reported by pdfcer-gui as G217; CLI `--streams "image(...)"` did the same). New `OptimizeSettings.images: ImagePatch`, folded after `streams` and before rules and per-object overrides; new `SettingSource::Images`; profile key `images`; CLI now sets `images` and reports source "images". core-api 03-capabilities updated.

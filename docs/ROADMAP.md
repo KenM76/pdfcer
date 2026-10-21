@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.4` (fixes G214 + G215, `f4ce1ae7`), 2026-10-21 — typed image skip reasons; a JPEG asked below its quality re-encodes (1134th filing)
+
+Code commit `f4ce1ae7` "feat(optimize): typed image skip reasons; JPEG asked below its quality re-encodes (G214, G215)", after `173147ee`. `pdfcer-core` only; the CLI report is unchanged (Display keeps the old sentences). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. A fix between slices; the slice list is unchanged, D3-D6 remain.
+
+- **G214:** `SkipReason::ImageUnsupported` now carries `ImageSkip` (was a `String`), a `#[non_exhaustive]` enum (Clone/Eq/Hash/Display). Variants: `MatteMask`, `MatteParent`, `MatteMaskFailed{mask: ObjId}`, `ColourKey(ImageStep)`, `SoftMaskConvert`, `MatteParentConvert`, `NotAudited`, `UnknownComponents`, `InvalidSize`, `SizeChanged`, `OneBitAsJpeg`, `PaletteAsJpeg`, `ReducedAsJpeg`, `JpegComponents`, `JpegMismatch`, `JpegEncode(String)`, `NoDefinedGrey{space}`, `BadColourSpace(String)`, `AlreadyJpeg{source_estimate: Option<u8>, asked: u8}`. `ImageStep::{Resample, Convert, Jpeg}`. New `crates/pdfcer-core/src/optimize/image/skip.rs`.
+- **G215:** an existing JPEG whose pixels did not change got neither a change nor a skip, even under `encode=jpeg` at a lower quality. Now under `encode=jpeg` it is re-encoded when the asked quality is below `estimate_jpeg_quality` of the source (never-larger and min-saving guards still apply), else skipped as `AlreadyJpeg`. `encode=keep` still leaves it silently.
+- **Docs:** `core-api/03-capabilities.md` (`SkipReason` row, new `ImageSkip`/`ImageStep` rows, JPEG output bullet); `index.md` line count 4,656. GUI replies: `reply_G214_..._FIXED.md`, `reply_G215_..._FIXED.md` in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`.
+- **Tests (engineer-reported):** core lib optimize 135 passed (was 133; the test pinning the silent path replaced by three branch tests), CLI optimize 24 passed; sabotage of each G215 branch caught. Fuzz `optimize_images` 31,857 runs over 181 s (about 5.7 ms each) clean. Clippy `-D warnings` clean, gate sweep fail=0, code-structure clean. No manifest change, so `cargo tree` unaffected.
+- `FEATURES.md`: *Downsample images* row trimmed and extended (typed skip reasons, JPEG re-encode rule); boxes unchanged (core `[x]`, cli `[x]`, gui `[ ]`). Ledgers: no decision, no rule; next filing 1135th. Git, push and backup state not verified from here.
+
 ### `Pass 616.4` (fix G217, `173147ee`), 2026-10-21 — image settings keep a preset's recompression (1133rd filing)
 
 Code commit `173147ee` "fix(optimize): image settings keep a preset's recompression (G217)", after the 1132nd filing `ffbf97d4`. Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. A fix between slices; `616.4` still has D3-D6 remaining.
