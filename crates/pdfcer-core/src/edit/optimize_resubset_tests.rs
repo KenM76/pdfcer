@@ -23,8 +23,13 @@ use crate::writer::{RebuildOptions, SaveOptions};
 struct Zeros;
 
 impl FontResubsetter for Zeros {
-    fn resubset(&self, _: &ResubsetRequest<'_, '_>) -> Result<ResubsetProgram, ResubsetRefusal> {
-        Ok(ResubsetProgram::new(vec![0; 50], 2, 9))
+    fn resubset(&self, r: &ResubsetRequest<'_, '_>) -> Result<ResubsetProgram, ResubsetRefusal> {
+        let kept = r.users.iter().map(|u| u.codes.len()).sum::<usize>();
+        Ok(ResubsetProgram::new(
+            vec![0; 50],
+            u32::try_from(kept).unwrap(),
+            9,
+        ))
     }
 }
 
@@ -32,8 +37,13 @@ static ZEROS: Zeros = Zeros;
 
 /// A page drawing "Hi" in font 5 (`ABCDEF+Arial`), descriptor 6, program 7.
 fn session() -> EditSession {
-    let bodies = vec![
-        b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
+    session_with("", &[])
+}
+
+/// [`session`] with `catalog_extra` in the catalog and `extra` from 8.
+fn session_with(catalog_extra: &str, extra: &[Vec<u8>]) -> EditSession {
+    let mut bodies = vec![
+        format!("<< /Type /Catalog /Pages 2 0 R {catalog_extra} >>").into_bytes(),
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec(),
         b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R \
            /Resources << /Font << /F1 5 0 R >> >> >>"
@@ -47,6 +57,7 @@ fn session() -> EditSession {
             .to_vec(),
         stream("/Length1 3000", &noise(3000)),
     ];
+    bodies.extend_from_slice(extra);
     EditSession::new(Document::from_bytes(build(&bodies)).unwrap())
 }
 
@@ -139,4 +150,50 @@ fn a_font_unembedded_in_the_same_run_is_not_cut() {
     let cut = plan.resubset.as_ref().unwrap();
     assert!(cut.targets.is_empty());
     assert_eq!(cut.refused[0].why.token, "unembedded-this-run");
+}
+
+#[test]
+fn text_drawn_after_planning_makes_the_plan_stale() {
+    let mut s = session();
+    let plan = s.plan_optimize(&settings()).unwrap();
+    let data = b"BT /F1 9 Tf 10 10 Td (Hiz) Tj ET";
+    let data_span = s.stage_bytes(data);
+    let Some(Object::Stream(old)) = s.value(id(4)).cloned() else {
+        panic!("no content");
+    };
+    let mut dict = old.dict.clone();
+    dict.insert(
+        crate::object::Name::from(b"Length"),
+        Object::Integer(data.len() as i64),
+    );
+    s.commit(crate::edit::Command {
+        kind: crate::edit::CommandKind::Optimize { count: 1 },
+        objects: vec![crate::edit::ObjectWrite {
+            id: id(4),
+            before: None,
+            after: Some(Object::Stream(crate::object::Stream { dict, data_span })),
+        }],
+        removals: Vec::new(),
+        trailer: None,
+    });
+    assert!(matches!(
+        s.apply_optimize(&plan),
+        Err(OptimizeError::StalePlan { .. })
+    ));
+}
+
+#[test]
+fn a_pdfa_document_is_not_re_subset_and_says_why() {
+    let xmp = br#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/" pdfaid:part="2" pdfaid:conformance="B"/></rdf:RDF></x:xmpmeta>"#;
+    let s = session_with(
+        "/Metadata 8 0 R",
+        &[stream("/Type /Metadata /Subtype /XML", xmp)],
+    );
+    let plan = s.plan_optimize(&settings()).unwrap();
+    assert!(plan.resubset.is_none());
+    assert!(
+        plan.notes.iter().any(|n| n.contains("PDF/A")),
+        "{:?}",
+        plan.notes
+    );
 }

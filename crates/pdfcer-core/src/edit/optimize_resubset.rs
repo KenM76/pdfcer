@@ -4,9 +4,12 @@
 use std::collections::BTreeSet;
 
 use super::{EditSession, ObjectWrite};
+use crate::font_unembed::{PdfaClaim, detect_pdfa};
 use crate::fontinfo::split_subset_tag;
 use crate::object::{Dict, Name, ObjId, Object, Stream};
-use crate::optimize::resubset::{ResubsetPlan, ResubsetRefusal, ResubsetRefused, ResubsetTarget};
+use crate::optimize::resubset::{
+    ResubsetFonts, ResubsetPlan, ResubsetRefusal, ResubsetRefused, ResubsetTarget,
+};
 use crate::optimize::{OptimizeError, OptimizePlan, OptimizeSettings};
 
 impl EditSession {
@@ -22,6 +25,25 @@ impl EditSession {
         let Some(request) = settings.resubset else {
             return;
         };
+        if let PdfaClaim::Identified { .. } = detect_pdfa(&self.view()) {
+            notes.push(
+                "fonts not re-subset: the document identifies itself as PDF/A, and pdfcer does not yet rewrite what PDF/A requires of a subset"
+                    .to_owned(),
+            );
+            return;
+        }
+        let cut = self.resubset_preview(request, plan);
+        let programs: BTreeSet<ObjId> = cut.targets.iter().map(|t| t.program).collect();
+        plan.changes.retain(|c| !programs.contains(&c.id));
+        plan.writes.retain(|w| !programs.contains(&w.id));
+        plan.skipped.retain(|s| !programs.contains(&s.id));
+        notes.extend(resubset_notes(&cut));
+        plan.resubset = Some(cut);
+        plan.resubset_request = Some(request);
+    }
+
+    /// The re-subset `request` plans now, leaving what `plan` unembeds.
+    fn resubset_preview(&self, request: ResubsetFonts, plan: &OptimizePlan) -> ResubsetPlan {
         let live = self.live_objects();
         let mut cut = crate::optimize::resubset_plan::plan(&self.view(), &live, request.source);
         let unembedded: BTreeSet<ObjId> = plan
@@ -30,29 +52,33 @@ impl EditSession {
             .flat_map(|u| u.targets.iter().map(|t| t.id))
             .collect();
         exclude_unembedded(&mut cut, &unembedded);
-        let programs: BTreeSet<ObjId> = cut.targets.iter().map(|t| t.program).collect();
-        plan.changes.retain(|c| !programs.contains(&c.id));
-        plan.writes.retain(|w| !programs.contains(&w.id));
-        plan.skipped.retain(|s| !programs.contains(&s.id));
-        notes.extend(resubset_notes(&cut));
-        plan.resubset = Some(cut);
+        cut
     }
 
-    /// [`OptimizeError::StalePlan`] when an object the cut rewrites has
-    /// changed since planning.
+    /// [`OptimizeError::StalePlan`] when the cut would now be planned
+    /// differently: an object it rewrites changed, or the document draws
+    /// other glyphs with its fonts.
     pub(super) fn check_resubset_fresh(&self, plan: &OptimizePlan) -> Result<(), OptimizeError> {
-        let Some(cut) = &plan.resubset else {
+        let (Some(request), Some(cut)) = (plan.resubset_request, &plan.resubset) else {
             return Ok(());
         };
-        let stale = cut
+        if self.resubset_preview(request, plan) == *cut {
+            return Ok(());
+        }
+        let id = cut
             .targets
             .iter()
             .flat_map(|t| &t.before)
-            .find(|(id, before)| self.value(*id) != Some(before) || self.deleted.contains(id));
-        match stale {
-            Some((id, _)) => Err(OptimizeError::StalePlan { id: *id }),
-            None => Ok(()),
-        }
+            .find(|(id, before)| self.value(*id) != Some(before))
+            .or_else(|| cut.targets.first().and_then(|t| t.before.first()))
+            .map_or(
+                ObjId {
+                    num: 0,
+                    generation: 0,
+                },
+                |(id, _)| *id,
+            );
+        Err(OptimizeError::StalePlan { id })
     }
 
     /// The cut programs and their re-tagged names, as writes.

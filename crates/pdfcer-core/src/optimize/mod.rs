@@ -488,6 +488,7 @@ pub struct OptimizePlan {
     /// The font programs the apply cuts and the fonts it leaves; `None`
     /// when [`OptimizeSettings::resubset`] is unset.
     pub resubset: Option<resubset::ResubsetPlan>,
+    pub(crate) resubset_request: Option<resubset::ResubsetFonts>,
     pub(crate) writes: Vec<streams::Rewrite>,
     /// The settings' smoothing tolerance, for the apply to redo it with.
     pub(crate) smooth_tolerance: f64,
@@ -558,7 +559,10 @@ impl OptimizePlan {
         self.unembed
             .as_ref()
             .map_or(0, crate::font_unembed::UnembedPlan::bytes_reclaimable)
-            + self.resubset.as_ref().map_or(0, resubset::ResubsetPlan::saving)
+            + self
+                .resubset
+                .as_ref()
+                .map_or(0, resubset::ResubsetPlan::saving)
     }
 
     /// Whether any change is lossy.

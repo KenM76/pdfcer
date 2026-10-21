@@ -64,6 +64,7 @@ impl EditSession {
             unembed: None,
             unembed_request: None,
             resubset: None,
+            resubset_request: None,
             writes: Vec::new(),
             smooth_tolerance: settings.smooth_tolerance,
         };

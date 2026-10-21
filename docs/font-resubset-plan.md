@@ -52,7 +52,7 @@ soft masks and Type3 CharProcs.
 | `format-deferred` | `FontFile` or `FontFile3` (CFF is a later slice). |
 | `malformed-glyf` | The `glyf` data is malformed. |
 | `cidset-charset-present` | The font has a `/CIDSet` or `/CharSet`. |
-| `pdfa` | The document claims PDF/A. The local spec RAG lacks the PDF/A-1 §6.3.5 and PDF/A-2 §6.2.11.4 text, so this is unverified. |
+| (note, no token) | The document claims PDF/A: the whole re-subset step is skipped with one note. The local spec RAG lacks the PDF/A-1 §6.3.5 and PDF/A-2 §6.2.11.4 text, so what PDF/A requires of a subset is unverified. |
 | `unembedded-this-run` | The same run unembeds the font. |
 | `not-smaller` | The rewritten program is not smaller. |
 
@@ -81,10 +81,13 @@ soft masks and Type3 CharProcs.
 
 - **`plan_resubset`:** drops the rewritten program ids from `changes`,
   `writes` and `skipped`.
-- **`check_resubset_fresh`:** re-plans and compares, including the output
-  digest.
-- **`apply_resubset`:** writes the Flate program with `/Length1`, adds a
-  subset tag if the name has none, and folds into the Optimize undo entry.
+- **`check_resubset_fresh`:** re-plans and compares the whole cut, so an
+  edit that draws other glyphs, or changes a rewritten object, is stale.
+- **`resubset_writes`:** writes the Flate program with `/Length1` and gives
+  every cut program a fresh tag unique in the file, written over the stem of
+  each font `/BaseFont`, CIDFont `/BaseFont` and descriptor `/FontName`; it
+  folds into the Optimize undo entry. A different subset under an old tag
+  would break ISO 32000-2 §9.6.4.
 - **`removes_content` stays false**, so the never-larger rule applies. A note
   says typing new text in these fonts later needs augmentation.
 
