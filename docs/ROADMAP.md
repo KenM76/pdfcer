@@ -112,6 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 617.8` (`0f277026`), 2026-10-21 — `srgb_to_cmyk`, the inverse of `cmyk_to_srgb` (`G224`) (1157th filing)
+
+Code commit `0f277026` "feat(color): srgb_to_cmyk, the inverse of cmyk_to_srgb (Pass 617.8, G224)". Core only (crate `pdfcer-color`, `crates/pdfcer-color/src/color/inverse.rs`, re-exported as `pdfcer_core::color`); no CLI caller; `pdfcer-gui` has not yet consumed it. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Request `request_G224_no_rgb_to_cmyk_that_keeps_the_colour.md` arrived 2026-10-21 and was answered the same day by `reply_G224_no_rgb_to_cmyk_that_keeps_the_colour_FIXED.md` (both in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`).
+
+- **Why:** the GUI converted RGB to CMYK with ISO 32000-2 §10.4.2's `k = min(1-r,1-g,1-b)`. That inverts the naive forward formula, not pdfcer's calibrated `cmyk_to_srgb` table, so every switch to CMYK darkened the colour (GUI's 0,160,255 gave 0,129,200).
+- **API:** `srgb_to_cmyk(r, g, b) -> CmykFit`; `srgb_to_cmyk_with(CmykIntent, BlackGeneration, r, g, b)`; `BlackGeneration::{Most (default), Least}`; `CmykFit { cmyk, residual, in_gamut }` (`#[non_exhaustive]`); `CMYK_FIT_TOLERANCE` = 0.5/255.
+- **Method:** black-range scan plus bisection, then damped Gauss-Newton for C, M, Y. Out of gamut the result is the nearest drawable colour by least squares and is flagged `in_gamut = false`; 0,160,255 now gives 0,172,237.
+- **Scope:** not an ICC conversion. It inverts pdfcer's own display table; profile-to-profile conversion stays iccce's (decision 064).
+- **Docs:** `docs/core-api/01-reading-and-model.md` §11.3 gains a table row and a paragraph; `docs/core-api/index.md` counts now 4,102 lines and 240 clauses.
+- **Tests / gates (engineer-reported):** `pdfcer-color` lib 11 tests (5 new in `color/inverse_tests.rs`) plus 2 new doctests. clippy (`pdfcer-color`, `pdfcer-core`) and fmt clean; `check-code-structure`, `check-public-fns-documented`, `check-core-api-verbs`, `check-core-api-no-line-citations`, rustdoc intra-links, wasm32 check of `pdfcer-color`, and the python/shell gate list pass. No `Cargo.toml` changed: `cargo tree` unaffected, no new dependency.
+
+**Second commit `fa69fbf5`** "fix(docs): two broken intra-doc links that turned CI red (Pass 617.8)". CI's "cargo doc, broken intra-doc links denied" job had been red from the 1155th filing's push onward. `pdfcer-model` `filters/brotli.rs` linked [`encode`], which is `#[doc(hidden)]` and cannot resolve (now plain code text); `pdfcer-render` `font/resubset/mod.rs` linked [`FontResubsetter`], which lives in `pdfcer-core` and was out of scope (now a full path). Workspace `cargo doc -D rustdoc::broken_intra_doc_links` clean (engineer-reported). Gotcha: an intra-doc link to a `#[doc(hidden)]` item is broken under `-D broken_intra_doc_links`; use plain backticks.
+
+`FEATURES.md`: new row *Convert an sRGB colour to the CMYK that renders as it* (core [x], cli [ ], gui [ ]), after the ce-dimension style rows. No decision; no rule. Ledgers: next free `Pass 617.9`, decision `195`, `R263`; next filing 1158th.
+
 ### `Pass 616.6` (slice 2, `4d0e7c44`..`3606ecef`), 2026-10-21 — font re-subsetting inside an optimize run (TrueType only); `Pass 616.6` NOT complete (1156th filing)
 
 Code commits (all on main, not pushed at filing time): `4d0e7c44` glyph-usage enumerator (step 2); `7066d6a4` types and planner (steps 1, 3); `09506aab` wired into the run (step 6); `8c8dec44` fix: stale on new text, skips PDF/A; `2d5783c3` glyph-zeroing re-subsetter in render (steps 4-5); `3606ecef` CLI `--resubset-fonts` (step 7). Core + render + CLI; no GUI (separate project). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit messages and `docs/font-resubset-plan.md`.
@@ -22982,6 +22997,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+(1157th filing: `Pass 617.8` (`G224`) SHIPPED `0f277026`, see *Shipped*. Next free `Pass 617.9`, decision `195`, `R263`; next filing 1158th.)
 
 (1154th filing: `Pass 616.5` F2 (image `encode=brotli`) SHIPPED `faa4a36c` and `Pass 617.7` (`G223`) SHIPPED `dc168e27`, see *Shipped*. `616.5` still open only for the Acrobat Reader render checks (Brotli unverified). Next free `Pass 617.8`, decision `195`, `R263`; next filing 1155th.)
 

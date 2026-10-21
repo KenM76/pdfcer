@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1157th filing) — `Pass 617.8` in `0f277026`: `srgb_to_cmyk` (`G224`)
+
+**Shipped:** `Pass 617.8` (core only): `pdfcer_core::color::srgb_to_cmyk` / `srgb_to_cmyk_with`, `BlackGeneration`, `CmykFit`, `CMYK_FIT_TOLERANCE`, in `crates/pdfcer-color/src/color/inverse.rs`. Request `G224` arrived 2026-10-21 and was answered the same day (`reply_G224_..._FIXED.md`). Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
+
+**Decisions:** none new; no rule minted (`195`, `R263` stay free). It inverts pdfcer's own display table, not an ICC conversion (decision 064 keeps profile conversion in iccce).
+
+**Findings:** the GUI's §10.4.2 `k = min(1-r,1-g,1-b)` inverts the naive forward formula, not the calibrated table, so each switch to CMYK darkened the colour (0,160,255 gave 0,129,200; now 0,172,237). Tests `pdfcer-color` lib 11 (5 new) plus 2 doctests (engineer-reported); gates and wasm32 check pass; no manifest change.
+
+**Second commit `fa69fbf5`** (docs fix): CI's broken-intra-doc-links job had been red since the 1155th filing's push. `pdfcer-model` `filters/brotli.rs` linked `#[doc(hidden)]` `encode` (now plain code text); `pdfcer-render` `font/resubset/mod.rs` linked core's `FontResubsetter` out of scope (now a full path). Workspace `cargo doc -D rustdoc::broken_intra_doc_links` clean (engineer-reported). Gotcha: an intra-doc link to a `#[doc(hidden)]` item is broken under that lint; use plain backticks.
+
+**Still in flight:** `pdfcer-gui` has not consumed it (gui box unticked); no CLI caller. `Pass 616.6` still open as in the 1156th entry.
+
+**For next session:** next free `Pass 617.9`, decision `195`, `R263`. Git, push and backup state not verified from here (no shell). Next filing 1158th.
+
 ## 2026-10-21 (1156th filing) — `Pass 616.6` slice 2 in `4d0e7c44`..`3606ecef`: fonts can be re-subset inside an optimize run
 
 **Shipped:** `Pass 616.6` slice 2 (core + render + cli): `OptimizeSettings::resubset` holds a `&'static dyn FontResubsetter`; glyph-usage walk; TrueType `/FontFile2` cut by glyph zeroing (all glyph IDs kept, so content and widths untouched); fresh subset tag; one undo entry; `StalePlan` on new text; PDF/A plans nothing plus a note; render `GLYPH_ZERO_RESUBSETTER` verifies its own cut; CLI `--resubset-fonts` with a `resubset:` report block and JSON `resubset`. Detail in the ROADMAP *Shipped* entry; reasoning in the commit messages.
