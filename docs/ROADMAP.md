@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.4` (slice D6 second half, `2579f651`), 2026-10-21 — the optimize report ends with one row per image; `Pass 616.4` COMPLETE (1139th filing)
+
+Code commit `2579f651` "feat(optimize): the report ends with one row per image (Pass 616.4, slice D6)", after the 1138th filing `ab84c08b`'s docs commit (pushed). CLI only: no core or core-api change. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 192 governs.
+
+- **Behaviour:** the `pdfcer optimize` text report ends with `images: N rewritten, M skipped`, one aligned row per image the settings touched: object; page of the binding placement (`-` if unplaced); pixels before -> after; ppi before -> after; format before -> after (last filter or raw / colour space / bit depth, e.g. `raw/DeviceGray 8 bit -> Flate/DeviceGray 8 bit`); stored bytes before -> after with the saving percentage floored. A skipped image gets a row with its skip reason. The table is omitted when no image is touched. JSON is unchanged (it already carries per-image fields).
+- **Acceptance criterion met:** the one added at the 1128th filing, "the report shows, per image, the format before -> after".
+- **CLI:** new `crates/pdfcer-cli/src/optimize_image_table.rs`; `optimize --help` names the table. `cargo tree` unaffected (no manifest change).
+- **Tests (engineer-reported):** CLI optimize 27 (1 new, `the_report_ends_with_one_row_per_image`); a sabotage leaving skipped images out of the table fails it. Gates, clippy and the structure check green.
+- **`Pass 616.4` slices, all shipped:** A `2bfea30c`, B `e9387ebf`, C `cba8193d`, D1 `0fc01d0c`, D2 `ffbf97d4`, D3 `e5edee43`, D4 `db4cca93`, D5 `ab84c08b`, D6 `db902fb4` (presets, G216) + `2579f651` (table). Fixes between slices: G217 `173147ee`, G214 + G215 `f4ce1ae7`.
+- **Caveats carried:** a `/Matte` mask shared by several images stays refused; mono results are mostly not-smaller until `616.5` adds CCITT/JBIG2 encoders (disclosed, not hidden); ICC-managed conversion stays out (decision 064). The remaining format matrix (RunLength, LZW, JPX, JBIG2, CCITT G4, Brotli) is `616.5`; the operator's 2026-10-21 image-format request is recorded there.
+- `FEATURES.md`: *Downsample images* row gains the per-image table (core `[x]`, cli `[x]`, gui `[ ]`, never rounded up); *Image requality, remainder* row deleted (nothing left); *Optimize framework, remainder* drops the report table; *Change an image's format* row notes the before -> after report done. The Backlog entry for `616.4` is retitled COMPLETE and kept as the scope record (the 616.5 text points at it), not deleted. Ledgers: no decision, no rule; `616.5` NEXT UP; next filing 1140th. Git, push and backup state not verified from here.
+
 ### `Pass 616.4` (slice D5, `ab84c08b`), 2026-10-21 — identical images are planned as one before resampling (1138th filing)
 
 Code commit `ab84c08b` "feat(optimize): identical images are planned as one before resampling (Pass 616.4, slice D5)", after the 1137th filing `9a6db72a`; not pushed at filing time. Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 192 governs. `616.4` is NOT complete: D6's per-image report table remains.
@@ -22731,6 +22743,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+(1139th filing: `Pass 616.4` COMPLETE (slice D6 table `2579f651`, see *Shipped*); `Pass 616.5` (Images II: encoders, and Brotli for any stream) is NEXT UP. Next filing 1140th.)
+
 (1138th filing: `Pass 616.4` slice D5 SHIPPED (`ab84c08b`, see *Shipped*); D6's per-image table and `616.5` remain. Next filing 1139th.)
 
 (1137th filing: `Pass 616.4` slice D4 SHIPPED (`db4cca93`, see *Shipped*); D5, D6's per-image table and `616.5` remain. Next filing 1138th.)
@@ -24594,20 +24608,9 @@ Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level
 
 Original scope: wire in the existing 12 `doc_metadata` kinds. Add: alternate images, print settings, search index, tags, bookmarks, form actions, external cross-references, private application data, hidden layers (with visible-layer flatten), embedded thumbnails.
 
-### `Pass 616.4` — Images I: downsampling, requality, conversion — SLICES A `2bfea30c`, B `e9387ebf`, C `cba8193d`, D1 `0fc01d0c`, D2 `ffbf97d4`, D3 `e5edee43`, D4 `db4cca93`, D5 `ab84c08b` SHIPPED (2026-10-21); D6 per-image table NEXT UP
+### `Pass 616.4` — Images I: downsampling, requality, conversion — COMPLETE (all slices shipped 2026-10-21; see *Shipped*); scope record kept
 
-**Operator-direct request, Ken 2026-10-21 (1128th filing), verbatim:** *"We should also be able to change images to different formats (jpeg formats, brotli, grey scale, etc of whatever PDFs support), and as stated before this can be done on all or a per image basis or etc."* Folded into slices B/C below and into `616.5`, not minted as a new Pass: the existing `encode=` key and the fold model (default -> `image-class`/other rules -> one object) already give all / per class / per image. **Acceptance criterion added:** the report shows, per image, the format before -> after (e.g. `Flate/DeviceRGB 8bpc -> DCT/DeviceGray`). Target matrix and where each lands:
-
-| encoding (`encode=`) | slice | note |
-|---|---|---|
-| keep, flate, flate-N | A (shipped) | PNG predictor option for flate: slice D1 (shipped `0fc01d0c`) |
-| dct (JPEG) baseline / progressive | B (shipped `e9387ebf`) | quality levels, chroma |
-| runlength, lzw | 616.5 | |
-| jpx (JPEG 2000) | 616.5 | licence check first (`LEGAL.md` §6.1, rule 13) |
-| jbig2, ccitt G4 | 616.5 | lossy JBIG2 symbol matching opt-in |
-| brotli | 616.5 | see `616.5`; extension, off by default |
-
-Colour conversion targets (grey, bilevel, indexed) are slice C (shipped). ICC-managed conversion stays out (decision 064; iccce owns it).
+**Operator-direct request, Ken 2026-10-21 (1128th filing), verbatim:** *"We should also be able to change images to different formats (jpeg formats, brotli, grey scale, etc of whatever PDFs support), and as stated before this can be done on all or a per image basis or etc."* Folded into slices B/C and `616.5`: the `encode=` key and the fold model (default -> `image-class`/other rules -> one object) already give all / per class / per image. Acceptance criterion (report shows each image's format before -> after) met by D6 `2579f651`. Still to land in `616.5`: runlength, lzw, jpx (licence check first, `LEGAL.md` §6.1, rule 13), jbig2 and ccitt G4 (lossy JBIG2 matching opt-in), brotli. ICC-managed conversion stays out (decision 064).
 
 **Scoped 2026-10-21 (1127th filing) under decision 192** (`docs/decisions/192-image-optimise-settings.md`; `ARCHITECTURE.md` §12). Model: `StreamAction::Image(ImagePatch)`, optional fields merged field by field across default, rules, per-object override; Acrobat's per-class panels ship as rules selecting `image-class`. **Corrected 2026-10-21:** the original line read "Resample to the highest ppi any placement needs", which is backwards; the rule is **resample so the lowest-ppi (largest drawn) placement keeps the target, per axis**. `ImageSpace::max_effective_ppi` measured the wrong end and is replaced by `binding_ppi`. Slices, in order:
 
@@ -24628,13 +24631,13 @@ Colour conversion targets (grey, bilevel, indexed) are slice C (shipped). ICC-ma
   - **D3** Colour-key masks subsample-or-skip. **SHIPPED `e5edee43`** (entry in *Shipped*; `keyed=subsample|skip`).
   - **D4** `max-pixels=N` for unplaced images. **SHIPPED `db4cca93`** (entry in *Shipped*).
   - **D5** Dedupe of identical images before resampling. **SHIPPED `ab84c08b`** (entry in *Shipped*).
-  - **D6** Lossy presets **SHIPPED `db902fb4`** (G216; entry in *Shipped*; core + cli, gui not). **Remaining:** the per-image table in the report.
+  - **D6** Lossy presets **SHIPPED `db902fb4`** (G216; entry in *Shipped*; core + cli, gui not). Per-image report table **SHIPPED `2579f651`** (entry in *Shipped*).
 
 Mono results are mostly not-smaller until `616.5` adds CCITT/JBIG2 encoders; disclosed, not hidden.
 
 ### `Pass 616.5` — Images II: encoders, and Brotli for any stream — NEXT UP, 2026-10-20; widened 2026-10-21
 
-CCITT G4 encode, RunLength encode, LZW encode, JBIG2 generic lossless encode, all selectable through the same `encode=` key on all images, a rule or one object (operator request of 2026-10-21, recorded under `616.4`). **Lossy JBIG2 symbol matching is opt-in, off by default and disclosed**, because it can substitute characters. JPEG2000 encode is subject to a dependency licence check first (`LEGAL.md` §6.1, rule 13).
+CCITT G4 encode, RunLength encode, LZW encode, JBIG2 generic lossless encode, all selectable through the same `encode=` key on all images, a rule or one object (operator request of 2026-10-21, Ken: change images to other formats, on all images, a class or one image; recorded in the `Pass 616.4` Shipped entries). **Lossy JBIG2 symbol matching is opt-in, off by default and disclosed**, because it can substitute characters. JPEG2000 encode is subject to a dependency licence check first (`LEGAL.md` §6.1, rule 13).
 
 **Brotli write side (operator request 2026-10-21; also closes the `FEATURES.md` Planned row "Encode `/BrotliDecode` streams").** For images AND any stream (`--streams brotli` style). **Premises corrected at filing, by grep of the tree:**
 - **Decode already ships** (`Pass 123.0`, `4163ad9`; `crates/pdfcer-model/src/filters/brotli.rs`): `/BrotliDecode` is read, with an output ceiling and fixture tests that use the crate's encoder test-only. Not owed.

@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1139th filing) — `Pass 616.4` slice D6 second half in `2579f651`: the optimize report ends with one row per image; `Pass 616.4` COMPLETE
+
+**Shipped (engineer-reported, no shell here):** `pdfcer optimize` text report ends with `images: N rewritten, M skipped`, one aligned row per touched image (object, binding-placement page or `-`, pixels, ppi, format, stored bytes, each before -> after, saving % floored); skipped images show the reason; omitted when none touched; JSON unchanged. New `optimize_image_table.rs`; `--help` names the table. CLI only, no core/core-api change, no manifest change. Meets the 1128th-filing acceptance criterion (format before -> after per image).
+
+**Counts:** CLI optimize 27 (1 new, `the_report_ends_with_one_row_per_image`); sabotage dropping skipped rows fails it; gates, clippy, structure check green (engineer-reported).
+
+**Pass closed:** slices A `2bfea30c`, B `e9387ebf`, C `cba8193d`, D1 `0fc01d0c`, D2 `ffbf97d4`, D3 `e5edee43`, D4 `db4cca93`, D5 `ab84c08b`, D6 `db902fb4` + `2579f651`. Caveats kept: shared `/Matte` mask refused; mono mostly not-smaller until `616.5`.
+
+**Register:** ROADMAP Shipped entry, Next up banner (`616.5` NEXT UP), Backlog `616.4` retitled COMPLETE; FEATURES four rows (gui `[ ]` unchanged, it is `pdfcer-gui`). No decision or rule; next filing 1140th. Git, push and backup state not verified from here.
+
 ## 2026-10-21 (1138th filing) — `Pass 616.4` slice D5 in `ab84c08b`: identical images are planned as one before resampling
 
 **Shipped (engineer-reported, no shell here):** with `merge_duplicates` on (preset default; `--keep-duplicates`/`--keep-structure` off), byte-identical images are measured over the union of all copies' placements and resample to one size, so the structure rebuild can still merge them. New `optimize_copies.rs`; `ImageChange.copies: Vec<ObjId>`; CLI text "identical to N G R (planned as one)" and JSON `"copies"`. Core + cli; gui not.
