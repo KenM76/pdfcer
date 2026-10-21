@@ -119,6 +119,8 @@ pub(crate) enum Target {
     Lzw { predictor: Predictor },
     /// `/CCITTFaxDecode` Group 4, 1-bit 1-component samples only.
     Ccitt,
+    /// `/JBIG2Decode` generic region, 1-bit 1-component samples only.
+    Jbig2,
 }
 
 /// A planned rewrite, redone on a stream an earlier step of the run
@@ -316,6 +318,7 @@ pub(crate) fn decide(
     }
     let (components, bpc) = sample_format(dict, space, source, jpeg && convert.is_none())?;
     bilevel_only(settings, to, (components, bpc))?;
+    filter_version(encode, ctx.view.version())?;
     let (target, quality) = if jpeg {
         let (opts, q) = jpeg_options(settings, source, raw);
         (Target::Jpeg(opts), Some(q))
@@ -353,12 +356,28 @@ fn bilevel_only(
         Some(to) => to == ImageConvert::Bilevel,
         None => format == (1, 1),
     };
-    if encode.value != ImageEncode::Ccitt || bilevel {
+    let bilevel_encoder = matches!(encode.value, ImageEncode::Ccitt | ImageEncode::Jbig2);
+    if !bilevel_encoder || bilevel {
         Ok(())
     } else if encode.source == SettingSource::Object {
         Err(unsupported(ImageSkip::NotBilevelOverride(encode.value)))
     } else {
         Err(unsupported(ImageSkip::NotBilevel(encode.value)))
+    }
+}
+
+/// Skips an encoder whose filter the document's version predates:
+/// `JBIG2Decode` is PDF 1.4 (ISO 32000-1 §7.4.7).
+fn filter_version(encode: ImageEncode, document: crate::PdfVersion) -> Result<(), SkipReason> {
+    let needs = crate::PdfVersion { major: 1, minor: 4 };
+    if encode == ImageEncode::Jbig2 && document < needs {
+        Err(unsupported(ImageSkip::VersionTooLow {
+            encode,
+            needs,
+            document,
+        }))
+    } else {
+        Ok(())
     }
 }
 
@@ -368,6 +387,7 @@ const fn lossless_target(encode: ImageEncode, predictor: Predictor) -> Target {
         ImageEncode::RunLength => Target::RunLength,
         ImageEncode::Lzw => Target::Lzw { predictor },
         ImageEncode::Ccitt => Target::Ccitt,
+        ImageEncode::Jbig2 => Target::Jbig2,
         ImageEncode::Flate { level } => Target::Flate { level, predictor },
         _ => Target::Flate {
             level: 9,
@@ -498,6 +518,7 @@ fn change(
         }
         Target::Jpeg(_) => (ImageEncode::Jpeg, 8),
         Target::Ccitt => (ImageEncode::Ccitt, 1),
+        Target::Jbig2 => (ImageEncode::Jbig2, 1),
     };
     let before = space
         .color_space
@@ -533,6 +554,7 @@ const fn encoded(target: Target) -> ImageEncode {
         Target::RunLength => ImageEncode::RunLength,
         Target::Lzw { .. } => ImageEncode::Lzw,
         Target::Ccitt => ImageEncode::Ccitt,
+        Target::Jbig2 => ImageEncode::Jbig2,
     }
 }
 

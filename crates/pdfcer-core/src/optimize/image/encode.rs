@@ -143,6 +143,25 @@ fn encode(job: &Job, pixels: &[u8], (components, bpc): (u32, u32)) -> Result<Enc
         }
         Target::RunLength => plain(filters::runlength::encode(pixels), b"RunLengthDecode"),
         Target::Ccitt => ccitt(job, pixels, (components, bpc))?,
+        Target::Jbig2 => jbig2(job, pixels, (components, bpc))?,
+    })
+}
+
+/// One lossless generic region with no globals, so no `/DecodeParms`.
+/// The codec codes a PDF 1 as JBIG2 white, so `/Decode` stays as it is.
+fn jbig2(job: &Job, pixels: &[u8], format: (u32, u32)) -> Result<Encoded, SkipReason> {
+    if format != (1, 1) {
+        return Err(SkipReason::ImageUnsupported(ImageSkip::NotBilevel(
+            super::ImageEncode::Jbig2,
+        )));
+    }
+    let (w, h) = job.out;
+    Ok(Encoded {
+        data: image_codec::jbig2::encode_generic(pixels, w, h),
+        filter: b"JBIG2Decode",
+        bpc: 1,
+        parms: None,
+        flate_bytes: None,
     })
 }
 
@@ -251,7 +270,11 @@ fn source_samples(
             }
             if matches!(
                 job.target,
-                Target::Flate { .. } | Target::RunLength | Target::Lzw { .. } | Target::Ccitt
+                Target::Flate { .. }
+                    | Target::RunLength
+                    | Target::Lzw { .. }
+                    | Target::Ccitt
+                    | Target::Jbig2
             ) || job.convert.is_some()
             {
                 return Ok((packed, job.bpc));

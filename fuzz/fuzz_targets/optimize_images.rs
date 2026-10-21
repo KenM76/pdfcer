@@ -15,7 +15,7 @@ use pdfcer_core::document::Document;
 use pdfcer_core::edit::EditSession;
 use pdfcer_core::optimize::{OptimizeSettings, StreamAction};
 
-const ACTIONS: [&str; 13] = [
+const ACTIONS: [&str; 15] = [
     "image(ppi=36,above=36)",
     "image(encode=jpeg,quality=50)",
     "image(convert=gray)",
@@ -29,6 +29,8 @@ const ACTIONS: [&str; 13] = [
     "image(encode=lzw,predictor=auto)",
     "image(encode=ccitt)",
     "image(convert=bilevel,threshold=otsu,encode=ccitt)",
+    "image(encode=jbig2)",
+    "image(convert=bilevel,encode=jbig2)",
 ];
 
 fuzz_target!(|data: &[u8]| {

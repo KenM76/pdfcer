@@ -12,7 +12,7 @@ use crate::writer::SaveOptions;
 
 /// `N` x `N` packed 1-bit rows: short ink dashes on a 1-valued
 /// background, or the complement when `invert`.
-fn dashes(invert: bool) -> Vec<u8> {
+pub(super) fn dashes(invert: bool) -> Vec<u8> {
     let stride = N.div_ceil(8) as usize;
     let mut px = vec![0u8; stride * N as usize];
     for y in 0..N {
@@ -26,18 +26,20 @@ fn dashes(invert: bool) -> Vec<u8> {
     px
 }
 
-fn one_bit(extra: &str, px: &[u8]) -> Vec<u8> {
+/// An `N` x `N` image XObject over `px`, with `extra` supplying the colour
+/// space, depth and any `/Decode` or `/ImageMask` under test.
+pub(super) fn one_bit(extra: &str, px: &[u8]) -> Vec<u8> {
     stream(
         &format!("/Type /XObject /Subtype /Image /Width {N} /Height {N} {extra}"),
         px,
     )
 }
 
-const GREY_1: &str = "/ColorSpace /DeviceGray /BitsPerComponent 1";
+pub(super) const GREY_1: &str = "/ColorSpace /DeviceGray /BitsPerComponent 1";
 
 /// Applies `plan`, saves, and returns object 5's dictionary and the
 /// samples the shipped CCITT decoder reads back.
-fn saved(mut s: EditSession, p: &OptimizePlan) -> (Dict, Vec<u8>) {
+pub(super) fn saved(mut s: EditSession, p: &OptimizePlan) -> (Dict, Vec<u8>) {
     s.apply_optimize(p).unwrap();
     let OptimizedFile::Smaller(bytes) = s
         .save_optimized(p, &SaveOptions::default(), &RebuildOptions::none())

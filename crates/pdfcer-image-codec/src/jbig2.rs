@@ -106,6 +106,11 @@ use pdfcer_model::graph::ObjectGraph;
 use pdfcer_model::object::{Dict, Object};
 use pdfcer_model::view::DocumentView;
 
+mod generic;
+mod mq;
+
+pub use generic::encode_generic;
+
 /// Decode a `JBIG2Decode` codestream.
 ///
 /// `data` is the embedded JBIG2 stream (T.88 Annex D.3 organization)
@@ -328,3 +333,6 @@ impl hayro_jbig2::Decoder for BilevelSink {
         self.end_row();
     }
 }
+
+#[cfg(test)]
+mod encode_tests;

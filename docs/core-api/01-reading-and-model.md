@@ -139,6 +139,7 @@ builds `--no-default-features`, so both configurations compile.
 | Know which image codec a stream ends in, without decoding | `image_codec::terminal_codec(&Dict)` — `pdfcer-image-codec/src/lib.rs` | §11.2 |
 | Decode an image XObject to samples | `image_codec::decode_image(&Document, &Dict, &[u8], inline)` — `pdfcer-image-codec/src/lib.rs` | §11.2 |
 | Encode 1-bit samples as CCITT Group 4 | `image_codec::ccitt::encode_g4(&[u8], width, height, one_is_black)` — `pdfcer-image-codec/src/ccitt/encode.rs` | §11.2 |
+| Encode 1-bit samples as a JBIG2 generic region | `image_codec::jbig2::encode_generic(&[u8], width, height)` — `pdfcer-image-codec/src/jbig2/generic.rs` | §11.2 |
 | Convert a device colour to sRGB | `color::{gray_to_srgb, rgb_to_srgb, cmyk_to_srgb}` — `color/mod.rs` | §11.3 |
 | Resolve a full `/ColorSpace` object (Separation, ICCBased, Indexed…) | **Not in `pdfcer-core`** — `pdfcer_render::ColorSpace`, `pdfcer-render/src/color.rs` | §11.3 |
 | Evaluate a PDF function (type 0/2/3/4) | `function::PdfFunction::load(&DocumentView, &Object)` then `::eval` / `::eval_into` — `function.rs` | §11.4 |
@@ -2689,7 +2690,7 @@ Bilevel | Unspecified | Unknown{components}`.
 
 The per-codec modules (`image_codec::{dct, ccitt, jbig2, jpx}`,
 `lib.rs`) expose no decoder — every `decode` is `pub(super)`, and
-`decode_image*` is the only door. The one public item is the writer
+`decode_image*` is the only door. The public items are two writers. One is
 `ccitt::encode_g4(samples, width, height, one_is_black) -> Vec<u8>`
 (`ccitt/encode.rs`, ITU-T T.6, `/K -1`): rows packed MSB first and padded
 to a byte (§8.9.3), pad bits not coded, the block ended by EOFB with zero
@@ -2698,6 +2699,17 @@ pad bits. It carries no parameters: the stream needs `/K -1` and
 `one_is_black = true` with `/BlackIs1 true` and `false` with `/BlackIs1`
 omitted; both decode to `samples` (ISO 32000-1 §7.4.6 Table 11). Which is
 smaller depends on the picture, so encode both to get the smaller.
+The other is `jbig2::encode_generic(samples, width, height) -> Vec<u8>`
+(`jbig2/generic.rs` over `jbig2/mq.rs`; ITU-T T.88 §6.2.5, §7.2, §7.4.6,
+§7.4.8, Annex E), taking the same sample layout and returning a whole
+`/JBIG2Decode` stream in the embedded organisation (Annex D.3): a page
+information segment for a `width` x `height` page and one immediate
+lossless generic region over it, template 0, typical prediction on,
+nominal AT pixels, MQ coded. No `/JBIG2Globals`, so no `/DecodeParms`. A
+sample 1 is coded JBIG2 white, so the stream decodes to `samples` and the
+image keeps its `/Decode`. The image needs `/BitsPerComponent 1` and
+matching `/Width` `/Height`, must be an XObject (§7.4.7 forbids the filter
+inline), and needs PDF 1.4.
 
 #### ★ Image output format — exact
 

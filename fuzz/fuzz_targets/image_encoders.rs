@@ -1,16 +1,16 @@
 //! Fuzz target: pdfcer's own filter encoders. Every encoder's output must
 //! decode back to its input. Encoders see only pdfcer's pixels, but any
 //! byte string is a valid input, so the identity must hold for all of them.
-//! CCITT Group 4 takes its width from the first two bytes and its rows
-//! from the rest, and must decode through the shipped CCITT decoder in
-//! both polarities.
+//! CCITT Group 4 and the JBIG2 generic region take their width from the
+//! first two bytes and their rows from the rest, and must decode through
+//! the shipped decoders (CCITT in both polarities).
 
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
 use pdfcer_core::document::Document;
 use pdfcer_core::filters::{FilterNotes, lzw, runlength};
-use pdfcer_core::image_codec::{ccitt::encode_g4, decode_image};
+use pdfcer_core::image_codec::{ccitt::encode_g4, decode_image, jbig2::encode_generic};
 use pdfcer_core::object::{Dict, Name, Object};
 
 /// The two-object document `decode_image` needs for direct parameters.
@@ -29,15 +29,15 @@ fn empty_document() -> Document {
     Document::from_bytes(buf).expect("the fixed minimal document must load")
 }
 
-fn ccitt_round_trips(data: &[u8]) {
-    let Some((&[w0, w1], px)) = data.split_first_chunk::<2>() else {
-        return;
-    };
+/// A 1-bit picture from fuzz bytes: width, height, the rows, and the rows
+/// with their pad bits cleared (what a decoder delivers).
+fn picture(data: &[u8]) -> Option<(u32, u32, &[u8], Vec<u8>)> {
+    let (&[w0, w1], px) = data.split_first_chunk::<2>()?;
     let width = u32::from(u16::from_le_bytes([w0, w1]) % 2048) + 1;
     let stride = width.div_ceil(8) as usize;
     let height = (px.len() / stride).min(256);
     if height == 0 {
-        return;
+        return None;
     }
     let px = &px[..height * stride];
     let mut clean = px.to_vec();
@@ -47,6 +47,39 @@ fn ccitt_round_trips(data: &[u8]) {
             row[stride - 1] &= 0xFFu8 << pad;
         }
     }
+    Some((width, height as u32, px, clean))
+}
+
+/// An image dictionary for a 1-bit DeviceGray picture under `filter`.
+fn image_dict(filter: &[u8], width: u32, height: u32) -> Dict {
+    let mut dict = Dict::new();
+    dict.insert(Name::from(b"Filter"), Object::Name(Name::from(filter)));
+    dict.insert(Name::from(b"Width"), Object::Integer(i64::from(width)));
+    dict.insert(Name::from(b"Height"), Object::Integer(i64::from(height)));
+    dict.insert(Name::from(b"BitsPerComponent"), Object::Integer(1));
+    dict.insert(
+        Name::from(b"ColorSpace"),
+        Object::Name(Name::from(b"DeviceGray")),
+    );
+    dict
+}
+
+fn jbig2_round_trips(data: &[u8]) {
+    let Some((width, height, px, clean)) = picture(data) else {
+        return;
+    };
+    let stream = encode_generic(px, width, height);
+    let dict = image_dict(b"JBIG2Decode", width, height);
+    let decoded =
+        decode_image(&empty_document(), &dict, &stream, false).expect("own JBIG2 must decode");
+    assert_eq!(decoded.samples, clean, "{width}x{height}");
+}
+
+fn ccitt_round_trips(data: &[u8]) {
+    let Some((width, height, px, clean)) = picture(data) else {
+        return;
+    };
+    let height = height as usize;
     let doc = empty_document();
     for one_is_black in [true, false] {
         let g4 = encode_g4(px, width, height as u32, one_is_black);
@@ -57,19 +90,8 @@ fn ccitt_round_trips(data: &[u8]) {
         if one_is_black {
             parms.insert(Name::from(b"BlackIs1"), Object::Boolean(true));
         }
-        let mut dict = Dict::new();
-        dict.insert(
-            Name::from(b"Filter"),
-            Object::Name(Name::from(b"CCITTFaxDecode")),
-        );
+        let mut dict = image_dict(b"CCITTFaxDecode", width, height as u32);
         dict.insert(Name::from(b"DecodeParms"), Object::Dict(parms));
-        dict.insert(Name::from(b"Width"), Object::Integer(i64::from(width)));
-        dict.insert(Name::from(b"Height"), Object::Integer(height as i64));
-        dict.insert(Name::from(b"BitsPerComponent"), Object::Integer(1));
-        dict.insert(
-            Name::from(b"ColorSpace"),
-            Object::Name(Name::from(b"DeviceGray")),
-        );
         let decoded = decode_image(&doc, &dict, &g4, false).expect("own G4 must decode");
         assert_eq!(
             decoded.samples, clean,
@@ -87,4 +109,5 @@ fuzz_target!(|data: &[u8]| {
     let decoded = encoded.and_then(|e| lzw::decode(&e, None, &mut notes).ok());
     assert_eq!(decoded.as_deref(), Some(data));
     ccitt_round_trips(data);
+    jbig2_round_trips(data);
 });

@@ -105,6 +105,11 @@ pub enum ImageEncode {
     /// result. Both polarities are coded and the smaller kept, with
     /// `/BlackIs1 true` when that one wins.
     Ccitt,
+    /// `/JBIG2Decode`, one lossless generic region (ITU-T T.88 §6.2,
+    /// template 0, typical prediction) with no `/JBIG2Globals`. For 1-bit,
+    /// 1-component output only, like `Ccitt`. The filter is PDF 1.4; a
+    /// document declaring an earlier version is skipped.
+    Jbig2,
 }
 
 impl fmt::Display for ImageEncode {
@@ -116,6 +121,7 @@ impl fmt::Display for ImageEncode {
             Self::RunLength => f.write_str("runlength"),
             Self::Lzw => f.write_str("lzw"),
             Self::Ccitt => f.write_str("ccitt"),
+            Self::Jbig2 => f.write_str("jbig2"),
         }
     }
 }
@@ -343,6 +349,7 @@ fn parse_encode(value: &str) -> Result<ImageEncode, String> {
         "runlength" => Ok(ImageEncode::RunLength),
         "lzw" => Ok(ImageEncode::Lzw),
         "ccitt" => Ok(ImageEncode::Ccitt),
+        "jbig2" => Ok(ImageEncode::Jbig2),
         _ => value
             .strip_prefix("flate-")
             .and_then(|n| n.parse::<u8>().ok())
@@ -350,7 +357,7 @@ fn parse_encode(value: &str) -> Result<ImageEncode, String> {
             .map(|level| ImageEncode::Flate { level })
             .ok_or_else(|| {
                 format!(
-                    "image(): unknown encode {value:?}; expected keep, flate, flate-0..9, jpeg, runlength, lzw or ccitt"
+                    "image(): unknown encode {value:?}; expected keep, flate, flate-0..9, jpeg, runlength, lzw, ccitt or jbig2"
                 )
             }),
     }
@@ -658,6 +665,8 @@ mod pipeline_ccitt_tests;
 mod pipeline_convert_tests;
 #[cfg(test)]
 mod pipeline_copies_tests;
+#[cfg(test)]
+mod pipeline_jbig2_tests;
 #[cfg(test)]
 mod pipeline_jpeg_tests;
 #[cfg(test)]
