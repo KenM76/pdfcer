@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1129th filing) — `Pass 616.4` slice B SHIPPED in `e9387ebf`: JPEG output
+
+**Shipped (engineer-reported, no shell here):** `image(encode=jpeg,quality=N|minimum..maximum,chroma=auto|444|420,progressive)` on all images, a class/rule or one image (levels 20/40/60/80/95; auto chroma 4:4:4 at q>=90). DCT sources now decoded and resampled; an unchanged-pixel JPEG is never touched; re-encode writes `min(asked, estimated source quality)` via new pub `estimate_jpeg_quality` (IJG K.1 match on the DQT table). Named refusals (`ImageUnsupported`): masks/1-bit, Indexed, colour-key `/Mask`, components not 1/3/4. `/Decode` kept (inverted CMYK stays correct), `/DecodeParms` removed, 16 -> 8 bit reported. New pub `Chroma`, `QUALITY_LEVELS`, `JpegQuality`; `ImageChange` gains `encoded_as`, `bpc`, `jpeg`. Core lib 1652 / 2 ignored; CLI `all` 906; new fuzz target 4,367,103 runs / 61 s / 0 crashes; two sabotage checks caught; 33 gates green; no core/render manifest change. Core `[x]`, cli `[x]`, gui `[ ]`.
+
+**Finding (filed, not hidden):** the Flate PNG-predictor option was in slice B's scope (1127th/1128th filings) and the engineer's report does not mention it. Recorded as NOT delivered and still open in ROADMAP, FEATURES (Planned *Image requality* row) and the `616.4` body; assign at next scoping.
+
+**Survivor sweep (hard rule 11, claim "DCT sources are skipped"):** corrected in this filing: FEATURES Implemented row, both Planned rows. Remaining correct-as-history hits: `ROADMAP.md` Shipped slice-A bullet "DCT/JPX/etc. -> `UnsupportedFilter`" (accurate for `2bfea30c`) and the slice-A scope bullet under *Next up* (marked SHIPPED). `core-api/03-capabilities.md` lines ~4503-4504 still say "`/DCTDecode` last after them (else `UnsupportedFilter`)" in the downsample bullet; engineer said the file was updated in the commit, so I did not edit it (outside my remit to verify against code) — engineer should confirm that sentence still holds.
+
+**Register:** ROADMAP Shipped entry, `616.4` header/table/slice-B bullet, Next-up banner; FEATURES three rows; this entry. Ceilings: decision next free `193`, `R263` and `Pass 617.0` unchanged. Next filing 1130th; next in arc: `616.4` slice C (conversion). Git, push and backup state not verified from here.
+
 ## 2026-10-21 (1128th filing) — `Pass 616.4` slice A SHIPPED in `2bfea30c`; operator request: change image formats
 
 **Shipped (engineer-reported, no shell here):** `StreamAction::Image(ImagePatch)` (keys method/ppi/above/encode/min-saving/reset; field-wise fold streams -> rules -> object; each setting carries its source); audit ppi basis fixed (`binding_ppi`, min per axis; `max_effective_ppi` removed); `Selector::image_classes`; generic-filter sources resampled and re-encoded Flate, never larger; new skips `Unplaced`, `ImageUnsupported`, `BelowMinSaving`; report names binding placement and ppi before -> after. Core lib 1640 / 2 ignored + 2995 + 237; CLI 43 + 905; 13 new image tests + 1 CLI; three sabotage checks caught. Core `[x]`, cli `[x]`, gui `[ ]`. **Deviation:** `/Matte` and colour-key images refused, not handled (slice D).

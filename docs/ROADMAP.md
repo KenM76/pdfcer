@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.4` slice B — JPEG output, requality of DCT sources — SHIPPED 2026-10-21 (1129th filing, `e9387ebf`)
+
+Code commit `e9387ebf` "feat(optimize): write images as JPEG, per image or all", after the 1128th filing `b5a888f4` (committed, not pushed at filing time). Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 192 governs. `616.4` is NOT complete: slices C and D remain.
+
+- **Keys:** `image(encode=jpeg,quality=N|minimum|low|medium|high|maximum,chroma=auto|444|420,progressive)`; levels 20/40/60/80/95; chroma auto = 4:4:4 at q>=90 else 4:2:0; Huffman tables always optimised. Same field-wise precedence as slice A (streams -> rules -> object override), so it applies to all images, a class/rule, or one image.
+- **DCT sources:** now decoded and resampled (stay JPEG under `encode=keep`); a JPEG whose pixels do not change is never touched; a re-encode writes `min(asked, estimated source quality)`. New pub `optimize::estimate_jpeg_quality(&[u8]) -> Option<u8>` (IJG Table K.1 match on the first frame component's DQT table, T.81 B.2.2/B.2.4.1; baseline and 16-bit clamps).
+- **Refused by name** (`SkipReason::ImageUnsupported`, Display now "not rewritten: ..."): image masks/1-bit, Indexed, colour-key `/Mask`, components other than 1/3/4. `/Decode` and `/ColorSpace` kept (inverted CMYK `/Decode` keeps its meaning); `/DecodeParms` removed; 16 -> 8 bit reported.
+- **API/report:** `ImageChange` gains `encoded_as`, `bpc: (u8,u8)`, `jpeg: Option<JpegQuality { asked, used, source_estimate }>`; new pub `Chroma`, `QUALITY_LEVELS`, `JpegQuality`; `ImagePatch`/`ResolvedImage` gain quality/chroma/progressive. CLI text and `--json` show format written, quality asked/used/estimate and bit-depth change; `--streams` help documents the keys. `docs/core-api/03-capabilities.md` updated (rows + "JPEG output" bullet); `check-core-api-verbs.py` green.
+- **Not delivered from the slice B scope:** the Flate **PNG-predictor option** (`encode=flate-N` with predictor) was scoped to slice B and the engineer did not report it; it stays open (assign to C/D or `616.5` at next scoping).
+- **Tests:** core lib 1652 passed (2 ignored), all core targets green; CLI `all` 906 passed (optimize filter 21). New fuzz target `fuzz/fuzz_targets/jpeg_quality_estimate.rs`: 4,367,103 runs / 61 s (about 71,600 runs/s) / 0 crashes. Sabotage: removing the quality cap fails `a_downsampled_jpeg_is_written_no_better_than_its_source`; dropping `/Decode` fails `cmyk_with_an_inverted_decode_keeps_its_meaning`. fmt, clippy `-D warnings` and all 33 project gates green. No manifest change to core/render (`cargo tree` invariant untouched; only `fuzz/Cargo.toml` gained a `[[bin]]`).
+- `FEATURES.md`: Implemented *Downsample images during optimize* row gains JPEG output (core `[x]`, cli `[x]`, gui `[ ]`); Planned *Image requality* row narrowed to C/D plus the open PNG predictor; Planned *Change an image's format* row notes DCT done. Ledgers: no decision (next free `193`); `R263` and `Pass 617.0` unchanged; next filing 1130th. Git, push and backup state not verified from here.
+
 ### `Pass 616.4` slice A — image downsampling per setting source, lossless Flate output — SHIPPED 2026-10-21 (1128th filing, `2bfea30c`)
 
 Code commit `2bfea30c` "feat(optimize): downsample images per setting source", after the 1127th filing `5a410cb1` (committed, not pushed at filing time). Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Slices B-D remain in *Next up*.
@@ -22618,6 +22630,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+(1129th filing: `Pass 616.4` slice B SHIPPED (`e9387ebf`, see *Shipped*); slices C and D and `616.5` remain. Next filing 1130th.)
+
 (1128th filing: `Pass 616.4` slice A SHIPPED (`2bfea30c`, see *Shipped*); slices B-D and `616.5` remain, now widened to the full format matrix by an operator request of 2026-10-21. Next filing 1129th.)
 
 (1126th filing: `Pass 616.3` COMPLETE (slices A-I), see *Shipped*; next in the `616.x` arc `Pass 616.4`, next filing 1127th.)
@@ -24467,14 +24481,14 @@ Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level
 
 Original scope: wire in the existing 12 `doc_metadata` kinds. Add: alternate images, print settings, search index, tags, bookmarks, form actions, external cross-references, private application data, hidden layers (with visible-layer flatten), embedded thumbnails.
 
-### `Pass 616.4` — Images I: downsampling, requality, conversion — SLICE A SHIPPED `2bfea30c` (2026-10-21); B-D NEXT UP
+### `Pass 616.4` — Images I: downsampling, requality, conversion — SLICES A `2bfea30c`, B `e9387ebf` SHIPPED (2026-10-21); C-D NEXT UP
 
 **Operator-direct request, Ken 2026-10-21 (1128th filing), verbatim:** *"We should also be able to change images to different formats (jpeg formats, brotli, grey scale, etc of whatever PDFs support), and as stated before this can be done on all or a per image basis or etc."* Folded into slices B/C below and into `616.5`, not minted as a new Pass: the existing `encode=` key and the fold model (default -> `image-class`/other rules -> one object) already give all / per class / per image. **Acceptance criterion added:** the report shows, per image, the format before -> after (e.g. `Flate/DeviceRGB 8bpc -> DCT/DeviceGray`). Target matrix and where each lands:
 
 | encoding (`encode=`) | slice | note |
 |---|---|---|
 | keep, flate, flate-N | A (shipped) | PNG predictor option for flate: B |
-| dct (JPEG) baseline / progressive | B | quality levels, chroma |
+| dct (JPEG) baseline / progressive | B (shipped `e9387ebf`) | quality levels, chroma |
 | runlength, lzw | 616.5 | |
 | jpx (JPEG 2000) | 616.5 | licence check first (`LEGAL.md` §6.1, rule 13) |
 | jbig2, ccitt G4 | 616.5 | lossy JBIG2 symbol matching opt-in |
@@ -24493,7 +24507,7 @@ Colour conversion targets (grey, bilevel, indexed) are slice C. ICC-managed conv
   - Unplaced images skipped with a reason.
   - The report names the binding placement (page, drawn size, ppi before and after).
   - Only-if-smaller guard plus `min-saving`.
-- **B — JPEG.** `encode=jpeg` with **baseline or progressive** output, quality (numeric plus named levels: minimum 20, low 40, medium 60, high 80, maximum 95) and chroma; Flate **PNG-predictor option** (`encode=flate-N` with predictor); DCT sources decoded, resampled and re-encoded with quality capped at the source's estimated quality; inverted Adobe CMYK /Decode kept; 16 bpc to 8 itemised as lossy.
+- **B — JPEG.** **SHIPPED `e9387ebf`** (entry in *Shipped*); the Flate PNG-predictor option below was NOT delivered and remains open. As scoped: `encode=jpeg` with **baseline or progressive** output, quality (numeric plus named levels: minimum 20, low 40, medium 60, high 80, maximum 95) and chroma; Flate **PNG-predictor option** (`encode=flate-N` with predictor); DCT sources decoded, resampled and re-encoded with quality capped at the source's estimated quality; inverted Adobe CMYK /Decode kept; 16 bpc to 8 itemised as lossy.
 - **C — conversion.** Grey via the ISO 32000-2 §10.4.2.2/§10.4.2.3 device formulas; bilevel by Otsu (threshold disclosed), fixed or dither; **Indexed (palette quantisation, disclosed lossy, colour count and method named in the report)** added 2026-10-21 by the operator request above; ICCBased-by-formula disclosed "not colour-managed"; Lab/Separation/DeviceN skipped with a reason.
 - **D — masks, unplaced, dedupe, presets.**
   - SMask/Matte lockstep, mask placements inherited from the parent.
