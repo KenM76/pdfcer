@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1158th filing) — `Pass 616.6` slice 3 in `e9032753`: merge copies of one embedded face
+
+**Shipped:** `Pass 616.6` slice 3 (core + render + cli): under `--resubset-fonts`, programs naming one face (subset tag and Type0 `-Identity-H/-V` stripped) merge into one program by default; `--no-merge-font-subsets` opts out. All glyph IDs kept; other descriptors' `/FontFile2` repointed, merged-away programs deleted, one undo entry. Refused `different-face` unless flavor, glyph count, `loca` format and all tables but `glyf`/`loca`/`DSIG`/`name` match and no shared glyph differs. Core: `FontResubsetter::merge`, `ResubsetFonts::merge`/`without_merge()`, `ResubsetTarget::merged`, `ResubsetPlan::unmerged`. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
+
+**Decisions:** none new; no rule minted (`195`, `R263`, `Pass 617.9` stay free).
+
+**Findings:** corpus of 2,915 external files: 22 carry one face more than once, at most 7.3% of their bytes duplicated (median 16.5%, max 31.6% per file); the pattern is Word's TrueType + Type0/CIDFontType2 pair (21), plus 3 CID+CID (engineer-reported). Tests: core lib 3,008 / 2 ignored, render lib 490, CLI all target 936 / 2 ignored, all green; the repoint sabotage failed the new render test; no manifest change.
+
+**Still in flight:** `Pass 616.6` OPEN: CFF zeroing; CIDSet/CharSet rewrite; re-subset under PDF/A; `symbolic` / `shared-program` fixture tests; Acrobat Reader check of a cut or merged font NOT done. `616.7`-`616.10` unchanged.
+
+**For next session:** next free `Pass 617.9`, decision `195`, `R263`. `e9032753` not pushed at filing time per the engineer; git, push and backup state not verified from here (no shell). Next filing 1159th.
+
 ## 2026-10-21 (1157th filing) — `Pass 617.8` in `0f277026`: `srgb_to_cmyk` (`G224`)
 
 **Shipped:** `Pass 617.8` (core only): `pdfcer_core::color::srgb_to_cmyk` / `srgb_to_cmyk_with`, `BlackGeneration`, `CmykFit`, `CMYK_FIT_TOLERANCE`, in `crates/pdfcer-color/src/color/inverse.rs`. Request `G224` arrived 2026-10-21 and was answered the same day (`reply_G224_..._FIXED.md`). Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.

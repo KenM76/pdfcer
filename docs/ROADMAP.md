@@ -112,6 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.6` (slice 3, `e9032753`), 2026-10-21 — merge copies of one embedded face in a re-subset run; `Pass 616.6` NOT complete (1158th filing)
+
+Code commit `e9032753` "feat(optimize): merge copies of one embedded face (Pass 616.6 slice 3)", on main, not pushed at filing time. Core + render + CLI; no GUI (separate project). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message and `docs/font-resubset-plan.md` (already records this slice).
+
+- **Behaviour:** under `--resubset-fonts`, programs whose fonts name one face are merged into one program; merging is on by default. Face = the name with the subset tag and a Type0 `-Identity-H`/`-V` suffix stripped. Every glyph ID is kept, so content, `/Widths`, `/W` and `/CIDToGIDMap` are untouched. The other descriptors' `/FontFile2` is repointed to the merged program and the merged-away programs are deleted, all in one undo entry.
+- **Refusal:** the shipped cutter refuses a merge as `different-face` unless the copies share flavor, glyph count and `loca` format; every table except `glyf`/`loca`/`DSIG`/`name` is byte-identical (`head` compared without checksum and dates); and no glyph both copies carry has a different record. A face that cannot merge is listed with why and its copies are cut on their own.
+- **Disclosure:** off-canvas notes count merges and unmerged faces.
+- **Core API (`docs/core-api/03-capabilities.md`, Font re-subset, new bullet "Merging copies of one face"):** `FontResubsetter::merge` (default method, refuses `merge-unsupported`); `ResubsetFonts::merge` and `without_merge()`; `ResubsetTarget::merged`; `ResubsetPlan::unmerged: Vec<ResubsetUnmerged { face, programs, why }>`. No new `EditSession` verbs (`check-core-api-verbs` passes).
+- **CLI:** merges by default; new `--no-merge-font-subsets` (requires `--resubset-fonts`); report lines `<id> merged into <id>` and `copies of <face> not merged: <why>`; JSON `cut[].merged` and `unmerged`. The font flags moved into a flattened `FontArgs` struct (structure-gate split).
+- **Corpus measurement (2,915 external files, engineer-reported):** 22 files carry one face more than once; at most 7.3% of their bytes are duplicated (median 16.5% per file, max 31.6%). The pattern is Word's TrueType + Type0/CIDFontType2 pair: 21 such pairs, plus 3 CID+CID. So the win is modest and concentrated.
+- **Fixture:** `fixtures/synthetic/resubset/pair.pdf` (synthetic; `tools/gen-resubset-fixtures.py`).
+- **Tests (engineer-reported):** new: render integration (merge is pixel-identical, merged program deleted, undo restores it; a sabotage disabling the repoint failed it); render integration (without merge each copy is cut on its own); 3 render unit (union, `hmtx` difference refused, clashing glyph refused); 1 CLI. Suites green: core lib 3,008 passed / 2 ignored, plus 1,774, 240 and 24 in other targets; render lib 490, plus 526 in the all target; CLI all target 936 passed / 2 ignored, plus 43. fmt, clippy `-D warnings` (core/render/cli), `check-code-structure` (clean, none new), `check-public-fns-documented`, `check-doc-block-spliced`, `check-core-api-verbs` and `cargo doc` with broken intra-doc links denied pass. No `Cargo.toml` changed: `cargo tree` unaffected, no new dependency.
+- **Still open in `Pass 616.6`:** CFF (`/FontFile3`) zeroing; `/CIDSet` / `/CharSet` rewrite; re-subset under PDF/A; tests for the planned `symbolic` and `shared-program` fixtures (never built); the Acrobat Reader render check of a cut or merged font is NOT done. `616.7`-`616.10` unchanged.
+
+`FEATURES.md`: row *Reduce file size by lossless stream recompression* now says copies of one face are merged (core + cli; gui not); the Planned *Font re-subsetting remainder* row drops "duplicate-subset merge", remaining boxes unticked. No decision; no rule (`195`, `R263`, `Pass 617.9` stay free). Next filing 1159th.
+
 ### `Pass 617.8` (`0f277026`), 2026-10-21 — `srgb_to_cmyk`, the inverse of `cmyk_to_srgb` (`G224`) (1157th filing)
 
 Code commit `0f277026` "feat(color): srgb_to_cmyk, the inverse of cmyk_to_srgb (Pass 617.8, G224)". Core only (crate `pdfcer-color`, `crates/pdfcer-color/src/color/inverse.rs`, re-exported as `pdfcer_core::color`); no CLI caller; `pdfcer-gui` has not yet consumed it. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Request `request_G224_no_rgb_to_cmyk_that_keeps_the_colour.md` arrived 2026-10-21 and was answered the same day by `reply_G224_no_rgb_to_cmyk_that_keeps_the_colour_FIXED.md` (both in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`).
@@ -24931,11 +24947,11 @@ Mono results are mostly not-smaller until `616.5` adds CCITT/JBIG2 encoders; dis
 - **Still owed from the request (as filed; the stream half is now built):** a dedicated Brotli fuzz target (none under `fuzz/fuzz_targets/` by name; whether `content_and_filters.rs` reaches the decoder is unverified); the write side itself.
 - **Write-side contract:** writes the `/Extensions` entry for `PDFa` (EXTN-BROTLI-1 v1.3, `ExtensionLevel 1`, `BaseVersion 2.0`) and raises the header to 2.0; **OFF by default**; the report discloses it ("readers without the extension cannot open these streams"). Round-trip rule 3 is not in conflict: optimize rewrites a stream only when asked, never an untouched one. Not allowed in inline images (EXTN-BROTLI-1 §5.2; `ImageCodecError::BrotliNotAllowedInline` already enforces it on read). **Decision 194 filed (1148th, `ARCHITECTURE.md` §12; design only, no code yet):** explicit-only (`brotli` / `brotli-N`, N 0..=11, default 11; never `auto`, preset or fallback), standard window (lgwin 22), declares `/Extensions /PDFa` and raises catalog `/Version` to 2.0 (both disclosed), refused under PDF/A, never inline or ObjStm/XRef/Metadata, same only-if-smaller and `min-saving` guards. Next free decision `195`.
 
-### `Pass 616.6` — Fonts: re-subset, merge duplicate subsets, unembed — IN PROGRESS (slice 1 shipped `23c89cd2`, slice 2 shipped `4d0e7c44`..`3606ecef`, 2026-10-21)
+### `Pass 616.6` — Fonts: re-subset, merge duplicate subsets, unembed — IN PROGRESS (slice 1 shipped `23c89cd2`, slice 2 shipped `4d0e7c44`..`3606ecef`, slice 3 shipped `e9032753`, 2026-10-21)
 
 Re-subset embedded fonts to the glyphs actually used; merge duplicate subsets; integrate `font_unembed::plan`; Type1 to CFF conversion later.
 
-**Slice 1 SHIPPED (1155th filing): unembed inside an optimize run. Slice 2 SHIPPED (1156th filing): TrueType `/FontFile2` re-subset by glyph zeroing, `--resubset-fonts`. Remaining: CFF (`/FontFile3`) zeroing; `/CIDSet` / `/CharSet` rewrite; re-subset under PDF/A; merge duplicate subsets of the same face; `symbolic` and `shared-program` fixture tests; Acrobat Reader render check of a cut font; Type1 to CFF later.**
+**Slice 1 SHIPPED (1155th filing): unembed inside an optimize run. Slice 2 SHIPPED (1156th filing): TrueType `/FontFile2` re-subset by glyph zeroing, `--resubset-fonts`. Slice 3 SHIPPED (1158th filing): copies of one face merged, `--no-merge-font-subsets`. Remaining: CFF (`/FontFile3`) zeroing; `/CIDSet` / `/CharSet` rewrite; re-subset under PDF/A; `symbolic` and `shared-program` fixture tests; Acrobat Reader render check of a cut font; Type1 to CFF later.**
 
 ### `Pass 616.7` — Content-stream optimisation — NEXT UP, 2026-10-20
 
