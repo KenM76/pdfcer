@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1128th filing) — `Pass 616.4` slice A SHIPPED in `2bfea30c`; operator request: change image formats
+
+**Shipped (engineer-reported, no shell here):** `StreamAction::Image(ImagePatch)` (keys method/ppi/above/encode/min-saving/reset; field-wise fold streams -> rules -> object; each setting carries its source); audit ppi basis fixed (`binding_ppi`, min per axis; `max_effective_ppi` removed); `Selector::image_classes`; generic-filter sources resampled and re-encoded Flate, never larger; new skips `Unplaced`, `ImageUnsupported`, `BelowMinSaving`; report names binding placement and ppi before -> after. Core lib 1640 / 2 ignored + 2995 + 237; CLI 43 + 905; 13 new image tests + 1 CLI; three sabotage checks caught. Core `[x]`, cli `[x]`, gui `[ ]`. **Deviation:** `/Matte` and colour-key images refused, not handled (slice D).
+
+**Operator request (Ken, 2026-10-21, verbatim):** *"We should also be able to change images to different formats (jpeg formats, brotli, grey scale, etc of whatever PDFs support), and as stated before this can be done on all or a per image basis or etc."* Folded into `616.4` B/C and `616.5`, not a new Pass. Acceptance criterion added: report shows each image's format before -> after. Indexed (palette quantisation) added to slice C; baseline/progressive JPEG and Flate PNG predictor to slice B.
+
+**Finding (dispatch premise corrected by grep):** the dispatch said pdfcer cannot read Brotli and that `brotli` is a new dependency. Both false: decode shipped in `Pass 123.0` (`4163ad9`, `pdfcer-model/src/filters/brotli.rs`, output ceiling, fixtures), the `brotli` crate is already classified permissive, and question `(bq)` closed 2026-08-25 with writing left as an engineer item. Owed is only the encoder (enable the crate's compressor half, same crate) and a dedicated fuzz target (none by name; unverified whether `content_and_filters.rs` reaches it).
+
+**Decision flag:** the Brotli write side (first write of an `/Extensions` entry plus header 2.0, off by default) merits a decision, suggested when `616.5` is scoped. `193` not consumed.
+
+**Register:** ROADMAP Shipped entry, `616.4`/`616.5` bodies, Next-up banner; FEATURES one Implemented row, three Planned rows rewritten/added (the old "Encode /BrotliDecode" row now points at `616.5`; it and the new Brotli row overlap and could be merged). Ceilings: decision next free `193`, `R263` and `Pass 617.0` unchanged. Next filing 1129th. Git, push and backup state not verified from here.
+
 ## 2026-10-21 (1127th filing) — scoping: decision 192, `Pass 616.4` split into slices A-D
 
 **Scoped (no code shipped, no shell here):** decision 192 (KenAgent `autonomous-builder`): `StreamAction::Image(ImagePatch)`, optional fields merged across default, rules, per-object override; Acrobat class panels as `image-class` rules. **Correction:** resolution basis is the LOWEST effective ppi per axis (largest drawn placement), not the highest; `ImageSpace::max_effective_ppi` measured the wrong end. `Pass 616.4` retitled in place and split: A downsampling (lossless Flate output), B JPEG, C conversion, D masks/unplaced/dedupe/presets. JPEG levels 20/40/60/80/95; colour boundary per decision 064.

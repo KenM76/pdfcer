@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.4` slice A — image downsampling per setting source, lossless Flate output — SHIPPED 2026-10-21 (1128th filing, `2bfea30c`)
+
+Code commit `2bfea30c` "feat(optimize): downsample images per setting source", after the 1127th filing `5a410cb1` (committed, not pushed at filing time). Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Slices B-D remain in *Next up*.
+
+- **Settings model (decision 192):** `StreamAction::Image(ImagePatch)`; keys `method` (off|average|subsample|bicubic|lanczos), `ppi`, `above` (trigger; default 1.5 x ppi, never below ppi), `encode` (keep|flate|flate-N), `min-saving` (0-99 %), `reset`. Field-wise fold streams -> rules -> object override; `leave`/`recompress-N` replace the whole state. Each resolved setting carries its source (default / streams / rule N / object override). Profile `parse_object` now splits on the first `=`, so `42 0=image(method=off)` works.
+- **Audit basis fixed:** `ImageSpace::binding_ppi`, `binding_ppi_x/y` (min per axis), `binding_placement`, `class()`; `max_effective_ppi` removed (it measured the wrong end). `Selector::image_classes` (profile key `image-class`, CLI `--rule "image-class=color,gray ..."`). A grep of `*.rs`/`*.md` for `max_effective_ppi` at this filing finds it only in decision 192 and its `ARCHITECTURE.md` §12 entry, where it is history.
+- **Scope of the resample:** generic-filter and unfiltered sources only, re-encoded Flate; shared resampling `Kernel` gains PIL-BOX "average"; Indexed nearest only. DCT/JPX/etc. -> `UnsupportedFilter`; unplaced -> new `SkipReason::Unplaced`; never-larger plus new `SkipReason::BelowMinSaving`.
+- **Deviation from the slice A bullets, recorded:** an image with a `/Matte` soft mask (and its parent) or a colour-key `/Mask` array is **refused** (new `SkipReason::ImageUnsupported`), not handled. That is slice D's lockstep work; slice A will not resample half of a mask pair.
+- **Report (text + JSON `image` object):** sizes before/after, binding placement (page, drawn size, ppi before -> after), each setting's source.
+- **Tests:** core lib 1640 passed / 2 ignored, integration 2995 + 237; CLI 43 + 905. 13 new image tests (5 unit, 8 end-to-end) + 1 CLI; three sabotage checks each caught. fmt, clippy `-D warnings`, code-structure, `check-core-api-verbs`, public-fns-documented and the audit list clean. No dependency or `Cargo.toml` change (`cargo tree` n/a). `core-api/03-capabilities.md` + index updated in the commit.
+- `FEATURES.md`: new Implemented row (core `[x]`, cli `[x]`, gui `[ ]`); Planned image rows rewritten for the format matrix (see the operator request in `Pass 616.4`/`616.5`). Ledgers: no decision (next free `193`); `R263` and `Pass 617.0` unchanged; next filing 1129th. Git, push and backup state not verified from here.
+
 ### `Pass 616.3` — Discard objects and user data, each individually selectable — COMPLETE 2026-10-21 (1126th filing, slice I `e83c4626`)
 
 Slices A `92102894`, B `07645ef5`, C `19b2af2b`, D `3a1d93f1`, E `16e42db6`, F `9cd6a9d3`, G `7a3f8078`, H `b906182d`, I `e83c4626`; fixes `5812c665` (recompression no longer undoes a flattened layer) and `c50ec207` (a removal is written even when not smaller; `save_optimized` takes `&OptimizePlan`, breaking for pdfcer-gui). Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit messages.
@@ -22606,6 +22618,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+(1128th filing: `Pass 616.4` slice A SHIPPED (`2bfea30c`, see *Shipped*); slices B-D and `616.5` remain, now widened to the full format matrix by an operator request of 2026-10-21. Next filing 1129th.)
+
 (1126th filing: `Pass 616.3` COMPLETE (slices A-I), see *Shipped*; next in the `616.x` arc `Pass 616.4`, next filing 1127th.)
 
 (1115th filing: `Pass 616.2` COMPLETE, see *Shipped*; next free `Pass 617.2`. The 1113th filing's `617.0`/`617.1` also in *Shipped*.)
@@ -24453,11 +24467,24 @@ Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level
 
 Original scope: wire in the existing 12 `doc_metadata` kinds. Add: alternate images, print settings, search index, tags, bookmarks, form actions, external cross-references, private application data, hidden layers (with visible-layer flatten), embedded thumbnails.
 
-### `Pass 616.4` — Images I: downsampling, requality, conversion — NEXT UP, 2026-10-20
+### `Pass 616.4` — Images I: downsampling, requality, conversion — SLICE A SHIPPED `2bfea30c` (2026-10-21); B-D NEXT UP
+
+**Operator-direct request, Ken 2026-10-21 (1128th filing), verbatim:** *"We should also be able to change images to different formats (jpeg formats, brotli, grey scale, etc of whatever PDFs support), and as stated before this can be done on all or a per image basis or etc."* Folded into slices B/C below and into `616.5`, not minted as a new Pass: the existing `encode=` key and the fold model (default -> `image-class`/other rules -> one object) already give all / per class / per image. **Acceptance criterion added:** the report shows, per image, the format before -> after (e.g. `Flate/DeviceRGB 8bpc -> DCT/DeviceGray`). Target matrix and where each lands:
+
+| encoding (`encode=`) | slice | note |
+|---|---|---|
+| keep, flate, flate-N | A (shipped) | PNG predictor option for flate: B |
+| dct (JPEG) baseline / progressive | B | quality levels, chroma |
+| runlength, lzw | 616.5 | |
+| jpx (JPEG 2000) | 616.5 | licence check first (`LEGAL.md` §6.1, rule 13) |
+| jbig2, ccitt G4 | 616.5 | lossy JBIG2 symbol matching opt-in |
+| brotli | 616.5 | see `616.5`; extension, off by default |
+
+Colour conversion targets (grey, bilevel, indexed) are slice C. ICC-managed conversion stays out (decision 064; iccce owns it).
 
 **Scoped 2026-10-21 (1127th filing) under decision 192** (`docs/decisions/192-image-optimise-settings.md`; `ARCHITECTURE.md` §12). Model: `StreamAction::Image(ImagePatch)`, optional fields merged field by field across default, rules, per-object override; Acrobat's per-class panels ship as rules selecting `image-class`. **Corrected 2026-10-21:** the original line read "Resample to the highest ppi any placement needs", which is backwards; the rule is **resample so the lowest-ppi (largest drawn) placement keeps the target, per axis**. `ImageSpace::max_effective_ppi` measured the wrong end and is replaced by `binding_ppi`. Slices, in order:
 
-- **A — downsampling, lossless output.** Do first.
+- **A — downsampling, lossless output.** **SHIPPED `2bfea30c`** (entry in *Shipped*). Bullets below kept as scoped; deviation: `/Matte` and colour-key images are refused, not handled (slice D).
   - Fix the audit's ppi basis: `binding_ppi` (min per axis); the selector's min/max-ppi tests it.
   - `ImagePatch` type with profile/CLI parse and display, and the field-wise merge.
   - `Selector::image_classes` (color/gray/mono/indexed).
@@ -24466,8 +24493,8 @@ Original scope: wire in the existing 12 `doc_metadata` kinds. Add: alternate ima
   - Unplaced images skipped with a reason.
   - The report names the binding placement (page, drawn size, ppi before and after).
   - Only-if-smaller guard plus `min-saving`.
-- **B — JPEG.** `encode=jpeg` with quality (numeric plus named levels: minimum 20, low 40, medium 60, high 80, maximum 95) and chroma; DCT sources decoded, resampled and re-encoded with quality capped at the source's estimated quality; inverted Adobe CMYK /Decode kept; 16 bpc to 8 itemised as lossy.
-- **C — conversion.** Grey via the ISO 32000-2 §10.4.2.2/§10.4.2.3 device formulas; bilevel by Otsu (threshold disclosed), fixed or dither; ICCBased-by-formula disclosed "not colour-managed"; Lab/Separation/DeviceN skipped with a reason.
+- **B — JPEG.** `encode=jpeg` with **baseline or progressive** output, quality (numeric plus named levels: minimum 20, low 40, medium 60, high 80, maximum 95) and chroma; Flate **PNG-predictor option** (`encode=flate-N` with predictor); DCT sources decoded, resampled and re-encoded with quality capped at the source's estimated quality; inverted Adobe CMYK /Decode kept; 16 bpc to 8 itemised as lossy.
+- **C — conversion.** Grey via the ISO 32000-2 §10.4.2.2/§10.4.2.3 device formulas; bilevel by Otsu (threshold disclosed), fixed or dither; **Indexed (palette quantisation, disclosed lossy, colour count and method named in the report)** added 2026-10-21 by the operator request above; ICCBased-by-formula disclosed "not colour-managed"; Lab/Separation/DeviceN skipped with a reason.
 - **D — masks, unplaced, dedupe, presets.**
   - SMask/Matte lockstep, mask placements inherited from the parent.
   - Colour-key masks subsample-or-skip.
@@ -24478,9 +24505,16 @@ Original scope: wire in the existing 12 `doc_metadata` kinds. Add: alternate ima
 
 Mono results are mostly not-smaller until `616.5` adds CCITT/JBIG2 encoders; disclosed, not hidden.
 
-### `Pass 616.5` — Images II: encoders — NEXT UP, 2026-10-20
+### `Pass 616.5` — Images II: encoders, and Brotli for any stream — NEXT UP, 2026-10-20; widened 2026-10-21
 
-CCITT G4 encode, RunLength encode, JBIG2 generic lossless encode. **Lossy JBIG2 symbol matching is opt-in, off by default and disclosed**, because it can substitute characters. JPEG2000 encode is subject to a dependency licence check first (`LEGAL.md` §6.1, rule 13).
+CCITT G4 encode, RunLength encode, LZW encode, JBIG2 generic lossless encode, all selectable through the same `encode=` key on all images, a rule or one object (operator request of 2026-10-21, recorded under `616.4`). **Lossy JBIG2 symbol matching is opt-in, off by default and disclosed**, because it can substitute characters. JPEG2000 encode is subject to a dependency licence check first (`LEGAL.md` §6.1, rule 13).
+
+**Brotli write side (operator request 2026-10-21; also closes the `FEATURES.md` Planned row "Encode `/BrotliDecode` streams").** For images AND any stream (`--streams brotli` style). **Premises corrected at filing, by grep of the tree:**
+- **Decode already ships** (`Pass 123.0`, `4163ad9`; `crates/pdfcer-model/src/filters/brotli.rs`): `/BrotliDecode` is read, with an output ceiling and fixture tests that use the crate's encoder test-only. Not owed.
+- **The `brotli` crate is already a dependency**, classified BSD-3-Clause AND MIT, both permissive, "no operator call" (`crates/pdfcer-model/Cargo.toml`, `docs/DEPENDENCIES.md`). What is new is enabling its **compressor half**, which `default-features = false` currently compiles out: a feature change in the same crate, not a new dependency. Check the compressor's own licence/transitive set (rule 13) and `cargo tree` before enabling; I have not verified either. Pure-Rust backend must hold (static-binary and WASM invariants).
+- **Operator question `(bq)` is closed** (2026-08-25, "implement now, against the extension"), and its record states that writing was left as the engineer's own Backlog item, not a question back to Ken. Consequence already accepted: files written with Brotli will not open in software that lacks the extension.
+- **Still owed from the request:** a dedicated Brotli fuzz target (none under `fuzz/fuzz_targets/` by name; whether `content_and_filters.rs` reaches the decoder is unverified); the write side itself.
+- **Write-side contract:** writes the `/Extensions` entry for `PDFa` (EXTN-BROTLI-1 v1.3, `ExtensionLevel 1`, `BaseVersion 2.0`) and raises the header to 2.0; **OFF by default**; the report discloses it ("readers without the extension cannot open these streams"). Round-trip rule 3 is not in conflict: optimize rewrites a stream only when asked, never an untouched one. Not allowed in inline images (EXTN-BROTLI-1 §5.2; `ImageCodecError::BrotliNotAllowedInline` already enforces it on read). Suggest a decision (next free `193`, **not consumed**) when this slice is scoped, because it is the first write of an extension declaration and of a version bump.
 
 ### `Pass 616.6` — Fonts: re-subset, merge duplicate subsets, unembed — NEXT UP, 2026-10-20
 
