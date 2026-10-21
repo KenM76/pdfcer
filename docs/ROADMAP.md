@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 617.5` (`1aebeb0b`), 2026-10-21 — a ce dimension colour takes grey or CMYK (`G221`) (1150th filing)
+
+Code commit `1aebeb0b` "feat(dimension): a ce dimension colour takes grey or CMYK (Pass 617.5, G221)", after the 1149th filing. Core + CLI; `pdfcer-gui` does not yet consume grey/CMYK (gui box unchanged, not rounded up). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Request: `request_G221_ce_dimension_colour_takes_rgb_only.md`, answered by `reply_G221_ce_dimension_colour_takes_rgb_only_FIXED.md` (both in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`).
+
+- **Core:** a ce dimension's colour was DeviceRGB only. `DimensionStyle`, `StyleDefaults`, `GroupStyle`, `StyleOverrides` and the sidecar style keys now carry `annot_author::Color` (Gray/Rgb/Cmyk). It stays in its own device space through `/AP` (`G`/`RG`/`K`), `/C` (1/3/4 numbers, ISO 32000-1 Table 164) and the sidecar. An `Rgb` with equal components still emits `g`/`G`, so existing output is byte-identical. **Breaking for the GUI:** `.color` is now `Color`; use `rgb.into()`.
+- **CLI:** `dimension-style` and `group-style` `--color` accept `gray:v` and `cmyk:c,m,y,k`; `dimension-list --style` prints them back in that form.
+- **Docs:** `docs/core-api/02-editing-and-saving.md` updated; `check-core-api-verbs` green.
+- **Tests (engineer-reported):** core `a_grey_or_cmyk_ce_dimension_colour_stays_in_its_own_device_space` (sabotage-checked); CLI `a_model_colour_reads_back_in_its_own_device_space`. Core lib 1,727; core `--test all` 2,998; CLI `--test all` 921 (2 ignored each). fmt, clippy `-D warnings`, shell gates green. No manifest change, so `cargo tree` not affected.
+
+`FEATURES.md`: *ce-dimension style* row gains one clause (core `[x]`, cli `[x]`; gui box unchanged, stated in the row as not yet consuming grey/CMYK). No other row touched. No decision; no rule. Breaking-signature sweep of describing text outside `crates/` not run beyond `core-api` (engineer updated it); `pdfcer-gui` callers need `.into()` when it next bumps. Ledgers: next free `Pass 617.6` (`G222`, text fill opacity via ExtGState `/ca` on FormatRequest and Add Text, next in flight), decision `194`, `R263`; next filing 1151st. Git, push and backup state not verified from here.
+
 ### `Pass 617.4` (`031f48b1`), 2026-10-21 — recolouring a path takes grey or CMYK (`G220`) (1149th filing)
 
 Code commit `031f48b1` "feat(vector): recolouring a path takes grey or CMYK (Pass 617.4, G220)", after the 1148th filing. Core + CLI; `pdfcer-gui` has not yet passed a grey/CMYK colour (gui box for the RGB recolour unchanged). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Request: `request_G220_object_paint_takes_rgb_only.md` (reply written in the channel).
