@@ -49,7 +49,7 @@
 //!
 //! # What this module deliberately does NOT do
 //!
-//! **No encoding on its own initiative.** [`encode`] exists for the
+//! **No encoding on its own initiative.** `encode` exists for the
 //! optimizer's named `brotli` action only (decision 194): an untouched Brotli
 //! stream is re-emitted byte-identical, never re-compressed.
 //!

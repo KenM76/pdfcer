@@ -1,4 +1,4 @@
-//! The [`FontResubsetter`] a shell installs for `pdfcer-core`'s optimize
+//! The [`FontResubsetter`](pdfcer_core::optimize::resubset::FontResubsetter) a shell installs for `pdfcer-core`'s optimize
 //! run: an embedded TrueType program with every glyph record the document
 //! cannot draw emptied, and every glyph ID, table and mapping kept
 //! (`docs/font-resubset-plan.md`).
