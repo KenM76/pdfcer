@@ -1098,6 +1098,31 @@ fn an_lzw_image_reports_its_format_and_the_flate_size() {
 }
 
 #[test]
+fn a_brotli_image_reports_its_format_and_declares_the_extension() {
+    let d = dir("image-brotli");
+    let input = noise_image_pdf(&d);
+    let out = d.join("out.pdf");
+    let o = run(&[
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--keep-structure",
+        "--streams",
+        "image(encode=brotli-9)",
+    ]);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(report.contains("-> Brotli/DeviceGray 8 bit"), "{report}");
+    assert!(report.contains("written as brotli-9"), "{report}");
+    assert!(report.contains("(Flate would be "), "{report}");
+    assert!(report.contains("note: Brotli streams need"), "{report}");
+    let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(written.contains("/Filter /BrotliDecode"), "{written}");
+    assert!(written.contains("extension-brotli"), "no extension");
+    assert!(written.contains("/Version /2.0"), "no version raise");
+}
+
+#[test]
 fn a_ccitt_image_needs_bilevel_output_and_reports_its_format() {
     let d = dir("image-ccitt");
     let input = noise_image_pdf(&d);

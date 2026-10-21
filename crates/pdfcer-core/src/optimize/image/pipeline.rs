@@ -129,6 +129,8 @@ pub(crate) enum Target {
     RunLength,
     /// `/LZWDecode`, predicted as `predictor` says.
     Lzw { predictor: Predictor },
+    /// `/BrotliDecode` at `quality`, predicted as `predictor` says.
+    Brotli { quality: u8, predictor: Predictor },
     /// `/CCITTFaxDecode` Group 4, 1-bit 1-component samples only.
     Ccitt,
     /// `/JBIG2Decode` generic region, 1-bit 1-component samples only.
@@ -140,6 +142,8 @@ pub(crate) enum Target {
 
 /// The version `/JBIG2Decode` needs (ISO 32000-1 §7.4.7).
 const JBIG2_VERSION: crate::PdfVersion = crate::PdfVersion { major: 1, minor: 4 };
+/// EXTN-BROTLI-1 extends PDF 2.0.
+const BROTLI_VERSION: crate::PdfVersion = crate::PdfVersion { major: 2, minor: 0 };
 
 /// A planned rewrite, redone on a stream an earlier step of the run
 /// rewrote.
@@ -305,8 +309,12 @@ pub(crate) fn decide(
     )
     .map_err(SkipReason::ImageUnsupported)?;
     let encode = settings.encode.value;
-    if encode == ImageEncode::Lzw && ctx.pdfa {
-        return Err(unsupported(ImageSkip::LzwUnderPdfa));
+    if ctx.pdfa {
+        match encode {
+            ImageEncode::Lzw => return Err(unsupported(ImageSkip::LzwUnderPdfa)),
+            ImageEncode::Brotli { .. } => return Err(unsupported(ImageSkip::BrotliUnderPdfa)),
+            _ => {}
+        }
     }
     let source = match (resized, encode, &convert) {
         (None, ImageEncode::Keep, None) => return Ok(Outcome::Unchanged),
@@ -403,14 +411,20 @@ fn bilevel_only(
 }
 
 /// The version to raise the document to for an encoder whose filter its
-/// version predates (`JBIG2Decode` is PDF 1.4, ISO 32000-1 §7.4.7), or
-/// the skip under `version-raise=refuse` (decision 193).
+/// version predates (`JBIG2Decode` is PDF 1.4, ISO 32000-1 §7.4.7;
+/// `BrotliDecode` 2.0, EXTN-BROTLI-1), or the skip under
+/// `version-raise=refuse` (decisions 193, 194).
 fn filter_version(
     settings: &ResolvedImage,
     document: crate::PdfVersion,
 ) -> Result<Option<crate::PdfVersion>, SkipReason> {
-    let (encode, needs) = (settings.encode.value, JBIG2_VERSION);
-    if encode != ImageEncode::Jbig2 || document >= needs {
+    let encode = settings.encode.value;
+    let needs = match encode {
+        ImageEncode::Jbig2 => JBIG2_VERSION,
+        ImageEncode::Brotli { .. } => BROTLI_VERSION,
+        _ => return Ok(None),
+    };
+    if document >= needs {
         Ok(None)
     } else if settings.version_raise.value == VersionRaise::Refuse {
         Err(unsupported(ImageSkip::VersionTooLow {
@@ -430,6 +444,7 @@ const fn lossless_target(encode: ImageEncode, predictor: Predictor, jbig2: bool)
         ImageEncode::Auto => Target::Auto { predictor, jbig2 },
         ImageEncode::RunLength => Target::RunLength,
         ImageEncode::Lzw => Target::Lzw { predictor },
+        ImageEncode::Brotli { quality } => Target::Brotli { quality, predictor },
         ImageEncode::Ccitt => Target::Ccitt,
         ImageEncode::Jbig2 => Target::Jbig2,
         ImageEncode::Flate { level } => Target::Flate { level, predictor },
@@ -554,14 +569,20 @@ fn change(
         (b.ppi_x * sx).min(b.ppi_y * sy)
     });
     let (encoded_as, bpc_after) = match job.target {
-        Target::Flate { .. } | Target::RunLength | Target::Lzw { .. } | Target::Auto { .. }
+        Target::Flate { .. }
+        | Target::RunLength
+        | Target::Lzw { .. }
+        | Target::Brotli { .. }
+        | Target::Auto { .. }
             if job.convert.is_some() =>
         {
             (encoded(job.target), 8)
         }
-        Target::Flate { .. } | Target::RunLength | Target::Lzw { .. } | Target::Auto { .. } => {
-            (encoded(job.target), job.bpc)
-        }
+        Target::Flate { .. }
+        | Target::RunLength
+        | Target::Lzw { .. }
+        | Target::Brotli { .. }
+        | Target::Auto { .. } => (encoded(job.target), job.bpc),
         Target::Jpeg(_) => (ImageEncode::Jpeg, 8),
         Target::Ccitt => (ImageEncode::Ccitt, 1),
         Target::Jbig2 => (ImageEncode::Jbig2, 1),
@@ -602,6 +623,7 @@ pub(super) const fn encoded(target: Target) -> ImageEncode {
         Target::Jpeg(_) => ImageEncode::Jpeg,
         Target::RunLength => ImageEncode::RunLength,
         Target::Lzw { .. } => ImageEncode::Lzw,
+        Target::Brotli { quality, .. } => ImageEncode::Brotli { quality },
         Target::Ccitt => ImageEncode::Ccitt,
         Target::Jbig2 => ImageEncode::Jbig2,
         Target::Auto { .. } => ImageEncode::Auto,

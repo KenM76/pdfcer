@@ -5,7 +5,7 @@
 use std::fmt;
 
 use crate::filters::predictor::{self, Params};
-use crate::filters::{FilterError, flate, lzw};
+use crate::filters::{FilterError, brotli, flate, lzw};
 use crate::object::{Dict, Name, Object};
 
 /// Whether Flate- or LZW-written image samples are PNG-predicted.
@@ -55,6 +55,8 @@ pub(crate) enum Codec {
     Flate(u8),
     /// LZW, `/EarlyChange 1`.
     Lzw,
+    /// Brotli at this quality.
+    Brotli(u8),
 }
 
 impl Codec {
@@ -62,11 +64,17 @@ impl Codec {
         match self {
             Self::Flate(level) => Ok(flate::encode_with_level(data, u32::from(level))),
             Self::Lzw => lzw::encode(data),
+            Self::Brotli(quality) => {
+                brotli::encode(data, u32::from(quality)).map_err(|e| FilterError::Corrupt {
+                    filter: "BrotliDecode",
+                    detail: e.to_string(),
+                })
+            }
         }
     }
 }
 
-/// Samples compressed for `/FlateDecode` or `/LZWDecode`.
+/// Samples compressed for `/FlateDecode`, `/LZWDecode` or `/BrotliDecode`.
 pub(crate) struct Flated {
     pub(crate) data: Vec<u8>,
     /// The `/DecodeParms` a predicted result needs.

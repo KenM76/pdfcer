@@ -102,6 +102,16 @@ pub enum ImageEncode {
     /// image in a document claiming PDF/A is skipped (ISO 19005 forbids
     /// LZW).
     Lzw,
+    /// `/BrotliDecode` (PDF Association EXTN-BROTLI-1, RFC 7932) at
+    /// `quality`, PNG-predicted like Flate. Lossless. Written only when
+    /// named (decision 194): the report gives the Flate size too, the
+    /// document is raised to PDF 2.0 (subject to `version-raise`) and
+    /// declares the extension, and an image in a document claiming PDF/A
+    /// is skipped. Only readers supporting the extension open it.
+    Brotli {
+        /// Brotli quality, 0 to 11.
+        quality: u8,
+    },
     /// `/CCITTFaxDecode` Group 4 (`/K -1`, ITU-T T.6). Lossless, for
     /// 1-bit, 1-component output only: the source, or a `convert=bilevel`
     /// result. Both polarities are coded and the smaller kept, with
@@ -115,7 +125,7 @@ pub enum ImageEncode {
     /// The smallest lossless candidate (decision 193): Flate level 9 and
     /// RunLength for any image, plus CCITT G4 and JBIG2 for 1-bit,
     /// 1-component output, JBIG2 only where the document's version allows
-    /// it. Never LZW, never lossy, never a version raise. Ties go to the
+    /// it. Never LZW or Brotli, never lossy, never a version raise. Ties go to the
     /// earlier of Flate, CCITT, RunLength, JBIG2. A JPEG source is treated
     /// as under `Keep`, and a source this pipeline cannot decode is left
     /// as stored. The report lists every candidate's size.
@@ -130,6 +140,7 @@ impl fmt::Display for ImageEncode {
             Self::Jpeg => f.write_str("jpeg"),
             Self::RunLength => f.write_str("runlength"),
             Self::Lzw => f.write_str("lzw"),
+            Self::Brotli { quality } => write!(f, "brotli-{quality}"),
             Self::Ccitt => f.write_str("ccitt"),
             Self::Jbig2 => f.write_str("jbig2"),
             Self::Auto => f.write_str("auto"),
@@ -369,20 +380,30 @@ fn parse_encode(value: &str) -> Result<ImageEncode, String> {
         "jpeg" => Ok(ImageEncode::Jpeg),
         "runlength" => Ok(ImageEncode::RunLength),
         "lzw" => Ok(ImageEncode::Lzw),
+        "brotli" => Ok(ImageEncode::Brotli { quality: 11 }),
         "ccitt" => Ok(ImageEncode::Ccitt),
         "jbig2" => Ok(ImageEncode::Jbig2),
         "auto" => Ok(ImageEncode::Auto),
-        _ => value
-            .strip_prefix("flate-")
-            .and_then(|n| n.parse::<u8>().ok())
-            .filter(|n| *n <= 9)
-            .map(|level| ImageEncode::Flate { level })
-            .ok_or_else(|| {
-                format!(
-                    "image(): unknown encode {value:?}; expected keep, auto, flate, flate-0..9, jpeg, runlength, lzw, ccitt or jbig2"
-                )
-            }),
+        _ => numbered_encode(value).ok_or_else(|| {
+            format!(
+                "image(): unknown encode {value:?}; expected keep, auto, flate, flate-0..9, jpeg, runlength, lzw, brotli, brotli-0..11, ccitt or jbig2"
+            )
+        }),
     }
+}
+
+/// `flate-N` (0 to 9) or `brotli-N` (0 to 11).
+fn numbered_encode(value: &str) -> Option<ImageEncode> {
+    let n = |prefix: &str, max: u8| {
+        value
+            .strip_prefix(prefix)?
+            .parse::<u8>()
+            .ok()
+            .filter(|n| *n <= max)
+    };
+    n("flate-", 9)
+        .map(|level| ImageEncode::Flate { level })
+        .or_else(|| n("brotli-", 11).map(|quality| ImageEncode::Brotli { quality }))
 }
 
 fn parse_quality(value: &str) -> Result<u8, String> {
@@ -691,6 +712,8 @@ pub(crate) fn fold(actions: impl IntoIterator<Item = (StreamAction, SettingSourc
 
 #[cfg(test)]
 mod pipeline_auto_tests;
+#[cfg(test)]
+mod pipeline_brotli_tests;
 #[cfg(test)]
 mod pipeline_cap_tests;
 #[cfg(test)]

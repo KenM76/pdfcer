@@ -72,6 +72,11 @@ pub enum ImageSkip {
     LzwUnderPdfa,
     /// The LZW encoder failed, with its message.
     LzwEncode(String),
+    /// `encode=brotli` on a document claiming PDF/A, whose filter list
+    /// has no `BrotliDecode` (decision 194).
+    BrotliUnderPdfa,
+    /// The Brotli encoder failed, with its message.
+    BrotliEncode(String),
     /// A rule or the `images` patch asked for a bilevel-only encoder
     /// (`ccitt`, `jbig2`) on an image whose output is not 1-bit,
     /// 1-component.
@@ -81,7 +86,8 @@ pub enum ImageSkip {
     /// `convert=bilevel` step.
     NotBilevelOverride(ImageEncode),
     /// The encoder's filter is newer than the version the document
-    /// declares (`jbig2` is PDF 1.4) and `version-raise=refuse`.
+    /// declares (`jbig2` is PDF 1.4, `brotli` 2.0) and
+    /// `version-raise=refuse`.
     VersionTooLow {
         /// The encoder asked for.
         encode: ImageEncode,
@@ -156,11 +162,13 @@ impl fmt::Display for ImageSkip {
             Self::ReducedAsJpeg => {
                 f.write_str("a bilevel or palette result is not written as JPEG")
             }
-            Self::JpegComponents => f.write_str("JPEG stores 1, 3 or 4 colour components"),
-            Self::JpegMismatch => f.write_str("its JPEG data disagrees with its dictionary"),
-            Self::JpegEncode(why) => write!(f, "the JPEG encoder failed: {why}"),
-            Self::LzwUnderPdfa => f.write_str("the document claims PDF/A, which forbids LZW"),
-            Self::LzwEncode(why) => write!(f, "the LZW encoder failed: {why}"),
+            Self::JpegComponents
+            | Self::JpegMismatch
+            | Self::JpegEncode(_)
+            | Self::LzwUnderPdfa
+            | Self::LzwEncode(_)
+            | Self::BrotliUnderPdfa
+            | Self::BrotliEncode(_) => self.fmt_encoder(f),
             Self::NotBilevel(e) => {
                 write!(f, "not bilevel: {e} codes 1-bit, 1-component images only")
             }
@@ -197,6 +205,24 @@ impl fmt::Display for ImageSkip {
                 source_estimate: None,
                 ..
             } => f.write_str("already JPEG, at a quality that cannot be estimated"),
+        }
+    }
+}
+
+impl ImageSkip {
+    /// The sentence for an encoder's refusal or failure.
+    fn fmt_encoder(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::JpegComponents => f.write_str("JPEG stores 1, 3 or 4 colour components"),
+            Self::JpegMismatch => f.write_str("its JPEG data disagrees with its dictionary"),
+            Self::JpegEncode(why) => write!(f, "the JPEG encoder failed: {why}"),
+            Self::LzwUnderPdfa => f.write_str("the document claims PDF/A, which forbids LZW"),
+            Self::LzwEncode(why) => write!(f, "the LZW encoder failed: {why}"),
+            Self::BrotliUnderPdfa => {
+                f.write_str("the document claims PDF/A, which does not allow Brotli")
+            }
+            Self::BrotliEncode(why) => write!(f, "the Brotli encoder failed: {why}"),
+            _ => Ok(()),
         }
     }
 }

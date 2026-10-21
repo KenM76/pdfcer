@@ -13,7 +13,7 @@ use crate::writer::SaveOptions;
 
 /// 300 x 300 grey, a horizontal ramp repeated on every row, stored
 /// unfiltered: LZW and Flate both compress it well.
-fn ramp() -> (Vec<u8>, Vec<u8>) {
+pub(super) fn ramp() -> (Vec<u8>, Vec<u8>) {
     let px: Vec<u8> = (0..N * N).map(|i| ((i % N) * 255 / N) as u8).collect();
     let obj = stream(
         &format!(

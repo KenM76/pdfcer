@@ -165,6 +165,17 @@ fn encode(
                 ..plain(done.data, b"LZWDecode")
             }
         }
+        Target::Brotli { quality, predictor } => {
+            let done = predicted(Codec::Brotli(quality), predictor).map_err(|e| {
+                SkipReason::ImageUnsupported(ImageSkip::BrotliEncode(e.to_string()))
+            })?;
+            let flate = predicted(Codec::Flate(9), predictor).map_err(failed)?;
+            Encoded {
+                parms: done.parms,
+                flate_bytes: Some(flate.data.len() as u64),
+                ..plain(done.data, b"BrotliDecode")
+            }
+        }
         Target::Jpeg(opts) => {
             let n = u8::try_from(components).unwrap_or(0);
             let data = jpeg_write::encode(pixels, job.out.0, job.out.1, n, opts)
@@ -350,6 +361,7 @@ fn source_samples(
                 Target::Flate { .. }
                     | Target::RunLength
                     | Target::Lzw { .. }
+                    | Target::Brotli { .. }
                     | Target::Ccitt
                     | Target::Jbig2
                     | Target::Auto { .. }

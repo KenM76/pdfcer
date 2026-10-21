@@ -498,13 +498,17 @@ impl OptimizePlan {
             .max()
     }
 
-    /// Whether a change writes `/BrotliDecode`, so committing the plan adds
+    /// Whether a change writes `/BrotliDecode` (a `brotli` stream action or
+    /// an image written with `encode=brotli`), so committing the plan adds
     /// the Brotli developer extension to the catalog (decision 194).
     #[must_use]
     pub fn uses_brotli(&self) -> bool {
-        self.changes
-            .iter()
-            .any(|c| matches!(c.action, StreamAction::Brotli { .. }))
+        self.changes.iter().any(|c| {
+            matches!(c.action, StreamAction::Brotli { .. })
+                || c.image
+                    .as_ref()
+                    .is_some_and(|i| matches!(i.encoded_as, ImageEncode::Brotli { .. }))
+        })
     }
 
     /// Whether the plan removes content: a clean-up or a discard, as

@@ -47,7 +47,7 @@ pub(crate) struct OptimizeArgs {
     /// (other streams keep the preset's action): "image(ppi=150)" downsamples every image whose largest drawn
     /// use is above 1.5 x 150 ppi to 150 ppi there. Keys: method
     /// (off|average|subsample|bicubic|lanczos), ppi, above (the trigger),
-    /// encode (keep|auto|flate|flate-N|jpeg|runlength|lzw|ccitt|jbig2; auto writes the smallest lossless filter the document version allows; ccitt and jbig2 need 1-bit output, jbig2 PDF 1.4), quality (1-100 or minimum, low,
+    /// encode (keep|auto|flate|flate-N|jpeg|runlength|lzw|brotli|brotli-N|ccitt|jbig2; auto writes the smallest lossless filter the document version allows; ccitt and jbig2 need 1-bit output, jbig2 PDF 1.4; brotli, quality 0-11, needs PDF 2.0, adds the Brotli extension and is skipped for PDF/A), quality (1-100 or minimum, low,
     /// medium, high, maximum; default 80), chroma (auto|444|420),
     /// progressive, convert (keep|gray|bilevel|indexed), threshold (otsu,
     /// dither or 0-255, for bilevel), colors (2-256, for indexed; default
@@ -56,7 +56,8 @@ pub(crate) struct OptimizeArgs {
     /// subsample: a colour-keyed image is downsampled by nearest pixel so
     /// its key still matches), version-raise (allow|refuse, default allow:
     /// encode=jbig2 in a document older than PDF 1.4 sets the catalog's
-    /// /Version to 1.4 and says so; refuse skips the image), max-pixels (an image drawn on no page has
+    /// /Version to 1.4, encode=brotli below 2.0 sets 2.0, and says so;
+    /// refuse skips the image), max-pixels (an image drawn on no page has
     /// no resolution, so it is skipped unless this caps its width x height),
     /// min-saving (percent), reset.
     /// "image(encode=jpeg)"
