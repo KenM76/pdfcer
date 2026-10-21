@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.6` (slice 1, `23c89cd2`), 2026-10-21 — unembed fonts inside an optimize run; `Pass 616.6` NOT complete (1155th filing)
+
+Code commit `23c89cd2` "feat(optimize): unembed fonts in an optimize run (Pass 616.6 slice 1)". Core + CLI; no GUI (separate project). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message.
+
+- **Core:** `OptimizeSettings::unembed: Option<UnembedRequest>`, planned in `plan_optimize`, committed by `apply_optimize` inside its single Optimize undo entry via `unembed_fonts` (same refusal rules as the standalone `unembed-font` verb). A freed font program is dropped from the stream changes, not also recompressed. A PDF/A-identified document plans nothing plus a note (standalone `unembed-font --acknowledge-pdfa` stays the override). Notes disclose appearance change, subset-tag rename, programs kept because shared, unmatched names. `StalePlan` if fonts would plan differently; new `OptimizeError::UnembedFailed { reason }` rolls the whole call back. New `OptimizePlan::unembed`, `OptimizePlan::font_saving()`; `removes_content()` now counts an unembed.
+- **Profile keys:** `unembed-fonts` (`"all"` / names / `[]`), `unembed-font-ids`, `keep-subset-tag` (must follow a selection).
+- **CLI:** `pdfcer optimize --unembed-fonts all|none|NAMES`, `--keep-subset-tag`; the report gains a `fonts:` block (each font unembedded, each kept with its reason); JSON `fonts` member. `docs/core-api/03-capabilities.md` updated; `check-core-api-verbs.py` green.
+- **Tests (engineer-reported):** core lib 1,750 (+7 `edit::optimize_fonts`, +3 profile), core `--test all` 3,008, cli `--test all` 932 (+6 `optimize_fonts`), model lib 417; fmt, clippy `-D warnings` and the project gate set (incl. `check-code-structure`) green. Sabotage: skipping the unembed call fails the undo-entry test. No manifest change, `cargo tree` unchanged, no new dependency.
+- **Still open in `Pass 616.6`:** re-subset existing subsets; merge duplicate subsets of the same face.
+
+`FEATURES.md`: the *Reduce file size by lossless stream recompression* row gains font unembed (core + cli; gui not); the standalone unembed row untouched; the Planned *Font re-subsetting* row loses its unembed clause. No decision; no rule. Ledgers: next free `Pass 617.8`, decision `195`, `R263`; next filing 1156th.
+
 ### `Pass 617.7` (`dc168e27`), 2026-10-21 — a stored colour gives its screen RGB (`G223`) (1154th filing)
 
 Code commit `dc168e27` "feat(annot): a stored colour gives its screen RGB (Pass 617.7, G223)". Core only; no CLI change (the CLI prints colours in model form); `pdfcer-gui` has not yet consumed it. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Request: `request_G223_annot_colour_has_no_public_screen_rgb.md`, answered by `reply_G223_annot_colour_has_no_public_screen_rgb_FIXED.md` (channel).
@@ -24886,9 +24898,11 @@ Mono results are mostly not-smaller until `616.5` adds CCITT/JBIG2 encoders; dis
 - **Still owed from the request (as filed; the stream half is now built):** a dedicated Brotli fuzz target (none under `fuzz/fuzz_targets/` by name; whether `content_and_filters.rs` reaches the decoder is unverified); the write side itself.
 - **Write-side contract:** writes the `/Extensions` entry for `PDFa` (EXTN-BROTLI-1 v1.3, `ExtensionLevel 1`, `BaseVersion 2.0`) and raises the header to 2.0; **OFF by default**; the report discloses it ("readers without the extension cannot open these streams"). Round-trip rule 3 is not in conflict: optimize rewrites a stream only when asked, never an untouched one. Not allowed in inline images (EXTN-BROTLI-1 §5.2; `ImageCodecError::BrotliNotAllowedInline` already enforces it on read). **Decision 194 filed (1148th, `ARCHITECTURE.md` §12; design only, no code yet):** explicit-only (`brotli` / `brotli-N`, N 0..=11, default 11; never `auto`, preset or fallback), standard window (lgwin 22), declares `/Extensions /PDFa` and raises catalog `/Version` to 2.0 (both disclosed), refused under PDF/A, never inline or ObjStm/XRef/Metadata, same only-if-smaller and `min-saving` guards. Next free decision `195`.
 
-### `Pass 616.6` — Fonts: re-subset, merge duplicate subsets, unembed — NEXT UP, 2026-10-20
+### `Pass 616.6` — Fonts: re-subset, merge duplicate subsets, unembed — IN PROGRESS (slice 1 shipped `23c89cd2`, 2026-10-21)
 
 Re-subset embedded fonts to the glyphs actually used; merge duplicate subsets; integrate `font_unembed::plan`; Type1 to CFF conversion later.
+
+**Slice 1 SHIPPED (1155th filing): unembed inside an optimize run. Remaining: re-subset existing subsets; merge duplicate subsets of the same face; Type1 to CFF later.**
 
 ### `Pass 616.7` — Content-stream optimisation — NEXT UP, 2026-10-20
 

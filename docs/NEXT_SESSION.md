@@ -5,7 +5,7 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-20, during the size-reduction arc (Ken 2026-10-20: "meet
+**Written:** 2026-10-21, during the size-reduction arc (Ken 2026-10-20: "meet
 or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## State
@@ -22,14 +22,20 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   files out first or the build is `-dirty`.
 - **Size-reduction arc (`616.x`):** 616.0 space audit, 616.1 optimize
   framework (presets, TOML profiles, rules, per-object overrides,
-  never-larger), 616.2 structure rebuild + navigation clean-up +
-  `--compression` modes — all shipped, core + cli. **Next: 616.3** (discard
-  objects and user data, each selectable; wire the 12 `doc_metadata` kinds).
-  Then 616.4-616.10 (images, encoders, fonts, content streams,
-  linearization, quality/byte-budget, compatibility target).
+  never-larger), 616.2 structure rebuild + navigation clean-up, 616.3
+  discards, 616.4 images (complete) — shipped, core + cli. 616.5 encoders:
+  RunLength/LZW/CCITT G4/JBIG2/auto/version-raise and Brotli (streams +
+  images, decision 194) shipped; still open only for the Acrobat Reader
+  render checks (Brotli recorded as unverified). **616.6 fonts: slice 1
+  (unembed inside optimize, `--unembed-fonts`) shipped.** Remaining 616.6:
+  re-subset existing subsets (glyph-usage enumerator + GID-keeping
+  glyph-zeroing subsetter in render behind a core trait hook, the
+  `EmbeddedGlyphs`/`SubsetAugmenter` options pattern), then merge duplicate
+  subsets of one face. Then 616.7-616.10 (content streams, linearization,
+  quality/byte-budget, compatibility target).
 - **Questions for Ken, raise when the Pass needs them:** lossy JBIG2 off by
-  default? a transparency flattener? Brotli as an opt-in? which JPX/JBIG2
-  encoder (licence check first)?
+  default? a transparency flattener? JPX encoder (licence check first)?
+- **Owed to pdfceGUI:** a heads-up that the presets now use `encode=auto`.
 - **CI:** 88dfe717 failed the public-fn-docs audit (`emit.rs::write`), fixed
   in 6d77fac3. Run every `check-ci-parity.py --list` audit before a push —
   a hand-typed sweep missed it.
@@ -45,7 +51,7 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## Next
 
-1. Pass 616.3; scope from the Acrobat RAG `optimize__discard_objects.md`.
+1. Pass 616.6 re-subsetting (see State).
 2. Each loop tick: the three inbound channels (GitHub issues, both
    FeatureRequests folders).
 

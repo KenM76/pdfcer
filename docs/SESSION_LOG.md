@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1155th filing) — `Pass 616.6` slice 1 in `23c89cd2`: unembed fonts inside an optimize run
+
+**Shipped:** `Pass 616.6` slice 1 (core + cli): `OptimizeSettings::unembed` planned in `plan_optimize`, committed in `apply_optimize`'s single undo entry via `unembed_fonts`; freed font programs are dropped from stream changes; PDF/A documents plan nothing plus a note; new `OptimizeError::UnembedFailed` rolls the call back; profile keys `unembed-fonts`, `unembed-font-ids`, `keep-subset-tag`; CLI `--unembed-fonts all|none|NAMES`, `--keep-subset-tag`, `fonts:` report block and JSON `fonts`. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
+
+**Decisions:** none new; no rule minted (`195`, `R263` stay free).
+
+**Findings:** tests core lib 1,750, core integration 3,008, cli 932, model lib 417, all green (engineer-reported); sabotage of the unembed call fails the undo-entry test; no manifest change.
+
+**Still in flight:** `Pass 616.6` stays OPEN: re-subset existing subsets; merge duplicate subsets of the same face. `616.7`-`616.10` unchanged.
+
+**For next session:** next free `Pass 617.8`, decision `195`, `R263`. Git, push and backup state not verified from here. Next filing 1156th.
+
 ## 2026-10-21 (1154th filing) — `Pass 616.5` Brotli slice F2 in `faa4a36c` (images) and `Pass 617.7` in `dc168e27` (`G223`)
 
 **Shipped:** (1) `Pass 616.5` Brotli slice F2 (core + cli): `image(encode=brotli[-N])` writes `/BrotliDecode` at quality 0-11 (`brotli` = 11), PNG-predicted under the Flate predictor rule, Flate size reported beside it (`ImageChange::flate_bytes`). Named only; `auto`, presets and fallbacks never pick it. Below PDF 2.0 the image raises the catalog version, or is skipped under `version-raise=refuse` (`ImageSkip::VersionTooLow`); a PDF/A document skips it (`ImageSkip::BrotliUnderPdfa`; also `ImageSkip::BrotliEncode(String)`). `OptimizePlan::uses_brotli` now covers image changes so EXTN-BROTLI-1 is added. CLI `pdfcer optimize --streams "image(encode=brotli-9)"`. (2) `Pass 617.7` (core only): `annot_author::Color::to_device_rgb() -> [f64; 3]` made public, from `G223`, so the GUI's swatches and colour picker stop repeating the Gray/RGB/CMYK match. Detail in the ROADMAP *Shipped* entries; reasoning in the commit messages.
