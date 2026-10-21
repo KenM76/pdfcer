@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1136th filing) — `Pass 616.4` slice D3 in `e5edee43`: colour-keyed images downsample by nearest pixel
+
+**Shipped (engineer-reported, no shell here):** colour-key `/Mask` images (ISO 32000-2 §8.9.6.4: key matches raw samples, so blending breaks it) are no longer skipped; they resample by nearest pixel regardless of `method`, keeping `/Mask`. New `keyed=subsample|skip` (default subsample; `skip` restores the old skip reason). Conversion and JPEG still refused for keyed images. Core + cli; gui not.
+
+**Counts:** core optimize 142, CLI optimize 24; 3 new tests, sabotage failed two assertions independently; fuzz `optimize_images` 31,192 runs clean; fmt/clippy/gates/structure clean (engineer-reported). No manifest change.
+
+**Register:** ROADMAP Shipped entry, D3 line, Next-up banner; FEATURES two rows. Not done: D4, D5, D6 per-image table. No decision or rule; next filing 1137th. Git, push and backup state not verified from here.
+
 ## 2026-10-21 (1135th filing) — `Pass 616.4` slice D6 first half in `db902fb4`: presets carry image settings (G216)
 
 **Shipped (engineer-reported, no shell here):** presets now carry per-class image rules (Acrobat one-shot parity): lossless/archive change nothing; standard 225 to 150 ppi, JPEG q60; screen 144 to 96, q80, palette keeps encoding; print 450 to 300, q80; 1-bit has its own rule and keeps its encoding. `Preset` moved to `optimize/preset.rs`; `settings()` no longer `const`. CLI `--list-presets`/`--preset` text corrected. Core + cli; gui not.

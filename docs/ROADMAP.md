@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.4` (slice D3, `e5edee43`), 2026-10-21 — colour-keyed images downsample by nearest pixel (1136th filing)
+
+Code commit `e5edee43` "feat(optimize): colour-keyed images downsample by nearest pixel (Pass 616.4, slice D3)", after the 1135th filing `1b2e933d`. Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 192 governs. `616.4` is NOT complete: D4 (`unplaced=max-pixels=N`), D5 (dedupe) and D6's per-image report table remain.
+
+- **Why:** colour-key `/Mask` arrays match raw pre-Decode samples (ISO 32000-2 §8.9.6.4), so blending invents values the key misses. Keyed images were skipped; now they resample by nearest pixel whatever `method` says, at their own bpc, keeping `/Mask`.
+- **Setting:** `keyed=subsample|skip` (`KeyedResample`, default subsample; `ImagePatch.keyed`, `ResolvedImage.keyed`). `skip` keeps `ImageSkip::ColourKey(ImageStep::Resample)` (sentence names `keyed=skip`). The change reports `method = subsample` sourced from wherever `keyed` came from. Conversion and JPEG stay refused for keyed images. CLI `--streams` help and JSON report carry `keyed`.
+- **Tests (engineer-reported):** core lib optimize 142 passed (new `optimize/image/pipeline_keyed_tests.rs`, 3), CLI optimize 24; sabotage (method not forced) failed the method assertion and, with that removed, the pixel-value assertion independently. fmt/clippy, gates, code-structure clean (`unblocked()` helper keeps `decide()` under 80 lines); check-core-api-verbs 0 (4,657 lines, 132 clauses). Fuzz `optimize_images` 31,192 runs/181 s clean. No manifest change.
+- `FEATURES.md`: *Downsample images* row gains colour-key subsample (boxes unchanged, gui `[ ]`); *Image requality, remainder* drops D3. Ledgers: no decision, no rule; next filing 1137th. Git, push and backup state not verified from here.
+
 ### `Pass 616.4` (slice D6 first half, G216, `db902fb4`), 2026-10-21 — presets carry image settings (1135th filing)
 
 Code commit `db902fb4` "feat(optimize): presets carry image settings (G216)", after the 1134th filing `2b67d1f6`. Core + cli; gui NOT (pdfcer-gui consumes it; GUI request G216 answered). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 192 governs (rules fold field-wise). `616.4` is NOT complete: D6's per-image report table, D3, D4, D5 remain.
@@ -22703,6 +22712,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+(1136th filing: `Pass 616.4` slice D3 SHIPPED (`e5edee43`, see *Shipped*); D4, D5, D6's per-image table and `616.5` remain. Next filing 1137th.)
+
 (1132nd filing: `Pass 616.4` slice D2 SHIPPED (`ffbf97d4`, see *Shipped*); D3-D6 and `616.5` remain. Next filing 1133rd.)
 
 (1131st filing: `Pass 616.4` slice D1 SHIPPED (`0fc01d0c`, see *Shipped*); D2-D6 and `616.5` remain. Next filing 1132nd.)
@@ -24560,7 +24571,7 @@ Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level
 
 Original scope: wire in the existing 12 `doc_metadata` kinds. Add: alternate images, print settings, search index, tags, bookmarks, form actions, external cross-references, private application data, hidden layers (with visible-layer flatten), embedded thumbnails.
 
-### `Pass 616.4` — Images I: downsampling, requality, conversion — SLICES A `2bfea30c`, B `e9387ebf`, C `cba8193d`, D1 `0fc01d0c`, D2 `ffbf97d4` SHIPPED (2026-10-21); D3-D6 NEXT UP
+### `Pass 616.4` — Images I: downsampling, requality, conversion — SLICES A `2bfea30c`, B `e9387ebf`, C `cba8193d`, D1 `0fc01d0c`, D2 `ffbf97d4`, D3 `e5edee43` SHIPPED (2026-10-21); D4-D6 NEXT UP
 
 **Operator-direct request, Ken 2026-10-21 (1128th filing), verbatim:** *"We should also be able to change images to different formats (jpeg formats, brotli, grey scale, etc of whatever PDFs support), and as stated before this can be done on all or a per image basis or etc."* Folded into slices B/C below and into `616.5`, not minted as a new Pass: the existing `encode=` key and the fold model (default -> `image-class`/other rules -> one object) already give all / per class / per image. **Acceptance criterion added:** the report shows, per image, the format before -> after (e.g. `Flate/DeviceRGB 8bpc -> DCT/DeviceGray`). Target matrix and where each lands:
 
@@ -24591,7 +24602,7 @@ Colour conversion targets (grey, bilevel, indexed) are slice C (shipped). ICC-ma
 - **D — masks, unplaced, dedupe, presets, predictor.** In order:
   - **D1 — Flate PNG predictor.** **SHIPPED `0fc01d0c`** (entry in *Shipped*; delivered as `predictor=off|png|auto`).
   - **D2 — /Matte lockstep resample.** **SHIPPED `ffbf97d4`** (entry in *Shipped*). A /Matte mask shared by several images stays refused.
-  - **D3** Colour-key masks subsample-or-skip.
+  - **D3** Colour-key masks subsample-or-skip. **SHIPPED `e5edee43`** (entry in *Shipped*; `keyed=subsample|skip`).
   - **D4** `unplaced=max-pixels=N`.
   - **D5** Dedupe of identical images before resampling.
   - **D6** Lossy presets **SHIPPED `db902fb4`** (G216; entry in *Shipped*; core + cli, gui not). **Remaining:** the per-image table in the report.
