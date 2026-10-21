@@ -112,6 +112,30 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.5` (slice E3, `488129f9`), 2026-10-21 — images can be written as JBIG2 (lossless generic); `Pass 616.5` NOT complete (1144th filing)
+
+Code commit `488129f95f21470a4c978ff3adfb3cc80073eb6e` "feat(optimize): images can be written as JBIG2 (Pass 616.5, slice E3)", after the 1143rd filing. Core + CLI; no GUI. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 193 governs. E5, E6 remain.
+
+- **Behaviour:** `image(encode=jbig2)` writes `/JBIG2Decode`: one immediate lossless generic region, template 0, typical prediction on, nominal AT pixels, MQ coded, embedded organisation (no `/JBIG2Globals`, no `/DecodeParms`). A PDF sample 1 is coded as JBIG2 white, so `/Decode` and `/ImageMask` are kept. New `ImageEncode::Jbig2`. Non-bilevel output is refused as for ccitt (`NotBilevel`, `NotBilevelOverride`).
+- **Version (INTERIM):** new `ImageSkip::VersionTooLow { encode, needs, document }`: a document declaring below PDF 1.4 skips the image, reason shown. Decision 193's raise-and-disclose default plus `version-raise=refuse` is slice E6, still owed.
+- **Codec:** new public `pdfcer_image_codec::jbig2::encode_generic(samples, width, height) -> Vec<u8>` (`jbig2/generic.rs` over `jbig2/mq.rs`). Spec: ITU-T T.88 section 6.2.5, 7.2, 7.4.6, 7.4.8, Annex D.3, Annex E. Documented in `docs/core-api` 01-reading-and-model, 03-capabilities and the index counts; `check-core-api-verbs.py` exits 0.
+- **Verification (engineer-reported):** T.88 vectors H.2 (MQ) and H.1 (generic region) re-encode byte-exact; round trips through the in-tree decoder; an SLTP bin-sharing test was sabotaged and caught; rendered pixels identical to the LZW and CCITT outputs of the same bilevel image.
+- **Tests (engineer-reported):**
+
+  | Suite | Passed | Ignored |
+  |---|---|---|
+  | pdfcer-image-codec | 110 (+3 doctests) | 0 |
+  | pdfcer-core lib | 1,715 | 2 |
+  | pdfcer-core --test all | 2,995 | 2 |
+  | pdfcer-cli --test all | 916 | 2 |
+
+  fmt, clippy -D warnings and the full gate list green.
+- **Fuzz:** `image_encoders` gains a JBIG2 round trip (23,526 runs, 180 s); `optimize_images` gains 2 actions, 15 total (26,857 runs, 180 s). Both clean.
+- **CLI:** help names jbig2; report format line reads "JBIG2".
+- **Invariants:** `cargo tree` unchanged (no dependency change).
+- **Still owed:** E5 (`encode=auto`, presets switch to auto); E6 (version raise and disclosure, `version-raise=refuse`); Acrobat Reader render check per encoder (LZW, CCITT, JBIG2 all outstanding; decision 193 condition).
+- `FEATURES.md`: *Change an image's format* row now names JBIG2 generic as done (core + cli; gui not; boxes unchanged, row stays Planned: E5, E6 open). Ledgers: no decision, no rule; next free decision 194, rule R263; next filing 1145th. Git, push and backup state not verified from here.
+
 ### `Pass 616.5` (slice E2, `4d742e96`), 2026-10-21 — images can be written as CCITT Group 4; `Pass 616.5` NOT complete (1143rd filing)
 
 Code commit `4d742e96ce6950375253bd4b492fcae3769c658e` "feat(optimize): images can be written as CCITT Group 4 (Pass 616.5, slice E2)", after the 1142nd filing. Plus docs follow-up `c8a3d6603b5fae30303d282a0d2ecfd9965859d3` "docs(tiff): LZW is written on request now, so the not-reused reason changes wording (Pass 616.5)": a doc-comment and test-message wording change to E4 (the `tiff.rs` import path's "LZW is not reused" reason), which was deferred and unfiled until now. Core + CLI; no GUI. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 193 governs. E3, E5, E6 remain.
@@ -22785,6 +22809,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+(1144th filing: `Pass 616.5` slice E3 (JBIG2 generic) SHIPPED `488129f9`, see *Shipped*; E1-E4 done. E5 auto and E6 version-raise=refuse remain. `616.5` stays here. Next filing 1145th.)
+
 (1143rd filing: `Pass 616.5` slice E2 (CCITT G4) SHIPPED `4d742e96`, see *Shipped*; E1, E2, E4 done. E3 (JBIG2 generic, MQ coder), E5 auto and E6 version-raise=refuse remain. `616.5` stays here. Next filing 1144th.)
 
 (1142nd filing: `Pass 616.5` slice E4 (LZW) SHIPPED `b1a85853`, see *Shipped*; E1 and E4 done; E2 (CCITT G4) and E3 (JBIG2 generic) are now UNBLOCKED (spec-librarian filed the encoder material); E5 auto and E6 version-raise=refuse remain. `616.5` stays here. Next filing 1143rd.)
@@ -24690,7 +24716,7 @@ Mono results are mostly not-smaller until `616.5` adds CCITT/JBIG2 encoders; dis
 **Image half, governed by decision 193 (filed 1140th, 2026-10-21; supersedes the earlier "encoders widened" wording; R28 narrowed).** All selectable through `image(encode=...)` on all images, a rule or one object (operator request of 2026-10-21, Ken). Slices, in order:
 - **E1 — RunLength (in-house, ISO 32000-2 §7.4.5).** Any image, any version, inline allowed. No spec blocker. **SHIPPED `44ce3e0e` (1141st filing; entry in *Shipped*; core + cli, gui not).**
 - **E2 — CCITT G4 (in-house, `/K -1`, ITU-T T.6 + T.4 tables).** 1-bpc 1-component. Spec: `filter__ccitt_g4_encoder.md` in `D:\Dev\Rag-Specialized\PDF_Spec\filters\`. **SHIPPED `4d742e96` (1143rd filing; entry in *Shipped*; core + cli, gui not).**
-- **E3 — JBIG2 generic (in-house MQ module + generic-region module; template 0, TPGDON, embedded, no `/JBIG2Globals`, PDF 1.4, never inline).** 1-bit only. **UNBLOCKED (1142nd): `filter__jbig2_generic_encoder.md` filed.** Spec-librarian flags: (a) ISO 32000-1 §7.4.7 says a JBIG2 encoder "shall" build a symbol table (dropped in PDF 2.0), so generic-region-only is strictly short of 1.7 (a flag, not a blocker); (b) the TPGDON shared-context rule is not exercised by T.88's test data, so E3 needs a fixture that triggers it, tested against the in-tree hayro decoder. Each module within the structure-gate limits.
+- **E3 — JBIG2 generic (in-house MQ module + generic-region module; template 0, TPGDON, embedded, no `/JBIG2Globals`, PDF 1.4, never inline).** 1-bit only. **UNBLOCKED (1142nd): `filter__jbig2_generic_encoder.md` filed.** Spec-librarian flags: (a) ISO 32000-1 §7.4.7 says a JBIG2 encoder "shall" build a symbol table (dropped in PDF 2.0), so generic-region-only is strictly short of 1.7 (a flag, not a blocker); (b) the TPGDON shared-context rule is not exercised by T.88's test data, so E3 needs a fixture that triggers it, tested against the in-tree hayro decoder. Each module within the structure-gate limits. **SHIPPED `488129f9` (1144th filing; entry in *Shipped*; core + cli, gui not). Interim: a document below PDF 1.4 skips the image (`VersionTooLow`) until E6.**
 - **E4 — LZW (`weezl` `Encoder::with_tiff_size_switch(Msb, 8)`, `/EarlyChange 1`, key omitted).** **Written only when `encode=lzw` is named**; no preset, `auto` or fallback picks it; **refused under a PDF/A claim**; the report row gives the Flate size for the same samples. No new dependency. **SHIPPED `b1a85853` (1142nd filing; entry in *Shipped*; core + cli, gui not).**
 - **E5 — `encode=auto`.** Smallest eligible lossless candidate (Flate, RunLength, plus CCITT/JBIG2 for 1-bit 1-component); tie-break Flate, CCITT, RunLength, JBIG2; stays within the document's current version, never raises it; excludes LZW, extensions, JPEG, JPX, lossy, inline JBIG2. **Shipped presets switch to `encode=auto`**; an `image(...)` with no `encode` keeps decision 192's base. Report row lists every candidate's size; if none passes the guard, kept with "not smaller" and the sizes.
 - **E6 — `version-raise=refuse` option.** Default for an explicit encoder above the document's version is raise-and-disclose; this is the strict alternative.

@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1144th filing) — `Pass 616.5` slice E3 in `488129f9`: images can be written as JBIG2
+
+**Shipped:** `Pass 616.5` slice E3 (core + cli, no gui): `pdfcer_image_codec::jbig2::encode_generic` (lossless generic region, template 0, TPGDON, MQ, embedded), `encode=jbig2`, `ImageEncode::Jbig2`, `ImageSkip::VersionTooLow`, CLI format "JBIG2", core-api 01/03/index. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
+
+**Decisions:** none new; decision 193 governs. No rule minted. The below-1.4 skip (`VersionTooLow`) is an interim; E6 replaces it with raise-and-disclose plus `version-raise=refuse`.
+
+**Findings:** T.88 H.2 and H.1 vectors re-encode byte-exact; SLTP bin-sharing sabotage caught; rendered pixels identical to LZW and CCITT outputs. Tests: image-codec 110, core 1,715 lib + 2,995 integration, cli 916. Fuzz `image_encoders` 23,526 and `optimize_images` 26,857 runs (180 s each) clean. `cargo tree` unchanged.
+
+**Feedback finding (structure gate blind spot):** `tools/check-code-structure.py` stops measuring a file at its FIRST `#[cfg(test)]` line. `#[cfg(test)] mod encode_tests;` near the top of `jbig2.rs` hid the whole body from the file-size, function-size and duplicate-helper limits, and the gate then reported a known baseline entry (`geometry_disagrees` duplicated in `ccitt.rs` and `jbig2.rs`) as "fixed". Fix: the test-module declaration goes at the END of the file. General point: a gate that reports a debt as fixed when nothing fixed it is a blind gate, not a win; treat an unexpected "baseline entry fixed" as a signal to check what the gate stopped seeing. No rule number minted (engineer's call; the ledger pattern does not yet call for one).
+
+**Still in flight:** `Pass 616.5` NOT complete: E5 auto, E6 version-raise=refuse remain. Acrobat Reader render check owed for LZW, CCITT and JBIG2.
+
+**For next session:** E5 or E6. Git, push and backup state not verified from here. Next filing 1145th.
+
 ## 2026-10-21 (1143rd filing) — `Pass 616.5` slice E2 in `4d742e96`: images can be written as CCITT Group 4
 
 **Shipped:** `Pass 616.5` slice E2 (core + cli, no gui): `pdfcer_image_codec::ccitt::encode_g4`, `encode=ccitt` (`/CCITTFaxDecode`, `/K -1`), `ImageEncode::Ccitt`, `ImageSkip::NotBilevel` / `NotBilevelOverride`, CLI format "CCITT G4", core-api 01 section 11.2 and 03. Also filed, previously deferred: docs follow-up `c8a3d660` (E4 wording in the `tiff.rs` "LZW is not reused" reason). Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
