@@ -104,8 +104,9 @@ pub(crate) struct OptimizeArgs {
     /// to drawn objects), form-fields (deleted, not flattened: what they
     /// show goes too), multimedia (sound, video and rich media), 3d-models,
     /// flatten-layers (visible layers merge into the page; hidden ones stay
-    /// unless hidden-layer is given too); or all. Comma-separated or
-    /// repeated.
+    /// unless hidden-layer is given too), search-index (an index Acrobat
+    /// built for searching many files; the file's own text stays
+    /// searchable); or all. Comma-separated or repeated.
     /// The standard and print presets remove thumbnails; screen also
     /// pieceinfo, object-xmp and alternate-images.
     #[arg(long, value_name = "KINDS", value_delimiter = ',')]

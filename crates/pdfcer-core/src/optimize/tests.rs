@@ -368,3 +368,15 @@ fn a_preset_save_drops_an_orphan_and_packs_the_rest() {
         Some(&Object::Name(b"ObjStm".into()))
     );
 }
+
+/// The text of the file `plan` saves, which must be written.
+pub(super) fn saved_text(s: &mut EditSession, plan: &OptimizePlan) -> String {
+    let (file, _) = s
+        .save_optimized(plan, &SaveOptions::default(), &RebuildOptions::none())
+        .unwrap();
+    let bytes = match file {
+        OptimizedFile::Smaller(b) | OptimizedFile::NotSmaller { bytes: b, .. } => b,
+        other => panic!("expected a written file, got {other:?}"),
+    };
+    String::from_utf8_lossy(&bytes).into_owned()
+}

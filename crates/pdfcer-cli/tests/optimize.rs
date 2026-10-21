@@ -393,7 +393,7 @@ fn discard_takes_document_object_classes_by_name() {
     assert!(written.contains("/HideToolbar"), "the catalog is readable");
     assert!(!written.contains("/Duplex") && !written.contains("/Outlines"));
 
-    let bad = run(&[path, "--dry-run", "--discard", "search-index"]);
+    let bad = run(&[path, "--dry-run", "--discard", "embedded-index"]);
     let err = String::from_utf8_lossy(&bad.stderr).into_owned();
     assert!(
         err.contains("alternate-images") && err.contains("all"),
@@ -515,6 +515,31 @@ fn discard_flatten_layers_keeps_the_hidden_one() {
     let listed = text(&listed);
     assert!(listed.contains("layers=1"), "{listed}");
     assert!(listed.contains("HIDDEN-ONE") && !listed.contains("VISIBLE-ONE"));
+}
+
+#[test]
+fn discard_search_index_keeps_other_page_piece_data() {
+    let d = dir("discard-search-index");
+    let input = write_pdf_with(
+        &d,
+        "/PieceInfo << /SearchIndex 8 0 R /Other << /Private (KEEP-ME) >> >>",
+        &["<< /LastModified (D:20260101000000Z) /Private (INDEX-DATA) >>"],
+    );
+    let out = d.join("out.pdf");
+    let o = run(&[
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--keep-structure",
+        "--discard",
+        "search-index",
+    ]);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(report.contains("discard objects: 1 removed"), "{report}");
+    assert!(report.contains("search index goes"), "{report}");
+    let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(written.contains("KEEP-ME") && !written.contains("INDEX-DATA"));
 }
 
 #[test]

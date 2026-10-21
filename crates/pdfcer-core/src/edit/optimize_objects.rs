@@ -55,6 +55,10 @@ const NOTES: &[(DiscardObject, &str)] = &[
         DiscardObject::FlattenLayers,
         "visible layers merge into the page: what they draw can no longer be hidden, and prints even where a layer was set not to print",
     ),
+    (
+        DiscardObject::SearchIndex,
+        "the embedded search index goes: searching a catalog of files that included this one stops finding it until the index is rebuilt; searching the open file is unaffected",
+    ),
 ];
 
 impl EditSession {

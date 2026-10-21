@@ -25,8 +25,11 @@
 //!   (§8.11.4.3) is deleted by `EditSession::delete_layer`, keeping what it
 //!   draws; a hidden one is the `hidden-layer` user-data kind's.
 //!
-//! An embedded search index is not offered: no published specification
-//! names the key Acrobat stores it under.
+//! - search index: the catalog's `/PieceInfo /SearchIndex` (a §14.5 data
+//!   dictionary). No ISO or Adobe document names the key; it is the one
+//!   PDF4QT and pikepdf remove (`PDF_Spec/adobe_ext/
+//!   adobe_ext__embedded_search_index.md`). The other applications' entries
+//!   stay, and a `/PieceInfo` left empty goes.
 
 use std::collections::BTreeSet;
 use std::fmt;
@@ -76,11 +79,13 @@ pub enum DiscardObject {
     /// they draw stays, now on no layer, so it always shows and prints.
     /// Hidden layers stay layers unless `hidden-layer` is also discarded.
     FlattenLayers,
+    /// An embedded full-text search index, which copies the document's text.
+    SearchIndex,
 }
 
 impl DiscardObject {
     /// Every class, in plan order.
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
         Self::Bookmarks,
         Self::Tags,
         Self::PrintSettings,
@@ -92,12 +97,13 @@ impl DiscardObject {
         Self::Multimedia,
         Self::ThreeDModels,
         Self::FlattenLayers,
+        Self::SearchIndex,
     ];
 
     /// A stable lower-case name: `bookmarks`, `tags`, `print-settings`,
     /// `alternate-images`, `form-actions`, `external-references`,
     /// `object-data`, `form-fields`, `multimedia`, `3d-models`,
-    /// `flatten-layers`.
+    /// `flatten-layers`, `search-index`.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -112,6 +118,7 @@ impl DiscardObject {
             Self::Multimedia => "multimedia",
             Self::ThreeDModels => "3d-models",
             Self::FlattenLayers => "flatten-layers",
+            Self::SearchIndex => "search-index",
         }
     }
 
@@ -234,6 +241,12 @@ pub(crate) fn carriers(
         "catalog".into(),
         print_strips(view, cat).into_iter().map(at).collect(),
     );
+    push(
+        DiscardObject::SearchIndex,
+        catalog,
+        "catalog".into(),
+        search_index_strip(view, cat).into_iter().map(at).collect(),
+    );
     for &id in live {
         if let Some(Object::Stream(s)) = view.value(id)
             && is_image(&s.dict)
@@ -279,6 +292,18 @@ fn layer_carriers(view: &DocumentView<'_>) -> Vec<ObjectDiscard> {
             drops: Vec::new(),
         })
         .collect()
+}
+
+/// The catalog's search index, or the whole `/PieceInfo` when it holds
+/// nothing else.
+fn search_index_strip(view: &DocumentView<'_>, cat: &Dict) -> Option<Vec<&'static [u8]>> {
+    let piece = view.resolve(cat.get(b"PieceInfo")?).as_dict()?;
+    piece.get(b"SearchIndex")?;
+    Some(if piece.len() == 1 {
+        vec![b"PieceInfo"]
+    } else {
+        vec![b"PieceInfo", b"SearchIndex"]
+    })
 }
 
 fn bookmark_strips(view: &DocumentView<'_>, cat: &Dict) -> Vec<Vec<&'static [u8]>> {

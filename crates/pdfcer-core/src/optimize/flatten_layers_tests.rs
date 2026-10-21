@@ -5,10 +5,9 @@
     clippy::indexing_slicing
 )] // test code: a failed lookup should fail the test loudly
 
-use super::tests::{build, dict, only, session};
+use super::tests::{build, dict, only, saved_text, session};
 use super::*;
 use crate::doc_metadata::MetadataKind;
-use crate::writer::SaveOptions;
 
 /// One page whose content (4) draws on a visible layer (5, `Notes`) and a
 /// hidden one (6, `Draft`); `extra` goes in the page's `/Properties`.
@@ -45,17 +44,6 @@ fn flatten() -> DiscardOptions {
 
 fn layer_count(s: &crate::edit::EditSession) -> usize {
     crate::layers::list_layers(&s.view()).len()
-}
-
-fn saved_text(s: &mut crate::edit::EditSession, plan: &OptimizePlan) -> String {
-    let (file, _) = s
-        .save_optimized(plan, &SaveOptions::default(), &RebuildOptions::none())
-        .unwrap();
-    let bytes = match file {
-        OptimizedFile::Smaller(b) | OptimizedFile::NotSmaller { bytes: b, .. } => b,
-        other => panic!("expected a written file, got {other:?}"),
-    };
-    String::from_utf8_lossy(&bytes).into_owned()
 }
 
 #[test]

@@ -548,3 +548,5 @@ mod flatten_layers_tests;
 mod object_data_tests;
 #[cfg(test)]
 mod objects_tests;
+#[cfg(test)]
+mod search_index_tests;
