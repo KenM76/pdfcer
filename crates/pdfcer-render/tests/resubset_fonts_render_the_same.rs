@@ -1,6 +1,6 @@
 //! A `/FontFile2` program cut by [`GLYPH_ZERO_RESUBSETTER`] draws the page
 //! exactly as the whole program did, and the saved file is smaller, for a
-//! simple and a composite font.
+//! simple and a composite font, for two fonts sharing one program, and for a symbolic font.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -33,12 +33,18 @@ fn pixels(s: &EditSession) -> Vec<u8> {
 
 #[test]
 fn a_cut_font_draws_the_page_unchanged_in_a_smaller_file() {
-    for name in ["simple.pdf", "type0-identity.pdf"] {
-        cut_draws_the_same(name);
+    for (name, fonts, kept) in [
+        ("simple.pdf", 1, 5),
+        ("type0-identity.pdf", 1, 2),
+        ("shared-program.pdf", 2, 5),
+        ("symbolic.pdf", 1, 2),
+    ] {
+        cut_draws_the_same(name, fonts, kept);
     }
 }
 
-fn cut_draws_the_same(name: &str) {
+/// `name` cut once for its `fonts` users, keeping `kept` glyphs.
+fn cut_draws_the_same(name: &str, fonts: usize, kept: u32) {
     let original = fixture(name);
     let mut s = EditSession::new(Document::from_bytes(original.clone()).unwrap());
     let before = pixels(&s);
@@ -55,6 +61,8 @@ fn cut_draws_the_same(name: &str) {
     let plan = s.plan_optimize(&settings).unwrap();
     let cut = plan.resubset.as_ref().expect("a re-subset plan");
     assert_eq!(cut.targets.len(), 1, "{name}: refused {:?}", cut.refused);
+    let t = &cut.targets[0];
+    assert_eq!((t.fonts.len(), t.glyphs_kept), (fonts, kept), "{name}");
     s.apply_optimize(&plan).unwrap();
     let (file, _) = s
         .save_optimized(&plan, &SaveOptions::default(), &RebuildOptions::none())

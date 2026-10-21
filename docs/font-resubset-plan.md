@@ -115,7 +115,7 @@ Built: `simple` and `type0-identity`, both over the synthetic
 render test checks both render pixel-identical after the cut. The other
 cases are inline core tests instead (`optimize/glyph_usage/tests.rs`,
 `optimize/resubset_plan_tests.rs`), which build their documents in code;
-`symbolic` and `shared-program` have no test yet.
+`shared-program` (two fonts, two descriptors, one program) and `symbolic` (a (3,0)-only cmap, /Flags 4, no /Encoding) are built fixtures, and the render test checks both.
 
 ## Steps
 

@@ -18,8 +18,15 @@ rerun is byte-identical.
   CIDFontType2 with /CIDToGIDMap /Identity (shows glyph 3, "C"), each with
   its own descriptor and its own copy of the program, under two subset
   tags. A merge leaves one program holding .notdef, A and C.
+- shared-program.pdf: two TrueType fonts, each with its own descriptor,
+  both naming one program: F1 shows "A" and F2 shows "\311" (Eacute). The
+  one cut keeps the glyphs both draw: .notdef, A, E, acute and Eacute.
 
-Run: python tools/gen-resubset-fixtures.py
+- symbolic.pdf: a symbolic TrueType font (/Flags 4, no /Encoding) over
+  face.ttf with its cmap replaced by one (3,0) subtable, F041-F045 -> A-E;
+  shows "B", so the cut keeps .notdef and B (ISO 32000-1 9.6.6.4).
+
+Run: python tools/gen-resubset-fixtures.py (symbolic.pdf needs fontTools)
 """
 
 from pathlib import Path
@@ -88,6 +95,57 @@ def pair() -> bytes:
     ])
 
 
+
+def shared_program() -> bytes:
+    page = (b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 140 80] /Contents 4 0 R "
+            b"/Resources << /Font << /F1 5 0 R /F2 8 0 R >> >> >>")
+    font = (b"<< /Type /Font /Subtype /TrueType /BaseFont /ABCDEF+Face "
+            b"/Encoding /WinAnsiEncoding /FontDescriptor %d 0 R >>")
+    return assemble([
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        page,
+        stream(b"", b"BT /F1 48 Tf 10 20 Td (A) Tj /F2 48 Tf 50 0 Td (\311) Tj ET"),
+        font % 6,
+        DESCRIPTOR,
+        stream(b"/Length1 %d " % len(FACE), FACE),
+        font % 9,
+        DESCRIPTOR,
+    ])
+
+
+def symbolic_face() -> bytes:
+    """face.ttf with only a (3,0) cmap; timestamps kept, so a rerun is identical."""
+    import io
+
+    from fontTools.ttLib import TTFont, newTable
+    from fontTools.ttLib.tables._c_m_a_p import cmap_format_4
+
+    font = TTFont(io.BytesIO(FACE), recalcTimestamp=False)
+    sub = cmap_format_4(4)
+    sub.platformID, sub.platEncID, sub.language = 3, 0, 0
+    sub.cmap = {0xF041 + i: name for i, name in enumerate("ABCDE")}
+    table = newTable("cmap")
+    table.tableVersion, table.tables = 0, [sub]
+    font["cmap"] = table
+    buf = io.BytesIO()
+    font.save(buf, reorderTables=True)
+    return buf.getvalue()
+
+
+def symbolic() -> bytes:
+    program = symbolic_face()
+    return assemble([
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        PAGE,
+        stream(b"", b"BT /F1 48 Tf 10 20 Td (B) Tj ET"),
+        b"<< /Type /Font /Subtype /TrueType /BaseFont /ABCDEF+Face "
+        b"/FontDescriptor 6 0 R >>",
+        DESCRIPTOR.replace(b"/Flags 32", b"/Flags 4"),
+        stream(b"/Length1 %d " % len(program), program),
+    ])
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     simple = document(
@@ -112,6 +170,8 @@ def main() -> None:
         ("simple.pdf", simple),
         ("type0-identity.pdf", type0),
         ("pair.pdf", pair()),
+        ("shared-program.pdf", shared_program()),
+        ("symbolic.pdf", symbolic()),
     ]:
         (OUT / name).write_bytes(data)
         print(f"wrote {OUT / name} ({len(data)} B)")
