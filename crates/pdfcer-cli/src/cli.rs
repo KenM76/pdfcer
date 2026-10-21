@@ -9414,6 +9414,12 @@ pub(crate) enum Command {
         /// scan. Refused with --bold-synthetic, which is itself mode 2.
         #[arg(long = "render-mode", value_name = "0-7")]
         render_mode: Option<u8>,
+        /// Fill opacity for the matched run, 0 (invisible) to 1 (opaque),
+        /// written as a graphics state (`/ca`, §8.4.5) before the run; the
+        /// opacity in effect after it is put back. Refused when that opacity
+        /// is set by a graphics state pdfcer cannot read.
+        #[arg(long = "set-opacity", value_name = "0-1")]
+        set_opacity: Option<f64>,
         /// Raise the matched run to superscript (`Ts` rise + reduced size).
         #[arg(long, conflicts_with_all = ["subscript", "no_script"])]
         superscript: bool,
@@ -9769,6 +9775,11 @@ pub(crate) enum Command {
         /// selectable but not painted.
         #[arg(long = "render-mode", value_name = "0-7")]
         render_mode: Option<u8>,
+        /// Fill opacity of the new text, 0 (invisible) to 1 (opaque),
+        /// written as a graphics state (`/ca`, §8.4.5) inside the run's own
+        /// save/restore. Omitted = the page's opacity.
+        #[arg(long, value_name = "0-1")]
+        opacity: Option<f64>,
         /// Operator-supplied font folder: registering a face for
         /// the chosen `--font` name discloses provenance `Supplied`. Repeatable.
         #[arg(long = "font-dir", value_name = "DIR")]

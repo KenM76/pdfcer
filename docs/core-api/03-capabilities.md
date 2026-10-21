@@ -1550,6 +1550,7 @@ That is a distinct failure and this section is the repair for it.
 | super/subscript | `set_script` | ✅ |
 | free-form baseline | `set_rise` (`Ts`, §9.3.7) | ✅ — an exceed over Acrobat, which dropped it |
 | rendering mode (visible / invisible) | `set_render_mode: Option<u8>` (`Tr`, §9.3.6), builder `render_mode(m)` | ✅ `0..=7`; `3` keeps an OCR correction invisible over the scan. The ambient mode is restored after the run. Refused: a mode above 7 (`InvalidRenderMode`), or together with *synthetic* bold, which is itself mode 2 (`ConflictingRenderMode`). `FormatReport::render_mode_change` = `(ambient, emitted)` |
+| fill opacity | `set_fill_alpha: Option<f64>` (ExtGState `/ca`, §8.4.5 Table 58), builder `fill_alpha(a)` | ✅ `0.0..=1.0`, on the page, session-page and form paths. Binds two new direct `/ExtGState` resources (`pdfcerTA1`, `pdfcerTA2`, …) into the run's own resources (a form's, or the page's own with inherited ones copied in, §7.7.3.4) and selects them with `gs` before and after the run, so the ambient alpha is put back. One undo removes both. Refused: outside `0..=1` or NaN (`BadOpacity`); an ambient alpha set by a `gs` pdfcer cannot read (`OpacityUnrestorable`) — nothing applied. An alpha equal to the ambient writes nothing. A shared `/Resources` dictionary is disclosed. `FormatReport::fill_alpha_change` = `(ambient, emitted)`. CLI: `format-text --set-opacity A` |
 | **alignment, leading** | — | ❌ not a run-level property; those live on `reflow_block` |
 
 Targeting is by `find` text or by `pinned_span` — the same
@@ -1621,6 +1622,13 @@ string dropped the run).
 whose producer left `3 Tr` in force no longer swallows added text. Mode 3 or 7
 adds an `INVISIBLE` disclosure. CLI: `--render-mode` on `format-text` and
 `add-text`.
+
+**New text** takes a fill opacity: `AddTextRequest::with_fill_alpha(a)` (field
+`fill_alpha: Option<f64>`, default `None` = no graphics state written). It
+writes `/pdfcerTAn gs` just inside the run's own `q`, so `Q` confines it, and
+merges the `/ExtGState` into the page's own `/Resources`. Outside `0..=1` or
+NaN: `AddTextError::InvalidOpacity` (`RefusalKind::Other`). CLI: `add-text
+--opacity A`.
 
 ### ★ The one remaining limit: a NON-standard face the page does not carry
 

@@ -372,6 +372,11 @@ pub struct AddTextRequest {
     /// the free [`add_text`] refuses it with
     /// [`AddTextError::OcrLayerNeedsSession`].
     pub ocr_layer: Option<String>,
+    /// Fill opacity of the new run, the ExtGState `/ca` (ISO 32000-1 §8.4.5
+    /// Table 58), in 0.0 (invisible) to 1.0 (opaque); `None` writes no
+    /// graphics state, so the run paints at the page's ambient opacity.
+    /// The run's own `q … Q` confines it.
+    pub fill_alpha: Option<f64>,
 }
 
 impl AddTextRequest {
@@ -394,6 +399,7 @@ impl AddTextRequest {
             layer: None,
             hand_signature: None,
             ocr_layer: None,
+            fill_alpha: None,
         }
     }
 
@@ -414,6 +420,19 @@ impl AddTextRequest {
     pub fn with_ocr_layer(mut self, engine: impl Into<String>) -> Self {
         self.ocr_layer = Some(engine.into());
         self.render_mode = 3;
+        self
+    }
+
+    /// Set [`Self::fill_alpha`].
+    ///
+    /// ```
+    /// use pdfcer_core::text_edit::AddTextRequest;
+    /// let req = AddTextRequest::new(0, (72.0, 700.0), "draft").with_fill_alpha(0.4);
+    /// assert_eq!(req.fill_alpha, Some(0.4));
+    /// ```
+    #[must_use]
+    pub fn with_fill_alpha(mut self, alpha: f64) -> Self {
+        self.fill_alpha = Some(alpha);
         self
     }
 
@@ -626,6 +645,9 @@ pub enum AddTextError {
         "adding text to an OCR layer needs an edit session; the one-shot add-text route has none"
     )]
     OcrLayerNeedsSession,
+    /// [`AddTextRequest::fill_alpha`] outside 0.0..=1.0, or not a number.
+    #[error("invalid opacity {0}: it must be between 0 and 1")]
+    InvalidOpacity(f64),
     /// A text rendering mode outside `0..=7` (§9.3.6 Table 106).
     #[error(
         "text rendering mode {mode} does not exist: §9.3.6 Table 106 defines modes 0 to 7 \
@@ -961,6 +983,9 @@ pub(crate) struct AddTextPrep {
     pub(crate) embed: Option<Box<FontEmbedPlan>>,
     /// The disclosure report (object numbers 0 until saved).
     pub(crate) report: AddTextReport,
+    /// The merged `/ExtGState` subdict carrying the run's opacity, when one
+    /// was requested.
+    ext_gstate: Option<Dict>,
 }
 
 impl AddTextPrep {
@@ -980,6 +1005,9 @@ impl AddTextPrep {
         font_subdict.insert(Name(self.font_name.clone()), Object::Reference(font_id));
         let mut resources = self.resources_base.clone();
         resources.insert(Name::from(b"Font"), Object::Dict(font_subdict));
+        if let Some(ext) = &self.ext_gstate {
+            resources.insert(Name::from(b"ExtGState"), Object::Dict(ext.clone()));
+        }
         new_page.insert(Name::from(b"Resources"), Object::Dict(resources));
 
         new_page
@@ -1012,6 +1040,9 @@ pub(crate) fn plan_add_text(
     }
     if !req.size.is_finite() || req.size <= 0.0 {
         return Err(AddTextError::InvalidSize(req.size));
+    }
+    if let Some(a) = req.fill_alpha.filter(|a| !(0.0..=1.0).contains(a)) {
+        return Err(AddTextError::InvalidOpacity(a));
     }
 
     let page_dict = graph
@@ -1074,7 +1105,7 @@ pub(crate) fn plan_add_text(
         return Err(AddTextError::EmbeddedBoxedUnsupported);
     }
 
-    let (content_data, extra) = match req.wrap_box {
+    let (mut content_data, extra) = match req.wrap_box {
         None if embed_plan.is_some() => {
             // `expect`-free: the guard above proves it.
             let Some(plan) = embed_plan else {
@@ -1201,7 +1232,11 @@ pub(crate) fn plan_add_text(
         disclosures,
     };
 
+    let ext_gstate = req.fill_alpha.map(|a| {
+        crate::text_edit::opacity::add_text_alpha(graph, &resources_base, a, &mut content_data)
+    });
     Ok(AddTextPrep {
+        ext_gstate,
         page_id: page.id,
         page_dict,
         append,

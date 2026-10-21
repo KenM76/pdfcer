@@ -170,6 +170,7 @@ mod optimize_smooth;
 mod optimize_version;
 pub use markup_respan::TextMarkupRespan;
 mod link;
+mod opacity_writes;
 pub use link::{LinkBorder, LinkBorderChange, LinkReading, LinkTarget, LinkTargetChange};
 pub(crate) mod deskew;
 mod undo_fold;
@@ -10349,6 +10350,7 @@ type FormatFormHit = (
     Vec<u8>,
     crate::text_edit::FormatReport,
     Option<crate::text_edit::format::CreatedFont>,
+    Vec<crate::text_edit::opacity::CreatedAlpha>,
 );
 
 /// Whether a page's own `/CropBox` moves with a resize under `follow`.
@@ -13627,6 +13629,13 @@ impl EditSession {
                                     );
                                 }
                             }
+                            self.bind_alpha_writes(
+                                &mut prior,
+                                page.id,
+                                true,
+                                &plan.created_alphas,
+                                &mut report.disclosures,
+                            );
                             let (command, decoupled) = self
                                 .text_edit_command(
                                     CommandKind::FormatText,
@@ -13716,6 +13725,7 @@ impl EditSession {
                         plan.new_content,
                         plan.report,
                         plan.created_font,
+                        plan.created_alphas,
                     ));
                     break;
                 }
@@ -13727,7 +13737,7 @@ impl EditSession {
                 Err(e) => return Err(e),
             }
         }
-        let Some((form_id, form_dict, new_content, mut report, created)) = found else {
+        let Some((form_id, form_dict, new_content, mut report, created, alphas)) = found else {
             return Err(first_locational.unwrap_or_else(|| FmtError::NoMatch(req.find.clone())));
         };
         // `Pass 162.0`, the form half. The resource is bound BEFORE the
@@ -13799,6 +13809,13 @@ impl EditSession {
                 );
             }
         }
+        self.bind_form_alpha_writes(
+            &mut extra,
+            form_id,
+            &mut form_dict,
+            &alphas,
+            &mut report.disclosures,
+        );
         let mut command =
             self.form_edit_command_kind(CommandKind::FormatText, form_id, &form_dict, new_content);
         command.objects.extend(extra);

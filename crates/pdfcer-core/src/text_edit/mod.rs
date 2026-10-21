@@ -80,6 +80,7 @@ pub mod forms;
 pub(crate) mod glyph_find;
 pub mod merge;
 pub mod model;
+pub(crate) mod opacity;
 /// Pouring a plain-text file into as many NEW pages as it needs — the import
 /// half of `export_text`. Paginates around the shipped 16.1 boxed
 /// [`add_text`] rather than adding a second wrapper or a second emitter.

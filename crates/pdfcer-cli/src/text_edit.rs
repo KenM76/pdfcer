@@ -342,6 +342,8 @@ pub(crate) struct AddTextArgs<'a> {
     pub(crate) color: Option<&'a str>,
     /// `--render-mode`, `0..=7`, or `None` for the request's default.
     pub(crate) render_mode: Option<u8>,
+    /// `--opacity`, `0..=1`, or `None` for the page's own.
+    pub(crate) opacity: Option<f64>,
     pub(crate) font_dirs: &'a [PathBuf],
     /// Path to a donor font file to SUBSET AND EMBED.
     ///
@@ -429,6 +431,9 @@ pub(crate) fn cmd_add_text(args: &AddTextArgs<'_>) -> u8 {
     }
     if let Some(mode) = args.render_mode {
         req = req.with_render_mode(mode);
+    }
+    if let Some(alpha) = args.opacity {
+        req = req.with_fill_alpha(alpha);
     }
     let (report, session_outcome) = match add_text_run(args, &doc, req) {
         Ok(r) => r,

@@ -40,6 +40,8 @@ pub(crate) struct FormatTextArgs<'a> {
     pub(crate) h_scale: Option<f64>,
     /// `--render-mode`, `0..=7`.
     pub(crate) render_mode: Option<u8>,
+    /// `--set-opacity`, `0..=1`.
+    pub(crate) set_opacity: Option<f64>,
     /// The baseline toggle, already resolved from the three exclusive flags.
     pub(crate) script: Option<pdfcer_core::text_edit::ScriptPosition>,
     /// `--rise` as passed, e.g. `3.25`, `3.25pt`, `280em`.
@@ -330,6 +332,9 @@ fn build_format_request(
     if let Some(mode) = args.render_mode {
         req = req.render_mode(mode);
     }
+    if let Some(alpha) = args.set_opacity {
+        req = req.fill_alpha(alpha);
+    }
     if let Some(pos) = args.script {
         req = req.script(pos);
     }
@@ -479,6 +484,9 @@ fn print_format_controls(report: &FormatReport) {
         "  char_spacing={} word_spacing={tw_str} h_scale={tz_str} script={script_str}",
         change_str(report.char_spacing_change)
     );
+    if let Some((o, n)) = report.fill_alpha_change {
+        println!("  opacity={o}->{n}");
+    }
     if let Some((o, n)) = report.render_mode_change {
         println!("  render_mode={o}->{n}");
     }

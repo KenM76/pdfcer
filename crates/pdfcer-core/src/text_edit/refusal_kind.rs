@@ -142,6 +142,7 @@ impl RefusalClass for AddTextError {
             | AddTextError::HandSignature(_)
             | AddTextError::EmptyText
             | AddTextError::InvalidSize(_)
+            | AddTextError::InvalidOpacity(_)
             | AddTextError::InvalidRenderMode { .. }
             | AddTextError::InvalidBox(_, _)
             | AddTextError::NoWordsToWrap

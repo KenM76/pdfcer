@@ -1133,6 +1133,8 @@ pub(crate) struct ShowData {
     /// a stroked-text width is the ordinary user-space line width, shared
     /// with path stroking, so it must be restored.
     pub(crate) line_width: LineWidth,
+    /// The fill alpha `/ca` in effect (§8.4.5), restored after a faded run.
+    pub(crate) fill_alpha: crate::text_edit::opacity::FillAlpha,
     /// The text matrix `Tm` in force at the **start** of this show operator
     /// (§9.4.2), i.e. before any of its own glyphs have advanced it.
     ///
@@ -1299,6 +1301,8 @@ struct GState {
     /// The line width (§8.4.3.2) — Pass 19.2, for the synthetic-bold
     /// stroke width restore.
     line_width: LineWidth,
+    /// The fill alpha `/ca` (§8.4.5), so a faded run can put it back.
+    fill_alpha: crate::text_edit::opacity::FillAlpha,
     /// The current transformation matrix (§8.3.2), for placing a run on the
     /// page. The surgery never needs it; the typing preview does.
     ctm: [f64; 6],
@@ -1318,6 +1322,7 @@ impl GState {
             stroke: FillState::Default,
             last_cs_stroking: None,
             line_width: LineWidth::Initial,
+            fill_alpha: crate::text_edit::opacity::FillAlpha::Initial,
         }
     }
 }
@@ -1589,6 +1594,16 @@ impl<'a> Walk<'a> {
                         value: *v,
                         raw: buf.get(start..end).unwrap_or_default().to_vec(),
                     };
+                }
+                Rec::Ignore
+            }
+            b"gs" => {
+                if let Some(name) = op.operands.iter().find_map(|t| match &t.kind {
+                    ContentTokenKind::Operand(Object::Name(nm)) => Some(nm.as_bytes()),
+                    _ => None,
+                }) {
+                    self.gs.fill_alpha =
+                        self.gs.fill_alpha.after_gs(self.doc, self.resources, name);
                 }
                 Rec::Ignore
             }
@@ -1868,6 +1883,7 @@ impl<'a> Walk<'a> {
             fill_color: self.gs.fill.clone(),
             stroke_color: self.gs.stroke.clone(),
             line_width: self.gs.line_width.clone(),
+            fill_alpha: self.gs.fill_alpha,
             text_matrix: self.tm,
             matrix_known: self.tm_known,
             ctm: self.gs.ctm,

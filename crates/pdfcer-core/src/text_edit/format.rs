@@ -629,6 +629,11 @@ pub struct FormatRequest {
     pub set_drawn_size: Option<f64>,
     /// New fill colour (device space preserved). `None` leaves it unchanged.
     pub set_fill: Option<NewFill>,
+    /// New fill opacity, the ExtGState `/ca` (ISO 32000-1 §8.4.5 Table 58),
+    /// in 0.0 (invisible) to 1.0 (opaque). Bound as a new `/ExtGState`
+    /// resource selected by `gs` before the run, with the ambient alpha put
+    /// back by a second one after it. `None` leaves the opacity unchanged.
+    pub set_fill_alpha: Option<f64>,
     /// New font family/style — an existing page font resource. `None`
     /// leaves the face unchanged.
     pub set_font: Option<FontSelector>,
@@ -805,6 +810,7 @@ impl FormatRequest {
             set_size: None,
             set_drawn_size: None,
             set_fill: None,
+            set_fill_alpha: None,
             set_font: None,
             set_char_spacing: None,
             set_word_spacing: None,
@@ -977,6 +983,14 @@ impl FormatRequest {
         self
     }
 
+    /// Add a fill-opacity change ([`Self::set_fill_alpha`]), returning
+    /// `self`.
+    #[must_use]
+    pub fn fill_alpha(mut self, alpha: f64) -> Self {
+        self.set_fill_alpha = Some(alpha);
+        self
+    }
+
     /// Add a font-family/style change, returning `self`.
     #[must_use]
     pub fn font(mut self, selector: FontSelector) -> Self {
@@ -1093,6 +1107,7 @@ impl FormatRequest {
         self.set_size.is_none()
             && self.set_drawn_size.is_none()
             && self.set_fill.is_none()
+            && self.set_fill_alpha.is_none()
             && self.set_font.is_none()
             && self.set_char_spacing.is_none()
             && self.set_word_spacing.is_none()
@@ -1350,6 +1365,8 @@ pub struct FormatReport {
     /// `(ambient mode, emitted mode)` for `Tr` when a rendering mode was
     /// requested (`G034`).
     pub render_mode_change: Option<(f64, u8)>,
+    /// `(ambient alpha, emitted alpha)` when a fill opacity was requested.
+    pub fill_alpha_change: Option<(f64, f64)>,
     /// The baseline position applied, when the script toggle was used.
     pub script: Option<ScriptPosition>,
     /// `(base size, emitted reduced size)` when a super/subscript reduced
@@ -1451,8 +1468,8 @@ pub enum FormatError {
     /// No formatting operation was requested (every `--set-*` /
     /// spacing / scaling / script flag absent).
     #[error(
-        "no formatting operation was requested (need one of size, colour, font, character \
-         spacing, word spacing, horizontal scaling, super/subscript, baseline rise, or a \
+        "no formatting operation was requested (need one of size, colour, opacity, font, \
+         character spacing, word spacing, horizontal scaling, super/subscript, baseline rise, or a \
          synthetic style)"
     )]
     NoOp,
@@ -1462,6 +1479,17 @@ pub enum FormatError {
     /// (R88 tier 3, decision 019 §3.4). Nothing was applied.
     #[error(transparent)]
     AmbientUnrestorable(#[from] AmbientRestoreError),
+    /// A fill opacity outside 0.0..=1.0, or not a number.
+    #[error("invalid opacity {0}: it must be between 0 and 1")]
+    BadOpacity(f64),
+    /// The run's ambient fill opacity is set by an `/ExtGState` pdfcer could
+    /// not read, so the opacity after the run could not be put back. Nothing
+    /// was applied.
+    #[error(
+        "the opacity in effect at this text is set by a graphics state pdfcer cannot read, \
+         so it could not be restored after the change; nothing was applied"
+    )]
+    OpacityUnrestorable,
     /// A `--h-scale` percentage outside the range pdfcer will write.
     #[error("invalid horizontal scaling: {0}")]
     BadHorizScale(String),
@@ -1906,6 +1934,22 @@ pub fn set_format(
         }
     };
 
+    let mut extra_objects = extra_objects;
+    let (alpha_owner, alpha_inherit) = match target.form.as_ref() {
+        Some(form) => (form.id, false),
+        None => (page.id, true),
+    };
+    if crate::text_edit::opacity::merge_alphas(
+        &doc.view(),
+        &mut extra_objects,
+        alpha_owner,
+        alpha_inherit,
+        &plan.created_alphas,
+    ) {
+        let note = crate::text_edit::opacity::SHARED_NOTE.to_owned();
+        plan.report.disclosures.push(note);
+    }
+
     let bytes = match target.form.as_ref() {
         Some(form) => {
             // The binder may have patched the form's OWN dictionary (when its
@@ -2050,6 +2094,10 @@ pub(crate) struct FormatPlan {
     /// naming a resource that does not exist, which §7.8.3 leaves undefined
     /// and which viewers render as missing text rather than as an error.
     pub(crate) created_font: Option<CreatedFont>,
+    /// The `/ExtGState` resources a fill-opacity change selects, to be
+    /// bound into the target's resources by the caller, exactly as
+    /// [`Self::created_font`] is.
+    pub(crate) created_alphas: Vec<crate::text_edit::opacity::CreatedAlpha>,
 }
 
 /// Plan a FORMAT edit over an already-decoded content `stream`: locate the
@@ -2526,6 +2574,14 @@ pub(crate) fn plan_format_target(
         restore_ops.extend_from_slice(&anchor.fill_color.restore_bytes());
         fill_narrowed = anchor.fill_color.is_other();
     }
+    let (created_alphas, fill_alpha_change) = crate::text_edit::opacity::plan_alpha(
+        doc,
+        &target.resources,
+        anchor.fill_alpha,
+        req.set_fill_alpha,
+        &mut set_ops,
+        &mut restore_ops,
+    )?;
 
     // --- the Pass 19.1 text-state parameters, each through R88's ladder ---
     //
@@ -3091,6 +3147,7 @@ pub(crate) fn plan_format_target(
         render_mode_change: req
             .set_render_mode
             .map(|m| (anchor.text_state.render_mode.value, m)),
+        fill_alpha_change,
         script,
         script_size: script_metrics.map(|_| (base_size, emitted_size)),
         rise_change: new_rise.map(|r| (anchor.text_state.rise.value, r)),
@@ -3114,6 +3171,7 @@ pub(crate) fn plan_format_target(
         new_content,
         report,
         created_font,
+        created_alphas,
     })
 }
 

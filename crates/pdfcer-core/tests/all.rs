@@ -251,6 +251,7 @@ mod text_edit_workarounds;
 mod text_extract;
 mod text_form_reshape;
 mod text_object_split;
+mod text_opacity;
 mod text_render_mode;
 mod text_run_delete;
 mod text_run_locate;
