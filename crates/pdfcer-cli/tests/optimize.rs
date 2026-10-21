@@ -671,9 +671,8 @@ fn a_requested_removal_is_written_and_exits_0_even_when_not_smaller() {
     assert_eq!(none.status.code(), Some(14), "{}", text(&none));
 }
 
-#[test]
-fn an_image_setting_downsamples_and_reports_size_page_and_source() {
-    let d = dir("image-downsample");
+/// A 200 x 200 grey image of letter noise drawn at 50 pt on one page.
+fn noise_image_pdf(d: &std::path::Path) -> std::path::PathBuf {
     let mut x = 0x9E37_79B9u32;
     let px: String = (0..200 * 200)
         .map(|_| {
@@ -696,7 +695,13 @@ fn an_image_setting_downsamples_and_reports_size_page_and_source() {
     ];
     let page = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents 8 0 R /Resources << /XObject << /Im9 9 0 R >> >> >>";
     let extra: Vec<&str> = extra.iter().map(String::as_str).collect();
-    let input = write_pdf_page(&d, "", page, &extra);
+    write_pdf_page(d, "", page, &extra)
+}
+
+#[test]
+fn an_image_setting_downsamples_and_reports_size_page_and_source() {
+    let d = dir("image-downsample");
+    let input = noise_image_pdf(&d);
     let out = d.join("out.pdf");
     let args = [
         input.to_str().unwrap(),
@@ -734,6 +739,43 @@ fn an_image_setting_downsamples_and_reports_size_page_and_source() {
     assert!(j.contains("\"size_after\":[50,50]"), "{j}");
     assert!(
         j.contains("\"method\":{\"value\":\"average\",\"source\":\"rule 1\"}"),
+        "{j}"
+    );
+}
+
+#[test]
+fn an_image_written_as_jpeg_reports_format_and_quality() {
+    let d = dir("image-jpeg");
+    let input = noise_image_pdf(&d);
+    let out = d.join("out.pdf");
+    let args = [
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--keep-structure",
+        "--streams",
+        "image(encode=jpeg,quality=low)",
+    ];
+    let o = run(&args);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(
+        report.contains("200x200 -> 200x200 px; written as jpeg quality 40 (asked 40)"),
+        "{report}"
+    );
+    assert!(report.contains("(lossy)"), "{report}");
+    let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(written.contains("/DCTDecode"), "{written}");
+    let mut json = args.to_vec();
+    json.extend(["--dry-run", "--json"]);
+    let j = text(&run(&json));
+    assert!(j.contains("\"encoded_as\":\"jpeg\""), "{j}");
+    assert!(
+        j.contains("\"jpeg\":{\"asked\":40,\"used\":40,\"source_estimate\":null}"),
+        "{j}"
+    );
+    assert!(
+        j.contains("\"quality\":{\"value\":40,\"source\":\"streams\"}"),
         "{j}"
     );
 }

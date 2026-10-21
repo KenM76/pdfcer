@@ -720,3 +720,10 @@ path = "fuzz_targets/optimize_profile.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "jpeg_quality_estimate"
+path = "fuzz_targets/jpeg_quality_estimate.rs"
+test = false
+doc = false
+bench = false

@@ -42,7 +42,12 @@ pub(crate) struct OptimizeArgs {
     /// rest: "image(ppi=150)" downsamples every image whose largest drawn
     /// use is above 1.5 x 150 ppi to 150 ppi there. Keys: method
     /// (off|average|subsample|bicubic|lanczos), ppi, above (the trigger),
-    /// encode (keep|flate|flate-N), min-saving (percent), reset.
+    /// encode (keep|flate|flate-N|jpeg), quality (1-100 or minimum, low,
+    /// medium, high, maximum; default 80), chroma (auto|444|420),
+    /// progressive, min-saving (percent), reset. "image(encode=jpeg)"
+    /// rewrites every eligible image as JPEG at its size; a JPEG is never
+    /// written above its own estimated quality, and one left at its size is
+    /// not touched.
     #[arg(long, value_name = "ACTION")]
     pub(crate) streams: Option<String>,
     /// Add a rule, after the profile's. Whitespace-separated key=value pairs

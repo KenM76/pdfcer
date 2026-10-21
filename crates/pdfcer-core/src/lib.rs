@@ -76,6 +76,7 @@ pub mod forms_author;
 pub mod hand_sig;
 pub mod image_import;
 mod image_resample;
+mod jpeg_write;
 pub mod layers;
 /// OCR text layers — turning recognised words into an invisible, selectable
 /// layer over an untouched scan (ISO 32000-1 §9.3.6 mode 3). Engine-agnostic:

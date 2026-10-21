@@ -16,10 +16,10 @@ use crate::optimize::{
 use crate::space_audit::tests::stream;
 use crate::writer::SaveOptions;
 
-const N: u32 = 300;
+pub(super) const N: u32 = 300;
 
 /// A 300 x 300 8-bit grey noise image, Flate-compressed, with `extra` dict keys.
-fn grey(extra: &str) -> Vec<u8> {
+pub(super) fn grey(extra: &str) -> Vec<u8> {
     let mut x = 0x9E37_79B9u32;
     let px: Vec<u8> = (0..N * N)
         .map(|_| {
@@ -39,7 +39,7 @@ fn grey(extra: &str) -> Vec<u8> {
 }
 
 /// Objects 1-3 the document, 4 the content, 5.. `images` (`/Im5`, ...).
-fn doc(content: &str, images: &[Vec<u8>]) -> Vec<u8> {
+pub(super) fn doc(content: &str, images: &[Vec<u8>]) -> Vec<u8> {
     let names: String = (0..images.len())
         .map(|i| format!("/Im{n} {n} 0 R ", n = i + 5))
         .collect();
@@ -57,7 +57,9 @@ fn doc(content: &str, images: &[Vec<u8>]) -> Vec<u8> {
     build(&bodies)
 }
 
-fn plan(bytes: Vec<u8>, actions: &[(&str, Option<u32>)]) -> (EditSession, OptimizePlan) {
+/// Plan `bytes` with `actions`: `(action, None)` sets the default stream
+/// action, `(action, Some(n))` overrides object `n`.
+pub(super) fn plan(bytes: Vec<u8>, actions: &[(&str, Option<u32>)]) -> (EditSession, OptimizePlan) {
     let mut settings = OptimizeSettings::new();
     for (a, obj) in actions {
         let action = StreamAction::parse(a).unwrap();
@@ -73,14 +75,15 @@ fn plan(bytes: Vec<u8>, actions: &[(&str, Option<u32>)]) -> (EditSession, Optimi
     (session, plan)
 }
 
-fn skip(plan: &OptimizePlan, n: u32) -> Option<SkipReason> {
+/// Why object `n` was skipped, if it was.
+pub(super) fn skip(plan: &OptimizePlan, n: u32) -> Option<SkipReason> {
     plan.skipped
         .iter()
         .find(|s| s.id.num == n)
         .map(|s| s.reason.clone())
 }
 
-const AT_100: &str = "q 100 0 0 100 0 0 cm /Im5 Do Q";
+pub(super) const AT_100: &str = "q 100 0 0 100 0 0 cm /Im5 Do Q";
 
 #[test]
 fn an_image_drawn_small_is_downsampled_to_the_target_and_reported() {
@@ -131,18 +134,18 @@ fn an_object_override_turns_off_only_downsampling() {
 
 #[test]
 fn images_this_pass_cannot_resample_are_skipped_with_a_reason() {
-    let dct = stream(
+    let jpx = stream(
         "/Type /XObject /Subtype /Image /Width 300 /Height 300 /ColorSpace /DeviceGray \
-         /BitsPerComponent 8 /Filter /DCTDecode",
+         /BitsPerComponent 8 /Filter /JPXDecode",
         &[0xFF; 64],
     );
     let content = "q 100 0 0 100 0 0 cm /Im5 Do /Im6 Do /Im7 Do Q";
-    let images = [grey(""), dct, grey("/Mask [0 10]")];
+    let images = [grey(""), jpx, grey("/Mask [0 10]")];
     let (_, p) = plan(doc(content, &images), &[("image(ppi=72)", None)]);
     assert!(p.changes.iter().any(|c| c.id.num == 5));
     assert_eq!(
         skip(&p, 6),
-        Some(SkipReason::UnsupportedFilter("DCTDecode".into()))
+        Some(SkipReason::UnsupportedFilter("JPXDecode".into()))
     );
     assert!(
         matches!(skip(&p, 7), Some(SkipReason::ImageUnsupported(w)) if w.contains("colour-key"))

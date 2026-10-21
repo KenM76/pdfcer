@@ -52,8 +52,12 @@ use std::fmt;
 pub use crate::space_audit::ImageClass;
 pub use cleanup::{BrokenBookmark, BrokenLink, BrokenTarget, CleanupOptions, CleanupPlan};
 pub use discard::DiscardOptions;
-pub use image::pipeline::ImageChange;
-pub use image::{ImageEncode, ImagePatch, ResampleMethod, ResolvedImage, SettingSource, Sourced};
+pub use image::jpeg_quality::estimate_jpeg_quality;
+pub use image::pipeline::{ImageChange, JpegQuality};
+pub use image::{
+    Chroma, ImageEncode, ImagePatch, QUALITY_LEVELS, ResampleMethod, ResolvedImage, SettingSource,
+    Sourced,
+};
 pub use objects::{DiscardObject, ObjectDiscard};
 pub use select::{PageRanges, Selector};
 
@@ -456,7 +460,7 @@ pub enum SkipReason {
         /// The required saving, percent.
         pct: u8,
     },
-    /// An image this Pass does not resample, and why.
+    /// An image the settings ask to rewrite that is not rewritten, and why.
     ImageUnsupported(String),
     /// A role this action never rewrites: XMP metadata (PDF/A-1 §6.7.2
     /// forbids a `/Filter` on it), object and cross-reference streams (the
@@ -476,7 +480,7 @@ impl fmt::Display for SkipReason {
             Self::BelowMinSaving { before, after, pct } => {
                 write!(f, "saves less than {pct}% ({before} B -> {after} B), kept")
             }
-            Self::ImageUnsupported(why) => write!(f, "not resampled: {why}"),
+            Self::ImageUnsupported(why) => write!(f, "not rewritten: {why}"),
             Self::Protected(what) => write!(f, "{what} is never rewritten"),
         }
     }

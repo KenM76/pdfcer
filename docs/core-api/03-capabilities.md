@@ -4478,11 +4478,12 @@ with a wildcard arm, and show `as_str()` for an unknown category.
 | `CleanupPlan { links: Vec<BrokenLink>, bookmarks: Vec<BrokenBookmark>, destinations: Vec<Vec<u8>> }` | `is_empty()`; `BrokenLink { page_index, id, target }`; `BrokenBookmark { id, title, target: Option<BrokenTarget>, descendants }` (topmost deleted items only; each takes its subtree); `destinations` raw name bytes, sorted byte-wise |
 | `BrokenTarget::{MissingPage(ObjId), UndefinedName(Vec<u8>)}` | `Display` is the reason line the CLI prints |
 | `StreamAction::{Leave, Recompress { level }, Image(ImagePatch)}` | `parse("recompress-6")` / `parse("image(ppi=150,method=average)")`, `to_profile_string()`, `is_lossy()` (an `Image` is lossy when it sets `ppi` and its method is not `off`) |
-| `ImagePatch { reset, method, ppi, above, encode, min_saving_pct }` (Copy, `#[non_exhaustive]`, every field `Option` but `reset`) | `new()`, `parse("image(...)")`, `validate()`, `Display` (the spelling `parse` takes, no spaces). Keys: `method` (`off`/`average`/`subsample`/`bicubic`/`lanczos`), `ppi` (target, ≥ 1), `above` (trigger, ≥ `ppi`), `encode` (`keep`/`flate`/`flate-N`), `min-saving` (0–99 percent), `reset` (drop earlier image settings first) |
-| `ResampleMethod::{Off, Average, Subsample, Bicubic, Lanczos}` / `ImageEncode::{Keep, Flate { level }}` | `ResampleMethod::ALL`, `as_str`, `from_name`, `Display`; default `Bicubic`; `Keep` = output Flate level 9 when a resample forces re-encoding |
-| `ResolvedImage { method, ppi, above, encode, min_saving_pct }` | the folded settings, each a `Sourced<T> { value, source }` with `SettingSource::{BuiltIn, Streams, Rule(n), Object}` (`Display` `default`, `streams`, `rule {n+1}`, `object override`); `resamples()`, `trigger()` (`above`, else 1.5 × `ppi`, never below `ppi`), `to_patch()` |
-| `PlannedChange.image: Option<ImageChange>` | `ImageChange { settings: ResolvedImage, size_before, size_after, binding: Option<ImagePlacement>, binding_ppi_after }`: pixel sizes `(w, h)`, the placement that limited the reduction and its ppi after |
-| `SkipReason::{Unplaced, BelowMinSaving { before, after, pct }, ImageUnsupported(String)}` | an image drawn nowhere has no ppi to measure; a resample saving under `min-saving`; a mask or format this pass does not resample (reason in words) |
+| `ImagePatch { reset, method, ppi, above, encode, quality, chroma, progressive, min_saving_pct }` (Copy, `#[non_exhaustive]`, every field `Option` but `reset`) | `new()`, `parse("image(...)")`, `validate()`, `Display` (the spelling `parse` takes, no spaces). Keys: `method` (`off`/`average`/`subsample`/`bicubic`/`lanczos`), `ppi` (target, ≥ 1), `above` (trigger, ≥ `ppi`), `encode` (`keep`/`flate`/`flate-N`/`jpeg`), `quality` (1–100 or a `QUALITY_LEVELS` name: `minimum` 20, `low` 40, `medium` 60, `high` 80, `maximum` 95), `chroma` (`auto`/`444`/`420`), `progressive` (bare, `true`, `false`), `min-saving` (0–99 percent), `reset` (drop earlier image settings first) |
+| `ResampleMethod::{Off, Average, Subsample, Bicubic, Lanczos}` / `ImageEncode::{Keep, Flate { level }, Jpeg}` / `Chroma::{Auto, Full, Half}` | `ALL`, `as_str`, `from_name`, `Display`; default `Bicubic`; `Keep` = when a resample forces re-encoding, Flate level 9 from a generic source and JPEG from a JPEG source; `Chroma::Auto` = 4:4:4 at quality ≥ 90, else 4:2:0 (`Full` 4:4:4, `Half` 4:2:0; CMYK is always 4:4:4) |
+| `ResolvedImage { method, ppi, above, encode, quality, chroma, progressive, min_saving_pct }` | the folded settings, each a `Sourced<T> { value, source }` with `SettingSource::{BuiltIn, Streams, Rule(n), Object}` (`Display` `default`, `streams`, `rule {n+1}`, `object override`); `resamples()`, `trigger()` (`above`, else 1.5 × `ppi`, never below `ppi`), `to_patch()` |
+| `PlannedChange.image: Option<ImageChange>` | `ImageChange { settings: ResolvedImage, size_before, size_after, binding: Option<ImagePlacement>, binding_ppi_after, encoded_as: ImageEncode, bpc: (u8, u8), jpeg: Option<JpegQuality> }`: pixel sizes `(w, h)` (equal when only the encoding changed), the placement that limited a downsample (`None` when not resized) and its ppi after, the encoding written (`Flate` or `Jpeg`), bits per component before/after, and `JpegQuality { asked, used, source_estimate }` |
+| `optimize::estimate_jpeg_quality(&[u8]) -> Option<u8>` | the IJG quality (1–100) whose scaled T.81 Table K.1 matches the table of the first frame component, before the first scan; `None` for non-IJG tables (mozjpeg, Photoshop) or malformed data. Never reads past the slice |
+| `SkipReason::{Unplaced, BelowMinSaving { before, after, pct }, ImageUnsupported(String)}` | an image drawn nowhere has no ppi to measure; a rewrite saving under `min-saving`; an image the settings ask to rewrite that is not rewritten (reason in words; `Display` `not rewritten: …`) |
 | `Selector { categories, pages, min_bytes, max_bytes, filters, color_spaces, image_classes, min_ppi, max_ppi, ids }` | every set field must match (AND); `filters` entry `"none"` = unfiltered; `image_classes` and `min_ppi`/`max_ppi` (tested against `binding_ppi`) match images only; `PageRanges::parse("1-3,7,10-")` |
 | `optimize::profile::parse(name, text, &mut resolve)` / `to_profile(&settings)` | TOML profile ⇄ settings; `extends` names a preset or (via `resolve`) another profile; `ProfileError { profile, line, message }` |
 | `optimize::profile::parse_rule(spec)` / `parse_object(spec)` | one-line `key=value …` rule / `ID=ACTION` override, the forms the CLI takes |
@@ -4499,11 +4500,22 @@ Contract:
   when its **binding** ppi (the lowest over every placement, i.e. the use
   drawn largest; `binding_ppi_x/y`) is above `trigger()`; output length =
   `round(len × ppi / binding)`, clamped to 1..=len, so the largest use lands
-  at the target. Generic filters only (else `UnsupportedFilter`), output
-  Flate; Indexed images take the nearest sample, never a blend; a `/Matte`
+  at the target. Generic filters, or `/DCTDecode` last after them (else
+  `UnsupportedFilter`); undecodable data is `Undecodable`. Indexed images take the nearest sample, never a blend; a `/Matte`
   soft mask and its parent, and a colour-key `/Mask` array, are
   `ImageUnsupported`; never larger, then `min-saving`. Every downsample is
   lossy and itemised in `changes` (rule 4).
+- **JPEG output** (Pass 616.4 slice B, decision 192): `encode=jpeg`
+  rewrites an image as `/DCTDecode` at its size or resampled; a JPEG source
+  resampled under `keep` stays JPEG. A JPEG whose pixels do not change is
+  never touched (no generation loss for nothing). Re-encoding a JPEG writes
+  `min(quality, source_estimate)`; `JpegQuality` says which. Refused as
+  `ImageUnsupported`: image masks and 1-bit images, Indexed, colour-key
+  `/Mask`, component counts other than 1/3/4. `/Decode` and `/ColorSpace`
+  are kept (an inverted CMYK `/Decode` keeps its meaning); `/DecodeParms`
+  is removed; 16-bit samples become 8 (`bpc` says so). A `/Matte` pair may
+  change encoding at its size, never be resized. Every JPEG write is lossy
+  and itemised. Huffman tables are always optimised.
 - **Never larger**, twice: a stream whose result is not strictly smaller is
   `SkipReason::NotSmaller` and kept; a whole file that is not strictly
   smaller is `KeptOriginal` and must not be written over the input, unless

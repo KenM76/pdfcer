@@ -2,11 +2,14 @@
 //! `image(...)` action carries, and the fold that resolves every matching
 //! action into one [`ResolvedImage`] naming where each value came from.
 
+pub(crate) mod encode;
+pub(crate) mod jpeg_quality;
 pub(crate) mod pipeline;
 
 use std::fmt;
 
 use super::StreamAction;
+pub use crate::jpeg_write::Chroma;
 
 /// How an image is resampled when it is downsampled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -64,14 +67,18 @@ impl fmt::Display for ResampleMethod {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ImageEncode {
-    /// Keep the stored encoding. Resampled samples from a generic-filter
-    /// source cannot keep it, so they are written as `/FlateDecode` level 9.
+    /// Keep the stored encoding. Resampled samples are written as
+    /// `/FlateDecode` level 9 from a generic-filter source and as JPEG from
+    /// a `/DCTDecode` one.
     Keep,
     /// `/FlateDecode` at zlib `level` (0 to 9). Lossless.
     Flate {
         /// zlib level, 0 to 9.
         level: u8,
     },
+    /// `/DCTDecode` (JPEG) with the patch's `quality`, `chroma` and
+    /// `progressive`. Lossy.
+    Jpeg,
 }
 
 impl fmt::Display for ImageEncode {
@@ -79,6 +86,7 @@ impl fmt::Display for ImageEncode {
         match self {
             Self::Keep => f.write_str("keep"),
             Self::Flate { level } => write!(f, "flate-{level}"),
+            Self::Jpeg => f.write_str("jpeg"),
         }
     }
 }
@@ -86,10 +94,12 @@ impl fmt::Display for ImageEncode {
 /// The settings one `image(...)` action changes; `None` leaves a field as
 /// an earlier action set it.
 ///
-/// Spelling: `image(method=bicubic,ppi=150,above=225,encode=flate-9,min-saving=10)`,
+/// Spelling: `image(method=bicubic,ppi=150,above=225,encode=jpeg,quality=high,chroma=420,progressive,min-saving=10)`,
 /// any subset, any order, spaces allowed when parsing. `reset` first clears
 /// every field an earlier action set. Downsampling needs a `ppi`; `method`
-/// defaults to bicubic and `above` (the trigger) to 1.5 x `ppi`.
+/// defaults to bicubic and `above` (the trigger) to 1.5 x `ppi`. `quality`
+/// is 1 to 100 or a [`QUALITY_LEVELS`] name; it applies when the output is
+/// JPEG and defaults to 80.
 ///
 /// ```
 /// use pdfcer_core::optimize::{ImagePatch, ResampleMethod, StreamAction};
@@ -113,10 +123,25 @@ pub struct ImagePatch {
     pub above: Option<u16>,
     /// Output encoding.
     pub encode: Option<ImageEncode>,
+    /// JPEG quality, 1 to 100 (IJG scale).
+    pub quality: Option<u8>,
+    /// JPEG chroma subsampling.
+    pub chroma: Option<Chroma>,
+    /// Progressive rather than baseline JPEG.
+    pub progressive: Option<bool>,
     /// Keep the stored form unless the result is at least this many percent
     /// smaller (0 to 99).
     pub min_saving_pct: Option<u8>,
 }
+
+/// The named JPEG qualities `quality=` accepts (decision 192).
+pub const QUALITY_LEVELS: [(&str, u8); 5] = [
+    ("minimum", 20),
+    ("low", 40),
+    ("medium", 60),
+    ("high", 80),
+    ("maximum", 95),
+];
 
 impl ImagePatch {
     /// A patch that changes nothing.
@@ -128,6 +153,9 @@ impl ImagePatch {
             ppi: None,
             above: None,
             encode: None,
+            quality: None,
+            chroma: None,
+            progressive: None,
             min_saving_pct: None,
         }
     }
@@ -137,8 +165,8 @@ impl ImagePatch {
     /// # Errors
     ///
     /// A message naming the bad key or value: an unknown or repeated key,
-    /// `ppi` or `above` of 0, `above` below `ppi`, a flate level above 9 or
-    /// a `min-saving` above 99.
+    /// `ppi` or `above` of 0, `above` below `ppi`, a flate level above 9, a
+    /// `quality` outside 1 to 100 or a `min-saving` above 99.
     pub fn parse(text: &str) -> Result<Self, String> {
         let inner = text
             .trim()
@@ -175,10 +203,23 @@ impl ImagePatch {
             "ppi" => self.ppi = Some(value.parse().map_err(|_| bad())?),
             "above" => self.above = Some(value.parse().map_err(|_| bad())?),
             "encode" => self.encode = Some(parse_encode(value)?),
+            "quality" => self.quality = Some(parse_quality(value)?),
+            "chroma" => {
+                self.chroma = Some(Chroma::from_name(value).ok_or_else(|| {
+                    format!("image(): unknown chroma {value:?}; expected auto, 444 or 420")
+                })?);
+            }
+            "progressive" => {
+                self.progressive = Some(match value {
+                    "" | "true" => true,
+                    "false" => false,
+                    _ => return Err(bad()),
+                });
+            }
             "min-saving" => self.min_saving_pct = Some(value.parse().map_err(|_| bad())?),
             _ => {
                 return Err(format!(
-                    "image(): unknown key {key:?}; expected reset, method, ppi, above, encode or min-saving"
+                    "image(): unknown key {key:?}; expected reset, method, ppi, above, encode, quality, chroma, progressive or min-saving"
                 ));
             }
         }
@@ -202,6 +243,9 @@ impl ImagePatch {
         if matches!(self.encode, Some(ImageEncode::Flate { level }) if level > 9) {
             return Err("image(): flate level must be 0 to 9".to_owned());
         }
+        if self.quality.is_some_and(|q| !(1..=100).contains(&q)) {
+            return Err("image(): quality must be 1 to 100".to_owned());
+        }
         if self.min_saving_pct.is_some_and(|p| p > 99) {
             return Err("image(): min-saving must be 0 to 99".to_owned());
         }
@@ -213,15 +257,31 @@ fn parse_encode(value: &str) -> Result<ImageEncode, String> {
     match value {
         "keep" => Ok(ImageEncode::Keep),
         "flate" => Ok(ImageEncode::Flate { level: 9 }),
+        "jpeg" => Ok(ImageEncode::Jpeg),
         _ => value
             .strip_prefix("flate-")
             .and_then(|n| n.parse::<u8>().ok())
             .filter(|n| *n <= 9)
             .map(|level| ImageEncode::Flate { level })
             .ok_or_else(|| {
-                format!("image(): unknown encode {value:?}; expected keep, flate or flate-0..9")
+                format!(
+                    "image(): unknown encode {value:?}; expected keep, flate, flate-0..9 or jpeg"
+                )
             }),
     }
+}
+
+fn parse_quality(value: &str) -> Result<u8, String> {
+    QUALITY_LEVELS
+        .iter()
+        .find(|(name, _)| *name == value)
+        .map(|(_, q)| *q)
+        .or_else(|| value.parse().ok())
+        .ok_or_else(|| {
+            format!(
+                "image(): bad quality {value:?}; expected 1 to 100 or minimum, low, medium, high, maximum"
+            )
+        })
 }
 
 impl fmt::Display for ImagePatch {
@@ -241,6 +301,15 @@ impl fmt::Display for ImagePatch {
         }
         if let Some(e) = self.encode {
             parts.push(format!("encode={e}"));
+        }
+        if let Some(q) = self.quality {
+            parts.push(format!("quality={q}"));
+        }
+        if let Some(c) = self.chroma {
+            parts.push(format!("chroma={c}"));
+        }
+        if let Some(p) = self.progressive {
+            parts.push(format!("progressive={p}"));
         }
         if let Some(s) = self.min_saving_pct {
             parts.push(format!("min-saving={s}"));
@@ -300,6 +369,12 @@ pub struct ResolvedImage {
     pub above: Option<Sourced<u16>>,
     /// Output encoding.
     pub encode: Sourced<ImageEncode>,
+    /// JPEG quality as set; a JPEG source caps it at its own estimate.
+    pub quality: Sourced<u8>,
+    /// JPEG chroma subsampling.
+    pub chroma: Sourced<Chroma>,
+    /// Progressive JPEG.
+    pub progressive: Sourced<bool>,
     /// The `min-saving` guard, percent.
     pub min_saving_pct: Sourced<u8>,
 }
@@ -311,6 +386,9 @@ impl ResolvedImage {
             ppi: None,
             above: None,
             encode,
+            quality: sourced(80, SettingSource::BuiltIn),
+            chroma: sourced(Chroma::Auto, SettingSource::BuiltIn),
+            progressive: sourced(false, SettingSource::BuiltIn),
             min_saving_pct: sourced(0, SettingSource::BuiltIn),
         }
     }
@@ -343,6 +421,9 @@ impl ResolvedImage {
             ppi: self.ppi.map(|p| p.value),
             above: self.above.map(|a| a.value),
             encode: Some(self.encode.value),
+            quality: Some(self.quality.value),
+            chroma: Some(self.chroma.value),
+            progressive: Some(self.progressive.value),
             min_saving_pct: Some(self.min_saving_pct.value),
         }
     }
@@ -362,6 +443,15 @@ impl ResolvedImage {
         }
         if let Some(v) = p.encode {
             self.encode = sourced(v, src);
+        }
+        if let Some(v) = p.quality {
+            self.quality = sourced(v, src);
+        }
+        if let Some(v) = p.chroma {
+            self.chroma = sourced(v, src);
+        }
+        if let Some(v) = p.progressive {
+            self.progressive = sourced(v, src);
         }
         if let Some(v) = p.min_saving_pct {
             self.min_saving_pct = sourced(v, src);
@@ -409,6 +499,8 @@ pub(crate) fn fold(actions: impl IntoIterator<Item = (StreamAction, SettingSourc
     }
 }
 
+#[cfg(test)]
+mod pipeline_jpeg_tests;
 #[cfg(test)]
 mod pipeline_tests;
 #[cfg(test)]

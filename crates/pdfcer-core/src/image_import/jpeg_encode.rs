@@ -150,7 +150,7 @@
 //! - Adobe TN #5116 §13.1 (the CMYK→YCCK forward transform), normative by
 //!   reference from ISO 32000-1 §7.4.8 footnote *a*
 
-use jpeg_encoder::{ColorType, Encoder, SamplingFactor};
+use crate::jpeg_write::{Chroma, JpegOptions, encode, unpack_to_bytes};
 
 use super::{
     ImageImportError, ImportColorSpace, ImportFilter, ImportNotes, ImportedImage, PdfFeature,
@@ -227,9 +227,9 @@ pub(crate) fn to_jpeg(img: &ImportedImage, quality: u8) -> Result<ImportedImage,
     let source = source_samples(img)?;
 
     // The u16 API is a real edge, not a formality — see the Errors section.
-    let (Ok(w16), Ok(h16)) = (u16::try_from(source.width), u16::try_from(source.height)) else {
+    if u16::try_from(source.width).is_err() || u16::try_from(source.height).is_err() {
         return Err(ImageImportError::TooLarge);
-    };
+    }
 
     let expected = (source.width as usize)
         .checked_mul(source.height as usize)
@@ -250,51 +250,20 @@ pub(crate) fn to_jpeg(img: &ImportedImage, quality: u8) -> Result<ImportedImage,
         });
     }
 
-    let mut out = Vec::new();
-    let mut encoder = Encoder::new(&mut out, quality);
-
-    // Chroma subsampling, chosen per component count rather than left to the
-    // library default, because the default is quality-conditioned
-    // (`SamplingFactor::F_2_2` below quality 90, `F_1_1` at or above) and
-    // that coupling is invisible to the operator.
-    //
-    // For 1 and 3 components the default IS the right answer and is adopted
-    // deliberately: 4:2:0 on YCbCr is what every photographic encoder does,
-    // and it is what "quality 75" means to anyone who has used one.
-    //
-    // For 4 components it is NOT. `jpeg-encoder`'s YCCK component table
-    // (`encoder.rs:631-648`) gives the sampling factor to Y **and K** while
-    // pinning Cb/Cr at 1×1 — so a subsampled configuration halves the C/M/Y
-    // chroma resolution of ink channels that, on a CAD export or a print
-    // proof, carry hard edges rather than smooth gradients. Forced to 1:1.
-    if source.components == 4 {
-        encoder.set_sampling_factor(SamplingFactor::F_1_1);
-    }
-
-    // THE POLARITY DECISION. See the module docs for the derivation; the
-    // one-line version is that `CmykAsYcck` fed the COMPLEMENT of true ink
-    // reproduces TN #5116 §13.1 exactly and lands on the benign transform-2
-    // shape, while every other combination either inverts the picture or
-    // manufactures R30's ambiguous shape.
-    let (payload, color_type) = match source.components {
-        1 => (source.samples, ColorType::Luma),
-        3 => (source.samples, ColorType::Rgb),
-        4 => (
-            source.samples.iter().map(|&v| 255 - v).collect(),
-            ColorType::CmykAsYcck,
-        ),
-        // `source_samples` only ever produces 1, 3 or 4; a fourth value
-        // would be a bug in this module, not in the file.
-        n => {
-            return Err(ImageImportError::DecodeFailed {
-                detail: format!("{n} components have no /DCTDecode layout"),
-            });
-        }
+    let options = JpegOptions {
+        quality,
+        chroma: Chroma::Auto,
+        progressive: false,
+        optimize_huffman: false,
     };
-
-    encoder
-        .encode(&payload, w16, h16, color_type)
-        .map_err(|e| ImageImportError::Compress(e.to_string()))?;
+    let out = encode(
+        &source.samples,
+        source.width,
+        source.height,
+        source.components,
+        options,
+    )
+    .map_err(ImageImportError::Compress)?;
 
     // Recomputed from what is actually stored rather than inherited: the
     // source's floor may have been `/BitsPerComponent 16` (PDF 1.5) or a
@@ -529,78 +498,6 @@ fn source_samples(img: &ImportedImage) -> Result<SourceSamples, ImageImportError
             space: space.clone(),
         }),
     }
-}
-
-/// Unpack §8.9.3-packed samples into one byte per component, dropping row
-/// padding.
-///
-/// # The three cases, and why each scales the way it does
-///
-/// - **8 bits** — already one byte per component; only the row padding
-///   (which is zero for 8-bit data anyway) is stepped over.
-/// - **16 bits** — the high byte is taken. This is a real loss of precision
-///   and it is unavoidable: §7.4.8 and Table 89 both fix `/DCTDecode` at
-///   8-bit samples, so there is no 16-bit JPEG to write. Taking the high
-///   byte rather than rounding is deliberate — `(v >> 8)` is exactly
-///   `floor(v × 255 / 65535)` to within one unit and needs no arithmetic
-///   that could overflow, and the difference is far below the quantisation
-///   the encoder is about to apply anyway.
-/// - **1, 2 or 4 bits** — samples are packed *"from high-order to low-order
-///   bits"* (§7.4.4.4, §8.9.3). A colour value is scaled onto 0..=255 by
-///   `v × 255 / (2ⁿ − 1)`, which maps the extremes exactly (0→0, max→255) —
-///   the naive `v << (8 − n)` would map 4-bit 15 to 240 and quietly darken
-///   every white pixel. **Indexed images are handled by the caller**, which
-///   must NOT scale: there the value is a palette index.
-///
-/// Everything past the last full row, and every bit past the last sample in
-/// a row, is padding the caller never sees.
-fn unpack_to_bytes(
-    packed: &[u8],
-    width: u32,
-    height: u32,
-    components: usize,
-    bits: u8,
-    stride: usize,
-) -> Vec<u8> {
-    let per_row = (width as usize).saturating_mul(components);
-    let mut out = Vec::with_capacity(per_row.saturating_mul(height as usize));
-
-    for y in 0..height as usize {
-        let row = packed
-            .get(y.saturating_mul(stride)..)
-            .and_then(|r| r.get(..stride))
-            .unwrap_or(&[]);
-        match bits {
-            8 => out.extend_from_slice(row.get(..per_row).unwrap_or(row)),
-            16 => {
-                for i in 0..per_row {
-                    out.push(row.get(i.saturating_mul(2)).copied().unwrap_or(0));
-                }
-            }
-            b @ (1 | 2 | 4) => {
-                let n = u32::from(b);
-                let max = (1u32 << n) - 1;
-                let per_byte = 8 / n as usize;
-                let mask = max as u8;
-                for i in 0..per_row {
-                    let byte = row.get(i / per_byte).copied().unwrap_or(0);
-                    // High-order first: sample 0 of a byte lives in its top
-                    // `n` bits.
-                    let shift = 8 - n as usize - (i % per_byte) * n as usize;
-                    let v = u32::from((byte >> shift) & mask);
-                    // Exact endpoint mapping; see the doc comment.
-                    out.push(((v * 255) / max) as u8);
-                }
-            }
-            // Table 89 admits only 1, 2, 4, 8 and 16. Anything else has
-            // already been refused by the format importers, so this arm is
-            // unreachable; emitting the row verbatim keeps the function
-            // total without inventing a scaling rule for a depth that
-            // cannot occur.
-            _ => out.extend_from_slice(row.get(..per_row).unwrap_or(row)),
-        }
-    }
-    out
 }
 
 #[cfg(test)]

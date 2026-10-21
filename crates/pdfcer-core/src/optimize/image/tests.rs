@@ -29,7 +29,11 @@ fn bad_values_are_refused_by_name() {
     for (text, needle) in [
         ("image(ppi=0)", "at least 1"),
         ("image(ppi=300,above=150)", "below ppi"),
-        ("image(quality=60)", "unknown key \"quality\""),
+        ("image(quality=0)", "1 to 100"),
+        ("image(quality=best)", "bad quality"),
+        ("image(chroma=411)", "unknown chroma"),
+        ("image(progressive=yes)", "bad value"),
+        ("image(colour=1)", "unknown key"),
         ("image(method=fast)", "unknown method"),
         ("image(encode=flate-10)", "unknown encode"),
         ("image(min-saving=100)", "0 to 99"),

@@ -81,7 +81,7 @@ impl EditSession {
                 _ => None,
             };
             let blocker = image::pipeline::mask_blocker(&stream.dict, smask);
-            plan_stream(&mut plan, settings, (id, stream, raw), row, blocker);
+            plan_stream(&mut plan, settings, &view, (id, stream, raw), row, blocker);
         }
         if plan.changes.iter().any(|c| c.lossy) {
             notes.push("some changes are lossy; each is listed".to_owned());
@@ -189,7 +189,7 @@ impl EditSession {
                             && streams::protected(&s.dict).is_none() =>
                     {
                         view.slice(s.data_span).and_then(|raw| match &w.image {
-                            Some(job) => image::pipeline::run(job, &s.dict, raw).ok(),
+                            Some(job) => image::encode::run(job, &view, &s.dict, raw).ok(),
                             None => streams::apply(w.action, &s.dict, raw).ok().flatten(),
                         })
                     }
@@ -250,6 +250,7 @@ impl EditSession {
 fn plan_stream(
     plan: &mut OptimizePlan,
     settings: &OptimizeSettings,
+    view: &crate::view::DocumentView<'_>,
     (id, stream, raw): (ObjId, &Stream, &[u8]),
     row: Option<&ObjectSpace>,
     blocker: Option<&'static str>,
@@ -266,10 +267,10 @@ fn plan_stream(
     let (action, job) = match resolved.image {
         Some(img) if is_image => {
             let space = row.and_then(|r| r.image.as_ref());
-            match image::pipeline::decide(&img, &stream.dict, space, blocker) {
+            match image::pipeline::decide(&img, &stream.dict, raw, space, blocker) {
                 Ok(Outcome::Unchanged) => return,
                 Ok(Outcome::Lossless(level)) => (StreamAction::Recompress { level }, None),
-                Ok(Outcome::Resample(job, change)) => {
+                Ok(Outcome::Rewrite(job, change)) => {
                     (StreamAction::Image(img.to_patch()), Some((job, change)))
                 }
                 Err(reason) => {
@@ -291,7 +292,7 @@ fn plan_stream(
         return;
     }
     let result = match &job {
-        Some((job, _)) => image::pipeline::run(job, &stream.dict, raw).map(Some),
+        Some((job, _)) => image::encode::run(job, view, &stream.dict, raw).map(Some),
         None => streams::apply(action, &stream.dict, raw),
     };
     match result {

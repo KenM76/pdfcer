@@ -37,16 +37,17 @@ pub(crate) fn changes_text(plan: &OptimizePlan) -> String {
     out
 }
 
-/// The downsample line under a change: sizes, the placement that limited
-/// it, and where the method and target came from.
+/// The image line under a change: sizes, the placement that limited a
+/// downsample, where the method and target came from, and the encoding,
+/// JPEG quality and bit depth written.
 fn image_text(img: &ImageChange) -> String {
     let (bw, bh) = img.size_before;
     let (aw, ah) = img.size_after;
     let s = &img.settings;
-    let mut line = format!(
-        "           {bw}x{bh} -> {aw}x{ah} px, {} ({})",
-        s.method.value, s.method.source
-    );
+    let mut line = format!("           {bw}x{bh} -> {aw}x{ah} px");
+    if img.size_before != img.size_after {
+        line.push_str(&format!(", {} ({})", s.method.value, s.method.source));
+    }
     if let Some(p) = s.ppi {
         line.push_str(&format!(", target {} ppi ({})", p.value, p.source));
     }
@@ -59,12 +60,24 @@ fn image_text(img: &ImageChange) -> String {
             b.effective_ppi()
         ));
     }
+    line.push_str(&format!("; written as {}", img.encoded_as));
+    if let Some(q) = img.jpeg {
+        line.push_str(&format!(" quality {} (asked {}", q.used, q.asked));
+        if let Some(e) = q.source_estimate {
+            line.push_str(&format!(", source about {e}"));
+        }
+        line.push(')');
+    }
+    if img.bpc.0 != img.bpc.1 {
+        line.push_str(&format!(", {} -> {} bit", img.bpc.0, img.bpc.1));
+    }
     line.push('\n');
     line
 }
 
-/// One downsample for `--json`: sizes, the binding placement, and each
-/// setting as `{"value", "source"}`.
+/// One image change for `--json`: sizes, the binding placement, the
+/// encoding, bit depth and JPEG quality written, and each setting as
+/// `{"value", "source"}`.
 pub(crate) fn image_json(img: &ImageChange) -> String {
     let s = &img.settings;
     let src = |v: String, from: SettingSource| format!("{{\"value\":{v},\"source\":\"{from}\"}}");
@@ -84,16 +97,34 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
             )
         },
     );
+    let jpeg = img.jpeg.map_or_else(
+        || "null".to_owned(),
+        |q| {
+            let est = q
+                .source_estimate
+                .map_or("null".to_owned(), |e| e.to_string());
+            format!(
+                "{{\"asked\":{},\"used\":{},\"source_estimate\":{est}}}",
+                q.asked, q.used
+            )
+        },
+    );
     format!(
-        "{{\"size_before\":[{},{}],\"size_after\":[{},{}],\"binding\":{binding},\"method\":{},\"ppi\":{},\"above\":{},\"encode\":{},\"min_saving_pct\":{}}}",
+        "{{\"size_before\":[{},{}],\"size_after\":[{},{}],\"binding\":{binding},\"encoded_as\":\"{}\",\"bpc\":[{},{}],\"jpeg\":{jpeg},\"method\":{},\"ppi\":{},\"above\":{},\"encode\":{},\"quality\":{},\"chroma\":{},\"progressive\":{},\"min_saving_pct\":{}}}",
         img.size_before.0,
         img.size_before.1,
         img.size_after.0,
         img.size_after.1,
+        img.encoded_as,
+        img.bpc.0,
+        img.bpc.1,
         src(format!("\"{}\"", s.method.value), s.method.source),
         opt(s.ppi),
         opt(s.above),
         src(format!("\"{}\"", s.encode.value), s.encode.source),
+        src(s.quality.value.to_string(), s.quality.source),
+        src(format!("\"{}\"", s.chroma.value), s.chroma.source),
+        src(s.progressive.value.to_string(), s.progressive.source),
         src(s.min_saving_pct.value.to_string(), s.min_saving_pct.source)
     )
 }

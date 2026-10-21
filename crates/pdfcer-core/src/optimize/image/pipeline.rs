@@ -1,19 +1,16 @@
-//! Performing resolved image settings on one image XObject: decide the
-//! output size from the binding placement, decode the generic filter chain,
-//! resample the packed samples, re-encode as `/FlateDecode`, and keep the
-//! result only when it passes the never-larger and `min-saving` guards.
+//! Deciding what resolved image settings do to one image XObject: the
+//! output size from the binding placement, the source kind, and the target
+//! encoding. [`super::encode::run`] performs the result.
 
 use super::{ImageEncode, ResampleMethod, ResolvedImage};
-use crate::deskew::Raster;
-use crate::filters::{self, flate};
-use crate::image_resample::resample_with;
-use crate::object::{Dict, Name, Object};
+use crate::jpeg_write::JpegOptions;
+use crate::object::{Dict, Object};
 use crate::ocr::upscale::Kernel;
 use crate::optimize::SkipReason;
 use crate::optimize::streams::{GENERIC, chain};
 use crate::space_audit::{ImageClass, ImagePlacement, ImageSpace};
 
-/// What one image's downsampling did, for the report.
+/// What one image's rewrite did, for the report.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct ImageChange {
@@ -21,26 +18,66 @@ pub struct ImageChange {
     pub settings: ResolvedImage,
     /// Pixel size before, `(width, height)`.
     pub size_before: (u32, u32),
-    /// Pixel size after.
+    /// Pixel size after; equal to `size_before` when only the encoding
+    /// changed.
     pub size_after: (u32, u32),
     /// The placement that limited the reduction: the one drawn largest,
-    /// at the lowest effective ppi.
+    /// at the lowest effective ppi. `None` when nothing was resampled.
     pub binding: Option<ImagePlacement>,
     /// That placement's effective ppi after resampling.
     pub binding_ppi_after: Option<f64>,
+    /// The encoding written: `Flate` or `Jpeg`, never `Keep`.
+    pub encoded_as: ImageEncode,
+    /// Bits per component before and after.
+    pub bpc: (u8, u8),
+    /// For JPEG output, the quality written and why.
+    pub jpeg: Option<JpegQuality>,
 }
 
-/// A resample to redo on a stream an earlier step of the run rewrote.
+/// The JPEG quality an image was written at.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct JpegQuality {
+    /// The quality the settings asked for.
+    pub asked: u8,
+    /// The quality written: `asked`, capped at `source_estimate`.
+    pub used: u8,
+    /// A JPEG source's estimated IJG quality; `None` for a non-JPEG source
+    /// or tables that match no IJG scaling.
+    pub source_estimate: Option<u8>,
+}
+
+/// How the source's samples are stored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Source {
+    /// Generic lossless filters only.
+    Generic,
+    /// `/DCTDecode` last, generic filters before it.
+    Dct,
+}
+
+/// What the samples are written as.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Target {
+    /// `/FlateDecode` at this level.
+    Flate(u8),
+    /// `/DCTDecode`.
+    Jpeg(JpegOptions),
+}
+
+/// A planned rewrite, redone on a stream an earlier step of the run
+/// rewrote.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct Job {
-    src: (u32, u32),
-    out: (u32, u32),
-    components: u32,
-    bpc: u32,
-    indexed: bool,
-    kernel: Option<Kernel>,
-    level: u8,
-    min_saving_pct: u8,
+    pub(crate) src: (u32, u32),
+    pub(crate) out: (u32, u32),
+    pub(crate) components: u32,
+    pub(crate) bpc: u32,
+    pub(crate) indexed: bool,
+    pub(crate) source: Source,
+    pub(crate) target: Target,
+    pub(crate) kernel: Option<Kernel>,
+    pub(crate) min_saving_pct: u8,
 }
 
 /// What resolved settings ask of one image.
@@ -50,8 +87,8 @@ pub(crate) enum Outcome {
     Unchanged,
     /// No downsampling; recompress losslessly at this level.
     Lossless(u8),
-    /// Downsample.
-    Resample(Job, Box<ImageChange>),
+    /// Rewrite the pixels: downsample, re-encode, or both.
+    Rewrite(Job, Box<ImageChange>),
 }
 
 fn int(dict: &Dict, key: &[u8]) -> Option<u32> {
@@ -59,6 +96,10 @@ fn int(dict: &Dict, key: &[u8]) -> Option<u32> {
         Some(Object::Integer(n)) => u32::try_from(*n).ok(),
         _ => None,
     }
+}
+
+fn unsupported(why: &str) -> SkipReason {
+    SkipReason::ImageUnsupported(why.to_owned())
 }
 
 /// Why an image's masking keeps it from being resampled on its own, if it
@@ -70,30 +111,96 @@ pub(crate) fn mask_blocker(dict: &Dict, smask: Option<&Dict>) -> Option<&'static
         Some("a soft mask with /Matte keeps its parent's size")
     } else if smask.is_some_and(|m| m.contains_key(b"Matte")) {
         Some("an image whose soft mask has /Matte keeps its mask's size")
-    } else if matches!(dict.get(b"Mask"), Some(Object::Array(_))) {
+    } else if colour_keyed(dict) {
         Some("a colour-key masked image is not resampled")
     } else {
         None
     }
 }
 
-/// Decide what `settings` do to the image stored under `dict`, audited as
-/// `space`. `blocker` is [`mask_blocker`]'s answer.
+fn colour_keyed(dict: &Dict) -> bool {
+    matches!(dict.get(b"Mask"), Some(Object::Array(_)))
+}
+
+/// The source kind, or the filter that keeps it from being decoded here.
+fn source_kind(dict: &Dict) -> Result<Source, SkipReason> {
+    let names = chain(dict);
+    let mut source = Source::Generic;
+    for (i, name) in names.iter().enumerate() {
+        if name == "DCTDecode" && i + 1 == names.len() {
+            source = Source::Dct;
+        } else if !GENERIC.contains(&name.as_bytes()) {
+            return Err(SkipReason::UnsupportedFilter(name.clone()));
+        }
+    }
+    Ok(source)
+}
+
+/// Decide what `settings` do to the image stored as `raw` under `dict`,
+/// audited as `space`. `blocker` is [`mask_blocker`]'s answer.
 pub(crate) fn decide(
     settings: &ResolvedImage,
     dict: &Dict,
+    raw: &[u8],
     space: Option<&ImageSpace>,
     blocker: Option<&'static str>,
 ) -> Result<Outcome, SkipReason> {
-    let lossless = match settings.encode.value {
-        ImageEncode::Keep => Outcome::Unchanged,
-        ImageEncode::Flate { level } => Outcome::Lossless(level),
+    let resized = target_size(settings, space)?;
+    let encode = settings.encode.value;
+    let source = match (resized, encode) {
+        (None, ImageEncode::Keep) => return Ok(Outcome::Unchanged),
+        (None, ImageEncode::Flate { level }) => return Ok(Outcome::Lossless(level)),
+        _ => source_kind(dict)?,
     };
+    if resized.is_none() && source == Source::Dct {
+        // An existing JPEG whose pixels are unchanged is left untouched.
+        return Ok(Outcome::Unchanged);
+    }
+    if resized.is_some()
+        && let Some(why) = blocker
+    {
+        return Err(unsupported(why));
+    }
+    let space = space.ok_or_else(|| unsupported("it was not audited"))?;
+    let jpeg = matches!(encode, ImageEncode::Jpeg)
+        || (encode == ImageEncode::Keep && source == Source::Dct);
+    let (components, bpc) = sample_format(dict, space, source, jpeg)?;
+    let (target, quality) = if jpeg {
+        let (opts, q) = jpeg_options(settings, source, raw);
+        (Target::Jpeg(opts), Some(q))
+    } else {
+        let level = match encode {
+            ImageEncode::Flate { level } => level,
+            _ => 9,
+        };
+        (Target::Flate(level), None)
+    };
+    let (w, h) = (space.width, space.height);
+    let job = Job {
+        src: (w, h),
+        out: resized.unwrap_or((w, h)),
+        components,
+        bpc,
+        indexed: space.class() == ImageClass::Indexed,
+        source,
+        target,
+        kernel: kernel(settings.method.value),
+        min_saving_pct: settings.min_saving_pct.value,
+    };
+    let change = change(settings, space, &job, quality);
+    Ok(Outcome::Rewrite(job, Box::new(change)))
+}
+
+/// The output size when `settings` resample `space`, else `None`.
+fn target_size(
+    settings: &ResolvedImage,
+    space: Option<&ImageSpace>,
+) -> Result<Option<(u32, u32)>, SkipReason> {
     let (Some(ppi), Some(trigger)) = (settings.ppi, settings.trigger()) else {
-        return Ok(lossless);
+        return Ok(None);
     };
     if !settings.resamples() {
-        return Ok(lossless);
+        return Ok(None);
     }
     let space = space
         .filter(|s| !s.placements.is_empty())
@@ -108,68 +215,113 @@ pub(crate) fn decide(
         axis(w, space.binding_ppi_x()),
         axis(h, space.binding_ppi_y()),
     );
-    if out == (w, h) {
-        return Ok(lossless);
-    }
-    if let Some(why) = blocker {
-        return Err(SkipReason::ImageUnsupported(why.to_owned()));
-    }
-    let (components, bpc) = sample_format(dict, space)?;
-    let indexed = space.class() == ImageClass::Indexed;
-    let job = Job {
-        src: (w, h),
-        out,
-        components,
-        bpc,
-        indexed,
-        kernel: kernel(settings.method.value),
-        level: match settings.encode.value {
-            ImageEncode::Flate { level } => level,
-            ImageEncode::Keep => 9,
-        },
-        min_saving_pct: settings.min_saving_pct.value,
-    };
-    let binding = space.binding_placement().cloned();
-    let binding_ppi_after = binding.as_ref().map(|b| {
-        let sx = f64::from(out.0) / f64::from(w);
-        let sy = f64::from(out.1) / f64::from(h);
-        (b.ppi_x * sx).min(b.ppi_y * sy)
-    });
-    let change = ImageChange {
-        settings: *settings,
-        size_before: (w, h),
-        size_after: out,
-        binding,
-        binding_ppi_after,
-    };
-    Ok(Outcome::Resample(job, Box::new(change)))
+    Ok((out != (w, h)).then_some(out))
 }
 
-/// The image's `(components, bits per component)`, when this pass can
-/// decode and resample it.
-fn sample_format(dict: &Dict, space: &ImageSpace) -> Result<(u32, u32), SkipReason> {
-    let (w, h) = (space.width, space.height);
-    for name in chain(dict) {
-        if !GENERIC.contains(&name.as_bytes()) {
-            return Err(SkipReason::UnsupportedFilter(name));
-        }
+/// The JPEG options, the quality capped at a JPEG source's estimate.
+fn jpeg_options(
+    settings: &ResolvedImage,
+    source: Source,
+    raw: &[u8],
+) -> (JpegOptions, JpegQuality) {
+    let asked = settings.quality.value;
+    let source_estimate = match source {
+        Source::Dct => super::jpeg_quality::estimate_jpeg_quality(raw),
+        Source::Generic => None,
+    };
+    let used = source_estimate.map_or(asked, |e| asked.min(e));
+    let opts = JpegOptions {
+        quality: used,
+        chroma: settings.chroma.value,
+        progressive: settings.progressive.value,
+        optimize_huffman: true,
+    };
+    let quality = JpegQuality {
+        asked,
+        used,
+        source_estimate,
+    };
+    (opts, quality)
+}
+
+fn change(
+    settings: &ResolvedImage,
+    space: &ImageSpace,
+    job: &Job,
+    jpeg: Option<JpegQuality>,
+) -> ImageChange {
+    let (w, h) = job.src;
+    let resized = job.out != job.src;
+    let binding = space.binding_placement().filter(|_| resized).cloned();
+    let binding_ppi_after = binding.as_ref().map(|b| {
+        let sx = f64::from(job.out.0) / f64::from(w);
+        let sy = f64::from(job.out.1) / f64::from(h);
+        (b.ppi_x * sx).min(b.ppi_y * sy)
+    });
+    let (encoded_as, bpc_after) = match job.target {
+        Target::Flate(level) => (ImageEncode::Flate { level }, job.bpc),
+        Target::Jpeg(_) => (ImageEncode::Jpeg, 8),
+    };
+    let narrow = |b: u32| u8::try_from(b).unwrap_or(u8::MAX);
+    ImageChange {
+        settings: *settings,
+        size_before: job.src,
+        size_after: job.out,
+        binding,
+        binding_ppi_after,
+        encoded_as,
+        bpc: (narrow(job.bpc), narrow(bpc_after)),
+        jpeg,
     }
+}
+
+/// The image's `(components, bits per component)`, when it can be decoded
+/// and, for `jpeg`, written as JPEG.
+fn sample_format(
+    dict: &Dict,
+    space: &ImageSpace,
+    source: Source,
+    jpeg: bool,
+) -> Result<(u32, u32), SkipReason> {
+    let (w, h) = (space.width, space.height);
     let (components, bpc) = if space.image_mask {
         (1, 1)
     } else {
-        let c = space.components.ok_or_else(|| {
-            SkipReason::ImageUnsupported("its colour space's components are unknown".to_owned())
-        })?;
+        let c = space
+            .components
+            .ok_or_else(|| unsupported("its colour space's components are unknown"))?;
         (u32::from(c), int(dict, b"BitsPerComponent").unwrap_or(0))
     };
     if !matches!(bpc, 1 | 2 | 4 | 8 | 16)
+        || (source == Source::Dct && bpc != 8)
         || (int(dict, b"Width"), int(dict, b"Height")) != (Some(w), Some(h))
     {
-        return Err(SkipReason::ImageUnsupported(
-            "its size or bit depth is invalid".to_owned(),
-        ));
+        return Err(unsupported("its size or bit depth is invalid"));
+    }
+    if jpeg && let Some(why) = jpeg_blocker(dict, space, components, bpc) {
+        return Err(unsupported(why));
     }
     Ok((components, bpc))
+}
+
+/// Why this image cannot be written as JPEG, if it cannot.
+fn jpeg_blocker(
+    dict: &Dict,
+    space: &ImageSpace,
+    components: u32,
+    bpc: u32,
+) -> Option<&'static str> {
+    if space.image_mask || bpc == 1 {
+        Some("a 1-bit image is not written as JPEG")
+    } else if space.class() == ImageClass::Indexed {
+        Some("a palette image's indices cannot be stored as JPEG")
+    } else if colour_keyed(dict) {
+        Some("a colour-key masked image is not written as JPEG: its key matches exact values")
+    } else if !matches!(components, 1 | 3 | 4) {
+        Some("JPEG stores 1, 3 or 4 colour components")
+    } else {
+        None
+    }
 }
 
 #[allow(
@@ -188,62 +340,4 @@ const fn kernel(method: ResampleMethod) -> Option<Kernel> {
         ResampleMethod::Subsample => None,
         _ => Some(Kernel::Bicubic),
     }
-}
-
-/// Perform `job` on the image stored as `raw` under `dict`.
-pub(crate) fn run(job: &Job, dict: &Dict, raw: &[u8]) -> Result<(Dict, Vec<u8>), SkipReason> {
-    if (int(dict, b"Width"), int(dict, b"Height")) != (Some(job.src.0), Some(job.src.1)) {
-        return Err(SkipReason::ImageUnsupported(
-            "its size changed since it was planned".to_owned(),
-        ));
-    }
-    let samples =
-        filters::decode_stream(dict, raw).map_err(|e| SkipReason::Undecodable(e.to_string()))?;
-    let raster = Raster {
-        width: job.src.0,
-        height: job.src.1,
-        components: job.components,
-        bpc: job.bpc,
-        paper_is_ones: true,
-        indexed: job.indexed,
-    };
-    let need = raster.row_bytes().saturating_mul(job.src.1 as usize);
-    if samples.len() < need {
-        return Err(SkipReason::Undecodable(format!(
-            "{} sample bytes, {need} expected",
-            samples.len()
-        )));
-    }
-    let resampled = resample_with(&raster, &samples, job.out.0, job.out.1, job.kernel);
-    let data = flate::encode_with_level(&resampled, u32::from(job.level));
-    let (before, after) = (raw.len() as u64, data.len() as u64);
-    if after >= before {
-        return Err(SkipReason::NotSmaller { before, after });
-    }
-    if after * 100 > before * u64::from(100 - job.min_saving_pct.min(99)) {
-        return Err(SkipReason::BelowMinSaving {
-            before,
-            after,
-            pct: job.min_saving_pct,
-        });
-    }
-    let mut out = dict.clone();
-    out.remove(b"DecodeParms");
-    out.remove(b"DP");
-    let set = |d: &mut Dict, k: &[u8], v: Object| {
-        d.insert(Name::from(k), v);
-    };
-    set(&mut out, b"Width", Object::Integer(i64::from(job.out.0)));
-    set(&mut out, b"Height", Object::Integer(i64::from(job.out.1)));
-    set(
-        &mut out,
-        b"Filter",
-        Object::Name(Name::from(b"FlateDecode")),
-    );
-    set(
-        &mut out,
-        b"Length",
-        Object::Integer(i64::try_from(data.len()).unwrap_or(i64::MAX)),
-    );
-    Ok((out, data))
 }
