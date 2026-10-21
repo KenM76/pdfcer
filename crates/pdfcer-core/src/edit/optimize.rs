@@ -64,34 +64,7 @@ impl EditSession {
             writes: Vec::new(),
             smooth_tolerance: settings.smooth_tolerance,
         };
-        let view = self.view();
-        let soft_masks = self.soft_mask_targets(&ids);
-        for id in ids {
-            let Some(Object::Stream(stream)) = self.value(id) else {
-                continue;
-            };
-            let Some(raw) = view.slice(stream.data_span) else {
-                continue;
-            };
-            let row = rows.get(&id).copied();
-            let smask = match stream.dict.get(b"SMask") {
-                Some(Object::Reference(r)) => match self.value(*r) {
-                    Some(Object::Stream(s)) => Some(&s.dict),
-                    _ => None,
-                },
-                _ => None,
-            };
-            let ctx = image::pipeline::Context {
-                view: &view,
-                blocker: image::pipeline::mask_blocker(&stream.dict, smask),
-                convert_blocker: image::pipeline::convert_blocker(
-                    &stream.dict,
-                    smask,
-                    soft_masks.contains(&id),
-                ),
-            };
-            plan_stream(&mut plan, settings, (id, stream, raw), row, &ctx);
-        }
+        self.plan_streams(&mut plan, settings, &ids, &rows);
         if plan.changes.iter().any(|c| c.lossy) {
             notes.push("some changes are lossy; each is listed".to_owned());
         }
@@ -109,6 +82,57 @@ impl EditSession {
         }
         plan.notes = notes;
         Ok(plan)
+    }
+
+    /// Plan every stream among `ids`; `/Matte` soft masks after their
+    /// parents, so they can follow a parent's resample.
+    fn plan_streams(
+        &self,
+        plan: &mut OptimizePlan,
+        settings: &OptimizeSettings,
+        ids: &BTreeSet<ObjId>,
+        rows: &BTreeMap<ObjId, &ObjectSpace>,
+    ) {
+        let view = self.view();
+        let soft_masks = self.soft_mask_targets(ids);
+        let pairs = self.matte_pairs(ids);
+        for &id in ids {
+            if pairs.contains_key(&id) {
+                continue;
+            }
+            let Some(Object::Stream(stream)) = self.value(id) else {
+                continue;
+            };
+            let Some(raw) = view.slice(stream.data_span) else {
+                continue;
+            };
+            let row = rows.get(&id).copied();
+            let smask = match stream.dict.get(b"SMask") {
+                Some(Object::Reference(r)) => match self.value(*r) {
+                    Some(Object::Stream(s)) => Some(&s.dict),
+                    _ => None,
+                },
+                _ => None,
+            };
+            let ctx = image::pipeline::Context {
+                view: &view,
+                blocker: image::pipeline::mask_blocker(
+                    &stream.dict,
+                    smask,
+                    pairs.values().any(|p| *p == id),
+                ),
+                convert_blocker: image::pipeline::convert_blocker(
+                    &stream.dict,
+                    smask,
+                    soft_masks.contains(&id),
+                ),
+                lockstep: None,
+            };
+            plan_stream(plan, settings, (id, stream, raw), row, &ctx);
+        }
+        for (&mask, &parent) in &pairs {
+            self.plan_matte_mask(plan, settings, (mask, parent), rows, &view);
+        }
     }
 
     /// Every object some stream among `ids` names as its `/SMask`.
@@ -231,6 +255,13 @@ impl EditSession {
                 after: Some(Object::Stream(Stream { dict, data_span })),
             });
         }
+        let written: BTreeSet<ObjId> = objects.iter().map(|o| o.id).collect();
+        let orphaned: BTreeSet<ObjId> = writes
+            .iter()
+            .filter(|w| w.partner.is_some_and(|p| !written.contains(&p)))
+            .map(|w| w.id)
+            .collect();
+        objects.retain(|o| !orphaned.contains(&o.id));
         objects
     }
 
@@ -270,7 +301,7 @@ impl EditSession {
 }
 
 /// Decide and perform one stream's action, recording it in `plan`.
-fn plan_stream(
+pub(super) fn plan_stream(
     plan: &mut OptimizePlan,
     settings: &OptimizeSettings,
     (id, stream, raw): (ObjId, &Stream, &[u8]),
@@ -286,7 +317,7 @@ fn plan_stream(
     let resolved = settings.resolve(id, &facts);
     let is_image =
         matches!(stream.dict.get(b"Subtype"), Some(Object::Name(n)) if n.as_bytes() == b"Image");
-    let (action, job) = match resolved.image {
+    let (action, job) = match ctx.lockstep.map_or(resolved.image, |l| Some(l.settings)) {
         Some(img) if is_image => {
             let space = row.and_then(|r| r.image.as_ref());
             match image::pipeline::decide(&img, &stream.dict, raw, space, ctx) {
@@ -341,6 +372,7 @@ fn plan_stream(
                 before: Object::Stream(stream.clone()),
                 action,
                 image: job,
+                partner: ctx.lockstep.map(|l| l.parent),
                 dict,
                 data,
             });

@@ -26,6 +26,8 @@ pub(crate) struct Rewrite {
     pub(crate) action: StreamAction,
     /// The resample to redo instead of `action`, for a downsampled image.
     pub(crate) image: Option<super::image::pipeline::Job>,
+    /// A `/Matte` pair's other half: neither is written without the other.
+    pub(crate) partner: Option<ObjId>,
     pub(crate) dict: Dict,
     pub(crate) data: Vec<u8>,
 }

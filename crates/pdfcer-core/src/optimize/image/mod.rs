@@ -408,7 +408,8 @@ pub struct Sourced<T> {
     pub source: SettingSource,
 }
 
-const fn sourced<T>(value: T, source: SettingSource) -> Sourced<T> {
+/// `value` tagged with where it came from.
+pub(crate) const fn sourced<T>(value: T, source: SettingSource) -> Sourced<T> {
     Sourced { value, source }
 }
 
@@ -586,6 +587,8 @@ pub(crate) fn fold(actions: impl IntoIterator<Item = (StreamAction, SettingSourc
 mod pipeline_convert_tests;
 #[cfg(test)]
 mod pipeline_jpeg_tests;
+#[cfg(test)]
+mod pipeline_matte_tests;
 #[cfg(test)]
 mod pipeline_predict_tests;
 #[cfg(test)]

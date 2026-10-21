@@ -5,7 +5,7 @@
 use super::convert::{self, ConvertJob};
 use super::{Conversion, ImageConvert, ImageEncode, Predictor, ResampleMethod, ResolvedImage};
 use crate::jpeg_write::JpegOptions;
-use crate::object::{Dict, Object};
+use crate::object::{Dict, ObjId, Object};
 use crate::ocr::upscale::Kernel;
 use crate::optimize::SkipReason;
 use crate::optimize::streams::{GENERIC, chain};
@@ -41,6 +41,10 @@ pub struct ImageChange {
     pub color_space: (String, String),
     /// Whether the Flate output was PNG-predicted (`/Predictor 15`).
     pub predicted: bool,
+    /// For a `/Matte` soft mask, the parent image it was resampled with:
+    /// its size follows the parent's, not its own settings (ISO 32000-2
+    /// §11.6.5.3 requires the two sizes to be equal).
+    pub resampled_with: Option<ObjId>,
 }
 
 impl ImageChange {
@@ -122,6 +126,17 @@ pub(crate) struct Context<'a, 'v> {
     pub(crate) blocker: Option<&'static str>,
     /// [`convert_blocker`]'s answer.
     pub(crate) convert_blocker: Option<&'static str>,
+    /// Set for a `/Matte` soft mask whose parent was resampled.
+    pub(crate) lockstep: Option<Lockstep>,
+}
+
+/// A `/Matte` soft mask resampled to its parent's new size.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Lockstep {
+    pub(crate) parent: ObjId,
+    pub(crate) size: (u32, u32),
+    /// The mask's settings, with the parent's method and no conversion.
+    pub(crate) settings: ResolvedImage,
 }
 
 /// What resolved settings ask of one image.
@@ -149,11 +164,17 @@ fn unsupported(why: &str) -> SkipReason {
 /// Why an image's masking keeps it from being resampled on its own, if it
 /// does: a `/Matte` soft mask must keep its parent's size (ISO 32000-2
 /// §11.6.5.3), and blending a colour-key image invents fringe colours that
-/// no longer match the key. `smask` is the image's resolved `/SMask`.
-pub(crate) fn mask_blocker(dict: &Dict, smask: Option<&Dict>) -> Option<&'static str> {
+/// no longer match the key. `smask` is the image's resolved `/SMask`;
+/// `lockstep` says that mask is resampled with the image, so its `/Matte`
+/// does not block.
+pub(crate) fn mask_blocker(
+    dict: &Dict,
+    smask: Option<&Dict>,
+    lockstep: bool,
+) -> Option<&'static str> {
     if dict.contains_key(b"Matte") {
         Some("a soft mask with /Matte keeps its parent's size")
-    } else if smask.is_some_and(|m| m.contains_key(b"Matte")) {
+    } else if !lockstep && smask.is_some_and(|m| m.contains_key(b"Matte")) {
         Some("an image whose soft mask has /Matte keeps its mask's size")
     } else if colour_keyed(dict) {
         Some("a colour-key masked image is not resampled")
@@ -210,7 +231,10 @@ pub(crate) fn decide(
     space: Option<&ImageSpace>,
     ctx: &Context<'_, '_>,
 ) -> Result<Outcome, SkipReason> {
-    let resized = target_size(settings, space)?;
+    let resized = match &ctx.lockstep {
+        Some(l) => space.and_then(|s| (l.size != (s.width, s.height)).then_some(l.size)),
+        None => target_size(settings, space)?,
+    };
     let convert = convert::plan(settings, ctx.view, dict, space, ctx.convert_blocker)
         .map_err(SkipReason::ImageUnsupported)?;
     let encode = settings.encode.value;
@@ -226,6 +250,7 @@ pub(crate) fn decide(
         return Ok(Outcome::Unchanged);
     }
     if resized.is_some()
+        && ctx.lockstep.is_none()
         && let Some(why) = ctx.blocker
     {
         return Err(unsupported(why));
@@ -268,7 +293,8 @@ pub(crate) fn decide(
         min_saving_pct: settings.min_saving_pct.value,
         convert,
     };
-    let change = change(settings, space, &job, quality);
+    let mut change = change(settings, space, &job, quality);
+    change.resampled_with = ctx.lockstep.map(|l| l.parent);
     Ok(Outcome::Rewrite(job, Box::new(change)))
 }
 
@@ -375,6 +401,7 @@ fn change(
         conversion: job.convert.as_ref().map(ConvertJob::conversion),
         color_space: (before, after),
         predicted: false,
+        resampled_with: None,
     }
 }
 

@@ -156,20 +156,6 @@ fn images_this_pass_cannot_resample_are_skipped_with_a_reason() {
 }
 
 #[test]
-fn a_soft_mask_with_matte_and_its_parent_are_both_kept() {
-    let parent = grey("/SMask 6 0 R");
-    let mask = grey("/Matte [0]");
-    let (_, p) = plan(doc(AT_100, &[parent, mask]), &[("image(ppi=72)", None)]);
-    for n in [5, 6] {
-        assert!(
-            matches!(skip(&p, n), Some(SkipReason::ImageUnsupported(w)) if w.contains("Matte")),
-            "object {n}: {:?}",
-            skip(&p, n)
-        );
-    }
-}
-
-#[test]
 fn a_palette_image_takes_the_nearest_index_and_never_blends() {
     let idx: Vec<u8> = (0..N * N)
         .map(|i| if (i / 7) % 2 == 0 { 0 } else { 3 })

@@ -51,6 +51,12 @@ fn image_text(img: &ImageChange) -> String {
     if img.size_before != img.size_after {
         line.push_str(&format!(", {} ({})", s.method.value, s.method.source));
     }
+    if let Some(p) = img.resampled_with {
+        line.push_str(&format!(
+            ", /Matte soft mask sized with its image {} {} R",
+            p.num, p.generation
+        ));
+    }
     if let Some(p) = s.ppi {
         line.push_str(&format!(", target {} ppi ({})", p.value, p.source));
     }
@@ -182,7 +188,7 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
         },
     );
     format!(
-        "{{\"size_before\":[{},{}],\"size_after\":[{},{}],\"binding\":{binding},\"encoded_as\":\"{}\",\"bpc\":[{},{}],\"jpeg\":{jpeg},\"method\":{},\"ppi\":{},\"above\":{},\"encode\":{},\"quality\":{},\"chroma\":{},\"progressive\":{},\"min_saving_pct\":{},\"color_space\":[\"{}\",\"{}\"],\"conversion\":{},\"convert\":{},\"threshold\":{},\"colors\":{},\"predictor\":{},\"predicted\":{}}}",
+        "{{\"size_before\":[{},{}],\"size_after\":[{},{}],\"binding\":{binding},\"encoded_as\":\"{}\",\"bpc\":[{},{}],\"jpeg\":{jpeg},\"method\":{},\"ppi\":{},\"above\":{},\"encode\":{},\"quality\":{},\"chroma\":{},\"progressive\":{},\"min_saving_pct\":{},\"color_space\":[\"{}\",\"{}\"],\"conversion\":{},\"convert\":{},\"threshold\":{},\"colors\":{},\"predictor\":{},\"predicted\":{},\"resampled_with\":{}}}",
         img.size_before.0,
         img.size_before.1,
         img.size_after.0,
@@ -205,6 +211,10 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
         src(format!("\"{}\"", s.threshold.value), s.threshold.source),
         src(s.colors.value.to_string(), s.colors.source),
         src(format!("\"{}\"", s.predictor.value), s.predictor.source),
-        img.predicted
+        img.predicted,
+        img.resampled_with.map_or("null".to_owned(), |p| format!(
+            "[{},{}]",
+            p.num, p.generation
+        ))
     )
 }

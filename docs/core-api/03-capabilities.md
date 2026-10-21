@@ -4483,7 +4483,7 @@ with a wildcard arm, and show `as_str()` for an unknown category.
 | `ImageConvert::{Keep, Gray, Bilevel, Indexed}` / `Threshold::{Otsu, Fixed(u8), Dither}` / `COLORS_RANGE` | `ALL`, `as_str`, `from_name`, `Display`; defaults `Keep`, `Otsu`, 256 colours. `Gray` = 8-bit `/DeviceGray`; `Bilevel` = 1-bit `/DeviceGray` by Otsu's threshold, a fixed one (above it is white) or Floyd–Steinberg dither; `Indexed` = `/Indexed` over the source's colour space by median cut, 1/2/4/8 bits by entry count |
 | `Predictor::{Off, Png, Auto}` | `ALL`, `as_str`, `from_name`, `Display`; default `Auto`. How Flate-written samples are compressed: plain, `/Predictor 15` (each row PNG-filtered by the minimum-sum-of-absolute-differences heuristic, the tag written per row), or both with the smaller kept (plain on a tie) |
 | `ResolvedImage { method, ppi, above, encode, quality, chroma, progressive, min_saving_pct, convert, threshold, colors, predictor }` | the folded settings, each a `Sourced<T> { value, source }` with `SettingSource::{BuiltIn, Streams, Rule(n), Object}` (`Display` `default`, `streams`, `rule {n+1}`, `object override`); `resamples()`, `trigger()` (`above`, else 1.5 × `ppi`, never below `ppi`), `to_patch()` |
-| `PlannedChange.image: Option<ImageChange>` | `ImageChange { settings: ResolvedImage, size_before, size_after, binding: Option<ImagePlacement>, binding_ppi_after, encoded_as: ImageEncode, bpc: (u8, u8), jpeg: Option<JpegQuality>, conversion: Option<Conversion>, color_space: (String, String), predicted: bool }` and `is_lossy()`: pixel sizes `(w, h)` (equal when only the encoding changed), the placement that limited a downsample (`None` when not resized) and its ppi after, the encoding written (`Flate` or `Jpeg`), bits per component before/after, `JpegQuality { asked, used, source_estimate }`, the colour space before/after by family name (`Indexed DeviceRGB` for a palette), and `Conversion { to, from, formula, not_colour_managed, threshold, colors, exact }` (`is_lossy()` = not `exact`): the source family, the grey formula used (`None` for a palette), whether a CIE-based source was converted by device formula, the threshold used (`None` when dithered), the palette entries written, and whether the palette holds every colour; `predicted` is whether the Flate output carries `/DecodeParms << /Predictor 15 /Colors /BitsPerComponent /Columns >>`. `is_lossy()`: resized, JPEG written, or a lossy conversion; with no conversion, a narrowed `bpc`. `PlannedChange.lossy` is this |
+| `PlannedChange.image: Option<ImageChange>` | `ImageChange { settings: ResolvedImage, size_before, size_after, binding: Option<ImagePlacement>, binding_ppi_after, encoded_as: ImageEncode, bpc: (u8, u8), jpeg: Option<JpegQuality>, conversion: Option<Conversion>, color_space: (String, String), predicted: bool, resampled_with: Option<ObjId> }` and `is_lossy()`: pixel sizes `(w, h)` (equal when only the encoding changed), the placement that limited a downsample (`None` when not resized) and its ppi after, the encoding written (`Flate` or `Jpeg`), bits per component before/after, `JpegQuality { asked, used, source_estimate }`, the colour space before/after by family name (`Indexed DeviceRGB` for a palette), and `Conversion { to, from, formula, not_colour_managed, threshold, colors, exact }` (`is_lossy()` = not `exact`): the source family, the grey formula used (`None` for a palette), whether a CIE-based source was converted by device formula, the threshold used (`None` when dithered), the palette entries written, and whether the palette holds every colour; `predicted` is whether the Flate output carries `/DecodeParms << /Predictor 15 /Colors /BitsPerComponent /Columns >>`; `resampled_with` is, for a `/Matte` soft mask, the parent image whose new size it took. `is_lossy()`: resized, JPEG written, or a lossy conversion; with no conversion, a narrowed `bpc`. `PlannedChange.lossy` is this |
 | `optimize::estimate_jpeg_quality(&[u8]) -> Option<u8>` | the IJG quality (1–100) whose scaled T.81 Table K.1 matches the table of the first frame component, before the first scan; `None` for non-IJG tables (mozjpeg, Photoshop) or malformed data. Never reads past the slice |
 | `SkipReason::{Unplaced, BelowMinSaving { before, after, pct }, ImageUnsupported(String)}` | an image drawn nowhere has no ppi to measure; a rewrite saving under `min-saving`; an image the settings ask to rewrite that is not rewritten (reason in words; `Display` `not rewritten: …`) |
 | `Selector { categories, pages, min_bytes, max_bytes, filters, color_spaces, image_classes, min_ppi, max_ppi, ids }` | every set field must match (AND); `filters` entry `"none"` = unfiltered; `image_classes` and `min_ppi`/`max_ppi` (tested against `binding_ppi`) match images only; `PageRanges::parse("1-3,7,10-")` |
@@ -4503,9 +4503,9 @@ Contract:
   drawn largest; `binding_ppi_x/y`) is above `trigger()`; output length =
   `round(len × ppi / binding)`, clamped to 1..=len, so the largest use lands
   at the target. Generic filters, or `/DCTDecode` last after them (else
-  `UnsupportedFilter`); undecodable data is `Undecodable`. Indexed images take the nearest sample, never a blend; a `/Matte`
-  soft mask and its parent, and a colour-key `/Mask` array, are
-  `ImageUnsupported`; never larger, then `min-saving`. Every downsample is
+  `UnsupportedFilter`); undecodable data is `Undecodable`. Indexed images take the nearest sample, never a blend; a colour-key
+  `/Mask` array is `ImageUnsupported`; a `/Matte` pair follows the next
+  bullet; never larger, then `min-saving`. Every downsample is
   lossy and itemised in `changes` (rule 4).
 - **JPEG output** (Pass 616.4 slice B, decision 192): `encode=jpeg`
   rewrites an image as `/DCTDecode` at its size or resampled; a JPEG source
@@ -4516,7 +4516,7 @@ Contract:
   `/Mask`, component counts other than 1/3/4. `/Decode` and `/ColorSpace`
   are kept (an inverted CMYK `/Decode` keeps its meaning); `/DecodeParms`
   is removed; 16-bit samples become 8 (`bpc` says so). A `/Matte` pair may
-  change encoding at its size, never be resized. Every JPEG write is lossy
+  change encoding at its size; it is resized only together (below). Every JPEG write is lossy
   and itemised. Huffman tables are always optimised.
 - **Format conversion** (Pass 616.4 slice C, decision 192): after
   `/Decode` (applied, then removed with `/D`), palette lookup and resampling
@@ -4542,6 +4542,20 @@ Contract:
   pipeline cannot read keeps the plain `Recompress` path, `image: None`.
   Prediction is lossless (ISO 32000-2 §7.4.4.4); the never-larger guard still
   applies to the result.
+- **`/Matte` soft masks** (Pass 616.4 slice D): ISO 32000-2 §11.6.5.3
+  requires a `/Matte` mask to keep its parent's size. When the plan
+  resamples a parent whose `/SMask` has `/Matte`, is the same size, and is
+  named by no other image, the mask is resampled to the parent's new size
+  with the parent's `method`, whatever its own `ppi` says; its other
+  settings are its own, with `convert` forced to `keep` and `min-saving` to
+  0. Its `ImageChange.resampled_with` names the parent. If the mask's
+  rewrite fails, the parent's change is withdrawn and the parent is skipped
+  as `ImageUnsupported` (`its /Matte soft mask N G R could not be
+  resampled with it`); at apply, neither half is ever written without the
+  other. A `/Matte` mask shared by several parents still blocks resampling
+  of all of them; either half may change encoding at its size. A soft mask
+  or stencil `/Mask` without `/Matte` is resampled on its own settings,
+  measured at its parent's placements.
 - **Never larger**, twice: a stream whose result is not strictly smaller is
   `SkipReason::NotSmaller` and kept; a whole file that is not strictly
   smaller is `KeptOriginal` and must not be written over the input, unless

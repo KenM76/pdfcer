@@ -163,6 +163,7 @@ mod optimize;
 mod optimize_cleanup;
 mod optimize_discard;
 mod optimize_fragments;
+mod optimize_matte;
 mod optimize_objects;
 mod optimize_smooth;
 pub use markup_respan::TextMarkupRespan;

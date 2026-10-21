@@ -847,3 +847,57 @@ fn a_png_predicted_image_reports_it_and_writes_decode_parms() {
         "{j}"
     );
 }
+
+/// `noise_image_pdf`'s image with a `/Matte` soft mask of its size.
+fn matte_pair_pdf(d: &std::path::Path) -> std::path::PathBuf {
+    let px: String = (0..200 * 200u32)
+        .map(|i| char::from(b'a' + (i.wrapping_mul(2_654_435_761) >> 27) as u8))
+        .collect();
+    let draw = "q 50 0 0 50 0 0 cm /Im9 Do Q";
+    let image = |extra: &str| {
+        format!(
+            "<< /Type /XObject /Subtype /Image /Width 200 /Height 200 /ColorSpace /DeviceGray /BitsPerComponent 8 {extra} /Length {} >>\nstream\n{px}\nendstream",
+            px.len()
+        )
+    };
+    let extra = [
+        format!(
+            "<< /Length {} >>\nstream\n{draw}\nendstream",
+            draw.len() + 1
+        ),
+        image("/SMask 10 0 R"),
+        image("/Matte [0]"),
+    ];
+    let page = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents 8 0 R /Resources << /XObject << /Im9 9 0 R >> >> >>";
+    let extra: Vec<&str> = extra.iter().map(String::as_str).collect();
+    write_pdf_page(d, "", page, &extra)
+}
+
+#[test]
+fn a_matte_soft_mask_is_resampled_with_its_image_and_says_so() {
+    let d = dir("image-matte");
+    let input = matte_pair_pdf(&d);
+    let out = d.join("out.pdf");
+    let args = [
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--keep-structure",
+        "--streams",
+        "image(ppi=72)",
+    ];
+    let o = run(&args);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(
+        report.contains("/Matte soft mask sized with its image 9 0 R"),
+        "{report}"
+    );
+    let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert_eq!(written.matches("/Width 50").count(), 2, "{written}");
+    let mut json = args.to_vec();
+    json.extend(["--dry-run", "--json"]);
+    let j = text(&run(&json));
+    assert!(j.contains("\"resampled_with\":[9,0]"), "{j}");
+    assert!(j.contains("\"resampled_with\":null"), "{j}");
+}
