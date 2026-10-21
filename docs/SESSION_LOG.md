@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1149th filing) — `Pass 617.4` in `031f48b1`: recolouring a path takes grey or CMYK (`G220`)
+
+**Shipped:** `Pass 617.4` (core + cli). `set_object_paint`/`set_object_paint_in_form` take `Option<Color>` (breaking: `Some(rgb.into())`), written in their own device space; `set-object-paint --fill/--stroke` accept `MODEL:comps`. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
+
+**Decisions:** none new; no rule minted.
+
+**Findings:** tests core lib 1,727, core integration 2,997, cli 920; no dependency change. `pdfcer-gui` still passes RGB only.
+
+**Still in flight:** `Pass 616.5` open (unchanged). Channel: `G221` next, then `G222`.
+
+**For next session:** next free `Pass 617.5`. Git, push and backup state not verified from here. Next filing 1150th.
+
 ## 2026-10-21 (1148th filing) — `Pass 617.3` in `aab8a326`: Add Text takes a grey or CMYK colour (`G219`)
 
 **Shipped:** `Pass 617.3` (core + cli, gui wires itself). `NewTextColor` gains `Gray` and `Cmyk`, written in their own device space; `From<&NewFill>` added. `add-text` and `place-text` `--color` accept `r,g,b` or `MODEL:comps`. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.

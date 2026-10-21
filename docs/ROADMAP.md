@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 617.4` (`031f48b1`), 2026-10-21 — recolouring a path takes grey or CMYK (`G220`) (1149th filing)
+
+Code commit `031f48b1` "feat(vector): recolouring a path takes grey or CMYK (Pass 617.4, G220)", after the 1148th filing. Core + CLI; `pdfcer-gui` has not yet passed a grey/CMYK colour (gui box for the RGB recolour unchanged). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Request: `request_G220_object_paint_takes_rgb_only.md` (reply written in the channel).
+
+- **Core:** `EditSession::set_object_paint` and `set_object_paint_in_form` (and internal `vector::plan_recolour`) take `Option<annot_author::Color>` for fill and stroke instead of `Option<vector::Rgb>`. Written in the device space named (`g`/`rg`/`k` fill, `G`/`RG`/`K` stroke; ISO 32000-1 §8.6.8 Table 73), components clamped to [0,1], inside the existing `q … Q` wrap. New `impl From<vector::Rgb> for Color` and `impl From<&text_edit::NewFill> for Color`. **Breaking for callers:** `Some(rgb)` becomes `Some(rgb.into())`.
+- **CLI:** `pdfcer set-object-paint --fill/--stroke` take `r,g,b`, `#rrggbb`, or `MODEL:comps` (`gray:0.5`, `cmyk:0,1,1,0`).
+- **Docs:** `docs/core-api/02-editing-and-saving.md` `set_object_paint` rows updated.
+- **Tests (engineer-reported):** core `a_grey_or_cmyk_recolour_stays_in_its_own_device_space` (sabotage-checked); CLI `a_model_colour_is_written_in_that_device_space`. Core lib 1,727; core `--test all` 2,997; CLI `--test all` 920. fmt, clippy, all shell gates clean. No dependency change; `cargo tree` not re-run.
+
+`FEATURES.md`: *Recolour a selected path's fill and/or stroke* row gains a grey/CMYK clause (core `[x]`, cli `[x]`; gui stays `[x]` for RGB only, stated in the row). The *set_object_paint_in_form* row not touched. No decision; no rule. Breaking-signature sweep of describing text outside `crates/` not run beyond `core-api` (engineer updated it); callers in `pdfcer-gui` need `.into()` when it next bumps. Ledgers: next free `Pass 617.5`, decision `194`, `R263`; next filing 1150th. Channel still open: `G221` (ce dimension colour RGB-only), `G222` (page text opacity). Git, push and backup state not verified from here.
+
 ### `Pass 617.3` (`aab8a326`), 2026-10-21 — Add Text takes a grey or CMYK colour (`G219`) (1148th filing)
 
 Code commit `aab8a326` "feat(text): Add Text takes a grey or CMYK colour (Pass 617.3, G219)", after the 1147th filing. Core + CLI; GUI wires it itself (box unchanged). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Request: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G219_add_text_takes_no_grey_or_cmyk_colour.md`.
