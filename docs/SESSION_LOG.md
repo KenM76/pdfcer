@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1119th filing) — `Pass 616.3` fix G213 in `c50ec207`: a requested removal is written even when the file does not shrink
+
+**Shipped (engineer-reported, no shell here):** `save_optimized` takes `&OptimizePlan` first (breaking for pdfcer-gui); new `OptimizedFile::NotSmaller { bytes, original }` and `OptimizePlan::removes_content()`. The never-larger rule (decision 191) now covers only purely byte-saving runs. CLI `optimize` writes such a run, exits 0, says "not smaller: kept anyway, because it removes what was asked for"; JSON `smaller` is the real comparison; exit 14 now means nothing was written. Also documents test helper `optimize::tests::session` (CI gate left red by `07645ef5`). Tests: core lib 2995, 1591 + 236 doctests, CLI 897, all green; fmt, clippy, structure, core-api-verbs clean; sabotage fails the new test. No dependency change. Request G213 FIXED in the FeatureRequests INDEX.
+
+**Environment:** D: filled to 100% mid-session; the engineer deleted `target/debug/incremental` (28 GB) to recover. Build cache only, nothing of record lost.
+
+**Register:** ROADMAP `616.3` stays IN PROGRESS (fix noted in its header); FEATURES clean-up, discard-by-kind and discard-objects rows carry a one-line note, boxes unchanged (core `[x]`, cli `[x]`, gui `[ ]`). No decision. Owed to pdfcer-gui: adapt to the new `save_optimized` signature. Git, push and backup state not verified from here.
+
 ## 2026-10-20 (1118th filing) — `Pass 616.3` slice B PARTIAL in `07645ef5`: discard document objects
 
 **Shipped (engineer-reported, no shell here):** `DiscardObject` {bookmarks, tags, print-settings, alternate-images} via `optimize --discard`/`--keep-data` and profile key `discard`; separate from the metadata kinds so `metadata remove --all` leaves bookmarks/tags alone. One undo entry, a disclosure note per class, Screen preset adds alternate-images. Core `[x]`, cli `[x]`, gui `[ ]`. Core lib 2995, integration 1589, doctests 236, CLI 896 + 43; 4/4 sabotages failed tests. No dependency change.
