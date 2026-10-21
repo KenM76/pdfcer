@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.4` (fix G217, `173147ee`), 2026-10-21 — image settings keep a preset's recompression (1133rd filing)
+
+Code commit `173147ee` "fix(optimize): image settings keep a preset's recompression (G217)", after the 1132nd filing `ffbf97d4`. Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. A fix between slices; `616.4` still has D3-D6 remaining.
+
+- **Defect (pdfcer-gui, G217):** `OptimizeSettings.streams` holds one action, so setting it to `image(...)` on top of a preset replaced the preset's `recompress-9` and every non-image stream was left as stored. The CLI `--streams "image(...)"` did the same.
+- **Fix:** new public field `OptimizeSettings.images: ImagePatch` (default none), image settings for every image, folded after `streams` and before rules and per-object overrides; non-image streams keep `streams`. New `SettingSource::Images` (Display "images"). Profile key `images = "image(...)"`, written by `to_profile` when set.
+- **CLI:** `--streams "image(...)"` now sets `images`; report and JSON sources for those settings read "images" (was "streams"). `streams = Image(..)` is unchanged in meaning and now documented.
+- **Docs:** `core-api/03-capabilities.md` (OptimizeSettings row, SettingSource list, Precedence bullet); `check-core-api-verbs` green. GUI reply: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G217_streams_image_drops_recompression_FIXED.md`.
+- **Tests:** new core resolve test; profile round-trip carries `images`; CLI downsample test asserts the neighbouring content stream is still recompressed. Sabotage (route back into `streams`) caught. Core optimize 133 passed, CLI optimize 24 passed. Full 33-gate sweep, clippy, fmt green. No manifest or dependency change.
+- `FEATURES.md`: *Downsample images* row mentions `images=` and the hash; boxes unchanged (core `[x]`, cli `[x]`, gui `[ ]`). Ledgers: no decision, no rule; next filing 1134th. Git, push and backup state not verified from here.
+
 ### `Pass 616.4` (slice D2, `ffbf97d4`), 2026-10-21 — /Matte soft masks resampled with their image (1132nd filing)
 
 Code commit `ffbf97d4` "feat(optimize): resample a /Matte soft mask with its image (Pass 616.4, slice D2)", after the 1131st filing `b756e26d`. Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 192 governs. `616.4` is NOT complete: D3-D6 remain (D3 colour-key images, nearest-pixel by default, `keyed=subsample|skip`; D4 `unplaced=max-pixels=N`; D5 dedupe before resampling; D6 lossy presets screen/ebook/print plus per-image report table, which also covers GUI request G216 and the CLI summary still saying "lossless until image downsampling ships").

@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1133rd filing) — `Pass 616.4` fix G217 in `173147ee`: image settings keep a preset's recompression
+
+**Shipped (engineer-reported, no shell here):** `streams = image(...)` replaced a preset's `recompress-9`, leaving non-image streams as stored (reported by pdfcer-gui as G217; CLI `--streams "image(...)"` did the same). New `OptimizeSettings.images: ImagePatch`, folded after `streams` and before rules and per-object overrides; new `SettingSource::Images`; profile key `images`; CLI now sets `images` and reports source "images". core-api 03-capabilities updated.
+
+**Counts:** core optimize 133 passed, CLI optimize 24 passed; sabotage caught; 33 gates, clippy, fmt green (engineer-reported). No manifest change.
+
+**Register:** ROADMAP Shipped entry; FEATURES *Downsample images* row. No decision or rule. Remaining: D3-D6, then `616.5`. Next filing 1134th. Git, push and backup state not verified from here.
+
 ## 2026-10-21 (1132nd filing) — `Pass 616.4` slice D2 SHIPPED in `ffbf97d4`: /Matte soft masks resampled with their image
 
 **Shipped (engineer-reported, no shell here):** an image with a `/Matte` soft mask, previously skipped with its mask, is now resampled together with it: the mask goes to the same new size with the image's method (ISO 32000-2 §11.6.5.3 requires equal Width/Height under `/Matte`); the mask's ppi is ignored, `convert` forced to keep, `min-saving` to 0. Preblended colour is linear in α and αc, so one linear kernel stays consistent. New `ImageChange.resampled_with: Option<ObjId>`. If the mask cannot be rewritten the parent is withdrawn and skipped with a stated reason; at apply time an orphaned half is dropped. A `/Matte` mask shared by several images stays refused. CLI text and JSON (`resampled_with`) report it; core-api 03-capabilities has a new bullet.
