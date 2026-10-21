@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1138th filing) — `Pass 616.4` slice D5 in `ab84c08b`: identical images are planned as one before resampling
+
+**Shipped (engineer-reported, no shell here):** with `merge_duplicates` on (preset default; `--keep-duplicates`/`--keep-structure` off), byte-identical images are measured over the union of all copies' placements and resample to one size, so the structure rebuild can still merge them. New `optimize_copies.rs`; `ImageChange.copies: Vec<ObjId>`; CLI text "identical to N G R (planned as one)" and JSON `"copies"`. Core + cli; gui not.
+
+**Counts:** core optimize 149 (3 new), CLI optimize 26 (1 new); `widened()` sabotage failed 2 core tests and the CLI test; fuzz `optimize_images` 32,079 runs clean; a `preset_tests` fixture got `/Interpolate false` on one twin; gates/clippy/structure/core-api verbs green (engineer-reported). No manifest change; not pushed at filing time.
+
+**Register:** ROADMAP Shipped entry, D5 line, heading, banner; FEATURES two rows. Not done: D6 per-image table, `616.5`. No decision or rule; next filing 1139th. Git, push and backup state not verified from here.
+
 ## 2026-10-21 (1137th filing) — `Pass 616.4` slice D4 in `db4cca93`: max-pixels caps an image drawn on no page
 
 **Shipped (engineer-reported, no shell here):** `image(max-pixels=N)`: an image drawn on no page is downsampled by one factor to at most N pixels (aspect kept, each axis >= 1, product never above N); a placed image ignores the cap and follows ppi. Unplaced with a ppi and no cap is still skipped, its reason now naming `max-pixels=N`. `validate()` rejects 0. CLI help and JSON report (`max_pixels`) carry the key. Core + cli; gui not.

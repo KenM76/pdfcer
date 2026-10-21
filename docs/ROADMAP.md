@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.4` (slice D5, `ab84c08b`), 2026-10-21 — identical images are planned as one before resampling (1138th filing)
+
+Code commit `ab84c08b` "feat(optimize): identical images are planned as one before resampling (Pass 616.4, slice D5)", after the 1137th filing `9a6db72a`; not pushed at filing time. Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 192 governs. `616.4` is NOT complete: D6's per-image report table remains.
+
+- **Behaviour:** with `settings.structure.merge_duplicates` on (the preset default; `--keep-duplicates` / `--keep-structure` turn it off), byte-identical images (same dictionary, same stored data) are measured over the union of every copy's placements, so all copies resample to one size and the structure rebuild's `merge_duplicates` can keep one. Before, copies drawn at different sizes each got their own size and could no longer merge.
+- **Core:** new module `crates/pdfcer-core/src/edit/optimize_copies.rs`; new public field `ImageChange.copies: Vec<ObjId>` names the other copies (empty unless `merge_duplicates` is on). `docs/core-api/03-capabilities.md`: `ImageChange` row and an "Identical images" bullet; `index.md` now 4,665 lines.
+- **CLI (`pdfcer optimize`):** text report says "identical to N G R (planned as one)"; the JSON image report gains `"copies":[[n,g],...]`.
+- **Tests (engineer-reported):** core optimize 149 (3 new, `pipeline_copies_tests.rs`), CLI optimize 26 (1 new, `identical_images_are_planned_as_one_and_reported`). Sabotage (`widened()` does not extend placements) failed 2 core tests and the CLI test. A `preset_tests` fixture had identical twins the presets now plan as one; one image got `/Interpolate false` so those tests still measure the ppi trigger per image. Fuzz `optimize_images`: top bit of the pick byte turns `merge_duplicates` on, 32,079 runs clean. Gates, clippy, structure check, core-api verbs green; `cargo tree` unchanged (no manifest touched).
+- `FEATURES.md`: *Downsample images* row gains the dedupe plan (boxes unchanged, gui `[ ]`); *Image requality, remainder* drops D5. Ledgers: no decision, no rule; next filing 1139th. Git, push and backup state not verified from here.
+
 ### `Pass 616.4` (slice D4, `db4cca93`), 2026-10-21 — max-pixels caps an image drawn on no page (1137th filing)
 
 Code commit `db4cca93` "feat(optimize): max-pixels caps an image drawn on no page (Pass 616.4, slice D4)", after the 1136th filing `6c166cb4`; not pushed at filing time. Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 192 governs. `616.4` is NOT complete: D5 (dedupe, in progress) and D6's per-image report table remain.
@@ -22721,6 +22731,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+(1138th filing: `Pass 616.4` slice D5 SHIPPED (`ab84c08b`, see *Shipped*); D6's per-image table and `616.5` remain. Next filing 1139th.)
+
 (1137th filing: `Pass 616.4` slice D4 SHIPPED (`db4cca93`, see *Shipped*); D5, D6's per-image table and `616.5` remain. Next filing 1138th.)
 
 (1136th filing: `Pass 616.4` slice D3 SHIPPED (`e5edee43`, see *Shipped*); D4, D5, D6's per-image table and `616.5` remain. Next filing 1137th.)
@@ -24582,7 +24594,7 @@ Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level
 
 Original scope: wire in the existing 12 `doc_metadata` kinds. Add: alternate images, print settings, search index, tags, bookmarks, form actions, external cross-references, private application data, hidden layers (with visible-layer flatten), embedded thumbnails.
 
-### `Pass 616.4` — Images I: downsampling, requality, conversion — SLICES A `2bfea30c`, B `e9387ebf`, C `cba8193d`, D1 `0fc01d0c`, D2 `ffbf97d4`, D3 `e5edee43`, D4 `db4cca93` SHIPPED (2026-10-21); D5-D6 NEXT UP
+### `Pass 616.4` — Images I: downsampling, requality, conversion — SLICES A `2bfea30c`, B `e9387ebf`, C `cba8193d`, D1 `0fc01d0c`, D2 `ffbf97d4`, D3 `e5edee43`, D4 `db4cca93`, D5 `ab84c08b` SHIPPED (2026-10-21); D6 per-image table NEXT UP
 
 **Operator-direct request, Ken 2026-10-21 (1128th filing), verbatim:** *"We should also be able to change images to different formats (jpeg formats, brotli, grey scale, etc of whatever PDFs support), and as stated before this can be done on all or a per image basis or etc."* Folded into slices B/C below and into `616.5`, not minted as a new Pass: the existing `encode=` key and the fold model (default -> `image-class`/other rules -> one object) already give all / per class / per image. **Acceptance criterion added:** the report shows, per image, the format before -> after (e.g. `Flate/DeviceRGB 8bpc -> DCT/DeviceGray`). Target matrix and where each lands:
 
@@ -24615,7 +24627,7 @@ Colour conversion targets (grey, bilevel, indexed) are slice C (shipped). ICC-ma
   - **D2 — /Matte lockstep resample.** **SHIPPED `ffbf97d4`** (entry in *Shipped*). A /Matte mask shared by several images stays refused.
   - **D3** Colour-key masks subsample-or-skip. **SHIPPED `e5edee43`** (entry in *Shipped*; `keyed=subsample|skip`).
   - **D4** `max-pixels=N` for unplaced images. **SHIPPED `db4cca93`** (entry in *Shipped*).
-  - **D5** Dedupe of identical images before resampling.
+  - **D5** Dedupe of identical images before resampling. **SHIPPED `ab84c08b`** (entry in *Shipped*).
   - **D6** Lossy presets **SHIPPED `db902fb4`** (G216; entry in *Shipped*; core + cli, gui not). **Remaining:** the per-image table in the report.
 
 Mono results are mostly not-smaller until `616.5` adds CCITT/JBIG2 encoders; disclosed, not hidden.
