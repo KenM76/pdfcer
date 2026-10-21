@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1141st filing) — `Pass 616.5` slice E1 in `44ce3e0e`: images can be written as RunLength
+
+**Shipped:** `Pass 616.5` slice E1 (core + cli, no gui): `filters::runlength::encode` in `pdfcer-model`, `ImageEncode::RunLength` / `encode=runlength` in core, "RunLength" in the CLI report format column, `--streams` help, core-api 01 and 03. Full detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
+
+**Decisions:** none new; decision 193 governs. No rule minted.
+
+**Findings:** fuzz `image_encoders` 4,429,286 runs and `optimize_images` 25,377 runs clean; sabotage failed 3 model, 1 core and the CLI test. `cargo tree` unchanged.
+
+**Still in flight:** `Pass 616.5` is NOT complete. E2 (CCITT G4) and E3 (JBIG2 generic) are blocked on the spec-librarian's T.4/T.6 and T.88 material (in progress); E4 LZW, E5 auto, E6 version-raise=refuse queued. The Acrobat Reader render check for RunLength was not reported; owed.
+
+**For next session:** E4 is unblocked by the spec; E2/E3 once the spec material lands. Git, push and backup state not verified from here. Next filing 1142nd.
+
 ## 2026-10-21 (1140th filing) — decision 193 filed: image encoders II, R28 narrowed
 
 **Decision (KenAgent consultant `autonomous-builder`, record `docs/decisions/193-image-encoders-ii.md`):** in-house RunLength, CCITT G4 and JBIG2 generic encoders; LZW via `weezl`, written only when named and refused under PDF/A; `encode=auto` (smallest eligible lossless, never raises the version) becomes the presets' image encode. JPX, Brotli and lossy JBIG2 matching are excluded and each needs its own record. Driver: Ken, 2026-10-21, "whatever PDFs support", on all images or per image.

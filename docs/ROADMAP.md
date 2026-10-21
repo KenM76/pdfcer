@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.5` (slice E1, `44ce3e0e`), 2026-10-21 — images can be written as RunLength; `Pass 616.5` NOT complete (1141st filing)
+
+Code commit `44ce3e0e` "feat(optimize): images can be written as RunLength (Pass 616.5, slice E1)", after the 1140th filing `db1f03c9` (decision 193). Core + CLI; no GUI. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 193 governs. E2-E6 remain.
+
+- **Behaviour:** `image(encode=runlength)` writes `/RunLengthDecode` with no `/DecodeParms`; lossless; the never-larger guard keeps the original when RunLength does not win. CLI report format column reads "RunLength"; `--streams` help lists the value.
+- **Model:** `pdfcer-model` `filters::runlength::encode(&[u8]) -> Vec<u8>` (greedy, ends with EOD, output at most len + len/128 + 2 bytes; ISO 32000-2 §7.4.5). Core: `ImageEncode::RunLength`.
+- **Docs:** `docs/core-api` 01 (4,061 lines) and 03 (4,670 lines, 133 clauses) updated.
+- **Tests (engineer-reported):** model runlength 11 (3 new); core optimize 152 (3 new, `pipeline_runlength_tests.rs`); CLI optimize 28 (1 new, `a_runlength_image_reports_its_format_and_decodes`). Sabotage (repeat-length byte off by one; RunLength never chosen) failed 3 model, 1 core and the CLI test. Gates, clippy, structure, `check-core-api-verbs` green.
+- **Fuzz:** new `image_encoders` target (encode then decode identity plus size bound), 4,429,286 runs clean; `optimize_images` gains a bilevel+runlength action, 25,377 runs clean.
+- **Invariants:** no `Cargo.toml` change for core/render (`fuzz/Cargo.toml` gained a `[[bin]]` only), so `cargo tree` unchanged; no packaging change. An Acrobat Reader render check (a decision 193 condition) is not reported in this dispatch; treat as owed.
+- `FEATURES.md`: *Change an image's format* row records RunLength as available (core `[x]`, cli `[x]`, gui `[ ]`, for that part only). Ledgers: no decision, no rule; next free decision 194; next filing 1142nd. Git, push and backup state not verified from here.
+
 ### `Pass 616.4` (slice D6 second half, `2579f651`), 2026-10-21 — the optimize report ends with one row per image; `Pass 616.4` COMPLETE (1139th filing)
 
 Code commit `2579f651` "feat(optimize): the report ends with one row per image (Pass 616.4, slice D6)", after the 1138th filing `ab84c08b`'s docs commit (pushed). CLI only: no core or core-api change. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 192 governs.
@@ -22743,6 +22755,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+(1141st filing: `Pass 616.5` slice E1 (RunLength) SHIPPED `44ce3e0e`, see *Shipped*; E2-E6 remain, E2/E3 blocked on spec-librarian encoder material (in progress). `616.5` stays here. Next filing 1142nd.)
+
 (1140th filing: **decision 193 filed** (image encoders II, R28 narrowed; `docs/decisions/193-image-encoders-ii.md`); `Pass 616.5`'s image half restated as slices E1-E6 below. No code shipped. Next free decision 194; next filing 1141st.)
 
 (1139th filing: `Pass 616.4` COMPLETE (slice D6 table `2579f651`, see *Shipped*); `Pass 616.5` (Images II: encoders, and Brotli for any stream) is NEXT UP. Next filing 1140th.)
@@ -24640,7 +24654,7 @@ Mono results are mostly not-smaller until `616.5` adds CCITT/JBIG2 encoders; dis
 ### `Pass 616.5` — Images II: encoders, and Brotli for any stream — NEXT UP, 2026-10-20; widened 2026-10-21
 
 **Image half, governed by decision 193 (filed 1140th, 2026-10-21; supersedes the earlier "encoders widened" wording; R28 narrowed).** All selectable through `image(encode=...)` on all images, a rule or one object (operator request of 2026-10-21, Ken). Slices, in order:
-- **E1 — RunLength (in-house, ISO 32000-2 §7.4.5).** Any image, any version, inline allowed. No spec blocker.
+- **E1 — RunLength (in-house, ISO 32000-2 §7.4.5).** Any image, any version, inline allowed. No spec blocker. **SHIPPED `44ce3e0e` (1141st filing; entry in *Shipped*; core + cli, gui not).**
 - **E2 — CCITT G4 (in-house, `/K -1`, ITU-T T.6 + T.4 tables).** 1-bpc 1-component. **BLOCKED on `pdfcer-spec-librarian` filing the T.4/T.6 code tables** (rule 1). Adapter sets `/BlackIs1`.
 - **E3 — JBIG2 generic (in-house MQ module + generic-region module; template 0, TPGDON, embedded, no `/JBIG2Globals`, PDF 1.4, never inline).** 1-bit only. **BLOCKED on the spec-librarian filing T.88 §6.2 and the Annex E MQ encoder.** Each module within the structure-gate limits.
 - **E4 — LZW (`weezl` `Encoder::with_tiff_size_switch(Msb, 8)`, `/EarlyChange 1`, key omitted).** **Written only when `encode=lzw` is named**; no preset, `auto` or fallback picks it; **refused under a PDF/A claim**; the report row gives the Flate size for the same samples. No new dependency.
