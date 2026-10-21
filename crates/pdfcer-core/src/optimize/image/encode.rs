@@ -8,7 +8,7 @@ use super::predict::{self, Codec};
 use super::{Conversion, ImageSkip};
 use crate::deskew::Raster;
 use crate::filters;
-use crate::image_codec::{CodecColorModel, decode_image_view};
+use crate::image_codec::{self, CodecColorModel, decode_image_view};
 use crate::image_resample::resample_with;
 use crate::jpeg_write::{self, unpack_to_bytes};
 use crate::object::{Dict, Name, Object};
@@ -74,7 +74,7 @@ pub(crate) fn run(
     } = encode(job, &pixels, (components, bpc))?;
     guard(job, raw.len() as u64, data.len() as u64)?;
     let mut out = output_dict(dict, job.out, filter, bpc, data.len());
-    let predicted = parms.is_some();
+    let predicted = parms.is_some() && job.target != Target::Ccitt;
     if let Some(p) = parms {
         out.insert(Name::from(&b"DecodeParms"[..]), Object::Dict(p));
     }
@@ -142,6 +142,40 @@ fn encode(job: &Job, pixels: &[u8], (components, bpc): (u32, u32)) -> Result<Enc
             }
         }
         Target::RunLength => plain(filters::runlength::encode(pixels), b"RunLengthDecode"),
+        Target::Ccitt => ccitt(job, pixels, (components, bpc))?,
+    })
+}
+
+/// Group 4 in whichever polarity codes smaller (ISO 32000-1 §7.4.6
+/// Table 11): `/BlackIs1 true` with a 1 bit coded black, else `/BlackIs1`
+/// omitted with a 1 bit coded white. Decoded samples equal `pixels` both
+/// ways, so `/Decode` and `/ImageMask` stay as they are.
+fn ccitt(job: &Job, pixels: &[u8], format: (u32, u32)) -> Result<Encoded, SkipReason> {
+    if format != (1, 1) {
+        return Err(SkipReason::ImageUnsupported(ImageSkip::NotBilevel(
+            super::ImageEncode::Ccitt,
+        )));
+    }
+    let (w, h) = job.out;
+    let black = image_codec::ccitt::encode_g4(pixels, w, h, true);
+    let white = image_codec::ccitt::encode_g4(pixels, w, h, false);
+    let black_is_1 = black.len() < white.len();
+    let mut parms = Dict::new();
+    let mut set = |k: &[u8], v: Object| {
+        parms.insert(Name::from(k), v);
+    };
+    set(b"K", Object::Integer(-1));
+    set(b"Columns", Object::Integer(i64::from(w)));
+    set(b"Rows", Object::Integer(i64::from(h)));
+    if black_is_1 {
+        set(b"BlackIs1", Object::Boolean(true));
+    }
+    Ok(Encoded {
+        data: if black_is_1 { black } else { white },
+        filter: b"CCITTFaxDecode",
+        bpc: 1,
+        parms: Some(parms),
+        flate_bytes: None,
     })
 }
 
@@ -217,7 +251,7 @@ fn source_samples(
             }
             if matches!(
                 job.target,
-                Target::Flate { .. } | Target::RunLength | Target::Lzw { .. }
+                Target::Flate { .. } | Target::RunLength | Target::Lzw { .. } | Target::Ccitt
             ) || job.convert.is_some()
             {
                 return Ok((packed, job.bpc));

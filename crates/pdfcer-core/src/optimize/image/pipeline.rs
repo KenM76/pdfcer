@@ -5,7 +5,7 @@
 use super::convert::{self, ConvertJob};
 use super::{
     Conversion, ImageConvert, ImageEncode, ImageSkip, ImageStep, KeyedResample, Predictor,
-    ResampleMethod, ResolvedImage, sourced,
+    ResampleMethod, ResolvedImage, SettingSource, sourced,
 };
 use crate::jpeg_write::JpegOptions;
 use crate::object::{Dict, ObjId, Object};
@@ -117,6 +117,8 @@ pub(crate) enum Target {
     RunLength,
     /// `/LZWDecode`, predicted as `predictor` says.
     Lzw { predictor: Predictor },
+    /// `/CCITTFaxDecode` Group 4, 1-bit 1-component samples only.
+    Ccitt,
 }
 
 /// A planned rewrite, redone on a stream an earlier step of the run
@@ -313,6 +315,7 @@ pub(crate) fn decide(
         return Err(unsupported(ImageSkip::ReducedAsJpeg));
     }
     let (components, bpc) = sample_format(dict, space, source, jpeg && convert.is_none())?;
+    bilevel_only(settings, to, (components, bpc))?;
     let (target, quality) = if jpeg {
         let (opts, q) = jpeg_options(settings, source, raw);
         (Target::Jpeg(opts), Some(q))
@@ -337,11 +340,34 @@ pub(crate) fn decide(
     Ok(Outcome::Rewrite(job, Box::new(change)))
 }
 
+/// Refuses a bilevel-only encoder on output that is not 1-bit,
+/// 1-component: by name for the per-object override, "not bilevel" for a
+/// rule (decision 193).
+fn bilevel_only(
+    settings: &ResolvedImage,
+    to: Option<ImageConvert>,
+    format: (u32, u32),
+) -> Result<(), SkipReason> {
+    let encode = settings.encode;
+    let bilevel = match to {
+        Some(to) => to == ImageConvert::Bilevel,
+        None => format == (1, 1),
+    };
+    if encode.value != ImageEncode::Ccitt || bilevel {
+        Ok(())
+    } else if encode.source == SettingSource::Object {
+        Err(unsupported(ImageSkip::NotBilevelOverride(encode.value)))
+    } else {
+        Err(unsupported(ImageSkip::NotBilevel(encode.value)))
+    }
+}
+
 /// The lossless target `encode` names; `Keep` resampled is Flate level 9.
 const fn lossless_target(encode: ImageEncode, predictor: Predictor) -> Target {
     match encode {
         ImageEncode::RunLength => Target::RunLength,
         ImageEncode::Lzw => Target::Lzw { predictor },
+        ImageEncode::Ccitt => Target::Ccitt,
         ImageEncode::Flate { level } => Target::Flate { level, predictor },
         _ => Target::Flate {
             level: 9,
@@ -471,6 +497,7 @@ fn change(
             (encoded(job.target), job.bpc)
         }
         Target::Jpeg(_) => (ImageEncode::Jpeg, 8),
+        Target::Ccitt => (ImageEncode::Ccitt, 1),
     };
     let before = space
         .color_space
@@ -505,6 +532,7 @@ const fn encoded(target: Target) -> ImageEncode {
         Target::Jpeg(_) => ImageEncode::Jpeg,
         Target::RunLength => ImageEncode::RunLength,
         Target::Lzw { .. } => ImageEncode::Lzw,
+        Target::Ccitt => ImageEncode::Ccitt,
     }
 }
 

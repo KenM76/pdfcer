@@ -1096,3 +1096,38 @@ fn an_lzw_image_reports_its_format_and_the_flate_size() {
     let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
     assert!(written.contains("/Filter /LZWDecode"), "{written}");
 }
+
+#[test]
+fn a_ccitt_image_needs_bilevel_output_and_reports_its_format() {
+    let d = dir("image-ccitt");
+    let input = noise_image_pdf(&d);
+    let out = d.join("out.pdf");
+    let base = [
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--keep-structure",
+        "--streams",
+    ];
+    let refused = text(&run(
+        &[&base[..], &["image(encode=ccitt)", "--dry-run"]].concat()
+    ));
+    assert!(
+        refused.contains("not bilevel: ccitt codes 1-bit"),
+        "{refused}"
+    );
+    let o = run(&[
+        &base[..],
+        &["image(convert=bilevel,threshold=110,encode=ccitt)"],
+    ]
+    .concat());
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(
+        report.contains("format raw/DeviceGray 8 bit -> CCITT G4/DeviceGray 1 bit"),
+        "{report}"
+    );
+    let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(written.contains("/Filter /CCITTFaxDecode"), "{written}");
+    assert!(written.contains("/K -1"), "{written}");
+}

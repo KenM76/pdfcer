@@ -100,6 +100,11 @@ pub enum ImageEncode {
     /// image in a document claiming PDF/A is skipped (ISO 19005 forbids
     /// LZW).
     Lzw,
+    /// `/CCITTFaxDecode` Group 4 (`/K -1`, ITU-T T.6). Lossless, for
+    /// 1-bit, 1-component output only: the source, or a `convert=bilevel`
+    /// result. Both polarities are coded and the smaller kept, with
+    /// `/BlackIs1 true` when that one wins.
+    Ccitt,
 }
 
 impl fmt::Display for ImageEncode {
@@ -110,6 +115,7 @@ impl fmt::Display for ImageEncode {
             Self::Jpeg => f.write_str("jpeg"),
             Self::RunLength => f.write_str("runlength"),
             Self::Lzw => f.write_str("lzw"),
+            Self::Ccitt => f.write_str("ccitt"),
         }
     }
 }
@@ -336,6 +342,7 @@ fn parse_encode(value: &str) -> Result<ImageEncode, String> {
         "jpeg" => Ok(ImageEncode::Jpeg),
         "runlength" => Ok(ImageEncode::RunLength),
         "lzw" => Ok(ImageEncode::Lzw),
+        "ccitt" => Ok(ImageEncode::Ccitt),
         _ => value
             .strip_prefix("flate-")
             .and_then(|n| n.parse::<u8>().ok())
@@ -343,7 +350,7 @@ fn parse_encode(value: &str) -> Result<ImageEncode, String> {
             .map(|level| ImageEncode::Flate { level })
             .ok_or_else(|| {
                 format!(
-                    "image(): unknown encode {value:?}; expected keep, flate, flate-0..9, jpeg, runlength or lzw"
+                    "image(): unknown encode {value:?}; expected keep, flate, flate-0..9, jpeg, runlength, lzw or ccitt"
                 )
             }),
     }
@@ -645,6 +652,8 @@ pub(crate) fn fold(actions: impl IntoIterator<Item = (StreamAction, SettingSourc
 
 #[cfg(test)]
 mod pipeline_cap_tests;
+#[cfg(test)]
+mod pipeline_ccitt_tests;
 #[cfg(test)]
 mod pipeline_convert_tests;
 #[cfg(test)]

@@ -114,6 +114,7 @@ pub(crate) fn format_pair(img: &ImageChange, filters: &[String]) -> String {
         ImageEncode::Jpeg => "DCT",
         ImageEncode::RunLength => "RunLength",
         ImageEncode::Lzw => "LZW",
+        ImageEncode::Ccitt => "CCITT G4",
         _ => "Flate",
     };
     let (cb, ca) = &img.color_space;

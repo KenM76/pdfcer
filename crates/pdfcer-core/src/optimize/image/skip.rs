@@ -2,6 +2,7 @@
 
 use std::fmt;
 
+use super::ImageEncode;
 use crate::object::ObjId;
 
 /// The step a colour key blocks.
@@ -71,6 +72,13 @@ pub enum ImageSkip {
     LzwUnderPdfa,
     /// The LZW encoder failed, with its message.
     LzwEncode(String),
+    /// A rule or the `images` patch asked for a bilevel-only encoder
+    /// (`ccitt`) on an image whose output is not 1-bit, 1-component.
+    NotBilevel(ImageEncode),
+    /// The per-object override asked for a bilevel-only encoder on an
+    /// image whose output is not 1-bit, 1-component, with no
+    /// `convert=bilevel` step.
+    NotBilevelOverride(ImageEncode),
     /// A Separation or DeviceN image has no defined grey.
     NoDefinedGrey {
         /// The colour space family, e.g. `Separation`.
@@ -132,6 +140,13 @@ impl fmt::Display for ImageSkip {
             Self::JpegEncode(why) => write!(f, "the JPEG encoder failed: {why}"),
             Self::LzwUnderPdfa => f.write_str("the document claims PDF/A, which forbids LZW"),
             Self::LzwEncode(why) => write!(f, "the LZW encoder failed: {why}"),
+            Self::NotBilevel(e) => {
+                write!(f, "not bilevel: {e} codes 1-bit, 1-component images only")
+            }
+            Self::NotBilevelOverride(e) => write!(
+                f,
+                "{e} was asked for this object, which is not 1-bit, 1-component; add convert=bilevel"
+            ),
             Self::NoDefinedGrey { space } => {
                 write!(f, "its {space} colour space has no defined grey")
             }

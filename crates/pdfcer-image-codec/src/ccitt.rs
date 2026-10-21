@@ -14,6 +14,9 @@
 //! Crate choice is decision 005 §4.3: **`hayro-ccitt`**, with `fax` as
 //! the named fallback.
 //!
+//! The writer side is [`encode_g4`], pdfcer's own Group 4 encoder
+//! (decision 193); it is checked against this decoder, not against itself.
+//!
 //! ## What this module is, and is not
 //!
 //! An **adapter**. `hayro-ccitt` does the Huffman run-length decoding,
@@ -127,6 +130,11 @@ use super::{
 use pdfcer_model::graph::ObjectGraph;
 use pdfcer_model::object::{Dict, Object};
 use pdfcer_model::view::DocumentView;
+
+mod encode;
+mod tables;
+
+pub use encode::encode_g4;
 
 /// Table 11's parameters, resolved against their verified defaults.
 ///
