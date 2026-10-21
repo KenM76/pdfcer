@@ -787,6 +787,50 @@ fn max_pixels_caps_an_image_drawn_on_no_page() {
 }
 
 #[test]
+fn identical_images_are_planned_as_one_and_reported() {
+    let d = dir("image-copies");
+    let draw = "q 100 0 0 100 0 0 cm /Im9 Do Q q 50 0 0 50 0 0 cm /Im10 Do Q";
+    let px = "ab".repeat(200 * 100);
+    let image = format!(
+        "<< /Type /XObject /Subtype /Image /Width 200 /Height 200 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length {} >>\nstream\n{px}\nendstream",
+        px.len()
+    );
+    let content = format!(
+        "<< /Length {} >>\nstream\n{draw}\nendstream",
+        draw.len() + 1
+    );
+    let page = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents 8 0 R /Resources << /XObject << /Im9 9 0 R /Im10 10 0 R >> >> >>";
+    let input = write_pdf_page(&d, "", page, &[&content, &image, &image]);
+    let out = d.join("out.pdf");
+    let args = [
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--preset",
+        "lossless",
+        "--streams",
+        "image(ppi=72)",
+        "--dry-run",
+    ];
+    // The 100 pt use (144 ppi) binds both copies: 200 px -> 100 px.
+    let report = text(&run(&args));
+    assert!(
+        report.contains("identical to 10 0 R (planned as one)"),
+        "{report}"
+    );
+    assert_eq!(
+        report.matches("200x200 -> 100x100 px").count(),
+        2,
+        "{report}"
+    );
+    let j = text(&run(&[&args[..], &["--json"]].concat()));
+    assert!(j.contains("\"copies\":[[10,0]]"), "{j}");
+    let alone = text(&run(&[&args[..], &["--keep-duplicates"]].concat()));
+    assert!(alone.contains("200x200 -> 50x50 px"), "{alone}");
+    assert!(!alone.contains("planned as one"), "{alone}");
+}
+
+#[test]
 fn an_image_written_as_jpeg_reports_format_and_quality() {
     let d = dir("image-jpeg");
     let input = noise_image_pdf(&d);

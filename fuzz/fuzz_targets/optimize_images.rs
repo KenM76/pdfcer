@@ -3,7 +3,8 @@
 //!
 //! The first byte picks an image action (downsample, JPEG, grey, bilevel,
 //! palette, PNG-predicted Flate, a pixel cap for an image drawn on no
-//! page); the rest is loaded as a PDF. Colour spaces, `/Indexed` lookups,
+//! page), and its top bit plans byte-identical images as one
+//! (`merge_duplicates`); the rest is loaded as a PDF. Colour spaces, `/Indexed` lookups,
 //! `/Decode` arrays and sample data all come from the input, so planning
 //! and applying must never panic, and an applied plan must save.
 
@@ -33,7 +34,7 @@ fuzz_target!(|data: &[u8]| {
     let Ok(doc) = Document::from_bytes(pdf.to_vec()) else {
         return;
     };
-    let Some(action) = ACTIONS.get(usize::from(pick) % ACTIONS.len()) else {
+    let Some(action) = ACTIONS.get(usize::from(pick & 0x7F) % ACTIONS.len()) else {
         return;
     };
     let Ok(streams) = StreamAction::parse(action) else {
@@ -41,6 +42,7 @@ fuzz_target!(|data: &[u8]| {
     };
     let mut settings = OptimizeSettings::new();
     settings.streams = streams;
+    settings.structure.merge_duplicates = pick & 0x80 != 0;
     let mut session = EditSession::new(doc);
     let Ok(plan) = session.plan_optimize(&settings) else {
         return;

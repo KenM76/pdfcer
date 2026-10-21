@@ -22,11 +22,12 @@ fn mono() -> Vec<u8> {
 }
 
 /// Image 5 drawn at 50 pt (432 ppi for grey) and at 100 pt as image 6
-/// (216 ppi); image 7 is 1-bit at 50 pt (864 ppi).
+/// (216 ppi), its dictionary differing so the two are not copies; image
+/// 7 is 1-bit at 50 pt (864 ppi).
 fn planned(preset: Preset) -> OptimizePlan {
     let content = "q 50 0 0 50 0 0 cm /Im5 Do Q q 100 0 0 100 100 100 cm /Im6 Do Q \
                    q 50 0 0 50 250 250 cm /Im7 Do Q";
-    let bytes = doc(content, &[grey(""), grey(""), mono()]);
+    let bytes = doc(content, &[grey(""), grey("/Interpolate false"), mono()]);
     let s = EditSession::new(Document::from_bytes(bytes).unwrap());
     s.plan_optimize(&preset.settings()).unwrap()
 }

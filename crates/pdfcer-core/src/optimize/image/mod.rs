@@ -634,6 +634,8 @@ mod pipeline_cap_tests;
 #[cfg(test)]
 mod pipeline_convert_tests;
 #[cfg(test)]
+mod pipeline_copies_tests;
+#[cfg(test)]
 mod pipeline_jpeg_tests;
 #[cfg(test)]
 mod pipeline_keyed_tests;

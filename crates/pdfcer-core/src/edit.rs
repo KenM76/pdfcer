@@ -161,6 +161,7 @@ mod markup_respan;
 mod metadata_remove;
 mod optimize;
 mod optimize_cleanup;
+mod optimize_copies;
 mod optimize_discard;
 mod optimize_fragments;
 mod optimize_matte;

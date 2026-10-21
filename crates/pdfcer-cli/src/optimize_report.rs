@@ -57,6 +57,17 @@ fn image_text(img: &ImageChange) -> String {
             p.num, p.generation
         ));
     }
+    if !img.copies.is_empty() {
+        let ids: Vec<String> = img
+            .copies
+            .iter()
+            .map(|c| format!("{} {} R", c.num, c.generation))
+            .collect();
+        line.push_str(&format!(
+            ", identical to {} (planned as one)",
+            ids.join(", ")
+        ));
+    }
     if let Some(p) = s.ppi {
         line.push_str(&format!(", target {} ppi ({})", p.value, p.source));
     }
@@ -188,7 +199,7 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
         },
     );
     format!(
-        "{{\"size_before\":[{},{}],\"size_after\":[{},{}],\"binding\":{binding},\"encoded_as\":\"{}\",\"bpc\":[{},{}],\"jpeg\":{jpeg},\"method\":{},\"ppi\":{},\"above\":{},\"encode\":{},\"quality\":{},\"chroma\":{},\"progressive\":{},\"min_saving_pct\":{},\"color_space\":[\"{}\",\"{}\"],\"conversion\":{},\"convert\":{},\"threshold\":{},\"colors\":{},\"keyed\":{},\"max_pixels\":{},\"predictor\":{},\"predicted\":{},\"resampled_with\":{}}}",
+        "{{\"size_before\":[{},{}],\"size_after\":[{},{}],\"binding\":{binding},\"encoded_as\":\"{}\",\"bpc\":[{},{}],\"jpeg\":{jpeg},\"method\":{},\"ppi\":{},\"above\":{},\"encode\":{},\"quality\":{},\"chroma\":{},\"progressive\":{},\"min_saving_pct\":{},\"color_space\":[\"{}\",\"{}\"],\"conversion\":{},\"convert\":{},\"threshold\":{},\"colors\":{},\"keyed\":{},\"max_pixels\":{},\"predictor\":{},\"predicted\":{},\"resampled_with\":{},\"copies\":[{}]}}",
         img.size_before.0,
         img.size_before.1,
         img.size_after.0,
@@ -217,6 +228,11 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
         img.resampled_with.map_or("null".to_owned(), |p| format!(
             "[{},{}]",
             p.num, p.generation
-        ))
+        )),
+        img.copies
+            .iter()
+            .map(|c| format!("[{},{}]", c.num, c.generation))
+            .collect::<Vec<_>>()
+            .join(",")
     )
 }

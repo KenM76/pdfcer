@@ -85,7 +85,9 @@ impl EditSession {
     }
 
     /// Plan every stream among `ids`; `/Matte` soft masks after their
-    /// parents, so they can follow a parent's resample.
+    /// parents, so they can follow a parent's resample. Under
+    /// `merge_duplicates`, byte-identical images are measured over every
+    /// copy's placements (see `optimize_copies`).
     fn plan_streams(
         &self,
         plan: &mut OptimizePlan,
@@ -96,6 +98,16 @@ impl EditSession {
         let view = self.view();
         let soft_masks = self.soft_mask_targets(ids);
         let pairs = self.matte_pairs(ids);
+        let copies = if settings.structure.merge_duplicates {
+            self.image_copies(ids)
+        } else {
+            BTreeMap::new()
+        };
+        let wide = super::optimize_copies::widened(rows, &copies);
+        let rows: &BTreeMap<ObjId, &ObjectSpace> = &rows
+            .iter()
+            .map(|(id, r)| (*id, wide.get(id).unwrap_or(r)))
+            .collect();
         for &id in ids {
             if pairs.contains_key(&id) {
                 continue;
@@ -133,6 +145,7 @@ impl EditSession {
         for (&mask, &parent) in &pairs {
             self.plan_matte_mask(plan, settings, (mask, parent), rows, &view);
         }
+        super::optimize_copies::disclose(plan, &copies);
     }
 
     /// Every object some stream among `ids` names as its `/SMask`.

@@ -48,6 +48,11 @@ pub struct ImageChange {
     /// its size follows the parent's, not its own settings (ISO 32000-2
     /// §11.6.5.3 requires the two sizes to be equal).
     pub resampled_with: Option<ObjId>,
+    /// Byte-identical images planned with this one: its binding placement
+    /// is the lowest over every copy's uses, so all are written alike and
+    /// the structure rebuild's `merge_duplicates` keeps one. Empty when
+    /// it has no copy or `merge_duplicates` is off.
+    pub copies: Vec<ObjId>,
 }
 
 impl ImageChange {
@@ -464,6 +469,7 @@ fn change(
         color_space: (before, after),
         predicted: false,
         resampled_with: None,
+        copies: Vec::new(),
     }
 }
 
