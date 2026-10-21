@@ -1,5 +1,6 @@
 //! `pdfcer optimize --unembed-fonts`: removed fonts, kept fonts with why,
-//! PDF/A, and the profile carrying the choice.
+//! PDF/A, and the profile carrying the choice; `--resubset-fonts`: the cut,
+//! its JSON, and the refusals it reports.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)] // Tests fail loudly.
 
@@ -116,4 +117,47 @@ fn the_profile_carries_the_font_choice() {
         "{profile}"
     );
     assert!(profile.contains("keep-subset-tag = true"), "{profile}");
+}
+
+#[test]
+fn resubset_cuts_a_program_and_reports_the_glyphs_kept() {
+    let path = out("resubset");
+    let o = run(
+        "resubset/simple.pdf",
+        &["-o", path.to_str().unwrap(), "--resubset-fonts"],
+    );
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(report.contains("resubset: 1 cut, 0 refused"), "{report}");
+    assert!(report.contains("to 5 of 8 glyphs"), "{report}");
+    let written = std::fs::read(&path).unwrap();
+    let input = std::fs::read(fixture("resubset/simple.pdf")).unwrap();
+    assert!(written.len() < input.len());
+}
+
+#[test]
+fn resubset_json_lists_the_cut_and_a_font_using_every_glyph_is_refused() {
+    let o = run(
+        "resubset/type0-identity.pdf",
+        &["--dry-run", "--json", "--resubset-fonts"],
+    );
+    let report = text(&o);
+    assert!(report.contains("\"resubset\":{\"cut\":[{"), "{report}");
+    assert!(
+        report.contains("\"glyphs_kept\":2,\"glyphs_total\":8"),
+        "{report}"
+    );
+    let o = run(
+        "text/subset-simple-embedded.pdf",
+        &["--dry-run", "--resubset-fonts"],
+    );
+    let report = text(&o);
+    assert!(report.contains("resubset: 0 cut, 1 refused"), "{report}");
+    assert!(report.contains("nothing to cut"), "{report}");
+}
+
+#[test]
+fn no_resubset_flag_cuts_nothing() {
+    let o = run("resubset/simple.pdf", &["--dry-run", "--json"]);
+    assert!(text(&o).contains("\"resubset\":null"), "{}", text(&o));
 }

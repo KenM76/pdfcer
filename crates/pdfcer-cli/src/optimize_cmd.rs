@@ -169,6 +169,12 @@ pub(crate) struct OptimizeArgs {
     /// face.
     #[arg(long)]
     pub(crate) keep_subset_tag: bool,
+    /// Cut each embedded TrueType program to the glyphs the document
+    /// draws. Every glyph number is kept, so the pages look the same; a
+    /// font that cannot be cut safely is kept whole and listed with why.
+    /// Not done to a PDF/A document.
+    #[arg(long)]
+    pub(crate) resubset_fonts: bool,
     /// Optimize a signed document anyway. Every signature is invalidated,
     /// and the report says how many.
     #[arg(long)]
@@ -325,6 +331,7 @@ fn resolve_settings(args: &OptimizeArgs) -> Result<OptimizeSettings, String> {
             .ok_or_else(|| unknown(name))?;
     }
     crate::optimize_fonts::apply_args(&mut settings, &args.unembed_fonts, args.keep_subset_tag);
+    crate::optimize_fonts::apply_resubset(&mut settings, args.resubset_fonts);
     Ok(settings)
 }
 
@@ -468,6 +475,7 @@ fn report_text(
     out.push_str(&discard_text(&o.plan.discard));
     out.push_str(&discard_objects_text(&o.plan.discard_objects));
     out.push_str(&crate::optimize_fonts::fonts_text(&o.plan));
+    out.push_str(&crate::optimize_fonts::resubset_text(&o.plan));
     for n in &o.plan.notes {
         let _ = writeln!(out, "note: {n}");
     }
@@ -763,7 +771,7 @@ fn report_json(
         _ => "null".to_owned(),
     };
     format!(
-        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"version_raise\":{},\"cleanup\":{},\"discard\":{},\"discard_objects\":{},\"fonts\":{},\"structure\":{},\"diff\":{}}}\n",
+        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"version_raise\":{},\"cleanup\":{},\"discard\":{},\"discard_objects\":{},\"fonts\":{},\"resubset\":{},\"structure\":{},\"diff\":{}}}\n",
         o.original,
         o.rewritten,
         o.smaller,
@@ -777,6 +785,7 @@ fn report_json(
         discard_json(&o.plan.discard),
         discard_objects_json(&o.plan.discard_objects),
         crate::optimize_fonts::fonts_json(&o.plan),
+        crate::optimize_fonts::resubset_json(&o.plan),
         o.structure
             .as_ref()
             .map_or_else(|| "null".to_owned(), structure_json),

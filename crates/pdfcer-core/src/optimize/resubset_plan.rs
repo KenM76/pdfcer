@@ -267,6 +267,12 @@ impl Group<'_, '_, '_, '_> {
             .map(|f| FontUse::new(f, self.usage.codes.get(&f).unwrap_or(&empty)))
             .collect();
         let cut = source.resubset(&ResubsetRequest::new(self.view, &data, &uses))?;
+        if cut.glyphs_kept >= cut.glyphs_total {
+            return Err(ResubsetRefusal::new(
+                "every-glyph-used",
+                "the document can draw every glyph the program holds, so there is nothing to cut",
+            ));
+        }
         let encoded = flate::encode_with_level(&cut.program, 9);
         let after = encoded.len() as u64;
         let before = raw.len() as u64;

@@ -110,6 +110,13 @@ The donor has glyphs A–H plus a composite glyph that uses B.
 The existing `unembed/*` fixtures and the fsType and cycle donors cover the
 other refusals.
 
+Built: `simple` and `type0-identity`, both over the synthetic
+`text/augment/face.ttf` donor (glyphs A–E plus Eacute = E + acute); the
+render test checks both render pixel-identical after the cut. The other
+cases are inline core tests instead (`optimize/glyph_usage/tests.rs`,
+`optimize/resubset_plan_tests.rs`), which build their documents in code;
+`symbolic` and `shared-program` have no test yet.
+
 ## Steps
 
 1. Core types: the settings, plan and error.
@@ -119,6 +126,9 @@ other refusals.
 5. Render zeroing and verification.
 6. Core wiring.
 7. CLI `--resubset-fonts`, with pixel-identical render tests.
+
+Steps 1–7 are built. A program the cutter keeps whole is refused
+`every-glyph-used`, so it is not renamed for nothing.
 
 Deferred: CFF zeroing, CIDSet/CharSet rewrite and PDF/A, and switching to the
 short `loca` format.

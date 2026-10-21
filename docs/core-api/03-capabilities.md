@@ -4755,20 +4755,23 @@ Contract:
   (anything the walk did not see refers to the font, its descendant, its
   descriptor or the program), `format-deferred` (not `/FontFile2`),
   `cidset-charset-present`, `non-identity-cmap`, `font-not-indirect`,
-  `program-direct`, `not-smaller` (Flate-9 output not under the stored
-  size), `unembedded-this-run`, plus the cutter's own. The shipped cutter
-  is `pdfcer_render::font::resubset::GLYPH_ZERO_RESUBSETTER`: it keeps
-  glyph 0, every glyph any §9.6.6.4 rung could pick for a shown code, and
-  kept composites' components; drops `DSIG`; refuses `collection`,
+  `program-direct`, `every-glyph-used` (the cutter kept every glyph),
+  `not-smaller` (Flate-9 output not under the stored size),
+  `unembedded-this-run`, plus the cutter's own. The shipped cutter is
+  `pdfcer_render::font::resubset::GLYPH_ZERO_RESUBSETTER`: it keeps glyph
+  0, every glyph any §9.6.6.4 rung could pick for a shown code, and kept
+  composites' components; drops `DSIG`; refuses `collection`,
   `fstype-restricted`, `fstype-no-subsetting`, `malformed-glyf`,
   `unusable-font`, `unmapped-code` (a simple-font code no rung resolves).
-  The program is
-  written Flate with `/Length1`, and the fonts, descendant CIDFonts and
-  descriptors get one fresh six-letter tag over their stem (ISO 32000-2
-  §9.6.4), in the run's one undo entry; a cut program is dropped from
-  `changes`. Notes disclose the glyphs kept and that text typed later in
-  these fonts needs the missing glyphs embedded again. `apply_optimize`
-  returns `StalePlan` if any object it rewrites changed.
+  The program is written Flate with `/Length1`, and the fonts, descendant
+  CIDFonts and descriptors get one fresh six-letter tag over their stem
+  (ISO 32000-2 §9.6.4), in the run's one undo entry; a cut program is
+  dropped from `changes`. Notes disclose the glyphs kept and that text
+  typed later in these fonts needs the missing glyphs embedded again; a
+  PDF/A document plans no re-subset and a note says why. `apply_optimize`
+  returns `StalePlan` if any object it rewrites changed or a re-plan
+  differs. CLI: `--resubset-fonts`; the report's `resubset` lines (each
+  cut with glyphs kept, each refusal with why) / JSON `resubset`.
 
 ⚠️ **Disclose what `plan.skipped` and `plan.notes` say**, off-canvas, next
 to the saving. A skip is not an error; a signature note is a destructive

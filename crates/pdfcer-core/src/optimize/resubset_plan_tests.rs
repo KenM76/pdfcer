@@ -135,7 +135,7 @@ fn a_cut_no_smaller_than_the_stored_program_is_refused() {
             &self,
             _: &ResubsetRequest<'_, '_>,
         ) -> Result<ResubsetProgram, ResubsetRefusal> {
-            Ok(ResubsetProgram::new(noise(4000), 1, 1))
+            Ok(ResubsetProgram::new(noise(4000), 1, 2))
         }
     }
     let d = doc("", "Arial", b"BT /F1 9 Tf (a) Tj ET", &[]);
@@ -144,6 +144,26 @@ fn a_cut_no_smaller_than_the_stored_program_is_refused() {
     let p = plan(&view, &live, &Noisy);
     assert!(p.targets.is_empty());
     assert_eq!(tokens(&p), vec!["not-smaller"]);
+}
+
+#[test]
+fn a_program_whose_every_glyph_is_used_is_not_cut() {
+    #[derive(Debug)]
+    struct Whole;
+    impl FontResubsetter for Whole {
+        fn resubset(
+            &self,
+            _: &ResubsetRequest<'_, '_>,
+        ) -> Result<ResubsetProgram, ResubsetRefusal> {
+            Ok(ResubsetProgram::new(Vec::new(), 4, 4))
+        }
+    }
+    let d = doc("", "Arial", b"BT /F1 9 Tf (a) Tj ET", &[]);
+    let view = d.view();
+    let live: BTreeSet<ObjId> = (1..=7).map(id).collect();
+    let p = plan(&view, &live, &Whole);
+    assert!(p.targets.is_empty());
+    assert_eq!(tokens(&p), vec!["every-glyph-used"]);
 }
 
 #[test]

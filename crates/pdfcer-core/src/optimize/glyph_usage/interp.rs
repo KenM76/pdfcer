@@ -38,6 +38,7 @@ pub(super) struct Walker<'a, 'v> {
 }
 
 impl<'a, 'v> Walker<'a, 'v> {
+    /// A walk over `view` that has seen nothing yet.
     pub(super) fn new(view: &'a DocumentView<'v>) -> Self {
         Self {
             view,

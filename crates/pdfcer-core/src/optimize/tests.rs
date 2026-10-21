@@ -102,6 +102,7 @@ pub(crate) fn noise(n: usize) -> Vec<u8> {
         .collect()
 }
 
+/// Object `n`, generation 0.
 pub(crate) fn id(n: u32) -> ObjId {
     ObjId::new(n, 0)
 }

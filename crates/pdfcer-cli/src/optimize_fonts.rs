@@ -1,8 +1,10 @@
-//! `optimize --unembed-fonts`: the settings it sets and its report lines.
+//! `optimize --unembed-fonts` and `--resubset-fonts`: the settings they
+//! set and their report lines.
 
 use std::fmt::Write as _;
 
 use pdfcer_core::font_unembed::{UnembedPlan, UnembedRequest};
+use pdfcer_core::optimize::resubset::ResubsetFonts;
 use pdfcer_core::optimize::{OptimizePlan, OptimizeSettings};
 
 use super::json_escape;
@@ -110,5 +112,101 @@ fn plan_json(u: &UnembedPlan) -> String {
         refused.join(","),
         unmatched.join(","),
         u.bytes_reclaimable()
+    )
+}
+
+/// Set [`OptimizeSettings::resubset`] to the glyph-zeroing cutter when
+/// `--resubset-fonts` is given.
+pub(crate) fn apply_resubset(settings: &mut OptimizeSettings, on: bool) {
+    if on {
+        settings.resubset = Some(ResubsetFonts::new(
+            &pdfcer_render::font::resubset::GLYPH_ZERO_RESUBSETTER,
+        ));
+    }
+}
+
+/// The `resubset:` block: each program cut and each font refused, with why.
+pub(crate) fn resubset_text(plan: &OptimizePlan) -> String {
+    let Some(r) = &plan.resubset else {
+        return String::new();
+    };
+    let mut out = String::new();
+    let _ = writeln!(
+        out,
+        "resubset: {} cut, {} refused, {} B saved",
+        r.targets.len(),
+        r.refused.len(),
+        r.saving()
+    );
+    for t in &r.targets {
+        let _ = writeln!(
+            out,
+            "  {:<8} cut {} to {} of {} glyphs ({} -> {} B), renamed {}",
+            t.program.to_string(),
+            t.name_before,
+            t.glyphs_kept,
+            t.glyphs_total,
+            t.before_bytes,
+            t.after_bytes,
+            t.name_after
+        );
+    }
+    for f in &r.refused {
+        let id = f
+            .font
+            .map_or_else(|| "direct".to_owned(), |id| id.to_string());
+        let _ = writeln!(out, "  {id:<8} kept {} whole: {}", f.name, f.why.reason);
+    }
+    out
+}
+
+/// The JSON `resubset` member, or `null`.
+pub(crate) fn resubset_json(plan: &OptimizePlan) -> String {
+    let Some(r) = &plan.resubset else {
+        return "null".to_owned();
+    };
+    let q = |s: &str| format!("\"{}\"", json_escape(s));
+    let ids = |v: &[pdfcer_core::object::ObjId]| {
+        v.iter()
+            .map(|id| q(&id.to_string()))
+            .collect::<Vec<_>>()
+            .join(",")
+    };
+    let targets: Vec<String> = r
+        .targets
+        .iter()
+        .map(|t| {
+            format!(
+                "{{\"program\":{},\"fonts\":[{}],\"name_before\":{},\"name_after\":{},\"glyphs_kept\":{},\"glyphs_total\":{},\"before_bytes\":{},\"after_bytes\":{}}}",
+                q(&t.program.to_string()),
+                ids(&t.fonts),
+                q(&t.name_before),
+                q(&t.name_after),
+                t.glyphs_kept,
+                t.glyphs_total,
+                t.before_bytes,
+                t.after_bytes
+            )
+        })
+        .collect();
+    let refused: Vec<String> = r
+        .refused
+        .iter()
+        .map(|f| {
+            format!(
+                "{{\"font\":{},\"name\":{},\"verdict\":{},\"reason\":{}}}",
+                f.font
+                    .map_or_else(|| "null".to_owned(), |id| q(&id.to_string())),
+                q(&f.name),
+                q(f.why.token),
+                q(&f.why.reason)
+            )
+        })
+        .collect();
+    format!(
+        "{{\"cut\":[{}],\"refused\":[{}],\"bytes\":{}}}",
+        targets.join(","),
+        refused.join(","),
+        r.saving()
     )
 }
