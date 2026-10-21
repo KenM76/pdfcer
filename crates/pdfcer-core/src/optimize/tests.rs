@@ -74,6 +74,13 @@ fn sample(catalog_extra: &str, extra: &[Vec<u8>]) -> Vec<u8> {
 }
 
 /// A session over `bytes`, which must parse.
+/// Default settings discarding exactly `options`.
+pub(super) fn only(options: DiscardOptions) -> OptimizeSettings {
+    let mut s = OptimizeSettings::new();
+    s.discard = options;
+    s
+}
+
 pub(super) fn session(bytes: Vec<u8>) -> EditSession {
     EditSession::new(Document::from_bytes(bytes).unwrap())
 }

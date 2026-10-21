@@ -5,7 +5,7 @@
     clippy::indexing_slicing
 )] // test code: a failed lookup should fail the test loudly
 
-use super::tests::{build, session};
+use super::tests::{build, only, session};
 use super::*;
 use crate::writer::SaveOptions;
 
@@ -29,12 +29,6 @@ fn sample() -> Vec<u8> {
     let text = String::from_utf8_lossy(&bytes).into_owned();
     text.replace("/Root 1 0 R >>", "/Root 1 0 R /Info 7 0 R >>")
         .into_bytes()
-}
-
-fn only(options: DiscardOptions) -> OptimizeSettings {
-    let mut s = OptimizeSettings::new();
-    s.discard = options;
-    s
 }
 
 fn kinds(plan: &OptimizePlan) -> Vec<MetadataKind> {

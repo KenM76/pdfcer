@@ -13,7 +13,7 @@
 //! - earlier revisions kept by incremental update (§7.5.6) and the file
 //!   identifier (§14.4).
 
-mod scan;
+pub(crate) mod scan;
 
 use std::fmt;
 

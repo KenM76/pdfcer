@@ -34,6 +34,7 @@
 
 pub mod cleanup;
 pub mod discard;
+pub mod objects;
 pub mod profile;
 pub(crate) mod select;
 pub(crate) mod streams;
@@ -43,6 +44,7 @@ use std::fmt;
 
 pub use cleanup::{BrokenBookmark, BrokenLink, BrokenTarget, CleanupOptions, CleanupPlan};
 pub use discard::DiscardOptions;
+pub use objects::{DiscardObject, ObjectDiscard};
 pub use select::{PageRanges, Selector};
 
 pub use crate::writer::{RebuildOptions, RebuildReport};
@@ -258,15 +260,17 @@ impl Preset {
             ..CleanupOptions::all()
         };
         // Page thumbnails are redrawn by every viewer that shows them; the
-        // smallest-file preset also drops producers' private data and
-        // per-object XMP. Archive keeps everything PDF/A may need.
+        // smallest-file preset also drops producers' private data,
+        // per-object XMP and print-only alternate images. Archive keeps
+        // everything PDF/A may need.
         s.discard = match self {
             Self::Lossless | Self::Archive => DiscardOptions::none(),
             Self::Standard | Self::Print => DiscardOptions::none().with(MetadataKind::Thumbnail),
             Self::Screen => DiscardOptions::none()
                 .with(MetadataKind::Thumbnail)
                 .with(MetadataKind::PieceInfo)
-                .with(MetadataKind::ObjectXmp),
+                .with(MetadataKind::ObjectXmp)
+                .with_object(DiscardObject::AlternateImages),
         };
         s
     }
@@ -336,6 +340,17 @@ pub enum OptimizeError {
     DiscardFailed {
         /// The metadata item.
         item: MetadataItemId,
+        /// Why it was not removed.
+        reason: String,
+    },
+    /// A document object could not be discarded; everything the apply had
+    /// committed was undone.
+    #[error("discarding {object} from object {owner} failed: {reason}; nothing was changed")]
+    ObjectDiscardFailed {
+        /// The class.
+        object: DiscardObject,
+        /// The object holding it.
+        owner: ObjId,
         /// Why it was not removed.
         reason: String,
     },
@@ -437,6 +452,8 @@ pub struct OptimizePlan {
     pub cleanup: CleanupPlan,
     /// User data the apply removes, from the metadata inventory.
     pub discard: Vec<MetadataItem>,
+    /// Document objects the apply removes.
+    pub discard_objects: Vec<ObjectDiscard>,
     pub(crate) writes: Vec<streams::Rewrite>,
 }
 
@@ -496,3 +513,6 @@ mod cleanup_tests;
 
 #[cfg(test)]
 mod discard_tests;
+
+#[cfg(test)]
+mod objects_tests;

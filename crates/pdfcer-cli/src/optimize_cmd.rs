@@ -3,11 +3,11 @@
 
 use std::fmt::Write as _;
 
-use pdfcer_core::doc_metadata::{MetadataItem, MetadataKind};
+use pdfcer_core::doc_metadata::MetadataItem;
 use pdfcer_core::edit::EditSession;
 use pdfcer_core::optimize::{
-    CleanupPlan, DiscardOptions, OptimizeError, OptimizePlan, OptimizeSettings, OptimizedFile,
-    Preset, RebuildReport, Refusal, profile,
+    CleanupPlan, DiscardOptions, ObjectDiscard, OptimizeError, OptimizePlan, OptimizeSettings,
+    OptimizedFile, Preset, RebuildReport, Refusal, profile,
 };
 use pdfcer_core::space_audit;
 use pdfcer_core::writer::SaveOptions;
@@ -96,11 +96,14 @@ pub(crate) struct OptimizeArgs {
     /// Remove user data of these kinds, on top of the preset's: info,
     /// document-xmp, object-xmp, pieceinfo, thumbnail, javascript,
     /// attachment, comment, hidden-layer, form-data, earlier-revisions,
-    /// document-id, or all. Comma-separated or repeated. The standard and
-    /// print presets remove thumbnails; screen also pieceinfo and object-xmp.
+    /// document-id; or these document objects: bookmarks, tags (the file is
+    /// no longer tagged for screen readers), print-settings,
+    /// alternate-images; or all. Comma-separated or repeated.
+    /// The standard and print presets remove thumbnails; screen also
+    /// pieceinfo, object-xmp and alternate-images.
     #[arg(long, value_name = "KINDS", value_delimiter = ',')]
     pub(crate) discard: Vec<String>,
-    /// Keep user data of these kinds even when the preset or --discard
+    /// Keep these kinds and objects even when the preset or --discard
     /// removes them. The same names as --discard; all keeps everything.
     #[arg(long, value_name = "KINDS", value_delimiter = ',')]
     pub(crate) keep_data: Vec<String>,
@@ -235,32 +238,24 @@ fn resolve_settings(args: &OptimizeArgs) -> Result<OptimizeSettings, String> {
         || args.remove_unreferenced_destinations)
         && !args.keep_unreferenced_destinations;
     for name in &args.discard {
-        settings.discard =
-            discard_kind(name)?.map_or_else(DiscardOptions::all, |k| settings.discard.with(k));
+        settings.discard = settings
+            .discard
+            .with_named(name)
+            .ok_or_else(|| unknown(name))?;
     }
     for name in &args.keep_data {
-        settings.discard =
-            discard_kind(name)?.map_or_else(DiscardOptions::none, |k| settings.discard.without(k));
+        settings.discard = settings
+            .discard
+            .without_named(name)
+            .ok_or_else(|| unknown(name))?;
     }
     Ok(settings)
 }
 
-/// A `--discard` name: a metadata kind, or `None` for `all`.
-fn discard_kind(name: &str) -> Result<Option<MetadataKind>, String> {
-    if name == "all" {
-        return Ok(None);
-    }
-    MetadataKind::ALL
-        .into_iter()
-        .find(|k| k.as_str() == name)
-        .map(Some)
-        .ok_or_else(|| {
-            let known: Vec<&str> = MetadataKind::ALL.iter().map(|k| k.as_str()).collect();
-            format!(
-                "unknown data kind {name:?}; one of: {}, all",
-                known.join(", ")
-            )
-        })
+/// The error for a `--discard` / `--keep-data` name nothing answers to.
+fn unknown(name: &str) -> String {
+    let known: Vec<&str> = DiscardOptions::known_names().collect();
+    format!("unknown data kind {name:?}; one of: {}", known.join(", "))
 }
 
 fn load_profile(path: &Path) -> Result<OptimizeSettings, String> {
@@ -412,6 +407,7 @@ fn report_text(
     }
     out.push_str(&cleanup_text(&o.plan.cleanup));
     out.push_str(&discard_text(&o.plan.discard));
+    out.push_str(&discard_objects_text(&o.plan.discard_objects));
     for n in &o.plan.notes {
         let _ = writeln!(out, "note: {n}");
     }
@@ -510,6 +506,41 @@ fn discard_text(items: &[MetadataItem]) -> String {
         );
     }
     out
+}
+
+fn discard_objects_text(items: &[ObjectDiscard]) -> String {
+    let mut out = String::new();
+    if items.is_empty() {
+        return out;
+    }
+    let _ = writeln!(out, "discard objects: {} removed", items.len());
+    for i in items {
+        // string-gap-exempt: the report pads its class column
+        let _ = writeln!(
+            out,
+            "  {:<17} {}, {} B",
+            i.object.as_str(),
+            i.location,
+            i.bytes
+        );
+    }
+    out
+}
+
+fn discard_objects_json(items: &[ObjectDiscard]) -> String {
+    let q = |s: &str| format!("\"{}\"", json_escape(s));
+    let rows: Vec<String> = items
+        .iter()
+        .map(|i| {
+            format!(
+                "{{\"object\":{},\"location\":{},\"bytes\":{}}}",
+                q(i.object.as_str()),
+                q(&i.location),
+                i.bytes
+            )
+        })
+        .collect();
+    format!("[{}]", rows.join(","))
 }
 
 fn discard_json(items: &[MetadataItem]) -> String {
@@ -662,7 +693,7 @@ fn report_json(
         _ => "null".to_owned(),
     };
     format!(
-        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"cleanup\":{},\"discard\":{},\"structure\":{},\"diff\":{}}}\n",
+        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"cleanup\":{},\"discard\":{},\"discard_objects\":{},\"structure\":{},\"diff\":{}}}\n",
         o.original,
         o.rewritten,
         o.bytes.is_some(),
@@ -671,6 +702,7 @@ fn report_json(
         notes.join(","),
         cleanup_json(&o.plan.cleanup),
         discard_json(&o.plan.discard),
+        discard_objects_json(&o.plan.discard_objects),
         o.structure
             .as_ref()
             .map_or_else(|| "null".to_owned(), structure_json),

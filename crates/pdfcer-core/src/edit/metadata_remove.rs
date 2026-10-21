@@ -16,10 +16,10 @@ use crate::object::{Dict, Name, ObjId, Object};
 
 /// Edits staged for the one direct-edit command.
 #[derive(Default)]
-struct Staged {
-    scratch: BTreeMap<ObjId, Object>,
-    trailer: Option<Dict>,
-    detached: Vec<Object>,
+pub(super) struct Staged {
+    pub(super) scratch: BTreeMap<ObjId, Object>,
+    pub(super) trailer: Option<Dict>,
+    pub(super) detached: Vec<Object>,
 }
 
 impl EditSession {
@@ -245,7 +245,7 @@ impl EditSession {
 
     /// Delete the entry at `path` under `owner`, following an indirect
     /// dictionary on the way; a direct dictionary emptied by it goes too.
-    fn strip_metadata_key(
+    pub(super) fn strip_metadata_key(
         &self,
         st: &mut Staged,
         owner: ObjId,
@@ -292,32 +292,13 @@ impl EditSession {
 
     /// Commit the staged writes with every object they orphaned removed;
     /// returns how many were removed.
-    fn commit_metadata_edits(&mut self, st: Staged) -> usize {
+    pub(super) fn commit_metadata_edits(&mut self, st: Staged) -> usize {
         if st.scratch.is_empty() && st.trailer.is_none() {
             return 0;
         }
-        let mut seeds = Vec::new();
-        for value in &st.detached {
-            collect_references(value, false, 0, &mut seeds);
-        }
-        let candidates = reachable(&self.graph(), &seeds, &HashSet::new());
-        let trailer = st.trailer.as_ref().unwrap_or(&self.trailer);
-        let roots: Vec<ObjId> = [b"Root".as_slice(), b"Info"]
-            .iter()
-            .filter_map(|k| trailer.get(k).and_then(Object::as_reference))
-            .collect();
-        let none = HashSet::new();
-        let pending = PendingGraph {
-            session: self,
-            scratch: &st.scratch,
-            removed: &none,
-        };
-        let live = reachable(&pending, &roots, &HashSet::new());
-        let removals: Vec<Removal> = candidates
+        let removals: Vec<Removal> = self
+            .orphaned_by(&st)
             .into_iter()
-            .filter(|id| {
-                !live.contains(id) && !self.deleted.contains(id) && self.value(*id).is_some()
-            })
             .map(|id| Removal {
                 id,
                 was_deleted: false,
@@ -342,6 +323,33 @@ impl EditSession {
             trailer,
         });
         freed
+    }
+
+    /// Every object the staged edits leave unreachable that they detached.
+    pub(super) fn orphaned_by(&self, st: &Staged) -> Vec<ObjId> {
+        let mut seeds = Vec::new();
+        for value in &st.detached {
+            collect_references(value, false, 0, &mut seeds);
+        }
+        let candidates = reachable(&self.graph(), &seeds, &HashSet::new());
+        let trailer = st.trailer.as_ref().unwrap_or(&self.trailer);
+        let roots: Vec<ObjId> = [b"Root".as_slice(), b"Info"]
+            .iter()
+            .filter_map(|k| trailer.get(k).and_then(Object::as_reference))
+            .collect();
+        let none = HashSet::new();
+        let pending = PendingGraph {
+            session: self,
+            scratch: &st.scratch,
+            removed: &none,
+        };
+        let live = reachable(&pending, &roots, &HashSet::new());
+        candidates
+            .into_iter()
+            .filter(|id| {
+                !live.contains(id) && !self.deleted.contains(id) && self.value(*id).is_some()
+            })
+            .collect()
     }
 }
 

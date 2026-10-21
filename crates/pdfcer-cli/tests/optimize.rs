@@ -345,3 +345,52 @@ fn discard_removes_the_named_kinds_and_keep_data_wins() {
     assert_ne!(bad.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&bad.stderr).contains("unknown data kind"));
 }
+
+#[test]
+fn discard_takes_document_object_classes_by_name() {
+    let d = dir("discard-objects");
+    let input = write_pdf(
+        &d,
+        "/Outlines << /Type /Outlines /Count 0 >> /PageMode /UseOutlines /ViewerPreferences << /Duplex /Simplex /HideToolbar true >>",
+    );
+    let path = input.to_str().unwrap();
+    let json = |extra: &[&str]| {
+        let mut args = vec![path, "--dry-run", "--json"];
+        args.extend_from_slice(extra);
+        text(&run(&args))
+    };
+    assert!(json(&[]).contains("\"discard_objects\":[]"));
+    let asked = json(&["--discard", "bookmarks,print-settings"]);
+    assert!(asked.contains("\"object\":\"bookmarks\""), "{asked}");
+    assert!(asked.contains("\"object\":\"print-settings\""), "{asked}");
+    let kept = json(&["--discard", "all", "--keep-data", "bookmarks"]);
+    assert!(!kept.contains("\"object\":\"bookmarks\"") && kept.contains("print-settings"));
+
+    let out = d.join("out.pdf");
+    let o = run(&[
+        path,
+        "-o",
+        out.to_str().unwrap(),
+        "--keep-structure",
+        "--discard",
+        "bookmarks,print-settings",
+    ]);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(report.contains("discard objects: 2 removed"), "{report}");
+    assert!(
+        report.contains("fall back to the printer dialog"),
+        "{report}"
+    );
+    // --keep-structure leaves the catalog uncompressed, so a grep can see it.
+    let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(written.contains("/HideToolbar"), "the catalog is readable");
+    assert!(!written.contains("/Duplex") && !written.contains("/Outlines"));
+
+    let bad = run(&[path, "--dry-run", "--discard", "search-index"]);
+    let err = String::from_utf8_lossy(&bad.stderr).into_owned();
+    assert!(
+        err.contains("alternate-images") && err.contains("all"),
+        "{err}"
+    );
+}

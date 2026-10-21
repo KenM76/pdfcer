@@ -6,6 +6,7 @@
 )]
 
 use super::*;
+use crate::doc_metadata::MetadataKind;
 
 fn none(name: &str) -> Result<String, String> {
     Err(format!("no profile {name}"))

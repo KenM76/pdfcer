@@ -4460,14 +4460,16 @@ with a wildcard arm, and show `as_str()` for an unknown category.
 
 | Call | Returns |
 |---|---|
-| `EditSession::plan_optimize(&OptimizeSettings) -> Result<OptimizePlan, OptimizeError>` | every encoding already performed in memory: `changes`, `skipped` (each with a `SkipReason`), `notes`, `cleanup: CleanupPlan`, `discard: Vec<MetadataItem>`, `file_bytes`, `stream_saving()`, `is_lossy()` |
+| `EditSession::plan_optimize(&OptimizeSettings) -> Result<OptimizePlan, OptimizeError>` | every encoding already performed in memory: `changes`, `skipped` (each with a `SkipReason`), `notes`, `cleanup: CleanupPlan`, `discard: Vec<MetadataItem>`, `discard_objects: Vec<ObjectDiscard>`, `file_bytes`, `stream_saving()`, `is_lossy()` |
 | `EditSession::apply_optimize(&OptimizePlan) -> Result<usize, OptimizeError>` | commits the plan as **one** undo entry, `CommandKind::Optimize { count }`; returns the count |
 | `EditSession::save_optimized(&SaveOptions, &RebuildOptions) -> Result<(OptimizedFile, Option<RebuildReport>), WriteError>` | `Smaller(bytes)` (a full rewrite, then the structure rebuild unless `RebuildOptions::is_none()`), or `KeptOriginal { original, rewritten }` when it is not strictly smaller; the report is `Some` whenever a rebuild ran |
 | `RebuildOptions { remove_unreferenced, merge_duplicates, object_streams, level }` | `all()` (= `Default`, level 9), `none()`, `is_none()`; also `pdfcer_model::writer::rebuild(&Document, &RebuildOptions, &SaveOptions)` directly |
 | `RebuildReport { objects_in, objects_out, unreferenced, merged, structural_dropped, dangling, object_streams, version_raised }` | input object numbers throughout; `merged` is `(dropped, kept)` pairs |
 | `Preset::{Lossless, Standard, Screen, Print, Archive}.settings()` | starting settings; `Preset::from_name` (accepts `mobile` for `Screen`), `as_str`, `ALL` |
 | `OptimizeSettings { streams, rules, objects, allow_signed, structure, cleanup }` | default action; ordered `Rule { select: Selector, action }`; per-object `BTreeMap<ObjId, StreamAction>`; signed override; `structure: RebuildOptions` (`new()` = `none()`, every preset = `all()`; profile keys `remove-unreferenced`, `merge-duplicates`, `object-streams`); `cleanup: CleanupOptions`; `discard: DiscardOptions` |
-| `DiscardOptions` (Copy set of `MetadataKind`) | `none()` (= `Default`, = `new()`'s), `all()`, `with(kind)`, `without(kind)`, `contains(kind)`, `is_none()`, `kinds()`; presets: `Lossless`/`Archive` none, `Standard`/`Print` `Thumbnail`, `Screen` `Thumbnail` + `PieceInfo` + `ObjectXmp`; profile key `discard = ["thumbnail", …]` or `"all"`, replacing the parent's list |
+| `DiscardOptions` (Copy set of `MetadataKind` and `DiscardObject`) | `none()` (= `Default`, = `new()`'s), `all()` (every kind and class), `with(kind)`, `without(kind)`, `contains(kind)`, `with_object(o)`, `without_object(o)`, `contains_object(o)`, `is_none()`, `kinds()`, `objects()`; by name: `with_named(name)` / `without_named(name) -> Option<Self>` (a kind's or class's `as_str`, or `all`; `None` = unknown), `names()`, `known_names()` (for an error listing); presets: `Lossless`/`Archive` none, `Standard`/`Print` `Thumbnail`, `Screen` `Thumbnail` + `PieceInfo` + `ObjectXmp` + `AlternateImages`; profile key `discard = ["thumbnail", "bookmarks", …]` or `"all"`, replacing the parent's list |
+| `DiscardObject` (`#[non_exhaustive]`, `ALL`, `as_str`, `from_name`, `Display`) | `Bookmarks` (`bookmarks`), `Tags` (`tags`), `PrintSettings` (`print-settings`), `AlternateImages` (`alternate-images`) |
+| `ObjectDiscard { object, owner, location, bytes }` | one carrier: the class, the object holding it (the catalog, or the image), where in words, and what leaves the file (the entries plus every object only they reached) |
 | `CleanupOptions { invalid_links, invalid_bookmarks, unreferenced_destinations }` | `all()` (= `Default`), `none()`, `is_none()`; `new()` = `none()`; every preset turns on the first two, only `Screen` the third; profile keys `remove-invalid-links`, `remove-invalid-bookmarks`, `remove-unreferenced-destinations` |
 | `CleanupPlan { links: Vec<BrokenLink>, bookmarks: Vec<BrokenBookmark>, destinations: Vec<Vec<u8>> }` | `is_empty()`; `BrokenLink { page_index, id, target }`; `BrokenBookmark { id, title, target: Option<BrokenTarget>, descendants }` (topmost deleted items only; each takes its subtree); `destinations` raw name bytes, sorted byte-wise |
 | `BrokenTarget::{MissingPage(ObjId), UndefinedName(Vec<u8>)}` | `Display` is the reason line the CLI prints |
@@ -4539,6 +4541,22 @@ Contract:
   everything the call did is rolled back. CLI: `--discard KINDS` adds to the
   preset's set, `--keep-data KINDS` takes away (both comma-separated or
   repeated, `all` accepted); the report's `discard` lines / JSON key.
+- **Document-object discard** (Pass 616.3) runs in the same undo entry,
+  each carrier counted once. `Bookmarks`: catalog `/Outlines`, plus a
+  `/PageMode` or viewer-preference `/NonFullScreenPageMode` of `/UseOutlines`
+  (the clean-up's broken-bookmark list is emptied, as every bookmark goes).
+  `Tags`: `/StructTreeRoot`, `/MarkInfo`, every `/StructParent(s)`, an
+  outline item's `/SE`, a GoTo's or destination's `/SD` (a GoToR/GoToE `/SD`
+  stays); content `MCID`s stay (legal without a tree). `PrintSettings`:
+  viewer-preference `PrintScaling`, `Duplex`, `PickTrayByPDFSize`,
+  `PrintPageRange`, `NumCopies`, `PrintArea`, `PrintClip`, `Enforce`.
+  `AlternateImages`: an image's `/Alternates`, except an image under
+  optional content (its base may be the hidden one). Each class has a note
+  in `plan.notes` (tags: no longer tagged, PDF/UA and PDF/A level A claims
+  void). `ObjectDiscardFailed { object, owner, reason }` rolls the whole call
+  back. An embedded search index is not offered: no published spec names its
+  key. CLI: the same `--discard` / `--keep-data` names; the report's
+  `discard objects` lines / JSON `discard_objects`.
 
 ⚠️ **Disclose what `plan.skipped` and `plan.notes` say**, off-canvas, next
 to the saving. A skip is not an error; a signature note is a destructive

@@ -59,6 +59,7 @@ impl EditSession {
             notes: Vec::new(),
             cleanup: crate::optimize::CleanupPlan::default(),
             discard: Vec::new(),
+            discard_objects: Vec::new(),
             writes: Vec::new(),
         };
         let view = self.view();
@@ -77,6 +78,16 @@ impl EditSession {
         }
         plan.cleanup = self.plan_cleanup(&settings.cleanup, &mut notes);
         plan.discard = self.plan_discard(settings.discard, &mut notes);
+        plan.discard_objects = self.plan_discard_objects(settings.discard, &mut notes);
+        if plan
+            .discard_objects
+            .iter()
+            .any(|o| o.object == crate::optimize::DiscardObject::Bookmarks)
+        {
+            // Every bookmark goes anyway; listing the broken ones too would
+            // count them twice.
+            plan.cleanup.bookmarks.clear();
+        }
         plan.notes = notes;
         Ok(plan)
     }
@@ -116,8 +127,9 @@ impl EditSession {
     ///
     /// [`OptimizeError::StalePlan`] when an object the plan rewrites has
     /// changed since planning, and [`OptimizeError::CleanupFailed`] when a
-    /// clean-up deletion fails, [`OptimizeError::DiscardFailed`] when a
-    /// discarded item cannot be removed. Nothing is committed in any case.
+    /// clean-up deletion fails, [`OptimizeError::DiscardFailed`] or
+    /// [`OptimizeError::ObjectDiscardFailed`] when a discarded item cannot
+    /// be removed. Nothing is committed in any case.
     pub fn apply_optimize(&mut self, plan: &OptimizePlan) -> Result<usize, OptimizeError> {
         if let Some(w) = plan
             .writes
@@ -128,7 +140,8 @@ impl EditSession {
         }
         let mut fold = super::optimize_cleanup::Fold::new(self, CommandKind::Optimize { count: 0 });
         let removed = self.apply_cleanup(&plan.cleanup, &mut fold)?
-            + self.apply_discard(&plan.discard, &mut fold)?;
+            + self.apply_discard(&plan.discard, &mut fold)?
+            + self.apply_discard_objects(&plan.discard_objects, &mut fold)?;
         if plan.writes.is_empty() {
             fold.finish(self, removed);
             return Ok(removed);

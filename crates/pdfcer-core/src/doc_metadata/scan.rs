@@ -129,7 +129,7 @@ fn clip(text: &str) -> String {
 
 /// What `obj` occupies when written: a stream's dictionary plus its encoded
 /// data, else the serialised value.
-fn value_bytes(obj: &Object) -> u64 {
+pub(crate) fn value_bytes(obj: &Object) -> u64 {
     let mut out = Vec::new();
     match obj {
         Object::Stream(s) => {

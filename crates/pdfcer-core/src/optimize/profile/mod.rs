@@ -12,7 +12,7 @@
 //! remove-invalid-links = true          # navigation clean-up; every preset
 //! remove-invalid-bookmarks = true      # turns the first two on
 //! remove-unreferenced-destinations = false
-//! discard = ["thumbnail", "pieceinfo"]  # metadata kinds removed, or "all"
+//! discard = ["thumbnail", "bookmarks"]  # data kinds / object classes removed, or "all"
 //!
 //! [[rule]]                    # later rules beat earlier ones
 //! category = ["fonts"]        # space-audit category names
@@ -43,7 +43,6 @@ use std::fmt::Write as _;
 use syntax::{Kind, Table, Value};
 
 use super::{DiscardOptions, OptimizeSettings, PageRanges, Preset, Rule, Selector, StreamAction};
-use crate::doc_metadata::MetadataKind;
 use crate::object::ObjId;
 use crate::space_audit::SpaceCategory;
 
@@ -280,19 +279,13 @@ fn number(v: &Value) -> Result<f64, String> {
     }
 }
 
-/// A list of [`MetadataKind::as_str`] names, or `"all"`.
+/// A list of [`DiscardOptions::known_names`].
 fn discard(v: &Value) -> Result<DiscardOptions, String> {
     let mut out = DiscardOptions::none();
     for name in strings(v)? {
-        if name == "all" {
-            out = DiscardOptions::all();
-            continue;
-        }
-        let kind = MetadataKind::ALL
-            .into_iter()
-            .find(|k| k.as_str() == name)
+        out = out
+            .with_named(&name)
             .ok_or_else(|| format!("unknown discard kind {name:?}"))?;
-        out = out.with(kind);
     }
     Ok(out)
 }
@@ -438,11 +431,7 @@ pub fn to_profile(settings: &OptimizeSettings) -> String {
         "remove-unreferenced-destinations = {}",
         c.unreferenced_destinations
     );
-    let kinds: Vec<String> = settings
-        .discard
-        .kinds()
-        .map(|k| syntax::quote(k.as_str()))
-        .collect();
+    let kinds: Vec<String> = settings.discard.names().map(syntax::quote).collect();
     let _ = writeln!(out, "discard = [{}]", kinds.join(", "));
     for rule in &settings.rules {
         out.push_str("\n[[rule]]\n");
