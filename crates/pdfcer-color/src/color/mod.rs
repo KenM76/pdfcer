@@ -181,8 +181,10 @@
 
 mod cmyk_table;
 mod intent;
+mod inverse;
 
 pub use intent::{RenderingIntent, image_intent};
+pub use inverse::{BlackGeneration, CMYK_FIT_TOLERANCE, CmykFit, srgb_to_cmyk, srgb_to_cmyk_with};
 
 use cmyk_table::{GRID_L, NODES};
 

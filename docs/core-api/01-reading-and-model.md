@@ -141,6 +141,7 @@ builds `--no-default-features`, so both configurations compile.
 | Encode 1-bit samples as CCITT Group 4 | `image_codec::ccitt::encode_g4(&[u8], width, height, one_is_black)` — `pdfcer-image-codec/src/ccitt/encode.rs` | §11.2 |
 | Encode 1-bit samples as a JBIG2 generic region | `image_codec::jbig2::encode_generic(&[u8], width, height)` — `pdfcer-image-codec/src/jbig2/generic.rs` | §11.2 |
 | Convert a device colour to sRGB | `color::{gray_to_srgb, rgb_to_srgb, cmyk_to_srgb}` — `color/mod.rs` | §11.3 |
+| Convert sRGB to the CMYK that renders as it | `color::{srgb_to_cmyk, srgb_to_cmyk_with}` — `color/inverse.rs` | §11.3 |
 | Resolve a full `/ColorSpace` object (Separation, ICCBased, Indexed…) | **Not in `pdfcer-core`** — `pdfcer_render::ColorSpace`, `pdfcer-render/src/color.rs` | §11.3 |
 | Evaluate a PDF function (type 0/2/3/4) | `function::PdfFunction::load(&DocumentView, &Object)` then `::eval` / `::eval_into` — `function.rs` | §11.4 |
 | Enumerate bookmarks as a tree, pages already resolved | `outline::read_outline(&graph)` — `outline.rs`; flat list `Outline::flatten()` — `outline.rs` | §12.1 |
@@ -2767,6 +2768,24 @@ to be spec-compliant about … it should never be described as
 `cmyk_to_srgb(0,0,0,1)` is a rich near-black, **not** `[0,0,0]`. Do not
 describe it to users as exact, and do not swap in a naive
 `255*(1-c)*(1-k)` formula expecting a match.
+
+**The other direction: `srgb_to_cmyk(r, g, b) -> CmykFit`** (`Pass 617.8`,
+G224) is the inverse of `cmyk_to_srgb`: the CMYK that pdfcer draws as the
+given colour. Use it for a picker's RGB→CMYK switch, not ISO 32000-2
+§10.4.2's `k = min(1-r, 1-g, 1-b)`, which inverts the naive forward formula
+and darkens every colour through the calibrated one.
+`srgb_to_cmyk_with(CmykIntent, BlackGeneration, r, g, b)` inverts
+`cmyk_to_srgb_with` at that intent. `BlackGeneration::Most` (default) takes
+the most black ink that still draws the colour; `::Least` the least.
+`CmykFit { cmyk: [f32; 4], residual, in_gamut }` is `#[non_exhaustive]`:
+- `residual` is the largest per-channel error (0..1) of the CMYK's rendering;
+- `in_gamut` is `residual <= CMYK_FIT_TOLERANCE` (half an 8-bit count), and
+  then an 8-bit colour renders back as the same bytes;
+- out of gamut, `cmyk` is the nearest drawable colour (least squares in
+  sRGB). A saturated blue such as `0,160,255` comes back as `0,172,237`.
+
+Disclose `in_gamut == false` to the operator; it is the only signal that the
+CMYK is not the colour picked. About 0.3 ms a call in a release build.
 
 ### 11.4 PDF functions
 
