@@ -112,6 +112,14 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.3` — Discard objects and user data, each individually selectable — COMPLETE 2026-10-21 (1126th filing, slice I `e83c4626`)
+
+Slices A `92102894`, B `07645ef5`, C `19b2af2b`, D `3a1d93f1`, E `16e42db6`, F `9cd6a9d3`, G `7a3f8078`, H `b906182d`, I `e83c4626`; fixes `5812c665` (recompression no longer undoes a flattened layer) and `c50ec207` (a removal is written even when not smaller; `save_optimized` takes `&OptimizePlan`, breaking for pdfcer-gui). Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit messages.
+
+- **Final slice:** `DiscardObject::SmoothLines` (`smooth-lines`), refit of runs of more than four `l` segments as cubic curves within `OptimizeSettings::smooth_tolerance` (default 0.1 pt), CLI `--smooth-tolerance PT`. `DiscardObject::ALL` has 14. Core lib 1627 passed (2 ignored) plus 2995; CLI 904; gates clean; no manifest change.
+- **Open:** form XObjects not smoothed; end tangents estimated from the first chord (a run can take more curves than optimal); fragment merge inside forms / JPEG strips / inherited resources; the slice B/C gaps. Per-slice detail: the `Pass 616.3` block under *Next up*.
+- `FEATURES.md`: Implemented *Discard document objects* row gains smooth-lines (core `[x]`, cli `[x]`, gui `[ ]`); Planned remainder row narrowed. Ledgers: no decision; next in arc `616.4`; next filing 1127th. Git, push and backup state not verified from here.
+
 ### `Pass 616.2` (completion) — Navigation clean-up in `optimize`: invalid links, bookmarks, unreferenced named destinations — SHIPPED 2026-10-20 (1115th filing)
 
 Commit `6d77fac3` on `main`, after `88dfe717` (the 1114th filing); not pushed at filing time. Completes `Pass 616.2` together with `8d715d05` (entry below). Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message.
@@ -22598,7 +22606,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-(1115th filing: `Pass 616.2` COMPLETE, see *Shipped*; next in the `616.x` arc `Pass 616.3`, next free `Pass 617.2`, next filing 1116th. The 1113th filing's `617.0`/`617.1` also in *Shipped*.)
+(1126th filing: `Pass 616.3` COMPLETE (slices A-I), see *Shipped*; next in the `616.x` arc `Pass 616.4`, next filing 1127th.)
+
+(1115th filing: `Pass 616.2` COMPLETE, see *Shipped*; next free `Pass 617.2`. The 1113th filing's `617.0`/`617.1` also in *Shipped*.)
 
 (`Pass 606.0` shipped at the 1097th filing, `04e769fc`; see *Shipped*. The residue m64, m95, m107 is not a Pass yet. Release to OneDrive `pdfcer1` is the next step, not done.)
 
@@ -24373,7 +24383,7 @@ Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level
 - A before/after report that itemises every lossy change (rule 4).
 - CLI `optimize --preset/--profile/--rule/--object/--dry-run/--json`.
 
-### `Pass 616.3` — Discard objects and user data, each individually selectable — IN PROGRESS (slices A `92102894`, B `07645ef5`, C `19b2af2b`, D `3a1d93f1`, E `16e42db6`, F `9cd6a9d3`, G `7a3f8078`, H `b906182d` shipped, fix F-recompression `5812c665`, fix G213 `c50ec207`, 2026-10-20)
+### `Pass 616.3` — Discard objects and user data, each individually selectable — COMPLETE (slices A `92102894`, B `07645ef5`, C `19b2af2b`, D `3a1d93f1`, E `16e42db6`, F `9cd6a9d3`, G `7a3f8078`, H `b906182d`, I `e83c4626`; fix F-recompression `5812c665`, fix G213 `c50ec207`; 2026-10-20/21). Summary entry in *Shipped*; the per-slice detail below is kept as filed.
 
 **Fix G213 DONE (`c50ec207`, engineer-reported; no shell here):** a rewrite that is not smaller is still written when the plan removes content. `EditSession::save_optimized` now takes `&OptimizePlan` first (**BREAKING for pdfcer-gui**); new `OptimizedFile::NotSmaller { bytes, original }` and `OptimizePlan::removes_content()` (clean-up, discard or discard_objects non-empty). Decision 191's never-larger rule now applies only to runs that purely save bytes; a caller wanting the size rule alone treats `NotSmaller` as `KeptOriginal`. CLI: such a run is written, exits 0, prints "not smaller: kept anyway, because it removes what was asked for"; JSON `smaller` now reports the real comparison (was "was written"); exit 14 (NOT_SMALLER) now means nothing was written; help and exit doc updated. Same commit documents test helper `optimize::tests::session` (the check-public-fns-documented failure left by `07645ef5`). `core-api/03-capabilities.md` §15 and `02` `save_optimized` row updated. Tests: core lib 2995, 1591 integration, 236 doctests; CLI 897; fmt, clippy, code-structure, check-core-api-verbs clean; sabotage of the removes branch fails the new core test. No manifest change, no `cargo tree` change. Reply: `open/reply_request_G213_optimize_cleanup_lost_when_not_smaller_FIXED.md`.
 
@@ -24431,7 +24441,15 @@ Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level
 - **Tests:** 7 core + 1 CLI; core 1620 lib, CLI 903, full core+cli suites green; clippy, fmt, structure gate, project audit gates green. No manifest change, so `cargo tree` unchanged. `core-api/03-capabilities.md` DiscardObject row updated in the commit. GUI note (FeatureRequests `note_discard_object_two_new_kinds_and_object_discard_not_eq.md`) updated to nine kinds.
 - **Known gaps (open, not shipped):** fragment merge inside form XObjects; JPEG (DCT) strips; pages with inherited resources.
 
-**Remaining slices (unbuilt):** smooth lines (NEXT).
+**Slice I DONE (`e83c4626`, engineer-reported; no shell here, 1126th filing):** `DiscardObject::SmoothLines` (`--discard smooth-lines`) is Acrobat's "Convert smooth lines to curves". `ALL` is now `[Self; 14]`.
+- **Does:** in page content, a run of more than four consecutive `l` segments is refitted as cubic `c` curves, or as one `l` when the run is straight. Schneider least-squares fit with Newton reparameterisation, run in page space so the tolerance is in page points under any CTM. Accepted only when the two-way deviation, against the curve flattened to 48 chords, is at most `OptimizeSettings::smooth_tolerance`; each curve is re-measured after rounding. A run is rewritten only when the result is shorter.
+- **Kept:** end points exactly; corners sharper than 30 degrees stay vertices; dashed paths are left alone (dash detected from `d` or an ExtGState `/D`, tracked through `q`/`Q`).
+- **Settings:** new `pub smooth_tolerance: f64` with `pub const DEFAULT_SMOOTH_TOLERANCE = 0.1`; a non-positive or non-finite value smooths nothing. Profile key `smooth-tolerance` (validated positive); CLI `--smooth-tolerance PT`; `smooth-lines` in the `--discard` help.
+- **Report:** one item per page, e.g. "page 1: 90 line segments into 6 curves (max deviation 0.086 pt)", bytes measured; folds into the single optimize undo entry.
+- **Tests:** 7 core (measured by an independent page-space tracer), profile round-trip and error case, CLI end-to-end and usage-error. Sabotage: zeroing the fitter's deviation turned 6 of 7 core tests red; disabling the dash guard alone turned the dashed test red. Core lib 1627 passed (2 ignored) plus 2995; CLI 904. clippy `-D warnings`, fmt, code-structure gate (568 baseline entries, none new), audit loop, `check-core-api-verbs` clean. No `Cargo.toml` change, so `cargo tree` unaffected. `core-api/03-capabilities.md` (`OptimizeSettings` and `DiscardObject` rows, "ALL has 14") updated; GUI note `note_discard_object_two_new_kinds_and_object_discard_not_eq.md` now covers ten kinds.
+- **Known gaps (open, not shipped):** form XObjects are not smoothed (page content only); end tangents are estimated from the first chord, so a run can take more curves than an optimal fit.
+
+**Remaining slices:** none. `Pass 616.3` is complete; `616.4`-`616.10` remain. Residue not built: fragment merge inside forms, for JPEG strips and for inherited-resources pages; smoothing inside forms; slice B/C gaps above.
 
 Original scope: wire in the existing 12 `doc_metadata` kinds. Add: alternate images, print settings, search index, tags, bookmarks, form actions, external cross-references, private application data, hidden layers (with visible-layer flatten), embedded thumbnails.
 

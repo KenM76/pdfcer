@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1126th filing) — `Pass 616.3` COMPLETE: slice I in `e83c4626`, convert smooth lines to curves
+
+**Shipped (engineer-reported, no shell here):** `DiscardObject::SmoothLines` (`smooth-lines`): page-content runs of more than four `l` segments refit as cubic `c` curves (one `l` if straight), Schneider fit with Newton reparameterisation in page space, accepted within `OptimizeSettings::smooth_tolerance` (default 0.1 pt, CLI `--smooth-tolerance PT`, profile key `smooth-tolerance`). End points, corners over 30 degrees and dashed paths kept; rewritten only when shorter. Report "page 1: 90 line segments into 6 curves (max deviation 0.086 pt)". Core `[x]`, cli `[x]`, gui `[ ]`. Core lib 1627 passed (2 ignored) plus 2995, CLI 904; 7 new core tests, sabotage turned 6 of 7 red and the dash guard's removal turned the dashed test red; clippy, fmt, structure gate (568 baseline, none new) clean. `ALL` = 14. No manifest change. Parent: `fb9a90eb` (slice H filing).
+
+**Pass 616.3 slices A-I all shipped; `616.4`-`616.10` remain.** **Open:** form XObjects not smoothed; end tangents from the first chord (may take more curves than optimal); earlier fragment-merge and slice B/C gaps.
+
+**Register:** ROADMAP Shipped summary, in-place Slice I block and retitle to COMPLETE, Next-up banner; FEATURES discard-objects row (trimmed to fit) and Planned remainder narrowed. No decision. Git, push and backup state not verified from here.
+
 ## 2026-10-20 (1125th filing) — `Pass 616.3` slice H PARTIAL in `b906182d`: merge image fragments; slice F fix `5812c665`
 
 **Shipped (engineer-reported, no shell here):** (1) `5812c665`: `EditSession::stream_writes` redoes a planned rewrite's action on the stream's current value when an earlier step of the same optimize run (flatten-layers) changed it, and skips a stream that step removed; before, planned recompression bytes overwrote the flattened content. (2) `b906182d`: `DiscardObject::MergeImageFragments` (`merge-image-fragments`): consecutive strip placements stacked edge to edge become one Flate image; one item per page ("page 1: 20 strips into 1 image (16x40)"); many refusals (masks, `/OC`, `/Alternates`, DCT, not smaller) and page skips (inherited `/Resources`, shared `/XObject`, form without own `/Resources`). Core `[x]`, cli `[x]`, gui `[ ]`. Core 1620 lib (7 new), CLI 903 (1 new), gates clean, `ALL` = 13. No manifest change. Slice G filing was committed as `4b2d5542`.
