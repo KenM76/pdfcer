@@ -55,8 +55,8 @@ pub use discard::DiscardOptions;
 pub use image::jpeg_quality::estimate_jpeg_quality;
 pub use image::pipeline::{ImageChange, JpegQuality};
 pub use image::{
-    COLORS_RANGE, Chroma, Conversion, ImageConvert, ImageEncode, ImagePatch, QUALITY_LEVELS,
-    ResampleMethod, ResolvedImage, SettingSource, Sourced, Threshold,
+    COLORS_RANGE, Chroma, Conversion, ImageConvert, ImageEncode, ImagePatch, Predictor,
+    QUALITY_LEVELS, ResampleMethod, ResolvedImage, SettingSource, Sourced, Threshold,
 };
 pub use objects::{DiscardObject, ObjectDiscard};
 pub use select::{PageRanges, Selector};

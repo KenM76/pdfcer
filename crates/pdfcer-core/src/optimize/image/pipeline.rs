@@ -3,7 +3,7 @@
 //! encoding. [`super::encode::run`] performs the result.
 
 use super::convert::{self, ConvertJob};
-use super::{Conversion, ImageConvert, ImageEncode, ResampleMethod, ResolvedImage};
+use super::{Conversion, ImageConvert, ImageEncode, Predictor, ResampleMethod, ResolvedImage};
 use crate::jpeg_write::JpegOptions;
 use crate::object::{Dict, Object};
 use crate::ocr::upscale::Kernel;
@@ -39,6 +39,8 @@ pub struct ImageChange {
     /// The colour space before and after, by family name (`DeviceRGB`,
     /// `Indexed DeviceRGB`, …); equal when not converted.
     pub color_space: (String, String),
+    /// Whether the Flate output was PNG-predicted (`/Predictor 15`).
+    pub predicted: bool,
 }
 
 impl ImageChange {
@@ -53,6 +55,16 @@ impl ImageChange {
                 .conversion
                 .as_ref()
                 .map_or(self.bpc.1 < self.bpc.0, Conversion::is_lossy)
+    }
+}
+
+impl ImageChange {
+    /// Fill in what performing the job found, returning its stream.
+    pub(crate) fn record(&mut self, w: super::encode::Written) -> (Dict, Vec<u8>) {
+        self.bpc.1 = u8::try_from(w.bpc).unwrap_or(u8::MAX);
+        self.conversion = w.conversion;
+        self.predicted = w.predicted;
+        (w.dict, w.data)
     }
 }
 
@@ -81,8 +93,8 @@ pub(crate) enum Source {
 /// What the samples are written as.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Target {
-    /// `/FlateDecode` at this level.
-    Flate(u8),
+    /// `/FlateDecode` at `level`, predicted as `predictor` says.
+    Flate { level: u8, predictor: Predictor },
     /// `/DCTDecode`.
     Jpeg(JpegOptions),
 }
@@ -204,7 +216,9 @@ pub(crate) fn decide(
     let encode = settings.encode.value;
     let source = match (resized, encode, &convert) {
         (None, ImageEncode::Keep, None) => return Ok(Outcome::Unchanged),
-        (None, ImageEncode::Flate { level }, None) => return Ok(Outcome::Lossless(level)),
+        (None, ImageEncode::Flate { level }, None) if !predictable(settings, dict, space) => {
+            return Ok(Outcome::Lossless(level));
+        }
         _ => source_kind(dict)?,
     };
     if resized.is_none() && convert.is_none() && source == Source::Dct {
@@ -238,7 +252,8 @@ pub(crate) fn decide(
             ImageEncode::Flate { level } => level,
             _ => 9,
         };
-        (Target::Flate(level), None)
+        let predictor = settings.predictor.value;
+        (Target::Flate { level, predictor }, None)
     };
     let (w, h) = (space.width, space.height);
     let job = Job {
@@ -255,6 +270,16 @@ pub(crate) fn decide(
     };
     let change = change(settings, space, &job, quality);
     Ok(Outcome::Rewrite(job, Box::new(change)))
+}
+
+/// Whether a same-size Flate recompression goes through the sample
+/// pipeline so it can be PNG-predicted: a generic-filter source, audited,
+/// with a sample format the pipeline reads. Otherwise the stream is only
+/// re-deflated.
+fn predictable(settings: &ResolvedImage, dict: &Dict, space: Option<&ImageSpace>) -> bool {
+    settings.predictor.value != Predictor::Off
+        && matches!(source_kind(dict), Ok(Source::Generic))
+        && space.is_some_and(|s| sample_format(dict, s, Source::Generic, false).is_ok())
 }
 
 /// The output size when `settings` resample `space`, else `None`.
@@ -325,8 +350,8 @@ fn change(
         (b.ppi_x * sx).min(b.ppi_y * sy)
     });
     let (encoded_as, bpc_after) = match job.target {
-        Target::Flate(_) if job.convert.is_some() => (encoded(job.target), 8),
-        Target::Flate(_) => (encoded(job.target), job.bpc),
+        Target::Flate { .. } if job.convert.is_some() => (encoded(job.target), 8),
+        Target::Flate { .. } => (encoded(job.target), job.bpc),
         Target::Jpeg(_) => (ImageEncode::Jpeg, 8),
     };
     let before = space
@@ -349,12 +374,13 @@ fn change(
         jpeg,
         conversion: job.convert.as_ref().map(ConvertJob::conversion),
         color_space: (before, after),
+        predicted: false,
     }
 }
 
 const fn encoded(target: Target) -> ImageEncode {
     match target {
-        Target::Flate(level) => ImageEncode::Flate { level },
+        Target::Flate { level, .. } => ImageEncode::Flate { level },
         Target::Jpeg(_) => ImageEncode::Jpeg,
     }
 }

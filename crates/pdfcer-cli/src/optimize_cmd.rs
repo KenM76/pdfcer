@@ -46,7 +46,9 @@ pub(crate) struct OptimizeArgs {
     /// medium, high, maximum; default 80), chroma (auto|444|420),
     /// progressive, convert (keep|gray|bilevel|indexed), threshold (otsu,
     /// dither or 0-255, for bilevel), colors (2-256, for indexed; default
-    /// 256), min-saving (percent), reset. "image(encode=jpeg)"
+    /// 256), predictor (off|png|auto, default auto: Flate output is
+    /// PNG-predicted when that is smaller), min-saving (percent), reset.
+    /// "image(encode=jpeg)"
     /// rewrites every eligible image as JPEG at its size; a JPEG is never
     /// written above its own estimated quality, and one left at its size is
     /// not touched. "image(convert=gray)" writes colour images as

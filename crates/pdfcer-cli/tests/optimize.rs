@@ -816,3 +816,34 @@ fn a_bilevel_conversion_reports_format_and_threshold() {
         "{j}"
     );
 }
+
+#[test]
+fn a_png_predicted_image_reports_it_and_writes_decode_parms() {
+    let d = dir("image-predictor");
+    let input = noise_image_pdf(&d);
+    let out = d.join("out.pdf");
+    let args = [
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--keep-structure",
+        "--streams",
+        "image(convert=bilevel,predictor=png)",
+    ];
+    let o = run(&args);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(
+        report.contains("written as flate-9 with PNG prediction"),
+        "{report}"
+    );
+    let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(written.contains("/Predictor 15"), "{written}");
+    let mut json = args.to_vec();
+    json.extend(["--dry-run", "--json"]);
+    let j = text(&run(&json));
+    assert!(
+        j.contains("\"predictor\":{\"value\":\"png\",\"source\":\"streams\"},\"predicted\":true"),
+        "{j}"
+    );
+}

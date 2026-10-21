@@ -5,8 +5,9 @@
 use super::Conversion;
 use super::convert;
 use super::pipeline::{Job, Source, Target};
+use super::predict;
 use crate::deskew::Raster;
-use crate::filters::{self, flate};
+use crate::filters;
 use crate::image_codec::{CodecColorModel, decode_image_view};
 use crate::image_resample::resample_with;
 use crate::jpeg_write::{self, unpack_to_bytes};
@@ -22,6 +23,8 @@ pub(crate) struct Written {
     pub(crate) bpc: u32,
     /// The conversion's report entry, run results filled in.
     pub(crate) conversion: Option<Conversion>,
+    /// Whether the samples were PNG-predicted.
+    pub(crate) predicted: bool,
 }
 
 /// Perform `job` on the image stored as `raw` under `dict`; `view`
@@ -62,21 +65,25 @@ pub(crate) fn run(
             (resized, job.components, bpc, None)
         }
     };
-    let (data, filter, bpc) = match job.target {
-        Target::Flate(level) => (
-            flate::encode_with_level(&pixels, u32::from(level)),
-            &b"FlateDecode"[..],
-            bpc,
-        ),
+    let (data, filter, bpc, parms) = match job.target {
+        Target::Flate { level, predictor } => {
+            let shape = (components, bpc, job.out.0);
+            let done = predict::flate(&pixels, shape, level, predictor);
+            (done.data, &b"FlateDecode"[..], bpc, done.parms)
+        }
         Target::Jpeg(opts) => {
             let n = u8::try_from(components).unwrap_or(0);
             let data = jpeg_write::encode(&pixels, job.out.0, job.out.1, n, opts)
                 .map_err(SkipReason::ImageUnsupported)?;
-            (data, &b"DCTDecode"[..], 8)
+            (data, &b"DCTDecode"[..], 8, None)
         }
     };
     guard(job, raw.len() as u64, data.len() as u64)?;
     let mut out = output_dict(dict, job.out, filter, bpc, data.len());
+    let predicted = parms.is_some();
+    if let Some(p) = parms {
+        out.insert(Name::from(&b"DecodeParms"[..]), Object::Dict(p));
+    }
     let conversion = colour.map(|(space, conversion)| {
         out.remove(b"Decode");
         out.remove(b"D");
@@ -88,6 +95,7 @@ pub(crate) fn run(
         data,
         bpc,
         conversion,
+        predicted,
     })
 }
 
@@ -161,7 +169,7 @@ fn source_samples(
             if packed.len() < need {
                 return Err(short(packed.len(), need));
             }
-            if matches!(job.target, Target::Flate(_)) || job.convert.is_some() {
+            if matches!(job.target, Target::Flate { .. }) || job.convert.is_some() {
                 return Ok((packed, job.bpc));
             }
             let bits = u8::try_from(job.bpc).unwrap_or(8);

@@ -71,6 +71,9 @@ fn image_text(img: &ImageChange) -> String {
         }
         line.push(')');
     }
+    if img.predicted {
+        line.push_str(" with PNG prediction");
+    }
     if img.bpc.0 != img.bpc.1 {
         line.push_str(&format!(", {} -> {} bit", img.bpc.0, img.bpc.1));
     }
@@ -179,7 +182,7 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
         },
     );
     format!(
-        "{{\"size_before\":[{},{}],\"size_after\":[{},{}],\"binding\":{binding},\"encoded_as\":\"{}\",\"bpc\":[{},{}],\"jpeg\":{jpeg},\"method\":{},\"ppi\":{},\"above\":{},\"encode\":{},\"quality\":{},\"chroma\":{},\"progressive\":{},\"min_saving_pct\":{},\"color_space\":[\"{}\",\"{}\"],\"conversion\":{},\"convert\":{},\"threshold\":{},\"colors\":{}}}",
+        "{{\"size_before\":[{},{}],\"size_after\":[{},{}],\"binding\":{binding},\"encoded_as\":\"{}\",\"bpc\":[{},{}],\"jpeg\":{jpeg},\"method\":{},\"ppi\":{},\"above\":{},\"encode\":{},\"quality\":{},\"chroma\":{},\"progressive\":{},\"min_saving_pct\":{},\"color_space\":[\"{}\",\"{}\"],\"conversion\":{},\"convert\":{},\"threshold\":{},\"colors\":{},\"predictor\":{},\"predicted\":{}}}",
         img.size_before.0,
         img.size_before.1,
         img.size_after.0,
@@ -200,6 +203,8 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
         conversion_json(img),
         src(format!("\"{}\"", s.convert.value), s.convert.source),
         src(format!("\"{}\"", s.threshold.value), s.threshold.source),
-        src(s.colors.value.to_string(), s.colors.source)
+        src(s.colors.value.to_string(), s.colors.source),
+        src(format!("\"{}\"", s.predictor.value), s.predictor.source),
+        img.predicted
     )
 }

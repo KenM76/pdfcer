@@ -313,19 +313,17 @@ fn plan_stream(
             .push(skip(crate::optimize::SkipReason::Protected(what)));
         return;
     }
-    let result = match &job {
-        Some((job, _)) => image::encode::run(job, ctx.view, &stream.dict, raw)
-            .map(|w| Some((w.dict, w.data, Some((w.bpc, w.conversion))))),
-        None => streams::apply(action, &stream.dict, raw).map(|r| r.map(|(d, b)| (d, b, None))),
+    let mut job = job;
+    let result = match job.as_mut() {
+        Some((job, change)) => {
+            image::encode::run(job, ctx.view, &stream.dict, raw).map(|w| Some(change.record(w)))
+        }
+        None => streams::apply(action, &stream.dict, raw),
     };
     match result {
         Ok(None) => {}
-        Ok(Some((dict, data, found))) => {
-            let (job, mut change) = job.map_or((None, None), |(j, c)| (Some(j), Some(*c)));
-            if let (Some(c), Some((bpc, conversion))) = (change.as_mut(), found) {
-                c.bpc.1 = u8::try_from(bpc).unwrap_or(u8::MAX);
-                c.conversion = conversion;
-            }
+        Ok(Some((dict, data))) => {
+            let (job, change) = job.map_or((None, None), |(j, c)| (Some(j), Some(*c)));
             plan.changes.push(PlannedChange {
                 id,
                 category: row.map_or(SpaceCategory::OtherReferenced, |r| r.category),

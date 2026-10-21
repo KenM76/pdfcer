@@ -244,6 +244,76 @@ fn paeth_predictor(a: u8, b: u8, c: u8) -> u8 {
     }
 }
 
+/// PNG-predict `data` (whole unpadded-row samples, rows byte-padded to
+/// `row_data_bytes`) for writing under `/Predictor 15`: each output row is
+/// a tag byte and that row filtered by whichever of the five RFC 2083 §6
+/// filters gives the smallest sum of the filtered bytes read as signed
+/// (the RFC 2083 §9.6 heuristic). The inverse of [`unpredict`] for any
+/// `params.predictor` in 10 to 15.
+///
+/// # Errors
+///
+/// [`FilterError::RaggedRows`] if the length isn't a whole number of rows.
+pub fn predict_png(data: &[u8], params: &Params) -> Result<Vec<u8>, FilterError> {
+    let row_len = params.row_data_bytes();
+    if row_len == 0 || !data.len().is_multiple_of(row_len) {
+        return Err(FilterError::RaggedRows);
+    }
+    let bpp = params.bpp();
+    let zero = vec![0u8; row_len];
+    let mut out = Vec::with_capacity(data.len() + data.len() / row_len);
+    let mut prior: &[u8] = &zero;
+    let mut best = vec![0u8; row_len];
+    let mut trial = vec![0u8; row_len];
+    for row in data.chunks_exact(row_len) {
+        let mut best_tag = 0u8;
+        let mut best_cost = u64::MAX;
+        for tag in 0..=4u8 {
+            filter_row(tag, row, prior, bpp, &mut trial);
+            let cost: u64 = trial
+                .iter()
+                .map(|&b| u64::from(b.min(b.wrapping_neg())))
+                .sum();
+            if cost < best_cost {
+                best_cost = cost;
+                best_tag = tag;
+                std::mem::swap(&mut best, &mut trial);
+            }
+        }
+        out.push(best_tag);
+        out.extend_from_slice(&best);
+        prior = row;
+    }
+    Ok(out)
+}
+
+/// `Filt(x)` of RFC 2083 §6.2 to §6.6 for one row into `out`.
+fn filter_row(tag: u8, row: &[u8], prior: &[u8], bpp: usize, out: &mut [u8]) {
+    for (x, slot) in out.iter_mut().enumerate() {
+        let raw = row.get(x).copied().unwrap_or(0);
+        let left = x
+            .checked_sub(bpp)
+            .and_then(|i| row.get(i))
+            .copied()
+            .unwrap_or(0);
+        let above = prior.get(x).copied().unwrap_or(0);
+        let upleft = x
+            .checked_sub(bpp)
+            .and_then(|i| prior.get(i))
+            .copied()
+            .unwrap_or(0);
+        let predicted = match tag {
+            1 => left,
+            2 => above,
+            #[allow(clippy::cast_possible_truncation)] // a mean of two bytes
+            3 => ((u16::from(left) + u16::from(above)) / 2) as u8,
+            4 => paeth_predictor(left, above, upleft),
+            _ => 0,
+        };
+        *slot = raw.wrapping_sub(predicted);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // TIFF Predictor 2 (TIFF 6.0 §14, decode direction)
 // ---------------------------------------------------------------------------
@@ -539,5 +609,61 @@ mod tests {
         let data = vec![10, 5, 20, 7];
         let out = unpredict(data, &params(2, 1, 8, 2)).unwrap();
         assert_eq!(out, vec![10, 15, 20, 27]);
+    }
+
+    // ---- PNG encode direction ----
+
+    fn sample_rows(p: &Params, rows: usize, seed: u32) -> Vec<u8> {
+        let mut s = seed;
+        (0..p.row_data_bytes() * rows)
+            .map(|i| {
+                s = s.wrapping_mul(1_103_515_245).wrapping_add(12_345);
+                // smooth ramp plus noise, so every filter gets chosen somewhere
+                (i as u32 / 3).wrapping_add((s >> 16) % 7) as u8
+            })
+            .collect()
+    }
+
+    #[test]
+    fn predict_png_round_trips_through_unpredict() {
+        for &(colors, bpc, columns) in &[
+            (1, 1, 13),
+            (1, 2, 7),
+            (1, 4, 9),
+            (1, 8, 31),
+            (3, 8, 17),
+            (4, 8, 5),
+            (1, 16, 11),
+            (3, 16, 6),
+            (2, 8, 1),
+        ] {
+            let p = params(15, colors, bpc, columns);
+            let raw = sample_rows(&p, 9, colors * 31 + bpc);
+            let enc = predict_png(&raw, &p).unwrap();
+            assert_eq!(enc.len(), raw.len() + 9);
+            assert_eq!(unpredict(enc, &p).unwrap(), raw, "{colors}x{bpc}x{columns}");
+        }
+    }
+
+    #[test]
+    fn predict_png_picks_up_for_repeated_rows_and_sub_for_a_ramp() {
+        let p = params(15, 1, 8, 64);
+        let row: Vec<u8> = (0..64).map(|i| (i * 37 % 251) as u8).collect();
+        let raw = [row.clone(), row].concat();
+        let enc = predict_png(&raw, &p).unwrap();
+        assert_eq!(enc[65], 2, "second identical row is Up");
+        assert!(enc[66..].iter().all(|&b| b == 0));
+        let ramp: Vec<u8> = (0..64).map(|i| (i * 3) as u8).collect();
+        let enc = predict_png(&ramp, &p).unwrap();
+        assert_eq!(enc[0], 1, "a ramp is Sub");
+    }
+
+    #[test]
+    fn predict_png_refuses_ragged_input() {
+        let p = params(15, 3, 8, 4);
+        assert!(matches!(
+            predict_png(&[0; 13], &p),
+            Err(FilterError::RaggedRows)
+        ));
     }
 }

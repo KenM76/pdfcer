@@ -7,6 +7,7 @@ pub(crate) mod convert;
 pub(crate) mod encode;
 pub(crate) mod jpeg_quality;
 pub(crate) mod pipeline;
+pub(crate) mod predict;
 pub(crate) mod reduce;
 
 use std::fmt;
@@ -14,6 +15,7 @@ use std::fmt;
 use super::StreamAction;
 pub use crate::jpeg_write::Chroma;
 pub use convert::{COLORS_RANGE, Conversion, ImageConvert, Threshold};
+pub use predict::Predictor;
 
 /// How an image is resampled when it is downsampled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -106,6 +108,7 @@ impl fmt::Display for ImageEncode {
 /// JPEG and defaults to 80. `convert=gray|bilevel|indexed` changes the
 /// colour form ([`ImageConvert`]); `threshold=otsu|dither|N` tunes bilevel
 /// and `colors=N` (2 to 256, default 256) caps a palette.
+/// `predictor=off|png|auto` (default auto) PNG-predicts Flate output.
 ///
 /// ```
 /// use pdfcer_core::optimize::{ImagePatch, ResampleMethod, StreamAction};
@@ -141,6 +144,8 @@ pub struct ImagePatch {
     pub threshold: Option<Threshold>,
     /// Most palette entries for an indexed conversion, 2 to 256.
     pub colors: Option<u16>,
+    /// PNG prediction of Flate output.
+    pub predictor: Option<Predictor>,
     /// Keep the stored form unless the result is at least this many percent
     /// smaller (0 to 99).
     pub min_saving_pct: Option<u8>,
@@ -171,6 +176,7 @@ impl ImagePatch {
             convert: None,
             threshold: None,
             colors: None,
+            predictor: None,
             min_saving_pct: None,
         }
     }
@@ -240,10 +246,15 @@ impl ImagePatch {
             }
             "threshold" => self.threshold = Some(Threshold::parse(value)?),
             "colors" => self.colors = Some(value.parse().map_err(|_| bad())?),
+            "predictor" => {
+                self.predictor = Some(Predictor::from_name(value).ok_or_else(|| {
+                    format!("image(): unknown predictor {value:?}; expected off, png or auto")
+                })?);
+            }
             "min-saving" => self.min_saving_pct = Some(value.parse().map_err(|_| bad())?),
             _ => {
                 return Err(format!(
-                    "image(): unknown key {key:?}; expected reset, method, ppi, above, encode, quality, chroma, progressive, convert, threshold, colors or min-saving"
+                    "image(): unknown key {key:?}; expected reset, method, ppi, above, encode, quality, chroma, progressive, convert, threshold, colors, predictor or min-saving"
                 ));
             }
         }
@@ -352,6 +363,9 @@ impl fmt::Display for ImagePatch {
         if let Some(n) = self.colors {
             parts.push(format!("colors={n}"));
         }
+        if let Some(p) = self.predictor {
+            parts.push(format!("predictor={p}"));
+        }
         if let Some(s) = self.min_saving_pct {
             parts.push(format!("min-saving={s}"));
         }
@@ -422,6 +436,8 @@ pub struct ResolvedImage {
     pub threshold: Sourced<Threshold>,
     /// Most palette entries.
     pub colors: Sourced<u16>,
+    /// PNG prediction of Flate output.
+    pub predictor: Sourced<Predictor>,
     /// The `min-saving` guard, percent.
     pub min_saving_pct: Sourced<u8>,
 }
@@ -439,6 +455,7 @@ impl ResolvedImage {
             convert: sourced(ImageConvert::Keep, SettingSource::BuiltIn),
             threshold: sourced(Threshold::Otsu, SettingSource::BuiltIn),
             colors: sourced(256, SettingSource::BuiltIn),
+            predictor: sourced(Predictor::Auto, SettingSource::BuiltIn),
             min_saving_pct: sourced(0, SettingSource::BuiltIn),
         }
     }
@@ -477,6 +494,7 @@ impl ResolvedImage {
             convert: Some(self.convert.value),
             threshold: Some(self.threshold.value),
             colors: Some(self.colors.value),
+            predictor: Some(self.predictor.value),
             min_saving_pct: Some(self.min_saving_pct.value),
         }
     }
@@ -514,6 +532,9 @@ impl ResolvedImage {
         }
         if let Some(v) = p.colors {
             self.colors = sourced(v, src);
+        }
+        if let Some(v) = p.predictor {
+            self.predictor = sourced(v, src);
         }
         if let Some(v) = p.min_saving_pct {
             self.min_saving_pct = sourced(v, src);
@@ -565,6 +586,8 @@ pub(crate) fn fold(actions: impl IntoIterator<Item = (StreamAction, SettingSourc
 mod pipeline_convert_tests;
 #[cfg(test)]
 mod pipeline_jpeg_tests;
+#[cfg(test)]
+mod pipeline_predict_tests;
 #[cfg(test)]
 mod pipeline_tests;
 #[cfg(test)]
