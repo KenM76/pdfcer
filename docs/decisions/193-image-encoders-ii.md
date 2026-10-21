@@ -59,7 +59,7 @@ Consultant: `autonomous-builder` (KenAgent protocol). Narrows standing rule
 | `auto` excludes | LZW, Brotli or any extension, JPEG, JPX (until its record), lossy anything, any filter above the document's version, JBIG2 for inline images |
 | `auto` tie-break | Flate, then CCITT, then RunLength, then JBIG2 |
 | `auto` raises the version | never |
-| Explicit encoder above the document's version | raise the header and disclose; `version-raise=refuse` is the strict option |
+| Explicit encoder above the document's version | raise the version and disclose; `version-raise=refuse` is the strict option. *(Amended 1146th filing: as built, the raise is the catalog `/Version` (ISO 32000-2 §7.7.2), the header stays byte-identical, effective version = max(header, catalog).)* |
 | Guard | only-if-smaller plus `min-saving` against the current stream, for every encoder |
 | CCITT polarity | the adapter sets `/BlackIs1` (R26 exception) |
 | Lossy JBIG2 symbol matching | not shipped |

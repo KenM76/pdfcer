@@ -112,6 +112,31 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.5` (slice E6, `61a3f18f`), 2026-10-21 — an explicit encoder above the document's version raises it, and says so; `Pass 616.5` NOT complete (1146th filing)
+
+Code commit `61a3f18f` "feat(optimize): an explicit encoder above the document's version raises it, and says so (Pass 616.5, slice E6)", after the 1145th filing. Core + CLI; no GUI. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 193 governs (one sentence amended, below).
+
+- **Behaviour:** `encode=jbig2` in a document below PDF 1.4 now raises the version instead of skipping: it sets the catalog `/Version /1.4` (ISO 32000-2 §7.7.2) inside the same undoable Optimize command. The header stays byte-identical (minimal-diff held); effective version = max(header, catalog), so incremental and full saves both carry it. Disclosed (fuzzy-never-sneaky). `encode=auto` never picks a filter needing a raise.
+- **Option:** `version-raise=allow|refuse`, default `allow`. `refuse` is the old skip (`VersionTooLow`), whose text now names the option.
+- **Core:** `optimize::image::VersionRaise`; `ImagePatch`/`ResolvedImage` field; `ImageChange.raises_version`; `OptimizePlan::version_raise()`; `EditSession::view().version()` now reports the effective version including the session's catalog `/Version`.
+- **CLI `pdfcer optimize`:** help names `version-raise`; text report "needs PDF 1.4" per image plus a "version: raised to PDF 1.4 in the catalog's /Version ..." line; JSON adds per-image `raises_version`, per-image and top-level `version_raise`.
+- **Docs:** `docs/core-api/03-capabilities.md` updated (4,716 lines, 141 clauses); `check-core-api-verbs` exit 0.
+- **Decision 193 amended, no new decision:** its text said "raise the header"; as built the raise is the catalog `/Version` and the header is untouched. Dated amendment sentence added to `ARCHITECTURE.md` §12 and `docs/decisions/193-image-encoders-ii.md`.
+- **Tests (engineer-reported):**
+
+  | Suite | Passed | Ignored |
+  |---|---|---|
+  | pdfcer-image-codec | 110 (+3 doctests) | 0 |
+  | pdfcer-core lib | 1,725 | 2 |
+  | pdfcer-core --test all | 2,995 | 2 |
+  | pdfcer-cli --test all | 918 | 2 |
+
+  New: 6 core tests (`pipeline_version_tests`, sabotage-checked) and 1 CLI integration test. fmt, clippy -D warnings, `check-code-structure` clean (`image_json` split to stay under 80 lines).
+- **Fuzz:** `optimize_images` 181 s, 28,498 runs, no crash (new action added).
+- **Invariants:** no dependency change; core/render manifests untouched, so `cargo tree` not re-run.
+- **Still owed:** Acrobat Reader render check per encoder (LZW, CCITT, JBIG2; decision 193 condition). With E6 shipped, E1-E6 are done; `616.5` stays open for that check and the Brotli write side.
+- `FEATURES.md`: *Change an image's format* row updated (version raise done, core + cli; gui box stays unticked; row stays Planned for JPX/Brotli/lossy JBIG2 and the GUI). Ledgers: no new decision (193 amended), no rule; next free decision 194, rule R263; next filing 1147th. Git, push and backup state not verified from here.
+
 ### `Pass 616.5` (slice E5, `961c0809`), 2026-10-21 — `encode=auto` writes the smallest lossless filter; `Pass 616.5` NOT complete (1145th filing)
 
 Code commit `961c0809` "feat(optimize): encode=auto writes the smallest lossless filter (Pass 616.5, slice E5)", after the 1144th filing. Core + CLI; no GUI. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 193 governs. E6 remains.
@@ -22834,6 +22859,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+(1146th filing: `Pass 616.5` slice E6 (version raise) SHIPPED `61a3f18f`, see *Shipped*; E1-E6 all done. Only the Acrobat Reader render check per encoder (LZW, CCITT, JBIG2) remains, so `616.5` stays here; the Brotli write side is unstarted. Next filing 1147th.)
+
 (1145th filing: `Pass 616.5` slice E5 (`encode=auto`) SHIPPED `961c0809`, see *Shipped*; E1-E5 done. Only E6 version-raise=refuse and the Acrobat Reader render check per encoder remain. `616.5` stays here. Next filing 1146th.)
 
 (1144th filing: `Pass 616.5` slice E3 (JBIG2 generic) SHIPPED `488129f9`, see *Shipped*; E1-E4 done. E5 auto and E6 version-raise=refuse remain. `616.5` stays here. Next filing 1145th.)
@@ -24746,7 +24773,7 @@ Mono results are mostly not-smaller until `616.5` adds CCITT/JBIG2 encoders; dis
 - **E3 — JBIG2 generic (in-house MQ module + generic-region module; template 0, TPGDON, embedded, no `/JBIG2Globals`, PDF 1.4, never inline).** 1-bit only. **UNBLOCKED (1142nd): `filter__jbig2_generic_encoder.md` filed.** Spec-librarian flags: (a) ISO 32000-1 §7.4.7 says a JBIG2 encoder "shall" build a symbol table (dropped in PDF 2.0), so generic-region-only is strictly short of 1.7 (a flag, not a blocker); (b) the TPGDON shared-context rule is not exercised by T.88's test data, so E3 needs a fixture that triggers it, tested against the in-tree hayro decoder. Each module within the structure-gate limits. **SHIPPED `488129f9` (1144th filing; entry in *Shipped*; core + cli, gui not). Interim: a document below PDF 1.4 skips the image (`VersionTooLow`) until E6.**
 - **E4 — LZW (`weezl` `Encoder::with_tiff_size_switch(Msb, 8)`, `/EarlyChange 1`, key omitted).** **Written only when `encode=lzw` is named**; no preset, `auto` or fallback picks it; **refused under a PDF/A claim**; the report row gives the Flate size for the same samples. No new dependency. **SHIPPED `b1a85853` (1142nd filing; entry in *Shipped*; core + cli, gui not).**
 - **E5 — `encode=auto`.** Smallest eligible lossless candidate (Flate, RunLength, plus CCITT/JBIG2 for 1-bit 1-component); tie-break Flate, CCITT, RunLength, JBIG2; stays within the document's current version, never raises it; excludes LZW, extensions, JPEG, JPX, lossy, inline JBIG2. **Shipped presets switch to `encode=auto`**; an `image(...)` with no `encode` keeps decision 192's base. Report row lists every candidate's size; if none passes the guard, kept with "not smaller" and the sizes. **SHIPPED `961c0809` (1145th filing; entry in *Shipped*; core + cli, gui not).**
-- **E6 — `version-raise=refuse` option.** Default for an explicit encoder above the document's version is raise-and-disclose; this is the strict alternative.
+- **E6 — `version-raise=allow|refuse` option.** Default for an explicit encoder above the document's version is raise-and-disclose; this is the strict alternative. **SHIPPED `61a3f18f` (1146th filing; entry in *Shipped*; core + cli, gui not).**
 - Guard for every encoder: only-if-smaller plus `min-saving`. Refused by name: `lzw` under PDF/A, `jbig2` on an inline image, `ccitt`/`jbig2` per-object on a non-bilevel source with no bilevel step (a rule match is skipped "not bilevel").
 - Conditions: round-trip property tests per encoder against the in-tree decoders (compare rendered pixels, not raw samples, for polarity), a fuzz target for encode-then-decode identity, an Acrobat Reader render check per encoder; `cargo tree -p pdfcer-core` unchanged.
 - **Not in this Pass, each needs its own decision record:** JPX encode (dependency licence check first, `LEGAL.md` §6.1, rule 13; the record decides whether `auto` may use it) and Brotli (below; likewise). **Lossy JBIG2 symbol matching** is a separate *Backlog* item needing its own record.

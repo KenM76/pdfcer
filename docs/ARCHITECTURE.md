@@ -13381,6 +13381,9 @@ shipped by this filing.
    RunLength, JBIG2, within the document's current version; it never raises
    the version. Presets switch to `auto`. `version-raise=refuse` is the
    strict option for an explicit encoder above the document's version.
+   *(Amended 1146th filing, `61a3f18f`: the default raise is made in the
+   catalog `/Version` (ISO 32000-2 §7.7.2), not the header, which stays
+   byte-identical; effective version = max(header, catalog).)*
 4. JPX and Brotli each need their own record; lossy JBIG2 symbol matching is
    out of this record.
 

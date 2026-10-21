@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1146th filing) — `Pass 616.5` slice E6 in `61a3f18f`: an explicit encoder above the document's version raises it, and says so
+
+**Shipped:** `Pass 616.5` slice E6 (core + cli, no gui): `encode=jbig2` below PDF 1.4 sets the catalog `/Version /1.4` in the same undoable Optimize command instead of skipping; header byte-identical; effective version = max(header, catalog). New `version-raise=allow|refuse` (default allow; refuse = old `VersionTooLow` skip, text names the option). `encode=auto` never needs a raise. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
+
+**Decisions:** none new. Decision 193 said "raise the header"; as built it is the catalog `/Version`, so a dated amendment sentence was appended to 193 in `ARCHITECTURE.md` §12 and `docs/decisions/193-image-encoders-ii.md`. No rule minted.
+
+**Findings:** `EditSession::view().version()` now reports the effective version including the session's catalog `/Version`. Tests: image-codec 110, core 1,725 lib + 2,995 integration, cli 918; fuzz `optimize_images` 28,498 runs (181 s) clean; structure gate needed `image_json` split. No dependency change.
+
+**Still in flight:** `Pass 616.5` stays open: Acrobat Reader render check per encoder (LZW, CCITT, JBIG2) and the Brotli write side.
+
+**For next session:** the Reader render check, then Brotli scoping (needs its own decision, 194). Git, push and backup state not verified from here. Next filing 1147th.
+
 ## 2026-10-21 (1145th filing) — `Pass 616.5` slice E5 in `961c0809`: `encode=auto` writes the smallest lossless filter
 
 **Shipped:** `Pass 616.5` slice E5 (core + cli, no gui): `ImageEncode::Auto` / `image(encode=auto)` tries Flate-9, CCITT G4, RunLength, JBIG2 (tie-break in that order; CCITT/JBIG2 1-bit only, JBIG2 only at PDF 1.4+; never LZW/JPEG/JPX/version raise) and writes the strictly smallest; `ImageChange.candidates`, `ImageSkip::AutoNotSmaller`, CLI text/JSON candidate lists; Mono and Screen-Indexed presets now use auto. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
