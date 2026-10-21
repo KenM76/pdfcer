@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1143rd filing) — `Pass 616.5` slice E2 in `4d742e96`: images can be written as CCITT Group 4
+
+**Shipped:** `Pass 616.5` slice E2 (core + cli, no gui): `pdfcer_image_codec::ccitt::encode_g4`, `encode=ccitt` (`/CCITTFaxDecode`, `/K -1`), `ImageEncode::Ccitt`, `ImageSkip::NotBilevel` / `NotBilevelOverride`, CLI format "CCITT G4", core-api 01 section 11.2 and 03. Also filed, previously deferred: docs follow-up `c8a3d660` (E4 wording in the `tiff.rs` "LZW is not reused" reason). Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
+
+**Decisions:** none new; decision 193 governs. No rule minted.
+
+**Findings:** both polarities are coded and the smaller kept (760 vs 903 bytes in one picture, opposite to a white-background rule). Reproduces the libtiff `CCITT_G4_16X4` fixture bit for bit; round-trips through `hayro-ccitt`; sabotage failed 3 tests; CLI output pixel-identical to LZW of the same conversion. Tests: image-codec 104, core 1,710 lib + 2,995 integration, cli 915. Fuzz `image_encoders` 30,735 and `optimize_images` 26,105 runs (180 s each) clean. `cargo tree` unchanged.
+
+**Still in flight:** `Pass 616.5` NOT complete: E3 (JBIG2 generic), E5 auto, E6 version-raise=refuse remain. Acrobat Reader render check owed for every E-slice encoder.
+
+**For next session:** E3 (needs a TPGDON-triggering fixture) or E5/E6. Git, push and backup state not verified from here. Next filing 1144th.
+
 ## 2026-10-21 (1142nd filing) — `Pass 616.5` slice E4 in `b1a85853`: images can be written as LZW, on request only
 
 **Shipped:** `Pass 616.5` slice E4 (core + cli, no gui): `pdfcer_model::filters::lzw::encode`, `encode=lzw` (`/LZWDecode`, `/EarlyChange 1` omitted, PNG-predicted like Flate), `ImageChange::flate_bytes` ("Flate would be N bytes"), `ImageSkip::LzwUnderPdfa` / `LzwEncode`, core-api 01/03/index. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.

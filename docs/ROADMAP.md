@@ -112,6 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.5` (slice E2, `4d742e96`), 2026-10-21 — images can be written as CCITT Group 4; `Pass 616.5` NOT complete (1143rd filing)
+
+Code commit `4d742e96ce6950375253bd4b492fcae3769c658e` "feat(optimize): images can be written as CCITT Group 4 (Pass 616.5, slice E2)", after the 1142nd filing. Plus docs follow-up `c8a3d6603b5fae30303d282a0d2ecfd9965859d3` "docs(tiff): LZW is written on request now, so the not-reused reason changes wording (Pass 616.5)": a doc-comment and test-message wording change to E4 (the `tiff.rs` import path's "LZW is not reused" reason), which was deferred and unfiled until now. Core + CLI; no GUI. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 193 governs. E3, E5, E6 remain.
+
+- **Behaviour:** `image(encode=ccitt)` writes `/CCITTFaxDecode` Group 4 (`/K -1 /Columns /Rows`). Lossless. Only 1-bit 1-component output: the source, or the result of `convert=bilevel`. New `ImageEncode::Ccitt`. Others are skipped: `ImageSkip::NotBilevel(ImageEncode)` for a rule or `images` patch, `ImageSkip::NotBilevelOverride(ImageEncode)` (message names `convert=bilevel`) for a per-object override.
+- **Polarity:** both codings are produced and the smaller kept; `/BlackIs1 true` only when it wins. Measured: which is smaller depends on the picture (760 vs 903 bytes in one case), the opposite of a "white background" rule. Decoded samples are identical either way; `/Decode` and `/ImageMask` are kept.
+- **Codec:** new public `pdfcer_image_codec::ccitt::encode_g4(samples, width, height, one_is_black) -> Vec<u8>` (in-house ITU-T T.6). Documented in `docs/core-api/01` section 11.2 and in 03's optimize section.
+- **Verification (engineer-reported):** reproduces the libtiff-made `CCITT_G4_16X4` fixture bit for bit; round-trips through the shipped `hayro-ccitt` decoder in both polarities; sabotage (`b2<=a1`; a wrong extended make-up code) failed 3 tests, restored; CLI output with `/BlackIs1 true` renders pixel-identical to the LZW output of the same bilevel conversion (`pdfcer render-page`).
+- **Tests (engineer-reported):** pdfcer-image-codec 104; pdfcer-core 1,710 lib + 2,995 integration; pdfcer-cli 915. All gates green.
+- **Fuzz:** `image_encoders` now round-trips `encode_g4` through `decode_image`, 30,735 runs in 180 s clean; `optimize_images` gains `image(encode=ccitt)` and `image(convert=bilevel,threshold=otsu,encode=ccitt)`, 26,105 runs in 180 s clean.
+- **CLI:** report format line reads "CCITT G4"; `optimize --streams` help lists `ccitt`.
+- **Invariants:** `cargo tree` unchanged (no new dependency, no manifest touched).
+- **Still owed:** Acrobat Reader render check, for every E-slice encoder (RunLength, LZW, CCITT G4; decision 193 condition).
+- `FEATURES.md`: *Change an image's format* row now names CCITT Group 4 as done (core + cli, gui not; boxes on that Planned row unchanged). Ledgers: no decision, no rule; next free decision 194; next filing 1144th. Git, push and backup state not verified from here.
+
 ### `Pass 616.5` (slice E4, `b1a85853`), 2026-10-21 — images can be written as LZW, on request only; `Pass 616.5` NOT complete (1142nd filing)
 
 Code commit `b1a85853` "feat(optimize): images can be written as LZW, on request only (Pass 616.5, slice E4)", after the 1141st filing. Core + CLI; no GUI. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 193 (R28 narrowed) governs. E2, E3, E5, E6 remain.
@@ -22770,6 +22785,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+(1143rd filing: `Pass 616.5` slice E2 (CCITT G4) SHIPPED `4d742e96`, see *Shipped*; E1, E2, E4 done. E3 (JBIG2 generic, MQ coder), E5 auto and E6 version-raise=refuse remain. `616.5` stays here. Next filing 1144th.)
+
 (1142nd filing: `Pass 616.5` slice E4 (LZW) SHIPPED `b1a85853`, see *Shipped*; E1 and E4 done; E2 (CCITT G4) and E3 (JBIG2 generic) are now UNBLOCKED (spec-librarian filed the encoder material); E5 auto and E6 version-raise=refuse remain. `616.5` stays here. Next filing 1143rd.)
 
 (1141st filing: `Pass 616.5` slice E1 (RunLength) SHIPPED `44ce3e0e`, see *Shipped*; E2-E6 remain, E2/E3 blocked on spec-librarian encoder material (in progress). `616.5` stays here. Next filing 1142nd.)
@@ -24672,7 +24689,7 @@ Mono results are mostly not-smaller until `616.5` adds CCITT/JBIG2 encoders; dis
 
 **Image half, governed by decision 193 (filed 1140th, 2026-10-21; supersedes the earlier "encoders widened" wording; R28 narrowed).** All selectable through `image(encode=...)` on all images, a rule or one object (operator request of 2026-10-21, Ken). Slices, in order:
 - **E1 — RunLength (in-house, ISO 32000-2 §7.4.5).** Any image, any version, inline allowed. No spec blocker. **SHIPPED `44ce3e0e` (1141st filing; entry in *Shipped*; core + cli, gui not).**
-- **E2 — CCITT G4 (in-house, `/K -1`, ITU-T T.6 + T.4 tables).** 1-bpc 1-component. **UNBLOCKED (1142nd): `pdfcer-spec-librarian` filed `filter__ccitt_g4_encoder.md`** in `D:\Dev\Rag-Specialized\PDF_Spec\filters\` (rule 1 satisfied). Adapter sets `/BlackIs1`.
+- **E2 — CCITT G4 (in-house, `/K -1`, ITU-T T.6 + T.4 tables).** 1-bpc 1-component. Spec: `filter__ccitt_g4_encoder.md` in `D:\Dev\Rag-Specialized\PDF_Spec\filters\`. **SHIPPED `4d742e96` (1143rd filing; entry in *Shipped*; core + cli, gui not).**
 - **E3 — JBIG2 generic (in-house MQ module + generic-region module; template 0, TPGDON, embedded, no `/JBIG2Globals`, PDF 1.4, never inline).** 1-bit only. **UNBLOCKED (1142nd): `filter__jbig2_generic_encoder.md` filed.** Spec-librarian flags: (a) ISO 32000-1 §7.4.7 says a JBIG2 encoder "shall" build a symbol table (dropped in PDF 2.0), so generic-region-only is strictly short of 1.7 (a flag, not a blocker); (b) the TPGDON shared-context rule is not exercised by T.88's test data, so E3 needs a fixture that triggers it, tested against the in-tree hayro decoder. Each module within the structure-gate limits.
 - **E4 — LZW (`weezl` `Encoder::with_tiff_size_switch(Msb, 8)`, `/EarlyChange 1`, key omitted).** **Written only when `encode=lzw` is named**; no preset, `auto` or fallback picks it; **refused under a PDF/A claim**; the report row gives the Flate size for the same samples. No new dependency. **SHIPPED `b1a85853` (1142nd filing; entry in *Shipped*; core + cli, gui not).**
 - **E5 — `encode=auto`.** Smallest eligible lossless candidate (Flate, RunLength, plus CCITT/JBIG2 for 1-bit 1-component); tie-break Flate, CCITT, RunLength, JBIG2; stays within the document's current version, never raises it; excludes LZW, extensions, JPEG, JPX, lossy, inline JBIG2. **Shipped presets switch to `encode=auto`**; an `image(...)` with no `encode` keeps decision 192's base. Report row lists every candidate's size; if none passes the guard, kept with "not smaller" and the sizes.
