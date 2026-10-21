@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1132nd filing) — `Pass 616.4` slice D2 SHIPPED in `ffbf97d4`: /Matte soft masks resampled with their image
+
+**Shipped (engineer-reported, no shell here):** an image with a `/Matte` soft mask, previously skipped with its mask, is now resampled together with it: the mask goes to the same new size with the image's method (ISO 32000-2 §11.6.5.3 requires equal Width/Height under `/Matte`); the mask's ppi is ignored, `convert` forced to keep, `min-saving` to 0. Preblended colour is linear in α and αc, so one linear kernel stays consistent. New `ImageChange.resampled_with: Option<ObjId>`. If the mask cannot be rewritten the parent is withdrawn and skipped with a stated reason; at apply time an orphaned half is dropped. A `/Matte` mask shared by several images stays refused. CLI text and JSON (`resampled_with`) report it; core-api 03-capabilities has a new bullet.
+
+**Counts:** 6 new core tests, 1 new CLI test, one old test removed; core optimize filter 132 passed; both sabotages caught; fuzz `optimize_images` 33,859 runs / 180 s clean; 33 gates, clippy, fmt green (engineer-reported). No manifest change.
+
+**Register:** ROADMAP Shipped entry, Next-up banner, `616.4` heading and D2 bullet; FEATURES *Downsample images* (core/cli `[x]`, gui `[ ]`) and Planned *Image requality* rows. No decision or rule. Remaining: D3 colour-key, D4 `unplaced=max-pixels=N`, D5 dedupe, D6 lossy presets plus per-image table (covers G216), then `616.5`. Next filing 1133rd. Git, push and backup state not verified from here.
+
 ## 2026-10-21 (1131st filing) — `Pass 616.4` slice D1 SHIPPED in `0fc01d0c`: PNG prediction for Flate image output
 
 **Shipped (engineer-reported, no shell here):** image key `predictor=off|png|auto` (default `auto`: try both, keep the smaller, plain on a tie), on all images, a rule or one object, each value with a SettingSource (decision 192 fold). `png` writes `/DecodeParms << /Predictor 15 /Colors /BitsPerComponent /Columns >>` (ISO 32000-1 §7.4.4.4 Table 10); per row the filter with the smallest sum of signed filtered bytes (RFC 2083 §9.6). Lossless. New encoder `pdfcer_model::filters::predictor::predict_png`, round-trip tested against `unpredict` at BPC 1, 2, 4, 8, 16 and 1-4 colours. Applies whenever image output is Flate; `encode=flate` at the same size now routes generic-filter, audited, readable images through the sample pipeline (`predictor=off`, JPEG sources, unreadable images keep plain Recompress). Report: `ImageChange.predicted`, CLI "with PNG prediction", JSON `predictor` and `predicted`; `--streams` help lists the key.

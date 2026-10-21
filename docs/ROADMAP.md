@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.4` (slice D2, `ffbf97d4`), 2026-10-21 — /Matte soft masks resampled with their image (1132nd filing)
+
+Code commit `ffbf97d4` "feat(optimize): resample a /Matte soft mask with its image (Pass 616.4, slice D2)", after the 1131st filing `b756e26d`. Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 192 governs. `616.4` is NOT complete: D3-D6 remain (D3 colour-key images, nearest-pixel by default, `keyed=subsample|skip`; D4 `unplaced=max-pixels=N`; D5 dedupe before resampling; D6 lossy presets screen/ebook/print plus per-image report table, which also covers GUI request G216 and the CLI summary still saying "lossless until image downsampling ships").
+
+- **Before:** an image whose soft mask carries `/Matte` was never resampled, nor was its mask (both skipped `ImageUnsupported`).
+- **Now:** when the plan resamples such an image, its `/Matte` soft mask is resampled to the SAME new size with the image's method (ISO 32000-2 §11.6.5.3: with `/Matte` the mask's Width/Height shall equal the image's). The mask's own ppi is ignored; its other settings are its own, except `convert` forced to keep and `min-saving` forced to 0. Why: preblended colour c' = m + α(c-m) is linear in α and αc, so one linear kernel keeps the pair consistent.
+- **API:** new public `ImageChange.resampled_with: Option<ObjId>`, naming the parent on the mask's change.
+- **Pairing:** if the mask cannot be rewritten, the parent's change is withdrawn and the parent skipped with "its /Matte soft mask N G R could not be resampled with it". At apply time neither half is written without the other (writes carry a partner; an orphaned write is dropped).
+- **Still refused:** a `/Matte` mask shared by several images.
+- **CLI:** text line adds ", /Matte soft mask sized with its image N G R"; JSON adds `"resampled_with":[n,g]` or null.
+- **Docs:** `core-api/03-capabilities.md` new "/Matte soft masks" bullet, index.md counts updated; `check-core-api-verbs` green. GUI channel note: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\note_optimize_image_matte_lockstep_api.md`.
+- **Tests:** 6 new core tests (`pipeline_matte_tests.rs`), 1 new CLI test (`a_matte_soft_mask_is_resampled_with_its_image_and_says_so`); one old both-kept test removed. Core optimize filter 132 passed. Sabotage: lockstep-size and partner-withdraw both caught. Fuzz `optimize_images` 33,859 runs / 180 s = about 188 runs/s, clean. Full 33-gate sweep, clippy `-D warnings`, fmt green. `cargo tree` unchanged, no new dependency.
+- `FEATURES.md`: Implemented *Downsample images* row gains /Matte resampling (core `[x]`, cli `[x]`, gui `[ ]`); Planned *Image requality* row drops it (D3-D6). Ledgers: no decision, no rule; next filing 1133rd. Git, push and backup state not verified from here.
+
 ### `Pass 616.4` (slice D1, `0fc01d0c`), 2026-10-21 — PNG prediction for Flate image output (1131st filing)
 
 Code commit `0fc01d0c` "feat(optimize): PNG-predict Flate image output (Pass 616.4, slice D1)", after the 1130th filing `47095280`. Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 192 governs. `616.4` is NOT complete: D2-D6 remain.
@@ -22658,6 +22672,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+(1132nd filing: `Pass 616.4` slice D2 SHIPPED (`ffbf97d4`, see *Shipped*); D3-D6 and `616.5` remain. Next filing 1133rd.)
+
 (1131st filing: `Pass 616.4` slice D1 SHIPPED (`0fc01d0c`, see *Shipped*); D2-D6 and `616.5` remain. Next filing 1132nd.)
 
 (1130th filing: `Pass 616.4` slice C SHIPPED (`cba8193d`, see *Shipped*); slice D (plus the open Flate PNG-predictor option) and `616.5` remain. Next filing 1131st.)
@@ -24513,7 +24529,7 @@ Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level
 
 Original scope: wire in the existing 12 `doc_metadata` kinds. Add: alternate images, print settings, search index, tags, bookmarks, form actions, external cross-references, private application data, hidden layers (with visible-layer flatten), embedded thumbnails.
 
-### `Pass 616.4` — Images I: downsampling, requality, conversion — SLICES A `2bfea30c`, B `e9387ebf`, C `cba8193d`, D1 `0fc01d0c` SHIPPED (2026-10-21); D2-D6 NEXT UP
+### `Pass 616.4` — Images I: downsampling, requality, conversion — SLICES A `2bfea30c`, B `e9387ebf`, C `cba8193d`, D1 `0fc01d0c`, D2 `ffbf97d4` SHIPPED (2026-10-21); D3-D6 NEXT UP
 
 **Operator-direct request, Ken 2026-10-21 (1128th filing), verbatim:** *"We should also be able to change images to different formats (jpeg formats, brotli, grey scale, etc of whatever PDFs support), and as stated before this can be done on all or a per image basis or etc."* Folded into slices B/C below and into `616.5`, not minted as a new Pass: the existing `encode=` key and the fold model (default -> `image-class`/other rules -> one object) already give all / per class / per image. **Acceptance criterion added:** the report shows, per image, the format before -> after (e.g. `Flate/DeviceRGB 8bpc -> DCT/DeviceGray`). Target matrix and where each lands:
 
@@ -24543,7 +24559,7 @@ Colour conversion targets (grey, bilevel, indexed) are slice C (shipped). ICC-ma
 - **C — conversion.** **SHIPPED `cba8193d`** (entry in *Shipped*). As scoped: grey via the ISO 32000-2 §10.4.2.2/§10.4.2.3 device formulas; bilevel by Otsu (threshold disclosed), fixed or dither; **Indexed (palette quantisation, disclosed lossy, colour count and method named in the report)** added 2026-10-21 by the operator request above; ICCBased-by-formula disclosed "not colour-managed"; Lab/Separation/DeviceN skipped with a reason.
 - **D — masks, unplaced, dedupe, presets, predictor.** In order:
   - **D1 — Flate PNG predictor.** **SHIPPED `0fc01d0c`** (entry in *Shipped*; delivered as `predictor=off|png|auto`).
-  - **D2** SMask/Matte lockstep resample, mask placements inherited from the parent.
+  - **D2 — /Matte lockstep resample.** **SHIPPED `ffbf97d4`** (entry in *Shipped*). A /Matte mask shared by several images stays refused.
   - **D3** Colour-key masks subsample-or-skip.
   - **D4** `unplaced=max-pixels=N`.
   - **D5** Dedupe of identical images before resampling.
