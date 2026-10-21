@@ -7,8 +7,9 @@ use super::EditSession;
 use super::metadata_remove::Staged;
 use super::optimize_cleanup::Fold;
 use crate::doc_metadata::scan::value_bytes;
-use crate::object::{ObjId, Object};
+use crate::object::{Name, ObjId, Object};
 use crate::optimize::actions::{Rewrite, apply_rewrite};
+use crate::optimize::annots::{self, ListDrop};
 use crate::optimize::objects::{self, DiscardObject, ObjectDiscard, Strip};
 use crate::optimize::{DiscardOptions, OptimizeError};
 
@@ -37,6 +38,18 @@ const NOTES: &[(DiscardObject, &str)] = &[
     (
         DiscardObject::ObjectData,
         "object data goes: the properties a CAD or diagram program attached to drawn objects (part numbers, shape data) are no longer listed; the drawing is unchanged",
+    ),
+    (
+        DiscardObject::FormFields,
+        "form fields go: they are deleted, not flattened, so what was typed or shown in them disappears from the page, and signature fields go with them",
+    ),
+    (
+        DiscardObject::Multimedia,
+        "multimedia goes: sound, video and rich-media players disappear from the page, and links that played them do nothing when clicked",
+    ),
+    (
+        DiscardObject::ThreeDModels,
+        "3D models go: the 3D views disappear from the page, and links that changed a view do nothing when clicked",
     ),
 ];
 
@@ -117,7 +130,41 @@ impl EditSession {
 
     fn stage_item(&self, item: &ObjectDiscard, st: &mut Staged) -> Result<(), String> {
         self.stage_strips(&item.strips, st)?;
-        self.stage_rewrites(&item.rewrites, st)
+        self.stage_rewrites(&item.rewrites, st)?;
+        self.stage_drops(&item.drops, st)
+    }
+
+    /// Stage each list removal against the list as the run now holds it.
+    /// An indirect list is replaced by a direct one under its owner.
+    fn stage_drops(&self, drops: &[ListDrop], st: &mut Staged) -> Result<(), String> {
+        for d in drops {
+            let mut obj = st
+                .scratch
+                .get(&d.owner)
+                .or_else(|| self.value(d.owner))
+                .cloned()
+                .ok_or("the object no longer exists")?;
+            let Object::Dict(dict) = &mut obj else {
+                return Err("not a dictionary".to_owned());
+            };
+            let Some(before) = dict.get(d.key) else {
+                continue;
+            };
+            let resolve = |id| st.scratch.get(&id).or_else(|| self.value(id));
+            let Some(value) = annots::filtered(before, &d.gone, resolve) else {
+                continue;
+            };
+            let old = before.clone();
+            match value {
+                Some(v) => dict.insert(Name::from(d.key), v),
+                None => {
+                    dict.remove(d.key);
+                }
+            }
+            st.detached.push(old);
+            st.scratch.insert(d.owner, obj);
+        }
+        Ok(())
     }
 
     /// Stage each rewrite whose entry still holds what the plan saw.

@@ -19,7 +19,8 @@
 //!   content is skipped: with its base hidden an alternate may be what shows.
 //!
 //! - form actions and external references: see [`actions`];
-//! - object data: see [`object_data`].
+//! - object data: see [`object_data`];
+//! - form fields, multimedia and 3D models: see [`annots`].
 //!
 //! An embedded search index is not offered: no published specification
 //! names the key Acrobat stores it under.
@@ -28,6 +29,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use super::actions::{self, Rewrite};
+use super::annots::{self, ListDrop};
 use super::object_data;
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, ObjId, Object};
@@ -58,11 +60,20 @@ pub enum DiscardObject {
     /// attaches to each drawn object (user properties in the structure
     /// tree). Skipped when the tags themselves are discarded.
     ObjectData,
+    /// Form fields and their widgets, removed rather than flattened: what
+    /// they showed goes too, signature fields included.
+    FormFields,
+    /// Sound, movie, screen and rich-media annotations, the actions that
+    /// play them, and the document's rendition list.
+    Multimedia,
+    /// 3D annotations and their models, and the actions that change their
+    /// view.
+    ThreeDModels,
 }
 
 impl DiscardObject {
     /// Every class, in plan order.
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 10] = [
         Self::Bookmarks,
         Self::Tags,
         Self::PrintSettings,
@@ -70,11 +81,14 @@ impl DiscardObject {
         Self::FormActions,
         Self::ExternalReferences,
         Self::ObjectData,
+        Self::FormFields,
+        Self::Multimedia,
+        Self::ThreeDModels,
     ];
 
     /// A stable lower-case name: `bookmarks`, `tags`, `print-settings`,
     /// `alternate-images`, `form-actions`, `external-references`,
-    /// `object-data`.
+    /// `object-data`, `form-fields`, `multimedia`, `3d-models`.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -85,6 +99,9 @@ impl DiscardObject {
             Self::FormActions => "form-actions",
             Self::ExternalReferences => "external-references",
             Self::ObjectData => "object-data",
+            Self::FormFields => "form-fields",
+            Self::Multimedia => "multimedia",
+            Self::ThreeDModels => "3d-models",
         }
     }
 
@@ -117,8 +134,9 @@ pub struct ObjectDiscard {
     pub object: DiscardObject,
     /// The object holding it: the catalog, or the image for alternates.
     pub owner: ObjId,
-    /// Where it is, in words: `catalog`, `image object 12 0`, or for an
-    /// action `object 12 0: SubmitForm, GoToR` (the types removed).
+    /// Where it is, in words: `catalog`, `image object 12 0`, `page 2:
+    /// form-fields (3)`, or for an action `object 12 0: SubmitForm, GoToR`
+    /// (the types removed).
     pub location: String,
     /// What leaves the file: the deleted entries plus every object only
     /// they reached. Approximate (written as pdfcer would write it).
@@ -127,6 +145,8 @@ pub struct ObjectDiscard {
     pub(crate) strips: Vec<Strip>,
     /// Action entries set or removed.
     pub(crate) rewrites: Vec<Rewrite>,
+    /// References removed from a list.
+    pub(crate) drops: Vec<ListDrop>,
 }
 
 /// A key path (at most two keys) under an object, as
@@ -177,6 +197,7 @@ pub(crate) fn carriers(
                 bytes: 0,
                 strips,
                 rewrites: Vec::new(),
+                drops: Vec::new(),
             });
         }
     };
@@ -217,6 +238,9 @@ pub(crate) fn carriers(
         }
     }
     out.extend(object_data::object_data_carriers(
+        view, live, catalog, cat, &wanted,
+    ));
+    out.extend(annots::annotation_carriers(
         view, live, catalog, cat, &wanted,
     ));
     out.extend(actions::action_carriers(view, live, catalog, wanted));

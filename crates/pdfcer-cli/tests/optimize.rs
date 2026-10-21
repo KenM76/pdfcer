@@ -459,6 +459,33 @@ fn discard_removes_object_data_and_keeps_the_tags() {
 }
 
 #[test]
+fn discard_removes_form_fields_and_multimedia() {
+    let d = dir("discard-forms-media");
+    let input = write_pdf_with(
+        &d,
+        "/AcroForm << /Fields [] /DA (/Helv 0 Tf 0 g) >> /Names << /Renditions 8 0 R >>",
+        &[
+            "<< /Names [(clip) 9 0 R] >>",
+            "<< /S /MR /C << /S /MCD /D (CLIP-FILE.mp4) >> >>",
+        ],
+    );
+    let out = d.join("out.pdf");
+    let o = run(&[
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--discard",
+        "form-fields,multimedia,3d-models",
+    ]);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(report.contains("discard objects: 2 removed"), "{report}");
+    assert!(report.contains("form fields go") && report.contains("multimedia goes"));
+    let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(!written.contains("/AcroForm") && !written.contains("CLIP-FILE"));
+}
+
+#[test]
 fn a_requested_removal_is_written_and_exits_0_even_when_not_smaller() {
     let d = dir("removal-not-smaller");
     let input = write_pdf(&d, "/ViewerPreferences << /Duplex /Simplex >>");

@@ -102,6 +102,7 @@ pub(crate) fn object_data_carriers(
         bytes: 0,
         strips,
         rewrites,
+        drops: Vec::new(),
     };
     let mut out = Vec::new();
     let root_id = root.as_reference();

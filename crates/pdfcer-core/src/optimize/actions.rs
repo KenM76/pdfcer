@@ -15,9 +15,15 @@
 //! "Another file" is GoToR and Launch, and GoToE and Thread when they carry
 //! `/F` (without it the target is this file, Tables 204 and 209). URI actions
 //! are web links and stay.
+//!
+//! Multimedia actions are Rendition, Movie, Sound and RichMediaExecute
+//! (2.0 Table 201). A GoTo3DView action changes a 3D view; its
+//! target may be a rich-media annotation (PDF Association issue 282), and then it goes
+//! with the multimedia.
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use super::annots::target_class;
 use super::objects::{DiscardObject, ObjectDiscard};
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, Name, ObjId, Object};
@@ -43,7 +49,7 @@ pub(crate) struct Rewrite {
 }
 
 /// The class `action` belongs to, if it is one an optimize run can discard.
-fn class_of(action: &Dict) -> Option<DiscardObject> {
+fn class_of(view: &DocumentView<'_>, action: &Dict) -> Option<DiscardObject> {
     let s = action.get(b"S").and_then(Object::as_name)?;
     match s.as_bytes() {
         b"SubmitForm" | b"ResetForm" | b"ImportData" => Some(DiscardObject::FormActions),
@@ -51,6 +57,14 @@ fn class_of(action: &Dict) -> Option<DiscardObject> {
         b"GoToE" | b"Thread" if action.get(b"F").is_some() => {
             Some(DiscardObject::ExternalReferences)
         }
+        b"Rendition" | b"Movie" | b"Sound" | b"RichMediaExecute" => Some(DiscardObject::Multimedia),
+        b"GoTo3DView" => Some(
+            action
+                .get(b"TA")
+                .and_then(|t| target_class(view, t))
+                .filter(|&c| c == DiscardObject::Multimedia)
+                .unwrap_or(DiscardObject::ThreeDModels),
+        ),
         _ => None,
     }
 }
@@ -68,7 +82,7 @@ struct Filter<'a, 'v, W> {
 
 impl<W: Fn(DiscardObject) -> bool> Filter<'_, '_, W> {
     fn drops(&self, dict: &Dict) -> Option<DiscardObject> {
-        class_of(dict).filter(|&c| (self.wanted)(c))
+        class_of(self.view, dict).filter(|&c| (self.wanted)(c))
     }
 
     /// The actions `value` stands for once the wanted types are gone, in
@@ -216,6 +230,7 @@ pub(crate) fn action_carriers(
             bytes: 0,
             strips: Vec::new(),
             rewrites,
+            drops: Vec::new(),
         });
     }
     out
