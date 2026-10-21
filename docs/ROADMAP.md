@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.4` (slice D1, `0fc01d0c`), 2026-10-21 — PNG prediction for Flate image output (1131st filing)
+
+Code commit `0fc01d0c` "feat(optimize): PNG-predict Flate image output (Pass 616.4, slice D1)", after the 1130th filing `47095280`. Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 192 governs. `616.4` is NOT complete: D2-D6 remain.
+
+- **Key:** `image(predictor=off|png|auto)`, default `auto` (try both, keep the smaller; plain on a tie). On all images, per rule or per object, each value with a SettingSource (decision 192 fold).
+- **Encoding:** `png` writes `/DecodeParms << /Predictor 15 /Colors /BitsPerComponent /Columns >>` (ISO 32000-1 §7.4.4.4 Table 10). Each row uses whichever of the five RFC 2083 filters gives the smallest sum of signed filtered bytes (§9.6 heuristic). Lossless.
+- **Encoder:** new `pdfcer_model::filters::predictor::predict_png` (workspace had only the decoder); round-trip tested against `unpredict` at BPC 1, 2, 4, 8, 16 and 1-4 colours.
+- **Scope:** applies whenever image output is Flate (resample, colour conversion, or `encode=flate` at the same size). For `encode=flate` at the same size a generic-filter, audited, readable image now goes through the sample pipeline so it can be predicted; `predictor=off`, JPEG sources and unreadable images keep the plain Recompress path.
+- **Report:** `ImageChange.predicted: bool`; CLI text "with PNG prediction"; JSON `"predictor"` (sourced) and `"predicted"`; `--streams` help lists the key.
+- **Tests:** pdfcer-model lib 411 passed; core lib 1675 passed, 2 ignored; CLI `all` 908 passed, 2 ignored; core optimize filter 127, CLI optimize filter 23. Fuzz `optimize_images` (two predictor actions added) 38,773 runs / 181 s = about 214 runs/s, clean. fmt, clippy `-D warnings`, code-structure and all 33 project gates green. `cargo tree`: no manifest change, no new dependency. `core-api/03-capabilities.md`: Predictor row, field lists, "PNG prediction" contract bullet; index.md 4,632 lines, 130 clauses; `check-core-api-verbs` green.
+- `FEATURES.md`: Implemented *Downsample images* row gains PNG prediction (core `[x]`, cli `[x]`, gui `[ ]`); Planned *Image requality* row drops the predictor. Ledgers: no decision, no rule minted; next filing 1132nd. Git, push and backup state not verified from here.
+
 ### `Pass 616.4` (slice C, `cba8193d`), 2026-10-21 — convert images to grey, bilevel or a palette (1130th filing)
 
 Code commit `cba8193d` "feat(optimize): convert images to grey, bilevel or a palette (Pass 616.4, slice C)", after the 1129th filing `0e2cfc10` (origin/main at filing time; `cba8193d` local, not pushed). Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 192 governs. `616.4` is NOT complete: slice D remains.
@@ -22646,6 +22658,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+(1131st filing: `Pass 616.4` slice D1 SHIPPED (`0fc01d0c`, see *Shipped*); D2-D6 and `616.5` remain. Next filing 1132nd.)
+
 (1130th filing: `Pass 616.4` slice C SHIPPED (`cba8193d`, see *Shipped*); slice D (plus the open Flate PNG-predictor option) and `616.5` remain. Next filing 1131st.)
 
 (1129th filing: `Pass 616.4` slice B SHIPPED (`e9387ebf`, see *Shipped*); slices C and D and `616.5` remain. Next filing 1130th.)
@@ -24499,13 +24513,13 @@ Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level
 
 Original scope: wire in the existing 12 `doc_metadata` kinds. Add: alternate images, print settings, search index, tags, bookmarks, form actions, external cross-references, private application data, hidden layers (with visible-layer flatten), embedded thumbnails.
 
-### `Pass 616.4` — Images I: downsampling, requality, conversion — SLICES A `2bfea30c`, B `e9387ebf`, C `cba8193d` SHIPPED (2026-10-21); D NEXT UP
+### `Pass 616.4` — Images I: downsampling, requality, conversion — SLICES A `2bfea30c`, B `e9387ebf`, C `cba8193d`, D1 `0fc01d0c` SHIPPED (2026-10-21); D2-D6 NEXT UP
 
 **Operator-direct request, Ken 2026-10-21 (1128th filing), verbatim:** *"We should also be able to change images to different formats (jpeg formats, brotli, grey scale, etc of whatever PDFs support), and as stated before this can be done on all or a per image basis or etc."* Folded into slices B/C below and into `616.5`, not minted as a new Pass: the existing `encode=` key and the fold model (default -> `image-class`/other rules -> one object) already give all / per class / per image. **Acceptance criterion added:** the report shows, per image, the format before -> after (e.g. `Flate/DeviceRGB 8bpc -> DCT/DeviceGray`). Target matrix and where each lands:
 
 | encoding (`encode=`) | slice | note |
 |---|---|---|
-| keep, flate, flate-N | A (shipped) | PNG predictor option for flate: now slice D |
+| keep, flate, flate-N | A (shipped) | PNG predictor option for flate: slice D1 (shipped `0fc01d0c`) |
 | dct (JPEG) baseline / progressive | B (shipped `e9387ebf`) | quality levels, chroma |
 | runlength, lzw | 616.5 | |
 | jpx (JPEG 2000) | 616.5 | licence check first (`LEGAL.md` §6.1, rule 13) |
@@ -24527,13 +24541,13 @@ Colour conversion targets (grey, bilevel, indexed) are slice C (shipped). ICC-ma
   - Only-if-smaller guard plus `min-saving`.
 - **B — JPEG.** **SHIPPED `e9387ebf`** (entry in *Shipped*); the Flate PNG-predictor option below was NOT delivered and remains open. As scoped: `encode=jpeg` with **baseline or progressive** output, quality (numeric plus named levels: minimum 20, low 40, medium 60, high 80, maximum 95) and chroma; Flate **PNG-predictor option** (`encode=flate-N` with predictor); DCT sources decoded, resampled and re-encoded with quality capped at the source's estimated quality; inverted Adobe CMYK /Decode kept; 16 bpc to 8 itemised as lossy.
 - **C — conversion.** **SHIPPED `cba8193d`** (entry in *Shipped*). As scoped: grey via the ISO 32000-2 §10.4.2.2/§10.4.2.3 device formulas; bilevel by Otsu (threshold disclosed), fixed or dither; **Indexed (palette quantisation, disclosed lossy, colour count and method named in the report)** added 2026-10-21 by the operator request above; ICCBased-by-formula disclosed "not colour-managed"; Lab/Separation/DeviceN skipped with a reason.
-- **D — masks, unplaced, dedupe, presets.** Also carries the Flate **PNG-predictor option** (`encode=flate-N` with predictor; undelivered from slice B, assigned here 1130th filing).
-  - SMask/Matte lockstep, mask placements inherited from the parent.
-  - Colour-key masks subsample-or-skip.
-  - `unplaced=max-pixels=N`.
-  - Dedupe of identical images before resampling.
-  - Lossy presets (screen/ebook/print class rules; mono downsampling only at screen).
-  - Per-image table in the report.
+- **D — masks, unplaced, dedupe, presets, predictor.** In order:
+  - **D1 — Flate PNG predictor.** **SHIPPED `0fc01d0c`** (entry in *Shipped*; delivered as `predictor=off|png|auto`).
+  - **D2** SMask/Matte lockstep resample, mask placements inherited from the parent.
+  - **D3** Colour-key masks subsample-or-skip.
+  - **D4** `unplaced=max-pixels=N`.
+  - **D5** Dedupe of identical images before resampling.
+  - **D6** Lossy presets (screen/ebook/print class rules; mono downsampling only at screen) plus a per-image table in the report.
 
 Mono results are mostly not-smaller until `616.5` adds CCITT/JBIG2 encoders; disclosed, not hidden.
 
