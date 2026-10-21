@@ -112,6 +112,28 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 617.7` (`dc168e27`), 2026-10-21 — a stored colour gives its screen RGB (`G223`) (1154th filing)
+
+Code commit `dc168e27` "feat(annot): a stored colour gives its screen RGB (Pass 617.7, G223)". Core only; no CLI change (the CLI prints colours in model form); `pdfcer-gui` has not yet consumed it. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Request: `request_G223_annot_colour_has_no_public_screen_rgb.md`, answered by `reply_G223_annot_colour_has_no_public_screen_rgb_FIXED.md` (channel).
+
+- **API:** `annot_author::Color::to_device_rgb() -> [f64; 3]` is now public (`#[must_use]`, doctest): the 0..1 DeviceRGB pdfcer renders a Gray/RGB/CMYK colour as, so GUI swatches and the colour picker stop repeating the match.
+- **Tests / invariants:** counted with the `Pass 616.5` F2 figures below (one engineer run: core lib 1,740, core integration 3,008, cli 926, green). No manifest change.
+
+`FEATURES.md`: the ce dimension style row's colour clause gains `Color::to_device_rgb` (core only; cli and gui boxes unchanged). No decision; no rule. Ledgers: next free `Pass 617.8`, decision `195`, `R263`; next filing 1155th.
+
+### `Pass 616.5` (Brotli slice F2, `faa4a36c`), 2026-10-21 — images take Brotli; `Pass 616.5` NOT complete (1154th filing)
+
+Code commit `faa4a36c` "feat(optimize): images take Brotli (Pass 616.5 Brotli slice F2, decision 194)". Core + CLI; no GUI. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 194 governs.
+
+- **Action:** `image(encode=brotli[-N])` writes `/BrotliDecode`, quality 0-11 (`brotli` = 11), PNG-predicted under the same predictor rule as Flate; the Flate size is reported beside it (`ImageChange::flate_bytes`). Named only: `auto`, presets and fallbacks never pick it.
+- **Version / PDF/A:** below PDF 2.0 the image raises the catalog version to 2.0, or under `version-raise=refuse` is skipped (`ImageSkip::VersionTooLow`). A PDF/A document skips it (new `ImageSkip::BrotliUnderPdfa`; new `ImageSkip::BrotliEncode(String)` for encoder failure).
+- **Extension:** `OptimizePlan::uses_brotli` now covers image changes, so EXTN-BROTLI-1 is added to the catalog `/Extensions`.
+- **CLI:** `pdfcer optimize --streams "image(encode=brotli-9)"`; the report prints `-> Brotli/...` and "written as brotli-9". `docs/core-api/03-capabilities.md` updated (Brotli output bullet, `ImageSkip` row, `encode` key list).
+- **Tests (engineer-reported):** core lib 1,740; core `--test all` 3,008; cli 926; all green. Sabotage: removing the image arm of `uses_brotli` fails the extension test. `cargo tree` unchanged (no manifest change).
+- **Still open in `Pass 616.5`:** the Acrobat Reader render check of a Brotli file is UNVERIFIED (Reader probably cannot open it; recorded as unverified, not as a defect); the per-encoder Reader checks from decision 193. Later size-reduction Passes `616.6` (fonts), `616.7` (content streams), `616.8`, `616.9`, `616.10` are separate and unchanged.
+
+`FEATURES.md`: the Planned *Brotli for images* row is merged into the *Change an image's format* row (Brotli now listed as done, core + cli; gui not). No decision; no rule. Ledgers unchanged by this entry (see the `Pass 617.7` entry above for the closing figures).
+
 ### `Pass 616.5` (Brotli slice F1, `5d312c12`), 2026-10-21 — general streams take Brotli; `Pass 616.5` NOT complete (1153rd filing)
 
 Code commit `5d312c12` "feat(optimize): streams take Brotli (Pass 616.5 Brotli slice, decision 194)", after decision 194 (`7206ca29`, filed as the 1152nd by the commit subject). Core + CLI; no GUI. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 194 governs.
@@ -22933,7 +22955,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-(1153rd filing: `Pass 616.5` Brotli slice F1 (general streams) SHIPPED `5d312c12`, see *Shipped*. Still open: F2 image `encode=brotli`, and the Acrobat Reader render check per encoder incl. Brotli (unverified; Reader likely cannot open Brotli). `616.5` stays here. Next filing 1154th.)
+(1154th filing: `Pass 616.5` F2 (image `encode=brotli`) SHIPPED `faa4a36c` and `Pass 617.7` (`G223`) SHIPPED `dc168e27`, see *Shipped*. `616.5` still open only for the Acrobat Reader render checks (Brotli unverified). Next free `Pass 617.8`, decision `195`, `R263`; next filing 1155th.)
+
+(1153rd filing, superseded for F2 by the line above: `Pass 616.5` Brotli slice F1 (general streams) SHIPPED `5d312c12`, see *Shipped*. Still open: F2 image `encode=brotli`, and the Acrobat Reader render check per encoder incl. Brotli (unverified; Reader likely cannot open Brotli). `616.5` stays here. Next filing 1154th.)
 
 (1146th filing: `Pass 616.5` slice E6 (version raise) SHIPPED `61a3f18f`, see *Shipped*; E1-E6 all done. Only the Acrobat Reader render check per encoder (LZW, CCITT, JBIG2) remains, so `616.5` stays here; the Brotli write side is unstarted. Next filing 1147th.)
 

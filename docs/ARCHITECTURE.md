@@ -13401,7 +13401,7 @@ decision `194`.
 
 **New standing rule.** None (R28 amended in place) — `R263` stays next free.
 
-### 2026-10-21 (1148th filing, librarian) — decision 194: Brotli write side (`Pass 616.5` Brotli slice) — explicit-only, standard window, declares the extension
+### 2026-10-21 (1152nd filing, librarian) — decision 194: Brotli write side (`Pass 616.5` Brotli slice) — explicit-only, standard window, declares the extension
 
 Design record filed before code lands; not a Pass completion. Source:
 `D:\Dev\Rag-Specialized\PDF_Spec\filters\filter__brotli.md` (PDF Association

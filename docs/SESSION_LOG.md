@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1154th filing) — `Pass 616.5` Brotli slice F2 in `faa4a36c` (images) and `Pass 617.7` in `dc168e27` (`G223`)
+
+**Shipped:** (1) `Pass 616.5` Brotli slice F2 (core + cli): `image(encode=brotli[-N])` writes `/BrotliDecode` at quality 0-11 (`brotli` = 11), PNG-predicted under the Flate predictor rule, Flate size reported beside it (`ImageChange::flate_bytes`). Named only; `auto`, presets and fallbacks never pick it. Below PDF 2.0 the image raises the catalog version, or is skipped under `version-raise=refuse` (`ImageSkip::VersionTooLow`); a PDF/A document skips it (`ImageSkip::BrotliUnderPdfa`; also `ImageSkip::BrotliEncode(String)`). `OptimizePlan::uses_brotli` now covers image changes so EXTN-BROTLI-1 is added. CLI `pdfcer optimize --streams "image(encode=brotli-9)"`. (2) `Pass 617.7` (core only): `annot_author::Color::to_device_rgb() -> [f64; 3]` made public, from `G223`, so the GUI's swatches and colour picker stop repeating the Gray/RGB/CMYK match. Detail in the ROADMAP *Shipped* entries; reasoning in the commit messages.
+
+**Decisions:** none new (decision 194 governs F2). No rule minted (`195`, `R263` stay free).
+
+**Findings:** tests core lib 1,740, core integration 3,008, cli 926, all green (engineer-reported); sabotage of the image arm of `uses_brotli` fails the extension test; no manifest change, `cargo tree` unchanged. `docs/core-api/03-capabilities.md` updated. Filing-number reconciliation: decision 194's `ARCHITECTURE.md` §12 heading corrected from 1148th to 1152nd (commit `7206ca29` subject; 1148th is `Pass 617.3`).
+
+**Still in flight:** `Pass 616.5` open: the Acrobat Reader render check of a Brotli file is UNVERIFIED (Reader probably cannot open it; not a defect), and the per-encoder Reader checks from decision 193. Later size-reduction Passes `616.6` (fonts), `616.7` (content streams), `616.8`, `616.9`, `616.10` unchanged. `pdfcer-gui` has not yet consumed `to_device_rgb`.
+
+**For next session:** next free `Pass 617.8`, decision `195`, `R263`. Git, push and backup state not verified from here. Next filing 1155th.
+
 ## 2026-10-21 (1153rd filing) — `Pass 616.5` Brotli slice F1 in `5d312c12`: general streams take Brotli
 
 **Shipped:** `Pass 616.5` Brotli streams slice (core + cli). `StreamAction::Brotli { quality }`, `pdfcer optimize --streams brotli[-N]`; committing writes the EXTN-BROTLI-1 `/Extensions` entry and raises `/Version` to 2.0 in the same undo entry; refused under a PDF/A claim. `recompress` now also converts Brotli streams to Flate. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
@@ -14,7 +26,7 @@ the affected entry. Maintained by `pdfce-librarian`.
 
 **Still in flight:** `Pass 616.5` open: F2 image `encode=brotli`; Acrobat Reader render check (unverified, Reader likely cannot open Brotli).
 
-**For next session:** next free `Pass 617.7`. Filing-number mismatch to reconcile: decision 194's on-disk text says 1148th, the commit subject says 1152nd. Git, push and backup state not verified from here. Next filing 1154th.
+**For next session:** next free `Pass 617.7`. Filing-number mismatch to reconcile: decision 194's on-disk text says 1148th, the commit subject says 1152nd. Git, push and backup state not verified from here. Next filing 1154th. *(Amendment: reconciled in the 1154th filing; the heading now reads 1152nd.)*
 
 ## 2026-10-21 (1151st filing) — `Pass 617.6` in `ca2b5b0a`: text takes a fill opacity (`G222`)
 
