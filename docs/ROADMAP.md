@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 617.2` (`018e8f7d`), 2026-10-21 — a grey or CMYK redaction fill draws a box (`G218`) (1147th filing)
+
+Code commit `018e8f7d` "fix(redact): a grey or CMYK redaction fill draws a box (Pass 617.2, G218)", after the 1146th filing. Core + CLI (counter only); no GUI. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Request: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G218_a_grey_or_cmyk_redaction_fill_applies_as_no_box.md`.
+
+- **Defect:** a redaction marked with a Gray or CMYK fill removed the content on apply and drew NO box. `build_redact_mark` wrote a 1- or 4-number `/IC`; apply read anything but 3 numbers as ISO 32000-1 Table 192's transparent default. `RedactSpec::fill`'s own doc recommended `Color::gray(0.0)` for black, the failing case.
+- **Mark side (`annot_author`):** `/IC` is always written as three DeviceRGB numbers (Table 192). Gray exact; CMYK via `pdfcer_color::color::cmyk_to_srgb`, the conversion pdfcer already renders with (no new CMM; decision 064 unaffected). Doc corrected.
+- **Apply side (`redact`):** a 1- or 4-number `/IC` from another producer is painted as DeviceGray/DeviceCMYK and disclosed, not left transparent. New pub field `RedactionReport::overlay_fill_not_rgb` plus a note.
+- **CLI:** `redact-apply` counter line prints `overlay_fill_not_rgb=N`. `--fill` stays hex RGB, so the CLI change is the disclosure only.
+- **Docs:** `docs/core-api/03-capabilities.md` updated; `check-core-api-verbs` exit 0.
+- **Tests (engineer-reported):** 2 new core unit tests (sabotage-checked). Core lib 1,727 (2 ignored); core `--test all` 2,995 (2 ignored); CLI `--test all` 918 (2 ignored). fmt, clippy `-D warnings`, all shell gates (incl. `check-string-gaps`, `check-code-structure`) clean. No dependency change; no manifest touched.
+
+`FEATURES.md`: the *Redaction mark appearance* row (core `[x]`, cli `[x]` as the counter only, gui `◐` unchanged) gains one clause. No decision; no rule. Hard-rule-11 sweep: no survivor of the old "only 3 numbers" claim found by `Color::gray(0.0)` grep over `crates/`; row text "absent `/IC` left transparent" remains correct. Ledgers: next free decision `194`, `R263`, `Pass 617.3`; next filing 1148th. Git, push and backup state not verified from here.
+
 ### `Pass 616.5` (slice E6, `61a3f18f`), 2026-10-21 — an explicit encoder above the document's version raises it, and says so; `Pass 616.5` NOT complete (1146th filing)
 
 Code commit `61a3f18f` "feat(optimize): an explicit encoder above the document's version raises it, and says so (Pass 616.5, slice E6)", after the 1145th filing. Core + CLI; no GUI. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 193 governs (one sentence amended, below).

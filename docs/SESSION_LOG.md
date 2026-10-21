@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1147th filing) — `Pass 617.2` in `018e8f7d`: a grey or CMYK redaction fill draws a box (`G218`)
+
+**Shipped:** `Pass 617.2` (core + cli counter, no gui). Marks now always write `/IC` as three DeviceRGB numbers (CMYK via `cmyk_to_srgb`); apply paints and discloses a foreign 1- or 4-number `/IC` instead of treating it as transparent. New `RedactionReport::overlay_fill_not_rgb`; CLI `redact-apply` prints `overlay_fill_not_rgb=N`. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
+
+**Decisions:** none new; no rule minted.
+
+**Findings:** `RedactSpec::fill`'s doc recommended `Color::gray(0.0)` for black, which was the failing case. Tests: core 1,727 lib + 2,995 integration, cli 918; 2 new sabotage-checked core tests.
+
+**Still in flight:** `Pass 616.5` open (unchanged). gui `[ ]` for this fix (no gui change; `--fill` is hex RGB only).
+
+**For next session:** reply `G218` `_FIXED` if not already done. Git, push and backup state not verified from here. Next filing 1148th.
+
 ## 2026-10-21 (1146th filing) — `Pass 616.5` slice E6 in `61a3f18f`: an explicit encoder above the document's version raises it, and says so
 
 **Shipped:** `Pass 616.5` slice E6 (core + cli, no gui): `encode=jbig2` below PDF 1.4 sets the catalog `/Version /1.4` in the same undoable Optimize command instead of skipping; header byte-identical; effective version = max(header, catalog). New `version-raise=allow|refuse` (default allow; refuse = old `VersionTooLow` skip, text names the option). `encode=auto` never needs a raise. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
