@@ -51,7 +51,9 @@ pub(crate) struct OptimizeArgs {
     /// 256), predictor (off|png|auto, default auto: Flate output is
     /// PNG-predicted when that is smaller), keyed (subsample|skip, default
     /// subsample: a colour-keyed image is downsampled by nearest pixel so
-    /// its key still matches), max-pixels (an image drawn on no page has
+    /// its key still matches), version-raise (allow|refuse, default allow:
+    /// encode=jbig2 in a document older than PDF 1.4 sets the catalog's
+    /// /Version to 1.4 and says so; refuse skips the image), max-pixels (an image drawn on no page has
     /// no resolution, so it is skipped unless this caps its width x height),
     /// min-saving (percent), reset.
     /// "image(encode=jpeg)"
@@ -449,6 +451,12 @@ fn report_text(
     for n in &o.plan.notes {
         let _ = writeln!(out, "note: {n}");
     }
+    if let Some(v) = o.plan.version_raise() {
+        let _ = writeln!(
+            out,
+            "version: raised to PDF {v} in the catalog's /Version for the filter it needs; version-raise=refuse keeps the version"
+        );
+    }
     if let Some(r) = &o.structure {
         out.push_str(&structure_text(r));
     }
@@ -735,13 +743,16 @@ fn report_json(
         _ => "null".to_owned(),
     };
     format!(
-        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"cleanup\":{},\"discard\":{},\"discard_objects\":{},\"structure\":{},\"diff\":{}}}\n",
+        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"version_raise\":{},\"cleanup\":{},\"discard\":{},\"discard_objects\":{},\"structure\":{},\"diff\":{}}}\n",
         o.original,
         o.rewritten,
         o.smaller,
         changes.join(","),
         skipped.join(","),
         notes.join(","),
+        o.plan
+            .version_raise()
+            .map_or("null".to_owned(), |v| format!("\"{v}\"")),
         cleanup_json(&o.plan.cleanup),
         discard_json(&o.plan.discard),
         discard_objects_json(&o.plan.discard_objects),

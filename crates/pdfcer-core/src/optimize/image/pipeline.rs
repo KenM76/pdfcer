@@ -5,7 +5,7 @@
 use super::convert::{self, ConvertJob};
 use super::{
     Conversion, ImageConvert, ImageEncode, ImageSkip, ImageStep, KeyedResample, Predictor,
-    ResampleMethod, ResolvedImage, SettingSource, sourced,
+    ResampleMethod, ResolvedImage, SettingSource, VersionRaise, sourced,
 };
 use crate::jpeg_write::JpegOptions;
 use crate::object::{Dict, ObjId, Object};
@@ -50,6 +50,11 @@ pub struct ImageChange {
     /// For `encode=auto`, each candidate tried, in trial order, with its
     /// size in bytes; `encoded_as` is the one written. Empty otherwise.
     pub candidates: Vec<(ImageEncode, u64)>,
+    /// The version the filter written needs, when it is above the
+    /// document's and `version-raise=allow`: committing the plan sets the
+    /// catalog's `/Version` to it (ISO 32000-2 §7.7.2). Never set under
+    /// `auto`.
+    pub raises_version: Option<crate::PdfVersion>,
     /// For a `/Matte` soft mask, the parent image it was resampled with:
     /// its size follows the parent's, not its own settings (ISO 32000-2
     /// §11.6.5.3 requires the two sizes to be equal).
@@ -334,7 +339,7 @@ pub(crate) fn decide(
     }
     let (components, bpc) = sample_format(dict, space, source, jpeg && convert.is_none())?;
     bilevel_only(settings, to, (components, bpc))?;
-    filter_version(encode, ctx.view.version())?;
+    let raises_version = filter_version(settings, ctx.view.version())?;
     let (target, quality) = target(settings, (source, raw), jpeg, ctx.view.version());
     let (w, h) = (space.width, space.height);
     let job = Job {
@@ -351,6 +356,7 @@ pub(crate) fn decide(
     };
     let mut change = change(settings, space, &job, quality);
     change.resampled_with = ctx.lockstep.map(|l| l.parent);
+    change.raises_version = raises_version;
     Ok(Outcome::Rewrite(job, Box::new(change)))
 }
 
@@ -396,18 +402,24 @@ fn bilevel_only(
     }
 }
 
-/// Skips an encoder whose filter the document's version predates:
-/// `JBIG2Decode` is PDF 1.4 (ISO 32000-1 §7.4.7).
-fn filter_version(encode: ImageEncode, document: crate::PdfVersion) -> Result<(), SkipReason> {
-    let needs = JBIG2_VERSION;
-    if encode == ImageEncode::Jbig2 && document < needs {
+/// The version to raise the document to for an encoder whose filter its
+/// version predates (`JBIG2Decode` is PDF 1.4, ISO 32000-1 §7.4.7), or
+/// the skip under `version-raise=refuse` (decision 193).
+fn filter_version(
+    settings: &ResolvedImage,
+    document: crate::PdfVersion,
+) -> Result<Option<crate::PdfVersion>, SkipReason> {
+    let (encode, needs) = (settings.encode.value, JBIG2_VERSION);
+    if encode != ImageEncode::Jbig2 || document >= needs {
+        Ok(None)
+    } else if settings.version_raise.value == VersionRaise::Refuse {
         Err(unsupported(ImageSkip::VersionTooLow {
             encode,
             needs,
             document,
         }))
     } else {
-        Ok(())
+        Ok(Some(needs))
     }
 }
 
@@ -577,6 +589,7 @@ fn change(
         predicted: false,
         flate_bytes: None,
         candidates: Vec::new(),
+        raises_version: None,
         resampled_with: None,
         copies: Vec::new(),
     }

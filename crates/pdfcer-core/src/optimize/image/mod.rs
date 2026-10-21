@@ -11,9 +11,11 @@ pub(crate) mod pipeline;
 pub(crate) mod predict;
 pub(crate) mod reduce;
 mod skip;
+mod version_raise;
 
 pub use keyed::KeyedResample;
 pub use skip::{ImageSkip, ImageStep};
+pub use version_raise::VersionRaise;
 
 use std::fmt;
 
@@ -148,7 +150,9 @@ impl fmt::Display for ImageEncode {
 /// and `colors=N` (2 to 256, default 256) caps a palette.
 /// `predictor=off|png|auto` (default auto) PNG-predicts Flate output.
 /// `keyed=subsample|skip` (default subsample) says how a colour-key masked
-/// image is downsampled ([`KeyedResample`]). `max-pixels=N` downsamples an
+/// image is downsampled ([`KeyedResample`]). `version-raise=allow|refuse`
+/// (default allow) says whether a named encoder may raise the document's
+/// version ([`VersionRaise`]). `max-pixels=N` downsamples an
 /// image drawn on no page, which has no resolution to measure, to at most
 /// `N` pixels, keeping its aspect ratio.
 ///
@@ -190,6 +194,8 @@ pub struct ImagePatch {
     pub predictor: Option<Predictor>,
     /// How a colour-key masked image is downsampled.
     pub keyed: Option<KeyedResample>,
+    /// Whether a named encoder may raise the document's version.
+    pub version_raise: Option<VersionRaise>,
     /// Most pixels (width x height) an image drawn on no page keeps.
     pub max_pixels: Option<u32>,
     /// Keep the stored form unless the result is at least this many percent
@@ -224,6 +230,7 @@ impl ImagePatch {
             colors: None,
             predictor: None,
             keyed: None,
+            version_raise: None,
             max_pixels: None,
             min_saving_pct: None,
         }
@@ -304,11 +311,16 @@ impl ImagePatch {
                     format!("image(): unknown keyed {value:?}; expected subsample or skip")
                 })?);
             }
+            "version-raise" => {
+                self.version_raise = Some(VersionRaise::from_name(value).ok_or_else(|| {
+                    format!("image(): unknown version-raise {value:?}; expected allow or refuse")
+                })?);
+            }
             "max-pixels" => self.max_pixels = Some(value.parse().map_err(|_| bad())?),
             "min-saving" => self.min_saving_pct = Some(value.parse().map_err(|_| bad())?),
             _ => {
                 return Err(format!(
-                    "image(): unknown key {key:?}; expected reset, method, ppi, above, encode, quality, chroma, progressive, convert, threshold, colors, predictor, keyed, max-pixels or min-saving"
+                    "image(): unknown key {key:?}; expected reset, method, ppi, above, encode, quality, chroma, progressive, convert, threshold, colors, predictor, keyed, version-raise, max-pixels or min-saving"
                 ));
             }
         }
@@ -428,6 +440,9 @@ impl fmt::Display for ImagePatch {
         if let Some(k) = self.keyed {
             parts.push(format!("keyed={k}"));
         }
+        if let Some(v) = self.version_raise {
+            parts.push(format!("version-raise={v}"));
+        }
         if let Some(n) = self.max_pixels {
             parts.push(format!("max-pixels={n}"));
         }
@@ -509,6 +524,8 @@ pub struct ResolvedImage {
     pub predictor: Sourced<Predictor>,
     /// How a colour-key masked image is downsampled.
     pub keyed: Sourced<KeyedResample>,
+    /// Whether a named encoder may raise the document's version.
+    pub version_raise: Sourced<VersionRaise>,
     /// The pixel cap for an image drawn on no page; `None` skips it.
     pub max_pixels: Option<Sourced<u32>>,
     /// The `min-saving` guard, percent.
@@ -530,6 +547,7 @@ impl ResolvedImage {
             colors: sourced(256, SettingSource::BuiltIn),
             predictor: sourced(Predictor::Auto, SettingSource::BuiltIn),
             keyed: sourced(KeyedResample::Subsample, SettingSource::BuiltIn),
+            version_raise: sourced(VersionRaise::Allow, SettingSource::BuiltIn),
             max_pixels: None,
             min_saving_pct: sourced(0, SettingSource::BuiltIn),
         }
@@ -573,6 +591,7 @@ impl ResolvedImage {
             colors: Some(self.colors.value),
             predictor: Some(self.predictor.value),
             keyed: Some(self.keyed.value),
+            version_raise: Some(self.version_raise.value),
             max_pixels: self.max_pixels.map(|n| n.value),
             min_saving_pct: Some(self.min_saving_pct.value),
         }
@@ -617,6 +636,9 @@ impl ResolvedImage {
         }
         if let Some(v) = p.keyed {
             self.keyed = sourced(v, src);
+        }
+        if let Some(v) = p.version_raise {
+            self.version_raise = sourced(v, src);
         }
         if let Some(v) = p.max_pixels {
             self.max_pixels = Some(sourced(v, src));
@@ -693,6 +715,8 @@ mod pipeline_predict_tests;
 mod pipeline_runlength_tests;
 #[cfg(test)]
 mod pipeline_tests;
+#[cfg(test)]
+mod pipeline_version_tests;
 #[cfg(test)]
 mod preset_tests;
 #[cfg(test)]

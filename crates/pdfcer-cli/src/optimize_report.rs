@@ -90,6 +90,9 @@ fn image_text(img: &ImageChange) -> String {
             .collect();
         line.push_str(&format!(" (auto, smallest of {})", sizes.join(", ")));
     }
+    if let Some(v) = img.raises_version {
+        line.push_str(&format!(", needs PDF {v}"));
+    }
     if let Some(q) = img.jpeg {
         line.push_str(&format!(" quality {} (asked {}", q.used, q.asked));
         if let Some(e) = q.source_estimate {
@@ -193,33 +196,10 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
     let opt = |v: Option<(u32, SettingSource)>| {
         v.map_or_else(|| "null".to_owned(), |(v, from)| src(v.to_string(), from))
     };
-    let binding = img.binding.as_ref().map_or_else(
-        || "null".to_owned(),
-        |b| {
-            format!(
-                "{{\"page\":{},\"width_pt\":{:.2},\"height_pt\":{:.2},\"ppi_before\":{:.2},\"ppi_after\":{:.2}}}",
-                b.page,
-                b.width_pt,
-                b.height_pt,
-                b.effective_ppi(),
-                img.binding_ppi_after.unwrap_or(0.0)
-            )
-        },
-    );
-    let jpeg = img.jpeg.map_or_else(
-        || "null".to_owned(),
-        |q| {
-            let est = q
-                .source_estimate
-                .map_or("null".to_owned(), |e| e.to_string());
-            format!(
-                "{{\"asked\":{},\"used\":{},\"source_estimate\":{est}}}",
-                q.asked, q.used
-            )
-        },
-    );
+    let binding = binding_json(img);
+    let jpeg = jpeg_json(img);
     format!(
-        "{{\"size_before\":[{},{}],\"size_after\":[{},{}],\"binding\":{binding},\"encoded_as\":\"{}\",\"candidates\":[{}],\"bpc\":[{},{}],\"jpeg\":{jpeg},\"method\":{},\"ppi\":{},\"above\":{},\"encode\":{},\"quality\":{},\"chroma\":{},\"progressive\":{},\"min_saving_pct\":{},\"color_space\":[\"{}\",\"{}\"],\"conversion\":{},\"convert\":{},\"threshold\":{},\"colors\":{},\"keyed\":{},\"max_pixels\":{},\"predictor\":{},\"predicted\":{},\"flate_bytes\":{},\"resampled_with\":{},\"copies\":[{}]}}",
+        "{{\"size_before\":[{},{}],\"size_after\":[{},{}],\"binding\":{binding},\"encoded_as\":\"{}\",\"candidates\":[{}],\"raises_version\":{},\"bpc\":[{},{}],\"jpeg\":{jpeg},\"method\":{},\"ppi\":{},\"above\":{},\"encode\":{},\"quality\":{},\"chroma\":{},\"progressive\":{},\"min_saving_pct\":{},\"color_space\":[\"{}\",\"{}\"],\"conversion\":{},\"convert\":{},\"threshold\":{},\"colors\":{},\"keyed\":{},\"version_raise\":{},\"max_pixels\":{},\"predictor\":{},\"predicted\":{},\"flate_bytes\":{},\"resampled_with\":{},\"copies\":[{}]}}",
         img.size_before.0,
         img.size_before.1,
         img.size_after.0,
@@ -230,6 +210,8 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
             .map(|(e, n)| format!("{{\"encode\":\"{e}\",\"bytes\":{n}}}"))
             .collect::<Vec<_>>()
             .join(","),
+        img.raises_version
+            .map_or("null".to_owned(), |v| format!("\"{v}\"")),
         img.bpc.0,
         img.bpc.1,
         src(format!("\"{}\"", s.method.value), s.method.source),
@@ -247,6 +229,10 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
         src(format!("\"{}\"", s.threshold.value), s.threshold.source),
         src(s.colors.value.to_string(), s.colors.source),
         src(format!("\"{}\"", s.keyed.value), s.keyed.source),
+        src(
+            format!("\"{}\"", s.version_raise.value),
+            s.version_raise.source,
+        ),
         opt(s.max_pixels.map(|v| (v.value, v.source))),
         src(format!("\"{}\"", s.predictor.value), s.predictor.source),
         img.predicted,
@@ -260,5 +246,38 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
             .map(|c| format!("[{},{}]", c.num, c.generation))
             .collect::<Vec<_>>()
             .join(",")
+    )
+}
+
+/// The JSON `binding` member: where the image is drawn, or `null`.
+fn binding_json(img: &ImageChange) -> String {
+    img.binding.as_ref().map_or_else(
+        || "null".to_owned(),
+        |b| {
+            format!(
+                "{{\"page\":{},\"width_pt\":{:.2},\"height_pt\":{:.2},\"ppi_before\":{:.2},\"ppi_after\":{:.2}}}",
+                b.page,
+                b.width_pt,
+                b.height_pt,
+                b.effective_ppi(),
+                img.binding_ppi_after.unwrap_or(0.0)
+            )
+        },
+    )
+}
+
+/// The JSON `jpeg` member: the quality asked for and used, or `null`.
+fn jpeg_json(img: &ImageChange) -> String {
+    img.jpeg.map_or_else(
+        || "null".to_owned(),
+        |q| {
+            let est = q
+                .source_estimate
+                .map_or("null".to_owned(), |e| e.to_string());
+            format!(
+                "{{\"asked\":{},\"used\":{},\"source_estimate\":{est}}}",
+                q.asked, q.used
+            )
+        },
     )
 }

@@ -220,7 +220,10 @@ impl EditSession {
                 plan.smooth_tolerance,
                 &mut fold,
             )?;
-        let objects = self.stream_writes(&plan.writes);
+        let mut objects = self.stream_writes(&plan.writes);
+        if let Some(raise) = plan.version_raise().filter(|_| !objects.is_empty()) {
+            objects.extend(self.version_write(raise));
+        }
         if objects.is_empty() {
             fold.finish(self, removed);
             return Ok(removed);

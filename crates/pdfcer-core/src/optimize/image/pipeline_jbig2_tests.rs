@@ -81,21 +81,3 @@ fn a_grey_image_is_not_bilevel_unless_converted() {
         Some(&Object::Name(b"JBIG2Decode"[..].into()))
     );
 }
-
-/// JBIG2Decode is PDF 1.4; a PDF 1.3 document is skipped by name.
-#[test]
-fn a_document_older_than_pdf_1_4_is_skipped_by_version() {
-    let mut bytes = doc(AT_100, &[one_bit(GREY_1, &dashes(false))]);
-    assert!(bytes.starts_with(b"%PDF-1.7"));
-    bytes[7] = b'3';
-    let (_, p) = plan(bytes, &[("image(encode=jbig2)", None)]);
-    let why = skip(&p, 5).unwrap();
-    assert!(matches!(
-        why,
-        SkipReason::ImageUnsupported(ImageSkip::VersionTooLow {
-            encode: ImageEncode::Jbig2,
-            ..
-        })
-    ));
-    assert!(why.to_string().contains("needs PDF 1.4"), "{why}");
-}

@@ -58,7 +58,7 @@ pub use image::pipeline::{ImageChange, JpegQuality};
 pub use image::{
     COLORS_RANGE, Chroma, Conversion, ImageConvert, ImageEncode, ImagePatch, ImageSkip, ImageStep,
     KeyedResample, Predictor, QUALITY_LEVELS, ResampleMethod, ResolvedImage, SettingSource,
-    Sourced, Threshold,
+    Sourced, Threshold, VersionRaise,
 };
 pub use objects::{DiscardObject, ObjectDiscard};
 pub use preset::Preset;
@@ -461,6 +461,17 @@ impl OptimizePlan {
             .iter()
             .map(|c| c.before_bytes.saturating_sub(c.after_bytes))
             .sum()
+    }
+
+    /// The highest version an image change needs above the document's
+    /// ([`ImageChange::raises_version`]); committing the plan sets the
+    /// catalog's `/Version` to it. `None` when no change raises it.
+    #[must_use]
+    pub fn version_raise(&self) -> Option<crate::PdfVersion> {
+        self.changes
+            .iter()
+            .filter_map(|c| c.image.as_ref()?.raises_version)
+            .max()
     }
 
     /// Whether the plan removes content: a clean-up or a discard, as

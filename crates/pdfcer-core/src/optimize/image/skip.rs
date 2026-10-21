@@ -81,7 +81,7 @@ pub enum ImageSkip {
     /// `convert=bilevel` step.
     NotBilevelOverride(ImageEncode),
     /// The encoder's filter is newer than the version the document
-    /// declares (`jbig2` is PDF 1.4).
+    /// declares (`jbig2` is PDF 1.4) and `version-raise=refuse`.
     VersionTooLow {
         /// The encoder asked for.
         encode: ImageEncode,
@@ -174,7 +174,7 @@ impl fmt::Display for ImageSkip {
                 document,
             } => write!(
                 f,
-                "{encode} needs PDF {}.{}; the document declares {}.{}",
+                "{encode} needs PDF {}.{}; the document declares {}.{} and version-raise=refuse",
                 needs.major, needs.minor, document.major, document.minor
             ),
             Self::AutoNotSmaller {

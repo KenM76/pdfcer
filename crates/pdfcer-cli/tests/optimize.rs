@@ -1194,3 +1194,46 @@ fn encode_auto_reports_every_candidate_in_text_and_json() {
         "{json}"
     );
 }
+
+/// JBIG2 into a PDF 1.3 document raises its catalog `/Version` to 1.4 and
+/// says so in text and JSON; `version-raise=refuse` skips the image.
+#[test]
+fn jbig2_in_a_pdf_1_3_document_raises_and_discloses_the_version() {
+    let d = dir("image-jbig2-raise");
+    let mut bytes = std::fs::read(noise_image_pdf(&d)).unwrap();
+    assert!(bytes.starts_with(b"%PDF-1."));
+    bytes[7] = b'3';
+    let input = d.join("v13.pdf");
+    std::fs::write(&input, &bytes).unwrap();
+    let out = d.join("out.pdf");
+    let base = [
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--keep-structure",
+        "--streams",
+    ];
+    let action = "image(convert=bilevel,threshold=110,encode=jbig2)";
+    let o = run(&[&base[..], &[action]].concat());
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(report.contains(", needs PDF 1.4"), "{report}");
+    assert!(
+        report.contains("version: raised to PDF 1.4 in the catalog's /Version"),
+        "{report}"
+    );
+    let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(written.starts_with("%PDF-1.3"), "header changed");
+    assert!(written.contains("/Version /1.4"), "{written}");
+    let json = text(&run(&[&base[..], &[action, "--dry-run", "--json"]].concat()));
+    assert!(json.contains("\"raises_version\":\"1.4\""), "{json}");
+    assert!(json.contains("\"version_raise\":\"1.4\""), "{json}");
+    assert!(
+        json.contains("\"version_raise\":{\"value\":\"allow\",\"source\":\"default\"}"),
+        "{json}"
+    );
+    let refuse = "image(convert=bilevel,threshold=110,encode=jbig2,version-raise=refuse)";
+    let refused = text(&run(&[&base[..], &[refuse, "--dry-run"]].concat()));
+    assert!(refused.contains("version-raise=refuse"), "{refused}");
+    assert!(!refused.contains("version: raised"), "{refused}");
+}

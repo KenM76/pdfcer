@@ -167,6 +167,7 @@ mod optimize_fragments;
 mod optimize_matte;
 mod optimize_objects;
 mod optimize_smooth;
+mod optimize_version;
 pub use markup_respan::TextMarkupRespan;
 mod link;
 pub use link::{LinkBorder, LinkBorderChange, LinkReading, LinkTarget, LinkTargetChange};
@@ -10598,9 +10599,9 @@ impl EditSession {
     ///   allocation, which is what makes this callable once per rendered
     ///   frame.
     ///
-    /// The version is the base document's: a session cannot currently
-    /// raise `/Version`, and if one ever can, this is the line that has to
-    /// learn about it.
+    /// The version is the base document's, raised by a catalog `/Version`
+    /// the session wrote (an optimize plan that writes JBIG2 into an older
+    /// document does).
     ///
     /// # ⚠️ Read-only
     ///
@@ -10616,7 +10617,7 @@ impl EditSession {
                 base: self.base.bytes(),
                 staged: &self.staging,
             },
-            self.base.version(),
+            self.effective_version(),
         )
     }
 
