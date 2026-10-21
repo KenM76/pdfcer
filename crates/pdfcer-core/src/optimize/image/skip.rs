@@ -99,7 +99,7 @@ impl fmt::Display for ImageSkip {
                 mask.num, mask.generation
             ),
             Self::ColourKey(ImageStep::Resample) => {
-                f.write_str("a colour-key masked image is not resampled")
+                f.write_str("a colour-key masked image is not resampled (keyed=skip)")
             }
             Self::ColourKey(ImageStep::Convert) => f.write_str(
                 "a colour-key masked image is not colour-converted: its key matches source values",

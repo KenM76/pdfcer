@@ -142,7 +142,7 @@ fn images_this_pass_cannot_resample_are_skipped_with_a_reason() {
     );
     let content = "q 100 0 0 100 0 0 cm /Im5 Do /Im6 Do /Im7 Do Q";
     let images = [grey(""), jpx, grey("/Mask [0 10]")];
-    let (_, p) = plan(doc(content, &images), &[("image(ppi=72)", None)]);
+    let (_, p) = plan(doc(content, &images), &[("image(ppi=72,keyed=skip)", None)]);
     assert!(p.changes.iter().any(|c| c.id.num == 5));
     assert_eq!(
         skip(&p, 6),

@@ -49,14 +49,17 @@ pub(crate) struct OptimizeArgs {
     /// progressive, convert (keep|gray|bilevel|indexed), threshold (otsu,
     /// dither or 0-255, for bilevel), colors (2-256, for indexed; default
     /// 256), predictor (off|png|auto, default auto: Flate output is
-    /// PNG-predicted when that is smaller), min-saving (percent), reset.
+    /// PNG-predicted when that is smaller), keyed (subsample|skip, default
+    /// subsample: a colour-keyed image is downsampled by nearest pixel so
+    /// its key still matches), min-saving (percent), reset.
     /// "image(encode=jpeg)"
     /// rewrites every eligible image as JPEG at its size; a JPEG is never
     /// written above its own estimated quality, and one left at its size is
     /// not touched. "image(convert=gray)" writes colour images as
     /// DeviceGray by the ISO 32000-2 formulas; bilevel makes them 1 bit;
     /// indexed builds a palette (exact when the image has few enough
-    /// colours, else median cut). Soft masks, colour-keyed images and
+    /// colours, else median cut). Soft masks, colour-keyed images (for
+    /// conversion and JPEG) and
     /// Separation, DeviceN or Lab images are skipped with the reason.
     #[arg(long, value_name = "ACTION")]
     pub(crate) streams: Option<String>,

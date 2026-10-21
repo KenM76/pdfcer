@@ -6,11 +6,13 @@ pub(crate) mod colour;
 pub(crate) mod convert;
 pub(crate) mod encode;
 pub(crate) mod jpeg_quality;
+mod keyed;
 pub(crate) mod pipeline;
 pub(crate) mod predict;
 pub(crate) mod reduce;
 mod skip;
 
+pub use keyed::KeyedResample;
 pub use skip::{ImageSkip, ImageStep};
 
 use std::fmt;
@@ -112,6 +114,8 @@ impl fmt::Display for ImageEncode {
 /// colour form ([`ImageConvert`]); `threshold=otsu|dither|N` tunes bilevel
 /// and `colors=N` (2 to 256, default 256) caps a palette.
 /// `predictor=off|png|auto` (default auto) PNG-predicts Flate output.
+/// `keyed=subsample|skip` (default subsample) says how a colour-key masked
+/// image is downsampled ([`KeyedResample`]).
 ///
 /// ```
 /// use pdfcer_core::optimize::{ImagePatch, ResampleMethod, StreamAction};
@@ -149,6 +153,8 @@ pub struct ImagePatch {
     pub colors: Option<u16>,
     /// PNG prediction of Flate output.
     pub predictor: Option<Predictor>,
+    /// How a colour-key masked image is downsampled.
+    pub keyed: Option<KeyedResample>,
     /// Keep the stored form unless the result is at least this many percent
     /// smaller (0 to 99).
     pub min_saving_pct: Option<u8>,
@@ -180,6 +186,7 @@ impl ImagePatch {
             threshold: None,
             colors: None,
             predictor: None,
+            keyed: None,
             min_saving_pct: None,
         }
     }
@@ -254,10 +261,15 @@ impl ImagePatch {
                     format!("image(): unknown predictor {value:?}; expected off, png or auto")
                 })?);
             }
+            "keyed" => {
+                self.keyed = Some(KeyedResample::from_name(value).ok_or_else(|| {
+                    format!("image(): unknown keyed {value:?}; expected subsample or skip")
+                })?);
+            }
             "min-saving" => self.min_saving_pct = Some(value.parse().map_err(|_| bad())?),
             _ => {
                 return Err(format!(
-                    "image(): unknown key {key:?}; expected reset, method, ppi, above, encode, quality, chroma, progressive, convert, threshold, colors, predictor or min-saving"
+                    "image(): unknown key {key:?}; expected reset, method, ppi, above, encode, quality, chroma, progressive, convert, threshold, colors, predictor, keyed or min-saving"
                 ));
             }
         }
@@ -369,6 +381,9 @@ impl fmt::Display for ImagePatch {
         if let Some(p) = self.predictor {
             parts.push(format!("predictor={p}"));
         }
+        if let Some(k) = self.keyed {
+            parts.push(format!("keyed={k}"));
+        }
         if let Some(s) = self.min_saving_pct {
             parts.push(format!("min-saving={s}"));
         }
@@ -445,6 +460,8 @@ pub struct ResolvedImage {
     pub colors: Sourced<u16>,
     /// PNG prediction of Flate output.
     pub predictor: Sourced<Predictor>,
+    /// How a colour-key masked image is downsampled.
+    pub keyed: Sourced<KeyedResample>,
     /// The `min-saving` guard, percent.
     pub min_saving_pct: Sourced<u8>,
 }
@@ -463,6 +480,7 @@ impl ResolvedImage {
             threshold: sourced(Threshold::Otsu, SettingSource::BuiltIn),
             colors: sourced(256, SettingSource::BuiltIn),
             predictor: sourced(Predictor::Auto, SettingSource::BuiltIn),
+            keyed: sourced(KeyedResample::Subsample, SettingSource::BuiltIn),
             min_saving_pct: sourced(0, SettingSource::BuiltIn),
         }
     }
@@ -502,6 +520,7 @@ impl ResolvedImage {
             threshold: Some(self.threshold.value),
             colors: Some(self.colors.value),
             predictor: Some(self.predictor.value),
+            keyed: Some(self.keyed.value),
             min_saving_pct: Some(self.min_saving_pct.value),
         }
     }
@@ -542,6 +561,9 @@ impl ResolvedImage {
         }
         if let Some(v) = p.predictor {
             self.predictor = sourced(v, src);
+        }
+        if let Some(v) = p.keyed {
+            self.keyed = sourced(v, src);
         }
         if let Some(v) = p.min_saving_pct {
             self.min_saving_pct = sourced(v, src);
@@ -593,6 +615,8 @@ pub(crate) fn fold(actions: impl IntoIterator<Item = (StreamAction, SettingSourc
 mod pipeline_convert_tests;
 #[cfg(test)]
 mod pipeline_jpeg_tests;
+#[cfg(test)]
+mod pipeline_keyed_tests;
 #[cfg(test)]
 mod pipeline_matte_tests;
 #[cfg(test)]

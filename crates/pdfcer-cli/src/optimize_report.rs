@@ -188,7 +188,7 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
         },
     );
     format!(
-        "{{\"size_before\":[{},{}],\"size_after\":[{},{}],\"binding\":{binding},\"encoded_as\":\"{}\",\"bpc\":[{},{}],\"jpeg\":{jpeg},\"method\":{},\"ppi\":{},\"above\":{},\"encode\":{},\"quality\":{},\"chroma\":{},\"progressive\":{},\"min_saving_pct\":{},\"color_space\":[\"{}\",\"{}\"],\"conversion\":{},\"convert\":{},\"threshold\":{},\"colors\":{},\"predictor\":{},\"predicted\":{},\"resampled_with\":{}}}",
+        "{{\"size_before\":[{},{}],\"size_after\":[{},{}],\"binding\":{binding},\"encoded_as\":\"{}\",\"bpc\":[{},{}],\"jpeg\":{jpeg},\"method\":{},\"ppi\":{},\"above\":{},\"encode\":{},\"quality\":{},\"chroma\":{},\"progressive\":{},\"min_saving_pct\":{},\"color_space\":[\"{}\",\"{}\"],\"conversion\":{},\"convert\":{},\"threshold\":{},\"colors\":{},\"keyed\":{},\"predictor\":{},\"predicted\":{},\"resampled_with\":{}}}",
         img.size_before.0,
         img.size_before.1,
         img.size_after.0,
@@ -210,6 +210,7 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
         src(format!("\"{}\"", s.convert.value), s.convert.source),
         src(format!("\"{}\"", s.threshold.value), s.threshold.source),
         src(s.colors.value.to_string(), s.colors.source),
+        src(format!("\"{}\"", s.keyed.value), s.keyed.source),
         src(format!("\"{}\"", s.predictor.value), s.predictor.source),
         img.predicted,
         img.resampled_with.map_or("null".to_owned(), |p| format!(

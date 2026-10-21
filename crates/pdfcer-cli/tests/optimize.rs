@@ -855,6 +855,10 @@ fn a_png_predicted_image_reports_it_and_writes_decode_parms() {
         j.contains("\"predictor\":{\"value\":\"png\",\"source\":\"images\"},\"predicted\":true"),
         "{j}"
     );
+    assert!(
+        j.contains("\"keyed\":{\"value\":\"subsample\",\"source\":\"default\"}"),
+        "{j}"
+    );
 }
 
 /// `noise_image_pdf`'s image with a `/Matte` soft mask of its size.

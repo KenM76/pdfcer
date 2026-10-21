@@ -4,8 +4,8 @@
 
 use super::convert::{self, ConvertJob};
 use super::{
-    Conversion, ImageConvert, ImageEncode, ImageSkip, ImageStep, Predictor, ResampleMethod,
-    ResolvedImage,
+    Conversion, ImageConvert, ImageEncode, ImageSkip, ImageStep, KeyedResample, Predictor,
+    ResampleMethod, ResolvedImage, sourced,
 };
 use crate::jpeg_write::JpegOptions;
 use crate::object::{Dict, ObjId, Object};
@@ -203,6 +203,31 @@ pub(crate) fn convert_blocker(
     }
 }
 
+/// The settings a resize runs with, or why masking forbids it. A
+/// colour-key blocker gives way under `keyed=subsample`, forcing a
+/// nearest-pixel resample sourced from `keyed`.
+fn unblocked(
+    settings: &ResolvedImage,
+    resized: bool,
+    ctx: &Context<'_, '_>,
+) -> Result<ResolvedImage, SkipReason> {
+    let mut settings = *settings;
+    let Some(why) = ctx
+        .blocker
+        .as_ref()
+        .filter(|_| resized && ctx.lockstep.is_none())
+    else {
+        return Ok(settings);
+    };
+    if *why != ImageSkip::ColourKey(ImageStep::Resample)
+        || settings.keyed.value != KeyedResample::Subsample
+    {
+        return Err(unsupported(why.clone()));
+    }
+    settings.method = sourced(ResampleMethod::Subsample, settings.keyed.source);
+    Ok(settings)
+}
+
 fn colour_keyed(dict: &Dict) -> bool {
     matches!(dict.get(b"Mask"), Some(Object::Array(_)))
 }
@@ -257,12 +282,7 @@ pub(crate) fn decide(
     {
         return Ok(left);
     }
-    if resized.is_some()
-        && ctx.lockstep.is_none()
-        && let Some(why) = &ctx.blocker
-    {
-        return Err(unsupported(why.clone()));
-    }
+    let settings = &unblocked(settings, resized.is_some(), ctx)?;
     let space = space.ok_or(unsupported(ImageSkip::NotAudited))?;
     let to = convert.as_ref().map(|c| c.to);
     let reduced = matches!(to, Some(ImageConvert::Bilevel | ImageConvert::Indexed));

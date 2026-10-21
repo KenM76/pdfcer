@@ -57,7 +57,8 @@ pub use image::jpeg_quality::estimate_jpeg_quality;
 pub use image::pipeline::{ImageChange, JpegQuality};
 pub use image::{
     COLORS_RANGE, Chroma, Conversion, ImageConvert, ImageEncode, ImagePatch, ImageSkip, ImageStep,
-    Predictor, QUALITY_LEVELS, ResampleMethod, ResolvedImage, SettingSource, Sourced, Threshold,
+    KeyedResample, Predictor, QUALITY_LEVELS, ResampleMethod, ResolvedImage, SettingSource,
+    Sourced, Threshold,
 };
 pub use objects::{DiscardObject, ObjectDiscard};
 pub use preset::Preset;
