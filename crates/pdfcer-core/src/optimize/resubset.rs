@@ -148,7 +148,7 @@ impl PartialEq for ResubsetFonts {
 }
 
 /// What a re-subset run does: [`super::OptimizePlan::resubset`].
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 #[non_exhaustive]
 pub struct ResubsetPlan {
     /// The programs it cuts, in id order.
@@ -169,7 +169,7 @@ impl ResubsetPlan {
 }
 
 /// One program the run cuts.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct ResubsetTarget {
     /// The program stream.
@@ -189,8 +189,13 @@ pub struct ResubsetTarget {
     pub before_bytes: u64,
     /// Its stored size after the cut, Flate-compressed.
     pub after_bytes: u64,
-    /// The new program, decoded.
+    /// The new program, Flate-compressed.
     pub(crate) data: Vec<u8>,
+    /// Its decoded length, for `/Length1`.
+    pub(crate) length1: usize,
+    /// The program, fonts, descendant CIDFonts and descriptors as planned:
+    /// what the apply rewrites, and checks has not changed.
+    pub(crate) before: Vec<(ObjId, crate::object::Object)>,
 }
 
 /// A font the run leaves as it is.

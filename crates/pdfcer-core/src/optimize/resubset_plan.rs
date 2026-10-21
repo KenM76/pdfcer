@@ -267,7 +267,8 @@ impl Group<'_, '_, '_, '_> {
             .map(|f| FontUse::new(f, self.usage.codes.get(&f).unwrap_or(&empty)))
             .collect();
         let cut = source.resubset(&ResubsetRequest::new(self.view, &data, &uses))?;
-        let after = flate::encode_with_level(&cut.program, 9).len() as u64;
+        let encoded = flate::encode_with_level(&cut.program, 9);
+        let after = encoded.len() as u64;
         let before = raw.len() as u64;
         if after >= before {
             return Err(ResubsetRefusal::new(
@@ -282,6 +283,10 @@ impl Group<'_, '_, '_, '_> {
             .unwrap_or_default();
         let (_, stem) = split_subset_tag(&name_before);
         let tag = fresh_tag(&cut.program, tags);
+        let snapshot = std::iter::once(program)
+            .chain(self.renamed())
+            .filter_map(|id| Some((id, self.view.value(id)?.clone())))
+            .collect();
         Ok(ResubsetTarget {
             program,
             fonts: self.ids(),
@@ -291,8 +296,30 @@ impl Group<'_, '_, '_, '_> {
             glyphs_total: cut.glyphs_total,
             before_bytes: before,
             after_bytes: after,
-            data: cut.program,
+            length1: cut.program.len(),
+            data: encoded,
+            before: snapshot,
         })
+    }
+
+    /// The dictionaries carrying the program's name: the fonts, each Type 0
+    /// font's descendants, and the descriptors (§9.6.4).
+    fn renamed(&self) -> BTreeSet<ObjId> {
+        let mut out: BTreeSet<ObjId> = self.ids().into_iter().collect();
+        for l in self.users {
+            out.extend(l.descriptor_id);
+            let kids = l
+                .record
+                .id
+                .and_then(|id| self.view.value(id))
+                .and_then(Object::as_dict)
+                .and_then(|d| d.get(b"DescendantFonts"))
+                .map(|e| self.view.resolve(e))
+                .and_then(Object::as_array)
+                .unwrap_or_default();
+            out.extend(kids.iter().filter_map(Object::as_reference));
+        }
+        out
     }
 }
 

@@ -14,7 +14,7 @@ use crate::space_audit::tests::stream;
 use crate::writer::SaveOptions;
 
 /// A classic-xref file whose object `i + 1` is `bodies[i]`.
-pub(super) fn build(bodies: &[Vec<u8>]) -> Vec<u8> {
+pub(crate) fn build(bodies: &[Vec<u8>]) -> Vec<u8> {
     let mut buf = b"%PDF-1.7\n%\xE2\xE3\xCF\xD3\n".to_vec();
     let mut offsets = Vec::new();
     for (i, body) in bodies.iter().enumerate() {
@@ -89,7 +89,20 @@ pub(super) fn session(bytes: Vec<u8>) -> EditSession {
 }
 
 /// Object `n`, generation 0, shared by every optimize test module.
-pub(super) fn id(n: u32) -> ObjId {
+/// `n` incompressible bytes.
+pub(crate) fn noise(n: usize) -> Vec<u8> {
+    let mut x = 0x2545_f491_u32;
+    (0..n)
+        .map(|_| {
+            x ^= x << 13;
+            x ^= x >> 17;
+            x ^= x << 5;
+            x.to_le_bytes()[0]
+        })
+        .collect()
+}
+
+pub(crate) fn id(n: u32) -> ObjId {
     ObjId::new(n, 0)
 }
 

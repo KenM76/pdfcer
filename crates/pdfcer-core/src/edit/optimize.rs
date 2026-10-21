@@ -63,6 +63,7 @@ impl EditSession {
             discard_objects: Vec::new(),
             unembed: None,
             unembed_request: None,
+            resubset: None,
             writes: Vec::new(),
             smooth_tolerance: settings.smooth_tolerance,
         };
@@ -77,6 +78,7 @@ impl EditSession {
         plan.discard = self.plan_discard(settings.discard, &mut notes);
         plan.discard_objects = self.plan_discard_objects(settings, &mut notes);
         self.plan_unembed(&mut plan, settings, &mut notes);
+        self.plan_resubset(&mut plan, settings, &mut notes);
         if plan
             .discard_objects
             .iter()
@@ -219,6 +221,7 @@ impl EditSession {
             return Err(OptimizeError::StalePlan { id: w.id });
         }
         self.check_unembed_fresh(plan)?;
+        self.check_resubset_fresh(plan)?;
         let mut fold = super::optimize_cleanup::Fold::new(self, CommandKind::Optimize { count: 0 });
         let removed = self.apply_cleanup(&plan.cleanup, &mut fold)?
             + self.apply_discard(&plan.discard, &mut fold)?
@@ -229,6 +232,7 @@ impl EditSession {
             )?
             + self.apply_unembed(plan, &mut fold)?;
         let mut objects = self.stream_writes(&plan.writes);
+        objects.extend(self.resubset_writes(plan));
         if !objects.is_empty() {
             objects.extend(self.catalog_writes(plan.version_raise(), plan.uses_brotli()));
         }

@@ -168,6 +168,7 @@ mod optimize_fonts;
 mod optimize_fragments;
 mod optimize_matte;
 mod optimize_objects;
+mod optimize_resubset;
 mod optimize_smooth;
 mod optimize_version;
 pub use markup_respan::TextMarkupRespan;

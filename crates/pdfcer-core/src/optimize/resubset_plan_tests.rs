@@ -10,7 +10,7 @@ use std::sync::Mutex;
 use super::*;
 use crate::document::Document;
 use crate::optimize::resubset::ResubsetProgram;
-use crate::optimize::tests::{build, id};
+use crate::optimize::tests::{build, id, noise};
 use crate::space_audit::tests::stream;
 
 /// Each request's users with their codes.
@@ -45,19 +45,6 @@ impl FontResubsetter for Fake {
         self.asked.lock().unwrap().push(uses);
         Ok(ResubsetProgram::new(vec![0; self.len], 3, 10))
     }
-}
-
-/// Incompressible bytes, so a short cut is always smaller.
-fn noise(n: usize) -> Vec<u8> {
-    let mut x = 0x2545_f491_u32;
-    (0..n)
-        .map(|_| {
-            x ^= x << 13;
-            x ^= x >> 17;
-            x ^= x << 5;
-            x.to_le_bytes()[0]
-        })
-        .collect()
 }
 
 /// 1 catalog (`catalog_extra`), 2 pages, 3 page drawing 4 with font 5

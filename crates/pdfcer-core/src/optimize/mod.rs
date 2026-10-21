@@ -36,9 +36,7 @@ pub(crate) mod actions;
 pub(crate) mod annots;
 pub mod cleanup;
 pub mod discard;
-// Callers land with the re-subset wiring (Pass 616.6 slice 2, step 6).
 pub(crate) mod fragments;
-#[allow(dead_code)]
 pub(crate) mod glyph_usage;
 pub mod image;
 pub(crate) mod object_data;
@@ -46,9 +44,7 @@ pub mod objects;
 mod preset;
 pub mod profile;
 pub mod resubset;
-// Callers land with the re-subset wiring (Pass 616.6 slice 2, step 6).
-#[allow(dead_code)]
-mod resubset_plan;
+pub(crate) mod resubset_plan;
 pub(crate) mod select;
 pub(crate) mod smooth;
 pub(crate) mod smooth_fit;
@@ -220,6 +216,10 @@ pub struct OptimizeSettings {
     /// with a note, in a document that identifies itself as PDF/A, which
     /// requires embedded fonts.
     pub unembed: Option<crate::font_unembed::UnembedRequest>,
+    /// Embedded TrueType programs cut down to the glyphs the document
+    /// draws, by the cutter a shell installs; `None` cuts none. See
+    /// [`resubset`].
+    pub resubset: Option<resubset::ResubsetFonts>,
 }
 
 /// The tolerance [`OptimizeSettings::new`] starts with, in points: a fifth
@@ -241,6 +241,7 @@ impl OptimizeSettings {
             discard: DiscardOptions::none(),
             smooth_tolerance: DEFAULT_SMOOTH_TOLERANCE,
             unembed: None,
+            resubset: None,
         }
     }
 
@@ -484,6 +485,9 @@ pub struct OptimizePlan {
     /// or the document is PDF/A.
     pub unembed: Option<crate::font_unembed::UnembedPlan>,
     pub(crate) unembed_request: Option<crate::font_unembed::UnembedRequest>,
+    /// The font programs the apply cuts and the fonts it leaves; `None`
+    /// when [`OptimizeSettings::resubset`] is unset.
+    pub resubset: Option<resubset::ResubsetPlan>,
     pub(crate) writes: Vec<streams::Rewrite>,
     /// The settings' smoothing tolerance, for the apply to redo it with.
     pub(crate) smooth_tolerance: f64,
@@ -547,12 +551,14 @@ impl OptimizePlan {
     }
 
     /// Font-program bytes the unembedding drops on the full rewrite the
-    /// optimize save writes ([`crate::font_unembed::UnembedPlan::bytes_reclaimable`]).
+    /// optimize save writes ([`crate::font_unembed::UnembedPlan::bytes_reclaimable`]),
+    /// plus what the re-subsetting saves ([`resubset::ResubsetPlan::saving`]).
     #[must_use]
     pub fn font_saving(&self) -> u64 {
         self.unembed
             .as_ref()
             .map_or(0, crate::font_unembed::UnembedPlan::bytes_reclaimable)
+            + self.resubset.as_ref().map_or(0, resubset::ResubsetPlan::saving)
     }
 
     /// Whether any change is lossy.
@@ -607,7 +613,7 @@ pub(crate) fn keep_if_smaller(bytes: Vec<u8>, original: u64, removes: bool) -> O
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 
 #[cfg(test)]
 mod cleanup_tests;
