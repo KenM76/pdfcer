@@ -61,6 +61,7 @@ impl EditSession {
             discard: Vec::new(),
             discard_objects: Vec::new(),
             writes: Vec::new(),
+            smooth_tolerance: settings.smooth_tolerance,
         };
         let view = self.view();
         for id in ids {
@@ -78,7 +79,7 @@ impl EditSession {
         }
         plan.cleanup = self.plan_cleanup(&settings.cleanup, &mut notes);
         plan.discard = self.plan_discard(settings.discard, &mut notes);
-        plan.discard_objects = self.plan_discard_objects(settings.discard, &mut notes);
+        plan.discard_objects = self.plan_discard_objects(settings, &mut notes);
         if plan
             .discard_objects
             .iter()
@@ -141,7 +142,11 @@ impl EditSession {
         let mut fold = super::optimize_cleanup::Fold::new(self, CommandKind::Optimize { count: 0 });
         let removed = self.apply_cleanup(&plan.cleanup, &mut fold)?
             + self.apply_discard(&plan.discard, &mut fold)?
-            + self.apply_discard_objects(&plan.discard_objects, &mut fold)?;
+            + self.apply_discard_objects(
+                &plan.discard_objects,
+                plan.smooth_tolerance,
+                &mut fold,
+            )?;
         let objects = self.stream_writes(&plan.writes);
         if objects.is_empty() {
             fold.finish(self, removed);

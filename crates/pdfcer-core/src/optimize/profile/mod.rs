@@ -13,6 +13,7 @@
 //! remove-invalid-bookmarks = true      # turns the first two on
 //! remove-unreferenced-destinations = false
 //! discard = ["thumbnail", "bookmarks"]  # data kinds / object classes removed, or "all"
+//! smooth-tolerance = 0.1    # page points a "smooth-lines" curve may stray
 //!
 //! [[rule]]                    # later rules beat earlier ones
 //! category = ["fonts"]        # space-audit category names
@@ -168,6 +169,9 @@ fn apply_table(settings: &mut OptimizeSettings, table: &Table) -> Result<(), (us
                     "streams" => settings.streams = action(value).map_err(at)?,
                     "allow-signed" => settings.allow_signed = boolean(value).map_err(at)?,
                     "discard" => settings.discard = discard(value).map_err(at)?,
+                    "smooth-tolerance" => {
+                        settings.smooth_tolerance = tolerance(value).map_err(at)?
+                    }
                     k => {
                         let flag = switch(settings, k)
                             .ok_or_else(|| at(format!("unknown key {key:?}")))?;
@@ -276,6 +280,17 @@ fn number(v: &Value) -> Result<f64, String> {
         Value::Int(n) => Ok(*n as f64),
         Value::Float(f) => Ok(*f),
         _ => Err("expected a number".to_owned()),
+    }
+}
+
+fn tolerance(v: &Value) -> Result<f64, String> {
+    let t = number(v)?;
+    if t.is_finite() && t > 0.0 {
+        Ok(t)
+    } else {
+        Err(format!(
+            "smooth-tolerance must be a positive number of points, not {t}"
+        ))
     }
 }
 
@@ -433,6 +448,7 @@ pub fn to_profile(settings: &OptimizeSettings) -> String {
     );
     let kinds: Vec<String> = settings.discard.names().map(syntax::quote).collect();
     let _ = writeln!(out, "discard = [{}]", kinds.join(", "));
+    let _ = writeln!(out, "smooth-tolerance = {:?}", settings.smooth_tolerance);
     for rule in &settings.rules {
         out.push_str("\n[[rule]]\n");
         write_selector(&mut out, &rule.select);

@@ -119,7 +119,8 @@ impl Strip<'_> {
     }
 }
 
-fn numbers(op: &Operation<'_>) -> Option<Vec<f64>> {
+/// Every operand of `op` as a number, or `None` when one is not.
+pub(super) fn numbers(op: &Operation<'_>) -> Option<Vec<f64>> {
     op.operands
         .iter()
         .map(|t| match &t.kind {

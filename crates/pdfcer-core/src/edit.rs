@@ -164,6 +164,7 @@ mod optimize_cleanup;
 mod optimize_discard;
 mod optimize_fragments;
 mod optimize_objects;
+mod optimize_smooth;
 pub use markup_respan::TextMarkupRespan;
 mod link;
 pub use link::{LinkBorder, LinkBorderChange, LinkReading, LinkTarget, LinkTargetChange};

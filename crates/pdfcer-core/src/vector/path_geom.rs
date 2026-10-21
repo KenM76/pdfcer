@@ -199,7 +199,7 @@ pub(super) fn flatten(sp: &Subpath) -> Vec<Point> {
 }
 
 /// A cubic Bézier point at parameter `t` (de Casteljau, closed form).
-pub(super) fn cubic_at(p0: Point, c1: Point, c2: Point, p3: Point, t: f64) -> Point {
+pub(crate) fn cubic_at(p0: Point, c1: Point, c2: Point, p3: Point, t: f64) -> Point {
     let u = 1.0 - t;
     let w0 = u * u * u;
     let w1 = 3.0 * u * u * t;
@@ -263,7 +263,7 @@ pub(super) fn accumulate_crossings(
 /// Squared distance from `p` to the segment `a`–`b` (avoids a `sqrt` in
 /// the proximity loop). A degenerate segment (`a == b`) reduces to the
 /// point distance.
-pub(super) fn dist_sq_point_segment(p: Point, a: Point, b: Point) -> f64 {
+pub(crate) fn dist_sq_point_segment(p: Point, a: Point, b: Point) -> f64 {
     let vx = b.x - a.x;
     let vy = b.y - a.y;
     let wx = p.x - a.x;

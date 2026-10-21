@@ -212,6 +212,7 @@ fn usage_errors_exit_2() {
         vec![i, "-o", i],
         vec![i, "--dry-run", "--preset", "tiny"],
         vec![i, "--dry-run", "--rule", "action=shrink"],
+        vec![i, "--dry-run", "--smooth-tolerance", "0"],
     ] {
         assert_eq!(run(&args).status.code(), Some(2), "{args:?}");
     }
@@ -565,17 +566,10 @@ fn discard_merge_image_fragments_draws_one_image() {
     let mut extra = Vec::new();
     for i in 0..10 {
         names.push_str(&format!("/S{i} {} 0 R ", i + 9));
-        draw.push_str(&format!(
-            "q 100 0 0 10 0 {} cm /S{i} Do Q
-",
-            90 - 10 * i
-        ));
+        draw.push_str(&format!("q 100 0 0 10 0 {} cm /S{i} Do Q\n", 90 - 10 * i));
         let row = char::from(b'a' + i as u8).to_string().repeat(64);
         extra.push(format!(
-            "<< /Type /XObject /Subtype /Image /Width 32 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length 64 >>
-stream
-{row}
-endstream"
+            "<< /Type /XObject /Subtype /Image /Width 32 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length 64 >>\nstream\n{row}\nendstream"
         ));
     }
     let page = format!(
@@ -583,12 +577,7 @@ endstream"
     );
     extra.insert(
         0,
-        format!(
-            "<< /Length {} >>
-stream
-{draw}endstream",
-            draw.len()
-        ),
+        format!("<< /Length {} >>\nstream\n{draw}endstream", draw.len()),
     );
     let extra: Vec<&str> = extra.iter().map(String::as_str).collect();
     let input = write_pdf_page(&d, "", &page, &extra);
@@ -607,6 +596,45 @@ stream
     assert!(report.contains("thin strips"), "{report}");
     let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
     assert_eq!(written.matches("/Subtype /Image").count(), 1, "{written}");
+}
+
+#[test]
+fn discard_smooth_lines_redraws_an_arc_as_curves() {
+    let d = dir("discard-smooth-lines");
+    let mut draw = String::from("1 w\n");
+    for i in 0..=60 {
+        let a = (f64::from(i) * 3.0).to_radians();
+        let op = if i == 0 { "m" } else { "l" };
+        draw.push_str(&format!(
+            "{:.3} {:.3} {op}\n",
+            50.0 + 40.0 * a.cos(),
+            50.0 + 40.0 * a.sin()
+        ));
+    }
+    draw.push_str("S\n");
+    let page = "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents 8 0 R >>";
+    let stream = format!("<< /Length {} >>\nstream\n{draw}endstream", draw.len());
+    let input = write_pdf_page(&d, "", page, &[&stream]);
+    let out = d.join("out.pdf");
+    let o = run(&[
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--keep-structure",
+        "--streams",
+        "leave",
+        "--discard",
+        "smooth-lines",
+        "--smooth-tolerance",
+        "0.05",
+    ]);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(report.contains("60 line segments into "), "{report}");
+    assert!(report.contains("redrawn as curves"), "{report}");
+    let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(written.contains(" c\n"), "no curve written");
+    assert!(!written.contains("50.000 90.000 l"), "the lines survived");
 }
 
 #[test]

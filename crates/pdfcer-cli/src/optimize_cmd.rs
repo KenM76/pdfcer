@@ -107,11 +107,18 @@ pub(crate) struct OptimizeArgs {
     /// unless hidden-layer is given too), search-index (an index Acrobat
     /// built for searching many files; the file's own text stays
     /// searchable), merge-image-fragments (a picture stored as many thin
-    /// strips becomes one image that looks the same); or all. Comma-separated or repeated.
+    /// strips becomes one image that looks the same), smooth-lines (runs of
+    /// short straight lines, as CAD programs draw arcs, become curves within
+    /// --smooth-tolerance); or all. Comma-separated or repeated.
     /// The standard and print presets remove thumbnails; screen also
     /// pieceinfo, object-xmp and alternate-images.
     #[arg(long, value_name = "KINDS", value_delimiter = ',')]
     pub(crate) discard: Vec<String>,
+    /// How far, in page points, a smooth-lines curve may stray from the
+    /// lines it replaces (default 0.1; 1 pt is 1/72 inch). Smaller keeps
+    /// more curves and saves less.
+    #[arg(long, value_name = "PT")]
+    pub(crate) smooth_tolerance: Option<f64>,
     /// Keep these kinds and objects even when the preset or --discard
     /// removes them. The same names as --discard; all keeps everything.
     #[arg(long, value_name = "KINDS", value_delimiter = ',')]
@@ -251,6 +258,14 @@ fn resolve_settings(args: &OptimizeArgs) -> Result<OptimizeSettings, String> {
             .discard
             .with_named(name)
             .ok_or_else(|| unknown(name))?;
+    }
+    if let Some(t) = args.smooth_tolerance {
+        if !(t.is_finite() && t > 0.0) {
+            return Err(format!(
+                "--smooth-tolerance must be a positive number of points, not {t}"
+            ));
+        }
+        settings.smooth_tolerance = t;
     }
     for name in &args.keep_data {
         settings.discard = settings

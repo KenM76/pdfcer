@@ -41,6 +41,8 @@ pub(crate) mod object_data;
 pub mod objects;
 pub mod profile;
 pub(crate) mod select;
+pub(crate) mod smooth;
+pub(crate) mod smooth_fit;
 pub(crate) mod streams;
 
 use std::collections::BTreeMap;
@@ -158,7 +160,15 @@ pub struct OptimizeSettings {
     pub cleanup: CleanupOptions,
     /// User data removed before saving, by metadata kind. See [`discard`].
     pub discard: DiscardOptions,
+    /// How far, in points, [`DiscardObject::SmoothLines`] may move the
+    /// drawing; [`DEFAULT_SMOOTH_TOLERANCE`] to start. Not a positive
+    /// finite number smooths nothing.
+    pub smooth_tolerance: f64,
 }
+
+/// The tolerance [`OptimizeSettings::new`] starts with, in points: a fifth
+/// of a typical 0.5 pt drawing line, under a pixel at 600 dpi.
+pub const DEFAULT_SMOOTH_TOLERANCE: f64 = 0.1;
 
 impl OptimizeSettings {
     /// Settings that change nothing: every stream is left, nothing allowed.
@@ -172,6 +182,7 @@ impl OptimizeSettings {
             structure: RebuildOptions::none(),
             cleanup: CleanupOptions::none(),
             discard: DiscardOptions::none(),
+            smooth_tolerance: DEFAULT_SMOOTH_TOLERANCE,
         }
     }
 
@@ -459,6 +470,8 @@ pub struct OptimizePlan {
     /// Document objects the apply removes.
     pub discard_objects: Vec<ObjectDiscard>,
     pub(crate) writes: Vec<streams::Rewrite>,
+    /// The settings' smoothing tolerance, for the apply to redo it with.
+    pub(crate) smooth_tolerance: f64,
 }
 
 impl OptimizePlan {
@@ -553,3 +566,5 @@ mod object_data_tests;
 mod objects_tests;
 #[cfg(test)]
 mod search_index_tests;
+#[cfg(test)]
+mod smooth_tests;

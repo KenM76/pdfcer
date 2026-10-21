@@ -19,6 +19,7 @@ fn full() -> OptimizeSettings {
     s.structure.merge_duplicates = true;
     s.structure.object_streams = true;
     s.cleanup.invalid_bookmarks = true;
+    s.smooth_tolerance = 0.25;
     s.discard = DiscardOptions::none()
         .with(MetadataKind::Thumbnail)
         .with(MetadataKind::DocumentXmp);
@@ -122,6 +123,7 @@ fn errors_name_the_line_and_the_problem() {
         ("streams = \"leave\n", 1, "unterminated"),
         ("streams = [[\"x\"]]\n", 1, "nested"),
         ("allow-signed = 1\n", 1, ""),
+        ("smooth-tolerance = 0\n", 1, "positive"),
         (
             "[[rule]]\ncategory = [\"nope\"]\naction = \"leave\"\n",
             2,

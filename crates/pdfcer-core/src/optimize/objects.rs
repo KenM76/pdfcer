@@ -85,11 +85,16 @@ pub enum DiscardObject {
     /// A picture stored as many thin strips, each its own image, merged
     /// into one image that draws the same.
     MergeImageFragments,
+    /// Runs of short straight segments that trace a curve, as CAD programs
+    /// write arcs and splines, redrawn as fitted curves within
+    /// [`super::OptimizeSettings::smooth_tolerance`]. Lossy: the drawing
+    /// moves by up to the tolerance, and each page's largest move is listed.
+    SmoothLines,
 }
 
 impl DiscardObject {
     /// Every class, in plan order.
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 14] = [
         Self::Bookmarks,
         Self::Tags,
         Self::PrintSettings,
@@ -103,12 +108,14 @@ impl DiscardObject {
         Self::FlattenLayers,
         Self::SearchIndex,
         Self::MergeImageFragments,
+        Self::SmoothLines,
     ];
 
     /// A stable lower-case name: `bookmarks`, `tags`, `print-settings`,
     /// `alternate-images`, `form-actions`, `external-references`,
     /// `object-data`, `form-fields`, `multimedia`, `3d-models`,
-    /// `flatten-layers`, `search-index`, `merge-image-fragments`.
+    /// `flatten-layers`, `search-index`, `merge-image-fragments`,
+    /// `smooth-lines`.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -125,6 +132,7 @@ impl DiscardObject {
             Self::FlattenLayers => "flatten-layers",
             Self::SearchIndex => "search-index",
             Self::MergeImageFragments => "merge-image-fragments",
+            Self::SmoothLines => "smooth-lines",
         }
     }
 
@@ -157,11 +165,12 @@ pub struct ObjectDiscard {
     pub object: DiscardObject,
     /// The object holding it: the catalog, the image for alternates, the
     /// layer (optional content group) for a flatten, or the page for a
-    /// fragment merge.
+    /// fragment merge or a smoothing.
     pub owner: ObjId,
     /// Where it is, in words: `catalog`, `image object 12 0`, `page 2:
     /// form-fields (3)`, `layer 9 0: Notes`, `page 1: 40 strips into 1 image
-    /// (800x1100)`, or for an action `object 12 0: SubmitForm, GoToR`
+    /// (800x1100)`, `page 1: 120 line segments into 6 curves (max deviation
+    /// 0.031 pt)`, or for an action `object 12 0: SubmitForm, GoToR`
     /// (the types removed).
     pub location: String,
     /// What leaves the file: the deleted entries plus every object only

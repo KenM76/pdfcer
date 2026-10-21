@@ -11,7 +11,7 @@ use crate::object::{Name, ObjId, Object};
 use crate::optimize::actions::{Rewrite, apply_rewrite};
 use crate::optimize::annots::{self, ListDrop};
 use crate::optimize::objects::{self, DiscardObject, ObjectDiscard, Strip};
-use crate::optimize::{DiscardOptions, OptimizeError};
+use crate::optimize::{OptimizeError, OptimizeSettings, smooth};
 
 /// What each class's discard costs the reader, in plan-note order.
 const NOTES: &[(DiscardObject, &str)] = &[
@@ -60,6 +60,10 @@ const NOTES: &[(DiscardObject, &str)] = &[
         "the embedded search index goes: searching a catalog of files that included this one stops finding it until the index is rebuilt; searching the open file is unaffected",
     ),
     (
+        DiscardObject::SmoothLines,
+        "runs of short straight lines are redrawn as curves: the drawing moves by up to the tolerance (each page lists its largest move), so a measurement taken from the linework can change by that much",
+    ),
+    (
         DiscardObject::MergeImageFragments,
         "images stored as thin strips are merged into one image each: the page draws the same, and the faint seams some viewers show between strips go",
     ),
@@ -70,7 +74,9 @@ const NOTES: &[(DiscardObject, &str)] = &[
 fn self_measured(object: DiscardObject) -> bool {
     matches!(
         object,
-        DiscardObject::FlattenLayers | DiscardObject::MergeImageFragments
+        DiscardObject::FlattenLayers
+            | DiscardObject::MergeImageFragments
+            | DiscardObject::SmoothLines
     )
 }
 
@@ -79,9 +85,10 @@ impl EditSession {
     /// A certification forbidding deletions is noted by `plan_discard`.
     pub(super) fn plan_discard_objects(
         &self,
-        options: DiscardOptions,
+        settings: &OptimizeSettings,
         notes: &mut Vec<String>,
     ) -> Vec<ObjectDiscard> {
+        let options = settings.discard;
         if options.objects().next().is_none()
             || crate::signature::census(self).forbids_structural_change()
         {
@@ -90,6 +97,9 @@ impl EditSession {
         let view = self.view();
         let live = self.live_objects();
         let mut items = objects::carriers(&view, &live, |o| options.contains_object(o));
+        if options.contains_object(DiscardObject::SmoothLines) {
+            items.extend(smooth::smooth_carriers(&view, settings.smooth_tolerance));
+        }
         for item in items.iter_mut().filter(|i| !self_measured(i.object)) {
             let mut st = Staged::default();
             if self.stage_item(item, &mut st).is_ok() {
@@ -122,6 +132,7 @@ impl EditSession {
     pub(super) fn apply_discard_objects(
         &mut self,
         items: &[ObjectDiscard],
+        smooth_tolerance: f64,
         fold: &mut Fold,
     ) -> Result<usize, OptimizeError> {
         if items.is_empty() {
@@ -150,11 +161,12 @@ impl EditSession {
             Default::default()
         };
         for item in own {
-            let result = if item.object == DiscardObject::FlattenLayers {
-                self.delete_layer(item.owner, LayerContentPolicy::KeepUnlayered)
-                    .map(drop)
-            } else {
-                self.merge_page_fragments(item.owner, &refs, fold)
+            let result = match item.object {
+                DiscardObject::FlattenLayers => self
+                    .delete_layer(item.owner, LayerContentPolicy::KeepUnlayered)
+                    .map(drop),
+                DiscardObject::SmoothLines => self.smooth_page(item.owner, smooth_tolerance),
+                _ => self.merge_page_fragments(item.owner, &refs, fold),
             };
             fold.absorb(self);
             if let Err(e) = result {
