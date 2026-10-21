@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1120th filing) — `Pass 616.3` slice C PARTIAL in `19b2af2b`: discard form actions and external references
+
+**Shipped (engineer-reported, no shell here):** `DiscardObject::FormActions` (`--discard form-actions`: SubmitForm, ResetForm, ImportData) and `ExternalReferences` (`--discard external-references`: GoToR, Launch, GoToE/Thread with `/F`; URI links stay). Carriers `/A`, `/AA`, catalog `/OpenAction`, `/NA`, `/PA`; Movie `/A` skipped (Table 189). A removed action is spliced out of its `/Next` chain and later actions still run (§12.6.2 NOTE 1); cycles end the chain, depth guard 64; each rewrite applies only if the entry still holds its planned value. Disclosed in the output. Core `[x]`, cli `[x]`, gui `[ ]`. Core lib 1595 passed (4 new), core optimize 47/47, CLI optimize 13/13, 33 CI-yml audits pass. No dependency change.
+
+**API note:** `ObjectDiscard` lost `Eq` (carries an `Object`). Owed to pdfcer-gui: that, plus the two new variants; the engineer writes the note.
+
+**Owed:** a Link whose action was removed stays as an inert hotspot; search index (key unmeasured); hidden layers and flatten visible layers, object data, comments/forms/multimedia, merge image fragments, smooth lines; 2.0 structure destinations, `/SD` in named destinations, XMP `pdfaid` rewriting. Detail in ROADMAP `616.3`.
+
+**Register:** ROADMAP `616.3` stays IN PROGRESS; FEATURES discard-objects row extended, Planned remainder narrowed. No decision. Git, push and backup state not verified from here.
+
 ## 2026-10-20 (1119th filing) — `Pass 616.3` fix G213 in `c50ec207`: a requested removal is written even when the file does not shrink
 
 **Shipped (engineer-reported, no shell here):** `save_optimized` takes `&OptimizePlan` first (breaking for pdfcer-gui); new `OptimizedFile::NotSmaller { bytes, original }` and `OptimizePlan::removes_content()`. The never-larger rule (decision 191) now covers only purely byte-saving runs. CLI `optimize` writes such a run, exits 0, says "not smaller: kept anyway, because it removes what was asked for"; JSON `smaller` is the real comparison; exit 14 now means nothing was written. Also documents test helper `optimize::tests::session` (CI gate left red by `07645ef5`). Tests: core lib 2995, 1591 + 236 doctests, CLI 897, all green; fmt, clippy, structure, core-api-verbs clean; sabotage fails the new test. No dependency change. Request G213 FIXED in the FeatureRequests INDEX.
