@@ -600,4 +600,6 @@ mod pipeline_predict_tests;
 #[cfg(test)]
 mod pipeline_tests;
 #[cfg(test)]
+mod preset_tests;
+#[cfg(test)]
 mod tests;

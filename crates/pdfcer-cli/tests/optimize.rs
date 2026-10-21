@@ -708,6 +708,8 @@ fn an_image_setting_downsamples_and_reports_size_page_and_source() {
         "-o",
         out.to_str().unwrap(),
         "--keep-structure",
+        "--preset",
+        "lossless",
         "--streams",
         "image(ppi=72)",
         "--rule",

@@ -62,8 +62,9 @@ fn the_module_example_parses() {
                 min-ppi = 150\nmax-ppi = 600\nids = [\"12 0\"]\naction = \"leave\"\n\
                 [[object]]\nid = \"14 0\"\naction = \"recompress-6\"\n";
     let s = parse("p.toml", text, &mut none).unwrap();
-    assert_eq!(s.rules.len(), 1);
-    assert_eq!(s.rules[0].select.min_ppi, Some(150.0));
+    // Standard's own 1-bit image rule comes first.
+    assert_eq!(s.rules.len(), 2);
+    assert_eq!(s.rules[1].select.min_ppi, Some(150.0));
     assert_eq!(
         s.objects[&ObjId::new(14, 0)],
         StreamAction::Recompress { level: 6 }

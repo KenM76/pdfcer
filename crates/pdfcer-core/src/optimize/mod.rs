@@ -40,6 +40,7 @@ pub(crate) mod fragments;
 pub mod image;
 pub(crate) mod object_data;
 pub mod objects;
+mod preset;
 pub mod profile;
 pub(crate) mod select;
 pub(crate) mod smooth;
@@ -59,6 +60,7 @@ pub use image::{
     Predictor, QUALITY_LEVELS, ResampleMethod, ResolvedImage, SettingSource, Sourced, Threshold,
 };
 pub use objects::{DiscardObject, ObjectDiscard};
+pub use preset::Preset;
 pub use select::{PageRanges, Selector};
 
 pub use crate::writer::{RebuildOptions, RebuildReport};
@@ -245,98 +247,6 @@ impl OptimizeSettings {
 impl Default for OptimizeSettings {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// pdfcer's built-in settings bundles.
-///
-/// The values are pdfcer's own, published in `--show-preset` and
-/// `docs/core-api`. Today every preset recompresses eligible streams at
-/// level 9 and turns every [`RebuildOptions`] option on; they diverge as
-/// image, font and discard actions arrive.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum Preset {
-    /// Lossless changes only.
-    Lossless,
-    /// The everyday default.
-    Standard,
-    /// Smallest file for screen and mobile reading.
-    Screen,
-    /// Keeps print-resolution content.
-    Print,
-    /// Keeps PDF/A conformance.
-    Archive,
-}
-
-impl Preset {
-    /// Every preset, in display order.
-    pub const ALL: [Self; 5] = [
-        Self::Lossless,
-        Self::Standard,
-        Self::Screen,
-        Self::Print,
-        Self::Archive,
-    ];
-
-    /// The stable name used by `--preset` and `extends`.
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Lossless => "lossless",
-            Self::Standard => "standard",
-            Self::Screen => "screen",
-            Self::Print => "print",
-            Self::Archive => "archive",
-        }
-    }
-
-    /// Look a preset up by [`Self::as_str`]; `mobile` is an alias of
-    /// `screen`.
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        if name == "mobile" {
-            return Some(Self::Screen);
-        }
-        Self::ALL.into_iter().find(|p| p.as_str() == name)
-    }
-
-    /// The preset's settings.
-    #[must_use]
-    pub const fn settings(self) -> OptimizeSettings {
-        let mut s = OptimizeSettings::new();
-        s.streams = match self {
-            Self::Lossless | Self::Standard | Self::Screen | Self::Print | Self::Archive => {
-                StreamAction::Recompress { level: 9 }
-            }
-        };
-        s.structure = RebuildOptions::all();
-        // Removing an unreferenced named destination can break a link from
-        // another file, so only the smallest-file preset does it.
-        s.cleanup = CleanupOptions {
-            unreferenced_destinations: matches!(self, Self::Screen),
-            ..CleanupOptions::all()
-        };
-        // Page thumbnails are redrawn by every viewer that shows them; the
-        // smallest-file preset also drops producers' private data,
-        // per-object XMP and print-only alternate images. Archive keeps
-        // everything PDF/A may need.
-        s.discard = match self {
-            Self::Lossless | Self::Archive => DiscardOptions::none(),
-            Self::Standard | Self::Print => DiscardOptions::none().with(MetadataKind::Thumbnail),
-            Self::Screen => DiscardOptions::none()
-                .with(MetadataKind::Thumbnail)
-                .with(MetadataKind::PieceInfo)
-                .with(MetadataKind::ObjectXmp)
-                .with_object(DiscardObject::AlternateImages),
-        };
-        s
-    }
-}
-
-impl fmt::Display for Preset {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
     }
 }
 

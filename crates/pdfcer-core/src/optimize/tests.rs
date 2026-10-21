@@ -111,7 +111,7 @@ fn decoded(doc: &Document, n: u32) -> Vec<u8> {
 #[test]
 fn a_plan_recompresses_eligible_streams_and_explains_every_skip() {
     let plan = session(sample("", &[]))
-        .plan_optimize(&Preset::Standard.settings())
+        .plan_optimize(&Preset::Lossless.settings())
         .unwrap();
     let changed: Vec<u32> = plan.changes.iter().map(|c| c.id.num).collect();
     assert_eq!(changed, [4, 5]);

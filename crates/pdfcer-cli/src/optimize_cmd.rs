@@ -30,7 +30,9 @@ pub(crate) struct OptimizeArgs {
     #[arg(long)]
     pub(crate) in_place: bool,
     /// Start from a built-in preset: lossless, standard, screen (alias
-    /// mobile), print or archive. The default is standard.
+    /// mobile), print or archive. The default is standard, which downsamples
+    /// images; lossless and archive change no image. --list-presets says
+    /// what each does.
     #[arg(long, conflicts_with = "profile")]
     pub(crate) preset: Option<String>,
     /// Start from a saved profile (TOML). An `extends` in it names a preset
@@ -226,10 +228,10 @@ fn presets_text() -> String {
 fn preset_summary(p: Preset) -> &'static str {
     match p {
         Preset::Lossless => "lossless only: recompress generic streams at level 9",
-        Preset::Standard => "the default; lossless until image downsampling ships",
-        Preset::Screen => "smallest for on-screen reading; lossless today",
-        Preset::Print => "keeps print resolution; lossless today",
-        Preset::Archive => "PDF/A-safe; lossless today",
+        Preset::Standard => "the default; images above 225 ppi to 150, quality 60",
+        Preset::Screen => "smallest for on-screen reading; images above 144 ppi to 96 as JPEG",
+        Preset::Print => "keeps print resolution; images above 450 ppi to 300",
+        Preset::Archive => "PDF/A-safe; lossless, images kept",
         _ => "",
     }
 }
