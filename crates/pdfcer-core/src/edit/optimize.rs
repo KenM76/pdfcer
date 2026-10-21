@@ -142,21 +142,10 @@ impl EditSession {
         let removed = self.apply_cleanup(&plan.cleanup, &mut fold)?
             + self.apply_discard(&plan.discard, &mut fold)?
             + self.apply_discard_objects(&plan.discard_objects, &mut fold)?;
-        if plan.writes.is_empty() {
+        let objects = self.stream_writes(&plan.writes);
+        if objects.is_empty() {
             fold.finish(self, removed);
             return Ok(removed);
-        }
-        let mut objects = Vec::with_capacity(plan.writes.len());
-        for w in &plan.writes {
-            let data_span = self.stage_bytes(&w.data);
-            objects.push(ObjectWrite {
-                id: w.id,
-                before: self.state.get(&w.id).cloned(),
-                after: Some(Object::Stream(Stream {
-                    dict: w.dict.clone(),
-                    data_span,
-                })),
-            });
         }
         let count = objects.len();
         self.commit(Command {
@@ -167,6 +156,42 @@ impl EditSession {
         });
         fold.finish(self, count + removed);
         Ok(count + removed)
+    }
+
+    /// The planned stream rewrites as writes against the session now. A
+    /// stream an earlier step of the run rewrote (a layer flattened out of
+    /// a page's content) gets its action redone on the new value, so the
+    /// planned bytes never overwrite that step; one it removed is skipped.
+    fn stream_writes(&mut self, writes: &[Rewrite]) -> Vec<ObjectWrite> {
+        let mut objects = Vec::with_capacity(writes.len());
+        for w in writes {
+            let (dict, data) = if self.value(w.id) == Some(&w.before) {
+                (w.dict.clone(), w.data.clone())
+            } else {
+                let view = self.view();
+                let redone = match self.value(w.id) {
+                    Some(Object::Stream(s))
+                        if !self.deleted.contains(&w.id)
+                            && streams::protected(&s.dict).is_none() =>
+                    {
+                        view.slice(s.data_span)
+                            .and_then(|raw| streams::apply(w.action, &s.dict, raw).ok().flatten())
+                    }
+                    _ => None,
+                };
+                let Some(redone) = redone else {
+                    continue;
+                };
+                redone
+            };
+            let data_span = self.stage_bytes(&data);
+            objects.push(ObjectWrite {
+                id: w.id,
+                before: self.state.get(&w.id).cloned(),
+                after: Some(Object::Stream(Stream { dict, data_span })),
+            });
+        }
+        objects
     }
 
     /// The full rewrite of this session, rebuilt under `structure`, written
@@ -244,6 +269,7 @@ fn plan_stream(
             plan.writes.push(Rewrite {
                 id,
                 before: Object::Stream(stream.clone()),
+                action,
                 dict,
                 data,
             });

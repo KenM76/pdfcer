@@ -21,6 +21,9 @@ pub(crate) struct Rewrite {
     pub(crate) id: ObjId,
     /// The session value when planned, for the stale-plan check.
     pub(crate) before: Object,
+    /// What produced `dict` and `data`, redone on the stream as the run
+    /// leaves it when an earlier step of the run rewrote it.
+    pub(crate) action: StreamAction,
     pub(crate) dict: Dict,
     pub(crate) data: Vec<u8>,
 }

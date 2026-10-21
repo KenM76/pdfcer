@@ -10,10 +10,13 @@ use super::*;
 use crate::doc_metadata::MetadataKind;
 
 /// One page whose content (4) draws on a visible layer (5, `Notes`) and a
-/// hidden one (6, `Draft`); `extra` goes in the page's `/Properties`.
-fn sample_with(extra: &str) -> Vec<u8> {
+/// hidden one (6, `Draft`), `repeat` times; `extra` goes in the page's
+/// `/Properties`.
+fn fixture(extra: &str, repeat: usize) -> Vec<u8> {
     let b = |s: &str| s.as_bytes().to_vec();
-    let content = "/OC /L1 BDC 0 0 m 10 10 l S EMC /OC /L2 BDC 1 1 m 9 9 l S EMC";
+    let content = "/OC /L1 BDC 0 0 m 10 10 l S EMC /OC /L2 BDC 1 1 m 9 9 l S EMC
+"
+    .repeat(repeat);
     build(&[
         b(
             "<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [5 0 R 6 0 R] /D << /OFF [6 0 R] >> >> >>",
@@ -32,6 +35,10 @@ fn sample_with(extra: &str) -> Vec<u8> {
         b("<< /Type /OCG /Name (Draft) >>"),
         b("<< /Type /OCMD /OCGs [5 0 R] >>"),
     ])
+}
+
+fn sample_with(extra: &str) -> Vec<u8> {
+    fixture(extra, 1)
 }
 
 fn sample() -> Vec<u8> {
@@ -105,4 +112,34 @@ fn a_layer_in_a_membership_dictionary_refuses_the_run_and_writes_nothing() {
     );
     assert_eq!(dict(&s, 1), before);
     assert_eq!(layer_count(&s), 2);
+}
+
+#[test]
+fn a_recompression_planned_for_the_flattened_content_does_not_undo_it() {
+    let mut s = session(fixture("", 50));
+    let mut settings = only(flatten());
+    settings.streams = StreamAction::Recompress { level: 9 };
+    let plan = s.plan_optimize(&settings).unwrap();
+    assert!(
+        plan.changes.iter().any(|c| c.id == super::tests::id(4)),
+        "the content stream is planned for recompression"
+    );
+    s.apply_optimize(&plan).unwrap();
+    let (file, _) = s
+        .save_optimized(
+            &plan,
+            &crate::writer::SaveOptions::default(),
+            &RebuildOptions::none(),
+        )
+        .unwrap();
+    let (OptimizedFile::Smaller(bytes) | OptimizedFile::NotSmaller { bytes, .. }) = file else {
+        panic!("nothing written");
+    };
+    let s = session(bytes);
+    let page = s.pages().unwrap().remove(0);
+    let content = crate::content::ContentStream::from_page(&s.view(), &page).unwrap();
+    let content = String::from_utf8_lossy(&content.buf);
+    assert!(!content.contains("/L1"), "the flattened layer came back");
+    assert_eq!(content.matches("/L2").count(), 50, "the hidden layer stays");
+    assert_eq!(content.matches("10 10 l").count(), 50, "what it drew stays");
 }
