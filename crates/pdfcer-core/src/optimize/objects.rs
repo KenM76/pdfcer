@@ -21,6 +21,9 @@
 //! - form actions and external references: see [`actions`];
 //! - object data: see [`object_data`];
 //! - form fields, multimedia and 3D models: see [`annots`].
+//! - flatten layers: each layer visible in the default configuration
+//!   (§8.11.4.3) is deleted by `EditSession::delete_layer`, keeping what it
+//!   draws; a hidden one is the `hidden-layer` user-data kind's.
 //!
 //! An embedded search index is not offered: no published specification
 //! names the key Acrobat stores it under.
@@ -69,11 +72,15 @@ pub enum DiscardObject {
     /// 3D annotations and their models, and the actions that change their
     /// view.
     ThreeDModels,
+    /// Layers visible when the document opens, merged into the page: what
+    /// they draw stays, now on no layer, so it always shows and prints.
+    /// Hidden layers stay layers unless `hidden-layer` is also discarded.
+    FlattenLayers,
 }
 
 impl DiscardObject {
     /// Every class, in plan order.
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 11] = [
         Self::Bookmarks,
         Self::Tags,
         Self::PrintSettings,
@@ -84,11 +91,13 @@ impl DiscardObject {
         Self::FormFields,
         Self::Multimedia,
         Self::ThreeDModels,
+        Self::FlattenLayers,
     ];
 
     /// A stable lower-case name: `bookmarks`, `tags`, `print-settings`,
     /// `alternate-images`, `form-actions`, `external-references`,
-    /// `object-data`, `form-fields`, `multimedia`, `3d-models`.
+    /// `object-data`, `form-fields`, `multimedia`, `3d-models`,
+    /// `flatten-layers`.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -102,6 +111,7 @@ impl DiscardObject {
             Self::FormFields => "form-fields",
             Self::Multimedia => "multimedia",
             Self::ThreeDModels => "3d-models",
+            Self::FlattenLayers => "flatten-layers",
         }
     }
 
@@ -132,10 +142,11 @@ impl fmt::Display for DiscardObject {
 pub struct ObjectDiscard {
     /// The class.
     pub object: DiscardObject,
-    /// The object holding it: the catalog, or the image for alternates.
+    /// The object holding it: the catalog, the image for alternates, or the
+    /// layer (optional content group) for a flatten.
     pub owner: ObjId,
     /// Where it is, in words: `catalog`, `image object 12 0`, `page 2:
-    /// form-fields (3)`, or for an action `object 12 0: SubmitForm, GoToR`
+    /// form-fields (3)`, `layer 9 0: Notes`, or for an action `object 12 0: SubmitForm, GoToR`
     /// (the types removed).
     pub location: String,
     /// What leaves the file: the deleted entries plus every object only
@@ -243,8 +254,31 @@ pub(crate) fn carriers(
     out.extend(annots::annotation_carriers(
         view, live, catalog, cat, &wanted,
     ));
-    out.extend(actions::action_carriers(view, live, catalog, wanted));
+    out.extend(actions::action_carriers(view, live, catalog, &wanted));
+    if wanted(DiscardObject::FlattenLayers) {
+        out.extend(layer_carriers(view));
+    }
     out
+}
+
+/// One item per layer visible by default (§8.11.4.3 `/D`), measured as the
+/// group object; the session flattens it with `delete_layer`.
+fn layer_carriers(view: &DocumentView<'_>) -> Vec<ObjectDiscard> {
+    crate::layers::list_layers(view)
+        .into_iter()
+        .filter(|l| l.visible_by_default)
+        .map(|l| ObjectDiscard {
+            object: DiscardObject::FlattenLayers,
+            owner: l.id,
+            location: format!("layer {} {}: {}", l.id.num, l.id.generation, l.name),
+            bytes: view
+                .value(l.id)
+                .map_or(0, crate::doc_metadata::scan::value_bytes),
+            strips: Vec::new(),
+            rewrites: Vec::new(),
+            drops: Vec::new(),
+        })
+        .collect()
 }
 
 fn bookmark_strips(view: &DocumentView<'_>, cat: &Dict) -> Vec<Vec<&'static [u8]>> {

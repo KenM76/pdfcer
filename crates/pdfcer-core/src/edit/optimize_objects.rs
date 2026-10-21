@@ -3,9 +3,9 @@
 
 use std::collections::{BTreeSet, HashSet};
 
-use super::EditSession;
 use super::metadata_remove::Staged;
 use super::optimize_cleanup::Fold;
+use super::{EditSession, LayerContentPolicy};
 use crate::doc_metadata::scan::value_bytes;
 use crate::object::{Name, ObjId, Object};
 use crate::optimize::actions::{Rewrite, apply_rewrite};
@@ -51,6 +51,10 @@ const NOTES: &[(DiscardObject, &str)] = &[
         DiscardObject::ThreeDModels,
         "3D models go: the 3D views disappear from the page, and links that changed a view do nothing when clicked",
     ),
+    (
+        DiscardObject::FlattenLayers,
+        "visible layers merge into the page: what they draw can no longer be hidden, and prints even where a layer was set not to print",
+    ),
 ];
 
 impl EditSession {
@@ -75,7 +79,10 @@ impl EditSession {
             .into_iter()
             .collect();
         let mut items = objects::carriers(&view, &live, |o| options.contains_object(o));
-        for item in &mut items {
+        for item in items
+            .iter_mut()
+            .filter(|i| i.object != DiscardObject::FlattenLayers)
+        {
             let mut st = Staged::default();
             if self.stage_item(item, &mut st).is_ok() {
                 let freed: u64 = self
@@ -112,8 +119,11 @@ impl EditSession {
         if items.is_empty() {
             return Ok(0);
         }
+        let (layers, keyed): (Vec<_>, Vec<_>) = items
+            .iter()
+            .partition(|i| i.object == DiscardObject::FlattenLayers);
         let mut st = Staged::default();
-        for item in items {
+        for item in keyed {
             if let Err(reason) = self.stage_item(item, &mut st) {
                 fold.roll_back(self);
                 return Err(OptimizeError::ObjectDiscardFailed {
@@ -125,6 +135,18 @@ impl EditSession {
         }
         self.commit_metadata_edits(st);
         fold.absorb(self);
+        for item in layers {
+            let result = self.delete_layer(item.owner, LayerContentPolicy::KeepUnlayered);
+            fold.absorb(self);
+            if let Err(e) = result {
+                fold.roll_back(self);
+                return Err(OptimizeError::ObjectDiscardFailed {
+                    object: item.object,
+                    owner: item.owner,
+                    reason: e.to_string(),
+                });
+            }
+        }
         Ok(items.len())
     }
 

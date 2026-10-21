@@ -486,6 +486,38 @@ fn discard_removes_form_fields_and_multimedia() {
 }
 
 #[test]
+fn discard_flatten_layers_keeps_the_hidden_one() {
+    let d = dir("discard-flatten-layers");
+    let input = write_pdf_with(
+        &d,
+        "/OCProperties << /OCGs [8 0 R 9 0 R] /D << /OFF [9 0 R] >> >>",
+        &[
+            "<< /Type /OCG /Name (VISIBLE-ONE) >>",
+            "<< /Type /OCG /Name (HIDDEN-ONE) >>",
+        ],
+    );
+    let out = d.join("out.pdf");
+    let o = run(&[
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--discard",
+        "flatten-layers",
+    ]);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(report.contains("discard objects: 1 removed"), "{report}");
+    assert!(report.contains("visible layers merge"), "{report}");
+    let listed = Command::new(BIN)
+        .args(["list-layers", out.to_str().unwrap()])
+        .output()
+        .unwrap();
+    let listed = text(&listed);
+    assert!(listed.contains("layers=1"), "{listed}");
+    assert!(listed.contains("HIDDEN-ONE") && !listed.contains("VISIBLE-ONE"));
+}
+
+#[test]
 fn a_requested_removal_is_written_and_exits_0_even_when_not_smaller() {
     let d = dir("removal-not-smaller");
     let input = write_pdf(&d, "/ViewerPreferences << /Duplex /Simplex >>");

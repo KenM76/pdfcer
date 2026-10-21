@@ -543,6 +543,8 @@ mod actions_tests;
 #[cfg(test)]
 mod annots_tests;
 #[cfg(test)]
+mod flatten_layers_tests;
+#[cfg(test)]
 mod object_data_tests;
 #[cfg(test)]
 mod objects_tests;
