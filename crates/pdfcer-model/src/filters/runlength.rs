@@ -49,9 +49,10 @@
 //!   `Err` bucket for Pass 1. A *labeled* best-effort recovery mode is a
 //!   later, explicit feature — never a silent default.
 //!
-//! ## No encoder (rule R28)
+//! ## Encoder
 //!
-//! Read-compat only. pdfcer writes no image-codec or RLE data.
+//! [`encode`] writes the same format, for `pdfcer optimize`'s
+//! `encode=runlength` image target.
 
 use super::{FilterError, MAX_DECODED_LEN};
 
@@ -126,6 +127,57 @@ pub fn decode(data: &[u8]) -> Result<Vec<u8>, FilterError> {
     }
 }
 
+/// Encode `data` as RunLengthDecode, ending with EOD.
+///
+/// Greedy: a run of three or more equal bytes becomes a repeat run (up to
+/// 128 copies); a run of two does too unless it would split a pending
+/// literal run, where it costs one byte more. Literal runs hold up to 128
+/// bytes. The output never exceeds `len + len / 128 + 2` bytes (§7.4.5
+/// NOTE's 127:128 worst case, plus EOD).
+///
+/// # Examples
+///
+/// ```
+/// use pdfcer_model::filters::runlength;
+///
+/// let encoded = runlength::encode(b"abczzz");
+/// assert_eq!(encoded, b"\x02abc\xFEz\x80");
+/// assert_eq!(runlength::decode(&encoded).unwrap(), b"abczzz");
+/// ```
+#[must_use]
+pub fn encode(data: &[u8]) -> Vec<u8> {
+    let mut out = Vec::with_capacity(data.len() + data.len() / 128 + 2);
+    let mut literal: Vec<u8> = Vec::with_capacity(128);
+    let mut rest = data;
+    while let Some((&byte, _)) = rest.split_first() {
+        let run = rest.iter().take(128).take_while(|&&b| b == byte).count();
+        if run >= 3 || (run == 2 && literal.is_empty()) {
+            flush_literal(&mut out, &mut literal);
+            // run is 2..=128, so the length byte is 129..=255.
+            out.push(u8::try_from(257 - run).unwrap_or(u8::MAX));
+            out.push(byte);
+            rest = rest.get(run..).unwrap_or_default();
+        } else {
+            literal.push(byte);
+            if literal.len() == 128 {
+                flush_literal(&mut out, &mut literal);
+            }
+            rest = rest.get(1..).unwrap_or_default();
+        }
+    }
+    flush_literal(&mut out, &mut literal);
+    out.push(EOD);
+    out
+}
+
+fn flush_literal(out: &mut Vec<u8>, literal: &mut Vec<u8>) {
+    if let Some(last) = literal.len().checked_sub(1) {
+        // literal holds 1..=128 bytes, so the length byte is 0..=127.
+        out.push(u8::try_from(last).unwrap_or(0));
+        out.append(literal);
+    }
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -185,6 +237,46 @@ mod tests {
                 filter: "RunLengthDecode"
             }
         );
+    }
+
+    #[test]
+    fn encode_round_trips_through_decode() {
+        let mut mixed: Vec<u8> = (0..=255u8).collect();
+        mixed.extend(std::iter::repeat_n(7u8, 300));
+        mixed.extend_from_slice(b"aabbaabcc");
+        for input in [
+            Vec::new(),
+            b"a".to_vec(),
+            b"aa".to_vec(),
+            b"xaa".to_vec(),
+            vec![9u8; 128],
+            vec![9u8; 129],
+            vec![9u8; 257],
+            (0..1000u32).map(|i| (i % 2) as u8).collect(),
+            mixed,
+        ] {
+            let encoded = encode(&input);
+            assert_eq!(decode(&encoded).unwrap(), input);
+            assert!(encoded.len() <= input.len() + input.len() / 128 + 2);
+        }
+    }
+
+    #[test]
+    fn encode_splits_runs_at_128_and_ends_with_eod() {
+        assert_eq!(encode(b""), b"\x80");
+        assert_eq!(encode(&[5u8; 129]), b"\x81\x05\x00\x05\x80");
+        // Alternating bytes: one 128-byte literal run, then the rest.
+        let alt: Vec<u8> = (0..130u8).map(|i| i % 2).collect();
+        let e = encode(&alt);
+        assert_eq!(e[0], 127);
+        assert_eq!(e[129], 1);
+        assert_eq!(e.len(), 1 + 128 + 1 + 2 + 1);
+    }
+
+    #[test]
+    fn a_pair_inside_a_literal_stays_literal() {
+        assert_eq!(encode(b"xaa"), b"\x02xaa\x80");
+        assert_eq!(encode(b"aax"), b"\xFFa\x00x\x80");
     }
 
     #[test]

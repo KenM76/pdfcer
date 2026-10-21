@@ -107,10 +107,10 @@ pub(crate) fn format_pair(img: &ImageChange, filters: &[String]) -> String {
     let before = filters
         .last()
         .map_or("raw", |f| f.trim_end_matches("Decode"));
-    let after = if img.encoded_as == ImageEncode::Jpeg {
-        "DCT"
-    } else {
-        "Flate"
+    let after = match img.encoded_as {
+        ImageEncode::Jpeg => "DCT",
+        ImageEncode::RunLength => "RunLength",
+        _ => "Flate",
     };
     let (cb, ca) = &img.color_space;
     format!(

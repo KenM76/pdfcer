@@ -2,7 +2,7 @@
 //! (`pdfcer_core::edit::EditSession::plan_optimize` / `apply_optimize`).
 //!
 //! The first byte picks an image action (downsample, JPEG, grey, bilevel,
-//! palette, PNG-predicted Flate, a pixel cap for an image drawn on no
+//! palette, PNG-predicted Flate, RunLength, a pixel cap for an image drawn on no
 //! page), and its top bit plans byte-identical images as one
 //! (`merge_duplicates`); the rest is loaded as a PDF. Colour spaces, `/Indexed` lookups,
 //! `/Decode` arrays and sample data all come from the input, so planning
@@ -15,7 +15,7 @@ use pdfcer_core::document::Document;
 use pdfcer_core::edit::EditSession;
 use pdfcer_core::optimize::{OptimizeSettings, StreamAction};
 
-const ACTIONS: [&str; 9] = [
+const ACTIONS: [&str; 10] = [
     "image(ppi=36,above=36)",
     "image(encode=jpeg,quality=50)",
     "image(convert=gray)",
@@ -25,6 +25,7 @@ const ACTIONS: [&str; 9] = [
     "image(encode=flate,predictor=png)",
     "image(convert=indexed,colors=4,predictor=png,ppi=36,above=36)",
     "image(ppi=36,above=36,max-pixels=64)",
+    "image(convert=bilevel,threshold=128,encode=runlength)",
 ];
 
 fuzz_target!(|data: &[u8]| {

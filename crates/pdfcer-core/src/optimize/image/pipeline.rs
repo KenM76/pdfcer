@@ -109,6 +109,8 @@ pub(crate) enum Target {
     Flate { level: u8, predictor: Predictor },
     /// `/DCTDecode`.
     Jpeg(JpegOptions),
+    /// `/RunLengthDecode`.
+    RunLength,
 }
 
 /// A planned rewrite, redone on a stream an earlier step of the run
@@ -303,6 +305,8 @@ pub(crate) fn decide(
     let (target, quality) = if jpeg {
         let (opts, q) = jpeg_options(settings, source, raw);
         (Target::Jpeg(opts), Some(q))
+    } else if encode == ImageEncode::RunLength {
+        (Target::RunLength, None)
     } else {
         let level = match encode {
             ImageEncode::Flate { level } => level,
@@ -443,8 +447,10 @@ fn change(
         (b.ppi_x * sx).min(b.ppi_y * sy)
     });
     let (encoded_as, bpc_after) = match job.target {
-        Target::Flate { .. } if job.convert.is_some() => (encoded(job.target), 8),
-        Target::Flate { .. } => (encoded(job.target), job.bpc),
+        Target::Flate { .. } | Target::RunLength if job.convert.is_some() => {
+            (encoded(job.target), 8)
+        }
+        Target::Flate { .. } | Target::RunLength => (encoded(job.target), job.bpc),
         Target::Jpeg(_) => (ImageEncode::Jpeg, 8),
     };
     let before = space
@@ -477,6 +483,7 @@ const fn encoded(target: Target) -> ImageEncode {
     match target {
         Target::Flate { level, .. } => ImageEncode::Flate { level },
         Target::Jpeg(_) => ImageEncode::Jpeg,
+        Target::RunLength => ImageEncode::RunLength,
     }
 }
 

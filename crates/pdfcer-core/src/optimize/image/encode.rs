@@ -75,6 +75,12 @@ pub(crate) fn run(
                 .map_err(|e| SkipReason::ImageUnsupported(ImageSkip::JpegEncode(e)))?;
             (data, &b"DCTDecode"[..], 8, None)
         }
+        Target::RunLength => (
+            filters::runlength::encode(&pixels),
+            &b"RunLengthDecode"[..],
+            bpc,
+            None,
+        ),
     };
     guard(job, raw.len() as u64, data.len() as u64)?;
     let mut out = output_dict(dict, job.out, filter, bpc, data.len());
@@ -167,7 +173,9 @@ fn source_samples(
             if packed.len() < need {
                 return Err(short(packed.len(), need));
             }
-            if matches!(job.target, Target::Flate { .. }) || job.convert.is_some() {
+            if matches!(job.target, Target::Flate { .. } | Target::RunLength)
+                || job.convert.is_some()
+            {
                 return Ok((packed, job.bpc));
             }
             let bits = u8::try_from(job.bpc).unwrap_or(8);

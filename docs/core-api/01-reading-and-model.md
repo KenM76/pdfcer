@@ -2648,7 +2648,8 @@ streams) uses the plain form.
 Individual filters are also public if you need one directly:
 `ascii::decode_hex` / `decode_85`, `flate::decode`,
 `lzw::decode`, `runlength::decode`, `predictor::Params`
- / `::from_dict` / `unpredict`.
+ / `::from_dict` / `unpredict`. Encoders: `flate::encode_with_level`,
+`runlength::encode` (ends with EOD, never fails).
 
 **★ `decode_stream` deliberately refuses image codecs.** `filters/mod.rs`:
 hitting `DCTDecode`/`CCITTFaxDecode`/`JBIG2Decode`/`JPXDecode` returns

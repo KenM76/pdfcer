@@ -1048,3 +1048,26 @@ fn a_matte_soft_mask_is_resampled_with_its_image_and_says_so() {
     assert!(j.contains("\"resampled_with\":[9,0]"), "{j}");
     assert!(j.contains("\"resampled_with\":null"), "{j}");
 }
+
+#[test]
+fn a_runlength_image_reports_its_format_and_decodes() {
+    let d = dir("image-runlength");
+    let input = noise_image_pdf(&d);
+    let out = d.join("out.pdf");
+    let o = run(&[
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--keep-structure",
+        "--streams",
+        "image(convert=bilevel,threshold=110,encode=runlength)",
+    ]);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(
+        report.contains("format raw/DeviceGray 8 bit -> RunLength/DeviceGray 1 bit"),
+        "{report}"
+    );
+    let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(written.contains("/Filter /RunLengthDecode"), "{written}");
+}

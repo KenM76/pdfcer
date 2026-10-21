@@ -734,3 +734,10 @@ path = "fuzz_targets/optimize_images.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "image_encoders"
+path = "fuzz_targets/image_encoders.rs"
+test = false
+doc = false
+bench = false

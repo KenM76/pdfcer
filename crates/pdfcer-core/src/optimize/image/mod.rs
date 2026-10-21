@@ -90,6 +90,10 @@ pub enum ImageEncode {
     /// `/DCTDecode` (JPEG) with the patch's `quality`, `chroma` and
     /// `progressive`. Lossy.
     Jpeg,
+    /// `/RunLengthDecode` (ISO 32000-1 §7.4.5). Lossless; smaller than Flate
+    /// only on flat, banded artwork, so the never-larger guard usually
+    /// keeps the original.
+    RunLength,
 }
 
 impl fmt::Display for ImageEncode {
@@ -98,6 +102,7 @@ impl fmt::Display for ImageEncode {
             Self::Keep => f.write_str("keep"),
             Self::Flate { level } => write!(f, "flate-{level}"),
             Self::Jpeg => f.write_str("jpeg"),
+            Self::RunLength => f.write_str("runlength"),
         }
     }
 }
@@ -322,6 +327,7 @@ fn parse_encode(value: &str) -> Result<ImageEncode, String> {
         "keep" => Ok(ImageEncode::Keep),
         "flate" => Ok(ImageEncode::Flate { level: 9 }),
         "jpeg" => Ok(ImageEncode::Jpeg),
+        "runlength" => Ok(ImageEncode::RunLength),
         _ => value
             .strip_prefix("flate-")
             .and_then(|n| n.parse::<u8>().ok())
@@ -329,7 +335,7 @@ fn parse_encode(value: &str) -> Result<ImageEncode, String> {
             .map(|level| ImageEncode::Flate { level })
             .ok_or_else(|| {
                 format!(
-                    "image(): unknown encode {value:?}; expected keep, flate, flate-0..9 or jpeg"
+                    "image(): unknown encode {value:?}; expected keep, flate, flate-0..9, jpeg or runlength"
                 )
             }),
     }
@@ -643,6 +649,8 @@ mod pipeline_keyed_tests;
 mod pipeline_matte_tests;
 #[cfg(test)]
 mod pipeline_predict_tests;
+#[cfg(test)]
+mod pipeline_runlength_tests;
 #[cfg(test)]
 mod pipeline_tests;
 #[cfg(test)]
