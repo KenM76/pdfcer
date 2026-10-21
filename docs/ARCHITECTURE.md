@@ -5119,7 +5119,10 @@ wasm32-unknown-unknown` clean was verified as part of adoption, not
 assumed. **Decode only** — the crate's compressor half is not compiled
 into the shipped binary; see decision 086 for why the write side is a
 separate, deferred deliverable rather than a smaller slice of the same
-one. `THIRD_PARTY_LICENSES.md` regenerated via `cargo-about`.
+one. *(Superseded, see decision 194: the compressor IS compiled in, no
+dependency or feature change was needed, and a write side now exists in
+`pdfcer-model` `filters::brotli::encode`, reached only by the named
+optimize action `brotli[-N]`, never by default.)* `THIRD_PARTY_LICENSES.md` regenerated via `cargo-about`.
 
 **Fifth dependency, and the first that is a SIBLING PROJECT rather than a
 third-party crate: `iccce-profile` + `iccce-cmm`** — declared in

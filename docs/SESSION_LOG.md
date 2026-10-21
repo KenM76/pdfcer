@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1153rd filing) — `Pass 616.5` Brotli slice F1 in `5d312c12`: general streams take Brotli
+
+**Shipped:** `Pass 616.5` Brotli streams slice (core + cli). `StreamAction::Brotli { quality }`, `pdfcer optimize --streams brotli[-N]`; committing writes the EXTN-BROTLI-1 `/Extensions` entry and raises `/Version` to 2.0 in the same undo entry; refused under a PDF/A claim. `recompress` now also converts Brotli streams to Flate. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
+
+**Decisions:** none new (decision 194, filed in `7206ca29`, governs). No rule minted (`195`, `R263` stay free).
+
+**Findings:** tests model 417, core lib 1,735, core integration 3,008, cli 925, sabotage-checked; no manifest change. The `ARCHITECTURE.md` "Decode only" line was stale and now points to decision 194.
+
+**Still in flight:** `Pass 616.5` open: F2 image `encode=brotli`; Acrobat Reader render check (unverified, Reader likely cannot open Brotli).
+
+**For next session:** next free `Pass 617.7`. Filing-number mismatch to reconcile: decision 194's on-disk text says 1148th, the commit subject says 1152nd. Git, push and backup state not verified from here. Next filing 1154th.
+
 ## 2026-10-21 (1151st filing) — `Pass 617.6` in `ca2b5b0a`: text takes a fill opacity (`G222`)
 
 **Shipped:** `Pass 617.6` (core + cli). `FormatRequest::fill_alpha` and `AddTextRequest::with_fill_alpha` write ExtGState `/ca` around a text run, restoring the ambient alpha; `format-text --set-opacity`, `add-text --opacity`. Refusals `BadOpacity`, `OpacityUnrestorable`, `InvalidOpacity`. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.

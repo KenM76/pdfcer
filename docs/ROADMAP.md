@@ -112,6 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.5` (Brotli slice F1, `5d312c12`), 2026-10-21 — general streams take Brotli; `Pass 616.5` NOT complete (1153rd filing)
+
+Code commit `5d312c12` "feat(optimize): streams take Brotli (Pass 616.5 Brotli slice, decision 194)", after decision 194 (`7206ca29`, filed as the 1152nd by the commit subject). Core + CLI; no GUI. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 194 governs.
+
+- **Action:** `StreamAction::Brotli { quality }`; profile `brotli` (quality 11) or `brotli-0..11`. One `/BrotliDecode`, RFC 7932 standard window (lgwin 22). Written only when named (never `auto`, preset or fallback). Protected streams excluded.
+- **Commit-time declaration (same undo entry):** adds the PDF Association developer extension (EXTN-BROTLI-1) to the catalog `/Extensions` (merges other developers, keeps an earlier `/PDFa` entry as an array, patches an indirect `/Extensions`, never duplicates) and raises `/Version` to 2.0. `OptimizePlan::uses_brotli()`; the plan note discloses the reader requirement; `version_raise()` now includes 2.0.
+- **Refusal:** a PDF/A claim gives `SkipReason::BrotliUnderPdfa`.
+- **Side effect, a behaviour change:** `BrotliDecode` joined the generic decode chain, so `recompress` now converts Brotli streams to Flate (previously skipped as `UnsupportedFilter`).
+- **Model:** `pdfcer-model` `filters::brotli::encode`; module doc corrected (it said the compressor was not compiled in). No Cargo change; `cargo tree` unchanged.
+- **CLI:** `pdfcer optimize --streams brotli[-N]`; help text updated. `docs/core-api/03-capabilities.md` updated; `check-core-api-verbs` PASS.
+- **Tests (engineer-reported):** pdfcer-model lib 417; core lib 1,735; core `--test all` 3,008; cli `--test all` 925; all green. New: model 2, core `brotli_tests` 8, cli 1. Sabotage: dropping the extension write failed 3 tests; dropping the PDF/A skip failed 1. fmt, clippy `-D warnings`, project gates (code-structure, public-fns-documented, others) clean.
+- **Fuzz:** no new target; the encoder consumes already-decoded bytes and `/BrotliDecode` decode is already fuzzed.
+- **Still open in `Pass 616.5`:** F2, image `encode=brotli`; the Acrobat Reader render check (Reader likely cannot open Brotli streams; to be recorded as unverified, not as passed); the Reader check per encoder from decision 193; the dedicated Brotli fuzz-target question is moot for the encoder.
+
+`FEATURES.md`: *Reduce file size by lossless stream recompression* row gains Brotli (core `[x]`, cli `[x]`, gui `[ ]`); the Planned Brotli row is narrowed to the image half (F2). Hard-rule-11 sweep: `ARCHITECTURE.md` body "Decode only" line (was ~5119) given a forward pointer to decision 194 in this filing; the Next-up wording "Brotli write side unstarted" updated. Ledgers: no new decision, no rule; next free decision `195`, `R263`, `Pass 617.7`; next filing 1154th. Filing-number note: the on-disk text of decision 194 reads "1148th filing" while the commit subject says 1152nd; I did not rewrite either. Git, push and backup state not verified from here.
+
 ### `Pass 617.6` (`ca2b5b0a`), 2026-10-21 — text takes a fill opacity (`G222`) (1151st filing)
 
 Code commit `ca2b5b0a` "feat(text): text takes a fill opacity (Pass 617.6, G222)", after the 1150th filing. Core + CLI; `pdfcer-gui` has not yet consumed it (gui box unticked). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Request: `request_G222_page_text_has_no_opacity.md`, answered by `reply_G222_page_text_has_no_opacity_FIXED.md` (channel).
@@ -22917,6 +22933,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+(1153rd filing: `Pass 616.5` Brotli slice F1 (general streams) SHIPPED `5d312c12`, see *Shipped*. Still open: F2 image `encode=brotli`, and the Acrobat Reader render check per encoder incl. Brotli (unverified; Reader likely cannot open Brotli). `616.5` stays here. Next filing 1154th.)
+
 (1146th filing: `Pass 616.5` slice E6 (version raise) SHIPPED `61a3f18f`, see *Shipped*; E1-E6 all done. Only the Acrobat Reader render check per encoder (LZW, CCITT, JBIG2) remains, so `616.5` stays here; the Brotli write side is unstarted. Next filing 1147th.)
 
 (1145th filing: `Pass 616.5` slice E5 (`encode=auto`) SHIPPED `961c0809`, see *Shipped*; E1-E5 done. Only E6 version-raise=refuse and the Acrobat Reader render check per encoder remain. `616.5` stays here. Next filing 1146th.)
@@ -24840,7 +24858,8 @@ Mono results are mostly not-smaller until `616.5` adds CCITT/JBIG2 encoders; dis
 - **Decode already ships** (`Pass 123.0`, `4163ad9`; `crates/pdfcer-model/src/filters/brotli.rs`): `/BrotliDecode` is read, with an output ceiling and fixture tests that use the crate's encoder test-only. Not owed.
 - **The `brotli` crate is already a dependency**, classified BSD-3-Clause AND MIT, both permissive, "no operator call" (`crates/pdfcer-model/Cargo.toml`, `docs/DEPENDENCIES.md`). **Corrected (decision 194, 1148th filing): the compressor is NOT compiled out.** `brotli` 8.0.4's `enc` module is unconditional and `CompressorWriter` is exported under the `std` feature already enabled in `crates/pdfcer-model/Cargo.toml` (`features = ["std", "alloc-stdlib"]`). No new dependency, no feature change, `cargo tree` unchanged; licence BSD-3-Clause OR MIT, already classified. (The earlier wording here, that `default-features = false` compiles the compressor out and needs a feature change, was wrong.) Pure-Rust backend holds (static-binary and WASM invariants).
 - **Operator question `(bq)` is closed** (2026-08-25, "implement now, against the extension"), and its record states that writing was left as the engineer's own Backlog item, not a question back to Ken. Consequence already accepted: files written with Brotli will not open in software that lacks the extension.
-- **Still owed from the request:** a dedicated Brotli fuzz target (none under `fuzz/fuzz_targets/` by name; whether `content_and_filters.rs` reaches the decoder is unverified); the write side itself.
+- **★ Brotli slice F1 (general streams) SHIPPED `5d312c12` (1153rd filing; entry in *Shipped*; core + cli, gui not). F2 (image `encode=brotli`) and the Reader render check remain open.**
+- **Still owed from the request (as filed; the stream half is now built):** a dedicated Brotli fuzz target (none under `fuzz/fuzz_targets/` by name; whether `content_and_filters.rs` reaches the decoder is unverified); the write side itself.
 - **Write-side contract:** writes the `/Extensions` entry for `PDFa` (EXTN-BROTLI-1 v1.3, `ExtensionLevel 1`, `BaseVersion 2.0`) and raises the header to 2.0; **OFF by default**; the report discloses it ("readers without the extension cannot open these streams"). Round-trip rule 3 is not in conflict: optimize rewrites a stream only when asked, never an untouched one. Not allowed in inline images (EXTN-BROTLI-1 §5.2; `ImageCodecError::BrotliNotAllowedInline` already enforces it on read). **Decision 194 filed (1148th, `ARCHITECTURE.md` §12; design only, no code yet):** explicit-only (`brotli` / `brotli-N`, N 0..=11, default 11; never `auto`, preset or fallback), standard window (lgwin 22), declares `/Extensions /PDFa` and raises catalog `/Version` to 2.0 (both disclosed), refused under PDF/A, never inline or ObjStm/XRef/Metadata, same only-if-smaller and `min-saving` guards. Next free decision `195`.
 
 ### `Pass 616.6` — Fonts: re-subset, merge duplicate subsets, unembed — NEXT UP, 2026-10-20
