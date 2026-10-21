@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1118th filing) — `Pass 616.3` slice B PARTIAL in `07645ef5`: discard document objects
+
+**Shipped (engineer-reported, no shell here):** `DiscardObject` {bookmarks, tags, print-settings, alternate-images} via `optimize --discard`/`--keep-data` and profile key `discard`; separate from the metadata kinds so `metadata remove --all` leaves bookmarks/tags alone. One undo entry, a disclosure note per class, Screen preset adds alternate-images. Core `[x]`, cli `[x]`, gui `[ ]`. Core lib 2995, integration 1589, doctests 236, CLI 896 + 43; 4/4 sabotages failed tests. No dependency change.
+
+**Decision defaults (spec ambiguity register):** OL-A1 remove PageMode; ST-A1 keep MCIDs; AI-A1 skip any image with `/OC`. ST-A2 and VP-A1 not acted on.
+
+**Owed:** slice C (form submit/import/reset actions, GoToR/Launch); search index needs its catalog key measured from a rights-clean Acrobat file (no published spec names it; Acrobat RAG item 11 `/Index` is unsourced, flagged to its librarian); gaps: 2.0 structure destinations, `/SD` in name-tree dictionaries, XMP `pdfaid`/`pdfuaid` disclosed not rewritten. Detail in ROADMAP `616.3`.
+
+**Register:** ROADMAP `616.3` stays IN PROGRESS; FEATURES gains an Implemented row, Planned remainder narrowed. No decision. Git, push and backup state not verified from here.
+
 ## 2026-10-20 (1117th filing) — `Pass 616.3` slice A PARTIAL in `92102894`: discard user data by kind
 
 **Shipped (engineer-reported, no shell here):** `optimize --discard KINDS` / `--keep-data KINDS`, `OptimizeSettings.discard`, profile key `discard`, preset defaults (Screen: Thumbnail + PieceInfo + ObjectXmp). One undo entry, full rollback on failure. Core `optimize::` 33/33, CLI 10/10, suites green. Core `[x]`, cli `[x]`, gui `[ ]`.
