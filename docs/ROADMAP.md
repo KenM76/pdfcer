@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.4` (slice D4, `db4cca93`), 2026-10-21 — max-pixels caps an image drawn on no page (1137th filing)
+
+Code commit `db4cca93` "feat(optimize): max-pixels caps an image drawn on no page (Pass 616.4, slice D4)", after the 1136th filing `6c166cb4`; not pushed at filing time. Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 192 governs. `616.4` is NOT complete: D5 (dedupe, in progress) and D6's per-image report table remain.
+
+- **Setting:** `image(max-pixels=N)` (`ImagePatch.max_pixels`, `ResolvedImage.max_pixels`, `Option<Sourced<u32>>`, folded field-wise). An image drawn on no page has no resolution to measure, so it is downsampled by one factor to at most N pixels (width x height), aspect kept; each axis floored and >= 1, an axis held at 1 gives the other the remaining budget, so the product never exceeds N. A placed image ignores the cap and follows ppi. An unplaced image with a ppi and no cap is still skipped as Unplaced; its reason now names `max-pixels=N`. `resamples()` is true for a ppi or a cap (method not off). `validate()` rejects 0.
+- **CLI:** `--streams` help gains the key; the JSON image report gains `max_pixels` (`{value, source}` or null). `docs/core-api/03-capabilities.md` updated; check-core-api-verbs green (4,660 lines).
+- **Tests (engineer-reported):** core optimize 146 (4 new, `pipeline_cap_tests.rs`), CLI optimize 25 (1 new); sabotage (cap branch returns no resize) failed core and CLI tests, restored. Fuzz `optimize_images` gains a max-pixels action, 31,901 runs/181 s clean. Gates, clippy, code-structure green; `cargo tree` unchanged (no manifest touched).
+- `FEATURES.md`: *Downsample images* row gains the cap (boxes unchanged, gui `[ ]`); *Image requality, remainder* drops D4. Ledgers: no decision, no rule; next filing 1138th. Git, push and backup state not verified from here.
+
 ### `Pass 616.4` (slice D3, `e5edee43`), 2026-10-21 — colour-keyed images downsample by nearest pixel (1136th filing)
 
 Code commit `e5edee43` "feat(optimize): colour-keyed images downsample by nearest pixel (Pass 616.4, slice D3)", after the 1135th filing `1b2e933d`. Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 192 governs. `616.4` is NOT complete: D4 (`unplaced=max-pixels=N`), D5 (dedupe) and D6's per-image report table remain.
@@ -22712,6 +22721,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+(1137th filing: `Pass 616.4` slice D4 SHIPPED (`db4cca93`, see *Shipped*); D5, D6's per-image table and `616.5` remain. Next filing 1138th.)
+
 (1136th filing: `Pass 616.4` slice D3 SHIPPED (`e5edee43`, see *Shipped*); D4, D5, D6's per-image table and `616.5` remain. Next filing 1137th.)
 
 (1132nd filing: `Pass 616.4` slice D2 SHIPPED (`ffbf97d4`, see *Shipped*); D3-D6 and `616.5` remain. Next filing 1133rd.)
@@ -24571,7 +24582,7 @@ Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level
 
 Original scope: wire in the existing 12 `doc_metadata` kinds. Add: alternate images, print settings, search index, tags, bookmarks, form actions, external cross-references, private application data, hidden layers (with visible-layer flatten), embedded thumbnails.
 
-### `Pass 616.4` — Images I: downsampling, requality, conversion — SLICES A `2bfea30c`, B `e9387ebf`, C `cba8193d`, D1 `0fc01d0c`, D2 `ffbf97d4`, D3 `e5edee43` SHIPPED (2026-10-21); D4-D6 NEXT UP
+### `Pass 616.4` — Images I: downsampling, requality, conversion — SLICES A `2bfea30c`, B `e9387ebf`, C `cba8193d`, D1 `0fc01d0c`, D2 `ffbf97d4`, D3 `e5edee43`, D4 `db4cca93` SHIPPED (2026-10-21); D5-D6 NEXT UP
 
 **Operator-direct request, Ken 2026-10-21 (1128th filing), verbatim:** *"We should also be able to change images to different formats (jpeg formats, brotli, grey scale, etc of whatever PDFs support), and as stated before this can be done on all or a per image basis or etc."* Folded into slices B/C below and into `616.5`, not minted as a new Pass: the existing `encode=` key and the fold model (default -> `image-class`/other rules -> one object) already give all / per class / per image. **Acceptance criterion added:** the report shows, per image, the format before -> after (e.g. `Flate/DeviceRGB 8bpc -> DCT/DeviceGray`). Target matrix and where each lands:
 
@@ -24603,7 +24614,7 @@ Colour conversion targets (grey, bilevel, indexed) are slice C (shipped). ICC-ma
   - **D1 — Flate PNG predictor.** **SHIPPED `0fc01d0c`** (entry in *Shipped*; delivered as `predictor=off|png|auto`).
   - **D2 — /Matte lockstep resample.** **SHIPPED `ffbf97d4`** (entry in *Shipped*). A /Matte mask shared by several images stays refused.
   - **D3** Colour-key masks subsample-or-skip. **SHIPPED `e5edee43`** (entry in *Shipped*; `keyed=subsample|skip`).
-  - **D4** `unplaced=max-pixels=N`.
+  - **D4** `max-pixels=N` for unplaced images. **SHIPPED `db4cca93`** (entry in *Shipped*).
   - **D5** Dedupe of identical images before resampling.
   - **D6** Lossy presets **SHIPPED `db902fb4`** (G216; entry in *Shipped*; core + cli, gui not). **Remaining:** the per-image table in the report.
 

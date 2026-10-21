@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1137th filing) — `Pass 616.4` slice D4 in `db4cca93`: max-pixels caps an image drawn on no page
+
+**Shipped (engineer-reported, no shell here):** `image(max-pixels=N)`: an image drawn on no page is downsampled by one factor to at most N pixels (aspect kept, each axis >= 1, product never above N); a placed image ignores the cap and follows ppi. Unplaced with a ppi and no cap is still skipped, its reason now naming `max-pixels=N`. `validate()` rejects 0. CLI help and JSON report (`max_pixels`) carry the key. Core + cli; gui not.
+
+**Counts:** core optimize 146 (4 new), CLI optimize 25 (1 new); cap-branch sabotage failed both; fuzz `optimize_images` 31,901 runs clean; gates/clippy/structure green (engineer-reported). No manifest change; not pushed at filing time.
+
+**Register:** ROADMAP Shipped entry, D4 line, banner; FEATURES two rows. Not done: D5 (dedupe, in progress), D6 per-image table, `616.5`. No decision or rule; next filing 1138th. Git, push and backup state not verified from here.
+
 ## 2026-10-21 (1136th filing) — `Pass 616.4` slice D3 in `e5edee43`: colour-keyed images downsample by nearest pixel
 
 **Shipped (engineer-reported, no shell here):** colour-key `/Mask` images (ISO 32000-2 §8.9.6.4: key matches raw samples, so blending breaks it) are no longer skipped; they resample by nearest pixel regardless of `method`, keeping `/Mask`. New `keyed=subsample|skip` (default subsample; `skip` restores the old skip reason). Conversion and JPEG still refused for keyed images. Core + cli; gui not.
