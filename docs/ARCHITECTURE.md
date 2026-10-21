@@ -13314,3 +13314,49 @@ log only); `ARCHITECTURE.md` §5 (round-trip) should cite this decision when
 decision `192`.
 
 **New standing rule.** None — `R263` stays next free.
+
+### 2026-10-21 (1127th filing, KenAgent consultant `autonomous-builder`) — decision 192: image optimisation is a field-wise-merged `ImagePatch`, and the resolution basis is the LOWEST effective ppi per axis
+
+**Full record:** `docs/decisions/192-image-optimise-settings.md` (builds on
+decision 191). Scopes `Pass 616.4` slices A-D; no code shipped by this filing.
+
+**What this decides.**
+1. Images are a `StreamAction::Image(ImagePatch)` variant; every patch field
+   is optional. The actions matching a stream fold in order: default
+   `streams`, then rules earliest to latest, then the per-object override,
+   merged field by field. `leave` / `recompress-N` replace the whole state.
+   Acrobat's colour / grey / mono panels (plus Indexed) ship as preset rules
+   selecting `image-class`; no per-class struct, no separate override map.
+2. **Resolution basis.** Downsampling scales every placement by one factor,
+   so the placement that limits the reduction is the largest drawn one, the
+   **lowest** effective ppi. Per axis: `s_a = target / min over placements of
+   ppi_a`; an axis is resampled only when every use is above the trigger
+   (default 1.5 x target). The report names the binding placement.
+   **This corrects `ImageSpace::max_effective_ppi`**, which measured the
+   wrong end, and the `Pass 616.4` line "Resample to the highest ppi any
+   placement needs" (and survey gap 6's wording, same misreading). Replaced
+   by a minimum-based `binding_ppi`; `Selector` min/max-ppi test that.
+3. JPEG named levels: minimum 20, low 40, medium 60, high 80, maximum 95;
+   chroma auto (4:4:4 at q >= 90); re-encoding caps quality at the source's
+   estimated quality.
+4. **Colour-conversion boundary (decision 064):** `DeviceRGB`/`DeviceCMYK`
+   to grey by ISO 32000-2 §10.4.2.2 / §10.4.2.3 device formulas are
+   pdfcer's; `ICCBased` by formula is disclosed "device formula, not
+   colour-managed"; `Lab`, `Separation`, `DeviceN` skipped with a reason.
+5. Indexed: nearest-only resampling, disclosed. Unplaced images are skipped
+   with a reason (option `max-pixels=N`). `PlannedChange::lossy` comes from
+   what the pipeline did, not from the action (rule 4).
+
+**Body-section effect.** None edited by this filing (librarian scope: the
+log only). Survivors of the corrected claim, owed, not edited here:
+`crates/pdfcer-core/src/space_audit/mod.rs:216-219` (`max_effective_ppi`
+doc and fn), `crates/pdfcer-core/src/optimize/select.rs:130`,
+`crates/pdfcer-core/src/space_audit/tests.rs:157`,
+`docs/core-api/03-capabilities.md:4428` (row says "highest resolution any
+placement draws the image at"), `docs/research/pdf-size-reduction-survey.md:887`
+("resamples to the **maximum effective ppi across all uses**").
+
+**Decision ceiling.** Fills `192`; ceiling `191` → `192`. Next free
+decision `193`.
+
+**New standing rule.** None — `R263` stays next free.

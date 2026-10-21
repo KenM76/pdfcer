@@ -884,7 +884,7 @@ Each gap below was observed in the survey above. None is assumed.
    - What exists:
      - callas evaluates each placement of a shared image.
      - cpdf's `-dpi-threshold` requires an image to be above the threshold at every use.
-   - Gap: no tool resamples to the **maximum effective ppi across all uses**, then explains that one image was kept at 412 ppi because page 7 scales it up.
+   - Gap: no tool resamples so the use with the **lowest effective ppi** (the largest drawn placement) still meets the target, then explains that one image was kept at 412 px wide because page 7 draws it largest (decision 192).
 7. **Content-stream precision and operator simplification.**
    - What exists: no tool documents rounding numbers to a precision based on device space (for example 0.01 pt), merging redundant `q/Q` pairs, collapsing repeated `cm`, or removing no-op state changes. Foxit removes only newlines; MuPDF's `-s` sanitise is undocumented in detail; PitStop's "refine lines" is vague.
    - Why it matters: this is a large, unexplored saving for CAD and vector-heavy PDFs, which are pdfcer's core audience. It must stay within the visual tolerance that Rule 4 requires to be disclosed.

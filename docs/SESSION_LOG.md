@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1127th filing) — scoping: decision 192, `Pass 616.4` split into slices A-D
+
+**Scoped (no code shipped, no shell here):** decision 192 (KenAgent `autonomous-builder`): `StreamAction::Image(ImagePatch)`, optional fields merged across default, rules, per-object override; Acrobat class panels as `image-class` rules. **Correction:** resolution basis is the LOWEST effective ppi per axis (largest drawn placement), not the highest; `ImageSpace::max_effective_ppi` measured the wrong end. `Pass 616.4` retitled in place and split: A downsampling (lossless Flate output), B JPEG, C conversion, D masks/unplaced/dedupe/presets. JPEG levels 20/40/60/80/95; colour boundary per decision 064.
+
+**Owed (survivors of the wrong-end claim, not edited):** `space_audit/mod.rs:216-219`, `optimize/select.rs:130`, `space_audit/tests.rs:157`, `core-api/03-capabilities.md:4428`, survey `pdf-size-reduction-survey.md:887`. Slice A fixes the code ones.
+
+**Register:** ARCHITECTURE §12 entry, ROADMAP 616.4 body, FEATURES Planned image row (note only, no boxes). Ceilings: decision `192` filled, next free `193`; `R263` and `Pass 617.0` unchanged. Git, push and backup state not verified from here.
+
 ## 2026-10-21 (1126th filing) — `Pass 616.3` COMPLETE: slice I in `e83c4626`, convert smooth lines to curves
 
 **Shipped (engineer-reported, no shell here):** `DiscardObject::SmoothLines` (`smooth-lines`): page-content runs of more than four `l` segments refit as cubic `c` curves (one `l` if straight), Schneider fit with Newton reparameterisation in page space, accepted within `OptimizeSettings::smooth_tolerance` (default 0.1 pt, CLI `--smooth-tolerance PT`, profile key `smooth-tolerance`). End points, corners over 30 degrees and dashed paths kept; rewritten only when shorter. Report "page 1: 90 line segments into 6 curves (max deviation 0.086 pt)". Core `[x]`, cli `[x]`, gui `[ ]`. Core lib 1627 passed (2 ignored) plus 2995, CLI 904; 7 new core tests, sabotage turned 6 of 7 red and the dash guard's removal turned the dashed test red; clippy, fmt, structure gate (568 baseline, none new) clean. `ALL` = 14. No manifest change. Parent: `fb9a90eb` (slice H filing).

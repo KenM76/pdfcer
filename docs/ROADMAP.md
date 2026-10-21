@@ -24455,7 +24455,28 @@ Original scope: wire in the existing 12 `doc_metadata` kinds. Add: alternate ima
 
 ### `Pass 616.4` — Images I: downsampling, requality, conversion — NEXT UP, 2026-10-20
 
-Downsampling per class (colour, grey, mono): average/box (new), subsample, bicubic and lanczos, with a target ppi and a trigger ppi. Resample to the highest ppi any placement needs. JPEG quality levels plus a numeric quality; ZIP recompression. Colour to grey and to bilevel conversion. Only-if-smaller per image; dedupe identical images. Per-image overrides.
+**Scoped 2026-10-21 (1127th filing) under decision 192** (`docs/decisions/192-image-optimise-settings.md`; `ARCHITECTURE.md` §12). Model: `StreamAction::Image(ImagePatch)`, optional fields merged field by field across default, rules, per-object override; Acrobat's per-class panels ship as rules selecting `image-class`. **Corrected 2026-10-21:** the original line read "Resample to the highest ppi any placement needs", which is backwards; the rule is **resample so the lowest-ppi (largest drawn) placement keeps the target, per axis**. `ImageSpace::max_effective_ppi` measured the wrong end and is replaced by `binding_ppi`. Slices, in order:
+
+- **A — downsampling, lossless output.** Do first.
+  - Fix the audit's ppi basis: `binding_ppi` (min per axis); the selector's min/max-ppi tests it.
+  - `ImagePatch` type with profile/CLI parse and display, and the field-wise merge.
+  - `Selector::image_classes` (color/gray/mono/indexed).
+  - Resample with average (new), subsample, bicubic, lanczos; target and trigger ppi (trigger default 1.5 x target). Indexed uses nearest only.
+  - Generic-filter and unfiltered sources only, re-encoded Flate; DCT/JPX/CCITT/JBIG2 sources skipped with a reason until later slices.
+  - Unplaced images skipped with a reason.
+  - The report names the binding placement (page, drawn size, ppi before and after).
+  - Only-if-smaller guard plus `min-saving`.
+- **B — JPEG.** `encode=jpeg` with quality (numeric plus named levels: minimum 20, low 40, medium 60, high 80, maximum 95) and chroma; DCT sources decoded, resampled and re-encoded with quality capped at the source's estimated quality; inverted Adobe CMYK /Decode kept; 16 bpc to 8 itemised as lossy.
+- **C — conversion.** Grey via the ISO 32000-2 §10.4.2.2/§10.4.2.3 device formulas; bilevel by Otsu (threshold disclosed), fixed or dither; ICCBased-by-formula disclosed "not colour-managed"; Lab/Separation/DeviceN skipped with a reason.
+- **D — masks, unplaced, dedupe, presets.**
+  - SMask/Matte lockstep, mask placements inherited from the parent.
+  - Colour-key masks subsample-or-skip.
+  - `unplaced=max-pixels=N`.
+  - Dedupe of identical images before resampling.
+  - Lossy presets (screen/ebook/print class rules; mono downsampling only at screen).
+  - Per-image table in the report.
+
+Mono results are mostly not-smaller until `616.5` adds CCITT/JBIG2 encoders; disclosed, not hidden.
 
 ### `Pass 616.5` — Images II: encoders — NEXT UP, 2026-10-20
 
