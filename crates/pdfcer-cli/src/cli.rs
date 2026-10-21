@@ -11305,12 +11305,14 @@ pub(crate) enum Command {
         /// 0-based paint-order object indices, comma-separated.
         #[arg(long, value_delimiter = ',', required = true)]
         objects: Vec<usize>,
-        /// New fill colour: `r,g,b` in 0.0-1.0, or `#rrggbb`.
-        #[arg(long, value_parser = parse_style_color, required_unless_present = "stroke")]
-        fill: Option<pdfcer_core::vector::Rgb>,
-        /// New stroke colour: `r,g,b` in 0.0-1.0, or `#rrggbb`.
-        #[arg(long, value_parser = parse_style_color)]
-        stroke: Option<pdfcer_core::vector::Rgb>,
+        /// New fill colour: `r,g,b` in 0.0-1.0 or `#rrggbb` (DeviceRGB), or
+        /// `MODEL:comps` to write it in that device space: `gray:0.5`,
+        /// `rgb:1,0,0`, `cmyk:0,1,1,0`.
+        #[arg(long, value_parser = parse_device_color, required_unless_present = "stroke")]
+        fill: Option<pdfcer_core::annot_author::Color>,
+        /// New stroke colour, in the same forms as `--fill`.
+        #[arg(long, value_parser = parse_device_color)]
+        stroke: Option<pdfcer_core::annot_author::Color>,
         /// Treat each index as a form-leaf index (`object-list`'s
         /// `kind=leaf:` lines) rather than a page object. The paths must all
         /// be in one placement of one form, and the edit changes every place

@@ -7,7 +7,7 @@ use super::{
     PaintRefusal, PaintRefusalReason,
 };
 use crate::object::{Dict, ObjId, Object};
-use crate::vector::{PathPaint, Rgb, StrokeStyle, VectorEditError, VectorObject};
+use crate::vector::{PathPaint, StrokeStyle, VectorEditError, VectorObject};
 
 /// What [`EditSession::set_object_paint_in_form`] and
 /// [`EditSession::set_object_stroke_style_in_form`] did.
@@ -79,8 +79,8 @@ impl EditSession {
         &mut self,
         page_index: usize,
         leaf_indices: &[usize],
-        fill: Option<Rgb>,
-        stroke: Option<Rgb>,
+        fill: Option<crate::annot_author::Color>,
+        stroke: Option<crate::annot_author::Color>,
     ) -> Result<FormPaintOutcome, EditError> {
         let (accepted, refused) = self.sort_leaves(page_index, leaf_indices, |obj, i| {
             paint_refusal(obj, i, fill.is_some(), stroke.is_some())

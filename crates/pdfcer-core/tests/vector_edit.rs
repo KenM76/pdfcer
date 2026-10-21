@@ -889,11 +889,14 @@ fn a_spot_inked_path_is_refused_by_name_while_its_neighbour_is_recoloured() {
         .set_object_paint(
             0,
             &[0, 1],
-            Some(Rgb {
-                r: 0.0,
-                g: 0.0,
-                b: 1.0,
-            }),
+            Some(
+                Rgb {
+                    r: 0.0,
+                    g: 0.0,
+                    b: 1.0,
+                }
+                .into(),
+            ),
             None,
         )
         .expect("the call succeeds; the refusal is DATA, not an error");
@@ -936,11 +939,14 @@ fn a_channel_nobody_touched_does_not_cause_a_refusal() {
             0,
             &[1],
             None,
-            Some(Rgb {
-                r: 0.0,
-                g: 1.0,
-                b: 0.0,
-            }),
+            Some(
+                Rgb {
+                    r: 0.0,
+                    g: 1.0,
+                    b: 0.0,
+                }
+                .into(),
+            ),
         )
         .expect("succeeds");
     assert!(
@@ -959,15 +965,50 @@ fn recolouring_is_one_command_and_undo_restores_the_content() {
     s.set_object_paint(
         0,
         &[0],
-        Some(Rgb {
-            r: 0.0,
-            g: 0.0,
-            b: 1.0,
-        }),
+        Some(
+            Rgb {
+                r: 0.0,
+                g: 0.0,
+                b: 1.0,
+            }
+            .into(),
+        ),
         None,
     )
     .expect("succeeds");
     assert_eq!(s.undo_depth(), 1, "exactly one undo entry for one gesture");
     s.undo().expect("undo");
     assert_eq!(save(&s), before, "undo restores the document byte for byte");
+}
+
+/// G220: a grey or CMYK recolour is written in the space it names, fill and
+/// stroke alike, and reads back as that space — a CMYK path stays CMYK.
+#[test]
+fn a_grey_or_cmyk_recolour_stays_in_its_own_device_space() {
+    use pdfcer_core::annot_author::Color;
+    use pdfcer_core::vector::{DevicePaintSpace, PathPaint};
+    let mut s = session(&two_paths_one_spot());
+    s.set_object_paint(
+        0,
+        &[0],
+        Some(Color::Cmyk(0.0, 1.0, 1.0, 0.0)),
+        Some(Color::Gray(0.25)),
+    )
+    .expect("succeeds");
+    let model = s.page_objects(0).unwrap();
+    let VectorObject::Path(p) = &model.objects[0] else {
+        panic!("object 0 is not a path");
+    };
+    assert!(
+        matches!(&p.fill_paint, PathPaint::Device { space: DevicePaintSpace::Cmyk, comps, .. } if comps == &[0.0, 1.0, 1.0, 0.0]),
+        "{:?}",
+        p.fill_paint
+    );
+    assert!(
+        matches!(&p.stroke_paint, PathPaint::Device { space: DevicePaintSpace::Gray, comps, .. } if comps == &[0.25]),
+        "{:?}",
+        p.stroke_paint
+    );
+    let text = String::from_utf8_lossy(&save(&s)).into_owned();
+    assert!(text.contains("0 1 1 0 k 0.25 G "), "{text}");
 }

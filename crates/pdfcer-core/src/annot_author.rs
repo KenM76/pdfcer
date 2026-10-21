@@ -94,6 +94,28 @@ pub enum Color {
     Cmyk(f64, f64, f64, f64),
 }
 
+/// A vector [`crate::vector::Rgb`] as DeviceRGB, so an RGB swatch passes
+/// straight to any verb taking a [`Color`].
+impl From<crate::vector::Rgb> for Color {
+    fn from(c: crate::vector::Rgb) -> Self {
+        Self::Rgb(f64::from(c.r), f64::from(c.g), f64::from(c.b))
+    }
+}
+
+/// A Format colour ([`crate::text_edit::NewFill`]) in the device space it
+/// names. A missing component reads as 0.
+impl From<&crate::text_edit::NewFill> for Color {
+    fn from(fill: &crate::text_edit::NewFill) -> Self {
+        use crate::text_edit::FillModel;
+        let c = |i: usize| fill.components.get(i).copied().unwrap_or(0.0);
+        match fill.model {
+            FillModel::Gray => Self::Gray(c(0)),
+            FillModel::Rgb => Self::Rgb(c(0), c(1), c(2)),
+            FillModel::Cmyk => Self::Cmyk(c(0), c(1), c(2), c(3)),
+        }
+    }
+}
+
 impl Color {
     /// The `/C` / `/IC` array form (§12.5.6): 1, 3 or 4 numbers.
     pub(crate) fn to_array(self) -> Object {

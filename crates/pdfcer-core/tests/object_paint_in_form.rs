@@ -82,7 +82,7 @@ fn is_blue(p: &PathPaint) -> bool {
 fn paint_recolours_form_paths_and_refuses_the_text_by_leaf_index() {
     let mut s = session(&fixture());
     let out = s
-        .set_object_paint_in_form(0, &[0, 1, 2], None, Some(BLUE))
+        .set_object_paint_in_form(0, &[0, 1, 2], None, Some(BLUE.into()))
         .unwrap();
     assert_eq!(out.paint.changed, vec![0, 1]);
     assert_eq!(out.paint.refused.len(), 1);
@@ -152,14 +152,14 @@ fn alpha_in_a_form_without_resources_is_refused_but_width_works() {
 fn a_selection_across_two_forms_is_refused_whole() {
     let mut s = session(&fixture());
     let err = s
-        .set_object_paint_in_form(0, &[0, 3], Some(BLUE), None)
+        .set_object_paint_in_form(0, &[0, 3], Some(BLUE.into()), None)
         .unwrap_err();
     assert!(
         matches!(err, EditError::FormLeafSelectionSpansForms { .. }),
         "{err:?}"
     );
     let err = s
-        .set_object_paint_in_form(0, &[9], Some(BLUE), None)
+        .set_object_paint_in_form(0, &[9], Some(BLUE.into()), None)
         .unwrap_err();
     assert!(
         matches!(err, EditError::FormLeafOutOfRange { .. }),
@@ -203,7 +203,7 @@ fn a_flattened_line_markup_can_be_recoloured_and_made_translucent() {
     let last = s.page_objects(0).unwrap().leaves.len() - 1;
 
     let out = s
-        .set_object_paint_in_form(0, &[last], None, Some(BLUE))
+        .set_object_paint_in_form(0, &[last], None, Some(BLUE.into()))
         .unwrap();
     assert_eq!(out.paint.changed, vec![last], "{:?}", out.paint.refused);
     let style = StrokeStyle {

@@ -1873,6 +1873,22 @@ pub(crate) struct DimensionStyleArgs<'a> {
     pub(crate) verify_undo: bool,
 }
 
+/// Parse a colour that may name its device space: `MODEL:comps`
+/// (`gray:0.5`, `rgb:1,0,0`, `cmyk:0,1,1,0`), or [`parse_style_color`]'s
+/// `r,g,b` / `#rrggbb` as DeviceRGB.
+pub(crate) fn parse_device_color(spec: &str) -> Result<pdfcer_core::annot_author::Color, String> {
+    if !spec.contains(':') {
+        return parse_style_color(spec).map(pdfcer_core::annot_author::Color::from);
+    }
+    crate::text_format::parse_set_color(spec)
+        .map(|fill| pdfcer_core::annot_author::Color::from(&fill))
+        .map_err(|e| {
+            e.trim_start_matches("--set-color")
+                .trim_start_matches(": ")
+                .to_owned()
+        })
+}
+
 /// Parse `--color`: either `r,g,b` components in 0.0-1.0, or `#rrggbb`.
 ///
 /// # Why two forms

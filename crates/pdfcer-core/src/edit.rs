@@ -17214,7 +17214,10 @@ impl EditSession {
     ///
     /// # `fill` and `stroke` are independent
     ///
-    /// `None` leaves that channel alone. Passing both changes both in one
+    /// `None` leaves that channel alone. A colour is written in the device
+    /// space it names (`g`/`rg`/`k`, `G`/`RG`/`K`), so a CMYK or grey path
+    /// recoloured in its own space stays in it; an RGB
+    /// [`crate::vector::Rgb`] swatch passes as `rgb.into()`. Passing both changes both in one
     /// command and one undo entry; passing neither is a no-op that still
     /// reports which objects it would have refused, so a shell can drive the
     /// control's enabled state without making an edit.
@@ -17255,8 +17258,8 @@ impl EditSession {
         &mut self,
         page_index: usize,
         object_indices: &[usize],
-        fill: Option<crate::vector::Rgb>,
-        stroke: Option<crate::vector::Rgb>,
+        fill: Option<crate::annot_author::Color>,
+        stroke: Option<crate::annot_author::Color>,
     ) -> Result<PaintOutcome, EditError> {
         let model = self.page_objects(page_index)?;
         let count = model.objects.len();

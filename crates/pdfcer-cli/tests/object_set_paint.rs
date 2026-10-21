@@ -118,3 +118,31 @@ fn a_colour_is_required() {
     let out = run(&input, &output, &["--objects", "0"]);
     assert!(!out.status.success());
 }
+
+#[test]
+fn a_model_colour_is_written_in_that_device_space() {
+    let input = two_paths("model");
+    let output = input.with_extension("model.out.pdf");
+    let out = run(
+        &input,
+        &output,
+        &[
+            "--objects",
+            "0",
+            "--stroke",
+            "cmyk:0,1,1,0",
+            "--fill",
+            "gray:0.5",
+        ],
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "{stderr}");
+    let bytes = std::fs::read(&output).unwrap();
+    let want = b"0.5 g 0 1 1 0 K ";
+    assert!(
+        bytes.windows(want.len()).any(|w| w == want),
+        "grey fill and CMYK stroke written in their own spaces"
+    );
+    let bad = run(&input, &output, &["--objects", "0", "--fill", "lab:1,2,3"]);
+    assert_eq!(bad.status.code(), Some(2), "clap refuses an unknown model");
+}

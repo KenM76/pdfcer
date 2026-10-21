@@ -103,6 +103,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::annot_author::Color;
 use crate::content::{ContentStream, ContentToken, ContentTokenKind};
 use crate::text_edit::edit::splice;
 use crate::writer::content::emit_number;
@@ -110,7 +111,7 @@ use crate::writer::content::emit_number;
 use super::decompose::{
     PathObject, RunPositioning, TextBoundsBasis, TextObject, TextRun, VectorObject,
 };
-use super::geometry::{Matrix, Point, Rgb, rect_corners};
+use super::geometry::{Matrix, Point, rect_corners};
 
 mod node_shape;
 pub use node_shape::{
@@ -1915,8 +1916,8 @@ fn resolve_singular(
 pub fn plan_recolour(
     content: &ContentStream,
     objs: &[&VectorObject],
-    fill: Option<Rgb>,
-    stroke: Option<Rgb>,
+    fill: Option<Color>,
+    stroke: Option<Color>,
 ) -> Result<PlannedEdit, VectorEditError> {
     if objs.is_empty() || (fill.is_none() && stroke.is_none()) {
         return Ok(PlannedEdit {
@@ -1928,10 +1929,10 @@ pub fn plan_recolour(
 
     let mut prefix = b"q ".to_vec();
     if let Some(c) = fill {
-        emit_rgb_op(&mut prefix, c, false);
+        emit_color_op(&mut prefix, c, false);
     }
     if let Some(c) = stroke {
-        emit_rgb_op(&mut prefix, c, true);
+        emit_color_op(&mut prefix, c, true);
     }
     plan_wrap(content, objs, &prefix)
 }
@@ -1998,14 +1999,20 @@ pub(crate) fn plan_wrap_each(
     })
 }
 
-/// `r g b rg ` (or `RG ` when stroking), with the round-trip-safe emitter every
-/// other planner uses.
-fn emit_rgb_op(out: &mut Vec<u8>, c: Rgb, stroking: bool) {
-    for v in [c.r, c.g, c.b] {
-        emit_number(out, f64::from(v));
+/// The colour in the device space it names — `g`, `rg` or `k` (`G`, `RG` or
+/// `K` when stroking, §8.6.8 Table 73) — each component clamped to `[0, 1]`,
+/// with the round-trip-safe emitter every other planner uses.
+fn emit_color_op(out: &mut Vec<u8>, c: Color, stroking: bool) {
+    let (comps, fill_op, stroke_op): (Vec<f64>, &[u8], &[u8]) = match c {
+        Color::Gray(v) => (vec![v], b"g ", b"G "),
+        Color::Rgb(r, g, b) => (vec![r, g, b], b"rg ", b"RG "),
+        Color::Cmyk(c, m, y, k) => (vec![c, m, y, k], b"k ", b"K "),
+    };
+    for v in comps {
+        emit_number(out, v.clamp(0.0, 1.0));
         out.push(b' ');
     }
-    out.extend_from_slice(if stroking { b"RG " } else { b"rg " });
+    out.extend_from_slice(if stroking { stroke_op } else { fill_op });
 }
 
 /// `q a b c d e f cm ` as bytes, with `emit_number`'s round-trip-safe
