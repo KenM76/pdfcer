@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.4` (slice D6 first half, G216, `db902fb4`), 2026-10-21 — presets carry image settings (1135th filing)
+
+Code commit `db902fb4` "feat(optimize): presets carry image settings (G216)", after the 1134th filing `2b67d1f6`. Core + cli; gui NOT (pdfcer-gui consumes it; GUI request G216 answered). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 192 governs (rules fold field-wise). `616.4` is NOT complete: D6's per-image report table, D3, D4, D5 remain.
+
+- **Values (Acrobat one-shot parity, ~1.5x trigger):** lossless/archive change no image. standard: above 225 ppi to 150, JPEG q60. screen: above 144 to 96 as JPEG q80, palette (Indexed) images keep encoding. print: above 450 to 300, q80. 1-bit images have their own rule (above 450 to 300; print above 900 to 600) and keep their encoding. Per-class values are ordinary `Selector.image_classes` rules, so a caller's later rule overrides them.
+- **Code:** `Preset` moved to `crates/pdfcer-core/src/optimize/preset.rs`; `Preset::settings()` is no longer `const`. CLI `--list-presets` summaries and `--preset` help corrected (no more "lossless today").
+- **Behaviour change:** the DEFAULT preset (standard) is now lossy; every image change is still itemised and flagged lossy in the plan.
+- **Tests (engineer-reported):** core lib optimize 139 passed, CLI optimize 24; new `optimize/image/preset_tests.rs` (4); sabotage of the mono rule failed 3 of 4 (lossless/archive test unaffected by design). fmt/clippy, gate sweep, code-structure clean; check-core-api-verbs 0. No manifest or dependency change.
+- `FEATURES.md`: *Optimize framework, remainder* loses the lossy-presets clause (core/cli done, gui not); *Image requality, remainder* loses "lossy presets"; boxes unchanged. Ledgers: no decision, no rule; next filing 1136th. Git, push and backup state not verified from here.
+
 ### `Pass 616.4` (fixes G214 + G215, `f4ce1ae7`), 2026-10-21 — typed image skip reasons; a JPEG asked below its quality re-encodes (1134th filing)
 
 Code commit `f4ce1ae7` "feat(optimize): typed image skip reasons; JPEG asked below its quality re-encodes (G214, G215)", after `173147ee`. `pdfcer-core` only; the CLI report is unchanged (Display keeps the old sentences). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. A fix between slices; the slice list is unchanged, D3-D6 remain.
@@ -24470,7 +24480,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ### `Pass 616.1` — Optimize framework — MOVED TO *Shipped* (1112th filing, `e6949a25`); residue below stays owed
 
-Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level refusals (with `616.3`/`616.4`/`616.10`); lossy presets (all five are lossless today). Original scope, for reference. Decision 191 governs.
+Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level refusals (with `616.3`/`616.4`/`616.10`); lossy presets (since done for core and cli in `616.4` D6, `db902fb4`; gui not). Original scope, for reference. Decision 191 governs.
 
 - `OptimizeSettings` with built-in presets **Lossless, Standard, Screen/Mobile, Print, Archive**, each defined and published by pdfcer (not copied from Acrobat's undocumented values).
 - Saved TOML/JSON profiles with inheritance and import/export. **Rules** selected by class, page range, colourspace, ppi, codec, size or object id, plus **per-object overrides**; rules and overrides are saved together in one profile.
@@ -24584,7 +24594,7 @@ Colour conversion targets (grey, bilevel, indexed) are slice C (shipped). ICC-ma
   - **D3** Colour-key masks subsample-or-skip.
   - **D4** `unplaced=max-pixels=N`.
   - **D5** Dedupe of identical images before resampling.
-  - **D6** Lossy presets (screen/ebook/print class rules; mono downsampling only at screen) plus a per-image table in the report.
+  - **D6** Lossy presets **SHIPPED `db902fb4`** (G216; entry in *Shipped*; core + cli, gui not). **Remaining:** the per-image table in the report.
 
 Mono results are mostly not-smaller until `616.5` adds CCITT/JBIG2 encoders; disclosed, not hidden.
 

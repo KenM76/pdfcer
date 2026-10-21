@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1135th filing) — `Pass 616.4` slice D6 first half in `db902fb4`: presets carry image settings (G216)
+
+**Shipped (engineer-reported, no shell here):** presets now carry per-class image rules (Acrobat one-shot parity): lossless/archive change nothing; standard 225 to 150 ppi, JPEG q60; screen 144 to 96, q80, palette keeps encoding; print 450 to 300, q80; 1-bit has its own rule and keeps its encoding. `Preset` moved to `optimize/preset.rs`; `settings()` no longer `const`. CLI `--list-presets`/`--preset` text corrected. Core + cli; gui not.
+
+**Behaviour note:** the default preset (standard) is now lossy; each image change is itemised and flagged lossy in the plan.
+
+**Counts:** core optimize 139, CLI optimize 24; 4 new tests, mono-rule sabotage failed 3 of 4 (by design); fmt/clippy/gates/structure clean (engineer-reported). No manifest change.
+
+**Register:** ROADMAP Shipped entry, Next up D6 line, 616.1 residue note; FEATURES two rows trimmed, boxes unchanged. Not done: D6 per-image report table, D3, D4, D5. No decision or rule; next filing 1136th. Git, push and backup state not verified from here.
+
 ## 2026-10-21 (1134th filing) — `Pass 616.4` fixes G214 + G215 in `f4ce1ae7`: typed image skip reasons; JPEG asked below its quality re-encodes
 
 **Shipped (engineer-reported, no shell here):** `SkipReason::ImageUnsupported` now carries a typed `ImageSkip` enum instead of a `String` (G214; Display keeps the old sentences, so the CLI report is unchanged). G215: under `encode=jpeg`, an existing JPEG is re-encoded when the asked quality is below the source's estimated quality, else skipped as `AlreadyJpeg`; before, it got neither change nor skip. `pdfcer-core` only. core-api 03-capabilities updated; GUI replies written.
