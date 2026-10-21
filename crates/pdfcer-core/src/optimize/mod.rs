@@ -35,6 +35,7 @@
 pub(crate) mod actions;
 pub mod cleanup;
 pub mod discard;
+pub(crate) mod object_data;
 pub mod objects;
 pub mod profile;
 pub(crate) mod select;
@@ -538,5 +539,7 @@ mod discard_tests;
 
 #[cfg(test)]
 mod actions_tests;
+#[cfg(test)]
+mod object_data_tests;
 #[cfg(test)]
 mod objects_tests;

@@ -100,7 +100,8 @@ pub(crate) struct OptimizeArgs {
     /// no longer tagged for screen readers), print-settings,
     /// alternate-images, form-actions (submit, import and reset),
     /// external-references (actions that open another file; web links
-    /// stay); or all. Comma-separated or repeated.
+    /// stay), object-data (the properties CAD and diagram programs attach
+    /// to drawn objects); or all. Comma-separated or repeated.
     /// The standard and print presets remove thumbnails; screen also
     /// pieceinfo, object-xmp and alternate-images.
     #[arg(long, value_name = "KINDS", value_delimiter = ',')]

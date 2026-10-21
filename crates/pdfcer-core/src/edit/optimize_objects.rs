@@ -12,6 +12,34 @@ use crate::optimize::actions::{Rewrite, apply_rewrite};
 use crate::optimize::objects::{self, DiscardObject, ObjectDiscard, Strip};
 use crate::optimize::{DiscardOptions, OptimizeError};
 
+/// What each class's discard costs the reader, in plan-note order.
+const NOTES: &[(DiscardObject, &str)] = &[
+    (
+        DiscardObject::Tags,
+        "the structure tree goes: the file is no longer tagged, so screen readers and reflow lose it, and a PDF/UA or PDF/A level A claim no longer holds",
+    ),
+    (
+        DiscardObject::PrintSettings,
+        "embedded print settings go: page scaling, duplex, tray, page range and copies fall back to the printer dialog's defaults",
+    ),
+    (
+        DiscardObject::FormActions,
+        "form submit, import and reset actions go: buttons that sent, loaded or cleared the form do nothing when clicked, and actions chained after them still run",
+    ),
+    (
+        DiscardObject::ExternalReferences,
+        "actions that open another file go: those links stay on the page but do nothing when clicked, and web links stay",
+    ),
+    (
+        DiscardObject::AlternateImages,
+        "alternate images go: printing uses the on-screen image, and images under optional content are kept",
+    ),
+    (
+        DiscardObject::ObjectData,
+        "object data goes: the properties a CAD or diagram program attached to drawn objects (part numbers, shape data) are no longer listed; the drawing is unchanged",
+    ),
+];
+
 impl EditSession {
     /// Every carrier of an object class `options` discards, each measured.
     /// A certification forbidding deletions is noted by `plan_discard`.
@@ -53,36 +81,10 @@ impl EditSession {
                     .saturating_sub(added);
             }
         }
-        let has = |object| items.iter().any(|i| i.object == object);
-        if has(DiscardObject::Tags) {
-            notes.push(
-                "the structure tree goes: the file is no longer tagged, so screen readers and reflow lose it, and a PDF/UA or PDF/A level A claim no longer holds"
-                    .into(),
-            );
-        }
-        if has(DiscardObject::PrintSettings) {
-            notes.push(
-                "embedded print settings go: page scaling, duplex, tray, page range and copies fall back to the printer dialog's defaults"
-                    .into(),
-            );
-        }
-        if has(DiscardObject::FormActions) {
-            notes.push(
-                "form submit, import and reset actions go: buttons that sent, loaded or cleared the form do nothing when clicked, and actions chained after them still run"
-                    .into(),
-            );
-        }
-        if has(DiscardObject::ExternalReferences) {
-            notes.push(
-                "actions that open another file go: those links stay on the page but do nothing when clicked, and web links stay"
-                    .into(),
-            );
-        }
-        if has(DiscardObject::AlternateImages) {
-            notes.push(
-                "alternate images go: printing uses the on-screen image, and images under optional content are kept"
-                    .into(),
-            );
+        for (object, note) in NOTES {
+            if items.iter().any(|i| i.object == *object) {
+                notes.push((*note).to_owned());
+            }
         }
         items
     }

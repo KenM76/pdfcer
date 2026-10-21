@@ -280,7 +280,13 @@ fn trigger_rewrites<W: Fn(DiscardObject) -> bool>(
     out
 }
 
-fn rewrite(owner: ObjId, path: Vec<Vec<u8>>, before: &Object, value: Option<Object>) -> Rewrite {
+/// A [`Rewrite`] of the entry at `path` under `owner` from `before` to `value`.
+pub(crate) fn rewrite(
+    owner: ObjId,
+    path: Vec<Vec<u8>>,
+    before: &Object,
+    value: Option<Object>,
+) -> Rewrite {
     Rewrite {
         owner,
         path,

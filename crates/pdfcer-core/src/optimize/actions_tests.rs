@@ -5,9 +5,8 @@
     clippy::indexing_slicing
 )] // test code: a failed lookup should fail the test loudly
 
-use super::tests::{build, id, only, session};
+use super::tests::{build, dict, id, only, session};
 use super::*;
-use crate::edit::EditSession;
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, Object};
 use crate::writer::SaveOptions;
@@ -58,14 +57,6 @@ fn both() -> DiscardOptions {
     DiscardOptions::none()
         .with_object(DiscardObject::FormActions)
         .with_object(DiscardObject::ExternalReferences)
-}
-
-fn dict(s: &EditSession, num: u32) -> Dict {
-    s.view()
-        .value(id(num))
-        .and_then(Object::as_dict)
-        .cloned()
-        .unwrap_or_else(|| panic!("object {num} is not a dictionary"))
 }
 
 fn kind(d: &Dict) -> &[u8] {

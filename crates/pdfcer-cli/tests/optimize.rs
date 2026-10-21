@@ -16,6 +16,11 @@ fn dir(tag: &str) -> PathBuf {
 
 /// Object 4 is a compressible content stream; object 5 a tiny one.
 fn write_pdf(dir: &std::path::Path, extra_catalog: &str) -> PathBuf {
+    write_pdf_with(dir, extra_catalog, &[])
+}
+
+/// [`write_pdf`] with `extra` objects numbered from 8.
+fn write_pdf_with(dir: &std::path::Path, extra_catalog: &str, extra: &[&str]) -> PathBuf {
     let content = b"0 0 m 100 100 l S\n".repeat(100);
     let mut bodies: Vec<Vec<u8>> = vec![
         format!("<< /Type /Catalog /Pages 2 0 R {extra_catalog} >>").into_bytes(),
@@ -32,6 +37,7 @@ fn write_pdf(dir: &std::path::Path, extra_catalog: &str) -> PathBuf {
         b"<< /Type /Sig /Filter /Adobe.PPKLite /ByteRange [0 0 0 0] /Contents <00> >>".to_vec(),
     );
     bodies.push(b"<< /FT /Sig /T (s) /V 6 0 R /Rect [0 0 0 0] /Subtype /Widget >>".to_vec());
+    bodies.extend(extra.iter().map(|e| e.as_bytes().to_vec()));
     let mut buf = b"%PDF-1.7\n".to_vec();
     let mut offsets = Vec::new();
     for (i, body) in bodies.iter().enumerate() {
@@ -418,6 +424,38 @@ fn discard_removes_form_actions_and_external_references() {
     let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
     assert!(written.contains("KEPTSCRIPT"), "the chained script stays");
     assert!(!written.contains("/Launch") && !written.contains("/ResetForm"));
+}
+
+#[test]
+fn discard_removes_object_data_and_keeps_the_tags() {
+    let d = dir("discard-object-data");
+    let input = write_pdf_with(
+        &d,
+        "/StructTreeRoot 8 0 R /MarkInfo << /Marked true /UserProperties true >>",
+        &[
+            "<< /Type /StructTreeRoot /K 9 0 R >>",
+            "<< /Type /StructElem /S /Figure /P 8 0 R /A [<< /O /Layout /Placement /Block >> << /O /UserProperties /P [<< /N (Part) /V (PARTNUMBER) >>] >>] >>",
+        ],
+    );
+    let out = d.join("out.pdf");
+    let o = run(&[
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--keep-structure",
+        "--discard",
+        "object-data",
+    ]);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(report.contains("discard objects: 2 removed"), "{report}");
+    assert!(report.contains("object data goes"), "{report}");
+    let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(!written.contains("PARTNUMBER") && !written.contains("/UserProperties"));
+    assert!(
+        written.contains("/Figure") && written.contains("/Layout"),
+        "the tags stay"
+    );
 }
 
 #[test]

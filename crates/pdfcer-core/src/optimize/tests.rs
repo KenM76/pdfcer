@@ -8,7 +8,8 @@
 use super::*;
 use crate::document::Document;
 use crate::edit::EditSession;
-use crate::object::Object;
+use crate::graph::ObjectGraph;
+use crate::object::{Dict, Object};
 use crate::space_audit::tests::stream;
 use crate::writer::SaveOptions;
 
@@ -89,6 +90,15 @@ pub(super) fn session(bytes: Vec<u8>) -> EditSession {
 /// Object `n`, generation 0, shared by every optimize test module.
 pub(super) fn id(n: u32) -> ObjId {
     ObjId::new(n, 0)
+}
+
+/// Object `num` of the session's view, which must be a dictionary.
+pub(super) fn dict(s: &EditSession, num: u32) -> Dict {
+    s.view()
+        .value(id(num))
+        .and_then(Object::as_dict)
+        .cloned()
+        .unwrap_or_else(|| panic!("object {num} is not a dictionary"))
 }
 
 fn decoded(doc: &Document, n: u32) -> Vec<u8> {

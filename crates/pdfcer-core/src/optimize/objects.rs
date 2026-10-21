@@ -18,7 +18,8 @@
 //!   image, which is the one shown on screen. An image under optional
 //!   content is skipped: with its base hidden an alternate may be what shows.
 //!
-//! - form actions and external references: see [`actions`].
+//! - form actions and external references: see [`actions`];
+//! - object data: see [`object_data`].
 //!
 //! An embedded search index is not offered: no published specification
 //! names the key Acrobat stores it under.
@@ -27,6 +28,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 
 use super::actions::{self, Rewrite};
+use super::object_data;
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, ObjId, Object};
 use crate::view::DocumentView;
@@ -52,21 +54,27 @@ pub enum DiscardObject {
     /// Actions that open another file: go-to-remote, launch, and go-to-
     /// embedded or article targets in another file. Web links stay.
     ExternalReferences,
+    /// Object data: the name-value properties a CAD or diagram program
+    /// attaches to each drawn object (user properties in the structure
+    /// tree). Skipped when the tags themselves are discarded.
+    ObjectData,
 }
 
 impl DiscardObject {
     /// Every class, in plan order.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Bookmarks,
         Self::Tags,
         Self::PrintSettings,
         Self::AlternateImages,
         Self::FormActions,
         Self::ExternalReferences,
+        Self::ObjectData,
     ];
 
     /// A stable lower-case name: `bookmarks`, `tags`, `print-settings`,
-    /// `alternate-images`, `form-actions`, `external-references`.
+    /// `alternate-images`, `form-actions`, `external-references`,
+    /// `object-data`.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -76,6 +84,7 @@ impl DiscardObject {
             Self::AlternateImages => "alternate-images",
             Self::FormActions => "form-actions",
             Self::ExternalReferences => "external-references",
+            Self::ObjectData => "object-data",
         }
     }
 
@@ -207,6 +216,9 @@ pub(crate) fn carriers(
             push(DiscardObject::AlternateImages, id, location, strips);
         }
     }
+    out.extend(object_data::object_data_carriers(
+        view, live, catalog, cat, &wanted,
+    ));
     out.extend(actions::action_carriers(view, live, catalog, wanted));
     out
 }
