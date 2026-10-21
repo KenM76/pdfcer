@@ -112,7 +112,23 @@ wherever it appears.*
 
 ## Shipped
 
-### `Pass 616.4` slice B — JPEG output, requality of DCT sources — SHIPPED 2026-10-21 (1129th filing, `e9387ebf`)
+### `Pass 616.4` (slice C, `cba8193d`), 2026-10-21 — convert images to grey, bilevel or a palette (1130th filing)
+
+Code commit `cba8193d` "feat(optimize): convert images to grey, bilevel or a palette (Pass 616.4, slice C)", after the 1129th filing `0e2cfc10` (origin/main at filing time; `cba8193d` local, not pushed). Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 192 governs. `616.4` is NOT complete: slice D remains.
+
+- **Keys:** `image(convert=keep|gray|bilevel|indexed,threshold=otsu|dither|0-255,colors=2..256)` on the default, any rule or any object override, folded field-wise by setting source. New pub `ImageConvert`, `Threshold`, `COLORS_RANGE`, `Conversion { to, from, formula, not_colour_managed, threshold, colors, exact }` (`is_lossy()`); `ImagePatch`/`ResolvedImage` gain `convert`/`threshold`/`colors`; `ImageChange` gains `conversion`, `color_space: (String,String)`, `is_lossy()`; `PlannedChange.lossy` now comes from `ImageChange::is_lossy` (an exact palette at the same size is lossless).
+- **Pipeline order (decision 192):** decode -> /Decode applied (then /Decode and /D removed) -> palette lookup -> 8-bit resample -> grey (ISO 32000-2 §10.4.2.2 0.3R+0.59G+0.11B; §10.4.2.3 1-min(1,0.3C+0.59M+0.11Y+K)) -> Otsu/fixed threshold or Floyd-Steinberg dither, or median-cut palette (exact when colours <= `colors`; 5-bit histogram above 65,536 distinct) -> pack high bits first, rows padded (§8.9.3) -> encode -> never-larger guard. Indexed is written `[/Indexed base hival <palette>]` over the source space at 1/2/4/8 bits. CIE sources (ICCBased, CalGray, CalRGB) converted by device formula are marked `not_colour_managed` and disclosed (rule 4).
+- **No-op skips:** image masks; gray on a 1-component non-Indexed non-Separation image; bilevel on 1-bit grey; indexed when source palette hival < `colors`. Under `encode=keep` a DCT source converted to gray stays JPEG; bilevel/indexed become Flate.
+- **Indexed/mask/1-bit + JPEG (engineer-confirmed):** `encode=jpeg` on an Indexed source with no conversion is still refused, as are image masks and 1-bit images; converting to `gray` first makes JPEG possible.
+- **Refused by name** (`SkipReason::ImageUnsupported`): soft-mask target, parent whose SMask has /Matte, colour-key /Mask, Separation/DeviceN to grey ("has no defined grey"), Lab and other unconverted spaces, bilevel/palette result asked to be JPEG (`validate()` also refuses the explicit combination).
+- **Defect fixed on discovery:** `StreamAction::is_lossy()` ignored `encode=jpeg` and `convert`; now counts both (new test `an_action_that_converts_or_writes_jpeg_may_be_lossy`).
+- **CLI `pdfcer optimize`:** `--streams` help documents the keys; text line e.g. "format raw/DeviceGray 8 bit -> Flate/DeviceGray 1 bit; converted from DeviceGray, threshold 110"; JSON gains color_space, conversion, convert, threshold, colors. This delivers the acceptance criterion "format before -> after" for conversions. New CLI test `a_bilevel_conversion_reports_format_and_threshold`.
+- **Tests:** core optimize filter 122 passed (11 new in `pipeline_convert_tests.rs`, 5 in `reduce.rs`, 2 in `tests.rs`); CLI optimize filter 22; full suites measured after the code commit: core lib 1670 passed, 2 ignored; CLI `all` 907 passed, 2 ignored. New fuzz target `fuzz/fuzz_targets/optimize_images.rs` (six image actions, plan + apply + save): 41,940 runs / 181 s = about 232 runs/s, clean, cov 8720. clippy `-D warnings` clean core+cli, fmt applied, project gates green except `check-ledger-numbers` (fixed in this filing). `cargo tree` unchanged (only `fuzz/Cargo.toml`). `core-api/03-capabilities.md` updated (4,622 lines, 129 clauses); `check-core-api-verbs` green. New files `crates/pdfcer-core/src/optimize/image/{colour,reduce,convert,pipeline_convert_tests}.rs`.
+- **Ken's image-format request** (1128th filing) is now partly delivered: grey/bilevel/palette and JPEG done; Brotli and other encoders stay with `616.5`.
+- **CI-red fix (1129th filing defect):** `check-ledger-numbers.py` failed "DUPLICATE Pass 616.4 declared 2x in section [Shipped] (neither qualified)"; both earlier headings rewritten to the staged-ship `(slice X, hash)` form.
+- `FEATURES.md`: Implemented *Downsample images* row gains format conversion (core `[x]`, cli `[x]`, gui `[ ]`); Planned *Image requality* row narrowed to slice D + PNG predictor; Planned *Change an image's format* row notes grey/bilevel/palette done. Ledgers: no decision filed. **Flag:** the dispatch said decision 193 is already reserved/filed for `616.5`; a grep of `ARCHITECTURE.md`, `ROADMAP.md`, `FEATURES.md`, `SESSION_LOG.md` and `docs/decisions/` (190, 192 only) finds no `193` anywhere, so it is neither filed nor reserved on disk. Next free decision stays `193`. No rule minted (dispatch said "next free R251"; prior filings recorded `R263` as the ceiling, which I did not re-grep; engineer to confirm). `Pass 617.0` unchanged; next filing 1131st. Git, push and backup state not verified from here.
+
+### `Pass 616.4` (slice B, `e9387ebf`), 2026-10-21 — JPEG output, requality of DCT sources (1129th filing)
 
 Code commit `e9387ebf` "feat(optimize): write images as JPEG, per image or all", after the 1128th filing `b5a888f4` (committed, not pushed at filing time). Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 192 governs. `616.4` is NOT complete: slices C and D remain.
 
@@ -124,7 +140,7 @@ Code commit `e9387ebf` "feat(optimize): write images as JPEG, per image or all",
 - **Tests:** core lib 1652 passed (2 ignored), all core targets green; CLI `all` 906 passed (optimize filter 21). New fuzz target `fuzz/fuzz_targets/jpeg_quality_estimate.rs`: 4,367,103 runs / 61 s (about 71,600 runs/s) / 0 crashes. Sabotage: removing the quality cap fails `a_downsampled_jpeg_is_written_no_better_than_its_source`; dropping `/Decode` fails `cmyk_with_an_inverted_decode_keeps_its_meaning`. fmt, clippy `-D warnings` and all 33 project gates green. No manifest change to core/render (`cargo tree` invariant untouched; only `fuzz/Cargo.toml` gained a `[[bin]]`).
 - `FEATURES.md`: Implemented *Downsample images during optimize* row gains JPEG output (core `[x]`, cli `[x]`, gui `[ ]`); Planned *Image requality* row narrowed to C/D plus the open PNG predictor; Planned *Change an image's format* row notes DCT done. Ledgers: no decision (next free `193`); `R263` and `Pass 617.0` unchanged; next filing 1130th. Git, push and backup state not verified from here.
 
-### `Pass 616.4` slice A — image downsampling per setting source, lossless Flate output — SHIPPED 2026-10-21 (1128th filing, `2bfea30c`)
+### `Pass 616.4` (slice A, `2bfea30c`), 2026-10-21 — image downsampling per setting source, lossless Flate output (1128th filing)
 
 Code commit `2bfea30c` "feat(optimize): downsample images per setting source", after the 1127th filing `5a410cb1` (committed, not pushed at filing time). Core + cli; gui NOT. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Slices B-D remain in *Next up*.
 
@@ -22630,6 +22646,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+(1130th filing: `Pass 616.4` slice C SHIPPED (`cba8193d`, see *Shipped*); slice D (plus the open Flate PNG-predictor option) and `616.5` remain. Next filing 1131st.)
+
 (1129th filing: `Pass 616.4` slice B SHIPPED (`e9387ebf`, see *Shipped*); slices C and D and `616.5` remain. Next filing 1130th.)
 
 (1128th filing: `Pass 616.4` slice A SHIPPED (`2bfea30c`, see *Shipped*); slices B-D and `616.5` remain, now widened to the full format matrix by an operator request of 2026-10-21. Next filing 1129th.)
@@ -24481,20 +24499,20 @@ Residue not built in `616.1`: JSON profile import; PDF/A and compatibility-level
 
 Original scope: wire in the existing 12 `doc_metadata` kinds. Add: alternate images, print settings, search index, tags, bookmarks, form actions, external cross-references, private application data, hidden layers (with visible-layer flatten), embedded thumbnails.
 
-### `Pass 616.4` — Images I: downsampling, requality, conversion — SLICES A `2bfea30c`, B `e9387ebf` SHIPPED (2026-10-21); C-D NEXT UP
+### `Pass 616.4` — Images I: downsampling, requality, conversion — SLICES A `2bfea30c`, B `e9387ebf`, C `cba8193d` SHIPPED (2026-10-21); D NEXT UP
 
 **Operator-direct request, Ken 2026-10-21 (1128th filing), verbatim:** *"We should also be able to change images to different formats (jpeg formats, brotli, grey scale, etc of whatever PDFs support), and as stated before this can be done on all or a per image basis or etc."* Folded into slices B/C below and into `616.5`, not minted as a new Pass: the existing `encode=` key and the fold model (default -> `image-class`/other rules -> one object) already give all / per class / per image. **Acceptance criterion added:** the report shows, per image, the format before -> after (e.g. `Flate/DeviceRGB 8bpc -> DCT/DeviceGray`). Target matrix and where each lands:
 
 | encoding (`encode=`) | slice | note |
 |---|---|---|
-| keep, flate, flate-N | A (shipped) | PNG predictor option for flate: B |
+| keep, flate, flate-N | A (shipped) | PNG predictor option for flate: now slice D |
 | dct (JPEG) baseline / progressive | B (shipped `e9387ebf`) | quality levels, chroma |
 | runlength, lzw | 616.5 | |
 | jpx (JPEG 2000) | 616.5 | licence check first (`LEGAL.md` §6.1, rule 13) |
 | jbig2, ccitt G4 | 616.5 | lossy JBIG2 symbol matching opt-in |
 | brotli | 616.5 | see `616.5`; extension, off by default |
 
-Colour conversion targets (grey, bilevel, indexed) are slice C. ICC-managed conversion stays out (decision 064; iccce owns it).
+Colour conversion targets (grey, bilevel, indexed) are slice C (shipped). ICC-managed conversion stays out (decision 064; iccce owns it).
 
 **Scoped 2026-10-21 (1127th filing) under decision 192** (`docs/decisions/192-image-optimise-settings.md`; `ARCHITECTURE.md` §12). Model: `StreamAction::Image(ImagePatch)`, optional fields merged field by field across default, rules, per-object override; Acrobat's per-class panels ship as rules selecting `image-class`. **Corrected 2026-10-21:** the original line read "Resample to the highest ppi any placement needs", which is backwards; the rule is **resample so the lowest-ppi (largest drawn) placement keeps the target, per axis**. `ImageSpace::max_effective_ppi` measured the wrong end and is replaced by `binding_ppi`. Slices, in order:
 
@@ -24508,8 +24526,8 @@ Colour conversion targets (grey, bilevel, indexed) are slice C. ICC-managed conv
   - The report names the binding placement (page, drawn size, ppi before and after).
   - Only-if-smaller guard plus `min-saving`.
 - **B — JPEG.** **SHIPPED `e9387ebf`** (entry in *Shipped*); the Flate PNG-predictor option below was NOT delivered and remains open. As scoped: `encode=jpeg` with **baseline or progressive** output, quality (numeric plus named levels: minimum 20, low 40, medium 60, high 80, maximum 95) and chroma; Flate **PNG-predictor option** (`encode=flate-N` with predictor); DCT sources decoded, resampled and re-encoded with quality capped at the source's estimated quality; inverted Adobe CMYK /Decode kept; 16 bpc to 8 itemised as lossy.
-- **C — conversion.** Grey via the ISO 32000-2 §10.4.2.2/§10.4.2.3 device formulas; bilevel by Otsu (threshold disclosed), fixed or dither; **Indexed (palette quantisation, disclosed lossy, colour count and method named in the report)** added 2026-10-21 by the operator request above; ICCBased-by-formula disclosed "not colour-managed"; Lab/Separation/DeviceN skipped with a reason.
-- **D — masks, unplaced, dedupe, presets.**
+- **C — conversion.** **SHIPPED `cba8193d`** (entry in *Shipped*). As scoped: grey via the ISO 32000-2 §10.4.2.2/§10.4.2.3 device formulas; bilevel by Otsu (threshold disclosed), fixed or dither; **Indexed (palette quantisation, disclosed lossy, colour count and method named in the report)** added 2026-10-21 by the operator request above; ICCBased-by-formula disclosed "not colour-managed"; Lab/Separation/DeviceN skipped with a reason.
+- **D — masks, unplaced, dedupe, presets.** Also carries the Flate **PNG-predictor option** (`encode=flate-N` with predictor; undelivered from slice B, assigned here 1130th filing).
   - SMask/Matte lockstep, mask placements inherited from the parent.
   - Colour-key masks subsample-or-skip.
   - `unplaced=max-pixels=N`.
