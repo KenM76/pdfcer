@@ -3,7 +3,7 @@
 
 use std::collections::BTreeSet;
 
-use super::{EditSession, ObjectWrite};
+use super::{EditSession, ObjectWrite, Removal};
 use crate::font_unembed::{PdfaClaim, detect_pdfa};
 use crate::fontinfo::split_subset_tag;
 use crate::object::{Dict, Name, ObjId, Object, Stream};
@@ -45,7 +45,7 @@ impl EditSession {
     /// The re-subset `request` plans now, leaving what `plan` unembeds.
     fn resubset_preview(&self, request: ResubsetFonts, plan: &OptimizePlan) -> ResubsetPlan {
         let live = self.live_objects();
-        let mut cut = crate::optimize::resubset_plan::plan(&self.view(), &live, request.source);
+        let mut cut = crate::optimize::resubset_plan::plan(&self.view(), &live, request);
         let unembedded: BTreeSet<ObjId> = plan
             .unembed
             .iter()
@@ -92,8 +92,10 @@ impl EditSession {
             for (id, before) in &t.before {
                 let after = if *id == t.program {
                     self.cut_program(t, before)
+                } else if t.merged.contains(id) {
+                    continue;
                 } else {
-                    retagged(before, tag)
+                    retagged(before, tag).map(|o| repointed(o, t))
                 };
                 if let Some(after) = after {
                     out.push(ObjectWrite {
@@ -105,6 +107,21 @@ impl EditSession {
             }
         }
         out
+    }
+
+    /// The programs merged into another, as removals.
+    pub(super) fn resubset_removals(&self, plan: &OptimizePlan) -> Vec<Removal> {
+        plan.resubset
+            .iter()
+            .flat_map(|cut| &cut.targets)
+            .flat_map(|t| &t.merged)
+            .filter(|id| !self.deleted.contains(id))
+            .map(|&id| Removal {
+                id,
+                was_deleted: false,
+                is_deleted: true,
+            })
+            .collect()
     }
 
     fn cut_program(&mut self, t: &ResubsetTarget, before: &Object) -> Option<Object> {
@@ -151,6 +168,22 @@ fn retagged(before: &Object, tag: &str) -> Option<Object> {
     Some(Object::Dict(out))
 }
 
+/// `object`, a descriptor naming a program `t` merged away, pointing at
+/// `t`'s program instead; any other object unchanged.
+fn repointed(object: Object, t: &ResubsetTarget) -> Object {
+    let Object::Dict(mut dict) = object else {
+        return object;
+    };
+    let merged = dict
+        .get(b"FontFile2")
+        .and_then(Object::as_reference)
+        .is_some_and(|id| t.merged.contains(&id));
+    if merged {
+        dict.insert(Name::from(b"FontFile2"), Object::Reference(t.program));
+    }
+    Object::Dict(dict)
+}
+
 /// Move every target with a font in `unembedded` to the refusals.
 fn exclude_unembedded(cut: &mut ResubsetPlan, unembedded: &BTreeSet<ObjId>) {
     let (gone, kept): (Vec<_>, Vec<_>) = std::mem::take(&mut cut.targets)
@@ -181,6 +214,18 @@ glyphs kept), saving {} B; each gets a new subset tag, and text typed later in t
 needs the missing glyphs embedded again",
             cut.targets.len(),
             cut.saving()
+        ));
+    }
+    let merged: usize = cut.targets.iter().map(|t| t.merged.len()).sum();
+    if merged > 0 {
+        notes.push(format!(
+            "{merged} duplicate font program(s) merged into another copy of the same face; every font that used one now uses the merged program"
+        ));
+    }
+    if !cut.unmerged.is_empty() {
+        notes.push(format!(
+            "{} face(s) embedded more than once not merged; each is listed with why",
+            cut.unmerged.len()
         ));
     }
     if !cut.refused.is_empty() {

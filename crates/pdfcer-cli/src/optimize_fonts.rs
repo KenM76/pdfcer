@@ -9,9 +9,44 @@ use pdfcer_core::optimize::{OptimizePlan, OptimizeSettings};
 
 use super::json_escape;
 
+/// The `optimize` font arguments.
+#[derive(Debug, Clone, clap::Args)]
+pub(crate) struct FontArgs {
+    /// Remove embedded font programs: all (every font whose embedding
+    /// permits it and that a reader can substitute), font names
+    /// (comma-separated; the family name or the tagged name), or none to
+    /// cancel a profile's choice. Pages using them will look different: the
+    /// reader draws each letter with a face of its own inside the original
+    /// spacing. Every font kept is listed with why. Never done to a PDF/A
+    /// document, which requires embedded fonts.
+    #[arg(long, value_name = "all|none|NAMES", value_delimiter = ',')]
+    pub(crate) unembed_fonts: Vec<String>,
+    /// Keep the six-letter subset tag (ABCDEF+) on each unembedded font's
+    /// name. By default it is removed, so a reader can match an installed
+    /// face.
+    #[arg(long)]
+    pub(crate) keep_subset_tag: bool,
+    /// Cut each embedded TrueType program to the glyphs the document
+    /// draws. Every glyph number is kept, so the pages look the same; a
+    /// font that cannot be cut safely is kept whole and listed with why.
+    /// Not done to a PDF/A document.
+    #[arg(long)]
+    pub(crate) resubset_fonts: bool,
+    /// With --resubset-fonts, cut each copy of a face embedded more than
+    /// once on its own. By default the copies are merged into one program.
+    #[arg(long, requires = "resubset_fonts")]
+    pub(crate) no_merge_font_subsets: bool,
+}
+
+/// Set the font steps of `settings` from `args`.
+pub(crate) fn apply(settings: &mut OptimizeSettings, args: &FontArgs) {
+    apply_args(settings, &args.unembed_fonts, args.keep_subset_tag);
+    apply_resubset(settings, args.resubset_fonts, !args.no_merge_font_subsets);
+}
+
 /// Set [`OptimizeSettings::unembed`] from `--unembed-fonts` (`all`, `none`
 /// or names) and `--keep-subset-tag`; no names leaves the profile's choice.
-pub(crate) fn apply_args(settings: &mut OptimizeSettings, names: &[String], keep_tag: bool) {
+fn apply_args(settings: &mut OptimizeSettings, names: &[String], keep_tag: bool) {
     let request = match names {
         [] => settings.unembed.take(),
         [one] if one == "none" => None,
@@ -116,12 +151,15 @@ fn plan_json(u: &UnembedPlan) -> String {
 }
 
 /// Set [`OptimizeSettings::resubset`] to the glyph-zeroing cutter when
-/// `--resubset-fonts` is given.
-pub(crate) fn apply_resubset(settings: &mut OptimizeSettings, on: bool) {
+/// `--resubset-fonts` is given, merging copies of one face when `merge`.
+fn apply_resubset(settings: &mut OptimizeSettings, on: bool, merge: bool) {
     if on {
-        settings.resubset = Some(ResubsetFonts::new(
-            &pdfcer_render::font::resubset::GLYPH_ZERO_RESUBSETTER,
-        ));
+        let request = ResubsetFonts::new(&pdfcer_render::font::resubset::GLYPH_ZERO_RESUBSETTER);
+        settings.resubset = Some(if merge {
+            request
+        } else {
+            request.without_merge()
+        });
     }
 }
 
@@ -150,6 +188,12 @@ pub(crate) fn resubset_text(plan: &OptimizePlan) -> String {
             t.after_bytes,
             t.name_after
         );
+        for id in &t.merged {
+            let _ = writeln!(out, "  {:<8} merged into {}", id.to_string(), t.program);
+        }
+    }
+    for u in &r.unmerged {
+        let _ = writeln!(out, "  copies of {} not merged: {}", u.face, u.why.reason);
     }
     for f in &r.refused {
         let id = f
@@ -177,7 +221,7 @@ pub(crate) fn resubset_json(plan: &OptimizePlan) -> String {
         .iter()
         .map(|t| {
             format!(
-                "{{\"program\":{},\"fonts\":[{}],\"name_before\":{},\"name_after\":{},\"glyphs_kept\":{},\"glyphs_total\":{},\"before_bytes\":{},\"after_bytes\":{}}}",
+                "{{\"program\":{},\"fonts\":[{}],\"name_before\":{},\"name_after\":{},\"glyphs_kept\":{},\"glyphs_total\":{},\"before_bytes\":{},\"after_bytes\":{},\"merged\":[{}]}}",
                 q(&t.program.to_string()),
                 ids(&t.fonts),
                 q(&t.name_before),
@@ -185,7 +229,8 @@ pub(crate) fn resubset_json(plan: &OptimizePlan) -> String {
                 t.glyphs_kept,
                 t.glyphs_total,
                 t.before_bytes,
-                t.after_bytes
+                t.after_bytes,
+                ids(&t.merged)
             )
         })
         .collect();
@@ -203,10 +248,24 @@ pub(crate) fn resubset_json(plan: &OptimizePlan) -> String {
             )
         })
         .collect();
+    let unmerged: Vec<String> = r
+        .unmerged
+        .iter()
+        .map(|u| {
+            format!(
+                "{{\"face\":{},\"programs\":[{}],\"verdict\":{},\"reason\":{}}}",
+                q(&u.face),
+                ids(&u.programs),
+                q(u.why.token),
+                q(&u.why.reason)
+            )
+        })
+        .collect();
     format!(
-        "{{\"cut\":[{}],\"refused\":[{}],\"bytes\":{}}}",
+        "{{\"cut\":[{}],\"refused\":[{}],\"unmerged\":[{}],\"bytes\":{}}}",
         targets.join(","),
         refused.join(","),
+        unmerged.join(","),
         r.saving()
     )
 }

@@ -155,26 +155,8 @@ pub(crate) struct OptimizeArgs {
     /// removes them. The same names as --discard; all keeps everything.
     #[arg(long, value_name = "KINDS", value_delimiter = ',')]
     pub(crate) keep_data: Vec<String>,
-    /// Remove embedded font programs: all (every font whose embedding
-    /// permits it and that a reader can substitute), font names
-    /// (comma-separated; the family name or the tagged name), or none to
-    /// cancel a profile's choice. Pages using them will look different: the
-    /// reader draws each letter with a face of its own inside the original
-    /// spacing. Every font kept is listed with why. Never done to a PDF/A
-    /// document, which requires embedded fonts.
-    #[arg(long, value_name = "all|none|NAMES", value_delimiter = ',')]
-    pub(crate) unembed_fonts: Vec<String>,
-    /// Keep the six-letter subset tag (ABCDEF+) on each unembedded font's
-    /// name. By default it is removed, so a reader can match an installed
-    /// face.
-    #[arg(long)]
-    pub(crate) keep_subset_tag: bool,
-    /// Cut each embedded TrueType program to the glyphs the document
-    /// draws. Every glyph number is kept, so the pages look the same; a
-    /// font that cannot be cut safely is kept whole and listed with why.
-    /// Not done to a PDF/A document.
-    #[arg(long)]
-    pub(crate) resubset_fonts: bool,
+    #[command(flatten)]
+    pub(crate) fonts: crate::optimize_fonts::FontArgs,
     /// Optimize a signed document anyway. Every signature is invalidated,
     /// and the report says how many.
     #[arg(long)]
@@ -330,8 +312,7 @@ fn resolve_settings(args: &OptimizeArgs) -> Result<OptimizeSettings, String> {
             .without_named(name)
             .ok_or_else(|| unknown(name))?;
     }
-    crate::optimize_fonts::apply_args(&mut settings, &args.unembed_fonts, args.keep_subset_tag);
-    crate::optimize_fonts::apply_resubset(&mut settings, args.resubset_fonts);
+    crate::optimize_fonts::apply(&mut settings, &args.fonts);
     Ok(settings)
 }
 

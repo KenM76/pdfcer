@@ -12,8 +12,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::fragments::{Referrers, referrers};
 use super::glyph_usage::{GlyphUsage, enumerate};
 use super::resubset::{
-    FontResubsetter, FontUse, ResubsetPlan, ResubsetRefusal, ResubsetRefused, ResubsetRequest,
-    ResubsetTarget,
+    FontResubsetter, FontUse, ResubsetFonts, ResubsetPlan, ResubsetRefusal, ResubsetRefused,
+    ResubsetRequest, ResubsetTarget,
 };
 use crate::filters::flate;
 use crate::font_unembed::{Located, locate};
@@ -26,12 +26,23 @@ use crate::view::DocumentView;
 /// gives up.
 const MAX_HOLDER_DEPTH: u8 = 4;
 
-/// Plan the cut of every eligible program in `view`, cutting with `source`.
-/// `live` is every object reachable from the trailer.
+/// Plan the cut of every eligible program in `view` with `request`,
+/// merging subsets of one face when it asks. `live` is every object
+/// reachable from the trailer.
 pub(crate) fn plan(
     view: &DocumentView<'_>,
     live: &BTreeSet<ObjId>,
+    request: ResubsetFonts,
+) -> ResubsetPlan {
+    plan_with(view, live, request.source, request.merge)
+}
+
+/// [`plan`] with `source`, merging when `merge`.
+fn plan_with(
+    view: &DocumentView<'_>,
+    live: &BTreeSet<ObjId>,
     source: &dyn FontResubsetter,
+    merge: bool,
 ) -> ResubsetPlan {
     let inventory = crate::fontinfo::inventory(view);
     let located: Vec<Located<'_>> = inventory.fonts.iter().map(|r| locate(view, r)).collect();
@@ -43,6 +54,7 @@ pub(crate) fn plan(
         .filter_map(|r| r.subset_tag.clone())
         .collect();
     let mut out = ResubsetPlan::default();
+    let mut prepared = Vec::new();
     for (program, group) in groups(&located, &mut out) {
         let check = Group {
             view,
@@ -52,15 +64,46 @@ pub(crate) fn plan(
         };
         match check
             .eligible(program)
-            .and_then(|()| check.cut(program, source, &mut tags))
+            .and_then(|()| check.prepare(program, source, &mut tags))
         {
-            Ok(target) => out.targets.push(target),
+            Ok(p) => prepared.push(p),
             Err(why) => out
                 .refused
                 .extend(group.iter().map(|l| refused(l, why.clone()))),
         }
     }
+    if merge {
+        let mut merge = super::resubset_merge::Merge {
+            view,
+            source,
+            tags: &mut tags,
+            out: &mut out,
+        };
+        prepared = merge.run(prepared);
+    }
+    for p in prepared {
+        match p.outcome {
+            Ok(target) => out.targets.push(target),
+            Err(why) => out
+                .refused
+                .extend(p.users.iter().map(|l| refused(l, why.clone()))),
+        }
+    }
+    out.targets.sort_by_key(|t| t.program);
     out
+}
+
+/// An eligible program, cut or refused, with what a merge needs.
+pub(super) struct Prepared<'l, 'r> {
+    pub(super) program: ObjId,
+    pub(super) users: Vec<&'l Located<'r>>,
+    /// The program's stored size.
+    pub(super) raw_len: u64,
+    /// The program a merge starts from: the cut, or the program as it is.
+    pub(super) bytes: Vec<u8>,
+    pub(super) outcome: Result<ResubsetTarget, ResubsetRefusal>,
+    /// The dictionaries carrying the program's name.
+    pub(super) renamed: BTreeSet<ObjId>,
 }
 
 /// Embedded fonts grouped by program; a font with no indirect program or
@@ -92,7 +135,8 @@ fn groups<'l, 'r>(
     by_program
 }
 
-fn refused(l: &Located<'_>, why: ResubsetRefusal) -> ResubsetRefused {
+/// `l`'s font refused for `why`.
+pub(super) fn refused(l: &Located<'_>, why: ResubsetRefusal) -> ResubsetRefused {
     ResubsetRefused {
         font: l.record.id,
         name: l.record.base_font.clone().unwrap_or_default(),
@@ -108,7 +152,7 @@ struct Group<'a, 'v, 'l, 'r> {
     users: &'a [&'l Located<'r>],
 }
 
-impl Group<'_, '_, '_, '_> {
+impl<'l, 'r> Group<'_, '_, 'l, 'r> {
     fn ids(&self) -> Vec<ObjId> {
         self.users.iter().filter_map(|l| l.record.id).collect()
     }
@@ -246,27 +290,46 @@ impl Group<'_, '_, '_, '_> {
         }
     }
 
-    /// Cut `program` with `source` and measure it.
-    fn cut(
+    /// Decode `program` and cut it with `source`. `Err` only when it
+    /// cannot be read; a refused cut is kept in [`Prepared::outcome`].
+    fn prepare(
         &self,
         program: ObjId,
         source: &dyn FontResubsetter,
         tags: &mut BTreeSet<String>,
-    ) -> Result<ResubsetTarget, ResubsetRefusal> {
-        let unreadable =
-            || ResubsetRefusal::new("malformed-glyf", "the font program cannot be read");
-        let Some(Object::Stream(stream)) = self.view.graph().value(program) else {
-            return Err(unreadable());
+    ) -> Result<Prepared<'l, 'r>, ResubsetRefusal> {
+        let (raw_len, data) = decoded(self.view, program)?;
+        let (bytes, outcome) = match self.cut(program, raw_len, &data, source, tags) {
+            Ok((target, cut)) => (cut, Ok(target)),
+            Err(why) => (data, Err(why)),
         };
-        let raw = self.view.slice(stream.data_span).ok_or_else(unreadable)?;
-        let data = crate::filters::decode_stream(&stream.dict, raw).map_err(|_| unreadable())?;
+        Ok(Prepared {
+            program,
+            users: self.users.to_vec(),
+            raw_len,
+            bytes,
+            outcome,
+            renamed: self.renamed(),
+        })
+    }
+
+    /// Cut `data`, the decoded `program` of `before` stored bytes, with
+    /// `source` and measure it; the target and the cut program.
+    fn cut(
+        &self,
+        program: ObjId,
+        before: u64,
+        data: &[u8],
+        source: &dyn FontResubsetter,
+        tags: &mut BTreeSet<String>,
+    ) -> Result<(ResubsetTarget, Vec<u8>), ResubsetRefusal> {
         let empty = BTreeSet::new();
         let uses: Vec<FontUse<'_>> = self
             .ids()
             .into_iter()
             .map(|f| FontUse::new(f, self.usage.codes.get(&f).unwrap_or(&empty)))
             .collect();
-        let cut = source.resubset(&ResubsetRequest::new(self.view, &data, &uses))?;
+        let cut = source.resubset(&ResubsetRequest::new(self.view, data, &uses))?;
         if cut.glyphs_kept >= cut.glyphs_total {
             return Err(ResubsetRefusal::new(
                 "every-glyph-used",
@@ -275,7 +338,6 @@ impl Group<'_, '_, '_, '_> {
         }
         let encoded = flate::encode_with_level(&cut.program, 9);
         let after = encoded.len() as u64;
-        let before = raw.len() as u64;
         if after >= before {
             return Err(ResubsetRefusal::new(
                 "not-smaller",
@@ -293,8 +355,9 @@ impl Group<'_, '_, '_, '_> {
             .chain(self.renamed())
             .filter_map(|id| Some((id, self.view.value(id)?.clone())))
             .collect();
-        Ok(ResubsetTarget {
+        let target = ResubsetTarget {
             program,
+            merged: Vec::new(),
             fonts: self.ids(),
             name_after: format!("{tag}+{stem}"),
             name_before,
@@ -305,7 +368,8 @@ impl Group<'_, '_, '_, '_> {
             length1: cut.program.len(),
             data: encoded,
             before: snapshot,
-        })
+        };
+        Ok((target, cut.program))
     }
 
     /// The dictionaries carrying the program's name: the fonts, each Type 0
@@ -329,9 +393,23 @@ impl Group<'_, '_, '_, '_> {
     }
 }
 
+/// The stored size of stream `program`, and its data decoded.
+pub(super) fn decoded(
+    view: &DocumentView<'_>,
+    program: ObjId,
+) -> Result<(u64, Vec<u8>), ResubsetRefusal> {
+    let unreadable = || ResubsetRefusal::new("malformed-glyf", "the font program cannot be read");
+    let Some(Object::Stream(stream)) = view.graph().value(program) else {
+        return Err(unreadable());
+    };
+    let raw = view.slice(stream.data_span).ok_or_else(unreadable)?;
+    let data = crate::filters::decode_stream(&stream.dict, raw).map_err(|_| unreadable())?;
+    Ok((raw.len() as u64, data))
+}
+
 /// Six uppercase letters derived from `data`, not in `taken`, and added to
 /// it (§9.6.4: exactly six uppercase letters, distinct per subset).
-fn fresh_tag(data: &[u8], taken: &mut BTreeSet<String>) -> String {
+pub(super) fn fresh_tag(data: &[u8], taken: &mut BTreeSet<String>) -> String {
     let mut hash = data.iter().fold(0xcbf2_9ce4_8422_2325_u64, |h, &b| {
         (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3)
     });

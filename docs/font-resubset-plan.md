@@ -130,5 +130,11 @@ cases are inline core tests instead (`optimize/glyph_usage/tests.rs`,
 Steps 1–7 are built. A program the cutter keeps whole is refused
 `every-glyph-used`, so it is not renamed for nothing.
 
+Slice 3, merging copies of one face, is built. Fixture `pair`: one
+face embedded as a TrueType font and as a Type0/CIDFontType2, which is
+Word's pattern. A corpus measurement over 2,915 files found 22 that carry
+one face more than once, with up to 31.6% of a file's bytes duplicated.
+The merge rule is documented in `docs/core-api/03-capabilities.md`.
+
 Deferred: CFF zeroing, CIDSet/CharSet rewrite and PDF/A, and switching to the
 short `loca` format.

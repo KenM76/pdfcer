@@ -13,6 +13,11 @@ rerun is byte-identical.
 - type0-identity.pdf: Type0 / Identity-H over CIDFontType2 with a
   /CIDToGIDMap stream (CID 1 -> glyph 3, "C"); shows CID 1, keeping
   .notdef and C.
+- pair.pdf: the face held twice, as a Word document holds it: a TrueType
+  font (WinAnsi, shows "A") and a Type0 / Identity-H font over a
+  CIDFontType2 with /CIDToGIDMap /Identity (shows glyph 3, "C"), each with
+  its own descriptor and its own copy of the program, under two subset
+  tags. A merge leaves one program holding .notdef, A and C.
 
 Run: python tools/gen-resubset-fixtures.py
 """
@@ -60,6 +65,29 @@ def document(content: bytes, font: bytes, extra: list[bytes]) -> bytes:
     ])
 
 
+def pair() -> bytes:
+    page = (b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 140 80] /Contents 4 0 R "
+            b"/Resources << /Font << /F1 5 0 R /F2 8 0 R >> >> >>")
+    other = DESCRIPTOR.replace(b"ABCDEF+", b"GHIJKL+").replace(b"7 0 R", b"11 0 R")
+    return assemble([
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        page,
+        stream(b"", b"BT /F1 48 Tf 10 20 Td (A) Tj /F2 48 Tf 50 0 Td <0003> Tj ET"),
+        b"<< /Type /Font /Subtype /TrueType /BaseFont /ABCDEF+Face "
+        b"/Encoding /WinAnsiEncoding /FontDescriptor 6 0 R >>",
+        DESCRIPTOR,
+        stream(b"/Length1 %d " % len(FACE), FACE),
+        b"<< /Type /Font /Subtype /Type0 /BaseFont /GHIJKL+Face "
+        b"/Encoding /Identity-H /DescendantFonts [9 0 R] >>",
+        b"<< /Type /Font /Subtype /CIDFontType2 /BaseFont /GHIJKL+Face "
+        b"/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> "
+        b"/FontDescriptor 10 0 R /CIDToGIDMap /Identity >>",
+        other,
+        stream(b"/Length1 %d " % len(FACE), FACE),
+    ])
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     simple = document(
@@ -80,7 +108,11 @@ def main() -> None:
             stream(b"", cid_map),
         ],
     )
-    for name, data in [("simple.pdf", simple), ("type0-identity.pdf", type0)]:
+    for name, data in [
+        ("simple.pdf", simple),
+        ("type0-identity.pdf", type0),
+        ("pair.pdf", pair()),
+    ]:
         (OUT / name).write_bytes(data)
         print(f"wrote {OUT / name} ({len(data)} B)")
 

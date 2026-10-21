@@ -234,6 +234,7 @@ impl EditSession {
             + self.apply_unembed(plan, &mut fold)?;
         let mut objects = self.stream_writes(&plan.writes);
         objects.extend(self.resubset_writes(plan));
+        let removals = self.resubset_removals(plan);
         if !objects.is_empty() {
             objects.extend(self.catalog_writes(plan.version_raise(), plan.uses_brotli()));
         }
@@ -241,11 +242,11 @@ impl EditSession {
             fold.finish(self, removed);
             return Ok(removed);
         }
-        let count = objects.len();
+        let count = objects.len() + removals.len();
         self.commit(Command {
             kind: CommandKind::Optimize { count },
             objects,
-            removals: Vec::new(),
+            removals,
             trailer: None,
         });
         fold.finish(self, count + removed);

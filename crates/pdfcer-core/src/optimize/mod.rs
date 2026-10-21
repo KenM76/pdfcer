@@ -44,6 +44,7 @@ pub mod objects;
 mod preset;
 pub mod profile;
 pub mod resubset;
+mod resubset_merge;
 pub(crate) mod resubset_plan;
 pub(crate) mod select;
 pub(crate) mod smooth;

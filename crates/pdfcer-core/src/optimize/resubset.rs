@@ -8,6 +8,11 @@
 //! emptied, so content streams, `/Widths`, `/W`, `/Encoding` and
 //! `/CIDToGIDMap` stay as they are. The program gets a fresh subset tag
 //! (ISO 32000-2 §9.6.4: different subsets in one file have different tags).
+//!
+//! Subsets of one face held as separate programs (a producer that writes a
+//! face once as a simple font and once as a CIDFont) are merged into one
+//! program when [`ResubsetFonts::merge`] is on and the cutter can prove they
+//! were cut from the same font ([`FontResubsetter::merge`]).
 
 use std::collections::BTreeSet;
 
@@ -30,6 +35,23 @@ pub trait FontResubsetter: Send + Sync + std::fmt::Debug {
         &self,
         request: &ResubsetRequest<'_, '_>,
     ) -> Result<ResubsetProgram, ResubsetRefusal>;
+
+    /// One program holding every glyph record of `programs`, which are
+    /// subsets of one face, with every glyph ID kept, so each subset's
+    /// users draw what they drew before. The default refuses, so a cutter
+    /// need not merge.
+    ///
+    /// # Errors
+    ///
+    /// [`ResubsetRefusal`] when the programs cannot be shown to be cut from
+    /// one font, or a glyph differs between them.
+    fn merge(&self, programs: &[&[u8]]) -> Result<ResubsetProgram, ResubsetRefusal> {
+        let _ = programs;
+        Err(ResubsetRefusal::new(
+            "merge-unsupported",
+            "the font cutter does not merge subsets",
+        ))
+    }
 }
 
 /// One program to cut, with every font that draws from it.
@@ -130,20 +152,36 @@ impl ResubsetRefusal {
 pub struct ResubsetFonts {
     /// The cutter.
     pub source: &'static dyn FontResubsetter,
+    /// Merge subsets of one face into one program. On by default.
+    pub merge: bool,
 }
 
 impl ResubsetFonts {
-    /// Re-subset with `source`.
+    /// Re-subset with `source`, merging subsets of one face.
     #[must_use]
     pub fn new(source: &'static dyn FontResubsetter) -> Self {
-        Self { source }
+        Self {
+            source,
+            merge: true,
+        }
+    }
+
+    /// These settings with [`Self::merge`] off: each program is cut on its
+    /// own.
+    #[must_use]
+    pub fn without_merge(self) -> Self {
+        Self {
+            merge: false,
+            ..self
+        }
     }
 }
 
-/// Two settings are equal when they name the same cutter.
+/// Two settings are equal when they name the same cutter and agree on
+/// merging.
 impl PartialEq for ResubsetFonts {
     fn eq(&self, other: &Self) -> bool {
-        std::ptr::addr_eq(self.source, other.source)
+        std::ptr::addr_eq(self.source, other.source) && self.merge == other.merge
     }
 }
 
@@ -155,6 +193,9 @@ pub struct ResubsetPlan {
     pub targets: Vec<ResubsetTarget>,
     /// The fonts it leaves, each with why.
     pub refused: Vec<ResubsetRefused>,
+    /// Subsets of one face it found but did not merge, each with why. Each
+    /// program is still cut on its own.
+    pub unmerged: Vec<ResubsetUnmerged>,
 }
 
 impl ResubsetPlan {
@@ -174,6 +215,10 @@ impl ResubsetPlan {
 pub struct ResubsetTarget {
     /// The program stream.
     pub program: ObjId,
+    /// The other programs of the same face this one replaces, deleted by
+    /// the run: their fonts draw from [`Self::program`] after it. Empty
+    /// unless subsets were merged.
+    pub merged: Vec<ObjId>,
     /// The fonts drawing from it, in id order.
     pub fonts: Vec<ObjId>,
     /// The font name before and after re-tagging, such as `Arial` to
@@ -185,7 +230,8 @@ pub struct ResubsetTarget {
     pub glyphs_kept: u32,
     /// Glyphs in the program.
     pub glyphs_total: u32,
-    /// The program's stored size now.
+    /// The stored size now of the program and of every program in
+    /// [`Self::merged`].
     pub before_bytes: u64,
     /// Its stored size after the cut, Flate-compressed.
     pub after_bytes: u64,
@@ -207,5 +253,17 @@ pub struct ResubsetRefused {
     /// Its `/BaseFont`.
     pub name: String,
     /// The refusal.
+    pub why: ResubsetRefusal,
+}
+
+/// Subsets of one face the run found and left as separate programs.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ResubsetUnmerged {
+    /// The face name, without a subset tag, such as `Calibri`.
+    pub face: String,
+    /// The programs, in id order.
+    pub programs: Vec<ObjId>,
+    /// Why they were not merged.
     pub why: ResubsetRefusal,
 }

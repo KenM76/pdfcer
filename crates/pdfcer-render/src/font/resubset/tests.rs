@@ -144,3 +144,57 @@ fn a_collection_and_a_restricted_licence_are_refused() {
         "fstype-restricted"
     );
 }
+
+/// `FACE` cut to `roots`, as a subset another tool might have embedded.
+fn subset(roots: &[u16]) -> Vec<u8> {
+    zero::zero(FACE, &roots.iter().copied().collect())
+        .unwrap()
+        .program
+}
+
+/// The offset of `tag`'s table in `font`.
+fn table_at(font: &[u8], tag: [u8; 4]) -> usize {
+    let dir = Directory::parse(font).unwrap();
+    dir.table(tag).unwrap().as_ptr() as usize - font.as_ptr() as usize
+}
+
+#[test]
+fn two_subsets_of_one_face_merge_into_one_holding_both() {
+    let (a, b) = (subset(&[1]), subset(&[2, 7]));
+    let out = GLYPH_ZERO_RESUBSETTER.merge(&[&a, &b]).unwrap();
+    assert_eq!((out.glyphs_kept, out.glyphs_total), (5, 8));
+    let (face, merged) = (records(FACE), records(&out.program));
+    for gid in [1, 2, 5, 6, 7] {
+        assert_eq!(
+            merged[gid], face[gid],
+            "glyph {gid} from one of the subsets"
+        );
+    }
+    for gid in [3, 4] {
+        assert!(merged[gid].is_empty(), "glyph {gid} neither subset carries");
+    }
+}
+
+#[test]
+fn subsets_whose_metrics_differ_are_refused() {
+    let (a, mut b) = (subset(&[1]), subset(&[2]));
+    let at = table_at(&b, *b"hmtx");
+    b[at] ^= 1;
+    let err = GLYPH_ZERO_RESUBSETTER.merge(&[&a, &b]).unwrap_err();
+    assert_eq!(err.token, "different-face");
+    assert!(err.reason.contains("hmtx"), "{}", err.reason);
+}
+
+#[test]
+fn a_glyph_two_subsets_draw_differently_is_refused() {
+    let (a, mut b) = (subset(&[1]), subset(&[1, 2]));
+    let glyf = table_at(&b, *b"glyf");
+    let dir = Directory::parse(&b).unwrap();
+    let total = usize::from(crate::font::sfnt::read_u16(dir.table(*b"maxp").unwrap(), 4).unwrap());
+    let loca = read_loca(dir.table(*b"loca").unwrap(), false, total).unwrap();
+    let last = glyf + loca[2] - 1;
+    b[last] ^= 1;
+    let err = GLYPH_ZERO_RESUBSETTER.merge(&[&a, &b]).unwrap_err();
+    assert_eq!(err.token, "different-face");
+    assert!(err.reason.contains("glyph 1"), "{}", err.reason);
+}

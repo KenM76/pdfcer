@@ -20,15 +20,16 @@ pub(super) struct Cut {
 
 /// The tables a cut reads: `head.indexToLocFormat`, `maxp.numGlyphs`, and
 /// `glyf` with its offsets.
-struct Glyphs<'a> {
-    long: bool,
-    total: usize,
-    glyf: &'a [u8],
-    offsets: Vec<usize>,
+pub(super) struct Glyphs<'a> {
+    pub(super) long: bool,
+    pub(super) total: usize,
+    pub(super) glyf: &'a [u8],
+    pub(super) offsets: Vec<usize>,
 }
 
 impl<'a> Glyphs<'a> {
-    fn read(dir: &Directory<'a>) -> Option<Self> {
+    /// The glyph tables of `dir`; `None` when one is missing or malformed.
+    pub(super) fn read(dir: &Directory<'a>) -> Option<Self> {
         let long = read_i16(dir.table(*b"head")?, 50) != 0;
         let total = usize::from(read_u16(dir.table(*b"maxp")?, 4)?);
         let glyf = dir.table(*b"glyf")?;

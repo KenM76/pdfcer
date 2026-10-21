@@ -79,7 +79,7 @@ fn run(d: &Document, fake: &Fake) -> ResubsetPlan {
         .map(id)
         .filter(|i| view.value(*i).is_some())
         .collect();
-    plan(&view, &live, fake)
+    plan_with(&view, &live, fake, true)
 }
 
 fn tokens(p: &ResubsetPlan) -> Vec<&'static str> {
@@ -141,7 +141,7 @@ fn a_cut_no_smaller_than_the_stored_program_is_refused() {
     let d = doc("", "Arial", b"BT /F1 9 Tf (a) Tj ET", &[]);
     let view = d.view();
     let live: BTreeSet<ObjId> = (1..=7).map(id).collect();
-    let p = plan(&view, &live, &Noisy);
+    let p = plan_with(&view, &live, &Noisy, true);
     assert!(p.targets.is_empty());
     assert_eq!(tokens(&p), vec!["not-smaller"]);
 }
@@ -161,7 +161,7 @@ fn a_program_whose_every_glyph_is_used_is_not_cut() {
     let d = doc("", "Arial", b"BT /F1 9 Tf (a) Tj ET", &[]);
     let view = d.view();
     let live: BTreeSet<ObjId> = (1..=7).map(id).collect();
-    let p = plan(&view, &live, &Whole);
+    let p = plan_with(&view, &live, &Whole, true);
     assert!(p.targets.is_empty());
     assert_eq!(tokens(&p), vec!["every-glyph-used"]);
 }

@@ -1,6 +1,6 @@
 //! `pdfcer optimize --unembed-fonts`: removed fonts, kept fonts with why,
 //! PDF/A, and the profile carrying the choice; `--resubset-fonts`: the cut,
-//! its JSON, and the refusals it reports.
+//! its JSON, the refusals it reports, and merging copies of one face.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)] // Tests fail loudly.
 
@@ -154,6 +154,26 @@ fn resubset_json_lists_the_cut_and_a_font_using_every_glyph_is_refused() {
     let report = text(&o);
     assert!(report.contains("resubset: 0 cut, 1 refused"), "{report}");
     assert!(report.contains("nothing to cut"), "{report}");
+}
+
+#[test]
+fn copies_of_one_face_merge_unless_told_not_to() {
+    let o = run("resubset/pair.pdf", &["--dry-run", "--resubset-fonts"]);
+    let report = text(&o);
+    assert!(report.contains("resubset: 1 cut, 0 refused"), "{report}");
+    assert!(report.contains("11 0     merged into 7 0"), "{report}");
+    let o = run(
+        "resubset/pair.pdf",
+        &[
+            "--dry-run",
+            "--json",
+            "--resubset-fonts",
+            "--no-merge-font-subsets",
+        ],
+    );
+    let report = text(&o);
+    assert_eq!(report.matches("\"merged\":[]}").count(), 2, "{report}");
+    assert!(report.contains("\"unmerged\":[]"), "{report}");
 }
 
 #[test]
