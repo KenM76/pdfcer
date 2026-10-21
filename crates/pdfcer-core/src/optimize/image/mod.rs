@@ -381,6 +381,8 @@ pub enum SettingSource {
     BuiltIn,
     /// The default `streams` action.
     Streams,
+    /// [`OptimizeSettings::images`](super::OptimizeSettings::images).
+    Images,
     /// The rule at this index of [`OptimizeSettings::rules`](super::OptimizeSettings::rules).
     Rule(usize),
     /// The per-object override.
@@ -392,6 +394,7 @@ impl fmt::Display for SettingSource {
         match self {
             Self::BuiltIn => f.write_str("default"),
             Self::Streams => f.write_str("streams"),
+            Self::Images => f.write_str("images"),
             Self::Rule(n) => write!(f, "rule {}", n + 1),
             Self::Object => f.write_str("object override"),
         }

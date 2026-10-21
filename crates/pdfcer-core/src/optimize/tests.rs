@@ -380,3 +380,31 @@ pub(super) fn saved_text(s: &mut EditSession, plan: &OptimizePlan) -> String {
     };
     String::from_utf8_lossy(&bytes).into_owned()
 }
+
+#[test]
+fn image_settings_keep_the_presets_recompression_of_other_streams() {
+    let mut s = Preset::Lossless.settings();
+    s.images = ImagePatch::parse("image(ppi=150)").unwrap();
+    let facts = select::ObjectFacts {
+        audit: None,
+        stored_bytes: 10,
+        filters: &[],
+    };
+    let r = s.resolve(ObjId::new(4, 0), &facts);
+    assert_eq!(r.base, StreamAction::Recompress { level: 9 });
+    let img = r.image.unwrap();
+    assert_eq!(img.ppi.map(|p| p.source), Some(SettingSource::Images));
+    assert_eq!(
+        img.encode,
+        image::sourced(ImageEncode::Flate { level: 9 }, SettingSource::Streams)
+    );
+    s.rules.push(Rule {
+        select: Selector::new(),
+        action: StreamAction::Leave,
+    });
+    let r = s.resolve(ObjId::new(4, 0), &facts);
+    assert_eq!((r.base, r.image), (StreamAction::Leave, None));
+    s.rules.clear();
+    s.images = ImagePatch::new();
+    assert_eq!(s.resolve(ObjId::new(4, 0), &facts).image, None);
+}

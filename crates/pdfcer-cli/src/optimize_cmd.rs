@@ -38,8 +38,8 @@ pub(crate) struct OptimizeArgs {
     #[arg(long, value_name = "FILE")]
     pub(crate) profile: Option<PathBuf>,
     /// Replace the default stream action: leave, recompress (level 9),
-    /// recompress-0 to recompress-9, or image settings that merge over the
-    /// rest: "image(ppi=150)" downsamples every image whose largest drawn
+    /// recompress-0 to recompress-9, or image settings for every image
+    /// (other streams keep the preset's action): "image(ppi=150)" downsamples every image whose largest drawn
     /// use is above 1.5 x 150 ppi to 150 ppi there. Keys: method
     /// (off|average|subsample|bicubic|lanczos), ppi, above (the trigger),
     /// encode (keep|flate|flate-N|jpeg), quality (1-100 or minimum, low,
@@ -243,7 +243,12 @@ fn resolve_settings(args: &OptimizeArgs) -> Result<OptimizeSettings, String> {
         (None, None) => Preset::Standard.settings(),
     };
     if let Some(a) = &args.streams {
-        settings.streams = pdfcer_core::optimize::StreamAction::parse(a)?;
+        // On top of a preset, image settings must not drop its
+        // recompression of every other stream.
+        match pdfcer_core::optimize::StreamAction::parse(a)? {
+            pdfcer_core::optimize::StreamAction::Image(patch) => settings.images = patch,
+            other => settings.streams = other,
+        }
     }
     for spec in &args.rules {
         settings

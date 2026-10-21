@@ -5,6 +5,7 @@
 //! ```toml
 //! extends = "standard"        # a preset name, or another profile
 //! streams = "recompress-9"    # the default action: leave | recompress | recompress-0..9
+//! images = "image(ppi=150)"   # image settings over streams; other streams keep it
 //! allow-signed = false
 //! remove-unreferenced = true  # the structure rebuild at save; all three
 //! merge-duplicates = true     # false keeps the file's structure
@@ -44,7 +45,9 @@ use std::fmt::Write as _;
 
 use syntax::{Kind, Table, Value};
 
-use super::{DiscardOptions, OptimizeSettings, PageRanges, Preset, Rule, Selector, StreamAction};
+use super::{
+    DiscardOptions, ImagePatch, OptimizeSettings, PageRanges, Preset, Rule, Selector, StreamAction,
+};
 use crate::object::ObjId;
 use crate::space_audit::{ImageClass, SpaceCategory};
 
@@ -168,6 +171,7 @@ fn apply_table(settings: &mut OptimizeSettings, table: &Table) -> Result<(), (us
                 match key.as_str() {
                     "extends" => {}
                     "streams" => settings.streams = action(value).map_err(at)?,
+                    "images" => settings.images = images(value).map_err(at)?,
                     "allow-signed" => settings.allow_signed = boolean(value).map_err(at)?,
                     "discard" => settings.discard = discard(value).map_err(at)?,
                     "smooth-tolerance" => {
@@ -322,6 +326,10 @@ fn action(v: &Value) -> Result<StreamAction, String> {
     StreamAction::parse(string(v)?)
 }
 
+fn images(v: &Value) -> Result<ImagePatch, String> {
+    ImagePatch::parse(string(v)?)
+}
+
 fn category(name: &str) -> Result<SpaceCategory, String> {
     SpaceCategory::ALL
         .into_iter()
@@ -446,6 +454,13 @@ pub fn to_profile(settings: &OptimizeSettings) -> String {
         "streams = {}",
         syntax::quote(&settings.streams.to_profile_string())
     );
+    if settings.images != ImagePatch::new() {
+        let _ = writeln!(
+            out,
+            "images = {}",
+            syntax::quote(&settings.images.to_string())
+        );
+    }
     let _ = writeln!(out, "allow-signed = {}", settings.allow_signed);
     let st = &settings.structure;
     let _ = writeln!(out, "remove-unreferenced = {}", st.remove_unreferenced);

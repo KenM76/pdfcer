@@ -168,8 +168,15 @@ pub struct Rule {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct OptimizeSettings {
-    /// The action for an eligible stream no rule or override selects.
+    /// The action for an eligible stream no rule or override selects. An
+    /// [`StreamAction::Image`] here leaves every non-image stream as stored;
+    /// image settings that keep a preset's recompression go in
+    /// [`Self::images`].
     pub streams: StreamAction,
+    /// Image settings for every image, merged over `streams` and under every
+    /// rule and override; [`ImagePatch::new`] sets none. Non-image streams
+    /// keep `streams`.
+    pub images: ImagePatch,
     /// Rules, in order. A later match beats an earlier one.
     pub rules: Vec<Rule>,
     /// Per-object overrides. These beat every rule.
@@ -201,6 +208,7 @@ impl OptimizeSettings {
     pub const fn new() -> Self {
         Self {
             streams: StreamAction::Leave,
+            images: ImagePatch::new(),
             rules: Vec::new(),
             objects: BTreeMap::new(),
             allow_signed: false,
@@ -212,8 +220,8 @@ impl OptimizeSettings {
     }
 
     /// Every action matching one object, folded in the precedence in the
-    /// module docs: `streams`, then matching rules in order, then the
-    /// per-object override.
+    /// module docs: `streams`, then `images`, then matching rules in order,
+    /// then the per-object override.
     pub(crate) fn resolve(&self, id: ObjId, facts: &select::ObjectFacts<'_>) -> image::Resolved {
         let rules = self
             .rules
@@ -224,6 +232,10 @@ impl OptimizeSettings {
         let object = self.objects.get(&id).map(|a| (*a, SettingSource::Object));
         image::fold(
             std::iter::once((self.streams, SettingSource::Streams))
+                .chain(
+                    (self.images != ImagePatch::new())
+                        .then_some((StreamAction::Image(self.images), SettingSource::Images)),
+                )
                 .chain(rules)
                 .chain(object),
         )

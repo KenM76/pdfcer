@@ -726,7 +726,14 @@ fn an_image_setting_downsamples_and_reports_size_page_and_source() {
         report.contains("200x200 -> 50x50 px, average (rule 1)"),
         "{report}"
     );
-    assert!(report.contains("target 72 ppi (streams)"), "{report}");
+    assert!(report.contains("target 72 ppi (images)"), "{report}");
+    // The preset still recompresses the content stream beside the image.
+    assert!(
+        report
+            .lines()
+            .any(|l| l.contains("8 0") && l.contains("recompress-9")),
+        "{report}"
+    );
     assert!(
         report.contains("binding use page 1, 50x50 pt, 288 -> 72 ppi"),
         "{report}"
@@ -775,7 +782,7 @@ fn an_image_written_as_jpeg_reports_format_and_quality() {
         "{j}"
     );
     assert!(
-        j.contains("\"quality\":{\"value\":40,\"source\":\"streams\"}"),
+        j.contains("\"quality\":{\"value\":40,\"source\":\"images\"}"),
         "{j}"
     );
 }
@@ -812,7 +819,7 @@ fn a_bilevel_conversion_reports_format_and_threshold() {
         "{j}"
     );
     assert!(
-        j.contains("\"threshold\":{\"value\":\"110\",\"source\":\"streams\"}"),
+        j.contains("\"threshold\":{\"value\":\"110\",\"source\":\"images\"}"),
         "{j}"
     );
 }
@@ -843,7 +850,7 @@ fn a_png_predicted_image_reports_it_and_writes_decode_parms() {
     json.extend(["--dry-run", "--json"]);
     let j = text(&run(&json));
     assert!(
-        j.contains("\"predictor\":{\"value\":\"png\",\"source\":\"streams\"},\"predicted\":true"),
+        j.contains("\"predictor\":{\"value\":\"png\",\"source\":\"images\"},\"predicted\":true"),
         "{j}"
     );
 }

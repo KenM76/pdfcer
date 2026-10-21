@@ -15,6 +15,7 @@ fn none(name: &str) -> Result<String, String> {
 fn full() -> OptimizeSettings {
     let mut s = OptimizeSettings::new();
     s.streams = StreamAction::Recompress { level: 6 };
+    s.images = ImagePatch::parse("image(ppi=150,encode=jpeg)").unwrap();
     s.allow_signed = true;
     s.structure.merge_duplicates = true;
     s.structure.object_streams = true;
