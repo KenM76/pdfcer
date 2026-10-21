@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1145th filing) — `Pass 616.5` slice E5 in `961c0809`: `encode=auto` writes the smallest lossless filter
+
+**Shipped:** `Pass 616.5` slice E5 (core + cli, no gui): `ImageEncode::Auto` / `image(encode=auto)` tries Flate-9, CCITT G4, RunLength, JBIG2 (tie-break in that order; CCITT/JBIG2 1-bit only, JBIG2 only at PDF 1.4+; never LZW/JPEG/JPX/version raise) and writes the strictly smallest; `ImageChange.candidates`, `ImageSkip::AutoNotSmaller`, CLI text/JSON candidate lists; Mono and Screen-Indexed presets now use auto. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
+
+**Decisions:** none new; decision 193 governs. No rule minted. Behaviour change: Print/Standard/Screen now losslessly re-encode a 1-bit image at full size when smaller.
+
+**Findings:** the Auto target was unpacked to 8 bits before encoding, so CCITT/JBIG2 were never tried; the candidate-order test caught it before ship. The structure gate flagged `decide()` and `ImageSkip`'s `Display` over 80 lines; both split. Tests: image-codec 110, core 1,720 lib + 2,995 integration, cli 917. Fuzz `optimize_images` 27,234 runs (180 s) clean. `cargo tree` unchanged.
+
+**Still in flight:** `Pass 616.5` NOT complete: E6 version-raise=refuse remains; Acrobat Reader render check owed for LZW, CCITT and JBIG2.
+
+**For next session:** E6. Git, push and backup state not verified from here. Next filing 1146th.
+
 ## 2026-10-21 (1144th filing) — `Pass 616.5` slice E3 in `488129f9`: images can be written as JBIG2
 
 **Shipped:** `Pass 616.5` slice E3 (core + cli, no gui): `pdfcer_image_codec::jbig2::encode_generic` (lossless generic region, template 0, TPGDON, MQ, embedded), `encode=jbig2`, `ImageEncode::Jbig2`, `ImageSkip::VersionTooLow`, CLI format "JBIG2", core-api 01/03/index. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.

@@ -112,6 +112,31 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.5` (slice E5, `961c0809`), 2026-10-21 — `encode=auto` writes the smallest lossless filter; `Pass 616.5` NOT complete (1145th filing)
+
+Code commit `961c0809` "feat(optimize): encode=auto writes the smallest lossless filter (Pass 616.5, slice E5)", after the 1144th filing. Core + CLI; no GUI. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 193 governs. E6 remains.
+
+- **Behaviour:** `image(encode=auto)` (core `ImageEncode::Auto`) codes the image with every eligible lossless filter and writes the strictly smallest. Candidates, in tie-break order: Flate level 9 (with resolved predictor), CCITT G4, RunLength, JBIG2. CCITT/JBIG2 only for 1-bit 1-component output; JBIG2 only when the document already declares PDF 1.4. Never LZW, JPEG, JPX, an extension filter or a version raise. A JPEG source stays JPEG; a source the pipeline cannot decode (CCITT/JBIG2/JPX) with no resize/convert is left as stored, no skip.
+- **Report:** `ImageChange.candidates: Vec<(ImageEncode, u64)>` lists every candidate's size, `encoded_as` is the winner. Guard failure gives new `ImageSkip::AutoNotSmaller { stored, min_saving_pct, candidates }`, text lists every size. CLI text adds "(auto, smallest of flate-9 N B, ccitt N B, ...)"; JSON adds `"candidates":[{"encode","bytes"}]`; help names auto.
+- **Presets (behaviour change):** the 1-bit (Mono) rule and Screen's Indexed rule moved from keep to `encode=auto`, so Print/Standard/Screen now re-encode a 1-bit image losslessly at full size when smaller.
+- **Defect caught before ship:** the Auto target was unpacked to 8 bits before encoding, so CCITT/JBIG2 were never tried; fixed by keeping samples packed like the other lossless targets. Caught by the candidate-order test.
+- **Docs:** `docs/core-api/03` updated (encode key, `ImageEncode`, `ImageChange.candidates`, `ImageSkip::AutoNotSmaller`, auto-output bullet, preset wording); `check-core-api-verbs` green.
+- **Tests (engineer-reported):**
+
+  | Suite | Passed | Ignored |
+  |---|---|---|
+  | pdfcer-image-codec | 110 (+3 doctests) | 0 |
+  | pdfcer-core lib | 1,720 | 2 |
+  | pdfcer-core --test all | 2,995 | 2 |
+  | pdfcer-cli --test all | 917 | 2 |
+
+  New: `crates/pdfcer-core/src/optimize/image/pipeline_auto_tests.rs` (5 tests); CLI `encode_auto_reports_every_candidate_in_text_and_json`. fmt, clippy -D warnings and the project gate list green. (Ignored counts for the two integration suites carried from the 1144th filing; engineer did not restate them.)
+- **Fuzz:** `optimize_images` gains 2 auto actions; 180 s clean, 27,234 runs.
+- **Structure gate:** `check-code-structure.py` flagged `decide()` and `ImageSkip`'s `Display` over 80 lines; both split (`target` in `pipeline.rs`, `auto_not_smaller` in `skip.rs`).
+- **Invariants:** no dependency change, no `Cargo.toml` touched, `cargo tree` unchanged.
+- **Still owed:** E6 (version raise and disclosure, `version-raise=refuse`; replaces the interim `VersionTooLow` skip); Acrobat Reader render check per encoder (LZW, CCITT, JBIG2; decision 193 condition).
+- `FEATURES.md`: *Change an image's format* row now records `encode=auto` and the preset change (core + cli done, gui not; row stays Planned for E6). No row stated presets "keep" 1-bit/palette, so none needed correcting. Ledgers: no decision, no rule; next free decision 194, rule R263; next filing 1146th. Git, push and backup state not verified from here.
+
 ### `Pass 616.5` (slice E3, `488129f9`), 2026-10-21 — images can be written as JBIG2 (lossless generic); `Pass 616.5` NOT complete (1144th filing)
 
 Code commit `488129f95f21470a4c978ff3adfb3cc80073eb6e` "feat(optimize): images can be written as JBIG2 (Pass 616.5, slice E3)", after the 1143rd filing. Core + CLI; no GUI. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message; decision 193 governs. E5, E6 remain.
@@ -22809,6 +22834,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+(1145th filing: `Pass 616.5` slice E5 (`encode=auto`) SHIPPED `961c0809`, see *Shipped*; E1-E5 done. Only E6 version-raise=refuse and the Acrobat Reader render check per encoder remain. `616.5` stays here. Next filing 1146th.)
+
 (1144th filing: `Pass 616.5` slice E3 (JBIG2 generic) SHIPPED `488129f9`, see *Shipped*; E1-E4 done. E5 auto and E6 version-raise=refuse remain. `616.5` stays here. Next filing 1145th.)
 
 (1143rd filing: `Pass 616.5` slice E2 (CCITT G4) SHIPPED `4d742e96`, see *Shipped*; E1, E2, E4 done. E3 (JBIG2 generic, MQ coder), E5 auto and E6 version-raise=refuse remain. `616.5` stays here. Next filing 1144th.)
@@ -24718,7 +24745,7 @@ Mono results are mostly not-smaller until `616.5` adds CCITT/JBIG2 encoders; dis
 - **E2 — CCITT G4 (in-house, `/K -1`, ITU-T T.6 + T.4 tables).** 1-bpc 1-component. Spec: `filter__ccitt_g4_encoder.md` in `D:\Dev\Rag-Specialized\PDF_Spec\filters\`. **SHIPPED `4d742e96` (1143rd filing; entry in *Shipped*; core + cli, gui not).**
 - **E3 — JBIG2 generic (in-house MQ module + generic-region module; template 0, TPGDON, embedded, no `/JBIG2Globals`, PDF 1.4, never inline).** 1-bit only. **UNBLOCKED (1142nd): `filter__jbig2_generic_encoder.md` filed.** Spec-librarian flags: (a) ISO 32000-1 §7.4.7 says a JBIG2 encoder "shall" build a symbol table (dropped in PDF 2.0), so generic-region-only is strictly short of 1.7 (a flag, not a blocker); (b) the TPGDON shared-context rule is not exercised by T.88's test data, so E3 needs a fixture that triggers it, tested against the in-tree hayro decoder. Each module within the structure-gate limits. **SHIPPED `488129f9` (1144th filing; entry in *Shipped*; core + cli, gui not). Interim: a document below PDF 1.4 skips the image (`VersionTooLow`) until E6.**
 - **E4 — LZW (`weezl` `Encoder::with_tiff_size_switch(Msb, 8)`, `/EarlyChange 1`, key omitted).** **Written only when `encode=lzw` is named**; no preset, `auto` or fallback picks it; **refused under a PDF/A claim**; the report row gives the Flate size for the same samples. No new dependency. **SHIPPED `b1a85853` (1142nd filing; entry in *Shipped*; core + cli, gui not).**
-- **E5 — `encode=auto`.** Smallest eligible lossless candidate (Flate, RunLength, plus CCITT/JBIG2 for 1-bit 1-component); tie-break Flate, CCITT, RunLength, JBIG2; stays within the document's current version, never raises it; excludes LZW, extensions, JPEG, JPX, lossy, inline JBIG2. **Shipped presets switch to `encode=auto`**; an `image(...)` with no `encode` keeps decision 192's base. Report row lists every candidate's size; if none passes the guard, kept with "not smaller" and the sizes.
+- **E5 — `encode=auto`.** Smallest eligible lossless candidate (Flate, RunLength, plus CCITT/JBIG2 for 1-bit 1-component); tie-break Flate, CCITT, RunLength, JBIG2; stays within the document's current version, never raises it; excludes LZW, extensions, JPEG, JPX, lossy, inline JBIG2. **Shipped presets switch to `encode=auto`**; an `image(...)` with no `encode` keeps decision 192's base. Report row lists every candidate's size; if none passes the guard, kept with "not smaller" and the sizes. **SHIPPED `961c0809` (1145th filing; entry in *Shipped*; core + cli, gui not).**
 - **E6 — `version-raise=refuse` option.** Default for an explicit encoder above the document's version is raise-and-disclose; this is the strict alternative.
 - Guard for every encoder: only-if-smaller plus `min-saving`. Refused by name: `lzw` under PDF/A, `jbig2` on an inline image, `ccitt`/`jbig2` per-object on a non-bilevel source with no bilevel step (a rule match is skipped "not bilevel").
 - Conditions: round-trip property tests per encoder against the in-tree decoders (compare rendered pixels, not raw samples, for polarity), a fuzz target for encode-then-decode identity, an Acrobat Reader render check per encoder; `cargo tree -p pdfcer-core` unchanged.
