@@ -2071,7 +2071,7 @@ pub(crate) struct ResolvedAppearance {
     pub(crate) line_width: Option<f64>,
     pub(crate) arrow_length: Option<f64>,
     pub(crate) arrow_form: Option<pdfcer_core::dimension::ArrowForm>,
-    pub(crate) color: Option<pdfcer_core::vector::Rgb>,
+    pub(crate) color: Option<pdfcer_core::annot_author::Color>,
     pub(crate) tolerance: Option<pdfcer_core::dimension::Tolerance>,
     pub(crate) tolerance_places: Option<u32>,
     pub(crate) dash: Option<pdfcer_core::dimension::DimDash>,
@@ -2098,7 +2098,7 @@ pub(crate) fn apply_appearance(a: &AppearanceArgs) -> Result<ResolvedAppearance,
             .map(|v| checked_metric("arrow-length", v))
             .transpose()?,
         arrow_form: a.arrow_form.map(ArrowFormArg::to_core),
-        color: a.color.as_deref().map(parse_style_color).transpose()?,
+        color: a.color.as_deref().map(parse_device_color).transpose()?,
         tolerance: a.tolerance.as_deref().map(parse_tolerance).transpose()?,
         tolerance_places: match a.tolerance_places {
             Some(p) if p > 12 => {
@@ -2535,13 +2535,7 @@ pub(crate) fn cmd_dimension_list(input: &Path, show_style: bool) -> u8 {
                 ("line-width", fmt_num(resolved.line_width)),
                 ("arrow-length", fmt_num(resolved.arrow_length)),
                 ("arrow-form", resolved.arrow_form.token().to_owned()),
-                (
-                    "color",
-                    format!(
-                        "{},{},{}",
-                        resolved.color.r, resolved.color.g, resolved.color.b
-                    ),
-                ),
+                ("color", fmt_color(resolved.color)),
                 ("tolerance", format_tolerance_spec(resolved.tolerance)),
                 (
                     "tolerance-places",
@@ -2588,8 +2582,19 @@ pub(crate) fn format_dash(d: pdfcer_core::dimension::DimDash) -> String {
 }
 
 /// A colour as `r,g,b`, or `-` when unset.
-pub(crate) fn opt_color(c: Option<pdfcer_core::vector::Rgb>) -> String {
-    c.map_or_else(|| "-".to_owned(), |c| format!("{},{},{}", c.r, c.g, c.b))
+pub(crate) fn opt_color(c: Option<pdfcer_core::annot_author::Color>) -> String {
+    c.map_or_else(|| "-".to_owned(), fmt_color)
+}
+
+/// A colour in the form `--color` reads back: `r,g,b` for DeviceRGB (the
+/// form every earlier release printed), `gray:v` or `cmyk:c,m,y,k` otherwise.
+pub(crate) fn fmt_color(c: pdfcer_core::annot_author::Color) -> String {
+    use pdfcer_core::annot_author::Color;
+    match c {
+        Color::Rgb(r, g, b) => format!("{r},{g},{b}"),
+        Color::Gray(v) => format!("gray:{v}"),
+        Color::Cmyk(cy, m, y, k) => format!("cmyk:{cy},{m},{y},{k}"),
+    }
 }
 
 /// A metric with trailing zeros trimmed, so `10` reads as `10` rather than

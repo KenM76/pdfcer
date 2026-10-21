@@ -2362,11 +2362,14 @@ fn a_ce_dimension_colour_is_written_with_the_digits_it_was_given() {
     s.set_dimension_style(
         dim_id,
         StyleOverrides {
-            color: Some(Rgb {
-                r: 0.2,
-                g: 0.4,
-                b: 0.6,
-            }),
+            color: Some(
+                Rgb {
+                    r: 0.2,
+                    g: 0.4,
+                    b: 0.6,
+                }
+                .into(),
+            ),
             ..StyleOverrides::default()
         },
     )
@@ -2390,4 +2393,67 @@ fn a_ce_dimension_colour_is_written_with_the_digits_it_was_given() {
         !text.contains("0.2000000"),
         "a widened component reached the file (the /AP or the sidecar /Color)"
     );
+}
+
+/// G221: a CMYK or grey ce dimension colour is drawn in that device space
+/// (`k`/`K`, `g`/`G`), mirrored as a 4- or 1-number `/C`, and read back from
+/// the sidecar as the same model, not converted to RGB.
+#[test]
+fn a_grey_or_cmyk_ce_dimension_colour_stays_in_its_own_device_space() {
+    use pdfcer_core::annot_author::Color;
+    use pdfcer_core::dimension::StyleOverrides;
+    for (color, ops, c_comps) in [
+        (
+            Color::Cmyk(0.0, 1.0, 1.0, 0.0),
+            "0 1 1 0 K",
+            vec![0.0, 1.0, 1.0, 0.0],
+        ),
+        (Color::Gray(0.5), "0.5 G", vec![0.5]),
+    ] {
+        let (_, mut s) = session();
+        let (annot_id, dim_id) = s.add_dimension(0, DEFAULT_GROUP_ID, linear()).unwrap();
+        s.set_dimension_style(
+            dim_id,
+            StyleOverrides {
+                color: Some(color),
+                ..StyleOverrides::default()
+            },
+        )
+        .unwrap();
+        let reloaded = Document::from_bytes(save(&s)).unwrap();
+        let Object::Dict(annot) = &reloaded.get(annot_id).unwrap().value else {
+            panic!("annotation is not a dict");
+        };
+        let c: Vec<f64> = annot
+            .get(b"C")
+            .and_then(Object::as_array)
+            .expect("/C array")
+            .iter()
+            .filter_map(Object::as_number)
+            .collect();
+        assert_eq!(c, c_comps, "{color:?}: /C");
+        let ap_id = annot
+            .get(b"AP")
+            .and_then(Object::as_dict)
+            .and_then(|d| d.get(b"N"))
+            .and_then(Object::as_reference)
+            .expect("/AP /N reference");
+        let Some(Object::Stream(ap)) = reloaded.get(ap_id).map(|io| &io.value) else {
+            panic!("/AP /N is not a stream");
+        };
+        let ap = String::from_utf8_lossy(ap.data_span.slice(reloaded.bytes()).unwrap());
+        assert!(ap.contains(ops), "{color:?}: stroke op missing in {ap}");
+        assert!(!ap.contains(" RG"), "{color:?}: converted to RGB: {ap}");
+
+        let catalog = reloaded.catalog().unwrap();
+        let private = catalog
+            .get(b"PieceInfo")
+            .and_then(Object::as_dict)
+            .and_then(|p| p.get(b"pdfcer"))
+            .and_then(Object::as_dict)
+            .and_then(|p| p.get(b"Private"))
+            .unwrap();
+        let recovered = deserialize_model(private).expect("sidecar deserializes");
+        assert_eq!(recovered.dimensions()[0].style.color, Some(color));
+    }
 }

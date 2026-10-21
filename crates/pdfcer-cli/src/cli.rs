@@ -10171,7 +10171,9 @@ pub(crate) enum Command {
         /// Terminator form drawn at each end of the dimension line.
         #[arg(long, value_enum)]
         arrow_form: Option<ArrowFormArg>,
-        /// Colour, as `r,g,b` components in 0.0-1.0 or as `#rrggbb`.
+        /// Colour: `r,g,b` in 0.0-1.0 or `#rrggbb` (DeviceRGB), or
+        /// `MODEL:comps` to draw it in that device space: `gray:0.5`,
+        /// `cmyk:0,1,1,0`.
         #[arg(long)]
         color: Option<String>,
         /// Tolerance, as `none` | `basic` | `min` | `max` | `sym:<v>` |
@@ -10254,7 +10256,9 @@ pub(crate) enum Command {
         /// Terminator form.
         #[arg(long, value_enum)]
         arrow_form: Option<ArrowFormArg>,
-        /// Colour, as `r,g,b` components in 0.0-1.0 or as `#rrggbb`.
+        /// Colour: `r,g,b` in 0.0-1.0 or `#rrggbb` (DeviceRGB), or
+        /// `MODEL:comps` to draw it in that device space: `gray:0.5`,
+        /// `cmyk:0,1,1,0`.
         #[arg(long)]
         color: Option<String>,
         /// Tolerance, as `none` | `basic` | `min` | `max` | `sym:<v>` |

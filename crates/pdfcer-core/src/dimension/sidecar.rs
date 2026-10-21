@@ -38,7 +38,7 @@ use super::group::{
 use super::style::{ArrowForm, GroupStyle, StyleOverrides};
 use super::tolerance::Tolerance;
 use super::units::{DecimalMarker, FractionMode, NumberFormat, ScaleState, Unit};
-use crate::vector::Rgb;
+use crate::annot_author::Color;
 
 /// The sidecar schema version pdfcer writes (bumped only on a breaking layout
 /// change; readers ignore unknown extra keys, §14.5 forward-compat).
@@ -825,7 +825,7 @@ struct StyleKeys {
     line_width: Option<f64>,
     arrow_length: Option<f64>,
     arrow_form: Option<ArrowForm>,
-    color: Option<Rgb>,
+    color: Option<Color>,
     tolerance: Option<Tolerance>,
     tolerance_places: Option<u32>,
     dash: Option<DimDash>,
@@ -850,14 +850,7 @@ fn put_style_keys(d: &mut Dict, k: StyleKeys) {
         );
     }
     if let Some(c) = k.color {
-        d.insert(
-            Name::from(b"Color"),
-            Object::Array(vec![
-                Object::Real(crate::annot_author::mk_component(c.r)),
-                Object::Real(crate::annot_author::mk_component(c.g)),
-                Object::Real(crate::annot_author::mk_component(c.b)),
-            ]),
-        );
+        d.insert(Name::from(b"Color"), c.to_array());
     }
     // The tolerance (Pass 69.1): a type name plus, for the two numeric types,
     // a pair of values under names that say which is which. A positional
@@ -1051,33 +1044,27 @@ fn positive_of(obj: Option<&Object>) -> Option<f64> {
     (v.is_finite() && v > 0.0 && v <= MAX_PAGE_VALUE).then_some(v)
 }
 
-/// An `[r g b]` colour array with every component in 0.0-1.0, or `None`.
+/// A `[g]`, `[r g b]` or `[c m y k]` colour array (the length names the
+/// device space, as for `/C`) with every component in 0.0-1.0, or `None`.
 ///
 /// Out-of-range components inherit rather than clamp - same argument as
 /// [`read_style_keys`]: a clamped colour is a colour the operator never chose.
-fn color_of(obj: Option<&Object>) -> Option<Rgb> {
+fn color_of(obj: Option<&Object>) -> Option<Color> {
     let a = obj.and_then(Object::as_array)?;
-    if a.len() != 3 {
-        return None;
-    }
-    let mut c = [0.0f32; 3];
-    for (slot, o) in c.iter_mut().zip(a) {
+    let mut c = Vec::with_capacity(a.len());
+    for o in a {
         let v = o.as_number()?;
         if !(v.is_finite() && (0.0..=1.0).contains(&v)) {
             return None;
         }
-        #[allow(clippy::cast_possible_truncation)]
-        // A 0.0-1.0 colour component into f32 is lossless enough for a paint
-        // value; `Rgb` is f32 because `pdfcer-render`'s pipeline is.
-        {
-            *slot = v as f32;
-        }
+        c.push(v);
     }
-    Some(Rgb {
-        r: c[0],
-        g: c[1],
-        b: c[2],
-    })
+    match *c.as_slice() {
+        [v] => Some(Color::Gray(v)),
+        [r, g, b] => Some(Color::Rgb(r, g, b)),
+        [cy, m, y, k] => Some(Color::Cmyk(cy, m, y, k)),
+        _ => None,
+    }
 }
 
 // ---- small object helpers ---------------------------------------------------
@@ -1494,11 +1481,7 @@ mod style_sidecar_tests {
             line_width: Some(1.5),
             arrow_length: None,
             arrow_form: Some(ArrowForm::Slash),
-            color: Some(Rgb {
-                r: 1.0,
-                g: 0.0,
-                b: 0.0,
-            }),
+            color: Some(Color::Cmyk(0.0, 1.0, 1.0, 0.0)),
             tolerance: Some(Tolerance::Symmetric { magnitude: 0.25 }),
             tolerance_places: Some(3),
             dash: DimDash::new(&[3.0, 1.5]),

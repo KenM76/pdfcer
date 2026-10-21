@@ -95,10 +95,11 @@ pub enum Color {
 }
 
 /// A vector [`crate::vector::Rgb`] as DeviceRGB, so an RGB swatch passes
-/// straight to any verb taking a [`Color`].
+/// straight to any verb taking a [`Color`]. Each `f32` component keeps its
+/// shortest spelling (`0.3`, not `0.30000001192092896`).
 impl From<crate::vector::Rgb> for Color {
     fn from(c: crate::vector::Rgb) -> Self {
-        Self::Rgb(f64::from(c.r), f64::from(c.g), f64::from(c.b))
+        Self::Rgb(mk_component(c.r), mk_component(c.g), mk_component(c.b))
     }
 }
 
@@ -129,7 +130,7 @@ impl Color {
 
     /// Apply as the stroking colour in the content stream (§8.6 device
     /// operators). Must be emitted before the path (W-E).
-    fn apply_stroke(self, b: &mut ContentBuilder) {
+    pub(crate) fn apply_stroke(self, b: &mut ContentBuilder) {
         match self {
             Self::Gray(g) => b.set_stroke_gray(g),
             Self::Rgb(r, g, bl) => b.set_stroke_rgb(r, g, bl),

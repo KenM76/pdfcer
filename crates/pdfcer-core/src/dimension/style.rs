@@ -83,7 +83,7 @@
 //! the same provenance reporting and the same clear-restores-inheritance
 //! semantics as a stroke width.
 
-use crate::vector::Rgb;
+use crate::annot_author::Color;
 
 use super::author::DimensionStyle;
 use super::dash::DimDash;
@@ -188,8 +188,8 @@ pub struct StyleDefaults {
     pub arrow_length: f64,
     /// Terminator form.
     pub arrow_form: ArrowForm,
-    /// Line + text + terminator colour.
-    pub color: Rgb,
+    /// Line + text + terminator colour, Gray, RGB or CMYK.
+    pub color: Color,
     /// The tolerance drawn beside the nominal (`Pass 69.1`).
     pub tolerance: Tolerance,
     /// The tolerance's OWN decimal precision, or `None` for "same as the
@@ -215,7 +215,7 @@ impl StyleDefaults {
         line_width: 0.75,
         arrow_length: 7.0,
         arrow_form: ArrowForm::Filled,
-        color: Rgb::BLACK,
+        color: Color::Rgb(0.0, 0.0, 0.0),
         // No tolerance is the factory default, and it is what every ce
         // dimension authored before `Pass 69.1` carries.
         tolerance: Tolerance::None,
@@ -251,8 +251,9 @@ pub struct GroupStyle {
     pub arrow_length: Option<f64>,
     /// Terminator form; `None` ⇒ factory.
     pub arrow_form: Option<ArrowForm>,
-    /// Line/text/terminator colour; `None` ⇒ factory (black).
-    pub color: Option<Rgb>,
+    /// Line/text/terminator colour, Gray, RGB or CMYK; `None` ⇒ factory
+    /// (black).
+    pub color: Option<Color>,
     /// The group's DEFAULT tolerance (`Pass 69.1`); `None` ⇒ factory (none).
     ///
     /// This is the ui-spec's *"document-level default tolerance"* (§C.11.1,
@@ -308,8 +309,8 @@ pub struct StyleOverrides {
     pub arrow_length: Option<f64>,
     /// Terminator form; `None` ⇒ the group's, then factory.
     pub arrow_form: Option<ArrowForm>,
-    /// Colour; `None` ⇒ the group's, then factory.
-    pub color: Option<Rgb>,
+    /// Colour, Gray, RGB or CMYK; `None` ⇒ the group's, then factory.
+    pub color: Option<Color>,
     /// This ce dimension's tolerance (`Pass 69.1`); `None` ⇒ the group's
     /// default, then factory (none).
     ///
@@ -624,7 +625,7 @@ mod tests {
         assert!((s.line_width - 0.75).abs() < f64::EPSILON, "LINE_WIDTH");
         assert!((s.arrow_length - 7.0).abs() < f64::EPSILON, "ARROW_LEN");
         assert_eq!(s.arrow_form, ArrowForm::Filled);
-        assert_eq!(s.color, Rgb::BLACK);
+        assert_eq!(s.color, Color::Rgb(0.0, 0.0, 0.0));
     }
 
     #[test]
@@ -725,7 +726,7 @@ mod tests {
         assert!(StyleOverrides::default().is_empty());
         let over = StyleOverrides {
             unit: Some(Unit::Inch),
-            color: Some(Rgb::BLACK),
+            color: Some(Color::Rgb(0.0, 0.0, 0.0)),
             ..StyleOverrides::default()
         };
         assert_eq!(over.count(), 2);

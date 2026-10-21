@@ -44,7 +44,6 @@ use super::measure_dict::build_measure_dict;
 use super::style::{ArrowForm, StyleDefaults, StyleOverrides};
 use super::tolerance::Tolerance;
 use super::units::{NumberFormat, ScaleState};
-use crate::vector::Rgb;
 
 /// The resource name the dimension label's font is authored under (matches the
 /// `/AP` `/Resources` `/Font` key and the `Tf` operator).
@@ -106,8 +105,9 @@ pub struct DimensionStyle {
     pub arrow_form: ArrowForm,
     /// Line, text and terminator colour (Pass 69.0; previously an
     /// unconditional black, written both into the content stream and the
-    /// annotation's `/C`).
-    pub color: Rgb,
+    /// annotation's `/C`), in the device space it names: Gray, RGB or CMYK
+    /// (`g`/`rg`/`k` in the appearance, a 1-, 3- or 4-number `/C`).
+    pub color: crate::annot_author::Color,
     /// The tolerance drawn beside (or, for a limit tolerance, instead of) the
     /// nominal value (Pass 69.1).
     pub tolerance: Tolerance,
@@ -513,25 +513,17 @@ pub fn author_dimension_with_label(
     //
     // So: a pure grey is written with the grey operators it always used, and
     // DeviceRGB appears only once a colour actually needs it.
-    let c = style.color;
-    #[allow(clippy::float_cmp)] // exact equality is the intent: only an
-    // untouched/explicitly-grey colour takes the legacy path.
-    let grey = c.r == c.g && c.g == c.b;
-    if grey {
-        b.set_stroke_gray(crate::annot_author::mk_component(c.r));
-        b.set_fill_gray(crate::annot_author::mk_component(c.r));
-    } else {
-        b.set_stroke_rgb(
-            crate::annot_author::mk_component(c.r),
-            crate::annot_author::mk_component(c.g),
-            crate::annot_author::mk_component(c.b),
-        );
-        b.set_fill_rgb(
-            crate::annot_author::mk_component(c.r),
-            crate::annot_author::mk_component(c.g),
-            crate::annot_author::mk_component(c.b),
-        );
-    }
+    let paint = match style.color {
+        // Exact equality is the intent: only an untouched/explicitly-grey
+        // colour takes the legacy path.
+        #[allow(clippy::float_cmp)]
+        crate::annot_author::Color::Rgb(r, g, bl) if r == g && g == bl => {
+            crate::annot_author::Color::Gray(r)
+        }
+        other => other,
+    };
+    paint.apply_stroke(&mut b);
+    paint.apply_fill(&mut b);
     b.set_line_width(style.line_width);
     b.set_line_cap(LineCap::Butt);
     b.set_line_join(LineJoin::Miter);
@@ -838,14 +830,7 @@ pub fn author_dimension_with_label(
     // appearance stream and draws from the annotation keys alone (and some
     // do, for a `/Line`) would otherwise draw a black dimension over a
     // coloured one.
-    annot.insert(
-        Name::from(b"C"),
-        Object::Array(vec![
-            Object::Real(crate::annot_author::mk_component(style.color.r)),
-            Object::Real(crate::annot_author::mk_component(style.color.g)),
-            Object::Real(crate::annot_author::mk_component(style.color.b)),
-        ]),
-    );
+    annot.insert(Name::from(b"C"), style.color.to_array());
     // `/CA` only below 1: an opaque ce dimension keeps its pre-541.0 bytes.
     if style.opacity < 1.0 {
         annot.insert(Name::from(b"CA"), Object::Real(style.opacity));

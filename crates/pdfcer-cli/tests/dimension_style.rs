@@ -761,3 +761,47 @@ fn a_bad_dash_or_opacity_is_refused() {
         assert!(!out.exists(), "{args:?}: no output on refusal");
     }
 }
+
+/// G221: `--color MODEL:comps` sets a grey or CMYK colour, and
+/// `dimension-list --style` reads it back in the same form.
+#[test]
+fn a_model_colour_reads_back_in_its_own_device_space() {
+    let doc = with_dimension("model-colour.pdf");
+    let out = temp_out("model-colour-out.pdf");
+    let (code, _, stderr) = run(&[
+        "group-style",
+        doc.to_str().expect("utf-8 path"),
+        "--color",
+        "cmyk:0,1,1,0",
+        "-o",
+        out.to_str().expect("utf-8 path"),
+    ]);
+    assert_eq!(code, 0, "{stderr}");
+    assert_eq!(prop(&styles(&out), "color").1, "cmyk:0,1,1,0");
+
+    let grey = temp_out("model-colour-grey.pdf");
+    let (code, _, stderr) = run(&[
+        "dimension-style",
+        out.to_str().expect("utf-8 path"),
+        "--dimension",
+        "0",
+        "--color",
+        "gray:0.5",
+        "-o",
+        grey.to_str().expect("utf-8 path"),
+    ]);
+    assert_eq!(code, 0, "{stderr}");
+    let s = styles(&grey);
+    assert_eq!(prop(&s, "color").1, "gray:0.5");
+    assert_eq!(prop(&s, "color").2, "dimension");
+
+    let (code, _, _) = run(&[
+        "group-style",
+        doc.to_str().expect("utf-8 path"),
+        "--color",
+        "lab:1,2,3",
+        "-o",
+        out.to_str().expect("utf-8 path"),
+    ]);
+    assert_ne!(code, 0, "an unknown colour model is refused");
+}
