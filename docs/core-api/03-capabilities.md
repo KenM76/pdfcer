@@ -4460,9 +4460,9 @@ with a wildcard arm, and show `as_str()` for an unknown category.
 
 | Call | Returns |
 |---|---|
-| `EditSession::plan_optimize(&OptimizeSettings) -> Result<OptimizePlan, OptimizeError>` | every encoding already performed in memory: `changes`, `skipped` (each with a `SkipReason`), `notes`, `cleanup: CleanupPlan`, `discard: Vec<MetadataItem>`, `discard_objects: Vec<ObjectDiscard>`, `file_bytes`, `stream_saving()`, `is_lossy()` |
+| `EditSession::plan_optimize(&OptimizeSettings) -> Result<OptimizePlan, OptimizeError>` | every encoding already performed in memory: `changes`, `skipped` (each with a `SkipReason`), `notes`, `cleanup: CleanupPlan`, `discard: Vec<MetadataItem>`, `discard_objects: Vec<ObjectDiscard>`, `file_bytes`, `stream_saving()`, `is_lossy()`, `removes_content()` (a clean-up or discard is planned) |
 | `EditSession::apply_optimize(&OptimizePlan) -> Result<usize, OptimizeError>` | commits the plan as **one** undo entry, `CommandKind::Optimize { count }`; returns the count |
-| `EditSession::save_optimized(&SaveOptions, &RebuildOptions) -> Result<(OptimizedFile, Option<RebuildReport>), WriteError>` | `Smaller(bytes)` (a full rewrite, then the structure rebuild unless `RebuildOptions::is_none()`), or `KeptOriginal { original, rewritten }` when it is not strictly smaller; the report is `Some` whenever a rebuild ran |
+| `EditSession::save_optimized(&OptimizePlan, &SaveOptions, &RebuildOptions) -> Result<(OptimizedFile, Option<RebuildReport>), WriteError>` | pass the plan given to `apply_optimize`. `Smaller(bytes)` (a full rewrite, then the structure rebuild unless `RebuildOptions::is_none()`); `NotSmaller { bytes, original }` when it is not strictly smaller but the plan `removes_content()`, so the requested removal is written anyway; or `KeptOriginal { original, rewritten }` when it is neither. A caller keeping to the size rule alone treats `NotSmaller` as `KeptOriginal`. The report is `Some` whenever a rebuild ran |
 | `RebuildOptions { remove_unreferenced, merge_duplicates, object_streams, level }` | `all()` (= `Default`, level 9), `none()`, `is_none()`; also `pdfcer_model::writer::rebuild(&Document, &RebuildOptions, &SaveOptions)` directly |
 | `RebuildReport { objects_in, objects_out, unreferenced, merged, structural_dropped, dangling, object_streams, version_raised }` | input object numbers throughout; `merged` is `(dropped, kept)` pairs |
 | `Preset::{Lossless, Standard, Screen, Print, Archive}.settings()` | starting settings; `Preset::from_name` (accepts `mobile` for `Screen`), `as_str`, `ALL` |
@@ -4484,7 +4484,12 @@ Contract:
   default `streams`.
 - **Never larger**, twice: a stream whose result is not strictly smaller is
   `SkipReason::NotSmaller` and kept; a whole file that is not strictly
-  smaller is `KeptOriginal` and must not be written over the input.
+  smaller is `KeptOriginal` and must not be written over the input, unless
+  the plan removes content (clean-up or discard): that is `NotSmaller` and
+  is written, because the operator asked for a removal, not a saving. The
+  CLI exits 0 then and prints `not smaller: kept anyway, because it removes
+  what was asked for`; JSON `smaller` is `false` and `written` names the
+  file. Exit 14 means nothing was written.
 - Unselected objects are re-emitted byte-identical by the full rewrite,
   unless a structure rebuild runs: then every object is renumbered densely
   and re-serialised, stream data is copied as stored, and decoded content is

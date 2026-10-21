@@ -106,7 +106,7 @@ fn the_saved_file_no_longer_holds_the_discarded_data() {
     let plan = s.plan_optimize(&settings).unwrap();
     s.apply_optimize(&plan).unwrap();
     let (file, _) = s
-        .save_optimized(&SaveOptions::default(), &RebuildOptions::all())
+        .save_optimized(&plan, &SaveOptions::default(), &RebuildOptions::all())
         .unwrap();
     let OptimizedFile::Smaller(bytes) = file else {
         panic!("expected a smaller file");

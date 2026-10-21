@@ -160,7 +160,7 @@ fn the_saved_file_reads_back_with_a_flat_destination_tree() {
         .unwrap();
     s.apply_optimize(&plan).unwrap();
     let (file, _) = s
-        .save_optimized(&SaveOptions::default(), &RebuildOptions::all())
+        .save_optimized(&plan, &SaveOptions::default(), &RebuildOptions::all())
         .unwrap();
     let OptimizedFile::Smaller(bytes) = file else {
         panic!("expected a smaller file");
@@ -245,4 +245,59 @@ fn a_failed_deletion_undoes_the_whole_apply() {
     assert_eq!(annots(&s), [5, 6, 7, 8]);
     assert_eq!(s.undo_depth(), 1);
     assert_eq!(titles(&s), ["Good", "Broken", "Good child"]);
+}
+
+/// `navigation` packed into object streams, so a later save that does not
+/// pack is larger than it.
+fn packed() -> Vec<u8> {
+    let s = session(navigation(GOTO_USED));
+    let plan = s.plan_optimize(&OptimizeSettings::new()).unwrap();
+    let (file, _) = s
+        .save_optimized(&plan, &SaveOptions::default(), &RebuildOptions::all())
+        .unwrap();
+    let OptimizedFile::Smaller(bytes) = file else {
+        panic!("packing should shrink the fixture");
+    };
+    bytes
+}
+
+#[test]
+fn a_requested_removal_is_written_even_when_the_file_does_not_shrink() {
+    let original = packed();
+    let mut s = session(original.clone());
+    let plan = s
+        .plan_optimize(&cleanup_only(CleanupOptions::all()))
+        .unwrap();
+    assert!(plan.removes_content());
+    s.apply_optimize(&plan).unwrap();
+    let (file, _) = s
+        .save_optimized(&plan, &SaveOptions::default(), &RebuildOptions::none())
+        .unwrap();
+    let OptimizedFile::NotSmaller {
+        bytes,
+        original: len,
+    } = file
+    else {
+        panic!("expected the removal to be written: {file:?}");
+    };
+    assert_eq!(len, original.len() as u64);
+    assert!(bytes.len() >= original.len());
+    let again = session(bytes)
+        .plan_optimize(&cleanup_only(CleanupOptions::all()))
+        .unwrap();
+    assert!(again.cleanup.is_empty(), "{:?}", again.cleanup);
+}
+
+#[test]
+fn a_run_that_removes_nothing_and_does_not_shrink_is_not_written() {
+    let s = session(packed());
+    let plan = s.plan_optimize(&OptimizeSettings::new()).unwrap();
+    assert!(!plan.removes_content());
+    let (file, _) = s
+        .save_optimized(&plan, &SaveOptions::default(), &RebuildOptions::none())
+        .unwrap();
+    assert!(
+        matches!(file, OptimizedFile::KeptOriginal { .. }),
+        "{file:?}"
+    );
 }

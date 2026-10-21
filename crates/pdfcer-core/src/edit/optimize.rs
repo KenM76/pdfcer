@@ -169,10 +169,13 @@ impl EditSession {
         Ok(count + removed)
     }
 
-    /// The full rewrite of this session, rebuilt under `structure`, **only if
-    /// it is strictly smaller** than the file as opened (decision 191's
-    /// whole-file rule). The report is `None` when `structure` is all off and
-    /// the file's structure was kept.
+    /// The full rewrite of this session, rebuilt under `structure`, written
+    /// **only if it is strictly smaller** than the file as opened (decision
+    /// 191's whole-file rule) **or `plan` removes content**
+    /// ([`OptimizePlan::removes_content`]): a removal the operator asked for
+    /// is not dropped because it did not save bytes. `plan` is the one
+    /// passed to [`Self::apply_optimize`]. The report is `None` when
+    /// `structure` is all off and the file's structure was kept.
     ///
     /// # Errors
     ///
@@ -180,6 +183,7 @@ impl EditSession {
     /// rewrite cannot be reloaded for the rebuild.
     pub fn save_optimized(
         &self,
+        plan: &OptimizePlan,
         options: &SaveOptions,
         structure: &RebuildOptions,
     ) -> Result<(OptimizedFile, Option<RebuildReport>), WriteError> {
@@ -193,7 +197,10 @@ impl EditSession {
             (rebuilt, Some(report))
         };
         let original = self.base.bytes().len() as u64;
-        Ok((crate::optimize::keep_if_smaller(bytes, original), report))
+        Ok((
+            crate::optimize::keep_if_smaller(bytes, original, plan.removes_content()),
+            report,
+        ))
     }
 }
 

@@ -283,8 +283,11 @@ struct Outcome {
     plan: OptimizePlan,
     original: u64,
     rewritten: u64,
-    /// The smaller file, or `None` when the rewrite was not smaller.
+    /// The file to write, or `None` when it was neither smaller nor removed
+    /// anything.
     bytes: Option<Vec<u8>>,
+    /// Whether the rewrite is strictly smaller than the input.
+    smaller: bool,
     /// What the structure rebuild did, when one ran.
     structure: Option<RebuildReport>,
 }
@@ -333,19 +336,21 @@ fn optimize(mut session: EditSession, settings: &OptimizeSettings) -> Result<Out
     session.apply_optimize(&plan).map_err(|e| refused(&e))?;
     let original = plan.file_bytes;
     let (file, structure) = session
-        .save_optimized(&SaveOptions::default(), &settings.structure)
+        .save_optimized(&plan, &SaveOptions::default(), &settings.structure)
         .map_err(|e| {
             eprintln!("pdfcer: optimize: {e}");
             exit::SAVE_REFUSED
         })?;
     let (rewritten, bytes) = match file {
         OptimizedFile::Smaller(bytes) => (bytes.len() as u64, Some(bytes)),
+        OptimizedFile::NotSmaller { bytes, .. } => (bytes.len() as u64, Some(bytes)),
         OptimizedFile::KeptOriginal { rewritten, .. } => (rewritten, None),
         _ => (original, None),
     };
     Ok(Outcome {
         plan,
         original,
+        smaller: rewritten < original,
         rewritten,
         bytes,
         structure,
@@ -438,6 +443,9 @@ fn report_text(
                 o.original, o.rewritten
             );
         }
+    }
+    if o.bytes.is_some() && !o.smaller {
+        out.push_str("not smaller: kept anyway, because it removes what was asked for\n");
     }
     if let Some(d) = diff {
         out.push('\n');
@@ -696,7 +704,7 @@ fn report_json(
         "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"cleanup\":{},\"discard\":{},\"discard_objects\":{},\"structure\":{},\"diff\":{}}}\n",
         o.original,
         o.rewritten,
-        o.bytes.is_some(),
+        o.smaller,
         changes.join(","),
         skipped.join(","),
         notes.join(","),

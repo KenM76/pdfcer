@@ -394,3 +394,37 @@ fn discard_takes_document_object_classes_by_name() {
         "{err}"
     );
 }
+
+#[test]
+fn a_requested_removal_is_written_and_exits_0_even_when_not_smaller() {
+    let d = dir("removal-not-smaller");
+    let input = write_pdf(&d, "/ViewerPreferences << /Duplex /Simplex >>");
+    let packed = d.join("packed.pdf");
+    let o = run(&[input.to_str().unwrap(), "-o", packed.to_str().unwrap()]);
+    assert_eq!(o.status.code(), Some(0), "{}", text(&o));
+    // Unpacking the object streams makes the rewrite larger than `packed`.
+    let out = d.join("out.pdf");
+    let args = |extra: &[&str]| {
+        let mut a = vec![packed.to_str().unwrap(), "--keep-structure"];
+        a.extend_from_slice(extra);
+        run(&a)
+    };
+    let o = args(&["-o", out.to_str().unwrap(), "--discard", "print-settings"]);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(report.contains("not smaller: kept anyway"), "{report}");
+    assert!(std::fs::metadata(&out).unwrap().len() >= std::fs::metadata(&packed).unwrap().len());
+    let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(written.contains("/Catalog"), "the catalog is readable");
+    assert!(!written.contains("/Duplex"), "the removal is in the file");
+    let json = text(&args(&[
+        "--dry-run",
+        "--json",
+        "--discard",
+        "print-settings",
+    ]));
+    assert!(json.contains("\"smaller\":false"), "{json}");
+
+    let none = args(&["-o", d.join("none.pdf").to_str().unwrap()]);
+    assert_eq!(none.status.code(), Some(14), "{}", text(&none));
+}

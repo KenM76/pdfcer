@@ -468,6 +468,13 @@ impl OptimizePlan {
             .sum()
     }
 
+    /// Whether the plan removes content: a clean-up or a discard, as
+    /// opposed to a pure size saving.
+    #[must_use]
+    pub fn removes_content(&self) -> bool {
+        !self.cleanup.is_empty() || !self.discard.is_empty() || !self.discard_objects.is_empty()
+    }
+
     /// Whether any change is lossy.
     #[must_use]
     pub fn is_lossy(&self) -> bool {
@@ -483,7 +490,19 @@ impl OptimizePlan {
 pub enum OptimizedFile {
     /// The rewrite is strictly smaller; these are its bytes.
     Smaller(Vec<u8>),
-    /// The rewrite was not smaller, so nothing should be written.
+    /// The rewrite is not smaller, but the plan removes content the
+    /// operator asked to remove (clean-up or discard), so these bytes are
+    /// written anyway: the never-larger rule covers what is only a size
+    /// saving. A caller holding to the size rule alone treats this as
+    /// [`Self::KeptOriginal`].
+    NotSmaller {
+        /// The rewrite.
+        bytes: Vec<u8>,
+        /// The original file's length.
+        original: u64,
+    },
+    /// The rewrite was not smaller and removes nothing, so nothing should be
+    /// written.
     KeptOriginal {
         /// The original file's length.
         original: u64,
@@ -492,11 +511,13 @@ pub enum OptimizedFile {
     },
 }
 
-/// `bytes` only if strictly shorter than `original`.
-pub(crate) fn keep_if_smaller(bytes: Vec<u8>, original: u64) -> OptimizedFile {
+/// `bytes` if strictly shorter than `original`, or if `removes` content.
+pub(crate) fn keep_if_smaller(bytes: Vec<u8>, original: u64, removes: bool) -> OptimizedFile {
     let rewritten = bytes.len() as u64;
     if rewritten < original {
         OptimizedFile::Smaller(bytes)
+    } else if removes {
+        OptimizedFile::NotSmaller { bytes, original }
     } else {
         OptimizedFile::KeptOriginal {
             original,

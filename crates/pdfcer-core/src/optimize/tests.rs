@@ -81,6 +81,7 @@ pub(super) fn only(options: DiscardOptions) -> OptimizeSettings {
     s
 }
 
+/// A session over `bytes`, shared by every optimize test module.
 pub(super) fn session(bytes: Vec<u8>) -> EditSession {
     EditSession::new(Document::from_bytes(bytes).unwrap())
 }
@@ -133,6 +134,7 @@ fn apply_and_save_keep_decoded_content_and_untouched_bytes() {
     assert_eq!(s.apply_optimize(&plan).unwrap(), 2);
     let OptimizedFile::Smaller(bytes) = s
         .save_optimized(
+            &plan,
             &SaveOptions::default(),
             &crate::optimize::RebuildOptions::none(),
         )
@@ -238,15 +240,22 @@ fn selectors_match_category_pages_size_and_filter() {
 #[test]
 fn a_whole_file_that_is_not_smaller_is_not_written() {
     assert_eq!(
-        keep_if_smaller(vec![0; 10], 10),
+        keep_if_smaller(vec![0; 10], 10, false),
         OptimizedFile::KeptOriginal {
             original: 10,
             rewritten: 10
         }
     );
     assert_eq!(
-        keep_if_smaller(vec![0; 9], 10),
+        keep_if_smaller(vec![0; 9], 10, false),
         OptimizedFile::Smaller(vec![0; 9])
+    );
+    assert_eq!(
+        keep_if_smaller(vec![0; 10], 10, true),
+        OptimizedFile::NotSmaller {
+            bytes: vec![0; 10],
+            original: 10
+        }
     );
 }
 
@@ -321,7 +330,7 @@ fn a_preset_save_drops_an_orphan_and_packs_the_rest() {
     let plan = s.plan_optimize(&settings).unwrap();
     s.apply_optimize(&plan).unwrap();
     let (file, report) = s
-        .save_optimized(&SaveOptions::default(), &settings.structure)
+        .save_optimized(&plan, &SaveOptions::default(), &settings.structure)
         .unwrap();
     let report = report.expect("presets rebuild");
     assert_eq!(report.unreferenced, vec![id(9)]);

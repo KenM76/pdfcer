@@ -5671,7 +5671,8 @@ pub(crate) enum Command {
     /// Make a PDF smaller (Pass 616.1).
     ///
     /// Plans every change, performs it in memory, and writes a new file only
-    /// if it is strictly smaller than the input; otherwise nothing is written
+    /// if it is strictly smaller than the input or removes something you
+    /// asked to remove (clean-up, `--discard`); otherwise nothing is written
     /// and the exit code is 14. Objects no setting selects are copied
     /// byte-identical. Every rewritten stream, every skip and its reason, and
     /// the per-category size change are reported.

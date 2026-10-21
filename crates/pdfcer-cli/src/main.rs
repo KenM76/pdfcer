@@ -791,9 +791,11 @@ mod exit {
     /// output. Distinct from `SIGNATURE_FAILED`
     /// because "pdfcer cannot say" is not "the document was tampered with".
     pub const SIGNATURE_UNVERIFIABLE: u8 = 13;
-    /// `optimize`: the rewrite would not be strictly smaller than the input,
-    /// so nothing was written (decision 191). Not a failure: the input is
-    /// already as small as the chosen settings make it.
+    /// `optimize`: the rewrite would not be strictly smaller than the input
+    /// and removes nothing, so nothing was written (decision 191). Not a
+    /// failure: the input is already as small as the chosen settings make
+    /// it. A run that removes something (clean-up, `--discard`) is written
+    /// and exits 0 even when it is not smaller.
     pub const NOT_SMALLER: u8 = 14;
     /// The subcommand exists in the surface but is not implemented yet
     /// (Pass 0 stub). Distinct code so a script can tell "you asked for a
