@@ -86,7 +86,8 @@ pub(super) fn session(bytes: Vec<u8>) -> EditSession {
     EditSession::new(Document::from_bytes(bytes).unwrap())
 }
 
-fn id(n: u32) -> ObjId {
+/// Object `n`, generation 0, shared by every optimize test module.
+pub(super) fn id(n: u32) -> ObjId {
     ObjId::new(n, 0)
 }
 

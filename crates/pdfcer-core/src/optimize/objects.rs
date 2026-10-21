@@ -18,12 +18,15 @@
 //!   image, which is the one shown on screen. An image under optional
 //!   content is skipped: with its base hidden an alternate may be what shows.
 //!
+//! - form actions and external references: see [`actions`].
+//!
 //! An embedded search index is not offered: no published specification
 //! names the key Acrobat stores it under.
 
 use std::collections::BTreeSet;
 use std::fmt;
 
+use super::actions::{self, Rewrite};
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, ObjId, Object};
 use crate::view::DocumentView;
@@ -43,19 +46,27 @@ pub enum DiscardObject {
     /// The alternate versions of an image (e.g. a high-resolution one for
     /// printing), keeping the one shown on screen.
     AlternateImages,
+    /// Form submit, import and reset actions, from fields, links, buttons
+    /// and every other action carrier; actions chained after one still run.
+    FormActions,
+    /// Actions that open another file: go-to-remote, launch, and go-to-
+    /// embedded or article targets in another file. Web links stay.
+    ExternalReferences,
 }
 
 impl DiscardObject {
     /// Every class, in plan order.
-    pub const ALL: [Self; 4] = [
+    pub const ALL: [Self; 6] = [
         Self::Bookmarks,
         Self::Tags,
         Self::PrintSettings,
         Self::AlternateImages,
+        Self::FormActions,
+        Self::ExternalReferences,
     ];
 
     /// A stable lower-case name: `bookmarks`, `tags`, `print-settings`,
-    /// `alternate-images`.
+    /// `alternate-images`, `form-actions`, `external-references`.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -63,6 +74,8 @@ impl DiscardObject {
             Self::Tags => "tags",
             Self::PrintSettings => "print-settings",
             Self::AlternateImages => "alternate-images",
+            Self::FormActions => "form-actions",
+            Self::ExternalReferences => "external-references",
         }
     }
 
@@ -87,20 +100,24 @@ impl fmt::Display for DiscardObject {
 }
 
 /// One carrier an optimize run discards.
-#[derive(Debug, Clone, PartialEq, Eq)]
+// Not `Eq`: an action rewrite holds an `Object`, which may be a real.
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct ObjectDiscard {
     /// The class.
     pub object: DiscardObject,
     /// The object holding it: the catalog, or the image for alternates.
     pub owner: ObjId,
-    /// Where it is, in words: `catalog`, `image object 12 0`.
+    /// Where it is, in words: `catalog`, `image object 12 0`, or for an
+    /// action `object 12 0: SubmitForm, GoToR` (the types removed).
     pub location: String,
     /// What leaves the file: the deleted entries plus every object only
     /// they reached. Approximate (written as pdfcer would write it).
     pub bytes: u64,
     /// Entries deleted, each a key path under an object.
     pub(crate) strips: Vec<Strip>,
+    /// Action entries set or removed.
+    pub(crate) rewrites: Vec<Rewrite>,
 }
 
 /// A key path (at most two keys) under an object, as
@@ -150,6 +167,7 @@ pub(crate) fn carriers(
                 location,
                 bytes: 0,
                 strips,
+                rewrites: Vec::new(),
             });
         }
     };
@@ -189,6 +207,7 @@ pub(crate) fn carriers(
             push(DiscardObject::AlternateImages, id, location, strips);
         }
     }
+    out.extend(actions::action_carriers(view, live, catalog, wanted));
     out
 }
 

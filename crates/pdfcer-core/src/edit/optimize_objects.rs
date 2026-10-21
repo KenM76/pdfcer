@@ -8,6 +8,7 @@ use super::metadata_remove::Staged;
 use super::optimize_cleanup::Fold;
 use crate::doc_metadata::scan::value_bytes;
 use crate::object::{ObjId, Object};
+use crate::optimize::actions::{Rewrite, apply_rewrite};
 use crate::optimize::objects::{self, DiscardObject, ObjectDiscard, Strip};
 use crate::optimize::{DiscardOptions, OptimizeError};
 
@@ -35,14 +36,21 @@ impl EditSession {
         let mut items = objects::carriers(&view, &live, |o| options.contains_object(o));
         for item in &mut items {
             let mut st = Staged::default();
-            if self.stage_strips(&item.strips, &mut st).is_ok() {
+            if self.stage_item(item, &mut st).is_ok() {
                 let freed: u64 = self
                     .orphaned_by(&st)
                     .iter()
                     .filter_map(|id| self.value(*id))
                     .map(value_bytes)
                     .sum();
-                item.bytes = st.detached.iter().map(value_bytes).sum::<u64>() + freed;
+                let added: u64 = item
+                    .rewrites
+                    .iter()
+                    .filter_map(|r| r.value.as_ref())
+                    .map(value_bytes)
+                    .sum();
+                item.bytes = (st.detached.iter().map(value_bytes).sum::<u64>() + freed)
+                    .saturating_sub(added);
             }
         }
         let has = |object| items.iter().any(|i| i.object == object);
@@ -55,6 +63,18 @@ impl EditSession {
         if has(DiscardObject::PrintSettings) {
             notes.push(
                 "embedded print settings go: page scaling, duplex, tray, page range and copies fall back to the printer dialog's defaults"
+                    .into(),
+            );
+        }
+        if has(DiscardObject::FormActions) {
+            notes.push(
+                "form submit, import and reset actions go: buttons that sent, loaded or cleared the form do nothing when clicked, and actions chained after them still run"
+                    .into(),
+            );
+        }
+        if has(DiscardObject::ExternalReferences) {
+            notes.push(
+                "actions that open another file go: those links stay on the page but do nothing when clicked, and web links stay"
                     .into(),
             );
         }
@@ -79,7 +99,7 @@ impl EditSession {
         }
         let mut st = Staged::default();
         for item in items {
-            if let Err(reason) = self.stage_strips(&item.strips, &mut st) {
+            if let Err(reason) = self.stage_item(item, &mut st) {
                 fold.roll_back(self);
                 return Err(OptimizeError::ObjectDiscardFailed {
                     object: item.object,
@@ -91,6 +111,31 @@ impl EditSession {
         self.commit_metadata_edits(st);
         fold.absorb(self);
         Ok(items.len())
+    }
+
+    fn stage_item(&self, item: &ObjectDiscard, st: &mut Staged) -> Result<(), String> {
+        self.stage_strips(&item.strips, st)?;
+        self.stage_rewrites(&item.rewrites, st)
+    }
+
+    /// Stage each rewrite whose entry still holds what the plan saw.
+    fn stage_rewrites(&self, rewrites: &[Rewrite], st: &mut Staged) -> Result<(), String> {
+        for r in rewrites {
+            let mut obj = st
+                .scratch
+                .get(&r.owner)
+                .or_else(|| self.value(r.owner))
+                .cloned()
+                .ok_or("the object no longer exists")?;
+            let Object::Dict(dict) = &mut obj else {
+                return Err("not a dictionary".to_owned());
+            };
+            if let Some(old) = apply_rewrite(dict, r) {
+                st.detached.push(old);
+                st.scratch.insert(r.owner, obj);
+            }
+        }
+        Ok(())
     }
 
     /// Stage each strip whose entry is still there; an earlier step of the

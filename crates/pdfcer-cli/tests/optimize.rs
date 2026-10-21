@@ -396,6 +396,31 @@ fn discard_takes_document_object_classes_by_name() {
 }
 
 #[test]
+fn discard_removes_form_actions_and_external_references() {
+    let d = dir("discard-actions");
+    let input = write_pdf(
+        &d,
+        "/OpenAction << /S /Launch /F (calc.exe) >> /AA << /WC << /S /ResetForm /Next << /S /JavaScript /JS (KEPTSCRIPT) >> >> >>",
+    );
+    let out = d.join("out.pdf");
+    let o = run(&[
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--keep-structure",
+        "--discard",
+        "form-actions,external-references",
+    ]);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(report.contains("discard objects: 1 removed"), "{report}");
+    assert!(report.contains("do nothing when clicked"), "{report}");
+    let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(written.contains("KEPTSCRIPT"), "the chained script stays");
+    assert!(!written.contains("/Launch") && !written.contains("/ResetForm"));
+}
+
+#[test]
 fn a_requested_removal_is_written_and_exits_0_even_when_not_smaller() {
     let d = dir("removal-not-smaller");
     let input = write_pdf(&d, "/ViewerPreferences << /Duplex /Simplex >>");

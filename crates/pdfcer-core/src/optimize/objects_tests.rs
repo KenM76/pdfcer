@@ -5,7 +5,7 @@
     clippy::indexing_slicing
 )] // test code: a failed lookup should fail the test loudly
 
-use super::tests::{build, only, session};
+use super::tests::{build, id, only, session};
 use super::*;
 use crate::edit::EditSession;
 use crate::graph::ObjectGraph;
@@ -55,8 +55,16 @@ fn sample() -> Vec<u8> {
     ])
 }
 
+/// The classes `sample` carries; the action classes have `actions_tests`.
+const SAMPLED: [DiscardObject; 4] = [
+    DiscardObject::Bookmarks,
+    DiscardObject::Tags,
+    DiscardObject::PrintSettings,
+    DiscardObject::AlternateImages,
+];
+
 fn every_object() -> DiscardOptions {
-    DiscardObject::ALL
+    SAMPLED
         .into_iter()
         .fold(DiscardOptions::none(), DiscardOptions::with_object)
 }
@@ -77,14 +85,10 @@ fn dict_keys(s: &EditSession, id: ObjId) -> Vec<String> {
         .collect()
 }
 
-fn id(num: u32) -> ObjId {
-    ObjId::new(num, 0)
-}
-
 #[test]
 fn a_plan_lists_only_the_selected_classes_each_measured() {
     let s = session(sample());
-    for object in DiscardObject::ALL {
+    for object in SAMPLED {
         let plan = s
             .plan_optimize(&only(DiscardOptions::none().with_object(object)))
             .unwrap();

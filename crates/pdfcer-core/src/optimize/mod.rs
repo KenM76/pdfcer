@@ -32,6 +32,7 @@
 //! [`EditSession::apply_optimize`]: crate::edit::EditSession::apply_optimize
 //! [`EditSession::save_optimized`]: crate::edit::EditSession::save_optimized
 
+pub(crate) mod actions;
 pub mod cleanup;
 pub mod discard;
 pub mod objects;
@@ -535,5 +536,7 @@ mod cleanup_tests;
 #[cfg(test)]
 mod discard_tests;
 
+#[cfg(test)]
+mod actions_tests;
 #[cfg(test)]
 mod objects_tests;

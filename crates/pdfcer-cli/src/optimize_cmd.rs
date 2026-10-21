@@ -98,7 +98,9 @@ pub(crate) struct OptimizeArgs {
     /// attachment, comment, hidden-layer, form-data, earlier-revisions,
     /// document-id; or these document objects: bookmarks, tags (the file is
     /// no longer tagged for screen readers), print-settings,
-    /// alternate-images; or all. Comma-separated or repeated.
+    /// alternate-images, form-actions (submit, import and reset),
+    /// external-references (actions that open another file; web links
+    /// stay); or all. Comma-separated or repeated.
     /// The standard and print presets remove thumbnails; screen also
     /// pieceinfo, object-xmp and alternate-images.
     #[arg(long, value_name = "KINDS", value_delimiter = ',')]
