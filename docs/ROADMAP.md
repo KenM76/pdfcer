@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 617.3` (`aab8a326`), 2026-10-21 — Add Text takes a grey or CMYK colour (`G219`) (1148th filing)
+
+Code commit `aab8a326` "feat(text): Add Text takes a grey or CMYK colour (Pass 617.3, G219)", after the 1147th filing. Core + CLI; GUI wires it itself (box unchanged). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Request: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G219_add_text_takes_no_grey_or_cmyk_colour.md`.
+
+- **Core:** `text_edit::NewTextColor` (`#[non_exhaustive]`) gains `Gray(f64)` and `Cmyk(f64,f64,f64,f64)`, written as `v g` / `c m y k k` in the device space they name (ISO 32000-1 §8.6.4); components clamped to [0,1]. New `impl From<&NewFill> for NewTextColor`, so one colour picker serves Format and Add Text.
+- **CLI:** `add-text --color` and `place-text --color` accept `r,g,b` (unchanged) or `MODEL:comps` as `--set-color` does (`gray:0.5`, `rgb:1,0,0`, `cmyk:0,1,1,0`).
+- **Docs:** `docs/core-api/02-editing-and-saving.md` add_text row updated.
+- **Tests (engineer-reported):** core `gray_and_cmyk_colours_are_written_in_their_own_device_space` and CLI `a_model_colour_is_written_in_that_device_space`; the core test is sabotage-checked. Core lib 1,727; core `--test all` 2,996; CLI `--test all` 919. fmt, clippy, shell gates clean. No dependency change; no `Cargo.toml` touched, so `cargo tree` not re-run.
+
+`FEATURES.md`: *Add new page text* row and the *place-text* row gain one clause each (core `[x]`, cli `[x]`; gui boxes unchanged). No decision; no rule. Ledgers: next free `Pass 617.4`, decision `194`, `R263`; next filing 1149th. Channel still open: `G220` (object paint RGB-only, next as `617.4`), `G221` (ce dimension colour RGB-only), `G222` (page text opacity). Git, push and backup state not verified from here.
+
 ### `Pass 617.2` (`018e8f7d`), 2026-10-21 — a grey or CMYK redaction fill draws a box (`G218`) (1147th filing)
 
 Code commit `018e8f7d` "fix(redact): a grey or CMYK redaction fill draws a box (Pass 617.2, G218)", after the 1146th filing. Core + CLI (counter only); no GUI. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Request: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G218_a_grey_or_cmyk_redaction_fill_applies_as_no_box.md`.

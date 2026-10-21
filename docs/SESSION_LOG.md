@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1148th filing) — `Pass 617.3` in `aab8a326`: Add Text takes a grey or CMYK colour (`G219`)
+
+**Shipped:** `Pass 617.3` (core + cli, gui wires itself). `NewTextColor` gains `Gray` and `Cmyk`, written in their own device space; `From<&NewFill>` added. `add-text` and `place-text` `--color` accept `r,g,b` or `MODEL:comps`. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
+
+**Decisions:** none new; no rule minted.
+
+**Findings:** tests core lib 1,727, core integration 2,996, cli 919; no dependency change.
+
+**Still in flight:** `Pass 616.5` open (unchanged). Channel: `G220` next as `617.4`, then `G221`, `G222`.
+
+**For next session:** reply `G219` `_FIXED` if not already done. Git, push and backup state not verified from here. Next filing 1149th.
+
 ## 2026-10-21 (1147th filing) — `Pass 617.2` in `018e8f7d`: a grey or CMYK redaction fill draws a box (`G218`)
 
 **Shipped:** `Pass 617.2` (core + cli counter, no gui). Marks now always write `/IC` as three DeviceRGB numbers (CMYK via `cmyk_to_srgb`); apply paints and discloses a foreign 1- or 4-number `/IC` instead of treating it as transparent. New `RedactionReport::overlay_fill_not_rgb`; CLI `redact-apply` prints `overlay_fill_not_rgb=N`. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
