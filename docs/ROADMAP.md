@@ -112,6 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.6` (slice 2, `4d0e7c44`..`3606ecef`), 2026-10-21 — font re-subsetting inside an optimize run (TrueType only); `Pass 616.6` NOT complete (1156th filing)
+
+Code commits (all on main, not pushed at filing time): `4d0e7c44` glyph-usage enumerator (step 2); `7066d6a4` types and planner (steps 1, 3); `09506aab` wired into the run (step 6); `8c8dec44` fix: stale on new text, skips PDF/A; `2d5783c3` glyph-zeroing re-subsetter in render (steps 4-5); `3606ecef` CLI `--resubset-fonts` (step 7). Core + render + CLI; no GUI (separate project). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit messages and `docs/font-resubset-plan.md`.
+
+- **Core `optimize::resubset`:** `OptimizeSettings::resubset: Option<ResubsetFonts>` holds a `&'static dyn FontResubsetter`; core holds no font-program code. A glyph-usage walk (page content, annotation appearances N/R/D and states, forms, tiling patterns, soft-mask groups, Type 3 CharProcs) collects the codes per font. Each `/FontFile2` is cut keeping every glyph ID, so content, `/Widths`, `/W`, `/Encoding` and `/CIDToGIDMap` are untouched. Each cut font gets a fresh six-letter subset tag over its stem (ISO 32000-2 §9.6.4) on the font, descendant CIDFonts and descriptors; the program is written Flate with `/Length1`. All inside the run's one undo entry.
+- **Disclosure:** notes state the glyphs kept and that text typed later needs the missing glyphs embedded again. `apply_optimize` returns `StalePlan` if a rewritten object changed or a re-plan differs (text drawn after planning makes the plan stale). A PDF/A document plans no re-subset and a note says why.
+- **Refusal tokens (core):** `unreadable-content`, `acroform-dr`, `unreferenced-user`, `format-deferred` (non-`/FontFile2`), `cidset-charset-present`, `non-identity-cmap`, `font-not-indirect`, `program-direct`, `every-glyph-used` (new in `3606ecef`: a fully used font was reported "cut 4 of 4" and renamed for nothing), `not-smaller`, `unembedded-this-run`.
+- **Render `pdfcer_render::font::resubset::GLYPH_ZERO_RESUBSETTER`:** keeps glyph 0; for a simple font keeps every glyph any §9.6.6.4 rung could pick for a shown code; for a composite font keeps the `CIDToGIDMap` glyph and adds composite components. Unused `glyf` records are emptied, `loca` rewritten in its original format, `DSIG` dropped. The cut is verified before returning (re-parses; `numGlyphs` and `loca` format unchanged; kept records byte-identical). Refusals: `collection`, `fstype-restricted`, `fstype-no-subsetting`, `malformed-glyf`, `unusable-font`, `unmapped-code`.
+- **CLI:** `pdfcer optimize --resubset-fonts`; the report gains a `resubset:` block (each cut with glyphs kept, bytes before/after, new name; each refusal with why); JSON `resubset` member (`cut`, `refused`, `bytes`; null without the flag). No profile key: a profile is core-side and cannot name the render cutter. `docs/core-api/03-capabilities.md` updated.
+- **Fixtures:** `tools/gen-resubset-fixtures.py` writes `fixtures/synthetic/resubset/simple.pdf` and `type0-identity.pdf` over the synthetic `face.ttf` donor.
+- **Tests (engineer-reported):** core lib 1,774; render lib 487; render integration 524; CLI optimize 44. New: 4 render unit; a render end-to-end test (both fixtures render pixel-identical after optimize, save, reopen, in a smaller file); 3 CLI; core tests for stale-on-new-text, PDF/A, every-glyph-used. Every new test failed under a sabotage of the code it guards. clippy `-D warnings`, fmt, `check-code-structure`, `check-core-api-verbs`, `check-public-fns-documented` clean. No `Cargo.toml` changed: `cargo tree` unchanged, no new dependency.
+- **CLI smoke (engineer-reported):** `simple.pdf` 1,943 -> 1,317 B (626 B saved, 32%), 5 of 8 glyphs kept; a fully used font is refused `every-glyph-used`.
+- **Still open in `Pass 616.6`:** CFF (`/FontFile3`) zeroing; `/CIDSet` / `/CharSet` rewrite; re-subset under PDF/A; merge duplicate subsets of the same face; tests for the planned `symbolic` and `shared-program` fixtures (never built; recorded in `docs/font-resubset-plan.md`). The Acrobat Reader render check of a cut font is NOT done. `616.7`-`616.10` unchanged.
+
+`FEATURES.md`: row *Reduce file size by lossless stream recompression* now says re-subsetting ships (core + cli; gui not); the Planned *Font re-subsetting, duplicate-subset merge* row is narrowed to the unbuilt remainder, boxes left unticked. No decision; no rule allocated (none was needed). Ledgers: next free `Pass 617.8`, decision `195`, `R263`; next filing 1157th.
+
 ### `Pass 616.6` (slice 1, `23c89cd2`), 2026-10-21 — unembed fonts inside an optimize run; `Pass 616.6` NOT complete (1155th filing)
 
 Code commit `23c89cd2` "feat(optimize): unembed fonts in an optimize run (Pass 616.6 slice 1)". Core + CLI; no GUI (separate project). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message.
@@ -24898,11 +24914,11 @@ Mono results are mostly not-smaller until `616.5` adds CCITT/JBIG2 encoders; dis
 - **Still owed from the request (as filed; the stream half is now built):** a dedicated Brotli fuzz target (none under `fuzz/fuzz_targets/` by name; whether `content_and_filters.rs` reaches the decoder is unverified); the write side itself.
 - **Write-side contract:** writes the `/Extensions` entry for `PDFa` (EXTN-BROTLI-1 v1.3, `ExtensionLevel 1`, `BaseVersion 2.0`) and raises the header to 2.0; **OFF by default**; the report discloses it ("readers without the extension cannot open these streams"). Round-trip rule 3 is not in conflict: optimize rewrites a stream only when asked, never an untouched one. Not allowed in inline images (EXTN-BROTLI-1 §5.2; `ImageCodecError::BrotliNotAllowedInline` already enforces it on read). **Decision 194 filed (1148th, `ARCHITECTURE.md` §12; design only, no code yet):** explicit-only (`brotli` / `brotli-N`, N 0..=11, default 11; never `auto`, preset or fallback), standard window (lgwin 22), declares `/Extensions /PDFa` and raises catalog `/Version` to 2.0 (both disclosed), refused under PDF/A, never inline or ObjStm/XRef/Metadata, same only-if-smaller and `min-saving` guards. Next free decision `195`.
 
-### `Pass 616.6` — Fonts: re-subset, merge duplicate subsets, unembed — IN PROGRESS (slice 1 shipped `23c89cd2`, 2026-10-21)
+### `Pass 616.6` — Fonts: re-subset, merge duplicate subsets, unembed — IN PROGRESS (slice 1 shipped `23c89cd2`, slice 2 shipped `4d0e7c44`..`3606ecef`, 2026-10-21)
 
 Re-subset embedded fonts to the glyphs actually used; merge duplicate subsets; integrate `font_unembed::plan`; Type1 to CFF conversion later.
 
-**Slice 1 SHIPPED (1155th filing): unembed inside an optimize run. Remaining: re-subset existing subsets; merge duplicate subsets of the same face; Type1 to CFF later.**
+**Slice 1 SHIPPED (1155th filing): unembed inside an optimize run. Slice 2 SHIPPED (1156th filing): TrueType `/FontFile2` re-subset by glyph zeroing, `--resubset-fonts`. Remaining: CFF (`/FontFile3`) zeroing; `/CIDSet` / `/CharSet` rewrite; re-subset under PDF/A; merge duplicate subsets of the same face; `symbolic` and `shared-program` fixture tests; Acrobat Reader render check of a cut font; Type1 to CFF later.**
 
 ### `Pass 616.7` — Content-stream optimisation — NEXT UP, 2026-10-20
 

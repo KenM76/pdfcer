@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1156th filing) — `Pass 616.6` slice 2 in `4d0e7c44`..`3606ecef`: fonts can be re-subset inside an optimize run
+
+**Shipped:** `Pass 616.6` slice 2 (core + render + cli): `OptimizeSettings::resubset` holds a `&'static dyn FontResubsetter`; glyph-usage walk; TrueType `/FontFile2` cut by glyph zeroing (all glyph IDs kept, so content and widths untouched); fresh subset tag; one undo entry; `StalePlan` on new text; PDF/A plans nothing plus a note; render `GLYPH_ZERO_RESUBSETTER` verifies its own cut; CLI `--resubset-fonts` with a `resubset:` report block and JSON `resubset`. Detail in the ROADMAP *Shipped* entry; reasoning in the commit messages.
+
+**Decisions:** none new; no rule minted (`195`, `R263` stay free). Engineer's earlier in-plan choice stands: refuse any font reachable from AcroForm `/DR` (`acroform-dr`), no `/DA` tokenizer.
+
+**Findings:** tests core lib 1,774, render lib 487, render integration 524, CLI optimize 44 (engineer-reported); every new test failed under sabotage; no manifest change. CLI smoke: `simple.pdf` 1,943 -> 1,317 B, 5 of 8 glyphs kept. `3606ecef` added `every-glyph-used` after a fully used font was reported cut and renamed for nothing. The 1155th addendum below (owed row-189 "image work unbuilt") is already resolved: row 189 carries no such text at HEAD (Grep). Its `be2452f6` addendum is the one in the 1155th entry; not duplicated.
+
+**Still in flight:** `Pass 616.6` OPEN: CFF zeroing; CIDSet/CharSet rewrite; re-subset under PDF/A; merge duplicate subsets; `symbolic` / `shared-program` fixture tests; Acrobat Reader render check of a cut font NOT done. `616.7`-`616.10` unchanged.
+
+**For next session:** next free `Pass 617.8`, decision `195`, `R263`. The six commits were not pushed at filing time per the engineer. Git, push and backup state not verified from here. Next filing 1157th.
+
 ## 2026-10-21 (1155th filing) — `Pass 616.6` slice 1 in `23c89cd2`: unembed fonts inside an optimize run
 
 **Shipped:** `Pass 616.6` slice 1 (core + cli): `OptimizeSettings::unembed` planned in `plan_optimize`, committed in `apply_optimize`'s single undo entry via `unembed_fonts`; freed font programs are dropped from stream changes; PDF/A documents plan nothing plus a note; new `OptimizeError::UnembedFailed` rolls the call back; profile keys `unembed-fonts`, `unembed-font-ids`, `keep-subset-tag`; CLI `--unembed-fonts all|none|NAMES`, `--keep-subset-tag`, `fonts:` report block and JSON `fonts`. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
