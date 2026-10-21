@@ -112,6 +112,14 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.6` (fixture tests, `0982e864`), 2026-10-21 — shared-program and symbolic fixtures; `Pass 616.6` NOT complete (1159th filing)
+
+Test-only commit `0982e864` "test(resubset): shared-program and symbolic fixtures (Pass 616.6)", on main, not pushed at filing time. Engineer-reported; I have no shell (hard rule 8). Closes the "tests for the symbolic and shared-program fixtures" item of the 1158th entry. No `FEATURES.md` box changes (coverage only).
+
+- **Fixtures** (synthetic, `tools/gen-resubset-fixtures.py`): `fixtures/synthetic/resubset/shared-program.pdf` (two TrueType fonts with their own descriptors share one `/FontFile2`; one cut serves both users, keeps 5 glyphs) and `symbolic.pdf` (`/Flags 4`, no `/Encoding`, a (3,0)-only cmap derived with fontTools, timestamps preserved so a rerun is byte-identical; shows "B"; the cut keeps .notdef and B per ISO 32000-1 §9.6.6.4).
+- **Test:** `a_cut_font_draws_the_page_unchanged_in_a_smaller_file` now runs 4 fixtures, asserting users and glyphs kept per fixture plus pixel identity. Sabotage (drop glyph 2 from the keep set) failed the symbolic case. `resubset` filter in the pdfcer-render `all` target: 3 tests green; fmt and clippy clean. `docs/font-resubset-plan.md` updated.
+- **Still open in `Pass 616.6`:** CFF (`/FontFile3`) zeroing; `/CIDSet` / `/CharSet` rewrite; re-subset under PDF/A; Acrobat Reader spot checks.
+
 ### `Pass 616.6` (slice 3, `e9032753`), 2026-10-21 — merge copies of one embedded face in a re-subset run; `Pass 616.6` NOT complete (1158th filing)
 
 Code commit `e9032753` "feat(optimize): merge copies of one embedded face (Pass 616.6 slice 3)", on main, not pushed at filing time. Core + render + CLI; no GUI (separate project). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message and `docs/font-resubset-plan.md` (already records this slice).
@@ -24951,7 +24959,7 @@ Mono results are mostly not-smaller until `616.5` adds CCITT/JBIG2 encoders; dis
 
 Re-subset embedded fonts to the glyphs actually used; merge duplicate subsets; integrate `font_unembed::plan`; Type1 to CFF conversion later.
 
-**Slice 1 SHIPPED (1155th filing): unembed inside an optimize run. Slice 2 SHIPPED (1156th filing): TrueType `/FontFile2` re-subset by glyph zeroing, `--resubset-fonts`. Slice 3 SHIPPED (1158th filing): copies of one face merged, `--no-merge-font-subsets`. Remaining: CFF (`/FontFile3`) zeroing; `/CIDSet` / `/CharSet` rewrite; re-subset under PDF/A; `symbolic` and `shared-program` fixture tests; Acrobat Reader render check of a cut font; Type1 to CFF later.**
+**Slice 1 SHIPPED (1155th filing): unembed inside an optimize run. Slice 2 SHIPPED (1156th filing): TrueType `/FontFile2` re-subset by glyph zeroing, `--resubset-fonts`. Slice 3 SHIPPED (1158th filing): copies of one face merged, `--no-merge-font-subsets`. Remaining: CFF (`/FontFile3`) zeroing; `/CIDSet` / `/CharSet` rewrite; re-subset under PDF/A; Acrobat Reader render check of a cut font; Type1 to CFF later. (`symbolic` / `shared-program` fixture tests closed in `0982e864`, 1159th filing.)**
 
 ### `Pass 616.7` — Content-stream optimisation — NEXT UP, 2026-10-20
 

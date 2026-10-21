@@ -26,13 +26,19 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   discards, 616.4 images (complete) — shipped, core + cli. 616.5 encoders:
   RunLength/LZW/CCITT G4/JBIG2/auto/version-raise and Brotli (streams +
   images, decision 194) shipped; still open only for the Acrobat Reader
-  render checks (Brotli recorded as unverified). **616.6 fonts: slice 1
-  (unembed inside optimize, `--unembed-fonts`) shipped.** Remaining 616.6:
-  re-subset existing subsets (glyph-usage enumerator + GID-keeping
-  glyph-zeroing subsetter in render behind a core trait hook, the
-  `EmbeddedGlyphs`/`SubsetAugmenter` options pattern), then merge duplicate
-  subsets of one face. Then 616.7-616.10 (content streams, linearization,
-  quality/byte-budget, compatibility target).
+  render checks (Brotli recorded as unverified). **616.6 fonts: slices 1-3
+  shipped**: unembed (`--unembed-fonts`), TrueType re-subset by glyph
+  zeroing (`--resubset-fonts`), and merging copies of one face (on by
+  default, `--no-merge-font-subsets`). Plan: `docs/font-resubset-plan.md`.
+  Remaining 616.6: CFF (`/FontFile3`) zeroing, the `/CIDSet`/`/CharSet`
+  rewrite (currently refused), re-subset under PDF/A (currently refused),
+  and an Acrobat Reader check of a cut/merged font. Then 616.7-616.10
+  (content streams, linearization, quality/byte-budget, compatibility
+  target).
+- **Fixture generator:** `tools/gen-resubset-fixtures.py` needs fontTools
+  for `symbolic.pdf`. Python string escapes typed through Bash lose their
+  backslash (an octal escape ended up as a raw 0xC9 byte), so write edit
+  scripts to a file first.
 - **Questions for Ken, raise when the Pass needs them:** lossy JBIG2 off by
   default? a transparency flattener? JPX encoder (licence check first)?
 - **Owed to pdfceGUI:** a heads-up that the presets now use `encode=auto`.
