@@ -4,7 +4,7 @@
 use std::fmt;
 
 use super::colour::{self, Family, SourceColour, gray_formula};
-use super::reduce;
+use super::{ImageSkip, reduce};
 use crate::deskew::Raster;
 use crate::image_resample::resample_with;
 use crate::object::{Dict, Name, Object};
@@ -182,13 +182,13 @@ pub(crate) fn plan(
     view: &DocumentView<'_>,
     dict: &Dict,
     space: Option<&ImageSpace>,
-    blocker: Option<&'static str>,
-) -> Result<Option<ConvertJob>, String> {
+    blocker: Option<&ImageSkip>,
+) -> Result<Option<ConvertJob>, ImageSkip> {
     let to = settings.convert.value;
     if to == ImageConvert::Keep {
         return Ok(None);
     }
-    let space = space.ok_or_else(|| "it was not audited".to_owned())?;
+    let space = space.ok_or(ImageSkip::NotAudited)?;
     let indexed = space.class() == ImageClass::Indexed;
     let tint = matches!(space.color_space.as_deref(), Some("Separation" | "DeviceN"));
     let one = space.components == Some(1) && !indexed && !tint;
@@ -201,12 +201,11 @@ pub(crate) fn plan(
     if let Some(why) = blocker {
         return Err(why.to_owned());
     }
-    let colour = colour::resolve(view, dict)?;
+    let colour = colour::resolve(view, dict).map_err(ImageSkip::BadColourSpace)?;
     if to != ImageConvert::Indexed && colour.base.family == Family::Tint {
-        return Err(format!(
-            "its {} colour space has no defined grey",
-            colour.base.name
-        ));
+        return Err(ImageSkip::NoDefinedGrey {
+            space: colour.base.name.clone(),
+        });
     }
     let colors = settings.colors.value;
     if to == ImageConvert::Indexed

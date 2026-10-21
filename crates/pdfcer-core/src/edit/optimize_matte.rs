@@ -12,6 +12,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::EditSession;
 use super::optimize::plan_stream;
 use crate::object::{Dict, ObjId, Object};
+use crate::optimize::ImageSkip;
 use crate::optimize::image::pipeline::{self, Lockstep};
 use crate::optimize::select::ObjectFacts;
 use crate::optimize::streams;
@@ -145,9 +146,6 @@ fn withdraw(plan: &mut OptimizePlan, parent: ObjId, mask: ObjId) {
     plan.skipped.push(Skipped {
         id: parent,
         action,
-        reason: SkipReason::ImageUnsupported(format!(
-            "its /Matte soft mask {} {} R could not be resampled with it",
-            mask.num, mask.generation
-        )),
+        reason: SkipReason::ImageUnsupported(ImageSkip::MatteMaskFailed { mask }),
     });
 }

@@ -9,6 +9,9 @@ pub(crate) mod jpeg_quality;
 pub(crate) mod pipeline;
 pub(crate) mod predict;
 pub(crate) mod reduce;
+mod skip;
+
+pub use skip::{ImageSkip, ImageStep};
 
 use std::fmt;
 

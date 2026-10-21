@@ -5,6 +5,7 @@
     clippy::indexing_slicing
 )]
 
+use super::{ImageSkip, ImageStep};
 use crate::document::Document;
 use crate::edit::EditSession;
 use crate::filters::flate;
@@ -148,7 +149,10 @@ fn images_this_pass_cannot_resample_are_skipped_with_a_reason() {
         Some(SkipReason::UnsupportedFilter("JPXDecode".into()))
     );
     assert!(
-        matches!(skip(&p, 7), Some(SkipReason::ImageUnsupported(w)) if w.contains("colour-key"))
+        skip(&p, 7)
+            == Some(SkipReason::ImageUnsupported(ImageSkip::ColourKey(
+                ImageStep::Resample
+            )))
     );
     // Not drawn anywhere: no resolution to measure.
     let (_, p) = plan(doc("", &[grey("")]), &[("image(ppi=72)", None)]);

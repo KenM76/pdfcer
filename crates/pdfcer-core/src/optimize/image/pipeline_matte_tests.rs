@@ -8,7 +8,7 @@
 use super::pipeline_tests::{AT_100, doc, grey, plan, skip};
 use crate::edit::EditSession;
 use crate::object::{ObjId, Object};
-use crate::optimize::{ImageChange, OptimizePlan, SkipReason};
+use crate::optimize::{ImageChange, ImageSkip, OptimizePlan, SkipReason};
 use crate::space_audit::tests::stream;
 
 fn change(p: &OptimizePlan, n: u32) -> Option<&ImageChange> {
@@ -78,7 +78,7 @@ fn a_matte_mask_shared_by_two_parents_keeps_both_at_their_size() {
     let (_, p) = plan(doc(content, &images), &[("image(ppi=72)", None)]);
     for n in [5, 6, 7] {
         assert!(
-            matches!(skip(&p, n), Some(SkipReason::ImageUnsupported(w)) if w.contains("Matte")),
+            matches!(skip(&p, n), Some(SkipReason::ImageUnsupported(w)) if w.to_string().contains("Matte")),
             "object {n}: {:?}",
             skip(&p, n)
         );
@@ -97,7 +97,10 @@ fn a_mask_that_cannot_follow_withdraws_its_parents_rewrite() {
     assert!(p.changes.is_empty(), "{:?}", p.changes);
     assert!(p.writes.is_empty());
     assert!(
-        matches!(skip(&p, 5), Some(SkipReason::ImageUnsupported(w)) if w.contains("6 0 R")),
+        skip(&p, 5)
+            == Some(SkipReason::ImageUnsupported(ImageSkip::MatteMaskFailed {
+                mask: ObjId::new(6, 0)
+            })),
         "{:?}",
         skip(&p, 5)
     );

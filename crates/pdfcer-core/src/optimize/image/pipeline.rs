@@ -3,7 +3,10 @@
 //! encoding. [`super::encode::run`] performs the result.
 
 use super::convert::{self, ConvertJob};
-use super::{Conversion, ImageConvert, ImageEncode, Predictor, ResampleMethod, ResolvedImage};
+use super::{
+    Conversion, ImageConvert, ImageEncode, ImageSkip, ImageStep, Predictor, ResampleMethod,
+    ResolvedImage,
+};
 use crate::jpeg_write::JpegOptions;
 use crate::object::{Dict, ObjId, Object};
 use crate::ocr::upscale::Kernel;
@@ -123,9 +126,9 @@ pub(crate) struct Job {
 pub(crate) struct Context<'a, 'v> {
     pub(crate) view: &'a DocumentView<'v>,
     /// [`mask_blocker`]'s answer.
-    pub(crate) blocker: Option<&'static str>,
+    pub(crate) blocker: Option<ImageSkip>,
     /// [`convert_blocker`]'s answer.
-    pub(crate) convert_blocker: Option<&'static str>,
+    pub(crate) convert_blocker: Option<ImageSkip>,
     /// Set for a `/Matte` soft mask whose parent was resampled.
     pub(crate) lockstep: Option<Lockstep>,
 }
@@ -157,8 +160,8 @@ fn int(dict: &Dict, key: &[u8]) -> Option<u32> {
     }
 }
 
-fn unsupported(why: &str) -> SkipReason {
-    SkipReason::ImageUnsupported(why.to_owned())
+const fn unsupported(why: ImageSkip) -> SkipReason {
+    SkipReason::ImageUnsupported(why)
 }
 
 /// Why an image's masking keeps it from being resampled on its own, if it
@@ -167,17 +170,13 @@ fn unsupported(why: &str) -> SkipReason {
 /// no longer match the key. `smask` is the image's resolved `/SMask`;
 /// `lockstep` says that mask is resampled with the image, so its `/Matte`
 /// does not block.
-pub(crate) fn mask_blocker(
-    dict: &Dict,
-    smask: Option<&Dict>,
-    lockstep: bool,
-) -> Option<&'static str> {
+pub(crate) fn mask_blocker(dict: &Dict, smask: Option<&Dict>, lockstep: bool) -> Option<ImageSkip> {
     if dict.contains_key(b"Matte") {
-        Some("a soft mask with /Matte keeps its parent's size")
+        Some(ImageSkip::MatteMask)
     } else if !lockstep && smask.is_some_and(|m| m.contains_key(b"Matte")) {
-        Some("an image whose soft mask has /Matte keeps its mask's size")
+        Some(ImageSkip::MatteParent)
     } else if colour_keyed(dict) {
-        Some("a colour-key masked image is not resampled")
+        Some(ImageSkip::ColourKey(ImageStep::Resample))
     } else {
         None
     }
@@ -192,13 +191,13 @@ pub(crate) fn convert_blocker(
     dict: &Dict,
     smask: Option<&Dict>,
     is_soft_mask: bool,
-) -> Option<&'static str> {
+) -> Option<ImageSkip> {
     if is_soft_mask || dict.contains_key(b"Matte") {
-        Some("a soft mask is not colour-converted")
+        Some(ImageSkip::SoftMaskConvert)
     } else if smask.is_some_and(|m| m.contains_key(b"Matte")) {
-        Some("an image whose soft mask has /Matte keeps its colour space")
+        Some(ImageSkip::MatteParentConvert)
     } else if colour_keyed(dict) {
-        Some("a colour-key masked image is not colour-converted: its key matches source values")
+        Some(ImageSkip::ColourKey(ImageStep::Convert))
     } else {
         None
     }
@@ -235,8 +234,14 @@ pub(crate) fn decide(
         Some(l) => space.and_then(|s| (l.size != (s.width, s.height)).then_some(l.size)),
         None => target_size(settings, space)?,
     };
-    let convert = convert::plan(settings, ctx.view, dict, space, ctx.convert_blocker)
-        .map_err(SkipReason::ImageUnsupported)?;
+    let convert = convert::plan(
+        settings,
+        ctx.view,
+        dict,
+        space,
+        ctx.convert_blocker.as_ref(),
+    )
+    .map_err(SkipReason::ImageUnsupported)?;
     let encode = settings.encode.value;
     let source = match (resized, encode, &convert) {
         (None, ImageEncode::Keep, None) => return Ok(Outcome::Unchanged),
@@ -245,17 +250,20 @@ pub(crate) fn decide(
         }
         _ => source_kind(dict)?,
     };
-    if resized.is_none() && convert.is_none() && source == Source::Dct {
-        // An existing JPEG whose pixels are unchanged is left untouched.
-        return Ok(Outcome::Unchanged);
+    if resized.is_none()
+        && convert.is_none()
+        && source == Source::Dct
+        && let Some(left) = already_jpeg(settings, raw)?
+    {
+        return Ok(left);
     }
     if resized.is_some()
         && ctx.lockstep.is_none()
-        && let Some(why) = ctx.blocker
+        && let Some(why) = &ctx.blocker
     {
-        return Err(unsupported(why));
+        return Err(unsupported(why.clone()));
     }
-    let space = space.ok_or_else(|| unsupported("it was not audited"))?;
+    let space = space.ok_or(unsupported(ImageSkip::NotAudited))?;
     let to = convert.as_ref().map(|c| c.to);
     let reduced = matches!(to, Some(ImageConvert::Bilevel | ImageConvert::Indexed));
     let jpeg = match encode {
@@ -264,9 +272,7 @@ pub(crate) fn decide(
         _ => false,
     };
     if jpeg && reduced {
-        return Err(unsupported(
-            "a bilevel or palette result is not written as JPEG",
-        ));
+        return Err(unsupported(ImageSkip::ReducedAsJpeg));
     }
     let (components, bpc) = sample_format(dict, space, source, jpeg && convert.is_none())?;
     let (target, quality) = if jpeg {
@@ -333,6 +339,22 @@ fn target_size(
         axis(h, space.binding_ppi_y()),
     );
     Ok((out != (w, h)).then_some(out))
+}
+
+/// A JPEG whose pixels are unchanged is re-encoded only when JPEG is asked at
+/// a quality below the source's estimate; otherwise it is left as it is,
+/// silently for `encode=keep` and with a reason for `encode=jpeg`.
+fn already_jpeg(settings: &ResolvedImage, raw: &[u8]) -> Result<Option<Outcome>, SkipReason> {
+    let asked = settings.quality.value;
+    let source_estimate = super::jpeg_quality::estimate_jpeg_quality(raw);
+    match (settings.encode.value, source_estimate) {
+        (ImageEncode::Jpeg, Some(e)) if asked < e => Ok(None),
+        (ImageEncode::Jpeg, _) => Err(unsupported(ImageSkip::AlreadyJpeg {
+            source_estimate,
+            asked,
+        })),
+        _ => Ok(Some(Outcome::Unchanged)),
+    }
 }
 
 /// The JPEG options, the quality capped at a JPEG source's estimate.
@@ -426,14 +448,14 @@ fn sample_format(
     } else {
         let c = space
             .components
-            .ok_or_else(|| unsupported("its colour space's components are unknown"))?;
+            .ok_or(unsupported(ImageSkip::UnknownComponents))?;
         (u32::from(c), int(dict, b"BitsPerComponent").unwrap_or(0))
     };
     if !matches!(bpc, 1 | 2 | 4 | 8 | 16)
         || (source == Source::Dct && bpc != 8)
         || (int(dict, b"Width"), int(dict, b"Height")) != (Some(w), Some(h))
     {
-        return Err(unsupported("its size or bit depth is invalid"));
+        return Err(unsupported(ImageSkip::InvalidSize));
     }
     if jpeg && let Some(why) = jpeg_blocker(dict, space, components, bpc) {
         return Err(unsupported(why));
@@ -442,20 +464,15 @@ fn sample_format(
 }
 
 /// Why this image cannot be written as JPEG, if it cannot.
-fn jpeg_blocker(
-    dict: &Dict,
-    space: &ImageSpace,
-    components: u32,
-    bpc: u32,
-) -> Option<&'static str> {
+fn jpeg_blocker(dict: &Dict, space: &ImageSpace, components: u32, bpc: u32) -> Option<ImageSkip> {
     if space.image_mask || bpc == 1 {
-        Some("a 1-bit image is not written as JPEG")
+        Some(ImageSkip::OneBitAsJpeg)
     } else if space.class() == ImageClass::Indexed {
-        Some("a palette image's indices cannot be stored as JPEG")
+        Some(ImageSkip::PaletteAsJpeg)
     } else if colour_keyed(dict) {
-        Some("a colour-key masked image is not written as JPEG: its key matches exact values")
+        Some(ImageSkip::ColourKey(ImageStep::Jpeg))
     } else if !matches!(components, 1 | 3 | 4) {
-        Some("JPEG stores 1, 3 or 4 colour components")
+        Some(ImageSkip::JpegComponents)
     } else {
         None
     }

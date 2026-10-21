@@ -2,10 +2,10 @@
 //! JPEG or convert its colour, resample, encode, and keep the result only
 //! when it passes the never-larger and `min-saving` guards.
 
-use super::Conversion;
 use super::convert;
 use super::pipeline::{Job, Source, Target};
 use super::predict;
+use super::{Conversion, ImageSkip};
 use crate::deskew::Raster;
 use crate::filters;
 use crate::image_codec::{CodecColorModel, decode_image_view};
@@ -40,9 +40,7 @@ pub(crate) fn run(
         _ => None,
     };
     if (int(b"Width"), int(b"Height")) != (Some(job.src.0), Some(job.src.1)) {
-        return Err(SkipReason::ImageUnsupported(
-            "its size changed since it was planned".to_owned(),
-        ));
+        return Err(SkipReason::ImageUnsupported(ImageSkip::SizeChanged));
     }
     let (samples, bpc) = source_samples(job, view, dict, raw)?;
     let raster = Raster {
@@ -74,7 +72,7 @@ pub(crate) fn run(
         Target::Jpeg(opts) => {
             let n = u8::try_from(components).unwrap_or(0);
             let data = jpeg_write::encode(&pixels, job.out.0, job.out.1, n, opts)
-                .map_err(SkipReason::ImageUnsupported)?;
+                .map_err(|e| SkipReason::ImageUnsupported(ImageSkip::JpegEncode(e)))?;
             (data, &b"DCTDecode"[..], 8, None)
         }
     };
@@ -190,9 +188,7 @@ fn source_samples(
                 || u32::from(coded.components) != job.components
                 || !model_ok
             {
-                return Err(SkipReason::ImageUnsupported(
-                    "its JPEG data disagrees with its dictionary".to_owned(),
-                ));
+                return Err(SkipReason::ImageUnsupported(ImageSkip::JpegMismatch));
             }
             let mut samples = coded.samples;
             if samples.len() < flat_len {

@@ -11,7 +11,9 @@ use crate::filters::flate;
 use crate::image_codec::decode_image_view;
 use crate::jpeg_write::{Chroma, JpegOptions, encode};
 use crate::object::{Dict, ObjId, Object};
-use crate::optimize::{ImageEncode, JpegQuality, OptimizePlan, SkipReason, estimate_jpeg_quality};
+use crate::optimize::{
+    ImageEncode, ImageSkip, ImageStep, JpegQuality, OptimizePlan, SkipReason, estimate_jpeg_quality,
+};
 use crate::space_audit::tests::stream;
 
 /// A smooth `components`-channel `N` x `N` raster, so JPEG error is small.
@@ -96,12 +98,47 @@ fn a_flate_image_written_as_jpeg_keeps_its_size_and_reports_the_quality() {
 }
 
 #[test]
-fn a_jpeg_whose_pixels_do_not_change_is_left_untouched() {
+fn a_jpeg_asked_below_its_quality_is_re_encoded_at_the_asked_quality() {
     let src = image("/DeviceGray", 8, "DCTDecode", "", &jpeg(&smooth(1), 1, 90));
-    let (_, p) = plan(
+    let (s, p) = plan(
         doc(AT_100, &[src]),
         &[("image(encode=jpeg,quality=20)", None)],
     );
+    let c = p
+        .changes
+        .iter()
+        .find(|c| c.id.num == 5)
+        .unwrap_or_else(|| panic!("{:?}", p.skipped));
+    let q: JpegQuality = c.image.as_ref().unwrap().jpeg.unwrap();
+    assert_eq!((q.asked, q.used, q.source_estimate), (20, 20, Some(90)));
+    let (_, raw) = applied(s, &p, 5);
+    assert_eq!(estimate_jpeg_quality(&raw), Some(20));
+}
+
+#[test]
+fn a_jpeg_asked_at_or_above_its_quality_is_skipped_with_both_qualities() {
+    let src = image("/DeviceGray", 8, "DCTDecode", "", &jpeg(&smooth(1), 1, 50));
+    let junk = image("/DeviceGray", 8, "DCTDecode", "", &[0xFF; 64]);
+    let content = "q 100 0 0 100 0 0 cm /Im5 Do /Im6 Do Q";
+    let (_, p) = plan(
+        doc(content, &[src, junk]),
+        &[("image(encode=jpeg,quality=50)", None)],
+    );
+    assert!(p.changes.iter().all(|c| c.id.num != 5 && c.id.num != 6));
+    let left = |source_estimate| {
+        Some(SkipReason::ImageUnsupported(ImageSkip::AlreadyJpeg {
+            source_estimate,
+            asked: 50,
+        }))
+    };
+    assert_eq!(skip(&p, 5), left(Some(50)));
+    assert_eq!(skip(&p, 6), left(None));
+}
+
+#[test]
+fn a_jpeg_with_its_encoding_kept_is_left_silently() {
+    let src = image("/DeviceGray", 8, "DCTDecode", "", &jpeg(&smooth(1), 1, 90));
+    let (_, p) = plan(doc(AT_100, &[src]), &[("image(quality=20)", None)]);
     assert!(p.changes.iter().all(|c| c.id.num != 5));
     assert!(skip(&p, 5).is_none());
 }
@@ -183,9 +220,13 @@ fn images_jpeg_cannot_store_are_refused_by_name() {
     let content = "q 100 0 0 100 0 0 cm /Im5 Do /Im6 Do /Im7 Do Q";
     let images = [mono, palette, grey("/Mask [0 10]")];
     let (_, p) = plan(doc(content, &images), &[("image(encode=jpeg)", None)]);
-    for (n, needle) in [(5, "1-bit"), (6, "palette"), (7, "colour-key")] {
+    for (n, why) in [
+        (5, ImageSkip::OneBitAsJpeg),
+        (6, ImageSkip::PaletteAsJpeg),
+        (7, ImageSkip::ColourKey(ImageStep::Jpeg)),
+    ] {
         assert!(
-            matches!(skip(&p, n), Some(SkipReason::ImageUnsupported(w)) if w.contains(needle)),
+            skip(&p, n) == Some(SkipReason::ImageUnsupported(why)),
             "object {n}: {:?}",
             skip(&p, n)
         );

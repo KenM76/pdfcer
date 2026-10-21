@@ -55,8 +55,8 @@ pub use discard::DiscardOptions;
 pub use image::jpeg_quality::estimate_jpeg_quality;
 pub use image::pipeline::{ImageChange, JpegQuality};
 pub use image::{
-    COLORS_RANGE, Chroma, Conversion, ImageConvert, ImageEncode, ImagePatch, Predictor,
-    QUALITY_LEVELS, ResampleMethod, ResolvedImage, SettingSource, Sourced, Threshold,
+    COLORS_RANGE, Chroma, Conversion, ImageConvert, ImageEncode, ImagePatch, ImageSkip, ImageStep,
+    Predictor, QUALITY_LEVELS, ResampleMethod, ResolvedImage, SettingSource, Sourced, Threshold,
 };
 pub use objects::{DiscardObject, ObjectDiscard};
 pub use select::{PageRanges, Selector};
@@ -479,7 +479,7 @@ pub enum SkipReason {
         pct: u8,
     },
     /// An image the settings ask to rewrite that is not rewritten, and why.
-    ImageUnsupported(String),
+    ImageUnsupported(ImageSkip),
     /// A role this action never rewrites: XMP metadata (PDF/A-1 §6.7.2
     /// forbids a `/Filter` on it), object and cross-reference streams (the
     /// writer owns them) and external-file streams.

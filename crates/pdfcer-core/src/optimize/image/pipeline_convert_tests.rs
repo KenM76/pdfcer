@@ -66,7 +66,7 @@ fn name(v: &str) -> Object {
 
 fn unsupported(p: &OptimizePlan, n: u32) -> String {
     match skip(p, n) {
-        Some(SkipReason::ImageUnsupported(w)) => w,
+        Some(SkipReason::ImageUnsupported(w)) => w.to_string(),
         other => panic!(
             "{n}: {other:?} {:?}",
             p.changes.iter().map(|c| c.id.num).collect::<Vec<_>>()
