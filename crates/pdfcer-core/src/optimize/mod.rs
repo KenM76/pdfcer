@@ -89,6 +89,15 @@ pub enum StreamAction {
         /// zlib level, 0 to 9.
         level: u8,
     },
+    /// As [`Self::Recompress`], but one `/BrotliDecode` at Brotli `quality`
+    /// (0 to 11; 11 is smallest). Written only when named, never by a preset
+    /// or `auto` (decision 194): committing it adds the PDF Association
+    /// Brotli extension (EXTN-BROTLI-1) to the catalog's `/Extensions` and
+    /// raises `/Version` to 2.0. Skipped under a PDF/A claim.
+    Brotli {
+        /// Brotli quality, 0 to 11.
+        quality: u8,
+    },
     /// Image settings, merged field by field over the actions before it
     /// (decision 192). A non-image stream gets the last `leave` or
     /// `recompress-N` before it instead.
@@ -102,6 +111,7 @@ impl StreamAction {
         match self {
             Self::Leave => "leave".to_owned(),
             Self::Recompress { level } => format!("recompress-{level}"),
+            Self::Brotli { quality } => format!("brotli-{quality}"),
             Self::Image(patch) => patch.to_string(),
         }
     }
@@ -119,14 +129,13 @@ impl StreamAction {
         match text {
             "leave" => Ok(Self::Leave),
             "recompress" => Ok(Self::Recompress { level: 9 }),
-            _ => text
-                .strip_prefix("recompress-")
-                .and_then(|n| n.parse::<u8>().ok())
-                .filter(|n| *n <= 9)
+            "brotli" => Ok(Self::Brotli { quality: 11 }),
+            _ => numbered(text, "recompress-", 9)
                 .map(|level| Self::Recompress { level })
+                .or_else(|| numbered(text, "brotli-", 11).map(|quality| Self::Brotli { quality }))
                 .ok_or_else(|| {
                     format!(
-                        "unknown action {text:?}; expected leave, recompress, recompress-0..9 or image(...)"
+                        "unknown action {text:?}; expected leave, recompress, recompress-0..9, brotli, brotli-0..11 or image(...)"
                     )
                 }),
         }
@@ -139,7 +148,7 @@ impl StreamAction {
     #[must_use]
     pub fn is_lossy(self) -> bool {
         match self {
-            Self::Leave | Self::Recompress { .. } => false,
+            Self::Leave | Self::Recompress { .. } | Self::Brotli { .. } => false,
             Self::Image(p) => {
                 (p.ppi.is_some() && p.method != Some(ResampleMethod::Off))
                     || p.encode == Some(ImageEncode::Jpeg)
@@ -395,6 +404,8 @@ pub enum SkipReason {
     /// forbids a `/Filter` on it), object and cross-reference streams (the
     /// writer owns them) and external-file streams.
     Protected(&'static str),
+    /// Brotli under a PDF/A claim, which does not admit the filter.
+    BrotliUnderPdfa,
 }
 
 impl fmt::Display for SkipReason {
@@ -413,6 +424,7 @@ impl fmt::Display for SkipReason {
             }
             Self::ImageUnsupported(why) => write!(f, "not rewritten: {why}"),
             Self::Protected(what) => write!(f, "{what} is never rewritten"),
+            Self::BrotliUnderPdfa => f.write_str("Brotli is not allowed in PDF/A, kept"),
         }
     }
 }
@@ -452,6 +464,14 @@ pub struct OptimizePlan {
     pub(crate) smooth_tolerance: f64,
 }
 
+/// `text` as `prefix` then a number no greater than `max`.
+fn numbered(text: &str, prefix: &str, max: u8) -> Option<u8> {
+    text.strip_prefix(prefix)?
+        .parse::<u8>()
+        .ok()
+        .filter(|n| *n <= max)
+}
+
 impl OptimizePlan {
     /// Stored stream bytes the changes save. The file saving also includes
     /// dictionary and cross-reference changes, which only the save measures.
@@ -468,10 +488,23 @@ impl OptimizePlan {
     /// catalog's `/Version` to it. `None` when no change raises it.
     #[must_use]
     pub fn version_raise(&self) -> Option<crate::PdfVersion> {
+        let brotli = self
+            .uses_brotli()
+            .then_some(crate::PdfVersion { major: 2, minor: 0 });
         self.changes
             .iter()
             .filter_map(|c| c.image.as_ref()?.raises_version)
+            .chain(brotli)
             .max()
+    }
+
+    /// Whether a change writes `/BrotliDecode`, so committing the plan adds
+    /// the Brotli developer extension to the catalog (decision 194).
+    #[must_use]
+    pub fn uses_brotli(&self) -> bool {
+        self.changes
+            .iter()
+            .any(|c| matches!(c.action, StreamAction::Brotli { .. }))
     }
 
     /// Whether the plan removes content: a clean-up or a discard, as
@@ -545,6 +578,8 @@ mod discard_tests;
 mod actions_tests;
 #[cfg(test)]
 mod annots_tests;
+#[cfg(test)]
+mod brotli_tests;
 #[cfg(test)]
 mod flatten_layers_tests;
 #[cfg(test)]

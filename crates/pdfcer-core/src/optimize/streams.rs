@@ -4,10 +4,12 @@ use super::{SkipReason, StreamAction};
 use crate::filters::{self, flate};
 use crate::object::{Dict, Name, ObjId, Object};
 
-/// Filters [`StreamAction::Recompress`] decodes and drops (ISO 32000-2
-/// §7.4, Table 6). Each is generic and lossless.
-pub(crate) const GENERIC: [&[u8]; 5] = [
+/// Filters [`StreamAction::Recompress`] and [`StreamAction::Brotli`] decode
+/// and drop (ISO 32000-2 §7.4, Table 6, and EXTN-BROTLI-1). Each is generic
+/// and lossless.
+pub(crate) const GENERIC: [&[u8]; 6] = [
     b"FlateDecode",
+    b"BrotliDecode",
     b"LZWDecode",
     b"ASCIIHexDecode",
     b"ASCII85Decode",
@@ -73,11 +75,25 @@ pub(crate) fn apply(
 ) -> Result<Option<(Dict, Vec<u8>)>, SkipReason> {
     match action {
         StreamAction::Leave | StreamAction::Image(_) => Ok(None),
-        StreamAction::Recompress { level } => recompress(dict, raw, level).map(Some),
+        StreamAction::Recompress { level } => reencode(dict, raw, b"FlateDecode", |d| {
+            Ok(flate::encode_with_level(d, u32::from(level)))
+        })
+        .map(Some),
+        StreamAction::Brotli { quality } => reencode(dict, raw, b"BrotliDecode", |d| {
+            filters::brotli::encode(d, u32::from(quality))
+                .map_err(|e| SkipReason::Undecodable(e.to_string()))
+        })
+        .map(Some),
     }
 }
 
-fn recompress(dict: &Dict, raw: &[u8], level: u8) -> Result<(Dict, Vec<u8>), SkipReason> {
+/// Decode the generic chain and re-encode with `encode` as one `filter`.
+fn reencode(
+    dict: &Dict,
+    raw: &[u8],
+    filter: &[u8],
+    encode: impl FnOnce(&[u8]) -> Result<Vec<u8>, SkipReason>,
+) -> Result<(Dict, Vec<u8>), SkipReason> {
     for name in chain(dict) {
         if !GENERIC.contains(&name.as_bytes()) {
             return Err(SkipReason::UnsupportedFilter(name));
@@ -85,7 +101,7 @@ fn recompress(dict: &Dict, raw: &[u8], level: u8) -> Result<(Dict, Vec<u8>), Ski
     }
     let decoded =
         filters::decode_stream(dict, raw).map_err(|e| SkipReason::Undecodable(e.to_string()))?;
-    let data = flate::encode_with_level(&decoded, u32::from(level));
+    let data = encode(&decoded)?;
     if data.len() >= raw.len() {
         return Err(SkipReason::NotSmaller {
             before: raw.len() as u64,
@@ -95,10 +111,7 @@ fn recompress(dict: &Dict, raw: &[u8], level: u8) -> Result<(Dict, Vec<u8>), Ski
     let mut out = dict.clone();
     out.remove(b"DecodeParms");
     out.remove(b"DP");
-    out.insert(
-        Name::from(b"Filter"),
-        Object::Name(Name::from(b"FlateDecode")),
-    );
+    out.insert(Name::from(b"Filter"), Object::Name(Name::from(filter)));
     out.insert(
         Name::from(b"Length"),
         Object::Integer(i64::try_from(data.len()).unwrap_or(i64::MAX)),

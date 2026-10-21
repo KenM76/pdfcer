@@ -36,7 +36,8 @@ pub(super) fn build(bodies: &[Vec<u8>]) -> Vec<u8> {
     buf
 }
 
-fn content() -> Vec<u8> {
+/// A compressible content stream, shared by the optimize test modules.
+pub(super) fn content() -> Vec<u8> {
     b"0 0 m 100 100 l S\n".repeat(200)
 }
 

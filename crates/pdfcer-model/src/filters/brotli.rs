@@ -49,13 +49,9 @@
 //!
 //! # What this module deliberately does NOT do
 //!
-//! **No encoder.** Emitting Brotli interacts with project rule 3
-//! (round-trip / minimal-diff): an untouched Brotli stream must be re-emitted
-//! byte-identical, which is a byte-copy question rather than a re-compress
-//! one, and re-compressing at a different quality level would rewrite streams
-//! pdfcer never edited. That is a separate and larger decision, deliberately
-//! not taken here. The crate's compressor half is not even compiled in — see
-//! the feature list in `Cargo.toml`.
+//! **No encoding on its own initiative.** [`encode`] exists for the
+//! optimizer's named `brotli` action only (decision 194): an untouched Brotli
+//! stream is re-emitted byte-identical, never re-compressed.
 //!
 //! **No inline-image support.** §5.2: *"`BrotliDecode` **SHALL NOT** be used
 //! for inline images"*, and no Table 92 abbreviation exists for it. The
@@ -85,6 +81,26 @@ pub fn decode(data: &[u8], parms: Option<&Dict>) -> Result<Vec<u8>, FilterError>
         None => Ok(plain),
         Some(p) => predictor::unpredict(plain, &p),
     }
+}
+
+/// Compress `data` as raw RFC 7932 Brotli at `quality` (0 to 11; higher
+/// values are clamped to 11), standard 4 MiB window. Never large-window,
+/// never RFC 9841 framing (BR-3). No predictor is applied.
+///
+/// # Errors
+///
+/// An I/O error from the encoder; writing into a `Vec` does not fail, so this
+/// is not expected in practice.
+#[doc(hidden)] // workspace-internal: called by pdfcer-core, not API
+pub fn encode(data: &[u8], quality: u32) -> std::io::Result<Vec<u8>> {
+    let params = ::brotli::enc::BrotliEncoderParams {
+        quality: i32::try_from(quality.min(11)).unwrap_or(11),
+        lgwin: 22,
+        ..Default::default()
+    };
+    let mut out = Vec::with_capacity(data.len() / 2 + 64);
+    ::brotli::BrotliCompress(&mut &data[..], &mut out, &params)?;
+    Ok(out)
 }
 
 /// Incremental, ceiling-bounded Brotli decompression.
@@ -194,11 +210,23 @@ fn decompress_bounded(data: &[u8]) -> Result<Vec<u8>, FilterError> {
 mod tests {
     use super::*;
 
-    /// Compress with the reference encoder so the fixtures in these tests are
-    /// real Brotli rather than hand-assembled bytes.
-    ///
-    /// This is a **test-only** use of the encoder. The shipped filter decodes
-    /// only — see the module docs on why an encoder is a separate decision.
+    #[test]
+    fn encode_round_trips_through_decode_at_every_quality_end() {
+        let plain: Vec<u8> = (0..20_000u32).map(|i| (i % 251) as u8).collect();
+        for q in [0, 5, 11, 99] {
+            let packed = encode(&plain, q).unwrap();
+            assert!(packed.len() < plain.len(), "quality {q} did not shrink");
+            assert_eq!(decode(&packed, None).unwrap(), plain, "quality {q}");
+        }
+    }
+
+    #[test]
+    fn encode_of_nothing_decodes_to_nothing() {
+        assert_eq!(decode(&encode(b"", 11).unwrap(), None).unwrap(), b"");
+    }
+
+    /// Compress with the reference encoder at its defaults, independent of
+    /// [`encode`], so the decode tests do not lean on pdfcer's own encoder.
     fn compress(plain: &[u8]) -> Vec<u8> {
         compress_at(plain, ::brotli::enc::BrotliEncoderParams::default().quality)
     }

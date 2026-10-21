@@ -1237,3 +1237,39 @@ fn jbig2_in_a_pdf_1_3_document_raises_and_discloses_the_version() {
     assert!(refused.contains("version-raise=refuse"), "{refused}");
     assert!(!refused.contains("version: raised"), "{refused}");
 }
+
+#[test]
+fn streams_brotli_writes_brotli_and_declares_the_extension() {
+    let d = dir("brotli");
+    let input = write_pdf(&d, "");
+    let out = d.join("out.pdf");
+    let o = run(&[
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--streams",
+        "brotli",
+        "--keep-structure",
+    ]);
+    assert_eq!(
+        o.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    let report = text(&o);
+    assert!(report.contains("brotli-11"), "{report}");
+    assert!(report.contains("note: Brotli streams need"), "{report}");
+    let saved = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(saved.contains("/BrotliDecode"), "no Brotli stream");
+    assert!(
+        saved.contains("/PDFa") && saved.contains("extension-brotli"),
+        "no extension dictionary"
+    );
+    assert!(saved.contains("/Version /2.0"), "no version raise");
+    let check = Command::new(BIN)
+        .args(["inspect", out.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(check.status.code(), Some(0));
+}

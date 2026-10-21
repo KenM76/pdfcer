@@ -21,26 +21,44 @@ impl EditSession {
         written.map_or(base, |v| v.max(base))
     }
 
-    /// The write setting the catalog's `/Version` to `to`, when that is
-    /// above the session's version and the catalog is an indirect
-    /// dictionary.
-    pub(super) fn version_write(&self, to: PdfVersion) -> Option<ObjectWrite> {
-        if to <= self.effective_version() {
-            return None;
+    /// The catalog writes an optimize plan commits: `/Version` set to
+    /// `raise` when that is above the session's version, and the Brotli
+    /// extension when `brotli`. Empty unless the catalog is an indirect
+    /// dictionary and something changes.
+    pub(super) fn catalog_writes(
+        &self,
+        raise: Option<PdfVersion>,
+        brotli: bool,
+    ) -> Vec<ObjectWrite> {
+        let Some(id) = self.catalog_id() else {
+            return Vec::new();
+        };
+        let Some(mut catalog) = self.value(id).and_then(Object::as_dict).cloned() else {
+            return Vec::new();
+        };
+        let mut changed = false;
+        if let Some(to) = raise.filter(|to| *to > self.effective_version()) {
+            let name = format!("{}.{}", to.major, to.minor);
+            catalog.insert(
+                Name::from(b"Version"),
+                Object::Name(Name::from(name.as_bytes())),
+            );
+            changed = true;
         }
-        let id = self.catalog_id()?;
-        let before = self.state.get(&id).cloned();
-        let mut catalog = self.value(id)?.as_dict()?.clone();
-        let name = format!("{}.{}", to.major, to.minor);
-        catalog.insert(
-            Name::from(b"Version"),
-            Object::Name(Name::from(name.as_bytes())),
-        );
-        Some(ObjectWrite {
-            id,
-            before,
-            after: Some(Object::Dict(catalog)),
-        })
+        let mut writes = Vec::new();
+        if brotli {
+            let (in_catalog, indirect) = self.add_brotli_extension(&mut catalog);
+            changed |= in_catalog;
+            writes.extend(indirect);
+        }
+        if changed {
+            writes.push(ObjectWrite {
+                id,
+                before: self.state.get(&id).cloned(),
+                after: Some(Object::Dict(catalog)),
+            });
+        }
+        writes
     }
 }
 

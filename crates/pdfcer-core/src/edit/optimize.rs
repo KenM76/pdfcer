@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::{Command, CommandKind, EditSession, ObjectWrite};
 use crate::document::Document;
-use crate::object::{ObjId, Object, Stream};
+use crate::object::{Dict, ObjId, Object, Stream};
 use crate::optimize::image::{self, pipeline::Outcome};
 use crate::optimize::select::ObjectFacts;
 use crate::optimize::streams::{self, Rewrite};
@@ -67,6 +67,9 @@ impl EditSession {
         self.plan_streams(&mut plan, settings, &ids, &rows);
         if plan.changes.iter().any(|c| c.lossy) {
             notes.push("some changes are lossy; each is listed".to_owned());
+        }
+        if plan.uses_brotli() {
+            notes.push(super::optimize_extension::BROTLI_NOTE.to_owned());
         }
         plan.cleanup = self.plan_cleanup(&settings.cleanup, &mut notes);
         plan.discard = self.plan_discard(settings.discard, &mut notes);
@@ -221,8 +224,8 @@ impl EditSession {
                 &mut fold,
             )?;
         let mut objects = self.stream_writes(&plan.writes);
-        if let Some(raise) = plan.version_raise().filter(|_| !objects.is_empty()) {
-            objects.extend(self.version_write(raise));
+        if !objects.is_empty() {
+            objects.extend(self.catalog_writes(plan.version_raise(), plan.uses_brotli()));
         }
         if objects.is_empty() {
             fold.finish(self, removed);
@@ -321,6 +324,15 @@ impl EditSession {
     }
 }
 
+/// Why `action` is never applied to the stream under `dict`, if it is not.
+fn refusal(dict: &Dict, action: StreamAction, pdfa: bool) -> Option<crate::optimize::SkipReason> {
+    use crate::optimize::SkipReason;
+    if let Some(what) = streams::protected(dict) {
+        return Some(SkipReason::Protected(what));
+    }
+    (pdfa && matches!(action, StreamAction::Brotli { .. })).then_some(SkipReason::BrotliUnderPdfa)
+}
+
 /// Decide and perform one stream's action, recording it in `plan`.
 pub(super) fn plan_stream(
     plan: &mut OptimizePlan,
@@ -360,9 +372,8 @@ pub(super) fn plan_stream(
         return;
     }
     let skip = |reason| Skipped { id, action, reason };
-    if let Some(what) = streams::protected(&stream.dict) {
-        plan.skipped
-            .push(skip(crate::optimize::SkipReason::Protected(what)));
+    if let Some(reason) = refusal(&stream.dict, action, ctx.pdfa) {
+        plan.skipped.push(skip(reason));
         return;
     }
     let mut job = job;
