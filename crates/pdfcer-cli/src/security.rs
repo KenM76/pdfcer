@@ -369,8 +369,11 @@ pub(crate) fn cmd_redact_apply(
     // read: `Pass 84.0` exists because twelve colour counters were computed,
     // merged and unit-tested while no shell ever printed one (R151).
     println!(
-        "  overlay_text_burned={} overlay_ro_not_drawn={} overlay_transparent={}",
-        report.overlay_text_burned, report.overlay_ro_not_drawn, report.overlay_transparent,
+        "  overlay_text_burned={} overlay_ro_not_drawn={} overlay_transparent={} overlay_fill_not_rgb={}",
+        report.overlay_text_burned,
+        report.overlay_ro_not_drawn,
+        report.overlay_transparent,
+        report.overlay_fill_not_rgb,
     );
     // The image surgery (§12.5.6.23 "that portion of the image data shall be
     // destroyed"). `marks_retained` is the one a batch caller must read: a

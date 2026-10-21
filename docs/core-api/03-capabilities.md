@@ -1988,7 +1988,10 @@ internally (`redact.rs`).
 `info_strings_scrubbed`, **`residual_sweep_entries_scrubbed`,
 `residual_content_streams_blanked`,
 `residual_sweep_objects_scrubbed`** (`Pass 284.0`), `estimated_width_fonts`, `overlay_text_burned`,
-`overlay_ro_not_drawn`, `overlay_transparent`, **`images_cleared`,
+`overlay_ro_not_drawn`, `overlay_transparent`, **`overlay_fill_not_rgb`**
+(a grey or CMYK `/IC` from another producer is painted in the space its length
+names and disclosed, never left transparent; pdfcer's own marks always write a
+three-number `/IC` — Gray exactly, CMYK as `cmyk_to_srgb`), **`images_cleared`,
 `images_removed`, `images_cloned_shared`, `images_overcovered`,
 `vector_paths_intersecting`, `marks_retained`** (all `Pass 245.0`),
 **`vector_paths_cut`, `vector_paths_dropped`, `vector_clips_kept`**

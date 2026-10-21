@@ -87,6 +87,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::Range;
 
+use crate::annot_author::Color;
 use crate::content::{ContentStream, ContentTokenKind};
 use crate::document::Document;
 use crate::graph::ObjectGraph;
@@ -511,6 +512,11 @@ pub struct RedactionReport {
     /// Regions left TRANSPARENT because the mark carried no `/RO`,
     /// `/OverlayText` or `/IC` — Table 192's stated default.
     pub overlay_transparent: u64,
+    /// Regions whose box was painted from a one-number (`DeviceGray`) or
+    /// four-number (`DeviceCMYK`) `/IC`. Table 192 types `/IC` as
+    /// `DeviceRGB`; pdfcer paints the colour the array names rather than
+    /// leave the region unmarked, and discloses it.
+    pub overlay_fill_not_rgb: u64,
     /// Image placements whose in-region samples were destroyed and the
     /// image re-encoded (losslessly, `FlateDecode`) — §12.5.6.23's
     /// "that portion of the image data shall be destroyed".
@@ -1728,6 +1734,9 @@ struct OverlayOutcome {
     /// Regions left transparent because no `/RO`, `/OverlayText` or `/IC`
     /// was present (Table 192's default).
     transparent_regions: u64,
+    /// Regions whose box was painted from a one- or four-number `/IC`,
+    /// which Table 192 types as `DeviceRGB`.
+    fill_not_rgb: u64,
     /// Regions whose `/Repeat true` was ignored.
     repeat_ignored: u64,
     /// Regions whose `/OverlayText` was present with no `/DA`, which
@@ -1754,6 +1763,7 @@ impl OverlayOutcome {
         self.text_regions += other.text_regions;
         self.ro_regions += other.ro_regions;
         self.transparent_regions += other.transparent_regions;
+        self.fill_not_rgb += other.fill_not_rgb;
         self.repeat_ignored += other.repeat_ignored;
         self.da_substituted += other.da_substituted;
         self.unencodable_chars += other.unencodable_chars;
@@ -1797,14 +1807,17 @@ fn build_overlay(
                 Some(*fallback)
             }
             OverlayRegime::Text { fill, .. } => *fill,
-            OverlayRegime::Fill(rgb) => Some(*rgb),
+            OverlayRegime::Fill(c) => Some(*c),
             OverlayRegime::Transparent => {
                 out.transparent_regions += 1;
                 None
             }
         };
-        if let Some(rgb) = box_fill {
-            b.set_fill_rgb(rgb[0], rgb[1], rgb[2]);
+        if let Some(fill) = box_fill {
+            if !matches!(fill, Color::Rgb(..)) {
+                out.fill_not_rgb += 1;
+            }
+            fill.apply_fill(&mut b);
             b.rect(x, y, w, h);
             b.paint(Paint::Fill);
         }
@@ -2379,6 +2392,7 @@ pub fn apply_redactions_with(
     report.overlay_text_burned = overlay_totals.text_regions;
     report.overlay_ro_not_drawn = overlay_totals.ro_regions;
     report.overlay_transparent = overlay_totals.transparent_regions;
+    report.overlay_fill_not_rgb = overlay_totals.fill_not_rgb;
     if report.images_overcovered > 0 {
         report.note(format!(
             "redaction: {} image placement(s) are rotated or skewed, so the destroyed cells \
@@ -2409,6 +2423,14 @@ pub fn apply_redactions_with(
              /OverlayText or /IC, and Table 192 says an absent /IC leaves the interior \
              transparent; the content is removed but the region carries no visible mark",
             overlay_totals.transparent_regions
+        ));
+    }
+    if overlay_totals.fill_not_rgb > 0 {
+        report.note(format!(
+            "redaction: {} region(s) had a grey or CMYK /IC, which Table 192 types as \
+             DeviceRGB — the box was painted in the colour space the array's length names \
+             rather than left transparent",
+            overlay_totals.fill_not_rgb
         ));
     }
     if overlay_totals.repeat_ignored > 0 {
@@ -2729,7 +2751,7 @@ fn annot_rect_box(doc: &Document, dict: &Dict) -> Option<RegionBox> {
 /// A `/Redact` mark's fill colour: `/IC` (DeviceRGB, three numbers) or the
 /// default black. `/IC` is ignored if `/RO` is present (Table 192); RO
 /// burn-in is a named follow-up, so this build honours `/IC`/default.
-fn annot_fill(doc: &Document, dict: &Dict) -> Option<[f64; 3]> {
+fn annot_fill(doc: &Document, dict: &Dict) -> Option<Color> {
     let ic = dict
         .get(b"IC")
         .map(|o| doc.resolve(o))
@@ -2739,7 +2761,9 @@ fn annot_fill(doc: &Document, dict: &Dict) -> Option<[f64; 3]> {
         .filter_map(|o| doc.resolve(o).as_number())
         .collect();
     match n.as_slice() {
-        [r, g, b] => Some([*r, *g, *b]),
+        [g] => Some(Color::Gray(*g)),
+        [r, g, b] => Some(Color::Rgb(*r, *g, *b)),
+        [c, m, y, k] => Some(Color::Cmyk(*c, *m, *y, *k)),
         _ => None,
     }
 }
@@ -2782,12 +2806,12 @@ enum OverlayRegime {
     /// trouble of supplying a custom overlay appearance plainly intended
     /// the region to be marked, and silently leaving it bare would be the
     /// one failure mode this feature cannot have.
-    Ro { fallback: [f64; 3] },
+    Ro { fallback: Color },
     /// `/OverlayText` is present (and `/RO` is not).
     Text {
         /// `/IC`, drawn UNDER the text when present. `None` leaves the
         /// region transparent behind the glyphs.
-        fill: Option<[f64; 3]>,
+        fill: Option<Color>,
         /// The decoded `/OverlayText` string.
         text: String,
         /// `/DA` — conditionally REQUIRED by Table 192 whenever
@@ -2803,7 +2827,7 @@ enum OverlayRegime {
         repeat: bool,
     },
     /// `/IC` alone.
-    Fill([f64; 3]),
+    Fill(Color),
     /// No `/RO`, no `/OverlayText`, no `/IC` — Table 192's transparent
     /// default.
     Transparent,
@@ -2821,7 +2845,7 @@ fn annot_overlay(doc: &Document, dict: &Dict) -> OverlayRegime {
     let fill = annot_fill(doc, dict);
     if dict.get(b"RO").is_some() {
         return OverlayRegime::Ro {
-            fallback: fill.unwrap_or([0.0, 0.0, 0.0]),
+            fallback: fill.unwrap_or(Color::Rgb(0.0, 0.0, 0.0)),
         };
     }
     let overlay_text = dict
@@ -2866,7 +2890,7 @@ fn annot_overlay(doc: &Document, dict: &Dict) -> OverlayRegime {
         };
     }
     match fill {
-        Some(rgb) => OverlayRegime::Fill(rgb),
+        Some(c) => OverlayRegime::Fill(c),
         None => OverlayRegime::Transparent,
     }
 }
@@ -5765,6 +5789,27 @@ mod tests {
         assert_eq!(report.overlay_transparent, 0);
         assert!(contains(&content, b"0 0 1 rg"), "the /IC colour is used");
         assert!(contains(&content, b" re\n"), "a box is filled");
+    }
+
+    /// A grey or CMYK `/IC` from another producer is painted in the space
+    /// its length names and disclosed, not read as transparent (G218).
+    #[test]
+    fn grey_and_cmyk_ic_fill_the_region_and_say_so() {
+        for (ic, op) in [("/IC [0]", &b"0 g"[..]), ("/IC [0 0 0 1]", b"0 0 0 1 k")] {
+            let (out, report) = apply_marked(ic);
+            let content = all_decoded_content(&Document::from_bytes(out).unwrap());
+            assert_eq!(report.overlay_transparent, 0, "{ic}");
+            assert_eq!(report.overlay_fill_not_rgb, 1, "{ic}");
+            assert!(contains(&content, op), "{ic}: the colour is painted");
+            assert!(contains(&content, b" re\n"), "{ic}: a box is filled");
+            assert!(
+                report.notes.iter().any(|n| n.contains("grey or CMYK /IC")),
+                "{ic}: {:?}",
+                report.notes
+            );
+        }
+        let (_, report) = apply_marked("/IC [0 0 1]");
+        assert_eq!(report.overlay_fill_not_rgb, 0);
     }
 
     /// `/RO` takes precedence over everything and pdfcer cannot draw it.

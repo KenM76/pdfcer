@@ -115,8 +115,24 @@ impl Color {
         }
     }
 
+    /// The colour as three `DeviceRGB` numbers, for a key the standard
+    /// types as RGB (a Redact `/IC`, Table 192). Gray is exact; CMYK goes
+    /// through [`pdfcer_color::color::cmyk_to_srgb`], the colour pdfcer
+    /// renders it as.
+    pub(crate) fn to_device_rgb(self) -> [f64; 3] {
+        let srgb = |v: [f32; 3]| v.map(f64::from);
+        match self {
+            Self::Gray(g) => [g, g, g],
+            Self::Rgb(r, g, b) => [r, g, b],
+            #[allow(clippy::cast_possible_truncation)] // colour channels are 0..1
+            Self::Cmyk(c, m, y, k) => srgb(pdfcer_color::color::cmyk_to_srgb(
+                c as f32, m as f32, y as f32, k as f32,
+            )),
+        }
+    }
+
     /// Apply as the non-stroking (fill) colour in the content stream.
-    fn apply_fill(self, b: &mut ContentBuilder) {
+    pub(crate) fn apply_fill(self, b: &mut ContentBuilder) {
         match self {
             Self::Gray(g) => b.set_fill_gray(g),
             Self::Rgb(r, g, bl) => b.set_fill_rgb(r, g, bl),
@@ -2892,7 +2908,12 @@ pub struct RedactSpec {
     /// `None` writes no `/IC`, and ISO 32000-1 Table 192 is explicit about
     /// what that means on apply: "if this entry is absent, the interior of
     /// the redaction region is left transparent". It is NOT a synonym for
-    /// black — pass `Some(Color::gray(0.0))` for a black box.
+    /// black — pass `Some(Color::Gray(0.0))` for a black box.
+    ///
+    /// Table 192 types `/IC` as `DeviceRGB`, so a Gray fill is written as its
+    /// exact RGB equal and a CMYK fill as the sRGB colour pdfcer renders it
+    /// as ([`pdfcer_color::color::cmyk_to_srgb`]). The written array is the
+    /// one in the returned annotation; a shell that offered CMYK says so.
     pub fill: Option<Color>,
     /// Optional overlay text `/OverlayText`, **drawn on apply** over the
     /// `/IC` fill (Table 192's overlay ladder — `/IC` is ignored only when
@@ -2994,7 +3015,13 @@ pub fn build_redact_mark_with(spec: &RedactSpec, order: QuadPointOrder) -> Autho
         text_markup_quad_object(&spec.quads, order),
     );
     if let Some(fill) = spec.fill {
-        annot.insert(Name::from(b"IC"), fill.to_array());
+        // Table 192 types a Redact /IC as DeviceRGB; a one- or four-number
+        // array is read as transparent by readers that follow it.
+        let rgb = fill.to_device_rgb();
+        annot.insert(
+            Name::from(b"IC"),
+            Color::Rgb(rgb[0], rgb[1], rgb[2]).to_array(),
+        );
     }
     if let Some(text) = &spec.overlay_text {
         annot.insert(Name::from(b"OverlayText"), contents_string(text));
@@ -6425,6 +6452,34 @@ mod tests {
 
     fn rect(llx: f64, lly: f64, urx: f64, ury: f64) -> Rect {
         Rect { llx, lly, urx, ury }
+    }
+
+    /// A Redact `/IC` is always three numbers (Table 192 types it RGB):
+    /// Gray exactly, CMYK as the colour pdfcer renders it (G218).
+    #[test]
+    fn a_redact_fill_is_written_as_three_rgb_numbers() {
+        let k = pdfcer_color::color::cmyk_to_srgb(0.0, 0.0, 0.0, 1.0).map(f64::from);
+        for (fill, want) in [
+            (Color::Gray(0.0), [0.0; 3]),
+            (Color::Gray(0.5), [0.5; 3]),
+            (Color::Rgb(0.1, 0.2, 0.3), [0.1, 0.2, 0.3]),
+            (Color::Cmyk(0.0, 0.0, 0.0, 1.0), k),
+        ] {
+            let spec = RedactAppearance {
+                fill: Some(fill),
+                ..RedactAppearance::default()
+            }
+            .to_spec(vec![Quad::from_rect(rect(0.0, 0.0, 10.0, 10.0))]);
+            let a = build_redact_mark(&spec);
+            let Some(Object::Array(ic)) = a.annot.get(b"IC") else {
+                panic!("no /IC for {fill:?}")
+            };
+            let got: Vec<f64> = ic.iter().filter_map(Object::as_number).collect();
+            assert_eq!(got.len(), 3, "{fill:?}");
+            for (g, w) in got.iter().zip(want) {
+                assert!((g - w).abs() < 1e-6, "{fill:?}: {got:?} vs {want:?}");
+            }
+        }
     }
 
     fn content_str(a: &AuthoredAppearance) -> String {
