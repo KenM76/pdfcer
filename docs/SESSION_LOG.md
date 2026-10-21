@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1122nd filing) — `Pass 616.3` slice E PARTIAL in `16e42db6`: discard form fields, multimedia and 3D models
+
+**Shipped (engineer-reported, no shell here):** `DiscardObject` classes `form-fields` (widgets + `/AcroForm`, deleted not flattened), `multimedia` (Screen/Movie/Sound/RichMedia annotations, Rendition/Movie/Sound/RichMediaExecute actions, `/Names /Renditions`) and `3d-models` (3D annotations, GoTo3DView; one aimed at RichMedia counts as multimedia). With `comment` they equal Acrobat's "Discard All Comments, Forms And Multimedia". Per-page plan item; orphaned pop-ups and structure OBJR references go too; list removals apply against the current value; certified files refused. Core `[x]`, cli `[x]`, gui `[ ]`. Core lib 1604 passed (5 new; OBJR sabotage failed 3), CLI optimize 15, gates clean. No dependency change. GUI note updated (`ALL` = 10).
+
+**Owed:** inert link hotspots; 2.0 `/SD`; XMP `pdfaid`; 3D-stream CAD attributes; `MarkInfo /UserProperties` without a tree; OBJR in inline struct elements; UR3 stays. Remaining 616.3: search index, layers, image fragments, smooth lines.
+
+**Register:** ROADMAP `616.3` stays IN PROGRESS; FEATURES discard-objects row extended, Planned remainder narrowed. No decision. Git, push and backup state not verified from here.
+
 ## 2026-10-20 (1121st filing) — `Pass 616.3` slice D PARTIAL in `3a1d93f1`: discard object data
 
 **Shipped (engineer-reported, no shell here):** `DiscardObject::ObjectData` (`--discard object-data`): removes `/O /UserProperties` attribute objects (and their revision integers) from structure elements and ClassMap classes, plus the catalog `MarkInfo /UserProperties` flag. Other attributes, `/C`, `/R`, parent tree and content untouched. A one-attribute array stays an array (UP-A1); an emptied class named by `/C` stays (erratum 254); skipped when Tags is selected. Spec hand-off consumed: `iso32000__s__14.7.5.4.md`. Core `[x]`, cli `[x]`, gui `[ ]`. Core lib 1599 passed (4 new; sabotage failed 1 test), CLI optimize 14/14, 33 CI-yml audits pass. No dependency change.
