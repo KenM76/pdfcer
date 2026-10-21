@@ -82,6 +82,14 @@ fn image_text(img: &ImageChange) -> String {
         ));
     }
     line.push_str(&format!("; written as {}", img.encoded_as));
+    if !img.candidates.is_empty() {
+        let sizes: Vec<String> = img
+            .candidates
+            .iter()
+            .map(|(e, n)| format!("{e} {n} B"))
+            .collect();
+        line.push_str(&format!(" (auto, smallest of {})", sizes.join(", ")));
+    }
     if let Some(q) = img.jpeg {
         line.push_str(&format!(" quality {} (asked {}", q.used, q.asked));
         if let Some(e) = q.source_estimate {
@@ -211,12 +219,17 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
         },
     );
     format!(
-        "{{\"size_before\":[{},{}],\"size_after\":[{},{}],\"binding\":{binding},\"encoded_as\":\"{}\",\"bpc\":[{},{}],\"jpeg\":{jpeg},\"method\":{},\"ppi\":{},\"above\":{},\"encode\":{},\"quality\":{},\"chroma\":{},\"progressive\":{},\"min_saving_pct\":{},\"color_space\":[\"{}\",\"{}\"],\"conversion\":{},\"convert\":{},\"threshold\":{},\"colors\":{},\"keyed\":{},\"max_pixels\":{},\"predictor\":{},\"predicted\":{},\"flate_bytes\":{},\"resampled_with\":{},\"copies\":[{}]}}",
+        "{{\"size_before\":[{},{}],\"size_after\":[{},{}],\"binding\":{binding},\"encoded_as\":\"{}\",\"candidates\":[{}],\"bpc\":[{},{}],\"jpeg\":{jpeg},\"method\":{},\"ppi\":{},\"above\":{},\"encode\":{},\"quality\":{},\"chroma\":{},\"progressive\":{},\"min_saving_pct\":{},\"color_space\":[\"{}\",\"{}\"],\"conversion\":{},\"convert\":{},\"threshold\":{},\"colors\":{},\"keyed\":{},\"max_pixels\":{},\"predictor\":{},\"predicted\":{},\"flate_bytes\":{},\"resampled_with\":{},\"copies\":[{}]}}",
         img.size_before.0,
         img.size_before.1,
         img.size_after.0,
         img.size_after.1,
         img.encoded_as,
+        img.candidates
+            .iter()
+            .map(|(e, n)| format!("{{\"encode\":\"{e}\",\"bytes\":{n}}}"))
+            .collect::<Vec<_>>()
+            .join(","),
         img.bpc.0,
         img.bpc.1,
         src(format!("\"{}\"", s.method.value), s.method.source),

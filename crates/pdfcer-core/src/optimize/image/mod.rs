@@ -110,6 +110,14 @@ pub enum ImageEncode {
     /// 1-component output only, like `Ccitt`. The filter is PDF 1.4; a
     /// document declaring an earlier version is skipped.
     Jbig2,
+    /// The smallest lossless candidate (decision 193): Flate level 9 and
+    /// RunLength for any image, plus CCITT G4 and JBIG2 for 1-bit,
+    /// 1-component output, JBIG2 only where the document's version allows
+    /// it. Never LZW, never lossy, never a version raise. Ties go to the
+    /// earlier of Flate, CCITT, RunLength, JBIG2. A JPEG source is treated
+    /// as under `Keep`, and a source this pipeline cannot decode is left
+    /// as stored. The report lists every candidate's size.
+    Auto,
 }
 
 impl fmt::Display for ImageEncode {
@@ -122,6 +130,7 @@ impl fmt::Display for ImageEncode {
             Self::Lzw => f.write_str("lzw"),
             Self::Ccitt => f.write_str("ccitt"),
             Self::Jbig2 => f.write_str("jbig2"),
+            Self::Auto => f.write_str("auto"),
         }
     }
 }
@@ -350,6 +359,7 @@ fn parse_encode(value: &str) -> Result<ImageEncode, String> {
         "lzw" => Ok(ImageEncode::Lzw),
         "ccitt" => Ok(ImageEncode::Ccitt),
         "jbig2" => Ok(ImageEncode::Jbig2),
+        "auto" => Ok(ImageEncode::Auto),
         _ => value
             .strip_prefix("flate-")
             .and_then(|n| n.parse::<u8>().ok())
@@ -357,7 +367,7 @@ fn parse_encode(value: &str) -> Result<ImageEncode, String> {
             .map(|level| ImageEncode::Flate { level })
             .ok_or_else(|| {
                 format!(
-                    "image(): unknown encode {value:?}; expected keep, flate, flate-0..9, jpeg, runlength, lzw, ccitt or jbig2"
+                    "image(): unknown encode {value:?}; expected keep, auto, flate, flate-0..9, jpeg, runlength, lzw, ccitt or jbig2"
                 )
             }),
     }
@@ -657,6 +667,8 @@ pub(crate) fn fold(actions: impl IntoIterator<Item = (StreamAction, SettingSourc
     }
 }
 
+#[cfg(test)]
+mod pipeline_auto_tests;
 #[cfg(test)]
 mod pipeline_cap_tests;
 #[cfg(test)]

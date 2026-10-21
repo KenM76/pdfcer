@@ -47,6 +47,9 @@ pub struct ImageChange {
     /// For LZW output, the size Flate level 9 gives the same samples with
     /// the same predictor choice.
     pub flate_bytes: Option<u64>,
+    /// For `encode=auto`, each candidate tried, in trial order, with its
+    /// size in bytes; `encoded_as` is the one written. Empty otherwise.
+    pub candidates: Vec<(ImageEncode, u64)>,
     /// For a `/Matte` soft mask, the parent image it was resampled with:
     /// its size follows the parent's, not its own settings (ISO 32000-2
     /// §11.6.5.3 requires the two sizes to be equal).
@@ -80,6 +83,10 @@ impl ImageChange {
         self.conversion = w.conversion;
         self.predicted = w.predicted;
         self.flate_bytes = w.flate_bytes;
+        if let Some(auto) = w.auto {
+            self.encoded_as = auto.chosen;
+            self.candidates = auto.candidates;
+        }
         (w.dict, w.data)
     }
 }
@@ -121,7 +128,13 @@ pub(crate) enum Target {
     Ccitt,
     /// `/JBIG2Decode` generic region, 1-bit 1-component samples only.
     Jbig2,
+    /// The smallest lossless candidate; `jbig2` says the document's
+    /// version allows JBIG2.
+    Auto { predictor: Predictor, jbig2: bool },
 }
+
+/// The version `/JBIG2Decode` needs (ISO 32000-1 §7.4.7).
+const JBIG2_VERSION: crate::PdfVersion = crate::PdfVersion { major: 1, minor: 4 };
 
 /// A planned rewrite, redone on a stream an earlier step of the run
 /// rewrote.
@@ -292,6 +305,9 @@ pub(crate) fn decide(
     }
     let source = match (resized, encode, &convert) {
         (None, ImageEncode::Keep, None) => return Ok(Outcome::Unchanged),
+        (None, ImageEncode::Auto, None) if source_kind(dict).is_err() => {
+            return Ok(Outcome::Unchanged);
+        }
         (None, ImageEncode::Flate { level }, None) if !predictable(settings, dict, space) => {
             return Ok(Outcome::Lossless(level));
         }
@@ -310,7 +326,7 @@ pub(crate) fn decide(
     let reduced = matches!(to, Some(ImageConvert::Bilevel | ImageConvert::Indexed));
     let jpeg = match encode {
         ImageEncode::Jpeg => true,
-        ImageEncode::Keep => source == Source::Dct && !reduced,
+        ImageEncode::Keep | ImageEncode::Auto => source == Source::Dct && !reduced,
         _ => false,
     };
     if jpeg && reduced {
@@ -319,12 +335,7 @@ pub(crate) fn decide(
     let (components, bpc) = sample_format(dict, space, source, jpeg && convert.is_none())?;
     bilevel_only(settings, to, (components, bpc))?;
     filter_version(encode, ctx.view.version())?;
-    let (target, quality) = if jpeg {
-        let (opts, q) = jpeg_options(settings, source, raw);
-        (Target::Jpeg(opts), Some(q))
-    } else {
-        (lossless_target(encode, settings.predictor.value), None)
-    };
+    let (target, quality) = target(settings, (source, raw), jpeg, ctx.view.version());
     let (w, h) = (space.width, space.height);
     let job = Job {
         src: (w, h),
@@ -341,6 +352,25 @@ pub(crate) fn decide(
     let mut change = change(settings, space, &job, quality);
     change.resampled_with = ctx.lockstep.map(|l| l.parent);
     Ok(Outcome::Rewrite(job, Box::new(change)))
+}
+
+/// The filter to write: JPEG with its quality, or the lossless `encode`.
+fn target(
+    settings: &ResolvedImage,
+    (source, raw): (Source, &[u8]),
+    jpeg: bool,
+    version: crate::PdfVersion,
+) -> (Target, Option<JpegQuality>) {
+    if jpeg {
+        let (opts, q) = jpeg_options(settings, source, raw);
+        return (Target::Jpeg(opts), Some(q));
+    }
+    let jbig2 = version >= JBIG2_VERSION;
+    let predictor = settings.predictor.value;
+    (
+        lossless_target(settings.encode.value, predictor, jbig2),
+        None,
+    )
 }
 
 /// Refuses a bilevel-only encoder on output that is not 1-bit,
@@ -369,7 +399,7 @@ fn bilevel_only(
 /// Skips an encoder whose filter the document's version predates:
 /// `JBIG2Decode` is PDF 1.4 (ISO 32000-1 §7.4.7).
 fn filter_version(encode: ImageEncode, document: crate::PdfVersion) -> Result<(), SkipReason> {
-    let needs = crate::PdfVersion { major: 1, minor: 4 };
+    let needs = JBIG2_VERSION;
     if encode == ImageEncode::Jbig2 && document < needs {
         Err(unsupported(ImageSkip::VersionTooLow {
             encode,
@@ -382,8 +412,10 @@ fn filter_version(encode: ImageEncode, document: crate::PdfVersion) -> Result<()
 }
 
 /// The lossless target `encode` names; `Keep` resampled is Flate level 9.
-const fn lossless_target(encode: ImageEncode, predictor: Predictor) -> Target {
+/// `jbig2` says the document's version allows `auto` to try JBIG2.
+const fn lossless_target(encode: ImageEncode, predictor: Predictor, jbig2: bool) -> Target {
     match encode {
+        ImageEncode::Auto => Target::Auto { predictor, jbig2 },
         ImageEncode::RunLength => Target::RunLength,
         ImageEncode::Lzw => Target::Lzw { predictor },
         ImageEncode::Ccitt => Target::Ccitt,
@@ -510,10 +542,12 @@ fn change(
         (b.ppi_x * sx).min(b.ppi_y * sy)
     });
     let (encoded_as, bpc_after) = match job.target {
-        Target::Flate { .. } | Target::RunLength | Target::Lzw { .. } if job.convert.is_some() => {
+        Target::Flate { .. } | Target::RunLength | Target::Lzw { .. } | Target::Auto { .. }
+            if job.convert.is_some() =>
+        {
             (encoded(job.target), 8)
         }
-        Target::Flate { .. } | Target::RunLength | Target::Lzw { .. } => {
+        Target::Flate { .. } | Target::RunLength | Target::Lzw { .. } | Target::Auto { .. } => {
             (encoded(job.target), job.bpc)
         }
         Target::Jpeg(_) => (ImageEncode::Jpeg, 8),
@@ -542,12 +576,14 @@ fn change(
         color_space: (before, after),
         predicted: false,
         flate_bytes: None,
+        candidates: Vec::new(),
         resampled_with: None,
         copies: Vec::new(),
     }
 }
 
-const fn encoded(target: Target) -> ImageEncode {
+/// The encoding a target writes; `Auto` until the run picks one.
+pub(super) const fn encoded(target: Target) -> ImageEncode {
     match target {
         Target::Flate { level, .. } => ImageEncode::Flate { level },
         Target::Jpeg(_) => ImageEncode::Jpeg,
@@ -555,6 +591,7 @@ const fn encoded(target: Target) -> ImageEncode {
         Target::Lzw { .. } => ImageEncode::Lzw,
         Target::Ccitt => ImageEncode::Ccitt,
         Target::Jbig2 => ImageEncode::Jbig2,
+        Target::Auto { .. } => ImageEncode::Auto,
     }
 }
 

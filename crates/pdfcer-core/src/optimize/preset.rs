@@ -141,11 +141,11 @@ fn images(preset: Preset) -> (ImagePatch, Vec<Rule>) {
     if preset == Preset::Screen {
         all.encode = Some(ImageEncode::Jpeg);
         let mut keep = ImagePatch::new();
-        keep.encode = Some(ImageEncode::Keep);
+        keep.encode = Some(ImageEncode::Auto);
         rules.push(rule(vec![ImageClass::Indexed], keep));
     }
     let mut mono = mono;
-    mono.encode = Some(ImageEncode::Keep);
+    mono.encode = Some(ImageEncode::Auto);
     rules.push(rule(vec![ImageClass::Mono], mono));
     (all, rules)
 }

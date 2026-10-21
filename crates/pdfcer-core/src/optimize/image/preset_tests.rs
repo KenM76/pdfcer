@@ -72,9 +72,13 @@ fn screen_writes_jpeg_but_keeps_one_bit_images_lossless() {
 fn print_keeps_print_resolution() {
     let p = planned(Preset::Print);
     assert!(
-        (5..=7).all(|n| image(&p, n).is_none()),
-        "all under the trigger"
+        (5..=6).all(|n| image(&p, n).is_none()),
+        "both under the trigger"
     );
+    // The mono rule's `encode=auto` re-encodes losslessly at full size.
+    let (size, encode) = image(&p, 7).unwrap();
+    assert_eq!(size, (600, 600));
+    assert!(!matches!(encode, ImageEncode::Jpeg | ImageEncode::Auto));
     let bytes = doc("q 25 0 0 25 0 0 cm /Im5 Do Q", &[grey("")]);
     let s = EditSession::new(Document::from_bytes(bytes).unwrap());
     let p = s.plan_optimize(&Preset::Print.settings()).unwrap();

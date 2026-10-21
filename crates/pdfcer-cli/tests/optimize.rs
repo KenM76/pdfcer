@@ -1166,3 +1166,31 @@ fn a_jbig2_image_needs_bilevel_output_and_reports_its_format() {
     assert!(written.contains("/Filter /JBIG2Decode"), "{written}");
     assert!(!written.contains("/JBIG2Globals"), "{written}");
 }
+
+#[test]
+fn encode_auto_reports_every_candidate_in_text_and_json() {
+    let d = dir("image-auto");
+    let input = noise_image_pdf(&d);
+    let out = d.join("out.pdf");
+    let action = "image(convert=bilevel,threshold=110,encode=auto)";
+    let args = [
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--keep-structure",
+        "--streams",
+        action,
+    ];
+    let o = run(&args);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(report.contains("(auto, smallest of flate-9 "), "{report}");
+    for name in [", ccitt ", ", runlength ", ", jbig2 "] {
+        assert!(report.contains(name), "{name}: {report}");
+    }
+    let json = text(&run(&[&args[..], &["--dry-run", "--json"]].concat()));
+    assert!(
+        json.contains("\"candidates\":[{\"encode\":\"flate-9\",\"bytes\":"),
+        "{json}"
+    );
+}

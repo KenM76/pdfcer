@@ -90,6 +90,16 @@ pub enum ImageSkip {
         /// The version the document declares.
         document: crate::PdfVersion,
     },
+    /// `encode=auto` found no candidate smaller than the stored stream by
+    /// `min_saving_pct` percent, so the image is kept.
+    AutoNotSmaller {
+        /// Stored bytes.
+        stored: u64,
+        /// The required saving, percent.
+        min_saving_pct: u8,
+        /// Each candidate tried, in trial order, with its size in bytes.
+        candidates: Vec<(ImageEncode, u64)>,
+    },
     /// A Separation or DeviceN image has no defined grey.
     NoDefinedGrey {
         /// The colour space family, e.g. `Separation`.
@@ -167,6 +177,11 @@ impl fmt::Display for ImageSkip {
                 "{encode} needs PDF {}.{}; the document declares {}.{}",
                 needs.major, needs.minor, document.major, document.minor
             ),
+            Self::AutoNotSmaller {
+                stored,
+                min_saving_pct,
+                candidates,
+            } => auto_not_smaller(f, *stored, *min_saving_pct, candidates),
             Self::NoDefinedGrey { space } => {
                 write!(f, "its {space} colour space has no defined grey")
             }
@@ -184,4 +199,22 @@ impl fmt::Display for ImageSkip {
             } => f.write_str("already JPEG, at a quality that cannot be estimated"),
         }
     }
+}
+
+fn auto_not_smaller(
+    f: &mut fmt::Formatter<'_>,
+    stored: u64,
+    min_saving_pct: u8,
+    candidates: &[(ImageEncode, u64)],
+) -> fmt::Result {
+    write!(f, "no auto candidate is smaller than the stored {stored} B")?;
+    if min_saving_pct > 0 {
+        write!(f, " by {min_saving_pct}%")?;
+    }
+    f.write_str(" (")?;
+    for (i, (encode, bytes)) in candidates.iter().enumerate() {
+        let sep = if i == 0 { "" } else { ", " };
+        write!(f, "{sep}{encode} {bytes} B")?;
+    }
+    f.write_str("), kept")
 }

@@ -3,9 +3,9 @@
 //! when it passes the never-larger and `min-saving` guards.
 
 use super::convert;
-use super::pipeline::{Job, Source, Target};
+use super::pipeline::{Job, Source, Target, encoded};
 use super::predict::{self, Codec};
-use super::{Conversion, ImageSkip};
+use super::{Conversion, ImageEncode, ImageSkip, Predictor};
 use crate::deskew::Raster;
 use crate::filters;
 use crate::image_codec::{self, CodecColorModel, decode_image_view};
@@ -27,6 +27,14 @@ pub(crate) struct Written {
     pub(crate) predicted: bool,
     /// For LZW output, the Flate level 9 size of the same samples.
     pub(crate) flate_bytes: Option<u64>,
+    /// For `encode=auto`, what it picked from what.
+    pub(crate) auto: Option<AutoPick>,
+}
+
+/// `encode=auto`'s choice and every candidate's size, in trial order.
+pub(crate) struct AutoPick {
+    pub(crate) chosen: ImageEncode,
+    pub(crate) candidates: Vec<(ImageEncode, u64)>,
 }
 
 /// Perform `job` on the image stored as `raw` under `dict`; `view`
@@ -71,10 +79,11 @@ pub(crate) fn run(
         bpc,
         parms,
         flate_bytes,
-    } = encode(job, &pixels, (components, bpc))?;
-    guard(job, raw.len() as u64, data.len() as u64)?;
+        auto,
+    } = encode(job.target, job, &pixels, (components, bpc))?;
+    guard(job, raw.len() as u64, data.len() as u64).map_err(|e| auto_kept(e, job, &auto))?;
     let mut out = output_dict(dict, job.out, filter, bpc, data.len());
-    let predicted = parms.is_some() && job.target != Target::Ccitt;
+    let predicted = parms.is_some() && matches!(filter, b"FlateDecode" | b"LZWDecode");
     if let Some(p) = parms {
         out.insert(Name::from(&b"DecodeParms"[..]), Object::Dict(p));
     }
@@ -91,7 +100,23 @@ pub(crate) fn run(
         conversion,
         predicted,
         flate_bytes,
+        auto,
     })
+}
+
+/// A failed guard under `encode=auto` names every candidate's size.
+fn auto_kept(e: SkipReason, job: &Job, auto: &Option<AutoPick>) -> SkipReason {
+    match (e, auto) {
+        (
+            SkipReason::NotSmaller { before, .. } | SkipReason::BelowMinSaving { before, .. },
+            Some(pick),
+        ) => SkipReason::ImageUnsupported(ImageSkip::AutoNotSmaller {
+            stored: before,
+            min_saving_pct: job.min_saving_pct,
+            candidates: pick.candidates.clone(),
+        }),
+        (e, _) => e,
+    }
 }
 
 /// Samples encoded for the job's target.
@@ -101,9 +126,16 @@ struct Encoded {
     bpc: u32,
     parms: Option<Dict>,
     flate_bytes: Option<u64>,
+    auto: Option<AutoPick>,
 }
 
-fn encode(job: &Job, pixels: &[u8], (components, bpc): (u32, u32)) -> Result<Encoded, SkipReason> {
+/// `pixels` encoded as `target`; `job` gives the output size.
+fn encode(
+    target: Target,
+    job: &Job,
+    pixels: &[u8],
+    (components, bpc): (u32, u32),
+) -> Result<Encoded, SkipReason> {
     let shape = (components, bpc, job.out.0);
     let failed =
         |e: filters::FilterError| SkipReason::ImageUnsupported(ImageSkip::LzwEncode(e.to_string()));
@@ -114,8 +146,9 @@ fn encode(job: &Job, pixels: &[u8], (components, bpc): (u32, u32)) -> Result<Enc
         bpc,
         parms: None,
         flate_bytes: None,
+        auto: None,
     };
-    Ok(match job.target {
+    Ok(match target {
         Target::Flate { level, predictor } => {
             let done = predicted(Codec::Flate(level), predictor).map_err(failed)?;
             Encoded {
@@ -144,7 +177,49 @@ fn encode(job: &Job, pixels: &[u8], (components, bpc): (u32, u32)) -> Result<Enc
         Target::RunLength => plain(filters::runlength::encode(pixels), b"RunLengthDecode"),
         Target::Ccitt => ccitt(job, pixels, (components, bpc))?,
         Target::Jbig2 => jbig2(job, pixels, (components, bpc))?,
+        Target::Auto { predictor, jbig2 } => {
+            auto(job, pixels, (components, bpc), predictor, jbig2)?
+        }
     })
+}
+
+/// Every eligible lossless candidate, the smallest kept, ties to the
+/// earlier of Flate, CCITT, RunLength, JBIG2 (decision 193). CCITT and
+/// JBIG2 only for 1-bit 1-component samples, JBIG2 only when `jbig2`.
+fn auto(
+    job: &Job,
+    pixels: &[u8],
+    format: (u32, u32),
+    predictor: Predictor,
+    jbig2: bool,
+) -> Result<Encoded, SkipReason> {
+    let bilevel = format == (1, 1);
+    let flate = Target::Flate {
+        level: 9,
+        predictor,
+    };
+    let mut best = (flate, encode(flate, job, pixels, format)?);
+    let mut candidates = vec![(encoded(flate), best.1.data.len() as u64)];
+    for (target, eligible) in [
+        (Target::Ccitt, bilevel),
+        (Target::RunLength, true),
+        (Target::Jbig2, bilevel && jbig2),
+    ] {
+        if !eligible {
+            continue;
+        }
+        let done = encode(target, job, pixels, format)?;
+        candidates.push((encoded(target), done.data.len() as u64));
+        if done.data.len() < best.1.data.len() {
+            best = (target, done);
+        }
+    }
+    let (target, mut done) = best;
+    done.auto = Some(AutoPick {
+        chosen: encoded(target),
+        candidates,
+    });
+    Ok(done)
 }
 
 /// One lossless generic region with no globals, so no `/DecodeParms`.
@@ -162,6 +237,7 @@ fn jbig2(job: &Job, pixels: &[u8], format: (u32, u32)) -> Result<Encoded, SkipRe
         bpc: 1,
         parms: None,
         flate_bytes: None,
+        auto: None,
     })
 }
 
@@ -195,6 +271,7 @@ fn ccitt(job: &Job, pixels: &[u8], format: (u32, u32)) -> Result<Encoded, SkipRe
         bpc: 1,
         parms: Some(parms),
         flate_bytes: None,
+        auto: None,
     })
 }
 
@@ -275,6 +352,7 @@ fn source_samples(
                     | Target::Lzw { .. }
                     | Target::Ccitt
                     | Target::Jbig2
+                    | Target::Auto { .. }
             ) || job.convert.is_some()
             {
                 return Ok((packed, job.bpc));

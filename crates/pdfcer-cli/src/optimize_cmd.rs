@@ -44,7 +44,7 @@ pub(crate) struct OptimizeArgs {
     /// (other streams keep the preset's action): "image(ppi=150)" downsamples every image whose largest drawn
     /// use is above 1.5 x 150 ppi to 150 ppi there. Keys: method
     /// (off|average|subsample|bicubic|lanczos), ppi, above (the trigger),
-    /// encode (keep|flate|flate-N|jpeg|runlength|lzw|ccitt|jbig2; ccitt and jbig2 need 1-bit output, jbig2 PDF 1.4), quality (1-100 or minimum, low,
+    /// encode (keep|auto|flate|flate-N|jpeg|runlength|lzw|ccitt|jbig2; auto writes the smallest lossless filter the document version allows; ccitt and jbig2 need 1-bit output, jbig2 PDF 1.4), quality (1-100 or minimum, low,
     /// medium, high, maximum; default 80), chroma (auto|444|420),
     /// progressive, convert (keep|gray|bilevel|indexed), threshold (otsu,
     /// dither or 0-255, for bilevel), colors (2-256, for indexed; default
