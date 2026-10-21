@@ -5675,7 +5675,8 @@ pub(crate) enum Command {
     /// asked to remove (clean-up, `--discard`); otherwise nothing is written
     /// and the exit code is 14. Objects no setting selects are copied
     /// byte-identical. Every rewritten stream, every skip and its reason, and
-    /// the per-category size change are reported.
+    /// the per-category size change are reported; an `images:` table gives
+    /// each image's page, pixels, ppi, format and bytes before and after.
     ///
     /// What happens to each stream comes from, highest first: an `--object`
     /// override, the last matching `--rule`, the profile's rules, the

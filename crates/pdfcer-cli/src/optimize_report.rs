@@ -37,6 +37,7 @@ pub(crate) fn changes_text(plan: &OptimizePlan) -> String {
             let _ = writeln!(out, "  {:<8} {}: {}", s.id.to_string(), s.action, s.reason);
         }
     }
+    out.push_str(&crate::optimize_image_table::images_table(plan));
     out
 }
 
@@ -100,21 +101,26 @@ fn image_text(img: &ImageChange) -> String {
 
 /// The format line: filter, colour space and bit depth before and after,
 /// and what a colour conversion did.
-fn format_text(img: &ImageChange, filters: &[String]) -> String {
-    let short = |f: &str| f.trim_end_matches("Decode").to_owned();
+/// `Flate/DeviceRGB 8 bit -> DCT/DeviceGray 8 bit`: the last filter (or
+/// `raw`), colour space and depth, before and after.
+pub(crate) fn format_pair(img: &ImageChange, filters: &[String]) -> String {
     let before = filters
         .last()
-        .map_or_else(|| "raw".to_owned(), |f| short(f));
+        .map_or("raw", |f| f.trim_end_matches("Decode"));
     let after = if img.encoded_as == ImageEncode::Jpeg {
         "DCT"
     } else {
         "Flate"
     };
     let (cb, ca) = &img.color_space;
-    let mut line = format!(
-        "           format {before}/{cb} {} bit -> {after}/{ca} {} bit",
+    format!(
+        "{before}/{cb} {} bit -> {after}/{ca} {} bit",
         img.bpc.0, img.bpc.1
-    );
+    )
+}
+
+fn format_text(img: &ImageChange, filters: &[String]) -> String {
+    let mut line = format!("           format {}", format_pair(img, filters));
     if let Some(c) = &img.conversion {
         line.push_str(&conversion_text(c));
     }

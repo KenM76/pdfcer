@@ -831,6 +831,62 @@ fn identical_images_are_planned_as_one_and_reported() {
 }
 
 #[test]
+fn the_report_ends_with_one_row_per_image() {
+    let d = dir("image-table");
+    let input = noise_image_drawn_by(&d, "q Q");
+    let out = d.join("out.pdf");
+    let base = [
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--keep-structure",
+        "--preset",
+        "lossless",
+        "--dry-run",
+        "--streams",
+    ];
+    let skipped = text(&run(&[&base[..], &["image(ppi=72)"]].concat()));
+    let rows: Vec<&str> = skipped
+        .lines()
+        .skip_while(|l| !l.starts_with("images:"))
+        .collect();
+    assert_eq!(
+        rows.first(),
+        Some(&"images: 0 rewritten, 1 skipped"),
+        "{skipped}"
+    );
+    assert!(
+        rows[1]
+            .split_whitespace()
+            .eq(["object", "page", "pixels", "ppi", "format", "bytes"])
+    );
+    assert!(
+        rows[2].starts_with("  9 0     -     -       -    -       skipped: drawn on no page"), // string-gap-exempt: the table's column padding
+        "{skipped}"
+    );
+    let capped = text(&run(
+        &[&base[..], &["image(ppi=72,max-pixels=2500)"]].concat()
+    ));
+    let row = capped
+        .lines()
+        .skip_while(|l| !l.starts_with("images: 1 rewritten, 0 skipped"))
+        .nth(2)
+        .unwrap();
+    let cells: Vec<&str> = row
+        .split("  ")
+        .filter(|c| !c.is_empty())
+        .map(str::trim)
+        .collect();
+    assert_eq!(
+        cells[..4],
+        ["9 0", "-", "200x200 -> 50x50", "-"],
+        "{capped}"
+    );
+    assert_eq!(cells[4], "raw/DeviceGray 8 bit -> Flate/DeviceGray 8 bit");
+    assert!(cells[5].starts_with("40000 -> "), "{capped}");
+}
+
+#[test]
 fn an_image_written_as_jpeg_reports_format_and_quality() {
     let d = dir("image-jpeg");
     let input = noise_image_pdf(&d);
