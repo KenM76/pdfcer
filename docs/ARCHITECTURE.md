@@ -13397,3 +13397,49 @@ LZW" line in the spec RAG's `filter__lzw.md`; the `weezl` encoder comments in
 decision `194`.
 
 **New standing rule.** None (R28 amended in place) — `R263` stays next free.
+
+### 2026-10-21 (1148th filing, librarian) — decision 194: Brotli write side (`Pass 616.5` Brotli slice) — explicit-only, standard window, declares the extension
+
+Design record filed before code lands; not a Pass completion. Source:
+`D:\Dev\Rag-Specialized\PDF_Spec\filters\filter__brotli.md` (PDF Association
+extension EXTN-BROTLI-1; RFC 7932). Builds on decision 193 (which left Brotli
+out) and the closed operator question `(bq)` (readers without the extension
+cannot open such files — accepted).
+
+**What this decides.**
+1. **Written only when the operator names it:** stream action `brotli` /
+   `brotli-N` (N = quality 0..=11, default 11), and later image
+   `encode=brotli`. Never chosen by `auto`, a preset or any fallback.
+2. **Standard RFC 7932 window only** (lgwin <= 24; pdfcer uses 22). Never
+   large-window, never the framing format, no shared dictionaries (the
+   extension forbids framing and shared dictionaries).
+3. **Any Brotli write declares the extension** in the catalog:
+   `/Extensions << /PDFa << /Type /DeveloperExtensions /BaseVersion /2.0
+   /ExtensionLevel 1 /ExtensionRevision (2026) /URL
+   (https://pdfa.org/resource/extension-brotli) >> >>` (ISO 32000-2 §7.12.3
+   Table 49 shape; prefix `PDFa` is case-sensitive). It is merged into any
+   existing `/Extensions` (an existing `/PDFa` entry, or an array of them, is
+   kept and the Brotli one added), and catalog `/Version` is raised to 2.0.
+   Both are disclosed in the optimize report.
+4. **Refused by name under a PDF/A claim** (PDF/A does not admit the filter).
+5. **Never** for inline images (the extension forbids it), and never for
+   ObjStm / XRef / Metadata streams (already protected by the optimizer;
+   Brotli there could hide the extension dictionary from a reader).
+6. Same only-if-smaller and `min-saving` guards as recompress; `/DecodeParms`
+   predictors are dropped by decode-then-encode, as for Flate.
+
+**No dependency change.** `brotli` 8.0.4's `enc` module is unconditional and
+`CompressorWriter` is exported under the `std` feature already enabled in
+`crates/pdfcer-model/Cargo.toml` (`brotli = { version = "8",
+default-features = false, features = ["std", "alloc-stdlib"] }`). No new
+dependency, no feature change, `cargo tree` unchanged. Licence BSD-3-Clause OR
+MIT, already classified.
+
+**Body-section effect.** `ROADMAP.md` `Pass 616.5` Brotli paragraph corrected
+in place (the "compiled out" premise was wrong). `FEATURES.md` and
+`SESSION_LOG.md` untouched; the implementation completion is filed separately.
+
+**Decision ceiling.** Fills `194`; ceiling `193` → `194`. Next free decision
+`195`.
+
+**New standing rule.** None — `R263` stays next free.
