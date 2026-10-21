@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 617.6` (`ca2b5b0a`), 2026-10-21 — text takes a fill opacity (`G222`) (1151st filing)
+
+Code commit `ca2b5b0a` "feat(text): text takes a fill opacity (Pass 617.6, G222)", after the 1150th filing. Core + CLI; `pdfcer-gui` has not yet consumed it (gui box unticked). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Request: `request_G222_page_text_has_no_opacity.md`, answered by `reply_G222_page_text_has_no_opacity_FIXED.md` (channel).
+
+- **Core, existing text:** `FormatRequest::fill_alpha(a)` / `set_fill_alpha: Option<f64>` sets fill opacity (ExtGState `/ca`, ISO 32000-1 §8.4.5 Table 58) on a run via two new direct `/ExtGState` resources selected by `gs` before and after the run (`gs` is legal inside `BT`/`ET`), so the ambient alpha is restored. The text walker tracks ambient `/ca` through every `gs`. Refusals: `FormatError::BadOpacity(f64)` (outside 0..=1 or NaN), `FormatError::OpacityUnrestorable` (ambient set by an unreadable `gs`). Equal-to-ambient writes nothing. All three save paths wired (R171): free `set_format`, session page path, session form-XObject path; one undo removes restyle + resources. Shared `/Resources` disclosed. `FormatReport::fill_alpha_change`.
+- **Core, new text:** `AddTextRequest::with_fill_alpha(a)` / `fill_alpha: Option<f64>`, `/pdfcerTAn gs` inside the run's own `q`; `AddTextError::InvalidOpacity(f64)` (`RefusalKind::Other`).
+- **CLI:** `format-text --set-opacity A`, `add-text --opacity A`.
+- **Docs:** `docs/core-api/03-capabilities.md` (format row + Add Text paragraph) and index counts updated; `check-core-api-verbs` clean.
+- **Tests (engineer-reported):** core lib 1,727; core `--test all` 3,008 (10 new in `tests/text_opacity.rs`); CLI 924 (3 new). Sabotage confirmed the tests bite (4 and 2 failures). fmt, clippy `-D warnings`, gate list green. No manifest change, so `cargo tree` unchanged.
+
+`FEATURES.md`: two new rows (existing-text opacity; new-text opacity), core `[x]`, cli `[x]`, gui `[ ]` (separate project, not ticked from this Pass). No decision; no rule (`194`, `R263` left free). Describing-text sweep outside `crates/`: `core-api` updated by engineer; I did not grep `crates/` doc comments or CLI help for a "text has no opacity" claim (none reported). Ledgers: next free `Pass 617.7`, decision `194`, `R263`; next filing 1152nd. Request `G222` answered. Git, push and backup state not verified from here.
+
 ### `Pass 617.5` (`1aebeb0b`), 2026-10-21 — a ce dimension colour takes grey or CMYK (`G221`) (1150th filing)
 
 Code commit `1aebeb0b` "feat(dimension): a ce dimension colour takes grey or CMYK (Pass 617.5, G221)", after the 1149th filing. Core + CLI; `pdfcer-gui` does not yet consume grey/CMYK (gui box unchanged, not rounded up). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Request: `request_G221_ce_dimension_colour_takes_rgb_only.md`, answered by `reply_G221_ce_dimension_colour_takes_rgb_only_FIXED.md` (both in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`).

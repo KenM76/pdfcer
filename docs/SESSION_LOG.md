@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1151st filing) — `Pass 617.6` in `ca2b5b0a`: text takes a fill opacity (`G222`)
+
+**Shipped:** `Pass 617.6` (core + cli). `FormatRequest::fill_alpha` and `AddTextRequest::with_fill_alpha` write ExtGState `/ca` around a text run, restoring the ambient alpha; `format-text --set-opacity`, `add-text --opacity`. Refusals `BadOpacity`, `OpacityUnrestorable`, `InvalidOpacity`. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
+
+**Decisions:** none new; no rule minted (`194`, `R263` stay free).
+
+**Findings:** tests core lib 1,727, core integration 3,008, cli 924; sabotage-checked; no manifest change. `pdfcer-gui` does not yet consume it.
+
+**Still in flight:** `Pass 616.5` open (unchanged). `G222` answered; the 617.x channel series is otherwise closed from this side.
+
+**For next session:** next free `Pass 617.7`. Git, push and backup state not verified from here. Next filing 1152nd.
+
 ## 2026-10-21 (1150th filing) — `Pass 617.5` in `1aebeb0b`: a ce dimension colour takes grey or CMYK (`G221`)
 
 **Shipped:** `Pass 617.5` (core + cli). ce dimension style/colour types carry `annot_author::Color`, kept in its own device space through `/AP`, `/C` and the sidecar; equal-component RGB still emits `g`/`G` (byte-identical). `dimension-style`/`group-style --color` accept `gray:v` and `cmyk:c,m,y,k`. Breaking for the GUI: `.color` is `Color`, use `rgb.into()`. Detail in the ROADMAP *Shipped* entry; reasoning in the commit message.
