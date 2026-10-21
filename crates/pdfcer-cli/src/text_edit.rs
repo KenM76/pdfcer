@@ -516,7 +516,8 @@ fn add_text_font(name: &str) -> Result<pdfcer_core::fontdata::Std14, u8> {
     })
 }
 
-/// `--color "r,g,b"`, black when absent.
+/// `--color`: `r,g,b`, or `MODEL:comps` as `--set-color` takes it
+/// (`gray:0.5`, `rgb:1,0,0`, `cmyk:0,1,1,0`); black when absent.
 pub(crate) fn add_text_color(
     raw: Option<&str>,
 ) -> Result<pdfcer_core::text_edit::NewTextColor, u8> {
@@ -524,12 +525,23 @@ pub(crate) fn add_text_color(
     let Some(s) = raw else {
         return Ok(NewTextColor::Black);
     };
+    if s.contains(':') {
+        return crate::text_format::parse_set_color(s)
+            .map(|fill| NewTextColor::from(&fill))
+            .map_err(|msg| {
+                eprintln!(
+                    "pdfcer: --color: {}",
+                    msg.trim_start_matches("--set-color: ")
+                );
+                exit::EDIT_REFUSED
+            });
+    }
     parse_rgb_triple(s)
         .map(|(r, g, b)| NewTextColor::Rgb(r, g, b))
         .ok_or_else(|| {
             eprintln!(
-                "pdfcer: --color expects three comma-separated components in 0..=1 \
-                 \"r,g,b\", got {s:?}"
+                "pdfcer: --color expects \"r,g,b\" in 0..=1, or MODEL:comps \
+                 (gray:0.5, rgb:1,0,0, cmyk:0,1,1,0), got {s:?}"
             );
             exit::EDIT_REFUSED
         })

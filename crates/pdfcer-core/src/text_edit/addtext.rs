@@ -237,8 +237,9 @@ impl FontProvenance {
 ///
 /// The default is [`Self::Black`], emitted as an explicit `0 g` (DeviceGray) —
 /// because §8.4.2 forbids relying on the page-initial black default across the
-/// `/Contents` array (the inherited fill may be anything). An RGB colour is
-/// emitted as `r g b rg` (DeviceRGB), matching Pass 14.2's fill model.
+/// `/Contents` array (the inherited fill may be anything). The other variants
+/// are emitted in the device space they name (§8.6.4): `g`, `rg` or `k`, the
+/// same three spaces [`crate::text_edit::NewFill`] restyles a run into.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 #[non_exhaustive]
 pub enum NewTextColor {
@@ -247,6 +248,25 @@ pub enum NewTextColor {
     Black,
     /// DeviceRGB — `r g b rg`, each component clamped to `[0, 1]`.
     Rgb(f64, f64, f64),
+    /// DeviceGray — `v g`, clamped to `[0, 1]` (0 is black).
+    Gray(f64),
+    /// DeviceCMYK — `c m y k k`, each component clamped to `[0, 1]`.
+    Cmyk(f64, f64, f64, f64),
+}
+
+/// The same colour a [`crate::text_edit::NewFill`] restyles a run into, so a
+/// shell's one colour picker serves both Add Text and Format. A missing
+/// component reads as 0.
+impl From<&crate::text_edit::NewFill> for NewTextColor {
+    fn from(fill: &crate::text_edit::NewFill) -> Self {
+        use crate::text_edit::FillModel;
+        let c = |i: usize| fill.components.get(i).copied().unwrap_or(0.0);
+        match fill.model {
+            FillModel::Gray => Self::Gray(c(0)),
+            FillModel::Rgb => Self::Rgb(c(0), c(1), c(2)),
+            FillModel::Cmyk => Self::Cmyk(c(0), c(1), c(2), c(3)),
+        }
+    }
 }
 
 /// Which face a new run is written in.
@@ -1333,17 +1353,22 @@ pub(crate) fn embedded_font_objects(
 /// layout assumes is set: `Tc`, `Tw`, `Tz`, `Ts` at their initial values and
 /// `Tr` at the requested mode. Without the `Tr`, a page whose producer left
 /// `3 Tr` in force — an unbalanced OCR layer — makes the added run invisible.
+/// `c1 .. cn op`, each component clamped to `[0, 1]`.
+fn emit_color(out: &mut Vec<u8>, components: &[f64], op: &[u8]) {
+    for &c in components {
+        emit_number(out, c.clamp(0.0, 1.0));
+        out.push(b' ');
+    }
+    out.extend_from_slice(op);
+    out.push(b'\n');
+}
+
 fn emit_state_prelude(out: &mut Vec<u8>, color: NewTextColor, render_mode: u8) {
     match color {
         NewTextColor::Black => out.extend_from_slice(b"0 g\n"),
-        NewTextColor::Rgb(r, g, b) => {
-            emit_number(out, r.clamp(0.0, 1.0));
-            out.push(b' ');
-            emit_number(out, g.clamp(0.0, 1.0));
-            out.push(b' ');
-            emit_number(out, b.clamp(0.0, 1.0));
-            out.extend_from_slice(b" rg\n");
-        }
+        NewTextColor::Rgb(r, g, b) => emit_color(out, &[r, g, b], b"rg"),
+        NewTextColor::Gray(v) => emit_color(out, &[v], b"g"),
+        NewTextColor::Cmyk(c, m, y, k) => emit_color(out, &[c, m, y, k], b"k"),
     }
     out.extend_from_slice(b"0 Tc 0 Tw 100 Tz 0 Ts ");
     emit_number(out, f64::from(render_mode));

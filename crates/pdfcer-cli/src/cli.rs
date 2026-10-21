@@ -9759,9 +9759,10 @@ pub(crate) enum Command {
         /// Font size in points.
         #[arg(long, default_value_t = 12.0)]
         size: f64,
-        /// Fill colour as `r,g,b` components in `0..=1` (e.g. `1,0,0` red).
-        /// Omitted = black.
-        #[arg(long, value_name = "R,G,B")]
+        /// Fill colour as `r,g,b` components in `0..=1` (e.g. `1,0,0` red),
+        /// or as `MODEL:comps` to write it in that device space: `gray:0.5`,
+        /// `rgb:1,0,0`, `cmyk:0,1,1,0`. Omitted = black.
+        #[arg(long, value_name = "COLOUR")]
         color: Option<String>,
         /// Text rendering mode `Tr` (§9.3.6), 0 to 7; default 0 (fill), or 3
         /// with `--ocr-layer`. 3 writes the text INVISIBLE: searchable and
@@ -9883,9 +9884,10 @@ pub(crate) enum Command {
         /// and reports how many paragraphs that affected.
         #[arg(long, value_name = "MODE")]
         align: Option<String>,
-        /// Text colour as `r,g,b` components in `0..=1` (e.g. `0,0,0.5`).
-        /// Omitted = black.
-        #[arg(long, value_name = "R,G,B")]
+        /// Text colour as `r,g,b` components in `0..=1` (e.g. `0,0,0.5`),
+        /// or as `MODEL:comps` to write it in that device space: `gray:0.5`,
+        /// `rgb:1,0,0`, `cmyk:0,1,1,0`. Omitted = black.
+        #[arg(long, value_name = "COLOUR")]
         color: Option<String>,
         /// Place the text even when the font cannot represent some of it,
         /// dropping those characters and reporting exactly which were lost.

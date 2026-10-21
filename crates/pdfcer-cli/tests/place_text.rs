@@ -182,3 +182,39 @@ fn an_unencodable_character_refuses_or_is_named_when_dropped() {
         stdout(&dropped)
     );
 }
+
+#[test]
+fn a_model_colour_is_written_in_that_device_space() {
+    let txt = text_file("cmyk", b"ink\n");
+    for (colour, op, tag) in [
+        ("cmyk:0,1,1,0", b"0 1 1 0 k".as_slice(), "cmyk"),
+        ("gray:0.5", b"0.5 g".as_slice(), "gray"),
+    ] {
+        let out_pdf = temp_path(tag, "pdf");
+        let out = run(&[
+            "place-text",
+            txt.to_str().unwrap(),
+            "-o",
+            out_pdf.to_str().unwrap(),
+            "--color",
+            colour,
+        ]);
+        assert_eq!(out.status.code(), Some(0), "{colour}: {}", stderr(&out));
+        let bytes = std::fs::read(&out_pdf).unwrap();
+        assert!(
+            bytes.windows(op.len()).any(|w| w == op),
+            "{colour} written as {}",
+            String::from_utf8_lossy(op)
+        );
+    }
+    let bad = run(&[
+        "place-text",
+        txt.to_str().unwrap(),
+        "-o",
+        temp_path("bad", "pdf").to_str().unwrap(),
+        "--color",
+        "lab:1,2,3",
+    ]);
+    assert_eq!(bad.status.code(), Some(9), "{}", stderr(&bad));
+    assert!(stderr(&bad).contains("--color"), "{}", stderr(&bad));
+}

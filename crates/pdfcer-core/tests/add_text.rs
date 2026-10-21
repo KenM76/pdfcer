@@ -762,3 +762,18 @@ fn preview_wrap_refuses_where_the_commit_would_refuse() {
     );
     assert!(matches!(refused, Err(AddTextError::Refused(_))));
 }
+
+#[test]
+fn gray_and_cmyk_colours_are_written_in_their_own_device_space() {
+    let doc = load("plain.pdf");
+    let orig = std::fs::read(fixture("plain.pdf")).unwrap();
+    for (color, op) in [
+        (NewTextColor::Gray(0.5), "0.5 g"),
+        (NewTextColor::Cmyk(0.0, 1.0, 1.0, 0.0), "0 1 1 0 k"),
+    ] {
+        let req = AddTextRequest::new(0, (100.0, 650.0), "Ink").with_color(color);
+        let out = add_text(&doc, &req).expect("add");
+        let tail = String::from_utf8_lossy(&out.bytes[orig.len()..]).into_owned();
+        assert!(tail.contains(op), "{op} emitted: {tail}");
+    }
+}
