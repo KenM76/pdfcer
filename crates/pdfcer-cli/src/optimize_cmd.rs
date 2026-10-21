@@ -155,6 +155,20 @@ pub(crate) struct OptimizeArgs {
     /// removes them. The same names as --discard; all keeps everything.
     #[arg(long, value_name = "KINDS", value_delimiter = ',')]
     pub(crate) keep_data: Vec<String>,
+    /// Remove embedded font programs: all (every font whose embedding
+    /// permits it and that a reader can substitute), font names
+    /// (comma-separated; the family name or the tagged name), or none to
+    /// cancel a profile's choice. Pages using them will look different: the
+    /// reader draws each letter with a face of its own inside the original
+    /// spacing. Every font kept is listed with why. Never done to a PDF/A
+    /// document, which requires embedded fonts.
+    #[arg(long, value_name = "all|none|NAMES", value_delimiter = ',')]
+    pub(crate) unembed_fonts: Vec<String>,
+    /// Keep the six-letter subset tag (ABCDEF+) on each unembedded font's
+    /// name. By default it is removed, so a reader can match an installed
+    /// face.
+    #[arg(long)]
+    pub(crate) keep_subset_tag: bool,
     /// Optimize a signed document anyway. Every signature is invalidated,
     /// and the report says how many.
     #[arg(long)]
@@ -310,6 +324,7 @@ fn resolve_settings(args: &OptimizeArgs) -> Result<OptimizeSettings, String> {
             .without_named(name)
             .ok_or_else(|| unknown(name))?;
     }
+    crate::optimize_fonts::apply_args(&mut settings, &args.unembed_fonts, args.keep_subset_tag);
     Ok(settings)
 }
 
@@ -452,6 +467,7 @@ fn report_text(
     out.push_str(&cleanup_text(&o.plan.cleanup));
     out.push_str(&discard_text(&o.plan.discard));
     out.push_str(&discard_objects_text(&o.plan.discard_objects));
+    out.push_str(&crate::optimize_fonts::fonts_text(&o.plan));
     for n in &o.plan.notes {
         let _ = writeln!(out, "note: {n}");
     }
@@ -747,7 +763,7 @@ fn report_json(
         _ => "null".to_owned(),
     };
     format!(
-        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"version_raise\":{},\"cleanup\":{},\"discard\":{},\"discard_objects\":{},\"structure\":{},\"diff\":{}}}\n",
+        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"version_raise\":{},\"cleanup\":{},\"discard\":{},\"discard_objects\":{},\"fonts\":{},\"structure\":{},\"diff\":{}}}\n",
         o.original,
         o.rewritten,
         o.smaller,
@@ -760,6 +776,7 @@ fn report_json(
         cleanup_json(&o.plan.cleanup),
         discard_json(&o.plan.discard),
         discard_objects_json(&o.plan.discard_objects),
+        crate::optimize_fonts::fonts_json(&o.plan),
         o.structure
             .as_ref()
             .map_or_else(|| "null".to_owned(), structure_json),

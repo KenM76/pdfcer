@@ -164,6 +164,7 @@ mod optimize_cleanup;
 mod optimize_copies;
 mod optimize_discard;
 mod optimize_extension;
+mod optimize_fonts;
 mod optimize_fragments;
 mod optimize_matte;
 mod optimize_objects;

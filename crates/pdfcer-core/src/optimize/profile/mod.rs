@@ -15,6 +15,7 @@
 //! remove-unreferenced-destinations = false
 //! discard = ["thumbnail", "bookmarks"]  # data kinds / object classes removed, or "all"
 //! smooth-tolerance = 0.1    # page points a "smooth-lines" curve may stray
+//! unembed-fonts = "all"      # or names, or []; see `fonts.rs` for the font keys
 //!
 //! [[rule]]                    # later rules beat earlier ones
 //! category = ["fonts"]        # space-audit category names
@@ -39,6 +40,7 @@
 //! and its object overrides replace the parent's for the same id. Unknown
 //! keys and tables are errors, so a misspelt key never silently does nothing.
 
+mod fonts;
 mod syntax;
 
 use std::fmt::Write as _;
@@ -177,6 +179,7 @@ fn apply_table(settings: &mut OptimizeSettings, table: &Table) -> Result<(), (us
                     "smooth-tolerance" => {
                         settings.smooth_tolerance = tolerance(value).map_err(at)?
                     }
+                    k if let Some(r) = fonts::apply(settings, k, value) => r.map_err(at)?,
                     k => {
                         let flag = switch(settings, k)
                             .ok_or_else(|| at(format!("unknown key {key:?}")))?;
@@ -477,6 +480,7 @@ pub fn to_profile(settings: &OptimizeSettings) -> String {
     let kinds: Vec<String> = settings.discard.names().map(syntax::quote).collect();
     let _ = writeln!(out, "discard = [{}]", kinds.join(", "));
     let _ = writeln!(out, "smooth-tolerance = {:?}", settings.smooth_tolerance);
+    fonts::write(&mut out, settings);
     for rule in &settings.rules {
         out.push_str("\n[[rule]]\n");
         write_selector(&mut out, &rule.select);

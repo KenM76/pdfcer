@@ -61,6 +61,8 @@ impl EditSession {
             cleanup: crate::optimize::CleanupPlan::default(),
             discard: Vec::new(),
             discard_objects: Vec::new(),
+            unembed: None,
+            unembed_request: None,
             writes: Vec::new(),
             smooth_tolerance: settings.smooth_tolerance,
         };
@@ -74,6 +76,7 @@ impl EditSession {
         plan.cleanup = self.plan_cleanup(&settings.cleanup, &mut notes);
         plan.discard = self.plan_discard(settings.discard, &mut notes);
         plan.discard_objects = self.plan_discard_objects(settings, &mut notes);
+        self.plan_unembed(&mut plan, settings, &mut notes);
         if plan
             .discard_objects
             .iter()
@@ -215,6 +218,7 @@ impl EditSession {
         {
             return Err(OptimizeError::StalePlan { id: w.id });
         }
+        self.check_unembed_fresh(plan)?;
         let mut fold = super::optimize_cleanup::Fold::new(self, CommandKind::Optimize { count: 0 });
         let removed = self.apply_cleanup(&plan.cleanup, &mut fold)?
             + self.apply_discard(&plan.discard, &mut fold)?
@@ -222,7 +226,8 @@ impl EditSession {
                 &plan.discard_objects,
                 plan.smooth_tolerance,
                 &mut fold,
-            )?;
+            )?
+            + self.apply_unembed(plan, &mut fold)?;
         let mut objects = self.stream_writes(&plan.writes);
         if !objects.is_empty() {
             objects.extend(self.catalog_writes(plan.version_raise(), plan.uses_brotli()));

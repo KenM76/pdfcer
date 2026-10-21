@@ -263,3 +263,38 @@ discard = []
     .unwrap_err();
     assert!(bad.message.contains("unknown discard kind"), "{bad}");
 }
+
+#[test]
+fn every_unembed_selection_round_trips() {
+    use crate::font_unembed::UnembedRequest;
+    for request in [
+        None,
+        Some(UnembedRequest::all_removable()),
+        Some(UnembedRequest::named(["Arial", "Times New Roman"])),
+        Some(UnembedRequest::objects([ObjId::new(12, 0)]).keeping_subset_tag()),
+    ] {
+        let mut s = OptimizeSettings::new();
+        s.unembed = request;
+        assert_eq!(parse("p.toml", &to_profile(&s), &mut none).unwrap(), s);
+    }
+}
+
+#[test]
+fn keep_subset_tag_before_a_font_selection_is_an_error() {
+    let bad = parse("p.toml", "keep-subset-tag = true\n", &mut none).unwrap_err();
+    assert!(bad.message.contains("needs unembed-fonts"), "{bad}");
+}
+
+#[test]
+fn an_empty_font_list_clears_the_parents() {
+    let text = "unembed-fonts = \"all\"\n";
+    let parent = parse("p.toml", text, &mut none).unwrap();
+    assert!(parent.unembed.is_some());
+    let child = parse(
+        "c.toml",
+        "extends = \"p\"\nunembed-fonts = []\n",
+        &mut |_| Ok(text.to_owned()),
+    )
+    .unwrap();
+    assert!(child.unembed.is_none());
+}

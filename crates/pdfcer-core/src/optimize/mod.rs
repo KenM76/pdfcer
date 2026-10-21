@@ -208,6 +208,11 @@ pub struct OptimizeSettings {
     /// drawing; [`DEFAULT_SMOOTH_TOLERANCE`] to start. Not a positive
     /// finite number smooths nothing.
     pub smooth_tolerance: f64,
+    /// Embedded font programs removed before saving, chosen as
+    /// [`crate::font_unembed`] chooses them; `None` removes none. Skipped,
+    /// with a note, in a document that identifies itself as PDF/A, which
+    /// requires embedded fonts.
+    pub unembed: Option<crate::font_unembed::UnembedRequest>,
 }
 
 /// The tolerance [`OptimizeSettings::new`] starts with, in points: a fifth
@@ -228,6 +233,7 @@ impl OptimizeSettings {
             cleanup: CleanupOptions::none(),
             discard: DiscardOptions::none(),
             smooth_tolerance: DEFAULT_SMOOTH_TOLERANCE,
+            unembed: None,
         }
     }
 
@@ -330,6 +336,13 @@ pub enum OptimizeError {
         /// The object holding it.
         owner: ObjId,
         /// Why it was not removed.
+        reason: String,
+    },
+    /// Removing embedded fonts failed; everything the apply had committed
+    /// was undone.
+    #[error("unembedding fonts failed: {reason}; nothing was changed")]
+    UnembedFailed {
+        /// The unembed error.
         reason: String,
     },
     /// The session changed after the plan was made.
@@ -459,6 +472,11 @@ pub struct OptimizePlan {
     pub discard: Vec<MetadataItem>,
     /// Document objects the apply removes.
     pub discard_objects: Vec<ObjectDiscard>,
+    /// The embedded fonts the apply removes and the ones it refuses, each
+    /// with its reason; `None` when [`OptimizeSettings::unembed`] is unset
+    /// or the document is PDF/A.
+    pub unembed: Option<crate::font_unembed::UnembedPlan>,
+    pub(crate) unembed_request: Option<crate::font_unembed::UnembedRequest>,
     pub(crate) writes: Vec<streams::Rewrite>,
     /// The settings' smoothing tolerance, for the apply to redo it with.
     pub(crate) smooth_tolerance: f64,
@@ -511,11 +529,23 @@ impl OptimizePlan {
         })
     }
 
-    /// Whether the plan removes content: a clean-up or a discard, as
-    /// opposed to a pure size saving.
+    /// Whether the plan removes content: a clean-up, a discard or an
+    /// unembedded font, as opposed to a pure size saving.
     #[must_use]
     pub fn removes_content(&self) -> bool {
-        !self.cleanup.is_empty() || !self.discard.is_empty() || !self.discard_objects.is_empty()
+        !self.cleanup.is_empty()
+            || !self.discard.is_empty()
+            || !self.discard_objects.is_empty()
+            || self.unembed.as_ref().is_some_and(|u| !u.is_empty())
+    }
+
+    /// Font-program bytes the unembedding drops on the full rewrite the
+    /// optimize save writes ([`crate::font_unembed::UnembedPlan::bytes_reclaimable`]).
+    #[must_use]
+    pub fn font_saving(&self) -> u64 {
+        self.unembed
+            .as_ref()
+            .map_or(0, crate::font_unembed::UnembedPlan::bytes_reclaimable)
     }
 
     /// Whether any change is lossy.
