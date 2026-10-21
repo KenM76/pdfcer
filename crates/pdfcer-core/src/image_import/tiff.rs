@@ -2064,7 +2064,7 @@ mod tests {
             Some(RecompressReason::SourceCodecNotReusable)
         );
 
-        // LZW: pdfcer writes no LZW encoder (R28), so nothing to reuse.
+        // LZW: pdfcer writes LZW only on an explicit request (R28), so it is never reused.
         let lzw_file = tiff_file(
             ByteOrder::Big,
             &gray_fields(4, 3, 8, 5, 1),

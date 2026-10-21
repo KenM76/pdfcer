@@ -285,7 +285,7 @@ fn lzw_with_horizontal_differencing_across_strips_reassembles() {
     assert_eq!(
         img.notes.recompressed,
         Some(RecompressReason::SourceCodecNotReusable),
-        "pdfcer writes no LZW encoder (R28), so nothing can be passed through"
+        "pdfcer writes LZW only on an explicit request (R28), so it is never passed through"
     );
 }
 
