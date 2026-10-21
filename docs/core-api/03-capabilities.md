@@ -4756,7 +4756,13 @@ Contract:
   descriptor or the program), `format-deferred` (not `/FontFile2`),
   `cidset-charset-present`, `non-identity-cmap`, `font-not-indirect`,
   `program-direct`, `not-smaller` (Flate-9 output not under the stored
-  size), `unembedded-this-run`, plus the cutter's own. The program is
+  size), `unembedded-this-run`, plus the cutter's own. The shipped cutter
+  is `pdfcer_render::font::resubset::GLYPH_ZERO_RESUBSETTER`: it keeps
+  glyph 0, every glyph any §9.6.6.4 rung could pick for a shown code, and
+  kept composites' components; drops `DSIG`; refuses `collection`,
+  `fstype-restricted`, `fstype-no-subsetting`, `malformed-glyf`,
+  `unusable-font`, `unmapped-code` (a simple-font code no rung resolves).
+  The program is
   written Flate with `/Length1`, and the fonts, descendant CIDFonts and
   descriptors get one fresh six-letter tag over their stem (ISO 32000-2
   §9.6.4), in the run's one undo entry; a cut program is dropped from

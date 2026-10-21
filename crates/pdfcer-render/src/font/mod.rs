@@ -29,6 +29,8 @@ pub mod bundled;
 pub mod coredata;
 pub mod embedded_glyphs;
 pub mod program;
+/// Cutting an embedded TrueType program to the glyphs a document draws.
+pub mod resubset;
 pub mod select;
 /// The sfnt container: table directory, checksums, assembly.
 pub(crate) mod sfnt;

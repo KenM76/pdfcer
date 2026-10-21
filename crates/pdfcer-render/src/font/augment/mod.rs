@@ -4,7 +4,7 @@
 //! mappings; the input bytes are never modified.
 
 mod cmap;
-mod glyf;
+pub(crate) mod glyf;
 mod identity;
 mod installed;
 mod metrics;

@@ -604,6 +604,18 @@ impl LoadedFont {
     }
 }
 
+/// The glyph name §9.6.6 gives each code of the simple font `font_dict`,
+/// read as for an embedded program: what [`load`] resolves glyphs from.
+pub(crate) fn simple_code_names(doc: &DocumentView<'_>, font_dict: &Dict) -> Vec<Option<String>> {
+    let flags = dict_of(doc, font_dict, b"FontDescriptor")
+        .and_then(|d| doc.resolve(d.get(b"Flags")?).as_int())
+        .and_then(|v| u32::try_from(v).ok())
+        .unwrap_or(0);
+    let base_font = name_of(doc, font_dict, b"BaseFont").unwrap_or_default();
+    let std14 = coredata::std14_by_base_font(select::strip_subset_tag(&base_font));
+    encoding_table(doc, font_dict, true, flags, std14)
+}
+
 /// Why a font dictionary could not be rendered by this Pass.
 ///
 /// Distinct from "the font loaded but a code has no glyph": these mean
