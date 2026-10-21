@@ -45,6 +45,10 @@ pub(crate) mod object_data;
 pub mod objects;
 mod preset;
 pub mod profile;
+pub mod resubset;
+// Callers land with the re-subset wiring (Pass 616.6 slice 2, step 6).
+#[allow(dead_code)]
+mod resubset_plan;
 pub(crate) mod select;
 pub(crate) mod smooth;
 pub(crate) mod smooth_fit;

@@ -1148,25 +1148,25 @@ pub fn plan(
 }
 
 /// One font's resolved object identities.
-struct Located<'a> {
-    record: &'a FontRecord,
+pub(crate) struct Located<'a> {
+    pub(crate) record: &'a FontRecord,
     /// The `/FontDescriptor` object, when it is reached by reference.
-    descriptor_id: Option<ObjId>,
+    pub(crate) descriptor_id: Option<ObjId>,
     /// Which `/FontFile*` key carries the program, when one is present and
     /// the descriptor could be read.
-    program_key: Option<ProgramKey>,
+    pub(crate) program_key: Option<ProgramKey>,
     /// The program stream's object, when reached by reference.
-    program_id: Option<ObjId>,
+    pub(crate) program_id: Option<ObjId>,
     /// Whether the descriptor carries `/CIDSet`, and its object if it is a
     /// reference.
-    cid_set: bool,
-    cid_set_id: Option<ObjId>,
+    pub(crate) cid_set: bool,
+    pub(crate) cid_set_id: Option<ObjId>,
     /// Whether the descriptor carries `/CharSet`.
-    char_set: bool,
+    pub(crate) char_set: bool,
     /// True when the descriptor is a **direct** dictionary sitting in the
     /// font dictionary itself, so writing the font dictionary writes it.
     /// Meaningful only when `descriptor_id` is `None`.
-    descriptor_on_font_dict: bool,
+    pub(crate) descriptor_on_font_dict: bool,
 }
 
 /// Resolve one font record's descriptor and program object identities.
@@ -1182,7 +1182,7 @@ struct Located<'a> {
 /// though no composite font is currently ever classified `Removable` — the
 /// lookup is correct rather than convenient, so a future classifier change
 /// does not silently start editing the wrong dictionary.
-fn locate<'a>(graph: &DocumentView<'_>, record: &'a FontRecord) -> Located<'a> {
+pub(crate) fn locate<'a>(graph: &DocumentView<'_>, record: &'a FontRecord) -> Located<'a> {
     let mut out = Located {
         record,
         descriptor_id: None,
