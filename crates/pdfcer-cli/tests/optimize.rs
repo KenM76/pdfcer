@@ -673,6 +673,11 @@ fn a_requested_removal_is_written_and_exits_0_even_when_not_smaller() {
 
 /// A 200 x 200 grey image of letter noise drawn at 50 pt on one page.
 fn noise_image_pdf(d: &std::path::Path) -> std::path::PathBuf {
+    noise_image_drawn_by(d, "q 50 0 0 50 0 0 cm /Im9 Do Q")
+}
+
+/// [`noise_image_pdf`] with `draw` as the page content.
+fn noise_image_drawn_by(d: &std::path::Path, draw: &str) -> std::path::PathBuf {
     let mut x = 0x9E37_79B9u32;
     let px: String = (0..200 * 200)
         .map(|_| {
@@ -682,7 +687,6 @@ fn noise_image_pdf(d: &std::path::Path) -> std::path::PathBuf {
             char::from(b'a' + (x >> 24) as u8 % 26)
         })
         .collect();
-    let draw = "q 50 0 0 50 0 0 cm /Im9 Do Q";
     let extra = [
         format!(
             "<< /Length {} >>\nstream\n{draw}\nendstream",
@@ -748,6 +752,36 @@ fn an_image_setting_downsamples_and_reports_size_page_and_source() {
     assert!(j.contains("\"size_after\":[50,50]"), "{j}");
     assert!(
         j.contains("\"method\":{\"value\":\"average\",\"source\":\"rule 1\"}"),
+        "{j}"
+    );
+}
+
+#[test]
+fn max_pixels_caps_an_image_drawn_on_no_page() {
+    let d = dir("image-max-pixels");
+    let input = noise_image_drawn_by(&d, "q Q");
+    let out = d.join("out.pdf");
+    let base = [
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--keep-structure",
+        "--preset",
+        "lossless",
+        "--streams",
+    ];
+    let skipped = text(&run(&[&base[..], &["image(ppi=72)", "--dry-run"]].concat()));
+    assert!(skipped.contains("max-pixels=N caps it"), "{skipped}");
+    let args = [&base[..], &["image(ppi=72,max-pixels=2500)"]].concat();
+    let o = run(&args);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(report.contains("200x200 -> 50x50 px"), "{report}");
+    let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(written.contains("/Width 50"), "{written}");
+    let j = text(&run(&[&args[..], &["--dry-run", "--json"]].concat()));
+    assert!(
+        j.contains("\"max_pixels\":{\"value\":2500,\"source\":\"images\"}"),
         "{j}"
     );
 }

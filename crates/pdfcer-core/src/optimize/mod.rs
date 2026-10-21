@@ -405,7 +405,9 @@ impl fmt::Display for SkipReason {
             }
             Self::UnsupportedFilter(name) => write!(f, "filter {name} is not re-encoded"),
             Self::Undecodable(why) => write!(f, "does not decode: {why}"),
-            Self::Unplaced => f.write_str("drawn on no page, so not resampled"),
+            Self::Unplaced => {
+                f.write_str("drawn on no page, so not resampled (max-pixels=N caps it)")
+            }
             Self::BelowMinSaving { before, after, pct } => {
                 write!(f, "saves less than {pct}% ({before} B -> {after} B), kept")
             }

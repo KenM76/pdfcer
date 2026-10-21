@@ -4,7 +4,7 @@
 use std::fmt::Write as _;
 
 use pdfcer_core::optimize::{
-    Conversion, ImageChange, ImageConvert, ImageEncode, OptimizePlan, SettingSource, Sourced,
+    Conversion, ImageChange, ImageConvert, ImageEncode, OptimizePlan, SettingSource,
 };
 
 /// The changed and skipped streams, as text.
@@ -159,8 +159,8 @@ fn conversion_json(img: &ImageChange) -> String {
 pub(crate) fn image_json(img: &ImageChange) -> String {
     let s = &img.settings;
     let src = |v: String, from: SettingSource| format!("{{\"value\":{v},\"source\":\"{from}\"}}");
-    let opt = |v: Option<Sourced<u16>>| {
-        v.map_or_else(|| "null".to_owned(), |v| src(v.value.to_string(), v.source))
+    let opt = |v: Option<(u32, SettingSource)>| {
+        v.map_or_else(|| "null".to_owned(), |(v, from)| src(v.to_string(), from))
     };
     let binding = img.binding.as_ref().map_or_else(
         || "null".to_owned(),
@@ -188,7 +188,7 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
         },
     );
     format!(
-        "{{\"size_before\":[{},{}],\"size_after\":[{},{}],\"binding\":{binding},\"encoded_as\":\"{}\",\"bpc\":[{},{}],\"jpeg\":{jpeg},\"method\":{},\"ppi\":{},\"above\":{},\"encode\":{},\"quality\":{},\"chroma\":{},\"progressive\":{},\"min_saving_pct\":{},\"color_space\":[\"{}\",\"{}\"],\"conversion\":{},\"convert\":{},\"threshold\":{},\"colors\":{},\"keyed\":{},\"predictor\":{},\"predicted\":{},\"resampled_with\":{}}}",
+        "{{\"size_before\":[{},{}],\"size_after\":[{},{}],\"binding\":{binding},\"encoded_as\":\"{}\",\"bpc\":[{},{}],\"jpeg\":{jpeg},\"method\":{},\"ppi\":{},\"above\":{},\"encode\":{},\"quality\":{},\"chroma\":{},\"progressive\":{},\"min_saving_pct\":{},\"color_space\":[\"{}\",\"{}\"],\"conversion\":{},\"convert\":{},\"threshold\":{},\"colors\":{},\"keyed\":{},\"max_pixels\":{},\"predictor\":{},\"predicted\":{},\"resampled_with\":{}}}",
         img.size_before.0,
         img.size_before.1,
         img.size_after.0,
@@ -197,8 +197,8 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
         img.bpc.0,
         img.bpc.1,
         src(format!("\"{}\"", s.method.value), s.method.source),
-        opt(s.ppi),
-        opt(s.above),
+        opt(s.ppi.map(|v| (u32::from(v.value), v.source))),
+        opt(s.above.map(|v| (u32::from(v.value), v.source))),
         src(format!("\"{}\"", s.encode.value), s.encode.source),
         src(s.quality.value.to_string(), s.quality.source),
         src(format!("\"{}\"", s.chroma.value), s.chroma.source),
@@ -211,6 +211,7 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
         src(format!("\"{}\"", s.threshold.value), s.threshold.source),
         src(s.colors.value.to_string(), s.colors.source),
         src(format!("\"{}\"", s.keyed.value), s.keyed.source),
+        opt(s.max_pixels.map(|v| (v.value, v.source))),
         src(format!("\"{}\"", s.predictor.value), s.predictor.source),
         img.predicted,
         img.resampled_with.map_or("null".to_owned(), |p| format!(

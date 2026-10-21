@@ -339,15 +339,19 @@ fn target_size(
     settings: &ResolvedImage,
     space: Option<&ImageSpace>,
 ) -> Result<Option<(u32, u32)>, SkipReason> {
-    let (Some(ppi), Some(trigger)) = (settings.ppi, settings.trigger()) else {
-        return Ok(None);
-    };
     if !settings.resamples() {
         return Ok(None);
     }
-    let space = space
-        .filter(|s| !s.placements.is_empty())
-        .ok_or(SkipReason::Unplaced)?;
+    let Some(space) = space.filter(|s| !s.placements.is_empty()) else {
+        return match (settings.max_pixels, space) {
+            (Some(max), Some(s)) => Ok(capped(s.width, s.height, max.value)),
+            (None, _) if settings.ppi.is_none() => Ok(None),
+            _ => Err(SkipReason::Unplaced),
+        };
+    };
+    let (Some(ppi), Some(trigger)) = (settings.ppi, settings.trigger()) else {
+        return Ok(None);
+    };
     let (w, h) = (space.width, space.height);
     let target = f64::from(ppi.value);
     let axis = |len: u32, binding: Option<f64>| match binding {
@@ -359,6 +363,22 @@ fn target_size(
         axis(h, space.binding_ppi_y()),
     );
     Ok((out != (w, h)).then_some(out))
+}
+
+/// `w` x `h` scaled by one factor to at most `max` pixels, if it has more.
+/// An axis that would fall below one pixel stays at one and the other takes
+/// the remaining budget, so the result never exceeds `max`.
+pub(super) fn capped(w: u32, h: u32, max: u32) -> Option<(u32, u32)> {
+    let pixels = f64::from(w) * f64::from(h);
+    if pixels <= f64::from(max) {
+        return None;
+    }
+    let k = (f64::from(max) / pixels).sqrt();
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // in 1..=len
+    let axis = |len: u32| (f64::from(len) * k).floor().clamp(1.0, f64::from(len)) as u32;
+    let (a, b) = (axis(w), axis(h));
+    let b = b.min(max / a).max(1);
+    Some((a.min(max / b).max(1), b))
 }
 
 /// A JPEG whose pixels are unchanged is re-encoded only when JPEG is asked at

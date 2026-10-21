@@ -51,7 +51,9 @@ pub(crate) struct OptimizeArgs {
     /// 256), predictor (off|png|auto, default auto: Flate output is
     /// PNG-predicted when that is smaller), keyed (subsample|skip, default
     /// subsample: a colour-keyed image is downsampled by nearest pixel so
-    /// its key still matches), min-saving (percent), reset.
+    /// its key still matches), max-pixels (an image drawn on no page has
+    /// no resolution, so it is skipped unless this caps its width x height),
+    /// min-saving (percent), reset.
     /// "image(encode=jpeg)"
     /// rewrites every eligible image as JPEG at its size; a JPEG is never
     /// written above its own estimated quality, and one left at its size is

@@ -115,7 +115,9 @@ impl fmt::Display for ImageEncode {
 /// and `colors=N` (2 to 256, default 256) caps a palette.
 /// `predictor=off|png|auto` (default auto) PNG-predicts Flate output.
 /// `keyed=subsample|skip` (default subsample) says how a colour-key masked
-/// image is downsampled ([`KeyedResample`]).
+/// image is downsampled ([`KeyedResample`]). `max-pixels=N` downsamples an
+/// image drawn on no page, which has no resolution to measure, to at most
+/// `N` pixels, keeping its aspect ratio.
 ///
 /// ```
 /// use pdfcer_core::optimize::{ImagePatch, ResampleMethod, StreamAction};
@@ -155,6 +157,8 @@ pub struct ImagePatch {
     pub predictor: Option<Predictor>,
     /// How a colour-key masked image is downsampled.
     pub keyed: Option<KeyedResample>,
+    /// Most pixels (width x height) an image drawn on no page keeps.
+    pub max_pixels: Option<u32>,
     /// Keep the stored form unless the result is at least this many percent
     /// smaller (0 to 99).
     pub min_saving_pct: Option<u8>,
@@ -187,6 +191,7 @@ impl ImagePatch {
             colors: None,
             predictor: None,
             keyed: None,
+            max_pixels: None,
             min_saving_pct: None,
         }
     }
@@ -266,10 +271,11 @@ impl ImagePatch {
                     format!("image(): unknown keyed {value:?}; expected subsample or skip")
                 })?);
             }
+            "max-pixels" => self.max_pixels = Some(value.parse().map_err(|_| bad())?),
             "min-saving" => self.min_saving_pct = Some(value.parse().map_err(|_| bad())?),
             _ => {
                 return Err(format!(
-                    "image(): unknown key {key:?}; expected reset, method, ppi, above, encode, quality, chroma, progressive, convert, threshold, colors, predictor, keyed or min-saving"
+                    "image(): unknown key {key:?}; expected reset, method, ppi, above, encode, quality, chroma, progressive, convert, threshold, colors, predictor, keyed, max-pixels or min-saving"
                 ));
             }
         }
@@ -282,8 +288,8 @@ impl ImagePatch {
     ///
     /// As [`Self::parse`].
     pub fn validate(&self) -> Result<(), String> {
-        if self.ppi == Some(0) || self.above == Some(0) {
-            return Err("image(): ppi and above must be at least 1".to_owned());
+        if self.ppi == Some(0) || self.above == Some(0) || self.max_pixels == Some(0) {
+            return Err("image(): ppi, above and max-pixels must be at least 1".to_owned());
         }
         if let (Some(ppi), Some(above)) = (self.ppi, self.above)
             && above < ppi
@@ -384,6 +390,9 @@ impl fmt::Display for ImagePatch {
         if let Some(k) = self.keyed {
             parts.push(format!("keyed={k}"));
         }
+        if let Some(n) = self.max_pixels {
+            parts.push(format!("max-pixels={n}"));
+        }
         if let Some(s) = self.min_saving_pct {
             parts.push(format!("min-saving={s}"));
         }
@@ -462,6 +471,8 @@ pub struct ResolvedImage {
     pub predictor: Sourced<Predictor>,
     /// How a colour-key masked image is downsampled.
     pub keyed: Sourced<KeyedResample>,
+    /// The pixel cap for an image drawn on no page; `None` skips it.
+    pub max_pixels: Option<Sourced<u32>>,
     /// The `min-saving` guard, percent.
     pub min_saving_pct: Sourced<u8>,
 }
@@ -481,14 +492,17 @@ impl ResolvedImage {
             colors: sourced(256, SettingSource::BuiltIn),
             predictor: sourced(Predictor::Auto, SettingSource::BuiltIn),
             keyed: sourced(KeyedResample::Subsample, SettingSource::BuiltIn),
+            max_pixels: None,
             min_saving_pct: sourced(0, SettingSource::BuiltIn),
         }
     }
 
-    /// Whether these settings downsample at all.
+    /// Whether these settings downsample at all: a target `ppi` or a
+    /// `max-pixels` cap, with a method other than `off`.
     #[must_use]
     pub fn resamples(&self) -> bool {
-        self.ppi.is_some() && self.method.value != ResampleMethod::Off
+        (self.ppi.is_some() || self.max_pixels.is_some())
+            && self.method.value != ResampleMethod::Off
     }
 
     /// The binding resolution above which an axis is resampled: `above`,
@@ -521,6 +535,7 @@ impl ResolvedImage {
             colors: Some(self.colors.value),
             predictor: Some(self.predictor.value),
             keyed: Some(self.keyed.value),
+            max_pixels: self.max_pixels.map(|n| n.value),
             min_saving_pct: Some(self.min_saving_pct.value),
         }
     }
@@ -564,6 +579,9 @@ impl ResolvedImage {
         }
         if let Some(v) = p.keyed {
             self.keyed = sourced(v, src);
+        }
+        if let Some(v) = p.max_pixels {
+            self.max_pixels = Some(sourced(v, src));
         }
         if let Some(v) = p.min_saving_pct {
             self.min_saving_pct = sourced(v, src);
@@ -611,6 +629,8 @@ pub(crate) fn fold(actions: impl IntoIterator<Item = (StreamAction, SettingSourc
     }
 }
 
+#[cfg(test)]
+mod pipeline_cap_tests;
 #[cfg(test)]
 mod pipeline_convert_tests;
 #[cfg(test)]
