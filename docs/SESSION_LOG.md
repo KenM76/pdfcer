@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-20 (1124th filing) — `Pass 616.3` slice G PARTIAL in `7a3f8078`: discard the embedded search index
+
+**Shipped (engineer-reported, no shell here):** `DiscardObject::SearchIndex` (`search-index`): removes catalog `/PieceInfo /SearchIndex`; other `/PieceInfo` entries stay, an only-entry removes the whole key, direct and indirect both handled. Plan note: catalogs that included the file stop finding it until rebuilt. Implementer-sourced (PDF4QT, pikepdf), not yet checked on a real Acrobat file. Core `[x]`, cli `[x]`, gui `[ ]`. Core optimize 64 passed (4 new; sabotage failed 2), CLI optimize 17 (1 new), clippy and `check-core-api-verbs` clean, `ALL` = 12. No manifest change. Slice F filing was committed as `e1048db0` (unpushed).
+
+**Also:** trimmed the FEATURES discard-objects row, which slice F left at 1242 characters against the 1200 cap (the gate was failing); per-class detail now lives in commit messages. Length measured at the end of this filing.
+
+**Next:** merge image fragments, then smooth lines.
+
+**Register:** ROADMAP header `G 7a3f8078` and Slice G DONE block; FEATURES row extended, Planned remainder narrowed. No decision. Git, push and backup state not verified from here.
+
 ## 2026-10-20 (1123rd filing) — `Pass 616.3` slice F PARTIAL in `9cd6a9d3`: flatten visible layers
 
 **Shipped (engineer-reported, no shell here):** `DiscardObject::FlattenLayers` (`flatten-layers`): each layer visible in the default configuration is deleted with `delete_layer` + `KeepUnlayered`, so its drawing stays on the page, on no layer. Hidden layers stay unless `hidden-layer` is also chosen (both = Acrobat's single option). One plan item per visible layer; a refusal fails the whole run, nothing written. Core `[x]`, cli `[x]`, gui `[ ]`. Core lib 1608 passed (4 new; `KeepUnlayered` sabotage failed 2), CLI optimize 16 (1 new), gates clean, `ALL` = 11. No dependency change. The slice E filing was committed as `2e77242f`.
