@@ -44,10 +44,16 @@ pub(crate) struct OptimizeArgs {
     /// (off|average|subsample|bicubic|lanczos), ppi, above (the trigger),
     /// encode (keep|flate|flate-N|jpeg), quality (1-100 or minimum, low,
     /// medium, high, maximum; default 80), chroma (auto|444|420),
-    /// progressive, min-saving (percent), reset. "image(encode=jpeg)"
+    /// progressive, convert (keep|gray|bilevel|indexed), threshold (otsu,
+    /// dither or 0-255, for bilevel), colors (2-256, for indexed; default
+    /// 256), min-saving (percent), reset. "image(encode=jpeg)"
     /// rewrites every eligible image as JPEG at its size; a JPEG is never
     /// written above its own estimated quality, and one left at its size is
-    /// not touched.
+    /// not touched. "image(convert=gray)" writes colour images as
+    /// DeviceGray by the ISO 32000-2 formulas; bilevel makes them 1 bit;
+    /// indexed builds a palette (exact when the image has few enough
+    /// colours, else median cut). Soft masks, colour-keyed images and
+    /// Separation, DeviceN or Lab images are skipped with the reason.
     #[arg(long, value_name = "ACTION")]
     pub(crate) streams: Option<String>,
     /// Add a rule, after the profile's. Whitespace-separated key=value pairs

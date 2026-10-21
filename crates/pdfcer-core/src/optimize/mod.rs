@@ -55,8 +55,8 @@ pub use discard::DiscardOptions;
 pub use image::jpeg_quality::estimate_jpeg_quality;
 pub use image::pipeline::{ImageChange, JpegQuality};
 pub use image::{
-    Chroma, ImageEncode, ImagePatch, QUALITY_LEVELS, ResampleMethod, ResolvedImage, SettingSource,
-    Sourced,
+    COLORS_RANGE, Chroma, Conversion, ImageConvert, ImageEncode, ImagePatch, QUALITY_LEVELS,
+    ResampleMethod, ResolvedImage, SettingSource, Sourced, Threshold,
 };
 pub use objects::{DiscardObject, ObjectDiscard};
 pub use select::{PageRanges, Selector};
@@ -130,12 +130,18 @@ impl StreamAction {
     }
 
     /// Whether the action can change decoded content: an image patch that
-    /// sets a target `ppi` with a method other than `off`.
+    /// sets a target `ppi` with a method other than `off`, asks for JPEG, or
+    /// converts to another format. A plan says per image whether it did
+    /// ([`ImageChange::is_lossy`]); an exact palette is not lossy there.
     #[must_use]
     pub fn is_lossy(self) -> bool {
         match self {
             Self::Leave | Self::Recompress { .. } => false,
-            Self::Image(p) => p.ppi.is_some() && p.method != Some(ResampleMethod::Off),
+            Self::Image(p) => {
+                (p.ppi.is_some() && p.method != Some(ResampleMethod::Off))
+                    || p.encode == Some(ImageEncode::Jpeg)
+                    || p.convert.is_some_and(|c| c != ImageConvert::Keep)
+            }
         }
     }
 }

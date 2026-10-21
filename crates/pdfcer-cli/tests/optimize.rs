@@ -779,3 +779,40 @@ fn an_image_written_as_jpeg_reports_format_and_quality() {
         "{j}"
     );
 }
+
+#[test]
+fn a_bilevel_conversion_reports_format_and_threshold() {
+    let d = dir("image-bilevel");
+    let input = noise_image_pdf(&d);
+    let out = d.join("out.pdf");
+    let args = [
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--keep-structure",
+        "--streams",
+        "image(convert=bilevel,threshold=110)",
+    ];
+    let o = run(&args);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(
+        report.contains("format raw/DeviceGray 8 bit -> Flate/DeviceGray 1 bit; converted from DeviceGray, threshold 110"),
+        "{report}"
+    );
+    assert!(report.contains("(lossy)"), "{report}");
+    let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert!(written.contains("/BitsPerComponent 1"), "{written}");
+    let mut json = args.to_vec();
+    json.extend(["--dry-run", "--json"]);
+    let j = text(&run(&json));
+    assert!(j.contains("\"bpc\":[8,1]"), "{j}");
+    assert!(
+        j.contains("\"conversion\":{\"to\":\"bilevel\",\"from\":\"DeviceGray\",\"formula\":null,\"not_colour_managed\":false,\"threshold\":110,\"colors\":null,\"exact\":false}"),
+        "{j}"
+    );
+    assert!(
+        j.contains("\"threshold\":{\"value\":\"110\",\"source\":\"streams\"}"),
+        "{j}"
+    );
+}

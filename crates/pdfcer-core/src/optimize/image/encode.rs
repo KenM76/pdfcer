@@ -1,7 +1,9 @@
 //! Performing a planned [`Job`]: decode the source, convert to 8 bits for
-//! JPEG, resample, encode, and keep the result only when it passes the
-//! never-larger and `min-saving` guards.
+//! JPEG or convert its colour, resample, encode, and keep the result only
+//! when it passes the never-larger and `min-saving` guards.
 
+use super::Conversion;
+use super::convert;
 use super::pipeline::{Job, Source, Target};
 use crate::deskew::Raster;
 use crate::filters::{self, flate};
@@ -12,6 +14,16 @@ use crate::object::{Dict, Name, Object};
 use crate::optimize::SkipReason;
 use crate::view::DocumentView;
 
+/// A performed job.
+pub(crate) struct Written {
+    pub(crate) dict: Dict,
+    pub(crate) data: Vec<u8>,
+    /// Bits per component written.
+    pub(crate) bpc: u32,
+    /// The conversion's report entry, run results filled in.
+    pub(crate) conversion: Option<Conversion>,
+}
+
 /// Perform `job` on the image stored as `raw` under `dict`; `view`
 /// resolves the dictionary's indirect entries for a JPEG decode.
 pub(crate) fn run(
@@ -19,7 +31,7 @@ pub(crate) fn run(
     view: &DocumentView<'_>,
     dict: &Dict,
     raw: &[u8],
-) -> Result<(Dict, Vec<u8>), SkipReason> {
+) -> Result<Written, SkipReason> {
     let int = |k: &[u8]| match dict.get(k) {
         Some(Object::Integer(n)) => u32::try_from(*n).ok(),
         _ => None,
@@ -38,10 +50,17 @@ pub(crate) fn run(
         paper_is_ones: true,
         indexed: job.indexed,
     };
-    let pixels = if job.out == job.src {
-        samples
-    } else {
-        resample_with(&raster, &samples, job.out.0, job.out.1, job.kernel)
+    let (pixels, components, bpc, colour) = match &job.convert {
+        Some(c) => {
+            let done = convert::apply(c, &raster, &samples, job.out, job.kernel);
+            let space = Some((done.color_space, done.conversion));
+            (done.data, done.components, done.bpc, space)
+        }
+        None if job.out == job.src => (samples, job.components, bpc, None),
+        None => {
+            let resized = resample_with(&raster, &samples, job.out.0, job.out.1, job.kernel);
+            (resized, job.components, bpc, None)
+        }
     };
     let (data, filter, bpc) = match job.target {
         Target::Flate(level) => (
@@ -50,14 +69,26 @@ pub(crate) fn run(
             bpc,
         ),
         Target::Jpeg(opts) => {
-            let components = u8::try_from(job.components).unwrap_or(0);
-            let data = jpeg_write::encode(&pixels, job.out.0, job.out.1, components, opts)
+            let n = u8::try_from(components).unwrap_or(0);
+            let data = jpeg_write::encode(&pixels, job.out.0, job.out.1, n, opts)
                 .map_err(SkipReason::ImageUnsupported)?;
             (data, &b"DCTDecode"[..], 8)
         }
     };
     guard(job, raw.len() as u64, data.len() as u64)?;
-    Ok((output_dict(dict, job.out, filter, bpc, data.len()), data))
+    let mut out = output_dict(dict, job.out, filter, bpc, data.len());
+    let conversion = colour.map(|(space, conversion)| {
+        out.remove(b"Decode");
+        out.remove(b"D");
+        out.insert(Name::from(&b"ColorSpace"[..]), space);
+        conversion
+    });
+    Ok(Written {
+        dict: out,
+        data,
+        bpc,
+        conversion,
+    })
 }
 
 /// The never-larger and `min-saving` guards.
@@ -130,7 +161,7 @@ fn source_samples(
             if packed.len() < need {
                 return Err(short(packed.len(), need));
             }
-            if matches!(job.target, Target::Flate(_)) {
+            if matches!(job.target, Target::Flate(_)) || job.convert.is_some() {
                 return Ok((packed, job.bpc));
             }
             let bits = u8::try_from(job.bpc).unwrap_or(8);

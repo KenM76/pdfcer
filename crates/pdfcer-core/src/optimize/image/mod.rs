@@ -2,14 +2,18 @@
 //! `image(...)` action carries, and the fold that resolves every matching
 //! action into one [`ResolvedImage`] naming where each value came from.
 
+pub(crate) mod colour;
+pub(crate) mod convert;
 pub(crate) mod encode;
 pub(crate) mod jpeg_quality;
 pub(crate) mod pipeline;
+pub(crate) mod reduce;
 
 use std::fmt;
 
 use super::StreamAction;
 pub use crate::jpeg_write::Chroma;
+pub use convert::{COLORS_RANGE, Conversion, ImageConvert, Threshold};
 
 /// How an image is resampled when it is downsampled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -99,7 +103,9 @@ impl fmt::Display for ImageEncode {
 /// every field an earlier action set. Downsampling needs a `ppi`; `method`
 /// defaults to bicubic and `above` (the trigger) to 1.5 x `ppi`. `quality`
 /// is 1 to 100 or a [`QUALITY_LEVELS`] name; it applies when the output is
-/// JPEG and defaults to 80.
+/// JPEG and defaults to 80. `convert=gray|bilevel|indexed` changes the
+/// colour form ([`ImageConvert`]); `threshold=otsu|dither|N` tunes bilevel
+/// and `colors=N` (2 to 256, default 256) caps a palette.
 ///
 /// ```
 /// use pdfcer_core::optimize::{ImagePatch, ResampleMethod, StreamAction};
@@ -129,6 +135,12 @@ pub struct ImagePatch {
     pub chroma: Option<Chroma>,
     /// Progressive rather than baseline JPEG.
     pub progressive: Option<bool>,
+    /// Colour conversion.
+    pub convert: Option<ImageConvert>,
+    /// How a bilevel conversion thresholds.
+    pub threshold: Option<Threshold>,
+    /// Most palette entries for an indexed conversion, 2 to 256.
+    pub colors: Option<u16>,
     /// Keep the stored form unless the result is at least this many percent
     /// smaller (0 to 99).
     pub min_saving_pct: Option<u8>,
@@ -156,6 +168,9 @@ impl ImagePatch {
             quality: None,
             chroma: None,
             progressive: None,
+            convert: None,
+            threshold: None,
+            colors: None,
             min_saving_pct: None,
         }
     }
@@ -216,10 +231,19 @@ impl ImagePatch {
                     _ => return Err(bad()),
                 });
             }
+            "convert" => {
+                self.convert = Some(ImageConvert::from_name(value).ok_or_else(|| {
+                    format!(
+                        "image(): unknown convert {value:?}; expected keep, gray, bilevel or indexed"
+                    )
+                })?);
+            }
+            "threshold" => self.threshold = Some(Threshold::parse(value)?),
+            "colors" => self.colors = Some(value.parse().map_err(|_| bad())?),
             "min-saving" => self.min_saving_pct = Some(value.parse().map_err(|_| bad())?),
             _ => {
                 return Err(format!(
-                    "image(): unknown key {key:?}; expected reset, method, ppi, above, encode, quality, chroma, progressive or min-saving"
+                    "image(): unknown key {key:?}; expected reset, method, ppi, above, encode, quality, chroma, progressive, convert, threshold, colors or min-saving"
                 ));
             }
         }
@@ -245,6 +269,14 @@ impl ImagePatch {
         }
         if self.quality.is_some_and(|q| !(1..=100).contains(&q)) {
             return Err("image(): quality must be 1 to 100".to_owned());
+        }
+        if self.colors.is_some_and(|n| !COLORS_RANGE.contains(&n)) {
+            return Err("image(): colors must be 2 to 256".to_owned());
+        }
+        if self.encode == Some(ImageEncode::Jpeg)
+            && let Some(c @ (ImageConvert::Bilevel | ImageConvert::Indexed)) = self.convert
+        {
+            return Err(format!("image(): convert={c} cannot be written as JPEG"));
         }
         if self.min_saving_pct.is_some_and(|p| p > 99) {
             return Err("image(): min-saving must be 0 to 99".to_owned());
@@ -311,6 +343,15 @@ impl fmt::Display for ImagePatch {
         if let Some(p) = self.progressive {
             parts.push(format!("progressive={p}"));
         }
+        if let Some(c) = self.convert {
+            parts.push(format!("convert={c}"));
+        }
+        if let Some(t) = self.threshold {
+            parts.push(format!("threshold={t}"));
+        }
+        if let Some(n) = self.colors {
+            parts.push(format!("colors={n}"));
+        }
         if let Some(s) = self.min_saving_pct {
             parts.push(format!("min-saving={s}"));
         }
@@ -375,6 +416,12 @@ pub struct ResolvedImage {
     pub chroma: Sourced<Chroma>,
     /// Progressive JPEG.
     pub progressive: Sourced<bool>,
+    /// Colour conversion.
+    pub convert: Sourced<ImageConvert>,
+    /// Bilevel threshold.
+    pub threshold: Sourced<Threshold>,
+    /// Most palette entries.
+    pub colors: Sourced<u16>,
     /// The `min-saving` guard, percent.
     pub min_saving_pct: Sourced<u8>,
 }
@@ -389,6 +436,9 @@ impl ResolvedImage {
             quality: sourced(80, SettingSource::BuiltIn),
             chroma: sourced(Chroma::Auto, SettingSource::BuiltIn),
             progressive: sourced(false, SettingSource::BuiltIn),
+            convert: sourced(ImageConvert::Keep, SettingSource::BuiltIn),
+            threshold: sourced(Threshold::Otsu, SettingSource::BuiltIn),
+            colors: sourced(256, SettingSource::BuiltIn),
             min_saving_pct: sourced(0, SettingSource::BuiltIn),
         }
     }
@@ -424,6 +474,9 @@ impl ResolvedImage {
             quality: Some(self.quality.value),
             chroma: Some(self.chroma.value),
             progressive: Some(self.progressive.value),
+            convert: Some(self.convert.value),
+            threshold: Some(self.threshold.value),
+            colors: Some(self.colors.value),
             min_saving_pct: Some(self.min_saving_pct.value),
         }
     }
@@ -452,6 +505,15 @@ impl ResolvedImage {
         }
         if let Some(v) = p.progressive {
             self.progressive = sourced(v, src);
+        }
+        if let Some(v) = p.convert {
+            self.convert = sourced(v, src);
+        }
+        if let Some(v) = p.threshold {
+            self.threshold = sourced(v, src);
+        }
+        if let Some(v) = p.colors {
+            self.colors = sourced(v, src);
         }
         if let Some(v) = p.min_saving_pct {
             self.min_saving_pct = sourced(v, src);
@@ -499,6 +561,8 @@ pub(crate) fn fold(actions: impl IntoIterator<Item = (StreamAction, SettingSourc
     }
 }
 
+#[cfg(test)]
+mod pipeline_convert_tests;
 #[cfg(test)]
 mod pipeline_jpeg_tests;
 #[cfg(test)]

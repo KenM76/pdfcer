@@ -2,13 +2,15 @@
 //! output size from the binding placement, the source kind, and the target
 //! encoding. [`super::encode::run`] performs the result.
 
-use super::{ImageEncode, ResampleMethod, ResolvedImage};
+use super::convert::{self, ConvertJob};
+use super::{Conversion, ImageConvert, ImageEncode, ResampleMethod, ResolvedImage};
 use crate::jpeg_write::JpegOptions;
 use crate::object::{Dict, Object};
 use crate::ocr::upscale::Kernel;
 use crate::optimize::SkipReason;
 use crate::optimize::streams::{GENERIC, chain};
 use crate::space_audit::{ImageClass, ImagePlacement, ImageSpace};
+use crate::view::DocumentView;
 
 /// What one image's rewrite did, for the report.
 #[derive(Debug, Clone, PartialEq)]
@@ -32,6 +34,26 @@ pub struct ImageChange {
     pub bpc: (u8, u8),
     /// For JPEG output, the quality written and why.
     pub jpeg: Option<JpegQuality>,
+    /// The colour conversion, when the settings asked for one that applied.
+    pub conversion: Option<Conversion>,
+    /// The colour space before and after, by family name (`DeviceRGB`,
+    /// `Indexed DeviceRGB`, …); equal when not converted.
+    pub color_space: (String, String),
+}
+
+impl ImageChange {
+    /// Whether the rewrite lost information: it resampled, wrote JPEG,
+    /// narrowed the bit depth, or converted lossily. An exact palette at
+    /// the same size is lossless.
+    #[must_use]
+    pub fn is_lossy(&self) -> bool {
+        self.size_after != self.size_before
+            || self.encoded_as == ImageEncode::Jpeg
+            || self
+                .conversion
+                .as_ref()
+                .map_or(self.bpc.1 < self.bpc.0, Conversion::is_lossy)
+    }
 }
 
 /// The JPEG quality an image was written at.
@@ -67,7 +89,7 @@ pub(crate) enum Target {
 
 /// A planned rewrite, redone on a stream an earlier step of the run
 /// rewrote.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) struct Job {
     pub(crate) src: (u32, u32),
     pub(crate) out: (u32, u32),
@@ -78,6 +100,16 @@ pub(crate) struct Job {
     pub(crate) target: Target,
     pub(crate) kernel: Option<Kernel>,
     pub(crate) min_saving_pct: u8,
+    pub(crate) convert: Option<ConvertJob>,
+}
+
+/// What the caller knows about one image beyond its own dictionary.
+pub(crate) struct Context<'a, 'v> {
+    pub(crate) view: &'a DocumentView<'v>,
+    /// [`mask_blocker`]'s answer.
+    pub(crate) blocker: Option<&'static str>,
+    /// [`convert_blocker`]'s answer.
+    pub(crate) convert_blocker: Option<&'static str>,
 }
 
 /// What resolved settings ask of one image.
@@ -118,6 +150,27 @@ pub(crate) fn mask_blocker(dict: &Dict, smask: Option<&Dict>) -> Option<&'static
     }
 }
 
+/// Why an image's colours cannot be converted, if they cannot: a soft
+/// mask's samples are opacity, not colour; a `/Matte` colour is in its
+/// parent's colour space (ISO 32000-2 §11.6.5.3); a colour key matches
+/// source sample values. `is_soft_mask` says another image names it as
+/// its `/SMask`.
+pub(crate) fn convert_blocker(
+    dict: &Dict,
+    smask: Option<&Dict>,
+    is_soft_mask: bool,
+) -> Option<&'static str> {
+    if is_soft_mask || dict.contains_key(b"Matte") {
+        Some("a soft mask is not colour-converted")
+    } else if smask.is_some_and(|m| m.contains_key(b"Matte")) {
+        Some("an image whose soft mask has /Matte keeps its colour space")
+    } else if colour_keyed(dict) {
+        Some("a colour-key masked image is not colour-converted: its key matches source values")
+    } else {
+        None
+    }
+}
+
 fn colour_keyed(dict: &Dict) -> bool {
     matches!(dict.get(b"Mask"), Some(Object::Array(_)))
 }
@@ -137,34 +190,46 @@ fn source_kind(dict: &Dict) -> Result<Source, SkipReason> {
 }
 
 /// Decide what `settings` do to the image stored as `raw` under `dict`,
-/// audited as `space`. `blocker` is [`mask_blocker`]'s answer.
+/// audited as `space`.
 pub(crate) fn decide(
     settings: &ResolvedImage,
     dict: &Dict,
     raw: &[u8],
     space: Option<&ImageSpace>,
-    blocker: Option<&'static str>,
+    ctx: &Context<'_, '_>,
 ) -> Result<Outcome, SkipReason> {
     let resized = target_size(settings, space)?;
+    let convert = convert::plan(settings, ctx.view, dict, space, ctx.convert_blocker)
+        .map_err(SkipReason::ImageUnsupported)?;
     let encode = settings.encode.value;
-    let source = match (resized, encode) {
-        (None, ImageEncode::Keep) => return Ok(Outcome::Unchanged),
-        (None, ImageEncode::Flate { level }) => return Ok(Outcome::Lossless(level)),
+    let source = match (resized, encode, &convert) {
+        (None, ImageEncode::Keep, None) => return Ok(Outcome::Unchanged),
+        (None, ImageEncode::Flate { level }, None) => return Ok(Outcome::Lossless(level)),
         _ => source_kind(dict)?,
     };
-    if resized.is_none() && source == Source::Dct {
+    if resized.is_none() && convert.is_none() && source == Source::Dct {
         // An existing JPEG whose pixels are unchanged is left untouched.
         return Ok(Outcome::Unchanged);
     }
     if resized.is_some()
-        && let Some(why) = blocker
+        && let Some(why) = ctx.blocker
     {
         return Err(unsupported(why));
     }
     let space = space.ok_or_else(|| unsupported("it was not audited"))?;
-    let jpeg = matches!(encode, ImageEncode::Jpeg)
-        || (encode == ImageEncode::Keep && source == Source::Dct);
-    let (components, bpc) = sample_format(dict, space, source, jpeg)?;
+    let to = convert.as_ref().map(|c| c.to);
+    let reduced = matches!(to, Some(ImageConvert::Bilevel | ImageConvert::Indexed));
+    let jpeg = match encode {
+        ImageEncode::Jpeg => true,
+        ImageEncode::Keep => source == Source::Dct && !reduced,
+        _ => false,
+    };
+    if jpeg && reduced {
+        return Err(unsupported(
+            "a bilevel or palette result is not written as JPEG",
+        ));
+    }
+    let (components, bpc) = sample_format(dict, space, source, jpeg && convert.is_none())?;
     let (target, quality) = if jpeg {
         let (opts, q) = jpeg_options(settings, source, raw);
         (Target::Jpeg(opts), Some(q))
@@ -186,6 +251,7 @@ pub(crate) fn decide(
         target,
         kernel: kernel(settings.method.value),
         min_saving_pct: settings.min_saving_pct.value,
+        convert,
     };
     let change = change(settings, space, &job, quality);
     Ok(Outcome::Rewrite(job, Box::new(change)))
@@ -259,9 +325,18 @@ fn change(
         (b.ppi_x * sx).min(b.ppi_y * sy)
     });
     let (encoded_as, bpc_after) = match job.target {
-        Target::Flate(level) => (ImageEncode::Flate { level }, job.bpc),
+        Target::Flate(_) if job.convert.is_some() => (encoded(job.target), 8),
+        Target::Flate(_) => (encoded(job.target), job.bpc),
         Target::Jpeg(_) => (ImageEncode::Jpeg, 8),
     };
+    let before = space
+        .color_space
+        .clone()
+        .unwrap_or_else(|| "none".to_owned());
+    let after = job
+        .convert
+        .as_ref()
+        .map_or_else(|| before.clone(), ConvertJob::space_name);
     let narrow = |b: u32| u8::try_from(b).unwrap_or(u8::MAX);
     ImageChange {
         settings: *settings,
@@ -272,6 +347,15 @@ fn change(
         encoded_as,
         bpc: (narrow(job.bpc), narrow(bpc_after)),
         jpeg,
+        conversion: job.convert.as_ref().map(ConvertJob::conversion),
+        color_space: (before, after),
+    }
+}
+
+const fn encoded(target: Target) -> ImageEncode {
+    match target {
+        Target::Flate(level) => ImageEncode::Flate { level },
+        Target::Jpeg(_) => ImageEncode::Jpeg,
     }
 }
 

@@ -727,3 +727,10 @@ path = "fuzz_targets/jpeg_quality_estimate.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "optimize_images"
+path = "fuzz_targets/optimize_images.rs"
+test = false
+doc = false
+bench = false

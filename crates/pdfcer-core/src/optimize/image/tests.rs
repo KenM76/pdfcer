@@ -104,3 +104,47 @@ fn the_trigger_defaults_to_one_and_a_half_times_and_never_falls_below_ppi() {
     );
     assert_eq!(img(&["image(above=200)"]).trigger(), None);
 }
+
+#[test]
+fn an_action_that_converts_or_writes_jpeg_may_be_lossy() {
+    for (text, lossy) in [
+        ("image(convert=gray)", true),
+        ("image(convert=keep)", false),
+        ("image(encode=jpeg)", true),
+        ("image(encode=flate)", false),
+        ("image(ppi=150)", true),
+        ("image(ppi=150,method=off)", false),
+    ] {
+        assert_eq!(
+            StreamAction::parse(text).unwrap().is_lossy(),
+            lossy,
+            "{text}"
+        );
+    }
+}
+
+#[test]
+fn the_conversion_keys_parse_round_trip_and_refuse_bad_values() {
+    let full = "image(convert=bilevel,threshold=120)";
+    let p = patch(full);
+    assert_eq!(p.convert, Some(ImageConvert::Bilevel));
+    assert_eq!(p.threshold, Some(Threshold::Fixed(120)));
+    assert_eq!(p.to_string(), full);
+    let p = patch("image(convert=indexed,colors=16)");
+    assert_eq!(p.colors, Some(16));
+    assert_eq!(
+        patch("image(threshold=dither)").threshold,
+        Some(Threshold::Dither)
+    );
+    for (text, needle) in [
+        ("image(convert=sepia)", "convert"),
+        ("image(threshold=300)", "bad threshold"),
+        ("image(colors=1)", "2 to 256"),
+        ("image(colors=257)", "2 to 256"),
+        ("image(convert=bilevel,encode=jpeg)", "JPEG"),
+        ("image(convert=indexed,encode=jpeg)", "JPEG"),
+    ] {
+        let e = StreamAction::parse(text).unwrap_err();
+        assert!(e.contains(needle), "{text}: {e}");
+    }
+}

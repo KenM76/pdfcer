@@ -65,6 +65,7 @@ impl EditSession {
             smooth_tolerance: settings.smooth_tolerance,
         };
         let view = self.view();
+        let soft_masks = self.soft_mask_targets(&ids);
         for id in ids {
             let Some(Object::Stream(stream)) = self.value(id) else {
                 continue;
@@ -80,8 +81,16 @@ impl EditSession {
                 },
                 _ => None,
             };
-            let blocker = image::pipeline::mask_blocker(&stream.dict, smask);
-            plan_stream(&mut plan, settings, &view, (id, stream, raw), row, blocker);
+            let ctx = image::pipeline::Context {
+                view: &view,
+                blocker: image::pipeline::mask_blocker(&stream.dict, smask),
+                convert_blocker: image::pipeline::convert_blocker(
+                    &stream.dict,
+                    smask,
+                    soft_masks.contains(&id),
+                ),
+            };
+            plan_stream(&mut plan, settings, (id, stream, raw), row, &ctx);
         }
         if plan.changes.iter().any(|c| c.lossy) {
             notes.push("some changes are lossy; each is listed".to_owned());
@@ -100,6 +109,19 @@ impl EditSession {
         }
         plan.notes = notes;
         Ok(plan)
+    }
+
+    /// Every object some stream among `ids` names as its `/SMask`.
+    fn soft_mask_targets(&self, ids: &BTreeSet<ObjId>) -> BTreeSet<ObjId> {
+        ids.iter()
+            .filter_map(|id| match self.value(*id) {
+                Some(Object::Stream(s)) => match s.dict.get(b"SMask") {
+                    Some(Object::Reference(r)) => Some(*r),
+                    _ => None,
+                },
+                _ => None,
+            })
+            .collect()
     }
 
     /// The refusals, or the disclosures for overridden ones.
@@ -189,7 +211,9 @@ impl EditSession {
                             && streams::protected(&s.dict).is_none() =>
                     {
                         view.slice(s.data_span).and_then(|raw| match &w.image {
-                            Some(job) => image::encode::run(job, &view, &s.dict, raw).ok(),
+                            Some(job) => image::encode::run(job, &view, &s.dict, raw)
+                                .ok()
+                                .map(|w| (w.dict, w.data)),
                             None => streams::apply(w.action, &s.dict, raw).ok().flatten(),
                         })
                     }
@@ -246,14 +270,12 @@ impl EditSession {
 }
 
 /// Decide and perform one stream's action, recording it in `plan`.
-/// `blocker` is the image's [`image::pipeline::mask_blocker`].
 fn plan_stream(
     plan: &mut OptimizePlan,
     settings: &OptimizeSettings,
-    view: &crate::view::DocumentView<'_>,
     (id, stream, raw): (ObjId, &Stream, &[u8]),
     row: Option<&ObjectSpace>,
-    blocker: Option<&'static str>,
+    ctx: &image::pipeline::Context<'_, '_>,
 ) {
     let filters = streams::chain(&stream.dict);
     let facts = ObjectFacts {
@@ -267,7 +289,7 @@ fn plan_stream(
     let (action, job) = match resolved.image {
         Some(img) if is_image => {
             let space = row.and_then(|r| r.image.as_ref());
-            match image::pipeline::decide(&img, &stream.dict, raw, space, blocker) {
+            match image::pipeline::decide(&img, &stream.dict, raw, space, ctx) {
                 Ok(Outcome::Unchanged) => return,
                 Ok(Outcome::Lossless(level)) => (StreamAction::Recompress { level }, None),
                 Ok(Outcome::Rewrite(job, change)) => {
@@ -292,13 +314,18 @@ fn plan_stream(
         return;
     }
     let result = match &job {
-        Some((job, _)) => image::encode::run(job, view, &stream.dict, raw).map(Some),
-        None => streams::apply(action, &stream.dict, raw),
+        Some((job, _)) => image::encode::run(job, ctx.view, &stream.dict, raw)
+            .map(|w| Some((w.dict, w.data, Some((w.bpc, w.conversion))))),
+        None => streams::apply(action, &stream.dict, raw).map(|r| r.map(|(d, b)| (d, b, None))),
     };
     match result {
         Ok(None) => {}
-        Ok(Some((dict, data))) => {
-            let (job, change) = job.map_or((None, None), |(j, c)| (Some(j), Some(*c)));
+        Ok(Some((dict, data, found))) => {
+            let (job, mut change) = job.map_or((None, None), |(j, c)| (Some(j), Some(*c)));
+            if let (Some(c), Some((bpc, conversion))) = (change.as_mut(), found) {
+                c.bpc.1 = u8::try_from(bpc).unwrap_or(u8::MAX);
+                c.conversion = conversion;
+            }
             plan.changes.push(PlannedChange {
                 id,
                 category: row.map_or(SpaceCategory::OtherReferenced, |r| r.category),
@@ -306,7 +333,9 @@ fn plan_stream(
                 filters_before: filters,
                 before_bytes: raw.len() as u64,
                 after_bytes: data.len() as u64,
-                lossy: change.is_some(),
+                lossy: change
+                    .as_ref()
+                    .is_some_and(image::pipeline::ImageChange::is_lossy),
                 image: change,
             });
             plan.writes.push(Rewrite {
