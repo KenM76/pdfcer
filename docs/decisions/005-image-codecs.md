@@ -798,11 +798,16 @@ release or writing T.88/T.800 decoders in-house.
   Adobe transform byte, a JPX progression-order change in tile-parts:
   each is a distinct named diagnostic. Never a grey box, never a
   guessed pixel, never a generic "decode failed."
-- **R28 — Read-compat only: pdfce writes none of these codecs.** No
-  image encoder enters any pdfce crate without a new decision record.
-  LZW specifically is never written under any future decision —
-  §7.4.4.1 NOTE 1 makes Flate strictly better on every axis but encode
-  speed. Same posture as RC4 in the encryption bucket.
+- **R28 — Image encoders enter only under a decision record (005, 192, 193).**
+  Shipped: JPEG, Flate, RunLength, CCITT G4, JBIG2 generic, LZW. pdfcer never
+  *chooses* LZW. It is written only when named explicitly, never by a preset,
+  `auto` or a fallback, and it is refused under a PDF/A claim.
+  *(Amended 2026-10-21, decision 193: narrowed. The original text was "Read-compat
+  only: pdfce writes none of these codecs. No image encoder enters any pdfce crate
+  without a new decision record. LZW specifically is never written under any future
+  decision — §7.4.4.1 NOTE 1 makes Flate strictly better on every axis but encode
+  speed. Same posture as RC4 in the encryption bucket." The RC4 parallel was
+  itself narrowed to "never chooses" by decision 190.)*
 
 ### 6.2 The crate changes
 

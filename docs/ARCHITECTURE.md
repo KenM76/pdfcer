@@ -13360,3 +13360,37 @@ placement draws the image at"), `docs/research/pdf-size-reduction-survey.md:887`
 decision `193`.
 
 **New standing rule.** None — `R263` stays next free.
+
+### 2026-10-21 (1140th filing, KenAgent consultant `autonomous-builder`) — decision 193: image encoders II, R28 narrowed (RunLength, CCITT G4, JBIG2 generic, LZW explicit-only, `encode=auto`)
+
+**Full record:** `docs/decisions/193-image-encoders-ii.md` (builds on
+decisions 005, 190, 191, 192). Scopes `Pass 616.5`'s image half; no code
+shipped by this filing.
+
+**What this decides.**
+1. **R28 is narrowed.** `pdfcer-core` gains in-house encoders for RunLength,
+   CCITT Group 4 and JBIG2 generic-region lossless (MQ, template 0, embedded
+   format, version 1.4, never inline), plus LZW via the already-compiled
+   `weezl` encoder, all through `image(encode=...)` on all images, a rule or
+   one object.
+2. **LZW is written only when named.** No preset, `auto` or fallback picks
+   it; it is refused under a PDF/A claim; its report row shows the Flate
+   size for the same samples.
+3. **`encode=auto`** picks the smallest eligible lossless candidate (Flate,
+   RunLength, CCITT/JBIG2 for 1-bit 1-component), tie-break Flate, CCITT,
+   RunLength, JBIG2, within the document's current version; it never raises
+   the version. Presets switch to `auto`. `version-raise=refuse` is the
+   strict option for an explicit encoder above the document's version.
+4. JPX and Brotli each need their own record; lossy JBIG2 symbol matching is
+   out of this record.
+
+**Body-section effect.** `R28` in `docs/decisions/005-image-codecs.md` §6.1
+and the `ROADMAP.md` standing-rules index amended in this filing. Owed, not
+edited here (outside the librarian's remit or the dispatch): the "never write
+LZW" line in the spec RAG's `filter__lzw.md`; the `weezl` encoder comments in
+`crates/pdfcer-core/Cargo.toml` and `crates/pdfcer-model/Cargo.toml`.
+
+**Decision ceiling.** Fills `193`; ceiling `192` → `193`. Next free
+decision `194`.
+
+**New standing rule.** None (R28 amended in place) — `R263` stays next free.

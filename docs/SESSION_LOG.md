@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1140th filing) — decision 193 filed: image encoders II, R28 narrowed
+
+**Decision (KenAgent consultant `autonomous-builder`, record `docs/decisions/193-image-encoders-ii.md`):** in-house RunLength, CCITT G4 and JBIG2 generic encoders; LZW via `weezl`, written only when named and refused under PDF/A; `encode=auto` (smallest eligible lossless, never raises the version) becomes the presets' image encode. JPX, Brotli and lossy JBIG2 matching are excluded and each needs its own record. Driver: Ken, 2026-10-21, "whatever PDFs support", on all images or per image.
+
+**Filed:** `ARCHITECTURE.md` §12 entry; R28 amended in `decisions/005-image-codecs.md` §6.1 (original text kept in a footer) and in the ROADMAP standing-rules index; `Pass 616.5` restated as slices E1-E6; Backlog item for lossy JBIG2 matching; FEATURES row "Change an image's format" annotated, no box ticked. No code, no manifest change. Decision ceiling 192 to 193 (checked: `docs/decisions/` held 190, 192, 193 only, and §12 had no 193); next free 194; no new rule.
+
+**Owed, not done here:** spec-librarian filing of T.4/T.6 tables and T.88 §6.2 + Annex E (blocks E2, E3); "never write LZW" line in the spec RAG's `filter__lzw.md`; `weezl` encoder comments in `crates/pdfcer-core/Cargo.toml` and `crates/pdfcer-model/Cargo.toml`. Git, push and backup state not verified from here. Next filing 1141st.
+
 ## 2026-10-21 (1139th filing) — `Pass 616.4` slice D6 second half in `2579f651`: the optimize report ends with one row per image; `Pass 616.4` COMPLETE
 
 **Shipped (engineer-reported, no shell here):** `pdfcer optimize` text report ends with `images: N rewritten, M skipped`, one aligned row per touched image (object, binding-placement page or `-`, pixels, ppi, format, stored bytes, each before -> after, saving % floored); skipped images show the reason; omitted when none touched; JSON unchanged. New `optimize_image_table.rs`; `--help` names the table. CLI only, no core/core-api change, no manifest change. Meets the 1128th-filing acceptance criterion (format before -> after per image).
