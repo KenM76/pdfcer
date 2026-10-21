@@ -59,7 +59,20 @@ const NOTES: &[(DiscardObject, &str)] = &[
         DiscardObject::SearchIndex,
         "the embedded search index goes: searching a catalog of files that included this one stops finding it until the index is rebuilt; searching the open file is unaffected",
     ),
+    (
+        DiscardObject::MergeImageFragments,
+        "images stored as thin strips are merged into one image each: the page draws the same, and the faint seams some viewers show between strips go",
+    ),
 ];
+
+/// The classes measured and applied by their own code rather than as
+/// staged key deletions.
+fn self_measured(object: DiscardObject) -> bool {
+    matches!(
+        object,
+        DiscardObject::FlattenLayers | DiscardObject::MergeImageFragments
+    )
+}
 
 impl EditSession {
     /// Every carrier of an object class `options` discards, each measured.
@@ -75,18 +88,9 @@ impl EditSession {
             return Vec::new();
         }
         let view = self.view();
-        let roots: Vec<ObjId> = [b"Root".as_slice(), b"Info"]
-            .iter()
-            .filter_map(|k| self.trailer.get(k).and_then(Object::as_reference))
-            .collect();
-        let live: BTreeSet<ObjId> = super::reachable(&view, &roots, &HashSet::new())
-            .into_iter()
-            .collect();
+        let live = self.live_objects();
         let mut items = objects::carriers(&view, &live, |o| options.contains_object(o));
-        for item in items
-            .iter_mut()
-            .filter(|i| i.object != DiscardObject::FlattenLayers)
-        {
+        for item in items.iter_mut().filter(|i| !self_measured(i.object)) {
             let mut st = Staged::default();
             if self.stage_item(item, &mut st).is_ok() {
                 let freed: u64 = self
@@ -123,9 +127,7 @@ impl EditSession {
         if items.is_empty() {
             return Ok(0);
         }
-        let (layers, keyed): (Vec<_>, Vec<_>) = items
-            .iter()
-            .partition(|i| i.object == DiscardObject::FlattenLayers);
+        let (own, keyed): (Vec<_>, Vec<_>) = items.iter().partition(|i| self_measured(i.object));
         let mut st = Staged::default();
         for item in keyed {
             if let Err(reason) = self.stage_item(item, &mut st) {
@@ -139,8 +141,21 @@ impl EditSession {
         }
         self.commit_metadata_edits(st);
         fold.absorb(self);
-        for item in layers {
-            let result = self.delete_layer(item.owner, LayerContentPolicy::KeepUnlayered);
+        let refs = if own
+            .iter()
+            .any(|i| i.object == DiscardObject::MergeImageFragments)
+        {
+            crate::optimize::fragments::referrers(&self.view(), &self.live_objects())
+        } else {
+            Default::default()
+        };
+        for item in own {
+            let result = if item.object == DiscardObject::FlattenLayers {
+                self.delete_layer(item.owner, LayerContentPolicy::KeepUnlayered)
+                    .map(drop)
+            } else {
+                self.merge_page_fragments(item.owner, &refs, fold)
+            };
             fold.absorb(self);
             if let Err(e) = result {
                 fold.roll_back(self);
@@ -152,6 +167,17 @@ impl EditSession {
             }
         }
         Ok(items.len())
+    }
+
+    /// Every object reachable from the trailer's `/Root` and `/Info`.
+    pub(super) fn live_objects(&self) -> BTreeSet<ObjId> {
+        let roots: Vec<ObjId> = [b"Root".as_slice(), b"Info"]
+            .iter()
+            .filter_map(|k| self.trailer.get(k).and_then(Object::as_reference))
+            .collect();
+        super::reachable(&self.view(), &roots, &HashSet::new())
+            .into_iter()
+            .collect()
     }
 
     fn stage_item(&self, item: &ObjectDiscard, st: &mut Staged) -> Result<(), String> {

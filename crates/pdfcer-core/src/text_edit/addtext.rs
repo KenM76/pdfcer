@@ -2352,28 +2352,22 @@ pub(crate) fn bind_resource<G: crate::graph::ObjectGraph + ?Sized>(
     key: &[u8],
     bind: Object,
 ) -> (Vec<(ObjId, Object)>, bool) {
-    let mut out: Vec<(ObjId, Object)> = Vec::new();
+    patch_resource(graph, owner_id, may_inherit, category, |entries| {
+        entries.insert(Name(key.to_vec()), bind);
+    })
+}
 
-    // --- which object holds /Resources? ---
-    let mut holder = owner_id;
-    if may_inherit {
-        let mut cursor = owner_id;
-        for _ in 0..crate::outline::MAX_OUTLINE_DEPTH {
-            let Some(Object::Dict(d)) = graph.value(cursor) else {
-                break;
-            };
-            if d.get(b"Resources").is_some() {
-                holder = cursor;
-                break;
-            }
-            match d.get(b"Parent") {
-                Some(Object::Reference(r)) if *r != cursor => cursor = *r,
-                // Nobody in the chain has one: fall back to the owner, where
-                // creating a direct `/Resources` shadows nothing.
-                _ => break,
-            }
-        }
-    }
+/// [`bind_resource`] with any change `patch` makes to the category's
+/// dictionary, written where `bind_resource` writes it.
+pub(crate) fn patch_resource<G: crate::graph::ObjectGraph + ?Sized>(
+    graph: &G,
+    owner_id: ObjId,
+    may_inherit: bool,
+    category: &[u8],
+    patch: impl FnOnce(&mut Dict),
+) -> (Vec<(ObjId, Object)>, bool) {
+    let mut out: Vec<(ObjId, Object)> = Vec::new();
+    let holder = resource_holder(graph, owner_id, may_inherit);
     // A form XObject owner is a STREAM; its dictionary is the owner. Reading
     // it as absent would return a bare `/Resources` as the form's whole
     // dictionary, dropping `/BBox`, `/Matrix` and every existing resource.
@@ -2383,38 +2377,9 @@ pub(crate) fn bind_resource<G: crate::graph::ObjectGraph + ?Sized>(
         _ => Dict::new(),
     };
 
-    // --- where does /Resources live on it? ---
-    let res_ref = match owner.get(b"Resources") {
-        Some(Object::Reference(r)) => Some(*r),
-        _ => None,
-    };
-    let mut resources = match owner.get(b"Resources") {
-        // A `/Resources` that does not resolve to a dictionary is treated as
-        // ABSENT rather than as an error, matching `outline_root`'s handling of
-        // a damaged `/Outlines`: refusing an edit because a broken file carries
-        // `/Resources 7` is the worse outcome.
-        Some(Object::Reference(r)) => match graph.value(*r) {
-            Some(Object::Dict(d)) => d.clone(),
-            _ => Dict::new(),
-        },
-        Some(Object::Dict(d)) => d.clone(),
-        _ => Dict::new(),
-    };
-
-    // --- and /<category> inside that? ---
-    let cat_ref = match resources.get(category) {
-        Some(Object::Reference(r)) => Some(*r),
-        _ => None,
-    };
-    let mut entries = match resources.get(category) {
-        Some(Object::Reference(r)) => match graph.value(*r) {
-            Some(Object::Dict(d)) => d.clone(),
-            _ => Dict::new(),
-        },
-        Some(Object::Dict(d)) => d.clone(),
-        _ => Dict::new(),
-    };
-    entries.insert(Name(key.to_vec()), bind);
+    let (res_ref, mut resources) = dict_entry(graph, owner.get(b"Resources"));
+    let (cat_ref, mut entries) = dict_entry(graph, resources.get(category));
+    patch(&mut entries);
 
     let shared = res_ref.is_some() || cat_ref.is_some() || holder != owner_id;
 
@@ -2431,6 +2396,51 @@ pub(crate) fn bind_resource<G: crate::graph::ObjectGraph + ?Sized>(
     owner.insert(Name::from(b"Resources"), Object::Dict(resources));
     out.push((holder, Object::Dict(owner)));
     (out, shared)
+}
+
+/// The object holding the `/Resources` that `owner_id` uses: itself, or with
+/// `may_inherit` the nearest `/Parent` that has one, else `owner_id` (where
+/// creating a direct `/Resources` shadows nothing).
+fn resource_holder<G: crate::graph::ObjectGraph + ?Sized>(
+    graph: &G,
+    owner_id: ObjId,
+    may_inherit: bool,
+) -> ObjId {
+    if !may_inherit {
+        return owner_id;
+    }
+    let mut cursor = owner_id;
+    for _ in 0..crate::outline::MAX_OUTLINE_DEPTH {
+        let Some(Object::Dict(d)) = graph.value(cursor) else {
+            break;
+        };
+        if d.get(b"Resources").is_some() {
+            return cursor;
+        }
+        match d.get(b"Parent") {
+            Some(Object::Reference(r)) if *r != cursor => cursor = *r,
+            _ => break,
+        }
+    }
+    owner_id
+}
+
+/// A dictionary-valued entry: the object holding it when indirect, and its
+/// value. One that does not resolve to a dictionary reads as ABSENT, not an
+/// error, matching `outline_root` on a damaged `/Outlines`: refusing an edit
+/// because a broken file carries `/Resources 7` is the worse outcome.
+fn dict_entry<G: crate::graph::ObjectGraph + ?Sized>(
+    graph: &G,
+    value: Option<&Object>,
+) -> (Option<ObjId>, Dict) {
+    match value {
+        Some(Object::Reference(r)) => match graph.value(*r) {
+            Some(Object::Dict(d)) => (Some(*r), d.clone()),
+            _ => (Some(*r), Dict::new()),
+        },
+        Some(Object::Dict(d)) => (None, d.clone()),
+        _ => (None, Dict::new()),
+    }
 }
 
 /// Whether the document is tagged: `/StructTreeRoot` present, or `/MarkInfo

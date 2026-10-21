@@ -21,11 +21,26 @@ fn write_pdf(dir: &std::path::Path, extra_catalog: &str) -> PathBuf {
 
 /// [`write_pdf`] with `extra` objects numbered from 8.
 fn write_pdf_with(dir: &std::path::Path, extra_catalog: &str, extra: &[&str]) -> PathBuf {
+    write_pdf_page(
+        dir,
+        extra_catalog,
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents [4 0 R 5 0 R] >>",
+        extra,
+    )
+}
+
+/// [`write_pdf_with`] with `page` as the page's (object 3) body.
+fn write_pdf_page(
+    dir: &std::path::Path,
+    extra_catalog: &str,
+    page: &str,
+    extra: &[&str],
+) -> PathBuf {
     let content = b"0 0 m 100 100 l S\n".repeat(100);
     let mut bodies: Vec<Vec<u8>> = vec![
         format!("<< /Type /Catalog /Pages 2 0 R {extra_catalog} >>").into_bytes(),
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec(),
-        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents [4 0 R 5 0 R] >>".to_vec(),
+        page.as_bytes().to_vec(),
     ];
     for data in [&content[..], b"q Q"] {
         let mut s = format!("<< /Length {} >>\nstream\n", data.len()).into_bytes();
@@ -540,6 +555,58 @@ fn discard_search_index_keeps_other_page_piece_data() {
     assert!(report.contains("search index goes"), "{report}");
     let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
     assert!(written.contains("KEEP-ME") && !written.contains("INDEX-DATA"));
+}
+
+#[test]
+fn discard_merge_image_fragments_draws_one_image() {
+    let d = dir("discard-merge-image-fragments");
+    let mut names = String::new();
+    let mut draw = String::new();
+    let mut extra = Vec::new();
+    for i in 0..10 {
+        names.push_str(&format!("/S{i} {} 0 R ", i + 9));
+        draw.push_str(&format!(
+            "q 100 0 0 10 0 {} cm /S{i} Do Q
+",
+            90 - 10 * i
+        ));
+        let row = char::from(b'a' + i as u8).to_string().repeat(64);
+        extra.push(format!(
+            "<< /Type /XObject /Subtype /Image /Width 32 /Height 2 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length 64 >>
+stream
+{row}
+endstream"
+        ));
+    }
+    let page = format!(
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents 8 0 R /Resources << /XObject << {names}>> >> >>"
+    );
+    extra.insert(
+        0,
+        format!(
+            "<< /Length {} >>
+stream
+{draw}endstream",
+            draw.len()
+        ),
+    );
+    let extra: Vec<&str> = extra.iter().map(String::as_str).collect();
+    let input = write_pdf_page(&d, "", &page, &extra);
+    let out = d.join("out.pdf");
+    let o = run(&[
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--keep-structure",
+        "--discard",
+        "merge-image-fragments",
+    ]);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(report.contains("discard objects: 1 removed"), "{report}");
+    assert!(report.contains("thin strips"), "{report}");
+    let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
+    assert_eq!(written.matches("/Subtype /Image").count(), 1, "{written}");
 }
 
 #[test]

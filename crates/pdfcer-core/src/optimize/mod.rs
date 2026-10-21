@@ -36,6 +36,7 @@ pub(crate) mod actions;
 pub(crate) mod annots;
 pub mod cleanup;
 pub mod discard;
+pub(crate) mod fragments;
 pub(crate) mod object_data;
 pub mod objects;
 pub mod profile;
@@ -544,6 +545,8 @@ mod actions_tests;
 mod annots_tests;
 #[cfg(test)]
 mod flatten_layers_tests;
+#[cfg(test)]
+mod fragments_tests;
 #[cfg(test)]
 mod object_data_tests;
 #[cfg(test)]

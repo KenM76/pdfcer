@@ -162,6 +162,7 @@ mod metadata_remove;
 mod optimize;
 mod optimize_cleanup;
 mod optimize_discard;
+mod optimize_fragments;
 mod optimize_objects;
 pub use markup_respan::TextMarkupRespan;
 mod link;
@@ -51463,7 +51464,12 @@ pub(crate) fn reachable<G: ObjectGraph + ?Sized>(
 /// `skip_parent` drops a top-level `/Parent` entry only — a nested
 /// `/Parent` (an annotation's field parent, say) is a genuine ownership
 /// edge and is followed.
-fn collect_references(value: &Object, skip_parent: bool, depth: usize, out: &mut Vec<ObjId>) {
+pub(crate) fn collect_references(
+    value: &Object,
+    skip_parent: bool,
+    depth: usize,
+    out: &mut Vec<ObjId>,
+) {
     if depth > crate::pageops::assemble::MAX_COPY_DEPTH {
         return;
     }

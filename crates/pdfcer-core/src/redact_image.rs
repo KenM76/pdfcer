@@ -709,7 +709,11 @@ fn space_is_subtractive(
 
 /// The component count implied by an image dictionary's `/ColorSpace`,
 /// resolved through the page's `/ColorSpace` resources for a named space.
-fn colorspace_components(view: &DocumentView<'_>, dict: &Dict, resources: &Dict) -> Option<u32> {
+pub(crate) fn colorspace_components(
+    view: &DocumentView<'_>,
+    dict: &Dict,
+    resources: &Dict,
+) -> Option<u32> {
     let cs = dict.get(b"ColorSpace")?;
     space_components(view, cs, resources, 0)
 }

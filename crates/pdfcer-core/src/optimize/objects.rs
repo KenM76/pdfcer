@@ -30,6 +30,7 @@
 //!   PDF4QT and pikepdf remove (`PDF_Spec/adobe_ext/
 //!   adobe_ext__embedded_search_index.md`). The other applications' entries
 //!   stay, and a `/PieceInfo` left empty goes.
+//! - image fragments: see [`super::fragments`].
 
 use std::collections::BTreeSet;
 use std::fmt;
@@ -81,11 +82,14 @@ pub enum DiscardObject {
     FlattenLayers,
     /// An embedded full-text search index, which copies the document's text.
     SearchIndex,
+    /// A picture stored as many thin strips, each its own image, merged
+    /// into one image that draws the same.
+    MergeImageFragments,
 }
 
 impl DiscardObject {
     /// Every class, in plan order.
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 13] = [
         Self::Bookmarks,
         Self::Tags,
         Self::PrintSettings,
@@ -98,12 +102,13 @@ impl DiscardObject {
         Self::ThreeDModels,
         Self::FlattenLayers,
         Self::SearchIndex,
+        Self::MergeImageFragments,
     ];
 
     /// A stable lower-case name: `bookmarks`, `tags`, `print-settings`,
     /// `alternate-images`, `form-actions`, `external-references`,
     /// `object-data`, `form-fields`, `multimedia`, `3d-models`,
-    /// `flatten-layers`, `search-index`.
+    /// `flatten-layers`, `search-index`, `merge-image-fragments`.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
@@ -119,6 +124,7 @@ impl DiscardObject {
             Self::ThreeDModels => "3d-models",
             Self::FlattenLayers => "flatten-layers",
             Self::SearchIndex => "search-index",
+            Self::MergeImageFragments => "merge-image-fragments",
         }
     }
 
@@ -149,11 +155,13 @@ impl fmt::Display for DiscardObject {
 pub struct ObjectDiscard {
     /// The class.
     pub object: DiscardObject,
-    /// The object holding it: the catalog, the image for alternates, or the
-    /// layer (optional content group) for a flatten.
+    /// The object holding it: the catalog, the image for alternates, the
+    /// layer (optional content group) for a flatten, or the page for a
+    /// fragment merge.
     pub owner: ObjId,
     /// Where it is, in words: `catalog`, `image object 12 0`, `page 2:
-    /// form-fields (3)`, `layer 9 0: Notes`, or for an action `object 12 0: SubmitForm, GoToR`
+    /// form-fields (3)`, `layer 9 0: Notes`, `page 1: 40 strips into 1 image
+    /// (800x1100)`, or for an action `object 12 0: SubmitForm, GoToR`
     /// (the types removed).
     pub location: String,
     /// What leaves the file: the deleted entries plus every object only
@@ -247,19 +255,8 @@ pub(crate) fn carriers(
         "catalog".into(),
         search_index_strip(view, cat).into_iter().map(at).collect(),
     );
-    for &id in live {
-        if let Some(Object::Stream(s)) = view.value(id)
-            && is_image(&s.dict)
-            && s.dict.get(b"Alternates").is_some()
-            && s.dict.get(b"OC").is_none()
-        {
-            let strips = vec![Strip {
-                owner: id,
-                path: vec![b"Alternates"],
-            }];
-            let location = format!("image object {} {}", id.num, id.generation);
-            push(DiscardObject::AlternateImages, id, location, strips);
-        }
+    if wanted(DiscardObject::AlternateImages) {
+        out.extend(alternate_carriers(view, live));
     }
     out.extend(object_data::object_data_carriers(
         view, live, catalog, cat, &wanted,
@@ -271,7 +268,37 @@ pub(crate) fn carriers(
     if wanted(DiscardObject::FlattenLayers) {
         out.extend(layer_carriers(view));
     }
+    if wanted(DiscardObject::MergeImageFragments) {
+        out.extend(super::fragments::fragment_carriers(view, live));
+    }
     out
+}
+
+/// One item per image with `/Alternates` and no `/OC`.
+fn alternate_carriers(view: &DocumentView<'_>, live: &BTreeSet<ObjId>) -> Vec<ObjectDiscard> {
+    live.iter()
+        .filter_map(|&id| match view.value(id) {
+            Some(Object::Stream(s))
+                if is_image(&s.dict)
+                    && s.dict.get(b"Alternates").is_some()
+                    && s.dict.get(b"OC").is_none() =>
+            {
+                Some(ObjectDiscard {
+                    object: DiscardObject::AlternateImages,
+                    owner: id,
+                    location: format!("image object {} {}", id.num, id.generation),
+                    bytes: 0,
+                    strips: vec![Strip {
+                        owner: id,
+                        path: vec![b"Alternates"],
+                    }],
+                    rewrites: Vec::new(),
+                    drops: Vec::new(),
+                })
+            }
+            _ => None,
+        })
+        .collect()
 }
 
 /// One item per layer visible by default (§8.11.4.3 `/D`), measured as the

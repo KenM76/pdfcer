@@ -106,7 +106,8 @@ pub(crate) struct OptimizeArgs {
     /// flatten-layers (visible layers merge into the page; hidden ones stay
     /// unless hidden-layer is given too), search-index (an index Acrobat
     /// built for searching many files; the file's own text stays
-    /// searchable); or all. Comma-separated or repeated.
+    /// searchable), merge-image-fragments (a picture stored as many thin
+    /// strips becomes one image that looks the same); or all. Comma-separated or repeated.
     /// The standard and print presets remove thumbnails; screen also
     /// pieceinfo, object-xmp and alternate-images.
     #[arg(long, value_name = "KINDS", value_delimiter = ',')]

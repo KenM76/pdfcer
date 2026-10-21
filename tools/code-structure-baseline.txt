@@ -421,7 +421,6 @@ fn pdfcer-core/src/table_detect.rs::collect_ink
 fn pdfcer-core/src/table_detect.rs::finish
 fn pdfcer-core/src/table_detect.rs::ruled_tables
 fn pdfcer-core/src/text_edit/addtext.rs::add_text
-fn pdfcer-core/src/text_edit/addtext.rs::bind_resource
 fn pdfcer-core/src/text_edit/addtext.rs::layout_boxed
 fn pdfcer-core/src/text_edit/addtext.rs::plan_add_text
 fn pdfcer-core/src/text_edit/edit.rs::classify_font
