@@ -741,6 +741,8 @@ pub(crate) fn fold(actions: impl IntoIterator<Item = (StreamAction, SettingSourc
 }
 
 #[cfg(test)]
+mod budget_tests;
+#[cfg(test)]
 mod pipeline_auto_tests;
 #[cfg(test)]
 mod pipeline_brotli_tests;

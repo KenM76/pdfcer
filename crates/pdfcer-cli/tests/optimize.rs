@@ -1369,3 +1369,72 @@ fn linearize_puts_the_parameter_dictionary_first_and_reports_it() {
     let o = run(&[path, "--dry-run", "--linearize", "--keep-structure"]);
     assert_eq!(o.status.code(), Some(2));
 }
+
+#[test]
+fn a_target_size_the_settings_meet_stops_at_step_0() {
+    let d = dir("budget-met");
+    let input = noise_image_pdf(&d);
+    let out = d.join("out.pdf");
+    let args = [
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--target-size",
+        "10MB",
+    ];
+    let o = run(&args);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(report.contains("budget: target 10000000 B\n"), "{report}");
+    assert!(
+        report.contains("budget: met at step 0 (your settings as given)"),
+        "{report}"
+    );
+}
+
+#[test]
+fn an_unreachable_target_size_writes_the_closest_file_and_exits_15() {
+    let d = dir("budget-over");
+    let input = noise_image_pdf(&d);
+    let out = d.join("out.pdf");
+    let args = [
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--target-size",
+        "100",
+    ];
+    let o = run(&args);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(15), "{report}");
+    assert!(
+        report.contains("step 11 (JPEG quality <= 30, <= 72 ppi)"),
+        "{report}"
+    );
+    assert!(report.contains("budget: NOT met"), "{report}");
+    let written = std::fs::metadata(&out).unwrap().len();
+    assert!(written < std::fs::metadata(&input).unwrap().len() / 2);
+    let mut json = args.to_vec();
+    json.extend(["--dry-run", "--json"]);
+    let j = run(&json);
+    assert_eq!(j.status.code(), Some(15));
+    let j = text(&j);
+    assert!(
+        j.contains("\"budget\":{\"target_bytes\":100,\"met\":false,\"step\":11,\"attempts\":[{\"step\":0,\"quality\":null,\"ppi\":null,"),
+        "{j}"
+    );
+    assert!(j.contains("{\"step\":11,\"quality\":30,\"ppi\":72,"), "{j}");
+}
+
+#[test]
+fn a_target_size_that_is_not_a_size_is_a_usage_error() {
+    let d = dir("budget-usage");
+    let input = noise_image_pdf(&d);
+    let o = run(&[
+        input.to_str().unwrap(),
+        "--dry-run",
+        "--target-size",
+        "lots",
+    ]);
+    assert_eq!(o.status.code(), Some(2));
+}

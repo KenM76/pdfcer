@@ -160,6 +160,7 @@ pub use form_paint::FormPaintOutcome;
 mod markup_respan;
 mod metadata_remove;
 mod optimize;
+mod optimize_budget;
 mod optimize_cleanup;
 mod optimize_copies;
 mod optimize_discard;

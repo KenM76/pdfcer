@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 381 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 382 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 381 public `EditSession` methods
+## 1. Verb index — all 382 public `EditSession` methods
 
-**Count: 381.** Established by brace-matched extraction of the
+**Count: 382.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -5115,6 +5115,7 @@ operator has to get the order of right.
 | Plan a size reduction | `plan_optimize(&self, &optimize::OptimizeSettings) -> Result<optimize::OptimizePlan, optimize::OptimizeError>` | Every encoding performed in memory; changes nothing. Refuses `Encrypted` always and `Signed` unless `allow_signed`. |
 | Commit the plan | `apply_optimize(&mut self, &optimize::OptimizePlan) -> Result<usize, optimize::OptimizeError>` | ONE undo entry, `CommandKind::Optimize { count }`; an empty plan commits nothing. `StalePlan { id }` if an object changed since planning. The plan's navigation clean-up (`plan.cleanup`) is applied in the same entry and counted; `CleanupFailed { id, reason }` rolls everything back. |
 | Write it, only if smaller or it removes something | `save_optimized(&self, &optimize::OptimizePlan, &SaveOptions, &optimize::RebuildOptions) -> Result<(optimize::OptimizedFile, Option<optimize::RebuildReport>), WriteError>` | A full rewrite as `Smaller(bytes)`, `NotSmaller { bytes, original }` (not smaller, but the applied plan removes content, so it is written), or `KeptOriginal { original, rewritten }`; then, unless `RebuildOptions::is_none()`, a structure rebuild (unreferenced removal, duplicate merging, object streams, or linearization, which is written even when larger, as `NotSmaller`) whose report is the second value; `WriteError::NothingToLinearize` when linearizing a document with no page. ⚠️ Destroys every existing signature, like `to_full_bytes`; a rebuild also renumbers every object. |
+| Fit a byte budget | `optimize_to_budget(&mut self, &optimize::OptimizeSettings, max_bytes: u64, &SaveOptions) -> Result<optimize::budget::BudgetFit, optimize::budget::BudgetError>` | Tries the settings as given (step 0), then, if the file is over `max_bytes`, bisects a ladder (steps 1 to `budget::LAST_STEP` = 11) that writes colour and grey images as JPEG at quality 80, 70 ... 30, then resamples them to 200, 150, 120, 96, 72 ppi; a lower quality or ppi already on `images` or the default stream action is kept, the operator's `rules` and `objects` win over the ladder, bilevel and indexed images are never touched. Each trial plans, applies, saves and reverts; at most six trials. The session is left holding the chosen step applied as ONE undoable command. `BudgetFit { plan, file, structure, step, attempts: Vec<BudgetAttempt { step, quality, ppi, bytes }>, met }`: `file` and `structure` are what `save_optimized` returned for that step, so write `file` directly; `met == false` means even step 11 missed and `file` is the closest. `BudgetError::{Optimize(OptimizeError), Write(WriteError)}`; the session is unchanged on error. |
 
 **Detail: `03-capabilities.md`, part 15.**
 

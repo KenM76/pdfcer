@@ -34,6 +34,7 @@
 
 pub(crate) mod actions;
 pub(crate) mod annots;
+pub mod budget;
 pub mod cleanup;
 pub(crate) mod content;
 pub mod discard;

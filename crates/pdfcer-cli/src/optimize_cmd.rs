@@ -3,16 +3,21 @@
 
 use std::fmt::Write as _;
 
-use pdfcer_core::doc_metadata::MetadataItem;
 use pdfcer_core::edit::EditSession;
+use pdfcer_core::optimize::budget::BudgetError;
 use pdfcer_core::optimize::{
-    CleanupPlan, DiscardOptions, ObjectDiscard, OptimizeError, OptimizePlan, OptimizeSettings,
-    OptimizedFile, Preset, RebuildReport, Refusal, profile,
+    DiscardOptions, OptimizeError, OptimizePlan, OptimizeSettings, OptimizedFile, Preset,
+    RebuildReport, Refusal, profile,
 };
 use pdfcer_core::space_audit;
 use pdfcer_core::writer::SaveOptions;
 
 use super::*;
+use crate::optimize_budget_cmd::BudgetSummary;
+use crate::optimize_removals_report::{
+    cleanup_json, cleanup_text, discard_json, discard_objects_json, discard_objects_text,
+    discard_text,
+};
 
 /// clap's own code for a usage error, which `exit` reserves.
 const USAGE: u8 = 2;
@@ -184,6 +189,15 @@ pub(crate) struct OptimizeArgs {
     /// and the report says how many.
     #[arg(long)]
     pub(crate) invalidate_signatures: bool,
+    /// Fit the output under SIZE: if the settings alone miss it, colour and
+    /// grey images are written as JPEG at quality 80 down to 30, then
+    /// resampled to 200 down to 72 ppi, and the least lossy step that fits
+    /// is kept. Your rules and --object overrides still win. SIZE is bytes,
+    /// or a number with KB, MB or GB (1000s) or KiB, MiB or GiB (1024s).
+    /// When even the last step misses, the closest file is still written
+    /// and the exit code is 15.
+    #[arg(long, value_name = "SIZE", value_parser = crate::optimize_budget_cmd::parse_size)]
+    pub(crate) target_size: Option<u64>,
     /// Plan and measure without writing anything. The report shows the size
     /// the output would have.
     #[arg(long)]
@@ -249,6 +263,7 @@ pub(crate) fn cmd_optimize(args: &OptimizeArgs) -> u8 {
         input,
         output.filter(|_| !args.dry_run).as_deref(),
         &settings,
+        args.target_size,
         args.json,
     )
 }
@@ -387,9 +402,17 @@ struct Outcome {
     smaller: bool,
     /// What the structure rebuild did, when one ran.
     structure: Option<RebuildReport>,
+    /// The `--target-size` search, when one ran.
+    budget: Option<BudgetSummary>,
 }
 
-fn run(input: &Path, output: Option<&Path>, settings: &OptimizeSettings, json: bool) -> u8 {
+fn run(
+    input: &Path,
+    output: Option<&Path>,
+    settings: &OptimizeSettings,
+    target: Option<u64>,
+    json: bool,
+) -> u8 {
     let doc = match open_document(input) {
         Ok(d) => d,
         Err(err) => {
@@ -398,7 +421,12 @@ fn run(input: &Path, output: Option<&Path>, settings: &OptimizeSettings, json: b
         }
     };
     let before = space_audit::audit(&doc);
-    let outcome = match optimize(EditSession::new(doc), settings) {
+    let session = EditSession::new(doc);
+    let outcome = match target {
+        Some(max) => fit_budget(session, settings, max),
+        None => optimize(session, settings),
+    };
+    let outcome = match outcome {
         Ok(o) => o,
         Err(code) => return code,
     };
@@ -417,6 +445,9 @@ fn run(input: &Path, output: Option<&Path>, settings: &OptimizeSettings, json: b
         }
     );
     let Some(bytes) = &outcome.bytes else {
+        if outcome.budget.as_ref().is_some_and(|b| !b.met) {
+            return exit::OVER_BUDGET;
+        }
         return exit::NOT_SMALLER;
     };
     if let Some(path) = output
@@ -425,33 +456,65 @@ fn run(input: &Path, output: Option<&Path>, settings: &OptimizeSettings, json: b
         eprintln!("pdfcer: {}: {e}", path.display());
         return exit::IO_ERROR;
     }
+    if outcome.budget.as_ref().is_some_and(|b| !b.met) {
+        return exit::OVER_BUDGET;
+    }
     exit::SUCCESS
 }
 
 fn optimize(mut session: EditSession, settings: &OptimizeSettings) -> Result<Outcome, u8> {
     let plan = session.plan_optimize(settings).map_err(|e| refused(&e))?;
     session.apply_optimize(&plan).map_err(|e| refused(&e))?;
-    let original = plan.file_bytes;
     let (file, structure) = session
         .save_optimized(&plan, &SaveOptions::default(), &settings.structure)
         .map_err(|e| {
             eprintln!("pdfcer: optimize: {e}");
             exit::SAVE_REFUSED
         })?;
+    Ok(outcome(plan, file, structure, None))
+}
+
+/// `optimize --target-size`: the least lossy budget step that fits.
+fn fit_budget(
+    mut session: EditSession,
+    settings: &OptimizeSettings,
+    max: u64,
+) -> Result<Outcome, u8> {
+    let fit = session
+        .optimize_to_budget(settings, max, &SaveOptions::default())
+        .map_err(|e| match e {
+            BudgetError::Optimize(e) => refused(&e),
+            e => {
+                eprintln!("pdfcer: optimize: {e}");
+                exit::SAVE_REFUSED
+            }
+        })?;
+    let summary = BudgetSummary::of(&fit, max);
+    Ok(outcome(fit.plan, fit.file, fit.structure, Some(summary)))
+}
+
+fn outcome(
+    plan: OptimizePlan,
+    file: OptimizedFile,
+    structure: Option<RebuildReport>,
+    budget: Option<BudgetSummary>,
+) -> Outcome {
+    let original = plan.file_bytes;
     let (rewritten, bytes) = match file {
         OptimizedFile::Smaller(bytes) => (bytes.len() as u64, Some(bytes)),
         OptimizedFile::NotSmaller { bytes, .. } => (bytes.len() as u64, Some(bytes)),
         OptimizedFile::KeptOriginal { rewritten, .. } => (rewritten, None),
         _ => (original, None),
     };
-    Ok(Outcome {
+    Outcome {
         plan,
         original,
         smaller: rewritten < original,
         rewritten,
         bytes,
         structure,
-    })
+        budget,
+    }
 }
 
 fn refused(err: &OptimizeError) -> u8 {
@@ -530,167 +593,14 @@ fn report_text(
     if o.bytes.is_some() && !o.smaller {
         out.push_str("not smaller: kept anyway, because it removes what was asked for\n");
     }
+    if let Some(b) = &o.budget {
+        out.push_str(&crate::optimize_budget_cmd::budget_text(b));
+    }
     if let Some(d) = diff {
         out.push('\n');
         out.push_str(&diff_text(d));
     }
     out
-}
-
-fn cleanup_text(c: &CleanupPlan) -> String {
-    let mut out = String::new();
-    if c.is_empty() {
-        return out;
-    }
-    let _ = writeln!(
-        out,
-        "cleanup: {} link(s), {} bookmark(s), {} named destination(s) removed",
-        c.links.len(),
-        c.bookmarks.len(),
-        c.destinations.len()
-    );
-    for l in &c.links {
-        let _ = writeln!(
-            out,
-            "  link     {:<8} page {}: {}",
-            l.id.to_string(),
-            l.page_index + 1,
-            l.target
-        );
-    }
-    for b in &c.bookmarks {
-        let why = b.target.as_ref().map_or_else(
-            || "groups only removed items".to_owned(),
-            ToString::to_string,
-        );
-        let _ = writeln!(
-            out,
-            "  bookmark {:<8} {:?}: {why}{}",
-            b.id.to_string(),
-            b.title,
-            match b.descendants {
-                0 => String::new(),
-                n => format!(" (with {n} under it)"),
-            }
-        );
-    }
-    for d in &c.destinations {
-        let _ = writeln!(out, "  dest     {:?}", String::from_utf8_lossy(d));
-    }
-    out
-}
-
-fn discard_text(items: &[MetadataItem]) -> String {
-    let mut out = String::new();
-    if items.is_empty() {
-        return out;
-    }
-    let _ = writeln!(out, "discard: {} item(s) removed", items.len());
-    for i in items {
-        let _ = writeln!(
-            out,
-            "  {:<17} {}  {}, {} B",
-            i.kind.as_str(),
-            i.id,
-            i.location,
-            i.bytes
-        );
-    }
-    out
-}
-
-fn discard_objects_text(items: &[ObjectDiscard]) -> String {
-    let mut out = String::new();
-    if items.is_empty() {
-        return out;
-    }
-    let _ = writeln!(out, "discard objects: {} removed", items.len());
-    for i in items {
-        // string-gap-exempt: the report pads its class column
-        let _ = writeln!(
-            out,
-            "  {:<17} {}, {} B",
-            i.object.as_str(),
-            i.location,
-            i.bytes
-        );
-    }
-    out
-}
-
-fn discard_objects_json(items: &[ObjectDiscard]) -> String {
-    let q = |s: &str| format!("\"{}\"", json_escape(s));
-    let rows: Vec<String> = items
-        .iter()
-        .map(|i| {
-            format!(
-                "{{\"object\":{},\"location\":{},\"bytes\":{}}}",
-                q(i.object.as_str()),
-                q(&i.location),
-                i.bytes
-            )
-        })
-        .collect();
-    format!("[{}]", rows.join(","))
-}
-
-fn discard_json(items: &[MetadataItem]) -> String {
-    let q = |s: &str| format!("\"{}\"", json_escape(s));
-    let rows: Vec<String> = items
-        .iter()
-        .map(|i| {
-            format!(
-                "{{\"id\":{},\"kind\":{},\"location\":{},\"bytes\":{}}}",
-                q(i.id.as_str()),
-                q(i.kind.as_str()),
-                q(&i.location),
-                i.bytes
-            )
-        })
-        .collect();
-    format!("[{}]", rows.join(","))
-}
-
-fn cleanup_json(c: &CleanupPlan) -> String {
-    let q = |s: &str| format!("\"{}\"", json_escape(s));
-    let links: Vec<String> = c
-        .links
-        .iter()
-        .map(|l| {
-            format!(
-                "{{\"id\":{},\"page\":{},\"reason\":{}}}",
-                q(&l.id.to_string()),
-                l.page_index + 1,
-                q(&l.target.to_string())
-            )
-        })
-        .collect();
-    let bookmarks: Vec<String> = c
-        .bookmarks
-        .iter()
-        .map(|b| {
-            format!(
-                "{{\"id\":{},\"title\":{},\"reason\":{},\"descendants\":{}}}",
-                q(&b.id.to_string()),
-                q(&b.title),
-                b.target
-                    .as_ref()
-                    .map_or_else(|| "null".to_owned(), |t| q(&t.to_string())),
-                b.descendants
-            )
-        })
-        .collect();
-    let dests: Vec<String> = c
-        .destinations
-        .iter()
-        .map(|d| q(&String::from_utf8_lossy(d)))
-        .collect();
-    format!(
-        "{{\"links\":[{}],\"bookmarks\":[{}],\"destinations\":[{}]}}",
-        links.join(","),
-        bookmarks.join(","),
-        dests.join(",")
-    )
 }
 
 fn report_json(
@@ -738,7 +648,7 @@ fn report_json(
         _ => "null".to_owned(),
     };
     format!(
-        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"version_raise\":{},\"cleanup\":{},\"discard\":{},\"discard_objects\":{},\"fonts\":{},\"resubset\":{},\"structure\":{},\"diff\":{}}}\n",
+        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"version_raise\":{},\"cleanup\":{},\"discard\":{},\"discard_objects\":{},\"fonts\":{},\"resubset\":{},\"structure\":{},\"budget\":{},\"diff\":{}}}\n",
         o.original,
         o.rewritten,
         o.smaller,
@@ -756,6 +666,10 @@ fn report_json(
         o.structure
             .as_ref()
             .map_or_else(|| "null".to_owned(), optimize_report::structure_json),
+        o.budget.as_ref().map_or_else(
+            || "null".to_owned(),
+            crate::optimize_budget_cmd::budget_json
+        ),
         diff.map_or_else(|| "null".to_owned(), |d| diff_json(d).trim_end().to_owned())
     )
 }

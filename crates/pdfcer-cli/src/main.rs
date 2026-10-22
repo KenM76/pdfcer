@@ -692,9 +692,11 @@ mod metadata_cmd;
 use metadata_cmd::*;
 mod space_cmd;
 use space_cmd::*;
+mod optimize_budget_cmd;
 mod optimize_cmd;
 mod optimize_fonts;
 mod optimize_image_table;
+mod optimize_removals_report;
 mod optimize_report;
 use optimize_cmd::*;
 #[cfg(test)]
@@ -800,6 +802,10 @@ mod exit {
     /// it. A run that removes something (clean-up, `--discard`) is written
     /// and exits 0 even when it is not smaller.
     pub const NOT_SMALLER: u8 = 14;
+    /// `optimize --target-size`: even the lossiest budget step is larger
+    /// than the target. The closest file was still written (unless
+    /// `--dry-run`) and the report names every step tried.
+    pub const OVER_BUDGET: u8 = 15;
     /// The subcommand exists in the surface but is not implemented yet
     /// (Pass 0 stub). Distinct code so a script can tell "you asked for a
     /// feature pdfcer doesn't have yet" apart from a real failure.
