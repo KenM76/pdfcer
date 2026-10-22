@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1187th filing) — `4c35da77` Pass 625.0 SHIPPED (separation preview, hidden inks)
+
+**Filed (engineer-reported, no shell here; git, push and backup state not verified from here):**
+- `4c35da77` `Pass 625.0`: `SeparationPreview`, `RenderOptions::with_separation_preview`, new `Diagnostics` ink fields, CLI `--separation-preview` / `--hide-ink` on `render-page` and `export-image`, new `viewer_preview.rs`. 4 new render tests (plate-zeroing sabotage fails 3 of 4); `run-gates.sh` PASS (49 commands). FEATURES row moved to Implemented: core `[x]` cli `[x]` gui `[ ]`. GUI reply written.
+
+**Decision recorded in the entry, not minted:** the API shipped as `SeparationPreview` / `with_separation_preview`, not the `with_hidden_inks` name the 1186th filing scoped; the Shipped entry says so. No decision or rule minted (ledger still decision `198`, `R263`).
+
+**For next session:** next free `Pass 626.0`; next filing 1188th. Sweep note: the old `with_hidden_inks` name survives only in this log's 1186th entry (history, left as filed).
+
 ## 2026-10-22 (1186th filing) — `0893bd7e` Pass 624.0 SHIPPED (overprint preview switch); Pass 625.0 filed (separation preview)
 
 **Filed (engineer-reported, no shell here; git, push and backup state not verified from here):**

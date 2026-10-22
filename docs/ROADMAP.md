@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### Pass 625.0 (`4c35da77`), 2026-10-22 — separation preview with hidden plates, `SeparationPreview` and `--hide-ink` (1187th filing)
+
+Code commit `4c35da77` "feat(render): separation preview with hidden plates, SeparationPreview + --hide-ink (Pass 625.0)". Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Source: `request_separation_preview_hidden_inks.md` (O323 family). Scoped in the 1186th filing (`e55ab69b`) as `RenderOptions::with_hidden_inks`; shipped under the name below.
+
+**Verdict:** `pdfcer_render::SeparationPreview { hidden: Vec<String> }` (`#[non_exhaustive]`; `new`/`with_hidden`/`hides`), `PROCESS_INKS`, `RenderOptions::with_separation_preview(Option<SeparationPreview>)`. The page is composited in ink with overprint and blends resolved, then hidden plates are zeroed just before the sRGB collapse (ISO 32000-2 §10.8.3). `None` is byte-identical to before. The ink probe is read before hiding, so it still reports every plate. An additive page is forced onto the CMYK buffer for the preview and disclosed in `Diagnostics::inks_forced_subtractive`; new `Diagnostics::inks`, `inks_hidden`, `inks_unmatched`.
+
+**CLI:** `render-page` and `export-image` take `--separation-preview` and `--hide-ink NAME` (repeatable, implies preview). Stderr notes list the inks, the hidden count, unmatched names, the forced-subtractive disclosure and flattened spots. New module `crates/pdfcer-cli/src/viewer_preview.rs` also took over the `--no-overprint-preview` note. `docs/core-api/03-capabilities.md` paragraph added (index 4,901 lines, 157 clauses); `check-core-api-verbs` PASS.
+
+**Tests:** 4 new in `crates/pdfcer-render/tests/separation_preview.rs`; sabotage of the plate zeroing failed 3 of 4. `tools/run-gates.sh` PASS (49 commands). Smoke on the Isartor `6-2-3-4-t01` fixture: lists Cyan, Magenta, Yellow, Black, MyYellow; an unmatched name is reported. No `Cargo.toml` change, no new dependency (`cargo tree` unaffected). Reply: `pdfce_FeatureRequests/open/reply_separation_preview_hidden_inks_FIXED.md` (SCOPED reply removed). **FEATURES:** "Separation preview (hide inks)" core `[x]` cli `[x]` gui `[ ]`, moved to Implemented.
+
 ### Pass 624.0 (`0893bd7e`), 2026-10-22 — overprint preview switch, `OverprintPreview::Off` and `--no-overprint-preview` (1186th filing)
 
 Code commit `0893bd7e` "feat(render): overprint preview switch, OverprintPreview::Off + --no-overprint-preview (Pass 624.0)". Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Source: `request_overprint_simulation_switch.md` (O323).
@@ -23366,7 +23376,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-(1184th filing: `Pass 616.9` slice 2 (byte budget) SHIPPED `2024e6a4`, see *Shipped*; `616.9` stays open for the visual-diff report, then `616.10`, then `616.7` forms/patterns. 1185th filing: `Pass 622.0` SHIPPED `7fcee5b9`, see *Shipped*. 1186th filing: `Pass 624.0` SHIPPED `0893bd7e`, see *Shipped*; `Pass 625.0` (separation preview, hidden inks) filed below. Next free `Pass 626.0`, decision `198`, `R263` (as the ledger reads); next filing 1187th.)
+(1184th filing: `Pass 616.9` slice 2 (byte budget) SHIPPED `2024e6a4`, see *Shipped*; `616.9` stays open for the visual-diff report, then `616.10`, then `616.7` forms/patterns. 1185th filing: `Pass 622.0` SHIPPED `7fcee5b9`, see *Shipped*. 1186th filing: `Pass 624.0` SHIPPED `0893bd7e`, see *Shipped*; `Pass 625.0` (separation preview, hidden inks) filed below. 1187th filing: `Pass 625.0` SHIPPED `4c35da77`, see *Shipped*. Next free `Pass 626.0`, decision `198`, `R263` (as the ledger reads); next filing 1188th.)
 
 (1177th filing: `Pass 618.0` SHIPPED `d21e1ad5`, see *Shipped*; `618.1` remains, NOT done. Next free `Pass 619.0`, decision `196`, `R263`; next filing 1178th.)
 
@@ -25164,20 +25174,6 @@ closes out the *prior* filing's business rather than opening this one's.
 > annotation/destination scaling, the new ce-dimensions refusal — is at
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
-
-### Pass 625.0 — separation preview: render with chosen inks hidden, `RenderOptions::with_hidden_inks` (filed 1186th filing, 2026-10-22)
-
-Source: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_separation_preview_hidden_inks.md` (`pdfcer-gui`, operator request O323 family).
-
-**Deliverable:** `RenderOptions::hidden_inks` / `with_hidden_inks(names)`: colorant names to leave off, matched as the file spells them; process inks are `Cyan`, `Magenta`, `Yellow`, `Black` (ISO 32000-1 §8.6.6.4 / §8.6.6.5).
-- Applied at the colorant buffer immediately before the collapse to sRGB, after the ink probe is sampled (the probe still reports every plate): hidden process channels and named spot planes are zeroed, then the existing §10.8.3 separation simulation runs. Overprint simulation is therefore included, since compositing already happened.
-- A page not composited in ink (additive page group, or no group and device_native) has no plates. When `hidden_inks` is non-empty such a page is forced onto the colorant buffer as if its blend space were DeviceCMYK, **disclosed by a counter** (fuzzy-never-sneaky).
-- Diagnostics: the page's ink list (four process + spot roster in plane order, names as spelled), how many plates were hidden, names that matched no plate, and spots flattened beyond the roster cap (`cmyk_spots_flattened`), which cannot be hidden individually.
-- Per-plate coverage at a point: the existing ink probe already returns cmyk + per-spot tints; document that as the answer to the request's item 3.
-
-**CLI:** `render-page` / `export-image` `--hide-ink NAME` (repeatable), plus a note listing the page's inks.
-
-**Acceptance:** hiding Black on a CMYK fixture equals rendering it with K=0; hiding a spot removes its plane while overprinted process ink under it remains; an unmatched name is reported; an additive page is forced and disclosed; default (empty) output byte-identical. `FEATURES.md` row "Separation preview (hide inks)" core/cli on shipping, gui `[ ]`. Reply to the request file on ship.
 
 ### `Pass 616.0` — Space audit (`audit-space`) — MOVED TO *Shipped* (1111th filing, `5ba901d4`); arc inputs below stay for `616.1`+
 
