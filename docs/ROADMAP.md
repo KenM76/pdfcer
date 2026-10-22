@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.7` (slice 1, `9f9e7f4b`), 2026-10-22 — lossless content-stream compaction, `content(...)`; `Pass 616.7` NOT complete (1167th filing)
+
+Code commit `9f9e7f4b` "feat(optimize): compact content streams losslessly with content(...) (Pass 616.7)", on main. Core + CLI; no GUI (separate project). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message.
+
+- **What:** new stream action `content(...)` (`optimize::content`, `StreamAction::Content(ContentPatch)`, `OptimizeSettings.content`, `PlannedChange.content: Option<ContentChange>`, `SkipReason::Content(ContentSkip)`). Eligible: page content, `/Subtype /Form` XObjects, `/PatternType 1` tiling patterns; never images.
+- **Options:** `whitespace=minimal|keep` (ISO 32000-2 §7.2.2; leading/trailing white-space kept as one newline because a `/Contents` array may split between tokens, §7.7.3.3); `numbers=shortest|keep` (§7.3.3; only when the result reads as the same f32 and is shorter, never exponent); `redundant=on|off` (empty bare `q Q`, identity `cm`, setters repeating held graphics state; `q`/`Q` save/restore, text state persists over `BT`/`ET`).
+- **Safety:** strings, names, arrays, dicts and inline images copied byte-for-byte; every rewrite is re-read and compared with the kept operations, mismatch is skipped. Never larger; re-encoded with the base stream action or recompress-9. Folds like `image(...)`: profile key, rules, per-object overrides (`12=content(numbers=keep)`).
+- **CLI:** `pdfcer optimize --content [SPEC]`, `--streams "content(...)"`, a content line in the text report, a `content` object in JSON. `docs/core-api/03-capabilities.md` and `index.md` updated; `check-core-api-verbs` green.
+- **Tests (engineer-reported):** `tools/run-gates.sh` PASS, 46 commands, 13,700 tests passed, 0 failed. New: 11 core unit tests plus profile round trip; 3 CLI tests (`crates/pdfcer-cli/tests/optimize_content.rs`) including `render-page` pixel equality before and after. 4 sabotage mutations each caught (one needed a new assertion). Fuzz target `optimize_content`: 60,312 runs in 121 s (about 498 runs/s), 0 crashes. `cargo tree` unchanged, no new dependencies, GUI-core invariant holds.
+- **Design deviation:** own tokenizer/emitter in `optimize::content`, not the `reemit_canonical` hook the entry named.
+- **Still open in `Pass 616.7`:** lossy number rounding with disclosed maximum user-space displacement through `cm`/`Tm` (NOT shipped); number shortening inside arrays (`TJ`, dash arrays); a page-scale walk. `616.8`-`616.10` unchanged.
+
+`FEATURES.md`: new Implemented row (core [x], cli [x], gui [ ]); Planned *Content-stream optimisation* row narrowed to the lossy remainder, boxes unticked. No decision; no rule (`195`, `R263` stay free; next Pass `618.0`). No RAG write. Git, push and backup state not verified from here (no shell). Next filing 1168th.
+
 ### `Pass 616.6` (closure, no code commit; last code `e05a62a8`), 2026-10-22 — font re-subset: Reader check done, corpus measured; `Pass 616.6` COMPLETE (1166th filing)
 
 Librarian-only filing; no code commit. Slices 1-7 are in the entries below (unembed; TrueType and CFF zeroing re-subset; TrueType merge of copies of one face; PDF/A re-subset; PDF/A-1 `/CIDSet`//`/CharSet` writing). Engineer-measured 2026-10-22; I have no shell (hard rule 8).
@@ -25053,9 +25067,9 @@ Re-subset embedded fonts to the glyphs actually used; merge duplicate subsets; i
 
 **Slice 1 SHIPPED (1155th filing): unembed inside an optimize run. Slice 2 SHIPPED (1156th filing): TrueType `/FontFile2` re-subset by glyph zeroing, `--resubset-fonts`. Slice 3 SHIPPED (1158th filing): copies of one face merged, `--no-merge-font-subsets`. Slice 4 SHIPPED (1160th filing): CFF (`/FontFile3`) zeroing, bare CFF and OpenType-CFF. Slice 5 SHIPPED (1161st filing, CORRECTED 1162nd: lists left byte-identical). Slice 6 SHIPPED (1163rd filing): re-subset in PDF/A documents. Slice 7 SHIPPED (1165th filing): the PDF/A-1 list a cut owes is written. **[update 1166th filing: the Pass is COMPLETE. The Acrobat Reader render check is done (nine fixtures, zero differing page pixels). Merging CFF copies, Type 1 `/FontFile` re-subset and short loca are three measured Backlog items, not part of this Pass.]** (`symbolic` / `shared-program` fixture tests closed in `0982e864`, 1159th filing.)**
 
-### `Pass 616.7` — Content-stream optimisation — NEXT UP, 2026-10-20
+### `Pass 616.7` — Content-stream optimisation — IN PROGRESS: slice 1 SHIPPED `9f9e7f4b` (1167th filing); lossy rounding open
 
-Number precision rounding with a tolerance, **disclosed with its maximum displacement**; whitespace minimisation; redundant operator removal. Uses the `reemit_canonical` rounding hook.
+Number precision rounding with a tolerance, **disclosed with its maximum displacement**; whitespace minimisation; redundant operator removal. Slice 1 (lossless: whitespace, shortest numbers, redundant operators) is shipped, see top of *Shipped*. **Open:** lossy rounding disclosed as maximum user-space displacement through `cm`/`Tm`; number shortening inside arrays (`TJ`, dash arrays, currently verbatim); a page-scale walk. Design deviation: slice 1 uses its own tokenizer/emitter in `optimize::content`, not the `reemit_canonical` hook named here. Acrobat parity reference: `D:\Dev\Rag-Specialized\Acrobat_Features\optimize__page_content_and_content_stream_rewriting.md`.
 
 ### `Pass 616.8` — Linearization writer (fast web view) — NEXT UP, 2026-10-20
 

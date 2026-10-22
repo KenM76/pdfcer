@@ -43,11 +43,13 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   new charset/encoding call must go through it. **616.6 COMPLETE**: the
   Reader check passed (9 fixtures, zero page-pixel difference); CFF merge,
   Type 1 and short loca are measured Backlog residue. **616.7 (content
-  streams) in progress**: design is a `content(...)` StreamAction patch
-  like `image(...)` (per-object via `--object`/rules) over
-  `reemit_canonical`; rounding is lossy, disclosed as maximum user-space
-  displacement through `cm`/`Tm`. Parity research from the acrobat
-  librarian lands in `Acrobat_Features/` -- name it here when it does.
+  streams) slice 1 shipped** (`9f9e7f4b`): lossless `content(...)`
+  StreamAction (whitespace, shortest numbers, redundant operators) in
+  `optimize::content`, its own tokenizer + re-read check, not
+  `reemit_canonical`. Open: lossy rounding disclosed as maximum
+  user-space displacement through `cm`/`Tm`; numbers inside arrays
+  (`TJ`, dash) copied verbatim. Parity reference:
+  `Acrobat_Features/optimize__page_content_and_content_stream_rewriting.md`.
   Then 616.8-616.10 (linearization, quality/byte-budget, compatibility).
 - **Fixture generator:** `tools/gen-resubset-fixtures.py` needs fontTools
   for `symbolic.pdf`. Python string escapes typed through Bash lose their

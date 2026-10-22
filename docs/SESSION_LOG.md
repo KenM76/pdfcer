@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1167th filing) — `Pass 616.7` slice 1 in `9f9e7f4b`: lossless content-stream compaction
+
+**Shipped:** `content(...)` stream action (whitespace, shortest numbers, redundant operators) on page content, forms and tiling patterns; CLI `optimize --content`. 13,700 tests green; fuzz `optimize_content` 60,312 runs clean; render pixel-equality test.
+
+**Decisions:** slice 1 uses its own tokenizer/emitter instead of the `reemit_canonical` hook. No numbers minted (`195`, `R263`, `618.0` free).
+
+**Still in flight:** `Pass 616.7` open: lossy rounding with disclosed displacement, array number shortening, page-scale walk. Parity reference: `Acrobat_Features/optimize__page_content_and_content_stream_rewriting.md`.
+
+**For next session:** git/push/backup state not verified (no shell). Next filing 1168th.
+
 ## 2026-10-22 (1166th filing) — `Pass 616.6` COMPLETE: Reader check done, corpus measured
 
 **Shipped:** no code. Closure of `Pass 616.6` (last code `e05a62a8`). Acrobat Reader 25.1 render check done: 9 fixtures in `fixtures/synthetic/resubset/`, original vs `--resubset-fonts` cut, zero differing page pixels each (Reader, not Pro).
