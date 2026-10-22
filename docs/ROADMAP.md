@@ -112,6 +112,14 @@ wherever it appears.*
 
 ## Shipped
 
+### Pass 624.0 (`0893bd7e`), 2026-10-22 — overprint preview switch, `OverprintPreview::Off` and `--no-overprint-preview` (1186th filing)
+
+Code commit `0893bd7e` "feat(render): overprint preview switch, OverprintPreview::Off + --no-overprint-preview (Pass 624.0)". Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Source: `request_overprint_simulation_switch.md` (O323).
+
+**Verdict:** `pdfcer_render::OverprintPreview { Simulate (default), Off }` (`#[non_exhaustive]`, `simulates()`); `RenderOptions::overprint_preview` + `with_overprint_preview`, projected into `RenderPolicy`. `Off` clears the stroke/fill overprint flags at the single ExtGState `OP`/`op` setter, after the requested counters, so every paint route knocks out; `overprint_requested` still counts, `overprint_effective` reads 0. CLI `render-page` and `export-image` `--no-overprint-preview`, which prints a stderr note that preview is off (so the overprint note's 0 affected paints cannot be misread). `core-api/03-capabilities.md` documents it; `check-core-api-verbs` PASS. No manifest touched, so no `cargo tree` change.
+
+**Tests:** +1 render test `overprint_preview_off_paints_an_overprinting_page_as_its_knockout_twin` (`devicen_op_cmyk.pdf` under `Off` pixel-identical to `devicen_noop_cmyk.pdf`, counters checked); policy-projection test extended. CLI smoke: on/off renders differ; off render byte-identical to the noop fixture render. **Gates:** `tools/run-gates.sh` 48 of 49 green; the one red was `check-requests-scoped` wanting the reply, since written: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_overprint_simulation_switch_FIXED.md`. **FEATURES:** "Overprint preview switch" core `[x]` cli `[x]` gui `[ ]`, moved to Implemented.
+
 ### Pass 622.0 (`7fcee5b9`), 2026-10-22 — area-averaged image minification, `MinifyFilter::AreaAverage` (1185th filing)
 
 Code commit `7fcee5b9` "feat(render): area-averaged image minification, MinifyFilter::AreaAverage (Pass 622.0)". Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Source: `request_image_minify_area_average.md` (O322).
@@ -23358,7 +23366,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-(1184th filing: `Pass 616.9` slice 2 (byte budget) SHIPPED `2024e6a4`, see *Shipped*; `616.9` stays open for the visual-diff report, then `616.10`, then `616.7` forms/patterns. 1185th filing: `Pass 622.0` SHIPPED `7fcee5b9`, see *Shipped*; `Pass 624.0` below is IN PROGRESS. Next free `Pass 625.0`, decision `198`, `R263` (as the ledger reads; see SESSION_LOG 1185th); next filing 1186th.)
+(1184th filing: `Pass 616.9` slice 2 (byte budget) SHIPPED `2024e6a4`, see *Shipped*; `616.9` stays open for the visual-diff report, then `616.10`, then `616.7` forms/patterns. 1185th filing: `Pass 622.0` SHIPPED `7fcee5b9`, see *Shipped*. 1186th filing: `Pass 624.0` SHIPPED `0893bd7e`, see *Shipped*; `Pass 625.0` (separation preview, hidden inks) filed below. Next free `Pass 626.0`, decision `198`, `R263` (as the ledger reads); next filing 1187th.)
 
 (1177th filing: `Pass 618.0` SHIPPED `d21e1ad5`, see *Shipped*; `618.1` remains, NOT done. Next free `Pass 619.0`, decision `196`, `R263`; next filing 1178th.)
 
@@ -25157,15 +25165,19 @@ closes out the *prior* filing's business rather than opening this one's.
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
 
-### Pass 624.0 — overprint preview switch, `RenderOptions::with_overprint_preview` (IN PROGRESS; filed 1185th filing, 2026-10-22)
+### Pass 625.0 — separation preview: render with chosen inks hidden, `RenderOptions::with_hidden_inks` (filed 1186th filing, 2026-10-22)
 
-Source: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_overprint_simulation_switch.md` (`pdfcer-gui`, operator request O323).
+Source: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_separation_preview_hidden_inks.md` (`pdfcer-gui`, operator request O323 family).
 
-**Deliverable:** `RenderOptions` gains `OverprintPreview { Simulate (default), Off }` and builder `with_overprint_preview`. Under `Off` every overprinting mark paints Normal. Implemented at the single ExtGState `OP`/`op` setter so every paint route (fill, stroke, text, image, shading, spot planes) is covered at once. `overprint_requested` still counts under `Off` (the GUI needs it for Acrobat's Automatic arm); `overprint_effective` reports 0.
+**Deliverable:** `RenderOptions::hidden_inks` / `with_hidden_inks(names)`: colorant names to leave off, matched as the file spells them; process inks are `Cyan`, `Magenta`, `Yellow`, `Black` (ISO 32000-1 §8.6.6.4 / §8.6.6.5).
+- Applied at the colorant buffer immediately before the collapse to sRGB, after the ink probe is sampled (the probe still reports every plate): hidden process channels and named spot planes are zeroed, then the existing §10.8.3 separation simulation runs. Overprint simulation is therefore included, since compositing already happened.
+- A page not composited in ink (additive page group, or no group and device_native) has no plates. When `hidden_inks` is non-empty such a page is forced onto the colorant buffer as if its blend space were DeviceCMYK, **disclosed by a counter** (fuzzy-never-sneaky).
+- Diagnostics: the page's ink list (four process + spot roster in plane order, names as spelled), how many plates were hidden, names that matched no plate, and spots flattened beyond the roster cap (`cmyk_spots_flattened`), which cannot be hidden individually.
+- Per-plate coverage at a point: the existing ink probe already returns cmyk + per-spot tints; document that as the answer to the request's item 3.
 
-**CLI:** `--no-overprint-preview` on `render-page` and `export-image`.
+**CLI:** `render-page` / `export-image` `--hide-ink NAME` (repeatable), plus a note listing the page's inks.
 
-**Acceptance:** default output byte-identical to today; `Off` equals the same file with its `/OP` stripped; counters as above; `FEATURES.md` row "Overprint preview switch" core/cli on shipping, gui `[ ]` until `pdfcer-gui` wires it. Reply to the request file on ship.
+**Acceptance:** hiding Black on a CMYK fixture equals rendering it with K=0; hiding a spot removes its plane while overprinted process ink under it remains; an unmatched name is reported; an additive page is forced and disclosed; default (empty) output byte-identical. `FEATURES.md` row "Separation preview (hide inks)" core/cli on shipping, gui `[ ]`. Reply to the request file on ship.
 
 ### `Pass 616.0` — Space audit (`audit-space`) — MOVED TO *Shipped* (1111th filing, `5ba901d4`); arc inputs below stay for `616.1`+
 

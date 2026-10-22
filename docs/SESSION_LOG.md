@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1186th filing) — `0893bd7e` Pass 624.0 SHIPPED (overprint preview switch); Pass 625.0 filed (separation preview)
+
+**Filed (engineer-reported, no shell here; git, push and backup state not verified from here):**
+- `0893bd7e` `Pass 624.0`: `OverprintPreview { Simulate, Off }`, `RenderOptions::with_overprint_preview`, CLI `--no-overprint-preview` on `render-page` and `export-image` (stderr note when off). +1 render test, policy test extended; `run-gates.sh` 48 of 49, the red being `check-requests-scoped` wanting the reply, since written (`reply_overprint_simulation_switch_FIXED.md`). FEATURES row moved to Implemented: core `[x]` cli `[x]` gui `[ ]`.
+- `Pass 625.0` filed: `RenderOptions::with_hidden_inks` + `--hide-ink NAME`, hide-plate separation preview at the colorant buffer before the sRGB collapse; additive pages forced onto the colorant buffer and disclosed. FEATURES Planned row, all `[ ]`.
+
+**Premise check:** `624.0` was in *Next up* just before the `616.0` heading as stated; the `625.0` entry now sits at that spot. `625.0` unused anywhere in the three registers before filing. No decision or rule minted (ledger still decision `198`, `R263`).
+
+**For next session:** next free `Pass 626.0`; next filing 1187th; build `625.0`.
+
 ## 2026-10-22 (1185th filing) — `7fcee5b9` Pass 622.0 SHIPPED (area-averaged minification); Pass 624.0 filed; two gate findings fixed
 
 **Filed (engineer-reported, no shell here; git, push and backup state not verified from here):**
