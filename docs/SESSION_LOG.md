@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1191st filing) — `f0b4d434` Pass 629.0 SHIPPED (a new field's font, size and colour at creation); filed new and shipped in one filing
+
+**Filed (engineer-reported, no shell here; git, push and backup state not verified from here):**
+- `f0b4d434` `Pass 629.0`: `NewTextField` and `NewChoiceField` gain `appearance: Option<FieldAppearance>` / `.with_appearance`; CLI `--font`, `--font-resource`, `--font-size`, `--font-color` on `add-text-field`, `add-choice-field`, `edit-field`. Source: pdfcer-gui request O324 (Forms > Style); reply `open/reply_new_field_default_appearance_FIXED.md`.
+- Tests: 9 core (5 sabotages caught), 5 CLI. Core lib 3031 passed / 2 ignored, core integration 1863, CLI integration 954 passed / 2 ignored. All gates green per engineer.
+- FEATURES: new row after the Pass 268.0 `/DA` row, core `[x]` cli `[x]` gui `[ ]` (gui not yet consuming it).
+
+**Decision (none minted):** a name that would merge into an existing field is refused (`FieldAppearanceOnMerge`), because widgets draw in their field's `/DA` (§12.7.3.3). **Behaviour change:** size or colour without a font is now refused on all three verbs; `edit-field` used to ignore it silently.
+
+**For next session:** next free `Pass 630.0`; next filing 1192nd; decision `198`, `R263`. Owed to the gui project: replace the add + edit + coalesce workaround with `with_appearance`. Hard-rule-11 sweep of `crates/` for text saying `/DA` can only be set by editing after creation not done (no shell). Run `check-register-entry-size.py` and `check-ledger-numbers.py` (not run from here).
+
 ## 2026-10-22 (1190th filing) — `281ac8c7` Pass 616.7 SHIPPED (rounding inside forms and tiling patterns); the 616 arc closes; Backlog `628.0` minted
 
 **Filed (engineer-reported, no shell here; git, push and backup state not verified from here; engineer says `281ac8c7` is not yet pushed):**

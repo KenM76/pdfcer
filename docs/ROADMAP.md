@@ -112,6 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
+### Pass 629.0 (`f0b4d434`), 2026-10-22 — a new field's font, size and colour (`/DA`) stated at creation (1191st filing)
+
+Code commit `f0b4d434` "feat(forms): state a new field's font, size and colour at creation (Pass 629.0)" (push not verified from here). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Source: pdfcer-gui request O324 (Forms > Style), `request_new_field_default_appearance.md`; reply `reply_new_field_default_appearance_FIXED.md`. Filed new and shipped in this one filing.
+
+**Verdict:** `NewTextField` and `NewChoiceField` gain `pub appearance: Option<FieldAppearance>` and `.with_appearance(FieldAppearance)` (the value `FieldEdit::with_appearance` takes). `None` is byte-identical to the old `/Helv 0 Tf 0 g`. One command, one undo entry, one `/AP`; replaces the GUI's add + `edit_field` + `coalesce_last` workaround. A Standard-14 face adds its `/DR` `/Font` resource in the command's single `/AcroForm` write (also for a field under an existing parent); an absent `FieldFont::Resource` key is refused `FieldFontNotInResources` and creates nothing. The `/AP` is built by the regenerator's builder with fonts bound to `/DR`, so create-with-appearance and create-then-`edit_field` give identical `/DA` and `/AP` bytes (pinned by test). Shared resolver in `edit/field_da.rs`, also used by `edit_field`.
+
+**Decision (recorded here, none minted):** new `EditError::FieldAppearanceOnMerge { name }`: a name that would merge into an existing field is refused, because widgets draw in their field's `/DA` (ISO 32000-2 §12.7.3.3).
+
+**CLI:** `add-text-field`, `add-choice-field` gain `--font`, `--font-resource`, `--font-size`, `--font-color` via shared clap struct `FieldStyleArgs` (`pdfcer-cli/src/field_style.rs`), also flattened into `edit-field`. **Behaviour change:** `--font-size`/`--font-color` without `--font`/`--font-resource` is now refused on all three verbs (`edit-field` ignored it silently).
+
+**Docs:** `docs/core-api/02-editing-and-saving.md` new section "/DA at creation" and table note; `docs/core-api/index.md` counts updated.
+
+**Tests:** 9 new core (`tests/field_creation_appearance.rs`; 5 sabotages, each caught), 5 new CLI (`tests/field_creation_style.rs`). Core lib 3031 passed / 2 ignored; core integration 1863; CLI integration 954 passed / 2 ignored. fmt, clippy `-D warnings`, code-structure (no new debt), `check-core-api-verbs` PASS (`EditError` now 185 variants), all `tools/check-*` green. No `Cargo.toml` change, so no `cargo tree` change; no new dependency. The `None` path is byte-identical.
+
+**FEATURES:** new row after the Pass 268.0 `/DA` row: core `[x]` cli `[x]` gui `[ ]` (`pdfcer-gui` has not consumed it; the edit route's gui `[x]` is unchanged). Ledger unchanged (decision `198`, `R263`); next free Pass `630.0`.
+
 ### Pass 616.7 (final slice, `281ac8c7`), 2026-10-22 — content rounding reaches Form XObjects and tiling patterns; `Pass 616.7` COMPLETE (1190th filing)
 
 Code commit `281ac8c7` "feat(optimize): round inside forms and tiling patterns at their drawn scale (Pass 616.7)" (on `main`, not yet pushed at filing). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Core + CLI; no new flag, `--content round=T` reaches more streams.
