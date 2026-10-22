@@ -112,7 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.90.0` — version bump filed 2026-10-22 (1173rd filing); release PENDING
+### `v0.90.0` — PUBLISHED 2026-10-22 (1174th filing)
+
+Tag `v0.90.0` (lightweight) at `33805a156fba15fc445f63bb87e2d9ae129dca37`, the 1173rd filing commit; bump `a158d4ed`. Pushed; CI green at the tag (run 39783616026, success). Carries the 136 commits listed in the bump entry below. GitHub release https://github.com/KenM76/pdfcer/releases/tag/v0.90.0 has 8 assets: portable zip `pdfcer-v0.90.0-windows-x64.zip` (27,141,519 bytes, sha256 `5bc718a7ebd7278db4a796d62c6906caf3067c0be83f9affa2a44e58ccc37bde`), `ocr-addon-ocrcer.zip`, `ocr-addon-ocrs.zip`, `ocr-addon-tesseract.zip`, and a `.sha256` for each. Build folder `D:\builds\pdfcer-20261022-0904-33805a1` (53,740,896 bytes; `pdfcer.exe` 37,805,056 bytes; reports `pdfcer 0.90.0`, revision `v0.90.0`, iccce 0.3.0 rev `a4d9003b`). Engineer-reported; I have no shell.
+
+Fresh-folder smoke (`D:\builds\smoke-v0.90.0`) passed: `--version`; `render-page` on `fixtures/synthetic/ocr/printed.pdf` (57,864-byte PNG); `ocr` on `scan.pdf` (paddle models, invisible mode-3 layer written); `optimize --linearize`, where `qpdf --check-linearization` reports no linearization errors. OneDrive: wrote `pdfcer1` (held 0.88.0); `pdfcer2` keeps 0.89.0. `verify-release.py v0.90.0`: every check passes except "working tree clean", which fails only on the uncommitted agent-memory files (deliberate, as for 0.89.0). Notice to `pdfcer-gui`: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-10-22_v0.90.0_released.md`.
+
+Gaps found at release time: (a) `FEATURES.md` rows for Brotli encoding and *Change an image's format* were stale; corrected in this filing against the `616.4`/`616.5` entries (core `[x]`, cli `[x]`, gui `[ ]`; the Acrobat Reader render check of Brotli stays unverified and is stated in the row); the *Decode `/BrotliDecode`* row's "No encoder" clause also corrected (hard-rule-11 sweep). (b) Replies owed to `pdfcer-gui` for `G214`-`G217`: noted in `NEXT_SESSION.md`, engineer writes them. (c) New operator request `request_operator_harden_and_ready_crates_for_publishing.md` (2026-10-22), no Pass filed yet. Next free `Pass 618.0`, decision `196`; next filing 1175th.
+
+### `v0.90.0` — version bump filed 2026-10-22 (1173rd filing); release PENDING (superseded: published, entry above)
 
 Bump `a158d4ed` ("chore: bump version to 0.90.0": `Cargo.toml` workspace version 0.89.0 -> 0.90.0; `Cargo.lock` and `fuzz/Cargo.lock` by `cargo update -w`) on `main`, after `19efca33` (the 1172nd filing). No dependency change: the lock diff only renames workspace crates' versions, and `THIRD_PARTY_LICENSES.md` is unchanged (no `cargo tree` concern for `pdfcer-core`/`pdfcer-render`). Figures engineer-reported; I have no shell (hard rule 8).
 

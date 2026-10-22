@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1174th filing) — `v0.90.0` published (no Pass consumed)
+
+**Filed (engineer-reported, no shell here):** tag `v0.90.0` at `33805a15` (the 1173rd filing commit), pushed, CI green (run 39783616026). GitHub release with 8 assets; portable zip 27,141,519 bytes, sha256 `5bc718a7ebd7278db4a796d62c6906caf3067c0be83f9affa2a44e58ccc37bde`. Fresh-folder smoke passed (render-page, ocr, `optimize --linearize` with qpdf reporting no errors). OneDrive `pdfcer1` written (was 0.88.0); `pdfcer2` keeps 0.89.0. `verify-release.py` passes except the deliberate "working tree clean". `pdfcer-gui` notified. Details in the ROADMAP Shipped entry.
+
+**Register:** ROADMAP bump entry retitled as published; `FEATURES.md` Brotli-encode row and *Change an image's format* row ticked core + cli (gui `[ ]`), Reader check recorded as unverified; Brotli-decode row's stale "No encoder" fixed. `NEXT_SESSION.md` (engineer-owned) given an owed-items bullet and the slot note, at the engineer's request. No decision.
+
+**For next session:** replies owed to `pdfcer-gui` for `G214`-`G217`; parse `request_operator_harden_and_ready_crates_for_publishing.md` into Passes; next free `Pass 618.0`; next filing 1175th; next release writes `pdfcer2`. Git, push and backup state not verified from here.
+
 ## 2026-10-22 (1173rd filing) — `v0.90.0` bump `a158d4ed` filed (no Pass consumed)
 
 **Filed (engineer-reported, no shell here):** bump `a158d4ed` ("chore: bump version to 0.90.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`) after `19efca33` (1172nd). No dependency change; `THIRD_PARTY_LICENSES.md` unchanged. Carries 136 commits since `v0.89.0`: `Pass 615.0`, `616.0`-`616.6`, `616.8`, `616.7` slices 1-5, `617.0`-`617.9`. Last full gates green on `daa36707` (13,746 tests, 0 failures); since then only docs and the bump. Recorded as a ROADMAP Shipped bump entry, the same way `1bdf8032` was in the 1108th.

@@ -10,8 +10,13 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## State
 
-- **Release:** v0.89.0 is published (OneDrive `pdfcer2`). **The next release
-  writes `pdfcer1`.** Release gates are change-scoped (Ken, 2026-10-16): test
+- **Owed (librarian-noted 2026-10-22, 1174th):** replies to pdfcer-gui for
+  `G214`, `G215`, `G216`, `G217` (fixed in `f4ce1ae7`, `db902fb4`, `173147ee`;
+  `check-requests-scoped` still lists them as not taken up). Engineer writes them.
+  New operator request `request_operator_harden_and_ready_crates_for_publishing.md`
+  (2026-10-22) has no Pass filed yet; engineer parses it next.
+- **Release:** v0.90.0 is published (OneDrive `pdfcer1`; `pdfcer2` keeps 0.89.0).
+  **The next release writes `pdfcer2`.** Release gates are change-scoped (Ken, 2026-10-16): test
   the crates changed since the last tag + the filing gates + the fresh-folder
   smoke; `run-gates.sh` is CI's job. `verify-release` fails only "working tree
   clean", on the uncommitted spec-librarian memory files (deliberate).
