@@ -3170,7 +3170,7 @@ builders**): `fonts: FontEnvironment`, `annotations: bool`
 , `annotation_scope: AnnotationScope`, `cancel: Option<RenderCancel>`
 , `layers: Option<LayerVisibility>`, `view_magnification: Option<f32>`
 , `cmyk_intent`, `mask_resample`, `image_minify`, `image_magnify`,
-`cmyk_jpeg_polarity`, `missing_as`. Builders:
+`cmyk_jpeg_polarity`, `missing_as`, `overprint_preview`. Builders:
 `with_annotations`, `with_annotation_scope`, `with_cmyk_intent`
 , `with_cancel`, `with_mask_resample`, `with_image_minify`, `with_image_magnify`
 , `with_cmyk_jpeg_polarity`, `with_layers`,
@@ -3209,6 +3209,18 @@ A Type 3 glyph runs its procedure with the fill colour set: an uncoloured
 (`d1`) glyph takes it, a coloured (`d0`) glyph keeps its own. A display aid
 only; nothing in the document changes. CLI: `render-page --invisible-text
 RRGGBB [--invisible-text-only]`.
+
+`overprint_preview: OverprintPreview` / **`with_overprint_preview(preview)`**
+(request `request_overprint_simulation_switch.md`) is the viewer's Overprint
+Preview switch. `Simulate` (default) composites overprint as the file asks
+(ISO 32000-1 §8.6.7, §11.7.4); `Off` draws every overprinting mark as a
+knockout, pixel-identical to the same page with `/OP`/`/op` false. It acts
+where the graphics state sets the flags, so it reaches every paint route
+(paths, text, images, shadings, groups, spot planes). Under `Off`,
+`Diagnostics::overprint_requested` still counts the enabling operators and
+`overprint_effective` reads 0. `OverprintPreview::simulates()` is the bool
+form. A display aid; the document is unchanged. CLI: `render-page` /
+`export-image --no-overprint-preview` (prints a note saying so).
 
 `stroke_display: StrokeDisplay` sets line weights. It takes one of three
 values:

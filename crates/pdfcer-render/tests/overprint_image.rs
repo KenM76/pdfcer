@@ -368,3 +368,36 @@ fn a_spot_colour_paints_ink_on_a_subtractive_page_too() {
     assert_ne!(on_backdrop(&cmyk), PAPER);
     assert_ne!(on_backdrop(&rgb), PAPER);
 }
+
+fn render_with(name: &str, preview: pdfcer_render::OverprintPreview) -> RenderedPage {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/synthetic/overprint")
+        .join(name);
+    let doc =
+        Document::from_bytes(std::fs::read(&path).expect("fixture file")).expect("fixture parses");
+    let pages = page_tree::pages(&doc).expect("page tree");
+    let options = pdfcer_render::RenderOptions::default().with_overprint_preview(preview);
+    pdfcer_render::render_page_with(&doc, &pages[0], SCALE, &options).expect("renders")
+}
+
+/// Overprint preview OFF draws an `/OP true` page exactly as its `/OP false`
+/// twin, on the image route and the path route, and still counts the request.
+#[test]
+fn overprint_preview_off_paints_an_overprinting_page_as_its_knockout_twin() {
+    use pdfcer_render::OverprintPreview::{Off, Simulate};
+    let off = render_with("devicen_op_cmyk.pdf", Off);
+    let twin = render_with("devicen_noop_cmyk.pdf", Simulate);
+    assert_eq!(off.pixmap.data(), twin.pixmap.data());
+    assert!(off.diagnostics.overprint_requested > 0);
+    assert_eq!(off.diagnostics.overprint_effective, 0);
+
+    let simulated = render_with("devicen_op_cmyk.pdf", Simulate);
+    assert!(simulated.diagnostics.overprint_effective > 0);
+    assert_ne!(inside_mark(&simulated), inside_mark(&off));
+
+    let path_on = render_with("devicen_op_path_cmyk.pdf", Simulate);
+    let path_off = render_with("devicen_op_path_cmyk.pdf", Off);
+    assert_ne!(inside_mark(&path_on), inside_mark(&path_off));
+    assert_eq!(inside_mark(&path_off), PAPER);
+    assert_eq!(path_off.diagnostics.overprint_effective, 0);
+}

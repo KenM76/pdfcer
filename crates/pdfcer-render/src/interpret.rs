@@ -5109,6 +5109,12 @@ impl<'a> Interpreter<'a> {
                 self.diag.overprint_mode1_requested += 1;
             }
         }
+        // The one place the flags are set, so clearing them here turns
+        // overprint off on every paint route while the request still counts.
+        if !self.policy.overprint_preview.simulates() {
+            self.gs.current.overprint_stroke = false;
+            self.gs.current.overprint_fill = false;
+        }
         // Remaining Table 58 keys (BM/SMask/Font/…): still deferred.
     }
 

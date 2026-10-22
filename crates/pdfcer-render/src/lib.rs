@@ -96,6 +96,7 @@ pub mod mask;
 pub mod mesh;
 pub(crate) mod minify;
 pub mod overprint;
+mod overprint_preview;
 pub mod profile;
 pub mod shading;
 pub mod svg;
@@ -139,6 +140,7 @@ pub use font::{
 pub use interpret::{BlendSpaceFrom, Diagnostics};
 pub use invisible_text::InvisibleTextPaint;
 pub use layer_state::LayerVisibility;
+pub use overprint_preview::OverprintPreview;
 pub use shading::{ColorRamp, Geometry, PaintRoute, Shading, ShadingDiagnostics, ShadingFunction};
 // `RenderedPage::pixmap` is a public field of a `tiny_skia` type, so this
 // crate must re-export `tiny_skia` or every consumer has to add its own

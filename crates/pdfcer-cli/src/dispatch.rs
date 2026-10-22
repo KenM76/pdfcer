@@ -1097,6 +1097,7 @@ pub(crate) fn run() -> ExitCode {
             omit_annotations,
             invisible_text,
             invisible_text_only,
+            no_overprint_preview,
         } => cmd_render_page(
             &input,
             page,
@@ -1118,6 +1119,7 @@ pub(crate) fn run() -> ExitCode {
             invisible_text.map(|rgb| {
                 pdfcer_render::InvisibleTextPaint::new(rgb).with_only(invisible_text_only)
             }),
+            overprint_preview(no_overprint_preview),
         ),
         Command::ExportImage {
             input,
@@ -1141,6 +1143,7 @@ pub(crate) fn run() -> ExitCode {
             print_state,
             svg_text,
             emf_text,
+            no_overprint_preview,
         } => cmd_export_image(ExportImageArgs {
             input: &input,
             pages: &pages,
@@ -1163,6 +1166,7 @@ pub(crate) fn run() -> ExitCode {
             print_state,
             svg_text,
             emf_text,
+            overprint_preview: overprint_preview(no_overprint_preview),
         }),
         Command::CopyPage {
             input,

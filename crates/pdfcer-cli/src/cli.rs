@@ -5139,6 +5139,11 @@ pub(crate) enum Command {
         /// annotations. For laying the text layer over another render.
         #[arg(long, requires = "invisible_text")]
         invisible_text_only: bool,
+        /// Draw overprinting marks as ordinary knockouts instead of
+        /// simulating overprint, as a viewer with Overprint Preview off
+        /// shows them. The file is not changed.
+        #[arg(long)]
+        no_overprint_preview: bool,
     },
 
     /// Export page(s) as PNG, JPEG or SVG files — with REAL transparency
@@ -5272,6 +5277,11 @@ pub(crate) enum Command {
         /// outlines and are counted on an `emf-text:` line.
         #[arg(long, value_enum, default_value_t = SvgTextArg::Outlines)]
         emf_text: SvgTextArg,
+        /// Draw overprinting marks as ordinary knockouts instead of
+        /// simulating overprint, as a viewer with Overprint Preview off
+        /// shows them. The file is not changed.
+        #[arg(long)]
+        no_overprint_preview: bool,
     },
 
     /// Copy a page to the OS clipboard so it pastes as EDITABLE VECTORS into

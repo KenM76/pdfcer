@@ -800,6 +800,9 @@ pub struct RenderOptions {
     /// Paint invisible text (Table 106 modes 3 and 7) visibly, or `None`
     /// to follow the spec and paint none. See [`crate::InvisibleTextPaint`].
     pub invisible_text: Option<crate::InvisibleTextPaint>,
+    /// Whether overprinting marks are composited as overprints. Default
+    /// [`OverprintPreview::Simulate`](crate::OverprintPreview::Simulate).
+    pub overprint_preview: crate::OverprintPreview,
 }
 
 /// The medium a finished page group is composited onto — §11.4.7's
@@ -994,6 +997,8 @@ pub struct RenderPolicy<'a> {
     pub omit_annotations: &'a [pdfcer_core::object::ObjId],
     /// See [`RenderOptions::invisible_text`].
     pub invisible_text: Option<crate::InvisibleTextPaint>,
+    /// See [`RenderOptions::overprint_preview`].
+    pub overprint_preview: crate::OverprintPreview,
 }
 
 /// How strokes are drawn relative to their declared width (`Pass 254.0`).
@@ -1179,6 +1184,7 @@ impl Default for RenderOptions {
             // rest.
             backdrop: PageBackdrop::default(),
             invisible_text: None,
+            overprint_preview: crate::OverprintPreview::Simulate,
         }
     }
 }
@@ -1560,6 +1566,13 @@ impl RenderOptions {
         self
     }
 
+    /// Set whether overprint is simulated, returning `self` for chaining.
+    #[must_use]
+    pub const fn with_overprint_preview(mut self, preview: crate::OverprintPreview) -> Self {
+        self.overprint_preview = preview;
+        self
+    }
+
     /// The rendering-decision subset of these options, as the one value
     /// the interpreter and the annotation walk thread down.
     ///
@@ -1587,6 +1600,7 @@ impl RenderOptions {
             stroke_display: self.stroke_display,
             omit_annotations: self.omit_annotations.as_slice(),
             invisible_text: self.invisible_text,
+            overprint_preview: self.overprint_preview,
         }
     }
 }
@@ -1647,7 +1661,8 @@ mod render_policy_tests {
             .with_image_magnify(pdfcer_core::settings::MagnifyFilter::Smooth)
             .with_invisible_text(Some(
                 crate::InvisibleTextPaint::new([1, 2, 3]).with_only(true),
-            ));
+            ))
+            .with_overprint_preview(crate::OverprintPreview::Off);
         assert_eq!(
             options.policy(),
             RenderPolicy {
@@ -1686,6 +1701,8 @@ mod render_policy_tests {
                 stroke_display: crate::font::StrokeDisplay::Actual,
                 omit_annotations: &[],
                 invisible_text: Some(crate::InvisibleTextPaint::new([1, 2, 3]).with_only(true)),
+                // NOT the default (`Simulate`).
+                overprint_preview: crate::OverprintPreview::Off,
             }
         );
         assert_ne!(options.policy(), RenderPolicy::default());
