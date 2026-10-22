@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1171st filing) — `Pass 616.7` slice 5 in `2c4099e4`: every page content stream rounded
+
+**Shipped:** `content(round=T)` rounds every page `/Contents` stream at the scale it starts under (concatenation, ISO 32000-2 §7.7.3.3): tolerance divided by the largest singular value of the entry matrix, displacement multiplied back; a shared stream takes the largest scale of its pages; any unknown start means no rounding. `Unrounded::NotPageStart` renamed `UnknownStart` (JSON `unknown-start`). Core 27 content tests (3 new), CLI optimize 51, sabotage 5 of 5, fuzz 28,529 runs / 91 s clean. Gates: run before push.
+
+**Decisions:** FEATURES: rounding row widened to every page stream; Planned remainder now only forms and patterns. No numbers minted (next Pass 618.0, decision 195, R263).
+
+**Still in flight:** `Pass 616.7` open: forms and patterns. Then `616.8`-`616.10`.
+
+**For next session:** git/push/backup state not verified (no shell). `docs/NEXT_SESSION.md` still says "streams other than a page's first / page-scale walk" is open; engineer to update. Next filing 1172nd.
+
 ## 2026-10-22 (1170th filing) — `Pass 616.7` slice 4 in `041b358a`: text line starts rounded
 
 **Shipped:** `content(round=T)` also rounds a `Tm` translation and each `Td` offset; each `Td` rounds toward the line's true start, carrying earlier lines' error so drift never builds; tolerance checked on the absolute start through `Tlm` then the CTM. `TD` not rounded (its `ty` sets the leading). `q`/`Q`/`cm` inside `BT`, or non-numeric `Tm`/`Td` operands, un-round the text object. Sabotage 4 of 4 and it exposed a real `tm_err` sign bug, fixed pre-commit. Core 24/24 (5 new), CLI optimize 51. Fuzz expected: optimize_content, 90 s, clean.

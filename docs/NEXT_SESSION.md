@@ -46,14 +46,18 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   streams) slice 1 shipped** (`9f9e7f4b`): lossless `content(...)`
   StreamAction (whitespace, shortest numbers, redundant operators) in
   `optimize::content`, its own tokenizer + re-read check, not
-  `reemit_canonical`. **Slice 2 shipped** (`b7938d8c`): `round=T`, lossy,
-  path operators only, a page's first content stream only (`Unrounded`
-  otherwise), displacement through the CTM's linear part, reported as
-  `max_displacement`. Open: `Tm`/`Td` operands, streams other than a
-  page's first (needs the page-scale walk), numbers inside arrays
-  (`TJ`, dash) copied verbatim. Parity reference:
+  `reemit_canonical`. **Slices 2-5 shipped** (`b7938d8c`, `23f92d9e`,
+  `041b358a`, `2c4099e4`): `round=T`, lossy: path operators, numbers inside
+  arrays and dicts, `Tm`/`Td` line starts (Td error carried); every page
+  content stream rounds at the scale its entry matrix stretches by
+  (§7.7.3.3: `/Contents` streams run concatenated), a shared stream at its
+  pages' largest; `Unrounded::UnknownStart` otherwise. Open: forms and
+  patterns (their start scale is not walked). `TD` excluded by design.
+  Parity reference:
   `Acrobat_Features/optimize__page_content_and_content_stream_rewriting.md`.
-  Then 616.8-616.10 (linearization, quality/byte-budget, compatibility).
+  Next: 616.8 linearization writer (spec RAG Annex F was detection-only;
+  hint tables being ingested), then 616.9 quality/byte-budget, 616.10
+  compatibility.
 - **Fixture generator:** `tools/gen-resubset-fixtures.py` needs fontTools
   for `symbolic.pdf`. Python string escapes typed through Bash lose their
   backslash (an octal escape ended up as a raw 0xC9 byte), so write edit
