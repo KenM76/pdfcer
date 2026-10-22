@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.8` (`daa36707`), 2026-10-22 — linearization (Fast Web View), ISO 32000-2 Annex F; `Pass 616.8` COMPLETE (1172nd filing)
+
+Code commit `daa36707e5b94d54582e5cdfc1e665c43ec182a3` "feat(optimize): linearize for Fast Web View (Pass 616.8)", on `c05e6af2`. Core + CLI; no GUI. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message and decision 195.
+
+- **What:** `pdfcer optimize --linearize` (conflicts with `--keep-structure`, exit 2); profile key `linearize`; core `RebuildOptions::linearize`; `RebuildReport.linearized`; new `WriteError::NothingToLinearize` (no catalog or no page). New module `crates/pdfcer-model/src/writer/rebuild/linearize/` (mod, pages, classify, hint, layout, tests). Off by default; always a full rewrite; no object streams; header raised to at least 1.2; written even when larger (`NotSmaller` reported, not refused).
+- **Tests (engineer-reported):** 12 model tests (one decodes the hint stream and checks every page's offset and object count); 1 CLI test `linearize_puts_the_parameter_dictionary_first_and_reports_it`; new fuzz target `linearize`, 90 s, 39,186 runs, clean. Workspace 13,746 passed, 0 failed via `tools/run-gates.sh` (its one failure, `check-public-fns-documented`, fixed before commit and re-run clean); the other gates and fmt, clippy `-D warnings`, `check-code-structure` clean. Sabotage 4 of 4 caught (unaligned hint columns; outlines above pages in precedence; Pages-node skip off; null-object skip off). `docs/core-api` 02 and 03 updated; `check-core-api-verbs` PASS. No manifest change to core or render (only `fuzz/Cargo.toml`).
+- **Oracle:** `qpdf 12.4.2 --check-linearization` over every fixture PDF, 3,340 files: 3,290 clean; 6 warnings, all "page Resources is missing; repairing", also reported for the source files (inherited); 0 FAIL; 44 refused with no output, all expected (signed without `--invalidate-signatures`, encrypted, unrecoverable xref, object number over the ceiling, 3 veraPDF fail-b files whose xref names missing objects (plain optimize refuses those too), 1 no-page document).
+- **Defects found and fixed in the oracle runs:** pages must outrank outlines, StructTreeRoot, thumbnails and other document users (Isartor files); a `/Type /Pages` node is walked only from the catalog's `/Pages` (10 synthetic page-tree fixtures); an explicit null object has no user in qpdf's count (veraPDF `6-2-11-4-1-t01-fail-a`).
+- **Not done:** Acrobat Reader / browser range-request check is not claimed; qpdf is the only oracle. Siblings still open: `616.9` (quality / byte budget), `616.10` (compatibility). `616.7` stays open for forms and patterns.
+- **Ledgers:** decision `195` filed (`ARCHITECTURE.md` §12); no rule minted (`R263` stays free); next free Pass `618.0`. RAG: `C:\personal_rag\pdf\lesson_20261022_qpdf12_linearization_part_classification_and_hint_alignment.md`.
+
 ### `Pass 616.7` (slice 5, `2c4099e4`), 2026-10-22 — every page content stream rounded at its entry scale; `Pass 616.7` NOT complete (1171st filing)
 
 Code commit `2c4099e4` "feat(optimize): round every page content stream at its entry scale (Pass 616.7)", on main; parent filing `ba1f2f69` (1170th). Core + CLI; no GUI. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message.
@@ -25113,9 +25124,7 @@ Re-subset embedded fonts to the glyphs actually used; merge duplicate subsets; i
 
 Number precision rounding with a tolerance, **disclosed with its maximum displacement**; whitespace minimisation; redundant operator removal. Slice 1 (lossless: whitespace, shortest numbers, redundant operators) is shipped, see top of *Shipped*. Slice 2 (lossy `round=T` on path operators, disclosed maximum displacement through the CTM) is shipped. **Open:** rounding inside forms and patterns (their start scale is not computed). (Number shortening inside arrays and dictionaries shipped in slice 3; `Tm`/`Td` line-start rounding shipped in slice 4; rounding of every page content stream at its entry scale shipped in slice 5; `TD` is excluded by design.) Design deviation: slice 1 uses its own tokenizer/emitter in `optimize::content`, not the `reemit_canonical` hook named here. Acrobat parity reference: `D:\Dev\Rag-Specialized\Acrobat_Features\optimize__page_content_and_content_stream_rewriting.md`.
 
-### `Pass 616.8` — Linearization writer (fast web view) — NEXT UP, 2026-10-20
-
-Write a linearized file (ISO 32000-2 Annex F). Spec-fidelity rule 1: source the clause from the spec RAG before writing.
+### `Pass 616.8` — Linearization writer — MOVED TO *Shipped* (1172nd filing, `daa36707`)
 
 ### `Pass 616.9` — Exceed-tier: quality target, byte budget, visual diff — NEXT UP, 2026-10-20
 

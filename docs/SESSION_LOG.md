@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1172nd filing) — `Pass 616.8` COMPLETE in `daa36707`: linearization (Fast Web View)
+
+**Shipped:** `pdfcer optimize --linearize` / `RebuildOptions::linearize` (ISO 32000-2 Annex F): parameter dictionary first, hint tables, no object streams, header at least 1.2, always a full rewrite, written even when larger. 12 model tests + 1 CLI test, new fuzz target `linearize` (39,186 runs, clean), sabotage 4 of 4, workspace 13,746 passed / 0 failed. qpdf 12.4.2 `--check-linearization` over 3,340 fixtures: 3,290 clean, 6 inherited warnings, 0 FAIL, 44 expected refusals. Three defects found by the oracle and fixed (precedence over outlines etc., Pages-node traversal, null objects).
+
+**Decisions:** decision 195 filed (`ARCHITECTURE.md` §12). Ledgers: next free Pass `618.0`, decision `196`, `R263` (no rule minted). FEATURES: Planned row moved to Implemented (core [x], cli [x], gui [ ]). RAG: personal_rag/pdf lesson on qpdf 12's classification rules.
+
+**Still in flight:** `616.9`, `616.10` open; `616.7` open for forms and patterns.
+
+**For next session:** git/push/backup state not verified (no shell); engineer commits this filing. `docs/NEXT_SESSION.md` not touched (engineer-owned). Next filing 1173rd.
+
 ## 2026-10-22 (1171st filing) — `Pass 616.7` slice 5 in `2c4099e4`: every page content stream rounded
 
 **Shipped:** `content(round=T)` rounds every page `/Contents` stream at the scale it starts under (concatenation, ISO 32000-2 §7.7.3.3): tolerance divided by the largest singular value of the entry matrix, displacement multiplied back; a shared stream takes the largest scale of its pages; any unknown start means no rounding. `Unrounded::NotPageStart` renamed `UnknownStart` (JSON `unknown-start`). Core 27 content tests (3 new), CLI optimize 51, sabotage 5 of 5, fuzz 28,529 runs / 91 s clean. Gates: run before push.

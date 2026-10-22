@@ -55,9 +55,14 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   patterns (their start scale is not walked). `TD` excluded by design.
   Parity reference:
   `Acrobat_Features/optimize__page_content_and_content_stream_rewriting.md`.
-  Next: 616.8 linearization writer (spec RAG Annex F was detection-only;
-  hint tables being ingested), then 616.9 quality/byte-budget, 616.10
-  compatibility.
+  **616.8 linearization shipped** (`daa36707`): `optimize --linearize`;
+  classification mirrors qpdf 12's check (pages beat outlines/struct
+  tree/thumbs; a Pages node walks only from `/Pages`; nulls uncounted;
+  hint columns byte-aligned). Oracle: `qpdf --check-linearization` over
+  all 3,340 fixtures -- 3,290 clean, 6 source-inherited Resources
+  warnings, 0 FAIL, 44 expected refusals. Re-run it after touching
+  `linearize/classify.rs`. Next: 616.9 quality/byte-budget, 616.10
+  compatibility; 616.7 still open for forms/patterns.
 - **Fixture generator:** `tools/gen-resubset-fixtures.py` needs fontTools
   for `symbolic.pdf`. Python string escapes typed through Bash lose their
   backslash (an octal escape ended up as a raw 0xC9 byte), so write edit
@@ -85,7 +90,8 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## Next
 
-1. Pass 616.7 content-stream optimisation (see State).
+1. Pass 616.9 quality/byte budget, then 616.10 compatibility; 616.7
+   forms/patterns rounding (see State).
 2. Each loop tick: the three inbound channels (GitHub issues, both
    FeatureRequests folders).
 

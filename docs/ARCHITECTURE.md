@@ -13446,3 +13446,20 @@ in place (the "compiled out" premise was wrong). `FEATURES.md` and
 `195`.
 
 **New standing rule.** None — `R263` stays next free.
+
+### 2026-10-22 (1172nd filing, librarian) — decision 195: Linearization (Pass 616.8) — off by default, always a full rewrite, part classification mirrors qpdf 12
+
+Recorded at completion (`daa36707`). Clause: ISO 32000-2 Annex F (Tables F.1-F.5).
+
+**What this decides.**
+1. **Off by default.** `RebuildOptions::linearize` / `optimize --linearize`; conflicts with `--keep-structure`.
+2. **Always a full rewrite.** Renumbering into part order is inherent to the layout, so minimal-diff (rule 3) does not apply to a linearizing save.
+3. **Part classification mirrors qpdf 12's check**, measured with synthetic probes: Root, then the open-document catalog keys, then the first page, then other pages (one user is private, several are shared), then Outlines, then Thumb, then other. A page claims an object that outlines, the StructTreeRoot, `/Info` or other catalog keys also reach. A `/Type /Pages` node is followed only from the catalog's `/Pages`. A null object has no user.
+4. **Hint tables** are byte-aligned per column the way qpdf reads Tables F.3 and F.5; F.4 offsets are counted as if the hint stream were absent.
+5. **No object streams** when linearizing. Header raised to at least 1.2.
+6. **Written even when larger:** `NotSmaller` is reported, not refused.
+7. `WriteError::NothingToLinearize` for a document with no catalog or no page.
+
+Evidence: qpdf 12.4.2 `--check-linearization` over 3,340 fixtures, 0 FAIL (details in the `ROADMAP.md` Shipped entry).
+
+**Body-section effect.** None needed beyond `docs/core-api` 02 and 03 (updated by the engineer). **Decision ceiling.** Fills `195`; next free decision `196`. **New standing rule.** None; `R263` stays next free.
