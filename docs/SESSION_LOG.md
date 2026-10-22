@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1169th filing) — `Pass 616.7` slice 3 in `23f92d9e`: array and dictionary operands
+
+**Shipped:** `content(...)` now re-lexes array and dictionary operands (`TJ`, `d`, `BDC` lists): shortest numbers, minimal separators, strings/names/keywords byte for byte; nested numbers counted in `numbers_shortened`; unlexable or not-shorter composites stay verbatim. Lossless; re-read compares arrays element-wise (sabotage: wrong nested value refused as `Mismatch`). No new pub items, no new flag. Core 19/19 (1 new), CLI 4/4.
+
+**Decisions:** FEATURES: lossless-compaction row extended, Planned row's "array numbers" removed. No numbers minted.
+
+**Still in flight:** `Pass 616.7` open: `Tm`/`Td` rounding, non-first streams, page-scale walk. Fuzz re-run and `run-gates.sh` pending per engineer.
+
+**For next session:** git/push/backup state not verified (no shell). Next filing 1170th.
+
 ## 2026-10-22 (1168th filing) — `Pass 616.7` slice 2 in `b7938d8c`: lossy path-coordinate rounding
 
 **Shipped:** `content(round=off|T)`, the first lossy content rewrite; rounds `m l c v y re` operands within T user-space units measured through the CTM (`q`/`Q`/`cm`); CLI `--content round=T`; report states count rounded and maximum displacement. 13,717 tests green; sabotage 4 of 4; fuzz `optimize_content` 46,514 runs clean.

@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.7` (slice 3, `23f92d9e`), 2026-10-22 — numbers and separators inside array and dictionary operands; `Pass 616.7` NOT complete (1169th filing)
+
+Code commit `23f92d9e` "feat(optimize): respell numbers and separators inside array and dict operands (Pass 616.7)", on main; parent filing `4f323b2b` (1168th). Core + CLI; no GUI. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message.
+
+- **What:** array and dictionary operands (a `TJ` kerning array, a `d` dash pattern, a `BDC` property list) are no longer copied byte for byte. They are re-lexed token by token: numbers take the shortest same-value spelling under `numbers=shortest`, separators drop to the minimum under `whitespace=minimal` (ISO 32000-2 §7.2.2); strings, names and keywords stay byte for byte. Each nested number counts in `ContentChange.numbers_shortened`. A composite that fails to lex or is not shorter stays verbatim. Lossless.
+- **Check:** the existing re-read compares arrays element-wise by value; sabotage verified (a wrong nested value is refused as `Mismatch`).
+- **API/CLI:** no new pub items, no new flag (`--content` reaches it). `docs/core-api/03-capabilities.md` ContentPatch row updated in the same commit.
+- **Tests (engineer-reported):** `optimize::content` 19/19 (1 new), CLI `optimize_content` 4/4. No manifest change; `cargo tree` unaffected. Fuzz `optimize_content` re-run, result reported separately if it fails. `tools/run-gates.sh` pending before push.
+- **Still open in `Pass 616.7`:** text-matrix (`Tm`/`Td`) operand rounding; rounding of streams other than a page's first; a page-scale walk. `616.8`-`616.10` unchanged.
+
 ### `Pass 616.7` (slice 2, `b7938d8c`), 2026-10-22 — lossy path-coordinate rounding, `content(round=T)`; `Pass 616.7` NOT complete (1168th filing)
 
 Code commit `b7938d8c` "feat(optimize): round path coordinates within a tolerance, content(round=T) (Pass 616.7)", on main; parent filing `7faafa0a` (1167th). Core + CLI; no GUI. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message.
@@ -25078,9 +25088,9 @@ Re-subset embedded fonts to the glyphs actually used; merge duplicate subsets; i
 
 **Slice 1 SHIPPED (1155th filing): unembed inside an optimize run. Slice 2 SHIPPED (1156th filing): TrueType `/FontFile2` re-subset by glyph zeroing, `--resubset-fonts`. Slice 3 SHIPPED (1158th filing): copies of one face merged, `--no-merge-font-subsets`. Slice 4 SHIPPED (1160th filing): CFF (`/FontFile3`) zeroing, bare CFF and OpenType-CFF. Slice 5 SHIPPED (1161st filing, CORRECTED 1162nd: lists left byte-identical). Slice 6 SHIPPED (1163rd filing): re-subset in PDF/A documents. Slice 7 SHIPPED (1165th filing): the PDF/A-1 list a cut owes is written. **[update 1166th filing: the Pass is COMPLETE. The Acrobat Reader render check is done (nine fixtures, zero differing page pixels). Merging CFF copies, Type 1 `/FontFile` re-subset and short loca are three measured Backlog items, not part of this Pass.]** (`symbolic` / `shared-program` fixture tests closed in `0982e864`, 1159th filing.)**
 
-### `Pass 616.7` — Content-stream optimisation — IN PROGRESS: slice 1 SHIPPED `9f9e7f4b` (1167th filing); slice 2 (path-coordinate rounding) SHIPPED `b7938d8c` (1168th filing); remainder open
+### `Pass 616.7` — Content-stream optimisation — IN PROGRESS: slice 1 SHIPPED `9f9e7f4b` (1167th filing); slice 2 (path-coordinate rounding) SHIPPED `b7938d8c` (1168th filing); slice 3 (array/dict operands) SHIPPED `23f92d9e` (1169th filing); remainder open
 
-Number precision rounding with a tolerance, **disclosed with its maximum displacement**; whitespace minimisation; redundant operator removal. Slice 1 (lossless: whitespace, shortest numbers, redundant operators) is shipped, see top of *Shipped*. Slice 2 (lossy `round=T` on path operators, disclosed maximum displacement through the CTM) is shipped. **Open:** text-matrix (`Tm`/`Td`) operand rounding; rounding of streams other than a page's first; number shortening inside arrays (`TJ`, dash arrays, currently verbatim); a page-scale walk. Design deviation: slice 1 uses its own tokenizer/emitter in `optimize::content`, not the `reemit_canonical` hook named here. Acrobat parity reference: `D:\Dev\Rag-Specialized\Acrobat_Features\optimize__page_content_and_content_stream_rewriting.md`.
+Number precision rounding with a tolerance, **disclosed with its maximum displacement**; whitespace minimisation; redundant operator removal. Slice 1 (lossless: whitespace, shortest numbers, redundant operators) is shipped, see top of *Shipped*. Slice 2 (lossy `round=T` on path operators, disclosed maximum displacement through the CTM) is shipped. **Open:** text-matrix (`Tm`/`Td`) operand rounding; rounding of streams other than a page's first; a page-scale walk. (Number shortening inside arrays and dictionaries shipped in slice 3.) Design deviation: slice 1 uses its own tokenizer/emitter in `optimize::content`, not the `reemit_canonical` hook named here. Acrobat parity reference: `D:\Dev\Rag-Specialized\Acrobat_Features\optimize__page_content_and_content_stream_rewriting.md`.
 
 ### `Pass 616.8` — Linearization writer (fast web view) — NEXT UP, 2026-10-20
 
