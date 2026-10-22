@@ -3547,6 +3547,13 @@ destination; the name is still listed, because `LinkTarget::Named` accepts
 it. Build the drop-down for a named link target from this list; show a
 name with `String::from_utf8_lossy`, and pass its bytes back unchanged.
 
+`named(&graph, name: &[u8]) -> Option<Destination>` resolves **one** name
+exactly as its `named_destinations` entry is resolved, without resolving
+the rest. `None` when neither namespace defines the name, or its value is
+not a destination. Use it for a `/GoToR` `/D` string (§12.6.4.3): open the
+target file, build its reader, look the name up there. Do not synthesise a
+`/Dest` carrier for `destination` instead.
+
 `page_link_destinations(&graph, page_id, &reader)` — `annot.rs` →
 `PageLinks` (`links: Vec<LinkDestination>`,
 `links_without_destination: usize`). `LinkDestination` carries

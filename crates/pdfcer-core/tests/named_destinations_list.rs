@@ -64,3 +64,17 @@ trailer << /Size 3 /Root 1 0 R >>\n"
             .is_empty()
     );
 }
+
+#[test]
+fn one_name_resolves_as_its_listed_entry() {
+    let doc = Document::from_bytes(DOC.to_vec()).expect("rebuildable");
+    let reader = DestinationReader::new(&doc);
+    for (name, listed) in reader.named_destinations(&doc) {
+        assert_eq!(reader.named(&doc, &name), listed, "{name:?}");
+    }
+    assert!(matches!(
+        reader.named(&doc, b"a"),
+        Some(Destination::Page { page_index: 0, .. })
+    ));
+    assert_eq!(reader.named(&doc, b"undefined"), None);
+}

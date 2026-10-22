@@ -1844,6 +1844,24 @@ impl DestinationReader {
             .collect()
     }
 
+    /// The destination `name` names, resolved exactly as
+    /// [`Self::named_destinations`] resolves its entry for it: the name tree
+    /// wins a key both §12.3.2.3 namespaces define, and a value that is
+    /// another name is followed. For a target known only by name, such as a
+    /// `/GoToR` action's `/D` string resolved in the file it opens
+    /// (§12.6.4.3).
+    ///
+    /// `None` when neither namespace defines `name`, or when its value is
+    /// nothing a destination can be (a number, a dangling reference).
+    #[must_use]
+    pub fn named<G: ObjectGraph + ?Sized>(&self, graph: &G, name: &[u8]) -> Option<Destination> {
+        if !self.named.map.contains_key(name) {
+            return None;
+        }
+        let value = Object::String(name.to_vec());
+        resolve_destination_value(graph, &value, &mut self.context())
+    }
+
     /// A fresh single-read context over this reader's maps.
     ///
     /// The budget and visited set are inert for a destination read: they
