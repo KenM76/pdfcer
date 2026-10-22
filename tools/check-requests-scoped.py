@@ -213,8 +213,23 @@ def read(path: Path) -> str:
         return ""
 
 
+# A request's direction is its `from:` header. One pdfcer WROTE is waiting on
+# the far side, not on this project, so its silence is reported, never failed.
+# `pdfcer-gui` is a different sender, hence the trailing negative look-ahead.
+OUTBOUND_RE = re.compile(r"\bfrom:\W*(pdfce|pdfcer)(?![\w-])", re.IGNORECASE)
+
+
+def is_outbound(text: str) -> bool:
+    """Did pdfcer write this request? Read from its header lines only."""
+    return bool(OUTBOUND_RE.search("\n".join(text.splitlines()[:8])))
+
+
 def audit(open_dir, roadmap):
-    """Classify one channel's open requests. Returns (answered, scoped, new)."""
+    """Classify one channel's open requests.
+
+    Returns (answered, scoped, new, awaiting); `awaiting` holds pdfcer's own
+    unanswered requests, which no pdfcer action can answer.
+    """
     requests = sorted(p for p in open_dir.glob("request_*.md") if p.is_file())
     answers = [p for p in open_dir.iterdir() if p.suffix == ".md" and is_answer(p.name)]
     answer_text = {p.name: read(p) for p in answers}
@@ -222,15 +237,18 @@ def audit(open_dir, roadmap):
     answered: list[tuple[str, list[str]]] = []
     scoped_unanswered: list[str] = []
     untouched: list[str] = []
+    awaiting: list[str] = []
     for req in requests:
         cites = sorted(name for name, text in answer_text.items() if req.name in text)
         if cites:
             answered.append((req.name, cites))
+        elif is_outbound(read(req)):
+            awaiting.append(req.name)
         elif req.name in roadmap:
             scoped_unanswered.append(req.name)
         else:
             untouched.append(req.name)
-    return answered, scoped_unanswered, untouched
+    return answered, scoped_unanswered, untouched, awaiting
 
 
 def main() -> int:
@@ -241,6 +259,7 @@ def main() -> int:
     all_answered: list[tuple[str, str, list[str]]] = []
     all_scoped: list[tuple[str, str]] = []
     all_new: list[tuple[str, str]] = []
+    all_awaiting: list[tuple[str, str]] = []
     looked_at = 0
 
     for chan in channels():
@@ -249,8 +268,9 @@ def main() -> int:
             print(f"check-requests-scoped: SKIPPED — {chan.name} not present at {open_dir}")
             continue
         looked_at += 1
-        answered, scoped, new = audit(open_dir, roadmap)
-        total_req += len(answered) + len(scoped) + len(new)
+        answered, scoped, new, awaiting = audit(open_dir, roadmap)
+        total_req += len(answered) + len(scoped) + len(new) + len(awaiting)
+        all_awaiting += [(chan.name, n) for n in awaiting]
         all_answered += [(chan.name, n, c) for n, c in answered]
         all_scoped += [(chan.name, n) for n in scoped]
         all_new += [(chan.name, n) for n in new]
@@ -274,7 +294,8 @@ def main() -> int:
 
     print(
         f"check-requests-scoped: clean — {looked_at} channel(s), {total_req} open "
-        f"request(s); {len(all_answered)} answered, {len(all_new)} not yet taken up."
+        f"request(s); {len(all_answered)} answered, {len(all_new)} not yet taken up, "
+        f"{len(all_awaiting)} awaiting the far side."
     )
 
     if all_answered and (list_all or all_new):
@@ -288,6 +309,11 @@ def main() -> int:
         print("\n  NOT YET TAKEN UP — no reply, no roadmap entry:")
         for chan, name in all_new:
             print(f"    + [{chan}] {name}")
+
+    if all_awaiting:
+        print("\n  AWAITING THE FAR SIDE — pdfcer's own requests, no reply yet:")
+        for chan, name in all_awaiting:
+            print(f"    ~ [{chan}] {name}")
 
     return 0
 
