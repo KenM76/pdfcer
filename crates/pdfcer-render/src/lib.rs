@@ -94,6 +94,7 @@ mod invisible_text;
 pub mod layer_state;
 pub mod mask;
 pub mod mesh;
+pub(crate) mod minify;
 pub mod overprint;
 pub mod profile;
 pub mod shading;

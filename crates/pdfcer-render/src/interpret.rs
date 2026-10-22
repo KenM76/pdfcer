@@ -8679,6 +8679,7 @@ impl<'a> Interpreter<'a> {
                 } else {
                     crate::cmyk_buffer::SpotSource::Paint
                 };
+                let decoded = self.area_averaged(decoded);
                 // A STENCIL MASK ON AN INK PAGE IS A FILL WITH AN IMAGE'S
                 // SHAPE (`Pass 238.0`). §8.9.6.2 makes it "a region of the
                 // page to be painted with the current colour", and the
@@ -9031,8 +9032,10 @@ impl<'a> Interpreter<'a> {
         // that, reachable by any operator who set the option.
         // Magnification without `/Interpolate` is the render call's choice
         // (`MagnifyFilter`), under the same Type 3 exclusion.
-        let smooth_minified = matches!(self.policy.image_minify, MinifyFilter::Smooth)
-            && self.type3_glyph.is_none()
+        let smooth_minified = matches!(
+            self.policy.image_minify,
+            MinifyFilter::Smooth | MinifyFilter::AreaAverage
+        ) && self.type3_glyph.is_none()
             && self.is_minified(w, h);
         let smooth_magnified = matches!(self.policy.image_magnify, MagnifyFilter::Smooth)
             && self.type3_glyph.is_none()
@@ -9226,6 +9229,20 @@ impl<'a> Interpreter<'a> {
             return false;
         }
         sx < w as f32 || sy < h as f32
+    }
+
+    /// `decoded`, box-reduced for [`MinifyFilter::AreaAverage`] when it is
+    /// drawn at 2:1 or smaller on an axis (`crate::minify`). Not inside a
+    /// Type 3 glyph, for the reason `image_geometry` gives.
+    fn area_averaged(&self, decoded: crate::image::DecodedImage) -> crate::image::DecodedImage {
+        if !matches!(self.policy.image_minify, MinifyFilter::AreaAverage)
+            || self.type3_glyph.is_some()
+        {
+            return decoded;
+        }
+        let (w, h) = (decoded.pixmap.width(), decoded.pixmap.height());
+        let factors = crate::minify::factors(w, h, self.gs.current.ctm);
+        crate::minify::reduce_decoded(decoded, factors)
     }
 
     /// Drawn larger than its pixel grid on either axis.

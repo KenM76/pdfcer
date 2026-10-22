@@ -1115,6 +1115,13 @@ pub enum MinifyFilter {
     /// direction (§8.9.5.3 defines interpolation for MAGNIFICATION only).
     #[default]
     Smooth,
+    /// Average every texel under each output pixel: box-reduce by the
+    /// whole-number minification factor on each axis, then sample
+    /// bilinearly (a one-level mipmap). [`Self::Smooth`] reads a 2x2
+    /// neighbourhood whatever the scale, so a scan at 4:1 skips 12 of every
+    /// 16 texels and its hairlines break up; this reads all of them.
+    /// `/Interpolate` and the Type 3 glyph exclusion behave as for `Smooth`.
+    AreaAverage,
 }
 
 /// How an image drawn LARGER than its own pixel grid is sampled when it
@@ -1882,6 +1889,7 @@ const fn minify_token(filter: MinifyFilter) -> &'static str {
     match filter {
         MinifyFilter::PointSample => "point_sample",
         MinifyFilter::Smooth => "smooth",
+        MinifyFilter::AreaAverage => "area_average",
     }
 }
 
@@ -2251,6 +2259,7 @@ impl Settings {
             "image_minify" => match value {
                 "point_sample" => self.image_minify = MinifyFilter::PointSample,
                 "smooth" => self.image_minify = MinifyFilter::Smooth,
+                "area_average" => self.image_minify = MinifyFilter::AreaAverage,
                 _ => notes.push(SettingNote::BadValue {
                     key: key.to_owned(),
                     value: value.to_owned(),
@@ -2699,12 +2708,16 @@ impl Settings {
              # grid. The standard only describes smoothing for making a picture\n\
              # bigger and never mentions making one smaller (section 8.9.5.3), so\n\
              # this direction is pdfcer's choice.\n\
-             #   point_sample = take one pixel per dot on screen (default). Exact, and\n\
-             #                  what the document's own smoothing switch literally\n\
-             #                  asks for; thin lines can shimmer or vanish when the\n\
-             #                  picture is shrunk a lot.\n\
-             #   smooth       = average when shrinking. Cleaner shrunken photographs;\n\
-             #                  a deliberate departure from the document's switch.\n",
+             #   point_sample = take one pixel per dot on screen. Exact, and what the\n\
+             #                  document's own smoothing switch literally asks for;\n\
+             #                  thin lines can shimmer or vanish when the picture is\n\
+             #                  shrunk a lot.\n\
+             #   smooth       = blend neighbouring pixels (default). Cleaner shrunken\n\
+             #                  photographs; a deliberate departure from the\n\
+             #                  document's switch.\n\
+             #   area_average = average every pixel each dot on screen covers. Keeps\n\
+             #                  thin lines in heavily shrunk scans and drawings that\n\
+             #                  smooth can still break up; a little slower.\n",
         );
         let _ = writeln!(out, "image_minify = {}\n", minify_token(self.image_minify));
 
@@ -3424,7 +3437,7 @@ mod tests {
             // would pass by accident on the way back in.
             parallel_epsilon_degrees: 1.25,
             mask_resample: MaskResample::BoxAverage,
-            image_minify: MinifyFilter::Smooth,
+            image_minify: MinifyFilter::AreaAverage,
             cmyk_jpeg_polarity: CmykJpegPolarity::InvertOnApp14,
             unmappable_code: UnmappableCode::Omit,
             actual_text: ActualTextPrecedence::Glyphs,
@@ -3794,6 +3807,7 @@ mod tests {
             "bilinear",
             "point_sample",
             "smooth",
+            "area_average",
             "never_invert",
             "invert_on_app14",
             "replacement_char",

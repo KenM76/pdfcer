@@ -285,6 +285,61 @@ fn minification_smoothing_does_not_touch_a_magnified_image() {
     );
 }
 
+/// A 16x1 image, white with a black hairline every fourth texel, drawn
+/// 4x1: minified 4:1, so every output pixel covers exactly one hairline.
+fn hairline_page() -> Vec<u8> {
+    let row: Vec<u8> = (0..16)
+        .map(|x| if x % 4 == 1 { 0x00 } else { 0xFF })
+        .collect();
+    page_with_image(4, 1, vec![(5, image_object("", 16, 1, &row))])
+}
+
+#[test]
+fn area_averaging_keeps_every_hairline_bilinear_drops() {
+    // O322: bilinear reads 2x2 texels whatever the scale, so at 4:1 it
+    // lands on the hairline in some pixels and misses it in others. The
+    // area average sees each pixel's whole footprint: 3 white + 1 black.
+    let area = render(
+        hairline_page(),
+        &RenderOptions::default().with_image_minify(MinifyFilter::AreaAverage),
+    );
+    let reds: Vec<u8> = pixels(&area).chunks_exact(4).map(|p| p[0]).collect();
+    assert!(
+        reds.iter().all(|&r| r.abs_diff(191) <= 3),
+        "every pixel is one quarter hairline: {reds:?}"
+    );
+    let smooth = render(
+        hairline_page(),
+        &RenderOptions::default().with_image_minify(MinifyFilter::Smooth),
+    );
+    let reds: Vec<u8> = pixels(&smooth).chunks_exact(4).map(|p| p[0]).collect();
+    assert!(
+        reds.iter().any(|&r| r.abs_diff(191) > 3),
+        "the fixture no longer separates the filters: {reds:?}"
+    );
+}
+
+#[test]
+fn area_averaging_does_not_touch_an_image_drawn_near_its_own_size() {
+    // Below 2:1 there is nothing to average; the result must be `Smooth`'s.
+    let near = || {
+        page_with_image(
+            6,
+            1,
+            vec![(5, image_object("", 8, 1, &[0, 255, 0, 255, 0, 255, 0, 255]))],
+        )
+    };
+    let smooth = render(
+        near(),
+        &RenderOptions::default().with_image_minify(MinifyFilter::Smooth),
+    );
+    let area = render(
+        near(),
+        &RenderOptions::default().with_image_minify(MinifyFilter::AreaAverage),
+    );
+    assert_eq!(pixels(&smooth), pixels(&area));
+}
+
 /// A 2x1 `[0, 255]` image drawn 8x1: magnified 4:1, no `/Interpolate`.
 fn magnified_image_page(dict_extra: &str) -> Vec<u8> {
     page_with_image(
