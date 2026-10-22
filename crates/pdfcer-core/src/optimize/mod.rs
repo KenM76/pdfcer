@@ -44,6 +44,7 @@ pub mod objects;
 mod preset;
 pub mod profile;
 pub mod resubset;
+pub(crate) mod resubset_list;
 mod resubset_merge;
 pub(crate) mod resubset_plan;
 pub(crate) mod select;
@@ -352,6 +353,13 @@ pub enum OptimizeError {
     #[error("unembedding fonts failed: {reason}; nothing was changed")]
     UnembedFailed {
         /// The unembed error.
+        reason: String,
+    },
+    /// Writing a re-subset program or its fonts failed; everything the
+    /// apply had committed was undone.
+    #[error("re-subsetting fonts failed: {reason}; nothing was changed")]
+    ResubsetFailed {
+        /// The write's error.
         reason: String,
     },
     /// The session changed after the plan was made.

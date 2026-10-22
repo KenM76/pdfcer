@@ -19,7 +19,10 @@
 //! structure (an ID below `numGlyphs`, a charset entry), not its outline, so
 //! an emptied glyph is still present and the list stays true; dropping its
 //! entries would make it under-claim, which PDF/A-2 and -3 forbid
-//! (ISO 19005-2 §6.2.11.4.2).
+//! (ISO 19005-2 §6.2.11.4.2). The one list written is the one a cut makes
+//! owed: an untagged font in a PDF/A-1 document becomes a subset, so it
+//! gains a list of every glyph its program holds
+//! ([`FontResubsetter::present_glyphs`], [`ResubsetTarget::listed`]).
 
 use std::collections::BTreeSet;
 
@@ -59,6 +62,37 @@ pub trait FontResubsetter: Send + Sync + std::fmt::Debug {
             "the font cutter does not merge subsets",
         ))
     }
+
+    /// The glyphs `program` holds by its structure, outlines not inspected
+    /// (an emptied glyph is present): what a `/CIDSet` or `/CharSet` it is
+    /// given must list. The default refuses, so a cutter need not read
+    /// them, and a PDF/A-1 font owing a list is then left whole.
+    ///
+    /// # Errors
+    ///
+    /// [`ResubsetRefusal`] when the program cannot be read.
+    fn present_glyphs(&self, program: &[u8]) -> Result<PresentGlyphs, ResubsetRefusal> {
+        let _ = program;
+        Err(ResubsetRefusal::new(
+            "list-unsupported",
+            "the font cutter does not read which glyphs a program holds",
+        ))
+    }
+}
+
+/// The glyphs a font program holds by its structure
+/// ([`FontResubsetter::present_glyphs`]).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PresentGlyphs {
+    /// A TrueType program: glyph IDs `0..n` (`maxp.numGlyphs`).
+    Count(u32),
+    /// A CID-keyed CFF program: CID 0 and every CID its charset maps to a
+    /// glyph other than 0.
+    Cids(BTreeSet<u32>),
+    /// A name-keyed CFF program: every glyph name in its charset but
+    /// `.notdef`.
+    Names(BTreeSet<Vec<u8>>),
 }
 
 /// One program to cut, with every font that draws from it.
@@ -246,9 +280,17 @@ pub struct ResubsetTarget {
     pub(crate) data: Vec<u8>,
     /// Its decoded length, for `/Length1`.
     pub(crate) length1: usize,
+    /// The descriptors given the `/CIDSet` or `/CharSet` PDF/A-1 requires
+    /// of a subset (ISO 19005-1 §6.3.5), which their fonts lacked and
+    /// would owe once the cut tags them. Each lists every glyph the program
+    /// holds, so it is also exact for PDF/A-2 and -3 (ISO 19005-2
+    /// §6.2.11.4.2). Empty unless the document claims PDF/A-1.
+    pub listed: Vec<ObjId>,
     /// The program, fonts, descendant CIDFonts and descriptors as planned:
     /// what the apply rewrites, and checks has not changed.
     pub(crate) before: Vec<(ObjId, crate::object::Object)>,
+    /// The list each of [`Self::listed`] gains.
+    pub(crate) lists: Vec<super::resubset_list::OwedList>,
 }
 
 /// A font the run leaves as it is.

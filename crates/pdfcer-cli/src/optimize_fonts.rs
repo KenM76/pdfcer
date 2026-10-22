@@ -191,6 +191,13 @@ pub(crate) fn resubset_text(plan: &OptimizePlan) -> String {
         for id in &t.merged {
             let _ = writeln!(out, "  {:<8} merged into {}", id.to_string(), t.program);
         }
+        for id in &t.listed {
+            let _ = writeln!(
+                out,
+                "  {:<8} given the /CIDSet or /CharSet PDF/A-1 requires, listing every glyph the program holds",
+                id.to_string()
+            );
+        }
     }
     for u in &r.unmerged {
         let _ = writeln!(out, "  copies of {} not merged: {}", u.face, u.why.reason);
@@ -221,7 +228,7 @@ pub(crate) fn resubset_json(plan: &OptimizePlan) -> String {
         .iter()
         .map(|t| {
             format!(
-                "{{\"program\":{},\"fonts\":[{}],\"name_before\":{},\"name_after\":{},\"glyphs_kept\":{},\"glyphs_total\":{},\"before_bytes\":{},\"after_bytes\":{},\"merged\":[{}]}}",
+                "{{\"program\":{},\"fonts\":[{}],\"name_before\":{},\"name_after\":{},\"glyphs_kept\":{},\"glyphs_total\":{},\"before_bytes\":{},\"after_bytes\":{},\"merged\":[{}],\"listed\":[{}]}}",
                 q(&t.program.to_string()),
                 ids(&t.fonts),
                 q(&t.name_before),
@@ -230,7 +237,8 @@ pub(crate) fn resubset_json(plan: &OptimizePlan) -> String {
                 t.glyphs_total,
                 t.before_bytes,
                 t.after_bytes,
-                ids(&t.merged)
+                ids(&t.merged),
+                ids(&t.listed)
             )
         })
         .collect();

@@ -110,6 +110,8 @@ impl Merge<'_, '_> {
                 .into_iter()
                 .filter_map(|id| Some((id, self.view.value(id)?.clone())))
                 .collect(),
+            listed: Vec::new(),
+            lists: Vec::new(),
         })
     }
 }

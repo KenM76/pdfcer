@@ -9,7 +9,8 @@ use std::sync::Mutex;
 
 use super::*;
 use crate::document::Document;
-use crate::optimize::resubset::ResubsetProgram;
+use crate::optimize::resubset::{PresentGlyphs, ResubsetProgram};
+use crate::optimize::resubset_list::ListEntry;
 use crate::optimize::tests::{build, id, noise};
 use crate::space_audit::tests::stream;
 
@@ -21,6 +22,7 @@ type Asked = Vec<Vec<(ObjId, Vec<u32>)>>;
 struct Fake {
     len: usize,
     asked: Mutex<Asked>,
+    present: Option<PresentGlyphs>,
 }
 
 impl Fake {
@@ -28,6 +30,15 @@ impl Fake {
         Self {
             len,
             asked: Mutex::new(Vec::new()),
+            present: None,
+        }
+    }
+
+    /// A cutter that reports `present` as what every program holds.
+    fn listing(present: PresentGlyphs) -> Self {
+        Self {
+            present: Some(present),
+            ..Self::new(10)
         }
     }
 }
@@ -44,6 +55,13 @@ impl FontResubsetter for Fake {
             .collect();
         self.asked.lock().unwrap().push(uses);
         Ok(ResubsetProgram::new(vec![0; self.len], 3, 10))
+    }
+
+    fn present_glyphs(&self, program: &[u8]) -> Result<PresentGlyphs, ResubsetRefusal> {
+        assert_eq!(program, vec![0; self.len], "the cut program, decoded");
+        self.present
+            .clone()
+            .ok_or_else(|| ResubsetRefusal::new("list-unsupported", "no lister"))
     }
 }
 
@@ -253,19 +271,50 @@ fn type1(part: &str, name: &str) -> Document {
 }
 
 /// PDF/A-1 requires `/CharSet` on a Type 1 subset (ISO 19005-1 §6.3.5);
-/// the cut would make an untagged font a subset without one.
+/// the cut would make an untagged font a subset without one, so it gains
+/// one naming every glyph the program holds, `.notdef` left out.
 #[test]
-fn a_pdfa1_untagged_type1_font_without_a_charset_is_refused() {
+fn a_pdfa1_untagged_type1_font_gains_a_charset() {
+    let names = [b".notdef".to_vec(), b"a".to_vec(), b"b".to_vec()];
+    let fake = Fake::listing(PresentGlyphs::Names(names.into()));
+    let p = run(&type1("1", "Helv"), &fake);
+    assert!(p.refused.is_empty(), "{:?}", p.refused);
+    let t = &p.targets[0];
+    assert_eq!(t.listed, [id(6)]);
+    assert_eq!(t.lists[0].entry, ListEntry::CharSet(b"/a/b".to_vec()));
+}
+
+/// A cutter that cannot say what a program holds refuses the font.
+#[test]
+fn a_pdfa1_list_the_cutter_cannot_read_is_refused() {
     let p = run(&type1("1", "Helv"), &Fake::new(10));
     assert!(p.targets.is_empty());
+    assert_eq!(tokens(&p), ["list-unsupported"]);
+}
+
+/// A name-keyed list is never written from CIDs.
+#[test]
+fn a_type1_font_over_a_cid_program_is_refused() {
+    let fake = Fake::listing(PresentGlyphs::Cids([0, 1].into()));
+    let p = run(&type1("1", "Helv"), &fake);
+    assert_eq!(tokens(&p), ["pdfa1-list-owed"]);
+}
+
+/// A name a `/CharSet` cannot carry refuses rather than writing a broken one.
+#[test]
+fn a_glyph_name_with_a_delimiter_is_refused() {
+    let names = [b"a".to_vec(), b"b(c".to_vec()];
+    let fake = Fake::listing(PresentGlyphs::Names(names.into()));
+    let p = run(&type1("1", "Helv"), &fake);
     assert_eq!(tokens(&p), ["pdfa1-list-owed"]);
 }
 
 /// A part pdfcer cannot read is held to the PDF/A-1 rule.
 #[test]
 fn an_unreadable_pdfa_part_is_held_to_the_pdfa1_rule() {
-    let p = run(&type1("x1", "Helv"), &Fake::new(10));
-    assert_eq!(tokens(&p), ["pdfa1-list-owed"]);
+    let fake = Fake::listing(PresentGlyphs::Names([b"a".to_vec()].into()));
+    let p = run(&type1("x1", "Helv"), &fake);
+    assert_eq!(p.targets[0].listed, [id(6)], "{:?}", p.refused);
 }
 
 #[test]
@@ -287,6 +336,7 @@ fn a_pdfa2_3_or_4_untagged_type1_font_is_cut() {
     for part in ["2", "3", "4"] {
         let p = run(&type1(part, "Helv"), &Fake::new(10));
         assert_eq!(p.targets.len(), 1, "part {part}: {:?}", p.refused);
+        assert!(p.targets[0].listed.is_empty(), "part {part}");
     }
 }
 
@@ -301,4 +351,104 @@ fn a_pdfa1_untagged_truetype_font_is_cut() {
     );
     let p = run(&d, &Fake::new(10));
     assert_eq!(p.targets.len(), 1, "{:?}", p.refused);
+}
+
+/// A PDF/A-1 document drawing CID 1 through Type0 font 5 over a CIDFont
+/// (object 9, `/Subtype cid_font`), descriptor 6 holding program 7 under
+/// `file`, metadata 8; `extra` from 10.
+fn type0(cid_font: &str, file: &str, extra: &[Vec<u8>]) -> Document {
+    let program = if file.starts_with("FontFile3") {
+        "/Subtype /CIDFontType0C"
+    } else {
+        ""
+    };
+    let mut bodies = vec![
+        b"<< /Type /Catalog /Pages 2 0 R /Metadata 8 0 R >>".to_vec(),
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec(),
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R \
+           /Resources << /Font << /F1 5 0 R >> >> >>"
+            .to_vec(),
+        stream("", b"BT /F1 9 Tf <0001> Tj ET"),
+        b"<< /Type /Font /Subtype /Type0 /BaseFont /Arial /Encoding /Identity-H \
+           /DescendantFonts [9 0 R] >>"
+            .to_vec(),
+        format!(
+            "<< /Type /FontDescriptor /FontName /Arial /Flags 4 /FontBBox [0 0 1 1] \
+             /ItalicAngle 0 /Ascent 1 /Descent 0 /CapHeight 1 /StemV 1 /{file} >>"
+        )
+        .into_bytes(),
+        stream(program, &noise(2000)),
+        pdfa("1"),
+        format!(
+            "<< /Type /Font /Subtype {cid_font} /BaseFont /Arial \
+             /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> \
+             /FontDescriptor 6 0 R >>"
+        )
+        .into_bytes(),
+    ];
+    bodies.extend_from_slice(extra);
+    Document::from_bytes(build(&bodies)).unwrap()
+}
+
+fn cid_set(p: &ResubsetPlan) -> Vec<u8> {
+    assert!(p.refused.is_empty(), "{:?}", p.refused);
+    let t = &p.targets[0];
+    assert_eq!(t.listed, [id(6)]);
+    match &t.lists[0].entry {
+        ListEntry::CidSet(bits) => bits.clone(),
+        other => panic!("expected a /CIDSet, got {other:?}"),
+    }
+}
+
+/// Under an identity map a CIDFontType2 holds every CID below `numGlyphs`
+/// (spec RAG `pdfa__ref__font_subset_cidset_charset.md` §3.2), MSB first.
+#[test]
+fn a_pdfa1_identity_cidfonttype2_gains_every_cid_below_num_glyphs() {
+    for map in ["", "/CIDToGIDMap /Identity"] {
+        let d = type0(&format!("/CIDFontType2 {map}"), "FontFile2 7 0 R", &[]);
+        let p = run(&d, &Fake::listing(PresentGlyphs::Count(10)));
+        assert_eq!(cid_set(&p), [0xFF, 0xC0], "map {map:?}");
+    }
+}
+
+/// A map stream: a CID whose glyph exists is present, even glyph 0; one
+/// mapped past `numGlyphs` is not, nor is a CID past the map's end.
+#[test]
+fn a_pdfa1_mapped_cidfonttype2_lists_the_cids_whose_glyph_exists() {
+    let map = stream("", &[0, 0, 0, 3, 0, 0, 0, 10, 0, 1]);
+    let d = type0(
+        "/CIDFontType2 /CIDToGIDMap 10 0 R",
+        "FontFile2 7 0 R",
+        &[map],
+    );
+    let p = run(&d, &Fake::listing(PresentGlyphs::Count(10)));
+    assert_eq!(cid_set(&p), [0b1110_1000]);
+}
+
+/// A CID-keyed CFF lists its charset CIDs; a name-keyed one under a
+/// CIDFontType0 holds CID 0 only (§3.3).
+#[test]
+fn a_pdfa1_cidfonttype0_lists_its_charset_or_cid_zero() {
+    let d = type0("/CIDFontType0", "FontFile3 7 0 R", &[]);
+    let cids = Fake::listing(PresentGlyphs::Cids([0, 1, 9].into()));
+    assert_eq!(cid_set(&run(&d, &cids)), [0xC0, 0x40]);
+    let names = Fake::listing(PresentGlyphs::Names([b"a".to_vec()].into()));
+    assert_eq!(cid_set(&run(&d, &names)), [0x80]);
+}
+
+/// A program kind that disagrees with the CIDFont's type refuses.
+#[test]
+fn a_cidfonttype2_over_a_cff_program_is_refused() {
+    let d = type0("/CIDFontType2", "FontFile2 7 0 R", &[]);
+    let p = run(&d, &Fake::listing(PresentGlyphs::Cids([0].into())));
+    assert_eq!(tokens(&p), ["pdfa1-list-owed"]);
+}
+
+/// A CIDFont that already has a `/CIDSet` keeps it as it is.
+#[test]
+fn a_pdfa1_cidfont_with_a_cidset_gains_nothing() {
+    let set = stream("", &[0xFF]);
+    let d = type0("/CIDFontType2", "FontFile2 7 0 R /CIDSet 10 0 R", &[set]);
+    let p = run(&d, &Fake::listing(PresentGlyphs::Count(10)));
+    assert!(p.targets[0].listed.is_empty(), "{:?}", p.refused);
 }

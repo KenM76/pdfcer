@@ -51,7 +51,7 @@ soft masks and Type3 CharProcs.
 | `collection` | The program is a `ttcf` collection. |
 | `format-deferred` | `FontFile` (Type 1). |
 | `malformed-glyf` | The `glyf` data is malformed. |
-| `pdfa1-list-owed` | The document claims PDF/A-1 (or a part other than 2/3/4), and the font is untagged with no `/CIDSet` (CIDFont) or `/CharSet` (Type 1): the new tag would make it a subset lacking the list ISO 19005-1 §6.3.5 requires. |
+| `pdfa1-list-owed` | The document claims PDF/A-1 (or a part other than 2/3/4), the font is untagged with no `/CIDSet` (CIDFont) or `/CharSet` (Type 1), and pdfcer cannot write the list the new tag makes owed (ISO 19005-1 §6.3.5): the cutter cannot read the cut program's glyphs (`list-unsupported`), the program kind disagrees with the CIDFont type, or a glyph name cannot be written in a `/CharSet`. |
 | `unembedded-this-run` | The same run unembeds the font. |
 | `not-smaller` | The rewritten program is not smaller. |
 
@@ -179,11 +179,25 @@ joins only programs whose tables other than `glyf`/`loca` agree, so every
 list stays as true as it was. PDF/A-2/-3 lists are optional and PDF/A-4
 forbids them (ISO 19005-4 §5.1); neither is changed. PDF/A-1 requires a list
 on every subset, so an untagged CIDFont or Type 1 font without one, which
-the new tag would make a subset, is refused (`pdfa1-list-owed`); a tagged
-one keeps what it had. Measured on veraPDF 1.30.2 (1b, 2b): every
-`fixtures/synthetic/resubset` cut has the same font-list verdict as its
-input; an untagged `type1c` cut without the guard fails 6.3.5-2.
+the new tag makes a subset, gains one (`ResubsetTarget::listed`); a tagged
+one keeps what it had. The list is every glyph the cut program holds by
+structure, which passes PDF/A-1 (any superset of the used glyphs) and is
+exactly what PDF/A-2/-3 require of a present list (spec RAG
+`pdfa/pdfa__ref__font_subset_cidset_charset.md` §3.2-3.3):
 
-Deferred: writing the missing PDF/A-1 list (the full structural set),
-merging CFF copies, Type 1 `/FontFile`, and switching to
-the short `loca` format.
+| Program | `/CIDSet` bits (MSB first) or `/CharSet` names |
+|---|---|
+| CIDFontType2, identity map | CIDs 0 to `numGlyphs` - 1 |
+| CIDFontType2, map stream | each CID below half the map's length whose GID is below `numGlyphs`, GID 0 included |
+| CIDFontType0, CID-keyed CFF | CID 0 and every charset CID |
+| CIDFontType0, name-keyed CFF | CID 0 only |
+| Type 1 over CFF | every charset name but `.notdef`, in the font's order |
+
+When the list cannot be written the font is refused (`pdfa1-list-owed`).
+A rebuild under a PDF/A-1 claim packs no object streams, which ISO 19005-1
+§6.1.4 forbids with cross-reference streams; the plan notes it. Measured on
+veraPDF 1.30.2 (1b): untagged `type2-map`, `type2-identity`, `type0-cid` and
+`type1c` PDF/A-1 documents cut with their new list fail no font rule.
+
+Deferred: merging CFF copies, Type 1 `/FontFile`, and switching to the short
+`loca` format.

@@ -123,3 +123,12 @@ fn a_root_past_the_glyph_count_is_ignored() {
     let cut = zero(&face("face.cff"), &set(&[2, 900])).unwrap();
     assert_eq!(cut.kept, 2);
 }
+
+/// A glyph kept without the one after it once failed verification: the
+/// charset lookup for an unencoded code found a phantom glyph in the
+/// changed CharStrings data that follows the charset.
+#[test]
+fn a_cut_keeping_a_glyph_without_its_neighbour_verifies() {
+    let cut = zero(&face("face.cff"), &set(&[1])).unwrap();
+    assert_eq!(cut.kept, 2);
+}

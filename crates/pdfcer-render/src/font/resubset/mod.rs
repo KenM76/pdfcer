@@ -7,10 +7,11 @@ mod cff;
 mod cff_glyphs;
 mod keep;
 mod merge;
+mod present;
 mod zero;
 
 use pdfcer_core::optimize::resubset::{
-    FontResubsetter, ResubsetProgram, ResubsetRefusal, ResubsetRequest,
+    FontResubsetter, PresentGlyphs, ResubsetProgram, ResubsetRefusal, ResubsetRequest,
 };
 
 use crate::font::program::FontProgram;
@@ -65,6 +66,12 @@ impl FontResubsetter for GlyphZeroResubsetter {
             permitted(program)?;
         }
         merge::merge(programs)
+    }
+
+    /// TrueType programs (`glyf`) report `maxp.numGlyphs`; CFF programs,
+    /// bare or OpenType-wrapped, report their charset.
+    fn present_glyphs(&self, program: &[u8]) -> Result<PresentGlyphs, ResubsetRefusal> {
+        present::present(program)
     }
 }
 

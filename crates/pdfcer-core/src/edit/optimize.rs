@@ -7,6 +7,7 @@ use super::{Command, CommandKind, EditSession, ObjectWrite};
 use crate::document::Document;
 use crate::object::{Dict, ObjId, Object, Stream};
 use crate::optimize::image::{self, pipeline::Outcome};
+use crate::optimize::resubset_plan::claims_pdfa1;
 use crate::optimize::select::ObjectFacts;
 use crate::optimize::streams::{self, Rewrite};
 use crate::optimize::{
@@ -74,6 +75,9 @@ impl EditSession {
         }
         if plan.uses_brotli() {
             notes.push(super::optimize_extension::BROTLI_NOTE.to_owned());
+        }
+        if settings.structure.object_streams && claims_pdfa1(&self.view()) {
+            notes.push(PDFA1_PACK_NOTE.to_owned());
         }
         plan.cleanup = self.plan_cleanup(&settings.cleanup, &mut notes);
         plan.discard = self.plan_discard(settings.discard, &mut notes);
@@ -212,7 +216,8 @@ impl EditSession {
     /// changed since planning, and [`OptimizeError::CleanupFailed`] when a
     /// clean-up deletion fails, [`OptimizeError::DiscardFailed`] or
     /// [`OptimizeError::ObjectDiscardFailed`] when a discarded item cannot
-    /// be removed. Nothing is committed in any case.
+    /// be removed, [`OptimizeError::ResubsetFailed`] when a re-subset
+    /// write cannot be made. Nothing is committed in any case.
     pub fn apply_optimize(&mut self, plan: &OptimizePlan) -> Result<usize, OptimizeError> {
         if let Some(w) = plan
             .writes
@@ -233,7 +238,15 @@ impl EditSession {
             )?
             + self.apply_unembed(plan, &mut fold)?;
         let mut objects = self.stream_writes(&plan.writes);
-        objects.extend(self.resubset_writes(plan));
+        match self.resubset_writes(plan) {
+            Ok(writes) => objects.extend(writes),
+            Err(error) => {
+                fold.roll_back(self);
+                return Err(OptimizeError::ResubsetFailed {
+                    reason: error.to_string(),
+                });
+            }
+        }
         let removals = self.resubset_removals(plan);
         if !objects.is_empty() {
             objects.extend(self.catalog_writes(plan.version_raise(), plan.uses_brotli()));
@@ -307,6 +320,8 @@ impl EditSession {
     /// is not dropped because it did not save bytes. `plan` is the one
     /// passed to [`Self::apply_optimize`]. The report is `None` when
     /// `structure` is all off and the file's structure was kept.
+    /// Object streams are not packed in a document claiming PDF/A-1, which
+    /// forbids them and cross-reference streams (ISO 19005-1 §6.1.4).
     ///
     /// # Errors
     ///
@@ -319,6 +334,10 @@ impl EditSession {
         structure: &RebuildOptions,
     ) -> Result<(OptimizedFile, Option<RebuildReport>), WriteError> {
         let (bytes, _) = self.to_full_bytes(options)?;
+        let structure = &RebuildOptions {
+            object_streams: structure.object_streams && !claims_pdfa1(&self.view()),
+            ..*structure
+        };
         let (bytes, report) = if structure.is_none() {
             (bytes, None)
         } else {
@@ -334,6 +353,10 @@ impl EditSession {
         ))
     }
 }
+
+/// The plan note for object streams left unpacked under a PDF/A-1 claim.
+const PDFA1_PACK_NOTE: &str =
+    "object streams not packed: PDF/A-1 forbids them and cross-reference streams";
 
 /// Why `action` is never applied to the stream under `dict`, if it is not.
 fn refusal(dict: &Dict, action: StreamAction, pdfa: bool) -> Option<crate::optimize::SkipReason> {

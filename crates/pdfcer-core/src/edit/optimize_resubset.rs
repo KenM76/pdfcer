@@ -3,12 +3,13 @@
 
 use std::collections::BTreeSet;
 
-use super::{EditSession, ObjectWrite, Removal};
+use super::{EditError, EditSession, ObjectWrite, Removal};
 use crate::fontinfo::split_subset_tag;
 use crate::object::{Dict, Name, ObjId, Object, Stream};
 use crate::optimize::resubset::{
     ResubsetFonts, ResubsetPlan, ResubsetRefusal, ResubsetRefused, ResubsetTarget,
 };
+use crate::optimize::resubset_list::ListEntry;
 use crate::optimize::{OptimizeError, OptimizePlan, OptimizeSettings};
 
 impl EditSession {
@@ -73,10 +74,19 @@ impl EditSession {
         Err(OptimizeError::StalePlan { id })
     }
 
-    /// The cut programs and their re-tagged names, as writes.
-    pub(super) fn resubset_writes(&mut self, plan: &OptimizePlan) -> Vec<ObjectWrite> {
+    /// The cut programs, their re-tagged names and any `/CIDSet` stream a
+    /// descriptor gains, as writes.
+    ///
+    /// # Errors
+    ///
+    /// [`EditError::ObjectNumbersExhausted`] when a `/CIDSet` stream gets
+    /// no object number.
+    pub(super) fn resubset_writes(
+        &mut self,
+        plan: &OptimizePlan,
+    ) -> Result<Vec<ObjectWrite>, EditError> {
         let Some(cut) = &plan.resubset else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
         let mut out = Vec::new();
         for t in &cut.targets {
@@ -89,6 +99,13 @@ impl EditSession {
                 } else {
                     retagged(before, tag).map(|o| repointed(o, t))
                 };
+                let after = match t.lists.iter().find(|o| o.descriptor == *id) {
+                    Some(list) => {
+                        let base = after.unwrap_or_else(|| before.clone());
+                        Some(self.listed(base, &list.entry, &mut out)?)
+                    }
+                    None => after,
+                };
                 if let Some(after) = after {
                     out.push(ObjectWrite {
                         id: *id,
@@ -98,7 +115,49 @@ impl EditSession {
                 }
             }
         }
-        out
+        Ok(out)
+    }
+
+    /// `descriptor` carrying `entry`; a `/CIDSet` stream is created as a
+    /// new object, its write pushed to `out`.
+    fn listed(
+        &mut self,
+        descriptor: Object,
+        entry: &ListEntry,
+        out: &mut Vec<ObjectWrite>,
+    ) -> Result<Object, EditError> {
+        let Object::Dict(mut dict) = descriptor else {
+            return Ok(descriptor);
+        };
+        match entry {
+            ListEntry::CharSet(names) => {
+                dict.insert(Name::from(b"CharSet"), Object::String(names.clone()));
+            }
+            ListEntry::CidSet(bits) => {
+                let id = ObjId::new(self.alloc_number()?, 0);
+                let data = crate::filters::flate::encode_with_level(bits, 9);
+                let mut stream = Dict::new();
+                stream.insert(
+                    Name::from(b"Filter"),
+                    Object::Name(Name::from(b"FlateDecode")),
+                );
+                stream.insert(
+                    Name::from(b"Length"),
+                    Object::Integer(i64::try_from(data.len()).unwrap_or(i64::MAX)),
+                );
+                let data_span = self.stage_bytes(&data);
+                out.push(ObjectWrite {
+                    id,
+                    before: None,
+                    after: Some(Object::Stream(Stream {
+                        dict: stream,
+                        data_span,
+                    })),
+                });
+                dict.insert(Name::from(b"CIDSet"), Object::Reference(id));
+            }
+        }
+        Ok(Object::Dict(dict))
     }
 
     /// The programs merged into another, as removals.
@@ -220,6 +279,12 @@ glyphs kept), saving {} B; each gets a new subset tag, and text typed later in t
 needs the missing glyphs embedded again",
             cut.targets.len(),
             cut.saving()
+        ));
+    }
+    let listed: usize = cut.targets.iter().map(|t| t.listed.len()).sum();
+    if listed > 0 {
+        notes.push(format!(
+            "{listed} font(s) given the /CIDSet or /CharSet PDF/A-1 requires of a subset, listing every glyph the font program holds"
         ));
     }
     let merged: usize = cut.targets.iter().map(|t| t.merged.len()).sum();

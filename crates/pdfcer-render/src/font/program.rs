@@ -263,15 +263,20 @@ impl<'a> FontProgram<'a> {
     }
 
     /// For a CID-keyed CFF: map a CID to a glyph id via the charset
-    /// (§9.7.4.2); identity when not CID-keyed or no charset.
+    /// (§9.7.4.2), and a CID the charset lacks to `.notdef`; identity when
+    /// not CID-keyed.
     #[must_use]
     pub fn cff_cid_to_gid(&self, cid: u16) -> u32 {
         if let Self::Cff(cff) = self
             && cff.is_cid()
-            && let Some(charset) = cff.charset()
-            && let Ok(gid) = charset.glyph_id(skrifa::raw::ps::string::Sid::new(cid))
         {
-            return gid.to_u32();
+            let gid = match cff.charset() {
+                Some(charset) => charset_glyph(&charset, ps::string::Sid::new(cid)),
+                // read-fonts reads a missing `charset` as ISOAdobe, so None is
+                // a charset that cannot be read: fall back to glyph i as CID i.
+                None => Some(u32::from(cid)),
+            };
+            return gid.filter(|&g| g < cff.num_glyphs()).unwrap_or(0);
         }
         u32::from(cid)
     }
@@ -389,14 +394,16 @@ impl<'a> FontProgram<'a> {
                     .map(GlyphId::to_u32)
             }
             Self::Cff(cff) => {
+                // `Encoding::map` looks up through the charset unbounded
+                // too (see `charset_glyph`).
                 if let Some(gid) = cff.encoding().and_then(|e| e.map(code)) {
-                    return Some(gid.to_u32());
+                    return (gid.to_u32() < cff.num_glyphs()).then_some(gid.to_u32());
                 }
                 // No `Encoding` operator in the Top DICT ⇒ the CFF
                 // default, which is the standard encoding: resolve
                 // code → SID → GID through the charset.
                 let sid = ps::encoding::PredefinedEncoding::Standard.sid(code)?;
-                cff.charset()?.glyph_id(sid).ok().map(GlyphId::to_u32)
+                charset_glyph(&cff.charset()?, sid)
             }
             Self::Type1(t1) => t1.encoding()?.map(code).map(GlyphId::to_u32),
         }
@@ -553,6 +560,17 @@ pub(crate) fn post_glyph_name<'a>(
 /// refers to.
 const STANDARD_POST_NAMES: usize = 258;
 
+/// The glyph a charset gives string `sid`, or `None` when it names none.
+///
+/// read-fonts 0.39.2 bounds neither the predefined charsets nor format 0's
+/// search by the glyph count: format 0 searches every SID-sized word to the
+/// end of the CFF data, so a SID absent from the charset can match in the
+/// CharStrings that follow it and return a glyph that does not exist.
+fn charset_glyph(charset: &ps::cff::charset::Charset<'_>, sid: ps::string::Sid) -> Option<u32> {
+    let gid = charset.glyph_id(sid).ok()?.to_u32();
+    (gid < charset.num_glyphs()).then_some(gid)
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -670,5 +688,32 @@ mod tests {
         // in UnknownFormat.)
         let e = FontProgram::parse(b"\n%!PS-AdobeFont-1.0 garbage").unwrap_err();
         assert!(matches!(e, ProgramError::Parse(_)), "got {e:?}");
+    }
+
+    /// face-cid.cff's charset holds CIDs 0 1 2 3 5 8 9 as glyphs 0..=6
+    /// (`tools/gen-cff-face.py`); a CID it lacks draws `.notdef`.
+    #[test]
+    fn a_cid_keyed_cff_maps_through_its_charset() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/synthetic/resubset/face-cid.cff");
+        let bytes = std::fs::read(path).unwrap();
+        let program = FontProgram::parse(&bytes).unwrap();
+        let gids: Vec<u32> = (0..=10).map(|c| program.cff_cid_to_gid(c)).collect();
+        assert_eq!(gids, [0, 1, 2, 3, 0, 4, 0, 0, 5, 6, 0]);
+    }
+
+    /// An unreadable charset falls back to glyph i as CID i, and a CID past
+    /// the glyph count draws `.notdef` rather than a glyph that does not
+    /// exist (found by the `font_resubset_present` fuzz target).
+    #[test]
+    fn a_cid_keyed_cff_with_an_unreadable_charset_maps_by_identity_within_its_glyphs() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../fixtures/synthetic/resubset/face-cid-badcharset.cff");
+        let bytes = std::fs::read(path).unwrap();
+        let program = FontProgram::parse(&bytes).unwrap();
+        let gids: Vec<u32> = [0, 1, 6, 7, 1000, u16::MAX]
+            .map(|c| program.cff_cid_to_gid(c))
+            .to_vec();
+        assert_eq!(gids, [0, 1, 6, 0, 0, 0]);
     }
 }

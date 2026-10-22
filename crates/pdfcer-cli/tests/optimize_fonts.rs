@@ -194,7 +194,11 @@ fn copies_of_one_face_merge_unless_told_not_to() {
         ],
     );
     let report = text(&o);
-    assert_eq!(report.matches("\"merged\":[]}").count(), 2, "{report}");
+    assert_eq!(
+        report.matches("\"merged\":[],\"listed\":[]}").count(),
+        2,
+        "{report}"
+    );
     assert!(report.contains("\"unmerged\":[]"), "{report}");
 }
 

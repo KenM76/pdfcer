@@ -4758,9 +4758,11 @@ Contract:
   `program-direct`, `every-glyph-used` (the cutter kept every glyph),
   `not-smaller` (Flate-9 output not under the stored size),
   `unembedded-this-run`, `pdfa1-list-owed` (the document claims PDF/A-1,
-  or a part other than 2/3/4, and an untagged CIDFont without `/CIDSet` or
-  Type 1 font without `/CharSet` would become a subset lacking the list
-  ISO 19005-1 §6.3.5 requires), plus the cutter's own. The shipped cutter is
+  or a part other than 2/3/4, an untagged CIDFont without `/CIDSet` or
+  Type 1 font without `/CharSet` would become a subset owing the list
+  ISO 19005-1 §6.3.5 requires, and pdfcer cannot write it: the cutter
+  refuses `present_glyphs`, the program kind disagrees with the CIDFont
+  type, or a glyph name cannot go in a `/CharSet`), plus the cutter's own. The shipped cutter is
   `pdfcer_render::font::resubset::GLYPH_ZERO_RESUBSETTER`: it keeps glyph
   0, every glyph any §9.6.6.4 rung could pick for a shown code, kept
   composites' components and kept CFF glyphs' `seac` parts; empties a
@@ -4771,14 +4773,36 @@ Contract:
   A descriptor's `/CIDSet` and `/CharSet` (ISO 32000-1 §9.8.3 Table 124,
   §9.8.1 Table 122) stay byte-identical: an emptied glyph is still present
   in the program, so the list stays true (ISO 19005-2 §6.2.11.4.2 requires
-  a present list to be exact).
+  a present list to be exact). The one list written is the one a cut makes owed: under a
+  PDF/A-1 claim an untagged font lacking one gains a list of every glyph
+  the cut program holds by structure, from
+  `FontResubsetter::present_glyphs(&self, program: &[u8]) ->
+  Result<PresentGlyphs, ResubsetRefusal>` (default: refuses
+  `list-unsupported`; the shipped cutter reads TrueType and CFF).
+  `PresentGlyphs` (`#[non_exhaustive]`): `Count(u32)` (TrueType, GIDs
+  `0..n`), `Cids(BTreeSet<u32>)` (CID-keyed CFF, CID 0 included),
+  `Names(BTreeSet<Vec<u8>>)` (name-keyed CFF, without `.notdef`). A
+  CIDFontType2 gets a `/CIDSet` stream of the CIDs whose GID exists
+  (identity: `0..numGlyphs`; a map stream: each CID it maps below
+  `numGlyphs`), MSB first; a CIDFontType0 the charset CIDs, or CID 0 for
+  a name-keyed program; a Type 1 font a `/CharSet` of the names in the
+  font's order. `ResubsetTarget::listed: Vec<ObjId>` names the
+  descriptors that gain one (empty unless the document claims PDF/A-1);
+  the stream and the reference are in the run's undo entry. A rebuild
+  under a PDF/A-1 claim packs no object streams (ISO 19005-1 §6.1.4
+  forbids them and cross-reference streams), whatever
+  `RebuildOptions::object_streams` says, and `plan_optimize` notes it.
+  `apply_optimize` returns `OptimizeError::ResubsetFailed { reason }`,
+  with everything it had committed undone, if writing a cut program, its
+  fonts or a list fails. CLI: report line `<id> given the /CIDSet or
+  /CharSet PDF/A-1 requires`, JSON `cut[].listed`.
   The program is written Flate (with `/Length1` when it had one), and the fonts, descendant
   CIDFonts and descriptors get one fresh six-letter tag over their stem
   (ISO 32000-2 §9.6.4), in the run's one undo entry; a cut program is
   dropped from `changes`. Notes disclose the glyphs kept and that text
   typed later in these fonts needs the missing glyphs embedded again. A
   PDF/A document is cut like any other: the cut changes no structural
-  glyph set, so its lists and veraPDF verdict stay as they were. `apply_optimize`
+  glyph set, so its existing lists and veraPDF verdict stay as they were. `apply_optimize`
   returns `StalePlan` if any object it rewrites changed or a re-plan
   differs. CLI: `--resubset-fonts`; the report's `resubset` lines (each
   cut with glyphs kept, each refusal with why) / JSON `resubset`.
