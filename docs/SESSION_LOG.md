@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1180th filing) — `59e54703`: CI job name follows the check count (Pass 618.0 follow-up)
+
+**Filed (engineer-reported, no shell here):** `59e54703` renames the CI job `repository audits (31 checks)` to `(32 checks)`. Pass 618.0 added the panic-allows step; `tools/check-ci-job-names.py` failed CI run 39795026825 ("job 'audits' says '(31 checks)' and runs 32").
+
+**Finding:** a change-scoped local sweep skipped the CI-meta gates. After any `ci.yml` edit, run `check-ci-parity.py` and `check-ci-job-names.py`. No rule minted.
+
+**State:** `FEATURES.md` unaffected (no capability change). Ledgers unchanged: next free `Pass 620.0`, decision `197`, `R263`; next filing 1181st. `NEXT_SESSION.md` untouched.
+
 ## 2026-10-22 (1179th filing) — `4cdc7a3a`: Pass 619.0 shipped, request gate reads direction
 
 **Filed (engineer-reported, no shell here):** `tools/check-requests-scoped.py` reads `from:` in a request's first 8 lines; pdfcer-authored (outbound) requests without a reply are "AWAITING THE FAR SIDE", not failures. The iccce crates.io request had turned the gate red after the 1178th filing cited it. Now exit 0: 143 open, 142 answered, 0 not yet taken up, 1 awaiting.

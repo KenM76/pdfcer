@@ -164,6 +164,8 @@ Code commit `d21e1ad5` "feat(engine): deny every panic lint and baseline the exe
 
 `FEATURES.md`: no row (engine hardening, no capability; core only). No decision, no rule. Reply to the operator request is still owed: items 1-3 are delivered for model and render; item 4 (publish metadata + `cargo publish --dry-run` for color/model/pkix) and item 5 (iccce-channel request) stay under `Pass 618.1`. Do not flip `publish = true`, publish, or name the conformance suite.
 
+**Follow-up (`59e54703`, 1180th filing):** the CI job `repository audits (31 checks)` renamed to `(32 checks)`, since this Pass added the panic-allows step and `tools/check-ci-job-names.py` failed CI run 39795026825. Cause: a change-scoped local sweep skipped the CI-meta gates; after any `ci.yml` edit run `check-ci-parity.py` and `check-ci-job-names.py`. Engineer-reported.
+
 ### `Pass 616.8` follow-up (`c5143058`), 2026-10-22 — space audit counts linearization machinery as file overhead (1175th filing)
 
 Code commit `c5143058ca42029864c4b9b21d8ab5052fb53770` "fix(space-audit): count linearization machinery as file overhead (Pass 616.8)". Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. No Pass consumed.
