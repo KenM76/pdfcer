@@ -747,8 +747,8 @@ Used by:
 Used by:
 - [crypto-primes 0.7.2](https://github.com/entropyxyz/crypto-primes)
 - [ureq 3.4.0](https://github.com/algesten/ureq)
-- [zune-core 0.5.1](https://github.com/etemesi254/zune-image)
-- [zune-jpeg 0.5.15](https://github.com/etemesi254/zune-image/tree/dev/crates/zune-jpeg)
+- [zune-core 0.5.3](https://github.com/etemesi254/zune-image)
+- [zune-jpeg 0.5.16-rc3](https://github.com/etemesi254/zune-image/tree/dev/crates/zune-jpeg)
 
 ```
                                  Apache License

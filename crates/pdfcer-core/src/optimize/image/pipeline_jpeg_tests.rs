@@ -250,3 +250,46 @@ fn undecodable_jpeg_data_is_skipped_with_the_decoder_error() {
     let (_, p) = plan(doc(AT_100, &[junk]), &[("image(ppi=72)", None)]);
     assert!(matches!(skip(&p, 5), Some(SkipReason::Undecodable(_))));
 }
+
+/// Every layout the writer can emit reads back through pdfcer's own
+/// decoder. Optimized Huffman tables make jpeg-encoder write one scan per
+/// component, and a subsampled image in that layout is the case a decoder
+/// can get wrong while every other reader gets it right.
+#[test]
+fn every_layout_the_writer_emits_reads_back_through_the_decoder() {
+    let session = EditSession::new(crate::document::Document::from_bytes(doc("", &[])).unwrap());
+    for (cs, n) in [("DeviceGray", 1u8), ("DeviceRGB", 3), ("DeviceCMYK", 4)] {
+        let px = smooth(usize::from(n));
+        let mut dict = Dict::new();
+        for (k, v) in [
+            (&b"Width"[..], Object::Integer(i64::from(N))),
+            (b"Height", Object::Integer(i64::from(N))),
+            (b"BitsPerComponent", Object::Integer(8)),
+            (b"ColorSpace", Object::Name(cs.as_bytes().into())),
+            (b"Filter", Object::Name(b"DCTDecode"[..].into())),
+        ] {
+            dict.insert(k.into(), v);
+        }
+        for chroma in [Chroma::Full, Chroma::Half, Chroma::Auto] {
+            for (progressive, optimize_huffman) in [(false, false), (false, true), (true, true)] {
+                let opts = JpegOptions {
+                    quality: 60,
+                    chroma,
+                    progressive,
+                    optimize_huffman,
+                };
+                let data = encode(&px, N, N, n, opts).unwrap();
+                if optimize_huffman && !progressive {
+                    let scans = data.windows(2).filter(|w| w == &[0xFF, 0xDA]).count();
+                    assert_eq!(scans, usize::from(n), "one scan per component");
+                }
+                let back = decode_image_view(&session.view(), &dict, &data, false).unwrap();
+                let e = mean_error(&back.samples, &px);
+                assert!(
+                    e < 12.0,
+                    "{cs} {chroma} prog={progressive} opt={optimize_huffman}: {e}"
+                );
+            }
+        }
+    }
+}

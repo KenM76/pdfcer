@@ -30,7 +30,7 @@ thiserror = "2"
 # not compile in this configuration. `std` is kept: pdfcer-core is a std
 # crate and wasm32-unknown-unknown supports std.
 #
-# Verified present in 0.5.15: progressive (14% of corpus JPEGs),
+# Verified present in 0.5.15, and still by rc3's tests: progressive (14% of corpus JPEGs),
 # restart intervals (74%), Adobe APP14 transform 0/1/2, the
 # 3-component/transform-0 CMYK->RGB fixup, decode_headers() +
 # output_buffer_size() + decode_into() for bounded decode, and
@@ -38,7 +38,14 @@ thiserror = "2"
 # NOT supported, and each a NAMED diagnostic per R27: arithmetic
 # coding, lossless, 12-bit, and the YCCK->CMYK conversion (pdfcer does
 # that one itself from a YCCK passthrough).
-zune-jpeg = { version = "0.5", default-features = false, features = ["std"] }
+#
+# Pinned EXACTLY to a pre-release: 0.5.15 decodes a subsampled baseline
+# JPEG written one scan per component (legal T.81; jpeg-encoder's layout
+# whenever optimized Huffman tables are on) as garbage, and rc3 fixes it.
+# Every manifest naming zune-jpeg carries the same pin (one 0.5 version per
+# graph). Move to stable 0.5.16 when it ships; required before any publish,
+# since a downstream `^0.5` cannot match a pre-release.
+zune-jpeg = { version = "=0.5.16-rc3", default-features = false, features = ["std"] }
 
 # hayro-ccitt: CCITTFaxDecode (§7.4.6, ITU-T T.4/T.6).
 # Apache-2.0 OR MIT, ZERO dependencies, unconditional #![no_std],
