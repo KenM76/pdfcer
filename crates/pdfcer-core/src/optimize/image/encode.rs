@@ -29,6 +29,8 @@ pub(crate) struct Written {
     pub(crate) flate_bytes: Option<u64>,
     /// For `encode=auto`, what it picked from what.
     pub(crate) auto: Option<AutoPick>,
+    /// For `ssim=`, the quality written and what the search found.
+    pub(crate) ssim: Option<(u8, super::SsimPick)>,
 }
 
 /// `encode=auto`'s choice and every candidate's size, in trial order.
@@ -73,6 +75,14 @@ pub(crate) fn run(
             (resized, job.components, bpc, None)
         }
     };
+    let (target, ssim) = match (job.target, job.ssim) {
+        (Target::Jpeg(opts), Some(goal)) => {
+            let shape = (job.out, components);
+            let (opts, pick) = super::ssim::jpeg_search(view, &pixels, shape, opts, goal);
+            (Target::Jpeg(opts), Some(pick))
+        }
+        (t, _) => (t, None),
+    };
     let Encoded {
         data,
         filter,
@@ -80,7 +90,7 @@ pub(crate) fn run(
         parms,
         flate_bytes,
         auto,
-    } = encode(job.target, job, &pixels, (components, bpc))?;
+    } = encode(target, job, &pixels, (components, bpc))?;
     guard(job, raw.len() as u64, data.len() as u64).map_err(|e| auto_kept(e, job, &auto))?;
     let mut out = output_dict(dict, job.out, filter, bpc, data.len());
     let predicted = parms.is_some() && matches!(filter, b"FlateDecode" | b"LZWDecode");
@@ -101,6 +111,7 @@ pub(crate) fn run(
         predicted,
         flate_bytes,
         auto,
+        ssim,
     })
 }
 

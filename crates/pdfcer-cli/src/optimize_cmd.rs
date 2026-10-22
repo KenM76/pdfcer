@@ -59,7 +59,9 @@ pub(crate) struct OptimizeArgs {
     /// /Version to 1.4, encode=brotli below 2.0 sets 2.0, and says so;
     /// refuse skips the image), max-pixels (an image drawn on no page has
     /// no resolution, so it is skipped unless this caps its width x height),
-    /// min-saving (percent), reset.
+    /// min-saving (percent), ssim (0-1, e.g. 0.98: JPEG at the lowest
+    /// quality whose structural similarity to the samples reaches it, with
+    /// quality as the ceiling when set; the report gives the score), reset.
     /// "image(encode=jpeg)"
     /// rewrites every eligible image as JPEG at its size; a JPEG is never
     /// written above its own estimated quality, and one left at its size is

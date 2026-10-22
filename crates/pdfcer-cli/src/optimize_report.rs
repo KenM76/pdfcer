@@ -102,6 +102,13 @@ fn image_text(img: &ImageChange) -> String {
         if let Some(e) = q.source_estimate {
             line.push_str(&format!(", source about {e}"));
         }
+        if let Some(s) = q.ssim {
+            let verdict = if s.met { "meets" } else { "misses" };
+            line.push_str(&format!(
+                ", ssim {} {verdict} {} in {} trials",
+                s.achieved, s.target, s.trials
+            ));
+        }
         line.push(')');
     }
     if img.predicted {
@@ -204,7 +211,7 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
     let binding = binding_json(img);
     let jpeg = jpeg_json(img);
     format!(
-        "{{\"size_before\":[{},{}],\"size_after\":[{},{}],\"binding\":{binding},\"encoded_as\":\"{}\",\"candidates\":[{}],\"raises_version\":{},\"bpc\":[{},{}],\"jpeg\":{jpeg},\"method\":{},\"ppi\":{},\"above\":{},\"encode\":{},\"quality\":{},\"chroma\":{},\"progressive\":{},\"min_saving_pct\":{},\"color_space\":[\"{}\",\"{}\"],\"conversion\":{},\"convert\":{},\"threshold\":{},\"colors\":{},\"keyed\":{},\"version_raise\":{},\"max_pixels\":{},\"predictor\":{},\"predicted\":{},\"flate_bytes\":{},\"resampled_with\":{},\"copies\":[{}]}}",
+        "{{\"size_before\":[{},{}],\"size_after\":[{},{}],\"binding\":{binding},\"encoded_as\":\"{}\",\"candidates\":[{}],\"raises_version\":{},\"bpc\":[{},{}],\"jpeg\":{jpeg},\"method\":{},\"ppi\":{},\"above\":{},\"encode\":{},\"quality\":{},\"chroma\":{},\"progressive\":{},\"min_saving_pct\":{},\"color_space\":[\"{}\",\"{}\"],\"conversion\":{},\"convert\":{},\"threshold\":{},\"colors\":{},\"keyed\":{},\"version_raise\":{},\"max_pixels\":{},\"ssim\":{},\"predictor\":{},\"predicted\":{},\"flate_bytes\":{},\"resampled_with\":{},\"copies\":[{}]}}",
         img.size_before.0,
         img.size_before.1,
         img.size_after.0,
@@ -239,6 +246,10 @@ pub(crate) fn image_json(img: &ImageChange) -> String {
             s.version_raise.source,
         ),
         opt(s.max_pixels.map(|v| (v.value, v.source))),
+        s.ssim.map_or("null".to_owned(), |v| src(
+            v.value.to_f64().to_string(),
+            v.source
+        )),
         src(format!("\"{}\"", s.predictor.value), s.predictor.source),
         img.predicted,
         img.flate_bytes.map_or("null".to_owned(), |n| n.to_string()),
@@ -279,8 +290,17 @@ fn jpeg_json(img: &ImageChange) -> String {
             let est = q
                 .source_estimate
                 .map_or("null".to_owned(), |e| e.to_string());
+            let ssim = q.ssim.map_or("null".to_owned(), |s| {
+                format!(
+                    "{{\"target\":{},\"achieved\":{},\"met\":{},\"trials\":{}}}",
+                    s.target.to_f64(),
+                    s.achieved.to_f64(),
+                    s.met,
+                    s.trials
+                )
+            });
             format!(
-                "{{\"asked\":{},\"used\":{},\"source_estimate\":{est}}}",
+                "{{\"asked\":{},\"used\":{},\"source_estimate\":{est},\"ssim\":{ssim}}}",
                 q.asked, q.used
             )
         },

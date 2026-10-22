@@ -11,10 +11,12 @@ pub(crate) mod pipeline;
 pub(crate) mod predict;
 pub(crate) mod reduce;
 mod skip;
+pub(crate) mod ssim;
 mod version_raise;
 
 pub use keyed::KeyedResample;
 pub use skip::{ImageSkip, ImageStep};
+pub use ssim::{SsimPick, SsimScore};
 pub use version_raise::VersionRaise;
 
 use std::fmt;
@@ -165,7 +167,9 @@ impl fmt::Display for ImageEncode {
 /// (default allow) says whether a named encoder may raise the document's
 /// version ([`VersionRaise`]). `max-pixels=N` downsamples an
 /// image drawn on no page, which has no resolution to measure, to at most
-/// `N` pixels, keeping its aspect ratio.
+/// `N` pixels, keeping its aspect ratio. `ssim=0.98` writes JPEG at the
+/// lowest quality whose SSIM against the samples it encodes reaches the
+/// target ([`SsimScore`]), with `quality` as the ceiling when set.
 ///
 /// ```
 /// use pdfcer_core::optimize::{ImagePatch, ResampleMethod, StreamAction};
@@ -212,6 +216,9 @@ pub struct ImagePatch {
     /// Keep the stored form unless the result is at least this many percent
     /// smaller (0 to 99).
     pub min_saving_pct: Option<u8>,
+    /// Write JPEG at the lowest quality whose SSIM reaches this, with
+    /// `quality` as the ceiling when set.
+    pub ssim: Option<SsimScore>,
 }
 
 /// The named JPEG qualities `quality=` accepts (decision 192).
@@ -244,6 +251,7 @@ impl ImagePatch {
             version_raise: None,
             max_pixels: None,
             min_saving_pct: None,
+            ssim: None,
         }
     }
 
@@ -329,9 +337,12 @@ impl ImagePatch {
             }
             "max-pixels" => self.max_pixels = Some(value.parse().map_err(|_| bad())?),
             "min-saving" => self.min_saving_pct = Some(value.parse().map_err(|_| bad())?),
+            "ssim" => {
+                self.ssim = Some(SsimScore::parse(value).map_err(|e| format!("image(): {e}"))?)
+            }
             _ => {
                 return Err(format!(
-                    "image(): unknown key {key:?}; expected reset, method, ppi, above, encode, quality, chroma, progressive, convert, threshold, colors, predictor, keyed, version-raise, max-pixels or min-saving"
+                    "image(): unknown key {key:?}; expected reset, method, ppi, above, encode, quality, chroma, progressive, convert, threshold, colors, predictor, keyed, version-raise, max-pixels, min-saving or ssim"
                 ));
             }
         }
@@ -470,6 +481,9 @@ impl fmt::Display for ImagePatch {
         if let Some(s) = self.min_saving_pct {
             parts.push(format!("min-saving={s}"));
         }
+        if let Some(s) = self.ssim {
+            parts.push(format!("ssim={s}"));
+        }
         write!(f, "image({})", parts.join(","))
     }
 }
@@ -551,6 +565,8 @@ pub struct ResolvedImage {
     pub max_pixels: Option<Sourced<u32>>,
     /// The `min-saving` guard, percent.
     pub min_saving_pct: Sourced<u8>,
+    /// The SSIM target for JPEG output; `None` writes at `quality`.
+    pub ssim: Option<Sourced<SsimScore>>,
 }
 
 impl ResolvedImage {
@@ -571,6 +587,7 @@ impl ResolvedImage {
             version_raise: sourced(VersionRaise::Allow, SettingSource::BuiltIn),
             max_pixels: None,
             min_saving_pct: sourced(0, SettingSource::BuiltIn),
+            ssim: None,
         }
     }
 
@@ -615,6 +632,7 @@ impl ResolvedImage {
             version_raise: Some(self.version_raise.value),
             max_pixels: self.max_pixels.map(|n| n.value),
             min_saving_pct: Some(self.min_saving_pct.value),
+            ssim: self.ssim.map(|s| s.value),
         }
     }
 
@@ -666,6 +684,9 @@ impl ResolvedImage {
         }
         if let Some(v) = p.min_saving_pct {
             self.min_saving_pct = sourced(v, src);
+        }
+        if let Some(v) = p.ssim {
+            self.ssim = Some(sourced(v, src));
         }
     }
 }
@@ -745,6 +766,8 @@ mod pipeline_matte_tests;
 mod pipeline_predict_tests;
 #[cfg(test)]
 mod pipeline_runlength_tests;
+#[cfg(test)]
+mod pipeline_ssim_tests;
 #[cfg(test)]
 mod pipeline_tests;
 #[cfg(test)]

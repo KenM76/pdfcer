@@ -92,6 +92,10 @@ impl ImageChange {
             self.encoded_as = auto.chosen;
             self.candidates = auto.candidates;
         }
+        if let (Some(jpeg), Some((used, pick))) = (self.jpeg.as_mut(), w.ssim) {
+            jpeg.used = used;
+            jpeg.ssim = Some(pick);
+        }
         (w.dict, w.data)
     }
 }
@@ -100,13 +104,17 @@ impl ImageChange {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct JpegQuality {
-    /// The quality the settings asked for.
+    /// The quality the settings asked for; under `ssim=` the search's
+    /// ceiling, 100 unless `quality` was set.
     pub asked: u8,
-    /// The quality written: `asked`, capped at `source_estimate`.
+    /// The quality written: `asked` capped at `source_estimate`, or the
+    /// `ssim=` search's pick below that.
     pub used: u8,
     /// A JPEG source's estimated IJG quality; `None` for a non-JPEG source
     /// or tables that match no IJG scaling.
     pub source_estimate: Option<u8>,
+    /// What an `ssim=` search chose; `None` without one.
+    pub ssim: Option<super::SsimPick>,
 }
 
 /// How the source's samples are stored.
@@ -159,6 +167,8 @@ pub(crate) struct Job {
     pub(crate) kernel: Option<Kernel>,
     pub(crate) min_saving_pct: u8,
     pub(crate) convert: Option<ConvertJob>,
+    /// `ssim=` for a JPEG target.
+    pub(crate) ssim: Option<super::SsimScore>,
 }
 
 /// What the caller knows about one image beyond its own dictionary.
@@ -363,6 +373,7 @@ pub(crate) fn decide(
         kernel: kernel(settings.method.value),
         min_saving_pct: settings.min_saving_pct.value,
         convert,
+        ssim: settings.ssim.filter(|_| quality.is_some()).map(|s| s.value),
     };
     let mut change = change(settings, space, &job, quality);
     change.resampled_with = ctx.lockstep.map(|l| l.parent);
@@ -515,13 +526,13 @@ pub(super) fn capped(w: u32, h: u32, max: u32) -> Option<(u32, u32)> {
 }
 
 /// A JPEG whose pixels are unchanged is re-encoded only when JPEG is asked at
-/// a quality below the source's estimate; otherwise it is left as it is,
+/// a quality below the source's estimate or with an `ssim=` target; otherwise it is left as it is,
 /// silently for `encode=keep` and with a reason for `encode=jpeg`.
 fn already_jpeg(settings: &ResolvedImage, raw: &[u8]) -> Result<Option<Outcome>, SkipReason> {
     let asked = settings.quality.value;
     let source_estimate = super::jpeg_quality::estimate_jpeg_quality(raw);
     match (settings.encode.value, source_estimate) {
-        (ImageEncode::Jpeg, Some(e)) if asked < e => Ok(None),
+        (ImageEncode::Jpeg, Some(e)) if asked < e || settings.ssim.is_some() => Ok(None),
         (ImageEncode::Jpeg, _) => Err(unsupported(ImageSkip::AlreadyJpeg {
             source_estimate,
             asked,
@@ -536,7 +547,10 @@ fn jpeg_options(
     source: Source,
     raw: &[u8],
 ) -> (JpegOptions, JpegQuality) {
-    let asked = settings.quality.value;
+    let asked = match settings.ssim {
+        Some(_) if settings.quality.source == SettingSource::BuiltIn => 100,
+        _ => settings.quality.value,
+    };
     let source_estimate = match source {
         Source::Dct => super::jpeg_quality::estimate_jpeg_quality(raw),
         Source::Generic => None,
@@ -552,6 +566,7 @@ fn jpeg_options(
         asked,
         used,
         source_estimate,
+        ssim: None,
     };
     (opts, quality)
 }

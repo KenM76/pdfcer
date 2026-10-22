@@ -914,11 +914,46 @@ fn an_image_written_as_jpeg_reports_format_and_quality() {
     let j = text(&run(&json));
     assert!(j.contains("\"encoded_as\":\"jpeg\""), "{j}");
     assert!(
-        j.contains("\"jpeg\":{\"asked\":40,\"used\":40,\"source_estimate\":null}"),
+        j.contains("\"jpeg\":{\"asked\":40,\"used\":40,\"source_estimate\":null,\"ssim\":null}"),
         "{j}"
     );
     assert!(
         j.contains("\"quality\":{\"value\":40,\"source\":\"images\"}"),
+        "{j}"
+    );
+}
+
+#[test]
+fn an_ssim_target_reports_the_quality_it_picked_and_the_score() {
+    let d = dir("image-ssim");
+    let input = noise_image_pdf(&d);
+    let out = d.join("out.pdf");
+    let args = [
+        input.to_str().unwrap(),
+        "-o",
+        out.to_str().unwrap(),
+        "--keep-structure",
+        "--streams",
+        "image(encode=jpeg,quality=40,ssim=0.9999)",
+    ];
+    let o = run(&args);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    let line = report
+        .lines()
+        .find(|l| l.contains("written as jpeg quality 40 (asked 40, ssim "))
+        .unwrap_or_else(|| panic!("{report}"));
+    assert!(line.contains(" misses 0.9999 in 1 trials)"), "{line}");
+    let mut json = args.to_vec();
+    json.extend(["--dry-run", "--json"]);
+    let j = text(&run(&json));
+    assert!(
+        j.contains("\"ssim\":{\"target\":0.9999,\"achieved\":"),
+        "{j}"
+    );
+    assert!(j.contains("\"met\":false,\"trials\":1}"), "{j}");
+    assert!(
+        j.contains("\"ssim\":{\"value\":0.9999,\"source\":\"images\"}"),
         "{j}"
     );
 }
