@@ -182,32 +182,12 @@ impl EditSession {
         super::optimize_copies::disclose(plan, &copies);
     }
 
-    /// The scale each page content stream starts at: the largest over the
-    /// pages drawing it, `None` when one of them leaves it unknown. Empty
-    /// when the page tree does not read.
-    fn content_starts(&self) -> BTreeMap<ObjId, Option<content::Scale>> {
-        let Ok(pages) = self.pages() else {
-            return BTreeMap::new();
-        };
-        let view = self.view();
-        let mut out = BTreeMap::new();
-        for page in &pages {
-            let streams: Vec<_> = page
-                .contents
-                .iter()
-                .map(|id| self.parsed_content(&view, *id))
-                .collect();
-            for (id, start) in page.contents.iter().zip(content::starts(&streams)) {
-                out.entry(*id)
-                    .and_modify(|s: &mut Option<content::Scale>| *s = widest(*s, start))
-                    .or_insert(start);
-            }
-        }
-        out
-    }
-
     /// Stream `id` decoded and tokenized, when it is a stream that decodes.
-    fn parsed_content(&self, view: &DocumentView<'_>, id: ObjId) -> Option<ContentStream> {
+    pub(super) fn parsed_content(
+        &self,
+        view: &DocumentView<'_>,
+        id: ObjId,
+    ) -> Option<ContentStream> {
         let Some(Object::Stream(stream)) = self.value(id) else {
             return None;
         };
@@ -565,12 +545,6 @@ fn may_round(settings: &OptimizeSettings) -> bool {
         .is_some_and(|p| rounds(&StreamAction::Content(p)))
         || settings.rules.iter().any(|r| rounds(&r.action))
         || settings.objects.values().any(rounds)
-}
-
-/// Two starts of one stream: the larger, or `None` when either is unknown.
-fn widest(a: Option<content::Scale>, b: Option<content::Scale>) -> Option<content::Scale> {
-    let (a, b) = (a?, b?);
-    Some(if b.get() > a.get() { b } else { a })
 }
 
 /// An image re-encode and the change it records.

@@ -3,7 +3,10 @@
 //! force (ISO 32000-2 §8.4.4 Table 56: `cm` concatenates a matrix onto the
 //! CTM; §8.3.2.3). Text positioning is in [`text`].
 
+mod reach;
 mod text;
+
+pub(crate) use reach::{Base, invoked};
 
 use super::rewrite::{number, operations, real};
 use super::{Scale, Tolerance, Unrounded};

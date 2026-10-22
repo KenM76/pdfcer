@@ -39,7 +39,7 @@ mod check;
 mod rewrite;
 mod round;
 
-pub(crate) use round::starts;
+pub(crate) use round::{Base, invoked, starts};
 
 use std::fmt;
 
@@ -382,8 +382,12 @@ impl Scale {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Unrounded {
-    /// A form or a pattern, or page content after a stream whose effect on
-    /// the matrix is unknown: the scale it starts at is not known here.
+    /// The scale the stream starts at is not known: page content after a
+    /// stream whose effect on the matrix is unknown, or a form or pattern
+    /// drawn from somewhere other than page content and the forms and
+    /// patterns it draws (an annotation appearance, a soft mask, a Type 3
+    /// glyph), drawn after such a matrix, or named beside a stream that did
+    /// not decode.
     UnknownStart,
     /// A `cm` with operands that are not six numbers, or a `Q` with no `q`:
     /// nothing after it is rounded.
@@ -394,7 +398,7 @@ impl fmt::Display for Unrounded {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
             Self::UnknownStart => {
-                "not rounded: the scale it starts at is unknown (a form, a pattern, or page content after an unreadable stream)"
+                "not rounded: the scale it starts at is unknown (drawn outside page content, or after an unreadable stream or matrix)"
             }
             Self::UnknownMatrix => {
                 "rounding stopped at a cm or Q whose effect on the scale is unknown"
@@ -484,6 +488,8 @@ pub(crate) fn apply(
     Ok((dict, data, change))
 }
 
+#[cfg(test)]
+mod round_reach_tests;
 #[cfg(test)]
 mod round_tests;
 #[cfg(test)]
