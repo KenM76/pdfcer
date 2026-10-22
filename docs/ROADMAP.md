@@ -112,6 +112,28 @@ wherever it appears.*
 
 ## Shipped
 
+### `chore` (`0853a3c0`), 2026-10-22 — colour channel followed to `icccer_FeatureRequests` (1184th filing)
+
+Commit `0853a3c0` "chore(tools): follow the colour channel to icccer_FeatureRequests". The colour sibling renamed `iccce` -> `icccer` (their CHANGELOG [0.4.0], their DL-084). `tools/check-requests-scoped.py` now reads `D:/Dev/FeatureRequests/icccer_FeatureRequests`; the old path is a junction the operator will delete. Tooling only, no Pass, no `FEATURES.md` row. `docs/NEXT_SESSION.md` not touched (engineer-owned). The crate/dependency rename is the Backlog item `Pass 623.0`. Engineer-reported; I have no shell (hard rule 8).
+
+### Pass 616.9 slice 2 (`2024e6a4`), 2026-10-22 — byte budget, `optimize_to_budget` and `--target-size` (1184th filing)
+
+Code commit `2024e6a4` "feat(optimize): fit a byte budget, EditSession::optimize_to_budget + --target-size (Pass 616.9 slice 2)". Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message.
+
+**Core:** `EditSession::optimize_to_budget(&OptimizeSettings, max_bytes: u64, &SaveOptions) -> Result<BudgetFit, BudgetError>` in new module `optimize::budget`. `BudgetFit {plan, file, structure, step, attempts, met}`, `BudgetAttempt {step, quality, ppi, bytes}`, `BudgetError {Optimize, Write}`, `LAST_STEP = 11`.
+- Ladder: step 0 = the operator's settings; steps 1-11 = colour and grey images as JPEG q80, 70, 60, 50, 40, 30 native, then q30 at 200, 150, 120, 96, 72 ppi. Inserted as `rules[0]`, so operator rules and per-object overrides win. Bilevel and indexed images untouched. An operator's lower quality/ppi (on `images` or the default Image stream action) caps the ladder; attempts report the effective ceilings; equal-ceiling trials are reused.
+- Search: bisect, at most 6 trials, each plan -> apply -> save -> revert. The session keeps the chosen step as ONE undoable command. `met = false` when step 11 still misses (the file is the closest).
+
+**CLI:** `pdfcer optimize --target-size SIZE` (bytes; KB/MB/GB decimal; KiB/MiB/GiB binary; fractions). Text and JSON report a budget section (JSON key `budget`). New exit code `OVER_BUDGET = 15`: target not met, closest file still written. Removal-report helpers moved to `crates/pdfcer-cli/src/optimize_removals_report.rs` (structure gate).
+
+**Tests:** 6 core (`crates/pdfcer-core/src/optimize/image/budget_tests.rs`; sabotaging `revert_last` fails two), 3 CLI integration (`crates/pdfcer-cli/tests/optimize.rs`), 1 parse unit test. Gate sweep: 13,797 tests passed across 44 test binaries; fmt, clippy, structure and doc gates green after the commit. `cargo tree` unchanged (no manifest touched). `docs/core-api` 381 -> 382 verbs, `check-core-api-verbs` PASS.
+
+**Measured** on `p6169_photo.pdf` (1,603,435 B): targets 500 KB, 200 KB and 100 KB all land at 96,648 B at step 1 (effective q<=60, because the default Standard preset sets q60); target 10 KB lands at 22,365 B at step 11, exit 15; both outputs render cleanly.
+
+**Known coarseness (not rounded up):** a 500 KB target lands at about 97 KB (96,648 B = 19.3% of the target, my division) because step 0 (not JPEG) is 1.4 MB and the first JPEG rung is q60. Finer rungs, or interpolation between step 0 and step 1, is a possible follow-up.
+
+**Still open in `Pass 616.9`:** the before/after visual-diff report; GUI not built. Then `616.10` (compatibility), and `616.7` stays open for forms and patterns. `FEATURES.md`: new row "Reduce to a target file size" core `[x]` cli `[x]` gui `[ ]`; the old combined row narrowed to the visual-diff report.
+
 ### `v0.91.0` — PUBLISHED 2026-10-22 (published at the 1183rd filing; bump filed at the 1182nd)
 
 **Published (engineer-reported; I have no shell, hard rule 8, so none of this is checked from here).** Tag `v0.91.0`: annotated tag object `1c901425e371c5e51d8ede76b86e8f631fb8023b` -> commit `4ea93ab171bd54e221e3b611b4dd508c9097f8f6` ("docs: file the v0.91.0 bump (1182nd)"); bump commit `20c6191b`. Earlier tags were lightweight; this one is annotated (harmless, recorded for whoever compares tag objects). Pushed: `origin main` = `4ea93ab1`.
@@ -23328,6 +23350,20 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+(1184th filing: `Pass 616.9` slice 2 (byte budget) SHIPPED `2024e6a4`, see *Shipped*; `616.9` stays open for the visual-diff report, then `616.10`, then `616.7` forms/patterns. `Pass 622.0` below is IN PROGRESS. Next free `Pass 624.0`, decision `198`, `R263`; next filing 1185th.)
+
+### Pass 622.0 — area-averaged image minification, `MinifyFilter::AreaAverage` (IN PROGRESS; filed 1184th filing, 2026-10-22)
+
+Source: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_image_minify_area_average.md` (`pdfcer-gui`, operator request O322).
+
+**Defect:** `MinifyFilter::Smooth` maps to bilinear, which reads a 2x2 neighbourhood whatever the scale, so a scan at 4:1 drops 12 of 16 source pixels (broken strokes, moire).
+
+**Deliverable:** new `MinifyFilter::AreaAverage`, settings token `area_average`, so `pdfcer export-image` and every renderer caller get it through the settings file. Method: integer box pre-reduction (floor(texels / device px) per axis, from the CTM's axis lengths so rotation works), then bilinear: a one-level mipmap. Applied identically on every image paint route (sRGB, CMYK ink, spot planes, overprint, stencil-as-fill, recorded display list) so the parallel pixmaps stay aligned. The Type 3 glyph-mask exclusion stays.
+
+**Default:** decided by measurement (render-parity against pdfium; Acrobat Reader observation), not assumed.
+
+**Acceptance:** a hairline fixture at 4:1 keeps its average density under `AreaAverage` and loses it under `Smooth`; all routes agree; settings round-trip; `FEATURES.md` row core `[x]` cli `[x]` (via settings) on shipping, gui `[ ]` until `pdfcer-gui` registers it.
+
 (1177th filing: `Pass 618.0` SHIPPED `d21e1ad5`, see *Shipped*; `618.1` remains, NOT done. Next free `Pass 619.0`, decision `196`, `R263`; next filing 1178th.)
 
 (1164th filing: `Pass 617.9` (`G225`) SHIPPED `966177ce`, see *Shipped*. Next free `Pass 618.0`, decision `195`, `R263`; next filing 1165th.)
@@ -34057,6 +34093,10 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### Pass 623.0 — rename the colour dependency `iccce-*` -> `icccer-*` (BACKLOG, not urgent; filed 1184th filing, 2026-10-22)
+
+Source: `D:\Dev\FeatureRequests\icccer_FeatureRequests\open\note_iccce_is_now_icccer_and_how_to_follow.md`. The colour sibling is now `icccer` (v0.4.0). Work: `crates/pdfcer-render/Cargo.toml` dependency URL -> `https://github.com/KenM76/icccer.git`, tag `v0.4.0` or its commit (currently rev `a4d9003b` on the `iccce` URL, which still resolves through GitHub's redirect); `use iccce_*` -> `use icccer_*` (about 73 `.rs` files); `crates/pdfcer-core/build.rs:526` derives a name from the git URL and must follow. Not urgent (the redirect works); must happen before any crates.io publication question (the operator's; see the "iccce crates.io pin" item below). Engineer-reported line count, not re-measured here.
 
 > **zune-jpeg: move `=0.5.16-rc3` to stable 0.5.16 in all three manifests, UNSCOPED, no Pass ID (filed 1181st, 2026-10-22).** Manifests: `pdfcer-image-codec`, `pdfcer-3d` (optional), `pdfcer-render` (dev). **Acceptance:** green gates plus the regression test `every_layout_the_writer_emits_reads_back_through_the_decoder`; regenerate lockfiles and `THIRD_PARTY_LICENSES.md`. **BLOCKER for any crates.io publish Pass:** a published pre-release pin fails to resolve beside a downstream `zune-jpeg ^0.5` (decision 197).
 

@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1184th filing) — `2024e6a4` Pass 616.9 slice 2 (byte budget); `0853a3c0` icccer channel; Pass 622.0 in progress; Pass 623.0 Backlog
+
+**Filed (engineer-reported, no shell here; git, push and backup state not verified from here):**
+- `2024e6a4` `Pass 616.9` slice 2: `EditSession::optimize_to_budget` + `pdfcer optimize --target-size SIZE`; 11-step JPEG-quality/ppi ladder, bisect of at most 6 trials, new exit code 15 `OVER_BUDGET`. Real photo (1,603,435 B): 500/200/100 KB targets all land at 96,648 B (step 1); 10 KB lands at 22,365 B (step 11), exit 15. Known coarseness: a 500 KB target lands at about 97 KB because step 0 is 1.4 MB and the first JPEG rung is q60; finer rungs or interpolation is a possible follow-up. 6 core + 3 CLI + 1 parse test; 13,797 tests passed across 44 binaries; gates green; `docs/core-api` 381 -> 382 verbs. Still open in `616.9`: visual-diff report; then `616.10`, then `616.7` forms/patterns.
+- `0853a3c0` tooling: `check-requests-scoped.py` follows the colour sibling's rename `iccce` -> `icccer` (their CHANGELOG [0.4.0], DL-084); old path is a junction the operator will delete. No `FEATURES.md` row; `docs/NEXT_SESSION.md` left alone (engineer-owned).
+- `Pass 622.0` filed IN PROGRESS: area-averaged image minification (`MinifyFilter::AreaAverage`, token `area_average`), from `request_image_minify_area_average.md` (O322). Default to be decided by measurement.
+- `Pass 623.0` filed to Backlog: `iccce-*` -> `icccer-*` dependency rename (not urgent; GitHub redirect works; before any crates.io question).
+
+**Premises checked against the files:** slice 1 filed in the 1181st, v0.91.0 in the 1182nd/1183rd, next free `Pass 622.0` / decision `198` / `R263`: all true.
+
+**FEATURES.md:** added Planned row "Reduce to a target file size" core `[x]` cli `[x]` gui `[ ]`; narrowed the old byte-budget row to the visual-diff report (all `[ ]`); added Planned row "Area-averaged image minification" all `[ ]`.
+
+**Hard-rule-11 sweep:** the `616.9` "byte budget still open" wording was in ROADMAP slice-1 entry (history, left as written; slice-2 entry supersedes) and the FEATURES row (rewritten). No other survivor found.
+
+**For next session:** next free `Pass 624.0`, decision `198`, `R263`; next filing 1185th; finish `622.0` and tick its row; pdfium parity run against zune-jpeg rc3 still owed; Ken's crates.io decision pending.
+
 ## 2026-10-22 (1183rd filing) — `v0.91.0` PUBLISHED (tag, GitHub release, OneDrive `pdfcer2`)
 
 **Filed (engineer-reported, no shell here):** tag `v0.91.0` (annotated object `1c901425e371c5e51d8ede76b86e8f631fb8023b` -> `4ea93ab171bd54e221e3b611b4dd508c9097f8f6`; earlier tags lightweight, harmless); `origin main` = `4ea93ab1`; bump `20c6191b`. CI: run 39820062337 on `4ea93ab1` success; run 39818460814 on `d226e83d` success, including the audits job red on 39798789939 and 39796816312. GitHub release "pdfcer v0.91.0", 8 assets (zip 27,280,798 B; ocrcer 3,789,155; ocrs 11,352,262; tesseract 4,483,685; four `.sha256`); hashes in the ROADMAP entry. Build `D:\builds\pdfcer-20261022-1306-4ea93ab` 53,874,193 B (`pdfcer.exe` 37,948,416 B); `--version` 0.91.0, iccce 0.3.0 rev `a4d9003b`.
