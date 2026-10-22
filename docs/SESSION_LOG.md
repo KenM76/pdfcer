@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1166th filing) — `Pass 616.6` COMPLETE: Reader check done, corpus measured
+
+**Shipped:** no code. Closure of `Pass 616.6` (last code `e05a62a8`). Acrobat Reader 25.1 render check done: 9 fixtures in `fixtures/synthetic/resubset/`, original vs `--resubset-fonts` cut, zero differing page pixels each (Reader, not Pro).
+
+**Decisions:** engineer declared the Pass complete; three residue items to Backlog with measurements: merge CFF copies (0 of 2,915 files), Type 1 `/FontFile` (12 programs, 6 files, 184 KB), short loca (unmeasured). No numbers minted (`195`, `R263`, `618.0` free).
+
+**Findings (engineer-reported):** across 2,915 files, 24 duplicated faces in 22 files (346,987 B), all TrueType. Embedded bytes: FontFile2 11.36 MB in 718 files; Type 1 about 1.5%.
+
+**Still in flight:** `Pass 616.7` (content-stream optimisation) starting; `616.8`-`616.10` queued.
+
+**For next session:** git/push/backup state not verified (no shell). Next filing 1167th.
+
 ## 2026-10-22 (1165th filing) — `Pass 616.6` slice 7 in `e05a62a8`: the PDF/A-1 list a cut owes
 
 **Shipped:** `e05a62a8` writes the `/CIDSet` or `/CharSet` ISO 19005-1 §6.3.5 requires when a re-subset tags a font in a PDF/A-1 document (full structurally-held glyph set; else `pdfa1-list-owed`). Also stops packing object/xref streams for PDF/A-1 (§6.1.4). Core + render + CLI. Detail in the ROADMAP *Shipped* entry.

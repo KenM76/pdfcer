@@ -40,11 +40,15 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   cannot write refuses as `pdfa1-list-owed`. Optimize no longer packs object
   streams in an A-1 document (19005-1 §6.1.4). read-fonts 0.39.2 charset
   lookups are unbounded; pdfcer-render bounds them (`charset_glyph`) -- any
-  new charset/encoding call must go through it. Remaining 616.6: merging
-  CFF copies, Type 1 `/FontFile`, short loca, and an Acrobat Reader
-  check of a cut/merged font. Then 616.7-616.10
-  (content streams, linearization, quality/byte-budget, compatibility
-  target).
+  new charset/encoding call must go through it. **616.6 COMPLETE**: the
+  Reader check passed (9 fixtures, zero page-pixel difference); CFF merge,
+  Type 1 and short loca are measured Backlog residue. **616.7 (content
+  streams) in progress**: design is a `content(...)` StreamAction patch
+  like `image(...)` (per-object via `--object`/rules) over
+  `reemit_canonical`; rounding is lossy, disclosed as maximum user-space
+  displacement through `cm`/`Tm`. Parity research from the acrobat
+  librarian lands in `Acrobat_Features/` -- name it here when it does.
+  Then 616.8-616.10 (linearization, quality/byte-budget, compatibility).
 - **Fixture generator:** `tools/gen-resubset-fixtures.py` needs fontTools
   for `symbolic.pdf`. Python string escapes typed through Bash lose their
   backslash (an octal escape ended up as a raw 0xC9 byte), so write edit
@@ -72,7 +76,7 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## Next
 
-1. Pass 616.6 re-subsetting (see State).
+1. Pass 616.7 content-stream optimisation (see State).
 2. Each loop tick: the three inbound channels (GitHub issues, both
    FeatureRequests folders).
 
