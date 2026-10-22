@@ -941,6 +941,7 @@ fn assemble(shape: Shape, verts: &[u32], out: &mut Vec<[u32; 3]>) {
 }
 
 #[cfg(test)]
+#[allow(clippy::unreachable)] // tests: an unreachable arm failing IS the report
 #[allow(
     clippy::unwrap_used,
     clippy::expect_used,

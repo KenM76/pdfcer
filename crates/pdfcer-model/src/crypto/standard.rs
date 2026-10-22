@@ -510,19 +510,20 @@ impl EncryptionConfig {
     /// default is `true`, §7.6.2 Table 21), so a `true` document stays
     /// minimal.
     ///
-    /// # Panics
+    /// `None` for a config with no [`Aes256Keys`] (anything parsed at
+    /// `/R` <= 4); [`BuiltEncryption::encrypt_dict`] is the infallible form
+    /// for a config the encryptor built.
     ///
-    /// Only for a config with no [`Aes256Keys`] — an internal invariant of the
-    /// `/V 5` writer, never reachable from a parsed `/R` ≤ 4 config because
-    /// this Pass builds only `/V 5` configs. The `expect` documents that.
+    /// [`BuiltEncryption::encrypt_dict`]: super::encrypt::BuiltEncryption::encrypt_dict
     #[must_use]
-    #[allow(clippy::expect_used)] // documented panic (C-FAILURE); see `# Panics`
-    pub fn to_encrypt_dict(&self) -> Object {
-        let keys = self
-            .aes256
+    pub fn to_encrypt_dict(&self) -> Option<Object> {
+        self.aes256
             .as_ref()
-            .expect("to_encrypt_dict is only called on a /V 5 config built by the encryptor");
+            .map(|keys| self.encrypt_dict_with(keys))
+    }
 
+    /// The `/V 5` dictionary for this config under `keys`.
+    pub(crate) fn encrypt_dict_with(&self, keys: &Aes256Keys) -> Object {
         let mut stdcf = Dict::new();
         stdcf.insert(Name(b"CFM".to_vec()), Object::Name(Name(b"AESV3".to_vec())));
         stdcf.insert(
@@ -1642,6 +1643,87 @@ mod tests {
             d.insert(Name(k.as_bytes().to_vec()), v);
         }
         d
+    }
+
+    /// Every `/Encrypt` entry is file bytes. Short or oversized `/O` `/U`
+    /// `/OE` `/UE` `/Perms`, out-of-range `/Length`, `/V` `/R` and `/P`, and
+    /// wrong-typed entries must parse to an error or authenticate to `None`;
+    /// none may reach an index panic.
+    #[test]
+    fn hostile_encrypt_dictionaries_never_panic() {
+        let strings = [0usize, 1, 31, 32, 33, 47, 48, 49, 4096];
+        let ints = [
+            i64::MIN,
+            -1,
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            39,
+            41,
+            127,
+            129,
+            256,
+            i64::MAX,
+        ];
+        let mut dicts = Vec::new();
+        for v in [1i64, 2, 4, 5] {
+            for r in [2i64, 3, 4, 5, 6] {
+                for len in ints {
+                    dicts.push(minimal_encrypt(vec![
+                        ("V", Object::Integer(v)),
+                        ("R", Object::Integer(r)),
+                        ("Length", Object::Integer(len)),
+                    ]));
+                }
+                for n in strings {
+                    for key in ["O", "U", "OE", "UE", "Perms"] {
+                        dicts.push(minimal_encrypt(vec![
+                            ("V", Object::Integer(v)),
+                            ("R", Object::Integer(r)),
+                            (key, Object::String(vec![7u8; n])),
+                        ]));
+                    }
+                }
+                for key in [
+                    "V",
+                    "R",
+                    "Length",
+                    "P",
+                    "O",
+                    "U",
+                    "CF",
+                    "StmF",
+                    "EncryptMetadata",
+                ] {
+                    dicts.push(minimal_encrypt(vec![
+                        ("V", Object::Integer(v)),
+                        ("R", Object::Integer(r)),
+                        (key, Object::Real(f64::NAN)),
+                    ]));
+                }
+            }
+        }
+        for v in ints {
+            dicts.push(minimal_encrypt(vec![
+                ("V", Object::Integer(v)),
+                ("R", Object::Integer(v)),
+            ]));
+        }
+        for d in &dicts {
+            if let Ok(c) = EncryptionConfig::parse(d, &nothing) {
+                for id0 in [&[][..], &[1u8; 16][..], &[2u8; 300][..]] {
+                    for pw in [None, Some(&b""[..]), Some(&[0xFFu8; 200][..])] {
+                        let _ = c.authenticate(pw, id0);
+                    }
+                }
+            }
+        }
     }
 
     /// `/V` 3 is the unpublished algorithm; `/V` 0 is undocumented. Both are

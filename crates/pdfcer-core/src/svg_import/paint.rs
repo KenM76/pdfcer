@@ -45,9 +45,10 @@ struct Geom {
     periods: Option<(i64, i64, bool)>,
 }
 
-fn gradient_kind(paint: &Paint) -> (&usvg::BaseGradient, Kind) {
+/// `None` for a paint that is not a gradient.
+fn gradient_kind(paint: &Paint) -> Option<(&usvg::BaseGradient, Kind)> {
     match paint {
-        Paint::LinearGradient(g) => (
+        Paint::LinearGradient(g) => Some((
             g,
             Kind::Linear {
                 x1: f64::from(g.x1()),
@@ -55,8 +56,8 @@ fn gradient_kind(paint: &Paint) -> (&usvg::BaseGradient, Kind) {
                 x2: f64::from(g.x2()),
                 y2: f64::from(g.y2()),
             },
-        ),
-        Paint::RadialGradient(g) => (
+        )),
+        Paint::RadialGradient(g) => Some((
             g,
             Kind::Radial {
                 cx: f64::from(g.cx()),
@@ -65,8 +66,8 @@ fn gradient_kind(paint: &Paint) -> (&usvg::BaseGradient, Kind) {
                 fx: f64::from(g.fx()),
                 fy: f64::from(g.fy()),
             },
-        ),
-        Paint::Color(_) | Paint::Pattern(_) => unreachable!("gradient() takes gradient paints"),
+        )),
+        Paint::Color(_) | Paint::Pattern(_) => None,
     }
 }
 
@@ -81,7 +82,9 @@ impl Emitter {
         bbox: usvg::Rect,
         canvas: &Canvas,
     ) -> Result<(ObjId, f32, Option<Object>), SvgImportError> {
-        let (base, kind) = gradient_kind(paint);
+        let (base, kind) = gradient_kind(paint).ok_or_else(|| {
+            SvgImportError::Svg("a non-gradient paint reached the gradient emitter".into())
+        })?;
         let geom = self.geometry(kind, base.transform(), base.spread_method(), bbox);
         let colours: Vec<(f64, Vec<f64>)> = base
             .stops()

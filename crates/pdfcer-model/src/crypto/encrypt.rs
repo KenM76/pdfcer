@@ -29,6 +29,7 @@ use super::r5::PreparedPassword;
 use super::r6::A13Reading;
 use super::rng::{RngError, array, fill};
 use super::standard::{Aes256Keys, Cipher, EncryptionConfig, PermissionBit};
+use crate::object::Object;
 
 /// The result of building an encryption dictionary: the parsed
 /// [`EncryptionConfig`] to serialise into the file, plus the 32-byte file
@@ -43,6 +44,17 @@ pub struct BuiltEncryption {
     /// the document on the way out; never written to the file (that is exactly
     /// what `/UE`/`/OE` wrap).
     pub file_key: [u8; KEY_LEN_256],
+    keys: Aes256Keys,
+}
+
+impl BuiltEncryption {
+    /// The `/Encrypt` dictionary to write: what
+    /// [`EncryptionConfig::to_encrypt_dict`] returns, without the `Option`,
+    /// because a built config always carries its AES-256 keys.
+    #[must_use]
+    pub fn encrypt_dict(&self) -> Object {
+        self.config.encrypt_dict_with(&self.keys)
+    }
 }
 
 /// Assemble the `/P` permission integer from a set of GRANTED bits, applying
@@ -153,6 +165,7 @@ pub fn build_aes256_r6(
 
     #[allow(clippy::cast_sign_loss)]
     let p_u32 = permissions as u32;
+    let keys = Aes256Keys { oe, ue, perms };
     let config = EncryptionConfig {
         version: 5,
         revision: 6,
@@ -163,10 +176,14 @@ pub fn build_aes256_r6(
         encrypt_metadata,
         stream_cipher: Cipher::Aes256,
         string_cipher: Cipher::Aes256,
-        aes256: Some(Aes256Keys { oe, ue, perms }),
+        aes256: Some(keys),
     };
 
-    Ok(BuiltEncryption { config, file_key })
+    Ok(BuiltEncryption {
+        config,
+        file_key,
+        keys,
+    })
 }
 
 /// Algorithm 10 — the 16-byte `/Perms`, AES-256-**ECB** under the file key.

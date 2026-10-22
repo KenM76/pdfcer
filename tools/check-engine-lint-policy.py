@@ -1,7 +1,8 @@
 """Fail if an engine crate's lib.rs drops the panic-free or no-unsafe lints.
 
 Engine crates parse untrusted input (ARCHITECTURE.md §10), so each denies
-`unwrap_used`, `expect_used`, `panic` and `indexing_slicing` crate-wide and
+`unwrap_used`, `expect_used`, `panic`, `indexing_slicing`, `unreachable`,
+`todo` and `unimplemented` crate-wide and
 forbids `unsafe_code`. Splitting a module out of pdfcer-core into a new crate
 starts a fresh lib.rs, and nothing else notices the policy did not follow it.
 
@@ -17,7 +18,15 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-DENY = ("unwrap_used", "expect_used", "panic", "indexing_slicing")
+DENY = (
+    "unwrap_used",
+    "expect_used",
+    "panic",
+    "indexing_slicing",
+    "unreachable",
+    "todo",
+    "unimplemented",
+)
 NO_DENY = {"pdfcer-cli", "pdfcer-fetch"}
 NO_FORBID = {"pdfcer-print", "pdfcer-cli"}
 WAIVED: dict[str, set[str]] = {}

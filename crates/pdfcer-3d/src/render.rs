@@ -527,6 +527,7 @@ fn at3(v: &[[f64; 3]; 3], i: usize) -> [f64; 3] {
 }
 
 #[cfg(test)]
+#[allow(clippy::unreachable)] // tests: an unreachable arm failing IS the report
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)] // Tests fail loudly by design.
 #[allow(clippy::single_range_in_vec_init)] // One face spanning every triangle is intended.
 mod tests {

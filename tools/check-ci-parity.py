@@ -140,6 +140,7 @@ LOCAL = {
     "tools/check-settings-consumed.py": "python tools/check-settings-consumed.py",
     "tools/check-suite-name-absent.py": "python tools/check-suite-name-absent.py",
     "tools/check-code-structure.py": "python tools/check-code-structure.py",
+    "tools/check-panic-allows.py": "python tools/check-panic-allows.py",
     "tools/check-control-bytes.py": "python tools/check-control-bytes.py",
     "tools/check-ocrcer-vendored.py": "python tools/check-ocrcer-vendored.py",
     "tools/check-tests-harnessed.py": "python tools/check-tests-harnessed.py",

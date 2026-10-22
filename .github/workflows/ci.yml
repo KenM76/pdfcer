@@ -536,6 +536,8 @@ jobs:
       # must be deleted from the baseline, so the list only shrinks.
       - name: check code structure (fn/file length, duplicated helpers)
         run: python tools/check-code-structure.py
+      - name: check engine crates deny panics and exemptions only shrink
+        run: python tools/check-panic-allows.py
 
       # A backslash escape routed through a Bash-tool heredoc loses one level
       # and lands in the file as the CONTROL BYTE it named: `\b` becomes a

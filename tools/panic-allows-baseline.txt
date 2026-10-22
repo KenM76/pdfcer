@@ -1,0 +1,32 @@
+crates/pdfcer-3d/src/testw.rs | expect_used,indexing_slicing,unwrap_used | struct W
+crates/pdfcer-core/src/dimension/fit.rs | indexing_slicing | fn refine_geometric
+crates/pdfcer-core/src/dimension/fit.rs | indexing_slicing | fn solve3
+crates/pdfcer-core/src/svg_import/prescan.rs | indexing_slicing | fn heights
+crates/pdfcer-fonts/src/textstring.rs | indexing_slicing | fn build_pdf_doc_encoding
+crates/pdfcer-model/src/crypto/bignum.rs | indexing_slicing | impl Uint
+crates/pdfcer-model/src/crypto/md5.rs | indexing_slicing | fn compress
+crates/pdfcer-model/src/crypto/md5.rs | indexing_slicing | fn finish
+crates/pdfcer-model/src/crypto/md5.rs | indexing_slicing | fn update
+crates/pdfcer-model/src/crypto/r5.rs | indexing_slicing | fn validate_perms
+crates/pdfcer-model/src/crypto/r5.rs | indexing_slicing | let
+crates/pdfcer-model/src/crypto/r5.rs | indexing_slicing | let
+crates/pdfcer-model/src/crypto/r5.rs | indexing_slicing | let salt
+crates/pdfcer-model/src/crypto/r5.rs | indexing_slicing | let salt
+crates/pdfcer-model/src/crypto/rc4.rs | indexing_slicing | fn rc4
+crates/pdfcer-model/src/crypto/rsa.rs | indexing_slicing | fn verify_pss
+crates/pdfcer-model/src/crypto/sha1.rs | indexing_slicing | fn compress
+crates/pdfcer-model/src/crypto/sha1.rs | indexing_slicing | fn sha1
+crates/pdfcer-model/src/crypto/standard.rs | indexing_slicing | fn file_key_from_user_password
+crates/pdfcer-model/src/crypto/standard.rs | indexing_slicing | fn object_key
+crates/pdfcer-model/src/crypto/standard.rs | indexing_slicing | fn owner_rc4_key
+crates/pdfcer-model/src/crypto/standard.rs | indexing_slicing | fn pad_password
+crates/pdfcer-model/src/crypto/standard.rs | indexing_slicing | fn parse
+crates/pdfcer-model/src/crypto/standard.rs | indexing_slicing | fn try_user_password
+crates/pdfcer-pkix/src/asn1.rs | indexing_slicing | fn integer_bytes
+crates/pdfcer-pkix/src/asn1.rs | indexing_slicing | fn read
+crates/pdfcer-pkix/src/asn1.rs | indexing_slicing | fn string_value
+crates/pdfcer-render/src/blend_nonsep.rs | indexing_slicing | fn set_sat
+crates/pdfcer-render/src/compositor.rs | indexing_slicing | fn composite_element_cmyk
+crates/pdfcer-render/src/compositor.rs | indexing_slicing | fn composite_element_knockout
+crates/pdfcer-render/src/compositor.rs | indexing_slicing | fn composite_element_knockout_cmyk
+crates/pdfcer-render/src/svg.rs | indexing_slicing | fn base64

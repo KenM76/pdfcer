@@ -520,7 +520,12 @@ pub fn validate_perms(
 }
 
 #[cfg(test)]
-#[allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::expect_used)]
+#[allow(
+    clippy::indexing_slicing,
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic
+)]
 mod tests {
     use super::*;
 
@@ -698,7 +703,7 @@ mod tests {
                 assert_eq!(perms_encrypt_metadata, Some(true));
                 assert!(dict_encrypt_metadata);
             }
-            other => unreachable!("expected a mismatch, got {other:?}"),
+            other => panic!("expected a mismatch, got {other:?}"),
         }
     }
 

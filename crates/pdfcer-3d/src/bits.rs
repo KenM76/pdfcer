@@ -279,6 +279,7 @@ impl<'a> BitReader<'a> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unreachable)] // tests: an unreachable arm failing IS the report
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;

@@ -2982,7 +2982,7 @@ mod tests {
             .find(Program::is_embedded)
             .expect("the encrypted document embeds the same font");
         let Program::Embedded(p) = program else {
-            unreachable!("filtered on is_embedded")
+            panic!("filtered on is_embedded")
         };
 
         assert!(

@@ -312,20 +312,19 @@ impl Pkcs12Signer {
         }
 
         // --- pick the key, pair the leaf, order the chain ---
-        let keys: Vec<&Bag> = bags
+        let keys: Vec<(&Bag, &KeyMaterial, &String)> = bags
             .iter()
-            .filter(|b| matches!(b.kind, BagKind::Key { .. }))
+            .filter_map(|b| match &b.kind {
+                BagKind::Key { material, scheme } => Some((b, material, scheme)),
+                BagKind::Cert(_) => None,
+            })
             .collect();
-        let key_bag = match keys.as_slice() {
+        let (key_bag, key, key_scheme) = match keys.as_slice() {
             [] => return Err(Pkcs12Error::NoPrivateKey),
-            [one] => *one,
+            [(bag, material, scheme)] => (*bag, *material, (*scheme).clone()),
             many => {
                 return Err(Pkcs12Error::MultipleKeys { count: many.len() });
             }
-        };
-        let (key, key_scheme) = match &key_bag.kind {
-            BagKind::Key { material, scheme } => (material, scheme.clone()),
-            BagKind::Cert(_) => unreachable!("filtered to key bags above"),
         };
         let certs: Vec<&Bag> = bags
             .iter()

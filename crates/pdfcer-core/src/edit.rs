@@ -12818,7 +12818,7 @@ impl EditSession {
         let params = crate::writer::EncryptParams {
             file_key: built.file_key,
             encrypt_dict,
-            encrypt_dict_value: built.config.to_encrypt_dict(),
+            encrypt_dict_value: built.encrypt_dict(),
             file_id: [id0.to_vec(), id1.to_vec()],
             encrypt_metadata: settings.encrypt_metadata,
         };
@@ -12893,7 +12893,7 @@ impl EditSession {
         let params = crate::writer::EncryptParams {
             file_key: built.file_key,
             encrypt_dict,
-            encrypt_dict_value: built.config.to_encrypt_dict(),
+            encrypt_dict_value: built.encrypt_dict(),
             file_id: [id0.to_vec(), id1.to_vec()],
             encrypt_metadata: settings.encrypt_metadata,
         };
@@ -39584,7 +39584,7 @@ impl EditSession {
         );
 
         let reshaped = MarkupSpec::Ink {
-            strokes: next,
+            strokes: next.clone(),
             color: *color,
             width: *width,
         };
@@ -39595,9 +39595,6 @@ impl EditSession {
                 dash,
             },
         );
-        let MarkupSpec::Ink { strokes: next, .. } = &reshaped else {
-            unreachable!("constructed as Ink two statements ago")
-        };
 
         let forecast = InkForecast {
             annot_id,
