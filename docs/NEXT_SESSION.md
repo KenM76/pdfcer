@@ -46,8 +46,11 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   streams) slice 1 shipped** (`9f9e7f4b`): lossless `content(...)`
   StreamAction (whitespace, shortest numbers, redundant operators) in
   `optimize::content`, its own tokenizer + re-read check, not
-  `reemit_canonical`. Open: lossy rounding disclosed as maximum
-  user-space displacement through `cm`/`Tm`; numbers inside arrays
+  `reemit_canonical`. **Slice 2 shipped** (`b7938d8c`): `round=T`, lossy,
+  path operators only, a page's first content stream only (`Unrounded`
+  otherwise), displacement through the CTM's linear part, reported as
+  `max_displacement`. Open: `Tm`/`Td` operands, streams other than a
+  page's first (needs the page-scale walk), numbers inside arrays
   (`TJ`, dash) copied verbatim. Parity reference:
   `Acrobat_Features/optimize__page_content_and_content_stream_rewriting.md`.
   Then 616.8-616.10 (linearization, quality/byte-budget, compatibility).

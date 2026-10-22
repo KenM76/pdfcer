@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1168th filing) — `Pass 616.7` slice 2 in `b7938d8c`: lossy path-coordinate rounding
+
+**Shipped:** `content(round=off|T)`, the first lossy content rewrite; rounds `m l c v y re` operands within T user-space units measured through the CTM (`q`/`Q`/`cm`); CLI `--content round=T`; report states count rounded and maximum displacement. 13,717 tests green; sabotage 4 of 4; fuzz `optimize_content` 46,514 runs clean.
+
+**Decisions:** only a page's first `/Contents` stream is rounded (`Unrounded::NotPageStart`); unknown `cm` or unmatched `Q` stops rounding. FEATURES: new Implemented row, Planned row narrowed. No numbers minted.
+
+**Still in flight:** `Pass 616.7` open: `Tm`/`Td` rounding, non-first streams, array numbers, page-scale walk.
+
+**For next session:** git/push/backup state not verified (no shell). Next filing 1169th.
+
 ## 2026-10-22 (1167th filing) — `Pass 616.7` slice 1 in `9f9e7f4b`: lossless content-stream compaction
 
 **Shipped:** `content(...)` stream action (whitespace, shortest numbers, redundant operators) on page content, forms and tiling patterns; CLI `optimize --content`. 13,700 tests green; fuzz `optimize_content` 60,312 runs clean; render pixel-equality test.
