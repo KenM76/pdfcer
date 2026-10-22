@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### Pass 616.7 (final slice, `281ac8c7`), 2026-10-22 — content rounding reaches Form XObjects and tiling patterns; `Pass 616.7` COMPLETE (1190th filing)
+
+Code commit `281ac8c7` "feat(optimize): round inside forms and tiling patterns at their drawn scale (Pass 616.7)" (on `main`, not yet pushed at filing). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Core + CLI; no new flag, `--content round=T` reaches more streams.
+
+**Verdict:** start scale per stream: a form = its `/Matrix` under the CTM at each `Do` (ISO 32000-2 §8.10.1), nested to any depth; a tiling pattern (PatternType 1) = its `/Matrix` under the BASE of the stream whose resources name it, not that stream's CTM (§8.7.3.1). The largest scale over every draw wins. New `optimize/content/round/reach.rs` (`Base`, `invoked()`); `edit/optimize_starts.rs` now owns `content_starts`, moved out of `edit/optimize.rs` and extended.
+
+**Stays `Unrounded::UnknownStart`** when: anything other than a walked `/XObject` or `/Pattern` resource dictionary references it (annotation appearance, soft-mask group, Type 3 font resources; enforced by comparing per-object live reference counts with the entries the walk read); drawn after an unknown matrix; `/Matrix` not six numbers; named beside a content stream that did not decode; or the walk exceeds depth 24 / 4096 visits. A form listed in resources but never drawn also stays `UnknownStart` (conservative).
+
+**Docs:** `UnknownStart` doc and Display text, `--content` CLI help, `docs/core-api/03-capabilities.md` content-round paragraph; `docs/core-api/index.md` clause count 157 to 159.
+
+**Tests:** 10 new in `optimize/content/round_reach_tests.rs`; 6 sabotages each caught (reference accounting, undecodable-stream flag, cycle dedup, form matrix, CTM at `Do`, pattern parent space). CLI optimize 58 pass. `run-gates.sh` 46/49 first run; the 3 failures (a clippy lint in the new test, an undocumented private fn, the core-api clause count) were fixed and each re-run green. Code-structure and fmt clean. No manifest change, so no `cargo tree` change.
+
+**FEATURES:** "Round content-stream path coordinates..." row now covers forms and patterns, core `[x]` cli `[x]` gui `[ ]`; the "Content-stream optimisation, remainder" row narrowed to annotation appearance, soft-mask and Type 3 streams (all `[ ]`). **Backlog minted:** `Pass 628.0` for those routes. Ledger unchanged (decision `198`, `R263`).
+
 ### Pass 616.10 (`fe2c7a6b`), 2026-10-22 — compatibility target and features-used report, `OptimizeSettings::compatibility`, `features_used` and `--compat` (1189th filing)
 
 Code commit `fe2c7a6b` "feat(optimize): compatibility target and features-used report, --compat (Pass 616.10)" (on `main`; push not verified from here). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. **`Pass 616.10` closes the one-shot "Reduce File Size by target version" item; GUI not built.**
@@ -25347,9 +25361,7 @@ Re-subset embedded fonts to the glyphs actually used; merge duplicate subsets; i
 
 **Slice 1 SHIPPED (1155th filing): unembed inside an optimize run. Slice 2 SHIPPED (1156th filing): TrueType `/FontFile2` re-subset by glyph zeroing, `--resubset-fonts`. Slice 3 SHIPPED (1158th filing): copies of one face merged, `--no-merge-font-subsets`. Slice 4 SHIPPED (1160th filing): CFF (`/FontFile3`) zeroing, bare CFF and OpenType-CFF. Slice 5 SHIPPED (1161st filing, CORRECTED 1162nd: lists left byte-identical). Slice 6 SHIPPED (1163rd filing): re-subset in PDF/A documents. Slice 7 SHIPPED (1165th filing): the PDF/A-1 list a cut owes is written. **[update 1166th filing: the Pass is COMPLETE. The Acrobat Reader render check is done (nine fixtures, zero differing page pixels). Merging CFF copies, Type 1 `/FontFile` re-subset and short loca are three measured Backlog items, not part of this Pass.]** (`symbolic` / `shared-program` fixture tests closed in `0982e864`, 1159th filing.)**
 
-### `Pass 616.7` — Content-stream optimisation — IN PROGRESS: slice 1 SHIPPED `9f9e7f4b` (1167th filing); slice 2 (path-coordinate rounding) SHIPPED `b7938d8c` (1168th filing); slice 3 (array/dict operands) SHIPPED `23f92d9e` (1169th filing); slice 4 (`Tm`/`Td` line starts) SHIPPED `041b358a` (1170th filing); slice 5 (every page content stream, at its entry scale) SHIPPED `2c4099e4` (1171st filing); remainder open
-
-Number precision rounding with a tolerance, **disclosed with its maximum displacement**; whitespace minimisation; redundant operator removal. Slice 1 (lossless: whitespace, shortest numbers, redundant operators) is shipped, see top of *Shipped*. Slice 2 (lossy `round=T` on path operators, disclosed maximum displacement through the CTM) is shipped. **Open:** rounding inside forms and patterns (their start scale is not computed). (Number shortening inside arrays and dictionaries shipped in slice 3; `Tm`/`Td` line-start rounding shipped in slice 4; rounding of every page content stream at its entry scale shipped in slice 5; `TD` is excluded by design.) Design deviation: slice 1 uses its own tokenizer/emitter in `optimize::content`, not the `reemit_canonical` hook named here. Acrobat parity reference: `D:\Dev\Rag-Specialized\Acrobat_Features\optimize__page_content_and_content_stream_rewriting.md`.
+### `Pass 616.7` — Content-stream optimisation — MOVED TO *Shipped* (`281ac8c7` closes it; slices `9f9e7f4b`, `b7938d8c`, `23f92d9e`, `041b358a`, `2c4099e4`; 1190th filing). Residue is Backlog `Pass 628.0`.
 
 ### `Pass 616.8` — Linearization writer — MOVED TO *Shipped* (1172nd filing, `daa36707`)
 
@@ -34129,6 +34141,10 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### Pass 628.0 — content-stream rounding for streams no resource walk reaches (BACKLOG; filed 1190th filing, 2026-10-22)
+
+Residue of `616.7`: annotation appearance streams (`/AP`), soft-mask groups and Type 3 font procedures stay `Unrounded::UnknownStart` because only `/XObject` and `/Pattern` resource routes are walked. **Acceptance:** compute a start scale for each extra route (an appearance stream is mapped into its `/Rect` by §12.5.5, so the scale is the matrix-and-rect fit, not the CTM), or record why one cannot be proven. Measure how many bytes these streams hold in the corpus before building; may be negligible. Engineer-reported.
 
 ### Pass 626.0 — lower the declared PDF version when a complete feature scan allows it (BACKLOG; filed 1189th filing, 2026-10-22)
 

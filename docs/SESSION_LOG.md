@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1190th filing) — `281ac8c7` Pass 616.7 SHIPPED (rounding inside forms and tiling patterns); the 616 arc closes; Backlog `628.0` minted
+
+**Filed (engineer-reported, no shell here; git, push and backup state not verified from here; engineer says `281ac8c7` is not yet pushed):**
+- `281ac8c7` `Pass 616.7` final slice: `content(round=T)` rounds Form XObjects (`/Matrix` under the CTM at each `Do`, §8.10.1) and tiling patterns (`/Matrix` under the referencing stream's BASE, §8.7.3.1), largest drawn scale wins. 10 new core tests, 6 of 6 sabotages caught, CLI optimize 58 pass, `run-gates.sh` green after fixing 3 first-run failures.
+- FEATURES: rounding row extended to forms and patterns (core `[x]` cli `[x]` gui `[ ]`); remainder row narrowed to annotation appearance, soft-mask and Type 3 streams.
+
+**Decision (in the Shipped entry, none minted):** a stream reached by any route other than a walked `/XObject` or `/Pattern` resource dictionary is never rounded (reference-count check); an undrawn listed form is also left, conservatively.
+
+**Backlog minted:** `Pass 628.0` (rounding for streams no resource walk reaches; measure bytes first). Ledger unchanged.
+
+**For next session:** next free `Pass 629.0`; next filing 1191st. Hard-rule-11 survivors left alone (history, correct as written): "forms and patterns ... open" in the 1167th-1171st and 1188th/1189th entries and Shipped entries; ROADMAP line ~149/187/346 say `616.7` stays open. Owed to engineer: `docs/NEXT_SESSION.md` may still say forms/patterns open; doc comments or CLI strings saying "forms and patterns report why not rounded" in `crates/` not swept (no shell). Run `check-register-entry-size.py` and `check-ledger-numbers.py` (not run from here).
+
 ## 2026-10-22 (1189th filing) — `fe2c7a6b` Pass 616.10 SHIPPED (compatibility target, features-used report); Backlog `626.0`, `627.0` minted
 
 **Filed (engineer-reported, no shell here; git, push and backup state not verified from here):**
