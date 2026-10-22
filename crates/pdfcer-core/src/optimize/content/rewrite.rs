@@ -3,7 +3,7 @@
 
 use super::{ContentSkip, Numbers, ResolvedContent, Whitespace, check, round};
 use crate::content::{ContentStream, ContentToken, ContentTokenKind};
-use crate::lexer::is_regular;
+use crate::lexer::{Lexer, TokenKind, is_regular};
 use crate::object::Object;
 use crate::optimize::SkipReason;
 
@@ -250,13 +250,13 @@ fn emit(
         let source = tok.span.slice(buf).unwrap_or_default();
         let round = rounded.get(i).and_then(Option::as_deref);
         let short = match &tok.kind {
-            ContentTokenKind::Operand(o) if round.is_none() && s.numbers == Numbers::Shortest => {
-                shortest(o, source)
-            }
+            ContentTokenKind::Operand(o) if round.is_none() => respell(o, source, s),
             _ => None,
         };
-        let text = round.or(short.as_deref()).unwrap_or(source);
-        shortened += u64::from(short.is_some());
+        let text = round
+            .or(short.as_ref().map(|(t, _)| t.as_slice()))
+            .unwrap_or(source);
+        shortened += short.as_ref().map_or(0, |(_, n)| *n);
         written += u64::from(round.is_some());
         if !minimal {
             out.extend_from_slice(gap);
@@ -282,6 +282,57 @@ fn emit(
         out.push(b'\n');
     }
     (out, shortened, written)
+}
+
+/// A shorter spelling of operand `o` under `s`, and how many numbers in it
+/// got shorter.
+fn respell(o: &Object, source: &[u8], s: ResolvedContent) -> Option<(Vec<u8>, u64)> {
+    match o {
+        Object::Array(_) | Object::Dict(_) => composite(source, s),
+        _ if s.numbers == Numbers::Shortest => shortest(o, source).map(|t| (t, 1)),
+        _ => None,
+    }
+}
+
+/// An array or dictionary re-spelled token by token: numbers shortest,
+/// separators minimal, anything else byte for byte. `None` when not shorter
+/// or not lexable.
+fn composite(source: &[u8], s: ResolvedContent) -> Option<(Vec<u8>, u64)> {
+    let minimal = s.whitespace == Whitespace::Minimal;
+    let mut lexer = Lexer::new(source);
+    let mut out = Vec::with_capacity(source.len());
+    let mut count = 0;
+    let mut prev_end = 0;
+    while let Some(tok) = lexer.next_token().ok()? {
+        let lexeme = tok.lexeme(source)?;
+        let number = match tok.kind {
+            TokenKind::Integer(i) => Some(Object::Integer(i)),
+            TokenKind::Real(r) => Some(Object::Real(r)),
+            _ => None,
+        };
+        let short = number
+            .filter(|_| s.numbers == Numbers::Shortest)
+            .and_then(|n| shortest(&n, lexeme));
+        count += u64::from(short.is_some());
+        let text = short.as_deref().unwrap_or(lexeme);
+        if minimal {
+            let needs = out
+                .last()
+                .zip(text.first())
+                .is_some_and(|(&a, &b)| is_regular(a) && is_regular(b));
+            if needs {
+                out.push(b' ');
+            }
+        } else {
+            out.extend_from_slice(source.get(prev_end..tok.span.start)?);
+        }
+        prev_end = tok.span.end();
+        out.extend_from_slice(text);
+    }
+    if !minimal {
+        out.extend_from_slice(source.get(prev_end..)?);
+    }
+    (out.len() < source.len()).then_some((out, count))
 }
 
 /// The shortest spelling of a number operand, when shorter than `source`

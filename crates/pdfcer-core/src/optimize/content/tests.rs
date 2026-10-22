@@ -106,7 +106,22 @@ fn minimal_whitespace_keeps_only_the_separators_a_reader_needs() {
     assert_eq!(out, "\n.5 .5 m\n100 7 l\nS\n");
     assert_eq!((removed, shortened), (0, 4));
     let (out, ..) = squeeze(b"/F1 12 Tf ( a  b ) Tj [ 1 2 ] 0 d <</MCID 0>> BDC EMC");
-    assert_eq!(out, "/F1 12 Tf( a  b )Tj[ 1 2 ]0 d<</MCID 0>>BDC\nEMC");
+    assert_eq!(out, "/F1 12 Tf( a  b )Tj[1 2]0 d<</MCID 0>>BDC\nEMC");
+}
+
+#[test]
+fn numbers_and_separators_inside_arrays_and_dictionaries_are_respelled() {
+    let src =
+        b"[ (a  b) -120.0 <41> 0.50 [ 3.0 ] ] TJ [ 2.000 1.0 ] 0.0 d /P << /MCID 007 /S /X >> BDC";
+    let (out, _, shortened) = squeeze(src);
+    assert_eq!(out, "[(a  b)-120<41>.5[3]]TJ[2 1]0 d/P<</MCID 7/S/X>>BDC");
+    assert_eq!(shortened, 7);
+    let keep = settings(Whitespace::Keep, Numbers::Shortest, true);
+    let (out, _, shortened) = squeeze_with(b"[ 2.000  1.0 ] 0 d", keep);
+    assert_eq!(out, "[ 2  1 ] 0 d");
+    assert_eq!(shortened, 2);
+    let spaces = settings(Whitespace::Minimal, Numbers::Keep, true);
+    assert_eq!(squeeze_with(b"[ 2.0 1.0 ] 0 d", spaces).0, "[2.0 1.0]0 d");
 }
 
 #[test]

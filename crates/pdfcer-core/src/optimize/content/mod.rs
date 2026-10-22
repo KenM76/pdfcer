@@ -20,8 +20,9 @@
 //! content stream, the one stream whose starting coordinate system is
 //! default user space; others report [`Unrounded`].
 //!
-//! Strings, arrays, dictionaries, names, operators and inline images are
-//! copied byte for byte. A rewrite is re-read and compared with the
+//! Inside an array or dictionary operand (`TJ`, `d`, a `BDC` property list)
+//! the numbers and separators follow the same two settings. Strings, names,
+//! operators and inline images are copied byte for byte. A rewrite is re-read and compared with the
 //! original, operation by operation (a rounded number with its rounded
 //! value), before it is kept ([`ContentSkip::Mismatch`] otherwise). The leading and trailing
 //! white-space of a stream is kept as one byte, because a page's `/Contents`
