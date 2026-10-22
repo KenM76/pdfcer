@@ -96,6 +96,16 @@ pub enum ImageSkip {
         /// The version the document declares.
         document: crate::PdfVersion,
     },
+    /// The encoder asked for needs a version above
+    /// [`crate::optimize::OptimizeSettings::compatibility`].
+    AboveCompatibility {
+        /// The encoder asked for.
+        encode: ImageEncode,
+        /// The version its filter needs.
+        needs: crate::PdfVersion,
+        /// The compatibility target.
+        target: crate::PdfVersion,
+    },
     /// `encode=auto` found no candidate smaller than the stored stream by
     /// `min_saving_pct` percent, so the image is kept.
     AutoNotSmaller {
@@ -169,22 +179,10 @@ impl fmt::Display for ImageSkip {
             | Self::LzwEncode(_)
             | Self::BrotliUnderPdfa
             | Self::BrotliEncode(_) => self.fmt_encoder(f),
-            Self::NotBilevel(e) => {
-                write!(f, "not bilevel: {e} codes 1-bit, 1-component images only")
-            }
-            Self::NotBilevelOverride(e) => write!(
-                f,
-                "{e} was asked for this object, which is not 1-bit, 1-component; add convert=bilevel"
-            ),
-            Self::VersionTooLow {
-                encode,
-                needs,
-                document,
-            } => write!(
-                f,
-                "{encode} needs PDF {}.{}; the document declares {}.{} and version-raise=refuse",
-                needs.major, needs.minor, document.major, document.minor
-            ),
+            Self::NotBilevel(_)
+            | Self::NotBilevelOverride(_)
+            | Self::VersionTooLow { .. }
+            | Self::AboveCompatibility { .. } => self.fmt_unfit(f),
             Self::AutoNotSmaller {
                 stored,
                 min_saving_pct,
@@ -210,6 +208,38 @@ impl fmt::Display for ImageSkip {
 }
 
 impl ImageSkip {
+    /// The sentence for an encoder this image or version cannot take.
+    fn fmt_unfit(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NotBilevel(e) => {
+                write!(f, "not bilevel: {e} codes 1-bit, 1-component images only")
+            }
+            Self::NotBilevelOverride(e) => write!(
+                f,
+                "{e} was asked for this object, which is not 1-bit, 1-component; add convert=bilevel"
+            ),
+            Self::VersionTooLow {
+                encode,
+                needs,
+                document,
+            } => write!(
+                f,
+                "{encode} needs PDF {}.{}; the document declares {}.{} and version-raise=refuse",
+                needs.major, needs.minor, document.major, document.minor
+            ),
+            Self::AboveCompatibility {
+                encode,
+                needs,
+                target,
+            } => write!(
+                f,
+                "{encode} needs PDF {}.{}, above the compatibility target {}.{}",
+                needs.major, needs.minor, target.major, target.minor
+            ),
+            _ => Ok(()),
+        }
+    }
+
     /// The sentence for an encoder's refusal or failure.
     fn fmt_encoder(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

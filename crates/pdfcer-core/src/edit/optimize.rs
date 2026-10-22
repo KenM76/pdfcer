@@ -74,6 +74,7 @@ impl EditSession {
             resubset_request: None,
             writes: Vec::new(),
             smooth_tolerance: settings.smooth_tolerance,
+            compatibility: settings.compatibility,
         };
         self.plan_streams(&mut plan, settings, &ids, &rows);
         if plan.changes.iter().any(|c| c.lossy) {
@@ -84,6 +85,8 @@ impl EditSession {
         }
         if settings.structure.object_streams && claims_pdfa1(&self.view()) {
             notes.push(PDFA1_PACK_NOTE.to_owned());
+        } else if settings.structure.object_streams && !packs_under(settings.compatibility) {
+            notes.push(COMPAT_PACK_NOTE.to_owned());
         }
         plan.cleanup = self.plan_cleanup(&settings.cleanup, &mut notes);
         plan.discard = self.plan_discard(settings.discard, &mut notes);
@@ -169,6 +172,7 @@ impl EditSession {
                 lockstep: None,
                 pdfa,
                 start: starts.get(&id).copied().flatten(),
+                compatibility: settings.compatibility,
             };
             plan_stream(plan, settings, (id, stream, raw), row, &ctx);
         }
@@ -387,7 +391,9 @@ impl EditSession {
     ) -> Result<(OptimizedFile, Option<RebuildReport>), WriteError> {
         let (bytes, _) = self.to_full_bytes(options)?;
         let structure = &RebuildOptions {
-            object_streams: structure.object_streams && !claims_pdfa1(&self.view()),
+            object_streams: structure.object_streams
+                && !claims_pdfa1(&self.view())
+                && packs_under(plan.compatibility),
             ..*structure
         };
         let (bytes, report) = if structure.is_none() {
@@ -416,13 +422,39 @@ impl EditSession {
 const PDFA1_PACK_NOTE: &str =
     "object streams not packed: PDF/A-1 forbids them and cross-reference streams";
 
+/// The plan note for object streams left unpacked under a target below 1.5.
+const COMPAT_PACK_NOTE: &str =
+    "object streams not packed: they need PDF 1.5, above the compatibility target";
+
+/// Whether object streams (ISO 32000-2 §7.5.7, PDF 1.5) fit under `target`.
+fn packs_under(target: Option<crate::PdfVersion>) -> bool {
+    target.is_none_or(|t| t >= crate::optimize::VersionFeature::ObjectStreams.introduced())
+}
+
 /// Why `action` is never applied to the stream under `dict`, if it is not.
-fn refusal(dict: &Dict, action: StreamAction, pdfa: bool) -> Option<crate::optimize::SkipReason> {
-    use crate::optimize::SkipReason;
+fn refusal(
+    dict: &Dict,
+    action: StreamAction,
+    ctx: &image::pipeline::Context<'_, '_>,
+) -> Option<crate::optimize::SkipReason> {
+    use crate::optimize::{SkipReason, VersionFeature};
     if let Some(what) = streams::protected(dict) {
         return Some(SkipReason::Protected(what));
     }
-    (pdfa && matches!(action, StreamAction::Brotli { .. })).then_some(SkipReason::BrotliUnderPdfa)
+    if !matches!(action, StreamAction::Brotli { .. }) {
+        return None;
+    }
+    if ctx.pdfa {
+        return Some(SkipReason::BrotliUnderPdfa);
+    }
+    let needs = VersionFeature::Brotli.introduced();
+    ctx.compatibility
+        .filter(|t| *t < needs)
+        .map(|target| SkipReason::AboveCompatibility {
+            what: "Brotli",
+            needs,
+            target,
+        })
 }
 
 /// Decide and perform one stream's action, recording it in `plan`.
@@ -467,7 +499,7 @@ pub(super) fn plan_stream(
         return;
     }
     let skip = |reason| Skipped { id, action, reason };
-    if let Some(reason) = refusal(&stream.dict, action, ctx.pdfa) {
+    if let Some(reason) = refusal(&stream.dict, action, ctx) {
         plan.skipped.push(skip(reason));
         return;
     }
@@ -555,7 +587,7 @@ fn plan_content(
 ) {
     rc.start = ctx.start;
     let action = StreamAction::Content(rc.to_patch());
-    let result = match refusal(&stream.dict, rc.encode, ctx.pdfa) {
+    let result = match refusal(&stream.dict, rc.encode, ctx) {
         Some(reason) => Err(reason),
         None => content::apply(rc, &stream.dict, raw),
     };

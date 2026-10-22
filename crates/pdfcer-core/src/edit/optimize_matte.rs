@@ -108,6 +108,7 @@ impl EditSession {
             lockstep,
             pdfa,
             start: None,
+            compatibility: settings.compatibility,
         };
         plan_stream(plan, settings, (mask, stream, raw), row, &ctx);
         if lockstep.is_none() {

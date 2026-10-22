@@ -200,6 +200,8 @@ pub(crate) struct OptimizeArgs {
     pub(crate) target_size: Option<u64>,
     #[command(flatten)]
     pub(crate) visual: crate::optimize_visual_diff::VisualDiffArgs,
+    #[command(flatten)]
+    pub(crate) compat: crate::optimize_compat::CompatArgs,
     /// Plan and measure without writing anything. The report shows the size
     /// the output would have.
     #[arg(long)]
@@ -267,6 +269,7 @@ pub(crate) fn cmd_optimize(args: &OptimizeArgs) -> u8 {
         &settings,
         args.target_size,
         &args.visual,
+        &args.compat,
         args.json,
     )
 }
@@ -409,6 +412,8 @@ struct Outcome {
     budget: Option<BudgetSummary>,
     /// The `--visual-diff` comparison, when one ran.
     visual: Option<crate::optimize_visual_diff::VisualSummary>,
+    /// The `--compat` feature scan, when a target was set.
+    compat: Option<crate::optimize_compat::CompatSummary>,
 }
 
 fn run(
@@ -417,6 +422,7 @@ fn run(
     settings: &OptimizeSettings,
     target: Option<u64>,
     visual: &crate::optimize_visual_diff::VisualDiffArgs,
+    compat: &crate::optimize_compat::CompatArgs,
     json: bool,
 ) -> u8 {
     let doc = match open_document(input) {
@@ -427,10 +433,12 @@ fn run(
         }
     };
     let before = space_audit::audit(&doc);
+    let mut settings = settings.clone();
+    settings.compatibility = compat.resolve(doc.version());
     let session = EditSession::new(doc);
     let outcome = match target {
-        Some(max) => fit_budget(session, settings, max),
-        None => optimize(session, settings),
+        Some(max) => fit_budget(session, &settings, max),
+        None => optimize(session, &settings),
     };
     let mut outcome = match outcome {
         Ok(o) => o,
@@ -445,10 +453,15 @@ fn run(
             outcome.bytes.as_deref(),
         ));
     }
-    let after = outcome
-        .bytes
-        .as_ref()
-        .and_then(|b| open_document_bytes(b.clone()).ok())
+    let after_doc = match &outcome.bytes {
+        Some(b) => open_document_bytes(b.clone()).ok(),
+        None => open_document(input).ok(),
+    };
+    if let (Some(t), Some(d)) = (settings.compatibility, &after_doc) {
+        outcome.compat = Some(crate::optimize_compat::summarize(t, d));
+    }
+    let after = after_doc
+        .filter(|_| outcome.bytes.is_some())
         .map(|d| space_audit::audit(&d));
     let diff = after.as_ref().map(|a| space_audit::diff(&before, a));
     print!(
@@ -530,6 +543,7 @@ fn outcome(
         structure,
         budget,
         visual: None,
+        compat: None,
     }
 }
 
@@ -615,6 +629,9 @@ fn report_text(
     if let Some(v) = &o.visual {
         out.push_str(&crate::optimize_visual_diff::visual_text(v));
     }
+    if let Some(c) = &o.compat {
+        out.push_str(&crate::optimize_compat::compat_text(c));
+    }
     if let Some(d) = diff {
         out.push('\n');
         out.push_str(&diff_text(d));
@@ -667,7 +684,7 @@ fn report_json(
         _ => "null".to_owned(),
     };
     format!(
-        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"version_raise\":{},\"cleanup\":{},\"discard\":{},\"discard_objects\":{},\"fonts\":{},\"resubset\":{},\"structure\":{},\"budget\":{},\"visual_diff\":{},\"diff\":{}}}\n",
+        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"version_raise\":{},\"cleanup\":{},\"discard\":{},\"discard_objects\":{},\"fonts\":{},\"resubset\":{},\"structure\":{},\"budget\":{},\"visual_diff\":{},\"compatibility\":{},\"diff\":{}}}\n",
         o.original,
         o.rewritten,
         o.smaller,
@@ -693,6 +710,9 @@ fn report_json(
             || "null".to_owned(),
             crate::optimize_visual_diff::visual_json
         ),
+        o.compat
+            .as_ref()
+            .map_or_else(|| "null".to_owned(), crate::optimize_compat::compat_json),
         diff.map_or_else(|| "null".to_owned(), |d| diff_json(d).trim_end().to_owned())
     )
 }

@@ -184,6 +184,17 @@ pub(crate) struct Context<'a, 'v> {
     pub(crate) pdfa: bool,
     /// For page content, the scale it starts at on every page drawing it.
     pub(crate) start: Option<crate::optimize::content::Scale>,
+    /// [`crate::optimize::OptimizeSettings::compatibility`].
+    pub(crate) compatibility: Option<crate::PdfVersion>,
+}
+
+impl Context<'_, '_> {
+    /// The highest version a change may use without raising: the
+    /// document's, capped by the compatibility target.
+    fn allowed_version(&self) -> crate::PdfVersion {
+        let doc = self.view.version();
+        self.compatibility.map_or(doc, |t| t.min(doc))
+    }
 }
 
 /// A `/Matte` soft mask resampled to its parent's new size.
@@ -359,8 +370,8 @@ pub(crate) fn decide(
     }
     let (components, bpc) = sample_format(dict, space, source, jpeg && convert.is_none())?;
     bilevel_only(settings, to, (components, bpc))?;
-    let raises_version = filter_version(settings, ctx.view.version())?;
-    let (target, quality) = target(settings, (source, raw), jpeg, ctx.view.version());
+    let raises_version = filter_version(settings, ctx.view.version(), ctx.compatibility)?;
+    let (target, quality) = target(settings, (source, raw), jpeg, ctx.allowed_version());
     let (w, h) = (space.width, space.height);
     let job = Job {
         src: (w, h),
@@ -430,6 +441,7 @@ fn bilevel_only(
 fn filter_version(
     settings: &ResolvedImage,
     document: crate::PdfVersion,
+    compatibility: Option<crate::PdfVersion>,
 ) -> Result<Option<crate::PdfVersion>, SkipReason> {
     let encode = settings.encode.value;
     let needs = match encode {
@@ -437,6 +449,13 @@ fn filter_version(
         ImageEncode::Brotli { .. } => BROTLI_VERSION,
         _ => return Ok(None),
     };
+    if let Some(target) = compatibility.filter(|t| *t < needs) {
+        return Err(unsupported(ImageSkip::AboveCompatibility {
+            encode,
+            needs,
+            target,
+        }));
+    }
     if document >= needs {
         Ok(None)
     } else if settings.version_raise.value == VersionRaise::Refuse {

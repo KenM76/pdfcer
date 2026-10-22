@@ -1471,3 +1471,46 @@ fn visual_diff_reports_a_lossless_run_unchanged_and_a_lossy_one_changed() {
     assert!(j.contains("\"pictures\":1,\"failure\":null}"), "{j}");
     assert!(pictures.join("page-0001.png").is_file());
 }
+
+#[test]
+fn a_compat_target_holds_the_output_and_lists_what_is_above_it() {
+    let d = dir("compat");
+    let input = write_pdf_page(
+        &d,
+        "/OCProperties << /OCGs [] /D << >> >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents [4 0 R 5 0 R] \
+         /Resources << /ExtGState << /GS0 << /ca 0.5 >> >> >> >>",
+        &[],
+    );
+    let i = input.to_str().unwrap();
+    let o = run(&[i, "--dry-run", "--compat", "1.4"]);
+    assert_eq!(
+        o.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    let report = text(&o);
+    for want in [
+        "compatibility: target PDF 1.4",
+        "uses transparency (PDF 1.4): 1 object(s), e.g. object 3 0\n",
+        "uses layers (PDF 1.5): 1 object(s), above the target",
+        "1 feature(s) above PDF 1.4 kept, not removed; the declared version 1.7 is not lowered",
+        "note: object streams not packed",
+    ] {
+        assert!(report.contains(want), "{want:?} in\n{report}");
+    }
+    assert!(!report.contains("uses object streams"), "{report}");
+
+    let j = text(&run(&[i, "--dry-run", "--compat", "retain", "--json"]));
+    assert!(
+        j.contains("\"compatibility\":{\"target\":\"1.7\",\"declared\":\"1.7\",")
+            && j.contains("\"above\":0}"),
+        "{j}"
+    );
+    assert!(text(&run(&[i, "--dry-run", "--json"])).contains("\"compatibility\":null"));
+    assert_eq!(
+        run(&[i, "--dry-run", "--compat", "1.9"]).status.code(),
+        Some(2)
+    );
+}

@@ -697,6 +697,7 @@ mod space_cmd;
 use space_cmd::*;
 mod optimize_budget_cmd;
 mod optimize_cmd;
+mod optimize_compat;
 mod optimize_fonts;
 mod optimize_image_table;
 mod optimize_removals_report;

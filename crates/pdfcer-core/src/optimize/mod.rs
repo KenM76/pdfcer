@@ -36,6 +36,7 @@ pub(crate) mod actions;
 pub(crate) mod annots;
 pub mod budget;
 pub mod cleanup;
+mod compat;
 pub(crate) mod content;
 pub mod discard;
 pub(crate) mod fragments;
@@ -59,6 +60,7 @@ use std::fmt;
 
 pub use crate::space_audit::ImageClass;
 pub use cleanup::{BrokenBookmark, BrokenLink, BrokenTarget, CleanupOptions, CleanupPlan};
+pub use compat::{FeatureUse, VersionFeature, features_used};
 pub use content::{
     ContentChange, ContentPatch, ContentSkip, Numbers, Rounding, Tolerance, Unrounded, Whitespace,
 };
@@ -242,6 +244,13 @@ pub struct OptimizeSettings {
     /// draws, by the cutter a shell installs; `None` cuts none. See
     /// [`resubset`].
     pub resubset: Option<resubset::ResubsetFonts>,
+    /// The highest PDF version the result may need. `None` raises the
+    /// version as the changes need (JBIG2 to 1.4, Brotli to 2.0, object
+    /// streams to 1.5); `Some` skips every change needing more, with a
+    /// reason, and leaves object streams unpacked under 1.5. Features the
+    /// document already uses above it are reported by [`features_used`],
+    /// not removed.
+    pub compatibility: Option<crate::PdfVersion>,
 }
 
 /// The tolerance [`OptimizeSettings::new`] starts with, in points: a fifth
@@ -265,6 +274,7 @@ impl OptimizeSettings {
             smooth_tolerance: DEFAULT_SMOOTH_TOLERANCE,
             unembed: None,
             resubset: None,
+            compatibility: None,
         }
     }
 
@@ -466,6 +476,16 @@ pub enum SkipReason {
     BrotliUnderPdfa,
     /// A content stream `content(...)` selects that is not rewritten.
     Content(ContentSkip),
+    /// The action writes a filter needing a version above
+    /// [`OptimizeSettings::compatibility`].
+    AboveCompatibility {
+        /// What needs it.
+        what: &'static str,
+        /// The version it needs.
+        needs: crate::PdfVersion,
+        /// The target.
+        target: crate::PdfVersion,
+    },
 }
 
 impl fmt::Display for SkipReason {
@@ -486,6 +506,15 @@ impl fmt::Display for SkipReason {
             Self::Protected(what) => write!(f, "{what} is never rewritten"),
             Self::BrotliUnderPdfa => f.write_str("Brotli is not allowed in PDF/A, kept"),
             Self::Content(why) => write!(f, "not compacted: {why}"),
+            Self::AboveCompatibility {
+                what,
+                needs,
+                target,
+            } => write!(
+                f,
+                "{what} needs PDF {}.{}, above the compatibility target {}.{}, kept",
+                needs.major, needs.minor, target.major, target.minor
+            ),
         }
     }
 }
@@ -532,6 +561,8 @@ pub struct OptimizePlan {
     pub(crate) writes: Vec<streams::Rewrite>,
     /// The settings' smoothing tolerance, for the apply to redo it with.
     pub(crate) smooth_tolerance: f64,
+    /// [`OptimizeSettings::compatibility`], for the save to hold to.
+    pub(crate) compatibility: Option<crate::PdfVersion>,
 }
 
 /// `text` as `prefix` then a number no greater than `max`.
@@ -673,6 +704,8 @@ mod actions_tests;
 mod annots_tests;
 #[cfg(test)]
 mod brotli_tests;
+#[cfg(test)]
+mod compat_tests;
 #[cfg(test)]
 mod flatten_layers_tests;
 #[cfg(test)]

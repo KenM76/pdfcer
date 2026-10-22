@@ -123,3 +123,28 @@ fn auto_never_raises_the_version() {
     let (_, p) = plan(pdf_1_3(), &[("image(encode=auto)", None)]);
     assert_eq!(p.version_raise(), None);
 }
+
+/// A compatibility target below 1.4 skips JBIG2 instead of raising, even
+/// where `version-raise` would allow it.
+#[test]
+fn jbig2_above_the_compatibility_target_is_skipped_not_raised() {
+    let mut settings = crate::optimize::OptimizeSettings::new();
+    settings.streams = StreamAction::parse("image(encode=jbig2)").unwrap();
+    settings.compatibility = Some(PdfVersion { major: 1, minor: 3 });
+    let s = crate::edit::EditSession::new(Document::from_bytes(pdf_1_3()).unwrap());
+    let p = s.plan_optimize(&settings).unwrap();
+    let why = skip(&p, 5).unwrap();
+    assert!(matches!(
+        why,
+        SkipReason::ImageUnsupported(ImageSkip::AboveCompatibility {
+            encode: ImageEncode::Jbig2,
+            ..
+        })
+    ));
+    assert!(
+        why.to_string()
+            .contains("needs PDF 1.4, above the compatibility target 1.3"),
+        "{why}"
+    );
+    assert_eq!(p.version_raise(), None);
+}
