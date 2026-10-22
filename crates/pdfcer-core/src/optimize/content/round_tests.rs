@@ -132,3 +132,46 @@ fn a_plan_rounds_page_openers_and_marks_them_lossy() {
     );
     s.apply_optimize(&plan).unwrap();
 }
+
+#[test]
+fn a_td_carries_the_error_of_the_lines_before_it() {
+    // Rounded alone, each would write 10 and the third line would sit 0.012
+    // from where it belongs.
+    let (text, out) = rounded(b"BT 10.004 0 Td 10.004 0 Td 10.004 0 Td ET", 0.01);
+    assert!(text.contains("10 0 Td\n10 0 Td\n10.01 0 Td"), "{text}");
+    assert_eq!(out.rounded.count, 3);
+    assert!(out.rounded.max <= 0.01 && out.rounded.max > 0.0);
+}
+
+#[test]
+fn a_tm_rounds_its_translation_and_its_scale_reaches_each_td() {
+    let (text, _) = rounded(b"BT 1 0 0 1 100.123456 50.5 Tm ET", 0.01);
+    assert!(text.contains("1 0 0 1 100.12 50.5 Tm"), "{text}");
+    // At ten times the scale, 0.004 of text space is 0.04 of user space,
+    // 0.0004 is 0.004.
+    let (text, _) = rounded(b"BT 10 0 0 10 0 0 Tm 1.004 0 Td 1.0004 0 Td ET", 0.01);
+    assert!(text.contains("1.004 0 Td\n1 0 Td"), "{text}");
+    let (text, _) = rounded(b"BT 1.004 0 Td ET", 0.01);
+    assert!(text.contains("1 0 Td"), "{text}");
+}
+
+#[test]
+fn td_sets_the_leading_and_is_left_as_written() {
+    let (text, out) = rounded(b"BT 1.23456 2.5 TD ET", 0.01);
+    assert!(text.contains("1.23456 2.5 TD"), "{text}");
+    assert_eq!(out.rounded.count, 0);
+}
+
+#[test]
+fn a_matrix_change_inside_a_text_object_unrounds_it() {
+    let (text, out) = rounded(b"BT 1.23456 0 Td 2 0 0 2 0 0 cm 1.23456 0 Td ET", 0.01);
+    assert!(text.contains("1.23456 0 Td"), "{text}");
+    assert_eq!(out.rounded.count, 0, "{text}");
+}
+
+#[test]
+fn a_line_start_counts_the_error_of_its_tm_too() {
+    // The Tm writes 0 for 0.006 and the Td would too: 0.012 together.
+    let (text, _) = rounded(b"BT 1 0 0 1 .006 0 Tm .006 0 Td ET", 0.01);
+    assert!(text.contains("1 0 0 1 0 0 Tm\n.01 0 Td"), "{text}");
+}

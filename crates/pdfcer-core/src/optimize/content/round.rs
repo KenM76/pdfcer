@@ -1,6 +1,9 @@
-//! `round`: path coordinates rounded within a tolerance measured in default
-//! user space, through the `cm` matrices in force (ISO 32000-2 §8.4.4
-//! Table 56: `cm` concatenates a matrix onto the CTM; §8.3.2.3).
+//! `round`: path coordinates and text line starts rounded within a
+//! tolerance measured in default user space, through the `cm` matrices in
+//! force (ISO 32000-2 §8.4.4 Table 56: `cm` concatenates a matrix onto the
+//! CTM; §8.3.2.3). Text positioning is in [`text`].
+
+mod text;
 
 use super::rewrite::{number, operations, real};
 use super::{Tolerance, Unrounded};
@@ -45,9 +48,15 @@ impl Linear {
         }
     }
 
+    /// The move `(dx, dy)` after the transformation.
+    fn apply(self, dx: f64, dy: f64) -> (f64, f64) {
+        (self.a * dx + self.c * dy, self.b * dx + self.d * dy)
+    }
+
     /// How far a move of `(dx, dy)` goes after the transformation.
     fn length(self, dx: f64, dy: f64) -> f64 {
-        (self.a * dx + self.c * dy).hypot(self.b * dx + self.d * dy)
+        let (x, y) = self.apply(dx, dy);
+        x.hypot(y)
     }
 }
 
@@ -89,10 +98,13 @@ pub(super) fn plan(content: &ContentStream, tol: Option<Tolerance>, page_start: 
     let buf = content.buf.as_slice();
     let mut ctm = Linear::IDENTITY;
     let mut stack = Vec::new();
+    let mut text = None;
     for (first, _, operands, op) in operations(content) {
         let Some(op) = op.and_then(|t| t.span.slice(buf)) else {
             continue;
         };
+        let at = (buf, first, operands);
+        text::step(&mut text, &mut out, (op, at), ctm, tol.as_units());
         let known = match op {
             b"q" => {
                 stack.push(ctm);
@@ -112,6 +124,7 @@ pub(super) fn plan(content: &ContentStream, tol: Option<Tolerance>, page_start: 
             break;
         }
     }
+    text::end(text, &mut out);
     out
 }
 
@@ -152,7 +165,7 @@ fn round_op(
         let chosen: Vec<Option<(f64, String)>> = values
             .iter()
             .zip(operands)
-            .map(|(&v, t)| candidate(v, t.span.slice(buf).unwrap_or_default(), decimals))
+            .map(|(&v, t)| candidate(v, v, t.span.slice(buf).unwrap_or_default(), decimals))
             .collect();
         let delta: Vec<f64> = values
             .iter()
@@ -172,11 +185,11 @@ fn round_op(
     }
 }
 
-/// `v` rounded to `decimals`, when that is another value with a shorter
-/// spelling than `source`.
-fn candidate(v: f64, source: &[u8], decimals: i32) -> Option<(f64, String)> {
+/// `target` rounded to `decimals`, when that is a value other than `v`,
+/// the operand's own, with a shorter spelling than `source`.
+fn candidate(target: f64, v: f64, source: &[u8], decimals: i32) -> Option<(f64, String)> {
     let p = 10f64.powi(decimals);
-    let r = (v * p).round() / p;
+    let r = (target * p).round() / p;
     if !r.is_finite() || r == v {
         return None;
     }

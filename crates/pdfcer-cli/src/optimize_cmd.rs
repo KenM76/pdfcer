@@ -78,9 +78,9 @@ pub(crate) struct OptimizeArgs {
     /// Keys, comma-separated, defaults first: whitespace=minimal|keep (drop
     /// separators a reader does not need, and comments), numbers=shortest|keep
     /// (0.500 becomes .5), redundant=on|off (drop empty q Q, identity cm and
-    /// repeated setters), round=off|T (lossy: round the path coordinates of a
-    /// page's first content stream, no point moving over T units of 1/72
-    /// inch), reset. Bare --content takes every default. A rewrite that
+    /// repeated setters), round=off|T (lossy: round the path coordinates and
+    /// text line starts of a page's first content stream, no point moving
+    /// over T units of 1/72 inch), reset. Bare --content takes every default. A rewrite that
     /// re-reads differently is skipped. Per object: --object "12=content(numbers=keep)".
     #[arg(long, value_name = "SPEC", num_args = 0..=1, default_missing_value = "content()")]
     pub(crate) content: Option<String>,

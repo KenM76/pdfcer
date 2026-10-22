@@ -13,9 +13,10 @@
 //!   the state already holds.
 //!
 //! All three are lossless. **round** `T` (off by default) is not: it rounds
-//! the coordinates of path construction (`m l c v y re`) to as few decimals
-//! as keep every point within `T` user-space units of where it was, through
-//! the `cm` matrices in force, and reports the largest movement
+//! the coordinates of path construction (`m l c v y re`) and the line starts
+//! of text (`Tm`'s translation, `Td`) to as few decimals as keep every point
+//! within `T` user-space units of where it was, through the `cm` matrices in
+//! force, and reports the largest movement
 //! ([`ContentChange::max_displacement`]). It applies only to a page's first
 //! content stream, the one stream whose starting coordinate system is
 //! default user space; others report [`Unrounded`].
@@ -67,11 +68,12 @@ pub struct ContentPatch {
     pub numbers: Option<Numbers>,
     /// Remove operators that change nothing.
     pub redundant: Option<bool>,
-    /// Round path coordinates (lossy).
+    /// Round path coordinates and text line starts (lossy).
     pub round: Option<Rounding>,
 }
 
-/// Whether [`ContentPatch::round`] rounds path coordinates.
+/// Whether [`ContentPatch::round`] rounds path coordinates and text line
+/// starts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Rounding {
