@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1182nd filing) — `v0.91.0` bump `20c6191b` filed (no Pass consumed)
+
+**Filed (engineer-reported, no shell here):** bump `20c6191b` ("chore: bump version to 0.91.0": `Cargo.toml` workspace version and the `pdfcer-model` workspace-dependency version 0.90.0 -> 0.91.0; `Cargo.lock`, `fuzz/Cargo.lock` by `cargo update -w`) after `d226e83d` (1181st). Carries `Pass 620.0` (`244d48ab`), `Pass 616.9` slice 1 (`67521d61`), `Pass 621.0` (`f5faa4c4`) and `ad4c81f9`, all filed in the 1181st. Recorded as a ROADMAP Shipped bump entry, as the 1173rd did for `v0.90.0`.
+
+**Re-measurement (zune-jpeg rc3), 1,603,435-byte photo PDF, 3840x2400:** `quality=90` -> 805,853 B (50.3%); `quality=75` -> 327,290 B (20.4%); `ssim=0.99` -> q53, 234,628 B (14.6%); `ssim=0.98` -> q24, 147,835 B (9.2%, rendered clean, no stripes); `ssim=0.95` -> q8, 85,268 B (5.3%). Each ssim run about 7 s release over 8 trials (about 0.9 s per trial). Supersedes the 0.5.15 ssim size numbers. Filed in the `Pass 616.9` ROADMAP entry.
+
+**Release plan, NOT done:** tag `v0.91.0` on this filing's commit; publish to OneDrive slot `pdfcer2` (`v0.90.0` is in `pdfcer1`). Publication filed separately afterwards. No decision; `FEATURES.md` no change. Hard-rule-11 sweep: no meaning changed beyond the superseded 0.5.15 ssim sizes; grep of `docs/` and `crates/**/*.md` for ssim size figures found no survivor. `docs/NEXT_SESSION.md` not touched (engineer-owned; it still says v0.90.0 is the latest published release). Git, push and backup state not verified from here.
+
+**For next session:** next free `Pass 622.0`, decision `198`, `R263`; next filing 1183rd; tag and publish `v0.91.0` (slot `pdfcer2`); pdfium render-parity run against rc3 still owed; unpushed commits from the 1181st: run `check-commits-filed.py` before pushing.
+
 ## 2026-10-22 (1181st filing) — `ad4c81f9`, `244d48ab`, `67521d61`, `f5faa4c4`: Pass 620.0, 616.9 slice 1, 621.0 shipped; decision 197
 
 **Filed (engineer-reported, no shell here):** four local-main commits, unpushed per the dispatch; HEAD `f5faa4c4`. Git, push and backup state not verified from here.

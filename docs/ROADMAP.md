@@ -112,6 +112,14 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.91.0` — version bump filed 2026-10-22 (1182nd filing); release PENDING
+
+Bump `20c6191b` ("chore: bump version to 0.91.0": `Cargo.toml` `[workspace.package]` version and the `pdfcer-model` `[workspace.dependencies]` version 0.90.0 -> 0.91.0; `Cargo.lock` and `fuzz/Cargo.lock` by `cargo update -w`) on `main`, after `d226e83d` (the 1181st filing). Engineer-reported; I have no shell (hard rule 8). The lock diff renames workspace crates only; the dependency changes (zune-jpeg rc3) shipped earlier in `244d48ab` and are already filed.
+
+**v0.91.0 carries** (all filed in the 1181st): `Pass 620.0` (`244d48ab`, zune-jpeg `=0.5.16-rc3` pin; fixes the 4:2:0 one-scan-per-component render), `Pass 616.9` slice 1 (`67521d61`, `image(ssim=)`), `Pass 621.0` (`f5faa4c4`, `DestinationReader::named` for `pdfcer-gui`) and `ad4c81f9` (CI crate-list gate fix). Re-measured ssim sizes are in the `Pass 616.9` entry below.
+
+**Release plan, NOT done:** tag `v0.91.0` on this filing's commit; publish to OneDrive slot `pdfcer2` (`v0.90.0` is in `pdfcer1`). **Not claimed done:** tag, package, smoke, `verify-release.py`, GitHub release, OneDrive slot, notice to `pdfcer-gui`; publication gets its own later filing. Reminder from the 1181st: the pdfium render-parity tool has not been run against rc3. `FEATURES.md`: no change. No decision. Ledgers: next free `Pass 622.0`, decision `198`, `R263`; next filing 1183rd.
+
 ### Pass 621.0 (`f5faa4c4`), 2026-10-22 — `DestinationReader::named` resolves one destination name (1181st filing)
 
 Code commit `f5faa4c4` "feat(outline): DestinationReader::named resolves one destination name (Pass 621.0)". Source: pdfcer-gui request `request_resolve_one_named_destination.md` (channel root, no `G` key). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message.
@@ -142,6 +150,18 @@ Code commit `67521d61` "feat(optimize): image(ssim=) quality target (Pass 616.9 
 **Shipped:** `image(ssim=0.98)`. SSIM per Wang 2004, 11x11 Gaussian sigma 1.5; grey direct, RGB on BT.601 luma, CMYK worst channel. Ceiling = the explicit quality else 100, capped at a JPEG source's estimated quality; trial the ceiling, then bisect. A miss is written at the best trial and reported as "misses". The plan carries `SsimPick`/`SsimScore`; the CLI report prints target / achieved / met / trials (text and JSON). `docs/core-api/03` updated. Release-build runtime about 6 s for a whole optimize of a 3840x2400 photo.
 
 **Still open in `Pass 616.9`:** byte budget ("fit under N MB") and the before/after visual-diff report. GUI not built. `FEATURES.md` row split accordingly.
+
+**Re-measured 2026-10-22 under zune-jpeg `0.5.16-rc3` (1182nd filing; engineer-reported).** Input: the 1,603,435-byte photo PDF (3840x2400). Release build, one whole `optimize` per row:
+
+| Setting | Output bytes | Share of input | Chosen quality |
+|---|---|---|---|
+| `quality=90` | 805,853 | 50.3% | 90 (fixed) |
+| `quality=75` | 327,290 | 20.4% | 75 (fixed) |
+| `ssim=0.99` | 234,628 | 14.6% | q53 |
+| `ssim=0.98` | 147,835 | 9.2% | q24; rendered clean, no stripes |
+| `ssim=0.95` | 85,268 | 5.3% | q8 |
+
+Each `ssim` run took about 7 s over 8 trials (about 0.9 s per trial, whole-optimize time divided by trials, so it includes the fixed cost). **Supersedes** every ssim size figure measured under zune-jpeg 0.5.15: those decodes were wrong for subsampled one-scan-per-component JPEG (`Pass 620.0`), so the trial scores and the sizes they chose are not comparable. Shares are my division of the engineer's figures.
 
 ### Pass 618.1 follow-up (`ad4c81f9`), 2026-10-22 — `check-ci-crate-lists` ignores `cargo package` and comment lines (1181st filing)
 
