@@ -22,12 +22,24 @@ def lower_crates() -> set[str]:
 
 
 MODEL = re.compile(r"(?<![\w-])pdfcer-model(?![\w-])")
+PACKAGE = re.compile(r"\bcargo\s+package\b")
+
+
+def is_list(line: str) -> bool:
+    """A command line naming pdfcer-model. Comments are prose, and a
+    `cargo package` list names the crates being made publishable, a
+    deliberate subset guarding no invariant over the engine."""
+    return (
+        bool(MODEL.search(line))
+        and not line.lstrip().startswith("#")
+        and not PACKAGE.search(line)
+    )
 
 
 def scan(wf: Path, need: set[str]) -> list[str]:
     bad = []
     for n, line in enumerate(wf.read_text(encoding="utf-8").splitlines(), 1):
-        if not MODEL.search(line):
+        if not is_list(line):
             continue
         named = set(re.findall(r"(?<![\w-])(pdfcer-[a-z-]+[a-z])", line))
         missing = sorted(need - named)
@@ -46,7 +58,7 @@ def main() -> int:
     # Every workflow, both extensions: a list in a second file is as live as one in ci.yml.
     for wf in sorted([*wfdir.glob("*.yml"), *wfdir.glob("*.yaml")]):
         bad += scan(wf, need)
-        lists += sum(1 for line in wf.read_text(encoding="utf-8").splitlines() if MODEL.search(line))
+        lists += sum(1 for line in wf.read_text(encoding="utf-8").splitlines() if is_list(line))
     for b in bad:
         print("FAIL", b)
     if bad:
