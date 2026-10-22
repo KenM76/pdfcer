@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1163rd filing) — `Pass 616.6` slice 6 in `35b9cfb1`: re-subset in PDF/A documents
+
+**Shipped:** `35b9cfb1` removes the blanket PDF/A refusal of `--resubset-fonts` (core + cli, no new flag). One refusal remains, `pdfa1-list-owed`: PDF/A-1 claim (or unreadable part), untagged font, missing CIDSet/CharSet. Detail in the ROADMAP *Shipped* entry.
+
+**Decisions:** none; no numbers minted.
+
+**Findings (engineer-reported):** glyph zeroing leaves structural glyph sets unchanged, so lists stay exact. veraPDF 1.30.2 (1b, 2b): every resubset fixture keeps its input's font-list verdict; an untagged Type1C variant passes before and fails 1b 6.3.5-2 after an unclaimed cut, which the guard prevents. 22 resubset lib tests pass, guard sabotage failed 2; gates PASS (46 commands).
+
+**Still in flight:** `Pass 616.6` OPEN: write the missing PDF/A-1 list; merge CFF copies; Type 1; Acrobat Reader spot check NOT done.
+
+**For next session:** git/push/backup state not verified (no shell); `35b9cfb1` unpushed per the dispatch. Next filing 1164th.
+
 ## 2026-10-21 (1162nd filing) — CORRECTION to `Pass 616.6` slice 5: fix in `90d68ee8`
 
 **Shipped:** `90d68ee8` reverts the CIDSet/CharSet rewrite of `b79342a0`: a font cut leaves both lists byte-identical; refusal `cidset-charset-present` and `optimize/resubset_coverage.rs` removed. Kept: `/FontName` retag in a direct nested `/FontDescriptor` (test `a_direct_descriptor_is_re_tagged_with_its_font`). Detail in the ROADMAP *Shipped* entry.
