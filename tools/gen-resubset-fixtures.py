@@ -34,11 +34,11 @@ rerun is byte-identical.
 
 - type0-cidset.pdf: Type0 / Identity-H over CIDFontType2, CIDToGIDMap
   CID n -> glyph n for CIDs 0-7, and a Flate /CIDSet listing all eight;
-  shows CID 3 ("C"), so the cut keeps .notdef and C and the /CIDSet
-  becomes CIDs 0 and 3 (0x90) (ISO 32000-1 9.8.3 Table 124).
+  shows CID 3 ("C"); the cut empties the other glyphs, which stay present,
+  so the /CIDSet is left byte-identical (ISO 32000-1 9.8.3 Table 124).
 - type1c-charset.pdf: type1c.pdf with /CharSet (/A/B/C/D/E/acute/Eacute)
-  on the descriptor; the cut leaves /CharSet (/A/D/E/acute/Eacute): B and
-  C are dropped, D, which the program does not hold, stays.
+  on the descriptor; the cut leaves /CharSet byte-identical, for the same
+  reason (ISO 19005-2 6.2.11.4.2).
 
 Run: python tools/gen-resubset-fixtures.py (symbolic.pdf needs fontTools)
 """

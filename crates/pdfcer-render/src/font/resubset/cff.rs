@@ -112,7 +112,6 @@ fn zero_bare(cff: &[u8], roots: &BTreeSet<u16>) -> Result<Cut, ResubsetRefusal> 
         program: out,
         kept: u32::try_from(keep.len()).unwrap_or(u32::MAX),
         total: u32::try_from(total).unwrap_or(u32::MAX),
-        keep,
     })
 }
 

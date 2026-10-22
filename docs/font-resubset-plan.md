@@ -51,8 +51,7 @@ soft masks and Type3 CharProcs.
 | `collection` | The program is a `ttcf` collection. |
 | `format-deferred` | `FontFile` (Type 1). |
 | `malformed-glyf` | The `glyf` data is malformed. |
-| `cidset-charset-present` | The cutter cannot resolve or rewrite a `/CIDSet` or `/CharSet` (no kept-glyph set, an unreadable list, a CharSet that is not a direct string, or two fonts sharing a CIDSet they would cut differently). |
-| (note, no token) | The document claims PDF/A: the whole re-subset step is skipped with one note. The local spec RAG lacks the PDF/A-1 §6.3.5 and PDF/A-2 §6.2.11.4 text, so what PDF/A requires of a subset is unverified. |
+| (note, no token) | The document claims PDF/A: the whole re-subset step is skipped with one note. What PDF/A requires of a subset is sourced in the spec RAG (`pdfa/pdfa__ref__font_subset_cidset_charset.md`); lifting this skip is the next slice. |
 | `unembedded-this-run` | The same run unembeds the font. |
 | `not-smaller` | The rewritten program is not smaller. |
 
@@ -159,19 +158,18 @@ program (`/OpenType`, `DSIG` dropped):
 
 Fixtures `type1c` (seac Eacute) and `opentype`, from `tools/gen-cff-face.py`.
 
-## CIDSet and CharSet (core `optimize/resubset_coverage.rs`)
+## CIDSet and CharSet
 
-A descriptor's `/CIDSet` (ISO 32000-1 §9.8.3 Table 124: a bit per CID,
-high-order bit first) and `/CharSet` (§9.8.1 Table 122: `/name` entries)
-lose each entry whose glyph the cut emptied. The cutter reports what it kept
-(`ResubsetProgram::kept_glyphs`) and resolves entries to glyph IDs
-(`FontResubsetter::cid_glyphs`, `name_glyphs`). An entry it cannot resolve
-stays, because dropping it could under-claim. A CIDSet keeps its Flate
-encoding if it had a filter and is written unfiltered otherwise. Its length
-is `ceil((max+1)/8)`. A CIDSet held by a font outside the program's users
-refuses `unreferenced-user`. Programs with either list are not merged.
-Fixtures `type0-cidset` (0xFF to 0x90) and `type1c-charset` (B and C
-dropped; D, absent from the program, stays).
+A descriptor's `/CIDSet` (ISO 32000-1 §9.8.3 Table 124) and `/CharSet`
+(§9.8.1 Table 122) are left byte-identical. A glyph is present in a program
+by its structure (an ID below `numGlyphs`, a CFF charset entry, a Type 1
+`CharStrings` key), never by its outline; an empty `glyf` record and a bare
+`endchar` charstring are still present (veraPDF issue #811 ruling; spec RAG
+`pdfa/pdfa__ref__font_subset_cidset_charset.md`). So a zeroing cut leaves
+the present set, and with it a correct list, unchanged. Rewriting a list to
+the drawn glyphs makes it under-claim, which fails PDF/A-2/-3
+(ISO 19005-2 §6.2.11.4.2: a present list must be exact; measured on veraPDF
+1.30.2). Fixtures `type0-cidset` and `type1c-charset` pin it.
 
-Deferred: PDF/A, merging CFF copies, and switching to the short `loca`
-format.
+Deferred: PDF/A, merging CFF copies, Type 1 `/FontFile`, and switching to
+the short `loca` format.

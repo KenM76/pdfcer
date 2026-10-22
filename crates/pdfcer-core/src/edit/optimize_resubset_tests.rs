@@ -197,3 +197,26 @@ fn a_pdfa_document_is_not_re_subset_and_says_why() {
         plan.notes
     );
 }
+
+/// A descriptor held directly in the font dictionary is re-tagged with it
+/// (ISO 32000-2 §9.6.4).
+#[test]
+fn a_direct_descriptor_is_re_tagged_with_its_font() {
+    use crate::object::{Dict, Name};
+    let name = |n: &[u8]| Object::Name(Name::from(n));
+    let mut inner = Dict::new();
+    inner.insert(Name::from(b"FontName"), name(b"ABCDEF+Arial"));
+    let mut dict = Dict::new();
+    dict.insert(Name::from(b"BaseFont"), name(b"ABCDEF+Arial"));
+    dict.insert(Name::from(b"FontDescriptor"), Object::Dict(inner));
+    let font = Object::Dict(dict);
+    let out = super::retagged(&font, "QWERTY").unwrap();
+    let d = out.as_dict().unwrap();
+    let inner = d.get(b"FontDescriptor").and_then(Object::as_dict).unwrap();
+    for (dict, key) in [(d, b"BaseFont".as_slice()), (inner, b"FontName")] {
+        assert_eq!(
+            dict.get(key).and_then(Object::as_name).unwrap().as_bytes(),
+            b"QWERTY+Arial"
+        );
+    }
+}

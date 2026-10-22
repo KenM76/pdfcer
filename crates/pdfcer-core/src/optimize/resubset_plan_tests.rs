@@ -210,9 +210,10 @@ fn a_content_fault_refuses_every_font() {
     assert_eq!(tokens(&p), vec!["unreadable-content"]);
 }
 
+/// A zeroed glyph is still present in the program, so `/CharSet` stays.
 #[test]
-fn a_descriptor_with_cidset_or_charset_is_refused() {
+fn a_descriptor_with_a_charset_is_cut() {
     let d = doc("", "Arial /CharSet (/a)", b"BT /F1 9 Tf (a) Tj ET", &[]);
     let p = run(&d, &Fake::new(10));
-    assert_eq!(tokens(&p), vec!["cidset-charset-present"]);
+    assert_eq!(p.targets.len(), 1, "{:?}", p.refused);
 }

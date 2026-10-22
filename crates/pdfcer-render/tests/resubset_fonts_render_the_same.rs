@@ -83,37 +83,37 @@ fn cut_draws_the_same(name: &str, fonts: usize, kept: u32) {
     );
 }
 
-/// The `/CIDSet` and `/CharSet` of a cut font list only the glyphs left
-/// drawn (ISO 32000-1 §9.8.3 Table 124, §9.8.1 Table 122).
+/// A cut leaves `/CIDSet` and `/CharSet` as they were: an emptied glyph is
+/// still present in the program, so each list stays true (ISO 32000-1
+/// §9.8.3 Table 124, §9.8.1 Table 122; ISO 19005-2 §6.2.11.4.2).
 #[test]
-fn a_cut_font_lists_only_the_glyphs_it_kept() {
-    let s = cut_and_reopen("type0-cidset.pdf");
-    let id = pdfcer_core::object::ObjId {
-        num: 10,
-        generation: 0,
-    };
-    let Some(pdfcer_core::object::Object::Stream(stream)) = s.value(id) else {
-        panic!("the /CIDSet stream");
-    };
-    let view = s.view();
-    let raw = view.slice(stream.data_span).unwrap();
-    let bits = pdfcer_core::filters::decode_stream(&stream.dict, raw).unwrap();
-    assert_eq!(bits, [0x90], "CIDs 0 and 3 left of 0 to 7");
-    let s = cut_and_reopen("type1c-charset.pdf");
-    let descriptor = s
-        .value(pdfcer_core::object::ObjId {
-            num: 6,
-            generation: 0,
-        })
-        .and_then(pdfcer_core::object::Object::as_dict)
-        .unwrap();
-    assert_eq!(
-        descriptor.get(b"CharSet"),
-        Some(&pdfcer_core::object::Object::String(
-            b"/A/D/E/acute/Eacute".to_vec()
-        )),
-        "B and C dropped; D, which the program lacks, stays"
-    );
+fn a_cut_font_keeps_its_glyph_lists() {
+    for (name, num) in [("type0-cidset.pdf", 10), ("type1c-charset.pdf", 6)] {
+        let before = EditSession::new(Document::from_bytes(fixture(name)).unwrap());
+        let after = cut_and_reopen(name);
+        assert_eq!(list(&before, num), list(&after, num), "{name}");
+        assert!(
+            !list(&before, num).is_empty(),
+            "{name}: the fixture has a list"
+        );
+    }
+}
+
+/// Object `num`'s `/CharSet`, or its stream data decoded.
+fn list(s: &EditSession, num: u32) -> Vec<u8> {
+    use pdfcer_core::object::{ObjId, Object};
+    match s.value(ObjId { num, generation: 0 }) {
+        Some(Object::Stream(stream)) => {
+            let view = s.view();
+            let raw = view.slice(stream.data_span).unwrap();
+            pdfcer_core::filters::decode_stream(&stream.dict, raw).unwrap()
+        }
+        Some(Object::Dict(d)) => match d.get(b"CharSet") {
+            Some(Object::String(v)) => v.clone(),
+            other => panic!("no /CharSet: {other:?}"),
+        },
+        other => panic!("object {num}: {other:?}"),
+    }
 }
 
 /// `name` cut and saved.

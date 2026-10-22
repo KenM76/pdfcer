@@ -15,11 +15,13 @@
 //! were cut from the same font ([`FontResubsetter::merge`]).
 //!
 //! A descriptor's `/CIDSet` or `/CharSet` (ISO 32000-1 §9.8.3 Table 124,
-//! §9.8.1 Table 122) is rewritten to drop each CID or glyph name whose glyph
-//! the cut emptied, through [`FontResubsetter::cid_glyphs`] and
-//! [`FontResubsetter::name_glyphs`]; one the cutter cannot resolve stays.
+//! §9.8.1 Table 122) is left as it is. A glyph is present in a program by its
+//! structure (an ID below `numGlyphs`, a charset entry), not its outline, so
+//! an emptied glyph is still present and the list stays true; dropping its
+//! entries would make it under-claim, which PDF/A-2 and -3 forbid
+//! (ISO 19005-2 §6.2.11.4.2).
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 
 use crate::object::ObjId;
 use crate::view::DocumentView;
@@ -57,48 +59,6 @@ pub trait FontResubsetter: Send + Sync + std::fmt::Debug {
             "the font cutter does not merge subsets",
         ))
     }
-
-    /// The glyph ID each of `cids` draws with `font`, a Type 0 font over
-    /// `program` showing text under `Identity-H` or `-V`; a CID that draws
-    /// no glyph of the program is left out. The default refuses, which
-    /// leaves a font with a `/CIDSet` uncut.
-    ///
-    /// # Errors
-    ///
-    /// [`ResubsetRefusal`] when `font` cannot be read over `program`.
-    fn cid_glyphs(
-        &self,
-        view: &DocumentView<'_>,
-        program: &[u8],
-        font: ObjId,
-        cids: &BTreeSet<u32>,
-    ) -> Result<BTreeMap<u32, u16>, ResubsetRefusal> {
-        let _ = (view, program, font, cids);
-        Err(coverage_unsupported())
-    }
-
-    /// The glyph ID each of `names` names in `program`; a name the program
-    /// does not hold is left out. The default refuses, which leaves a font
-    /// with a `/CharSet` uncut.
-    ///
-    /// # Errors
-    ///
-    /// [`ResubsetRefusal`] when `program` cannot be read.
-    fn name_glyphs(
-        &self,
-        program: &[u8],
-        names: &[String],
-    ) -> Result<BTreeMap<String, u16>, ResubsetRefusal> {
-        let _ = (program, names);
-        Err(coverage_unsupported())
-    }
-}
-
-fn coverage_unsupported() -> ResubsetRefusal {
-    ResubsetRefusal::new(
-        "cidset-charset-present",
-        "the descriptor lists its glyphs in /CIDSet or /CharSet, which the font cutter does not rewrite",
-    )
 }
 
 /// One program to cut, with every font that draws from it.
@@ -156,9 +116,6 @@ pub struct ResubsetProgram {
     pub glyphs_kept: u32,
     /// Glyphs in the program (`maxp.numGlyphs`, unchanged).
     pub glyphs_total: u32,
-    /// The glyph IDs left drawn. Empty when the cutter does not say, and
-    /// then a `/CIDSet` or `/CharSet` refuses the cut.
-    pub kept_glyphs: BTreeSet<u16>,
 }
 
 impl ResubsetProgram {
@@ -169,16 +126,6 @@ impl ResubsetProgram {
             program,
             glyphs_kept,
             glyphs_total,
-            kept_glyphs: BTreeSet::new(),
-        }
-    }
-
-    /// This program, saying which glyph IDs it left drawn.
-    #[must_use]
-    pub fn with_kept_glyphs(self, kept_glyphs: BTreeSet<u16>) -> Self {
-        Self {
-            kept_glyphs,
-            ..self
         }
     }
 }
@@ -302,8 +249,6 @@ pub struct ResubsetTarget {
     /// The program, fonts, descendant CIDFonts and descriptors as planned:
     /// what the apply rewrites, and checks has not changed.
     pub(crate) before: Vec<(ObjId, crate::object::Object)>,
-    /// The `/CIDSet` and `/CharSet` rewrites.
-    pub(crate) coverage: super::resubset_coverage::Coverage,
 }
 
 /// A font the run leaves as it is.

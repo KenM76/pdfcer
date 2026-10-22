@@ -29,10 +29,13 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   render checks (Brotli recorded as unverified). **616.6 fonts: slices 1-5
   shipped**: unembed (`--unembed-fonts`), TrueType and CFF re-subset by
   glyph zeroing (`--resubset-fonts`), merging copies of one face (on by
-  default, `--no-merge-font-subsets`; TrueType only), and the
-  `/CIDSet`/`/CharSet` rewrite on a cut (`optimize/resubset_coverage.rs`).
-  Plan: `docs/font-resubset-plan.md`. Remaining 616.6: re-subset under
-  PDF/A (currently refused; the CIDSet rewrite is its prerequisite), merging
+  default, `--no-merge-font-subsets`; TrueType only). A cut leaves
+  `/CIDSet`/`/CharSet` byte-identical: an emptied glyph is still present
+  (spec RAG `pdfa/pdfa__ref__font_subset_cidset_charset.md`); slice 5's
+  list rewrite under-claimed and failed veraPDF PDF/A-2b 6.2.11.4.2-2, so it
+  was reverted. Plan: `docs/font-resubset-plan.md`. Remaining 616.6:
+  re-subset under PDF/A (currently refused: allow A-1/2/3 with lists
+  untouched, add a missing list on A-1, remove the lists on A-4), merging
   CFF copies, Type 1 `/FontFile`, and an Acrobat Reader check of a
   cut/merged font. Then 616.7-616.10
   (content streams, linearization, quality/byte-budget, compatibility
