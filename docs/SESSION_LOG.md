@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1188th filing) — `8e6e16ed` Pass 616.9 slice 3 SHIPPED (visual-diff report); 616.9 complete in core + cli
+
+**Filed (engineer-reported, no shell here; git, push and backup state not verified from here):**
+- `8e6e16ed` `Pass 616.9` slice 3: `pdfcer_render::visual_diff` / `diff_rendered` / `diff_heatmap`, `PageDiff`, `VisualDiffError`; `optimize::structural_similarity` made public; CLI `optimize --visual-diff`, `--visual-diff-dpi`, `--visual-diff-threshold`, `--visual-diff-dir`. 5 render + 1 CLI test; `run-gates.sh` PASS (49 commands). Smoke: OCR scan fixture, 2.3 MB -> 54 KB, similarity 0.7114, 12.78% pixels changed.
+- FEATURES row "Before/after visual-diff report" ticked core `[x]` cli `[x]` gui `[ ]`, left beside its two sibling rows. The `616.9` heading in Next up/Backlog replaced by a MOVED pointer.
+
+**Premise check:** the 1184th entry's "still open: visual-diff report" is the item closed here. No decision or rule minted (ledger still decision `198`, `R263`).
+
+**For next session:** next free `Pass 626.0`; next filing 1189th; remaining optimize siblings `616.10` (compatibility) and `616.7` (forms/patterns rounding). Run `check-register-entry-size.py` and `check-ledger-numbers.py` (not run from here).
+
 ## 2026-10-22 (1187th filing) — `4c35da77` Pass 625.0 SHIPPED (separation preview, hidden inks)
 
 **Filed (engineer-reported, no shell here; git, push and backup state not verified from here):**

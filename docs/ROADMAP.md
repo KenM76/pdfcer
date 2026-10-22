@@ -122,6 +122,16 @@ Code commit `4c35da77` "feat(render): separation preview with hidden plates, Sep
 
 **Tests:** 4 new in `crates/pdfcer-render/tests/separation_preview.rs`; sabotage of the plate zeroing failed 3 of 4. `tools/run-gates.sh` PASS (49 commands). Smoke on the Isartor `6-2-3-4-t01` fixture: lists Cyan, Magenta, Yellow, Black, MyYellow; an unmatched name is reported. No `Cargo.toml` change, no new dependency (`cargo tree` unaffected). Reply: `pdfce_FeatureRequests/open/reply_separation_preview_hidden_inks_FIXED.md` (SCOPED reply removed). **FEATURES:** "Separation preview (hide inks)" core `[x]` cli `[x]` gui `[ ]`, moved to Implemented.
 
+### Pass 616.9 (slice 3: visual-diff report) (`8e6e16ed`), 2026-10-22 — before/after visual-diff, `visual_diff` and `--visual-diff` (1188th filing)
+
+Code commit `8e6e16ed` "feat(optimize): before/after visual-diff report, visual_diff + --visual-diff (Pass 616.9 slice 3)". Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. **`Pass 616.9` is now COMPLETE in core and cli** (ssim target, byte budget, visual-diff report); GUI not built.
+
+**Verdict:** `pdfcer-render` gains `visual_diff(before, after, &VisualDiffOptions) -> Result<Vec<Result<PageDiff, VisualDiffError>>, PageTreeError>`, `diff_rendered` and `diff_heatmap`. `PageDiff { ssim, max_delta, changed_pixels, pixels, changed_region: Option<ChangedRegion> }`; `VisualDiffError { MissingPage, Render, SizeChanged }`; options scale 1.0, threshold 8. `pdfcer-core` makes the `image(ssim=)` SSIM public as `optimize::structural_similarity`. CLI `optimize --visual-diff` (works with `--dry-run`), `--visual-diff-dpi` (72), `--visual-diff-threshold` (8), `--visual-diff-dir DIR` (a `page-NNNN.png` heatmap per changed page; implies `--visual-diff`); text section and JSON key `visual_diff`. `docs/core-api/03-capabilities.md` paragraph added (index 4,936 lines, 157 clauses); `check-core-api-verbs` PASS. No new dependency, no `Cargo.toml` change, so no `cargo tree` change.
+
+**Tests:** 5 render + 1 CLI; sabotaging the changed-region y-coordinate is caught. `tools/run-gates.sh` PASS (49 commands). **Smoke:** OCR scan fixture, screen preset, 2.3 MB -> 54 KB, similarity 0.7114, 12.78% of pixels changed.
+
+**FEATURES:** "Before/after visual-diff report" core `[x]` cli `[x]` gui `[ ]`. **Still open in the family:** `616.10` (compatibility), and `616.7` for forms and patterns rounding.
+
 ### Pass 624.0 (`0893bd7e`), 2026-10-22 — overprint preview switch, `OverprintPreview::Off` and `--no-overprint-preview` (1186th filing)
 
 Code commit `0893bd7e` "feat(render): overprint preview switch, OverprintPreview::Off + --no-overprint-preview (Pass 624.0)". Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Source: `request_overprint_simulation_switch.md` (O323).
@@ -25327,9 +25337,7 @@ Number precision rounding with a tolerance, **disclosed with its maximum displac
 
 ### `Pass 616.8` — Linearization writer — MOVED TO *Shipped* (1172nd filing, `daa36707`)
 
-### `Pass 616.9` — Exceed-tier: quality target, byte budget, visual diff — IN PROGRESS: slice 1 (SSIM quality target) SHIPPED `67521d61` (1181st filing); remainder open
-
-~~A per-image quality target (SSIM) instead of a fixed quality;~~ shipped, see top of *Shipped*. **Open:** a byte budget ("fit under N MB"); a visual-diff report rendering each page before and after, with the maximum pixel delta.
+### `Pass 616.9` — Exceed-tier: quality target, byte budget, visual diff — MOVED TO *Shipped* (all three slices: `67521d61`, `2024e6a4`, `8e6e16ed`; 1188th filing). GUI not built.
 
 ### `Pass 616.10` — Compatibility target and transparency report — NEXT UP, 2026-10-20
 
