@@ -2142,6 +2142,10 @@ maps them through `ctm` to **page space**. `style: PaintStyle`,
 `line_width: f64` (**user space**), `fill_color`/`stroke_color: Rgb`
 , `tokens: TokenRange`, `bytes: ByteSpan`,
 `page_bbox: Bounds` (page space, control-point hull).
+`fill_alpha`/`stroke_alpha` (`/ca`/`/CA`, clamped) come with
+`fill_alpha_known`/`stroke_alpha_known: bool` — `false` when a `gs` in force
+was unresolvable or held a non-numeric value, so the alpha is only the last
+one known. Each flag is independent (a bad `/ca` leaves `/CA` known).
 
 `PageObjects::page_bbox()` is the drawn extent: the union of every object's
 `page_bbox` **except** paths whose `style.is_invisible()` (ended by `n`, a
@@ -2158,6 +2162,15 @@ request G109).
 (**always `true`**), `bounds_basis: TextBoundsBasis`, `preview`,
 `font: Option<TextFont>`.
 
+**Text opacity reader (G225).** `vector::TextRun::fill_alpha: Option<f64>` is
+the `/ca` (§8.4.5 Table 58) in force when that run is shown, clamped `0..=1`,
+`Some(1.0)` with no `gs`. `None` = unknown: a `gs` in force named an
+`/ExtGState` the walker could not resolve, or its `/ca` is not a number — the
+state `FormatError::OpacityUnrestorable` refuses a write in, so a `None` here
+predicts that refusal. `q`/`Q` restore it; a later readable `/ca` makes it
+known again. `NoFonts` resolves no `gs`, so text after one reads `None` there.
+Plain struct: a literal needs the field.
+
 `TextBoundsBasis`: `FontMetrics` | `MetricAdvancesNominalHeight` |
 `EstimatedAdvances` | `EmBox`. Four bases, not two, deliberately — a Type 3
 or descriptor-less CIDFont has real advances but a guessed height, and
@@ -2168,8 +2181,15 @@ collapsing that into `FontMetrics` would misrepresent confidence
 fill_alpha, stroke_alpha, tokens, bytes}`. `ImageSource`: `Inline` |
 `XObject` | `Form`. `fill_alpha`/`stroke_alpha` are the `/ca`/`/CA` in force
 at the `Do` or inline image (clamped `0..=1`; a soft mask is not reflected):
-an image paints with `fill_alpha`, a form's content starts from both. Plain
-struct — a literal needs both fields.
+an image paints with `fill_alpha`, a form's content starts from both.
+`fill_alpha_known`/`stroke_alpha_known` as on `PathObject`. Plain struct — a
+literal needs every field.
+
+**Form leaves inherit the alpha at `Do`** (§8.4.1): a `FormLeaf`'s path, image
+or text run reads the `/ca`/`/CA` (and known-ness) in force at the form's `Do`
+until the form's own `gs` changes it. A **transparency-group** form (`/Group`
+with `/S /Transparency`, §11.6.6) starts at 1.0 instead — §8.4.1 resets the
+alpha constants at the start of a group. Leaves previously read 1.0 regardless.
 
 **`Bounds`** — `geometry.rs`: `{min, max: Point}`, with `EMPTY`,
 `union_point`, `union`, `inflate`, `contains`,

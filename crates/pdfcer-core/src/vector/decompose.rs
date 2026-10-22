@@ -359,6 +359,12 @@ pub struct PathObject {
     pub fill_alpha: f64,
     /// The stroking constant alpha at paint time (`/CA`). Same caveat.
     pub stroke_alpha: f64,
+    /// `false` when a `gs` in force could not be read for `/ca` (its
+    /// `/ExtGState` unresolvable, or `/ca` not a number), so
+    /// [`Self::fill_alpha`] is only the last value known.
+    pub fill_alpha_known: bool,
+    /// The same for [`Self::stroke_alpha`] and `/CA`.
+    pub stroke_alpha_known: bool,
     /// Non-stroking (fill) colour at paint time.
     ///
     /// ONLY MEANINGFUL WHEN [`Self::fill_paint`] IS `Device` OR `Default`.
@@ -491,6 +497,11 @@ pub struct ImageObject {
     /// The stroking constant alpha in force (`/CA`): inert for an image,
     /// the stroke opacity a form's content starts from.
     pub stroke_alpha: f64,
+    /// `false` when a `gs` in force could not be read for `/ca`, so
+    /// [`Self::fill_alpha`] is only the last value known.
+    pub fill_alpha_known: bool,
+    /// The same for [`Self::stroke_alpha`] and `/CA`.
+    pub stroke_alpha_known: bool,
     /// The defining-operator token range.
     pub tokens: TokenRange,
     /// The equivalent byte span.
@@ -970,6 +981,16 @@ pub struct TextRun {
     pub text_start: usize,
     /// End of [`Self::text_start`]'s range, exclusive.
     pub text_end: usize,
+    /// The non-stroking alpha (`/ca`, §8.4.5 Table 58) in force when this
+    /// run is shown, clamped to `0..=1`; `1.0` where no `gs` set it.
+    ///
+    /// `None` when a `gs` in force named an `/ExtGState` the walker could
+    /// not resolve, or whose `/ca` is not a number — the same state
+    /// [`FormatError::OpacityUnrestorable`](crate::text_edit::FormatError::OpacityUnrestorable)
+    /// refuses a write in. A `q`/`Q` pair restores it like any other alpha.
+    /// A resolver with no document behind it ([`NoFonts`]) resolves no
+    /// `gs`, so text after one reads `None` there.
+    pub fill_alpha: Option<f64>,
 }
 
 impl TextRun {
@@ -1881,8 +1902,13 @@ pub struct ExtGStateParams {
     pub font: Option<(Vec<u8>, f64)>,
     /// `/ca` — non-stroking alpha.
     pub fill_alpha: Option<f64>,
+    /// `/ca` is present but not a number, so the alpha after this `gs` is
+    /// not known.
+    pub fill_alpha_unreadable: bool,
     /// `/CA` — stroking alpha. Same.
     pub stroke_alpha: Option<f64>,
+    /// `/CA` is present but not a number.
+    pub stroke_alpha_unreadable: bool,
     /// `/D` — the dash pattern, `[[array] phase]`.
     pub dash: Option<Dash>,
 }
@@ -2024,7 +2050,9 @@ impl FontResolver for DocumentFonts<'_> {
             line_width: num(b"LW"),
             font,
             fill_alpha: num(b"ca"),
+            fill_alpha_unreadable: dict.get(b"ca").is_some() && num(b"ca").is_none(),
             stroke_alpha: num(b"CA"),
+            stroke_alpha_unreadable: dict.get(b"CA").is_some() && num(b"CA").is_none(),
             dash: self.ext_gstate_dash(&dict),
         })
     }
@@ -2129,13 +2157,27 @@ pub(crate) fn collect_form_leaves_from(
                 resources: &resources,
             };
             let fonts = DocumentFonts::new(view, &resources);
-            decompose_with_fonts(&content, img.ctm, &xobjects, &fonts)
+            let mut d = Decomposer::new(&content, img.ctm, &xobjects, &fonts);
+            if !is_transparency_group(view, id) {
+                d.gs.alpha_fill = img.fill_alpha;
+                d.gs.alpha_fill_known = img.fill_alpha_known;
+                d.gs.alpha_stroke = img.stroke_alpha;
+                d.gs.alpha_stroke_known = img.stroke_alpha_known;
+            }
+            d.run();
+            (d.objects, d.diag)
         };
         // `img.oc_chain` is already page-relative (by induction), so every
         // depth ends up carrying the full chain the renderer nests through.
-        for child in &mut nested.objects {
+        for child in &mut nested.0 {
             prefix_oc_chain(child, &img.oc_chain);
         }
+        let nested = PageObjects {
+            objects: nested.0,
+            initial: img.ctm,
+            diagnostics: nested.1,
+            leaves: Vec::new(),
+        };
 
         path.push(id);
         push_form_children(&nested.objects, path, img.ctm, root, out);
@@ -2151,6 +2193,21 @@ fn prefix_oc_chain(object: &mut VectorObject, prefix: &[ObjId]) {
         VectorObject::Image(i) => &mut i.oc_chain,
     };
     chain.splice(0..0, prefix.iter().copied());
+}
+
+/// Whether form `id` is a transparency group (`/Group` with `/S
+/// /Transparency`, §11.6.6), whose content starts with the alpha constants
+/// reset to 1.0 (§8.4.1) rather than inheriting the ones at its `Do`.
+fn is_transparency_group(view: &DocumentView<'_>, id: ObjId) -> bool {
+    let Object::Stream(stream) = view.resolved(id) else {
+        return false;
+    };
+    view.resolve(stream.dict.get(b"Group").unwrap_or(&Object::Null))
+        .as_dict()
+        .and_then(|g| g.get(b"S"))
+        .map(|s| view.resolve(s))
+        .and_then(Object::as_name)
+        .is_some_and(|n| n.as_bytes() == b"Transparency")
 }
 
 /// Form `id`'s decoded content and the resources it is walked with, or
@@ -2412,7 +2469,10 @@ struct GState {
     stroke_space: Option<Vec<u8>>,
     /// `/ca` and `/CA` from an `/ExtGState` (§8.4.5), clamped to `0..=1`.
     alpha_fill: f64,
+    /// `false` once a `gs` left [`Self::alpha_fill`] unknown.
+    alpha_fill_known: bool,
     alpha_stroke: f64,
+    alpha_stroke_known: bool,
     dash: Dash,
     /// The `Tf` size operand (§9.3.1 `Tfs`), text space, unscaled.
     font_size: f64,
@@ -2448,7 +2508,9 @@ impl GState {
             fill_space: None,
             stroke_space: None,
             alpha_fill: 1.0,
+            alpha_fill_known: true,
             alpha_stroke: 1.0,
+            alpha_stroke_known: true,
             dash: Dash::default(),
             font_size: 0.0,
             font_resource: None,
@@ -2907,10 +2969,16 @@ impl<'a> Decomposer<'a> {
                 self.oc_stack.pop();
             }
             b"gs" => {
-                if let Some(g) = operand_names(operands)
+                let params = operand_names(operands)
                     .first()
-                    .and_then(|n| self.fonts.ext_gstate(n))
-                {
+                    .and_then(|n| self.fonts.ext_gstate(n));
+                if params.as_ref().is_none_or(|g| g.fill_alpha_unreadable) {
+                    self.gs.alpha_fill_known = false;
+                }
+                if params.as_ref().is_none_or(|g| g.stroke_alpha_unreadable) {
+                    self.gs.alpha_stroke_known = false;
+                }
+                if let Some(g) = params {
                     if let Some(w) = g.line_width {
                         self.gs.line_width = w;
                     }
@@ -2924,9 +2992,11 @@ impl<'a> Decomposer<'a> {
                     // Table 58 does not range-check the alphas; clamp.
                     if let Some(a) = g.fill_alpha {
                         self.gs.alpha_fill = a.clamp(0.0, 1.0);
+                        self.gs.alpha_fill_known = true;
                     }
                     if let Some(a) = g.stroke_alpha {
                         self.gs.alpha_stroke = a.clamp(0.0, 1.0);
+                        self.gs.alpha_stroke_known = true;
                     }
                     if let Some(d) = g.dash {
                         self.gs.dash = d;
@@ -3425,6 +3495,8 @@ impl<'a> Decomposer<'a> {
             dash: self.gs.dash.clone(),
             fill_alpha: self.gs.alpha_fill,
             stroke_alpha: self.gs.alpha_stroke,
+            fill_alpha_known: self.gs.alpha_fill_known,
+            stroke_alpha_known: self.gs.alpha_stroke_known,
             fill_color: self.gs.fill_color,
             stroke_color: self.gs.stroke_color,
             fill_paint: self.gs.fill_paint.clone(),
@@ -3602,6 +3674,7 @@ impl<'a> Decomposer<'a> {
         // being mutably borrowed below.
         let tokens = self.text.as_ref().and_then(|t| t.current_run_tokens);
         let bytes = tokens.map(|r| self.span_of(r.start, r.end.saturating_sub(1)));
+        let fill_alpha = self.gs.alpha_fill_known.then_some(self.gs.alpha_fill);
 
         let Some(t) = self.text.as_mut() else { return };
         // Whatever happens to the box, the positioning latch resets: the pen
@@ -3659,6 +3732,7 @@ impl<'a> Decomposer<'a> {
             text_start,
             text_end,
             text_matrix,
+            fill_alpha,
         });
     }
 
@@ -4000,6 +4074,8 @@ impl<'a> Decomposer<'a> {
             pixel_size,
             fill_alpha: self.gs.alpha_fill,
             stroke_alpha: self.gs.alpha_stroke,
+            fill_alpha_known: self.gs.alpha_fill_known,
+            stroke_alpha_known: self.gs.alpha_stroke_known,
             tokens: TokenRange {
                 start: first,
                 end: op_index + 1,

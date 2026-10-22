@@ -245,6 +245,7 @@ mod subpath_hit;
 mod svg_import;
 mod synthesis_gate;
 mod table_detect;
+mod text_alpha_read;
 mod text_edit;
 mod text_edit_span;
 mod text_edit_workarounds;
