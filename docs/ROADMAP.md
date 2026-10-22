@@ -112,6 +112,41 @@ wherever it appears.*
 
 ## Shipped
 
+### Pass 621.0 (`f5faa4c4`), 2026-10-22 — `DestinationReader::named` resolves one destination name (1181st filing)
+
+Code commit `f5faa4c4` "feat(outline): DestinationReader::named resolves one destination name (Pass 621.0)". Source: pdfcer-gui request `request_resolve_one_named_destination.md` (channel root, no `G` key). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message.
+
+**Shipped:** `DestinationReader::named(&graph, name: &[u8]) -> Option<Destination>`, for `/GoToR` `/D` (§12.6.4.3). Same merge as `named_destinations`: the name tree wins a collision, a name -> name value is followed (§12.3.2.3). Test `named_destinations_list::one_name_resolves_as_its_listed_entry`. `docs/core-api/01` and its index counts updated.
+
+**Not built:** no CLI caller; `pdfcer-gui` adopts it at a tag. `FEATURES.md` row "List the document's named destinations" notes the single-name lookup: core `[x]`, cli `[ ]`, gui `[ ]`.
+
+### Pass 620.0 (`244d48ab`), 2026-10-22 — zune-jpeg pinned to `=0.5.16-rc3`: subsampled one-scan-per-component JPEG decoded wrong (1181st filing)
+
+Code commit `244d48ab` "fix(codec): pin zune-jpeg 0.5.16-rc3 for subsampled one-scan-per-component JPEG (Pass 620.0)". Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message and decision 197 (`docs/decisions/197-zune-jpeg-rc-pin.md`).
+
+**Defect:** zune-jpeg 0.5.15 mis-decodes baseline-sequential JPEG written one scan per component (non-interleaved, legal under T.81) whenever chroma is subsampled: mean error 95-128 levels (green stripes); 4:4:4 is fine. jpeg-encoder 0.7.1 writes that layout whenever `optimize_huffman_table` is on, which `pdfcer optimize` sets. So pdfcer's own optimized JPEGs below q90 or with `chroma=half` rendered wrong **in pdfcer only**; the files were always valid (Pillow, libjpeg, jpeg-decoder agree within ~1 level). Third-party PDFs with the layout were mis-rendered too.
+
+**Shipped:**
+- Exact pin `=0.5.16-rc3` in `pdfcer-image-codec`, `pdfcer-3d` (optional, `textures`) and `pdfcer-render` (dev); zune-core 0.5.1 -> 0.5.3. `Cargo.lock`, `fuzz/Cargo.lock` and `THIRD_PARTY_LICENSES.md` (cargo-about) regenerated. rc3 is within 0.07 levels of Pillow. Licence unchanged (MIT OR Apache-2.0 OR Zlib); `forbid(unsafe_code)` cfg_attr kept with SIMD off (R24).
+- Regression test `optimize::image::pipeline_jpeg_tests::every_layout_the_writer_emits_reads_back_through_the_decoder`: Gray/RGB/CMYK x Full/Half/Auto chroma x baseline / optimized-sequential / progressive; asserts one SOS per component for optimized sequential and mean error < 12. Failed at 113.1 on 0.5.15; a legitimate 4:2:0 q60 reads 5.2.
+- **Decision 197 (option D):** exact rc pin plus the test, **no encoder workaround** (it costs 5-10% size on the files the size feature targets and removes the only way pdfcer's output exercises the layout). Stable 0.5.16 required before any crates.io publish (Backlog item below).
+
+**Why it shipped:** the old test's "independent decoder" was the production decoder, so it proved agreement, not correctness. Filed as a RAG lesson, no rule minted.
+
+`FEATURES.md`: JPEG decode row notes the fix; no box change.
+
+### Pass 616.9 slice 1 (`67521d61`), 2026-10-22 — `image(ssim=0.98)` quality target (1181st filing)
+
+Code commit `67521d61` "feat(optimize): image(ssim=) quality target (Pass 616.9 slice 1)". Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message.
+
+**Shipped:** `image(ssim=0.98)`. SSIM per Wang 2004, 11x11 Gaussian sigma 1.5; grey direct, RGB on BT.601 luma, CMYK worst channel. Ceiling = the explicit quality else 100, capped at a JPEG source's estimated quality; trial the ceiling, then bisect. A miss is written at the best trial and reported as "misses". The plan carries `SsimPick`/`SsimScore`; the CLI report prints target / achieved / met / trials (text and JSON). `docs/core-api/03` updated. Release-build runtime about 6 s for a whole optimize of a 3840x2400 photo.
+
+**Still open in `Pass 616.9`:** byte budget ("fit under N MB") and the before/after visual-diff report. GUI not built. `FEATURES.md` row split accordingly.
+
+### Pass 618.1 follow-up (`ad4c81f9`), 2026-10-22 — `check-ci-crate-lists` ignores `cargo package` and comment lines (1181st filing)
+
+Code commit `ad4c81f9` "fix(tools): check-ci-crate-lists ignores cargo package lines". Tooling only. Fixed the red CI (three red runs) caused by `Pass 618.1`'s release-job `cargo package` list. No Pass of its own. `FEATURES.md`: no row.
+
 ### Pass 619.0 (`4cdc7a3a`), 2026-10-22 — `check-requests-scoped.py` reads a request's direction (1179th filing)
 
 Code commit `4cdc7a3a` "fix(tools): check-requests-scoped reads a request's direction". Tooling only. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message.
@@ -25208,9 +25243,9 @@ Number precision rounding with a tolerance, **disclosed with its maximum displac
 
 ### `Pass 616.8` — Linearization writer — MOVED TO *Shipped* (1172nd filing, `daa36707`)
 
-### `Pass 616.9` — Exceed-tier: quality target, byte budget, visual diff — NEXT UP, 2026-10-20
+### `Pass 616.9` — Exceed-tier: quality target, byte budget, visual diff — IN PROGRESS: slice 1 (SSIM quality target) SHIPPED `67521d61` (1181st filing); remainder open
 
-A per-image quality target (SSIM) instead of a fixed quality; a byte budget ("fit under N MB"); a visual-diff report rendering each page before and after, with the maximum pixel delta.
+~~A per-image quality target (SSIM) instead of a fixed quality;~~ shipped, see top of *Shipped*. **Open:** a byte budget ("fit under N MB"); a visual-diff report rendering each page before and after, with the maximum pixel delta.
 
 ### `Pass 616.10` — Compatibility target and transparency report — NEXT UP, 2026-10-20
 
@@ -33988,6 +34023,8 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+> **zune-jpeg: move `=0.5.16-rc3` to stable 0.5.16 in all three manifests, UNSCOPED, no Pass ID (filed 1181st, 2026-10-22).** Manifests: `pdfcer-image-codec`, `pdfcer-3d` (optional), `pdfcer-render` (dev). **Acceptance:** green gates plus the regression test `every_layout_the_writer_emits_reads_back_through_the_decoder`; regenerate lockfiles and `THIRD_PARTY_LICENSES.md`. **BLOCKER for any crates.io publish Pass:** a published pre-release pin fails to resolve beside a downstream `zune-jpeg ^0.5` (decision 197).
 
 > **Residue of `Pass 616.6` (font re-subset, COMPLETE; filed 1166th, 2026-10-22), three UNSCOPED optimize items, no Pass ID yet.** Corpus: `fixtures/external`, 2,915 files, `pdfcer list-fonts`. (a) **Merge CFF copies of one face** (`/FontFile3`): measured 0 of 2,915 files embed a CFF face twice (the 24 duplicated faces in 22 files, 346,987 B, are all TrueType and already merged), so no instance justifies it; build only if one turns up. (b) **Type 1 `/FontFile` re-subset**: 12 programs in 6 files, 184 KB, about 1.5% of embedded font bytes; needs the Type 1 charstring and eexec path, low payoff. (c) **Short `loca` after a cut**: unmeasured; saves at most 2 bytes per glyph before Flate, and a zeroed font's `loca` compresses well, so judged small. Measure on a cut corpus before building.
 

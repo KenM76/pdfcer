@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1181st filing) — `ad4c81f9`, `244d48ab`, `67521d61`, `f5faa4c4`: Pass 620.0, 616.9 slice 1, 621.0 shipped; decision 197
+
+**Filed (engineer-reported, no shell here):** four local-main commits, unpushed per the dispatch; HEAD `f5faa4c4`. Git, push and backup state not verified from here.
+- `ad4c81f9` fixes `check-ci-crate-lists` (ignores `cargo package` and comment lines); it cleared three red CI runs caused by `Pass 618.1`'s release-job list. Filed as a follow-up to `Pass 618.1`, no Pass of its own.
+- `244d48ab` `Pass 620.0`: zune-jpeg pinned `=0.5.16-rc3` (image-codec, 3d optional, render dev). 0.5.15 misdecoded subsampled one-scan-per-component JPEG (error 95-128); `jpeg-encoder` writes that layout whenever `optimize_huffman_table` is on, so pdfcer's own optimized JPEGs rendered wrong in pdfcer only. Regression test failed at 113.1 before, legitimate 4:2:0 q60 reads 5.2. **Decision 197** (`docs/decisions/197-zune-jpeg-rc-pin.md`, option D): exact rc pin, test, no encoder workaround.
+- `67521d61` `Pass 616.9` slice 1: `image(ssim=0.98)`; about 6 s whole optimize on a 3840x2400 photo. Byte budget and visual-diff report remain.
+- `f5faa4c4` `Pass 621.0`: `DestinationReader::named`, from a pdfcer-gui request. Core only; GUI adopts at a tag.
+
+**Gates (engineer-reported):** `tools/run-gates.sh` 48 of 49 commands green on the first run; the failure was `check-core-api-verbs`' `01` line count, fixed in `f5faa4c4` and re-run clean. 13,780 tests passed, 0 failed, 9 ignored across 44 suites (core lib 1837 + 2 ignored; core integration 3022 + 2 ignored). clippy, fmt, code-structure (568 baseline, none new) green; `cargo tree` for core and render shows no GUI or network crates. **The pdfium render-parity tool was NOT run;** render crate tests passed on rc3.
+
+**Environment:** D: filled (69 MB free) mid-session; `target/debug/incremental` had reached 48 GB and was cleared (regenerable). `.claude/worktrees` still holds 22 GB of agent worktrees, not touched.
+
+**Findings filed:** `personal_rag/pdf`: the zune-jpeg/jpeg-encoder lesson and "a test whose independent decoder is the production decoder proves agreement, not correctness". `D:/dev/rag/rust`: Git Bash heredoc turning `\b` into 0x08; LLVM "no space on device".
+
+**Backlog added:** move zune-jpeg to stable 0.5.16, a blocker for any crates.io publish. `R263` not minted. `FEATURES.md`: SSIM row split (core/cli ticked, gui not; byte budget and visual diff stay unbuilt), named-destinations row notes `named`, JPEG decode row notes the fix.
+
+**For next session:** ledgers: next free `Pass 622.0`, decision `198`, `R263`; next filing 1182nd. Run `check-commits-filed.py` before pushing the four commits. Consider a render-parity run against pdfium for rc3.
+
 ## 2026-10-22 (1180th filing) — `59e54703`: CI job name follows the check count (Pass 618.0 follow-up)
 
 **Filed (engineer-reported, no shell here):** `59e54703` renames the CI job `repository audits (31 checks)` to `(32 checks)`. Pass 618.0 added the panic-allows step; `tools/check-ci-job-names.py` failed CI run 39795026825 ("job 'audits' says '(31 checks)' and runs 32").

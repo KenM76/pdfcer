@@ -13482,3 +13482,13 @@ Recorded at the close of `Pass 618.1` (`82e83a06`). Answers scope 3 of the opera
 5. **Risk to surface when triggered:** publishing `pdfcer-crypto` puts home-grown RSA / ECDSA / bignum on crates.io, so constant-time behaviour and scope (verify-only?) are checked first. That stays Ken's call.
 
 **Body-section effect.** None; the crate layout (§3) is unchanged by a ruling that defers the split. **Decision ceiling.** Fills `196`; next free decision `197`. **New standing rule.** None; `R263` stays next free.
+
+### 2026-10-22 (1181st filing, consultant `autonomous-builder`) — decision 197: zune-jpeg is pinned to `=0.5.16-rc3`; no encoder workaround; stable 0.5.16 is required before any crates.io publish
+
+Full record: `docs/decisions/197-zune-jpeg-rc-pin.md`. Recorded at `Pass 620.0` (`244d48ab`). Option D of four.
+
+**Decides.** (1) Exact pin `=0.5.16-rc3` in `pdfcer-image-codec`, `pdfcer-3d` (optional) and `pdfcer-render` (dev), all three together (Cargo allows one 0.5-compatible version per graph and a caret never matches a pre-release). (2) A permanent regression test encodes Gray/RGB/CMYK at every chroma and Huffman setting the writer offers and decodes through pdfcer's decoder within 12 levels mean error (the bug read 113; legitimate 4:2:0 q60 reads 5.2). (3) No encoder workaround: optimized Huffman tables stay on. (4) Moving to stable 0.5.16 is a Backlog item and a **blocker for any crates.io publish**.
+
+**Why.** zune-jpeg 0.5.15 mis-decodes subsampled baseline JPEG written one scan per component; the fix is in the decoder. Rejected: pin alone (nothing catches a return), encoder workaround (5-10% size cost, third-party files stay broken), both, `[patch]` to a git commit.
+
+**Body-section effect.** None; no body section names zune-jpeg (grep of this file). **Decision ceiling.** Fills `197`; next free decision `198`. **New standing rule.** None; `R263` stays next free.
