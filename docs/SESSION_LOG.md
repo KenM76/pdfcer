@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1175th filing) — `c5143058`: space audit counts linearization machinery as file overhead
+
+**Filed (engineer-reported, no shell here):** follow-up fix to `Pass 616.8`. `optimize --linearize` reported "unreferenced 0 -> 291 bytes" because the linearization dictionary and hint stream are found by byte offset (Annex F.2 `/H`), not by reference. `space_audit/classify.rs` now seeds the `/Linearized` dictionary and every object starting at an `/H` offset as FileOverhead (hint stream's indirect `/Length` inherits it). New test seen failing with the seed off; space_audit 11/11; clippy, fmt, structure gate clean. End to end: growth 19 -> 311 under file-overhead, none under unreferenced.
+
+**Register:** ROADMAP Shipped follow-up entry. `FEATURES.md` no change (the *Space audit* row is not affected in claim: its "all 24 categories" still holds). `NEXT_SESSION.md` (engineer-owned) has no "hint stream counted as unreferenced" item, so nothing to remove. No decision, no rule, no Pass consumed.
+
+**For next session:** next free `Pass 618.0`; next filing 1176th. Git, push and backup state not verified from here.
+
 ## 2026-10-22 (1174th filing) — `v0.90.0` published (no Pass consumed)
 
 **Filed (engineer-reported, no shell here):** tag `v0.90.0` at `33805a15` (the 1173rd filing commit), pushed, CI green (run 39783616026). GitHub release with 8 assets; portable zip 27,141,519 bytes, sha256 `5bc718a7ebd7278db4a796d62c6906caf3067c0be83f9affa2a44e58ccc37bde`. Fresh-folder smoke passed (render-page, ocr, `optimize --linearize` with qpdf reporting no errors). OneDrive `pdfcer1` written (was 0.88.0); `pdfcer2` keeps 0.89.0. `verify-release.py` passes except the deliberate "working tree clean". `pdfcer-gui` notified. Details in the ROADMAP Shipped entry.

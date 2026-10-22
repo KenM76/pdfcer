@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.8` follow-up (`c5143058`), 2026-10-22 — space audit counts linearization machinery as file overhead (1175th filing)
+
+Code commit `c5143058ca42029864c4b9b21d8ab5052fb53770` "fix(space-audit): count linearization machinery as file overhead (Pass 616.8)". Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. No Pass consumed.
+
+**Defect** (found smoking the `v0.90.0` release): `pdfcer optimize --linearize` reported "unreferenced 0 -> 291 bytes". Nothing references the linearization dictionary or the hint stream (found by byte offset, ISO 32000-2 Annex F.2 `/H`), so the reachability walk classed them Unreferenced.
+
+**Fix** (`crates/pdfcer-core/src/space_audit/classify.rs`): the dictionary carrying `/Linearized`, plus every object whose span starts at an `/H` offset, is seeded FileOverhead before the unreferenced fallback; a hint stream's indirect `/Length` object inherits that role. Test `space_audit::tests::linearization_dictionary_and_hint_stream_are_file_overhead`, seen failing with the seed disabled; space_audit tests 11/11; clippy `-D warnings`, fmt and code-structure gate clean. End to end on `fixtures/synthetic/ocr/printed.pdf --linearize`: growth now under file-overhead (19 -> 311 bytes), nothing under unreferenced.
+
+No public API change (`docs/core-api` unaffected), no manifest change. `FEATURES.md`: no box changed. Ledgers unchanged: next free `Pass 618.0`, decision `196`; next filing 1176th.
+
 ### `v0.90.0` — PUBLISHED 2026-10-22 (1174th filing)
 
 Tag `v0.90.0` (lightweight) at `33805a156fba15fc445f63bb87e2d9ae129dca37`, the 1173rd filing commit; bump `a158d4ed`. Pushed; CI green at the tag (run 39783616026, success). Carries the 136 commits listed in the bump entry below. GitHub release https://github.com/KenM76/pdfcer/releases/tag/v0.90.0 has 8 assets: portable zip `pdfcer-v0.90.0-windows-x64.zip` (27,141,519 bytes, sha256 `5bc718a7ebd7278db4a796d62c6906caf3067c0be83f9affa2a44e58ccc37bde`), `ocr-addon-ocrcer.zip`, `ocr-addon-ocrs.zip`, `ocr-addon-tesseract.zip`, and a `.sha256` for each. Build folder `D:\builds\pdfcer-20261022-0904-33805a1` (53,740,896 bytes; `pdfcer.exe` 37,805,056 bytes; reports `pdfcer 0.90.0`, revision `v0.90.0`, iccce 0.3.0 rev `a4d9003b`). Engineer-reported; I have no shell.
