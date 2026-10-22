@@ -51,7 +51,7 @@ soft masks and Type3 CharProcs.
 | `collection` | The program is a `ttcf` collection. |
 | `format-deferred` | `FontFile` (Type 1). |
 | `malformed-glyf` | The `glyf` data is malformed. |
-| (note, no token) | The document claims PDF/A: the whole re-subset step is skipped with one note. What PDF/A requires of a subset is sourced in the spec RAG (`pdfa/pdfa__ref__font_subset_cidset_charset.md`); lifting this skip is the next slice. |
+| `pdfa1-list-owed` | The document claims PDF/A-1 (or a part other than 2/3/4), and the font is untagged with no `/CIDSet` (CIDFont) or `/CharSet` (Type 1): the new tag would make it a subset lacking the list ISO 19005-1 §6.3.5 requires. |
 | `unembedded-this-run` | The same run unembeds the font. |
 | `not-smaller` | The rewritten program is not smaller. |
 
@@ -171,5 +171,19 @@ the drawn glyphs makes it under-claim, which fails PDF/A-2/-3
 (ISO 19005-2 §6.2.11.4.2: a present list must be exact; measured on veraPDF
 1.30.2). Fixtures `type0-cidset` and `type1c-charset` pin it.
 
-Deferred: PDF/A, merging CFF copies, Type 1 `/FontFile`, and switching to
+## PDF/A
+
+A PDF/A document is cut like any other. The cut changes no structural glyph
+set (no `numGlyphs`, charset, `CIDToGIDMap` or glyph name), and a merge
+joins only programs whose tables other than `glyf`/`loca` agree, so every
+list stays as true as it was. PDF/A-2/-3 lists are optional and PDF/A-4
+forbids them (ISO 19005-4 §5.1); neither is changed. PDF/A-1 requires a list
+on every subset, so an untagged CIDFont or Type 1 font without one, which
+the new tag would make a subset, is refused (`pdfa1-list-owed`); a tagged
+one keeps what it had. Measured on veraPDF 1.30.2 (1b, 2b): every
+`fixtures/synthetic/resubset` cut has the same font-list verdict as its
+input; an untagged `type1c` cut without the guard fails 6.3.5-2.
+
+Deferred: writing the missing PDF/A-1 list (the full structural set),
+merging CFF copies, Type 1 `/FontFile`, and switching to
 the short `loca` format.

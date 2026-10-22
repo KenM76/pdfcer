@@ -17,7 +17,7 @@ use super::resubset::{
     ResubsetRequest, ResubsetTarget,
 };
 use crate::filters::flate;
-use crate::font_unembed::{Located, locate};
+use crate::font_unembed::{Located, PdfaClaim, detect_pdfa, locate};
 use crate::fontinfo::{FontSubtype, ProgramKey, Surface, split_subset_tag};
 use crate::graph::ObjectGraph;
 use crate::object::{ObjId, Object};
@@ -49,6 +49,7 @@ fn plan_with(
     let located: Vec<Located<'_>> = inventory.fonts.iter().map(|r| locate(view, r)).collect();
     let usage = enumerate(view);
     let refs = referrers(view, live);
+    let pdfa1 = claims_pdfa1(view);
     let mut tags: BTreeSet<String> = inventory
         .fonts
         .iter()
@@ -62,6 +63,7 @@ fn plan_with(
             usage: &usage,
             refs: &refs,
             users: &group,
+            pdfa1,
         };
         match check
             .eligible(program)
@@ -92,6 +94,31 @@ fn plan_with(
     }
     out.targets.sort_by_key(|t| t.program);
     out
+}
+
+/// Whether `view` claims PDF/A in any part but 2, 3 or 4 (part 1, or one
+/// pdfcer cannot read), so is held to the strictest rule.
+fn claims_pdfa1(view: &DocumentView<'_>) -> bool {
+    matches!(
+        detect_pdfa(view),
+        PdfaClaim::Identified { part, .. }
+            if !matches!(part.as_deref(), Some("2" | "3" | "4"))
+    )
+}
+
+/// Whether `l`, untagged now, would become a PDF/A-1 subset without the
+/// list ISO 19005-1 §6.3.5 requires: `/CIDSet` on a CIDFont, `/CharSet` on
+/// a Type 1 font. A tagged font keeps whatever it had, which the cut leaves
+/// true.
+fn owes_a_list(l: &Located<'_>) -> bool {
+    if l.record.subset_tag.is_some() {
+        return false;
+    }
+    match l.record.subtype {
+        FontSubtype::Type0 | FontSubtype::CidFontType0 | FontSubtype::CidFontType2 => !l.cid_set,
+        FontSubtype::Type1 | FontSubtype::MmType1 => !l.char_set,
+        _ => false,
+    }
 }
 
 /// An eligible program, cut or refused, with what a merge needs.
@@ -151,6 +178,8 @@ struct Group<'a, 'v, 'l, 'r> {
     usage: &'a GlyphUsage,
     refs: &'a Referrers,
     users: &'a [&'l Located<'r>],
+    /// The document claims PDF/A-1, or a part pdfcer could not read.
+    pdfa1: bool,
 }
 
 impl<'l, 'r> Group<'_, '_, 'l, 'r> {
@@ -203,6 +232,12 @@ impl<'l, 'r> Group<'_, '_, 'l, 'r> {
             return Err(ResubsetRefusal::new(
                 "unreferenced-user",
                 "something the drawing walk did not see refers to the font",
+            ));
+        }
+        if self.pdfa1 && self.users.iter().any(|l| owes_a_list(l)) {
+            return Err(ResubsetRefusal::new(
+                "pdfa1-list-owed",
+                "the document claims PDF/A-1, which requires a /CIDSet or /CharSet on a subset font; this font has none, and pdfcer does not yet write one",
             ));
         }
         Ok(())

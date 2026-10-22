@@ -4757,7 +4757,10 @@ Contract:
   `non-identity-cmap`, `font-not-indirect`,
   `program-direct`, `every-glyph-used` (the cutter kept every glyph),
   `not-smaller` (Flate-9 output not under the stored size),
-  `unembedded-this-run`, plus the cutter's own. The shipped cutter is
+  `unembedded-this-run`, `pdfa1-list-owed` (the document claims PDF/A-1,
+  or a part other than 2/3/4, and an untagged CIDFont without `/CIDSet` or
+  Type 1 font without `/CharSet` would become a subset lacking the list
+  ISO 19005-1 §6.3.5 requires), plus the cutter's own. The shipped cutter is
   `pdfcer_render::font::resubset::GLYPH_ZERO_RESUBSETTER`: it keeps glyph
   0, every glyph any §9.6.6.4 rung could pick for a shown code, kept
   composites' components and kept CFF glyphs' `seac` parts; empties a
@@ -4773,8 +4776,9 @@ Contract:
   CIDFonts and descriptors get one fresh six-letter tag over their stem
   (ISO 32000-2 §9.6.4), in the run's one undo entry; a cut program is
   dropped from `changes`. Notes disclose the glyphs kept and that text
-  typed later in these fonts needs the missing glyphs embedded again; a
-  PDF/A document plans no re-subset and a note says why. `apply_optimize`
+  typed later in these fonts needs the missing glyphs embedded again. A
+  PDF/A document is cut like any other: the cut changes no structural
+  glyph set, so its lists and veraPDF verdict stay as they were. `apply_optimize`
   returns `StalePlan` if any object it rewrites changed or a re-plan
   differs. CLI: `--resubset-fonts`; the report's `resubset` lines (each
   cut with glyphs kept, each refusal with why) / JSON `resubset`.

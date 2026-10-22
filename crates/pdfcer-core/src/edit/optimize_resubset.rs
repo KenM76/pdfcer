@@ -4,7 +4,6 @@
 use std::collections::BTreeSet;
 
 use super::{EditSession, ObjectWrite, Removal};
-use crate::font_unembed::{PdfaClaim, detect_pdfa};
 use crate::fontinfo::split_subset_tag;
 use crate::object::{Dict, Name, ObjId, Object, Stream};
 use crate::optimize::resubset::{
@@ -25,13 +24,6 @@ impl EditSession {
         let Some(request) = settings.resubset else {
             return;
         };
-        if let PdfaClaim::Identified { .. } = detect_pdfa(&self.view()) {
-            notes.push(
-                "fonts not re-subset: the document identifies itself as PDF/A, and pdfcer does not yet rewrite what PDF/A requires of a subset"
-                    .to_owned(),
-            );
-            return;
-        }
         let cut = self.resubset_preview(request, plan);
         let programs: BTreeSet<ObjId> = cut.targets.iter().map(|t| t.program).collect();
         plan.changes.retain(|c| !programs.contains(&c.id));

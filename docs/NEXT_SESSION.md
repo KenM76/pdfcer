@@ -33,11 +33,12 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   `/CIDSet`/`/CharSet` byte-identical: an emptied glyph is still present
   (spec RAG `pdfa/pdfa__ref__font_subset_cidset_charset.md`); slice 5's
   list rewrite under-claimed and failed veraPDF PDF/A-2b 6.2.11.4.2-2, so it
-  was reverted. Plan: `docs/font-resubset-plan.md`. Remaining 616.6:
-  re-subset under PDF/A (currently refused: allow A-1/2/3 with lists
-  untouched, add a missing list on A-1, remove the lists on A-4), merging
-  CFF copies, Type 1 `/FontFile`, and an Acrobat Reader check of a
-  cut/merged font. Then 616.7-616.10
+  was reverted. Plan: `docs/font-resubset-plan.md`. PDF/A documents are
+  now re-subset (veraPDF verdicts unchanged on every fixture); the one
+  refusal is `pdfa1-list-owed` (an untagged A-1 font with no list would
+  become a subset failing 6.3.5). Remaining 616.6: writing that missing
+  A-1 list, merging CFF copies, Type 1 `/FontFile`, and an Acrobat Reader
+  check of a cut/merged font. Then 616.7-616.10
   (content streams, linearization, quality/byte-budget, compatibility
   target).
 - **Fixture generator:** `tools/gen-resubset-fixtures.py` needs fontTools

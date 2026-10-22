@@ -183,19 +183,15 @@ fn text_drawn_after_planning_makes_the_plan_stale() {
 }
 
 #[test]
-fn a_pdfa_document_is_not_re_subset_and_says_why() {
+fn a_pdfa_2_document_is_re_subset() {
     let xmp = br#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/" pdfaid:part="2" pdfaid:conformance="B"/></rdf:RDF></x:xmpmeta>"#;
     let s = session_with(
         "/Metadata 8 0 R",
         &[stream("/Type /Metadata /Subtype /XML", xmp)],
     );
     let plan = s.plan_optimize(&settings()).unwrap();
-    assert!(plan.resubset.is_none());
-    assert!(
-        plan.notes.iter().any(|n| n.contains("PDF/A")),
-        "{:?}",
-        plan.notes
-    );
+    let cut = plan.resubset.unwrap();
+    assert_eq!(cut.targets.len(), 1, "{:?}", cut.refused);
 }
 
 /// A descriptor held directly in the font dictionary is re-tagged with it

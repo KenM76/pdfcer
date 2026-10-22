@@ -217,3 +217,88 @@ fn a_descriptor_with_a_charset_is_cut() {
     let p = run(&d, &Fake::new(10));
     assert_eq!(p.targets.len(), 1, "{:?}", p.refused);
 }
+
+/// A `/Metadata` stream (object 8) claiming PDF/A `part`, B conformance.
+fn pdfa(part: &str) -> Vec<u8> {
+    let xmp = format!(
+        r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/" pdfaid:part="{part}" pdfaid:conformance="B"/></rdf:RDF></x:xmpmeta>"#
+    );
+    stream("/Type /Metadata /Subtype /XML", xmp.as_bytes())
+}
+
+/// [`doc`] with a Type 1 font over a `/FontFile3 /Type1C` program, in a
+/// document claiming PDF/A `part`.
+fn type1(part: &str, name: &str) -> Document {
+    let mut bodies = vec![
+        b"<< /Type /Catalog /Pages 2 0 R /Metadata 8 0 R >>".to_vec(),
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec(),
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R \
+           /Resources << /Font << /F1 5 0 R >> >> >>"
+            .to_vec(),
+        stream("", b"BT /F1 9 Tf (a) Tj ET"),
+        format!(
+            "<< /Type /Font /Subtype /Type1 /BaseFont /{name} /FirstChar 32 \
+             /LastChar 126 /FontDescriptor 6 0 R >>"
+        )
+        .into_bytes(),
+        format!(
+            "<< /Type /FontDescriptor /FontName /{name} /Flags 32 /FontBBox [0 0 1 1] \
+             /ItalicAngle 0 /Ascent 1 /Descent 0 /CapHeight 1 /StemV 1 /FontFile3 7 0 R >>"
+        )
+        .into_bytes(),
+        stream("/Subtype /Type1C", &noise(2000)),
+    ];
+    bodies.push(pdfa(part));
+    Document::from_bytes(build(&bodies)).unwrap()
+}
+
+/// PDF/A-1 requires `/CharSet` on a Type 1 subset (ISO 19005-1 §6.3.5);
+/// the cut would make an untagged font a subset without one.
+#[test]
+fn a_pdfa1_untagged_type1_font_without_a_charset_is_refused() {
+    let p = run(&type1("1", "Helv"), &Fake::new(10));
+    assert!(p.targets.is_empty());
+    assert_eq!(tokens(&p), ["pdfa1-list-owed"]);
+}
+
+/// A part pdfcer cannot read is held to the PDF/A-1 rule.
+#[test]
+fn an_unreadable_pdfa_part_is_held_to_the_pdfa1_rule() {
+    let p = run(&type1("x1", "Helv"), &Fake::new(10));
+    assert_eq!(tokens(&p), ["pdfa1-list-owed"]);
+}
+
+#[test]
+fn a_pdfa1_type1_font_with_its_charset_is_cut() {
+    let p = run(&type1("1", "Helv /CharSet (/a)"), &Fake::new(10));
+    assert_eq!(p.targets.len(), 1, "{:?}", p.refused);
+}
+
+/// A tagged font is a subset already; the cut leaves its lists as they were.
+#[test]
+fn a_pdfa1_tagged_type1_font_is_cut() {
+    let p = run(&type1("1", "ABCDEF+Helv"), &Fake::new(10));
+    assert_eq!(p.targets.len(), 1, "{:?}", p.refused);
+}
+
+/// PDF/A-2, -3 and -4 require no list (ISO 19005-2 §6.2.11.4.2).
+#[test]
+fn a_pdfa2_3_or_4_untagged_type1_font_is_cut() {
+    for part in ["2", "3", "4"] {
+        let p = run(&type1(part, "Helv"), &Fake::new(10));
+        assert_eq!(p.targets.len(), 1, "part {part}: {:?}", p.refused);
+    }
+}
+
+/// A simple TrueType font needs no list under any part.
+#[test]
+fn a_pdfa1_untagged_truetype_font_is_cut() {
+    let d = doc(
+        "/Metadata 8 0 R",
+        "Arial",
+        b"BT /F1 9 Tf (a) Tj ET",
+        &[pdfa("1")],
+    );
+    let p = run(&d, &Fake::new(10));
+    assert_eq!(p.targets.len(), 1, "{:?}", p.refused);
+}
