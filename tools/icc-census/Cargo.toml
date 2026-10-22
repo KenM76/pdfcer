@@ -3,7 +3,7 @@
 # WHY THIS EXISTS: the sibling colour project `iccce` (which owns ALL colour
 # conversion for this ecosystem — ARCHITECTURE.md §12 decision 064) asked for
 # a population census of embedded ICC profiles, filed at
-# D:\Dev\FeatureRequests\iccce_FeatureRequests\open\request_profile_population_census.md
+# D:\Dev\FeatureRequests\icccer_FeatureRequests\open\request_profile_population_census.md
 # (2026-08-17). Their stated reason is that a load-bearing constant of theirs
 # — a 33-node CLUT grid recommendation — rests on ONE profile pair, ONE
 # direction and ONE tag type, and they have no way from inside their own

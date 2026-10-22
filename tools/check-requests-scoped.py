@@ -102,12 +102,12 @@ pdfcer answers **two** request channels, and the first cut of this file knew
 only one:
 
   * `pdfce_FeatureRequests` — the `pdfcer-gui` shell (6 open requests);
-  * `iccce_FeatureRequests` — the ICC colour-management partner (4 open).
+  * `icccer_FeatureRequests` — the ICC colour-management partner (4 open).
 
 ★★ The second was found within the hour of this gate shipping, and by the same
 blind spot it would itself have had. A reply-citation audit reported 19, then
 15, then 10 "missing" replies from `ROADMAP.md`; every one of the ten was
-present, four of them in `iccce_FeatureRequests`, because the audit was scoped
+present, four of them in `icccer_FeatureRequests`, because the audit was scoped
 to one channel while the register cites both. **A gate that scans one of two
 directories is not 50 % of a gate — it is a gate that reports "clean" about a
 place it never looked.**
@@ -158,7 +158,7 @@ ROADMAP = ROOT / "docs" / "ROADMAP.md"
 # docs for why scanning `D:/Dev/FeatureRequests/` wholesale would be wrong.
 DEFAULT_CHANNELS = (
     Path("D:/Dev/FeatureRequests/pdfce_FeatureRequests"),
-    Path("D:/Dev/FeatureRequests/iccce_FeatureRequests"),
+    Path("D:/Dev/FeatureRequests/icccer_FeatureRequests"),
 )
 
 # Files that can carry an answer.
@@ -167,7 +167,7 @@ DEFAULT_CHANNELS = (
 # not agree on naming and neither is wrong:
 #
 #     pdfce_FeatureRequests   reply_G013_....md        done_G013_CONSUMED.md
-#     iccce_FeatureRequests   2026-08-21-reply-....md  note_boundary_....md
+#     icccer_FeatureRequests   2026-08-21-reply-....md  note_boundary_....md
 #
 # ★ The prefix tuple this replaced matched the first column and silently
 # missed the second. It still reported every request answered -- because some

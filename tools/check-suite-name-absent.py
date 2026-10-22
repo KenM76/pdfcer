@@ -33,7 +33,7 @@ TWO DEFECTS FOUND BY THE SIBLING PROJECT, 2026-08-25, AND FIXED HERE
 ====================================================================
 `iccce` built the same gate, hit both of these on its own copy, then read
 this file and found them here too
-(`D:\\Dev\\FeatureRequests\\iccce_FeatureRequests\\open\\`,
+(`D:\\Dev\\FeatureRequests\\icccer_FeatureRequests\\open\\`,
 `note_your_name_gate_has_the_two_defects_mine_had.md`). Both are recorded
 rather than quietly repaired, because each is a mistake a careful reader
 would make again.
