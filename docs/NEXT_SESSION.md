@@ -47,6 +47,10 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   scripts to a file first.
 - **Questions for Ken, raise when the Pass needs them:** lossy JBIG2 off by
   default? a transparency flattener? JPX encoder (licence check first)?
+- **G225 (text opacity reader):** shipped as Pass 617.9, and the reply is in
+  `open/`. Form leaves now inherit the alpha at `Do`, with a transparency
+  group reset to 1.0. Readings changed from 1.0, so suspect that first if a
+  GUI opacity report about forms arrives.
 - **Owed to pdfceGUI:** a heads-up that the presets now use `encode=auto`.
 - **CI:** 88dfe717 failed the public-fn-docs audit (`emit.rs::write`), fixed
   in 6d77fac3. Run every `check-ci-parity.py --list` audit before a push —

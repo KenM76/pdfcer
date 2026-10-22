@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 617.9` (`G225`, `966177ce`), 2026-10-21 — read the fill alpha on text runs, and say when it is unknown (1164th filing)
+
+Code commit `966177ce` "feat(vector): read the fill alpha on text runs and say when it is unknown (Pass 617.9, G225)". Core only; no CLI caller, no GUI (separate project). Answers `pdfcer-gui` request `G225` ("page text's fill opacity can be written but not read"). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message and `docs/core-api/01-reading-and-model.md` §10.2 (updated).
+
+- **`vector::TextRun::fill_alpha: Option<f64>`** (`crates/pdfcer-core/src/vector/decompose.rs`). `Some(a)`: the `/ca` in force when the run is shown, clamped 0..=1; `Some(1.0)` with no `gs`. `None`: a `gs` in force is unresolvable or its `/ca` is non-numeric, the same state `FormatError::OpacityUnrestorable` refuses in.
+- **Knownness flags:** `PathObject` and `ImageObject` gain `fill_alpha_known` and `stroke_alpha_known: bool`; `ExtGStateParams` gains `fill_alpha_unreadable` and `stroke_alpha_unreadable`.
+- **Defect fixed on discovery:** form leaves now inherit `/ca` and `/CA` at `Do` (ISO 32000 §8.4.1); a transparency-group form (`/Group /S /Transparency`, §11.6.6) starts at 1.0. Before, leaves read 1.0 regardless, contradicting `ImageObject::fill_alpha`'s documentation.
+- **Tests (engineer-reported):** 13 new in `crates/pdfcer-core/tests/text_alpha_read.rs`; four sabotages each failed 1-6 tests. `tools/run-gates.sh` PASS (46 commands); clippy and code-structure clean (no new violations); `check-core-api-verbs` PASS. No manifest change (`cargo tree` not applicable); no writer change.
+- **Open:** `pdfcer-gui` must wire its text opacity slider to the reader; no CLI caller exists.
+
+`FEATURES.md`: new row *Read a text run's fill opacity* (core [x], cli [ ], gui [ ]) after the existing-text opacity writer row. No decision; no rule (`195`, `R263` stay free). Git, push and backup state not verified from here (no shell). Next filing 1165th.
+
 ### `Pass 616.6` (slice 6, `35b9cfb1`), 2026-10-21 — font re-subsetting in PDF/A documents; `Pass 616.6` NOT complete (1163rd filing)
 
 Code commit `35b9cfb1` "feat(optimize): re-subset fonts in PDF/A documents (Pass 616.6)", on main, not pushed at filing time. Core + CLI (existing `pdfcer optimize --resubset-fonts`, no new flag); no GUI (separate project). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message and `docs/font-resubset-plan.md` (new PDF/A section).
@@ -23073,6 +23085,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+(1164th filing: `Pass 617.9` (`G225`) SHIPPED `966177ce`, see *Shipped*. Next free `Pass 618.0`, decision `195`, `R263`; next filing 1165th.)
 
 (1157th filing: `Pass 617.8` (`G224`) SHIPPED `0f277026`, see *Shipped*. Next free `Pass 617.9`, decision `195`, `R263`; next filing 1158th.)
 

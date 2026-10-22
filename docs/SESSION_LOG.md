@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1164th filing) — `Pass 617.9` (`G225`) in `966177ce`: text-run fill alpha is readable
+
+**Shipped:** `966177ce` adds `vector::TextRun::fill_alpha: Option<f64>` (`None` = unknown, the `OpacityUnrestorable` state), `*_alpha_known` flags on `PathObject`/`ImageObject`, and fixes form leaves to inherit `/ca` `/CA` at `Do`. Core only. Detail in the ROADMAP *Shipped* entry.
+
+**Decisions:** none; no numbers minted (`195`, `R263` stay free).
+
+**Findings (engineer-reported):** leaves in forms read 1.0 regardless of the ambient alpha, contradicting `ImageObject::fill_alpha`'s docs; fixed. 13 new tests, four sabotages failed 1-6 each; gates PASS (46 commands).
+
+**Still in flight:** `pdfcer-gui` must wire its text opacity slider; no CLI caller.
+
+**For next session:** next free `Pass 618.0`, decision `195`, `R263`. Git, push and backup state not verified (no shell). Next filing 1165th.
+
 ## 2026-10-21 (1163rd filing) — `Pass 616.6` slice 6 in `35b9cfb1`: re-subset in PDF/A documents
 
 **Shipped:** `35b9cfb1` removes the blanket PDF/A refusal of `--resubset-fonts` (core + cli, no new flag). One refusal remains, `pdfa1-list-owed`: PDF/A-1 claim (or unreadable part), untagged font, missing CIDSet/CharSet. Detail in the ROADMAP *Shipped* entry.
