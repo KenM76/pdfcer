@@ -26,8 +26,8 @@ pub(crate) struct FontArgs {
     /// face.
     #[arg(long)]
     pub(crate) keep_subset_tag: bool,
-    /// Cut each embedded TrueType program to the glyphs the document
-    /// draws. Every glyph number is kept, so the pages look the same; a
+    /// Cut each embedded TrueType or CFF program to the glyphs the
+    /// document draws. Every glyph number is kept, so the pages look the same; a
     /// font that cannot be cut safely is kept whole and listed with why.
     /// Not done to a PDF/A document.
     #[arg(long)]

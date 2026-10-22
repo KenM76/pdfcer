@@ -9,7 +9,7 @@ use super::resubset::{
 };
 use super::resubset_plan::{Prepared, fresh_tag};
 use crate::filters::flate;
-use crate::fontinfo::split_subset_tag;
+use crate::fontinfo::{ProgramKey, split_subset_tag};
 use crate::graph::ObjectGraph;
 use crate::object::ObjId;
 use crate::view::DocumentView;
@@ -115,11 +115,16 @@ impl Merge<'_, '_> {
 }
 
 /// A program a merge can start from: cut, or left whole only because a cut
-/// would save nothing.
+/// would save nothing. Only TrueType programs merge.
 fn mergeable(p: &Prepared<'_, '_>) -> bool {
-    p.outcome
-        .as_ref()
-        .map_or_else(|why| MERGEABLE_REFUSALS.contains(&why.token), |_| true)
+    let truetype = p
+        .users
+        .iter()
+        .all(|l| l.program_key == Some(ProgramKey::FontFile2));
+    truetype
+        && p.outcome
+            .as_ref()
+            .map_or_else(|why| MERGEABLE_REFUSALS.contains(&why.token), |_| true)
 }
 
 /// The face every font of `p` names, without its subset tag or a Type 0

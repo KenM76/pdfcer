@@ -26,6 +26,12 @@ rerun is byte-identical.
   face.ttf with its cmap replaced by one (3,0) subtable, F041-F045 -> A-E;
   shows "B", so the cut keeps .notdef and B (ISO 32000-1 9.6.6.4).
 
+- type1c.pdf: a Type1 font over /FontFile3 /Type1C, the bare CFF
+  face.cff from tools/gen-cff-face.py, WinAnsi; shows "A\311", so the
+  cut keeps .notdef, A and Eacute with its seac base E and accent acute.
+- opentype.pdf: the same face as /FontFile3 /OpenType (face-cff.otf);
+  shows "C", keeping .notdef and C.
+
 Run: python tools/gen-resubset-fixtures.py (symbolic.pdf needs fontTools)
 """
 
@@ -146,6 +152,21 @@ def symbolic() -> bytes:
         stream(b"/Length1 %d " % len(program), program),
     ])
 
+def cff(content: bytes, subtype: bytes, program: bytes) -> bytes:
+    widths = b"[" + b" 600" * (201 - 32 + 1) + b" ]"
+    return assemble([
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        PAGE,
+        stream(b"", content),
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+SynthCff "
+        b"/Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 201 /Widths %s "
+        b"/FontDescriptor 6 0 R >>" % widths,
+        DESCRIPTOR.replace(b"/FontFile2", b"/FontFile3").replace(b"+Face", b"+SynthCff"),
+        stream(b"/Subtype /%s " % subtype, program),
+    ])
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     simple = document(
@@ -172,6 +193,10 @@ def main() -> None:
         ("pair.pdf", pair()),
         ("shared-program.pdf", shared_program()),
         ("symbolic.pdf", symbolic()),
+        ("type1c.pdf", cff(b"BT /F1 48 Tf 10 20 Td (A\311) Tj ET", b"Type1C",
+                           (OUT / "face.cff").read_bytes())),
+        ("opentype.pdf", cff(b"BT /F1 48 Tf 10 20 Td (C) Tj ET", b"OpenType",
+                             (OUT / "face-cff.otf").read_bytes())),
     ]:
         (OUT / name).write_bytes(data)
         print(f"wrote {OUT / name} ({len(data)} B)")

@@ -4738,7 +4738,7 @@ Contract:
   fails. CLI: `--unembed-fonts all|none|NAMES`, `--keep-subset-tag`; the
   report's `fonts` lines (each kept font with why) / JSON `fonts`.
 - **Font re-subset** (Pass 616.6, `optimize::resubset`) cuts each embedded
-  `/FontFile2` program to the glyphs the document draws, by the
+  `/FontFile2` or `/FontFile3` program to the glyphs the document draws, by the
   `FontResubsetter` in `OptimizeSettings::resubset` (core holds no
   font-program code; the trait's `resubset(&ResubsetRequest { view,
   program, users: [FontUse { font, codes }] }) -> Result<ResubsetProgram {
@@ -4753,17 +4753,19 @@ Contract:
   font, name, why }] }`, `saving()`. Refusal tokens: `unreadable-content`
   (any walk fault refuses every font), `acroform-dr`, `unreferenced-user`
   (anything the walk did not see refers to the font, its descendant, its
-  descriptor or the program), `format-deferred` (not `/FontFile2`),
+  descriptor or the program), `format-deferred` (a `/FontFile` Type 1 program),
   `cidset-charset-present`, `non-identity-cmap`, `font-not-indirect`,
   `program-direct`, `every-glyph-used` (the cutter kept every glyph),
   `not-smaller` (Flate-9 output not under the stored size),
   `unembedded-this-run`, plus the cutter's own. The shipped cutter is
   `pdfcer_render::font::resubset::GLYPH_ZERO_RESUBSETTER`: it keeps glyph
-  0, every glyph any §9.6.6.4 rung could pick for a shown code, and kept
-  composites' components; drops `DSIG`; refuses `collection`,
+  0, every glyph any §9.6.6.4 rung could pick for a shown code, kept
+  composites' components and kept CFF glyphs' `seac` parts; empties a
+  TrueType record or makes a CFF charstring a bare `endchar`; drops
+  `DSIG`; refuses `cff-layout` (a CFF it cannot relocate), `collection`,
   `fstype-restricted`, `fstype-no-subsetting`, `malformed-glyf`,
   `unusable-font`, `unmapped-code` (a simple-font code no rung resolves).
-  The program is written Flate with `/Length1`, and the fonts, descendant
+  The program is written Flate (with `/Length1` when it had one), and the fonts, descendant
   CIDFonts and descriptors get one fresh six-letter tag over their stem
   (ISO 32000-2 §9.6.4), in the run's one undo entry; a cut program is
   dropped from `changes`. Notes disclose the glyphs kept and that text
@@ -4779,7 +4781,7 @@ Contract:
   `every-glyph-used`/`not-smaller` are offered to
   `FontResubsetter::merge(&[&[u8]]) -> Result<ResubsetProgram,
   ResubsetRefusal>` (default: refuses `merge-unsupported`). The shipped
-  cutter merges TrueType programs with one glyph count and `loca` format
+  cutter merges only TrueType programs, with one glyph count and `loca` format
   whose tables all agree except `glyf`, `loca`, `DSIG` and `name` (`head`
   compared without its checksum and dates), keeping every glyph ID and
   refusing `different-face` when any table or a glyph record two copies

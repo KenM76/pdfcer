@@ -1,7 +1,7 @@
 # Font re-subsetting inside optimize — plan (Pass 616.6 slice 2)
 
-Shrink an embedded TrueType (`FontFile2`) program to the glyphs the document
-draws. Typical target: Word/LibreOffice files that embed whole fonts.
+Shrink an embedded TrueType (`FontFile2`) or CFF (`FontFile3`) program to the
+glyphs the document draws. Typical target: Word/LibreOffice files that embed whole fonts.
 
 ## Method: GID-preserving glyph zeroing
 
@@ -12,7 +12,7 @@ the composite closure of every kept glyph stay. Content streams, `/Widths`,
 stream is rewritten.
 
 Rejected: `subsetter` with renumbering. It drops `cmap`, which a simple
-TrueType font needs to reach its glyphs (ISO 32000-2 §9.6.6.4); renumbering
+TrueType font needs to reach its glyphs (ISO 32000-1 §9.6.6.4); renumbering
 also forces a CIDSet rewrite. Small extra saving, much more risk.
 
 ## Glyph-usage enumerator (core, `optimize/glyph_usage/`)
@@ -49,7 +49,7 @@ soft masks and Type3 CharProcs.
 | `unmapped-code` | A used code that no GID rung resolves. |
 | `fstype-restricted`, `fstype-no-subsetting` | The program's fsType forbids it. |
 | `collection` | The program is a `ttcf` collection. |
-| `format-deferred` | `FontFile` or `FontFile3` (CFF is a later slice). |
+| `format-deferred` | `FontFile` (Type 1). |
 | `malformed-glyf` | The `glyf` data is malformed. |
 | `cidset-charset-present` | The font has a `/CIDSet` or `/CharSet`. |
 | (note, no token) | The document claims PDF/A: the whole re-subset step is skipped with one note. The local spec RAG lacks the PDF/A-1 §6.3.5 and PDF/A-2 §6.2.11.4 text, so what PDF/A requires of a subset is unverified. |
@@ -136,5 +136,28 @@ Word's pattern. A corpus measurement over 2,915 files found 22 that carry
 one face more than once, with up to 31.6% of a file's bytes duplicated.
 The merge rule is documented in `docs/core-api/03-capabilities.md`.
 
-Deferred: CFF zeroing, CIDSet/CharSet rewrite and PDF/A, and switching to the
-short `loca` format.
+CFF zeroing is built (`font/resubset/cff.rs`, `cff_glyphs.rs`), for a bare
+CFF (`/Type1C`, `/CIDFontType0C`) and the `CFF ` table of an OpenType
+program (`/OpenType`, `DSIG` dropped):
+
+- Each unused charstring becomes a bare `endchar`. Glyph IDs, global and
+  local Subrs, charset, Encoding, FDSelect and Private DICTs are copied.
+- Kept: glyph 0, the roots, and each kept glyph's `seac` base and accent
+  (Adobe TN5177 Appendix C, resolved by StandardEncoding name the way the
+  renderer draws them), found by evaluating every kept charstring.
+- Rewritten: the CharStrings INDEX, the Top DICT INDEX, and a CID font's
+  FDArray. Every absolute offset (charset > 2, Encoding > 1, CharStrings,
+  Private, FDArray, FDSelect) is re-encoded as a 5-byte integer and moved
+  by the size change of the structures before it.
+- Refused `cff-layout`: more than one font in the Name INDEX, a
+  CharstringType other than 2, an offset into a rewritten structure, or a
+  Private DICT and its Subrs on two sides of one.
+- Verified: the cut re-parses with the same glyph count, names, built-in
+  encoding and subfonts, and every kept glyph draws the same path and
+  advance; otherwise `malformed-glyf`.
+- Merging copies stays TrueType-only.
+
+Fixtures `type1c` (seac Eacute) and `opentype`, from `tools/gen-cff-face.py`.
+
+Deferred: CIDSet/CharSet rewrite and PDF/A, merging CFF copies, and
+switching to the short `loca` format.

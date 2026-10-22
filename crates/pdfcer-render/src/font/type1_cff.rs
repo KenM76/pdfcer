@@ -98,7 +98,7 @@ fn top_dict(charset: i32, charstrings: i32, private: i32) -> Vec<u8> {
 }
 
 /// A CFF INDEX: count, offset size, 1-based offsets, data. Empty is `00 00`.
-fn index(items: &[&[u8]]) -> Vec<u8> {
+pub(crate) fn index(items: &[&[u8]]) -> Vec<u8> {
     if items.is_empty() {
         return vec![0, 0];
     }

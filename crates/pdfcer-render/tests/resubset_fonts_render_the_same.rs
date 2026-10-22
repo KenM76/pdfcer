@@ -1,6 +1,7 @@
-//! A `/FontFile2` program cut by [`GLYPH_ZERO_RESUBSETTER`] draws the page
-//! exactly as the whole program did, and the saved file is smaller, for a
-//! simple and a composite font, for two fonts sharing one program, and for a symbolic font.
+//! A `/FontFile2` or `/FontFile3` program cut by [`GLYPH_ZERO_RESUBSETTER`]
+//! draws the page exactly as the whole program did, and the saved file is
+//! smaller: a simple and a composite font, two fonts sharing one program, a
+//! symbolic font, a bare CFF with a `seac` glyph, and an OpenType CFF.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -38,6 +39,8 @@ fn a_cut_font_draws_the_page_unchanged_in_a_smaller_file() {
         ("type0-identity.pdf", 1, 2),
         ("shared-program.pdf", 2, 5),
         ("symbolic.pdf", 1, 2),
+        ("type1c.pdf", 1, 5),
+        ("opentype.pdf", 1, 2),
     ] {
         cut_draws_the_same(name, fonts, kept);
     }

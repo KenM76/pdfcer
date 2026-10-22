@@ -136,6 +136,15 @@ fn resubset_cuts_a_program_and_reports_the_glyphs_kept() {
 }
 
 #[test]
+fn resubset_cuts_a_cff_program_keeping_a_seac_glyphs_parts() {
+    let o = run("resubset/type1c.pdf", &["--dry-run", "--resubset-fonts"]);
+    let report = text(&o);
+    assert_eq!(o.status.code(), Some(0), "{report}");
+    assert!(report.contains("resubset: 1 cut, 0 refused"), "{report}");
+    assert!(report.contains("to 5 of 7 glyphs"), "{report}");
+}
+
+#[test]
 fn resubset_json_lists_the_cut_and_a_font_using_every_glyph_is_refused() {
     let o = run(
         "resubset/type0-identity.pdf",
@@ -161,7 +170,7 @@ fn copies_of_one_face_merge_unless_told_not_to() {
     let o = run("resubset/pair.pdf", &["--dry-run", "--resubset-fonts"]);
     let report = text(&o);
     assert!(report.contains("resubset: 1 cut, 0 refused"), "{report}");
-    assert!(report.contains("11 0     merged into 7 0"), "{report}");
+    assert!(report.contains("11 0     merged into 7 0"), "{report}"); // string-gap-exempt: the id column is padded to 8
     let o = run(
         "resubset/pair.pdf",
         &[

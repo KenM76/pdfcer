@@ -1,4 +1,5 @@
-//! Planning [`super::resubset`]: which `/FontFile2` programs are safe to
+//! Planning [`super::resubset`]: which `/FontFile2` and `/FontFile3`
+//! programs are safe to
 //! cut, for which codes, and what the cut saves.
 //!
 //! A program is cut only when every font drawing from it is one the glyph
@@ -181,14 +182,15 @@ impl<'l, 'r> Group<'_, '_, 'l, 'r> {
                 "a font sharing the program is drawn by nothing pdfcer walks",
             ));
         }
-        if self
-            .users
-            .iter()
-            .any(|l| l.program_key != Some(ProgramKey::FontFile2))
-        {
+        if self.users.iter().any(|l| {
+            !matches!(
+                l.program_key,
+                Some(ProgramKey::FontFile2 | ProgramKey::FontFile3)
+            )
+        }) {
             return Err(ResubsetRefusal::new(
                 "format-deferred",
-                "only TrueType (/FontFile2) programs are re-subset",
+                "only TrueType (/FontFile2) and CFF (/FontFile3) programs are re-subset",
             ));
         }
         if self.users.iter().any(|l| l.cid_set || l.char_set) {

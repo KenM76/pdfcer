@@ -144,7 +144,9 @@ impl EditSession {
             Object::Name(Name::from(b"FlateDecode")),
         );
         dict.insert(Name::from(b"Length"), int(t.data.len()));
-        dict.insert(Name::from(b"Length1"), int(t.length1));
+        if dict.get(b"Length1").is_some() {
+            dict.insert(Name::from(b"Length1"), int(t.length1));
+        }
         let data_span = self.stage_bytes(&t.data);
         Some(Object::Stream(Stream { dict, data_span }))
     }
