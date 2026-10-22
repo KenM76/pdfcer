@@ -112,6 +112,23 @@ wherever it appears.*
 
 ## Shipped
 
+### Pass 619.0 (`4cdc7a3a`), 2026-10-22 — `check-requests-scoped.py` reads a request's direction (1179th filing)
+
+Code commit `4cdc7a3a` "fix(tools): check-requests-scoped reads a request's direction". Tooling only. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message.
+
+**Shipped:**
+- `tools/check-requests-scoped.py` reads each request's `from:` header in its first 8 lines, matching `from:\W*(pdfce|pdfcer)(?![\w-])` case-insensitively. A request pdfcer wrote into a partner channel is **outbound**; with no reply it is listed "AWAITING THE FAR SIDE" and does not fail the gate. `pdfcer-gui` is a distinct sender, hence the negative look-ahead.
+- **Why:** the outbound `iccce_FeatureRequests/open/request_get_iccce_crates_io_ready.md` turned the gate red (exit 1) once ROADMAP cited it, which the 1178th filing did (`Pass 618.1` scope item 4).
+- **Verified (engineer-reported):** gate exits 0, "2 channel(s), 143 open request(s); 142 answered, 0 not yet taken up, 1 awaiting the far side". Direction cases checked: pdfcer, pdfce, pdfcer-gui, iccce, "Ken, through a pdfcer-engineer session", upper case.
+
+**Second finding (channel side, outside the repo):** 12 answered GUI requests read "not yet taken up" because their replies never named the request file, which is what the gate matches on: `G202`, `G203`, `G205`-`G209`, `G214`-`G217`, `G225`. Each reply now carries an `**Answers:** \`request_...md\`` line. **This corrects `NEXT_SESSION`/1174th's "owed replies for G214-G217": the replies existed but could not be found.** Recurrence of the class "documented, accurate, gate-green and unfindable".
+
+**R263 not minted (chosen, not deferred):** one occurrence, and the gate already is the rule: a reply that omits the Answers line shows as "not yet taken up". Revisit at a second instance.
+
+Also recorded: the 1178th filing commit is `121dbe73`, the handoff commit `0ddadaad`; both pushed together with `82e83a06`.
+
+`FEATURES.md`: no row (no capability change; core/cli/gui none). Ledgers: next free `Pass 620.0`, decision `197`, `R263`; next filing 1180th.
+
 ### Pass 618.1 (`82e83a06`), 2026-10-22 — color, model and pkix are `cargo package` ready; decision 196 rules on pkix -> model (1178th filing)
 
 Code commit `82e83a06` "build(crates): color, model and pkix are cargo-package ready (Pass 618.1)". Source: operator request `request_operator_harden_and_ready_crates_for_publishing.md`, asks 4-5. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message.

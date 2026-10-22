@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1179th filing) — `4cdc7a3a`: Pass 619.0 shipped, request gate reads direction
+
+**Filed (engineer-reported, no shell here):** `tools/check-requests-scoped.py` reads `from:` in a request's first 8 lines; pdfcer-authored (outbound) requests without a reply are "AWAITING THE FAR SIDE", not failures. The iccce crates.io request had turned the gate red after the 1178th filing cited it. Now exit 0: 143 open, 142 answered, 0 not yet taken up, 1 awaiting.
+
+**Finding:** 12 answered GUI requests (`G202`, `G203`, `G205`-`G209`, `G214`-`G217`, `G225`) read "not yet taken up" because replies did not name the request file. Fixed channel-side with `**Answers:**` lines. This corrects the "owed replies G214-G217" note: they existed but were unfindable.
+
+**Decision:** `R263` NOT minted (n=1; the gate is the enforcement). No decision 197.
+
+**Commits:** 1178th filing `121dbe73`, handoff `0ddadaad`, pushed together with `82e83a06`. Git, push and backup state otherwise not verified from here.
+
+**For next session:** next free `Pass 620.0`, decision `197`, `R263`; next filing 1180th. The `G214`-`G217` reply item is closed; iccce reply and operator reply for the crates request still open. `NEXT_SESSION.md` untouched and still carries the stale G214-G217 note.
+
 ## 2026-10-22 (1178th filing) — `82e83a06`: Pass 618.1 shipped, color/model/pkix package-ready; decision 196
 
 **Filed (engineer-reported, no shell here):** metadata and READMEs for pdfcer-color / -model / -pkix; `pdfcer-model` as a versioned workspace dependency (`0.90.0`, a release-bump step); `cargo package` passes build-verified for color and model; pkix packages manifest-only (`--no-verify --exclude-lockfile`) because Cargo looks for `pdfcer-model` on crates.io. Two CI package steps, LOCAL in `check-ci-parity.py`. iccce request filed at `D:\Dev\FeatureRequests\iccce_FeatureRequests\open\request_get_iccce_crates_io_ready.md`. `cargo tree`: no GUI deps in model, pkix, color, core, render; `Cargo.lock` unchanged.
