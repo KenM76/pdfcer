@@ -112,11 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### Pass 622.0 (`7fcee5b9`), 2026-10-22 — area-averaged image minification, `MinifyFilter::AreaAverage` (1185th filing)
+
+Code commit `7fcee5b9` "feat(render): area-averaged image minification, MinifyFilter::AreaAverage (Pass 622.0)". Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Source: `request_image_minify_area_average.md` (O322).
+
+**Verdict:** `pdfcer_core::settings::MinifyFilter::AreaAverage`, settings token `area_average` (key `image_minify`). Render box-reduces the decoded image by floor(texels / device px) per axis, then bilinear (a one-level mipmap); every paint route (sRGB, ink, overprint tints, spot planes) is reduced together. **Default stays `Smooth`** (operator-ruled pin), so no pixel moves for anyone who does not opt in. Also fixed: the written settings file labelled `point_sample` as the default, wrong since 2026-08-25. CLI reads `image_minify` from the settings file (no new flag). No dependency change; no `Cargo.toml` touched.
+
+**Tests:** 3 unit + 2 render integration; settings round-trip now carries `AreaAverage`. **GUI reply:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_image_minify_area_average_FIXED.md`. **FEATURES:** "Area-averaged image minification" core `[x]` cli `[x]` gui `[ ]`, moved to Implemented.
+
 ### `chore` (`0853a3c0`), 2026-10-22 — colour channel followed to `icccer_FeatureRequests` (1184th filing)
 
 Commit `0853a3c0` "chore(tools): follow the colour channel to icccer_FeatureRequests". The colour sibling renamed `iccce` -> `icccer` (their CHANGELOG [0.4.0], their DL-084). `tools/check-requests-scoped.py` now reads `D:/Dev/FeatureRequests/icccer_FeatureRequests`; the old path is a junction the operator will delete. Tooling only, no Pass, no `FEATURES.md` row. `docs/NEXT_SESSION.md` not touched (engineer-owned). The crate/dependency rename is the Backlog item `Pass 623.0`. Engineer-reported; I have no shell (hard rule 8).
 
-### Pass 616.9 slice 2 (`2024e6a4`), 2026-10-22 — byte budget, `optimize_to_budget` and `--target-size` (1184th filing)
+### Pass 616.9 (slice 2: byte budget) (`2024e6a4`), 2026-10-22 — byte budget, `optimize_to_budget` and `--target-size` (1184th filing)
 
 Code commit `2024e6a4` "feat(optimize): fit a byte budget, EditSession::optimize_to_budget + --target-size (Pass 616.9 slice 2)". Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message.
 
@@ -179,7 +187,7 @@ Code commit `244d48ab` "fix(codec): pin zune-jpeg 0.5.16-rc3 for subsampled one-
 
 `FEATURES.md`: JPEG decode row notes the fix; no box change.
 
-### Pass 616.9 slice 1 (`67521d61`), 2026-10-22 — `image(ssim=0.98)` quality target (1181st filing)
+### Pass 616.9 (slice 1: ssim target) (`67521d61`), 2026-10-22 — `image(ssim=0.98)` quality target (1181st filing)
 
 Code commit `67521d61` "feat(optimize): image(ssim=) quality target (Pass 616.9 slice 1)". Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message.
 
@@ -23350,19 +23358,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-(1184th filing: `Pass 616.9` slice 2 (byte budget) SHIPPED `2024e6a4`, see *Shipped*; `616.9` stays open for the visual-diff report, then `616.10`, then `616.7` forms/patterns. `Pass 622.0` below is IN PROGRESS. Next free `Pass 624.0`, decision `198`, `R263`; next filing 1185th.)
-
-### Pass 622.0 — area-averaged image minification, `MinifyFilter::AreaAverage` (IN PROGRESS; filed 1184th filing, 2026-10-22)
-
-Source: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_image_minify_area_average.md` (`pdfcer-gui`, operator request O322).
-
-**Defect:** `MinifyFilter::Smooth` maps to bilinear, which reads a 2x2 neighbourhood whatever the scale, so a scan at 4:1 drops 12 of 16 source pixels (broken strokes, moire).
-
-**Deliverable:** new `MinifyFilter::AreaAverage`, settings token `area_average`, so `pdfcer export-image` and every renderer caller get it through the settings file. Method: integer box pre-reduction (floor(texels / device px) per axis, from the CTM's axis lengths so rotation works), then bilinear: a one-level mipmap. Applied identically on every image paint route (sRGB, CMYK ink, spot planes, overprint, stencil-as-fill, recorded display list) so the parallel pixmaps stay aligned. The Type 3 glyph-mask exclusion stays.
-
-**Default:** decided by measurement (render-parity against pdfium; Acrobat Reader observation), not assumed.
-
-**Acceptance:** a hairline fixture at 4:1 keeps its average density under `AreaAverage` and loses it under `Smooth`; all routes agree; settings round-trip; `FEATURES.md` row core `[x]` cli `[x]` (via settings) on shipping, gui `[ ]` until `pdfcer-gui` registers it.
+(1184th filing: `Pass 616.9` slice 2 (byte budget) SHIPPED `2024e6a4`, see *Shipped*; `616.9` stays open for the visual-diff report, then `616.10`, then `616.7` forms/patterns. 1185th filing: `Pass 622.0` SHIPPED `7fcee5b9`, see *Shipped*; `Pass 624.0` below is IN PROGRESS. Next free `Pass 625.0`, decision `198`, `R263` (as the ledger reads; see SESSION_LOG 1185th); next filing 1186th.)
 
 (1177th filing: `Pass 618.0` SHIPPED `d21e1ad5`, see *Shipped*; `618.1` remains, NOT done. Next free `Pass 619.0`, decision `196`, `R263`; next filing 1178th.)
 
@@ -25160,6 +25156,16 @@ Source: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_image_minify_
 > annotation/destination scaling, the new ce-dimensions refusal — is at
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
+
+### Pass 624.0 — overprint preview switch, `RenderOptions::with_overprint_preview` (IN PROGRESS; filed 1185th filing, 2026-10-22)
+
+Source: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_overprint_simulation_switch.md` (`pdfcer-gui`, operator request O323).
+
+**Deliverable:** `RenderOptions` gains `OverprintPreview { Simulate (default), Off }` and builder `with_overprint_preview`. Under `Off` every overprinting mark paints Normal. Implemented at the single ExtGState `OP`/`op` setter so every paint route (fill, stroke, text, image, shading, spot planes) is covered at once. `overprint_requested` still counts under `Off` (the GUI needs it for Acrobat's Automatic arm); `overprint_effective` reports 0.
+
+**CLI:** `--no-overprint-preview` on `render-page` and `export-image`.
+
+**Acceptance:** default output byte-identical to today; `Off` equals the same file with its `/OP` stripped; counters as above; `FEATURES.md` row "Overprint preview switch" core/cli on shipping, gui `[ ]` until `pdfcer-gui` wires it. Reply to the request file on ship.
 
 ### `Pass 616.0` — Space audit (`audit-space`) — MOVED TO *Shipped* (1111th filing, `5ba901d4`); arc inputs below stay for `616.1`+
 

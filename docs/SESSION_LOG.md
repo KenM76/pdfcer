@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1185th filing) — `7fcee5b9` Pass 622.0 SHIPPED (area-averaged minification); Pass 624.0 filed; two gate findings fixed
+
+**Filed (engineer-reported, no shell here; git, push and backup state not verified from here):**
+- `7fcee5b9` `Pass 622.0`: `MinifyFilter::AreaAverage` (token `area_average`), opt-in, default stays `Smooth`; also fixed the settings file mislabelling `point_sample` as default. 3 unit + 2 render integration tests. GUI reply written (`reply_image_minify_area_average_FIXED.md`). FEATURES row moved to Implemented: core `[x]` cli `[x]` gui `[ ]`.
+- `Pass 624.0` filed IN PROGRESS: `OverprintPreview { Simulate, Off }` render switch + `--no-overprint-preview`, from `request_overprint_simulation_switch.md` (O323). FEATURES Planned row, all `[ ]`.
+- 1184th gate findings: (a) `check-ledger-numbers` duplicate `Pass 616.9`: headings now `Pass 616.9 (slice 2: byte budget)` and `Pass 616.9 (slice 1: ssim target)`, matching the checker's `Pass N.n (qualifier)` regex (read from the script; gate not run here). (b) The `622.0` entry trimmed to a verdict plus a paragraph (about 8 lines against the 150 cap).
+
+**Discrepancy flagged:** the dispatch said next free decision `199`, `R251`; the ledger reads decision `198`, `R263` (no decision or rule minted this filing). Banner uses the ledger values; engineer to confirm.
+
+**For next session:** next free `Pass 625.0`; finish `624.0`; run `check-ledger-numbers.py` and `check-register-entry-size.py` to confirm the two fixes.
+
 ## 2026-10-22 (1184th filing) — `2024e6a4` Pass 616.9 slice 2 (byte budget); `0853a3c0` icccer channel; Pass 622.0 in progress; Pass 623.0 Backlog
 
 **Filed (engineer-reported, no shell here; git, push and backup state not verified from here):**
