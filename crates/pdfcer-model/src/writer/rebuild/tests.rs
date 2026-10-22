@@ -2,7 +2,7 @@ use super::*;
 use crate::object::{Dict, Object};
 
 /// A classic-xref PDF 1.4 from object bodies numbered 1..=n.
-fn pdf(bodies: &[&str]) -> Vec<u8> {
+pub(super) fn pdf(bodies: &[&str]) -> Vec<u8> {
     let mut out = b"%PDF-1.4\n".to_vec();
     let mut offsets = Vec::new();
     for (i, body) in bodies.iter().enumerate() {
@@ -26,7 +26,8 @@ fn pdf(bodies: &[&str]) -> Vec<u8> {
     out
 }
 
-fn stream(dict: &str, data: &str) -> String {
+/// A stream object body with `dict`'s entries, `data` and a matching `/Length`.
+pub(super) fn stream(dict: &str, data: &str) -> String {
     format!(
         "<< {dict} /Length {} >>\nstream\n{data}\nendstream",
         data.len()
@@ -199,6 +200,7 @@ fn everything_off_only_renumbers() {
         merge_duplicates: false,
         object_streams: false,
         level: 9,
+        linearize: false,
     };
     let (doc, report) = run(options);
     assert!(report.unreferenced.is_empty() && report.merged.is_empty());

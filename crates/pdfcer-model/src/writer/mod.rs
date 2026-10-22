@@ -938,6 +938,10 @@ pub enum WriteError {
     /// stopped. A writer bug; nothing was written.
     #[error("pdfcer could not reload its own full rewrite: {0}")]
     RewriteReload(#[source] Box<crate::document::DocError>),
+    /// Linearizing (Annex F) needs a catalog with at least one page, and
+    /// the document has neither. Nothing was written.
+    #[error("cannot linearize: the document has no catalog or no page")]
+    NothingToLinearize,
 }
 
 #[cfg(test)]

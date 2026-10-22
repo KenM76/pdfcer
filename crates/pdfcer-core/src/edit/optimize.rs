@@ -400,7 +400,13 @@ impl EditSession {
         };
         let original = self.base.bytes().len() as u64;
         Ok((
-            crate::optimize::keep_if_smaller(bytes, original, plan.removes_content()),
+            // A linearized file is written even when it is larger: the
+            // operator asked for the layout, not only for fewer bytes.
+            crate::optimize::keep_if_smaller(
+                bytes,
+                original,
+                plan.removes_content() || structure.linearize,
+            ),
             report,
         ))
     }

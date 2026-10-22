@@ -4,7 +4,8 @@
 use std::fmt::Write as _;
 
 use pdfcer_core::optimize::{
-    ContentChange, Conversion, ImageChange, ImageConvert, ImageEncode, OptimizePlan, SettingSource,
+    ContentChange, Conversion, ImageChange, ImageConvert, ImageEncode, OptimizePlan, RebuildReport,
+    SettingSource,
 };
 
 /// The changed and skipped streams, as text.
@@ -335,5 +336,65 @@ pub(crate) fn content_json(c: &ContentChange) -> String {
         round_units(c.max_displacement),
         unrounded_json(c.unrounded),
         c.encoded_as
+    )
+}
+
+/// The structure rebuild's summary, as text.
+pub(crate) fn structure_text(r: &RebuildReport) -> String {
+    let mut out = String::new();
+    let _ = writeln!(
+        out,
+        "structure: {} -> {} objects; {} unreferenced removed, {} duplicates merged, {} object stream(s)",
+        r.objects_in,
+        r.objects_out,
+        r.unreferenced.len(),
+        r.merged.len(),
+        r.object_streams
+    );
+    for (dropped, kept) in &r.merged {
+        let _ = writeln!(out, "  merged   {dropped} into {kept}");
+    }
+    if r.linearized {
+        out.push_str("linearized (Fast Web View): page 1 first, with a hint stream\n");
+        out.push_str("note: object streams are not packed in a linearized file\n");
+    }
+    if let Some(v) = r.version_raised {
+        let why = if r.linearized {
+            "linearization"
+        } else {
+            "object streams"
+        };
+        let _ = writeln!(out, "note: header raised to PDF {v} for {why}");
+    }
+    if r.dangling > 0 {
+        let _ = writeln!(
+            out,
+            "note: {} reference(s) to missing objects written as null",
+            r.dangling
+        );
+    }
+    out
+}
+
+/// The structure rebuild's summary, as JSON.
+pub(crate) fn structure_json(r: &RebuildReport) -> String {
+    let id = |id: &pdfcer_core::object::ObjId| format!("\"{id}\"");
+    let unreferenced: Vec<String> = r.unreferenced.iter().map(id).collect();
+    let merged: Vec<String> = r
+        .merged
+        .iter()
+        .map(|(d, k)| format!("{{\"dropped\":{},\"kept\":{}}}", id(d), id(k)))
+        .collect();
+    format!(
+        "{{\"objects_in\":{},\"objects_out\":{},\"unreferenced\":[{}],\"merged\":[{}],\"object_streams\":{},\"version_raised\":{},\"dangling\":{},\"linearized\":{}}}",
+        r.objects_in,
+        r.objects_out,
+        unreferenced.join(","),
+        merged.join(","),
+        r.object_streams,
+        r.version_raised
+            .map_or_else(|| "null".to_owned(), |v| format!("\"{v}\"")),
+        r.dangling,
+        r.linearized
     )
 }

@@ -139,6 +139,7 @@ fn switch<'a>(settings: &'a mut OptimizeSettings, key: &str) -> Option<&'a mut b
         "remove-unreferenced" => &mut st.remove_unreferenced,
         "merge-duplicates" => &mut st.merge_duplicates,
         "object-streams" => &mut st.object_streams,
+        "linearize" => &mut st.linearize,
         "remove-invalid-links" => &mut c.invalid_links,
         "remove-invalid-bookmarks" => &mut c.invalid_bookmarks,
         "remove-unreferenced-destinations" => &mut c.unreferenced_destinations,
@@ -478,6 +479,7 @@ pub fn to_profile(settings: &OptimizeSettings) -> String {
     let _ = writeln!(out, "remove-unreferenced = {}", st.remove_unreferenced);
     let _ = writeln!(out, "merge-duplicates = {}", st.merge_duplicates);
     let _ = writeln!(out, "object-streams = {}", st.object_streams);
+    let _ = writeln!(out, "linearize = {}", st.linearize);
     let c = &settings.cleanup;
     let _ = writeln!(out, "remove-invalid-links = {}", c.invalid_links);
     let _ = writeln!(out, "remove-invalid-bookmarks = {}", c.invalid_bookmarks);

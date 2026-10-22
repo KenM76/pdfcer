@@ -9,11 +9,12 @@
 //!
 //! What is dropped regardless of the options: object streams and
 //! cross-reference streams of the input (they are rebuilt or not needed),
-//! and a linearization parameter dictionary, since the output is not
-//! linearized (Annex F.3.3).
+//! and a linearization parameter dictionary, which is rewritten when the
+//! output is linearized and dropped otherwise (Annex F.3.3).
 
 mod emit;
 mod graph;
+mod linearize;
 
 use std::collections::BTreeSet;
 
@@ -39,6 +40,12 @@ pub struct RebuildOptions {
     pub object_streams: bool,
     /// Flate level (0–9) for object streams and the cross-reference stream.
     pub level: u8,
+    /// Write a linearized file ("Fast Web View", Annex F) instead: page 1
+    /// first, then a hint stream locating every page. Object streams are
+    /// not packed when this is on, the header is raised to PDF 1.2 when
+    /// lower, and inheritable page attributes move onto every page. Off in
+    /// [`Self::all`]: it adds bytes rather than saving them.
+    pub linearize: bool,
 }
 
 impl RebuildOptions {
@@ -50,6 +57,7 @@ impl RebuildOptions {
             merge_duplicates: true,
             object_streams: true,
             level: 9,
+            linearize: false,
         }
     }
 
@@ -62,13 +70,17 @@ impl RebuildOptions {
             merge_duplicates: false,
             object_streams: false,
             level: 9,
+            linearize: false,
         }
     }
 
     /// Whether no option is on, so a rebuild would only renumber.
     #[must_use]
     pub const fn is_none(&self) -> bool {
-        !self.remove_unreferenced && !self.merge_duplicates && !self.object_streams
+        !self.remove_unreferenced
+            && !self.merge_duplicates
+            && !self.object_streams
+            && !self.linearize
     }
 }
 
@@ -99,8 +111,10 @@ pub struct RebuildReport {
     pub dangling: usize,
     /// Object streams written.
     pub object_streams: usize,
-    /// The new header version, when packing raised it.
+    /// The new header version, when packing or linearizing raised it.
     pub version_raised: Option<PdfVersion>,
+    /// Whether the output is linearized.
+    pub linearized: bool,
 }
 
 /// Rewrite `doc` from scratch under `rebuild_options`. `options` supplies
@@ -110,7 +124,9 @@ pub struct RebuildReport {
 /// # Errors
 ///
 /// [`WriteError::EncryptedSaveUnsupported`] for an encrypted document, and
-/// [`WriteError::Xref`] if a cross-reference section cannot be emitted.
+/// [`WriteError::Xref`] if a cross-reference section cannot be emitted,
+/// [`WriteError::NothingToLinearize`] when linearizing a document with no
+/// catalog or no page.
 pub fn rebuild(
     doc: &Document,
     rebuild_options: &RebuildOptions,
@@ -143,8 +159,13 @@ pub fn rebuild(
         .filter(|id| !canon.contains_key(id))
         .copied()
         .collect();
-    let renum = graph::Renumbering::new(&kept, &canon);
-    let bytes = emit::write(doc, &live, &renum, rebuild_options, options, &mut report)?;
+    let bytes = if rebuild_options.linearize {
+        report.linearized = true;
+        linearize::write(doc, &live, &canon, &kept, &mut report)?
+    } else {
+        let renum = graph::Renumbering::new(&kept, &canon);
+        emit::write(doc, &live, &renum, rebuild_options, options, &mut report)?
+    };
     Ok((bytes, report))
 }
 

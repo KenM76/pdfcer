@@ -1298,3 +1298,39 @@ fn streams_brotli_writes_brotli_and_declares_the_extension() {
         .unwrap();
     assert_eq!(check.status.code(), Some(0));
 }
+
+#[test]
+fn linearize_puts_the_parameter_dictionary_first_and_reports_it() {
+    let d = dir("linearize");
+    let input = write_pdf(&d, "");
+    let out = d.join("out.pdf");
+    let path = input.to_str().unwrap();
+    let o = run(&[path, "-o", out.to_str().unwrap(), "--linearize", "--json"]);
+    assert_eq!(
+        o.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    assert!(text(&o).contains("\"linearized\":true"), "{}", text(&o));
+    let saved = std::fs::read(&out).unwrap();
+    let head = String::from_utf8_lossy(&saved[..saved.len().min(200)]).into_owned();
+    let first = head.find(" 0 obj").expect("no first object");
+    assert!(
+        head[first..]
+            .trim_start_matches(" 0 obj")
+            .trim_start()
+            .starts_with("<<")
+            && head.contains("/Linearized 1"),
+        "{head}"
+    );
+    let check = Command::new(BIN)
+        .args(["inspect", out.to_str().unwrap()])
+        .output()
+        .unwrap();
+    assert_eq!(check.status.code(), Some(0));
+    let o = run(&[path, "--dry-run", "--json"]);
+    assert!(text(&o).contains("\"linearized\":false"), "{}", text(&o));
+    let o = run(&[path, "--dry-run", "--linearize", "--keep-structure"]);
+    assert_eq!(o.status.code(), Some(2));
+}

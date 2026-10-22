@@ -755,3 +755,10 @@ path = "fuzz_targets/font_resubset_present.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "linearize"
+path = "fuzz_targets/linearize.rs"
+test = false
+doc = false
+bench = false

@@ -122,6 +122,14 @@ pub(crate) struct OptimizeArgs {
     /// compressed object streams. Use for readers older than PDF 1.5.
     #[arg(long)]
     pub(crate) no_object_streams: bool,
+    /// Write a linearized file ("Fast Web View"): page 1 first, then a hint
+    /// stream telling a viewer where every other page is, so a browser can
+    /// show page 1 before the download finishes. Renumbers every object,
+    /// moves inherited page attributes onto each page, and does not pack
+    /// object streams. The file usually grows slightly; it is written even
+    /// when larger than the input.
+    #[arg(long, conflicts_with = "keep_structure")]
+    pub(crate) linearize: bool,
     /// Keep Link annotations whose destination is a missing page or an
     /// undefined named destination. Every preset deletes them.
     #[arg(long)]
@@ -308,6 +316,7 @@ fn resolve_settings(args: &OptimizeArgs) -> Result<OptimizeSettings, String> {
     st.remove_unreferenced &= !(args.keep_structure || args.keep_unreferenced);
     st.merge_duplicates &= !(args.keep_structure || args.keep_duplicates);
     st.object_streams &= !(args.keep_structure || args.no_object_streams);
+    st.linearize |= args.linearize;
     let c = &mut settings.cleanup;
     c.invalid_links &= !args.keep_invalid_links;
     c.invalid_bookmarks &= !args.keep_invalid_bookmarks;
@@ -489,7 +498,7 @@ fn report_text(
         );
     }
     if let Some(r) = &o.structure {
-        out.push_str(&structure_text(r));
+        out.push_str(&optimize_report::structure_text(r));
     }
     match (&o.bytes, output) {
         (None, _) => {
@@ -682,54 +691,6 @@ fn cleanup_json(c: &CleanupPlan) -> String {
     )
 }
 
-fn structure_text(r: &RebuildReport) -> String {
-    let mut out = String::new();
-    let _ = writeln!(
-        out,
-        "structure: {} -> {} objects; {} unreferenced removed, {} duplicates merged, {} object stream(s)",
-        r.objects_in,
-        r.objects_out,
-        r.unreferenced.len(),
-        r.merged.len(),
-        r.object_streams
-    );
-    for (dropped, kept) in &r.merged {
-        let _ = writeln!(out, "  merged   {dropped} into {kept}");
-    }
-    if let Some(v) = r.version_raised {
-        let _ = writeln!(out, "note: header raised to PDF {v} for object streams");
-    }
-    if r.dangling > 0 {
-        let _ = writeln!(
-            out,
-            "note: {} reference(s) to missing objects written as null",
-            r.dangling
-        );
-    }
-    out
-}
-
-fn structure_json(r: &RebuildReport) -> String {
-    let id = |id: &pdfcer_core::object::ObjId| format!("\"{id}\"");
-    let unreferenced: Vec<String> = r.unreferenced.iter().map(id).collect();
-    let merged: Vec<String> = r
-        .merged
-        .iter()
-        .map(|(d, k)| format!("{{\"dropped\":{},\"kept\":{}}}", id(d), id(k)))
-        .collect();
-    format!(
-        "{{\"objects_in\":{},\"objects_out\":{},\"unreferenced\":[{}],\"merged\":[{}],\"object_streams\":{},\"version_raised\":{},\"dangling\":{}}}",
-        r.objects_in,
-        r.objects_out,
-        unreferenced.join(","),
-        merged.join(","),
-        r.object_streams,
-        r.version_raised
-            .map_or_else(|| "null".to_owned(), |v| format!("\"{v}\"")),
-        r.dangling
-    )
-}
-
 fn report_json(
     o: &Outcome,
     output: Option<&Path>,
@@ -792,7 +753,7 @@ fn report_json(
         crate::optimize_fonts::resubset_json(&o.plan),
         o.structure
             .as_ref()
-            .map_or_else(|| "null".to_owned(), structure_json),
+            .map_or_else(|| "null".to_owned(), optimize_report::structure_json),
         diff.map_or_else(|| "null".to_owned(), |d| diff_json(d).trim_end().to_owned())
     )
 }
