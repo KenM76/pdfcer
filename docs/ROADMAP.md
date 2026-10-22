@@ -112,6 +112,14 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.90.0` — version bump filed 2026-10-22 (1173rd filing); release PENDING
+
+Bump `a158d4ed` ("chore: bump version to 0.90.0": `Cargo.toml` workspace version 0.89.0 -> 0.90.0; `Cargo.lock` and `fuzz/Cargo.lock` by `cargo update -w`) on `main`, after `19efca33` (the 1172nd filing). No dependency change: the lock diff only renames workspace crates' versions, and `THIRD_PARTY_LICENSES.md` is unchanged (no `cargo tree` concern for `pdfcer-core`/`pdfcer-render`). Figures engineer-reported; I have no shell (hard rule 8).
+
+Contents since `v0.89.0` (136 commits, engineer-counted): `Pass 615.0` (`G210`); the size-reduction arc `Pass 616.0`-`616.6` and `616.8` (space audit, optimize framework, structure rebuild, navigation clean-up, discards, images, encoders incl. Brotli, font unembed/re-subset/merge, linearization / Fast Web View) and `Pass 616.7` slices 1-5 (numeric rounding; `616.7` itself NOT complete); `Pass 617.0`-`617.9` (`G211`, `G212`, `G218`-`G225`). Each is its own Shipped entry below. Last full `tools/run-gates.sh`: green on `daa36707` (13,746 tests, 0 failures); since then only docs and the bump.
+
+**Release plan, NOT done:** tag `v0.90.0` on this filing's commit; publish to OneDrive slot `pdfcer1` (`v0.89.0` wrote `pdfcer2`). **Not claimed done:** tag, package, smoke, `verify-release.py`, GitHub release, OneDrive slot, notice to `pdfcer-gui`; publication gets its own later filing. `FEATURES.md`: no change (rows already filed with each Pass). Ledgers: no decision; next free `Pass 618.0`, decision `196`; next filing 1174th.
+
 ### `Pass 616.8` (`daa36707`), 2026-10-22 — linearization (Fast Web View), ISO 32000-2 Annex F; `Pass 616.8` COMPLETE (1172nd filing)
 
 Code commit `daa36707e5b94d54582e5cdfc1e665c43ec182a3` "feat(optimize): linearize for Fast Web View (Pass 616.8)", on `c05e6af2`. Core + CLI; no GUI. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message and decision 195.

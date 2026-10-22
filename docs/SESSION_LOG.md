@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1173rd filing) — `v0.90.0` bump `a158d4ed` filed (no Pass consumed)
+
+**Filed (engineer-reported, no shell here):** bump `a158d4ed` ("chore: bump version to 0.90.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`) after `19efca33` (1172nd). No dependency change; `THIRD_PARTY_LICENSES.md` unchanged. Carries 136 commits since `v0.89.0`: `Pass 615.0`, `616.0`-`616.6`, `616.8`, `616.7` slices 1-5, `617.0`-`617.9`. Last full gates green on `daa36707` (13,746 tests, 0 failures); since then only docs and the bump. Recorded as a ROADMAP Shipped bump entry, the same way `1bdf8032` was in the 1108th.
+
+**Release plan, NOT done:** tag `v0.90.0` on this filing's commit; publish to OneDrive slot `pdfcer1` (`v0.89.0` wrote `pdfcer2`). Publication is filed separately afterwards. No decision; `FEATURES.md` no change. Hard-rule-11 sweep: no meaning changed. `docs/NEXT_SESSION.md` not touched (engineer-owned). Git, push and backup state not verified from here.
+
+**For next session:** next free `Pass 618.0`; next filing 1174th; tag and publish `v0.90.0` (slot `pdfcer1`); `616.7` open for forms and patterns, `616.9`/`616.10` open.
+
 ## 2026-10-22 (1172nd filing) — `Pass 616.8` COMPLETE in `daa36707`: linearization (Fast Web View)
 
 **Shipped:** `pdfcer optimize --linearize` / `RebuildOptions::linearize` (ISO 32000-2 Annex F): parameter dictionary first, hint tables, no object streams, header at least 1.2, always a full rewrite, written even when larger. 12 model tests + 1 CLI test, new fuzz target `linearize` (39,186 runs, clean), sabotage 4 of 4, workspace 13,746 passed / 0 failed. qpdf 12.4.2 `--check-linearization` over 3,340 fixtures: 3,290 clean, 6 inherited warnings, 0 FAIL, 44 expected refusals. Three defects found by the oracle and fixed (precedence over outlines etc., Pages-node traversal, null objects).
