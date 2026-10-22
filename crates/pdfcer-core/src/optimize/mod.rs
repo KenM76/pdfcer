@@ -44,6 +44,7 @@ pub mod objects;
 mod preset;
 pub mod profile;
 pub mod resubset;
+pub(crate) mod resubset_coverage;
 mod resubset_merge;
 pub(crate) mod resubset_plan;
 pub(crate) mod select;

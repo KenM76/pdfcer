@@ -4742,8 +4742,9 @@ Contract:
   `FontResubsetter` in `OptimizeSettings::resubset` (core holds no
   font-program code; the trait's `resubset(&ResubsetRequest { view,
   program, users: [FontUse { font, codes }] }) -> Result<ResubsetProgram {
-  program, glyphs_kept, glyphs_total }, ResubsetRefusal { token, reason }>`
-  must be a pure function of the request). Glyph IDs are kept and unused
+  program, glyphs_kept, glyphs_total, kept_glyphs }, ResubsetRefusal { token,
+  reason }>` must be a pure function of the request; `ResubsetProgram::new(..)
+  .with_kept_glyphs(BTreeSet<u16>)`). Glyph IDs are kept and unused
   glyph records emptied, so content, `/Widths`, `/W`, `/Encoding` and
   `/CIDToGIDMap` are untouched. Codes come from a walk of page content,
   annotation appearances (N/R/D and states), forms, tiling patterns,
@@ -4754,7 +4755,9 @@ Contract:
   (any walk fault refuses every font), `acroform-dr`, `unreferenced-user`
   (anything the walk did not see refers to the font, its descendant, its
   descriptor or the program), `format-deferred` (a `/FontFile` Type 1 program),
-  `cidset-charset-present`, `non-identity-cmap`, `font-not-indirect`,
+  `cidset-charset-present` (a `/CIDSet` or `/CharSet` the cutter cannot
+  rewrite: empty `kept_glyphs`, an unreadable list, or the trait defaults
+  below), `non-identity-cmap`, `font-not-indirect`,
   `program-direct`, `every-glyph-used` (the cutter kept every glyph),
   `not-smaller` (Flate-9 output not under the stored size),
   `unembedded-this-run`, plus the cutter's own. The shipped cutter is
@@ -4765,6 +4768,13 @@ Contract:
   `DSIG`; refuses `cff-layout` (a CFF it cannot relocate), `collection`,
   `fstype-restricted`, `fstype-no-subsetting`, `malformed-glyf`,
   `unusable-font`, `unmapped-code` (a simple-font code no rung resolves).
+  A descriptor's `/CIDSet` (§9.8.3 Table 124) and `/CharSet` (§9.8.1 Table
+  122) are rewritten to drop each entry whose glyph the cut emptied, via
+  `FontResubsetter::cid_glyphs(&view, program, font: ObjId, &BTreeSet<u32>)
+  -> Result<BTreeMap<u32, u16>, _>` and `name_glyphs(program, &[String]) ->
+  Result<BTreeMap<String, u16>, _>` (both default to refusing
+  `cidset-charset-present`); an entry left unresolved stays. Programs with
+  either list are not merged.
   The program is written Flate (with `/Length1` when it had one), and the fonts, descendant
   CIDFonts and descriptors get one fresh six-letter tag over their stem
   (ISO 32000-2 §9.6.4), in the run's one undo entry; a cut program is

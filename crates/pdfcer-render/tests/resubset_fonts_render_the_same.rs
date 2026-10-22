@@ -41,6 +41,8 @@ fn a_cut_font_draws_the_page_unchanged_in_a_smaller_file() {
         ("symbolic.pdf", 1, 2),
         ("type1c.pdf", 1, 5),
         ("opentype.pdf", 1, 2),
+        ("type0-cidset.pdf", 1, 2),
+        ("type1c-charset.pdf", 1, 5),
     ] {
         cut_draws_the_same(name, fonts, kept);
     }
@@ -79,6 +81,59 @@ fn cut_draws_the_same(name: &str, fonts: usize, kept: u32) {
         pixels(&reopened) == before,
         "{name}: the cut font draws differently"
     );
+}
+
+/// The `/CIDSet` and `/CharSet` of a cut font list only the glyphs left
+/// drawn (ISO 32000-1 §9.8.3 Table 124, §9.8.1 Table 122).
+#[test]
+fn a_cut_font_lists_only_the_glyphs_it_kept() {
+    let s = cut_and_reopen("type0-cidset.pdf");
+    let id = pdfcer_core::object::ObjId {
+        num: 10,
+        generation: 0,
+    };
+    let Some(pdfcer_core::object::Object::Stream(stream)) = s.value(id) else {
+        panic!("the /CIDSet stream");
+    };
+    let view = s.view();
+    let raw = view.slice(stream.data_span).unwrap();
+    let bits = pdfcer_core::filters::decode_stream(&stream.dict, raw).unwrap();
+    assert_eq!(bits, [0x90], "CIDs 0 and 3 left of 0 to 7");
+    let s = cut_and_reopen("type1c-charset.pdf");
+    let descriptor = s
+        .value(pdfcer_core::object::ObjId {
+            num: 6,
+            generation: 0,
+        })
+        .and_then(pdfcer_core::object::Object::as_dict)
+        .unwrap();
+    assert_eq!(
+        descriptor.get(b"CharSet"),
+        Some(&pdfcer_core::object::Object::String(
+            b"/A/D/E/acute/Eacute".to_vec()
+        )),
+        "B and C dropped; D, which the program lacks, stays"
+    );
+}
+
+/// `name` cut and saved.
+fn cut_bytes(name: &str) -> Vec<u8> {
+    let mut s = EditSession::new(Document::from_bytes(fixture(name)).unwrap());
+    let mut settings = OptimizeSettings::new();
+    settings.resubset = Some(ResubsetFonts::new(&GLYPH_ZERO_RESUBSETTER));
+    let plan = s.plan_optimize(&settings).unwrap();
+    s.apply_optimize(&plan).unwrap();
+    let (file, _) = s
+        .save_optimized(&plan, &SaveOptions::default(), &RebuildOptions::none())
+        .unwrap();
+    let OptimizedFile::Smaller(bytes) = file else {
+        panic!("{name}: expected a smaller file, got {file:?}");
+    };
+    bytes
+}
+
+fn cut_and_reopen(name: &str) -> EditSession {
+    EditSession::new(Document::from_bytes(cut_bytes(name)).unwrap())
 }
 
 fn plan_pair(merge: bool) -> (EditSession, pdfcer_core::optimize::OptimizePlan) {

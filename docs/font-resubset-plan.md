@@ -51,7 +51,7 @@ soft masks and Type3 CharProcs.
 | `collection` | The program is a `ttcf` collection. |
 | `format-deferred` | `FontFile` (Type 1). |
 | `malformed-glyf` | The `glyf` data is malformed. |
-| `cidset-charset-present` | The font has a `/CIDSet` or `/CharSet`. |
+| `cidset-charset-present` | The cutter cannot resolve or rewrite a `/CIDSet` or `/CharSet` (no kept-glyph set, an unreadable list, a CharSet that is not a direct string, or two fonts sharing a CIDSet they would cut differently). |
 | (note, no token) | The document claims PDF/A: the whole re-subset step is skipped with one note. The local spec RAG lacks the PDF/A-1 §6.3.5 and PDF/A-2 §6.2.11.4 text, so what PDF/A requires of a subset is unverified. |
 | `unembedded-this-run` | The same run unembeds the font. |
 | `not-smaller` | The rewritten program is not smaller. |
@@ -159,5 +159,19 @@ program (`/OpenType`, `DSIG` dropped):
 
 Fixtures `type1c` (seac Eacute) and `opentype`, from `tools/gen-cff-face.py`.
 
-Deferred: CIDSet/CharSet rewrite and PDF/A, merging CFF copies, and
-switching to the short `loca` format.
+## CIDSet and CharSet (core `optimize/resubset_coverage.rs`)
+
+A descriptor's `/CIDSet` (ISO 32000-1 §9.8.3 Table 124: a bit per CID,
+high-order bit first) and `/CharSet` (§9.8.1 Table 122: `/name` entries)
+lose each entry whose glyph the cut emptied. The cutter reports what it kept
+(`ResubsetProgram::kept_glyphs`) and resolves entries to glyph IDs
+(`FontResubsetter::cid_glyphs`, `name_glyphs`). An entry it cannot resolve
+stays, because dropping it could under-claim. A CIDSet keeps its Flate
+encoding if it had a filter and is written unfiltered otherwise. Its length
+is `ceil((max+1)/8)`. A CIDSet held by a font outside the program's users
+refuses `unreferenced-user`. Programs with either list are not merged.
+Fixtures `type0-cidset` (0xFF to 0x90) and `type1c-charset` (B and C
+dropped; D, absent from the program, stays).
+
+Deferred: PDF/A, merging CFF copies, and switching to the short `loca`
+format.

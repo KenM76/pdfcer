@@ -1,7 +1,7 @@
 //! Font re-subsetting in an optimize run ([`crate::optimize::resubset`]):
 //! planned with the rest of the run, written in its one undo entry.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use super::{EditSession, ObjectWrite, Removal};
 use crate::font_unembed::{PdfaClaim, detect_pdfa};
@@ -10,6 +10,7 @@ use crate::object::{Dict, Name, ObjId, Object, Stream};
 use crate::optimize::resubset::{
     ResubsetFonts, ResubsetPlan, ResubsetRefusal, ResubsetRefused, ResubsetTarget,
 };
+use crate::optimize::resubset_coverage::CidSetWrite;
 use crate::optimize::{OptimizeError, OptimizePlan, OptimizeSettings};
 
 impl EditSession {
@@ -94,8 +95,10 @@ impl EditSession {
                     self.cut_program(t, before)
                 } else if t.merged.contains(id) {
                     continue;
+                } else if let Some(w) = t.coverage.cid_sets.iter().find(|w| w.id == *id) {
+                    self.cid_set(w, before)
                 } else {
-                    retagged(before, tag).map(|o| repointed(o, t))
+                    retagged(before, tag, &t.coverage.char_sets).map(|o| repointed(o, t))
                 };
                 if let Some(after) = after {
                     out.push(ObjectWrite {
@@ -150,24 +153,84 @@ impl EditSession {
         let data_span = self.stage_bytes(&t.data);
         Some(Object::Stream(Stream { dict, data_span }))
     }
+
+    /// `before`, a `/CIDSet` stream, holding `w`'s bits.
+    fn cid_set(&mut self, w: &CidSetWrite, before: &Object) -> Option<Object> {
+        let Object::Stream(stream) = before else {
+            return None;
+        };
+        let mut dict = stream.dict.clone();
+        for key in [
+            b"Filter".as_slice(),
+            b"DecodeParms",
+            b"DP",
+            b"F",
+            b"FFilter",
+            b"FDecodeParms",
+        ] {
+            dict.remove(key);
+        }
+        if w.flate {
+            dict.insert(
+                Name::from(b"Filter"),
+                Object::Name(Name::from(b"FlateDecode")),
+            );
+        }
+        dict.insert(
+            Name::from(b"Length"),
+            Object::Integer(i64::try_from(w.data.len()).unwrap_or(i64::MAX)),
+        );
+        let data_span = self.stage_bytes(&w.data);
+        Some(Object::Stream(Stream { dict, data_span }))
+    }
 }
 
 /// `before`, a font or descriptor dictionary, with its name under `tag`:
-/// `/FontName` on a descriptor, `/BaseFont` on a font.
-fn retagged(before: &Object, tag: &str) -> Option<Object> {
-    let dict: &Dict = before.as_dict()?;
-    let key: &[u8] = if dict.get(b"FontName").is_some() {
-        b"FontName"
-    } else {
-        b"BaseFont"
-    };
+/// `/FontName` on a descriptor, `/BaseFont` on a font, and both on a font
+/// holding its descriptor directly. A `/CharSet` found in `char_sets`
+/// becomes its rewrite.
+fn retagged(before: &Object, tag: &str, char_sets: &BTreeMap<Vec<u8>, Vec<u8>>) -> Option<Object> {
+    let mut out: Dict = before.as_dict()?.clone();
+    let is_descriptor = out.get(b"FontName").is_some();
+    retag_key(
+        &mut out,
+        if is_descriptor {
+            b"FontName"
+        } else {
+            b"BaseFont"
+        },
+        tag,
+    )?;
+    if is_descriptor {
+        recharset(&mut out, char_sets);
+    } else if let Some(Object::Dict(d)) = out.get(b"FontDescriptor") {
+        let mut d = d.clone();
+        retag_key(&mut d, b"FontName", tag);
+        recharset(&mut d, char_sets);
+        out.insert(Name::from(b"FontDescriptor"), Object::Dict(d));
+    }
+    Some(Object::Dict(out))
+}
+
+/// `dict`'s name under `key` with its subset tag replaced by `tag`.
+fn retag_key(dict: &mut Dict, key: &[u8], tag: &str) -> Option<()> {
     let name = dict.get(key).and_then(Object::as_name)?;
     let old = String::from_utf8_lossy(name.as_bytes()).into_owned();
     let (_, stem) = split_subset_tag(&old);
-    let mut out = dict.clone();
     let new = format!("{tag}+{stem}");
-    out.insert(Name::from(key), Object::Name(Name::from(new.as_bytes())));
-    Some(Object::Dict(out))
+    dict.insert(Name::from(key), Object::Name(Name::from(new.as_bytes())));
+    Some(())
+}
+
+/// `dict`'s `/CharSet`, a descriptor's, as rewritten in `char_sets`.
+fn recharset(dict: &mut Dict, char_sets: &BTreeMap<Vec<u8>, Vec<u8>>) {
+    let new = match dict.get(b"CharSet") {
+        Some(Object::String(old)) => char_sets.get(old).cloned(),
+        _ => None,
+    };
+    if let Some(new) = new {
+        dict.insert(Name::from(b"CharSet"), Object::String(new));
+    }
 }
 
 /// `object`, a descriptor naming a program `t` merged away, pointing at

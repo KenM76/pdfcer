@@ -1,11 +1,12 @@
 //! Which glyphs a cut keeps: glyph 0 and every glyph a shown code could
 //! resolve to.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use pdfcer_core::graph::ObjectGraph as _;
-use pdfcer_core::object::Dict;
+use pdfcer_core::object::{Dict, ObjId};
 use pdfcer_core::optimize::resubset::{FontUse, ResubsetRefusal, ResubsetRequest};
+use pdfcer_core::view::DocumentView;
 
 use crate::font::FontEnvironment;
 use crate::font::coredata::{self, BaseEncoding};
@@ -51,6 +52,55 @@ pub(super) fn keep_set(
         );
     }
     Ok(keep)
+}
+
+/// The glyph each of `cids` draws with Type 0 font `font` over `program`,
+/// as the renderer resolves it; one past `numGlyphs` is left out.
+///
+/// # Errors
+///
+/// `unusable-font` when the font will not load over the program.
+pub(super) fn cid_glyphs(
+    view: &DocumentView<'_>,
+    program: &[u8],
+    font: ObjId,
+    cids: &BTreeSet<u32>,
+) -> Result<BTreeMap<u32, u16>, ResubsetRefusal> {
+    let parsed = FontProgram::parse(program).map_err(|_| unusable())?;
+    let total = parsed.num_glyphs();
+    let dict = view
+        .value(font)
+        .and_then(|o| o.as_dict())
+        .ok_or_else(unusable)?;
+    let env = FontEnvironment {
+        fallbacks: HashMap::new(),
+        named: HashMap::new(),
+    };
+    let loaded =
+        load_with_program(view, dict, &env, program.to_vec(), None).map_err(|_| unusable())?;
+    Ok(cids
+        .iter()
+        .filter_map(|&c| {
+            let g = loaded.gid(c, None).filter(|&g| g < total)?;
+            Some((c, u16::try_from(g).ok()?))
+        })
+        .collect())
+}
+
+/// The glyph each of `names` names in `program`.
+///
+/// # Errors
+///
+/// `unusable-font` when the program cannot be parsed.
+pub(super) fn name_glyphs(
+    program: &[u8],
+    names: &[String],
+) -> Result<BTreeMap<String, u16>, ResubsetRefusal> {
+    let parsed = FontProgram::parse(program).map_err(|_| unusable())?;
+    Ok(names
+        .iter()
+        .filter_map(|n| Some((n.clone(), u16::try_from(parsed.glyph_for_name(n)?).ok()?)))
+        .collect())
 }
 
 fn is_type0(request: &ResubsetRequest<'_, '_>, dict: &Dict) -> bool {

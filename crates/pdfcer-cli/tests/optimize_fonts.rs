@@ -145,6 +145,19 @@ fn resubset_cuts_a_cff_program_keeping_a_seac_glyphs_parts() {
 }
 
 #[test]
+fn resubset_cuts_a_font_listing_its_glyphs_in_cidset_or_charset() {
+    for rel in ["resubset/type0-cidset.pdf", "resubset/type1c-charset.pdf"] {
+        let o = run(rel, &["--dry-run", "--resubset-fonts"]);
+        let report = text(&o);
+        assert_eq!(o.status.code(), Some(0), "{rel}: {report}");
+        assert!(
+            report.contains("resubset: 1 cut, 0 refused"),
+            "{rel}: {report}"
+        );
+    }
+}
+
+#[test]
 fn resubset_json_lists_the_cut_and_a_font_using_every_glyph_is_refused() {
     let o = run(
         "resubset/type0-identity.pdf",

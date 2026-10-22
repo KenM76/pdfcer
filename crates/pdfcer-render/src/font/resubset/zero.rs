@@ -16,6 +16,8 @@ pub(super) struct Cut {
     pub(super) program: Vec<u8>,
     pub(super) kept: u32,
     pub(super) total: u32,
+    /// The glyph IDs left drawn.
+    pub(super) keep: BTreeSet<u16>,
 }
 
 /// The tables a cut reads: `head.indexToLocFormat`, `maxp.numGlyphs`, and
@@ -81,6 +83,7 @@ pub(super) fn zero(program: &[u8], roots: &BTreeSet<u16>) -> Result<Cut, Resubse
         program: out,
         kept: u32::try_from(keep.len()).unwrap_or(u32::MAX),
         total: u32::try_from(old.total).unwrap_or(u32::MAX),
+        keep,
     })
 }
 

@@ -9,9 +9,13 @@ mod keep;
 mod merge;
 mod zero;
 
+use std::collections::{BTreeMap, BTreeSet};
+
+use pdfcer_core::object::ObjId;
 use pdfcer_core::optimize::resubset::{
     FontResubsetter, ResubsetProgram, ResubsetRefusal, ResubsetRequest,
 };
+use pdfcer_core::view::DocumentView;
 
 use crate::font::program::FontProgram;
 use crate::font::subset::{SubsetError, check_embedding_permission};
@@ -54,7 +58,7 @@ impl FontResubsetter for GlyphZeroResubsetter {
         } else {
             cff::zero(request.program, &roots)?
         };
-        Ok(ResubsetProgram::new(cut.program, cut.kept, cut.total))
+        Ok(ResubsetProgram::new(cut.program, cut.kept, cut.total).with_kept_glyphs(cut.keep))
     }
 
     /// Merges only when every table but the glyph data agrees (`head` up to
@@ -65,6 +69,24 @@ impl FontResubsetter for GlyphZeroResubsetter {
             permitted(program)?;
         }
         merge::merge(programs)
+    }
+
+    fn cid_glyphs(
+        &self,
+        view: &DocumentView<'_>,
+        program: &[u8],
+        font: ObjId,
+        cids: &BTreeSet<u32>,
+    ) -> Result<BTreeMap<u32, u16>, ResubsetRefusal> {
+        keep::cid_glyphs(view, program, font, cids)
+    }
+
+    fn name_glyphs(
+        &self,
+        program: &[u8],
+        names: &[String],
+    ) -> Result<BTreeMap<String, u16>, ResubsetRefusal> {
+        keep::name_glyphs(program, names)
     }
 }
 

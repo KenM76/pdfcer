@@ -110,17 +110,19 @@ impl Merge<'_, '_> {
                 .into_iter()
                 .filter_map(|id| Some((id, self.view.value(id)?.clone())))
                 .collect(),
+            coverage: super::resubset_coverage::Coverage::default(),
         })
     }
 }
 
 /// A program a merge can start from: cut, or left whole only because a cut
-/// would save nothing. Only TrueType programs merge.
+/// would save nothing. Only TrueType programs merge, and only when no
+/// descriptor lists its glyphs in `/CIDSet` or `/CharSet`.
 fn mergeable(p: &Prepared<'_, '_>) -> bool {
     let truetype = p
         .users
         .iter()
-        .all(|l| l.program_key == Some(ProgramKey::FontFile2));
+        .all(|l| l.program_key == Some(ProgramKey::FontFile2) && !l.cid_set && !l.char_set);
     truetype
         && p.outcome
             .as_ref()

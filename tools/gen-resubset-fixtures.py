@@ -32,9 +32,18 @@ rerun is byte-identical.
 - opentype.pdf: the same face as /FontFile3 /OpenType (face-cff.otf);
   shows "C", keeping .notdef and C.
 
+- type0-cidset.pdf: Type0 / Identity-H over CIDFontType2, CIDToGIDMap
+  CID n -> glyph n for CIDs 0-7, and a Flate /CIDSet listing all eight;
+  shows CID 3 ("C"), so the cut keeps .notdef and C and the /CIDSet
+  becomes CIDs 0 and 3 (0x90) (ISO 32000-1 9.8.3 Table 124).
+- type1c-charset.pdf: type1c.pdf with /CharSet (/A/B/C/D/E/acute/Eacute)
+  on the descriptor; the cut leaves /CharSet (/A/D/E/acute/Eacute): B and
+  C are dropped, D, which the program does not hold, stays.
+
 Run: python tools/gen-resubset-fixtures.py (symbolic.pdf needs fontTools)
 """
 
+import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -65,14 +74,15 @@ def assemble(bodies: list[bytes]) -> bytes:
     return out
 
 
-def document(content: bytes, font: bytes, extra: list[bytes]) -> bytes:
+def document(content: bytes, font: bytes, extra: list[bytes],
+             descriptor: bytes = DESCRIPTOR) -> bytes:
     return assemble([
         b"<< /Type /Catalog /Pages 2 0 R >>",
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
         PAGE,
         stream(b"", content),
         font,
-        DESCRIPTOR,
+        descriptor,
         stream(b"/Length1 %d " % len(FACE), FACE),
         *extra,
     ])
@@ -152,7 +162,25 @@ def symbolic() -> bytes:
         stream(b"/Length1 %d " % len(program), program),
     ])
 
-def cff(content: bytes, subtype: bytes, program: bytes) -> bytes:
+def type0_cidset() -> bytes:
+    cid_map = b"".join(bytes([0, n]) for n in range(8))
+    cid_set = zlib.compress(b"\xff", 9)
+    return document(
+        b"BT /F1 48 Tf 10 20 Td <0003> Tj ET",
+        b"<< /Type /Font /Subtype /Type0 /BaseFont /ABCDEF+Face "
+        b"/Encoding /Identity-H /DescendantFonts [8 0 R] >>",
+        [
+            b"<< /Type /Font /Subtype /CIDFontType2 /BaseFont /ABCDEF+Face "
+            b"/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> "
+            b"/FontDescriptor 6 0 R /CIDToGIDMap 9 0 R >>",
+            stream(b"", cid_map),
+            stream(b"/Filter /FlateDecode ", cid_set),
+        ],
+        DESCRIPTOR.replace(b" >>", b" /CIDSet 10 0 R >>"),
+    )
+
+
+def cff(content: bytes, subtype: bytes, program: bytes, char_set: bytes = b"") -> bytes:
     widths = b"[" + b" 600" * (201 - 32 + 1) + b" ]"
     return assemble([
         b"<< /Type /Catalog /Pages 2 0 R >>",
@@ -162,7 +190,8 @@ def cff(content: bytes, subtype: bytes, program: bytes) -> bytes:
         b"<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+SynthCff "
         b"/Encoding /WinAnsiEncoding /FirstChar 32 /LastChar 201 /Widths %s "
         b"/FontDescriptor 6 0 R >>" % widths,
-        DESCRIPTOR.replace(b"/FontFile2", b"/FontFile3").replace(b"+Face", b"+SynthCff"),
+        DESCRIPTOR.replace(b"/FontFile2", b"/FontFile3").replace(b"+Face", b"+SynthCff")
+        .replace(b" >>", char_set + b" >>"),
         stream(b"/Subtype /%s " % subtype, program),
     ])
 
@@ -197,6 +226,10 @@ def main() -> None:
                            (OUT / "face.cff").read_bytes())),
         ("opentype.pdf", cff(b"BT /F1 48 Tf 10 20 Td (C) Tj ET", b"OpenType",
                              (OUT / "face-cff.otf").read_bytes())),
+        ("type0-cidset.pdf", type0_cidset()),
+        ("type1c-charset.pdf", cff(b"BT /F1 48 Tf 10 20 Td (A\311) Tj ET", b"Type1C",
+                                   (OUT / "face.cff").read_bytes(),
+                                   b" /CharSet (/A/B/C/D/E/acute/Eacute)")),
     ]:
         (OUT / name).write_bytes(data)
         print(f"wrote {OUT / name} ({len(data)} B)")

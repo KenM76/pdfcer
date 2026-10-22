@@ -193,10 +193,16 @@ impl<'l, 'r> Group<'_, '_, 'l, 'r> {
                 "only TrueType (/FontFile2) and CFF (/FontFile3) programs are re-subset",
             ));
         }
-        if self.users.iter().any(|l| l.cid_set || l.char_set) {
+        let names = self.renamed();
+        if self
+            .users
+            .iter()
+            .filter_map(|l| l.cid_set_id)
+            .any(|c| !self.only(c, &names))
+        {
             return Err(ResubsetRefusal::new(
-                "cidset-charset-present",
-                "the descriptor lists its glyphs in /CIDSet or /CharSet",
+                "unreferenced-user",
+                "a /CIDSet is shared with a font outside the program's users",
             ));
         }
         if self.ids().iter().any(|id| self.usage.unsplit.contains(id)) {
@@ -351,10 +357,13 @@ impl<'l, 'r> Group<'_, '_, 'l, 'r> {
             .first()
             .and_then(|l| l.record.base_font.clone())
             .unwrap_or_default();
+        let coverage =
+            super::resubset_coverage::coverage(self.view, self.users, source, data, &cut)?;
         let (_, stem) = split_subset_tag(&name_before);
         let tag = fresh_tag(&cut.program, tags);
         let snapshot = std::iter::once(program)
             .chain(self.renamed())
+            .chain(coverage.cid_sets.iter().map(|w| w.id))
             .filter_map(|id| Some((id, self.view.value(id)?.clone())))
             .collect();
         let target = ResubsetTarget {
@@ -370,6 +379,7 @@ impl<'l, 'r> Group<'_, '_, 'l, 'r> {
             length1: cut.program.len(),
             data: encoded,
             before: snapshot,
+            coverage,
         };
         Ok((target, cut.program))
     }
