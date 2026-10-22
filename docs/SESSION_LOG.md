@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1178th filing) — `82e83a06`: Pass 618.1 shipped, color/model/pkix package-ready; decision 196
+
+**Filed (engineer-reported, no shell here):** metadata and READMEs for pdfcer-color / -model / -pkix; `pdfcer-model` as a versioned workspace dependency (`0.90.0`, a release-bump step); `cargo package` passes build-verified for color and model; pkix packages manifest-only (`--no-verify --exclude-lockfile`) because Cargo looks for `pdfcer-model` on crates.io. Two CI package steps, LOCAL in `check-ci-parity.py`. iccce request filed at `D:\Dev\FeatureRequests\iccce_FeatureRequests\open\request_get_iccce_crates_io_ready.md`. `cargo tree`: no GUI deps in model, pkix, color, core, render; `Cargo.lock` unchanged.
+
+**Decision 196:** keep pkix -> model now; splitting (leaf `pdfcer-crypto`, trust-store COS reader to core) is a mandatory precondition of pkix's first publish. Measured coupling and revisit triggers are in `ARCHITECTURE.md` §12.
+
+**Deviation / open:** `cargo publish --dry-run` is denied by this machine's permission settings, so `cargo package` stood in. The engineer's reading that Cargo's workspace overlay skips `publish = false` packages is untested; testing needs flipping the flag, the operator's call. Publishing `pdfcer-crypto` later would put home-grown RSA / ECDSA / bignum on crates.io: constant-time and scope check first, Ken's call.
+
+**Register:** ROADMAP `Pass 618.1` moved Next up -> Shipped (nothing left under `618.x`). `FEATURES.md` no row. Hard-rule-11 sweep: the 1177th entry and the `618.0` Shipped entry say item 4/5 "remain under `618.1`"; that is history, now closed, left. Git, push and backup state not verified from here.
+
+**Operator request status:** `request_operator_harden_and_ready_crates_for_publishing.md` delivered in full except iccce's reply.
+
+**For next session:** next free `Pass 619.0`, decision `197`, `R263`; next filing 1179th. Reply to the operator request is due; iccce reply owed. `pdfcer-gui` replies for `G214`-`G217` still owed.
+
 ## 2026-10-22 (1177th filing) — `d21e1ad5`: Pass 618.0 shipped, engine crates deny every panic lint
 
 **Filed (engineer-reported, no shell here):** twelve engine crates now deny `unreachable`/`todo`/`unimplemented` on top of the four since `Pass 325.0`; `check-engine-lint-policy.py` requires all seven; new gate `tools/check-panic-allows.py` (baseline `tools/panic-allows-baseline.txt`, 32 entries, NEW and STALE both fail, sabotage-verified) is in CI and `run-gates.sh`. Production `unreachable!` removed in core (pkcs12, svg_import paint, edit Ink). `EncryptionConfig::to_encrypt_dict` now returns `Option<Object>`; `BuiltEncryption::encrypt_dict` is the infallible route. Regression test `hostile_encrypt_dictionaries_never_panic` seen failing without the `/O` guard. core 5,087 passed / 0 failed; clippy, fmt, structure (568), ci-parity clean; no manifest change.

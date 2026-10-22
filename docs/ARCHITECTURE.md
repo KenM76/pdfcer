@@ -13464,3 +13464,21 @@ Recorded at completion (`daa36707`). Clause: ISO 32000-2 Annex F (Tables F.1-F.5
 Evidence: qpdf 12.4.2 `--check-linearization` over 3,340 fixtures, 0 FAIL (details in the `ROADMAP.md` Shipped entry).
 
 **Body-section effect.** None needed beyond `docs/core-api` 02 and 03 (updated by the engineer). **Decision ceiling.** Fills `195`; next free decision `196`. **New standing rule.** None; `R263` stays next free.
+
+### 2026-10-22 (1178th filing, consultant `autonomous-builder`) — decision 196: `pdfcer-pkix` keeps its dependency on `pdfcer-model`; splitting is a precondition of pkix's first crates.io publish
+
+Recorded at the close of `Pass 618.1` (`82e83a06`). Answers scope 3 of the operator request `request_operator_harden_and_ready_crates_for_publishing.md`.
+
+**Measured.** pkix uses model's `crypto::rsa` (including `rsa::Hash`), `crypto::ecdsa` and `crypto::bignum::Uint`, plus `document::{Document, DocError}` and `object::Object`, the last two in ONE module, `trust_store.rs` (Acrobat `%PPKLITE-` / `%FDF-` trust-store files are COS syntax). Model types are in pkix's PUBLIC API: `cms::hash_for` and `cms::pss_params` return `rsa::Hash`; `TrustAnchorSet::from_document` takes `&Document`. Publishing first would freeze that coupling into pkix's semver.
+
+**What this decides.**
+1. **Keep pkix -> model now.** No split in `618.1`.
+2. **The split is a mandatory PRECONDITION of pkix's first crates.io publish**, not an option then:
+   - (a) a new leaf crate `pdfcer-crypto` (rsa + `Hash`, ecdsa, bignum, hashes), re-exported by model at its current `pdfcer_model::crypto::*` paths;
+   - (b) the trust-store COS reader moves to `pdfcer-core`; `TrustAnchor` / `TrustAnchorSet` / `SourceFilter` stay in pkix with a constructor over parsed entries;
+   - (c) success is `cargo tree -p pdfcer-pkix` showing no flate2 / brotli / weezl / aes / cbc.
+3. **A cargo-feature-only option was rejected:** crypto still pulls model.
+4. **Revisit triggers:** Ken says publish pkix; an outside consumer, `pdfcer-gui` or the WASM fork wants pkix without model; another crate needs the crypto primitives without COS; model's crypto module is reorganised.
+5. **Risk to surface when triggered:** publishing `pdfcer-crypto` puts home-grown RSA / ECDSA / bignum on crates.io, so constant-time behaviour and scope (verify-only?) are checked first. That stays Ken's call.
+
+**Body-section effect.** None; the crate layout (§3) is unchanged by a ruling that defers the split. **Decision ceiling.** Fills `196`; next free decision `197`. **New standing rule.** None; `R263` stays next free.

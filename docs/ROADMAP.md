@@ -112,6 +112,23 @@ wherever it appears.*
 
 ## Shipped
 
+### Pass 618.1 (`82e83a06`), 2026-10-22 — color, model and pkix are `cargo package` ready; decision 196 rules on pkix -> model (1178th filing)
+
+Code commit `82e83a06` "build(crates): color, model and pkix are cargo-package ready (Pass 618.1)". Source: operator request `request_operator_harden_and_ready_crates_for_publishing.md`, asks 4-5. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message.
+
+**Shipped:**
+- **Metadata:** `[workspace.package]` gains `repository` and `homepage` = `https://github.com/KenM76/pdfcer`; pdfcer-color / -model / -pkix gain `readme = "README.md"`, `keywords`, `categories`; descriptions drop the "(docs/ARCHITECTURE.md §3)" path. New `crates/pdfcer-{color,model,pkix}/README.md`. `pdfcer-model` became a `[workspace.dependencies]` entry with `version = "0.90.0"` beside its path; pkix uses `pdfcer-model.workspace = true`. **Release-bump step:** that version line must be bumped together with `[workspace.package]` version or resolution fails.
+- **Verification, with a stated deviation:** `cargo publish --dry-run` is denied by this machine's Claude permission settings, so `cargo package` (the same packaging and verify minus upload) was used. color and model pass build-verified (color 11 files 136.0 KiB; model 62 files 1.4 MiB). pkix packages with `--no-verify --exclude-lockfile` (16 files 182.8 KiB) but cannot build-verify: Cargo looks for `pdfcer-model` on the crates.io index. Engineer's reading, UNTESTED: Cargo's local workspace overlay skips `publish = false` packages; testing it means flipping the flag, which is the operator's call. New CI steps in the rustdoc job, "color and model still package (build-verified)" and "pkix still packages (manifest only)", registered LOCAL in `tools/check-ci-parity.py`, so `run-gates.sh` runs them.
+- **Ruling:** decision 196 (`ARCHITECTURE.md` §12): keep pkix -> model now; the split into a leaf `pdfcer-crypto` plus moving the trust-store COS reader to core is a mandatory precondition of pkix's first publish.
+- **iccce:** request filed at `D:\Dev\FeatureRequests\iccce_FeatureRequests\open\request_get_iccce_crates_io_ready.md` asking for publish-readiness of iccce-profile / -cmm / -color (not publication), a pinnable version in place of git rev `a4d9003b`, and any blockers. `pdfcer-render` also depends on `pdfcer-core` (pdfcer's own blocker, unsolved). **Reply owed by iccce.**
+- **Hard limits kept:** `publish = false` untouched, nothing published, pdfcraft not contacted, the conformance suite unnamed.
+
+**Results (engineer-reported):** `cargo tree`: no egui / eframe / winit / wgpu in model, pkix, color, core, render. `Cargo.lock` unchanged. No tests added: metadata-only; CI's package steps are the regression guard.
+
+**Operator request status:** delivered in full apart from iccce's reply. A reply to the operator is due now, noting that open item and the untested overlay reading.
+
+`FEATURES.md`: no row (no capability change; core only). Ledgers: decision `196` filed; next free `Pass 619.0`, decision `197`, `R263`; next filing 1179th. `Pass 618.1` removed from *Next up*; *Next up* now carries no `618.x` entry.
+
 ### Pass 618.0 (`d21e1ad5`), 2026-10-22 — panic-free engine crates: every panic lint denied, exemptions gated (1177th filing)
 
 Code commit `d21e1ad5` "feat(engine): deny every panic lint and baseline the exemptions (Pass 618.0)". Source: operator request `request_operator_harden_and_ready_crates_for_publishing.md`, asks 1-3. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message.
@@ -25019,18 +25036,6 @@ closes out the *prior* filing's business rather than opening this one's.
 > annotation/destination scaling, the new ce-dimensions refusal — is at
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
-
-### Pass 618.1 — Publish readiness for color, model and pkix (no publishing)
-
-**Source:** same request (ask 4). Depends on nothing in `618.0`, but the model crate should be through `618.0` item 3 first so the dry-run is not run against a public documented panic.
-
-**Scope:**
-1. Per-crate `repository`, `readme` and `keywords` metadata (and any other field `cargo publish` requires) for color, model and pkix.
-2. `cargo publish --dry-run` passing for those three.
-3. A recorded ruling on pkix's dependency on model's COS layer (object/view/graph/filters/crypto): keep it or split it. A consumer with its own COS layer would otherwise carry two. Goes in `ARCHITECTURE.md` §12 as a decision when made.
-4. An iccce-channel request to publish iccce to crates.io: render's `pdfcer-core` and iccce git dependencies block crates.io, which rejects git deps. iccce also owns all colour conversion (decision 064), so it gates the CMYK / spot / overprint compositor offer.
-
-**Hard limits (the request's ask 5, operator's calls):** never flip `publish = true`, never publish anything, never contact pdfcraft. Relicensing to `MIT OR Apache-2.0` is Ken's alone to grant (`git shortlog`: every commit his, 0 outside PRs) and is not part of this Pass. Keep to the `(bt)` ruling: the conformance suite stays unnamed in anything public (metadata, readmes, the iccce request).
 
 ### `Pass 616.0` — Space audit (`audit-space`) — MOVED TO *Shipped* (1111th filing, `5ba901d4`); arc inputs below stay for `616.1`+
 
