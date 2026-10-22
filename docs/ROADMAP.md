@@ -112,7 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
-### `Pass 616.6` (slice 5, `b79342a0`), 2026-10-21 — rewrite `/CIDSet` and `/CharSet` on a font cut; `Pass 616.6` NOT complete (1161st filing)
+### `Pass 616.6` (slice 5 CORRECTION, `90d68ee8`), 2026-10-21 — a cut leaves `/CIDSet` and `/CharSet` byte-identical; `Pass 616.6` NOT complete (1162nd filing)
+
+Fix commit `90d68ee8` "fix(optimize): leave /CIDSet and /CharSet as they are on a font cut (Pass 616.6)". Core + render + CLI; no GUI. Engineer-reported; I have no shell (hard rule 8). **The 1161st filing (`384bf88a`) recorded slice 5 (`b79342a0`) as rewriting both lists to the glyphs drawn. That was WRONG; the entry below is superseded on that point.**
+
+- **Why wrong:** glyph presence is structural (glyph ID below `numGlyphs`, CFF charset entry, Type 1 `/CharStrings` key), not by outline; an emptied glyf record or bare-`endchar` charstring is still present (veraPDF TWG #811). The rewrite under-claimed, which ISO 19005-2 §6.2.11.4.2 forbids (a present list must be exact); measured: veraPDF 1.30.2 failed rule 6.2.11.4.2-2 on the rewritten output. PDF/A-1 §6.3.5 requires both lists on tagged subsets (superset of used); PDF/A-4 §5.1 forbids both. Spec RAG: `D:\Dev\Rag-Specialized\PDF_Spec\pdfa\pdfa__ref__font_subset_cidset_charset.md`.
+- **Behaviour now:** a cut leaves `/CIDSet` and `/CharSet` byte-identical. The `cidset-charset-present` refusal and `optimize/resubset_coverage.rs` are gone. The `ResubsetProgram::kept_glyphs` / `with_kept_glyphs` and `FontResubsetter::cid_glyphs` / `name_glyphs` API added by `b79342a0` is removed (no occurrence in `crates/` or `docs/core-api/`; `check-core-api-verbs` passes).
+- **Kept from `b79342a0`:** `/FontName` retag in a DIRECT `/FontDescriptor` nested in a font dict (ISO 32000-2 §9.6.4), core test `a_direct_descriptor_is_re_tagged_with_its_font`.
+- **Tests (engineer-reported):** render `a_cut_font_keeps_its_glyph_lists` (fixtures `type0-cidset.pdf`, `type1c-charset.pdf`; sabotage removing `/CharSet` caught); pixel test covers both; CLI `resubset_cuts_a_font_listing_its_glyphs_in_cidset_or_charset` passes ("resubset: 1 cut, 0 refused"). `tools/run-gates.sh` PASS (46 commands). No manifest change (`cargo tree` unaffected).
+- **Still open in `Pass 616.6`:** re-subset under PDF/A (still refused; plan: allow A-1/2/3 with lists untouched, add a missing list on A-1 as the full structural set, remove lists on A-4); merging CFF copies; Type 1 (`/FontFile`); Acrobat Reader spot check NOT done. `/CIDSet` / `/CharSet` rewrite is NOT an open item (decided against). `616.7`-`616.10` unchanged.
+
+`FEATURES.md`: Implemented re-subset sentence and Planned *Font re-subsetting remainder* corrected to "left byte-identical". Lesson: `C:\personal_rag\pdf\lesson_20261021_glyph_zeroing_font_subset_must_leave_cidset_charset_unchanged_presence_is_structural.md`. No decision; no rule.
+
+### `Pass 616.6` (slice 5, `b79342a0`) [SUPERSEDED on the CIDSet/CharSet rewrite by the entry above], 2026-10-21 — rewrite `/CIDSet` and `/CharSet` on a font cut; `Pass 616.6` NOT complete (1161st filing)
 
 Code commit `b79342a0` "feat(optimize): rewrite /CIDSet and /CharSet on a font cut (Pass 616.6)". Core + render + CLI (existing `--resubset-fonts`); no GUI (separate project). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message and `docs/font-resubset-plan.md` (new CIDSet/CharSet section).
 

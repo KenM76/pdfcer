@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1162nd filing) — CORRECTION to `Pass 616.6` slice 5: fix in `90d68ee8`
+
+**Shipped:** `90d68ee8` reverts the CIDSet/CharSet rewrite of `b79342a0`: a font cut leaves both lists byte-identical; refusal `cidset-charset-present` and `optimize/resubset_coverage.rs` removed. Kept: `/FontName` retag in a direct nested `/FontDescriptor` (test `a_direct_descriptor_is_re_tagged_with_its_font`). Detail in the ROADMAP *Shipped* entry.
+
+**Decisions:** none; no numbers minted (`Pass 617.9`, `195`, `R263` stay free).
+
+**Findings:** the 1161st filing's description of slice 5 was WRONG. Glyph presence is structural (glyph ID below `numGlyphs`, CFF charset entry, Type 1 `/CharStrings` key); an emptied glyph is still present (veraPDF TWG #811), so the rewrite under-claimed and veraPDF 1.30.2 failed 6.2.11.4.2-2 (engineer-reported measurement). PDF/A-1 §6.3.5 requires both lists on tagged subsets; PDF/A-4 §5.1 forbids them. Lesson written to `C:\personal_rag\pdf\` (index and master index updated). Gates PASS (46 commands).
+
+**Still in flight:** `Pass 616.6` OPEN: re-subset under PDF/A (plan: A-1/2/3 lists untouched, add missing list on A-1, remove on A-4); merging CFF copies; Type 1; Acrobat Reader spot check NOT done.
+
+**For next session:** git/push/backup state not verified (no shell). Next filing 1163rd.
+
+*Amendment footer on the 1161st entry below: its Shipped and Still-in-flight lines about a CIDSet/CharSet rewrite are superseded by this entry.*
+
 ## 2026-10-21 (1161st filing) — `Pass 616.6` slice 5 in `b79342a0`: CIDSet/CharSet rewrite
 
 **Shipped:** `Pass 616.6` slice 5 (core + render + cli): re-subset no longer refuses fonts with `/CIDSet` or `/CharSet`; each list drops entries the cut emptied, unresolvable entries stay, CIDSet re-encoded Flate/raw. New API `ResubsetProgram::kept_glyphs`, `FontResubsetter::cid_glyphs`/`name_glyphs`. Shared CIDSet refuses `unreferenced-user`; such programs are not merged. Detail in the ROADMAP *Shipped* entry.
