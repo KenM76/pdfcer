@@ -61,3 +61,11 @@ temp-folder path with the licensed name was pushed (`c180aac`), then scrubbed
 in `bd40ffa`. The line is now in published history. Rule: the gate runs
 BARE before `&& git push` — never through a pipe — or run it, read its
 last line, and push in a SEPARATE command.
+
+**RECURRED 2026-10-21, a different gate.** The pre-push list I carried
+(commits-filed, ledger-numbers, passes-filed, suite-name) omitted
+`tools/check-core-api-verbs.py`, which also checks the line count
+`docs/core-api/index.md` states for each document. A `03-capabilities.md`
+edit grew it 21 lines; two pushes went red on the CI "repository audits"
+job. Rule: any push touching `docs/core-api/` runs that check too, and
+read CI's colour before the next push — I pushed twice onto a red run.
