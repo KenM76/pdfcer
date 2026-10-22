@@ -99,6 +99,7 @@ mod ocr_addons;
 mod ocr_engine;
 mod ocr_program_addons;
 mod optimize;
+mod optimize_content;
 mod optimize_fonts;
 mod output_in_place;
 mod password_values;

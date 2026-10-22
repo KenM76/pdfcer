@@ -736,6 +736,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "optimize_content"
+path = "fuzz_targets/optimize_content.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "image_encoders"
 path = "fuzz_targets/image_encoders.rs"
 test = false

@@ -4,7 +4,7 @@
 use std::fmt::Write as _;
 
 use pdfcer_core::optimize::{
-    Conversion, ImageChange, ImageConvert, ImageEncode, OptimizePlan, SettingSource,
+    ContentChange, Conversion, ImageChange, ImageConvert, ImageEncode, OptimizePlan, SettingSource,
 };
 
 /// The changed and skipped streams, as text.
@@ -29,6 +29,9 @@ pub(crate) fn changes_text(plan: &OptimizePlan) -> String {
         if let Some(img) = &c.image {
             out.push_str(&image_text(img));
             out.push_str(&format_text(img, &c.filters_before));
+        }
+        if let Some(cc) = &c.content {
+            out.push_str(&content_text(cc));
         }
     }
     if !plan.skipped.is_empty() {
@@ -280,5 +283,21 @@ fn jpeg_json(img: &ImageChange) -> String {
                 q.asked, q.used
             )
         },
+    )
+}
+
+/// The content line under a change: decoded sizes and what was rewritten.
+fn content_text(c: &ContentChange) -> String {
+    format!(
+        "           content {} -> {} B decoded, {} operator(s) removed, {} number(s) shortened, stored as {}\n",
+        c.decoded_before, c.decoded_after, c.operators_removed, c.numbers_shortened, c.encoded_as
+    )
+}
+
+/// One content change as JSON.
+pub(crate) fn content_json(c: &ContentChange) -> String {
+    format!(
+        "{{\"decoded_before\":{},\"decoded_after\":{},\"operators_removed\":{},\"numbers_shortened\":{},\"encoded_as\":\"{}\"}}",
+        c.decoded_before, c.decoded_after, c.operators_removed, c.numbers_shortened, c.encoded_as
     )
 }

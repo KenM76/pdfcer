@@ -69,8 +69,22 @@ pub(crate) struct OptimizeArgs {
     /// colours, else median cut). Soft masks, colour-keyed images (for
     /// conversion and JPEG) and
     /// Separation, DeviceN or Lab images are skipped with the reason.
+    /// "content(...)" compacts page content, form XObjects and tiling
+    /// patterns instead; see --content.
     #[arg(long, value_name = "ACTION")]
     pub(crate) streams: Option<String>,
+    /// Compact content streams (page content, form XObjects, tiling
+    /// patterns) losslessly, then store them with the stream action
+    /// (recompress-9 when that is leave). Keys, comma-separated, each
+    /// defaulting to the first value: whitespace=minimal|keep (drop every
+    /// separator a reader does not need, and comments), numbers=shortest|keep
+    /// (0.500 becomes .5, 1.0 becomes 1), redundant=on|off (remove empty
+    /// q Q pairs, identity cm and setters repeating the current value),
+    /// reset. Bare --content takes every default. Each rewrite is re-read
+    /// and compared with the original operations; one that differs is
+    /// skipped and reported. Per object: --object "12=content(numbers=keep)".
+    #[arg(long, value_name = "SPEC", num_args = 0..=1, default_missing_value = "content()")]
+    pub(crate) content: Option<String>,
     /// Add a rule, after the profile's. Whitespace-separated key=value pairs
     /// using the profile's `[[rule]]` keys, list values comma-separated:
     /// "category=fonts,images pages=2- min-bytes=4096 action=leave", or
@@ -262,8 +276,17 @@ fn resolve_settings(args: &OptimizeArgs) -> Result<OptimizeSettings, String> {
         // recompression of every other stream.
         match pdfcer_core::optimize::StreamAction::parse(a)? {
             pdfcer_core::optimize::StreamAction::Image(patch) => settings.images = patch,
+            pdfcer_core::optimize::StreamAction::Content(patch) => settings.content = Some(patch),
             other => settings.streams = other,
         }
+    }
+    if let Some(spec) = &args.content {
+        let spec = if spec.trim_start().starts_with("content(") {
+            spec.clone()
+        } else {
+            format!("content({spec})")
+        };
+        settings.content = Some(pdfcer_core::optimize::ContentPatch::parse(&spec)?);
     }
     for spec in &args.rules {
         settings
@@ -721,7 +744,7 @@ fn report_json(
         .map(|c| {
             let filters: Vec<String> = c.filters_before.iter().map(|f| q(f)).collect();
             format!(
-                "{{\"id\":{},\"category\":{},\"filters_before\":[{}],\"action\":{},\"before_bytes\":{},\"after_bytes\":{},\"lossy\":{},\"image\":{}}}",
+                "{{\"id\":{},\"category\":{},\"filters_before\":[{}],\"action\":{},\"before_bytes\":{},\"after_bytes\":{},\"lossy\":{},\"image\":{},\"content\":{}}}",
                 q(&c.id.to_string()),
                 q(c.category.as_str()),
                 filters.join(","),
@@ -729,7 +752,8 @@ fn report_json(
                 c.before_bytes,
                 c.after_bytes,
                 c.lossy,
-                c.image.as_ref().map_or_else(|| "null".to_owned(), optimize_report::image_json)
+                c.image.as_ref().map_or_else(|| "null".to_owned(), optimize_report::image_json),
+                c.content.as_ref().map_or_else(|| "null".to_owned(), optimize_report::content_json)
             )
         })
         .collect();

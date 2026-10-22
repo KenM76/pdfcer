@@ -677,14 +677,18 @@ pub(crate) struct Resolved {
     pub(crate) base: StreamAction,
     /// The image settings, when an `image(...)` action followed `base`.
     pub(crate) image: Option<ResolvedImage>,
+    /// The content settings, when a `content(...)` action followed `base`.
+    pub(crate) content: Option<super::content::ResolvedContent>,
 }
 
 /// Fold `actions` in precedence order (lowest first). `leave` and
 /// `recompress-N` replace the whole state; `image(...)` merges field by
-/// field over an encode taken from the state it lands on.
+/// field over an encode taken from the state it lands on, and
+/// `content(...)` likewise for content streams.
 pub(crate) fn fold(actions: impl IntoIterator<Item = (StreamAction, SettingSource)>) -> Resolved {
     let mut base = (StreamAction::Leave, SettingSource::BuiltIn);
     let mut image: Option<ResolvedImage> = None;
+    let mut content: Option<super::content::ResolvedContent> = None;
     for (action, src) in actions {
         match action {
             StreamAction::Image(patch) => {
@@ -698,15 +702,20 @@ pub(crate) fn fold(actions: impl IntoIterator<Item = (StreamAction, SettingSourc
                     .get_or_insert_with(|| ResolvedImage::base(encode))
                     .merge(&patch, src, encode);
             }
+            StreamAction::Content(patch) => content
+                .get_or_insert_with(|| super::content::ResolvedContent::base(base.0))
+                .merge(&patch, base.0),
             other => {
                 base = (other, src);
                 image = None;
+                content = None;
             }
         }
     }
     Resolved {
         base: base.0,
         image,
+        content,
     }
 }
 

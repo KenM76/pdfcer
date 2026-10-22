@@ -6,7 +6,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::{Command, CommandKind, EditSession, ObjectWrite};
 use crate::document::Document;
 use crate::object::{Dict, ObjId, Object, Stream};
-use crate::optimize::image::{self, pipeline::Outcome};
+use crate::optimize::content::{self, ResolvedContent};
+use crate::optimize::image::{
+    self,
+    pipeline::{ImageChange, Outcome},
+};
 use crate::optimize::resubset_plan::claims_pdfa1;
 use crate::optimize::select::ObjectFacts;
 use crate::optimize::streams::{self, Rewrite};
@@ -282,12 +286,18 @@ impl EditSession {
                         if !self.deleted.contains(&w.id)
                             && streams::protected(&s.dict).is_none() =>
                     {
-                        view.slice(s.data_span).and_then(|raw| match &w.image {
-                            Some(job) => image::encode::run(job, &view, &s.dict, raw)
-                                .ok()
-                                .map(|w| (w.dict, w.data)),
-                            None => streams::apply(w.action, &s.dict, raw).ok().flatten(),
-                        })
+                        view.slice(s.data_span)
+                            .and_then(|raw| match (&w.image, w.content) {
+                                (Some(job), _) => image::encode::run(job, &view, &s.dict, raw)
+                                    .ok()
+                                    .map(|w| (w.dict, w.data)),
+                                (None, Some(rc)) => content::apply(rc, &s.dict, raw)
+                                    .ok()
+                                    .map(|(d, b, _)| (d, b)),
+                                (None, None) => {
+                                    streams::apply(w.action, &s.dict, raw).ok().flatten()
+                                }
+                            })
                     }
                     _ => None,
                 };
@@ -384,15 +394,18 @@ pub(super) fn plan_stream(
     let resolved = settings.resolve(id, &facts);
     let is_image =
         matches!(stream.dict.get(b"Subtype"), Some(Object::Name(n)) if n.as_bytes() == b"Image");
-    let (action, job) = match ctx.lockstep.map_or(resolved.image, |l| Some(l.settings)) {
+    if let Some(rc) = resolved.content
+        && content::eligible(&stream.dict, row.map(|r| r.category))
+    {
+        plan_content(plan, rc, (id, stream, raw), row, ctx.pdfa, filters);
+        return;
+    }
+    let (action, mut job) = match ctx.lockstep.map_or(resolved.image, |l| Some(l.settings)) {
         Some(img) if is_image => {
             let space = row.and_then(|r| r.image.as_ref());
-            match image::pipeline::decide(&img, &stream.dict, raw, space, ctx) {
-                Ok(Outcome::Unchanged) => return,
-                Ok(Outcome::Lossless(level)) => (StreamAction::Recompress { level }, None),
-                Ok(Outcome::Rewrite(job, change)) => {
-                    (StreamAction::Image(img.to_patch()), Some((job, change)))
-                }
+            match image_action(&img, (stream, raw), space, ctx) {
+                Ok(Some(decided)) => decided,
+                Ok(None) => return,
                 Err(reason) => {
                     let action = StreamAction::Image(img.to_patch());
                     plan.skipped.push(Skipped { id, action, reason });
@@ -410,7 +423,6 @@ pub(super) fn plan_stream(
         plan.skipped.push(skip(reason));
         return;
     }
-    let mut job = job;
     let result = match job.as_mut() {
         Some((job, change)) => {
             image::encode::run(job, ctx.view, &stream.dict, raw).map(|w| Some(change.record(w)))
@@ -428,16 +440,16 @@ pub(super) fn plan_stream(
                 filters_before: filters,
                 before_bytes: raw.len() as u64,
                 after_bytes: data.len() as u64,
-                lossy: change
-                    .as_ref()
-                    .is_some_and(image::pipeline::ImageChange::is_lossy),
+                lossy: change.as_ref().is_some_and(ImageChange::is_lossy),
                 image: change,
+                content: None,
             });
             plan.writes.push(Rewrite {
                 id,
                 before: Object::Stream(stream.clone()),
                 action,
                 image: job,
+                content: None,
                 partner: ctx.lockstep.map(|l| l.parent),
                 dict,
                 data,
@@ -445,4 +457,69 @@ pub(super) fn plan_stream(
         }
         Err(reason) => plan.skipped.push(skip(reason)),
     }
+}
+
+/// The action an image stream gets under `img`; `None` leaves it as stored.
+fn image_action(
+    img: &image::ResolvedImage,
+    (stream, raw): (&Stream, &[u8]),
+    space: Option<&crate::space_audit::ImageSpace>,
+    ctx: &image::pipeline::Context<'_, '_>,
+) -> Result<Option<(StreamAction, Option<ImageJob>)>, crate::optimize::SkipReason> {
+    Ok(
+        match image::pipeline::decide(img, &stream.dict, raw, space, ctx)? {
+            Outcome::Unchanged => None,
+            Outcome::Lossless(level) => Some((StreamAction::Recompress { level }, None)),
+            Outcome::Rewrite(job, change) => {
+                Some((StreamAction::Image(img.to_patch()), Some((job, change))))
+            }
+        },
+    )
+}
+
+/// An image re-encode and the change it records.
+type ImageJob = (image::pipeline::Job, Box<ImageChange>);
+
+/// Compact one content stream under `rc`, recording it in `plan`.
+fn plan_content(
+    plan: &mut OptimizePlan,
+    rc: ResolvedContent,
+    (id, stream, raw): (ObjId, &Stream, &[u8]),
+    row: Option<&ObjectSpace>,
+    pdfa: bool,
+    filters: Vec<String>,
+) {
+    let action = StreamAction::Content(rc.to_patch());
+    let result = match refusal(&stream.dict, rc.encode, pdfa) {
+        Some(reason) => Err(reason),
+        None => content::apply(rc, &stream.dict, raw),
+    };
+    let (dict, data, change) = match result {
+        Ok(done) => done,
+        Err(reason) => {
+            plan.skipped.push(Skipped { id, action, reason });
+            return;
+        }
+    };
+    plan.changes.push(PlannedChange {
+        id,
+        category: row.map_or(SpaceCategory::OtherReferenced, |r| r.category),
+        action,
+        filters_before: filters,
+        before_bytes: raw.len() as u64,
+        after_bytes: data.len() as u64,
+        lossy: false,
+        image: None,
+        content: Some(change),
+    });
+    plan.writes.push(Rewrite {
+        id,
+        before: Object::Stream(stream.clone()),
+        action,
+        image: None,
+        content: Some(rc),
+        partner: None,
+        dict,
+        data,
+    });
 }

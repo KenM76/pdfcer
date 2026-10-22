@@ -1,0 +1,331 @@
+//! Content-stream compaction (Pass 616.7): the `content(...)` stream action.
+//!
+//! A page's `/Contents`, a form XObject and a tiling pattern
+//! (`/PatternType 1`) are re-written token by token, then re-encoded:
+//! - **whitespace** `minimal` drops every separator a reader does not need
+//!   to tell two tokens apart, and every comment (ISO 32000-2 §7.2.2: only
+//!   two adjacent regular characters need white-space between them);
+//! - **numbers** `shortest` writes each number in its shortest form with the
+//!   same value (`0.500` → `.5`, `1.0` → `1`; an integer may stand wherever a
+//!   real is expected, §7.3.3);
+//! - **redundant** `on` removes operators that change nothing: an empty
+//!   `q Q` pair, an identity `cm`, and a state setter repeating the value
+//!   the state already holds.
+//!
+//! All three are lossless. Strings, arrays, dictionaries, names, operators
+//! and inline images are copied byte for byte. A rewrite is re-read and
+//! compared with the original, operation by operation, before it is kept
+//! ([`ContentSkip::Mismatch`] otherwise). The leading and trailing
+//! white-space of a stream is kept as one byte, because a page's `/Contents`
+//! array may split between any two tokens (§7.7.3.3, Table 30).
+//!
+//! Type 3 glyph procedures are not rewritten: nothing in their dictionaries
+//! marks them as content.
+
+mod check;
+mod rewrite;
+
+use std::fmt;
+
+use super::{SkipReason, StreamAction};
+use crate::filters::{self, flate};
+use crate::object::{Dict, Name, Object};
+use crate::space_audit::SpaceCategory;
+
+/// Content-stream compaction settings, the `content(...)` spelling of a
+/// [`StreamAction`]. Unset fields take the settings before it, then the
+/// defaults: `whitespace=minimal`, `numbers=shortest`, `redundant=on`.
+///
+/// ```
+/// use pdfcer_core::optimize::{ContentPatch, StreamAction, Whitespace};
+///
+/// let action = StreamAction::parse("content(whitespace=keep)")?;
+/// let StreamAction::Content(patch) = action else { unreachable!() };
+/// assert_eq!(patch.whitespace, Some(Whitespace::Keep));
+/// assert_eq!(action.to_string(), "content(whitespace=keep)");
+/// assert_eq!(StreamAction::parse("content()")?, StreamAction::Content(ContentPatch::new()));
+/// # Ok::<(), String>(())
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub struct ContentPatch {
+    /// Clear every field earlier `content(...)` actions set first.
+    pub reset: bool,
+    /// Separators and comments.
+    pub whitespace: Option<Whitespace>,
+    /// Number spelling.
+    pub numbers: Option<Numbers>,
+    /// Remove operators that change nothing.
+    pub redundant: Option<bool>,
+}
+
+/// How [`ContentPatch::whitespace`] treats separators.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Whitespace {
+    /// Every separator and comment as stored.
+    Keep,
+    /// Only the separators a reader needs; no comments.
+    Minimal,
+}
+
+/// How [`ContentPatch::numbers`] spells numbers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Numbers {
+    /// As stored.
+    Keep,
+    /// The shortest spelling of the same value; exponents are never written.
+    Shortest,
+}
+
+impl ContentPatch {
+    /// A patch that sets nothing: every field takes its default.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            reset: false,
+            whitespace: None,
+            numbers: None,
+            redundant: None,
+        }
+    }
+
+    /// Parse the `content(...)` spelling: `whitespace=keep|minimal`,
+    /// `numbers=keep|shortest`, `redundant=on|off` and `reset`,
+    /// comma-separated.
+    ///
+    /// # Errors
+    ///
+    /// A message naming an unknown or repeated key or a bad value.
+    pub fn parse(text: &str) -> Result<Self, String> {
+        let inner = text
+            .trim()
+            .strip_prefix("content(")
+            .and_then(|t| t.strip_suffix(')'))
+            .ok_or_else(|| format!("expected content(key=value,...), found {text:?}"))?;
+        let mut patch = Self::new();
+        let mut seen: Vec<&str> = Vec::new();
+        for item in inner.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+            let (key, value) = item
+                .split_once('=')
+                .map_or((item, ""), |(k, v)| (k.trim(), v.trim()));
+            if seen.contains(&key) {
+                return Err(format!("content(): duplicate key {key:?}"));
+            }
+            seen.push(key);
+            patch.set(key, value)?;
+        }
+        Ok(patch)
+    }
+
+    fn set(&mut self, key: &str, value: &str) -> Result<(), String> {
+        let bad = |want: &str| format!("content(): bad value {value:?} for {key}; expected {want}");
+        match key {
+            "reset" if value.is_empty() || value == "true" => self.reset = true,
+            "whitespace" => {
+                self.whitespace = Some(match value {
+                    "keep" => Whitespace::Keep,
+                    "minimal" => Whitespace::Minimal,
+                    _ => return Err(bad("keep or minimal")),
+                });
+            }
+            "numbers" => {
+                self.numbers = Some(match value {
+                    "keep" => Numbers::Keep,
+                    "shortest" => Numbers::Shortest,
+                    _ => return Err(bad("keep or shortest")),
+                });
+            }
+            "redundant" => {
+                self.redundant = Some(match value {
+                    "on" => true,
+                    "off" => false,
+                    _ => return Err(bad("on or off")),
+                });
+            }
+            _ => {
+                return Err(format!(
+                    "content(): unknown key {key:?}; expected whitespace, numbers, redundant or reset"
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Display for ContentPatch {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut parts: Vec<&str> = Vec::new();
+        if let Some(n) = self.numbers {
+            parts.push(match n {
+                Numbers::Keep => "numbers=keep",
+                Numbers::Shortest => "numbers=shortest",
+            });
+        }
+        if let Some(r) = self.redundant {
+            parts.push(if r { "redundant=on" } else { "redundant=off" });
+        }
+        if self.reset {
+            parts.push("reset");
+        }
+        if let Some(w) = self.whitespace {
+            parts.push(match w {
+                Whitespace::Keep => "whitespace=keep",
+                Whitespace::Minimal => "whitespace=minimal",
+            });
+        }
+        write!(f, "content({})", parts.join(","))
+    }
+}
+
+/// The content settings one stream folds to, and the encoding its result is
+/// stored with.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ResolvedContent {
+    pub(crate) whitespace: Whitespace,
+    pub(crate) numbers: Numbers,
+    pub(crate) redundant: bool,
+    /// `Recompress` or `Brotli`: the whole-state action the patches landed
+    /// on, `recompress-9` when that was `leave`.
+    pub(crate) encode: StreamAction,
+}
+
+impl ResolvedContent {
+    /// The defaults, encoded as `base` when it re-encodes, else `recompress-9`.
+    pub(crate) fn base(base: StreamAction) -> Self {
+        Self {
+            whitespace: Whitespace::Minimal,
+            numbers: Numbers::Shortest,
+            redundant: true,
+            encode: match base {
+                StreamAction::Recompress { .. } | StreamAction::Brotli { .. } => base,
+                _ => StreamAction::Recompress { level: 9 },
+            },
+        }
+    }
+
+    /// Apply the keys `p` sets; its `reset` first returns to [`Self::base`].
+    pub(crate) fn merge(&mut self, p: &ContentPatch, base: StreamAction) {
+        if p.reset {
+            *self = Self::base(base);
+        }
+        if let Some(v) = p.whitespace {
+            self.whitespace = v;
+        }
+        if let Some(v) = p.numbers {
+            self.numbers = v;
+        }
+        if let Some(v) = p.redundant {
+            self.redundant = v;
+        }
+    }
+
+    /// The patch that reproduces these settings over the defaults.
+    pub(crate) fn to_patch(self) -> ContentPatch {
+        ContentPatch {
+            reset: false,
+            whitespace: Some(self.whitespace),
+            numbers: Some(self.numbers),
+            redundant: Some(self.redundant),
+        }
+    }
+}
+
+/// What a content rewrite did to one stream.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ContentChange {
+    /// Decoded content bytes before.
+    pub decoded_before: u64,
+    /// Decoded content bytes after.
+    pub decoded_after: u64,
+    /// Operators removed as redundant (their operands go with them).
+    pub operators_removed: u64,
+    /// Numbers written shorter.
+    pub numbers_shortened: u64,
+    /// The encoding the result is stored with: [`StreamAction::Recompress`]
+    /// or [`StreamAction::Brotli`].
+    pub encoded_as: StreamAction,
+}
+
+/// Why a content stream selected for `content(...)` is left as stored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ContentSkip {
+    /// The rewrite did not re-read as the same operations; it is a defect
+    /// to report, and the stream is kept.
+    Mismatch,
+}
+
+impl fmt::Display for ContentSkip {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Mismatch => f.write_str("the rewrite did not re-read as the same operations"),
+        }
+    }
+}
+
+/// Whether `content(...)` applies to the stream under `dict`: page content
+/// (by `category`), a form XObject or a tiling pattern; never an image.
+pub(crate) fn eligible(dict: &Dict, category: Option<SpaceCategory>) -> bool {
+    let name = |key: &[u8], want: &[u8]| matches!(dict.get(key), Some(Object::Name(n)) if n.as_bytes() == want);
+    category == Some(SpaceCategory::ContentStreams)
+        || name(b"Subtype", b"Form")
+        || matches!(dict.get(b"PatternType"), Some(Object::Integer(1)))
+}
+
+/// Rewrite the content stored as `raw` under `dict` and encode it as
+/// `settings.encode`. Refused, like every stream action, when not strictly
+/// smaller than `raw`.
+pub(crate) fn apply(
+    settings: ResolvedContent,
+    dict: &Dict,
+    raw: &[u8],
+) -> Result<(Dict, Vec<u8>, ContentChange), SkipReason> {
+    for name in super::streams::chain(dict) {
+        if !super::streams::GENERIC.contains(&name.as_bytes()) {
+            return Err(SkipReason::UnsupportedFilter(name));
+        }
+    }
+    let decoded =
+        filters::decode_stream(dict, raw).map_err(|e| SkipReason::Undecodable(e.to_string()))?;
+    let out = rewrite::compact(&decoded, settings)?;
+    let (filter, data): (&[u8], Vec<u8>) = match settings.encode {
+        StreamAction::Brotli { quality } => (
+            b"BrotliDecode",
+            filters::brotli::encode(&out.bytes, u32::from(quality))
+                .map_err(|e| SkipReason::Undecodable(e.to_string()))?,
+        ),
+        StreamAction::Recompress { level } => (
+            b"FlateDecode",
+            flate::encode_with_level(&out.bytes, u32::from(level)),
+        ),
+        _ => (b"FlateDecode", flate::encode_with_level(&out.bytes, 9)),
+    };
+    if data.len() >= raw.len() {
+        return Err(SkipReason::NotSmaller {
+            before: raw.len() as u64,
+            after: data.len() as u64,
+        });
+    }
+    let mut dict = dict.clone();
+    dict.remove(b"DecodeParms");
+    dict.remove(b"DP");
+    dict.insert(Name::from(b"Filter"), Object::Name(Name::from(filter)));
+    dict.insert(
+        Name::from(b"Length"),
+        Object::Integer(i64::try_from(data.len()).unwrap_or(i64::MAX)),
+    );
+    let change = ContentChange {
+        decoded_before: decoded.len() as u64,
+        decoded_after: out.bytes.len() as u64,
+        operators_removed: out.removed,
+        numbers_shortened: out.shortened,
+        encoded_as: settings.encode,
+    };
+    Ok((dict, data, change))
+}
+
+#[cfg(test)]
+mod tests;

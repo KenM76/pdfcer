@@ -6,6 +6,7 @@
 //! extends = "standard"        # a preset name, or another profile
 //! streams = "recompress-9"    # the default action: leave | recompress | recompress-0..9
 //! images = "image(ppi=150)"   # image settings over streams; other streams keep it
+//! content = "content()"       # page/form/pattern content compaction, lossless
 //! allow-signed = false
 //! remove-unreferenced = true  # the structure rebuild at save; all three
 //! merge-duplicates = true     # false keeps the file's structure
@@ -48,7 +49,8 @@ use std::fmt::Write as _;
 use syntax::{Kind, Table, Value};
 
 use super::{
-    DiscardOptions, ImagePatch, OptimizeSettings, PageRanges, Preset, Rule, Selector, StreamAction,
+    ContentPatch, DiscardOptions, ImagePatch, OptimizeSettings, PageRanges, Preset, Rule, Selector,
+    StreamAction,
 };
 use crate::object::ObjId;
 use crate::space_audit::{ImageClass, SpaceCategory};
@@ -174,6 +176,10 @@ fn apply_table(settings: &mut OptimizeSettings, table: &Table) -> Result<(), (us
                     "extends" => {}
                     "streams" => settings.streams = action(value).map_err(at)?,
                     "images" => settings.images = images(value).map_err(at)?,
+                    "content" => {
+                        settings.content =
+                            Some(ContentPatch::parse(string(value).map_err(at)?).map_err(at)?);
+                    }
                     "allow-signed" => settings.allow_signed = boolean(value).map_err(at)?,
                     "discard" => settings.discard = discard(value).map_err(at)?,
                     "smooth-tolerance" => {
@@ -463,6 +469,9 @@ pub fn to_profile(settings: &OptimizeSettings) -> String {
             "images = {}",
             syntax::quote(&settings.images.to_string())
         );
+    }
+    if let Some(patch) = settings.content {
+        let _ = writeln!(out, "content = {}", syntax::quote(&patch.to_string()));
     }
     let _ = writeln!(out, "allow-signed = {}", settings.allow_signed);
     let st = &settings.structure;

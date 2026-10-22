@@ -298,3 +298,23 @@ fn an_empty_font_list_clears_the_parents() {
     .unwrap();
     assert!(child.unembed.is_none());
 }
+
+#[test]
+fn a_content_key_and_a_content_action_round_trip() {
+    let text = "content = \"content(whitespace=keep)\"
+[[object]]
+id = \"4 0\"
+action = \"content(redundant=off)\"
+";
+    let s = parse("p.toml", text, &mut none).unwrap();
+    assert_eq!(
+        s.content,
+        Some(ContentPatch::parse("content(whitespace=keep)").unwrap())
+    );
+    assert!(matches!(
+        s.objects.get(&ObjId::new(4, 0)),
+        Some(StreamAction::Content(_))
+    ));
+    assert_eq!(parse("p.toml", &to_profile(&s), &mut none).unwrap(), s);
+    assert!(parse("p.toml", "content = \"content(spaces=0)\"\n", &mut none).is_err());
+}

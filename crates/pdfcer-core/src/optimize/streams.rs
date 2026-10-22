@@ -28,6 +28,8 @@ pub(crate) struct Rewrite {
     pub(crate) action: StreamAction,
     /// The resample to redo instead of `action`, for a downsampled image.
     pub(crate) image: Option<super::image::pipeline::Job>,
+    /// The compaction to redo instead of `action`, for a content stream.
+    pub(crate) content: Option<super::content::ResolvedContent>,
     /// A `/Matte` pair's other half: neither is written without the other.
     pub(crate) partner: Option<ObjId>,
     pub(crate) dict: Dict,
@@ -74,7 +76,7 @@ pub(crate) fn apply(
     raw: &[u8],
 ) -> Result<Option<(Dict, Vec<u8>)>, SkipReason> {
     match action {
-        StreamAction::Leave | StreamAction::Image(_) => Ok(None),
+        StreamAction::Leave | StreamAction::Image(_) | StreamAction::Content(_) => Ok(None),
         StreamAction::Recompress { level } => reencode(dict, raw, b"FlateDecode", |d| {
             Ok(flate::encode_with_level(d, u32::from(level)))
         })

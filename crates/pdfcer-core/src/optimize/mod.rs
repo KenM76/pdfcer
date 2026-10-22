@@ -35,6 +35,7 @@
 pub(crate) mod actions;
 pub(crate) mod annots;
 pub mod cleanup;
+pub(crate) mod content;
 pub mod discard;
 pub(crate) mod fragments;
 pub(crate) mod glyph_usage;
@@ -57,6 +58,7 @@ use std::fmt;
 
 pub use crate::space_audit::ImageClass;
 pub use cleanup::{BrokenBookmark, BrokenLink, BrokenTarget, CleanupOptions, CleanupPlan};
+pub use content::{ContentChange, ContentPatch, ContentSkip, Numbers, Whitespace};
 pub use discard::DiscardOptions;
 pub use image::jpeg_quality::estimate_jpeg_quality;
 pub use image::pipeline::{ImageChange, JpegQuality};
@@ -107,6 +109,12 @@ pub enum StreamAction {
     /// (decision 192). A non-image stream gets the last `leave` or
     /// `recompress-N` before it instead.
     Image(ImagePatch),
+    /// Content-stream compaction, merged the same way over the actions
+    /// before it; lossless. Applies to page content, form XObjects and
+    /// tiling patterns, re-encoded with the last `recompress-N` or
+    /// `brotli-N` before it (`recompress-9` after `leave`). Other streams
+    /// get that action instead.
+    Content(ContentPatch),
 }
 
 impl StreamAction {
@@ -118,11 +126,13 @@ impl StreamAction {
             Self::Recompress { level } => format!("recompress-{level}"),
             Self::Brotli { quality } => format!("brotli-{quality}"),
             Self::Image(patch) => patch.to_string(),
+            Self::Content(patch) => patch.to_string(),
         }
     }
 
     /// Parse the profile spelling. `recompress` alone means level 9;
-    /// `image(...)` is [`ImagePatch::parse`].
+    /// `image(...)` is [`ImagePatch::parse`], `content(...)`
+    /// [`ContentPatch::parse`].
     ///
     /// # Errors
     ///
@@ -130,6 +140,9 @@ impl StreamAction {
     pub fn parse(text: &str) -> Result<Self, String> {
         if text.trim_start().starts_with("image(") {
             return ImagePatch::parse(text).map(Self::Image);
+        }
+        if text.trim_start().starts_with("content(") {
+            return ContentPatch::parse(text).map(Self::Content);
         }
         match text {
             "leave" => Ok(Self::Leave),
@@ -140,7 +153,7 @@ impl StreamAction {
                 .or_else(|| numbered(text, "brotli-", 11).map(|quality| Self::Brotli { quality }))
                 .ok_or_else(|| {
                     format!(
-                        "unknown action {text:?}; expected leave, recompress, recompress-0..9, brotli, brotli-0..11 or image(...)"
+                        "unknown action {text:?}; expected leave, recompress, recompress-0..9, brotli, brotli-0..11, image(...) or content(...)"
                     )
                 }),
         }
@@ -153,7 +166,7 @@ impl StreamAction {
     #[must_use]
     pub fn is_lossy(self) -> bool {
         match self {
-            Self::Leave | Self::Recompress { .. } | Self::Brotli { .. } => false,
+            Self::Leave | Self::Recompress { .. } | Self::Brotli { .. } | Self::Content(_) => false,
             Self::Image(p) => {
                 (p.ppi.is_some() && p.method != Some(ResampleMethod::Off))
                     || p.encode == Some(ImageEncode::Jpeg)
@@ -194,6 +207,9 @@ pub struct OptimizeSettings {
     /// rule and override; [`ImagePatch::new`] sets none. Non-image streams
     /// keep `streams`.
     pub images: ImagePatch,
+    /// Content-stream compaction for every eligible stream, merged after
+    /// `images` and under every rule and override; `None` compacts none.
+    pub content: Option<ContentPatch>,
     /// Rules, in order. A later match beats an earlier one.
     pub rules: Vec<Rule>,
     /// Per-object overrides. These beat every rule.
@@ -235,6 +251,7 @@ impl OptimizeSettings {
         Self {
             streams: StreamAction::Leave,
             images: ImagePatch::new(),
+            content: None,
             rules: Vec::new(),
             objects: BTreeMap::new(),
             allow_signed: false,
@@ -248,7 +265,8 @@ impl OptimizeSettings {
     }
 
     /// Every action matching one object, folded in the precedence in the
-    /// module docs: `streams`, then `images`, then matching rules in order,
+    /// module docs: `streams`, then `images`, then `content`, then matching
+    /// rules in order,
     /// then the per-object override.
     pub(crate) fn resolve(&self, id: ObjId, facts: &select::ObjectFacts<'_>) -> image::Resolved {
         let rules = self
@@ -263,6 +281,10 @@ impl OptimizeSettings {
                 .chain(
                     (self.images != ImagePatch::new())
                         .then_some((StreamAction::Image(self.images), SettingSource::Images)),
+                )
+                .chain(
+                    self.content
+                        .map(|p| (StreamAction::Content(p), SettingSource::Streams)),
                 )
                 .chain(rules)
                 .chain(object),
@@ -399,6 +421,8 @@ pub struct PlannedChange {
     /// For a downsampled image: sizes, the binding placement and the
     /// settings with their sources.
     pub image: Option<ImageChange>,
+    /// For a compacted content stream: decoded sizes and what changed.
+    pub content: Option<ContentChange>,
 }
 
 /// Why a selected object was left as stored.
@@ -436,6 +460,8 @@ pub enum SkipReason {
     Protected(&'static str),
     /// Brotli under a PDF/A claim, which does not admit the filter.
     BrotliUnderPdfa,
+    /// A content stream `content(...)` selects that is not rewritten.
+    Content(ContentSkip),
 }
 
 impl fmt::Display for SkipReason {
@@ -455,6 +481,7 @@ impl fmt::Display for SkipReason {
             Self::ImageUnsupported(why) => write!(f, "not rewritten: {why}"),
             Self::Protected(what) => write!(f, "{what} is never rewritten"),
             Self::BrotliUnderPdfa => f.write_str("Brotli is not allowed in PDF/A, kept"),
+            Self::Content(why) => write!(f, "not compacted: {why}"),
         }
     }
 }
@@ -547,6 +574,8 @@ impl OptimizePlan {
                 || c.image
                     .as_ref()
                     .is_some_and(|i| matches!(i.encoded_as, ImageEncode::Brotli { .. }))
+                || c.content
+                    .is_some_and(|k| matches!(k.encoded_as, StreamAction::Brotli { .. }))
         })
     }
 
