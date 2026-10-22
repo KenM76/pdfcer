@@ -288,16 +288,52 @@ fn jpeg_json(img: &ImageChange) -> String {
 
 /// The content line under a change: decoded sizes and what was rewritten.
 fn content_text(c: &ContentChange) -> String {
-    format!(
-        "           content {} -> {} B decoded, {} operator(s) removed, {} number(s) shortened, stored as {}\n",
-        c.decoded_before, c.decoded_after, c.operators_removed, c.numbers_shortened, c.encoded_as
-    )
+    let mut line = format!(
+        "           content {} -> {} B decoded, {} operator(s) removed, {} number(s) shortened",
+        c.decoded_before, c.decoded_after, c.operators_removed, c.numbers_shortened
+    );
+    if c.numbers_rounded > 0 {
+        line += &format!(
+            ", {} coordinate(s) rounded, no point moved more than {} unit(s)",
+            c.numbers_rounded,
+            round_units(c.max_displacement)
+        );
+    }
+    line += &format!(", stored as {}\n", c.encoded_as);
+    if let Some(why) = c.unrounded {
+        line += &format!("           {why}\n");
+    }
+    line
+}
+
+/// A displacement to six decimals, without trailing zeros.
+fn round_units(d: f64) -> String {
+    let s = format!("{d:.6}");
+    s.trim_end_matches('0').trim_end_matches('.').to_owned()
+}
+
+/// The JSON spelling of why rounding stopped or never started.
+fn unrounded_json(u: Option<pdfcer_core::optimize::Unrounded>) -> &'static str {
+    use pdfcer_core::optimize::Unrounded;
+    match u {
+        None => "null",
+        Some(Unrounded::NotPageStart) => "\"not-page-start\"",
+        Some(Unrounded::UnknownMatrix) => "\"unknown-matrix\"",
+        Some(_) => "\"other\"",
+    }
 }
 
 /// One content change as JSON.
 pub(crate) fn content_json(c: &ContentChange) -> String {
     format!(
-        "{{\"decoded_before\":{},\"decoded_after\":{},\"operators_removed\":{},\"numbers_shortened\":{},\"encoded_as\":\"{}\"}}",
-        c.decoded_before, c.decoded_after, c.operators_removed, c.numbers_shortened, c.encoded_as
+        "{{\"decoded_before\":{},\"decoded_after\":{},\"operators_removed\":{},\"numbers_shortened\":{},\"numbers_rounded\":{},\"max_displacement\":{},\"unrounded\":{},\"encoded_as\":\"{}\"}}",
+        c.decoded_before,
+        c.decoded_after,
+        c.operators_removed,
+        c.numbers_shortened,
+        c.numbers_rounded,
+        round_units(c.max_displacement),
+        unrounded_json(c.unrounded),
+        c.encoded_as
     )
 }

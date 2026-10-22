@@ -18,6 +18,8 @@ fn settings(whitespace: Whitespace, numbers: Numbers, redundant: bool) -> Resolv
         whitespace,
         numbers,
         redundant,
+        round: None,
+        page_start: true,
         encode: StreamAction::Recompress { level: 9 },
     }
 }
@@ -169,14 +171,16 @@ fn an_inline_image_is_copied_and_followed_by_white_space() {
 #[test]
 fn the_check_refuses_output_that_reads_differently() {
     let original = ContentStream::parse(b"0 g 1 w".to_vec()).unwrap();
-    let all = vec![true; original.tokens.len()];
-    assert!(super::check::same(&original, &all, b"0 g 1 w"));
-    assert!(super::check::same(&original, &all, b"0.0 g 1.0 w"));
-    assert!(!super::check::same(&original, &all, b"0 G 1 w"));
-    assert!(!super::check::same(&original, &all, b"0 g 1 w n"));
-    assert!(!super::check::same(&original, &all, b"0 g"));
-    assert!(!super::check::same(&original, &all, b"0 g 2 w"));
-    assert!(!super::check::same(&original, &all, b"0 g (1) w"));
+    let keep = vec![true; original.tokens.len()];
+    let none = vec![None; original.tokens.len()];
+    let all = (&keep[..], &none[..]);
+    assert!(super::check::same(&original, all, b"0 g 1 w"));
+    assert!(super::check::same(&original, all, b"0.0 g 1.0 w"));
+    assert!(!super::check::same(&original, all, b"0 G 1 w"));
+    assert!(!super::check::same(&original, all, b"0 g 1 w n"));
+    assert!(!super::check::same(&original, all, b"0 g"));
+    assert!(!super::check::same(&original, all, b"0 g 2 w"));
+    assert!(!super::check::same(&original, all, b"0 g (1) w"));
 }
 
 fn page_doc(page_content: &[u8]) -> Vec<u8> {

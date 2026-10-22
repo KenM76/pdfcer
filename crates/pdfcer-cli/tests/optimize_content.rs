@@ -20,6 +20,11 @@ fn write_pdf(dir: &Path) -> PathBuf {
     let page =
         b"q\n0.500 g\n0.500 g\n1 0 0 1 0 0 cm\n10.000 10.000 80.000 80.000 re f\nQ\n/Fm0 Do\n"
             .repeat(40);
+    write_pdf_with(dir, &page)
+}
+
+/// [`write_pdf`] with `page` as the page's content.
+fn write_pdf_with(dir: &Path, page: &[u8]) -> PathBuf {
     let form = b"0.250 G\n0.250 G\n2.0 w 0.0 0.0 m 100.0 100.0 l S\n".repeat(40);
     let mut bodies: Vec<Vec<u8>> = vec![
         b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
@@ -27,7 +32,7 @@ fn write_pdf(dir: &Path) -> PathBuf {
         b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents 4 0 R /Resources << /XObject << /Fm0 5 0 R >> >> >>".to_vec(),
     ];
     for (dict, data) in [
-        (String::new(), &page[..]),
+        (String::new(), page),
         (
             "/Type /XObject /Subtype /Form /BBox [0 0 100 100] ".to_owned(),
             &form[..],
@@ -134,6 +139,7 @@ fn content_compacts_page_and_form_and_renders_the_same() {
         render(&input, &d.join("a.png")),
         render(&out, &d.join("b.png"))
     );
+    std::fs::remove_dir_all(&d).ok();
 }
 
 #[test]
@@ -154,12 +160,19 @@ fn content_json_and_per_object_control() {
     ]);
     let json = text(&o);
     assert!(
-        json.contains("\"action\":\"content(numbers=shortest,redundant=on,whitespace=keep)\""),
+        json.contains(
+            "\"action\":\"content(numbers=shortest,redundant=on,round=off,whitespace=keep)\""
+        ),
         "{json}"
     );
     assert!(json.contains("\"operators_removed\":80"), "{json}");
+    assert!(
+        json.contains("\"numbers_rounded\":0,\"max_displacement\":0,\"unrounded\":null"),
+        "{json}"
+    );
     assert!(json.contains("\"encoded_as\":\"recompress-9\""), "{json}");
     assert!(!json.contains("\"id\":\"5 0\""), "{json}");
+    std::fs::remove_dir_all(&d).ok();
 }
 
 #[test]
@@ -178,4 +191,42 @@ fn a_bad_content_spec_is_a_usage_error() {
         .unwrap();
     assert_eq!(o.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&o.stderr).contains("keep or shortest"));
+    std::fs::remove_dir_all(&d).ok();
+}
+
+#[test]
+fn round_is_lossy_reported_and_bounded() {
+    let d = dir("round");
+    let page = b"0.123456 0.123456 m 99.123456 99.123456 l S\n".repeat(40);
+    let input = write_pdf_with(&d, &page);
+    let args = |json: bool| {
+        let mut a = vec![
+            "optimize",
+            input.to_str().unwrap(),
+            "--dry-run",
+            "--preset",
+            "lossless",
+            "--content",
+            "round=0.5",
+        ];
+        if json {
+            a.push("--json");
+        }
+        text(&run(&a))
+    };
+    let json = args(true);
+    // The page rounds; the form is not a page's first stream.
+    assert!(json.contains("\"lossy\":true"), "{json}");
+    assert!(json.contains("\"numbers_rounded\":160"), "{json}");
+    assert!(json.contains("\"unrounded\":\"not-page-start\""), "{json}");
+    let report = args(false);
+    assert!(
+        report.contains("160 coordinate(s) rounded, no point moved more than"),
+        "{report}"
+    );
+    assert!(
+        report.contains("not rounded: not the first content stream"),
+        "{report}"
+    );
+    std::fs::remove_dir_all(&d).ok();
 }

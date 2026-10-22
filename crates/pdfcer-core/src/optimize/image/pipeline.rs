@@ -172,6 +172,8 @@ pub(crate) struct Context<'a, 'v> {
     pub(crate) lockstep: Option<Lockstep>,
     /// Whether the document identifies itself as PDF/A.
     pub(crate) pdfa: bool,
+    /// The stream is the first content stream of every page that draws it.
+    pub(crate) page_start: bool,
 }
 
 /// A `/Matte` soft mask resampled to its parent's new size.

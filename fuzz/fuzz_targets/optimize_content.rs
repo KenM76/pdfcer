@@ -13,13 +13,15 @@ use pdfcer_core::document::Document;
 use pdfcer_core::edit::EditSession;
 use pdfcer_core::optimize::{ContentPatch, OptimizeSettings};
 
-const SPECS: [&str; 6] = [
+const SPECS: [&str; 8] = [
     "content()",
     "content(whitespace=keep)",
     "content(numbers=keep)",
     "content(redundant=off)",
     "content(whitespace=keep,numbers=keep)",
     "content(whitespace=minimal,redundant=on,numbers=shortest)",
+    "content(round=0.01)",
+    "content(round=5,whitespace=keep)",
 ];
 
 fn pdf(content: &[u8]) -> Vec<u8> {

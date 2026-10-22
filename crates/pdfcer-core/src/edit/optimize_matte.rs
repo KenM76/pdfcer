@@ -107,6 +107,7 @@ impl EditSession {
             convert_blocker: pipeline::convert_blocker(&stream.dict, None, true),
             lockstep,
             pdfa,
+            page_start: false,
         };
         plan_stream(plan, settings, (mask, stream, raw), row, &ctx);
         if lockstep.is_none() {

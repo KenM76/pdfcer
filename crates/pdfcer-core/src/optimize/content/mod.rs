@@ -12,10 +12,18 @@
 //!   `q Q` pair, an identity `cm`, and a state setter repeating the value
 //!   the state already holds.
 //!
-//! All three are lossless. Strings, arrays, dictionaries, names, operators
-//! and inline images are copied byte for byte. A rewrite is re-read and
-//! compared with the original, operation by operation, before it is kept
-//! ([`ContentSkip::Mismatch`] otherwise). The leading and trailing
+//! All three are lossless. **round** `T` (off by default) is not: it rounds
+//! the coordinates of path construction (`m l c v y re`) to as few decimals
+//! as keep every point within `T` user-space units of where it was, through
+//! the `cm` matrices in force, and reports the largest movement
+//! ([`ContentChange::max_displacement`]). It applies only to a page's first
+//! content stream, the one stream whose starting coordinate system is
+//! default user space; others report [`Unrounded`].
+//!
+//! Strings, arrays, dictionaries, names, operators and inline images are
+//! copied byte for byte. A rewrite is re-read and compared with the
+//! original, operation by operation (a rounded number with its rounded
+//! value), before it is kept ([`ContentSkip::Mismatch`] otherwise). The leading and trailing
 //! white-space of a stream is kept as one byte, because a page's `/Contents`
 //! array may split between any two tokens (§7.7.3.3, Table 30).
 //!
@@ -24,6 +32,7 @@
 
 mod check;
 mod rewrite;
+mod round;
 
 use std::fmt;
 
@@ -57,6 +66,61 @@ pub struct ContentPatch {
     pub numbers: Option<Numbers>,
     /// Remove operators that change nothing.
     pub redundant: Option<bool>,
+    /// Round path coordinates (lossy).
+    pub round: Option<Rounding>,
+}
+
+/// Whether [`ContentPatch::round`] rounds path coordinates.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Rounding {
+    /// Every coordinate keeps its value.
+    Off,
+    /// Each point moves at most this far.
+    Within(Tolerance),
+}
+
+/// A distance in user-space units (1/72 inch unless the page sets
+/// `/UserUnit`), held in millionths so settings stay `Eq` and `Hash`.
+///
+/// ```
+/// use pdfcer_core::optimize::Tolerance;
+///
+/// let t = Tolerance::from_units(0.01).unwrap();
+/// assert_eq!(t.as_units(), 0.01);
+/// assert!(Tolerance::from_units(0.0).is_none());
+/// assert!(Tolerance::from_units(100.0).is_none());
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Tolerance(u32);
+
+impl Tolerance {
+    /// The largest tolerance accepted: one inch.
+    pub const MAX_UNITS: f64 = 72.0;
+
+    /// `units`, when it is above zero, at most [`Self::MAX_UNITS`] and at
+    /// least one millionth.
+    #[must_use]
+    pub fn from_units(units: f64) -> Option<Self> {
+        let micro = (units * 1e6).round();
+        (units.is_finite() && units > 0.0 && units <= Self::MAX_UNITS && micro >= 1.0)
+            .then_some(Self(micro as u32))
+    }
+
+    /// The distance in user-space units.
+    #[must_use]
+    pub fn as_units(self) -> f64 {
+        f64::from(self.0) / 1e6
+    }
+}
+
+impl fmt::Display for Rounding {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Off => f.write_str("off"),
+            Self::Within(t) => write!(f, "{}", t.as_units()),
+        }
+    }
 }
 
 /// How [`ContentPatch::whitespace`] treats separators.
@@ -88,11 +152,13 @@ impl ContentPatch {
             whitespace: None,
             numbers: None,
             redundant: None,
+            round: None,
         }
     }
 
     /// Parse the `content(...)` spelling: `whitespace=keep|minimal`,
-    /// `numbers=keep|shortest`, `redundant=on|off` and `reset`,
+    /// `numbers=keep|shortest`, `redundant=on|off`, `round=off|T` (`T` in
+    /// user-space units, above 0 and at most 72) and `reset`,
     /// comma-separated.
     ///
     /// # Errors
@@ -144,9 +210,21 @@ impl ContentPatch {
                     _ => return Err(bad("on or off")),
                 });
             }
+            "round" => {
+                self.round = Some(match value {
+                    "off" => Rounding::Off,
+                    _ => Rounding::Within(
+                        value
+                            .parse::<f64>()
+                            .ok()
+                            .and_then(Tolerance::from_units)
+                            .ok_or_else(|| bad("off or a distance above 0 and at most 72"))?,
+                    ),
+                });
+            }
             _ => {
                 return Err(format!(
-                    "content(): unknown key {key:?}; expected whitespace, numbers, redundant or reset"
+                    "content(): unknown key {key:?}; expected whitespace, numbers, redundant, round or reset"
                 ));
             }
         }
@@ -169,6 +247,10 @@ impl fmt::Display for ContentPatch {
         if self.reset {
             parts.push("reset");
         }
+        let round = self.round.map(|r| format!("round={r}"));
+        if let Some(r) = &round {
+            parts.push(r);
+        }
         if let Some(w) = self.whitespace {
             parts.push(match w {
                 Whitespace::Keep => "whitespace=keep",
@@ -186,6 +268,10 @@ pub(crate) struct ResolvedContent {
     pub(crate) whitespace: Whitespace,
     pub(crate) numbers: Numbers,
     pub(crate) redundant: bool,
+    pub(crate) round: Option<Tolerance>,
+    /// The stream is a page's first content stream, so it starts in default
+    /// user space and `round` may apply. Set by the planner, not a setting.
+    pub(crate) page_start: bool,
     /// `Recompress` or `Brotli`: the whole-state action the patches landed
     /// on, `recompress-9` when that was `leave`.
     pub(crate) encode: StreamAction,
@@ -198,6 +284,8 @@ impl ResolvedContent {
             whitespace: Whitespace::Minimal,
             numbers: Numbers::Shortest,
             redundant: true,
+            round: None,
+            page_start: false,
             encode: match base {
                 StreamAction::Recompress { .. } | StreamAction::Brotli { .. } => base,
                 _ => StreamAction::Recompress { level: 9 },
@@ -219,6 +307,12 @@ impl ResolvedContent {
         if let Some(v) = p.redundant {
             self.redundant = v;
         }
+        if let Some(v) = p.round {
+            self.round = match v {
+                Rounding::Off => None,
+                Rounding::Within(t) => Some(t),
+            };
+        }
     }
 
     /// The patch that reproduces these settings over the defaults.
@@ -228,12 +322,13 @@ impl ResolvedContent {
             whitespace: Some(self.whitespace),
             numbers: Some(self.numbers),
             redundant: Some(self.redundant),
+            round: Some(self.round.map_or(Rounding::Off, Rounding::Within)),
         }
     }
 }
 
 /// What a content rewrite did to one stream.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
 pub struct ContentChange {
     /// Decoded content bytes before.
@@ -242,11 +337,43 @@ pub struct ContentChange {
     pub decoded_after: u64,
     /// Operators removed as redundant (their operands go with them).
     pub operators_removed: u64,
-    /// Numbers written shorter.
+    /// Numbers written shorter with the same value.
     pub numbers_shortened: u64,
+    /// Path coordinates rounded to another value.
+    pub numbers_rounded: u64,
+    /// The farthest any rounded point moved, in user-space units; `0.0`
+    /// when nothing was rounded.
+    pub max_displacement: f64,
+    /// Why rounding was asked for and stopped or never started.
+    pub unrounded: Option<Unrounded>,
     /// The encoding the result is stored with: [`StreamAction::Recompress`]
     /// or [`StreamAction::Brotli`].
     pub encoded_as: StreamAction,
+}
+
+/// Why `round` left (part of) a stream's coordinates as stored.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Unrounded {
+    /// A form, a pattern, or page content that is not its page's first
+    /// stream: the coordinate system it starts in is not known here.
+    NotPageStart,
+    /// A `cm` with operands that are not six numbers, or a `Q` with no `q`:
+    /// nothing after it is rounded.
+    UnknownMatrix,
+}
+
+impl fmt::Display for Unrounded {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::NotPageStart => {
+                "not rounded: not the first content stream of a page, so its starting scale is unknown"
+            }
+            Self::UnknownMatrix => {
+                "rounding stopped at a cm or Q whose effect on the scale is unknown"
+            }
+        })
+    }
 }
 
 /// Why a content stream selected for `content(...)` is left as stored.
@@ -322,10 +449,15 @@ pub(crate) fn apply(
         decoded_after: out.bytes.len() as u64,
         operators_removed: out.removed,
         numbers_shortened: out.shortened,
+        numbers_rounded: out.rounded.count,
+        max_displacement: out.rounded.max,
+        unrounded: out.rounded.unrounded,
         encoded_as: settings.encode,
     };
     Ok((dict, data, change))
 }
 
+#[cfg(test)]
+mod round_tests;
 #[cfg(test)]
 mod tests;

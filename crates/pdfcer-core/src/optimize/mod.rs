@@ -58,7 +58,9 @@ use std::fmt;
 
 pub use crate::space_audit::ImageClass;
 pub use cleanup::{BrokenBookmark, BrokenLink, BrokenTarget, CleanupOptions, CleanupPlan};
-pub use content::{ContentChange, ContentPatch, ContentSkip, Numbers, Whitespace};
+pub use content::{
+    ContentChange, ContentPatch, ContentSkip, Numbers, Rounding, Tolerance, Unrounded, Whitespace,
+};
 pub use discard::DiscardOptions;
 pub use image::jpeg_quality::estimate_jpeg_quality;
 pub use image::pipeline::{ImageChange, JpegQuality};
@@ -166,7 +168,8 @@ impl StreamAction {
     #[must_use]
     pub fn is_lossy(self) -> bool {
         match self {
-            Self::Leave | Self::Recompress { .. } | Self::Brotli { .. } | Self::Content(_) => false,
+            Self::Leave | Self::Recompress { .. } | Self::Brotli { .. } => false,
+            Self::Content(p) => matches!(p.round, Some(content::Rounding::Within(_))),
             Self::Image(p) => {
                 (p.ppi.is_some() && p.method != Some(ResampleMethod::Off))
                     || p.encode == Some(ImageEncode::Jpeg)

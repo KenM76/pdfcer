@@ -74,15 +74,14 @@ pub(crate) struct OptimizeArgs {
     #[arg(long, value_name = "ACTION")]
     pub(crate) streams: Option<String>,
     /// Compact content streams (page content, form XObjects, tiling
-    /// patterns) losslessly, then store them with the stream action
-    /// (recompress-9 when that is leave). Keys, comma-separated, each
-    /// defaulting to the first value: whitespace=minimal|keep (drop every
-    /// separator a reader does not need, and comments), numbers=shortest|keep
-    /// (0.500 becomes .5, 1.0 becomes 1), redundant=on|off (remove empty
-    /// q Q pairs, identity cm and setters repeating the current value),
-    /// reset. Bare --content takes every default. Each rewrite is re-read
-    /// and compared with the original operations; one that differs is
-    /// skipped and reported. Per object: --object "12=content(numbers=keep)".
+    /// patterns), stored with the stream action (recompress-9 for leave).
+    /// Keys, comma-separated, defaults first: whitespace=minimal|keep (drop
+    /// separators a reader does not need, and comments), numbers=shortest|keep
+    /// (0.500 becomes .5), redundant=on|off (drop empty q Q, identity cm and
+    /// repeated setters), round=off|T (lossy: round the path coordinates of a
+    /// page's first content stream, no point moving over T units of 1/72
+    /// inch), reset. Bare --content takes every default. A rewrite that
+    /// re-reads differently is skipped. Per object: --object "12=content(numbers=keep)".
     #[arg(long, value_name = "SPEC", num_args = 0..=1, default_missing_value = "content()")]
     pub(crate) content: Option<String>,
     /// Add a rule, after the profile's. Whitespace-separated key=value pairs

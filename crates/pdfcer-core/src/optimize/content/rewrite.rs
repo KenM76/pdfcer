@@ -1,7 +1,7 @@
 //! The token-level rewrite behind `content(...)`: which operators go, how
 //! numbers are spelled, and where separators fall.
 
-use super::{ContentSkip, Numbers, ResolvedContent, Whitespace, check};
+use super::{ContentSkip, Numbers, ResolvedContent, Whitespace, check, round};
 use crate::content::{ContentStream, ContentToken, ContentTokenKind};
 use crate::lexer::is_regular;
 use crate::object::Object;
@@ -12,6 +12,8 @@ pub(super) struct Compacted {
     pub(super) bytes: Vec<u8>,
     pub(super) removed: u64,
     pub(super) shortened: u64,
+    /// Its `text` is emptied; `count` is what was written.
+    pub(super) rounded: round::Rounded,
 }
 
 /// Rewrite decoded content `buf` under `settings`, checked by re-reading.
@@ -24,14 +26,18 @@ pub(super) fn compact(buf: &[u8], settings: ResolvedContent) -> Result<Compacted
     } else {
         0
     };
-    let (bytes, shortened) = emit(&content, &keep, settings);
-    if !check::same(&content, &keep, &bytes) {
+    let mut rounded = round::plan(&content, settings.round, settings.page_start);
+    let (bytes, shortened, written) = emit(&content, (&keep, &rounded.text), settings);
+    if !check::same(&content, (&keep, &rounded.text), &bytes) {
         return Err(SkipReason::Content(ContentSkip::Mismatch));
     }
+    rounded.text = Vec::new();
+    rounded.count = written;
     Ok(Compacted {
         bytes,
         removed,
         shortened,
+        rounded,
     })
 }
 
@@ -150,7 +156,7 @@ fn mark_redundant(content: &ContentStream, keep: &mut [bool]) -> u64 {
 
 /// Each operation: its first token index, its operator's index, its
 /// operands, and the operator token (`None` for an inline image).
-fn operations(
+pub(super) fn operations(
     content: &ContentStream,
 ) -> impl Iterator<Item = (usize, usize, &[ContentToken], Option<&ContentToken>)> {
     let mut start = 0;
@@ -185,7 +191,8 @@ fn is_identity(operands: &[ContentToken]) -> bool {
             .all(|(t, w)| number(t).is_some_and(|v| v == w))
 }
 
-fn number(t: &ContentToken) -> Option<f64> {
+/// The value of a numeric operand token.
+pub(super) fn number(t: &ContentToken) -> Option<f64> {
     match &t.kind {
         ContentTokenKind::Operand(o) => o.as_number(),
         _ => None,
@@ -215,12 +222,18 @@ pub(super) fn same_object(a: &Object, b: &Object) -> bool {
     }
 }
 
-/// The kept tokens written out; how many numbers got shorter.
-fn emit(content: &ContentStream, keep: &[bool], s: ResolvedContent) -> (Vec<u8>, u64) {
+/// The kept tokens written out, with `rounded` spellings where set; how
+/// many numbers got shorter and how many were rounded.
+fn emit(
+    content: &ContentStream,
+    (keep, rounded): (&[bool], &[Option<Vec<u8>>]),
+    s: ResolvedContent,
+) -> (Vec<u8>, u64, u64) {
     let buf = content.buf.as_slice();
     let minimal = s.whitespace == Whitespace::Minimal;
     let mut out = Vec::with_capacity(buf.len());
     let mut shortened = 0;
+    let mut written = 0;
     // End of the previous token, kept or not: a removed token's gap goes
     // with it.
     let mut prev_end = 0;
@@ -228,19 +241,23 @@ fn emit(content: &ContentStream, keep: &[bool], s: ResolvedContent) -> (Vec<u8>,
     if minimal && content.tokens.first().is_some_and(|t| t.span.start > 0) {
         out.push(b'\n');
     }
-    for (tok, &kept) in content.tokens.iter().zip(keep) {
+    for (i, (tok, &kept)) in content.tokens.iter().zip(keep).enumerate() {
         let gap = buf.get(prev_end..tok.span.start).unwrap_or_default();
         prev_end = tok.span.end();
         if !kept {
             continue;
         }
         let source = tok.span.slice(buf).unwrap_or_default();
+        let round = rounded.get(i).and_then(Option::as_deref);
         let short = match &tok.kind {
-            ContentTokenKind::Operand(o) if s.numbers == Numbers::Shortest => shortest(o, source),
+            ContentTokenKind::Operand(o) if round.is_none() && s.numbers == Numbers::Shortest => {
+                shortest(o, source)
+            }
             _ => None,
         };
-        let text = short.as_deref().unwrap_or(source);
+        let text = round.or(short.as_deref()).unwrap_or(source);
         shortened += u64::from(short.is_some());
+        written += u64::from(round.is_some());
         if !minimal {
             out.extend_from_slice(gap);
         }
@@ -264,7 +281,7 @@ fn emit(content: &ContentStream, keep: &[bool], s: ResolvedContent) -> (Vec<u8>,
     } else if !tail.is_empty() && out.last() != Some(&b'\n') {
         out.push(b'\n');
     }
-    (out, shortened)
+    (out, shortened, written)
 }
 
 /// The shortest spelling of a number operand, when shorter than `source`
@@ -284,7 +301,7 @@ fn shortest(o: &Object, source: &[u8]) -> Option<Vec<u8>> {
 }
 
 /// `r` with no exponent, no trailing `.0` and no leading zero.
-fn real(r: f64) -> Option<String> {
+pub(super) fn real(r: f64) -> Option<String> {
     let t = format!("{r:?}");
     if t.contains(['e', 'E']) {
         return None;

@@ -124,6 +124,7 @@ impl EditSession {
         } else {
             BTreeMap::new()
         };
+        let openers = self.page_openers();
         let wide = super::optimize_copies::widened(rows, &copies);
         let rows: &BTreeMap<ObjId, &ObjectSpace> = &rows
             .iter()
@@ -161,6 +162,7 @@ impl EditSession {
                 ),
                 lockstep: None,
                 pdfa,
+                page_start: openers.contains(&id),
             };
             plan_stream(plan, settings, (id, stream, raw), row, &ctx);
         }
@@ -168,6 +170,24 @@ impl EditSession {
             self.plan_matte_mask(plan, settings, (mask, parent), rows, (&view, pdfa));
         }
         super::optimize_copies::disclose(plan, &copies);
+    }
+
+    /// The streams that are the first `/Contents` stream of every page
+    /// drawing them, so they start in default user space; empty when the
+    /// page tree does not read.
+    fn page_openers(&self) -> BTreeSet<ObjId> {
+        let Ok(pages) = self.pages() else {
+            return BTreeSet::new();
+        };
+        let later: BTreeSet<ObjId> = pages
+            .iter()
+            .flat_map(|p| p.contents.iter().skip(1).copied())
+            .collect();
+        pages
+            .iter()
+            .filter_map(|p| p.contents.first().copied())
+            .filter(|id| !later.contains(id))
+            .collect()
     }
 
     /// Every object some stream among `ids` names as its `/SMask`.
@@ -397,7 +417,7 @@ pub(super) fn plan_stream(
     if let Some(rc) = resolved.content
         && content::eligible(&stream.dict, row.map(|r| r.category))
     {
-        plan_content(plan, rc, (id, stream, raw), row, ctx.pdfa, filters);
+        plan_content(plan, rc, (id, stream, raw), row, ctx, filters);
         return;
     }
     let (action, mut job) = match ctx.lockstep.map_or(resolved.image, |l| Some(l.settings)) {
@@ -483,14 +503,15 @@ type ImageJob = (image::pipeline::Job, Box<ImageChange>);
 /// Compact one content stream under `rc`, recording it in `plan`.
 fn plan_content(
     plan: &mut OptimizePlan,
-    rc: ResolvedContent,
+    mut rc: ResolvedContent,
     (id, stream, raw): (ObjId, &Stream, &[u8]),
     row: Option<&ObjectSpace>,
-    pdfa: bool,
+    ctx: &image::pipeline::Context<'_, '_>,
     filters: Vec<String>,
 ) {
+    rc.page_start = ctx.page_start;
     let action = StreamAction::Content(rc.to_patch());
-    let result = match refusal(&stream.dict, rc.encode, pdfa) {
+    let result = match refusal(&stream.dict, rc.encode, ctx.pdfa) {
         Some(reason) => Err(reason),
         None => content::apply(rc, &stream.dict, raw),
     };
@@ -508,7 +529,7 @@ fn plan_content(
         filters_before: filters,
         before_bytes: raw.len() as u64,
         after_bytes: data.len() as u64,
-        lossy: false,
+        lossy: change.numbers_rounded > 0,
         image: None,
         content: Some(change),
     });
