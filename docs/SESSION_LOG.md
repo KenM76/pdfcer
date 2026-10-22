@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1176th filing) — Passes 618.0-618.1 filed: harden and ready the engine crates
+
+**Filed (engineer-reported, no shell here):** the operator request `request_operator_harden_and_ready_crates_for_publishing.md` (Ken, no G/E key) as `Pass 618.0` (panic-free engine crates: deny `unreachable`/`todo`/`unimplemented` in all eight crates, fix the fonts `unreachable!`, remove `to_encrypt_dict`'s public panic, new gate `tools/check-panic-allows.py` with a shrink-only baseline) and `Pass 618.1` (publish readiness for color, model, pkix: metadata, `cargo publish --dry-run`, pkix-vs-COS-layer ruling, iccce crates.io request). Both in *Next up*, neither built.
+
+**Finding (engineer's measurement at `ea9602b7`; spot-checked here by `Grep` of each `lib.rs` for `unwrap_used` and of `crypto/standard.rs`):** the request's premise is wrong. All eight crates already deny unwrap/expect/panic/indexing_slicing at crate level since `Pass 325.0`, so non-test code has 0 hits; the ~334/~396 were test modules. Remaining: about 21 model allows (crypto, with bound arguments), 5 render, 3 pkix, 1 fonts plus one `unreachable!`. `arithmetic_side_effects` (313 model, 824 render sites) is a recorded non-goal.
+
+**Register:** ROADMAP *Next up* two entries. `FEATURES.md`: no row for crate quality, panic-freedom or a library/publishing surface exists (grep for publish, crates.io, panic found only unrelated rows), so none added, per the dispatch. No decision, no rule (`196`, `R263` stay free). Hard-rule-11 sweep: no meaning changed; the request file itself still carries the stale counts (it is the operator's, left as is). Git, push and backup state not verified from here.
+
+**For next session:** next free `Pass 619.0`; next filing 1177th; reply to the request is owed when `618.0` closes. `pdfcer-gui` replies for `G214`-`G217` still owed.
+
 ## 2026-10-22 (1175th filing) — `c5143058`: space audit counts linearization machinery as file overhead
 
 **Filed (engineer-reported, no shell here):** follow-up fix to `Pass 616.8`. `optimize --linearize` reported "unreferenced 0 -> 291 bytes" because the linearization dictionary and hint stream are found by byte offset (Annex F.2 `/H`), not by reference. `space_audit/classify.rs` now seeds the `/Linearized` dictionary and every object starting at an `/H` offset as FileOverhead (hint stream's indirect `/Length` inherits it). New test seen failing with the seed off; space_audit 11/11; clippy, fmt, structure gate clean. End to end: growth 19 -> 311 under file-overhead, none under unreferenced.

@@ -23205,6 +23205,41 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+(1176th filing: `Pass 618.0` and `618.1` FILED from the operator request `request_operator_harden_and_ready_crates_for_publishing.md` (Ken, 2026-10-22; no G/E key). Neither built. Next free `Pass 619.0`, decision `196`, `R263`; next filing 1177th.)
+
+### Pass 618.0 — Panic-free engine crates: close the gaps and gate the exemptions
+
+**Source:** operator request above (asks 1-3, all eight engine crates: model, render, pkix, function, image-codec, fonts, text, color).
+
+**The request's premise was wrong; the engineer measured at `ea9602b7` (recorded here, not in the request).** Every one of the eight crates already carries a crate-level `#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]` (since `Pass 325.0`'s crate split; confirmed by `Grep` of `unwrap_used` in each `crates/*/src/lib.rs`), and CI already runs clippy with `-D warnings`. So non-test code has 0 unwrap/expect/panic/indexing hits; the request's ~334 / ~396 counts were in-file `#[cfg(test)]` modules, which it said were included. What remains is the exemptions, as `#[allow(...)]` in non-test code:
+
+- model: about 21, nearly all crypto block functions over fixed-size arrays (md5, sha1, rc4, r5, standard, bignum, rsa), each with a written bound argument. One exception: `StandardConfig::to_encrypt_dict` (`crypto/standard.rs`, line 520) is a **public** fn with a documented `# Panics` and an `expect`.
+- render: 5, all `indexing_slicing` with an inline justification (compositor fixed `[f32; N]` loops, blend_nonsep, svg base64).
+- pkix: 3 (`asn1.rs`). fonts: 1 allow, plus one `unreachable!` (`fontinfo.rs`). text, function, image-codec, color: 0.
+- `clippy::unreachable`, `todo` and `unimplemented` are NOT in any deny list yet.
+- **Measured non-goal, not an ask:** `clippy::arithmetic_side_effects` would flag 313 sites in model and 824 in render. Too broad to adopt.
+
+**Scope:**
+1. Add `clippy::unreachable`, `clippy::todo`, `clippy::unimplemented` to the deny list in all eight crates.
+2. Fix the fonts `unreachable!`.
+3. Remove the public documented panic from `to_encrypt_dict` (return an error through the crate's error type; no `# Panics` section left).
+4. New gate `tools/check-panic-allows.py`: a baseline of non-test `#[allow(clippy::<panic lint>)]` sites that only shrinks (modelled on `check-code-structure.py`; a new site fails, a removed one must leave the baseline; never regenerate the baseline to pass). Wired into `tools/run-gates.sh` and CI.
+5. A regression test for any input-reachable panic found, seen failing before the fix.
+
+**Done when:** the gate is green in CI and the request gets a reply naming the commits, the gate and the rows. Hard-rule-11 note for the closer: `ARCHITECTURE.md` §10 and the request both imply counts that this entry corrects; sweep for the stale "~334/~396" claim when filing.
+
+### Pass 618.1 — Publish readiness for color, model and pkix (no publishing)
+
+**Source:** same request (ask 4). Depends on nothing in `618.0`, but the model crate should be through `618.0` item 3 first so the dry-run is not run against a public documented panic.
+
+**Scope:**
+1. Per-crate `repository`, `readme` and `keywords` metadata (and any other field `cargo publish` requires) for color, model and pkix.
+2. `cargo publish --dry-run` passing for those three.
+3. A recorded ruling on pkix's dependency on model's COS layer (object/view/graph/filters/crypto): keep it or split it. A consumer with its own COS layer would otherwise carry two. Goes in `ARCHITECTURE.md` §12 as a decision when made.
+4. An iccce-channel request to publish iccce to crates.io: render's `pdfcer-core` and iccce git dependencies block crates.io, which rejects git deps. iccce also owns all colour conversion (decision 064), so it gates the CMYK / spot / overprint compositor offer.
+
+**Hard limits (the request's ask 5, operator's calls):** never flip `publish = true`, never publish anything, never contact pdfcraft. Relicensing to `MIT OR Apache-2.0` is Ken's alone to grant (`git shortlog`: every commit his, 0 outside PRs) and is not part of this Pass. Keep to the `(bt)` ruling: the conformance suite stays unnamed in anything public (metadata, readmes, the iccce request).
+
 (1164th filing: `Pass 617.9` (`G225`) SHIPPED `966177ce`, see *Shipped*. Next free `Pass 618.0`, decision `195`, `R263`; next filing 1165th.)
 
 (1157th filing: `Pass 617.8` (`G224`) SHIPPED `0f277026`, see *Shipped*. Next free `Pass 617.9`, decision `195`, `R263`; next filing 1158th.)
