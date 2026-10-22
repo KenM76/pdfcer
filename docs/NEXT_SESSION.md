@@ -34,10 +34,14 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   (spec RAG `pdfa/pdfa__ref__font_subset_cidset_charset.md`); slice 5's
   list rewrite under-claimed and failed veraPDF PDF/A-2b 6.2.11.4.2-2, so it
   was reverted. Plan: `docs/font-resubset-plan.md`. PDF/A documents are
-  now re-subset (veraPDF verdicts unchanged on every fixture); the one
-  refusal is `pdfa1-list-owed` (an untagged A-1 font with no list would
-  become a subset failing 6.3.5). Remaining 616.6: writing that missing
-  A-1 list, merging CFF copies, Type 1 `/FontFile`, and an Acrobat Reader
+  now re-subset (veraPDF verdicts unchanged on every fixture). A cut that
+  tags an untagged A-1 font now writes the `/CIDSet` or `/CharSet`
+  it owes, listing every glyph the program holds (slice 7); a list it
+  cannot write refuses as `pdfa1-list-owed`. Optimize no longer packs object
+  streams in an A-1 document (19005-1 §6.1.4). read-fonts 0.39.2 charset
+  lookups are unbounded; pdfcer-render bounds them (`charset_glyph`) -- any
+  new charset/encoding call must go through it. Remaining 616.6: merging
+  CFF copies, Type 1 `/FontFile`, short loca, and an Acrobat Reader
   check of a cut/merged font. Then 616.7-616.10
   (content streams, linearization, quality/byte-budget, compatibility
   target).
@@ -51,7 +55,8 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   `open/`. Form leaves now inherit the alpha at `Do`, with a transparency
   group reset to 1.0. Readings changed from 1.0, so suspect that first if a
   GUI opacity report about forms arrives.
-- **Owed to pdfceGUI:** a heads-up that the presets now use `encode=auto`.
+- **pdfceGUI heads-ups:** `encode=auto` presets and the slice-7 re-subset
+  changes are both in `open/` as notices; nothing owed.
 - **CI:** 88dfe717 failed the public-fn-docs audit (`emit.rs::write`), fixed
   in 6d77fac3. Run every `check-ci-parity.py --list` audit before a push —
   a hand-typed sweep missed it.

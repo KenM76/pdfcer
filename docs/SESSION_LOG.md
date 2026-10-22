@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1165th filing) — `Pass 616.6` slice 7 in `e05a62a8`: the PDF/A-1 list a cut owes
+
+**Shipped:** `e05a62a8` writes the `/CIDSet` or `/CharSet` ISO 19005-1 §6.3.5 requires when a re-subset tags a font in a PDF/A-1 document (full structurally-held glyph set; else `pdfa1-list-owed`). Also stops packing object/xref streams for PDF/A-1 (§6.1.4). Core + render + CLI. Detail in the ROADMAP *Shipped* entry.
+
+**Decisions:** none; no numbers minted (`195`, `R263` stay free; next Pass `618.0`).
+
+**Findings (engineer-reported):** `read-fonts` 0.39.2 `Charset::glyph_id` is unbounded for Format0/predefined charsets (phantom GIDs from CharStrings bytes); bounded in `pdfcer-render`. New fuzz target `font_resubset_present` found an unbounded identity fallback in 60 s; 72,711 clean runs after. veraPDF 1b: 6.1.4-3 gone. Gates 45/46, the one failure a stale CLI JSON test fixed in the commit; CLI binary 938 passed. Graduated to RAG: `personal_rag/pdf` lesson and `D:/dev/rag/rust` finding.
+
+**Still in flight:** `Pass 616.6` OPEN: merge CFF copies; Type 1; short loca; Acrobat Reader spot check NOT done. `616.7`-`616.10` queued.
+
+**For next session:** git/push/backup state not verified (no shell). Next filing 1166th.
+
 ## 2026-10-21 (1164th filing) — `Pass 617.9` (`G225`) in `966177ce`: text-run fill alpha is readable
 
 **Shipped:** `966177ce` adds `vector::TextRun::fill_alpha: Option<f64>` (`None` = unknown, the `OpacityUnrestorable` state), `*_alpha_known` flags on `PathObject`/`ImageObject`, and fixes form leaves to inherit `/ca` `/CA` at `Do`. Core only. Detail in the ROADMAP *Shipped* entry.
