@@ -75,6 +75,13 @@ jobs:
       # one lint keeps it at zero; the private-link and redundant-target
       # warnings are style, not wrong claims, and are not gated.
       - run: RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links" cargo doc --workspace --no-deps
+      # Pass 618.1: color, model and pkix stay `cargo package`-ready (nothing
+      # is published; `publish = false` stands). pkix cannot build-verify
+      # until pdfcer-model resolves from a registry, so it packages only.
+      - name: color and model still package (build-verified)
+        run: cargo package -p pdfcer-color -p pdfcer-model --allow-dirty
+      - name: pkix still packages (manifest only)
+        run: cargo package -p pdfcer-pkix --allow-dirty --no-verify --exclude-lockfile
 
   test:
     name: cargo test (${{ matrix.os }})

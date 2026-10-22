@@ -110,6 +110,8 @@ edition = "2024"
 # (dated decision-log entry) when a future dependency upgrade requires it.
 rust-version = "1.92"
 authors = ["The pdfcer authors"]
+repository = "https://github.com/KenM76/pdfcer"
+homepage = "https://github.com/KenM76/pdfcer"
 publish = false
 # license: MIT — chosen by the operator 2026-08-01 (docs/LEGAL.md §1 decided;
 # ARCHITECTURE.md §12 decision log). All dependencies are permissive
@@ -118,9 +120,14 @@ publish = false
 # The MIT text lives in the repo-root LICENSE file. `publish = false` is
 # retained deliberately: pdfcer ships as source + binaries, not a crates.io
 # registry package, so the workspace stays unpublished even under a license.
+# pdfcer-color, -model and -pkix carry the metadata `cargo package` needs
+# (Pass 618.1); publishing any of them is the operator's call.
 license = "MIT"
 
 [workspace.dependencies]
+# A version beside the path is what `cargo package` needs; bump it with
+# [workspace.package] version or the next build fails to resolve.
+pdfcer-model = { path = "crates/pdfcer-model", version = "0.90.0" }
 # Internal path dependencies, declared once here and referenced by members
 # with `pdfcer-core.workspace = true` etc. External crates (thiserror, eframe,
 # rfd, clap) are declared in the individual member manifests that use them.

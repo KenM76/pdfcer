@@ -106,6 +106,12 @@ LOCAL = {
         'RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links" cargo doc --workspace --no-deps'
     ),
     "cargo test --workspace": "cargo test --workspace --all-features",
+    "cargo package -p pdfcer-color -p pdfcer-model": (
+        "cargo package -p pdfcer-color -p pdfcer-model --allow-dirty"
+    ),
+    "cargo package -p pdfcer-pkix": (
+        "cargo package -p pdfcer-pkix --allow-dirty --no-verify --exclude-lockfile"
+    ),
     "cargo test -p pdfcer-core --no-default-features": (
         "cargo test -p pdfcer-core --no-default-features"
     ),
