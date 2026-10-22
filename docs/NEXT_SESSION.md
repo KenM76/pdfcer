@@ -10,11 +10,16 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## State
 
-- **Owed (librarian-noted 2026-10-22, 1174th):** replies to pdfcer-gui for
-  `G214`, `G215`, `G216`, `G217` (fixed in `f4ce1ae7`, `db902fb4`, `173147ee`;
-  `check-requests-scoped` still lists them as not taken up). Engineer writes them.
-  New operator request `request_operator_harden_and_ready_crates_for_publishing.md`
-  (2026-10-22) has no Pass filed yet; engineer parses it next.
+- **Crate hardening (Passes 618.0, 618.1) shipped and replied to**
+  (`reply_operator_harden_and_ready_crates_for_publishing.md`). Engine crates
+  deny every panic lint; exemptions are in `tools/panic-allows-baseline.txt`
+  (shrink-only, `check-panic-allows.py`). color/model/pkix `cargo package` in
+  CI. **Bump the `pdfcer-model` version in `[workspace.dependencies]` with
+  every release.** Open: iccce's reply to `request_get_iccce_crates_io_ready.md`;
+  pkix full verify waits for model on a registry; decision 196 split precedes
+  pkix's first publish. Never flip `publish = true` (Ken's call).
+  `cargo publish --dry-run` is permission-denied; use `cargo package`.
+- G214-G217 replies are already on the channel (the earlier "owed" note was stale).
 - **Release:** v0.90.0 is published (OneDrive `pdfcer1`; `pdfcer2` keeps 0.89.0).
   **The next release writes `pdfcer2`.** Release gates are change-scoped (Ken, 2026-10-16): test
   the crates changed since the last tag + the filing gates + the fresh-folder
