@@ -68,7 +68,7 @@ pub use image::pipeline::{ImageChange, JpegQuality};
 pub use image::{
     COLORS_RANGE, Chroma, Conversion, ImageConvert, ImageEncode, ImagePatch, ImageSkip, ImageStep,
     KeyedResample, Predictor, QUALITY_LEVELS, ResampleMethod, ResolvedImage, SettingSource,
-    Sourced, SsimPick, SsimScore, Threshold, VersionRaise,
+    Sourced, SsimPick, SsimScore, Threshold, VersionRaise, structural_similarity,
 };
 pub use objects::{DiscardObject, ObjectDiscard};
 pub use preset::Preset;

@@ -6,7 +6,7 @@
 )]
 
 use super::pipeline_tests::{AT_100, N, doc, plan};
-use super::ssim::ssim;
+use super::ssim::structural_similarity as ssim;
 use crate::filters::flate;
 use crate::image_codec::decode_image_view;
 use crate::jpeg_write::{Chroma, JpegOptions, encode};

@@ -8,7 +8,7 @@ use pdfcer_core::page_tree;
 use pdfcer_render::{RenderOptions, RenderedPage, SeparationPreview, render_page_with};
 
 /// Build an offset-consistent classic PDF from `(number, body)` pairs.
-fn build(objects: &[(u32, Vec<u8>)]) -> Vec<u8> {
+pub(super) fn build(objects: &[(u32, Vec<u8>)]) -> Vec<u8> {
     let mut buf = b"%PDF-1.7\n%\xE2\xE3\xCF\xD3\n".to_vec();
     let mut offsets: Vec<(u32, usize)> = Vec::new();
     for (num, body) in objects {

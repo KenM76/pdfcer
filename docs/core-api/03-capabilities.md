@@ -3250,6 +3250,41 @@ ink and cannot be hidden alone). A display aid; print and export leave it
 `None`. CLI: `render-page` / `export-image --separation-preview` and
 `--hide-ink NAME` (repeatable, implies the preview); notes go to stderr.
 
+**Before/after visual diff** (`pdfcer_render`). `visual_diff(before, after,
+&VisualDiffOptions) -> Result<Vec<Result<PageDiff, VisualDiffError>>,
+PageTreeError>` renders each page of both documents with the same scale and
+`RenderOptions` and scores it. There is one entry per page of the longer
+document. `VisualDiffOptions` defaults to `scale` 1.0, `threshold` 8 and
+default render options; set them with `with_scale` and `with_threshold`.
+`PageDiff` holds:
+
+- `ssim`: BT.601 luma SSIM, where 1.0 is identical. It is
+  `pdfcer_core::optimize::structural_similarity`, the same measure as
+  `image(ssim=)`.
+- `max_delta`: the largest R/G/B change, 0–255.
+- `changed_pixels`: pixels where any channel moved past `threshold`.
+- `pixels`.
+- `changed_region: Option<ChangedRegion { x, y, width, height }>`: in pixels,
+  with a top-left origin.
+- `changed()`.
+
+`VisualDiffError` is one of `MissingPage { side }`,
+`Render { side, source }` or `SizeChanged { before, after }`.
+`diff_rendered(&RenderedPage, &RenderedPage, threshold)` compares two renders
+you already hold. `diff_heatmap(..) -> Pixmap` draws the after render washed
+to grey, with changed pixels in red, more opaque for larger changes. It
+assumes opaque, white-backed renders, which is the default.
+
+★ **What the UI must disclose:** the result is a measurement of on-screen
+change at one resolution. Damage finer than a pixel at that scale is not
+seen.
+
+CLI: `optimize --visual-diff` (also with `--dry-run`),
+`--visual-diff-dpi N` (default 72), `--visual-diff-threshold LEVELS` and
+`--visual-diff-dir DIR`. `--visual-diff-dir` writes `page-NNNN.png` per
+changed page and implies `--visual-diff`. The report gains a "visual diff"
+section, and `--json` gains `visual_diff`.
+
 `stroke_display: StrokeDisplay` sets line weights. It takes one of three
 values:
 

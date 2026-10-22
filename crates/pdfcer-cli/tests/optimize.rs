@@ -1438,3 +1438,36 @@ fn a_target_size_that_is_not_a_size_is_a_usage_error() {
     ]);
     assert_eq!(o.status.code(), Some(2));
 }
+
+#[test]
+fn visual_diff_reports_a_lossless_run_unchanged_and_a_lossy_one_changed() {
+    let d = dir("visual-diff");
+    let plain = write_pdf(&d, "");
+    let o = run(&[plain.to_str().unwrap(), "--dry-run", "--visual-diff"]);
+    let report = text(&o);
+    assert!(
+        report.contains("visual diff (72 dpi, threshold 8): 1 page(s), 0 changed"),
+        "{report}"
+    );
+    let noisy = noise_image_pdf(&d);
+    let pictures = d.join("pictures");
+    let o = run(&[
+        noisy.to_str().unwrap(),
+        "--dry-run",
+        "--json",
+        "--target-size",
+        "1KB",
+        "--visual-diff-dir",
+        pictures.to_str().unwrap(),
+    ]);
+    let j = text(&o);
+    assert!(
+        j.contains(
+            "\"visual_diff\":{\"dpi\":72,\"threshold\":8,\"pages\":[{\"page\":1,\"ssim\":0."
+        ),
+        "{j}"
+    );
+    assert!(!j.contains("\"changed_pixels\":0,"), "{j}");
+    assert!(j.contains("\"pictures\":1,\"failure\":null}"), "{j}");
+    assert!(pictures.join("page-0001.png").is_file());
+}

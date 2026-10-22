@@ -105,6 +105,7 @@ mod svg_text;
 pub mod text;
 pub(crate) mod tiling;
 pub mod type3;
+mod visual_diff;
 
 use pdfcer_core::content::ContentStream;
 use pdfcer_core::document::Document;
@@ -144,6 +145,10 @@ pub use layer_state::LayerVisibility;
 pub use overprint_preview::OverprintPreview;
 pub use separation_preview::{PROCESS_INKS, SeparationPreview};
 pub use shading::{ColorRamp, Geometry, PaintRoute, Shading, ShadingDiagnostics, ShadingFunction};
+pub use visual_diff::{
+    ChangedRegion, PageDiff, VisualDiffError, VisualDiffOptions, diff_heatmap, diff_rendered,
+    visual_diff,
+};
 // `RenderedPage::pixmap` is a public field of a `tiny_skia` type, so this
 // crate must re-export `tiny_skia` or every consumer has to add its own
 // dependency on it and guess a compatible version — the Rust API

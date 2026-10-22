@@ -16,7 +16,7 @@ mod version_raise;
 
 pub use keyed::KeyedResample;
 pub use skip::{ImageSkip, ImageStep};
-pub use ssim::{SsimPick, SsimScore};
+pub use ssim::{SsimPick, SsimScore, structural_similarity};
 pub use version_raise::VersionRaise;
 
 use std::fmt;

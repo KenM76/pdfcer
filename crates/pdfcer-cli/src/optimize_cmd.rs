@@ -198,6 +198,8 @@ pub(crate) struct OptimizeArgs {
     /// and the exit code is 15.
     #[arg(long, value_name = "SIZE", value_parser = crate::optimize_budget_cmd::parse_size)]
     pub(crate) target_size: Option<u64>,
+    #[command(flatten)]
+    pub(crate) visual: crate::optimize_visual_diff::VisualDiffArgs,
     /// Plan and measure without writing anything. The report shows the size
     /// the output would have.
     #[arg(long)]
@@ -264,6 +266,7 @@ pub(crate) fn cmd_optimize(args: &OptimizeArgs) -> u8 {
         output.filter(|_| !args.dry_run).as_deref(),
         &settings,
         args.target_size,
+        &args.visual,
         args.json,
     )
 }
@@ -404,6 +407,8 @@ struct Outcome {
     structure: Option<RebuildReport>,
     /// The `--target-size` search, when one ran.
     budget: Option<BudgetSummary>,
+    /// The `--visual-diff` comparison, when one ran.
+    visual: Option<crate::optimize_visual_diff::VisualSummary>,
 }
 
 fn run(
@@ -411,6 +416,7 @@ fn run(
     output: Option<&Path>,
     settings: &OptimizeSettings,
     target: Option<u64>,
+    visual: &crate::optimize_visual_diff::VisualDiffArgs,
     json: bool,
 ) -> u8 {
     let doc = match open_document(input) {
@@ -426,10 +432,19 @@ fn run(
         Some(max) => fit_budget(session, settings, max),
         None => optimize(session, settings),
     };
-    let outcome = match outcome {
+    let mut outcome = match outcome {
         Ok(o) => o,
         Err(code) => return code,
     };
+    if visual.requested()
+        && let Ok(doc) = open_document(input)
+    {
+        outcome.visual = Some(crate::optimize_visual_diff::compare(
+            visual,
+            &doc,
+            outcome.bytes.as_deref(),
+        ));
+    }
     let after = outcome
         .bytes
         .as_ref()
@@ -514,6 +529,7 @@ fn outcome(
         bytes,
         structure,
         budget,
+        visual: None,
     }
 }
 
@@ -596,6 +612,9 @@ fn report_text(
     if let Some(b) = &o.budget {
         out.push_str(&crate::optimize_budget_cmd::budget_text(b));
     }
+    if let Some(v) = &o.visual {
+        out.push_str(&crate::optimize_visual_diff::visual_text(v));
+    }
     if let Some(d) = diff {
         out.push('\n');
         out.push_str(&diff_text(d));
@@ -648,7 +667,7 @@ fn report_json(
         _ => "null".to_owned(),
     };
     format!(
-        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"version_raise\":{},\"cleanup\":{},\"discard\":{},\"discard_objects\":{},\"fonts\":{},\"resubset\":{},\"structure\":{},\"budget\":{},\"diff\":{}}}\n",
+        "{{\"original_bytes\":{},\"rewritten_bytes\":{},\"smaller\":{},\"written\":{written},\"changes\":[{}],\"skipped\":[{}],\"notes\":[{}],\"version_raise\":{},\"cleanup\":{},\"discard\":{},\"discard_objects\":{},\"fonts\":{},\"resubset\":{},\"structure\":{},\"budget\":{},\"visual_diff\":{},\"diff\":{}}}\n",
         o.original,
         o.rewritten,
         o.smaller,
@@ -669,6 +688,10 @@ fn report_json(
         o.budget.as_ref().map_or_else(
             || "null".to_owned(),
             crate::optimize_budget_cmd::budget_json
+        ),
+        o.visual.as_ref().map_or_else(
+            || "null".to_owned(),
+            crate::optimize_visual_diff::visual_json
         ),
         diff.map_or_else(|| "null".to_owned(), |d| diff_json(d).trim_end().to_owned())
     )

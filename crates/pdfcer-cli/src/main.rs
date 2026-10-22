@@ -701,6 +701,8 @@ mod optimize_fonts;
 mod optimize_image_table;
 mod optimize_removals_report;
 mod optimize_report;
+/// `optimize --visual-diff`.
+mod optimize_visual_diff;
 use optimize_cmd::*;
 #[cfg(test)]
 mod tests;

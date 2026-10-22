@@ -87,3 +87,4 @@ mod type3_fonts;
 mod vector_cross_check;
 mod vector_edit_render;
 mod version_banner_names_iccce;
+mod visual_diff;

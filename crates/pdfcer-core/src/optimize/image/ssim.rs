@@ -174,16 +174,33 @@ pub(crate) fn jpeg_search(
         let trial = JpegOptions { quality, ..opts };
         let data = jpeg_write::encode(pixels, size.0, size.1, n, trial).ok()?;
         let back = decode_image_view(view, &dict, &data, false).ok()?;
-        ssim(pixels, &back.samples, size.0, size.1, components)
+        structural_similarity(pixels, &back.samples, size.0, size.1, components)
     };
     let (quality, pick) = search(opts.quality, target, score);
     (JpegOptions { quality, ..opts }, (quality, pick))
 }
 
-/// SSIM of `b` against the reference `a`: 8-bit interleaved samples,
-/// `width` x `height` x `components`. `None` when the lengths disagree
-/// with the shape.
-pub(crate) fn ssim(a: &[u8], b: &[u8], width: u32, height: u32, components: u32) -> Option<f64> {
+/// SSIM of `b` against the reference `a` (module docs: the window and
+/// constants): 8-bit interleaved samples, `width` x `height` x
+/// `components`. One component is scored directly, three as BT.601 luma,
+/// any other count as the lowest per-component score. `None` when either
+/// length disagrees with the shape or the shape is empty.
+///
+/// ```
+/// use pdfcer_core::optimize::structural_similarity;
+///
+/// let grey = vec![128_u8; 16 * 16];
+/// assert_eq!(structural_similarity(&grey, &grey, 16, 16, 1), Some(1.0));
+/// assert_eq!(structural_similarity(&grey, &grey, 16, 15, 1), None);
+/// ```
+#[must_use]
+pub fn structural_similarity(
+    a: &[u8],
+    b: &[u8],
+    width: u32,
+    height: u32,
+    components: u32,
+) -> Option<f64> {
     let (w, h, n) = (width as usize, height as usize, components as usize);
     let len = w.checked_mul(h)?.checked_mul(n)?;
     if a.len() != len || b.len() != len || len == 0 {
@@ -322,7 +339,7 @@ mod tests {
     fn identical_images_score_one() {
         for (w, h, n) in [(32, 24, 1), (32, 24, 3), (16, 16, 4), (5, 7, 3)] {
             let a = gradient(w, h, n);
-            let s = ssim(&a, &a, w, h, n).unwrap_or(0.0);
+            let s = structural_similarity(&a, &a, w, h, n).unwrap_or(0.0);
             assert!((s - 1.0).abs() < 1e-12, "{w}x{h}x{n}: {s}");
         }
     }
@@ -342,8 +359,8 @@ mod tests {
                 })
                 .collect()
         };
-        let s4 = ssim(&a, &noisy(4), 40, 30, 1).unwrap_or(1.0);
-        let s40 = ssim(&a, &noisy(40), 40, 30, 1).unwrap_or(1.0);
+        let s4 = structural_similarity(&a, &noisy(4), 40, 30, 1).unwrap_or(1.0);
+        let s40 = structural_similarity(&a, &noisy(40), 40, 30, 1).unwrap_or(1.0);
         assert!(s4 < 1.0 && s40 < s4, "{s4} {s40}");
     }
 
@@ -352,14 +369,14 @@ mod tests {
         let a = gradient(20, 20, 4);
         let mut b = a.clone();
         b.iter_mut().skip(3).step_by(4).for_each(|v| *v = 255 - *v);
-        let s = ssim(&a, &b, 20, 20, 4).unwrap_or(1.0);
+        let s = structural_similarity(&a, &b, 20, 20, 4).unwrap_or(1.0);
         assert!(s < 0.5, "{s}");
     }
 
     #[test]
     fn a_shape_mismatch_has_no_score() {
-        assert_eq!(ssim(&[1, 2, 3], &[1, 2], 3, 1, 1), None);
-        assert_eq!(ssim(&[], &[], 0, 0, 1), None);
+        assert_eq!(structural_similarity(&[1, 2, 3], &[1, 2], 3, 1, 1), None);
+        assert_eq!(structural_similarity(&[], &[], 0, 0, 1), None);
     }
 
     #[test]
