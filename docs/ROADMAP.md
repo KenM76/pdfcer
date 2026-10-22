@@ -112,6 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
+### Pass 616.10 (`fe2c7a6b`), 2026-10-22 — compatibility target and features-used report, `OptimizeSettings::compatibility`, `features_used` and `--compat` (1189th filing)
+
+Code commit `fe2c7a6b` "feat(optimize): compatibility target and features-used report, --compat (Pass 616.10)" (on `main`; push not verified from here). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. **`Pass 616.10` closes the one-shot "Reduce File Size by target version" item; GUI not built.**
+
+**Core:** `OptimizeSettings::compatibility: Option<PdfVersion>` (`None` = raise the version as changes need, behaviour unchanged). Under `Some(target)`: a `brotli` stream action is skipped as `SkipReason::AboveCompatibility { what, needs, target }`; an image `encode=jbig2`/`brotli` is skipped as `ImageSkip::AboveCompatibility { encode, needs, target }` (checked before the version-raise); `encode=auto` never picks JBIG2 above the target; object streams stay unpacked under 1.5, with a plan note. `optimize::features_used(&Document) -> Vec<FeatureUse { feature, objects, example }>`; `VersionFeature { Transparency, Jbig2 (1.4), Jpx, OptionalContent, ObjectStreams, CrossReferenceStreams (1.5), Brotli (2.0) }` with `introduced()`, `label()`, `Display`. Sources: ISO 32000-2 Table 57, §11.6.6, §7.4.7, §7.4.9, §8.11, §7.5.7, §7.5.8, EXTN-BROTLI-1. Each object's dictionary is scanned through direct dicts and arrays to depth 6; references are not followed. Detection only.
+
+**Decision (recorded here, no decision number minted):** the declared version is NOT lowered. An incomplete feature scan would make a lowered version a false claim, and the report says so. Transparency is reported, never flattened.
+
+**CLI:** `pdfcer optimize --compat 1.3|1.4|1.5|1.6|1.7|2.0|retain` (`retain` = the input's effective version). Text report gains `compatibility:` lines; `--json` gains `"compatibility"` (`{target, declared, features[{feature, introduced, objects, example, above}], above}` or `null`). `docs/core-api/03-capabilities.md` updated (OptimizeSettings row, SkipReason/ImageSkip rows, new "Compatibility target" paragraph); `check-core-api-verbs` PASS.
+
+**Known gap (not rounded up):** no profile key, so `--write-profile` does not carry the compatibility target; it is a CLI flag only.
+
+**Tests:** 9 core (`optimize/compat_tests.rs`), 1 JBIG2 (`pipeline_version_tests.rs`), 1 CLI (`tests/optimize.rs` `a_compat_target_holds_the_output_and_lists_what_is_above_it`). Sabotage of the alpha check, the pack gate, the JBIG2 gate and the CLI wiring each failed a test. Totals: `pdfcer-core` lib 1853 passed / 2 ignored; `pdfcer-cli --test all` 949 passed / 2 ignored. `tools/run-gates.sh` PASS (49 commands). No manifest change, so no `cargo tree` change; no new dependency.
+
+**FEATURES:** "Reduce File Size by compatibility target" and "Features used versus the target (report)" core `[x]` cli `[x]` gui `[ ]`; the "Optimize framework, remainder" row narrowed (compatibility refusal clause removed). Two new Planned rows, all `[ ]`: transparency flattening (stays unbuilt) and lowering the declared version. **Backlog minted:** `Pass 626.0` (lower the declared version), `Pass 627.0` (transparency flattener). The `616` size-reduction arc is complete except `616.7` (forms and patterns rounding).
+
 ### Pass 625.0 (`4c35da77`), 2026-10-22 — separation preview with hidden plates, `SeparationPreview` and `--hide-ink` (1187th filing)
 
 Code commit `4c35da77` "feat(render): separation preview with hidden plates, SeparationPreview + --hide-ink (Pass 625.0)". Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Source: `request_separation_preview_hidden_inks.md` (O323 family). Scoped in the 1186th filing (`e55ab69b`) as `RenderOptions::with_hidden_inks`; shipped under the name below.
@@ -25339,9 +25355,7 @@ Number precision rounding with a tolerance, **disclosed with its maximum displac
 
 ### `Pass 616.9` — Exceed-tier: quality target, byte budget, visual diff — MOVED TO *Shipped* (all three slices: `67521d61`, `2024e6a4`, `8e6e16ed`; 1188th filing). GUI not built.
 
-### `Pass 616.10` — Compatibility target and transparency report — NEXT UP, 2026-10-20
-
-One-shot "Reduce File Size" by target PDF version, listing used-versus-target features. Transparency detect-and-report only. The transparency flattener is a separate later Backlog item (little size payoff); not minted here.
+### `Pass 616.10` — Compatibility target and transparency report — MOVED TO *Shipped* (`fe2c7a6b`; 1189th filing). GUI not built.
 
 ### `Pass 5.4` — **ENCRYPT ON SAVE, `/R` 6 / AES-256 ONLY: `set_encryption`, `set_permissions`, `remove_encryption` (OWNER-AUTHENTICATED, REFUSED BY NAME OTHERWISE)** — inbound `pdfceGUI` request 2026-09-03 08:27, answered 08:41, order committed: SECOND, after `Pass 10.1` — filed 2026-09-03 (396th filing), ~~**NOT STARTED**~~ **SHIPPED `743830d` — see top of *Shipped***
 
@@ -34115,6 +34129,14 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### Pass 626.0 — lower the declared PDF version when a complete feature scan allows it (BACKLOG; filed 1189th filing, 2026-10-22)
+
+Follow-on of `616.10`, which deliberately does not lower the version: its `features_used` scan is shallow (direct dicts and arrays to depth 6, references not followed), so a lowered version would be a false claim. **Acceptance:** a scan complete enough to prove absence (follows references, covers every feature that raises the version), then an opt-in that lowers `/Version` and the header, with the disclosure printed. Operator decision needed on opt-in versus default. Engineer-reported.
+
+### Pass 627.0 — transparency flattener (BACKLOG; filed 1189th filing, 2026-10-22)
+
+Flatten transparency (soft masks, blend modes, alpha) so a file can honestly target PDF 1.3. `616.10` only detects and reports it. Little size payoff; the value is compatibility with 1.3-era consumers. Needs the Acrobat parity RAG and a rendering-fidelity plan before scoping (rasterise versus vector flatten). Engineer-reported.
 
 ### Pass 623.0 — rename the colour dependency `iccce-*` -> `icccer-*` (BACKLOG, not urgent; filed 1184th filing, 2026-10-22)
 

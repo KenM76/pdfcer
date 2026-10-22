@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1189th filing) — `fe2c7a6b` Pass 616.10 SHIPPED (compatibility target, features-used report); Backlog `626.0`, `627.0` minted
+
+**Filed (engineer-reported, no shell here; git, push and backup state not verified from here):**
+- `fe2c7a6b` `Pass 616.10`: `OptimizeSettings::compatibility`, `SkipReason`/`ImageSkip::AboveCompatibility`, `optimize::features_used`, `VersionFeature`, CLI `optimize --compat`; text and `--json` `compatibility` report. 9 core + 1 JBIG2 + 1 CLI test; core lib 1853 passed, cli `--test all` 949 passed; `run-gates.sh` PASS (49 commands).
+- FEATURES: two rows ticked core `[x]` cli `[x]` gui `[ ]`; two new Planned rows (transparency flattening, lower the declared version), all `[ ]`; "Optimize framework, remainder" narrowed.
+
+**Decisions recorded in the Shipped entry, not minted:** declared version NOT lowered (incomplete scan would make it a false claim); transparency reported, never flattened. **Known gap:** compatibility target has no profile key, `--write-profile` omits it.
+
+**Backlog minted:** `Pass 626.0` (lower the declared version), `Pass 627.0` (transparency flattener). Ledger still decision `198`, `R263`.
+
+**For next session:** next free `Pass 628.0`; next filing 1190th; remaining optimize sibling `616.7` (forms/patterns rounding). Hard-rule-11 survivors owed: the 1188th log entry and ROADMAP lines ~133/171 still say "`616.10` open" (history of those filings, left). Run `check-register-entry-size.py` and `check-ledger-numbers.py` (not run from here).
+
 ## 2026-10-22 (1188th filing) — `8e6e16ed` Pass 616.9 slice 3 SHIPPED (visual-diff report); 616.9 complete in core + cli
 
 **Filed (engineer-reported, no shell here; git, push and backup state not verified from here):**
