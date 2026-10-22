@@ -112,6 +112,24 @@ wherever it appears.*
 
 ## Shipped
 
+### Pass 618.0 (`d21e1ad5`), 2026-10-22 — panic-free engine crates: every panic lint denied, exemptions gated (1177th filing)
+
+Code commit `d21e1ad5` "feat(engine): deny every panic lint and baseline the exemptions (Pass 618.0)". Source: operator request `request_operator_harden_and_ready_crates_for_publishing.md`, asks 1-3. Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message.
+
+**Finding:** the request's ~334 / ~396 panic counts were `#[cfg(test)]` code; production was already denied for unwrap/expect/panic/indexing_slicing since `Pass 325.0`.
+
+**Shipped:**
+- The twelve engine crates (model, render, pkix, function, image-codec, fonts, text, color, 3d, core, ocr-host, print) now also deny `clippy::unreachable`, `todo`, `unimplemented` in `lib.rs`. (The 1176th filing's entry said "eight crates"; the lint now covers twelve.) `tools/check-engine-lint-policy.py` requires all seven lints.
+- New gate `tools/check-panic-allows.py`, CI step "check engine crates deny panics and exemptions only shrink", registered LOCAL in `tools/check-ci-parity.py` so `run-gates.sh` runs it. Each production `#[allow]`/`#[expect]` of a panic lint is keyed `path | lints | next item` in `tools/panic-allows-baseline.txt`; NEW and STALE entries both fail. 32 entries = model crypto 19 + render 5 + pkix 3 + core 3 + fonts 1 + 3d 1 (32), all constant-range-into-fixed-array or length-guarded indexing. Sabotage check: an added `#[allow(clippy::panic)]` in render `lib.rs` reported NEW.
+- Production `unreachable!` removed from `pdfcer-core`: `sign/pkcs12.rs` key selection (NoPrivateKey / MultipleKeys errors), `svg_import/paint.rs` (`gradient_kind` returns `Option`; non-gradient paint gives `SvgImportError::Svg`), `edit.rs` Ink re-shape.
+- `pdfcer-model` public API: `EncryptionConfig::to_encrypt_dict` now returns `Option<Object>` (None without AES-256 keys) instead of panicking; new `BuiltEncryption::encrypt_dict(&self) -> Object` is the infallible route (`edit.rs` uses it). Not on the `docs/core-api` surface (`check-core-api-verbs` PASS).
+- Regression test `crypto::standard::tests::hostile_encrypt_dictionaries_never_panic` (about 3,000 malformed `/Encrypt` dicts through parse + authenticate), seen failing with the `/O` length guard removed.
+- Non-goal unchanged: `clippy::arithmetic_side_effects` (313 model, 824 render sites).
+
+**Results (engineer-reported):** `pdfcer-core` 5,087 passed / 0 failed; model, 3d, fonts suites green (model lib 428); `cargo clippy --workspace --all-targets -D warnings`, `cargo fmt`, `check-code-structure` (568 baselined), `check-ci-parity` clean. No manifest change, so `cargo tree` invariant unchanged.
+
+`FEATURES.md`: no row (engine hardening, no capability; core only). No decision, no rule. Reply to the operator request is still owed: items 1-3 are delivered for model and render; item 4 (publish metadata + `cargo publish --dry-run` for color/model/pkix) and item 5 (iccce-channel request) stay under `Pass 618.1`. Do not flip `publish = true`, publish, or name the conformance suite.
+
 ### `Pass 616.8` follow-up (`c5143058`), 2026-10-22 — space audit counts linearization machinery as file overhead (1175th filing)
 
 Code commit `c5143058ca42029864c4b9b21d8ab5052fb53770` "fix(space-audit): count linearization machinery as file overhead (Pass 616.8)". Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. No Pass consumed.
@@ -23205,28 +23223,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-(1176th filing: `Pass 618.0` and `618.1` FILED from the operator request `request_operator_harden_and_ready_crates_for_publishing.md` (Ken, 2026-10-22; no G/E key). Neither built. Next free `Pass 619.0`, decision `196`, `R263`; next filing 1177th.)
-
-### Pass 618.0 — Panic-free engine crates: close the gaps and gate the exemptions
-
-**Source:** operator request above (asks 1-3, all eight engine crates: model, render, pkix, function, image-codec, fonts, text, color).
-
-**The request's premise was wrong; the engineer measured at `ea9602b7` (recorded here, not in the request).** Every one of the eight crates already carries a crate-level `#![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]` (since `Pass 325.0`'s crate split; confirmed by `Grep` of `unwrap_used` in each `crates/*/src/lib.rs`), and CI already runs clippy with `-D warnings`. So non-test code has 0 unwrap/expect/panic/indexing hits; the request's ~334 / ~396 counts were in-file `#[cfg(test)]` modules, which it said were included. What remains is the exemptions, as `#[allow(...)]` in non-test code:
-
-- model: about 21, nearly all crypto block functions over fixed-size arrays (md5, sha1, rc4, r5, standard, bignum, rsa), each with a written bound argument. One exception: `StandardConfig::to_encrypt_dict` (`crypto/standard.rs`, line 520) is a **public** fn with a documented `# Panics` and an `expect`.
-- render: 5, all `indexing_slicing` with an inline justification (compositor fixed `[f32; N]` loops, blend_nonsep, svg base64).
-- pkix: 3 (`asn1.rs`). fonts: 1 allow, plus one `unreachable!` (`fontinfo.rs`). text, function, image-codec, color: 0.
-- `clippy::unreachable`, `todo` and `unimplemented` are NOT in any deny list yet.
-- **Measured non-goal, not an ask:** `clippy::arithmetic_side_effects` would flag 313 sites in model and 824 in render. Too broad to adopt.
-
-**Scope:**
-1. Add `clippy::unreachable`, `clippy::todo`, `clippy::unimplemented` to the deny list in all eight crates.
-2. Fix the fonts `unreachable!`.
-3. Remove the public documented panic from `to_encrypt_dict` (return an error through the crate's error type; no `# Panics` section left).
-4. New gate `tools/check-panic-allows.py`: a baseline of non-test `#[allow(clippy::<panic lint>)]` sites that only shrinks (modelled on `check-code-structure.py`; a new site fails, a removed one must leave the baseline; never regenerate the baseline to pass). Wired into `tools/run-gates.sh` and CI.
-5. A regression test for any input-reachable panic found, seen failing before the fix.
-
-**Done when:** the gate is green in CI and the request gets a reply naming the commits, the gate and the rows. Hard-rule-11 note for the closer: `ARCHITECTURE.md` §10 and the request both imply counts that this entry corrects; sweep for the stale "~334/~396" claim when filing.
+(1177th filing: `Pass 618.0` SHIPPED `d21e1ad5`, see *Shipped*; `618.1` remains, NOT done. Next free `Pass 619.0`, decision `196`, `R263`; next filing 1178th.)
 
 ### Pass 618.1 — Publish readiness for color, model and pkix (no publishing)
 

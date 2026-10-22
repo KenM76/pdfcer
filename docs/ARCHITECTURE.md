@@ -11869,10 +11869,11 @@ edge set. Cut in `3057b06c`. RAG lesson:
 policy): a consumer depends on `pdfcer-core` only; a re-exported item not
 meant as public API is `#[doc(hidden)] pub`, workspace-internal; no
 `#[non_exhaustive]` on a type matched exhaustively across the new crate
-boundary; every engine crate carries the panic-free lint set +
-`forbid(unsafe_code)` (`tools/check-engine-lint-policy.py`; `pdfcer-render`
-waives `indexing_slicing`, `pdfcer-print` waives `unsafe_code` for the Win32
-print API); a new leaf crate joins CI's four hand-kept crate lists (and
+boundary; every engine crate carries the panic-free lint set (unwrap_used, expect_used,
+panic, indexing_slicing, plus unreachable, todo, unimplemented since Pass
+618.0; exemptions baselined and shrink-only in `tools/check-panic-allows.py`) +
+`forbid(unsafe_code)` (`tools/check-engine-lint-policy.py`; `pdfcer-print`
+waives `unsafe_code` for the Win32 print API); a new leaf crate joins CI's four hand-kept crate lists (and
 `check-ci-parity.py`'s LOCAL map if it has Cargo features); a leaf crate's
 doctests spell its own paths, never `pdfcer_core::`.
 

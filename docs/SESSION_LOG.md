@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1177th filing) — `d21e1ad5`: Pass 618.0 shipped, engine crates deny every panic lint
+
+**Filed (engineer-reported, no shell here):** twelve engine crates now deny `unreachable`/`todo`/`unimplemented` on top of the four since `Pass 325.0`; `check-engine-lint-policy.py` requires all seven; new gate `tools/check-panic-allows.py` (baseline `tools/panic-allows-baseline.txt`, 32 entries, NEW and STALE both fail, sabotage-verified) is in CI and `run-gates.sh`. Production `unreachable!` removed in core (pkcs12, svg_import paint, edit Ink). `EncryptionConfig::to_encrypt_dict` now returns `Option<Object>`; `BuiltEncryption::encrypt_dict` is the infallible route. Regression test `hostile_encrypt_dictionaries_never_panic` seen failing without the `/O` guard. core 5,087 passed / 0 failed; clippy, fmt, structure (568), ci-parity clean; no manifest change.
+
+**Finding:** the request's panic counts were test code; production was already denied (recorded in the 1176th filing and the Shipped entry). `arithmetic_side_effects` stays a non-goal.
+
+**Register:** ROADMAP `Pass 618.0` moved Next up -> Shipped; `618.1` stays in Next up, not done. `ARCHITECTURE.md` §12 lint-policy sentence updated to the seven-lint set and the new gate. `FEATURES.md` no row. No decision, no rule (`196`, `R263` free). Hard-rule-11 sweep: the "~334/~396" claim survives only inside the 1176th SESSION_LOG entry and the operator's own request file (history / operator-owned, left); the 1176th "eight crates" wording is corrected in the Shipped entry (now twelve). Git, push and backup state not verified from here. Correction (engineer-verified: `pdfcer-render/src/lib.rs` lines 57-65 deny `indexing_slicing`; `WAIVED` in `tools/check-engine-lint-policy.py` is empty; `pdfcer-print`'s `unsafe_code` exemption is `NO_FORBID`): the stale clause "`pdfcer-render` waives `indexing_slicing`" in the `ARCHITECTURE.md` §12 sentence was removed.
+
+**Operator request status:** `request_operator_harden_and_ready_crates_for_publishing.md` items 1-3 delivered for model and render; item 4 (publish metadata + `cargo publish --dry-run` for color/model/pkix) and item 5 (iccce-channel request) remain under `Pass 618.1`. Not flipping `publish = true`, not publishing, conformance suite stays unnamed.
+
+**For next session:** next free `Pass 619.0`; next filing 1178th; reply to the request owed when `618.1` closes. `pdfcer-gui` replies for `G214`-`G217` still owed.
+
 ## 2026-10-22 (1176th filing) — Passes 618.0-618.1 filed: harden and ready the engine crates
 
 **Filed (engineer-reported, no shell here):** the operator request `request_operator_harden_and_ready_crates_for_publishing.md` (Ken, no G/E key) as `Pass 618.0` (panic-free engine crates: deny `unreachable`/`todo`/`unimplemented` in all eight crates, fix the fonts `unreachable!`, remove `to_encrypt_dict`'s public panic, new gate `tools/check-panic-allows.py` with a shrink-only baseline) and `Pass 618.1` (publish readiness for color, model, pkix: metadata, `cargo publish --dry-run`, pkix-vs-COS-layer ruling, iccce crates.io request). Both in *Next up*, neither built.
