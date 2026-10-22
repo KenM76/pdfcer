@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 616.6` (slice 5, `b79342a0`), 2026-10-21 — rewrite `/CIDSet` and `/CharSet` on a font cut; `Pass 616.6` NOT complete (1161st filing)
+
+Code commit `b79342a0` "feat(optimize): rewrite /CIDSet and /CharSet on a font cut (Pass 616.6)". Core + render + CLI (existing `--resubset-fonts`); no GUI (separate project). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message and `docs/font-resubset-plan.md` (new CIDSet/CharSet section).
+
+- **Behaviour:** re-subset no longer refuses a descriptor carrying `/CIDSet` (ISO 32000-1 §9.8.3 Table 124) or `/CharSet` (§9.8.1 Table 122). On a cut each list drops the entries whose glyph the cut emptied; an entry the cutter cannot resolve stays (never under-claimed). A filtered CIDSet is re-encoded Flate, an unfiltered one raw; length `ceil((max+1)/8)`.
+- **Core API:** `ResubsetProgram::kept_glyphs: BTreeSet<u16>` + `with_kept_glyphs()`; `FontResubsetter::cid_glyphs` / `name_glyphs` (default methods refusing `cidset-charset-present`); render's `GLYPH_ZERO_RESUBSETTER` implements both. `docs/core-api/03-capabilities.md` updated; `check-core-api-verbs` passes.
+- **Refusals:** `cidset-charset-present` now means "the cutter cannot rewrite the list". A CIDSet shared with a font outside the program's users refuses `unreferenced-user`. Programs with either list are not merged.
+- **Bug fixed on discovery:** a direct `/FontDescriptor` nested in a font dict now gets its `/FontName` re-tagged too (ISO 32000-2 §9.6.4).
+- **Fixtures (synthetic, `tools/gen-resubset-fixtures.py`):** `type0-cidset.pdf` (CIDSet 0xFF becomes 0x90); `type1c-charset.pdf` (/A/B/C/D/E/acute/Eacute becomes /A/D/E/acute/Eacute: B, C dropped; D is not in the program so stays). Both pixel-identical after the cut.
+- **Tests (engineer-reported):** render integration pixel parity on both, CIDSet decodes to [0x90], CharSet exact; core unit tests (bit packing, CharSet filter); CLI `--resubset-fonts` on both reports "1 cut, 0 refused". Two sabotages (CIDSet filter, CharSet write) each failed tests. `tools/run-gates.sh` PASS (46 commands); clippy and fmt clean; structure gate clean (568 baseline, none new). No manifest change (`cargo tree` unaffected), no new dependency.
+- **Still open in `Pass 616.6`:** re-subset under PDF/A; merging CFF copies; Type 1 (`/FontFile`); Acrobat Reader spot checks NOT done. Then `616.7`-`616.10` unchanged.
+
+`FEATURES.md`: Implemented re-subset sentence now names CIDSet/CharSet rewrite (core + cli; gui not); Planned *Font re-subsetting remainder* drops it. No decision; no rule.
+
 ### `Pass 616.6` (slice 4, `71474e87`), 2026-10-21 — CFF (`/FontFile3`) re-subsetting; `Pass 616.6` NOT complete (1160th filing)
 
 Code commit `71474e87` "feat(optimize): re-subset CFF font programs (Pass 616.6 slice 4)", on main, not pushed at filing time. Core + render + CLI; no GUI (separate project). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message and `docs/font-resubset-plan.md`.
@@ -24969,11 +24983,11 @@ Mono results are mostly not-smaller until `616.5` adds CCITT/JBIG2 encoders; dis
 - **Still owed from the request (as filed; the stream half is now built):** a dedicated Brotli fuzz target (none under `fuzz/fuzz_targets/` by name; whether `content_and_filters.rs` reaches the decoder is unverified); the write side itself.
 - **Write-side contract:** writes the `/Extensions` entry for `PDFa` (EXTN-BROTLI-1 v1.3, `ExtensionLevel 1`, `BaseVersion 2.0`) and raises the header to 2.0; **OFF by default**; the report discloses it ("readers without the extension cannot open these streams"). Round-trip rule 3 is not in conflict: optimize rewrites a stream only when asked, never an untouched one. Not allowed in inline images (EXTN-BROTLI-1 §5.2; `ImageCodecError::BrotliNotAllowedInline` already enforces it on read). **Decision 194 filed (1148th, `ARCHITECTURE.md` §12; design only, no code yet):** explicit-only (`brotli` / `brotli-N`, N 0..=11, default 11; never `auto`, preset or fallback), standard window (lgwin 22), declares `/Extensions /PDFa` and raises catalog `/Version` to 2.0 (both disclosed), refused under PDF/A, never inline or ObjStm/XRef/Metadata, same only-if-smaller and `min-saving` guards. Next free decision `195`.
 
-### `Pass 616.6` — Fonts: re-subset, merge duplicate subsets, unembed — IN PROGRESS (slice 1 shipped `23c89cd2`, slice 2 shipped `4d0e7c44`..`3606ecef`, slice 3 shipped `e9032753`, slice 4 shipped `71474e87`, 2026-10-21)
+### `Pass 616.6` — Fonts: re-subset, merge duplicate subsets, unembed — IN PROGRESS (slice 1 shipped `23c89cd2`, slice 2 shipped `4d0e7c44`..`3606ecef`, slice 3 shipped `e9032753`, slice 4 shipped `71474e87`, slice 5 shipped `b79342a0`, 2026-10-21)
 
 Re-subset embedded fonts to the glyphs actually used; merge duplicate subsets; integrate `font_unembed::plan`; Type1 to CFF conversion later.
 
-**Slice 1 SHIPPED (1155th filing): unembed inside an optimize run. Slice 2 SHIPPED (1156th filing): TrueType `/FontFile2` re-subset by glyph zeroing, `--resubset-fonts`. Slice 3 SHIPPED (1158th filing): copies of one face merged, `--no-merge-font-subsets`. Slice 4 SHIPPED (1160th filing): CFF (`/FontFile3`) zeroing, bare CFF and OpenType-CFF. Remaining: merging CFF copies; `/CIDSet` / `/CharSet` rewrite; re-subset under PDF/A; Acrobat Reader render check of a cut font; Type 1 (`/FontFile`) later. (`symbolic` / `shared-program` fixture tests closed in `0982e864`, 1159th filing.)**
+**Slice 1 SHIPPED (1155th filing): unembed inside an optimize run. Slice 2 SHIPPED (1156th filing): TrueType `/FontFile2` re-subset by glyph zeroing, `--resubset-fonts`. Slice 3 SHIPPED (1158th filing): copies of one face merged, `--no-merge-font-subsets`. Slice 4 SHIPPED (1160th filing): CFF (`/FontFile3`) zeroing, bare CFF and OpenType-CFF. Slice 5 SHIPPED (1161st filing): `/CIDSet` / `/CharSet` rewritten on a cut. Remaining: merging CFF copies; re-subset under PDF/A; Acrobat Reader render check of a cut font; Type 1 (`/FontFile`) later. (`symbolic` / `shared-program` fixture tests closed in `0982e864`, 1159th filing.)**
 
 ### `Pass 616.7` — Content-stream optimisation — NEXT UP, 2026-10-20
 

@@ -26,14 +26,15 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   discards, 616.4 images (complete) — shipped, core + cli. 616.5 encoders:
   RunLength/LZW/CCITT G4/JBIG2/auto/version-raise and Brotli (streams +
   images, decision 194) shipped; still open only for the Acrobat Reader
-  render checks (Brotli recorded as unverified). **616.6 fonts: slices 1-4
+  render checks (Brotli recorded as unverified). **616.6 fonts: slices 1-5
   shipped**: unembed (`--unembed-fonts`), TrueType and CFF re-subset by
-  glyph zeroing (`--resubset-fonts`), and merging copies of one face (on by
-  default, `--no-merge-font-subsets`; TrueType only). Plan:
-  `docs/font-resubset-plan.md`. Remaining 616.6: merging CFF copies, the
-  `/CIDSet`/`/CharSet`
-  rewrite (currently refused), re-subset under PDF/A (currently refused),
-  and an Acrobat Reader check of a cut/merged font. Then 616.7-616.10
+  glyph zeroing (`--resubset-fonts`), merging copies of one face (on by
+  default, `--no-merge-font-subsets`; TrueType only), and the
+  `/CIDSet`/`/CharSet` rewrite on a cut (`optimize/resubset_coverage.rs`).
+  Plan: `docs/font-resubset-plan.md`. Remaining 616.6: re-subset under
+  PDF/A (currently refused; the CIDSet rewrite is its prerequisite), merging
+  CFF copies, Type 1 `/FontFile`, and an Acrobat Reader check of a
+  cut/merged font. Then 616.7-616.10
   (content streams, linearization, quality/byte-budget, compatibility
   target).
 - **Fixture generator:** `tools/gen-resubset-fixtures.py` needs fontTools

@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-21 (1161st filing) — `Pass 616.6` slice 5 in `b79342a0`: CIDSet/CharSet rewrite
+
+**Shipped:** `Pass 616.6` slice 5 (core + render + cli): re-subset no longer refuses fonts with `/CIDSet` or `/CharSet`; each list drops entries the cut emptied, unresolvable entries stay, CIDSet re-encoded Flate/raw. New API `ResubsetProgram::kept_glyphs`, `FontResubsetter::cid_glyphs`/`name_glyphs`. Shared CIDSet refuses `unreferenced-user`; such programs are not merged. Detail in the ROADMAP *Shipped* entry.
+
+**Decisions:** none; no numbers minted.
+
+**Findings:** bug fixed on discovery: a direct `/FontDescriptor` nested in a font dict now gets its `/FontName` re-tagged (ISO 32000-2 §9.6.4). Gates PASS (46 commands), two sabotages failed tests (engineer-reported).
+
+**Still in flight:** `Pass 616.6` OPEN: PDF/A re-subset; merging CFF copies; Type 1; Acrobat Reader spot checks NOT done. Then 616.7-616.10.
+
+**For next session:** git/push/backup state not verified (no shell). Next filing 1162nd.
+
 ## 2026-10-21 (1160th filing) — `Pass 616.6` slice 4 in `71474e87`: CFF re-subsetting
 
 **Shipped:** `Pass 616.6` slice 4 (core + render + cli): `--resubset-fonts` now cuts `/FontFile3` (bare CFF `/Type1C`, `/CIDFontType0C`, and the CFF table of `/OpenType`, DSIG dropped). Unused charstrings become `endchar`; glyph IDs, subrs, charset, Encoding, FDSelect, Private DICTs copied; only CharStrings INDEX, Top DICT INDEX and CID FDArray rewritten (5-byte offsets). `seac` parts of kept glyphs kept (TN5177 App. C). Cut verified else `malformed-glyf`; new refusal `cff-layout`; `format-deferred` now only Type 1. Merge stays TrueType-only; core writes `/Length1` only if the original had it. Detail in the ROADMAP *Shipped* entry.
