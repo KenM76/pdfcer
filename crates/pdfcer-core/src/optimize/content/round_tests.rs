@@ -12,15 +12,15 @@ use crate::optimize::tests::{build, id, session};
 use crate::optimize::{OptimizeSettings, SkipReason};
 use crate::space_audit::tests::stream;
 
-fn within(units: f64, page_start: bool) -> ResolvedContent {
+fn within(units: f64, start: Option<f64>) -> ResolvedContent {
     let mut s = ResolvedContent::base(StreamAction::Leave);
     s.round = Tolerance::from_units(units);
-    s.page_start = page_start;
+    s.start = start.and_then(Scale::new);
     s
 }
 
 fn rounded(src: &[u8], units: f64) -> (String, Compacted) {
-    let out = compact(src, within(units, true)).unwrap();
+    let out = compact(src, within(units, Some(1.0))).unwrap();
     (String::from_utf8(out.bytes.clone()).unwrap(), out)
 }
 
@@ -60,9 +60,9 @@ fn every_corner_of_a_rectangle_stays_within_tolerance() {
 
 #[test]
 fn only_the_first_stream_of_a_page_rounds() {
-    let out = compact(b"1.23456 2 m", within(0.01, false)).unwrap();
+    let out = compact(b"1.23456 2 m", within(0.01, None)).unwrap();
     assert_eq!(out.rounded.count, 0);
-    assert_eq!(out.rounded.unrounded, Some(Unrounded::NotPageStart));
+    assert_eq!(out.rounded.unrounded, Some(Unrounded::UnknownStart));
 }
 
 #[test]
@@ -93,9 +93,11 @@ fn the_check_compares_a_rounded_operand_with_its_rounded_value() {
     ));
 }
 
-/// Pages `[4 5]` and `[7 4]`: only 7 opens every page that draws it.
+/// Pages `[4 5]` and `[7 4]`, none of them changing the matrix.
 fn two_page_doc() -> Vec<u8> {
-    let body = b"0.123456 0.123456 m 100.123456 100.123456 l S\n".repeat(50);
+    let body = b"0.123456 0.123456 m 100.123456 100.123456 l S
+"
+    .repeat(50);
     build(&[
         b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
         b"<< /Type /Pages /Kids [3 0 R 6 0 R] /Count 2 >>".to_vec(),
@@ -107,21 +109,23 @@ fn two_page_doc() -> Vec<u8> {
     ])
 }
 
+fn round_plan(doc: Vec<u8>) -> crate::optimize::OptimizePlan {
+    let mut settings = OptimizeSettings::new();
+    settings.content = Some(ContentPatch::parse("content(round=0.01)").unwrap());
+    session(doc).plan_optimize(&settings).unwrap()
+}
+
 #[test]
-fn a_plan_rounds_page_openers_and_marks_them_lossy() {
+fn a_plan_rounds_every_page_stream_and_marks_them_lossy() {
     let mut settings = OptimizeSettings::new();
     settings.content = Some(ContentPatch::parse("content(round=0.01)").unwrap());
     let mut s = session(two_page_doc());
     let plan = s.plan_optimize(&settings).unwrap();
-    let change = |n| plan.changes.iter().find(|c| c.id == id(n)).unwrap();
-    let opener = change(7);
-    assert!(opener.lossy);
-    assert_eq!(opener.content.unwrap().numbers_rounded, 50 * 4);
-    for n in [4, 5] {
-        let c = change(n);
-        assert!(!c.lossy, "{n}");
-        assert_eq!(c.content.unwrap().numbers_rounded, 0);
-        assert_eq!(c.content.unwrap().unrounded, Some(Unrounded::NotPageStart));
+    for n in [4, 5, 7] {
+        let c = plan.changes.iter().find(|c| c.id == id(n)).unwrap();
+        assert!(c.lossy, "{n}");
+        assert_eq!(c.content.unwrap().numbers_rounded, 50 * 4, "{n}");
+        assert_eq!(c.content.unwrap().unrounded, None, "{n}");
     }
     assert!(plan.is_lossy());
     assert!(
@@ -131,6 +135,88 @@ fn a_plan_rounds_page_openers_and_marks_them_lossy() {
             .any(|k| matches!(k.reason, SkipReason::Content(_)))
     );
     s.apply_optimize(&plan).unwrap();
+}
+
+/// One page drawing `[4 5]`, 4 being `first`; 5 draws `body`.
+fn after(first: &[u8], body: &[u8]) -> Vec<u8> {
+    build(&[
+        b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec(),
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents [4 0 R 5 0 R] >>".to_vec(),
+        stream("", first),
+        stream("", body),
+    ])
+}
+
+fn second(plan: &crate::optimize::OptimizePlan) -> crate::optimize::ContentChange {
+    plan.changes
+        .iter()
+        .find(|c| c.id == id(5))
+        .and_then(|c| c.content)
+        .unwrap()
+}
+
+#[test]
+fn a_later_stream_starts_under_the_matrix_the_earlier_ones_leave() {
+    // 1.004 rounds to 1 at scale 1 (0.004 away); at ten times the scale
+    // that is 0.04, and no shorter spelling is within 0.01.
+    let body = b"1.004  2.5  m  S
+"
+    .repeat(20);
+    let c = second(&round_plan(after(b"q 10 0 0 10 0 0 cm", &body)));
+    assert_eq!(c.numbers_rounded, 0, "{c:?}");
+    assert_eq!(c.unrounded, None);
+    // The q is balanced inside the first stream: the second is at scale 1.
+    let c = second(&round_plan(after(b"q 10 0 0 10 0 0 cm Q", &body)));
+    assert_eq!(c.numbers_rounded, 20, "{c:?}");
+    assert!(c.max_displacement > 0.0039 && c.max_displacement <= 0.0041);
+}
+
+#[test]
+fn a_stream_after_an_unknown_matrix_does_not_round() {
+    let body = b"1.23456 2.5 m S
+"
+    .repeat(20);
+    for first in [&b"/M cm"[..], b"Q"] {
+        let c = second(&round_plan(after(first, &body)));
+        assert_eq!(c.numbers_rounded, 0);
+        assert_eq!(c.unrounded, Some(Unrounded::UnknownStart));
+    }
+}
+
+#[test]
+fn a_shared_stream_takes_the_largest_scale_of_its_pages() {
+    let body = b"1.004  2.5  m  S
+"
+    .repeat(20);
+    let doc = |rotated: &[u8]| {
+        build(&[
+            b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
+            b"<< /Type /Pages /Kids [3 0 R 6 0 R] /Count 2 >>".to_vec(),
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents [4 0 R 5 0 R] >>"
+                .to_vec(),
+            stream("", b"q"),
+            stream("", &body),
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents [7 0 R 5 0 R] >>"
+                .to_vec(),
+            stream("", rotated),
+        ])
+    };
+    // Scale 1 on page one, 100 on page two (a rotation does not stretch).
+    assert_eq!(
+        second(&round_plan(doc(b"0 100 -100 0 0 0 cm"))).numbers_rounded,
+        0
+    );
+    assert_eq!(
+        second(&round_plan(doc(b"0 1 -1 0 0 0 cm"))).numbers_rounded,
+        20
+    );
+    // Unknown on page two is unknown, whatever page one says.
+    let c = second(&round_plan(doc(b"/M cm")));
+    assert_eq!(
+        (c.numbers_rounded, c.unrounded),
+        (0, Some(Unrounded::UnknownStart))
+    );
 }
 
 #[test]

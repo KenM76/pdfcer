@@ -19,7 +19,7 @@ fn settings(whitespace: Whitespace, numbers: Numbers, redundant: bool) -> Resolv
         numbers,
         redundant,
         round: None,
-        page_start: true,
+        start: Scale::new(1.0),
         encode: StreamAction::Recompress { level: 9 },
     }
 }

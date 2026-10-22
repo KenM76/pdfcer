@@ -6,7 +6,7 @@
 mod text;
 
 use super::rewrite::{number, operations, real};
-use super::{Tolerance, Unrounded};
+use super::{Scale, Tolerance, Unrounded};
 use crate::content::{ContentStream, ContentToken};
 
 /// Annex C: a reader keeps about five fractional digits of a real.
@@ -53,6 +53,15 @@ impl Linear {
         (self.a * dx + self.c * dy, self.b * dx + self.d * dy)
     }
 
+    /// The most the transformation stretches a move: its largest singular
+    /// value.
+    fn stretch(self) -> f64 {
+        let sum = self.a * self.a + self.b * self.b + self.c * self.c + self.d * self.d;
+        let det = self.a * self.d - self.b * self.c;
+        let gap = (sum * sum - 4.0 * det * det).max(0.0).sqrt();
+        ((sum + gap) / 2.0).sqrt()
+    }
+
     /// How far a move of `(dx, dy)` goes after the transformation.
     fn length(self, dx: f64, dy: f64) -> f64 {
         let (x, y) = self.apply(dx, dy);
@@ -79,9 +88,13 @@ fn shape(op: &[u8]) -> Option<Shape> {
     })
 }
 
-/// Plan the rounding of `content` within `tol`; `page_start` says it begins
-/// in default user space.
-pub(super) fn plan(content: &ContentStream, tol: Option<Tolerance>, page_start: bool) -> Rounded {
+/// Plan the rounding of `content` within `tol`; `start` is the scale it
+/// begins at, when known.
+pub(super) fn plan(
+    content: &ContentStream,
+    tol: Option<Tolerance>,
+    start: Option<Scale>,
+) -> Rounded {
     let mut out = Rounded {
         text: vec![None; content.tokens.len()],
         count: 0,
@@ -91,41 +104,95 @@ pub(super) fn plan(content: &ContentStream, tol: Option<Tolerance>, page_start: 
     let Some(tol) = tol else {
         return out;
     };
-    if !page_start {
-        out.unrounded = Some(Unrounded::NotPageStart);
+    let Some(start) = start else {
+        out.unrounded = Some(Unrounded::UnknownStart);
         return out;
-    }
+    };
+    // Measured in the space the stream starts in: a move there goes at most
+    // `start` times as far in default user space.
+    let tol = tol.as_units() / start.get();
     let buf = content.buf.as_slice();
-    let mut ctm = Linear::IDENTITY;
-    let mut stack = Vec::new();
+    let mut state = State::new();
     let mut text = None;
     for (first, _, operands, op) in operations(content) {
         let Some(op) = op.and_then(|t| t.span.slice(buf)) else {
             continue;
         };
         let at = (buf, first, operands);
-        text::step(&mut text, &mut out, (op, at), ctm, tol.as_units());
-        let known = match op {
-            b"q" => {
-                stack.push(ctm);
-                true
-            }
-            b"Q" => stack.pop().map(|m| ctm = m).is_some(),
-            b"cm" => matrix(operands).map(|m| ctm = m.then(ctm)).is_some(),
-            _ => {
-                if let Some(shape) = shape(op) {
-                    round_op(&mut out, (buf, first, operands), shape, ctm, tol.as_units());
-                }
-                true
-            }
-        };
-        if !known {
+        text::step(&mut text, &mut out, (op, at), state.ctm, tol);
+        if let Some(shape) = shape(op) {
+            round_op(&mut out, at, shape, state.ctm, tol);
+        } else if !state.step(op, operands) {
             out.unrounded = Some(Unrounded::UnknownMatrix);
             break;
         }
     }
     text::end(text, &mut out);
+    out.max *= start.get();
     out
+}
+
+/// The CTM's linear part and the `q` stack.
+#[derive(Debug, Clone)]
+struct State {
+    ctm: Linear,
+    stack: Vec<Linear>,
+}
+
+impl State {
+    fn new() -> Self {
+        Self {
+            ctm: Linear::IDENTITY,
+            stack: Vec::new(),
+        }
+    }
+
+    /// Track `op`; `false` when its effect on the matrix is unknown.
+    fn step(&mut self, op: &[u8], operands: &[ContentToken]) -> bool {
+        match op {
+            b"q" => {
+                self.stack.push(self.ctm);
+                true
+            }
+            b"Q" => self.stack.pop().map(|m| self.ctm = m).is_some(),
+            b"cm" => matrix(operands)
+                .map(|m| self.ctm = m.then(self.ctm))
+                .is_some(),
+            _ => true,
+        }
+    }
+}
+
+/// The scale each of one page's content streams starts at, in order: the
+/// streams run as if concatenated (§7.7.3.3, Table 30), so each starts
+/// under the matrix the ones before it leave. `None` (a stream that did not
+/// decode) and every stream after it, or after a `cm` or `Q` whose effect is
+/// unknown, start at an unknown scale.
+pub(crate) fn starts(streams: &[Option<ContentStream>]) -> Vec<Option<Scale>> {
+    let mut state = Some(State::new());
+    streams
+        .iter()
+        .map(|content| {
+            let start = state.as_ref().and_then(|s| Scale::new(s.ctm.stretch()));
+            state = state
+                .take()
+                .zip(content.as_ref())
+                .and_then(|(s, c)| leave(s, c));
+            start
+        })
+        .collect()
+}
+
+/// The state `content` leaves `state` in.
+fn leave(mut state: State, content: &ContentStream) -> Option<State> {
+    let buf = content.buf.as_slice();
+    for (_, _, operands, op) in operations(content) {
+        let op = op.and_then(|t| t.span.slice(buf)).unwrap_or_default();
+        if !state.step(op, operands) {
+            return None;
+        }
+    }
+    Some(state)
 }
 
 /// The linear part of a `cm`'s six number operands.

@@ -4,6 +4,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::{Command, CommandKind, EditSession, ObjectWrite};
+use crate::content::ContentStream;
 use crate::document::Document;
 use crate::object::{Dict, ObjId, Object, Stream};
 use crate::optimize::content::{self, ResolvedContent};
@@ -19,6 +20,7 @@ use crate::optimize::{
     StreamAction,
 };
 use crate::space_audit::{self, ObjectSpace, SpaceCategory};
+use crate::view::DocumentView;
 use crate::writer::{self, RebuildOptions, RebuildReport, SaveOptions, WriteError};
 
 impl EditSession {
@@ -124,7 +126,11 @@ impl EditSession {
         } else {
             BTreeMap::new()
         };
-        let openers = self.page_openers();
+        let starts = if may_round(settings) {
+            self.content_starts()
+        } else {
+            BTreeMap::new()
+        };
         let wide = super::optimize_copies::widened(rows, &copies);
         let rows: &BTreeMap<ObjId, &ObjectSpace> = &rows
             .iter()
@@ -162,7 +168,7 @@ impl EditSession {
                 ),
                 lockstep: None,
                 pdfa,
-                page_start: openers.contains(&id),
+                start: starts.get(&id).copied().flatten(),
             };
             plan_stream(plan, settings, (id, stream, raw), row, &ctx);
         }
@@ -172,22 +178,38 @@ impl EditSession {
         super::optimize_copies::disclose(plan, &copies);
     }
 
-    /// The streams that are the first `/Contents` stream of every page
-    /// drawing them, so they start in default user space; empty when the
-    /// page tree does not read.
-    fn page_openers(&self) -> BTreeSet<ObjId> {
+    /// The scale each page content stream starts at: the largest over the
+    /// pages drawing it, `None` when one of them leaves it unknown. Empty
+    /// when the page tree does not read.
+    fn content_starts(&self) -> BTreeMap<ObjId, Option<content::Scale>> {
         let Ok(pages) = self.pages() else {
-            return BTreeSet::new();
+            return BTreeMap::new();
         };
-        let later: BTreeSet<ObjId> = pages
-            .iter()
-            .flat_map(|p| p.contents.iter().skip(1).copied())
-            .collect();
-        pages
-            .iter()
-            .filter_map(|p| p.contents.first().copied())
-            .filter(|id| !later.contains(id))
-            .collect()
+        let view = self.view();
+        let mut out = BTreeMap::new();
+        for page in &pages {
+            let streams: Vec<_> = page
+                .contents
+                .iter()
+                .map(|id| self.parsed_content(&view, *id))
+                .collect();
+            for (id, start) in page.contents.iter().zip(content::starts(&streams)) {
+                out.entry(*id)
+                    .and_modify(|s: &mut Option<content::Scale>| *s = widest(*s, start))
+                    .or_insert(start);
+            }
+        }
+        out
+    }
+
+    /// Stream `id` decoded and tokenized, when it is a stream that decodes.
+    fn parsed_content(&self, view: &DocumentView<'_>, id: ObjId) -> Option<ContentStream> {
+        let Some(Object::Stream(stream)) = self.value(id) else {
+            return None;
+        };
+        let raw = view.slice(stream.data_span)?;
+        let decoded = crate::filters::decode_stream(&stream.dict, raw).ok()?;
+        ContentStream::parse(decoded).ok()
     }
 
     /// Every object some stream among `ids` names as its `/SMask`.
@@ -497,6 +519,22 @@ fn image_action(
     )
 }
 
+/// Whether any content setting in `settings` rounds.
+fn may_round(settings: &OptimizeSettings) -> bool {
+    let rounds = |a: &StreamAction| matches!(a, StreamAction::Content(_)) && a.is_lossy();
+    settings
+        .content
+        .is_some_and(|p| rounds(&StreamAction::Content(p)))
+        || settings.rules.iter().any(|r| rounds(&r.action))
+        || settings.objects.values().any(rounds)
+}
+
+/// Two starts of one stream: the larger, or `None` when either is unknown.
+fn widest(a: Option<content::Scale>, b: Option<content::Scale>) -> Option<content::Scale> {
+    let (a, b) = (a?, b?);
+    Some(if b.get() > a.get() { b } else { a })
+}
+
 /// An image re-encode and the change it records.
 type ImageJob = (image::pipeline::Job, Box<ImageChange>);
 
@@ -509,7 +547,7 @@ fn plan_content(
     ctx: &image::pipeline::Context<'_, '_>,
     filters: Vec<String>,
 ) {
-    rc.page_start = ctx.page_start;
+    rc.start = ctx.start;
     let action = StreamAction::Content(rc.to_patch());
     let result = match refusal(&stream.dict, rc.encode, ctx.pdfa) {
         Some(reason) => Err(reason),

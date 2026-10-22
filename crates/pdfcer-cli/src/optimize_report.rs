@@ -317,7 +317,7 @@ fn unrounded_json(u: Option<pdfcer_core::optimize::Unrounded>) -> &'static str {
     use pdfcer_core::optimize::Unrounded;
     match u {
         None => "null",
-        Some(Unrounded::NotPageStart) => "\"not-page-start\"",
+        Some(Unrounded::UnknownStart) => "\"unknown-start\"",
         Some(Unrounded::UnknownMatrix) => "\"unknown-matrix\"",
         Some(_) => "\"other\"",
     }

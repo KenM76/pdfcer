@@ -26,7 +26,7 @@ pub(super) fn compact(buf: &[u8], settings: ResolvedContent) -> Result<Compacted
     } else {
         0
     };
-    let mut rounded = round::plan(&content, settings.round, settings.page_start);
+    let mut rounded = round::plan(&content, settings.round, settings.start);
     let (bytes, shortened, written) = emit(&content, (&keep, &rounded.text), settings);
     if !check::same(&content, (&keep, &rounded.text), &bytes) {
         return Err(SkipReason::Content(ContentSkip::Mismatch));

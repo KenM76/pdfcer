@@ -17,9 +17,12 @@
 //! of text (`Tm`'s translation, `Td`) to as few decimals as keep every point
 //! within `T` user-space units of where it was, through the `cm` matrices in
 //! force, and reports the largest movement
-//! ([`ContentChange::max_displacement`]). It applies only to a page's first
-//! content stream, the one stream whose starting coordinate system is
-//! default user space; others report [`Unrounded`].
+//! ([`ContentChange::max_displacement`]). It applies to page content: a
+//! page's streams run as if concatenated in order (§7.7.3.3, Table 30), so
+//! a later stream starts under the matrix the streams before it leave, and
+//! its tolerance is divided by the most that matrix can stretch a move. A
+//! stream several pages draw takes the largest. Forms, patterns, and a
+//! stream after one whose effect is unknown report [`Unrounded`].
 //!
 //! Inside an array or dictionary operand (`TJ`, `d`, a `BDC` property list)
 //! the numbers and separators follow the same two settings. Strings, names,
@@ -35,6 +38,8 @@
 mod check;
 mod rewrite;
 mod round;
+
+pub(crate) use round::starts;
 
 use std::fmt;
 
@@ -272,9 +277,10 @@ pub(crate) struct ResolvedContent {
     pub(crate) numbers: Numbers,
     pub(crate) redundant: bool,
     pub(crate) round: Option<Tolerance>,
-    /// The stream is a page's first content stream, so it starts in default
-    /// user space and `round` may apply. Set by the planner, not a setting.
-    pub(crate) page_start: bool,
+    /// How far the matrix the stream starts under can stretch a move, for
+    /// page content; `round` applies only when it is known. Set by the
+    /// planner, not a setting.
+    pub(crate) start: Option<Scale>,
     /// `Recompress` or `Brotli`: the whole-state action the patches landed
     /// on, `recompress-9` when that was `leave`.
     pub(crate) encode: StreamAction,
@@ -288,7 +294,7 @@ impl ResolvedContent {
             numbers: Numbers::Shortest,
             redundant: true,
             round: None,
-            page_start: false,
+            start: None,
             encode: match base {
                 StreamAction::Recompress { .. } | StreamAction::Brotli { .. } => base,
                 _ => StreamAction::Recompress { level: 9 },
@@ -354,13 +360,31 @@ pub struct ContentChange {
     pub encoded_as: StreamAction,
 }
 
+/// The largest factor a matrix stretches a move by (its largest singular
+/// value): finite and above zero.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Scale(u64);
+
+impl Scale {
+    /// `None` unless `factor` is finite and above zero. Stored as bits so
+    /// the type can be `Eq`.
+    pub(crate) fn new(factor: f64) -> Option<Self> {
+        (factor.is_finite() && factor > 0.0).then_some(Self(factor.to_bits()))
+    }
+
+    /// The factor.
+    pub(crate) fn get(self) -> f64 {
+        f64::from_bits(self.0)
+    }
+}
+
 /// Why `round` left (part of) a stream's coordinates as stored.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Unrounded {
-    /// A form, a pattern, or page content that is not its page's first
-    /// stream: the coordinate system it starts in is not known here.
-    NotPageStart,
+    /// A form or a pattern, or page content after a stream whose effect on
+    /// the matrix is unknown: the scale it starts at is not known here.
+    UnknownStart,
     /// A `cm` with operands that are not six numbers, or a `Q` with no `q`:
     /// nothing after it is rounded.
     UnknownMatrix,
@@ -369,8 +393,8 @@ pub enum Unrounded {
 impl fmt::Display for Unrounded {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            Self::NotPageStart => {
-                "not rounded: not the first content stream of a page, so its starting scale is unknown"
+            Self::UnknownStart => {
+                "not rounded: the scale it starts at is unknown (a form, a pattern, or page content after an unreadable stream)"
             }
             Self::UnknownMatrix => {
                 "rounding stopped at a cm or Q whose effect on the scale is unknown"

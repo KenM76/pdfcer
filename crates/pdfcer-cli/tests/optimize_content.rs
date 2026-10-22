@@ -215,17 +215,17 @@ fn round_is_lossy_reported_and_bounded() {
         text(&run(&a))
     };
     let json = args(true);
-    // The page rounds; the form is not a page's first stream.
+    // The page rounds; the form starts at a scale not known here.
     assert!(json.contains("\"lossy\":true"), "{json}");
     assert!(json.contains("\"numbers_rounded\":160"), "{json}");
-    assert!(json.contains("\"unrounded\":\"not-page-start\""), "{json}");
+    assert!(json.contains("\"unrounded\":\"unknown-start\""), "{json}");
     let report = args(false);
     assert!(
         report.contains("160 coordinate(s) rounded, no point moved more than"),
         "{report}"
     );
     assert!(
-        report.contains("not rounded: not the first content stream"),
+        report.contains("not rounded: the scale it starts at is unknown"),
         "{report}"
     );
     std::fs::remove_dir_all(&d).ok();
