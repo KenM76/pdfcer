@@ -112,13 +112,27 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.91.0` — version bump filed 2026-10-22 (1182nd filing); release PENDING
+### `v0.91.0` — PUBLISHED 2026-10-22 (published at the 1183rd filing; bump filed at the 1182nd)
+
+**Published (engineer-reported; I have no shell, hard rule 8, so none of this is checked from here).** Tag `v0.91.0`: annotated tag object `1c901425e371c5e51d8ede76b86e8f631fb8023b` -> commit `4ea93ab171bd54e221e3b611b4dd508c9097f8f6` ("docs: file the v0.91.0 bump (1182nd)"); bump commit `20c6191b`. Earlier tags were lightweight; this one is annotated (harmless, recorded for whoever compares tag objects). Pushed: `origin main` = `4ea93ab1`.
+- **CI:** run 39820062337 on `4ea93ab1` = success. Run 39818460814 on `d226e83d` (1181st filing) = success, including the audits job that was red on 39798789939 and 39796816312.
+- **GitHub release "pdfcer v0.91.0", 8 assets** (bytes; sha256): `pdfcer-v0.91.0-windows-x64.zip` 27,280,798 (`82c58a42...bf4a0b`: full `82c58a4281db4d7ffa2b9d19f743f72bb7bce7db5f6c111fd1540656c7bf4a0b`); `ocr-addon-ocrcer.zip` 3,789,155 (`c89ca5937fc6f279b9a81d7eca2ab0031c27cd80f8e0c56079ff744cf1063d0d`); `ocr-addon-ocrs.zip` 11,352,262 (`f169cb726f643ae11ea4647882919713f6c5e7535dc8aa5bc252c4bacdb6bc84`); `ocr-addon-tesseract.zip` 4,483,685 (`d65afaa3cbc6c060ba815499f794d84aa8ae861730080be23b6e3e3acbe93364`); plus one `.sha256` for each.
+- **Build folder** `D:\builds\pdfcer-20261022-1306-4ea93ab` (53,874,193 B; `pdfcer.exe` 37,948,416 B). `pdfcer --version`: 0.91.0, revision `v0.91.0`, iccce 0.3.0 rev `a4d9003b`.
+- **Fresh-folder smoke** (copy of the build folder): `optimize --keep-structure --streams "image(encode=jpeg,ssim=0.98)"` on the 1,603,435 B photo PDF -> 147,835 B (9.2%), `render-page` clean, no stripes; `ocr` (default paddle engine) on `fixtures/synthetic/ocr/scan.pdf` then `find-text --needle Recognition` -> 1 match.
+- **OneDrive:** deployed to slot `pdfcer2` (6 items, 73,495,875 B); `pdfcer1` keeps 0.90.0. **The NEXT release writes `pdfcer1`.**
+- **`verify-release.py v0.91.0`:** every check ok except "working tree clean" (the deliberately uncommitted `.claude/agent-memory` files).
+- **`pdfcer-gui` notified:** `reply_resolve_one_named_destination_FIXED.md` (named lookup landed at v0.91.0; refresh lock for the zune rc3 fix). The request it answers sits at the channel root with no G key; recorded in the reply.
+- **Inbound, iccce:** see the Backlog item "iccce crates.io pin" (waiting on Ken).
+- **STILL OWED, NOT RUN:** the pdfium render-parity tool against zune-jpeg rc3 (first noted in the 1181st).
+- `FEATURES.md`: no change. No decision. Ledgers: next free `Pass 622.0`, decision `198`, `R263`; next filing 1184th.
+
+#### Bump record (1182nd filing)
 
 Bump `20c6191b` ("chore: bump version to 0.91.0": `Cargo.toml` `[workspace.package]` version and the `pdfcer-model` `[workspace.dependencies]` version 0.90.0 -> 0.91.0; `Cargo.lock` and `fuzz/Cargo.lock` by `cargo update -w`) on `main`, after `d226e83d` (the 1181st filing). Engineer-reported; I have no shell (hard rule 8). The lock diff renames workspace crates only; the dependency changes (zune-jpeg rc3) shipped earlier in `244d48ab` and are already filed.
 
 **v0.91.0 carries** (all filed in the 1181st): `Pass 620.0` (`244d48ab`, zune-jpeg `=0.5.16-rc3` pin; fixes the 4:2:0 one-scan-per-component render), `Pass 616.9` slice 1 (`67521d61`, `image(ssim=)`), `Pass 621.0` (`f5faa4c4`, `DestinationReader::named` for `pdfcer-gui`) and `ad4c81f9` (CI crate-list gate fix). Re-measured ssim sizes are in the `Pass 616.9` entry below.
 
-**Release plan, NOT done:** tag `v0.91.0` on this filing's commit; publish to OneDrive slot `pdfcer2` (`v0.90.0` is in `pdfcer1`). **Not claimed done:** tag, package, smoke, `verify-release.py`, GitHub release, OneDrive slot, notice to `pdfcer-gui`; publication gets its own later filing. Reminder from the 1181st: the pdfium render-parity tool has not been run against rc3. `FEATURES.md`: no change. No decision. Ledgers: next free `Pass 622.0`, decision `198`, `R263`; next filing 1183rd.
+**[Superseded by the entry above, 1183rd: all of the following were done and are filed there.]** Release plan as written at the 1182nd: tag `v0.91.0`; publish to OneDrive slot `pdfcer2` (`v0.90.0` is in `pdfcer1`). Then not claimed done: tag, package, smoke, `verify-release.py`, GitHub release, OneDrive slot, notice to `pdfcer-gui`. Reminder from the 1181st: the pdfium render-parity tool has not been run against rc3. `FEATURES.md`: no change. No decision. Ledgers: next free `Pass 622.0`, decision `198`, `R263`; next filing 1183rd.
 
 ### Pass 621.0 (`f5faa4c4`), 2026-10-22 — `DestinationReader::named` resolves one destination name (1181st filing)
 
@@ -34045,6 +34059,8 @@ real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
 
 > **zune-jpeg: move `=0.5.16-rc3` to stable 0.5.16 in all three manifests, UNSCOPED, no Pass ID (filed 1181st, 2026-10-22).** Manifests: `pdfcer-image-codec`, `pdfcer-3d` (optional), `pdfcer-render` (dev). **Acceptance:** green gates plus the regression test `every_layout_the_writer_emits_reads_back_through_the_decoder`; regenerate lockfiles and `THIRD_PARTY_LICENSES.md`. **BLOCKER for any crates.io publish Pass:** a published pre-release pin fails to resolve beside a downstream `zune-jpeg ^0.5` (decision 197).
+
+> **iccce crates.io pin, UNSCOPED, no Pass ID, WAITING ON KEN (filed 1183rd, 2026-10-22).** `iccce` replied (`iccce_FeatureRequests/open/reply_crates_io_ready_and_the_version_to_pin.md`): all five iccce crates pass `cargo package`; `v0.3.1` = rev `a4d9003b`'s API unchanged plus a packaging fix; pin version `0.3.1` if published. Publishing is Ken's decision. **pdfcer action only when Ken decides to publish:** add `version = "0.3"` beside the git dependency in `crates/pdfcer-render/Cargo.toml`. Neighbour of the zune-jpeg blocker above; both are crates.io-readiness items (`Pass 618.1`). Engineer-reported.
 
 > **Residue of `Pass 616.6` (font re-subset, COMPLETE; filed 1166th, 2026-10-22), three UNSCOPED optimize items, no Pass ID yet.** Corpus: `fixtures/external`, 2,915 files, `pdfcer list-fonts`. (a) **Merge CFF copies of one face** (`/FontFile3`): measured 0 of 2,915 files embed a CFF face twice (the 24 duplicated faces in 22 files, 346,987 B, are all TrueType and already merged), so no instance justifies it; build only if one turns up. (b) **Type 1 `/FontFile` re-subset**: 12 programs in 6 files, 184 KB, about 1.5% of embedded font bytes; needs the Type 1 charstring and eexec path, low payoff. (c) **Short `loca` after a cut**: unmeasured; saves at most 2 bytes per glyph before Flate, and a zeroed font's `loca` compresses well, so judged small. Measure on a cut corpus before building.
 

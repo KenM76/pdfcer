@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1183rd filing) — `v0.91.0` PUBLISHED (tag, GitHub release, OneDrive `pdfcer2`)
+
+**Filed (engineer-reported, no shell here):** tag `v0.91.0` (annotated object `1c901425e371c5e51d8ede76b86e8f631fb8023b` -> `4ea93ab171bd54e221e3b611b4dd508c9097f8f6`; earlier tags lightweight, harmless); `origin main` = `4ea93ab1`; bump `20c6191b`. CI: run 39820062337 on `4ea93ab1` success; run 39818460814 on `d226e83d` success, including the audits job red on 39798789939 and 39796816312. GitHub release "pdfcer v0.91.0", 8 assets (zip 27,280,798 B; ocrcer 3,789,155; ocrs 11,352,262; tesseract 4,483,685; four `.sha256`); hashes in the ROADMAP entry. Build `D:\builds\pdfcer-20261022-1306-4ea93ab` 53,874,193 B (`pdfcer.exe` 37,948,416 B); `--version` 0.91.0, iccce 0.3.0 rev `a4d9003b`.
+
+**Smoke (fresh folder):** `optimize ... image(encode=jpeg,ssim=0.98)` on the 1,603,435 B photo -> 147,835 B (9.2%), `render-page` clean; `ocr` (paddle) on `fixtures/synthetic/ocr/scan.pdf` then `find-text --needle Recognition` -> 1 match. OneDrive slot `pdfcer2` (6 items, 73,495,875 B); `pdfcer1` keeps 0.90.0; the NEXT release writes `pdfcer1`. `verify-release.py v0.91.0`: all ok except "working tree clean" (deliberately uncommitted agent-memory files). `pdfcer-gui` notified via `reply_resolve_one_named_destination_FIXED.md`.
+
+**Inbound:** `iccce` reply `reply_crates_io_ready_and_the_version_to_pin.md`: five crates pass `cargo package`; pin `0.3.1` if published; Ken decides. Filed as a ROADMAP Backlog item next to the zune-jpeg blocker; pdfcer action only on go-ahead: `version = "0.3"` in `crates/pdfcer-render/Cargo.toml`.
+
+**Not run (kept visible):** pdfium render-parity tool against zune-jpeg rc3. `FEATURES.md` no change (it tracks no release state; grep for 0.91.0/0.90.0 found none). No decision. Hard-rule-11 sweep: the 1182nd entry's "release PENDING / NOT done" wording was the only survivor; marked superseded in ROADMAP. `docs/NEXT_SESSION.md` untouched. Git, push and backup state not verified from here.
+
+**For next session:** next free `Pass 622.0`, decision `198`, `R263`; next filing 1184th; next release writes `pdfcer1`; pdfium parity run owed; Ken's decision on crates.io publishing.
+
 ## 2026-10-22 (1182nd filing) — `v0.91.0` bump `20c6191b` filed (no Pass consumed)
 
 **Filed (engineer-reported, no shell here):** bump `20c6191b` ("chore: bump version to 0.91.0": `Cargo.toml` workspace version and the `pdfcer-model` workspace-dependency version 0.90.0 -> 0.91.0; `Cargo.lock`, `fuzz/Cargo.lock` by `cargo update -w`) after `d226e83d` (1181st). Carries `Pass 620.0` (`244d48ab`), `Pass 616.9` slice 1 (`67521d61`), `Pass 621.0` (`f5faa4c4`) and `ad4c81f9`, all filed in the 1181st. Recorded as a ROADMAP Shipped bump entry, as the 1173rd did for `v0.90.0`.

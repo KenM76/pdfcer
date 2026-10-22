@@ -5,7 +5,7 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-21, during the size-reduction arc (Ken 2026-10-20: "meet
+**Written:** 2026-10-22 (v0.91.0), during the size-reduction arc (Ken 2026-10-20: "meet
 or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## State
@@ -15,13 +15,19 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   deny every panic lint; exemptions are in `tools/panic-allows-baseline.txt`
   (shrink-only, `check-panic-allows.py`). color/model/pkix `cargo package` in
   CI. **Bump the `pdfcer-model` version in `[workspace.dependencies]` with
-  every release.** Open: iccce's reply to `request_get_iccce_crates_io_ready.md`;
-  pkix full verify waits for model on a registry; decision 196 split precedes
+  every release.** iccce replied (`open/reply_crates_io_ready_and_the_version_to_pin.md`):
+  package-ready, pin `0.3.1` if published (API = our rev `a4d9003b`), publishing
+  is Ken's call; when it is, add `version = "0.3"` beside the git dep in
+  pdfcer-render. **zune-jpeg is pinned `=0.5.16-rc3` (decision 197): moving to
+  stable 0.5.16 blocks any crates.io publish.** pkix full verify waits for model on a registry; decision 196 split precedes
   pkix's first publish. Never flip `publish = true` (Ken's call).
   `cargo publish --dry-run` is permission-denied; use `cargo package`.
 - G214-G217 replies are already on the channel (the earlier "owed" note was stale).
-- **Release:** v0.90.0 is published (OneDrive `pdfcer1`; `pdfcer2` keeps 0.89.0).
-  **The next release writes `pdfcer2`.** Release gates are change-scoped (Ken, 2026-10-16): test
+- **Release:** v0.91.0 is published (8 assets; OneDrive `pdfcer2`; `pdfcer1`
+  keeps 0.90.0). **The next release writes `pdfcer1`.** The pdfium
+  render-parity tool was NOT run against zune rc3; run it before trusting
+  JPEG render numbers. Disk D: filled once this session: `target/debug/incremental`
+  (48 GB) is safe to delete; `.claude/worktrees` (22 GB) was left alone. Release gates are change-scoped (Ken, 2026-10-16): test
   the crates changed since the last tag + the filing gates + the fresh-folder
   smoke; `run-gates.sh` is CI's job. `verify-release` fails only "working tree
   clean", on the uncommitted spec-librarian memory files (deliberate).
@@ -73,6 +79,10 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   warnings, 0 FAIL, 44 expected refusals. Re-run it after touching
   `linearize/classify.rs`. Next: 616.9 quality/byte-budget, 616.10
   compatibility; 616.7 still open for forms/patterns.
+  **616.9 slice 1 shipped**: `image(encode=jpeg,ssim=X)` (lowest quality whose
+  SSIM reaches X). 1,603,435 B photo: q90 805,853; ssim .99 -> q53 234,628;
+  .98 -> q24 147,835; .95 -> q8 85,268 (~7 s, 8 trials). Next slices: byte
+  budget, visual-diff report.
 - **Fixture generator:** `tools/gen-resubset-fixtures.py` needs fontTools
   for `symbolic.pdf`. Python string escapes typed through Bash lose their
   backslash (an octal escape ended up as a raw 0xC9 byte), so write edit
@@ -100,7 +110,7 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## Next
 
-1. Pass 616.9 quality/byte budget, then 616.10 compatibility; 616.7
+1. Pass 616.9 byte budget + visual-diff report, then 616.10 compatibility; 616.7
    forms/patterns rounding (see State).
 2. Each loop tick: the three inbound channels (GitHub issues, both
    FeatureRequests folders).
