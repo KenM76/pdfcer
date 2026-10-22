@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1170th filing) — `Pass 616.7` slice 4 in `041b358a`: text line starts rounded
+
+**Shipped:** `content(round=T)` also rounds a `Tm` translation and each `Td` offset; each `Td` rounds toward the line's true start, carrying earlier lines' error so drift never builds; tolerance checked on the absolute start through `Tlm` then the CTM. `TD` not rounded (its `ty` sets the leading). `q`/`Q`/`cm` inside `BT`, or non-numeric `Tm`/`Td` operands, un-round the text object. Sabotage 4 of 4 and it exposed a real `tm_err` sign bug, fixed pre-commit. Core 24/24 (5 new), CLI optimize 51. Fuzz expected: optimize_content, 90 s, clean.
+
+**Decisions:** FEATURES: rounding row widened to line starts; Planned remainder drops `Tm`/`Td`, notes `TD` excluded by design. No numbers minted (next Pass 618.0, decision 195, R263).
+
+**Still in flight:** `Pass 616.7` open: non-first streams, page-scale walk. Then `616.8`-`616.10`.
+
+**For next session:** git/push/backup state not verified (no shell). Next filing 1171st.
+
 ## 2026-10-22 (1169th filing) — `Pass 616.7` slice 3 in `23f92d9e`: array and dictionary operands
 
 **Shipped:** `content(...)` now re-lexes array and dictionary operands (`TJ`, `d`, `BDC` lists): shortest numbers, minimal separators, strings/names/keywords byte for byte; nested numbers counted in `numbers_shortened`; unlexable or not-shorter composites stay verbatim. Lossless; re-read compares arrays element-wise (sabotage: wrong nested value refused as `Mismatch`). No new pub items, no new flag. Core 19/19 (1 new), CLI 4/4.
