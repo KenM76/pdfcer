@@ -76,6 +76,7 @@ mod encryption;
 mod encryption_refusal;
 mod facade_paths;
 mod field_appearance;
+mod field_creation_appearance;
 mod field_properties;
 mod field_script_authoring;
 mod field_set_clipboard;

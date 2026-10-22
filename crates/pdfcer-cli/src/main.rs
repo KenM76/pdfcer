@@ -628,6 +628,8 @@ mod dimension_area;
 use dimension_area::*;
 mod field_edit;
 use field_edit::*;
+mod field_style;
+use field_style::*;
 mod field_set_cmd;
 use field_set_cmd::*;
 mod annot_edit;

@@ -5894,6 +5894,8 @@ pub(crate) enum Command {
         /// the border's style and width. Different dictionaries.
         #[arg(long, value_name = "none|G|R,G,B|C,M,Y,K")]
         border_color: Option<String>,
+        #[command(flatten)]
+        style: FieldStyleArgs,
         /// Where the widget is visible (§12.5.3 Table 165).
         #[arg(long, value_enum, default_value_t = VisibilityArg::Visible)]
         visibility: VisibilityArg,
@@ -8283,41 +8285,8 @@ pub(crate) enum Command {
         /// REMOVE `/TM`, so an export reverts to the field's own name.
         #[arg(long, conflicts_with = "mapping_name")]
         clear_mapping_name: bool,
-        /// `/DA` font — the face the field's VALUE is drawn in. One of the
-        /// standard 14: helvetica, helvetica-bold, helvetica-oblique,
-        /// helvetica-bold-oblique, times, times-bold, times-italic,
-        /// times-bold-italic, courier, courier-bold, courier-oblique,
-        /// courier-bold-oblique, symbol, zapf-dingbats.
-        ///
-        /// pdfcer adds the font to the form's default resources, so the name
-        /// always resolves. To use a face the document already embeds, pass
-        /// its resource key with `--font-resource` instead.
-        ///
-        /// Requires `--font-size`. Changing any of the three redraws the
-        /// field, so the text you see matches what the file says.
-        #[arg(long, value_name = "NAME")]
-        font: Option<String>,
-        /// `/DA` font, named by a resource key ALREADY in the form's `/DR`
-        /// `/Font` — an embedded face the document's own author put there.
-        ///
-        /// REFUSED if the key is not there, listing what is. pdfcer will not
-        /// write a `/DA` naming a font that does not resolve: the field would
-        /// draw in a substituted face, look normal, and be wrong.
-        #[arg(long, value_name = "KEY", conflicts_with = "font")]
-        font_resource: Option<String>,
-        /// `/DA` size in points. `0` means AUTO — the reader fits the text to
-        /// the box, which is what Acrobat calls Auto and what a new text
-        /// field defaults to.
-        #[arg(long, value_name = "PT")]
-        font_size: Option<f64>,
-        /// `/DA` text colour: one number for gray, three for RGB, four for
-        /// CMYK, comma separated, each 0-1. Defaults to black.
-        ///
-        /// This is the colour of the VALUE's glyphs. The box's own fill and
-        /// border are `edit-widget --background` and `--border-color`, a
-        /// different dictionary entirely.
-        #[arg(long, value_name = "G|R,G,B|C,M,Y,K")]
-        font_color: Option<String>,
+        #[command(flatten)]
+        style: FieldStyleArgs,
         /// Replace a choice field's option list. Repeatable, in order.
         /// `Label` for a plain option, or `export=Label` when the submitted
         /// value differs from what the operator sees.
@@ -8722,6 +8691,8 @@ pub(crate) enum Command {
         /// the border's style and width. Different dictionaries.
         #[arg(long, value_name = "none|G|R,G,B|C,M,Y,K")]
         border_color: Option<String>,
+        #[command(flatten)]
+        style: FieldStyleArgs,
         /// Where the widget is visible (§12.5.3 Table 165).
         #[arg(long, value_enum, default_value_t = VisibilityArg::Visible)]
         visibility: VisibilityArg,

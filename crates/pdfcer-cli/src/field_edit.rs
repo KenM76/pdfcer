@@ -20,6 +20,8 @@ pub(crate) struct AddTextFieldArgs<'a> {
     pub(crate) background: Option<&'a str>,
     pub(crate) border_color: Option<&'a str>,
     pub(crate) visibility: VisibilityArg,
+    /// `/DA`: font, size, colour.
+    pub(crate) style: &'a FieldStyleArgs,
     pub(crate) output: &'a Path,
     pub(crate) mode: SaveMode,
     pub(crate) defaults_from: Option<&'a str>,
@@ -75,6 +77,8 @@ pub(crate) struct AddChoiceFieldArgs<'a> {
     pub(crate) background: Option<&'a str>,
     pub(crate) border_color: Option<&'a str>,
     pub(crate) visibility: VisibilityArg,
+    /// `/DA`: font, size, colour.
+    pub(crate) style: &'a FieldStyleArgs,
 }
 
 /// Borrowed argument bundle for [`cmd_add_push_button`] (clippy arg-count).
@@ -397,14 +401,8 @@ pub(crate) struct EditFieldArgs<'a> {
     pub(crate) mapping_name: Option<&'a str>,
     /// Remove `/TM`.
     pub(crate) clear_mapping_name: bool,
-    /// A standard-14 face name for `/DA`.
-    pub(crate) font: Option<&'a str>,
-    /// A `/DR` `/Font` resource key for `/DA`.
-    pub(crate) font_resource: Option<&'a str>,
-    /// `/DA` size in points; 0 = auto.
-    pub(crate) font_size: Option<f64>,
-    /// `/DA` text colour, 1/3/4 components.
-    pub(crate) font_color: Option<&'a str>,
+    /// `/DA`: font, size, colour.
+    pub(crate) style: &'a FieldStyleArgs,
     pub(crate) options: &'a [String],
     pub(crate) output: &'a Path,
     pub(crate) mode: SaveMode,
@@ -519,42 +517,10 @@ pub(crate) fn cmd_edit_field(args: &EditFieldArgs<'_>) -> u8 {
         edit = edit.clearing_mapping_name();
     }
 
-    // `/DA`. All three parts travel together because the string carries all
-    // three -- writing a size without a face would mean inventing the face,
-    // which is the substitution this project refuses elsewhere.
-    if args.font.is_some() || args.font_resource.is_some() {
-        let Some(size) = args.font_size else {
-            eprintln!(
-                "pdfcer: --font/--font-resource needs --font-size (0 means auto-size, which is what a new text field uses)"
-            );
-            return exit::RUNTIME_ERROR;
-        };
-        let colour = match args.font_color {
-            None => pdfcer_core::vartext::TextColor::Gray(0.0),
-            Some(raw) => match parse_text_colour(raw) {
-                Some(c) => c,
-                None => {
-                    eprintln!(
-                        "pdfcer: --font-color {raw:?} -- expected 1 (gray), 3 (RGB) or 4 (CMYK) comma-separated components in 0-1"
-                    );
-                    return exit::RUNTIME_ERROR;
-                }
-            },
-        };
-        let appearance = if let Some(name) = args.font {
-            let Some(face) = parse_std14(name) else {
-                eprintln!(
-                    "pdfcer: --font {name:?} -- known: helvetica, helvetica-bold, helvetica-oblique, helvetica-bold-oblique, times, times-bold, times-italic, times-bold-italic, courier, courier-bold, courier-oblique, courier-bold-oblique, symbol, zapf-dingbats"
-                );
-                return exit::RUNTIME_ERROR;
-            };
-            pdfcer_core::edit::FieldAppearance::standard(face, size, colour)
-        } else {
-            // Unwrap-free: the branch is guarded by the `is_some()` above.
-            let key = args.font_resource.unwrap_or_default();
-            pdfcer_core::edit::FieldAppearance::resource(key.as_bytes().to_vec(), size, colour)
-        };
-        edit = edit.with_appearance(appearance);
+    match args.style.appearance() {
+        Ok(Some(appearance)) => edit = edit.with_appearance(appearance),
+        Ok(None) => {}
+        Err(code) => return code,
     }
     if !args.options.is_empty() {
         let parsed: Vec<pdfcer_core::edit::ChoiceOption> = args
@@ -2380,6 +2346,11 @@ pub(crate) fn cmd_add_choice_field(args: &AddChoiceFieldArgs<'_>) -> u8 {
     // `Pass 308.1`: the colours land on the SPEC, so the `/MK` dictionary and
     // the `/AP` artwork are written from one value. Parsed before anything is
     // staged, so a mistyped colour costs nothing.
+    match args.style.appearance() {
+        Ok(Some(appearance)) => spec = spec.with_appearance(appearance),
+        Ok(None) => {}
+        Err(code) => return code,
+    }
     let chrome = match parse_creation_chrome(args.background, args.border_color) {
         Ok(c) => c,
         Err(code) => return code,
@@ -2741,6 +2712,11 @@ pub(crate) fn cmd_add_text_field(args: &AddTextFieldArgs<'_>) -> u8 {
     // `Pass 308.1`: the colours land on the SPEC, so the `/MK` dictionary and
     // the `/AP` artwork are written from one value. Parsed before anything is
     // staged, so a mistyped colour costs nothing.
+    match args.style.appearance() {
+        Ok(Some(appearance)) => spec = spec.with_appearance(appearance),
+        Ok(None) => {}
+        Err(code) => return code,
+    }
     let chrome = match parse_creation_chrome(args.background, args.border_color) {
         Ok(c) => c,
         Err(code) => return code,

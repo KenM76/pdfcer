@@ -1831,7 +1831,7 @@ entry** each — field dict + widget + baked `/AP` + page `/Annots` + `/AcroForm
 
 | I want to… | Call |
 |---|---|
-| Add a text field | `add_text_field(&mut self, spec: &NewTextField)` |
+| Add a text field | `add_text_field(&mut self, spec: &NewTextField)` — `.with_appearance(FieldAppearance)` states `/DA` at creation (also on `NewChoiceField`) |
 | Add a check box | `add_check_box(&mut self, spec: &NewCheckBox)` |
 | Add one member of a radio group | `add_radio_button(&mut self, spec: &NewRadioButton)` — `spec.style: CheckStyle` picks the mark (G115). Default `Circle` is the centre dot and writes no `/MK /CA`; any other style is recorded in `/MK /CA` and survives a resize. |
 | Add a push button | `add_push_button(&mut self, spec: &NewPushButton)` |
@@ -3773,6 +3773,29 @@ nobody asked for. Stating no colour now writes no key, so:
 **CLI:** `--background` and `--border-color` on all five `add-*` verbs, spelled
 exactly as `edit-widget`'s, and each verb's output line now carries
 `background=` and `border_color=` in `list-fields --widgets` spelling.
+
+### `/DA` at creation: `NewTextField` / `NewChoiceField::with_appearance` (`Pass 629.0`)
+
+Both specs carry `pub appearance: Option<FieldAppearance>`, set with
+`.with_appearance(FieldAppearance)` — the same value `FieldEdit::with_appearance`
+takes. `None` is the creation default (`/Helv 0 Tf 0 g`), byte-identical to
+before. One command, one undo entry, one baked `/AP`.
+
+- **Same resolution as `edit_field`.** `FieldFont::Standard` adds its `/DR /Font`
+  resource under the short key (`Cour`, `TiBo`…) in the command's single
+  `/AcroForm` write, including when the field hangs off an existing parent;
+  `FieldFont::Resource(key)` not in `/DR /Font` is refused
+  `EditError::FieldFontNotInResources` and nothing is created.
+- **Same drawing as `edit_field`.** The `/AP` is built by the regenerator's
+  builder and its fonts bound to `/DR`, so create-with-appearance and
+  create-then-`edit_field` produce identical `/DA` and `/AP` bytes (pinned).
+- **Refused on a merge:** a name that is already a field adds a widget to it,
+  and widgets draw in their field's `/DA`. `EditError::FieldAppearanceOnMerge
+  { name }`; restyle the existing field with `edit_field` instead.
+
+CLI: `add-text-field` / `add-choice-field --font NAME | --font-resource KEY
+--font-size PT [--font-color G|R,G,B|C,M,Y,K]`, the options `edit-field` takes.
+`--font-size`/`--font-color` without a font is refused on all three verbs.
 
 ### ★ Removing an `/MK` colour — `MkColorEdit`, and why the setters changed shape (`Pass 308.3`, request `G021`)
 
@@ -5948,7 +5971,7 @@ borrow it (`tests/image_placement.rs`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**184 variants**, counted at depth 1 inside `pub enum EditError`.
+**185 variants**, counted at depth 1 inside `pub enum EditError`.
 (`NotARadioGroup` and `WidgetAlreadyInField`, Pass 582.0, are the newest; `SourcePageOutOfRange`: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 

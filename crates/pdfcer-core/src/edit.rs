@@ -124,6 +124,7 @@
 
 mod annot_restyle;
 mod batch;
+mod field_da;
 mod field_set;
 pub use batch::AnnotationBatchMove;
 mod batch_transform;
@@ -2039,6 +2040,11 @@ pub struct NewTextField {
     /// [`NewTextField::with_border_color`]. See [`creation_chrome`] for why
     /// one value feeds the dictionary and the artwork.
     pub chrome: annot_author::WidgetChrome,
+    /// `/DA`, the font, size and colour the value is drawn in. `None` is the
+    /// creation default: Helvetica, auto size, black. Set with
+    /// `with_appearance`; a [`FieldFont::Resource`] not in `/DR /Font` is
+    /// refused, as [`FieldEdit::with_appearance`] refuses it.
+    pub appearance: Option<FieldAppearance>,
 }
 
 /// The `/MK` colours a newly authored widget is both DESCRIBED and PAINTED
@@ -2447,6 +2453,7 @@ impl NewTextField {
             border: BorderSpec::default(),
             visibility: Visibility::default(),
             chrome: creation_chrome(),
+            appearance: None,
         }
     }
 
@@ -2482,6 +2489,16 @@ impl NewTextField {
     #[must_use]
     pub const fn with_visibility(mut self, visibility: Visibility) -> Self {
         self.visibility = visibility;
+        self
+    }
+
+    /// Set `/DA`: the font, size (`0.0` is auto) and colour of the value.
+    ///
+    /// Refused at creation with [`EditError::FieldAppearanceOnMerge`] when
+    /// the name is an existing field's, whose `/DA` its widgets share.
+    #[must_use]
+    pub fn with_appearance(mut self, appearance: FieldAppearance) -> Self {
+        self.appearance = Some(appearance);
         self
     }
 
@@ -3193,6 +3210,11 @@ pub struct NewChoiceField {
     ///
     /// Set with [`NewChoiceField::with_background`] and [`NewChoiceField::with_border_color`].
     pub chrome: annot_author::WidgetChrome,
+    /// `/DA`, the font, size and colour the value is drawn in. `None` is the
+    /// creation default: Helvetica, auto size, black. Set with
+    /// `with_appearance`; a [`FieldFont::Resource`] not in `/DR /Font` is
+    /// refused, as [`FieldEdit::with_appearance`] refuses it.
+    pub appearance: Option<FieldAppearance>,
 }
 
 impl NewChoiceField {
@@ -3272,6 +3294,7 @@ impl NewChoiceField {
             border: BorderSpec::default(),
             visibility: Visibility::default(),
             chrome: creation_chrome(),
+            appearance: None,
         }
     }
 
@@ -3380,6 +3403,16 @@ impl NewChoiceField {
     #[must_use]
     pub const fn with_visibility(mut self, visibility: Visibility) -> Self {
         self.visibility = visibility;
+        self
+    }
+
+    /// Set `/DA`: the font, size (`0.0` is auto) and colour of the value.
+    ///
+    /// Refused at creation with [`EditError::FieldAppearanceOnMerge`] when
+    /// the name is an existing field's, whose `/DA` its widgets share.
+    #[must_use]
+    pub fn with_appearance(mut self, appearance: FieldAppearance) -> Self {
+        self.appearance = Some(appearance);
         self
     }
 }
@@ -8802,6 +8835,17 @@ pub enum EditError {
         /// The keys that ARE there, so the message is actionable rather than
         /// merely correct.
         available: String,
+    },
+    /// A new text or choice field was given an appearance
+    /// (`NewTextField::with_appearance`) but its name is an existing field's,
+    /// so the call would add a widget to that field. `/DA` is a field key
+    /// its widgets share; restyle the field with [`FieldEdit::with_appearance`].
+    #[error(
+        "{name:?} is an existing field, so this adds a widget to it, and a widget draws in its field's /DA; nothing was changed. Drop the appearance, or restyle the field with edit-field"
+    )]
+    FieldAppearanceOnMerge {
+        /// The fully-qualified name given.
+        name: String,
     },
     /// [`FieldEdit::quadding`] was given a value ISO 32000-1 §12.7.4.3
     /// Table 222 does not define.
@@ -27557,20 +27601,14 @@ impl EditSession {
             &spec.tooltip,
         )?;
 
-        // The `/DA` Acrobat's floor specifies: Helvetica, size 0 (auto), black.
-        let da = crate::vartext::default_appearance_string(
-            b"Helv",
-            0.0,
-            crate::vartext::TextColor::Gray(0.0),
-        );
-        let resources = [crate::vartext::FontResource {
-            name: b"Helv".to_vec(),
-            font: crate::fontdata::Std14::Helvetica,
-            widths: None,
-            ascent: None,
-            codes: None,
-            cid: None,
-        }];
+        // `None` is Acrobat's floor: Helvetica, size 0 (auto), black.
+        if spec.appearance.is_some() && matches!(path, FieldPath::Terminal { .. }) {
+            return Err(EditError::FieldAppearanceOnMerge {
+                name: spec.name.clone(),
+            });
+        }
+        let style = self.creation_da(spec.appearance.as_ref())?;
+        let (da, resources) = (style.da, style.resources);
         // THE SAME builder a fill uses (R92: one regenerator, never two).
         // A created field and a filled one therefore cannot disagree about
         // how a value is drawn — which they could if this hand-assembled its
@@ -27601,6 +27639,9 @@ impl EditSession {
 
         let ap_span = self.stage_bytes(&appearance.content);
         let mut ap_dict = appearance.ap_dict;
+        if style.bind {
+            self.bind_dr_fonts(&mut ap_dict);
+        }
         ap_dict.insert(
             Name::from(b"Length"),
             Object::Integer(i64::try_from(appearance.content.len()).unwrap_or(i64::MAX)),
@@ -27678,7 +27719,7 @@ impl EditSession {
         };
         let field_id = ObjId::new(self.alloc_number()?, 0);
         let (parent_writes, parent, partial) =
-            self.place_new_field(deepest, &remaining, field_id)?;
+            self.place_new_field_needing(deepest, &remaining, field_id, style.needs)?;
 
         // The MERGED field + widget dictionary (§12.5.6.19).
         let mut d = Dict::new();
@@ -28389,13 +28430,28 @@ impl EditSession {
         remaining: &[String],
         field_id: ObjId,
     ) -> Result<(Vec<ObjectWrite>, Option<ObjId>, String), EditError> {
+        self.place_new_field_needing(deepest, remaining, field_id, None)
+    }
+
+    /// [`Self::place_new_field`], also adding `needs` to `/AcroForm /DR
+    /// /Font` in the same single `/AcroForm` write, for a `/DA` naming it.
+    fn place_new_field_needing(
+        &mut self,
+        deepest: Option<ObjId>,
+        remaining: &[String],
+        field_id: ObjId,
+        needs: Option<crate::fontdata::Std14>,
+    ) -> Result<(Vec<ObjectWrite>, Option<ObjId>, String), EditError> {
         let (mut writes, parent, partial, register) =
             self.place_new_field_deferred(deepest, remaining, field_id)?;
         if let Some(root) = register {
-            let dr_fonts = self.dr_font_objects(&[])?;
+            let also: Vec<_> = needs.into_iter().collect();
+            let dr_fonts = self.dr_font_objects(&also)?;
             let (af, held) = self.acroform_register_write(root, &dr_fonts)?;
             writes.push(af);
             writes.extend(held);
+        } else if let Some(face) = needs {
+            writes.extend(self.acroform_ensure_font_write(face)?.unwrap_or_default());
         }
         Ok((writes, parent, partial))
     }
@@ -30582,30 +30638,11 @@ impl EditSession {
         // looks entirely normal, and is wrong in a way the operator cannot
         // see. `Standard` cannot fail here -- pdfcer authors the resource
         // below -- which is why it is the variant a shell should default to.
-        let da_font_key: Option<Vec<u8>> = match &edit.appearance {
-            None => None,
-            Some(app) => Some(match &app.font {
-                FieldFont::Standard(f) => Self::std14_resource_key(*f).to_vec(),
-                FieldFont::Resource(name) => {
-                    let present: Vec<String> = self
-                        .acroform_dr_font_keys()
-                        .iter()
-                        .map(|k| String::from_utf8_lossy(k).into_owned())
-                        .collect();
-                    if !present.iter().any(|k| k.as_bytes() == name.as_slice()) {
-                        return Err(EditError::FieldFontNotInResources {
-                            name: String::from_utf8_lossy(name).into_owned(),
-                            available: if present.is_empty() {
-                                "none -- the AcroForm has no /DR /Font dictionary".to_owned()
-                            } else {
-                                present.join(", ")
-                            },
-                        });
-                    }
-                    name.clone()
-                }
-            }),
-        };
+        let da_font_key: Option<Vec<u8>> = edit
+            .appearance
+            .as_ref()
+            .map(|app| self.field_da_key(app))
+            .transpose()?;
 
         let ft = field.field_type;
         let is_text = ft == Some(forms::FieldType::Text);
@@ -32232,19 +32269,13 @@ impl EditSession {
             sort_choice_options(&mut options);
         }
 
-        let da = crate::vartext::default_appearance_string(
-            b"Helv",
-            0.0,
-            crate::vartext::TextColor::Gray(0.0),
-        );
-        let resources = [crate::vartext::FontResource {
-            name: b"Helv".to_vec(),
-            font: crate::fontdata::Std14::Helvetica,
-            widths: None,
-            ascent: None,
-            codes: None,
-            cid: None,
-        }];
+        if spec.appearance.is_some() && matches!(path, FieldPath::Terminal { .. }) {
+            return Err(EditError::FieldAppearanceOnMerge {
+                name: spec.name.clone(),
+            });
+        }
+        let style = self.creation_da(spec.appearance.as_ref())?;
+        let (da, resources) = (style.da, style.resources);
         // THE SAME builder a fill and a text field use (R92).
         let appearance = annot_author::build_field_text_appearance(
             w,
@@ -32262,6 +32293,9 @@ impl EditSession {
         let ap_id = ObjId::new(self.alloc_number()?, 0);
         let ap_span = self.stage_bytes(&appearance.content);
         let mut ap_dict = appearance.ap_dict;
+        if style.bind {
+            self.bind_dr_fonts(&mut ap_dict);
+        }
         ap_dict.insert(
             Name::from(b"Length"),
             Object::Integer(i64::try_from(appearance.content.len()).unwrap_or(i64::MAX)),
@@ -32347,7 +32381,7 @@ impl EditSession {
         };
         let field_id = ObjId::new(self.alloc_number()?, 0);
         let (parent_writes, parent, partial) =
-            self.place_new_field(deepest, &remaining, field_id)?;
+            self.place_new_field_needing(deepest, &remaining, field_id, style.needs)?;
 
         d.insert(Name::from(b"FT"), Object::Name(Name::from(b"Ch")));
         d.insert(Name::from(b"Ff"), Object::Integer(spec.field_flags()));

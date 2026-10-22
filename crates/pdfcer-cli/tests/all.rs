@@ -50,6 +50,7 @@ mod extract_tags;
 mod extract_text;
 mod extract_text_ocr_layer;
 mod extract_text_word_gap;
+mod field_creation_style;
 mod field_set_clip;
 mod fill_field_types;
 mod fill_rich_text;
