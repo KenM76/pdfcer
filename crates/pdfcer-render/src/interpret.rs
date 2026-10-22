@@ -1726,6 +1726,21 @@ pub struct Diagnostics {
     /// not by the interpreter, because that is the moment the question is
     /// about.
     pub ink_probe: Option<crate::InkProbe>,
+    /// Under a separation preview ([`crate::SeparationPreview`]): this
+    /// page's plates — the four process inks, then each spot in plane
+    /// order, names as the file spells them. Empty for any other render,
+    /// and when the colorant buffer was refused for memory
+    /// (`cmyk_buffer_refused`).
+    pub inks: Vec<String>,
+    /// Under a separation preview: how many plates were left off.
+    pub inks_hidden: usize,
+    /// Under a separation preview: hidden names that matched no plate on
+    /// this page.
+    pub inks_unmatched: Vec<String>,
+    /// `1` when a separation preview composited this page in ink although
+    /// its blending space is additive — as if the page group declared
+    /// `DeviceCMYK`. Blends on such a page differ from a normal render.
+    pub inks_forced_subtractive: usize,
 }
 
 impl Diagnostics {

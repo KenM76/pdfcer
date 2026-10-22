@@ -3222,6 +3222,34 @@ where the graphics state sets the flags, so it reaches every paint route
 form. A display aid; the document is unchanged. CLI: `render-page` /
 `export-image --no-overprint-preview` (prints a note saying so).
 
+`separation_preview: Option<SeparationPreview>` /
+**`with_separation_preview(preview)`** (request
+`request_separation_preview_hidden_inks.md`) is separation preview with
+plates left off (ISO 32000-2 §10.8.3). `None` (default) is byte-identical to
+today. `Some(SeparationPreview::new().with_hidden(["Black", "PANTONE 185 C"]))`
+composites the page in ink with every overprint and blend resolved, then
+zeroes the hidden plates **just before** the sRGB conversion, so overprinted
+ink under a hidden plate shows through as on press. `hides(name)` is the
+membership test; `PROCESS_INKS` is `["Cyan", "Magenta", "Yellow", "Black"]`.
+Names match exactly as the file spells them after `#xx` decoding; a
+`/Separation /Cyan` paints the Cyan plate. `RenderOptions::ink_probe` is read
+before any plate is hidden. Diagnostics, all zero/empty without a preview:
+
+- `inks: Vec<String>` — the page's plates: the four process inks, then each
+  spot in plane order. Build the ink list in the UI from this.
+- `inks_hidden: usize` — plates actually zeroed.
+- `inks_unmatched: Vec<String>` — hidden names that matched no plate.
+- `inks_forced_subtractive: usize` — 1 when the page would have composited
+  on screen (additive page group, or none under `device_native`) and was
+  composited in ink as if `DeviceCMYK` for the preview.
+
+★ **What the UI must disclose:** `inks_forced_subtractive` (blends and
+transparency can then differ from the normal view), any `inks_unmatched`,
+and `cmyk_spots_flattened` (a spot past the plane cap was folded into process
+ink and cannot be hidden alone). A display aid; print and export leave it
+`None`. CLI: `render-page` / `export-image --separation-preview` and
+`--hide-ink NAME` (repeatable, implies the preview); notes go to stderr.
+
 `stroke_display: StrokeDisplay` sets line weights. It takes one of three
 values:
 

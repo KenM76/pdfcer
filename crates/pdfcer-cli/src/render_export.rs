@@ -50,22 +50,6 @@ pub(crate) struct RenderFlags<'a> {
     pub(crate) hide_layers: &'a [String],
 }
 
-/// The overprint preview `--no-overprint-preview` asks for, saying so on
-/// stderr when it is off: the overprint note's affected-paint count is then
-/// `0` by request, not because the page has nothing to overprint.
-pub(crate) fn overprint_preview(no_overprint_preview: bool) -> pdfcer_render::OverprintPreview {
-    if no_overprint_preview {
-        eprintln!(
-            "pdfcer: note: --no-overprint-preview: overprinting marks are drawn as knockouts, \
-             so the output shows the page as a viewer with Overprint Preview off does, not as \
-             it prints"
-        );
-        pdfcer_render::OverprintPreview::Off
-    } else {
-        pdfcer_render::OverprintPreview::Simulate
-    }
-}
-
 /// Resolve every render-affecting flag into the `RenderOptions` the engine
 /// takes, reporting each override and preset on stderr exactly as
 /// `render-page` always has.
@@ -413,7 +397,7 @@ pub(crate) fn cmd_render_page(
     print_state: bool,
     omit_annotations: &[usize],
     invisible_text: Option<pdfcer_render::InvisibleTextPaint>,
-    overprint_preview: pdfcer_render::OverprintPreview,
+    preview: crate::viewer_preview::ViewerPreview,
 ) -> u8 {
     // Build the font environment from any `--font-dir` BEFORE loading the
     // document: the walk is pure shell-side I/O (R61), and a bad font dir
@@ -477,9 +461,7 @@ numbered 1..={})",
             hide_layers,
         },
     ) {
-        Ok(options) => options
-            .with_invisible_text(invisible_text)
-            .with_overprint_preview(overprint_preview),
+        Ok(options) => preview.apply(options.with_invisible_text(invisible_text)),
         Err(code) => return code,
     };
     let render_options = if omit_annotations.is_empty() {
@@ -1454,8 +1436,8 @@ pub(crate) struct ExportImageArgs<'a> {
     pub(crate) svg_text: SvgTextArg,
     /// Outlines or kept text (EMF only).
     pub(crate) emf_text: SvgTextArg,
-    /// `--no-overprint-preview`.
-    pub(crate) overprint_preview: pdfcer_render::OverprintPreview,
+    /// `--no-overprint-preview`, `--separation-preview`, `--hide-ink`.
+    pub(crate) preview: crate::viewer_preview::ViewerPreview,
 }
 
 /// `export-image`: render each selected page and write it as a PNG or JPEG
@@ -1509,7 +1491,7 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
         print_state,
         svg_text,
         emf_text,
-        overprint_preview,
+        preview,
     } = args;
 
     // ---- operator-mistake refusals, all before any I/O ----
@@ -1626,7 +1608,7 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
             hide_layers,
         },
     ) {
-        Ok(options) => options.with_overprint_preview(overprint_preview),
+        Ok(options) => preview.apply(options),
         Err(code) => return code,
     };
     // The one option `render-page` never sets. A JPEG is rendered
@@ -2012,6 +1994,7 @@ pub(crate) fn report_diagnostics(
     max_cmyk_buffer_bytes: Option<usize>,
     raster_pixels: u64,
 ) {
+    crate::viewer_preview::report_separation_preview(d);
     if !d.substituted_fonts.is_empty() {
         eprintln!(
             "pdfcer: note: {} glyph(s) drawn with bundled substitute faces, not the \

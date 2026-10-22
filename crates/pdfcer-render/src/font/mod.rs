@@ -803,6 +803,9 @@ pub struct RenderOptions {
     /// Whether overprinting marks are composited as overprints. Default
     /// [`OverprintPreview::Simulate`](crate::OverprintPreview::Simulate).
     pub overprint_preview: crate::OverprintPreview,
+    /// Composite in ink and leave the named plates off, or `None` for a
+    /// normal render. See [`crate::SeparationPreview`].
+    pub separation_preview: Option<crate::SeparationPreview>,
 }
 
 /// The medium a finished page group is composited onto — §11.4.7's
@@ -1185,6 +1188,7 @@ impl Default for RenderOptions {
             backdrop: PageBackdrop::default(),
             invisible_text: None,
             overprint_preview: crate::OverprintPreview::Simulate,
+            separation_preview: None,
         }
     }
 }
@@ -1570,6 +1574,13 @@ impl RenderOptions {
     #[must_use]
     pub const fn with_overprint_preview(mut self, preview: crate::OverprintPreview) -> Self {
         self.overprint_preview = preview;
+        self
+    }
+
+    /// Set the separation preview, returning `self` for chaining.
+    #[must_use]
+    pub fn with_separation_preview(mut self, preview: Option<crate::SeparationPreview>) -> Self {
+        self.separation_preview = preview;
         self
     }
 

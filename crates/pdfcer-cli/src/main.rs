@@ -568,7 +568,10 @@ use ocr_run::*;
 mod ocr_models;
 use ocr_models::*;
 mod render_export;
+/// Overprint and separation preview flags.
+mod viewer_preview;
 use render_export::*;
+use viewer_preview::ViewerPreview;
 mod navigation;
 use navigation::*;
 mod listing;

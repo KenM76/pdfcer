@@ -5144,6 +5144,16 @@ pub(crate) enum Command {
         /// shows them. The file is not changed.
         #[arg(long)]
         no_overprint_preview: bool,
+        /// Composite the page in ink as a press prints it and list its
+        /// inks (process and spot) on stderr. A page that normally
+        /// composites on screen is composited in ink, and the note says so.
+        #[arg(long)]
+        separation_preview: bool,
+        /// Leave this ink's plate off (repeatable; implies
+        /// --separation-preview). Names match exactly as the file spells
+        /// them; the process inks are Cyan, Magenta, Yellow and Black.
+        #[arg(long, value_name = "NAME")]
+        hide_ink: Vec<String>,
     },
 
     /// Export page(s) as PNG, JPEG or SVG files — with REAL transparency
@@ -5282,6 +5292,16 @@ pub(crate) enum Command {
         /// shows them. The file is not changed.
         #[arg(long)]
         no_overprint_preview: bool,
+        /// Composite the page in ink as a press prints it and list its
+        /// inks (process and spot) on stderr. A page that normally
+        /// composites on screen is composited in ink, and the note says so.
+        #[arg(long)]
+        separation_preview: bool,
+        /// Leave this ink's plate off (repeatable; implies
+        /// --separation-preview). Names match exactly as the file spells
+        /// them; the process inks are Cyan, Magenta, Yellow and Black.
+        #[arg(long, value_name = "NAME")]
+        hide_ink: Vec<String>,
     },
 
     /// Copy a page to the OS clipboard so it pastes as EDITABLE VECTORS into

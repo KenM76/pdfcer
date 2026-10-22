@@ -66,6 +66,7 @@ mod rendering_intent;
 mod replacement_faces;
 mod resubset_fonts_render_the_same;
 mod same_program_route;
+mod separation_preview;
 mod shading_ink;
 mod shading_pattern_anchoring;
 mod sibling_font;

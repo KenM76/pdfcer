@@ -1251,6 +1251,47 @@ impl CmykBuffer {
         self.spots.get(index).map(|plane| &*plane.colorant)
     }
 
+    /// This page's plates: the four process inks, then the spot roster in
+    /// plane order, names as the file spells them.
+    pub(crate) fn ink_names(&self) -> Vec<String> {
+        crate::PROCESS_INKS
+            .iter()
+            .map(|n| (*n).to_owned())
+            .chain(
+                self.spots
+                    .iter()
+                    .map(|p| String::from_utf8_lossy(&p.colorant).into_owned()),
+            )
+            .collect()
+    }
+
+    /// Leave the named plates off by zeroing their tints, for a separation
+    /// preview (`crate::SeparationPreview`). Returns how many plates were
+    /// zeroed and the names that matched none.
+    pub(crate) fn hide_inks(&mut self, names: &[String]) -> (usize, Vec<String>) {
+        let mut hidden = 0;
+        let mut unmatched = Vec::new();
+        for name in names {
+            let process = crate::PROCESS_INKS.iter().position(|p| p == name);
+            let plane = match process {
+                Some(i) => self.planes.get_mut(i),
+                None => self
+                    .spots
+                    .iter_mut()
+                    .find(|s| String::from_utf8_lossy(&s.colorant) == name.as_str())
+                    .map(|s| &mut s.tint),
+            };
+            match plane {
+                Some(tints) => {
+                    tints.fill(0.0);
+                    hidden += 1;
+                }
+                None => unmatched.push(name.clone()),
+            }
+        }
+        (hidden, unmatched)
+    }
+
     /// Composite a **solid colorant** through a coverage mask — the
     /// workhorse, and the operation every native CMYK paint is made of.
     ///

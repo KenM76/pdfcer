@@ -98,6 +98,7 @@ pub(crate) mod minify;
 pub mod overprint;
 mod overprint_preview;
 pub mod profile;
+mod separation_preview;
 pub mod shading;
 pub mod svg;
 mod svg_text;
@@ -141,6 +142,7 @@ pub use interpret::{BlendSpaceFrom, Diagnostics};
 pub use invisible_text::InvisibleTextPaint;
 pub use layer_state::LayerVisibility;
 pub use overprint_preview::OverprintPreview;
+pub use separation_preview::{PROCESS_INKS, SeparationPreview};
 pub use shading::{ColorRamp, Geometry, PaintRoute, Shading, ShadingDiagnostics, ShadingFunction};
 // `RenderedPage::pixmap` is a public field of a `tiny_skia` type, so this
 // crate must re-export `tiny_skia` or every consumer has to add its own
@@ -911,6 +913,16 @@ fn render_impl_rasterize(
     // be a deviation, not an improvement -- and Poppler #1565 is the
     // empirical version of the same warning, where enabling overprint
     // preview visibly shifted unrelated RGB raster content.
+    // A separation preview needs plates, so a page that would composite on
+    // screen is composited in ink instead, and says so.
+    let inks_forced = options.separation_preview.is_some()
+        && scope.paints_page_content()
+        && !page_space.is_subtractive();
+    let page_space = if inks_forced {
+        compositor::BlendSpace::Subtractive
+    } else {
+        page_space
+    };
     let mut cmyk = if page_space.is_subtractive() {
         cmyk_buffer::CmykBuffer::new(
             width,
@@ -1066,7 +1078,8 @@ fn render_impl_rasterize(
     // worked number.
     let mut diagnostics = diagnostics;
     diagnostics.cmyk_buffer_refused += cmyk_refused;
-    if let Some(buffer) = cmyk {
+    diagnostics.inks_forced_subtractive = usize::from(inks_forced);
+    if let Some(mut buffer) = cmyk {
         diagnostics.cmyk_buffer_engaged = true;
         diagnostics.cmyk_bridged_pixels += buffer.bridged_pixels();
         diagnostics.cmyk_native_image_pixels += buffer.native_image_pixels();
@@ -1086,6 +1099,12 @@ fn render_impl_rasterize(
         let probe_cmyk = options
             .ink_probe
             .map(|(px, py)| probe_ink_from_buffer(&buffer, px, py, width, height));
+        // After the probe, so it still reports every plate.
+        if let Some(preview) = &options.separation_preview {
+            diagnostics.inks = buffer.ink_names();
+            (diagnostics.inks_hidden, diagnostics.inks_unmatched) =
+                buffer.hide_inks(&preview.hidden);
+        }
         // §11.4.7's media composite, or — for an export that keeps the
         // page's transparency (`Pass 248.0`) — the same conversion with the
         // group's own alpha carried through instead of resolved against
