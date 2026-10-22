@@ -247,3 +247,29 @@ fn an_object_stream_is_shared_among_its_members() {
     );
     assert!(report.bytes_in(SpaceCategory::CrossReference) > 0);
 }
+
+#[test]
+fn linearization_dictionary_and_hint_stream_are_file_overhead() {
+    let bodies = |h: usize| {
+        vec![
+            b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
+            b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec(),
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] >>".to_vec(),
+            format!("<< /Linearized 1 /H [ {h:010} 40 ] >>").into_bytes(),
+            b"<< /S 0 /Length 6 0 R >>\nstream\nabc\nendstream".to_vec(),
+            b"3".to_vec(),
+        ]
+    };
+    let draft = build(&bodies(0), &[]);
+    let hint_at = draft.windows(7).position(|w| w == b"5 0 obj").unwrap();
+    let report = audit(&Document::from_bytes(build(&bodies(hint_at), &[])).unwrap());
+    for num in [4, 5, 6] {
+        assert_eq!(
+            role(&report, num),
+            SpaceCategory::FileOverhead,
+            "object {num}"
+        );
+    }
+    assert_eq!(report.bytes_in(SpaceCategory::Unreferenced), 0);
+    assert_sums(&report);
+}

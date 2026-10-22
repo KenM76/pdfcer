@@ -49,6 +49,10 @@ pub(super) fn classify(doc: &Document) -> BTreeMap<ObjId, C> {
         walk.scan(value, role, 0);
     }
     walk.drain(doc);
+    for id in linearization_machinery(doc) {
+        walk.primary.push_back((id, C::FileOverhead));
+    }
+    walk.drain(doc);
     for obj in doc.objects() {
         walk.roles.entry(obj.id).or_insert_with(|| {
             dict_of(&obj.value)
@@ -187,6 +191,37 @@ fn annot_role(subtype: Option<&str>) -> C {
         Some("Widget") => C::Forms,
         _ => C::Annotations,
     }
+}
+
+/// The linearization dictionary and the hint streams its `/H` points at
+/// (ISO 32000-2 Annex F.2: each `/H` offset is the start of the stream
+/// object). Nothing references them, so without this they read as
+/// unreferenced.
+fn linearization_machinery(doc: &Document) -> Vec<ObjId> {
+    let Some(lin) = doc
+        .objects()
+        .find(|o| dict_of(&o.value).is_some_and(|d| d.get(b"Linearized").is_some()))
+    else {
+        return Vec::new();
+    };
+    let offsets: Vec<usize> = dict_of(&lin.value)
+        .and_then(|d| d.get(b"H"))
+        .and_then(Object::as_array)
+        .map(|h| {
+            h.iter()
+                .step_by(2)
+                .filter_map(Object::as_int)
+                .filter_map(|n| usize::try_from(n).ok())
+                .collect()
+        })
+        .unwrap_or_default();
+    let mut ids = vec![lin.id];
+    ids.extend(
+        doc.objects()
+            .filter(|o| o.file_span().is_some_and(|s| offsets.contains(&s.start)))
+            .map(|o| o.id),
+    );
+    ids
 }
 
 /// Objects that are file machinery rather than content.
