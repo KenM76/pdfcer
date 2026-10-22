@@ -23225,18 +23225,6 @@ closes out the *prior* filing's business rather than opening this one's.
 
 (1177th filing: `Pass 618.0` SHIPPED `d21e1ad5`, see *Shipped*; `618.1` remains, NOT done. Next free `Pass 619.0`, decision `196`, `R263`; next filing 1178th.)
 
-### Pass 618.1 — Publish readiness for color, model and pkix (no publishing)
-
-**Source:** same request (ask 4). Depends on nothing in `618.0`, but the model crate should be through `618.0` item 3 first so the dry-run is not run against a public documented panic.
-
-**Scope:**
-1. Per-crate `repository`, `readme` and `keywords` metadata (and any other field `cargo publish` requires) for color, model and pkix.
-2. `cargo publish --dry-run` passing for those three.
-3. A recorded ruling on pkix's dependency on model's COS layer (object/view/graph/filters/crypto): keep it or split it. A consumer with its own COS layer would otherwise carry two. Goes in `ARCHITECTURE.md` §12 as a decision when made.
-4. An iccce-channel request to publish iccce to crates.io: render's `pdfcer-core` and iccce git dependencies block crates.io, which rejects git deps. iccce also owns all colour conversion (decision 064), so it gates the CMYK / spot / overprint compositor offer.
-
-**Hard limits (the request's ask 5, operator's calls):** never flip `publish = true`, never publish anything, never contact pdfcraft. Relicensing to `MIT OR Apache-2.0` is Ken's alone to grant (`git shortlog`: every commit his, 0 outside PRs) and is not part of this Pass. Keep to the `(bt)` ruling: the conformance suite stays unnamed in anything public (metadata, readmes, the iccce request).
-
 (1164th filing: `Pass 617.9` (`G225`) SHIPPED `966177ce`, see *Shipped*. Next free `Pass 618.0`, decision `195`, `R263`; next filing 1165th.)
 
 (1157th filing: `Pass 617.8` (`G224`) SHIPPED `0f277026`, see *Shipped*. Next free `Pass 617.9`, decision `195`, `R263`; next filing 1158th.)
@@ -25031,6 +25019,18 @@ closes out the *prior* filing's business rather than opening this one's.
 > annotation/destination scaling, the new ce-dimensions refusal — is at
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
+
+### Pass 618.1 — Publish readiness for color, model and pkix (no publishing)
+
+**Source:** same request (ask 4). Depends on nothing in `618.0`, but the model crate should be through `618.0` item 3 first so the dry-run is not run against a public documented panic.
+
+**Scope:**
+1. Per-crate `repository`, `readme` and `keywords` metadata (and any other field `cargo publish` requires) for color, model and pkix.
+2. `cargo publish --dry-run` passing for those three.
+3. A recorded ruling on pkix's dependency on model's COS layer (object/view/graph/filters/crypto): keep it or split it. A consumer with its own COS layer would otherwise carry two. Goes in `ARCHITECTURE.md` §12 as a decision when made.
+4. An iccce-channel request to publish iccce to crates.io: render's `pdfcer-core` and iccce git dependencies block crates.io, which rejects git deps. iccce also owns all colour conversion (decision 064), so it gates the CMYK / spot / overprint compositor offer.
+
+**Hard limits (the request's ask 5, operator's calls):** never flip `publish = true`, never publish anything, never contact pdfcraft. Relicensing to `MIT OR Apache-2.0` is Ken's alone to grant (`git shortlog`: every commit his, 0 outside PRs) and is not part of this Pass. Keep to the `(bt)` ruling: the conformance suite stays unnamed in anything public (metadata, readmes, the iccce request).
 
 ### `Pass 616.0` — Space audit (`audit-space`) — MOVED TO *Shipped* (1111th filing, `5ba901d4`); arc inputs below stay for `616.1`+
 
