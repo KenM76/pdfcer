@@ -455,12 +455,16 @@ fn run(
             outcome.bytes.as_deref(),
         ));
     }
+    let lowered = match lower_result(&mut outcome, input, &settings, compat) {
+        Ok(l) => l,
+        Err(code) => return code,
+    };
     let after_doc = match &outcome.bytes {
         Some(b) => open_document_bytes(b.clone()).ok(),
         None => open_document(input).ok(),
     };
     if let (Some(t), Some(d)) = (settings.compatibility, &after_doc) {
-        outcome.compat = Some(crate::optimize_compat::summarize(t, d, compat));
+        outcome.compat = Some(crate::optimize_compat::summarize(t, d, compat, lowered));
     }
     let after = after_doc
         .filter(|_| outcome.bytes.is_some())
@@ -490,6 +494,32 @@ fn run(
         return exit::OVER_BUDGET;
     }
     exit::SUCCESS
+}
+
+/// --lower-version: lower the result (or the input, when the rewrite was
+/// not kept) and make it the file to write.
+fn lower_result(
+    outcome: &mut Outcome,
+    input: &Path,
+    settings: &OptimizeSettings,
+    compat: &crate::optimize_compat::CompatArgs,
+) -> Result<Option<crate::optimize_compat::Lowered>, u8> {
+    let (true, Some(target)) = (compat.lower_version, settings.compatibility) else {
+        return Ok(None);
+    };
+    let source = match outcome.bytes.take() {
+        Some(b) => b,
+        None => std::fs::read(input).map_err(|e| {
+            eprintln!("pdfcer: {}: {e}", input.display());
+            exit::IO_ERROR
+        })?,
+    };
+    let lowered = crate::optimize_compat::lower(compat, target, source, settings.allow_signed)?;
+    let (note, bytes) = crate::optimize_compat::Lowered::split(lowered);
+    outcome.rewritten = bytes.len() as u64;
+    outcome.smaller = outcome.rewritten < outcome.original;
+    outcome.bytes = Some(bytes);
+    Ok(Some(note))
 }
 
 fn optimize(mut session: EditSession, settings: &OptimizeSettings) -> Result<Outcome, u8> {
@@ -622,8 +652,13 @@ fn report_text(
             );
         }
     }
+    let lowered = o.compat.as_ref().is_some_and(|c| c.lowered());
     if o.bytes.is_some() && !o.smaller {
-        out.push_str("not smaller: kept anyway, because it removes what was asked for\n");
+        out.push_str(if lowered {
+            "not smaller: kept anyway, because it lowers the declared version as asked\n"
+        } else {
+            "not smaller: kept anyway, because it removes what was asked for\n"
+        });
     }
     if let Some(b) = &o.budget {
         out.push_str(&crate::optimize_budget_cmd::budget_text(b));

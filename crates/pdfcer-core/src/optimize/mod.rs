@@ -42,6 +42,7 @@ pub mod discard;
 pub(crate) mod fragments;
 pub(crate) mod glyph_usage;
 pub mod image;
+mod lower_version;
 pub(crate) mod object_data;
 pub mod objects;
 mod preset;
@@ -73,6 +74,7 @@ pub use image::{
     KeyedResample, Predictor, QUALITY_LEVELS, ResampleMethod, ResolvedImage, SettingSource,
     Sourced, SsimPick, SsimScore, Threshold, VersionRaise, structural_similarity,
 };
+pub use lower_version::{LowerError, LowerOptions, LowerRoute, LoweredVersion, lower_version};
 pub use objects::{DiscardObject, ObjectDiscard};
 pub use preset::Preset;
 pub use select::{PageRanges, Selector};

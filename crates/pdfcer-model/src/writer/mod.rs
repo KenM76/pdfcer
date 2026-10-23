@@ -166,7 +166,7 @@ use std::collections::BTreeMap;
 
 pub use encoder::{EncryptingEncoder, IdentityEncoder, ObjectEncoder};
 pub use incremental::save_incremental;
-pub use rebuild::{RebuildOptions, RebuildReport, rebuild};
+pub use rebuild::{RebuildOptions, RebuildReport, rebuild, rebuild_declaring};
 pub use save::{EncryptParams, SaveReport, save_full, save_full_decrypted, save_full_encrypted};
 pub use xref_out::XrefOutError;
 

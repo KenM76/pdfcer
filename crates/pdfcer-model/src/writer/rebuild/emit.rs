@@ -28,11 +28,11 @@ pub(super) fn write(
     doc: &Document,
     live: &BTreeMap<ObjId, &Object>,
     renum: &Renumbering,
-    ropts: &RebuildOptions,
+    (ropts, header): (&RebuildOptions, Option<PdfVersion>),
     opts: &SaveOptions,
     report: &mut RebuildReport,
 ) -> Result<Vec<u8>, WriteError> {
-    let mut version = doc.version();
+    let mut version = header.unwrap_or_else(|| doc.version());
     if ropts.object_streams && version < PDF_1_5 {
         version = PDF_1_5;
         report.version_raised = Some(version);

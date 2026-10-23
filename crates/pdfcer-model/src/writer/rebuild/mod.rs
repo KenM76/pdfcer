@@ -132,6 +132,31 @@ pub fn rebuild(
     rebuild_options: &RebuildOptions,
     options: &SaveOptions,
 ) -> Result<(Vec<u8>, RebuildReport), WriteError> {
+    rebuild_with(doc, rebuild_options, options, None)
+}
+
+/// [`rebuild`], writing `%PDF-<version>` as the header instead of the
+/// input's version. Object streams still raise it to 1.5; a linearized
+/// rebuild keeps the input's version.
+///
+/// # Errors
+///
+/// As [`rebuild`].
+pub fn rebuild_declaring(
+    doc: &Document,
+    rebuild_options: &RebuildOptions,
+    options: &SaveOptions,
+    version: PdfVersion,
+) -> Result<(Vec<u8>, RebuildReport), WriteError> {
+    rebuild_with(doc, rebuild_options, options, Some(version))
+}
+
+fn rebuild_with(
+    doc: &Document,
+    rebuild_options: &RebuildOptions,
+    options: &SaveOptions,
+    header: Option<PdfVersion>,
+) -> Result<(Vec<u8>, RebuildReport), WriteError> {
     if doc.encryption().is_some() {
         return Err(WriteError::EncryptedSaveUnsupported);
     }
@@ -164,7 +189,14 @@ pub fn rebuild(
         linearize::write(doc, &live, &canon, &kept, &mut report)?
     } else {
         let renum = graph::Renumbering::new(&kept, &canon);
-        emit::write(doc, &live, &renum, rebuild_options, options, &mut report)?
+        emit::write(
+            doc,
+            &live,
+            &renum,
+            (rebuild_options, header),
+            options,
+            &mut report,
+        )?
     };
     Ok((bytes, report))
 }

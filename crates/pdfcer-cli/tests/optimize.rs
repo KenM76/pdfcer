@@ -1522,5 +1522,80 @@ fn a_compat_target_holds_the_output_and_lists_what_is_above_it() {
         run(&[i, "--dry-run", "--compat", "1.9"]).status.code(),
         Some(2)
     );
-    assert_eq!(run(&[i, "--dry-run", "--strict-icc"]).status.code(), Some(2));
+    assert_eq!(
+        run(&[i, "--dry-run", "--strict-icc"]).status.code(),
+        Some(2)
+    );
+}
+
+#[test]
+fn lower_version_rewrites_the_header_and_refuses_content_above_the_target() {
+    let d = dir("lower");
+    let input = write_pdf(&d, "/Version /1.7");
+    let i = input.to_str().unwrap();
+    let out = d.join("out.pdf");
+    let o = run(&[
+        i,
+        "-o",
+        out.to_str().unwrap(),
+        "--compat",
+        "1.4",
+        "--lower-version",
+    ]);
+    assert_eq!(
+        o.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    let report = text(&o);
+    for want in [
+        "the declared version was lowered from 1.7 to 1.4",
+        "version: lowered to PDF 1.4: ",
+        ", catalog /Version removed",
+    ] {
+        assert!(report.contains(want), "{want:?} in\n{report}");
+    }
+    let written = std::fs::read(&out).unwrap();
+    assert!(written.starts_with(b"%PDF-1.4"), "{report}");
+
+    let j = text(&run(&[
+        i,
+        "--dry-run",
+        "--json",
+        "--compat",
+        "1.4",
+        "--lower-version",
+    ]));
+    assert!(
+        j.contains(
+            "\"lowered\":{\"from\":\"1.7\",\"to\":\"1.4\",\"catalog_version_removed\":true,"
+        ),
+        "{j}"
+    );
+
+    let glass = write_pdf_page(
+        &d,
+        "",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents [4 0 R 5 0 R] \
+         /Resources << /ExtGState << /GS0 << /ca 0.5 >> >> >> >>",
+        &[],
+    );
+    let refused_out = d.join("refused.pdf");
+    let o = run(&[
+        glass.to_str().unwrap(),
+        "-o",
+        refused_out.to_str().unwrap(),
+        "--compat",
+        "1.3",
+        "--lower-version",
+    ]);
+    assert_eq!(o.status.code(), Some(9));
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert!(err.contains("the content needs PDF 1.4"), "{err}");
+    assert!(!refused_out.exists());
+    assert_eq!(
+        run(&[i, "--dry-run", "--lower-version"]).status.code(),
+        Some(2)
+    );
 }

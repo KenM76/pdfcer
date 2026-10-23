@@ -5,6 +5,9 @@ use super::ctx::*;
 use super::scan::Notes;
 use crate::object::{Dict, Object};
 
+/// Value-dependent requirements the key catalogue cannot express (a key
+/// whose version depends on its value, such as 16-bit samples or /V 2-3
+/// encryption), noted into `notes` as `(major * 10 + minor, construct)`.
 pub(super) fn custom(d: &Dict, bits: u64, notes: &mut Notes) {
     let int = |k: &[u8]| d.get(k).and_then(Object::as_int);
     let mut note = |v: u8, what: &str| {

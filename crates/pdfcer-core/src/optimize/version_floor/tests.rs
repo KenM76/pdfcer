@@ -2,7 +2,7 @@
 
 use super::*;
 use crate::object::ObjId;
-use crate::optimize::tests::build;
+use crate::optimize::tests::{build, v};
 use crate::space_audit::tests::stream;
 
 /// 1 catalog, 2 pages, 3 page, 4 content `ops`; `extra` from 5.
@@ -16,10 +16,6 @@ fn doc(catalog: &str, page: &str, ops: &[u8], extra: &[Vec<u8>]) -> VersionFloor
     ];
     bodies.extend_from_slice(extra);
     version_floor(&Document::from_bytes(build(&bodies)).unwrap())
-}
-
-fn v(major: u8, minor: u8) -> PdfVersion {
-    PdfVersion { major, minor }
 }
 
 fn constructs(f: &VersionFloor) -> Vec<&str> {

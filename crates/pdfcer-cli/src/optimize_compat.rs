@@ -6,8 +6,10 @@ use std::fmt::Write as _;
 use pdfcer_core::PdfVersion;
 use pdfcer_core::document::Document;
 use pdfcer_core::optimize::{
-    FeatureUse, FloorOptions, IccVersionGate, VersionFloor, features_used, version_floor_with,
+    FeatureUse, FloorOptions, IccVersionGate, LowerOptions, LoweredVersion, VersionFloor,
+    features_used, lower_version, version_floor_with,
 };
+use pdfcer_core::writer::SaveOptions;
 
 use crate::json_escape;
 
@@ -32,6 +34,17 @@ pub(crate) struct CompatArgs {
     /// reader that cannot use a profile falls back to its alternate.
     #[arg(long, requires = "compat")]
     pub(crate) strict_icc: bool,
+    /// With --compat VERSION: also lower the declared version to VERSION,
+    /// when the content provably needs nothing newer. The header digits
+    /// are rewritten in place and a catalog /Version is removed; below 1.5
+    /// a file with object or cross-reference streams is rebuilt with a
+    /// classic cross-reference table, renumbering its objects. Refused
+    /// (exit 9, nothing written) for an encrypted file, a signed one
+    /// without --invalidate-signatures, content above VERSION, or content
+    /// that could not all be read. The file is written even when it is not
+    /// smaller.
+    #[arg(long, requires = "compat")]
+    pub(crate) lower_version: bool,
 }
 
 /// A parsed `--compat` value.
@@ -83,6 +96,45 @@ pub(crate) struct CompatSummary {
     declared: PdfVersion,
     used: Vec<FeatureUse>,
     floor: VersionFloor,
+    /// What --lower-version did, when it ran.
+    lowered: Option<Lowered>,
+}
+
+/// The disclosure of a lowering, without the bytes.
+pub(crate) struct Lowered {
+    from: PdfVersion,
+    to: PdfVersion,
+    catalog_version_removed: bool,
+    route: String,
+}
+
+impl Lowered {
+    /// Keep what the report states; hand back the bytes.
+    pub(crate) fn split(l: LoweredVersion) -> (Self, Vec<u8>) {
+        let note = Self {
+            from: l.from,
+            to: l.to,
+            catalog_version_removed: l.catalog_version_removed,
+            route: l.route.to_string(),
+        };
+        (note, l.bytes)
+    }
+}
+
+/// --lower-version on `bytes`, or the exit code after printing why not.
+pub(crate) fn lower(
+    args: &CompatArgs,
+    target: PdfVersion,
+    bytes: Vec<u8>,
+    allow_signed: bool,
+) -> Result<LoweredVersion, u8> {
+    let options = LowerOptions::default()
+        .with_floor(args.floor_options())
+        .with_allow_signed(allow_signed);
+    lower_version(bytes, target, &options, &SaveOptions::default()).map_err(|e| {
+        eprintln!("pdfcer: optimize: --lower-version: {e}");
+        crate::exit::EDIT_REFUSED
+    })
 }
 
 impl CompatSummary {
@@ -92,12 +144,36 @@ impl CompatSummary {
 }
 
 /// Scan `result` against `target`.
-pub(crate) fn summarize(target: PdfVersion, result: &Document, args: &CompatArgs) -> CompatSummary {
+pub(crate) fn summarize(
+    target: PdfVersion,
+    result: &Document,
+    args: &CompatArgs,
+    lowered: Option<Lowered>,
+) -> CompatSummary {
     CompatSummary {
         target,
         declared: result.version(),
         used: features_used(result),
         floor: version_floor_with(result, args.floor_options()),
+        lowered,
+    }
+}
+
+impl CompatSummary {
+    /// Whether --lower-version changed the declared version.
+    pub(crate) fn lowered(&self) -> bool {
+        self.lowered.is_some()
+    }
+}
+
+/// The clause after the compatibility verdict: lowered or not.
+fn declared_clause(c: &CompatSummary) -> String {
+    match &c.lowered {
+        Some(l) => format!(
+            "the declared version was lowered from {} to {}",
+            l.from, l.to
+        ),
+        None => format!("the declared version {} is not lowered", c.declared),
     }
 }
 
@@ -128,14 +204,28 @@ pub(crate) fn compat_text(c: &CompatSummary) -> String {
     if above == 0 {
         let _ = writeln!(
             out,
-            "compatibility: nothing above PDF {}; the declared version {} is not lowered",
-            c.target, c.declared
+            "compatibility: nothing above PDF {}; {}",
+            c.target,
+            declared_clause(c)
         );
     } else {
         let _ = writeln!(
             out,
-            "compatibility: {above} feature(s) above PDF {} kept, not removed; the declared version {} is not lowered",
-            c.target, c.declared
+            "compatibility: {above} feature(s) above PDF {} kept, not removed; {}",
+            c.target,
+            declared_clause(c)
+        );
+    }
+    if let Some(l) = &c.lowered {
+        let catalog = if l.catalog_version_removed {
+            ", catalog /Version removed"
+        } else {
+            ""
+        };
+        let _ = writeln!(
+            out,
+            "version: lowered to PDF {}: {}{catalog}",
+            l.to, l.route
         );
     }
     floor_text(&c.floor, &mut out);
@@ -253,8 +343,20 @@ pub(crate) fn compat_json(c: &CompatSummary) -> String {
             )
         })
         .collect();
+    let lowered = c.lowered.as_ref().map_or_else(
+        || "null".to_owned(),
+        |l| {
+            format!(
+                "{{\"from\":\"{}\",\"to\":\"{}\",\"catalog_version_removed\":{},\"route\":\"{}\"}}",
+                l.from,
+                l.to,
+                l.catalog_version_removed,
+                json_escape(&l.route)
+            )
+        },
+    );
     format!(
-        "{{\"target\":\"{}\",\"declared\":\"{}\",\"features\":[{}],\"above\":{},\"floor\":{}}}",
+        "{{\"target\":\"{}\",\"declared\":\"{}\",\"features\":[{}],\"above\":{},\"floor\":{},\"lowered\":{lowered}}}",
         c.target,
         c.declared,
         features.join(","),

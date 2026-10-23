@@ -3332,10 +3332,10 @@ Option<PdfVersion> }`) and raises nothing; `Strict` lets it raise `floor`
 (2.0–2.1 → 1.3, 2.2–2.3 → 1.4, 2.4 and 4.0 → 1.5, 4.1 → 1.6, 4.2 → 1.7, 4.3 →
 2.0, later → nothing). A structure type newer than the document is not a
 requirement: an older reader treats it as nonstandard. Report-only; the
-declared version is never changed.
+declared version is never changed by it (see *Lower the version*).
 
 ★ **What the UI must disclose:** whether `floor` is proven, and that the
-document is not lowered by asking.
+report alone does not lower the document.
 
 CLI: with `--compat`, the report adds `compatibility: the content needs PDF
 x.y` (`at least (n stream(s) could not be read)` when unproven), up to eight
@@ -3343,6 +3343,39 @@ x.y` (`at least (n stream(s) could not be read)` when unproven), up to eight
 `--strict-icc` selects `Strict`. `--json`'s `compatibility.floor` is
 `{version, proven, unreadable, needs: [{construct, version, objects,
 example}], icc_profiles: [{object, version, strict}]}`.
+
+**Lower the version** (`pdfcer_core::optimize`). `lower_version(bytes:
+Vec<u8>, target: PdfVersion, &LowerOptions, &SaveOptions) ->
+Result<LoweredVersion, LowerError>` makes the file declare `target`. Opt-in
+(ISO 32000-2 Annex I.2: a writer should not move a document to an older
+version unasked). Refusals, in order, nothing written: `Encrypted`;
+`NotLower { target, declared }` (target not below the effective declared
+version); `Signed { signatures }` unless `LowerOptions::with_allow_signed`
+(the header is inside every byte range, so every signature breaks);
+`Unproven { floor, unreadable }`; `BelowFloor { target, floor, needs }`
+(`needs` is the highest requirement's construct). Also `Load`, `Write`, and
+`Verify { target, reason }` when the result does not reload declaring
+`target`. Route (`LowerRoute`, `Display`): `InPlace` patches the header's
+`M.N` digits in place (same length, no offset moves) and removes a catalog
+`/Version` (§7.7.2) by an incremental update; `Rebuilt(RebuildReport)` when
+the target is below 1.5 and the file uses object or cross-reference streams
+(or is hybrid), or the header token is not exactly `d.d` — a full rebuild
+with a classic table that **renumbers objects**. `LoweredVersion { bytes,
+from, to, catalog_version_removed, route, floor }`.
+`writer::rebuild_declaring(doc, &RebuildOptions, &SaveOptions, version)` is
+`rebuild` with a chosen header version.
+
+★ **What the UI must disclose:** from → to, the route (a rebuild
+renumbers objects), and a removed catalog `/Version`.
+
+CLI: `--compat VERSION --lower-version` (requires `--compat`) lowers the
+optimized result, or the input when no rewrite was kept; the file is written
+even when not smaller. Report line `version: lowered to PDF x.y: <route>[,
+catalog /Version removed]`, and the compatibility clause reads `the declared
+version was lowered from A to B`. `--json` `compatibility.lowered` is
+`{from, to, catalog_version_removed, route}` or `null`. A refusal prints
+`pdfcer: optimize: --lower-version: <reason>` and exits 9; signed files
+proceed with `--invalidate-signatures`.
 
 `stroke_display: StrokeDisplay` sets line weights. It takes one of three
 values:

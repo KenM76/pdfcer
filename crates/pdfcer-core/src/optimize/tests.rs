@@ -13,6 +13,11 @@ use crate::object::{Dict, Object};
 use crate::space_audit::tests::stream;
 use crate::writer::SaveOptions;
 
+/// `PdfVersion { major, minor }`, short.
+pub(crate) fn v(major: u8, minor: u8) -> crate::PdfVersion {
+    crate::PdfVersion { major, minor }
+}
+
 /// A classic-xref file whose object `i + 1` is `bodies[i]`.
 pub(crate) fn build(bodies: &[Vec<u8>]) -> Vec<u8> {
     let mut buf = b"%PDF-1.7\n%\xE2\xE3\xCF\xD3\n".to_vec();

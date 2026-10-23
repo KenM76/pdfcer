@@ -155,6 +155,7 @@ fn scan_value(
     }
 }
 
+/// `b` as text for a construct name; invalid UTF-8 is replaced, not refused.
 pub(super) fn lossy(b: &[u8]) -> String {
     String::from_utf8_lossy(b).into_owned()
 }

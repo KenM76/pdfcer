@@ -60,6 +60,33 @@ impl EditSession {
         }
         writes
     }
+
+    /// Remove the catalog `/Version` (ISO 32000-2 §7.7.2) as one undoable
+    /// command, so the header alone declares the version. Returns whether
+    /// there was one to remove.
+    pub(crate) fn drop_catalog_version(&mut self) -> bool {
+        let Some(id) = self.catalog_id() else {
+            return false;
+        };
+        let Some(mut catalog) = self.value(id).and_then(Object::as_dict).cloned() else {
+            return false;
+        };
+        if catalog.remove(b"Version").is_none() {
+            return false;
+        }
+        let objects = vec![ObjectWrite {
+            id,
+            before: self.state.get(&id).cloned(),
+            after: Some(Object::Dict(catalog)),
+        }];
+        self.commit(super::Command {
+            kind: super::CommandKind::Optimize { count: 1 },
+            objects,
+            removals: Vec::new(),
+            trailer: None,
+        });
+        true
+    }
 }
 
 /// A `/Version` name such as `1.4`.
