@@ -122,6 +122,7 @@ wherever it appears.*
 - **Fresh-folder smoke from the zip:** `--version` (0.92.0), `rotate --degrees 90` twice (incremental), `render-page`, `optimize --compat 1.4`; all exited 0.
 - **`pdfcer-gui` notified:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-10-23_v0.92.0_released.md`.
 - Still owed: pdfium render-parity run against the git rc3. `FEATURES.md`: no change. No Pass, decision or R minted; next free `Pass 631.0`, decision `199`, `R263`; next filing 1195th.
+- **DISCHARGED 2026-10-23 (1195th filing; engineer-measured, no shell here):** the render-parity owed item above is done, details in the 1195th `SESSION_LOG.md` entry. `tools/render-parity/render_parity.py`, 150 dpi, 70 `DCTDecode` files from `fixtures/external` (70 pages, no pdfium aborts), v0.90.0 (registry zune-jpeg 0.5.15) vs v0.92.0 (git rc3 `c1c7f497`): 0 pages changed; buckets identical, 44 below-band / 25 disclosed-gap-small / 1 reference-divergence. Control (same files re-encoded by `optimize --streams "image(encode=jpeg,quality=70,chroma=420)"`): 11 pages changed, all better under rc3, none worse. Verdict: rc3 from git renders organic JPEGs as 0.5.15 did and fixes the subsampled-layout defect decision 197 pinned for.
 
 Superseded status below (kept; written at the 1193rd, before publication):
 

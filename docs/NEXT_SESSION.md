@@ -27,9 +27,11 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 - G214-G217 replies are already on the channel (the earlier "owed" note was stale).
 - **Release:** v0.92.0 is published (8 assets; OneDrive `pdfcer1`; `pdfcer2`
   keeps 0.91.0; GUI notified, `open/notice_2026-10-23_v0.92.0_released.md`).
-  **The next release writes `pdfcer2`.** The pdfium
-  render-parity tool was NOT run against zune rc3; run it before trusting
-  JPEG render numbers. Disk D: filled once this session: `target/debug/incremental`
+  **The next release writes `pdfcer2`.** pdfium render-parity
+  A/B v0.90.0 (zune 0.5.15) vs v0.92.0 (git rc3), 70 DCTDecode corpus files:
+  0 pages changed; control (same files re-encoded `image(encode=jpeg,
+  quality=70,chroma=420)`): 11 pages improved (worst 99.7% -> 0.2% over
+  d>32), 6 `disclosed-gap` -> small, 0 worse. Disk D: filled once this session: `target/debug/incremental`
   (48 GB) is safe to delete; `.claude/worktrees` (22 GB) was left alone. Release gates are change-scoped (Ken, 2026-10-16): test
   the crates changed since the last tag + the filing gates + the fresh-folder
   smoke; `run-gates.sh` is CI's job. `verify-release` fails only "working tree

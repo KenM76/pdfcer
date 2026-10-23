@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1195th filing) — pdfium render-parity vs zune-jpeg git rc3 DISCHARGED (no Pass consumed)
+
+**Filed (engineer-measured; I have no shell, so none of it is checked from here):** the owed pdfium render-parity run against the git rc3 pin (first noted 1181st, carried in the 1194th).
+
+**Setup:** `tools/render-parity/render_parity.py`, 150 dpi, default band, at most 4 pages per file. Corpus: the 70 `fixtures/external` files containing `DCTDecode`, copied flat into a scratch dir; 70 pages rendered, no pdfium aborts. A/B: CLI v0.90.0 (`pdfcer-20261022-0904-33805a1`, registry zune-jpeg 0.5.15) vs v0.92.0 (`pdfcer-20261023-0337-77d6adc`, git rc3 rev `c1c7f497`).
+
+**A/B result:** 0 pages changed in any metric. Buckets identical in both runs: 44 below-band, 25 disclosed-gap-small, 1 reference-divergence (`pdf20examples/PDF 2.0 image with BPC.pdf`, same in both).
+
+**Control (proves the A/B is not vacuous):** the same 70 files re-encoded by v0.92.0 `optimize --streams "image(encode=jpeg,quality=70,chroma=420)"`, then the same A/B. 11 pages changed, all better under rc3, none worse. Worst case `veraPDF-corpus/PDF_UA-1/7.1 General/7.1-t02-pass-b.pdf` frac32 0.99749 -> 0.00203; four `7.18.6.2` Media clip files 0.18637 -> 0.00354. Buckets (below-band / disclosed-gap-small / disclosed-gap / reference-divergence): v0.90.0 46/17/6/1, v0.92.0 46/23/0/1.
+
+**Verdict:** rc3 from git renders organic JPEGs exactly as 0.5.15 did and fixes the subsampled-layout defect decision 197 pinned for. Owed item discharged; ROADMAP v0.92.0 entry carries a dated DISCHARGED line.
+
+**Not changed:** `FEATURES.md`, `docs/NEXT_SESSION.md` (engineer-owned). No Pass, decision or R minted. Git, push and backup state not verified from here.
+
+**For next session:** next free `Pass 631.0`, decision `199`, `R263`; next filing 1196th; Ken's crates.io decision pending.
+
 ## 2026-10-23 (1194th filing) — `v0.92.0` PUBLISHED (tag `77d6adcf`; no Pass consumed)
 
 **Filed (engineer-reported, no shell here):** annotated tag `v0.92.0` -> `77d6adcf` (bump `8e77b267`); origin/main = `77d6adcf`. GitHub release with 8 assets (`pdfcer-v0.92.0-windows-x64.zip` 27,363,920 B plus three OCR add-on zips, each with `.sha256`), built from `pdfcer-20261023-0337-77d6adc` (rebuilt from the same tag after a power outage killed the first attempt). OneDrive slot `pdfcer1` = 0.92.0, `pdfcer2` = 0.91.0; next release writes `pdfcer2`.
