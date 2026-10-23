@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1205th filing) — `Pass 616.6` residue item (c) short `loca` RETIRED (measured, not built)
+
+**Filed (engineer-reported; no shell here, nothing checked from here; no commit involved):** the Backlog block "Residue of `Pass 616.6`" item (c) is retired. Measured on `fixtures/external` (2,915 files) at `10c98230`: 218 eligible long-loca TrueType programs of 1,109; 1,850,474 raw bytes, but only **5,233 bytes after Flate against 123,763,430 output bytes = 0.004%**. Flate already collapses a zeroed long loca. Caveat: form-XObject-only fonts not scanned. Items (a) CFF merge and (b) Type 1 re-subset unchanged.
+
+**Decisions made:** none; no Pass, decision or R consumed. **FEATURES.md:** no row names short loca (grep `loca`, no relevant hit); unchanged. **Survivors (hard rule 11, bare keyword `loca`):** `ROADMAP.md` lines 569 and 585 (`Pass 616.6` entries) still list "short loca" as residue/still-open; they are history in Shipped and left as-is, the Backlog block carries the retirement.
+
+**For next session:** next free `Pass 633.0`, decision `199`, `R263`; next filing 1206th.
+
 ## 2026-10-23 (1204th filing) — `Pass 102.1` COMPLETE (`3f180dd3`): inserted pages carry their form fields
 
 **Filed (engineer-reported; no shell here, nothing checked from here):** `EditSession::insert_pages` / `insert_pages_with` / `paste_pages` now carry a form field into the target `/AcroForm` when all its widgets land on inserted pages; split fields stay orphaned and are counted. `InsertOutcome` gains `fields_carried`, `fields_renamed`, `fields_split`, `acroform_created`; `orphaned_widgets` now counts only split/unlisted-field widgets. Two `merge_document` field-tree bugs fixed in the same commit. Full entry: `ROADMAP.md` Shipped. Tests: 6 new; pdfcer-core 5212 passed / 0 failed; clippy and fmt clean.
