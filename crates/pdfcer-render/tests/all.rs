@@ -86,5 +86,5 @@ mod transparency_is_disclosed;
 mod type3_fonts;
 mod vector_cross_check;
 mod vector_edit_render;
-mod version_banner_names_iccce;
+mod version_banner_names_icccer;
 mod visual_diff;

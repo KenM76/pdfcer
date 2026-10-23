@@ -486,23 +486,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "iccce-cmm"
-version = "0.3.0"
-source = "git+https://github.com/KenM76/iccce.git?rev=a4d9003bf87c61299fa1c6f9c2e2ffffa30de0c3#a4d9003bf87c61299fa1c6f9c2e2ffffa30de0c3"
+name = "icccer-cmm"
+version = "0.4.1"
+source = "git+https://github.com/KenM76/icccer.git?rev=7002353e557d5a2af0815098c2a6de436e3648c5#7002353e557d5a2af0815098c2a6de436e3648c5"
 dependencies = [
- "iccce-color",
- "iccce-profile",
+ "icccer-color",
+ "icccer-profile",
 ]
 
 [[package]]
-name = "iccce-color"
-version = "0.3.0"
-source = "git+https://github.com/KenM76/iccce.git?rev=a4d9003bf87c61299fa1c6f9c2e2ffffa30de0c3#a4d9003bf87c61299fa1c6f9c2e2ffffa30de0c3"
+name = "icccer-color"
+version = "0.4.1"
+source = "git+https://github.com/KenM76/icccer.git?rev=7002353e557d5a2af0815098c2a6de436e3648c5#7002353e557d5a2af0815098c2a6de436e3648c5"
 
 [[package]]
-name = "iccce-profile"
-version = "0.3.0"
-source = "git+https://github.com/KenM76/iccce.git?rev=a4d9003bf87c61299fa1c6f9c2e2ffffa30de0c3#a4d9003bf87c61299fa1c6f9c2e2ffffa30de0c3"
+name = "icccer-profile"
+version = "0.4.1"
+source = "git+https://github.com/KenM76/icccer.git?rev=7002353e557d5a2af0815098c2a6de436e3648c5#7002353e557d5a2af0815098c2a6de436e3648c5"
 
 [[package]]
 name = "imagesize"
@@ -735,9 +735,9 @@ dependencies = [
 name = "pdfcer-render"
 version = "0.92.0"
 dependencies = [
- "iccce-cmm",
- "iccce-color",
- "iccce-profile",
+ "icccer-cmm",
+ "icccer-color",
+ "icccer-profile",
  "jpeg-encoder",
  "pdfcer-core",
  "png",

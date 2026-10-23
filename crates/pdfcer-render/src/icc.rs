@@ -1,6 +1,6 @@
 //! # The ICC bridge — pdfcer's one and only door to colour conversion
 //!
-//! This module is a thin adapter over **iccce** (`github.com/KenM76/iccce`,
+//! This module is a thin adapter over **icccer** (`github.com/KenM76/icccer`,
 //! MIT), the sibling project that owns *all* colour conversion by
 //! `docs/ARCHITECTURE.md` decision 064. Nothing here implements colour
 //! science. Everything here is about deciding *which* conversion to ask for,
@@ -46,13 +46,13 @@
 //! |---|---|---|
 //! | **source** | the `ICCBased` stream's own decoded profile, carried on [`crate::color::ColorSpace::IccBased`] | none — no bridge is built |
 //! | **destination** | the document catalog's `/OutputIntents` → `/DestOutputProfile` | none — no bridge is built |
-//! | **destination (display)** | iccce's **constructed sRGB** (`iccce_cmm::builtin::srgb`, `Destination::None`) — the screen itself | none needed; see below |
+//! | **destination (display)** | icccer's **constructed sRGB** (`icccer_cmm::builtin::srgb`, `Destination::None`) — the screen itself | none needed; see below |
 //!
 //! ### The second destination, and why it is not the asymmetry being broken
 //!
 //! The paragraph below this one says pdfcer must never invent a **source**
 //! characterisation. It says nothing against a built-in **destination**, and
-//! iccce ships exactly one on purpose: the screen every additive render
+//! icccer ships exactly one on purpose: the screen every additive render
 //! lands on IS sRGB by this crate's own convention (`color::xyz_to_srgb`
 //! already assumes it for `Lab`/`CalRGB`). So when a document embeds a
 //! profile that says what its RGB numbers mean, converting those numbers
@@ -80,7 +80,7 @@
 //! ### Why there is no built-in-sRGB source fallback
 //!
 //! It would be easy to write "if the source has no profile, assume sRGB", and
-//! it would be wrong twice over. iccce deliberately exposes a built-in sRGB as
+//! it would be wrong twice over. icccer deliberately exposes a built-in sRGB as
 //! a **destination** only, and pdfcer is not entitled to invent a source
 //! characterisation the document never made. A `DeviceRGB` fill genuinely has
 //! no colorimetric meaning until something assigns one; pretending otherwise
@@ -113,7 +113,7 @@ use pdfcer_core::color::RenderingIntent;
 /// hold an `Arc<IccBridge>` for the life of a page rather than constructing
 /// one per paint.
 pub(crate) struct IccBridge {
-    chain: iccce_cmm::transform::Chain,
+    chain: icccer_cmm::transform::Chain,
     /// How many components the SOURCE takes, from the PDF's `/N`. Kept so a
     /// caller handing over the wrong number of operands is refused rather
     /// than silently converted from a truncated or zero-padded colour.
@@ -125,7 +125,7 @@ pub(crate) struct IccBridge {
 }
 
 impl std::fmt::Debug for IccBridge {
-    /// Hand-written because `iccce_cmm::transform::Chain` is an opaque transform with no
+    /// Hand-written because `icccer_cmm::transform::Chain` is an opaque transform with no
     /// useful `Debug`, and a derived impl would either fail to compile or dump
     /// megabytes of lookup table into a log.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -161,9 +161,9 @@ impl IccBridge {
         dst_profile: &[u8],
         intent: RenderingIntent,
     ) -> Option<Self> {
-        let src = iccce_profile::Profile::parse(src_profile).ok()?;
-        let dst = iccce_profile::Profile::parse(dst_profile).ok()?;
-        let chain = iccce_cmm::transform::Chain::new(&src, &dst, to_iccce_intent(intent)).ok()?;
+        let src = icccer_profile::Profile::parse(src_profile).ok()?;
+        let dst = icccer_profile::Profile::parse(dst_profile).ok()?;
+        let chain = icccer_cmm::transform::Chain::new(&src, &dst, to_icccer_intent(intent)).ok()?;
         // A destination profile that is not 4-component is a perfectly valid
         // profile; it is just not one this bridge can feed a CMYK buffer.
         // Probing with a mid-grey is cheaper and more honest than trusting a
@@ -185,7 +185,7 @@ impl IccBridge {
         })
     }
 
-    /// Build a transform from an embedded source profile to **iccce's
+    /// Build a transform from an embedded source profile to **icccer's
     /// constructed sRGB** — the display route.
     ///
     /// # Why this exists beside [`Self::build`]
@@ -197,13 +197,13 @@ impl IccBridge {
     /// destination from the document at all. See the module docs for why
     /// that is not the built-in-*source* substitution this crate refuses.
     ///
-    /// `Destination::None` is iccce's spelling for "I looked, there is no
+    /// `Destination::None` is icccer's spelling for "I looked, there is no
     /// destination profile, construct sRGB" — and the chain records that it
     /// did (`DestinationProvenance::BuiltInSrgb`), so the substitution is a
     /// disclosed fact rather than a hidden one.
     ///
     /// Returns `None` — never an error — on an unparseable profile or a
-    /// source model iccce cannot derive, for the same reason [`Self::build`]
+    /// source model icccer cannot derive, for the same reason [`Self::build`]
     /// does: the caller falls back to Table 66's reinterpretation and the
     /// render counts the paint as unmanaged.
     pub(crate) fn build_to_srgb(
@@ -211,11 +211,11 @@ impl IccBridge {
         src_components: usize,
         intent: RenderingIntent,
     ) -> Option<Self> {
-        let src = iccce_profile::Profile::parse(src_profile).ok()?;
-        let chain = iccce_cmm::transform::Chain::with_destination(
+        let src = icccer_profile::Profile::parse(src_profile).ok()?;
+        let chain = icccer_cmm::transform::Chain::with_destination(
             &src,
-            iccce_cmm::transform::Destination::None,
-            to_iccce_intent(intent),
+            icccer_cmm::transform::Destination::None,
+            to_icccer_intent(intent),
         )
         .ok()?;
         // Same probe as `build`, same reason: exercise the transform that
@@ -234,7 +234,7 @@ impl IccBridge {
     /// Convert the source space's OWN components to an **encoded sRGB**
     /// triple — what the screen path paints.
     ///
-    /// The output is sRGB *device* values from iccce's constructed profile,
+    /// The output is sRGB *device* values from icccer's constructed profile,
     /// which means the transfer function has already been applied: these
     /// are the same encoded numbers `Rgb::from_rgb` expects, not linear
     /// light. Clamped for the same reason [`Self::convert_components`]
@@ -285,7 +285,7 @@ impl IccBridge {
     }
 }
 
-/// Map pdfcer's rendering intent onto iccce's.
+/// Map pdfcer's rendering intent onto icccer's.
 ///
 /// # Why there IS a catch-all arm, when the obvious thing is to forbid one
 ///
@@ -306,8 +306,8 @@ impl IccBridge {
 /// ⇒ The transferable point: `#[non_exhaustive]` moves a compile-time
 /// guarantee to a runtime choice, and the choice then has to be *defended* in
 /// prose because no gate will ever check it again.
-fn to_iccce_intent(intent: RenderingIntent) -> iccce_cmm::matrix_trc::Intent {
-    use iccce_cmm::matrix_trc::Intent;
+fn to_icccer_intent(intent: RenderingIntent) -> icccer_cmm::matrix_trc::Intent {
+    use icccer_cmm::matrix_trc::Intent;
     match intent {
         RenderingIntent::Perceptual => Intent::Perceptual,
         RenderingIntent::RelativeColorimetric => Intent::MediaRelative,
@@ -347,7 +347,7 @@ fn same_profile(a: &std::sync::Arc<[u8]>, b: &std::sync::Arc<[u8]>) -> bool {
 /// intent's four inks out (`Pass 242.0`). Held behind an `Arc` by the cache
 /// and by every `Lab`/`CalRGB`/`CalGray` image decoded on the page.
 pub(crate) struct PcsBridge {
-    chain: iccce_cmm::transform::Chain,
+    chain: icccer_cmm::transform::Chain,
 }
 
 impl std::fmt::Debug for PcsBridge {
@@ -362,7 +362,7 @@ impl PcsBridge {
     pub(crate) fn to_ink(&self, xyz: [f32; 3]) -> Option<[f32; 4]> {
         let out = self
             .chain
-            .pcs_to_destination(iccce_color::Xyz {
+            .pcs_to_destination(icccer_color::Xyz {
                 x: f64::from(xyz[0]),
                 y: f64::from(xyz[1]),
                 z: f64::from(xyz[2]),
@@ -505,7 +505,7 @@ pub(crate) struct IccBridgeCache {
 enum BridgeDest {
     /// Source → the document's `/OutputIntent` profile ([`IccBridge::build`]).
     OutputIntent,
-    /// Source → iccce's constructed sRGB ([`IccBridge::build_to_srgb`]).
+    /// Source → icccer's constructed sRGB ([`IccBridge::build_to_srgb`]).
     Srgb,
 }
 
@@ -552,17 +552,17 @@ impl IccBridgeCache {
     ///
     /// # Why a destination-only chain, and why it is cached per intent
     ///
-    /// iccce exposes exactly this for named colours
+    /// icccer exposes exactly this for named colours
     /// (`Chain::convert_pcs_to_device`), but that entry point builds a
     /// chain per call — parsing the destination profile every time, which
     /// for a 1.4 MB press profile is not a per-paint cost anyone can pay.
     /// So the destination-only chain (`Chain::new(dst, dst, intent)`, the
-    /// same construction iccce's own function uses) is built once per
+    /// same construction icccer's own function uses) is built once per
     /// intent here and `pcs_to_destination` is called on it.
     ///
     /// Per INTENT, not once: ISO 32000-1 §8.6.5.8 makes the rendering
     /// intent a graphics-state property, and a destination profile's B2A0/
-    /// B2A1/B2A2 tables are genuinely different separations. iccce's named-
+    /// B2A1/B2A2 tables are genuinely different separations. icccer's named-
     /// colour entry point hard-codes media-relative because Table 66 fixes
     /// that for `ncl2`; a `Lab` fill under `/Perceptual ri` has no such
     /// clause and gets the intent the stream asked for.
@@ -588,10 +588,10 @@ impl IccBridgeCache {
         if let Some((_, hit)) = chains.iter().find(|(i, _)| *i == intent) {
             return hit.clone();
         }
-        let bridge = iccce_profile::Profile::parse(dest)
+        let bridge = icccer_profile::Profile::parse(dest)
             .ok()
             .and_then(|profile| {
-                iccce_cmm::transform::Chain::new(&profile, &profile, to_iccce_intent(intent)).ok()
+                icccer_cmm::transform::Chain::new(&profile, &profile, to_icccer_intent(intent)).ok()
             })
             .filter(|chain| chain.output_channels() == 4)
             .map(|chain| std::sync::Arc::new(PcsBridge { chain }));
@@ -671,7 +671,7 @@ impl IccBridgeCache {
     }
 
     /// Fetch or build the **display** bridge for one source profile at one
-    /// intent — source → iccce's constructed sRGB.
+    /// intent — source → icccer's constructed sRGB.
     ///
     /// Unlike [`Self::get`] this needs no `/OutputIntent`: the destination
     /// is the screen, which is known by construction. So it answers on a

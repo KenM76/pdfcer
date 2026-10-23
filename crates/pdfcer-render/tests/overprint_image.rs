@@ -346,7 +346,7 @@ fn a_spot_colour_paints_ink_on_a_subtractive_page_too() {
 
     // Same ink, same tint transform, so the two must at least agree on which
     // channel dominates. Asserting the exact triple would freeze the
-    // subtractive page's CMYK -> sRGB conversion, which is iccce's to improve.
+    // subtractive page's CMYK -> sRGB conversion, which is icccer's to improve.
     assert!(
         cg > cr && cg > cb && rg > rr && rg > rb,
         "both pages should render this spot green-dominant; \

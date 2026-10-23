@@ -462,7 +462,7 @@ pub struct Diagnostics {
     /// recurs: a blocker recorded once, in a doc comment, outlives the
     /// design that motivated it and then argues against work that has
     /// become cheap. The `Pass 85.5` row carried the same defect — *"gated
-    /// on `iccce`"* — and was falsified the same way, by someone trying it.
+    /// on `icccer`"* — and was falsified the same way, by someone trying it.
     ///
     /// The per-cell trap table that used to sit here (`PCS1_160` and
     /// `PCS3_164`, three of four modes trapping) is **deleted rather than

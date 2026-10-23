@@ -60,41 +60,41 @@ thiserror = "2"
 # regenerated THIRD_PARTY_LICENSES.md).
 tiny-skia = "0.11"
 
-# iccce: the colour-management engine. A SIBLING PROJECT of this one
-# (github.com/KenM76/iccce, MIT), and by decision 064 it owns ALL colour
+# icccer: the colour-management engine. A SIBLING PROJECT of this one
+# (github.com/KenM76/icccer, MIT), and by decision 064 it owns ALL colour
 # conversion — pdfcer must never grow its own CMM, and must never take a
 # different CMM crate.
 #
-# ★ WHY A GIT DEPENDENCY AND NOT A PATH ONE. iccce lives beside pdfcer on the
-# author's machine at `D:\dev\iccce`, so `path = "../../../iccce"` would build
+# ★ WHY A GIT DEPENDENCY AND NOT A PATH ONE. icccer lives beside pdfcer on the
+# author's machine at `D:\dev\icccer`, so `path = "../../../icccer"` would build
 # here and fail for everyone else — this repository is PUBLIC (CLAUDE.md rule
 # 8), and a clean `git clone` of it has no sibling checkout to point at. A git
 # URL is the only form that resolves for a stranger. Pinned to a COMMIT (`rev`)
 # rather than a tag or a branch so a colour result is reproducible: an unpinned
 # dependency would let an upstream commit silently change what this renderer
 # outputs, which for a conformance-tested renderer is a correctness hazard, not
-# a convenience one. A tag can be moved; a rev cannot. This was `tag = "v0.3.0"`
-# until 2026-09-02 (the rev below IS that tag's commit); iccce's own reply of
-# 2026-09-01 (`reply_depend_on_a_pinned_rev_and_the_four_intent_rules_are_accepted.md`)
-# asked for exactly this shape, because pdfcer's requests have already changed
-# that library's API twice and a rev makes the next one cheap without asking
-# them to cut a release they cannot promise.
+# a convenience one. A tag can be moved; a rev cannot. The rev below is tag
+# `v0.4.1`'s commit: the `iccce` -> `icccer` rename (0.4.0) plus manifest
+# URLs (0.4.1); source and API otherwise identical to the earlier pin
+# `a4d9003b` (`v0.3.0`). icccer asked for a pinned
+# rev (`reply_depend_on_a_pinned_rev_and_the_four_intent_rules_are_accepted.md`)
+# so an API change pdfcer requests needs no release from them.
 #
-# Licence MIT (verified against iccce's own `Cargo.toml`, 2026-09-01) —
+# Licence MIT (verified against icccer's own `Cargo.toml`, 2026-09-01) —
 # permissive per docs/LEGAL.md §6.1, so no operator flag is required and
 # attribution lands in the regenerated THIRD_PARTY_LICENSES.md.
 #
-# ★ IT CLEARS THE wasm32 GATE, which is why it is admissible at all: iccce has
+# ★ IT CLEARS THE wasm32 GATE, which is why it is admissible at all: icccer has
 # ZERO external dependencies and sets `unsafe_code = "deny"`, so it carries
 # nothing that could fail to cross into the web fork (ARCHITECTURE.md §3).
-iccce-profile = { git = "https://github.com/KenM76/iccce.git", rev = "a4d9003bf87c61299fa1c6f9c2e2ffffa30de0c3" }
-iccce-cmm = { git = "https://github.com/KenM76/iccce.git", rev = "a4d9003bf87c61299fa1c6f9c2e2ffffa30de0c3" }
-# iccce-color: the PCS value types (`Xyz`) that `iccce-cmm`'s PCS-side
-# entry points take. Already in the tree as iccce-cmm's own dependency --
+icccer-profile = { git = "https://github.com/KenM76/icccer.git", rev = "7002353e557d5a2af0815098c2a6de436e3648c5" }
+icccer-cmm = { git = "https://github.com/KenM76/icccer.git", rev = "7002353e557d5a2af0815098c2a6de436e3648c5" }
+# icccer-color: the PCS value types (`Xyz`) that `icccer-cmm`'s PCS-side
+# entry points take. Already in the tree as icccer-cmm's own dependency --
 # same repository, same rev, same MIT licence -- so the dependency SET is
 # unchanged; it becomes a direct edge because `Chain::pcs_to_destination`
-# takes an `iccce_color::Xyz` and iccce-cmm does not re-export it (Pass 242.0).
-iccce-color = { git = "https://github.com/KenM76/iccce.git", rev = "a4d9003bf87c61299fa1c6f9c2e2ffffa30de0c3" }
+# takes an `icccer_color::Xyz` and icccer-cmm does not re-export it (Pass 242.0).
+icccer-color = { git = "https://github.com/KenM76/icccer.git", rev = "7002353e557d5a2af0815098c2a6de436e3648c5" }
 
 # skrifa: the single font-program parser for the READ path (decision
 # 004 R21). License MIT OR Apache-2.0, #![forbid(unsafe_code)], pure

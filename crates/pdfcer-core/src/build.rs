@@ -5,7 +5,7 @@
 //!
 //! Ken, 2026-08-18: *"whenever you build a new version can you include the
 //! build date and time, and also include the build revision, date, and time
-//! for the version of iccce used in the version?"*
+//! for the version of icccer used in the version?"*
 //!
 //! Every value here is captured at **compile time** by
 //! `crates/pdfcer-core/build.rs` and read with `env!`, so reading it costs
@@ -21,24 +21,23 @@
 //! the one thing a provenance banner exists to prevent.
 //!
 //!
-//! # `iccce` — reported from the resolved dependency graph
+//! # `icccer` — reported from the resolved dependency graph
 //!
-//! pdfcer depends on `iccce` as of `Pass 199.2`: `iccce-profile` and
-//! `iccce-cmm`, pinned in `crates/pdfcer-render` — to tag `v0.3.0` until
-//! 2026-09-02, and to that tag's revision `a4d9003b` since (decision 123,
-//! at iccce's own request). So `BuildInfo::iccce` carries a real answer —
+//! pdfcer depends on `icccer` as of `Pass 199.2`: `icccer-profile` and
+//! `icccer-cmm`, pinned in `crates/pdfcer-render` to a revision (decision 123,
+//! at icccer's own request). So `BuildInfo::icccer` carries a real answer —
 //! version, pin, resolved revision, and when that revision was committed:
 //!
 //! ```text
-//!   iccce:     0.3.0 (rev a4d9003b, committed 2026-09-01T08:54:36Z)
+//!   icccer:    0.4.1 (rev 7002353e, committed 2026-10-22T17:58:26Z)
 //! ```
 //!
-//! (Under the tag pin the same line read
-//! `0.3.0 (tag v0.3.0, a4d9003b, committed …)`; a `rev` pin and its
+//! (Under a tag pin the line reads
+//! `0.4.1 (tag v0.4.1, 7002353e, committed …)`; a `rev` pin and its
 //! resolved revision are one number, so it is printed once.)
 //!
 //! That is all four halves of what the operator asked for on 2026-08-18:
-//! *"the build revision, date, and time for the version of iccce used"*.
+//! *"the build revision, date, and time for the version of icccer used"*.
 //!
 //! ## This field said `not-linked-yet` for six days after that stopped
 //! being true
@@ -51,11 +50,11 @@
 //!
 //! `Pass 199.2` added the dependency. `Pass 223.0` fixed the stamp. In
 //! between, `pdfcer --version` told the operator that pdfcer does not link
-//! `iccce`, while linking it.
+//! `icccer`, while linking it.
 //!
 //! The mechanism is in `build.rs`'s own docs and is worth reading once: the
-//! detector waited on `DEP_ICCCE_PROVENANCE`, which Cargo only ever sets for
-//! a dependency declaring a `links` key. `iccce` declares none, so the
+//! detector waited on `DEP_ICCCER_PROVENANCE`, which Cargo only ever sets for
+//! a dependency declaring a `links` key. `icccer` declares none, so the
 //! detector could not have fired however long it waited — and a detector
 //! that cannot fire is indistinguishable, from outside, from a condition
 //! that has not occurred.
@@ -64,8 +63,8 @@
 //!
 //! The workspace `Cargo.lock` — the *resolved* graph, i.e. the exact
 //! revision this build compiles. Deliberately **not** the sibling checkout
-//! at `D:\Dev\iccce`, which would answer *"which iccce is on this
-//! machine"* while appearing to answer *"which iccce is in this binary"*.
+//! at `D:\Dev\icccer`, which would answer *"which icccer is on this
+//! machine"* while appearing to answer *"which icccer is in this binary"*.
 //! Those coincide only by accident, and the accident is invisible to whoever
 //! reads the banner later.
 //!
@@ -107,7 +106,7 @@ pub struct BuildInfo {
     /// different situation from one built today from this morning's commit,
     /// and only the two timestamps side by side distinguish them.
     pub committed_at: &'static str,
-    /// The `iccce` build linked into this one — its version, the pin the
+    /// The `icccer` build linked into this one — its version, the pin the
     /// manifest asked for, the resolved git revision, and when that
     /// revision was committed. `not-linked` when there is none.
     ///
@@ -116,11 +115,11 @@ pub struct BuildInfo {
     ///
     /// ## It reports what the WORKSPACE links, not what `pdfcer-core` links
     ///
-    /// `iccce-profile` and `iccce-cmm` are dependencies of
+    /// `icccer-profile` and `icccer-cmm` are dependencies of
     /// **`pdfcer-render`**, and this stamp is baked by `pdfcer-core`'s build
     /// script. Every shipped binary links `pdfcer-render`, so inside this
     /// workspace the two coincide. A project depending on `pdfcer-core`
-    /// alone has no `iccce` in its graph and gets `not-linked`, which is
+    /// alone has no `icccer` in its graph and gets `not-linked`, which is
     /// the truth for that build.
     ///
     /// ## This field read `not-linked-yet` until `Pass 223.0`, wrongly
@@ -128,11 +127,11 @@ pub struct BuildInfo {
     /// `Pass 199.2` added the dependency; this went on saying the
     /// integration was pending for six days, in the one output surface
     /// whose entire purpose is to be believed without checking. The
-    /// mechanism it waited on (`DEP_ICCCE_PROVENANCE`) is only ever set
-    /// for a dependency declaring a `links` key, which `iccce` does not —
+    /// mechanism it waited on (`DEP_ICCCER_PROVENANCE`) is only ever set
+    /// for a dependency declaring a `links` key, which `icccer` does not —
     /// so the detector could not have fired however long it waited. See
-    /// `build.rs`'s `iccce_provenance`.
-    pub iccce: &'static str,
+    /// `build.rs`'s `icccer_provenance`.
+    pub icccer: &'static str,
 }
 
 impl BuildInfo {
@@ -144,7 +143,7 @@ impl BuildInfo {
             built_at: env!("PDFCER_BUILD_TIMESTAMP"),
             revision: env!("PDFCER_BUILD_REVISION"),
             committed_at: env!("PDFCER_BUILD_COMMIT_TIMESTAMP"),
-            iccce: env!("PDFCER_ICCCE_PROVENANCE"),
+            icccer: env!("PDFCER_ICCCER_PROVENANCE"),
         }
     }
 
@@ -156,7 +155,7 @@ impl BuildInfo {
     /// say "this build cannot identify itself" instead of quietly printing
     /// the word `unknown` three times and hoping somebody notices.
     ///
-    /// Note that [`Self::iccce`] is **not** part of this: `not-linked` is a
+    /// Note that [`Self::icccer`] is **not** part of this: `not-linked` is a
     /// determined answer, not a missing one, and so is a provenance string
     /// that omits the commit date because no repository could supply it.
     #[must_use]
@@ -188,20 +187,20 @@ impl std::fmt::Display for BuildInfo {
         writeln!(f, "  built:     {}", self.built_at)?;
         writeln!(f, "  revision:  {}", self.revision)?;
         writeln!(f, "  committed: {}", self.committed_at)?;
-        write!(f, "  iccce:     {}", self.iccce)?;
-        if self.iccce == "not-linked" {
-            // The operator asked for iccce's revision BY NAME, so an answer
+        write!(f, "  icccer:    {}", self.icccer)?;
+        if self.icccer == "not-linked" {
+            // The operator asked for icccer's revision BY NAME, so an answer
             // of "there isn't one" has to say why -- otherwise it reads as a
             // defect in the stamp rather than as a fact about the build.
             //
             // This branch is now the OUT-OF-WORKSPACE case, not the
             // not-yet-integrated one. Inside the workspace every binary
-            // links iccce and this never fires; it fires for a project
+            // links icccer and this never fires; it fires for a project
             // depending on `pdfcer-core` alone, where the absence is real
             // and permanent rather than pending.
             write!(
                 f,
-                " (this build links pdfcer-core alone; iccce is pdfcer-render's dependency)"
+                " (this build links pdfcer-core alone; icccer is pdfcer-render's dependency)"
             )?;
         }
         if self.is_dirty() {
@@ -238,7 +237,7 @@ mod tests {
         assert!(!b.built_at.is_empty());
         assert!(!b.revision.is_empty());
         assert!(!b.committed_at.is_empty());
-        assert!(!b.iccce.is_empty());
+        assert!(!b.icccer.is_empty());
     }
 
     /// The build timestamp is a real RFC 3339 UTC instant, not a debug
@@ -272,12 +271,12 @@ mod tests {
         }
     }
 
-    /// The rendered form names every fact, including the `iccce` line the
+    /// The rendered form names every fact, including the `icccer` line the
     /// operator asked for by name.
     #[test]
     fn the_rendered_stamp_names_every_fact() {
         let text = BuildInfo::current().to_string();
-        for key in ["built:", "revision:", "committed:", "iccce:"] {
+        for key in ["built:", "revision:", "committed:", "icccer:"] {
             assert!(text.contains(key), "{key:?} missing from:\n{text}");
         }
     }

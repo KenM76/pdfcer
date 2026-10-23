@@ -301,7 +301,7 @@ pub enum ColorSpace {
     ///
     /// That sentence used to read "pdfcer has no ICC colour-management
     /// engine and this module does not contain one", and the first half
-    /// stopped being true at `Pass 199.2`, when iccce was wired in. The
+    /// stopped being true at `Pass 199.2`, when icccer was wired in. The
     /// SECOND half is still exactly true and is the load-bearing one: colour
     /// management happens on the ink-compositing path, using the profile
     /// carried on [`Self::IccBased`], and this resolution step still produces
@@ -340,7 +340,7 @@ pub enum ColorSpace {
     /// substituted, and still counted by [`ColorDiagnostics::icc_alternate_used`]
     /// / [`ColorDiagnostics::icc_device_fallback_used`]: `N 1` and `N 4`
     /// paints on a page with no output intent, shadings and meshes in this
-    /// space, and any profile iccce cannot model. The counters tick at
+    /// space, and any profile icccer cannot model. The counters tick at
     /// RESOLUTION and say which fallback structure was built, not whether a
     /// paint was then managed — `Diagnostics::icc_managed_paints` answers
     /// that.
@@ -1757,7 +1757,7 @@ fn resolve_icc_based(
         Some(alternate) => {
             diag.icc_alternate_used += 1;
             // This note used to end "pdfcer has no ICC engine". That stopped
-            // being true when iccce was wired in: the profile is now carried
+            // being true when icccer was wired in: the profile is now carried
             // on the space and used for terminal conversions. The counter is
             // kept — the alternate IS still what paints in the additive path —
             // but the parenthetical was a claim about pdfcer's capabilities,

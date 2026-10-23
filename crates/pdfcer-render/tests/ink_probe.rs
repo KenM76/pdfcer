@@ -8,7 +8,7 @@
 //!
 //! # Why an instrument was built rather than a `println!`
 //!
-//! The sibling `iccce` project asked, on 2026-08-29, for exactly one number:
+//! The sibling `icccer` project asked, on 2026-08-29, for exactly one number:
 //! the CMYK sitting in the buffer just before that conversion, for a saturated
 //! green. The question is an **attribution** question. Under decision 064 a
 //! colorant buffer does two separable things —
@@ -16,7 +16,7 @@
 //! | stage | whose |
 //! |---|---|
 //! | composites the page **in ink** | pdfcer's |
-//! | converts the composited result **to sRGB on the way out** | `iccce`'s |
+//! | converts the composited result **to sRGB on the way out** | `icccer`'s |
 //!
 //! — and pdfcer's only switch for the buffer, `--max-cmyk-buffer-bytes`, turns
 //! **both** off together. No measurement taken through that switch can say
@@ -42,7 +42,7 @@
 //! It had never been tested. Every existing colorant assertion in this crate
 //! is made on **sRGB pixels after the conversion**, which is a measurement of
 //! the composite and the conversion *together* — precisely the conflation
-//! `iccce` declined to accept.
+//! `icccer` declined to accept.
 //!
 //! # Non-vacuity
 //!
@@ -99,12 +99,12 @@ fn render(name: &str, options: &RenderOptions) -> RenderedPage {
     pdfcer_render::render_page_with_view(&doc.view(), &pages[0], SCALE, options).expect("renders")
 }
 
-/// THE ANSWER `iccce` ASKED FOR, as an assertion rather than a printout.
+/// THE ANSWER `icccer` ASKED FOR, as an assertion rather than a printout.
 ///
 /// The operand goes into the colorant buffer and comes out of it unchanged.
 /// The composite is therefore an identity here, and any residual difference
 /// between pdfcer's green and a reference engine's is downstream of this point
-/// — in the conversion, which is `iccce`'s half of decision 064.
+/// — in the conversion, which is `icccer`'s half of decision 064.
 #[test]
 fn a_single_opaque_paint_reaches_the_exit_conversion_with_its_operand_intact() {
     let options = RenderOptions::default().with_ink_probe(PROBE_XY.0, PROBE_XY.1);

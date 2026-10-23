@@ -49,7 +49,7 @@ pub mod annot_author;
 pub mod attachments;
 pub mod bates;
 /// Build provenance — what this binary is and when it was made
-/// (`Pass 101.0`; see the module's own docs for the `iccce` question).
+/// (`Pass 101.0`; see the module's own docs for the `icccer` question).
 pub mod build;
 /// Unix timestamp to RFC 3339 UTC, shared with this crate's BUILD SCRIPT via
 /// `include!` so the calendar arithmetic exists once and stays testable.

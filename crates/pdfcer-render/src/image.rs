@@ -2389,7 +2389,7 @@ pub(crate) enum Space {
     /// [`Self::Icc`] carries one bridge, to the document's `/OutputIntent`,
     /// and its [`Self::to_rgb`] deliberately does not move — a CMYK image's
     /// screen answer stays `Rgb::from_cmyk`. This variant carries **two**:
-    /// a display bridge to iccce's constructed sRGB, which is always built
+    /// a display bridge to icccer's constructed sRGB, which is always built
     /// and answers [`Self::to_rgb`]; and an ink bridge to the output intent,
     /// built only when the document names one, which answers
     /// [`Self::to_cmyk`]. On an additive page the first is the whole story.

@@ -1995,7 +1995,7 @@ fn cmyk_group_pdf(content: &str) -> Vec<u8> {
     ])
 }
 
-/// THE ANSWER THE SIBLING `iccce` PROJECT ASKED FOR, THROUGH THE BINARY.
+/// THE ANSWER THE SIBLING `icccer` PROJECT ASKED FOR, THROUGH THE BINARY.
 ///
 /// A single opaque `0.75 0 1 0 k` fill on a page composited in ink reaches
 /// the exit conversion with its operand intact. The composite is an identity

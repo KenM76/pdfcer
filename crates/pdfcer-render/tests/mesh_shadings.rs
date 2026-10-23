@@ -62,7 +62,7 @@
 //! **the same amount** pdfcer's plain raster image differs from Acrobat's
 //! plain raster image on the same page (mean |Δ| 26.5 vs 29.6 on one cell,
 //! 27.1 vs 26.7 on the other). ⇒ the residual is the `DeviceCMYK` → sRGB
-//! path, which belongs to the sibling `iccce` project by decision 064, and
+//! path, which belongs to the sibling `icccer` project by decision 064, and
 //! is not a mesh defect. Encoding that as a test here would pin a colour
 //! table this project does not own.
 

@@ -89,7 +89,7 @@
 //! **both look like a page**. [`CmykBuffer::to_srgb_over_white`] does them
 //! in the required order and its test pins the distinction.
 //!
-//! *(Sourced from `iccce`, 2026-08-21, checked clause-by-clause against
+//! *(Sourced from `icccer`, 2026-08-21, checked clause-by-clause against
 //! both ISO editions with two independent extraction engines. The ISO
 //! 32000-2 errata are unapplied PDF annotations in the sponsored copy, so
 //! a naive text extraction returns the uncorrected standard — none of
@@ -127,7 +127,7 @@
 //!
 //! `f64` was considered and declined on 2026-08-21: it doubles memory and
 //! halves SIMD lane count to shrink an error that is already invisible.
-//! The one argument for it — `iccce`'s evaluation surface is `f64`-only —
+//! The one argument for it — `icccer`'s evaluation surface is `f64`-only —
 //! does not survive, because widening `f32`→`f64` is **exact** and happens
 //! once per pixel at the collapse, not inside the blend loop. [`Chan`] is
 //! the single place that decision lives, so revisiting it is a one-line
@@ -3238,7 +3238,7 @@ mod tests {
         // to write by accident.
         //
         // Half-alpha rich black, `C = M = Y = K = 0.9` -- the worked
-        // example iccce derived the divergence from. Converting first
+        // example icccer derived the divergence from. Converting first
         // gives `over_white(srgb(0.9,0.9,0.9,0.9))`; flattening first
         // would give `srgb(0.45,0.45,0.45,0.45)`. The two differ because
         // the conversion is a fitted lattice with clamping and does not

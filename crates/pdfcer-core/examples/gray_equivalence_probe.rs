@@ -1,9 +1,9 @@
 //! Do suite patch 23.0's four "same black" panels actually render the same
 //! colour through pdfcer's sRGB path?
 //!
-//! # The question, and why it is pdfcer's rather than iccce's
+//! # The question, and why it is pdfcer's rather than icccer's
 //!
-//! `iccce`'s `note_gray_black_routing_is_yours.md` (2026-08-17, third
+//! `icccer`'s `note_gray_black_routing_is_yours.md` (2026-08-17, third
 //! amendment 2026-08-18) reclassified suite patch 23.0 from a colour-management
 //! problem to a **PDF device-routing** one, and handed it back. The patch
 //! draws one tone four ways and they must match:
@@ -19,7 +19,7 @@
 //! of a gray is `c = m = y = 0`, `k = 1 − gray`, and `1 − 0.25 = 0.75`. The suite
 //! authored the patch on the device-space rule.
 //!
-//! **Earlier iccce documents circulated 50 % / 0-0-0-50 for these panels
+//! **Earlier icccer documents circulated 50 % / 0-0-0-50 for these panels
 //! and those figures are WRONG** — corrected at source before they could
 //! become a fixture here. The values above were read two independent ways:
 //! from the patch's own decompressed content stream, and from the readme.
@@ -30,7 +30,7 @@
 //! colour space is CMYK"*. **pdfcer's rasteriser targets sRGB** — `color/mod.rs`
 //! exposes `gray_to_srgb`, `rgb_to_srgb` and `cmyk_to_srgb` and nothing else —
 //! so that condition never holds and the cl. 10.3.2 / cl. 10.4.2.1 ambiguity
-//! iccce asked about does not arise for the current renderer.
+//! icccer asked about does not arise for the current renderer.
 //!
 //! What *does* arise is narrower and testable here: **two independent
 //! transfer functions have to agree at one point.** `gray_to_srgb(0.25)` and
