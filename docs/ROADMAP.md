@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.92.0` — version bump filed 2026-10-22 (1193rd filing); release PENDING
+
+Bump `8e77b267` ("chore(release): v0.92.0": `Cargo.toml` `[workspace.package]` version at line 98 and the `pdfcer-model` `[workspace.dependencies]` version 0.91.0 -> 0.92.0; `Cargo.lock` and `fuzz/Cargo.lock` by `cargo update -w` on the root and on `fuzz/`) on `main`, after `21aeb430` (the 1192nd filing). Engineer-reported; I have no shell (hard rule 8). The lock diff renames workspace crates only; the dependency change (zune-jpeg rc3 from git) shipped earlier in `32e2bff1` and is already filed.
+
+**v0.92.0 carries** (all filed): `Pass 616.7` final slice (`281ac8c7`, 1190th), `Pass 616.10` (`fe2c7a6b`, 1189th), `Pass 629.0` (`f0b4d434`, `/DA` at field creation, core + CLI, 1191st) and `Pass 630.0` (`32e2bff1`, zune-jpeg rc3 from git, decision 198, which unblocks `pdfcer-gui`'s dependency graph, 1192nd). Passes since `v0.91.0` as the engineer lists them: 616.7, 616.10, 629.0, 630.0.
+
+**Release gates (change-scoped, engineer-reported):** core, render, image-codec and 3d: 6397 passed, 0 failed, at `32e2bff1` (only docs changed after). `pdfcer-cli`: 954 integration passed plus 44 unit tests, 0 failed, at `21aeb430`. `cargo fmt --check` clean; `clippy --workspace --all-targets -D warnings` clean. All six `check-*` filing gates green.
+
+**Release plan, NOT done:** tag `v0.92.0` on this filing's commit; publish to OneDrive slot `pdfcer1` (`pdfcer2` keeps 0.91.0). **Not claimed done:** tag, package, smoke, `verify-release.py`, GitHub release, OneDrive slot, notice to `pdfcer-gui`; publication gets its own later filing. Still owed: pdfium render-parity run against the git rc3. `FEATURES.md`: no change. No decision. Ledgers: next free `Pass 631.0`, decision `199`, `R263`; next filing 1194th.
+
 ### Pass 630.0 (`32e2bff1`), 2026-10-22 — zune-jpeg rc3 taken from git so a `^0.5` consumer resolves; decision 198 amends 197 (1192nd filing)
 
 Code commit `32e2bff1` "build(deps): take zune-jpeg rc3 from git so a ^0.5 consumer resolves (Pass 630.0)" (push not verified from here). Engineer-reported; I have no shell (hard rule 8). Reasoning is in the commit message. Source: pdfcer-gui request `request_zune_jpeg_prerelease_pin_unresolvable.md`; reply `open/reply_zune_jpeg_prerelease_pin_FIXED.md`. Filed new and shipped in one filing.

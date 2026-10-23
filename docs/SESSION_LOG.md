@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1193rd filing) — `v0.92.0` bump `8e77b267` filed (no Pass consumed)
+
+**Filed (engineer-reported, no shell here):** bump `8e77b267` ("chore(release): v0.92.0": `Cargo.toml` workspace version (line 98) and the `pdfcer-model` workspace-dependency version 0.91.0 -> 0.92.0; `Cargo.lock`, `fuzz/Cargo.lock` by `cargo update -w`) after `21aeb430` (1192nd). Carries `Pass 616.7` final slice, `Pass 616.10`, `Pass 629.0`, `Pass 630.0`, all filed earlier. Recorded as a ROADMAP Shipped bump entry, as the 1182nd did for `v0.91.0`.
+
+**Release gates (change-scoped):** core, render, image-codec, 3d 6397 passed / 0 failed at `32e2bff1` (docs only since); `pdfcer-cli` 954 + 44 unit passed / 0 failed at `21aeb430`; fmt and `clippy --workspace --all-targets -D warnings` clean; six `check-*` filing gates green.
+
+**Release plan, NOT done:** tag `v0.92.0` on this filing's commit; publish to OneDrive slot `pdfcer1` (`pdfcer2` keeps 0.91.0). Publication filed separately afterwards. No decision; `FEATURES.md` no change. Hard-rule-11 sweep: no meaning changed. `docs/NEXT_SESSION.md` not touched (engineer-owned; it likely still names v0.91.0 as latest and the rc3 pin, not verified). Git, push and backup state not verified from here.
+
+**For next session:** next free `Pass 631.0`, decision `199`, `R263`; next filing 1194th; tag and publish `v0.92.0` (slot `pdfcer1`); pdfium render-parity run against git rc3 still owed; Ken's crates.io decision pending.
+
 ## 2026-10-22 (1192nd filing) — `32e2bff1` Pass 630.0 SHIPPED (zune-jpeg rc3 from git); decision 198 amends 197; three gui requests found already shipped
 
 **Filed (engineer-reported, no shell here; git, push and backup state not verified from here):**
