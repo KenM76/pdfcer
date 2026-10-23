@@ -140,8 +140,11 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 - **A 14 pt unruled 4-column table is answered in prose at every dpi**
   (100-300, with or without 640.0's downscale). Reproduce with the
   scratchpad `p635_tables.py` / `p635_run.py` (table `t14_plain`); not
-  committed. Start by dumping the decoded text (an env-gated eprintln in
-  `engine_paddle_vl.rs` after `decode`, removed before commit).
+  committed. Cause measured: PP-DocLayoutV3 classes it `content` (text,
+  score 0.58), not `Table`, so no table prompt runs; every line's text is
+  read correctly. A fix would re-test a text region for column gutters
+  (inferred structure; disclose it). Low value; the ROADMAP Backlog item
+  still says "prose" and needs that cause added at the next filing.
 
 ## Local-only material (never commit)
 
