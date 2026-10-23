@@ -112,6 +112,27 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.95.0` PUBLISHED: tag on `5ca5eeeb` (the 1221st filing), 2026-10-23 (1222nd filing)
+
+Engineer-reported; no shell here, nothing checked from here (tag, release, slot and smoke results are the engineer's).
+- **Tag:** `v0.95.0` (annotated) on `5ca5eeeb`. Not moved: published tags are never rewritten, so the CI fix below lands after the tag and ships in the next release.
+- **GitHub release:** 8 assets, the portable zip plus 3 OCR add-on zips, each with a `.sha256`.
+- **OneDrive:** slot `pdfcer2` holds 0.95.0; `pdfcer1` keeps 0.94.0. **The next release writes `pdfcer1`.**
+- **Fresh-folder smoke, all OK:** `--version` (0.95.0, revision `v0.95.0`), `inspect`, `rotate --degrees 90` (incremental), `render-page`, `ocr` with the bundled paddle model.
+- **`verify-release.py`:** everything OK except two items. "Working tree clean": deliberate, uncommitted agent-memory files. "CI green at the tag": NOT green, see the follow-up below.
+- **Carries** Passes 638.0, 639.0, 640.0 (already filed COMPLETE). FEATURES: no change. Nothing minted; next free `Pass 641.0`, decision `199`, `R263`; next filing 1223rd.
+- Amends the 1221st banner below, which says "NOT yet published": it is now published.
+
+### `Pass 640.0` follow-up `e2bb5d67` (`fix`), 2026-10-23 — CI red on `--no-default-features` clippy (1222nd filing)
+
+Engineer-reported; no shell here. The verification figures below are the engineer's, not re-run from here.
+- **Defect:** the private `dpi: Option<f32>` field added to `OcrRunner` (`crates/pdfcer-ocr-host/src/runner.rs`) by `32589a48` is read only on the PaddleOCR-VL route. Without the `ocr-vl` feature, CI's `cargo clippy -p pdfcer-cli --no-default-features --all-targets -- -D warnings` failed: "field `dpi` is never read". **CI was red at `17067289` (run 40038188103) and at `5ca5eeeb`, the `v0.95.0` tag commit.**
+- **Fix:** the field and its two initialisers are `#[cfg(feature = "ocr-vl")]`.
+- **Verified locally (engineer):** that clippy command clean; `cargo clippy --workspace --all-targets --all-features -- -D warnings` clean; fmt clean; `pdfcer-ocr-host` tests 24 pass, 1 ignored (default features). The 640.0 entry's 29 pass was a different feature set; the two counts are not compared here.
+- **Released binary unaffected:** `pdfcer-cli` default features include `ocr-vl`, so the field is read there. The tag stays; the fix ships in the next release.
+- **Lesson (process):** the scoped release gate set ran clippy only with default/all features, never `--no-default-features`, the CI variant that caught this. **A change that adds a field (or item) read only under a feature needs the `--no-default-features` clippy before push.** Recorded here and in SESSION_LOG; not a new R (n=1, no mint).
+- **Sweep (rule 11):** no counter or capability changed meaning; none owed. FEATURES: no change.
+
 ### `v0.95.0` — release prep, version bump `2e26b99e` (`chore`), 2026-10-23 (1221st filing); NOT yet published
 
 Engineer-reported; no shell here, nothing checked from here. Same pattern as the v0.94.0 prep (1213th filing).
@@ -23703,6 +23724,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
+
+(1222nd filing: `v0.95.0` PUBLISHED on `5ca5eeeb` and the `Pass 640.0` follow-up `e2bb5d67` (CI `--no-default-features` clippy fix), see *Shipped*. Nothing minted; next free `Pass 641.0`, decision `199`, `R263`; next filing 1223rd. Next release writes OneDrive slot `pdfcer1`.)
 
 (1221st filing: v0.95.0 release prep, bump `2e26b99e`, see *Shipped*; Backlog t14 item updated with its measured cause. Nothing minted; next free `Pass 641.0`, decision `199`, `R263`; next filing 1222nd.)
 

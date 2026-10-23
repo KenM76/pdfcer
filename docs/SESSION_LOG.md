@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1222nd filing) — `v0.95.0` PUBLISHED; `Pass 640.0` follow-up `e2bb5d67` fixes red CI
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `v0.95.0` published: annotated tag on `5ca5eeeb` (the 1221st filing); GitHub release with 8 assets (portable zip + 3 OCR add-on zips, each with `.sha256`); OneDrive slot `pdfcer2` = 0.95.0, `pdfcer1` keeps 0.94.0. Fresh-folder smoke OK: `--version` (0.95.0, revision `v0.95.0`), `inspect`, `rotate --degrees 90` (incremental), `render-page`, `ocr` with the bundled paddle model. `verify-release.py` OK except "working tree clean" (deliberate uncommitted agent-memory files) and CI not green at the tag.
+- `e2bb5d67`: `OcrRunner`'s private `dpi: Option<f32>` (`crates/pdfcer-ocr-host/src/runner.rs`) is read only on the PaddleOCR-VL route, so `cargo clippy -p pdfcer-cli --no-default-features --all-targets -- -D warnings` failed "field `dpi` is never read". CI red at `17067289` (run 40038188103) and at `5ca5eeeb`. Field and its two initialisers now `#[cfg(feature = "ocr-vl")]`. Engineer-verified: that clippy clean, workspace `--all-features` clippy clean, fmt clean, `pdfcer-ocr-host` 24 pass 1 ignored (default features). Released binary unaffected (`pdfcer-cli` defaults include `ocr-vl`). Full entries: `ROADMAP.md` Shipped.
+
+**Decisions made:** the tag is NOT moved (published tags are never rewritten); the fix ships in the next release. No decision or R minted.
+
+**Finding (process):** the scoped release gate set ran clippy only with default/all features, never `--no-default-features`, which is the CI variant that caught this. A change adding an item read only under a feature needs the `--no-default-features` clippy before push. Gate-coverage gap, n=1.
+
+**Amends the 1221st entry below:** it says "NOT yet published"; it is published as above.
+
+**FEATURES.md:** no change.
+
+**For next session:** next release writes OneDrive slot `pdfcer1`. Next free `Pass 641.0`, decision `199`, `R263`; next filing 1223rd.
+
 ## 2026-10-23 (1221st filing) — `v0.95.0` release prep: version bump `2e26b99e`; NOT yet published
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):** `2e26b99e` bumps the workspace 0.94.0 to 0.95.0 (root `Cargo.toml` incl. the `pdfcer-model` dependency version, `Cargo.lock`, `fuzz/Cargo.lock`). Release carries Passes 638.0 (`44d2fcb7`), 639.0 (`736371ca`), 640.0 (`32589a48`), all already filed COMPLETE. `3fcfe33d` (engineer-owned `NEXT_SESSION.md`, measured cause of the t14 unruled-table miss) cited; no ledger effect beyond the Backlog update below. Full entry: `ROADMAP.md` Shipped.
