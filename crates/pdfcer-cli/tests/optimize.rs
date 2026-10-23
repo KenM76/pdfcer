@@ -1151,6 +1151,10 @@ fn a_brotli_image_reports_its_format_and_declares_the_extension() {
     assert!(report.contains("written as brotli-9"), "{report}");
     assert!(report.contains("(Flate would be "), "{report}");
     assert!(report.contains("note: Brotli streams need"), "{report}");
+    assert!(
+        report.contains("Acrobat Reader opens the file without an error but draws every page that uses one blank"),
+        "{report}"
+    );
     let written = String::from_utf8_lossy(&std::fs::read(&out).unwrap()).into_owned();
     assert!(written.contains("/Filter /BrotliDecode"), "{written}");
     assert!(written.contains("extension-brotli"), "no extension");

@@ -5,9 +5,12 @@
 use super::{EditSession, ObjectWrite};
 use crate::object::{Dict, Name, Object};
 
-/// The plan note a Brotli change carries.
+/// The plan note a Brotli change carries. The Reader sentence is measured
+/// (Acrobat Reader 25.1, decision 194's render check): a page using any
+/// Brotli stream, content or image, is drawn entirely blank, with no error.
 pub(super) const BROTLI_NOTE: &str = "Brotli streams need a reader that supports the PDF \
-    Association Brotli extension; the catalog gets /Extensions /PDFa and /Version 2.0";
+    Association Brotli extension; Acrobat Reader opens the file without an error but draws \
+    every page that uses one blank; the catalog gets /Extensions /PDFa and /Version 2.0";
 
 /// The extension's registered URL, which identifies an existing entry.
 const URL: &[u8] = b"https://pdfa.org/resource/extension-brotli";

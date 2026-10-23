@@ -47,8 +47,9 @@ pub(crate) struct OptimizeArgs {
     /// Replace the default stream action: leave, recompress (level 9),
     /// recompress-0 to recompress-9, brotli (quality 11) or brotli-0 to
     /// brotli-11 (smaller, but only readers supporting the PDF 2.0 Brotli
-    /// extension open it; adds that extension and /Version 2.0, skipped for
-    /// PDF/A), or image settings for every image
+    /// extension draw it: Acrobat Reader opens the file and shows those
+    /// pages blank, with no error; adds that extension and /Version 2.0,
+    /// skipped for PDF/A), or image settings for every image
     /// (other streams keep the preset's action): "image(ppi=150)" downsamples every image whose largest drawn
     /// use is above 1.5 x 150 ppi to 150 ppi there. Keys: method
     /// (off|average|subsample|bicubic|lanczos), ppi, above (the trigger),
