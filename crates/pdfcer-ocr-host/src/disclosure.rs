@@ -105,8 +105,8 @@ impl VlLast {
 }
 
 /// What reading by layout inferred: which regions were found and skipped,
-/// that line boxes come from each region's ink, that table cell boxes are an
-/// even grid, and any region whose decoding was cut short.
+/// that line boxes come from each region's ink, how table cell boxes were
+/// placed, and any region whose decoding was cut short.
 #[cfg(feature = "ocr-vl")]
 #[must_use]
 pub fn paddle_vl_layout_disclosure(l: &pdfcer_core::ocr::vl_page::LayoutReading) -> String {
@@ -121,6 +121,11 @@ pub fn paddle_vl_layout_disclosure(l: &pdfcer_core::ocr::vl_page::LayoutReading)
     }
     let pictures = l.regions.iter().filter(|r| r.task.is_none()).count();
     let grids = l.regions.iter().filter(|r| r.grid_placed).count();
+    let ruled = l
+        .regions
+        .iter()
+        .filter(|r| r.table.is_some() && !r.grid_placed)
+        .count();
     let mut out = format!(
         "{lead}. {} region(s) found, {pictures} picture(s) not read",
         l.regions.len()
@@ -129,6 +134,11 @@ pub fn paddle_vl_layout_disclosure(l: &pdfcer_core::ocr::vl_page::LayoutReading)
         out.push_str(&format!(
             "; {grids} table(s): the model reports cell structure only, so each cell's box \
              is an even grid over the table and may sit off its text"
+        ));
+    }
+    if ruled > 0 {
+        out.push_str(&format!(
+            "; {ruled} table(s): cell boxes placed on the table's drawn ruling lines"
         ));
     }
     for (i, r) in l.regions.iter().enumerate() {

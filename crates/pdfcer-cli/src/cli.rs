@@ -4698,12 +4698,15 @@ pub(crate) enum Command {
         /// a formula as LaTeX (written without its `\[ \]` delimiters), a
         /// picture not at all. One `region` line per region is printed on
         /// stdout: `index class group score rect read`, the rect in page
-        /// space and `read` one of `yes`, `no` (a picture) or `table-grid`.
+        /// space and `read` one of `yes`, `no` (a picture), `table-ruled`
+        /// (cells placed on the table's drawn ruling lines) or `table-grid`.
         ///
         /// Inferred, and said so on stderr: the model reports a table's
-        /// structure but not its cell boxes, so each cell's text sits on an
-        /// even grid over the table and may be off its printed cell; with no
-        /// region found, the whole page is read as one.
+        /// structure but not its cell boxes. Cells are placed on the table's
+        /// drawn ruling lines when there is exactly one line per cell edge;
+        /// otherwise (`table-grid`) on an even grid over the table, where
+        /// text may be off its printed cell. With no region found, the whole
+        /// page is read as one.
         #[arg(long)]
         layout: bool,
         /// With `--layout`, put each region group's text on its own layer:

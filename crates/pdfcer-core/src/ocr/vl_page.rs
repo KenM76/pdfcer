@@ -8,8 +8,12 @@
 //! Inferred, and disclosed by [`LayoutReading`](crate::ocr::vl_page::LayoutReading)'s fields (rule 4):
 //!
 //! - **Table cell boxes.** The model returns a table's structure (OTSL) but
-//!   not where each cell sits, so cells are placed on an even grid over the
-//!   table's box ([`RegionRead::grid_placed`](crate::ocr::vl_page::RegionRead::grid_placed)).
+//!   not where each cell sits. Each axis is measured from the table's drawn
+//!   ruling lines when they give exactly one line per cell edge
+//!   ([`RegionRead::column_edges`](crate::ocr::vl_page::RegionRead::column_edges),
+//!   [`RegionRead::row_edges`](crate::ocr::vl_page::RegionRead::row_edges));
+//!   otherwise that axis divides the table's box evenly
+//!   ([`RegionRead::grid_placed`](crate::ocr::vl_page::RegionRead::grid_placed)).
 //! - **The whole page as one region**, when the layout model finds none
 //!   ([`LayoutReading::whole_page`](crate::ocr::vl_page::LayoutReading::whole_page)).
 //!
@@ -23,6 +27,7 @@ use super::engine_layout::LayoutEngine;
 use super::engine_paddle_vl::{PaddleVlEngine, PaddleVlError, RegionReading};
 use super::layout::{LayoutClass, LayoutRegion};
 use super::otsl::{self, Table, TableCell};
+use super::table_rules::{self, Axis};
 use super::vl_pre::{self, Grey, VlTask};
 use super::{CellPosition, OcrBlock, OcrBlockKind, OcrLine, OcrPage, RecognizedWord};
 
@@ -39,9 +44,16 @@ pub struct RegionRead {
     pub reading: Option<RegionReading>,
     /// The parsed table, for a table region whose answer held cells.
     pub table: Option<Table>,
-    /// Whether this region's words are table cells placed on an even grid
-    /// over the region (inferred positions).
+    /// Whether this region's words are table cells with at least one axis
+    /// placed on an even grid over the region (inferred positions).
     pub grid_placed: bool,
+    /// A table's column boundaries, `cols + 1` ascending page-pixel x
+    /// values, when measured from its vertical ruling lines; `None` when
+    /// the columns are an even grid (or this is not a table).
+    pub column_edges: Option<Vec<f64>>,
+    /// A table's row boundaries, `rows + 1` ascending page-pixel y values,
+    /// when measured from its horizontal ruling lines; `None` otherwise.
+    pub row_edges: Option<Vec<f64>>,
 }
 
 /// A page read region by region.
@@ -102,6 +114,8 @@ fn read_one(
             reading: None,
             table: None,
             grid_placed: false,
+            column_edges: None,
+            row_edges: None,
         });
     };
     let (crop, _) = vl_pre::crop(img, bx, 0);
@@ -111,13 +125,37 @@ fn read_one(
     let table = (task == VlTask::Table)
         .then(|| table_of(&reading.text))
         .flatten();
+    let (column_edges, row_edges) = table
+        .as_ref()
+        .map_or((None, None), |t| measured_edges(&crop, bx, t));
     Ok(RegionRead {
         region,
         task: Some(task),
-        grid_placed: table.is_some(),
+        grid_placed: table.is_some() && (column_edges.is_none() || row_edges.is_none()),
         reading: Some(reading),
         table,
+        column_edges,
+        row_edges,
     })
+}
+
+/// A table's column and row boundaries measured from the ruling lines in
+/// its `crop`, moved into page pixels by the crop's box `bx`.
+fn measured_edges(
+    crop: &Grey,
+    bx: vl_pre::PixelBox,
+    table: &Table,
+) -> (Option<Vec<f64>>, Option<Vec<f64>>) {
+    let measure = |axis, n, at: usize| {
+        #[allow(clippy::cast_precision_loss)]
+        // pixel offsets are capped by vl_pre::MAX_INPUT_PIXELS
+        let at = at as f64;
+        table_rules::edges(crop, axis, n).map(|e| e.into_iter().map(|v| v + at).collect())
+    };
+    (
+        measure(Axis::Columns, table.cols, bx.0),
+        measure(Axis::Rows, table.rows, bx.1),
+    )
 }
 
 /// The table in a table answer; `None` when it holds no text cells.
@@ -168,7 +206,12 @@ fn assemble(regions: Vec<RegionRead>) -> LayoutReading {
         let class = r.region.class;
         if let Some(table) = &r.table {
             let confidence = reading.lines.first().and_then(|w| w.confidence);
-            page.push_table(table, r.region.bbox, class, confidence);
+            let grid = CellGrid {
+                bbox: r.region.bbox,
+                columns: r.column_edges.as_deref(),
+                rows: r.row_edges.as_deref(),
+            };
+            page.push_table(table, &grid, class, confidence);
         } else if r.task == Some(VlTask::Formula) {
             page.push_formula(reading, r.region.bbox, class);
         } else {
@@ -209,19 +252,34 @@ fn strip_formula(text: &str) -> &str {
     t
 }
 
-/// A cell's box on an even grid over the table's `bbox`, y-down pixels.
-fn cell_rect(table: &Table, cell: &TableCell, bbox: [f32; 4]) -> Rect {
-    let [x0, y0, x1, y1] = bbox.map(f64::from);
+/// Where a table's cells sit: its box, and any measured boundaries.
+struct CellGrid<'a> {
+    bbox: [f32; 4],
+    columns: Option<&'a [f64]>,
+    rows: Option<&'a [f64]>,
+}
+
+/// Boundary `i` of `n` cells over `lo..hi`: measured when `edges` has one,
+/// else on an even grid.
+fn edge(edges: Option<&[f64]>, i: usize, n: usize, lo: f64, hi: f64) -> f64 {
+    if let Some(&v) = edges.and_then(|e| e.get(i)) {
+        return v;
+    }
     #[allow(clippy::cast_precision_loss)] // cell counts are capped at otsl::MAX_CELLS
-    let (cols, rows) = (table.cols.max(1) as f64, table.rows.max(1) as f64);
-    let (cw, rh) = ((x1 - x0) / cols, (y1 - y0) / rows);
-    #[allow(clippy::cast_precision_loss)]
-    let at = |n: usize| n as f64;
+    let (i, n) = (i as f64, n.max(1) as f64);
+    lo + (hi - lo) * i / n
+}
+
+/// A cell's box, y-down pixels.
+fn cell_rect(table: &Table, cell: &TableCell, grid: &CellGrid) -> Rect {
+    let [x0, y0, x1, y1] = grid.bbox.map(f64::from);
+    let x = |i| edge(grid.columns, i, table.cols, x0, x1);
+    let y = |i| edge(grid.rows, i, table.rows, y0, y1);
     Rect::from_corners(
-        x0 + cw * at(cell.col),
-        y0 + rh * at(cell.row),
-        x0 + cw * at(cell.col + cell.col_span),
-        y0 + rh * at(cell.row + cell.row_span),
+        x(cell.col),
+        y(cell.row),
+        x(cell.col + cell.col_span),
+        y(cell.row + cell.row_span),
     )
 }
 
@@ -253,14 +311,14 @@ impl PageBuilder {
     fn push_table(
         &mut self,
         table: &Table,
-        bbox: [f32; 4],
+        grid: &CellGrid,
         class: LayoutClass,
         confidence: Option<f32>,
     ) {
         for cell in table.cells.iter().filter(|c| !c.text.is_empty()) {
             let word = RecognizedWord {
                 text: cell.text.split_whitespace().collect::<Vec<_>>().join(" "),
-                rect: cell_rect(table, cell, bbox),
+                rect: cell_rect(table, cell, grid),
                 confidence,
             };
             let line = self.push_word(word);
@@ -368,6 +426,8 @@ mod tests {
             region: region(class, bbox),
             task,
             grid_placed: table.is_some(),
+            column_edges: None,
+            row_edges: None,
             reading: r,
             table,
         }
@@ -448,6 +508,58 @@ mod tests {
         assert_eq!(total.text, "Total");
         assert_eq!(total.rect, Rect::from_corners(100.0, 240.0, 300.0, 260.0));
         assert_eq!(p.blocks[3].cell, Some(CellPosition::new(2, 0, 1, 2)));
+    }
+
+    #[test]
+    fn ruled_edges_place_cells_and_move_into_page_pixels() {
+        // A 2x2 table crop at page (100, 200): rules at x 0/60/199, y 0/20/59.
+        let (w, h) = (200, 60);
+        let mut pixels = vec![255u8; w * h];
+        for y in 0..h {
+            for x in [0, 60, 199] {
+                pixels[y * w + x] = 0;
+            }
+        }
+        for y in [0, 20, 59] {
+            pixels[y * w..(y + 1) * w].fill(0);
+        }
+        let crop = Grey {
+            width: w,
+            height: h,
+            pixels,
+        };
+        let table = otsl::parse("<fcel>a<fcel>b<nl><fcel>c<fcel>d<nl>");
+        let (cols, rows) = measured_edges(&crop, (100, 200, 300, 260), &table);
+        assert_eq!(cols.as_deref(), Some(&[100.5, 160.5, 299.5][..]));
+        assert_eq!(rows.as_deref(), Some(&[200.5, 220.5, 259.5][..]));
+
+        let mut r = read(LayoutClass::Table, [100.0, 200.0, 300.0, 260.0], {
+            let otsl = "<fcel>a<fcel>b<nl><fcel>c<fcel>d<nl>";
+            Some(reading(otsl, vec![word(otsl, 0.0, 0.0, 1.0, 1.0)]))
+        });
+        r.column_edges = cols;
+        r.row_edges = rows;
+        let out = assemble(vec![r]);
+        assert_eq!(
+            out.page.words[1].rect,
+            Rect::from_corners(160.5, 200.5, 299.5, 220.5)
+        );
+    }
+
+    #[test]
+    fn one_measured_axis_keeps_the_other_on_the_grid() {
+        let otsl = "<fcel>a<fcel>b<nl><fcel>c<fcel>d<nl>";
+        let mut r = read(
+            LayoutClass::Table,
+            [100.0, 200.0, 300.0, 260.0],
+            Some(reading(otsl, vec![word(otsl, 0.0, 0.0, 1.0, 1.0)])),
+        );
+        r.column_edges = Some(vec![100.0, 150.0, 300.0]);
+        let out = assemble(vec![r]);
+        assert_eq!(
+            out.page.words[3].rect,
+            Rect::from_corners(150.0, 230.0, 300.0, 260.0)
+        );
     }
 
     #[test]
