@@ -280,6 +280,8 @@ pub struct OcrRunner {
     inner: Inner,
     files_verified: usize,
     upscale: Option<Upscale>,
+    /// [`RunOptions::dpi`], for a page read without one.
+    dpi: Option<f32>,
 }
 
 enum Inner {
@@ -344,6 +346,7 @@ impl OcrRunner {
             inner,
             files_verified,
             upscale: options.upscale,
+            dpi: Some(options.dpi),
         })
     }
 
@@ -355,6 +358,7 @@ impl OcrRunner {
             inner: Inner::Program(engine),
             files_verified: 0,
             upscale: None,
+            dpi: None,
         }
     }
 
@@ -420,8 +424,10 @@ impl OcrRunner {
     }
 
     /// [`Self::recognize`] for an image rasterised at `dpi`. A program engine
-    /// is told `dpi` for this page instead of [`RunOptions`]' resolution; the
-    /// in-process engines do not take a resolution and ignore it.
+    /// is told `dpi` for this page instead of [`RunOptions`]' resolution;
+    /// `paddle-vl` with layout reads tables at a fixed resolution
+    /// (`vl_page::TABLE_DPI`) worked out from it. The other in-process
+    /// engines ignore it.
     ///
     /// # Errors
     ///
@@ -485,7 +491,15 @@ impl OcrRunner {
         }
         #[cfg(feature = "ocr-vl")]
         if let Inner::PaddleVl(e, layout, last) = &self.inner {
-            return read_vl(e, layout.as_deref(), last, width, height, pixels);
+            return read_vl(
+                e,
+                layout.as_deref(),
+                last,
+                width,
+                height,
+                pixels,
+                dpi.or(self.dpi),
+            );
         }
         Ok(OcrPage {
             words: self.in_process(width, height, pixels)?,
@@ -606,13 +620,14 @@ fn read_vl(
     width: u32,
     height: u32,
     pixels: &[u8],
+    dpi: Option<f32>,
 ) -> Result<OcrPage, RunnerError> {
     use crate::disclosure::VlLast;
     let failed =
         |e: pdfcer_core::ocr::engine_paddle_vl::PaddleVlError| RunnerError::Engine(e.to_string());
     let (page, kept) = if let Some(layout) = layout {
         let read =
-            pdfcer_core::ocr::vl_page::read_page_with_layout(e, layout, width, height, pixels)
+            pdfcer_core::ocr::vl_page::read_page_with_layout(e, layout, width, height, pixels, dpi)
                 .map_err(failed)?;
         (read.page.clone(), VlLast::from_layout(read))
     } else {

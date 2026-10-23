@@ -62,10 +62,12 @@ fn run_ocr(req: &OcrRequest<'_>, model_choice: &OcrModelChoice<'_>) -> Result<()
     if let Some(path) = req.dump_image {
         dump_grey(path, iw, ih, &grey)?;
     }
-    let raw = engine.recognize_page(iw, ih, &grey, None).map_err(|err| {
-        eprintln!("pdfcer: ocr: recognition failed: {err}");
-        exit::RUNTIME_ERROR
-    })?;
+    let raw = engine
+        .recognize_page(iw, ih, &grey, Some(req.dpi))
+        .map_err(|err| {
+            eprintln!("pdfcer: ocr: recognition failed: {err}");
+            exit::RUNTIME_ERROR
+        })?;
     // `words_to_page_space_on`, not `words_to_page_space`: the latter is
     // right on `/Rotate 0` only. Word order is kept, so line and block
     // indices stay valid.

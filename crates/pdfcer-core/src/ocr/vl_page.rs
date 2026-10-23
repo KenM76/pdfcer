@@ -115,6 +115,10 @@ pub struct LayoutReading {
 
 /// Read a greyscale page (row-major, one byte per pixel) region by region.
 ///
+/// `dpi` is the raster's resolution. Above [`TABLE_DPI`], a table region is
+/// shown to the model downscaled to [`TABLE_DPI`]; its words still come back
+/// in `pixels`' coordinates. `None` reads every region as cropped.
+///
 /// # Errors
 ///
 /// [`PaddleVlError`] from either model; one failing region fails the page.
@@ -124,6 +128,7 @@ pub fn read_page_with_layout(
     width: u32,
     height: u32,
     pixels: &[u8],
+    dpi: Option<f32>,
 ) -> Result<LayoutReading, PaddleVlError> {
     let regions = layout.detect(width, height, pixels)?;
     if regions.is_empty() {
@@ -139,7 +144,7 @@ pub fn read_page_with_layout(
     let img = vl_pre::grey(width, height, pixels)?;
     let mut reads = Vec::with_capacity(regions.len());
     for region in regions {
-        reads.push(read_one(vl, &img, region)?);
+        reads.push(read_one(vl, &img, region, dpi)?);
     }
     Ok(assemble(reads))
 }
@@ -148,6 +153,7 @@ fn read_one(
     vl: &PaddleVlEngine,
     img: &Grey,
     region: LayoutRegion,
+    dpi: Option<f32>,
 ) -> Result<RegionRead, PaddleVlError> {
     let task = region.class.task();
     let (Some(task), Some(bx)) = (task, crop_box(region.bbox, img.width, img.height)) else {
@@ -162,8 +168,15 @@ fn read_one(
         });
     };
     let (crop, _) = vl_pre::crop(img, bx, 0);
-    let (cw, ch) = (dim(crop.width), dim(crop.height));
-    let mut reading = vl.read_region_as(task, cw, ch, &crop.pixels)?;
+    let scale = (task == VlTask::Table).then(|| table_scale(dpi)).flatten();
+    let mut reading = if let Some(s) = scale {
+        let small = vl_pre::resize(&crop, scaled(crop.width, s), scaled(crop.height, s));
+        let mut r = vl.read_region_as(task, dim(small.width), dim(small.height), &small.pixels)?;
+        unscale_reading(&mut r, s);
+        r
+    } else {
+        vl.read_region_as(task, dim(crop.width), dim(crop.height), &crop.pixels)?
+    };
     offset_reading(&mut reading, bx.0, bx.1);
     let table = (task == VlTask::Table)
         .then(|| table_of(&reading.text))
@@ -226,6 +239,56 @@ fn crop_box(bbox: [f32; 4], w: usize, h: usize) -> Option<vl_pre::PixelBox> {
         at(y1.ceil(), h),
     );
     (b.2 > b.0 && b.3 > b.1).then_some(b)
+}
+
+/// The resolution a table region is read at. Measured over ruled and
+/// unruled 6–14 pt tables rendered at 100–300 dpi: reading the crop as
+/// rendered failed 6 of 28 runs at 150-300 dpi, unpredictably by dpi
+/// (prose instead of a table, dropped cells, a spurious column); reading
+/// it downscaled to 100 dpi failed none, and to 150 dpi failed 4 of 15.
+pub const TABLE_DPI: f32 = 100.0;
+
+/// The downscale factor for a table crop at `dpi`, `None` when it is
+/// already at or below [`TABLE_DPI`] (or unknown).
+fn table_scale(dpi: Option<f32>) -> Option<f64> {
+    dpi.filter(|d| d.is_finite() && *d > TABLE_DPI)
+        .map(|d| f64::from(TABLE_DPI / d))
+}
+
+fn scaled(n: usize, s: f64) -> usize {
+    #[allow(
+        clippy::cast_precision_loss,
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss
+    )]
+    // a crop side is far below 2^52 and `s` is in 0..1
+    let m = (n as f64 * s).round() as usize;
+    m.max(1)
+}
+
+/// Map a reading of a crop downscaled by `s` back to the crop's pixels.
+fn unscale_reading(r: &mut RegionReading, s: f64) {
+    for w in &mut r.lines {
+        w.rect = Rect::from_corners(
+            w.rect.llx / s,
+            w.rect.lly / s,
+            w.rect.urx / s,
+            w.rect.ury / s,
+        );
+    }
+    let up = |v: usize| {
+        #[allow(
+            clippy::cast_precision_loss,
+            clippy::cast_possible_truncation,
+            clippy::cast_sign_loss
+        )]
+        // a pixel coordinate, far below 2^52, scaled up by 1/s
+        let u = (v as f64 / s).round() as usize;
+        u
+    };
+    r.ink_box = r
+        .ink_box
+        .map(|(x0, y0, x1, y1)| (up(x0), up(y0), up(x1), up(y1)));
 }
 
 fn offset_reading(r: &mut RegionReading, dx: usize, dy: usize) {
@@ -499,6 +562,25 @@ mod tests {
             Rect::from_corners(101.0, 52.0, 105.0, 56.0)
         );
         assert_eq!(r.ink_box, Some((101, 52, 103, 54)));
+    }
+
+    #[test]
+    fn a_table_is_read_at_table_dpi_only_from_above() {
+        assert_eq!(table_scale(None), None);
+        assert_eq!(table_scale(Some(72.0)), None);
+        assert_eq!(table_scale(Some(TABLE_DPI)), None);
+        assert_eq!(table_scale(Some(f32::NAN)), None);
+        assert_eq!(table_scale(Some(200.0)), Some(0.5));
+        assert_eq!(scaled(817, 1.0 / 3.0), 272);
+        assert_eq!(scaled(1, 0.1), 1);
+    }
+
+    #[test]
+    fn a_downscaled_reading_maps_back_to_crop_pixels() {
+        let mut r = reading("a", vec![word("a", 1.0, 2.0, 5.0, 6.0)]);
+        unscale_reading(&mut r, 0.5);
+        assert_eq!(r.lines[0].rect, Rect::from_corners(2.0, 4.0, 10.0, 12.0));
+        assert_eq!(r.ink_box, Some((2, 4, 6, 8)));
     }
 
     #[test]
