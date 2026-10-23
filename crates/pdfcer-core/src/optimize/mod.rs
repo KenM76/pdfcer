@@ -54,6 +54,7 @@ pub(crate) mod select;
 pub(crate) mod smooth;
 pub(crate) mod smooth_fit;
 pub(crate) mod streams;
+mod version_floor;
 
 use std::collections::BTreeMap;
 use std::fmt;
@@ -75,6 +76,10 @@ pub use image::{
 pub use objects::{DiscardObject, ObjectDiscard};
 pub use preset::Preset;
 pub use select::{PageRanges, Selector};
+pub use version_floor::{
+    FloorOptions, IccProfile, IccVersionGate, Requirement, Unprovable, VersionFloor, version_floor,
+    version_floor_with,
+};
 
 pub use crate::writer::{RebuildOptions, RebuildReport};
 

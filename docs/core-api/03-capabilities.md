@@ -3309,7 +3309,40 @@ input's effective version). The report gains `compatibility:` lines (target,
 each feature with its object count and an example, which are above, and the
 declared version), and `--json` gains `compatibility` (`null` without the
 flag): `{target, declared, features: [{feature, introduced, objects,
-example, above}], above}`.
+example, above}], above, floor}`.
+
+**Version floor** (`pdfcer_core::optimize`). `version_floor(&Document) ->
+VersionFloor` (and `version_floor_with(&Document, FloorOptions)`) is the
+lowest version the content needs, from a full scan: every key, name value,
+flag and content-stream construct the version-introduced catalogue marks as
+1.4 or later, each judged in the context it is reached in (the same key can
+be 1.4 in one dictionary and 2.0 in another). `VersionFloor { floor,
+requirements: Vec<Requirement>, structural, unprovable, icc_profiles }`:
+`floor` is at least 1.3 and can exceed the declared version;
+`requirements` are highest first, `Requirement { version, construct, objects,
+example: Option<ObjId> }` with `Display` `PDF x.y: construct (n object(s),
+e.g. N G R)`; `structural` lists object streams, cross-reference streams and
+the catalog `/Version`, which a full rewrite can drop and which do not raise
+`floor`; `unprovable` (`Unprovable::{UnreadableContent, UnreadableFont,
+UnreadableProfile}(ObjId)`) non-empty means `floor` is a lower bound only
+(`proven()`). `FloorOptions::default().with_icc(IccVersionGate)`:
+`Permissive` (default) lists each embedded ICC profile's header version in
+`icc_profiles` (`IccProfile { object, major, minor, strict:
+Option<PdfVersion> }`) and raises nothing; `Strict` lets it raise `floor`
+(2.0–2.1 → 1.3, 2.2–2.3 → 1.4, 2.4 and 4.0 → 1.5, 4.1 → 1.6, 4.2 → 1.7, 4.3 →
+2.0, later → nothing). A structure type newer than the document is not a
+requirement: an older reader treats it as nonstandard. Report-only; the
+declared version is never changed.
+
+★ **What the UI must disclose:** whether `floor` is proven, and that the
+document is not lowered by asking.
+
+CLI: with `--compat`, the report adds `compatibility: the content needs PDF
+x.y` (`at least (n stream(s) could not be read)` when unproven), up to eight
+`needs` lines at that version, and one line per ICC profile version;
+`--strict-icc` selects `Strict`. `--json`'s `compatibility.floor` is
+`{version, proven, unreadable, needs: [{construct, version, objects,
+example}], icc_profiles: [{object, version, strict}]}`.
 
 `stroke_display: StrokeDisplay` sets line weights. It takes one of three
 values:

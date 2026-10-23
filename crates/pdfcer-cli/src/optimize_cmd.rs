@@ -460,7 +460,7 @@ fn run(
         None => open_document(input).ok(),
     };
     if let (Some(t), Some(d)) = (settings.compatibility, &after_doc) {
-        outcome.compat = Some(crate::optimize_compat::summarize(t, d));
+        outcome.compat = Some(crate::optimize_compat::summarize(t, d, compat));
     }
     let after = after_doc
         .filter(|_| outcome.bytes.is_some())

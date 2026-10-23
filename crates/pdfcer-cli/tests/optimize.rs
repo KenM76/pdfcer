@@ -1501,6 +1501,10 @@ fn a_compat_target_holds_the_output_and_lists_what_is_above_it() {
         "uses layers (PDF 1.5): 1 object(s), above the target",
         "1 feature(s) above PDF 1.4 kept, not removed; the declared version 1.7 is not lowered",
         "note: object streams not packed",
+        "compatibility: the content needs PDF 1.5
+",
+        "  needs PDF 1.5: /OCProperties (1 object(s), e.g. 1 0 R)
+",
     ] {
         assert!(report.contains(want), "{want:?} in\n{report}");
     }
@@ -1509,7 +1513,8 @@ fn a_compat_target_holds_the_output_and_lists_what_is_above_it() {
     let j = text(&run(&[i, "--dry-run", "--compat", "retain", "--json"]));
     assert!(
         j.contains("\"compatibility\":{\"target\":\"1.7\",\"declared\":\"1.7\",")
-            && j.contains("\"above\":0}"),
+            && j.contains("\"above\":0,\"floor\":{\"version\":\"1.5\",\"proven\":true,")
+            && j.contains("\"icc_profiles\":[]"),
         "{j}"
     );
     assert!(text(&run(&[i, "--dry-run", "--json"])).contains("\"compatibility\":null"));
@@ -1517,4 +1522,5 @@ fn a_compat_target_holds_the_output_and_lists_what_is_above_it() {
         run(&[i, "--dry-run", "--compat", "1.9"]).status.code(),
         Some(2)
     );
+    assert_eq!(run(&[i, "--dry-run", "--strict-icc"]).status.code(), Some(2));
 }
