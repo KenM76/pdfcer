@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1196th filing) — `Pass 623.0` SHIPPED (`fd2f8938`): `iccce-*` -> `icccer-*`
+
+**Filed (engineer-reported; no shell here, so none of it is checked from here):** the colour dependency now tracks the renamed engine, `icccer` rev `7002353e` (v0.4.1), replacing iccce rev `a4d9003b`. Rename-only source diff, colour output unchanged by construction. 201 spellings over 18 files; `BuildInfo::iccce` -> `icccer`, env var -> `PDFCER_ICCCER_PROVENANCE`. Tests 7229/0; clippy, fmt, structure gate, `cargo tree`, wasm32 check all clean. Detail: ROADMAP Shipped entry and the commit message.
+
+**Filed alongside:** Backlog "iccce crates.io pin" amended to `icccer-* = "0.4"` (supersedes 0.3.1); `FEATURES.md` row 565 test-file path respelled, no capability changed. No Pass/decision/R minted; commit not yet pushed at filing; git and backup state not verified from here.
+
+**For next session:** next free `Pass 631.0`, decision `199`, `R263`; next filing 1197th; reply to icccer and heads-up to pdfcer-gui owed by the engineer; Ken's crates.io decision pending.
+
 ## 2026-10-23 (1195th filing) — pdfium render-parity vs zune-jpeg git rc3 DISCHARGED (no Pass consumed)
 
 **Filed (engineer-measured; I have no shell, so none of it is checked from here):** the owed pdfium render-parity run against the git rc3 pin (first noted 1181st, carried in the 1194th).
