@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1220th filing) — `Pass 640.0` COMPLETE (`32589a48`): PaddleOCR-VL tables read at a fixed 100 dpi
+
+**Shipped (docs only; engineer-reported, no shell here, nothing checked from here):** `read_page_with_layout` gains `dpi: Option<f32>`; a Table region's crop is downscaled (bicubic, never upscaled) to `TABLE_DPI` = 100 before the model; line rects and ink box map back to raster pixels. Host `OcrRunner` passes the page dpi; `pdfcer ocr` passes `--dpi`; no new flag. +2 tests; `vl_page` 10 pass, ocr-host 29 pass 1 ignored. After the fix 33/33 exact over 6-14 pt ruled and unruled tables at 100-300 dpi. Clippy, fmt, structure, public-fns, outcome-disclosed clean. Full entry: `ROADMAP.md` Shipped.
+
+**Corrections to the 1219th filing (`81c531ca`):** raw failures were 6 of 28 runs at 150-300 dpi (not 7); normalising to 150 dpi failed 4 of 15 runs. Fixed in the `FEATURES.md` row; the `ROADMAP.md` scoping entry was deleted on shipping, with an amendment note on the 1219th banner.
+
+**Decisions made:** none; no decision or R minted.
+
+**Still open:** a 14 pt unruled 4-column synthetic table is answered in prose at every dpi, with and without the fix. Filed in *Backlog*, unscoped.
+
+**FEATURES.md:** row moved Planned to Implemented; core `[x]`, cli `[x]`, gui `[ ]`.
+
+**For next session:** next free `Pass 641.0`, decision `199`, `R263`; next filing 1221st.
+
 ## 2026-10-23 (1218th filing) — addendum to `Pass 639.0`: `fc1d16fc` test-helper doc comments
 
 **Shipped (docs only; engineer-reported, no shell here, nothing checked from here):** one further code commit after the 1217th filing, `fc1d16fc` `test(core): document the shared redaction fixture helpers (Pass 639.0)`. Doc comments on test helpers `form` and `has` in `crates/pdfcer-core/src/redact_form_tests.rs`, now `pub(super)` for the structure-tree tests; required by `check-public-fns-documented`. No behaviour change, no test-count change. Recorded in `ROADMAP.md` under `Pass 639.0`.

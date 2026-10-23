@@ -5,7 +5,7 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-23 (v0.94.0 published, slot pdfcer1; unreleased since: Pass 638.0, redaction strips /ActualText, /Alt and /E over redacted glyphs, `44d2fcb7`; and Pass 639.0, same for structure-element replacement text, `736371ca`; both ship in v0.95.0; next filing is the 1219th), during the size-reduction arc (Ken 2026-10-20: "meet
+**Written:** 2026-10-23 (v0.94.0 published, slot pdfcer1; unreleased since: Pass 638.0, redaction strips /ActualText, /Alt and /E over redacted glyphs, `44d2fcb7`; and Pass 639.0, same for structure-element replacement text, `736371ca`; and Pass 640.0, PaddleOCR-VL tables read at a fixed 100 dpi, `32589a48`; all ship in v0.95.0; next filing is the 1221st), during the size-reduction arc (Ken 2026-10-20: "meet
 or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## State
@@ -130,16 +130,18 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 1. The size-reduction arc (616.x) is complete and its residue is not worth
    a Pass (short loca retired, 1205th; CFF merge has no instance; Type 1
-   re-subset ~1.5% of font bytes). Candidate next: the PaddleOCR-VL table
-   answer's DPI sensitivity (Follow-ups, below).
+   re-subset ~1.5% of font bytes). The table DPI sensitivity is fixed
+   (640.0). Candidate next: the prose-answered table (Follow-ups).
 2. Each loop tick: the three inbound channels (GitHub issues, both
    FeatureRequests folders).
 
 ## Follow-ups worth a Pass
 
-- **PaddleOCR-VL's table answer is DPI-sensitive** (one synthetic
-  table: correct OTSL at 100 dpi, wrong column count at 150, prose at
-  200/300).
+- **A 14 pt unruled 4-column table is answered in prose at every dpi**
+  (100-300, with or without 640.0's downscale). Reproduce with the
+  scratchpad `p635_tables.py` / `p635_run.py` (table `t14_plain`); not
+  committed. Start by dumping the decoded text (an env-gated eprintln in
+  `engine_paddle_vl.rs` after `decode`, removed before commit).
 
 ## Local-only material (never commit)
 
