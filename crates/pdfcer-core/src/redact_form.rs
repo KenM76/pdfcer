@@ -207,6 +207,7 @@ impl<'a> Surgeon<'a> {
         for op in stream.operations() {
             child.operation(&op, &stream.buf);
         }
+        child.marked_close_all();
         let view = self.doc.view();
         let image_hits: Vec<ImageHit> = child
             .image_hits
@@ -276,6 +277,7 @@ impl<'a> Surgeon<'a> {
         buf: &[u8],
     ) -> (Vec<Edit>, Vec<FormRewrite>) {
         self.glyphs_removed += child.glyphs_removed;
+        self.replacement_text_stripped += child.replacement_text_stripped;
         self.ops_edited += child.ops_edited;
         for (region, text) in child.removed_by_region {
             self.removed_by_region

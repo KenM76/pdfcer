@@ -729,6 +729,11 @@ struct Surgeon<'a> {
     /// clip (`W n`) after the cut paint — see `redact_vector`'s module doc.
     vector_clips_kept: u64,
     estimated_fonts: BTreeSet<String>,
+    /// Open marked-content sequences, innermost last; `Some` when the
+    /// property list carries replacement text (`redact_marked`).
+    marked: Vec<Option<marked::MarkedOpen>>,
+    /// Property lists whose replacement text was removed.
+    replacement_text_stripped: u64,
 }
 
 /// The text-state fields saved/restored by `q`/`Q`, font included
@@ -776,6 +781,8 @@ struct SurgeryResult {
     shadings_intersecting: u64,
     shadings_cut: u64,
     estimated_fonts: BTreeSet<String>,
+    /// Marked-content property lists that lost their replacement text.
+    replacement_text_stripped: u64,
 }
 
 impl<'a> Surgeon<'a> {
@@ -815,6 +822,8 @@ impl<'a> Surgeon<'a> {
             vector_paths_dropped: 0,
             vector_clips_kept: 0,
             estimated_fonts: BTreeSet::new(),
+            marked: Vec::new(),
+            replacement_text_stripped: 0,
         }
     }
 
@@ -997,6 +1006,8 @@ impl<'a> Surgeon<'a> {
                     .mul(self.ctm);
                 }
             }
+            b"BDC" => self.marked_open(op.operands),
+            b"EMC" => self.marked_close(),
             b"BT" => {
                 self.tm = Mat::IDENTITY;
                 self.tlm = Mat::IDENTITY;
@@ -1636,6 +1647,7 @@ fn redact_page_content(
     for op in stream.operations() {
         surgeon.operation(&op, &stream.buf);
     }
+    surgeon.marked_close_all();
     // The image surgery's edits (a `Do` renamed to its clone, a `Do` or
     // `BI…EI` removed, an inline image re-encoded) splice in beside the
     // glyph edits. They never overlap: a painting operator is not a show
@@ -1664,6 +1676,7 @@ fn redact_page_content(
         shadings_intersecting: surgeon.shadings_intersecting,
         shadings_cut: surgeon.shadings_cut,
         estimated_fonts: surgeon.estimated_fonts,
+        replacement_text_stripped: surgeon.replacement_text_stripped,
     }
 }
 
@@ -2312,6 +2325,12 @@ pub fn apply_redactions_with(
         report.shadings_cut += result.shadings_cut;
         estimated_fonts.extend(result.estimated_fonts);
         report.glyphs_removed += result.glyphs_removed;
+        if result.replacement_text_stripped > 0 {
+            report.notes.push(format!(
+                "redaction: {} marked-content sequence(s) lost /ActualText, /Alt and /E because glyphs inside them were redacted (ISO 32000-1 §14.9.3-§14.9.5)",
+                result.replacement_text_stripped
+            ));
+        }
         report.show_operators_edited += result.ops_edited;
         // `Pass 286.0`: publish the text a MARK covered, not the text one
         // show operator carried.
@@ -4365,6 +4384,9 @@ mod glyph_tests;
 
 #[path = "redact_form.rs"]
 mod form;
+
+#[path = "redact_marked.rs"]
+mod marked;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)] // test fixtures: a failed setup is a failed test

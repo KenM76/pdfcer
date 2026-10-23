@@ -260,3 +260,76 @@ fn an_image_shared_with_the_page_keeps_its_unmarked_placement() {
         "the unmarked placement lost samples"
     );
 }
+
+/// `/ActualText` on a sequence whose glyphs were redacted would still
+/// extract the redacted words (§14.9.4); the entry goes with the glyphs.
+#[test]
+fn replacement_text_over_redacted_glyphs_is_removed() {
+    let bytes = pdf(
+        "<< /Font << /F1 5 0 R >> >>",
+        "/Span << /ActualText (SECRET) /Alt (SECRET) /E (SECRET) /Lang (en) >> BDC \
+         BT /F1 12 Tf 10 20 Td (SECRET) Tj ET EMC",
+        [0.0, 0.0, 600.0, 400.0],
+        &[],
+    );
+    let (text, all, report) = apply(bytes);
+    assert!(!has(&all, b"SECRET"), "replacement text survives");
+    assert!(has(&all, b"/Lang"), "an unrelated entry was dropped");
+    assert!(!text.contains("SECRET"), "{text:?}");
+    assert!(
+        report.notes.iter().any(|n| n.contains("lost /ActualText")),
+        "{:?}",
+        report.notes
+    );
+}
+
+/// A named property list is replaced by an inline copy; the shared
+/// `/Properties` resource is not edited, so a sequence elsewhere using it
+/// outside the mark keeps its text.
+#[test]
+fn a_named_property_list_is_inlined_without_its_replacement_text() {
+    let bytes = pdf(
+        "<< /Font << /F1 5 0 R >> /Properties << /MC0 << /ActualText (SECRET) >> >> >>",
+        "/Span /MC0 BDC BT /F1 12 Tf 10 20 Td (SECRET) Tj ET EMC",
+        [0.0, 0.0, 600.0, 100.0],
+        &[],
+    );
+    let (text, _all, report) = apply(bytes);
+    assert!(!text.contains("SECRET"), "{text:?}");
+    assert_eq!(report.glyphs_removed, 6, "{report:?}");
+}
+
+/// A sequence with no glyph under a mark keeps its replacement text.
+#[test]
+fn replacement_text_outside_the_mark_is_kept() {
+    let bytes = pdf(
+        "<< /Font << /F1 5 0 R >> >>",
+        "/Span << /ActualText (fi) >> BDC BT /F1 12 Tf 10 300 Td (X) Tj ET EMC \
+         BT /F1 12 Tf 10 20 Td (SECRET) Tj ET",
+        [0.0, 0.0, 600.0, 100.0],
+        &[],
+    );
+    let (_text, all, _report) = apply(bytes);
+    assert!(
+        has(&all, b"/ActualText"),
+        "an untouched sequence lost its text"
+    );
+    assert!(!has(&all, b"SECRET"));
+}
+
+/// A sequence wrapping a form whose glyphs were redacted loses its text too.
+#[test]
+fn replacement_text_around_a_redacted_form_is_removed() {
+    let bytes = pdf(
+        RES,
+        "/Span << /ActualText (SECRET) >> BDC /Fm0 Do EMC",
+        [0.0, 0.0, 600.0, 400.0],
+        &[form(
+            "/BBox [0 0 300 50] /Resources << /Font << /F1 5 0 R >> >>",
+            "BT /F1 12 Tf 10 20 Td (SECRET) Tj ET",
+        )],
+    );
+    let (text, all, _report) = apply(bytes);
+    assert!(!text.contains("SECRET"), "{text:?}");
+    assert!(!has(&all, b"(SECRET)"), "replacement text survives");
+}
