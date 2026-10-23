@@ -29,16 +29,18 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   (`fields_split`); `orphaned_widgets` narrowed. Two `merge_document` field-tree bugs
   fixed. GUI notified. Not yet released. **Unreleased Passes: 102.1, 633.0
   (OCR table cells on ruling lines), 634.0 (unruled cells on blank gutters,
-  `defa0662`), 635.0 (redaction glyph measuring, `f51b10bb`).**
+  `defa0662`), 635.0 (redaction glyph measuring, `f51b10bb`), 635.1
+  (redaction inside form XObjects, `c50a3790` + `576dadb7`).**
 - **Redaction absence proof is in core (Pass 632.0, closes 72.0)**: `redact::verify_absence`; `redact-apply` refuses (exit 9, no file) on a drawn survivor and discloses (exit 10) on any other residual. GUI told it can delete its `proof.rs`. Fuzz `redact_proof`: 882,398 runs / 121 s, clean.
 - **Redaction text surgeon fixed (Pass 635.0, `f51b10bb`, unreleased)**: a kerned
   `TJ` / consecutive `Tj` double-advanced `Tm`, so a mark could remove earlier text
-  and leave the marked text; `q`/`Q` now restore the font. **Open, same track:
-  `635.1`** (text inside form XObjects is not redacted; `check_xobject` tests the
-  unit square, not `/BBox` x `/Matrix` x CTM, so a full-page form does not even
-  trigger the overlap disclosure: fix the rectangle first) and **`635.2`** (the
-  byte-level absence proof is vacuous when `TJ` kerning splits the needle).
-  Next free: Pass 636.0, decision 199, R263, filing 1210th.
+  and leave the marked text; `q`/`Q` now restore the font. **Pass 635.1
+  (`c50a3790`, `576dadb7`, unreleased) shipped:** redaction removes text, vectors,
+  shadings and image samples inside form XObjects (`redact_form.rs`, copy-on-write
+  `pdfceRdF{num}_{k}`); verified on the operator's out-of-repo file, standing
+  request done. **Open, same track: `635.2`** (the byte-level absence proof is
+  vacuous when `TJ` kerning splits the needle).
+  Next free: Pass 636.0, decision 199, R263, filing 1211th.
 - G214-G217 replies are already on the channel (the earlier "owed" note was stale).
 - **Release:** v0.93.0 is published (8 assets; OneDrive `pdfcer2`; `pdfcer1`
   keeps 0.92.0; GUI notified, `open/notice_2026-10-23_v0.93.0_released.md`).

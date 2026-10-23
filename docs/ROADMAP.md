@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 635.1` COMPLETE (`c50a3790` + `576dadb7`), 2026-10-23 — redaction removes text, vectors, shadings and image samples inside form XObjects (1210th filing)
+
+**Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here. Not yet released.** Core + CLI (`redact-apply` is the caller; no new flag); gui column untouched. Reasoning is in the two commit messages.
+- **`c50a3790` (text, vectors, shadings):** new `crates/pdfcer-core/src/redact_form.rs` (child of `redact`). The surgeon descends into each form placement whose clipped extent (`/BBox` x `/Matrix` x CTM, ISO 32000-1 §8.10.1) meets a region and runs text/vector/shading surgery in the form's own space with inherited graphics and text state; resources are the form's own, else the page's (Table 95). The result is a fresh copy bound under a new name `pdfceRdF{num}_{k}` (copy-on-write, so other placements keep their content). An original whose every counted use was copied is emptied (a full rewrite keeps unreferenced objects, so leaving it would keep the text recoverable). Depth 64 plus a cycle guard; deeper, self-painting or unreadable forms are disclosed as residual (the note keeps the phrase "form XObject overlaps", which the pageops region code matches). `redact_image::count_uses` counts form ids too. This also fixes the `635.0`-filed rectangle gap (unit square instead of the form's real extent).
+- **`576dadb7` (image samples):** the pre-surgery census descends into forms, so the blocker test (retain mark over an undestroyable image) and the copy-on-write counts include form placements; each form copy runs `redact_image::plan_page` over its own content and resources, image clones are bound in the copy's `/XObject` dict, exclusive originals are tombstoned. The earlier "images inside forms NOT destroyed" disclosure is removed.
+- **Tests:** `redact_form_tests.rs`, 7 (translated form; shared form copied not edited; nested form without `/Resources`; self-painting form disclosed; `/BBox`-clipped form untouched; image inside a form has covered samples destroyed; image shared with the page keeps its unmarked placement). Full `cargo test -p pdfcer-core -p pdfcer-cli` green (lib 1946, 3037, 960, 250, 44 + others; 0 failed). clippy `-D warnings`, fmt, code-structure (565 baseline, none new), public-fns-documented clean.
+- **Operator's out-of-repo test file (standing request, now DONE):** rect mark over an image inside a form: 52459 cells cleared, original blanked to 1x1, render shows the box with surroundings intact. Search mark "reference image": all hits gone from extracted text, 8 images inside forms cleared, absence proof verified, no residual notes. Redaction confirmed on that file; per Ken the out-of-repo copy and its ad-hoc testing were deleted.
+- **Invariants:** no `Cargo.toml` change, so `cargo tree` unaffected; no `pub` change (all `pub(super)`/`pub(crate)`), so `docs/core-api` untouched.
+- **FEATURES:** "Vector-path redaction" row: "disclose only" for forms replaced by the inside-forms sentence; the Planned row for `635.1` removed (capability landed). Boxes unchanged `[x]` `[x]` `[x]`. Nothing ticked.
+- **Still OPEN:** `Pass 635.2` (extraction-level absence proof). No decision or R minted; next free `Pass 636.0`, decision `199`, `R263`. Unreleased: 102.1, 633.0, 634.0, 635.0, 635.1.
+
 ### `Pass 635.0` COMPLETE (`f51b10bb`), 2026-10-23 — redaction measures every glyph where it paints: two text-surgeon bugs fixed (1209th filing)
 
 **Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here. Commit not yet released.** Core only (a correctness fix to an already-shipped core + CLI capability); gui column untouched. Filed and completed in one filing. Reasoning is in the commit message. Found on a real-world externally-licensed conformance file the operator supplied (not named here, by standing rule); its lines are kerned `TJ` arrays.
@@ -23594,9 +23605,10 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Filed 2026-10-23 (1209th filing), from `Pass 635.0`'s review: two redaction-correctness Passes, NOT built.** Next free `Pass 636.0`; decision `199`, `R263`; next filing 1210th.
-> - **`Pass 635.1` — redact text inside form XObjects, and test the right rectangle.** Text drawn inside a `/Subtype /Form` XObject is not surgically redacted. `Surgeon::check_xobject` (`redact.rs`) also tests the UNIT SQUARE x CTM instead of `/BBox` x `/Matrix` x CTM (ISO 32000-1 §8.10.1), so a full-page form does not even trigger the existing "form overlaps a region" disclosure (`form_intersect`). That is a DISCLOSURE GAP, and it violates the never-claim-redacted rule: a mark can cover form text and the report stays silent. Fix the rectangle first (it is the smaller, safer half), then recurse.
+> **Filed 2026-10-23 (1209th filing), from `Pass 635.0`'s review; `635.1` SHIPPED in the 1210th (see *Shipped*), one redaction-correctness Pass remains, NOT built.** Next free `Pass 636.0`; decision `199`, `R263`; next filing 1211th.
 > - **`Pass 635.2` — text-extraction-level absence check.** `redact_proof::verify_absence` (`Pass 632.0`) is byte-level: it is VACUOUS when `TJ` kerning splits the needle across string pieces (`[(Con) -20 (fidential)] TJ` contains no `Confidential`), so `Verified` can be reported for text that is still there. Needs a check on extracted text (decoded through the font's `ToUnicode`/encoding), alongside the byte search, not instead of it.
+
+(1210th filing: `Pass 635.1` COMPLETE `c50a3790` + `576dadb7`, see *Shipped*; its Next up item removed. `635.2` still open. Nothing minted; next free `Pass 636.0`, decision `199`, `R263`; next filing 1211th.)
 
 (1209th filing: `Pass 635.0` COMPLETE `f51b10bb`, see *Shipped*; `635.1`, `635.2` filed in the stub above. Nothing minted; next free `Pass 636.0`, decision `199`, `R263`; next filing 1210th.)
 

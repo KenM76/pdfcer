@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1210th filing) — `Pass 635.1` COMPLETE (`c50a3790` + `576dadb7`): redaction reaches inside form XObjects
+
+**Filed (engineer-reported; no shell here, nothing checked from here):** redaction now removes text, vectors, shadings (`c50a3790`) and image samples (`576dadb7`) inside form XObjects. New `redact_form.rs`; forms tested by `/BBox` x `/Matrix` x CTM; result is a copy-on-write copy under `pdfceRdF{num}_{k}`, so other placements keep their content, and an original whose every use was copied is emptied. Too-deep, self-painting or unreadable forms are disclosed as residual. 7 new tests, full core + cli suites green, clippy, fmt, structure clean; no manifest or `pub` change. Full entry: `ROADMAP.md` Shipped.
+
+**Decisions made:** none; no decision or R minted. **Operator's standing request DONE:** redaction verified on the operator's out-of-repo test file (rect mark over an in-form image: 52459 cells cleared; search mark: all hits gone, 8 in-form images cleared, absence proof verified); that copy and its ad-hoc testing were deleted per Ken.
+
+**FEATURES.md:** "Vector-path redaction" row now says content inside forms is removed (the "disclose only" clause is gone); the `635.1` Planned row removed. Boxes unchanged (core + cli delivered, gui not rounded up).
+
+**Survivors (hard rule 11, bare keyword `form_intersect` / `disclose only` / `form XObject` in FEATURES, NEXT_SESSION, ARCHITECTURE):** the FEATURES row and `NEXT_SESSION.md` line were the two; both fixed. `crates/` doc comments saying forms are disclose-only (e.g. around `form_intersect`) were NOT swept by me: owed to the engineer.
+
+**For next session:** `635.2` (extraction-level absence proof). Unreleased: 102.1, 633.0, 634.0, 635.0, 635.1; next release writes OneDrive `pdfcer1`. Next free `Pass 636.0`, decision `199`, `R263`; next filing 1211th.
+
 ## 2026-10-23 (1209th filing) — `Pass 635.0` COMPLETE (`f51b10bb`): redaction measures every glyph where it paints
 
 **Filed (engineer-reported; no shell here, nothing checked from here):** new Pass filed and completed in one filing, core only, unreleased. Two text-surgeon bugs in `redact.rs`: (1) a shown string with no in-region glyph was advanced twice, so later glyphs on the line were measured right of where they paint and a mark could remove EARLIER text and leave the marked text; (2) `q`/`Q` did not restore the font (ISO 32000-1 §8.4 Table 52), `TextSnapshot` now carries it. Found on an operator-supplied externally-licensed conformance file (not named, by standing rule). Tests: 3 synthetic regressions in `redact_glyph_tests.rs`, each failing on the old code; `redact` filter 80 + 35 pass; clippy, fmt, structure clean; no manifest or `pub` change. Full entry: `ROADMAP.md` Shipped.
