@@ -4045,7 +4045,18 @@ pub(crate) fn run() -> ExitCode {
             output,
             residual_scope,
             acknowledge_residuals,
-        } => cmd_redact_apply(&input, &output, residual_scope, acknowledge_residuals),
+            allow_drawn_survivors,
+            acknowledge_unverified,
+        } => cmd_redact_apply(
+            &input,
+            &output,
+            residual_scope,
+            RedactAcks {
+                residuals: acknowledge_residuals,
+                drawn_survivors: allow_drawn_survivors,
+                unverified: acknowledge_unverified,
+            },
+        ),
         Command::Encrypt {
             input,
             output,

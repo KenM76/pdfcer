@@ -769,3 +769,10 @@ path = "fuzz_targets/linearize.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "redact_proof"
+path = "fuzz_targets/redact_proof.rs"
+test = false
+doc = false
+bench = false

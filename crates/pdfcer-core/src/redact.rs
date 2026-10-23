@@ -102,6 +102,10 @@ use crate::vartext::Quadding;
 use crate::writer::content::{ContentBuilder, Paint, emit_literal_string, emit_number};
 use crate::writer::{SaveOptions, WriteError, save_full};
 
+pub use crate::redact_proof::{
+    AbsenceVerdict, AbsenceVerification, MIN_VERIFIABLE_LEN, Residual, ResidualSite, verify_absence,
+};
+
 /// The vertical over-coverage of a glyph box, as a fraction of the font
 /// size, below the baseline and above the em top.
 ///

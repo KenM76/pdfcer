@@ -1746,6 +1746,15 @@ pub(crate) enum Command {
     /// it never governs what it REPORTS. The default scrubs carriers you
     /// cannot see and leaves drawn page content alone, because removing an
     /// unmarked occurrence of a common word is destruction, not diligence.
+    ///
+    /// Before writing, an ABSENCE CHECK looks for each removed string (4+
+    /// characters) in the output. Still drawn on a page: nothing is written
+    /// and the run exits non-zero, unless you pass `--allow-drawn-survivors`
+    /// (usually the same words outside the marked area). Found anywhere else,
+    /// such as inside a font or an attachment, or not every stream could be
+    /// read: the file is written but the run exits non-zero unless you pass
+    /// `--acknowledge-unverified`. The `absence:` line says `verified` only
+    /// when the text was found nowhere.
     RedactApply {
         /// Input PDF carrying `/Redact` marks.
         input: PathBuf,
@@ -1761,6 +1770,14 @@ pub(crate) enum Command {
         /// exit code for the disclosed residuals).
         #[arg(long)]
         acknowledge_residuals: bool,
+        /// Write the output even though a removed string still occurs in
+        /// drawn content (each one is listed). Without it nothing is written.
+        #[arg(long)]
+        allow_drawn_survivors: bool,
+        /// Exit 0 even though the absence check could not say `verified`
+        /// (the file is written either way).
+        #[arg(long)]
+        acknowledge_unverified: bool,
     },
 
     /// Encrypt a document with **AES-256 (`/R` 6)** and a user and/or owner

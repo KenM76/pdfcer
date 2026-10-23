@@ -613,6 +613,8 @@ mod settings;
 use fonts::*;
 mod font_notice;
 use font_notice::*;
+mod redact_apply;
+use redact_apply::*;
 mod security;
 use security::*;
 mod annot_parse;
@@ -773,7 +775,8 @@ mod exit {
     /// [`RUNTIME_ERROR`] (which is about failing): the document was
     /// readable and pdfcer declined to perform the operation as asked.
     /// A batch script needs to tell "this file is unsuitable for this
-    /// edit" apart from "this file is broken".
+    /// edit" apart from "this file is broken". `redact-apply` also returns
+    /// it, writing nothing, when removed text is still drawn.
     pub const EDIT_REFUSED: u8 = 9;
     /// A redaction **apply** completed the removal but the diligence
     /// carrier sweep disclosed a residual it could not scrub (XFA, a
@@ -782,6 +785,8 @@ mod exit {
     /// written (the covered content IS removed), but the non-zero code
     /// forces a script to see the disclosure — the refusal-acknowledgement
     /// gate (ui-spec §4.4): no path where partial reads as complete.
+    /// Also returned, with the file written, when the absence check could
+    /// not say `verified` and `--acknowledge-unverified` was not passed.
     pub const REDACTION_RESIDUALS: u8 = 10;
     /// The document **opened**, but only via cross-reference **recovery**
     ///: its stored cross-reference table could not be parsed

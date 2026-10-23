@@ -201,7 +201,6 @@ fn pdfcer-cli/src/render_export.rs::report_diagnostics
 fn pdfcer-cli/src/render_export.rs::report_shading_diagnostics
 fn pdfcer-cli/src/render_export.rs::resolve_render_options
 fn pdfcer-cli/src/security.rs::cmd_encrypt
-fn pdfcer-cli/src/security.rs::cmd_redact_apply
 fn pdfcer-cli/src/sign.rs::cmd_add_ltv
 fn pdfcer-cli/src/sign.rs::cmd_sign
 fn pdfcer-cli/src/sign.rs::cmd_timestamp

@@ -1884,81 +1884,63 @@ unencrypted-wrapper warning (`FEATURES.md`).
 **Mark → Review → Apply** three-phase model. That phase split is the
 feature's safety property, not a UI preference.
 
-### 4.1 ★★ The single most important fact for a new shell
+### 4.1 ★★ The absence proof — run it on the bytes before writing them
 
-**The "runtime-verified true-removal proof" is NOT in `pdfcer-core`.** Core
-provides `redact::apply_redactions` and *keeps the material* for a proof —
-`RedactionReport::redacted_text` exists *"for the absence-proof gate to
-grep"* (`redact.rs`). The proof itself is implemented in the **GUI
-crate**:
-
-`pdfce@cce414e:crates/pdfce-gui/src/redact_apply.rs`
-★★ **`redacted_text` is grouped PER MARK, not per show operator (`Pass 286.0`).**
-One entry per `/Redact` annotation, carrying the concatenation of what that mark
-removed — `["3.5 TYP"]`, never `["3", ".", "5", " ", "T", "Y", "P"]`.
-
-**Why it changed.** A producer that draws **one glyph per show operator** (GPL
-Ghostscript 8.15 does; the operator has such files) made the old per-operator
-grouping emit single characters. A proof that greps the output for `"3"` finds
-it on every page of an engineering drawing and refuses a correct redaction —
-reported as *"found 35 piece(s) of the supposedly-removed text still in it"*.
-**The proof was not finding leaked text; it was finding the alphabet.**
-
-**How the grouping is derived, without inferring anything new.**
-`Surgeon::glyph` returns the **index of the region** a glyph landed in rather
-than a bare `bool`; removed characters accumulate per region; `box_marks`
-(region index → the `/Redact` annotation that contributed it, already built for
-other reasons) folds several quads of one mark into one string. The attribution
-already existed and was being discarded one line before it was needed.
-
-⚠️ **THREE consumers read this field, and they are not independent** — the
-consuming shell's absence proof, `carrier_info`, and `residual_sweep` (the
-latter two through `redaction_evidence`). **Joining is safe for all three
-because it only ever makes entries longer**: longer strings match more
-precisely and clear `MIN_MATCH_LEN`, the 4-character floor that single glyphs
-could never reach — which is why `carrier_info` reported
-`DISCLOSED_NOT_SCRUBBED` on exactly these files.
-
-★ **A change that SPLIT entries would not be safe**, and that asymmetry is the
-only reason a field with three readers could be changed in one Pass. Anyone
-revisiting the granularity should check it against the sweep as well as the
-proof: a change that helps the proof and quietly narrows the sweep would
-re-open the leak `Pass 284.0` closed.
-
+**`redact::verify_absence` is in `pdfcer-core` (`Pass 632.0`).** A shell that
+calls `apply_redactions` and writes the bytes without it ships an unverified
+redaction and cannot know it. Run the proof on the output bytes **before**
+they reach the disk; a `Refuse` verdict means nothing is written by default.
 
 | item |
 |---|
-| `pub fn prepare_redaction_apply(session: &EditSession) -> Result<PreparedRedaction, RedactApplyRefusal>` |
-| `PreparedRedaction { bytes, report, verification, promoted_by_materialisation }` |
-| `AbsenceVerification { strings_checked, strings_too_short_for_raw_check, raw_byte_residuals }` |
-| `AbsenceVerification::is_clean()` |
-| `RedactApplyRefusal { NothingToApply, FullRewriteUnavailable, MaterialisedDocumentUnreadable, CoreRefused, VerificationFailed { survivors } }` |
+| `pub fn verify_absence(output: &[u8], redacted: &[String]) -> AbsenceVerification` (`#[must_use]`) |
+| `#[non_exhaustive] AbsenceVerification { strings_checked, strings_too_short, residuals: Vec<Residual>, streams_undecoded, output_unparsed }` |
+| `AbsenceVerification::verdict() -> AbsenceVerdict` · `is_clean()` · `drawn_survivors() -> impl Iterator<Item = &str>` |
+| `AbsenceVerdict { Verified, Disclose, Refuse }` |
+| `Residual { text, site: ResidualSite }` |
+| `#[non_exhaustive] ResidualSite { DrawnContent, FontProgram, ImageSamples, ObjectContainer, Attachment, Metadata, OtherStream, RawBytes }` · `as_str()` (`"drawn-content"`, …) |
 | `MIN_VERIFIABLE_LEN: usize = 4` |
-| `leaked_in_decoded_streams` / `verify_absence` (private) |
 
-A shell that calls `redact::apply_redactions` directly and writes the bytes
-**ships an unverified redaction** and may legitimately not know it. Either
-port `redact_apply.rs` into the new shell, or lift it into `pdfcer-core` — but
-do not skip it. **UNVERIFIED — whether `prepare_redaction_apply` should be
-promoted into `pdfcer-core` is an open engineering question; no decision
-record was found. Raise it with the operator before duplicating the file.**
+All re-exported from `pdfcer_core::redact`. Pass it
+`RedactionReport::redacted_text`.
 
-The three-way verdict it implements (`redact_apply.rs`):
+**What it searches.** Every stream is decoded and searched one at a time, then
+the raw bytes. Each hit is attributed to the first-found **drawn** site if
+any, else the first opaque one. Drawn content means page `/Contents`, Type 3
+`/CharProcs`, `/Subtype /Form` XObjects and `/PatternType 1` tiling patterns —
+text the document **paints**.
 
-| redacted text found… | verdict |
-|---|---|
-| in a **decoded stream** of the output | **REFUSE — write nothing.** *"Its survival is a real leak, not a coincidence, and no acknowledgement checkbox makes it acceptable."* |
-| in the **raw bytes only** | **DISCLOSE** as a residual needing the operator's explicit acknowledgement — pdfcer cannot tell an un-recognised carrier from a coincidence |
-| nowhere | **verified** — *"this is what licenses §5.1's wording contract to use the word 'verified' at all"* |
+| outcome | verdict | `pdfcer redact-apply` |
+|---|---|---|
+| a removed string in **drawn content** | **Refuse** | no file, exit 9, each survivor named; `--allow-drawn-survivors` writes it anyway |
+| a hit anywhere else (font program, image samples, object stream, attachment, metadata, other stream, raw bytes), **or** a stream that would not decode, **or** output that would not reparse | **Disclose** | file written, exit 10; `--acknowledge-unverified` exits 0 |
+| nothing found, every stream decoded, output reparsed | **Verified** | the only case that may say *verified* |
 
-Two further constraints from the same file: there is **deliberately no
-`to_incremental_bytes` call anywhere in it, and no fallback that could
-introduce one** (`redact_apply.rs`); and it must be handed the
-**session**, not `session.document()` — passing the base revision would apply
-**zero** marks placed this session *"and report success … not a disclosure
-that stayed silent, but an apply that removed nothing while saying it had"*
-(`redact_apply.rs`). The same bug class was already fixed once in core
-(`redact.rs`).
+Strings shorter than `MIN_VERIFIABLE_LEN` are **counted, never searched**:
+`"3"` occurs on every engineering drawing. An image-codec stream (DCT, JPX,
+JBIG2, CCITT) is skipped, not counted as undecoded — its samples are not text.
+
+**Why a drawn survivor is overridable, not absolute.** The usual cause is the
+same words drawn **outside** the marked area (a title repeated on every
+sheet). An unconditional refusal makes such sets unredactable; the override
+lists every survivor so the operator decides with the facts. Default is
+refuse.
+
+★★ **`redacted_text` is grouped PER MARK, not per show operator (`Pass 286.0`).**
+One entry per `/Redact` annotation, carrying the concatenation of what that mark
+removed — `["3.5 TYP"]`, never `["3", ".", "5", " ", "T", "Y", "P"]`. A
+producer that draws one glyph per show operator otherwise makes the proof
+search for the alphabet.
+
+⚠️ **THREE consumers read this field** — the absence proof, `carrier_info`, and
+`residual_sweep` (the latter two through `redaction_evidence`). Joining entries
+only ever makes them longer, which is safe for all three. **A change that
+SPLIT entries would not be safe**: check any granularity change against the
+sweep as well as the proof, or the leak `Pass 284.0` closed reopens.
+
+Hand the proof the bytes of a **full rewrite** of the **session** — never
+`session.document()` (the base revision applies zero of this session's marks
+and reports success).
 
 ### 4.2 Entry points
 

@@ -113,6 +113,7 @@ mod promote_dr_fonts;
 mod rc4_append;
 mod recompute_cli;
 mod recovery_names_what_it_dropped;
+mod redact_absence;
 mod reflow;
 mod refusal_names_a_font;
 mod remove_metadata_cli;
