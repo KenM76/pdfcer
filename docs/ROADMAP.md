@@ -23682,6 +23682,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
 
+(1219th filing: `Pass 640.0` (PaddleOCR-VL table reading stable across render resolution) filed below, scoping only; nothing shipped. Nothing else minted; next free `Pass 641.0`, decision `199`, `R263`; next filing 1220th.)
+
 (1218th filing, docs-only addendum: records `fc1d16fc` (test-helper doc comments, `Pass 639.0`) in `639.0`'s Shipped entry. Nothing minted; next free `Pass 640.0`, decision `199`, `R263`; next filing 1219th.)
 
 (1217th filing: `Pass 639.0` COMPLETE (`736371ca`), see *Shipped*; on `main`, with `638.0` bound for `v0.95.0`. Nothing minted; next free `Pass 640.0`, decision `199`, `R263`; next filing 1218th.)
@@ -34420,6 +34422,22 @@ overrides the image dictionary; `/ColorSpace` optional,
 - Expected order once the token exists: `pdfcer-color`, `pdfcer-model`, then `pdfcer-pkix`; the rest per the blockers above.
 
 **Status:** Next up, blocked on the token. FEATURES.md: row "Publish the engine crates to crates.io" in *Planned*, all boxes unticked.
+
+### Pass 640.0 — PaddleOCR-VL table reading is stable across render resolution
+
+**Problem (engineer-measured 2026-10-23, not re-checked by the librarian).** Synthetic Helvetica tables (5x5 and 5x4 cells, ruled and unruled; 6, 7, 8, 11, 14 pt) read with `pdfcer ocr --layout --ocr-engine paddle-vl` at 100-300 dpi: a table region reads exactly at one dpi and fails (prose answer, dropped cells, an extra column) at a neighbouring dpi, non-monotonically. Raw: 7 failures across 28 (table, dpi) runs at 150-300 dpi that the model can read at all. Normalising only the table crop to an effective 100 dpi (downscale by 100/dpi, bicubic, before the model; never upscale) gave 28/28 exact. Normalising to 150 dpi was worse (t14 ruled failed at 200, 250 and 300 dpi).
+
+**Scope / acceptance:**
+1. Core `ocr::vl_page::read_page_with_layout` gains a `dpi: Option<f32>` argument (the page raster's resolution). A Table region's crop is downscaled to 100 dpi when `dpi > 100`; `None` or `<= 100` leaves it unchanged. The reading's line rects and ink box are mapped back to page pixels; measured cell edges still come from the full-resolution crop.
+2. Host `OcrRunner` passes its page dpi through (`recognize_page` / `recognize_at`); the CLI inherits it with no new flag.
+3. Unit tests for the scale choice and the coordinate map-back; the sweep above is the measurement.
+4. `docs/core-api/03-capabilities.md` signature row updated (engineer does this).
+
+**Delivers:** core + cli (via host). The gui column is untouched.
+
+**Open item, NOT part of the acceptance:** one table (14 pt, unruled, 4 columns) fails at every dpi with or without normalisation. A separate defect; recorded here so it is not lost.
+
+**Status:** Next up, scoped only; nothing shipped. No decision or R-rule minted. FEATURES.md: row "PaddleOCR-VL table reading is stable across render resolution" in *Planned*, all boxes unticked.
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 
