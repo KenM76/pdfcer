@@ -47,7 +47,7 @@
 //! | `/Info` and XMP strings duplicating redacted text | **scrubbed** (the redacted characters are known — the interpreter decodes them while removing them) |
 //! | Prior incremental revisions | **dropped** — apply forces a FULL REWRITE (R35), never incremental |
 //! | Images intersecting a region | **samples DESTROYED** — decoded, the covered cells overwritten, re-encoded losslessly; a wholly covered placement is removed outright; a shared image is copied-on-write; a placement pdfcer cannot decode RETAINS its mark and is disclosed by name (`redact_image`) |
-//! | Form-XObject content in-region | **disclosed** — not surgically redacted this cut (verify manually) |
+//! | Form-XObject content in-region | text, vectors and shadings **REMOVED** inside the form, in its own space (BBox x Matrix x CTM, §8.10.1); the placement gets its own copy so other uses keep theirs, and an original no use still paints is emptied (`redact_form`). Images inside a form, forms nested past 64 levels or painting themselves are **disclosed** |
 //! | Vector paths in-region | **CUT** — strokes are cut against the region expanded by the stroke width, fills are clipped to the region's complement, and a path wholly inside is deleted (`redact_vector`); a malformed path object pdfcer cannot rewrite as a unit is counted and disclosed as a residual |
 //! | `sh` shading paints whose clip meets a region | types 2–3 (axial, radial): **cut** — wrapped in an even-odd clip with each region as a hole (§8.5.4); types 1 and 4–7: **disclosed, by count** — their sampled or vertex data would survive a clip |
 //! | Overlay marking (Table 192 ladder) | `/OverlayText` **burnt in** (via §12.7.3.3 variable text, `/DA`-formatted, `/Q`-justified); `/IC` filled under it; **absent `/IC` ⇒ TRANSPARENT**, per Table 192; `/RO` **not drawn** — disclosed, falls back to a plain box; `/Repeat` **ignored** — disclosed |
@@ -691,7 +691,9 @@ struct Surgeon<'a> {
     removed_by_region: BTreeMap<usize, String>,
     glyphs_removed: u64,
     ops_edited: u64,
-    form_intersect: bool,
+    /// The page's resources, for a form with none of its own (Table 95).
+    page_resources: &'a Dict,
+    forms: form::FormScope,
     /// Every image placement that intersects a region, with what is
     /// needed to destroy its samples.
     image_hits: Vec<ImageHit>,
@@ -761,8 +763,10 @@ struct SurgeryResult {
     removed_by_region: BTreeMap<usize, String>,
     glyphs_removed: u64,
     ops_edited: u64,
-    /// A form XObject intersects a region — disclosed, not refused.
-    form_intersect: bool,
+    /// Form placements over a region, by outcome.
+    forms: form::FormTally,
+    /// The form copies to create and bind on the page.
+    form_rewrites: Vec<form::FormRewrite>,
     /// Painted vector paths that crossed a region and could not be cut.
     vector_paths_intersecting: u64,
     vector_paths_cut: u64,
@@ -796,7 +800,8 @@ impl<'a> Surgeon<'a> {
             removed_by_region: BTreeMap::new(),
             glyphs_removed: 0,
             ops_edited: 0,
-            form_intersect: false,
+            page_resources: resources,
+            forms: form::FormScope::default(),
             image_hits: Vec::new(),
             path: PathRecord::default(),
             line_width: 1.0,
@@ -842,9 +847,8 @@ impl<'a> Surgeon<'a> {
         Some(ExtractFont::resolve(&self.doc.view(), font_dict))
     }
 
-    /// Is a named XObject an image (or a form) whose unit-square placement
-    /// intersects a region? Sets `image_intersect` / `form_intersect`, and
-    /// records an image placement (with the `Do`'s byte span, so the
+    /// Is a named XObject an image whose unit-square placement intersects a
+    /// region? A form goes to `form_placement`. Records an image placement (with the `Do`'s byte span, so the
     /// operation can be rewritten or removed) for the image surgery.
     fn check_xobject(&mut self, name: &[u8], span: (usize, usize)) {
         let Some(xobjects) = self
@@ -868,23 +872,20 @@ impl<'a> Surgeon<'a> {
             .and_then(Object::as_name)
             .map(|n| n.as_bytes().to_vec())
             .unwrap_or_default();
-        // A form/image placement is the unit square (0,0)-(1,1) × CTM.
-        if !self.unit_square_intersects() {
+        if subtype == b"Form" {
+            self.form_placement(id, stream, span);
             return;
         }
-        match subtype.as_slice() {
-            b"Image" => {
-                self.image_hits.push(ImageHit {
-                    span,
-                    ctm: self.ctm,
-                    source: ImageSource::XObject {
-                        name: name.to_vec(),
-                        id,
-                    },
-                });
-            }
-            b"Form" => self.form_intersect = true,
-            _ => {}
+        // An image placement is the unit square (0,0)-(1,1) × CTM.
+        if subtype == b"Image" && self.unit_square_intersects() {
+            self.image_hits.push(ImageHit {
+                span,
+                ctm: self.ctm,
+                source: ImageSource::XObject {
+                    name: name.to_vec(),
+                    id,
+                },
+            });
         }
     }
 
@@ -1631,6 +1632,7 @@ fn redact_page_content(
     image_edits: Vec<(usize, usize, Vec<u8>)>,
 ) -> SurgeryResult {
     let mut surgeon = Surgeon::new(doc, resources, regions);
+    surgeon.forms.descend = true;
     for op in stream.operations() {
         surgeon.operation(&op, &stream.buf);
     }
@@ -1641,23 +1643,7 @@ fn redact_page_content(
     for (start, end, bytes) in image_edits {
         surgeon.edits.push(Edit { start, end, bytes });
     }
-    // Splice edits (sorted, non-overlapping) into the buffer.
-    surgeon.edits.sort_by_key(|e| e.start);
-    let mut content = Vec::with_capacity(stream.buf.len() + overlay.len());
-    let mut cursor = 0usize;
-    for edit in &surgeon.edits {
-        if edit.start < cursor {
-            continue; // defensive: overlapping edit, skip
-        }
-        if let Some(gap) = stream.buf.get(cursor..edit.start) {
-            content.extend_from_slice(gap);
-        }
-        content.extend_from_slice(&edit.bytes);
-        cursor = edit.end;
-    }
-    if let Some(tail) = stream.buf.get(cursor..) {
-        content.extend_from_slice(tail);
-    }
+    let mut content = splice(&stream.buf, std::mem::take(&mut surgeon.edits));
     // The overlay marking is drawn AFTER the (now-redacted) content so it
     // sits on top. A leading EOL guards against fusing onto a final token.
     if !overlay.is_empty() {
@@ -1669,7 +1655,8 @@ fn redact_page_content(
         removed_by_region: surgeon.removed_by_region,
         glyphs_removed: surgeon.glyphs_removed,
         ops_edited: surgeon.ops_edited,
-        form_intersect: surgeon.form_intersect,
+        forms: surgeon.forms.tally,
+        form_rewrites: surgeon.forms.rewrites,
         vector_paths_intersecting: surgeon.vector_paths_intersecting,
         vector_paths_cut: surgeon.vector_paths_cut,
         vector_paths_dropped: surgeon.vector_paths_dropped,
@@ -1678,6 +1665,27 @@ fn redact_page_content(
         shadings_cut: surgeon.shadings_cut,
         estimated_fonts: surgeon.estimated_fonts,
     }
+}
+
+/// Splice `edits` (non-overlapping byte-range replacements) into `buf`.
+fn splice(buf: &[u8], mut edits: Vec<Edit>) -> Vec<u8> {
+    edits.sort_by_key(|e| e.start);
+    let mut out = Vec::with_capacity(buf.len());
+    let mut cursor = 0usize;
+    for edit in &edits {
+        if edit.start < cursor {
+            continue; // defensive: overlapping edit, skip
+        }
+        if let Some(gap) = buf.get(cursor..edit.start) {
+            out.extend_from_slice(gap);
+        }
+        out.extend_from_slice(&edit.bytes);
+        cursor = edit.end;
+    }
+    if let Some(tail) = buf.get(cursor..) {
+        out.extend_from_slice(tail);
+    }
+    out
 }
 
 /// The image placements on one page that intersect any of `regions` — the
@@ -2050,7 +2058,8 @@ pub fn apply_redactions_with(
     let mut staging: Vec<u8> = Vec::new();
     let base_len = doc.bytes().len();
     let mut next_num = doc.next_object_number().unwrap_or(1);
-    let mut form_intersect_any = false;
+    let mut form_tally = form::FormTally::default();
+    let mut forms_made: BTreeMap<ObjId, usize> = BTreeMap::new();
 
     // A content stream may be drawn by several pages (duplicated pages, a
     // shared header). Rewriting it in place would redact, or blank, every
@@ -2249,8 +2258,23 @@ pub fn apply_redactions_with(
             std::mem::take(&mut images.edits),
         );
 
-        if result.form_intersect {
-            form_intersect_any = true;
+        form_tally.absorb(result.forms);
+        if !result.form_rewrites.is_empty() {
+            let mut alloc_ = redact_image::Allocator {
+                staging: &mut staging,
+                base_len,
+                next_num: &mut next_num,
+            };
+            let bound = form::materialise(
+                doc,
+                result.form_rewrites,
+                &mut alloc_,
+                &mut dirty,
+                &mut forms_made,
+            );
+            for (name, v) in bound.iter() {
+                image_clones.insert(name.clone(), v.clone());
+            }
         }
         report.vector_paths_intersecting += result.vector_paths_intersecting;
         report.vector_paths_cut += result.vector_paths_cut;
@@ -2495,7 +2519,16 @@ pub fn apply_redactions_with(
         &mut dirty,
         &mut report,
     );
-    carrier_detect_disclose(doc, form_intersect_any, images_seen, &mut report);
+    {
+        let mut alloc_ = redact_image::Allocator {
+            staging: &mut staging,
+            base_len,
+            next_num: &mut next_num,
+        };
+        form::retire_originals(doc, &forms_made, &uses, &mut alloc_, &mut dirty);
+    }
+    form::disclose(form_tally, &mut report);
+    carrier_detect_disclose(doc, images_seen, &mut report);
 
     // LAST of the scrubbing carriers, and the order is load-bearing: this
     // one reads each object's EFFECTIVE value, so it must run after every
@@ -3872,12 +3905,7 @@ fn scrub_dict_strings(dict: &Dict, updated: &mut Dict, evidence: &[String]) -> u
 
 /// Carriers pdfcer **detects but does not scrub** this build — disclosed as
 /// residuals for manual verification (never silently left).
-fn carrier_detect_disclose(
-    doc: &Document,
-    form_intersect: bool,
-    images_seen: bool,
-    report: &mut RedactionReport,
-) {
+fn carrier_detect_disclose(doc: &Document, images_seen: bool, report: &mut RedactionReport) {
     let catalog = doc.catalog().ok();
 
     // Raster images (§12.5.6.23: "that portion of the image data shall be
@@ -3957,14 +3985,6 @@ fn carrier_detect_disclose(
         );
     } else {
         report.add_carrier("ocg", false, CarrierAction::Absent);
-    }
-
-    if form_intersect {
-        report.note(
-            "redaction: a form XObject overlaps a redaction region — its content was NOT \
-             surgically redacted this build; verify manually or flatten the form first"
-                .to_string(),
-        );
     }
 
     // Vector paths (§8.5) crossing a region. Cut by the surgery
@@ -4314,6 +4334,14 @@ pub fn count_redaction_marks<G: ObjectGraph + ?Sized>(graph: &G) -> usize {
 #[allow(clippy::unwrap_used)] // test fixtures: a failed setup is a failed test
 #[path = "redact_glyph_tests.rs"]
 mod glyph_tests;
+
+#[path = "redact_form.rs"]
+mod form;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)] // test fixtures: a failed setup is a failed test
+#[path = "redact_form_tests.rs"]
+mod form_tests;
 
 #[cfg(test)]
 #[allow(

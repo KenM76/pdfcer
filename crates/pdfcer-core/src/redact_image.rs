@@ -845,8 +845,8 @@ pub(crate) struct ImageOutcome {
     pub notes: Vec<String>,
 }
 
-/// A census of how many times each image XObject is painted anywhere in
-/// the document — page content, form XObjects (recursively) and annotation
+/// A census of how many times each image or form XObject is painted
+/// anywhere in the document — page content, form XObjects (recursively) and annotation
 /// appearance streams.
 ///
 /// The count is what decides copy-on-write versus tombstone (module docs,
@@ -887,6 +887,7 @@ pub(crate) fn image_use_census(doc: &Document, pages: &[Page]) -> BTreeMap<ObjId
         {
             for (_n, v) in patterns.iter() {
                 if let Object::Reference(id) = v {
+                    *uses.entry(*id).or_insert(0) += 1;
                     let mut active = Vec::new();
                     walk_form(
                         doc,
@@ -937,6 +938,7 @@ pub(crate) fn image_use_census(doc: &Document, pages: &[Page]) -> BTreeMap<ObjId
                 }
             }
             for id in streams {
+                *uses.entry(id).or_insert(0) += 1;
                 let mut active = Vec::new();
                 walk_form(
                     doc,
@@ -1071,16 +1073,21 @@ fn count_uses(
             .unwrap_or_default();
         match subtype.as_slice() {
             b"Image" => *uses.entry(id).or_insert(0) += 1,
-            b"Form" => walk_form(
-                doc,
-                view,
-                id,
-                page_resources,
-                enclosing,
-                depth,
-                active,
-                uses,
-            ),
+            b"Form" => {
+                // Forms are counted too: the redaction form surgery
+                // empties an original only when every use was copied.
+                *uses.entry(id).or_insert(0) += 1;
+                walk_form(
+                    doc,
+                    view,
+                    id,
+                    page_resources,
+                    enclosing,
+                    depth,
+                    active,
+                    uses,
+                );
+            }
             _ => {}
         }
     }
