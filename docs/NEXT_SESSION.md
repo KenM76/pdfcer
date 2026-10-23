@@ -127,8 +127,11 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## Follow-ups worth a Pass
 
-- **Table cell boxes are inferred** (even grid over the region; disclosed).
-  A later Pass could measure them from ruling lines or the page image.
+- **Unruled table cell boxes** stay on the even grid (Pass 633.0 measures
+  ruled ones). An unruled table could be measured from its text columns'
+  whitespace. PaddleOCR-VL's table answer is DPI-sensitive (one synthetic
+  table: correct OTSL at 100 dpi, wrong column count at 150, prose at
+  200/300).
 - **Librarian-flagged stale wording** in the decision log (ARCHITECTURE
   around lines 12983 and 13008) about whole-page-only VL reading.
 

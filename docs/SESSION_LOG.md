@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1206th filing) — `Pass 633.0` COMPLETE (`d94693ca`): OCR table cells placed on drawn ruling lines
+
+**Filed (engineer-reported; no shell here, nothing checked from here):** new Pass filed and completed in one filing. `ocr::table_rules` measures a table's column/row boundaries from its drawn rules in the region crop; `RegionRead` gains `column_edges`/`row_edges`; CLI `ocr --layout` prints `read=table-ruled`; an axis whose rules do not give exactly cols+1 / rows+1 boundaries stays on the even grid. Full entry: `ROADMAP.md` Shipped. Tests: 5 + 2 new; ocr 13/13; clippy, fmt, code-structure clean; no manifest change.
+
+**Findings:** PaddleOCR-VL's table answer is DPI-sensitive. Same synthetic ruled 3x4 table: 100 dpi exact on all 12 cells; 150 dpi 5 columns for 4 (fallback `table-grid`); 250 dpi ruled but one header cell dropped; 200 and 300 dpi prose, no OTSL. Not filed to `C:\personal_rag\pdf\` by me (single synthetic table, one add-on; engineer's call whether it warrants a lesson).
+
+**Decisions made:** none; no decision or R minted. **FEATURES.md:** "Layout-aware OCR (PaddleOCR-VL)" row respelled; boxes `[x]` `[x]` `[ ]` unchanged (gui not wired).
+
+**Survivors (hard rule 11, bare keyword `even grid` / `inferred` over the OCR files):** `docs/NEXT_SESSION.md` line 130 "Table cell boxes are inferred" follow-up is now stale; engineer-owned, NOT edited by me (flagged). Owed to the engineer, not swept: `crates/` doc comments and `--help` text still describing cells as always on an even grid beyond what the commit touched, and `ARCHITECTURE.md`.
+
+**For next session:** next free `Pass 634.0`, decision `199`, `R263`; next filing 1207th.
+
 ## 2026-10-23 (1205th filing) — `Pass 616.6` residue item (c) short `loca` RETIRED (measured, not built)
 
 **Filed (engineer-reported; no shell here, nothing checked from here; no commit involved):** the Backlog block "Residue of `Pass 616.6`" item (c) is retired. Measured on `fixtures/external` (2,915 files) at `10c98230`: 218 eligible long-loca TrueType programs of 1,109; 1,850,474 raw bytes, but only **5,233 bytes after Flate against 123,763,430 output bytes = 0.004%**. Flate already collapses a zeroed long loca. Caveat: form-XObject-only fonts not scanned. Items (a) CFF merge and (b) Type 1 re-subset unchanged.

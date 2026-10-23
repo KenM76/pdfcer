@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 633.0` COMPLETE (`d94693ca`), 2026-10-23 — OCR table cells placed on the table's drawn ruling lines (1206th filing)
+
+**Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here.** Core + CLI; gui column untouched (not wired in `pdfcer-gui`). Filed and completed in one filing. Closes the `docs/NEXT_SESSION.md` follow-up "Table cell boxes are inferred". Reasoning is in the commit message.
+- **Problem:** `vl_page::read_page_with_layout` gets a table's structure (OTSL) but no cell boxes, so cells were laid on an even grid over the region (disclosed via `RegionRead::grid_placed`).
+- **Core:** new private module `crates/pdfcer-core/src/ocr/table_rules.rs` measures each axis from the drawn rules in the region crop. A rule is a run of <=8 px rows/columns whose ink (< `vl_pre::INK_BELOW`) covers >=60% of the crop; runs <=2 px apart merge (double lines); a missing outer border is supplied by the crop side. An axis is used only when the rules give exactly cols+1 / rows+1 boundaries, else that axis stays on the even grid.
+- **API:** `RegionRead` (`#[non_exhaustive]`) gains `column_edges` and `row_edges`, both `Option<Vec<f64>>` in page pixels (None = even grid). `grid_placed` now means "at least one axis is on the even grid". `docs/core-api/03-capabilities.md` updated; `check-core-api-verbs` PASS.
+- **CLI:** `pdfcer ocr --layout` region lines print `read=table-ruled` for a table placed on its lines (was `yes`/`no`/`table-grid`); `--help` updated. `pdfcer-ocr-host` `paddle_vl_layout_disclosure` adds "N table(s): cell boxes placed on the table's drawn ruling lines".
+- **Measured end to end** (synthetic ruled 3x4 table, uneven columns, PaddleOCR-VL q8 add-on, local models): 100 dpi: all 12 cells exactly on the drawn lines (x 72/132/312/402/540), `table-ruled`. 150 dpi: model returned 5 columns for 4 drawn, correct fallback `table-grid`. 250 dpi: ruled, but the model dropped one header cell (model error). 200 and 300 dpi: model answered in prose (no OTSL), so no table placement applied. **Finding: PaddleOCR-VL's table answer is DPI-sensitive** (the same table yields correct OTSL, a wrong column count, or prose depending on render DPI); not yet a RAG lesson.
+- **Tests:** 5 `table_rules` unit + 2 `vl_page`; pdfcer-core ocr 13/13; `pdfcer-ocr-host` green; CLI layout tests green; clippy `-D warnings`, fmt, code-structure clean.
+- **Invariants:** no `Cargo.toml` change, so `cargo tree` unaffected.
+- **FEATURES:** "Layout-aware OCR (PaddleOCR-VL)" row respelled (cells on measured ruling lines, even grid only as fallback); boxes unchanged `[x]` `[x]` `[ ]`. No decision or R minted; next free `Pass 634.0`, decision `199`, `R263`.
+
 ### `Pass 102.1` COMPLETE (`3f180dd3`), 2026-10-23 — inserted pages carry the form fields whose widgets ALL arrive (1204th filing)
 
 **Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here.** Core + CLI; gui column untouched (separate project, being notified). Closes option (1) of the 2026-08-18 insert-pages request; `Pass 102.0` (the count) and `Pass 103.1` (`adopt_widget`) shipped earlier. Reasoning is in the commit message.
@@ -23559,6 +23571,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+(1206th filing: `Pass 633.0` COMPLETE `d94693ca`, see *Shipped*. Nothing minted; next free `Pass 634.0`, decision `199`, `R263`; next filing 1207th.)
 
 (1204th filing: `Pass 102.1` COMPLETE `3f180dd3`, see *Shipped*. Nothing minted; next free `Pass 633.0`, decision `199`, `R263`; next filing 1205th.)
 
