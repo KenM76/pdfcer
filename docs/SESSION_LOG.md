@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1211th filing) — `Pass 635.2` COMPLETE (`202e7b13`): redaction absence proof searches extracted text
+
+**Filed (engineer-reported; no shell here, nothing checked from here):** `redact::verify_absence` now also extracts text from every page (ISO 32000-1 §9.10) and searches it whitespace-insensitively, closing the vacuity for kerned `TJ` splits and Identity-H text. New `ResidualSite::ExtractedText` (refused like `DrawnContent`) and `AbsenceVerification::text_unextracted` (forfeits Verified). CLI `redact-apply` prints `text_unextracted=`. +3 tests; full suites green; clippy, fmt, structure clean; no manifest change. Full entry: `ROADMAP.md` Shipped.
+
+**Decisions made:** none; no decision or R minted. The operator's one-time request to test on the large conformance file (area mark: 52,459 image cells; search mark: 8 in-form images, proof Verified) is satisfied and retired.
+
+**FEATURES.md:** "Apply redaction" row gains the extracted-text clause; Planned `635.2` row removed. Core `[x]`, cli `[x]`, gui not rounded up.
+
+**Survivors (hard rule 11, bare keyword `byte-level` / `vacuous` / `absence proof` in FEATURES, ROADMAP Next up):** the Planned row and Next up stub were the two; both removed. `crates/` doc comments and `NEXT_SESSION.md` describing the proof as byte-only were NOT swept by me: owed to the engineer.
+
+**For next session:** `635.x` track closed; Next up has no head. Unreleased: 102.1, 633.0, 634.0, 635.0, 635.1, 635.2. Next free `Pass 636.0`, decision `199`, `R263`; next filing 1212th.
+
 ## 2026-10-23 (1210th filing) — `Pass 635.1` COMPLETE (`c50a3790` + `576dadb7`): redaction reaches inside form XObjects
 
 **Filed (engineer-reported; no shell here, nothing checked from here):** redaction now removes text, vectors, shadings (`c50a3790`) and image samples (`576dadb7`) inside form XObjects. New `redact_form.rs`; forms tested by `/BBox` x `/Matrix` x CTM; result is a copy-on-write copy under `pdfceRdF{num}_{k}`, so other placements keep their content, and an original whose every use was copied is emptied. Too-deep, self-painting or unreadable forms are disclosed as residual. 7 new tests, full core + cli suites green, clippy, fmt, structure clean; no manifest or `pub` change. Full entry: `ROADMAP.md` Shipped.

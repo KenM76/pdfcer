@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 635.2` COMPLETE (`202e7b13`), 2026-10-23 — redaction absence proof also searches extracted text (1211th filing)
+
+**Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here. Not yet released.** Core + CLI; gui column untouched. Closes the `635.x` track. Reasoning is in the commit message.
+- **Problem:** the `Pass 632.0` byte-level proof was vacuous when text was drawn in kerned pieces (`[(Con) -20 (fidential)] TJ`) or through non-ASCII encodings (Identity-H), so `Verified` could be reported for text still present.
+- **Core:** `pdfcer_core::redact::verify_absence` now also runs text extraction over every page (ISO 32000-1 §9.10, decoded through fonts) and searches it with all whitespace removed from both sides. New `ResidualSite::ExtractedText` (`as_str` "extracted-text"), refused like `DrawnContent`; `drawn_survivors()` includes it. New field `AbsenceVerification::text_unextracted: bool`: extraction could not read the page tree or a page; forfeits Verified (-> Disclose).
+- **CLI:** `redact-apply` absence line prints `text_unextracted=`.
+- **Docs:** `docs/core-api/03-capabilities.md` and `index.md` updated; `check-core-api-verbs` PASS.
+- **Tests:** +3 in `redact_proof_tests.rs` (kerned split found, whitespace ignored, clean extracted text still verifies). Full suite: core lib 1949 / 3037 / 960 / 250, cli 44, 0 failed. clippy, fmt, structure, public-fns clean.
+- **Invariants:** no manifest change, so `cargo tree` unchanged (no new deps).
+- **Operator's out-of-repo test file (one-time request, now satisfied and RETIRED):** area mark cleared 52,459 image cells; search mark cleared 8 images inside form XObjects, absence proof Verified.
+- **FEATURES:** "Apply redaction" row (Implemented) gains the extracted-text clause; the Planned row for `635.2` removed. Boxes `[x]` core, `[x]` cli, gui unchanged (not rounded up).
+- No decision or R minted; next free `Pass 636.0`, decision `199`, `R263`. Unreleased: 102.1, 633.0, 634.0, 635.0, 635.1, 635.2.
+
 ### `Pass 635.1` COMPLETE (`c50a3790` + `576dadb7`), 2026-10-23 — redaction removes text, vectors, shadings and image samples inside form XObjects (1210th filing)
 
 **Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here. Not yet released.** Core + CLI (`redact-apply` is the caller; no new flag); gui column untouched. Reasoning is in the two commit messages.
@@ -23605,8 +23618,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Filed 2026-10-23 (1209th filing), from `Pass 635.0`'s review; `635.1` SHIPPED in the 1210th (see *Shipped*), one redaction-correctness Pass remains, NOT built.** Next free `Pass 636.0`; decision `199`, `R263`; next filing 1211th.
-> - **`Pass 635.2` — text-extraction-level absence check.** `redact_proof::verify_absence` (`Pass 632.0`) is byte-level: it is VACUOUS when `TJ` kerning splits the needle across string pieces (`[(Con) -20 (fidential)] TJ` contains no `Confidential`), so `Verified` can be reported for text that is still there. Needs a check on extracted text (decoded through the font's `ToUnicode`/encoding), alongside the byte search, not instead of it.
+> **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). Nothing is at the head of Next up.** Next free `Pass 636.0`; decision `199`, `R263`; next filing 1212th.
+
+(1211th filing: `Pass 635.2` COMPLETE `202e7b13`, see *Shipped*; its Next up item removed. Nothing minted; next free `Pass 636.0`, decision `199`, `R263`; next filing 1212th.)
 
 (1210th filing: `Pass 635.1` COMPLETE `c50a3790` + `576dadb7`, see *Shipped*; its Next up item removed. `635.2` still open. Nothing minted; next free `Pass 636.0`, decision `199`, `R263`; next filing 1211th.)
 
