@@ -123,7 +123,7 @@ Engineer-reported; no shell here, nothing checked from here (tag, release, slot 
 - **Carries** Passes 638.0, 639.0, 640.0 (already filed COMPLETE). FEATURES: no change. Nothing minted; next free `Pass 641.0`, decision `199`, `R263`; next filing 1223rd.
 - Amends the 1221st banner below, which says "NOT yet published": it is now published.
 
-### `Pass 640.0` follow-up `e2bb5d67` (`fix`), 2026-10-23 — CI red on `--no-default-features` clippy (1222nd filing)
+### `e2bb5d67`, 2026-10-23 — follow-up to `Pass 640.0`: CI red on `--no-default-features` clippy (1222nd filing)
 
 Engineer-reported; no shell here. The verification figures below are the engineer's, not re-run from here.
 - **Defect:** the private `dpi: Option<f32>` field added to `OcrRunner` (`crates/pdfcer-ocr-host/src/runner.rs`) by `32589a48` is read only on the PaddleOCR-VL route. Without the `ocr-vl` feature, CI's `cargo clippy -p pdfcer-cli --no-default-features --all-targets -- -D warnings` failed: "field `dpi` is never read". **CI was red at `17067289` (run 40038188103) and at `5ca5eeeb`, the `v0.95.0` tag commit.**
