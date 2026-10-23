@@ -112,7 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.92.0` — version bump filed 2026-10-22 (1193rd filing); release PENDING
+### `v0.92.0` — PUBLISHED 2026-10-23 (published at the 1194th filing; bump filed at the 1193rd)
+
+**Published (engineer-reported; I have no shell, hard rule 8, so none of this is checked from here).** Tag `v0.92.0` (annotated) -> commit `77d6adcf` ("docs: file the v0.92.0 bump (1193rd)"); bump commit `8e77b267`. Pushed: origin/main = `77d6adcf`.
+- **GitHub release v0.92.0:** 8 assets: `pdfcer-v0.92.0-windows-x64.zip` (27,363,920 B), `ocr-addon-ocrcer.zip`, `ocr-addon-ocrs.zip`, `ocr-addon-tesseract.zip`, each with a `.sha256`.
+- **Build folder** `pdfcer-20261023-0337-77d6adc` (package-portable). A power outage killed the first build attempt; it was rebuilt from the same tag.
+- **OneDrive:** slot `pdfcer1` now holds 0.92.0; `pdfcer2` keeps 0.91.0. The next release writes `pdfcer2`.
+- **`verify-release.py v0.92.0`:** every check ok (CI green at the tag) except "working tree clean", which fails on the deliberately uncommitted `.claude/agent-memory/*` files only.
+- **Fresh-folder smoke from the zip:** `--version` (0.92.0), `rotate --degrees 90` twice (incremental), `render-page`, `optimize --compat 1.4`; all exited 0.
+- **`pdfcer-gui` notified:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-10-23_v0.92.0_released.md`.
+- Still owed: pdfium render-parity run against the git rc3. `FEATURES.md`: no change. No Pass, decision or R minted; next free `Pass 631.0`, decision `199`, `R263`; next filing 1195th.
+
+Superseded status below (kept; written at the 1193rd, before publication):
 
 Bump `8e77b267` ("chore(release): v0.92.0": `Cargo.toml` `[workspace.package]` version at line 98 and the `pdfcer-model` `[workspace.dependencies]` version 0.91.0 -> 0.92.0; `Cargo.lock` and `fuzz/Cargo.lock` by `cargo update -w` on the root and on `fuzz/`) on `main`, after `21aeb430` (the 1192nd filing). Engineer-reported; I have no shell (hard rule 8). The lock diff renames workspace crates only; the dependency change (zune-jpeg rc3 from git) shipped earlier in `32e2bff1` and is already filed.
 

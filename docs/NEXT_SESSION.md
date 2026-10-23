@@ -5,7 +5,7 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-22 (v0.91.0), during the size-reduction arc (Ken 2026-10-20: "meet
+**Written:** 2026-10-23 (v0.92.0), during the size-reduction arc (Ken 2026-10-20: "meet
 or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## State
@@ -25,8 +25,9 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   pkix's first publish. Never flip `publish = true` (Ken's call).
   `cargo publish --dry-run` is permission-denied; use `cargo package`.
 - G214-G217 replies are already on the channel (the earlier "owed" note was stale).
-- **Release:** v0.91.0 is published (8 assets; OneDrive `pdfcer2`; `pdfcer1`
-  keeps 0.90.0). **The next release writes `pdfcer1`.** The pdfium
+- **Release:** v0.92.0 is published (8 assets; OneDrive `pdfcer1`; `pdfcer2`
+  keeps 0.91.0; GUI notified, `open/notice_2026-10-23_v0.92.0_released.md`).
+  **The next release writes `pdfcer2`.** The pdfium
   render-parity tool was NOT run against zune rc3; run it before trusting
   JPEG render numbers. Disk D: filled once this session: `target/debug/incremental`
   (48 GB) is safe to delete; `.claude/worktrees` (22 GB) was left alone. Release gates are change-scoped (Ken, 2026-10-16): test

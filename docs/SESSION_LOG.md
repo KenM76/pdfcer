@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1194th filing) — `v0.92.0` PUBLISHED (tag `77d6adcf`; no Pass consumed)
+
+**Filed (engineer-reported, no shell here):** annotated tag `v0.92.0` -> `77d6adcf` (bump `8e77b267`); origin/main = `77d6adcf`. GitHub release with 8 assets (`pdfcer-v0.92.0-windows-x64.zip` 27,363,920 B plus three OCR add-on zips, each with `.sha256`), built from `pdfcer-20261023-0337-77d6adc` (rebuilt from the same tag after a power outage killed the first attempt). OneDrive slot `pdfcer1` = 0.92.0, `pdfcer2` = 0.91.0; next release writes `pdfcer2`.
+
+**Checks:** `verify-release.py v0.92.0` all ok (CI green at tag) except "working tree clean" (uncommitted `.claude/agent-memory/*` only, known). Fresh-folder smoke from the zip: `--version` 0.92.0, `rotate --degrees 90` twice, `render-page`, `optimize --compat 1.4`; all exit 0. `pdfcer-gui` notified (`notice_2026-10-23_v0.92.0_released.md`).
+
+**Carries:** Passes 616.7 (final slice), 616.10, 629.0, 630.0, all filed earlier. ROADMAP v0.92.0 entry retitled PUBLISHED. `FEATURES.md` no change; no decision. `docs/NEXT_SESSION.md` updated by the engineer, not touched here. Git, push and backup state not verified from here.
+
+**For next session:** next free `Pass 631.0`, decision `199`, `R263`; next filing 1195th; pdfium render-parity run against git rc3 still owed; Ken's crates.io decision pending.
+
 ## 2026-10-22 (1193rd filing) — `v0.92.0` bump `8e77b267` filed (no Pass consumed)
 
 **Filed (engineer-reported, no shell here):** bump `8e77b267` ("chore(release): v0.92.0": `Cargo.toml` workspace version (line 98) and the `pdfcer-model` workspace-dependency version 0.91.0 -> 0.92.0; `Cargo.lock`, `fuzz/Cargo.lock` by `cargo update -w`) after `21aeb430` (1192nd). Carries `Pass 616.7` final slice, `Pass 616.10`, `Pass 629.0`, `Pass 630.0`, all filed earlier. Recorded as a ROADMAP Shipped bump entry, as the 1182nd did for `v0.91.0`.
