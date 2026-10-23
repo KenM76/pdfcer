@@ -49,7 +49,10 @@ fn an_info_claim_without_an_output_intent_is_printed_with_that_note() {
         format!("trailer\n<< /Size 5 /Root 1 0 R /Info 4 0 R >>\nstartxref\n{xref_at}\n%%EOF\n")
             .as_bytes(),
     );
-    let path = std::env::temp_dir().join("pdfcer_inspect_prepress_x3.pdf");
+    let path = std::env::temp_dir().join(format!(
+        "pdfcer_inspect_prepress_x3_{}.pdf",
+        std::process::id()
+    ));
     std::fs::write(&path, buf).unwrap();
     let out = Command::new(BIN)
         .arg("inspect")
