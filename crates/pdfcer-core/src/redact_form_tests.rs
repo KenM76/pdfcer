@@ -93,7 +93,7 @@ fn text_in_a_translated_form_is_removed_from_the_file() {
         [153.0, 290.0, 206.0, 320.0],
         &[form(
             "/BBox [0 0 300 50] /Matrix [1 0 0 1 100 280] /Resources << /Font << /F1 5 0 R >> >>",
-            "BT /F1 12 Tf 10 20 Td (KEEP    SECRET    TWO) Tj ET",
+            "BT /F1 12 Tf 10 20 Td (KEEP    SECRET    TWO) Tj ET", // string-gap-exempt: spaces separate the words the mark must split
         )],
     );
     let (text, all, report) = apply(bytes);
