@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1200th filing) — `Pass 626.0` COMPLETE (`d0f7c993`): opt-in lowering of the declared PDF version
+
+**Filed (engineer-reported; no shell here, so none of it is checked from here):** code commit `d0f7c993` on main after `d1a93291`. Core `optimize::lower_version`, CLI `optimize --compat VERSION --lower-version`, new `pdfcer_model::writer::rebuild_declaring`. Full entry: `ROADMAP.md` Shipped. FEATURES row core `[x]` cli `[x]` gui `[ ]`; no further slice planned.
+
+**Findings:** corpus run over `fixtures/external` (2,915 files, each proven-lowerable file lowered to its floor): 1,610 lowered (1,587 in place + 23 rebuilt), 6 refused (all signed), 0 bad.
+
+**Incident 1, gate skipped:** slice-1 code was pushed (`d1a93291`) without running the public-fns-documented gate and fmt; CI went red (fmt diff in `crates/pdfcer-cli/tests/optimize.rs`, undocumented `custom` in `checks.rs` and `lossy` in `scan.rs`). Fixed in `d0f7c993`. Run `tools/run-gates.sh` before the push, not after.
+
+**Incident 2, disk full:** `tools/run-gates.sh` first run 45 of 49 green; the 4 failures were "not enough space on the disk (os error 112)" on D: (99% full, `target/` 111 GB). Freed by deleting `target/debug/incremental` (55 GB); the 4 re-ran green. A red gate with os error 112 is the disk, not the code.
+
+**For next session:** next free `Pass 631.0`, decision `199`, `R263`; next filing 1201st; Ken's answer on the Brotli flag still open (1199th); D: space is tight.
+
 ## 2026-10-23 (1199th filing) — `Pass 626.0` slice 1 SHIPPED (`bdc7d088`): report the lowest PDF version the content needs
 
 **Filed (engineer-reported; no shell here, so none of it is checked from here):** code commit `bdc7d088` on main after `2c3fc0f1`. Core `optimize::version_floor` / `version_floor_with` and CLI `optimize --compat` (new `--strict-icc`, `--json` `compatibility.floor`). Report only; the declared version is never changed. Full entry: `ROADMAP.md` Next up, `Pass 626.0`. `Pass 626.0` stays OPEN for slice 2 (opt-in `--lower-version`).

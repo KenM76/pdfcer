@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 626.0` COMPLETE (`d0f7c993`), 2026-10-23 — lower the declared PDF version, opt-in (1200th filing; slice 1 `bdc7d088`)
+
+**Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here. Commit on main after `d1a93291`. Core + CLI; gui column untouched (separate project).** Reasoning is in the commit message.
+- **Core:** `pdfcer_core::optimize::lower_version(bytes, target, &LowerOptions, &SaveOptions) -> Result<LoweredVersion, LowerError>`. Opt-in (ISO 32000-2 Annex I.2). Refusals, in this order, nothing written: Encrypted; NotLower; Signed (unless `allow_signed`); Unproven (floor not proven); BelowFloor (names the construct).
+- **Routes:** InPlace = header `M.N` digits patched in place (same length) plus catalog `/Version` (§7.7.2) removed by incremental update. Rebuilt = below 1.5 with object streams / xref stream / hybrid, or a header token not exactly `d.d`: full rebuild with a classic xref via new `pdfcer_model::writer::rebuild_declaring` (renumbers objects). Result is reloaded and verified.
+- **CLI:** `pdfcer optimize --compat VERSION --lower-version` (requires `--compat`); text line `version: lowered to PDF x.y: <route>[, catalog /Version removed]`; `--json` `compatibility.lowered` = `{from, to, catalog_version_removed, route}` or null; refusals exit 9; a signed file proceeds with `--invalidate-signatures`. `docs/core-api/03-capabilities.md` gained "Lower the version"; check-core-api-verbs PASS.
+- **Corpus** (`fixtures/external`, 2,915 files, each proven-lowerable file lowered to its floor): 1,610 lowered (1,587 in place + 23 rebuilt = 1,610), 6 refused (all signed), 0 bad (page count and floor preserved on reload).
+- **Tests:** pdfcer-core `--no-default-features` 1847 + 242 + 2942 passed (2 ignored); 10 new `lower_version` unit tests; pdfcer-cli `--test all` 955 passed (2 ignored), new `lower_version_rewrites_the_header_and_refuses_content_above_the_target`; pdfcer-model 428 passed; image-codec and fuzz check green. `tools/run-gates.sh`: 45 of 49 green first run, the 4 failures were disk-full (below), all 4 green on re-run. `cargo tree`: no manifest touched, no new dependency.
+- **Same commit fixed CI red on `d1a93291`:** cargo fmt diff in `crates/pdfcer-cli/tests/optimize.rs`, and missing doc comments on the slice-1 helpers `custom` (`checks.rs`) and `lossy` (`scan.rs`). See SESSION_LOG 1200th.
+- **FEATURES:** "Lower the declared PDF version" row, core `[x]` cli `[x]` gui `[ ]`. No further slice planned. No decision or R minted; next free `Pass 631.0`, decision `199`, `R263`.
+
 ### `Pass 616.5` COMPLETE (`8f626c2f`), 2026-10-23 — the Acrobat Reader checks are done; Reader draws Brotli pages blank (1197th filing)
 
 **Engineer-measured; I have no shell (hard rule 8), nothing here is checked from here. Commit on main, not yet pushed at filing. Core + CLI; gui column untouched (separate project).** Closes the Reader render check decision 193 required per encoder and the Brotli Reader check every earlier `616.5` filing listed as unverified. Reasoning is in the commit message.
@@ -23495,6 +23506,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+(1200th filing: `Pass 626.0` slice 2 SHIPPED `d0f7c993`, Pass COMPLETE, see *Shipped*. No Pass, decision or R minted; next free `Pass 631.0`, decision `199`, `R263`; next filing 1201st.)
+
 (1199th filing: `Pass 626.0` slice 1 SHIPPED `bdc7d088`, see its Next up entry; `Pass 628.0` measurement attached in Backlog; stale zune-jpeg Backlog note corrected. No Pass, decision or R minted; next free `Pass 631.0`, decision `199`, `R263`; next filing 1200th.)
 
 (1197th filing: `Pass 616.5` COMPLETE `8f626c2f`, see *Shipped*; its Next up entry is replaced by the pointer below. Reader checks: RunLength, LZW, CCITT, JBIG2 pass; Brotli draws the page blank. Next free `Pass 631.0`, decision `199`, `R263`; next filing 1198th.)
@@ -25300,17 +25313,16 @@ closes out the *prior* filing's business rather than opening this one's.
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
 
-### `Pass 626.0` — lower the declared PDF version; SLICE 1 SHIPPED (`bdc7d088`), OPEN for slice 2 (filed 1189th, slice 1 filed 1199th filing, 2026-10-23)
+### `Pass 626.0` — lower the declared PDF version — COMPLETE, MOVED TO *Shipped* (slice 2 `d0f7c993`, 1200th filing); slice 1 detail below stays
 
-**Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here. Code commit `bdc7d088` "feat(optimize): report the lowest PDF version a document's content needs (Pass 626.0 slice 1)", on main after `2c3fc0f1`. Core + CLI; gui column untouched.** Reasoning is in the commit message.
+**Slice 1 (`bdc7d088`, filed 1199th; engineer-reported, nothing checked from here).** Report only. Slice 2 (opt-in `--lower-version`) is in *Shipped*.
 - **Shipped (slice 1, report only; never changes the declared version, ISO 32000-2 Annex I.2):** `pdfcer_core::optimize::version_floor(&Document) -> VersionFloor` and `version_floor_with(&Document, FloorOptions)`; types `VersionFloor { floor, requirements, structural, unprovable, icc_profiles }`, `Requirement`, `Unprovable::{UnreadableContent, UnreadableFont, UnreadableProfile}`, `FloorOptions::with_icc`, `IccVersionGate::{Permissive (default), Strict}`, `IccProfile`.
 - **Scan:** every object reached from the trailer gets context bits (worklist fixpoint); the version-introduced catalogue's key / name-value / flag / content-stream rules apply in context. Floor starts at 1.3. Object streams, xref streams and catalog `/Version` are reported apart as `structural` and do not raise the floor. An unreadable content, font (or, strict, ICC) stream makes the floor a lower bound (`proven()` false).
 - **Two engineer rulings** (Ken's "ship both, pick the default" rule): (a) ICC header versions: erratum #181 to ISO 32000-2 drops the PDF-version column, so the ICC-to-PDF mapping is a SETTING; Permissive default lists versions and raises nothing, Strict applies the spec-librarian's derived table (catalogue section 5.1). (b) A structure type newer than the document (`/S /Title`, `/Aside`) raises nothing: an older reader sees a nonstandard role-mapped type. Also: predefined CMap names first listed in 1.4/1.5 (1.7 Table 119, catalogue 5.2) DO raise the floor; 3D keys split by dictionary (3D view `/RM /LS /SA /NA /NR /TB` 1.7; 3D node `/RM /PRC /Instance /Data` 2.0; 3DMeasure/3DUnits types 2.0).
 - **CLI:** `pdfcer optimize --compat` adds "compatibility: the content needs PDF x.y" (plus "at least (n stream(s) could not be read)" when unproven), up to 8 `needs` lines, one line per ICC profile version; new flag `--strict-icc` (requires `--compat`); `--json` `compatibility.floor = {version, proven, unreadable, needs[], icc_profiles[]}`.
 - **Tests:** 18 unit tests in `crates/pdfcer-core/src/optimize/version_floor/tests.rs` + 1 doctest; CLI test `a_compat_target_holds_the_output_and_lists_what_is_above_it` extended; pdfcer-core lib 1880 passed / 0 failed / 2 ignored. clippy -D warnings, fmt, code-structure (568 baseline, none new), check-core-api-verbs (`docs/core-api/03-capabilities.md` "Version floor" paragraph), suite-name gate all clean. No `Cargo.toml` change, so `cargo tree` unchanged; no writer change.
 - **Census** (`crates/pdfcer-core/examples/version_floor_census.rs`, `fixtures/external`): 2,915 files, 0 unreadable, 10 unproven, **1,616 proven lowerable** (floor below declared); the strict ICC gate changes the floor of only 3 files. Top floor-setters: `/Metadata` 1.4 (2,012 files), `/OutputIntents` 1.4 (1,704), `/Tabs` 1.5 (330), FontWeight/FontFamily/FontStretch 1.5 (about 255-271), `/NS` + `/Namespaces` 2.0 (138).
-- **Slice 2, STILL OPEN:** opt-in `--lower-version` by full rewrite: header `%PDF-<target>`, drop or lower catalog `/Version`, below 1.5 drop xref/object streams, refuse signed and encrypted documents, disclose the change (Annex I.2 "should never"). Operator decision on opt-in versus default was in the original filing; the engineer's plan is opt-in.
-- **FEATURES:** the one "Lower the declared PDF version" row split into a report row (core `[x]` cli `[x]` gui `[ ]`) and the lowering row (all `[ ]`).
+- **Slice 2:** SHIPPED, see *Shipped*.
 - **Not verified from here:** push state, backup currency.
 
 ### `Pass 616.0` — Space audit (`audit-space`) — MOVED TO *Shipped* (1111th filing, `5ba901d4`); arc inputs below stay for `616.1`+
