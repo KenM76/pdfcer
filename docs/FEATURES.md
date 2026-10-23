@@ -721,6 +721,7 @@ the model or verb exists and only the named shell is missing. The
 | [ ] | — | [ ] | — | Non-Latin UI font coverage. |
 | [ ] | — | [ ] | ? | Autosave and crash recovery, then true in-place save. |
 | [ ] | [ ] | — | — | Release and distribution channel. |
+| [ ] | — | — | — | **Engine crates on crates.io** — `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` first; `pdfcer-core` and `pdfcer-render` blocked by git dependencies (zune-jpeg, icccer). Waiting on an operator crates.io token. `Pass 637.0` (`X001`). |
 | — | — | [ ] | ? | Right-click context menus, canvas and object tree. |
 | — | — | [ ] | — | Remaining ribbon slices — contextual tabs, overflow, keyboard accessibility. |
 

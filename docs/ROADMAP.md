@@ -23641,7 +23641,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). Nothing is at the head of Next up.** Next free `Pass 637.0`; decision `199`, `R263`; next filing 1214th.
+> **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 638.0`; decision `199`, `R263`; next filing 1215th.
 
 (1213th filing: v0.94.0 release-prep `779b72d6` + `d6e362af`, see *Shipped*. Nothing minted; next free `Pass 637.0`, decision `199`, `R263`; next filing 1214th.)
 
@@ -34351,6 +34351,28 @@ overrides the image dictionary; `/ColorSpace` optional,
 `pdfce-render`'s image path for any hard requirement on
 `/ColorSpace`/`/BitsPerComponent` that Table 89 makes optional
 (decision 005 §10 item 3).
+
+### Pass 637.0 — publish the engine crates to crates.io (`X001`) — BLOCKED on an operator-supplied crates.io API token
+
+**Source:** `D:/Dev/FeatureRequests/pdfce_FeatureRequests/open/request_X001_publish_engine_crates_to_crates_io.md` (operator, as a crates consumer, 2026-10-23). Key `X001`: `X###` is a **third request counter**, minted by an external crates consumer, beside `G###` (the `pdfcer-gui` shell) and `E###` (the engine). Filed at the 1214th filing. The operator has approved publishing.
+
+**Ask:** publish every crate that can be published now, in dependency order, and report what is still blocked.
+
+**Acceptance (the request's five items):**
+1. `publish = false` is lifted only for the crates being published; crates that cannot be packaged yet keep it. (Today the root `Cargo.toml` sets `publish = false` workspace-wide and members inherit it via `publish.workspace = true`, so lifting is per crate.)
+2. Each published crate is visible on crates.io at the workspace version, and its listing carries the MIT licence, repository, README, keywords and categories.
+3. Before each publish, `cargo package` verifies the crate against the registry as published at that moment (no path-only resolution).
+4. The reply names each crate as published (with version) or blocked (with the blocker, e.g. a git dependency, or a public API that exposes an unpublished crate), and for each blocked crate the work needed to unblock it.
+5. The release recipe gains a step to publish the bumped versions on every release, so crates.io does not lag the tags. The `pdfcer-model` version pin in `[workspace.dependencies]` must be bumped with every release.
+
+**State (engineer-measured 2026-10-23, not re-checked by the librarian):**
+- crates.io names `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix`, `pdfcer-core` are all unclaimed.
+- **No cargo registry credentials on this machine: BLOCKED until the operator supplies a crates.io API token (`cargo login`).**
+- `pdfcer-color` and `pdfcer-model` are package-ready (`Pass 618.1`, `82e83a06`). `pdfcer-pkix` verifies only after `pdfcer-model` is on the registry (decision 196).
+- Blocked by git dependencies: `pdfcer-render` (icccer via git); `pdfcer-image-codec` and `pdfcer-3d` (zune-jpeg git rev `c1c7f497`, decision 197; stable 0.5.16 needed). `pdfcer-core` depends by path on `pdfcer-image-codec` (`crates/pdfcer-core/Cargo.toml` line 170), so it is blocked transitively until image-codec is unblocked. Its other path dependencies (fonts, text, function) are not yet checked for packageability.
+- Expected order once the token exists: `pdfcer-color`, `pdfcer-model`, then `pdfcer-pkix`; the rest per the blockers above.
+
+**Status:** Next up, blocked on the token. FEATURES.md: row "Publish the engine crates to crates.io" in *Planned*, all boxes unticked.
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 

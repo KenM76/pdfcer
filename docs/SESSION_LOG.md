@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1214th filing) — `Pass 637.0` filed: publish the engine crates to crates.io (`X001`), BLOCKED on a token
+
+**Filed (docs only; no code, no shell here, nothing checked from here):** request `X001` (`pdfce_FeatureRequests/open/request_X001_publish_engine_crates_to_crates_io.md`) filed as `Pass 637.0` in `ROADMAP.md` Next up, acceptance = the request's five items. `X###` is a new third request counter (external crates consumer), beside `G###` and `E###`; no pdfcer doc describes the channel-key counters, so the only record is the `637.0` entry. Engineer-measured: the four names are unclaimed on crates.io; no registry credentials on this machine, so it waits on an operator-supplied token (`cargo login`). Blockers: git dependencies (icccer in render; zune-jpeg `c1c7f497` in image-codec and 3d, which blocks core by path); pkix verifies only after model is published (decision 196).
+
+**Decisions made:** none; no decision or R minted.
+
+**FEATURES.md:** new *Planned* row "Engine crates on crates.io", all boxes unticked.
+
+**Gate:** `tools/check-requests-scoped.py` matches the request's exact filename in `ROADMAP.md`; the entry cites it, so it reads as scoped. It is red until a reply naming that filename is written in the channel (R242), which is the engineer's step.
+
+**For next session:** obtain the token, then publish color, model, pkix in order and write the reply. Next free `Pass 638.0`, decision `199`, `R263`; next filing 1215th.
+
 ## 2026-10-23 (1213th filing) — `v0.94.0` release prep: `779b72d6` (gate fix) + `d6e362af` (version bump); NOT yet published
 
 **Filed (engineer-reported; no shell here, nothing checked from here):** `779b72d6` marks the deliberate multi-space content-stream literal in `crates/pdfcer-core/src/redact_form_tests.rs` with `string-gap-exempt:` (`check-string-gaps.sh` flagged a `Pass 635.1` fixture; the spaces are the fixture). `d6e362af` bumps the workspace 0.93.0 to 0.94.0 (root `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`). Release carries the unreleased Passes 102.1, 633.0, 634.0, 635.0, 635.1, 635.2, 636.0. Full entry: `ROADMAP.md` Shipped.
