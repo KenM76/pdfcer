@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1198th filing) — chore `0145632a`: the twelve `tools/*/Cargo.lock` refreshed (no Pass consumed)
+
+**Filed (engineer-reported; no shell here, so none of it is checked from here):** each of the 12 `tools/*/Cargo.lock` (content-identity, corpus-report, difftest, embed-sweep, font-parity, fontfile-census, icc-census, recover-sweep, render-profile, roundtrip, tw-census, unembed-sweep) still locked crates.io `zune-jpeg 0.5.15` and predated the `icccer` rename and many engine dependencies. `cargo update -w` in each tool dir re-resolved them; zune-jpeg now comes from the git rc3 pin (decision 198). All 12 pass `cargo metadata --locked`. `difftest` additionally keeps a registry `zune-jpeg 0.5.15` through its own direct dependency. Diffstat 12 files, +9316/-520.
+
+**Correction filed with it:** `docs/NEXT_SESSION.md` State said the tool lockfiles "still lock the registry rc3"; they locked 0.5.15. Sentence replaced (engineer-instructed edit to an engineer-owned file).
+
+**No code, no `FEATURES.md` rows** (core/cli/gui unchanged); no Pass, decision or R minted; commit not yet pushed at filing; git and backup state not verified from here.
+
+**For next session:** next free `Pass 631.0`, decision `199`, `R263`; next filing 1199th; refresh the tool lockfiles again after any engine dependency change.
+
 ## 2026-10-23 (1197th filing) — `Pass 616.5` COMPLETE (`8f626c2f`): Acrobat Reader checks done; Reader draws Brotli pages blank
 
 **Filed (engineer-measured; I have no shell, so none of it is checked from here):** the per-encoder Reader render check (decision 193) and the Brotli Reader check that every earlier `616.5` filing listed as unverified.

@@ -19,8 +19,8 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   Pass 623.0, the rename only); if Ken publishes, add `version = "0.4"` beside
   the git dep in pdfcer-render. **zune-jpeg rc3 comes from git at rev `c1c7f497` (decision 198,
   amending 197) so a downstream `^0.5` resolves; moving to stable crates.io
-  0.5.16 still blocks any crates.io publish. `tools/*/Cargo.lock` still lock
-  the registry rc3 and are stale anyway.** pkix full verify waits for model on a registry; decision 196 split precedes
+  0.5.16 still blocks any crates.io publish. `tools/*/Cargo.lock` were refreshed
+  to the git rc3 graph (0145632a); refresh them again after any engine dependency change.** pkix full verify waits for model on a registry; decision 196 split precedes
   pkix's first publish. Never flip `publish = true` (Ken's call).
   `cargo publish --dry-run` is permission-denied; use `cargo package`.
 - G214-G217 replies are already on the channel (the earlier "owed" note was stale).
