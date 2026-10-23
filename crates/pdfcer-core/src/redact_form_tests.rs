@@ -9,9 +9,20 @@ use crate::writer::SaveOptions;
 /// its content, `rect` the `/Redact` mark, and `extra` further objects
 /// numbered from 6 (5 is the Helvetica font, 4 the mark).
 fn pdf(page_res: &str, content: &str, rect: [f64; 4], extra: &[String]) -> Vec<u8> {
+    tagged("", page_res, content, rect, extra)
+}
+
+/// [`pdf`] with `catalog` added to the catalog dictionary.
+pub(super) fn tagged(
+    catalog: &str,
+    page_res: &str,
+    content: &str,
+    rect: [f64; 4],
+    extra: &[String],
+) -> Vec<u8> {
     let [x0, y0, x1, y1] = rect;
     let mut bodies = vec![
-        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        format!("<< /Type /Catalog /Pages 2 0 R {catalog} >>"),
         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
         format!(
             "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 400] /Resources {page_res} \
@@ -47,7 +58,7 @@ fn stream(dict_extra: &str, content: &str) -> String {
     )
 }
 
-fn form(extra: &str, content: &str) -> String {
+pub(super) fn form(extra: &str, content: &str) -> String {
     stream(&format!("/Type /XObject /Subtype /Form {extra}"), content)
 }
 
@@ -77,7 +88,7 @@ fn apply(bytes: Vec<u8>) -> (String, Vec<u8>, RedactionReport) {
     (text, all, report)
 }
 
-fn has(hay: &[u8], needle: &[u8]) -> bool {
+pub(super) fn has(hay: &[u8], needle: &[u8]) -> bool {
     hay.windows(needle.len()).any(|w| w == needle)
 }
 

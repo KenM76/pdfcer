@@ -729,11 +729,15 @@ struct Surgeon<'a> {
     /// clip (`W n`) after the cut paint — see `redact_vector`'s module doc.
     vector_clips_kept: u64,
     estimated_fonts: BTreeSet<String>,
-    /// Open marked-content sequences, innermost last; `Some` when the
-    /// property list carries replacement text (`redact_marked`).
-    marked: Vec<Option<marked::MarkedOpen>>,
+    /// Open marked-content sequences, innermost last (`redact_marked`).
+    marked: Vec<marked::MarkedOpen>,
     /// Property lists whose replacement text was removed.
     replacement_text_stripped: u64,
+    /// The form this surgeon reads; `None` for page content.
+    stream_id: Option<ObjId>,
+    /// `(stream, MCID)` of every marked-content sequence with content
+    /// removed inside it, for `redact_struct`.
+    redacted_mcids: BTreeSet<(Option<ObjId>, i64)>,
 }
 
 /// The text-state fields saved/restored by `q`/`Q`, font included
@@ -783,6 +787,8 @@ struct SurgeryResult {
     estimated_fonts: BTreeSet<String>,
     /// Marked-content property lists that lost their replacement text.
     replacement_text_stripped: u64,
+    /// See [`Surgeon::redacted_mcids`].
+    redacted_mcids: BTreeSet<(Option<ObjId>, i64)>,
 }
 
 impl<'a> Surgeon<'a> {
@@ -824,6 +830,8 @@ impl<'a> Surgeon<'a> {
             estimated_fonts: BTreeSet::new(),
             marked: Vec::new(),
             replacement_text_stripped: 0,
+            stream_id: None,
+            redacted_mcids: BTreeSet::new(),
         }
     }
 
@@ -1677,6 +1685,7 @@ fn redact_page_content(
         shadings_cut: surgeon.shadings_cut,
         estimated_fonts: surgeon.estimated_fonts,
         replacement_text_stripped: surgeon.replacement_text_stripped,
+        redacted_mcids: surgeon.redacted_mcids,
     }
 }
 
@@ -2221,6 +2230,7 @@ pub fn apply_redactions_with(
 
     // --- pass 2: the surgery, page by page ---
     let mut tombstoned: std::collections::BTreeMap<ObjId, ()> = std::collections::BTreeMap::new();
+    let mut struct_items = structure::RedactedItems::new();
     for PreparedPage {
         index,
         red,
@@ -2325,6 +2335,9 @@ pub fn apply_redactions_with(
         report.shadings_cut += result.shadings_cut;
         estimated_fonts.extend(result.estimated_fonts);
         report.glyphs_removed += result.glyphs_removed;
+        for (stream, mcid) in &result.redacted_mcids {
+            struct_items.insert((red.page_id, *stream, *mcid));
+        }
         if result.replacement_text_stripped > 0 {
             report.notes.push(format!(
                 "redaction: {} marked-content sequence(s) lost /ActualText, /Alt and /E because glyphs inside them were redacted (ISO 32000-1 §14.9.3-§14.9.5)",
@@ -2576,6 +2589,7 @@ pub fn apply_redactions_with(
     }
     form::disclose(form_tally, &mut report);
     carrier_detect_disclose(doc, images_seen, &mut report);
+    structure::strip_replacement_text(doc, &struct_items, &mut dirty, &mut report);
 
     // LAST of the scrubbing carriers, and the order is load-bearing: this
     // one reads each object's EFFECTIVE value, so it must run after every
@@ -3987,20 +4001,6 @@ fn carrier_detect_disclose(doc: &Document, images_seen: bool, report: &mut Redac
         report.add_carrier("xfa", false, CarrierAction::Absent);
     }
 
-    // Structure tree /ActualText/Alt/E — tagged replacement text that an
-    // extractor reads even after glyph removal.
-    let struct_tree = catalog.is_some_and(|c| c.contains_key(b"StructTreeRoot"));
-    if struct_tree {
-        report.add_carrier("struct_tree", true, CarrierAction::DisclosedNotScrubbed);
-        report.note(
-            "redaction: /StructTreeRoot present — tagged /ActualText//Alt//E may duplicate \
-             redacted glyphs and was NOT scrubbed; verify the structure tree manually"
-                .to_string(),
-        );
-    } else {
-        report.add_carrier("struct_tree", false, CarrierAction::Absent);
-    }
-
     // Embedded files / attachments — whole documents outside region scope.
     let attachments = catalog.is_some_and(|c| {
         c.get(b"Names")
@@ -4388,10 +4388,18 @@ mod form;
 #[path = "redact_marked.rs"]
 mod marked;
 
+#[path = "redact_struct.rs"]
+mod structure;
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)] // test fixtures: a failed setup is a failed test
 #[path = "redact_form_tests.rs"]
 mod form_tests;
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)] // test fixtures: a failed setup is a failed test
+#[path = "redact_struct_tests.rs"]
+mod struct_tests;
 
 #[cfg(test)]
 #[allow(
@@ -5582,10 +5590,9 @@ mod tests {
     }
 
     #[test]
-    fn a_structure_tree_is_disclosed_as_an_unscrubbed_residual() {
-        // A tagged document's /ActualText//Alt//E can duplicate redacted
-        // glyphs; this build detects and DISCLOSES it (never silently
-        // leaves it), triggering the refusal-acknowledgement gate.
+    fn a_structure_tree_with_nothing_over_redacted_content_is_checked_clean() {
+        // The tree is walked (`redact_struct`); an element enclosing no
+        // redacted content keeps its text and is not a residual.
         let content = b"BT /F1 24 Tf 20 100 Td (SECRET PUBLIC) Tj ET";
         let stream = format!(
             "<< /Length {} >>\nstream\n{}\nendstream",
@@ -5609,13 +5616,9 @@ mod tests {
         let (out, report) = apply_redactions(&doc, &SaveOptions::identity()).unwrap();
         // The visible content is still removed...
         assert!(!contains(&out, b"SECRET"));
-        // ...but the structure tree is disclosed, not silently scrubbed.
-        assert!(
-            report.has_disclosed_residuals(),
-            "a present structure tree must be disclosed as a residual"
-        );
+        assert!(!report.has_disclosed_residuals(), "{report:?}");
         assert!(report.carriers.iter().any(|c| {
-            c.carrier == "struct_tree" && c.action == CarrierAction::DisclosedNotScrubbed
+            c.carrier == "struct_tree" && c.present && c.action == CarrierAction::CheckedClean
         }));
     }
 

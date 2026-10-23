@@ -265,6 +265,7 @@ impl<'a> Surgeon<'a> {
         self.forms.depth = parent.forms.depth + 1;
         self.forms.active = parent.forms.active.clone();
         self.forms.active.push(id.num);
+        self.stream_id = Some(id);
     }
 
     /// Fold a finished form surgeon's results into this one, and return
@@ -278,6 +279,7 @@ impl<'a> Surgeon<'a> {
     ) -> (Vec<Edit>, Vec<FormRewrite>) {
         self.glyphs_removed += child.glyphs_removed;
         self.replacement_text_stripped += child.replacement_text_stripped;
+        self.redacted_mcids.append(&mut child.redacted_mcids);
         self.ops_edited += child.ops_edited;
         for (region, text) in child.removed_by_region {
             self.removed_by_region
