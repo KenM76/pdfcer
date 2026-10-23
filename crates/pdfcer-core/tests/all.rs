@@ -127,6 +127,7 @@ mod image_tiff;
 mod indirect_acroform_entries;
 mod indirect_entry_edits;
 mod ink_reshape;
+mod insert_pages_carries_fields;
 mod insert_pages_preserves_undo;
 mod insert_pages_repeated;
 mod layer_edit;

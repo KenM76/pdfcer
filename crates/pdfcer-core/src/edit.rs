@@ -149,6 +149,7 @@ mod form_copy;
 mod form_paint;
 mod form_transform;
 mod group_unit;
+mod insert_fields;
 mod node_shape;
 mod restack;
 mod stroke_style;
@@ -4357,68 +4358,49 @@ fn apply_markup_style(
 pub struct InsertOutcome {
     /// How many pages arrived.
     pub pages_inserted: usize,
-    /// Widget annotations that arrived **without the field that owns them**.
+    /// Widget annotations that arrived **without the field that owns them**:
+    /// widgets of a field split across inserted and non-inserted pages
+    /// ([`Self::fields_split`]), of a field not listed in the source's
+    /// `/AcroForm /Fields`, or on a page named twice (the repeat copy).
     ///
     /// Non-zero means the inserted pages carry controls that draw like form
     /// fields and cannot be filled. A shell should say so **specifically** —
     /// naming the count — rather than warning unconditionally that "form
     /// fields may not have come across", which is both vaguer and wrong.
-    ///
-    /// # This count is PERMANENT, not an interim measure
-    ///
-    /// The obvious next step is to carry the field definitions across for
-    /// fields whose widgets are all on inserted pages (`Pass 102.1`), and it
-    /// is worth doing. **It does not retire this number.** A field's widgets
-    /// can be **split** across inserted and non-inserted pages, and such a
-    /// field cannot be carried without either fracturing it or dragging in
-    /// widgets nobody asked to insert. A residue survives any merge, so the
-    /// count has to exist forever.
-    ///
-    /// The requesting shell framed this as *"(3) now and (1) later"*. It is
-    /// (3) **always**, with (1) layered on top.
     pub orphaned_widgets: usize,
-    /// How many of [`Self::orphaned_widgets`] lost **every trace** of what
-    /// field they belonged to, and so cannot be adopted back into one
-    /// without re-reading the source document.
+    /// How many of [`Self::orphaned_widgets`] have no `/T` of their own, and
+    /// so lost **every trace** of the field they belonged to.
     ///
-    /// # Two orphans that look identical and are not
-    ///
-    /// Measured, not assumed — `examples/orphan_probe.rs` against a real
-    /// AcroForm (12 fields over 13 widgets, pdfbox corpus). Of the 13
-    /// widgets the insert orphans:
-    ///
-    /// - **11 are self-describing.** They are *merged field-widgets*: one
-    ///   dictionary that is both the field and its widget, carrying its own
-    ///   `/FT`, `/T`, `/V`, `/DA`. Everything needed to register it in
-    ///   `/AcroForm` came across with it, and
-    ///   [`EditSession::adopt_widget`] restores it losslessly.
-    /// - **2 are bare kids.** A radio group is *one* field with *two* kid
-    ///   widgets, and a kid carries no field keys at all — its only link to
-    ///   its identity is `/Parent`. The copy does not follow `/Parent`
-    ///   (see `import_dict`, which explains why), so the key is dropped and
-    ///   the widget arrives with **no name, no type, no value and no**
-    ///   **pointer to anything that has them**. In the probe those two lost
-    ///   the name `GroupOption`, the type `/Btn`, the radio flags `0xC000`
-    ///   and the value `Option2`.
-    ///
-    /// The distinction matters to a shell because the two are different
-    /// situations for an operator, and the undifferentiated total reads as
-    /// the milder one. *"11 controls need re-registering"* is a chore;
-    /// *"2 controls have lost their identity and the only copy is in the
-    /// file you inserted from"* is a decision. A disclosure built on
-    /// `orphaned_widgets` alone states the chore and omits the decision.
-    ///
-    /// # What would reduce it
-    ///
-    /// `Pass 102.1` — carrying the field definitions — is what fixes this,
-    /// and it is genuinely harder than it looks. Following a widget's
-    /// `/Parent` reaches the field dictionary, whose `/Kids` reach its
-    /// *sibling* widgets, whose `/P` entries reach **pages that were not
-    /// inserted**. That is precisely the whole-document drag the page
-    /// barrier in `pageops::assemble` exists to stop. Until `insert_pages`
-    /// carries that barrier, dropping the key is the safe behaviour and
-    /// this counter is the honesty owed for it.
+    /// The two kinds are different situations for an operator. An orphan
+    /// with its own `/T` is a *merged field-widget* carrying its `/FT`,
+    /// `/V` and `/DA`; [`EditSession::adopt_widget`] registers it
+    /// losslessly — a chore. A bare kid (one widget of a radio group, say)
+    /// had its name, type and value only in the parent field, which did not
+    /// come; the only copy is in the source file — a decision. A disclosure
+    /// built on `orphaned_widgets` alone states the chore and omits the
+    /// decision.
     pub orphaned_widgets_unrecoverable: usize,
+    /// Terminal form fields (the fillable ones, not top-level roots) carried
+    /// into this document's `/AcroForm` because every widget they own
+    /// arrived on an inserted page.
+    ///
+    /// A carried field arrives fillable: its widgets are re-parented to it
+    /// and its ancestors come too (pruned to the carried kids), so inherited
+    /// `/FT`, `/Ff`, `/V`, `/DV`, `/DA` and `/Q` resolve (§12.7.3.2). Its
+    /// widgets are not counted in [`Self::orphaned_widgets`].
+    pub fields_carried: usize,
+    /// How many carried **top-level** fields were renamed because their name
+    /// was already taken here (`Address` → `Address_2`, §12.7.3.1). Same
+    /// reasoning as [`MergeOutcome::fields_renamed`]: a script or FDF keyed
+    /// on the old name no longer matches, which is better than two fields
+    /// sharing one name and filling together.
+    pub fields_renamed: usize,
+    /// Terminal fields NOT carried because their widgets are split between
+    /// inserted and non-inserted pages. Their arrived widgets stay in
+    /// [`Self::orphaned_widgets`]; carrying half a field would fracture it.
+    pub fields_split: usize,
+    /// Whether this document had no `/AcroForm` and the carry created one.
+    pub acroform_created: bool,
     /// Whether the SOURCE carried a document outline (§12.3.3) whose
     /// bookmarks did **not** come across with the pages.
     ///
@@ -49590,16 +49572,16 @@ impl EditSession {
     ///
     /// This is the observation the verb is built on, and it is not obvious.
     ///
-    /// `insert_pages` cannot carry `/AcroForm` because a field's `/Kids` may
-    /// reach widgets on pages that are **not** being inserted — carrying the
-    /// field would either fracture it or drag in widgets nobody asked for.
-    /// That is `Pass 102.1`'s hard problem, and it is why
-    /// [`InsertOutcome::orphaned_widgets`] is permanent rather than interim.
+    /// `insert_pages` carries only the fields whose widgets all arrived: a
+    /// field whose `/Kids` reach widgets on pages that are **not** being
+    /// inserted would be fractured or would drag in widgets nobody asked
+    /// for, which is why [`InsertOutcome::fields_split`] and
+    /// [`InsertOutcome::orphaned_widgets`] exist.
     ///
     /// **Merging every page makes that case impossible.** No field can
-    /// straddle a boundary when there is no boundary. So the structures
-    /// `insert_pages` must refuse, this verb can carry wholesale — and it is
-    /// the same code path, differing only in taking every page.
+    /// straddle a boundary when there is no boundary. So the field tree this
+    /// verb carries wholesale is the same one `insert_pages` must prune, by
+    /// the same copy path, differing only in taking every page.
     ///
     /// # What is carried, and the ordering that makes it work
     ///
@@ -50299,18 +50281,10 @@ impl EditSession {
             return Ok(AcroFormMerge::default());
         }
 
-        // Names already spoken for in the TARGET. Read before anything is
-        // imported, so an arrival cannot collide with another arrival's
-        // renamed form and produce a second round of suffixes.
-        let mut taken: BTreeSet<String> = forms::parse_acroform(&self.graph())
-            .map(|f| {
-                f.fields
-                    .iter()
-                    .map(|x| x.fully_qualified_name.clone())
-                    .chain(f.groups.iter().map(|g| g.fully_qualified_name.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
+        // Root names already spoken for in the TARGET, read before anything
+        // is imported so an arrival cannot collide with another arrival's
+        // renamed form. Root names, not full names: see `taken_root_names`.
+        let mut taken = insert_fields::taken_root_names(&self.graph());
 
         let mut out = AcroFormMerge::default();
         let mut new_field_ids: Vec<Object> = Vec::new();
@@ -50319,171 +50293,29 @@ impl EditSession {
                 continue;
             };
             let new_id = self.import_object(source, *src_id, mapping, scratch)?;
-            let Some(Object::Dict(mut field)) = scratch.get(&new_id).cloned() else {
+            let Some(Object::Dict(field)) = scratch.get_mut(&new_id) else {
                 continue;
             };
-
-            // Rename on collision. §12.7.3.1: the fully qualified name IS the
-            // identity, so leaving a duplicate makes one field with two
-            // widgets and filling either fills both.
-            if let Some(Object::String(bytes)) = field.get(b"T") {
-                let original = decode_text_string(bytes).text;
-                if taken.contains(&original) {
-                    let renamed = unique_field_name(&original, &taken);
-                    field.insert(
-                        Name::from(b"T"),
-                        Object::String(encode_text_string(&renamed)),
-                    );
-                    taken.insert(renamed);
-                    out.renamed += 1;
-                } else {
-                    taken.insert(original);
-                }
-            }
-
-            // The copy drops `/Parent` (see `import_dict`), so a merged
-            // top-level field has none — which is correct, it IS top level.
+            // §12.7.3.1: the fully qualified name IS the identity, so a
+            // duplicate root makes one field of two and filling either fills
+            // both. The copy dropped `/Parent`, which is right: it is top level.
+            out.renamed += usize::from(insert_fields::rename_if_taken(field, &mut taken));
             field.remove(b"Parent");
-
-            // Re-establish every kid's `/Parent`. Without this the widgets
-            // are reachable from the field and the field is not reachable
-            // from them, which breaks inheritance of `/FT`, `/Ff`, `/V` and
-            // `/DA` (§12.7.3.2) — a form that lists its fields correctly and
-            // cannot fill them.
-            if let Some(Object::Array(kids)) = field.get(b"Kids").cloned() {
-                for kid in &kids {
-                    let Object::Reference(kid_id) = kid else {
-                        continue;
-                    };
-                    if let Some(Object::Dict(mut widget)) = scratch.get(kid_id).cloned() {
-                        widget.insert(Name::from(b"Parent"), Object::Reference(new_id));
-                        scratch.insert(*kid_id, Object::Dict(widget));
-                    }
-                }
-            }
-
-            scratch.insert(new_id, Object::Dict(field));
+            // Every kid's `/Parent`, at every depth, or inheritance of `/FT`,
+            // `/Ff`, `/V` and `/DA` (§12.7.3.2) stops at the first level.
+            insert_fields::reparent_subtree(new_id, scratch);
             new_field_ids.push(Object::Reference(new_id));
             out.merged += 1;
         }
         if new_field_ids.is_empty() {
             return Ok(out);
         }
-
-        // Splice into the target's `/AcroForm` `/Fields`, creating the
-        // dictionary when the target has none — a document that gains its
-        // first form field also becomes a form document, which is why this
-        // is reported rather than assumed.
-        let catalog_id = self.graph().catalog_id().ok_or(EditError::NotADictionary {
-            id: ObjId::new(0, 0),
-            key: "Root",
-        })?;
-        let Some(catalog) = self.staged_catalog(catalog_id, scratch) else {
-            return Err(EditError::NotADictionary {
-                id: catalog_id,
-                key: "Root",
-            });
-        };
-        let existing = catalog.get(b"AcroForm").cloned();
-        let mut form_dict = match &existing {
-            Some(obj) => self.deref_dict(Some(obj)).unwrap_or_default(),
-            None => {
-                out.created = true;
-                Dict::new()
-            }
-        };
-        let mut fields = form_dict
-            .get(b"Fields")
-            .map(|o| self.resolve_value(o))
-            .and_then(Object::as_array)
-            .map(<[Object]>::to_vec)
-            .unwrap_or_default();
-        fields.extend(new_field_ids);
-        form_dict.insert(Name::from(b"Fields"), Object::Array(fields));
-
-        // `/NeedAppearances` is carried as a LOGICAL OR, not overwritten.
-        // It means "the appearances in this file may be stale, regenerate
-        // them" — so if either document said so, the merged document must,
-        // or the arriving fields render from appearance streams their own
-        // producer already declared untrustworthy.
-        if matches!(
-            src_form.get(b"NeedAppearances"),
-            Some(Object::Boolean(true))
-        ) {
-            form_dict.insert(Name::from(b"NeedAppearances"), Object::Boolean(true));
-        }
-        // `/SigFlags` (Table 219) — a BITWISE OR, for the same reason as
-        // `/NeedAppearances` above. Bit 1 `SignaturesExist` says the document
-        // contains at least one signature field; bit 2 `AppendOnly` says it
-        // must only be written by incremental update. After a merge the
-        // document contains the union of both documents' fields, so it must
-        // declare the union of both flags.
-        //
-        // Found by reading this command's own output (R174): the corpus form
-        // reports `sig_flags=0x1` and the merged file reported `0x0`, so a
-        // viewer would not have offered its signing UI for a document that
-        // does contain a `/Sig` field.
-        //
-        // What this does NOT claim. Carrying the flag says the merged
-        // document HAS signature fields; it says nothing about their
-        // validity. A signature covers a byte range, and the merge renumbers
-        // and re-emits the source's objects — so any signature VALUE that
-        // came across is already broken by arithmetic, flag or no flag. The
-        // flag describes structure, and the structure is real.
         let src_sig = match src_form.get(b"SigFlags") {
             Some(Object::Integer(n)) => *n,
             _ => 0,
         };
-        if src_sig != 0 {
-            let existing_sig = form_dict
-                .get(b"SigFlags")
-                .and_then(|o| match self.resolve_value(o) {
-                    Object::Integer(n) => Some(*n),
-                    _ => None,
-                })
-                .unwrap_or(0);
-            form_dict.insert(
-                Name::from(b"SigFlags"),
-                Object::Integer(existing_sig | src_sig),
-            );
-        }
-        // `/DR` — the default resources a field's `/DA` names (§12.7.3.3).
-        // Merged key-by-key with the TARGET winning, because a target entry
-        // is already referenced by fields that were here first; dropping it
-        // would break them to fix the arrivals.
-        if let Some(src_dr) = src_form
-            .get(b"DR")
-            .map(|o| source.graph().resolve(o).clone())
-            .and_then(|o| o.as_dict().cloned())
-        {
-            let mut dr = form_dict
-                .get(b"DR")
-                .and_then(|o| self.deref_dict(Some(o)))
-                .unwrap_or_default();
-            for (key, value) in src_dr.iter() {
-                if !dr.contains_key(key.as_bytes()) {
-                    let imported = self.import_value(source, value, mapping, scratch)?;
-                    dr.insert(key.clone(), imported);
-                }
-            }
-            form_dict.insert(Name::from(b"DR"), Object::Dict(dr));
-        }
-        if !form_dict.contains_key(b"DA")
-            && let Some(da) = src_form.get(b"DA")
-        {
-            form_dict.insert(Name::from(b"DA"), da.clone());
-        }
-
-        match existing {
-            Some(Object::Reference(form_id)) => {
-                scratch.insert(form_id, Object::Dict(form_dict));
-            }
-            _ => {
-                let mut catalog = catalog;
-                catalog.insert(Name::from(b"AcroForm"), Object::Dict(form_dict));
-                scratch.insert(catalog_id, Object::Dict(catalog));
-            }
-        }
+        out.created =
+            self.splice_acroform(source, &src_form, new_field_ids, src_sig, mapping, scratch)?;
         Ok(out)
     }
 
@@ -50695,45 +50527,23 @@ impl EditSession {
     /// point of that file's `—` versus `[ ]` distinction is to tell them
     /// apart.
     ///
-    /// # THE WIDGETS DO ARRIVE. Only their FIELDS do not — and the
-    /// paragraph above was read as saying the opposite
+    /// # Form fields: what arrives fillable and what arrives inert
     ///
-    /// This matters more than the omission it qualifies, and it is written
-    /// out because a consuming shell shipped a wrong disclosure derived from
-    /// the wording above.
+    /// A widget annotation is **page-level** (the page's `/Annots`); a field
+    /// definition is **document-level** (`/AcroForm /Fields`). The page copy
+    /// brings every widget; the field tree is then carried for every field
+    /// whose widgets **all** arrived ([`InsertOutcome::fields_carried`]),
+    /// with pruned copies of its ancestors so inherited keys resolve
+    /// (§12.7.3.2), renaming a top-level name already taken here
+    /// ([`InsertOutcome::fields_renamed`]).
     ///
-    /// A widget annotation is **page-level**: it lives in the page's
-    /// `/Annots`. A field definition is **document-level**: it lives in
-    /// `/AcroForm` `/Fields`. This method copies everything reachable from
-    /// the page, so **the widgets come across and their fields do not.**
-    ///
-    /// Measured by the `pdfcer-gui` session, 2026-08-18, inserting one page of
-    /// `pdfbox/…/acroform.pdf` into a blank document:
-    ///
-    /// ```text
-    /// SOURCE  fields=Some(12)
-    /// TARGET  fields=None   annots=13   widgets=13
-    /// ```
-    ///
-    /// So the outcome is **not** "the form fields did not come across". It
-    /// is **boxes that draw exactly like form fields, that an operator will
-    /// click on, and that nothing can fill, because no field claims them.**
-    /// That is worse than absence, and it is worse in a specific way this
-    /// project already has a name for: a visible control that is silently
-    /// inert — arriving through a document instead of through a ribbon.
-    ///
-    /// A caller MUST NOT paraphrase this as "form fields did not come
-    /// across". The two fates are different and an operator meeting the
-    /// wrong one goes looking for missing fields instead of at the inert
-    /// ones in front of them. **A disclosure that names the wrong failure is
-    /// worse than none, because it is believed.**
-    ///
-    /// `Pass 102.0` adds a count of the widgets left orphaned so a shell can
-    /// say this precisely rather than unconditionally; `Pass 102.1` carries
-    /// the field definitions for fields whose widgets are *wholly* on
-    /// inserted pages. Note that 102.1 does not retire 102.0: a field whose
-    /// widgets are **split** across inserted and non-inserted pages leaves a
-    /// residue no merge can absorb, so the count is permanent.
+    /// A field whose widgets are **split** across inserted and non-inserted
+    /// pages is not carried ([`InsertOutcome::fields_split`]): its arrived
+    /// widgets are **boxes that draw like form fields and that nothing can
+    /// fill**, counted in [`InsertOutcome::orphaned_widgets`]. A caller must
+    /// not paraphrase that as "form fields did not come across" — an
+    /// operator told that looks for missing fields instead of at the inert
+    /// ones in front of them.
     ///
     /// # Errors
     ///
@@ -50784,92 +50594,21 @@ impl EditSession {
         let at = position.slot(target_count);
         let Some(PageSplice {
             mut scratch,
-            mapping,
+            mut mapping,
             source_slots,
             new_page_ids,
         }) = self.copy_and_splice(source, source_pages, position)?
         else {
             return Ok(InsertOutcome::default());
         };
-        let _ = &mapping;
         let added = new_page_ids.len();
 
-        // COUNT THE ORPHANS (`Pass 102.0`).
-        //
-        // Every widget on an inserted page is orphaned, and that is not a
-        // conservative estimate — it is exact. `/AcroForm` is document-level
-        // and is not merged by this verb, and the copy remaps every object
-        // number, so no field in the TARGET can be claiming a widget that
-        // just arrived from the SOURCE.
-        //
-        // Counted from `scratch` — the objects this insert is about to
-        // write — rather than by re-reading the pages afterwards, because
-        // the pages do not exist in `self.state` until the commit below and
-        // a post-hoc walk would have to duplicate the mapping to find them.
-        let orphaned_widgets = new_page_ids
-            .iter()
-            .filter_map(|id| match scratch.get(id) {
-                Some(Object::Dict(page)) => page.get(b"Annots"),
-                _ => None,
-            })
-            .filter_map(|annots| match annots {
-                Object::Array(list) => Some(list.clone()),
-                Object::Reference(r) => match scratch.get(r) {
-                    Some(Object::Array(list)) => Some(list.clone()),
-                    _ => None,
-                },
-                _ => None,
-            })
-            .flatten()
-            .filter(|entry| {
-                let Object::Reference(r) = entry else {
-                    return false;
-                };
-                matches!(
-                    scratch.get(r),
-                    Some(Object::Dict(a))
-                        if matches!(a.get(b"Subtype"), Some(Object::Name(n)) if n.as_bytes() == b"Widget")
-                )
-            })
-            .count();
-
-        // Counted from the SOURCE, because the copy is what destroys the
-        // evidence: by the time a widget is in `scratch` its `/Parent` is
-        // already gone and a bare kid is indistinguishable from a widget
-        // that never had a field. A source widget with no `/T` of its own
-        // has its name, type and value only in an ancestor, and the ancestor
-        // is not coming.
-        let orphaned_widgets_unrecoverable = source_pages
-            .iter()
-            .filter_map(|i| source_slots.get(*i))
-            .filter_map(|slot| match source.graph().resolved(slot.id) {
-                Object::Dict(page) => page.get(b"Annots").cloned(),
-                _ => None,
-            })
-            .filter_map(|annots| match source.graph().resolve(&annots) {
-                Object::Array(list) => Some(list.clone()),
-                _ => None,
-            })
-            .flatten()
-            .filter(|entry| {
-                let Object::Reference(r) = entry else {
-                    return false;
-                };
-                let Object::Dict(a) = source.graph().resolved(*r) else {
-                    return false;
-                };
-                let is_widget = matches!(
-                    a.get(b"Subtype"),
-                    Some(Object::Name(n)) if n.as_bytes() == b"Widget"
-                );
-                // `/T` is the test, not `/FT`: §12.7.3.1 makes `/FT`
-                // INHERITABLE, so a kid can resolve a type through its
-                // parent and still have no name of its own — and a field
-                // with no name cannot be referred to, filled or exported.
-                // Checking `/FT` would call a nameless kid recoverable.
-                is_widget && !a.contains_key(b"T")
-            })
-            .count();
+        // `Pass 102.1`: carry every field whose widgets all arrived. After the
+        // page copy, so `mapping` already holds the widgets and a field's
+        // `/Kids` resolve to them rather than to duplicates.
+        let carry = self.carry_inserted_fields(source, &mut mapping, &mut scratch)?;
+        let (orphaned_widgets, orphaned_widgets_unrecoverable) =
+            insert_fields::count_orphans(&new_page_ids, &carry.claimed, &scratch);
 
         let source_outline_dropped = source
             .graph()
@@ -50909,6 +50648,10 @@ impl EditSession {
             pages_inserted: added,
             orphaned_widgets,
             orphaned_widgets_unrecoverable,
+            fields_carried: carry.carried,
+            fields_renamed: carry.renamed,
+            fields_split: carry.split,
+            acroform_created: carry.created,
             source_outline_dropped,
             source_page_labels_dropped,
             page_labels_stale: false,
@@ -51123,32 +50866,14 @@ impl EditSession {
     ) -> Result<Dict, EditError> {
         let mut out = Dict::new();
         for (key, item) in dict.iter() {
-            // `/Parent` is dropped from EVERY dictionary, and the reason
-            // is only half about pages.
-            //
-            // On a **page** it points up the source's page tree; following
-            // it would drag that tree across and produce a page owned by a
-            // node this document does not contain. The caller re-points it
-            // at the target's node after the copy. That is the case this
-            // rule was written for, and for that case it is simply correct.
-            //
-            // On a **widget annotation** (§12.7.3.1) it points at the
-            // widget's FIELD, and dropping it destroys the widget's only
-            // link to its name, type and value. That is not free, and the
-            // comment here used to justify the rule entirely in page-tree
-            // terms while silently governing this case too — which is how a
-            // measurement (`examples/orphan_probe.rs`) found two widgets
-            // arriving with no identity and nothing in the code admitting
-            // it.
-            //
-            // It is still the right behaviour TODAY, because following it
-            // reaches the field dictionary, whose `/Kids` reach sibling
-            // widgets, whose `/P` entries reach pages that were not
-            // inserted — the whole-document drag `pageops::assemble`'s page
-            // barrier exists to stop, and which this verb does not carry.
-            // The honesty owed is
-            // `InsertOutcome::orphaned_widgets_unrecoverable`; the fix is
-            // `Pass 102.1`.
+            // `/Parent` is dropped from EVERY dictionary. On a page it
+            // points up the source's page tree, which must not come across;
+            // the caller re-points it. On a widget (§12.7.3.1) it points at
+            // the field, whose `/Kids` reach sibling widgets on pages that
+            // were not inserted. The field tree is carried separately, with
+            // that barrier (`insert_fields`), and re-parents what it claims;
+            // a widget it does not claim is counted in
+            // `InsertOutcome::orphaned_widgets`.
             if key.as_bytes() == b"Parent" {
                 continue;
             }
@@ -51881,9 +51606,10 @@ impl EditSession {
     /// `/AcroForm` (§12.7.3), creating `/AcroForm` if the document has none.
     /// One undo entry.
     ///
-    /// The inverse of the orphaning `insert_pages` reports through
-    /// [`InsertOutcome::orphaned_widgets`]: the widget is already on the
-    /// page, already the right size, already carrying its own appearance
+    /// The repair for a widget `insert_pages` reports through
+    /// [`InsertOutcome::orphaned_widgets`] (its field was split across pages,
+    /// or was never listed in the source's `/AcroForm`): the widget is already
+    /// on the page, already the right size, already carrying its own appearance
     /// stream — everything except an owner. This gives it one **without
     /// re-authoring any geometry**, which is the whole point.
     /// `add_text_field` and its siblings all *author* a new widget and
@@ -51905,8 +51631,8 @@ impl EditSession {
     /// A widget that is a **kid** of a field — how a radio group is
     /// represented, one field with several widgets — carries *no* field
     /// keys. Its only link to its name, type and value is `/Parent`, and
-    /// `insert_pages` does not copy that (see `import_dict`). Such a widget
-    /// arrives with nothing to adopt, and this verb returns
+    /// `insert_pages` copies that only for a field it carries (see
+    /// `import_dict`). An orphaned kid arrives with nothing to adopt, and this verb returns
     /// [`EditError::WidgetHasNoFieldIdentity`] rather than inventing a name.
     ///
     /// That refusal is the point rather than a limitation. Guessing here
@@ -60953,16 +60679,17 @@ impl EditSession {
     ///
     /// The clip's bytes are parsed as the document they are and every page in
     /// them is spliced in at `position`, through [`Self::insert_pages`] — so
-    /// this inherits that verb's entire contract, including its five
-    /// disclosure counters and its ONE-undo-entry guarantee.
+    /// this inherits that verb's entire contract, including its form-field
+    /// carry, its disclosure counters and its ONE-undo-entry guarantee.
     ///
     /// # Read the outcome. Two of its fields are invisible in the result.
     ///
-    /// `orphaned_widgets` is the one that bites: a page's `/Annots` reaches
-    /// its widgets, so form-field boxes ARRIVE even when the `/AcroForm` that
-    /// owns them does not. They draw like fields and nothing can fill them.
-    /// `orphaned_widgets_unrecoverable` is the subset `adopt_widget` cannot
-    /// even register, because the widget carries no name or type of its own.
+    /// `orphaned_widgets` is the one that bites: a field whose widgets were
+    /// not all on the pasted pages is not carried (`fields_split`), but its
+    /// pasted widgets still arrive through `/Annots`. They draw like fields
+    /// and nothing can fill them. `orphaned_widgets_unrecoverable` is the
+    /// subset `adopt_widget` cannot even register, because the widget carries
+    /// no name or type of its own.
     ///
     /// `source_outline_dropped` and the page-label pair are the others.
     ///

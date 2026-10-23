@@ -734,10 +734,18 @@ pub(crate) fn cmd_page_paste(args: &PagePasteArgs<'_>) -> u8 {
     // nothing can fill.
     if pasted.orphaned_widgets > 0 {
         eprintln!(
-            "pdfcer: {}: {} form-field box(es) arrived WITHOUT the form that owns them ({} of those cannot be adopted into a field afterwards, because the widget carries no name or type of its own). They draw like fields and nothing can fill them.",
+            "pdfcer: {}: {} form-field box(es) arrived WITHOUT the field that owns them ({} field(s) had boxes on pages that were not pasted, so were not copied; {} box(es) cannot be adopted into a field afterwards, because the widget carries no name or type of its own). They draw like fields and nothing can fill them.",
             args.input.display(),
             pasted.orphaned_widgets,
+            pasted.fields_split,
             pasted.orphaned_widgets_unrecoverable,
+        );
+    }
+    if pasted.fields_renamed > 0 {
+        eprintln!(
+            "pdfcer: {}: {} pasted form field(s) took a name already used in this document and were renamed with a numeric suffix.",
+            args.input.display(),
+            pasted.fields_renamed,
         );
     }
     if pasted.source_outline_dropped {
@@ -768,11 +776,14 @@ pub(crate) fn cmd_page_paste(args: &PagePasteArgs<'_>) -> u8 {
     };
     let r = &outcome.report;
     println!(
-        "page-paste {} clip={} at={} pages={} orphaned_widgets={} orphaned_unrecoverable={} outline_dropped={} mode={} -> {}; changed={} objects={} appended={} out_bytes={}",
+        "page-paste {} clip={} at={} pages={} fields_carried={} fields_renamed={} fields_split={} orphaned_widgets={} orphaned_unrecoverable={} outline_dropped={} mode={} -> {}; changed={} objects={} appended={} out_bytes={}",
         args.input.display(),
         args.clip.display(),
         args.at,
         pasted.pages_inserted,
+        pasted.fields_carried,
+        pasted.fields_renamed,
+        pasted.fields_split,
         pasted.orphaned_widgets,
         pasted.orphaned_widgets_unrecoverable,
         u32::from(pasted.source_outline_dropped),

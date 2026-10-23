@@ -6229,14 +6229,18 @@ pub(crate) enum Command {
     /// **Paste whole pages** from a clipboard file into a document
     /// (`Pass 171.0`).
     ///
+    /// Form fields whose boxes are all on the pasted pages come with them and
+    /// stay fillable (fields_carried); one whose name is already used here is
+    /// renamed with a numeric suffix (fields_renamed).
+    ///
     /// READ THE COUNTERS. Two of them are invisible in the result.
     ///
-    /// `orphaned_widgets` is the one that bites: a page's `/Annots` reaches
-    /// its widgets, so form-field boxes ARRIVE even though the `/AcroForm`
-    /// that owns them does not. They draw like fields and nothing can fill
-    /// them. `orphaned_unrecoverable` is the subset that cannot even be
-    /// adopted into a field afterwards, because the widget carries no name or
-    /// type of its own.
+    /// orphaned_widgets is the one that bites: a field with boxes on pages
+    /// that were not pasted is not copied (fields_split), but its pasted
+    /// boxes still arrive. They draw like fields and nothing can fill them.
+    /// orphaned_unrecoverable is the subset that cannot even be adopted into
+    /// a field afterwards, because the box carries no name or type of its
+    /// own.
     PagePaste {
         /// Input PDF — the document the pages are pasted INTO.
         input: PathBuf,

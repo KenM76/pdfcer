@@ -153,8 +153,8 @@ fn cutting_every_page_is_refused_with_nothing_removed() {
     assert_eq!(page_count(&s), before, "and nothing was removed");
 }
 
-/// A form field whose widgets are all on the copied page travels; the count
-/// of those that could not is real rather than always zero.
+/// A form field whose widgets are all on the copied page travels through the
+/// clip and arrives fillable on paste.
 #[test]
 fn a_page_copy_reports_the_fields_it_could_not_carry() {
     let s = session("forms/demo-form.pdf");
@@ -164,34 +164,23 @@ fn a_page_copy_reports_the_fields_it_could_not_carry() {
         "both fields are entirely on the copied page, so nothing was dropped",
     );
 
-    // AND THE FIELDS ARRIVE AS ORPHANED WIDGETS, WHICH IS THE DOCUMENTED
-    // BEHAVIOUR OF THE VERB UNDERNEATH AND IS WORTH PINNING HERE.
-    //
-    // A page's `/Annots` reaches its widgets, so the boxes come across — but
-    // `insert_pages` deliberately does NOT merge document-level structures,
-    // so the `/AcroForm` that owns them does not. The result is form fields
-    // that DRAW and that nothing can fill.
-    //
-    // This test first asserted the opposite (that the fields arrived usable)
-    // and was wrong: the verb's own contract says otherwise, and the counter
-    // exists precisely because the outcome is invisible on the page. Pinning
-    // the DISCLOSURE is the useful assertion; pinning a merge that does not
-    // happen was pinning a wish.
+    // Pasting carries them (`Pass 102.1`): every widget's field came across,
+    // so none is orphaned and the destination gains a fillable form.
     let mut destination = session("hello.pdf");
     let outcome = destination
         .paste_pages(&clip, InsertPosition::End)
         .expect("paste");
-    assert!(
-        outcome.orphaned_widgets > 0,
-        "the widgets arrived without the /AcroForm that owns them, and the \
-         paste says so -- a shell that ignores this counter ships boxes that \
-         look like form fields and cannot be filled",
+    assert_eq!(
+        outcome.orphaned_widgets, 0,
+        "every widget's field came across"
     );
-    assert!(
-        pdfcer_core::forms::parse_acroform(&destination.graph())
-            .is_none_or(|f| f.fields.is_empty()),
-        "and no form was invented for them",
-    );
+    assert_eq!(outcome.fields_split, 0);
+    assert!(outcome.fields_carried > 0);
+    assert!(outcome.acroform_created);
+    let fields = pdfcer_core::forms::parse_acroform(&destination.graph())
+        .expect("the destination gained a form")
+        .fields;
+    assert_eq!(fields.len(), outcome.fields_carried);
 }
 
 /// The paste's disclosures are inherited from `insert_pages`, so a shell that

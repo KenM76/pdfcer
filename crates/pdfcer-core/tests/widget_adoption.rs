@@ -43,8 +43,9 @@ const BLANK: &str = concat!(
 );
 
 /// A session over a blank target with the AcroForm fixture's page 0 inserted
-/// — i.e. **exactly the state `insert_pages` leaves a shell in**, which is
-/// the situation this verb exists for.
+/// **twice**. The first copy's fields are carried into `/AcroForm`; the
+/// repeat copy's 13 widgets arrive orphaned, the state this verb exists for.
+/// `widgets()` reads the last page, which is the repeat.
 ///
 /// Returns `None` when the external corpus is absent.
 fn orphaned_session() -> Option<(EditSession, usize, usize)> {
@@ -54,7 +55,7 @@ fn orphaned_session() -> Option<(EditSession, usize, usize)> {
         Document::from_bytes(std::fs::read(BLANK).expect("blank target")).expect("target parses");
     let mut session = EditSession::new(target);
     let outcome = session
-        .insert_pages(&src.view(), &[0], InsertPosition::End)
+        .insert_pages(&src.view(), &[0, 0], InsertPosition::End)
         .expect("insert must succeed");
     Some((
         session,
@@ -152,9 +153,10 @@ fn the_fixture_carries_both_widget_shapes_and_the_counts_agree() {
         bare.len(),
         "the counter must count exactly the widgets that cannot be adopted"
     );
-    assert!(
-        saved_field_names(&session).is_empty(),
-        "insert_pages must not have merged /AcroForm — that is the premise"
+    assert_eq!(
+        saved_field_names(&session).len(),
+        12,
+        "the first copy's 12 fields are carried; the repeat's widgets are not"
     );
 }
 
@@ -201,7 +203,9 @@ fn synthetic_orphaned_session() -> (EditSession, usize, usize) {
     let source = build(&[
         (
             1,
-            "<< /Type /Catalog /Pages 2 0 R \n              /AcroForm << /Fields [4 0 R 6 0 R 7 0 R 9 0 R 10 0 R] >> >>",
+            // No `/AcroForm`: these widgets belong to no listed field, so the
+            // insert has nothing to carry and every one arrives orphaned.
+            "<< /Type /Catalog /Pages 2 0 R >>",
         ),
         (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
         (

@@ -340,50 +340,16 @@ fn the_saved_file_carries_the_inserted_page_and_reloads() {
     );
 }
 
-/// `Pass 102.0` — inserting a page of form fields reports the widgets that
-/// arrived without them.
+/// Inserting a page of form fields carries the fields (`Pass 102.1`), so the
+/// widgets arrive fillable and none is orphaned.
 ///
-/// # The defect this number exists to let a shell describe
-///
-/// `insert_pages` copies everything reachable from a page, and a page's
-/// `/Annots` reaches its widget annotations. A form **field** is
-/// document-level — `/AcroForm` `/Fields` — and is reachable from no page at
-/// all. So the widgets arrive and the fields do not, and what the operator
-/// gets is **boxes that draw exactly like form fields, that they will click
-/// on, and that nothing can fill.**
-///
-/// Reported by the `pdfcer-gui` session, who shipped a disclosure saying "the
-/// form fields did not come across" — which names the wrong failure, and
-/// sends an operator looking for missing fields instead of at the inert ones
-/// in front of them.
-///
-/// # Why the fixture is a real form and not a synthetic widget
-///
-/// Because the count has to be exercised against a document somebody else
-/// authored. A hand-built page with one `/Widget` would confirm the loop
-/// reads `/Annots`; it would not confirm that a real AcroForm's widgets are
-/// reachable the way this code assumes.
+/// Both fields' widgets are on the inserted page, so both are wholly carried;
+/// the target had no `/AcroForm`, so one is created. Undo removes the fields
+/// with the page, because it is one command.
 #[test]
-fn inserting_a_form_page_reports_its_orphaned_widgets() {
-    // Synthetic since 2026-09-12. This sourced from
-    // `fixtures/external/pdfbox/.../acroform.pdf` -- untracked, unfetched, and
-    // marked in `fixtures/README.md` as "NOT blanket-safe ... never
-    // bulk-import" -- so it printed `SKIP` and PASSED from the day it was
-    // written.
-    //
-    // Nothing here needed a corpus. Read the assertions: a source with an
-    // AcroForm carrying at least one field, and widgets on the page it
-    // inserts. That is three objects. The stated dependency was on a FILE; the
-    // real dependency was on a PROPERTY, and the gap between those two is what
-    // kept this test from ever running.
+fn inserting_a_form_page_carries_its_fields() {
     let src = doc_with_one_form_page();
     let src_view = src.view();
-    let src_fields = pdfcer_core::forms::parse_acroform(&src_view).map(|f| f.fields.len());
-    assert!(
-        src_fields.is_some_and(|n| n > 0),
-        "the fixture must actually carry an AcroForm, or this test proves nothing"
-    );
-
     let target = doc_with_pages("target", 2);
     let mut session = EditSession::new(target);
     let out = session
@@ -391,19 +357,24 @@ fn inserting_a_form_page_reports_its_orphaned_widgets() {
         .expect("insert succeeds");
 
     assert_eq!(out.pages_inserted, 1);
-    assert!(
-        out.orphaned_widgets > 0,
-        "the source page carries widgets and the target has no /AcroForm, so \
-         every one of them is orphaned; got {}",
-        out.orphaned_widgets
-    );
+    assert_eq!(out.fields_carried, 2);
+    assert_eq!(out.orphaned_widgets, 0, "every widget's field came across");
+    assert_eq!(out.orphaned_widgets_unrecoverable, 0);
+    assert_eq!(out.fields_split, 0);
+    assert!(out.acroform_created);
 
-    // And the count is EXACT rather than conservative: the target genuinely
-    // has no field tree, so there is nothing that could be claiming them.
-    let after = session.view();
+    let mut names: Vec<String> = pdfcer_core::forms::parse_acroform(&session.view())
+        .expect("the target gained an /AcroForm")
+        .fields
+        .iter()
+        .map(|f| f.fully_qualified_name.clone())
+        .collect();
+    names.sort();
+    assert_eq!(names, ["Address", "Name"]);
+
+    assert!(session.undo().is_some());
     assert!(
-        pdfcer_core::forms::parse_acroform(&after).is_none(),
-        "the target must still have no /AcroForm -- if it gained one, this \
-         count is measuring the wrong thing"
+        pdfcer_core::forms::parse_acroform(&session.view()).is_none(),
+        "one undo removes the carried fields with the page"
     );
 }

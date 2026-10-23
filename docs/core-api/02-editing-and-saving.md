@@ -228,50 +228,45 @@ need their own policy).
 | **Resize pages, crop box following** (`G056`) | `resize_pages(&mut self, indices: &[usize], rect: page_tree::Rect, follow: CropFollow) -> Result<Vec<PageResize>, EditError>` | `CropFollow::{Keep, WhenItMatched (default), Always}` — only pages that carry a crop box are affected; `WhenItMatched` moves it when the effective crop equalled the old sheet (the Word/Acrobat/CAD shape). `PageResize { media: MediaBoxChange, crop: Option<CropBoxChange> }`; `media.crop_box_outside` describes the crop AFTER the follow. `media.{bleed,trim,art}_box_outside: Option<page_tree::Rect>` (`G136`, also on `set_media_box(es)`): the page's OWN box when the new sheet does not contain it, else `None` (not inheritable; absent, it defaults to the crop box, already reported). Disclosed, never repaired; CLI `set-page-size` notes each and counts `boxes_outside=`. One write per page carrying both entries; ONE undo entry, `CommandKind::ResizePages { count }`. Errors as `set_media_boxes`. |
 | **Set / reset pages' `/CropBox`** (`G056`) | `set_crop_boxes(&mut self, indices: &[usize], edit: CropBoxEdit) -> Result<Vec<CropBoxChange>, EditError>` | `CropBoxEdit::{Set(Rect), Reset}` (`non_exhaustive`). Written on the leaf page; an inherited `Pages` value is never edited. `Reset` removes the own entry, or writes the media box when an ancestor crop would otherwise show. `CropBoxChange { page_index, before, after, entry, overhangs_media_box }` — `before`/`after` are EFFECTIVE (∩ media, §14.11.2.1); `entry: CropBoxEntry::{BaseSpellingKept, InheritedSoOwnEntryRemoved, ExplicitWritten, Absent}`. An overhanging rect is written and flagged; zero-area, non-finite or off-sheet is `EditError::CropBoxEmpty { page_index }`, raised before anything commits. ONE undo entry, `CommandKind::SetCropBoxes { count }`; set-then-reset is net zero. CLI: `set-crop-box`, `set-page-size --crop`. |
 | **Scale pages' content onto a new sheet** | `scale_pages(&mut self, indices: &[usize], request: &pageops::ScaleRequest) -> Result<pageops::ScaleReport, EditError>` | `ScaleRequest::new(w, h)` in points, displayed orientation; `.with_mode(ScaleMode::Fit / Fill)`, `.with_orientation(OrientationPolicy::Match / Exact)`. Content streams are wrapped (`q cm clip` … `Q`), never rewritten; every page box becomes the sheet; annotations, `/Measure` factors, viewports, beads and destinations naming the page move with it. `ScaleReport { pages: Vec<PageScaled { page_index, source, placement: PagePlacement { target, scale, offset_x, offset_y, orientation_flipped }, mode, annotations, measures }>, destinations, geo_measures_unchanged }` — show the per-page scale, offset and mode (rule 4). Refuses `ScaleRefusedCeDimensions { page_index, count }` on a page with ce dimensions; `MediaBoxDegenerate` for a bad size. ONE undo entry, `CommandKind::ScalePages { count }`. |
-| **Insert pages from another document** | `insert_pages(&mut self, source: &DocumentView<'_>, source_pages: &[usize], position: pageops::InsertPosition) -> Result<InsertOutcome, EditError>` | `InsertOutcome { pages_inserted, orphaned_widgets }`. **Read the warning below before writing a disclosure about it.** |
+| **Insert pages from another document** | `insert_pages(&mut self, source: &DocumentView<'_>, source_pages: &[usize], position: pageops::InsertPosition) -> Result<InsertOutcome, EditError>` | `InsertOutcome { pages_inserted, fields_carried, fields_renamed, fields_split, acroform_created, orphaned_widgets, orphaned_widgets_unrecoverable, .. }`. **Read the warning below before writing a disclosure about it.** |
 | **Insert pages, choosing their labels** | `insert_pages_with(&mut self, source: &DocumentView<'_>, source_pages: &[usize], position: pageops::InsertPosition, labels: pageops::InsertedPageLabels) -> Result<InsertOutcome, EditError>` | As `insert_pages`, which uses `InsertedPageLabels::Source`. See *Page labels on insert*. |
 
-> #### ★★ `insert_pages`: THE WIDGETS ARRIVE, THEIR FIELDS DO NOT — and one
-> consumer has already shipped the wrong sentence about it
+> #### ★★ `insert_pages`: which form fields arrive fillable, and which arrive inert
 >
-> `insert_pages` copies everything **reachable from the page**, and a page's
-> `/Annots` reaches its widget annotations. A **field definition** is not
-> reachable from the page — it lives in the document-level `/AcroForm`
-> `/Fields`. So the two halves of a form field separate:
+> A page's `/Annots` reaches its widget annotations; a **field definition**
+> lives in the document-level `/AcroForm` `/Fields` (ISO 32000-1 §12.7.3).
+> `insert_pages` (and `paste_pages`) copies the widgets with the page, then
+> walks the source's field tree:
 >
-> ```text
-> SOURCE  fields=Some(12)
-> TARGET  fields=None   annots=13   widgets=13
-> ```
+> | the field's widgets | result | counted in |
+> |---|---|---|
+> | all on inserted pages | the field is carried into the target's `/AcroForm` (created if absent) with `/Parent` re-pointed at every depth; fillable | `fields_carried` (terminal fields) |
+> | none on inserted pages | nothing comes across | — |
+> | some on inserted pages, some not | the field is **not** carried — carrying half of it would fracture one field into two | `fields_split`; its arrived widgets in `orphaned_widgets` |
 >
-> The result is **not** *"the form fields did not come across"*. It is
-> **boxes that draw exactly like form fields, that an operator will click on,
-> and that nothing can fill, because no field claims them.** That is worse
-> than absence, and worse in a way this project already has a name for: a
-> visible control that is silently inert — arriving through a document
-> instead of through a ribbon.
+> A non-terminal field (a group such as `Person` above `Person.Name`) whose
+> kids are partly covered arrives as a **pruned copy** holding only the
+> wholly-covered kids, so inherited `/FT`, `/Ff`, `/V`, `/DV`, `/DA`, `/Q`
+> (§12.7.3.2) still resolve. A carried root whose name is already a root
+> name in the target is renamed with a numeric suffix (`fields_renamed`):
+> two roots with one name are one field (§12.7.3.1). `/SigFlags` is carried
+> only when a signature field is; `/NeedAppearances` is ORed; `/DR` merges
+> with the target winning; `/DA` is copied when the target has none.
 >
-> **Do not paraphrase this as "form fields did not come across."** An
-> operator given that sentence goes looking for missing fields instead of at
-> the inert ones in front of them. *A disclosure that names the wrong failure
-> is worse than none, because it is believed.*
+> `orphaned_widgets` also counts widgets whose field the source never listed
+> in `/AcroForm`. An orphan is **a box that draws exactly like a form field
+> and that nothing can fill** — not an absence. **Do not paraphrase it as
+> "form fields did not come across."** An operator given that sentence goes
+> looking for missing fields instead of at the inert ones in front of them.
+> `orphaned_widgets_unrecoverable` is the subset `adopt_widget` cannot
+> register (see below).
 >
-> Also not merged, and these ARE plain absences: outlines, named
-> destinations, page labels, optional-content configuration.
-> [`pageops::insert`] merges all of it and returns a new document; the
-> difference is the cost of staying incremental.
+> One undo entry reverts the pages and the fields together.
 >
-> **`Pass 102.0` SHIPPED 2026-08-19** — `InsertOutcome::orphaned_widgets` is
-> that count, so a shell can say *"three controls arrived that cannot be
-> filled"* instead of warning unconditionally. It is **exact, not
-> conservative**: `/AcroForm` is not merged and the copy remaps every object
-> number, so no field in the target can be claiming a widget that just
-> arrived.
->
-> `Pass 102.1` will carry field definitions for fields whose widgets are
-> *wholly* on inserted pages. **102.1 does not retire 102.0** — a field whose
-> widgets are split across inserted and non-inserted pages leaves a residue
-> no merge can absorb, so the count is permanent.
+> Not merged, and these ARE plain absences: outlines, named destinations,
+> page labels (unless `insert_pages_with` asks), optional-content
+> configuration. [`pageops::insert`] merges all of it and returns a new
+> document; it drops a split root field whole rather than pruning it.
 
 ### 1.9 Page-text editing (5) — detail in part 3
 
@@ -3138,12 +3133,13 @@ field object.
 #### ★★ Two orphans that look identical and are not
 
 Measured against a real AcroForm (`examples/orphan_probe.rs`, pdfbox corpus,
-12 fields over 13 widgets). Of the 13 widgets an insert orphans:
+12 fields over 13 widgets) inserted with no `/AcroForm` to carry. Of the 13
+orphaned widgets:
 
 | shape | count | what it carries | outcome |
 |---|---|---|---|
 | **merged field-widget** | 11 | its own `/FT`, `/T`, `/V`, `/DA` | adopts **losslessly** |
-| **bare kid** (radio group) | 2 | no field keys at all; only `/Parent`, which the copy drops | **cannot** be adopted |
+| **bare kid** (radio group) | 2 | no field keys at all; only `/Parent`, which the copy drops for a field it does not carry | **cannot** be adopted |
 
 `InsertOutcome::orphaned_widgets_unrecoverable` counts the second row — new
 in this Pass, and additive, so it does not break the struct you already
@@ -3220,11 +3216,10 @@ against a crate nobody used had been hiding a real API-shape gap here.
 
 The observation the verb is built on, and it is not obvious.
 
-`insert_pages` cannot carry `/AcroForm` because a field's `/Kids` may reach
-widgets on pages that are **not** being inserted — carrying it would either
-fracture the field or drag in widgets nobody asked for. That is `Pass 102.1`,
-and it is why `InsertOutcome::orphaned_widgets` is permanent rather than
-interim.
+`insert_pages` carries only fields whose widgets all arrived: a field's
+`/Kids` may reach widgets on pages that are **not** being inserted, and
+carrying it would either fracture the field or drag in widgets nobody asked
+for. That residue is `InsertOutcome::fields_split` and `orphaned_widgets`.
 
 **Merging every page makes that case impossible.** No field can straddle a
 boundary when there is no boundary. Same copy path, differing only in taking
@@ -4885,10 +4880,11 @@ labels, `/OCProperties`.
 
 #### ★★ Read `InsertOutcome`. Two fields are invisible in the result.
 
-`paste_pages` is `insert_pages`, so it inherits that contract whole —
-including the trap: **a page's `/Annots` reaches its widgets, so form-field
-boxes ARRIVE even though the `/AcroForm` that owns them does not.** They draw
-like fields and nothing can fill them.
+`paste_pages` is `insert_pages`, so it inherits that contract whole: fields
+whose widgets are all on the pasted pages arrive fillable
+(`fields_carried`, `fields_renamed`). The trap is a field split across pasted
+and unpasted pages (`fields_split`): **its pasted widgets ARRIVE without
+it.** They draw like fields and nothing can fill them.
 
 - `orphaned_widgets` — how many.
 - `orphaned_widgets_unrecoverable` — the subset `adopt_widget` cannot even

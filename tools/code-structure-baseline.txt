@@ -291,9 +291,7 @@ fn pdfcer-core/src/edit.rs::group_deletion_preflight
 fn pdfcer-core/src/edit.rs::image_xobject_dict
 fn pdfcer-core/src/edit.rs::import_form_data
 fn pdfcer-core/src/edit.rs::ink_plan
-fn pdfcer-core/src/edit.rs::insert_pages_with
 fn pdfcer-core/src/edit.rs::media_box_write
-fn pdfcer-core/src/edit.rs::merge_acroform
 fn pdfcer-core/src/edit.rs::merge_layers
 fn pdfcer-core/src/edit.rs::merge_optional_content
 fn pdfcer-core/src/edit.rs::merge_outline
