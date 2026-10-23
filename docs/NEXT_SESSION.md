@@ -27,7 +27,9 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 - **Inserted/pasted pages carry their form fields (Pass 102.1, `3f180dd3`, filed `56105737`)**:
   wholly covered fields carried, partly covered groups pruned, split terminals counted
   (`fields_split`); `orphaned_widgets` narrowed. Two `merge_document` field-tree bugs
-  fixed. GUI notified. Not yet released.
+  fixed. GUI notified. Not yet released. **Unreleased Passes: 102.1, 633.0
+  (OCR table cells on ruling lines), 634.0 (unruled cells on blank gutters,
+  `defa0662`).**
 - **Redaction absence proof is in core (Pass 632.0, closes 72.0)**: `redact::verify_absence`; `redact-apply` refuses (exit 9, no file) on a drawn survivor and discloses (exit 10) on any other residual. GUI told it can delete its `proof.rs`. Fuzz `redact_proof`: 882,398 runs / 121 s, clean. Next free: Pass 633.0, decision 199, R263, filing 1205th.
 - G214-G217 replies are already on the channel (the earlier "owed" note was stale).
 - **Release:** v0.93.0 is published (8 assets; OneDrive `pdfcer2`; `pdfcer1`
@@ -127,9 +129,7 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## Follow-ups worth a Pass
 
-- **Unruled table cell boxes** stay on the even grid (Pass 633.0 measures
-  ruled ones). An unruled table could be measured from its text columns'
-  whitespace. PaddleOCR-VL's table answer is DPI-sensitive (one synthetic
+- **PaddleOCR-VL's table answer is DPI-sensitive** (one synthetic
   table: correct OTSL at 100 dpi, wrong column count at 150, prose at
   200/300).
 

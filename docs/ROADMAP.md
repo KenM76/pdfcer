@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 634.0` COMPLETE (`defa0662`), 2026-10-23 — OCR table cells of an UNRULED table placed on its blank gutters (1208th filing)
+
+**Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here.** Core + CLI; gui column untouched (separate project). Follows `Pass 633.0`; closes its `NEXT_SESSION.md` follow-up. Reasoning is in the commit message.
+- **Problem:** PaddleOCR-VL returns a table's structure (OTSL) but no cell positions; an axis whose drawn rules did not give exactly n+1 boundaries fell to the even grid.
+- **Core (`crates/pdfcer-core/src/ocr/table_rules.rs`, `vl_page.rs`):** such an axis is now measured from the blank gutters between cells: an interior run of >=2 blank pixel lines after masking every rule (other-axis rules, so booktabs horizontals do not close a column gutter; same-axis rules, so a border box does not turn cell padding into a gutter). Runs touching the crop side are margins. Exactly n-1 gutters are used, or with more the n-1 widest only when each is >=2x every leftover; else the axis stays on the even grid.
+- **API:** `RegionRead::column_edges` / `row_edges` are now `Option<TableEdges>`; new `pub TableEdges { edges, source }` + `TableEdges::new`, `pub enum EdgeSource { Rules, Gutters }` (`#[non_exhaustive]`), `RegionRead::edges_from_gutters()`. `docs/core-api/03-capabilities.md` updated (5,052 lines in the index); `check-core-api-verbs` PASS.
+- **CLI:** `pdfcer ocr --layout` region lines print `read=table-gutters`; `--layout` help documents it. **Disclosure (rule 4):** `pdfcer-ocr-host` counts separately "N table(s): cell boxes placed on the blank gutters between its columns or rows, INFERRED from whitespace (no drawn line)".
+- **Tests:** `table_rules` 9 unit (4 new), `vl_page` tests re-keyed; `pdfcer-core` `ocr::` lib 154 pass; clippy `-D warnings` clean (core, ocr-host, cli, all features, all targets); fmt, code-structure clean.
+- **End to end:** synthetic unruled 3x4 table, uneven columns, PaddleOCR-VL `--layout` at 100 and 150 dpi: all 12 cells read correctly, `read=table-gutters`, column boundaries at gutter centres.
+- **Invariants:** no `Cargo.toml` change, so `cargo tree` unaffected.
+- **FEATURES:** "Layout-aware OCR (PaddleOCR-VL)" row respelled; boxes unchanged `[x]` `[x]` `[ ]`. No decision or R minted; next free `Pass 635.0` (not grep-checked by me), decision `199`, `R263`.
+
 ### `Pass 633.0` COMPLETE (`d94693ca`), 2026-10-23 — OCR table cells placed on the table's drawn ruling lines (1206th filing)
 
 **Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here.** Core + CLI; gui column untouched (not wired in `pdfcer-gui`). Filed and completed in one filing. Closes the `docs/NEXT_SESSION.md` follow-up "Table cell boxes are inferred". Reasoning is in the commit message.
@@ -23571,6 +23583,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+(1208th filing: `Pass 634.0` COMPLETE `defa0662`, see *Shipped*. Nothing minted; decision `199`, `R263` still free; next filing 1209th.)
 
 (1206th filing: `Pass 633.0` COMPLETE `d94693ca`, see *Shipped*. Nothing minted; next free `Pass 634.0`, decision `199`, `R263`; next filing 1207th.)
 
