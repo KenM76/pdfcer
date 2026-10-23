@@ -199,3 +199,64 @@ fn a_form_clipped_away_from_the_mark_is_untouched() {
         report.notes
     );
 }
+
+/// An 8×8 gray image of `Z` samples, so a surviving row reads `ZZZZZZZZ`.
+fn image() -> String {
+    stream(
+        "/Type /XObject /Subtype /Image /Width 8 /Height 8 /ColorSpace /DeviceGray \
+         /BitsPerComponent 8",
+        &"Z".repeat(64),
+    )
+}
+
+const IMG_RES: &str = "<< /XObject << /Fm0 7 0 R >> >>";
+
+/// An image painted by a form, half under the mark: the covered samples
+/// are destroyed and no intact row survives anywhere in the file.
+#[test]
+fn an_image_inside_a_form_has_its_covered_samples_destroyed() {
+    let bytes = pdf(
+        IMG_RES,
+        "/Fm0 Do",
+        [90.0, 90.0, 150.0, 210.0],
+        &[
+            form(
+                "/BBox [0 0 100 100] /Matrix [1 0 0 1 100 100] /Resources << /XObject << /Im0 8 0 R >> >>",
+                "q 100 0 0 100 0 0 cm /Im0 Do Q",
+            ),
+            image(),
+        ],
+    );
+    let (_text, all, report) = apply(bytes);
+    assert_eq!(report.images_cleared, 1, "{report:?}");
+    assert!(!has(&all, b"ZZZZZZZZ"), "an intact image row survives");
+    assert!(
+        !report.notes.iter().any(|n| n.contains("NOT")),
+        "{:?}",
+        report.notes
+    );
+}
+
+/// The same image also painted directly by the page, outside the mark:
+/// that placement keeps every sample.
+#[test]
+fn an_image_shared_with_the_page_keeps_its_unmarked_placement() {
+    let bytes = pdf(
+        "<< /XObject << /Fm0 7 0 R /Im0 8 0 R >> >>",
+        "/Fm0 Do q 50 0 0 50 400 300 cm /Im0 Do Q",
+        [90.0, 90.0, 150.0, 210.0],
+        &[
+            form(
+                "/BBox [0 0 100 100] /Matrix [1 0 0 1 100 100] /Resources << /XObject << /Im0 8 0 R >> >>",
+                "q 100 0 0 100 0 0 cm /Im0 Do Q",
+            ),
+            image(),
+        ],
+    );
+    let (_text, all, report) = apply(bytes);
+    assert_eq!(report.images_cleared, 1, "{report:?}");
+    assert!(
+        has(&all, &[b'Z'; 64]),
+        "the unmarked placement lost samples"
+    );
+}

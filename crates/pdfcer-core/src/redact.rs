@@ -47,7 +47,7 @@
 //! | `/Info` and XMP strings duplicating redacted text | **scrubbed** (the redacted characters are known — the interpreter decodes them while removing them) |
 //! | Prior incremental revisions | **dropped** — apply forces a FULL REWRITE (R35), never incremental |
 //! | Images intersecting a region | **samples DESTROYED** — decoded, the covered cells overwritten, re-encoded losslessly; a wholly covered placement is removed outright; a shared image is copied-on-write; a placement pdfcer cannot decode RETAINS its mark and is disclosed by name (`redact_image`) |
-//! | Form-XObject content in-region | text, vectors and shadings **REMOVED** inside the form, in its own space (BBox x Matrix x CTM, §8.10.1); the placement gets its own copy so other uses keep theirs, and an original no use still paints is emptied (`redact_form`). Images inside a form, forms nested past 64 levels or painting themselves are **disclosed** |
+//! | Form-XObject content in-region | text, vectors, shadings and image samples **REMOVED** inside the form, in its own space (BBox x Matrix x CTM, §8.10.1); the placement gets its own copy so other uses keep theirs, and an original no use still paints is emptied (`redact_form`). Forms nested past 64 levels, painting themselves or unreadable are **disclosed** |
 //! | Vector paths in-region | **CUT** — strokes are cut against the region expanded by the stroke width, fills are clipped to the region's complement, and a path wholly inside is deleted (`redact_vector`); a malformed path object pdfcer cannot rewrite as a unit is counted and disclosed as a residual |
 //! | `sh` shading paints whose clip meets a region | types 2–3 (axial, radial): **cut** — wrapped in an even-odd clip with each region as a hole (§8.5.4); types 1 and 4–7: **disclosed, by count** — their sampled or vertex data would survive a clip |
 //! | Overlay marking (Table 192 ladder) | `/OverlayText` **burnt in** (via §12.7.3.3 variable text, `/DA`-formatted, `/Q`-justified); `/IC` filled under it; **absent `/IC` ⇒ TRANSPARENT**, per Table 192; `/RO` **not drawn** — disclosed, falls back to a plain box; `/Repeat` **ignored** — disclosed |
@@ -1690,18 +1690,20 @@ fn splice(buf: &[u8], mut edits: Vec<Edit>) -> Vec<u8> {
 
 /// The image placements on one page that intersect any of `regions` — the
 /// census the blocker pass runs BEFORE any surgery, so a mark that touches
-/// an undestroyable image can be retained rather than half-applied.
+/// an undestroyable image can be retained rather than half-applied. The
+/// second value holds the placements inside form XObjects.
 fn census_images(
     doc: &Document,
     resources: &Dict,
     regions: &[RegionBox],
     stream: &ContentStream,
-) -> Vec<ImageHit> {
+) -> (Vec<ImageHit>, Vec<form::NestedImages>) {
     let mut surgeon = Surgeon::new(doc, resources, regions);
+    surgeon.forms.descend = true;
     for op in stream.operations() {
         surgeon.operation(&op, &stream.buf);
     }
-    surgeon.image_hits
+    (surgeon.image_hits, surgeon.forms.images)
 }
 
 /// Does `hit`'s placement overlap `region` with positive area? (A mere
@@ -2104,12 +2106,21 @@ pub fn apply_redactions_with(
             page: index + 1,
             source: e,
         })?;
-        let hits = census_images(doc, &page.resources, &red.boxes, &stream);
-        if !hits.is_empty() {
+        let (hits, nested) = census_images(doc, &page.resources, &red.boxes, &stream);
+        // Every placement with what it is read against: the page's, then
+        // those inside forms.
+        let mut all: Vec<(&Dict, &[u8], &ImageHit)> = hits
+            .iter()
+            .map(|h| (&page.resources, stream.buf.as_slice(), h))
+            .collect();
+        for n in &nested {
+            all.extend(n.hits.iter().map(|h| (&n.resources, n.buf.as_slice(), h)));
+        }
+        if !all.is_empty() {
             images_seen = true;
         }
         let mut retain: BTreeSet<ObjId> = BTreeSet::new();
-        for hit in &hits {
+        for &(hit_res, hit_buf, hit) in &all {
             // SKIP THE DECODABILITY TEST FOR A PLACEMENT THAT COVERS NO
             // SAMPLE CELL (`Pass 294.2`).
             //
@@ -2133,8 +2144,7 @@ pub fn apply_redactions_with(
             if !redact_image::placement_covers_cells(&view, hit, &red.boxes) {
                 continue;
             }
-            let Some(why) =
-                redact_image::blocker(doc, &view, &page.resources, &stream.buf, hit, &mut cache)
+            let Some(why) = redact_image::blocker(doc, &view, hit_res, hit_buf, hit, &mut cache)
             else {
                 continue;
             };
@@ -2175,7 +2185,7 @@ pub fn apply_redactions_with(
             continue; // every mark on this page was retained
         }
         // Count this page's marked placements per image, for copy-on-write.
-        for hit in &hits {
+        for &(_, _, hit) in &all {
             if let ImageSource::XObject { id: Some(id), .. } = &hit.source
                 && (redact_image::wholly_covered(hit.ctm, &red.boxes)
                     || red.boxes.iter().any(|r| hit_covers(hit, *r)))
@@ -2265,15 +2275,33 @@ pub fn apply_redactions_with(
                 base_len,
                 next_num: &mut next_num,
             };
+            let mut img = form::ImagePass {
+                view: &view,
+                page_number: index + 1,
+                regions: &red.boxes,
+                uses: &uses,
+                covered: &covered,
+                tombstoned: &mut tombstoned,
+                cache: &mut cache,
+                out: redact_image::ImageOutcome::default(),
+            };
             let bound = form::materialise(
                 doc,
                 result.form_rewrites,
                 &mut alloc_,
                 &mut dirty,
                 &mut forms_made,
+                &mut img,
             );
             for (name, v) in bound.iter() {
                 image_clones.insert(name.clone(), v.clone());
+            }
+            report.images_cleared += img.out.cleared;
+            report.images_removed += img.out.removed;
+            report.images_cloned_shared += img.out.cloned_shared;
+            report.images_overcovered += img.out.rotated_overcovered;
+            for note in img.out.notes {
+                report.note(note);
             }
         }
         report.vector_paths_intersecting += result.vector_paths_intersecting;

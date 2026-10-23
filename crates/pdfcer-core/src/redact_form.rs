@@ -9,9 +9,16 @@
 //! rewrite keeps unreferenced objects and the original still holds the
 //! removed content.
 //!
+//! Image placements inside a form go through the same sample surgery as
+//! the page's (`redact_image::plan_page`) against the form's own content
+//! and resources; their clones are bound in the copy's `/XObject`
+//! dictionary. The pre-surgery census descends too ([`NestedImages`]), so
+//! an undestroyable image in a form retains its mark and a shared image's
+//! copy-on-write decision counts its form placements.
+//!
 //! Not handled, and disclosed rather than claimed: a form nested deeper
-//! than [`MAX_FORM_DEPTH`], one painted inside itself, one whose stream
-//! cannot be decoded, and image placements inside a form.
+//! than [`MAX_FORM_DEPTH`], one painted inside itself, and one whose
+//! stream cannot be decoded.
 
 use super::{
     Dict, Document, Edit, Mat, Name, ObjId, Object, RedactionReport, RegionBox, Stream, Surgeon,
@@ -19,7 +26,8 @@ use super::{
 };
 use crate::content::ContentStream;
 use crate::redact::CarrierAction;
-use crate::redact_image::Allocator;
+use crate::redact_image::{self, Allocator, DecodeCache, ImageHit, ImageOutcome};
+use crate::view::DocumentView;
 use crate::writer::DirtySet;
 use std::collections::BTreeMap;
 
@@ -30,7 +38,11 @@ pub(super) const MAX_FORM_DEPTH: usize = crate::text_edit::forms::MAX_FORM_DEPTH
 pub(super) struct FormRewrite {
     name: Vec<u8>,
     source: ObjId,
-    content: Vec<u8>,
+    /// The form's decoded content and the text/vector edits against it.
+    buf: Vec<u8>,
+    edits: Vec<Edit>,
+    /// Image placements in this form (not its children) that cover a cell.
+    image_hits: Vec<ImageHit>,
     /// The resources the form's content was read against (its own, or
     /// the page's for a form with none).
     resources: Dict,
@@ -47,6 +59,30 @@ pub(super) struct FormScope {
     active: Vec<u32>,
     pub(super) rewrites: Vec<FormRewrite>,
     pub(super) tally: FormTally,
+    /// Image placements found inside forms at any depth, for the census.
+    pub(super) images: Vec<NestedImages>,
+}
+
+/// Image placements inside one form placement, with what the blocker test
+/// reads them against.
+pub(super) struct NestedImages {
+    pub(super) resources: Dict,
+    pub(super) buf: Vec<u8>,
+    pub(super) hits: Vec<ImageHit>,
+}
+
+/// What image surgery inside forms reads and accumulates for one page.
+pub(super) struct ImagePass<'r, 'v> {
+    pub(super) view: &'r DocumentView<'v>,
+    pub(super) page_number: usize,
+    pub(super) regions: &'r [RegionBox],
+    pub(super) uses: &'r BTreeMap<ObjId, usize>,
+    pub(super) covered: &'r BTreeMap<ObjId, usize>,
+    pub(super) tombstoned: &'r mut BTreeMap<ObjId, ()>,
+    pub(super) cache: &'r mut DecodeCache,
+    /// Counters and notes for the report (edits, objects and bindings are
+    /// consumed per form).
+    pub(super) out: ImageOutcome,
 }
 
 /// Form placements over a region, by outcome.
@@ -56,8 +92,6 @@ pub(super) struct FormTally {
     pub(super) redacted: u64,
     /// Placements whose content could not be read or reached.
     pub(super) unreached: u64,
-    /// Image placements inside a form that cross a region (not destroyed).
-    pub(super) images: u64,
 }
 
 impl FormTally {
@@ -65,7 +99,6 @@ impl FormTally {
     pub(super) fn absorb(&mut self, o: Self) {
         self.redacted += o.redacted;
         self.unreached += o.unreached;
-        self.images += o.images;
     }
 }
 
@@ -174,11 +207,17 @@ impl<'a> Surgeon<'a> {
         for op in stream.operations() {
             child.operation(&op, &stream.buf);
         }
-        let rewrites = self.absorb_child(child);
-        let Some((edits, children)) = rewrites else {
+        let view = self.doc.view();
+        let image_hits: Vec<ImageHit> = child
+            .image_hits
+            .iter()
+            .filter(|h| redact_image::placement_covers_cells(&view, h, self.regions))
+            .cloned()
+            .collect();
+        let (edits, children) = self.absorb_child(child, &resources, &stream.buf);
+        if edits.is_empty() && children.is_empty() && image_hits.is_empty() {
             return;
-        };
-        let content = splice(&stream.buf, edits);
+        }
         let fresh = self.fresh_form_name(id);
         let mut bytes = Vec::with_capacity(fresh.len() + 4);
         bytes.push(b'/');
@@ -193,7 +232,9 @@ impl<'a> Surgeon<'a> {
         self.forms.rewrites.push(FormRewrite {
             name: fresh,
             source: id,
-            content,
+            buf: stream.buf,
+            edits,
+            image_hits,
             resources,
             children,
         });
@@ -225,9 +266,15 @@ impl<'a> Surgeon<'a> {
         self.forms.active.push(id.num);
     }
 
-    /// Fold a finished form surgeon's results into this one. Returns its
-    /// edits and nested rewrites when the form's content changed.
-    fn absorb_child(&mut self, child: Surgeon<'_>) -> Option<(Vec<Edit>, Vec<FormRewrite>)> {
+    /// Fold a finished form surgeon's results into this one, and return
+    /// its edits and nested rewrites. `resources` and `buf` are what the
+    /// child read, recorded with its image placements for the census.
+    fn absorb_child(
+        &mut self,
+        mut child: Surgeon<'_>,
+        resources: &Dict,
+        buf: &[u8],
+    ) -> (Vec<Edit>, Vec<FormRewrite>) {
         self.glyphs_removed += child.glyphs_removed;
         self.ops_edited += child.ops_edited;
         for (region, text) in child.removed_by_region {
@@ -244,9 +291,15 @@ impl<'a> Surgeon<'a> {
         self.shadings_cut += child.shadings_cut;
         self.estimated_fonts.extend(child.estimated_fonts);
         self.forms.tally.absorb(child.forms.tally);
-        self.forms.tally.images += child.image_hits.len() as u64;
-        (!child.edits.is_empty() || !child.forms.rewrites.is_empty())
-            .then_some((child.edits, child.forms.rewrites))
+        self.forms.images.append(&mut child.forms.images);
+        if !child.image_hits.is_empty() {
+            self.forms.images.push(NestedImages {
+                resources: resources.clone(),
+                buf: buf.to_vec(),
+                hits: std::mem::take(&mut child.image_hits),
+            });
+        }
+        (child.edits, child.forms.rewrites)
     }
 
     /// A resource name unused by this content's `/XObject` dictionary and
@@ -272,21 +325,56 @@ impl<'a> Surgeon<'a> {
 
 /// Create the copies for `rewrites` (children first) and return the
 /// name → reference bindings for the enclosing resources. `made` counts
-/// copies per original, for [`retire_originals`].
+/// copies per original, for [`retire_originals`]; `img` runs the image
+/// surgery for each copy's own placements.
 pub(super) fn materialise(
     doc: &Document,
     rewrites: Vec<FormRewrite>,
     alloc_: &mut Allocator<'_>,
     dirty: &mut DirtySet,
     made: &mut BTreeMap<ObjId, usize>,
+    img: &mut ImagePass<'_, '_>,
 ) -> Dict {
     let view = doc.view();
     let mut bindings = Dict::new();
     for rw in rewrites {
-        let children = materialise(doc, rw.children, alloc_, dirty, made);
+        let mut children = materialise(doc, rw.children, alloc_, dirty, made, img);
         let Some(Object::Stream(original)) = view.graph().value(rw.source) else {
             continue;
         };
+        let mut found = ImageOutcome::default();
+        if !rw.image_hits.is_empty() {
+            redact_image::plan_page(
+                doc,
+                img.view,
+                img.page_number,
+                &rw.resources,
+                &rw.buf,
+                &rw.image_hits,
+                img.regions,
+                img.uses,
+                img.covered,
+                img.tombstoned,
+                img.cache,
+                alloc_,
+                &mut found,
+            );
+        }
+        let mut edits = rw.edits;
+        edits.extend(
+            found
+                .edits
+                .drain(..)
+                .map(|(start, end, bytes)| Edit { start, end, bytes }),
+        );
+        for (id, obj) in found.objects.drain(..) {
+            dirty.replace(id, obj);
+        }
+        for (n, id) in found.bindings.drain(..) {
+            children.insert(Name::from(n.as_slice()), Object::Reference(id));
+        }
+        absorb_outcome(&mut img.out, found);
+        let content = splice(&rw.buf, edits);
         let mut dict = stripped(&original.dict);
         if !children.is_empty() || dict.get(b"Resources").is_none() {
             let mut res = rw.resources;
@@ -304,13 +392,22 @@ pub(super) fn materialise(
             }
             dict.insert(Name::from(b"Resources"), Object::Dict(res));
         }
-        let obj = alloc_.flate_stream(dict, &rw.content);
+        let obj = alloc_.flate_stream(dict, &content);
         let id = ObjId::new(alloc(alloc_.next_num), 0);
         dirty.replace(id, obj);
         *made.entry(rw.source).or_insert(0) += 1;
         bindings.insert(Name::from(rw.name.as_slice()), Object::Reference(id));
     }
     bindings
+}
+
+/// Add `o`'s counters and notes to `into`.
+fn absorb_outcome(into: &mut ImageOutcome, o: ImageOutcome) {
+    into.cleared += o.cleared;
+    into.removed += o.removed;
+    into.cloned_shared += o.cloned_shared;
+    into.rotated_overcovered += o.rotated_overcovered;
+    into.notes.extend(o.notes);
 }
 
 /// A form dictionary without its encoding entries, for re-emission.
@@ -355,7 +452,6 @@ pub(super) fn disclose(tally: FormTally, report: &mut RedactionReport) {
     let FormTally {
         redacted,
         unreached,
-        images,
     } = tally;
     if redacted > 0 {
         report.note(format!(
@@ -370,17 +466,10 @@ pub(super) fn disclose(tally: FormTally, report: &mut RedactionReport) {
              an unreadable stream); verify the region by eye or flatten the form first"
         ));
     }
-    if images > 0 {
-        report.note(format!(
-            "redaction: {images} image placement(s) inside form XObjects cross a redaction \
-             region and were NOT destroyed this build; those samples remain — verify the \
-             region by eye or flatten the form first"
-        ));
-    }
-    let action = match (redacted, unreached + images) {
+    let action = match (redacted, unreached) {
         (_, r) if r > 0 => CarrierAction::DisclosedNotScrubbed,
         (r, _) if r > 0 => CarrierAction::Scrubbed,
         _ => CarrierAction::Absent,
     };
-    report.add_carrier("form_xobjects", redacted + unreached + images > 0, action);
+    report.add_carrier("form_xobjects", redacted + unreached > 0, action);
 }
