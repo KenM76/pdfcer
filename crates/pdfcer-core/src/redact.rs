@@ -670,7 +670,7 @@ struct Surgeon<'a> {
     trise: f64,
     tl: f64,
     ts_stack: Vec<TextSnapshot>,
-    font: Option<ExtractFont>,
+    font: Option<std::rc::Rc<ExtractFont>>,
     // outputs
     edits: Vec<Edit>,
     /// Removed text accumulated per REGION index (`Pass 286.0`).
@@ -729,12 +729,14 @@ struct Surgeon<'a> {
     estimated_fonts: BTreeSet<String>,
 }
 
-/// The text-state fields saved/restored by `q`/`Q`. (`Tf`/font is part of
-/// text state too, but cloning an `ExtractFont` per `q` is wasteful; the
-/// interpreter re-resolves the font on the next `Tf`, and `q`/`Q` in real
-/// content rarely straddles a `Tf` boundary that matters to geometry.)
-#[derive(Clone, Copy)]
+/// The text-state fields saved/restored by `q`/`Q`, font included
+/// (ISO 32000-1 §8.4 Table 52: text state is part of the graphics state). A
+/// producer that sets `Tf` inside `q`...`Q` and then shows text without a
+/// fresh `Tf` is real, and measuring with the inner font mispositions
+/// every glyph after it.
+#[derive(Clone)]
 struct TextSnapshot {
+    font: Option<std::rc::Rc<ExtractFont>>,
     tf_size: f64,
     tc: f64,
     tw: f64,
@@ -1003,7 +1005,7 @@ impl<'a> Surgeon<'a> {
                     ContentTokenKind::Operand(Object::Name(nm)) => Some(nm.as_bytes().to_vec()),
                     _ => None,
                 }) {
-                    self.font = self.resolve_font(&fname);
+                    self.font = self.resolve_font(&fname).map(std::rc::Rc::new);
                 }
                 if let Some(size) = n.last() {
                     self.tf_size = *size;
@@ -1232,6 +1234,7 @@ impl<'a> Surgeon<'a> {
 
     fn snapshot(&self) -> TextSnapshot {
         TextSnapshot {
+            font: self.font.clone(),
             tf_size: self.tf_size,
             tc: self.tc,
             tw: self.tw,
@@ -1242,6 +1245,7 @@ impl<'a> Surgeon<'a> {
     }
 
     fn restore(&mut self, s: TextSnapshot) {
+        self.font = s.font;
         self.tf_size = s.tf_size;
         self.tc = s.tc;
         self.tw = s.tw;
@@ -1366,9 +1370,8 @@ impl<'a> Surgeon<'a> {
             return;
         };
         let Some(elem) = self.redact_string(&string) else {
-            // Nothing in-region: advance Tm for the whole string and keep
-            // the operator verbatim.
-            self.advance_string(&string);
+            // Nothing in-region: `redact_string` has already advanced Tm
+            // across the string; keep the operator verbatim.
             return;
         };
         // Something was removed. Emit the replacement TJ (the survivors +
@@ -1413,10 +1416,7 @@ impl<'a> Surgeon<'a> {
                         any_removed = true;
                         new_elems.extend(elems);
                     }
-                    None => {
-                        self.advance_string(s);
-                        new_elems.push(TjElem::Str(s.clone()));
-                    }
+                    None => new_elems.push(TjElem::Str(s.clone())),
                 },
                 other => {
                     // A kerning number: it adjusts Tm too, but does not
@@ -1438,20 +1438,9 @@ impl<'a> Surgeon<'a> {
         self.record_edit(start, end, out);
     }
 
-    /// Advance `Tm` across a whole non-redacted string (so following
-    /// operators stay correctly positioned) without recording an edit.
-    fn advance_string(&mut self, string: &[u8]) {
-        let Some(font) = self.font.clone() else {
-            return;
-        };
-        for code in font.codes(string) {
-            let (tx, _) = self.glyph(code.value, code.word_spacing_applies);
-            self.tm = Mat::translate(tx, 0.0).mul(self.tm);
-        }
-    }
-
     /// Walk one show string's codes, computing which are in-region and
-    /// advancing `Tm` per code. Returns `None` if none are in-region
+    /// advancing `Tm` per code -- ALWAYS, hit or not, so a caller must not
+    /// advance again. Returns `None` if none are in-region
     /// (caller keeps the operator verbatim), or the rebuilt element list
     /// (surviving byte segments + compensating advances) otherwise.
     ///
@@ -4320,6 +4309,11 @@ fn annot_rect<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict) -> Option<[f64; 
 pub fn count_redaction_marks<G: ObjectGraph + ?Sized>(graph: &G) -> usize {
     redaction_marks(graph).len()
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)] // test fixtures: a failed setup is a failed test
+#[path = "redact_glyph_tests.rs"]
+mod glyph_tests;
 
 #[cfg(test)]
 #[allow(
