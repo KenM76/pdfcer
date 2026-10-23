@@ -5,7 +5,7 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-23 (v0.94.0 published, slot pdfcer1; unreleased since: Pass 638.0, redaction strips /ActualText, /Alt and /E over redacted glyphs, `44d2fcb7`; and Pass 639.0, same for structure-element replacement text, `736371ca`; both ship in v0.95.0; next filing is the 1218th), during the size-reduction arc (Ken 2026-10-20: "meet
+**Written:** 2026-10-23 (v0.94.0 published, slot pdfcer1; unreleased since: Pass 638.0, redaction strips /ActualText, /Alt and /E over redacted glyphs, `44d2fcb7`; and Pass 639.0, same for structure-element replacement text, `736371ca`; both ship in v0.95.0; next filing is the 1219th), during the size-reduction arc (Ken 2026-10-20: "meet
 or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## State

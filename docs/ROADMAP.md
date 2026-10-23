@@ -123,6 +123,7 @@ Engineer-reported; I have no shell, nothing here is checked from here. On `main`
 - **Test-authoring finding:** fixture replacement text must NOT contain the redacted string; the residual sweep removes such text anyway and the test goes vacuous. Recorded in the SESSION_LOG entry (not a RAG file).
 - **FEATURES:** "Apply redaction" row extended; boxes unchanged (core, cli, gui already `[x]`, no gui work).
 - **Sweep (rule 11), keyword `structure tree`/`struct_tree`/`not scrubbed` over FEATURES, NEXT_SESSION, ARCHITECTURE:** no survivor claiming the tree is disclosed-not-scrubbed. Surviving correct hits: `FEATURES.md` 257, 586, 655 (reading/layout/ordering), and `redact_form.rs:474`, `redact.rs` docs (generic `DisclosedNotScrubbed` enum, still used by other carriers). Crates not edited.
+- **Additional commit (1218th filing addendum):** `fc1d16fc` `test(core): document the shared redaction fixture helpers (Pass 639.0)`. Adds doc comments to test helpers `form` and `has` in `crates/pdfcer-core/src/redact_form_tests.rs`, now `pub(super)` for the structure-tree tests; required by `check-public-fns-documented`. No behaviour change, no test-count change.
 - Nothing minted. Next free `Pass 640.0`, decision `199`, `R263`; next filing 1218th.
 
 ### `Pass 638.0` COMPLETE (`44d2fcb7`), 2026-10-23 — redaction removes replacement text (`/ActualText`, `/Alt`, `/E`) over redacted glyphs (1216th filing)
@@ -23680,6 +23681,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
+
+(1218th filing, docs-only addendum: records `fc1d16fc` (test-helper doc comments, `Pass 639.0`) in `639.0`'s Shipped entry. Nothing minted; next free `Pass 640.0`, decision `199`, `R263`; next filing 1219th.)
 
 (1217th filing: `Pass 639.0` COMPLETE (`736371ca`), see *Shipped*; on `main`, with `638.0` bound for `v0.95.0`. Nothing minted; next free `Pass 640.0`, decision `199`, `R263`; next filing 1218th.)
 

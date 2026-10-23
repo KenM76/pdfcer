@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1218th filing) — addendum to `Pass 639.0`: `fc1d16fc` test-helper doc comments
+
+**Shipped (docs only; engineer-reported, no shell here, nothing checked from here):** one further code commit after the 1217th filing, `fc1d16fc` `test(core): document the shared redaction fixture helpers (Pass 639.0)`. Doc comments on test helpers `form` and `has` in `crates/pdfcer-core/src/redact_form_tests.rs`, now `pub(super)` for the structure-tree tests; required by `check-public-fns-documented`. No behaviour change, no test-count change. Recorded in `ROADMAP.md` under `Pass 639.0`.
+
+**Decisions made:** none. **FEATURES.md:** no change.
+
+**For next session:** next free `Pass 640.0`, decision `199`, `R263`; next filing 1219th.
+
 ## 2026-10-23 (1217th filing) — `Pass 639.0` COMPLETE (`736371ca`): redaction strips structure-element replacement text
 
 **Shipped (docs only; engineer-reported, no shell here, nothing checked from here):** new `redact_struct.rs` walks `/StructTreeRoot /K` and strips `/ActualText`, `/Alt`, `/E` from every element whose subtree (by MCID / MCR `/Pg` `/Stm`, ISO 32000-1 §14.7.2, §14.7.4.2) held a redacted glyph, path or image, ancestors included. The surgeon records (stream, MCID); form surgery records the original form's object id. Also widened `638.0` to paths and images. The `struct_tree` carrier now reports Scrubbed / CheckedClean, and DisclosedNotScrubbed only for an unwalkable node, so a tagged file no longer trips the CLI's non-zero redaction exit merely for having a tree. +5 tests (sabotage-proven), old disclosed-residual test replaced; `pdfcer-core` 1960 + 3037 + 250, `pdfcer-cli` integration 960 passed; clippy, fmt, structure gate (565 baseline) clean. Unreleased; ships in `v0.95.0` with `638.0`. Full entry: `ROADMAP.md` Shipped.
