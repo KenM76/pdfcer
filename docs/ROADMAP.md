@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 638.0` COMPLETE (`44d2fcb7`), 2026-10-23 — redaction removes replacement text (`/ActualText`, `/Alt`, `/E`) over redacted glyphs (1216th filing)
+
+Engineer-reported measurements; I have no shell, nothing here is checked from here. On `main`, NOT in `v0.94.0` (published at `95df46a2`, before this commit); ships in the next release. Docs-only filing, not committed by the librarian.
+- **Defect (engineer probe):** a `BDC` property list's `/ActualText`, `/Alt` or `/E` (ISO 32000-1 §14.9.3–§14.9.5, Table 323) survived glyph redaction. Text extraction still returned the redacted string; the only disclosure was `residual_matches_left: 1`.
+- **Fix:** new `crates/pdfcer-core/src/redact_marked.rs`, plus `redact.rs`, `redact_form.rs`, `redact_form_tests.rs`. The surgeon tracks `BDC`/`EMC`; if glyphs were removed inside a sequence, an inline list is rewritten in place without the three keys (others such as `/Lang` kept); a named `/Properties` list (§14.6.2) is replaced by an inline copy and the shared resource is left unchanged, unless the copy would contain an indirect reference (inline lists must be direct), in which case it is left for the residual sweep; form-XObject child counts are absorbed into the parent, so a `BDC` around a redacted form's `Do` is stripped; an unbalanced `BDC` is closed at end of stream. New `RedactionReport` note counts stripped sequences; `SurgeryResult::replacement_text_stripped`.
+- **Tests: +4:** `replacement_text_over_redacted_glyphs_is_removed`, `a_named_property_list_is_inlined_without_its_replacement_text`, `replacement_text_outside_the_mark_is_kept`, `replacement_text_around_a_redacted_form_is_removed`. Sabotage: strip disabled, 3 fail; strip forced on, the outside-the-mark test fails. `pdfcer-core`: 1955 + 3037 + 250 passed, 0 failed (three test binaries, 5,242 total).
+- **Gates:** clippy `-D warnings`, fmt, code-structure (565 baseline, none new) clean. No manifest change, so `cargo tree` unaffected; no `pub` API change, so `docs/core-api` unchanged.
+- **CLI:** `redact-apply` prints report notes (seen in the engineer's smoke), so the note reaches the CLI with no CLI code change. No GUI work.
+- **FEATURES:** capability text added to the *Redaction & security* "Apply redaction" row; no box changed (core, cli, gui already `[x]`; Acrobat `◐` untouched).
+- **RAG:** `C:\personal_rag\pdf\lesson_20261023_marked_content_replacement_text_actualtext_alt_e_is_a_redaction_carrier_independent_of_the_glyphs.md`, indexed in `pdf/index.md` and the master `index.md`.
+- **Sweep (rule 11), by keyword `ActualText` over FEATURES, NEXT_SESSION, ARCHITECTURE, core-api:** no survivor claiming it is retained after redaction. Hits at `FEATURES.md` lines 257 and 593 concern structure-tree reading and block editing, correct as written; line 202 is unrelated extraction. Structure-tree `/ActualText`/`/Alt` as a carrier stays as the carriers-checklist lesson states it (separate, not touched here).
+- Nothing minted (no decision, no R). Next free `Pass 639.0`, decision `199`, `R263`; next filing 1217th.
+
 ### `v0.94.0` PUBLISHED, 2026-10-23 — tag `v0.94.0` (annotated, object `2fc2e0ba`) at `95df46a2` (1215th filing)
 
 Engineer-reported measurements; I have no shell, nothing here is checked from here. Publication of the bump `d6e362af` (prep filed 1213th, `95df46a2`). Passes in the release since `v0.93.0`, already filed and not re-filed: `3f180dd3` (`Pass 102.1`), `d94693ca` (`633.0`), `defa0662` (`634.0`), `f51b10bb` (`635.0`), `c50a3790` + `576dadb7` (`635.1`), `202e7b13` (`635.2`), `444a2c6e` (`636.0`). Tag pushed with `main`.
@@ -23653,7 +23666,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 638.0`; decision `199`, `R263`; next filing 1216th.
+> **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
+
+(1216th filing: `Pass 638.0` COMPLETE (`44d2fcb7`), see *Shipped*; on `main`, not in `v0.94.0`. Nothing minted; next free `Pass 639.0`, decision `199`, `R263`; next filing 1217th.)
 
 (1215th filing: `v0.94.0` PUBLISHED, tag at `95df46a2`; see *Shipped*. Nothing minted; next free `Pass 638.0`, decision `199`, `R263`; next filing 1216th.)
 

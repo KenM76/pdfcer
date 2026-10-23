@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1216th filing) — `Pass 638.0` COMPLETE (`44d2fcb7`): redaction removes `/ActualText`, `/Alt`, `/E` over redacted glyphs
+
+**Shipped (docs only; engineer-reported, no shell here, nothing checked from here):** an engineer probe found a `BDC` property list's `/ActualText`/`/Alt`/`/E` (ISO 32000-1 §14.9.3–§14.9.5, Table 323) surviving glyph redaction: extraction still returned the text, disclosed only as `residual_matches_left: 1`. New `redact_marked.rs` (plus `redact.rs`, `redact_form.rs`, `redact_form_tests.rs`) tracks `BDC`/`EMC` and strips the three keys when glyphs inside were removed; a named `/Properties` list is inlined as a copy (shared resource untouched) unless the copy would hold an indirect reference, then it is left for the residual sweep; form-child counts are absorbed into the parent; an unbalanced `BDC` is closed at end of stream. +4 tests, sabotage both ways (disabled: 3 fail; forced on: outside-the-mark test fails); `pdfcer-core` 1955 + 3037 + 250 passed, 0 failed; clippy, fmt, code-structure (565 baseline, none new) clean. On `main`, not in `v0.94.0`. Full entry: `ROADMAP.md` Shipped.
+
+**Decisions made:** none; no decision or R minted.
+
+**Findings:** marked-content replacement text is a redaction carrier independent of the glyphs. Lesson `C:\personal_rag\pdf\lesson_20261023_marked_content_replacement_text_actualtext_alt_e_is_a_redaction_carrier_independent_of_the_glyphs.md` (indexed in both index files).
+
+**FEATURES.md:** capability text appended to the "Apply redaction" row in *Redaction & security*; no box changed. cli reaches it through `redact-apply` printing report notes; no gui work.
+
+**Still in flight:** `Pass 637.0` blocked on the crates.io token.
+
+**For next session:** next free `Pass 639.0`, decision `199`, `R263`; next filing 1217th. The note ships with the next release (`pdfcer2` slot).
+
 ## 2026-10-23 (1215th filing) — `v0.94.0` PUBLISHED: tag `v0.94.0` (`2fc2e0ba`) at `95df46a2`
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):** release published. GitHub release "pdfcer v0.94.0" has 8 assets (`pdfcer-v0.94.0-windows-x64.zip` 27,479,412 bytes; OCR add-on zips ocrcer 3,789,155, ocrs 11,352,262, tesseract 4,483,685; a `.sha256` each), uploaded at local sizes (`gh-release.py` PASS). Package `D:\builds\pdfcer-20261023-1616-95df46a`, `pdfcer.exe` 38,490,624 bytes, built from the clean tag. Fresh-folder smoke PASS (`--version` 0.94.0 / `v0.94.0`, `--help`, `inspect`, `redact-apply` on `demo-marked-output.pdf` exit 0, `absence: verified`). OneDrive slot `pdfcer1` = 0.94.0 (6 items, 74,038,089 bytes); `pdfcer2` keeps 0.93.0. Carries Passes 102.1, 633.0, 634.0, 635.0, 635.1, 635.2, 636.0. Full entry: `ROADMAP.md` Shipped.
