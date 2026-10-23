@@ -5,7 +5,7 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-23 (v0.94.0 published, slot pdfcer1; unreleased since: Pass 638.0, redaction strips /ActualText, /Alt and /E over redacted glyphs, `44d2fcb7`; and Pass 639.0, same for structure-element replacement text, `736371ca`; and Pass 640.0, PaddleOCR-VL tables read at a fixed 100 dpi, `32589a48`; all ship in v0.95.0; next filing is the 1221st), during the size-reduction arc (Ken 2026-10-20: "meet
+**Written:** 2026-10-23 (v0.95.0 published at `5ca5eeeb`, slot pdfcer2, carrying Passes 638.0, 639.0, 640.0; CI was red at the tag on a `--no-default-features` clippy lint, fixed after it in `e2bb5d67`, which is unreleased; next filing is the 1223rd), during the size-reduction arc (Ken 2026-10-20: "meet
 or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## State
@@ -39,9 +39,12 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   vacuous when `TJ` kerning splits the needle).
   Next free: Pass 636.0, decision 199, R263, filing 1211th.
 - G214-G217 replies are already on the channel (the earlier "owed" note was stale).
-- **Release:** v0.93.0 is published (8 assets; OneDrive `pdfcer2`; `pdfcer1`
-  keeps 0.92.0; GUI notified, `open/notice_2026-10-23_v0.93.0_released.md`).
-  **The next release writes `pdfcer1`.** pdfium render-parity
+- **Release:** v0.95.0 is published (8 assets; OneDrive `pdfcer2`; `pdfcer1`
+  keeps 0.94.0; GUI notified, `open/notice_2026-10-23_v0.95.0_released.md`).
+  **The next release writes `pdfcer1`.** Before a push that adds a field or
+  item read only under a feature, also run `cargo clippy -p pdfcer-cli
+  --no-default-features --all-targets -- -D warnings` (CI runs it; v0.95.0
+  went out red on it). pdfium render-parity
   A/B v0.90.0 (zune 0.5.15) vs v0.92.0 (git rc3), 70 DCTDecode corpus files:
   0 pages changed; control (same files re-encoded `image(encode=jpeg,
   quality=70,chroma=420)`): 11 pages improved (worst 99.7% -> 0.2% over
