@@ -24,7 +24,11 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   pkix's first publish. Never flip `publish = true` (Ken's call).
   `cargo publish --dry-run` is permission-denied; use `cargo package`.
 - **Prepress readers (Pass 631.0) shipped and replied to** (`reply_document_uses_overprint_FIXED.md`, `reply_detect_pdfx_claim_FIXED.md`): `prepress::overprint_use`, `pdfx_claim`, `pdfx_output_intents`; `inspect` prints them. Open: which reading Acrobat's "Only for PDF/X files" uses (intent alone or a claim), unmeasured.
-- **Redaction absence proof is in core (Pass 632.0, closes 72.0)**: `redact::verify_absence`; `redact-apply` refuses (exit 9, no file) on a drawn survivor and discloses (exit 10) on any other residual. GUI told it can delete its `proof.rs`. Fuzz `redact_proof`: 882,398 runs / 121 s, clean. Next free: Pass 633.0, decision 199, R263, filing 1204th.
+- **Inserted/pasted pages carry their form fields (Pass 102.1, `3f180dd3`, filed `56105737`)**:
+  wholly covered fields carried, partly covered groups pruned, split terminals counted
+  (`fields_split`); `orphaned_widgets` narrowed. Two `merge_document` field-tree bugs
+  fixed. GUI notified. Not yet released.
+- **Redaction absence proof is in core (Pass 632.0, closes 72.0)**: `redact::verify_absence`; `redact-apply` refuses (exit 9, no file) on a drawn survivor and discloses (exit 10) on any other residual. GUI told it can delete its `proof.rs`. Fuzz `redact_proof`: 882,398 runs / 121 s, clean. Next free: Pass 633.0, decision 199, R263, filing 1205th.
 - G214-G217 replies are already on the channel (the earlier "owed" note was stale).
 - **Release:** v0.93.0 is published (8 assets; OneDrive `pdfcer2`; `pdfcer1`
   keeps 0.92.0; GUI notified, `open/notice_2026-10-23_v0.93.0_released.md`).
