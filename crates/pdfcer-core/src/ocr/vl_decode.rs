@@ -24,6 +24,18 @@ pub const MAX_VARYING_PREFIX: usize = 4;
 /// tokens a repeat, so short distinct lines (`1. a`, `2. b`) never are.
 pub const MIN_REPEATED_TAIL: usize = 4;
 
+/// Longest token cycle the periodic guard looks for. The model also loops
+/// without a newline — an OTSL table row (`<fcel>…<nl>`) or one phrase —
+/// which the line guard never sees.
+pub const MAX_PERIOD: usize = 64;
+
+/// Cycles of one period the tail must hold before it stops as a loop.
+pub const MIN_PERIOD_REPEATS: usize = 16;
+
+/// Shortest periodic tail that stops as a loop, so a short legitimate run
+/// (a row of empty table cells, a rule of dashes) never does.
+pub const MIN_PERIODIC_SPAN: usize = 128;
+
 /// Why decoding stopped.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
@@ -33,8 +45,9 @@ pub enum StopReason {
     /// The token ceiling was reached first; the text may be cut short.
     TokenLimit,
     /// The last [`MAX_REPEATED_LINES`] lines repeated (identical, or alike
-    /// but for a leading ordinal), so the model was looping; the first of
-    /// them is kept, the rest are dropped, and anything after is lost.
+    /// but for a leading ordinal), or the tail repeated one token cycle
+    /// (see [`MAX_PERIOD`]), so the model was looping; the first copy is
+    /// kept, the rest are dropped, and anything after is lost.
     Repetition,
 }
 
@@ -95,22 +108,36 @@ pub fn greedy<E>(
     max_new_tokens: usize,
     step: impl FnMut(Option<u32>) -> Result<Vec<f32>, E>,
 ) -> Result<Decoded, DecodeError<E>> {
-    greedy_guarded(eos, None, max_new_tokens, step)
+    decode(eos, None, false, max_new_tokens, step)
 }
 
 /// [`greedy`], also stopping with [`StopReason::Repetition`] once the last
 /// [`MAX_REPEATED_LINES`] lines, split on the `newline` token, are
 /// non-empty repeats of one another (see [`MAX_REPEATED_LINES`]). The
 /// returned tokens then end after the first of those lines: the repeats are
-/// the model's invention, not the page's text.
+/// the model's invention, not the page's text. It also stops when the tail
+/// is one cycle of at most [`MAX_PERIOD`] tokens repeated
+/// [`MIN_PERIOD_REPEATS`] times over at least [`MIN_PERIODIC_SPAN`] tokens,
+/// keeping the first cycle; this needs no `newline`.
 ///
 /// # Errors
 ///
 /// As [`greedy`].
-#[allow(clippy::cast_precision_loss)] // token counts are below MAX_NEW_TOKENS_CAP
 pub fn greedy_guarded<E>(
     eos: u32,
     newline: Option<u32>,
+    max_new_tokens: usize,
+    step: impl FnMut(Option<u32>) -> Result<Vec<f32>, E>,
+) -> Result<Decoded, DecodeError<E>> {
+    decode(eos, newline, true, max_new_tokens, step)
+}
+
+/// The decode loop; `periodic` enables the [`MAX_PERIOD`] guard.
+#[allow(clippy::cast_precision_loss)] // token counts are below MAX_NEW_TOKENS_CAP
+fn decode<E>(
+    eos: u32,
+    newline: Option<u32>,
+    periodic: bool,
     max_new_tokens: usize,
     mut step: impl FnMut(Option<u32>) -> Result<Vec<f32>, E>,
 ) -> Result<Decoded, DecodeError<E>> {
@@ -118,6 +145,7 @@ pub fn greedy_guarded<E>(
     let mut tokens = Vec::new();
     let mut probs = Vec::new();
     let mut stop = StopReason::TokenLimit;
+    let mut cycles = Periodic::default();
     let mut logits = step(None).map_err(DecodeError::Step)?;
     while tokens.len() < limit {
         let (tok, p) = pick(&logits).ok_or(DecodeError::NoLogits)?;
@@ -127,10 +155,11 @@ pub fn greedy_guarded<E>(
         }
         tokens.push(tok);
         probs.push(p);
-        if let Some(keep) = newline
+        let keep = newline
             .filter(|&n| n == tok)
             .and_then(|n| repeating(&tokens, n))
-        {
+            .or_else(|| periodic.then(|| cycles.push(&tokens)).flatten());
+        if let Some(keep) = keep {
             tokens.truncate(keep);
             probs.truncate(keep);
             stop = StopReason::Repetition;
@@ -167,6 +196,40 @@ fn repeating(tokens: &[u32], newline: u32) -> Option<usize> {
     let first = body.len().checked_sub(dropped)?;
     let first_line = body.get(..first)?.rsplit(|&t| t == newline).next()?;
     repeats(first_line, last).then(|| tokens.len() - dropped)
+}
+
+/// Per period `p`, how many trailing tokens equal the token `p` before
+/// them — a tail of `run[p] + p` tokens is then `p`-periodic. Updated in
+/// O([`MAX_PERIOD`]) per token.
+struct Periodic {
+    run: [usize; MAX_PERIOD + 1],
+}
+
+impl Default for Periodic {
+    fn default() -> Self {
+        Self {
+            run: [0; MAX_PERIOD + 1],
+        }
+    }
+}
+
+impl Periodic {
+    /// Account for the last of `tokens`; when the tail is now a loop (see
+    /// [`greedy_guarded`]), the length that keeps its first cycle.
+    fn push(&mut self, tokens: &[u32]) -> Option<usize> {
+        let n = tokens.len();
+        let last = *tokens.last()?;
+        let mut hit = None;
+        for (p, run) in self.run.iter_mut().enumerate().skip(1) {
+            let same = n > p && tokens.get(n - 1 - p) == Some(&last);
+            *run = if same { *run + 1 } else { 0 };
+            let span = *run + p;
+            if hit.is_none() && same && span >= MIN_PERIODIC_SPAN.max(p * MIN_PERIOD_REPEATS) {
+                hit = Some(n - *run);
+            }
+        }
+        hit
+    }
 }
 
 /// Whether `a` repeats `b`: identical, or differing only in their first
@@ -291,6 +354,48 @@ mod tests {
         // A short shared tail is a real list, not a loop.
         let d = greedy_guarded(0, Some(9), 150, numbered(1, &[5, 6])).unwrap();
         assert_eq!(d.stop, StopReason::TokenLimit);
+    }
+
+    /// Decode `prefix` then `cycle` forever, never emitting the newline 9.
+    fn cycling(prefix: &[usize], cycle: &[usize], max: usize) -> Decoded {
+        let script: Vec<usize> = prefix
+            .iter()
+            .copied()
+            .chain(cycle.iter().copied().cycle().take(max))
+            .collect();
+        let mut i = 0;
+        greedy_guarded::<()>(0, Some(9), max, |_| {
+            i += 1;
+            Ok(favour(script[i - 1], 20))
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn a_loop_without_a_newline_stops_decoding() {
+        // An OTSL-like row repeated inside one line: the line guard is blind.
+        let cycle = [11, 3, 4, 5, 12];
+        let d = cycling(&[1, 2], &cycle, 4000);
+        assert_eq!(d.stop, StopReason::Repetition);
+        assert_eq!(d.tokens, [1, 2, 11, 3, 4, 5, 12], "the first cycle is kept");
+        // A long cycle needs MIN_PERIOD_REPEATS of it, not just the span.
+        let long: Vec<usize> = (1..=40).filter(|&t| t != 9 && t < 20).collect();
+        let d = cycling(&[], &long, long.len() * (MIN_PERIOD_REPEATS - 1));
+        assert_eq!(d.stop, StopReason::TokenLimit);
+        let d = cycling(&[], &long, long.len() * (MIN_PERIOD_REPEATS + 1));
+        assert_eq!(
+            (d.stop, d.tokens.len()),
+            (StopReason::Repetition, long.len())
+        );
+    }
+
+    #[test]
+    fn a_short_periodic_run_is_text() {
+        // A row of empty cells or a dash rule under MIN_PERIODIC_SPAN.
+        let d = cycling(&[], &[13], MIN_PERIODIC_SPAN - 1);
+        assert_eq!(d.stop, StopReason::TokenLimit);
+        let d = cycling(&[], &[13], MIN_PERIODIC_SPAN);
+        assert_eq!((d.stop, d.tokens), (StopReason::Repetition, vec![13]));
     }
 
     #[test]
