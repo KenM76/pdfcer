@@ -58,6 +58,7 @@ fn stream(dict_extra: &str, content: &str) -> String {
     )
 }
 
+/// A form XObject stream with `extra` in its dictionary.
 pub(super) fn form(extra: &str, content: &str) -> String {
     stream(&format!("/Type /XObject /Subtype /Form {extra}"), content)
 }
@@ -88,6 +89,7 @@ fn apply(bytes: Vec<u8>) -> (String, Vec<u8>, RedactionReport) {
     (text, all, report)
 }
 
+/// Whether `needle` occurs anywhere in `hay`.
 pub(super) fn has(hay: &[u8], needle: &[u8]) -> bool {
     hay.windows(needle.len()).any(|w| w == needle)
 }
