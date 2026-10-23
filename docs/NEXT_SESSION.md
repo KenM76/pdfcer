@@ -23,6 +23,7 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   to the git rc3 graph (0145632a); refresh them again after any engine dependency change.** pkix full verify waits for model on a registry; decision 196 split precedes
   pkix's first publish. Never flip `publish = true` (Ken's call).
   `cargo publish --dry-run` is permission-denied; use `cargo package`.
+- **Prepress readers (Pass 631.0) shipped and replied to** (`reply_document_uses_overprint_FIXED.md`, `reply_detect_pdfx_claim_FIXED.md`): `prepress::overprint_use`, `pdfx_claim`, `pdfx_output_intents`; `inspect` prints them. Open: which reading Acrobat's "Only for PDF/X files" uses (intent alone or a claim), unmeasured. Next free: Pass 632.0, decision 199, R263, filing 1202nd.
 - G214-G217 replies are already on the channel (the earlier "owed" note was stale).
 - **Release:** v0.92.0 is published (8 assets; OneDrive `pdfcer1`; `pdfcer2`
   keeps 0.91.0; GUI notified, `open/notice_2026-10-23_v0.92.0_released.md`).
