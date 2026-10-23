@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 639.0` COMPLETE (`736371ca`), 2026-10-23 — redaction strips structure-element replacement text (1217th filing)
+
+Engineer-reported; I have no shell, nothing here is checked from here. On `main`, NOT in `v0.94.0`; ships in `v0.95.0` together with `638.0`. Docs-only filing. Opened and closed in this one filing.
+- **Defect:** `/ActualText`, `/Alt`, `/E` on structure elements (ISO 32000-1 §14.7.2 Table 323) survived redaction of the content they describe; `638.0` covered only inline `BDC` lists.
+- **Fix:** the content surgeon records every (stream, MCID) whose marked-content sequence lost a glyph, path or image (§14.7.4.2); form surgery records the original form's object id so an MCR's `/Stm` (Table 324) matches. New `crates/pdfcer-core/src/redact_struct.rs` walks `/StructTreeRoot /K` (integer MCIDs on the inherited `/Pg`, MCR dicts; OBJR skipped; visited set; depth bound 256) and strips the three keys from every element whose subtree holds a redacted item, ancestors included. Effective values read/written through the DirtySet; runs before the residual sweep; applies regardless of `ResidualScope`.
+- **Widened `638.0`:** marked-content sequences now lose replacement text when a path or image inside is removed, not only a glyph.
+- **Behaviour change:** the `struct_tree` carrier reports Scrubbed (note counts stripped elements), CheckedClean, or DisclosedNotScrubbed only when a node could not be walked (e.g. a direct `/StructTreeRoot` needing a catalog rewrite). A tagged file no longer trips `has_disclosed_residuals` (the CLI's non-zero redaction exit) merely for having a tree.
+- **Tests: +5** in `redact_struct_tests.rs`, each proven by sabotage (key removal, MCID collection, `/Stm` match, ancestor stripping each disabled). Old `a_structure_tree_is_disclosed_as_an_unscrubbed_residual` replaced by `a_structure_tree_with_nothing_over_redacted_content_is_checked_clean`. Counts: `pdfcer-core` 1960 + 3037 + 250 passed (5,247 total); `pdfcer-cli` integration 960 passed; clippy `-D warnings`, fmt clean; code-structure 565 baseline, none new. No manifest change, so `cargo tree` unaffected; no `pub` API change, `docs/core-api` unchanged.
+- **Test-authoring finding:** fixture replacement text must NOT contain the redacted string; the residual sweep removes such text anyway and the test goes vacuous. Recorded in the SESSION_LOG entry (not a RAG file).
+- **FEATURES:** "Apply redaction" row extended; boxes unchanged (core, cli, gui already `[x]`, no gui work).
+- **Sweep (rule 11), keyword `structure tree`/`struct_tree`/`not scrubbed` over FEATURES, NEXT_SESSION, ARCHITECTURE:** no survivor claiming the tree is disclosed-not-scrubbed. Surviving correct hits: `FEATURES.md` 257, 586, 655 (reading/layout/ordering), and `redact_form.rs:474`, `redact.rs` docs (generic `DisclosedNotScrubbed` enum, still used by other carriers). Crates not edited.
+- Nothing minted. Next free `Pass 640.0`, decision `199`, `R263`; next filing 1218th.
+
 ### `Pass 638.0` COMPLETE (`44d2fcb7`), 2026-10-23 — redaction removes replacement text (`/ActualText`, `/Alt`, `/E`) over redacted glyphs (1216th filing)
 
 Engineer-reported measurements; I have no shell, nothing here is checked from here. On `main`, NOT in `v0.94.0` (published at `95df46a2`, before this commit); ships in the next release. Docs-only filing, not committed by the librarian.
@@ -23667,6 +23680,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
+
+(1217th filing: `Pass 639.0` COMPLETE (`736371ca`), see *Shipped*; on `main`, with `638.0` bound for `v0.95.0`. Nothing minted; next free `Pass 640.0`, decision `199`, `R263`; next filing 1218th.)
 
 (1216th filing: `Pass 638.0` COMPLETE (`44d2fcb7`), see *Shipped*; on `main`, not in `v0.94.0`. Nothing minted; next free `Pass 639.0`, decision `199`, `R263`; next filing 1217th.)
 

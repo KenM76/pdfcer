@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1217th filing) — `Pass 639.0` COMPLETE (`736371ca`): redaction strips structure-element replacement text
+
+**Shipped (docs only; engineer-reported, no shell here, nothing checked from here):** new `redact_struct.rs` walks `/StructTreeRoot /K` and strips `/ActualText`, `/Alt`, `/E` from every element whose subtree (by MCID / MCR `/Pg` `/Stm`, ISO 32000-1 §14.7.2, §14.7.4.2) held a redacted glyph, path or image, ancestors included. The surgeon records (stream, MCID); form surgery records the original form's object id. Also widened `638.0` to paths and images. The `struct_tree` carrier now reports Scrubbed / CheckedClean, and DisclosedNotScrubbed only for an unwalkable node, so a tagged file no longer trips the CLI's non-zero redaction exit merely for having a tree. +5 tests (sabotage-proven), old disclosed-residual test replaced; `pdfcer-core` 1960 + 3037 + 250, `pdfcer-cli` integration 960 passed; clippy, fmt, structure gate (565 baseline) clean. Unreleased; ships in `v0.95.0` with `638.0`. Full entry: `ROADMAP.md` Shipped.
+
+**Decisions made:** none; no decision or R minted.
+
+**Findings:** sabotage-test authoring: fixture replacement text must not contain the redacted string, because the residual sweep removes it anyway and the test goes vacuous. Kept here, not promoted to a RAG file.
+
+**FEATURES.md:** "Apply redaction" row extended; no box changed.
+
+**For next session:** next free `Pass 640.0`, decision `199`, `R263`; next filing 1218th.
+
 ## 2026-10-23 (1216th filing) — `Pass 638.0` COMPLETE (`44d2fcb7`): redaction removes `/ActualText`, `/Alt`, `/E` over redacted glyphs
 
 **Shipped (docs only; engineer-reported, no shell here, nothing checked from here):** an engineer probe found a `BDC` property list's `/ActualText`/`/Alt`/`/E` (ISO 32000-1 §14.9.3–§14.9.5, Table 323) surviving glyph redaction: extraction still returned the text, disclosed only as `residual_matches_left: 1`. New `redact_marked.rs` (plus `redact.rs`, `redact_form.rs`, `redact_form_tests.rs`) tracks `BDC`/`EMC` and strips the three keys when glyphs inside were removed; a named `/Properties` list is inlined as a copy (shared resource untouched) unless the copy would hold an indirect reference, then it is left for the residual sweep; form-child counts are absorbed into the parent; an unbalanced `BDC` is closed at end of stream. +4 tests, sabotage both ways (disabled: 3 fail; forced on: outside-the-mark test fails); `pdfcer-core` 1955 + 3037 + 250 passed, 0 failed; clippy, fmt, code-structure (565 baseline, none new) clean. On `main`, not in `v0.94.0`. Full entry: `ROADMAP.md` Shipped.
