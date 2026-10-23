@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.95.0` — release prep, version bump `2e26b99e` (`chore`), 2026-10-23 (1221st filing); NOT yet published
+
+Engineer-reported; no shell here, nothing checked from here. Same pattern as the v0.94.0 prep (1213th filing).
+- **`2e26b99e` (`chore`):** workspace version 0.94.0 to 0.95.0 in root `Cargo.toml` (including the `pdfcer-model` dependency version), `Cargo.lock` and `fuzz/Cargo.lock`.
+- **`3fcfe33d`** (`docs`): `NEXT_SESSION.md` records the measured cause of the t14 unruled-table miss. Engineer-owned handoff; cited here, no ledger effect beyond the Backlog item updated in this filing.
+- **Passes carried since `v0.94.0`:** 638.0 (`44d2fcb7`), 639.0 (`736371ca`), 640.0 (`32589a48`); already filed COMPLETE, not re-filed.
+- **Release plan (not claimed done):** OneDrive slot `pdfcer2` (the 0.94.0 publication entry records `pdfcer1` holding 0.94.0 and "the next release writes `pdfcer2`"). Tag, package, smoke, `verify-release.py`, GitHub release and slot write get their own later filing.
+- **FEATURES:** no change. No decision or R minted; next free `Pass 641.0`, decision `199`, `R263`; next filing 1222nd.
+
 ### `Pass 640.0` COMPLETE (`32589a48`), 2026-10-23 — PaddleOCR-VL table reading is stable across render resolution (1220th filing)
 
 Engineer-reported; I have no shell, nothing here is checked from here. Scoping was filed in `81c531ca` (1219th). Docs-only filing, not committed by the librarian.
@@ -23695,6 +23704,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
 
+(1221st filing: v0.95.0 release prep, bump `2e26b99e`, see *Shipped*; Backlog t14 item updated with its measured cause. Nothing minted; next free `Pass 641.0`, decision `199`, `R263`; next filing 1222nd.)
+
 (1220th filing: `Pass 640.0` COMPLETE (`32589a48`), see *Shipped*; its Next up item removed. Nothing minted; next free `Pass 641.0`, decision `199`, `R263`; next filing 1221st.)
 
 (1219th filing: `Pass 640.0` (PaddleOCR-VL table reading stable across render resolution) filed, scoping only; nothing shipped. Nothing else minted; next free `Pass 641.0`, decision `199`, `R263`; next filing 1220th. ★ AMENDED 1220th filing: its recorded counts were wrong; correct is 6 failures in 28 runs raw at 150-300 dpi, and normalising to 150 dpi failed 4 of 15 runs, not 7 of 28. Source: the engineer's correction in the 1220th dispatch.)
@@ -34444,7 +34455,7 @@ Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
 
-> **PaddleOCR-VL reads a 14 pt unruled 4-column synthetic table as prose at every dpi, UNSCOPED, no Pass ID (filed 1220th, 2026-10-23).** Open residue of `Pass 640.0`, not part of its acceptance: with and without the 100 dpi table normalisation, at every dpi 100-300 the model answers this table in prose, not cells. A separate defect (engineer-measured, not re-checked by the librarian). Scope it only when it reproduces on a real table; the 33/33 measurement of `640.0` excludes it.
+> **PaddleOCR-VL reads a 14 pt unruled 4-column synthetic table (`t14_plain`) as prose at every dpi, UNSCOPED, no Pass ID (filed 1220th, cause recorded 1221st, 2026-10-23).** Open residue of `Pass 640.0`, not part of its acceptance: with and without the 100 dpi table normalisation, at every dpi 100-300 no table cells come back. **Measured cause (engineer-reported, handoff `3fcfe33d`; not re-checked by the librarian):** the layout model PP-DocLayoutV3 classifies that region as `content` (text, score 0.58), not `Table`, so no table prompt runs; the model is not answering a table prompt "in prose". Every line's text is read correctly. A fix would re-test a text region for column gutters, which is inferred structure and must be disclosed (fuzzy, never sneaky). Low value. Scope it only when it reproduces on a real table; the 33/33 measurement of `640.0` excludes it.
 
 ### Pass 628.0 — content-stream rounding for streams no resource walk reaches (BACKLOG; filed 1190th filing, 2026-10-22)
 

@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1221st filing) — `v0.95.0` release prep: version bump `2e26b99e`; NOT yet published
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):** `2e26b99e` bumps the workspace 0.94.0 to 0.95.0 (root `Cargo.toml` incl. the `pdfcer-model` dependency version, `Cargo.lock`, `fuzz/Cargo.lock`). Release carries Passes 638.0 (`44d2fcb7`), 639.0 (`736371ca`), 640.0 (`32589a48`), all already filed COMPLETE. `3fcfe33d` (engineer-owned `NEXT_SESSION.md`, measured cause of the t14 unruled-table miss) cited; no ledger effect beyond the Backlog update below. Full entry: `ROADMAP.md` Shipped.
+
+**Finding (engineer-measured):** the 14 pt unruled 4-column table is not answered "in prose" by a table prompt: PP-DocLayoutV3 classifies the region as `content` (text, score 0.58), not `Table`, so no table prompt runs; every line's text is read correctly. A fix would re-test a text region for column gutters (inferred structure, must be disclosed). Low value. `ROADMAP.md` Backlog item reworded accordingly.
+
+**Decisions made:** none; no decision or R minted. **FEATURES.md:** no change.
+
+**For next session:** tag `v0.95.0` goes on the 1221st filing commit (engineer places it); package, smoke, `verify-release.py`, GitHub release, OneDrive slot `pdfcer2` (the 1215th filing recorded `pdfcer1` = 0.94.0). Next free `Pass 641.0`, decision `199`, `R263`; next filing 1222nd.
+
 ## 2026-10-23 (1220th filing) — `Pass 640.0` COMPLETE (`32589a48`): PaddleOCR-VL tables read at a fixed 100 dpi
 
 **Shipped (docs only; engineer-reported, no shell here, nothing checked from here):** `read_page_with_layout` gains `dpi: Option<f32>`; a Table region's crop is downscaled (bicubic, never upscaled) to `TABLE_DPI` = 100 before the model; line rects and ink box map back to raster pixels. Host `OcrRunner` passes the page dpi; `pdfcer ocr` passes `--dpi`; no new flag. +2 tests; `vl_page` 10 pass, ocr-host 29 pass 1 ignored. After the fix 33/33 exact over 6-14 pt ruled and unruled tables at 100-300 dpi. Clippy, fmt, structure, public-fns, outcome-disclosed clean. Full entry: `ROADMAP.md` Shipped.
