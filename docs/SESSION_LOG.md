@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1202nd filing) — `Pass 632.0` COMPLETE (`56676539`): redaction absence proof in core; closes `Pass 72.0`
+
+**Filed (engineer-reported; no shell here, nothing checked from here), three commits:** `56676539` `Pass 632.0` (core `redact::verify_absence`, `pdfcer redact-apply` checks before writing; new `--allow-drawn-survivors` and `--acknowledge-unverified`; exit 9 refuse / 10 residuals); `92621ee5` follow-up to `Pass 631.0` (per-process temp path in `inspect_prepress`, fixes CI run 39954712660, `check-test-temp-unique`); `b2567229` `chore(release)` v0.93.0 bump (publication filed later). Full entries: `ROADMAP.md` Shipped.
+
+**Decisions made:** none minted. `Pass 72.0` closed on criteria 1-4 and 6; criterion 5 (pdfcer-gui rewired to core) stays owed in pdfcer-gui.
+
+**Findings:** the old FEATURES sentence "proof runs in the GUI only" is now false and was replaced; `docs/core-api/03-capabilities.md` §4.1 had said the same and was rewritten by the engineer. Fuzz target `redact_proof` builds; its 120 s run was in progress at filing, so the result is for NEXT_SESSION.
+
+**Survivors (hard rule 11, reported not edited):** `docs/NEXT_SESSION.md` is engineer-owned and not checked here; any "GUI-only proof" wording there is for the engineer. `Pass 72.0`'s body in `ROADMAP.md` is retained as the scoping record (header marked CLOSED).
+
+**For next session:** next free `Pass 633.0`, decision `199`, `R263`; next filing 1203rd; publish v0.93.0 (tag, package, smoke, verify-release); record the fuzz run result; Ken's Brotli answer (1199th) still open; D: space tight.
+
 ## 2026-10-23 (1201st filing) — `Pass 631.0` COMPLETE (`73015960`): overprint use and the PDF/X claim
 
 **Filed (engineer-reported; no shell here, nothing checked from here):** commit `73015960` on main after `57ed5f11`. New `pdfcer_core::prepress` plus `pdfcer inspect` lines. Origin: pdfcer-gui O323 via FeatureRequests `open/request_document_uses_overprint.md` and `open/request_detect_pdfx_claim.md`; replies `reply_document_uses_overprint_FIXED.md`, `reply_detect_pdfx_claim_FIXED.md`. Full entry: `ROADMAP.md` Shipped. FEATURES: two new rows (Implemented, Fonts & rendering), core `[x]` cli `[x]` gui `[ ]`.

@@ -112,6 +112,24 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 632.0` COMPLETE (`56676539`), 2026-10-23 — redaction absence proof in core, enforced by `redact-apply`; closes `Pass 72.0` (1202nd filing; with `92621ee5` and the v0.93.0 bump `b2567229`)
+
+**Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here. Commit on main after `a3a4133e`.** Core + CLI; gui column untouched (separate project, carries its own copy of the proof). Port of pdfcer-gui's `pdfcer-gui-base/src/redact/proof.rs`, stricter: an undecoded stream or unparsable output forfeits Verified, and streams are searched one at a time. Reasoning is in the commit message.
+- **Core `pdfcer_core::redact::verify_absence(output: &[u8], redacted: &[String]) -> AbsenceVerification`** (new `crates/pdfcer-core/src/redact_proof.rs`, re-exported from `redact`), with `AbsenceVerdict { Verified, Disclose, Refuse }`, `Residual`, `#[non_exhaustive] ResidualSite` (DrawnContent, FontProgram, ImageSamples, ObjectContainer, Attachment, Metadata, OtherStream, RawBytes) and `MIN_VERIFIABLE_LEN = 4`. Drawn content = page /Contents, Type 3 /CharProcs, /Subtype /Form, /PatternType 1. A drawn residual = Refuse; any other residual, an undecodable stream or unparsable output = Disclose; else Verified. Strings under 4 characters are counted, not searched; image-codec streams are skipped, not counted.
+- **CLI:** `redact-apply` moved to `crates/pdfcer-cli/src/redact_apply.rs`; the proof runs on the bytes BEFORE writing. Refuse = no file, exit 9 (EDIT_REFUSED), survivors named, unless new `--allow-drawn-survivors`. Disclose = file written, exit 10 (REDACTION_RESIDUALS) unless new `--acknowledge-unverified`. `--acknowledge-residuals` unchanged (carrier sweep). New `absence:` report line. Structure-baseline entry `security.rs::cmd_redact_apply` removed (debt paid).
+- **Tests:** 14 core unit tests (two end-to-end through EditSession + apply_redactions); sabotage of the drawn-content branch failed 4, then restored; 3 CLI integration tests (`crates/pdfcer-cli/tests/redact_absence.rs`). New fuzz target `fuzz/fuzz_targets/redact_proof.rs` builds; a 120 s run was in progress at filing, result to be recorded in NEXT_SESSION. Release-scoped run: pdfcer-core/render/color/model/cli green (core lib 3031 passed, cli integration 960 passed); all 33 non-cargo repo audits green.
+- **Docs:** `docs/core-api/03-capabilities.md` §4.1 rewritten (it said the proof was GUI-only and an open question); index counts updated; check-core-api-verbs clean. `cargo tree`: no manifest touched, core/render deps unchanged.
+- **`Pass 72.0` CLOSED** (criteria 1-4 and 6). Criterion 5 (rewire pdfcer-gui to call core instead of its copy) is pdfcer-gui's to do and is owed there; two copies of the check will diverge until it is.
+- **FEATURES:** redaction "Apply redaction" row: the "runs in the GUI only" sentence replaced (core + CLI now have the proof); boxes already `[x]` `[x]` `[x]`, gui left as is. No decision or R minted; next free `Pass 633.0`, decision `199`, `R263`.
+
+### `92621ee5`, 2026-10-23 — follow-up to `Pass 631.0`: per-process temp path in `inspect_prepress` test (1202nd filing)
+
+Test-only change in `crates/pdfcer-cli/tests/inspect_prepress.rs`. It fixes CI run 39954712660 (repository audits, `check-test-temp-unique` failed on the `Pass 631.0` test's fixed temp name). No capability change.
+
+### `v0.93.0` — version bump `b2567229` (`chore(release)`), 2026-10-23 (1202nd filing); NOT yet published
+
+Engineer-reported; no shell here. Bump of `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock`, same pattern as the v0.92.0 bump (1193rd filing). **Not claimed done:** tag, package, smoke, `verify-release.py`, GitHub release, OneDrive slot; publication gets its own later filing. Passes since `v0.92.0` as filed: 623.0, 616.5, 626.0, 631.0, 632.0. `FEATURES.md`: no change.
+
 ### `Pass 631.0` COMPLETE (`73015960`), 2026-10-23 — does the document use overprint, and does it claim PDF/X (1201st filing)
 
 **Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here. Commit on main after `57ed5f11`. Core + CLI; gui column untouched (separate project, has a workaround, call not yet wired).** Origin: pdfcer-gui O323 (Settings ▸ Display ▸ Use overprint preview: Automatic, Only for PDF/X files), FeatureRequests `open/request_document_uses_overprint.md` and `open/request_detect_pdfx_claim.md`; replies `reply_*_FIXED.md` written. Reasoning is in the commit message.
@@ -23518,6 +23536,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+(1202nd filing: `Pass 632.0` COMPLETE `56676539`, closes `Pass 72.0`; `92621ee5` follow-up to 631.0; v0.93.0 bump `b2567229`; see *Shipped*. Next free `Pass 633.0`, decision `199`, `R263`; next filing 1203rd.)
+
 (1200th filing: `Pass 626.0` slice 2 SHIPPED `d0f7c993`, Pass COMPLETE, see *Shipped*. No Pass, decision or R minted; next free `Pass 631.0`, decision `199`, `R263`; next filing 1201st.)
 
 (1199th filing: `Pass 626.0` slice 1 SHIPPED `bdc7d088`, see its Next up entry; `Pass 628.0` measurement attached in Backlog; stale zune-jpeg Backlog note corrected. No Pass, decision or R minted; next free `Pass 631.0`, decision `199`, `R263`; next filing 1200th.)
@@ -27360,7 +27380,7 @@ are filed as a NEW family rather than inside the existing
 007 folded shading INTO. See that Backlog bucket's own dated amendment,
 below, for the split.
 
-### ★★★★★ Pass 72.0 — HIGH PRIORITY — **the redaction TRUE-REMOVAL PROOF has no home in `pdfce-core`: it lives in `crates/pdfce-gui`, the crate decision 058 says may be replaced wholesale — and `pdfce-cli` ALREADY SHIPS WITHOUT IT** — filed 2026-08-13 (hundred-and-thirty-eighth filing) — **UNSTARTED**
+### ★★★★★ Pass 72.0 — HIGH PRIORITY — **the redaction TRUE-REMOVAL PROOF has no home in `pdfce-core`: it lives in `crates/pdfce-gui`, the crate decision 058 says may be replaced wholesale — and `pdfce-cli` ALREADY SHIPS WITHOUT IT** — filed 2026-08-13 (hundred-and-thirty-eighth filing) — ★ **CLOSED 2026-10-23, `56676539` (`Pass 632.0`, 1202nd filing); see *Shipped*. Criteria 1-4 and 6 shipped; criterion 5 (rewire the GUI) is pdfcer-gui's and stays owed there. Body retained below as the scoping record.**
 
 > **`R151`'s shape INVERTED.** `R151` is *a core capability with no shell
 > caller*. This is **a safety proof with no core home** — the check that
