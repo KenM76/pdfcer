@@ -2573,11 +2573,13 @@ add-on folder (`tools/build-paddle-vl-addon.py --layout DIR`). It is
 | `RegionGroup::{Text, Title, Caption, Table, Figure, Formula, Chart, Seal, Header, Footer}` — the coarse groups a UI offers as layers; `.as_str()` (`"text"`, `"title"`, …) and `Display` |
 | `vl_page::read_page_with_layout(&PaddleVlEngine, &LayoutEngine, w, h, &grey) -> Result<LayoutReading, PaddleVlError>` — **the call to use** |
 | `LayoutReading { page: OcrPage, regions: Vec<RegionRead>, whole_page: bool }` — `page` words are image pixels (map as Piece 1); each block carries `region`; a table gives one `TableCell` block per non-empty cell with `cell` set; a formula is one word, delimiters stripped. `whole_page` = the model found no region, so the page was read as one untagged region |
-| `RegionRead { region, task, reading: Option<RegionReading> (page pixels), table: Option<otsl::Table>, grid_placed: bool, column_edges: Option<Vec<f64>>, row_edges: Option<Vec<f64>> }` — `task == None` for a picture. A table's cell boxes are measured per axis from its drawn ruling lines when there is exactly one line per cell edge: `column_edges` (`cols + 1` page-pixel x values) / `row_edges` (`rows + 1` y values), `None` for an axis left on an **even grid** over the region. `grid_placed` = at least one axis is on the even grid (inferred; disclose it) |
+| `RegionRead { region, task, reading: Option<RegionReading> (page pixels), table: Option<otsl::Table>, grid_placed: bool, column_edges: Option<TableEdges>, row_edges: Option<TableEdges> }` — `task == None` for a picture. A table's cell boxes are measured per axis from the image: its drawn ruling lines when there is exactly one line per cell edge, else the blank gutters between its cells when exactly that many stand out (each chosen gutter at least twice as wide as any left over). `column_edges` (`cols + 1` page-pixel x values) / `row_edges` (`rows + 1` y values), `None` for an axis left on an **even grid** over the region. `grid_placed` = at least one axis is on the even grid (inferred; disclose it). `edges_from_gutters() -> bool` = an axis was measured from whitespace (inferred; disclose it) |
+| `TableEdges { edges: Vec<f64>, source: EdgeSource }`, `TableEdges::new(edges, source)`; `EdgeSource::{Rules, Gutters}` (`#[non_exhaustive]`) — `Rules` = drawn line centres, the crop side standing in for a missing outer border; `Gutters` = blank-gap centres, the crop sides outside |
 | `otsl::parse(&str) -> Table { rows, cols, cells: Vec<TableCell { row, col, row_span, col_span, text }> }` — tolerant of malformed output; at most `otsl::MAX_CELLS` (10,000) |
 
 Disclose (rule 4): the region count, pictures not read, even-grid tables,
-tables placed on their ruling lines, a whole-page fallback, and any region
+tables placed on their ruling lines, tables placed on their whitespace
+gutters, a whole-page fallback, and any region
 stopped by `TokenLimit`/`Repetition`.
 `pdfcer_ocr_host::paddle_vl_layout_disclosure(&LayoutReading)` writes that
 text. Expect one vision encoding per region, so a dense page costs several

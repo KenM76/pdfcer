@@ -124,7 +124,7 @@ pub mod engine_paddle_vl;
 pub mod engine_layout;
 pub mod layout;
 pub mod otsl;
-/// A table's cell boundaries from its drawn ruling lines.
+/// A table's cell boundaries from its drawn ruling lines or blank gutters.
 #[cfg(feature = "ocr-vl")]
 mod table_rules;
 /// Layout-aware page reading: layout regions, each read with its task.

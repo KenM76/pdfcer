@@ -121,11 +121,13 @@ pub fn paddle_vl_layout_disclosure(l: &pdfcer_core::ocr::vl_page::LayoutReading)
     }
     let pictures = l.regions.iter().filter(|r| r.task.is_none()).count();
     let grids = l.regions.iter().filter(|r| r.grid_placed).count();
-    let ruled = l
-        .regions
-        .iter()
-        .filter(|r| r.table.is_some() && !r.grid_placed)
-        .count();
+    let measured = |gutters: bool| {
+        l.regions
+            .iter()
+            .filter(|r| r.table.is_some() && !r.grid_placed && r.edges_from_gutters() == gutters)
+            .count()
+    };
+    let (ruled, guttered) = (measured(false), measured(true));
     let mut out = format!(
         "{lead}. {} region(s) found, {pictures} picture(s) not read",
         l.regions.len()
@@ -139,6 +141,11 @@ pub fn paddle_vl_layout_disclosure(l: &pdfcer_core::ocr::vl_page::LayoutReading)
     if ruled > 0 {
         out.push_str(&format!(
             "; {ruled} table(s): cell boxes placed on the table's drawn ruling lines"
+        ));
+    }
+    if guttered > 0 {
+        out.push_str(&format!(
+            "; {guttered} table(s): cell boxes placed on the blank gutters between its columns or rows, INFERRED from whitespace (no drawn line)"
         ));
     }
     for (i, r) in l.regions.iter().enumerate() {

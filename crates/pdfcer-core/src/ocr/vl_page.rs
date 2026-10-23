@@ -9,7 +9,8 @@
 //!
 //! - **Table cell boxes.** The model returns a table's structure (OTSL) but
 //!   not where each cell sits. Each axis is measured from the table's drawn
-//!   ruling lines when they give exactly one line per cell edge
+//!   ruling lines, else from the blank gutters between its cells, when they
+//!   give exactly one boundary per cell edge
 //!   ([`RegionRead::column_edges`](crate::ocr::vl_page::RegionRead::column_edges),
 //!   [`RegionRead::row_edges`](crate::ocr::vl_page::RegionRead::row_edges));
 //!   otherwise that axis divides the table's box evenly
@@ -48,12 +49,54 @@ pub struct RegionRead {
     /// placed on an even grid over the region (inferred positions).
     pub grid_placed: bool,
     /// A table's column boundaries, `cols + 1` ascending page-pixel x
-    /// values, when measured from its vertical ruling lines; `None` when
-    /// the columns are an even grid (or this is not a table).
-    pub column_edges: Option<Vec<f64>>,
+    /// values, when measured from the image; `None` when the columns are
+    /// an even grid (or this is not a table).
+    pub column_edges: Option<TableEdges>,
     /// A table's row boundaries, `rows + 1` ascending page-pixel y values,
-    /// when measured from its horizontal ruling lines; `None` otherwise.
-    pub row_edges: Option<Vec<f64>>,
+    /// when measured from the image; `None` otherwise.
+    pub row_edges: Option<TableEdges>,
+}
+
+impl RegionRead {
+    /// Whether any of this table's cell boundaries were inferred from the
+    /// blank gutters between its cells rather than drawn lines.
+    #[must_use]
+    pub fn edges_from_gutters(&self) -> bool {
+        [&self.column_edges, &self.row_edges]
+            .into_iter()
+            .flatten()
+            .any(|e| e.source == EdgeSource::Gutters)
+    }
+}
+
+/// One axis of a table's cell boundaries, measured from the page image.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct TableEdges {
+    /// The boundaries, ascending, in page image pixels.
+    pub edges: Vec<f64>,
+    /// What they were measured from.
+    pub source: EdgeSource,
+}
+
+impl TableEdges {
+    /// Boundaries measured from `source`.
+    #[must_use]
+    pub fn new(edges: Vec<f64>, source: EdgeSource) -> Self {
+        Self { edges, source }
+    }
+}
+
+/// What a table's boundaries were measured from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum EdgeSource {
+    /// The centres of its drawn ruling lines (the crop side standing in for
+    /// a missing outer border).
+    Rules,
+    /// The centres of the blank gutters between its cells, the crop sides
+    /// outside: an inference from whitespace, with no line on the page.
+    Gutters,
 }
 
 /// A page read region by region.
@@ -139,18 +182,21 @@ fn read_one(
     })
 }
 
-/// A table's column and row boundaries measured from the ruling lines in
-/// its `crop`, moved into page pixels by the crop's box `bx`.
+/// A table's column and row boundaries measured from its `crop`, moved
+/// into page pixels by the crop's box `bx`.
 fn measured_edges(
     crop: &Grey,
     bx: vl_pre::PixelBox,
     table: &Table,
-) -> (Option<Vec<f64>>, Option<Vec<f64>>) {
+) -> (Option<TableEdges>, Option<TableEdges>) {
     let measure = |axis, n, at: usize| {
         #[allow(clippy::cast_precision_loss)]
         // pixel offsets are capped by vl_pre::MAX_INPUT_PIXELS
         let at = at as f64;
-        table_rules::edges(crop, axis, n).map(|e| e.into_iter().map(|v| v + at).collect())
+        table_rules::edges(crop, axis, n).map(|mut e| {
+            e.edges.iter_mut().for_each(|v| *v += at);
+            e
+        })
     };
     (
         measure(Axis::Columns, table.cols, bx.0),
@@ -208,8 +254,8 @@ fn assemble(regions: Vec<RegionRead>) -> LayoutReading {
             let confidence = reading.lines.first().and_then(|w| w.confidence);
             let grid = CellGrid {
                 bbox: r.region.bbox,
-                columns: r.column_edges.as_deref(),
-                rows: r.row_edges.as_deref(),
+                columns: r.column_edges.as_ref().map(|e| e.edges.as_slice()),
+                rows: r.row_edges.as_ref().map(|e| e.edges.as_slice()),
             };
             page.push_table(table, &grid, class, confidence);
         } else if r.task == Some(VlTask::Formula) {
@@ -530,8 +576,9 @@ mod tests {
         };
         let table = otsl::parse("<fcel>a<fcel>b<nl><fcel>c<fcel>d<nl>");
         let (cols, rows) = measured_edges(&crop, (100, 200, 300, 260), &table);
-        assert_eq!(cols.as_deref(), Some(&[100.5, 160.5, 299.5][..]));
-        assert_eq!(rows.as_deref(), Some(&[200.5, 220.5, 259.5][..]));
+        let rules = |e: &[f64]| Some(TableEdges::new(e.to_vec(), EdgeSource::Rules));
+        assert_eq!(cols, rules(&[100.5, 160.5, 299.5]));
+        assert_eq!(rows, rules(&[200.5, 220.5, 259.5]));
 
         let mut r = read(LayoutClass::Table, [100.0, 200.0, 300.0, 260.0], {
             let otsl = "<fcel>a<fcel>b<nl><fcel>c<fcel>d<nl>";
@@ -554,7 +601,10 @@ mod tests {
             [100.0, 200.0, 300.0, 260.0],
             Some(reading(otsl, vec![word(otsl, 0.0, 0.0, 1.0, 1.0)])),
         );
-        r.column_edges = Some(vec![100.0, 150.0, 300.0]);
+        r.column_edges = Some(TableEdges::new(
+            vec![100.0, 150.0, 300.0],
+            EdgeSource::Gutters,
+        ));
         let out = assemble(vec![r]);
         assert_eq!(
             out.page.words[3].rect,

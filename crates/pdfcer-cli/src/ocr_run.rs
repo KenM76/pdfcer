@@ -297,6 +297,7 @@ fn print_regions(engine: &pdfcer_ocr_host::OcrRunner, iw: u32, ih: u32, placemen
             match (&r.reading, r.grid_placed) {
                 (None, _) => "no",
                 (Some(_), true) => "table-grid",
+                (Some(_), false) if r.edges_from_gutters() => "table-gutters",
                 (Some(_), false) if r.table.is_some() => "table-ruled",
                 (Some(_), false) => "yes",
             }

@@ -4699,13 +4699,16 @@ pub(crate) enum Command {
         /// picture not at all. One `region` line per region is printed on
         /// stdout: `index class group score rect read`, the rect in page
         /// space and `read` one of `yes`, `no` (a picture), `table-ruled`
-        /// (cells placed on the table's drawn ruling lines) or `table-grid`.
+        /// (cells placed on the table's drawn ruling lines), `table-gutters`
+        /// (placed on the blank gaps between its columns or rows) or
+        /// `table-grid`.
         ///
         /// Inferred, and said so on stderr: the model reports a table's
         /// structure but not its cell boxes. Cells are placed on the table's
-        /// drawn ruling lines when there is exactly one line per cell edge;
-        /// otherwise (`table-grid`) on an even grid over the table, where
-        /// text may be off its printed cell. With no region found, the whole
+        /// drawn ruling lines when there is exactly one line per cell edge,
+        /// else on the blank gutters between its cells when exactly that
+        /// many stand out; otherwise (`table-grid`) on an even grid over
+        /// the table, where text may be off its printed cell. With no region found, the whole
         /// page is read as one.
         #[arg(long)]
         layout: bool,
