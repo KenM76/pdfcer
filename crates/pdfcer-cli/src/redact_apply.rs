@@ -108,12 +108,13 @@ fn print_absence(proof: &AbsenceVerification) {
     };
     println!(
         "  absence: {word} strings_checked={} strings_too_short={} residuals={} \
-         streams_undecoded={} output_unparsed={}",
+         streams_undecoded={} output_unparsed={} text_unextracted={}",
         proof.strings_checked,
         proof.strings_too_short,
         proof.residuals.len(),
         proof.streams_undecoded,
         u8::from(proof.output_unparsed),
+        u8::from(proof.text_unextracted),
     );
     for r in &proof.residuals {
         println!("    residual site={} text={:?}", r.site.as_str(), r.text);

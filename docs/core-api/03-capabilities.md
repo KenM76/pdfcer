@@ -1894,11 +1894,11 @@ they reach the disk; a `Refuse` verdict means nothing is written by default.
 | item |
 |---|
 | `pub fn verify_absence(output: &[u8], redacted: &[String]) -> AbsenceVerification` (`#[must_use]`) |
-| `#[non_exhaustive] AbsenceVerification { strings_checked, strings_too_short, residuals: Vec<Residual>, streams_undecoded, output_unparsed }` |
+| `#[non_exhaustive] AbsenceVerification { strings_checked, strings_too_short, residuals: Vec<Residual>, streams_undecoded, output_unparsed, text_unextracted }` |
 | `AbsenceVerification::verdict() -> AbsenceVerdict` · `is_clean()` · `drawn_survivors() -> impl Iterator<Item = &str>` |
 | `AbsenceVerdict { Verified, Disclose, Refuse }` |
 | `Residual { text, site: ResidualSite }` |
-| `#[non_exhaustive] ResidualSite { DrawnContent, FontProgram, ImageSamples, ObjectContainer, Attachment, Metadata, OtherStream, RawBytes }` · `as_str()` (`"drawn-content"`, …) |
+| `#[non_exhaustive] ResidualSite { DrawnContent, FontProgram, ImageSamples, ObjectContainer, Attachment, Metadata, OtherStream, ExtractedText, RawBytes }` · `as_str()` (`"drawn-content"`, …) |
 | `MIN_VERIFIABLE_LEN: usize = 4` |
 
 All re-exported from `pdfcer_core::redact`. Pass it
@@ -1910,10 +1910,18 @@ any, else the first opaque one. Drawn content means page `/Contents`, Type 3
 `/CharProcs`, `/Subtype /Form` XObjects and `/PatternType 1` tiling patterns —
 text the document **paints**.
 
+**Extracted text too (`Pass 635.2`).** Bytes alone miss a word drawn in kerned
+pieces (`[(Con) -20 (fidential)] TJ`) or through non-ASCII codes
+(`Identity-H`). Each page is also extracted and searched with all whitespace
+removed from both sides; a hit there is `ResidualSite::ExtractedText`
+(`"extracted-text"`), refused like drawn content and listed by
+`drawn_survivors()`. Extraction that cannot walk the page tree or read a page
+sets `text_unextracted`, which forfeits *verified* (Disclose).
+
 | outcome | verdict | `pdfcer redact-apply` |
 |---|---|---|
-| a removed string in **drawn content** | **Refuse** | no file, exit 9, each survivor named; `--allow-drawn-survivors` writes it anyway |
-| a hit anywhere else (font program, image samples, object stream, attachment, metadata, other stream, raw bytes), **or** a stream that would not decode, **or** output that would not reparse | **Disclose** | file written, exit 10; `--acknowledge-unverified` exits 0 |
+| a removed string in **drawn content** or a page's **extracted text** | **Refuse** | no file, exit 9, each survivor named; `--allow-drawn-survivors` writes it anyway |
+| a hit anywhere else (font program, image samples, object stream, attachment, metadata, other stream, raw bytes), **or** a stream that would not decode, **or** output that would not reparse, **or** a page text extraction could not read | **Disclose** | file written, exit 10; `--acknowledge-unverified` exits 0 |
 | nothing found, every stream decoded, output reparsed | **Verified** | the only case that may say *verified* |
 
 Strings shorter than `MIN_VERIFIABLE_LEN` are **counted, never searched**:

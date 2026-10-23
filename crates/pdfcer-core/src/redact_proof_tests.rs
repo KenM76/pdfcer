@@ -275,3 +275,42 @@ fn a_real_apply_with_an_unmarked_repeat_refuses() {
     assert_eq!(proof.verdict(), AbsenceVerdict::Refuse, "{proof:?}");
     assert!(proof.drawn_survivors().any(|s| s.contains("CLASSIFIED")));
 }
+
+/// A word drawn in kerned pieces holds no byte match; the extracted text
+/// still reads it, so the proof refuses rather than verifying.
+#[test]
+fn a_word_split_by_kerning_is_found_in_the_extracted_text() {
+    let bytes = pdf(
+        "BT /F1 12 Tf 20 100 Td [(Con) -20 (fiden) 10 (tial)] TJ ET",
+        &[],
+    );
+    let proof = verify_absence(&bytes, &one("Confidential"));
+    assert_eq!(
+        proof.residuals,
+        residual("Confidential", ResidualSite::ExtractedText)
+    );
+    assert_eq!(proof.verdict(), AbsenceVerdict::Refuse);
+    assert_eq!(
+        proof.drawn_survivors().collect::<Vec<_>>(),
+        ["Confidential"]
+    );
+}
+
+/// Whitespace is ignored on both sides: a derived word space inside the
+/// drawn word, or the over-covered spaces around a removed phrase, cannot
+/// hide a survivor.
+#[test]
+fn the_extracted_text_search_ignores_whitespace() {
+    let bytes = pdf("BT /F1 12 Tf 20 100 Td [(Con) -900 (fidential)] TJ ET", &[]);
+    let proof = verify_absence(&bytes, &one(" Confidential "));
+    assert_eq!(proof.verdict(), AbsenceVerdict::Refuse);
+}
+
+/// A page with no survivor still verifies with the extra search.
+#[test]
+fn clean_extracted_text_still_verifies() {
+    let bytes = pdf("BT /F1 12 Tf 20 100 Td [(Con) -20 (tent)] TJ ET", &[]);
+    let proof = verify_absence(&bytes, &one("Confidential"));
+    assert!(!proof.text_unextracted);
+    assert_eq!(proof.verdict(), AbsenceVerdict::Verified);
+}

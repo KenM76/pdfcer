@@ -14,8 +14,16 @@
 //! | found in | verdict |
 //! |---|---|
 //! | drawn content (page content, form XObject, tiling pattern, Type 3 glyph procedure) | [`AbsenceVerdict::Refuse`] — the glyphs may still be painted |
+//! | a page's extracted text, though in no stream's bytes | [`AbsenceVerdict::Refuse`] — painted, in pieces or through a non-ASCII encoding |
 //! | anywhere else (a font program, image samples, an object container, an attachment, metadata, another stream, the raw bytes) | [`AbsenceVerdict::Disclose`] — pdfcer cannot tell a carrier from a coincidence |
 //! | nowhere, with every stream decoded | [`AbsenceVerdict::Verified`] |
+//!
+//! The byte search alone is vacuous for text a page draws in pieces —
+//! `[(Con) -20 (fidential)] TJ` holds no `Confidential` — or through codes
+//! that are not ASCII (an `Identity-H` font). Each page is therefore also
+//! extracted (decoded through its fonts, ISO 32000-1 §9.10) and searched
+//! with all whitespace removed from both sides, so a derived word space
+//! inside a kerned word cannot hide it either.
 //!
 //! A drawn-content hit is **often another occurrence** of the same word that
 //! was never marked (a title-block label repeated on every sheet); the proof
@@ -29,6 +37,7 @@ use crate::document::Document;
 use crate::filters::{self, FilterError};
 use crate::object::{Dict, ObjId, Object};
 use crate::page_tree;
+use crate::text_extract::{self, ExtractOptions};
 
 /// The shortest removed string the proof checks.
 ///
@@ -64,12 +73,21 @@ pub enum ResidualSite {
     Metadata,
     /// Any other decoded stream.
     OtherStream,
+    /// A page's extracted text (decoded through its fonts), though no
+    /// decoded stream holds the string's bytes: drawn in pieces or through
+    /// a non-ASCII encoding. Refused like [`ResidualSite::DrawnContent`].
+    ExtractedText,
     /// No decoded stream; the file's raw bytes (a dictionary string, a name,
     /// an undecodable stream's encoded bytes).
     RawBytes,
 }
 
 impl ResidualSite {
+    /// Whether a hit here means the string may still be painted.
+    const fn is_drawn(self) -> bool {
+        matches!(self, Self::DrawnContent | Self::ExtractedText)
+    }
+
     /// A stable lower-case token for scripts and logs, e.g. `drawn-content`.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -81,6 +99,7 @@ impl ResidualSite {
             Self::Attachment => "attachment",
             Self::Metadata => "metadata",
             Self::OtherStream => "other-stream",
+            Self::ExtractedText => "extracted-text",
             Self::RawBytes => "raw-bytes",
         }
     }
@@ -133,6 +152,10 @@ pub struct AbsenceVerification {
     pub streams_undecoded: usize,
     /// The output did not parse as a PDF, so only the raw-byte search ran.
     pub output_unparsed: bool,
+    /// Text extraction could not walk the page tree or read at least one
+    /// page, so the extracted-text search is incomplete. Forfeits
+    /// [`AbsenceVerdict::Verified`].
+    pub text_unextracted: bool,
 }
 
 impl AbsenceVerification {
@@ -152,15 +175,18 @@ impl AbsenceVerification {
     /// stream decoded, and the output parsed.
     #[must_use]
     pub fn is_clean(&self) -> bool {
-        self.residuals.is_empty() && self.streams_undecoded == 0 && !self.output_unparsed
+        self.residuals.is_empty()
+            && self.streams_undecoded == 0
+            && !self.output_unparsed
+            && !self.text_unextracted
     }
 
-    /// The strings that still occur in drawn content — the ones a
-    /// [`AbsenceVerdict::Refuse`] is about.
+    /// The strings that still occur in drawn content or extracted text —
+    /// the ones a [`AbsenceVerdict::Refuse`] is about.
     pub fn drawn_survivors(&self) -> impl Iterator<Item = &str> {
         self.residuals
             .iter()
-            .filter(|r| r.site == ResidualSite::DrawnContent)
+            .filter(|r| r.site.is_drawn())
             .map(|r| r.text.as_str())
     }
 }
@@ -171,9 +197,9 @@ impl AbsenceVerification {
 /// [`apply_redactions`](crate::redact::apply_redactions)'s result — and
 /// `redacted` its report's
 /// [`redacted_text`](crate::redact::RedactionReport::redacted_text). Matching
-/// is on the strings' UTF-8 bytes, so text drawn through a font whose codes are
-/// not ASCII-compatible (an `Identity-H` CID font) is invisible to the drawn
-/// half; the raw half has the same limit.
+/// on the strings' UTF-8 bytes in every stream and in the raw file, and on
+/// each page's extracted text with whitespace ignored, which also sees text
+/// drawn in kerned pieces or through a non-ASCII encoding.
 ///
 /// Infallible: unparsable output sets
 /// [`AbsenceVerification::output_unparsed`] and still runs the raw search.
@@ -201,7 +227,10 @@ pub fn verify_absence(output: &[u8], redacted: &[String]) -> AbsenceVerification
     out.strings_checked = needles.len();
     let mut found: Vec<Option<ResidualSite>> = vec![None; needles.len()];
     match Document::from_bytes(output.to_vec()) {
-        Ok(doc) => out.streams_undecoded = sweep_streams(&doc, &needles, &mut found),
+        Ok(doc) => {
+            out.streams_undecoded = sweep_streams(&doc, &needles, &mut found);
+            out.text_unextracted = !sweep_text(&doc, &needles, &mut found);
+        }
         Err(_) => out.output_unparsed = true,
     }
     for (needle, site) in needles.iter().zip(found) {
@@ -250,6 +279,31 @@ fn sweep_streams(doc: &Document, needles: &[&str], found: &mut [Option<ResidualS
         }
     }
     undecoded
+}
+
+/// Search each page's extracted text for the needles not already found in
+/// drawn content, whitespace ignored on both sides. Returns `false` when
+/// extraction could not read the page tree or a page.
+fn sweep_text(doc: &Document, needles: &[&str], found: &mut [Option<ResidualSite>]) -> bool {
+    let Ok(text) = text_extract::extract_document(doc, &ExtractOptions::default()) else {
+        return false;
+    };
+    let squeeze = |s: &str| s.chars().filter(|c| !c.is_whitespace()).collect::<String>();
+    let pages: Vec<String> = text
+        .pages
+        .iter()
+        .map(|p| squeeze(&p.runs.iter().map(|r| r.text.as_str()).collect::<String>()))
+        .collect();
+    for (needle, slot) in needles.iter().zip(found.iter_mut()) {
+        let n = squeeze(needle);
+        if slot.is_some_and(ResidualSite::is_drawn) || n.is_empty() {
+            continue;
+        }
+        if pages.iter().any(|p| p.contains(&n)) {
+            *slot = Some(ResidualSite::ExtractedText);
+        }
+    }
+    text.diagnostics.pages_unreadable == 0
 }
 
 /// Streams drawn by reference only: each page's `/Contents` and every Type 3
