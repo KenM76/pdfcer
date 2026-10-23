@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1207th filing) — decision 183 summary in `ARCHITECTURE.md` §12 brought into line
+
+**Filed (docs only; no shell here, nothing checked from here):** appended a "Later status" paragraph to decision 183's §12 entry: the layout stage shipped as `Pass 558.0` (PP-DocLayoutV3, not V2) via `ocr::vl_page::read_page_with_layout`; `Pass 633.0` (`d94693ca`) places ruled table cells. Original points left unedited. The entry's "Owed" note (§2 OCR-engine list, §10 ceiling table) is annotated VOID, original text kept: §2 has no such list, §10.1-10.3 have no table, and §10.3 puts limits in the guarded function's doc comment. Facts verified by the engineer; I read the entry and edited it, I did not re-read §2/§10.
+
+**Decisions made:** none; no decision or R minted. ROADMAP/FEATURES untouched.
+
+**For next session:** next free `Pass 634.0`, decision `199`, `R263`; next filing 1208th.
+
 ## 2026-10-23 (1206th filing) — `Pass 633.0` COMPLETE (`d94693ca`): OCR table cells placed on drawn ruling lines
 
 **Filed (engineer-reported; no shell here, nothing checked from here):** new Pass filed and completed in one filing. `ocr::table_rules` measures a table's column/row boundaries from its drawn rules in the region crop; `RegionRead` gains `column_edges`/`row_edges`; CLI `ocr --layout` prints `read=table-ruled`; an axis whose rules do not give exactly cols+1 / rows+1 boundaries stays on the even grid. Full entry: `ROADMAP.md` Shipped. Tests: 5 + 2 new; ocr 13/13; clippy, fmt, code-structure clean; no manifest change.

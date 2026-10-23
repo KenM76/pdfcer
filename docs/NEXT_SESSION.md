@@ -132,8 +132,6 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   whitespace. PaddleOCR-VL's table answer is DPI-sensitive (one synthetic
   table: correct OTSL at 100 dpi, wrong column count at 150, prose at
   200/300).
-- **Librarian-flagged stale wording** in the decision log (ARCHITECTURE
-  around lines 12983 and 13008) about whole-page-only VL reading.
 
 ## Local-only material (never commit)
 

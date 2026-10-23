@@ -13027,12 +13027,24 @@ shipped).
 
 **Full record:** `docs/decisions/183-paddle-vl-engine.md`.
 
+**Later status (1207th filing, 2026-10-23).** Point 3's missing layout
+stage later shipped as `Pass 558.0` (G167), using PP-DocLayoutV3 rather
+than the V2 named under Rejected, via `ocr::vl_page::read_page_with_layout`.
+`Pass 633.0` (`d94693ca`) then places ruled table cells on their drawn
+lines. Points 1-5 and Rejected above are history and stand unedited; the
+full record (`78635459`) already names the shipped stage.
+
 **Body-section effect.** None edited by this filing (librarian scope
 this session is `ROADMAP.md`/`FEATURES.md`/`SESSION_LOG.md`/this
 decision log only). **Owed:** §2's OCR-engine list should gain
 `paddle-vl`; §10's ceiling table should gain this rung's seven bounds
 (`vl_pre`/`vl_decode`/`vl_tokenizer`/`json_lite`) — flagged, not
 actioned, here.
+**VOID (1207th filing):** both premises are false. §2 is a three-row
+language/toolkit table with no OCR-engine list, and §10.1-10.3 contain
+no table; §10.3 directs that each guard's limit live in the doc comment
+of the function it guards, which the `vl_pre`/`vl_decode`/`vl_tokenizer`/
+`json_lite` constants already carry. Nothing is owed.
 
 **Decision ceiling.** Fills the reserved `183`, already below ceiling
 `186` — ceiling unmoved. Next free decision stays `187`.
