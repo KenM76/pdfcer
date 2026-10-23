@@ -9,8 +9,9 @@
 //! reader supports. File-structure features a full rewrite does not carry
 //! over (object streams, cross-reference streams, the catalog `/Version`)
 //! are reported apart in [`VersionFloor::structural`] and do not raise the
-//! floor. Lowering a declared version is opt-in: ISO 32000-2 Annex I.2
-//! says a writer should never change a document to an older version.
+//! floor. Lowering a declared version is [`super::lower_version`], opt-in
+//! because ISO 32000-2 Annex I.2 says a writer should never change a
+//! document to an older version.
 
 mod checks;
 mod content;
