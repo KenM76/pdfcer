@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1212th filing) — `Pass 636.0` COMPLETE (`444a2c6e`): PaddleOCR-VL decode stops a loop that never emits a newline
+
+**Filed (engineer-reported; no shell here, nothing checked from here):** the `vl_decode` repetition guard split on the newline token, so a model looping inside one line (OTSL table row, repeated phrase) ran to the 8192-token ceiling. `greedy_guarded` now also stops with `StopReason::Repetition` on a tail of one cycle of at most 64 tokens repeated 16 times over at least 128 tokens, keeping the first cycle. `pdfcer-ocr-host` disclosure covers it. +2 tests (sabotage-checked), ocr-host 24 pass, gates clean, no manifest change. Full entry: `ROADMAP.md` Shipped.
+
+**Decisions made:** none; no decision or R minted.
+
+**FEATURES.md:** "Layout-aware OCR (PaddleOCR-VL)" row gains one clause; boxes unchanged, nothing ticked.
+
+**Honest gap:** not re-measured against the real model on a looping page; unit-tested only.
+
+**For next session:** Next up has no head. Unreleased: 102.1, 633.0, 634.0, 635.0, 635.1, 635.2, 636.0. Next free `Pass 637.0`, decision `199`, `R263`; next filing 1213th.
+
 ## 2026-10-23 (1211th filing) — `Pass 635.2` COMPLETE (`202e7b13`): redaction absence proof searches extracted text
 
 **Filed (engineer-reported; no shell here, nothing checked from here):** `redact::verify_absence` now also extracts text from every page (ISO 32000-1 §9.10) and searches it whitespace-insensitively, closing the vacuity for kerned `TJ` splits and Identity-H text. New `ResidualSite::ExtractedText` (refused like `DrawnContent`) and `AbsenceVerification::text_unextracted` (forfeits Verified). CLI `redact-apply` prints `text_unextracted=`. +3 tests; full suites green; clippy, fmt, structure clean; no manifest change. Full entry: `ROADMAP.md` Shipped.

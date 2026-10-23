@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 636.0` COMPLETE (`444a2c6e`), 2026-10-23 — PaddleOCR-VL decode stops a loop that never emits a newline (1212th filing)
+
+**Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here. Not yet released.** Core + ocr-host; cli/gui columns untouched. Found while working; filed and completed in one filing. Reasoning is in the commit message.
+- **Problem:** the repetition guard in `pdfcer_core::ocr::vl_decode` split on the newline token, so a model looping inside one line (an OTSL table row ending `<nl>`, or one repeated phrase) ran to the 8192-token ceiling (minutes of CPU).
+- **Fix:** `greedy_guarded` also stops with `StopReason::Repetition` when the tail is one cycle of at most `MAX_PERIOD` = 64 tokens repeated `MIN_PERIOD_REPEATS` = 16 times over at least `MIN_PERIODIC_SPAN` = 128 tokens, keeping the first cycle. O(`MAX_PERIOD`) per token. `greedy` stays unguarded. Three new `pub` consts.
+- **Disclosure (rule 4):** `pdfcer-ocr-host` disclosure text now covers the new case; still disclosed, not silent.
+- **Docs:** `docs/core-api/03-capabilities.md` row updated; `check-core-api-verbs` PASS.
+- **Tests:** +2 in `vl_decode` (10 pass); with the guard disabled both fail (sabotage-checked). ocr-host 24 pass. clippy, fmt, structure, public-fns clean.
+- **Invariants:** no manifest change, no new deps, so `cargo tree` unaffected.
+- **Honest gap:** NOT re-measured against the real model on a looping page this Pass (unit-tested only).
+- **FEATURES:** "Layout-aware OCR (PaddleOCR-VL)" row gains one clause on the in-line loop; boxes unchanged `[x]` `[x]` `[ ]`. Nothing ticked.
+- No decision or R minted; next free `Pass 637.0`, decision `199`, `R263`. Unreleased: 102.1, 633.0, 634.0, 635.0, 635.1, 635.2, 636.0.
+
 ### `Pass 635.2` COMPLETE (`202e7b13`), 2026-10-23 — redaction absence proof also searches extracted text (1211th filing)
 
 **Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here. Not yet released.** Core + CLI; gui column untouched. Closes the `635.x` track. Reasoning is in the commit message.
@@ -23618,7 +23631,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). Nothing is at the head of Next up.** Next free `Pass 636.0`; decision `199`, `R263`; next filing 1212th.
+> **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). Nothing is at the head of Next up.** Next free `Pass 637.0`; decision `199`, `R263`; next filing 1213th.
+
+(1212th filing: `Pass 636.0` COMPLETE `444a2c6e`, see *Shipped*; filed and completed in one filing, no Next up item. Nothing minted; next free `Pass 637.0`, decision `199`, `R263`; next filing 1213th.)
 
 (1211th filing: `Pass 635.2` COMPLETE `202e7b13`, see *Shipped*; its Next up item removed. Nothing minted; next free `Pass 636.0`, decision `199`, `R263`; next filing 1212th.)
 
