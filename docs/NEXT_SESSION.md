@@ -5,7 +5,7 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-23 (v0.93.0), during the size-reduction arc (Ken 2026-10-20: "meet
+**Written:** 2026-10-23 (v0.94.0 published, slot pdfcer1; unreleased since: Pass 638.0, redaction strips /ActualText, /Alt and /E over redacted glyphs, `44d2fcb7`), during the size-reduction arc (Ken 2026-10-20: "meet
 or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## State
@@ -27,15 +27,12 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 - **Inserted/pasted pages carry their form fields (Pass 102.1, `3f180dd3`, filed `56105737`)**:
   wholly covered fields carried, partly covered groups pruned, split terminals counted
   (`fields_split`); `orphaned_widgets` narrowed. Two `merge_document` field-tree bugs
-  fixed. GUI notified. Not yet released. **Unreleased Passes: 102.1, 633.0
-  (OCR table cells on ruling lines), 634.0 (unruled cells on blank gutters,
-  `defa0662`), 635.0 (redaction glyph measuring, `f51b10bb`), 635.1
-  (redaction inside form XObjects, `c50a3790` + `576dadb7`).**
+  fixed. GUI notified. Released in v0.94.0 with 633.0-636.0.
 - **Redaction absence proof is in core (Pass 632.0, closes 72.0)**: `redact::verify_absence`; `redact-apply` refuses (exit 9, no file) on a drawn survivor and discloses (exit 10) on any other residual. GUI told it can delete its `proof.rs`. Fuzz `redact_proof`: 882,398 runs / 121 s, clean.
-- **Redaction text surgeon fixed (Pass 635.0, `f51b10bb`, unreleased)**: a kerned
+- **Redaction text surgeon fixed (Pass 635.0, `f51b10bb`, v0.94.0)**: a kerned
   `TJ` / consecutive `Tj` double-advanced `Tm`, so a mark could remove earlier text
   and leave the marked text; `q`/`Q` now restore the font. **Pass 635.1
-  (`c50a3790`, `576dadb7`, unreleased) shipped:** redaction removes text, vectors,
+  (`c50a3790`, `576dadb7`, v0.94.0) shipped:** redaction removes text, vectors,
   shadings and image samples inside form XObjects (`redact_form.rs`, copy-on-write
   `pdfceRdF{num}_{k}`); verified on the operator's out-of-repo file, standing
   request done. **Open, same track: `635.2`** (the byte-level absence proof is
