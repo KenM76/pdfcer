@@ -281,6 +281,7 @@ pub struct OcrRunner {
     files_verified: usize,
     upscale: Option<Upscale>,
     /// [`RunOptions::dpi`], for a page read without one.
+    #[cfg(feature = "ocr-vl")]
     dpi: Option<f32>,
 }
 
@@ -346,6 +347,7 @@ impl OcrRunner {
             inner,
             files_verified,
             upscale: options.upscale,
+            #[cfg(feature = "ocr-vl")]
             dpi: Some(options.dpi),
         })
     }
@@ -358,6 +360,7 @@ impl OcrRunner {
             inner: Inner::Program(engine),
             files_verified: 0,
             upscale: None,
+            #[cfg(feature = "ocr-vl")]
             dpi: None,
         }
     }
