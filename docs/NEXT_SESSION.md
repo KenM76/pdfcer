@@ -5,7 +5,7 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-23 (v0.92.0), during the size-reduction arc (Ken 2026-10-20: "meet
+**Written:** 2026-10-23 (v0.93.0), during the size-reduction arc (Ken 2026-10-20: "meet
 or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## State
@@ -23,11 +23,12 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   to the git rc3 graph (0145632a); refresh them again after any engine dependency change.** pkix full verify waits for model on a registry; decision 196 split precedes
   pkix's first publish. Never flip `publish = true` (Ken's call).
   `cargo publish --dry-run` is permission-denied; use `cargo package`.
-- **Prepress readers (Pass 631.0) shipped and replied to** (`reply_document_uses_overprint_FIXED.md`, `reply_detect_pdfx_claim_FIXED.md`): `prepress::overprint_use`, `pdfx_claim`, `pdfx_output_intents`; `inspect` prints them. Open: which reading Acrobat's "Only for PDF/X files" uses (intent alone or a claim), unmeasured. Next free: Pass 632.0, decision 199, R263, filing 1202nd.
+- **Prepress readers (Pass 631.0) shipped and replied to** (`reply_document_uses_overprint_FIXED.md`, `reply_detect_pdfx_claim_FIXED.md`): `prepress::overprint_use`, `pdfx_claim`, `pdfx_output_intents`; `inspect` prints them. Open: which reading Acrobat's "Only for PDF/X files" uses (intent alone or a claim), unmeasured.
+- **Redaction absence proof is in core (Pass 632.0, closes 72.0)**: `redact::verify_absence`; `redact-apply` refuses (exit 9, no file) on a drawn survivor and discloses (exit 10) on any other residual. GUI told it can delete its `proof.rs`. Fuzz `redact_proof`: 882,398 runs / 121 s, clean. Next free: Pass 633.0, decision 199, R263, filing 1204th.
 - G214-G217 replies are already on the channel (the earlier "owed" note was stale).
-- **Release:** v0.92.0 is published (8 assets; OneDrive `pdfcer1`; `pdfcer2`
-  keeps 0.91.0; GUI notified, `open/notice_2026-10-23_v0.92.0_released.md`).
-  **The next release writes `pdfcer2`.** pdfium render-parity
+- **Release:** v0.93.0 is published (8 assets; OneDrive `pdfcer2`; `pdfcer1`
+  keeps 0.92.0; GUI notified, `open/notice_2026-10-23_v0.93.0_released.md`).
+  **The next release writes `pdfcer1`.** pdfium render-parity
   A/B v0.90.0 (zune 0.5.15) vs v0.92.0 (git rc3), 70 DCTDecode corpus files:
   0 pages changed; control (same files re-encoded `image(encode=jpeg,
   quality=70,chroma=420)`): 11 pages improved (worst 99.7% -> 0.2% over
