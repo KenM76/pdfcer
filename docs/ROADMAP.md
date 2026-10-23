@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.94.0` — release prep `779b72d6` + version bump `d6e362af` (`chore`), 2026-10-23 (1213th filing); NOT yet published
+
+Engineer-reported; no shell here, nothing checked from here. Same pattern as the v0.93.0 bump (1202nd filing).
+- **`779b72d6` (`test`):** marks the deliberate multi-space content-stream literal in `crates/pdfcer-core/src/redact_form_tests.rs` with `string-gap-exempt:`. `check-string-gaps.sh` flagged a `Pass 635.1` fixture; the spaces are the fixture. `Pass 635.1` therefore shipped with that gate red: the change-scoped release check does not include the shell gates, and the full `tools/run-gates.sh` sweep caught it (48 of 49 green before the fix, green on re-run).
+- **`d6e362af` (`chore`):** workspace version 0.93.0 to 0.94.0 in root `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock`.
+- **Passes carried since `v0.93.0`:** 102.1, 633.0, 634.0, 635.0, 635.1, 635.2, 636.0 (already filed, not re-filed).
+- **Gates:** full `tools/run-gates.sh`, 49 commands; core lib tests 2948 passed / 0 failed / 2 ignored. Skipped deliberately by the run-gates default: `cargo-about` regeneration (no dependency change) and the `--all-features` workspace test.
+- **Release plan (not claimed done):** tag goes on the 1213th filing commit; OneDrive slot `pdfcer1` (`pdfcer2` holds 0.93.0). Tag, package, smoke, `verify-release.py`, GitHub release and slot write get their own later filing.
+- **FEATURES:** no change. No decision or R minted; next free `Pass 637.0`, decision `199`, `R263`; next filing 1214th.
+
 ### `Pass 636.0` COMPLETE (`444a2c6e`), 2026-10-23 — PaddleOCR-VL decode stops a loop that never emits a newline (1212th filing)
 
 **Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here. Not yet released.** Core + ocr-host; cli/gui columns untouched. Found while working; filed and completed in one filing. Reasoning is in the commit message.
@@ -23631,7 +23641,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). Nothing is at the head of Next up.** Next free `Pass 637.0`; decision `199`, `R263`; next filing 1213th.
+> **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). Nothing is at the head of Next up.** Next free `Pass 637.0`; decision `199`, `R263`; next filing 1214th.
+
+(1213th filing: v0.94.0 release-prep `779b72d6` + `d6e362af`, see *Shipped*. Nothing minted; next free `Pass 637.0`, decision `199`, `R263`; next filing 1214th.)
 
 (1212th filing: `Pass 636.0` COMPLETE `444a2c6e`, see *Shipped*; filed and completed in one filing, no Next up item. Nothing minted; next free `Pass 637.0`, decision `199`, `R263`; next filing 1213th.)
 

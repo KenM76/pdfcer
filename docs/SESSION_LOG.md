@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1213th filing) — `v0.94.0` release prep: `779b72d6` (gate fix) + `d6e362af` (version bump); NOT yet published
+
+**Filed (engineer-reported; no shell here, nothing checked from here):** `779b72d6` marks the deliberate multi-space content-stream literal in `crates/pdfcer-core/src/redact_form_tests.rs` with `string-gap-exempt:` (`check-string-gaps.sh` flagged a `Pass 635.1` fixture; the spaces are the fixture). `d6e362af` bumps the workspace 0.93.0 to 0.94.0 (root `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`). Release carries the unreleased Passes 102.1, 633.0, 634.0, 635.0, 635.1, 635.2, 636.0. Full entry: `ROADMAP.md` Shipped.
+
+**Finding:** `Pass 635.1` shipped with `check-string-gaps.sh` red because the change-scoped release check does not include the shell gates; the full `tools/run-gates.sh` sweep caught it (48 of 49 green before the fix, 49 after). Core lib tests 2948 passed / 0 failed / 2 ignored. Skipped by the run-gates default: `cargo-about` (no dependency change) and the `--all-features` workspace test.
+
+**Decisions made:** none; no decision or R minted.
+
+**FEATURES.md:** no change.
+
+**For next session:** tag `v0.94.0` goes on the 1213th filing commit (engineer places it); package, smoke, `verify-release.py`, GitHub release, OneDrive slot `pdfcer1` (`pdfcer2` holds 0.93.0). Next up has no head. Next free `Pass 637.0`, decision `199`, `R263`; next filing 1214th.
+
 ## 2026-10-23 (1212th filing) — `Pass 636.0` COMPLETE (`444a2c6e`): PaddleOCR-VL decode stops a loop that never emits a newline
 
 **Filed (engineer-reported; no shell here, nothing checked from here):** the `vl_decode` repetition guard split on the newline token, so a model looping inside one line (OTSL table row, repeated phrase) ran to the 8192-token ceiling. `greedy_guarded` now also stops with `StopReason::Repetition` on a tail of one cycle of at most 64 tokens repeated 16 times over at least 128 tokens, keeping the first cycle. `pdfcer-ocr-host` disclosure covers it. +2 tests (sabotage-checked), ocr-host 24 pass, gates clean, no manifest change. Full entry: `ROADMAP.md` Shipped.
