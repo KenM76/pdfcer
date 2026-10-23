@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1197th filing) — `Pass 616.5` COMPLETE (`8f626c2f`): Acrobat Reader checks done; Reader draws Brotli pages blank
+
+**Filed (engineer-measured; I have no shell, so none of it is checked from here):** the per-encoder Reader render check (decision 193) and the Brotli Reader check that every earlier `616.5` filing listed as unverified.
+
+**Method:** Acrobat Reader 25.1 (Reader, not Pro), `tools/render-parity/acrobat_shot.ps1`; synthetic page (256x256 RGB checkerboard, 256x256 1-bit ring with diagonal, one Helvetica line), not added as a fixture; each image forced with `--object "N=image(encode=X)"` on release v0.92.0.
+
+**Results:** runlength, lzw, ccitt G4, jbig2 generic: identical to source. Brotli (RGB image only) and `--streams brotli` (content stream): Reader shows NO error and draws the WHOLE page blank, text and CCITT image included. pdfcer's own render of every output is pixel-identical to source.
+
+**Code (`8f626c2f`, core + cli):** `BROTLI_NOTE` and the `--streams` help now say Reader opens the file without error but draws every page using Brotli blank; CLI test asserts it. cli brotli tests 2, core `optimize` lib 312 passed; clippy, fmt, code-structure clean; no manifest change.
+
+**Filed alongside:** ROADMAP Shipped entry, Next up `616.5` replaced by a pointer line; `FEATURES.md` two Brotli rows respelled (boxes unchanged: core [x], cli [x], gui [ ]); personal_rag lesson `lesson_20261023_acrobat_reader_25_renders_a_page_blank_when_any_stream_uses_brotlidecode.md` plus both indexes. Side observation, no defect: `--streams "image(...)"` does not reach a 1-bit image (preset bilevel rule 1 outranks it, documented); `--object`/`--rule` do. No Pass, decision or R minted; commit not yet pushed at filing; git and backup state not verified from here.
+
+**For next session:** next free `Pass 631.0`, decision `199`, `R263`; next filing 1198th.
+
 ## 2026-10-23 (1196th filing) — `Pass 623.0` SHIPPED (`fd2f8938`): `iccce-*` -> `icccer-*`
 
 **Filed (engineer-reported; no shell here, so none of it is checked from here):** the colour dependency now tracks the renamed engine, `icccer` rev `7002353e` (v0.4.1), replacing iccce rev `a4d9003b`. Rename-only source diff, colour output unchanged by construction. 201 spellings over 18 files; `BuildInfo::iccce` -> `icccer`, env var -> `PDFCER_ICCCER_PROVENANCE`. Tests 7229/0; clippy, fmt, structure gate, `cargo tree`, wasm32 check all clean. Detail: ROADMAP Shipped entry and the commit message.

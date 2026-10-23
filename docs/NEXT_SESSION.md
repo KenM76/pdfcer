@@ -45,8 +45,8 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   never-larger), 616.2 structure rebuild + navigation clean-up, 616.3
   discards, 616.4 images (complete) — shipped, core + cli. 616.5 encoders:
   RunLength/LZW/CCITT G4/JBIG2/auto/version-raise and Brotli (streams +
-  images, decision 194) shipped; still open only for the Acrobat Reader
-  render checks (Brotli recorded as unverified). **616.6 fonts: slices 1-5
+  images, decision 194) shipped; COMPLETE: Reader 25.1 draws RunLength/LZW/CCITT/JBIG2 identically, and
+  draws any page with a Brotli stream BLANK, silently (the note now says so). **616.6 fonts: slices 1-5
   shipped**: unembed (`--unembed-fonts`), TrueType and CFF re-subset by
   glyph zeroing (`--resubset-fonts`), merging copies of one face (on by
   default, `--no-merge-font-subsets`; TrueType only). A cut leaves
@@ -114,8 +114,8 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## Next
 
-1. Pass 616.9 byte budget + visual-diff report, then 616.10 compatibility; 616.7
-   forms/patterns rounding (see State).
+1. The size-reduction arc (616.x) is complete; pick the next Backlog item
+   (Backlog residue: CFF merge, Type 1 re-subset, short loca).
 2. Each loop tick: the three inbound channels (GitHub issues, both
    FeatureRequests folders).
 
