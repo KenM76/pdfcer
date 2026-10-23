@@ -89,9 +89,7 @@ pub(crate) fn cmd_inspect(file: &Path) -> u8 {
             // first, and the whole hazard is an operator concluding from a
             // clean result that they are looking at the document.
             if let Some(loaded) = full.as_ref() {
-                disclose_wrapper(file, loaded);
-                disclose_repaired_contents(file, loaded);
-                disclose_actions(file, loaded);
+                report_loaded(file, loaded);
             }
             exit::SUCCESS
         }
@@ -101,6 +99,14 @@ pub(crate) fn cmd_inspect(file: &Path) -> u8 {
             exit_code_for(err)
         }
     }
+}
+
+/// What `inspect` reports about a document whose body loaded.
+fn report_loaded(file: &Path, doc: &pdfcer_core::document::Document) {
+    crate::inspect_prepress::print_prepress(file, doc);
+    disclose_wrapper(file, doc);
+    disclose_repaired_contents(file, doc);
+    disclose_actions(file, doc);
 }
 
 /// Disclose what this document would RUN in a reader that runs things

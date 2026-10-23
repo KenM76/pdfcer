@@ -6,6 +6,10 @@
 //! show with no font in force and any limit reached is a fault, and a
 //! fault makes the whole result unusable.
 //!
+//! The same walk answers whether anything drawn asks for overprint
+//! (`gs` with `/OP` or `/op` true, §8.6.7, Table 57), for
+//! [`crate::prepress::overprint_use`].
+//!
 //! [`GlyphUsage::holders`] lists every object whose resources the walk
 //! looked through; a font dictionary referenced from anywhere else may be
 //! drawn by something the walk did not see.
@@ -21,6 +25,8 @@ use interp::{Font, Walker};
 
 /// Page-tree ancestors followed above one page.
 const MAX_ANCESTORS: usize = 64;
+/// Fault messages kept per list.
+const MAX_FAULTS: usize = 16;
 
 /// How a font's shown strings split into codes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -45,11 +51,26 @@ pub(crate) struct GlyphUsage {
     pub(crate) holders: BTreeSet<ObjId>,
     /// Why the result cannot be trusted; empty when it can.
     pub(crate) faults: Vec<String>,
+    /// The faults that left something undrawn by the walk (a stream it
+    /// could not read, a limit reached), as opposed to a show it could
+    /// not attribute to a font.
+    pub(crate) unwalked: Vec<String>,
+    /// The page or stream whose `gs` first asked for overprint.
+    pub(crate) overprint: Option<ObjId>,
 }
 
 impl GlyphUsage {
+    /// A fault that left part of the drawing unwalked.
     fn fault(&mut self, why: String) {
-        if self.faults.len() < 16 {
+        if self.unwalked.len() < MAX_FAULTS {
+            self.unwalked.push(why.clone());
+        }
+        self.glyph_fault(why);
+    }
+
+    /// A fault about attributing shown text to a font only.
+    fn glyph_fault(&mut self, why: String) {
+        if self.faults.len() < MAX_FAULTS {
             self.faults.push(why);
         }
     }
@@ -91,7 +112,17 @@ impl GlyphUsage {
 
 /// Walk everything `view` draws.
 pub(crate) fn enumerate(view: &DocumentView<'_>) -> GlyphUsage {
+    walk(view, false)
+}
+
+/// Walk until something asks for overprint, or everything is walked.
+pub(crate) fn find_overprint(view: &DocumentView<'_>) -> GlyphUsage {
+    walk(view, true)
+}
+
+fn walk(view: &DocumentView<'_>, stop_at_overprint: bool) -> GlyphUsage {
     let mut walker = Walker::new(view);
+    walker.stop_at_overprint = stop_at_overprint;
     let pages = match crate::page_tree::pages_in(view) {
         Ok(p) => p,
         Err(e) => {
@@ -102,7 +133,11 @@ pub(crate) fn enumerate(view: &DocumentView<'_>) -> GlyphUsage {
         }
     };
     for page in &pages {
+        if walker.stopped() {
+            break;
+        }
         walker.usage.holders.insert(page.id);
+        walker.page = page.id;
         note_ancestors(&mut walker.usage, view, page.id);
         match crate::content::ContentStream::from_page(view, page) {
             Ok(content) => walker.content(&content, &page.resources, Font::Unset),

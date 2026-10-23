@@ -708,6 +708,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "prepress"
+path = "fuzz_targets/prepress.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "space_audit"
 path = "fuzz_targets/space_audit.rs"
 test = false

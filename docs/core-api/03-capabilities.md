@@ -5026,3 +5026,42 @@ consequence the operator chose.
 ⚠️ Every type here except `CleanupOptions` and `DiscardOptions` is `#[non_exhaustive]`; match
 with a wildcard arm. Disclose `plan.cleanup` the same way as `skipped`: it
 is content the operator did not name one by one.
+
+## 16. Prepress — overprint use and the PDF/X claim (`Pass 631.0`)
+
+Read-only; no edit session. `pdfcer_core::prepress` (CLI: `pdfcer inspect`).
+
+| Call | Returns |
+|---|---|
+| `prepress::overprint_use(&DocumentView) -> OverprintUse` | `first: Option<ObjId>` (the page or stream whose `gs` first turns overprint on) and `unwalked: Vec<String>` (what the walk could not reach) |
+| `OverprintUse::asks() -> bool` | `first.is_some()` |
+| `OverprintUse::is_complete() -> bool` | a request was found, or every drawn stream was walked |
+| `prepress::pdfx_claim(&DocumentView) -> Option<PdfxClaim>` | `None` when no carrier states a version |
+| `PdfxClaim.level: String` | the claimed level, verbatim (XMP first, else Info; `PDF/X-1:2001` + Conformance `PDF/X-1a:2001` reads `PDF/X-1a:2001`) |
+| `PdfxClaim.xmp_version / info_version / info_conformance: Option<String>` | each carrier as found |
+| `PdfxClaim.output_intents: Vec<String>` | `/OutputConditionIdentifier` of each `/S /GTS_PDFX` output intent |
+| `PdfxClaim::carriers_agree() / is_recognised() / has_output_intent() -> bool` | XMP and Info do not disagree; `level` is a registered value; a `/GTS_PDFX` intent exists |
+| `prepress::pdfx_output_intents(&DocumentView) -> Vec<String>` | the same `/GTS_PDFX` intent list, with or without a claim; for a shell that counts an intent alone as PDF/X |
+
+Contract:
+
+- **Overprint** counts an `ExtGState` with `/OP` or `/op` true that a `gs`
+  actually invokes (ISO 32000-2 §8.6.7, Table 57), or a shading pattern's
+  own `/ExtGState` (§8.7.4.1, Table 75), anywhere drawn: page content,
+  `/AP` N/R/D and their states, forms, tiling patterns, soft-mask groups,
+  Type 3 glyph procedures. One merely listed in resources does not count.
+  The walk stops at the first hit; a "no" parses every stream, so ask off
+  the UI thread on a large file.
+- **`asks() == false && !is_complete()` is "unknown", not "no".** Show it
+  as such, with `unwalked`.
+- **PDF/X** is a claim, never a conformance check. Carriers: Info
+  `GTS_PDFXVersion` through X-3:2003; XMP `GTS_PDFXVersion` in namespace
+  `http://www.npes.org/pdfx/ns/id/` from X-4 on (any prefix, element or
+  attribute form). The Adobe `pdfx` namespace, the header and the Catalog
+  `/Version` are ignored, and an output intent alone is not a claim.
+  Source: spec RAG `pdfx/pdfx__ref__file_identification.md`.
+- An unregistered value is passed through; show it with `is_recognised()`
+  false rather than mapping it. A UTF-16 or undecodable XMP packet reads as
+  stating nothing.
+
+⚠️ Both structs are `#[non_exhaustive]`.

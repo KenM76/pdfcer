@@ -558,6 +558,7 @@ use dispatch::*;
 mod inspect;
 use inspect::*;
 mod inspect_ink;
+mod inspect_prepress;
 use inspect_ink::*;
 mod text_locate_cmd;
 use text_locate_cmd::*;

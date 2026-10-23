@@ -1,6 +1,7 @@
 //! The content walk behind [`super::enumerate`]: text-showing operators
 //! collect raw codes per font dictionary; `Do`, pattern paint, soft-mask
-//! `gs` and Type 3 glyph procedures recurse into the streams they draw.
+//! `gs` and Type 3 glyph procedures recurse into the streams they draw;
+//! `gs` and a shading pattern's `/ExtGState` are checked for overprint.
 
 use std::collections::BTreeSet;
 
@@ -30,6 +31,10 @@ pub(super) enum Font {
 pub(super) struct Walker<'a, 'v> {
     pub(super) view: &'a DocumentView<'v>,
     pub(super) usage: GlyphUsage,
+    /// The page being walked.
+    pub(super) page: ObjId,
+    /// End the walk at the first overprint request.
+    pub(super) stop_at_overprint: bool,
     /// Streams on the current invocation path (cycle guard).
     stack: Vec<ObjId>,
     /// `(stream, inherited font)` pairs already walked.
@@ -43,6 +48,8 @@ impl<'a, 'v> Walker<'a, 'v> {
         Self {
             view,
             usage: GlyphUsage::default(),
+            page: ObjId::new(0, 0),
+            stop_at_overprint: false,
             stack: Vec::new(),
             seen: BTreeSet::new(),
             operations: 0,
@@ -91,6 +98,9 @@ impl<'a, 'v> Walker<'a, 'v> {
         let mut saved: Vec<Font> = Vec::new();
         let mut font = font;
         for op in content.operations() {
+            if self.stopped() {
+                return;
+            }
             self.operations += 1;
             if self.operations > MAX_OPERATIONS {
                 self.usage
@@ -112,7 +122,7 @@ impl<'a, 'v> Walker<'a, 'v> {
                 b"Tj" | b"'" | b"\"" | b"TJ" => self.show(&op, font),
                 b"Do" => self.invoke(&op, resources, font),
                 b"scn" | b"SCN" => self.pattern(&op, resources),
-                b"gs" => self.soft_mask(&op, resources),
+                b"gs" => self.ext_gstate(&op, resources),
                 _ => {}
             }
         }
@@ -125,7 +135,7 @@ impl<'a, 'v> Walker<'a, 'v> {
         };
         let Some(entry) = sub_entry(self.view, resources, b"Font", name) else {
             self.usage
-                .fault("a Tf names a font the resources lack".to_owned());
+                .glyph_fault("a Tf names a font the resources lack".to_owned());
             return Font::Unset;
         };
         let Some(id) = entry.as_reference() else {
@@ -166,7 +176,7 @@ impl<'a, 'v> Walker<'a, 'v> {
         match font {
             Font::Unset => self
                 .usage
-                .fault("text is shown with no font selected".to_owned()),
+                .glyph_fault("text is shown with no font selected".to_owned()),
             Font::Untracked => {}
             Font::Tracked(id, width) => self.usage.record(id, width, &bytes),
         }
@@ -203,12 +213,41 @@ impl<'a, 'v> Walker<'a, 'v> {
         else {
             return;
         };
-        if matches!(self.view.value(id), Some(Object::Stream(_))) {
-            self.stream(id, resources, Font::Unset);
+        let view = self.view;
+        match view.value(id) {
+            Some(Object::Stream(_)) => self.stream(id, resources, Font::Unset),
+            // A shading pattern's own graphics state (§8.7.4.1, Table 75).
+            Some(Object::Dict(pattern)) => {
+                let gs = pattern
+                    .get(b"ExtGState")
+                    .map(|o| view.resolve(o))
+                    .and_then(Object::as_dict);
+                if gs.is_some_and(asks_overprint) {
+                    self.note_overprint();
+                }
+            }
+            _ => {}
         }
     }
 
-    fn soft_mask(&mut self, op: &Operation<'_>, resources: &Dict) {
+    /// Whether a [`super::find_overprint`] walk has its answer.
+    pub(super) fn stopped(&self) -> bool {
+        self.stop_at_overprint && self.usage.overprint.is_some()
+    }
+
+    /// The drawing whose operator is being interpreted.
+    fn here(&self) -> ObjId {
+        self.stack.last().copied().unwrap_or(self.page)
+    }
+
+    fn note_overprint(&mut self) {
+        if self.usage.overprint.is_none() {
+            self.usage.overprint = Some(self.here());
+        }
+    }
+
+    /// A `gs`: its overprint flags, and the group of its soft mask.
+    fn ext_gstate(&mut self, op: &Operation<'_>, resources: &Dict) {
         let Some(name) = name_operand(op, 0) else {
             return;
         };
@@ -219,6 +258,9 @@ impl<'a, 'v> Walker<'a, 'v> {
         else {
             return;
         };
+        if asks_overprint(gs) {
+            self.note_overprint();
+        }
         let group = gs
             .get(b"SMask")
             .map(|o| view.resolve(o))
@@ -252,6 +294,14 @@ impl<'a, 'v> Walker<'a, 'v> {
             self.stream(p, &res, Font::Unset);
         }
     }
+}
+
+/// `/OP` or `/op` true. `OP` alone sets both flags, so either being true
+/// asks for overprint on some painting (§8.6.7, Table 57).
+fn asks_overprint(gs: &Dict) -> bool {
+    [b"OP".as_slice(), b"op"]
+        .iter()
+        .any(|k| matches!(gs.get(k), Some(Object::Boolean(true))))
 }
 
 fn name_operand<'o>(op: &Operation<'o>, index: usize) -> Option<&'o [u8]> {

@@ -70,6 +70,7 @@ mod import_structure_stale;
 mod in_place;
 mod ink_edit;
 mod inspect_ink;
+mod inspect_prepress;
 mod inspect_reflow_preview;
 mod inspect_table_cells;
 mod inspect_text_blocks;
