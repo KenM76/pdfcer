@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.93.0` PUBLISHED, 2026-10-23 — tag `v0.93.0` (annotated, object `551d9575`) at `a68f3742` (1203rd filing)
+
+Engineer-reported measurements; I have no shell, nothing here is checked from here. Publication of the bump `b2567229` (filed 1202nd). Tag points at `a68f3742`, the 1202nd filing commit. Passes in the release since `v0.92.0`, already filed and not re-filed: `73015960` (`Pass 631.0`: `prepress::pdfx_claim`, `pdfx_output_intents`, `overprint_use`), `56676539` (`Pass 632.0`: `redact::verify_absence` plus `redact-apply` enforcement), `92621ee5` (CI temp-path fix).
+- **GitHub release:** 8 assets: `pdfcer-v0.93.0-windows-x64.zip` (27,434,328 bytes), 3 OCR add-on zips, and a `.sha256` for each (4 zips + 4 = 8).
+- **Build folder:** `D:\builds\pdfcer-20261023-0920-a68f374`. **OneDrive:** slot `pdfcer2` now holds 0.93.0 (6 items, 73,875,273 bytes); `pdfcer1` keeps 0.92.0; the next release writes `pdfcer1`.
+- **Fresh-folder smoke: PASS.** `--version` reports 0.93.0, revision `v0.93.0`; `--help` shows `--allow-drawn-survivors`, `--acknowledge-unverified`, `--lower-version`; `inspect` prints the overprint line; `redact-mark` then `redact-apply` on hello.pdf printed `absence: verified`, exit 0.
+- **Fuzz:** new target `redact_proof`: 882,398 runs in 121 s (= 7,292 runs/s, 137 us each), no crash. Closes the "result owed" note in the 1202nd filing.
+- **CI:** green at the tag (run 39960163851). **`tools/verify-release.py v0.93.0`:** every check passes except "working tree clean", which fails only on uncommitted `.claude/agent-memory` files (never staged by rule, not release inputs).
+- **Gates:** change-scoped release gates (Ken 2026-10-16): changed crates' tests, filing gates and repo audits all green.
+- **GUI notice:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-10-23_v0.93.0_released.md` plus an INDEX row.
+- **FEATURES:** no change (core/cli/gui unchanged by publication). No decision or R minted; next free `Pass 633.0`, decision `199`, `R263`; next filing 1204th.
+
 ### `Pass 632.0` COMPLETE (`56676539`), 2026-10-23 — redaction absence proof in core, enforced by `redact-apply`; closes `Pass 72.0` (1202nd filing; with `92621ee5` and the v0.93.0 bump `b2567229`)
 
 **Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here. Commit on main after `a3a4133e`.** Core + CLI; gui column untouched (separate project, carries its own copy of the proof). Port of pdfcer-gui's `pdfcer-gui-base/src/redact/proof.rs`, stricter: an undecoded stream or unparsable output forfeits Verified, and streams are searched one at a time. Reasoning is in the commit message.
@@ -128,7 +140,7 @@ Test-only change in `crates/pdfcer-cli/tests/inspect_prepress.rs`. It fixes CI r
 
 ### `v0.93.0` — version bump `b2567229` (`chore(release)`), 2026-10-23 (1202nd filing); NOT yet published
 
-Engineer-reported; no shell here. Bump of `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock`, same pattern as the v0.92.0 bump (1193rd filing). **Not claimed done:** tag, package, smoke, `verify-release.py`, GitHub release, OneDrive slot; publication gets its own later filing. Passes since `v0.92.0` as filed: 623.0, 616.5, 626.0, 631.0, 632.0. `FEATURES.md`: no change.
+Engineer-reported; no shell here. Bump of `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock`, same pattern as the v0.92.0 bump (1193rd filing). **Not claimed done:** tag, package, smoke, `verify-release.py`, GitHub release, OneDrive slot; publication gets its own later filing (since filed: 1203rd, see the `v0.93.0` PUBLISHED entry above). Passes since `v0.92.0` as filed: 623.0, 616.5, 626.0, 631.0, 632.0. `FEATURES.md`: no change.
 
 ### `Pass 631.0` COMPLETE (`73015960`), 2026-10-23 — does the document use overprint, and does it claim PDF/X (1201st filing)
 
@@ -23536,7 +23548,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-(1202nd filing: `Pass 632.0` COMPLETE `56676539`, closes `Pass 72.0`; `92621ee5` follow-up to 631.0; v0.93.0 bump `b2567229`; see *Shipped*. Next free `Pass 633.0`, decision `199`, `R263`; next filing 1203rd.)
+(1203rd filing: `v0.93.0` PUBLISHED, tag at `a68f3742`; see *Shipped*. Preceded by 1202nd: `Pass 632.0` COMPLETE `56676539`, closes `Pass 72.0`. Next free `Pass 633.0`, decision `199`, `R263`; next filing 1204th.)
 
 (1200th filing: `Pass 626.0` slice 2 SHIPPED `d0f7c993`, Pass COMPLETE, see *Shipped*. No Pass, decision or R minted; next free `Pass 631.0`, decision `199`, `R263`; next filing 1201st.)
 

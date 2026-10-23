@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1203rd filing) — `v0.93.0` PUBLISHED (tag at `a68f3742`)
+
+**Filed (engineer-reported measurements; no shell here, nothing checked from here):** annotated tag `v0.93.0` (object `551d9575`) points at `a68f3742`, the 1202nd filing commit. GitHub release has 8 assets (windows-x64 zip 27,434,328 bytes, 3 OCR add-on zips, a `.sha256` each). Build folder `D:\builds\pdfcer-20261023-0920-a68f374`. OneDrive slot `pdfcer2` holds 0.93.0 (6 items, 73,875,273 bytes); `pdfcer1` keeps 0.92.0; next release writes `pdfcer1`. Full entry: `ROADMAP.md` Shipped.
+
+**Verified by the engineer:** fresh-folder smoke PASS (version 0.93.0, new flags in `--help`, `inspect` overprint line, `redact-apply` prints `absence: verified`, exit 0); fuzz `redact_proof` 882,398 runs in 121 s (7,292 runs/s), no crash; CI green at the tag (run 39960163851); `verify-release.py` all pass except "working tree clean" (uncommitted `.claude/agent-memory` files, never staged, not release inputs); change-scoped gates green. GUI notice `notice_2026-10-23_v0.93.0_released.md` posted with an INDEX row.
+
+**Decisions made:** none; no decision or R minted. FEATURES.md unchanged (publication only).
+
+**Survivors (hard rule 11):** none found for a release filing; the 1202nd entry's "NOT yet published" and "fuzz result owed" wording now carries a forward pointer / is closed by this entry.
+
+**For next session:** next free `Pass 633.0`, decision `199`, `R263`; next filing 1204th; Ken's Brotli answer (1199th) still open; D: space tight; pdfcer-gui owes `Pass 72.0` criterion 5.
+
 ## 2026-10-23 (1202nd filing) — `Pass 632.0` COMPLETE (`56676539`): redaction absence proof in core; closes `Pass 72.0`
 
 **Filed (engineer-reported; no shell here, nothing checked from here), three commits:** `56676539` `Pass 632.0` (core `redact::verify_absence`, `pdfcer redact-apply` checks before writing; new `--allow-drawn-survivors` and `--acknowledge-unverified`; exit 9 refuse / 10 residuals); `92621ee5` follow-up to `Pass 631.0` (per-process temp path in `inspect_prepress`, fixes CI run 39954712660, `check-test-temp-unique`); `b2567229` `chore(release)` v0.93.0 bump (publication filed later). Full entries: `ROADMAP.md` Shipped.
