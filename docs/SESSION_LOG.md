@@ -8,6 +8,8 @@ the affected entry. Maintained by `pdfce-librarian`.
 
 **Filed (engineer-reported; no shell here, so none of it is checked from here):** code commit `d0f7c993` on main after `d1a93291`. Core `optimize::lower_version`, CLI `optimize --compat VERSION --lower-version`, new `pdfcer_model::writer::rebuild_declaring`. Full entry: `ROADMAP.md` Shipped. FEATURES row core `[x]` cli `[x]` gui `[ ]`; no further slice planned.
 
+**Follow-up commit `5e0cfa72`** "docs(optimize): point the version-floor module at lower_version": doc-comment-only change to `crates/pdfcer-core/src/optimize/version_floor/mod.rs`, replacing the stale "Lowering a declared version is opt-in" sentence with a link to `super::lower_version`. Survivor sweep (hard rule 11): CLI `--compat` help and `compat.rs` "report-only" lines checked and still accurate.
+
 **Findings:** corpus run over `fixtures/external` (2,915 files, each proven-lowerable file lowered to its floor): 1,610 lowered (1,587 in place + 23 rebuilt), 6 refused (all signed), 0 bad.
 
 **Incident 1, gate skipped:** slice-1 code was pushed (`d1a93291`) without running the public-fns-documented gate and fmt; CI went red (fmt diff in `crates/pdfcer-cli/tests/optimize.rs`, undocumented `custom` in `checks.rs` and `lossy` in `scan.rs`). Fixed in `d0f7c993`. Run `tools/run-gates.sh` before the push, not after.

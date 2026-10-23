@@ -121,6 +121,7 @@ wherever it appears.*
 - **Corpus** (`fixtures/external`, 2,915 files, each proven-lowerable file lowered to its floor): 1,610 lowered (1,587 in place + 23 rebuilt = 1,610), 6 refused (all signed), 0 bad (page count and floor preserved on reload).
 - **Tests:** pdfcer-core `--no-default-features` 1847 + 242 + 2942 passed (2 ignored); 10 new `lower_version` unit tests; pdfcer-cli `--test all` 955 passed (2 ignored), new `lower_version_rewrites_the_header_and_refuses_content_above_the_target`; pdfcer-model 428 passed; image-codec and fuzz check green. `tools/run-gates.sh`: 45 of 49 green first run, the 4 failures were disk-full (below), all 4 green on re-run. `cargo tree`: no manifest touched, no new dependency.
 - **Same commit fixed CI red on `d1a93291`:** cargo fmt diff in `crates/pdfcer-cli/tests/optimize.rs`, and missing doc comments on the slice-1 helpers `custom` (`checks.rs`) and `lossy` (`scan.rs`). See SESSION_LOG 1200th.
+- **Follow-up commit `5e0cfa72`:** doc-comment-only; `optimize/version_floor/mod.rs` stale "Lowering a declared version is opt-in" sentence replaced with a link to `super::lower_version`. CLI `--compat` help and `compat.rs` "report-only" lines swept and still accurate.
 - **FEATURES:** "Lower the declared PDF version" row, core `[x]` cli `[x]` gui `[ ]`. No further slice planned. No decision or R minted; next free `Pass 631.0`, decision `199`, `R263`.
 
 ### `Pass 616.5` COMPLETE (`8f626c2f`), 2026-10-23 — the Acrobat Reader checks are done; Reader draws Brotli pages blank (1197th filing)
