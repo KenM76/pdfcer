@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.94.0` PUBLISHED, 2026-10-23 — tag `v0.94.0` (annotated, object `2fc2e0ba`) at `95df46a2` (1215th filing)
+
+Engineer-reported measurements; I have no shell, nothing here is checked from here. Publication of the bump `d6e362af` (prep filed 1213th, `95df46a2`). Passes in the release since `v0.93.0`, already filed and not re-filed: `3f180dd3` (`Pass 102.1`), `d94693ca` (`633.0`), `defa0662` (`634.0`), `f51b10bb` (`635.0`), `c50a3790` + `576dadb7` (`635.1`), `202e7b13` (`635.2`), `444a2c6e` (`636.0`). Tag pushed with `main`.
+- **GitHub release "pdfcer v0.94.0":** 8 assets: `pdfcer-v0.94.0-windows-x64.zip` (27,479,412 bytes), `ocr-addon-ocrcer.zip` (3,789,155), `ocr-addon-ocrs.zip` (11,352,262), `ocr-addon-tesseract.zip` (4,483,685), and a `.sha256` for each (4 zips + 4 = 8). Uploaded at local sizes (`gh-release.py` PASS).
+- **Build folder:** `D:\builds\pdfcer-20261023-1616-95df46a`, `pdfcer.exe` 38,490,624 bytes, built from the clean tag.
+- **Fresh-folder smoke: PASS.** `--version` reports 0.94.0, revision `v0.94.0`; `--help`; `inspect fixtures/synthetic/hello.pdf`; `redact-apply fixtures/synthetic/redact/demo-marked-output.pdf` exit 0, `absence: verified`.
+- **OneDrive:** slot `pdfcer1` now holds 0.94.0 (6 items, 74,038,089 bytes); `pdfcer2` keeps 0.93.0; the next release writes `pdfcer2`.
+- **`tools/verify-release.py v0.94.0`:** all checks ok (tag pushed, origin/main contains it, CI GREEN at the tag, release assets, OneDrive current + previous) EXCEPT "working tree clean": 13 uncommitted paths, agent-memory files plus the in-progress `Pass 638.0` code. The package predates those edits, so the release is reproducible from the tag.
+- **GUI notice:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-10-23_v0.94.0_released.md`; no INDEX row (rows are added when an exchange closes).
+- **Also on `main`, not in the release:** `800d9c83` (`Pass 637.0` filing, 1214th), blocked on the crates.io token.
+- **FEATURES:** no change (publication changes no capability). No decision or R minted; next free `Pass 638.0` (being used for the ActualText redaction fix, filed separately), decision `199`, `R263`; next filing 1216th.
+
 ### `v0.94.0` — release prep `779b72d6` + version bump `d6e362af` (`chore`), 2026-10-23 (1213th filing); NOT yet published
 
 Engineer-reported; no shell here, nothing checked from here. Same pattern as the v0.93.0 bump (1202nd filing).
@@ -23641,7 +23653,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 638.0`; decision `199`, `R263`; next filing 1215th.
+> **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 638.0`; decision `199`, `R263`; next filing 1216th.
+
+(1215th filing: `v0.94.0` PUBLISHED, tag at `95df46a2`; see *Shipped*. Nothing minted; next free `Pass 638.0`, decision `199`, `R263`; next filing 1216th.)
 
 (1213th filing: v0.94.0 release-prep `779b72d6` + `d6e362af`, see *Shipped*. Nothing minted; next free `Pass 637.0`, decision `199`, `R263`; next filing 1214th.)
 

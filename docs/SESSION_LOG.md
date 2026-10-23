@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1215th filing) — `v0.94.0` PUBLISHED: tag `v0.94.0` (`2fc2e0ba`) at `95df46a2`
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):** release published. GitHub release "pdfcer v0.94.0" has 8 assets (`pdfcer-v0.94.0-windows-x64.zip` 27,479,412 bytes; OCR add-on zips ocrcer 3,789,155, ocrs 11,352,262, tesseract 4,483,685; a `.sha256` each), uploaded at local sizes (`gh-release.py` PASS). Package `D:\builds\pdfcer-20261023-1616-95df46a`, `pdfcer.exe` 38,490,624 bytes, built from the clean tag. Fresh-folder smoke PASS (`--version` 0.94.0 / `v0.94.0`, `--help`, `inspect`, `redact-apply` on `demo-marked-output.pdf` exit 0, `absence: verified`). OneDrive slot `pdfcer1` = 0.94.0 (6 items, 74,038,089 bytes); `pdfcer2` keeps 0.93.0. Carries Passes 102.1, 633.0, 634.0, 635.0, 635.1, 635.2, 636.0. Full entry: `ROADMAP.md` Shipped.
+
+**Finding:** `verify-release.py v0.94.0` passes every check (tag pushed, origin/main contains it, CI green at tag, assets, OneDrive current + previous) except "working tree clean": 13 uncommitted paths (agent-memory files plus in-progress `Pass 638.0` code). Package predates those edits, so the release is reproducible from the tag.
+
+**Decisions made:** none; no decision or R minted. **FEATURES.md:** no change.
+
+**Still in flight:** `Pass 638.0` (ActualText redaction fix, filed separately); `Pass 637.0` blocked on the crates.io token. GUI notice `notice_2026-10-23_v0.94.0_released.md` written (no INDEX row until an exchange closes).
+
+**For next session:** next free `Pass 638.0`, decision `199`, `R263`; next filing 1216th. Next release writes OneDrive slot `pdfcer2`.
+
 ## 2026-10-23 (1214th filing) — `Pass 637.0` filed: publish the engine crates to crates.io (`X001`), BLOCKED on a token
 
 **Filed (docs only; no code, no shell here, nothing checked from here):** request `X001` (`pdfce_FeatureRequests/open/request_X001_publish_engine_crates_to_crates_io.md`) filed as `Pass 637.0` in `ROADMAP.md` Next up, acceptance = the request's five items. `X###` is a new third request counter (external crates consumer), beside `G###` and `E###`; no pdfcer doc describes the channel-key counters, so the only record is the `637.0` entry. Engineer-measured: the four names are unclaimed on crates.io; no registry credentials on this machine, so it waits on an operator-supplied token (`cargo login`). Blockers: git dependencies (icccer in render; zune-jpeg `c1c7f497` in image-codec and 3d, which blocks core by path); pkix verifies only after model is published (decision 196).
