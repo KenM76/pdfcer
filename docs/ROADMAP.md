@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 102.1` COMPLETE (`3f180dd3`), 2026-10-23 — inserted pages carry the form fields whose widgets ALL arrive (1204th filing)
+
+**Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here.** Core + CLI; gui column untouched (separate project, being notified). Closes option (1) of the 2026-08-18 insert-pages request; `Pass 102.0` (the count) and `Pass 103.1` (`adopt_widget`) shipped earlier. Reasoning is in the commit message.
+- **Core:** `EditSession::insert_pages` / `insert_pages_with` / `paste_pages` carry a source field into the target `/AcroForm` when all its widgets land on inserted pages (ISO 32000-1 §12.7.3.1-§12.7.3.2). A partly covered non-terminal arrives as a PRUNED copy holding only its fully covered kids, so inherited FT/Ff/V/DV/DA/Q still resolve; a split terminal is not carried and is counted. `/Parent` re-pointed at every depth. Root-name collision renames with a numeric suffix. `/SigFlags` carried only with a signature field; `NeedAppearances` ORed; `/DR` merged target-wins; `/DA` copied when absent. One undo entry. New module `crates/pdfcer-core/src/edit/insert_fields.rs`.
+- **Recorded divergence:** `pageops::assemble` (CLI `insert-pages` / `merge` route) drops a split ROOT field whole; the session path prunes instead.
+- **`InsertOutcome` gains `fields_carried`, `fields_renamed`, `fields_split`, `acroform_created`. `orphaned_widgets` semantics CHANGED:** it now counts only widgets of split or unlisted fields (consumers must re-read it; GUI notified).
+- **Two `merge_document` bugs fixed via the shared helpers** (fix-on-discovery): `merge_acroform` restored `/Parent` only one level deep, and compared exact terminal FQNs so an arriving root merged silently into a same-named target group.
+- **CLI:** `page-paste` prints `fields_carried`/`fields_renamed`/`fields_split` and discloses renames on stderr; `--help` rewritten. `docs/core-api/02-editing-and-saving.md` updated; `check-core-api-verbs` PASS. Structure baseline lost two entries (`insert_pages_with`, `merge_acroform` now under 80 lines).
+- **Tests:** 6 new (`crates/pdfcer-core/tests/insert_pages_carries_fields.rs`); `widget_adoption`, `insert_pages_preserves_undo`, `page_clipboard` re-pinned. pdfcer-core 5212 passed / 0 failed; pdfcer-cli green; clippy `-D warnings` and fmt clean. Sabotage: depth-1-only reparent fails 2; dropping group names from the collision set fails 2; the root-segment split alone is a null mutation (group names already supply every ancestor), commented as such.
+- **Invariants:** `cargo tree` - no manifest changed. CLI smoke: `page-copy` of the synthetic demo form then `page-paste` printed `fields_carried=2 orphaned_widgets=0`.
+- **FEATURES:** "True in-place page insertion" row (core/gui boxes unchanged, text rewritten), "Cut, copy and paste whole PAGES" row (cli `[x]` already; text corrected), "Merge several files" row (two bug fixes noted). No gui box ticked. No decision or R minted; next free `Pass 633.0`, decision `199`, `R263`.
+
 ### `v0.93.0` PUBLISHED, 2026-10-23 — tag `v0.93.0` (annotated, object `551d9575`) at `a68f3742` (1203rd filing)
 
 Engineer-reported measurements; I have no shell, nothing here is checked from here. Publication of the bump `b2567229` (filed 1202nd). Tag points at `a68f3742`, the 1202nd filing commit. Passes in the release since `v0.92.0`, already filed and not re-filed: `73015960` (`Pass 631.0`: `prepress::pdfx_claim`, `pdfx_output_intents`, `overprint_use`), `56676539` (`Pass 632.0`: `redact::verify_absence` plus `redact-apply` enforcement), `92621ee5` (CI temp-path fix).
@@ -23548,6 +23560,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
+(1204th filing: `Pass 102.1` COMPLETE `3f180dd3`, see *Shipped*. Nothing minted; next free `Pass 633.0`, decision `199`, `R263`; next filing 1205th.)
+
 (1203rd filing: `v0.93.0` PUBLISHED, tag at `a68f3742`; see *Shipped*. Preceded by 1202nd: `Pass 632.0` COMPLETE `56676539`, closes `Pass 72.0`. Next free `Pass 633.0`, decision `199`, `R263`; next filing 1204th.)
 
 (1200th filing: `Pass 626.0` slice 2 SHIPPED `d0f7c993`, Pass COMPLETE, see *Shipped*. No Pass, decision or R minted; next free `Pass 631.0`, decision `199`, `R263`; next filing 1201st.)
@@ -26872,38 +26886,8 @@ it. **Until then this box stays in *Next up*.**
 > flag** is refused as turning a disclosable condition into a gate, which
 > is the opposite of rule 4's direction of travel.
 >
-> **`Pass 102.1` (option (1), the merge) is NOT retired by the ship** —
-> see its own entry, immediately below, and its binding `102.0`-first
-> ordering, which is now satisfied.
-
----
-
-### Pass 102.1 — **CARRY FIELD DEFINITIONS for fields whose widgets ALL land on inserted pages** — option (1), the follow-on, **DEPENDS ON `Pass 103.1`** — filed 2026-08-18 (hundred-and-eighty-fourth filing) — **UNSTARTED**
-
-The merge the operator actually wants, and the one the requester ranked
-second on purpose. **It does not retire `Pass 102.0`** — see that entry's
-ruling: split fields leave a residue no merge can absorb.
-
-**Ordering is binding: `102.0` before `102.1`.** The count must exist and
-be tested before anything starts reducing it, or there is no instrument
-to show the reduction happened.
-
-**Depended on `Pass 103.1`** (adopt an existing widget into a field): this
-Pass is that verb applied automatically at insert time, for the subset
-where the answer is unambiguous. Building the automatic case first would
-mean building the verb inside `insert_pages` and then extracting it.
-**That dependency is now satisfied** — `Pass 103.1` shipped (commit
-`afa53d5`) as `EditSession::adopt_widget`, and its own scoping
-measurement (13 orphaned widgets, 2 structurally unrecoverable without a
-field-carrying fix) is this Pass's scoping input — see
-`C:\personal_rag\pdf\lesson_20260819_import_dict_strips_parent_from_every_dict_reasoning_only_covered_pages.md`.
-
-**Named collision hazard, flagged not solved:** `pageops::insert` already
-has `/AcroForm` name-collision machinery for the whole-document merge
-path. **The requester says explicitly they do not have it and pdfce
-does.** Reuse it; do not write a second one (**R151**'s 2026-08-10
-addendum — grep for the existing uncalled capability before writing a
-parallel one).
+> **`Pass 102.1` (option (1), the merge) SHIPPED 2026-10-23 (`3f180dd3`,
+> 1204th filing)** — see *Shipped*.
 
 ---
 

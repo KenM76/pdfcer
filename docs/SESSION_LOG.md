@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1204th filing) — `Pass 102.1` COMPLETE (`3f180dd3`): inserted pages carry their form fields
+
+**Filed (engineer-reported; no shell here, nothing checked from here):** `EditSession::insert_pages` / `insert_pages_with` / `paste_pages` now carry a form field into the target `/AcroForm` when all its widgets land on inserted pages; split fields stay orphaned and are counted. `InsertOutcome` gains `fields_carried`, `fields_renamed`, `fields_split`, `acroform_created`; `orphaned_widgets` now counts only split/unlisted-field widgets. Two `merge_document` field-tree bugs fixed in the same commit. Full entry: `ROADMAP.md` Shipped. Tests: 6 new; pdfcer-core 5212 passed / 0 failed; clippy and fmt clean.
+
+**Decisions made:** none; no decision or R minted. Recorded divergence: `pageops::assemble` drops a split root field whole, the session path prunes.
+
+**FEATURES.md:** three rows text-corrected (in-place insert, page paste, merge); the "arrive orphaned/inert" claim removed; no gui box ticked.
+
+**Survivors (hard rule 11, swept `FEATURES.md` by the bare keyword `orphan`, 13 hits):** two were the wrong claim and are fixed (rows "True in-place page insertion", "Cut, copy and paste whole PAGES"). Correct and left alone: the `orphans nothing` clause about the CLI `insert-pages` (same row), `action_targets_orphaned`, redaction/outline "orphaned" uses. NOT swept by me (outside my remit, owed to the engineer): `crates/` doc comments and `--help` on `orphaned_widgets`, `docs/core-api/` beyond 02, `ARCHITECTURE.md`, and pdfcer-gui's own insert disclosure (it describes `orphaned_widgets` with the old meaning).
+
+**Channel:** no open request maps to `Pass 102.1` (the originating request `2026-08-18-request_insert_pages_leaves_orphaned_widgets...` is archived); a notice `open\notice_2026-10-23_inserted_pages_carry_their_form_fields.md` already exists.
+
+**For next session:** next free `Pass 633.0`, decision `199`, `R263`; next filing 1205th.
+
 ## 2026-10-23 (1203rd filing) — `v0.93.0` PUBLISHED (tag at `a68f3742`)
 
 **Filed (engineer-reported measurements; no shell here, nothing checked from here):** annotated tag `v0.93.0` (object `551d9575`) points at `a68f3742`, the 1202nd filing commit. GitHub release has 8 assets (windows-x64 zip 27,434,328 bytes, 3 OCR add-on zips, a `.sha256` each). Build folder `D:\builds\pdfcer-20261023-0920-a68f374`. OneDrive slot `pdfcer2` holds 0.93.0 (6 items, 73,875,273 bytes); `pdfcer1` keeps 0.92.0; next release writes `pdfcer1`. Full entry: `ROADMAP.md` Shipped.
