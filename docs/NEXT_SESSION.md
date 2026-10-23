@@ -18,8 +18,10 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   every release.** iccce replied (`open/reply_crates_io_ready_and_the_version_to_pin.md`):
   package-ready, pin `0.3.1` if published (API = our rev `a4d9003b`), publishing
   is Ken's call; when it is, add `version = "0.3"` beside the git dep in
-  pdfcer-render. **zune-jpeg is pinned `=0.5.16-rc3` (decision 197): moving to
-  stable 0.5.16 blocks any crates.io publish.** pkix full verify waits for model on a registry; decision 196 split precedes
+  pdfcer-render. **zune-jpeg rc3 comes from git at rev `c1c7f497` (decision 198,
+  amending 197) so a downstream `^0.5` resolves; moving to stable crates.io
+  0.5.16 still blocks any crates.io publish. `tools/*/Cargo.lock` still lock
+  the registry rc3 and are stale anyway.** pkix full verify waits for model on a registry; decision 196 split precedes
   pkix's first publish. Never flip `publish = true` (Ken's call).
   `cargo publish --dry-run` is permission-denied; use `cargo package`.
 - G214-G217 replies are already on the channel (the earlier "owed" note was stale).

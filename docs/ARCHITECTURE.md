@@ -13492,3 +13492,15 @@ Full record: `docs/decisions/197-zune-jpeg-rc-pin.md`. Recorded at `Pass 620.0` 
 **Why.** zune-jpeg 0.5.15 mis-decodes subsampled baseline JPEG written one scan per component; the fix is in the decoder. Rejected: pin alone (nothing catches a return), encoder workaround (5-10% size cost, third-party files stay broken), both, `[patch]` to a git commit.
 
 **Body-section effect.** None; no body section names zune-jpeg (grep of this file). **Decision ceiling.** Fills `197`; next free decision `198`. **New standing rule.** None; `R263` stays next free.
+
+### 2026-10-22 (1192nd filing) — decision 198: zune-jpeg rc3 comes from git `c1c7f497`, not the registry; amends 197
+
+Full record: `docs/decisions/198-zune-jpeg-git-source.md`. Recorded at `Pass 630.0` (`32e2bff1`).
+
+**Decides.** zune-jpeg in `pdfcer-image-codec`, `pdfcer-3d` (optional) and `pdfcer-render` (dev) is `git = "https://github.com/etemesi254/zune-image", rev = "c1c7f49776ee32928ed329f4436ae63a595b6283"`; zune-core from the same rev. The rc3 code and 197's test are unchanged; only the source moved. Revisit when stable 0.5.16 is on crates.io (move to a registry version; still a publish blocker, and a git dependency also blocks `cargo package`).
+
+**Why.** 197's registry `=0.5.16-rc3` made `pdfcer-gui` unresolvable: tiff 0.11.3 (via eframe -> egui-winit -> arboard -> image) needs zune-jpeg `^0.5.1`, a caret never matches a pre-release, and Cargo allows one compatible version per source. A git source is a distinct package, so registry 0.5.15 and git 0.5.16-rc3 coexist (measured with a scratch crate). The crates.io tarball's recorded sha `b71f4180` is not on the GitHub remote; `c1c7f497` differs from the tarball's `src` by one unused import.
+
+**Relation to 197.** 197 rejected "`[patch]` to a git commit" as harder to audit and publish-blocking; this is a dependency-level git source chosen for downstream resolvability, and 197's own note that a pre-release pin fails beside a downstream `^0.5` is the failure that occurred.
+
+**Body-section effect.** None; no body section names zune-jpeg. **Decision ceiling.** Fills `198`; next free decision `199`. **New standing rule.** None; `R263` stays next free.

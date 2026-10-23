@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-22 (1192nd filing) — `32e2bff1` Pass 630.0 SHIPPED (zune-jpeg rc3 from git); decision 198 amends 197; three gui requests found already shipped
+
+**Filed (engineer-reported, no shell here; git, push and backup state not verified from here):**
+- `32e2bff1` `Pass 630.0`: zune-jpeg in three manifests moved from registry `=0.5.16-rc3` to git `c1c7f497`, so `pdfcer-gui`'s graph (tiff 0.11.3 wants `^0.5.1`) resolves. 6397 tests passed, 0 failed; clippy clean; `cargo tree` core/render clean; `Cargo.lock`, `fuzz/Cargo.lock`, `THIRD_PARTY_LICENSES.md` updated. `tools/*/Cargo.lock` left stale deliberately (about 9k lines each to re-resolve): known gap.
+- Decision 198 (amends 197), `docs/decisions/198-zune-jpeg-git-source.md`; 197 got a forward-pointer header. Reply `open/reply_zune_jpeg_prerelease_pin_FIXED.md`.
+- FEATURES: no row changes (dependency source only).
+
+**Premise found false (dispatch asked for `631.0`-`633.0` from three requests):** all three are already shipped, so NO new Passes were minted. `request_undo_history_listing.md` = `Pass 423.0` (`2804e522`; `undo_kinds`/`redo_kinds`/`redo_depth`, `edit.rs:10886-10954`; the touched page deliberately not carried, reply says to send a separate request naming kinds). `request_doc_timestamp_notes_name_cli_verbs.md` = `Pass 422.0` (`c9dfd4e6`; the `(_, false)` note at `edit.rs:62199` already reads "add validation material (PAdES B-LT) ... before stamping for B-LTA", no CLI verb). `request_cli_full_mode_size.md` = `Pass 424.0` (`483f405a`; edited streams re-Flated at save, 18.3 MB -> 5.73 MB measured). Each has a `reply_*_FIXED.md` in `open/`. The request files in the channel root are stale or re-sent; the engineer should check whether the gui is re-reporting after an unreleased build.
+
+**Survivors of the hard-rule-11 sweep (reported, not edited):** `docs/NEXT_SESSION.md:21-22` still says zune-jpeg "is pinned `=0.5.16-rc3`" (engineer-owned). Correct and left alone: `docs/ROADMAP.md` Pass 620.0 entry and decision 197's body (history; 197 now carries a pointer). Comments in the three `Cargo.toml` files already state the git source.
+
+**For next session:** next free `Pass 631.0`, decision `199`, `R263`; next filing 1193rd. Run `check-register-entry-size.py` and `check-ledger-numbers.py` (not run from here). Re-point the `tools/*/Cargo.lock` files when convenient. Run the pdfium render-parity tool against the git rc3 (still unrun per NEXT_SESSION).
+
 ## 2026-10-22 (1191st filing) — `f0b4d434` Pass 629.0 SHIPPED (a new field's font, size and colour at creation); filed new and shipped in one filing
 
 **Filed (engineer-reported, no shell here; git, push and backup state not verified from here):**

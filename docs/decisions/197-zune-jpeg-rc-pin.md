@@ -1,5 +1,10 @@
 # Decision 197: zune-jpeg pinned to 0.5.16-rc3 for the 4:2:0 one-scan-per-component decode
 
+> Amended by decision 198 (`Pass 630.0`): the rc3 source is now git at
+> `c1c7f497`, not the registry `=0.5.16-rc3` pin below, because the registry
+> pre-release pin made `pdfcer-gui`'s graph unresolvable. The decoder fix,
+> test and publish blocker stand.
+
 Consultant: `autonomous-builder` (KenAgent protocol), option D.
 
 ## Decision
