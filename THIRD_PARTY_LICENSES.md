@@ -747,8 +747,6 @@ Used by:
 Used by:
 - [crypto-primes 0.7.2](https://github.com/entropyxyz/crypto-primes)
 - [ureq 3.4.0](https://github.com/algesten/ureq)
-- [zune-core 0.5.3](https://github.com/etemesi254/zune-image)
-- [zune-jpeg 0.5.16-rc3](https://github.com/etemesi254/zune-image/tree/dev/crates/zune-jpeg)
 
 ```
                                  Apache License
@@ -3894,6 +3892,8 @@ limitations under the License.
 ### Apache License 2.0
 
 Used by:
+- [zune-core 0.5.3](https://github.com/etemesi254/zune-image)
+- [zune-jpeg 0.5.16-rc3](https://github.com/etemesi254/zune-image/tree/dev/crates/zune-jpeg)
 - [anyhow 1.0.104](https://github.com/dtolnay/anyhow)
 - [fdeflate 0.3.7](https://github.com/image-rs/fdeflate)
 - [flatbuffers 24.12.23](https://github.com/google/flatbuffers)

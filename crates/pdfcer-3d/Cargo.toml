@@ -29,7 +29,7 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 # png: PRC texture pictures in PNG [WD 7.5.5.2]. MIT OR Apache-2.0.
 png = { version = "0.17", optional = true }
 # zune-jpeg: PRC texture pictures in JPEG; pure Rust. MIT OR Apache-2.0 OR Zlib.
-zune-jpeg = { version = "=0.5.16-rc3", default-features = false, features = ["std"], optional = true }
+zune-jpeg = { git = "https://github.com/etemesi254/zune-image", rev = "c1c7f49776ee32928ed329f4436ae63a595b6283", default-features = false, features = ["std"], optional = true }
 
 [[test]]
 name = "all"

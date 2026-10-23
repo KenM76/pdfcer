@@ -195,7 +195,7 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 # reads `export::encode_jpeg`'s output back through. Already pdfcer-core's
 # `/DCTDecode` decoder — zero packages added, and dev-only so it cannot
 # reach the shipped graph. License: MIT OR Apache-2.0 OR Zlib.
-zune-jpeg = { version = "=0.5.16-rc3", default-features = false, features = ["std"] }
+zune-jpeg = { git = "https://github.com/etemesi254/zune-image", rev = "c1c7f49776ee32928ed329f4436ae63a595b6283", default-features = false, features = ["std"] }
 # resvg + usvg: TEST-ONLY, the independent SVG renderer `tests/export_svg.rs`
 # rasterises `svg::export_svg`'s output through and compares against
 # pdfcer's own transparent raster of the same page -- the oracle that makes

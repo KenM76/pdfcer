@@ -2001,14 +2001,12 @@ checksum = "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e"
 [[package]]
 name = "zune-core"
 version = "0.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d56377fd46368984a170bc5aac5567e52ca5da874caa60bea39fcbca78fb658b"
+source = "git+https://github.com/etemesi254/zune-image?rev=c1c7f49776ee32928ed329f4436ae63a595b6283#c1c7f49776ee32928ed329f4436ae63a595b6283"
 
 [[package]]
 name = "zune-jpeg"
 version = "0.5.16-rc3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df4c448e855250a3ffd70f393894383667d049c05eca66dcdb4d3f2f194e90c6"
+source = "git+https://github.com/etemesi254/zune-image?rev=c1c7f49776ee32928ed329f4436ae63a595b6283#c1c7f49776ee32928ed329f4436ae63a595b6283"
 dependencies = [
  "zune-core",
 ]

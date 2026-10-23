@@ -39,13 +39,18 @@ thiserror = "2"
 # coding, lossless, 12-bit, and the YCCK->CMYK conversion (pdfcer does
 # that one itself from a YCCK passthrough).
 #
-# Pinned EXACTLY to a pre-release: 0.5.15 decodes a subsampled baseline
-# JPEG written one scan per component (legal T.81; jpeg-encoder's layout
-# whenever optimized Huffman tables are on) as garbage, and rc3 fixes it.
-# Every manifest naming zune-jpeg carries the same pin (one 0.5 version per
-# graph). Move to stable 0.5.16 when it ships; required before any publish,
-# since a downstream `^0.5` cannot match a pre-release.
-zune-jpeg = { version = "=0.5.16-rc3", default-features = false, features = ["std"] }
+# Taken from git at the commit rc3 was cut from ("jpeg: make a release";
+# its src differs from the crates.io rc3 tarball by one unused import),
+# not as the crates.io pre-release:
+# 0.5.15 decodes a subsampled baseline JPEG written one scan per component
+# (legal T.81; jpeg-encoder's layout whenever optimized Huffman tables are
+# on) as garbage, and rc3 fixes it. An exact `=0.5.16-rc3` registry pin made
+# any consumer also depending on `^0.5` from crates.io (tiff, image)
+# unresolvable, since a caret range never matches a pre-release; a git source
+# is a separate package, so both coexist. Every manifest naming zune-jpeg
+# carries the same source. Move to stable 0.5.16 from crates.io when it
+# ships; required before any publish (a git dependency cannot be packaged).
+zune-jpeg = { git = "https://github.com/etemesi254/zune-image", rev = "c1c7f49776ee32928ed329f4436ae63a595b6283", default-features = false, features = ["std"] }
 
 # hayro-ccitt: CCITTFaxDecode (§7.4.6, ITU-T T.4/T.6).
 # Apache-2.0 OR MIT, ZERO dependencies, unconditional #![no_std],
