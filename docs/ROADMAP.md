@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 631.0` COMPLETE (`73015960`), 2026-10-23 — does the document use overprint, and does it claim PDF/X (1201st filing)
+
+**Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here. Commit on main after `57ed5f11`. Core + CLI; gui column untouched (separate project, has a workaround, call not yet wired).** Origin: pdfcer-gui O323 (Settings ▸ Display ▸ Use overprint preview: Automatic, Only for PDF/X files), FeatureRequests `open/request_document_uses_overprint.md` and `open/request_detect_pdfx_claim.md`; replies `reply_*_FIXED.md` written. Reasoning is in the commit message.
+- **Core `pdfcer_core::prepress`:** `overprint_use(&DocumentView) -> OverprintUse { first: Option<ObjId>, unwalked: Vec<String> }` (`asks()`, `is_complete()`); rides the glyph_usage walker over page content, /AP N/R/D and states, forms, tiling patterns, soft-mask groups, Type 3 CharProcs. Hit = `gs` naming an ExtGState with /OP or /op true (ISO 32000-2 §8.6.7 Table 57) or a shading pattern's /ExtGState (§8.7.4.1 Table 75). Stops at first hit. `GlyphUsage` gained `unwalked` (read and limit faults, split from glyph-attribution faults): a "no" with skipped streams is "unknown".
+- **`pdfx_claim(&DocumentView) -> Option<PdfxClaim { level, xmp_version, info_version, info_conformance, output_intents }>`** (`carriers_agree()`, `is_recognised()`, `has_output_intent()`) and `pdfx_output_intents(&DocumentView) -> Vec<String>`. XMP GTS_PDFXVersion (namespace `http://www.npes.org/pdfx/ns/id/`) wins over Info; the 2001 Conformance key splits X-1 from X-1a; Adobe pdfx namespace, header and Catalog /Version are ignored; an output intent alone is not a claim. Source: spec RAG `PDF_Spec\pdfx\pdfx__ref__file_identification.md`, now referenced from `docs/core-api/03-capabilities.md` §16 (closes that RAG handoff).
+- **Spec ambiguity shipped as both answers:** `pdfx_claim` strict, `pdfx_output_intents` for a shell wanting the wider reading. **Open empirical question, not a Backlog defect:** which reading Acrobat's "Only for PDF/X files" uses; not measured.
+- **CLI:** `pdfcer inspect` prints `  overprint: requested (first by object N G)` / `  overprint: unknown (...)` and `  PDF/X claim: <level> (gaps)`, only when there is something to say.
+- **Tests:** 21 prepress unit + 2 doctests + 2 CLI integration (`inspect_prepress`). pdfcer-core lib 1911, integration 3031, doctests 249 passed, 0 failed. Sabotage: disabling detection fails 7; routing the text fault through the unwalked path fails 1. Fuzz target `prepress`: 33,003 runs / 61 s (= 541 runs/s, 1.85 ms each), clean.
+- **Gates:** fmt and clippy `-D warnings` clean (core, cli); structure gate clean; public-fns-documented clean; `--no-default-features` check passes; check-core-api-verbs passes (§16 added). No dependency change in core/render (`fuzz/Cargo.toml` only), so no `cargo tree` concern.
+- **FEATURES:** two new rows (Fonts & rendering): "Detect overprint use in a document", "Detect a PDF/X claim (ISO 15930)"; core `[x]` cli `[x]` gui `[ ]`. The broader "Print and prepress (PDF/X)" Planned row is untouched. No decision or R minted; next free `Pass 632.0`, decision `199`, `R263`.
+
 ### `Pass 626.0` COMPLETE (`d0f7c993`), 2026-10-23 — lower the declared PDF version, opt-in (1200th filing; slice 1 `bdc7d088`)
 
 **Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here. Commit on main after `d1a93291`. Core + CLI; gui column untouched (separate project).** Reasoning is in the commit message.

@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1201st filing) — `Pass 631.0` COMPLETE (`73015960`): overprint use and the PDF/X claim
+
+**Filed (engineer-reported; no shell here, nothing checked from here):** commit `73015960` on main after `57ed5f11`. New `pdfcer_core::prepress` plus `pdfcer inspect` lines. Origin: pdfcer-gui O323 via FeatureRequests `open/request_document_uses_overprint.md` and `open/request_detect_pdfx_claim.md`; replies `reply_document_uses_overprint_FIXED.md`, `reply_detect_pdfx_claim_FIXED.md`. Full entry: `ROADMAP.md` Shipped. FEATURES: two new rows (Implemented, Fonts & rendering), core `[x]` cli `[x]` gui `[ ]`.
+
+**Decision made (no decision number minted):** the spec's PDF/X-claim ambiguity ships as both answers: `pdfx_claim` strict, `pdfx_output_intents` for the wider reading. Open empirical question (not a Backlog defect): which reading Acrobat's "Only for PDF/X files" uses; not measured.
+
+**Findings:** the glyph_usage walker is reusable for "is X used anywhere"; its faults are now split (`unwalked` read/limit faults vs glyph-attribution faults), so a "no" with skipped streams is "unknown". Spec RAG `pdfx__ref__file_identification.md` handoff closed (referenced from `docs/core-api/03-capabilities.md` §16).
+
+**For next session:** next free `Pass 632.0`, decision `199`, `R263`; next filing 1202nd; pdfcer-gui to wire the two calls (their Settings ▸ Display ▸ Use overprint preview); Ken's Brotli answer (1199th) still open; D: space tight.
+
 ## 2026-10-23 (1200th filing) — `Pass 626.0` COMPLETE (`d0f7c993`): opt-in lowering of the declared PDF version
 
 **Filed (engineer-reported; no shell here, so none of it is checked from here):** code commit `d0f7c993` on main after `d1a93291`. Core `optimize::lower_version`, CLI `optimize --compat VERSION --lower-version`, new `pdfcer_model::writer::rebuild_declaring`. Full entry: `ROADMAP.md` Shipped. FEATURES row core `[x]` cli `[x]` gui `[ ]`; no further slice planned.
