@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1209th filing) — `Pass 635.0` COMPLETE (`f51b10bb`): redaction measures every glyph where it paints
+
+**Filed (engineer-reported; no shell here, nothing checked from here):** new Pass filed and completed in one filing, core only, unreleased. Two text-surgeon bugs in `redact.rs`: (1) a shown string with no in-region glyph was advanced twice, so later glyphs on the line were measured right of where they paint and a mark could remove EARLIER text and leave the marked text; (2) `q`/`Q` did not restore the font (ISO 32000-1 §8.4 Table 52), `TextSnapshot` now carries it. Found on an operator-supplied externally-licensed conformance file (not named, by standing rule). Tests: 3 synthetic regressions in `redact_glyph_tests.rs`, each failing on the old code; `redact` filter 80 + 35 pass; clippy, fmt, structure clean; no manifest or `pub` change. Full entry: `ROADMAP.md` Shipped.
+
+**Decisions made:** none; no decision or R minted. **FEATURES.md:** "Apply redaction" row got a correctness-fix sentence, boxes unchanged. Two new Planned rows (`635.1`, `635.2`). Also corrected a stale Planned row: "Redaction absence proof in `pdfcer-core`" said core and CLI have none, but `Pass 632.0` shipped it; now `[x]` `[x]` with the GUI rewire as the only owed half.
+
+**Filed as open (Next up stub, not built):** `Pass 635.1` (form-XObject text not redacted; `check_xobject` tests the unit square, not `/BBox` x `/Matrix` x CTM, so a full-page form does not trigger the overlap disclosure: a never-claim-redacted gap) and `Pass 635.2` (the byte-level absence proof is vacuous when `TJ` kerning splits the needle).
+
+**Survivors (hard rule 11, bare keyword `form_intersect` / `unit square` / `absence proof`):** `NEXT_SESSION.md` had the stale `616.9` "Next:" text, corrected this filing. FEATURES row "Vector-path redaction" says "Not cut: content inside form XObjects (`form_intersect`, disclose only)": still true, but now read it together with `635.1`'s disclosure gap. I did not sweep `crates/` doc comments for "disclose only" wording: owed to the engineer.
+
+**For next session:** work `635.1` (rectangle first), then `635.2`. Unreleased: 102.1, 633.0, 634.0, 635.0; next release writes OneDrive `pdfcer1`. Next free `Pass 636.0`, decision `199`, `R263`; next filing 1210th.
+
 ## 2026-10-23 (1208th filing) — `Pass 634.0` COMPLETE (`defa0662`): unruled OCR table cells placed on blank gutters
 
 **Filed (engineer-reported; no shell here, nothing checked from here):** an axis not resolved by drawn rules is now measured from the blank gutters between cells (rules masked first; margins excluded; n-1 gutters, or the n-1 widest when each is >=2x every leftover; else even grid). `RegionRead` edges are `Option<TableEdges>` with `EdgeSource { Rules, Gutters }`; CLI prints `read=table-gutters`; `pdfcer-ocr-host` discloses the gutter count as INFERRED from whitespace. Full entry: `ROADMAP.md` Shipped. Tests: `table_rules` 9 (4 new); ocr lib 154 pass; clippy, fmt, structure, core-api-verbs clean. End to end: unruled 3x4 table at 100 and 150 dpi, 12/12 cells, `table-gutters`.

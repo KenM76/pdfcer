@@ -29,8 +29,16 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   (`fields_split`); `orphaned_widgets` narrowed. Two `merge_document` field-tree bugs
   fixed. GUI notified. Not yet released. **Unreleased Passes: 102.1, 633.0
   (OCR table cells on ruling lines), 634.0 (unruled cells on blank gutters,
-  `defa0662`).**
-- **Redaction absence proof is in core (Pass 632.0, closes 72.0)**: `redact::verify_absence`; `redact-apply` refuses (exit 9, no file) on a drawn survivor and discloses (exit 10) on any other residual. GUI told it can delete its `proof.rs`. Fuzz `redact_proof`: 882,398 runs / 121 s, clean. Next free: Pass 633.0, decision 199, R263, filing 1205th.
+  `defa0662`), 635.0 (redaction glyph measuring, `f51b10bb`).**
+- **Redaction absence proof is in core (Pass 632.0, closes 72.0)**: `redact::verify_absence`; `redact-apply` refuses (exit 9, no file) on a drawn survivor and discloses (exit 10) on any other residual. GUI told it can delete its `proof.rs`. Fuzz `redact_proof`: 882,398 runs / 121 s, clean.
+- **Redaction text surgeon fixed (Pass 635.0, `f51b10bb`, unreleased)**: a kerned
+  `TJ` / consecutive `Tj` double-advanced `Tm`, so a mark could remove earlier text
+  and leave the marked text; `q`/`Q` now restore the font. **Open, same track:
+  `635.1`** (text inside form XObjects is not redacted; `check_xobject` tests the
+  unit square, not `/BBox` x `/Matrix` x CTM, so a full-page form does not even
+  trigger the overlap disclosure: fix the rectangle first) and **`635.2`** (the
+  byte-level absence proof is vacuous when `TJ` kerning splits the needle).
+  Next free: Pass 636.0, decision 199, R263, filing 1210th.
 - G214-G217 replies are already on the channel (the earlier "owed" note was stale).
 - **Release:** v0.93.0 is published (8 assets; OneDrive `pdfcer2`; `pdfcer1`
   keeps 0.92.0; GUI notified, `open/notice_2026-10-23_v0.93.0_released.md`).
@@ -89,12 +97,11 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   hint columns byte-aligned). Oracle: `qpdf --check-linearization` over
   all 3,340 fixtures -- 3,290 clean, 6 source-inherited Resources
   warnings, 0 FAIL, 44 expected refusals. Re-run it after touching
-  `linearize/classify.rs`. Next: 616.9 quality/byte-budget, 616.10
-  compatibility; 616.7 still open for forms/patterns.
-  **616.9 slice 1 shipped**: `image(encode=jpeg,ssim=X)` (lowest quality whose
-  SSIM reaches X). 1,603,435 B photo: q90 805,853; ssim .99 -> q53 234,628;
-  .98 -> q24 147,835; .95 -> q8 85,268 (~7 s, 8 trials). Next slices: byte
-  budget, visual-diff report.
+  `linearize/classify.rs`. **616.9 COMPLETE** (ssim target, byte budget
+  `--target-size`, visual-diff `--visual-diff`) and **616.10 COMPLETE**
+  (`--compat`); core + cli, GUI not built. 616.7 forms/patterns is the one
+  open residue. ssim sizes, 1,603,435 B photo: q90 805,853; ssim .99 -> q53
+  234,628; .98 -> q24 147,835; .95 -> q8 85,268 (~7 s, 8 trials).
 - **Fixture generator:** `tools/gen-resubset-fixtures.py` needs fontTools
   for `symbolic.pdf`. Python string escapes typed through Bash lose their
   backslash (an octal escape ended up as a raw 0xC9 byte), so write edit

@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `Pass 635.0` COMPLETE (`f51b10bb`), 2026-10-23 — redaction measures every glyph where it paints: two text-surgeon bugs fixed (1209th filing)
+
+**Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here. Commit not yet released.** Core only (a correctness fix to an already-shipped core + CLI capability); gui column untouched. Filed and completed in one filing. Reasoning is in the commit message. Found on a real-world externally-licensed conformance file the operator supplied (not named here, by standing rule); its lines are kerned `TJ` arrays.
+- **Bug 1 (`crates/pdfcer-core/src/redact.rs`, `Surgeon::show_simple` / `show_array`):** a shown string with no in-region glyph was advanced twice. `redact_string` already advances `Tm` per code; the no-hit branch advanced again. Every later glyph on the line was then measured to the right of where it paints, so a mark removed EARLIER text and left the marked text in place. `advance_string` deleted.
+- **Bug 2:** `q`/`Q` did not save/restore the font, although text state is graphics state (ISO 32000-1 §8.4, Table 52). `TextSnapshot` now carries the font.
+- **Tests:** 3 new synthetic regressions in `crates/pdfcer-core/src/redact_glyph_tests.rs` (kerned `TJ`; consecutive `Tj` on one line; `Tf` inside `q...Q`), each verified FAILING on the old code. `redact` filter: 80 + 35 pass. clippy `-D warnings`, fmt, code-structure (no new debt) clean.
+- **Invariants:** no `Cargo.toml` change, so `cargo tree` unaffected; no `pub` change, so `docs/core-api` untouched.
+- **FEATURES:** the "Apply redaction" row only (correctness-fix sentence); boxes unchanged `[x]` `[x]` `[x]`. Nothing ticked.
+- **Still OPEN, same track, filed in *Next up* as `Pass 635.1` and `635.2`.** No decision or R minted; next free `Pass 636.0`, decision `199`, `R263`.
+
 ### `Pass 634.0` COMPLETE (`defa0662`), 2026-10-23 — OCR table cells of an UNRULED table placed on its blank gutters (1208th filing)
 
 **Engineer-reported; I have no shell (hard rule 8), nothing here is checked from here.** Core + CLI; gui column untouched (separate project). Follows `Pass 633.0`; closes its `NEXT_SESSION.md` follow-up. Reasoning is in the commit message.
@@ -23583,6 +23593,12 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> **Filed 2026-10-23 (1209th filing), from `Pass 635.0`'s review: two redaction-correctness Passes, NOT built.** Next free `Pass 636.0`; decision `199`, `R263`; next filing 1210th.
+> - **`Pass 635.1` — redact text inside form XObjects, and test the right rectangle.** Text drawn inside a `/Subtype /Form` XObject is not surgically redacted. `Surgeon::check_xobject` (`redact.rs`) also tests the UNIT SQUARE x CTM instead of `/BBox` x `/Matrix` x CTM (ISO 32000-1 §8.10.1), so a full-page form does not even trigger the existing "form overlaps a region" disclosure (`form_intersect`). That is a DISCLOSURE GAP, and it violates the never-claim-redacted rule: a mark can cover form text and the report stays silent. Fix the rectangle first (it is the smaller, safer half), then recurse.
+> - **`Pass 635.2` — text-extraction-level absence check.** `redact_proof::verify_absence` (`Pass 632.0`) is byte-level: it is VACUOUS when `TJ` kerning splits the needle across string pieces (`[(Con) -20 (fidential)] TJ` contains no `Confidential`), so `Verified` can be reported for text that is still there. Needs a check on extracted text (decoded through the font's `ToUnicode`/encoding), alongside the byte search, not instead of it.
+
+(1209th filing: `Pass 635.0` COMPLETE `f51b10bb`, see *Shipped*; `635.1`, `635.2` filed in the stub above. Nothing minted; next free `Pass 636.0`, decision `199`, `R263`; next filing 1210th.)
 
 (1208th filing: `Pass 634.0` COMPLETE `defa0662`, see *Shipped*. Nothing minted; decision `199`, `R263` still free; next filing 1209th.)
 
