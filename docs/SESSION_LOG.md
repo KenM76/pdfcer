@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1199th filing) — `Pass 626.0` slice 1 SHIPPED (`bdc7d088`): report the lowest PDF version the content needs
+
+**Filed (engineer-reported; no shell here, so none of it is checked from here):** code commit `bdc7d088` on main after `2c3fc0f1`. Core `optimize::version_floor` / `version_floor_with` and CLI `optimize --compat` (new `--strict-icc`, `--json` `compatibility.floor`). Report only; the declared version is never changed. Full entry: `ROADMAP.md` Next up, `Pass 626.0`. `Pass 626.0` stays OPEN for slice 2 (opt-in `--lower-version`).
+
+**Decisions (engineer rulings, no decision record):** ICC header versions are a SETTING (Permissive default raises nothing; Strict applies the derived table) because erratum #181 drops the version column; a newer structure type raises nothing (older readers role-map it).
+
+**Findings:** census over `fixtures/external`: 2,915 files, 1,616 proven lowerable, 10 unproven, 0 unreadable; strict ICC changes 3 files. `Pass 628.0` measurement: 116,611 decoded bytes in 217 unreached streams across 179 of 2,902 files, roughly 7 KB corpus-wide (Backlog, low priority).
+
+**Housekeeping:** stale zune-jpeg Backlog wording amended (tool lockfiles refreshed `0145632a`; pdfium parity discharged 1195th). `FEATURES.md`: "Lower the declared PDF version" row split into a report row (core `[x]` cli `[x]` gui `[ ]`) and the lowering row (all `[ ]`).
+
+**NOTE, not a decision:** Ken said (2026-10-23) "Acrobat may not support brotli yet. Very few pdf engines do." (Measured separately: Reader 25.1 draws pages with Brotli streams blank, 1197th.) Engineer replied that Brotli is already opt-in only (no preset chooses it) and offered an optional acknowledgement flag, default no change. Ken has not answered.
+
+**For next session:** next free `Pass 631.0`, decision `199`, `R263`; next filing 1200th; slice 2 of `626.0`; Ken's answer on the Brotli flag.
+
 ## 2026-10-23 (1198th filing) — chore `0145632a`: the twelve `tools/*/Cargo.lock` refreshed (no Pass consumed)
 
 **Filed (engineer-reported; no shell here, so none of it is checked from here):** each of the 12 `tools/*/Cargo.lock` (content-identity, corpus-report, difftest, embed-sweep, font-parity, fontfile-census, icc-census, recover-sweep, render-profile, roundtrip, tw-census, unembed-sweep) still locked crates.io `zune-jpeg 0.5.15` and predated the `icccer` rename and many engine dependencies. `cargo update -w` in each tool dir re-resolved them; zune-jpeg now comes from the git rc3 pin (decision 198). All 12 pass `cargo metadata --locked`. `difftest` additionally keeps a registry `zune-jpeg 0.5.15` through its own direct dependency. Diffstat 12 files, +9316/-520.
