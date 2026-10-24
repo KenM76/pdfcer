@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.96.0` PUBLISHED: tag on `3a60a0b6` (the 1226th filing), 2026-10-23 (1227th filing)
+
+Engineer-reported (the engineer ran a shell and verified); no shell here, nothing checked from here.
+- **Tag:** `v0.96.0` (annotated, tag object `a8b375c1`) on `3a60a0b6`, pushed with `main`; `origin/main` = `3a60a0b6`.
+- **GitHub release** "pdfcer v0.96.0" via `tools/gh-release.py`: 8 assets (`pdfcer-v0.96.0-windows-x64.zip`, `ocr-addon-ocrcer.zip`, `ocr-addon-ocrs.zip`, `ocr-addon-tesseract.zip`, each with a `.sha256`); "PASS v0.96.0: 8 asset(s) uploaded at their local sizes". Main zip sha256 `a4c1dda74164be494b0d601d47c792bcaf6a2fd03c675a020bc9d382d26cbcd8`.
+- **Portable build:** `D:\builds\pdfcer-20261023-2155-3a60a0b`, `pdfcer.exe` 38,598,656 bytes, folder total 54,524,335 bytes.
+- **OneDrive:** slot `pdfcer1` holds 0.96.0 (6 items, 74,146,121 bytes); `pdfcer2` keeps 0.95.0. **The next release writes `pdfcer2`.**
+- **CI:** success on `89fd2b8c` and success on `3a60a0b6` (the tagged commit). This closes the 1226th entry's "in progress" note.
+- **`verify-release.py`:** every check ok except "working tree clean", which fails on the uncommitted `pdfcer-spec-librarian` / `pdfcer-engineer` agent-memory files (deliberate, same as `v0.95.0`).
+- **Fresh-folder smoke, all OK:** `--version` (0.96.0, revision `v0.96.0`), `inspect`, and `merge-document` with a tagged PDF 2.0 source (printed `tags_dropped=1` and the untagged-arrival stderr line, exit 0).
+- **pdfcer-gui notified:** `open/notice_2026-10-23_v0.96.0_released.md`, plus `open/notice_2026-10-23_inserted_pages_from_tagged_files.md` for the `Pass 643.0` fields.
+- **Carries** (already filed COMPLETE): `e2bb5d67`, `ef72139d` (`641.0`), `fcbe9606` (`642.0`), `b0a88c41` (`643.0`). FEATURES: no change. Nothing minted; next free `Pass 644.0`, decision `199`, `R263`; next filing 1228th.
+- Amends the 1226th banner below, which says "NOT yet published": it is now published.
+
 ### `v0.96.0` — release prep, version bump `1a5f552e` (`chore`), 2026-10-23 (1226th filing); NOT yet published
 
 Engineer-reported; no shell here, nothing checked from here. Same pattern as the v0.95.0 prep (1221st filing).
@@ -23765,6 +23779,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
+
+(1227th filing: `v0.96.0` PUBLISHED on `3a60a0b6`, see *Shipped*. Nothing minted; next free `Pass 644.0`, decision `199`, `R263`; next filing 1228th. Next release writes OneDrive slot `pdfcer2`.)
 
 (1226th filing: `v0.96.0` release prep, bump `1a5f552e`, NOT yet published, see *Shipped*. Nothing minted; next free `Pass 644.0`, decision `199`, `R263`; next filing 1227th.)
 

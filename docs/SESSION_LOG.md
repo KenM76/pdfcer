@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1227th filing) — `v0.96.0` PUBLISHED: tag on `3a60a0b6`
+
+**Filed (docs only; the engineer ran a shell and verified, none here, nothing checked from here):**
+- Annotated tag `v0.96.0` (tag object `a8b375c1`) on `3a60a0b6` (the 1226th filing commit), pushed with `main`; `origin/main` = `3a60a0b6`.
+- GitHub release "pdfcer v0.96.0" via `tools/gh-release.py`: 8 assets (main zip plus ocrcer, ocrs, tesseract add-on zips, each with `.sha256`); "PASS v0.96.0: 8 asset(s) uploaded at their local sizes". Main zip sha256 `a4c1dda74164be494b0d601d47c792bcaf6a2fd03c675a020bc9d382d26cbcd8`.
+- Portable build `D:\builds\pdfcer-20261023-2155-3a60a0b`: `pdfcer.exe` 38,598,656 bytes, total 54,524,335.
+- OneDrive slot `pdfcer1` written (6 items, 74,146,121 bytes); `pdfcer2` keeps 0.95.0.
+- CI success on `89fd2b8c` and on `3a60a0b6`. `verify-release.py` all ok except "working tree clean" (uncommitted agent-memory files, deliberate, as at `v0.95.0`).
+- Fresh-folder smoke OK: `--version` (0.96.0, revision `v0.96.0`), `inspect`, `merge-document` with a tagged PDF 2.0 source (`tags_dropped=1`, untagged-arrival stderr line, exit 0).
+- pdfcer-gui notified: `open/notice_2026-10-23_v0.96.0_released.md` and `open/notice_2026-10-23_inserted_pages_from_tagged_files.md`.
+- Carried: `e2bb5d67`, `ef72139d` (641.0), `fcbe9606` (642.0), `b0a88c41` (643.0).
+
+**Decisions made:** none; nothing minted.
+
+**FEATURES.md:** unchanged.
+
+**For next session:** next release writes slot `pdfcer2`. Next free `Pass 644.0`, decision `199`, `R263`; next filing 1228th.
+
+*Amendment to the 1226th entry below: "NOT yet published" is superseded; `v0.96.0` is published and CI on `89fd2b8c` finished green.*
+
 ## 2026-10-23 (1226th filing) — `v0.96.0` release prep, version bump `1a5f552e`; NOT yet published
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
