@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-24 (1237th filing) — `c50d7775` `Pass 646.1` SHIPPED: edit a line whose pieces differ only in size (`G228`)
+
+**Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.1`: `joinable` (no size test) joins differing-size pieces for matching; `refuse_mixed_size` refuses a still-mixed narrowed span as `SplitRun`; an edit inside one piece keeps that piece's `Tf`.
+- Second bug fixed in the same commit: the edit walk lost `Tm` after any composite show operator, so restyled Identity-H lines refused `NoSuchText`. It now advances by `ExtractFont::codes`/`width`; vertical-writing fonts still mark it unknown.
+- Tests: `tests/size_change_span.rs` 5 (2 fail without the walk change); core lib 3065, integration 1979 + 252; `run-gates.sh` 49 commands PASS; core-api 383 verbs PASS. No manifest change.
+- Full entry: ROADMAP *Shipped*, top.
+
+**Decisions made:** none. Nothing minted.
+
+**FEATURES.md:** "Edit a line whose pieces differ only in text size" moved from *Planned* to *Implemented, Text*: core `[x]`, cli `—` (unchanged, reached through core), gui `[ ]`.
+
+**Still in flight:** Next up holds only `Pass 637.0` (blocked on a crates.io token). Unreleased since `v0.97.0`.
+
+**For next session:** next free `Pass 646.2`, decision `201`, `R263`; next filing 1238th. `docs/NEXT_SESSION.md` not touched (engineer-owned).
+
 ## 2026-10-24 (1236th filing) — `fec8ae66` `Pass 646.0` SHIPPED: batch restyle (`G227`)
 
 **Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**

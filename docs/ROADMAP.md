@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `c50d7775` `Pass 646.1` SHIPPED, 2026-10-24: edit a line whose pieces differ only in text size (1237th filing, `G228`)
+
+Engineer-reported; no shell here, nothing checked from here. Code commit `c50d7775` on `2824c206` (the 1236th filing). Reasoning is in the commit message.
+- **Matcher** (`crates/pdfcer-core/src/text_edit/edit.rs`): `joinable(a, b)` is `spannable` without the `Tf`-size test; `grow_span` joins with it. `spannable` (equal size AND `joinable`) is now `pub(crate)`.
+- **Refusal** (new `text_edit/size_span.rs`, `refuse_mixed_size`, called in `plan_exact` after `narrow_span`): a narrowed span that still crosses a size change refuses `EditError::NoMatch { reason: NotFoundReason::SplitRun { operators: n } }`. An edit narrowed into one piece is that piece's edit at its own `Tf`.
+- **Second defect, same commit:** `Walk::advance_matrix` marked `Tm` unknown after any composite (Type0) show operator, so a restyled Identity-H line's later pieces had no known position and the request refused `NoSuchText` rather than `SplitRun` (the CAD case in the request). The walk now advances every run by `ExtractFont::codes`/`width`, the extraction path (ISO 32000-2 section 9.4.4). Vertical-writing fonts (section 9.7.4.3, `writes_vertically`, cached per resource name) still mark it unknown.
+- **API:** no new `pub` item; `docs/core-api` unchanged, `check-core-api-verbs` PASS (383 verbs).
+- **Verified (engineer):** new `tests/size_change_span.rs`, 5 tests (3 on the requester's Helvetica fixture; 2 on `fixtures/synthetic/text/composite-editable.pdf` with "B" restyled to 36 pt, which fail without the walk change); new `tests/helvetica_page.rs` shares the page builder with `tests/format_batch.rs`. Core lib 3065 passed; integration `all` 1979 + 252 passed. `tools/run-gates.sh` PASS (49 commands); fmt and clippy `-D warnings` clean; structure gate 565 baseline entries, none new; no manifest touched, so `cargo tree` and the GUI-core invariant are unchanged.
+- **Local check (engineer, private non-rights-cleared drawing, not named):** restyled line with draft == line: Ok; edit inside the 24 pt piece: Ok; edit across the size change: `SplitRun { operators: 3 }`. All four acceptance criteria met.
+- **Delivers:** core only. FEATURES row moved from *Planned* to *Implemented, Text*: core `[x]`, cli `—` (kept as filed: `edit-text` reaches this through core, no separate surface; not ticked), gui `[ ]`.
+- **Sweep (rule 11):** no counter or capability changed meaning; none owed. No decision or R minted. Reply to the requester written by the engineer to the `G228` channel (not edited by the librarian).
+
 ### `fec8ae66` `Pass 646.0` SHIPPED, 2026-10-24: batch restyle, many runs as one command and one undo step (1236th filing, `G227`)
 
 Engineer-reported; no shell here, nothing checked from here. Code commit `fec8ae66` on `9fb6a066` (the 1235th filing). Reasoning is in the commit message.
@@ -23868,6 +23880,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
 
+(1237th filing: `Pass 646.1` (`G228`, edit across a size change) SHIPPED on `c50d7775`, see *Shipped*; its Next up item is removed. Nothing minted; next free `Pass 646.2`, decision `201`, `R263`; next filing 1238th.)
+
 (1236th filing: `Pass 646.0` (batch restyle, `G227`) SHIPPED on `fec8ae66`, see *Shipped*; `Pass 646.1` (`G228`) stays below, not started. Nothing minted; next free `Pass 646.2`, decision `201`, `R263`; next filing 1237th.)
 
 (1235th filing: follow-up fix `d5e318d3` (CI red after the `645.x` compare passes) filed in *Shipped*; `Pass 646.0` (`G227`) and `Pass 646.1` (`G228`) filed in Next up below, nothing shipped. No decision or R minted; next free `Pass 646.2`, decision `201`, `R263`; next filing 1236th.)
@@ -34642,27 +34656,6 @@ overrides the image dictionary; `/ColorSpace` optional,
 - Expected order once the token exists: `pdfcer-color`, `pdfcer-model`, then `pdfcer-pkix`; the rest per the blockers above.
 
 **Status:** Next up, blocked on the token. FEATURES.md: row "Publish the engine crates to crates.io" in *Planned*, all boxes unticked.
-
-### Pass 646.1 — edit a line whose pieces differ only in text size (`G228`)
-
-**Source:** `pdfcer-gui` request channel, `G228` (filed 1235th filing, from the engineer's dispatch; the request file was not read by the librarian).
-
-**Ask:** the matcher joins show operators on one line in one text object that differ only in the text-state size (`Tf` size), then narrows as `narrow_span` does:
-- an edit confined to one operator is that operator's edit, and each piece keeps its own `Tf`;
-- the preview lays out every piece at its own size;
-- an edit crossing the size change still refuses as `SplitRun`, by name.
-
-**Also:** on a real CAD drawing (private, not a fixture) the same situation refused as `NoSuchText` instead of `SplitRun`; classify it correctly.
-
-**Acceptance:**
-1. A preview with draft equal to the line carries both sizes.
-2. A keystroke inside the unrestyled piece commits as that operator's edit, and the restyled word keeps its size.
-3. An edit on both sides of the size change refuses `SplitRun`.
-4. The CAD case names `SplitRun`, not `NoSuchText` (verified on the local drawing; the regression test uses a synthetic fixture).
-
-**Delivers:** core. Companion to `Pass 646.0` (restyling is what produces size-differing pieces), but independent of it.
-
-**Status:** Next up. FEATURES.md: new row in *Planned*, all boxes unticked.
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 
