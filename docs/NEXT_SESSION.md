@@ -5,8 +5,7 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-23 (v0.95.0 published at `5ca5eeeb`, slot pdfcer2, carrying Passes 638.0, 639.0, 640.0; CI was red at the tag on a `--no-default-features` clippy lint, fixed after it in `e2bb5d67`, which is unreleased; Pass 641.0 (discard-tags rewrites structure destinations to pages, `ef72139d`, filed 1223rd) and Pass 642.0 (page assembly re-points structure destinations at pages and no longer copies an orphan source /Pages node, `fcbe9606`, filed 1224th) and Pass 643.0 (EditSession page insert/merge stops copying a tagged source's structure and un-inserted pages, `b0a88c41`, filed 1225th) are also unreleased; next filing is the 1226th, next Pass 644.0; GUI notified of the new InsertOutcome/MergeOutcome fields), during the size-reduction arc (Ken 2026-10-20: "meet
-or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
+**Written:** 2026-10-23 (v0.96.0 published, tag on `3a60a0b6`, slot pdfcer1, carrying `e2bb5d67` and Passes 641.0, 642.0, 643.0; CI green at the tag; next filing is the 1228th, next Pass 644.0; nothing unreleased), after the size-reduction arc (Ken 2026-10-20: "meet or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## State
 
@@ -35,13 +34,15 @@ or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
   (`c50a3790`, `576dadb7`, v0.94.0) shipped:** redaction removes text, vectors,
   shadings and image samples inside form XObjects (`redact_form.rs`, copy-on-write
   `pdfceRdF{num}_{k}`); verified on the operator's out-of-repo file, standing
-  request done. **Open, same track: `635.2`** (the byte-level absence proof is
-  vacuous when `TJ` kerning splits the needle).
-  Next free: Pass 636.0, decision 199, R263, filing 1211th.
+  request done. `635.2` (extraction-level absence proof) shipped `202e7b13`;
+  the 635.x track is complete.
 - G214-G217 replies are already on the channel (the earlier "owed" note was stale).
-- **Release:** v0.95.0 is published (8 assets; OneDrive `pdfcer2`; `pdfcer1`
-  keeps 0.94.0; GUI notified, `open/notice_2026-10-23_v0.95.0_released.md`).
-  **The next release writes `pdfcer1`.** Before a push that adds a field or
+- **Release:** v0.96.0 is published (tag on `3a60a0b6`, 8 assets, CI green at
+  the tag; OneDrive `pdfcer1`; `pdfcer2` keeps 0.95.0; GUI notified,
+  `open/notice_2026-10-23_v0.96.0_released.md`). Assets: reuse the previous
+  release's ocrcer/ocrs add-on zips, take tesseract from the new build, and
+  zip the build under a top folder `pdfcer-vX.Y.Z/` (scratchpad `rezip.py`
+  shape). **The next release writes `pdfcer2`.** Before a push that adds a field or
   item read only under a feature, also run `cargo clippy -p pdfcer-cli
   --no-default-features --all-targets -- -D warnings` (CI runs it; v0.95.0
   went out red on it). pdfium render-parity
