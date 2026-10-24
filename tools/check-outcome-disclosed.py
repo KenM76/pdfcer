@@ -233,14 +233,14 @@ EXEMPT: dict[str, str] = {
         "about the document. `image_id` beside it happens to be read and this "
         "one is not; neither fact means anything."
     ),
-    # All five of InsertOutcome's disclosure fields, one reason.
+    # Every InsertOutcome disclosure field, one reason.
     "InsertOutcome::pages_inserted": (
         "`EditSession::insert_pages` has no `pdfcer` verb BY DECISION — a "
         "one-shot invocation has no open session to insert into, and the "
         "CLI's `insert-pages` is the other verb (`pageops::insert`). "
         "`docs/FEATURES.md` records that box as `—`, not a gap. `pdfcer-gui` "
-        "surfaces all five fields and is out of tree, so this gate cannot see "
-        "it. ★ REMOVE THIS EXEMPTION the moment a session verb reaches the "
+        "is that verb's shell and is out of tree, so this gate cannot see "
+        "it.★ REMOVE THIS EXEMPTION the moment a session verb reaches the "
         "CLI: at that point the disclosure obligation lands here too."
     ),
     "InsertOutcome::orphaned_widgets": "see InsertOutcome::pages_inserted",
@@ -251,6 +251,14 @@ EXEMPT: dict[str, str] = {
     "InsertOutcome::source_page_labels_dropped": (
         "see InsertOutcome::pages_inserted"
     ),
+    "InsertOutcome::links_to_pages_left_behind": (
+        "see InsertOutcome::pages_inserted"
+    ),
+    "InsertOutcome::structure_links_to_pages": "see InsertOutcome::pages_inserted",
+    "InsertOutcome::structure_links_to_first_page": (
+        "see InsertOutcome::pages_inserted"
+    ),
+    "InsertOutcome::source_tags_dropped": "see InsertOutcome::pages_inserted",
 }
 
 CONSUMER_ROOTS = [

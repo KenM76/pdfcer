@@ -1642,6 +1642,7 @@ pub(crate) fn cmd_merge_document(
         "merge-document {} + {} mode={} -> {}; \
 pages={} fields={} renamed={} acroform_created={} dests={} dests_renamed={} \
 outline_items={} page_label_ranges={} layers={} layer_configs_dropped={} \
+tags_dropped={} struct_links={} struct_links_first_page={} \
 changed={} objects={} \
 verbatim={} reserialized={} appended={} out_bytes={} undo_verified={} \
 undo_identical={} delinearized={}",
@@ -1664,6 +1665,9 @@ undo_identical={} delinearized={}",
         outcome.page_label_ranges,
         outcome.layers_merged,
         outcome.layer_configs_dropped,
+        u32::from(outcome.source_tags_dropped),
+        outcome.structure_links_to_pages,
+        outcome.structure_links_to_first_page,
         saved.changed,
         r.objects_written,
         r.objects_verbatim,
@@ -1687,6 +1691,23 @@ undo_identical={} delinearized={}",
             "pdfcer: {}: {} named destination(s) were renamed because the key was already defined here; a link from a third document to the old key now resolves to this document's own destination",
             input.display(),
             outcome.named_destinations_renamed,
+        );
+    }
+    if outcome.source_tags_dropped {
+        eprintln!(
+            "pdfcer: {}: {} was tagged; its structure tree (/StructTreeRoot) was NOT carried, \
+so its pages arrive untagged.",
+            input.display(),
+            source_path.display(),
+        );
+    }
+    if outcome.structure_links_to_pages > 0 {
+        eprintln!(
+            "pdfcer: {}: {} link(s) to a tag now go to the tag's page, {} of them to the first \
+page (the tag had no page).",
+            input.display(),
+            outcome.structure_links_to_pages,
+            outcome.structure_links_to_first_page,
         );
     }
     if outcome.fields_renamed > 0 {

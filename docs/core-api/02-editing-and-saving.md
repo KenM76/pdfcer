@@ -3392,6 +3392,19 @@ operands kept, and a GoTo `/SD` becomes its `/D` (ISO 32000-2 §12.3.2.3).
 the ones whose element named no page and took the source's first. One
 whose page was not copied is dropped and counted in `dangling_references`.
 
+The session verbs `insert_pages`, `insert_pages_with` and `merge_document`
+follow the same rules, reported on `InsertOutcome` / `MergeOutcome`:
+
+| field | means |
+|---|---|
+| `source_tags_dropped` | the source had `/StructTreeRoot`; its pages arrive untagged, `/StructParents` and `/StructParent` dropped so they cannot name an element of this document's tree |
+| `structure_links_to_pages` | links whose structure-element target was re-pointed at that element's page |
+| `structure_links_to_first_page` | of those, the ones whose element marks no page; they go to the source's first page |
+| `links_to_pages_left_behind` | `InsertOutcome` only: references to source pages that were not inserted. The link keeps its rectangle and loses its destination; the page is not copied |
+
+CLI: `tags_dropped=`, `struct_links=` and `struct_links_first_page=` on the
+`merge-document` line, plus a stderr line for each when non-zero.
+
 **Extract and split** keep labels too: `pageops::extract_with_labels(&view,
 pages, separations, pageops::ExtractedPageLabels) -> Result<(Vec<u8>,
 AssembleReport), PageOpError>` and `pageops::split_with_labels(.., labels)`.

@@ -130,6 +130,7 @@ mod ink_reshape;
 mod insert_pages_carries_fields;
 mod insert_pages_preserves_undo;
 mod insert_pages_repeated;
+mod insert_pages_struct_dest;
 mod layer_edit;
 mod layers;
 mod leaked_page_state;

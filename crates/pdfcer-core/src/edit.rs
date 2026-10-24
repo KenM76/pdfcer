@@ -151,6 +151,7 @@ mod form_transform;
 mod group_unit;
 mod insert_fields;
 mod node_shape;
+mod page_import;
 mod restack;
 mod stroke_style;
 mod widget_angle;
@@ -4451,6 +4452,23 @@ pub struct InsertOutcome {
     /// [`crate::pageops::InsertedPageLabels::ContinueRange`] with no target
     /// tree).
     pub page_label_ranges: usize,
+    /// References to source pages that were not inserted — a link to one of
+    /// them, say. The reference is dropped (a link loses its destination)
+    /// rather than followed: following it copied the page as an unreachable
+    /// phantom.
+    pub links_to_pages_left_behind: usize,
+    /// Links whose structure-element target (ISO 32000-2 §12.3.2.3) was
+    /// re-pointed at the page that element marks, because the source's tags
+    /// do not come across.
+    pub structure_links_to_pages: usize,
+    /// Of [`Self::structure_links_to_pages`], the ones whose element marks
+    /// no page: they now go to the source's first page.
+    pub structure_links_to_first_page: usize,
+    /// Whether the source was tagged (`/StructTreeRoot`). Its tags do not
+    /// come across: the copied pages arrive untagged, their
+    /// `/StructParents` dropped so they cannot name an element of this
+    /// document's own structure tree.
+    pub source_tags_dropped: bool,
 }
 
 /// What [`EditSession::merge_document`] did.
@@ -4526,6 +4544,18 @@ pub struct MergeOutcome {
     /// document at whatever state it happened to be in. Always `0` when this
     /// document had no `/OCProperties`: the source's is then carried whole.
     pub layer_configs_dropped: usize,
+    /// Links whose structure-element target (ISO 32000-2 §12.3.2.3) was
+    /// re-pointed at the page that element marks, because the source's tags
+    /// do not come across.
+    pub structure_links_to_pages: usize,
+    /// Of [`Self::structure_links_to_pages`], the ones whose element marks
+    /// no page: they now go to the source's first page.
+    pub structure_links_to_first_page: usize,
+    /// Whether the source was tagged (`/StructTreeRoot`). Its tags do not
+    /// come across: the copied pages arrive untagged, their
+    /// `/StructParents` dropped so they cannot name an element of this
+    /// document's own structure tree.
+    pub source_tags_dropped: bool,
 }
 
 /// Internal result of the optional-content half of a merge.
@@ -10200,6 +10230,9 @@ pub struct EditSession {
     evictions: u64,
     /// The most recent of them, for [`Self::rollback`] to put back.
     evicted_tail: std::collections::VecDeque<Entry>,
+    /// Live only inside `insert_pages_with` / `merge_document`; see
+    /// `page_import`.
+    page_import: Option<page_import::PageImportGuard>,
     /// Whether the BASE document's page tree walked at construction — the
     /// gate on [`Self::debug_assert_page_tree_still_walks`] (`Pass 111.0`).
     ///
@@ -10424,6 +10457,7 @@ impl EditSession {
             session_serial: checkpoint::next_serial(),
             evictions: 0,
             evicted_tail: std::collections::VecDeque::new(),
+            page_import: None,
             quad_point_order: QuadPointOrder::default(),
             redact_options: crate::redact::RedactOptions::default(),
             widget_tab_tail: WidgetTabTail::default(),
@@ -49627,6 +49661,17 @@ impl EditSession {
         source: &DocumentView<'_>,
         position: crate::pageops::InsertPosition,
     ) -> Result<MergeOutcome, EditError> {
+        let out = self.merge_document_guarded(source, position);
+        self.page_import = None;
+        out
+    }
+
+    /// [`Self::merge_document`]'s body; the caller ends the page import.
+    fn merge_document_guarded(
+        &mut self,
+        source: &DocumentView<'_>,
+        position: crate::pageops::InsertPosition,
+    ) -> Result<MergeOutcome, EditError> {
         if crate::encryption_gate::forbids(&self.base, &[PermissionBit::Assemble]) {
             return Err(EditError::DocumentEncrypted);
         }
@@ -49664,6 +49709,7 @@ impl EditSession {
         let page_label_ranges =
             self.merge_page_labels(source, target_count, source_count, at, &mut scratch);
         let layers = self.merge_optional_content(source, &mut mapping, &mut scratch)?;
+        let (guard, source_tags_dropped) = self.page_import_report(source);
 
         let objects: Vec<ObjectWrite> = scratch
             .into_iter()
@@ -49692,6 +49738,9 @@ impl EditSession {
             page_label_ranges,
             layers_merged: layers.layers,
             layer_configs_dropped: layers.configs_dropped,
+            structure_links_to_pages: guard.structure_links_to_pages,
+            structure_links_to_first_page: guard.structure_links_to_first_page,
+            source_tags_dropped,
         })
     }
 
@@ -50357,6 +50406,7 @@ impl EditSession {
 
         let mut scratch: BTreeMap<ObjId, Object> = BTreeMap::new();
         let mut mapping: BTreeMap<ObjId, ObjId> = BTreeMap::new();
+        self.begin_page_import(&source_slots, source_pages);
         let new_page_ids = self.import_pages(
             source,
             &source_slots,
@@ -50590,6 +50640,19 @@ impl EditSession {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
+        let out = self.insert_pages_guarded(source, source_pages, position, labels);
+        self.page_import = None;
+        out
+    }
+
+    /// [`Self::insert_pages_with`]'s body; the caller ends the page import.
+    fn insert_pages_guarded(
+        &mut self,
+        source: &DocumentView<'_>,
+        source_pages: &[usize],
+        position: crate::pageops::InsertPosition,
+        labels: crate::pageops::InsertedPageLabels,
+    ) -> Result<InsertOutcome, EditError> {
         let target_count = self.page_slots()?.len();
         let at = position.slot(target_count);
         let Some(PageSplice {
@@ -50630,6 +50693,7 @@ impl EditSession {
             &mut scratch,
         );
 
+        let (guard, source_tags_dropped) = self.page_import_report(source);
         let objects: Vec<ObjectWrite> = scratch
             .into_iter()
             .map(|(id, value)| ObjectWrite {
@@ -50656,6 +50720,10 @@ impl EditSession {
             source_page_labels_dropped,
             page_labels_stale: false,
             page_label_ranges,
+            links_to_pages_left_behind: guard.links_to_pages_left_behind,
+            structure_links_to_pages: guard.structure_links_to_pages,
+            structure_links_to_first_page: guard.structure_links_to_first_page,
+            source_tags_dropped,
         })
     }
 
@@ -50813,7 +50881,8 @@ impl EditSession {
     }
 
     /// The value half of [`Self::import_object`] — deep-copies a value,
-    /// replacing every reference with its imported counterpart.
+    /// replacing every reference with its imported counterpart. A value the
+    /// page barrier refuses (`page_import`) becomes `null`.
     fn import_value(
         &mut self,
         source: &DocumentView<'_>,
@@ -50821,14 +50890,37 @@ impl EditSession {
         mapping: &mut BTreeMap<ObjId, ObjId>,
         scratch: &mut BTreeMap<ObjId, Object>,
     ) -> Result<Object, EditError> {
-        Ok(match value {
+        Ok(self
+            .import_or_refuse(source, value, mapping, scratch)?
+            .unwrap_or(Object::Null))
+    }
+
+    /// [`Self::import_value`], with `None` for a value the page barrier
+    /// refuses: a reference to a page left behind, or an array holding one.
+    fn import_or_refuse(
+        &mut self,
+        source: &DocumentView<'_>,
+        value: &Object,
+        mapping: &mut BTreeMap<ObjId, ObjId>,
+        scratch: &mut BTreeMap<ObjId, Object>,
+    ) -> Result<Option<Object>, EditError> {
+        Ok(Some(match value {
+            Object::Reference(id) if !mapping.contains_key(id) && self.import_refuses(*id) => {
+                return Ok(None);
+            }
             Object::Reference(id) => {
                 Object::Reference(self.import_object(source, *id, mapping, scratch)?)
             }
             Object::Array(items) => {
+                let redirected = self.import_struct_dest(source, items);
+                let items = redirected.as_deref().unwrap_or(items);
                 let mut out = Vec::with_capacity(items.len());
                 for item in items {
-                    out.push(self.import_value(source, item, mapping, scratch)?);
+                    let Some(copied) = self.import_or_refuse(source, item, mapping, scratch)?
+                    else {
+                        return Ok(None);
+                    };
+                    out.push(copied);
                 }
                 Object::Array(out)
             }
@@ -50852,7 +50944,7 @@ impl EditSession {
                 })
             }
             other => other.clone(),
-        })
+        }))
     }
 
     /// Dictionary half of the import walk, split out so `/Parent` is
@@ -50877,8 +50969,13 @@ impl EditSession {
             if key.as_bytes() == b"Parent" {
                 continue;
             }
-            let copied = self.import_value(source, item, mapping, scratch)?;
-            out.insert(key.clone(), copied);
+            let Some(key) = self.import_key(dict, key) else {
+                continue;
+            };
+            // A refused entry is dropped: §7.3.7 makes it the same as null.
+            if let Some(copied) = self.import_or_refuse(source, item, mapping, scratch)? {
+                out.insert(key, copied);
+            }
         }
         Ok(out)
     }
