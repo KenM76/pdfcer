@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1223rd filing) — `ef72139d` `Pass 641.0` scoped and COMPLETE: discarding tags rewrites structure destinations to pages
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 641.0`, commit `ef72139d` (on `a9f653ae`, unpushed at filing). `optimize --discard tags` now rewrites every PDF 2.0 structure destination (ISO 32000-2 §12.3.2.3) to the page destination the clause's walk gives, before deleting the structure tree. Covers outline/link `/Dest`, array `/OpenAction`, GoTo `/D`, and named destinations (catalog `/Dests`, `/Names /Dests` tree). GoTo or named-dest dicts with only `/SD` gain a `/D`; inline `/SD` removed; GoToR/GoToE `/SD` stays. First page when nothing found, counted. Depth 64 plus cycle guard.
+- New `crates/pdfcer-core/src/optimize/struct_dest.rs`, 7 tests in `struct_dest_tests.rs`, core-api doc updated. core + cli delivered (no new CLI surface); gui stays with `pdfcer-gui`.
+- Verified by the engineer: core lib 1969 pass / 0 fail / 2 ignored (pre-clippy-fix; optimize module 330 pass after), cli green, clippy clean incl. `--no-default-features`, fmt and code-structure clean, sabotage checks fail as intended. Full entry: `ROADMAP.md` Shipped.
+
+**Decisions made:** SD-A1 (bare arrays are structure destinations), SD-A2 (element's own `/Pg` only via kids, spec-literal, no setting since the clause says "shall"), SD-A3 (integer MCID kids use the element's `/Pg`). No decision or R minted. Rewrite `before` of null now matches an absent key (§7.3.7).
+
+**Findings:** veraPDF `PDF_UA-2 8.2.5.20-t02-pass-a` untags with no `/SD` left. Raw scan: 10 of 2,915 corpus files carry `/SD`; none had a bare structure destination in `/Dest`.
+
+**FEATURES.md:** row 193 gains one clause; boxes unchanged; row 706 unchanged.
+
+**For next session:** commit `ef72139d` is unpushed at filing time; run `check-commits-filed.py` before pushing. Next free `Pass 642.0`, decision `199`, `R263`; next filing 1224th.
+
 ## 2026-10-23 (1222nd filing) — `v0.95.0` PUBLISHED; `Pass 640.0` follow-up `e2bb5d67` fixes red CI
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

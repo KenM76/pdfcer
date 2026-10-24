@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `ef72139d` `Pass 641.0` COMPLETE, 2026-10-23: discarding tags rewrites PDF 2.0 structure destinations to page destinations (1223rd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Scoped and completed in this one docs-only filing. The code commit `ef72139d` is on `a9f653ae` and was unpushed at filing time.
+- **Defect closed:** `pdfcer optimize --discard tags` deleted the structure tree while PDF 2.0 structure destinations (ISO 32000-2 §12.3.2.3, explicit destination whose first element is a structure element) still pointed into it.
+- **Rewrite:** before the tree goes, every structure destination in an outline or link `/Dest`, an array `/OpenAction`, a GoTo `/D` (pre-erratum-140 files) and named-destination values (catalog `/Dests`, `/Names /Dests` name tree, inline root included) becomes the page the clause's walk gives. Operands are unchanged. First page when nothing is found (counted). A GoTo or named-dest dict with only `/SD` gains a `/D` built from it, and the inline `/SD` is removed with the rewrite. GoToR/GoToE `/SD` stays. Depth 64 plus a cycle guard.
+- **Spec readings (spec RAG `iso32000__s__12.3.2.3.md`):** SD-A1 bare `[elem ...]` arrays are treated as structure destinations; SD-A2 the element's own `/Pg` is consulted only via kids (spec-literal, no setting, because the clause says "shall"); SD-A3 integer MCID kids use the element's `/Pg`.
+- **Side fix:** a rewrite's `before` of null now matches an absent key (null entry = absent, §7.3.7).
+- **Disclosure:** the tags item's location reads "catalog: N link(s) to a tag now go to its page[, M of them to the first page (the tag had no page)]"; the tags note adds that links from other files naming a tag here fall back to the page they also name.
+- **Code:** new `crates/pdfcer-core/src/optimize/struct_dest.rs`; 7 tests in `struct_dest_tests.rs`; `docs/core-api/03-capabilities.md` updated (`check-core-api-verbs` PASS). CLI: no new surface, `--discard tags` reaches it through the existing plan. gui box stays with `pdfcer-gui`.
+- **Verified (engineer):** `pdfcer-core` lib 1969 passed, 0 failed, 2 ignored (pre-clippy-fix run; optimize module 330 passed after the fix); `pdfcer-cli` suites green; clippy `-D warnings` clean for core and cli and for `pdfcer-cli --no-default-features`; fmt clean; code-structure clean (565 baseline, none new). No manifest change, so `cargo tree` unchanged. Sabotage: breaking the MCID rule, the inline `/SD` removal, or the null-as-absent match each fails the tests.
+- **Real files:** veraPDF `PDF_UA-2 8.2.5.20-t02-pass-a` untags with no `/SD` left. A raw scan found 10 of 2,915 corpus files with `/SD`; none had a bare structure destination in `/Dest` (the counts print "catalog").
+- **Filing:** FEATURES row 193 gains a clause; row 706 unchanged. No decision or R minted (next free `Pass 642.0`, decision `199`, `R263`). Sweep (rule 11): no counter or capability changed meaning; none owed.
+
 ### `v0.95.0` PUBLISHED: tag on `5ca5eeeb` (the 1221st filing), 2026-10-23 (1222nd filing)
 
 Engineer-reported; no shell here, nothing checked from here (tag, release, slot and smoke results are the engineer's).
@@ -23724,6 +23737,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
+
+(1223rd filing: `Pass 641.0` scoped and COMPLETE in one filing (`ef72139d`, unpushed at filing), see *Shipped*. Nothing minted; next free `Pass 642.0`, decision `199`, `R263`; next filing 1224th.)
 
 (1222nd filing: `v0.95.0` PUBLISHED on `5ca5eeeb` and the `Pass 640.0` follow-up `e2bb5d67` (CI `--no-default-features` clippy fix), see *Shipped*. Nothing minted; next free `Pass 641.0`, decision `199`, `R263`; next filing 1223rd. Next release writes OneDrive slot `pdfcer1`.)
 
