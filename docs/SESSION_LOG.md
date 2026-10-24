@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-24 (1235th filing) — `d5e318d3` follow-up fix filed; `Pass 646.0` (`G227`) and `646.1` (`G228`) filed
+
+**Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `d5e318d3` (full `d5e318d326f2c340d0dbf7f0681b168ea4edd07c`), follow-up to `Pass 645.0` / `645.2`: README working-subcommand count 235 to 236 (the `check-clap-help` gate), and the `compare_documents` doctest in `crates/pdfcer-core/src/compare/mod.rs` now passes `Path::new` to `Document::load`. `run-gates.sh`, 49 commands, PASS. Filed in ROADMAP *Shipped*; no FEATURES change.
+
+**Filed in Next up (nothing built):**
+- `Pass 646.0` (`G227`): `EditSession::format_texts`, a batch restyle as one command and one undo entry; a refusal at request k applies nothing and names k. Baseline: 238 sequential `format_text` calls = 11.5 s engine (about 48 ms each, my division). Core; CLI only if a caller fits.
+- `Pass 646.1` (`G228`): edit a line whose pieces differ only in `Tf` size; cross-size edit refuses `SplitRun`; a CAD case that said `NoSuchText` must say `SplitRun`. Core.
+
+**FEATURES.md:** two new rows at the top of *Planned*, all boxes unticked (restyle batch; size-differing line edit).
+
+**Decisions made:** none. Nothing minted.
+
+**Still in flight:** nothing. Unreleased since `v0.97.0`. **Acrobat Reader reopen check for the `645.x` marks still NOT done.**
+
+**For next session:** next free `Pass 646.2`, decision `201`, `R263`; next filing 1236th. `docs/NEXT_SESSION.md` not touched (engineer-owned). The private drawing behind `G228` is deliberately not named in any doc.
+
 ## 2026-10-24 (1234th filing) — `6ee68bab` `Pass 645.2` SHIPPED: visual comparison and page matching; decision 200
 
 **Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**

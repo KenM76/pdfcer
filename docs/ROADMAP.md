@@ -112,6 +112,14 @@ wherever it appears.*
 
 ## Shipped
 
+### `d5e318d3`, 2026-10-24 — follow-up to `Pass 645.0` / `645.2`: CI red after the compare passes (1235th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Full hash `d5e318d326f2c340d0dbf7f0681b168ea4edd07c`, on `2ffb2b2d` (the 1234th filing). Reasoning is in the commit message.
+- **Defect 1:** the README's working-subcommand count (235) was stale after `pdfcer compare` (`Pass 645.0`) added a subcommand; the `check-clap-help` gate failed. Count is now 236.
+- **Defect 2:** the `compare_documents` doctest in `crates/pdfcer-core/src/compare/mod.rs` (`Pass 645.0`) did not pass `Path::new` to `Document::load`; it now does.
+- **Verified (engineer):** `tools/run-gates.sh`, 49 commands, PASS.
+- **Sweep (rule 11):** no counter or capability changed meaning (only the README's subcommand count moved, 235 to 236); none owed. FEATURES: no change.
+
 ### `6ee68bab` `Pass 645.2` SHIPPED, 2026-10-24: compare two documents by appearance, with page matching (1234th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Code commit `6ee68bab` on `3ae4b36f` (the 1233rd filing). Scoped by the Acrobat RAG file `D:\Dev\Rag-Specialized\Acrobat_Features\compare__visual_pixel_scanned_and_page_matching.md`. Reasoning is in the commit message and decision 200.
@@ -23847,6 +23855,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
 
+(1235th filing: follow-up fix `d5e318d3` (CI red after the `645.x` compare passes) filed in *Shipped*; `Pass 646.0` (`G227`) and `Pass 646.1` (`G228`) filed in Next up below, nothing shipped. No decision or R minted; next free `Pass 646.2`, decision `201`, `R263`; next filing 1236th.)
+
 (1234th filing: `Pass 645.2` (visual comparison and page matching) SHIPPED on `6ee68bab`, see *Shipped*; the `645.x` document-comparison family is now fully shipped. Decision `200` minted; next free `Pass 646.0`, decision `201`, `R263`; next filing 1235th.)
 
 (1233rd filing: `Pass 645.1` (annotated comparison result) SHIPPED on `fcf02195`, see *Shipped*. Decision `199` minted; next free `Pass 646.0`, decision `200`, `R263`; next filing 1234th.)
@@ -34617,6 +34627,44 @@ overrides the image dictionary; `/ColorSpace` optional,
 - Expected order once the token exists: `pdfcer-color`, `pdfcer-model`, then `pdfcer-pkix`; the rest per the blockers above.
 
 **Status:** Next up, blocked on the token. FEATURES.md: row "Publish the engine crates to crates.io" in *Planned*, all boxes unticked.
+
+### Pass 646.0 — batch restyle: many `format_text` requests as one command and one undo entry (`G227`)
+
+**Source:** `pdfcer-gui` request channel, `G227` (filed 1235th filing, from the engineer's dispatch; the request file was not read by the librarian).
+
+**Ask:** add `EditSession::format_texts(&[FormatRequest], &FormatOptions) -> Result<FormatReport, FormatError>` (name may change). Every request is pinned on one page, planned once against that page's content stream, and applied as ONE command and ONE undo entry. A refusal in request k applies nothing and names k. The report carries per-request disclosures (or their union with a count), per rule 4 of CLAUDE.md (disclosed, never silent).
+
+**Why:** today a restyle of 238 matches is 238 sequential `format_text` calls, 11.5 s of engine time (engineer-measured, not re-run here), and 238 undo entries.
+
+**Acceptance:**
+1. On a page with 200+ show operators the batch takes no more than a few single `format_text` calls' time (baseline: 238 sequential calls = 11.5 s engine; the batch's per-request figure is to be filed beside its total, with the denominator).
+2. One undo restores the content stream byte for byte.
+3. A refusal at request k leaves the session untouched and names k.
+
+**Delivers:** core. A CLI caller (`format-text` taking several requests) only if one fits; otherwise the entry says core-only.
+
+**Status:** Next up. FEATURES.md: new row in *Planned*, all boxes unticked.
+
+### Pass 646.1 — edit a line whose pieces differ only in text size (`G228`)
+
+**Source:** `pdfcer-gui` request channel, `G228` (filed 1235th filing, from the engineer's dispatch; the request file was not read by the librarian).
+
+**Ask:** the matcher joins show operators on one line in one text object that differ only in the text-state size (`Tf` size), then narrows as `narrow_span` does:
+- an edit confined to one operator is that operator's edit, and each piece keeps its own `Tf`;
+- the preview lays out every piece at its own size;
+- an edit crossing the size change still refuses as `SplitRun`, by name.
+
+**Also:** on a real CAD drawing (private, not a fixture) the same situation refused as `NoSuchText` instead of `SplitRun`; classify it correctly.
+
+**Acceptance:**
+1. A preview with draft equal to the line carries both sizes.
+2. A keystroke inside the unrestyled piece commits as that operator's edit, and the restyled word keeps its size.
+3. An edit on both sides of the size change refuses `SplitRun`.
+4. The CAD case names `SplitRun`, not `NoSuchText` (verified on the local drawing; the regression test uses a synthetic fixture).
+
+**Delivers:** core. Companion to `Pass 646.0` (restyling is what produces size-differing pieces), but independent of it.
+
+**Status:** Next up. FEATURES.md: new row in *Planned*, all boxes unticked.
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 
