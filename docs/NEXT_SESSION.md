@@ -5,7 +5,7 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-23 (v0.95.0 published at `5ca5eeeb`, slot pdfcer2, carrying Passes 638.0, 639.0, 640.0; CI was red at the tag on a `--no-default-features` clippy lint, fixed after it in `e2bb5d67`, which is unreleased; Pass 641.0 (discard-tags rewrites structure destinations to pages, `ef72139d`, filed 1223rd) and Pass 642.0 (page assembly re-points structure destinations at pages and no longer copies an orphan source /Pages node, `fcbe9606`, filed 1224th) are also unreleased; next filing is the 1225th, next Pass 643.0), during the size-reduction arc (Ken 2026-10-20: "meet
+**Written:** 2026-10-23 (v0.95.0 published at `5ca5eeeb`, slot pdfcer2, carrying Passes 638.0, 639.0, 640.0; CI was red at the tag on a `--no-default-features` clippy lint, fixed after it in `e2bb5d67`, which is unreleased; Pass 641.0 (discard-tags rewrites structure destinations to pages, `ef72139d`, filed 1223rd) and Pass 642.0 (page assembly re-points structure destinations at pages and no longer copies an orphan source /Pages node, `fcbe9606`, filed 1224th) and Pass 643.0 (EditSession page insert/merge stops copying a tagged source's structure and un-inserted pages, `b0a88c41`, filed 1225th) are also unreleased; next filing is the 1226th, next Pass 644.0; GUI notified of the new InsertOutcome/MergeOutcome fields), during the size-reduction arc (Ken 2026-10-20: "meet
 or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## State
