@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.97.0` PUBLISHED: tag on `6157f1f1` (the 1229th filing), 2026-10-24 (1230th filing)
+
+Engineer-reported (the engineer ran a shell and verified); no shell here, nothing checked from here.
+- **Tag:** `v0.97.0` on `6157f1f1` ("docs: file v0.97.0 release prep, bump ac13e585"), the 1229th filing commit.
+- **GitHub release** "pdfcer v0.97.0": 8 assets uploaded and verified at local sizes (`pdfcer-v0.97.0-windows-x64.zip`, three OCR add-on zips, each with a `.sha256`). The `ocrcer` and `ocrs` add-on zips were copied unchanged from `v0.96.0`; the `tesseract` add-on zip is from this build.
+- **Portable build:** `D:\builds\pdfcer-20261024-0013-6157f1f` (not `-dirty`).
+- **OneDrive:** deployed to slot `pdfcer2`; `pdfcer1` keeps 0.96.0. **The next release writes `pdfcer1`.**
+- **CI:** green at `6157f1f1`. **`verify-release.py`:** all checks pass except "working tree clean", which fails on the deliberately uncommitted agent-memory files.
+- **Fresh-folder smoke, all OK:** `--version` printed 0.97.0 / revision `v0.97.0`; `edit-block-text` on a local, not-rights-cleared operator drawing (page 3) succeeded, 4 to 3 lines (an operator-side check, the file is not a fixture); `inspect` of the output OK.
+- **pdfcer-gui notified:** `notice_2026-10-24_v0.97.0_released.md` written to the channel.
+- **Carries** (already filed COMPLETE): `736eafe2` (`Pass 644.0`, `G226`). FEATURES: no change. Nothing minted; next free `Pass 645.0`, decision `199`, `R263`; next filing 1231st.
+- Amends the 1229th banner below, which says "NOT yet published": it is now published.
+
 ### `v0.97.0` — release prep, version bump `ac13e585` (`chore`), 2026-10-24 (1229th filing); NOT yet published
 
 Engineer-reported; no shell here, nothing checked from here. Same pattern as the v0.96.0 prep (1226th filing).
@@ -23797,6 +23810,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
+
+(1230th filing: `v0.97.0` PUBLISHED on `6157f1f1`, see *Shipped*. Nothing minted; next free `Pass 645.0`, decision `199`, `R263`; next filing 1231st. Next release writes OneDrive slot `pdfcer1`.)
 
 (1229th filing: `v0.97.0` release prep, bump `ac13e585`, NOT yet published, see *Shipped*. Nothing minted; next free `Pass 645.0`, decision `199`, `R263`; next filing 1230th.)
 

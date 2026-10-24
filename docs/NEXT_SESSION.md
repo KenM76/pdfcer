@@ -5,7 +5,7 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-23 (v0.96.0 published, tag on `3a60a0b6`, slot pdfcer1, carrying `e2bb5d67` and Passes 641.0, 642.0, 643.0; CI green at the tag; then Pass 644.0 shipped at `736eafe2`, filed as the 1228th, UNRELEASED, reply to G226 written; next filing is the 1229th, next Pass 645.0, decision 199, R263; next release writes slot pdfcer2), after the size-reduction arc (Ken 2026-10-20: "meet or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
+**Written:** 2026-10-24 (v0.97.0 published, tag on `6157f1f1`, slot pdfcer2, carrying Pass 644.0 `736eafe2` (G226, replied and noticed); CI green at the tag; nothing unreleased; next filing is the 1231st, next Pass 645.0, decision 199, R263; next release writes slot pdfcer1), after the size-reduction arc (Ken 2026-10-20: "meet or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## State
 

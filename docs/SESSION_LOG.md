@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-24 (1230th filing) — `v0.97.0` PUBLISHED: tag on `6157f1f1`
+
+**Filed (docs only; the engineer ran a shell and verified, none here, nothing checked from here):**
+- Tag `v0.97.0` on `6157f1f1` (the 1229th filing commit). CI green at `6157f1f1`.
+- GitHub release "pdfcer v0.97.0": 8 assets uploaded and verified at local sizes (main zip plus ocrcer, ocrs, tesseract add-on zips, each with `.sha256`); `ocrcer` and `ocrs` zips copied from `v0.96.0`, `tesseract` from this build.
+- Portable build `D:\builds\pdfcer-20261024-0013-6157f1f` (not `-dirty`).
+- OneDrive slot `pdfcer2` written; `pdfcer1` keeps 0.96.0.
+- `verify-release.py` all pass except "working tree clean" (deliberate uncommitted agent-memory files).
+- Fresh-folder smoke OK: `--version` 0.97.0 / revision `v0.97.0`; `edit-block-text` on a local, not-rights-cleared operator drawing (page 3), 4 to 3 lines; `inspect` of the output OK.
+- pdfcer-gui notified: `notice_2026-10-24_v0.97.0_released.md`.
+- Carried: `736eafe2` (`Pass 644.0`).
+
+**Decisions made:** none; nothing minted.
+
+**FEATURES.md:** unchanged.
+
+**For next session:** next release writes slot `pdfcer1`. Next free `Pass 645.0`, decision `199`, `R263`; next filing 1231st.
+
+*Amendment to the 1229th entry below: "NOT yet published" is superseded; `v0.97.0` is published.*
+
 ## 2026-10-24 (1229th filing) — `v0.97.0` release prep, version bump `ac13e585`; NOT yet published
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
