@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-24 (1236th filing) — `fec8ae66` `Pass 646.0` SHIPPED: batch restyle (`G227`)
+
+**Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.0`: `EditSession::format_texts`, many restyle requests as one command and one undo entry, byte-identical to sequential `format_text`. One-walk path for same-page disjoint plain restyles; sequential-fold fallback (`planned_once == false`) for decorations, synthetic italic, font/opacity-creating, form-XObject and unpinned requests, refused above 256. `FormatBatchError::Request { index, error }` names the refusal; nothing applied.
+- Measured on a private drawing (unnamed), 146 operators, release: 365 ms sequential, 12 ms batch (about 30x), saved bytes identical, one undo restores base bytes.
+- Tests: `tests/format_batch.rs`, 5 green, sabotage fails 2; `run-gates.sh` 49 commands PASS; core lib 3062 passed; core-api 383 verbs PASS. No manifest change.
+- Full entry: ROADMAP *Shipped*, top.
+
+**Decisions made:** none. Nothing minted.
+
+**FEATURES.md:** "Restyle many pieces of text as one undoable step" moved to *Implemented, Text*: core `[x]`, cli `[ ]`, gui `[ ]`.
+
+**Still in flight:** `Pass 646.1` (`G228`) Next up, not started. Unreleased since `v0.97.0`.
+
+**For next session:** next free `Pass 646.2`, decision `201`, `R263`; next filing 1237th. `docs/NEXT_SESSION.md` not touched (engineer-owned).
+
 ## 2026-10-24 (1235th filing) — `d5e318d3` follow-up fix filed; `Pass 646.0` (`G227`) and `646.1` (`G228`) filed
 
 **Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**

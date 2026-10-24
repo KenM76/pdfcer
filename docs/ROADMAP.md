@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `fec8ae66` `Pass 646.0` SHIPPED, 2026-10-24: batch restyle, many runs as one command and one undo step (1236th filing, `G227`)
+
+Engineer-reported; no shell here, nothing checked from here. Code commit `fec8ae66` on `9fb6a066` (the 1235th filing). Reasoning is in the commit message.
+- **Core:** `EditSession::format_texts(&[FormatRequest], &FormatOptions) -> Result<FormatBatch, FormatBatchError>`. One command, one undo entry; equal to calling `format_text` per request in descending pinned-span order.
+- **One-walk path:** all requests pinned to the same page's own /Contents with disjoint spans. The stream is walked once, plans spliced once, follower `Tm` shifts composed per `Tm` with stored-value rounding, so bytes are identical to the sequential run.
+- **Fallback:** decorations, synthetic/removed italic, font- or opacity-creating requests, form XObject targets and unpinned requests run sequential `format_text` folded into one undo entry (`FormatBatch::planned_once == false`). That path refuses more than `MAX_UNDO_DEPTH` (256) requests with `FormatBatchError::TooManyForOneUndo`.
+- **Refusal:** `FormatBatchError::Request { index, error }` names the refused request; nothing is applied on error.
+- **Measured (engineer):** private CAD drawing (not a fixture, not named), 146 operators, release build: sequential 365 ms, batch 12 ms (about 30x), saved bytes identical, one undo restores the base bytes. Baseline filed in the 1235th filing was 238 sequential calls = 11.5 s, a different drawing; the two are not comparable.
+- **Verified (engineer):** new `crates/pdfcer-core/tests/format_batch.rs`, 5 tests green; sabotage (last-writer-wins shift composition) fails 2. Full `tools/run-gates.sh` PASS (49 commands); core lib 3062 passed. No dependency or manifest change, so `cargo tree` and the GUI-core invariant are unchanged.
+- **Docs:** `docs/core-api` updated, 383 verbs, `check-core-api-verbs` PASS.
+- **Delivers:** core only. No CLI caller fits yet (`pdfcer` has no multi-request restyle); stated, not rounded up.
+- **Filing:** FEATURES row "Restyle many pieces of text as one undoable step" moved from *Planned* to *Implemented, Text*: core `[x]`, cli `[ ]`, gui `[ ]`. Sweep (rule 11): no counter or capability changed meaning; the 1235th filing's "Today 238 sequential calls" wording is dated history and the FEATURES row carrying it was replaced. No decision or R minted.
+
 ### `d5e318d3`, 2026-10-24 — follow-up to `Pass 645.0` / `645.2`: CI red after the compare passes (1235th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Full hash `d5e318d326f2c340d0dbf7f0681b168ea4edd07c`, on `2ffb2b2d` (the 1234th filing). Reasoning is in the commit message.
@@ -23855,6 +23868,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
 
+(1236th filing: `Pass 646.0` (batch restyle, `G227`) SHIPPED on `fec8ae66`, see *Shipped*; `Pass 646.1` (`G228`) stays below, not started. Nothing minted; next free `Pass 646.2`, decision `201`, `R263`; next filing 1237th.)
+
 (1235th filing: follow-up fix `d5e318d3` (CI red after the `645.x` compare passes) filed in *Shipped*; `Pass 646.0` (`G227`) and `Pass 646.1` (`G228`) filed in Next up below, nothing shipped. No decision or R minted; next free `Pass 646.2`, decision `201`, `R263`; next filing 1236th.)
 
 (1234th filing: `Pass 645.2` (visual comparison and page matching) SHIPPED on `6ee68bab`, see *Shipped*; the `645.x` document-comparison family is now fully shipped. Decision `200` minted; next free `Pass 646.0`, decision `201`, `R263`; next filing 1235th.)
@@ -34627,23 +34642,6 @@ overrides the image dictionary; `/ColorSpace` optional,
 - Expected order once the token exists: `pdfcer-color`, `pdfcer-model`, then `pdfcer-pkix`; the rest per the blockers above.
 
 **Status:** Next up, blocked on the token. FEATURES.md: row "Publish the engine crates to crates.io" in *Planned*, all boxes unticked.
-
-### Pass 646.0 — batch restyle: many `format_text` requests as one command and one undo entry (`G227`)
-
-**Source:** `pdfcer-gui` request channel, `G227` (filed 1235th filing, from the engineer's dispatch; the request file was not read by the librarian).
-
-**Ask:** add `EditSession::format_texts(&[FormatRequest], &FormatOptions) -> Result<FormatReport, FormatError>` (name may change). Every request is pinned on one page, planned once against that page's content stream, and applied as ONE command and ONE undo entry. A refusal in request k applies nothing and names k. The report carries per-request disclosures (or their union with a count), per rule 4 of CLAUDE.md (disclosed, never silent).
-
-**Why:** today a restyle of 238 matches is 238 sequential `format_text` calls, 11.5 s of engine time (engineer-measured, not re-run here), and 238 undo entries.
-
-**Acceptance:**
-1. On a page with 200+ show operators the batch takes no more than a few single `format_text` calls' time (baseline: 238 sequential calls = 11.5 s engine; the batch's per-request figure is to be filed beside its total, with the denominator).
-2. One undo restores the content stream byte for byte.
-3. A refusal at request k leaves the session untouched and names k.
-
-**Delivers:** core. A CLI caller (`format-text` taking several requests) only if one fits; otherwise the entry says core-only.
-
-**Status:** Next up. FEATURES.md: new row in *Planned*, all boxes unticked.
 
 ### Pass 646.1 — edit a line whose pieces differ only in text size (`G228`)
 
