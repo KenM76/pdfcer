@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-24 (1238th filing) — `v0.98.0` release prep, version bump `0a971091`; NOT yet published
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- Bump commit `0a971091` (`chore`, on `5b0a4c23`): workspace version and the `pdfcer-model` workspace dependency version 0.97.0 to 0.98.0; `Cargo.lock` and `fuzz/Cargo.lock` regenerated. Not published, not tagged; the tag goes on this filing commit.
+- Carries since `v0.97.0` (already filed, not re-filed): `cdff47b8` (`Pass 645.0`), `fcf02195` (`645.1`), `6ee68bab` (`645.2`), `d5e318d3` (CI fix), `fec8ae66` (`646.0`, `G227`), `c50d7775` (`646.1`, `G228`).
+- Change-scoped gates (Ken, 2026-10-16), engineer-reported: `pdfcer-core`, `pdfcer-render`, `pdfcer-cli` tests running; filing gates green; `run-gates.sh` PASS on `c50d7775`. CI on `2824c206` success; on `5b0a4c23` in progress.
+
+**Decisions made:** none; nothing minted.
+
+**FEATURES.md:** unchanged.
+
+**For next session:** tag `v0.98.0` on the filing commit, package, fresh-folder smoke, `verify-release.py`, GitHub release, write OneDrive slot `pdfcer1` (`pdfcer2` keeps 0.97.0). Next free `Pass 646.2`, decision `201`, `R263`; next filing 1239th.
+
 ## 2026-10-24 (1237th filing) — `c50d7775` `Pass 646.1` SHIPPED: edit a line whose pieces differ only in size (`G228`)
 
 **Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**

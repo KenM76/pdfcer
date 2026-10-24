@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.98.0` — release prep, version bump `0a971091` (`chore`), 2026-10-24 (1238th filing); NOT yet published
+
+Engineer-reported; no shell here, nothing checked from here. Same pattern as the v0.97.0 prep (1229th filing).
+- **`0a971091` (`chore`):** workspace version 0.97.0 to 0.98.0 in root `Cargo.toml` (including the `pdfcer-model` workspace dependency version), `Cargo.lock` and `fuzz/Cargo.lock` regenerated; sits on `5b0a4c23`.
+- **Passes carried since `v0.97.0`** (all already filed COMPLETE, not re-filed): `cdff47b8` (`Pass 645.0`, compare text, core + CLI), `fcf02195` (`Pass 645.1`, mark comparison changes), `6ee68bab` (`Pass 645.2`, compare by appearance, page matching), `d5e318d3` (CI fix after 645.x), `fec8ae66` (`Pass 646.0`, `G227` `format_texts` batch), `c50d7775` (`Pass 646.1`, `G228` size-change span).
+- **Change-scoped release gates (operator rule 2026-10-16), engineer-reported:** `pdfcer-core`, `pdfcer-render`, `pdfcer-cli` tests running (the crates changed since `v0.97.0`); filing gates green; `run-gates.sh` PASS on `c50d7775`. CI on `2824c206` success; CI on `5b0a4c23` in progress at filing time.
+- **Release plan (not claimed done):** OneDrive slot `pdfcer1` (`v0.97.0` is in `pdfcer2`). Not yet tagged: the tag goes on this filing commit. Package, smoke, `verify-release.py`, GitHub release and slot write get their own later filing.
+- **FEATURES:** no change. Nothing minted; next free `Pass 646.2`, decision `201`, `R263`; next filing 1239th.
+
 ### `c50d7775` `Pass 646.1` SHIPPED, 2026-10-24: edit a line whose pieces differ only in text size (1237th filing, `G228`)
 
 Engineer-reported; no shell here, nothing checked from here. Code commit `c50d7775` on `2824c206` (the 1236th filing). Reasoning is in the commit message.
@@ -23879,6 +23888,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
+
+(1238th filing: `v0.98.0` release prep, bump `0a971091`, NOT yet published, see *Shipped*. Nothing minted; next free `Pass 646.2`, decision `201`, `R263`; next filing 1239th.)
 
 (1237th filing: `Pass 646.1` (`G228`, edit across a size change) SHIPPED on `c50d7775`, see *Shipped*; its Next up item is removed. Nothing minted; next free `Pass 646.2`, decision `201`, `R263`; next filing 1238th.)
 
