@@ -4,6 +4,28 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-24 (1239th filing) — `v0.98.0` PUBLISHED: tag on `2f4badbb`
+
+**Filed (docs only; the engineer ran a shell and verified, none here, nothing checked from here):**
+- Tag `v0.98.0` on `2f4badbb` (the 1238th filing commit), pushed. CI success at `2f4badbb` and `5b0a4c23`.
+- GitHub release "pdfcer v0.98.0": 8 assets at local sizes (main zip 27,597,652 bytes under `pdfcer-v0.98.0/`, plus ocrcer, ocrs, tesseract add-on zips, each with `.sha256`); `ocrcer` and `ocrs` reused from `v0.97.0`, `tesseract` from this build.
+- Portable build `D:\builds\pdfcer-20261024-0613-2f4badb` (clean); `--version` 0.98.0 / revision `v0.98.0`.
+- Fresh-folder smoke OK: `--version`; `compare` of a fixture against itself, 0 changes, exit 0.
+- OneDrive slot `pdfcer1` written (6 items, 74,312,009 bytes); `pdfcer2` keeps 0.97.0.
+- `verify-release.py` all ok except "working tree clean" (deliberate uncommitted agent-memory files).
+- pdfcer-gui notified: `notice_2026-10-24_v0.98.0_released.md` (plus INDEX row).
+- Carried: `Pass 645.0`/`645.1`/`645.2`, `d5e318d3`, `Pass 646.0`, `Pass 646.1`.
+
+**Decisions made:** none; nothing minted.
+
+**FEATURES.md:** unchanged.
+
+**Still in flight:** nothing; nothing unreleased. **Operator paused work after this release** (Ken, 2026-10-24).
+
+**For next session:** next release writes slot `pdfcer2`. Next free `Pass 646.2`, decision `201`, `R263`; next filing 1240th.
+
+*Amendment to the 1238th entry below: "NOT yet published" is superseded; `v0.98.0` is published.*
+
 ## 2026-10-24 (1238th filing) — `v0.98.0` release prep, version bump `0a971091`; NOT yet published
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

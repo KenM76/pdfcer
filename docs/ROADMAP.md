@@ -112,6 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.98.0` PUBLISHED: tag on `2f4badbb` (the 1238th filing), 2026-10-24 (1239th filing)
+
+Engineer-reported (the engineer ran a shell and verified); no shell here, nothing checked from here.
+- **Tag:** `v0.98.0` on `2f4badbb` ("docs: file v0.98.0 release prep, bump 0a971091"), the 1238th filing commit, pushed.
+- **CI:** success at `2f4badbb` and at `5b0a4c23`.
+- **Portable build:** `D:\builds\pdfcer-20261024-0613-2f4badb` (clean, not `-dirty`); `pdfcer --version` reports 0.98.0, revision `v0.98.0`.
+- **GitHub release** "pdfcer v0.98.0": 8 assets uploaded at local sizes (`pdfcer-v0.98.0-windows-x64.zip`, 27,597,652 bytes, top folder `pdfcer-v0.98.0/`; three OCR add-on zips, each with a `.sha256`). The `ocrcer` and `ocrs` add-on zips were reused from `v0.97.0`; the `tesseract` add-on zip is from this build.
+- **Fresh-folder smoke, OK:** unzip to a new scratch folder, `--version`, then `compare` of a fixture against itself: 0 changes, exit 0.
+- **OneDrive:** `deploy-onedrive` wrote slot `pdfcer1` (6 items, 74,312,009 bytes); `pdfcer2` keeps 0.97.0. **The next release writes `pdfcer2`.**
+- **`verify-release.py` v0.98.0:** all checks ok except "working tree clean", which fails on the deliberately uncommitted agent-memory files (same as prior releases).
+- **Carries** (all already filed): `Pass 645.0`, `645.1`, `645.2`, `d5e318d3`, `Pass 646.0` (`G227`), `Pass 646.1` (`G228`).
+- **pdfcer-gui notified:** `FeatureRequests/open/notice_2026-10-24_v0.98.0_released.md` (plus an INDEX row).
+- **Operator paused work after this release** (Ken, 2026-10-24: "Once you have finished this release pause work.").
+- **FEATURES:** no change. Nothing minted; next free `Pass 646.2`, decision `201`, `R263`; next filing 1240th. Nothing unreleased.
+- Amends the 1238th banner below, which says "NOT yet published": it is now published.
+
 ### `v0.98.0` — release prep, version bump `0a971091` (`chore`), 2026-10-24 (1238th filing); NOT yet published
 
 Engineer-reported; no shell here, nothing checked from here. Same pattern as the v0.97.0 prep (1229th filing).
@@ -23888,6 +23904,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
+
+(1239th filing: `v0.98.0` PUBLISHED on `2f4badbb`, see *Shipped*. Nothing minted; next free `Pass 646.2`, decision `201`, `R263`; next filing 1240th. Next release writes OneDrive slot `pdfcer2`. Nothing unreleased. Work paused at the operator's request.)
 
 (1238th filing: `v0.98.0` release prep, bump `0a971091`, NOT yet published, see *Shipped*. Nothing minted; next free `Pass 646.2`, decision `201`, `R263`; next filing 1239th.)
 
