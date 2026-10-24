@@ -5,7 +5,7 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-24 (v0.97.0 published, tag on `6157f1f1`, slot pdfcer2, carrying Pass 644.0 `736eafe2` (G226, replied and noticed); CI green at the tag; nothing unreleased; next filing is the 1231st, next Pass 645.0, decision 199, R263; next release writes slot pdfcer1), after the size-reduction arc (Ken 2026-10-20: "meet or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
+**Written:** 2026-10-24. **WORK IS PAUSED** (Ken: "Once you have finished this release pause work."); do not restart the /loop or pick up new Passes until he says so. v0.98.0 published, tag on `2f4badbb`, slot pdfcer1 (pdfcer2 keeps 0.97.0; **next release writes pdfcer2**), carrying Passes 645.0-645.2 (compare), CI fix `d5e318d3`, 646.0 `fec8ae66` (G227) and 646.1 `c50d7775` (G228), all replied/noticed; CI green at the tag; nothing unreleased. Next filing is the 1240th, next Pass 646.2, decision 201, R263. Decision 191 governs the size-reduction arc.
 
 ## State
 
@@ -37,9 +37,9 @@ failure classes, probe recipes, release recipe detail) is in git:
   request done. `635.2` (extraction-level absence proof) shipped `202e7b13`;
   the 635.x track is complete.
 - G214-G217 replies are already on the channel (the earlier "owed" note was stale).
-- **Release:** v0.96.0 is published (tag on `3a60a0b6`, 8 assets, CI green at
-  the tag; OneDrive `pdfcer1`; `pdfcer2` keeps 0.95.0; GUI notified,
-  `open/notice_2026-10-23_v0.96.0_released.md`). Assets: reuse the previous
+- **Release:** v0.98.0 is published (tag on `2f4badbb`, 8 assets, CI green at
+  the tag; OneDrive `pdfcer1`; `pdfcer2` keeps 0.97.0; GUI notified,
+  `open/notice_2026-10-24_v0.98.0_released.md`). Assets: reuse the previous
   release's ocrcer/ocrs add-on zips, take tesseract from the new build, and
   zip the build under a top folder `pdfcer-vX.Y.Z/` (scratchpad `rezip.py`
   shape). **The next release writes `pdfcer2`.** Before a push that adds a field or
