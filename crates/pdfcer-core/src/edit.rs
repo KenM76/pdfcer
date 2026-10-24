@@ -126,6 +126,7 @@ mod annot_restyle;
 mod batch;
 mod field_da;
 mod field_set;
+mod format_batch;
 pub use batch::AnnotationBatchMove;
 mod batch_transform;
 pub use batch_transform::AnnotationBatchOutcome;
@@ -13758,7 +13759,7 @@ impl EditSession {
         page_error: Option<crate::text_edit::FormatError>,
     ) -> Result<crate::text_edit::FormatReport, crate::text_edit::FormatError> {
         use crate::text_edit::FormatError as FmtError;
-        use crate::text_edit::format::{is_locational_format_error, plan_format_target};
+        use crate::text_edit::format::{is_locational_format_error, plan_format_on};
         use crate::text_edit::forms;
 
         let scan = forms::scan_page_forms(&self.view(), page);
@@ -13782,7 +13783,7 @@ impl EditSession {
             let form_id = form.id;
             let form_dict = form.dict.clone();
             let target = crate::text_edit::edit::EditPlanTarget::form(form, invocations);
-            match plan_format_target(&self.view(), &target, &stream, req, opts) {
+            match plan_format_on(&self.view(), &target, &stream, req, opts) {
                 Ok(plan) => {
                     found = Some((
                         form_id,

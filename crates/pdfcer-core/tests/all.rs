@@ -105,6 +105,7 @@ mod form_push_buttons;
 mod form_radio_groups;
 mod form_recursion;
 mod form_xobject_text_edit;
+mod format_batch;
 mod format_decoration;
 mod format_decoration_form;
 mod format_decoration_metrics;

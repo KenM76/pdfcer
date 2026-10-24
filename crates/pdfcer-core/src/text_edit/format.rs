@@ -246,8 +246,8 @@ use crate::text_edit::edit::{
     EditError, EditPlanTarget, EditRequest, EditTarget, FillState, FollowerDisposition, FontClass,
     MatchRun, OpRec, Rec, ShowData, ShowElem, ShowOp, Walk, carried_codes, classify_font,
     compensating_tj, effective_find, emit_show, emit_tm, find_anchor, glyph_advance_with,
-    is_subset_tag, mat_mul, match_run, refuse_unsuitable_form, resolve_font_dict, splice,
-    trust_disclosure, write_incremental_with,
+    is_subset_tag, mat_mul, match_run, refuse_unsuitable_form, resolve_font_dict, trust_disclosure,
+    write_incremental_with,
 };
 use crate::text_edit::encoding::{InverseEncoding, RInvTrigger, Refusal};
 use crate::text_edit::sibling::{push_tf, subset_stem};
@@ -259,6 +259,8 @@ use crate::text_extract::font::ExtractFont;
 use crate::text_state::{AmbientRestoreError, AmbientTextState, TextStateParam};
 use crate::view::DocumentView;
 use crate::writer::content::emit_number;
+
+pub(crate) use super::format_plan::{PlannedFormat, TmShift};
 
 mod style_target;
 pub use style_target::StyleTarget;
@@ -2037,7 +2039,7 @@ pub(crate) fn plan_format_anywhere(
     }
     let mut first_locational: Option<FormatError> = None;
     for (target, stream) in candidates {
-        match plan_format_target(doc, &target, &stream, req, opts) {
+        match plan_format_on(doc, &target, &stream, req, opts) {
             Ok(plan) => return Ok((plan, target)),
             Err(e) if is_locational_format_error(&e) => {
                 if first_locational.is_none() {
@@ -2123,7 +2125,7 @@ pub(crate) fn plan_format(
     opts: &FormatOptions,
 ) -> Result<FormatPlan, FormatError> {
     let target = EditPlanTarget::page(page).map_err(FormatError::from_edit)?;
-    plan_format_target(doc, &target, stream, req, opts)
+    plan_format_on(doc, &target, stream, req, opts)
 }
 
 /// [`set_format`] for a decoration request: the rules are drawn by the edit
@@ -2188,27 +2190,48 @@ fn refuse_invisible_decoration(req: &FormatRequest, anchor: &ShowData) -> Result
 /// # Errors
 ///
 /// See [`FormatError`].
-pub(crate) fn plan_format_target(
+pub(crate) fn plan_format_on(
     doc: &DocumentView<'_>,
     target: &EditPlanTarget,
     stream: &ContentStream,
     req: &FormatRequest,
     opts: &FormatOptions,
 ) -> Result<FormatPlan, FormatError> {
-    let content_id = target.content_id;
-    let extra_emptied = target.extra_emptied;
+    let recs = walk_target(doc, target, stream)?;
+    let planned = plan_format_target(doc, target, stream, &recs, req, opts)?;
+    Ok(planned.into_plan(&stream.buf))
+}
+
+/// Pass 1 of a format plan: every operator of `stream` with its text and
+/// fill state. Separate so a batch walks the stream once for all requests.
+pub(crate) fn walk_target(
+    doc: &DocumentView<'_>,
+    target: &EditPlanTarget,
+    stream: &ContentStream,
+) -> Result<Vec<OpRec>, FormatError> {
     if let Some(form) = target.form.as_ref() {
         refuse_unsuitable_form(form).map_err(FormatError::from_edit)?;
     }
-    let page_resources_dict = &target.resources;
-
-    // --- pass 1: record every operator with its text + fill state (the
-    //     shared 14.1 walk, now also carrying fill colour) ---
-    let mut walk = Walk::new(doc, page_resources_dict);
+    let mut walk = Walk::new(doc, &target.resources);
     for op in stream.operations() {
         walk.operation(&op, &stream.buf);
     }
-    let recs = walk.recs;
+    Ok(walk.recs)
+}
+
+/// Plan one format request against the already-walked `recs` of `stream`,
+/// returning the edits unspliced (see [`PlannedFormat`]).
+pub(crate) fn plan_format_target(
+    doc: &DocumentView<'_>,
+    target: &EditPlanTarget,
+    stream: &ContentStream,
+    recs: &[OpRec],
+    req: &FormatRequest,
+    opts: &FormatOptions,
+) -> Result<PlannedFormat, FormatError> {
+    let content_id = target.content_id;
+    let extra_emptied = target.extra_emptied;
+    let page_resources_dict = &target.resources;
 
     // --- locate the anchor (identical to 14.1) ---
     let locate = EditRequest {
@@ -2223,7 +2246,7 @@ pub(crate) fn plan_format_target(
         // Same reasoning: a restyle stays inside the pinned operator.
         span_from_pin: false,
     };
-    let anchor_index = find_anchor(&recs, &locate).map_err(FormatError::from_edit)?;
+    let anchor_index = find_anchor(recs, &locate).map_err(FormatError::from_edit)?;
     let (a_start, a_end, anchor) = match recs.get(anchor_index) {
         Some(OpRec {
             start,
@@ -2322,7 +2345,7 @@ pub(crate) fn plan_format_target(
     let (font_plan, ladder, ladder_synthesis) = plan_style_ladder(
         doc,
         page_resources_dict,
-        &recs,
+        recs,
         req,
         find,
         anchor,
@@ -2330,7 +2353,7 @@ pub(crate) fn plan_format_target(
     )?;
     let font_plan = match font_plan {
         Some(plan) => Some(plan),
-        None => plan_font(doc, page_resources_dict, &recs, req, find)?,
+        None => plan_font(doc, page_resources_dict, recs, req, find)?,
     };
 
     // Lifted out immediately, and cloned, so the resource-creation payload
@@ -2757,7 +2780,7 @@ pub(crate) fn plan_format_target(
         real_face_passed_over = match gate_synthesis(
             doc,
             page_resources_dict,
-            &recs,
+            recs,
             effective_font,
             find,
             synthesis,
@@ -2852,7 +2875,7 @@ pub(crate) fn plan_format_target(
             &mut set_ops,
             &mut restore_ops,
             anchor,
-            &recs,
+            recs,
             anchor_index,
             opts.disposition,
             &pre,
@@ -2868,7 +2891,7 @@ pub(crate) fn plan_format_target(
             &mut set_ops,
             &mut restore_ops,
             anchor,
-            &recs,
+            recs,
             anchor_index,
             opts.disposition,
             &pre,
@@ -2932,6 +2955,7 @@ pub(crate) fn plan_format_target(
 
     // --- relayout: reflow followers by ΔA, or pin with a compensating TJ ---
     let mut followers = 0u64;
+    let mut shifts: Vec<TmShift> = Vec::new();
     if delta != 0.0 {
         match opts.disposition {
             FollowerDisposition::Reflow => {
@@ -2942,7 +2966,12 @@ pub(crate) fn plan_format_target(
                             break;
                         }
                         Rec::Tm([a, b, c, d, e, f]) => {
-                            edits.push((r.start, r.end, emit_tm([*a, *b, *c, *d, *e + delta, *f])));
+                            shifts.push(TmShift {
+                                start: r.start,
+                                end: r.end,
+                                m: [*a, *b, *c, *d, *e, *f],
+                                delta,
+                            });
                             followers += 1;
                         }
                         _ => {}
@@ -2965,9 +2994,9 @@ pub(crate) fn plan_format_target(
         }
     }
 
-    // --- splice (NO save here; the caller — the free function or the
-    //     session — performs its own write step, Pass 14.3 §0.2) ---
-    let new_content = splice(&stream.buf, &mut edits);
+    // The plan reads bytes outside its own edits only for these; a batch
+    // must not plan them against a stream another request has changed.
+    let local = req.set_decoration.is_none() && !synthesis.italic() && !unsynth.italic();
 
     // --- report + disclosures ---
     let (report_font, embedded, subset) = match &font_plan {
@@ -3167,8 +3196,10 @@ pub(crate) fn plan_format_target(
         strike_source,
         disclosures,
     };
-    Ok(FormatPlan {
-        new_content,
+    Ok(PlannedFormat {
+        edits,
+        shifts,
+        local,
         report,
         created_font,
         created_alphas,

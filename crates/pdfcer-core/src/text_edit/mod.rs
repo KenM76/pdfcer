@@ -76,6 +76,7 @@ pub mod fallback;
 pub(crate) mod font_extend;
 mod font_usage;
 pub mod format;
+pub(crate) mod format_plan;
 pub mod forms;
 pub(crate) mod glyph_find;
 pub mod merge;
@@ -147,6 +148,7 @@ pub use format::{
     Std14Presence, StyleLadder, StyleOutcome, StyleResolution, StyleRung, StyleTarget,
     TextRenderMode, set_format,
 };
+pub use format_plan::{FormatBatch, FormatBatchError};
 pub use forms::{
     FormRef, FormScan, InvocationSet, InvocationSite, MAX_FORM_DEPTH, ResourceTier,
     form_objects_on_page, invocation_set, scan_page_forms,
