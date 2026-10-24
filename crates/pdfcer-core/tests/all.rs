@@ -41,6 +41,7 @@ mod choice_default_selections;
 mod choice_reset_selection;
 mod clip_non_finite;
 mod clip_version_gating;
+mod compare_documents;
 mod composite_descriptor;
 mod composite_refusal_reachable;
 mod content_edit_no_duplication;

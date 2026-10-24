@@ -114,6 +114,7 @@ builds `--no-default-features`, so both configurations compile.
 | Get per-glyph positions for a selection highlight | `PageText::runs[].glyphs[]` → `ExtractedGlyph{x,y,advance,size}` — `mod.rs` | §8.4 |
 | Get the byte-exact origin of a glyph (for editing) | `ExtractOptions::default().with_provenance(true)` then `ExtractedGlyph::provenance` — `mod.rs`, `mod.rs` | §8.4 |
 | Separate OCR-layer text from the page's own | `ExtractOptions::default().with_ocr_layer(OcrLayerFilter::OnlyOcrLayer)`, or read `TextRun::in_ocr_layer` — `ocr_layer.rs` | §8.2 |
+| Compare two documents' text, with page places | `compare::compare_documents(&Document, &Document, &CompareOptions)` — `compare/mod.rs` | §8.10 |
 | Search for text across the document | `EditSession::find_text_with(&needle, &TextSearchOptions)` — `edit.rs` **(read-only in effect, but needs a session)** | §8.5 |
 | Search for text **and learn what was unreadable** | `EditSession::search_text(&needle, &TextSearchOptions)` — `edit.rs` → `TextSearch { matches, diagnostics }` | §8.5 |
 | Render-setting preset for a subset standard (PDF/X, PDF/A, PDF/UA) | `pdfcer_core::settings::presets::RenderPreset::for_standard(RenderStandard)` | §8.5a |
@@ -1923,6 +1924,52 @@ likewise. `mod.rs`, `font.rs`, `page.rs` and `fontinfo.rs` are the
 `#[non_exhaustive]`-plus-builder pattern exists precisely so new fields do
 not break callers. `text_state.rs` is young (introduced Pass 19.0, two
 commits).
+
+### 8.10 Comparing two documents' text (`Pass 645.0`) — `compare/mod.rs`
+
+`compare::compare_documents(&old, &new, &CompareOptions) -> Result<CompareReport, CompareError>`
+diffs the **words** of two documents (shortest edit script, Myers) and
+places every change on its pages. Read-only; takes two `&Document`s.
+
+- **Compared:** every glyph run's text, including invisible (mode-3 / OCR)
+  text. Words are maximal non-whitespace runs; inferred spaces and line
+  breaks end a word, so reflow across lines or pages is **not** a change.
+- **Not compared:** artifact text (unless `with_artifacts(true)`), images,
+  vector art, annotations, form values.
+- **Order is content order**, not visual order: text an edit moved to the
+  end of a content stream shows as a deletion plus a later insertion.
+
+`CompareOptions` (`#[non_exhaustive]`, builders):
+
+| Builder | Default | Effect |
+|---|---|---|
+| `with_pages(Side, Vec<usize>)` | all pages | 0-based pages read from that side, in the given order |
+| `with_formatting(bool)` | off | also report equal words whose size, weight or fill colour changed |
+| `with_artifacts(bool)` | off | include `/Artifact` text (running heads, page numbers) |
+| `with_step_budget(u64)` | `DEFAULT_STEP_BUDGET` (100M) | work ceiling; past it a stretch is reported as one replacement and `CompareReport::truncated` is set |
+
+`CompareReport`: `changes: Vec<Change>` in old-document order,
+`old_word_count`/`new_word_count`, `old_pages`/`new_pages` (0-based, as
+read), `unreadable_pages: (usize, usize)` (pages whose content could not be
+read — their text is missing from the comparison), `truncated`;
+`is_identical()`, `count(ChangeKind)`.
+
+`Change`: `kind: ChangeKind` (`Inserted` / `Deleted` / `Replaced` /
+`Formatting`, `#[non_exhaustive]`), `old_words`/`new_words` (word index
+ranges), `old_text`/`new_text` (words joined by one space), `old_places`/
+`new_places: Vec<Place>` (one `Place { page, rect }` per line, user-space
+points), `anchor: Option<(Side, Place)>` — for an insertion, a zero-width
+place in the **old** document where the words would go (deletion: in the
+new), `formatting: Option<FormattingDelta>` (`size`, `weight`, `color`, each
+`Option<(old, new)>`; an unset colour equals DeviceGray 0).
+
+`CompareError`: `CopyNotPermitted { side }` (encryption withholds the copy
+permission — the same rule as text extraction), `NoSuchPage { side, index,
+count }`, `Extract { side, source }`.
+
+CLI: `pdfcer compare OLD NEW [--pages-old] [--pages-new] [--formatting]
+[--artifacts] [--json] [--exit-code]` (exit 16 when the text differs under
+`--exit-code`; 9 for `CopyNotPermitted`).
 
 ---
 

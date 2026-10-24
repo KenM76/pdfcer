@@ -700,6 +700,7 @@ mod metadata_cmd;
 use metadata_cmd::*;
 mod space_cmd;
 use space_cmd::*;
+mod compare_cmd;
 mod optimize_budget_cmd;
 mod optimize_cmd;
 mod optimize_compat;
@@ -709,6 +710,7 @@ mod optimize_removals_report;
 mod optimize_report;
 /// `optimize --visual-diff`.
 mod optimize_visual_diff;
+use compare_cmd::*;
 use optimize_cmd::*;
 #[cfg(test)]
 mod tests;
@@ -820,6 +822,9 @@ mod exit {
     /// than the target. The closest file was still written (unless
     /// `--dry-run`) and the report names every step tried.
     pub const OVER_BUDGET: u8 = 15;
+    /// `compare --exit-code`: the compared text differs. The report was
+    /// printed. Without `--exit-code` a completed comparison exits 0.
+    pub const DOCUMENTS_DIFFER: u8 = 16;
     /// The subcommand exists in the surface but is not implemented yet
     /// (Pass 0 stub). Distinct code so a script can tell "you asked for a
     /// feature pdfcer doesn't have yet" apart from a real failure.

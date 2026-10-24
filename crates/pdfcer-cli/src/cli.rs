@@ -501,7 +501,16 @@ pub(crate) fn resolve_cli_password(
 pub(crate) fn open_document(
     path: &Path,
 ) -> Result<pdfcer_core::document::Document, pdfcer_core::document::DocError> {
-    pdfcer_core::document::Document::load_with_options(path, cli_password(), cli_load_options())
+    open_document_with(path, cli_password())
+}
+
+/// [`open_document`] with an explicit password, for a subcommand that opens
+/// a second file under its own password (`compare --new-password-file`).
+pub(crate) fn open_document_with(
+    path: &Path,
+    password: Option<&[u8]>,
+) -> Result<pdfcer_core::document::Document, pdfcer_core::document::DocError> {
+    pdfcer_core::document::Document::load_with_options(path, password, cli_load_options())
         .map(with_rc4_policy)
 }
 
@@ -5719,6 +5728,36 @@ pub(crate) enum Command {
         /// Print JSON instead of the text report.
         #[arg(long)]
         json: bool,
+    },
+
+    /// Compare the text of two PDFs: what was inserted, deleted or replaced
+    /// (Pass 645.0).
+    ///
+    /// Reads each file's text (the chosen pages, in order, as one stream of
+    /// words, so text that reflowed onto another page is not a change) and
+    /// prints each difference with its page numbers and words. Running heads,
+    /// page numbers and watermarks marked as artifacts are skipped unless
+    /// --artifacts. Images, drawings and comments are not compared.
+    ///
+    /// Words are pdfcer's split of the extracted text. A very large rewrite
+    /// that exceeds the work limit is reported as one replacement, and the
+    /// report says so.
+    ///
+    /// --open-password applies to both files; --new-password-file overrides
+    /// it for NEW. A file whose permissions forbid copying its text is
+    /// refused (exit 9).
+    ///
+    /// Exit codes: 0 compared (identical or not); 16 with --exit-code when
+    /// the text differs.
+    ///
+    /// Examples:
+    ///   pdfcer compare v1.pdf v2.pdf
+    ///   pdfcer compare v1.pdf v2.pdf --pages-old 2-5 --pages-new 3-6
+    ///   pdfcer compare v1.pdf v2.pdf --formatting --json
+    #[command(verbatim_doc_comment)]
+    Compare {
+        #[command(flatten)]
+        args: CompareArgs,
     },
 
     /// Make a PDF smaller (Pass 616.1).
