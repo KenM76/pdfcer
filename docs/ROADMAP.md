@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `736eafe2` `Pass 644.0` COMPLETE, 2026-10-23: a block lifts out of a text object it shares with other content (`G226`) (1228th filing)
+
+Engineer-reported; no shell here, nothing checked from here except one source grep (`block_text_cmd.rs:56` calls `edit_block_text`). Scoped and completed in this one docs-only filing. Code commit `736eafe2` sits on `6563b7fd`. Unreleased since `v0.96.0`; the next release writes slot `pdfcer2`. Request: pdfceGUI `G226`, a CAD drawing note whose shows share a `BT`…`ET` with balloon letters or pdf dimension values could not open as a paragraph.
+- **Change (core only):** `reflow_block`, `edit_block_text` and `edit_block_text_preview` (`text_edit/reflow_walk.rs`, `reflow_apply.rs`, `cause.rs`, `block_text/layout.rs`, `block_text/emit.rs`) lift the block out of text objects it shares or that are non-adjacent. Block show operators are deleted in place (`Tj`/`TJ` become `" "`, `'` becomes `T*`, `"` becomes `aw Tw ac Tc T*` from raw operand bytes); every other operator keeps its bytes, so other labels keep positions and inherited text state. The body is written as its own `BT`…`ET` right after the last block text object's `ET`, under that object's at-`ET` text state, origins mapped under the CTM of the last block show (no `cm` inside `BT`…`ET`, ISO 32000-1 Figure 9).
+- **Disclosure:** `report.disclosures` gains "the block shared its text object with other content …: it now paints after that content" (a z-order change, stated off-canvas).
+- **New refusal:** `UnsupportedCause::TextObjectNotSeparable { detail: &'static str }` for (a) a non-block `Tj`/`TJ` continuing directly after a block show with no `Td`/`TD`/`Tm`/`T*` between, (b) a block style with `Tr` >= 4 (clip shared at `ET`), (c) a block show whose marked-content stack (tags, optional-content layers) differs from the insertion point's. `SharedTextObject` and `NonContiguousTextObjects` stay in the enum, documented "Not produced". `docs/core-api/02-editing-and-saving.md` updated (new bullet, variant list, index line count); `check-core-api-verbs` PASS.
+- **Verified (engineer):** new `crates/pdfcer-core/tests/reflow_shared_text_object.rs`, 5 tests pass. `pdfcer-core` full suite green (3046 integration + 1973 lib + 250 other, 0 failed). Sabotage: dropping `Tc` from the `"` removal fails 2 tests; skipping the CTM re-anchor fails the split-note test. fmt and clippy `-D warnings` clean (core, cli); structure gate clean (565 baseline, none new). No `Cargo.toml` change, so `cargo tree` and the GUI-core invariant are unaffected.
+- **Filing:** one new FEATURES row after "Reflow fidelity …": core `[x]`; cli `[x]` because `pdfcer edit-block-text` calls `EditSession::edit_block_text` (found by source read; the CLI has no `reflow_block` caller), with no cli test of its own; gui `[ ]` (pdfceGUI project, not wired). No decision or R minted (next free `Pass 645.0`, decision `199`, `R263`). Sweep (rule 11): two enum variants and their rustdoc changed meaning to "Not produced"; the engineer documented them; a grep of `FEATURES.md`, `ROADMAP.md` and `NEXT_SESSION.md` for the variant names found no description, none owed from docs. Not swept: other `crates/` rustdoc or CLI strings, outside this role's reach.
+
 ### `v0.96.0` PUBLISHED: tag on `3a60a0b6` (the 1226th filing), 2026-10-23 (1227th filing)
 
 Engineer-reported (the engineer ran a shell and verified); no shell here, nothing checked from here.
@@ -23779,6 +23788,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
+
+(1228th filing: `Pass 644.0` (`G226`) scoped and COMPLETE in one filing (`736eafe2`), see *Shipped*. Nothing minted; next free `Pass 645.0`, decision `199`, `R263`; next filing 1229th. Unreleased since `v0.96.0`; next release writes slot `pdfcer2`.)
 
 (1227th filing: `v0.96.0` PUBLISHED on `3a60a0b6`, see *Shipped*. Nothing minted; next free `Pass 644.0`, decision `199`, `R263`; next filing 1228th. Next release writes OneDrive slot `pdfcer2`.)
 

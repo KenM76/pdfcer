@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1228th filing) — `736eafe2` `Pass 644.0` scoped and COMPLETE: a block lifts out of a shared text object (`G226`)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here except a source grep):**
+- `Pass 644.0` (`736eafe2`, on `6563b7fd`): `reflow_block`, `edit_block_text` and `edit_block_text_preview` now open a paragraph that shares its `BT`…`ET` with other content or spans non-adjacent text objects. Shows are blanked in place; the body is written as its own text object after the last one, with a disclosure that it now paints after the other content. New refusal `UnsupportedCause::TextObjectNotSeparable`; `SharedTextObject` and `NonContiguousTextObjects` documented "Not produced".
+- Engineer-reported tests: 5 new (`reflow_shared_text_object.rs`), core suite 3046 integration + 1973 lib + 250 other, 0 failed; two sabotage checks fail as intended; fmt, clippy, structure gate clean.
+
+**Decisions made:** none; nothing minted.
+
+**FEATURES.md:** one new row after "Reflow fidelity …" (core `[x]`, cli `[x]` via `edit-block-text`, gui `[ ]`).
+
+**For next session:** unreleased since `v0.96.0`; next release writes slot `pdfcer2`. Next free `Pass 645.0`, decision `199`, `R263`; next filing 1229th.
+
 ## 2026-10-23 (1227th filing) — `v0.96.0` PUBLISHED: tag on `3a60a0b6`
 
 **Filed (docs only; the engineer ran a shell and verified, none here, nothing checked from here):**
