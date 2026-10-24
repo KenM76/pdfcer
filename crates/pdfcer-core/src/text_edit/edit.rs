@@ -106,6 +106,7 @@ use crate::text_edit::fallback::{self, Fallback, FallbackFace, FallbackUse, Prev
 use crate::text_edit::retype::Joined;
 use crate::text_edit::same_program::CidFontProgram;
 use crate::text_edit::sibling;
+use crate::text_edit::size_span;
 use crate::text_edit::workaround::{self, Workaround, WorkaroundPolicy, WorkaroundUse};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
@@ -1150,7 +1151,7 @@ pub(crate) struct ShowData {
     /// The walk advances `Tm` across each show operator by the §9.4.4
     /// displacement of its glyphs, which requires resolving the font and
     /// its widths. When that is not possible — an unresolvable font
-    /// resource, or a composite run this walk does not decode — the
+    /// resource, or a font that writes vertically — the
     /// accumulated matrix silently stops tracking reality. Rather than
     /// publish a plausible-looking wrong matrix, the walk marks it
     /// **unknown** and any consumer that needs an absolute position
@@ -1233,6 +1234,7 @@ pub(crate) struct Walk<'a> {
     doc: &'a DocumentView<'a>,
     resources: &'a Dict,
     font_cache: HashMap<Vec<u8>, Option<ExtractFont>>,
+    vertical_cache: HashMap<Vec<u8>, bool>,
     /// The graphics-state subset this walk models. One struct rather than
     /// loose fields because `q`/`Q` save and restore **all** of it at once
     /// (§8.4.2), and a stack of loose fields is how a `Q` comes to restore
@@ -1333,6 +1335,7 @@ impl<'a> Walk<'a> {
             doc,
             resources,
             font_cache: HashMap::new(),
+            vertical_cache: HashMap::new(),
             gs: GState::initial(),
             gs_stack: Vec::new(),
             mc_stack: Vec::new(),
@@ -1341,6 +1344,17 @@ impl<'a> Walk<'a> {
             tm_known: true,
             recs: Vec::new(),
         }
+    }
+
+    /// Whether the `/Font /<name>` resource writes vertically (cached).
+    fn writes_vertically(&mut self, name: &[u8]) -> bool {
+        if let Some(&hit) = self.vertical_cache.get(name) {
+            return hit;
+        }
+        let vertical = resolve_font_dict(self.doc, self.resources, name)
+            .is_some_and(|d| writes_vertically(self.doc, d));
+        self.vertical_cache.insert(name.to_vec(), vertical);
+        vertical
     }
 
     /// Resolve a `/Font /<name>` resource to an [`ExtractFont`] (cached).
@@ -1398,11 +1412,16 @@ impl<'a> Walk<'a> {
     /// **not** apply to a bare adjustment, and adding them is the classic
     /// way to make justified text drift).
     ///
-    /// If the font could not be resolved, or the run is composite (this walk
-    /// decodes only simple fonts), the displacement is unknowable here and
-    /// the matrix is marked **unknown** rather than left silently stale.
+    /// Codes are segmented and measured by the font itself
+    /// ([`ExtractFont::codes`], [`ExtractFont::width`]), the path text
+    /// extraction advances by, so a composite run advances as it is drawn.
+    /// If the font could not be resolved, or it writes vertically (its
+    /// displacement is `ty`, ISO 32000-2 §9.7.4.3, which this walk does not
+    /// model), the displacement is unknowable here and the matrix is marked
+    /// **unknown** rather than left silently stale.
     fn advance_matrix(&mut self, font: Option<&ExtractFont>, elems: &[ShowElem]) {
-        let Some(font) = font.filter(|f| f.is_simple()) else {
+        let vertical = self.writes_vertically(&self.gs.font_name.clone());
+        let Some(font) = font.filter(|_| !vertical) else {
             self.tm_known = false;
             return;
         };
@@ -1411,18 +1430,15 @@ impl<'a> Walk<'a> {
         for e in elems {
             match e {
                 ShowElem::Str(bytes) => {
-                    // This walker is byte-wise, so it is single-byte by
-                    // construction — a composite run's advance is computed on
-                    // the decoded-slot path, not here.
-                    for &code in bytes {
+                    for code in font.codes(bytes) {
                         tx += glyph_advance_with(
                             font,
-                            u32::from(code),
+                            code.value,
                             self.gs.tf_size,
                             p.char_spacing,
                             p.word_spacing,
                             p.h_scale,
-                            true,
+                            code.word_spacing_applies,
                         );
                     }
                 }
@@ -2538,7 +2554,9 @@ pub(crate) fn plan_exact(
     // A span edit touches only the part of the match that actually changes,
     // so the producer's own positioning of the unchanged glyphs survives.
     let narrow = narrow_span(recs, span, req);
-    let (span, req) = narrow.as_ref().map_or((span, req), |(s, r, _)| (*s, r));
+    let (span, narrowed) = narrow.as_ref().map_or((span, req), |(s, r, _)| (*s, r));
+    size_span::refuse_mixed_size(recs, span, &req.find)?;
+    let req = narrowed;
     let rewritten = narrow
         .as_ref()
         .map(|(_, r, range)| (range.clone(), r.replace.clone()));
@@ -4694,11 +4712,17 @@ const SPAN_LINE_DRIFT_TOLERANCE: f64 = 0.01;
 /// or `TJ`, and the same text-space row — every text-matrix component but
 /// the x translation equal, which is what "same baseline" means once a
 /// producer's `Td` steps have been folded into the matrix.
-fn spannable(a: &ShowData, b: &ShowData) -> bool {
+pub(crate) fn spannable(a: &ShowData, b: &ShowData) -> bool {
+    a.tf_size == b.tf_size && joinable(a, b)
+}
+
+/// [`spannable`] except for the `Tf` size: the span search joins a line
+/// whose pieces differ only in size, and
+/// [`size_span::refuse_mixed_size`] refuses an edit that still crosses one.
+fn joinable(a: &ShowData, b: &ShowData) -> bool {
     a.matrix_known
         && b.matrix_known
         && a.font_name == b.font_name
-        && a.tf_size == b.tf_size
         && a.mcid == b.mcid
         && a.tc() == b.tc()
         && a.tw() == b.tw()
@@ -4857,7 +4881,7 @@ fn grow_span<'a>(recs: &'a [OpRec], i: usize, head: &'a ShowData, cross: bool) -
             // Inside the first text object the run is judged against its
             // head, as it always was; after a crossing, against the
             // operator before it, whose MCID is the later object's own.
-            Rec::Show(s) if !gap && spannable(if last == i { head } else { prev }, s) => {
+            Rec::Show(s) if !gap && joinable(if last == i { head } else { prev }, s) => {
                 text.push_str(&s.text);
                 (last, prev) = (j, s);
             }

@@ -99,6 +99,7 @@ pub(crate) mod repertoire;
 pub(crate) mod retype;
 pub mod same_program;
 pub(crate) mod sibling;
+pub(crate) mod size_span;
 pub mod subset_augment;
 pub mod synth;
 pub(crate) mod unicode_map;
