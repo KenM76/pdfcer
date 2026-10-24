@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-24 (1234th filing) — `6ee68bab` `Pass 645.2` SHIPPED: visual comparison and page matching; decision 200
+
+**Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 645.2`: `pdfcer-render::visual_compare` (page matching plus changed regions), `pdfcer-core::compare::mark_regions`, and `pdfcer compare OLD NEW --visual [--dpi] [--tolerance] [--min-region] [--match-threshold] [--map]`. Orange revision clouds on changed regions, blue frame on inserted pages; deleted pages listed, not markable. Scoped by `compare__visual_pixel_scanned_and_page_matching.md` (Acrobat RAG).
+- Tests: 6 CLI integration, 7 render unit, 1 core unit, 1 CLI unit; pdfcer-render 516, pdfcer-cli bin 47 and integration 969 (2 ignored) pass. Sabotage of the 0.1 margin rule and the flat-page fallback failed 3 tests. Gates clean; no manifest change. Smoke on an operator-supplied local drawing pair (not a fixture): 30 pages in order at 1.00, one region, on the edited page.
+- Full entry: ROADMAP *Shipped*, top.
+
+**Decisions made:** 200, visual-comparison marks and rules (ARCHITECTURE section 12; `docs/decisions/200-visual-comparison-marks-and-rules.md`).
+
+**Findings:** the first test run exposed two real matching defects, both fixed before commit. (a) A scan pair of near-uniform paper tone failed to match at all, because Pearson correlation of near-flat grids is noise; fixed with the ink-overlap fallback. (b) An old page faintly like a new page (0.51) won an in-order pairing over an exact (1.00) moved page; fixed with the within-0.1-of-best eligibility rule.
+
+**FEATURES.md:** "Visual comparison and page matching" moved to *Implemented, Text*: core `[x]`, cli `[x]`, gui `[ ]`.
+
+**Still in flight:** nothing in the `645.x` family. **Acrobat Reader reopen check NOT done** (clouds and frame).
+
+**For next session:** next free `Pass 646.0`, decision `201`, `R263`; next filing 1235th. `docs/NEXT_SESSION.md` not touched (engineer-owned). Unreleased since `v0.97.0`.
+
 ## 2026-10-24 (1233rd filing) — `fcf02195` `Pass 645.1` SHIPPED: annotated comparison result; decision 199
 
 **Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**

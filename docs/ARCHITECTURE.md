@@ -13526,3 +13526,13 @@ Full record: `docs/decisions/199-comparison-result-palette-and-annotations.md`. 
 **Why.** Acrobat's tutorial uses blue for insertion and a marker for deletion; the palette is otherwise free design. Text-markup and caret annotations stay reviewable and removable rather than burned into content; default-on summary matches Acrobat's result. Limitation: a deletion's caret is at its content-order position, stated on the summary page.
 
 **Body-section effect.** None. **Decision ceiling.** Fills `199`; next free decision `200`. **New standing rule.** None; `R263` stays next free.
+
+### 2026-10-24 (1234th filing) — decision 200: visual-comparison marks and rules
+
+Full record: `docs/decisions/200-visual-comparison-marks-and-rules.md`. Recorded at `Pass 645.2` (`6ee68bab`).
+
+**Decides.** A changed region is an orange `/Square` revision cloud (1.5 pt border, 3 pt outside the changed pixels, note "Changed appearance (compared with old page N; P px)"); a page with no OLD counterpart gets a blue `/Square` frame 4 pt inside its crop box. Deleted pages are listed, not marked. Pages of different size compare anchored top-left, white beyond the smaller, flagged "page sizes differ". Defaults (108 dpi, threshold 48, merge gap 6 pt, min 6 px, match threshold 0.5) are printed. Explicit `--map` overrides matching. No OCR.
+
+**Why.** Acrobat gives coarse whole-sheet rectangles, automatic matching only in its scanned/drawings preset, no sensitivity control and no mapping override; the Acrobat RAG requires a stated rule for differing sizes. Every inferred pairing is disclosed, never silent.
+
+**Body-section effect.** None. **Decision ceiling.** Fills `200`; next free decision `201`. **New standing rule.** None; `R263` stays next free.

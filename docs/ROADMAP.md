@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `6ee68bab` `Pass 645.2` SHIPPED, 2026-10-24: compare two documents by appearance, with page matching (1234th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Code commit `6ee68bab` on `3ae4b36f` (the 1233rd filing). Scoped by the Acrobat RAG file `D:\Dev\Rag-Specialized\Acrobat_Features\compare__visual_pixel_scanned_and_page_matching.md`. Reasoning is in the commit message and decision 200.
+- **Render:** `visual_compare(old, new, &VisualCompareOptions) -> Result<VisualCompareReport, VisualCompareError>` in `pdfcer-render`; types `PagePair`, `PageMatch {InOrder, Moved, Mapped, Inserted, Deleted}`, `VisualRegion`, `VisualCompareOptions` (scale 1.5 = 108 dpi, threshold 48, merge_gap 6 pt, min_pixels 6, match_threshold 0.5, `pages`, `mapping`). Matching: 32-cell ink grid of a 128 px thumbnail; similarity = Pearson correlation x aspect ratio, or weighted ink overlap (per-cell floor 0.02) for near-flat pages (cell std < 0.02: blank or scan paper). Order-preserving DP alignment where a pair must clear the threshold AND be within 0.1 of both pages' best score; leftovers pair greedily as "moved". Regions: per-pair render, changed pixels grouped by 8-connected cells of merge_gap, groups under min_pixels dropped, mapped to NEW-page user space, clipped to the crop box.
+- **Core:** `compare::mark_regions(&mut EditSession, &[RegionMark], &ResultOptions) -> Result<RegionReport, ResultError>`, `RegionMark::changed` / `::inserted_page`, `RegionKind`, `RegionReport`; `ResultOptions::with_summary_note`. `mark_regions` must run BEFORE `mark_changes` (the summary page shifts indices).
+- **CLI:** `pdfcer compare OLD NEW --visual [--dpi] [--tolerance] [--min-region] [--match-threshold] [--map 1=1,2=3]`; `--json` gains "visual"; `--output` adds region marks. Settings, every non-in-order pairing with its similarity, size-differing pairs and "nothing matched" are printed (stated, never silent). Exit 16 under `--exit-code` covers visual differences.
+- **Marks (decision 200):** changed region = orange (REPLACED_COLOR) `/Square` revision cloud (`/BE /S /C /I 1`), 1.5 pt border, drawn 3 pt outside the changed pixels, note "Changed appearance (compared with old page N; P px)"; a page with no OLD counterpart = blue (INSERTED_COLOR) `/Square` frame 4 pt inside its crop box, note "Inserted page: ...". Deleted pages cannot be marked on NEW; listed in the report and summary page. Differing page sizes compared anchored top-left, white beyond the smaller page, flagged "page sizes differ". No OCR.
+- **Docs:** `docs/core-api` 01 section 8.10 and 03 section 7 updated, index counts; `check-core-api-verbs` PASS.
+- **Verified (engineer):** 6 new CLI integration tests (`crates/pdfcer-cli/tests/compare_visual.rs`): moved image gives exactly two 40 pt boxes `[100,600,140,640]` and `[400,200,440,240]`, not the sheet; white-text edit caught by the text half while visual reports 0 regions; old A B C D vs new B X C A gives A moved, D deleted, X inserted, B and C in order; scan pair (image-only noisy pages) reports the one added mark; nothing-alike states "no match found" and `--map 1=1` pairs as mapped; `--output` carries clouds and the inserted-page frame with NEW byte-unchanged. Plus 7 render unit tests (`visual_match` 4 incl. `a_weak_in_order_pair_loses_to_an_obvious_move`, `visual_regions` 3), 1 core unit, 1 CLI unit. Sabotage of the 0.1 margin rule and the flat-page fallback made 3 tests fail. Counts: pdfcer-render 516 pass; pdfcer-cli bin 47, integration 969 pass (2 ignored); core compare-filtered green. Smoke on a local operator CAD drawing pair (not rights-cleared, not a fixture): 30 pages all paired in order at similarity 1.00, exactly one region, on the page with the edited note, cloud tight around it.
+- **Gates (engineer):** fmt, workspace clippy `-D warnings` and `-p pdfcer-cli --no-default-features` clean; code-structure, public-fns-documented, outcome-disclosed, tests-harnessed, suite-name-absent clean. No Cargo.toml change, so `cargo tree` and the GUI-core invariant are unchanged.
+- **Decision minted:** 200 (visual-comparison marks and rules; ARCHITECTURE.md section 12; `docs/decisions/200-visual-comparison-marks-and-rules.md`). No R minted.
+- **Filing:** FEATURES row "Visual comparison and page matching" moved from *Planned* to *Implemented, Text*: core `[x]`, cli `[x]`, gui `[ ]`; the 645.0 row's pointer sentence updated. Sweep (rule 11): no changed meaning; the 645.0 and 645.1 entries' "visual compare unbuilt" wording is dated history. Acrobat Reader reopen check of the cloud and frame NOT done.
+
 ### `fcf02195` `Pass 645.1` SHIPPED, 2026-10-24: annotated comparison result, core + CLI (1233rd filing)
 
 Engineer-reported; no shell here, nothing checked from here. Code commit `fcf02195` on `ec91aabe` (the 1232nd filing), unpushed at filing time (origin/main = `ec91aabe`). Unreleased since `v0.97.0`. Reasoning is in the commit message and decision 199.
@@ -23834,7 +23847,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
 
-(1233rd filing: `Pass 645.1` (annotated comparison result) SHIPPED on `fcf02195`, see *Shipped*; `645.2` stays below. Decision `199` minted; next free `Pass 646.0`, decision `200`, `R263`; next filing 1234th.)
+(1234th filing: `Pass 645.2` (visual comparison and page matching) SHIPPED on `6ee68bab`, see *Shipped*; the `645.x` document-comparison family is now fully shipped. Decision `200` minted; next free `Pass 646.0`, decision `201`, `R263`; next filing 1235th.)
+
+(1233rd filing: `Pass 645.1` (annotated comparison result) SHIPPED on `fcf02195`, see *Shipped*. Decision `199` minted; next free `Pass 646.0`, decision `200`, `R263`; next filing 1234th.)
 
 (1232nd filing: `Pass 645.0` (text compare, core + CLI) SHIPPED on `cdff47b8`, see *Shipped*; `645.1` and `645.2` stay below. Nothing minted; next free `Pass 646.0`, decision `199`, `R263`; next filing 1233rd.)
 
@@ -34602,16 +34617,6 @@ overrides the image dictionary; `/ColorSpace` optional,
 - Expected order once the token exists: `pdfcer-color`, `pdfcer-model`, then `pdfcer-pkix`; the rest per the blockers above.
 
 **Status:** Next up, blocked on the token. FEATURES.md: row "Publish the engine crates to crates.io" in *Planned*, all boxes unticked.
-
-### Pass 645.2 — visual comparison and page matching (NEXT UP; filed 1231st filing, 2026-10-24)
-
-**Depends on `645.0`.** Reference: `compare__overview_inputs_and_options.md` and `compare__change_types_and_output.md` (same RAG directory).
-
-- Pixel comparison per matched page pair for drawings and scans (Acrobat's "Scanned Documents / drawings" preset), built on the existing `pdfcer-render` `visual_diff` (`crates/pdfcer-render/src/visual_diff.rs`), with images added, removed and changed.
-- Page matching when pages were inserted, removed or moved (Acrobat's "Presentation Decks" preset).
-- **Parity targets to EXCEED (Acrobat's known weaknesses):** moving one image on a drawing reports the whole sheet as replaced; pure-white text edits are missed.
-
-**Acceptance:** fixtures for a moved image (only that image reported, not the sheet), a white-text edit (reported), inserted/removed/moved pages (matched), and a scan pair; any inferred match or threshold is disclosed in the report. Scope to be refined with `pdfcer-acrobat-librarian` before build. **Status:** NOT STARTED. FEATURES.md: row "Visual comparison and page matching", unticked.
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 
