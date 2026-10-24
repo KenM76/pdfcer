@@ -398,6 +398,14 @@ pub struct AssembleReport {
     /// dangling marked-content references — a document that *claims* to
     /// be tagged and is not. Dropped, counted, named.
     pub struct_tree_dropped: bool,
+    /// Links, bookmarks and actions that named a structure element and
+    /// now name its page (ISO 32000-2 §12.3.2.3), because the structure
+    /// tree they pointed into was dropped. Counted before the page barrier:
+    /// one whose page was not copied is also in `dangling_references`.
+    pub structure_links_to_pages: usize,
+    /// Of `structure_links_to_pages`, the ones whose element named no page
+    /// and took the source's first page, as §12.3.2.3 directs.
+    pub structure_links_to_first_page: usize,
     /// Whether `/OCProperties` (§8.11 optional content) was carried.
     ///
     /// Carried wholesale when a catalog is carried: layer *definitions*
@@ -529,8 +537,11 @@ pub fn assemble(
             return Err(PageOpError::PageNotADictionary { id });
         };
 
-        let mut copied = copier.copy_dict(view, source_index, page_dict, 0)?;
-        copied.remove(b"Parent");
+        // `/Parent` goes BEFORE the walk: followed, it would copy the old
+        // `Pages` node as an orphan and count its `/Kids` as dangling.
+        let mut unparented = page_dict.clone();
+        unparented.remove(b"Parent");
+        let mut copied = copier.copy_dict(view, source_index, &unparented, 0)?;
         copied.insert(
             Name::from(b"Parent"),
             Object::Reference(ObjId::new(root_num, 0)),
@@ -663,6 +674,8 @@ pub fn assemble(
     copier.drain(sources)?;
     report.objects_copied = copier.objects.len();
     report.dangling_references += copier.dangling;
+    report.structure_links_to_pages += copier.struct_links.0;
+    report.structure_links_to_first_page += copier.struct_links.1;
 
     let version = sources
         .iter()
@@ -1016,6 +1029,12 @@ pub struct Copier {
     barrier: HashSet<(usize, ObjId)>,
     /// References refused by the barrier, or pointing at nothing.
     dangling: usize,
+    /// Structure destinations re-pointed at a page, and of those the ones
+    /// that took the first page.
+    struct_links: (usize, usize),
+    /// `(source index, element)` → its page; `(source index, None)` → the
+    /// source's first page.
+    struct_pages: HashMap<(usize, Option<ObjId>), Option<ObjId>>,
     /// The output's `/Info` object, if one is being carried.
     info: Option<u32>,
 }
@@ -1031,6 +1050,8 @@ impl Copier {
             queue: Vec::new(),
             barrier,
             dangling: 0,
+            struct_links: (0, 0),
+            struct_pages: HashMap::new(),
             info: None,
         }
     }
@@ -1136,6 +1157,8 @@ impl Copier {
                 .map_reference(view, source_index, *id)?
                 .map(|number| Object::Reference(ObjId::new(number, 0))),
             Object::Array(items) => {
+                let redirected = self.redirect_struct_dest(view, source_index, items);
+                let items = redirected.as_deref().unwrap_or(items);
                 let mut out = Vec::with_capacity(items.len());
                 for item in items {
                     // A refused element refuses the whole array — see
@@ -1180,12 +1203,57 @@ impl Copier {
         depth: usize,
     ) -> Result<Dict, PageOpError> {
         let mut out = Dict::new();
+        // The structure tree never travels, so a GoTo `/SD` (§12.6.4.2)
+        // goes; it becomes the `/D` when there is none.
+        let goto = crate::struct_page::goto_like(dict);
         for (key, value) in dict.iter() {
+            let key = match key.as_bytes() {
+                b"SD" if goto && dict.get(b"D").is_none() => Name::from(b"D"),
+                b"SD" if goto => continue,
+                _ => key.clone(),
+            };
             if let Some(mapped) = self.copy_value(view, source_index, value, depth + 1)? {
-                out.insert(key.clone(), mapped);
+                out.insert(key, mapped);
             }
         }
         Ok(out)
+    }
+
+    /// A structure destination re-pointed at the page its element resolves
+    /// to (`crate::struct_page`), operands kept; `None` for any other array.
+    fn redirect_struct_dest(
+        &mut self,
+        view: &DocumentView<'_>,
+        source_index: usize,
+        items: &[Object],
+    ) -> Option<Vec<Object>> {
+        let elem = crate::struct_page::struct_target(view, items)?;
+        let mut page = self.struct_page(view, source_index, Some(elem));
+        self.struct_links.0 += 1;
+        if page.is_none() {
+            self.struct_links.1 += 1;
+            page = self.struct_page(view, source_index, None);
+        }
+        let mut out = vec![page.map_or(Object::Null, Object::Reference)];
+        out.extend(items.iter().skip(1).cloned());
+        Some(out)
+    }
+
+    fn struct_page(
+        &mut self,
+        view: &DocumentView<'_>,
+        source_index: usize,
+        elem: Option<ObjId>,
+    ) -> Option<ObjId> {
+        *self
+            .struct_pages
+            .entry((source_index, elem))
+            .or_insert_with(|| match elem {
+                Some(e) => crate::struct_page::element_page(view, e),
+                None => crate::page_tree::pages_in(view)
+                    .ok()
+                    .and_then(|p| p.first().map(|p| p.id)),
+            })
     }
 
     /// Append a stream's raw payload to the staging buffer and return its

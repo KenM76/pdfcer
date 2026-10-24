@@ -3384,6 +3384,14 @@ page showed.
 `insert-pages --labels source|continue`); its `AssembleReport` carries
 `page_label_ranges` and `page_labels_dropped` with the same meanings.
 
+Every assembled file (extract, split, merge, insert to a new file) drops
+the structure tree (`struct_tree_dropped`), so a link, bookmark or GoTo
+that named a structure element names that element's page instead,
+operands kept, and a GoTo `/SD` becomes its `/D` (ISO 32000-2 §12.3.2.3).
+`structure_links_to_pages` counts them, `structure_links_to_first_page`
+the ones whose element named no page and took the source's first. One
+whose page was not copied is dropped and counted in `dangling_references`.
+
 **Extract and split** keep labels too: `pageops::extract_with_labels(&view,
 pages, separations, pageops::ExtractedPageLabels) -> Result<(Vec<u8>,
 AssembleReport), PageOpError>` and `pageops::split_with_labels(.., labels)`.

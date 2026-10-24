@@ -220,8 +220,17 @@ impl DestinationResolver {
         let mut current = graph.resolve(dest).clone();
         for _ in 0..8 {
             match current {
-                // Shape 1: `[page /Fit …]`. Element 0 is the page.
+                // Shape 1: `[page /Fit …]`. Element 0 is the page, or a
+                // structure element standing for its page (ISO 32000-2
+                // §12.3.2.3), the first page when it names none.
                 Object::Array(ref items) => {
+                    if let Some(elem) = crate::struct_page::struct_target(graph, items) {
+                        return crate::struct_page::element_page(graph, elem).or_else(|| {
+                            crate::page_tree::pages_in(graph)
+                                .ok()
+                                .and_then(|p| p.first().map(|p| p.id))
+                        });
+                    }
                     return items.first().and_then(Object::as_reference);
                 }
                 // Shape 3 / 4: a name or a byte string keying a tree.
@@ -269,7 +278,9 @@ impl DestinationResolver {
         if !is_goto {
             return None;
         }
-        self.resolve_destination(graph, action.get(b"D")?)
+        // ISO 32000-2 §12.6.4.2: a GoTo may carry only a structure
+        // destination.
+        self.resolve_destination(graph, action.get(b"D").or_else(|| action.get(b"SD"))?)
     }
 }
 

@@ -343,10 +343,10 @@ fn read_siblings(
             .and_then(Object::as_array)
             .map(<[Object]>::to_vec)
             .or_else(|| {
-                graph
-                    .resolve(dict.get(b"A")?)
-                    .as_dict()?
+                let action = graph.resolve(dict.get(b"A")?).as_dict()?;
+                action
                     .get(b"D")
+                    .or_else(|| action.get(b"SD"))
                     .map(|o| graph.resolve(o))
                     .and_then(Object::as_array)
                     .map(<[Object]>::to_vec)

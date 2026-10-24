@@ -110,6 +110,7 @@ pub mod space_audit;
 /// Acrobat-compatible stamp collection files -- one file per category,
 /// one page per stamp, names in the catalog's `/Names` -> `/Pages` tree.
 pub mod stamp_file;
+mod struct_page;
 pub mod structure;
 /// SVG import as vector content (SVG 1.1 via `usvg`), placed by
 /// [`edit::EditSession::add_svg`].

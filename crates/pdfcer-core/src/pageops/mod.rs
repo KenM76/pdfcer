@@ -774,6 +774,9 @@ pub fn insert_with(
 }
 
 #[cfg(test)]
+mod struct_dest_tests;
+
+#[cfg(test)]
 pub(crate) mod tests_support {
     //! Fixture builders shared by this module's test suites.
     //!

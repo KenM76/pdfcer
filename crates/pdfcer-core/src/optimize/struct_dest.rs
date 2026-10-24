@@ -23,9 +23,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use super::actions::Rewrite;
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, Name, ObjId, Object};
+use crate::struct_page::{element_page, goto_like, is_struct_elem_dict};
 use crate::view::DocumentView;
 
-/// Guard for the structure-tree and name-tree walks (ARCHITECTURE §10).
+/// Guard for the name-tree walk (ARCHITECTURE §10).
 const MAX_DEPTH: usize = 64;
 
 /// What [`rewrites`] produced.
@@ -314,78 +315,14 @@ impl Cx<'_, '_> {
         if let Some(&p) = self.memo.get(&elem) {
             return p;
         }
-        let page = search(self.view, elem, &mut BTreeSet::new(), 0);
+        let page = element_page(self.view, elem);
         self.memo.insert(elem, page);
         page
     }
 }
 
-fn search(
-    view: &DocumentView<'_>,
-    elem: ObjId,
-    seen: &mut BTreeSet<ObjId>,
-    depth: usize,
-) -> Option<ObjId> {
-    if depth > MAX_DEPTH || !seen.insert(elem) {
-        return None;
-    }
-    let d = view.value(elem)?.as_dict()?;
-    let own = d.get(b"Pg").and_then(Object::as_reference);
-    let kids = match d.get(b"K")? {
-        Object::Array(a) => a.as_slice(),
-        single => std::slice::from_ref(single),
-    };
-    for kid in kids {
-        let found = match kid {
-            Object::Integer(_) => own,
-            Object::Dict(k) if is_content_ref(k) => {
-                k.get(b"Pg").and_then(Object::as_reference).or(own)
-            }
-            Object::Reference(r) => match view.value(*r) {
-                Some(Object::Dict(k)) if is_content_ref(k) => {
-                    k.get(b"Pg").and_then(Object::as_reference).or(own)
-                }
-                Some(Object::Dict(k)) if is_struct_elem_dict(k) => {
-                    search(view, *r, seen, depth + 1)
-                }
-                _ => None,
-            },
-            _ => None,
-        };
-        if found.is_some() {
-            return found;
-        }
-    }
-    None
-}
-
-/// A marked-content reference (Table 357) or object reference (Table 358).
-fn is_content_ref(d: &Dict) -> bool {
-    d.get(b"Type")
-        .and_then(Object::as_name)
-        .is_some_and(|n| matches!(n.as_bytes(), b"MCR" | b"OBJR"))
-}
-
 fn is_struct_elem(o: &Object) -> bool {
     o.as_dict().is_some_and(is_struct_elem_dict)
-}
-
-/// A structure element (Table 355): a structure type and a parent, and not
-/// a page.
-fn is_struct_elem_dict(d: &Dict) -> bool {
-    let page = d
-        .get(b"Type")
-        .and_then(Object::as_name)
-        .is_some_and(|n| n.as_bytes() == b"Page");
-    !page && d.get(b"S").and_then(Object::as_name).is_some() && d.get(b"P").is_some()
-}
-
-/// A GoTo action, or a dictionary with no action type (a named
-/// destination's `<< /D … >>`).
-fn goto_like(d: &Dict) -> bool {
-    d.get(b"S")
-        .and_then(Object::as_name)
-        .is_none_or(|n| n.as_bytes() == b"GoTo")
 }
 
 fn kids(node: &Dict) -> Vec<ObjId> {

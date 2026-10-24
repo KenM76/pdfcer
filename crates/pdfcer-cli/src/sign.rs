@@ -920,6 +920,15 @@ would leave dangling references and a file that claims to be tagged but is not."
             output.display()
         );
     }
+    if report.structure_links_to_pages > 0 {
+        eprintln!(
+            "pdfcer: {}: {} link(s) to a tag now go to the tag's page, {} of them to the first \
+page (the tag had no page).",
+            output.display(),
+            report.structure_links_to_pages,
+            report.structure_links_to_first_page
+        );
+    }
     report_separations(output, &report.separations);
 }
 
@@ -1108,7 +1117,8 @@ pub(crate) fn assemble_metrics(
     format!(
         "pages={} objects={} dangling={} outline_kept={} outline_dropped={} \
 outline_relinked={} fields_renamed={} fields_dropped={} dests_dropped={} labels_dropped={} \
-labels_stale={} label_ranges={} struct_tree_dropped={} ocg_carried={} {} out_bytes={out_bytes}",
+labels_stale={} label_ranges={} struct_tree_dropped={} struct_links={} struct_links_first_page={} \
+ocg_carried={} {} out_bytes={out_bytes}",
         report.pages,
         report.objects_copied,
         report.dangling_references,
@@ -1122,6 +1132,8 @@ labels_stale={} label_ranges={} struct_tree_dropped={} ocg_carried={} {} out_byt
         u32::from(report.page_labels_stale),
         report.page_label_ranges,
         u32::from(report.struct_tree_dropped),
+        report.structure_links_to_pages,
+        report.structure_links_to_first_page,
         u32::from(report.optional_content_carried),
         separation_metrics(&report.separations),
     )
