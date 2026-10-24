@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `b0a88c41` `Pass 643.0` COMPLETE, 2026-10-23: session page import (insert/paste/merge) stops dragging a tagged source's structure and unchosen pages (1225th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Scoped and completed in this one docs-only filing. The code commit `b0a88c41` sits on `27bb2ab8` and was unpushed at filing time. Unreleased: the next release (slot `pdfcer1`) carries it with `Pass 641.0` and `Pass 642.0`. Third sibling of those two: the same rule, now for the `EditSession` cross-document import.
+- **Defect closed:** `EditSession::insert_pages` / `insert_pages_with` / `paste_pages` / `merge_document` copied a tagged source's `/StructTreeRoot` and struct elements, and phantom copies of source pages that were NOT inserted, reached via `/Pg` or an ordinary link `/Dest`. The second is the broader defect, found during this Pass: it affects untagged sources too.
+- **Fix:** new module `crates/pdfcer-core/src/edit/page_import.rs`. A page barrier refuses references to un-chosen source pages (an array is refused whole, a dict entry dropped). Structure destinations (ISO 32000-2 §12.3.2.3) re-point at the element's page, else the source's first page. A GoTo `/SD` (§12.6.4.2) becomes `/D` when there is none, else is dropped. `/StructParents` and `/StructParent` (§14.7.5.4) are dropped.
+- **New pub fields:** `InsertOutcome::{links_to_pages_left_behind, structure_links_to_pages, structure_links_to_first_page, source_tags_dropped}`; `MergeOutcome` gains the last three. CLI `pdfcer merge-document` prints `tags_dropped=` / `struct_links=` / `struct_links_first_page=` and a stderr disclosure. `docs/core-api/02-editing-and-saving.md` updated; `check-core-api-verbs` PASS.
+- **Verified (engineer):** new `crates/pdfcer-core/tests/insert_pages_struct_dest.rs`, 4 tests; sabotaging the barrier, the key-drop and the struct-redirect each fails them. `pdfcer-core`: 1973 lib + 3041 + 250 + 44 integration passed, 0 failed; `pdfcer-cli` 960 passed. Clippy `-D warnings` clean (default and `--no-default-features`), fmt clean, code-structure clean (565 baseline, none new), `check-outcome-disclosed` clean. No manifest change, so `cargo tree` and the GUI-core invariant are unaffected.
+- **Filing:** FEATURES rows 173 (insert_pages) and 178 (merge) gain a clause; row 180 (paste) inherits `insert_pages` and is unchanged. Boxes unchanged (core `[x]`; cli `[x]` for merge-document, `—` for in-session insert; gui not rounded up). No decision or R minted (next free `Pass 644.0`, decision `199`, `R263`). Sweep (rule 11): no counter or capability changed meaning; none owed.
+
 ### `fcbe9606` `Pass 642.0` COMPLETE, 2026-10-23: assembled files re-point structure destinations at pages (1224th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Scoped and completed in this one docs-only filing. Unreleased: the next release (`v0.96.0`) carries it with `e2bb5d67` and `Pass 641.0` (`ef72139d`).
@@ -23747,6 +23756,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
+
+(1225th filing: `Pass 643.0` scoped and COMPLETE in one filing (`b0a88c41`, unpushed at filing), see *Shipped*. Nothing minted; next free `Pass 644.0`, decision `199`, `R263`; next filing 1226th.)
 
 (1224th filing: `Pass 642.0` scoped and COMPLETE in one filing (`fcbe9606`, unreleased), see *Shipped*. Nothing minted; next free `Pass 643.0`, decision `199`, `R263`; next filing 1225th.)
 

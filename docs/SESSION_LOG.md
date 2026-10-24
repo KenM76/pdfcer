@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1225th filing) — `b0a88c41` `Pass 643.0` scoped and COMPLETE: session page import stops dragging a tagged source's structure and unchosen pages
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 643.0`, commit `b0a88c41` (on `27bb2ab8`, unpushed at filing), unreleased (next release, slot `pdfcer1`). `EditSession::insert_pages` / `insert_pages_with` / `paste_pages` / `merge_document` no longer copy a tagged source's structure tree, nor phantom copies of un-inserted source pages reached via `/Pg` or a link `/Dest` (the latter also hit untagged sources). Page barrier refuses references to un-chosen pages; structure destinations re-point at a page (§12.3.2.3); GoTo `/SD` becomes `/D` or is dropped (§12.6.4.2); `/StructParents`/`/StructParent` dropped (§14.7.5.4). Same rule as `Pass 641.0` and `Pass 642.0`, now for the session import.
+- New `crates/pdfcer-core/src/edit/page_import.rs`; `InsertOutcome` and `MergeOutcome` gain the disclosure counts; CLI `merge-document` prints `tags_dropped=` / `struct_links=` / `struct_links_first_page=` plus stderr. Core-api doc updated.
+- Verified by the engineer: 4 new tests in `tests/insert_pages_struct_dest.rs`, sabotage of each fix fails them; core 1973 lib + 3041 + 250 + 44 integration pass; cli 960 pass; clippy (both feature sets), fmt, code-structure (565 baseline, none new), outcome-disclosed clean; no manifest change. Full entry: `ROADMAP.md` Shipped.
+
+**Decisions made:** none; no decision or R minted.
+
+**FEATURES.md:** rows 173 (insert_pages) and 178 (merge) gain one clause each; row 180 (paste) inherits and is unchanged; boxes unchanged (gui not rounded up).
+
+**For next session:** commit `b0a88c41` unpushed at filing; run `check-commits-filed.py` before pushing. Next free `Pass 644.0`, decision `199`, `R263`; next filing 1226th.
+
 ## 2026-10-23 (1224th filing) — `fcbe9606` `Pass 642.0` scoped and COMPLETE: assembled files re-point structure destinations at pages
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
