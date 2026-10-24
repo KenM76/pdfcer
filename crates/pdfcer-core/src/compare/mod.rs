@@ -16,9 +16,11 @@
 
 mod changes;
 mod diff;
+mod region_marks;
 mod result;
 mod words;
 
+pub use region_marks::{RegionKind, RegionMark, RegionReport, mark_regions};
 pub use result::{
     DELETED_COLOR, FORMATTING_COLOR, INSERTED_COLOR, REPLACED_COLOR, ResultError, ResultOptions,
     ResultReport, Unmarked, mark_changes,

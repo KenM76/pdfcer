@@ -1,13 +1,15 @@
-//! `compare`: the text differences between two PDFs (Pass 645.0).
+//! `compare`: the text differences between two PDFs (Pass 645.0), and with
+//! `--visual` the appearance differences (Pass 645.2, `compare_visual`).
 
 use std::fmt::Write as _;
 
 use pdfcer_core::compare::{
-    Change, ChangeKind, CompareError, CompareOptions, CompareReport, Place, ResultOptions,
-    ResultReport, Side, compare_documents, mark_changes,
+    Change, ChangeKind, CompareError, CompareOptions, CompareReport, Place, RegionReport,
+    ResultOptions, ResultReport, Side, compare_documents, mark_changes, mark_regions,
 };
 use pdfcer_core::page_tree::Rect;
 use pdfcer_core::text_extract::TextColor;
+use pdfcer_render::VisualCompareReport;
 
 use super::*;
 use crate::edit_common::{finish_edit, save_edited};
@@ -55,6 +57,8 @@ pub(crate) struct CompareArgs {
     /// With --output: the author written on every mark.
     #[arg(long, value_name = "NAME", requires = "output")]
     pub(crate) author: Option<String>,
+    #[command(flatten)]
+    pub(crate) visual: crate::compare_visual::VisualArgs,
 }
 
 /// Run `compare`: open both files, diff their text, print the report and
@@ -86,7 +90,7 @@ pub(crate) fn cmd_compare(args: &CompareArgs) -> u8 {
         Ok(d) => d,
         Err(err) => return open_failed(&args.new, &err),
     };
-    let options = match options(args, &old, &new) {
+    let (options, pages) = match options(args, &old, &new) {
         Ok(o) => o,
         Err(message) => {
             eprintln!("pdfcer: compare: {message}");
@@ -103,30 +107,55 @@ pub(crate) fn cmd_compare(args: &CompareArgs) -> u8 {
             };
         }
     };
-    if args.json {
-        println!("{}", report_json(&report));
-    } else {
-        print!("{}", report_text(&report));
-    }
+    let visual = match crate::compare_visual::run(args, &old, &new, pages) {
+        Ok(v) => v,
+        Err(message) => {
+            eprintln!("pdfcer: compare: --visual: {message}");
+            return exit::RUNTIME_ERROR;
+        }
+    };
+    print_reports(args.json, &report, visual.as_ref());
     if let Some(output) = &args.output
-        && let Err(code) = write_result(args, output, new, &report)
+        && let Err(code) = write_result(args, output, new, &report, visual.as_ref())
     {
         return code;
     }
-    if args.exit_code && !report.is_identical() {
+    let visual_differs = visual.as_ref().is_some_and(crate::compare_visual::differs);
+    if args.exit_code && (!report.is_identical() || visual_differs) {
         exit::DOCUMENTS_DIFFER
     } else {
         exit::SUCCESS
     }
 }
 
-/// Mark `report` on a copy of `new` and save it to `output` as an
-/// incremental update; prints what was marked and what was not.
+fn print_reports(json: bool, report: &CompareReport, visual: Option<&VisualCompareReport>) {
+    if json {
+        let text = report_json(report);
+        match visual {
+            Some(v) => println!(
+                "{},\"visual\":{}}}",
+                text.strip_suffix('}').unwrap_or(&text),
+                crate::compare_visual::report_json(v)
+            ),
+            None => println!("{text}"),
+        }
+    } else {
+        print!("{}", report_text(report));
+        if let Some(v) = visual {
+            print!("{}", crate::compare_visual::report_text(v));
+        }
+    }
+}
+
+/// Mark `report` (and `visual`'s regions) on a copy of `new` and save it to
+/// `output` as an incremental update; prints what was marked and what was
+/// not.
 fn write_result(
     args: &CompareArgs,
     output: &Path,
     new: Document,
     report: &CompareReport,
+    visual: Option<&VisualCompareReport>,
 ) -> Result<(), u8> {
     let label = |p: &Path| {
         p.file_name()
@@ -138,7 +167,20 @@ fn write_result(
     if let Some(a) = &args.author {
         options = options.with_author(a.clone());
     }
+    if let Some(v) = visual {
+        options = options.with_summary_note(crate::compare_visual::summary_note(v));
+    }
+    let region_marks = visual.map(|v| crate::compare_visual::marks(v, &new));
     let mut session = pdfcer_core::edit::EditSession::new(new);
+    // Regions first: the summary page shifts every page index by one.
+    let regions = match region_marks.map(|m| mark_regions(&mut session, &m, &options)) {
+        Some(Err(err)) => {
+            eprintln!("pdfcer: compare: {err}");
+            return Err(exit::RUNTIME_ERROR);
+        }
+        Some(Ok(r)) => Some(r),
+        None => None,
+    };
     let marked = match mark_changes(&mut session, report, &options) {
         Ok(m) => m,
         Err(err) => {
@@ -154,7 +196,10 @@ fn write_result(
         ProducerArg::Preserve,
         false,
     )?;
-    println!("{}", result_text(&marked, output));
+    println!("{}", result_text(&marked, regions.as_ref(), output));
+    if let Some(r) = &regions {
+        crate::compare_visual::report_unmarked(r);
+    }
     for u in &marked.unmarked {
         eprintln!(
             "pdfcer: compare: change {} was not marked: {}",
@@ -178,9 +223,16 @@ fn same_file(a: &Path, b: &Path) -> bool {
     }
 }
 
-fn result_text(m: &ResultReport, output: &Path) -> String {
+fn result_text(m: &ResultReport, regions: Option<&RegionReport>, output: &Path) -> String {
+    let visual = regions.map_or_else(String::new, |r| {
+        format!(
+            "; {} visual mark(s), {} unmarked",
+            r.annotations,
+            r.unmarked.len()
+        )
+    });
     format!(
-        "compare: wrote {}: {} change(s) marked with {} annotation(s), {} unmarked{}",
+        "compare: wrote {}: {} change(s) marked with {} annotation(s), {} unmarked{visual}{}",
         output.display(),
         m.changes_marked,
         m.annotations,
@@ -198,10 +250,17 @@ fn open_failed(path: &Path, err: &pdfcer_core::document::DocError) -> u8 {
     exit_code_for_doc(err)
 }
 
-fn options(args: &CompareArgs, old: &Document, new: &Document) -> Result<CompareOptions, String> {
+/// The text-compare options, and the parsed page lists `(old, new)` the
+/// visual comparison reads too.
+fn options(
+    args: &CompareArgs,
+    old: &Document,
+    new: &Document,
+) -> Result<(CompareOptions, crate::compare_visual::PageLists), String> {
     let mut o = CompareOptions::default()
         .with_formatting(args.formatting)
         .with_artifacts(args.artifacts);
+    let mut lists = (None, None);
     for (side, spec, doc) in [
         (Side::Old, &args.pages_old, old),
         (Side::New, &args.pages_new, new),
@@ -212,10 +271,14 @@ fn options(args: &CompareArgs, old: &Document, new: &Document) -> Result<Compare
                 .len();
             let pages = crate::sign::parse_pages(spec, count)
                 .map_err(|e| format!("--pages-{}: {e}", side_name(side)))?;
+            match side {
+                Side::Old => lists.0 = Some(pages.clone()),
+                _ => lists.1 = Some(pages.clone()),
+            }
             o = o.with_pages(side, pages);
         }
     }
-    Ok(o)
+    Ok((o, lists))
 }
 
 const fn side_name(side: Side) -> &'static str {

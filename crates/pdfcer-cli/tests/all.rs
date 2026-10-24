@@ -20,6 +20,7 @@ mod audit_space;
 mod bates_stamp;
 mod bookmarks;
 mod compare_result;
+mod compare_visual;
 mod copy_page;
 mod create_digital_id;
 mod deskew;

@@ -701,6 +701,7 @@ use metadata_cmd::*;
 mod space_cmd;
 use space_cmd::*;
 mod compare_cmd;
+mod compare_visual;
 mod optimize_budget_cmd;
 mod optimize_cmd;
 mod optimize_compat;

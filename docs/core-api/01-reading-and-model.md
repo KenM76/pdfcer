@@ -116,6 +116,7 @@ builds `--no-default-features`, so both configurations compile.
 | Separate OCR-layer text from the page's own | `ExtractOptions::default().with_ocr_layer(OcrLayerFilter::OnlyOcrLayer)`, or read `TextRun::in_ocr_layer` — `ocr_layer.rs` | §8.2 |
 | Compare two documents' text, with page places | `compare::compare_documents(&Document, &Document, &CompareOptions)` — `compare/mod.rs` | §8.10 |
 | Mark a comparison's changes on the new document | `compare::mark_changes(&mut EditSession, &CompareReport, &ResultOptions)` — `compare/result.rs` | §8.10 |
+| Mark a visual comparison's changed regions on the new document | `compare::mark_regions(&mut EditSession, &[RegionMark], &ResultOptions)` — `compare/region_marks.rs` | §8.10 |
 | Search for text across the document | `EditSession::find_text_with(&needle, &TextSearchOptions)` — `edit.rs` **(read-only in effect, but needs a session)** | §8.5 |
 | Search for text **and learn what was unreadable** | `EditSession::search_text(&needle, &TextSearchOptions)` — `edit.rs` → `TextSearch { matches, diagnostics }` | §8.5 |
 | Render-setting preset for a subset standard (PDF/X, PDF/A, PDF/UA) | `pdfcer_core::settings::presets::RenderPreset::for_standard(RenderStandard)` | §8.5a |
@@ -1991,10 +1992,32 @@ each is its own undo entry.
   marks).
 - **Trap:** a deletion's caret sits at its *content-order* position, which on
   a drawing can be far from where the words were drawn.
+- `ResultOptions::with_summary_note(text)` appends `text` to the summary
+  page (the CLI puts the visual comparison's page matching there).
+
+**Region marks (`Pass 645.2`)** — `compare/region_marks.rs`. Core cannot
+render, so a visual comparison's regions arrive already in each page's
+default user space (`pdfcer_render::visual_compare`, `03-capabilities.md`
+§7). `compare::mark_regions(&mut EditSession, &[RegionMark], &ResultOptions)
+-> Result<RegionReport, ResultError>` authors one `/Square` per mark
+(decision 200):
+
+- `RegionMark::changed(page, rect, note)` — `RegionKind::Changed`: an
+  orange (`REPLACED_COLOR`) revision cloud (`/BE /S /C /I 1`), border 1.5 pt,
+  drawn 3 pt outside `rect`.
+- `RegionMark::inserted_page(page, crop_box, note)` —
+  `RegionKind::InsertedPage`: a blue (`INSERTED_COLOR`) frame 4 pt inside the
+  page box, for a page with no counterpart.
+- `RegionReport { annotations, unmarked: Vec<Unmarked> }` (`change` indexes
+  the marks slice). Only `ResultOptions::author` is read.
+- **Order:** call it **before** `mark_changes` when that inserts a summary
+  page, which shifts every page index by one.
 
 CLI: `pdfcer compare OLD NEW [--pages-old] [--pages-new] [--formatting]
 [--artifacts] [--json] [--exit-code] [--output RESULT.pdf [--no-summary]
-[--author NAME]]` (exit 16 when the text differs under `--exit-code`; 9 for
+[--author NAME]] [--visual [--dpi N] [--tolerance LEVELS] [--min-region PX]
+[--match-threshold S] [--map 1=1,2=3]]` (exit 16 when the text, or with
+`--visual` the appearance, differs under `--exit-code`; 9 for
 `CopyNotPermitted`; 2 when `--output` names OLD or NEW). The result is an
 incremental update of NEW written to RESULT; the sources are only read.
 

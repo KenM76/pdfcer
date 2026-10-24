@@ -3278,6 +3278,51 @@ CLI: `optimize --visual-diff` (also with `--dry-run`),
 changed page and implies `--visual-diff`. The report gains a "visual diff"
 section, and `--json` gains `visual_diff`.
 
+**Visual comparison with page matching (`Pass 645.2`)** (`pdfcer_render`).
+`visual_compare(old, new, &VisualCompareOptions) -> Result<VisualCompareReport,
+VisualCompareError>` compares two *different* documents by appearance; both
+are only read. Unlike `visual_diff` it pairs pages first and reports tight
+regions, not one bounding box.
+
+- **Page matching:** each page is rendered to a 128 px thumbnail and reduced
+  to a 32-cell-wide ink grid. Similarity (0-1) is the grids' correlation
+  times the aspect-ratio ratio; a near-flat page (blank, a scan's paper) is
+  compared by ink overlap instead. Pairs at or above `match_threshold` are
+  aligned in order (a pair must score within 0.1 of both pages' best, so a
+  weak in-order pair loses to an obvious move); leftovers clearing the
+  threshold pair as moved. A `mapping` replaces all of this.
+- **Regions:** each pair is rendered at `scale`; pixels whose R/G/B moved more
+  than `threshold` are grouped when within `merge_gap` points, and groups
+  under `min_pixels` dropped. Pages of different size are compared anchored
+  top-left, white beyond the smaller page (decision 200).
+- `VisualCompareOptions` (`#[non_exhaustive]`, `Default`): `with_scale`
+  (1.5 = 108 dpi), `with_threshold` (48), `with_merge_gap` (6.0 pt),
+  `with_min_pixels` (6), `with_match_threshold` (0.5), `with_pages(old, new)`
+  (0-based `Option<Vec<usize>>` each), `with_mapping(Vec<(old, new)>)`
+  (0-based; unlisted pages are inserted/deleted).
+- `VisualCompareReport`: `pairs: Vec<PagePair>` in new-page order (a
+  deleted page placed where it fell out), the settings used, and
+  `matched_automatically`; `region_count()`, `nothing_matched()` (no pair at
+  all: the rows mean "no match found", not "every page changed").
+- `PagePair { old, new: Option<usize>, how: PageMatch, similarity:
+  Option<f64>, size_differs, regions: Vec<VisualRegion>, error:
+  Option<String> }`. `PageMatch`: `InOrder`, `Moved`, `Mapped`, `Inserted`,
+  `Deleted`. `VisualRegion { pixels: ChangedRegion, rect: Rect,
+  changed_pixels }` — `rect` in the NEW page's default user space, clipped
+  to its crop box, ready for `compare::mark_regions`. A pair that fails to
+  render keeps going with `error` set.
+- `VisualCompareError`: `Pages { side, source }`, `NoSuchPage { side, index,
+  count }`, `Signature { side, index, source }`.
+
+★ **What the UI must disclose:** the settings (dpi, tolerance, merge gap,
+minimum region, match threshold or "paired by mapping"), every non-in-order
+pairing with its similarity, size-differs pairs, and `nothing_matched()`.
+No OCR: a scan pair is compared as pixels.
+
+CLI: `compare OLD NEW --visual` (with `--dpi`, `--tolerance`, `--min-region`,
+`--match-threshold`, `--map 1=1,2=3`); `--json` gains `visual`; `--output`
+adds the region marks.
+
 **Compatibility target** (`pdfcer_core::optimize`). `features_used(&Document)
 -> Vec<FeatureUse>` lists every version-dependent feature a document uses, in
 `VersionFeature` order: `Transparency` (1.4: `/SMask` not `/None`, `/CA` or

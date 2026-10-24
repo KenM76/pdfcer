@@ -105,7 +105,10 @@ mod svg_text;
 pub mod text;
 pub(crate) mod tiling;
 pub mod type3;
+mod visual_compare;
 mod visual_diff;
+mod visual_match;
+mod visual_regions;
 
 use pdfcer_core::content::ContentStream;
 use pdfcer_core::document::Document;
@@ -145,6 +148,10 @@ pub use layer_state::LayerVisibility;
 pub use overprint_preview::OverprintPreview;
 pub use separation_preview::{PROCESS_INKS, SeparationPreview};
 pub use shading::{ColorRamp, Geometry, PaintRoute, Shading, ShadingDiagnostics, ShadingFunction};
+pub use visual_compare::{
+    PageMatch, PagePair, VisualCompareError, VisualCompareOptions, VisualCompareReport,
+    VisualRegion, visual_compare,
+};
 pub use visual_diff::{
     ChangedRegion, PageDiff, VisualDiffError, VisualDiffOptions, diff_heatmap, diff_rendered,
     visual_diff,

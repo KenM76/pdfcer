@@ -35,6 +35,9 @@ pub struct ResultOptions {
     pub author: Option<String>,
     /// How the summary page names the two documents, `(old, new)`.
     pub labels: Option<(String, String)>,
+    /// Extra text appended to the summary page (a visual comparison's page
+    /// matching, say).
+    pub summary_note: Option<String>,
 }
 
 impl Default for ResultOptions {
@@ -43,6 +46,7 @@ impl Default for ResultOptions {
             summary_page: true,
             author: None,
             labels: None,
+            summary_note: None,
         }
     }
 }
@@ -66,6 +70,13 @@ impl ResultOptions {
     #[must_use]
     pub fn with_labels(mut self, old: impl Into<String>, new: impl Into<String>) -> Self {
         self.labels = Some((old.into(), new.into()));
+        self
+    }
+
+    /// Append `text` to the summary page.
+    #[must_use]
+    pub fn with_summary_note(mut self, text: impl Into<String>) -> Self {
+        self.summary_note = Some(text.into());
         self
     }
 }
@@ -311,6 +322,10 @@ fn summary_text(r: &CompareReport, options: &ResultOptions) -> String {
     }
     if r.truncated {
         s.push_str("\nA stretch exceeded the work limit and is reported as one replacement.\n");
+    }
+    if let Some(note) = &options.summary_note {
+        s.push('\n');
+        s.push_str(note);
     }
     s
 }
