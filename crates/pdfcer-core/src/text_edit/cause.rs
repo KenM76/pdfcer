@@ -95,10 +95,21 @@ pub enum UnsupportedCause {
     DegenerateCtm,
     /// A block show operator lies outside `BT … ET` (malformed content).
     ShowOutsideTextObject,
-    /// The block shares a text object with other content.
+    /// The block shares a text object with other content. Not produced: such
+    /// a block is lifted out of the object, or refused as
+    /// [`Self::TextObjectNotSeparable`].
     SharedTextObject,
     /// The block's text objects are not contiguous in the content stream.
+    /// Not produced: such a block is lifted out of them, or refused as
+    /// [`Self::TextObjectNotSeparable`].
     NonContiguousTextObjects,
+    /// The block's text is in text objects it shares with other content, or
+    /// that are not adjacent, and cannot be lifted out of them without
+    /// changing that content.
+    TextObjectNotSeparable {
+        /// Why, in words.
+        detail: &'static str,
+    },
     /// The block's show operators were not found in the content stream.
     ShowOperatorsNotFound,
     /// The text state in force after the block cannot be restored.
@@ -230,6 +241,10 @@ impl std::fmt::Display for UnsupportedCause {
             Self::NoSpaceGlyph { font } => write!(
                 f,
                 "a re-wrapped line needs a word space in font {font}, which shows no space glyph in this block and is not a single-byte font; refusing rather than guess a code"
+            ),
+            Self::TextObjectNotSeparable { detail } => write!(
+                f,
+                "the block shares its BT … ET text objects with other content and cannot be lifted out of them: {detail}; refusing"
             ),
             Self::StateNotRestorable { detail } | Self::CommitFailed { detail } => {
                 f.write_str(detail)

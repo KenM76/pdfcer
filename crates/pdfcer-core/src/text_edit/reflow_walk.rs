@@ -114,8 +114,15 @@ impl SpanStyle {
 /// anything the new body does not set, because the operators inside the
 /// region are gone. `exit` is the state just after `end`: what the new body
 /// must leave in force, or the reflow changed content it did not touch.
+///
+/// A block whose text objects also show other content, or are not adjacent,
+/// is **separated** instead of replaced whole: its show operators are
+/// deleted in place ([`Self::removals`]), every other operator of those
+/// objects stays, and the new body is inserted as a text object of its own
+/// at `start == end`, just after the last block text object's `ET`.
 pub(super) struct BlockRegion {
-    /// Start byte of the first block text object's `BT`.
+    /// Start byte of the first block text object's `BT`; the insertion point
+    /// when separated.
     pub(super) start: usize,
     /// End byte of the last block text object's `ET`.
     pub(super) end: usize,
@@ -123,6 +130,37 @@ pub(super) struct BlockRegion {
     pub(super) styles: HashMap<usize, SpanStyle>,
     pub(super) entry: WalkState,
     pub(super) exit: WalkState,
+    /// In-place deletions of the block's show operators (separated only).
+    pub(super) removals: Vec<(usize, usize, Vec<u8>)>,
+    /// The last block show before the insertion point (separated only): the
+    /// CTM in force at the insertion is the one this show ran under.
+    pub(super) anchor: Option<ByteSpan>,
+}
+
+/// What a separated reflow tells the operator it did.
+pub(crate) const SEPARATED_DISCLOSURE: &str = "the block shared its text object with other \
+    content, so its show operators were removed there (that content keeps its bytes, positions \
+    and text state) and the block was written as a text object of its own after it: it now \
+    paints after that content";
+
+impl BlockRegion {
+    /// Whether the block is lifted out of shared text objects rather than
+    /// replaced whole.
+    pub(super) fn is_separated(&self) -> bool {
+        self.anchor.is_some()
+    }
+
+    /// The splice edits that put `body` in place of the block.
+    pub(super) fn edits(&self, body: Vec<u8>) -> Vec<(usize, usize, Vec<u8>)> {
+        let mut out = self.removals.clone();
+        let body = if self.is_separated() {
+            [b"\n".as_slice(), body.as_slice()].concat()
+        } else {
+            body
+        };
+        out.push((self.start, self.end, body));
+        out
+    }
 }
 
 /// One text object (`BT … ET`) seen in the walk, with the state at both of
@@ -133,6 +171,51 @@ struct TextObj {
     show_spans: Vec<ByteSpan>,
     at_bt: WalkState,
     at_et: WalkState,
+    /// The open marked-content sequences at `ET`.
+    marked_at_et: Vec<usize>,
+    /// A block show ran since the last line-positioning operator.
+    after_block: bool,
+    /// Why the block cannot be lifted out of this object, once seen.
+    unseparable: Option<&'static str>,
+    last_block: Option<ByteSpan>,
+}
+
+impl TextObj {
+    /// Track whether deleting the block's shows would move a later show:
+    /// a show starts where the previous one ended unless a line-positioning
+    /// operator intervenes (`Td TD Tm T*`, or the `T*` that `'` and `"` begin
+    /// with; ISO 32000-1 §9.4.2–9.4.3). `Tlm` is never moved by a show, so
+    /// positioning relative to it is unaffected.
+    fn track(&mut self, name: &[u8], block: bool) {
+        if block {
+            self.after_block = true;
+        } else if matches!(name, b"'" | b"\"") {
+            self.after_block = false;
+        } else if self.after_block {
+            self.unseparable.get_or_insert(
+                "a show after the block's text continues from where that text ended, so removing \
+                 it would move the show",
+            );
+        }
+    }
+}
+
+/// The bytes that delete a block show operator but keep its effect on
+/// state: `'` is `T*` then a show, and `"` is `aw Tw ac Tc` then `'`
+/// (§9.4.3 Table 109).
+fn removal(op: &Operation<'_>, name: &[u8], buf: &[u8]) -> (usize, usize, Vec<u8>) {
+    let (s, e) = text_op_span(op);
+    let raw = |i: usize| {
+        op.operands
+            .get(i)
+            .and_then(|t| buf.get(t.span.start..t.span.end()))
+    };
+    let keep = match (name, raw(0), raw(1)) {
+        (b"\"", Some(aw), Some(ac)) => [&b" "[..], aw, &b" Tw "[..], ac, &b" Tc T* "[..]].concat(),
+        (b"'" | b"\"", ..) => b" T* ".to_vec(),
+        _ => b" ".to_vec(),
+    };
+    (s, e, keep)
 }
 
 struct Walk<'s> {
@@ -143,6 +226,11 @@ struct Walk<'s> {
     objs: Vec<TextObj>,
     cur: Option<TextObj>,
     styles: HashMap<usize, SpanStyle>,
+    /// Start bytes of the open `BDC`/`BMC` operators.
+    marked: Vec<usize>,
+    /// The open marked-content sequences at each block show.
+    block_marked: Vec<Vec<usize>>,
+    removals: Vec<(usize, usize, Vec<u8>)>,
 }
 
 /// Walk the content stream, collect its text objects, and compute the byte
@@ -150,9 +238,9 @@ struct Walk<'s> {
 ///
 /// # Errors
 ///
-/// Refuses by name a block that shares a text object with other content, is
-/// non-contiguous, shows outside `BT … ET`, or whose region holds an
-/// operator outside [`CARRIED`] or unbalanced `q`/`Q`.
+/// Refuses by name a block that shows outside `BT … ET`, whose region holds
+/// an operator outside [`CARRIED`] or unbalanced `q`/`Q`, or that must be
+/// separated (see [`BlockRegion`]) and cannot be.
 pub(super) fn locate_block_region(
     stream: &ContentStream,
     block_spans: &[ByteSpan],
@@ -165,6 +253,9 @@ pub(super) fn locate_block_region(
         objs: Vec::new(),
         cur: None,
         styles: HashMap::new(),
+        marked: Vec::new(),
+        block_marked: Vec::new(),
+        removals: Vec::new(),
     };
     for op in stream.operations() {
         walk.step(&op)?;
@@ -188,7 +279,16 @@ impl Walk<'_> {
         };
         let (s, e) = text_op_span(op);
         let raw = buf.get(s..e).unwrap_or_default().to_vec();
+        if matches!(name, b"Td" | b"TD" | b"Tm" | b"T*")
+            && let Some(obj) = self.cur.as_mut()
+        {
+            obj.after_block = false;
+        }
         match name {
+            b"BDC" | b"BMC" => self.marked.push(op.operator.span.start),
+            b"EMC" => {
+                self.marked.pop();
+            }
             b"q" => {
                 self.stack.push(self.gs.clone());
                 if self.stack.len() > MAX_STACK {
@@ -225,7 +325,7 @@ impl Walk<'_> {
                         .ambient
                         .apply_operator(name, &operand_numbers(op), &raw);
                 }
-                self.show(op.operator.span)?;
+                self.show(op, name)?;
             }
             _ => self.colour_or_state(name, op, raw),
         }
@@ -289,6 +389,10 @@ impl Walk<'_> {
             show_spans: Vec::new(),
             at_bt: self.gs.clone(),
             at_et: self.gs.clone(),
+            marked_at_et: Vec::new(),
+            after_block: false,
+            unseparable: None,
+            last_block: None,
         });
     }
 
@@ -296,11 +400,13 @@ impl Walk<'_> {
         if let Some(mut obj) = self.cur.take() {
             obj.et_end = op.operator.span.end();
             obj.at_et = self.gs.clone();
+            obj.marked_at_et = self.marked.clone();
             self.objs.push(obj);
         }
     }
 
-    fn show(&mut self, span: ByteSpan) -> Result<(), ReflowApplyError> {
+    fn show(&mut self, op: &Operation<'_>, name: &[u8]) -> Result<(), ReflowApplyError> {
+        let span = op.operator.span;
         let block = self.is_block(span);
         if block {
             let (font, size) = self.gs.font.clone().ok_or(ReflowApplyError::Unsupported(
@@ -316,9 +422,17 @@ impl Walk<'_> {
                     stroke: self.gs.stroke.clone(),
                 },
             );
+            self.block_marked.push(self.marked.clone());
+            self.removals.push(removal(op, name, &self.stream.buf));
         }
         match self.cur.as_mut() {
-            Some(obj) => obj.show_spans.push(span),
+            Some(obj) => {
+                obj.show_spans.push(span);
+                obj.track(name, block);
+                if block {
+                    obj.last_block = Some(span);
+                }
+            }
             None if block => {
                 return Err(ReflowApplyError::Unsupported(
                     UnsupportedCause::ShowOutsideTextObject,
@@ -329,44 +443,86 @@ impl Walk<'_> {
         Ok(())
     }
 
-    /// The region over the text objects holding block show operators. Each
-    /// must hold ONLY block operators, and they must be contiguous.
+    /// The region over the text objects holding block show operators:
+    /// replaced whole when they hold ONLY block operators and are
+    /// contiguous, separated otherwise.
     fn into_region(self) -> Result<BlockRegion, ReflowApplyError> {
-        let mut first: Option<usize> = None;
-        let mut last: Option<usize> = None;
-        for (i, obj) in self.objs.iter().enumerate() {
-            if !obj.show_spans.iter().any(|&s| self.is_block(s)) {
-                continue;
-            }
-            if obj.show_spans.iter().any(|&s| !self.is_block(s)) {
-                return Err(ReflowApplyError::Unsupported(
-                    UnsupportedCause::SharedTextObject,
-                ));
-            }
-            if last.is_some_and(|l| i != l + 1) {
-                return Err(ReflowApplyError::Unsupported(
-                    UnsupportedCause::NonContiguousTextObjects,
-                ));
-            }
-            first.get_or_insert(i);
-            last = Some(i);
+        let picked: Vec<usize> = (0..self.objs.len())
+            .filter(|&i| {
+                self.objs
+                    .get(i)
+                    .is_some_and(|o| o.show_spans.iter().any(|&s| self.is_block(s)))
+            })
+            .collect();
+        let not_found = || ReflowApplyError::Unsupported(UnsupportedCause::ShowOperatorsNotFound);
+        let (Some(f), Some(l)) = (
+            picked.first().and_then(|&i| self.objs.get(i)),
+            picked.last().and_then(|&i| self.objs.get(i)),
+        ) else {
+            return Err(not_found());
+        };
+        let shared = picked
+            .iter()
+            .filter_map(|&i| self.objs.get(i))
+            .any(|o| o.show_spans.iter().any(|&s| !self.is_block(s)));
+        let contiguous = picked
+            .windows(2)
+            .all(|w| matches!(w, [a, b] if *b == *a + 1));
+        if shared || !contiguous {
+            return self.separated(&picked);
         }
-        let (Some(fi), Some(la)) = (first, last) else {
-            return Err(ReflowApplyError::Unsupported(
-                UnsupportedCause::ShowOperatorsNotFound,
-            ));
-        };
-        let (Some(f), Some(l)) = (self.objs.get(fi), self.objs.get(la)) else {
-            return Err(ReflowApplyError::Unsupported(
-                UnsupportedCause::ShowOperatorsNotFound,
-            ));
-        };
         Ok(BlockRegion {
             start: f.bt_start,
             end: l.et_end,
             entry: f.at_bt.clone(),
             exit: l.at_et.clone(),
             styles: self.styles,
+            removals: Vec::new(),
+            anchor: None,
+        })
+    }
+
+    /// The block lifted out of the text objects it shares: its shows deleted
+    /// in place, the new body inserted after the last of those objects, in
+    /// exactly the state, CTM and marked content in force there.
+    fn separated(self, picked: &[usize]) -> Result<BlockRegion, ReflowApplyError> {
+        let refuse = |detail| {
+            Err(ReflowApplyError::Unsupported(
+                UnsupportedCause::TextObjectNotSeparable { detail },
+            ))
+        };
+        let objs: Vec<&TextObj> = picked.iter().filter_map(|&i| self.objs.get(i)).collect();
+        if let Some(detail) = objs.iter().find_map(|o| o.unseparable) {
+            return refuse(detail);
+        }
+        // Clipping modes add to one clip applied at `ET` (§9.3.6), so moving
+        // the glyphs to another text object would change the clip.
+        let clips = self
+            .styles
+            .values()
+            .any(|s| s.ambient.get(TextStateParam::RenderMode).value >= 4.0);
+        if clips {
+            return refuse("the block's text adds to a text clip shared with other content");
+        }
+        let Some(last) = objs.last() else {
+            return Err(ReflowApplyError::Unsupported(
+                UnsupportedCause::ShowOperatorsNotFound,
+            ));
+        };
+        if self.block_marked.iter().any(|m| *m != last.marked_at_et) {
+            return refuse(
+                "the block's text is inside marked content (a tag or an optional-content layer) \
+                 that does not also enclose the end of its text object",
+            );
+        }
+        Ok(BlockRegion {
+            start: last.et_end,
+            end: last.et_end,
+            entry: last.at_et.clone(),
+            exit: last.at_et.clone(),
+            anchor: last.last_block,
+            styles: self.styles,
+            removals: self.removals,
         })
     }
 }

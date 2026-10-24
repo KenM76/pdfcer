@@ -942,7 +942,8 @@ is the CLI's sentence. Switch on the variant, never on the text. Variants:
 `JustifyWithSpacing`, `MixedFonts`, `ShowWithoutFont`, `NoFont`,
 `NoShowOperators`, `RotatedOrSkewed { matrix }`, `MixedScale { matrix }`,
 `DegenerateCtm`, `ShowOutsideTextObject`, `SharedTextObject`,
-`NonContiguousTextObjects`, `ShowOperatorsNotFound`,
+`NonContiguousTextObjects`, `TextObjectNotSeparable { detail }`,
+`ShowOperatorsNotFound`,
 `StateNotRestorable { detail }`, `OperatorInBlock { operator }`,
 `NoSpaceGlyph { font }`, `EditSpansStreams`, `CommitFailed { detail }`.
 
@@ -1010,6 +1011,22 @@ is the CLI's sentence. Switch on the variant, never on the text. Variants:
   `/Encoding` is a predefined CMap named `…-V` or a CMap stream with
   `/WMode 1` (ISO 32000-2 §9.7.5.2, Table 120). Lifted when vertical layout is
   supported.
+- **A block sharing its text objects is lifted out of them** (`Pass 644.0`,
+  G226) — the CAD case: a note interleaved with balloon letters and dimension
+  values in one `BT … ET`, or a block whose text objects are not adjacent.
+  `reflow_block`, `edit_block_text` and its preview delete the block's show
+  operators in place (`Tj`/`TJ` → nothing, `'` → `T*`, `"` → `aw Tw ac Tc T*`)
+  and write the block as its own `BT … ET` right after the last such object,
+  under that object's text state and CTM. Every other operator keeps its
+  bytes, so the other labels keep their positions and the text state they
+  inherit. The block now paints after the content between, which the report
+  discloses ("shared its text object"). `SharedTextObject` and
+  `NonContiguousTextObjects` are no longer produced; what cannot be lifted is
+  `TextObjectNotSeparable { detail }`: a show of other content continuing
+  straight after a block show (no `Td`/`TD`/`Tm`/`T*` between), a clipping
+  render mode (`Tr` ≥ 4) on the block, or a block show inside marked content
+  (a tag or an optional-content layer) that does not enclose the insertion
+  point.
 - **`EditError::NoMatch { find, reason: NotFoundReason }`** (was
   `NoMatch(String)`). `NoSuchText`, or `SpansTextObjects { objects }` when the
   find appears only by joining show operators across `ET` (the Word line whose

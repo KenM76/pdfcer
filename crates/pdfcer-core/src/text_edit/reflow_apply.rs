@@ -141,7 +141,7 @@ use super::reflow::{
 use super::reflow_fit::CellOverflow;
 use super::reflow_spacing::JustifySpacing;
 use super::reflow_style::{BlockFonts, EmitCtx, Emitted, emit_block, resolve_fonts};
-use super::reflow_walk::locate_block_region;
+use super::reflow_walk::{BlockRegion, SEPARATED_DISCLOSURE, locate_block_region};
 
 /// Axis-alignment / near-zero tolerance for matrix entries and scales,
 /// points. Below this a matrix off-diagonal is treated as zero (upright) and
@@ -581,8 +581,9 @@ pub(crate) fn plan_reflow(
         .ok_or(ReflowApplyError::Preview(
             super::ReflowError::BlockIndexOutOfRange(block_index, model.blocks().len()),
         ))?;
-    let prov = block_provenance(model, block)?;
+    let mut prov = block_provenance(model, block)?;
     let mut region = locate_block_region(stream, &prov.op_spans)?;
+    prov.anchor_on(&region);
     let spacing = JustifySpacing::detect(model, block);
     spacing.apply_to(&mut region);
     let (words, _) = tokenise_block(model, model.sourced_view(), block, &spacing);
@@ -600,7 +601,10 @@ pub(crate) fn plan_reflow(
 
     let mut disclosures = apply_disclosures(block_index, preview, &fonts, &emitted);
     carried_disclosures(&mut disclosures, preview, prov.mcid, extra_emptied);
-    let mut edits: Vec<(usize, usize, Vec<u8>)> = vec![(region.start, region.end, emitted.body)];
+    if region.is_separated() {
+        disclosures.push(format!("reflow: {SEPARATED_DISCLOSURE}"));
+    }
+    let mut edits = region.edits(emitted.body);
     let new_content = splice(&stream.buf, &mut edits);
     let first_font = fonts.order.first().and_then(|n| fonts.info.get(n));
     let all_embedded = fonts.info.values().all(|f| f.embedded);
@@ -780,6 +784,28 @@ pub(super) struct BlockProvenance {
     /// The distinct show-operator keyword spans of the block, in first-seen
     /// order (matches [`GlyphProvenance::operator_span`]).
     pub(super) op_spans: Vec<ByteSpan>,
+    /// The CTM translation each of [`Self::op_spans`] ran under.
+    pub(super) op_ctms: Vec<(f64, f64)>,
+}
+
+impl BlockProvenance {
+    /// Map origins under the CTM in force where a separated region inserts
+    /// its body: the one its anchor show ran under (no `cm` can occur inside
+    /// `BT ... ET`, ISO 32000-1 Figure 9). The linear part is uniform across
+    /// the block already.
+    pub(super) fn anchor_on(&mut self, region: &BlockRegion) {
+        let Some(a) = region.anchor else {
+            return;
+        };
+        let at = self
+            .op_spans
+            .iter()
+            .position(|s| s.start == a.start && s.len == a.len);
+        if let Some(&(e, f)) = at.and_then(|i| self.op_ctms.get(i)) {
+            self.ctm_e = e;
+            self.ctm_f = f;
+        }
+    }
 }
 
 /// Collect the block's provenance, refusing (by name) a block that carries no
@@ -792,6 +818,7 @@ pub(super) fn block_provenance(
     let mut tm: Option<[f64; 6]> = None;
     let mut ctm: Option<[f64; 6]> = None;
     let mut op_spans: Vec<ByteSpan> = Vec::new();
+    let mut op_ctms: Vec<(f64, f64)> = Vec::new();
     let mut saw_glyph = false;
 
     for &li in &block.line_indices {
@@ -823,7 +850,7 @@ pub(super) fn block_provenance(
             // Matrices must be uniform (linear part) + axis-aligned.
             check_uniform_axis_aligned(&mut tm, p.text_matrix, "text matrix (Tm)")?;
             check_uniform_axis_aligned(&mut ctm, p.ctm, "CTM")?;
-            record_prov(&mut mcid, &mut op_spans, model, gref, p);
+            record_prov(&mut mcid, (&mut op_spans, &mut op_ctms), model, gref, p);
         }
     }
 
@@ -848,6 +875,7 @@ pub(super) fn block_provenance(
         ctm_e: ctm[4],
         ctm_f: ctm[5],
         op_spans,
+        op_ctms,
     })
 }
 
@@ -856,7 +884,7 @@ pub(super) fn block_provenance(
 /// show-operator span.
 fn record_prov(
     mcid: &mut Option<i64>,
-    op_spans: &mut Vec<ByteSpan>,
+    (op_spans, op_ctms): (&mut Vec<ByteSpan>, &mut Vec<(f64, f64)>),
     model: &EditableTextModel<'_>,
     gref: GlyphRef,
     p: &GlyphProvenance,
@@ -872,6 +900,7 @@ fn record_prov(
         .any(|s| s.start == span.start && s.len == span.len)
     {
         op_spans.push(span);
+        op_ctms.push((f64::from(p.ctm[4]), f64::from(p.ctm[5])));
     }
 }
 

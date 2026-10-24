@@ -201,8 +201,9 @@ fn locate(
     block: &Block,
     stream: &ContentStream,
 ) -> Result<Located, BlockEditError> {
-    let prov = block_provenance(model, block)?;
+    let mut prov = block_provenance(model, block)?;
     let mut region = locate_block_region(stream, &prov.op_spans)?;
+    prov.anchor_on(&region);
     let spacing = JustifySpacing::detect(model, block);
     spacing.apply_to(&mut region);
     let first = block
@@ -409,11 +410,7 @@ fn finish(
         measure: m,
         page_index: ctx.page_index,
     })?;
-    let mut edits = vec![(
-        ctx.located.region.start,
-        ctx.located.region.end,
-        emitted.body,
-    )];
+    let mut edits = ctx.located.region.edits(emitted.body);
     let new_content = crate::text_edit::edit::splice(&ctx.stream.buf, &mut edits);
     let report = report_of(
         &ctx,

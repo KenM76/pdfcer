@@ -6,6 +6,7 @@ use crate::text_edit::edit::{EditLayout, TextEditPreview, emit_tm, mat_mul};
 use crate::text_edit::model::{BREAK_TAG, TEXT_BLOCK_TAG};
 use crate::text_edit::reflow_apply::{ReflowApplyError, origin_to_tm};
 use crate::text_edit::reflow_style::{Current, Item, code_bytes, emit_items, restore_bytes};
+use crate::text_edit::reflow_walk::SEPARATED_DISCLOSURE;
 use crate::text_state::TextStateParam;
 
 use super::BlockEditReport;
@@ -211,6 +212,9 @@ pub(super) fn disclosures(
             "the text is set in {}, a same-face sibling of the block's own {from}",
             report.base_font
         ));
+    }
+    if loc.region.is_separated() {
+        out.push(SEPARATED_DISCLOSURE.to_owned());
     }
     out.extend(look_sentences(enc, loc));
     if collapsed {
