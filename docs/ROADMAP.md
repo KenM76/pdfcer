@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `cdff47b8` `Pass 645.0` SHIPPED, 2026-10-24: compare the text of two documents, core + CLI (1232nd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Code commit `cdff47b8` sits on `77865271` (the 1231st filing). Unreleased since `v0.97.0`; the next release writes slot `pdfcer1`. Reasoning is in the commit message.
+- **Core:** `pdfcer_core::compare::compare_documents(&old, &new, &CompareOptions) -> Result<CompareReport, CompareError>`. Word-level diff (linear-space Myers, explicit task stack), step budget `DEFAULT_STEP_BUDGET` = 100M; on exhaustion a stretch becomes one delete + insert and `truncated` is set (disclosed). Each change carries per-line page places (`Place{page, rect}`); insert/delete also carry a zero-width anchor in the other document. Optional formatting comparison (size over 0.05 pt, weight, fill colour; unset colour = DeviceGray 0). Inferred spaces and line breaks end words, so reflow is not a change. Artifacts skipped by default; invisible (mode-3/OCR) text IS compared. Encryption withholding Copy gives `CopyNotPermitted`.
+- **Limits, stated:** compares content-stream order, not visual order (an edit that moves text to the end of a stream shows as delete + later insert). Not compared: images, vector art, annotations, form values.
+- **CLI:** `pdfcer compare OLD NEW [--pages-old] [--pages-new] [--formatting] [--artifacts] [--new-password-file] [--json] [--exit-code]`. New exit code 16 (`DOCUMENTS_DIFFER`) only under `--exit-code`; 9 for `CopyNotPermitted`. Human output clips change text at 160 chars with a word count; JSON carries all. **Divergence from the filed scope:** the password flag is `--new-password-file`, not `--password-old/--password-new`.
+- **Docs:** `docs/core-api/01-reading-and-model.md` section 8.10 and its capability-index row added, index counts updated; `check-core-api-verbs` PASS.
+- **Verified (engineer):** 3 diff unit tests (minimality against a DP LCS over 400 random cases, budget fallback, identical/empty), 9 integration tests in `crates/pdfcer-core/tests/compare_documents.rs` (harnessed via `tests/all.rs`), 2 CLI unit tests, all pass. Clippy `-D warnings` clean (workspace and `pdfcer-cli --no-default-features`), fmt clean, structure gate clean (no new baseline entries), public-fns-documented clean. No `Cargo.toml` touched, so `cargo tree` and the GUI-core invariant are unchanged.
+- **Smoke (engineer):** an operator-supplied local drawing copy (not a fixture) with one note edited: 1 deleted + 1 inserted, about 1.1 s for about 5,400 words (about 0.2 ms per word); the same file against itself: 0 changes.
+- **Filing:** FEATURES row "Compare the text of two documents" moved from *Planned* to *Implemented, Text*: core `[x]`, cli `[x]`, gui `[ ]`. The `645.1` and `645.2` rows stay in *Planned*, unticked. Nothing minted. Sweep (rule 11): no changed meaning; the 1231st filing's text still correctly says `645.0` unbuilt only as dated history.
+
 ### `v0.97.0` PUBLISHED: tag on `6157f1f1` (the 1229th filing), 2026-10-24 (1230th filing)
 
 Engineer-reported (the engineer ran a shell and verified); no shell here, nothing checked from here.
@@ -23811,6 +23822,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
 
+(1232nd filing: `Pass 645.0` (text compare, core + CLI) SHIPPED on `cdff47b8`, see *Shipped*; `645.1` and `645.2` stay below. Nothing minted; next free `Pass 646.0`, decision `199`, `R263`; next filing 1233rd.)
+
 (1231st filing: `Pass 645.0`, `645.1`, `645.2` (document comparison, Acrobat "Compare Files") filed in Next up below; nothing shipped. No decision or R minted; next free `Pass 646.0`, decision `199`, `R263`; next filing 1232nd.)
 
 (1230th filing: `v0.97.0` PUBLISHED on `6157f1f1`, see *Shipped*. Nothing minted; next free `Pass 645.0`, decision `199`, `R263`; next filing 1231st. Next release writes OneDrive slot `pdfcer1`.)
@@ -34576,26 +34589,9 @@ overrides the image dictionary; `/ColorSpace` optional,
 
 **Status:** Next up, blocked on the token. FEATURES.md: row "Publish the engine crates to crates.io" in *Planned*, all boxes unticked.
 
-### Pass 645.0 — compare the text of two documents (core + CLI) (NEXT UP; filed 1231st filing, 2026-10-24)
-
-**Source:** engineer initiative; the largest unbuilt Acrobat Pro row in `FEATURES.md` *Planned* ("Document comparison."). Parity reference, written 2026-10-24 by `pdfcer-acrobat-librarian`: `D:\Dev\Rag-Specialized\Acrobat_Features\compare__overview_inputs_and_options.md` and `D:\Dev\Rag-Specialized\Acrobat_Features\compare__change_types_and_output.md`. Slices `645.1`, `645.2` follow below; all three are Next up (sliced-family convention, as `635.x`). No decision or R minted.
-
-**Scope:**
-- New `pdfcer-core` module `compare`. Inputs: an old and a new `Document`, plus an optional page range for each.
-- Word-level diff of the extracted text, treated as ONE continuous body across pages (Acrobat's "Reports" preset), so text that reflows across a page break is not a change.
-- Change kinds: inserted, deleted, replaced. Each change carries old/new page indexes and word boxes in default user space.
-- Optional formatting changes (font, size, fill colour on words whose text is equal), OFF by default, matching Acrobat's default.
-- **Bounded:** a diff-cost ceiling. Past it, the rest of the region is reported as one replacement and the report SAYS SO; silent truncation is not allowed (fuzzy, never sneaky).
-- **Encrypted inputs (pdfcer exceeds Acrobat):** the Copy permission (ISO 32000-1 Table 22 bit 5) or owner authentication is required; without it the compare is refused by name. Acrobat has a reported bypass and its result carries no security.
-- CLI `pdfcer compare OLD NEW`: a summary with counts by kind; each change with its page and text; `--json` machine-readable change list (exceeds Acrobat, which has no structured export); `--pages-old` / `--pages-new`, `--formatting`, `--password-old` / `--password-new`.
-
-**Acceptance:** fixture tests for insert, delete, replace, reflow-across-pages, identical, formatting, encrypted-refused; the ceiling disclosed (tested); `docs/core-api/` updated; `cargo fmt --check` and `cargo clippy -- -D warnings` clean; `cargo tree -p pdfcer-core` shows no GUI dependency. Fixtures synthetic (R-corpus, `LEGAL.md` §5).
-
-**Status:** NOT STARTED. FEATURES.md: row "Compare the text of two documents" in *Planned*, all pdfcer boxes unticked.
-
 ### Pass 645.1 — annotated result document (NEXT UP; filed 1231st filing, 2026-10-24)
 
-**Depends on `645.0`.** Reference: `compare__change_types_and_output.md` (same RAG directory).
+**Depends on `645.0` (SHIPPED `cdff47b8`, 1232nd filing).** Reference: `compare__change_types_and_output.md` (same RAG directory).
 
 `pdfcer compare OLD NEW --output RESULT.pdf`: a copy of the NEW document with one highlight-style markup annotation per change, colour-coded by kind, each with a note carrying the old text; deletions are marked at their position in the new document; an optional summary page carries the counts. Acrobat's own result is a new PDF with a summary page and a hover popup per change. **The source documents are never modified** (round-trip rule; the result is a new file). Annotations must not be a provisional layer in the fuzzy-never-sneaky sense: they are saved content, and the CLI prints what it marked.
 

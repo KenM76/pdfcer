@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-24 (1232nd filing) — `cdff47b8` `Pass 645.0` SHIPPED: text comparison, core + CLI
+
+**Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 645.0`: `pdfcer_core::compare::compare_documents` plus `pdfcer compare OLD NEW`. Word-level linear-space Myers diff, 100M step budget with disclosed `truncated`, per-line page places, optional formatting comparison, reflow-safe, `CopyNotPermitted` refusal. CLI exit 16 only under `--exit-code`, 9 for CopyNotPermitted.
+- Tests: 3 diff unit, 9 integration, 2 CLI, all pass; clippy, fmt, structure and docs gates clean; no manifest change. Smoke on an operator-supplied local drawing (not a fixture): 1 delete + 1 insert, about 1.1 s for about 5,400 words; self-compare 0 changes.
+- Full entry: ROADMAP *Shipped*, top.
+
+**Decisions made:** none; nothing minted. Noted divergence: password flag shipped as `--new-password-file`, not the filed `--password-old/--password-new`.
+
+**FEATURES.md:** "Compare the text of two documents" moved to *Implemented, Text*: core `[x]`, cli `[x]`, gui `[ ]`. `645.1` and `645.2` rows untouched.
+
+**Still in flight:** `645.1` (annotated result PDF) and `645.2` (visual/page matching), Next up.
+
+**For next session:** next free `Pass 646.0`, decision `199`, `R263`; next filing 1233rd. `docs/NEXT_SESSION.md` not touched (engineer-owned). Unreleased since `v0.97.0`.
+
 ## 2026-10-24 (1231st filing) — document comparison filed: `Pass 645.0`, `645.1`, `645.2`
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
