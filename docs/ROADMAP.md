@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `fcf02195` `Pass 645.1` SHIPPED, 2026-10-24: annotated comparison result, core + CLI (1233rd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Code commit `fcf02195` on `ec91aabe` (the 1232nd filing), unpushed at filing time (origin/main = `ec91aabe`). Unreleased since `v0.97.0`. Reasoning is in the commit message and decision 199.
+- **Core:** `compare::mark_changes(&mut EditSession, &CompareReport, &ResultOptions) -> Result<ResultReport, ResultError>` (`crates/pdfcer-core/src/compare/result.rs`). One review annotation per change per page on the NEW document, each with a baked `/AP` via the existing author verbs: inserted = blue `/Highlight` (0.25,0.55,1.0); replaced = orange `/Highlight` (1.0,0.6,0.1); formatting = purple `/Underline` (0.6,0.2,0.8); deleted = red `/Caret` (0.9,0.1,0.1) at the change's new-side anchor. `/Contents`: "Inserted: ...", "Replaced. Was: <old>", "Deleted: <old>", "Formatting changed: ...". `ResultOptions`: `with_summary_page` (default ON, a `place_text` page before page 1 with counts and colour key), `with_author` (`/T`), `with_labels`. `ResultReport`: `annotations`, `changes_marked`, `unmarked` (change index plus reason; does not fail the rest), `summary: Option<PlaceTextReport>`. Each mark is its own undo entry.
+- **CLI:** `pdfcer compare OLD NEW --output RESULT.pdf [--no-summary] [--author NAME]`: incremental update of NEW written to RESULT; prints what it marked and the summary page's disclosures. `--output` naming OLD or NEW is refused with exit 2 before anything is read.
+- **Known limitation, also stated on the summary page:** a deletion's caret sits at its CONTENT-ORDER position. On a CAD drawing whose edit moved text to the end of the stream the caret landed far from where the words were drawn (the insertion highlight was correct).
+- **Docs:** `docs/core-api/01-reading-and-model.md` section 8.10 gained an "Annotated result" block and a capability-index row; index.md counts now 4,203 lines and 247 clauses; `check-core-api-verbs` PASS.
+- **Verified (engineer):** core 2 new integration tests (`tests/compare_documents.rs`, `mod result`) plus 2 unit tests, compare total 11 integration and 9 lib; CLI 3 new integration tests (`tests/compare_result.rs`). The caret-position assertion was sabotage-checked (the first sabotage was a null mutation, since the author verb normalises an inverted rect). Acceptance: source bytes unchanged, one annotation per change, colour per kind, deletion marker position, summary on/off all PASS; reopens and renders in the pdfcer renderer (30-page drawing pair: blue highlight and summary page draw). **Acrobat Reader reopen check NOT done.**
+- **Gates (engineer):** fmt and clippy `-D warnings` clean for the workspace and `-p pdfcer-cli --no-default-features`; code-structure, tests-harnessed, public-fns-documented, outcome-disclosed, suite-name-absent clean. No manifest changed, so `cargo tree` and the GUI-core invariant are unchanged.
+- **Decision minted:** 199 (palette and annotation shapes; ARCHITECTURE.md section 12; `docs/decisions/199-comparison-result-palette-and-annotations.md`). No R minted.
+- **Filing:** FEATURES row "Annotated comparison result" moved from *Planned* to *Implemented, Text*: core `[x]`, cli `[x]`, gui `[ ]`; the 645.0 row's pointer sentence updated. `645.2` row stays in *Planned*. Sweep (rule 11): no changed meaning; the 645.0 Shipped entry's "Not compared: annotations" refers to compared input and still holds.
+
 ### `cdff47b8` `Pass 645.0` SHIPPED, 2026-10-24: compare the text of two documents, core + CLI (1232nd filing)
 
 Engineer-reported; no shell here, nothing checked from here. Code commit `cdff47b8` sits on `77865271` (the 1231st filing). Unreleased since `v0.97.0`; the next release writes slot `pdfcer1`. Reasoning is in the commit message.
@@ -23822,6 +23834,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
 
+(1233rd filing: `Pass 645.1` (annotated comparison result) SHIPPED on `fcf02195`, see *Shipped*; `645.2` stays below. Decision `199` minted; next free `Pass 646.0`, decision `200`, `R263`; next filing 1234th.)
+
 (1232nd filing: `Pass 645.0` (text compare, core + CLI) SHIPPED on `cdff47b8`, see *Shipped*; `645.1` and `645.2` stay below. Nothing minted; next free `Pass 646.0`, decision `199`, `R263`; next filing 1233rd.)
 
 (1231st filing: `Pass 645.0`, `645.1`, `645.2` (document comparison, Acrobat "Compare Files") filed in Next up below; nothing shipped. No decision or R minted; next free `Pass 646.0`, decision `199`, `R263`; next filing 1232nd.)
@@ -34588,14 +34602,6 @@ overrides the image dictionary; `/ColorSpace` optional,
 - Expected order once the token exists: `pdfcer-color`, `pdfcer-model`, then `pdfcer-pkix`; the rest per the blockers above.
 
 **Status:** Next up, blocked on the token. FEATURES.md: row "Publish the engine crates to crates.io" in *Planned*, all boxes unticked.
-
-### Pass 645.1 — annotated result document (NEXT UP; filed 1231st filing, 2026-10-24)
-
-**Depends on `645.0` (SHIPPED `cdff47b8`, 1232nd filing).** Reference: `compare__change_types_and_output.md` (same RAG directory).
-
-`pdfcer compare OLD NEW --output RESULT.pdf`: a copy of the NEW document with one highlight-style markup annotation per change, colour-coded by kind, each with a note carrying the old text; deletions are marked at their position in the new document; an optional summary page carries the counts. Acrobat's own result is a new PDF with a summary page and a hover popup per change. **The source documents are never modified** (round-trip rule; the result is a new file). Annotations must not be a provisional layer in the fuzzy-never-sneaky sense: they are saved content, and the CLI prints what it marked.
-
-**Acceptance:** tests that the source bytes are unchanged, one annotation per change, colour per kind, a deletion marker at the expected position, summary page on/off; reopens in the pdfcer renderer. Acrobat Reader reopen check recorded as done or NOT done. **Status:** NOT STARTED. FEATURES.md: row "Annotated comparison result", unticked.
 
 ### Pass 645.2 — visual comparison and page matching (NEXT UP; filed 1231st filing, 2026-10-24)
 

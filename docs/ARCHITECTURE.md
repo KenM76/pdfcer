@@ -13516,3 +13516,13 @@ Full record: `docs/decisions/198-zune-jpeg-git-source.md`. Recorded at `Pass 630
 **Relation to 197.** 197 rejected "`[patch]` to a git commit" as harder to audit and publish-blocking; this is a dependency-level git source chosen for downstream resolvability, and 197's own note that a pre-release pin fails beside a downstream `^0.5` is the failure that occurred.
 
 **Body-section effect.** None; no body section names zune-jpeg. **Decision ceiling.** Fills `198`; next free decision `199`. **New standing rule.** None; `R263` stays next free.
+
+### 2026-10-24 (1233rd filing) — decision 199: the comparison-result palette and annotation shapes
+
+Full record: `docs/decisions/199-comparison-result-palette-and-annotations.md`. Recorded at `Pass 645.1` (`fcf02195`).
+
+**Decides.** `compare::mark_changes` authors one saved, removable review annotation per change on the NEW document: inserted = blue `/Highlight`, replaced = orange `/Highlight`, formatting = purple `/Underline`, deleted = red `/Caret` at the new-side anchor; `/Contents` carries the old text. A summary page before page 1 is default ON (`--no-summary` omits).
+
+**Why.** Acrobat's tutorial uses blue for insertion and a marker for deletion; the palette is otherwise free design. Text-markup and caret annotations stay reviewable and removable rather than burned into content; default-on summary matches Acrobat's result. Limitation: a deletion's caret is at its content-order position, stated on the summary page.
+
+**Body-section effect.** None. **Decision ceiling.** Fills `199`; next free decision `200`. **New standing rule.** None; `R263` stays next free.

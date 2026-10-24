@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-24 (1233rd filing) — `fcf02195` `Pass 645.1` SHIPPED: annotated comparison result; decision 199
+
+**Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 645.1`: `compare::mark_changes` plus `pdfcer compare OLD NEW --output RESULT.pdf [--no-summary] [--author NAME]`. One review annotation per change on the new document (inserted blue highlight, replaced orange highlight, formatting purple underline, deleted red caret), old text in the note, default-on summary page. `--output` naming an input refused, exit 2.
+- Tests: core 2 integration + 2 unit (compare totals 11 integration, 9 lib), CLI 3 integration; caret assertion sabotage-checked. Renders in the pdfcer renderer. Gates clean; no manifest change. Code commit unpushed at filing time.
+- Full entry: ROADMAP *Shipped*, top.
+
+**Decisions made:** 199, the palette and annotation shapes (ARCHITECTURE section 12; `docs/decisions/199-comparison-result-palette-and-annotations.md`).
+
+**Findings:** a deletion's caret sits at its content-order position and can land far from the words on a CAD drawing whose edit moved text in the stream; stated on the summary page. The first sabotage of the caret assertion was a null mutation (the author verb normalises an inverted rect).
+
+**FEATURES.md:** "Annotated comparison result" moved to *Implemented, Text*: core `[x]`, cli `[x]`, gui `[ ]`.
+
+**Still in flight:** `645.2` (visual/page matching), Next up. **Acrobat Reader reopen check NOT done.**
+
+**For next session:** next free `Pass 646.0`, decision `200`, `R263`; next filing 1234th. `docs/NEXT_SESSION.md` not touched (engineer-owned). Unreleased since `v0.97.0`.
+
 ## 2026-10-24 (1232nd filing) — `cdff47b8` `Pass 645.0` SHIPPED: text comparison, core + CLI
 
 **Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**
