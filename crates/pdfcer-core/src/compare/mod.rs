@@ -262,8 +262,8 @@ pub enum CompareError {
 /// use pdfcer_core::compare::{compare_documents, ChangeKind, CompareOptions};
 /// use pdfcer_core::document::Document;
 ///
-/// let old = Document::load("v1.pdf")?;
-/// let new = Document::load("v2.pdf")?;
+/// let old = Document::load(std::path::Path::new("v1.pdf"))?;
+/// let new = Document::load(std::path::Path::new("v2.pdf"))?;
 /// let report = compare_documents(&old, &new, &CompareOptions::default())?;
 /// for change in &report.changes {
 ///     if change.kind == ChangeKind::Replaced {
