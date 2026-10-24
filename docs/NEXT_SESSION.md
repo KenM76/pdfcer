@@ -5,7 +5,7 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-23 (v0.95.0 published at `5ca5eeeb`, slot pdfcer2, carrying Passes 638.0, 639.0, 640.0; CI was red at the tag on a `--no-default-features` clippy lint, fixed after it in `e2bb5d67`, which is unreleased; next filing is the 1223rd), during the size-reduction arc (Ken 2026-10-20: "meet
+**Written:** 2026-10-23 (v0.95.0 published at `5ca5eeeb`, slot pdfcer2, carrying Passes 638.0, 639.0, 640.0; CI was red at the tag on a `--no-default-features` clippy lint, fixed after it in `e2bb5d67`, which is unreleased; Pass 641.0 (discard-tags rewrites structure destinations to pages, `ef72139d`, filed 1223rd) is also unreleased; next filing is the 1224th, next Pass 642.0), during the size-reduction arc (Ken 2026-10-20: "meet
 or exceed" Acrobat's optimizer, with per-object control). Decision 191 governs.
 
 ## State
