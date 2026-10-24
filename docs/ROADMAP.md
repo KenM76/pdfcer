@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `fcbe9606` `Pass 642.0` COMPLETE, 2026-10-23: assembled files re-point structure destinations at pages (1224th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Scoped and completed in this one docs-only filing. Unreleased: the next release (`v0.96.0`) carries it with `e2bb5d67` and `Pass 641.0` (`ef72139d`).
+- **Defect closed:** extract, split, merge and insert-to-new-file (`pageops::assemble`) drop `/StructTreeRoot` (`report.struct_tree_dropped`) but copied a link, bookmark or GoTo naming a structure element unchanged. The deep-copier followed the element, dragged the whole structure tree in as orphan objects (its `/Pg` refs to uncopied pages counted as `dangling_references`), and the output link named a structure element in an untagged file. Bookmarks to structure elements were dropped (`outline_items_dropped`).
+- **Fix (ISO 32000-2 §12.3.2.3, §12.6.4.2, Table 149):** new `pub(crate)` module `crate::struct_page` (`element_page`, `struct_target`, `is_struct_elem_dict`, `goto_like`) holds the structure-destination page search, now shared with the `Pass 641.0` Tags discard (`optimize/struct_dest.rs`). The copier re-points a destination array whose element 0 is a structure element and element 1 a Table 149 destination type at the element's page (source's first page when none). A GoTo `/SD` is dropped, or becomes `/D` when there is no `/D`. `pageops::references::DestinationResolver` resolves structure destinations to their page, including a GoTo carrying only `/SD` (benefits the delete census and outline subsetting). `pageops/outline.rs` reads `/SD` when `/D` is absent.
+- **New pub fields** `AssembleReport::structure_links_to_pages` and `structure_links_to_first_page`; documented in `docs/core-api/02-editing-and-saving.md` (index counts updated: 6,665 lines, 317 clauses). CLI (`crates/pdfcer-cli/src/sign.rs`) prints a stderr disclosure when nonzero and adds `struct_links=` / `struct_links_first_page=` to the assemble metrics line.
+- **Second defect, same commit:** a copied page's `/Parent` was removed AFTER the copy walk, so EVERY extract (tagged or not) wrote an orphan copy of the source `/Pages` node and counted its `/Kids` as one dangling reference. Now removed before the walk, as the module docs already claimed.
+- **Verified (engineer):** 4 new tests in `crates/pdfcer-core/src/pageops/struct_dest_tests.rs` (extract re-points; page left behind counts dangling; merge of two tagged files; copied page drags no old parent); sabotaging each fix fails them. `pdfcer-core` lib 1973 passed; `pdfcer-cli` green; clippy default and `--no-default-features` clean; fmt, `check-code-structure` (565 baseline, none new), `check-core-api-verbs`, `check-public-fns-documented`, `check-outcome-disclosed`, `check-ledger-numbers`, `check-suite-name-absent` clean. No manifest change, so `cargo tree` unaffected; no new dependency.
+- **Filing:** FEATURES row 171 gains a clause (core `[x]`, cli `[x]`, gui `◐` unchanged: the GUI reaches extract but not insert/merge, so not rounded up). No decision or R minted (next free `Pass 643.0`, decision `199`, `R263`). Sweep (rule 11): no counter or capability changed meaning; none owed.
+
 ### `ef72139d` `Pass 641.0` COMPLETE, 2026-10-23: discarding tags rewrites PDF 2.0 structure destinations to page destinations (1223rd filing)
 
 Engineer-reported; no shell here, nothing checked from here. Scoped and completed in this one docs-only filing. The code commit `ef72139d` is on `a9f653ae` and was unpushed at filing time.
@@ -23737,6 +23747,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
+
+(1224th filing: `Pass 642.0` scoped and COMPLETE in one filing (`fcbe9606`, unreleased), see *Shipped*. Nothing minted; next free `Pass 643.0`, decision `199`, `R263`; next filing 1225th.)
 
 (1223rd filing: `Pass 641.0` scoped and COMPLETE in one filing (`ef72139d`, unpushed at filing), see *Shipped*. Nothing minted; next free `Pass 642.0`, decision `199`, `R263`; next filing 1224th.)
 

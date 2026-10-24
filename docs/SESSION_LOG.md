@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1224th filing) — `fcbe9606` `Pass 642.0` scoped and COMPLETE: assembled files re-point structure destinations at pages
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 642.0`, commit `fcbe9606`, unreleased (next release `v0.96.0` carries it with `e2bb5d67` and `Pass 641.0` `ef72139d`). Extract, split, merge and insert-to-new-file dropped the structure tree but copied links/bookmarks/GoTos naming a structure element unchanged, dragging the whole tree in as orphans (counted as dangling references). They now re-point such destinations at the element's page (source's first page when none); GoTo `/SD` dropped or becomes `/D`. Shared page search moved to new `crate::struct_page`, also used by the `Pass 641.0` Tags discard.
+- New `AssembleReport::structure_links_to_pages` / `structure_links_to_first_page`; CLI stderr disclosure plus `struct_links=` / `struct_links_first_page=` on the assemble metrics line. `DestinationResolver` and `pageops/outline.rs` now understand `/SD`.
+- Second defect fixed in the same commit: a copied page's `/Parent` was removed after the copy walk, so every extract wrote an orphan `/Pages` node and counted one dangling reference.
+- Verified by the engineer: 4 new tests, sabotage of each fix fails them; core lib 1973 pass; cli, clippy (both feature sets), fmt and the listed gates clean; no manifest change. Full entry: `ROADMAP.md` Shipped.
+
+**Decisions made:** none; no decision or R minted.
+
+**FEATURES.md:** row 171 (page ops) gains one clause; boxes unchanged (gui stays `◐`).
+
+**For next session:** commit unpushed status not checked from here; run `check-commits-filed.py` before pushing. Next free `Pass 643.0`, decision `199`, `R263`; next filing 1225th.
+
 ## 2026-10-23 (1223rd filing) — `ef72139d` `Pass 641.0` scoped and COMPLETE: discarding tags rewrites structure destinations to pages
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
