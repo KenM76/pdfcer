@@ -3,12 +3,14 @@
 use std::fmt::Write as _;
 
 use pdfcer_core::compare::{
-    Change, ChangeKind, CompareError, CompareOptions, CompareReport, Place, Side, compare_documents,
+    Change, ChangeKind, CompareError, CompareOptions, CompareReport, Place, ResultOptions,
+    ResultReport, Side, compare_documents, mark_changes,
 };
 use pdfcer_core::page_tree::Rect;
 use pdfcer_core::text_extract::TextColor;
 
 use super::*;
+use crate::edit_common::{finish_edit, save_edited};
 use crate::extract::json_escape;
 
 /// The `compare` arguments.
@@ -40,11 +42,32 @@ pub(crate) struct CompareArgs {
     /// Exit 16 when the text differs.
     #[arg(long)]
     pub(crate) exit_code: bool,
+    /// Also write a copy of NEW with every change marked: blue highlight
+    /// inserted, orange highlight replaced, red caret deleted, purple
+    /// underline formatting, each with a note holding the old text. OLD and
+    /// NEW are not modified.
+    #[arg(long, value_name = "RESULT.pdf")]
+    pub(crate) output: Option<PathBuf>,
+    /// With --output: leave out the summary page (counts and colour key)
+    /// that is otherwise inserted before page 1.
+    #[arg(long, requires = "output")]
+    pub(crate) no_summary: bool,
+    /// With --output: the author written on every mark.
+    #[arg(long, value_name = "NAME", requires = "output")]
+    pub(crate) author: Option<String>,
 }
 
 /// Run `compare`: open both files, diff their text, print the report and
 /// map the outcome to an exit code (16 only under `--exit-code`).
 pub(crate) fn cmd_compare(args: &CompareArgs) -> u8 {
+    if let Some(out) = &args.output
+        && (same_file(out, &args.old) || same_file(out, &args.new))
+    {
+        eprintln!(
+            "pdfcer: compare: --output must not be OLD or NEW; the sources are never modified"
+        );
+        return 2;
+    }
     let new_password = match &args.new_password_file {
         Some(path) => match resolve_cli_password(None, Some(path.clone())) {
             Ok(p) => p,
@@ -85,11 +108,89 @@ pub(crate) fn cmd_compare(args: &CompareArgs) -> u8 {
     } else {
         print!("{}", report_text(&report));
     }
+    if let Some(output) = &args.output
+        && let Err(code) = write_result(args, output, new, &report)
+    {
+        return code;
+    }
     if args.exit_code && !report.is_identical() {
         exit::DOCUMENTS_DIFFER
     } else {
         exit::SUCCESS
     }
+}
+
+/// Mark `report` on a copy of `new` and save it to `output` as an
+/// incremental update; prints what was marked and what was not.
+fn write_result(
+    args: &CompareArgs,
+    output: &Path,
+    new: Document,
+    report: &CompareReport,
+) -> Result<(), u8> {
+    let label = |p: &Path| {
+        p.file_name()
+            .map_or_else(String::new, |n| n.to_string_lossy().into_owned())
+    };
+    let mut options = ResultOptions::default()
+        .with_summary_page(!args.no_summary)
+        .with_labels(label(&args.old), label(&args.new));
+    if let Some(a) = &args.author {
+        options = options.with_author(a.clone());
+    }
+    let mut session = pdfcer_core::edit::EditSession::new(new);
+    let marked = match mark_changes(&mut session, report, &options) {
+        Ok(m) => m,
+        Err(err) => {
+            eprintln!("pdfcer: compare: {err}");
+            return Err(exit::RUNTIME_ERROR);
+        }
+    };
+    let outcome = save_edited(
+        &mut session,
+        &[],
+        output,
+        SaveMode::Incremental,
+        ProducerArg::Preserve,
+        false,
+    )?;
+    println!("{}", result_text(&marked, output));
+    for u in &marked.unmarked {
+        eprintln!(
+            "pdfcer: compare: change {} was not marked: {}",
+            u.change + 1,
+            u.reason
+        );
+    }
+    for d in marked.summary.iter().flat_map(|s| &s.disclosures) {
+        eprintln!("pdfcer: compare: summary page: {d}");
+    }
+    match finish_edit(&args.new, &outcome) {
+        exit::SUCCESS => Ok(()),
+        code => Err(code),
+    }
+}
+
+fn same_file(a: &Path, b: &Path) -> bool {
+    match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+        (Ok(a), Ok(b)) => a == b,
+        _ => a == b,
+    }
+}
+
+fn result_text(m: &ResultReport, output: &Path) -> String {
+    format!(
+        "compare: wrote {}: {} change(s) marked with {} annotation(s), {} unmarked{}",
+        output.display(),
+        m.changes_marked,
+        m.annotations,
+        m.unmarked.len(),
+        if m.summary.is_some() {
+            "; summary page inserted before page 1"
+        } else {
+            ""
+        },
+    )
 }
 
 fn open_failed(path: &Path, err: &pdfcer_core::document::DocError) -> u8 {

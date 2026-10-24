@@ -19,6 +19,7 @@ mod attach_file_annotation;
 mod audit_space;
 mod bates_stamp;
 mod bookmarks;
+mod compare_result;
 mod copy_page;
 mod create_digital_id;
 mod deskew;

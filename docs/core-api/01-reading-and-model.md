@@ -115,6 +115,7 @@ builds `--no-default-features`, so both configurations compile.
 | Get the byte-exact origin of a glyph (for editing) | `ExtractOptions::default().with_provenance(true)` then `ExtractedGlyph::provenance` — `mod.rs`, `mod.rs` | §8.4 |
 | Separate OCR-layer text from the page's own | `ExtractOptions::default().with_ocr_layer(OcrLayerFilter::OnlyOcrLayer)`, or read `TextRun::in_ocr_layer` — `ocr_layer.rs` | §8.2 |
 | Compare two documents' text, with page places | `compare::compare_documents(&Document, &Document, &CompareOptions)` — `compare/mod.rs` | §8.10 |
+| Mark a comparison's changes on the new document | `compare::mark_changes(&mut EditSession, &CompareReport, &ResultOptions)` — `compare/result.rs` | §8.10 |
 | Search for text across the document | `EditSession::find_text_with(&needle, &TextSearchOptions)` — `edit.rs` **(read-only in effect, but needs a session)** | §8.5 |
 | Search for text **and learn what was unreadable** | `EditSession::search_text(&needle, &TextSearchOptions)` — `edit.rs` → `TextSearch { matches, diagnostics }` | §8.5 |
 | Render-setting preset for a subset standard (PDF/X, PDF/A, PDF/UA) | `pdfcer_core::settings::presets::RenderPreset::for_standard(RenderStandard)` | §8.5a |
@@ -1967,9 +1968,35 @@ new), `formatting: Option<FormattingDelta>` (`size`, `weight`, `color`, each
 permission — the same rule as text extraction), `NoSuchPage { side, index,
 count }`, `Extract { side, source }`.
 
+**Annotated result (`Pass 645.1`)** — `compare/result.rs`.
+`compare::mark_changes(&mut EditSession, &CompareReport, &ResultOptions) ->
+Result<ResultReport, ResultError>` marks the report's changes on a session
+holding the **NEW** document it was computed against (page indices are used
+as-is). Palette (decision 199, `pub const`s): inserted → `/Highlight`
+`INSERTED_COLOR` (blue); replaced → `/Highlight` `REPLACED_COLOR`
+(orange); formatting → `/Underline` `FORMATTING_COLOR` (purple); deleted →
+`/Caret` `DELETED_COLOR` (red) at the change's `anchor`. Each mark's note
+(`/Contents`): `Inserted: …`, `Replaced. Was: <old>`, `Deleted: <old>`,
+`Formatting changed: …`. One annotation per change **per page it touches**;
+each is its own undo entry.
+
+- `ResultOptions` (`#[non_exhaustive]`): `with_summary_page(bool)` (default
+  **on**: a text page inserted before page 1 with counts and the colour key,
+  via `place_text`), `with_author(..)` (`/T`), `with_labels(old, new)`.
+- `ResultReport`: `annotations`, `changes_marked`, `unmarked: Vec<Unmarked {
+  change, reason }>` (no new-side place, or the author verb refused — the
+  rest still get marked), `summary: Option<PlaceTextReport>` (its
+  `disclosures` belong in the caller's output).
+- `ResultError`: `Pages` (before anything is authored), `Summary` (after the
+  marks).
+- **Trap:** a deletion's caret sits at its *content-order* position, which on
+  a drawing can be far from where the words were drawn.
+
 CLI: `pdfcer compare OLD NEW [--pages-old] [--pages-new] [--formatting]
-[--artifacts] [--json] [--exit-code]` (exit 16 when the text differs under
-`--exit-code`; 9 for `CopyNotPermitted`).
+[--artifacts] [--json] [--exit-code] [--output RESULT.pdf [--no-summary]
+[--author NAME]]` (exit 16 when the text differs under `--exit-code`; 9 for
+`CopyNotPermitted`; 2 when `--output` names OLD or NEW). The result is an
+incremental update of NEW written to RESULT; the sources are only read.
 
 ---
 

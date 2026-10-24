@@ -16,7 +16,13 @@
 
 mod changes;
 mod diff;
+mod result;
 mod words;
+
+pub use result::{
+    DELETED_COLOR, FORMATTING_COLOR, INSERTED_COLOR, REPLACED_COLOR, ResultError, ResultOptions,
+    ResultReport, Unmarked, mark_changes,
+};
 
 use std::ops::Range;
 

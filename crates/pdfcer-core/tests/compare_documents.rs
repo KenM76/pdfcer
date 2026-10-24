@@ -30,6 +30,10 @@ fn build_pdf(bodies: &[String]) -> Vec<u8> {
 /// One page per entry; each entry is lines of `(font, size, text)` drawn
 /// 20 pt apart from the top. F1 Helvetica, F2 Helvetica-Bold.
 fn doc(pages: &[&[(&str, f32, &str)]]) -> Document {
+    Document::from_bytes(doc_bytes(pages)).expect("loads")
+}
+
+fn doc_bytes(pages: &[&[(&str, f32, &str)]]) -> Vec<u8> {
     let n = pages.len();
     let kids: Vec<String> = (0..n).map(|i| format!("{} 0 R", 5 + 2 * i)).collect();
     let mut bodies = vec![
@@ -53,7 +57,7 @@ fn doc(pages: &[&[(&str, f32, &str)]]) -> Document {
         ));
         bodies.push(format!("STREAM:{c}"));
     }
-    Document::from_bytes(build_pdf(&bodies)).expect("loads")
+    build_pdf(&bodies)
 }
 
 fn one(text: &str) -> Document {
@@ -186,4 +190,116 @@ fn a_document_withholding_copy_is_refused() {
         compare_documents(&plain, &locked, &CompareOptions::default()),
         Err(CompareError::CopyNotPermitted { side: Side::New })
     ));
+}
+
+mod result {
+    use super::*;
+    use pdfcer_core::annot::page_annotations;
+    use pdfcer_core::annot_author::Color;
+    use pdfcer_core::compare::{
+        DELETED_COLOR, INSERTED_COLOR, REPLACED_COLOR, ResultOptions, mark_changes,
+    };
+    use pdfcer_core::edit::EditSession;
+    use pdfcer_core::object::Object;
+    use pdfcer_core::writer::SaveOptions;
+
+    const OLD: &[(&str, f32, &str)] = &[("F1", 12.0, "one two three four five")];
+    const NEW: &[(&str, f32, &str)] = &[("F1", 12.0, "one three FOUR five six")];
+
+    /// (subtype, /C, /Rect llx, /Contents) of every annotation on `page`.
+    fn marks(doc: &Document, page: usize) -> Vec<(String, Vec<f64>, f64, String)> {
+        let pages = pdfcer_core::page_tree::pages(doc).expect("pages");
+        page_annotations(doc, pages[page].id)
+            .into_iter()
+            .map(|a| {
+                let d = doc.get(a.id.expect("indirect")).expect("object");
+                let d = d.value.as_dict().expect("dict").clone();
+                let c = d
+                    .get(b"C")
+                    .and_then(Object::as_array)
+                    .map(|v| v.iter().filter_map(Object::as_number).collect())
+                    .unwrap_or_default();
+                let note = match d.get(b"Contents") {
+                    Some(Object::String(s)) => String::from_utf8_lossy(s).into_owned(),
+                    _ => String::new(),
+                };
+                let sub = String::from_utf8_lossy(&a.subtype).into_owned();
+                (sub, c, a.rect.expect("rect").llx, note)
+            })
+            .collect()
+    }
+
+    fn rgb(c: Color) -> Vec<f64> {
+        match c {
+            Color::Rgb(r, g, b) => vec![r, g, b],
+            _ => unreachable!(),
+        }
+    }
+
+    fn build(options: &ResultOptions) -> (Vec<u8>, Vec<u8>, Document, usize) {
+        let (old_bytes, new_bytes) = (doc_bytes(&[OLD]), doc_bytes(&[NEW]));
+        let old = Document::from_bytes(old_bytes.clone()).expect("old");
+        let new = Document::from_bytes(new_bytes.clone()).expect("new");
+        let report = compare(&old, &new);
+        let mut session = EditSession::new(new);
+        let r = mark_changes(&mut session, &report, options).expect("marks");
+        assert!(r.unmarked.is_empty(), "{:?}", r.unmarked);
+        assert_eq!(r.changes_marked, report.changes.len());
+        let saved = session
+            .to_incremental_bytes(&SaveOptions::identity())
+            .expect("saves")
+            .0;
+        assert!(
+            saved.starts_with(&new_bytes),
+            "an incremental update of NEW"
+        );
+        let reopened = Document::from_bytes(saved).expect("reopens");
+        // The sources are only read.
+        assert_eq!(old_bytes, doc_bytes(&[OLD]));
+        (old_bytes, new_bytes, reopened, r.annotations)
+    }
+
+    #[test]
+    fn one_mark_per_change_coloured_by_kind_with_the_old_text() {
+        let (_, _, doc, n) = build(&ResultOptions::default().with_summary_page(false));
+        assert_eq!(pdfcer_core::page_tree::pages(&doc).expect("pages").len(), 1);
+        let m = marks(&doc, 0);
+        assert_eq!(n, 3);
+        assert_eq!(
+            m.len(),
+            3,
+            "deleted two, replaced four, inserted six: {m:?}"
+        );
+        let by = |sub: &str, c: Color| {
+            m.iter()
+                .find(|x| x.0 == sub && x.1 == rgb(c))
+                .unwrap_or_else(|| panic!("no {sub} in {m:?}"))
+                .clone()
+        };
+        let del = by("Caret", DELETED_COLOR);
+        assert_eq!(del.3, "Deleted: two");
+        let rep = by("Highlight", REPLACED_COLOR);
+        assert_eq!(rep.3, "Replaced. Was: four");
+        let ins = by("Highlight", INSERTED_COLOR);
+        assert_eq!(ins.3, "Inserted: six");
+        // The caret sits where "two" was: between "one" and "three".
+        assert!(del.2 > 72.0 && del.2 < rep.2, "{del:?} vs {rep:?}");
+    }
+
+    #[test]
+    fn the_summary_page_goes_first_and_the_marks_stay_on_their_page() {
+        let (_, _, doc, _) = build(&ResultOptions::default().with_labels("a.pdf", "b.pdf"));
+        assert_eq!(pdfcer_core::page_tree::pages(&doc).expect("pages").len(), 2);
+        assert!(marks(&doc, 0).is_empty());
+        assert_eq!(marks(&doc, 1).len(), 3);
+        let opts = pdfcer_core::text_extract::ExtractOptions::default();
+        let text = pdfcer_core::text_extract::extract_pages(&doc, &[0], &opts).expect("reads");
+        let first: String = text.pages[0].runs.iter().map(|r| r.text.as_str()).collect();
+        assert!(first.contains("Comparison summary"), "{first}");
+        assert!(first.contains("a.pdf"), "{first}");
+        assert!(
+            first.contains("1 inserted, 1 deleted, 1 replaced"),
+            "{first}"
+        );
+    }
 }
