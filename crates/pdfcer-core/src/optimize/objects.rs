@@ -9,7 +9,9 @@
 //!   true` would otherwise claim a tagged file, §14.8.1), every
 //!   `/StructParent` / `/StructParents` (Table 359), an outline item's `/SE`
 //!   and a GoTo action's or destination's `/SD` (2.0 Table 202); a GoToR or
-//!   GoToE `/SD` points into another file and stays. Marked-content `MCID`s
+//!   GoToE `/SD` points into another file and stays. Every destination
+//!   naming a structure element is first rewritten to name its page: see
+//!   [`super::struct_dest`]. Marked-content `MCID`s
 //!   stay: an MCID without a structure parent is legal (2.0 erratum 308);
 //! - print settings: the print entries of the catalog's `/ViewerPreferences`
 //!   (§12.2 Table 147), each of which then takes the viewer's default, and
@@ -167,7 +169,9 @@ pub struct ObjectDiscard {
     /// layer (optional content group) for a flatten, or the page for a
     /// fragment merge or a smoothing.
     pub owner: ObjId,
-    /// Where it is, in words: `catalog`, `image object 12 0`, `page 2:
+    /// Where it is, in words: `catalog` (for tags, followed by how many
+    /// links to a tag now go to its page, as `catalog: 2 link(s) to a tag
+    /// now go to its page`), `image object 12 0`, `page 2:
     /// form-fields (3)`, `layer 9 0: Notes`, `page 1: 40 strips into 1 image
     /// (800x1100)`, `page 1: 120 line segments into 6 curves (max deviation
     /// 0.031 pt)`, or for an action `object 12 0: SubmitForm, GoToR`
@@ -223,47 +227,42 @@ pub(crate) fn carriers(
         return Vec::new();
     };
     let mut out = Vec::new();
-    let mut push = |object, owner, location: String, strips: Vec<Strip>| {
-        if !strips.is_empty() && wanted(object) {
-            out.push(ObjectDiscard {
-                object,
-                owner,
-                location,
-                bytes: 0,
-                strips,
-                rewrites: Vec::new(),
-                drops: Vec::new(),
-            });
-        }
+    let item = |object, owner, location: String, strips: Vec<Strip>| {
+        (!strips.is_empty() && wanted(object)).then_some(ObjectDiscard {
+            object,
+            owner,
+            location,
+            bytes: 0,
+            strips,
+            rewrites: Vec::new(),
+            drops: Vec::new(),
+        })
     };
     let at = |path: Vec<&'static [u8]>| Strip {
         owner: catalog,
         path,
     };
-    push(
+    out.extend(item(
         DiscardObject::Bookmarks,
         catalog,
         "catalog".into(),
         bookmark_strips(view, cat).into_iter().map(at).collect(),
-    );
-    push(
-        DiscardObject::Tags,
-        catalog,
-        "catalog".into(),
-        tag_strips(view, catalog, cat, live),
-    );
-    push(
+    ));
+    if wanted(DiscardObject::Tags) {
+        out.extend(tags_item(view, catalog, cat, live));
+    }
+    out.extend(item(
         DiscardObject::PrintSettings,
         catalog,
         "catalog".into(),
         print_strips(view, cat).into_iter().map(at).collect(),
-    );
-    push(
+    ));
+    out.extend(item(
         DiscardObject::SearchIndex,
         catalog,
         "catalog".into(),
         search_index_strip(view, cat).into_iter().map(at).collect(),
-    );
+    ));
     if wanted(DiscardObject::AlternateImages) {
         out.extend(alternate_carriers(view, live));
     }
@@ -367,6 +366,38 @@ fn prefs<'a>(view: &'a DocumentView<'_>, cat: &'a Dict) -> Option<&'a Dict> {
         .and_then(Object::as_dict)
 }
 
+/// The structure tree's item: its strips, and the rewrites that turn
+/// structure destinations into page destinations first (an inline action's
+/// `/SD` goes with them).
+fn tags_item(
+    view: &DocumentView<'_>,
+    catalog: ObjId,
+    cat: &Dict,
+    live: &BTreeSet<ObjId>,
+) -> Option<ObjectDiscard> {
+    let strips = tag_strips(view, catalog, cat, live);
+    if strips.is_empty() {
+        return None;
+    }
+    let dests = super::struct_dest::rewrites(view, catalog, cat, live);
+    let location = match (dests.rewritten, dests.to_first_page) {
+        (0, _) => "catalog".to_owned(),
+        (n, 0) => format!("catalog: {n} link(s) to a tag now go to its page"),
+        (n, f) => format!(
+            "catalog: {n} link(s) to a tag now go to its page, {f} of them to the first page (the tag had no page)"
+        ),
+    };
+    Some(ObjectDiscard {
+        object: DiscardObject::Tags,
+        owner: catalog,
+        location,
+        bytes: 0,
+        strips,
+        rewrites: dests.rewrites,
+        drops: Vec::new(),
+    })
+}
+
 fn tag_strips(
     view: &DocumentView<'_>,
     catalog: ObjId,
@@ -396,14 +427,6 @@ fn tag_strips(
         let mut paths: Vec<Vec<&'static [u8]>> = keys.map(|&k| vec![k]).collect();
         if local_sd(dict) {
             paths.push(vec![b"SD"]);
-        }
-        // An action written inline in an annotation or outline item.
-        if dict
-            .get(b"A")
-            .and_then(Object::as_dict)
-            .is_some_and(local_sd)
-        {
-            paths.push(vec![b"A", b"SD"]);
         }
         out.extend(paths.into_iter().map(|path| Strip { owner: id, path }));
     }

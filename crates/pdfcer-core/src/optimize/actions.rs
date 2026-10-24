@@ -332,7 +332,8 @@ pub(crate) fn apply_rewrite(dict: &mut Dict, r: &Rewrite) -> Option<Object> {
 }
 
 fn set_entry(dict: &mut Dict, key: &[u8], r: &Rewrite) -> Option<Object> {
-    if dict.get(key) != Some(&r.before) {
+    // A null entry is an absent one (§7.3.7), so a `before` of null adds a key.
+    if dict.get(key).unwrap_or(&Object::Null) != &r.before {
         return None;
     }
     match &r.value {

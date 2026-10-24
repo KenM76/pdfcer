@@ -55,6 +55,7 @@ pub(crate) mod select;
 pub(crate) mod smooth;
 pub(crate) mod smooth_fit;
 pub(crate) mod streams;
+mod struct_dest;
 mod version_floor;
 
 use std::collections::BTreeMap;
@@ -725,3 +726,5 @@ mod objects_tests;
 mod search_index_tests;
 #[cfg(test)]
 mod smooth_tests;
+#[cfg(test)]
+mod struct_dest_tests;

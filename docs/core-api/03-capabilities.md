@@ -4899,7 +4899,14 @@ Contract:
   (the clean-up's broken-bookmark list is emptied, as every bookmark goes).
   `Tags`: `/StructTreeRoot`, `/MarkInfo`, every `/StructParent(s)`, an
   outline item's `/SE`, a GoTo's or destination's `/SD` (a GoToR/GoToE `/SD`
-  stays); content `MCID`s stay (legal without a tree). `PrintSettings`:
+  stays); content `MCID`s stay (legal without a tree). First, every
+  structure destination (an explicit destination naming a structure element,
+  ISO 32000-2 §12.3.2.3) in a `/Dest`, an array `/OpenAction`, a GoTo `/D`
+  or a named destination is rewritten to name the element's page by that
+  clause's walk, operands kept, the first page when none is found; a GoTo or
+  named destination left with only an `/SD` gets a `/D` built from it. The
+  item's `location` then reads `catalog: N link(s) to a tag now go to its
+  page` (`, M of them to the first page (the tag had no page)`). `PrintSettings`:
   viewer-preference `PrintScaling`, `Duplex`, `PickTrayByPDFSize`,
   `PrintPageRange`, `NumCopies`, `PrintArea`, `PrintClip`, `Enforce`.
   `AlternateImages`: an image's `/Alternates`, except an image under

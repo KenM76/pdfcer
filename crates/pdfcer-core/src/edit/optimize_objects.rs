@@ -17,7 +17,7 @@ use crate::optimize::{OptimizeError, OptimizeSettings, smooth};
 const NOTES: &[(DiscardObject, &str)] = &[
     (
         DiscardObject::Tags,
-        "the structure tree goes: the file is no longer tagged, so screen readers and reflow lose it, and a PDF/UA or PDF/A level A claim no longer holds",
+        "the structure tree goes: the file is no longer tagged, so screen readers and reflow lose it, and a PDF/UA or PDF/A level A claim no longer holds; links here that named a tag now name its page, and links in other files that name a tag here fall back to the page they also name",
     ),
     (
         DiscardObject::PrintSettings,
