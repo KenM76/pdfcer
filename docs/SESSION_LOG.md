@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-23 (1226th filing) — `v0.96.0` release prep, version bump `1a5f552e`; NOT yet published
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- Bump commit `1a5f552e` (`chore`): workspace version and the `pdfcer-model` workspace dependency version 0.95.0 to 0.96.0; `Cargo.lock` and `fuzz/Cargo.lock` refreshed. Not published, not tagged; the tag goes on this filing commit.
+- Carries since `v0.95.0` (already filed, not re-filed): `e2bb5d67` (`Pass 640.0` follow-up, CI clippy fix), `ef72139d` (`641.0`), `fcbe9606` (`642.0`), `b0a88c41` (`643.0`).
+- Change-scoped gates (Ken, 2026-10-16), engineer-reported: core and cli tests green at `b0a88c41` (core 1973 lib + 3041 + 250 + 44; cli 960); clippy clean default and `--no-default-features`. CI on `27bb2ab8` success; CI on `89fd2b8c` in progress at filing.
+
+**Decisions made:** none; nothing minted.
+
+**FEATURES.md:** unchanged.
+
+**For next session:** tag `v0.96.0` on the filing commit, package, fresh-folder smoke, `verify-release.py`, GitHub release, write OneDrive slot `pdfcer1` (`pdfcer2` keeps 0.95.0); confirm CI on `89fd2b8c` finished green first. Next free `Pass 644.0`, decision `199`, `R263`; next filing 1227th.
+
 ## 2026-10-23 (1225th filing) — `b0a88c41` `Pass 643.0` scoped and COMPLETE: session page import stops dragging a tagged source's structure and unchosen pages
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

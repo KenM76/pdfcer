@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.96.0` — release prep, version bump `1a5f552e` (`chore`), 2026-10-23 (1226th filing); NOT yet published
+
+Engineer-reported; no shell here, nothing checked from here. Same pattern as the v0.95.0 prep (1221st filing).
+- **`1a5f552e` (`chore`):** workspace version 0.95.0 to 0.96.0 in root `Cargo.toml` (including the `pdfcer-model` workspace dependency version), `Cargo.lock` and `fuzz/Cargo.lock` refreshed.
+- **Passes carried since `v0.95.0`:** `e2bb5d67` (`Pass 640.0` follow-up, CI `--no-default-features` clippy fix), `ef72139d` (`Pass 641.0`), `fcbe9606` (`Pass 642.0`), `b0a88c41` (`Pass 643.0`); already filed COMPLETE, not re-filed.
+- **Change-scoped release gates (operator rule 2026-10-16), engineer-reported:** `pdfcer-core` and `pdfcer-cli` tests green on the tree at `b0a88c41` (core 1973 lib + 3041 + 250 + 44 integration; cli 960); clippy clean with default features and with `--no-default-features`. CI on `27bb2ab8`: success. CI on `89fd2b8c`: in progress at filing.
+- **Release plan (not claimed done):** OneDrive slot `pdfcer1` (the 0.95.0 publication entry records `pdfcer2` holding 0.95.0 and "the next release writes `pdfcer1`"; `pdfcer2` keeps 0.95.0). Not yet tagged: the tag goes on this filing commit. Package, smoke, `verify-release.py`, GitHub release and slot write get their own later filing.
+- **FEATURES:** no change. Nothing minted; next free `Pass 644.0`, decision `199`, `R263`; next filing 1227th.
+
 ### `b0a88c41` `Pass 643.0` COMPLETE, 2026-10-23: session page import (insert/paste/merge) stops dragging a tagged source's structure and unchosen pages (1225th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Scoped and completed in this one docs-only filing. The code commit `b0a88c41` sits on `27bb2ab8` and was unpushed at filing time. Unreleased: the next release (slot `pdfcer1`) carries it with `Pass 641.0` and `Pass 642.0`. Third sibling of those two: the same rule, now for the `EditSession` cross-document import.
@@ -23756,6 +23765,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
+
+(1226th filing: `v0.96.0` release prep, bump `1a5f552e`, NOT yet published, see *Shipped*. Nothing minted; next free `Pass 644.0`, decision `199`, `R263`; next filing 1227th.)
 
 (1225th filing: `Pass 643.0` scoped and COMPLETE in one filing (`b0a88c41`, unpushed at filing), see *Shipped*. Nothing minted; next free `Pass 644.0`, decision `199`, `R263`; next filing 1226th.)
 
