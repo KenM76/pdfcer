@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.97.0` — release prep, version bump `ac13e585` (`chore`), 2026-10-24 (1229th filing); NOT yet published
+
+Engineer-reported; no shell here, nothing checked from here. Same pattern as the v0.96.0 prep (1226th filing).
+- **`ac13e585` (`chore`):** workspace version 0.96.0 to 0.97.0 in root `Cargo.toml` (including the `pdfcer-model` workspace dependency version), `Cargo.lock` and `fuzz/Cargo.lock` regenerated; sits on `a8a4048f`.
+- **Pass carried since `v0.96.0`:** `736eafe2` (`Pass 644.0`, `G226`: a block lifts out of a shared or non-adjacent `BT`…`ET` text object; new refusal `UnsupportedCause::TextObjectNotSeparable`); already filed COMPLETE (1228th), not re-filed.
+- **Change-scoped release gates (operator rule 2026-10-16), engineer-reported:** `pdfcer-core` tests green (the only crate changed since `v0.96.0` besides the version bump); filing gates green. CI on `a8a4048f`: success.
+- **Release plan (not claimed done):** OneDrive slot `pdfcer2` (`v0.96.0` is in `pdfcer1`). Not yet tagged: the tag goes on this filing commit. Package, smoke, `verify-release.py`, GitHub release and slot write get their own later filing.
+- **FEATURES:** no change. Nothing minted; next free `Pass 645.0`, decision `199`, `R263`; next filing 1230th.
+
 ### `736eafe2` `Pass 644.0` COMPLETE, 2026-10-23: a block lifts out of a text object it shares with other content (`G226`) (1228th filing)
 
 Engineer-reported; no shell here, nothing checked from here except one source grep (`block_text_cmd.rs:56` calls `edit_block_text`). Scoped and completed in this one docs-only filing. Code commit `736eafe2` sits on `6563b7fd`. Unreleased since `v0.96.0`; the next release writes slot `pdfcer2`. Request: pdfceGUI `G226`, a CAD drawing note whose shows share a `BT`…`ET` with balloon letters or pdf dimension values could not open as a paragraph.
@@ -23788,6 +23797,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
+
+(1229th filing: `v0.97.0` release prep, bump `ac13e585`, NOT yet published, see *Shipped*. Nothing minted; next free `Pass 645.0`, decision `199`, `R263`; next filing 1230th.)
 
 (1228th filing: `Pass 644.0` (`G226`) scoped and COMPLETE in one filing (`736eafe2`), see *Shipped*. Nothing minted; next free `Pass 645.0`, decision `199`, `R263`; next filing 1229th. Unreleased since `v0.96.0`; next release writes slot `pdfcer2`.)
 

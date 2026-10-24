@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-24 (1229th filing) — `v0.97.0` release prep, version bump `ac13e585`; NOT yet published
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- Bump commit `ac13e585` (`chore`, on `a8a4048f`): workspace version and the `pdfcer-model` workspace dependency version 0.96.0 to 0.97.0; `Cargo.lock` and `fuzz/Cargo.lock` regenerated. Not published, not tagged; the tag goes on this filing commit.
+- Carries since `v0.96.0` (already filed, not re-filed): `736eafe2` (`Pass 644.0`, `G226`; new refusal `UnsupportedCause::TextObjectNotSeparable`).
+- Change-scoped gates (Ken, 2026-10-16), engineer-reported: `pdfcer-core` tests green (only crate changed besides the version bump); filing gates green. CI on `a8a4048f` success.
+
+**Decisions made:** none; nothing minted.
+
+**FEATURES.md:** unchanged.
+
+**For next session:** tag `v0.97.0` on the filing commit, package, fresh-folder smoke, `verify-release.py`, GitHub release, write OneDrive slot `pdfcer2` (`pdfcer1` keeps 0.96.0). Next free `Pass 645.0`, decision `199`, `R263`; next filing 1230th.
+
 ## 2026-10-23 (1228th filing) — `736eafe2` `Pass 644.0` scoped and COMPLETE: a block lifts out of a shared text object (`G226`)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here except a source grep):**
