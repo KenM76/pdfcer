@@ -90,8 +90,9 @@ failure classes, probe recipes, release recipe detail) is in git:
   arrays and dicts, `Tm`/`Td` line starts (Td error carried); every page
   content stream rounds at the scale its entry matrix stretches by
   (§7.7.3.3: `/Contents` streams run concatenated), a shared stream at its
-  pages' largest; `Unrounded::UnknownStart` otherwise. Open: forms and
-  patterns (their start scale is not walked). `TD` excluded by design.
+  pages' largest; `Unrounded::UnknownStart` otherwise. Forms and tiling patterns round at
+  their drawn scale (`281ac8c7`); appearance streams, soft masks and Type 3
+  procedures do not (Backlog `628.0`, ~7 KB corpus-wide). `TD` excluded by design.
   Parity reference:
   `Acrobat_Features/optimize__page_content_and_content_stream_rewriting.md`.
   **616.8 linearization shipped** (`daa36707`): `optimize --linearize`;
@@ -102,8 +103,7 @@ failure classes, probe recipes, release recipe detail) is in git:
   warnings, 0 FAIL, 44 expected refusals. Re-run it after touching
   `linearize/classify.rs`. **616.9 COMPLETE** (ssim target, byte budget
   `--target-size`, visual-diff `--visual-diff`) and **616.10 COMPLETE**
-  (`--compat`); core + cli, GUI not built. 616.7 forms/patterns is the one
-  open residue. ssim sizes, 1,603,435 B photo: q90 805,853; ssim .99 -> q53
+  (`--compat`); core + cli, GUI not built. ssim sizes, 1,603,435 B photo: q90 805,853; ssim .99 -> q53
   234,628; .98 -> q24 147,835; .95 -> q8 85,268 (~7 s, 8 trials).
 - **Fixture generator:** `tools/gen-resubset-fixtures.py` needs fontTools
   for `symbolic.pdf`. Python string escapes typed through Bash lose their

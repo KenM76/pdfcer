@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-24 (1231st filing) — document comparison filed: `Pass 645.0`, `645.1`, `645.2`
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 645.0` text compare (core `compare` module + CLI `pdfcer compare`), `645.1` annotated result PDF, `645.2` visual comparison and page matching. All three in *Next up* (sliced-family convention); source is an engineer initiative.
+- Parity reference named in the entries: `D:\Dev\Rag-Specialized\Acrobat_Features\compare__overview_inputs_and_options.md` and `compare__change_types_and_output.md` (both confirmed present by Glob).
+- Checked by Grep: `pdfcer-render/src/visual_diff.rs` has `pub fn visual_diff`; `pdfcer-core` has no `compare` module yet.
+
+**Decisions made:** none; nothing minted.
+
+**FEATURES.md:** the Planned row "Document comparison." split into three rows (`645.0`, `645.1`, `645.2`), all core/cli/gui unticked, Acrobat `[x]`.
+
+**Sweep (hard rule 11):** the engineer's claim that `616.7` forms/patterns rounding is closed. Live current-state text already agrees: FEATURES rows 613/614 and the "Content-stream optimisation, remainder" row, and ROADMAP Backlog `Pass 628.0`. Survivors saying "open" exist only in dated, append-only history (Shipped slice entries for `616.7` and the 1184th-filing Next up stub); left unedited by rule.
+
+**For next session:** next free `Pass 646.0`, decision `199`, `R263`; next filing 1232nd. `docs/NEXT_SESSION.md` is engineer-owned and was not touched.
+
 ## 2026-10-24 (1230th filing) — `v0.97.0` PUBLISHED: tag on `6157f1f1`
 
 **Filed (docs only; the engineer ran a shell and verified, none here, nothing checked from here):**

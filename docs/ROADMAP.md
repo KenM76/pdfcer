@@ -23811,6 +23811,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
 
+(1231st filing: `Pass 645.0`, `645.1`, `645.2` (document comparison, Acrobat "Compare Files") filed in Next up below; nothing shipped. No decision or R minted; next free `Pass 646.0`, decision `199`, `R263`; next filing 1232nd.)
+
 (1230th filing: `v0.97.0` PUBLISHED on `6157f1f1`, see *Shipped*. Nothing minted; next free `Pass 645.0`, decision `199`, `R263`; next filing 1231st. Next release writes OneDrive slot `pdfcer1`.)
 
 (1229th filing: `v0.97.0` release prep, bump `ac13e585`, NOT yet published, see *Shipped*. Nothing minted; next free `Pass 645.0`, decision `199`, `R263`; next filing 1230th.)
@@ -34573,6 +34575,41 @@ overrides the image dictionary; `/ColorSpace` optional,
 - Expected order once the token exists: `pdfcer-color`, `pdfcer-model`, then `pdfcer-pkix`; the rest per the blockers above.
 
 **Status:** Next up, blocked on the token. FEATURES.md: row "Publish the engine crates to crates.io" in *Planned*, all boxes unticked.
+
+### Pass 645.0 — compare the text of two documents (core + CLI) (NEXT UP; filed 1231st filing, 2026-10-24)
+
+**Source:** engineer initiative; the largest unbuilt Acrobat Pro row in `FEATURES.md` *Planned* ("Document comparison."). Parity reference, written 2026-10-24 by `pdfcer-acrobat-librarian`: `D:\Dev\Rag-Specialized\Acrobat_Features\compare__overview_inputs_and_options.md` and `D:\Dev\Rag-Specialized\Acrobat_Features\compare__change_types_and_output.md`. Slices `645.1`, `645.2` follow below; all three are Next up (sliced-family convention, as `635.x`). No decision or R minted.
+
+**Scope:**
+- New `pdfcer-core` module `compare`. Inputs: an old and a new `Document`, plus an optional page range for each.
+- Word-level diff of the extracted text, treated as ONE continuous body across pages (Acrobat's "Reports" preset), so text that reflows across a page break is not a change.
+- Change kinds: inserted, deleted, replaced. Each change carries old/new page indexes and word boxes in default user space.
+- Optional formatting changes (font, size, fill colour on words whose text is equal), OFF by default, matching Acrobat's default.
+- **Bounded:** a diff-cost ceiling. Past it, the rest of the region is reported as one replacement and the report SAYS SO; silent truncation is not allowed (fuzzy, never sneaky).
+- **Encrypted inputs (pdfcer exceeds Acrobat):** the Copy permission (ISO 32000-1 Table 22 bit 5) or owner authentication is required; without it the compare is refused by name. Acrobat has a reported bypass and its result carries no security.
+- CLI `pdfcer compare OLD NEW`: a summary with counts by kind; each change with its page and text; `--json` machine-readable change list (exceeds Acrobat, which has no structured export); `--pages-old` / `--pages-new`, `--formatting`, `--password-old` / `--password-new`.
+
+**Acceptance:** fixture tests for insert, delete, replace, reflow-across-pages, identical, formatting, encrypted-refused; the ceiling disclosed (tested); `docs/core-api/` updated; `cargo fmt --check` and `cargo clippy -- -D warnings` clean; `cargo tree -p pdfcer-core` shows no GUI dependency. Fixtures synthetic (R-corpus, `LEGAL.md` §5).
+
+**Status:** NOT STARTED. FEATURES.md: row "Compare the text of two documents" in *Planned*, all pdfcer boxes unticked.
+
+### Pass 645.1 — annotated result document (NEXT UP; filed 1231st filing, 2026-10-24)
+
+**Depends on `645.0`.** Reference: `compare__change_types_and_output.md` (same RAG directory).
+
+`pdfcer compare OLD NEW --output RESULT.pdf`: a copy of the NEW document with one highlight-style markup annotation per change, colour-coded by kind, each with a note carrying the old text; deletions are marked at their position in the new document; an optional summary page carries the counts. Acrobat's own result is a new PDF with a summary page and a hover popup per change. **The source documents are never modified** (round-trip rule; the result is a new file). Annotations must not be a provisional layer in the fuzzy-never-sneaky sense: they are saved content, and the CLI prints what it marked.
+
+**Acceptance:** tests that the source bytes are unchanged, one annotation per change, colour per kind, a deletion marker at the expected position, summary page on/off; reopens in the pdfcer renderer. Acrobat Reader reopen check recorded as done or NOT done. **Status:** NOT STARTED. FEATURES.md: row "Annotated comparison result", unticked.
+
+### Pass 645.2 — visual comparison and page matching (NEXT UP; filed 1231st filing, 2026-10-24)
+
+**Depends on `645.0`.** Reference: `compare__overview_inputs_and_options.md` and `compare__change_types_and_output.md` (same RAG directory).
+
+- Pixel comparison per matched page pair for drawings and scans (Acrobat's "Scanned Documents / drawings" preset), built on the existing `pdfcer-render` `visual_diff` (`crates/pdfcer-render/src/visual_diff.rs`), with images added, removed and changed.
+- Page matching when pages were inserted, removed or moved (Acrobat's "Presentation Decks" preset).
+- **Parity targets to EXCEED (Acrobat's known weaknesses):** moving one image on a drawing reports the whole sheet as replaced; pure-white text edits are missed.
+
+**Acceptance:** fixtures for a moved image (only that image reported, not the sheet), a white-text edit (reported), inserted/removed/moved pages (matched), and a scan pair; any inferred match or threshold is disclosed in the report. Scope to be refined with `pdfcer-acrobat-librarian` before build. **Status:** NOT STARTED. FEATURES.md: row "Visual comparison and page matching", unticked.
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 
