@@ -104,7 +104,9 @@ fn a_case_insensitive_hit_reports_the_documents_own_spelling() {
     );
 }
 
-/// `find-text` and `redact-mark --search` produce the SAME box.
+/// `find-text` and `redact-mark --search` produce the same box, except that
+/// the redaction mark is pulled in along the writing direction by 1% of its
+/// height so the neighbouring glyphs survive apply.
 ///
 /// Both come from one scan in core. This asserts it from outside, against
 /// the bytes `redact-mark` actually wrote, so the sharing is observable
@@ -159,18 +161,30 @@ fn find_and_redaction_search_agree_on_geometry() {
     let lo = |v: [f64; 4]| v.iter().copied().fold(f64::INFINITY, f64::min);
     let hi = |v: [f64; 4]| v.iter().copied().fold(f64::NEG_INFINITY, f64::max);
 
-    let expect = format!(
-        "rect={:.2},{:.2},{:.2},{:.2}",
-        lo(xs),
-        lo(ys),
-        hi(xs),
-        hi(ys)
-    );
-    assert!(
-        found.contains(&expect),
-        "find-text and redact-mark must report the same geometry.\n\
-         redact-mark wrote {expect}\nfind-text said:\n{found}"
-    );
+    let marked_box = [lo(xs), lo(ys), hi(xs), hi(ys)];
+    let found_box: Vec<f64> = found
+        .split("rect=")
+        .nth(1)
+        .and_then(|s| s.split_whitespace().next())
+        .unwrap_or_else(|| panic!("no rect= in find-text output:\n{found}"))
+        .split(',')
+        .filter_map(|t| t.parse::<f64>().ok())
+        .collect();
+    assert_eq!(found_box.len(), 4, "{found}");
+    let inset = 0.01 * (found_box[3] - found_box[1]);
+    let expect = [
+        found_box[0] + inset,
+        found_box[1],
+        found_box[2] - inset,
+        found_box[3],
+    ];
+    for (got, want) in marked_box.iter().zip(expect) {
+        assert!(
+            (got - want).abs() <= 0.011,
+            "find-text and redact-mark must report the same geometry (less the end inset).\n\
+             redact-mark wrote {marked_box:?}, expected {expect:?}\nfind-text said:\n{found}"
+        );
+    }
 
     let _ = std::fs::remove_dir_all(&dir);
 }
