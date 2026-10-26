@@ -5,7 +5,7 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-24. **WORK IS PAUSED** (Ken: "Once you have finished this release pause work."); do not restart the /loop or pick up new Passes until he says so. v0.98.0 published, tag on `2f4badbb`, slot pdfcer1 (pdfcer2 keeps 0.97.0; **next release writes pdfcer2**), carrying Passes 645.0-645.2 (compare), CI fix `d5e318d3`, 646.0 `fec8ae66` (G227) and 646.1 `c50d7775` (G228), all replied/noticed; CI green at the tag; nothing unreleased. Next filing is the 1240th, next Pass 646.2, decision 201, R263. Decision 191 governs the size-reduction arc.
+**Written:** 2026-10-26. **Work is paused except operator bug reports** (Ken paused it 2026-10-24; on 2026-10-26 he reported off-sheet redaction leaving black boxes). That bug is fixed: Pass 646.2 `a4bff89a`, filed 1240th; GUI noticed in `open/notice_2026-10-26_offpage_redaction_leaves_no_black_boxes.md`. It is UNRELEASED: v0.98.0 (tag `2f4badbb`, slot pdfcer1) is the latest release, and the next release writes pdfcer2. Do not restart the /loop. Next filing is the 1241st, next Pass 646.3, decision 201, R263. Decision 191 governs the size-reduction arc.
 
 ## State
 
