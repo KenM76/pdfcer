@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-26 (1242nd filing) — `c861eb80` `Pass 646.4` SCOPED and SHIPPED: marking a comparison is one undo entry
+
+**Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.4`, answering `G229` (pdfcer-gui, O326): `compare::mark_changes` / `mark_regions` now commit as one undo entry (`CommandKind::MarkComparison`), summary page included; new `compare::mark_comparison` runs both as one entry, returning `ComparisonMarks { regions, changes }`.
+- Mechanism: crate-internal `EditSession::grouped`; inside a group `coalesce_last*` are no-ops (an inner fold had swallowed older history, caught by the full-depth test).
+- Tests: 5 new (`compare_documents.rs` `mod undo`), sabotage fails 4; core 3084 passed. fmt, clippy, structure gate clean; no manifest change.
+- Full entry: ROADMAP *Shipped*, top.
+
+**Decisions made:** none; nothing minted.
+
+**FEATURES.md:** annotated-comparison-result row: undo sentence rewritten; boxes unchanged (gui not ticked, the shell must adopt it).
+
+**Still in flight:** unreleased on main; `pdfcer-gui` still has its `fold` workaround until it adopts the verb. Reply to `G229` is the engineer's to write.
+
+**For next session:** next free `Pass 646.5`, decision `201`, `R263`; next filing 1243rd. `docs/NEXT_SESSION.md` not touched (engineer-owned).
+
 ## 2026-10-26 (1241st filing) — `5bdc277d` `Pass 646.3` SCOPED and SHIPPED: form stray `Q` isolation; search-redact over-redaction fix
 
 **Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**

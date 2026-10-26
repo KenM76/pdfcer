@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `c861eb80` `Pass 646.4` SCOPED and SHIPPED, 2026-10-26: marking a comparison is one undo entry (1242nd filing, `G229`)
+
+Engineer-reported; no shell here, nothing checked from here. Code commit `c861eb80`, on main, unreleased (the next release carries it). Answers request `request_G229_marking_a_comparison_is_one_undo_entry_per_mark.md` from pdfcer-gui (O326). Reasoning is in the commit message.
+- **Ask:** `compare::mark_changes` / `mark_regions` pushed one undo entry per mark plus one for the summary page (9 on the GUI's fixture pair; hundreds on a real drawing revision, evicting the operator's earlier edits above `MAX_UNDO_DEPTH`). The shell's `fold` workaround could not fold at full depth.
+- **Fix (core):** both verbs now commit as ONE entry, new `CommandKind::MarkComparison`, summary page included. New `compare::mark_comparison(&mut EditSession, Option<&[RegionMark]>, &CompareReport, &ResultOptions) -> Result<ComparisonMarks, ResultError>` runs both as one entry; `ComparisonMarks { regions, changes }` is `#[non_exhaustive]`.
+- **Mechanism:** crate-internal `EditSession::grouped` (`edit/undo_group.rs`) folds every command pushed during the gesture into one entry as it lands, so at full depth only one old entry is evicted. Inside a group `coalesce_last` / `coalesce_last_same` are no-ops: an inner verb's fold (`place_text`) had counted already-merged entries and swallowed older history; the full-depth test caught it (depth 255, not 256).
+- **CLI:** unchanged. `pdfcer compare --output` still calls the two verbs; a CLI invocation has no undo, so nothing observable changes.
+- **Docs:** `docs/core-api/01-reading-and-model.md` compare section updated; `check-core-api-verbs` PASS.
+- **Verified (engineer):** 5 new tests in `crates/pdfcer-core/tests/compare_documents.rs` `mod undo`; sabotaging the fold fails 4 of them. Core suite 3084 passed, 0 failed. fmt clean; clippy `-D warnings` clean; structure gate clean (no new baseline entries). No `Cargo.toml` change, so `cargo tree` and the GUI-core invariant are unchanged.
+- **Delivers:** core yes; cli n/a (no observable change); gui NOT yet: `pdfcer-gui` must adopt `mark_comparison` and delete its `fold`. FEATURES: the annotated-comparison-result row's undo sentence rewritten; boxes unchanged (gui stays unticked).
+- **Sweep (rule 11):** the claim "each mark is its own undo entry" changed. Corrected in the FEATURES row. Survivors owed (not edited, outside remit): the `mark_changes` / `mark_regions` doc comments if any still say so (engineer reports updating core-api; source not read here), and the older `Pass 645.1` Shipped entry's wording, which is dated history. Reply to the requester is the engineer's to write to the `G229` channel. Nothing minted; next free `Pass 646.5`, decision `201`, `R263`; next filing 1243rd.
+
 ### `5bdc277d` `Pass 646.3` SCOPED and SHIPPED, 2026-10-26: form stray `Q` isolated in text extraction; search-redact no longer over-redacts neighbours (1241st filing)
 
 Engineer-reported; no shell here, nothing checked from here. Code commit `5bdc277d`, on main, unpushed at filing. Answers requests X003 and X002 from the operator (crates consumer). Reasoning is in the commit message.
