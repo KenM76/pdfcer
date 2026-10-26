@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-26 (1244th filing) — `11a70fea` `Pass 646.7` SHIPPED: highlights stay see-through in CLI clipboard and SVG exports
+
+**Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.7` (`11a70fea`): `copy-page` clipboard SVG flattens blends; `export-image --format svg --flatten-blends` (refused with other formats); `emf:`/`svg:` lines report `blends_flattened=`; `emf.rs` module table row. Test `flatten_blends_bakes_a_highlight_into_the_svg`; `export_image` 8/8. No manifest change.
+
+**Decisions made:** none. Premise checked by grep of `docs/`: `646.7` appeared only as "next free" in the 1243rd filing.
+
+**FEATURES.md:** blend-flattening row reworded; cli box now fully true, gui unticked.
+
+**Still in flight:** unpushed at filing. Survivor owed: `export-image` help text not read here.
+
+**For next session:** next free `Pass 646.8`, decision `201`, `R263`; next filing 1245th.
+
 ## 2026-10-26 (1243rd filing) — `17aa278d` `Pass 637.0` slice, `0d1655cd` `Pass 646.5`, `540b00ef` `Pass 646.6` SHIPPED
 
 **Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**

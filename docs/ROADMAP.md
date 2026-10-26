@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `11a70fea` `Pass 646.7` SCOPED and SHIPPED, 2026-10-26: highlights stay see-through in the CLI clipboard and SVG exports (1244th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Code commit `11a70fea`, on main, unpushed at filing, unreleased. Shell half of `Pass 646.5` (`0d1655cd`), which reached only EMF. Reasoning is in the commit message.
+- **`copy-page`:** the clipboard SVG is written with `flatten_blends` on (the paste target is Word).
+- **`export-image --format svg`:** gains `--flatten-blends`; refused with any other format (EMF always flattens).
+- **Disclosure:** the `emf:` and `svg:` CLI lines report `blends_flattened=`. The `pdfcer-render` `emf.rs` module table gains a flattening row.
+- **Verified (engineer):** new test `export_image` `flatten_blends_bakes_a_highlight_into_the_svg` (plain SVG keeps `mix-blend-mode`; flag removes it and counts 1; PNG plus flag refused); `export_image` module 8/8. No manifest changed, so `cargo tree` invariants untouched.
+- **Delivers:** core (already 646.5); cli yes; gui NOT (request filed under 646.5). FEATURES: blend-flattening row's CLI caveat resolved, cli box fully true.
+- **Sweep (rule 11):** the `646.5` survivor "`emf` module rustdoc says blend modes rasterise" is discharged for the module table. The `export-image` help text for the new flag was not read here. Nothing minted; next free `Pass 646.8`, decision `201`, `R263`; next filing 1245th.
+
 ### `540b00ef` `Pass 646.6` SCOPED and SHIPPED, 2026-10-26: paragraphs survive reflow editing; copy keeps formatting (1243rd filing)
 
 Engineer-reported; no shell here, nothing checked from here. Code commit `540b00ef`, on main, unpushed at filing, unreleased. Answers two operator reports, verbatim: "if I am in read mode and go to copy text, then paste it into word, I lose formatting (bold, font size, etc) and it doesn't have the paragraphs flowed as paragraphs" and "if I try to edit the text with reflow options on it the entire page gets merged into a single paragraph". Reasoning is in the commit message.
