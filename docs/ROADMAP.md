@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.99.0` — release prep, version bump `573ae886` (`chore`), 2026-10-26 (1247th filing); NOT yet published
+
+Engineer-reported; no shell here, nothing checked from here. Same pattern as the v0.98.0 prep (1238th filing).
+- **`573ae886` (`chore`):** workspace version 0.98.0 to 0.99.0 in root `Cargo.toml` (`[workspace.package]` and the `pdfcer-model` `[workspace.dependencies]` pin); `Cargo.lock` and `fuzz/Cargo.lock` re-resolved with `cargo update -w`; sits on `293a25ed`. No dependency set change, so `THIRD_PARTY_LICENSES.md` is not regenerated.
+- **Passes carried since `v0.98.0`** (tag on `2f4badbb`; all already filed, not re-filed): `a4bff89a` (`Pass 646.2`, redaction overlay trimmed to the page), `5bdc277d` (`646.3`), `c861eb80` (`646.4`, `G229`), `17aa278d` (`Pass 637.0` slice, `X001`; crates marked publishable, nothing published to crates.io), `0d1655cd` (`646.5`), `540b00ef` + `2d1329d5` (`646.6`), `11a70fea` (`646.7`), `16c530be` (test follow-up to `646.6`), `6a2ee46f` (`646.8`, `G230`).
+- **Gates (engineer-reported):** `tools/run-gates.sh` green on the tree at `6a2ee46f` (after a fuzz-target fix in that commit); filing gates clean at `293a25ed`; `main` pushed to `293a25ed`.
+- **Release plan (not claimed done):** OneDrive slot `pdfcer2` (`pdfcer1` keeps `v0.98.0`). Not yet tagged: the tag goes on this filing commit. Package, fresh-folder smoke, `verify-release.py`, GitHub release and slot write get their own later filing (1248th).
+- **FEATURES:** no change. Nothing minted; next free `Pass 646.9`, decision `201`, `R263`; next filing 1248th.
+
 ### `6a2ee46f` `Pass 646.8` SHIPPED, 2026-10-26: form widgets with no `/AP` are drawn at render time, never written (`G230`) (1246th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Code commit `6a2ee46f`, on main, unpushed at filing, unreleased. Scoped at the 1245th filing from `request_G230_draw_widgets_without_ap_at_render_time.md` (`pdfcer-gui`, O327). Reasoning is in the commit message. **No decision record:** the standard mandates the behaviour.
@@ -23994,6 +24003,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
+
+(1247th filing: `v0.99.0` release prep, bump `573ae886`, NOT yet published, see *Shipped*. Nothing minted; next free `Pass 646.9`, decision `201`, `R263`; next filing 1248th. Next release slot `pdfcer2`.)
 
 (1245th filing: follow-up fix `2d1329d5` to `Pass 646.6` filed on its *Shipped* row; `Pass 646.8` (`G230`, render AP-less form widgets) scoped, IN PROGRESS, below. Nothing minted; next free `Pass 646.9`, decision `201`, `R263`; next filing 1246th.)
 

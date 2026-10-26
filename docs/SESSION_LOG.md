@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-26 (1247th filing) — `v0.99.0` release prep, version bump `573ae886`; NOT yet published
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- Bump commit `573ae886` (`chore`, on `293a25ed`): workspace version and the `pdfcer-model` workspace dependency pin 0.98.0 to 0.99.0; `Cargo.lock` and `fuzz/Cargo.lock` re-resolved via `cargo update -w`. No dependency set change, so `THIRD_PARTY_LICENSES.md` not regenerated. Not published, not tagged; the tag goes on this filing commit.
+- Carries since `v0.98.0` (tag on `2f4badbb`; already filed, not re-filed): `a4bff89a` (`Pass 646.2`), `5bdc277d` (`646.3`), `c861eb80` (`646.4`), `17aa278d` (`Pass 637.0` slice; nothing on crates.io), `0d1655cd` (`646.5`), `540b00ef` + `2d1329d5` (`646.6`), `11a70fea` (`646.7`), `16c530be`, `6a2ee46f` (`646.8`).
+- Gates, engineer-reported: `run-gates.sh` green on the tree at `6a2ee46f` (after a fuzz-target fix in that commit); filing gates clean at `293a25ed`; `main` pushed to `293a25ed`.
+
+**Decisions made:** none; nothing minted.
+
+**FEATURES.md:** unchanged.
+
+**For next session:** tag `v0.99.0` on the filing commit, package, fresh-folder smoke, `verify-release.py`, GitHub release, write OneDrive slot `pdfcer2` (`pdfcer1` keeps 0.98.0). Next free `Pass 646.9`, decision `201`, `R263`; next filing 1248th, which records "published" only once the engineer confirms it.
+
 ## 2026-10-26 (1246th filing) — `6a2ee46f` `Pass 646.8` (`G230`) SHIPPED; `16c530be` follow-up to `Pass 646.6`
 
 **Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**
