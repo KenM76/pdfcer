@@ -71,6 +71,7 @@ mod shading_ink;
 mod shading_pattern_anchoring;
 mod sibling_font;
 mod smask_replaces_not_intersects;
+mod stray_q_and_text_pen;
 mod stroke_display_hairline;
 mod subset_allocated_code;
 mod subset_augment;

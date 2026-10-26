@@ -100,6 +100,7 @@ pub mod redact;
 mod redact_image;
 mod redact_overlay_trim;
 mod redact_proof;
+mod redact_quad_inset;
 mod redact_vector;
 pub mod richtext;
 pub mod settings;

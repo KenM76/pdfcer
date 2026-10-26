@@ -41361,7 +41361,7 @@ impl EditSession {
             // to be hard-coded here, which meant every operator choice on
             // the find-and-mark path was discarded before it reached a
             // file.
-            let spec = appearance.to_spec(vec![m.quad]);
+            let spec = appearance.to_spec(vec![crate::redact_quad_inset::inset_ends(m.quad)]);
             created.push(self.add_redaction(m.page_index, &spec)?);
         }
         Ok(RedactionMarking {

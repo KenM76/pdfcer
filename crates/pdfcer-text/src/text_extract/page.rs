@@ -382,6 +382,10 @@ struct Walk<'a> {
     ctm_stack: Vec<Matrix>,
     ts: TextState,
     ts_stack: Vec<TextState>,
+    /// Stack depth at entry to the content stream being run. A `Q` never
+    /// pops below it, so a form's surplus `Q` cannot consume the caller's
+    /// saved states (§8.4.2: each stream balances its own `q`/`Q`).
+    stack_floor: usize,
     tm: Matrix,
     tlm: Matrix,
 
@@ -457,6 +461,7 @@ pub(super) fn walk_page(
         ctm_stack: Vec::new(),
         ts: TextState::default(),
         ts_stack: Vec::new(),
+        stack_floor: 0,
         tm: Matrix::IDENTITY,
         tlm: Matrix::IDENTITY,
         marked: Vec::new(),
@@ -507,16 +512,22 @@ impl Walk<'_> {
                 // A hostile stream of `q`s must not grow the stacks
                 // without bound; 256 is far past any real nesting and
                 // matches the posture of the other structural guards.
-                if self.ctm_stack.len() > 256 {
-                    self.ctm_stack.remove(0);
-                    self.ts_stack.remove(0);
+                // The oldest frame dropped is the current stream's own, so
+                // the caller's frames below `stack_floor` survive the cap.
+                if self.ctm_stack.len() > self.stack_floor + 256 {
+                    self.ctm_stack.remove(self.stack_floor);
+                    self.ts_stack.remove(self.stack_floor);
                 }
             }
             b"Q" => {
-                if let Some(m) = self.ctm_stack.pop() {
+                if self.ctm_stack.len() > self.stack_floor
+                    && let Some(m) = self.ctm_stack.pop()
+                {
                     self.ctm = m;
                 }
-                if let Some(ts) = self.ts_stack.pop() {
+                if self.ts_stack.len() > self.stack_floor
+                    && let Some(ts) = self.ts_stack.pop()
+                {
                     self.ts = ts;
                 }
             }
@@ -1539,15 +1550,19 @@ impl Walk<'_> {
             if let Some(m) = matrix_of(doc, &stream.dict) {
                 self.ctm = m.mul(self.ctm);
             }
+            let saved_floor = self.stack_floor;
+            self.stack_floor = self.ctm_stack.len();
             self.depth += 1;
             self.run(&content, &inner_resources);
             self.depth -= 1;
+            self.ctm_stack.truncate(self.stack_floor);
+            self.ts_stack.truncate(self.stack_floor);
+            self.stack_floor = saved_floor;
 
             // §8.10.1 steps (a)/(e): the form's state changes cannot
-            // escape. Restoring explicitly rather than relying on the
-            // form's own q/Q balance makes that structural — an
-            // unbalanced `Q` inside a form provably cannot pop the
-            // caller's state.
+            // escape. With `stack_floor`, a surplus `Q` in the form pops
+            // nothing the caller saved, a surplus `q` is truncated away
+            // above, and the matrices and text state are restored here.
             self.ctm = saved_ctm;
             self.tm = saved_tm;
             self.tlm = saved_tlm;
