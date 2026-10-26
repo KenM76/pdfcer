@@ -120,8 +120,8 @@ publish = false
 # The MIT text lives in the repo-root LICENSE file. `publish = false` is
 # retained deliberately: pdfcer ships as source + binaries, not a crates.io
 # registry package, so the workspace stays unpublished even under a license.
-# pdfcer-color, -model and -pkix carry the metadata `cargo package` needs
-# (Pass 618.1); publishing any of them is the operator's call.
+# pdfcer-color, -model and -pkix override this with `publish = true`: they
+# are published to crates.io on the operator's go-ahead (Pass 637.0).
 license = "MIT"
 
 [workspace.dependencies]
