@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-26 (1243rd filing) — `17aa278d` `Pass 637.0` slice, `0d1655cd` `Pass 646.5`, `540b00ef` `Pass 646.6` SHIPPED
+
+**Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 637.0` slice (`17aa278d`, `X001`): `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` marked `publish = true`. **Nothing is published**; the operator runs `cargo publish` (color, model, pkix). Recorded as "manifests ready, publish pending operator".
+- `Pass 646.5` (`0d1655cd`): a `/Multiply` highlight stays see-through in EMF (always) and Word-bound SVG (opt-in `with_flatten_blends`); new `blend_flatten.rs`; 2 new tests.
+- `Pass 646.6` (`540b00ef`): four paragraph-recognition fixes (blank line, indent from previous line, overlapping column bands, same-baseline continuation); formatted copy `rich_text` plus CLI `pdfcer copy-text`; verified by pasting into real Word. Core 5073 passed, 0 failed; no manifest change in 646.5/646.6.
+- Full entries: ROADMAP *Shipped*, top.
+
+**Decisions made:** none; nothing minted. Ledgers checked from disk: highest decision file is `200`, no `R263` defined, no `Pass 646.5`/`646.6` before this filing, so the premises held.
+
+**FEATURES.md:** new rows "Copy text with its formatting and paragraphs" (core/cli) and "Blend flattening for EMF and Word-bound SVG" (core/cli, gui unticked); paragraph-recognition and EMF-export rows extended; crates.io Planned row reworded, unticked.
+
+**Still in flight:** all three unpushed at filing; GUI asks filed under `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\` (`request_2026-10-26_read_mode_formatted_copy.md`, `notice_2026-10-26_marquee_copy_highlights_and_options.md`). `v0.99.0` was on hold for these two reports and can proceed after gates and push. Sweep survivors owed (source not read here): `emf` rustdoc / `export-image` help on blend modes; `stages.rs` comments on gap-only paragraph breaks. Release recipe gains: bump the `pdfcer-model` pin in `[workspace.dependencies]`.
+
+**For next session:** next free `Pass 646.7`, decision `201`, `R263`; next filing 1244th. `docs/NEXT_SESSION.md` not touched (engineer-owned).
+
 ## 2026-10-26 (1242nd filing) — `c861eb80` `Pass 646.4` SCOPED and SHIPPED: marking a comparison is one undo entry
 
 **Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**

@@ -112,6 +112,34 @@ wherever it appears.*
 
 ## Shipped
 
+### `540b00ef` `Pass 646.6` SCOPED and SHIPPED, 2026-10-26: paragraphs survive reflow editing; copy keeps formatting (1243rd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Code commit `540b00ef`, on main, unpushed at filing, unreleased. Answers two operator reports, verbatim: "if I am in read mode and go to copy text, then paste it into word, I lose formatting (bold, font size, etc) and it doesn't have the paragraphs flowed as paragraphs" and "if I try to edit the text with reflow options on it the entire page gets merged into a single paragraph". Reasoning is in the commit message.
+- **Paragraph recognition (`text_edit/model/stages.rs`):** (a) a whitespace-only line closes the block and becomes its own paragraph (diagnostic `paragraph_breaks_by_blank_line`; `extract` reports `paragraph_breaks_blank_line`); (b) the indent is measured from the previous line; (c) `merge_bands` merges column bands overlapping by `column_overlap_ratio`; (d) a line on the previous line's baseline (`< 0.5 * size`) continues it (a heading drawn as two `Tw`-word-spaced pieces whose trailing space overlaps). **Ablation:** removing (d) gives 3 blocks; removing (c) splits the last line off, which reproduces the report.
+- **Formatted copy (core):** `EditableTextModel::rich_text(range, &RichTextSources) -> RichText`; serialisers `plain_text`, `to_html`, `to_cf_html`, `to_rtf`; outcome counters `weights_derived`, `families_missing`, `colours_dropped` (disclosed, rule 4). Colour is carried for DeviceGray/RGB only; colour conversion is the colour project's.
+- **CLI:** new `pdfcer copy-text` (Windows clipboard: HTML Format + RTF + Unicode in one transaction; or `-o file --format html|cf-html|rtf|text`).
+- **Verified (engineer):** pasted into real Word over COM: 12 paragraphs, a bold Arial 12 heading, body paragraphs flowed. Tests: `blank_line_paragraphs` 4, `rich_copy` 6, `copy-text` CLI 3, one `rich_text` doctest; pdfcer-core 5073 passed, 0 failed. Clippy `-D warnings` clean (core/render/cli all-targets, plus cli `--no-default-features`); fmt and the structure, clap-help, core-api-verbs and tests-harnessed gates green. **`cargo tree`:** no manifest changed, invariants untouched.
+- **Docs:** `docs/core-api/01-reading-and-model.md` section 8.4.4a rows and new section 8.4.4c.
+- **Delivers:** core yes; cli yes (`copy-text`); gui NOT: the GUI reflow editor inherits recognition with no shell change, but read-mode copy needs the shell to call `rich_text`. GUI ask filed: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_2026-10-26_read_mode_formatted_copy.md`. FEATURES: new row "Formatted (rich) copy" core/cli ticked, gui unticked; the paragraph-recognition row extended, boxes unchanged (gui stays unticked).
+- **Sweep (rule 11):** the claim "a blank-line gap ends a paragraph" gained a second route (a whitespace-only line). Corrected in the FEATURES row. Survivors owed (not edited, outside remit; source not read here): doc comments in `text_edit/model/stages.rs` and `docs/core-api` prose describing paragraph breaks as gap-only, if any. Nothing minted; next free `Pass 646.7`, decision `201`, `R263`; next filing 1244th.
+
+### `0d1655cd` `Pass 646.5` SCOPED and SHIPPED, 2026-10-26: a `/Multiply` highlight stays see-through in EMF and Word-bound SVG (1243rd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Code commit `0d1655cd`, on main, unpushed at filing, unreleased. Answers the operator's report: "when I use the marquee tool to copy and paste the highlight tool transparency become opaque and hides text". Reasoning is in the commit message.
+- **Fix (render):** new `crates/pdfcer-render/src/blend_flatten.rs`. Each top-level blended op is composited against the backdrop (ISO 32000-2 section 11.3.5) and replaced with a source-over patch. Group contents are untouched (section 11.4.7).
+- **EMF:** always on; counted by `EmfOutcome::blends_flattened`. **SVG:** opt-in through `SvgOptions::with_flatten_blends(true)`; counted by the SVG outcome's `blends_flattened`.
+- **Verified (engineer):** 2 new tests: `export_emf` `a_highlight_is_flattened_against_the_ink_under_it`; `export_svg` `flatten_blends_writes_a_highlight_as_the_pixels_it_makes`. No manifest changed, so `cargo tree` invariants untouched.
+- **Delivers:** core yes; cli: EMF reaches through the existing `export-image --format emf` path (no new flag reported); the SVG opt-in has no CLI flag reported; gui NOT. GUI ask filed: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-10-26_marquee_copy_highlights_and_options.md` (flatten for the clipboard SVG, plus three shell-only asks: keep text as text, a copy-as-bitmap option at the screen-capture DPI, remove the word-gap settings shortcut). FEATURES: new Export row "blend flattening"; the EMF export row's blend-mode sentence corrected.
+- **Sweep (rule 11):** the claim "EMF falls back to a raster for blend modes" changed meaning for top-level blended ops. Corrected in the FEATURES EMF export row. Survivors owed (not edited, outside remit): `pdfcer_render::emf` module/rustdoc and the `export-image` help text if they still say blend modes always rasterise; the older `Pass 248.4` entry is dated history.
+
+### `17aa278d` `Pass 637.0` (slice), 2026-10-26: three engine crates marked publishable; NOT published (1243rd filing, `X001`)
+
+Engineer-reported; no shell here, nothing checked from here. Code commit `17aa278d` (`chore(publish)`), on main, unpushed at filing. Request `X001` from the operator (crates consumer).
+- **Done:** `publish = true` for `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix`. **Nothing is on crates.io.** The operator runs `cargo publish` himself (project settings deny it to the agent): `pdfcer-color`, then `pdfcer-model`, then `pdfcer-pkix`.
+- **Status:** manifests ready, publish pending operator. `Pass 637.0` stays in *Next up* (see its Update note).
+- **Release recipe:** bump the `pdfcer-model` version in the root `Cargo.toml` `[workspace.dependencies]` on every release.
+- **FEATURES:** "Engine crates on crates.io" Planned row reworded; boxes unticked. Sweep (rule 11): no counter or capability changed meaning; none owed.
+
 ### `c861eb80` `Pass 646.4` SCOPED and SHIPPED, 2026-10-26: marking a comparison is one undo entry (1242nd filing, `G229`)
 
 Engineer-reported; no shell here, nothing checked from here. Code commit `c861eb80`, on main, unreleased (the next release carries it). Answers request `request_G229_marking_a_comparison_is_one_undo_entry_per_mark.md` from pdfcer-gui (O326). Reasoning is in the commit message.
@@ -34704,7 +34732,7 @@ overrides the image dictionary; `/ColorSpace` optional,
 `/ColorSpace`/`/BitsPerComponent` that Table 89 makes optional
 (decision 005 §10 item 3).
 
-### Pass 637.0 — publish the engine crates to crates.io (`X001`) — BLOCKED on an operator-supplied crates.io API token
+### Pass 637.0 — publish the engine crates to crates.io (`X001`) — manifests ready (`17aa278d`), PUBLISH PENDING: the operator runs `cargo publish`
 
 **Source:** `D:/Dev/FeatureRequests/pdfce_FeatureRequests/open/request_X001_publish_engine_crates_to_crates_io.md` (operator, as a crates consumer, 2026-10-23). Key `X001`: `X###` is a **third request counter**, minted by an external crates consumer, beside `G###` (the `pdfcer-gui` shell) and `E###` (the engine). Filed at the 1214th filing. The operator has approved publishing.
 
@@ -34724,7 +34752,9 @@ overrides the image dictionary; `/ColorSpace` optional,
 - Blocked by git dependencies: `pdfcer-render` (icccer via git); `pdfcer-image-codec` and `pdfcer-3d` (zune-jpeg git rev `c1c7f497`, decision 197; stable 0.5.16 needed). `pdfcer-core` depends by path on `pdfcer-image-codec` (`crates/pdfcer-core/Cargo.toml` line 170), so it is blocked transitively until image-codec is unblocked. Its other path dependencies (fonts, text, function) are not yet checked for packageability.
 - Expected order once the token exists: `pdfcer-color`, `pdfcer-model`, then `pdfcer-pkix`; the rest per the blockers above.
 
-**Status:** Next up, blocked on the token. FEATURES.md: row "Publish the engine crates to crates.io" in *Planned*, all boxes unticked.
+**Update, 1243rd filing (engineer-reported; no shell here, nothing checked from here):** commit `17aa278d` (`chore(publish)`, on main, unpushed at filing) lifts `publish = false` for `pdfcer-color`, `pdfcer-model` and `pdfcer-pkix` only. **NOTHING IS PUBLISHED to crates.io.** The operator must run `cargo publish` himself (project settings deny it to the agent), in the order `pdfcer-color`, then `pdfcer-model`, then `pdfcer-pkix`. Recorded as "manifests ready, publish pending operator", not as published. Acceptance items 2-4 stay open until he has; item 5 (release recipe) is partly met: bump the `pdfcer-model` version in the root `Cargo.toml` `[workspace.dependencies]` on every release. `pdfcer-core`, `pdfcer-render`, `pdfcer-image-codec`, `pdfcer-3d` keep `publish = false` (blockers above unchanged).
+
+**Status:** Next up, publish pending the operator. FEATURES.md: row "Engine crates on crates.io" in *Planned*, all boxes unticked (nothing is published).
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 
