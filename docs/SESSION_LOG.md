@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-26 (1246th filing) — `6a2ee46f` `Pass 646.8` (`G230`) SHIPPED; `16c530be` follow-up to `Pass 646.6`
+
+**Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.8` (`6a2ee46f`): AP-less `/Widget`s are drawn at render time in memory, on by default, nothing written; new `pdfcer_core::widget_draw`; `WidgetsWithoutAp { Draw, Blank }`; `annotations_widget_synthesized` counter and note; `render-page` `annots_widget_drawn=`. Single-line values vertically centred (also in `regenerate_appearances` and fill). Breaking: `FontResource.descent`. 6 new tests in `widget_without_ap.rs`; gates green after a fuzz-target fix; no manifest change.
+- `16c530be`: test-only; `find_and_redaction_search_agree_on_geometry` expects the 1% end inset from `Pass 646.6`. Filed on that Pass's Shipped row.
+
+**Decisions made:** none; the spec mandates the behaviour. `R43` narrowed for `/Widget` (note recorded in the Shipped entry, not in `docs/history/standing-rules-full.md`, which is never appended to). No new number.
+
+**FEATURES.md:** G230 row moved from *Planned* to *Implemented > Forms*: core `[x]`, cli `[x]` (draws and counts; no off switch), gui `[ ]`.
+
+**Still in flight:** unpushed at filing. Owed to the engineer: source doc comments / `--help` text that may still say AP-less widgets are named-not-painted (not read here); `reply_..._FIXED.md` to the channel.
+
+**For next session:** next free `Pass 646.9`, decision `201`, `R263`; next filing 1247th.
+
 ## 2026-10-26 (1245th filing) — `2d1329d5` follow-up to `Pass 646.6`; `Pass 646.8` (`G230`) scoped
 
 **Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**
