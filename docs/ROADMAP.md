@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `a4bff89a` `Pass 646.2` SCOPED and SHIPPED, 2026-10-26: redaction overlay trimmed to the page (1240th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Code commit `a4bff89a` on `74085dad`. Reasoning is in the commit message.
+- **Request (Ken, 2026-10-26):** after marking all off-page content for removal and redacting it, the content is removed but black rectangles replace it in the off-page areas; the next scan detects those as off-page, and they must be deleted by hand.
+- **Root cause:** the GUI's "mark off-page for removal" builds marks in the operator's usual redaction style (black `/IC`). On apply, `build_overlay` painted that box over each region; every region lay off-page, so it drew new off-page content. The CLI's `redact-offpage` avoided it only because it uses fill `None`.
+- **Fix (core):** by default each overlay region is intersected with the page `/CropBox` (ISO 32000-1 section 7.7.3.3, Table 30); a region wholly outside draws no box. Content removal is unchanged. New module `crates/pdfcer-core/src/redact_overlay_trim.rs`.
+- **Disclosure (rule 4):** `RedactionReport` gains `overlay_trimmed_to_page` and `overlay_off_page_skipped`, plus report notes.
+- **Both behaviours offered:** `RedactOptions::overlay_off_page: bool` (default `false`) and `with_overlay_off_page(bool)` keep the old paint-where-the-region-is behaviour; CLI `redact-apply --overlay-off-page`.
+- **GUI:** `EditSession::apply_redactions` uses the defaults, so the GUI path is fixed with no GUI change.
+- **Docs:** `docs/core-api/03-capabilities.md` updated; `check-core-api-verbs` PASS.
+- **Verified (engineer):** new `crates/pdfcer-core/tests/offpage_redact_overlay.rs`, 3 tests (black-fill off-page apply rescans clean; `EditSession` apply rescans clean; non-vacuity control with `overlay_off_page=true` still fails the rescan) plus 1 unit test in `redact_overlay_trim.rs`. Passed: core 3070, 1980, 969 and 252; other suites 47; 0 failed. fmt clean; clippy `-D warnings` clean for core+cli and cli `--no-default-features`; `check-code-structure` no new debt; `check-clap-help` PASS. No `Cargo.toml` change, so `cargo tree` and the GUI-core invariant are unchanged.
+- **Delivers:** core and CLI. FEATURES: the off-page scan-and-remove row gains one sentence; its gui box was already `[x]` and is untouched (the GUI benefits through core, no GUI change of its own).
+- **Sweep (rule 11):** no counter or capability changed meaning; none owed. Earlier off-page entries' wording that `redact-offpage` "avoids" the box by fill `None` is dated history. Nothing minted; next free `Pass 646.3`, decision `201`, `R263`; next filing 1241st.
+
 ### `v0.98.0` PUBLISHED: tag on `2f4badbb` (the 1238th filing), 2026-10-24 (1239th filing)
 
 Engineer-reported (the engineer ran a shell and verified); no shell here, nothing checked from here.
@@ -23904,6 +23918,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
+
+(1240th filing: `Pass 646.2` (redaction overlay trimmed to the page) scoped and SHIPPED on `a4bff89a`, see *Shipped*. Nothing minted; next free `Pass 646.3`, decision `201`, `R263`; next filing 1241st. Unreleased since `v0.98.0`.)
 
 (1239th filing: `v0.98.0` PUBLISHED on `2f4badbb`, see *Shipped*. Nothing minted; next free `Pass 646.2`, decision `201`, `R263`; next filing 1240th. Next release writes OneDrive slot `pdfcer2`. Nothing unreleased. Work paused at the operator's request.)
 

@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-26 (1240th filing) — `a4bff89a` `Pass 646.2` SCOPED and SHIPPED: redaction overlay trimmed to the page
+
+**Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.2`, filed scoped and shipped in one filing from an operator report (Ken, 2026-10-26): redacting marked off-page content left black rectangles in the off-page areas, which the next scan reported as off-page again.
+- Cause: the GUI's marks carry the operator's black `/IC`; `build_overlay` painted it over regions that all lay off-page. Fix: overlay regions are intersected with the `/CropBox` by default (a wholly-outside region draws nothing); `RedactOptions::overlay_off_page` and CLI `redact-apply --overlay-off-page` keep the old behaviour. Counters `overlay_trimmed_to_page` / `overlay_off_page_skipped` disclose it.
+- Tests: `offpage_redact_overlay.rs` 3 (incl. a non-vacuity control) + 1 unit; core 3070 / 1980 / 969 / 252 and others 47 passed, 0 failed. Gates clean. No manifest change.
+- Full entry: ROADMAP *Shipped*, top.
+
+**Decisions made:** none; nothing minted (ledgers checked by grep: `Pass 646.2` was free, decision `201` and `R263` untouched).
+
+**FEATURES.md:** off-page scan-and-remove row gained one sentence; boxes unchanged (gui already `[x]`; no gui box ticked for this).
+
+**Still in flight:** unreleased since `v0.98.0`. Work was paused by the operator on 2026-10-24; this fix was operator-requested.
+
+**For next session:** next free `Pass 646.3`, decision `201`, `R263`; next filing 1241st. `docs/NEXT_SESSION.md` not touched (engineer-owned).
+
 ## 2026-10-24 (1239th filing) — `v0.98.0` PUBLISHED: tag on `2f4badbb`
 
 **Filed (docs only; the engineer ran a shell and verified, none here, nothing checked from here):**
