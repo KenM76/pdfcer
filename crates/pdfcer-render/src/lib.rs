@@ -68,6 +68,7 @@ pub mod annot;
 /// The four NON-SEPARABLE blend modes (ISO 32000-1 §11.3.5.3, Table 137),
 /// computed by pdfcer because the rasteriser's are measurably wrong —
 /// see the module docs and `ARCHITECTURE.md` §12 decision 066.
+mod blend_flatten;
 pub mod blend_nonsep;
 pub mod cancel;
 pub(crate) mod canvas;

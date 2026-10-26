@@ -131,6 +131,12 @@ pub struct SvgOptions {
     /// fonts embedded. Outlines by default: they render identically
     /// everywhere, including Word's importer, which ignores `<style>`.
     pub text: SvgText,
+    /// Composite every top-level blended op (a `/Multiply` highlight)
+    /// against what lies under it and write the resulting pixels, instead
+    /// of `mix-blend-mode`. Off by default: browsers blend natively. On
+    /// for a consumer that ignores the property (Word, the clipboard),
+    /// where an unflattened highlight paints opaque over its text.
+    pub flatten_blends: bool,
 }
 
 /// How an SVG writes text.
@@ -198,6 +204,7 @@ impl Default for SvgOptions {
             raster_dpi: 300.0,
             background: None,
             text: SvgText::Outlines,
+            flatten_blends: false,
         }
     }
 }
@@ -223,6 +230,13 @@ impl SvgOptions {
         self.text = text;
         self
     }
+
+    /// Flatten blend modes into pixels; see [`Self::flatten_blends`].
+    #[must_use]
+    pub fn with_flatten_blends(mut self, flatten: bool) -> Self {
+        self.flatten_blends = flatten;
+        self
+    }
 }
 
 /// What an export produced beside the bytes — the disclosure.
@@ -246,6 +260,9 @@ pub struct SvgOutcome {
     /// Elements written with a `mix-blend-mode` other than normal — the
     /// property Word's importer ignores.
     pub blend_modes_used: usize,
+    /// Blended ops written as composited pixels under
+    /// [`SvgOptions::flatten_blends`].
+    pub blends_flattened: usize,
     /// What had to be rasterised or approximated. `is_exact()` when the
     /// whole page went out as geometry.
     pub tally: ExportTally,
@@ -320,8 +337,13 @@ pub fn export_svg_view(
         300.0 / 72.0
     };
     let keep_text = svg.text == SvgText::KeepText;
-    let recording = record_page_for_export(view, page, scale, render, keep_text)?;
+    let mut recording = record_page_for_export(view, page, scale, render, keep_text)?;
     let (w, h) = recording.page_size;
+    let blends_flattened = if svg.flatten_blends {
+        crate::blend_flatten::flatten_blends(&mut recording.ops, &recording.clips, w, h)
+    } else {
+        0
+    };
     let text_plan = keep_text.then(|| crate::svg_text::plan(&recording.ops));
 
     let mut writer = Writer {
@@ -352,6 +374,29 @@ pub fn export_svg_view(
 
     #[allow(clippy::cast_precision_loss)]
     let (width_pt, height_pt) = (w as f32 / scale, h as f32 / scale);
+    Ok(SvgExport {
+        svg: assemble(&writer, (w, h), (width_pt, height_pt)),
+        outcome: SvgOutcome {
+            width_pt,
+            height_pt,
+            scale,
+            ops: writer.ops,
+            images_embedded: writer.images,
+            dashed_strokes_pre_applied: writer.dashed,
+            blend_modes_used: writer.blends,
+            blends_flattened,
+            tally: recording.tally,
+            diagnostics: recording.diagnostics,
+            text: text_plan
+                .as_ref()
+                .map(crate::svg_text::TextPlan::outcome)
+                .unwrap_or_default(),
+        },
+    })
+}
+
+/// The `<svg>` document around the writer's defs and body.
+fn assemble(writer: &Writer<'_>, (w, h): (u32, u32), (width_pt, height_pt): (f32, f32)) -> String {
     let mut out = String::with_capacity(writer.defs.len() + writer.body.len() + 512);
     let _ = write!(
         out,
@@ -367,25 +412,7 @@ pub fn export_svg_view(
     }
     out.push_str(&writer.body);
     out.push_str("</svg>\n");
-
-    Ok(SvgExport {
-        svg: out,
-        outcome: SvgOutcome {
-            width_pt,
-            height_pt,
-            scale,
-            ops: writer.ops,
-            images_embedded: writer.images,
-            dashed_strokes_pre_applied: writer.dashed,
-            blend_modes_used: writer.blends,
-            tally: recording.tally,
-            diagnostics: recording.diagnostics,
-            text: text_plan
-                .as_ref()
-                .map(crate::svg_text::TextPlan::outcome)
-                .unwrap_or_default(),
-        },
-    })
+    out
 }
 
 // ---------------------------------------------------------------------------

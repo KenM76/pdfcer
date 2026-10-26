@@ -294,6 +294,17 @@ fn transparency_and_images_become_alpha_bitmaps_and_are_counted() {
 }
 
 #[test]
+fn a_highlight_is_flattened_against_the_ink_under_it() {
+    let (_, out) = export(page(
+        "/ExtGState << /GS0 << /BM /Multiply >> >>",
+        "0 g 20 20 60 20 re f /GS0 gs 1 1 0 rg 10 10 80 40 re f",
+    ));
+    assert_eq!(out.outcome.blends_flattened, 1);
+    assert_eq!(out.outcome.blend_modes_dropped, 0);
+    assert_eq!(out.outcome.rasters_embedded, 1);
+}
+
+#[test]
 fn a_gradient_becomes_a_bitmap_here_and_says_so() {
     let (_, emf) = export(page(
         "/Shading << /Sh0 << /ShadingType 2 /ColorSpace /DeviceRGB /Coords [10 0 90 0] \
@@ -361,6 +372,14 @@ fn oracle_fixtures() -> Vec<(&'static str, &'static str, &'static str, bool)> {
             "alpha",
             "/ExtGState << /GS0 << /ca 0.5 >> >>",
             "1 0 0 rg 10 10 40 30 re f /GS0 gs 0 0 1 rg 30 20 40 30 re f",
+            false,
+        ),
+        // A highlight: Multiply yellow over black ink. Unflattened it is an
+        // opaque yellow bitmap that hides the ink.
+        (
+            "highlight",
+            "/ExtGState << /GS0 << /BM /Multiply >> >>",
+            "0 g 20 20 60 20 re f /GS0 gs 1 1 0 rg 10 10 80 40 re f",
             false,
         ),
     ]

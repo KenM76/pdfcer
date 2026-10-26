@@ -3888,7 +3888,8 @@ request, and the format that pastes into Inkscape, Word/PowerPoint/Excel
 | choose the resolution of anything that must be raster inside it | `SvgOptions::default().with_raster_dpi(300.0)` — also the scale every coordinate is written at (vectors are exact at any value) |
 | an opaque background | `.with_background(Some(Rgb {..}))`; the default is transparent, natively |
 | know what is raster or approximated inside the file | `SvgExport::outcome.tally: ExportTally` (`#[non_exhaustive]`) — `shadings_rasterised`, `shadings_as_gradients` (`Pass 248.3`: axial and focal-radial shadings go out as `<linearGradient>`/`<radialGradient>`, exact; only function-based, mesh, two-circle radial, `/Background` or `/BBox` shadings are still raster), `soft_masks_kept`, `overprint_approximated`, `nonseparable_approximated`, `non_isolated_groups_isolated`, `colorant_buffer_on_screen`; `tally.is_exact()` when the whole page went out as geometry (a native gradient counts as exact) |
-| the rest of the disclosure | `outcome.ops`, `images_embedded`, `dashed_strokes_pre_applied`, `blend_modes_used`, `width_pt`/`height_pt`/`scale`, and the render's own `diagnostics` |
+| bake blend modes into pixels for a consumer that ignores `mix-blend-mode` (Word, the clipboard) | `.with_flatten_blends(true)` — each top-level blended op (a `/Multiply` highlight) is composited against what lies under it and written as the resulting pixels, so text under a highlight stays visible; counted in `outcome.blends_flattened`. Off by default: browsers and Inkscape blend natively |
+| the rest of the disclosure | `outcome.ops`, `images_embedded`, `dashed_strokes_pre_applied`, `blend_modes_used`, `blends_flattened`, `width_pt`/`height_pt`/`scale`, and the render's own `diagnostics` |
 
 **Where the geometry comes from, and why that is the whole design.** The SVG
 is written from the renderer's **display-list recording** (`display_list.rs`,
@@ -3920,7 +3921,7 @@ soft-mask and mesh-shading fixtures.
    what changed.
 3. **`mix-blend-mode` does not survive Word's importer** (shown `Normal`);
    Inkscape and browsers honour it. `outcome.blend_modes_used` says whether
-   the file relies on it.
+   the file relies on it; `with_flatten_blends(true)` removes the reliance.
 4. **A dashed stroke is pre-dashed geometry** — exact, but the pattern is no
    longer an editable attribute (`dashed_strokes_pre_applied`).
 
@@ -4023,7 +4024,7 @@ shape.
 | validate a metafile before handing it to GDI | `emf::walk_records(&bytes)` — `None` on the three things LibreOffice's reader aborts on |
 | keep text as text | `EmfOptions::default().with_text(EmfText::KeepText)` — each run that fits becomes one `EMR_EXTTEXTOUTW` in the **installed** face of the recorded name, `Dx` pinning every character to its PDF position; `EmfText::Outlines` is the default |
 | know what text stayed outlines | `EmfOutcome::text: EmfTextOutcome` — `runs_as_text`, `fallback_paint`, `fallback_unmapped`, `fallback_geometry` (skew, mirror, `Tz` ≠ 100, off-baseline), `fallback_symbol_face`, and `runs_as_outlines()` |
-| know what became a bitmap | `EmfExport::outcome: EmfOutcome` — `ops`, `rasters_embedded`, `ops_rasterised_for_alpha`, `blend_modes_dropped`, `gradients_rasterised`, `images_embedded`, `layers_rasterised`, `dashed_strokes_pre_applied`, `nonzero_fills_multi_subpath`, plus the recording's `tally` and `diagnostics` |
+| know what became a bitmap | `EmfExport::outcome: EmfOutcome` — `ops`, `rasters_embedded`, `ops_rasterised_for_alpha`, `blend_modes_dropped`, `blends_flattened` (top-level blended ops — a highlight — composited against what lies under them and written as those pixels; always on, since EMF has no blend modes), `gradients_rasterised`, `images_embedded`, `layers_rasterised`, `dashed_strokes_pre_applied`, `nonzero_fills_multi_subpath`, plus the recording's `tally` and `diagnostics` |
 
 **What EMF cannot hold, and what the writer does** (each is a counter): no
 per-primitive alpha → a translucent solid op is replayed into a bitmap and

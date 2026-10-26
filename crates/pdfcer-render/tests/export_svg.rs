@@ -558,3 +558,75 @@ fn inkscape_renders_the_export_like_pdfcer_when_it_is_installed() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn flatten_blends_writes_a_highlight_as_the_pixels_it_makes() {
+    let bytes = page(
+        "/ExtGState << /GS0 << /BM /Multiply >> >>",
+        "0 g 20 20 60 20 re f /GS0 gs 1 1 0 rg 10 10 80 40 re f",
+        0,
+    );
+    let (reference, css) = export(bytes.clone());
+    assert_eq!(css.outcome.blends_flattened, 0);
+    assert!(css.svg.contains("mix-blend-mode"), "{}", css.svg);
+
+    let doc = Document::from_bytes(bytes).expect("fixture parses");
+    let p = page_tree::pages(&doc).expect("page tree").remove(0);
+    let flat = export_svg(
+        &doc,
+        &p,
+        &RenderOptions::default(),
+        &SvgOptions::default()
+            .with_raster_dpi(DPI)
+            .with_flatten_blends(true),
+    )
+    .expect("svg export");
+    assert_eq!(flat.outcome.blends_flattened, 1);
+    assert!(!flat.svg.contains("mix-blend-mode"), "{}", flat.svg);
+    // resvg's image decoders are off (module docs), so composite the
+    // patch onto resvg's raster by hand.
+    let mut raster = rasterise(&flat.svg, reference.width(), reference.height());
+    let patch = embedded_png(&flat.svg);
+    let at = flat
+        .svg
+        .split("transform=\"matrix(1 0 0 1 ")
+        .nth(1)
+        .unwrap();
+    let mut xy = at.split([' ', ')']).map(|v| v.parse::<i32>().unwrap());
+    let (x, y) = (xy.next().unwrap(), xy.next().unwrap());
+    raster.draw_pixmap(
+        x,
+        y,
+        patch.as_ref(),
+        &tiny_skia::PixmapPaint::default(),
+        tiny_skia::Transform::identity(),
+        None,
+    );
+    let (bad, worst) = differing(&reference, &raster, 24);
+    assert_eq!(bad, 0, "flattened highlight differs (worst {worst})");
+}
+
+/// The first embedded PNG data URI in `svg`, decoded.
+fn embedded_png(svg: &str) -> Pixmap {
+    let b64 = svg
+        .split("base64,")
+        .nth(1)
+        .unwrap()
+        .split('"')
+        .next()
+        .unwrap();
+    let val = |c: u8| match c {
+        b'A'..=b'Z' => c - b'A',
+        b'a'..=b'z' => c - b'a' + 26,
+        b'0'..=b'9' => c - b'0' + 52,
+        b'+' => 62,
+        _ => 63,
+    };
+    let digits: Vec<u8> = b64.bytes().filter(|&c| c != b'=').map(val).collect();
+    let mut bytes = Vec::new();
+    for chunk in digits.chunks(4) {
+        let n = chunk.iter().fold(0u32, |n, &d| n << 6 | u32::from(d)) << (6 * (4 - chunk.len()));
+        bytes.extend_from_slice(&n.to_be_bytes()[1..chunk.len()]);
+    }
+    Pixmap::decode_png(&bytes).unwrap()
+}

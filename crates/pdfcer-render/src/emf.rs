@@ -202,8 +202,13 @@ pub struct EmfOutcome {
     /// per-primitive alpha, so each became a bitmap.
     pub ops_rasterised_for_alpha: usize,
     /// Ops whose blend mode EMF cannot express; drawn `Normal` inside a
-    /// bitmap of themselves.
+    /// bitmap of themselves. Zero for top-level ops, which are flattened
+    /// instead; see [`Self::blends_flattened`].
     pub blend_modes_dropped: usize,
+    /// Top-level blended ops (a `/Multiply` highlight) composited against
+    /// what lies under them and written as the resulting pixels, so the
+    /// text under a highlight stays visible. Each is one bitmap.
+    pub blends_flattened: usize,
     /// Gradient fills (native in the SVG) that became bitmaps here.
     pub gradients_rasterised: usize,
     /// The file's own images, embedded as bitmaps.
@@ -266,8 +271,10 @@ pub fn export_emf_view(
     };
     let scale = dpi / 72.0;
     let keep_text = emf.text == EmfText::KeepText;
-    let recording = record_page_for_export(view, page, scale, render, keep_text)?;
+    let mut recording = record_page_for_export(view, page, scale, render, keep_text)?;
     let (w_px, h_px) = recording.page_size;
+    let blends_flattened =
+        crate::blend_flatten::flatten_blends(&mut recording.ops, &recording.clips, w_px, h_px);
 
     // Device pixel -> 0.01 mm. A page is at most 14 400 pt = 5 080 mm =
     // 508 000 units; the guard is against a resolution that would overflow
@@ -300,6 +307,7 @@ pub fn export_emf_view(
             rasters_embedded: 0,
             ops_rasterised_for_alpha: 0,
             blend_modes_dropped: 0,
+            blends_flattened,
             gradients_rasterised: 0,
             images_embedded: 0,
             layers_rasterised: 0,
@@ -1160,6 +1168,7 @@ mod tests {
                 rasters_embedded: 0,
                 ops_rasterised_for_alpha: 0,
                 blend_modes_dropped: 0,
+                blends_flattened: 0,
                 gradients_rasterised: 0,
                 images_embedded: 0,
                 layers_rasterised: 0,
