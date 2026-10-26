@@ -1516,6 +1516,10 @@ for b in model.blocks() {
 | `BlockKind::TableCell { table, row, column }`, `Block::cell_rect: Option<Rect>` | One block per paragraph of each non-empty cell: a line continues the paragraph whose last line sits at most 1.6 em above it and overlaps it horizontally (G206: a drawing border detected as one cell yields each note and label as its own block, all sharing the cell's kind and `cell_rect`). **Order:** every paragraph block first (columns as before), then cell blocks by table, row, column. An empty cell yields no block. |
 | `BlockDiagnostics::{lines_split_by_cell, lines_split_by_gutter, table_cell_blocks}` | Counts. |
 | `BlockRecognitionOptions::{gutter_min_em, gutter_min_lines}` | The column-gutter rule (defaults 1.5 em, 3 lines): a horizontal gap of at least `gutter_min_em` × size, at the same x on at least `gutter_min_lines` consecutive baselines, splits those lines into two columns. Cell lines are exempt, and a gap crossed by at least as many body lines as it aligns is a tab stop, not a gutter (G205: numbered headings). `f64::INFINITY` / `usize::MAX` turn it off. |
+| blank-line break | A whitespace-only line (a word processor's empty paragraph, set at the normal line pitch) closes the paragraph above it and is its own one-line `Paragraph` block, under every option set including `reflow_recognition_options()`. Counted in `BlockDiagnostics::paragraph_breaks_by_blank_line`; CLI `paragraph_breaks_blank_line=`. |
+| same-row piece | A line on the previous line's baseline (within half an em: a heading drawn in two pieces) continues that line's block; it starts no paragraph, list item or indent break. |
+| column bands (`column_overlap_ratio`) | Body lines are banded in content order, then bands that came to overlap by `column_overlap_ratio` × the narrower are merged, so one column is never split by the order its pieces were drawn in. Cell lines are banded after the merge. |
+| indent break (`indent_ratio`) | A line set in further than the line above it, by more than `indent_ratio` × size, starts a paragraph. Measured from the line above (or the column margin, whichever is further in), so a body set in from its headings is not split on every line. |
 | leading break (`paragraph_leading_ratio`, default 0.5) | A gap over `(1 + ratio)` × the column's line pitch starts a paragraph. The pitch is the median of the gaps within 0.6–1.6 × the larger line size (G205: so a page of spaced paragraphs is not measured at its blank-line gap); with no gap in that band, the median of all. |
 
 **Navigation.** Inside a cell, `caret_up`/`caret_down` move to the next line
@@ -1603,6 +1607,33 @@ inferred, never as a marking on the page.
 CLI: `edit-block-text --at x,y` prints `line ends (inferred): wrap,break,last`
 (or `(marked)`) beside `old text:`; `inspect --text-blocks --json` gives each
 block a `"line_ends"` array after `"text"`, then `"line_end_source"`.
+
+### 8.4.4c Formatted copy (`rich_text`)
+
+Copy a selection or a page so a word processor pastes it with its
+formatting: one paragraph per recognised block, runs carrying size, weight,
+slant, family, underline/strikethrough and colour.
+
+| item | contract |
+|---|---|
+| `model.rich_text(range: Option<(TextPosition, TextPosition)>, &RichTextSources) -> RichText` | `None` is the whole page; a range (either order) includes a glyph lying wholly inside it. One `RichParagraph` per block the range touches, in block order; a blank-line block is a paragraph with no spans. Inside a block a `Wrap` joins with a space and a `Break` with `\n` (as `block_text_with_breaks`). A paragraph's leading and trailing whitespace is trimmed. |
+| `RichTextSources::default().with_fonts(&PageFonts).with_decorations(&PageDecorations)` | Both optional. Without them a run still has size and bold; family and italic need `PageFonts`, underline/strikethrough need `text_edit::decoration::page_decorations`. Both need an extraction made with `ExtractOptions::with_provenance(true)`. |
+| `PageFonts::read(&DocumentView, &Page) -> PageFonts`; `face(stream, resource) -> Option<&FontFace>` | Every `/Font` resource of the page and of the forms it paints. `FontFace { family, italic }`: family is `/FontDescriptor /FontFamily`, else DERIVED from `/BaseFont` (subset tag, style suffix and `PSMT`/`MT`/`PS` removed, camel case spaced: `ABCDEF+TimesNewRomanPSMT` → `Times New Roman`); italic is the descriptor Italic flag (bit 7), a non-zero `/ItalicAngle`, or `Italic`/`Oblique` in the name. |
+| `SpanStyle { family, size, bold, italic, underline, strikethrough, color }` | Size to the nearest half point; bold is `FontWeight::is_bold`; `color` is 8-bit RGB for DeviceGray/DeviceRGB fills only (the engine converts no colour), `None` otherwise. |
+| `RichParagraph { spans, size, space_after }` | `space_after` (pt, DERIVED): the gap to the next block of the same column beyond 0.2 em of leading, when over half an em. |
+| `RichTextOutcome { paragraphs, weights_derived, families_missing, colours_dropped }` | The disclosure (rule 4): glyphs whose weight came from a font name or fill-and-stroke, glyphs with no family, and glyphs whose fill colour space is not carried (they paste in the target's default colour). |
+| `RichText::plain_text()` | Paragraphs joined by `\n`. |
+| `RichText::to_html()` | UTF-8 HTML: `<p>` per paragraph with inline-styled `<span>`s, between `<!--StartFragment-->` and `<!--EndFragment-->`. |
+| `RichText::to_cf_html()` | `to_html` behind the Windows `CF_HTML` header (`Version:0.9`, ten-digit `StartHTML`/`EndHTML`/`StartFragment`/`EndFragment` byte offsets); clipboard format name `HTML Format`. |
+| `RichText::to_rtf()` | RTF with font and colour tables, `\pard\saN … \par` per paragraph, `\line` for a break, non-ASCII as `\uN?`; clipboard format name `Rich Text Format`. |
+
+A shell offering formatted copy puts `to_cf_html`, `to_rtf` and
+`plain_text` on the clipboard together, and shows the outcome counts
+off-canvas when any is non-zero.
+
+CLI: `copy-text f.pdf --pages 1-3` places those three formats (Windows);
+`-o file --format html|cf-html|rtf|text` writes one. The result line is
+`copied paragraphs= weights_derived= families_missing= colours_dropped= to=`.
 
 ### 8.4.5 Tagged layout — blocks and tables from the structure tree (`Pass 395.0`)
 

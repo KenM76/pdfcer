@@ -1270,11 +1270,12 @@ pub(crate) fn append_page_report(
         u8::from(d.is_multi_column()),
     ));
     out.push_str(&format!(
-        "  derived: paragraph_breaks_leading={} paragraph_breaks_indent={} \
+        "  derived: paragraph_breaks_leading={} paragraph_breaks_indent={} paragraph_breaks_blank_line={} \
 lines_split_baseline={} lines_split_cell={} lines_split_gutter={} table_cell_blocks={} \
 atomic_runs={} artifact_runs={}\n",
         d.paragraph_breaks_by_leading,
         d.paragraph_breaks_by_indent,
+        d.paragraph_breaks_by_blank_line,
         d.lines_split_by_baseline,
         d.lines_split_by_cell,
         d.lines_split_by_gutter,
@@ -1315,13 +1316,17 @@ pub(crate) fn append_page_json(
     ));
     out.push_str(&format!("      \"columns\": {},\n", model.columns()));
     out.push_str("      \"diagnostics\": {");
-    let counters: [(&str, u64); 11] = [
+    let counters: [(&str, u64); 12] = [
         ("lines_recognized", d.lines_recognized),
         ("columns_recognized", d.columns_recognized),
         ("blocks_recognized", d.blocks_recognized),
         ("glyphs_clustered", d.glyphs_clustered),
         ("paragraph_breaks_by_leading", d.paragraph_breaks_by_leading),
         ("paragraph_breaks_by_indent", d.paragraph_breaks_by_indent),
+        (
+            "paragraph_breaks_by_blank_line",
+            d.paragraph_breaks_by_blank_line,
+        ),
         ("lines_split_by_baseline", d.lines_split_by_baseline),
         ("lines_split_by_cell", d.lines_split_by_cell),
         ("lines_split_by_gutter", d.lines_split_by_gutter),

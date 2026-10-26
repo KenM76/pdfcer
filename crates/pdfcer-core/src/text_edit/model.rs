@@ -78,8 +78,10 @@
 //!    └─ Stage 3  Blocks   within each column (top-to-bottom), start a new
 //!                         paragraph when the baseline gap exceeds the
 //!                         column's typical leading by paragraph_leading_ratio,
-//!                         or when a line is indented from the column margin
-//!                         by more than indent_ratio·size. Each table cell
+//!                         when a line is indented from the line above (or
+//!                         the column margin) by more than indent_ratio·size,
+//!                         or at a whitespace-only line, which is its own
+//!                         block. Each table cell
 //!                         holding text is one BlockKind::TableCell block.
 //! ```
 //!
@@ -105,12 +107,17 @@ mod line_ends;
 mod line_marks;
 mod lists;
 mod navigate;
+mod rich_copy;
 mod stages;
 
 pub use cells::{CellRegion, detect_cell_regions};
 pub use line_ends::{LineEnd, LineEndSource};
 pub use line_marks::{BREAK_TAG, LineMarks, TEXT_BLOCK_TAG};
 pub(crate) use lists::{Hanging, derived_space_between, glyph_text, hanging};
+pub use rich_copy::{
+    FontFace, PageFonts, RichParagraph, RichSpan, RichText, RichTextOutcome, RichTextSources,
+    SpanStyle,
+};
 
 use crate::page_tree::Rect;
 use crate::text_extract::{ExtractedGlyph, GlyphProvenance, PageText};
@@ -307,6 +314,10 @@ pub struct BlockDiagnostics {
     /// Paragraph breaks made because a line was indented from the column
     /// margin. DERIVED — no spec basis (S9).
     pub paragraph_breaks_by_indent: u64,
+    /// Paragraph breaks made at a whitespace-only line, the empty paragraph
+    /// a word processor writes between paragraphs. The blank line becomes a
+    /// block of its own. DERIVED.
+    pub paragraph_breaks_by_blank_line: u64,
     /// Within-run baseline-jump splits made defensively (a line boundary
     /// Pass 4 did not already mark). DERIVED.
     pub lines_split_by_baseline: u64,
@@ -374,9 +385,10 @@ pub struct BlockRecognitionOptions {
     /// typical leading starts a new paragraph. Default `0.5` (a gap half
     /// again the normal leading).
     pub paragraph_leading_ratio: f32,
-    /// A line whose left edge is indented from its column's left margin by
-    /// more than this fraction of the line's font size starts a new
-    /// paragraph (first-line indent). Default `1.0` (one em).
+    /// A line whose left edge is set in from the line above it (or from
+    /// its column's left margin, whichever is further in) by more than
+    /// this fraction of the line's font size starts a new paragraph
+    /// (first-line indent). Default `1.0` (one em).
     pub indent_ratio: f32,
     /// Within a line being accumulated, a glyph whose baseline differs from
     /// the line's by more than this fraction of the font size starts a new

@@ -158,24 +158,14 @@ impl EditableTextModel<'_> {
         raw: Vec<RawLine>,
         options: &BlockRecognitionOptions,
     ) -> (Vec<Line>, usize) {
+        let ratio = options.column_overlap_ratio;
         let mut columns: Vec<ColumnAgg> = Vec::new();
-        let body = raw.iter().enumerate().filter(|(_, l)| l.cell.is_none());
-        let in_cells = raw.iter().enumerate().filter(|(_, l)| l.cell.is_some());
-        for (li, line) in body.chain(in_cells) {
-            match best_band(&columns, line.llx, line.urx, options.column_overlap_ratio) {
-                Some(ci) => {
-                    if let Some(col) = columns.get_mut(ci) {
-                        col.llx = col.llx.min(line.llx);
-                        col.urx = col.urx.max(line.urx);
-                        col.lines.push(li);
-                    }
-                }
-                None => columns.push(ColumnAgg {
-                    llx: line.llx,
-                    urx: line.urx,
-                    lines: vec![li],
-                }),
-            }
+        for (li, line) in raw.iter().enumerate().filter(|(_, l)| l.cell.is_none()) {
+            band(&mut columns, li, line, ratio);
+        }
+        merge_bands(&mut columns, ratio);
+        for (li, line) in raw.iter().enumerate().filter(|(_, l)| l.cell.is_some()) {
+            band(&mut columns, li, line, ratio);
         }
         let column_of = left_to_right(&columns);
         let mut lines: Vec<Line> = Vec::with_capacity(raw.len());
@@ -239,6 +229,53 @@ impl EditableTextModel<'_> {
             }
         }
         blocks
+    }
+}
+
+/// Add line `li` to its best band, or found one.
+fn band(columns: &mut Vec<ColumnAgg>, li: usize, line: &RawLine, ratio: f32) {
+    match best_band(columns, line.llx, line.urx, ratio) {
+        Some(ci) => {
+            if let Some(col) = columns.get_mut(ci) {
+                col.llx = col.llx.min(line.llx);
+                col.urx = col.urx.max(line.urx);
+                col.lines.push(li);
+            }
+        }
+        None => columns.push(ColumnAgg {
+            llx: line.llx,
+            urx: line.urx,
+            lines: vec![li],
+        }),
+    }
+}
+
+/// Merge bands that came to overlap by `ratio` of the narrower as they grew.
+/// Banding is greedy in content order, so a heading's second word drawn
+/// before the body below it founds a band of its own; once the body widens
+/// both, they are one column, and a short line between them must not be
+/// split off by whichever it happened to overlap more.
+fn merge_bands(columns: &mut Vec<ColumnAgg>, ratio: f32) {
+    let mut i = 0;
+    while i < columns.len() {
+        let Some(a) = columns.get(i) else { break };
+        let (llx, urx) = (a.llx, a.urx);
+        let other = columns.iter().enumerate().skip(i + 1).find(|(_, c)| {
+            let overlap = (urx.min(c.urx) - llx.max(c.llx)).max(0.0);
+            let narrower = (urx - llx).min(c.urx - c.llx).max(1e-6);
+            overlap >= ratio * narrower
+        });
+        match other.map(|(j, _)| j) {
+            Some(j) => {
+                let b = columns.swap_remove(j);
+                if let Some(a) = columns.get_mut(i) {
+                    a.llx = a.llx.min(b.llx);
+                    a.urx = a.urx.max(b.urx);
+                    a.lines.extend(b.lines);
+                }
+            }
+            None => i += 1,
+        }
     }
 }
 
@@ -334,6 +371,14 @@ fn column_metrics(lines: &[Line], column: usize) -> (Vec<ColLine>, f64, f32) {
     (col_lines, margin, typical)
 }
 
+/// Whether every glyph of `line` is whitespace: the empty paragraph a word
+/// processor writes between two paragraphs.
+fn is_blank(page: &PageText, line: &Line) -> bool {
+    line.glyphs
+        .iter()
+        .all(|&g| super::glyph_text(page, g).trim().is_empty())
+}
+
 /// Whether a line with left edge `llx` and size `size` sits at `indent_x`.
 fn at_indent(llx: f64, size: f32, indent_x: f64) -> bool {
     (llx - indent_x).abs() <= LIST_INDENT_TOLERANCE_EM * f64::from(size)
@@ -359,6 +404,7 @@ fn paragraphs_in_column(
     let mut kind = BlockKind::Paragraph;
     let mut item_indent: Option<f64> = None;
     let mut prev_baseline: Option<f32> = None;
+    let mut prev_llx = margin;
     for (k, c) in col_lines.iter().enumerate() {
         let ColLine {
             index: i,
@@ -366,13 +412,30 @@ fn paragraphs_in_column(
             llx,
             size,
         } = *c;
+        if lines.get(i).is_some_and(|l| is_blank(page, l)) {
+            close_at_blank(&mut blocks, &mut current, kind, i, diagnostics);
+            item_indent = None;
+            prev_baseline = None;
+            continue;
+        }
         let leading_break = prev_baseline.is_some_and(|prev_y| {
             typical > 0.0 && prev_y - baseline_y > (1.0 + options.paragraph_leading_ratio) * typical
         });
-        let indent_break =
-            prev_baseline.is_some() && llx - margin > f64::from(options.indent_ratio * size);
+        // A first-line indent is measured from the line above, not the
+        // column margin: a body set in from its headings is not indented
+        // on every line.
+        // A piece on the previous line's baseline (a heading drawn in two
+        // pieces) continues that line's block.
+        let same_row = prev_baseline.is_some_and(|y| (y - baseline_y).abs() < 0.5 * size);
+        let indent_break = prev_baseline.is_some()
+            && !same_row
+            && llx - prev_llx.max(margin) > f64::from(options.indent_ratio * size);
+        if !same_row {
+            prev_llx = llx;
+        }
         let opens_item = lines
             .get(i)
+            .filter(|_| !same_row)
             .and_then(|l| lists::hanging(page, l))
             .filter(|h| {
                 current.is_empty()
@@ -383,28 +446,20 @@ fn paragraphs_in_column(
                         .get(k + 1)
                         .is_some_and(|n| at_indent(n.llx, n.size, h.indent_x))
             });
-        let break_here = opens_item.is_some()
-            || match item_indent {
-                Some(x) => leading_break || !at_indent(llx, size, x),
-                None => leading_break || indent_break,
-            };
+        let break_here = !same_row
+            && (opens_item.is_some()
+                || match item_indent {
+                    Some(x) => leading_break || !at_indent(llx, size, x),
+                    None => leading_break || indent_break,
+                });
         if break_here && !current.is_empty() {
-            // Counted only when it is the reason, so the counters partition
-            // the block starts.
-            if leading_break {
-                diagnostics.paragraph_breaks_by_leading += 1;
-            } else if indent_break && opens_item.is_none() && item_indent.is_none() {
-                diagnostics.paragraph_breaks_by_indent += 1;
-            }
+            let plain = opens_item.is_none() && item_indent.is_none();
+            count_break(diagnostics, leading_break, indent_break && plain);
             blocks.push((std::mem::take(&mut current), kind));
         }
         if current.is_empty() {
             item_indent = opens_item.map(|h| h.indent_x);
-            kind = if item_indent.is_some() {
-                BlockKind::ListItem
-            } else {
-                BlockKind::Paragraph
-            };
+            kind = item_indent.map_or(BlockKind::Paragraph, |_| BlockKind::ListItem);
         }
         current.push(i);
         prev_baseline = Some(baseline_y);
@@ -413,6 +468,31 @@ fn paragraphs_in_column(
         blocks.push((current, kind));
     }
     blocks
+}
+
+/// A blank line closes the open block and is a paragraph of its own.
+fn close_at_blank(
+    blocks: &mut Vec<(Vec<usize>, BlockKind)>,
+    current: &mut Vec<usize>,
+    kind: BlockKind,
+    blank: usize,
+    diagnostics: &mut BlockDiagnostics,
+) {
+    if !current.is_empty() {
+        diagnostics.paragraph_breaks_by_blank_line += 1;
+        blocks.push((std::mem::take(current), kind));
+    }
+    blocks.push((vec![blank], BlockKind::Paragraph));
+}
+
+/// Count a block start under the break that caused it — only when it is the
+/// reason, so the counters partition the block starts.
+fn count_break(diagnostics: &mut BlockDiagnostics, leading: bool, indent: bool) {
+    if leading {
+        diagnostics.paragraph_breaks_by_leading += 1;
+    } else if indent {
+        diagnostics.paragraph_breaks_by_indent += 1;
+    }
 }
 
 /// The union of the boxes of `lines[indices]`; a zero rect when empty.

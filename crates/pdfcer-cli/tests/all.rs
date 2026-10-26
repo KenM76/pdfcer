@@ -22,6 +22,7 @@ mod bookmarks;
 mod compare_result;
 mod compare_visual;
 mod copy_page;
+mod copy_text;
 mod create_digital_id;
 mod deskew;
 mod dimension_area;

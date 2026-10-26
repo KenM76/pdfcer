@@ -1172,6 +1172,12 @@ pub(crate) fn run() -> ExitCode {
             emf_text,
             preview: ViewerPreview::from_flags(no_overprint_preview, separation_preview, hide_ink),
         }),
+        Command::CopyText {
+            input,
+            pages,
+            output,
+            format,
+        } => cmd_copy_text(&input, &pages, output.as_deref(), format),
         Command::CopyPage {
             input,
             page,

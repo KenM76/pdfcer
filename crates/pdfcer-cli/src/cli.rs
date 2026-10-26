@@ -5342,6 +5342,31 @@ pub(crate) enum Command {
         hide_ink: Vec<String>,
     },
 
+    /// Copy pages' text to the OS clipboard as FORMATTED paragraphs, so a
+    /// paste into Word keeps bold, italic, sizes, font families, colours
+    /// and paragraph breaks. Windows only in this build; `-o` works
+    /// everywhere.
+    ///
+    /// Paragraphs are the recognised text blocks the editor uses; within one,
+    /// a wrapped line joins with a space and a hard break stays a line
+    /// break. One transaction places `HTML Format`, `Rich Text Format` and
+    /// plain text. The result line counts what was inferred or dropped:
+    /// weights read from a font name, glyphs with no family, and glyphs in
+    /// a colour space the copy does not carry (they paste black).
+    CopyText {
+        /// Input PDF.
+        input: PathBuf,
+        /// 1-based pages: `all`, `3`, `1-4`, `5,1-2`.
+        #[arg(long, default_value = "1")]
+        pages: String,
+        /// Write one format to this file instead of the clipboard.
+        #[arg(short, long)]
+        output: Option<PathBuf>,
+        /// The format `-o` writes.
+        #[arg(long, value_enum, default_value_t = RichFormat::Html, requires = "output")]
+        format: RichFormat,
+    },
+
     /// Copy a page to the OS clipboard so it pastes as EDITABLE VECTORS into
     /// Word, PowerPoint, Excel and Inkscape, and as an alpha raster
     /// everywhere else (`Pass 248.2`). Windows only in this build.
