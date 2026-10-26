@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-26 (1245th filing) — `2d1329d5` follow-up to `Pass 646.6`; `Pass 646.8` (`G230`) scoped
+
+**Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `2d1329d5` (`fix(cli,core): gate findings on the copy-text and redaction work (Pass 646.6)`): CLI in-place-coverage test lists `copy-text` as not-in-place; `copy-text --format cf-html` help text drops a Markdown code span; a missing doc comment on the redaction report's disclosure-note helper. No behaviour change.
+
+**Scoped:** `Pass 646.8` (`G230`): render form widgets with no `/AP` in memory, never writing; `RenderPolicy` option ON by default; also vertical centring in `regenerate_appearances`. In progress. Reply `reply_request_G230_draw_widgets_without_ap_at_render_time_SCOPED.md` written to the channel so `tools/check-requests-scoped.py` (red on scoped-and-unanswered, `R242`) stays green; the gate was not run here.
+
+**Decisions made:** none. Premise checked by grep of `docs/`: `646.8` appeared only as "next free"; `G230` appeared nowhere; FEATURES had no existing AP-less-widget row.
+
+**FEATURES.md:** new Planned row (all unticked); no Implemented box changed.
+
+**For next session:** next free `Pass 646.9`, decision `201`, `R263`; next filing 1246th.
+
 ## 2026-10-26 (1244th filing) — `11a70fea` `Pass 646.7` SHIPPED: highlights stay see-through in CLI clipboard and SVG exports
 
 **Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**

@@ -131,6 +131,7 @@ Engineer-reported; no shell here, nothing checked from here. Code commit `540b00
 - **Verified (engineer):** pasted into real Word over COM: 12 paragraphs, a bold Arial 12 heading, body paragraphs flowed. Tests: `blank_line_paragraphs` 4, `rich_copy` 6, `copy-text` CLI 3, one `rich_text` doctest; pdfcer-core 5073 passed, 0 failed. Clippy `-D warnings` clean (core/render/cli all-targets, plus cli `--no-default-features`); fmt and the structure, clap-help, core-api-verbs and tests-harnessed gates green. **`cargo tree`:** no manifest changed, invariants untouched.
 - **Docs:** `docs/core-api/01-reading-and-model.md` section 8.4.4a rows and new section 8.4.4c.
 - **Delivers:** core yes; cli yes (`copy-text`); gui NOT: the GUI reflow editor inherits recognition with no shell change, but read-mode copy needs the shell to call `rich_text`. GUI ask filed: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_2026-10-26_read_mode_formatted_copy.md`. FEATURES: new row "Formatted (rich) copy" core/cli ticked, gui unticked; the paragraph-recognition row extended, boxes unchanged (gui stays unticked).
+- **Follow-up commit `2d1329d5`** (`fix(cli,core): gate findings on the copy-text and redaction work`, 1245th filing; engineer-reported, nothing checked from here): the CLI in-place-coverage test lists `copy-text` as not-in-place (it writes clipboard, text, HTML or RTF, never a PDF); the `copy-text --format cf-html` value's help text no longer carries a Markdown code span (it shipped into `--help`); a missing doc comment on the redaction report's disclosure-note helper. No behaviour change, no FEATURES box change.
 - **Sweep (rule 11):** the claim "a blank-line gap ends a paragraph" gained a second route (a whitespace-only line). Corrected in the FEATURES row. Survivors owed (not edited, outside remit; source not read here): doc comments in `text_edit/model/stages.rs` and `docs/core-api` prose describing paragraph breaks as gap-only, if any. Nothing minted; next free `Pass 646.7`, decision `201`, `R263`; next filing 1244th.
 
 ### `0d1655cd` `Pass 646.5` SCOPED and SHIPPED, 2026-10-26: a `/Multiply` highlight stays see-through in EMF and Word-bound SVG (1243rd filing)
@@ -23979,6 +23980,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
 
+(1245th filing: follow-up fix `2d1329d5` to `Pass 646.6` filed on its *Shipped* row; `Pass 646.8` (`G230`, render AP-less form widgets) scoped, IN PROGRESS, below. Nothing minted; next free `Pass 646.9`, decision `201`, `R263`; next filing 1246th.)
+
 (1241st filing: `Pass 646.3` (form stray `Q` isolation; search-redact neighbour over-redaction fix; requests X003, X002) scoped and SHIPPED on `5bdc277d`, see *Shipped*. Nothing minted; next free `Pass 646.4`, decision `201`, `R263`; next filing 1242nd. Unreleased since `v0.98.0`.)
 
 (1240th filing: `Pass 646.2` (redaction overlay trimmed to the page) scoped and SHIPPED on `a4bff89a`, see *Shipped*. Nothing minted; next free `Pass 646.3`, decision `201`, `R263`; next filing 1241st. Unreleased since `v0.98.0`.)
@@ -34765,6 +34768,25 @@ overrides the image dictionary; `/ColorSpace` optional,
 **Update, 1243rd filing (engineer-reported; no shell here, nothing checked from here):** commit `17aa278d` (`chore(publish)`, on main, unpushed at filing) lifts `publish = false` for `pdfcer-color`, `pdfcer-model` and `pdfcer-pkix` only. **NOTHING IS PUBLISHED to crates.io.** The operator must run `cargo publish` himself (project settings deny it to the agent), in the order `pdfcer-color`, then `pdfcer-model`, then `pdfcer-pkix`. Recorded as "manifests ready, publish pending operator", not as published. Acceptance items 2-4 stay open until he has; item 5 (release recipe) is partly met: bump the `pdfcer-model` version in the root `Cargo.toml` `[workspace.dependencies]` on every release. `pdfcer-core`, `pdfcer-render`, `pdfcer-image-codec`, `pdfcer-3d` keep `publish = false` (blockers above unchanged).
 
 **Status:** Next up, publish pending the operator. FEATURES.md: row "Engine crates on crates.io" in *Planned*, all boxes unticked (nothing is published).
+
+### Pass 646.8 — Render form widgets that carry no /AP (NeedAppearances / AP-less fields) at render time, never writing the file (`G230`) — IN PROGRESS
+
+**Source:** `D:/Dev/FeatureRequests/pdfce_FeatureRequests/open/request_G230_draw_widgets_without_ap_at_render_time.md` (`pdfcer-gui`, operator row O327, pinned to v0.98.0 `2f4badbb`). Scoped at the 1245th filing; reply `reply_request_G230_draw_widgets_without_ap_at_render_time_SCOPED.md` written to the channel.
+
+**Ask:** a `/Widget` with no `/AP /N` (with or without `/AcroForm /NeedAppearances true`) renders blank today. Acrobat draws it. The request's fixture (three `/Tx` widgets, `/V (Hello)`, `/MK /BC [0 0 1]`, two at `0 Tf`) shows a blank page.
+
+**Scope:**
+- `pdfcer-render` synthesizes, in memory, the normal appearance for a widget lacking `/AP /N`, reusing `pdfcer-core`'s existing appearance builders, the same way standard-icon artwork is drawn for AP-less `/Text` and `/Stamp` (`Pass 289.0`).
+- Text fields: the value in the `/DA` font, size and colour including `0 Tf` auto-size; `/Q` quadding; comb (`/Ff` bit 25, `/MaxLen`); multiline.
+- `/MK /BC` border and `/MK /BG` background with `/BS` width and style.
+- Check box and radio from `/AS` and `/V`; choice field selected value; push button caption.
+- **Never writes bytes.** Save without an edit is byte-identical; `widget_rects`, `parse_acroform` and every hit-test are unchanged; `has_normal_appearance` stays false (the GUI discloses that the file stores no drawing).
+- A `RenderPolicy` option, **ON by default** (engine's call: Acrobat draws these). Disclosed off-canvas by a counter and a diagnostic note (rule 4); the drawing itself is not marked.
+- Also in scope (the request's side observations): `regenerate_appearances` vertically centres a single-line value (it draws at the top of a tall box today).
+
+**Acceptance:** a fixture with AP-less text, check, radio and push-button widgets; a render test showing the value pixels; a byte-identical save test; a policy-off test that paints nothing; `docs/core-api` updated. The GUI deletes its display-copy workaround (`drawnvalues.rs`) once this lands.
+
+**Status:** in progress, nothing shipped. FEATURES.md: new row in *Planned*, all boxes unticked.
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 
