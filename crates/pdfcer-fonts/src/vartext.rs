@@ -180,6 +180,10 @@ pub struct FontResource {
     /// (§9.8.1 Table 122). It places the first baseline. `None` uses
     /// `font`'s.
     pub ascent: Option<u16>,
+    /// The resource's own descent magnitude (glyph space, positive), from the
+    /// same descriptor's `/Descent` (Table 122). With `ascent` it centres a
+    /// single line. `None` uses `font`'s.
+    pub descent: Option<u16>,
     /// The resource's own code→character table (its resolved `/Encoding`,
     /// §9.6.6.1), when that is not `/WinAnsiEncoding`. The generator then
     /// writes these codes instead of `WinAnsi` ones, taking the lowest code
@@ -238,6 +242,7 @@ struct Face<'a> {
     font: Std14,
     widths: Option<&'a [u16; 256]>,
     ascent: Option<u16>,
+    descent: Option<u16>,
     codes: Option<&'a [Option<char>; 256]>,
     cid: Option<&'a CidCodes>,
 }
@@ -248,6 +253,7 @@ impl<'a> Face<'a> {
             font,
             widths: None,
             ascent: None,
+            descent: None,
             codes: None,
             cid: None,
         }
@@ -258,6 +264,7 @@ impl<'a> Face<'a> {
             font: r.font,
             widths: r.widths.as_deref(),
             ascent: r.ascent,
+            descent: r.descent,
             codes: r.codes.as_deref(),
             cid: r.cid.as_deref(),
         }
@@ -327,6 +334,21 @@ impl<'a> Face<'a> {
             f64::from,
         );
         units / 1000.0 * size
+    }
+
+    /// The descent magnitude at `size` points (always >= 0).
+    fn descent_at(self, size: f64) -> f64 {
+        let units = self.descent.map_or_else(
+            || f64::from(fontdata::std14_descriptor(self.font).descender).abs(),
+            f64::from,
+        );
+        units / 1000.0 * size
+    }
+
+    /// The baseline that centres one line's ascent-to-descent band in a box
+    /// `h` tall, as Acrobat draws a single-line text field.
+    fn centred_baseline(self, size: f64, h: f64) -> f64 {
+        (h - self.ascent_at(size) + self.descent_at(size)) / 2.0
     }
 
     fn width(self, code: u16) -> u16 {
@@ -1017,7 +1039,11 @@ pub fn build_variable_text(
 
     let ascent = face.ascent_at(size);
     let line_height = size * LINE_FACTOR;
-    let first_baseline = h - TEXT_PAD - ascent;
+    let first_baseline = if multiline {
+        h - TEXT_PAD - ascent
+    } else {
+        face.centred_baseline(size, h)
+    };
 
     let mut b = ContentBuilder::new();
     b.begin_marked_content(b"Tx");
@@ -1133,8 +1159,7 @@ pub fn build_comb_text(
         (parsed.font_size, None, None)
     };
 
-    let ascent = face.ascent_at(size);
-    let baseline = h - TEXT_PAD - ascent;
+    let baseline = face.centred_baseline(size, h);
 
     let mut b = ContentBuilder::new();
     b.begin_marked_content(b"Tx");
@@ -1387,6 +1412,7 @@ mod tests {
             font: Std14::Helvetica,
             widths: None,
             ascent: None,
+            descent: None,
             codes: None,
             cid: None,
         }]
@@ -1464,6 +1490,7 @@ mod tests {
             font: Std14::Symbol,
             widths: None,
             ascent: None,
+            descent: None,
             codes: None,
             cid: None,
         }];

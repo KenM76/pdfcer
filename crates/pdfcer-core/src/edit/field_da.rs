@@ -63,6 +63,7 @@ impl EditSession {
                     font: Std14::Helvetica,
                     widths: None,
                     ascent: None,
+                    descent: None,
                     codes: None,
                     cid: None,
                 }],
@@ -82,6 +83,7 @@ impl EditSession {
                         font: f,
                         widths: None,
                         ascent: None,
+                        descent: None,
                         codes: None,
                         cid: None,
                     });

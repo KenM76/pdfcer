@@ -1028,9 +1028,9 @@ fn a_multi_select_default_is_set_and_restored() {
     );
 }
 
-/// A fill that draws with the document's own `/DR` font places the first
-/// baseline by that font's `/FontDescriptor` `/Ascent` (Table 122):
-/// 22 - 2 - 900 x 12 / 1000, not Helvetica's 718.
+/// A fill that draws with the document's own `/DR` font centres the single
+/// line by that font's `/FontDescriptor` `/Ascent` and `/Descent` (Table 122):
+/// (22 - 900 x 12 / 1000 + 200 x 12 / 1000) / 2, not Helvetica's 718 / 207.
 #[test]
 fn a_fill_places_the_baseline_by_the_dr_fonts_own_ascent() {
     let dir = TempDir::new("dr-font-ascent");
@@ -1059,7 +1059,7 @@ fn a_fill_places_the_baseline_by_the_dr_fonts_own_ascent() {
                 5,
                 "<< /Type /Font /Subtype /TrueType /BaseFont /Calibri \
                  /Encoding /WinAnsiEncoding /FirstChar 72 /LastChar 72 /Widths [1000] \
-                 /FontDescriptor << /Ascent 900 >> >>"
+                 /FontDescriptor << /Ascent 900 /Descent -200 >> >>"
                     .to_owned(),
             ),
         ]),
@@ -1080,7 +1080,7 @@ fn a_fill_places_the_baseline_by_the_dr_fonts_own_ascent() {
         .find(|l| l.ends_with(" Tm"))
         .expect("a text matrix in the filled appearance");
     let y: f64 = tm.split(' ').nth(5).unwrap().parse().unwrap();
-    assert!((y - 9.2).abs() < 1e-6, "baseline at {y} in {tm:?}");
+    assert!((y - 6.8).abs() < 1e-6, "baseline at {y} in {tm:?}");
 }
 
 /// A `/DR` font whose `/Differences` moves glyphs is filled with ITS codes:

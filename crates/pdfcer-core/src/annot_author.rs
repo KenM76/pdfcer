@@ -5071,6 +5071,7 @@ fn free_text(
         font,
         widths: None,
         ascent: None,
+        descent: None,
         codes: None,
         cid: None,
     }];
@@ -5437,6 +5438,7 @@ fn stamp(
         font: Std14::HelveticaBold,
         widths: None,
         ascent: None,
+        descent: None,
         codes: None,
         cid: None,
     }];

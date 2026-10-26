@@ -27333,7 +27333,7 @@ fn default_choice_selection(field: &Field) -> ChoiceSelection {
 /// **export** value mapped to its `/Opt` **display** value, joined by newline
 /// (§12.7.4.4 — the appearance shows the display, `/V` stores the export).
 /// `None` when the field has no value.
-fn choice_display_text(field: &Field) -> Option<String> {
+pub(crate) fn choice_display_text(field: &Field) -> Option<String> {
     let exports: Vec<Vec<u8>> = match &field.value {
         forms::FieldValue::Choice(items) => items.clone(),
         _ => return None,
@@ -29859,6 +29859,7 @@ impl EditSession {
                         font: metrics,
                         widths: None,
                         ascent: None,
+                        descent: None,
                         codes: None,
                         cid: None,
                     }),
@@ -32064,6 +32065,7 @@ impl EditSession {
             font: crate::fontdata::Std14::Helvetica,
             widths: None,
             ascent: None,
+            descent: None,
             codes: None,
             cid: None,
         }];
@@ -45281,33 +45283,14 @@ impl EditSession {
         unencodable: &mut usize,
         pending: &PendingWidgetEdit,
     ) -> Result<Option<ObjId>, EditError> {
-        // A `Password` field's value is "echoed in some unreadable form, such
-        // as asterisks" (§12.7.4.3 Table 228, bit 14). Masked HERE, the one
-        // regenerator, so no route (fill, resize, restyle) can draw the text.
-        let masked;
-        let text = if field.flags.has(forms::FieldFlags::PASSWORD) {
-            masked = "*".repeat(text.chars().filter(|c| !matches!(c, '\r' | '\n')).count());
-            masked.as_str()
-        } else {
-            text
-        };
+        let text = crate::widget_draw::displayed_text(field, text);
+        let text = text.as_ref();
         let da = field
             .default_appearance
             .clone()
             .unwrap_or_else(|| default_da.to_vec());
         let quad = field.quadding;
-        // Comb layout only where Table 228 bit 25 permits it: `/MaxLen`
-        // present and positive, Multiline/Password/FileSelect clear. An
-        // ill-formed comb is drawn as plain text (field_flags V2/A1).
-        let comb = (field.flags.has(forms::FieldFlags::COMB)
-            && !multiline
-            && !field.flags.has(forms::FieldFlags::MULTILINE)
-            && !field.flags.has(forms::FieldFlags::PASSWORD)
-            && !field.flags.has(forms::FieldFlags::FILE_SELECT))
-        .then_some(field.max_len)
-        .flatten()
-        .and_then(|n| usize::try_from(n).ok())
-        .filter(|&n| n > 0);
+        let comb = crate::widget_draw::comb_cells(field, multiline);
         let mut merged_ap: Option<ObjId> = None;
         for widget in &field.widgets {
             // THE STAGED RECT, NOT THE SNAPSHOT'S (`Pass 187.0`).
@@ -45728,6 +45711,7 @@ impl EditSession {
                         },
                         widths: None,
                         ascent: None,
+                        descent: None,
                         codes: None,
                         cid: None,
                     });
@@ -46226,7 +46210,7 @@ impl EditSession {
     /// `/BBox` lands with negative coordinates (a quarter turn of `[0 0 h w]`
     /// spans `x` from `-w` to `0`); step (b) slides it into place. Adding a
     /// translation here would be applied twice.
-    const fn quarter_turn_matrix(quarter: i64) -> Option<[f64; 6]> {
+    pub(crate) const fn quarter_turn_matrix(quarter: i64) -> Option<[f64; 6]> {
         match quarter {
             90 => Some([0.0, 1.0, -1.0, 0.0, 0.0, 0.0]),
             180 => Some([-1.0, 0.0, 0.0, -1.0, 0.0, 0.0]),
@@ -46544,16 +46528,24 @@ impl EditSession {
     /// synthetic `Helv → Helvetica` entry is always included so the common
     /// `/DA /Helv …` resolves even when a producer omitted `/DR`.
     fn resolve_dr_fonts(&self) -> Vec<FontResource> {
+        Self::dr_fonts_of(&self.graph(), &self.view())
+    }
+
+    /// [`Self::resolve_dr_fonts`] over any read view, so the renderer can
+    /// lay a field out exactly as a redraw would without a session.
+    pub(crate) fn dr_fonts_of(
+        graph: &impl ObjectGraph,
+        view: &DocumentView<'_>,
+    ) -> Vec<FontResource> {
         let mut out = vec![FontResource {
             name: b"Helv".to_vec(),
             font: Std14::Helvetica,
             widths: None,
             ascent: None,
+            descent: None,
             codes: None,
             cid: None,
         }];
-        let graph = self.graph();
-        let view = self.view();
         let dr_font = graph
             .catalog_dict()
             .and_then(|c| c.get(b"AcroForm").map(|o| graph.resolve(o)))
@@ -46574,18 +46566,22 @@ impl EditSession {
                 // Measured with the font's own `/Widths` exactly when
                 // `bind_dr_fonts` will draw with it, so layout and glyphs
                 // come from one font.
-                let bound = fd.filter(|fd| Self::dr_font_is_bindable(&graph, fd));
-                let widths = bound.and_then(|fd| Self::simple_font_widths(&graph, fd));
-                let codes = bound.and_then(|fd| Self::simple_font_codes(&graph, fd));
+                let bound = fd.filter(|fd| Self::dr_font_is_bindable(graph, fd));
+                let widths = bound.and_then(|fd| Self::simple_font_widths(graph, fd));
+                let codes = bound.and_then(|fd| Self::simple_font_codes(graph, fd));
                 let cid = fd
-                    .and_then(|fd| Self::composite_font_codes(&view, fd))
+                    .and_then(|fd| Self::composite_font_codes(view, fd))
                     .map(Box::new);
-                let ascent = if cid.is_some() {
-                    fd.and_then(|fd| Self::composite_descendant(&graph, fd))
-                        .and_then(|d| Self::font_ascent(&graph, &d))
-                } else {
-                    bound.and_then(|fd| Self::font_ascent(&graph, fd))
+                let metric = |key: &[u8]| {
+                    if cid.is_some() {
+                        fd.and_then(|fd| Self::composite_descendant(graph, fd))
+                            .and_then(|d| Self::font_metric(graph, &d, key))
+                    } else {
+                        bound.and_then(|fd| Self::font_metric(graph, fd, key))
+                    }
                 };
+                let ascent = metric(b"Ascent");
+                let descent = metric(b"Descent");
                 let nm = name.as_bytes().to_vec();
                 if !out.iter().any(|r| r.name == nm) {
                     out.push(FontResource {
@@ -46593,6 +46589,7 @@ impl EditSession {
                         font: base,
                         widths,
                         ascent,
+                        descent,
                         codes,
                         cid,
                     });
@@ -46613,8 +46610,15 @@ impl EditSession {
     /// are the document's. Any other encoding keeps the standard-14 stand-in,
     /// because the generator's bytes would select the wrong glyphs.
     fn bind_dr_fonts(&self, ap_dict: &mut Dict) {
-        let graph = self.graph();
-        let view = self.view();
+        Self::bind_dr_fonts_of(&self.graph(), &self.view(), ap_dict);
+    }
+
+    /// [`Self::bind_dr_fonts`] over any read view.
+    pub(crate) fn bind_dr_fonts_of(
+        graph: &impl ObjectGraph,
+        view: &DocumentView<'_>,
+        ap_dict: &mut Dict,
+    ) {
         let Some(dr_fonts) = graph
             .catalog_dict()
             .and_then(|c| c.get(b"AcroForm").map(|o| graph.resolve(o)))
@@ -46638,8 +46642,8 @@ impl EditSession {
                 continue;
             };
             if graph.resolve(raw).as_dict().is_some_and(|fd| {
-                Self::dr_font_is_bindable(&graph, fd)
-                    || Self::composite_font_codes(&view, fd).is_some()
+                Self::dr_font_is_bindable(graph, fd)
+                    || Self::composite_font_codes(view, fd).is_some()
             }) {
                 *slot = raw.clone();
             }
@@ -46921,19 +46925,23 @@ impl EditSession {
         (d.get(b"W2").is_none() && d.get(b"DW2").is_none()).then(|| d.clone())
     }
 
-    fn font_ascent(graph: &impl ObjectGraph, fd: &Dict) -> Option<u16> {
-        let ascent = match fd
+    /// A `/FontDescriptor` `/Ascent` or `/Descent` (Table 122) as a positive
+    /// glyph-space magnitude. `/Descent` is negative by convention, so its sign
+    /// is dropped; an `/Ascent` below 1 is unusable.
+    fn font_metric(graph: &impl ObjectGraph, fd: &Dict, key: &[u8]) -> Option<u16> {
+        let v = match fd
             .get(b"FontDescriptor")
             .map(|o| graph.resolve(o))
             .and_then(Object::as_dict)
-            .and_then(|d| d.get(b"Ascent"))
+            .and_then(|d| d.get(key))
             .map(|o| graph.resolve(o))?
         {
             Object::Integer(i) => *i as f64,
             Object::Real(r) => *r,
             _ => return None,
         };
-        (ascent >= 1.0).then(|| ascent.round().min(f64::from(u16::MAX)) as u16)
+        let v = if key == b"Descent" { v.abs() } else { v };
+        (v >= 1.0).then(|| v.round().min(f64::from(u16::MAX)) as u16)
     }
 
     // -- Pass 7.1: export/import, regenerate, flatten -------------------

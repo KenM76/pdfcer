@@ -70,6 +70,9 @@ use crate::font::{FontEnvironment, RenderPolicy};
 use crate::gstate::GraphicsState;
 use crate::interpret::{self, Diagnostics};
 
+mod widget;
+pub use widget::WidgetsWithoutAp;
+
 /// A transformed appearance box that is thinner than this on either axis
 /// is treated as degenerate: the §12.5.5 step-b fit matrix would divide
 /// by (near) zero, so `A` is singular and there is no honest placement.
@@ -549,6 +552,7 @@ pub(crate) fn survey_page_annotations(
     // policy goes into `page_annotations_with` rather than being consulted
     // below. The default paints nothing and the annotation is counted as
     // state-unresolved either way.
+    let mut form = widget::FormCache::default();
     for annot in &pdfcer_core::annot::page_annotations_with(doc, page.id, policy.missing_as) {
         diag.annotations_total += 1;
         if annot.is_widget() {
@@ -625,6 +629,12 @@ pub(crate) fn survey_page_annotations(
                     && paint_named_icon(doc, base_ctm, fonts, annot, diag, canvas, cancel, policy)
                 {
                     diag.annotations_icon_painted += 1;
+                } else if in_scope
+                    && widget::paint_synthesized_widget(
+                        doc, base_ctm, fonts, annot, &mut form, diag, canvas, cancel, policy,
+                    )
+                {
+                    diag.annotations_widget_synthesized += 1;
                 }
             }
             // §12.5.5 NOTE 3: an /AS that could not be resolved — display

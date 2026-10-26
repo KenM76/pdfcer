@@ -124,6 +124,7 @@ pub mod text_edit;
 pub mod threed;
 mod tst_info;
 pub mod vector;
+pub mod widget_draw;
 pub mod wrapper;
 
 // The facade: each lower crate's modules at their `pdfcer_core::` paths.

@@ -800,6 +800,10 @@ pub struct RenderOptions {
     /// Paint invisible text (Table 106 modes 3 and 7) visibly, or `None`
     /// to follow the spec and paint none. See [`crate::InvisibleTextPaint`].
     pub invisible_text: Option<crate::InvisibleTextPaint>,
+    /// What to paint for a form-field widget with no `/AP`: drawn from its
+    /// field data at view time (§12.7.3.3), or left blank. Default
+    /// [`crate::WidgetsWithoutAp::Draw`]; never writes the document.
+    pub widgets_without_ap: crate::WidgetsWithoutAp,
     /// Whether overprinting marks are composited as overprints. Default
     /// [`OverprintPreview::Simulate`](crate::OverprintPreview::Simulate).
     pub overprint_preview: crate::OverprintPreview,
@@ -1002,6 +1006,8 @@ pub struct RenderPolicy<'a> {
     pub invisible_text: Option<crate::InvisibleTextPaint>,
     /// See [`RenderOptions::overprint_preview`].
     pub overprint_preview: crate::OverprintPreview,
+    /// See [`RenderOptions::widgets_without_ap`].
+    pub widgets_without_ap: crate::WidgetsWithoutAp,
 }
 
 /// How strokes are drawn relative to their declared width (`Pass 254.0`).
@@ -1187,6 +1193,7 @@ impl Default for RenderOptions {
             // rest.
             backdrop: PageBackdrop::default(),
             invisible_text: None,
+            widgets_without_ap: crate::WidgetsWithoutAp::Draw,
             overprint_preview: crate::OverprintPreview::Simulate,
             separation_preview: None,
         }
@@ -1570,6 +1577,14 @@ impl RenderOptions {
         self
     }
 
+    /// Set how a widget with no `/AP` is painted, returning `self` for
+    /// chaining. See [`RenderOptions::widgets_without_ap`].
+    #[must_use]
+    pub const fn with_widgets_without_ap(mut self, mode: crate::WidgetsWithoutAp) -> Self {
+        self.widgets_without_ap = mode;
+        self
+    }
+
     /// Set whether overprint is simulated, returning `self` for chaining.
     #[must_use]
     pub const fn with_overprint_preview(mut self, preview: crate::OverprintPreview) -> Self {
@@ -1612,6 +1627,7 @@ impl RenderOptions {
             omit_annotations: self.omit_annotations.as_slice(),
             invisible_text: self.invisible_text,
             overprint_preview: self.overprint_preview,
+            widgets_without_ap: self.widgets_without_ap,
         }
     }
 }
@@ -1673,7 +1689,8 @@ mod render_policy_tests {
             .with_invisible_text(Some(
                 crate::InvisibleTextPaint::new([1, 2, 3]).with_only(true),
             ))
-            .with_overprint_preview(crate::OverprintPreview::Off);
+            .with_overprint_preview(crate::OverprintPreview::Off)
+            .with_widgets_without_ap(crate::WidgetsWithoutAp::Blank);
         assert_eq!(
             options.policy(),
             RenderPolicy {
@@ -1714,6 +1731,8 @@ mod render_policy_tests {
                 invisible_text: Some(crate::InvisibleTextPaint::new([1, 2, 3]).with_only(true)),
                 // NOT the default (`Simulate`).
                 overprint_preview: crate::OverprintPreview::Off,
+                // NOT the default (`Draw`).
+                widgets_without_ap: crate::WidgetsWithoutAp::Blank,
             }
         );
         assert_ne!(options.policy(), RenderPolicy::default());

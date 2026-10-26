@@ -50,7 +50,7 @@ fn session(da_key: &str) -> EditSession {
         ),
         "<< /Type /Font /Subtype /TrueType /BaseFont /Calibri \
          /Encoding /WinAnsiEncoding /FirstChar 72 /LastChar 72 /Widths [1000] \
-         /FontDescriptor << /MissingWidth 250 /Ascent 900 >> >>"
+         /FontDescriptor << /MissingWidth 250 /Ascent 900 /Descent -200 >> >>"
             .to_owned(),
         "<< /Type /Font /Subtype /TrueType /BaseFont /Calibri \
          /Encoding << /BaseEncoding /WinAnsiEncoding /Differences [65 /B] >> >>"
@@ -234,14 +234,14 @@ fn a_bound_font_is_laid_out_with_its_own_widths() {
     );
 }
 
-/// A bound font's first baseline sits its own `/Ascent` (900) below the
-/// padded box top — 22 - 2 - 10.8 — not Helvetica's 718.
+/// A bound font's single line is centred by its own `/Ascent` (900) and
+/// `/Descent` (-200) — (22 - 10.8 + 2.4) / 2 — not Helvetica's 718 / 207.
 #[test]
 fn a_bound_font_places_its_baseline_with_its_own_ascent() {
     let mut s = session("F1");
     s.fill_text_field("t", "HA").unwrap();
     let y = first_tm(&s, 5);
-    let want = 22.0 - 2.0 - 900.0 * 12.0 / 1000.0;
+    let want = (22.0 - 900.0 * 12.0 / 1000.0 + 200.0 * 12.0 / 1000.0) / 2.0;
     assert!(
         (y - want).abs() < 1e-6,
         "baseline at {y}, want {want}: Helvetica's ascent, not /Ascent"
@@ -351,7 +351,7 @@ fn identity_h(encoding: &str, descendant_extra: &str, to_unicode: bool) -> Strin
          /DescendantFonts [<< /Type /Font /Subtype /CIDFontType2 /BaseFont /Calibri \
          /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> \
          /W [43 [1000] 36 36 250] /DW 500 {descendant_extra} \
-         /FontDescriptor << /Ascent 900 >> >>] >>",
+         /FontDescriptor << /Ascent 900 /Descent -200 >> >>] >>",
         if to_unicode { "/ToUnicode 6 0 R" } else { "" }
     )
 }
@@ -400,7 +400,7 @@ fn an_identity_h_composite_font_draws_with_two_byte_codes() {
         first_x(&s)
     );
     let y = first_tm(&s, 5);
-    let want = 22.0 - 2.0 - 900.0 * 12.0 / 1000.0;
+    let want = (22.0 - 900.0 * 12.0 / 1000.0 + 200.0 * 12.0 / 1000.0) / 2.0;
     assert!((y - want).abs() < 1e-6, "baseline {y}, want {want}");
 }
 

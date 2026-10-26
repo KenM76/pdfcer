@@ -324,6 +324,38 @@ pub(crate) fn resolve_render_options(
     Ok(render_options)
 }
 
+/// What became of the annotations that carry no `/AP`: a named standard
+/// icon is drawn from pdfcer's own artwork (§12.5.6.4/§12.5.6.12), a form
+/// field from its own data (§12.7.3.3), and anything else is left blank.
+fn no_ap_painted_note(total: usize, icons: usize, widgets: usize) -> String {
+    if icons + widgets == 0 {
+        return "None was painted -- pdfcer draws a named standard icon (12.5.6.4/12.5.6.12) and a \
+                form field from its own data (12.7.3.3), and synthesises nothing else, so a \
+                /Square or /Line with no /AP is disclosed here and left blank"
+            .to_owned();
+    }
+    let mut parts = Vec::new();
+    if icons > 0 {
+        parts.push(format!(
+            "{icons} named a standard icon and were drawn from pdfcer's OWN artwork -- the file \
+             supplied the NAME, not the picture (12.5.6.4/12.5.6.12)"
+        ));
+    }
+    if widgets > 0 {
+        parts.push(format!(
+            "{widgets} form field widget(s) were drawn from their own value, /DA and /MK \
+             (12.7.3.3); nothing was written to the file"
+        ));
+    }
+    let rest = total.saturating_sub(icons + widgets);
+    if rest > 0 {
+        parts.push(format!(
+            "the remaining {rest} would need geometry pdfcer will not invent and are left blank"
+        ));
+    }
+    parts.join("; ")
+}
+
 /// Implement `pdfcer render-page <input> [--page N] [--scale S] -o <out>`.
 ///
 /// # The pipeline
@@ -632,7 +664,8 @@ cmyk_buffer={} cmyk_buffer_refused={} cmyk_bridged_pixels={} \
 cmyk_groups_approximated={} cmyk_unbridged_images={} cmyk_native_image_pixels={} rendering_intents_set={} \
 icc_managed_paints={} icc_unmanaged_paints={} \
 overprint_process_images_unsupported={} annots_icon_painted={} page_resources_defaulted={} \
-page_crop_box_clipped={} page_crop_box_unusable={} cmyk_spots_flattened={}",
+page_crop_box_clipped={} page_crop_box_unusable={} cmyk_spots_flattened={} \
+annots_widget_drawn={}",
         d.glyphs_substituted,
         d.glyphs_notdef,
         d.fonts_unsupported,
@@ -1024,6 +1057,8 @@ page_crop_box_clipped={} page_crop_box_unusable={} cmyk_spots_flattened={}",
         usize::from(d.page_crop_box == pdfcer_core::page_tree::BoxResolution::Unusable),
         // Appended under the same contract.
         d.cmyk_spots_flattened,
+        // Appended: form widgets with no /AP drawn from their field data.
+        d.annotations_widget_synthesized,
     )
 }
 
@@ -2317,28 +2352,14 @@ cyclic; their content is missing from the raster",
             .map(|(subtype, count)| format!("{subtype} x{count}"))
             .collect();
         let total: usize = d.annotations_without_ap.values().sum();
-        let drawn = d.annotations_icon_painted;
         eprintln!(
             "pdfcer: note: {total} annotation(s) carry no appearance stream: {}. {}",
             named.join(", "),
-            if drawn == 0 {
-                "None was painted -- pdfcer draws a named standard icon (12.5.6.4/12.5.6.12) and \
-                 synthesises nothing else, so a /Square or /Line with no /AP is disclosed here \
-                 and left blank"
-                    .to_owned()
-            } else if drawn == total {
-                format!(
-                    "All {drawn} named a standard icon and were drawn from pdfcer's OWN artwork \
-                     -- the file supplied the NAME, not the picture (12.5.6.4/12.5.6.12 put that \
-                     duty on the reader)"
-                )
-            } else {
-                format!(
-                    "{drawn} named a standard icon and were drawn from pdfcer's OWN artwork; the \
-                     remaining {} would need geometry pdfcer will not invent and are left blank",
-                    total - drawn
-                )
-            }
+            no_ap_painted_note(
+                total,
+                d.annotations_icon_painted,
+                d.annotations_widget_synthesized
+            )
         );
     }
     if d.annotations_appearance_state_missing > 0 {

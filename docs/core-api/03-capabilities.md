@@ -673,7 +673,38 @@ Cmyk(f32,f32,f32,f32)`; DeviceCMYK is kept raw, **never** flattened to RGB, and
 no default is ever substituted (same `None`-is-a-fact rule as `border`). A
 nonconforming component count is declined (parses to `None`, i.e. absent). This
 does NOT breach R43 — pdfcer still paints the baked `/AP`; the field feeds an
-editor overlay, not a display-time synthesiser.
+editor overlay. (A widget with NO `/AP` is a different case — see "Widgets with
+no `/AP`" below.)
+
+#### Widgets with no `/AP` — drawn at render time, never written (`Pass 646.8`, `G230`)
+
+ISO 32000-1 §12.7.3.3: with `/NeedAppearances true` the reader "shall
+construct an appearance stream dynamically at viewing time"; §12.5.2 lets a
+handler ignore `/AP`. So `pdfcer-render` draws a `/Widget` lacking `/AP /N`
+from its own field data — **on by default**, in memory, **zero bytes
+written**: an untouched save stays byte-identical, `Widget::has_normal_appearance`
+stays `false`, `widget_rects` / `parse_acroform` / hit-testing are unchanged.
+
+| item | contract |
+|---|---|
+| `pdfcer_render::WidgetsWithoutAp` | `#[non_exhaustive]` enum, `Draw` (default) or `Blank` (the pre-646.8 behaviour). |
+| `RenderOptions::with_widgets_without_ap(mode)` | `const fn`, carried into `RenderPolicy::widgets_without_ap`. |
+| `Diagnostics::annotations_widget_synthesized: usize` | widgets drawn this way on the page; a diagnostic note names each one. CLI `render-page` metrics key `annots_widget_drawn=`. |
+| `pdfcer_core::widget_draw::WidgetAppearances::read(view) -> Option<Self>` | reads the AcroForm and `/DR` fonts once per page; `None` = no `/AcroForm`. |
+| `WidgetAppearances::appearance(&self, view, widget_id) -> Option<SynthesizedAppearance>` | the `/AP /N` form a regenerate would build, never inserted. `None` for a signature field or a widget not in the form. |
+| `SynthesizedAppearance { ap_dict, content, kind }` | `#[non_exhaustive]`; `kind: SynthesizedKind` = `Text`, `Choice`, `CheckBox`, `RadioButton`, `PushButton`. |
+
+What is drawn: text value in the `/DA` font, size (`0 Tf` auto-fits) and
+colour, `/Q`, comb, multiline, password mask; choice's selected value;
+check/radio on or off from `/AS` (else `/V`), glyph from `/MK /CA`;
+push-button caption; `/MK /BC` / `/BG` with `/BS` width and dash; `/MK /R`.
+Same builders as `regenerate_appearances`, so a later regenerate draws the
+same picture. Rule 4: the drawing carries no mark; the disclosure is the
+counter and note. A shell that drew its own copy of these values can drop it.
+
+Also in this Pass: a **single-line** (and comb) text field's value is now
+vertically centred in its box (it sat at the top of a tall box), in both this
+drawing and `regenerate_appearances`. Multiline layout is unchanged.
 
 #### ★★ `border` and `visibility` — read this before wiring a properties control (`Pass 146.0`)
 

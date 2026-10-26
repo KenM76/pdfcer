@@ -1959,6 +1959,7 @@ fn overlay_font_resources(
         font: crate::fontdata::Std14::Helvetica,
         widths: None,
         ascent: None,
+        descent: None,
         codes: None,
         cid: None,
     }];
@@ -1982,6 +1983,7 @@ fn overlay_font_resources(
                     font: face,
                     widths: None,
                     ascent: None,
+                    descent: None,
                     codes: None,
                     cid: None,
                 });
@@ -2000,6 +2002,7 @@ fn overlay_font_resources(
             font: crate::fontdata::Std14::Helvetica,
             widths: None,
             ascent: None,
+            descent: None,
             codes: None,
             cid: None,
         });

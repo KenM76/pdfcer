@@ -586,6 +586,8 @@ fn renders_a_single_page_to_png_with_the_stable_stdout_line() {
             "page_crop_box_unusable",
             // Appended: spot colorants that got no plane of their own.
             "cmyk_spots_flattened",
+            // Appended: form widgets with no /AP drawn from their data.
+            "annots_widget_drawn",
         ],
         "metrics key order is part of the stable contract"
     );
@@ -2216,8 +2218,8 @@ fn a_spot_ink_beyond_the_plane_roster_is_counted_once_and_disclosed() {
         assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
         let line = stdout(&out);
         assert!(
-            line.trim_end().ends_with(expected),
-            "{inks} inks: expected {expected} at the END of the metrics line: {line:?}"
+            line.split_whitespace().any(|kv| kv == expected),
+            "{inks} inks: expected {expected} in the metrics line: {line:?}"
         );
         assert_eq!(
             stderr(&out).contains("SPOT COLORANT(s) got no plane"),

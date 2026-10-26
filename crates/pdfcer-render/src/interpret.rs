@@ -1609,6 +1609,11 @@ pub struct Diagnostics {
     /// generation work. This counter measures what the **operator saw**.
     /// Folding them together would make one of the two numbers a lie.
     pub annotations_icon_painted: usize,
+    /// Form-field widgets with no `/AP` that pdfcer drew from their field
+    /// data at view time (§12.7.3.3), counted ALONGSIDE
+    /// `annotations_without_ap` for the same reason as
+    /// [`Self::annotations_icon_painted`]. Nothing is written to the file.
+    pub annotations_widget_synthesized: usize,
     /// Of [`Diagnostics::annotations_total`], those whose `/Subtype` is
     /// `Widget` (§12.5.6.19). A census signal — widgets are ~88 % of
     /// organic annotations, so their share drives forms prioritisation.
