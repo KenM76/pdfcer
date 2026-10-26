@@ -1989,7 +1989,15 @@ internally (`redact.rs`).
 `overlay_ro_not_drawn`, `overlay_transparent`, **`overlay_fill_not_rgb`**
 (a grey or CMYK `/IC` from another producer is painted in the space its length
 names and disclosed, never left transparent; pdfcer's own marks always write a
-three-number `/IC` — Gray exactly, CMYK as `cmyk_to_srgb`), **`images_cleared`,
+three-number `/IC` — Gray exactly, CMYK as `cmyk_to_srgb`),
+**`overlay_trimmed_to_page`, `overlay_off_page_skipped`** (`Pass 646.2`: by
+default the `/IC` overlay box is cut back to the page `/CropBox`, and a region
+wholly outside it draws no box — otherwise redacting off-page content paints
+new off-page content that the next `offpage::scan_document` reports.
+Content removal is unaffected. `RedactOptions::overlay_off_page` /
+`with_overlay_off_page(true)` restores painting where the region lies;
+`EditSession::apply_redactions` uses the default, so a shell needs no change),
+**`images_cleared`,
 `images_removed`, `images_cloned_shared`, `images_overcovered`,
 `vector_paths_intersecting`, `marks_retained`** (all `Pass 245.0`),
 **`vector_paths_cut`, `vector_paths_dropped`, `vector_clips_kept`**

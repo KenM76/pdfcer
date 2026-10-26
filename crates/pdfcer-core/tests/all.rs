@@ -171,6 +171,7 @@ mod ocr_layer_survives_edits;
 mod ocr_session;
 mod ocr_upscale;
 mod offpage_blank_overhang;
+mod offpage_redact_overlay;
 mod operator_span_invariant;
 mod outline;
 mod outline_authoring;

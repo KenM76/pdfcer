@@ -34,8 +34,11 @@ pub(crate) fn cmd_redact_apply(
     input: &Path,
     output: &Path,
     residual_scope: ResidualScopeArg,
+    overlay_off_page: bool,
     acks: RedactAcks,
 ) -> u8 {
+    let options = RedactOptions::with_residual_scope(residual_scope.into())
+        .with_overlay_off_page(overlay_off_page);
     let source = match std::fs::read(input) {
         Ok(b) => b,
         Err(err) => {
@@ -50,7 +53,6 @@ pub(crate) fn cmd_redact_apply(
             return exit_code_for_doc(&err);
         }
     };
-    let options = RedactOptions::with_residual_scope(residual_scope.into());
     let (bytes, report) =
         match redact::apply_redactions_with(&doc, &SaveOptions::identity(), &options) {
             Ok(pair) => pair,
@@ -183,11 +185,14 @@ fn print_redaction_report(report: &RedactionReport, scope: ResidualScopeArg, out
     );
     // The Table 192 overlay-marking ladder.
     println!(
-        "  overlay_text_burned={} overlay_ro_not_drawn={} overlay_transparent={} overlay_fill_not_rgb={}",
+        "  overlay_text_burned={} overlay_ro_not_drawn={} overlay_transparent={} overlay_fill_not_rgb={} \
+         overlay_trimmed_to_page={} overlay_off_page_skipped={}",
         report.overlay_text_burned,
         report.overlay_ro_not_drawn,
         report.overlay_transparent,
         report.overlay_fill_not_rgb,
+        report.overlay_trimmed_to_page,
+        report.overlay_off_page_skipped,
     );
     // Image surgery (§12.5.6.23). `marks_retained` non-zero means a /Redact
     // mark is still IN the output, unapplied; the notes name it.

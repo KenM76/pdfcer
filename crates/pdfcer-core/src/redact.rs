@@ -94,6 +94,7 @@ use crate::graph::ObjectGraph;
 use crate::object::{Dict, Name, ObjId, Object, Stream};
 use crate::page_tree::{self, PageTreeError, Rect};
 use crate::redact_image::{self, ImageHit, ImageSource};
+use crate::redact_overlay_trim;
 use crate::redact_vector::{self, Paint as PathPaint, PathRecord};
 use crate::settings::UnmappableCode;
 use crate::span::ByteSpan;
@@ -357,6 +358,12 @@ impl ResidualScope {
 pub struct RedactOptions {
     /// How far beyond the marked regions the residual sweep may act.
     pub residual_scope: ResidualScope,
+    /// Draw a region's overlay mark (its `/IC` box or overlay text) beyond
+    /// the page box too. `false`, the default, trims each overlay to the
+    /// page's `/CropBox` and draws nothing for a region wholly outside it,
+    /// so removing off-page content does not paint new off-page content.
+    /// Content removal is the same either way.
+    pub overlay_off_page: bool,
 }
 
 impl RedactOptions {
@@ -365,6 +372,16 @@ impl RedactOptions {
     pub fn with_residual_scope(scope: ResidualScope) -> Self {
         Self {
             residual_scope: scope,
+            ..Self::default()
+        }
+    }
+
+    /// These options with [`Self::overlay_off_page`] set to `on`.
+    #[must_use]
+    pub fn with_overlay_off_page(self, on: bool) -> Self {
+        Self {
+            overlay_off_page: on,
+            ..self
         }
     }
 }
@@ -521,6 +538,12 @@ pub struct RedactionReport {
     /// `DeviceRGB`; pdfcer paints the colour the array names rather than
     /// leave the region unmarked, and discloses it.
     pub overlay_fill_not_rgb: u64,
+    /// Overlay marks trimmed to the page box because their region reached
+    /// past it (see [`RedactOptions::overlay_off_page`]).
+    pub overlay_trimmed_to_page: u64,
+    /// Overlay marks not drawn because their region lay wholly outside the
+    /// page box. The content under them was still removed.
+    pub overlay_off_page_skipped: u64,
     /// Image placements whose in-region samples were destroyed and the
     /// image re-encoded (losslessly, `FlateDecode`) — §12.5.6.23's
     /// "that portion of the image data shall be destroyed".
@@ -597,7 +620,7 @@ pub struct RedactionReport {
 }
 
 impl RedactionReport {
-    fn note(&mut self, text: String) {
+    pub(crate) fn note(&mut self, text: String) {
         if !self.notes.contains(&text) {
             self.notes.push(text);
         }
@@ -2231,6 +2254,7 @@ pub fn apply_redactions_with(
     // --- pass 2: the surgery, page by page ---
     let mut tombstoned: std::collections::BTreeMap<ObjId, ()> = std::collections::BTreeMap::new();
     let mut struct_items = structure::RedactedItems::new();
+    let mut report_trim = redact_overlay_trim::TrimCounts::default();
     for PreparedPage {
         index,
         red,
@@ -2240,7 +2264,14 @@ pub fn apply_redactions_with(
     } in &prepared
     {
         let page = pages.get(*index).ok_or(RedactError::NothingToApply)?;
-        let ov = build_overlay(doc, &page.resources, &red.overlay);
+        let ov = if redact.overlay_off_page {
+            build_overlay(doc, &page.resources, &red.overlay)
+        } else {
+            let (on_page, trim) = redact_overlay_trim::trim_to_page(&red.overlay, page.crop_box);
+            report_trim.trimmed += trim.trimmed;
+            report_trim.dropped += trim.dropped;
+            build_overlay(doc, &page.resources, &on_page)
+        };
         overlay_totals.absorb(&ov);
 
         // Image surgery for this page (§12.5.6.23's destroy clause).
@@ -2470,6 +2501,7 @@ pub fn apply_redactions_with(
     report.overlay_ro_not_drawn = overlay_totals.ro_regions;
     report.overlay_transparent = overlay_totals.transparent_regions;
     report.overlay_fill_not_rgb = overlay_totals.fill_not_rgb;
+    redact_overlay_trim::disclose(&mut report, report_trim);
     if report.images_overcovered > 0 {
         report.note(format!(
             "redaction: {} image placement(s) are rotated or skewed, so the destroyed cells \

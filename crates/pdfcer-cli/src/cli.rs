@@ -1787,6 +1787,12 @@ pub(crate) enum Command {
         /// (the file is written either way).
         #[arg(long)]
         acknowledge_unverified: bool,
+        /// Draw each mark's fill and overlay text even where the marked area
+        /// lies outside the page. By default it is cut back to the page, and
+        /// not drawn at all for an area wholly off the page, so removing
+        /// off-page content does not leave boxes off the page.
+        #[arg(long)]
+        overlay_off_page: bool,
     },
 
     /// Encrypt a document with **AES-256 (`/R` 6)** and a user and/or owner

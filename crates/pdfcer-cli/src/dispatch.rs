@@ -4048,10 +4048,12 @@ pub(crate) fn run() -> ExitCode {
             acknowledge_residuals,
             allow_drawn_survivors,
             acknowledge_unverified,
+            overlay_off_page,
         } => cmd_redact_apply(
             &input,
             &output,
             residual_scope,
+            overlay_off_page,
             RedactAcks {
                 residuals: acknowledge_residuals,
                 drawn_survivors: allow_drawn_survivors,
