@@ -303,3 +303,105 @@ mod result {
         );
     }
 }
+
+/// G229: a marking gesture is ONE undo entry, at any history depth.
+mod undo {
+    use super::*;
+    use pdfcer_core::compare::{
+        RegionMark, ResultOptions, mark_changes, mark_comparison, mark_regions,
+    };
+    use pdfcer_core::edit::{CommandKind, EditSession, InfoField, MAX_UNDO_DEPTH};
+    use pdfcer_core::page_tree::Rect;
+
+    const OLD: &[(&str, f32, &str)] = &[("F1", 12.0, "one two three four five")];
+    const NEW: &[(&str, f32, &str)] = &[("F1", 12.0, "one three FOUR five six")];
+
+    fn session_and_report() -> (EditSession, pdfcer_core::compare::CompareReport) {
+        let report = compare(&doc(&[OLD]), &doc(&[NEW]));
+        (EditSession::new(doc(&[NEW])), report)
+    }
+
+    fn region() -> RegionMark {
+        let rect = Rect {
+            llx: 100.0,
+            lly: 100.0,
+            urx: 200.0,
+            ury: 150.0,
+        };
+        RegionMark::changed(0, rect, "changed")
+    }
+
+    fn page_count(s: &EditSession) -> usize {
+        s.pages().expect("pages").len()
+    }
+
+    #[test]
+    fn marking_changes_and_the_summary_page_is_one_undo() {
+        let (mut s, report) = session_and_report();
+        let r = mark_changes(&mut s, &report, &ResultOptions::default()).expect("marks");
+        assert!(r.annotations >= 3 && r.summary.is_some());
+        assert_eq!(s.undo_depth(), 1);
+        assert_eq!(s.undo_kinds().next(), Some(CommandKind::MarkComparison));
+        assert_eq!(page_count(&s), 2);
+        assert_eq!(s.undo(), Some(CommandKind::MarkComparison));
+        assert_eq!(page_count(&s), 1);
+        assert!(!s.can_undo());
+    }
+
+    #[test]
+    fn marking_regions_is_one_undo() {
+        let (mut s, _) = session_and_report();
+        let r = mark_regions(
+            &mut s,
+            &[region(), region(), region()],
+            &ResultOptions::default(),
+        )
+        .expect("marks");
+        assert_eq!(r.annotations, 3);
+        assert_eq!(s.undo_depth(), 1);
+        assert_eq!(s.undo_kinds().next(), Some(CommandKind::MarkComparison));
+    }
+
+    #[test]
+    fn regions_and_changes_together_are_one_undo() {
+        let (mut s, report) = session_and_report();
+        let regions = [region(), region()];
+        let m = mark_comparison(&mut s, Some(&regions), &report, &ResultOptions::default())
+            .expect("marks");
+        assert_eq!(m.regions.expect("regions marked").annotations, 2);
+        assert_eq!(s.undo_depth(), 1);
+        s.undo();
+        assert_eq!(page_count(&s), 1);
+        assert!(!s.can_undo());
+    }
+
+    /// At full depth the gesture evicts one old entry, like any single verb,
+    /// and never the operator's whole history.
+    #[test]
+    fn at_full_depth_the_marking_evicts_one_old_entry() {
+        let (mut s, report) = session_and_report();
+        for i in 0..MAX_UNDO_DEPTH {
+            s.set_info_field(InfoField::Title, Some(&format!("t{i}")))
+                .expect("sets");
+        }
+        assert_eq!(s.undo_depth(), MAX_UNDO_DEPTH);
+        let many: Vec<RegionMark> = (0..40).map(|_| region()).collect();
+        mark_comparison(&mut s, Some(&many), &report, &ResultOptions::default()).expect("marks");
+        assert_eq!(s.undo_depth(), MAX_UNDO_DEPTH);
+        let kinds: Vec<CommandKind> = s.undo_kinds().collect();
+        assert_eq!(kinds[0], CommandKind::MarkComparison);
+        assert!(
+            kinds[1..]
+                .iter()
+                .all(|k| *k == CommandKind::SetInfoField(InfoField::Title))
+        );
+    }
+
+    #[test]
+    fn nothing_marked_pushes_nothing() {
+        let (mut s, _) = session_and_report();
+        let r = mark_regions(&mut s, &[], &ResultOptions::default()).expect("marks");
+        assert_eq!(r.annotations, 0);
+        assert_eq!(s.undo_depth(), 0);
+    }
+}

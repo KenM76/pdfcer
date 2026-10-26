@@ -183,6 +183,7 @@ mod opacity_writes;
 pub use link::{LinkBorder, LinkBorderChange, LinkReading, LinkTarget, LinkTargetChange};
 pub(crate) mod deskew;
 mod undo_fold;
+mod undo_group;
 pub use deskew::{ImageDeskew, MIN_DESKEW_DEGREES};
 mod upscale_image;
 pub use upscale_image::ImageUpscale;
@@ -1372,6 +1373,10 @@ pub enum CommandKind {
         /// How many objects the plan rewrote.
         count: usize,
     },
+    /// A comparison's marks were authored on the new document
+    /// ([`crate::compare::mark_changes`], [`crate::compare::mark_regions`]).
+    /// One entry for every mark and the summary page.
+    MarkComparison,
 }
 
 /// Which geometric-markup subtype [`EditSession::add_markup`] authored,
@@ -10231,6 +10236,8 @@ pub struct EditSession {
     evictions: u64,
     /// The most recent of them, for [`Self::rollback`] to put back.
     evicted_tail: std::collections::VecDeque<Entry>,
+    /// Live inside `grouped`; see `undo_group`.
+    undo_group: Option<undo_group::Group>,
     /// Live only inside `insert_pages_with` / `merge_document`; see
     /// `page_import`.
     page_import: Option<page_import::PageImportGuard>,
@@ -10458,6 +10465,7 @@ impl EditSession {
             session_serial: checkpoint::next_serial(),
             evictions: 0,
             evicted_tail: std::collections::VecDeque::new(),
+            undo_group: None,
             page_import: None,
             quad_point_order: QuadPointOrder::default(),
             redact_options: crate::redact::RedactOptions::default(),
@@ -20556,6 +20564,14 @@ impl EditSession {
     /// - Fold **immediately** after the verbs, before anything else can push a
     ///   command. There is no handle identifying which commands are yours.
     pub fn coalesce_last(&mut self, count: usize, kind: CommandKind) -> bool {
+        if self.in_undo_group() {
+            return true;
+        }
+        self.coalesce_top(count, kind)
+    }
+
+    /// [`Self::coalesce_last`] without the undo-group check.
+    fn coalesce_top(&mut self, count: usize, kind: CommandKind) -> bool {
         if count == 0 {
             return true;
         }
@@ -20654,6 +20670,7 @@ impl EditSession {
         }
         self.redo.clear();
         self.undo.push(Entry::new(command));
+        self.fold_into_group();
         // Bound the history (§11.1). Safe to drop the oldest ONLY
         // because the dirty set is a diff, never a replay — see the
         // module docs.

@@ -16,10 +16,12 @@
 
 mod changes;
 mod diff;
+mod mark_all;
 mod region_marks;
 mod result;
 mod words;
 
+pub use mark_all::{ComparisonMarks, mark_comparison};
 pub use region_marks::{RegionKind, RegionMark, RegionReport, mark_regions};
 pub use result::{
     DELETED_COLOR, FORMATTING_COLOR, INSERTED_COLOR, REPLACED_COLOR, ResultError, ResultOptions,

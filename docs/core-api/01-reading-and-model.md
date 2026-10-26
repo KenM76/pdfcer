@@ -117,6 +117,7 @@ builds `--no-default-features`, so both configurations compile.
 | Compare two documents' text, with page places | `compare::compare_documents(&Document, &Document, &CompareOptions)` — `compare/mod.rs` | §8.10 |
 | Mark a comparison's changes on the new document | `compare::mark_changes(&mut EditSession, &CompareReport, &ResultOptions)` — `compare/result.rs` | §8.10 |
 | Mark a visual comparison's changed regions on the new document | `compare::mark_regions(&mut EditSession, &[RegionMark], &ResultOptions)` — `compare/region_marks.rs` | §8.10 |
+| Mark both kinds as one undo entry | `compare::mark_comparison(&mut EditSession, Option<&[RegionMark]>, &CompareReport, &ResultOptions)` — `compare/mark_all.rs` | §8.10 |
 | Search for text across the document | `EditSession::find_text_with(&needle, &TextSearchOptions)` — `edit.rs` **(read-only in effect, but needs a session)** | §8.5 |
 | Search for text **and learn what was unreadable** | `EditSession::search_text(&needle, &TextSearchOptions)` — `edit.rs` → `TextSearch { matches, diagnostics }` | §8.5 |
 | Render-setting preset for a subset standard (PDF/X, PDF/A, PDF/UA) | `pdfcer_core::settings::presets::RenderPreset::for_standard(RenderStandard)` | §8.5a |
@@ -1979,7 +1980,9 @@ as-is). Palette (decision 199, `pub const`s): inserted → `/Highlight`
 `/Caret` `DELETED_COLOR` (red) at the change's `anchor`. Each mark's note
 (`/Contents`): `Inserted: …`, `Replaced. Was: <old>`, `Deleted: <old>`,
 `Formatting changed: …`. One annotation per change **per page it touches**;
-each is its own undo entry.
+the whole call, summary page included, is **ONE undo entry**,
+`CommandKind::MarkComparison` (`Pass 646.4`, request G229). At full depth it
+evicts one old entry, not one per mark. Do not `coalesce_last` after it.
 
 - `ResultOptions` (`#[non_exhaustive]`): `with_summary_page(bool)` (default
   **on**: a text page inserted before page 1 with counts and the colour key,
@@ -2012,6 +2015,16 @@ default user space (`pdfcer_render::visual_compare`, `03-capabilities.md`
   the marks slice). Only `ResultOptions::author` is read.
 - **Order:** call it **before** `mark_changes` when that inserts a summary
   page, which shifts every page index by one.
+- ONE undo entry, `CommandKind::MarkComparison`, as `mark_changes`.
+
+**Both at once (`Pass 646.4`)** — `compare/mark_all.rs`.
+`compare::mark_comparison(&mut EditSession, Option<&[RegionMark]>,
+&CompareReport, &ResultOptions) -> Result<ComparisonMarks, ResultError>`
+runs `mark_regions` (when given) then `mark_changes`, in that order, as
+**ONE** undo entry, `CommandKind::MarkComparison` — one Ctrl+Z removes every
+mark and the summary page. `ComparisonMarks { regions: Option<RegionReport>,
+changes: ResultReport }` (`#[non_exhaustive]`). Errors as `mark_changes`; a
+`Summary` error still leaves the marks, in the one entry.
 
 CLI: `pdfcer compare OLD NEW [--pages-old] [--pages-new] [--formatting]
 [--artifacts] [--json] [--exit-code] [--output RESULT.pdf [--no-summary]

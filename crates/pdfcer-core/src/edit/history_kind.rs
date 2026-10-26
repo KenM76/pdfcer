@@ -333,4 +333,5 @@ kind_codec! {
     EmbedFonts { count: usize },
     ImportEditable,
     Optimize { count: usize },
+    MarkComparison,
 }

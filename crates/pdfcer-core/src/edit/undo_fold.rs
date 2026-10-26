@@ -14,6 +14,9 @@ impl EditSession {
     /// declined; disclose that the run takes more than one undo.
     /// `count == 0` returns `true`.
     pub fn coalesce_last_same(&mut self, count: usize, kind: CommandKind) -> bool {
+        if self.in_undo_group() {
+            return true;
+        }
         if self.undo.len() < count || self.undo_kinds().take(count).any(|k| k != kind) {
             return false;
         }

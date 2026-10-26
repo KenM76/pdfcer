@@ -6,7 +6,7 @@
 //! user space; this module only authors them.
 
 use crate::annot_author::{Color, MarkupSpec};
-use crate::edit::{EditError, EditSession, MarkupNote, MarkupOptions};
+use crate::edit::{CommandKind, EditError, EditSession, MarkupNote, MarkupOptions};
 use pdfcer_model::page_tree::Rect;
 
 use super::result::{INSERTED_COLOR, REPLACED_COLOR, ResultError, ResultOptions, Unmarked};
@@ -84,7 +84,9 @@ pub struct RegionReport {
 /// Call it **before** [`super::mark_changes`] when that inserts a summary
 /// page, because the summary page shifts every page index by one.
 ///
-/// Each mark is its own undo entry. A mark that cannot be authored is
+/// Every mark together is ONE undo entry of kind
+/// [`CommandKind::MarkComparison`]. To mark regions and changes as one entry,
+/// call [`super::mark_comparison`]. A mark that cannot be authored is
 /// listed in [`RegionReport::unmarked`] rather than failing the rest.
 ///
 /// # Errors
@@ -92,6 +94,16 @@ pub struct RegionReport {
 /// [`ResultError::Pages`] when the page tree cannot be read, before
 /// anything is authored.
 pub fn mark_regions(
+    session: &mut EditSession,
+    marks: &[RegionMark],
+    options: &ResultOptions,
+) -> Result<RegionReport, ResultError> {
+    session.grouped(CommandKind::MarkComparison, |s| {
+        mark_regions_ungrouped(s, marks, options)
+    })
+}
+
+fn mark_regions_ungrouped(
     session: &mut EditSession,
     marks: &[RegionMark],
     options: &ResultOptions,

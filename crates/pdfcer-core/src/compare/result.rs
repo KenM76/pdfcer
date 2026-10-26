@@ -8,7 +8,7 @@
 //! used to be. Each mark carries a note: the old text, or what changed.
 
 use crate::annot_author::{CaretSpec, Color, MarkupSpec, Quad, TextMarkupKind};
-use crate::edit::{EditError, EditSession, MarkupNote, MarkupOptions};
+use crate::edit::{CommandKind, EditError, EditSession, MarkupNote, MarkupOptions};
 use crate::pageops::InsertPosition;
 use crate::text_edit::{PageTemplate, PlaceTextError, PlaceTextReport};
 use pdfcer_model::page_tree::Rect;
@@ -124,8 +124,9 @@ pub enum ResultError {
 /// Mark `report`'s changes on `session`, which must hold the NEW document
 /// the report was computed against (page indices are taken as they are).
 ///
-/// Every mark is its own undo entry; the summary page is one more. A change
-/// that cannot be marked is listed in [`ResultReport::unmarked`] rather than
+/// Everything this call authors, the summary page included, is ONE undo
+/// entry of kind [`CommandKind::MarkComparison`]; nothing authored, no entry.
+/// A change that cannot be marked is listed in [`ResultReport::unmarked`] rather than
 /// failing the rest.
 ///
 /// # Errors
@@ -134,6 +135,16 @@ pub enum ResultError {
 /// anything is authored; [`ResultError::Summary`] when the summary page
 /// fails, after the marks.
 pub fn mark_changes(
+    session: &mut EditSession,
+    report: &CompareReport,
+    options: &ResultOptions,
+) -> Result<ResultReport, ResultError> {
+    session.grouped(CommandKind::MarkComparison, |s| {
+        mark_changes_ungrouped(s, report, options)
+    })
+}
+
+fn mark_changes_ungrouped(
     session: &mut EditSession,
     report: &CompareReport,
     options: &ResultOptions,
