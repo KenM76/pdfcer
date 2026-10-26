@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-26 (1249th filing) — `Pass 646.9` (`X004`) scoped, IN PROGRESS; decision 201
+
+**Filed (docs only; no shell here, nothing checked from here):**
+- `Pass 646.9`: `q`/`Q` inside a text object save and restore Tm/Tlm, across the six pen-tracking routes. Requester: the operator (crates consumer). Withdraws `X002` item 1, which `Pass 646.3` (`5bdc277d`) pinned with tests; those tests are to be inverted. Detail in ROADMAP *Next up*.
+
+**Decisions made:** decision `201` (`docs/decisions/201-q-q-inside-bt-restores-text-matrices.md`, ARCHITECTURE section 12): restore on every PDF version, no setting. Ledgers checked from disk before filing: highest decision file was `200`, no `Pass 646.9` or `R263` defined, so the premises held.
+
+**Findings:** one measured deviation from the request's wording: in the font-change fixture SECRET now draws over the 24 pt B, so search-redact of SECRET removes the B too; the test compares subject to twin and leaves "AAAA". The errata clause text is as quoted by the requester; not re-read from the spec RAG here.
+
+**FEATURES.md:** unchanged (behaviour fix; no row names the pen-after-`Q` behaviour).
+
+**Sweep (rule 11), owed to the engineer, not edited:** the claim "the pen survives `Q`" changes meaning when this ships. Survivors to look for: doc comments in the six routes' files; the `stray_q_and_text_pen.rs` tests in core and render (to be inverted); the `Pass 646.3` Shipped entry's X002 sentence (dated history, leave).
+
+**For next session:** ship `Pass 646.9`, then the completion filing with the hash. Next free `Pass 646.10`, decision `202`, `R263`; next filing 1250th.
+
 ## 2026-10-26 (1248th filing) — `v0.99.0` PUBLISHED, tag on `14cc5ee6`
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

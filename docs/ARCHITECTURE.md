@@ -13536,3 +13536,13 @@ Full record: `docs/decisions/200-visual-comparison-marks-and-rules.md`. Recorded
 **Why.** Acrobat gives coarse whole-sheet rectangles, automatic matching only in its scanned/drawings preset, no sensitivity control and no mapping override; the Acrobat RAG requires a stated rule for differing sizes. Every inferred pairing is disclosed, never silent.
 
 **Body-section effect.** None. **Decision ceiling.** Fills `200`; next free decision `201`. **New standing rule.** None; `R263` stays next free.
+
+### 2026-10-26 (1249th filing) — decision 201: `q`/`Q` inside a text object restore Tm and Tlm
+
+Full record: `docs/decisions/201-q-q-inside-bt-restores-text-matrices.md`. Recorded at `Pass 646.9` (`X004`), scoped, not yet shipped.
+
+**Decides.** Inside a text object, `q`/`Q` push and pop Tm and Tlm with the graphics state, in render, extraction, redaction measurement, decomposition and the edit walker; restored only into the same text object (BT serial); a `q` outside BT restores no pen. Every PDF version, no setting. Withdraws item 1 of `X002` (pinned by `Pass 646.3`).
+
+**Why.** ISO 32000-2:2020 errata (`pdf-issues` #368) append this to section 9.4.1. The text is 2.0-only, but `q`/`Q` inside BT is forbidden in 1.x (section 8.2), so conforming 1.x files never reach it; non-conforming ones restore in Acrobat Reader and Chrome, so there is no second answer to offer as a setting.
+
+**Body-section effect.** None. **Decision ceiling.** Fills `201`; next free decision `202`. **New standing rule.** None; `R263` stays next free.
