@@ -28,7 +28,8 @@
 //! |---|---|---|
 //! | solid fill, alpha 255, `Normal` | `CREATEBRUSHINDIRECT` + path bracket + `FILLPATH` | `ops` |
 //! | solid stroke, alpha 255, `Normal` | `EXTCREATEPEN` (`PS_GEOMETRIC`, caps/joins) + bracket + `STROKEPATH`; dash **pre-applied** to the geometry (LibreOffice renders `PS_USERSTYLE` solid) | `ops`, `dashed_strokes_pre_applied` |
-//! | a solid op with alpha < 255, or a non-`Normal` blend, or a `Gradient`/`Image` brush | the op is REPLAYED into a transparent scratch, cropped, and written as `EMR_ALPHABLEND` (premultiplied BGRA, the GDI contract) | `rasters_embedded` + one of `ops_rasterised_for_alpha` / `blend_modes_dropped` / `gradients_rasterised` / `images_embedded` |
+//! | a top-level op or layer with a non-`Normal` blend | first composited against the ops under it and replaced by the resulting pixels (`blend_flatten`), then written as below | `blends_flattened` |
+//! | a solid op with alpha < 255, or a non-`Normal` blend inside a group, or a `Gradient`/`Image` brush | the op is REPLAYED into a transparent scratch, cropped, and written as `EMR_ALPHABLEND` (premultiplied BGRA, the GDI contract) | `rasters_embedded` + one of `ops_rasterised_for_alpha` / `blend_modes_dropped` / `gradients_rasterised` / `images_embedded` |
 //! | `Op::Layer` (group opacity, blend, soft mask) | the whole layer replayed, its mask and opacity applied, one `EMR_ALPHABLEND`; the layer's blend mode against the page is dropped to `Normal` | `layers_rasterised`, `blend_modes_dropped` |
 //! | a clip | `SAVEDC`, one path bracket + `SELECTCLIPPATH RGN_AND` per ancestor, `RESTOREDC` when the clip changes | — |
 //! | text, [`EmfText::Outlines`] (default) | glyph outlines, like every other fill | — |

@@ -1169,9 +1169,12 @@ pub(crate) fn cmd_copy_page(args: CopyPageArgs<'_>) -> u8 {
     let mut size = (0u32, 0u32);
 
     if want_svg {
+        // The clipboard's SVG is pasted into Word, which ignores
+        // `mix-blend-mode`.
         let svg_options = pdfcer_render::svg::SvgOptions::default()
             .with_raster_dpi(dpi)
-            .with_background(background);
+            .with_background(background)
+            .with_flatten_blends(true);
         match pdfcer_render::svg::export_svg(&doc, page, &render_options, &svg_options) {
             Ok(export) => {
                 size = (
@@ -1282,7 +1285,7 @@ pub(crate) fn cmd_copy_page(args: CopyPageArgs<'_>) -> u8 {
             "svg: ops={} images={} dashed_pre_applied={} blend_modes={} \
 shadings_rasterised={} soft_masks_kept={} overprint_approximated={} \
 nonseparable_approximated={} non_isolated_isolated={} colorant_buffer_on_screen={} exact={} \
-shadings_as_gradients={}",
+shadings_as_gradients={} blends_flattened={}",
             o.ops,
             o.images_embedded,
             o.dashed_strokes_pre_applied,
@@ -1294,7 +1297,8 @@ shadings_as_gradients={}",
             t.non_isolated_groups_isolated,
             t.colorant_buffer_on_screen,
             u8::from(t.is_exact()),
-            t.shadings_as_gradients
+            t.shadings_as_gradients,
+            o.blends_flattened
         );
         eprintln!(
             "pdfcer: note: the vector payload carries text as glyph OUTLINES; a paste into Word or Inkscape is editable as shapes, not as words"
@@ -1340,12 +1344,13 @@ pub(crate) fn print_emf_disclosure(
     keep_text: bool,
 ) {
     println!(
-        "emf: ops={} rasters={} alpha_rasterised={} blend_modes_dropped={} gradients_rasterised={} \
+        "emf: ops={} rasters={} alpha_rasterised={} blend_modes_dropped={} blends_flattened={} gradients_rasterised={} \
 images={} layers_rasterised={} dashed_pre_applied={} nonzero_multi_subpath={}",
         o.ops,
         o.rasters_embedded,
         o.ops_rasterised_for_alpha,
         o.blend_modes_dropped,
+        o.blends_flattened,
         o.gradients_rasterised,
         o.images_embedded,
         o.layers_rasterised,
@@ -1434,6 +1439,8 @@ pub(crate) struct ExportImageArgs<'a> {
     pub(crate) print_state: bool,
     /// Outlines or kept text (SVG only).
     pub(crate) svg_text: SvgTextArg,
+    /// `--flatten-blends` (SVG only).
+    pub(crate) flatten_blends: bool,
     /// Outlines or kept text (EMF only).
     pub(crate) emf_text: SvgTextArg,
     /// `--no-overprint-preview`, `--separation-preview`, `--hide-ink`.
@@ -1490,6 +1497,7 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
         hide_layers,
         print_state,
         svg_text,
+        flatten_blends,
         emf_text,
         preview,
     } = args;
@@ -1507,6 +1515,13 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
     if emf_text == SvgTextArg::Keep && format != ImageFormatArg::Emf {
         eprintln!(
             "pdfcer: {}: --emf-text keep applies to --format emf only",
+            input.display()
+        );
+        return exit::RUNTIME_ERROR;
+    }
+    if flatten_blends && format != ImageFormatArg::Svg {
+        eprintln!(
+            "pdfcer: {}: --flatten-blends applies to --format svg only (EMF always flattens)",
             input.display()
         );
         return exit::RUNTIME_ERROR;
@@ -1701,7 +1716,8 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
             let svg_options = pdfcer_render::svg::SvgOptions::default()
                 .with_raster_dpi(dpi)
                 .with_background(if transparent { None } else { background })
-                .with_text(svg_text.into());
+                .with_text(svg_text.into())
+                .with_flatten_blends(flatten_blends);
             let export =
                 match pdfcer_render::svg::export_svg(&doc, page, &render_options, &svg_options) {
                     Ok(e) => e,
@@ -1741,7 +1757,7 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
                 "svg: ops={} images={} dashed_pre_applied={} blend_modes={} \
 shadings_rasterised={} soft_masks_kept={} overprint_approximated={} \
 nonseparable_approximated={} non_isolated_isolated={} colorant_buffer_on_screen={} exact={} \
-shadings_as_gradients={}",
+shadings_as_gradients={} blends_flattened={}",
                 o.ops,
                 o.images_embedded,
                 o.dashed_strokes_pre_applied,
@@ -1753,7 +1769,8 @@ shadings_as_gradients={}",
                 t.non_isolated_groups_isolated,
                 t.colorant_buffer_on_screen,
                 u8::from(t.is_exact()),
-                t.shadings_as_gradients
+                t.shadings_as_gradients,
+                o.blends_flattened
             );
             // Rule 4 in prose, once per page: what is inferred or
             // approximated in the file, by name.

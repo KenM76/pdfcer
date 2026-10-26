@@ -55,7 +55,7 @@ fn multipage_pdf(contents: &[&str]) -> Vec<u8> {
             2,
             format!(
                 "<< /Type /Pages /Kids [{}] /Count {} /MediaBox [0 0 60 60] \
-                 /Resources << /ExtGState << /GS0 << /ca 0.5 >> >> >> >>",
+                 /Resources << /ExtGState << /GS0 << /ca 0.5 >> /GS1 << /BM /Multiply >> >> >> >>",
                 kids.join(" "),
                 contents.len()
             ),
@@ -80,6 +80,8 @@ fn multipage_pdf(contents: &[&str]) -> Vec<u8> {
 }
 
 const HALF_RED_SQUARE: &str = "/GS0 gs 1 0 0 rg 20 20 20 20 re f";
+/// Black ink under a yellow `/Multiply` mark: a highlight over text.
+const HIGHLIGHT: &str = "0 g 20 20 20 20 re f /GS1 gs 1 1 0 rg 10 10 40 40 re f";
 
 struct TempDir(PathBuf);
 
@@ -425,7 +427,7 @@ fn svg_is_written_with_its_own_disclosure_line() {
     );
     assert!(lines[1].contains(" exact=1 "), "{}", lines[1]);
     assert!(
-        lines[1].ends_with(" shadings_as_gradients=0"),
+        lines[1].ends_with(" shadings_as_gradients=0 blends_flattened=0"),
         "{}",
         lines[1]
     );
@@ -516,4 +518,58 @@ fn render_flags_reach_the_engine() {
         "{}",
         stdout(&without)
     );
+}
+
+#[test]
+fn flatten_blends_bakes_a_highlight_into_the_svg() {
+    let dir = TempDir::new("export-image-flatten");
+    let input = dir.write("one.pdf", &multipage_pdf(&[HIGHLIGHT]));
+    let out = dir.join("one.svg");
+    let args = |extra: &[&'static str]| {
+        let mut a = vec![
+            "export-image".to_owned(),
+            input.to_str().unwrap().to_owned(),
+            "-o".to_owned(),
+            out.to_str().unwrap().to_owned(),
+        ];
+        a.extend(extra.iter().map(|s| (*s).to_owned()));
+        a
+    };
+    let plain = Command::new(BIN)
+        .args(args(&["--format", "svg"]))
+        .output()
+        .unwrap();
+    assert!(
+        stdout(&plain).contains(" blends_flattened=0"),
+        "{}",
+        stdout(&plain)
+    );
+    assert!(
+        std::fs::read_to_string(&out)
+            .unwrap()
+            .contains("mix-blend-mode")
+    );
+
+    let flat = Command::new(BIN)
+        .args(args(&["--format", "svg", "--flatten-blends"]))
+        .output()
+        .unwrap();
+    assert_eq!(flat.status.code(), Some(0), "stderr: {}", stderr(&flat));
+    assert!(
+        stdout(&flat).contains(" blends_flattened=1"),
+        "{}",
+        stdout(&flat)
+    );
+    assert!(
+        !std::fs::read_to_string(&out)
+            .unwrap()
+            .contains("mix-blend-mode")
+    );
+
+    let png = Command::new(BIN)
+        .args(args(&["--format", "png", "--flatten-blends"]))
+        .output()
+        .unwrap();
+    assert_ne!(png.status.code(), Some(0));
+    assert!(stderr(&png).contains("--flatten-blends applies to --format svg only"));
 }

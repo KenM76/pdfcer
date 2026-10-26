@@ -132,7 +132,7 @@
 //!               raster_compared=<0|1> raster_identical=<0|1> delinearized=<0|1> \
 //!               promoted=<N>
 //! emf:          emf: ops=<n> rasters=<n> alpha_rasterised=<n> blend_modes_dropped=<n> \
-//!               gradients_rasterised=<n> images=<n> layers_rasterised=<n> \
+//!               blends_flattened=<n> gradients_rasterised=<n> images=<n> layers_rasterised=<n> \
 //!               dashed_pre_applied=<n> nonzero_multi_subpath=<n>   (after an EMF export/copy)
 //! copy-page:    copied <input> page <N> -> clipboard formats=<a,b,..> <W>x<H> \
 //!               dpi=<D> background=<#rrggbb|none>; <render-page's counters>

@@ -5317,6 +5317,13 @@ pub(crate) enum Command {
         /// substitute font.
         #[arg(long, value_enum, default_value_t = SvgTextArg::Outlines)]
         svg_text: SvgTextArg,
+        /// SVG only: write each blended mark (a highlight) as the pixels it
+        /// makes over what lies under it, for a program that ignores SVG
+        /// blend modes (Word). Without it a highlight pasted into Word
+        /// hides the text it marks. Browsers and Inkscape blend natively,
+        /// so it is off by default. EMF always does this.
+        #[arg(long)]
+        flatten_blends: bool,
         /// EMF only: how text is written. `outlines` (default) draws every
         /// glyph as a path. `keep` writes each line it can as real text in
         /// the INSTALLED font of the same name, each character pinned to
