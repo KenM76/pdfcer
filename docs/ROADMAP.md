@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `5bdc277d` `Pass 646.3` SCOPED and SHIPPED, 2026-10-26: form stray `Q` isolated in text extraction; search-redact no longer over-redacts neighbours (1241st filing)
+
+Engineer-reported; no shell here, nothing checked from here. Code commit `5bdc277d`, on main, unpushed at filing. Answers requests X003 and X002 from the operator (crates consumer). Reasoning is in the commit message.
+- **X003 (fix, `pdfcer-text`):** a form XObject's surplus `Q` popped the saved graphics states of the page that invoked it, so later page text sat under the wrong CTM. The extraction walk now keeps a stack floor per form (ISO 32000-2 sections 8.4.2, 8.10.1): a `Q` never pops below it, and the CTM and text-state stacks are truncated to it when the form exits. Sabotage check: floor forced to 0 fails both stray-`Q` tests.
+- **New defect found while writing X002 tests (fix, `pdfcer-core`):** search-and-redact (`mark_redactions_by_search`, hence the CLI's search redaction) removed one extra character on each side of the match ("XXSECRETYY" became "XYY"). The search quad began exactly where the previous glyph's advance ends and redaction apply deliberately counts a touching box as a hit. This was a real over-redaction defect. Only the quad a search authors as a `/Redact` mark is inset, along the writing direction, by 1% of its height (new `redact_quad_inset.rs`); `find_text` quads are unchanged.
+- **X002 (tests only):** core `stray_q_and_text_pen.rs` (glyph positions vs a twin without q/Q: stray `Q` outside BT, inside BT, pen after `Q` inside BT following a font change, `Td` made inside q/Q, mid-word neighbour regression; search-redact of SECRET removes exactly SECRET); render `stray_q_and_text_pen.rs` (same fixtures render pixel-equal); core `redaction_residual_carriers.rs` (default `ResidualScope` scrubs outline `/Title`, nested UTF-16 outline title, XMP `dc:title` in `rdf:Alt` and plain form, and the `/Contents` of a non-overlapping annotation; a `MarkedOnly` sabotage fails); core `differences_ligature_extracts.rs` (`/Differences [128 /fi]` with no ToUnicode extracts as U+FB01, chosen because it is lossless; NFKC is the consumer's choice).
+- **Verified (engineer):** core integration 3079 passed, 2 ignored; render integration 543 passed; `pdfcer-text` all green. fmt clean; workspace clippy `-D warnings` clean incl. cli `--no-default-features`; structure gate clean (565 baseline, none new). No manifest change, so `cargo tree` unaffected. No public API change.
+- **Delivers:** core yes; cli yes (redact-by-search uses the same path); gui inherits through core (separate project, `pdfcer-gui`). FEATURES: one sentence each on the text-extraction row and the mark-redactions-by-search row; boxes unchanged.
+- **Sweep (rule 11):** no counter or capability changed meaning; none owed. Nothing minted; next free `Pass 646.4`, decision `201`, `R263`; next filing 1242nd.
+
 ### `a4bff89a` `Pass 646.2` SCOPED and SHIPPED, 2026-10-26: redaction overlay trimmed to the page (1240th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Code commit `a4bff89a` on `74085dad`. Reasoning is in the commit message.
@@ -23918,6 +23928,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
+
+(1241st filing: `Pass 646.3` (form stray `Q` isolation; search-redact neighbour over-redaction fix; requests X003, X002) scoped and SHIPPED on `5bdc277d`, see *Shipped*. Nothing minted; next free `Pass 646.4`, decision `201`, `R263`; next filing 1242nd. Unreleased since `v0.98.0`.)
 
 (1240th filing: `Pass 646.2` (redaction overlay trimmed to the page) scoped and SHIPPED on `a4bff89a`, see *Shipped*. Nothing minted; next free `Pass 646.3`, decision `201`, `R263`; next filing 1241st. Unreleased since `v0.98.0`.)
 

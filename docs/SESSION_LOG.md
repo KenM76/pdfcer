@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-26 (1241st filing) — `5bdc277d` `Pass 646.3` SCOPED and SHIPPED: form stray `Q` isolation; search-redact over-redaction fix
+
+**Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.3`, answering requests X003 and X002 (operator, crates consumer).
+- X003: a form XObject's surplus `Q` no longer pops the invoking page's saved states in text extraction (per-form stack floor; ISO 32000-2 8.4.2, 8.10.1).
+- Found while writing X002 tests: search-and-redact removed one extra character each side of the match ("XXSECRETYY" became "XYY"), a real over-redaction defect. Fixed by insetting only the search-authored `/Redact` quad by 1% of its height along the writing direction; `find_text` quads unchanged.
+- X002 tests: stray-Q/pen fixtures (core + render pixel-equal), residual carriers under default `ResidualScope`, `/Differences /fi` extracts as U+FB01 (lossless by choice).
+- Tests: core integration 3079 passed / 2 ignored; render 543; `pdfcer-text` green. fmt, clippy, structure gate clean. No manifest or public API change.
+- Full entry: ROADMAP *Shipped*, top.
+
+**Decisions made:** none; nothing minted.
+
+**FEATURES.md:** one sentence added to the text-extraction row and the mark-redactions-by-search row; boxes unchanged.
+
+**Still in flight:** code commit unpushed at filing; unreleased since `v0.98.0`.
+
+**For next session:** next free `Pass 646.4`, decision `201`, `R263`; next filing 1242nd. `docs/NEXT_SESSION.md` not touched (engineer-owned).
+
 ## 2026-10-26 (1240th filing) — `a4bff89a` `Pass 646.2` SCOPED and SHIPPED: redaction overlay trimmed to the page
 
 **Shipped (docs only; engineer-reported, no shell here, nothing checked from here):**
