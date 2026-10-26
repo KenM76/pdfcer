@@ -449,6 +449,8 @@ const NOT_IN_PLACE: &[&str] = &[
     "render-page",
     "round-trip",
     "stamp-pack",
+    // Writes the clipboard or a text/HTML/RTF file, never a PDF.
+    "copy-text",
     // The input is a text file, not a PDF.
     "place-text",
     // Declares its own `--in-place`: replacing the input is skipped when the

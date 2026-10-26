@@ -620,6 +620,8 @@ pub struct RedactionReport {
 }
 
 impl RedactionReport {
+    /// Add a disclosure note once; the same fact from several pages or
+    /// streams is reported a single time.
     pub(crate) fn note(&mut self, text: String) {
         if !self.notes.contains(&text) {
             self.notes.push(text);

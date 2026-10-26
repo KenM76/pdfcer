@@ -14,7 +14,7 @@ use pdfcer_core::text_extract::{self, ExtractOptions};
 pub(crate) enum RichFormat {
     /// UTF-8 HTML with inline styles.
     Html,
-    /// HTML behind the Windows `CF_HTML` clipboard header.
+    /// HTML behind the Windows CF_HTML clipboard header.
     CfHtml,
     /// Rich Text Format.
     Rtf,
