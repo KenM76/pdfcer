@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-26 (1248th filing) — `v0.99.0` PUBLISHED, tag on `14cc5ee6`
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- Annotated tag `v0.99.0` on `14cc5ee6` (the 1247th filing); remote tag object `991d4a31`, peeled to `14cc5ee6`. CI GREEN at the tagged commit; origin/main contains it.
+- GitHub release: 8 assets ("PASS v0.99.0: 8 asset(s) uploaded at their local sizes"): `pdfcer-v0.99.0-windows-x64.zip` (27,640,675 bytes, sha256 `22a086e69a04034f6da8f471178aa2a64b5576c4364a6b66d054af3706b18880`), three OCR add-on zips (ocrcer, ocrs, tesseract) from this build, and a `.sha256` per zip.
+- Build `D:\builds\pdfcer-20261026-1752-14cc5ee`, not dirty. Fresh-folder smoke OK: `--version` 0.99.0 / revision `v0.99.0`; `render-page` rendered a fixture PNG.
+- OneDrive slot `pdfcer2` written (6 items, 74,488,649 bytes); `pdfcer1` keeps 0.98.0. Next release writes `pdfcer1`.
+- `verify-release.py v0.99.0`: all checks passed except "working tree clean" (uncommitted `.claude/agent-memory/*`, deliberate).
+- pdfcer-gui notified: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-10-26_v0.99.0_released.md`.
+- Released in v0.99.0: `a4bff89a` (646.2), `5bdc277d` (646.3), `c861eb80` (646.4, G229), `17aa278d` (637.0 slice, X001), `0d1655cd` (646.5), `540b00ef` + `2d1329d5` (646.6), `11a70fea` (646.7), `16c530be`, `6a2ee46f` (646.8, G230). "Unreleased" wording in earlier entries is dated history.
+
+**Decisions made:** none; nothing minted.
+
+**FEATURES.md:** unchanged; grep found no "unreleased" row.
+
+**Still in flight:** crates.io publish of pdfcer-color/-model/-pkix is authorized by the operator but PENDING: the permission rule `Bash(cargo publish:*)` denies the engineer; the operator must run it or lift the rule. It would now publish 0.99.0.
+
+**For next session:** next free `Pass 646.9`, decision `201`, `R263`; next filing 1249th. Next release slot `pdfcer1`.
+
+Amends the 1247th entry below, which says "NOT yet published": it is now published.
+
 ## 2026-10-26 (1247th filing) — `v0.99.0` release prep, version bump `573ae886`; NOT yet published
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

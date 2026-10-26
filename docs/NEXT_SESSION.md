@@ -5,7 +5,9 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-26. **Work is paused except operator bug reports** (Ken paused it 2026-10-24; on 2026-10-26 he reported off-sheet redaction leaving black boxes). That bug is fixed: Pass 646.2 `a4bff89a`, filed 1240th; GUI noticed in `open/notice_2026-10-26_offpage_redaction_leaves_no_black_boxes.md`. It is UNRELEASED: v0.98.0 (tag `2f4badbb`, slot pdfcer1) is the latest release, and the next release writes pdfcer2. Do not restart the /loop. Next filing is the 1241st, next Pass 646.3, decision 201, R263. Decision 191 governs the size-reduction arc.
+**Written:** 2026-10-26. **Work resumed** ("Continue", 2026-10-26). An active loop is running, `/loop 8 minutes Check feature requests folder and implement any changes.`, re-armed with ScheduleWakeup. **v0.99.0 is the latest release** (tag on `14cc5ee6`, slot pdfcer2, GUI noticed in `open/notice_2026-10-26_v0.99.0_released.md`). It ships Passes 646.2–646.8 and 637.0. **The next release writes pdfcer1.** Next filing is the 1249th, next Pass 646.9, decision 201, R263. Decision 191 governs the size-reduction arc.
+
+**Owed: crates.io publish.** Ken authorized it ("you can now publish to crates.io"), but `.claude/settings.json` denies `Bash(cargo publish:*)`. Do not edit the settings or work around them. Ken runs `cargo publish -p pdfcer-color`, then `-p pdfcer-model`, then `-p pdfcer-pkix` (they would publish as 0.99.0), or he lifts the rule. After the publish, write the X001 reply to the crates consumer.
 
 ## State
 
@@ -37,12 +39,13 @@ failure classes, probe recipes, release recipe detail) is in git:
   request done. `635.2` (extraction-level absence proof) shipped `202e7b13`;
   the 635.x track is complete.
 - G214-G217 replies are already on the channel (the earlier "owed" note was stale).
-- **Release:** v0.98.0 is published (tag on `2f4badbb`, 8 assets, CI green at
-  the tag; OneDrive `pdfcer1`; `pdfcer2` keeps 0.97.0; GUI notified,
-  `open/notice_2026-10-24_v0.98.0_released.md`). Assets: reuse the previous
-  release's ocrcer/ocrs add-on zips, take tesseract from the new build, and
-  zip the build under a top folder `pdfcer-vX.Y.Z/` (scratchpad `rezip.py`
-  shape). **The next release writes `pdfcer2`.** Before a push that adds a field or
+- **Release:** v0.99.0 is published (tag on `14cc5ee6`, 8 assets, CI green at
+  the tag; OneDrive `pdfcer2`; `pdfcer1` keeps 0.98.0). Assets: the build
+  writes all three OCR add-on zips beside its folder
+  (`<build>-ocr-addon-<name>.zip`). Copy them in as `ocr-addon-<name>.zip`,
+  and zip the build under a top folder `pdfcer-vX.Y.Z/`. **The next release
+  writes `pdfcer1`.** **The tag push can print nothing.** Check it with
+  `git ls-remote origin 'refs/tags/vX^{}'`, which must show the filing commit. Before a push that adds a field or
   item read only under a feature, also run `cargo clippy -p pdfcer-cli
   --no-default-features --all-targets -- -D warnings` (CI runs it; v0.95.0
   went out red on it). pdfium render-parity

@@ -112,6 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.99.0` PUBLISHED: tag on `14cc5ee6` (the 1247th filing), 2026-10-26 (1248th filing)
+
+Engineer-reported (the engineer ran a shell and verified); no shell here, nothing checked from here.
+- **Tag:** annotated `v0.99.0` on `14cc5ee6` ("docs: file v0.99.0 release prep, bump 573ae886"), the 1247th filing commit. `git ls-remote` shows remote tag object `991d4a31`, peeled to `14cc5ee6`.
+- **CI:** GREEN at the tagged commit; origin/main contains it.
+- **Portable build:** `D:\builds\pdfcer-20261026-1752-14cc5ee` (not dirty); `pdfcer --version` reports 0.99.0, revision `v0.99.0`.
+- **GitHub release** "pdfcer v0.99.0": `gh-release.py` reported "PASS v0.99.0: 8 asset(s) uploaded at their local sizes". Assets: `pdfcer-v0.99.0-windows-x64.zip` (27,640,675 bytes, sha256 `22a086e69a04034f6da8f471178aa2a64b5576c4364a6b66d054af3706b18880`); `ocr-addon-ocrcer.zip`, `ocr-addon-ocrs.zip`, `ocr-addon-tesseract.zip`, all taken from this build; a `.sha256` for each of the four zips.
+- **Fresh-folder smoke, OK:** unzipped to a new folder; `pdfcer --version` printed `0.99.0` (revision `v0.99.0`); `render-page` rendered a fixture PNG.
+- **OneDrive:** deployed to slot `pdfcer2` (6 items, 74,488,649 bytes); `pdfcer1` keeps 0.98.0. **The next release writes `pdfcer1`.**
+- **`verify-release.py` v0.99.0:** every check passed (CI GREEN at the tagged commit, tag pushed, origin/main contains it) except "working tree clean", which failed only on the deliberately uncommitted `.claude/agent-memory/*` files (same as prior releases).
+- **Carries since `v0.98.0`** (all already filed, now RELEASED in v0.99.0): `a4bff89a` (`Pass 646.2`), `5bdc277d` (`646.3`), `c861eb80` (`646.4`, `G229`), `17aa278d` (`Pass 637.0` slice, `X001`), `0d1655cd` (`646.5`), `540b00ef` + `2d1329d5` (`646.6`), `11a70fea` (`646.7`), `16c530be` (test follow-up), `6a2ee46f` (`646.8`, `G230`). Earlier entries calling these "unreleased" or "ships in the next release" are dated history; they are released as of v0.99.0.
+- **pdfcer-gui notified:** `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-10-26_v0.99.0_released.md`.
+- **PENDING, not done:** the operator authorized a crates.io publish of `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix`. The project permission rule `Bash(cargo publish:*)` denies the engineer that command, so it waits on the operator (run it himself, or lift the rule). It would now publish 0.99.0.
+- **FEATURES:** no change; no row says "unreleased" for these Passes (grep-checked). Nothing minted; next free `Pass 646.9`, decision `201`, `R263`; next filing 1249th.
+- Amends the 1247th banner below, which says "NOT yet published": it is now published.
+
 ### `v0.99.0` — release prep, version bump `573ae886` (`chore`), 2026-10-26 (1247th filing); NOT yet published
 
 Engineer-reported; no shell here, nothing checked from here. Same pattern as the v0.98.0 prep (1238th filing).
@@ -24003,6 +24019,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
+
+(1248th filing: `v0.99.0` PUBLISHED on `14cc5ee6`, see *Shipped*. Nothing minted; next free `Pass 646.9`, decision `201`, `R263`; next filing 1249th. Next release writes OneDrive slot `pdfcer1`. Nothing unreleased. crates.io publish of pdfcer-color/-model/-pkix PENDING on the operator.)
 
 (1247th filing: `v0.99.0` release prep, bump `573ae886`, NOT yet published, see *Shipped*. Nothing minted; next free `Pass 646.9`, decision `201`, `R263`; next filing 1248th. Next release slot `pdfcer2`.)
 
