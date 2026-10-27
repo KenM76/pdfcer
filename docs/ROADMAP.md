@@ -112,6 +112,31 @@ wherever it appears.*
 
 ## Shipped
 
+### `f3843690` `Pass 646.12` SHIPPED, 2026-10-26: decoration reads count the form XObjects they could not read (`G232`) (1253rd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `f3843690` (shared with `Pass 646.11`), on main, unreleased (since `v0.99.0`). Scoped and shipped in the same filing. Requester: pdfcer-gui via the FeatureRequests channel, `request_G232_page_decorations_counts_forms_it_skipped.md`; reply (outside the repo): `reply_G232_page_decorations_counts_forms_it_skipped_FIXED.md`. Reasoning is in the commit message.
+- **Rule 4 (fuzzy, never sneaky):** a form XObject whose underline/strikethrough could not be read is counted, not silently dropped.
+- **Core:** `PageDecorations::forms_unread: usize` = form invocations whose decorations were not read (unresolved, undecodable, or past `MAX_FORM_DEPTH`), taken from the form scan's `unresolved` + `depth_overflows` (the scan decodes exactly as `ContentStream::from_form`, so that loop's failures are already counted). `RichTextOutcome::decoration_forms_unread: usize` carries it (0 without decorations).
+- **CLI:** `copy-text` result line gains `decoration_forms_unread=`, plus a stderr note when non-zero.
+- **Tests:** `tests/rich_copy.rs` `a_form_whose_decorations_were_not_read_is_counted` (zeroing the count fails it); CLI `copy_text` test updated.
+- **Gates (engineer):** fmt and clippy clean; targeted tests green; `check-core-api-verbs` green; structure gate clean (565 baseline, none new); no manifest change so the `cargo tree` invariant is untouched. Full `tools/run-gates.sh` pending at filing time.
+- **core-api (same commit):** `01-reading-and-model.md` (`RichTextOutcome` row, CLI line), `02-editing-and-saving.md` (decoration read), `index.md` line counts.
+- **Delivers:** core yes; cli yes (`copy-text`); gui none (read-mode copy is not wired).
+- **FEATURES:** the "Copy text with its formatting and paragraphs" row text names the count; boxes unchanged.
+- Nothing minted; next free `Pass 646.13`, decision `203`, `R263`.
+
+### `f3843690` `Pass 646.11` SHIPPED, 2026-10-26: a comparison-marking error says whether anything was authored (`G231`) (1253rd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `f3843690` (shared with `Pass 646.12`), on main, unreleased. Scoped and shipped in the same filing. Requester: pdfcer-gui via the FeatureRequests channel, `request_G231_mark_comparison_error_says_what_was_authored.md`; reply (outside the repo): `reply_G231_mark_comparison_error_says_what_was_authored_FIXED.md`. Reasoning is in the commit message.
+- **Problem:** `ResultError::Pages` comes from either marking stage; from the second, region marks are already authored, so the bare error could not tell a caller whether the session had changed.
+- **Core (breaking signature):** `compare::mark_comparison` returns `Result<ComparisonMarks, Box<MarkComparisonError>>`. `MarkComparisonError { error: ResultError, regions: Option<RegionReport>, authored: bool }`, `#[non_exhaustive]`; `Display` is the inner error, `source()` continues at the inner source. `authored` is measured by new `pub(crate) EditSession::undo_top_serial()` (the undo top serial changed across the gesture). Boxed because of clippy `result_large_err`.
+- **Tests:** 2 unit tests in `compare/mark_all.rs`, 1 in `tests/compare_documents.rs` (first-stage failure gives `authored` false and no undo entry). Sabotage (inverting the check) fails all three.
+- **Gates (engineer):** as `Pass 646.12` (same commit): fmt, clippy, `check-core-api-verbs`, structure gate green; `cargo tree` unchanged; full `run-gates.sh` pending at filing time.
+- **core-api (same commit):** `01-reading-and-model.md` `mark_comparison` section.
+- **Delivers:** core yes; cli none (no in-repo caller of the new fields: `mark_comparison` is not called from `pdfcer-cli`, grep-checked over `crates/`, hits only in `pdfcer-core/src/compare/` and its test); gui none.
+- **FEATURES:** the "Annotated comparison result" row text names `MarkComparisonError.authored`; no box ticked.
+- Nothing minted; next free `Pass 646.13`, decision `203`, `R263`.
+
 ### `c33bd6b1` `Pass 646.10` SHIPPED, 2026-10-26: an additive colour entering a CMYK blending space separates through the calibrated-table inverse (`X005`) (1252nd filing)
 
 Engineer-reported; no shell here, nothing checked from here. Code-only commit `c33bd6b1`, plus `2fe75bb0` (doc comments in `cmyk_buffer.rs`/`cmyk_paint.rs` and core-api §11.3 naming the new items), on main, unreleased (since `v0.99.0`). Scoped at the 1251st filing; decision 202 (`docs/decisions/202-rgb-into-a-cmyk-blending-space-uses-the-calibrated-table-inverse.md`, amended this filing). Requester: the operator (crates consumer). Reply (outside the repo): `reply_X005_rgb_into_a_cmyk_blending_space_FIXED.md`. Reasoning is in the commit message.

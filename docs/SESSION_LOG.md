@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-26 (1253rd filing) — `Pass 646.11` (`G231`) and `Pass 646.12` (`G232`) SHIPPED on `f3843690`
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.11`: `compare::mark_comparison` now returns `Box<MarkComparisonError>` carrying `error`, `regions`, and `authored` (measured by undo-top-serial change). Core only; no CLI caller. 3 tests, sabotage-verified.
+- `Pass 646.12`: `PageDecorations::forms_unread` / `RichTextOutcome::decoration_forms_unread` count form XObjects whose decorations were not read; `copy-text` prints `decoration_forms_unread=` and a stderr note when non-zero. Core + cli. 1 core test plus the CLI test updated.
+- Both scoped and shipped in this filing; requests `request_G231_...` / `request_G232_...` from pdfcer-gui, replies written (names in the ROADMAP entries).
+
+**Decisions made:** none; no ARCHITECTURE section 12 entry (no invariant or crate boundary changed). `cargo tree` unchanged.
+
+**FEATURES.md:** "Annotated comparison result" row and "Copy text with its formatting" row text updated; no boxes changed (646.11 has no cli/gui caller).
+
+**Sweep (rule 11):** claims "a marking failure is just a `ResultError`" and "decoration misses are silent". Searched FEATURES for `compare`/`mark_comparison`/`decoration`; the two rows above were the only ones. Source doc comments and `docs/NEXT_SESSION.md` not read from here. Row 202 shows cli `[x]` yet says "the shell must adopt" `mark_comparison`; the CLI does not call it (grep over `crates/`), so the cli box there may be over-ticked: owed to the engineer to confirm, not changed.
+
+**Still in flight:** fmt/clippy/targeted tests green; full `tools/run-gates.sh` pending at filing time. Backup and remote state not checked from here.
+
+**For next session:** next free `Pass 646.13`, decision `203`, `R263`; next filing 1254th.
+
 ## 2026-10-26 (1252nd filing) — `Pass 646.10` (`X005`) SHIPPED on `c33bd6b1` (+ `2fe75bb0`, doc comments and core-api §11.3)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
