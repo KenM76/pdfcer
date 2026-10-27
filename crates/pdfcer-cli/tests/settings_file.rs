@@ -43,6 +43,20 @@ fn binary_in(dir: &Path) -> PathBuf {
     copy
 }
 
+/// `cmd.output()`, retried on Linux `ETXTBSY`: a parallel test's fork can
+/// still hold the write fd of the copy `binary_in` just made.
+fn output(cmd: &mut Command) -> Output {
+    for attempt in 1..6u64 {
+        match cmd.output() {
+            Err(e) if e.kind() == std::io::ErrorKind::ExecutableFileBusy => {
+                std::thread::sleep(std::time::Duration::from_millis(20 * attempt));
+            }
+            other => return other.unwrap(),
+        }
+    }
+    cmd.output().unwrap()
+}
+
 /// `pdfceMissing.ttf` placed `levels` folders below `root`.
 fn nest_font(root: &Path, levels: usize) {
     let mut dir = root.to_path_buf();
@@ -58,13 +72,13 @@ fn nest_font(root: &Path, levels: usize) {
 }
 
 fn embed_dry_run(bin: &Path, args: &[&str]) -> Output {
-    Command::new(bin)
-        .args(args)
-        .arg("embed-font")
-        .arg(fixture("embed/embed-attach.pdf"))
-        .arg("--all-missing")
-        .output()
-        .unwrap()
+    output(
+        Command::new(bin)
+            .args(args)
+            .arg("embed-font")
+            .arg(fixture("embed/embed-attach.pdf"))
+            .arg("--all-missing"),
+    )
 }
 
 fn text(o: &Output) -> (String, String) {
@@ -82,16 +96,16 @@ fn no_settings_file_changes_nothing() {
     let bin = binary_in(&dir);
     let fonts = fixture("embed/fonts");
     let run = |bin: &Path, out: &Path, extra: &[&str]| {
-        Command::new(bin)
-            .args(extra)
-            .arg("embed-font")
-            .arg(fixture("embed/embed-attach.pdf"))
-            .args(["--all-missing", "--apply", "--font-dir"])
-            .arg(&fonts)
-            .arg("-o")
-            .arg(out)
-            .output()
-            .unwrap()
+        output(
+            Command::new(bin)
+                .args(extra)
+                .arg("embed-font")
+                .arg(fixture("embed/embed-attach.pdf"))
+                .args(["--all-missing", "--apply", "--font-dir"])
+                .arg(&fonts)
+                .arg("-o")
+                .arg(out),
+        )
     };
     let plain_out = dir.join("plain.pdf");
     let pinned_out = dir.join("pinned.pdf");
