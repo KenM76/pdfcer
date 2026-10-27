@@ -16,8 +16,9 @@
 //! writer, produces no `/AP`, and synthesises nothing from `/MK`, `/IC`,
 //! `/C`, `/DA`, `/L`, `/QuadPoints`, `/InkList`, or icon names. An
 //! annotation without a usable appearance stream is **classified and
-//! counted, not drawn** — that counter is the measured demand signal for
-//! the later appearance-*generation* Passes (6.1/6.2/7).
+//! counted** here; whether it is drawn is `pdfcer-render`'s decision
+//! (named icons, widgets, and markup drawn from its own geometry —
+//! decision 203).
 //!
 //! **That scope is unchanged by `Pass 38.5`, which is worth saying
 //! because the Pass added four things here.** This module still only
@@ -58,7 +59,8 @@
 //!   lives in `pdfcer-render`; this module only *selects* the `/N` stream.
 //! - `iso32000__s__12.5.6.md` — §12.5.6, per-subtype map. Every geometry
 //!   subtype defines a fallback look AND says *"`/AP` takes precedence"*;
-//!   R43 makes `/AP` the **only** thing pdfcer draws. `/Popup`
+//!   without `/AP`, pdfcer draws only what the file states (R43 as
+//!   narrowed by decision 203). `/Popup`
 //!   (§12.5.6.14) *"shall have no appearance stream"* and is **never**
 //!   painted as page content — a structural rule, stronger than R43.
 //!
