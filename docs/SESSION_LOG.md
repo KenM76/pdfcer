@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-27 (1264th filing) — `Pass 646.20` and `646.21` (`G236` parts A, B) SHIPPED on `762c4d85`
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.20` + `646.21`: one code commit `762c4d85` (on main, not pushed at filing time) delivers both. `pdfcer-render` draws Ink, Highlight, Underline, StrikeOut, Squiggly, Square, Circle, Polygon, PolyLine and plain Line with no `/AP` from their own geometry; render-only. Setting `MarkupWithoutAp`, counter `annots_geometry_drawn` (end of metrics line), CLI `--markup-without-ap` and `--widgets-without-ap`. Declined and named: no device colour, a Line with `/Cap`, `/LL` or `/IT /LineDimension` (pdf dimension), malformed geometry. Core: `Quad::from_quad_points` (any corner order; also fixes a restyle bow-tie).
+- Tests (engineer): 9 render integration, 1 core unit, 1 CLI, 2 adapted; 7 of 7 sabotages caught; about 7,492 tests green across core, render, CLI; clippy, fmt, structure gate (baseline 563, none new), rustdoc and API-verb gates pass; `cargo tree` unchanged (no manifest touched).
+
+**Decisions made:** none new; decision 203 amended with a shipped pointer (ARCHITECTURE section 12 and `docs/decisions/203-...`). Nothing minted.
+
+**Still in flight:** `646.22` (FreeText, disclosed font substitution) is the Next up head; `646.23` (optional bake verb) behind it. Unreleased since `v0.101.0`: `646.19`, `646.20`, `646.21`.
+
+**FEATURES.md:** two Planned rows became one Implemented row ("Draw a markup annotation with no `/AP` from its own geometry", core `[x]`, cli `[x]`, gui `[ ]`); FreeText Planned row made self-contained and unticked; the icon-painting row's stale "planned, not built" clause corrected.
+
+**Sweep (hard rule 11):** survivors of the old "left blank" claim found and fixed: FEATURES icon row (`/Square`, `/Circle`, `/Line`, `/Ink` listed as blank), decision 203's and the ARCHITECTURE entry's "not yet shipped". Correct survivors left alone: `/Caret` and `/FreeText` still blank. Not swept: `crates/` doc comments and `eprintln!` strings (outside this role's remit); the engineer should grep for the "no `/AP` is left blank" claim there. `docs/NEXT_SESSION.md` is engineer-owned and was not edited.
+
+**For next session:** `Pass 646.22`. Next free `Pass 646.24`, decision `204`, `R263`; next filing 1265th; release slot `pdfcer1`. Push and backup state not checked from here.
+
 ## 2026-10-27 (1263rd filing) — `Pass 646.19` (`G235`) SHIPPED on `9f28d8cd`; `v0.101.0` PUBLISHED; `G236` scoped, decision 203
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

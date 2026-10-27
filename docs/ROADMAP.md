@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `762c4d85` `Pass 646.20` and `Pass 646.21` SHIPPED, 2026-10-27: markup annotations with no `/AP` are drawn from their own geometry (`G236` parts A and B) (1264th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `762c4d85` "feat(annot): draw markup annotations without /AP from their own geometry (G236)", on main, NOT yet pushed at filing time, unreleased (after `v0.101.0`). Requester: the GUI project, `request_G236_draw_markup_without_appearance.md`. Decision 203 holds the rule. **Split note:** scoped as two Passes (A: Ink and text markup, B: shapes and lines), but delivered as one commit covering both, so both are filed here on that hash. Reasoning is in the commit message.
+- **Render:** `pdfcer-render` draws an Ink, Highlight, Underline, StrikeOut, Squiggly, Square, Circle, Polygon, PolyLine or plain Line lacking `/AP /N` from the geometry and colours its dictionary states, through the same baker as an authored annotation (ISO 32000-2 section 12.5.2). Render-only, zero bytes written. `/Rect` is inset by `/RD` for Square (no `/BE`) and Circle (section 12.5.6.8); `/CA` applied through a layer.
+- **Setting and disclosure:** `MarkupWithoutAp { FromGeometry (default), Blank }` via `RenderOptions::with_markup_without_ap`; `Diagnostics::annotations_geometry_drawn` (per-subtype map). These stay in `annotations_without_ap` and are never counted in `annotations_painted`. One note per annotation.
+- **Declined (left blank, named in the note):** no device `/C` (closed shapes: neither `/C` nor `/IC`); a Line with `/Cap true`, `/LL` or `/IT /LineDimension` (a **pdf dimension**, never drawn); malformed geometry.
+- **Core:** `pub Quad::from_quad_points` reads one `/QuadPoints` group in any corner order (spec counterclockwise, Acrobat reading order, bottom-pair-first); `spec_from_dict` uses it, which also fixes a bow-tie when restyling a foreign text markup. `appearance_options_from_dict` and `rect_inside_differences` made `pub`.
+- **CLI:** `render-page` and `export-image` gain `--markup-without-ap {from-geometry,blank}` and `--widgets-without-ap {draw,blank}`. The metrics line appends `annots_geometry_drawn=<n>` at the END; the stderr note counts them. `docs/core-api/03-capabilities.md` has a new section.
+- **Tests (engineer):** 9 new render integration tests (`markup_without_ap`), 1 core unit test (quad corner orders), 1 CLI test (`markup_without_ap_is_drawn_counted_and_switchable`), 2 adapted (the Square control in `named_icon_without_ap`; the no-`/AP` counting unit test now expects the `/IC` Circle drawn). All 7 sabotages caught: quad order, dimension decline, `/RD` inset, alpha, colour decline, policy switch, counter. Core, render and CLI suites green, about 7,492 tests. Clippy, fmt, structure gate green (baseline 563, no new entries); rustdoc broken-links, `check-public-fns-documented`, `check-core-api-verbs` pass. A visual probe render was checked by eye.
+- **Invariant:** no manifest touched, so `cargo tree` is unchanged and no dependency was added.
+- **Delivers:** core/render yes; cli yes; gui no (the shell has not wired the setting).
+- **Still open in the family:** `646.22` (FreeText, disclosed font substitution) and `646.23` (optional `annot bake-appearances`) stay in *Next up*, unshipped. Nothing minted; next free `Pass 646.24`, decision `204`, `R263`.
+- **FEATURES:** the two Planned rows for `646.20` and `646.21` became one Implemented row, `[x]` core / `[x]` cli / `[ ]` gui; the icon-painting row's "planned, not built" clause corrected.
+
 ### `9f28d8cd` `Pass 646.19` SHIPPED, 2026-10-27: PolyLine line endings and interior colour (`G235`) (1263rd filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `9f28d8cd` "feat(annot): PolyLine line endings and interior colour (G235)", on main, after the `v0.101.0` tag, unreleased. Requester: the GUI project via the FeatureRequests channel, `request_G235_polyline_line_endings.md`. Reasoning is in the commit message.
@@ -24211,7 +24225,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Next up head: `Pass 646.20`** (`G236`, draw markup with no `/AP` from its geometry; decision 203). Order: `646.20` (A), `646.21` (B), `646.22` (C), `646.23` (E). Next free `Pass 646.24`, decision `204`, `R263`; next filing 1264th.
+> **Next up head: `Pass 646.22`** (`G236` part C, FreeText with no `/AP` drawn from its geometry, font substitution disclosed; decision 203). Order: `646.22` (C), `646.23` (E, optional). Next free `Pass 646.24`, decision `204`, `R263`; next filing 1265th.
+
+(1264th filing: `Pass 646.20` and `646.21` (`G236` parts A and B) SHIPPED together on `762c4d85`, see *Shipped*. Nothing minted. Unreleased since `v0.101.0`: `646.19`, `646.20`, `646.21`.)
 
 (1263rd filing: `Pass 646.19` (`G235`) SHIPPED on `9f28d8cd`, `v0.101.0` PUBLISHED, `Pass 646.20`-`646.23` (`G236`) scoped, decision `203` minted; see *Shipped* and ARCHITECTURE section 12. Next free `Pass 646.24`, decision `204`, `R263`; next filing 1264th. Unreleased since `v0.101.0`: `646.19`. Release slot `pdfcer1`.)
 
@@ -26114,26 +26130,9 @@ closes out the *prior* filing's business rather than opening this one's.
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
 
-### Pass 646.20 — Ink and text-markup annotations with no `/AP` are drawn from their geometry (`G236` part A)
-
-Request `request_G236_draw_markup_without_appearance.md` (GUI project). Decision 203 (`docs/decisions/203-...`) holds the rule; this item and 646.21-646.23 hold the scope. Spec: ISO 32000-1 section 12.5.6.10 Table 179 (`iso32000__s__12.5.6.10.md` in the spec RAG).
-- **Introduces the shared machinery:** `MarkupWithoutAp { FromGeometry (default), Blank }` on `RenderOptions` (mirrors `WidgetsWithoutAp`); CLI flags for both values on `render-page`; counter `annots_geometry_drawn` appended to the END of the metrics line; `Diagnostics::annotations_geometry_drawn` per subtype; one stderr note per annotation; `annots_no_ap` unchanged.
-- **Subtypes:** Ink (`/InkList`) and Highlight, Underline, StrikeOut, Squiggly (`/QuadPoints`).
-- **QuadPoints order:** the spec says counterclockwise from the baseline start; Acrobat and most producers write top-left, top-right, bottom-left, bottom-right (pdf-issues #68, #743). Accept both, told apart by geometry; fixtures for both. Unreadable specs are declined and reported, left blank.
-- **Render-only:** no bytes written; a saved file is byte-identical.
-- **Acceptance:** each subtype with and without `/AP`; both QuadPoints orders; `Blank` restores today's output byte-for-byte; the counters and note appear; a file with `/AP` is untouched.
-- **Delivers when shipped:** core/render yes, cli yes, gui via the render setting (wiring is the GUI project's).
-
-### Pass 646.21 — Square, Circle, Polygon, PolyLine and plain Line with no `/AP` are drawn from their geometry (`G236` part B)
-
-Same rule and setting as 646.20; needs it shipped first. Spec: section 12.5.6.8 (`iso32000__s__12.5.6.8.md`).
-- **Subtypes:** Square and Circle (`/RD`, `/BE` border effect), Polygon (including cloud), PolyLine, plain Line.
-- **Declined, left blank, reported:** a Line with `/Cap`, `/LL` or `/IT /LineDimension` (a pdf dimension; pdfcer does not redraw another tool's dimensions); PDF 2.0 `/Path`-only geometry.
-- **Acceptance:** each subtype; cloud intensity honoured; a captioned/dimension Line stays blank and is counted as declined.
-
 ### Pass 646.22 — FreeText with no `/AP` is drawn from its geometry, with disclosed font substitution (`G236` part C)
 
-Same rule and setting. Spec: section 12.5.6.13 (`iso32000__s__12.5.6.13.md`). Font substitution is disclosed (rule 4), never silent. Details beyond that are for the Pass's own scoping.
+Same rule and setting (`MarkupWithoutAp`, shipped by `646.20`/`646.21`). Spec: section 12.5.6.13 (`iso32000__s__12.5.6.13.md`). Font substitution is disclosed (rule 4), never silent. Details beyond that are for the Pass's own scoping.
 
 ### Pass 646.23 — `annot bake-appearances` (`G236` part E, optional)
 

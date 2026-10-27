@@ -13559,7 +13559,7 @@ Full record: `docs/decisions/202-rgb-into-a-cmyk-blending-space-uses-the-calibra
 
 ### 2026-10-27 (1263rd filing) — decision 203: an annotation with no `/AP` whose geometry fully determines its look is drawn from it at render time
 
-Full record: `docs/decisions/203-markup-without-ap-is-drawn-from-geometry-at-render-time.md`. Recorded at `Pass 646.20`-`646.23` (`G236`), scoped, not yet shipped.
+Full record: `docs/decisions/203-markup-without-ap-is-drawn-from-geometry-at-render-time.md`. Recorded at `Pass 646.20`-`646.23` (`G236`), scoped. *Amended 1264th filing, 2026-10-27: `646.20` and `646.21` SHIPPED together on `762c4d85`; `646.22` and `646.23` remain unshipped.*
 
 **Decides.** Narrows `R43` again ("derived, not invented"): Ink, text markup, Square, Circle, Polygon, PolyLine, plain Line and FreeText with no `/AP` are drawn at render time from their own geometry; render-only, no bytes written. Setting `MarkupWithoutAp { FromGeometry (default), Blank }` on `RenderOptions` (mirrors `WidgetsWithoutAp`) plus CLI flags. Disclosed by `annots_geometry_drawn` (end of the metrics line), `Diagnostics::annotations_geometry_drawn` per subtype and one stderr note per annotation; `annots_no_ap` unchanged. QuadPoints accepted in both the spec's and Acrobat's order. A Line with `/Cap`, `/LL` or `/IT /LineDimension` is a pdf dimension and is declined. Caret, Popup, Link, Widget out of scope.
 
