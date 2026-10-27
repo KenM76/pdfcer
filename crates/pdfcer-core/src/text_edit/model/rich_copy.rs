@@ -106,6 +106,10 @@ pub struct RichTextOutcome {
     /// Glyphs in a colour space this export does not carry (CMYK and
     /// others); they paste in the target's default colour.
     pub colours_dropped: usize,
+    /// [`PageDecorations::forms_unread`] of the decorations supplied: form
+    /// XObjects whose underline and strikethrough could not be read, so their
+    /// text pastes undecorated. Zero when no decorations were supplied.
+    pub decoration_forms_unread: usize,
 }
 
 /// A formatted copy. Serialise it with [`Self::to_html`], [`Self::to_rtf`],
@@ -184,6 +188,7 @@ impl EditableTextModel<'_> {
             }
         }
         out.outcome.paragraphs = out.paragraphs.len();
+        out.outcome.decoration_forms_unread = sources.decorations.map_or(0, |d| d.forms_unread);
         out
     }
 

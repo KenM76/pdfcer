@@ -57,9 +57,19 @@ pub(crate) fn cmd_copy_text(
     };
     let o = rich.outcome;
     println!(
-        "copied paragraphs={} weights_derived={} families_missing={} colours_dropped={} to={placed}",
-        o.paragraphs, o.weights_derived, o.families_missing, o.colours_dropped
+        "copied paragraphs={} weights_derived={} families_missing={} colours_dropped={} decoration_forms_unread={} to={placed}",
+        o.paragraphs,
+        o.weights_derived,
+        o.families_missing,
+        o.colours_dropped,
+        o.decoration_forms_unread
     );
+    if o.decoration_forms_unread > 0 {
+        eprintln!(
+            "pdfcer: note: {} form XObject(s) could not be read for underline and strikethrough; their text pastes undecorated.",
+            o.decoration_forms_unread
+        );
+    }
     if o.colours_dropped > 0 {
         eprintln!(
             "pdfcer: note: {} glyph(s) are in a colour space this copy does not carry; they paste in the target's default colour.",
@@ -125,6 +135,7 @@ fn append(acc: &mut RichText, more: RichText) {
     a.weights_derived += b.weights_derived;
     a.families_missing += b.families_missing;
     a.colours_dropped += b.colours_dropped;
+    a.decoration_forms_unread += b.decoration_forms_unread;
 }
 
 /// Place HTML, RTF and plain text in one clipboard transaction.

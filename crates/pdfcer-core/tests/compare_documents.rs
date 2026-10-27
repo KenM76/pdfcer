@@ -375,6 +375,27 @@ mod undo {
         assert!(!s.can_undo());
     }
 
+    /// G231: a failure before anything is authored says so, and leaves no
+    /// undo entry.
+    #[test]
+    fn a_failure_in_the_first_stage_reports_nothing_authored() {
+        let (_, report) = session_and_report();
+        let broken = vec![
+            "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+            "42".to_owned(),
+        ];
+        let mut s = EditSession::new(Document::from_bytes(build_pdf(&broken)).expect("parses"));
+        let regions = [region()];
+        let err = mark_comparison(&mut s, Some(&regions), &report, &ResultOptions::default())
+            .expect_err("no page tree");
+        assert!(matches!(
+            err.error,
+            pdfcer_core::compare::ResultError::Pages(_)
+        ));
+        assert!(!err.authored && err.regions.is_none());
+        assert!(!s.can_undo());
+    }
+
     /// At full depth the gesture evicts one old entry, like any single verb,
     /// and never the operator's whole history.
     #[test]

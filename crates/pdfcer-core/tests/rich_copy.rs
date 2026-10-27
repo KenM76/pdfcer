@@ -169,3 +169,54 @@ fn an_unconvertible_colour_is_counted_not_guessed() {
     assert_eq!(r.outcome.colours_dropped, 4);
     assert_eq!(r.paragraphs[0].spans[0].style.color, None);
 }
+
+/// One page painting form `Fm1` (readable) and, when `broken`, form `Fm2`
+/// whose Flate stream does not decode.
+fn forms_doc(broken: bool) -> Document {
+    let text = "BT /F1 12 Tf 72 700 Td (in a form) Tj ET";
+    let content = if broken {
+        "q /Fm1 Do Q q /Fm2 Do Q"
+    } else {
+        "q /Fm1 Do Q"
+    };
+    let bodies = vec![
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R \
+         /Resources << /XObject << /Fm1 6 0 R /Fm2 7 0 R >> >> >>"
+            .to_owned(),
+        format!("STREAM:{content}"),
+        font("Helvetica"),
+        format!(
+            "<< /Type /XObject /Subtype /Form /BBox [0 0 612 792] \
+             /Resources << /Font << /F1 5 0 R >> >> /Length {} >>\nstream\n{text}\nendstream",
+            text.len()
+        ),
+        "<< /Type /XObject /Subtype /Form /BBox [0 0 612 792] /Filter /FlateDecode \
+         /Length 9 >>\nstream\nnot flate\nendstream"
+            .to_owned(),
+    ];
+    Document::from_bytes(build_pdf(&bodies)).expect("loads")
+}
+
+#[test]
+fn a_form_whose_decorations_were_not_read_is_counted() {
+    for (broken, want) in [(false, 0), (true, 1)] {
+        let doc = forms_doc(broken);
+        let pages = page_tree::pages(&doc).expect("page tree");
+        let view = doc.view();
+        let deco = page_decorations(&view, &pages[0]).expect("decorations");
+        assert_eq!(deco.forms_unread, want, "broken={broken}");
+        let opts = ExtractOptions::default().with_provenance(true);
+        let text = text_extract::extract_page(&doc, &pages[0], 0, &opts).expect("extracts");
+        let model = EditableTextModel::recognize(&text, &reflow_recognition_options());
+        let sources = RichTextSources::default().with_decorations(&deco);
+        let rich = model.rich_text(None, &sources);
+        assert_eq!(
+            rich.outcome.decoration_forms_unread, want,
+            "broken={broken}"
+        );
+        let bare = model.rich_text(None, &RichTextSources::default());
+        assert_eq!(bare.outcome.decoration_forms_unread, 0);
+    }
+}

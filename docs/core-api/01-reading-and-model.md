@@ -1621,7 +1621,7 @@ slant, family, underline/strikethrough and colour.
 | `PageFonts::read(&DocumentView, &Page) -> PageFonts`; `face(stream, resource) -> Option<&FontFace>` | Every `/Font` resource of the page and of the forms it paints. `FontFace { family, italic }`: family is `/FontDescriptor /FontFamily`, else DERIVED from `/BaseFont` (subset tag, style suffix and `PSMT`/`MT`/`PS` removed, camel case spaced: `ABCDEF+TimesNewRomanPSMT` → `Times New Roman`); italic is the descriptor Italic flag (bit 7), a non-zero `/ItalicAngle`, or `Italic`/`Oblique` in the name. |
 | `SpanStyle { family, size, bold, italic, underline, strikethrough, color }` | Size to the nearest half point; bold is `FontWeight::is_bold`; `color` is 8-bit RGB for DeviceGray/DeviceRGB fills only (the engine converts no colour), `None` otherwise. |
 | `RichParagraph { spans, size, space_after }` | `space_after` (pt, DERIVED): the gap to the next block of the same column beyond 0.2 em of leading, when over half an em. |
-| `RichTextOutcome { paragraphs, weights_derived, families_missing, colours_dropped }` | The disclosure (rule 4): glyphs whose weight came from a font name or fill-and-stroke, glyphs with no family, and glyphs whose fill colour space is not carried (they paste in the target's default colour). |
+| `RichTextOutcome { paragraphs, weights_derived, families_missing, colours_dropped, decoration_forms_unread }` | The disclosure (rule 4): glyphs whose weight came from a font name or fill-and-stroke, glyphs with no family, glyphs whose fill colour space is not carried (they paste in the target's default colour), and the supplied decorations' `forms_unread` (forms whose underline/strikethrough could not be read; 0 without decorations). |
 | `RichText::plain_text()` | Paragraphs joined by `\n`. |
 | `RichText::to_html()` | UTF-8 HTML: `<p>` per paragraph with inline-styled `<span>`s, between `<!--StartFragment-->` and `<!--EndFragment-->`. |
 | `RichText::to_cf_html()` | `to_html` behind the Windows `CF_HTML` header (`Version:0.9`, ten-digit `StartHTML`/`EndHTML`/`StartFragment`/`EndFragment` byte offsets); clipboard format name `HTML Format`. |
@@ -1633,7 +1633,9 @@ off-canvas when any is non-zero.
 
 CLI: `copy-text f.pdf --pages 1-3` places those three formats (Windows);
 `-o file --format html|cf-html|rtf|text` writes one. The result line is
-`copied paragraphs= weights_derived= families_missing= colours_dropped= to=`.
+`copied paragraphs= weights_derived= families_missing= colours_dropped=
+decoration_forms_unread= to=`, with a stderr note when the last count is
+non-zero.
 
 ### 8.4.5 Tagged layout — blocks and tables from the structure tree (`Pass 395.0`)
 
@@ -2050,12 +2052,17 @@ default user space (`pdfcer_render::visual_compare`, `03-capabilities.md`
 
 **Both at once (`Pass 646.4`)** — `compare/mark_all.rs`.
 `compare::mark_comparison(&mut EditSession, Option<&[RegionMark]>,
-&CompareReport, &ResultOptions) -> Result<ComparisonMarks, ResultError>`
+&CompareReport, &ResultOptions) -> Result<ComparisonMarks, Box<MarkComparisonError>>`
 runs `mark_regions` (when given) then `mark_changes`, in that order, as
 **ONE** undo entry, `CommandKind::MarkComparison` — one Ctrl+Z removes every
 mark and the summary page. `ComparisonMarks { regions: Option<RegionReport>,
-changes: ResultReport }` (`#[non_exhaustive]`). Errors as `mark_changes`; a
-`Summary` error still leaves the marks, in the one entry.
+changes: ResultReport }` (`#[non_exhaustive]`).
+- `MarkComparisonError { error: ResultError, regions: Option<RegionReport>,
+  authored: bool }` (`#[non_exhaustive]`; `Display` is `error`'s). A `Pages`
+  error can come from either stage — from the second, the region marks are
+  already in — so read `authored`, not the variant: when `true`, what was
+  authored is in the session as the one entry, and `regions` holds the
+  region report if that stage completed.
 
 CLI: `pdfcer compare OLD NEW [--pages-old] [--pages-new] [--formatting]
 [--artifacts] [--json] [--exit-code] [--output RESULT.pdf [--no-summary]

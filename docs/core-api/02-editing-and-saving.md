@@ -682,6 +682,9 @@ let set = decos.of(glyph.provenance.as_ref().unwrap()); // DecorationSet
   thousandths of an em, overriding either source).
 - Read: `PageDecorations::of` answers for page and form glyphs alike
   (`PageDecorations::forms` holds each painted form's spans by object number).
+  `PageDecorations::forms_unread` counts form invocations whose decorations
+  were not read (unresolved, undecodable, or past `MAX_FORM_DEPTH`); their
+  text reads as undecorated, so show the count when it is non-zero.
 
 **Refusals:** `FormatError::DecorationOnInvisibleText { mode }` for rendering
 mode 3 or 7 (requested or in force).

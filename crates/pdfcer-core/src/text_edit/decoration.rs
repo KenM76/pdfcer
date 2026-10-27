@@ -178,6 +178,12 @@ pub struct PageDecorations {
     /// Every marker in each form XObject the page paints, keyed by the
     /// form stream's object number.
     pub forms: std::collections::BTreeMap<u32, Vec<DecoratedSpan>>,
+    /// Form XObject invocations the page paints whose decorations were NOT
+    /// read: the form did not resolve or decode, or sat past
+    /// [`MAX_FORM_DEPTH`](super::forms::MAX_FORM_DEPTH). Text inside one
+    /// reads as undecorated, so non-zero means an underline or strikethrough
+    /// may be missing (rule 4: disclosed, not silent).
+    pub forms_unread: usize,
 }
 
 impl PageDecorations {
@@ -201,7 +207,8 @@ impl PageDecorations {
 }
 
 /// Read the decorations on `page`'s own content and in every form XObject
-/// it paints. A form whose content does not decode contributes nothing.
+/// it paints. A form that cannot be read contributes no spans and is counted
+/// in [`PageDecorations::forms_unread`].
 ///
 /// # Errors
 ///
@@ -211,8 +218,13 @@ pub fn page_decorations(
     page: &Page,
 ) -> Result<PageDecorations, crate::content::ContentError> {
     let cs = ContentStream::from_page(view, page)?;
+    let scan = super::forms::scan_page_forms(view, page);
+    let skipped = scan.unresolved.saturating_add(scan.depth_overflows);
+    // The scan decodes each form exactly as `from_form` does and counts a
+    // failure in `unresolved`, so a form skipped below is already counted.
+    let forms_unread = usize::try_from(skipped).unwrap_or(usize::MAX);
     let mut forms = std::collections::BTreeMap::new();
-    for form in super::forms::scan_page_forms(view, page).forms {
+    for form in scan.forms {
         if forms.contains_key(&form.id.num) {
             continue;
         }
@@ -223,6 +235,7 @@ pub fn page_decorations(
     Ok(PageDecorations {
         spans: spans_of(&cs),
         forms,
+        forms_unread,
     })
 }
 

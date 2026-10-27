@@ -31,6 +31,12 @@ impl EditSession {
         out
     }
 
+    /// The serial of the newest undo entry, 0 when there is none. Serials
+    /// only grow, so a change across a call means it committed something.
+    pub(crate) fn undo_top_serial(&self) -> u64 {
+        self.undo.last().map_or(0, |e: &Entry| e.serial)
+    }
+
     /// Called by `commit` right after a push: merge the new top entry into
     /// the group's entry beneath it, or relabel it when it is the first.
     pub(super) fn fold_into_group(&mut self) {
