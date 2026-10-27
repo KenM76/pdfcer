@@ -112,6 +112,14 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.101.0` — release prep, version bump `977036f5` (`chore`), 2026-10-27 (1262nd filing); NOT yet published
+
+Engineer-reported; no shell here, nothing checked from here. Same pattern as the v0.100.0 prep (1259th filing).
+- **`977036f5` (`chore`):** workspace version 0.100.0 to 0.101.0 in root `Cargo.toml` (`[workspace.package]` and the `pdfcer-model` `[workspace.dependencies]` pin); `Cargo.lock` and `fuzz/Cargo.lock` updated. Only versions change; no dependency-set change. Sits on `8eaed594`.
+- **Passes carried since `v0.100.0`** (tag on `d3996c09`; already filed, not re-filed): `646.18` (`G234`, `1efce31b`, editable-text OCR output; filed 1261st in `88fa7b2a`). The only one.
+- **Release plan (not claimed done):** the tag goes on this filing commit. Later filing: portable build, GitHub release, OneDrive slot `pdfcer2` (`pdfcer1` keeps 0.100.0), fresh-folder smoke test, `verify-release.py`, and `cargo publish` of `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` at 0.101.0.
+- **FEATURES:** no change; the crates.io row (0.100.0) stays true until the publish. Nothing minted; next free `Pass 646.19`, decision `203`, `R263`; next filing 1263rd.
+
 ### `1efce31b` `Pass 646.18` SHIPPED, 2026-10-27: OCR "Editable Text and Images" output (`G234`) (1261st filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `1efce31b` "feat(ocr): editable-text OCR output (G234)", on main, unpushed, unreleased (since `v0.100.0`, filed 1260th, `c7c1a7d0`). Requester: pdfcer-gui via the FeatureRequests channel, request `request_G234_ocr_visible_editable_text.md` (operator row O331); reply (outside the repo): `reply_G234_ocr_visible_editable_text_SHIPPED.md` in the pdfce_FeatureRequests `open/` folder. Reasoning is in the commit message.
@@ -24181,6 +24189,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 > **Next up has no head.** `Pass 646.10` (`X005`) SHIPPED on `c33bd6b1` in the 1252nd filing; its Next up item is removed. Next free `Pass 646.11`, decision `203`, `R263`; next filing 1253rd.
+
+(1262nd filing: `v0.101.0` release prep, bump `977036f5`, NOT yet published, see *Shipped*. Nothing minted; next free `Pass 646.19`, decision `203`, `R263`; next filing 1263rd. Release slot `pdfcer2`.)
 
 (1261st filing: `Pass 646.18` (`G234`, editable-text OCR output) SHIPPED on `1efce31b`, see *Shipped*. Nothing minted; next free `Pass 646.19`, decision `203`, `R263`; next filing 1262nd. Unreleased since `v0.100.0`.)
 
