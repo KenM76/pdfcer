@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-27 (1259th filing) — `v0.100.0` release prep, version bump `a06cc6a1`; NOT yet published
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- Bump commit `a06cc6a1` (`chore`, on `44288f61`): workspace version and the `pdfcer-model` workspace dependency pin 0.99.0 to 0.100.0; `Cargo.lock` and `fuzz/Cargo.lock` via `cargo update -w`. Not published, not tagged; the tag goes on this filing commit.
+- Carries since `v0.99.0`: `Pass 646.9` through `646.17` (`646.16` test-only). Already filed, not re-filed.
+- Gates, engineer-reported, change-scoped: `cargo test` of `pdfcer-core`, `pdfcer-render`, `pdfcer-text`, `pdfcer-color`, `pdfcer-cli` gave 7,597 passed, 0 failed; `clippy -p pdfcer-cli --no-default-features --all-targets -D warnings` clean; CI on origin/main `44288f61` green.
+
+**Decisions made:** none; nothing minted. **FEATURES.md:** unchanged.
+
+**For next session:** tag `v0.100.0` on the filing commit, portable build, GitHub release, OneDrive slot `pdfcer1`, fresh-folder smoke, `verify-release.py`, `cargo publish` of `pdfcer-color`/`-model`/`-pkix` at 0.100.0. Next free `Pass 646.18`, decision `203`, `R263`; next filing 1260th, which records "published" only once the engineer confirms it.
+
 ## 2026-10-27 (1258th filing) — `Pass 646.17` (`G233`) SHIPPED on `7157ebca`
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

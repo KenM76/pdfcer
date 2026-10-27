@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.100.0` — release prep, version bump `a06cc6a1` (`chore`), 2026-10-27 (1259th filing); NOT yet published
+
+Engineer-reported; no shell here, nothing checked from here. Same pattern as the v0.99.0 prep (1247th filing).
+- **`a06cc6a1` (`chore`):** workspace version 0.99.0 to 0.100.0 in root `Cargo.toml` (`[workspace.package]` and the `pdfcer-model` `[workspace.dependencies]` pin); `Cargo.lock` and `fuzz/Cargo.lock` re-resolved with `cargo update -w`; sits on `44288f61`.
+- **Passes carried since `v0.99.0`** (tag on `14cc5ee6`; all already filed, not re-filed): `646.9`, `646.10`, `646.11`, `646.12`, `646.13`, `646.14`, `646.15`, `646.16` (test-only), `646.17`.
+- **Gates (engineer-reported, change-scoped per the operator's 2026-10-16 rule):** `cargo test` of the crates changed since `v0.99.0` (`pdfcer-core`, `pdfcer-render`, `pdfcer-text`, `pdfcer-color`, `pdfcer-cli`): 7,597 passed, 0 failed. `cargo clippy -p pdfcer-cli --no-default-features --all-targets -- -D warnings` clean. CI on origin/main `44288f61` green.
+- **Release plan (not claimed done):** the tag goes on this filing commit. Later filing: portable build, GitHub release, OneDrive slot `pdfcer1` (`pdfcer2` keeps 0.99.0), fresh-folder smoke test, `verify-release.py`, and `cargo publish` of `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` at 0.100.0.
+- **FEATURES:** no change; no row names the version number 0.100.0 or says "unreleased" for these Passes beyond the already-filed rows (grep of `0.99.0` found only the crates.io row, which stays true until the publish). Nothing minted; next free `Pass 646.18`, decision `203`, `R263`; next filing 1260th.
+
 ### `7157ebca` `Pass 646.17` SHIPPED, 2026-10-27: a thin stroke inks curves and diagonals at its straight weight (`G233`) (1258th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `7157ebca`, `pdfcer-render` only, on main, unreleased (since `v0.99.0`). Requester: the GUI project, via the FeatureRequests channel, `request_G233_thin_stroke_weight_drops_on_curves.md`; reply (outside the repo): `open/reply_G233_thin_stroke_weight_drops_on_curves_FIXED.md`. Reasoning is in the commit message.
@@ -24143,6 +24152,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 > **Next up has no head.** `Pass 646.10` (`X005`) SHIPPED on `c33bd6b1` in the 1252nd filing; its Next up item is removed. Next free `Pass 646.11`, decision `203`, `R263`; next filing 1253rd.
+
+(1259th filing: `v0.100.0` release prep, bump `a06cc6a1`, NOT yet published, see *Shipped*. Nothing minted; next free `Pass 646.18`, decision `203`, `R263`; next filing 1260th. Next release slot `pdfcer1`.)
 
 (1252nd filing: `Pass 646.10` (`X005`) SHIPPED, see *Shipped*. Nothing minted. Unreleased since `v0.99.0`; the new `pdfcer-color` pub items reach crates.io with the next release's publish.)
 
