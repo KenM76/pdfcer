@@ -112,6 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
+### `da4331cd` `Pass 646.9` SHIPPED, 2026-10-26: `q`/`Q` inside a text object save and restore Tm/Tlm (`X004`) (1250th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Code commits `da4331cd` and `34d645dd` (the synthetic-italic disclosure text no longer says `q`/`Q` never saves Tm), on main, unreleased (since `v0.99.0`). Scoped at the 1249th filing (`e45e1310`), decision 201 (`docs/decisions/201-q-q-inside-bt-restores-text-matrices.md`). Requester: the operator (crates consumer). Reasoning is in the commit message.
+- **Rule:** inside a text object, `q` saves Tm and Tlm with the graphics state and the matching `Q` restores them. A pen is restored only if its `q` was made inside the SAME text object (BT serial); a `q` outside BT saves no pen. Every PDF version, no setting. Basis: ISO 32000-2:2020 errata to section 9.4.1 (`pdf-association/pdf-issues` #368).
+- **Reverses item 1 of `X002`** as pinned by `Pass 646.3` (`5bdc277d`). `X002` items 2 and 3 and the `X003` stray-`Q` floor are unchanged. The `646.3` Shipped entry's sentence is dated history.
+- **Routes changed (five):** text extraction (`pdfcer-text` `text_extract/page.rs`); rendering (`pdfcer-render` `interpret.rs`); redaction measurement (`pdfcer-core` `redact.rs`); object decomposition / selection bounds (`pdfcer-core` `vector/decompose.rs`); the text-edit walker (`pdfcer-core` `text_edit/edit.rs`). Stale doc clauses fixed in `text_edit/format.rs` and `synth.rs`. The optimizer's text rounding already abandons at `q`/`Q` and is unchanged.
+- **Tests:** core and render `stray_q_and_text_pen.rs` inverted (Td undone by `Q`; a font change then `Q`; a cross-object `q` not restored; selection bounds follow the restored pen); one new edit-walker unit test. Each test sabotage-verified: it fails with its route's fix disabled.
+- **Verified (engineer):** full `tools/run-gates.sh`, 14,296 tests passed. The only red was `check-requests-scoped` (X004 had no reply yet), green once `open/reply_X004_q_inside_bt_restores_the_text_matrices_FIXED.md` was written. No dependency or manifest change, so the `cargo tree` invariant is untouched. No `core-api` pub change.
+- **CLI check of the request's example** (`BT /F1 24 Tf 72 500 Td (AAAA) Tj q 0 -60 Td (OOO) Tj Q (XXX) Tj ET`, `render-page`): line 1 ink spans x 73-182 (AAAA+XXX); line 2 spans x 73-126 (OOO only). Matches the Acrobat behaviour the requester reported.
+- **Measured deviation from the request (reported to the requester):** in the font-change case, search-and-redact of SECRET also removes the 24 pt B, because SECRET is now drawn on top of it. The test checks equality with the twin's redaction ("AAAA").
+- **Delivers:** core yes; cli yes (`render-page`, `extract-text`, redaction); gui none (inherits through core).
+- **FEATURES:** no change. Rows 206 (extract text) and 439 (mark redactions) stay true; neither names the pen-after-`Q` behaviour (grep-checked for `stray Q` and pen-survives wording in `FEATURES.md`, `ARCHITECTURE.md`, `core-api`, `decisions`).
+- **RAG:** two `C:\personal_rag\pdf` lessons for this already existed (`lesson_20261026_q_inside_bt_restores_tm_and_tlm_pdf2_erratum_368_acrobat_confirms.md`, `lesson_20261026_q_inside_bt_must_not_restore_the_text_matrix_or_search_redaction_fails_closed.md`); none written.
+- **Sweep (rule 11):** searched `FEATURES.md`, `ARCHITECTURE.md`, `core-api`, `decisions` for the claim "the pen survives `Q`": none found. Not read from here: doc comments in other source files that may still say a `Q` leaves Tm/Tlm alone; owed to the engineer. Nothing minted; next free `Pass 646.10`, decision `202`, `R263`; next filing 1251st.
+
 ### `v0.99.0` PUBLISHED: tag on `14cc5ee6` (the 1247th filing), 2026-10-26 (1248th filing)
 
 Engineer-reported (the engineer ran a shell and verified); no shell here, nothing checked from here.
@@ -24020,7 +24035,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
 
-(1249th filing: `Pass 646.9` (`X004`, `q`/`Q` inside a text object restore Tm/Tlm; withdraws `X002` item 1) scoped, IN PROGRESS, below; nothing shipped. Decision `201` minted; next free `Pass 646.10`, decision `202`, `R263`; next filing 1250th.)
+(1250th filing: `Pass 646.9` (`X004`) SHIPPED on `da4331cd`, see *Shipped*; its Next up item is removed. Nothing minted; next free `Pass 646.10`, decision `202`, `R263`; next filing 1251st. Unreleased since `v0.99.0`.)
+
+(1249th filing: `Pass 646.9` (`X004`, `q`/`Q` inside a text object restore Tm/Tlm; withdraws `X002` item 1) scoped. Decision `201` minted; next free `Pass 646.10`, decision `202`, `R263`; next filing 1250th.)
 
 (1248th filing: `v0.99.0` PUBLISHED on `14cc5ee6`, see *Shipped*. Nothing minted; next free `Pass 646.9`, decision `201`, `R263`; next filing 1249th. Next release writes OneDrive slot `pdfcer1`. Nothing unreleased. crates.io publish of pdfcer-color/-model/-pkix PENDING on the operator.)
 
@@ -34814,33 +34831,6 @@ overrides the image dictionary; `/ColorSpace` optional,
 **Update, 1243rd filing (engineer-reported; no shell here, nothing checked from here):** commit `17aa278d` (`chore(publish)`, on main, unpushed at filing) lifts `publish = false` for `pdfcer-color`, `pdfcer-model` and `pdfcer-pkix` only. **NOTHING IS PUBLISHED to crates.io.** The operator must run `cargo publish` himself (project settings deny it to the agent), in the order `pdfcer-color`, then `pdfcer-model`, then `pdfcer-pkix`. Recorded as "manifests ready, publish pending operator", not as published. Acceptance items 2-4 stay open until he has; item 5 (release recipe) is partly met: bump the `pdfcer-model` version in the root `Cargo.toml` `[workspace.dependencies]` on every release. `pdfcer-core`, `pdfcer-render`, `pdfcer-image-codec`, `pdfcer-3d` keep `publish = false` (blockers above unchanged).
 
 **Status:** Next up, publish pending the operator. FEATURES.md: row "Engine crates on crates.io" in *Planned*, all boxes unticked (nothing is published).
-
-### Pass 646.9 — `q`/`Q` inside a text object save and restore Tm/Tlm (`X004`) — IN PROGRESS, scoped at the 1249th filing
-
-**Source:** `D:/Dev/FeatureRequests/pdfce_FeatureRequests/open/request_X004_q_inside_bt_restores_the_text_matrices.md` (the operator, as a crates consumer, 2026-10-26). **Withdraws item 1 of `X002`** (that the pen survives `Q`), which `Pass 646.3` (`5bdc277d`) pinned with tests, and asks for the opposite. `X002` items 2 and 3 (residual carriers, `/fi`) stand.
-
-**Spec basis:** the PDF Association's ISO-approved errata to ISO 32000-2:2020 (`pdf-association/pdf-issues` #368, closed 2024-02-18) append to §9.4.1: within a text object, `q` and `Q` additionally push and pop Tm and Tlm with the graphics state stack. §8.4.2 gains a pointer; Tables 51/52 are unchanged (the matrices are on the stack but are not graphics-state parameters). Source text as quoted by the requester; the librarian did not re-read it from the spec RAG (engineer: confirm with `pdfcer-spec-librarian` before citing the clause in doc comments). Per the request, Acrobat Reader and Chrome restore the pen on `Q` too (black-box, synthetic PDF 2.0 file).
-
-**Rule (decision 201):** the pen saved by a `q` is restored only into the SAME text object (matched by BT serial); a `q` outside BT restores no pen. Applies to every PDF version, no setting.
-
-**Routes (the six that track the pen):**
-1. renderer (`pdfcer-render` `interpret.rs`);
-2. text extraction (`pdfcer-text` `text_extract/page.rs`);
-3. redaction measurement (`pdfcer-core` `redact.rs`);
-4. object decomposition / selection bounds (`pdfcer-core` `vector/decompose.rs`);
-5. the text-edit walker (`pdfcer-core` `text_edit/edit.rs`; feeds follower-line logic);
-6. the content-rounding optimizer: already abandons rounding at `q`/`Q` inside BT; unchanged.
-
-**Acceptance:**
-- Invert the `X002` tests in core and render `stray_q_and_text_pen.rs`: `BT /F1 12 Tf 72 300 Td (AA) Tj q 100 0 Td Q (SECRET) Tj ET` gives SECRET the glyph positions of the twin without `q ... Q`; `BT /F1 12 Tf 72 300 Td (AAAA) Tj q /F2 24 Tf (B) Tj Q (SECRET) Tj ET` starts SECRET where the B starts (the pen before `q`), at 12 pt.
-- Each fixture renders pixel-equal to its twin.
-- Redaction agrees with extraction. **Deviation from the request's wording, measured by the engineer:** in the font-change case SECRET is now drawn over the 24 pt B, so search-redact of SECRET removes the B too (correct: covered content goes). The test asserts that redacting the subject equals redacting the twin and leaves "AAAA".
-- Selection bounds (`decompose.rs`) and the edit walker's recorded matrices follow the restored pen.
-- A form's own `q ... Q` and the `X003` stray-`Q` floor are unchanged.
-
-**Delivers (planned):** core yes; cli yes (`render-page`, `extract-text`, redaction go through these routes); gui none (inherits through core).
-
-**Status:** IN PROGRESS. FEATURES.md: no row changed. This is a behaviour fix to capabilities already ticked (text extraction, rendering, redaction); no row names the pen-after-`Q` behaviour, and a Planned row for a defect fix would be noise.
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 

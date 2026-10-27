@@ -5,9 +5,9 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-26. **Work resumed** ("Continue", 2026-10-26). An active loop is running, `/loop 8 minutes Check feature requests folder and implement any changes.`, re-armed with ScheduleWakeup. **v0.99.0 is the latest release** (tag on `14cc5ee6`, slot pdfcer2, GUI noticed in `open/notice_2026-10-26_v0.99.0_released.md`). It ships Passes 646.2–646.8 and 637.0. **The next release writes pdfcer1.** Next filing is the 1249th, next Pass 646.9, decision 201, R263. Decision 191 governs the size-reduction arc.
+**Written:** 2026-10-26. **Work resumed** ("Continue", 2026-10-26). An active loop is running, `/loop 8 minutes Check feature requests folder and implement any changes.`, re-armed with ScheduleWakeup. **v0.99.0 is the latest release** (tag on `14cc5ee6`, slot pdfcer2, GUI noticed in `open/notice_2026-10-26_v0.99.0_released.md`). It ships Passes 646.2–646.8 and 637.0. **The next release writes pdfcer1.** Pass 646.9 (X004, q inside BT restores Tm/Tlm, decision 201) is on `main` after v0.99.0, unreleased. Next filing is the 1251st, next Pass 646.10, decision 202, R263. Decision 191 governs the size-reduction arc.
 
-**Owed: crates.io publish.** Ken authorized it ("you can now publish to crates.io"), but `.claude/settings.json` denies `Bash(cargo publish:*)`. Do not edit the settings or work around them. Ken runs `cargo publish -p pdfcer-color`, then `-p pdfcer-model`, then `-p pdfcer-pkix` (they would publish as 0.99.0), or he lifts the rule. After the publish, write the X001 reply to the crates consumer.
+**Owed: crates.io publish.** Ken authorized it ("you can now publish to crates.io"), and lifted the block ("Lift the block on publishing commands"): `.claude/settings.json` now allows `Bash(cargo publish:*)` with an empty deny list, edited but NOT yet committed. The first `cargo publish -p pdfcer-color` failed with HTTP 400: crates.io requires a verified email (crates.io/settings/profile); Ken was told. Once verified, publish pdfcer-color, then pdfcer-model, then pdfcer-pkix, then commit `.claude/settings.json` and have it filed. After the publish, write the X001 reply to the crates consumer.
 
 ## State
 

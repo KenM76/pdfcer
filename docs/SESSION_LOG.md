@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-26 (1250th filing) — `Pass 646.9` (`X004`) SHIPPED on `da4331cd`
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.9`: `q`/`Q` inside a text object save and restore Tm/Tlm (pen restored only into the same BT; every PDF version; decision 201). Five routes changed: text extraction, rendering, redaction measurement, selection bounds, text-edit walker. Reverses `X002` item 1 (pinned by `Pass 646.3`, `5bdc277d`). Moved from Next up to Shipped.
+
+**Verified (engineer):** full `tools/run-gates.sh`, 14,296 tests passed; only red was `check-requests-scoped` until the X004 reply was written, now green. Tests inverted in core and render `stray_q_and_text_pen.rs`, plus one new edit-walker test, each sabotage-verified. No manifest change, no core-api pub change. CLI `render-page` of the request's example matches Acrobat: line 1 ink x 73-182, line 2 x 73-126.
+
+**Findings:** measured deviation from the request: in the font-change case search-redact of SECRET also removes the 24 pt B (SECRET is drawn over it); the test compares to the twin and leaves "AAAA". Reported to the requester.
+
+**Decisions made:** none new; decision 201 stands.
+
+**FEATURES.md:** unchanged. Rows 206 and 439 stay true. **RAG:** `C:\personal_rag\pdf` already holds two lessons on this (grep-checked); none written.
+
+**Sweep (rule 11), owed to the engineer, not edited:** other source doc comments that may still say `Q` leaves Tm/Tlm alone.
+
+**For next session:** `Pass 646.9` is unreleased since `v0.99.0`. crates.io publish of pdfcer-color/-model/-pkix still PENDING on the operator. Next free `Pass 646.10`, decision `202`, `R263`; next filing 1251st.
+
 ## 2026-10-26 (1249th filing) — `Pass 646.9` (`X004`) scoped, IN PROGRESS; decision 201
 
 **Filed (docs only; no shell here, nothing checked from here):**
