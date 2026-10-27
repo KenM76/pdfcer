@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `1fcc480d` `Pass 646.22` SHIPPED, 2026-10-27: a FreeText with no `/AP` is drawn from its text, with disclosed font substitution (`G236` part C) (1265th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `1fcc480d` "feat(annot): draw a FreeText without /AP from its /DA and /Contents (G236)", on main, unreleased (after `v0.101.0`). Decision 203 holds the rule. Reasoning is in the commit message.
+- **Render:** `pdfcer-render` draws a `/FreeText` lacking `/AP /N` from `/DA`, `/Contents`, `/Q` and `/Rect` less `/RD`, wrapped to the inner box, through core `text_spec_from_dict` then `build_text_annotation`. Render-only, zero bytes written. Counted in `Diagnostics::annotations_geometry_drawn["FreeText"]`; one note per annotation.
+- **Font (disclosed, rule 4):** the `/DA` font name is resolved through AcroForm `/DR /Font` to a standard-14 `/BaseFont` (ISO 32000-1 section 12.7.3.3; pdf-issues #726 open; spec RAG ambiguity FT-A4); otherwise drawn in Helvetica and the note says so. Also disclosed: `/RC` styling not reproduced; `0 Tf` auto-size chosen; characters outside WinAnsi drawn as `?`.
+- **Setting (spec ambiguity FT-A1, "ship both, pick the default"):** no FreeText fill key exists; Acrobat reads `/C` as the fill, pdfcer writes `/C` as the border. New `#[non_exhaustive] pub enum pdfcer_render::FreeTextC { Fill (default), Border }`, `RenderOptions::with_free_text_c`, `RenderPolicy::free_text_c`, CLI `--free-text-c fill|border` on `render-page` and `export-image`. When `/IC` is present `/C` is always the border. Recorded as an amendment line on decision 203, not a new decision (same rule, one more setting).
+- **Declined (left blank, named in the note):** callouts (`/CL` or `/IT /FreeTextCallout`), `/RC` with no plain `/Contents`, missing or unreadable `/DA`.
+- **Docs:** `docs/core-api/03-capabilities.md` and `index.md` updated in the code commit.
+- **Tests (engineer):** 7 new render tests, 1 CLI test; sabotage of the Fill/Border switch, callout decline, `/IC` guard and `/RD` inset each fails a test. `pdfcer-render` 577 + 516 + 25 passed; `pdfcer-cli` 976 (+2 ignored) + 47 passed. clippy `-D warnings`, fmt, rustdoc intra-doc links, code-structure (baseline 563, none new), core-api-verbs and clap-help gates clean.
+- **Invariant:** no `Cargo.toml` change, so `cargo tree` unaffected; no new dependency.
+- **Delivers:** core/render yes; cli yes; gui no (the shell has not consumed the setting).
+- **Still open in the family:** `646.23` (optional `annot bake-appearances`) stays in *Next up*. Unreleased since `v0.101.0`: `646.19`, `646.20`, `646.21`, `646.22`. Nothing minted; next free `Pass 646.24`, decision `204`, `R263`.
+- **FEATURES:** the FreeText Planned row removed; FreeText folded into the Implemented row "Draw a markup annotation with no `/AP`" (core `[x]`, cli `[x]`, gui `[ ]`); the icon-painting row's "`/FreeText` not built" clause corrected.
+
 ### `762c4d85` `Pass 646.20` and `Pass 646.21` SHIPPED, 2026-10-27: markup annotations with no `/AP` are drawn from their own geometry (`G236` parts A and B) (1264th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `762c4d85` "feat(annot): draw markup annotations without /AP from their own geometry (G236)", on main, NOT yet pushed at filing time, unreleased (after `v0.101.0`). Requester: the GUI project, `request_G236_draw_markup_without_appearance.md`. Decision 203 holds the rule. **Split note:** scoped as two Passes (A: Ink and text markup, B: shapes and lines), but delivered as one commit covering both, so both are filed here on that hash. Reasoning is in the commit message.
@@ -24225,9 +24239,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Next up head: `Pass 646.22`** (`G236` part C, FreeText with no `/AP` drawn from its geometry, font substitution disclosed; decision 203). Order: `646.22` (C), `646.23` (E, optional). Next free `Pass 646.24`, decision `204`, `R263`; next filing 1265th.
+> **Next up head: `Pass 646.23`** (`G236` part E, optional `annot bake-appearances`; decision 203). Next free `Pass 646.24`, decision `204`, `R263`; next filing 1266th.
 
-(1264th filing: `Pass 646.20` and `646.21` (`G236` parts A and B) SHIPPED together on `762c4d85`, see *Shipped*. Nothing minted. Unreleased since `v0.101.0`: `646.19`, `646.20`, `646.21`.)
+(1265th filing: `Pass 646.22` (`G236` part C, FreeText) SHIPPED on `1fcc480d`, see *Shipped*. Nothing minted. Unreleased since `v0.101.0`: `646.19`, `646.20`, `646.21`, `646.22`. Earlier: `646.20`/`646.21` shipped together on `762c4d85`, 1264th.)
 
 (1263rd filing: `Pass 646.19` (`G235`) SHIPPED on `9f28d8cd`, `v0.101.0` PUBLISHED, `Pass 646.20`-`646.23` (`G236`) scoped, decision `203` minted; see *Shipped* and ARCHITECTURE section 12. Next free `Pass 646.24`, decision `204`, `R263`; next filing 1264th. Unreleased since `v0.101.0`: `646.19`. Release slot `pdfcer1`.)
 
@@ -26129,10 +26143,6 @@ closes out the *prior* filing's business rather than opening this one's.
 > annotation/destination scaling, the new ce-dimensions refusal — is at
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
-
-### Pass 646.22 — FreeText with no `/AP` is drawn from its geometry, with disclosed font substitution (`G236` part C)
-
-Same rule and setting (`MarkupWithoutAp`, shipped by `646.20`/`646.21`). Spec: section 12.5.6.13 (`iso32000__s__12.5.6.13.md`). Font substitution is disclosed (rule 4), never silent. Details beyond that are for the Pass's own scoping.
 
 ### Pass 646.23 — `annot bake-appearances` (`G236` part E, optional)
 

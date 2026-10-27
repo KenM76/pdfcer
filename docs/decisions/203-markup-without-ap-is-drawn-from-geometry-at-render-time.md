@@ -1,6 +1,6 @@
 # Decision 203: an annotation with no /AP whose geometry fully determines its look is drawn from that geometry at render time
 
-Recorded at the 1263rd filing, 2026-10-27, scoping `Pass 646.20`-`646.23` (request `G236`, `request_G236_draw_markup_without_appearance.md`, from `pdfcer-gui`). Scoped at that filing; `646.20` and `646.21` shipped together on `762c4d85` (amended 1264th filing, 2026-10-27), `646.22` and `646.23` not yet. Narrows `R43` again after decision 149 (`Pass 289.0`).
+Recorded at the 1263rd filing, 2026-10-27, scoping `Pass 646.20`-`646.23` (request `G236`, `request_G236_draw_markup_without_appearance.md`, from `pdfcer-gui`). Scoped at that filing; `646.20` and `646.21` shipped together on `762c4d85` (amended 1264th filing, 2026-10-27), `646.22` and `646.23` not yet. *Amended 1265th filing, 2026-10-27: `646.22` (FreeText) shipped on `1fcc480d`; spec ambiguity FT-A1 (no FreeText fill key; Acrobat reads `/C` as fill, pdfcer writes `/C` as border) is a setting, `pdfcer_render::FreeTextC { Fill (default), Border }`, CLI `--free-text-c`; `/IC` present makes `/C` the border. Callouts, `/RC` with no `/Contents` and an unreadable `/DA` are declined. `646.23` not yet.* Narrows `R43` again after decision 149 (`Pass 289.0`).
 
 ## Decides
 

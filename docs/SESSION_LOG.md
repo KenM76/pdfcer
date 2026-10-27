@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-27 (1265th filing) — `Pass 646.22` (`G236` part C, FreeText) SHIPPED on `1fcc480d`
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.22`: code commit `1fcc480d` (on main, unreleased). `pdfcer-render` draws a `/FreeText` with no `/AP` from `/DA`, `/Contents`, `/Q`, `/Rect` less `/RD`, wrapped; render-only. Font via AcroForm `/DR` to standard-14, else Helvetica, disclosed in the note. Declined and named: callouts, `/RC` without `/Contents`, unreadable `/DA`. Disclosed: `/RC` styling not reproduced, auto-size, non-WinAnsi as `?`.
+- Tests (engineer): 7 render, 1 CLI; sabotage of Fill/Border, callout decline, `/IC` guard, `/RD` inset each caught; `pdfcer-render` 577 + 516 + 25, `pdfcer-cli` 976 (+2 ignored) + 47 passed; clippy, fmt, rustdoc, structure (563, none new), core-api-verbs, clap-help clean; no manifest change.
+
+**Decisions made:** none new. FT-A1 (FreeText `/C` fill vs border) made a setting, `FreeTextC { Fill (default), Border }`, `--free-text-c`, recorded as an amendment on decision 203 and its ARCHITECTURE section 12 entry. Judged not to warrant decision 204: same rule, one more setting. Nothing minted.
+
+**Still in flight:** `646.23` (optional bake verb) is the Next up head. Unreleased since `v0.101.0`: `646.19`, `646.20`, `646.21`, `646.22`.
+
+**FEATURES.md:** FreeText Planned row removed and folded into the Implemented row "Draw a markup annotation with no `/AP`" (core `[x]`, cli `[x]`, gui `[ ]`, not rounded up); icon-painting row's "`/FreeText` not built" clause corrected.
+
+**Sweep (hard rule 11):** survivors of "FreeText left blank / not built" fixed in FEATURES (icon row), decision 203 header, ARCHITECTURE entry, ROADMAP Next up banner. Correct survivors left: `/Caret` still blank. Not swept: `crates/` comments and `eprintln!` strings (outside remit); engineer should grep for FreeText "left blank" wording there. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
+**For next session:** `Pass 646.23`, or a release. Next free `Pass 646.24`, decision `204`, `R263`; next filing 1266th. Push and backup state not checked from here.
+
 ## 2026-10-27 (1264th filing) — `Pass 646.20` and `646.21` (`G236` parts A, B) SHIPPED on `762c4d85`
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
