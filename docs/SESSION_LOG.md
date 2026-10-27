@@ -10,6 +10,8 @@ the affected entry. Maintained by `pdfce-librarian`.
 - `Pass 646.22`: code commit `1fcc480d` (on main, unreleased). `pdfcer-render` draws a `/FreeText` with no `/AP` from `/DA`, `/Contents`, `/Q`, `/Rect` less `/RD`, wrapped; render-only. Font via AcroForm `/DR` to standard-14, else Helvetica, disclosed in the note. Declined and named: callouts, `/RC` without `/Contents`, unreadable `/DA`. Disclosed: `/RC` styling not reproduced, auto-size, non-WinAnsi as `?`.
 - Tests (engineer): 7 render, 1 CLI; sabotage of Fill/Border, callout decline, `/IC` guard, `/RD` inset each caught; `pdfcer-render` 577 + 516 + 25, `pdfcer-cli` 976 (+2 ignored) + 47 passed; clippy, fmt, rustdoc, structure (563, none new), core-api-verbs, clap-help clean; no manifest change.
 
+**Addendum (doc-only follow-up, engineer-reported):** `558a81b6` rewords `crates/pdfcer-core/src/annot.rs` doc comments (module header: classify and count only, drawing is `pdfcer-render`'s call; "R43 makes /AP the only thing pdfcer draws" became "R43 as narrowed by decision 203"), follow-up to `646.20`/`646.21`; no behaviour or test change.
+
 **Decisions made:** none new. FT-A1 (FreeText `/C` fill vs border) made a setting, `FreeTextC { Fill (default), Border }`, `--free-text-c`, recorded as an amendment on decision 203 and its ARCHITECTURE section 12 entry. Judged not to warrant decision 204: same rule, one more setting. Nothing minted.
 
 **Still in flight:** `646.23` (optional bake verb) is the Next up head. Unreleased since `v0.101.0`: `646.19`, `646.20`, `646.21`, `646.22`.
