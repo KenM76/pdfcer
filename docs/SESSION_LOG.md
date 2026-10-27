@@ -4,7 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
-## 2026-10-27 (1268th filing) — `v0.102.0` release prep, version bump `7d027d7d`; NOT yet published
+## 2026-10-27 (1269th filing) — `v0.102.0` PUBLISHED, tag on `47140cdb`
+
+**Filed (docs only; engineer-reported, each item stated verified by the engineer; no shell here, nothing checked from here):**
+- Tag `v0.102.0` on `47140cdb` (the 1268th filing commit), pushed; `git ls-remote` shows it there; `origin/main` contains it. CI green at the tagged commit per `verify-release`.
+- GitHub release: 8 assets (`pdfcer-v0.102.0-windows-x64.zip` 27,720,043 bytes; three OCR add-on zips; each with `.sha256`).
+- Portable build `D:\builds\pdfcer-20261027-1807-47140cd` (`pdfcer.exe` 39,342,592 bytes), `--version` 0.102.0, revision `v0.102.0`. Fresh-folder smoke: `--version`, `inspect`, `bake-appearances` (no-op byte copy, exit 0), `render-page` (612x396 PNG, `annots_painted=1`) all ran.
+- OneDrive slot `pdfcer1` (6 items, 74,890,059 bytes); `pdfcer2` keeps 0.101.0. The next release writes `pdfcer2`.
+- `verify-release.py v0.102.0`: all ok except "working tree clean" (uncommitted `.claude/agent-memory` files only; deliberate, as before).
+- crates.io: `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.102.0, in that order.
+- Pre-release gates: change-scoped core/render/CLI tests, clippy `-D warnings` incl. `pdfcer-cli --no-default-features --all-targets`, all filing gates, `cargo +nightly fuzz build` all targets.
+- GUI notified via `notice_2026-10-27_v0.102.0_released.md` (FeatureRequests `open/`).
+- The commit also carries the engineer's `docs/NEXT_SESSION.md` header update.
+
+**Decisions made:** none; nothing minted. **FEATURES.md:** unchanged. The 1268th ROADMAP prep header was amended (it said "NOT yet published").
+
+**For next session:** next free `Pass 646.24`, decision `204`, `R263`; next filing 1270th; next release slot `pdfcer2`. Backup state not checked from here.
+
+## 2026-10-27 (1268th filing) — `v0.102.0` release prep, version bump `7d027d7d`; NOT yet published (published in the 1269th filing above)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
 - Bump commit `7d027d7d` (`chore`, on `b8997d4e`): workspace version and the `pdfcer-model` workspace dependency pin 0.101.0 to 0.102.0; `Cargo.lock` and `fuzz/Cargo.lock` updated; versions only, no dependency-set change. Not published, not tagged; the tag goes on this filing commit.

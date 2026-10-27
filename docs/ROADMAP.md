@@ -112,9 +112,24 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.102.0` — release prep, version bump `7d027d7d` (`chore`), 2026-10-27 (1268th filing); NOT yet published
+### `v0.102.0` — PUBLISHED, 2026-10-27 (1269th filing)
 
-Engineer-reported; no shell here, nothing checked from here. Same pattern as the v0.101.0 prep (1262nd filing).
+Engineer-reported (engineer states each item verified); no shell here, nothing checked from here. Release record for the prep filed below (1268th, bump `7d027d7d`, filing commit `47140cdb`).
+- **Tag:** `v0.102.0` on `47140cdb`, pushed; `git ls-remote` shows it at `47140cdb`; `origin/main` contains it. CI green at the tagged commit (`verify-release`: "CI is GREEN at the tagged commit").
+- **GitHub release:** 8 assets at local sizes: `pdfcer-v0.102.0-windows-x64.zip` (27,720,043 bytes), `ocr-addon-ocrcer.zip`, `ocr-addon-ocrs.zip`, `ocr-addon-tesseract.zip`, each with a `.sha256`.
+- **Portable build:** `D:\builds\pdfcer-20261027-1807-47140cd`, release profile from the tag; `pdfcer.exe` 39,342,592 bytes; `pdfcer --version` reports 0.102.0, revision `v0.102.0`.
+- **Fresh-folder smoke test:** build copied to a new folder; `--version`, `inspect`, `bake-appearances` (no-op byte copy on a fixture that already has appearances, exit 0) and `render-page` (612x396 PNG, `annots_painted=1`) all ran.
+- **OneDrive:** slot `pdfcer1` (6 items, 74,890,059 bytes); `pdfcer2` keeps 0.101.0. **Next release writes `pdfcer2`.**
+- **`verify-release.py v0.102.0`:** all checks ok except "working tree clean", which fails on the uncommitted `.claude/agent-memory` files only (deliberate, as on earlier releases).
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.102.0 published, in that order.
+- **Pre-release gates:** change-scoped tests for core, render and CLI green earlier this session; `clippy -D warnings` including `cargo clippy -p pdfcer-cli --no-default-features --all-targets`; all filing gates; `cargo +nightly fuzz build` for all targets.
+- **GUI notice** written outside the repo: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-10-27_v0.102.0_released.md`.
+- **Contents:** `Pass 646.19`-`646.23` plus fuzz fix `b3b9023a` (since `v0.101.0`).
+- **FEATURES:** unchanged. Nothing minted; next free `Pass 646.24`, decision `204`, `R263`; next filing 1270th.
+
+### `v0.102.0` — release prep, version bump `7d027d7d` (`chore`), 2026-10-27 (1268th filing); published in the 1269th filing (entry above)
+
+Engineer-reported; no shell here, nothing checked from here. Same pattern as the v0.101.0 prep (1262nd filing). *Amended 1269th: header said "NOT yet published"; it was published, see above.*
 - **`7d027d7d` (`chore`):** workspace version 0.101.0 to 0.102.0 in root `Cargo.toml` (`[workspace.package]` and the `pdfcer-model` `[workspace.dependencies]` pin); `Cargo.lock` and `fuzz/Cargo.lock` updated. Only versions change; no dependency-set change. Sits on `b8997d4e`.
 - **Passes carried since `v0.101.0`** (already filed, not re-filed): `646.19` (`G235`, `9f28d8cd`; fuzz-target follow-up `b3b9023a`, filed 1267th in `b8997d4e`), `646.20` and `646.21` (`762c4d85`), `646.22` (`1fcc480d`), `646.23` (`757a9385`; `G236` complete, decision 203: a markup annotation with no `/AP` is drawn at render time from its own geometry; opt-in bake verb `EditSession::bake_missing_appearances` / `pdfcer bake-appearances`).
 - **Release plan (not claimed done):** the tag goes on this filing commit. Later filing: portable build, GitHub release, OneDrive slot `pdfcer1` (`pdfcer2` keeps 0.101.0), fresh-folder smoke test, `verify-release.py`, and `cargo publish` of `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` at 0.102.0.
@@ -24262,7 +24277,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Next up head: none from the `G236` family: it is complete (`646.20`-`646.23` all shipped).** Next free `Pass 646.24`, decision `204`, `R263`; next filing 1269th. Release slot `pdfcer1`.
+> **Next up head: none from the `G236` family: it is complete (`646.20`-`646.23` all shipped).** Next free `Pass 646.24`, decision `204`, `R263`; next filing 1270th. Release slot `pdfcer2` (next release).
+
+(1269th filing: `v0.102.0` PUBLISHED, tag on `47140cdb`, crates 0.102.0, see *Shipped*. Nothing minted; next free `Pass 646.24`, decision `204`, `R263`; next filing 1270th. Next release slot `pdfcer2`.)
 
 (1268th filing: `v0.102.0` release prep, bump `7d027d7d`, NOT yet published, see *Shipped*. Nothing minted; next free `Pass 646.24`, decision `204`, `R263`; next filing 1269th. Release slot `pdfcer1`.)
 
