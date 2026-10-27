@@ -173,10 +173,9 @@ fn coverage(
 /// [`BrushSpec::cmyk`] carries the tints the *file* stated, when the
 /// interpreter could resolve them. When it is `None` the colour is
 /// reconstructed from the paint's quantised sRGB with
-/// [`crate::overprint::rgb_to_cmyk`] — a max-GCR transform chosen for
-/// exact round-tripping, not for accuracy. That reconstruction is §11.6.6's
-/// required "convert the source to the group's colour space" performed with
-/// the only transform this crate has; it is **not** equivalent to the
+/// [`CmykBuffer::ink_for_srgb`], the inverse of the buffer's display table
+/// (decision 202). That reconstruction is §11.6.6's required "convert the
+/// source to the group's colour space"; it is **not** equivalent to the
 /// authored value, and the measured gap is why the field exists at all.
 /// Every such paint is counted by the buffer's own bridge counter, so a
 /// page composited largely from reconstructions says so.

@@ -2937,7 +2937,10 @@ given colour. Use it for a picker's RGB→CMYK switch, not ISO 32000-2
 and darkens every colour through the calibrated one.
 `srgb_to_cmyk_with(CmykIntent, BlackGeneration, r, g, b)` inverts
 `cmyk_to_srgb_with` at that intent. `BlackGeneration::Most` (default) takes
-the most black ink that still draws the colour; `::Least` the least.
+the most black ink that still draws the colour; `::Least` the least;
+`::Medium` sets K `MEDIUM_BLACK_FRACTION` (0.15) of the way from the least
+to the most (decision 202 — the rule the renderer uses for RGB entering a
+`DeviceCMYK` blending space).
 `CmykFit { cmyk: [f32; 4], residual, in_gamut }` is `#[non_exhaustive]`:
 - `residual` is the largest per-channel error (0..1) of the CMYK's rendering;
 - `in_gamut` is `residual <= CMYK_FIT_TOLERANCE` (half an 8-bit count), and
@@ -2947,6 +2950,12 @@ the most black ink that still draws the colour; `::Least` the least.
 
 Disclose `in_gamut == false` to the operator; it is the only signal that the
 CMYK is not the colour picked. About 0.3 ms a call in a release build.
+
+**Per-pixel: `srgb_to_cmyk_fast(CmykIntent, r, g, b) -> [f32; 4]`**
+returns the `::Medium` separation by trilinear lookup over a baked grid of
+`INVERSE_GRID_NODES`³ (17³) solver results per intent: exact at the nodes,
+white is no ink, within 3 8-bit counts of the solver between them. No
+`in_gamut`; call `srgb_to_cmyk_with` when that matters.
 
 ### 11.4 PDF functions
 

@@ -1449,14 +1449,12 @@ impl CmykBuffer {
     /// holds a `Pixmap`), and shadings evaluate their colour ramp to sRGB
     /// before the pixel loop. Neither can hand this buffer authored
     /// colorants at `Pass 97.1e`, so their source colour is converted with
-    /// [`crate::overprint::rgb_to_cmyk`] on the way in.
+    /// [`Self::ink_for_srgb`] on the way in: the inverse of the table this
+    /// buffer displays through (decision 202).
     ///
-    /// That conversion is a **max-GCR** transform chosen for exact
-    /// round-tripping rather than for colorimetric accuracy — see its own
-    /// documentation. Using it here is §11.6.6's required "convert the
-    /// source to the group's space", performed with the only transform
-    /// this crate has; it is not a claim that the result is what a press
-    /// would print. Every pixel that takes this path is counted
+    /// That is §11.6.6's required "convert the source to the group's
+    /// space"; it is not a claim that the result is what a press would
+    /// print. Every pixel that takes this path is counted
     /// ([`CmykBuffer::bridged_pixels`]) precisely so the approximation is
     /// disclosed rather than assumed away.
     ///
@@ -1546,13 +1544,12 @@ impl CmykBuffer {
     /// # Why this exists beside [`Self::composite_srgb`]
     ///
     /// `composite_srgb` takes a rasterised sRGB pixmap and converts every
-    /// pixel back to ink with `rgb_to_cmyk`. For an image that was *authored*
+    /// pixel back to ink with [`Self::ink_for_srgb`]. For an image that was *authored*
     /// in RGB that is the only information there is, and the bridge is
     /// honest. For an image authored in `DeviceCMYK` it is a **round trip**,
-    /// and the return leg is not the inverse of the outbound one: out through
-    /// a calibrated table, back through a naive formula.
+    /// and the return leg cannot recover the authored ink.
     ///
-    /// AND NO BETTER INVERSE WOULD FIX IT. `CMYK → sRGB` is **many-to-one**
+    /// NO BETTER INVERSE WOULD FIX IT. `CMYK → sRGB` is **many-to-one**
     /// — a rich black and a flat K black can land on the same screen colour —
     /// so the mapping is not injective and has no inverse to improve. The
     /// only way to keep the ink is never to leave it.
