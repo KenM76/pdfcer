@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-27 (1257th filing) — `Pass 646.16` SHIPPED on `d2b906b1`
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.16`: test-only. `pdfcer-cli` `tests/settings_file.rs` retries a spawn of its copied binary on `ETXTBSY` (5 tries, 20 ms x n backoff) after CI run `40498795621` (ubuntu) failed one test with "Text file busy". `settings_file` 7/7 pass. The failure was this flake, not `Pass 646.15`.
+
+**Decisions made:** none. **FEATURES.md:** no row affected. **Sweep (rule 11):** no counter or capability changed meaning; nothing to sweep.
+
+**RAG:** second instance appended to `D:/dev/rag/rust/a_test_that_copies_an_executable_then_spawns_it_races_etxtbsy_under_parallel_tests_on_linux.md`.
+
+**Still in flight:** backup and remote state not checked from here.
+
+**For next session:** next free `Pass 646.17`, decision `203`, `R263`; next filing 1258th.
+
 ## 2026-10-27 (1256th filing) — `Pass 646.15` (`X008`) SHIPPED on `1136387a`
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

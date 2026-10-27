@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `d2b906b1` `Pass 646.16` SHIPPED, 2026-10-27: `settings_file` retries a spawn of its copied binary on `ETXTBSY` (1257th filing)
+
+Engineer-discovered, test-only; no shell here, nothing checked from here. Single code commit `d2b906b1`, on main, unreleased (since `v0.99.0`). Reasoning is in the commit message.
+- **Cause:** CI run `40498795621` (ubuntu-latest, push of filing `1b2861fa`) failed `pdfcer-cli` `tests/settings_file.rs` `a_file_beside_the_program_is_named_and_no_settings_ignores_it` with "Text file busy" (os error 26, `ErrorKind::ExecutableFileBusy`): `binary_in()` copies the CLI into a scratch dir and spawns it, and a parallel test's fork holds the copy's inherited write fd. Unrelated to `Pass 646.15`, which passed all local gates.
+- **Fix:** new test helper `output(cmd)` retries on `ExecutableFileBusy` (5 tries, 20 ms x n backoff); both spawns of the copied binary use it. Recipe: `D:/dev/rag/rust/a_test_that_copies_an_executable_then_spawns_it_races_etxtbsy_under_parallel_tests_on_linux.md` (second instance noted there).
+- **Tests:** `settings_file` 7/7 pass; clippy and fmt clean (engineer). No product, API or dependency change, so the `cargo tree` invariant is untouched.
+- **Delivers:** nothing user-visible; FEATURES boxes unaffected.
+- Nothing minted; next free `Pass 646.17`, decision `203`, `R263`.
+
 ### `1136387a` `Pass 646.15` SHIPPED, 2026-10-27: a Type 3 bitmap glyph drawn shrunk is area-averaged (`X008`) (1256th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `1136387a`, on main, unreleased (since `v0.99.0`). Requester: the operator (crates consumer), via the FeatureRequests channel, `request_X008_type3_bitmap_glyphs_shrunk_on_screen_are_area_averaged.md`; reply (outside the repo): `reply_X008_type3_bitmap_glyphs_shrunk_on_screen_are_area_averaged_FIXED.md`. Scoped and shipped in the same filing. Reasoning is in the commit message.
