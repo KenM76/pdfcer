@@ -182,9 +182,16 @@
 mod cmyk_table;
 mod intent;
 mod inverse;
+mod inverse_grid;
 
 pub use intent::{RenderingIntent, image_intent};
-pub use inverse::{BlackGeneration, CMYK_FIT_TOLERANCE, CmykFit, srgb_to_cmyk, srgb_to_cmyk_with};
+pub use inverse::{
+    BlackGeneration, CMYK_FIT_TOLERANCE, CmykFit, MEDIUM_BLACK_FRACTION, srgb_to_cmyk,
+    srgb_to_cmyk_with,
+};
+#[doc(hidden)]
+pub use inverse_grid::solve_inverse_grid;
+pub use inverse_grid::{INVERSE_GRID_NODES, srgb_to_cmyk_fast};
 
 use cmyk_table::{GRID_L, NODES};
 

@@ -27,7 +27,15 @@ pub enum BlackGeneration {
     /// The least black ink that draws the colour: rich colours built from
     /// C, M and Y, K only where they cannot reach the darkness.
     Least,
+    /// [`MEDIUM_BLACK_FRACTION`] of the way from [`Self::Least`]'s black to
+    /// [`Self::Most`]'s: neutrals carry C, M and Y with a little K, which is
+    /// how a press profile separates them. Fitted to Acrobat's rendering of
+    /// RGB paint in a `DeviceCMYK` blending group (decision 202).
+    Medium,
 }
+
+/// The share of the reachable black range [`BlackGeneration::Medium`] takes.
+pub const MEDIUM_BLACK_FRACTION: f32 = 0.15;
 
 /// The result of [`srgb_to_cmyk`]: the CMYK, and how close its rendering is.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -131,13 +139,27 @@ impl Solver {
     /// The black at the chosen end of the reachable range, or the black of
     /// the closest fit when no black reaches the colour.
     fn choose_black(&self, black: BlackGeneration) -> f32 {
+        let end = match black {
+            BlackGeneration::Medium => {
+                let least = self.choose_black(BlackGeneration::Least);
+                let most = self.choose_black(BlackGeneration::Most);
+                return least + MEDIUM_BLACK_FRACTION * (most - least);
+            }
+            end => end,
+        };
+        self.range_end(end)
+    }
+
+    /// [`Self::choose_black`] for [`BlackGeneration::Most`] or
+    /// [`BlackGeneration::Least`].
+    fn range_end(&self, black: BlackGeneration) -> f32 {
         let grid: Vec<f32> = (0..=K_STEPS)
             .map(|i| f32::from(i) / f32::from(K_STEPS))
             .collect();
         let reach: Vec<bool> = grid.iter().map(|&k| self.reached(k)).collect();
         let pick = match black {
             BlackGeneration::Most => reach.iter().rposition(|&r| r),
-            BlackGeneration::Least => reach.iter().position(|&r| r),
+            BlackGeneration::Least | BlackGeneration::Medium => reach.iter().position(|&r| r),
         };
         let Some(at) = pick else {
             return self.closest_black(&grid);
@@ -146,7 +168,7 @@ impl Solver {
         let inside = grid.get(at).copied().unwrap_or(0.0);
         let outside = match black {
             BlackGeneration::Most => inside + step,
-            BlackGeneration::Least => inside - step,
+            BlackGeneration::Least | BlackGeneration::Medium => inside - step,
         };
         if !(0.0..=1.0).contains(&outside) {
             return inside;

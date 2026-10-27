@@ -179,11 +179,7 @@ fn a_lab_shading_and_mesh_take_the_pcs_bridge() {
     );
     let without = inks("lab-shading-subtractive-no-intent.pdf");
     assert_agree_ink("lab without intent", &without);
-    assert!(
-        without[0][0] < 0.01 && without[0][1] < 0.01 && without[0][2] < 0.01,
-        "without an intent a neutral bridges to K only; got {:?}",
-        without[0]
-    );
+    crate::lab_ink::assert_neutral_separation("lab without intent", without[0]);
     let page = render("lab-shading-subtractive.pdf", &RenderOptions::default());
     assert_eq!(page.diagnostics.shading.ramps_managed, 2);
 }

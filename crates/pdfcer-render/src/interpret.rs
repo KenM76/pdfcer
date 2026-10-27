@@ -7314,7 +7314,7 @@ impl<'a> Interpreter<'a> {
         if let Some(buf) = canvas.cmyk_mut() {
             let source = self
                 .authored_cmyk(stroking)
-                .unwrap_or_else(|| crate::overprint::rgb_to_cmyk(colour.r, colour.g, colour.b));
+                .unwrap_or_else(|| buf.ink_for_srgb(colour.r, colour.g, colour.b));
             let changed = buf.composite_mask(
                 &coverage,
                 region,

@@ -65,6 +65,7 @@ mod region_matches_full_page;
 mod rendering_intent;
 mod replacement_faces;
 mod resubset_fonts_render_the_same;
+mod rgb_into_a_cmyk_group;
 mod same_program_route;
 mod separation_preview;
 mod shading_ink;

@@ -127,21 +127,30 @@ fn with_an_output_intent_all_three_routes_separate_through_it() {
 }
 
 /// The control. No output intent, so no PCS route can exist; all three
-/// objects bridge through `rgb_to_cmyk` from one sRGB and must still agree —
-/// which is where the `/Indexed`-over-`Lab` palette defect showed, on the
-/// page that had nothing to do with the new route.
+/// objects bridge through the calibrated-table inverse (decision 202) from
+/// one sRGB and must still agree — which is where the `/Indexed`-over-`Lab`
+/// palette defect showed, on the page that had nothing to do with the new
+/// route.
 #[test]
 fn without_an_output_intent_all_three_routes_still_agree() {
     let without = inks("lab-three-ways-subtractive-no-intent.pdf");
     assert_agree("without intent", &without);
-    // rgb_to_cmyk puts a neutral into K alone: this pins that the control
-    // really is the bridge and not a silently substituted route.
-    let [c, m, y, _] = without[0];
+    assert_neutral_separation("without intent", without[0]);
+}
+
+/// The calibrated inverse separates a neutral into C, M and Y with a little
+/// K, and that ink displays as a neutral. Max-GCR `rgb_to_cmyk` would put it
+/// into K alone, which is the shape this rules out.
+pub(crate) fn assert_neutral_separation(label: &str, [c, m, y, k]: [f32; 4]) {
     assert!(
-        c < 0.01 && m < 0.01 && y < 0.01,
-        "without an intent a neutral bridges to K only; got {:?}",
-        without[0]
+        c > 0.05 && m > 0.05 && y > 0.05 && k < 0.5,
+        "{label}: a neutral separates into CMY with little K; got {:?}",
+        [c, m, y, k]
     );
+    let shown = pdfcer_core::color::cmyk_to_srgb(c, m, y, k);
+    let spread =
+        shown.iter().fold(0.0_f32, |a, v| a.max(*v)) - shown.iter().fold(1.0_f32, |a, v| a.min(*v));
+    assert!(spread < 3.0 / 255.0, "{label}: {shown:?} is not neutral");
 }
 
 /// The counter: a Lab paint separated through the intent counts as managed;

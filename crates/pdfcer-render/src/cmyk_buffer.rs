@@ -1514,7 +1514,7 @@ impl CmykBuffer {
                 if a <= 0.0 {
                     continue;
                 }
-                // Un-premultiply before converting: `rgb_to_cmyk` is
+                // Un-premultiply before converting: the conversion is
                 // defined on colour, and a premultiplied triple is colour
                 // scaled by an alpha that the compositing formula is about
                 // to apply again.
@@ -1522,7 +1522,7 @@ impl CmykBuffer {
                 let g = Chan::from(px.green()) / 255.0 / a;
                 let b = Chan::from(px.blue()) / 255.0 / a;
                 let source = PixelCmyk {
-                    c: crate::overprint::rgb_to_cmyk(r, g, b),
+                    c: self.ink_for_srgb(r, g, b),
                     s: [0.0; crate::compositor::MAX_SPOTS],
                     a: a * alpha,
                 };
@@ -1921,6 +1921,14 @@ impl CmykBuffer {
     /// against.
     pub(crate) const fn intent(&self) -> pdfcer_core::settings::CmykIntent {
         self.intent
+    }
+
+    /// The ink an additive (sRGB) colour deposits in this buffer: the inverse
+    /// of the table this buffer displays through, so a colour round-trips
+    /// (decision 202). Not `overprint::rgb_to_cmyk`, whose max-GCR black is
+    /// the inverse of the naive formula and turns a grey into pure K.
+    pub(crate) fn ink_for_srgb(&self, r: f32, g: f32, b: f32) -> [f32; 4] {
+        pdfcer_core::color::srgb_to_cmyk_fast(self.intent, r, g, b)
     }
 
     /// The ceiling this buffer was allocated under, so a child buffer is

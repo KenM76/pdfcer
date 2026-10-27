@@ -334,7 +334,7 @@ pub(crate) fn paint_brush_coverage_into_cmyk(
                 // transform's own output, which is what makes a spot fill
                 // and a spot image of the same tint agree.
                 (_, _, Some(cmyk)) => cmyk,
-                (_, _, None) => crate::overprint::rgb_to_cmyk(
+                (_, _, None) => buf.ink_for_srgb(
                     f32::from(rgba[0]) / 255.0,
                     f32::from(rgba[1]) / 255.0,
                     f32::from(rgba[2]) / 255.0,
