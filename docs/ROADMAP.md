@@ -112,6 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
+### `1efce31b` `Pass 646.18` SHIPPED, 2026-10-27: OCR "Editable Text and Images" output (`G234`) (1261st filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `1efce31b` "feat(ocr): editable-text OCR output (G234)", on main, unpushed, unreleased (since `v0.100.0`, filed 1260th, `c7c1a7d0`). Requester: pdfcer-gui via the FeatureRequests channel, request `request_G234_ocr_visible_editable_text.md` (operator row O331); reply (outside the repo): `reply_G234_ocr_visible_editable_text_SHIPPED.md` in the pdfce_FeatureRequests `open/` folder. Reasoning is in the commit message.
+- **Mode:** `OcrLayerOptions::with_output(OcrOutput::EditableText(EditableTextOptions))`, Acrobat Pro's "Editable Text and Images" output (Acrobat RAG `ocr__editable_text_and_images_mode.md`).
+- **Erase:** recognised words' glyph pixels are erased to the surrounding background. Whole connected glyphs are erased, so a clipped glyph goes too; a suspect's box is never painted.
+- **Text:** each word is visible `0 Tr` Helvetica (substitution disclosed), coloured with the median ink in the image's device components (uncalibrated, disclosed). Size and placement come from the measured ink (new `ocr/editable_fit.rs`): one baseline and one size per line, rotate-0 pages only. On the synthetic scan: 12.0-12.5 pt against 12 pt truth, baselines within 0.3 pt.
+- **Disclosure (rule 4):** suspects stay `3 Tr` with their `SuspectReason` counts disclosed; the image re-encode is disclosed via `ImageRewrite` (filter and bytes, before and after); a shared image is copied.
+- **Session semantics:** the whole operation is one undo entry; same `/pdfc_OCR` marker with `/Output /EditableText`; `OcrLayerRef::editable` is new. A re-run or `remove_ocr_layer` on an editable page is refused with `OcrLayerError::EditableLayerPresent`; `ImageEncodeFailed` writes nothing.
+- **CLI:** `pdfcer ocr --output-type editable [--min-confidence N] [--image-codec match|flate]` prints the rewrite plus a compare-before-discarding warning. The debug CLI worker-thread stack went 16 MB to 64 MB: the clap tree now overflowed 16 MB on every debug invocation (release unaffected).
+- **Sizing finding:** engine (PaddleOCR) boxes are heavily padded (12 pt text gets boxes implying ~22 pt) and scans can be skewed, so size is the median cap height of words with an ascender/capital and no descender, and baseline the median ink bottom of non-descender words, at a half-contrast threshold. "Max top minus one baseline" inflated size about 20% on a skewed scan.
+- **Tests:** pdfcer-core 3107 integration + 1992 lib, green; 9 in `tests/ocr_editable.rs`, two new ("sized from the ink", "clipped glyph erased whole", the latter sabotage-verified). pdfcer-cli 974 + 253 green, plus paddle end-to-end `editable_output_writes_visible_text_and_discloses_the_rewrite`.
+- **Gates (engineer):** fmt, clippy (-D warnings, all targets), `check-code-structure` clean (`edit.rs::add_ocr_layer` baseline entry retired, 563 remain), bypass-paths clean; `check-core-api-verbs` PASS (383 verbs). No `Cargo.toml` change, so the `cargo tree` invariant is untouched. docs/core-api updated in the same commit (02, 03, index line count).
+- **Delivers:** core yes; cli yes; gui no (wiring is pdfcer-gui's, via the reply).
+- **FEATURES:** new row "OCR Editable Text and Images output", `[x]` core / `[x]` cli / `[ ]` gui.
+- Nothing minted; no ARCHITECTURE section 12 entry; next free `Pass 646.19`, decision `203`, `R263`.
+
 ### `v0.100.0` — PUBLISHED, tag on `d3996c09`, 2026-10-27 (1260th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Release record for the prep filed below (1259th).
@@ -24165,6 +24181,8 @@ closes out the *prior* filing's business rather than opening this one's.
 ## Next up
 
 > **Next up has no head.** `Pass 646.10` (`X005`) SHIPPED on `c33bd6b1` in the 1252nd filing; its Next up item is removed. Next free `Pass 646.11`, decision `203`, `R263`; next filing 1253rd.
+
+(1261st filing: `Pass 646.18` (`G234`, editable-text OCR output) SHIPPED on `1efce31b`, see *Shipped*. Nothing minted; next free `Pass 646.19`, decision `203`, `R263`; next filing 1262nd. Unreleased since `v0.100.0`.)
 
 (1260th filing: `v0.100.0` PUBLISHED, see *Shipped*. Nothing minted; next free `Pass 646.18`, decision `203`, `R263`; next filing 1261st. Next release slot `pdfcer2`.)
 

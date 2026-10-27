@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-27 (1261st filing) — `Pass 646.18` (`G234`) SHIPPED on `1efce31b`
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.18`: OCR "Editable Text and Images" output. `OcrLayerOptions::with_output(OcrOutput::EditableText(..))` erases recognised glyph pixels, writes each word as visible `0 Tr` Helvetica sized from measured ink (`ocr/editable_fit.rs`); suspects stay `3 Tr`; re-encode disclosed via `ImageRewrite`. CLI `ocr --output-type editable`. Request `request_G234_ocr_visible_editable_text.md` (row O331); reply `reply_G234_ocr_visible_editable_text_SHIPPED.md`. On main, unpushed, unreleased (since `v0.100.0`).
+- Tests: core 3107 + 1992 green, CLI 974 + 253 green; gates clean; `check-core-api-verbs` PASS (383); structure baseline 563.
+
+**Decisions made:** none; nothing minted. `cargo tree` unchanged.
+
+**Findings:** OCR engine boxes (PaddleOCR) are heavily padded (12 pt text gets ~22 pt boxes) and scans can be skewed, so editable-text sizing uses measured ink at a half-contrast threshold: median cap height of ascender/capital, no-descender words for size; median ink bottom of non-descender words for baseline. "Max top minus one baseline" inflated size about 20% on a skewed scan. Debug CLI worker stack 16 MB to 64 MB (clap tree overflowed on every debug run).
+
+**FEATURES.md:** new row, core `[x]` cli `[x]` gui `[ ]`.
+
+**RAG:** `C:\personal_rag\pdf\` lesson not written from here (shell-less, judged borderline: it is an engine-box finding more than a producer quirk); engineer to say if wanted.
+
+**Still in flight:** full `tools/run-gates.sh`, push, backup state: not checked from here.
+
+**For next session:** next free `Pass 646.19`, decision `203`, `R263`; next filing 1262nd; release slot `pdfcer2`.
+
 ## 2026-10-27 (1260th filing) — `v0.100.0` PUBLISHED, tag on `d3996c09`
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
