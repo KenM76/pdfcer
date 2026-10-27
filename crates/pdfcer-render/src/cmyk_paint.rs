@@ -136,7 +136,7 @@ fn coverage(
     if let Some(r) = rule {
         cov.fill_path_fit(path, r, anti_alias, ctm);
     } else {
-        let stroked = path.clone().stroke(stroke?, 1.0)?;
+        let stroked = crate::device_clip::stroke_outline(path, stroke?, ctm)?;
         cov.fill_path_fit(&stroked, FillRule::Winding, anti_alias, ctm);
     }
     if let Some(old) = clip.coverage() {

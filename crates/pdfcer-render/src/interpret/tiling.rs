@@ -5,7 +5,7 @@
 use pdfcer_core::content::ContentStream;
 use pdfcer_core::graph::ObjectGraph;
 use pdfcer_core::object::{ObjId, Object, Stream};
-use tiny_skia::{FillRule, Mask, Path, PathStroker, Pixmap, Transform};
+use tiny_skia::{FillRule, Mask, Path, Pixmap, Transform};
 
 use super::{Interpreter, MAX_XOBJECT_DEPTH, clamp_region, run_nested};
 use crate::canvas::Canvas;
@@ -258,15 +258,8 @@ impl Interpreter<'_> {
         if self.color.pattern(true).is_none() {
             return false;
         }
-        let stroke = self.stroke_params();
-        let res = PathStroker::compute_resolution_scale(&ctm);
-        let dashed = stroke.dash.as_ref().and_then(|d| path.dash(d, res));
-        let source = match (&stroke.dash, &dashed) {
-            (Some(_), Some(d)) => d,
-            (Some(_), None) => return false,
-            (None, _) => path,
-        };
-        let Some(outline) = source.stroke(&stroke, res) else {
+        let Some(outline) = crate::device_clip::stroke_outline(path, &self.stroke_params(), ctm)
+        else {
             return false;
         };
         self.paint_with_pattern(&outline, FillRule::Winding, ctm, true, canvas)

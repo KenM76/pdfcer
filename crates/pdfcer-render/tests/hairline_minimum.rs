@@ -47,15 +47,25 @@ fn build(objects: &[(u32, &str)]) -> Vec<u8> {
 
 /// One horizontal black line at the given width.
 fn page(width: &str) -> Vec<u8> {
-    let content = format!("0 G {width} w 5 30 m 95 30 l S\n");
+    sized_page(&format!("0 G {width} w 5 30 m 95 30 l S\n"), 100, 60, "")
+}
+
+/// A `w` x `h` page drawing `content`, with `page_extra` inside the page
+/// dictionary (a `/Group`, for one).
+fn sized_page(content: &str, w: u32, h: u32, page_extra: &str) -> Vec<u8> {
     build(&[
         (1, "<< /Type /Catalog /Pages 2 0 R >>"),
         (
             2,
-            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 60] \
-             /Resources << >> >>",
+            &format!(
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 {w} {h}] \
+                 /Resources << >> >>"
+            ),
         ),
-        (3, "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>"),
+        (
+            3,
+            &format!("<< /Type /Page /Parent 2 0 R /Contents 4 0 R {page_extra} >>"),
+        ),
         (
             4,
             &format!(
@@ -159,4 +169,159 @@ fn the_floor_is_computed_in_device_space_not_user_space() {
         "zoomed out, a thin stroke faded to grey {d} — the floor is not \
          being computed through the CTM"
     );
+}
+
+/// A DeviceCMYK page group: the page renders through the CMYK buffer.
+const CMYK_GROUP: &str = "/Group << /Type /Group /S /Transparency /CS /DeviceCMYK >>";
+
+/// The corner radius of the reported rounded box (G233).
+const R: f32 = 4.259;
+
+/// Start abscissae of the diagonals in [`curves_and_lines`].
+const DIAG_X0: [f32; 6] = [2.0, 10.1, 18.2, 26.3, 34.4, 42.5];
+
+/// A 340 x 255 page: 24 circles of radius [`R`] stroked at `0.34 w` below
+/// y = 150, six 45° lines from (x0, 160) to (x0 + 80, 240) and a horizontal
+/// line at y = 200.3 from x = 120 to x = 320, all at the same width. The six
+/// [`DIAG_X0`] spread the diagonals over the rasteriser's four vertical
+/// sub-samples: at one phase alone a 1 px 45° stroke reads 0.89 or 1.06.
+fn curves_and_lines(page_extra: &str) -> Vec<u8> {
+    let k = 0.5523 * R;
+    let mut s = String::from("0 G 0.34 w\n");
+    for i in 0..12 {
+        for j in 0..2 {
+            let (cx, cy) = (25.0 + i as f32 * 25.0, 60.0 + j as f32 * 40.0);
+            s += &format!(
+                "{} {cy} m {} {} {} {} {cx} {} c {} {} {} {} {} {cy} c \
+                 {} {} {} {} {cx} {} c {} {} {} {} {} {cy} c S\n",
+                cx + R,
+                cx + R,
+                cy + k,
+                cx + k,
+                cy + R,
+                cy + R,
+                cx - k,
+                cy + R,
+                cx - R,
+                cy + k,
+                cx - R,
+                cx - R,
+                cy - k,
+                cx - k,
+                cy - R,
+                cy - R,
+                cx + k,
+                cy - R,
+                cx + R,
+                cy - k,
+                cx + R,
+            );
+        }
+    }
+    for x0 in DIAG_X0 {
+        s += &format!("{x0} 160 m {} 240 l S\n", x0 + 80.0);
+    }
+    s += "120 200.3 m 320 200.3 l S\n";
+    sized_page(&s, 340, 255, page_extra)
+}
+
+/// Ink (0..1 per pixel, from the red channel over white) summed over the
+/// pixels whose centres satisfy `keep(u, v)` in user space.
+fn ink(r: &RenderedPage, scale: f32, keep: impl Fn(f32, f32) -> bool) -> f32 {
+    let pm = &r.pixmap;
+    let h = 255.0;
+    let mut sum = 0.0;
+    for y in 0..pm.height() {
+        for x in 0..pm.width() {
+            let (u, v) = ((x as f32 + 0.5) / scale, h - (y as f32 + 0.5) / scale);
+            if keep(u, v)
+                && let Some(p) = pm.pixel(x, y)
+            {
+                sum += f32::from(255 - p.demultiply().red()) / 255.0;
+            }
+        }
+    }
+    sum
+}
+
+/// Ink per unit length of the circles and of the 45° lines, each over the
+/// horizontal line's.
+fn weight_ratios(page_extra: &str, scale: f32) -> (f32, f32) {
+    let r = render_at(curves_and_lines(page_extra), scale);
+    let straight = ink(&r, scale, |u, v| {
+        u > 125.0 && u < 315.0 && (v - 200.3).abs() < 2.0
+    }) / 190.0;
+    let circles = ink(&r, scale, |_, v| v < 150.0) / (24.0 * std::f32::consts::TAU * R);
+    let diag = ink(&r, scale, |u, v| {
+        v > 165.0
+            && v < 235.0
+            && u < 118.0
+            && DIAG_X0.iter().any(|x0| (v - u - (160.0 - x0)).abs() < 3.0)
+    }) / (6.0 * 70.0 * std::f32::consts::SQRT_2);
+    (circles / straight, diag / straight)
+}
+
+#[test]
+fn a_thin_curve_or_diagonal_carries_the_weight_of_a_thin_straight_line() {
+    // G233: a 0.34 pt rounded box drew its corners paler than its sides.
+    // A stroke at most one device pixel wide went to tiny-skia's modulated
+    // hairline, which inks one pixel per major-axis step: 0.83-0.86 of the
+    // straight weight on these circles, 1/√2 on a 45° line. Acrobat draws
+    // them uniform.
+    for scale in [1.0_f32, 1.3333, 2.0] {
+        let (circles, diag) = weight_ratios("", scale);
+        assert!(
+            (0.93..=1.07).contains(&circles) && (0.93..=1.07).contains(&diag),
+            "at scale {scale}, circles {circles:.3} and 45° {diag:.3} of the straight weight"
+        );
+    }
+}
+
+#[test]
+fn a_thin_curve_on_a_cmyk_page_carries_the_weight_of_a_straight_line() {
+    // The CMYK buffer outlined strokes at a resolution scale of 1 whatever
+    // the zoom, so at scale 3 a radius-4.26 curve came out at 0.80 of the
+    // straight weight.
+    for scale in [1.0_f32, 2.0, 3.0] {
+        let (circles, diag) = weight_ratios(CMYK_GROUP, scale);
+        assert!(
+            (0.93..=1.07).contains(&circles) && (0.93..=1.07).contains(&diag),
+            "at scale {scale}, circles {circles:.3} and 45° {diag:.3} of the straight weight"
+        );
+    }
+}
+
+#[test]
+fn a_dashed_stroke_keeps_its_gaps_on_every_paint_route() {
+    // The CMYK buffer, the overprint composite and the non-separable blend
+    // composite each outlined strokes with `Path::stroke`, which ignores the
+    // dash array, so `[6 6] 0 d` drew solid on all three.
+    let gaps = |gs: &str, extra: &str| {
+        let content = "/G1 gs 0 0 0 1 K 3 w [6 6] 0 d 10 30 m 90 30 l S\n";
+        let page_extra = format!("/Resources << /ExtGState << /G1 {gs} >> >> {extra}");
+        let r = render_at(sized_page(content, 100, 60, &page_extra), 1.0);
+        (12..88)
+            .filter(|&x| {
+                r.pixmap
+                    .pixel(x, 30)
+                    .is_some_and(|p| p.demultiply().red() > 200)
+            })
+            .count()
+    };
+    let plain = gaps("<< >>", "");
+    assert!(
+        plain > 20,
+        "the plain page lost its dash gaps ({plain} light pixels)"
+    );
+    for (route, gs, extra) in [
+        ("CMYK page group", "<< >>", CMYK_GROUP),
+        ("overprint", "<< /OP true /OPM 1 >>", ""),
+        ("non-separable blend", "<< /BM /Luminosity >>", ""),
+    ] {
+        assert_eq!(
+            gaps(gs, extra),
+            plain,
+            "a dashed stroke through the {route} route must dash as a plain one does"
+        );
+    }
 }

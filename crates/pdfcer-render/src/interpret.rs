@@ -6910,7 +6910,9 @@ impl<'a> Interpreter<'a> {
         if let Some(r) = rule {
             coverage.fill_path_fit(path, r, true, ctm);
         } else {
-            let Some(stroked) = path.clone().stroke(&self.stroke_params(), 1.0) else {
+            let Some(stroked) =
+                crate::device_clip::stroke_outline(path, &self.stroke_params(), ctm)
+            else {
                 return false;
             };
             coverage.fill_path_fit(&stroked, FillRule::Winding, true, ctm);
@@ -7256,7 +7258,9 @@ impl<'a> Interpreter<'a> {
         if let Some(r) = rule {
             coverage.fill_path_fit(path, r, true, ctm);
         } else {
-            let Some(stroked) = path.clone().stroke(&self.stroke_params(), 1.0) else {
+            let Some(stroked) =
+                crate::device_clip::stroke_outline(path, &self.stroke_params(), ctm)
+            else {
                 return false;
             };
             coverage.fill_path_fit(&stroked, FillRule::Winding, true, ctm);

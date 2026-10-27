@@ -252,20 +252,21 @@ fn clip_edge(poly: &[P], win: Window, edge: u8) -> Vec<P> {
     out
 }
 
-/// For an out-of-range stroke, its outline in user space, to be filled
-/// (non-zero) through [`fit`]. `None` when the stroke is in range and should
-/// go to tiny-skia unchanged; `Some(None)` when there is nothing to draw.
-fn stroke_outline(path: &Path, stroke: &Stroke, ts: Transform) -> Option<Option<Path>> {
-    let pad = stroke.width * stroke.miter_limit.max(1.0) + 1.0;
-    if !exceeds(path, ts, pad) {
-        return None;
-    }
+/// A stroke's outline in user space, to be filled (non-zero) under `ts`:
+/// dashed, then stroked at `ts`'s resolution scale, as tiny-skia builds it
+/// for a stroke wider than a device pixel. `None` when there is nothing to
+/// draw.
+///
+/// Every stroke route fills this outline, whatever its width. tiny-skia
+/// draws a stroke at most one device pixel wide as a coverage-scaled
+/// hairline, which inks one pixel per major-axis step, so a diagonal or a
+/// curve gets up to 1/√2 of the ink per unit length that an axis-aligned
+/// run gets. A filled outline inks every direction by area.
+/// `PathStroker` ignores `Stroke::dash`, so the dash is applied here.
+pub(crate) fn stroke_outline(path: &Path, stroke: &Stroke, ts: Transform) -> Option<Path> {
     let res = PathStroker::compute_resolution_scale(&ts);
     let dashed = match &stroke.dash {
-        Some(d) => match path.dash(d, res) {
-            Some(p) => Cow::Owned(p),
-            None => return Some(None),
-        },
+        Some(d) => Cow::Owned(path.dash(d, res)?),
         None => Cow::Borrowed(path),
     };
     let mut solid = stroke.clone();
@@ -274,7 +275,7 @@ fn stroke_outline(path: &Path, stroke: &Stroke, ts: Transform) -> Option<Option<
         // A zero-width stroke is a one-pixel hairline in device space.
         solid.width = 1.0 / res;
     }
-    Some(dashed.stroke(&solid, res))
+    dashed.stroke(&solid, res)
 }
 
 /// `fill_path` / `stroke_path` that pre-clip out-of-range geometry.
@@ -288,8 +289,7 @@ pub(crate) trait FitPaint {
         ts: Transform,
         mask: Option<&Mask>,
     );
-    /// [`PixmapMut::stroke_path`]; an out-of-range stroke is outlined and
-    /// filled through [`fit`].
+    /// A stroke, as its [`stroke_outline`] filled through [`fit`].
     fn stroke_path_fit(
         &mut self,
         path: &Path,
@@ -328,10 +328,8 @@ impl FitPaint for PixmapMut<'_> {
         ts: Transform,
         mask: Option<&Mask>,
     ) {
-        match stroke_outline(path, stroke, ts) {
-            None => self.stroke_path(path, paint, stroke, ts, mask),
-            Some(Some(outline)) => self.fill_path_fit(&outline, paint, FillRule::Winding, ts, mask),
-            Some(None) => {}
+        if let Some(outline) = stroke_outline(path, stroke, ts) {
+            self.fill_path_fit(&outline, paint, FillRule::Winding, ts, mask);
         }
     }
 }
