@@ -128,18 +128,20 @@ use crate::document::Document;
 use crate::fontdata::Std14;
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, Name, ObjId, Object};
-use crate::page_tree::{self, PageTreeError};
+use crate::page_tree;
 use crate::span::ByteSpan;
 use crate::text_edit::addtext::pick_font_name;
 use crate::text_edit::edit::make_raw_stream;
 use crate::vartext::standard14_font_dict;
-use crate::writer::{DirtySet, SaveOptions, WriteError, save_incremental};
+use crate::writer::{DirtySet, SaveOptions, save_incremental};
 
 use super::OcrPage;
+use super::editable::{ImageTarget, ImageWrite, OcrOutput};
 use super::layer_content::{OcSectionNames, layer_content};
 pub use super::layer_content::{build_layer_content, build_layer_content_on};
 pub use super::layer_report::OcrLayerReport;
 use super::layout::RegionGroup;
+use std::collections::BTreeMap;
 
 /// Ascent as a fraction of the font size, for the vertical fit.
 ///
@@ -218,6 +220,9 @@ pub struct OcrLayerOptions {
     /// Per region group, the optional-content group that group's blocks are
     /// written on; see [`Self::on_region_layer`].
     pub region_layers: Vec<(RegionGroup, ObjId)>,
+    /// What the run writes: invisible text over the scan (the default) or
+    /// editable text with the glyphs erased; see [`Self::with_output`].
+    pub output: OcrOutput,
 }
 
 pub use super::layer_removal::{OcrLayerRemoval, RegionLayerRemoval};
@@ -250,6 +255,7 @@ impl Default for OcrLayerOptions {
             existing: ExistingLayers::Replace,
             optional_content: None,
             region_layers: Vec::new(),
+            output: OcrOutput::SearchableImage,
         }
     }
 }
@@ -309,113 +315,7 @@ impl OcrLayerOptions {
     }
 }
 
-/// A failure to write an OCR layer. Every variant is a named, clean outcome.
-#[derive(Debug, thiserror::Error)]
-#[non_exhaustive]
-pub enum OcrLayerError {
-    /// The page index is past the end of the document.
-    #[error("page index {0} is out of range")]
-    PageIndex(usize),
-    /// The document is encrypted and this edit is not permitted: see
-    /// [`EditError::DocumentEncrypted`](crate::edit::EditError::DocumentEncrypted).
-    #[error("{}", crate::edit::ENCRYPTED_EDIT_REFUSED)]
-    Encrypted,
-    /// The recognised page contained no word that could be written.
-    ///
-    /// A named refusal rather than a zero-word success, because writing an
-    /// empty content stream and a font nobody uses would grow the file and
-    /// change its bytes to accomplish nothing — and would report "done" for a
-    /// page where OCR in fact found nothing.
-    #[error("no recognised words could be written for this page")]
-    NothingToWrite,
-    /// Two entries in one session run named the same page.
-    ///
-    /// # Why this is a refusal and not a silent merge
-    ///
-    /// [`crate::edit::EditSession::add_ocr_layer`] plans every page against
-    /// the graph as it stands **before** the command is committed — that is
-    /// what lets a multi-page run be one undo entry. Two entries for one page
-    /// would therefore both append to that page's *original* `/Contents`, and
-    /// the second page-dictionary write would clobber the first. One layer
-    /// written, one layer paid for and lost, and a report claiming both.
-    ///
-    /// Merging them instead would mean deciding what "both layers on one page"
-    /// means, which is a question the caller is better placed to answer by
-    /// merging the word lists before it calls.
-    #[error("page {page_index} appears more than once in one OCR run")]
-    DuplicatePage {
-        /// The page index that appeared twice.
-        page_index: usize,
-    },
-    /// The document's `/Size` is smaller than the highest object number in
-    /// use, so objects exist that a writer cannot see.
-    ///
-    /// The [`crate::text_edit::AddTextError::HiddenObjects`] sibling, refused
-    /// for the same reason and in the same position: allocating a new object
-    /// number in a document whose numbering already lies is how a write lands
-    /// on top of something.
-    #[error("the document hides {count} object(s) behind an undersized /Size")]
-    HiddenObjects {
-        /// How many objects are unreachable through `/Size`.
-        count: usize,
-    },
-    /// The page object is not a dictionary.
-    #[error("unsupported: {0}")]
-    Unsupported(String),
-    /// The page tree could not be walked.
-    #[error(transparent)]
-    PageTree(#[from] PageTreeError),
-    /// The document has no free object numbers left.
-    #[error("no free object numbers remain")]
-    ObjectNumbersExhausted,
-    /// The document is certified and its enforced DocMDP forbids the change.
-    ///
-    /// The [`crate::text_edit::add_text`] sibling of this refusal, for the
-    /// same reason and by the same machinery: writing an OCR layer creates a
-    /// content stream and a font and rewrites the page dict, and §12.8.4
-    /// Table 258 requires a consumer to enforce `/Perms` -> `/DocMDP`.
-    /// Deliberately conservative -- every enforced certification is treated
-    /// as forbidding -- because over-refusal is fail-clean and the
-    /// alternative is a silently-invalidated signature.
-    #[error(
-        "the document is certified with DocMDP permission {permission}, which forbids adding an OCR layer"
-    )]
-    CertificationForbidsChange {
-        /// The `/P` value from the DocMDP transform parameters (Table 254
-        /// default 2 when absent).
-        permission: u8,
-    },
-    /// The page already carries a pdfcer OCR layer and the options say
-    /// [`ExistingLayers::Refuse`].
-    #[error("page {page_index} already carries {count} OCR layer(s) written by pdfcer")]
-    LayerPresent {
-        /// The page index.
-        page_index: usize,
-        /// How many layers were found.
-        count: usize,
-    },
-    /// [`OcrLayerOptions::on_layer`] named an object that is not a group
-    /// listed in `/OCProperties /OCGs` (§8.11.4.2 Table 100).
-    #[error("object {id} is not a layer listed in /OCProperties /OCGs")]
-    NotALayerGroup {
-        /// The object named.
-        id: ObjId,
-    },
-    /// The layer to remove is not on that page (any more).
-    ///
-    /// An [`super::marker::OcrLayerRef`] names one revision; find again after
-    /// an edit rather than reuse an old one.
-    #[error("no pdfcer OCR layer in object {content} on page {page_index}")]
-    LayerNotFound {
-        /// The page index the reference named.
-        page_index: usize,
-        /// The content stream the reference named.
-        content: ObjId,
-    },
-    /// The incremental save failed.
-    #[error(transparent)]
-    Write(#[from] WriteError),
-}
+pub use super::layer_error::OcrLayerError;
 
 /// The saved bytes plus the disclosure report.
 #[derive(Debug, Clone)]
@@ -479,18 +379,41 @@ pub(crate) struct OcrLayerPrep {
     /// What was written and what was inferred, minus the two object numbers
     /// the caller fills in once it has allocated them.
     pub(crate) report: OcrLayerReport,
+    /// The page's resolved `/XObject`, which a cloned image's binding
+    /// merges into.
+    xobject_base: Dict,
+    /// Editable output: the images to rewrite.
+    pub(crate) images: Vec<ImageWrite>,
 }
 
 impl OcrLayerPrep {
     /// The rewritten page dictionary, given the new `/Contents` value
-    /// (from [`Self::append`]) and the font number the caller allocated.
-    pub(crate) fn build_page_dict(&self, contents: Object, font_id: ObjId) -> Dict {
+    /// (from [`Self::append`]), the font number the caller allocated and
+    /// the object each cloned image was given, in [`Self::images`] order.
+    pub(crate) fn build_page_dict(
+        &self,
+        contents: Object,
+        font_id: ObjId,
+        clones: &[ObjId],
+    ) -> Dict {
         let mut new_page = self.page_dict.clone();
         new_page.insert(Name::from(b"Contents"), contents);
         let mut font_subdict = self.font_subdict_base.clone();
         font_subdict.insert(Name(self.font_name.clone()), Object::Reference(font_id));
         let mut resources = self.resources_base.clone();
         resources.insert(Name::from(b"Font"), Object::Dict(font_subdict));
+        let cloned = self
+            .images
+            .iter()
+            .filter(|i| i.target == ImageTarget::Clone)
+            .zip(clones);
+        if !clones.is_empty() {
+            let mut xobjects = self.xobject_base.clone();
+            for (image, id) in cloned {
+                xobjects.insert(Name(image.name.clone()), Object::Reference(*id));
+            }
+            resources.insert(Name::from(b"XObject"), Object::Dict(xobjects));
+        }
         if !self.new_bindings.is_empty() {
             let mut props = self.properties_base.clone();
             for (name, group) in &self.new_bindings {
@@ -516,11 +439,11 @@ pub(crate) fn existing_layer_strip(
     page_index: usize,
     opts: &OcrLayerOptions,
 ) -> Result<LayerStrip, OcrLayerError> {
-    if opts.existing == ExistingLayers::Stack {
-        return Ok(LayerStrip::default());
-    }
     let found = page_ocr_layers(view, page, page_index);
-    if found.is_empty() {
+    if found.iter().any(|l| l.editable) {
+        return Err(OcrLayerError::EditableLayerPresent { page_index });
+    }
+    if found.is_empty() || opts.existing == ExistingLayers::Stack {
         return Ok(LayerStrip::default());
     }
     if opts.existing == ExistingLayers::Refuse {
@@ -587,6 +510,7 @@ pub(crate) fn plan_ocr_layer(
     opts: &OcrLayerOptions,
     strip: &LayerStrip,
     graph: &crate::view::DocumentView<'_>,
+    uses: &BTreeMap<ObjId, usize>,
 ) -> Result<OcrLayerPrep, OcrLayerError> {
     let page_dict = graph.resolved(page.id).as_dict().cloned().ok_or_else(|| {
         OcrLayerError::Unsupported("the page object is not a dictionary".to_owned())
@@ -615,11 +539,30 @@ pub(crate) fn plan_ocr_layer(
     resources_base.remove(b"Font");
 
     let (names, new_bindings) = section_names(graph, page, opts)?;
-    let (content_data, mut report) = layer_content(ocr_page, &font_name, &names, opts, page.rotate);
+    let editable = match opts.output {
+        OcrOutput::EditableText(eo) => Some(eo),
+        _ => None,
+    };
+    let analysis =
+        editable.map(|eo| super::editable::analyse(graph, page, ocr_page, opts, &eo, uses));
+    let styles = analysis.as_ref().map_or(&[][..], |a| a.styles.as_slice());
+    let fitted = analysis
+        .as_ref()
+        .and_then(|a| super::editable_fit::fitted(a, ocr_page, page.rotate));
+    let placed = fitted.as_ref().unwrap_or(ocr_page);
+    let (content_data, mut report, visible) =
+        layer_content(placed, &font_name, &names, opts, page.rotate, styles);
     if report.words_written == 0 {
         return Err(OcrLayerError::NothingToWrite);
     }
     report.layers_replaced = strip.contents.len();
+    let images = match (analysis, editable) {
+        (Some(a), Some(eo)) => {
+            super::editable::apply(a, &visible, ocr_page, eo.image_codec, &mut report)
+                .ok_or(OcrLayerError::ImageEncodeFailed)?
+        }
+        _ => Vec::new(),
+    };
 
     Ok(OcrLayerPrep {
         page_id: page.id,
@@ -633,6 +576,8 @@ pub(crate) fn plan_ocr_layer(
         content_data,
         font_dict: Object::Dict(standard14_font_dict(opts.font)),
         report,
+        xobject_base: super::editable::xobject_base(graph, page),
+        images,
     })
 }
 
@@ -680,116 +625,96 @@ pub fn add_ocr_layer(
     ocr_page: &OcrPage,
     opts: &OcrLayerOptions,
 ) -> Result<OcrLayerOutcome, OcrLayerError> {
+    one_shot_guards(doc)?;
+    let pages = page_tree::pages(doc)?;
+    let page = pages
+        .get(page_index)
+        .ok_or(OcrLayerError::PageIndex(page_index))?;
+    let uses = match opts.output {
+        OcrOutput::EditableText(_) => crate::redact_image::image_use_census(doc, &pages),
+        _ => BTreeMap::new(),
+    };
+    // The plan is shared with `EditSession::add_ocr_layer`; only where
+    // numbers and staged bytes come from differs.
+    let strip = existing_layer_strip(&doc.view(), page, page_index, opts)?;
+    let prep = plan_ocr_layer(page, ocr_page, opts, &strip, &doc.view(), &uses)?;
+    let mut report = prep.report.clone();
+
+    let exhausted = || OcrLayerError::ObjectNumbersExhausted;
+    let content_num = doc.next_object_number().ok_or_else(exhausted)?;
+    let font_num = content_num.checked_add(1).ok_or_else(exhausted)?;
+    let content_id = ObjId::new(content_num, 0);
+    let font_id = ObjId::new(font_num, 0);
+
+    // A sanctioned writer bypass, exception 7's shape (see
+    // `tools/check-bypass-paths.sh`): a one-shot on a `Document` outside any
+    // session, so no undo stack to join. `one_shot_guards` refuses encrypted
+    // and enforced-certified documents, which is what makes the exemption
+    // honest; do not copy this marker to a writer without both refusals.
+    // Bytes are staged at `base.len() + local` (R45); the image (unless
+    // rewritten) and the original content are not re-emitted (rule 3).
+    let start = doc.bytes().len();
+    let mut staging = prep.content_data.clone();
+    let mut dirty = DirtySet::empty();
+    // bypass-exempt: the note above; tokens sit within the gate's window.
+    dirty.replace(
+        content_id,
+        make_raw_stream(ByteSpan::new(start, staging.len()), staging.len()),
+    );
+    dirty.replace(font_id, prep.font_dict.clone());
+    let mut next = font_num.checked_add(1);
+    let mut clones = Vec::new();
+    for (k, image) in prep.images.iter().enumerate() {
+        let id = match image.target {
+            ImageTarget::InPlace(id) => id,
+            ImageTarget::Clone => {
+                let id = ObjId::new(next.ok_or_else(exhausted)?, 0);
+                next = id.num.checked_add(1);
+                clones.push(id);
+                id
+            }
+        };
+        if let Some(r) = report.images_rewritten.get_mut(k) {
+            r.image = id.num;
+        }
+        // bypass-exempt: the image rewrite of the same one-shot write.
+        dirty.replace(id, image.staged(start + staging.len()));
+        staging.extend_from_slice(&image.data);
+    }
+    let contents = crate::text_edit::addtext::one_shot_contents(
+        &prep.append,
+        content_id,
+        next,
+        start,
+        &mut staging,
+        &mut dirty,
+    )
+    .ok_or_else(exhausted)?;
+    dirty.replace(
+        prep.page_id,
+        Object::Dict(prep.build_page_dict(contents, font_id, &clones)),
+    );
+    // bypass-exempt: the second token covers `save_incremental` below.
+    dirty.set_staging(staging);
+    let (bytes, _) = save_incremental(doc, &dirty, &SaveOptions::identity())?;
+
+    report.content_object = content_num;
+    report.font_object = font_num;
+    Ok(OcrLayerOutcome { bytes, report })
+}
+
+/// The one-shot's refusals, before any work: encryption, then an enforced
+/// certification (§12.8.4 Table 258, `/P` absent means 2 per Table 254),
+/// by the same machinery as `add_text`.
+fn one_shot_guards(doc: &Document) -> Result<(), OcrLayerError> {
     if crate::encryption_gate::forbids(doc, &[PermissionBit::ModifyContents]) {
         return Err(OcrLayerError::Encrypted);
     }
-
-    // §12.8.4 Table 258: a consumer "shall enforce the permissions" a
-    // certification carries. This mirrors `add_text`'s
-    // `refuse_if_certification_forbids` exactly -- same `census` +
-    // `forbids_structural_change` machinery, same "/P absent => default 2"
-    // rule (Table 254) -- and yields an `OcrLayerError` because that is this
-    // path's error type. It is here rather than deeper because refusing
-    // before doing any work is the difference between a clean refusal and a
-    // half-built plan thrown away.
     let census = crate::signature::census(doc);
     if census.forbids_structural_change() {
         return Err(OcrLayerError::CertificationForbidsChange {
             permission: census.certification_permission.unwrap_or(2),
         });
     }
-
-    let pages = page_tree::pages(doc)?;
-    let page = pages
-        .get(page_index)
-        .ok_or(OcrLayerError::PageIndex(page_index))?;
-
-    // The plan is shared with `EditSession::add_ocr_layer` and allocates
-    // nothing -- see `plan_ocr_layer`. What differs between the two writers is
-    // only where object numbers and staged bytes come from, and that fork
-    // starts on the next line.
-    let strip = existing_layer_strip(&doc.view(), page, page_index, opts)?;
-    let prep = plan_ocr_layer(page, ocr_page, opts, &strip, &doc.view())?;
-    let mut report = prep.report.clone();
-
-    let content_num = doc
-        .next_object_number()
-        .ok_or(OcrLayerError::ObjectNumbersExhausted)?;
-    let font_num = content_num
-        .checked_add(1)
-        .ok_or(OcrLayerError::ObjectNumbersExhausted)?;
-    let content_id = ObjId::new(content_num, 0);
-    let font_id = ObjId::new(font_num, 0);
-
-    // A SANCTIONED WRITER BYPASS — exception 7's shape exactly (see
-    // `tools/check-bypass-paths.sh`): `add_ocr_layer(doc, ..) -> bytes`,
-    // operating on a `Document` that is not in an edit session, so there is no
-    // undo stack to join and nothing to disclose to a later command. It
-    // refuses an encrypted document and an enforced-certified one; that second
-    // refusal is what makes this exemption honest, and it was MISSING when the
-    // function shipped.
-    //
-    // THIS NOTE HAS BEEN WRONG ABOUT ITS OWN CALLERS THREE TIMES. The
-    // wording is deliberately plain now, and the history is kept because the
-    // pattern is worth more than the fact.
-    //
-    //   1. It once said "called by the CLI", when nothing called it.
-    //   2. It was corrected to "There is NO OCR subcommand -- `grep -rn "ocr"
-    //      crates/pdfcer-cli/src/main.rs` returns nothing. So this is an R151
-    //      instance: a capability with no shell caller."
-    //   3. That was corrected to "what still has no caller is THIS one-shot".
-    //
-    // **All three were false when written, and (3) was written while
-    // explicitly correcting (2).** Measured 2026-08-27: `pdfcer` has an
-    // `ocr` subcommand AND a `fetch-ocr-models` subcommand, "ocr" appears 71
-    // times in `main.rs`, and this very function is called from
-    // `main.rs:8673`. The grep quoted in (2) does not return nothing and
-    // presumably never did.
-    //
-    // ⇒ **A claim about callers is a MEASUREMENT, and it goes stale silently
-    // because nothing recompiles when it does.** Correcting such a claim by
-    // reasoning about what changed — rather than by re-running the grep — is
-    // how (3) happened: the author knew a new caller had appeared and inferred
-    // the rest of the sentence instead of checking it. If you are about to
-    // edit this paragraph, run the grep first. It takes a second.
-    //
-    // The exemption's warrant never depended on who calls it — a one-shot API
-    // is outside a session whether a shell reaches it or not — which is
-    // precisely why nobody ever had a reason to verify the sentence.
-    //
-    // Do not copy this marker to a new writer caller without first checking
-    // the same two refusals are present.
-    //
-    // Stage the content bytes into the dirty set's buffer, with the new
-    // stream's span in the `base.len() + local` combined coordinate system
-    // (R45). The image and the original content stream are NOT in the dirty
-    // set, so they are not re-emitted — round-trip, rule 3.
-    let start = doc.bytes().len();
-    let span = ByteSpan::new(start, prep.content_data.len());
-    let mut staging = prep.content_data.clone();
-    let mut dirty = DirtySet::empty();
-    // bypass-exempt: see the note above this block. The gate's window is
-    // eight lines either side of each writer call, so the token sits between
-    // `DirtySet::empty` and `save_incremental`, within reach of both.
-    dirty.replace(content_id, make_raw_stream(span, prep.content_data.len()));
-    dirty.replace(font_id, prep.font_dict.clone());
-    let contents = crate::text_edit::addtext::one_shot_contents(
-        &prep.append,
-        content_id,
-        font_num.checked_add(1),
-        start,
-        &mut staging,
-        &mut dirty,
-    )
-    .ok_or(OcrLayerError::ObjectNumbersExhausted)?;
-    let new_page = prep.build_page_dict(contents, font_id);
-    dirty.replace(prep.page_id, Object::Dict(new_page));
-    // bypass-exempt: the second token covers `save_incremental` below.
-    dirty.set_staging(staging);
-
-    let (bytes, _) = save_incremental(doc, &dirty, &SaveOptions::identity())?;
-
-    report.content_object = content_num;
-    report.font_object = font_num;
-    Ok(OcrLayerOutcome { bytes, report })
+    Ok(())
 }

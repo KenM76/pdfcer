@@ -1040,6 +1040,9 @@ pub(crate) fn run() -> ExitCode {
             upscale,
             upscale_filter,
             magnify,
+            output_type,
+            min_confidence,
+            image_codec,
         } => {
             ocr_program::set_refuse_flag(refuse_ocr_programs);
             cmd_ocr(
@@ -1058,6 +1061,7 @@ pub(crate) fn run() -> ExitCode {
                     upscale,
                     upscale_filter: upscale_filter.unwrap_or_default(),
                     magnify,
+                    layer_output: ocr_output(output_type, min_confidence, image_codec),
                 },
                 &OcrModelChoice {
                     engine: ocr_engine,

@@ -321,3 +321,38 @@ fn paddle_models_read_the_scan_when_present() {
         "find-text: {found}"
     );
 }
+
+/// `--output-type editable` end to end: the scan's words become visible text
+/// that `find-text` reads, and the image re-encode and the font substitution
+/// are both disclosed.
+#[cfg(feature = "paddle")]
+#[test]
+fn editable_output_writes_visible_text_and_discloses_the_rewrite() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../pdfcer-core/assets/models/paddle");
+    let dest = out("paddle-editable.pdf");
+    let o = Command::new(BIN)
+        .arg("ocr")
+        .arg(scan())
+        .args(["--ocr-engine", "paddle", "--model-dir"])
+        .arg(&dir)
+        .args(["--output-type", "editable", "-o"])
+        .arg(&dest)
+        .output()
+        .expect("run pdfcer");
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert_eq!(o.status.code(), Some(0), "stderr: {err}");
+    assert!(err.contains("Helvetica"), "stderr: {err}");
+    assert!(err.contains("re-encoded"), "stderr: {err}");
+    assert!(err.contains("VISIBLE text"), "stderr: {err}");
+    let o = Command::new(BIN)
+        .arg("find-text")
+        .arg(&dest)
+        .args(["--needle", "sleeping"])
+        .output()
+        .expect("run pdfcer");
+    let found = String::from_utf8_lossy(&o.stdout);
+    assert!(
+        o.status.success() && found.contains("sleeping"),
+        "find-text: {found}"
+    );
+}

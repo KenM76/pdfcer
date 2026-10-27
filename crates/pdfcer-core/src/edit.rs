@@ -152,6 +152,7 @@ mod form_transform;
 mod group_unit;
 mod insert_fields;
 mod node_shape;
+mod ocr_layer_write;
 mod page_import;
 mod restack;
 mod stroke_style;
@@ -14775,109 +14776,20 @@ impl EditSession {
         pages: &[OcrPageLayer<'_>],
         opts: &crate::ocr::layer::OcrLayerOptions,
     ) -> Result<Vec<crate::ocr::layer::OcrLayerReport>, crate::ocr::layer::OcrLayerError> {
-        use crate::ocr::layer::{OcrLayerError as OlError, existing_layer_strip, plan_ocr_layer};
-        use crate::text_edit::edit::make_raw_stream;
-
         if pages.is_empty() {
             return Ok(Vec::new());
         }
-
-        // Guards in the SAME order as `add_text` and the one-shot: encryption
-        // → certification → /Size-hides-objects. Each is a named refusal made
-        // before any work, and keeping the order identical across the three
-        // entry points is what stops one of them growing a different answer to
-        // the same document.
-        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
-            return Err(OlError::Encrypted);
-        }
-        let census = crate::signature::census(&self.base);
-        if census.forbids_structural_change() {
-            return Err(OlError::CertificationForbidsChange {
-                permission: census.certification_permission.unwrap_or(2),
-            });
-        }
-        let suppressed = self.base.suppressed_object_count();
-        if suppressed > 0 {
-            return Err(OlError::HiddenObjects { count: suppressed });
-        }
-
-        // Duplicates, before anything is planned. See the doc comment: two
-        // entries for one page silently lose a layer.
-        let mut seen = std::collections::BTreeSet::new();
-        for layer in pages {
-            if !seen.insert(layer.page_index) {
-                return Err(OlError::DuplicatePage {
-                    page_index: layer.page_index,
-                });
-            }
-        }
-
-        // PLAN EVERY PAGE FIRST, allocating nothing. A run that refuses on its
-        // fourth page must not have already allocated three pages' object
-        // numbers and staged three pages' bytes -- the numbers would be burnt
-        // and the staging buffer would carry content no object references.
-        // The existing-layer policy is applied here too, per page, so a
-        // refusal on any page still happens before anything is allocated.
-        let (preps, strips) = {
-            let page_list = self.pages().map_err(OlError::PageTree)?;
-            let view = self.view();
-            let mut preps = Vec::with_capacity(pages.len());
-            let mut strips = Vec::with_capacity(pages.len());
-            for layer in pages {
-                let page = page_list
-                    .get(layer.page_index)
-                    .ok_or(OlError::PageIndex(layer.page_index))?;
-                let strip = existing_layer_strip(&view, page, layer.page_index, opts)?;
-                preps.push(plan_ocr_layer(page, layer.recognised, opts, &strip, &view)?);
-                strips.push((layer.page_index, strip));
-            }
-            (preps, strips)
-        };
+        self.ocr_layer_guards(pages)?;
+        let (preps, strips) = self.plan_ocr_pages(pages, opts)?;
         let removals = self.ocr_strip_removals(&strips)?;
 
-        // Now allocate and stage. Past this point nothing can fail except an
-        // exhausted object-number space, which is checked per allocation.
+        // Past planning nothing fails except an exhausted object-number
+        // space, checked per allocation.
         let mut objects = Vec::with_capacity(preps.len().saturating_mul(3));
         let mut wrap = None;
         let mut reports = Vec::with_capacity(preps.len());
         for prep in &preps {
-            let content_num = self
-                .alloc_number()
-                .map_err(|_| OlError::ObjectNumbersExhausted)?;
-            let font_num = self
-                .alloc_number()
-                .map_err(|_| OlError::ObjectNumbersExhausted)?;
-            let content_id = ObjId::new(content_num, 0);
-            let font_id = ObjId::new(font_num, 0);
-
-            let contents = self
-                .finish_overlay(&prep.append, content_id, &mut wrap, &mut objects)
-                .map_err(|_| OlError::ObjectNumbersExhausted)?;
-            let new_page = prep.build_page_dict(contents, font_id);
-            let content_len = prep.content_data.len();
-            let span = self.stage_bytes(&prep.content_data);
-            let page_before = self.value(prep.page_id).cloned();
-
-            objects.push(ObjectWrite {
-                id: content_id,
-                before: None,
-                after: Some(make_raw_stream(span, content_len)),
-            });
-            objects.push(ObjectWrite {
-                id: font_id,
-                before: None,
-                after: Some(prep.font_dict.clone()),
-            });
-            objects.push(ObjectWrite {
-                id: prep.page_id,
-                before: page_before,
-                after: Some(Object::Dict(new_page)),
-            });
-
-            let mut report = prep.report.clone();
-            report.content_object = content_num;
-            report.font_object = font_num;
-            reports.push(report);
+            reports.push(self.write_ocr_prep(prep, &mut wrap, &mut objects)?);
         }
 
         // THE ONE COMMIT. Outside the loop, deliberately -- see the doc
@@ -15006,6 +14918,11 @@ impl EditSession {
             .into_iter()
             .find(|l| l.content == layer.content)
             .ok_or_else(not_found)?;
+        if found.editable {
+            return Err(OlError::EditableLayerPresent {
+                page_index: layer.page_index,
+            });
+        }
         let strip = plan_strip(&view, page, std::slice::from_ref(&found));
         let graph = self.graph();
         let mut new_page = graph.resolved(page.id).as_dict().cloned().ok_or_else(|| {

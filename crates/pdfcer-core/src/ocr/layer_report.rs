@@ -1,5 +1,6 @@
 //! [`OcrLayerReport`]: what an OCR-layer write did and inferred.
 
+use super::editable::{ImageRewrite, SuspectReason};
 use super::structure::OcrStructureSource;
 
 /// What the layer write did, and everything it inferred — the rule-4
@@ -9,7 +10,7 @@ use super::structure::OcrStructureSource;
 /// in front of the operator **without** marking anything on the page. Nothing
 /// in this struct is optional to surface: a caller that builds a layer and
 /// drops the report has made pdfcer silent about a page of guesses.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 #[non_exhaustive]
 pub struct OcrLayerReport {
     /// How many words were written into the layer.
@@ -62,6 +63,19 @@ pub struct OcrLayerReport {
     /// How many earlier pdfcer layers on the page this write removed
     /// ([`ExistingLayers::Replace`](super::layer::ExistingLayers::Replace)).
     pub layers_replaced: usize,
+    /// The layer is the editable output
+    /// ([`OcrOutput::EditableText`](super::editable::OcrOutput::EditableText)).
+    pub editable: bool,
+    /// Editable output: words written visible, their glyphs erased.
+    pub words_visible: usize,
+    /// Editable output: words left in the image under invisible text.
+    pub words_suspect: usize,
+    /// Editable output: suspect counts by reason, ascending by reason.
+    pub suspects: Vec<(SuspectReason, usize)>,
+    /// Editable output: visible words the engine gave no confidence.
+    pub words_unscored_visible: usize,
+    /// Editable output: every image re-encoded.
+    pub images_rewritten: Vec<ImageRewrite>,
 }
 
 impl OcrLayerReport {
@@ -76,12 +90,16 @@ impl OcrLayerReport {
     #[must_use]
     pub fn disclosures(&self) -> Vec<String> {
         let mut out = Vec::new();
-        out.push(format!(
-            "OCR text layer: {} text box(es) written (a word or a line each, \
-             as the engine reports them), invisible (text rendering mode 3) — \
-             the page renders exactly as it did before.",
-            self.words_written
-        ));
+        if self.editable {
+            self.editable_disclosures(&mut out);
+        } else {
+            out.push(format!(
+                "OCR text layer: {} text box(es) written (a word or a line each, \
+                 as the engine reports them), invisible (text rendering mode 3) — \
+                 the page renders exactly as it did before.",
+                self.words_written
+            ));
+        }
         let inferred = match self.structure {
             OcrStructureSource::Reported => None,
             OcrStructureSource::BlocksInferred => Some("blocks were"),
@@ -139,5 +157,45 @@ impl OcrLayerReport {
             ));
         }
         out
+    }
+
+    fn editable_disclosures(&self, out: &mut Vec<String>) {
+        out.push(format!(
+            "Editable OCR text: {} word(s) erased from the scan and written as \
+             visible text in substituted Standard-14 font Helvetica, coloured \
+             with the ink measured in the image (device components, \
+             uncalibrated); {} word(s) left in the image as invisible text.",
+            self.words_visible, self.words_suspect
+        ));
+        for (reason, n) in &self.suspects {
+            out.push(format!("  {n} suspect word(s): {}.", reason.describe()));
+        }
+        if self.words_unscored_visible > 0 {
+            out.push(format!(
+                "{} visible word(s) had no confidence from the engine and were \
+                 converted unscored.",
+                self.words_unscored_visible
+            ));
+        }
+        for r in &self.images_rewritten {
+            let copy = if r.cloned {
+                format!(
+                    " (a copy of shared image {}; other uses unchanged)",
+                    r.source
+                )
+            } else {
+                String::new()
+            };
+            out.push(format!(
+                "Image {} re-encoded{copy}: {} {} bytes -> {} {} bytes, {} \
+                 word(s) erased.",
+                r.image,
+                r.filter_before,
+                r.bytes_before,
+                r.filter_after,
+                r.bytes_after,
+                r.words_erased
+            ));
+        }
     }
 }

@@ -57,10 +57,16 @@
 /// proposed and withdrawn.
 pub mod models;
 
+/// The editable-text output: recognised words erased from the scan and
+/// written as visible text.
+pub mod editable;
+mod editable_fit;
+mod editable_image;
 /// The sandwich writer — recognised words become an invisible, selectable
 /// text layer over page content that is left byte-identical.
 pub mod layer;
 mod layer_content;
+mod layer_error;
 mod layer_removal;
 mod layer_report;
 mod structure;

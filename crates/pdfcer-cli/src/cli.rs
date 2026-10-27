@@ -4770,6 +4770,34 @@ pub(crate) enum Command {
         /// `point-sample` read 42.6 % of words.
         #[arg(long, value_name = "FILTER", default_value = "smooth")]
         magnify: pdfcer_core::settings::MagnifyFilter,
+        /// What to write: `searchable` (the default) adds invisible text over
+        /// the unchanged scan; `editable` replaces each recognised word in the
+        /// scan with visible, editable text.
+        ///
+        /// `editable` erases the word's ink from the image, fills it with the
+        /// paper colour around it, and writes the word in its measured ink
+        /// colour in Helvetica, at its place and size. The image is
+        /// re-encoded (see `--image-codec`); an image another page also draws
+        /// is copied first, so that page keeps the original. Words it cannot
+        /// convert safely — below `--min-confidence`, over two images, on a
+        /// busy background, or a character Helvetica lacks — stay in the
+        /// image with invisible text over them, and are counted on stderr as
+        /// suspects with their reasons. A page converted this way cannot be
+        /// recognised again or have its layer removed: the scanned words are
+        /// gone.
+        #[arg(long, value_enum, default_value_t = OcrOutputArg::Searchable)]
+        output_type: OcrOutputArg,
+        /// With `--output-type editable`: the lowest engine confidence, in
+        /// percent, at which a word becomes visible text (default 50). An
+        /// engine reporting no confidence converts every word; the count is
+        /// printed.
+        #[arg(long, value_name = "PERCENT", value_parser = clap::value_parser!(u8).range(0..=100))]
+        min_confidence: Option<u8>,
+        /// With `--output-type editable`: how the erased image is encoded.
+        /// `match` (the default) keeps a JPEG scan JPEG and writes anything
+        /// else as Flate; `flate` is always lossless.
+        #[arg(long, value_enum, value_name = "CODEC")]
+        image_codec: Option<EditableCodecArg>,
     },
     /// **List the stamps in an Acrobat-compatible stamp collection**
     /// (`Pass 288.0`).

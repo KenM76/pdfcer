@@ -54,7 +54,10 @@ pub const LAYER_VERSION: i64 = 1;
 
 /// The `BDC` opening a pdfcer layer section, ending in a newline. The
 /// matching `EMC` must be the stream's last operator ([`page_ocr_layers`]).
-pub(crate) fn open_marker(out: &mut Vec<u8>, engine: Option<&str>) {
+///
+/// `editable` adds `/Output /EditableText`: the layer's text replaced the
+/// scan's glyphs ([`super::editable`]).
+pub(crate) fn open_marker(out: &mut Vec<u8>, engine: Option<&str>, editable: bool) {
     use crate::writer::content::emit_literal_string;
     out.push(b'/');
     out.extend_from_slice(LAYER_TAG);
@@ -65,6 +68,9 @@ pub(crate) fn open_marker(out: &mut Vec<u8>, engine: Option<&str>) {
     if let Some(engine) = engine {
         out.extend_from_slice(b" /Engine ");
         emit_literal_string(out, engine.as_bytes());
+    }
+    if editable {
+        out.extend_from_slice(b" /Output /EditableText");
     }
     out.extend_from_slice(b" >> BDC\n");
 }
@@ -89,6 +95,10 @@ pub struct OcrLayerRef {
     /// The optional-content group the layer's text is on, when it was written
     /// with [`super::layer::OcrLayerOptions::on_layer`].
     pub optional_content: Option<ObjId>,
+    /// The layer is visible text whose glyphs were erased from the scan
+    /// ([`super::editable::OcrOutput::EditableText`]). Replacing or removing
+    /// it is refused: the text is no longer in the image.
+    pub editable: bool,
 }
 
 /// Every pdfcer OCR layer in the document, page by page, in `/Contents` order.
@@ -119,7 +129,7 @@ pub fn page_ocr_layers(
     content_stream_ids(view, page)
         .into_iter()
         .filter_map(|id| {
-            let (engine, version, font_names) = read_marker(view, id)?;
+            let (engine, version, font_names, editable) = read_marker(view, id)?;
             Some(OcrLayerRef {
                 page_index,
                 content: id,
@@ -127,6 +137,7 @@ pub fn page_ocr_layers(
                 version,
                 font_names,
                 optional_content: super::group::layer_groups(view, page, id).0,
+                editable,
             })
         })
         .collect()
@@ -182,9 +193,12 @@ pub(crate) fn layer_props<'a>(op: &Operation<'a>, buf: &'a [u8]) -> Option<&'a D
     }
 }
 
-/// `(engine, version, font names)` when stream `id` is exactly one pdfcer
-/// OCR layer, else `None`.
-fn read_marker(view: &DocumentView<'_>, id: ObjId) -> Option<(Option<String>, i64, Vec<Vec<u8>>)> {
+/// What a marker records: engine, version, font names, editable.
+type MarkerFacts = (Option<String>, i64, Vec<Vec<u8>>, bool);
+
+/// The [`MarkerFacts`] when stream `id` is exactly one pdfcer OCR layer,
+/// else `None`.
+fn read_marker(view: &DocumentView<'_>, id: ObjId) -> Option<MarkerFacts> {
     let Object::Stream(stream) = view.resolved(id) else {
         return None;
     };
@@ -230,7 +244,9 @@ fn read_marker(view: &DocumentView<'_>, id: ObjId) -> Option<(Option<String>, i6
         _ => None,
     };
     let version = props.get(b"Version").and_then(Object::as_int).unwrap_or(0);
-    Some((engine, version, font_names))
+    let editable =
+        matches!(props.get(b"Output"), Some(Object::Name(n)) if n.as_bytes() == b"EditableText");
+    Some((engine, version, font_names, editable))
 }
 
 /// What taking some layers off one page removes from it.

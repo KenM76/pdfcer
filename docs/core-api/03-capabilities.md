@@ -2499,6 +2499,11 @@ an API gap.
 | `OcrLayerReport::disclosures() -> Vec<String>` — **ready-to-show lines** | `ocr/layer.rs` |
 | `OcrLayerError` (`PageIndex`, `Encrypted`, `NothingToWrite`, `Unsupported`, `PageTree`, `ObjectNumbersExhausted`, `Write`, `LayerPresent { page_index, count }`, `LayerNotFound { page_index, content }`, `NotALayerGroup { id }`, …) | `ocr/layer.rs` |
 | `OcrLayerReport::layers_replaced` — earlier pdfcer layers taken off this page | `ocr/layer.rs` |
+| `OcrLayerOptions::with_output(OcrOutput)` (G234) — `OcrOutput::SearchableImage` (default: invisible text over the untouched scan) or `OcrOutput::EditableText(EditableTextOptions)`: Acrobat Pro's "Editable Text and Images" (Acrobat RAG `ocr__editable_text_and_images_mode.md`). Each converted word's glyph pixels are painted with the surrounding background (whole connected glyphs, so a clipped one goes too; a suspect's box is never painted) and the word is written visible (`0 Tr`) in Helvetica (substitution disclosed), coloured with the median ink in the image's own device components (`g`/`rg`/`k`, uncalibrated, disclosed), sized and placed from the measured ink (one baseline and size per line, rotate 0) rather than the engine's padded box. Suspects stay in the image under `3 Tr` text. Same `/pdfc_OCR` marker with `/Output /EditableText`. One undo entry; the image is rewritten in place, or copied when other pages also draw it. | `ocr/editable.rs` |
+| `EditableTextOptions::new()` / `.with_min_confidence_percent(u8)` (default 50) / `.with_unscored_visible(bool)` (default `true`) / `.with_image_codec(EditableImageCodec)` (`MatchSource` default: JPEG stays JPEG, else Flate; or `Flate`) | `ocr/editable.rs` |
+| `SuspectReason` (`LowConfidence`, `Unscored`, `NoGlyph`, `NotOverImage`, `OverlappingImages`, `ImageUnsupported`, `ImageDrawnTwice`, `NoInk`, `BusyBackground`) and `.describe()` — why a word stayed in the image | `ocr/editable.rs` |
+| `OcrLayerReport` editable fields: `editable`, `words_visible`, `words_suspect`, `suspects: Vec<(SuspectReason, usize)>`, `words_unscored_visible`, `images_rewritten: Vec<ImageRewrite { image, source, cloned, filter_before, filter_after, bytes_before, bytes_after, words_erased }>`; all in `disclosures()` | `ocr/layer_report.rs` |
+| `OcrLayerError::EditableLayerPresent { page_index }` — a re-run (any `ExistingLayers`) or `remove_ocr_layer` on a page with editable OCR text is refused, its words are no longer in the scan; `ImageEncodeFailed` — nothing written | `ocr/layer_error.rs` |
 | `OcrLayerOutcome { bytes, report }` | `ocr/layer.rs` |
 | `HELVETICA_ASCENT_FRAC` 0.718 · `HELVETICA_DESCENT_FRAC` 0.207 · `MIN_TZ` 1.0 · `MAX_TZ` 10 000.0 | `ocr/layer.rs` |
 
@@ -2508,6 +2513,7 @@ an API gap.
 |---|---|
 | `LAYER_TAG` `b"pdfc_OCR"` · `LAYER_PRODUCER` `b"pdfcer"` · `LAYER_VERSION` 1 | `ocr/marker.rs` |
 | `find_ocr_layers(&DocumentView) -> Result<Vec<OcrLayerRef>, PageTreeError>` | `ocr/marker.rs` |
+| `OcrLayerRef::editable` — the layer is editable-text output (G234) | `ocr/marker.rs` |
 | `page_ocr_layers(&DocumentView, &Page, page_index) -> Vec<OcrLayerRef>` | `ocr/marker.rs` |
 | `OcrLayerRef { page_index, content: ObjId, engine, version, font_names, optional_content: Option<ObjId> }` — `optional_content` is the group the layer's text is on (`Pass 500.3`) | `ocr/marker.rs` |
 

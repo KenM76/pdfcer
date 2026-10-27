@@ -327,7 +327,7 @@ fn sequence_brackets(layer_name: Option<&Name>, marks: ContentMarks<'_>) -> (Vec
     let mut open = Vec::new();
     let mut close = b"\n".to_vec();
     if let Some(engine) = marks.ocr_layer {
-        crate::ocr::marker::open_marker(&mut open, Some(engine));
+        crate::ocr::marker::open_marker(&mut open, Some(engine), false);
     }
     if let Some(name) = layer_name {
         open.extend_from_slice(b"/OC ");

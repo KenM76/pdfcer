@@ -11,6 +11,7 @@ use crate::vartext::encode_winansi;
 use crate::writer::content::{emit_literal_string, emit_number};
 
 use super::OcrPage;
+use super::editable::OcrOutput;
 use super::layer::{
     HELVETICA_ASCENT_FRAC, HELVETICA_DESCENT_FRAC, MAX_TZ, MIN_TZ, OcrLayerOptions,
 };
@@ -37,6 +38,94 @@ impl OcSectionNames {
     }
 }
 
+/// How one word is written.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) enum WordStyle {
+    /// Render mode 3, over the scan's own pixels.
+    Invisible,
+    /// Render mode 0 in this fill colour (the editable output).
+    Visible(Ink),
+}
+
+/// A device fill colour, components in `0.0..=1.0` (§8.6.4).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(super) enum Ink {
+    Gray(f64),
+    Rgb([f64; 3]),
+    Cmyk([f64; 4]),
+}
+
+/// Inks this close (largest component difference) share one colour
+/// operator, so a line's measurement noise does not split it.
+const INK_REUSE: f64 = 0.08;
+
+impl Ink {
+    /// The ink of 8-bit samples of one, three or four components.
+    pub(super) fn from_samples(s: &[u8]) -> Self {
+        let f = |i: usize| f64::from(s.get(i).copied().unwrap_or(0)) / 255.0;
+        match s.len() {
+            3 => Self::Rgb([f(0), f(1), f(2)]),
+            4 => Self::Cmyk([f(0), f(1), f(2), f(3)]),
+            _ => Self::Gray(f(0)),
+        }
+    }
+
+    fn components(&self) -> &[f64] {
+        match self {
+            Self::Gray(g) => std::slice::from_ref(g),
+            Self::Rgb(c) => c,
+            Self::Cmyk(c) => c,
+        }
+    }
+
+    fn near(&self, other: &Self) -> bool {
+        let (a, b) = (self.components(), other.components());
+        a.len() == b.len() && a.iter().zip(b).all(|(x, y)| (x - y).abs() <= INK_REUSE)
+    }
+
+    fn emit(&self, out: &mut Vec<u8>) {
+        for v in self.components() {
+            emit_number(out, *v);
+            out.push(b' ');
+        }
+        out.extend_from_slice(match self {
+            Self::Gray(_) => b"g\n".as_slice(),
+            Self::Rgb(_) => b"rg\n",
+            Self::Cmyk(_) => b"k\n",
+        });
+    }
+}
+
+/// The text render mode and fill colour in force while a layer is written.
+#[derive(Debug, Default)]
+struct Pen {
+    visible: bool,
+    ink: Option<Ink>,
+}
+
+impl Pen {
+    /// Switch to `style`, writing only the operators that change.
+    fn set(&mut self, out: &mut Vec<u8>, style: WordStyle) {
+        match style {
+            WordStyle::Invisible if self.visible => {
+                out.extend_from_slice(b"3 Tr\n");
+                self.visible = false;
+            }
+            WordStyle::Visible(ink) => {
+                if !self.ink.is_some_and(|i| i.near(&ink)) {
+                    ink.emit(out);
+                    self.ink = Some(ink);
+                }
+                if !self.visible {
+                    out.extend_from_slice(b"0 Tr\n");
+                    self.visible = true;
+                }
+            }
+            WordStyle::Invisible => {}
+        }
+    }
+}
+
 /// One word, resolved to the numbers the content stream actually needs.
 ///
 /// Split out from [`build_layer_content`] so the geometry is testable without
@@ -55,6 +144,7 @@ pub(super) struct PlacedWord {
     rotate: u16,
     substituted: bool,
     clamped: bool,
+    style: WordStyle,
 }
 
 /// Measure WinAnsi `bytes` in `font` at `size`, in text-space points.
@@ -143,6 +233,7 @@ pub(super) fn place_word(
         rotate,
         substituted: missing > 0,
         clamped: (tz - raw_tz).abs() > f64::EPSILON,
+        style: WordStyle::Invisible,
     })
 }
 
@@ -185,7 +276,9 @@ pub fn build_layer_content_on(
     opts: &OcrLayerOptions,
     rotate: u16,
 ) -> (Vec<u8>, OcrLayerReport) {
-    layer_content(page, font_name, &OcSectionNames::default(), opts, rotate)
+    let names = OcSectionNames::default();
+    let (data, report, _) = layer_content(page, font_name, &names, opts, rotate, &[]);
+    (data, report)
 }
 
 /// `/Rotate` reduced to 0, 90, 180 or 270; a non-multiple of 90 is 0.
@@ -219,106 +312,121 @@ fn displayed_frame(page: &OcrPage, rotate: u16) -> Cow<'_, OcrPage> {
 }
 
 /// [`build_layer_content_on`], with the text inside `/OC /name BDC … EMC`
-/// for the whole layer's group, and each block routed to its region group's.
+/// for the whole layer's group, each block routed to its region group's,
+/// and word `i` written in `styles[i]` (invisible past its end). Also
+/// returns the indices of the words written visible.
 pub(super) fn layer_content(
     page: &OcrPage,
     font_name: &[u8],
     names: &OcSectionNames,
     opts: &OcrLayerOptions,
     rotate: u16,
-) -> (Vec<u8>, OcrLayerReport) {
+    styles: &[WordStyle],
+) -> (Vec<u8>, OcrLayerReport, Vec<usize>) {
     let mut out: Vec<u8> = Vec::new();
     let rotate = normalise_rotate(rotate);
     let (blocks, structure) = resolve(&displayed_frame(page, rotate));
     let mut report = OcrLayerReport {
-        words_written: 0,
-        words_skipped: 0,
-        words_substituted: 0,
-        words_scale_clamped: 0,
-        lines_written: 0,
-        blocks_written: 0,
         structure,
         mean_confidence: page.mean_confidence(),
         confidence_available: page.confidence_available,
-        content_object: 0,
-        font_object: 0,
-        layers_replaced: 0,
+        editable: matches!(opts.output, OcrOutput::EditableText(_)),
+        ..OcrLayerReport::default()
     };
 
     let placed: Vec<Option<PlacedWord>> = page
         .words
         .iter()
-        .map(|w| place_word(w, opts.font, rotate))
+        .enumerate()
+        .map(|(i, w)| {
+            let mut p = place_word(w, opts.font, rotate)?;
+            p.style = styles.get(i).copied().unwrap_or(WordStyle::Invisible);
+            Some(p)
+        })
         .collect();
     report.words_skipped = placed.iter().filter(|p| p.is_none()).count();
     if report.words_skipped == placed.len() {
-        return (out, report);
+        return (out, report, Vec::new());
     }
 
     open_layer(&mut out, opts, names.whole.as_ref());
+    let mut w = BlockWriter {
+        out: &mut out,
+        placed: &placed,
+        font_name,
+        font: opts.font,
+        pen: Pen::default(),
+        report: &mut report,
+        visible: Vec::new(),
+    };
     for block in &blocks {
-        let oc = names.for_block(block);
-        write_block(
-            &mut out,
-            block,
-            &placed,
-            font_name,
-            opts.font,
-            oc,
-            &mut report,
-        );
+        w.write(block, names.for_block(block));
     }
+    let visible = w.visible;
     out.extend_from_slice(b"Q\n");
     if names.whole.is_some() {
         out.extend_from_slice(b"EMC\n");
     }
     out.extend_from_slice(b"EMC\n");
-    (out, report)
+    (out, report, visible)
 }
 
-/// One block as one text object (`BT … ET`), each line one show operator
-/// ([`place_line`]), inside `/OC /oc BDC … EMC` when the block's region is routed;
-/// nothing when none of its words could be placed.
-fn write_block(
-    out: &mut Vec<u8>,
-    block: &ResolvedBlock,
-    placed: &[Option<PlacedWord>],
-    font_name: &[u8],
+/// The state shared by every block of one layer.
+struct BlockWriter<'a> {
+    out: &'a mut Vec<u8>,
+    placed: &'a [Option<PlacedWord>],
+    font_name: &'a [u8],
     font: Std14,
-    oc: Option<&Name>,
-    report: &mut OcrLayerReport,
-) {
-    let mut opened = false;
-    for line in &block.lines {
-        let words: Vec<&PlacedWord> = line
-            .iter()
-            .filter_map(|&w| placed.get(w).and_then(Option::as_ref))
-            .collect();
-        let Some(placed_line) = place_line(&words, font) else {
-            report.words_skipped += words.len();
-            continue;
-        };
-        if !opened {
-            if let Some(name) = oc {
-                open_oc_section(out, name);
+    pen: Pen,
+    report: &'a mut OcrLayerReport,
+    /// Indices of the words written visible.
+    visible: Vec<usize>,
+}
+
+impl BlockWriter<'_> {
+    /// One block as one text object (`BT … ET`), each line one show
+    /// operator ([`place_line`]), inside `/OC /oc BDC … EMC` when the block's
+    /// region is routed; nothing when none of its words could be placed.
+    fn write(&mut self, block: &ResolvedBlock, oc: Option<&Name>) {
+        let mut opened = false;
+        for line in &block.lines {
+            let (indices, words): (Vec<usize>, Vec<&PlacedWord>) = line
+                .iter()
+                .filter_map(|&w| Some((w, self.placed.get(w)?.as_ref()?)))
+                .unzip();
+            let Some(placed_line) = place_line(&words, self.font) else {
+                self.report.words_skipped += words.len();
+                continue;
+            };
+            if !opened {
+                if let Some(name) = oc {
+                    open_oc_section(self.out, name);
+                }
+                self.out.extend_from_slice(b"BT\n");
+                opened = true;
             }
-            out.extend_from_slice(b"BT\n");
-            opened = true;
+            write_line(self.out, &placed_line, self.font_name, &mut self.pen);
+            let report = &mut *self.report;
+            report.words_written += words.len();
+            report.words_substituted += words.iter().filter(|p| p.substituted).count();
+            if placed_line.clamped {
+                report.words_scale_clamped += words.len();
+            }
+            report.lines_written += 1;
+            let shown = indices.iter().zip(&words);
+            self.visible.extend(
+                shown
+                    .filter(|(_, p)| matches!(p.style, WordStyle::Visible(_)))
+                    .map(|(i, _)| *i),
+            );
         }
-        write_line(out, &placed_line, font_name);
-        report.words_written += words.len();
-        report.words_substituted += words.iter().filter(|p| p.substituted).count();
-        if placed_line.clamped {
-            report.words_scale_clamped += words.len();
+        if opened {
+            self.out.extend_from_slice(b"ET\n");
+            if oc.is_some() {
+                self.out.extend_from_slice(b"EMC\n");
+            }
+            self.report.blocks_written += 1;
         }
-        report.lines_written += 1;
-    }
-    if opened {
-        out.extend_from_slice(b"ET\n");
-        if oc.is_some() {
-            out.extend_from_slice(b"EMC\n");
-        }
-        report.blocks_written += 1;
     }
 }
 
@@ -332,9 +440,9 @@ pub(super) struct PlacedLine {
     x: f64,
     baseline_y: f64,
     rotate: u16,
-    /// Each word's codes (a trailing space on all but the last) and the `TJ`
-    /// number written before it (`0.0` for the first).
-    parts: Vec<(Vec<u8>, f64)>,
+    /// Each word's codes (a trailing space on all but the last), the `TJ`
+    /// number written before it (`0.0` for the first), and its style.
+    parts: Vec<(Vec<u8>, f64, WordStyle)>,
     /// The line's `Tz`, or a word's own fit, hit [`MIN_TZ`] or [`MAX_TZ`].
     clamped: bool,
 }
@@ -406,7 +514,7 @@ pub(super) fn place_line(words: &[&PlacedWord], font: Std14) -> Option<PlacedLin
         }
         let gaps = glyphs.len().saturating_sub(1);
         for (k, codes) in glyphs.into_iter().enumerate() {
-            parts.push((codes, if k == 0 { lead } else { to_tj(gap) }));
+            parts.push((codes, if k == 0 { lead } else { to_tj(gap) }, p.style));
         }
         #[allow(clippy::cast_precision_loss)] // a word's glyph count
         let spread = gap * gaps as f64;
@@ -453,8 +561,11 @@ fn letter_gap(p: &PlacedWord, font: Std14, drawn: f64, size: f64) -> f64 {
     }
 }
 
-/// `Tf`, `Tz`, `Tm`, then `Tj` for a one-word line or `TJ` for the rest.
-fn write_line(out: &mut Vec<u8>, line: &PlacedLine, font_name: &[u8]) {
+/// `Tf`, `Tz`, `Tm`, then `Tj` for a one-part line or `TJ` for the rest;
+/// a change of style between parts closes the `TJ`, sets the render mode
+/// and colour (legal inside a text object, §9.4.1), and reopens it at the
+/// text position the closed one left.
+fn write_line(out: &mut Vec<u8>, line: &PlacedLine, font_name: &[u8], pen: &mut Pen) {
     out.push(b'/');
     out.extend_from_slice(font_name);
     out.push(b' ');
@@ -474,15 +585,25 @@ fn write_line(out: &mut Vec<u8>, line: &PlacedLine, font_name: &[u8]) {
     out.push(b' ');
     emit_number(out, line.baseline_y);
     out.extend_from_slice(b" Tm\n");
-    if let [(codes, _)] = line.parts.as_slice() {
+    if let [(codes, _, style)] = line.parts.as_slice() {
+        pen.set(out, *style);
         emit_literal_string(out, codes);
         out.extend_from_slice(b" Tj\n");
         return;
     }
-    out.push(b'[');
-    for (i, (codes, adjust)) in line.parts.iter().enumerate() {
-        if i > 0 {
+    let mut open: Option<WordStyle> = None;
+    for (i, (codes, adjust, style)) in line.parts.iter().enumerate() {
+        if open == Some(*style) {
             out.push(b' ');
+        } else {
+            if open.is_some() {
+                out.extend_from_slice(b"] TJ\n");
+            }
+            pen.set(out, *style);
+            out.push(b'[');
+            open = Some(*style);
+        }
+        if i > 0 {
             emit_number(out, *adjust);
             out.push(b' ');
         }
@@ -503,7 +624,8 @@ fn write_line(out: &mut Vec<u8>, line: &PlacedLine, font_name: &[u8]) {
 /// properly nested (§14.6.1).
 fn open_layer(out: &mut Vec<u8>, opts: &OcrLayerOptions, oc_name: Option<&Name>) {
     out.push(b'\n');
-    super::marker::open_marker(out, opts.engine.as_deref());
+    let editable = matches!(opts.output, OcrOutput::EditableText(_));
+    super::marker::open_marker(out, opts.engine.as_deref(), editable);
     if let Some(name) = oc_name {
         open_oc_section(out, name);
     }
@@ -797,7 +919,7 @@ mod tests {
 
             let mut out = Vec::new();
             let line = place_line(&[&p], Std14::Helvetica).expect("one-word line");
-            write_line(&mut out, &line, b"F0");
+            write_line(&mut out, &line, b"F0", &mut Pen::default());
             let text = String::from_utf8_lossy(&out);
             assert!(text.contains(&format!("\n{tm}")), "{rotate}: {text}");
 
@@ -929,7 +1051,8 @@ mod tests {
             whole: Some(Name::from(b"OC1")),
             regions: vec![(RegionGroup::Table, Name::from(b"OC2"))],
         };
-        let (bytes, report) = layer_content(&page, b"F0", &names, &OcrLayerOptions::new(), 0);
+        let (bytes, report, _) =
+            layer_content(&page, b"F0", &names, &OcrLayerOptions::new(), 0, &[]);
         let s = String::from_utf8_lossy(&bytes);
         assert_eq!(report.blocks_written, 3);
         let at = |p: &str| s.find(p).unwrap();

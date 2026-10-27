@@ -903,11 +903,11 @@ fn build_banner() -> &'static str {
 /// tree this size, it overflows the small default **main-thread** stack on
 /// Windows/MSVC (~1 MB) — a release build is unaffected (no `debug_assert`,
 /// and optimized frames). Running the whole program on a spawned thread with
-/// a 16 MB stack sidesteps it portably; on failure to spawn, we fall back to
+/// a 64 MB stack (reserved, not committed) sidesteps it portably; on failure to spawn, we fall back to
 /// the main thread rather than aborting.
 fn main() -> ExitCode {
     match std::thread::Builder::new()
-        .stack_size(16 * 1024 * 1024)
+        .stack_size(64 * 1024 * 1024)
         .spawn(run)
     {
         Ok(handle) => handle.join().unwrap_or(ExitCode::FAILURE),

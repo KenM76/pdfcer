@@ -240,7 +240,6 @@ fn pdfcer-core/src/edit.rs::add_document_timestamp
 fn pdfcer-core/src/edit.rs::add_image
 fn pdfcer-core/src/edit.rs::add_markup_inner
 fn pdfcer-core/src/edit.rs::add_named_destination
-fn pdfcer-core/src/edit.rs::add_ocr_layer
 fn pdfcer-core/src/edit.rs::add_outline_item
 fn pdfcer-core/src/edit.rs::add_push_button
 fn pdfcer-core/src/edit.rs::add_radio_button

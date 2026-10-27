@@ -1,6 +1,7 @@
 //! `ocr` — recognise a scanned page and add an invisible text layer.
 
 use super::*;
+use pdfcer_core::ocr::editable::{EditableTextOptions, OcrOutput};
 use pdfcer_core::ocr::layer::{OcrLayerOptions, OcrLayerReport};
 use pdfcer_core::ocr::{OcrPage, PagePlacement, layer, words_to_page_space_on};
 use pdfcer_core::page_tree::Page;
@@ -26,6 +27,38 @@ pub(crate) struct OcrRequest<'a> {
     pub(crate) upscale_filter: pdfcer_core::ocr::upscale::UpscaleFilter,
     /// `--magnify`: how the page render enlarges an image.
     pub(crate) magnify: pdfcer_core::settings::MagnifyFilter,
+    /// `--output-type` and its options.
+    pub(crate) layer_output: OcrOutput,
+}
+
+/// `--output-type`, `--min-confidence` and `--image-codec` as the core's
+/// output choice; the last two mean nothing for `searchable`.
+pub(crate) fn ocr_output(
+    kind: OcrOutputArg,
+    min_confidence: Option<u8>,
+    codec: Option<EditableCodecArg>,
+) -> OcrOutput {
+    match kind {
+        OcrOutputArg::Searchable => {
+            if min_confidence.is_some() || codec.is_some() {
+                eprintln!(
+                    "pdfcer: ocr: --min-confidence and --image-codec apply to \
+                     --output-type editable only, and were ignored"
+                );
+            }
+            OcrOutput::SearchableImage
+        }
+        OcrOutputArg::Editable => {
+            let mut o = EditableTextOptions::new();
+            if let Some(p) = min_confidence {
+                o = o.with_min_confidence_percent(p);
+            }
+            if let Some(c) = codec {
+                o = o.with_image_codec(c.into());
+            }
+            OcrOutput::EditableText(o)
+        }
+    }
 }
 
 /// `ocr` — recognise a scanned page and add an invisible text layer.
@@ -90,7 +123,8 @@ fn run_ocr(req: &OcrRequest<'_>, model_choice: &OcrModelChoice<'_>) -> Result<()
     // another tool, can tell which recogniser produced it.
     let opts = OcrLayerOptions::new()
         .with_engine(engine_choice.name())
-        .with_existing(req.existing.into());
+        .with_existing(req.existing.into())
+        .with_output(req.layer_output);
     let (bytes, report) = write_layer(req, doc, index, &ocr_page, opts)?;
     if let Err(err) = write_output(destination, &bytes) {
         eprintln!("pdfcer: {}: {err}", destination.display());
@@ -435,6 +469,14 @@ fn disclose(
             "pdfcer: ocr: this engine reports NO per-word confidence, so nothing above has \
              been scored — that is not the same as everything being right"
         );
+    }
+    if report.editable {
+        eprintln!(
+            "pdfcer: ocr: the converted words are VISIBLE text and are no longer in the scan; \
+             compare {} with the original before discarding it",
+            destination.display()
+        );
+        return;
     }
     eprintln!(
         "pdfcer: ocr: the layer is INVISIBLE (mode 3) and the page is unchanged — check it \

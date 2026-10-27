@@ -250,6 +250,33 @@ pub(crate) enum ExistingOcrArg {
     Stack,
 }
 
+/// What `ocr` writes: `pdfcer_core::ocr::editable::OcrOutput`'s choice.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum OcrOutputArg {
+    /// Invisible text over an unchanged scan. The default.
+    Searchable,
+    /// Visible text in place of the scanned words.
+    Editable,
+}
+
+/// `ocr --image-codec`: `pdfcer_core::ocr::editable::EditableImageCodec`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum EditableCodecArg {
+    /// JPEG for a JPEG scan, Flate for anything else. The default.
+    Match,
+    /// Always Flate (lossless; larger for photographic scans).
+    Flate,
+}
+
+impl From<EditableCodecArg> for pdfcer_core::ocr::editable::EditableImageCodec {
+    fn from(v: EditableCodecArg) -> Self {
+        match v {
+            EditableCodecArg::Match => Self::MatchSource,
+            EditableCodecArg::Flate => Self::Flate,
+        }
+    }
+}
+
 impl From<ExistingOcrArg> for pdfcer_core::ocr::layer::ExistingLayers {
     fn from(v: ExistingOcrArg) -> Self {
         match v {
