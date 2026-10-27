@@ -6654,7 +6654,7 @@ fn disclosure_synthetic_italic(tan: f64, rise_offset: f64) -> String {
     format!(
         "synthetic italic: an oblique shear of tan(theta) = {tan} (12 degrees) premultiplied into \
          the run's text matrix. Unlike the spacing controls this is NOT text state, so it is not \
-         covered by the restore ladder — a Tm is not saved by q/Q and IS propagated by \
+         covered by the restore ladder — a Tm is not text state and IS propagated by \
          Td/TD/T*, which derive the next line by translating the line matrix. pdfcer therefore \
          brackets the run with two ABSOLUTE Tm operators: the sheared matrix before it, the \
          original matrix at its end. {interaction} This is a FALLBACK slant, not a real Italic \
