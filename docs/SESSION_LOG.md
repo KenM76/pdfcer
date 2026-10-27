@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-26 (1252nd filing) — `Pass 646.10` (`X005`) SHIPPED on `c33bd6b1` (+ `2fe75bb0`, doc comments and core-api §11.3)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.10`: an additive colour entering a DeviceCMYK blending space (no output intent) separates through the inverse of the calibrated display table with `BlackGeneration::Medium`; three routes via `CmykBuffer::ink_for_srgb`. 50% grey under Difference over pure K is 138 110 103 (Acrobat 137 112 106), was 22 18 21. Code-only, unreleased. 5 new render tests plus 5 grid tests; two Lab tests re-pinned to the CMY separation. Moved from Next up to Shipped; Next up now has no head.
+
+**Decisions made:** decision 202 corrected, not superseded: the lookup grid is baked (binary files plus a generator example), not lazily built, because a runtime build took about 20 s. Row-2 gamut deviation recorded with the shipped figures. Same correction made in the ARCHITECTURE section 12 entry.
+
+**Findings:** `overprint.rs` untouched, so acceptance 4 holds. New `pdfcer-color` pub items (`Medium`, `MEDIUM_BLACK_FRACTION`, `srgb_to_cmyk_fast`, `INVERSE_GRID_NODES`) reach crates.io at the next release's publish.
+
+**FEATURES.md:** rows 489 and 493 text updated (boxes already ticked), row 310 names the new pub items.
+
+**Sweep (rule 11), owed to the engineer, not edited:** `docs/compositor-plan.md` line 473; `docs/core-api/01-reading-and-model.md` 11.3 lacks `Medium`/`srgb_to_cmyk_fast`; `docs/NEXT_SESSION.md` line 10; source doc comments not read.
+
+**Still in flight:** `tools/run-gates.sh` was running; the engineer confirms before pushing. Backup and remote state not checked from here.
+
+**For next session:** release when ready (publish color, model, pkix after the tag). Next free `Pass 646.11`, decision `203`, `R263`; next filing 1253rd.
+
 ## 2026-10-26 (1251st filing) — `Pass 637.0` (`X001`) SHIPPED on `19df5115`; `Pass 646.10` (`X005`) scoped; decision 202
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here except `.claude/settings.json`, read from disk):**

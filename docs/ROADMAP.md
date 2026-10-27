@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `c33bd6b1` `Pass 646.10` SHIPPED, 2026-10-26: an additive colour entering a CMYK blending space separates through the calibrated-table inverse (`X005`) (1252nd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Code-only commit `c33bd6b1`, plus `2fe75bb0` (doc comments in `cmyk_buffer.rs`/`cmyk_paint.rs` and core-api §11.3 naming the new items), on main, unreleased (since `v0.99.0`). Scoped at the 1251st filing; decision 202 (`docs/decisions/202-rgb-into-a-cmyk-blending-space-uses-the-calibrated-table-inverse.md`, amended this filing). Requester: the operator (crates consumer). Reply (outside the repo): `reply_X005_rgb_into_a_cmyk_blending_space_FIXED.md`. Reasoning is in the commit message.
+- **Rule:** with no output intent, DeviceRGB, ICC RGB, CalRGB and Lab entering the DeviceCMYK buffer separate through the inverse of the calibrated table the buffer displays through, with `BlackGeneration::Medium` (K 15% of the way from least to most black). Max-GCR `rgb_to_cmyk` remains only in the RGB-backdrop overprint simulation (`overprint.rs`, untouched, so acceptance 4 holds). Pages with an output intent are unchanged.
+- **Routes (three), all via the new `CmykBuffer::ink_for_srgb`:** paint fill (`cmyk_paint.rs`), non-separable blend composite (`interpret.rs`), image pixels (`cmyk_buffer.rs`).
+- **New pub items in `pdfcer-color`:** `BlackGeneration::Medium`; `MEDIUM_BLACK_FRACTION` (0.15); `srgb_to_cmyk_fast(intent, r, g, b) -> [f32; 4]` (trilinear over a BAKED 17³ grid per `CmykIntent`; binaries `inverse_grid_calibrated.bin`, `inverse_grid_neutral_black.bin`, from `examples/inverse_grid_gen.rs`); `INVERSE_GRID_NODES`; `#[doc(hidden)] solve_inverse_grid`. They reach crates.io at the next release's publish. Baked rather than lazy because a runtime build took about 20 s (decision 202 item 4 amended).
+- **Measured (engineer; `render-page` scale 1, Difference over pure K):** 0.8 0.4 0.2 gives 13 141 193 (reference 7 139 193); 0.2 0.6 0.9 gives 184 91 47 (reference 186 105 49; out of gamut, pdfcer clips by sRGB least squares and the reference by profile gamut mapping, G about 14 low, a stated deviation); 0.5 0.5 0.5 gives 138 110 103 (reference 137 112 106; was 22 18 21). Plain 50% grey 127 127 127; in-gamut colours round-trip within 3 levels; `cmyk_bridged_pixels` still counts these pixels (18000).
+- **Tests:** new `crates/pdfcer-render/tests/rgb_into_a_cmyk_group.rs`, 5 tests, reverting each route separately to `rgb_to_cmyk` fails its own test; 5 grid tests in `pdfcer-color` (`inverse_grid_tests.rs`). `lab_ink::without_an_output_intent_all_three_routes_still_agree` and `managed_shading::a_lab_shading_and_mesh_take_the_pcs_bridge` pinned the old K-only grey on intent-less pages; they now pin the CMY separation and a neutral display via shared `lab_ink::assert_neutral_separation`. `pdfcer-render`: 557 integration + 516 unit tests.
+- **Gates / invariants:** fmt, clippy `-D warnings`, structure gate (565 baseline entries, none new), `check-core-api-verbs` green. No dependency change, so the `cargo tree` invariant is untouched. Full `tools/run-gates.sh` was in progress at filing; the engineer confirms it before pushing.
+- **Delivers:** core yes; cli yes via `render-page` (no new subcommand); gui yes by inheritance (renders through the same engine).
+- **FEATURES:** Blend modes row (493) and the Subtractive buffer row (489) text updated, boxes already ticked and unchanged; the sRGB-to-CMYK picker row (310) names the new pub items (core only, unchanged).
+- **Sweep (rule 11), claim "an additive colour entering the CMYK buffer is max-GCR / `rgb_to_cmyk`":** corrected FEATURES rows 489 and 493. Left as correct: row 491 (ink probe reports no colorants for a screen page, unrelated), row 497 (`rgb_to_cmyk`/`cmyk_to_rgb` exact inverses in the overprint backdrop, deliberately untouched), row 483 and 686 (dated history). Survivors owed, engineer-owned, not edited: `docs/compositor-plan.md` line 473 (`interpret.rs:3574` calls `overprint::rgb_to_cmyk` to reconstruct the source: check whether still true); `docs/core-api/03-capabilities.md` lines 3639-3640 (ink probe prose, probably correct); `docs/core-api/01-reading-and-model.md` section 11.3 (lines 2933-2949) lists `BlackGeneration::Most`/`::Least` only and has no `Medium` or `srgb_to_cmyk_fast` (a pub-surface gap, owed); `docs/NEXT_SESSION.md` line 10 matched; doc comments in the source not read from here.
+- Nothing minted; next free `Pass 646.11`, decision `203`, `R263`; next filing 1253rd.
+
 ### `19df5115` `Pass 637.0` SHIPPED, 2026-10-26: `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.99.0 published to crates.io (`X001`) (1251st filing)
 
 Engineer-reported; no shell here, nothing checked from here (crates.io not queried by the librarian). Code commits `17aa278d` (lifts `publish = false` for the three; filed at the 1243rd filing) and `19df5115` (`chore(settings)`: `.claude/settings.json` moves `Bash(cargo publish:*)` from deny to allow, `deny: []`; the operator lifted the block; read back from disk at this filing). Requester: the operator (crates consumer). Reasoning is in the commit messages.
@@ -24045,7 +24059,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **The only Next up item is `Pass 646.10` below (`X005`, scoped, decision 202).** `Pass 637.0` (crates.io) SHIPPED in the 1251st filing; its Next up item is removed. Next free `Pass 646.11`, decision `203`, `R263`; next filing 1252nd.
+> **Next up has no head.** `Pass 646.10` (`X005`) SHIPPED on `c33bd6b1` in the 1252nd filing; its Next up item is removed. Next free `Pass 646.11`, decision `203`, `R263`; next filing 1253rd.
+
+(1252nd filing: `Pass 646.10` (`X005`) SHIPPED, see *Shipped*. Nothing minted. Unreleased since `v0.99.0`; the new `pdfcer-color` pub items reach crates.io with the next release's publish.)
 
 (1251st filing: `Pass 637.0` (`X001`) SHIPPED, `pdfcer-color`/`-model`/`-pkix` 0.99.0 live on crates.io, settings commit `19df5115`, see *Shipped*. `Pass 646.10` (`X005`, RGB into a CMYK blending space) scoped; decision `202` minted. Next free `Pass 646.11`, decision `203`, `R263`; next filing 1252nd. Unreleased since `v0.99.0`; crates.io lags the tag by nothing (published at 0.99.0).)
 
@@ -34821,29 +34837,6 @@ overrides the image dictionary; `/ColorSpace` optional,
 `pdfce-render`'s image path for any hard requirement on
 `/ColorSpace`/`/BitsPerComponent` that Table 89 makes optional
 (decision 005 §10 item 3).
-
-### Pass 646.10 — an additive colour painted into a CMYK blending space goes through the calibrated CMYK table (`X005`) — SCOPED, decision 202
-
-**Source:** `D:/Dev/FeatureRequests/pdfce_FeatureRequests/open/request_X005_rgb_paint_into_a_cmyk_blending_space_goes_through_the_profile.md` (operator, as a crates consumer). Filed at the 1251st filing. Engineer-measured figures below; the librarian re-measured nothing.
-
-**Defect.** An additive colour (DeviceRGB, ICC RGB, CalRGB, Lab) entering a DeviceCMYK blending space is converted by the max-GCR `rgb_to_cmyk` formula (k = 1 - max(r,g,b)); Acrobat goes through its CMYK profile. Under a blend mode this shows: with `/BM /Difference` over pure K, 50% grey renders near-black (22 18 21) in pdfcer against 137 112 106 in Acrobat.
-
-**Decision 202** (`docs/decisions/202-rgb-into-a-cmyk-blending-space-uses-the-calibrated-table-inverse.md`). When no output-intent profile manages the conversion (the icccer ink/PCS bridges still run first when one does), the CMYK compositing buffer receives the inverse of pdfcer's OWN calibrated CMYK to sRGB table, the one it displays the buffer through, via the existing `pdfcer_color::color::srgb_to_cmyk_with` (`Pass 617.8`), with a new black-generation choice `BlackGeneration::Medium`: K at a fixed 15% of the way from the least to the most black that draws the colour. Stays inside decision 064: it is the inverse of pdfcer's own table (`pdfcer-color`), not ICC conversion.
-- **Measured with the existing solver:** Least gives grey 159 128 121; Most gives 12 9 14; Medium(15%) gives rows 13 141 194 / 184 90 47 / 137 109 103 against Acrobat 7 139 193 / 186 105 49 / 137 112 106.
-- **Stated deviation, not a defect:** row 2 (0.2 0.6 0.9) is out of gamut. pdfcer clips by least squares in sRGB; Acrobat by its profile's gamut mapping; the G channel differs by about 15.
-- **`rgb_to_cmyk` stays:** (1) as the fallback; (2) in `overprint.rs`'s RGB-backdrop round trip (`snapshot_srgb_backdrop` and `composite_srgb`), which needs its exact inverse `cmyk_to_rgb` and must not change.
-- **Performance:** the solver is too slow per pixel, so the render side uses a lazily built RGB to CMYK lookup grid per `CmykIntent`.
-
-**Acceptance (from the request):**
-1. The three rows above land within a few levels of Acrobat; the grey must not go near-black.
-2. A plain in-gamut RGB colour on a CMYK page group round-trips within a few levels, and 50% grey stays neutral.
-3. The bridged-pixel counter (`cmyk_bridged_pixels`) still counts these pixels.
-4. `overprint.rs`'s RGB-backdrop round trip is byte-identical to before.
-5. A test per route sabotage-verified: it fails with the new conversion disabled.
-
-**Delivers (planned):** core and render engine only; cli = `render-page` already exists; gui unchanged (inherits through render). FEATURES row 493 (Blend modes) is the row it touches; boxes do not move until it ships.
-
-**Status:** Next up, not started.
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 
