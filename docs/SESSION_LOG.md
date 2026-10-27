@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-27 (1258th filing) — `Pass 646.17` (`G233`) SHIPPED on `7157ebca`
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.17`: a thin stroke (1 device px or less) no longer routes to tiny-skia's hairline, which under-inked curves and diagonals (0.71-0.96 of straight weight, now 0.96-1.02). The CMYK, overprint and non-separable routes now outline at the zoom's resolution scale, and `stroke_outline` applies the dash first, fixing dashed strokes drawing solid on those routes. `pdfcer-render` only; `hairline_minimum` 7 passed (3 new), sabotage-verified; pdfium parity on 304 pages 2 better / 0 worse / 302 identical. Requester: the GUI project.
+
+**Decisions made:** none; no ARCHITECTURE section 12 entry. `cargo tree` unchanged.
+
+**FEATURES.md:** "Rasterize vector paths" row amended; boxes unchanged.
+
+**Sweep (rule 11):** claim "thin strokes render at their straight weight / dashes render on every route". Searched FEATURES for `hairline`, `dash`, `thin` (rows 477/478 are display modes, correct, left alone). Source comments and `docs/NEXT_SESSION.md` not read from here.
+
+**RAG:** two findings written to `D:/dev/rag/rust/`, indexed.
+
+**Still in flight:** full `tools/run-gates.sh` result not reported. Backup and remote state not checked from here.
+
+**For next session:** next free `Pass 646.18`, decision `203`, `R263`; next filing 1259th.
+
 ## 2026-10-27 (1257th filing) — `Pass 646.16` SHIPPED on `d2b906b1`
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

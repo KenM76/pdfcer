@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `7157ebca` `Pass 646.17` SHIPPED, 2026-10-27: a thin stroke inks curves and diagonals at its straight weight (`G233`) (1258th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `7157ebca`, `pdfcer-render` only, on main, unreleased (since `v0.99.0`). Requester: the GUI project, via the FeatureRequests channel, `request_G233_thin_stroke_weight_drops_on_curves.md`; reply (outside the repo): `open/reply_G233_thin_stroke_weight_drops_on_curves_FIXED.md`. Reasoning is in the commit message.
+- **Problem:** a 0.34 pt rounded box drew its corners paler than its sides. Three causes: (1) tiny-skia `stroke_path` draws any stroke of 1 device px or less as a coverage-modulated hairline, one pixel per major-axis step, so ink per length is 1/sqrt(2) at 45 degrees and 0.83-0.86 on small circles; the 1-px floor in `stroke_params` sent every thin stroke there. (2) The CMYK-buffer, overprint and non-separable-blend routes outlined strokes with `Path::stroke` at resolution scale 1, ignoring zoom (0.80 on a small curve at scale 3). (3) `Path::stroke` ignores `Stroke::dash`, so dashed strokes drew SOLID on CMYK page groups, under overprint and under non-separable blends: a genuine bug found while checking the fix for side effects.
+- **Fix:** `device_clip::stroke_outline` dashes at the transform's resolution scale, strokes at that scale and fills non-zero; every route (RGB, CMYK buffer, overprint, non-separable, pattern) fills it. A stroke wider than 1 px is unchanged by construction.
+- **Measured (engineer):** thin curves and 45-degree lines 0.96-1.02 of the straight weight, before 0.71-0.96. Render parity against pdfium on 304 pages: 2 better, 0 worse, 302 identical. Timing on two CAD drawings at scales 2 and 6: 0.76-1.01x of before.
+- **Tests:** `pdfcer-render --test all hairline_minimum` 7 passed, 3 new: curve and diagonal weight on RGB at scales 1, 1.3333, 2; the same on a CMYK page group at scales 1, 2, 3 (band 0.93-1.07); a dashed stroke keeps its gaps on the plain, CMYK-group, overprint and Luminosity-blend routes. Sabotage verified for each.
+- **Gates (engineer):** fmt and clippy clean; `check-code-structure` baseline 564, none new. No manifest change, so the `cargo tree` invariant is untouched. Full `tools/run-gates.sh`: no result claimed here.
+- **Delivers:** core/render yes (every shell that renders gets it); no CLI or GUI caller added.
+- **FEATURES:** the "Rasterize vector paths" row amended; boxes unchanged.
+- **RAG:** two findings in `D:/dev/rag/rust/` (tiny-skia hairline threshold; `Path::stroke` ignores dash).
+- Nothing minted; no ARCHITECTURE section 12 entry; next free `Pass 646.18`, decision `203`, `R263`.
+
 ### `d2b906b1` `Pass 646.16` SHIPPED, 2026-10-27: `settings_file` retries a spawn of its copied binary on `ETXTBSY` (1257th filing)
 
 Engineer-discovered, test-only; no shell here, nothing checked from here. Single code commit `d2b906b1`, on main, unreleased (since `v0.99.0`). Reasoning is in the commit message.
