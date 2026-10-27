@@ -162,6 +162,8 @@ fn every_variant() -> Vec<(&'static str, MarkupSpec)> {
                 vertices: vec![(5.0, 5.0), (55.0, 45.0), (95.0, 15.0)],
                 color: Color::Rgb(0.1, 0.7, 0.2),
                 width: 3.5,
+                endings: (LineEnding::ClosedArrow, LineEnding::OpenArrow),
+                interior: Some(Color::Rgb(0.9, 0.1, 0.1)),
             },
         ),
         (

@@ -716,6 +716,8 @@ pub(crate) struct AnnotateArgs<'a> {
     pub(crate) fill: Option<&'a str>,
     pub(crate) width: f64,
     pub(crate) cloud: Option<f64>,
+    /// `--line-endings START,END`; `None` takes the subtype default.
+    pub(crate) line_endings: Option<&'a str>,
     /// `/CA` (Pass 81.1). `None` omits the key.
     pub(crate) opacity: Option<f64>,
     /// `--dash ON,OFF,...` (`Pass 258.0`). `None` authors a solid border.

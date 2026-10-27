@@ -21,6 +21,65 @@ pub(crate) struct MarkupStyleArg<'a> {
     pub(crate) dash: Option<&'a str>,
     /// `--cloud 0-2|none`.
     pub(crate) cloud: Option<&'a str>,
+    /// `--line-endings START,END|none`.
+    pub(crate) line_endings: Option<&'a str>,
+}
+
+/// Parse `START,END`, each `none`, `open` or `closed` (ISO 32000-1
+/// Table 176's `/None`, `/OpenArrow`, `/ClosedArrow`).
+///
+/// # Errors
+///
+/// Not exactly two comma-separated names, or a name outside the three.
+pub(crate) fn parse_line_endings(
+    raw: &str,
+) -> Result<
+    (
+        pdfcer_core::annot_author::LineEnding,
+        pdfcer_core::annot_author::LineEnding,
+    ),
+    String,
+> {
+    use pdfcer_core::annot_author::LineEnding;
+    let one = |s: &str| match s.trim().to_ascii_lowercase().as_str() {
+        "none" => Ok(LineEnding::None),
+        "open" => Ok(LineEnding::OpenArrow),
+        "closed" => Ok(LineEnding::ClosedArrow),
+        other => Err(format!(
+            "--line-endings: `{other}` is not `none`, `open` or `closed`"
+        )),
+    };
+    match raw.split(',').collect::<Vec<_>>().as_slice() {
+        [start, end] => Ok((one(start)?, one(end)?)),
+        _ => Err(format!(
+            "--line-endings: `{raw}` is not START,END (e.g. `none,closed`)"
+        )),
+    }
+}
+
+/// Parse `--line-endings START,END|none` for a restyle: absent keeps the
+/// endings, `none` alone removes `/LE`, a pair sets them.
+///
+/// # Errors
+///
+/// As [`parse_line_endings`].
+fn parse_endings_edit(
+    value: Option<&str>,
+) -> Result<
+    Option<
+        pdfcer_core::edit::StyleEdit<(
+            pdfcer_core::annot_author::LineEnding,
+            pdfcer_core::annot_author::LineEnding,
+        )>,
+    >,
+    String,
+> {
+    use pdfcer_core::edit::StyleEdit;
+    match value {
+        None => Ok(None),
+        Some(raw) if raw.trim().eq_ignore_ascii_case("none") => Ok(Some(StyleEdit::Clear)),
+        Some(raw) => parse_line_endings(raw).map(|e| Some(StyleEdit::Set(e))),
+    }
 }
 
 /// Parse `--cloud 0-2|none`: absent keeps the border effect, `none` clears
@@ -830,12 +889,19 @@ pub(crate) fn cmd_set_markup_style(
             return exit::EDIT_REFUSED;
         }
     };
+    let endings = match parse_endings_edit(style.line_endings) {
+        Ok(e) => e,
+        Err(msg) => {
+            eprintln!("pdfcer: {msg}");
+            return exit::EDIT_REFUSED;
+        }
+    };
     let wanted = MarkupStyle {
         stroke,
         interior,
         width: style.width,
         opacity,
-        endings: None,
+        endings,
         dash,
         border_effect,
     };

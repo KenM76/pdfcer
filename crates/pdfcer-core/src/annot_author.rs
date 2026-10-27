@@ -494,6 +494,15 @@ pub enum MarkupSpec {
         color: Color,
         /// Border width in points.
         width: f64,
+        /// Line-ending styles (`/LE`) at the first and last vertex. Each
+        /// head points along its end segment, measured to the nearest
+        /// vertex that does not coincide with the end. `(None, None)` is
+        /// the default and writes no `/LE`.
+        endings: (LineEnding, LineEnding),
+        /// Interior colour `/IC`. It fills closed endings only, because an
+        /// open path has no interior (1.7 Table 178). `None` leaves a closed
+        /// ending hollow.
+        interior: Option<Color>,
     },
     /// The text-markup family (§12.5.6.10): Highlight/Underline/StrikeOut/
     /// Squiggly, all `/QuadPoints`-based.
@@ -766,6 +775,8 @@ pub fn spec_from_dict<G: ObjectGraph + ?Sized>(
                     vertices,
                     color: color(b"C").unwrap_or(Color::Gray(0.0)),
                     width,
+                    endings: read_line_endings(graph, annot),
+                    interior: color(b"IC"),
                 }
             })
         }
@@ -1568,13 +1579,7 @@ pub fn encode_spec(spec: &MarkupSpec) -> Object {
             put_colour(&mut d, b"C", Some(color));
             put_colour(&mut d, b"IC", interior.as_ref());
             d.insert(Name::from(b"W"), Object::Real(*width));
-            d.insert(
-                Name::from(b"LE"),
-                Object::Array(vec![
-                    Object::Name(Name::from(endings.0.name())),
-                    Object::Name(Name::from(endings.1.name())),
-                ]),
-            );
+            d.insert(Name::from(b"LE"), endings_object(*endings));
         }
         MarkupSpec::Ink {
             strokes,
@@ -1619,11 +1624,15 @@ pub fn encode_spec(spec: &MarkupSpec) -> Object {
             vertices,
             color,
             width,
+            endings,
+            interior,
         } => {
             tag(&mut d, b"polyline");
             d.insert(Name::from(b"V"), points_object(vertices));
             put_colour(&mut d, b"C", Some(color));
+            put_colour(&mut d, b"IC", interior.as_ref());
             d.insert(Name::from(b"W"), Object::Real(*width));
+            d.insert(Name::from(b"LE"), endings_object(*endings));
         }
         MarkupSpec::TextMarkup { kind, quads, color } => {
             tag(&mut d, b"textmarkup");
@@ -1704,12 +1713,7 @@ pub fn decode_spec(obj: &Object) -> Result<MarkupSpec, SpecReadError> {
                 .and_then(points_of)
                 .filter(|p: &Vec<(f64, f64)>| p.len() == 2)
                 .ok_or(SpecReadError::BadGeometry { key: "P" })?;
-            let ends = match d.get(b"LE") {
-                Some(Object::Array(a)) if a.len() == 2 => {
-                    (line_ending_of(a.first()), line_ending_of(a.get(1)))
-                }
-                _ => (LineEnding::None, LineEnding::None),
-            };
+            let ends = endings_of(d.get(b"LE"));
             MarkupSpec::Line {
                 start: *p.first().ok_or(SpecReadError::BadGeometry { key: "P" })?,
                 end: *p.get(1).ok_or(SpecReadError::BadGeometry { key: "P" })?,
@@ -1753,6 +1757,8 @@ pub fn decode_spec(obj: &Object) -> Result<MarkupSpec, SpecReadError> {
             vertices: vertices()?,
             color: border.unwrap_or(Color::Gray(0.0)),
             width: width()?,
+            endings: endings_of(d.get(b"LE")),
+            interior,
         },
         b"textmarkup" => {
             let nums = match d.get(b"Q") {
@@ -1816,6 +1822,22 @@ fn line_ending_of(obj: Option<&Object>) -> LineEnding {
         },
         _ => LineEnding::None,
     }
+}
+
+fn endings_of(obj: Option<&Object>) -> (LineEnding, LineEnding) {
+    match obj {
+        Some(Object::Array(a)) if a.len() == 2 => {
+            (line_ending_of(a.first()), line_ending_of(a.get(1)))
+        }
+        _ => (LineEnding::None, LineEnding::None),
+    }
+}
+
+fn endings_object(endings: (LineEnding, LineEnding)) -> Object {
+    Object::Array(vec![
+        Object::Name(Name::from(endings.0.name())),
+        Object::Name(Name::from(endings.1.name())),
+    ])
 }
 
 fn rect_object(r: Rect) -> Object {
@@ -2079,20 +2101,28 @@ fn build_appearance_inner(spec: &MarkupSpec, opts: &AppearanceOptions) -> Author
             vertices,
             color,
             width,
-        } => polygon_like(
-            b"PolyLine",
+            endings,
+            interior,
+        } => with_polyline_endings(
+            polygon_like(
+                b"PolyLine",
+                vertices,
+                Some(*color),
+                *interior,
+                *width,
+                false,
+                // Table 181 declares `/BE` on Polygon/PolyLine with the
+                // qualifier "meaningful only for polygon annotations",
+                // verbatim in BOTH editions, and §12.5.4's prose independently
+                // lists only square, circle and polygon. An open polyline
+                // cannot carry one.
+                None,
+                dash,
+            ),
             vertices,
-            Some(*color),
-            None,
+            *endings,
             *width,
-            false,
-            // Table 181 declares `/BE` on Polygon/PolyLine with the
-            // qualifier "meaningful only for polygon annotations",
-            // verbatim in BOTH editions, and §12.5.4's prose independently
-            // lists only square, circle and polygon. An open polyline
-            // cannot carry one.
-            None,
-            dash,
+            interior.is_some(),
         ),
         MarkupSpec::TextMarkup { kind, quads, color } => text_markup(*kind, quads, *color, order),
     }
@@ -2185,7 +2215,6 @@ fn base_annot(subtype: &[u8], rect: Rect) -> Dict {
     d
 }
 
-/// A `/BS` border-style dictionary carrying width `w` (§12.5.4 Table 168).
 /// Emit the `d` operator for a border dash, or nothing at all when the
 /// border is solid.
 ///
@@ -2208,6 +2237,7 @@ fn apply_dash(b: &mut ContentBuilder, dash: Option<&BorderDash>) {
     }
 }
 
+/// A `/BS` border-style dictionary carrying width `w` (§12.5.4 Table 168).
 fn border_style(w: f64, dash: Option<&BorderDash>) -> Object {
     let mut bs = Dict::new();
     bs.insert(Name::from(b"Type"), Object::Name(Name::from(b"Border")));
@@ -2405,13 +2435,7 @@ fn line(
         annot.insert(Name::from(b"IC"), ic.to_array());
     }
     annot.insert(Name::from(b"BS"), border_style(width, dash));
-    annot.insert(
-        Name::from(b"LE"),
-        Object::Array(vec![
-            Object::Name(Name(endings.0.name().to_vec())),
-            Object::Name(Name(endings.1.name().to_vec())),
-        ]),
-    );
+    annot.insert(Name::from(b"LE"), endings_object(endings));
 
     let mut b = ContentBuilder::new();
     color.apply_stroke(&mut b);
@@ -2421,10 +2445,14 @@ fn line(
     b.set_line_width(width);
     b.set_line_cap(LineCap::Butt);
     b.set_line_join(LineJoin::Miter);
-    // The shaft.
+    // The shaft carries the `/BS` dash; the heads are drawn solid.
+    apply_dash(&mut b, dash);
     b.move_to(start.0, start.1);
     b.line_to(end.0, end.1);
     b.paint(Paint::Stroke);
+    if dash.is_some() {
+        b.set_dash(&[], 0.0);
+    }
     // Arrowheads: the start ending points back along the line from `start`
     // toward `end`'s direction reversed; the end ending points forward.
     let filled = interior.is_some();
@@ -2803,6 +2831,47 @@ fn polygon_like(
         ap_content: b.into_bytes(),
         rect,
     }
+}
+
+/// Add a polyline's `/LE` heads to its baked path (1.7 Table 178: the first
+/// and last `/Vertices` pairs). Each head points along its end segment,
+/// measured to the nearest vertex distinct from the end, and is drawn
+/// solid even on a dashed path, as a `/Line`'s are. `(None, None)` returns
+/// `base` unchanged, so a polyline without endings bakes as it always has.
+fn with_polyline_endings(
+    mut base: AuthoredAppearance,
+    vertices: &[(f64, f64)],
+    endings: (LineEnding, LineEnding),
+    width: f64,
+    filled: bool,
+) -> AuthoredAppearance {
+    if endings == (LineEnding::None, LineEnding::None) {
+        return base;
+    }
+    let toward = |tip: (f64, f64), rest: &mut dyn Iterator<Item = &(f64, f64)>| {
+        rest.copied()
+            .find(|&p| (p.0 - tip.0).hypot(p.1 - tip.1) > f64::EPSILON)
+    };
+    let mut b = ContentBuilder::new();
+    b.set_dash(&[], 0.0);
+    b.set_line_cap(LineCap::Butt);
+    if let (Some(&first), Some(&last)) = (vertices.first(), vertices.last()) {
+        if let Some(other) = toward(first, &mut vertices.iter().skip(1)) {
+            emit_line_ending(&mut b, first, other, endings.0, width, filled);
+        }
+        if let Some(other) = toward(last, &mut vertices.iter().rev().skip(1)) {
+            emit_line_ending(&mut b, last, other, endings.1, width, filled);
+        }
+    }
+    base.ap_content.extend_from_slice(&b.into_bytes());
+    let margin = (width / 2.0).max(arrow_length(width));
+    let rect = bounds_of(vertices.iter().copied(), margin);
+    base.rect = rect;
+    base.annot.insert(Name::from(b"Rect"), rect_array(rect));
+    base.annot
+        .insert(Name::from(b"LE"), endings_object(endings));
+    base.ap_dict = form_dict(rect, Dict::new());
+    base
 }
 
 /// The text-markup family. Rect bounds all quads; the appearance draws the
@@ -5672,11 +5741,15 @@ pub fn transform_spec(spec: &MarkupSpec, m: crate::vector::Matrix) -> (MarkupSpe
             vertices,
             color,
             width,
+            endings,
+            interior,
         } => (
             MarkupSpec::PolyLine {
                 vertices: pts(vertices),
                 color: *color,
                 width: w(*width),
+                endings: *endings,
+                interior: *interior,
             },
             false,
         ),
@@ -6624,6 +6697,8 @@ mod tests {
             vertices: vec![(0.0, 0.0), (50.0, 0.0), (25.0, 40.0)],
             color: Color::Gray(0.0),
             width: 1.0,
+            endings: (LineEnding::None, LineEnding::None),
+            interior: None,
         });
         assert!(!content_str(&line).contains("h\n"), "polyline stays open");
         assert!(content_str(&line).trim_end().ends_with('S'), "stroke only");

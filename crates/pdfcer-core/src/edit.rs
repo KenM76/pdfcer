@@ -4172,6 +4172,22 @@ pub(super) fn insert_markup_entries(annot: &mut Dict, options: &MarkupOptions) {
     }
 }
 
+/// `Clear` draws no endings; dropping the `/LE` key is `set_markup_style`'s
+/// business, since a `MarkupSpec` cannot say "absent".
+fn restyled_endings(
+    current: (annot_author::LineEnding, annot_author::LineEnding),
+    edit: Option<StyleEdit<(annot_author::LineEnding, annot_author::LineEnding)>>,
+) -> (annot_author::LineEnding, annot_author::LineEnding) {
+    match edit {
+        None => current,
+        Some(StyleEdit::Clear) => (
+            annot_author::LineEnding::None,
+            annot_author::LineEnding::None,
+        ),
+        Some(StyleEdit::Set(e)) => e,
+    }
+}
+
 fn apply_markup_style(
     spec: annot_author::MarkupSpec,
     style: &MarkupStyle,
@@ -4255,14 +4271,7 @@ fn apply_markup_style(
             // key-dropping half is the dictionary's business and is done
             // by `set_markup_style`, since `MarkupSpec` has no way to say
             // "absent" — see `MarkupStyle::endings`.
-            endings: match style.endings {
-                None => endings,
-                Some(StyleEdit::Clear) => (
-                    annot_author::LineEnding::None,
-                    annot_author::LineEnding::None,
-                ),
-                Some(StyleEdit::Set(e)) => e,
-            },
+            endings: restyled_endings(endings, style.endings),
         },
         MarkupSpec::Ink {
             strokes,
@@ -4316,10 +4325,14 @@ fn apply_markup_style(
             vertices,
             color,
             width: w,
+            endings,
+            interior,
         } => MarkupSpec::PolyLine {
             vertices,
             color: required(color, style.stroke),
             width: width(w),
+            interior: colour(interior, style.interior),
+            endings: restyled_endings(endings, style.endings),
         },
         MarkupSpec::TextMarkup { kind, quads, color } => MarkupSpec::TextMarkup {
             kind,
@@ -6043,8 +6056,7 @@ pub struct MarkupStyleSupport {
     /// means something (§12.5.6.7, §12.5.6.8, §12.5.6.13).
     pub takes_interior: bool,
     /// The subtype has `/LE` line endings, so [`MarkupStyle::endings`]
-    /// means something. `/Line` only — Table 176's `/LE` is declared for
-    /// `/PolyLine` too, but pdfcer authors endings on a line alone.
+    /// means something: `/Line` and `/PolyLine` (1.7 Tables 175 and 178).
     pub takes_endings: bool,
     /// The subtype can be made cloudy, so [`MarkupStyle::border_effect`]
     /// means something: `/Square` and `/Polygon`. Table 167 also allows
@@ -6069,6 +6081,8 @@ impl MarkupStyleSupport {
     /// assert!(MarkupStyleSupport::for_subtype(b"Square").takes_border);
     /// assert!(!MarkupStyleSupport::for_subtype(b"Highlight").takes_border);
     /// assert!(MarkupStyleSupport::for_subtype(b"Line").takes_endings);
+    /// assert!(MarkupStyleSupport::for_subtype(b"PolyLine").takes_endings);
+    /// assert!(!MarkupStyleSupport::for_subtype(b"Ink").takes_endings);
     /// assert!(MarkupStyleSupport::for_subtype(b"Polygon").takes_border_effect);
     /// assert!(!MarkupStyleSupport::for_subtype(b"Circle").takes_border_effect);
     /// ```
@@ -6087,13 +6101,14 @@ impl MarkupStyleSupport {
                 takes_endings: false,
                 takes_border_effect: false,
             },
-            b"PolyLine" | b"Ink" => Self {
+            b"Ink" => Self {
                 takes_border: true,
                 takes_interior: false,
                 takes_endings: false,
                 takes_border_effect: false,
             },
-            b"Line" => Self {
+            // A polyline's `/IC` fills its closed endings (1.7 Table 178).
+            b"Line" | b"PolyLine" => Self {
                 takes_border: true,
                 takes_interior: true,
                 takes_endings: true,
@@ -67507,6 +67522,11 @@ endstream",
             vertices: verts(n),
             color: Color::Gray(0.0),
             width: 1.0,
+            endings: (
+                annot_author::LineEnding::None,
+                annot_author::LineEnding::None,
+            ),
+            interior: None,
         };
 
         let mut s = session(pdf_without_info());

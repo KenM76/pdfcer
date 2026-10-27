@@ -11,18 +11,18 @@
 //!   box: every pixel differing from that background by more than its own
 //!   spread and connected to ink inside the box, so a glyph the engine's
 //!   box clips goes whole, plus a one-pixel antialiased edge. Pixels inside
-//!   a suspect's box are never painted ([`super::editable_image`]).
+//!   a suspect's box are never painted (`editable_image`).
 //! - **Placement**: engine boxes are padded, so each line's visible words
 //!   are refitted to their measured ink: x from the word's own ink, one
 //!   baseline (median ink bottom of words without descenders) and one size
 //!   (median cap height of words with no descender) per line, unrotated
-//!   pages only ([`super::editable_fit`]).
+//!   pages only (`editable_fit`).
 //! - **Colour** is the median of the word's strongest-contrast pixels, in
 //!   the image's own device components (`g`, `rg` or `k`, ISO 32000-1
 //!   §8.6.8); an ICC-based image's ink is written uncalibrated, disclosed.
 //! - **Codec**: a JPEG source stays JPEG, everything else becomes Flate
-//!   ([`EditableImageCodec`]).
-//! - **Threshold**: [`EditableTextOptions::min_confidence_percent`].
+//!   (`EditableImageCodec`).
+//! - **Threshold**: `EditableTextOptions::min_confidence_percent`.
 
 use std::collections::BTreeMap;
 

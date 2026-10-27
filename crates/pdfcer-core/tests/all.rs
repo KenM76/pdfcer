@@ -196,6 +196,7 @@ mod pkcs12_import;
 mod place_artwork;
 mod place_page_content;
 mod place_text;
+mod polyline_endings;
 mod quad_point_order;
 mod quadding_redraws;
 mod radio_member_paste;

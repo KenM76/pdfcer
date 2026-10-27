@@ -22,6 +22,15 @@ pub(crate) fn build_markup_spec(
         Some(h) => Some(parse_color(h)?),
         None => None,
     };
+    let endings = match args.line_endings {
+        Some(raw) if matches!(args.kind, AnnotKindArg::Line | AnnotKindArg::Polyline) => {
+            Some(crate::annot_edit::parse_line_endings(raw)?)
+        }
+        Some(_) => {
+            return Err("--line-endings is supported on line and polyline only".into());
+        }
+        None => None,
+    };
 
     match args.kind {
         AnnotKindArg::Square | AnnotKindArg::Circle => {
@@ -62,7 +71,7 @@ pub(crate) fn build_markup_spec(
                 end: (x1, y1),
                 color,
                 width: args.width,
-                endings: (LineEnding::OpenArrow, LineEnding::OpenArrow),
+                endings: endings.unwrap_or((LineEnding::OpenArrow, LineEnding::OpenArrow)),
                 interior,
             })
         }
@@ -109,6 +118,8 @@ pub(crate) fn build_markup_spec(
                     vertices: verts,
                     color,
                     width: args.width,
+                    endings: endings.unwrap_or((LineEnding::None, LineEnding::None)),
+                    interior,
                 })
             }
         }

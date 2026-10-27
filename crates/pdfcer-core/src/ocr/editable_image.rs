@@ -202,6 +202,8 @@ fn space_components(view: &DocumentView<'_>, cs: &Object) -> Option<u32> {
 }
 
 impl Raster {
+    /// One sample per byte: 1-bit images are unpacked to 0/255 so erasure
+    /// and measurement work on one representation.
     pub(super) fn from_decoded(d: &Decoded) -> Self {
         let one_bit = d.bpc == 1;
         let data = if one_bit {

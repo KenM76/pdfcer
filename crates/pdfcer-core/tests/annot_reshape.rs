@@ -129,6 +129,8 @@ fn polyline(vertices: Vec<(f64, f64)>) -> MarkupSpec {
         vertices,
         color: Color::Gray(0.0),
         width: 1.5,
+        endings: (LineEnding::None, LineEnding::None),
+        interior: None,
     }
 }
 
