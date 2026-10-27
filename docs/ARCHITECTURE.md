@@ -13556,3 +13556,13 @@ Full record: `docs/decisions/202-rgb-into-a-cmyk-blending-space-uses-the-calibra
 **Why.** Max-GCR renders 50% grey under `/BM /Difference` over pure K as 22 18 21 against Acrobat's 137 112 106; Medium(15%) lands the three request rows within a few levels (G differs by about 15 on the out-of-gamut row, stated). Inside decision 064: pdfcer's own table, not ICC conversion.
 
 **Body-section effect.** None. **Decision ceiling.** Fills `202`; next free decision `203`. **New standing rule.** None; `R263` stays next free.
+
+### 2026-10-27 (1263rd filing) — decision 203: an annotation with no `/AP` whose geometry fully determines its look is drawn from it at render time
+
+Full record: `docs/decisions/203-markup-without-ap-is-drawn-from-geometry-at-render-time.md`. Recorded at `Pass 646.20`-`646.23` (`G236`), scoped, not yet shipped.
+
+**Decides.** Narrows `R43` again ("derived, not invented"): Ink, text markup, Square, Circle, Polygon, PolyLine, plain Line and FreeText with no `/AP` are drawn at render time from their own geometry; render-only, no bytes written. Setting `MarkupWithoutAp { FromGeometry (default), Blank }` on `RenderOptions` (mirrors `WidgetsWithoutAp`) plus CLI flags. Disclosed by `annots_geometry_drawn` (end of the metrics line), `Diagnostics::annotations_geometry_drawn` per subtype and one stderr note per annotation; `annots_no_ap` unchanged. QuadPoints accepted in both the spec's and Acrobat's order. A Line with `/Cap`, `/LL` or `/IT /LineDimension` is a pdf dimension and is declined. Caret, Popup, Link, Widget out of scope.
+
+**Why.** The geometry entries define the annotation, so drawing them reproduces the file rather than inventing content; a viewer and a renderer should not disagree about a Highlight. Decision 149's reader-`shall` argument does not reach these subtypes, so this is a separate, narrower ground.
+
+**Body-section effect.** None. **Decision ceiling.** Fills `203`; next free decision `204`. **New standing rule.** None; `R263` stays next free.

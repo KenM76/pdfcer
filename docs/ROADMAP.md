@@ -112,6 +112,29 @@ wherever it appears.*
 
 ## Shipped
 
+### `9f28d8cd` `Pass 646.19` SHIPPED, 2026-10-27: PolyLine line endings and interior colour (`G235`) (1263rd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `9f28d8cd` "feat(annot): PolyLine line endings and interior colour (G235)", on main, after the `v0.101.0` tag, unreleased. Requester: the GUI project via the FeatureRequests channel, `request_G235_polyline_line_endings.md`. Reasoning is in the commit message.
+- **Core:** `MarkupSpec::PolyLine` gains `endings: (LineEnding, LineEnding)` and `interior: Option<Color>` (ISO 32000-1 section 12.5.6.9 Table 178 `/LE`, `/IC`). The baked `/AP` draws arrowheads along the first and last non-degenerate segments; `(None, None)` bakes as before. `set_markup_style` accepts endings and interior on a PolyLine (`MarkupStyleSupport::for_subtype` updated; Ink takes neither). Reshape re-bakes the heads. **Breaking:** every PolyLine construction site needs the two fields.
+- **Fix found on the way:** a dashed `/Line` drew a solid shaft (only `/BS` carried the dash). The shaft is now dashed and the heads solid, on both subtypes.
+- **CLI:** `annotate --line-endings START,END` (`none|open|closed`; line and polyline only) and `set-markup-style --line-endings START,END|none`.
+- **Same commit, CI repair:** fixes the two gates `1efce31b` (`Pass 646.18`) broke: four broken intra-doc links in `ocr/editable.rs` and the undocumented `pub fn Raster::from_decoded`. CI at tag `v0.101.0` is therefore red on those two doc gates only; the fix is on main.
+- **Tests (engineer):** new `tests/polyline_endings.rs`, 5 tests, sabotage-verified on the dash reset. Change-scoped run, `pdfcer-core` and `pdfcer-cli`: suites of 3112, 1992, 974, 253 and 47 passed, 0 failed. fmt and clippy clean; code-structure baseline 563 unchanged; `check-core-api-verbs` PASS; `docs/core-api/02-editing-and-saving.md` updated. No manifest change, so the `cargo tree` invariant is untouched.
+- **Delivers:** core yes; cli yes; gui no.
+- **FEATURES:** new Implemented row "PolyLine arrowheads and interior colour", `[x]` core / `[x]` cli / `[ ]` gui; the restyle row's "endings on anything but a `/Line`" corrected to include `/PolyLine`.
+- Nothing minted by this Pass; no ARCHITECTURE section 12 entry for it.
+
+### `v0.101.0` — PUBLISHED, 2026-10-27 (1263rd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Release record for the prep filed below (1262nd, bump `977036f5`, filing commit `446cd3a1`).
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` published at 0.101.0.
+- **OneDrive:** slot `pdfcer2` = 0.101.0; `pdfcer1` keeps 0.100.0.
+- **GUI notice** written outside the repo: `notice_2026-10-27_v0.101.0_released.md` (FeatureRequests channel).
+- **CI caveat:** CI at the tag is red on two doc gates only (broken by `1efce31b`, fixed by `9f28d8cd` on main, above).
+- **Not supplied to this filing:** the tag's peeled hash, GitHub release asset list, fresh-folder smoke and `verify-release.py` results; none is claimed here.
+- **Contents:** `Pass 646.18` only (since `v0.100.0`).
+- **FEATURES:** crates.io row 0.100.0 to 0.101.0; no box changed. Next release slot `pdfcer1`.
+
 ### `v0.101.0` — release prep, version bump `977036f5` (`chore`), 2026-10-27 (1262nd filing); NOT yet published
 
 Engineer-reported; no shell here, nothing checked from here. Same pattern as the v0.100.0 prep (1259th filing).
@@ -24188,7 +24211,36 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Next up has no head.** `Pass 646.10` (`X005`) SHIPPED on `c33bd6b1` in the 1252nd filing; its Next up item is removed. Next free `Pass 646.11`, decision `203`, `R263`; next filing 1253rd.
+> **Next up head: `Pass 646.20`** (`G236`, draw markup with no `/AP` from its geometry; decision 203). Order: `646.20` (A), `646.21` (B), `646.22` (C), `646.23` (E). Next free `Pass 646.24`, decision `204`, `R263`; next filing 1264th.
+
+### Pass 646.20 — Ink and text-markup annotations with no `/AP` are drawn from their geometry (`G236` part A)
+
+Request `request_G236_draw_markup_without_appearance.md` (GUI project). Decision 203 (`docs/decisions/203-...`) holds the rule; this item and 646.21-646.23 hold the scope. Spec: ISO 32000-1 section 12.5.6.10 Table 179 (`iso32000__s__12.5.6.10.md` in the spec RAG).
+- **Introduces the shared machinery:** `MarkupWithoutAp { FromGeometry (default), Blank }` on `RenderOptions` (mirrors `WidgetsWithoutAp`); CLI flags for both values on `render-page`; counter `annots_geometry_drawn` appended to the END of the metrics line; `Diagnostics::annotations_geometry_drawn` per subtype; one stderr note per annotation; `annots_no_ap` unchanged.
+- **Subtypes:** Ink (`/InkList`) and Highlight, Underline, StrikeOut, Squiggly (`/QuadPoints`).
+- **QuadPoints order:** the spec says counterclockwise from the baseline start; Acrobat and most producers write top-left, top-right, bottom-left, bottom-right (pdf-issues #68, #743). Accept both, told apart by geometry; fixtures for both. Unreadable specs are declined and reported, left blank.
+- **Render-only:** no bytes written; a saved file is byte-identical.
+- **Acceptance:** each subtype with and without `/AP`; both QuadPoints orders; `Blank` restores today's output byte-for-byte; the counters and note appear; a file with `/AP` is untouched.
+- **Delivers when shipped:** core/render yes, cli yes, gui via the render setting (wiring is the GUI project's).
+
+### Pass 646.21 — Square, Circle, Polygon, PolyLine and plain Line with no `/AP` are drawn from their geometry (`G236` part B)
+
+Same rule and setting as 646.20; needs it shipped first. Spec: section 12.5.6.8 (`iso32000__s__12.5.6.8.md`).
+- **Subtypes:** Square and Circle (`/RD`, `/BE` border effect), Polygon (including cloud), PolyLine, plain Line.
+- **Declined, left blank, reported:** a Line with `/Cap`, `/LL` or `/IT /LineDimension` (a pdf dimension; pdfcer does not redraw another tool's dimensions); PDF 2.0 `/Path`-only geometry.
+- **Acceptance:** each subtype; cloud intensity honoured; a captioned/dimension Line stays blank and is counted as declined.
+
+### Pass 646.22 — FreeText with no `/AP` is drawn from its geometry, with disclosed font substitution (`G236` part C)
+
+Same rule and setting. Spec: section 12.5.6.13 (`iso32000__s__12.5.6.13.md`). Font substitution is disclosed (rule 4), never silent. Details beyond that are for the Pass's own scoping.
+
+### Pass 646.23 — `annot bake-appearances` (`G236` part E, optional)
+
+Optional verb `annot bake-appearances`: writes the geometry-drawn look into `/AP` for annotations that lack one, for a consumer that does not draw them. Opt-in (the render path writes nothing); shape and core/cli split to be settled when scoped.
+
+**Out of scope for the whole family:** Caret, Popup, Link, Widget.
+
+(1263rd filing: `Pass 646.19` (`G235`) SHIPPED on `9f28d8cd`, `v0.101.0` PUBLISHED, `Pass 646.20`-`646.23` (`G236`) scoped, decision `203` minted; see *Shipped* and ARCHITECTURE section 12. Next free `Pass 646.24`, decision `204`, `R263`; next filing 1264th. Unreleased since `v0.101.0`: `646.19`. Release slot `pdfcer1`.)
 
 (1262nd filing: `v0.101.0` release prep, bump `977036f5`, NOT yet published, see *Shipped*. Nothing minted; next free `Pass 646.19`, decision `203`, `R263`; next filing 1263rd. Release slot `pdfcer2`.)
 

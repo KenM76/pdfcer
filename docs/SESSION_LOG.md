@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-27 (1263rd filing) — `Pass 646.19` (`G235`) SHIPPED on `9f28d8cd`; `v0.101.0` PUBLISHED; `G236` scoped, decision 203
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.19`: PolyLine line endings (`/LE`) and interior colour (`/IC`) in core, `annotate --line-endings` and `set-markup-style --line-endings` in the CLI. Also fixes a dashed `/Line` drawing a solid shaft. Same commit repairs the two doc gates `1efce31b` broke (four intra-doc links in `ocr/editable.rs`, undocumented `Raster::from_decoded`), so CI at the `v0.101.0` tag is red on those two gates only. Tests: new `tests/polyline_endings.rs` (5, sabotage-verified); core and cli suites 3112, 1992, 974, 253, 47 passed, 0 failed.
+- `v0.101.0` published: crates.io `pdfcer-color`/`-model`/`-pkix` 0.101.0; OneDrive `pdfcer2` = 0.101.0, `pdfcer1` keeps 0.100.0; GUI notice filed. Tag hash, release assets, smoke and `verify-release.py` results were not supplied, so none is recorded.
+- `G236` filed as `Pass 646.20`-`646.23` in Next up.
+
+**Decisions made:** decision `203` (ARCHITECTURE section 12; `docs/decisions/203-...`): narrow `R43` again, "derived, not invented". An annotation with no `/AP` whose geometry fully determines its look is drawn at render time; render-only. Setting `MarkupWithoutAp { FromGeometry (default), Blank }`; counter `annots_geometry_drawn` at the END of the metrics line. No standing rule minted.
+
+**Findings:** QuadPoints order differs between the spec (counterclockwise from baseline start, Table 179) and Acrobat and most producers (top-left, top-right, bottom-left, bottom-right; pdf-issues #68, #743); accept both by geometry. Spec RAG now holds `iso32000__s__12.5.6.8.md`, `12.5.6.10.md`, `12.5.6.13.md`.
+
+**FEATURES.md:** new Implemented row (PolyLine endings, core/cli `[x]`, gui `[ ]`); restyle row corrected (`endings` now also on `/PolyLine`); crates.io row 0.100.0 to 0.101.0; four Planned rows for `G236`; row for no-`/AP` icon painting got a forward pointer to decision 203.
+
+**RAG:** none written (shell-less; dash-on-Line finding is in the commit message).
+
+**For next session:** `Pass 646.20` first. Next free `Pass 646.24`, decision `204`, `R263`; next filing 1264th; release slot `pdfcer1`. Push and backup state not checked from here.
+
 ## 2026-10-27 (1262nd filing) — `v0.101.0` release prep, version bump `977036f5`; NOT yet published
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
