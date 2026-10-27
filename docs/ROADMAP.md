@@ -24213,33 +24213,6 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **Next up head: `Pass 646.20`** (`G236`, draw markup with no `/AP` from its geometry; decision 203). Order: `646.20` (A), `646.21` (B), `646.22` (C), `646.23` (E). Next free `Pass 646.24`, decision `204`, `R263`; next filing 1264th.
 
-### Pass 646.20 — Ink and text-markup annotations with no `/AP` are drawn from their geometry (`G236` part A)
-
-Request `request_G236_draw_markup_without_appearance.md` (GUI project). Decision 203 (`docs/decisions/203-...`) holds the rule; this item and 646.21-646.23 hold the scope. Spec: ISO 32000-1 section 12.5.6.10 Table 179 (`iso32000__s__12.5.6.10.md` in the spec RAG).
-- **Introduces the shared machinery:** `MarkupWithoutAp { FromGeometry (default), Blank }` on `RenderOptions` (mirrors `WidgetsWithoutAp`); CLI flags for both values on `render-page`; counter `annots_geometry_drawn` appended to the END of the metrics line; `Diagnostics::annotations_geometry_drawn` per subtype; one stderr note per annotation; `annots_no_ap` unchanged.
-- **Subtypes:** Ink (`/InkList`) and Highlight, Underline, StrikeOut, Squiggly (`/QuadPoints`).
-- **QuadPoints order:** the spec says counterclockwise from the baseline start; Acrobat and most producers write top-left, top-right, bottom-left, bottom-right (pdf-issues #68, #743). Accept both, told apart by geometry; fixtures for both. Unreadable specs are declined and reported, left blank.
-- **Render-only:** no bytes written; a saved file is byte-identical.
-- **Acceptance:** each subtype with and without `/AP`; both QuadPoints orders; `Blank` restores today's output byte-for-byte; the counters and note appear; a file with `/AP` is untouched.
-- **Delivers when shipped:** core/render yes, cli yes, gui via the render setting (wiring is the GUI project's).
-
-### Pass 646.21 — Square, Circle, Polygon, PolyLine and plain Line with no `/AP` are drawn from their geometry (`G236` part B)
-
-Same rule and setting as 646.20; needs it shipped first. Spec: section 12.5.6.8 (`iso32000__s__12.5.6.8.md`).
-- **Subtypes:** Square and Circle (`/RD`, `/BE` border effect), Polygon (including cloud), PolyLine, plain Line.
-- **Declined, left blank, reported:** a Line with `/Cap`, `/LL` or `/IT /LineDimension` (a pdf dimension; pdfcer does not redraw another tool's dimensions); PDF 2.0 `/Path`-only geometry.
-- **Acceptance:** each subtype; cloud intensity honoured; a captioned/dimension Line stays blank and is counted as declined.
-
-### Pass 646.22 — FreeText with no `/AP` is drawn from its geometry, with disclosed font substitution (`G236` part C)
-
-Same rule and setting. Spec: section 12.5.6.13 (`iso32000__s__12.5.6.13.md`). Font substitution is disclosed (rule 4), never silent. Details beyond that are for the Pass's own scoping.
-
-### Pass 646.23 — `annot bake-appearances` (`G236` part E, optional)
-
-Optional verb `annot bake-appearances`: writes the geometry-drawn look into `/AP` for annotations that lack one, for a consumer that does not draw them. Opt-in (the render path writes nothing); shape and core/cli split to be settled when scoped.
-
-**Out of scope for the whole family:** Caret, Popup, Link, Widget.
-
 (1263rd filing: `Pass 646.19` (`G235`) SHIPPED on `9f28d8cd`, `v0.101.0` PUBLISHED, `Pass 646.20`-`646.23` (`G236`) scoped, decision `203` minted; see *Shipped* and ARCHITECTURE section 12. Next free `Pass 646.24`, decision `204`, `R263`; next filing 1264th. Unreleased since `v0.101.0`: `646.19`. Release slot `pdfcer1`.)
 
 (1262nd filing: `v0.101.0` release prep, bump `977036f5`, NOT yet published, see *Shipped*. Nothing minted; next free `Pass 646.19`, decision `203`, `R263`; next filing 1263rd. Release slot `pdfcer2`.)
@@ -26140,6 +26113,33 @@ Optional verb `annot bake-appearances`: writes the geometry-drawn look into `/AP
 > annotation/destination scaling, the new ce-dimensions refusal — is at
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
+
+### Pass 646.20 — Ink and text-markup annotations with no `/AP` are drawn from their geometry (`G236` part A)
+
+Request `request_G236_draw_markup_without_appearance.md` (GUI project). Decision 203 (`docs/decisions/203-...`) holds the rule; this item and 646.21-646.23 hold the scope. Spec: ISO 32000-1 section 12.5.6.10 Table 179 (`iso32000__s__12.5.6.10.md` in the spec RAG).
+- **Introduces the shared machinery:** `MarkupWithoutAp { FromGeometry (default), Blank }` on `RenderOptions` (mirrors `WidgetsWithoutAp`); CLI flags for both values on `render-page`; counter `annots_geometry_drawn` appended to the END of the metrics line; `Diagnostics::annotations_geometry_drawn` per subtype; one stderr note per annotation; `annots_no_ap` unchanged.
+- **Subtypes:** Ink (`/InkList`) and Highlight, Underline, StrikeOut, Squiggly (`/QuadPoints`).
+- **QuadPoints order:** the spec says counterclockwise from the baseline start; Acrobat and most producers write top-left, top-right, bottom-left, bottom-right (pdf-issues #68, #743). Accept both, told apart by geometry; fixtures for both. Unreadable specs are declined and reported, left blank.
+- **Render-only:** no bytes written; a saved file is byte-identical.
+- **Acceptance:** each subtype with and without `/AP`; both QuadPoints orders; `Blank` restores today's output byte-for-byte; the counters and note appear; a file with `/AP` is untouched.
+- **Delivers when shipped:** core/render yes, cli yes, gui via the render setting (wiring is the GUI project's).
+
+### Pass 646.21 — Square, Circle, Polygon, PolyLine and plain Line with no `/AP` are drawn from their geometry (`G236` part B)
+
+Same rule and setting as 646.20; needs it shipped first. Spec: section 12.5.6.8 (`iso32000__s__12.5.6.8.md`).
+- **Subtypes:** Square and Circle (`/RD`, `/BE` border effect), Polygon (including cloud), PolyLine, plain Line.
+- **Declined, left blank, reported:** a Line with `/Cap`, `/LL` or `/IT /LineDimension` (a pdf dimension; pdfcer does not redraw another tool's dimensions); PDF 2.0 `/Path`-only geometry.
+- **Acceptance:** each subtype; cloud intensity honoured; a captioned/dimension Line stays blank and is counted as declined.
+
+### Pass 646.22 — FreeText with no `/AP` is drawn from its geometry, with disclosed font substitution (`G236` part C)
+
+Same rule and setting. Spec: section 12.5.6.13 (`iso32000__s__12.5.6.13.md`). Font substitution is disclosed (rule 4), never silent. Details beyond that are for the Pass's own scoping.
+
+### Pass 646.23 — `annot bake-appearances` (`G236` part E, optional)
+
+Optional verb `annot bake-appearances`: writes the geometry-drawn look into `/AP` for annotations that lack one, for a consumer that does not draw them. Opt-in (the render path writes nothing); shape and core/cli split to be settled when scoped.
+
+**Out of scope for the whole family:** Caret, Popup, Link, Widget.
 
 ### `Pass 626.0` — lower the declared PDF version — COMPLETE, MOVED TO *Shipped* (slice 2 `d0f7c993`, 1200th filing); slice 1 detail below stays
 
