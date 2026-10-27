@@ -29,8 +29,8 @@
 //! ⇒ **Drawing a named icon is not synthesis — it is the reader discharging a
 //! duty the standard assigned to it.** The discriminator is the grammatical
 //! subject: the icon clauses address *conforming readers*; §12.5.6.8's
-//! square/circle clause addresses *the annotation*. `R43` is untouched for the
-//! second class, and these tests assert both halves.
+//! square/circle clause addresses *the annotation*, and that class is drawn
+//! only from its own stated geometry (decision 203; `markup_without_ap.rs`).
 //!
 //! The obligation is on **pixels, not objects** — no clause asks a reader to
 //! materialise an `/AP` into the file — so this changes no bytes and neither
@@ -41,7 +41,7 @@ use std::path::PathBuf;
 
 /// A one-page PDF whose annotations carry no `/AP`, built from parts so the
 /// test does not depend on a file outside the repository.
-fn no_ap_pdf(annots: &str, extra_objects: &str, count: u32) -> Vec<u8> {
+pub(crate) fn no_ap_pdf(annots: &str, extra_objects: &str, count: u32) -> Vec<u8> {
     let bodies: Vec<(u32, String)> = vec![
         (1, "<< /Type /Catalog /Pages 2 0 R >>".to_string()),
         (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string()),
@@ -89,7 +89,7 @@ fn no_ap_pdf(annots: &str, extra_objects: &str, count: u32) -> Vec<u8> {
     buf
 }
 
-fn render(bytes: Vec<u8>) -> pdfcer_render::RenderedPage {
+pub(crate) fn render(bytes: Vec<u8>) -> pdfcer_render::RenderedPage {
     let doc = Document::from_bytes(bytes).expect("the fixture loads");
     let pages = pdfcer_core::page_tree::pages(&doc).expect("page tree");
     pdfcer_render::render_page(&doc, &pages[0], 1.0).expect("the page renders")
@@ -99,7 +99,7 @@ fn render(bytes: Vec<u8>) -> pdfcer_render::RenderedPage {
 ///
 /// Counted off the pixmap rather than a decoded PNG so the test needs no
 /// image decoder: the render's own buffer is the thing under test anyway.
-fn ink(page: &pdfcer_render::RenderedPage) -> usize {
+pub(crate) fn ink(page: &pdfcer_render::RenderedPage) -> usize {
     page.pixmap
         .pixels()
         .iter()
@@ -142,30 +142,37 @@ fn a_stamp_annotation_naming_an_icon_is_drawn() {
 
 // ------------------------------------- 2. R43 survives for the other class
 
-/// THE CONTROL THAT KEEPS `R43` INTACT: a `/Square` with no `/AP` is still
-/// NOT drawn.
-///
-/// This is the whole reason the change is a narrowing of `R43`'s scope rather
-/// than its repeal. §12.5.6.8 addresses *the annotation* ("Square and circle
-/// annotations shall display…"), not the reader, and pdfcer will not invent
-/// geometry. Without this test, "draw what has no `/AP`" could quietly become
-/// a blanket synthesis switch — which is precisely what the spec research
-/// warned must not happen (`AG-A1` and `AG-A3` are different tiers).
+/// THE CONTROL THAT KEEPS `R43` INTACT: a `/Square` with no `/AP` is drawn
+/// only from what the file states (decision 203), never by the icon path,
+/// and one that states no colour at all stays blank.
 #[test]
-fn a_square_with_no_ap_is_still_not_drawn() {
-    let out = render(no_ap_pdf(
+fn a_square_with_no_ap_is_never_an_icon_and_blank_without_colour() {
+    let coloured = render(no_ap_pdf(
         "4 0 R",
         "<< /Type /Annot /Subtype /Square /IC [1 0 0] /Rect [40 40 260 260] >>",
         1,
     ));
-
     assert_eq!(
-        out.diagnostics.annotations_icon_painted, 0,
-        "a /Square names no icon and must not be drawn"
+        coloured.diagnostics.annotations_icon_painted, 0,
+        "a /Square names no icon"
     );
-    assert_eq!(ink(&out), 0, "the page stays blank, which is R43 working");
     assert_eq!(
-        out.diagnostics.annotations_without_ap.get("Square"),
+        coloured
+            .diagnostics
+            .annotations_geometry_drawn
+            .get("Square"),
+        Some(&1),
+        "it is drawn from its own /Rect and /IC"
+    );
+
+    let bare = render(no_ap_pdf(
+        "4 0 R",
+        "<< /Type /Annot /Subtype /Square /Rect [40 40 260 260] >>",
+        1,
+    ));
+    assert_eq!(ink(&bare), 0, "no colour stated, nothing drawn: R43");
+    assert_eq!(
+        bare.diagnostics.annotations_without_ap.get("Square"),
         Some(&1),
         "and it is still disclosed by subtype"
     );

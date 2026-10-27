@@ -1616,6 +1616,13 @@ pub struct Diagnostics {
     /// `annotations_without_ap` for the same reason as
     /// [`Self::annotations_icon_painted`]. Nothing is written to the file.
     pub annotations_widget_synthesized: usize,
+    /// Markup annotations with no `/AP` that pdfcer drew at view time from
+    /// their own geometry (`/InkList`, `/QuadPoints`, `/L`, `/Vertices`,
+    /// `/Rect`) and colours, by `/Subtype`. Counted ALONGSIDE
+    /// `annotations_without_ap` for the same reason as
+    /// [`Self::annotations_icon_painted`]; not in `annotations_painted`.
+    /// Nothing is written to the file. See [`crate::MarkupWithoutAp`].
+    pub annotations_geometry_drawn: BTreeMap<String, usize>,
     /// Of [`Diagnostics::annotations_total`], those whose `/Subtype` is
     /// `Widget` (§12.5.6.19). A census signal — widgets are ~88 % of
     /// organic annotations, so their share drives forms prioritisation.
@@ -1988,6 +1995,9 @@ polarity unverifiable (decision 006 R30)",
         self.page_content_suppressed |= other.page_content_suppressed;
         for (subtype, count) in other.annotations_without_ap {
             *self.annotations_without_ap.entry(subtype).or_insert(0) += count;
+        }
+        for (subtype, count) in other.annotations_geometry_drawn {
+            *self.annotations_geometry_drawn.entry(subtype).or_insert(0) += count;
         }
         self.images_colorant_none += other.images_colorant_none;
         self.images_uncalibrated_colorimetry += other.images_uncalibrated_colorimetry;

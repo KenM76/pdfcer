@@ -5228,6 +5228,19 @@ pub(crate) enum Command {
         /// them; the process inks are Cyan, Magenta, Yellow and Black.
         #[arg(long, value_name = "NAME")]
         hide_ink: Vec<String>,
+        /// What to show for a markup annotation (Ink, Highlight, Underline,
+        /// StrikeOut, Squiggly, Square, Circle, Polygon, PolyLine, Line)
+        /// that has no stored appearance: `from-geometry` draws it from its
+        /// own points and colours; `blank` leaves it out. A measurement
+        /// line, a missing colour or bad geometry is always left blank, and
+        /// stderr says why. The file is not changed.
+        #[arg(long, value_enum, default_value_t)]
+        markup_without_ap: crate::viewer_preview::MarkupWithoutApArg,
+        /// What to show for a form field with no stored appearance: `draw`
+        /// draws it from its value and field settings; `blank` leaves it
+        /// out. The file is not changed.
+        #[arg(long, value_enum, default_value_t)]
+        widgets_without_ap: crate::viewer_preview::WidgetsWithoutApArg,
     },
 
     /// Export page(s) as PNG, JPEG or SVG files — with REAL transparency
@@ -5383,6 +5396,19 @@ pub(crate) enum Command {
         /// them; the process inks are Cyan, Magenta, Yellow and Black.
         #[arg(long, value_name = "NAME")]
         hide_ink: Vec<String>,
+        /// What to show for a markup annotation (Ink, Highlight, Underline,
+        /// StrikeOut, Squiggly, Square, Circle, Polygon, PolyLine, Line)
+        /// that has no stored appearance: `from-geometry` draws it from its
+        /// own points and colours; `blank` leaves it out. A measurement
+        /// line, a missing colour or bad geometry is always left blank, and
+        /// stderr says why. The file is not changed.
+        #[arg(long, value_enum, default_value_t)]
+        markup_without_ap: crate::viewer_preview::MarkupWithoutApArg,
+        /// What to show for a form field with no stored appearance: `draw`
+        /// draws it from its value and field settings; `blank` leaves it
+        /// out. The file is not changed.
+        #[arg(long, value_enum, default_value_t)]
+        widgets_without_ap: crate::viewer_preview::WidgetsWithoutApArg,
     },
 
     /// Copy pages' text to the OS clipboard as FORMATTED paragraphs, so a

@@ -5,9 +5,10 @@
 //! annotation's normal (`/AP` `/N`) appearance stream; this module
 //! computes the §12.5.5 placement and paints the selected stream over the
 //! page content through the **existing** §8.10.1 form-execution path
-//! ([`crate::interpret::run_form_at`]). Nothing here synthesises an
-//! appearance (R43): an annotation with no usable `/AP` is counted, not
-//! drawn.
+//! ([`crate::interpret::run_form_at`]). An annotation with no usable `/AP`
+//! is counted, and drawn only from what the file states (R43 as narrowed
+//! by decision 203): a named standard icon, a form field's own data, or a
+//! markup annotation's own geometry and colours ([`markup`]).
 //!
 //! ## The §12.5.5 placement algorithm (implemented verbatim, cited)
 //!
@@ -70,7 +71,9 @@ use crate::font::{FontEnvironment, RenderPolicy};
 use crate::gstate::GraphicsState;
 use crate::interpret::{self, Diagnostics};
 
+mod markup;
 mod widget;
+pub use markup::MarkupWithoutAp;
 pub use widget::WidgetsWithoutAp;
 
 /// A transformed appearance box that is thinner than this on either axis
@@ -612,7 +615,9 @@ pub(crate) fn survey_page_annotations(
             // `Pass 289.0`: an annotation that NAMES A STANDARD ICON is
             // now drawn from pdfcer's own artwork, because §12.5.6.4 Table
             // 172 and §12.5.6.12 Table 181 put that duty on the READER with
-            // a `shall`. Everything else stays `R43` named-not-painted.
+            // a `shall`. A widget is drawn from its own data, and a markup
+            // annotation from its own geometry (decision 203); anything that
+            // would need guessing stays `R43` named-not-painted.
             //
             // The counter still increments either way: the annotation did
             // have no `/AP`, and that is a fact about the FILE which the
@@ -635,6 +640,10 @@ pub(crate) fn survey_page_annotations(
                     )
                 {
                     diag.annotations_widget_synthesized += 1;
+                } else if in_scope {
+                    markup::paint_from_geometry(
+                        doc, base_ctm, fonts, annot, diag, canvas, cancel, policy,
+                    );
                 }
             }
             // §12.5.5 NOTE 3: an /AS that could not be resolved — display
@@ -655,11 +664,11 @@ pub(crate) fn survey_page_annotations(
 /// # Why this is not a violation of `R43`, but a correction to its scope
 ///
 /// `R43` says an annotation is rendered from its `/AP` or not at all, and
-/// nothing here synthesises an appearance. That rule is right for a `/Square`
-/// or a `/Line`, where a reader would have to **invent geometry** from `/IC`,
-/// `/BS` and friends.
+/// nothing here synthesises an appearance. A `/Square` or `/Line` whose
+/// geometry and colours are all in the file is drawn from them instead
+/// ([`markup`], decision 203); one that would need guessing stays blank.
 ///
-/// It is wrong for the four subtypes that **name an icon**, and the standard
+/// The rule is wrong for the four subtypes that **name an icon**, and the standard
 /// says so with a `shall` addressed to the reader. §12.5.6.4 Table 172,
 /// verbatim:
 ///
@@ -676,8 +685,8 @@ pub(crate) fn survey_page_annotations(
 /// obligation the standard assigned to it.** The grammatical subject is the
 /// discriminator: the icon clauses address *conforming readers*, while
 /// §12.5.6.8's square/circle clause addresses *the annotation* ("Square and
-/// circle annotations shall display…"). `R43` survives untouched for the
-/// second class.
+/// circle annotations shall display…"); that class is drawn only from its
+/// own stated geometry.
 ///
 /// **The obligation is on PIXELS, not on objects.** No clause asks a reader
 /// to materialise an `/AP` into the file, so this changes no bytes: rule 3's
@@ -1676,15 +1685,18 @@ mod tests {
             )],
         );
         let out = render_page(&doc, &page, 1.0).unwrap();
-        assert_eq!(
-            ink_bbox(&out.pixmap),
-            None,
-            "R43: nothing synthesised from /IC"
-        );
+        // Decision 203: drawn from its own /Rect and /IC, and still counted
+        // as having no /AP (a fact about the file).
+        assert!(ink_bbox(&out.pixmap).is_some(), "the /IC circle is drawn");
         assert_eq!(
             out.diagnostics.annotations_without_ap.get("Circle"),
             Some(&1)
         );
+        assert_eq!(
+            out.diagnostics.annotations_geometry_drawn.get("Circle"),
+            Some(&1)
+        );
+        assert_eq!(out.diagnostics.annotations_painted, 0);
     }
 
     // -----------------------------------------------------------------

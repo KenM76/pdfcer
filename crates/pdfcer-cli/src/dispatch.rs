@@ -1104,6 +1104,8 @@ pub(crate) fn run() -> ExitCode {
             no_overprint_preview,
             separation_preview,
             hide_ink,
+            markup_without_ap,
+            widgets_without_ap,
         } => cmd_render_page(
             &input,
             page,
@@ -1125,7 +1127,8 @@ pub(crate) fn run() -> ExitCode {
             invisible_text.map(|rgb| {
                 pdfcer_render::InvisibleTextPaint::new(rgb).with_only(invisible_text_only)
             }),
-            ViewerPreview::from_flags(no_overprint_preview, separation_preview, hide_ink),
+            ViewerPreview::from_flags(no_overprint_preview, separation_preview, hide_ink)
+                .with_no_ap(markup_without_ap, widgets_without_ap),
         ),
         Command::ExportImage {
             input,
@@ -1153,6 +1156,8 @@ pub(crate) fn run() -> ExitCode {
             no_overprint_preview,
             separation_preview,
             hide_ink,
+            markup_without_ap,
+            widgets_without_ap,
         } => cmd_export_image(ExportImageArgs {
             input: &input,
             pages: &pages,
@@ -1176,7 +1181,8 @@ pub(crate) fn run() -> ExitCode {
             svg_text,
             flatten_blends,
             emf_text,
-            preview: ViewerPreview::from_flags(no_overprint_preview, separation_preview, hide_ink),
+            preview: ViewerPreview::from_flags(no_overprint_preview, separation_preview, hide_ink)
+                .with_no_ap(markup_without_ap, widgets_without_ap),
         }),
         Command::CopyText {
             input,

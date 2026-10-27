@@ -46,6 +46,7 @@ mod ink_answered_before_rendering;
 mod ink_probe;
 mod lab_ink;
 mod managed_shading;
+mod markup_without_ap;
 mod mesh_ink;
 mod mesh_shadings;
 mod named_icon_without_ap;

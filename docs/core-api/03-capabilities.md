@@ -706,6 +706,30 @@ Also in this Pass: a **single-line** (and comb) text field's value is now
 vertically centred in its box (it sat at the top of a tall box), in both this
 drawing and `regenerate_appearances`. Multiline layout is unchanged.
 
+#### Markup annotations with no `/AP` — drawn from their own geometry (`Pass 646.20`/`646.21`, `G236`, decision 203)
+
+§12.5.2 lets a reader provide its own appearance. `pdfcer-render` draws an
+`/Ink`, `/Highlight`, `/Underline`, `/StrikeOut`, `/Squiggly`, `/Square`,
+`/Circle`, `/Polygon`, `/PolyLine` or plain `/Line` lacking `/AP /N` from the
+geometry and colours the file states, through the same baker as an authored
+annotation (`spec_from_dict` → `build_appearance_opts`). **On by default, zero
+bytes written.** Placed at `/Rect` and painted at the file's `/CA`.
+
+| item | contract |
+|---|---|
+| `pdfcer_render::MarkupWithoutAp` | `#[non_exhaustive]` enum, `FromGeometry` (default) or `Blank`. |
+| `RenderOptions::with_markup_without_ap(mode)` | `const fn`, carried into `RenderPolicy::markup_without_ap`. |
+| `Diagnostics::annotations_geometry_drawn: BTreeMap<String, usize>` | drawn this way, per `/Subtype`. Still counted in `annotations_without_ap`, never in `annotations_painted`. One note per annotation. CLI `render-page` metrics key `annots_geometry_drawn=` (the sum); `render-page` and `export-image` flags `--markup-without-ap from-geometry` or `blank`, and `--widgets-without-ap draw` or `blank`. |
+| `pdfcer_core::annot_author::Quad::from_quad_points(&[f64; 8]) -> Quad` | one `/QuadPoints` group in **any** corner order (spec counterclockwise, Acrobat reading order, bottom-pair-first): the first edge is the text direction. `spec_from_dict` reads through it, so restyling a foreign text markup no longer bow-ties. |
+| `annot_author::appearance_options_from_dict(graph, annot) -> AppearanceOptions` | the `/BS` dash the dictionary states. |
+| `annot_author::rect_inside_differences(graph, annot) -> Option<Rect>` | `/Rect` inset by `/RD` (§12.5.6.8); used for `/Square` without `/BE` and `/Circle`. |
+
+**Declined, left blank, named in the note:** no device `/C` (closed shapes:
+neither `/C` nor `/IC`); a `/Line` with `/Cap true`, `/LL` or `/IT
+/LineDimension` (a **pdf dimension** — pdfcer never draws a measurement it did
+not author); malformed geometry or a 2.0 `/Path`-only shape. `/FreeText` is
+not in this class yet (`Pass 646.22`).
+
 #### ★★ `border` and `visibility` — read this before wiring a properties control (`Pass 146.0`)
 
 **`border: Option<BorderSpec>`. `None` means THE FILE STATES NO BORDER. It is

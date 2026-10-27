@@ -1,13 +1,43 @@
 //! The viewer-preview flags `render-page` and `export-image` share:
-//! `--no-overprint-preview`, `--separation-preview` and `--hide-ink`.
+//! `--no-overprint-preview`, `--separation-preview`, `--hide-ink`,
+//! `--markup-without-ap` and `--widgets-without-ap`.
 
-use pdfcer_render::{Diagnostics, OverprintPreview, RenderOptions, SeparationPreview};
+use pdfcer_render::{
+    Diagnostics, MarkupWithoutAp, OverprintPreview, RenderOptions, SeparationPreview,
+    WidgetsWithoutAp,
+};
+
+/// `--markup-without-ap`: what to show for a markup annotation (Ink,
+/// Highlight, Underline, StrikeOut, Squiggly, Square, Circle, Polygon,
+/// PolyLine, Line) whose file stores no `/AP`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum MarkupWithoutApArg {
+    /// Draw it from its own points and colours. A measurement line, a
+    /// missing colour or bad geometry stays blank.
+    #[default]
+    FromGeometry,
+    /// Leave it blank, as the file stores no drawing.
+    Blank,
+}
+
+/// `--widgets-without-ap`: what to show for a form field widget whose
+/// file stores no `/AP`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum WidgetsWithoutApArg {
+    /// Draw it from its value and field settings.
+    #[default]
+    Draw,
+    /// Leave it blank.
+    Blank,
+}
 
 /// The preview a render was asked for, resolved from its flags.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct ViewerPreview {
     overprint: OverprintPreview,
     separation: Option<SeparationPreview>,
+    markup: MarkupWithoutAp,
+    widgets: WidgetsWithoutAp,
 }
 
 impl ViewerPreview {
@@ -35,7 +65,25 @@ impl ViewerPreview {
         Self {
             overprint,
             separation,
+            ..Self::default()
         }
+    }
+
+    /// This preview with the no-`/AP` drawing choices applied.
+    pub(crate) fn with_no_ap(
+        mut self,
+        markup: MarkupWithoutApArg,
+        widgets: WidgetsWithoutApArg,
+    ) -> Self {
+        self.markup = match markup {
+            MarkupWithoutApArg::FromGeometry => MarkupWithoutAp::FromGeometry,
+            MarkupWithoutApArg::Blank => MarkupWithoutAp::Blank,
+        };
+        self.widgets = match widgets {
+            WidgetsWithoutApArg::Draw => WidgetsWithoutAp::Draw,
+            WidgetsWithoutApArg::Blank => WidgetsWithoutAp::Blank,
+        };
+        self
     }
 
     /// `options` with this preview applied.
@@ -43,6 +91,8 @@ impl ViewerPreview {
         options
             .with_overprint_preview(self.overprint)
             .with_separation_preview(self.separation)
+            .with_markup_without_ap(self.markup)
+            .with_widgets_without_ap(self.widgets)
     }
 }
 

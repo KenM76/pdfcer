@@ -327,11 +327,12 @@ pub(crate) fn resolve_render_options(
 /// What became of the annotations that carry no `/AP`: a named standard
 /// icon is drawn from pdfcer's own artwork (§12.5.6.4/§12.5.6.12), a form
 /// field from its own data (§12.7.3.3), and anything else is left blank.
-fn no_ap_painted_note(total: usize, icons: usize, widgets: usize) -> String {
-    if icons + widgets == 0 {
-        return "None was painted -- pdfcer draws a named standard icon (12.5.6.4/12.5.6.12) and a \
-                form field from its own data (12.7.3.3), and synthesises nothing else, so a \
-                /Square or /Line with no /AP is disclosed here and left blank"
+fn no_ap_painted_note(total: usize, icons: usize, widgets: usize, geometry: usize) -> String {
+    if icons + widgets + geometry == 0 {
+        return "None was painted -- pdfcer draws a named standard icon (12.5.6.4/12.5.6.12), a \
+                form field from its own data (12.7.3.3) and a markup annotation from its own \
+                geometry and colours (12.5.2), and invents nothing else; the per-annotation \
+                notes say why each was left blank"
             .to_owned();
     }
     let mut parts = Vec::new();
@@ -347,10 +348,16 @@ fn no_ap_painted_note(total: usize, icons: usize, widgets: usize) -> String {
              (12.7.3.3); nothing was written to the file"
         ));
     }
-    let rest = total.saturating_sub(icons + widgets);
+    if geometry > 0 {
+        parts.push(format!(
+            "{geometry} markup annotation(s) were drawn from their own geometry and colours \
+             (12.5.2); nothing was written to the file"
+        ));
+    }
+    let rest = total.saturating_sub(icons + widgets + geometry);
     if rest > 0 {
         parts.push(format!(
-            "the remaining {rest} would need geometry pdfcer will not invent and are left blank"
+            "the remaining {rest} would need content pdfcer will not invent and are left blank"
         ));
     }
     parts.join("; ")
@@ -665,7 +672,7 @@ cmyk_groups_approximated={} cmyk_unbridged_images={} cmyk_native_image_pixels={}
 icc_managed_paints={} icc_unmanaged_paints={} \
 overprint_process_images_unsupported={} annots_icon_painted={} page_resources_defaulted={} \
 page_crop_box_clipped={} page_crop_box_unusable={} cmyk_spots_flattened={} \
-annots_widget_drawn={}",
+annots_widget_drawn={} annots_geometry_drawn={}",
         d.glyphs_substituted,
         d.glyphs_notdef,
         d.fonts_unsupported,
@@ -1059,6 +1066,7 @@ annots_widget_drawn={}",
         d.cmyk_spots_flattened,
         // Appended: form widgets with no /AP drawn from their field data.
         d.annotations_widget_synthesized,
+        d.annotations_geometry_drawn.values().sum::<usize>(),
     )
 }
 
@@ -2358,7 +2366,8 @@ cyclic; their content is missing from the raster",
             no_ap_painted_note(
                 total,
                 d.annotations_icon_painted,
-                d.annotations_widget_synthesized
+                d.annotations_widget_synthesized,
+                d.annotations_geometry_drawn.values().sum()
             )
         );
     }

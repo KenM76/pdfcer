@@ -292,8 +292,50 @@ impl Quad {
         }
     }
 
-    /// The eight `/QuadPoints` numbers in the authored (Z-order) sequence:
-    /// `x1 y1 x2 y2 x3 y3 x4 y4` = UL, UR, LL, LR.
+    /// Read one `/QuadPoints` group of eight in **any** corner order.
+    ///
+    /// Producers disagree (ambiguity `QP-A1`): §12.5.6.10 Table 179 walks the
+    /// corners counterclockwise from the baseline start, Acrobat and most
+    /// others write upper-left, upper-right, lower-left, lower-right, and
+    /// bottom-left, bottom-right, top-left, top-right also occurs. Every one of
+    /// them agrees on the one thing the spec states outright: the text runs
+    /// along the edge from `(x1, y1)` to `(x2, y2)`. So that edge gives the
+    /// reading direction, its left-hand normal gives "up", and the four corners
+    /// are classified by projection onto the two — the two highest are the
+    /// top, and within each pair the lower projection on the direction is the
+    /// left. A degenerate first edge falls back to reading order as written.
+    #[must_use]
+    pub fn from_quad_points(q: &[f64; 8]) -> Self {
+        let &[x1, y1, x2, y2, x3, y3, x4, y4] = q;
+        let as_written = Self {
+            ul: (x1, y1),
+            ur: (x2, y2),
+            ll: (x3, y3),
+            lr: (x4, y4),
+        };
+        let (dx, dy) = (x2 - x1, y2 - y1);
+        if !(dx.is_finite() && dy.is_finite()) || dx.hypot(dy) < 1e-9 {
+            return as_written;
+        }
+        let up = |p: &(f64, f64)| -dy * p.0 + dx * p.1;
+        let along = |p: &(f64, f64)| dx * p.0 + dy * p.1;
+        let mut pts = [(x1, y1), (x2, y2), (x3, y3), (x4, y4)];
+        // Stable, so a zero-height quad keeps the first edge on top — the
+        // reading-order input comes back unchanged.
+        pts.sort_by(|a, b| up(b).total_cmp(&up(a)));
+        let [t0, t1, b0, b1] = pts;
+        let order = |a: (f64, f64), b: (f64, f64)| {
+            if along(&a) <= along(&b) {
+                (a, b)
+            } else {
+                (b, a)
+            }
+        };
+        let (ul, ur) = order(t0, t1);
+        let (ll, lr) = order(b0, b1);
+        Self { ul, ur, ll, lr }
+    }
+
     /// The eight numbers `/QuadPoints` carries, in `order` (§12.5.6.10).
     ///
     /// The two orders differ **only in the last two corners** — reading order
@@ -593,6 +635,30 @@ fn inset_by_rect_differences<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict, r
     }
 }
 
+/// The [`AppearanceOptions`] an existing annotation's dictionary states: the
+/// `/BS` dash (see `read_border_dash` for how a `/D` without `/S /D` reads).
+/// The quad order is left at its default; [`Quad::from_quad_points`] already
+/// accepts every order a file uses.
+#[must_use]
+pub fn appearance_options_from_dict<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    annot: &Dict,
+) -> AppearanceOptions {
+    AppearanceOptions {
+        dash: read_border_dash(graph, annot),
+        ..AppearanceOptions::default()
+    }
+}
+
+/// The square or circle a `/Square` or `/Circle` annotation's `/Rect`
+/// encloses: `/Rect` inset by `/RD` (ISO 32000-1 §12.5.6.8 Table 177 —
+/// left, top, right, bottom differences, each ≥ 0). An absent, negative or
+/// over-large `/RD` gives `/Rect` itself. `None` when `/Rect` is unusable.
+#[must_use]
+pub fn rect_inside_differences<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict) -> Option<Rect> {
+    read_rect(graph, annot, b"Rect").map(|r| inset_by_rect_differences(graph, annot, r))
+}
+
 /// Read a [`MarkupSpec`] back out of an existing annotation dictionary —
 /// the inverse of [`build_appearance`]'s dictionary half.
 ///
@@ -785,20 +851,12 @@ pub fn spec_from_dict<G: ObjectGraph + ?Sized>(
             if nums.is_empty() || !nums.len().is_multiple_of(8) {
                 return Err(SpecReadError::BadGeometry { key: "QuadPoints" });
             }
-            // §12.5.6.10's groups of eight, in the UL/UR/LL/LR order
-            // `Quad::points` emits. `chunks_exact(8)` cannot yield a short
-            // chunk, so the indexing below is total.
+            // §12.5.6.10's groups of eight, in whichever corner order the
+            // producer used (`Quad::from_quad_points`).
             let quads = nums
                 .chunks_exact(8)
-                .filter_map(|q| match q {
-                    &[ulx, uly, urx, ury, llx, lly, lrx, lry] => Some(Quad {
-                        ul: (ulx, uly),
-                        ur: (urx, ury),
-                        ll: (llx, lly),
-                        lr: (lrx, lry),
-                    }),
-                    _ => None,
-                })
+                .filter_map(|q| <&[f64; 8]>::try_from(q).ok())
+                .map(Quad::from_quad_points)
                 .collect();
             let kind = match subtype.as_slice() {
                 b"Underline" => TextMarkupKind::Underline,
@@ -6558,6 +6616,36 @@ mod tests {
 
     fn rect(llx: f64, lly: f64, urx: f64, ury: f64) -> Rect {
         Rect { llx, lly, urx, ury }
+    }
+
+    /// Every `/QuadPoints` corner order seen in files reads to the same quad:
+    /// the spec's counterclockwise walk, Acrobat's reading order, and
+    /// bottom-pair-first. A rotated quad keeps its own top.
+    #[test]
+    fn quad_points_read_the_same_in_every_corner_order() {
+        let want = Quad {
+            ul: (10.0, 30.0),
+            ur: (90.0, 30.0),
+            ll: (10.0, 20.0),
+            lr: (90.0, 20.0),
+        };
+        let spec_ccw = [10.0, 20.0, 90.0, 20.0, 90.0, 30.0, 10.0, 30.0];
+        let acrobat = [10.0, 30.0, 90.0, 30.0, 10.0, 20.0, 90.0, 20.0];
+        let bottom_first = [10.0, 20.0, 90.0, 20.0, 10.0, 30.0, 90.0, 30.0];
+        for q in [spec_ccw, acrobat, bottom_first] {
+            assert_eq!(Quad::from_quad_points(&q), want, "{q:?}");
+        }
+        // Text running straight up: its top is the left side (x = 0).
+        let up = Quad::from_quad_points(&[10.0, 0.0, 10.0, 50.0, 0.0, 0.0, 0.0, 50.0]);
+        assert_eq!(
+            up,
+            Quad {
+                ul: (0.0, 0.0),
+                ur: (0.0, 50.0),
+                ll: (10.0, 0.0),
+                lr: (10.0, 50.0),
+            }
+        );
     }
 
     /// A Redact `/IC` is always three numbers (Table 192 types it RGB):

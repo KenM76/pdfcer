@@ -588,6 +588,8 @@ fn renders_a_single_page_to_png_with_the_stable_stdout_line() {
             "cmyk_spots_flattened",
             // Appended: form widgets with no /AP drawn from their data.
             "annots_widget_drawn",
+            // Appended: markup annotations with no /AP drawn from geometry.
+            "annots_geometry_drawn",
         ],
         "metrics key order is part of the stable contract"
     );
@@ -2309,5 +2311,62 @@ fn invisible_text_is_painted_in_the_given_colour_and_can_be_isolated() {
         code(&lone),
         2,
         "`--invisible-text-only` needs `--invisible-text`"
+    );
+}
+
+/// Decision 203: an Ink annotation with no `/AP` is drawn from its own
+/// geometry, counted on the metrics line and noted on stderr;
+/// `--markup-without-ap blank` turns it off and the count says so.
+#[test]
+fn markup_without_ap_is_drawn_counted_and_switchable() {
+    let dir = TempDir::new("markup-without-ap");
+    let pdf = dir.write(
+        "a.pdf",
+        &build_pdf(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>".into()),
+            (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".into()),
+            (
+                3,
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] /Annots [4 0 R] /Resources << >> >>"
+                    .into(),
+            ),
+            (
+                4,
+                "<< /Type /Annot /Subtype /Ink /C [1 0 0] /InkList [[20 20 180 80]] /Rect [10 10 190 90] >>"
+                    .into(),
+            ),
+        ]),
+    );
+    let png = dir.join("a.png");
+    let drawn = run(&[
+        "render-page",
+        pdf.to_str().unwrap(),
+        "-o",
+        png.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&drawn), 0, "stderr: {}", stderr(&drawn));
+    let line = stdout(&drawn);
+    assert!(line.contains(" annots_no_ap=1 "), "{line:?}");
+    assert!(line.contains(" annots_painted=0 "), "{line:?}");
+    assert!(
+        line.trim_end().ends_with(" annots_geometry_drawn=1"),
+        "{line:?}"
+    );
+    let err = stderr(&drawn);
+    assert!(err.contains("drawn from its own geometry"), "{err}");
+
+    let blank = run(&[
+        "render-page",
+        pdf.to_str().unwrap(),
+        "--markup-without-ap",
+        "blank",
+        "-o",
+        png.to_str().unwrap(),
+    ]);
+    assert_eq!(code(&blank), 0, "stderr: {}", stderr(&blank));
+    assert!(
+        stdout(&blank)
+            .trim_end()
+            .ends_with(" annots_geometry_drawn=0")
     );
 }
