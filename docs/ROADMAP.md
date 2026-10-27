@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `757a9385` `Pass 646.23` SHIPPED, 2026-10-27: opt-in bake of the geometry-drawn look into `/AP` (`G236` part E) (1266th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `757a9385` "feat(annot): opt-in bake of the geometry-drawn look into /AP (G236, 646.23)", on main, unreleased (after `v0.101.0`); parent `4d482c36`. Reasoning is in the commit message. Decision 203 holds the rule; no new decision.
+- **Core:** `EditSession::bake_missing_appearances(FreeTextC) -> Result<BakeAppearancesOutcome, EditError>`; `BakeAppearancesOutcome { baked: Vec<BakedAppearance { annot_id, subtype, ap_id, rect_changed, notes }>, skipped: Vec<SkippedAppearance { annot_id, subtype, reason }> }`. `CommandKind::BakeAppearances { count }`; one undo entry; nothing to bake commits nothing.
+- **Derivation moved from `pdfcer-render` into core:** `pdfcer_core::annot_author::{derive_appearance, DerivedAppearance, PlacedAppearance, DerivedAppearance::place, NotDerived, DERIVED_SUBTYPES, FreeTextC}`; `pdfcer_render::FreeTextC` is now a re-export. Render paints through `place()` and clips to `/BBox` (ISO 32000-1 section 8.10.1), so render and bake give pixel-identical pages (asserted for 7 subtypes, 0 differing bytes).
+- **Skips (named in the outcome):** locked annotations (Table 165 bit 8) and anything derive declines (pdf dimensions, callouts, no colour).
+- **CLI:** `pdfcer bake-appearances IN -o OUT [--free-text-c fill|border] [--mode incremental|full]` plus `--in-place`; one baked/skipped line per annotation with notes or reason. **Divergence from the scope:** shipped top-level (like `regenerate-appearances`), not `annot bake-appearances`.
+- **Docs:** `docs/core-api/` `02`, `03` and `index` updated in the code commit.
+- **Tests (engineer):** 8 new render integration tests (`crates/pdfcer-render/tests/bake_appearances.rs`), 1 CLI test (`crates/pdfcer-cli/tests/bake_appearances.rs`). `pdfcer-core`, `pdfcer-render`, `pdfcer-cli` green, 0 failed (reported counts 3112, 1993, 977, 585, 516, 253, 47, 25 passed). fmt, clippy `-D warnings` clean; code-structure clean (563 baseline, none new); core-api-verbs PASS (384 verbs); clap-help PASS (238 working subcommands). Sabotage: removing the locked skip, the `/BBox` clip or the `place` offset each fails a test.
+- **Invariant:** no `Cargo.toml` change, so `cargo tree` unaffected; no new dependency.
+- **Delivers:** core yes; cli yes; gui no.
+- **Family:** `G236` complete (`646.20`, `646.21`, `646.22`, `646.23`). Unreleased since `v0.101.0`: `646.19`-`646.23`. Nothing minted; next free `Pass 646.24`, decision `204`, `R263`.
+- **FEATURES:** the Planned row removed; new Implemented row "Bake the geometry-drawn look into `/AP`", `[x]` core / `[x]` cli / `[ ]` gui.
+
 ### `1fcc480d` `Pass 646.22` SHIPPED, 2026-10-27: a FreeText with no `/AP` is drawn from its text, with disclosed font substitution (`G236` part C) (1265th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `1fcc480d` "feat(annot): draw a FreeText without /AP from its /DA and /Contents (G236)", on main, unreleased (after `v0.101.0`). Decision 203 holds the rule. Reasoning is in the commit message.
@@ -24239,7 +24253,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Next up head: `Pass 646.23`** (`G236` part E, optional `annot bake-appearances`; decision 203). Next free `Pass 646.24`, decision `204`, `R263`; next filing 1266th.
+> **Next up head: none from the `G236` family: it is complete (`646.20`-`646.23` all shipped).** Next free `Pass 646.24`, decision `204`, `R263`; next filing 1267th. Release slot `pdfcer1`.
+
+(1266th filing: `Pass 646.23` (`G236` part E, bake appearances) SHIPPED on `757a9385`, see *Shipped*. Nothing minted. Unreleased since `v0.101.0`: `646.19`, `646.20`, `646.21`, `646.22`, `646.23`. Out of scope for the whole family: Caret, Popup, Link, Widget.)
 
 (1265th filing: `Pass 646.22` (`G236` part C, FreeText) SHIPPED on `1fcc480d`, see *Shipped*. Nothing minted. Unreleased since `v0.101.0`: `646.19`, `646.20`, `646.21`, `646.22`. Earlier: `646.20`/`646.21` shipped together on `762c4d85`, 1264th.)
 
@@ -26143,12 +26159,6 @@ closes out the *prior* filing's business rather than opening this one's.
 > annotation/destination scaling, the new ce-dimensions refusal — is at
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
-
-### Pass 646.23 — `annot bake-appearances` (`G236` part E, optional)
-
-Optional verb `annot bake-appearances`: writes the geometry-drawn look into `/AP` for annotations that lack one, for a consumer that does not draw them. Opt-in (the render path writes nothing); shape and core/cli split to be settled when scoped.
-
-**Out of scope for the whole family:** Caret, Popup, Link, Widget.
 
 ### `Pass 626.0` — lower the declared PDF version — COMPLETE, MOVED TO *Shipped* (slice 2 `d0f7c993`, 1200th filing); slice 1 detail below stays
 

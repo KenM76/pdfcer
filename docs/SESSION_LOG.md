@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-27 (1266th filing) — `Pass 646.23` (`G236` part E, bake appearances) SHIPPED on `757a9385`
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.23`: code commit `757a9385` (on main, unreleased; parent `4d482c36`). `EditSession::bake_missing_appearances(FreeTextC)` writes `/AP` for markup annotations lacking one; derivation moved from `pdfcer-render` into `pdfcer_core::annot_author`, render paints through `place()` and clips to `/BBox`, so render and bake are pixel-identical (7 subtypes, 0 differing bytes). Locked and declined annotations skipped and named. CLI shipped as top-level `pdfcer bake-appearances` (scoped as `annot bake-appearances`).
+- Tests (engineer): 8 render + 1 CLI new; core, render, cli green; fmt, clippy, structure (563, none new), core-api-verbs (384), clap-help (238) clean; sabotage of locked skip, BBox clip, place offset each caught. No manifest change.
+
+**Decisions made:** none new; decision 203 stands. Nothing minted.
+
+**Findings:** the CLI unit-test large-stack helper went 16 to 64 MiB: clap's `debug_assert` overflowed the stack at 16 MiB once one more subcommand was added. Expect it again as subcommands grow.
+
+**Still in flight:** `G236` family complete. Unreleased since `v0.101.0`: `646.19`-`646.23`.
+
+**FEATURES.md:** Planned row removed; new Implemented row, core `[x]` cli `[x]` gui `[ ]`.
+
+**For next session:** a release (slot `pdfcer1`) or the next Backlog item. Next free `Pass 646.24`, decision `204`, `R263`; next filing 1267th. Push and backup state not checked from here. `docs/NEXT_SESSION.md` engineer-owned, not edited.
+
 ## 2026-10-27 (1265th filing) — `Pass 646.22` (`G236` part C, FreeText) SHIPPED on `1fcc480d`
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
