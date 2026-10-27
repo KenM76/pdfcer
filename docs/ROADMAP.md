@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `1136387a` `Pass 646.15` SHIPPED, 2026-10-27: a Type 3 bitmap glyph drawn shrunk is area-averaged (`X008`) (1256th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `1136387a`, on main, unreleased (since `v0.99.0`). Requester: the operator (crates consumer), via the FeatureRequests channel, `request_X008_type3_bitmap_glyphs_shrunk_on_screen_are_area_averaged.md`; reply (outside the repo): `reply_X008_type3_bitmap_glyphs_shrunk_on_screen_are_area_averaged_FIXED.md`. Scoped and shipped in the same filing. Reasoning is in the commit message.
+- **Rule (supersedes, for the minified case only, the "never smoothed at any zoom" wording of `Pass 126.1` / `Pass 128.0`):** inside a Type 3 glyph procedure, an image (mask) drawn smaller than its sample grid on either axis is area-averaged (box reduction, then bilinear; coverage becomes alpha) under `MinifyFilter::Smooth` (default) and `AreaAverage`. `PointSample` still point-samples. Magnified and 1:1 glyphs stay nearest-neighbour under every setting: the `Pass 126.1` Acrobat measurement covered magnification only. Page-content image masks are unchanged.
+- **Motivation:** 300-600 dpi pdfTeX PK glyphs shrunk 3-6:1 on screen lost thin strokes; Acrobat Reader shows them grey-edged with the strokes present (black-box observation by the requester, 2026-10-27).
+- **Code:** `pdfcer-render/src/interpret.rs` (new private `type3_minified`, used by `area_averaged` and `image_geometry`); `pdfcer-core/src/settings/mod.rs` `MinifyFilter` doc text only, no API change.
+- **Tests:** `pdfcer-render` 516 unit + 559 integration (`all`) + 25 doc, all pass. `a_bitmap_glyph_is_never_smoothed_at_any_zoom` renamed `a_magnified_bitmap_glyph_is_never_smoothed` (scale 0.25 dropped); new `a_shrunk_bitmap_glyph_keeps_a_stroke_thinner_than_the_ratio` and `the_pk_style_glyph_magnified_is_still_two_colours` (in-test synthetic PDF). Sabotage (`type3_minified` forced `false`) fails only the shrunk test.
+- **Gates (engineer):** clippy `-D warnings` clean (core, render); fmt clean; `check-code-structure` clean (baseline 564, none new). No manifest change, so the `cargo tree` invariant is untouched. Full `tools/run-gates.sh` was running at filing time; no result claimed here.
+- **Delivers:** core/render yes (every shell that renders gets it); no CLI or GUI caller added.
+- **FEATURES:** "Type 3 font rendering" row amended (minified vs magnified); boxes unchanged.
+- Nothing minted; no ARCHITECTURE section 12 entry; next free `Pass 646.16`, decision `203`, `R263`.
+
 ### `fea35b4f` `Pass 646.14` SHIPPED, 2026-10-27: a BMP pixel offset exactly at the header end is repaired when a table or masks follow (`X007`) (1255th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `fea35b4f`, on main, unreleased (since `v0.99.0`). Requester: the operator (crates consumer), via the FeatureRequests channel, `request_X007_bmp_import_pixel_offset_at_the_header_end.md`; reply (outside the repo): `reply_X007_bmp_import_pixel_offset_at_the_header_end_FIXED.md`. Scoped and shipped in the same filing. Reasoning is in the commit message.

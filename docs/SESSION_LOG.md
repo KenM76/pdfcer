@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-27 (1256th filing) — `Pass 646.15` (`X008`) SHIPPED on `1136387a`
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.15`: inside a Type 3 glyph procedure an image mask drawn smaller than its sample grid on either axis is area-averaged under `Smooth` (default) and `AreaAverage`; `PointSample` unchanged; magnified/1:1 glyphs stay nearest-neighbour. Request `request_X008_type3_bitmap_glyphs_shrunk_on_screen_are_area_averaged.md`, operator (crates consumer). `pdfcer-render` 516 unit + 559 integration + 25 doc pass; sabotage-verified. Scoped and shipped in this filing.
+
+**Decisions made:** none; no ARCHITECTURE section 12 entry. `cargo tree` unchanged.
+
+**FEATURES.md:** "Type 3 font rendering" row amended; boxes unchanged (all four already ticked).
+
+**Sweep (rule 11):** claim "Type 3 bitmap glyphs are never smoothed at any zoom". Searched `docs/` (excluding `history/`) for `never smoothed`, `bitmap glyph`, and FEATURES for `Type 3`, `smoothed`, `image_minify` case-insensitively. Survivors: (1) FEATURES row 503, corrected in this filing; (2) ROADMAP `Pass 126.1`/`Pass 128.0` entries live in `docs/history/`, verbatim and never edited, superseded by the `Pass 646.15` Shipped entry; (3) FEATURES row 510 (area-averaged minification) makes no Type 3 claim, correct, left alone; (4) source doc comments and `docs/NEXT_SESSION.md` not read from here.
+
+**Still in flight:** full `tools/run-gates.sh` result not reported. Backup and remote state not checked from here.
+
+**For next session:** next free `Pass 646.16`, decision `203`, `R263`; next filing 1257th.
+
 ## 2026-10-27 (1255th filing) — `Pass 646.14` (`X007`) SHIPPED on `fea35b4f`
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
