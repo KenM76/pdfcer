@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-27 (1254th filing) — `Pass 646.13` (`X006`) SHIPPED on `bd28ab99`
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.13`: BMP import recomputes the pixel offset when `bfOffBits` points inside the headers (headers + bit-field masks + colour table), only if the pixel array fits after it; disclosed via `ImportNotes::bmp_pixel_offset_repaired` -> `ImageAuthorDisclosures` -> `add-image` (`bmp_offset_repaired=from->to` plus stderr). 4 new tests, sabotage-verified; `pdfcer-core` lib 1987 passed. `bmp.rs::import` left the structure baseline (565 to 564). Requester: the operator (crates consumer). Scoped and shipped in this filing.
+
+**Decisions made:** none; no ARCHITECTURE section 12 entry. `cargo tree` unchanged (no manifest change).
+
+**FEATURES.md:** new row "Decode BMP on image import" (core, cli ticked; gui not). No BMP row existed, so none was moved.
+
+**Sweep (rule 11):** claim "a BMP with an offset inside the headers is refused / read as garbage". Searched FEATURES for `bmp` case-insensitively: the only hits were the new row and rows 511 and 513, which do not make the claim (correct, left alone). Source doc comments and `docs/NEXT_SESSION.md` not read from here.
+
+**Still in flight:** full `tools/run-gates.sh` result not reported at filing time. Backup and remote state not checked from here.
+
+**For next session:** next free `Pass 646.14`, decision `203`, `R263`; next filing 1255th.
+
 ## 2026-10-26 (1253rd filing) — `Pass 646.11` (`G231`) and `Pass 646.12` (`G232`) SHIPPED on `f3843690`
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

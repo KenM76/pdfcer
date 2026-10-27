@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `bd28ab99` `Pass 646.13` SHIPPED, 2026-10-27: a BMP whose pixel offset points inside its own headers is imported, and the repair is disclosed (`X006`) (1254th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `bd28ab99`, on main, unreleased (since `v0.99.0`). Requester: the operator (crates consumer), via the FeatureRequests channel, `request_X006_bmp_import_pixel_offset_inside_the_headers.md`; reply (outside the repo): `reply_X006_bmp_import_pixel_offset_inside_the_headers_FIXED.md`. Scoped and shipped in the same filing. Reasoning is in the commit message.
+- **Rule:** when `bfOffBits` < 14 + `biSize` (the declared offset lies inside the headers), the pixel offset is computed as the end of the headers, plus 12 or 16 bytes of `BI_BITFIELDS` / `BI_ALPHABITFIELDS` masks (40-byte header only), plus the colour table (`biClrUsed`, or `1 << bpp` at 1/4/8 bit; 4 bytes per entry, 3 after a 12-byte core header). The computed offset is used only when the whole pixel array fits after it; otherwise the declared offset is kept (prior behaviour). An offset at or after the header end is untouched.
+- **Rule 4 (fuzzy, never sneaky):** new `pub` field `ImportNotes::bmp_pixel_offset_repaired: Option<(u32, u32)>` (declared, used), carried to `ImageAuthorDisclosures::bmp_pixel_offset_repaired` (counted by `any()`). CLI `add-image` report gains `bmp_offset_repaired=from->to` and a stderr sentence.
+- **Structure:** `bmp.rs::import` split into helpers and removed from `tools/code-structure-baseline.txt` (565 to 564).
+- **Tests:** 4 new bmp unit tests (14 bmp tests in total), sabotage-verified (repair disabled fails exactly the two repair tests). `pdfcer-core` lib 1987 passed, 0 failed, 2 ignored; every core and cli test binary 0 failed. The existing fuzz target `fuzz/fuzz_targets/image_import.rs` covers the BMP parser; no new target.
+- **Gates (engineer):** clippy `-D warnings` clean on core and cli; fmt clean; `check-code-structure` clean; `check-core-api-verbs` PASS (383 verbs). No manifest change, so the `cargo tree` invariant is untouched. Full `tools/run-gates.sh` not reported at filing time.
+- **core-api (same commit):** `02-editing-and-saving.md` disclosure table now lists seven import notes; `index.md` line counts.
+- **Delivers:** core yes; cli yes (`add-image`); gui none (not touched by this Pass).
+- **FEATURES:** new row "Decode BMP on image import" (core, cli ticked; gui unticked). No BMP row existed before.
+- Nothing minted; next free `Pass 646.14`, decision `203`, `R263`.
+
 ### `f3843690` `Pass 646.12` SHIPPED, 2026-10-26: decoration reads count the form XObjects they could not read (`G232`) (1253rd filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `f3843690` (shared with `Pass 646.11`), on main, unreleased (since `v0.99.0`). Scoped and shipped in the same filing. Requester: pdfcer-gui via the FeatureRequests channel, `request_G232_page_decorations_counts_forms_it_skipped.md`; reply (outside the repo): `reply_G232_page_decorations_counts_forms_it_skipped_FIXED.md`. Reasoning is in the commit message.
