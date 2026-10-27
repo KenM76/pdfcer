@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-27 (1268th filing) — `v0.102.0` release prep, version bump `7d027d7d`; NOT yet published
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- Bump commit `7d027d7d` (`chore`, on `b8997d4e`): workspace version and the `pdfcer-model` workspace dependency pin 0.101.0 to 0.102.0; `Cargo.lock` and `fuzz/Cargo.lock` updated; versions only, no dependency-set change. Not published, not tagged; the tag goes on this filing commit.
+- Carries since `v0.101.0`: `Pass 646.19` (`G235`), `646.20`, `646.21`, `646.22`, `646.23` (`G236` complete, decision 203, opt-in `bake-appearances`), plus fuzz-target fix `b3b9023a`. All already filed, not re-filed.
+
+**Decisions made:** none; nothing minted. **FEATURES.md:** unchanged.
+
+**For next session:** tag `v0.102.0` on the filing commit, portable build, GitHub release, OneDrive slot `pdfcer1`, fresh-folder smoke, `verify-release.py`, `cargo publish` of `pdfcer-color`/`-model`/`-pkix` at 0.102.0. Next free `Pass 646.24`, decision `204`, `R263`; next filing 1269th, which records "published" only once the engineer confirms it. Push, CI colour and backup state not checked from here.
+
 ## 2026-10-27 (1267th filing) — addendum: fuzz-target follow-up `b3b9023a` to `Pass 646.19`
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

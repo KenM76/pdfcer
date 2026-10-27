@@ -112,6 +112,14 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.102.0` — release prep, version bump `7d027d7d` (`chore`), 2026-10-27 (1268th filing); NOT yet published
+
+Engineer-reported; no shell here, nothing checked from here. Same pattern as the v0.101.0 prep (1262nd filing).
+- **`7d027d7d` (`chore`):** workspace version 0.101.0 to 0.102.0 in root `Cargo.toml` (`[workspace.package]` and the `pdfcer-model` `[workspace.dependencies]` pin); `Cargo.lock` and `fuzz/Cargo.lock` updated. Only versions change; no dependency-set change. Sits on `b8997d4e`.
+- **Passes carried since `v0.101.0`** (already filed, not re-filed): `646.19` (`G235`, `9f28d8cd`; fuzz-target follow-up `b3b9023a`, filed 1267th in `b8997d4e`), `646.20` and `646.21` (`762c4d85`), `646.22` (`1fcc480d`), `646.23` (`757a9385`; `G236` complete, decision 203: a markup annotation with no `/AP` is drawn at render time from its own geometry; opt-in bake verb `EditSession::bake_missing_appearances` / `pdfcer bake-appearances`).
+- **Release plan (not claimed done):** the tag goes on this filing commit. Later filing: portable build, GitHub release, OneDrive slot `pdfcer1` (`pdfcer2` keeps 0.101.0), fresh-folder smoke test, `verify-release.py`, and `cargo publish` of `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` at 0.102.0.
+- **FEATURES:** no change; the crates.io row (0.101.0) stays true until the publish. Nothing minted; next free `Pass 646.24`, decision `204`, `R263`; next filing 1269th.
+
 ### `757a9385` `Pass 646.23` SHIPPED, 2026-10-27: opt-in bake of the geometry-drawn look into `/AP` (`G236` part E) (1266th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `757a9385` "feat(annot): opt-in bake of the geometry-drawn look into /AP (G236, 646.23)", on main, unreleased (after `v0.101.0`); parent `4d482c36`. Reasoning is in the commit message. Decision 203 holds the rule; no new decision.
@@ -24254,7 +24262,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Next up head: none from the `G236` family: it is complete (`646.20`-`646.23` all shipped).** Next free `Pass 646.24`, decision `204`, `R263`; next filing 1267th. Release slot `pdfcer1`.
+> **Next up head: none from the `G236` family: it is complete (`646.20`-`646.23` all shipped).** Next free `Pass 646.24`, decision `204`, `R263`; next filing 1269th. Release slot `pdfcer1`.
+
+(1268th filing: `v0.102.0` release prep, bump `7d027d7d`, NOT yet published, see *Shipped*. Nothing minted; next free `Pass 646.24`, decision `204`, `R263`; next filing 1269th. Release slot `pdfcer1`.)
 
 (1266th filing: `Pass 646.23` (`G236` part E, bake appearances) SHIPPED on `757a9385`, see *Shipped*. Nothing minted. Unreleased since `v0.101.0`: `646.19`, `646.20`, `646.21`, `646.22`, `646.23`. Out of scope for the whole family: Caret, Popup, Link, Widget.)
 
