@@ -112,7 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.100.0` — release prep, version bump `a06cc6a1` (`chore`), 2026-10-27 (1259th filing); NOT yet published
+### `v0.100.0` — PUBLISHED, tag on `d3996c09`, 2026-10-27 (1260th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Release record for the prep filed below (1259th).
+- **Tag:** `v0.100.0` peels to `d3996c09` (the 1259th release-prep filing; version bump `a06cc6a1`), pushed. CI green at the tagged commit.
+- **GitHub release:** published, 8 assets: `pdfcer-v0.100.0-windows-x64.zip` (27,637,460 bytes), the three OCR add-on zips (ocrcer, ocrs, tesseract) and a `.sha256` for each. `gh-release.py` reported PASS.
+- **OneDrive:** slot `pdfcer1` written, 6 items, 74,581,835 bytes; `pdfcer2` keeps 0.99.0.
+- **Fresh-folder smoke:** `pdfcer --version` reported 0.100.0, revision `v0.100.0`, icccer 0.4.1; `render-page` produced a 341x256 PNG with substituted=0, notdef=0.
+- **`verify-release.py v0.100.0`:** every check passed except "working tree clean"; the only dirty files are uncommitted `.claude/agent-memory` files, expected.
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` published at 0.100.0.
+- **Code in the release (v0.99.0 to v0.100.0):** `Pass 646.9` to `646.17` (commits `da4331cd`, `34d645dd`, `c33bd6b1`, `2fe75bb0`, `f3843690`, `bd28ab99`, `fea35b4f`, `1136387a`, `d2b906b1`, `7157ebca`) plus `19df5115` (`Pass 637.0` settings).
+- **GUI notice** written outside the repo: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-10-27_v0.100.0_released.md`.
+- **FEATURES:** crates.io row 0.99.0 to 0.100.0; no box changed. Nothing minted; next free `Pass 646.18`, decision `203`, `R263`; next filing 1261st. Next release slot `pdfcer2`.
+
+### `v0.100.0` — release prep, version bump `a06cc6a1` (`chore`), 2026-10-27 (1259th filing); superseded by the published record above
 
 Engineer-reported; no shell here, nothing checked from here. Same pattern as the v0.99.0 prep (1247th filing).
 - **`a06cc6a1` (`chore`):** workspace version 0.99.0 to 0.100.0 in root `Cargo.toml` (`[workspace.package]` and the `pdfcer-model` `[workspace.dependencies]` pin); `Cargo.lock` and `fuzz/Cargo.lock` re-resolved with `cargo update -w`; sits on `44288f61`.
@@ -24153,7 +24166,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **Next up has no head.** `Pass 646.10` (`X005`) SHIPPED on `c33bd6b1` in the 1252nd filing; its Next up item is removed. Next free `Pass 646.11`, decision `203`, `R263`; next filing 1253rd.
 
-(1259th filing: `v0.100.0` release prep, bump `a06cc6a1`, NOT yet published, see *Shipped*. Nothing minted; next free `Pass 646.18`, decision `203`, `R263`; next filing 1260th. Next release slot `pdfcer1`.)
+(1260th filing: `v0.100.0` PUBLISHED, see *Shipped*. Nothing minted; next free `Pass 646.18`, decision `203`, `R263`; next filing 1261st. Next release slot `pdfcer2`.)
 
 (1252nd filing: `Pass 646.10` (`X005`) SHIPPED, see *Shipped*. Nothing minted. Unreleased since `v0.99.0`; the new `pdfcer-color` pub items reach crates.io with the next release's publish.)
 

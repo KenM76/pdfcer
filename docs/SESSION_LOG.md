@@ -4,7 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
-## 2026-10-27 (1259th filing) — `v0.100.0` release prep, version bump `a06cc6a1`; NOT yet published
+## 2026-10-27 (1260th filing) — `v0.100.0` PUBLISHED, tag on `d3996c09`
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- Tag `v0.100.0` peels to `d3996c09` (1259th release-prep filing; bump `a06cc6a1`), pushed; CI green at the tagged commit.
+- GitHub release published, 8 assets: portable zip `pdfcer-v0.100.0-windows-x64.zip` (27,637,460 bytes), three OCR add-on zips (ocrcer, ocrs, tesseract), a `.sha256` each; `gh-release.py` PASS.
+- OneDrive slot `pdfcer1`: 6 items, 74,581,835 bytes; `pdfcer2` keeps 0.99.0.
+- Fresh-folder smoke: `--version` 0.100.0 / revision `v0.100.0` / icccer 0.4.1; `render-page` 341x256 PNG, substituted=0, notdef=0.
+- `verify-release.py v0.100.0`: all pass except "working tree clean" (uncommitted `.claude/agent-memory` files only, expected).
+- crates.io: `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` at 0.100.0.
+- Carries `Pass 646.9` to `646.17` plus `19df5115` (`Pass 637.0` settings). GUI notice: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-10-27_v0.100.0_released.md`.
+
+**Decisions made:** none; nothing minted. **FEATURES.md:** crates.io row 0.99.0 to 0.100.0; no box changed.
+
+**For next session:** next free `Pass 646.18`, decision `203`, `R263`; next filing 1261st; next release slot `pdfcer2`.
+
+## 2026-10-27 (1259th filing) — `v0.100.0` release prep, version bump `a06cc6a1`; NOT yet published (published in the 1260th filing above)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
 - Bump commit `a06cc6a1` (`chore`, on `44288f61`): workspace version and the `pdfcer-model` workspace dependency pin 0.99.0 to 0.100.0; `Cargo.lock` and `fuzz/Cargo.lock` via `cargo update -w`. Not published, not tagged; the tag goes on this filing commit.
