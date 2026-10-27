@@ -42,8 +42,21 @@ use std::path::PathBuf;
 /// A one-page PDF whose annotations carry no `/AP`, built from parts so the
 /// test does not depend on a file outside the repository.
 pub(crate) fn no_ap_pdf(annots: &str, extra_objects: &str, count: u32) -> Vec<u8> {
+    no_ap_pdf_with_catalog("", annots, extra_objects, count)
+}
+
+/// [`no_ap_pdf`] with `catalog_extra` (e.g. an `/AcroForm`) in the catalog.
+pub(crate) fn no_ap_pdf_with_catalog(
+    catalog_extra: &str,
+    annots: &str,
+    extra_objects: &str,
+    count: u32,
+) -> Vec<u8> {
     let bodies: Vec<(u32, String)> = vec![
-        (1, "<< /Type /Catalog /Pages 2 0 R >>".to_string()),
+        (
+            1,
+            format!("<< /Type /Catalog /Pages 2 0 R {catalog_extra} >>"),
+        ),
         (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_string()),
         (
             3,
@@ -232,11 +245,11 @@ fn an_annotation_with_an_ap_is_not_second_guessed() {
 ///
 /// A `/FreeText` is the case that separates them: `text_spec_from_dict`
 /// **does** describe it, so only the subtype restriction stops it being
-/// drawn — and it must be stopped, because §12.5.6.19 puts no `shall` on the
-/// reader and a `/FreeText`'s look comes from its `/DA` and `/Contents`, which
-/// is authoring, not an icon.
+/// drawn as an icon. A `/FreeText`'s look comes from its `/DA` and
+/// `/Contents`, so it is drawn by the geometry path (decision 203), never
+/// counted as an icon.
 #[test]
-fn a_free_text_with_no_ap_is_not_drawn_even_though_pdfcer_could_author_one() {
+fn a_free_text_with_no_ap_is_never_drawn_as_an_icon() {
     let out = render(no_ap_pdf(
         "4 0 R",
         "<< /Type /Annot /Subtype /FreeText /Contents (hello) /DA (/Helv 12 Tf 0 g) \
@@ -246,8 +259,11 @@ fn a_free_text_with_no_ap_is_not_drawn_even_though_pdfcer_could_author_one() {
 
     assert_eq!(
         out.diagnostics.annotations_icon_painted, 0,
-        "a /FreeText names no icon: the standard puts no drawing duty on the reader for it, \
-         and pdfcer being ABLE to author one is not permission to invent this document's"
+        "a /FreeText names no icon"
     );
-    assert_eq!(ink(&out), 0, "the page stays blank");
+    assert_eq!(
+        out.diagnostics.annotations_geometry_drawn.get("FreeText"),
+        Some(&1),
+        "drawn from its /DA and /Contents instead"
+    );
 }

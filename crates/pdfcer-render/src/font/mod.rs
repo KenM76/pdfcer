@@ -808,6 +808,9 @@ pub struct RenderOptions {
     /// own geometry at view time (decision 203), or left blank. Default
     /// [`crate::MarkupWithoutAp::FromGeometry`]; never writes the document.
     pub markup_without_ap: crate::MarkupWithoutAp,
+    /// What a `/FreeText`'s `/C` colours when one with no `/AP` and no `/IC`
+    /// is drawn: the fill (Acrobat's reading, the default) or the border.
+    pub free_text_c: crate::FreeTextC,
     /// Whether overprinting marks are composited as overprints. Default
     /// [`OverprintPreview::Simulate`](crate::OverprintPreview::Simulate).
     pub overprint_preview: crate::OverprintPreview,
@@ -1014,6 +1017,8 @@ pub struct RenderPolicy<'a> {
     pub widgets_without_ap: crate::WidgetsWithoutAp,
     /// See [`RenderOptions::markup_without_ap`].
     pub markup_without_ap: crate::MarkupWithoutAp,
+    /// See [`RenderOptions::free_text_c`].
+    pub free_text_c: crate::FreeTextC,
 }
 
 /// How strokes are drawn relative to their declared width (`Pass 254.0`).
@@ -1201,6 +1206,7 @@ impl Default for RenderOptions {
             invisible_text: None,
             widgets_without_ap: crate::WidgetsWithoutAp::Draw,
             markup_without_ap: crate::MarkupWithoutAp::FromGeometry,
+            free_text_c: crate::FreeTextC::Fill,
             overprint_preview: crate::OverprintPreview::Simulate,
             separation_preview: None,
         }
@@ -1600,6 +1606,14 @@ impl RenderOptions {
         self
     }
 
+    /// Set what a no-`/AP` `/FreeText`'s `/C` colours, returning `self` for
+    /// chaining. See [`RenderOptions::free_text_c`].
+    #[must_use]
+    pub const fn with_free_text_c(mut self, mode: crate::FreeTextC) -> Self {
+        self.free_text_c = mode;
+        self
+    }
+
     /// Set whether overprint is simulated, returning `self` for chaining.
     #[must_use]
     pub const fn with_overprint_preview(mut self, preview: crate::OverprintPreview) -> Self {
@@ -1644,6 +1658,7 @@ impl RenderOptions {
             overprint_preview: self.overprint_preview,
             widgets_without_ap: self.widgets_without_ap,
             markup_without_ap: self.markup_without_ap,
+            free_text_c: self.free_text_c,
         }
     }
 }
@@ -1707,7 +1722,8 @@ mod render_policy_tests {
             ))
             .with_overprint_preview(crate::OverprintPreview::Off)
             .with_widgets_without_ap(crate::WidgetsWithoutAp::Blank)
-            .with_markup_without_ap(crate::MarkupWithoutAp::Blank);
+            .with_markup_without_ap(crate::MarkupWithoutAp::Blank)
+            .with_free_text_c(crate::FreeTextC::Border);
         assert_eq!(
             options.policy(),
             RenderPolicy {
@@ -1752,6 +1768,8 @@ mod render_policy_tests {
                 widgets_without_ap: crate::WidgetsWithoutAp::Blank,
                 // NOT the default (`FromGeometry`).
                 markup_without_ap: crate::MarkupWithoutAp::Blank,
+                // NOT the default (`Fill`).
+                free_text_c: crate::FreeTextC::Border,
             }
         );
         assert_ne!(options.policy(), RenderPolicy::default());

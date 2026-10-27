@@ -2370,3 +2370,47 @@ fn markup_without_ap_is_drawn_counted_and_switchable() {
             .ends_with(" annots_geometry_drawn=0")
     );
 }
+
+/// A FreeText with no `/AP` is drawn; `--free-text-c` chooses what its
+/// `/C` paints, and stderr says which reading was used.
+#[test]
+fn free_text_c_chooses_fill_or_border() {
+    let dir = TempDir::new("free-text-c");
+    let pdf = dir.write(
+        "a.pdf",
+        &build_pdf(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>".into()),
+            (2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".into()),
+            (
+                3,
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] /Annots [4 0 R] /Resources << >> >>"
+                    .into(),
+            ),
+            (
+                4,
+                "<< /Type /Annot /Subtype /FreeText /Contents (Hi) /DA (/Helv 12 Tf 0 g) /C [1 0 0] /Rect [10 10 190 90] >>"
+                    .into(),
+            ),
+        ]),
+    );
+    let render = |extra: &[&str], name: &str| {
+        let png = dir.join(name);
+        let mut args = vec!["render-page", pdf.to_str().unwrap()];
+        args.extend_from_slice(extra);
+        args.extend_from_slice(&["-o", png.to_str().unwrap()]);
+        let out = run(&args);
+        assert_eq!(code(&out), 0, "stderr: {}", stderr(&out));
+        assert!(
+            stdout(&out)
+                .trim_end()
+                .ends_with(" annots_geometry_drawn=1")
+        );
+        (stderr(&out), std::fs::read(png).unwrap())
+    };
+    let (fill_err, fill_png) = render(&[], "fill.png");
+    assert!(fill_err.contains("/C read as the fill"), "{fill_err}");
+    assert!(fill_err.contains("drawn in Helvetica"), "{fill_err}");
+    let (border_err, border_png) = render(&["--free-text-c", "border"], "border.png");
+    assert!(!border_err.contains("/C read as the fill"), "{border_err}");
+    assert_ne!(fill_png, border_png, "the two readings draw differently");
+}

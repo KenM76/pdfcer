@@ -2,9 +2,9 @@
 //! geometry and colours when the page renders, and left blank (with a note)
 //! when that would need guessing. Nothing is written to the file.
 
-use crate::named_icon_without_ap::{ink, no_ap_pdf, render};
+use crate::named_icon_without_ap::{ink, no_ap_pdf, no_ap_pdf_with_catalog, render};
 use pdfcer_core::document::Document;
-use pdfcer_render::{MarkupWithoutAp, RenderOptions, RenderedPage};
+use pdfcer_render::{FreeTextC, MarkupWithoutAp, RenderOptions, RenderedPage};
 
 fn one(annot: &str) -> RenderedPage {
     render(no_ap_pdf("4 0 R", annot, 1))
@@ -175,4 +175,113 @@ fn polygon_polyline_and_circle_are_drawn() {
         assert!(ink(&out) > 0, "{subtype}");
         assert_eq!(drawn(&out, subtype), 1, "{subtype}");
     }
+}
+
+// --- /FreeText (Pass 646.22) ---------------------------------------------
+
+const DR_TIMES: &str = "/AcroForm << /Fields [] /DR << /Font << /Helv << /Type /Font \
+     /Subtype /Type1 /BaseFont /Times-Roman >> >> >> >>";
+
+fn free_text(extra: &str) -> String {
+    format!(
+        "<< /Type /Annot /Subtype /FreeText /Contents (Hello) /DA (/Helv 12 Tf 0 g) {extra} \
+         /Rect [40 40 260 120] >>"
+    )
+}
+
+fn notes(out: &RenderedPage) -> String {
+    out.diagnostics.annotation_notes.join("\n")
+}
+
+fn render_with(bytes: Vec<u8>, options: &RenderOptions) -> RenderedPage {
+    let doc = Document::from_bytes(bytes).unwrap();
+    let pages = pdfcer_core::page_tree::pages(&doc).unwrap();
+    pdfcer_render::render_page_with(&doc, &pages[0], 1.0, options).unwrap()
+}
+
+#[test]
+fn a_free_text_is_drawn_and_its_font_substitution_disclosed() {
+    let out = one(&free_text(""));
+    assert!(ink(&out) > 0, "the text is on the page");
+    assert_eq!(drawn(&out, "FreeText"), 1);
+    assert_eq!(out.diagnostics.annotations_painted, 0);
+    assert!(
+        notes(&out).contains("drawn in Helvetica"),
+        "no /DR: the substitute is named, got {}",
+        notes(&out)
+    );
+}
+
+/// The `/DR` font is the one drawn: no substitution note, and a different
+/// picture from the Helvetica substitute.
+#[test]
+fn a_dr_font_is_used_and_not_called_a_substitute() {
+    let with_dr = render(no_ap_pdf_with_catalog(DR_TIMES, "4 0 R", &free_text(""), 1));
+    assert_eq!(drawn(&with_dr, "FreeText"), 1);
+    assert!(!notes(&with_dr).contains("drawn in Helvetica"));
+    assert_ne!(with_dr.pixmap.data(), one(&free_text("")).pixmap.data());
+}
+
+#[test]
+fn c_fills_by_default_and_strokes_the_border_when_set() {
+    let bytes = || no_ap_pdf("4 0 R", &free_text("/C [1 0 0]"), 1);
+    let fill = render(bytes());
+    assert_eq!(pixel(&fill, 200, 50), (255, 0, 0), "/C is the fill");
+    assert!(notes(&fill).contains("/C read as the fill"));
+
+    let border = render_with(
+        bytes(),
+        &RenderOptions::default().with_free_text_c(FreeTextC::Border),
+    );
+    assert_eq!(pixel(&border, 200, 50), (255, 255, 255), "no fill");
+    assert_ne!(
+        pixel(&border, 40, 80),
+        (255, 255, 255),
+        "the border is drawn"
+    );
+}
+
+/// `/IC` is pdfcer's fill key, so `/C` is the border whatever the setting.
+#[test]
+fn ic_makes_c_the_border() {
+    let out = one(&free_text("/C [1 0 0] /IC [0 0 1]"));
+    assert_eq!(pixel(&out, 200, 50), (0, 0, 255));
+    assert!(!notes(&out).contains("/C read as the fill"));
+}
+
+#[test]
+fn a_callout_rich_only_or_daless_free_text_is_declined() {
+    for (annot, why) in [
+        (
+            free_text("/IT /FreeTextCallout /CL [10 10 40 40]"),
+            "callout",
+        ),
+        (
+            "<< /Type /Annot /Subtype /FreeText /RC (<body>Hi</body>) /DA (/Helv 12 Tf 0 g) \
+             /Rect [40 40 260 120] >>"
+                .to_owned(),
+            "rich text only",
+        ),
+        (
+            "<< /Type /Annot /Subtype /FreeText /Contents (Hi) /Rect [40 40 260 120] >>".to_owned(),
+            "DA",
+        ),
+    ] {
+        let out = one(&annot);
+        assert_eq!(ink(&out), 0, "{why}");
+        assert_eq!(drawn(&out, "FreeText"), 0, "{why}");
+        assert!(notes(&out).contains(why), "{why}: {}", notes(&out));
+    }
+}
+
+/// Table 174 `/RD`: the box is drawn in `/Rect` less the differences.
+#[test]
+fn rd_insets_the_free_text_box() {
+    let out = one(&free_text("/C [1 0 0] /RD [20 10 20 10]"));
+    assert_eq!(
+        pixel(&out, 50, 80),
+        (255, 255, 255),
+        "outside the inner box"
+    );
+    assert_eq!(pixel(&out, 200, 55), (255, 0, 0), "inside it");
 }

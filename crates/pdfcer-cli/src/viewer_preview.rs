@@ -1,15 +1,15 @@
 //! The viewer-preview flags `render-page` and `export-image` share:
 //! `--no-overprint-preview`, `--separation-preview`, `--hide-ink`,
-//! `--markup-without-ap` and `--widgets-without-ap`.
+//! `--markup-without-ap`, `--free-text-c` and `--widgets-without-ap`.
 
 use pdfcer_render::{
-    Diagnostics, MarkupWithoutAp, OverprintPreview, RenderOptions, SeparationPreview,
+    Diagnostics, FreeTextC, MarkupWithoutAp, OverprintPreview, RenderOptions, SeparationPreview,
     WidgetsWithoutAp,
 };
 
 /// `--markup-without-ap`: what to show for a markup annotation (Ink,
 /// Highlight, Underline, StrikeOut, Squiggly, Square, Circle, Polygon,
-/// PolyLine, Line) whose file stores no `/AP`.
+/// PolyLine, Line, FreeText) whose file stores no `/AP`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
 pub(crate) enum MarkupWithoutApArg {
     /// Draw it from its own points and colours. A measurement line, a
@@ -18,6 +18,17 @@ pub(crate) enum MarkupWithoutApArg {
     FromGeometry,
     /// Leave it blank, as the file stores no drawing.
     Blank,
+}
+
+/// `--free-text-c`: what a FreeText's colour (`/C`) paints when the file
+/// stores no `/AP` and no interior colour (`/IC`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum FreeTextCArg {
+    /// The colour fills the box, as Acrobat reads it.
+    #[default]
+    Fill,
+    /// The colour draws the border, as pdfcer writes its own text boxes.
+    Border,
 }
 
 /// `--widgets-without-ap`: what to show for a form field widget whose
@@ -37,6 +48,7 @@ pub(crate) struct ViewerPreview {
     overprint: OverprintPreview,
     separation: Option<SeparationPreview>,
     markup: MarkupWithoutAp,
+    free_text_c: FreeTextC,
     widgets: WidgetsWithoutAp,
 }
 
@@ -86,12 +98,22 @@ impl ViewerPreview {
         self
     }
 
+    /// This preview with `--free-text-c` applied.
+    pub(crate) fn with_free_text_c(mut self, arg: FreeTextCArg) -> Self {
+        self.free_text_c = match arg {
+            FreeTextCArg::Fill => FreeTextC::Fill,
+            FreeTextCArg::Border => FreeTextC::Border,
+        };
+        self
+    }
+
     /// `options` with this preview applied.
     pub(crate) fn apply(self, options: RenderOptions) -> RenderOptions {
         options
             .with_overprint_preview(self.overprint)
             .with_separation_preview(self.separation)
             .with_markup_without_ap(self.markup)
+            .with_free_text_c(self.free_text_c)
             .with_widgets_without_ap(self.widgets)
     }
 }

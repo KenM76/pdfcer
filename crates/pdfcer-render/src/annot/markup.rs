@@ -22,9 +22,13 @@ use crate::font::{FontEnvironment, RenderPolicy};
 use crate::gstate::GraphicsState;
 use crate::interpret::Diagnostics;
 
+#[path = "free_text.rs"]
+mod free_text;
+pub use free_text::FreeTextC;
+
 /// What the renderer does with a markup annotation (Ink, Highlight,
-/// Underline, StrikeOut, Squiggly, Square, Circle, Polygon, PolyLine, Line)
-/// that has no `/AP`.
+/// Underline, StrikeOut, Squiggly, Square, Circle, Polygon, PolyLine, Line,
+/// FreeText) that has no `/AP`.
 ///
 /// ISO 32000-1 §12.5.2 lets a reader "provide their own appearances"; the
 /// geometry keys of §12.5.6.7–§12.5.6.13 fully determine these subtypes'
@@ -64,6 +68,7 @@ fn in_class(subtype: &str) -> bool {
             | "Polygon"
             | "PolyLine"
             | "Line"
+            | "FreeText"
     )
 }
 
@@ -119,6 +124,46 @@ fn spec_for(doc: &DocumentView<'_>, dict: &Dict, subtype: &str) -> Result<Markup
     Ok(spec)
 }
 
+/// A baked look: the `/AP` `/N` form dict, its content, the rect it is
+/// placed at, and any disclosures it owes.
+struct Look {
+    ap_dict: Dict,
+    ap_content: Vec<u8>,
+    rect: pdfcer_core::page_tree::Rect,
+    notes: Vec<String>,
+}
+
+/// Bake `dict`'s look, or say why it was declined.
+fn look_for(
+    doc: &DocumentView<'_>,
+    dict: &Dict,
+    subtype: &str,
+    policy: RenderPolicy,
+) -> Result<Look, String> {
+    if subtype == "FreeText" {
+        let baked = free_text::bake(doc, dict, policy.free_text_c)?;
+        return Ok(Look {
+            ap_dict: baked.annot.ap_dict,
+            ap_content: baked.annot.ap_content,
+            rect: baked.annot.rect,
+            notes: baked.notes,
+        });
+    }
+    let spec = spec_for(doc, dict, subtype).map_err(|why| match why {
+        Declined::Geometry(e) => e,
+        Declined::NoColour => "it states no colour to draw with (/C)".to_owned(),
+        Declined::Dimension => "it is a pdf dimension (/Cap, /LL or /IT /LineDimension)".to_owned(),
+    })?;
+    let opts = annot_author::appearance_options_from_dict(doc, dict);
+    let baked = annot_author::build_appearance_opts(&spec, &opts);
+    Ok(Look {
+        ap_dict: baked.ap_dict,
+        ap_content: baked.ap_content,
+        rect: baked.rect,
+        notes: Vec::new(),
+    })
+}
+
 /// Draw markup `annot` from its own geometry. `false` when nothing was drawn
 /// (out of class, setting off, declined — the last with a note).
 #[allow(clippy::too_many_arguments)] // every argument is placement input.
@@ -143,26 +188,17 @@ pub(super) fn paint_from_geometry(
     else {
         return false;
     };
-    let spec = match spec_for(doc, dict, &subtype) {
-        Ok(spec) => spec,
-        Err(why) => {
-            let reason = match why {
-                Declined::Geometry(e) => e,
-                Declined::NoColour => "it states no colour to draw with (/C)".to_owned(),
-                Declined::Dimension => {
-                    "it is a pdf dimension (/Cap, /LL or /IT /LineDimension)".to_owned()
-                }
-            };
+    let look = match look_for(doc, dict, &subtype, policy) {
+        Ok(look) => look,
+        Err(reason) => {
             diag.note_annotation(&format!(
                 "/{subtype} has no /AP and was left blank: {reason}"
             ));
             return false;
         }
     };
-    let opts = annot_author::appearance_options_from_dict(doc, dict);
-    let baked = annot_author::build_appearance_opts(&spec, &opts);
     if !paint_baked(
-        doc, base_ctm, fonts, annot, &baked, diag, canvas, cancel, policy,
+        doc, base_ctm, fonts, annot, &look, diag, canvas, cancel, policy,
     ) {
         return false;
     }
@@ -172,7 +208,11 @@ pub(super) fn paint_from_geometry(
         .or_insert(0) += 1;
     diag.note_annotation(&format!(
         "/{subtype} has no /AP - drawn from its own geometry and colours (12.5.2 lets the reader \
-         provide the appearance); nothing was written to the file"
+         provide the appearance); nothing was written to the file{}",
+        look.notes
+            .iter()
+            .map(|n| format!("; {n}"))
+            .collect::<String>()
     ));
     true
 }
@@ -186,7 +226,7 @@ fn paint_baked(
     base_ctm: Transform,
     fonts: &FontEnvironment,
     annot: &Annotation,
-    baked: &annot_author::AuthoredAppearance,
+    baked: &Look,
     diag: &mut Diagnostics,
     canvas: &mut Canvas<'_>,
     cancel: Option<&crate::cancel::RenderCancel>,

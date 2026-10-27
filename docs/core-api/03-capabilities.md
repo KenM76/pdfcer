@@ -706,11 +706,11 @@ Also in this Pass: a **single-line** (and comb) text field's value is now
 vertically centred in its box (it sat at the top of a tall box), in both this
 drawing and `regenerate_appearances`. Multiline layout is unchanged.
 
-#### Markup annotations with no `/AP` — drawn from their own geometry (`Pass 646.20`/`646.21`, `G236`, decision 203)
+#### Markup annotations with no `/AP` — drawn from their own geometry (`Pass 646.20`–`646.22`, `G236`, decision 203)
 
 §12.5.2 lets a reader provide its own appearance. `pdfcer-render` draws an
 `/Ink`, `/Highlight`, `/Underline`, `/StrikeOut`, `/Squiggly`, `/Square`,
-`/Circle`, `/Polygon`, `/PolyLine` or plain `/Line` lacking `/AP /N` from the
+`/Circle`, `/Polygon`, `/PolyLine`, plain `/Line` or `/FreeText` lacking `/AP /N` from the
 geometry and colours the file states, through the same baker as an authored
 annotation (`spec_from_dict` → `build_appearance_opts`). **On by default, zero
 bytes written.** Placed at `/Rect` and painted at the file's `/CA`.
@@ -727,8 +727,22 @@ bytes written.** Placed at `/Rect` and painted at the file's `/CA`.
 **Declined, left blank, named in the note:** no device `/C` (closed shapes:
 neither `/C` nor `/IC`); a `/Line` with `/Cap true`, `/LL` or `/IT
 /LineDimension` (a **pdf dimension** — pdfcer never draws a measurement it did
-not author); malformed geometry or a 2.0 `/Path`-only shape. `/FreeText` is
-not in this class yet (`Pass 646.22`).
+not author); malformed geometry or a 2.0 `/Path`-only shape.
+
+**`/FreeText` (`Pass 646.22`)** is drawn from `/DA`, `/Contents`, `/Q`, `/Rect`
+less `/RD`, wrapped to the inner box, through `text_spec_from_dict` →
+`build_text_annotation`. Two things the file may not state are settings or
+disclosures, each named in the annotation's note:
+
+| item | contract |
+|---|---|
+| `pdfcer_render::FreeTextC` | `#[non_exhaustive]` enum, `Fill` (default, Acrobat's reading: `/C` fills the box, no border) or `Border` (pdfcer's own convention: `/C` strokes the border). Consulted only when there is no `/IC`; with `/IC`, `/C` is always the border. ISO 32000 defines no FreeText fill key. Note: `/C read as the fill colour`, plus `border not drawn: no key states its colour` when `/BS` is present. |
+| `RenderOptions::with_free_text_c(mode)` | `const fn`, carried into `RenderPolicy::free_text_c`. CLI `--free-text-c fill` or `border` on `render-page` and `export-image`. |
+| font | the `/DA` font name resolved through the AcroForm `/DR /Font` (§12.7.3.3) to a standard-14 `/BaseFont`; anything else draws in Helvetica, noted `font /<name> … drawn in Helvetica`. |
+| other notes | `/RC` present: rich-text styling not reproduced; `0 Tf`: the chosen size; characters outside WinAnsi drawn as `?`. |
+
+Declined: a callout (`/CL` or `/IT /FreeTextCallout`); rich text with no plain
+`/Contents`; a missing or unreadable `/DA`.
 
 #### ★★ `border` and `visibility` — read this before wiring a properties control (`Pass 146.0`)
 

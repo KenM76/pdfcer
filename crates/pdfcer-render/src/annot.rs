@@ -73,7 +73,7 @@ use crate::interpret::{self, Diagnostics};
 
 mod markup;
 mod widget;
-pub use markup::MarkupWithoutAp;
+pub use markup::{FreeTextC, MarkupWithoutAp};
 pub use widget::WidgetsWithoutAp;
 
 /// A transformed appearance box that is thinner than this on either axis
