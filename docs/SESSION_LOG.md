@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-27 (1255th filing) — `Pass 646.14` (`X007`) SHIPPED on `fea35b4f`
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.14`: `Pass 646.13` left a declared `bfOffBits` at or past the header end untouched. A declared offset EQUAL to the header end is now computed like one below it (headers, 12/16 mask bytes for a 40-byte bit-field header, colour table); computed == declared means no repair and no disclosure. An offset strictly past the header end is still used as given. Docs of the two `bmp_pixel_offset_repaired` fields, the core-api row and the CLI stderr sentence say "inside or at the end of". 1 new test (15 bmp; `image_import` 120 passed), sabotage-verified. Requester: the operator (crates consumer). Scoped and shipped in this filing.
+
+**Decisions made:** none; no ARCHITECTURE section 12 entry. `cargo tree` unchanged (no manifest change, no new deps).
+
+**FEATURES.md:** the "Decode BMP on image import" row amended (at-header-end case); core, cli ticked; gui not.
+
+**Sweep (rule 11):** `Pass 646.13` (1254th filing) states "an offset at or after the header end is untouched", now false for the equal case. Searched `docs/` for `Pass 646.13` and FEATURES for `bmp` case-insensitively. Survivors: (1) `docs/ROADMAP.md` `Pass 646.13` Shipped entry, Rule bullet: append-only, so left in place and superseded by a pointer in the `Pass 646.14` entry; (2) `docs/NEXT_SESSION.md` line 8 mentions `Pass 646.13` and is engineer-owned: not edited, owed a read for the "at or after the header end" wording; (3) source doc comments are outside this role's remit and were reported by the engineer as already updated. FEATURES rows 511 (not BMP-offset related) correct, left alone.
+
+**Still in flight:** full `tools/run-gates.sh` to be run before push. Backup and remote state not checked from here.
+
+**For next session:** next free `Pass 646.15`, decision `203`, `R263`; next filing 1256th.
+
 ## 2026-10-27 (1254th filing) — `Pass 646.13` (`X006`) SHIPPED on `bd28ab99`
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

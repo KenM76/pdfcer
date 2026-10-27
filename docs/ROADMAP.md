@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `fea35b4f` `Pass 646.14` SHIPPED, 2026-10-27: a BMP pixel offset exactly at the header end is repaired when a table or masks follow (`X007`) (1255th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `fea35b4f`, on main, unreleased (since `v0.99.0`). Requester: the operator (crates consumer), via the FeatureRequests channel, `request_X007_bmp_import_pixel_offset_at_the_header_end.md`; reply (outside the repo): `reply_X007_bmp_import_pixel_offset_at_the_header_end_FIXED.md`. Scoped and shipped in the same filing. Reasoning is in the commit message.
+- **Rule (supersedes the last sentence of `Pass 646.13`'s Rule bullet, "an offset at or after the header end is untouched"):** a declared `bfOffBits` EQUAL to the header end (14 + `biSize`) is now computed like one below it (end of headers, plus 12/16 bytes of masks for a 40-byte `BI_BITFIELDS` / `BI_ALPHABITFIELDS` header, plus the colour table). If computed equals declared (nothing follows the header) there is no repair and no disclosure. An offset strictly past the header end, even one inside the table or masks, is still used as given, so a file whose `biClrUsed` overstates its table can still point at its real pixels.
+- **No `pub` shape change:** docs of `ImportNotes::bmp_pixel_offset_repaired` and `ImageAuthorDisclosures::bmp_pixel_offset_repaired`, the `docs/core-api/02-editing-and-saving.md` row and the CLI stderr sentence now say "inside or at the end of" the headers.
+- **Tests:** 1 new bmp unit test (15 bmp tests; `image_import` 120 passed), sabotage-verified (the old `>=` restored fails only the new test). Every `pdfcer-core` and `pdfcer-cli` test binary 0 failed.
+- **Gates (engineer):** clippy `-D warnings` clean on core and cli; fmt clean; `check-code-structure` clean (baseline 564); `check-core-api-verbs` PASS (383). No manifest change, no new deps, so the `cargo tree` invariant is untouched. Full `tools/run-gates.sh`: to be run before push; no result claimed here.
+- **Delivers:** core yes; cli yes (`add-image`); gui none (not touched).
+- **FEATURES:** the "Decode BMP on image import" row amended to cover the at-header-end case; core, cli ticked; gui unticked.
+- Nothing minted; next free `Pass 646.15`, decision `203`, `R263`.
+
 ### `bd28ab99` `Pass 646.13` SHIPPED, 2026-10-27: a BMP whose pixel offset points inside its own headers is imported, and the repair is disclosed (`X006`) (1254th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `bd28ab99`, on main, unreleased (since `v0.99.0`). Requester: the operator (crates consumer), via the FeatureRequests channel, `request_X006_bmp_import_pixel_offset_inside_the_headers.md`; reply (outside the repo): `reply_X006_bmp_import_pixel_offset_inside_the_headers_FIXED.md`. Scoped and shipped in the same filing. Reasoning is in the commit message.
