@@ -17,6 +17,7 @@ mod annotate_note;
 mod annotation_address;
 mod attach_file_annotation;
 mod audit_space;
+mod bake_appearances;
 mod bates_stamp;
 mod bookmarks;
 mod compare_result;

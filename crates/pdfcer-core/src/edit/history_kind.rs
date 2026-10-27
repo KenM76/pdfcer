@@ -263,6 +263,7 @@ kind_codec! {
     SetButtonState,
     SetChoiceValue,
     RegenerateAppearances { count: usize },
+    BakeAppearances { count: usize },
     FlattenFields { count: usize },
     FlattenAnnotations { count: usize },
     DeleteRedactionMark,

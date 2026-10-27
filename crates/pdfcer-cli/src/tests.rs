@@ -1,6 +1,6 @@
 use super::*;
 
-/// Run `f` on a worker thread with a large (16 MiB) stack.
+/// Run `f` on a worker thread with the binary's own (64 MiB) stack.
 ///
 /// clap builds and validates the command tree by **recursion**
 /// proportional to the subcommand/argument count, and this CLI's surface
@@ -9,12 +9,12 @@ use super::*;
 /// than a default Windows test thread's ~2 MiB to run `Command::debug_assert`
 /// and to walk `Cli::command()`. This is a scaling property of clap's
 /// recursion, not a bug in the CLI: **production is unaffected** — the real
-/// binary parses on the process main thread (8 MiB) and never calls
+/// binary parses on a 64 MiB worker (`main.rs`) and never calls
 /// `debug_assert`. The worker keeps the full validation without shrinking
 /// the CLI surface; a panic (a failed assertion) propagates through `join`.
 fn on_large_stack(f: impl FnOnce() + Send + 'static) {
     std::thread::Builder::new()
-        .stack_size(16 * 1024 * 1024)
+        .stack_size(64 * 1024 * 1024)
         .spawn(f)
         .expect("spawn the large-stack validation thread")
         .join()

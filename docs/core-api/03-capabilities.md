@@ -736,13 +736,23 @@ disclosures, each named in the annotation's note:
 
 | item | contract |
 |---|---|
-| `pdfcer_render::FreeTextC` | `#[non_exhaustive]` enum, `Fill` (default, Acrobat's reading: `/C` fills the box, no border) or `Border` (pdfcer's own convention: `/C` strokes the border). Consulted only when there is no `/IC`; with `/IC`, `/C` is always the border. ISO 32000 defines no FreeText fill key. Note: `/C read as the fill colour`, plus `border not drawn: no key states its colour` when `/BS` is present. |
+| `pdfcer_render::FreeTextC` | re-export of `pdfcer_core::annot_author::FreeTextC`; `#[non_exhaustive]` enum, `Fill` (default, Acrobat's reading: `/C` fills the box, no border) or `Border` (pdfcer's own convention: `/C` strokes the border). Consulted only when there is no `/IC`; with `/IC`, `/C` is always the border. ISO 32000 defines no FreeText fill key. Note: `/C read as the fill colour`, plus `border not drawn: no key states its colour` when `/BS` is present. |
 | `RenderOptions::with_free_text_c(mode)` | `const fn`, carried into `RenderPolicy::free_text_c`. CLI `--free-text-c fill` or `border` on `render-page` and `export-image`. |
 | font | the `/DA` font name resolved through the AcroForm `/DR /Font` (§12.7.3.3) to a standard-14 `/BaseFont`; anything else draws in Helvetica, noted `font /<name> … drawn in Helvetica`. |
 | other notes | `/RC` present: rich-text styling not reproduced; `0 Tf`: the chosen size; characters outside WinAnsi drawn as `?`. |
 
 Declined: a callout (`/CL` or `/IT /FreeTextCallout`); rich text with no plain
 `/Contents`; a missing or unreadable `/DA`.
+
+**The derivation is core's (`Pass 646.23`)**, shared by render and the opt-in
+bake verb (`EditSession::bake_missing_appearances`, 02), so the two cannot
+drift:
+
+| item | contract |
+|---|---|
+| `annot_author::DERIVED_SUBTYPES: [&str; 11]` | the subtypes drawn this way. |
+| `annot_author::derive_appearance(graph, dict, free_text_c) -> Result<DerivedAppearance, NotDerived>` | the look for one `/AP`-less annotation dictionary. `DerivedAppearance { ap_dict, ap_content, rect, notes }`; `NotDerived { reason }` (`thiserror`, `#[non_exhaustive]`) carries the declined reason above. |
+| `DerivedAppearance::place(own_rect: Option<Rect>) -> PlacedAppearance { ap_dict, rect, rect_changed }` | where the look goes: `rect` = the annotation's `/Rect` widened to hold the look (the `/BBox` widened with it), so §12.5.5 placement reproduces it; render paints through this and the bake writes it. The `/BBox` clips (§8.10.1) on both paths. |
 
 #### ★★ `border` and `visibility` — read this before wiring a properties control (`Pass 146.0`)
 

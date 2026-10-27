@@ -9,6 +9,7 @@ mod annotation_constant_alpha;
 mod annotation_fixed_placement;
 mod appearance_placement;
 mod augment_request_from_a_shell;
+mod bake_appearances;
 mod cancel_stops_the_work;
 mod cid_subset_augment;
 mod cid_subset_extend;

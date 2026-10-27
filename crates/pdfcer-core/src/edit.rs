@@ -123,6 +123,8 @@
 //!   [`encode_text_string`])
 
 mod annot_restyle;
+mod bake_appearances;
+pub use bake_appearances::{BakeAppearancesOutcome, BakedAppearance, SkippedAppearance};
 mod batch;
 mod field_da;
 mod field_set;
@@ -800,6 +802,12 @@ pub enum CommandKind {
     /// one undo entry.
     RegenerateAppearances {
         /// How many widget appearances were regenerated.
+        count: usize,
+    },
+    /// Markup annotations with no `/AP` were given one drawn from their own
+    /// keys ([`EditSession::bake_missing_appearances`]). One undo entry.
+    BakeAppearances {
+        /// How many annotations gained an `/AP`.
         count: usize,
     },
     /// Form fields were flattened — their appearances burned into page

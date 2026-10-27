@@ -642,6 +642,8 @@ mod field_set_cmd;
 use field_set_cmd::*;
 mod annot_edit;
 use annot_edit::*;
+mod bake_appearances_cmd;
+use bake_appearances_cmd::*;
 mod image;
 use image::*;
 mod image_stamp_cmd;

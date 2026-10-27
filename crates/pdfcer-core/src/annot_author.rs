@@ -3254,6 +3254,11 @@ mod button_icon;
 pub(crate) use button_icon::{ButtonIcon, push_button_with_icon};
 pub use button_icon::{CaptionPosition, IconFit, IconScaleWhen, IconScaling};
 
+mod derived;
+pub use derived::{
+    DERIVED_SUBTYPES, DerivedAppearance, FreeTextC, NotDerived, PlacedAppearance, derive_appearance,
+};
+
 /// The resource name pdfcer authors its standard-14 font under, inside a
 /// text appearance's own `/Resources` `/Font` (FreeText has no `/DR`, so
 /// the font lives in the appearance itself — `iso32000__s__12.5.6.md`

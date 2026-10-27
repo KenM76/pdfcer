@@ -9114,6 +9114,34 @@ pub(crate) enum Command {
         mode: SaveMode,
     },
 
+    /// Write the drawn look into markup annotations that have none.
+    ///
+    /// pdfcer draws an Ink, Highlight, Underline, StrikeOut, Squiggly,
+    /// Square, Circle, Polygon, PolyLine, Line or FreeText annotation that
+    /// stores no appearance from its own shape and colours, without
+    /// changing the file. This command stores that drawing as each one's
+    /// appearance (/AP), for a viewer that shows nothing otherwise. The page
+    /// looks the same before and after. Each annotation's other settings are
+    /// kept; its /Rect grows only when the drawing extends past it (a line's
+    /// arrowheads). Locked annotations, pdf dimensions and anything without
+    /// enough to draw from are left alone and listed with the reason.
+    BakeAppearances {
+        /// Input PDF.
+        input: PathBuf,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// What a text box's colour paints when it has no interior colour:
+        /// fill (the default, as Acrobat reads it) fills the box; border
+        /// draws the outline. The standard does not say; the choice is
+        /// written into the file.
+        #[arg(long, value_enum, default_value_t)]
+        free_text_c: crate::viewer_preview::FreeTextCArg,
+    },
+
     /// Flatten interactive form fields into page content (Pass 7.1).
     ///
     /// DESTRUCTIVE. Each field's appearance is burned into its page's

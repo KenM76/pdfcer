@@ -31,6 +31,15 @@ pub(crate) enum FreeTextCArg {
     Border,
 }
 
+impl From<FreeTextCArg> for FreeTextC {
+    fn from(arg: FreeTextCArg) -> Self {
+        match arg {
+            FreeTextCArg::Fill => FreeTextC::Fill,
+            FreeTextCArg::Border => FreeTextC::Border,
+        }
+    }
+}
+
 /// `--widgets-without-ap`: what to show for a form field widget whose
 /// file stores no `/AP`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
@@ -100,10 +109,7 @@ impl ViewerPreview {
 
     /// This preview with `--free-text-c` applied.
     pub(crate) fn with_free_text_c(mut self, arg: FreeTextCArg) -> Self {
-        self.free_text_c = match arg {
-            FreeTextCArg::Fill => FreeTextC::Fill,
-            FreeTextCArg::Border => FreeTextC::Border,
-        };
+        self.free_text_c = arg.into();
         self
     }
 

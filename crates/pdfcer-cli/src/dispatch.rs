@@ -2469,6 +2469,12 @@ pub(crate) fn run() -> ExitCode {
             output,
             mode,
         } => cmd_regenerate_appearances(&input, &output, mode),
+        Command::BakeAppearances {
+            input,
+            output,
+            mode,
+            free_text_c,
+        } => cmd_bake_appearances(&input, &output, mode, free_text_c),
         Command::Flatten {
             input,
             fields,
