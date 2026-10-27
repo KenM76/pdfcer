@@ -59577,6 +59577,10 @@ pub struct ImageAuthorDisclosures {
     /// A 32-bit BMP's fourth byte per pixel was ignored (it is padding, not
     /// alpha).
     pub bmp_fourth_byte_ignored: bool,
+    /// A BMP pixel offset pointing inside the headers was replaced by a
+    /// computed one, `(declared, used)`. See
+    /// [`ImportNotes::bmp_pixel_offset_repaired`](crate::image_import::ImportNotes::bmp_pixel_offset_repaired).
+    pub bmp_pixel_offset_repaired: Option<(u32, u32)>,
     /// The image uses a feature newer than the document's declared version,
     /// with the document's version alongside.
     ///
@@ -59645,6 +59649,7 @@ impl ImageAuthorDisclosures {
             || self.progressive_jpeg
             || self.exif_orientation_applied.is_some()
             || self.bmp_fourth_byte_ignored
+            || self.bmp_pixel_offset_repaired.is_some()
             || self.version_ahead_of_document.is_some()
             || self.tagged_document
             || self.tiff_pages_ignored > 0
@@ -60121,13 +60126,9 @@ impl EditSession {
         let notes = img.notes;
         let (pw, ph) = (placed.urx - placed.llx, placed.ury - placed.lly);
         let (px_w, px_h) = img.display_size_px();
-        // COMPUTED BY CALLING THE PURE PREVIEW, never re-derived here.
-        //
-        // This block used to hold its own copy of `pixels / (points / 72)`.
-        // `NewImage::effective_dpi` is the same arithmetic, and the whole
-        // point of exposing it was that a shell can show the operator this
-        // number BEFORE they commit — which is worth nothing if the outcome
-        // then quotes a second derivation of it.
+        // Computed by calling the pure preview, never re-derived here: a
+        // shell shows the operator this number before they commit, and the
+        // outcome must quote the same derivation.
         //
         // `placed` here is `spec.placed_rect()` (see the caller), so the two
         // are looking at the same rectangle by construction rather than by
@@ -60169,11 +60170,8 @@ impl EditSession {
             source_bytes: notes.source_bytes,
             stored_bytes: notes.stored_bytes,
             soft_mask_written,
-            // Either mechanism: `pdfcer-render` defers /SMask and /Mask
-            // identically and paints the base image opaque.
-            // RETIRED — see the field's own documentation. `pdfcer-render`
-            // composites both mechanisms this placement can write, so the
-            // honest answer is now unconditionally "no".
+            // `pdfcer-render` composites both mechanisms this placement can
+            // write; see the field's own documentation.
             transparency_not_previewed: false,
             colour_key_mask_written: img.color_key_mask.is_some(),
             colour_profile_dropped: notes.colour_profile_dropped,
@@ -60181,6 +60179,7 @@ impl EditSession {
             progressive_jpeg: notes.progressive_jpeg,
             exif_orientation_applied: notes.exif_orientation,
             bmp_fourth_byte_ignored: notes.bmp_fourth_byte_ignored,
+            bmp_pixel_offset_repaired: notes.bmp_pixel_offset_repaired,
             version_ahead_of_document,
             tagged_document: self.document_is_tagged(),
             tiff_pages_ignored: notes.tiff_pages_ignored,

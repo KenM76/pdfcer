@@ -26,7 +26,7 @@
 //! thing and the extra colour-management fields are exactly the kind of
 //! claim pdfcer discloses rather than carries.
 //!
-//! ## The two traps
+//! ## The traps
 //!
 //! **Row order.** BMP stores rows **bottom-up** — the first row in the file
 //! is the bottom row of the picture — unless `biHeight` is **negative**,
@@ -47,6 +47,12 @@
 //! requires `BI_BITFIELDS` with an explicit alpha mask, or a
 //! `BITMAPV4HEADER`'s `bV4AlphaMask` — both of which this reader refuses by
 //! name rather than half-supports.)
+//!
+//! **A pixel offset of zero.** Some producers write `bfOffBits = 0`. Any
+//! declared offset short of the end of the headers is replaced by the
+//! computed one (headers, bit masks, colour table) when the pixel array fits
+//! after it, and disclosed as
+//! [`ImportNotes::bmp_pixel_offset_repaired`](super::ImportNotes::bmp_pixel_offset_repaired).
 //!
 //! ## What is refused, by name
 //!
@@ -77,21 +83,105 @@ use super::{
 /// See [`ImageImportError`]. Every compression method and bit depth pdfcer
 /// declines is [`ImageImportError::Unsupported`] with a stable key.
 pub fn import(data: &[u8]) -> Result<ImportedImage, ImageImportError> {
-    let corrupt = |detail: &str| ImageImportError::Corrupt {
-        detail: detail.to_owned(),
-    };
-    let le32 = |o: usize| -> Option<u32> {
-        Some(u32::from_le_bytes(data.get(o..o + 4)?.try_into().ok()?))
-    };
-    let le16 = |o: usize| -> Option<u16> {
-        Some(u16::from_le_bytes(data.get(o..o + 2)?.try_into().ok()?))
+    let h = read_header(data)?;
+    let (color_space, components, out_bits) = colour_space(data, &h)?;
+    check_dimensions(h.width, h.height, components, out_bits)?;
+
+    // BMP rows are padded to a 4-byte boundary; PDF rows are padded to a
+    // whole byte (§8.9.3). They agree only by accident, so the payload is
+    // repacked row by row rather than copied.
+    let src_stride = ((h.width as usize * usize::from(h.bpp)).div_ceil(8)).next_multiple_of(4);
+    let dst_stride = row_bytes(h.width, components, out_bits);
+    let pixel_bytes = src_stride * h.height as usize;
+    let repaired = repaired_pixel_offset(&h, pixel_bytes, data.len());
+    let pixels = usize::try_from(repaired.unwrap_or(h.pixel_offset))
+        .ok()
+        .and_then(|o| data.get(o..))
+        .ok_or_else(|| corrupt("the BMP pixel data starts past the end of the file"))?;
+    if pixels.len() < pixel_bytes {
+        return Err(corrupt(
+            "the BMP pixel data is shorter than its header declares",
+        ));
+    }
+    let out = repack(pixels, &h, src_stride, dst_stride)?;
+
+    // biXPelsPerMeter / biYPelsPerMeter. Zero is what most writers emit
+    // when they have nothing to say, and it is not a resolution.
+    let dpi = match (le32(data, 38), le32(data, 42)) {
+        (Some(x), Some(y)) if x > 0 && y > 0 => {
+            Some((f64::from(x) * 0.0254, f64::from(y) * 0.0254))
+        }
+        _ => None,
     };
 
+    Ok(ImportedImage {
+        format: ImageFormat::Bmp,
+        width: h.width,
+        height: h.height,
+        bits_per_component: u8::try_from(out_bits).unwrap_or(8),
+        color_space,
+        filter: ImportFilter::Flate,
+        data: flate_encode(&out)?,
+        soft_mask: None,
+        color_key_mask: None,
+        orientation: Orientation::Identity,
+        dpi,
+        notes: ImportNotes {
+            recompressed: Some(RecompressReason::NoCompressedSource),
+            bmp_fourth_byte_ignored: h.bpp == 32 && h.height > 0,
+            bmp_pixel_offset_repaired: repaired.map(|used| (h.pixel_offset, used)),
+            dpi_source: if dpi.is_some() {
+                DpiSource::BmpPelsPerMeter
+            } else {
+                DpiSource::Assumed
+            },
+            ..ImportNotes::default()
+        },
+    })
+}
+
+/// The `BITMAPFILEHEADER` and `BITMAPINFOHEADER` fields this reader uses.
+struct Header {
+    /// `bfOffBits` as declared.
+    pixel_offset: u32,
+    /// `biSize`.
+    header_size: usize,
+    width: u32,
+    height: u32,
+    /// `biHeight` was negative: rows are stored top-down.
+    top_down: bool,
+    bpp: u16,
+    /// `biCompression`.
+    compression: u32,
+    /// `biClrUsed`; 0 when absent.
+    colours_used: u32,
+}
+
+fn corrupt(detail: &str) -> ImageImportError {
+    ImageImportError::Corrupt {
+        detail: detail.to_owned(),
+    }
+}
+
+fn le32(data: &[u8], o: usize) -> Option<u32> {
+    Some(u32::from_le_bytes(
+        data.get(o..o.checked_add(4)?)?.try_into().ok()?,
+    ))
+}
+
+fn le16(data: &[u8], o: usize) -> Option<u16> {
+    Some(u16::from_le_bytes(
+        data.get(o..o.checked_add(2)?)?.try_into().ok()?,
+    ))
+}
+
+/// Read the headers, refusing what this reader declines by name.
+fn read_header(data: &[u8]) -> Result<Header, ImageImportError> {
     // BITMAPFILEHEADER: "BM"(2), bfSize(4), reserved(4), bfOffBits(4).
-    let Some(pixel_offset) = le32(10).and_then(|v| usize::try_from(v).ok()) else {
+    let Some(pixel_offset) = le32(data, 10) else {
         return Err(corrupt("the BMP file header is truncated"));
     };
-    let Some(header_size) = le32(14).and_then(|v| usize::try_from(v).ok()) else {
+    let Some(header_size) = le32(data, 14).and_then(|v| usize::try_from(v).ok()) else {
         return Err(corrupt("the BMP info header is truncated"));
     };
     if header_size == 12 {
@@ -104,95 +194,128 @@ pub fn import(data: &[u8]) -> Result<ImportedImage, ImageImportError> {
     if header_size < 40 {
         return Err(corrupt("unrecognised BMP info-header size"));
     }
-
     let (Some(width_raw), Some(height_raw), Some(bpp), Some(compression)) = (
-        le32(18).map(|v| v as i32),
-        le32(22).map(|v| v as i32),
-        le16(28),
-        le32(30),
+        le32(data, 18).map(|v| v as i32),
+        le32(data, 22).map(|v| v as i32),
+        le16(data, 28),
+        le32(data, 30),
     ) else {
         return Err(corrupt("the BMP info header is truncated"));
     };
-
     if let Some(feature) = unsupported_compression(compression) {
         return Err(ImageImportError::Unsupported { feature });
     }
     // A negative biHeight means the rows are stored TOP-DOWN. A negative
     // width has no meaning.
-    let top_down = height_raw < 0;
     let Ok(width) = u32::try_from(width_raw) else {
         return Err(corrupt("the BMP declares a negative width"));
     };
-    let height = height_raw.unsigned_abs();
+    Ok(Header {
+        pixel_offset,
+        header_size,
+        width,
+        height: height_raw.unsigned_abs(),
+        top_down: height_raw < 0,
+        bpp,
+        compression,
+        colours_used: le32(data, 46).unwrap_or(0),
+    })
+}
 
-    let (color_space, components, out_bits) = match bpp {
+/// The PDF colour space, component count and bits per component.
+fn colour_space(data: &[u8], h: &Header) -> Result<(ImportColorSpace, u32, u32), ImageImportError> {
+    match h.bpp {
         1 | 4 | 8 => {
-            let entries = le32(46)
-                .and_then(|v| usize::try_from(v).ok())
+            let max = 1usize << h.bpp;
+            let entries = usize::try_from(h.colours_used)
+                .ok()
                 .filter(|&n| n > 0)
-                .unwrap_or(1usize << bpp)
-                .min(1usize << bpp);
+                .unwrap_or(max)
+                .min(max);
+            let start = h.header_size.saturating_add(14);
             let table = data
-                .get(14 + header_size..14 + header_size + entries * 4)
+                .get(start..start.saturating_add(entries * 4))
                 .ok_or_else(|| corrupt("the BMP colour table is truncated"))?;
             // BMP palette entries are BGR + one reserved byte; §8.6.6.3
             // wants consecutive RGB triples.
             let mut lookup = Vec::with_capacity(entries * 3);
             for e in table.chunks_exact(4) {
-                // BGRX -> RGB.
                 if let [b, g, r, _] = *e {
                     lookup.extend_from_slice(&[r, g, b]);
                 }
             }
             let hival = u8::try_from(entries.saturating_sub(1)).unwrap_or(255);
-            (
+            Ok((
                 ImportColorSpace::Indexed { hival, lookup },
-                1u32,
-                bpp as u32,
-            )
+                1,
+                u32::from(h.bpp),
+            ))
         }
-        24 | 32 => (ImportColorSpace::DeviceRgb, 3, 8),
-        16 => {
-            return Err(ImageImportError::Unsupported {
-                feature: "BMP/16-bit",
-            });
-        }
-        _ => return Err(corrupt("unsupported BMP bit depth")),
-    };
-
-    check_dimensions(width, height, components, out_bits)?;
-
-    // BMP rows are padded to a 4-byte boundary; PDF rows are padded to a
-    // whole byte (§8.9.3). They agree only by accident, so the payload is
-    // repacked row by row rather than copied.
-    let src_stride = ((width as usize * usize::from(bpp)).div_ceil(8)).next_multiple_of(4);
-    let dst_stride = row_bytes(width, components, out_bits);
-    let pixels = data
-        .get(pixel_offset..)
-        .ok_or_else(|| corrupt("the BMP pixel data starts past the end of the file"))?;
-    if pixels.len() < src_stride * height as usize {
-        return Err(corrupt(
-            "the BMP pixel data is shorter than its header declares",
-        ));
+        24 | 32 => Ok((ImportColorSpace::DeviceRgb, 3, 8)),
+        16 => Err(ImageImportError::Unsupported {
+            feature: "BMP/16-bit",
+        }),
+        _ => Err(corrupt("unsupported BMP bit depth")),
     }
+}
 
-    let mut out = vec![0u8; dst_stride * height as usize];
-    let mut fourth_byte_seen = false;
-    for y in 0..height as usize {
+/// The pixel array's offset when the declared `bfOffBits` points inside the
+/// headers, or `None` to keep the declared one.
+///
+/// The computed offset is the end of the headers, plus the
+/// `BI_BITFIELDS` (12) or `BI_ALPHABITFIELDS` (16) masks a 40-byte header
+/// leaves outside itself, plus the colour table (`biClrUsed` entries, or
+/// `1 << bpp` at 1, 4 and 8 bits when it is 0; 4 bytes each, 3 after a
+/// 12-byte core header). It is used only when the whole pixel array fits
+/// after it.
+fn repaired_pixel_offset(h: &Header, pixel_bytes: usize, file_len: usize) -> Option<u32> {
+    let headers_end = h.header_size.checked_add(14)?;
+    if usize::try_from(h.pixel_offset).ok()? >= headers_end {
+        return None;
+    }
+    let masks = match (h.header_size, h.compression) {
+        (40, 3) => 12,
+        (40, 6) => 16,
+        _ => 0,
+    };
+    let entries = match usize::try_from(h.colours_used).ok()? {
+        0 if matches!(h.bpp, 1 | 4 | 8) => 1usize << h.bpp,
+        n => n,
+    };
+    let entry_size = if h.header_size == 12 { 3 } else { 4 };
+    let computed = headers_end
+        .checked_add(masks)?
+        .checked_add(entries.checked_mul(entry_size)?)?;
+    if computed.checked_add(pixel_bytes)? > file_len {
+        return None;
+    }
+    u32::try_from(computed).ok()
+}
+
+/// Repack the rows into PDF order (row 0 at the top, §8.9.4) and padding.
+fn repack(
+    pixels: &[u8],
+    h: &Header,
+    src_stride: usize,
+    dst_stride: usize,
+) -> Result<Vec<u8>, ImageImportError> {
+    let height = h.height as usize;
+    let mut out = vec![0u8; dst_stride * height];
+    for y in 0..height {
         // The source row for PDF row `y` (which is the TOP row when y = 0).
-        let src_y = if top_down { y } else { height as usize - 1 - y };
+        let src_y = if h.top_down { y } else { height - 1 - y };
         let src = pixels
             .get(src_y * src_stride..src_y * src_stride + src_stride)
             .ok_or_else(|| corrupt("a BMP row runs past the end of the file"))?;
         let dst = out
             .get_mut(y * dst_stride..(y + 1) * dst_stride)
             .ok_or_else(|| corrupt("row buffer overflow"))?;
-        match bpp {
+        match h.bpp {
             24 => {
                 for (x, px) in dst.chunks_exact_mut(3).enumerate() {
                     // BGR -> RGB. A short source row cannot happen (the
-                    // stride check above rules it out) but is left black
-                    // rather than allowed to panic.
+                    // stride check rules it out) but is left black rather
+                    // than allowed to panic.
                     if let Some(&[b, g, r]) = src
                         .get(x * 3..x * 3 + 3)
                         .and_then(|s| <&[u8; 3]>::try_from(s).ok())
@@ -202,7 +325,6 @@ pub fn import(data: &[u8]) -> Result<ImportedImage, ImageImportError> {
                 }
             }
             32 => {
-                fourth_byte_seen = true;
                 for (x, px) in dst.chunks_exact_mut(3).enumerate() {
                     // BGRX -> RGB. The fourth byte is DROPPED, not read as
                     // alpha — see the module docs.
@@ -219,39 +341,7 @@ pub fn import(data: &[u8]) -> Result<ImportedImage, ImageImportError> {
             _ => dst.copy_from_slice(src.get(..dst_stride).unwrap_or(&[])),
         }
     }
-
-    // biXPelsPerMeter / biYPelsPerMeter. Zero is what most writers emit
-    // when they have nothing to say, and it is not a resolution.
-    let dpi = match (le32(38), le32(42)) {
-        (Some(x), Some(y)) if x > 0 && y > 0 => {
-            Some((f64::from(x) * 0.0254, f64::from(y) * 0.0254))
-        }
-        _ => None,
-    };
-
-    Ok(ImportedImage {
-        format: ImageFormat::Bmp,
-        width,
-        height,
-        bits_per_component: u8::try_from(out_bits).unwrap_or(8),
-        color_space,
-        filter: ImportFilter::Flate,
-        data: flate_encode(&out)?,
-        soft_mask: None,
-        color_key_mask: None,
-        orientation: Orientation::Identity,
-        dpi,
-        notes: ImportNotes {
-            recompressed: Some(RecompressReason::NoCompressedSource),
-            bmp_fourth_byte_ignored: fourth_byte_seen,
-            dpi_source: if dpi.is_some() {
-                DpiSource::BmpPelsPerMeter
-            } else {
-                DpiSource::Assumed
-            },
-            ..ImportNotes::default()
-        },
-    })
+    Ok(out)
 }
 
 /// Map a `biCompression` value pdfcer declines to its stable feature key.
@@ -458,6 +548,103 @@ mod tests {
         assert_eq!(
             import(&file).unwrap().notes.recompressed,
             Some(RecompressReason::NoCompressedSource)
+        );
+    }
+
+    fn with_offset(mut file: Vec<u8>, offset: u32) -> Vec<u8> {
+        file[10..14].copy_from_slice(&offset.to_le_bytes());
+        file
+    }
+
+    fn samples(file: &[u8]) -> Vec<u8> {
+        flate::decode(&import(file).unwrap().data, None).unwrap()
+    }
+
+    /// Red then blue, in BGR, 24-bit: pixels at 54.
+    fn red_blue() -> Vec<u8> {
+        bmp(2, 1, 24, &[vec![0, 0, 255, 255, 0, 0]], &[], 0)
+    }
+
+    #[test]
+    fn a_pixel_offset_inside_the_headers_is_computed_and_disclosed() {
+        let intact = red_blue();
+        assert_eq!(
+            import(&intact).unwrap().notes.bmp_pixel_offset_repaired,
+            None
+        );
+        for declared in [0, 14, 53] {
+            let file = with_offset(intact.clone(), declared);
+            assert_eq!(samples(&file), samples(&intact), "offset {declared}");
+            assert_eq!(
+                import(&file).unwrap().notes.bmp_pixel_offset_repaired,
+                Some((declared, 54))
+            );
+        }
+    }
+
+    #[test]
+    fn a_zero_offset_skips_the_colour_table() {
+        let palette = vec![0, 0, 0, 0, 0, 0, 255, 0];
+        let intact = bmp(2, 1, 8, &[vec![1, 0]], &palette, 0);
+        let file = with_offset(intact.clone(), 0);
+        assert_eq!(samples(&file), samples(&intact));
+        assert_eq!(
+            import(&file).unwrap().notes.bmp_pixel_offset_repaired,
+            Some((0, 62))
+        );
+    }
+
+    fn header(header_size: usize, bpp: u16, compression: u32, colours_used: u32) -> Header {
+        Header {
+            pixel_offset: 0,
+            header_size,
+            width: 1,
+            height: 1,
+            top_down: false,
+            bpp,
+            compression,
+            colours_used,
+        }
+    }
+
+    #[test]
+    fn bit_masks_outside_a_40_byte_header_are_skipped() {
+        assert_eq!(
+            repaired_pixel_offset(&header(40, 32, 3, 0), 4, 1000),
+            Some(66)
+        );
+        assert_eq!(
+            repaired_pixel_offset(&header(40, 32, 6, 0), 4, 1000),
+            Some(70)
+        );
+        // A V4 header carries its masks inside itself.
+        assert_eq!(
+            repaired_pixel_offset(&header(108, 32, 3, 0), 4, 1000),
+            Some(122)
+        );
+        // A core header's palette entries are 3 bytes.
+        assert_eq!(
+            repaired_pixel_offset(&header(12, 8, 0, 0), 4, 1000),
+            Some(26 + 768)
+        );
+    }
+
+    #[test]
+    fn a_computed_offset_that_does_not_fit_keeps_the_declared_one() {
+        assert_eq!(repaired_pixel_offset(&header(40, 24, 0, 0), 8, 61), None);
+        assert_eq!(
+            repaired_pixel_offset(&header(40, 8, 0, u32::MAX), 4, 1000),
+            None
+        );
+        // Too short for the pixels after 54: read from 0, as before.
+        let mut file = with_offset(red_blue(), 0);
+        file.pop();
+        let img = import(&file).unwrap();
+        assert_eq!(img.notes.bmp_pixel_offset_repaired, None);
+        let d = &file;
+        assert_eq!(
+            flate::decode(&img.data, None).unwrap(),
+            vec![d[2], d[1], d[0], d[5], d[4], d[3]]
         );
     }
 }

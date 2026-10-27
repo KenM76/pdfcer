@@ -4445,8 +4445,9 @@ Each import note a shell must disclose (rule 4) is carried onto
 | `tiff_white_is_zero_inverted: bool` | WhiteIsZero samples were inverted to DeviceGray. |
 | `tiff_extra_samples_dropped: u32` | Extra channels of undeclared meaning were discarded. |
 | `tiff_palette_assumed_8bit: bool` | A ColorMap stored 8-bit values in 16-bit fields and was read as such. |
+| `bmp_pixel_offset_repaired: Option<(u32, u32)>` | A BMP pixel offset inside the headers was replaced by the computed one, `(declared, used)`. |
 
-All six count toward `ImageAuthorDisclosures::any()`.
+All seven count toward `ImageAuthorDisclosures::any()`.
 
 ### 1.24a SVG drawings (2 session verbs, feature `svg-import`)
 

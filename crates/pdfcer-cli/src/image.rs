@@ -151,7 +151,7 @@ pub(crate) fn cmd_add_image(args: &AddImageArgs<'_>) -> u8 {
          letterboxed={} distorted={} low_res={} recompressed={} smask_written={} \
          transparency_not_previewed={} colour_key={} profile_dropped={} \
          cmyk_polarity_unverifiable={} progressive={} exif_orientation={} \
-         bmp_padding_ignored={} tiff_pages_ignored={} gif_frames_ignored={} \
+         bmp_padding_ignored={} bmp_offset_repaired={} tiff_pages_ignored={} gif_frames_ignored={} \
          tiff_unpremultiplied={} tiff_white_is_zero={} tiff_extra_dropped={} \
          tiff_palette_8bit={} version_needed={} tagged={} mode={} -> {}; \
          changed={} objects={} appended={} out_bytes={} undo_verified={} undo_identical={}",
@@ -211,6 +211,8 @@ pub(crate) fn cmd_add_image(args: &AddImageArgs<'_>) -> u8 {
         d.exif_orientation_applied
             .map_or_else(|| "-".to_owned(), |v| v.to_string()),
         u32::from(d.bmp_fourth_byte_ignored),
+        d.bmp_pixel_offset_repaired
+            .map_or_else(|| "-".to_owned(), |(from, to)| format!("{from}->{to}")),
         d.tiff_pages_ignored,
         d.gif_frames_ignored,
         u32::from(d.tiff_associated_alpha_unpremultiplied),
@@ -449,6 +451,11 @@ fn report_source_disclosures(name: &str, d: &pdfcer_core::edit::ImageAuthorDiscl
     if d.bmp_fourth_byte_ignored {
         eprintln!(
             "pdfcer: {name}: this 32-bit BMP's fourth byte per pixel was ignored. A BI_RGB bitmap has no alpha channel — that byte is padding, and treating it as opacity would have made the image invisible."
+        );
+    }
+    if let Some((from, to)) = d.bmp_pixel_offset_repaired {
+        eprintln!(
+            "pdfcer: {name}: this BMP's header puts its pixels at byte {from}, inside the header itself. pdfcer read them from byte {to}, where the header and colour table end."
         );
     }
     if let Some((feature, doc)) = d.version_ahead_of_document {

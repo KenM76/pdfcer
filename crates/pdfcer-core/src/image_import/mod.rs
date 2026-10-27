@@ -974,6 +974,14 @@ pub struct ImportNotes {
     /// it as opacity would make such an image entirely invisible, which is
     /// the single most spectacular way to get BMP wrong.
     pub bmp_fourth_byte_ignored: bool,
+    /// A BMP's `bfOffBits` pointed inside its own headers, so pdfcer read the
+    /// pixels from where the headers, bit masks and colour table end:
+    /// `(declared, used)`, byte offsets into the file.
+    ///
+    /// Some producers write 0 there. Trusting it reads the `BM` signature and
+    /// the headers as pixels, shifting and wrapping the picture. The computed
+    /// offset is used only when the whole pixel array fits after it.
+    pub bmp_pixel_offset_repaired: Option<(u32, u32)>,
     /// The image uses a feature that requires a PDF version newer than 1.0,
     /// with the version it requires. Compared against the document's own
     /// header by [`EditSession::add_image`](crate::edit::EditSession::add_image).

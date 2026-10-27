@@ -368,7 +368,6 @@ fn pdfcer-core/src/forms.rs::retarget_inner
 fn pdfcer-core/src/forms.rs::scan_javascript
 fn pdfcer-core/src/forms.rs::walk_field
 fn pdfcer-core/src/forms_author.rs::resolve_field_path
-fn pdfcer-core/src/image_import/bmp.rs::import
 fn pdfcer-core/src/image_import/jpeg.rs::read_exif
 fn pdfcer-core/src/image_import/jpeg.rs::walk
 fn pdfcer-core/src/image_import/jpeg_encode.rs::source_samples
