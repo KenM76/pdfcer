@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-26 (1251st filing) — `Pass 637.0` (`X001`) SHIPPED on `19df5115`; `Pass 646.10` (`X005`) scoped; decision 202
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here except `.claude/settings.json`, read from disk):**
+- `Pass 637.0`: `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.99.0 published to crates.io today, in that order, after the operator verified his crates.io email. Listings (engineer, from the crates.io API) show MIT, repository, keywords, categories; pkix verified against the just-published model. Commits `17aa278d` (filed at the 1243rd) and `19df5115` (settings: `cargo publish` moved deny to allow, `deny: []`; confirmed on disk). Blocked, unchanged, `publish = false`: image-codec, 3d, render, core. Release recipe extended: after the tag, publish color, model, pkix at the new version. Moved from Next up to Shipped.
+- `Pass 646.10` (`X005`): RGB into a CMYK blending space goes through pdfcer's own calibrated CMYK table. Scoped, in Next up.
+
+**Decisions made:** decision `202` (`docs/decisions/202-...`, ARCHITECTURE section 12): inverse of the calibrated table via `srgb_to_cmyk_with` with new `BlackGeneration::Medium` (15%); `rgb_to_cmyk` stays as fallback and in the overprint RGB-backdrop round trip; lazily built lookup grid per `CmykIntent`. Measured (engineer): Medium rows 13 141 194 / 184 90 47 / 137 109 103 against Acrobat 7 139 193 / 186 105 49 / 137 112 106; out-of-gamut row differs by about 15 in G, stated.
+
+**FEATURES.md:** "Engine crates on crates.io" Planned row reworded (three published); boxes unticked. Row 493 (Blend modes) is the one `646.10` will touch; unchanged now.
+
+**Sweep (rule 11), owed to the engineer, not edited:** `docs/NEXT_SESSION.md` line 26 ("`cargo publish --dry-run` is permission-denied") and any "publish pending" wording there are now false.
+
+**For next session:** ship `Pass 646.10`. Next free `Pass 646.11`, decision `203`, `R263`; next filing 1252nd.
+
 ## 2026-10-26 (1250th filing) — `Pass 646.9` (`X004`) SHIPPED on `da4331cd`
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

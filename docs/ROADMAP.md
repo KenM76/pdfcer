@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `19df5115` `Pass 637.0` SHIPPED, 2026-10-26: `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.99.0 published to crates.io (`X001`) (1251st filing)
+
+Engineer-reported; no shell here, nothing checked from here (crates.io not queried by the librarian). Code commits `17aa278d` (lifts `publish = false` for the three; filed at the 1243rd filing) and `19df5115` (`chore(settings)`: `.claude/settings.json` moves `Bash(cargo publish:*)` from deny to allow, `deny: []`; the operator lifted the block; read back from disk at this filing). Requester: the operator (crates consumer). Reasoning is in the commit messages.
+- **Published today (2026-10-26)**, after the operator verified his crates.io email, in dependency order: `pdfcer-color`, then `pdfcer-model`, then `pdfcer-pkix`, all at `0.99.0`. All three are live; listings read back from the crates.io API by the engineer show the MIT licence, repository `https://github.com/KenM76/pdfcer`, keywords and categories. `pdfcer-pkix` verified against the just-published `pdfcer-model` (no path resolution).
+- **Still blocked, unchanged; each keeps `publish = false`:** `pdfcer-image-codec` and `pdfcer-3d` (git dependency zune-jpeg, decision 197; stable 0.5.16 needed), `pdfcer-render` (git dependency icccer), `pdfcer-core` (depends by path on `pdfcer-image-codec`). No unblocking Pass is minted; the blockers are named in decisions 196 and 197.
+- **Acceptance 1-4 met; 5 met:** the release recipe line (in the `17aa278d` entry below) now also says: after the tag, `cargo publish` `pdfcer-color`, then `pdfcer-model`, then `pdfcer-pkix` at the new version, before the release is called done.
+- **Reply** (outside the repo): `reply_X001_crates_io_publishing_PUBLISHED.md`, superseding the BLOCKED_ON_TOKEN reply.
+- **Tests / invariants:** none; manifest and settings only (no code, no test counts, `cargo tree` invariant untouched).
+- **Delivers:** core/render engine: three leaf crates published; cli none; gui none.
+- **FEATURES:** the Planned row "Engine crates on crates.io" reworded (three published, four blocked); boxes stay unticked because the capability (core and render published) has not landed.
+- **Sweep (rule 11):** the claim "nothing is published to crates.io / publish pending the operator" changed meaning. Corrected: FEATURES row, the Next up banner and item. Dated history left alone: the `17aa278d` entry below, the v0.99.0 entries, the 1243rd-1250th session-log entries. Survivors owed (engineer-owned, not edited): `docs/NEXT_SESSION.md` if it still says the publish is pending or `cargo publish` is denied (lines 10 and 26 matched `crates.io`/`cargo publish`; line 26 says "`cargo publish --dry-run` is permission-denied; use `cargo package`", now false). Nothing minted; next free `Pass 646.11`, decision `203`, `R263`; next filing 1252nd.
+
 ### `da4331cd` `Pass 646.9` SHIPPED, 2026-10-26: `q`/`Q` inside a text object save and restore Tm/Tlm (`X004`) (1250th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Code commits `da4331cd` and `34d645dd` (the synthetic-italic disclosure text no longer says `q`/`Q` never saves Tm), on main, unreleased (since `v0.99.0`). Scoped at the 1249th filing (`e45e1310`), decision 201 (`docs/decisions/201-q-q-inside-bt-restores-text-matrices.md`). Requester: the operator (crates consumer). Reasoning is in the commit message.
@@ -203,7 +215,7 @@ Engineer-reported; no shell here, nothing checked from here. Code commit `0d1655
 Engineer-reported; no shell here, nothing checked from here. Code commit `17aa278d` (`chore(publish)`), on main, unpushed at filing. Request `X001` from the operator (crates consumer).
 - **Done:** `publish = true` for `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix`. **Nothing is on crates.io.** The operator runs `cargo publish` himself (project settings deny it to the agent): `pdfcer-color`, then `pdfcer-model`, then `pdfcer-pkix`.
 - **Status:** manifests ready, publish pending operator. `Pass 637.0` stays in *Next up* (see its Update note).
-- **Release recipe:** bump the `pdfcer-model` version in the root `Cargo.toml` `[workspace.dependencies]` on every release.
+- **Release recipe:** bump the `pdfcer-model` version in the root `Cargo.toml` `[workspace.dependencies]` on every release. **Extended at the 1251st filing:** after the tag, `cargo publish` `pdfcer-color`, then `pdfcer-model`, then `pdfcer-pkix` at the new version, before the release is called done.
 - **FEATURES:** "Engine crates on crates.io" Planned row reworded; boxes unticked. Sweep (rule 11): no counter or capability changed meaning; none owed.
 
 ### `c861eb80` `Pass 646.4` SCOPED and SHIPPED, 2026-10-26: marking a comparison is one undo entry (1242nd filing, `G229`)
@@ -24033,7 +24045,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **The `Pass 635.x` redaction-correctness track is COMPLETE (`635.2` SHIPPED in the 1211th filing, see *Shipped*). The only Next up item is `Pass 637.0` below, BLOCKED on an operator-supplied crates.io token.** Next free `Pass 639.0`; decision `199`, `R263`; next filing 1217th.
+> **The only Next up item is `Pass 646.10` below (`X005`, scoped, decision 202).** `Pass 637.0` (crates.io) SHIPPED in the 1251st filing; its Next up item is removed. Next free `Pass 646.11`, decision `203`, `R263`; next filing 1252nd.
+
+(1251st filing: `Pass 637.0` (`X001`) SHIPPED, `pdfcer-color`/`-model`/`-pkix` 0.99.0 live on crates.io, settings commit `19df5115`, see *Shipped*. `Pass 646.10` (`X005`, RGB into a CMYK blending space) scoped; decision `202` minted. Next free `Pass 646.11`, decision `203`, `R263`; next filing 1252nd. Unreleased since `v0.99.0`; crates.io lags the tag by nothing (published at 0.99.0).)
 
 (1250th filing: `Pass 646.9` (`X004`) SHIPPED on `da4331cd`, see *Shipped*; its Next up item is removed. Nothing minted; next free `Pass 646.10`, decision `202`, `R263`; next filing 1251st. Unreleased since `v0.99.0`.)
 
@@ -34808,29 +34822,28 @@ overrides the image dictionary; `/ColorSpace` optional,
 `/ColorSpace`/`/BitsPerComponent` that Table 89 makes optional
 (decision 005 §10 item 3).
 
-### Pass 637.0 — publish the engine crates to crates.io (`X001`) — manifests ready (`17aa278d`), PUBLISH PENDING: the operator runs `cargo publish`
+### Pass 646.10 — an additive colour painted into a CMYK blending space goes through the calibrated CMYK table (`X005`) — SCOPED, decision 202
 
-**Source:** `D:/Dev/FeatureRequests/pdfce_FeatureRequests/open/request_X001_publish_engine_crates_to_crates_io.md` (operator, as a crates consumer, 2026-10-23). Key `X001`: `X###` is a **third request counter**, minted by an external crates consumer, beside `G###` (the `pdfcer-gui` shell) and `E###` (the engine). Filed at the 1214th filing. The operator has approved publishing.
+**Source:** `D:/Dev/FeatureRequests/pdfce_FeatureRequests/open/request_X005_rgb_paint_into_a_cmyk_blending_space_goes_through_the_profile.md` (operator, as a crates consumer). Filed at the 1251st filing. Engineer-measured figures below; the librarian re-measured nothing.
 
-**Ask:** publish every crate that can be published now, in dependency order, and report what is still blocked.
+**Defect.** An additive colour (DeviceRGB, ICC RGB, CalRGB, Lab) entering a DeviceCMYK blending space is converted by the max-GCR `rgb_to_cmyk` formula (k = 1 - max(r,g,b)); Acrobat goes through its CMYK profile. Under a blend mode this shows: with `/BM /Difference` over pure K, 50% grey renders near-black (22 18 21) in pdfcer against 137 112 106 in Acrobat.
 
-**Acceptance (the request's five items):**
-1. `publish = false` is lifted only for the crates being published; crates that cannot be packaged yet keep it. (Today the root `Cargo.toml` sets `publish = false` workspace-wide and members inherit it via `publish.workspace = true`, so lifting is per crate.)
-2. Each published crate is visible on crates.io at the workspace version, and its listing carries the MIT licence, repository, README, keywords and categories.
-3. Before each publish, `cargo package` verifies the crate against the registry as published at that moment (no path-only resolution).
-4. The reply names each crate as published (with version) or blocked (with the blocker, e.g. a git dependency, or a public API that exposes an unpublished crate), and for each blocked crate the work needed to unblock it.
-5. The release recipe gains a step to publish the bumped versions on every release, so crates.io does not lag the tags. The `pdfcer-model` version pin in `[workspace.dependencies]` must be bumped with every release.
+**Decision 202** (`docs/decisions/202-rgb-into-a-cmyk-blending-space-uses-the-calibrated-table-inverse.md`). When no output-intent profile manages the conversion (the icccer ink/PCS bridges still run first when one does), the CMYK compositing buffer receives the inverse of pdfcer's OWN calibrated CMYK to sRGB table, the one it displays the buffer through, via the existing `pdfcer_color::color::srgb_to_cmyk_with` (`Pass 617.8`), with a new black-generation choice `BlackGeneration::Medium`: K at a fixed 15% of the way from the least to the most black that draws the colour. Stays inside decision 064: it is the inverse of pdfcer's own table (`pdfcer-color`), not ICC conversion.
+- **Measured with the existing solver:** Least gives grey 159 128 121; Most gives 12 9 14; Medium(15%) gives rows 13 141 194 / 184 90 47 / 137 109 103 against Acrobat 7 139 193 / 186 105 49 / 137 112 106.
+- **Stated deviation, not a defect:** row 2 (0.2 0.6 0.9) is out of gamut. pdfcer clips by least squares in sRGB; Acrobat by its profile's gamut mapping; the G channel differs by about 15.
+- **`rgb_to_cmyk` stays:** (1) as the fallback; (2) in `overprint.rs`'s RGB-backdrop round trip (`snapshot_srgb_backdrop` and `composite_srgb`), which needs its exact inverse `cmyk_to_rgb` and must not change.
+- **Performance:** the solver is too slow per pixel, so the render side uses a lazily built RGB to CMYK lookup grid per `CmykIntent`.
 
-**State (engineer-measured 2026-10-23, not re-checked by the librarian):**
-- crates.io names `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix`, `pdfcer-core` are all unclaimed.
-- **No cargo registry credentials on this machine: BLOCKED until the operator supplies a crates.io API token (`cargo login`).**
-- `pdfcer-color` and `pdfcer-model` are package-ready (`Pass 618.1`, `82e83a06`). `pdfcer-pkix` verifies only after `pdfcer-model` is on the registry (decision 196).
-- Blocked by git dependencies: `pdfcer-render` (icccer via git); `pdfcer-image-codec` and `pdfcer-3d` (zune-jpeg git rev `c1c7f497`, decision 197; stable 0.5.16 needed). `pdfcer-core` depends by path on `pdfcer-image-codec` (`crates/pdfcer-core/Cargo.toml` line 170), so it is blocked transitively until image-codec is unblocked. Its other path dependencies (fonts, text, function) are not yet checked for packageability.
-- Expected order once the token exists: `pdfcer-color`, `pdfcer-model`, then `pdfcer-pkix`; the rest per the blockers above.
+**Acceptance (from the request):**
+1. The three rows above land within a few levels of Acrobat; the grey must not go near-black.
+2. A plain in-gamut RGB colour on a CMYK page group round-trips within a few levels, and 50% grey stays neutral.
+3. The bridged-pixel counter (`cmyk_bridged_pixels`) still counts these pixels.
+4. `overprint.rs`'s RGB-backdrop round trip is byte-identical to before.
+5. A test per route sabotage-verified: it fails with the new conversion disabled.
 
-**Update, 1243rd filing (engineer-reported; no shell here, nothing checked from here):** commit `17aa278d` (`chore(publish)`, on main, unpushed at filing) lifts `publish = false` for `pdfcer-color`, `pdfcer-model` and `pdfcer-pkix` only. **NOTHING IS PUBLISHED to crates.io.** The operator must run `cargo publish` himself (project settings deny it to the agent), in the order `pdfcer-color`, then `pdfcer-model`, then `pdfcer-pkix`. Recorded as "manifests ready, publish pending operator", not as published. Acceptance items 2-4 stay open until he has; item 5 (release recipe) is partly met: bump the `pdfcer-model` version in the root `Cargo.toml` `[workspace.dependencies]` on every release. `pdfcer-core`, `pdfcer-render`, `pdfcer-image-codec`, `pdfcer-3d` keep `publish = false` (blockers above unchanged).
+**Delivers (planned):** core and render engine only; cli = `render-page` already exists; gui unchanged (inherits through render). FEATURES row 493 (Blend modes) is the row it touches; boxes do not move until it ships.
 
-**Status:** Next up, publish pending the operator. FEATURES.md: row "Engine crates on crates.io" in *Planned*, all boxes unticked (nothing is published).
+**Status:** Next up, not started.
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 

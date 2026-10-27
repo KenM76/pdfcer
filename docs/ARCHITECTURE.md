@@ -13546,3 +13546,13 @@ Full record: `docs/decisions/201-q-q-inside-bt-restores-text-matrices.md`. Recor
 **Why.** ISO 32000-2:2020 errata (`pdf-issues` #368) append this to section 9.4.1. The text is 2.0-only, but `q`/`Q` inside BT is forbidden in 1.x (section 8.2), so conforming 1.x files never reach it; non-conforming ones restore in Acrobat Reader and Chrome, so there is no second answer to offer as a setting.
 
 **Body-section effect.** None. **Decision ceiling.** Fills `201`; next free decision `202`. **New standing rule.** None; `R263` stays next free.
+
+### 2026-10-26 (1251st filing) — decision 202: RGB into a CMYK blending space uses the inverse of pdfcer's own calibrated CMYK table
+
+Full record: `docs/decisions/202-rgb-into-a-cmyk-blending-space-uses-the-calibrated-table-inverse.md`. Recorded at `Pass 646.10` (`X005`), scoped, not yet shipped.
+
+**Decides.** With no output-intent profile managing the conversion, an additive colour entering a DeviceCMYK blending space goes through `pdfcer_color::color::srgb_to_cmyk_with` (`Pass 617.8`), the inverse of the table the buffer is displayed through, with new `BlackGeneration::Medium` (K at 15% of the way from least to most black). `rgb_to_cmyk` stays as the fallback and in `overprint.rs`'s RGB-backdrop round trip. Render side: a lazily built RGB to CMYK grid per `CmykIntent`.
+
+**Why.** Max-GCR renders 50% grey under `/BM /Difference` over pure K as 22 18 21 against Acrobat's 137 112 106; Medium(15%) lands the three request rows within a few levels (G differs by about 15 on the out-of-gamut row, stated). Inside decision 064: pdfcer's own table, not ICC conversion.
+
+**Body-section effect.** None. **Decision ceiling.** Fills `202`; next free decision `203`. **New standing rule.** None; `R263` stays next free.

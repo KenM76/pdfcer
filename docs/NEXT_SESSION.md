@@ -5,9 +5,9 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**Written:** 2026-10-26. **Work resumed** ("Continue", 2026-10-26). An active loop is running, `/loop 8 minutes Check feature requests folder and implement any changes.`, re-armed with ScheduleWakeup. **v0.99.0 is the latest release** (tag on `14cc5ee6`, slot pdfcer2, GUI noticed in `open/notice_2026-10-26_v0.99.0_released.md`). It ships Passes 646.2–646.8 and 637.0. **The next release writes pdfcer1.** Pass 646.9 (X004, q inside BT restores Tm/Tlm, decision 201) is on `main` after v0.99.0, unreleased. Next filing is the 1251st, next Pass 646.10, decision 202, R263. Decision 191 governs the size-reduction arc.
+**Written:** 2026-10-26. **Work resumed** ("Continue", 2026-10-26). An active loop is running, `/loop 8 minutes Check feature requests folder and implement any changes.`, re-armed with ScheduleWakeup. **v0.99.0 is the latest release** (tag on `14cc5ee6`, slot pdfcer2, GUI noticed in `open/notice_2026-10-26_v0.99.0_released.md`). It ships Passes 646.2–646.8 and 637.0. **The next release writes pdfcer1.** Pass 646.9 (X004, q inside BT restores Tm/Tlm, decision 201) is on `main` after v0.99.0, unreleased. Next filing is the 1252nd, next Pass 646.11, decision 203, R263. Decision 191 governs the size-reduction arc.
 
-**Owed: crates.io publish.** Ken authorized it ("you can now publish to crates.io"), and lifted the block ("Lift the block on publishing commands"): `.claude/settings.json` now allows `Bash(cargo publish:*)` with an empty deny list, edited but NOT yet committed. The first `cargo publish -p pdfcer-color` failed with HTTP 400: crates.io requires a verified email (crates.io/settings/profile); Ken was told. Once verified, publish pdfcer-color, then pdfcer-model, then pdfcer-pkix, then commit `.claude/settings.json` and have it filed. After the publish, write the X001 reply to the crates consumer.
+**crates.io: pdfcer-color, pdfcer-model and pdfcer-pkix 0.99.0 are published** (Pass 637.0, settings `19df5115`, X001 replied `reply_X001_crates_io_publishing_PUBLISHED.md`). Every release now publishes them after the tag, in that order (ROADMAP release recipe). **In flight: Pass 646.10 (X005, decision 202)** — RGB into a DeviceCMYK blending space goes through the inverse of the calibrated table with `BlackGeneration::Medium`.
 
 ## State
 
@@ -23,7 +23,7 @@ failure classes, probe recipes, release recipe detail) is in git:
   0.5.16 still blocks any crates.io publish. `tools/*/Cargo.lock` were refreshed
   to the git rc3 graph (0145632a); refresh them again after any engine dependency change.** pkix full verify waits for model on a registry; decision 196 split precedes
   pkix's first publish. Never flip `publish = true` (Ken's call).
-  `cargo publish --dry-run` is permission-denied; use `cargo package`.
+  `cargo publish` is allowed for the agent (`19df5115`).
 - **Prepress readers (Pass 631.0) shipped and replied to** (`reply_document_uses_overprint_FIXED.md`, `reply_detect_pdfx_claim_FIXED.md`): `prepress::overprint_use`, `pdfx_claim`, `pdfx_output_intents`; `inspect` prints them. Open: which reading Acrobat's "Only for PDF/X files" uses (intent alone or a claim), unmeasured.
 - **Inserted/pasted pages carry their form fields (Pass 102.1, `3f180dd3`, filed `56105737`)**:
   wholly covered fields carried, partly covered groups pruned, split terminals counted
