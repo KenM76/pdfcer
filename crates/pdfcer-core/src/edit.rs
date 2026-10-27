@@ -59577,8 +59577,8 @@ pub struct ImageAuthorDisclosures {
     /// A 32-bit BMP's fourth byte per pixel was ignored (it is padding, not
     /// alpha).
     pub bmp_fourth_byte_ignored: bool,
-    /// A BMP pixel offset pointing inside the headers was replaced by a
-    /// computed one, `(declared, used)`. See
+    /// A BMP pixel offset pointing inside the headers, or at their end ahead
+    /// of a colour table or masks, was replaced by a computed one, `(declared, used)`. See
     /// [`ImportNotes::bmp_pixel_offset_repaired`](crate::image_import::ImportNotes::bmp_pixel_offset_repaired).
     pub bmp_pixel_offset_repaired: Option<(u32, u32)>,
     /// The image uses a feature newer than the document's declared version,

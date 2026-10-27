@@ -48,10 +48,11 @@
 //! `BITMAPV4HEADER`'s `bV4AlphaMask` — both of which this reader refuses by
 //! name rather than half-supports.)
 //!
-//! **A pixel offset of zero.** Some producers write `bfOffBits = 0`. Any
-//! declared offset short of the end of the headers is replaced by the
-//! computed one (headers, bit masks, colour table) when the pixel array fits
-//! after it, and disclosed as
+//! **A pixel offset of zero.** Some producers write `bfOffBits = 0`, or the
+//! header size alone with the colour table forgotten. Any declared offset at
+//! or short of the end of the headers is replaced by the computed one
+//! (headers, bit masks, colour table) when the pixel array fits after it,
+//! and disclosed as
 //! [`ImportNotes::bmp_pixel_offset_repaired`](super::ImportNotes::bmp_pixel_offset_repaired).
 //!
 //! ## What is refused, by name
@@ -259,18 +260,23 @@ fn colour_space(data: &[u8], h: &Header) -> Result<(ImportColorSpace, u32, u32),
     }
 }
 
-/// The pixel array's offset when the declared `bfOffBits` points inside the
-/// headers, or `None` to keep the declared one.
+/// The pixel array's offset when the declared `bfOffBits` points inside or
+/// exactly at the end of the headers, or `None` to keep the declared one.
+///
+/// An offset strictly past the header end is used as given, even inside the
+/// table or masks: a file whose `biClrUsed` overstates its table can still
+/// point at its real pixels.
 ///
 /// The computed offset is the end of the headers, plus the
 /// `BI_BITFIELDS` (12) or `BI_ALPHABITFIELDS` (16) masks a 40-byte header
 /// leaves outside itself, plus the colour table (`biClrUsed` entries, or
 /// `1 << bpp` at 1, 4 and 8 bits when it is 0; 4 bytes each, 3 after a
 /// 12-byte core header). It is used only when the whole pixel array fits
-/// after it.
+/// after it, and differs from the declared one.
 fn repaired_pixel_offset(h: &Header, pixel_bytes: usize, file_len: usize) -> Option<u32> {
     let headers_end = h.header_size.checked_add(14)?;
-    if usize::try_from(h.pixel_offset).ok()? >= headers_end {
+    let declared = usize::try_from(h.pixel_offset).ok()?;
+    if declared > headers_end {
         return None;
     }
     let masks = match (h.header_size, h.compression) {
@@ -286,7 +292,7 @@ fn repaired_pixel_offset(h: &Header, pixel_bytes: usize, file_len: usize) -> Opt
     let computed = headers_end
         .checked_add(masks)?
         .checked_add(entries.checked_mul(entry_size)?)?;
-    if computed.checked_add(pixel_bytes)? > file_len {
+    if computed == declared || computed.checked_add(pixel_bytes)? > file_len {
         return None;
     }
     u32::try_from(computed).ok()
@@ -580,6 +586,35 @@ mod tests {
                 Some((declared, 54))
             );
         }
+    }
+
+    #[test]
+    fn an_offset_at_the_header_end_skips_a_following_table() {
+        let palette = vec![0, 0, 0, 0, 0, 0, 255, 0];
+        let intact = bmp(2, 1, 8, &[vec![1, 0]], &palette, 0);
+        let file = with_offset(intact.clone(), 54);
+        assert_eq!(samples(&file), samples(&intact));
+        assert_eq!(
+            import(&file).unwrap().notes.bmp_pixel_offset_repaired,
+            Some((54, 62))
+        );
+        // Inside the table: used as given.
+        let inside = with_offset(intact, 58);
+        assert_eq!(
+            import(&inside).unwrap().notes.bmp_pixel_offset_repaired,
+            None
+        );
+        // Nothing follows the header: the declared offset is already right.
+        assert_eq!(
+            import(&with_offset(red_blue(), 54))
+                .unwrap()
+                .notes
+                .bmp_pixel_offset_repaired,
+            None
+        );
+        let mut masks = header(40, 32, 3, 0);
+        masks.pixel_offset = 54;
+        assert_eq!(repaired_pixel_offset(&masks, 4, 1000), Some(66));
     }
 
     #[test]

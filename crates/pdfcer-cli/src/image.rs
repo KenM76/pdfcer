@@ -455,7 +455,7 @@ fn report_source_disclosures(name: &str, d: &pdfcer_core::edit::ImageAuthorDiscl
     }
     if let Some((from, to)) = d.bmp_pixel_offset_repaired {
         eprintln!(
-            "pdfcer: {name}: this BMP's header puts its pixels at byte {from}, inside the header itself. pdfcer read them from byte {to}, where the header and colour table end."
+            "pdfcer: {name}: this BMP's header puts its pixels at byte {from}, inside or at the end of the header itself. pdfcer read them from byte {to}, where the header and colour table end."
         );
     }
     if let Some((feature, doc)) = d.version_ahead_of_document {

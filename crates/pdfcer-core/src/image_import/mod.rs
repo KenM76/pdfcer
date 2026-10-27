@@ -974,11 +974,12 @@ pub struct ImportNotes {
     /// it as opacity would make such an image entirely invisible, which is
     /// the single most spectacular way to get BMP wrong.
     pub bmp_fourth_byte_ignored: bool,
-    /// A BMP's `bfOffBits` pointed inside its own headers, so pdfcer read the
-    /// pixels from where the headers, bit masks and colour table end:
+    /// A BMP's `bfOffBits` pointed inside its own headers, or exactly at
+    /// their end with a colour table or bit masks following, so pdfcer read
+    /// the pixels from where the headers, bit masks and colour table end:
     /// `(declared, used)`, byte offsets into the file.
     ///
-    /// Some producers write 0 there. Trusting it reads the `BM` signature and
+    /// Some producers write 0 there, or the header size alone. Trusting it reads the `BM` signature and
     /// the headers as pixels, shifting and wrapping the picture. The computed
     /// offset is used only when the whole pixel array fits after it.
     pub bmp_pixel_offset_repaired: Option<(u32, u32)>,
