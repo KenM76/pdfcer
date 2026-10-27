@@ -8,13 +8,24 @@ pub(crate) fn cmd_bake_appearances(
     input: &Path,
     output: &Path,
     mode: SaveMode,
-    free_text_c: crate::viewer_preview::FreeTextCArg,
+    free_text_c: Option<crate::viewer_preview::FreeTextCArg>,
 ) -> u8 {
     let (source, mut session) = match open_for_edit(input) {
         Ok(pair) => pair,
         Err(code) => return code,
     };
-    let outcome = match session.bake_missing_appearances(free_text_c.into()) {
+    // R169: the flag wins; otherwise the persisted choice, so a bake and
+    // the render beside it read `/C` the same way.
+    let free_text_c = match free_text_c {
+        Some(arg) => arg.into(),
+        None => {
+            let (settings, report) =
+                pdfcer_core::settings::Settings::load(pdfcer_core::settings::resolve_store());
+            report_settings(&report);
+            settings.free_text_c
+        }
+    };
+    let outcome = match session.bake_missing_appearances(free_text_c) {
         Ok(o) => o,
         Err(err) => return report_edit_error(input, &err),
     };

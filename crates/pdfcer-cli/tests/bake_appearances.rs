@@ -22,6 +22,25 @@ fn fixture(tag: &str) -> PathBuf {
         "<< /Type /Annot /Subtype /FreeText /Contents (Hi) /DA (/Helv 12 Tf 0 g) \
          /Rect [40 40 260 120] >>",
     ];
+    write_pdf(tag, &bodies)
+}
+
+/// One page holding one `/AP`-less FreeText whose `/C` is red and which
+/// has no `/IC`, so fill and border bake differently.
+fn coloured_free_text(tag: &str) -> PathBuf {
+    write_pdf(
+        tag,
+        &[
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Annots [4 0 R] >>",
+            "<< /Type /Annot /Subtype /FreeText /C [1 0 0] /Contents (Hi) \
+             /DA (/Helv 12 Tf 0 g) /Rect [40 40 260 120] >>",
+        ],
+    )
+}
+
+fn write_pdf(tag: &str, bodies: &[&str]) -> PathBuf {
     let mut buf = b"%PDF-1.7\n".to_vec();
     let mut offsets = Vec::new();
     for (i, body) in bodies.iter().enumerate() {
@@ -78,4 +97,36 @@ fn bakes_what_it_can_and_names_what_it_skipped() {
     for f in [input, output] {
         let _ = std::fs::remove_file(f);
     }
+}
+
+/// Without `--free-text-c` the settings file's `free_text_c` decides, and
+/// the flag overrides it. Runs a copy of the binary from its own folder so
+/// the portable `userdata/settings.txt` beside it is this test's alone.
+#[test]
+fn free_text_c_falls_back_to_the_settings_file() {
+    let input = coloured_free_text("setting");
+    let dir = std::env::temp_dir().join(format!("pdfcer_bake_free_text_c_{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("userdata")).unwrap();
+    let exe = dir.join(std::path::Path::new(BIN).file_name().unwrap());
+    std::fs::copy(BIN, &exe).unwrap();
+    let bake = |name: &str, flag: Option<&str>| {
+        let output = dir.join(name);
+        let mut cmd = Command::new(&exe);
+        cmd.arg("bake-appearances").arg(&input);
+        if let Some(c) = flag {
+            cmd.args(["--free-text-c", c]);
+        }
+        let out = cmd.arg("-o").arg(&output).output().unwrap();
+        assert!(out.status.success(), "{out:?}");
+        std::fs::read(output).unwrap()
+    };
+    let fill = bake("fill.pdf", Some("fill"));
+    let border = bake("border.pdf", Some("border"));
+    assert_ne!(fill, border, "the fixture must tell the two apart");
+    assert_eq!(bake("unset.pdf", None), fill, "no setting: fill");
+    std::fs::write(dir.join("userdata/settings.txt"), "free_text_c = border\n").unwrap();
+    assert_eq!(bake("set.pdf", None), border, "the setting is read");
+    assert_eq!(bake("flag.pdf", Some("fill")), fill, "the flag wins");
+    let _ = std::fs::remove_dir_all(&dir);
+    let _ = std::fs::remove_file(input);
 }

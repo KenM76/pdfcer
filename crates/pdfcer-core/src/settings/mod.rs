@@ -1340,6 +1340,8 @@ pub enum WidgetTabTail {
 
 pub use crate::writer::{EditedStreamCompression, TrailingEol, XrefEntryEol};
 
+pub use crate::annot_author::FreeTextC;
+
 /// The operator's persisted choices.
 ///
 /// Deliberately a flat struct of plain values. Grouping into
@@ -1547,6 +1549,12 @@ pub struct Settings {
     /// Whether an edited stream that was `/FlateDecode` is compressed again
     /// on save. Key `edited_stream_compression`.
     pub edited_stream_compression: EditedStreamCompression,
+    /// What a FreeText annotation's `/C` paints when it has no `/AP` and
+    /// no `/IC`: ISO 32000-1 §12.5.6.6 does not say whether `/C` is the
+    /// box fill or the border. Read by the renderer's geometry drawing
+    /// and by `EditSession::bake_missing_appearances`, so both agree. Key
+    /// `free_text_c`.
+    pub free_text_c: FreeTextC,
 }
 
 impl Default for Settings {
@@ -1617,6 +1625,7 @@ impl Default for Settings {
             trailing_eol: crate::writer::SaveOptions::default().trailing_eol,
             edited_stream_compression: crate::writer::SaveOptions::default()
                 .edited_stream_compression,
+            free_text_c: FreeTextC::default(),
         }
     }
 }
@@ -1937,6 +1946,14 @@ const fn missing_as_token(policy: MissingAppearanceState) -> &'static str {
 
 /// The settings-file token for a cross-reference entry terminator. See
 /// [`separation_token`].
+/// The settings-file token for a [`FreeTextC`].
+const fn free_text_c_token(c: FreeTextC) -> &'static str {
+    match c {
+        FreeTextC::Fill => "fill",
+        FreeTextC::Border => "border",
+    }
+}
+
 /// The settings-file token for a [`QuadPointOrder`].
 const fn quad_point_order_token(order: QuadPointOrder) -> &'static str {
     match order {
@@ -2300,6 +2317,16 @@ impl Settings {
                     value: value.to_owned(),
                     line,
                     using: actual_text_token(Self::default().actual_text).to_owned(),
+                }),
+            },
+            "free_text_c" => match value {
+                "fill" => self.free_text_c = FreeTextC::Fill,
+                "border" => self.free_text_c = FreeTextC::Border,
+                _ => notes.push(SettingNote::BadValue {
+                    key: key.to_owned(),
+                    value: value.to_owned(),
+                    line,
+                    using: free_text_c_token(Self::default().free_text_c).to_owned(),
                 }),
             },
             "missing_as" => match value {
@@ -2804,6 +2831,20 @@ impl Settings {
         let _ = writeln!(out, "missing_as = {}\n", missing_as_token(self.missing_as));
 
         out.push_str(
+            "# What a text box's colour paints when the file stores no appearance\n\
+             # for it and no interior colour (section 12.5.6.6 does not say).\n\
+             #   fill   = the colour fills the box, as Acrobat reads it (default)\n\
+             #   border = the colour draws the outline, as pdfcer writes its own\n\
+             #            text boxes\n\
+             # Used both on screen and when appearances are stored in the file.\n",
+        );
+        let _ = writeln!(
+            out,
+            "free_text_c = {}\n",
+            free_text_c_token(self.free_text_c)
+        );
+
+        out.push_str(
             "# Two invisible bookkeeping bytes at the end of every line of a saved\n\
              # file's index table. The standard permits exactly these three and no\n\
              # others (section 7.5.4). Nothing on screen changes; only the saved\n\
@@ -3283,6 +3324,7 @@ mod tests {
             Settings::default().missing_as,
             MissingAppearanceState::default()
         );
+        assert_eq!(Settings::default().free_text_c, FreeTextC::default());
     }
 
     #[test]
@@ -3455,6 +3497,8 @@ mod tests {
             xref_entry_eol: XrefEntryEol::CrLf,
             trailing_eol: TrailingEol::None,
             edited_stream_compression: EditedStreamCompression::AsAuthored,
+            // NOT the default (`Fill`), same reason.
+            free_text_c: FreeTextC::Border,
             // NOT the default (`None`), and deliberately a value that is a
             // whole number of GiB so the friendly writer's suffix branch is
             // the one exercised — a round trip that only ever went through

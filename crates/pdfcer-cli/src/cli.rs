@@ -5238,12 +5238,12 @@ pub(crate) enum Command {
         #[arg(long, value_enum, default_value_t)]
         markup_without_ap: crate::viewer_preview::MarkupWithoutApArg,
         /// What a text box's colour paints when it has no stored appearance
-        /// and no interior colour: fill (the default, as Acrobat reads it)
-        /// fills the box; border draws the outline, as pdfcer writes its
-        /// own text boxes. The standard does not say. The file is not
-        /// changed.
-        #[arg(long, value_enum, default_value_t)]
-        free_text_c: crate::viewer_preview::FreeTextCArg,
+        /// and no interior colour: fill (as Acrobat reads it) fills the box;
+        /// border draws the outline, as pdfcer writes its own text boxes.
+        /// The standard does not say. Without the flag, the settings file's
+        /// `free_text_c` is used (fill if unset). The file is not changed.
+        #[arg(long, value_enum)]
+        free_text_c: Option<crate::viewer_preview::FreeTextCArg>,
         /// What to show for a form field with no stored appearance: `draw`
         /// draws it from its value and field settings; `blank` leaves it
         /// out. The file is not changed.
@@ -5414,12 +5414,12 @@ pub(crate) enum Command {
         #[arg(long, value_enum, default_value_t)]
         markup_without_ap: crate::viewer_preview::MarkupWithoutApArg,
         /// What a text box's colour paints when it has no stored appearance
-        /// and no interior colour: fill (the default, as Acrobat reads it)
-        /// fills the box; border draws the outline, as pdfcer writes its
-        /// own text boxes. The standard does not say. The file is not
-        /// changed.
-        #[arg(long, value_enum, default_value_t)]
-        free_text_c: crate::viewer_preview::FreeTextCArg,
+        /// and no interior colour: fill (as Acrobat reads it) fills the box;
+        /// border draws the outline, as pdfcer writes its own text boxes.
+        /// The standard does not say. Without the flag, the settings file's
+        /// `free_text_c` is used (fill if unset). The file is not changed.
+        #[arg(long, value_enum)]
+        free_text_c: Option<crate::viewer_preview::FreeTextCArg>,
         /// What to show for a form field with no stored appearance: `draw`
         /// draws it from its value and field settings; `blank` leaves it
         /// out. The file is not changed.
@@ -9135,11 +9135,12 @@ pub(crate) enum Command {
         #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
         mode: SaveMode,
         /// What a text box's colour paints when it has no interior colour:
-        /// fill (the default, as Acrobat reads it) fills the box; border
-        /// draws the outline. The standard does not say; the choice is
-        /// written into the file.
-        #[arg(long, value_enum, default_value_t)]
-        free_text_c: crate::viewer_preview::FreeTextCArg,
+        /// fill (as Acrobat reads it) fills the box; border draws the
+        /// outline. The standard does not say; the choice is written into
+        /// the file. Without the flag, the settings file's `free_text_c` is
+        /// used (fill if unset).
+        #[arg(long, value_enum)]
+        free_text_c: Option<crate::viewer_preview::FreeTextCArg>,
     },
 
     /// Flatten interactive form fields into page content (Pass 7.1).

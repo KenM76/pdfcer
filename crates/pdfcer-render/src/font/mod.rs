@@ -1689,6 +1689,7 @@ mod render_policy_tests {
         assert_eq!(settings.image_minify, options.image_minify);
         assert_eq!(settings.cmyk_jpeg_polarity, options.cmyk_jpeg_polarity);
         assert_eq!(settings.missing_as, options.missing_as);
+        assert_eq!(settings.free_text_c, options.free_text_c);
     }
 
     #[test]

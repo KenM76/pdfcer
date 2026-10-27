@@ -4152,6 +4152,7 @@ line numbers re-measured 2026-08-25:
 | `QuadPointOrder` | the two orderings real producers write for `/QuadPoints` |
 | `XrefEntryEol` | the two-byte end-of-line a classic xref entry uses |
 | `TrailingEol` | whether a saved file ends with a newline |
+| `FreeTextC` | §12.5.6.6 — whether a FreeText's `/C` is the box fill or the border when there is no `/IC`. Key `free_text_c` (`fill` default, `border`); pass it to `RenderOptions::with_free_text_c` and `EditSession::bake_missing_appearances` so render and bake agree |
 
 ★ **Two of these were missing from this list before 2026-08-25**, and the
 shape of the omission is worth more than the correction: the list was written

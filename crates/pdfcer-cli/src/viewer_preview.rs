@@ -57,7 +57,8 @@ pub(crate) struct ViewerPreview {
     overprint: OverprintPreview,
     separation: Option<SeparationPreview>,
     markup: MarkupWithoutAp,
-    free_text_c: FreeTextC,
+    /// `None`: the settings file's `free_text_c`, already on the options.
+    free_text_c: Option<FreeTextC>,
     widgets: WidgetsWithoutAp,
 }
 
@@ -107,20 +108,23 @@ impl ViewerPreview {
         self
     }
 
-    /// This preview with `--free-text-c` applied.
-    pub(crate) fn with_free_text_c(mut self, arg: FreeTextCArg) -> Self {
-        self.free_text_c = arg.into();
+    /// This preview with `--free-text-c` applied, when it was given.
+    pub(crate) fn with_free_text_c(mut self, arg: Option<FreeTextCArg>) -> Self {
+        self.free_text_c = arg.map(Into::into);
         self
     }
 
     /// `options` with this preview applied.
     pub(crate) fn apply(self, options: RenderOptions) -> RenderOptions {
-        options
+        let options = options
             .with_overprint_preview(self.overprint)
             .with_separation_preview(self.separation)
             .with_markup_without_ap(self.markup)
-            .with_free_text_c(self.free_text_c)
-            .with_widgets_without_ap(self.widgets)
+            .with_widgets_without_ap(self.widgets);
+        match self.free_text_c {
+            Some(c) => options.with_free_text_c(c),
+            None => options,
+        }
     }
 }
 

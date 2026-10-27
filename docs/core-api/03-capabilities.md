@@ -737,7 +737,7 @@ disclosures, each named in the annotation's note:
 | item | contract |
 |---|---|
 | `pdfcer_render::FreeTextC` | re-export of `pdfcer_core::annot_author::FreeTextC`; `#[non_exhaustive]` enum, `Fill` (default, Acrobat's reading: `/C` fills the box, no border) or `Border` (pdfcer's own convention: `/C` strokes the border). Consulted only when there is no `/IC`; with `/IC`, `/C` is always the border. ISO 32000 defines no FreeText fill key. Note: `/C read as the fill colour`, plus `border not drawn: no key states its colour` when `/BS` is present. |
-| `RenderOptions::with_free_text_c(mode)` | `const fn`, carried into `RenderPolicy::free_text_c`. CLI `--free-text-c fill` or `border` on `render-page` and `export-image`. |
+| `RenderOptions::with_free_text_c(mode)` | `const fn`, carried into `RenderPolicy::free_text_c`. The persisted choice is `Settings::free_text_c` (key `free_text_c`). CLI `--free-text-c fill` or `border` on `render-page` and `export-image`; without the flag the CLI uses the setting. |
 | font | the `/DA` font name resolved through the AcroForm `/DR /Font` (§12.7.3.3) to a standard-14 `/BaseFont`; anything else draws in Helvetica, noted `font /<name> … drawn in Helvetica`. |
 | other notes | `/RC` present: rich-text styling not reproduced; `0 Tf`: the chosen size; characters outside WinAnsi drawn as `?`. |
 

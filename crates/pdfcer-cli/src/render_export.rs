@@ -252,17 +252,19 @@ pub(crate) fn resolve_render_options(
         // The clause states the rule for a VERTEX and the patch clauses
         // point back at it without redefining the unit, in both editions.
         .with_mesh_patch_padding(settings.mesh_patch_padding)
-        // The other four R169 rendering knobs, all spec silences the
+        // The other R169 rendering knobs, all spec silences the
         // standard declines to fill: the mask resampling filter
         // (`SM-A1`, §8.9.6.3), the minification filter (`IM-A1`,
         // §8.9.5.3), the CMYK-JPEG polarity rule (`DCT-A1`, §7.4.8) and
-        // the missing-`/AS` policy (`AS-A1`, §12.5.5). Every default is
+        // the missing-`/AS` policy (`AS-A1`, §12.5.5), plus FreeText `/C`
+        // (§12.5.6.6). Every default is
         // the behaviour pdfcer shipped before the setting existed, so a
         // machine with no settings file renders exactly as it always did.
         .with_mask_resample(settings.mask_resample)
         .with_image_minify(settings.image_minify)
         .with_cmyk_jpeg_polarity(settings.cmyk_jpeg_polarity)
-        .with_missing_as(settings.missing_as);
+        .with_missing_as(settings.missing_as)
+        .with_free_text_c(settings.free_text_c);
     render_options.fonts = font_env;
     // `--fast-subpixel`. Assigned rather than set through a builder for
     // the reason `RenderOptions`'s own docs give: the type is
