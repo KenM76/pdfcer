@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-27 (1267th filing) — addendum: fuzz-target follow-up `b3b9023a` to `Pass 646.19`
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- Addendum citing `b3b9023a` "fix(fuzz): annot_author target sets the PolyLine endings and interior". `Pass 646.19` (`G235`, `9f28d8cd`) added `endings` and `interior` to `MarkupSpec::PolyLine`, but the `fuzz/fuzz_targets/annot_author.rs` arm still built the variant without them. Both nightly "fuzz targets build" CI jobs (Linux, Windows) failed on every push since. The commit sets both fields; `cargo +nightly fuzz build` for all targets succeeds locally (engineer). No behaviour change.
+
+**Decisions made:** none; nothing minted. No Pass number.
+
+**Findings:** lesson: the cargo-fuzz build is a gate the change-scoped pre-push set does not cover; a change to a `pub` enum variant's fields needs `cargo +nightly fuzz build` before push.
+
+**FEATURES.md:** no row change.
+
+**For next session:** unchanged from 1266th. Next free `Pass 646.24`, decision `204`, `R263`; next filing 1268th. Push, CI colour and backup state not checked from here.
+
 ## 2026-10-27 (1266th filing) — `Pass 646.23` (`G236` part E, bake appearances) SHIPPED on `757a9385`
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

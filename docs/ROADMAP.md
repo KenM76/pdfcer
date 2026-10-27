@@ -165,6 +165,7 @@ Engineer-reported; no shell here, nothing checked from here. Single code commit 
 - **Delivers:** core yes; cli yes; gui no.
 - **FEATURES:** new Implemented row "PolyLine arrowheads and interior colour", `[x]` core / `[x]` cli / `[ ]` gui; the restyle row's "endings on anything but a `/Line`" corrected to include `/PolyLine`.
 - Nothing minted by this Pass; no ARCHITECTURE section 12 entry for it.
+- **Addendum (1267th filing, engineer-reported):** `b3b9023a` fixes `fuzz/fuzz_targets/annot_author.rs`, whose arm still built `MarkupSpec::PolyLine` without the new `endings` and `interior` fields; both nightly "fuzz targets build" CI jobs (Linux, Windows) had failed on every push since this Pass. Now sets both; `cargo +nightly fuzz build` succeeds for all targets locally. Fuzz target only; no `crates/` change.
 
 ### `v0.101.0` — PUBLISHED, 2026-10-27 (1263rd filing)
 
