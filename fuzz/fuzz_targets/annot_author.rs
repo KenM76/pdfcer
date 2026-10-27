@@ -185,6 +185,8 @@ fn spec(c: &mut Cursor<'_>) -> MarkupSpec {
                 vertices: c.points(n),
                 color: c.color(),
                 width,
+                endings: (LineEnding::ClosedArrow, LineEnding::OpenArrow),
+                interior: Some(c.color()),
             }
         }
         6 => {
