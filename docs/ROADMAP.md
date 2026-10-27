@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `0403197c` `Pass 646.24` SHIPPED, 2026-10-27: the FreeText `/C` reading persists as a setting (`G236` follow-up) (1270th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `0403197c` "feat(settings): persist the FreeText /C reading as free_text_c", on main, unreleased (after `v0.102.0`). Trigger: `pdfcer-gui`'s consumed note for `G236` said the engine `Settings` had no field for this reading. Reasoning is in the commit message. No new decision.
+- **Core:** `pdfcer_core::settings::Settings::free_text_c: FreeTextC` (key `free_text_c`, tokens `fill`|`border`, default Fill = prior behaviour). `R169` spec-ambiguity setting: ISO 32000-1 section 12.5.6.6 does not say whether FreeText `/C` is fill or border when `/IC` is absent. `FreeTextC` re-exported from `pdfcer_core::settings`.
+- **CLI:** `--free-text-c` on `render-page`, `export-image`, `bake-appearances` is now optional; absent, the settings file decides; the flag overrides.
+- **Tests (engineer):** settings round-trip/defaults extended; render `settings_defaults_match_render_defaults` extended; new CLI test `bake_appearances::free_text_c_falls_back_to_the_settings_file` (binary copied beside its own `userdata/settings.txt`: unset = fill, set = border, flag wins). `pdfcer-cli` suite 977 + 47 passed before the new test, bake tests 2/2 after; core settings 43 passed. `render-page` fallback verified by hand probe (same PNG hashes as the flag).
+- **Gates (engineer):** fmt; clippy (incl. `pdfcer-cli --no-default-features`); check-code-structure, check-core-api-verbs, check-clap-help, check-cli-help-leads, check-string-gaps, check-public-fns-documented, check-tests-harnessed, check-suite-name-absent all green.
+- **Invariant:** no `Cargo.toml` change, so `cargo tree` unaffected; no dependency change. No fuzz change needed (`Settings` is `#[non_exhaustive]`; `FreeTextC` unchanged).
+- **Docs:** `docs/core-api/` `01` (R169 settings table row), `02` (bake row), `03` (render builder row), index counts, updated in the code commit.
+- **Delivers:** core yes; cli yes; gui no (the GUI project ticks its column when it consumes).
+- **FEATURES:** the "Draw a markup annotation with no `/AP`" and "Bake the geometry-drawn look" rows note the persisted setting; boxes unchanged (`gui [ ]`). Nothing minted; next free `Pass 646.25`, decision `204`, `R263`; next filing 1271st.
+
 ### `v0.102.0` — PUBLISHED, 2026-10-27 (1269th filing)
 
 Engineer-reported (engineer states each item verified); no shell here, nothing checked from here. Release record for the prep filed below (1268th, bump `7d027d7d`, filing commit `47140cdb`).
@@ -24277,7 +24289,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Next up head: none from the `G236` family: it is complete (`646.20`-`646.23` all shipped).** Next free `Pass 646.24`, decision `204`, `R263`; next filing 1270th. Release slot `pdfcer2` (next release).
+> **Next up head: none from the `G236` family: it is complete (`646.20`-`646.23` all shipped; follow-up `646.24` shipped).** Next free `Pass 646.25`, decision `204`, `R263`; next filing 1271st. Release slot `pdfcer2` (next release).
+
+(1270th filing: `Pass 646.24` (FreeText `/C` persisted as `Settings::free_text_c`) SHIPPED on `0403197c`, see *Shipped*. Nothing minted; next free `Pass 646.25`, decision `204`, `R263`; next filing 1271st. Unreleased since `v0.102.0`: `646.24`.)
 
 (1269th filing: `v0.102.0` PUBLISHED, tag on `47140cdb`, crates 0.102.0, see *Shipped*. Nothing minted; next free `Pass 646.24`, decision `204`, `R263`; next filing 1270th. Next release slot `pdfcer2`.)
 

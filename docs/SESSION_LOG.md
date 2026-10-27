@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-27 (1270th filing) — `Pass 646.24` SHIPPED on `0403197c`: FreeText `/C` reading persists as `Settings::free_text_c`
+
+**Filed (docs only; engineer-reported, each item stated verified by the engineer; no shell here, nothing checked from here):**
+- `Pass 646.24`, commit `0403197c`, unreleased (after `v0.102.0`). Trigger: `pdfcer-gui`'s consumed note for `G236` said `Settings` had no field for the FreeText `/C` reading.
+- Core: `Settings::free_text_c: FreeTextC` (key `free_text_c`, `fill`|`border`, default Fill = prior behaviour); `R169` setting for an ISO 32000-1 section 12.5.6.6 silence (fill or border when `/IC` is absent). CLI: `--free-text-c` on `render-page`, `export-image`, `bake-appearances` now optional, settings file decides, flag overrides.
+- Tests: settings and render-defaults tests extended; new `bake_appearances::free_text_c_falls_back_to_the_settings_file`; core settings 43 passed; `pdfcer-cli` 977 + 47 before the new test. Gates listed in the ROADMAP entry, all green per the engineer. No `Cargo.toml` change.
+
+**Decisions made:** none; nothing minted. **FEATURES.md:** two rows (geometry-drawn markup; bake) note the persisted setting; boxes unchanged, `gui [ ]`.
+
+**For next session:** next free `Pass 646.25`, decision `204`, `R263`; next filing 1271st. Push, CI colour and backup state not checked from here.
+
 ## 2026-10-27 (1269th filing) — `v0.102.0` PUBLISHED, tag on `47140cdb`
 
 **Filed (docs only; engineer-reported, each item stated verified by the engineer; no shell here, nothing checked from here):**
