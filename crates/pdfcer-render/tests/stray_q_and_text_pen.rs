@@ -1,6 +1,7 @@
 //! `q`/`Q` edge cases at the pixel level: a form's surplus `Q`s cannot pop
-//! the page's saved states (§8.4.2, §8.10.1), and the pen survives `Q`
-//! inside a text object (§8.4.1 Table 51, §9.4.1). Each subject must render
+//! the page's saved states (§8.4.2, §8.10.1), and inside a text object `Q`
+//! restores the pen its `q` saved (ISO 32000-2:2020 errata to §9.4.1, as
+//! Acrobat does). Each subject must render
 //! pixel-identical to a twin that needs no `q`/`Q` behaviour. The same
 //! fixtures are checked for extraction and redaction in `pdfcer-core`.
 
@@ -92,29 +93,46 @@ fn a_forms_surplus_q_inside_bt_cannot_pop_the_pages_state() {
     assert_renders_like((PAGE, &[STRAY_IN]), (PAGE, &[BALANCED]));
 }
 
+/// `SECRET` starts where `B` started, the pen before `q`: four Helvetica
+/// `A`s (667/1000 em each) at 12 pt put it at x = 72 + 32.016.
 #[test]
-fn the_pen_survives_q_inside_bt_after_a_font_change() {
+fn q_inside_bt_restores_the_pen_after_a_font_change() {
     assert_renders_like(
         (
             "BT /F1 12 Tf 72 300 Td (AAAA) Tj q /F2 24 Tf (B) Tj Q (SECRET) Tj ET",
             &[],
         ),
         (
-            "BT /F1 12 Tf 72 300 Td (AAAA) Tj /F2 24 Tf (B) Tj /F1 12 Tf (SECRET) Tj ET",
+            concat!(
+                "BT /F1 12 Tf 72 300 Td (AAAA) Tj /F2 24 Tf (B) Tj ",
+                "/F1 12 Tf 1 0 0 1 104.016 300 Tm (SECRET) Tj ET"
+            ),
             &[],
         ),
     );
 }
 
 #[test]
-fn a_td_made_inside_q_is_kept_after_q() {
+fn a_td_made_inside_q_is_undone_by_q() {
     assert_renders_like(
         (
             "BT /F1 12 Tf 72 300 Td (AA) Tj q 100 0 Td Q (SECRET) Tj ET",
             &[],
         ),
+        ("BT /F1 12 Tf 72 300 Td (AA) Tj (SECRET) Tj ET", &[]),
+    );
+}
+
+/// A pen saved outside a text object is not restored into one.
+#[test]
+fn a_q_made_outside_bt_does_not_restore_a_pen() {
+    assert_renders_like(
         (
-            "BT /F1 12 Tf 72 300 Td (AA) Tj 100 0 Td (SECRET) Tj ET",
+            "/F1 12 Tf q BT 72 300 Td (AA) Tj ET BT 72 200 Td (BB) Tj Q (SECRET) Tj ET",
+            &[],
+        ),
+        (
+            "/F1 12 Tf BT 72 300 Td (AA) Tj ET BT 72 200 Td (BB) Tj (SECRET) Tj ET",
             &[],
         ),
     );

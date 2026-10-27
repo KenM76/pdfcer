@@ -1243,16 +1243,22 @@ pub(crate) struct Walk<'a> {
     /// The `q` save stack (§8.4.4). Bounded like the extraction walk's, so
     /// a hostile stream of `q`s cannot grow it without limit.
     gs_stack: Vec<GState>,
+    /// Parallel to `gs_stack`: `(text object serial, Tm, Tlm, tm_known)`
+    /// for a `q` made inside a text object, restored by its `Q` only into
+    /// the same text object.
+    pens: Vec<Option<SavedPen>>,
+    /// The current text object's serial, `None` outside `BT`…`ET`.
+    text_obj: Option<u32>,
+    bt_count: u32,
     // marked-content stack (§14.6/§14.7) — the current /MCID is the top.
     mc_stack: Vec<Option<i64>>,
     /// The text matrix `Tm` (§9.4.2), maintained across the whole walk.
     ///
-    /// Unlike the six §9.3 parameters this is **not** graphics state — it
-    /// is not saved by `q` or restored by `Q` (Table 52 lists no text
-    /// matrix), and it exists only between `BT` and `ET`. So it lives on
-    /// the walk rather than inside [`GState`], and that distinction is
-    /// load-bearing: putting it in `GState` would have made a `Q` restore a
-    /// text matrix, which no conforming reader does.
+    /// Unlike the six §9.3 parameters this is **not** graphics state
+    /// (Table 52 lists no text matrix) and exists only between `BT` and
+    /// `ET`, so it lives on the walk rather than inside [`GState`]. A `q`
+    /// made inside a text object still saves it and the matching `Q`
+    /// restores it (ISO 32000-2:2020 errata to §9.4.1); see `pens`.
     tm: [f64; 6],
     /// The line matrix `Tlm` (§9.4.2) — what `Td`/`TD`/`T*` translate from.
     tlm: [f64; 6],
@@ -1261,6 +1267,9 @@ pub(crate) struct Walk<'a> {
     tm_known: bool,
     pub(crate) recs: Vec<OpRec>,
 }
+
+/// `(text object serial, Tm, Tlm, tm_known)` saved by a `q` inside `BT`.
+type SavedPen = (u32, [f64; 6], [f64; 6], bool);
 
 /// The graphics state this authoring walk tracks, as `q`/`Q` see it.
 ///
@@ -1338,6 +1347,9 @@ impl<'a> Walk<'a> {
             vertical_cache: HashMap::new(),
             gs: GState::initial(),
             gs_stack: Vec::new(),
+            pens: Vec::new(),
+            text_obj: None,
+            bt_count: 0,
             mc_stack: Vec::new(),
             tm: IDENTITY,
             tlm: IDENTITY,
@@ -1489,17 +1501,29 @@ impl<'a> Walk<'a> {
             // worked example and why it matters to a restore.
             b"q" => {
                 self.gs_stack.push(self.gs.clone());
+                let pen = self
+                    .text_obj
+                    .map(|serial| (serial, self.tm, self.tlm, self.tm_known));
+                self.pens.push(pen);
                 // A hostile stream of `q`s must not grow the stack without
                 // bound; 256 is far past any real nesting and matches the
                 // extraction walk's guard.
                 if self.gs_stack.len() > 256 {
                     self.gs_stack.remove(0);
+                    self.pens.remove(0);
                 }
                 Rec::Ignore
             }
             b"Q" => {
                 if let Some(prev) = self.gs_stack.pop() {
                     self.gs = prev;
+                    if let Some(Some((serial, tm, tlm, known))) = self.pens.pop()
+                        && Some(serial) == self.text_obj
+                    {
+                        self.tm = tm;
+                        self.tlm = tlm;
+                        self.tm_known = known;
+                    }
                 }
                 Rec::Ignore
             }
@@ -1545,9 +1569,14 @@ impl<'a> Walk<'a> {
                 self.tm = IDENTITY;
                 self.tlm = IDENTITY;
                 self.tm_known = true;
+                self.bt_count = self.bt_count.wrapping_add(1);
+                self.text_obj = Some(self.bt_count);
                 Rec::Ignore
             }
-            b"ET" => Rec::EndText,
+            b"ET" => {
+                self.text_obj = None;
+                Rec::EndText
+            }
             b"Tm" => match n.as_slice() {
                 [a, b, c, d, e, f] => {
                     let m = [*a, *b, *c, *d, *e, *f];
@@ -6842,5 +6871,18 @@ mod tests {
         assert_eq!(preview.rewritten, narrowed);
         assert_eq!(preview.rewritten, Some((26..27, " _".to_owned())));
         assert_eq!(preview.glyphs.len(), 2);
+    }
+
+    /// ISO 32000-2:2020 errata to §9.4.1: inside a text object `Q` restores
+    /// the Tm/Tlm its `q` saved, so the follower-line logic sees `SECRET`
+    /// right after `AA` (two Helvetica `A`s, 667/1000 em, at 12 pt).
+    #[test]
+    fn q_inside_bt_restores_the_recorded_text_matrix() {
+        let shows = show_records("BT /F1 12 Tf 72 300 Td (AA) Tj q 100 0 Td Q (SECRET) Tj ET");
+        let x = shows.get(1).map(|s| (s.text_matrix[4] * 1000.0).round());
+        assert_eq!(x, Some(88_008.0));
+        let shows = show_records("/F1 12 Tf q BT 72 300 Td (AA) Tj ET BT 9 9 Td Q (B) Tj ET");
+        let x = shows.get(1).map(|s| s.text_matrix[4]);
+        assert_eq!(x, Some(9.0), "a pen saved outside this text object");
     }
 }

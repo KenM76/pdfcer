@@ -371,6 +371,14 @@ struct MarkedLevel {
     covered: Option<Rect>,
 }
 
+/// The text matrices saved by a `q` made inside text object `serial`.
+#[derive(Clone, Copy)]
+struct SavedPen {
+    serial: u32,
+    tm: Matrix,
+    tlm: Matrix,
+}
+
 /// The whole walk state.
 struct Walk<'a> {
     doc: &'a DocumentView<'a>,
@@ -381,7 +389,14 @@ struct Walk<'a> {
     ctm: Matrix,
     ctm_stack: Vec<Matrix>,
     ts: TextState,
-    ts_stack: Vec<TextState>,
+    /// Parallel to `ctm_stack`: the text state, plus the pen when the `q`
+    /// was made inside a text object (ISO 32000-2:2020 errata to §9.4.1:
+    /// there `q`/`Q` also save and restore Tm and Tlm).
+    ts_stack: Vec<(TextState, Option<SavedPen>)>,
+    /// The current text object's serial, `None` outside `BT`…`ET`. A pen
+    /// saved in one text object is never restored into another.
+    text_obj: Option<u32>,
+    bt_count: u32,
     /// Stack depth at entry to the content stream being run. A `Q` never
     /// pops below it, so a form's surplus `Q` cannot consume the caller's
     /// saved states (§8.4.2: each stream balances its own `q`/`Q`).
@@ -461,6 +476,8 @@ pub(super) fn walk_page(
         ctm_stack: Vec::new(),
         ts: TextState::default(),
         ts_stack: Vec::new(),
+        text_obj: None,
+        bt_count: 0,
         stack_floor: 0,
         tm: Matrix::IDENTITY,
         tlm: Matrix::IDENTITY,
@@ -508,7 +525,12 @@ impl Walk<'_> {
             // --- graphics state (§8.4.4) ---
             b"q" => {
                 self.ctm_stack.push(self.ctm);
-                self.ts_stack.push(self.ts.clone());
+                let pen = self.text_obj.map(|serial| SavedPen {
+                    serial,
+                    tm: self.tm,
+                    tlm: self.tlm,
+                });
+                self.ts_stack.push((self.ts.clone(), pen));
                 // A hostile stream of `q`s must not grow the stacks
                 // without bound; 256 is far past any real nesting and
                 // matches the posture of the other structural guards.
@@ -526,9 +548,13 @@ impl Walk<'_> {
                     self.ctm = m;
                 }
                 if self.ts_stack.len() > self.stack_floor
-                    && let Some(ts) = self.ts_stack.pop()
+                    && let Some((ts, pen)) = self.ts_stack.pop()
                 {
                     self.ts = ts;
+                    if let Some(pen) = pen.filter(|p| Some(p.serial) == self.text_obj) {
+                        self.tm = pen.tm;
+                        self.tlm = pen.tlm;
+                    }
                 }
             }
             b"cm" => {
@@ -542,8 +568,10 @@ impl Walk<'_> {
             b"BT" => {
                 self.tm = Matrix::IDENTITY;
                 self.tlm = Matrix::IDENTITY;
+                self.bt_count = self.bt_count.wrapping_add(1);
+                self.text_obj = Some(self.bt_count);
             }
-            b"ET" => {}
+            b"ET" => self.text_obj = None,
 
             // --- text state (§9.3) ---
             //
@@ -1520,6 +1548,7 @@ impl Walk<'_> {
             let saved_ctm = self.ctm;
             let saved_tm = self.tm;
             let saved_tlm = self.tlm;
+            let saved_text_obj = self.text_obj;
             let saved_ts = self.ts.clone();
             let saved_marked_depth = self.marked.len();
             // Provenance spans inside the form index the FORM's own decoded
@@ -1566,6 +1595,7 @@ impl Walk<'_> {
             self.ctm = saved_ctm;
             self.tm = saved_tm;
             self.tlm = saved_tlm;
+            self.text_obj = saved_text_obj;
             self.ts = saved_ts;
             self.marked.truncate(saved_marked_depth);
             self.stream_ref = saved_stream_ref;

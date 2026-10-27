@@ -2721,6 +2721,10 @@ struct Decomposer<'a> {
     xobjects: &'a dyn XObjectResolver,
     fonts: &'a dyn FontResolver,
     stack: Vec<GState>,
+    /// Parallel to `stack`: `(BT token start, Tm, Tlm)` when the `q` was
+    /// made inside a text object, whose `Q` restores them (ISO 32000-2:2020
+    /// errata to §9.4.1).
+    pens: Vec<Option<(usize, Matrix, Matrix)>>,
     gs: GState,
     path: Option<PathAccum>,
     text: Option<TextAccum>,
@@ -2748,6 +2752,7 @@ impl<'a> Decomposer<'a> {
             xobjects,
             fonts,
             stack: Vec::new(),
+            pens: Vec::new(),
             gs: GState::initial(initial),
             path: None,
             text: None,
@@ -2868,9 +2873,25 @@ impl<'a> Decomposer<'a> {
 
         match name {
             // ---- graphics state (Table 57) ----
-            b"q" => self.stack.push(self.gs.clone()),
+            b"q" => {
+                self.stack.push(self.gs.clone());
+                let pen = self
+                    .text
+                    .as_ref()
+                    .map(|t| (t.token_start, t.text_matrix, t.line_matrix));
+                self.pens.push(pen);
+            }
             b"Q" => match self.stack.pop() {
-                Some(prev) => self.gs = prev,
+                Some(prev) => {
+                    self.gs = prev;
+                    if let Some(Some((start, tm, tlm))) = self.pens.pop()
+                        && let Some(t) = self.text.as_mut()
+                        && t.token_start == start
+                    {
+                        t.text_matrix = tm;
+                        t.line_matrix = tlm;
+                    }
+                }
                 None => self.diag.unbalanced_q += 1,
             },
             b"cm" => {

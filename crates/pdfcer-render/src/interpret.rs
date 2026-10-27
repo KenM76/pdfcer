@@ -111,11 +111,13 @@
 //!   says stroked text's line width "shall be interpreted in USER SPACE
 //!   rather than in text space", so a glyph path is transformed to user
 //!   space and the CTM is passed separately.
-//! - **Text state is graphics state; the text matrices are not.** §9.3
-//!   puts `Tc Tw Th Tl Tf Tfs Tmode Trise` in the graphics state, so
-//!   `q`/`Q` save and restore them; §9.4.1 confines `Tm`/`Tlm` to one
-//!   `BT`…`ET`, so they live in [`Interpreter::text`] and a `q`/`Q`
-//!   pair inside a text object leaves the pen where it was.
+//! - **Text state is graphics state; the text matrices are saved too,
+//!   inside a text object.** §9.3 puts `Tc Tw Th Tl Tf Tfs Tmode Trise`
+//!   in the graphics state, so `q`/`Q` save and restore them. `Tm`/`Tlm`
+//!   live in [`Interpreter::text`] for one `BT`…`ET`; the ISO 32000-2:2020
+//!   errata to §9.4.1 add that a `q`/`Q` pair inside a text object also
+//!   saves and restores them (Acrobat agrees), so [`Interpreter::pens`]
+//!   runs parallel to the graphics-state stack.
 //! - **Every glyph advances, even the ones that paint nothing** —
 //!   rendering mode 3 (the invisible OCR text layer), a `.notdef`
 //!   fallback, and a space all move `Tm` (§9.4.4).
@@ -2505,6 +2507,8 @@ pub fn trace_paths(
         doc,
         fonts,
         text: None,
+        pens: Vec::new(),
+        bt_serial: 0,
         clip_cache: crate::clip_cache::ClipCache::new(),
         font_cache: HashMap::new(),
         color: crate::color::ColorState::new(),
@@ -2610,6 +2614,8 @@ fn run_nested(
         doc,
         fonts,
         text: None,
+        pens: Vec::new(),
+        bt_serial: 0,
         clip_cache: crate::clip_cache::ClipCache::new(),
         font_cache: HashMap::new(),
         color: crate::color::ColorState::new(),
@@ -2786,6 +2792,8 @@ pub(crate) fn run_form_at_on(
         doc,
         fonts,
         text: None,
+        pens: Vec::new(),
+        bt_serial: 0,
         clip_cache: crate::clip_cache::ClipCache::new(),
         font_cache: HashMap::new(),
         color: crate::color::ColorState::new(),
@@ -3100,6 +3108,12 @@ struct Interpreter<'a> {
     /// operators detect the "shall only appear within text objects"
     /// violation without a separate flag.
     text: Option<TextObject>,
+    /// Parallel to the graphics-state stack: the text object a `q` was made
+    /// in (its `BT` serial) and its matrices, `None` for a `q` outside one.
+    /// `Q` restores them only into the same text object.
+    pens: Vec<Option<(u32, TextObject)>>,
+    /// Serial of the current (or last) text object, bumped at every `BT`.
+    bt_serial: u32,
     /// Glyph outlines shown in a clipping mode (`Tr` 4–7) since the last
     /// `ET`, in DEVICE space so a `cm` inside the text object (illegal,
     /// but real) cannot misplace earlier glyphs. §9.3.6: applied as one
@@ -3265,6 +3279,8 @@ impl<'a> Interpreter<'a> {
                 // a `Q` restores one half of the state.
                 if self.gs.push() {
                     self.color.push();
+                    let serial = self.bt_serial;
+                    self.pens.push(self.text.map(|t| (serial, t)));
                 } else {
                     self.diag.tolerated += 1;
                 }
@@ -3272,6 +3288,13 @@ impl<'a> Interpreter<'a> {
             b"Q" => {
                 if self.gs.pop() {
                     self.color.pop();
+                    if let Some(Some((serial, saved))) = self.pens.pop()
+                        && serial == self.bt_serial
+                        && let Some(text) = self.text.as_mut()
+                    {
+                        text.tm = saved.tm;
+                        text.tlm = saved.tlm;
+                    }
                 } else {
                     self.diag.tolerated += 1; // unbalanced Q, tolerated
                 }
@@ -3653,6 +3676,7 @@ impl<'a> Interpreter<'a> {
                     self.diag.note(b"BT(nested)");
                 }
                 self.text = Some(TextObject::new());
+                self.bt_serial = self.bt_serial.wrapping_add(1);
             }
             b"ET" => {
                 if self.text.take().is_none() {

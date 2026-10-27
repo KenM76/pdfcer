@@ -2,9 +2,9 @@
 //!
 //! - A form with surplus `Q`s cannot pop the page's saved states: each
 //!   content stream balances its own `q`/`Q` (§8.4.2, §8.10.1).
-//! - The pen position survives `Q` inside a text object: Tm and Tlm are not
-//!   graphics state (§8.4.1 Table 51, §9.4.1), and a `Td` made inside
-//!   `q`/`Q` is kept.
+//! - Inside a text object, `Q` restores Tm and Tlm saved by its `q`
+//!   (ISO 32000-2:2020 errata to §9.4.1), as Acrobat does: a `Td` made
+//!   inside `q`/`Q` is undone.
 //!
 //! Each case is compared with a twin page that needs no `q`/`Q` behaviour,
 //! and a search-and-redact of `SECRET` must remove exactly `SECRET`.
@@ -13,6 +13,7 @@ use pdfcer_core::document::Document;
 use pdfcer_core::edit::EditSession;
 use pdfcer_core::page_tree;
 use pdfcer_core::text_extract::{self, ExtractOptions};
+use pdfcer_core::vector::{Matrix, VectorObject, decompose_page};
 use pdfcer_core::writer::SaveOptions;
 
 /// A one-page PDF drawing `content`, with Helvetica as `/F1`, Times as `/F2`
@@ -105,26 +106,45 @@ fn redact_secret(pdf: Vec<u8>) -> Vec<u8> {
         .0
 }
 
+/// Every glyph origin on the page in content order, regardless of how the
+/// glyphs are grouped into runs.
+fn all_glyphs(pdf: Vec<u8>) -> (String, Vec<(i64, i64)>) {
+    let mut text = String::new();
+    let mut pos = Vec::new();
+    for (t, p) in glyphs(pdf) {
+        text.push_str(&t);
+        pos.extend(p);
+    }
+    (text, pos)
+}
+
+fn squash(t: &str) -> String {
+    t.chars()
+        .filter(|c| !c.is_whitespace() && *c != '|')
+        .collect()
+}
+
 /// `subject` places its glyphs exactly where `twin` does, and redacting
-/// `SECRET` from it removes exactly `SECRET`.
-fn assert_same_and_redacts(subject: (&str, &[(&str, &str)]), twin: (&str, &[(&str, &str)])) {
+/// `SECRET` from each leaves the same text. Returns `(before, after)`.
+fn assert_same_redaction(
+    subject: (&str, &[(&str, &str)]),
+    twin: (&str, &[(&str, &str)]),
+) -> (String, String) {
     let pdf = || page_pdf(subject.0, subject.1);
-    assert_eq!(glyphs(pdf()), glyphs(page_pdf(twin.0, twin.1)));
+    assert_eq!(all_glyphs(pdf()), all_glyphs(page_pdf(twin.0, twin.1)));
     let before = page_text(pdf());
     assert!(before.contains("SECRET"), "{before}");
     let redacted = redact_secret(pdf());
-    let after = page_text(redacted.clone());
-    let squash = |t: &str| {
-        t.chars()
-            .filter(|c| !c.is_whitespace() && *c != '|')
-            .collect::<String>()
-    };
-    assert_eq!(
-        squash(&after),
-        squash(&before.replacen("SECRET", "", 1)),
-        "{}",
-        String::from_utf8_lossy(&redacted)
-    );
+    let after = squash(&page_text(redacted.clone()));
+    let twin_after = squash(&page_text(redact_secret(page_pdf(twin.0, twin.1))));
+    assert_eq!(after, twin_after, "{}", String::from_utf8_lossy(&redacted));
+    (squash(&before), after)
+}
+
+/// As [`assert_same_redaction`], and the redaction removes exactly `SECRET`.
+fn assert_same_and_redacts(subject: (&str, &[(&str, &str)]), twin: (&str, &[(&str, &str)])) {
+    let (before, after) = assert_same_redaction(subject, twin);
+    assert_eq!(after, before.replacen("SECRET", "", 1));
 }
 
 const STRAY_OUT: (&str, &str) = ("X", "BT /F1 12 Tf 200 100 Td (FF) Tj ET Q Q Q");
@@ -147,29 +167,47 @@ fn a_forms_surplus_q_inside_bt_cannot_pop_the_pages_state() {
     assert_same_and_redacts((PAGE, &[STRAY_IN]), (PAGE, &[BALANCED]));
 }
 
+/// `SECRET` starts where `B` started, the pen before `q`: four Helvetica
+/// `A`s (667/1000 em each) at 12 pt put it at x = 72 + 32.016. `SECRET`
+/// is then drawn over the 24 pt `B`, so the redaction removes both.
 #[test]
-fn the_pen_survives_q_inside_bt_after_a_font_change() {
-    assert_same_and_redacts(
+fn q_inside_bt_restores_the_pen_after_a_font_change() {
+    let (_, after) = assert_same_redaction(
         (
             "BT /F1 12 Tf 72 300 Td (AAAA) Tj q /F2 24 Tf (B) Tj Q (SECRET) Tj ET",
             &[],
         ),
         (
-            "BT /F1 12 Tf 72 300 Td (AAAA) Tj /F2 24 Tf (B) Tj /F1 12 Tf (SECRET) Tj ET",
+            "BT /F1 12 Tf 72 300 Td (AAAA) Tj /F2 24 Tf (B) Tj \
+             /F1 12 Tf 1 0 0 1 104.016 300 Tm (SECRET) Tj ET",
             &[],
         ),
     );
+    assert_eq!(after, "AAAA");
 }
 
 #[test]
-fn a_td_made_inside_q_is_kept_after_q() {
+fn a_td_made_inside_q_is_undone_by_q() {
     assert_same_and_redacts(
         (
             "BT /F1 12 Tf 72 300 Td (AA) Tj q 100 0 Td Q (SECRET) Tj ET",
             &[],
         ),
+        ("BT /F1 12 Tf 72 300 Td (AA) Tj (SECRET) Tj ET", &[]),
+    );
+}
+
+/// A pen saved in one text object is not restored into the next: the
+/// mis-nested `q BT … ET BT … Q … ET` keeps the second object's own pen.
+#[test]
+fn a_q_made_outside_bt_does_not_restore_a_pen() {
+    assert_same_and_redacts(
         (
-            "BT /F1 12 Tf 72 300 Td (AA) Tj 100 0 Td (SECRET) Tj ET",
+            "/F1 12 Tf q BT 72 300 Td (AA) Tj ET BT 72 200 Td (BB) Tj Q (SECRET) Tj ET",
+            &[],
+        ),
+        (
+            "/F1 12 Tf BT 72 300 Td (AA) Tj ET BT 72 200 Td (BB) Tj (SECRET) Tj ET",
             &[],
         ),
     );
@@ -185,4 +223,30 @@ fn a_search_redaction_mid_word_keeps_its_neighbours() {
         .filter(|c| !c.is_whitespace() && *c != '|')
         .collect();
     assert_eq!(squashed, "XXYY");
+}
+
+/// Each text object's page bounds, as object selection sees them.
+fn text_bounds(pdf: Vec<u8>) -> Vec<String> {
+    let doc = Document::from_bytes(pdf).expect("fixture loads");
+    let pages = page_tree::pages(&doc).expect("page tree walks");
+    decompose_page(&doc.view(), &pages[0], Matrix::IDENTITY)
+        .expect("decomposes")
+        .objects
+        .iter()
+        .filter_map(|o| match o {
+            VectorObject::Text(t) => Some(format!("{:?}", t.page_bbox)),
+            _ => None,
+        })
+        .collect()
+}
+
+const TD_IN_Q: &str = "BT /F1 12 Tf 72 300 Td (AA) Tj q 100 0 Td Q (SECRET) Tj ET";
+const TD_TWIN: &str = "BT /F1 12 Tf 72 300 Td (AA) Tj (SECRET) Tj ET";
+
+#[test]
+fn object_selection_bounds_follow_the_restored_pen() {
+    assert_eq!(
+        text_bounds(page_pdf(TD_IN_Q, &[])),
+        text_bounds(page_pdf(TD_TWIN, &[]))
+    );
 }

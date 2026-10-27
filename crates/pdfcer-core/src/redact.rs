@@ -695,6 +695,9 @@ struct Surgeon<'a> {
     trise: f64,
     tl: f64,
     ts_stack: Vec<TextSnapshot>,
+    /// The current text object's serial, `None` outside `BT`…`ET`.
+    text_obj: Option<u32>,
+    bt_count: u32,
     font: Option<std::rc::Rc<ExtractFont>>,
     // outputs
     edits: Vec<Edit>,
@@ -779,6 +782,10 @@ struct TextSnapshot {
     th: f64,
     trise: f64,
     tl: f64,
+    /// `(text object serial, Tm, Tlm)` when the `q` was made inside a text
+    /// object: the ISO 32000-2:2020 errata to §9.4.1 have `q`/`Q` there
+    /// save and restore the text matrices too.
+    pen: Option<(u32, Mat, Mat)>,
 }
 
 /// One byte-range replacement in the decoded content buffer.
@@ -833,6 +840,8 @@ impl<'a> Surgeon<'a> {
             trise: 0.0,
             tl: 0.0,
             ts_stack: Vec::new(),
+            text_obj: None,
+            bt_count: 0,
             font: None,
             edits: Vec::new(),
             removed_by_region: BTreeMap::new(),
@@ -1044,7 +1053,10 @@ impl<'a> Surgeon<'a> {
             b"BT" => {
                 self.tm = Mat::IDENTITY;
                 self.tlm = Mat::IDENTITY;
+                self.bt_count = self.bt_count.wrapping_add(1);
+                self.text_obj = Some(self.bt_count);
             }
+            b"ET" => self.text_obj = None,
             b"Tf" => {
                 if let Some(fname) = op.operands.iter().find_map(|t| match &t.kind {
                     ContentTokenKind::Operand(Object::Name(nm)) => Some(nm.as_bytes().to_vec()),
@@ -1286,6 +1298,7 @@ impl<'a> Surgeon<'a> {
             th: self.th,
             trise: self.trise,
             tl: self.tl,
+            pen: self.text_obj.map(|serial| (serial, self.tm, self.tlm)),
         }
     }
 
@@ -1297,6 +1310,12 @@ impl<'a> Surgeon<'a> {
         self.th = s.th;
         self.trise = s.trise;
         self.tl = s.tl;
+        if let Some((serial, tm, tlm)) = s.pen
+            && Some(serial) == self.text_obj
+        {
+            self.tm = tm;
+            self.tlm = tlm;
+        }
     }
 
     /// If the path object under construction carries `W`/`W*`, intersect

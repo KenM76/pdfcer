@@ -2857,7 +2857,7 @@ pub(crate) fn plan_format_target(
     //
     // A shear is premultiplied into `Tm`, so unlike everything above it
     // cannot ride R88's ladder: `Tm` is not one of the six §9.3 parameters,
-    // is not saved by `q`/`Q`, and — the trap decision 019 §3.6 names — is
+    // and — the trap decision 019 §3.6 names — it is
     // *propagated* by `Td`/`TD`/`T*`, which derive the next line by
     // translating the line matrix rather than by re-stating it.
     //

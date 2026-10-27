@@ -55,7 +55,7 @@
 //!    invisible at 72 pt. [`bold_stroke_width`] derives it from the
 //!    rendered size instead.
 //! 3. **A `Tm` shear is not text state.** It is not covered by R88's restore
-//!    ladder, it is not saved by `q`/`Q`, and — the trap —
+//!    ladder, and — the trap —
 //!    `Td`/`TD`/`T*` derive the next line by *translating the line matrix*,
 //!    so a shear left in `Tm` propagates into every later line of the text
 //!    object. See [`shear_into`] and the gate in
