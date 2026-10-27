@@ -199,31 +199,20 @@ fn a_bitmap_glyph_paints_its_stencil_in_the_graphics_state_colour() {
     );
 }
 
-/// `Pass 126.1` — a bitmap glyph is a STENCIL and is never smoothed,
-/// at any zoom.
+/// `Pass 126.1` — a MAGNIFIED bitmap glyph is a stencil and is never
+/// smoothed.
 ///
-/// The Acrobat-parity corpus records, at source tier, that Acrobat does
-/// **not** interpolate bitmap Type 3 glyphs: they get jaggier as you zoom
-/// in, which is what drove the industry practice of converting TeX
-/// Computer-Modern Type 3 fonts to Type 1. pdfcer matches that, and this
-/// test is what keeps it matching.
+/// Acrobat Reader does not interpolate a bitmap Type 3 glyph on the way
+/// up: it gets jaggier as you zoom in. The measurement is a colour census
+/// inside the glyph's box: a nearest-neighbour stencil shows exactly two
+/// colours, and one intermediate pixel fails it.
 ///
-/// The measurement is a colour census inside the glyph's own box. A
-/// nearest-neighbour stencil produces exactly **two** colours — the page
-/// and the fill — because every pixel is either covered or not. Any
-/// interpolation produces intermediates, and one intermediate pixel is
-/// enough to fail this.
-///
-/// THE SCALES ARE CHOSEN TO CROSS THE PREDICATE, not to be "a
-/// reasonable range" (`R211` clause (e)). The mask is 8x8 samples in a
-/// 28 pt box, so its device size passes through its own sample count
-/// somewhere near scale 0.29: at 0.25 the image is being MINIFIED and at
-/// 1, 4 and 16 it is being MAGNIFIED, which are different code paths with
-/// different filters. Sampling only the magnified side would leave the
-/// minifying filter free to smooth.
+/// The mask is 8x8 samples in a 28 pt box, so every scale here draws it
+/// larger than its grid. Shrunk glyphs are area-averaged instead
+/// (`a_shrunk_bitmap_glyph_keeps_a_stroke_thinner_than_the_ratio`).
 #[test]
-fn a_bitmap_glyph_is_never_smoothed_at_any_zoom() {
-    for scale in [0.25f32, 1.0, 4.0, 16.0] {
+fn a_magnified_bitmap_glyph_is_never_smoothed() {
+    for scale in [1.0f32, 4.0, 16.0] {
         let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../fixtures/synthetic/type3/colour_and_advance.pdf");
         let doc = Document::from_bytes(std::fs::read(&path).expect("fixture file"))
@@ -258,6 +247,125 @@ fn a_bitmap_glyph_is_never_smoothed_at_any_zoom() {
             seen.len()
         );
     }
+}
+
+/// A one-page 40x40 pt PDF showing one `d1` Type 3 glyph at 8 pt, at
+/// (10, 10). The glyph is a 40x40 1-bit image mask, the shape a 300-600 dpi
+/// TeX PK font emits, painting only rows 19 and 20: a horizontal bar two
+/// samples high.
+fn pk_style_glyph_pdf() -> Vec<u8> {
+    let mut mask = vec![0xFFu8; 5 * 40];
+    for row in [19usize, 20] {
+        mask[row * 5..row * 5 + 5].fill(0x00);
+    }
+    let content = b"BT /F1 8 Tf 10 10 Td (A) Tj ET".to_vec();
+    let proc = b"40 0 0 0 40 40 d1 40 0 0 40 0 0 cm /Im0 Do".to_vec();
+    let stream = |dict: &str, data: &[u8]| {
+        let mut s = format!("<< {dict} /Length {} >>\nstream\n", data.len()).into_bytes();
+        s.extend_from_slice(data);
+        s.extend_from_slice(b"\nendstream");
+        s
+    };
+    let objects: Vec<Vec<u8>> = vec![
+        b"<< /Type /Catalog /Pages 2 0 R >>".to_vec(),
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_vec(),
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 40 40] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>".to_vec(),
+        stream("", &content),
+        b"<< /Type /Font /Subtype /Type3 /FontBBox [0 0 40 40] /FontMatrix [0.025 0 0 0.025 0 0] /CharProcs << /A 6 0 R >> /Encoding << /Type /Encoding /Differences [65 /A] >> /FirstChar 65 /LastChar 65 /Widths [40] /Resources << /XObject << /Im0 7 0 R >> >> >>".to_vec(),
+        stream("", &proc),
+        stream(
+            "/Type /XObject /Subtype /Image /Width 40 /Height 40 /ImageMask true /BitsPerComponent 1",
+            &mask,
+        ),
+    ];
+    let mut pdf = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in objects.iter().enumerate() {
+        offsets.push(pdf.len());
+        pdf.extend_from_slice(format!("{} 0 obj\n", i + 1).as_bytes());
+        pdf.extend_from_slice(body);
+        pdf.extend_from_slice(b"\nendobj\n");
+    }
+    let xref = pdf.len();
+    pdf.extend_from_slice(
+        format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1).as_bytes(),
+    );
+    for off in offsets {
+        pdf.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    pdf.extend_from_slice(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n",
+            objects.len() + 1
+        )
+        .as_bytes(),
+    );
+    pdf
+}
+
+fn render_pk_glyph(scale: f32) -> RenderedPage {
+    let doc = Document::from_bytes(pk_style_glyph_pdf()).expect("synthetic PDF parses");
+    let pages = page_tree::pages(&doc).expect("page tree");
+    pdfcer_render::render_page(&doc, &pages[0], scale).expect("renders")
+}
+
+/// X008 — a SHRUNK bitmap glyph is area-averaged, so a stroke thinner than
+/// the reduction ratio survives.
+///
+/// At scale 1 the 40-sample glyph is 8 device px high (5:1), and at 2 it is
+/// 16 px (2.5:1). Point sampling reads one sample row in five and misses a
+/// two-row bar outright, which is how an `e` loses its bar in a pdfTeX PK
+/// font. Acrobat Reader shows such glyphs grey-edged with every stroke
+/// present. The assertion: some device row across the glyph's interior is
+/// inked at every column.
+#[test]
+fn a_shrunk_bitmap_glyph_keeps_a_stroke_thinner_than_the_ratio() {
+    for scale in [1.0f32, 2.0] {
+        let p = render_pk_glyph(scale);
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let (x0, x1, y0, y1) = (
+            (11.0 * scale) as u32,
+            (17.0 * scale) as u32,
+            ((40.0 - 18.0) * scale) as u32,
+            ((40.0 - 10.0) * scale) as u32,
+        );
+        let inked_row = (y0..y1).find(|&y| {
+            (x0..x1).all(|x| {
+                let px = p.pixmap.pixel(x, y).expect("in bounds");
+                px.red() < 250
+            })
+        });
+        assert!(
+            inked_row.is_some(),
+            "at scale {scale} no device row across the glyph is inked: the two-sample bar was dropped by point sampling"
+        );
+    }
+}
+
+/// X008's magnified twin: the same PK-style glyph drawn at 16x (3.2 device
+/// px per sample) stays a two-colour stencil.
+#[test]
+fn the_pk_style_glyph_magnified_is_still_two_colours() {
+    let scale = 16.0f32;
+    let p = render_pk_glyph(scale);
+    let mut seen: Vec<(u8, u8, u8)> = Vec::new();
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let (x0, x1, y0, y1) = (
+        (11.0 * scale) as u32,
+        (17.0 * scale) as u32,
+        ((40.0 - 17.0) * scale) as u32,
+        ((40.0 - 11.0) * scale) as u32,
+    );
+    for y in y0..y1 {
+        for x in x0..x1 {
+            let px = p.pixmap.pixel(x, y).expect("in bounds");
+            let c = (px.red(), px.green(), px.blue());
+            if !seen.contains(&c) {
+                seen.push(c);
+            }
+        }
+    }
+    assert_eq!(seen.len(), 2, "magnified stencil colours: {seen:?}");
 }
 
 // ===========================================================================

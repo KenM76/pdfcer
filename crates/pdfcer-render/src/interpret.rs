@@ -9049,44 +9049,23 @@ impl<'a> Interpreter<'a> {
         }
         let image_to_user =
             Transform::from_row(1.0 / w as f32, 0.0, 0.0, -1.0 / h as f32, 0.0, 1.0);
-        // `IM-A1`: smoothing on the way DOWN is a separate question from
-        // `/Interpolate`, and only the operator's setting can turn it on.
-        // `/Interpolate true` still wins outright — a document that asked
-        // for smoothing gets it in both directions, whatever this is set
-        // to, because that request IS spec-governed.
+        // `IM-A1`: smoothing on the way DOWN is the operator's setting;
+        // `/Interpolate true` wins in both directions (spec-governed).
         //
-        // AND NOT INSIDE A TYPE 3 GLYPH PROCEDURE, which is a
-        // MEASURED exclusion rather than a cautious one.
-        //
-        // `Pass 126.1` rendered a `d1` + inline `/ImageMask` glyph in Acrobat
-        // Reader across the mask's own minify/magnify boundary and recorded
-        // that Acrobat does NOT smooth it at any zoom
-        // (`Acrobat_Features/type3fonts__rendering_and_color_semantics.md`).
-        // §9.6.5 says why in its own words: an image mask in a glyph
-        // procedure is acceptable because "it merely defines a REGION OF THE
-        // PAGE TO BE PAINTED with the current colour". A region is not a
-        // picture. Resampling it invents partial coverage along an edge that
-        // the file defined as a hard boundary, and at 0.25x it turned a
-        // two-colour stencil into eight colours.
-        //
-        // SCOPED TO EXACTLY WHAT WAS MEASURED, deliberately. The same
-        // argument would extend to every `/ImageMask` drawn as page content,
-        // and that extension is NOT made here: Acrobat's behaviour on a
-        // page-content image mask has not been measured, and widening a rule
-        // from one observation to a class it was not observed on is how a
-        // measurement becomes a guess wearing its clothes. If somebody wants
-        // the wider rule, the measurement is cheap and it should be made.
-        //
-        // This surfaced only because the `image_minify` DEFAULT flipped to
-        // `Smooth` on 2026-08-25; the interaction existed silently before
-        // that, reachable by any operator who set the option.
-        // Magnification without `/Interpolate` is the render call's choice
-        // (`MagnifyFilter`), under the same Type 3 exclusion.
-        let smooth_minified = matches!(
+        // Inside a Type 3 glyph procedure a MAGNIFIED or 1:1 image mask is
+        // never smoothed: Acrobat Reader keeps it hard-edged at any zoom
+        // (`Acrobat_Features/type3fonts__rendering_and_color_semantics.md`),
+        // and §9.6.5 calls it "a region of the page to be painted". A
+        // SHRUNK one is area-averaged instead (`type3_minified`), which is
+        // what Acrobat shows for 300-600 dpi TeX PK glyphs on screen and the
+        // only filter that keeps a stroke thinner than the reduction ratio.
+        // Page-content image masks follow the ordinary policy.
+        let smooth_minified = (matches!(
             self.policy.image_minify,
             MinifyFilter::Smooth | MinifyFilter::AreaAverage
         ) && self.type3_glyph.is_none()
-            && self.is_minified(w, h);
+            && self.is_minified(w, h))
+            || self.type3_minified(w, h);
         let smooth_magnified = matches!(self.policy.image_magnify, MagnifyFilter::Smooth)
             && self.type3_glyph.is_none()
             && self.is_magnified(w, h);
@@ -9281,16 +9260,26 @@ impl<'a> Interpreter<'a> {
         sx < w as f32 || sy < h as f32
     }
 
-    /// `decoded`, box-reduced for [`MinifyFilter::AreaAverage`] when it is
-    /// drawn at 2:1 or smaller on an axis (`crate::minify`). Not inside a
-    /// Type 3 glyph, for the reason `image_geometry` gives.
+    /// An image drawn shrunk inside a Type 3 glyph procedure, under any
+    /// minify policy but [`MinifyFilter::PointSample`]. Such a glyph is
+    /// area-averaged whatever the page-image policy, because a 2x2 bilinear
+    /// footprint drops strokes as surely as point sampling does.
+    fn type3_minified(&self, w: u32, h: u32) -> bool {
+        self.type3_glyph.is_some()
+            && !matches!(self.policy.image_minify, MinifyFilter::PointSample)
+            && self.is_minified(w, h)
+    }
+
+    /// `decoded`, box-reduced when it is drawn at 2:1 or smaller on an axis
+    /// (`crate::minify`): under [`MinifyFilter::AreaAverage`] outside a
+    /// Type 3 glyph, and for every [`Self::type3_minified`] glyph image.
     fn area_averaged(&self, decoded: crate::image::DecodedImage) -> crate::image::DecodedImage {
-        if !matches!(self.policy.image_minify, MinifyFilter::AreaAverage)
-            || self.type3_glyph.is_some()
-        {
+        let (w, h) = (decoded.pixmap.width(), decoded.pixmap.height());
+        let page_image = matches!(self.policy.image_minify, MinifyFilter::AreaAverage)
+            && self.type3_glyph.is_none();
+        if !page_image && !self.type3_minified(w, h) {
             return decoded;
         }
-        let (w, h) = (decoded.pixmap.width(), decoded.pixmap.height());
         let factors = crate::minify::factors(w, h, self.gs.current.ctm);
         crate::minify::reduce_decoded(decoded, factors)
     }

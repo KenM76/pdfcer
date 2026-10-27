@@ -1104,7 +1104,10 @@ pub enum MinifyFilter {
     /// heavily downscaled image, and that cost is what the operator saw.
     ///
     /// No longer the default; see the type docs for the observation that
-    /// moved it.
+    /// moved it. The only setting under which a shrunk Type 3 bitmap glyph
+    /// is point-sampled; under the other two it is area-averaged, as
+    /// [`Self::AreaAverage`] describes. A magnified or 1:1 Type 3 glyph is
+    /// never smoothed under any setting.
     PointSample,
     /// Smooth when the image is drawn smaller than its pixel grid, while
     /// still honouring `/Interpolate` on the way up.
@@ -1120,7 +1123,7 @@ pub enum MinifyFilter {
     /// bilinearly (a one-level mipmap). [`Self::Smooth`] reads a 2x2
     /// neighbourhood whatever the scale, so a scan at 4:1 skips 12 of every
     /// 16 texels and its hairlines break up; this reads all of them.
-    /// `/Interpolate` and the Type 3 glyph exclusion behave as for `Smooth`.
+    /// `/Interpolate` behaves as for `Smooth`.
     AreaAverage,
 }
 
