@@ -688,7 +688,56 @@ Ch.17 defaults:
   zero, and so is `maxW`/`maxH` of 0.
 
 The enums are `#[non_exhaustive]`, and unknown tokens read as the default. No
-shell calls this yet.
+shell calls this yet. `XdpDocument::parse(String)` reads standalone XDP text
+(an `.xdp` file) the same way `read_xdp` reads a document's; it fails with
+`TooLarge`, `TooDeep` or `Xml`.
+
+**The XFA layout** (`xfa/layout.rs`, decision 204, Pass 647.1):
+`layout_template(&Template, &LayoutOptions) -> Result<XfaLayout, LayoutError>`.
+It is a pure function: it writes nothing to the document. Its result is
+inferred content (rule 4), so a shell that renders it discloses that, along
+with every `warnings` entry.
+- **Output.** `XfaLayout { pages, warnings }`. Each `LayoutPage` carries:
+  - `page_area`: a child-index path from `Template::element()`.
+  - `name`, plus `width` and `height` in points, taken from `medium` (default
+    letter; landscape swaps the edges).
+  - `content_areas: Vec<LayoutRect>`.
+  - `items: Vec<LayoutItem>`, background first and then in document order,
+    parent before child.
+- **`LayoutItem`.** `kind`, `name`, `path`, and `rect` (points, page top-left
+  origin, y down). `background` is true for direct `pageArea` content.
+  `visible` is false for `presence="invisible"`. `content_area` indexes the
+  page's content areas.
+- **Scope.** Positioned placement only. Anchor points and subform margins are
+  applied; containers grow to their children's extent within min/max. A field
+  or draw with no `w`/`h` takes its `min*`, because content sizing is not done
+  yet. The merge is empty: each subform is instantiated `occur@initial` times,
+  and the data merge is 647.3. `hidden` and `inactive` content is omitted.
+  Ordered-occurrence pagination is supported, with `breakBefore`/`breakAfter`:
+  - `targetType` may be `contentArea`, `pageArea`, `pageEven` or `pageOdd`.
+    The first page is odd.
+  - `target` may be a `#id` or a plain name. SOM is not supported yet.
+  - `startNew` is honoured.
+  - A break with no target stays put when the current region is still empty.
+  - A page area with no content area is emitted as a background-only page.
+  - When content ends, the current page area and the rest of the pass are
+    padded to `occur@min`.
+- **Warnings.** `LayoutWarning` is `#[non_exhaustive]`:
+  - `FlowedLayoutPending { path, strategy }`: a flowed container laid as
+    positioned (647.2).
+  - `QualifiedPagination`
+  - `UnboundedBoilerplate { path }`
+  - `InvalidBreakTarget { path, target }`
+  - `MinGreaterThanMax { path, attribute }`: the values were swapped.
+  - `NegativeCoordinate { path }`
+  - `UnresolvedMeasurement { path, attribute }`: a `%` unit was ignored.
+  - `ContentDiscarded { path }`: the page areas ran out. This one must be
+    disclosed.
+  - `PageLimit` and `ItemLimit`: the ceilings are `MAX_LAYOUT_PAGES` (10 000)
+    and `MAX_LAYOUT_ITEMS` (200 000).
+- **Options.** `LayoutOptions::new().with_negative_coordinates(NegativeCoordinates::{Keep (default), Clamp})`.
+- **Errors.** `LayoutError` is `NoRootSubform` or `NoPageArea`; the latter is
+  fatal per XFA. No shell calls this yet; the CLI report is 647.5.
 
 `Field` (`forms.rs`) → `fully_qualified_name`, `partial_name`,
 `alternate_name` (`/TU`), `mapping_name` (`/TM`), `rich_value` (`/RV`),

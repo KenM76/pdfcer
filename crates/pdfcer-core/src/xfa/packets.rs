@@ -69,6 +69,20 @@ pub struct XdpDocument {
 }
 
 impl XdpDocument {
+    /// Split standalone XDP text (an `.xdp` file, or a packet stream's
+    /// decoded text) into packets, as [`read_xdp`] does for a document.
+    ///
+    /// # Errors
+    ///
+    /// [`XfaError::TooLarge`] past [`MAX_XDP_LEN`], [`XfaError::TooDeep`],
+    /// [`XfaError::Xml`].
+    pub fn parse(text: String) -> Result<Self, XfaError> {
+        if text.len() > MAX_XDP_LEN {
+            return Err(XfaError::TooLarge);
+        }
+        parse_xdp(text)
+    }
+
     /// The full XDP text, decoded to UTF-8.
     #[must_use]
     pub fn text(&self) -> &str {

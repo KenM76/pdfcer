@@ -5,8 +5,14 @@
 //! dynamic one (one placeholder page; the real pages exist only once an XFA
 //! engine lays the template out). [`form_kind`] tells the two apart.
 
+mod layout;
 mod packets;
 mod template;
+
+pub use layout::{
+    LayoutError, LayoutItem, LayoutOptions, LayoutPage, LayoutRect, LayoutWarning,
+    MAX_LAYOUT_ITEMS, MAX_LAYOUT_PAGES, NegativeCoordinates, XfaLayout, layout_template,
+};
 
 pub use packets::{MAX_XDP_LEN, MAX_XML_DEPTH, XdpDocument, XdpPacket, XfaError, read_xdp};
 pub use template::{

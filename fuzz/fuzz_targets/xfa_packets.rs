@@ -1,11 +1,12 @@
 //! Fuzz target: the XDP reader behind `/AcroForm /XFA`
-//! and template DOM (`pdfcer_core::xfa::read_xdp`, `read_template`,
-//! decision 204, Pass 647.0).
+//! template DOM and layout (`pdfcer_core::xfa::read_xdp`, `read_template`,
+//! `layout_template`; decision 204, Passes 647.0-647.1).
 //!
 //! The fuzz bytes become the XFA stream of a fixed one-page document, raw
 //! or split into a two-stream packet array. Reading must never panic, and
 //! deep nesting must be refused rather than overflow roxmltree's
-//! recursive-descent parser (ARCHITECTURE.md §10).
+//! recursive-descent parser (ARCHITECTURE.md §10). Layout must stay inside
+//! its page and item ceilings however large an `occur` count is.
 
 #![no_main]
 
@@ -81,6 +82,8 @@ fuzz_target!(|data: &[u8]| {
             }
             if let Ok(Some(t)) = pdfcer_core::xfa::read_template(&xdp) {
                 walk(t.element());
+                let _ =
+                    pdfcer_core::xfa::layout_template(&t, &pdfcer_core::xfa::LayoutOptions::new());
             }
         }
     }
