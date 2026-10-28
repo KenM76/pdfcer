@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `5f401310` `Pass 646.25` SHIPPED, 2026-10-28: tell a dynamic XFA form from its placeholder page (`G237`, operator row `O336`) (1271st filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `5f401310` "feat(xfa): tell a dynamic XFA form from its placeholder page (G237)", on main, unreleased (after `v0.102.0`). Request from `pdfcer-gui`. Reply filed: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G237_dynamic_xfa_form_kind_SHIPPED.md`. Detection only; the layout arc it enables is `Pass 647.0`-`647.7` under decision 204 (below).
+- **Core:** new module `pdfcer_core::xfa`: `form_kind<G: ObjectGraph + ?Sized>(&G) -> XfaFormKind` (`NotXfa` / `Static` / `Dynamic`, `#[non_exhaustive]`, `is_dynamic()`). Dynamic = `/AcroForm /XFA` present AND `/NeedsRendering true` in the catalog (ISO 32000-1 Table 28) OR in the AcroForm dictionary (the XFA 3.3 Adobe-implementation chapter says AcroForm; sources disagree, so both count: the "two defensible answers" default-both rule). A non-boolean flag reads as false.
+- **CLI:** `list-fields` prints `xfa_kind=` and, for a dynamic form, a stderr placeholder-page sentence (rule 4).
+- **Tests (engineer):** 5 core unit + 1 doctest + 2 CLI (`crates/pdfcer-cli/tests/xfa_kind.rs`), all green. `check-core-api-verbs` PASS; `docs/core-api/03` updated.
+- **Gates (engineer):** `run-gates.sh` 48/49 green; the one failure was `cargo fmt --check` on the new test file (not yet in the harness when fmt ran), fixed before the commit. No manifest change, so `cargo tree` unaffected.
+- **Delivers:** core yes; cli yes; gui no (`pdfcer-gui` consumes).
+- **FEATURES:** the "Detect XFA" row gains "static vs dynamic kind", `core [x] cli [x] gui [ ]`. Next free `Pass 646.26`, `647.8`, decision `205`, `R263`; next filing 1272nd.
+
 ### `0403197c` `Pass 646.24` SHIPPED, 2026-10-27: the FreeText `/C` reading persists as a setting (`G236` follow-up) (1270th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `0403197c` "feat(settings): persist the FreeText /C reading as free_text_c", on main, unreleased (after `v0.102.0`). Trigger: `pdfcer-gui`'s consumed note for `G236` said the engine `Settings` had no field for this reading. Reasoning is in the commit message. No new decision.
@@ -24289,7 +24299,41 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Next up head: none from the `G236` family: it is complete (`646.20`-`646.23` all shipped; follow-up `646.24` shipped).** Next free `Pass 646.25`, decision `204`, `R263`; next filing 1271st. Release slot `pdfcer2` (next release).
+> **Next up head: `Pass 647.0` (dynamic XFA arc, decision 204), operator-paced: Ken asked for slow progress this week, so no start date is implied.** `G236` family is complete. Next free `Pass 646.26`, `647.8`, decision `205`, `R263`; next filing 1272nd. Release slot `pdfcer2` (next release). Unreleased since `v0.102.0`: `646.24`, `646.25`.
+
+(1271st filing: `Pass 646.25` (`G237`, `XfaFormKind`) SHIPPED on `5f401310`; decision 204 reopens dynamic XFA; arc `647.0`-`647.7` filed below. All Passes below are NOT STARTED. Spec source (extracted by `pdfcer-spec-librarian`): `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_{xdp_packaging,static_vs_dynamic_rendering,template_layout_dom,layout_algorithm,data_binding_normal}.md`; its gap IDs G-X/S/T/L/B are the arc's default-decisions list. Spec slice still owed: SOM expressions, then table/row layout. Arc-wide acceptance: (1) opening never rewrites structure (§5); (2) layout inferred at render time is rule-4 disclosed; (3) content a dynamic form drops on overflow is disclosed, which the spec only warns about; (4) no external XFA code is relied on.)
+
+### Pass 647.0 — XFA packets and template reader (NOT STARTED)
+
+Read `/AcroForm /XFA` (array of name/stream pairs or one stream) into packets; parse the `template` packet into a read-only DOM (subform, pageSet, pageArea, contentArea, field, draw, exclGroup, `layout`/`h`/`w`/`x`/`y`/`anchorType`/`colSpan` as per the template-layout-dom file). New `pdfcer_core::xfa` submodules, no new dependency unless `LEGAL.md` §6.1-classified. Includes adapting pdfcraft's synthetic fixture generators as test inputs with MIT attribution (`LEGAL.md` §5); no code copied. Spec: `xfa_xdp_packaging`, `xfa_template_layout_dom`.
+
+### Pass 647.1 — Positioned layout and pageSet pagination (NOT STARTED)
+
+Compute positioned (`layout=position`) subform placement and pageSet/pageArea/contentArea pagination as a pure function of template plus data, returning a layout model; nothing written to the document. Optional out-of-tree differential oracle built in pdfcraft's own target dir (never a dependency of any shipped crate, never in CI). Spec: `xfa_layout_algorithm`.
+
+### Pass 647.2 — Flowed layout `tb` / `lr-tb` (NOT STARTED)
+
+Flowed containers, break and overflow rules, leaders/trailers. Content dropped on overflow is reported in the layout model and surfaced by 647.4/647.5 (disclosure, not silent). Table and row layouts are `647.7`. Spec: `xfa_layout_algorithm`.
+
+### Pass 647.3 — Normal data merge (NOT STARTED)
+
+Merge the `datasets` packet into the template per the normal-binding rules; defaults per gap IDs G-B. Explicit SOM references are BLOCKED on the owed SOM spec slice. Spec: `xfa_data_binding_normal`.
+
+### Pass 647.4 — Render path for dynamic forms (NOT STARTED)
+
+`pdfcer-render` draws the computed layout instead of the placeholder page (render-time only, like decision 203). Inferred content renders exactly as saved content would (rule 4: no on-canvas marking); disclosure is off-canvas diagnostics. Needs `pdfcer-render` to stay GUI-free (`cargo tree` check).
+
+### Pass 647.5 — CLI `xfa-layout` report and `render-page` integration (NOT STARTED)
+
+`pdfcer xfa-layout` prints the layout model (pages, content per page, dropped-overflow list); `render-page` renders a dynamic form's computed layout and prints what was inferred. Ships its core-api docs row (R151: no core-only capability).
+
+### Pass 647.6 — Explicit materialize verb (NOT STARTED)
+
+`EditSession` verb plus CLI subcommand that writes the computed pages and fields into the file. Commits at Save only, never on open; disclosed as inferred content (rule 4). Static-XFA hybrid field creation stays refused (decision 020).
+
+### Pass 647.7 — Table and row layout (NOT STARTED, BLOCKED on spec slice)
+
+Table/row layout in dynamic forms. Blocked until `pdfcer-spec-librarian` extracts the table/row layout slice (after SOM expressions).
 
 (1270th filing: `Pass 646.24` (FreeText `/C` persisted as `Settings::free_text_c`) SHIPPED on `0403197c`, see *Shipped*. Nothing minted; next free `Pass 646.25`, decision `204`, `R263`; next filing 1271st. Unreleased since `v0.102.0`: `646.24`.)
 
@@ -43476,7 +43520,7 @@ added. See that section below.
   keeps the Backlog bucket's own restated list current, per this bucket's
   own established convention of amending its "still owed" summary in
   place at each filing that changes it.
-- **XFA** — legacy Adobe forms tech. **Verify current status before
+- **XFA** — **2026-10-28 (1271st filing): DYNAMIC XFA REOPENED by decision 204; the "out of scope" / "no behaviour to match" statements below are superseded for dynamic XFA. Arc: `Pass 647.0`-`647.7` (Next up). Static-XFA hybrid field creation stays refused.** Legacy Adobe forms tech. **Verify current status before
   scoping** — Adobe has been deprecating XFA in Acrobat; consult the
   spec RAG + a fresh web check before committing engineering time here.
   Likely low priority relative to AcroForm.
@@ -47671,6 +47715,11 @@ starting Pass 20.0):**
   ("Outstanding open items") was not edited by this filing — it is
   outside `pdfce-librarian`'s owned tiers; whoever acts on this answer
   should update both files together.
+  **ANSWERED 2026-10-28 (1271st filing), by Ken: "looks like it is time
+  to add dynamic xfa support."** Decision 204 reopens dynamic XFA and
+  answers (p) in favour of support (reverses decision 020 §3.2.1); arc
+  `Pass 647.0`-`647.7`. The `CLAUDE.md` mirror bullet is the engineer's
+  to update (recommended text in the 1271st filing report).
 - ~~**(q) CLI surface migration — not an operator question, filed here
   only so it isn't lost.** Decision 020 §11 flags that its six new
   `forms <verb>` authoring subcommands sit awkwardly next to the six

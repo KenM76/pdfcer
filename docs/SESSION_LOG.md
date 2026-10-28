@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-28 (1271st filing) — `Pass 646.25` SHIPPED on `5f401310` (XFA form kind); decision 204 reopens dynamic XFA; arc `Pass 647.0`-`647.7` filed
+
+**Filed (docs only; engineer-reported, each item stated verified by the engineer; no shell here, nothing checked from here):**
+- `Pass 646.25` (`G237`, `O336`), commit `5f401310`, unreleased: `pdfcer_core::xfa::form_kind` / `XfaFormKind { NotXfa, Static, Dynamic }`; CLI `list-fields` prints `xfa_kind=` plus a stderr placeholder sentence. 5 core unit + 1 doctest + 2 CLI tests green; `run-gates.sh` 48/49 before a fmt fix to the new test file.
+- Decision 204 (Ken, 2026-10-28): dynamic XFA reopened, reversing decision 020 §3.2.1 and answering open question (p). Round-trip: layout at render time, materialize is an explicit verb committing at Save, all disclosed. pdfcraft allowed as reference, out-of-tree oracle and fixture-generator source only; no code copied.
+- Arc `Pass 647.0`-`647.7` filed under *Next up*, all NOT STARTED; paced slowly at Ken's request.
+
+**FEATURES.md:** "Detect XFA" row `gui ◐` (kind not yet consumed by the GUI); new Planned row "Dynamic XFA"; "Will not" bullet struck (reopened).
+
+**Survivors reported, not edited (hard rule 11):** `CLAUDE.md` XFA bullet; `docs/xfa-implementation-survey.md` (lines 17, 29, 40 cite §3.2.1 as settled); `docs/PRIOR_ART.md` line 95; `docs/decisions/020-form-field-authoring.md` §3.2.1 (no forward pointer added); `crates/pdfcer-core/src/forms.rs:954` doc comment. ROADMAP Backlog XFA bullet and question (p) were amended in place. Correct and left: static-hybrid creation refusal.
+
+**For next session:** next free `Pass 646.26`, `647.8`, decision `205`, `R263`; next filing 1272nd. Owed from `pdfcer-spec-librarian`: SOM expressions, then table/row layout. Push, CI colour and backup state not checked from here.
+
 ## 2026-10-27 (1270th filing) — `Pass 646.24` SHIPPED on `0403197c`: FreeText `/C` reading persists as `Settings::free_text_c`
 
 **Filed (docs only; engineer-reported, each item stated verified by the engineer; no shell here, nothing checked from here):**

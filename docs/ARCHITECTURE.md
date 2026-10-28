@@ -13566,3 +13566,13 @@ Full record: `docs/decisions/203-markup-without-ap-is-drawn-from-geometry-at-ren
 **Why.** The geometry entries define the annotation, so drawing them reproduces the file rather than inventing content; a viewer and a renderer should not disagree about a Highlight. Decision 149's reader-`shall` argument does not reach these subtypes, so this is a separate, narrower ground.
 
 **Body-section effect.** None. **Decision ceiling.** Fills `203`; next free decision `204`. **New standing rule.** None; `R263` stays next free.
+
+### 2026-10-28 (1271st filing) — decision 204: dynamic XFA is reopened; layout is computed at render time and never rewrites the file on open
+
+Full record: `docs/decisions/204-dynamic-xfa-is-reopened-layout-at-render-time.md`. Operator instruction (Ken, 2026-10-28). **Reverses decision 020 §3.2.1** (dynamic XFA out of scope; the old entry stays) and answers open question (p) in favour of support. Static-XFA hybrid field creation stays refused.
+
+**Decides.** Arc `Pass 647.0`-`647.7`. Opening never rewrites structure (§5); layout is computed at render time as in decision 203; writing generated pages and fields is a separate explicit verb that commits at Save; the computed layout and any dropped overflow are disclosed (rule 4). No external XFA code is relied on: pdfcraft (MIT OR Apache-2.0) is allowed only as behavioural reference, an out-of-tree differential oracle, and a source of synthetic fixture generators (MIT attribution); no code copying, and its materialize-on-open design is rejected. Operator pace: slow this week.
+
+**Why.** The operator's call against the measured 0.08% demand (decision 008 census).
+
+**Body-section effect.** `ARCHITECTURE.md` §5 needs no edit (the decision applies it). **Decision ceiling.** Fills `204`; next free decision `205`. **New standing rule.** None; `R263` stays next free.

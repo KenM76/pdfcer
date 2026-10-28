@@ -194,11 +194,14 @@ commit, doc, RAG entry and **subagent dispatch**. When the operator says
 
 ## Outstanding open items (surface when relevant)
 
-- **XFA** — demand negligible (0.08% of organic files) and XFA is
-  deprecated in ISO 32000-2 itself. Authoring is decided (decision 020:
-  dynamic XFA out of scope, static-XFA hybrid field creation refused).
-  Whether to narrow the item to read/fill only, or retire it, is open
-  operator question **(p)**.
+- **XFA** — decision 204 reopens dynamic XFA (answers question (p)).
+  Detection ships (`xfa::form_kind`); the arc is Pass 647.x, paced slowly.
+  Layout is computed at render time and opening never rewrites the file;
+  writing generated layout is a separate verb that commits at Save, with
+  the inferred layout and any dropped overflow disclosed. No external XFA
+  code is relied on (pdfcraft: behavioural reference, out-of-tree oracle,
+  fixture source only). Static-XFA hybrid field creation stays refused
+  (decision 020).
 - **OCR** — engine: **both** engines behind Cargo features, ranked on
   multi-language coverage (operator). **Still open, question (bl):** whether
   a CC-BY-SA-4.0 model file (the pure-Rust `ocrs` engine, the only WASM-capable
