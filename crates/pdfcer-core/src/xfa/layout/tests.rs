@@ -436,3 +436,89 @@ fn an_oversize_adhering_pair_runs_past_an_empty_area() {
         [LayoutWarning::ContentOverflow { path: vec![0, 2] }]
     );
 }
+
+/// `d` with eight 300pt fields, asserting `overflow`, plus a `proto` of
+/// leader/trailer subforms.
+fn overflowing(overflow: &str, proto: &str) -> XfaLayout {
+    let fields: String = (1..=8)
+        .map(|i| format!(r#"<field name="d{i}" w="10pt" h="300pt"/>"#))
+        .collect();
+    lay(&format!(
+        r#"<subform name="f" layout="tb">{PAGE}<proto>{proto}</proto>
+          <subform name="d" layout="tb">{overflow}{fields}</subform></subform>"#
+    ))
+}
+
+#[test]
+fn overflow_leaders_and_trailers_repeat_until_their_occurrences_run_out() {
+    let l = overflowing(
+        r##"<overflow leader="#L" trailer="#T"/>"##,
+        r#"<subform id="L" name="L" w="10pt" h="20pt"><occur max="2"/></subform>
+           <subform id="T" name="T" w="10pt" h="30pt"><occur max="1"/></subform>"#,
+    );
+    let pages: Vec<Vec<&str>> = l.pages.iter().map(names).collect();
+    assert_eq!(
+        pages,
+        [
+            vec!["d", "d1", "d2", "T"],
+            vec!["L", "d", "d3", "d4"],
+            vec!["L", "d", "d5", "d6"],
+            vec!["d", "d7", "d8"],
+        ]
+    );
+    assert_eq!(
+        rect(&l.pages[0], "T"),
+        r(36.0, 636.0, 10.0, 30.0),
+        "after the top part, in flow"
+    );
+    assert_eq!(
+        rect(&l.pages[1], "d3"),
+        r(36.0, 56.0, 10.0, 300.0),
+        "below the leader"
+    );
+    assert!(l.warnings.is_empty(), "{:?}", l.warnings);
+    // No `occur` element: unlimited (gap G-L17).
+    let l = overflowing(
+        r##"<overflow leader="#L"/>"##,
+        r#"<subform id="L" name="L" w="10pt" h="20pt"/>"#,
+    );
+    let leaders = l.pages.iter().filter(|p| names(p).contains(&"L")).count();
+    assert_eq!(leaders, 3);
+}
+
+#[test]
+fn the_reserved_trailer_height_can_force_a_split() {
+    let l = lay(&format!(
+        r##"<subform name="f" layout="tb">{PAGE}<proto><subform id="T" name="T" w="10pt" h="30pt"/></proto>
+          <subform name="d" layout="tb"><overflow trailer="#T"/>
+          <field name="d1" w="10pt" h="300pt"/><field name="d2" w="10pt" h="300pt"/>
+          <field name="d3" w="10pt" h="100pt"/></subform></subform>"##
+    ));
+    assert_eq!(names(&l.pages[0]), ["d", "d1", "d2", "T"]);
+    assert_eq!(names(&l.pages[1]), ["d", "d3"]);
+}
+
+#[test]
+fn a_trailer_list_spends_each_target_then_stops_and_skips_a_bad_one() {
+    let l = overflowing(
+        r##"<overflow trailer="#X #nope #Y #X"/>"##,
+        r#"<subform id="X" name="X" w="10pt" h="30pt"><occur max="1"/></subform>
+           <subform id="Y" name="Y" w="10pt" h="30pt"><occur max="1"/></subform>"#,
+    );
+    let trailers: Vec<Vec<&str>> = l
+        .pages
+        .iter()
+        .map(|p| names(p).into_iter().filter(|n| n.len() == 1).collect())
+        .collect();
+    assert_eq!(
+        trailers,
+        [vec!["d", "X"], vec!["d", "Y"], vec!["d"], vec!["d"]]
+    );
+    assert_eq!(
+        l.warnings,
+        [LayoutWarning::InvalidOverflowTarget {
+            path: vec![0, 2],
+            target: "#nope".to_owned()
+        }]
+    );
+}

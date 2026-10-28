@@ -737,6 +737,15 @@ with every `warnings` entry.
     (`ContentOverflow`). An explicit `breakBefore`/`breakAfter` to another
     region wins over adhesion. Adhesion between children nested inside a
     subform is not enforced yet.
+  - **Overflow leaders and trailers** (`overflow@leader`/`@trailer`) of a
+    top-level subform: each split lays the trailer right after the top part
+    and the leader at the top of the next area. The trailer's height is
+    reserved while filling, so it can force a split. A list is spent target
+    by target to each one's `occur@max`; a target with no `occur` is
+    unlimited (gap G-L17); uses count per instance. A target may be a `#id`
+    or a plain name; one naming no single subform is skipped with
+    `InvalidOverflowTarget`. Inherited leaders/trailers, bookends and
+    overflow targets are not supported yet.
   Ordered-occurrence pagination is supported, with `breakBefore`/`breakAfter`:
   - `targetType` may be `contentArea`, `pageArea`, `pageEven` or `pageOdd`.
     The first page is odd.
@@ -752,6 +761,7 @@ with every `warnings` entry.
   - `QualifiedPagination`
   - `UnboundedBoilerplate { path }`
   - `InvalidBreakTarget { path, target }`
+  - `InvalidOverflowTarget { path, target }`: the list item was skipped.
   - `MinGreaterThanMax { path, attribute }`: the values were swapped.
   - `NegativeCoordinate { path }`
   - `UnresolvedMeasurement { path, attribute }`: a `%` unit was ignored.

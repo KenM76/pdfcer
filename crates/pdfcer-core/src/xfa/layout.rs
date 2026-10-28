@@ -21,11 +21,13 @@
 mod adhere;
 mod flow;
 mod geometry;
+mod overflow;
 mod pager;
 mod split;
 
 use flow::{Flow, is_flow};
 use geometry::{Ctx, Placed, is_placeable, lay, shifted};
+use overflow::Overflow;
 use pager::{Area, Pager};
 use split::split;
 
@@ -159,6 +161,14 @@ pub enum LayoutWarning {
         /// The `target` as written.
         target: String,
     },
+    /// An `overflow@leader`/`@trailer` item names no single `subform` or
+    /// `subformSet`; it was skipped (Ch.8 p.323).
+    InvalidOverflowTarget {
+        /// Path of the object asserting the overflow.
+        path: Vec<usize>,
+        /// The list item as written.
+        target: String,
+    },
     /// A `min*` exceeded its `max*`; the two were swapped (Ch.8 p.276).
     MinGreaterThanMax {
         /// Its template path.
@@ -272,6 +282,7 @@ pub fn layout_template(
             warnings: Vec::new(),
             items: 0,
         },
+        root: root_el,
         set,
         set_path: vec![ri, si],
         pager: Pager::new(set, vec![ri, si]),
@@ -309,6 +320,8 @@ pub fn layout_template(
 /// One layout run's page state.
 struct Run<'t, 'o> {
     ctx: Ctx<'o>,
+    /// The template element; template paths start here.
+    root: &'t XfaNode,
     set: &'t XfaNode,
     set_path: Vec<usize>,
     pager: Pager<'t>,
@@ -411,31 +424,47 @@ impl Run<'_, '_> {
     /// one more item per container it cuts, each with the same `path`.
     /// An instance `glued` to the one before stays (split, or run past the
     /// bottom) rather than move away from it (Ch.8 p.312, gap G-L15).
-    /// `false` once the page areas are exhausted.
+    /// Each split lays the instance's overflow trailer after the top part
+    /// and its leader before the rest, with the trailer's height reserved
+    /// while filling (Ch.8 pp.318-320). `false` once the page areas are
+    /// exhausted.
     fn put(&mut self, mut p: Placed, path: &[usize], glued: bool) -> bool {
+        let mut ov = self.overflow_of(path);
+        let mut lead = false;
         loop {
             let Some(ca) = self.content_area() else {
                 return false;
             };
+            if std::mem::take(&mut lead)
+                && let Some(o) = ov.as_mut()
+            {
+                let parts = o.take(&mut self.ctx, true);
+                self.put_parts(parts, ca);
+            }
             if !is_flow(self.root_strategy) {
                 let at = (p.rect.x, p.rect.y);
                 self.emit(p, ca, at);
                 return true;
             }
             let at = self.flow.slot(p.rect.w);
-            let fits = at.1 + p.rect.h <= ca.h;
-            if !fits && self.root_strategy == LayoutStrategy::Tb {
-                match split(p, ca.h - at.1) {
+            let reserve = ov.as_ref().map_or(0.0, Overflow::trailer_height);
+            if at.1 + p.rect.h > ca.h - reserve && self.root_strategy == LayoutStrategy::Tb {
+                match split(p, ca.h - at.1 - reserve) {
                     Ok((head, tail)) => {
                         self.flow.commit(head.rect.w, head.rect.h);
                         self.emit(head, ca, at);
+                        if let Some(o) = ov.as_mut() {
+                            let parts = o.take(&mut self.ctx, false);
+                            self.put_parts(parts, ca);
+                        }
                         self.area_index += 1;
-                        p = tail;
+                        (p, lead) = (tail, true);
                         continue;
                     }
                     Err(whole) => p = whole,
                 }
             }
+            let fits = at.1 + p.rect.h <= ca.h;
             if !fits && !self.current_empty() && !glued {
                 self.area_index += 1;
                 continue;
@@ -449,6 +478,16 @@ impl Run<'_, '_> {
             self.emit(p, ca, at);
             return true;
         }
+    }
+
+    /// The overflow leaders/trailers the instance at `path` asserts, when a
+    /// `tb` root can split it.
+    fn overflow_of(&mut self, path: &[usize]) -> Option<Overflow> {
+        if self.root_strategy != LayoutStrategy::Tb {
+            return None;
+        }
+        let node = resolve(self.root, &[], path)?;
+        Overflow::of(&mut self.ctx, self.root, node, path)
     }
 
     /// Append `p`'s items at `at` in content area `ca` of the current page.
