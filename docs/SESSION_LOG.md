@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-28 (1281st filing) — `Pass 647.2` FIFTH CUT on `1abf9d5e` (XFA inherited overflow leaders/trailers; Pass NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 647.2` fifth cut, `1abf9d5e7f0314d878fbf09a6e198c49e3a8bba7`: a top-level instance without `overflow@leader`/`@trailer` inherits it from the nearest containing subform or subformSet that asserts one, sharing that container's use counts (XFA 3.3 Ch.8 pp.323-325; G-L22/G-L23). An asserting instance's own counts start at zero and fall back to inherited ones once spent; absent = transparent, present-but-empty blocks. Leader and trailer resolve independently. Core only.
+- Defect found by sabotage and fixed in the same commit: a top-level subformSet member was looked up by the set's path, so its own overflow assertion was ignored (the fourth cut shipped with it). `Placed` now carries its template path.
+- Evidence: `pdfcer-core` 2046 + 3112 + 255 passed (3 new tests, 33 in `xfa::layout`); 5 sabotages each fail a test; fmt, clippy, structure (563, none new), core-api-verbs clean; fuzz 94,775 runs / 90 s = 1,053 runs/s, 0 crashes. core-api `03-capabilities.md` updated.
+- ROADMAP: `Pass 647.2` gained a fifth-cut block, stays in Next up. `FEATURES.md`: "Dynamic XFA, reading" note extended; boxes unchanged (`[x]`/`[ ]`/`[ ]`).
+
+**Decisions / findings:** no new decision (204), no new R-rule.
+
+**Still in flight:** 647.2 remaining: bookends; `overflow@target`; nested overflow in a split; nested adhesion; `lr-tb` adhesion (G-L14); G-L12 `pageArea`; field/draw text splitting.
+
+**For next session:** continue `Pass 647.2`, slow pacing. Next free `Pass 646.29`, `647.8`; decision 206, R251 (carried from relay, not re-run). Next filing 1282nd. Push, CI and backup state not checked from here.
+
 ## 2026-10-28 (1280th filing) — `Pass 647.2` FOURTH CUT on `fa1869c8` (XFA overflow leaders/trailers; Pass NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

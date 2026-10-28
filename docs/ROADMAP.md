@@ -26278,7 +26278,17 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > `Pass 647.1` SHIPPED and has left this section (1276th filing, `74023a53`); full entry at the top of *Shipped*.
 
-### Pass 647.2 — Flowed layout `tb` / `lr-tb` (FIRST CUT `7cfa9c40`, SECOND CUT `9d0ddb90` (1278th filing), THIRD CUT `5fceb520` (1279th filing), FOURTH CUT `fa1869c8` (1280th filing); NOT COMPLETE, stays here)
+### Pass 647.2 — Flowed layout `tb` / `lr-tb` (FIRST CUT `7cfa9c40`, SECOND CUT `9d0ddb90` (1278th filing), THIRD CUT `5fceb520` (1279th filing), FOURTH CUT `fa1869c8` (1280th filing), FIFTH CUT `1abf9d5e` (1281st filing); NOT COMPLETE, stays here)
+
+**Fifth cut (`1abf9d5e7f0314d878fbf09a6e198c49e3a8bba7` "feat(xfa): inherited overflow leaders and trailers (Pass 647.2, fifth cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision).** Core only (`crates/pdfcer-core/src/xfa/layout/overflow.rs`, `layout.rs`, `geometry.rs`, `split.rs`).
+- **Done:** a top-level instance not asserting `overflow@leader` (or `@trailer`) inherits it from its nearest containing subform or subformSet that does (XFA 3.3 Ch.8 p.323; a subformSet is a level, gap G-L23). That container's use counts are shared by every inheriting instance.
+- **Counts:** an asserting instance's own counts start at zero (pp.323-324); once spent it falls back to the inherited ones, level by level (p.325). An absent attribute is transparent; a present-but-empty one blocks inheritance (p.325, gap G-L22). Leader and trailer chains resolve independently.
+- **Defect found by sabotage, fixed in the same commit:** a member of a top-level subformSet was looked up by the set's path, so its own overflow assertion was ignored (the fourth cut shipped with this). `Placed` now carries its node's template path.
+- **core-api:** `docs/core-api/03-capabilities.md` updated (index line count updated).
+- **Evidence (engineer):** 3 new layout tests (33 in `xfa::layout`); 5 sabotages each fail a test; `pdfcer-core` lib 2046 + integration 3112 + doc 255 passed; fmt, clippy `-D warnings`, `check-code-structure` (563 baseline, none new), `check-core-api-verbs` PASS; fuzz `xfa_packets` 90 s, 94,775 runs = 1,053 runs/s, 0 crashes. No manifest change.
+- **REMAINING in 647.2 after the fifth cut:** bookends; `overflow@target`; nested overflow inside a split; nested adhesion; `lr-tb` adhesion (G-L14); the G-L12 `pageArea` setting; field/draw text splitting.
+
+---
 
 **Fourth cut (`fa1869c89a621b46d1efff1f19270471381adac6` "feat(xfa): overflow leaders and trailers on a split (Pass 647.2, fourth cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision).** Core only (`crates/pdfcer-core/src/xfa/layout/overflow.rs` (new)). Spec: `adobe_ext__xfa_layout_adhesion_leaders_trailers.md` §2.
 - **Done:** a top-level `tb` subform asserting `overflow@leader`/`@trailer` lays its trailer right after each split's top part, in flow, and its leader at the top of the next content area (XFA 3.3 Ch.8 pp.318-320).
