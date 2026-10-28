@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `74023a53` `Pass 647.1` SHIPPED, 2026-10-28: positioned layout and pageSet pagination (dynamic XFA arc, decision 204) (1276th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `74023a539c8daad96cf6316d99001343f37e51af` "feat(xfa): lay positioned content onto pageSet pages (Pass 647.1)", on main, unreleased (after `v0.102.0`). Reasoning is in the commit message. No new decision.
+- **Core:** `pdfcer_core::xfa::layout_template(&Template, &LayoutOptions) -> Result<XfaLayout, LayoutError>`; a pure function that writes nothing. Types: `XfaLayout{pages,warnings}`, `LayoutPage`, `LayoutItem`, `LayoutRect`, `LayoutOptions` (`NegativeCoordinates::{Keep (default), Clamp}`, gap G-L1 as a setting), `LayoutWarning` (`#[non_exhaustive]`: `FlowedLayoutPending`, `QualifiedPagination`, `UnboundedBoilerplate`, `InvalidBreakTarget`, `MinGreaterThanMax`, `NegativeCoordinate`, `UnresolvedMeasurement`, `ContentDiscarded` (the G-L6 disclosure), `PageLimit`, `ItemLimit`), `LayoutError{NoRootSubform, NoPageArea}`, caps `MAX_LAYOUT_PAGES` 10000 and `MAX_LAYOUT_ITEMS` 200000. Also `XdpDocument::parse(String)`.
+- **Scope:** positioned placement (anchor, margins, growable min/max); empty merge (`occur@initial`); ordered-occurrence pagination; `breakBefore`/`breakAfter` (`contentArea`/`pageArea`/`pageEven`/`pageOdd`, `#id` or plain-name targets, `startNew`); `occur@min` padding. Flowed strategies lay as positioned with `FlowedLayoutPending` (`647.2`).
+- **Derived readings (spec silent or ambiguous):** a targetless contentArea/pageArea break stays put when the current region is still empty, unless `startNew`; G-L3 first page is odd; a subform's positioned children are relative to its nominal content region (inside the margin); break-target jumps may exceed a page area's `occur@max` (lenient).
+- **Open item on the arc:** qualified (simplex/duplex) pagination is laid as ordered with a `QualifiedPagination` warning; no `647.x` Pass owns it yet. No new Pass number minted; `647.2`-`647.7` have no natural home, so it stays an open item here until the operator or engineer assigns one.
+- **Fuzz:** `fuzz/fuzz_targets/xfa_packets.rs` now also runs layout: 108,033 runs / 91 s = 1,187 runs/s, 0 crashes.
+- **Tests (engineer):** `pdfcer-core` lib 2030 + integration 3112 + doc 255 passed, 0 failed; 17 new layout tests in `crates/pdfcer-core/src/xfa/layout/tests.rs`.
+- **Gates (engineer):** clippy `-D warnings`, fmt, `check-code-structure` (no new debt), `check-core-api-verbs` clean. No `Cargo.toml` change, so `cargo tree` unaffected. No writer change (round-trip untouched). Full `run-gates.sh` not reported.
+- **core-api:** `docs/core-api/03-capabilities.md` gained "The XFA layout" section; `index.md` line count updated.
+- **Delivers:** core yes; cli no; gui no (no renderer or CLI caller yet).
+- **FEATURES:** "Dynamic XFA, reading" row notes the core layout model; the layout-and-drawing row stays all `[ ]` (nothing draws or reports it). Next up head `Pass 647.2`.
+
 ### `19fb00c0` `Pass 646.28` SHIPPED, 2026-10-28: a gray `ICCBased` colour converts through the CMYK output intent (`X011`) (1274th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `19fb00c0` "fix(render): a gray ICCBased colour converts through the CMYK output intent (X011)", on main, unreleased (after `v0.102.0`). Requester: the operator (crates consumer), `request_X011_*.md`; reply (outside the repo): `reply_X011_gray_iccbased_through_the_output_intent_SHIPPED.md`. Bug fix under decision 202; no new decision. Reasoning is in the commit message. `646.28` was free on grep (only "next free" mentions).
@@ -24347,7 +24361,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Next up head: `Pass 647.1` (dynamic XFA arc, decision 204; `647.0` shipped 1272nd filing), operator-paced: Ken asked for slow progress this week, so no start date is implied.** `G236` family is complete. Next free `Pass 646.26`, `647.8`, decision `205`, `R263`; next filing 1273rd. Release slot `pdfcer2` (next release). Unreleased since `v0.102.0`: `646.24`, `646.25`, `647.0`.
+> **Next up head: `Pass 647.2` (dynamic XFA arc, decision 204; `647.0` shipped 1272nd filing, `647.1` shipped 1276th), operator-paced: Ken asked for slow progress this week, so no start date is implied.** `G236` family is complete. Next free `Pass 646.29`, `647.8`, decision `206`, `R251` (decision and R per the 1274th filing's relay of `check-ledger-numbers.py`; not re-run here); next filing 1277th. Release slot `pdfcer2` (next release). Unreleased since `v0.102.0`: `646.24`, `646.25`, `647.0`, `647.1` (and later `646.x` per their entries). Open on the arc: qualified (simplex/duplex) pagination has no Pass.
 
 (1271st filing: `Pass 646.25` (`G237`, `XfaFormKind`) SHIPPED on `5f401310`; decision 204 reopens dynamic XFA; arc `647.0`-`647.7` filed below. All Passes below are NOT STARTED. Spec source (extracted by `pdfcer-spec-librarian`): `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_{xdp_packaging,static_vs_dynamic_rendering,template_layout_dom,layout_algorithm,data_binding_normal}.md`; its gap IDs G-X/S/T/L/B are the arc's default-decisions list. Spec slice still owed: SOM expressions, then table/row layout. Arc-wide acceptance: (1) opening never rewrites structure (§5); (2) layout inferred at render time is rule-4 disclosed; (3) content a dynamic form drops on overflow is disclosed, which the spec only warns about; (4) no external XFA code is relied on.)
 
@@ -26262,9 +26276,7 @@ closes out the *prior* filing's business rather than opening this one's.
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
 
-### Pass 647.1 — Positioned layout and pageSet pagination (NOT STARTED)
-
-Compute positioned (`layout=position`) subform placement and pageSet/pageArea/contentArea pagination as a pure function of template plus data, returning a layout model; nothing written to the document. Optional out-of-tree differential oracle built in pdfcraft's own target dir (never a dependency of any shipped crate, never in CI). Spec: `xfa_layout_algorithm`.
+> `Pass 647.1` SHIPPED and has left this section (1276th filing, `74023a53`); full entry at the top of *Shipped*.
 
 ### Pass 647.2 — Flowed layout `tb` / `lr-tb` (NOT STARTED)
 

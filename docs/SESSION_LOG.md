@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-28 (1276th filing) — `Pass 647.1` SHIPPED on `74023a53` (positioned layout and pageSet pagination, dynamic XFA arc)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 647.1`: `pdfcer_core::xfa::layout_template` computes positioned placement and pageSet pagination as a pure function, no writes. Core only. 17 new tests; `pdfcer-core` 2030 + 3112 + 255 passed; fuzz target extended, 108,033 runs / 91 s, 0 crashes; clippy, fmt, structure and core-api-verbs gates clean. Detail in ROADMAP Shipped.
+- `FEATURES.md`: "Dynamic XFA, reading" row notes the layout model; the layout-and-drawing row stays all `[ ]`.
+
+**Findings + decisions:** no new decision (204). Derived readings recorded in the Shipped entry (empty-region break stays put, G-L3 first page odd, children relative to the nominal content region, lenient break-target jumps past `occur@max`).
+
+**Still in flight:** qualified (simplex/duplex) pagination is laid as ordered with a `QualifiedPagination` warning and has no Pass; no number minted.
+
+**For next session:** Next up head `Pass 647.2` (flowed tb/lr-tb), slow pacing. Next free `Pass 646.29`, `647.8`; decision 206 and R251 carried from the 1274th filing's relay (gate not re-run here); next filing 1277th. Push, CI and backup state not checked from here.
+
 ## 2026-10-28 (1275th filing) — housekeeping: `5e9bd4c4` formats the `xfa_packets` fuzz target
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
