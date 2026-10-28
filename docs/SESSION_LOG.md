@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-28 (1278th filing) — `Pass 647.2` SECOND CUT on `9d0ddb90` (XFA content splitting; Pass NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 647.2` second cut, `9d0ddb9097175971a6722b37feab9153f0c029e3`: a `tb` root splits an instance across content areas (XFA 3.3 Ch.8 pp.290-295) instead of moving it whole; new `xfa/layout/split.rs`. Splittable = `tb` subform with `keep@intact` none (gap G-L7); split line creeps upward past unsplittable items; no empty-part or top-margin splits. Each part is its own `LayoutItem` with the same path; `ContentOverflow` now means "taller than an empty area and not splittable". Core only.
+- Evidence: `pdfcer-core` 2036 + 3112 + 255 passed (2 new tests); fmt, clippy, structure (563 baseline, none new), core-api-verbs clean; fuzz 114,687 runs / 91 s = 1,260 runs/s, 0 crashes; sabotage fails the split test. core-api `03-capabilities.md` updated.
+- ROADMAP: Next up `Pass 647.2` gained a second-cut block, stays in Next up. `FEATURES.md`: "Dynamic XFA, reading" note extended; boxes unchanged (`[x]`/`[ ]`/`[ ]`).
+
+**Decisions / findings:** no new decision (204), no new R-rule. Derived reading G-L7 as above.
+
+**Still in flight:** 647.2 remaining: leaders/trailers, `keep@next`/`keep@previous`, field/draw text splitting once content is sized.
+
+**For next session:** continue `Pass 647.2`, slow pacing. Next free `Pass 646.29`, `647.8`; decision 206, R251 (carried from relay, not re-run). Next filing 1279th. Push, CI and backup state not checked from here.
+
 ## 2026-10-28 (1277th filing) — `Pass 647.2` FIRST CUT on `7cfa9c40` (XFA flowed layout; Pass NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

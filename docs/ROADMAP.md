@@ -26278,7 +26278,18 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > `Pass 647.1` SHIPPED and has left this section (1276th filing, `74023a53`); full entry at the top of *Shipped*.
 
-### Pass 647.2 — Flowed layout `tb` / `lr-tb` (FIRST CUT SHIPPED `7cfa9c40`, 1277th filing; NOT COMPLETE, stays here)
+### Pass 647.2 — Flowed layout `tb` / `lr-tb` (FIRST CUT `7cfa9c40`, SECOND CUT `9d0ddb90` (1278th filing); NOT COMPLETE, stays here)
+
+**Second cut (`9d0ddb9097175971a6722b37feab9153f0c029e3` "feat(xfa): split tb subforms across content areas (Pass 647.2, second cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision).** Core only (`crates/pdfcer-core/src/xfa/layout/{split.rs (new), geometry.rs}`, `layout.rs`, `tests.rs`).
+- **Done:** a `tb` root splits an instance that does not fit the rest of the current content area (XFA 3.3 Ch.8 pp.290-295) instead of moving it whole. Only a `tb` root splits (every ancestor must be `tb`, p.281).
+- **Gap G-L7 (derived reading):** splittable = a `tb` subform with `keep@intact` none; the default `keep@intact` is `contentArea` inside a positioned container, else none (p.291). Fields and draws are not split yet.
+- **Split line:** creeps upward to the top of any unsplittable item crossing it (p.293); a splittable nested subform crossing it is cut in two. No split that leaves either part empty or lands in the top margin (p.290); then the instance moves whole as before.
+- **Model:** each part is its own `LayoutItem` with the same path (one container can appear on several pages). `LayoutWarning::ContentOverflow` now means "taller than an empty area and not splittable there".
+- **core-api:** `docs/core-api/03-capabilities.md` updated (`index.md` line count 5,314).
+- **Evidence (engineer):** `pdfcer-core` lib 2036 + integration 3112 + doc 255 passed; 2 new layout tests (`a_tb_subform_splits_between_its_children_and_cuts_a_nested_one`, `keep_intact_moves_the_whole_subform_and_reports_its_overflow`); fmt, clippy, `check-code-structure` (563 baseline, none new), `check-core-api-verbs` PASS; fuzz `xfa_packets` 114,687 runs / 91 s = 1,260 runs/s, 0 crashes; sabotage (force `split()` to Err) fails the split test. No manifest change, `cargo tree` unaffected, no new dependency.
+- **REMAINING in 647.2 after the second cut:** leaders and trailers; `keep@next`/`keep@previous`; field/draw text splitting once content is sized.
+
+---
 
 **First cut (`7cfa9c40eeb90160d9422ce569a2baaa2d48e419` "feat(xfa): flow tb/lr-tb/rl-tb content and move it between areas (Pass 647.2, first cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision).** Core only; no CLI or GUI caller.
 - **Done:** `layout_template` lays flowed containers (XFA 3.3 Ch.8 pp.279-282). `tb` stacks children from the margin corner; `lr-tb` and `rl-tb` tile children in rows, wrapping at the container's `w` (or `maxW` when `w` is absent) less margins, never wrapping when neither is present; `rl-tb` tiles from the right edge. A flowed child's x, y and anchorType are ignored.
