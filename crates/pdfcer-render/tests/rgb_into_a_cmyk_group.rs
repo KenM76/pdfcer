@@ -19,7 +19,7 @@ use pdfcer_core::document::Document;
 use pdfcer_core::page_tree;
 use pdfcer_render::{InkProbeSource, RenderOptions, RenderedPage, render_page_with};
 
-fn build(objects: &[(u32, &str)]) -> Vec<u8> {
+pub(crate) fn build(objects: &[(u32, &str)]) -> Vec<u8> {
     let mut buf = b"%PDF-1.7\n%\xE2\xE3\xCF\xD3\n".to_vec();
     let mut offsets: Vec<(u32, usize)> = Vec::new();
     for (num, body) in objects {

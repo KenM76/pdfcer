@@ -1186,6 +1186,8 @@ impl<'a> Canvas<'a> {
         // `DeviceN` row applied to the planes it was written for.
         spots: &[(usize, &crate::image::SpotTexel)],
         rules: [crate::overprint::ComponentRule; 4],
+        // How an sRGB destination converts; a CMYK destination ignores it.
+        pair: crate::overprint::InkPair,
         quality: FilterQuality,
         image_to_user: Transform,
         anti_alias: bool,
@@ -1283,7 +1285,7 @@ impl<'a> Canvas<'a> {
         // for anything that cannot read back at all.
         let dest = self.pixmap_mut()?;
         Some(crate::overprint::composite_varying(
-            dest, rules, alpha, region, source_at,
+            dest, rules, alpha, region, pair, source_at,
         ))
     }
 

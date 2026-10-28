@@ -2855,6 +2855,10 @@ struct OverprintPlan {
     op: bool,
     /// `/OPM`, as `cmyk_group_rules` takes it.
     opm: u8,
+    /// The pair an sRGB destination converts through: calibrated when the
+    /// source stated its own process tints, naive when they were recovered
+    /// from its paint colour.
+    pair: crate::overprint::InkPair,
 }
 
 struct ImageGeometry {
@@ -6563,6 +6567,14 @@ impl<'a> Interpreter<'a> {
         if let Some(cmyk) = space.to_cmyk(comps, &mut scratch) {
             return Some(cmyk);
         }
+        // ISO 32000-2 §10.4.2.2: DeviceGray to DeviceCMYK is C = M = Y = 0,
+        // K = 1 - gray. Taken here rather than bridging the sRGB, which would
+        // separate a grey to rich black (X009). DeviceGray is never managed
+        // by the output intent here (`/DefaultGray` is not implemented).
+        if matches!(space, crate::color::ColorSpace::DeviceGray) {
+            let g = comps.first().copied().unwrap_or(0.0).clamp(0.0, 1.0);
+            return Some([0.0, 0.0, 0.0, 1.0 - g]);
+        }
         // COLOUR-MANAGED CONVERSION, when the document supplied BOTH ends.
         //
         // Placed exactly here, and the position is the whole design:
@@ -7097,8 +7109,14 @@ impl<'a> Interpreter<'a> {
         // and `authored_cmyk`. That made a spot invisible on a subtractive
         // page even with overprint OFF, which no reading of Table 149
         // sanctions.
+        let pair = if authored.is_some() {
+            overprint::InkPair::Calibrated(self.policy.cmyk_intent)
+        } else {
+            overprint::InkPair::Naive
+        };
         Some(OverprintPlan {
             kind,
+            pair,
             source_cmyk,
             rules,
             op,
@@ -7218,6 +7236,7 @@ impl<'a> Interpreter<'a> {
             source_cmyk,
             alpha.clamp(0.0, 1.0),
             region,
+            plan.pair,
         );
         self.diag.overprint_composited += 1;
         self.diag.overprint_pixels += u64::from(changed);
@@ -8782,9 +8801,15 @@ impl<'a> Interpreter<'a> {
                     self.diag.images_rendered += 1;
                     return;
                 }
+                // A grey image's ink is derived only for a subtractive page
+                // (X009); an additive one never reads the planes.
+                let gray_ink =
+                    (decoded.ink.is_none() && decoded.gray_source && canvas.cmyk_mut().is_some())
+                        .then(|| crate::image::gray_ink(&decoded.pixmap))
+                        .flatten();
                 self.paint_image(
                     &decoded.pixmap,
-                    decoded.ink.as_ref(),
+                    decoded.ink.as_ref().or(gray_ink.as_ref()),
                     authored,
                     spot_source,
                     interpolate,
@@ -9229,6 +9254,7 @@ impl<'a> Interpreter<'a> {
             &op.tints,
             &spot_planes,
             rules,
+            crate::overprint::InkPair::Calibrated(self.policy.cmyk_intent),
             geom.quality,
             geom.image_to_user,
             geom.anti_alias,

@@ -540,6 +540,12 @@ pub struct DecodedImage {
     /// sampling per pixel would be a second implementation of the
     /// resampling, and it would disagree with the first at every edge.
     pub ink: Option<CmykTexels>,
+    /// Whether the texels came from `DeviceGray`, directly or through an
+    /// `/Indexed` palette over it, so each texel's red channel is the grey
+    /// value. A subtractive page then separates them with [`gray_ink`]
+    /// rather than bridging sRGB; derived at paint time so an additive page
+    /// pays nothing for planes it never reads.
+    pub gray_source: bool,
     /// Table 149's inputs for a `Separation`/`DeviceN` image — its colorant
     /// names and its **authored process tints, texel for texel**.
     ///
@@ -1165,6 +1171,7 @@ fn decode_stencil(
     Ok(DecodedImage {
         pixmap,
         ink: None,
+        gray_source: false,
         overprint: None,
         // A stencil mask has no colour space of its own -- it paints the
         // fill colour through a 1-bit shape -- so there is nothing here to
@@ -1895,6 +1902,14 @@ fn decode_sampled(
     Ok(DecodedImage {
         pixmap,
         ink,
+        gray_source: matches!(
+            space,
+            Space::Gray
+                | Space::Indexed {
+                    gray_base: true,
+                    ..
+                }
+        ),
         // Both shapes count: a direct `ICCBased` image, and an `/Indexed`
         // one whose BASE was managed at palette-build time. The second is the
         // common shape in the conformance corpus, and omitting it is what made
@@ -1973,6 +1988,29 @@ fn write_ink(planes: &mut CmykTexels, at: usize, tint: [f32; 4], alpha: u8) {
     if let Some(slot) = planes.k.pixels_mut().get_mut(at) {
         *slot = k;
     }
+}
+
+/// The ink planes of a `DeviceGray` image, `C = M = Y = 0, K = 1 - gray`
+/// (ISO 32000-2 §10.4.2.2), packed as [`write_ink`] packs them.
+///
+/// Reads the premultiplied red channel as `gray * alpha`, which holds only
+/// for [`DecodedImage::gray_source`] texels. `None` when the planes cannot
+/// be allocated; the caller then bridges sRGB as for any other image.
+pub(crate) fn gray_ink(texels: &Pixmap) -> Option<CmykTexels> {
+    let (w, h) = (texels.width(), texels.height());
+    let (mut cmy, mut k) = (Pixmap::new(w, h)?, Pixmap::new(w, h)?);
+    for ((src, c), kk) in texels
+        .pixels()
+        .iter()
+        .zip(cmy.pixels_mut())
+        .zip(k.pixels_mut())
+    {
+        let a = src.alpha();
+        let ink = a.saturating_sub(src.red());
+        *c = PremultipliedColorU8::from_rgba(0, 0, 0, a)?;
+        *kk = PremultipliedColorU8::from_rgba(ink, ink, ink, a)?;
+    }
+    Some(CmykTexels { cmy, k })
 }
 
 /// Row stride in bytes: `ceil(Width × components × BitsPerComponent / 8)`.
@@ -2298,6 +2336,9 @@ pub(crate) enum Space {
         /// through the profile, which is the same blind spot `Pass 207.0`
         /// fixed one level up, one level further in.
         base_icc_managed: bool,
+        /// Whether the base is `DeviceGray`, so each `table` entry is a grey
+        /// and [`gray_ink`] can separate it on a subtractive page.
+        gray_base: bool,
         /// The palette, resolved to sRGB — what the screen path reads.
         table: Vec<Rgb>,
         /// The same entries' `DeviceCMYK` colorants, index for index.
@@ -3390,6 +3431,7 @@ fn resolve_indexed(
     }
     Ok(Space::Indexed {
         base_icc_managed: matches!(base, Space::Icc { .. } | Space::IccRgb { .. }),
+        gray_base: matches!(base, Space::Gray),
         table,
         ink: ink_table,
         overprint: op_kind
@@ -3518,6 +3560,7 @@ mod tests {
         // Table 90 / §8.9.5.2 NOTE 2: [0 2ⁿ−1], so y = x.
         let space = Space::Indexed {
             base_icc_managed: false,
+            gray_base: false,
             table: vec![Rgb::BLACK],
             ink: None,
             overprint: None,
@@ -3625,6 +3668,7 @@ mod tests {
         let mut d = ColorDiagnostics::default();
         let indexed = Space::Indexed {
             base_icc_managed: false,
+            gray_base: false,
             table: vec![Rgb::BLACK; 2],
             ink: Some(vec![[0.1, 0.2, 0.3, 0.4], [0.5, 0.6, 0.7, 0.8]]),
             overprint: None,

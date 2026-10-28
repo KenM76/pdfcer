@@ -915,6 +915,10 @@ pub fn classify(
 ///
 /// # Why a naive conversion is the RIGHT choice here, not a shortcut
 ///
+/// [`composite`] uses this pair only for a source whose tints were
+/// recovered from its sRGB paint colour ([`InkPair::Naive`]); a source that
+/// states its own tints converts through [`InkPair::Calibrated`].
+///
 /// This is not a colorimetric transform and does not pretend to be — it
 /// carries no ICC profile, no black generation curve and no ink limit. It is
 /// chosen because of a property that matters far more for overprint than
@@ -958,6 +962,41 @@ pub fn rgb_to_cmyk(r: f32, g: f32, b: f32) -> [f32; 4] {
         (1.0 - b - k) / inv,
         k,
     ]
+}
+
+/// Which CMYK/sRGB pair an sRGB-backdrop overprint composite converts
+/// through ([`composite`], [`composite_varying`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InkPair {
+    /// [`rgb_to_cmyk`] / [`cmyk_to_rgb`], exact inverses. For a source whose
+    /// tints were themselves recovered from its sRGB paint colour, so a
+    /// paint that replaces every plane lands on that colour exactly.
+    Naive,
+    /// The renderer's calibrated pair. For a source that states its own
+    /// process tints, so an overprint that changes nothing but the source's
+    /// own planes lands where the same tints paint with overprint off
+    /// (decision 202; X010).
+    Calibrated(CmykIntent),
+}
+
+impl InkPair {
+    fn to_cmyk(self, r: f32, g: f32, b: f32) -> [f32; 4] {
+        match self {
+            Self::Naive => rgb_to_cmyk(r, g, b),
+            Self::Calibrated(intent) => pdfcer_core::color::srgb_to_cmyk_fast(intent, r, g, b),
+        }
+    }
+
+    fn to_rgb(self, cmyk: [f32; 4]) -> (f32, f32, f32) {
+        match self {
+            Self::Naive => cmyk_to_rgb(cmyk),
+            Self::Calibrated(intent) => {
+                let [c, m, y, k] = cmyk;
+                let [r, g, b] = pdfcer_core::color::cmyk_to_srgb_with(intent, c, m, y, k);
+                (r, g, b)
+            }
+        }
+    }
 }
 
 /// Convert subtractive CMYK tints back to an additive sRGB triple.
@@ -1270,6 +1309,7 @@ pub fn composite(
     source_cmyk: [f32; 4],
     alpha: f32,
     region: (u32, u32, u32, u32),
+    pair: InkPair,
 ) -> u32 {
     let width = pixmap.width();
     let (x0, y0, x1, y1) = region;
@@ -1309,9 +1349,14 @@ pub fn composite(
                 )
             };
 
-            let backdrop = rgb_to_cmyk(br, bg, bb);
+            let backdrop = pair.to_cmyk(br, bg, bb);
             let out = apply_rules(&rules, &backdrop, &source_cmyk);
-            let (nr, ng, nb) = cmyk_to_rgb(out);
+            // No component moved: leave the pixel alone rather than pay a
+            // calibrated round trip's error on it.
+            if out == backdrop && a >= 1.0 {
+                continue;
+            }
+            let (nr, ng, nb) = pair.to_rgb(out);
 
             // Interpolate between the backdrop and the overprint result by
             // `t`, so partial coverage and partial alpha behave the way
@@ -1525,6 +1570,7 @@ pub fn composite_varying(
     rules: [ComponentRule; 4],
     alpha: f32,
     region: (u32, u32, u32, u32),
+    pair: InkPair,
     mut source_at: impl FnMut(u32, u32) -> Option<([f32; 4], f32)>,
 ) -> u32 {
     let width = pixmap.width();
@@ -1556,9 +1602,12 @@ pub fn composite_varying(
                     f32::from(px.blue()) / 255.0 / a,
                 )
             };
-            let backdrop = rgb_to_cmyk(br, bg, bb);
+            let backdrop = pair.to_cmyk(br, bg, bb);
             let out = apply_rules(&rules, &backdrop, &source);
-            let (nr, ng, nb) = cmyk_to_rgb(out);
+            if out == backdrop && a >= 1.0 {
+                continue;
+            }
+            let (nr, ng, nb) = pair.to_rgb(out);
             let fr = br + (nr - br) * t;
             let fg = bg + (ng - bg) * t;
             let fb = bb + (nb - bb) * t;
