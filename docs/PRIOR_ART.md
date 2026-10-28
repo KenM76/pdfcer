@@ -316,6 +316,12 @@ into a *document* only — NOT bundling with an application.
 |---|---|---|---|
 | `usvg` 0.45.1 | Apache-2.0 OR MIT | **adopt** (decision 186) | Parses SVG/SVGZ to a simplified tree: CSS resolved, `use` expanded, shapes as paths, units absolute. `default-features = false` drops `text` (fontdb/rustybuzz). Transitives all permissive (from `cargo metadata`): `roxmltree`, `svgtypes`, `simplecss`, `kurbo`, `data-url`, `siphasher`, `base64`, `flate2` (MIT OR Apache-2.0); `strict-num`, `float-cmp`, `imagesize`, `xmlwriter`, `pico-args` (MIT); `tiny-skia-path` (BSD-3-Clause). wasm32-clean, no network (an `<image href>` to a URL is skipped, never fetched). Same crate resvg renders from, so resvg is the parity oracle (render dev-dep). |
 
+### XFA packets (`pdfcer-core`, always on)
+
+| Crate | License | Verdict | Why |
+|---|---|---|---|
+| `roxmltree` 0.20 | MIT OR Apache-2.0 | **adopt** (decision 204, Pass 647.0) | Read-only XML tree with byte ranges, no dependencies of its own; already in the graph through `usvg`. DTDs are refused by default (no entity expansion). Its element parser recurses, so pdfcer measures nesting depth before parsing (`xfa::MAX_XML_DEPTH`). wasm32-clean, no network. |
+
 ### Colour management (ICC)
 
 | Crate | License | Verdict | Why |

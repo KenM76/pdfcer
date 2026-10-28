@@ -948,11 +948,10 @@ impl Field {
 /// Whether a document's `/AcroForm` carries an XFA layer, and in which of
 /// the two Table-218 / §12.7.8 shapes.
 ///
-/// pdfcer **detects and discloses** XFA; it never parses it (0.08 % of the
-/// corpus; Backlog, deprecation status open). The AcroForm `/Fields` side
-/// — the part ISO 32000-1 fully specifies — is modelled and rendered as
-/// usual; this only records that a dynamic XFA layer also exists that pdfcer
-/// does not render.
+/// This records only that a layer exists. [`crate::xfa::form_kind`] says
+/// whether it is static or dynamic, and [`crate::xfa::read_xdp`] reads its
+/// packets (decision 204). The AcroForm `/Fields` side is modelled and
+/// rendered as usual either way.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum XfaPresence {
     /// No `/XFA` entry.

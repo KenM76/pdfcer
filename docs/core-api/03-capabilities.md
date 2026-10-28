@@ -648,7 +648,7 @@ pdfcer_core::forms::parse_acroform<G: ObjectGraph + ?Sized>(graph: &G) -> Option
 `fillable_fields()` `forms.rs`, `field_by_name(fqn)`,
 `fields_named(fqn)`, `descendants_of(fqn)`.
 
-**Which kind of XFA form** (`xfa.rs`):
+**Which kind of XFA form** (`xfa/mod.rs`):
 `pdfcer_core::xfa::form_kind<G: ObjectGraph + ?Sized>(graph: &G) -> XfaFormKind`
 (`NotXfa` / `Static` / `Dynamic`, `#[non_exhaustive]`, `is_dynamic()`).
 `AcroForm::xfa` says a layer exists; this says whether the file's pages are the
@@ -656,6 +656,18 @@ document (`Static`) or a placeholder for viewers without an XFA engine
 (`Dynamic`: `/NeedsRendering true` in the catalog, ISO 32000-1 Table 28, or in the AcroForm dictionary, XFA 3.3). Never fails;
 a non-boolean flag reads as `false`. CLI: `list-fields` prints `xfa_kind=` and,
 for a dynamic form, a stderr sentence naming the placeholder.
+
+**The XFA packets** (`xfa/packets.rs`, decision 204):
+`pdfcer_core::xfa::read_xdp(&DocumentView) -> Result<Option<XdpDocument>, XfaError>`.
+`Ok(None)` means no `/XFA`. The one stream, or the array's streams joined in
+order, is decoded and capped at `MAX_XDP_LEN` (64 MiB). The text is UTF-8, or
+UTF-16 when a BOM says so. Nesting deeper than `MAX_XML_DEPTH` (512) is
+refused before parsing, and so is a DTD. `XdpDocument::packets()` gives the
+children of `xdp:xdp` as `XdpPacket { name, namespace, range }`. A packet is
+known by its element's local name, not by the array's label. A root that is
+not `xdp` counts as one packet. `packet_text(name)` returns that element's
+text. `XfaError` is `#[non_exhaustive]`: `Malformed`, `Undecodable { index }`,
+`TooLarge`, `NotText`, `TooDeep`, `Xml`. No shell calls it yet.
 
 `Field` (`forms.rs`) → `fully_qualified_name`, `partial_name`,
 `alternate_name` (`/TU`), `mapping_name` (`/TM`), `rich_value` (`/RV`),

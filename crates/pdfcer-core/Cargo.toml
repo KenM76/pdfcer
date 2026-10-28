@@ -409,6 +409,10 @@ pdfcer-3d = { workspace = true, optional = true }
 # Apache-2.0 OR MIT. Pinned to the version pdfcer-render already tests with.
 usvg = { version = "=0.45.1", default-features = false, optional = true }
 
+# XFA packets (decision 204). MIT OR Apache-2.0, no dependencies of its own;
+# already in the graph via usvg. DTDs are refused (no entity expansion).
+roxmltree = "0.20"
+
 # ocrcer-core: the OCRcer recogniser (`ocrcer` feature). MIT, zero
 # dependencies. VENDORED at `vendor/ocrcer-core`, copied from the newest local
 # OCRcer commit by `tools/sync-ocrcer.py` (operator rule: always the newest

@@ -776,3 +776,9 @@ path = "fuzz_targets/redact_proof.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "xfa_packets"
+path = "fuzz_targets/xfa_packets.rs"
+test = false
+doc = false

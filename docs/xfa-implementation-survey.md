@@ -14,10 +14,10 @@ to be a better argument than the answer.
 
 ★ **Scope note:** this survey is about **availability**, not about whether
 pdfcer wants the feature. That was decided separately and earlier —
-`docs/decisions/020-form-field-authoring.md` §3.2.1 rules dynamic XFA
-`out_of_scope` on four independent grounds, and `ROADMAP.md` open question
-**(p)** is the operator's to answer. Nothing here overturns that; it only
-removes "but a library exists" from the discussion.
+`docs/decisions/020-form-field-authoring.md` §3.2.1 ruled dynamic XFA
+`out_of_scope`; decision 204 (operator, 2026-10-28, answering open question
+**(p)**) reopened it, to be built in-tree as Pass 647.x. This survey's finding
+still stands: there is no library to adopt.
 
 ---
 

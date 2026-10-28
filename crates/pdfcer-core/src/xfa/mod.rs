@@ -5,6 +5,10 @@
 //! dynamic one (one placeholder page; the real pages exist only once an XFA
 //! engine lays the template out). [`form_kind`] tells the two apart.
 
+mod packets;
+
+pub use packets::{MAX_XDP_LEN, MAX_XML_DEPTH, XdpDocument, XdpPacket, XfaError, read_xdp};
+
 use crate::graph::ObjectGraph;
 use crate::object::Object;
 

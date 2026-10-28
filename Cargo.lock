@@ -885,6 +885,7 @@ dependencies = [
  "pdfcer-text",
  "rand_core",
  "rc2",
+ "roxmltree",
  "rsa",
  "rten",
  "rten-tensor",
