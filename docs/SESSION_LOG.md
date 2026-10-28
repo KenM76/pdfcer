@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-28 (1280th filing) — `Pass 647.2` FOURTH CUT on `fa1869c8` (XFA overflow leaders/trailers; Pass NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 647.2` fourth cut, `fa1869c89a621b46d1efff1f19270471381adac6`: a top-level `tb` subform's `overflow@leader`/`@trailer` lay a trailer after each split's top part and a leader atop the next area (XFA 3.3 Ch.8 pp.318-324); next trailer height reserved while filling (G-L21); per-target `occur@max` counts, no-`occur` unlimited (G-L17); new `LayoutWarning::InvalidOverflowTarget`. New `xfa/layout/overflow.rs`. Core only.
+- Evidence: `pdfcer-core` 2043 + 3112 + 255 passed (3 new tests, 30 in `xfa::layout`); fmt, clippy, structure (563 baseline, none new), core-api-verbs clean; fuzz 90,566 runs / 90 s = 1,006 runs/s, 0 crashes; four sabotages each fail a test. core-api `03-capabilities.md` updated (5,333 lines).
+- ROADMAP: `Pass 647.2` gained a fourth-cut block, stays in Next up. `FEATURES.md`: "Dynamic XFA, reading" note extended; boxes unchanged (`[x]`/`[ ]`/`[ ]`; cli waits on 647.5).
+
+**Decisions / findings:** no new decision (204), no new R-rule.
+
+**Still in flight:** 647.2 remaining: leader/trailer inheritance (G-L22/G-L23); bookends; `overflow@target`; nested overflow in a split; nested adhesion; `lr-tb` adhesion (G-L14); G-L12 `pageArea`; field/draw text splitting.
+
+**For next session:** continue `Pass 647.2`, slow pacing. Next free `Pass 646.29`, `647.8`; decision 206, R251 (carried from relay, not re-run). Next filing 1281st. Push, CI and backup state not checked from here.
+
 ## 2026-10-28 (1279th filing) — `Pass 647.2` THIRD CUT on `5fceb520` (XFA keep adhesion; Pass NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

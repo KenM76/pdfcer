@@ -26278,7 +26278,18 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > `Pass 647.1` SHIPPED and has left this section (1276th filing, `74023a53`); full entry at the top of *Shipped*.
 
-### Pass 647.2 — Flowed layout `tb` / `lr-tb` (FIRST CUT `7cfa9c40`, SECOND CUT `9d0ddb90` (1278th filing), THIRD CUT `5fceb520` (1279th filing); NOT COMPLETE, stays here)
+### Pass 647.2 — Flowed layout `tb` / `lr-tb` (FIRST CUT `7cfa9c40`, SECOND CUT `9d0ddb90` (1278th filing), THIRD CUT `5fceb520` (1279th filing), FOURTH CUT `fa1869c8` (1280th filing); NOT COMPLETE, stays here)
+
+**Fourth cut (`fa1869c89a621b46d1efff1f19270471381adac6` "feat(xfa): overflow leaders and trailers on a split (Pass 647.2, fourth cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision).** Core only (`crates/pdfcer-core/src/xfa/layout/overflow.rs` (new)). Spec: `adobe_ext__xfa_layout_adhesion_leaders_trailers.md` §2.
+- **Done:** a top-level `tb` subform asserting `overflow@leader`/`@trailer` lays its trailer right after each split's top part, in flow, and its leader at the top of the next content area (XFA 3.3 Ch.8 pp.318-320).
+- **Reservation:** the next trailer's height is reserved while filling, so it can force a split (p.320, gap G-L21).
+- **Counts:** space-separated lists are spent target by target to each target's `occur@max` (p.322). A subform named as both leader and trailer shares one count. A target with no `occur` element is unlimited (gap G-L17). Counts are per asserting instance (pp.323-324). Each laid copy spends its items against `MAX_LAYOUT_ITEMS`.
+- **Targets:** `#id` or a bare name (full SOM later). An item naming no single subform/subformSet emits new `LayoutWarning::InvalidOverflowTarget { path, target }` and is skipped (p.323).
+- **core-api:** `docs/core-api/03-capabilities.md` updated (now 5,333 lines; `index.md` updated).
+- **Evidence (engineer):** 3 new layout tests (30 in `xfa::layout`); `pdfcer-core` lib 2043 + integration 3112 + doc 255 passed; fmt, clippy `-D warnings`, `check-code-structure` (563 baseline, none new), `check-core-api-verbs` PASS; fuzz `xfa_packets` 90 s, 90,566 runs = 1,006 runs/s, 0 crashes; 4 sabotages (reservation off, leader off, max ignored, no-occur=1) each fail a test. No manifest change, `cargo tree` unaffected.
+- **REMAINING in 647.2 after the fourth cut:** leader/trailer inheritance from containing subforms (G-L22/G-L23); bookends; `overflow@target`; nested overflow inside a split; nested adhesion; `lr-tb` adhesion (G-L14); the G-L12 `pageArea` setting; field/draw text splitting.
+
+---
 
 **Third cut (`5fceb5207e0198129845880037f90df9135afe5e` "feat(xfa): keep@next/previous adhesion between top-level instances (Pass 647.2, third cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision).** Core only (`crates/pdfcer-core/src/xfa/layout/adhere.rs` (new), `layout.rs`, `geometry.rs`, `split.rs`, `tests.rs`). **Spec hand-off for this cut and the next:** `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_layout_adhesion_leaders_trailers.md` (gaps G-L8 to G-L27; its cites are printed page numbers, which equal PDF pages).
 - **Done:** under a `tb` root, adjacent top-level instances adhere when the first has `keep@next` or the second has `keep@previous` (XFA 3.3 Ch.8 pp.311-314). Either side has the same effect, chains form, and a `subformSet` is transparent (Ch.9 p.357).
