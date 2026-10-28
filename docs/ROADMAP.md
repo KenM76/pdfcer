@@ -26278,9 +26278,18 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > `Pass 647.1` SHIPPED and has left this section (1276th filing, `74023a53`); full entry at the top of *Shipped*.
 
-### Pass 647.2 — Flowed layout `tb` / `lr-tb` (NOT STARTED)
+### Pass 647.2 — Flowed layout `tb` / `lr-tb` (FIRST CUT SHIPPED `7cfa9c40`, 1277th filing; NOT COMPLETE, stays here)
 
-Flowed containers, break and overflow rules, leaders/trailers. Content dropped on overflow is reported in the layout model and surfaced by 647.4/647.5 (disclosure, not silent). Table and row layouts are `647.7`. Spec: `xfa_layout_algorithm`.
+**First cut (`7cfa9c40eeb90160d9422ce569a2baaa2d48e419` "feat(xfa): flow tb/lr-tb/rl-tb content and move it between areas (Pass 647.2, first cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision).** Core only; no CLI or GUI caller.
+- **Done:** `layout_template` lays flowed containers (XFA 3.3 Ch.8 pp.279-282). `tb` stacks children from the margin corner; `lr-tb` and `rl-tb` tile children in rows, wrapping at the container's `w` (or `maxW` when `w` is absent) less margins, never wrapping when neither is present; `rl-tb` tiles from the right edge. A flowed child's x, y and anchorType are ignored.
+- **Gap G-L2 (derived reading):** a subform uses its own `layout`; an area or exclGroup inherits its parent's.
+- **Areas:** a flowed root flows through each content area in turn. An object that does not fit the rest of a non-empty area moves to the next area. An object taller than an empty area is placed past the area's bottom edge and reported by new `LayoutWarning::ContentOverflow { path }`.
+- **`FlowedLayoutPending`** now covers only `table`/`row` strategies (`647.7`).
+- **core-api:** `docs/core-api/03-capabilities.md` updated.
+- **Evidence (engineer):** `pdfcer-core` lib 2034 + integration 3112 + doc 255 passed; 4 new layout tests, 1 rewritten; fmt, clippy `-D warnings`, `check-code-structure` (no new debt), `check-core-api-verbs` clean; fuzz `xfa_packets` 115,505 runs / 91 s = 1,269 runs/s, 0 crashes; sabotage check (disable the move to the next area) fails the `tb` test. No manifest touched, `cargo tree` unaffected. Full `run-gates.sh` not reported.
+- **REMAINING in 647.2:** content splitting across areas (Ch.8 pp.290-295) including `keep@intact` and the creep-upward split consensus; leaders and trailers; the overflow/break rules that interact with splitting.
+
+Original scope: flowed containers, break and overflow rules, leaders/trailers. Content dropped on overflow is reported in the layout model and surfaced by 647.4/647.5 (disclosure, not silent). Table and row layouts are `647.7`. Spec: `xfa_layout_algorithm`.
 
 ### Pass 647.3 — Normal data merge (NOT STARTED)
 

@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-28 (1277th filing) — `Pass 647.2` FIRST CUT on `7cfa9c40` (XFA flowed layout; Pass NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 647.2` first cut, `7cfa9c40eeb90160d9422ce569a2baaa2d48e419`: `layout_template` flows `tb`, `lr-tb`, `rl-tb` containers (XFA 3.3 Ch.8 pp.279-282) and moves objects between content areas; new `LayoutWarning::ContentOverflow { path }`; `FlowedLayoutPending` now only `table`/`row`. Core only. 4 new tests + 1 rewritten; `pdfcer-core` 2034 + 3112 + 255 passed; fuzz 115,505 runs / 91 s, 0 crashes; fmt, clippy, structure, core-api-verbs clean; sabotage check fails the `tb` test.
+- ROADMAP: the Next up `Pass 647.2` entry gained a first-cut progress block and stays in Next up; no Shipped entry (not complete).
+- `FEATURES.md`: "Dynamic XFA, reading" note updated; boxes unchanged (`[x]`/`[ ]`/`[ ]`); drawing row stays all `[ ]`.
+
+**Decisions / findings:** no new decision (204). Derived reading G-L2: a subform uses its own `layout`; an area or exclGroup inherits its parent's.
+
+**Still in flight:** 647.2 remaining: content splitting across areas (Ch.8 pp.290-295, `keep@intact`, creep-upward split consensus), leaders/trailers, overflow/break rules interacting with splitting.
+
+**For next session:** continue `Pass 647.2`, slow pacing. Next free `Pass 646.29`, `647.8`; decision 206, R251 (carried from relay, not re-run). Next filing 1278th. Push, CI and backup state not checked from here.
+
 ## 2026-10-28 (1276th filing) — `Pass 647.1` SHIPPED on `74023a53` (positioned layout and pageSet pagination, dynamic XFA arc)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
