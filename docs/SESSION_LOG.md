@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-28 (1274th filing) — `Pass 646.28` SHIPPED on `19fb00c0` (gray ICCBased through the CMYK output intent, `X011`)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.28`: gray `ICCBased` (N 1) images now take the output-intent bridge on an ink page, as N 4 and the vector fill already did; with no intent, K-only fallback counted as unmanaged. `pdfcer-render` only; new `tests/gray_icc_through_the_output_intent.rs` (4); render 516 + 595 + 25 passed; clippy and fmt clean. Detail in ROADMAP Shipped.
+- `FEATURES.md`: sentences added to the colour-spaces and "Blend modes" rows; no box changed.
+
+**Findings + decisions:** no new decision (decision 202). Before the fix image X (89,91,93) differed from the square (107,96,93). Rule-11 sweep for the old "N 1 falls back to rich black / K = 1 − gray" claims not run here; the colour-spaces row's older "only N 1 (Gray) still falls back to `/Alternate`" is about the additive path and stays true.
+
+**For next session:** next free `Pass 646.29`, `647.8`; decision and R numbers per the gate, not re-run here; next filing 1275th. Push, CI and backup state not checked from here.
+
 ## 2026-10-28 (1273rd filing) — `Pass 646.26` + `Pass 646.27` SHIPPED on `3c35adee` (DeviceGray into a CMYK group `X009`; overprint calibrated pair `X010`)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

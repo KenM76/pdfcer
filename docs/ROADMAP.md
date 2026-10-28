@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `19fb00c0` `Pass 646.28` SHIPPED, 2026-10-28: a gray `ICCBased` colour converts through the CMYK output intent (`X011`) (1274th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `19fb00c0` "fix(render): a gray ICCBased colour converts through the CMYK output intent (X011)", on main, unreleased (after `v0.102.0`). Requester: the operator (crates consumer), `request_X011_*.md`; reply (outside the repo): `reply_X011_gray_iccbased_through_the_output_intent_SHIPPED.md`. Bug fix under decision 202; no new decision. Reasoning is in the commit message. `646.28` was free on grep (only "next free" mentions).
+- **Defect:** on an ink-compositing page a gray `ICCBased` image deposited K = 1 − gray, while the vector fill already took the output-intent bridge, so image and square disagreed. Measured before: image X (89,91,93) vs square (107,96,93); no-intent fill (51,51,51) vs (89,91,93).
+- **Fix:** `image.rs` `resolve_space_array` builds the output-intent bridge (`Space::Icc`) for ICCBased `/N 1` as well as `/N 4` (ISO 32000-2 §8.6.5.5, §14.11.5). `interpret.rs` `authored_cmyk`: with no bridge, an ICCBased N 1 colour falls back to X009's K-only answer instead of the `rgb_to_cmyk` rich black, and counts as unmanaged. Additive pages unchanged.
+- **Test:** `tests/gray_icc_through_the_output_intent.rs` (4), registered in `tests/all.rs`: synthetic gamma-2.2 gray profile, destination `fixtures/synthetic/icc-rgb/dest-cmyk.icc`, expected ink computed independently with `icccer`; a guard test asserts that ink is chromatic.
+- **Tests (engineer):** `pdfcer-render` 516 unit + 595 integration + 25 doc passed; clippy `-D warnings` and fmt clean. Full `run-gates.sh` not reported.
+- **Invariant:** `pdfcer-render` only; core, CLI and manifests untouched, so no `cargo tree`.
+- **Delivers:** `pdfcer-render` only; cli none, gui none (what the canvas draws changes, no call to wire).
+- **FEATURES:** the colour-spaces row and the "Blend modes" row name the fix; boxes unchanged.
+- Nothing minted. Next free `Pass 646.29`, `647.8`; decision and `R` numbers not re-run here (last relayed: decision 206, R251); next filing 1275th.
+
 ### `3c35adee` `Pass 646.27` SHIPPED, 2026-10-28: overprint on an additive page uses the calibrated CMYK pair (`X010`) (1273rd filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `3c35adee` (shared with `Pass 646.26`), on main, unreleased (after `v0.102.0`). Requester: the operator (crates consumer) via the FeatureRequests channel, `request_X010_*.md`; reply (outside the repo): `reply_X010_overprint_calibrated_pair_SHIPPED.md`. Scoped and shipped in the same filing; a bug fix under decision 202, no new decision. Reasoning is in the commit message.
