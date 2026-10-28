@@ -70,6 +70,8 @@ pub(super) struct Placed {
     /// `keep@intact` is `none`, Ch.8 pp.281, 291)?
     pub(super) breakable: Vec<bool>,
     pub(super) keep: Keep,
+    /// Template path of the instance's node.
+    pub(super) path: Vec<usize>,
 }
 
 /// Lay `node` (at `path`) positioned at `origin`, appending its items.
@@ -238,6 +240,7 @@ fn lay_one(
         items,
         breakable,
         keep: Keep::of(node),
+        path: path.to_vec(),
     })
 }
 

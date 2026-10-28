@@ -71,6 +71,7 @@ fn empty(p: &Placed, h: f64) -> Placed {
         items: Vec::new(),
         breakable: Vec::new(),
         keep: p.keep,
+        path: p.path.clone(),
     }
 }
 

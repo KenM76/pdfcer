@@ -5,14 +5,17 @@ use std::collections::HashMap;
 
 use super::LayoutWarning;
 use super::geometry::{Ctx, Placed, instances};
-use crate::xfa::{LayoutStrategy, XfaNode};
+use super::resolve;
+use crate::xfa::{ContainerKind, LayoutStrategy, XfaNode};
 
-/// The leaders and trailers one overflowing instance lays. Its use counts
-/// are its own, starting at zero (pp.323-324); a subform named as both a
-/// leader and a trailer spends one count for both (p.322).
-pub(super) struct Overflow {
-    leaders: Vec<Target>,
-    trailers: Vec<Target>,
+/// One subform's `overflow` assertion, per kind: `None` when it does not
+/// assert that kind (transparent: inherited from its container), `Some` of
+/// an empty list when it blocks inheritance (`leader=""`, p.325, gap
+/// G-L22). Use counts start at zero per asserting subform (pp.323-324); a
+/// subform named as both a leader and a trailer spends one count (p.322).
+pub(super) struct Level {
+    leaders: Option<Vec<Target>>,
+    trailers: Option<Vec<Target>>,
     used: HashMap<Vec<usize>, u32>,
 }
 
@@ -24,65 +27,59 @@ struct Target {
     parts: Vec<Placed>,
 }
 
-impl Overflow {
-    /// The `overflow` element `node` (at `path`) asserts, its targets
-    /// resolved under the template element `root`. `None` when it asserts
-    /// neither kind. Inheritance from a containing subform is later work.
-    pub(super) fn of(
-        ctx: &mut Ctx<'_>,
-        root: &XfaNode,
-        node: &XfaNode,
-        path: &[usize],
-    ) -> Option<Self> {
-        let o = node.child("overflow")?;
+impl Level {
+    fn of(ctx: &mut Ctx<'_>, root: &XfaNode, node: &XfaNode, path: &[usize]) -> Self {
+        let o = node.child("overflow");
         let mut list = |a| {
-            o.attr(a)
+            o.and_then(|o| o.attr(a))
                 .map(|v| targets(ctx, root, v, path))
-                .unwrap_or_default()
         };
-        let (leaders, trailers) = (list("leader"), list("trailer"));
-        if leaders.is_empty() && trailers.is_empty() {
-            return None;
-        }
-        Some(Self {
-            leaders,
-            trailers,
+        Self {
+            leaders: list("leader"),
+            trailers: list("trailer"),
             used: HashMap::new(),
-        })
+        }
+    }
+
+    fn list(&self, leader: bool) -> Option<&[Target]> {
+        if leader {
+            self.leaders.as_deref()
+        } else {
+            self.trailers.as_deref()
+        }
     }
 
     fn next(&self, leader: bool) -> Option<&Target> {
-        let list = if leader {
+        self.list(leader)?
+            .iter()
+            .find(|t| self.used.get(&t.path).copied().unwrap_or(0) < t.max)
+    }
+}
+
+/// The leaders and trailers one instance draws on, per kind: its own level,
+/// then each containing `subform`/`subformSet` it inherits from, nearest
+/// first, up to one that blocks. Once a level's targets are spent the next
+/// level's are (p.325); a containing level's counts are shared by every
+/// instance inheriting them (p.323, gap G-L23).
+pub(super) struct Overflow {
+    own: Level,
+    leaders: Vec<Link>,
+    trailers: Vec<Link>,
+}
+
+#[derive(Clone, Copy)]
+enum Link {
+    Own,
+    Shared(usize),
+}
+
+impl Overflow {
+    fn chain(&self, leader: bool) -> &[Link] {
+        if leader {
             &self.leaders
         } else {
             &self.trailers
-        };
-        list.iter()
-            .find(|t| self.used.get(&t.path).copied().unwrap_or(0) < t.max)
-    }
-
-    /// Height of the trailer the next overflow would lay: the space to
-    /// reserve now (p.320, gap G-L21).
-    pub(super) fn trailer_height(&self) -> f64 {
-        self.next(false)
-            .map_or(0.0, |t| t.parts.iter().map(|p| p.rect.h).sum())
-    }
-
-    /// Spend one use of the next leader (or trailer) and return its parts.
-    /// Each copy spends its items against [`super::MAX_LAYOUT_ITEMS`].
-    pub(super) fn take(&mut self, ctx: &mut Ctx<'_>, leader: bool) -> Vec<Placed> {
-        let Some(t) = self.next(leader) else {
-            return Vec::new();
-        };
-        let (path, parts) = (t.path.clone(), t.parts.clone());
-        let cost: usize = parts.iter().map(|p| p.items.len()).sum();
-        if ctx.items.saturating_add(cost) > super::MAX_LAYOUT_ITEMS {
-            ctx.warn(LayoutWarning::ItemLimit);
-            return Vec::new();
         }
-        ctx.items += cost;
-        *self.used.entry(path).or_insert(0) += 1;
-        parts
     }
 }
 
@@ -137,6 +134,109 @@ fn find<'t>(root: &'t XfaNode, spec: &str) -> Option<(&'t XfaNode, Vec<usize>)> 
 }
 
 impl super::Run<'_, '_> {
+    /// The overflow chain of the top-level instance at `path`, when a `tb`
+    /// root can split it; `None` when no level offers a leader or trailer.
+    pub(super) fn overflow_of(&mut self, path: &[usize]) -> Option<Overflow> {
+        if self.root_strategy != LayoutStrategy::Tb {
+            return None;
+        }
+        let root = self.root;
+        let own = Level::of(&mut self.ctx, root, resolve(root, &[], path)?, path);
+        let mut ups = Vec::new();
+        for n in (1..path.len()).rev() {
+            let at = path.get(..n)?;
+            let up = resolve(root, &[], at)?;
+            if matches!(
+                up.container_kind(),
+                Some(ContainerKind::Subform | ContainerKind::SubformSet)
+            ) {
+                ups.push(Link::Shared(self.shared_level(up, at)));
+            }
+        }
+        let mut ov = Overflow {
+            own,
+            leaders: Vec::new(),
+            trailers: Vec::new(),
+        };
+        for leader in [true, false] {
+            let mut chain = Vec::new();
+            for link in std::iter::once(Link::Own).chain(ups.iter().copied()) {
+                let Some(list) = self.level(&ov, link).and_then(|l| l.list(leader)) else {
+                    continue;
+                };
+                let blocks = list.is_empty();
+                chain.push(link);
+                if blocks {
+                    break;
+                }
+            }
+            *(if leader {
+                &mut ov.leaders
+            } else {
+                &mut ov.trailers
+            }) = chain;
+        }
+        (!ov.leaders.is_empty() || !ov.trailers.is_empty()).then_some(ov)
+    }
+
+    fn shared_level(&mut self, node: &XfaNode, at: &[usize]) -> usize {
+        if let Some(&i) = self.level_at.get(at) {
+            return i;
+        }
+        let level = Level::of(&mut self.ctx, self.root, node, at);
+        self.levels.push(level);
+        let i = self.levels.len() - 1;
+        self.level_at.insert(at.to_vec(), i);
+        i
+    }
+
+    fn level<'a>(&'a self, ov: &'a Overflow, link: Link) -> Option<&'a Level> {
+        match link {
+            Link::Own => Some(&ov.own),
+            Link::Shared(i) => self.levels.get(i),
+        }
+    }
+
+    fn next<'a>(&'a self, ov: &'a Overflow, leader: bool) -> Option<(Link, &'a Target)> {
+        ov.chain(leader).iter().find_map(|&link| {
+            self.level(ov, link)
+                .and_then(|l| l.next(leader))
+                .map(|t| (link, t))
+        })
+    }
+
+    /// Height of the trailer the next overflow would lay: the space to
+    /// reserve now (p.320, gap G-L21).
+    pub(super) fn trailer_height(&self, ov: &Overflow) -> f64 {
+        self.next(ov, false)
+            .map_or(0.0, |(_, t)| t.parts.iter().map(|p| p.rect.h).sum())
+    }
+
+    /// Spend one use of the next leader (or trailer) and return its parts.
+    /// Each copy spends its items against [`super::MAX_LAYOUT_ITEMS`].
+    pub(super) fn take_overflow(&mut self, ov: &mut Overflow, leader: bool) -> Vec<Placed> {
+        let Some((link, path, parts)) = self
+            .next(ov, leader)
+            .map(|(l, t)| (l, t.path.clone(), t.parts.clone()))
+        else {
+            return Vec::new();
+        };
+        let cost: usize = parts.iter().map(|p| p.items.len()).sum();
+        if self.ctx.items.saturating_add(cost) > super::MAX_LAYOUT_ITEMS {
+            self.ctx.warn(LayoutWarning::ItemLimit);
+            return Vec::new();
+        }
+        self.ctx.items += cost;
+        let level = match link {
+            Link::Own => Some(&mut ov.own),
+            Link::Shared(i) => self.levels.get_mut(i),
+        };
+        if let Some(l) = level {
+            *l.used.entry(path).or_insert(0) += 1;
+        }
+        parts
+    }
+
     /// Lay `parts` one after another in the current area's flow.
     pub(super) fn put_parts(&mut self, parts: Vec<Placed>, ca: super::LayoutRect) {
         for p in parts {

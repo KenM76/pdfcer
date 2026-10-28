@@ -742,10 +742,14 @@ with every `warnings` entry.
     and the leader at the top of the next area. The trailer's height is
     reserved while filling, so it can force a split. A list is spent target
     by target to each one's `occur@max`; a target with no `occur` is
-    unlimited (gap G-L17); uses count per instance. A target may be a `#id`
-    or a plain name; one naming no single subform is skipped with
-    `InvalidOverflowTarget`. Inherited leaders/trailers, bookends and
-    overflow targets are not supported yet.
+    unlimited (gap G-L17). A target may be a `#id` or a plain name; one
+    naming no single subform is skipped with `InvalidOverflowTarget`. A
+    subform that does not assert a kind inherits it from its nearest
+    containing `subform`/`subformSet` that does, sharing that container's
+    counts; `leader=""` blocks inheritance. An asserting subform's counts
+    start at zero per instance, and once its targets are spent it falls
+    back to the inherited ones (gaps G-L22, G-L23). Bookends and overflow
+    targets are not supported yet.
   Ordered-occurrence pagination is supported, with `breakBefore`/`breakAfter`:
   - `targetType` may be `contentArea`, `pageArea`, `pageEven` or `pageOdd`.
     The first page is odd.

@@ -27,7 +27,7 @@ mod split;
 
 use flow::{Flow, is_flow};
 use geometry::{Ctx, Placed, is_placeable, lay, shifted};
-use overflow::Overflow;
+use overflow::Level;
 use pager::{Area, Pager};
 use split::split;
 
@@ -284,6 +284,8 @@ pub fn layout_template(
         },
         root: root_el,
         set,
+        levels: Vec::new(),
+        level_at: std::collections::HashMap::new(),
         set_path: vec![ri, si],
         pager: Pager::new(set, vec![ri, si]),
         pages: Vec::new(),
@@ -323,6 +325,10 @@ struct Run<'t, 'o> {
     /// The template element; template paths start here.
     root: &'t XfaNode,
     set: &'t XfaNode,
+    /// Overflow levels of containing subforms, with their shared use counts
+    /// (Ch.8 p.323), indexed by `level_at` on the asserting node's path.
+    levels: Vec<Level>,
+    level_at: std::collections::HashMap<Vec<usize>, usize>,
     set_path: Vec<usize>,
     pager: Pager<'t>,
     pages: Vec<LayoutPage>,
@@ -429,7 +435,7 @@ impl Run<'_, '_> {
     /// while filling (Ch.8 pp.318-320). `false` once the page areas are
     /// exhausted.
     fn put(&mut self, mut p: Placed, path: &[usize], glued: bool) -> bool {
-        let mut ov = self.overflow_of(path);
+        let mut ov = self.overflow_of(&p.path);
         let mut lead = false;
         loop {
             let Some(ca) = self.content_area() else {
@@ -438,7 +444,7 @@ impl Run<'_, '_> {
             if std::mem::take(&mut lead)
                 && let Some(o) = ov.as_mut()
             {
-                let parts = o.take(&mut self.ctx, true);
+                let parts = self.take_overflow(o, true);
                 self.put_parts(parts, ca);
             }
             if !is_flow(self.root_strategy) {
@@ -447,14 +453,14 @@ impl Run<'_, '_> {
                 return true;
             }
             let at = self.flow.slot(p.rect.w);
-            let reserve = ov.as_ref().map_or(0.0, Overflow::trailer_height);
+            let reserve = ov.as_ref().map_or(0.0, |o| self.trailer_height(o));
             if at.1 + p.rect.h > ca.h - reserve && self.root_strategy == LayoutStrategy::Tb {
                 match split(p, ca.h - at.1 - reserve) {
                     Ok((head, tail)) => {
                         self.flow.commit(head.rect.w, head.rect.h);
                         self.emit(head, ca, at);
                         if let Some(o) = ov.as_mut() {
-                            let parts = o.take(&mut self.ctx, false);
+                            let parts = self.take_overflow(o, false);
                             self.put_parts(parts, ca);
                         }
                         self.area_index += 1;
@@ -478,16 +484,6 @@ impl Run<'_, '_> {
             self.emit(p, ca, at);
             return true;
         }
-    }
-
-    /// The overflow leaders/trailers the instance at `path` asserts, when a
-    /// `tb` root can split it.
-    fn overflow_of(&mut self, path: &[usize]) -> Option<Overflow> {
-        if self.root_strategy != LayoutStrategy::Tb {
-            return None;
-        }
-        let node = resolve(self.root, &[], path)?;
-        Overflow::of(&mut self.ctx, self.root, node, path)
     }
 
     /// Append `p`'s items at `at` in content area `ca` of the current page.

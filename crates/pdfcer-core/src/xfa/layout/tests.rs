@@ -522,3 +522,73 @@ fn a_trailer_list_spends_each_target_then_stops_and_skips_a_bad_one() {
         }]
     );
 }
+
+/// A subform `name` of `n` 300pt fields, its first child `extra`.
+fn tall(name: &str, n: usize, extra: &str) -> String {
+    let fields: String = (1..=n)
+        .map(|i| format!(r#"<field name="{name}{i}" w="10pt" h="300pt"/>"#))
+        .collect();
+    format!(r#"<subform name="{name}" layout="tb">{extra}{fields}</subform>"#)
+}
+
+/// Indexes of the pages carrying an item named `name`.
+fn pages_with(l: &XfaLayout, name: &str) -> Vec<usize> {
+    (0..l.pages.len())
+        .filter(|&i| names(&l.pages[i]).contains(&name))
+        .collect()
+}
+
+const LEADERS: &str = r#"<proto><subform id="L" name="L" w="10pt" h="20pt"><occur max="2"/></subform>
+    <subform id="M" name="M" w="10pt" h="20pt"><occur max="1"/></subform></proto>"#;
+
+#[test]
+fn an_inherited_leader_shares_its_count_and_an_asserting_subform_starts_afresh() {
+    let l = lay(&format!(
+        r##"<subform name="f" layout="tb">{PAGE}{LEADERS}<overflow leader="#L"/>{}{}</subform>"##,
+        tall("d", 8, ""),
+        tall("e", 4, r##"<overflow leader="#L"/>"##),
+    ));
+    assert_eq!(pages_with(&l, "L"), [1, 2, 5]);
+    assert!(l.warnings.is_empty(), "{:?}", l.warnings);
+    let shared = lay(&format!(
+        r##"<subform name="f" layout="tb">{PAGE}{LEADERS}<overflow leader="#L"/>{}{}</subform>"##,
+        tall("d", 4, ""),
+        tall("e", 8, ""),
+    ));
+    assert_eq!(pages_with(&shared, "L"), [1, 3], "one count for both");
+}
+
+#[test]
+fn an_empty_leader_blocks_inheritance_and_spent_targets_fall_back_upward() {
+    let blocked = lay(&format!(
+        r##"<subform name="f" layout="tb">{PAGE}{LEADERS}<overflow leader="#L"/>{}</subform>"##,
+        tall("d", 8, r#"<overflow leader=""/>"#),
+    ));
+    assert_eq!(pages_with(&blocked, "L"), Vec::<usize>::new());
+    let fallback = lay(&format!(
+        r##"<subform name="f" layout="tb">{PAGE}{LEADERS}<overflow leader="#M"/>{}</subform>"##,
+        tall("d", 8, r##"<overflow leader="#M"/>"##),
+    ));
+    assert_eq!(
+        pages_with(&fallback, "M"),
+        [1, 2],
+        "own count, then the root's"
+    );
+}
+
+#[test]
+fn a_subform_set_is_an_inheritance_level() {
+    let l = lay(&format!(
+        r##"<subform name="f" layout="tb">{PAGE}<proto><subform id="T" name="T" w="10pt" h="30pt"/></proto>
+          <subformSet><overflow trailer="#T"/>{}</subformSet></subform>"##,
+        tall("d", 4, ""),
+    ));
+    assert_eq!(names(&l.pages[0]), ["d", "d1", "d2", "T"]);
+    // A member of a set asserting its own: its own, not the set's.
+    let l = lay(&format!(
+        r##"<subform name="f" layout="tb">{PAGE}<proto><subform id="T" name="T" w="10pt" h="30pt"/></proto>
+          <subformSet>{}</subformSet></subform>"##,
+        tall("d", 4, r##"<overflow trailer="#T"/>"##),
+    ));
+    assert_eq!(names(&l.pages[0]), ["d", "d1", "d2", "T"]);
+}
