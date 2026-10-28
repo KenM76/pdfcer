@@ -158,3 +158,4 @@ mod vector_edit;
 mod verify_signatures_crl;
 mod widget_properties;
 mod widget_turn;
+mod xfa_kind;

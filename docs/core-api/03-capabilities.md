@@ -648,6 +648,15 @@ pdfcer_core::forms::parse_acroform<G: ObjectGraph + ?Sized>(graph: &G) -> Option
 `fillable_fields()` `forms.rs`, `field_by_name(fqn)`,
 `fields_named(fqn)`, `descendants_of(fqn)`.
 
+**Which kind of XFA form** (`xfa.rs`):
+`pdfcer_core::xfa::form_kind<G: ObjectGraph + ?Sized>(graph: &G) -> XfaFormKind`
+(`NotXfa` / `Static` / `Dynamic`, `#[non_exhaustive]`, `is_dynamic()`).
+`AcroForm::xfa` says a layer exists; this says whether the file's pages are the
+document (`Static`) or a placeholder for viewers without an XFA engine
+(`Dynamic`: `/NeedsRendering true` in the catalog, ISO 32000-1 Table 28, or in the AcroForm dictionary, XFA 3.3). Never fails;
+a non-boolean flag reads as `false`. CLI: `list-fields` prints `xfa_kind=` and,
+for a dynamic form, a stderr sentence naming the placeholder.
+
 `Field` (`forms.rs`) → `fully_qualified_name`, `partial_name`,
 `alternate_name` (`/TU`), `mapping_name` (`/TM`), `rich_value` (`/RV`),
 `default_style` (`/DS`), `value: FieldValue`, `selected_indices`,

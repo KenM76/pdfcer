@@ -54,7 +54,26 @@ pub(crate) fn cmd_list_fields(
         .filter(|f| f.has_additional_actions)
         .count();
     print_form_summary(input, &form, &js, shown, fields_with_aa);
+    disclose_xfa_kind(input, pdfcer_core::xfa::form_kind(&doc));
     exit::SUCCESS
+}
+
+/// Print `xfa_kind=` and, for a dynamic form, say that the pages shown are
+/// its placeholder (rule 4: the reading is disclosed, never silent).
+fn disclose_xfa_kind(input: &Path, kind: pdfcer_core::xfa::XfaFormKind) {
+    use pdfcer_core::xfa::XfaFormKind;
+    let label = match kind {
+        XfaFormKind::Dynamic => "dynamic",
+        XfaFormKind::Static => "static",
+        _ => "none",
+    };
+    println!("xfa_kind={label}");
+    if kind.is_dynamic() {
+        eprintln!(
+            "pdfcer: {}: this is a dynamic XFA form (/NeedsRendering true). Its pages are built by an XFA viewer when it opens; the page in the file is the placeholder written for other readers.",
+            input.display(),
+        );
+    }
 }
 
 fn print_no_form_summary(input: &Path, js: &FormJavaScript) {

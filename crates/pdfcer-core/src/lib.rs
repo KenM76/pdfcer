@@ -126,6 +126,7 @@ mod tst_info;
 pub mod vector;
 pub mod widget_draw;
 pub mod wrapper;
+pub mod xfa;
 
 // The facade: each lower crate's modules at their `pdfcer_core::` paths.
 // `tests/facade_paths.rs` fails if one stops resolving.
