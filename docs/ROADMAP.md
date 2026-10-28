@@ -112,6 +112,28 @@ wherever it appears.*
 
 ## Shipped
 
+### `3c35adee` `Pass 646.27` SHIPPED, 2026-10-28: overprint on an additive page uses the calibrated CMYK pair (`X010`) (1273rd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `3c35adee` (shared with `Pass 646.26`), on main, unreleased (after `v0.102.0`). Requester: the operator (crates consumer) via the FeatureRequests channel, `request_X010_*.md`; reply (outside the repo): `reply_X010_overprint_calibrated_pair_SHIPPED.md`. Scoped and shipped in the same filing; a bug fix under decision 202, no new decision. Reasoning is in the commit message.
+- **Defect:** on an additive page `overprint::composite` / `composite_varying` rebuilt the backdrop's CMYK and converted back with the naive `rgb_to_cmyk` / `cmyk_to_rgb` pair, while a plain paint uses the calibrated pair (decision 202).
+- **Fix:** new `overprint::InkPair { Naive, Calibrated(CmykIntent) }` picks the pair. A source that states its own tints, and every image overprint, use `srgb_to_cmyk_fast` / `cmyk_to_srgb_with` at `policy.cmyk_intent`. A source recovered from sRGB keeps `Naive`, so a full replace lands exactly on its sRGB colour. Pixels the composite leaves unchanged are skipped.
+- **Test:** `tests/overprint_uses_the_calibrated_pair.rs` (2). The cyan-by-magenta tolerance is 8 levels because the calibrated inverse's own reconstruction error is 5.
+- **Delivers:** `pdfcer-render` only; cli none, gui none (what the canvas draws changes, no call to wire).
+- **FEATURES:** the "Overprint SIMULATION" row names the fix; boxes unchanged.
+
+### `3c35adee` `Pass 646.26` SHIPPED, 2026-10-28: DeviceGray deposits K only when painted into a CMYK group (`X009`) (1273rd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `3c35adee` (shared with `Pass 646.27`), "fix(render): grey deposits K only in a CMYK group; overprint uses the calibrated pair (X009, X010)", on main, unreleased. Requester: the operator (crates consumer), `request_X009_*.md`; reply (outside the repo): `reply_X009_devicegray_k_only_in_a_cmyk_group_SHIPPED.md`. Bug fix under decision 202; no new decision. Reasoning is in the commit message.
+- **Defect:** in a `/DeviceCMYK` blending space, DeviceGray went through sRGB and the calibrated inverse, giving rich black. ISO 32000-2 §10.4.2.2 maps it to C=M=Y=0, K=1-gray.
+- **Fix:** `interpret.rs` `authored_cmyk` answers that for a DeviceGray fill or stroke. New `DecodedImage::gray_source` and `Space::Indexed::gray_base` mark gray images; `image::gray_ink` derives the K-only planes at paint time, only when the canvas is CMYK, so additive pages allocate nothing.
+- **Acceptance restated:** the request's Multiply line ("the X equals the square") is impossible, since Multiply darkens any K .75 paint over K .75. Restated as "the gray paint equals a `0 0 0 k` paint of the same value under the same state", within 3 levels for the bare group, Multiply and `/OP`. The literal criterion is tested for the bare group and `/OP`.
+- **Test:** `tests/grey_image_into_a_cmyk_group.rs` (4).
+- **Not done:** `/DefaultGray` is still not implemented in `pdfcer-render`, so DeviceGray is never output-intent-managed.
+- **Tests (engineer):** `pdfcer-render` 516 + 591 + 25 passed. **Gates (engineer):** clippy `-D warnings`, fmt, `check-code-structure`, `check-public-fns-documented`, `check-panic-allows`, `check-core-api-verbs` clean. Core and render manifests untouched, so no `cargo tree`. Writer unchanged. Full `run-gates.sh` not reported.
+- **Delivers:** `pdfcer-render` only; cli none, gui none.
+- **FEATURES:** the "Blend modes" row names the DeviceGray rule; boxes unchanged.
+- Nothing minted. Next free `Pass 646.28`, `647.8`; decision and `R` numbers per `check-ledger-numbers.py` as relayed by the dispatch (decision 206, R251; not re-run here); next filing 1274th.
+
 ### `26f53acd` + `554055e6` `Pass 647.0` SHIPPED, 2026-10-28: XFA packets and template reader (dynamic XFA arc, decision 204) (1272nd filing)
 
 Engineer-reported; no shell here, nothing checked from here. Two code commits on main, unreleased (after `v0.102.0`): `26f53acd` "feat(xfa): read the XDP packets behind /AcroForm /XFA (Pass 647.0, part 1)" and `554055e6` "feat(xfa): read the template packet as a node tree (Pass 647.0, part 2)". Reasoning is in the commit messages. No new decision.
@@ -24316,34 +24338,6 @@ closes out the *prior* filing's business rather than opening this one's.
 
 (1271st filing: `Pass 646.25` (`G237`, `XfaFormKind`) SHIPPED on `5f401310`; decision 204 reopens dynamic XFA; arc `647.0`-`647.7` filed below. All Passes below are NOT STARTED. Spec source (extracted by `pdfcer-spec-librarian`): `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_{xdp_packaging,static_vs_dynamic_rendering,template_layout_dom,layout_algorithm,data_binding_normal}.md`; its gap IDs G-X/S/T/L/B are the arc's default-decisions list. Spec slice still owed: SOM expressions, then table/row layout. Arc-wide acceptance: (1) opening never rewrites structure (§5); (2) layout inferred at render time is rule-4 disclosed; (3) content a dynamic form drops on overflow is disclosed, which the spec only warns about; (4) no external XFA code is relied on.)
 
-### Pass 647.1 — Positioned layout and pageSet pagination (NOT STARTED)
-
-Compute positioned (`layout=position`) subform placement and pageSet/pageArea/contentArea pagination as a pure function of template plus data, returning a layout model; nothing written to the document. Optional out-of-tree differential oracle built in pdfcraft's own target dir (never a dependency of any shipped crate, never in CI). Spec: `xfa_layout_algorithm`.
-
-### Pass 647.2 — Flowed layout `tb` / `lr-tb` (NOT STARTED)
-
-Flowed containers, break and overflow rules, leaders/trailers. Content dropped on overflow is reported in the layout model and surfaced by 647.4/647.5 (disclosure, not silent). Table and row layouts are `647.7`. Spec: `xfa_layout_algorithm`.
-
-### Pass 647.3 — Normal data merge (NOT STARTED)
-
-Merge the `datasets` packet into the template per the normal-binding rules; defaults per gap IDs G-B. Explicit SOM references are BLOCKED on the owed SOM spec slice. Spec: `xfa_data_binding_normal`.
-
-### Pass 647.4 — Render path for dynamic forms (NOT STARTED)
-
-`pdfcer-render` draws the computed layout instead of the placeholder page (render-time only, like decision 203). Inferred content renders exactly as saved content would (rule 4: no on-canvas marking); disclosure is off-canvas diagnostics. Needs `pdfcer-render` to stay GUI-free (`cargo tree` check).
-
-### Pass 647.5 — CLI `xfa-layout` report and `render-page` integration (NOT STARTED)
-
-`pdfcer xfa-layout` prints the layout model (pages, content per page, dropped-overflow list); `render-page` renders a dynamic form's computed layout and prints what was inferred. Ships its core-api docs row (R151: no core-only capability).
-
-### Pass 647.6 — Explicit materialize verb (NOT STARTED)
-
-`EditSession` verb plus CLI subcommand that writes the computed pages and fields into the file. Commits at Save only, never on open; disclosed as inferred content (rule 4). Static-XFA hybrid field creation stays refused (decision 020).
-
-### Pass 647.7 — Table and row layout (NOT STARTED, BLOCKED on spec slice)
-
-Table/row layout in dynamic forms. Blocked until `pdfcer-spec-librarian` extracts the table/row layout slice (after SOM expressions).
-
 (1270th filing: `Pass 646.24` (FreeText `/C` persisted as `Settings::free_text_c`) SHIPPED on `0403197c`, see *Shipped*. Nothing minted; next free `Pass 646.25`, decision `204`, `R263`; next filing 1271st. Unreleased since `v0.102.0`: `646.24`.)
 
 (1269th filing: `v0.102.0` PUBLISHED, tag on `47140cdb`, crates 0.102.0, see *Shipped*. Nothing minted; next free `Pass 646.24`, decision `204`, `R263`; next filing 1270th. Next release slot `pdfcer2`.)
@@ -26254,6 +26248,34 @@ Table/row layout in dynamic forms. Blocked until `pdfcer-spec-librarian` extract
 > annotation/destination scaling, the new ce-dimensions refusal — is at
 > the top of *Shipped*. `docs/FEATURES.md`'s row moved *Planned* →
 > *Implemented*, `[x]` core / `[x]` cli / `[ ]` gui.
+
+### Pass 647.1 — Positioned layout and pageSet pagination (NOT STARTED)
+
+Compute positioned (`layout=position`) subform placement and pageSet/pageArea/contentArea pagination as a pure function of template plus data, returning a layout model; nothing written to the document. Optional out-of-tree differential oracle built in pdfcraft's own target dir (never a dependency of any shipped crate, never in CI). Spec: `xfa_layout_algorithm`.
+
+### Pass 647.2 — Flowed layout `tb` / `lr-tb` (NOT STARTED)
+
+Flowed containers, break and overflow rules, leaders/trailers. Content dropped on overflow is reported in the layout model and surfaced by 647.4/647.5 (disclosure, not silent). Table and row layouts are `647.7`. Spec: `xfa_layout_algorithm`.
+
+### Pass 647.3 — Normal data merge (NOT STARTED)
+
+Merge the `datasets` packet into the template per the normal-binding rules; defaults per gap IDs G-B. Explicit SOM references are BLOCKED on the owed SOM spec slice. Spec: `xfa_data_binding_normal`.
+
+### Pass 647.4 — Render path for dynamic forms (NOT STARTED)
+
+`pdfcer-render` draws the computed layout instead of the placeholder page (render-time only, like decision 203). Inferred content renders exactly as saved content would (rule 4: no on-canvas marking); disclosure is off-canvas diagnostics. Needs `pdfcer-render` to stay GUI-free (`cargo tree` check).
+
+### Pass 647.5 — CLI `xfa-layout` report and `render-page` integration (NOT STARTED)
+
+`pdfcer xfa-layout` prints the layout model (pages, content per page, dropped-overflow list); `render-page` renders a dynamic form's computed layout and prints what was inferred. Ships its core-api docs row (R151: no core-only capability).
+
+### Pass 647.6 — Explicit materialize verb (NOT STARTED)
+
+`EditSession` verb plus CLI subcommand that writes the computed pages and fields into the file. Commits at Save only, never on open; disclosed as inferred content (rule 4). Static-XFA hybrid field creation stays refused (decision 020).
+
+### Pass 647.7 — Table and row layout (NOT STARTED, BLOCKED on spec slice)
+
+Table/row layout in dynamic forms. Blocked until `pdfcer-spec-librarian` extracts the table/row layout slice (after SOM expressions).
 
 ### `Pass 626.0` — lower the declared PDF version — COMPLETE, MOVED TO *Shipped* (slice 2 `d0f7c993`, 1200th filing); slice 1 detail below stays
 

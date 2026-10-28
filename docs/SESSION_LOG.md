@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-28 (1273rd filing) — `Pass 646.26` + `Pass 646.27` SHIPPED on `3c35adee` (DeviceGray into a CMYK group `X009`; overprint calibrated pair `X010`)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.26` (`X009`): in a DeviceCMYK blending space DeviceGray deposits K only (§10.4.2.2), not rich black. `Pass 646.27` (`X010`): additive-page overprint uses the calibrated CMYK pair (`overprint::InkPair`). Both `pdfcer-render` only; render tests 516 + 591 + 25 passed, listed gates clean. Detail in ROADMAP Shipped.
+- `FEATURES.md`: sentences added to the "Blend modes" and "Overprint SIMULATION" rows; no box changed.
+
+**Findings + decisions:** no new decision (bug fixes under decision 202). `X009`'s Multiply acceptance line was impossible (Multiply darkens K .75 over K .75) and was restated as "equals a `0 0 0 k` paint of the same value under the same state". `/DefaultGray` remains unimplemented. Rule-11 sweep for the old rich-black / naive-pair claims was not run here.
+
+**For next session:** next free `Pass 646.28`, `647.8`; decision and R numbers per the gate as relayed (206, R251), not re-run here; next filing 1274th. Push, CI and backup state not checked from here.
+
 ## 2026-10-28 (1272nd filing) — `Pass 647.0` SHIPPED on `26f53acd` + `554055e6` (XFA packets and template reader, core only)
 
 **Filed (docs only; engineer-reported, each item stated verified by the engineer; no shell here, nothing checked from here):**
