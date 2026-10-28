@@ -61,7 +61,13 @@ fn walk(n: &pdfcer_core::xfa::XfaNode) {
     for k in ["x", "y", "w", "h", "minW", "maxW", "minH", "maxH"] {
         let _ = n.measurement(k);
     }
-    let _ = (n.layout(), n.anchor_type(), n.presence(), n.col_span(), n.occur());
+    let _ = (
+        n.layout(),
+        n.anchor_type(),
+        n.presence(),
+        n.col_span(),
+        n.occur(),
+    );
     for c in &n.children {
         walk(c);
     }
