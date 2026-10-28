@@ -158,6 +158,7 @@ Engineer-reported; no shell here, nothing checked from here. Two code commits on
 - **pdfcraft:** behavioural reference, out-of-tree oracle and fixture-idea source only; no code relied on.
 - **Delivers:** core yes; cli no; gui no (no shell caller yet). Rendering, layout, data merge and materialize are not built.
 - **FEATURES:** new row "Dynamic XFA, reading" `core [x] cli [ ] gui [ ]`; the layout-and-drawing row stays all `[ ]` (`647.1`-`647.7`). Next free `Pass 646.26`, `647.8`, decision `205`, `R263`; next filing 1273rd. Next up head `Pass 647.1`.
+- **Housekeeping (1275th filing):** `5e9bd4c4` "style(fuzz): cargo fmt the xfa_packets target" formatted `fuzz/fuzz_targets/xfa_packets.rs`, which shipped unformatted in `554055e6`; `check-fmt-excluded.py` caught it. No behaviour change. Engineer-reported; nothing checked from here.
 
 ### `5f401310` `Pass 646.25` SHIPPED, 2026-10-28: tell a dynamic XFA form from its placeholder page (`G237`, operator row `O336`) (1271st filing)
 

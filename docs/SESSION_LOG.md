@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-28 (1275th filing) — housekeeping: `5e9bd4c4` formats the `xfa_packets` fuzz target
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `5e9bd4c4` "style(fuzz): cargo fmt the xfa_packets target": `cargo fmt` applied to `fuzz/fuzz_targets/xfa_packets.rs`, the `Pass 647.0` fuzz target that shipped unformatted in `554055e6`. `check-fmt-excluded.py` caught it. No behaviour change. One line appended to the `Pass 647.0` Shipped entry in ROADMAP.
+- `FEATURES.md`: no change.
+
+**For next session:** next filing 1276th. Push, CI and backup state not checked from here.
+
 ## 2026-10-28 (1274th filing) — `Pass 646.28` SHIPPED on `19fb00c0` (gray ICCBased through the CMYK output intent, `X011`)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
