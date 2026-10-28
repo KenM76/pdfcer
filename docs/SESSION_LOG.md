@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-28 (1272nd filing) — `Pass 647.0` SHIPPED on `26f53acd` + `554055e6` (XFA packets and template reader, core only)
+
+**Filed (docs only; engineer-reported, each item stated verified by the engineer; no shell here, nothing checked from here):**
+- `Pass 647.0`: `xfa::read_xdp` (part 1) and `xfa::read_template` (part 2), core only, no CLI or GUI caller. 20 `xfa::` unit tests; `pdfcer-core` 2013 + 3112 + 254 passed, 0 failed. Fuzz `xfa_packets` 96,929 runs / 61 s, 0 crashes. New dependency `roxmltree 0.20` (already in `THIRD_PARTY_LICENSES.md`; `PRIOR_ART.md` row added). `cargo tree -p pdfcer-core` clean; clippy, fmt, structure and core-api-verbs gates clean.
+- `FEATURES.md`: new Planned row "Dynamic XFA, reading" `[x] / [ ] / [ ]`; layout-and-drawing row stays `[ ]` across the board.
+- Decision 020 §3.2.1 had no forward pointer (confirmed by reading the file); added one to decision 204. `ARCHITECTURE.md` §12 got a dated amendment line on the 204 entry; no new decision.
+
+**Findings + decisions:**
+- Ken's CMYK side question was answered with no change: the calibrated table already matches Acrobat, and the naive formula stays removed per his 2026-08-28 ruling.
+- pdfcraft is used only as a behavioural reference, an out-of-tree oracle and a fixture-idea source; no code reliance.
+
+**Survivors:** the 1271st filing's reported survivors (`CLAUDE.md` XFA bullet, `xfa-implementation-survey.md`, `PRIOR_ART.md` line 95, `forms.rs:954`) are still owed to the engineer; the decision 020 one is now closed. Not re-swept this filing.
+
+**For next session:** next free `Pass 646.26`, `647.8`, decision `205`, `R263`; next filing 1273rd. Next up `Pass 647.1`. Owed from `pdfcer-spec-librarian`: SOM expressions, then table/row layout. Push, CI colour and backup state not checked from here.
+
 ## 2026-10-28 (1271st filing) — `Pass 646.25` SHIPPED on `5f401310` (XFA form kind); decision 204 reopens dynamic XFA; arc `Pass 647.0`-`647.7` filed
 
 **Filed (docs only; engineer-reported, each item stated verified by the engineer; no shell here, nothing checked from here):**

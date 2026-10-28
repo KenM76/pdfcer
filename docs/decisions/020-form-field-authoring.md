@@ -832,6 +832,8 @@ start generating precisely those shapes. That is the argument for F0.
 
 #### 3.2.1 Dynamic XFA — `out_of_scope`. Agreed, four independent reasons
 
+> **Superseded 2026-10-28 by decision 204** (`docs/decisions/204-dynamic-xfa-is-reopened-layout-at-render-time.md`): dynamic XFA is reopened, arc `Pass 647.0`-`647.7`. Static-XFA hybrid field creation stays refused. The text below is the original record.
+
 1. No AcroForm exists as of Acrobat 8.1+, so there is no parity target.
 2. Structural XFA editing requires LiveCycle/AEM Designer — outside
    Acrobat, therefore outside the parity brief by definition.

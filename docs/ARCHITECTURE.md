@@ -13576,3 +13576,5 @@ Full record: `docs/decisions/204-dynamic-xfa-is-reopened-layout-at-render-time.m
 **Why.** The operator's call against the measured 0.08% demand (decision 008 census).
 
 **Body-section effect.** `ARCHITECTURE.md` §5 needs no edit (the decision applies it). **Decision ceiling.** Fills `204`; next free decision `205`. **New standing rule.** None; `R263` stays next free.
+
+*Amended 1272nd filing, 2026-10-28: `Pass 647.0` SHIPPED on `26f53acd` and `554055e6` (packets and template reader, core only). Forward pointer added at decision 020 §3.2.1. No new decision; `205` stays next free.*

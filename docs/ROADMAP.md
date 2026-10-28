@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `26f53acd` + `554055e6` `Pass 647.0` SHIPPED, 2026-10-28: XFA packets and template reader (dynamic XFA arc, decision 204) (1272nd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Two code commits on main, unreleased (after `v0.102.0`): `26f53acd` "feat(xfa): read the XDP packets behind /AcroForm /XFA (Pass 647.0, part 1)" and `554055e6` "feat(xfa): read the template packet as a node tree (Pass 647.0, part 2)". Reasoning is in the commit messages. No new decision.
+- **Core, part 1:** `pdfcer_core::xfa::read_xdp(&DocumentView) -> Result<Option<XdpDocument>, XfaError>`. `/XFA` is one stream or a name/stream array, concatenated in array order; output capped at `MAX_XDP_LEN` (64 MiB); UTF-16 decoded when a BOM says so; nesting pre-scanned and refused past `MAX_XML_DEPTH` = 512 (roxmltree's parser recurses); DTDs refused; a packet is identified by its element's local name, not the array label.
+- **Core, part 2:** `read_template(&XdpDocument) -> Result<Option<Template>, XfaError>` returns `XfaNode` trees that keep every element. Typed accessors apply XFA 3.3 Ch.17 defaults for layout, anchorType, presence, colSpan, occur and measurements (no unit = inches; absent is not 0, gap G-T2). Conversion is depth-guarded.
+- **Dependency:** `roxmltree 0.20` (MIT/Apache-2.0), already in `THIRD_PARTY_LICENSES.md` (nothing regenerated); `docs/PRIOR_ART.md` row added.
+- **Fuzz:** `fuzz/fuzz_targets/xfa_packets.rs`: part 1 69,923 runs, 0 crashes; extended in part 2 to 96,929 runs / 61 s = 1,589 runs/s, 0 crashes.
+- **Tests (engineer):** 20 `xfa::` unit tests; full `pdfcer-core` green: 2013 + 3112 + 254 passed, 0 failed.
+- **Gates (engineer):** `cargo tree -p pdfcer-core` shows no GUI or network crate; clippy `-D warnings`, fmt, `check-code-structure`, `check-core-api-verbs` clean (`docs/core-api/03` gained two paragraphs).
+- **pdfcraft:** behavioural reference, out-of-tree oracle and fixture-idea source only; no code relied on.
+- **Delivers:** core yes; cli no; gui no (no shell caller yet). Rendering, layout, data merge and materialize are not built.
+- **FEATURES:** new row "Dynamic XFA, reading" `core [x] cli [ ] gui [ ]`; the layout-and-drawing row stays all `[ ]` (`647.1`-`647.7`). Next free `Pass 646.26`, `647.8`, decision `205`, `R263`; next filing 1273rd. Next up head `Pass 647.1`.
+
 ### `5f401310` `Pass 646.25` SHIPPED, 2026-10-28: tell a dynamic XFA form from its placeholder page (`G237`, operator row `O336`) (1271st filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `5f401310` "feat(xfa): tell a dynamic XFA form from its placeholder page (G237)", on main, unreleased (after `v0.102.0`). Request from `pdfcer-gui`. Reply filed: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_G237_dynamic_xfa_form_kind_SHIPPED.md`. Detection only; the layout arc it enables is `Pass 647.0`-`647.7` under decision 204 (below).
@@ -24299,13 +24312,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Next up head: `Pass 647.0` (dynamic XFA arc, decision 204), operator-paced: Ken asked for slow progress this week, so no start date is implied.** `G236` family is complete. Next free `Pass 646.26`, `647.8`, decision `205`, `R263`; next filing 1272nd. Release slot `pdfcer2` (next release). Unreleased since `v0.102.0`: `646.24`, `646.25`.
+> **Next up head: `Pass 647.1` (dynamic XFA arc, decision 204; `647.0` shipped 1272nd filing), operator-paced: Ken asked for slow progress this week, so no start date is implied.** `G236` family is complete. Next free `Pass 646.26`, `647.8`, decision `205`, `R263`; next filing 1273rd. Release slot `pdfcer2` (next release). Unreleased since `v0.102.0`: `646.24`, `646.25`, `647.0`.
 
 (1271st filing: `Pass 646.25` (`G237`, `XfaFormKind`) SHIPPED on `5f401310`; decision 204 reopens dynamic XFA; arc `647.0`-`647.7` filed below. All Passes below are NOT STARTED. Spec source (extracted by `pdfcer-spec-librarian`): `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_{xdp_packaging,static_vs_dynamic_rendering,template_layout_dom,layout_algorithm,data_binding_normal}.md`; its gap IDs G-X/S/T/L/B are the arc's default-decisions list. Spec slice still owed: SOM expressions, then table/row layout. Arc-wide acceptance: (1) opening never rewrites structure (§5); (2) layout inferred at render time is rule-4 disclosed; (3) content a dynamic form drops on overflow is disclosed, which the spec only warns about; (4) no external XFA code is relied on.)
-
-### Pass 647.0 — XFA packets and template reader (NOT STARTED)
-
-Read `/AcroForm /XFA` (array of name/stream pairs or one stream) into packets; parse the `template` packet into a read-only DOM (subform, pageSet, pageArea, contentArea, field, draw, exclGroup, `layout`/`h`/`w`/`x`/`y`/`anchorType`/`colSpan` as per the template-layout-dom file). New `pdfcer_core::xfa` submodules, no new dependency unless `LEGAL.md` §6.1-classified. Includes adapting pdfcraft's synthetic fixture generators as test inputs with MIT attribution (`LEGAL.md` §5); no code copied. Spec: `xfa_xdp_packaging`, `xfa_template_layout_dom`.
 
 ### Pass 647.1 — Positioned layout and pageSet pagination (NOT STARTED)
 
