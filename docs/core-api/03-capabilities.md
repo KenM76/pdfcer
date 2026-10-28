@@ -723,7 +723,7 @@ with every `warnings` entry.
   - A flowed root flows through each content area in turn: an object that
     does not fit the rest of a non-empty area moves to the next one.
   - A `tb` root splits a `tb` subform whose `keep@intact` is `none` (the
-    default unless its parent is positioned) at the highest line no field,
+    default for a `tb` subform, gap G-L18) at the highest line no field,
     draw or unsplittable subform crosses; a splittable subform crossing the
     line is cut too. Each part is a separate `LayoutItem` with the same
     `path`, so one container can appear on several pages. Fields and draws

@@ -26278,7 +26278,19 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > `Pass 647.1` SHIPPED and has left this section (1276th filing, `74023a53`); full entry at the top of *Shipped*.
 
-### Pass 647.2 — Flowed layout `tb` / `lr-tb` (FIRST CUT `7cfa9c40`, SECOND CUT `9d0ddb90` (1278th filing); NOT COMPLETE, stays here)
+### Pass 647.2 — Flowed layout `tb` / `lr-tb` (FIRST CUT `7cfa9c40`, SECOND CUT `9d0ddb90` (1278th filing), THIRD CUT `5fceb520` (1279th filing); NOT COMPLETE, stays here)
+
+**Third cut (`5fceb5207e0198129845880037f90df9135afe5e` "feat(xfa): keep@next/previous adhesion between top-level instances (Pass 647.2, third cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision).** Core only (`crates/pdfcer-core/src/xfa/layout/adhere.rs` (new), `layout.rs`, `geometry.rs`, `split.rs`, `tests.rs`). **Spec hand-off for this cut and the next:** `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_layout_adhesion_leaders_trailers.md` (gaps G-L8 to G-L27; its cites are printed page numbers, which equal PDF pages).
+- **Done:** under a `tb` root, adjacent top-level instances adhere when the first has `keep@next` or the second has `keep@previous` (XFA 3.3 Ch.8 pp.311-314). Either side has the same effect, chains form, and a `subformSet` is transparent (Ch.9 p.357).
+- **Chain rule (derived algorithm, p.313):** a chain that cannot start in the rest of a non-empty content area moves to the next area together. The members before the first one that splits there must fit whole, and that member's top fragment must fit.
+- **Glued rule (G-L15, the 2.8 rule on p.312):** an instance glued to the one before never moves away from it. It splits, or runs past the bottom of the area, which is reported as `ContentOverflow`.
+- **Hard breaks (G-L27):** an explicit `breakBefore`/`breakAfter` to another region wins over adhesion.
+- **G-L18 refines G-L7:** the `keep@intact` default keys on the subform's own layout (Ch.17 p.762).
+- **core-api:** `docs/core-api/03-capabilities.md` updated (`index.md` line count 5,323).
+- **Evidence (engineer):** `pdfcer-core` lib 2040 + integration 3112 + doc 255 passed (4 new layout tests); fmt, clippy, `check-code-structure` (563 baseline, none new), `check-core-api-verbs` PASS; fuzz `xfa_packets` 81,798 runs / 91 s = 899 runs/s, 0 crashes; sabotage (force `chain_fits` true; drop the glued no-move rule; clear the glue flags; ignore hard breaks) each fails a test. No manifest or dependency change.
+- **REMAINING in 647.2 after the third cut:** overflow leaders/trailers and bookends; adhesion between children nested inside a subform; adhesion in `lr-tb`/`rl-tb` roots (G-L14); the G-L12 `pageArea` setting (spec same-page vs Adobe none; currently laid as `contentArea`); field/draw text splitting once content is sized.
+
+---
 
 **Second cut (`9d0ddb9097175971a6722b37feab9153f0c029e3` "feat(xfa): split tb subforms across content areas (Pass 647.2, second cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision).** Core only (`crates/pdfcer-core/src/xfa/layout/{split.rs (new), geometry.rs}`, `layout.rs`, `tests.rs`).
 - **Done:** a `tb` root splits an instance that does not fit the rest of the current content area (XFA 3.3 Ch.8 pp.290-295) instead of moving it whole. Only a `tb` root splits (every ancestor must be `tb`, p.281).

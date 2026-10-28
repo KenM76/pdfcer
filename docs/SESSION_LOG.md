@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-28 (1279th filing) — `Pass 647.2` THIRD CUT on `5fceb520` (XFA keep adhesion; Pass NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 647.2` third cut, `5fceb5207e0198129845880037f90df9135afe5e`: under a `tb` root, adjacent top-level instances adhere via `keep@next`/`keep@previous` (XFA 3.3 Ch.8 pp.311-314); chains move together; a glued instance never leaves its predecessor (splits or overflows, reported `ContentOverflow`, G-L15); explicit breaks win (G-L27); G-L18 refines G-L7. New `xfa/layout/adhere.rs`. Core only.
+- Spec source: new `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_layout_adhesion_leaders_trailers.md` (G-L8 to G-L27), cited in the ROADMAP entry as the hand-off for this and the next cut.
+- Evidence: `pdfcer-core` 2040 + 3112 + 255 passed (4 new tests); fmt, clippy, structure (563 baseline, none new), core-api-verbs clean; fuzz 81,798 runs / 91 s = 899 runs/s, 0 crashes; four sabotages each fail a test. core-api `03-capabilities.md` updated.
+- ROADMAP: Next up `Pass 647.2` gained a third-cut block, stays in Next up. `FEATURES.md`: "Dynamic XFA, reading" note extended; boxes unchanged (`[x]`/`[ ]`/`[ ]`).
+
+**Decisions / findings:** no new decision (204), no new R-rule.
+
+**Still in flight:** 647.2 remaining: overflow leaders/trailers and bookends; nested-child adhesion; `lr-tb`/`rl-tb` adhesion (G-L14); G-L12 `pageArea` setting; field/draw text splitting.
+
+**For next session:** continue `Pass 647.2`, slow pacing. Next free `Pass 646.29`, `647.8`; decision 206, R251 (carried from relay, not re-run). Next filing 1280th. Push, CI and backup state not checked from here.
+
 ## 2026-10-28 (1278th filing) — `Pass 647.2` SECOND CUT on `9d0ddb90` (XFA content splitting; Pass NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
