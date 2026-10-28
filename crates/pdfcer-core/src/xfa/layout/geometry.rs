@@ -1,6 +1,7 @@
 //! Positioned placement of one template subtree (XFA 3.3 Ch.7 pp.264-268,
 //! Ch.8 pp.275-279; box model Ch.2 pp.49-55).
 
+use super::adhere::Keep;
 use super::flow::{Flow, is_flow};
 use super::{LayoutItem, LayoutOptions, LayoutRect, LayoutWarning, NegativeCoordinates};
 use crate::xfa::{AnchorType, ContainerKind, LayoutStrategy, Measurement, Presence, XfaNode};
@@ -61,12 +62,14 @@ pub(super) fn is_placeable(node: &XfaNode) -> bool {
 
 /// One placed instance: its rectangle in the parent's content region (x/y
 /// zero when the parent flows) and its items relative to that rectangle.
+#[derive(Clone)]
 pub(super) struct Placed {
     pub(super) rect: LayoutRect,
     pub(super) items: Vec<LayoutItem>,
     /// Per item: may a split line cut it (a `tb` subform whose
     /// `keep@intact` is `none`, Ch.8 pp.281, 291)?
     pub(super) breakable: Vec<bool>,
+    pub(super) keep: Keep,
 }
 
 /// Lay `node` (at `path`) positioned at `origin`, appending its items.
@@ -212,19 +215,7 @@ fn lay_one(
         ["h", "minH", "maxH"],
         grows.then_some(ey + bottom),
     );
-    let rect = if is_flow(parent) {
-        LayoutRect {
-            x: 0.0,
-            y: 0.0,
-            w,
-            h,
-        }
-    } else {
-        let (ax, ay) = anchor_fraction(node.anchor_type());
-        let x = ctx.length(node, path, "x").unwrap_or(0.0) - ax * w;
-        let y = ctx.length(node, path, "y").unwrap_or(0.0) - ay * h;
-        place(ctx, path, LayoutRect { x, y, w, h })
-    };
+    let rect = position(ctx, node, path, parent, (w, h));
     let mut items = vec![LayoutItem {
         kind,
         name: node.name().map(str::to_owned),
@@ -240,34 +231,48 @@ fn lay_one(
         content_area: None,
     }];
     items.extend(laid);
-    let mut breakable = vec![breaks(node, kind, strategy, parent)];
+    let mut breakable = vec![breaks(node, kind, strategy)];
     breakable.extend(kid_breaks);
     Some(Placed {
         rect,
         items,
         breakable,
+        keep: Keep::of(node),
     })
 }
 
-/// A `tb` subform may be split unless `keep@intact` says otherwise; the
-/// default is `contentArea` inside a positioned container, else `none`
-/// (gap G-L7, Ch.8 p.291). Fields and draws are not split until their
-/// content is sized.
-fn breaks(
+/// Where a `w` × `h` instance sits in its parent: at the origin when the
+/// parent flows (p.279), else by `x`/`y` and `anchorType`.
+fn position(
+    ctx: &mut Ctx<'_>,
     node: &XfaNode,
-    kind: ContainerKind,
-    strategy: LayoutStrategy,
+    path: &[usize],
     parent: LayoutStrategy,
-) -> bool {
-    let default = if is_flow(parent) {
-        "none"
-    } else {
-        "contentArea"
-    };
+    (w, h): (f64, f64),
+) -> LayoutRect {
+    if is_flow(parent) {
+        return LayoutRect {
+            x: 0.0,
+            y: 0.0,
+            w,
+            h,
+        };
+    }
+    let (ax, ay) = anchor_fraction(node.anchor_type());
+    let x = ctx.length(node, path, "x").unwrap_or(0.0) - ax * w;
+    let y = ctx.length(node, path, "y").unwrap_or(0.0) - ay * h;
+    place(ctx, path, LayoutRect { x, y, w, h })
+}
+
+/// A `tb` subform may be split unless `keep@intact` says otherwise. The
+/// default keys on the subform's own layout, `none` for a flowing one (gap
+/// G-L18, Ch.17 p.762). Fields and draws are not split until their content
+/// is sized.
+fn breaks(node: &XfaNode, kind: ContainerKind, strategy: LayoutStrategy) -> bool {
     let intact = node
         .child("keep")
         .and_then(|k| k.attr("intact"))
-        .map_or(default, str::trim);
+        .map_or("none", str::trim);
     kind == ContainerKind::Subform && strategy == LayoutStrategy::Tb && intact == "none"
 }
 

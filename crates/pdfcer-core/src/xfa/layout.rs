@@ -18,13 +18,14 @@
 //! such a container is laid as if positioned and reported as
 //! [`LayoutWarning::FlowedLayoutPending`].
 
+mod adhere;
 mod flow;
 mod geometry;
 mod pager;
 mod split;
 
 use flow::{Flow, is_flow};
-use geometry::{Ctx, Placed, instances, is_placeable, lay, shifted};
+use geometry::{Ctx, Placed, is_placeable, lay, shifted};
 use pager::{Area, Pager};
 use split::split;
 
@@ -296,13 +297,7 @@ pub fn layout_template(
         });
     }
     run.apply_break(root, &root_path, "breakBefore");
-    for (i, c) in root.children.iter().enumerate() {
-        if is_placeable(c) {
-            let mut p = root_path.clone();
-            p.push(i);
-            run.place_top_level(c, &p);
-        }
-    }
+    run.place_children(root, &root_path);
     run.apply_break(root, &root_path, "breakAfter");
     run.pad_minimums();
     Ok(XfaLayout {
@@ -390,21 +385,6 @@ impl Run<'_, '_> {
         !self.filled.contains(&true)
     }
 
-    fn place_top_level(&mut self, node: &XfaNode, path: &[usize]) {
-        self.apply_break(node, path, "breakBefore");
-        let mut placed = Vec::new();
-        instances(&mut self.ctx, node, path, self.root_strategy, &mut placed);
-        for p in placed {
-            if !self.put(p, path) {
-                self.ctx.warn(LayoutWarning::ContentDiscarded {
-                    path: path.to_vec(),
-                });
-                return;
-            }
-        }
-        self.apply_break(node, path, "breakAfter");
-    }
-
     /// The current content area's rectangle, opening pages as needed.
     fn content_area(&mut self) -> Option<LayoutRect> {
         if !self.ensure_content_area() {
@@ -429,8 +409,10 @@ impl Run<'_, '_> {
     /// non-empty one; a `tb` root first splits it there when it can
     /// (splitting needs every ancestor `tb`, Ch.8 p.281). A split part is
     /// one more item per container it cuts, each with the same `path`.
+    /// An instance `glued` to the one before stays (split, or run past the
+    /// bottom) rather than move away from it (Ch.8 p.312, gap G-L15).
     /// `false` once the page areas are exhausted.
-    fn put(&mut self, mut p: Placed, path: &[usize]) -> bool {
+    fn put(&mut self, mut p: Placed, path: &[usize], glued: bool) -> bool {
         loop {
             let Some(ca) = self.content_area() else {
                 return false;
@@ -454,7 +436,7 @@ impl Run<'_, '_> {
                     Err(whole) => p = whole,
                 }
             }
-            if !fits && !self.current_empty() {
+            if !fits && !self.current_empty() && !glued {
                 self.area_index += 1;
                 continue;
             }

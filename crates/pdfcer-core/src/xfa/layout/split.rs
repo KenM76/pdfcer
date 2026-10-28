@@ -70,6 +70,7 @@ fn empty(p: &Placed, h: f64) -> Placed {
         rect: LayoutRect { h, ..p.rect },
         items: Vec::new(),
         breakable: Vec::new(),
+        keep: p.keep,
     }
 }
 

@@ -375,3 +375,64 @@ fn huge_occurrence_counts_stop_at_the_limits() {
     assert_eq!(l.pages.len(), MAX_LAYOUT_PAGES);
     assert!(l.warnings.contains(&LayoutWarning::PageLimit));
 }
+
+#[test]
+fn an_adhering_chain_that_does_not_fit_moves_together() {
+    let l = lay(&format!(
+        r#"<subform name="f" layout="tb">{PAGE}<field name="p" w="10pt" h="500pt"/>
+          <field name="c" w="10pt" h="100pt"><keep next="contentArea"/></field>
+          <field name="d" w="10pt" h="100pt"><keep next="contentArea"/></field>
+          <field name="e" w="10pt" h="100pt"/></subform>"#
+    ));
+    assert_eq!(names(&l.pages[0]), ["p"]);
+    assert_eq!(names(&l.pages[1]), ["c", "d", "e"]);
+    assert!(l.warnings.is_empty());
+}
+
+#[test]
+fn keep_previous_on_a_splittable_partner_keeps_only_its_top_fragment() {
+    let l = lay(&format!(
+        r#"<subform name="f" layout="tb">{PAGE}<field name="p" w="10pt" h="500pt"/>
+          <field name="c" w="10pt" h="100pt"/>
+          <subform name="d" layout="tb"><keep previous="contentArea"/>
+          <field name="d1" w="10pt" h="100pt"/><field name="d2" w="10pt" h="200pt"/>
+          </subform></subform>"#
+    ));
+    assert_eq!(names(&l.pages[0]), ["p", "c", "d", "d1"]);
+    assert_eq!(names(&l.pages[1]), ["d", "d2"]);
+    let l = lay(&format!(
+        r#"<subform name="f" layout="tb">{PAGE}<field name="p" w="10pt" h="500pt"/>
+          <field name="c" w="10pt" h="100pt"/>
+          <subform name="d" layout="tb"><keep previous="contentArea"/>
+          <field name="d1" w="10pt" h="150pt"/></subform></subform>"#
+    ));
+    assert_eq!(names(&l.pages[0]), ["p"]);
+    assert_eq!(names(&l.pages[1]), ["c", "d", "d1"]);
+}
+
+#[test]
+fn an_explicit_break_wins_over_adhesion() {
+    let l = lay(&format!(
+        r#"<subform name="f" layout="tb">{PAGE}<field name="p" w="10pt" h="500pt"/>
+          <field name="c" w="10pt" h="100pt"><keep next="contentArea"/></field>
+          <subform name="e" layout="tb"><breakBefore targetType="contentArea"/>
+          <field name="e1" w="10pt" h="200pt"/></subform></subform>"#
+    ));
+    assert_eq!(names(&l.pages[0]), ["p", "c"]);
+    assert_eq!(names(&l.pages[1]), ["e", "e1"]);
+}
+
+#[test]
+fn an_oversize_adhering_pair_runs_past_an_empty_area() {
+    let l = lay(&format!(
+        r#"<subform name="f" layout="tb">{PAGE}
+          <field name="c" w="10pt" h="500pt"><keep next="contentArea"/></field>
+          <field name="d" w="10pt" h="500pt"/></subform>"#
+    ));
+    assert_eq!(l.pages.len(), 1);
+    assert_eq!(rect(&l.pages[0], "d"), r(36.0, 536.0, 10.0, 500.0));
+    assert_eq!(
+        l.warnings,
+        [LayoutWarning::ContentOverflow { path: vec![0, 2] }]
+    );
+}

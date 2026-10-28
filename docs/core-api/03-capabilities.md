@@ -728,6 +728,15 @@ with every `warnings` entry.
     line is cut too. Each part is a separate `LayoutItem` with the same
     `path`, so one container can appear on several pages. Fields and draws
     are not split yet.
+  - Under a `tb` root, adjacent top-level instances adhere when the first
+    has `keep@next` or the second `keep@previous` (`contentArea`, or
+    `pageArea`, laid as `contentArea`). A chain that cannot start in the
+    rest of a non-empty area moves to the next one together; a splittable
+    member is split and only its top fragment adheres. A chain too tall for
+    an empty area stays together and runs past its bottom
+    (`ContentOverflow`). An explicit `breakBefore`/`breakAfter` to another
+    region wins over adhesion. Adhesion between children nested inside a
+    subform is not enforced yet.
   Ordered-occurrence pagination is supported, with `breakBefore`/`breakAfter`:
   - `targetType` may be `contentArea`, `pageArea`, `pageEven` or `pageOdd`.
     The first page is odd.
