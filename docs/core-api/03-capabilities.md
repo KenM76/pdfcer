@@ -669,6 +669,27 @@ not `xdp` counts as one packet. `packet_text(name)` returns that element's
 text. `XfaError` is `#[non_exhaustive]`: `Malformed`, `Undecodable { index }`,
 `TooLarge`, `NotText`, `TooDeep`, `Xml`. No shell calls it yet.
 
+**The XFA template** (`xfa/template.rs`, decision 204):
+`read_template(&XdpDocument) -> Result<Option<Template>, XfaError>`.
+`Ok(None)` means there is no `template` packet. `Template::element()` is the
+`template` element and `root_subform()` its first `subform`. Every element is
+kept as an `XfaNode { tag, attributes, text, children }`, whether or not it is
+modelled, in document order (which is Z-order). Accessors apply the XFA 3.3
+Ch.17 defaults:
+- `layout()` returns `LayoutStrategy`, default `Position`.
+- `anchor_type()` returns `AnchorType`, default `TopLeft`.
+- `presence()` returns `Presence`, default `Visible`.
+- `col_span()` defaults to 1; `-1` gives `None`.
+- `container_kind()` returns a `ContainerKind`.
+- `occur()` gives subforms 1/min/min and page sets or page areas
+  0/unbounded; any other element gets `None`.
+- `measurement(name)` returns a `Measurement` (`Points`, `Em` or `Percent`).
+  A number with no unit means inches. An absent attribute is `None`, never
+  zero, and so is `maxW`/`maxH` of 0.
+
+The enums are `#[non_exhaustive]`, and unknown tokens read as the default. No
+shell calls this yet.
+
 `Field` (`forms.rs`) → `fully_qualified_name`, `partial_name`,
 `alternate_name` (`/TU`), `mapping_name` (`/TM`), `rich_value` (`/RV`),
 `default_style` (`/DS`), `value: FieldValue`, `selected_indices`,

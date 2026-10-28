@@ -1,5 +1,6 @@
 //! Fuzz target: the XDP reader behind `/AcroForm /XFA`
-//! (`pdfcer_core::xfa::read_xdp`, decision 204, Pass 647.0).
+//! and template DOM (`pdfcer_core::xfa::read_xdp`, `read_template`,
+//! decision 204, Pass 647.0).
 //!
 //! The fuzz bytes become the XFA stream of a fixed one-page document, raw
 //! or split into a two-stream packet array. Reading must never panic, and
@@ -56,11 +57,24 @@ fn wrap(data: &[u8]) -> Vec<u8> {
     buf
 }
 
+fn walk(n: &pdfcer_core::xfa::XfaNode) {
+    for k in ["x", "y", "w", "h", "minW", "maxW", "minH", "maxH"] {
+        let _ = n.measurement(k);
+    }
+    let _ = (n.layout(), n.anchor_type(), n.presence(), n.col_span(), n.occur());
+    for c in &n.children {
+        walk(c);
+    }
+}
+
 fuzz_target!(|data: &[u8]| {
     if let Ok(doc) = Document::from_bytes(wrap(data)) {
         if let Ok(Some(xdp)) = pdfcer_core::xfa::read_xdp(&doc.view()) {
             for p in xdp.packets() {
                 let _ = xdp.packet_text(&p.name);
+            }
+            if let Ok(Some(t)) = pdfcer_core::xfa::read_template(&xdp) {
+                walk(t.element());
             }
         }
     }

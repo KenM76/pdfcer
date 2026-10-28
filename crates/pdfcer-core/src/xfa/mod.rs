@@ -6,8 +6,13 @@
 //! engine lays the template out). [`form_kind`] tells the two apart.
 
 mod packets;
+mod template;
 
 pub use packets::{MAX_XDP_LEN, MAX_XML_DEPTH, XdpDocument, XdpPacket, XfaError, read_xdp};
+pub use template::{
+    AnchorType, ContainerKind, LayoutStrategy, Measurement, Occur, Presence, Template, XfaNode,
+    read_template,
+};
 
 use crate::graph::ObjectGraph;
 use crate::object::Object;
