@@ -2391,8 +2391,10 @@ pub(crate) enum Space {
         /// profile and the other through `rgb_to_cmyk`.
         pcs: Option<std::sync::Arc<crate::icc::PcsBridge>>,
     },
-    /// `[/ICCBased stream]` where the document ALSO named an output device,
-    /// so the samples can actually be colour-managed (`Pass 214.0`).
+    /// `[/ICCBased stream]` with `N 1` or `N 4` where the document ALSO named
+    /// an output device, so the samples can actually be colour-managed
+    /// (`Pass 214.0`; `N 1` by X011 — a gray profile can print in all four
+    /// inks, so `K = 1 - gray` is only its fallback).
     ///
     /// # Why this is a distinct variant rather than a field on the others
     ///
@@ -3020,7 +3022,7 @@ fn resolve_space_array(
             // exactly as it did.
             if let Some(cache) = icc.cache
                 && let Some(components) = n.and_then(|v| usize::try_from(v).ok())
-                && components == 4
+                && matches!(components, 1 | 4)
                 && let Some(stream) = items.get(1)
                 && let Object::Stream(st) = doc.resolve(stream)
                 && let Some(raw) = doc.slice(st.data_span)

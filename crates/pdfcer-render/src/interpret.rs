@@ -6633,6 +6633,13 @@ impl<'a> Interpreter<'a> {
         // sRGB, exactly as an `IccRgb` image is -- so this arm returns
         // nothing new; it only stops calling a managed paint unmanaged.
         if matches!(space, crate::color::ColorSpace::IccBased { .. }) {
+            // An unmanaged gray profile falls back as `DeviceGray` does
+            // (X009, X011): K only, never a rich black from the sRGB.
+            if space.components() == 1 {
+                self.icc.note_unmanaged();
+                let g = comps.first().copied().unwrap_or(0.0).clamp(0.0, 1.0);
+                return Some([0.0, 0.0, 0.0, 1.0 - g]);
+            }
             if self.display_bridge(space).is_some() {
                 self.icc.note_managed();
             } else {
