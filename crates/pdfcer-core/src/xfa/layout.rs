@@ -1,5 +1,5 @@
-//! XFA layout of positioned content onto `pageSet` pages (XFA 3.3 Ch.7-8;
-//! decision 204, Pass 647.1).
+//! XFA layout of template content onto `pageSet` pages (XFA 3.3 Ch.7-8;
+//! decision 204, Passes 647.1-647.2).
 //!
 //! [`layout_template`] is a pure function of the template: it computes where
 //! each container lands and on which page, and writes nothing to the
@@ -7,16 +7,21 @@
 //! or saves it discloses that, and every [`LayoutWarning`] is part of that
 //! disclosure, [`LayoutWarning::ContentDiscarded`] above all (gap G-L6).
 //!
-//! Scope: positioned (`layout="position"`) placement, the template's empty
-//! merge (`occur@initial` instances; the data merge is Pass 647.3), and
-//! ordered-occurrence pagination with `breakBefore`/`breakAfter`. Flowed
-//! strategies are Pass 647.2: such a container is laid as if positioned and
-//! reported as [`LayoutWarning::FlowedLayoutPending`].
+//! Scope: positioned and flowed (`tb`, `lr-tb`, `rl-tb`) placement, the
+//! template's empty merge (`occur@initial` instances; the data merge is Pass
+//! 647.3), and ordered-occurrence pagination with `breakBefore`/`breakAfter`.
+//! A flowed root moves an object that does not fit the rest of its content
+//! area to the next one; content is not yet split across areas
+//! ([`LayoutWarning::ContentOverflow`]). Table strategies are Pass 647.7:
+//! such a container is laid as if positioned and reported as
+//! [`LayoutWarning::FlowedLayoutPending`].
 
+mod flow;
 mod geometry;
 mod pager;
 
-use geometry::{Ctx, is_placeable, lay};
+use flow::{Flow, is_flow};
+use geometry::{Ctx, Placed, instances, is_placeable, lay, shifted};
 use pager::{Area, Pager};
 
 use super::{ContainerKind, LayoutStrategy, Template, XfaNode};
@@ -125,7 +130,7 @@ pub struct LayoutPage {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum LayoutWarning {
-    /// A flowed container laid as positioned until Pass 647.2.
+    /// A `table`/`row` container laid as positioned until Pass 647.7.
     FlowedLayoutPending {
         /// Its template path.
         path: Vec<usize>,
@@ -171,6 +176,12 @@ pub enum LayoutWarning {
     /// The page areas ran out; this top-level object and everything after it
     /// was discarded (Ch.8 p.301, gap G-L6).
     ContentDiscarded {
+        /// Its template path.
+        path: Vec<usize>,
+    },
+    /// An object taller than an empty content area of a flowed root was
+    /// placed past the area's bottom edge (Ch.8 p.295); it is not split.
+    ContentOverflow {
         /// Its template path.
         path: Vec<usize>,
     },
@@ -262,6 +273,9 @@ pub fn layout_template(
         filled: Vec::new(),
         area_index: 0,
         exhausted: false,
+        root_strategy: root.layout(),
+        flow: Flow::new(LayoutStrategy::Position, None),
+        flow_key: (0, usize::MAX),
     };
     if !matches!(set.attr("relation"), None | Some("orderedOccurrence")) {
         run.ctx.warn(LayoutWarning::QualifiedPagination);
@@ -270,7 +284,7 @@ pub fn layout_template(
         return Err(LayoutError::NoPageArea);
     }
     let root_path = vec![ri];
-    if root.layout() != LayoutStrategy::Position {
+    if root.layout() != LayoutStrategy::Position && !is_flow(root.layout()) {
         run.ctx.warn(LayoutWarning::FlowedLayoutPending {
             path: root_path.clone(),
             strategy: root.layout(),
@@ -303,6 +317,10 @@ struct Run<'t, 'o> {
     filled: Vec<bool>,
     area_index: usize,
     exhausted: bool,
+    root_strategy: LayoutStrategy,
+    /// The flow cursor of the content area `flow_key` (page, area) names.
+    flow: Flow,
+    flow_key: (usize, usize),
 }
 
 impl Run<'_, '_> {
@@ -369,30 +387,79 @@ impl Run<'_, '_> {
 
     fn place_top_level(&mut self, node: &XfaNode, path: &[usize]) {
         self.apply_break(node, path, "breakBefore");
-        if !self.ensure_content_area() {
-            self.ctx.warn(LayoutWarning::ContentDiscarded {
-                path: path.to_vec(),
-            });
-            return;
-        }
-        let Some(page) = self.pages.last_mut() else {
-            return;
-        };
-        let Some(ca) = page.content_areas.get(self.area_index).copied() else {
-            return;
-        };
-        let mut items = Vec::new();
-        lay(&mut self.ctx, node, path, (ca.x, ca.y), &mut items);
-        for i in &mut items {
-            i.content_area = Some(self.area_index);
-        }
-        if !items.is_empty() {
-            page.items.extend(items);
-            if let Some(f) = self.filled.get_mut(self.area_index) {
-                *f = true;
+        let mut placed = Vec::new();
+        instances(&mut self.ctx, node, path, self.root_strategy, &mut placed);
+        for p in placed {
+            if !self.put(p, path) {
+                self.ctx.warn(LayoutWarning::ContentDiscarded {
+                    path: path.to_vec(),
+                });
+                return;
             }
         }
         self.apply_break(node, path, "breakAfter");
+    }
+
+    /// The current content area's rectangle, opening pages as needed.
+    fn content_area(&mut self) -> Option<LayoutRect> {
+        if !self.ensure_content_area() {
+            return None;
+        }
+        let ca = self
+            .pages
+            .last()?
+            .content_areas
+            .get(self.area_index)
+            .copied()?;
+        let key = (self.pages.len(), self.area_index);
+        if self.flow_key != key {
+            self.flow_key = key;
+            self.flow = Flow::new(self.root_strategy, Some(ca.w));
+        }
+        Some(ca)
+    }
+
+    /// Put one top-level instance in the current content area; a flowed
+    /// root moves it to the next area when it does not fit the rest of a
+    /// non-empty one. `false` once the page areas are exhausted.
+    fn put(&mut self, p: Placed, path: &[usize]) -> bool {
+        let Some(mut ca) = self.content_area() else {
+            return false;
+        };
+        let (mut x, mut y) = (p.rect.x, p.rect.y);
+        if is_flow(self.root_strategy) {
+            (x, y) = self.flow.slot(p.rect.w);
+            if y + p.rect.h > ca.h && !self.current_empty() {
+                self.area_index += 1;
+                let Some(next) = self.content_area() else {
+                    return false;
+                };
+                ca = next;
+                (x, y) = self.flow.slot(p.rect.w);
+            }
+            if y + p.rect.h > ca.h {
+                self.ctx.warn(LayoutWarning::ContentOverflow {
+                    path: path.to_vec(),
+                });
+            }
+            self.flow.commit(p.rect.w, p.rect.h);
+        }
+        let index = self.area_index;
+        let Some(page) = self.pages.last_mut() else {
+            return false;
+        };
+        let before = page.items.len();
+        page.items
+            .extend(shifted(p.items, ca.x + x, ca.y + y).map(|mut i| {
+                i.content_area = Some(index);
+                i
+            }));
+        if page.items.len() > before
+            && let Some(f) = self.filled.get_mut(index)
+        {
+            *f = true;
+        }
+        true
     }
 
     /// `breakBefore`/`breakAfter` (Ch.9 pp.359-362). Without a target, a

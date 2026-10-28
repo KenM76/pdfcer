@@ -1,6 +1,7 @@
 //! Positioned placement of one template subtree (XFA 3.3 Ch.7 pp.264-268,
 //! Ch.8 pp.275-279; box model Ch.2 pp.49-55).
 
+use super::flow::{Flow, is_flow};
 use super::{LayoutItem, LayoutOptions, LayoutRect, LayoutWarning, NegativeCoordinates};
 use crate::xfa::{AnchorType, ContainerKind, LayoutStrategy, Measurement, Presence, XfaNode};
 
@@ -58,20 +59,41 @@ pub(super) fn is_placeable(node: &XfaNode) -> bool {
     )
 }
 
-/// Lay `node` (at `path`) positioned in a container whose content region
-/// starts at the origin, appending its items translated by `origin`.
-///
-/// A `subformSet` has no geometry: its children are laid in the enclosing
-/// container. `hidden`/`inactive` content takes no space and is omitted; an
-/// empty merge instantiates each subform `occur@initial` times (Ch.17
-/// p.786). Items are emitted parent first (Z-order, p.70). Every instance,
-/// a `subformSet`'s included, spends one unit of [`super::MAX_LAYOUT_ITEMS`].
+/// One placed instance: its rectangle in the parent's content region (x/y
+/// zero when the parent flows) and its items relative to that rectangle.
+pub(super) struct Placed {
+    pub(super) rect: LayoutRect,
+    pub(super) items: Vec<LayoutItem>,
+}
+
+/// Lay `node` (at `path`) positioned at `origin`, appending its items.
 pub(super) fn lay(
     ctx: &mut Ctx<'_>,
     node: &XfaNode,
     path: &[usize],
     origin: (f64, f64),
     out: &mut Vec<LayoutItem>,
+) {
+    let mut placed = Vec::new();
+    instances(ctx, node, path, LayoutStrategy::Position, &mut placed);
+    for p in placed {
+        out.extend(shifted(p.items, origin.0 + p.rect.x, origin.1 + p.rect.y));
+    }
+}
+
+/// The instances of `node` in a parent laid by `parent`.
+///
+/// A `subformSet` has no geometry: its children's instances are its own.
+/// `hidden`/`inactive` content takes no space and is omitted; an empty
+/// merge instantiates each subform `occur@initial` times (Ch.17 p.786).
+/// Items are emitted parent first (Z-order, p.70). Every instance, a
+/// `subformSet`'s included, spends one unit of [`super::MAX_LAYOUT_ITEMS`].
+pub(super) fn instances(
+    ctx: &mut Ctx<'_>,
+    node: &XfaNode,
+    path: &[usize],
+    parent: LayoutStrategy,
+    out: &mut Vec<Placed>,
 ) {
     if matches!(node.presence(), Presence::Hidden | Presence::Inactive) {
         return;
@@ -84,52 +106,78 @@ pub(super) fn lay(
         }
         if node.container_kind() == Some(ContainerKind::SubformSet) {
             ctx.items += 1;
-            lay_children(ctx, node, path, origin, out);
-        } else if let Some((rect, local)) = lay_one(ctx, node, path) {
-            out.extend(local.into_iter().map(|mut i| {
-                i.rect.x += origin.0 + rect.x;
-                i.rect.y += origin.1 + rect.y;
-                i
-            }));
+            children(ctx, node, path, parent, out);
+        } else if let Some(p) = lay_one(ctx, node, path, parent) {
+            out.push(p);
         }
     }
 }
 
-fn lay_children(
+fn children(
     ctx: &mut Ctx<'_>,
     node: &XfaNode,
     path: &[usize],
-    origin: (f64, f64),
-    out: &mut Vec<LayoutItem>,
+    strategy: LayoutStrategy,
+    out: &mut Vec<Placed>,
 ) {
     for (i, c) in node.children.iter().enumerate() {
         if is_placeable(c) {
             let mut p = path.to_vec();
             p.push(i);
-            lay(ctx, c, &p, origin, out);
+            instances(ctx, c, &p, strategy, out);
         }
     }
 }
 
-/// One container: its rectangle relative to the parent's content region,
-/// and its items relative to its own top-left.
+pub(super) fn shifted(
+    items: Vec<LayoutItem>,
+    dx: f64,
+    dy: f64,
+) -> impl Iterator<Item = LayoutItem> {
+    items.into_iter().map(move |mut i| {
+        i.rect.x += dx;
+        i.rect.y += dy;
+        i
+    })
+}
+
+/// The strategy `node` lays its children by. Gap G-L2 (derived reading): a
+/// subform uses its own `layout`, an area or exclGroup inherits.
+fn strategy_of(
+    ctx: &mut Ctx<'_>,
+    node: &XfaNode,
+    path: &[usize],
+    kind: ContainerKind,
+    parent: LayoutStrategy,
+) -> LayoutStrategy {
+    let s = match kind {
+        ContainerKind::Subform => node.layout(),
+        ContainerKind::Area | ContainerKind::ExclGroup => parent,
+        _ => LayoutStrategy::Position,
+    };
+    if s != LayoutStrategy::Position && !is_flow(s) {
+        ctx.warn(LayoutWarning::FlowedLayoutPending {
+            path: path.to_vec(),
+            strategy: s,
+        });
+    }
+    s
+}
+
+/// One container in a parent laid by `parent`.
 fn lay_one(
     ctx: &mut Ctx<'_>,
     node: &XfaNode,
     path: &[usize],
-) -> Option<(LayoutRect, Vec<LayoutItem>)> {
+    parent: LayoutStrategy,
+) -> Option<Placed> {
     let kind = node.container_kind()?;
     if ctx.items >= super::MAX_LAYOUT_ITEMS {
         ctx.warn(LayoutWarning::ItemLimit);
         return None;
     }
     ctx.items += 1;
-    if kind == ContainerKind::Subform && node.layout() != LayoutStrategy::Position {
-        ctx.warn(LayoutWarning::FlowedLayoutPending {
-            path: path.to_vec(),
-            strategy: node.layout(),
-        });
-    }
+    let strategy = strategy_of(ctx, node, path, kind, parent);
     let inset = |ctx: &mut Ctx<'_>, a| {
         node.child("margin")
             .and_then(|m| ctx.length(m, path, a))
@@ -137,9 +185,13 @@ fn lay_one(
     };
     let (left, top) = (inset(ctx, "leftInset"), inset(ctx, "topInset"));
     let (right, bottom) = (inset(ctx, "rightInset"), inset(ctx, "bottomInset"));
-    let mut children = Vec::new();
-    lay_children(ctx, node, path, (left, top), &mut children);
-    let (ex, ey) = children.iter().fold((0.0_f64, 0.0_f64), |(x, y), i| {
+    let mut kids = Vec::new();
+    children(ctx, node, path, strategy, &mut kids);
+    let wrap = (ctx.length(node, path, "w"))
+        .or_else(|| ctx.length(node, path, "maxW"))
+        .map(|w| (w - left - right).max(0.0));
+    let laid = arrange(kids, strategy, wrap, (left, top));
+    let (ex, ey) = laid.iter().fold((0.0_f64, 0.0_f64), |(x, y), i| {
         (x.max(i.rect.x + i.rect.w), y.max(i.rect.y + i.rect.h))
     });
     let grows = !matches!(kind, ContainerKind::Field | ContainerKind::Draw);
@@ -157,10 +209,19 @@ fn lay_one(
         ["h", "minH", "maxH"],
         grows.then_some(ey + bottom),
     );
-    let (ax, ay) = anchor_fraction(node.anchor_type());
-    let x = ctx.length(node, path, "x").unwrap_or(0.0) - ax * w;
-    let y = ctx.length(node, path, "y").unwrap_or(0.0) - ay * h;
-    let rect = place(ctx, path, LayoutRect { x, y, w, h });
+    let rect = if is_flow(parent) {
+        LayoutRect {
+            x: 0.0,
+            y: 0.0,
+            w,
+            h,
+        }
+    } else {
+        let (ax, ay) = anchor_fraction(node.anchor_type());
+        let x = ctx.length(node, path, "x").unwrap_or(0.0) - ax * w;
+        let y = ctx.length(node, path, "y").unwrap_or(0.0) - ay * h;
+        place(ctx, path, LayoutRect { x, y, w, h })
+    };
     let mut items = vec![LayoutItem {
         kind,
         name: node.name().map(str::to_owned),
@@ -175,8 +236,31 @@ fn lay_one(
         visible: node.presence() == Presence::Visible,
         content_area: None,
     }];
-    items.extend(children);
-    Some((rect, items))
+    items.extend(laid);
+    Some(Placed { rect, items })
+}
+
+/// Children's items relative to the container's top-left: positioned by
+/// their own rectangles, or flowed from the margin corner.
+fn arrange(
+    kids: Vec<Placed>,
+    strategy: LayoutStrategy,
+    wrap: Option<f64>,
+    (left, top): (f64, f64),
+) -> Vec<LayoutItem> {
+    let mut flow = Flow::new(strategy, wrap);
+    let mut out = Vec::new();
+    for k in kids {
+        let (x, y) = if is_flow(strategy) {
+            let at = flow.slot(k.rect.w);
+            flow.commit(k.rect.w, k.rect.h);
+            at
+        } else {
+            (k.rect.x, k.rect.y)
+        };
+        out.extend(shifted(k.items, left + x, top + y));
+    }
+    out
 }
 
 /// One axis: the given size, else the content extent clamped to min/max

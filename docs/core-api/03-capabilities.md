@@ -692,7 +692,7 @@ shell calls this yet. `XdpDocument::parse(String)` reads standalone XDP text
 (an `.xdp` file) the same way `read_xdp` reads a document's; it fails with
 `TooLarge`, `TooDeep` or `Xml`.
 
-**The XFA layout** (`xfa/layout.rs`, decision 204, Pass 647.1):
+**The XFA layout** (`xfa/layout.rs`, decision 204, Passes 647.1-647.2):
 `layout_template(&Template, &LayoutOptions) -> Result<XfaLayout, LayoutError>`.
 It is a pure function: it writes nothing to the document. Its result is
 inferred content (rule 4), so a shell that renders it discloses that, along
@@ -708,11 +708,21 @@ with every `warnings` entry.
   origin, y down). `background` is true for direct `pageArea` content.
   `visible` is false for `presence="invisible"`. `content_area` indexes the
   page's content areas.
-- **Scope.** Positioned placement only. Anchor points and subform margins are
-  applied; containers grow to their children's extent within min/max. A field
+- **Scope.** Positioned and flowed placement. Anchor points and subform
+  margins are applied; containers grow to their children's extent within min/max. A field
   or draw with no `w`/`h` takes its `min*`, because content sizing is not done
   yet. The merge is empty: each subform is instantiated `occur@initial` times,
   and the data merge is 647.3. `hidden` and `inactive` content is omitted.
+  Flow (`tb`, `lr-tb`, `rl-tb`) ignores a child's `x`/`y`/`anchorType`:
+  - `tb` stacks children from the margin corner.
+  - `lr-tb`/`rl-tb` tile in rows that wrap at the container's `w` (else
+    `maxW`) less its margins; with neither, a row never wraps. `rl-tb` tiles
+    from the right edge.
+  - A subform uses its own `layout`; an `area` or `exclGroup` takes its
+    parent's (gap G-L2).
+  - A flowed root flows through each content area in turn: an object that
+    does not fit the rest of a non-empty area moves to the next one. Nothing
+    is split yet.
   Ordered-occurrence pagination is supported, with `breakBefore`/`breakAfter`:
   - `targetType` may be `contentArea`, `pageArea`, `pageEven` or `pageOdd`.
     The first page is odd.
@@ -723,14 +733,16 @@ with every `warnings` entry.
   - When content ends, the current page area and the rest of the pass are
     padded to `occur@min`.
 - **Warnings.** `LayoutWarning` is `#[non_exhaustive]`:
-  - `FlowedLayoutPending { path, strategy }`: a flowed container laid as
-    positioned (647.2).
+  - `FlowedLayoutPending { path, strategy }`: a `table`/`row` container laid
+    as positioned (647.7).
   - `QualifiedPagination`
   - `UnboundedBoilerplate { path }`
   - `InvalidBreakTarget { path, target }`
   - `MinGreaterThanMax { path, attribute }`: the values were swapped.
   - `NegativeCoordinate { path }`
   - `UnresolvedMeasurement { path, attribute }`: a `%` unit was ignored.
+  - `ContentOverflow { path }`: an object taller than an empty content area
+    was placed past its bottom edge, unsplit.
   - `ContentDiscarded { path }`: the page areas ran out. This one must be
     disclosed.
   - `PageLimit` and `ItemLimit`: the ceilings are `MAX_LAYOUT_PAGES` (10 000)

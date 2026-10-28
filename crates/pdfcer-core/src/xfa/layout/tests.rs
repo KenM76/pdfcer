@@ -230,18 +230,79 @@ fn presence_and_initial_occurrences_decide_what_is_placed() {
 }
 
 #[test]
-fn a_flowed_root_is_laid_positioned_and_reported() {
+fn a_table_root_is_laid_positioned_and_reported() {
     let l = lay(&format!(
-        r#"<subform name="f" layout="tb">{PAGE}<field name="a"/></subform>"#
+        r#"<subform name="f" layout="table">{PAGE}<field name="a"/></subform>"#
     ));
     assert_eq!(names(&l.pages[0]), ["a"]);
     assert_eq!(
         l.warnings,
         [LayoutWarning::FlowedLayoutPending {
             path: vec![0],
-            strategy: LayoutStrategy::Tb
+            strategy: LayoutStrategy::Table
         }]
     );
+}
+
+#[test]
+fn a_tb_root_stacks_moves_to_the_next_area_and_reports_overflow() {
+    let l = lay(&format!(
+        r#"<subform name="f" layout="tb">{PAGE}
+          <field name="a" x="-100pt" y="100pt" w="100pt" h="300pt"/>
+          <field name="b" w="50pt" h="300pt"/><field name="c" w="50pt" h="300pt"/>
+          <field name="d" w="50pt" h="800pt"/></subform>"#
+    ));
+    assert_eq!(l.pages.len(), 3);
+    assert_eq!(rect(&l.pages[0], "a"), r(36.0, 36.0, 100.0, 300.0));
+    assert_eq!(rect(&l.pages[0], "b"), r(36.0, 336.0, 50.0, 300.0));
+    assert_eq!(rect(&l.pages[1], "c"), r(36.0, 36.0, 50.0, 300.0));
+    assert_eq!(rect(&l.pages[2], "d"), r(36.0, 36.0, 50.0, 800.0));
+    assert_eq!(
+        l.warnings,
+        [LayoutWarning::ContentOverflow { path: vec![0, 4] }]
+    );
+}
+
+fn tiled(strategy: &str) -> XfaLayout {
+    lay(&format!(
+        r#"<subform name="f">{PAGE}<subform name="s" layout="{strategy}" w="100pt">
+          <margin leftInset="10pt" rightInset="10pt"/>
+          <field name="a" w="50pt" h="20pt"/><field name="b" w="50pt" h="30pt"/>
+          <field name="c" w="30pt" h="10pt"/></subform></subform>"#
+    ))
+}
+
+#[test]
+fn lr_tb_tiles_and_wraps_at_the_inner_width() {
+    let l = tiled("lr-tb");
+    let p = &l.pages[0];
+    assert_eq!(rect(p, "s"), r(36.0, 36.0, 100.0, 50.0));
+    assert_eq!(rect(p, "a"), r(46.0, 36.0, 50.0, 20.0));
+    assert_eq!(rect(p, "b"), r(46.0, 56.0, 50.0, 30.0));
+    assert_eq!(rect(p, "c"), r(96.0, 56.0, 30.0, 10.0));
+    assert!(l.warnings.is_empty());
+}
+
+#[test]
+fn rl_tb_tiles_from_the_right() {
+    let p = &tiled("rl-tb").pages[0];
+    assert_eq!(rect(p, "a"), r(76.0, 36.0, 50.0, 20.0));
+    assert_eq!(rect(p, "b"), r(76.0, 56.0, 50.0, 30.0));
+    assert_eq!(rect(p, "c"), r(46.0, 56.0, 30.0, 10.0));
+}
+
+#[test]
+fn a_tb_subform_grows_to_its_stack_and_ignores_child_coordinates() {
+    let l = lay(&format!(
+        r#"<subform name="f">{PAGE}<subform name="s" layout="tb" x="10pt" y="10pt">
+          <subformSet><field name="a" x="-5pt" w="40pt" h="20pt"/></subformSet>
+          <field name="b" w="60pt" h="5pt"/></subform></subform>"#
+    ));
+    let p = &l.pages[0];
+    assert_eq!(rect(p, "s"), r(46.0, 46.0, 60.0, 25.0));
+    assert_eq!(rect(p, "a"), r(46.0, 46.0, 40.0, 20.0));
+    assert_eq!(rect(p, "b"), r(46.0, 66.0, 60.0, 5.0));
+    assert!(l.warnings.is_empty());
 }
 
 #[test]
