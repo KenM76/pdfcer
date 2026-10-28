@@ -306,6 +306,39 @@ fn a_tb_subform_grows_to_its_stack_and_ignores_child_coordinates() {
 }
 
 #[test]
+fn a_tb_subform_splits_between_its_children_and_cuts_a_nested_one() {
+    let l = lay(&format!(
+        r#"<subform name="f" layout="tb">{PAGE}<subform name="s" layout="tb">
+          <field name="a" w="100pt" h="300pt"/><subform name="t" layout="tb">
+          <field name="b" w="100pt" h="300pt"/><field name="c" w="100pt" h="300pt"/>
+          </subform></subform></subform>"#
+    ));
+    assert_eq!(l.pages.len(), 2);
+    assert_eq!(names(&l.pages[0]), ["s", "a", "t", "b"]);
+    assert_eq!(names(&l.pages[1]), ["s", "t", "c"]);
+    assert_eq!(rect(&l.pages[0], "s"), r(36.0, 36.0, 100.0, 600.0));
+    assert_eq!(rect(&l.pages[0], "t"), r(36.0, 336.0, 100.0, 300.0));
+    assert_eq!(rect(&l.pages[1], "s"), r(36.0, 36.0, 100.0, 300.0));
+    assert_eq!(rect(&l.pages[1], "c"), r(36.0, 36.0, 100.0, 300.0));
+    assert!(l.warnings.is_empty());
+}
+
+#[test]
+fn keep_intact_moves_the_whole_subform_and_reports_its_overflow() {
+    let l = lay(&format!(
+        r#"<subform name="f" layout="tb">{PAGE}<field name="p" w="10pt" h="100pt"/>
+          <subform name="s" layout="tb"><keep intact="contentArea"/>
+          <field name="a" w="100pt" h="450pt"/><field name="b" w="100pt" h="450pt"/>
+          </subform></subform>"#
+    ));
+    assert_eq!(names(&l.pages[1]), ["s", "a", "b"]);
+    assert_eq!(
+        l.warnings,
+        [LayoutWarning::ContentOverflow { path: vec![0, 2] }]
+    );
+}
+
+#[test]
 fn no_page_area_or_no_root_subform_is_an_error() {
     let o = LayoutOptions::new();
     let none = r#"<subform name="f"><field name="a"/></subform>"#;

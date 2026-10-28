@@ -11,7 +11,9 @@
 //! template's empty merge (`occur@initial` instances; the data merge is Pass
 //! 647.3), and ordered-occurrence pagination with `breakBefore`/`breakAfter`.
 //! A flowed root moves an object that does not fit the rest of its content
-//! area to the next one; content is not yet split across areas
+//! area to the next one; a `tb` root splits a `tb` subform across areas
+//! between the objects it holds. Fields and draws are not split (their
+//! content is not sized yet): one taller than an area overflows it
 //! ([`LayoutWarning::ContentOverflow`]). Table strategies are Pass 647.7:
 //! such a container is laid as if positioned and reported as
 //! [`LayoutWarning::FlowedLayoutPending`].
@@ -19,10 +21,12 @@
 mod flow;
 mod geometry;
 mod pager;
+mod split;
 
 use flow::{Flow, is_flow};
 use geometry::{Ctx, Placed, instances, is_placeable, lay, shifted};
 use pager::{Area, Pager};
+use split::split;
 
 use super::{ContainerKind, LayoutStrategy, Template, XfaNode};
 
@@ -179,8 +183,9 @@ pub enum LayoutWarning {
         /// Its template path.
         path: Vec<usize>,
     },
-    /// An object taller than an empty content area of a flowed root was
-    /// placed past the area's bottom edge (Ch.8 p.295); it is not split.
+    /// An object taller than an empty content area of a flowed root, and
+    /// not splittable there, was placed past the area's bottom edge (Ch.8
+    /// p.295).
     ContentOverflow {
         /// Its template path.
         path: Vec<usize>,
@@ -419,38 +424,60 @@ impl Run<'_, '_> {
         Some(ca)
     }
 
-    /// Put one top-level instance in the current content area; a flowed
+    /// Put one top-level instance in the current content area. A flowed
     /// root moves it to the next area when it does not fit the rest of a
-    /// non-empty one. `false` once the page areas are exhausted.
-    fn put(&mut self, p: Placed, path: &[usize]) -> bool {
-        let Some(mut ca) = self.content_area() else {
-            return false;
-        };
-        let (mut x, mut y) = (p.rect.x, p.rect.y);
-        if is_flow(self.root_strategy) {
-            (x, y) = self.flow.slot(p.rect.w);
-            if y + p.rect.h > ca.h && !self.current_empty() {
-                self.area_index += 1;
-                let Some(next) = self.content_area() else {
-                    return false;
-                };
-                ca = next;
-                (x, y) = self.flow.slot(p.rect.w);
+    /// non-empty one; a `tb` root first splits it there when it can
+    /// (splitting needs every ancestor `tb`, Ch.8 p.281). A split part is
+    /// one more item per container it cuts, each with the same `path`.
+    /// `false` once the page areas are exhausted.
+    fn put(&mut self, mut p: Placed, path: &[usize]) -> bool {
+        loop {
+            let Some(ca) = self.content_area() else {
+                return false;
+            };
+            if !is_flow(self.root_strategy) {
+                let at = (p.rect.x, p.rect.y);
+                self.emit(p, ca, at);
+                return true;
             }
-            if y + p.rect.h > ca.h {
+            let at = self.flow.slot(p.rect.w);
+            let fits = at.1 + p.rect.h <= ca.h;
+            if !fits && self.root_strategy == LayoutStrategy::Tb {
+                match split(p, ca.h - at.1) {
+                    Ok((head, tail)) => {
+                        self.flow.commit(head.rect.w, head.rect.h);
+                        self.emit(head, ca, at);
+                        self.area_index += 1;
+                        p = tail;
+                        continue;
+                    }
+                    Err(whole) => p = whole,
+                }
+            }
+            if !fits && !self.current_empty() {
+                self.area_index += 1;
+                continue;
+            }
+            if !fits {
                 self.ctx.warn(LayoutWarning::ContentOverflow {
                     path: path.to_vec(),
                 });
             }
             self.flow.commit(p.rect.w, p.rect.h);
+            self.emit(p, ca, at);
+            return true;
         }
+    }
+
+    /// Append `p`'s items at `at` in content area `ca` of the current page.
+    fn emit(&mut self, p: Placed, ca: LayoutRect, at: (f64, f64)) {
         let index = self.area_index;
         let Some(page) = self.pages.last_mut() else {
-            return false;
+            return;
         };
         let before = page.items.len();
         page.items
-            .extend(shifted(p.items, ca.x + x, ca.y + y).map(|mut i| {
+            .extend(shifted(p.items, ca.x + at.0, ca.y + at.1).map(|mut i| {
                 i.content_area = Some(index);
                 i
             }));
@@ -459,7 +486,6 @@ impl Run<'_, '_> {
         {
             *f = true;
         }
-        true
     }
 
     /// `breakBefore`/`breakAfter` (Ch.9 pp.359-362). Without a target, a

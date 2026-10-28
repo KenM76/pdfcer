@@ -721,8 +721,13 @@ with every `warnings` entry.
   - A subform uses its own `layout`; an `area` or `exclGroup` takes its
     parent's (gap G-L2).
   - A flowed root flows through each content area in turn: an object that
-    does not fit the rest of a non-empty area moves to the next one. Nothing
-    is split yet.
+    does not fit the rest of a non-empty area moves to the next one.
+  - A `tb` root splits a `tb` subform whose `keep@intact` is `none` (the
+    default unless its parent is positioned) at the highest line no field,
+    draw or unsplittable subform crosses; a splittable subform crossing the
+    line is cut too. Each part is a separate `LayoutItem` with the same
+    `path`, so one container can appear on several pages. Fields and draws
+    are not split yet.
   Ordered-occurrence pagination is supported, with `breakBefore`/`breakAfter`:
   - `targetType` may be `contentArea`, `pageArea`, `pageEven` or `pageOdd`.
     The first page is odd.
@@ -741,8 +746,8 @@ with every `warnings` entry.
   - `MinGreaterThanMax { path, attribute }`: the values were swapped.
   - `NegativeCoordinate { path }`
   - `UnresolvedMeasurement { path, attribute }`: a `%` unit was ignored.
-  - `ContentOverflow { path }`: an object taller than an empty content area
-    was placed past its bottom edge, unsplit.
+  - `ContentOverflow { path }`: an object taller than an empty content area,
+    and not splittable there, was placed past its bottom edge.
   - `ContentDiscarded { path }`: the page areas ran out. This one must be
     disclosed.
   - `PageLimit` and `ItemLimit`: the ceilings are `MAX_LAYOUT_PAGES` (10 000)

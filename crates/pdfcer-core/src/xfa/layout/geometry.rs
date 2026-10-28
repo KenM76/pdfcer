@@ -64,6 +64,9 @@ pub(super) fn is_placeable(node: &XfaNode) -> bool {
 pub(super) struct Placed {
     pub(super) rect: LayoutRect,
     pub(super) items: Vec<LayoutItem>,
+    /// Per item: may a split line cut it (a `tb` subform whose
+    /// `keep@intact` is `none`, Ch.8 pp.281, 291)?
+    pub(super) breakable: Vec<bool>,
 }
 
 /// Lay `node` (at `path`) positioned at `origin`, appending its items.
@@ -190,7 +193,7 @@ fn lay_one(
     let wrap = (ctx.length(node, path, "w"))
         .or_else(|| ctx.length(node, path, "maxW"))
         .map(|w| (w - left - right).max(0.0));
-    let laid = arrange(kids, strategy, wrap, (left, top));
+    let (laid, kid_breaks) = arrange(kids, strategy, wrap, (left, top));
     let (ex, ey) = laid.iter().fold((0.0_f64, 0.0_f64), |(x, y), i| {
         (x.max(i.rect.x + i.rect.w), y.max(i.rect.y + i.rect.h))
     });
@@ -237,7 +240,35 @@ fn lay_one(
         content_area: None,
     }];
     items.extend(laid);
-    Some(Placed { rect, items })
+    let mut breakable = vec![breaks(node, kind, strategy, parent)];
+    breakable.extend(kid_breaks);
+    Some(Placed {
+        rect,
+        items,
+        breakable,
+    })
+}
+
+/// A `tb` subform may be split unless `keep@intact` says otherwise; the
+/// default is `contentArea` inside a positioned container, else `none`
+/// (gap G-L7, Ch.8 p.291). Fields and draws are not split until their
+/// content is sized.
+fn breaks(
+    node: &XfaNode,
+    kind: ContainerKind,
+    strategy: LayoutStrategy,
+    parent: LayoutStrategy,
+) -> bool {
+    let default = if is_flow(parent) {
+        "none"
+    } else {
+        "contentArea"
+    };
+    let intact = node
+        .child("keep")
+        .and_then(|k| k.attr("intact"))
+        .map_or(default, str::trim);
+    kind == ContainerKind::Subform && strategy == LayoutStrategy::Tb && intact == "none"
 }
 
 /// Children's items relative to the container's top-left: positioned by
@@ -247,9 +278,9 @@ fn arrange(
     strategy: LayoutStrategy,
     wrap: Option<f64>,
     (left, top): (f64, f64),
-) -> Vec<LayoutItem> {
+) -> (Vec<LayoutItem>, Vec<bool>) {
     let mut flow = Flow::new(strategy, wrap);
-    let mut out = Vec::new();
+    let (mut out, mut breaks) = (Vec::new(), Vec::new());
     for k in kids {
         let (x, y) = if is_flow(strategy) {
             let at = flow.slot(k.rect.w);
@@ -259,8 +290,9 @@ fn arrange(
             (k.rect.x, k.rect.y)
         };
         out.extend(shifted(k.items, left + x, top + y));
+        breaks.extend(k.breakable);
     }
-    out
+    (out, breaks)
 }
 
 /// One axis: the given size, else the content extent clamped to min/max
