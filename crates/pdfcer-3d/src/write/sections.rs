@@ -135,8 +135,9 @@ pub(super) fn tree(scene: &MeshScene, plan: &Plan) -> BitWriter {
     }
     w.uint(FILE_STRUCTURE);
     base(&mut w);
+    // The root occurrence is the last (biased index = count).
     let next = ids.next();
-    w.uint(next).uint(1).uint(0);
+    w.uint(next).uint(plan.occurrences.len() as u32).uint(0);
     w
 }
 
@@ -282,7 +283,7 @@ fn transformation(w: &mut BitWriter, m: &[f64; 16]) {
 }
 
 /// The model file: an empty schema, the units, the one root.
-pub(super) fn model_file(scene: &MeshScene, _plan: &Plan, structure: UniqueId) -> BitWriter {
+pub(super) fn model_file(scene: &MeshScene, plan: &Plan, structure: UniqueId) -> BitWriter {
     let mut w = BitWriter::default();
     w.uint(0).uint(MODEL_FILE);
     base(&mut w);
@@ -290,8 +291,11 @@ pub(super) fn model_file(scene: &MeshScene, _plan: &Plan, structure: UniqueId) -
     for c in structure.0 {
         w.uint(c);
     }
-    // Root occurrence 0 (biased), active; file structure 0's index in the
-    // model file; no user data.
-    w.uint(1).bit(true).uint(0).uint(0);
+    // Root occurrence, the last (biased), active; file structure 0's index
+    // in the model file; no user data.
+    w.uint(plan.occurrences.len() as u32)
+        .bit(true)
+        .uint(0)
+        .uint(0);
     w
 }

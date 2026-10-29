@@ -13,7 +13,7 @@ pub(super) struct Occ {
 
 /// The scene as PRC entities.
 pub(super) struct Plan {
-    /// Occurrences, the root first.
+    /// Occurrences, sons before fathers, the root last.
     pub(super) occurrences: Vec<Occ>,
     /// Mesh index of each part.
     pub(super) parts: Vec<usize>,
@@ -168,8 +168,10 @@ fn check_forest(scene: &MeshScene) -> Result<(), PrcWriteError> {
     Ok(())
 }
 
-/// Occurrences in pre-order from the roots, under a synthetic root when
-/// there is not exactly one.
+/// Occurrences with every son before its father and the root last
+/// [WD 7.3.6: a son precedes the occurrence that uses it; Acrobat reads in
+/// one forward pass and drops a son written after its father], under a
+/// synthetic root when there is not exactly one.
 fn occurrences(scene: &MeshScene) -> Result<Vec<Occ>, PrcWriteError> {
     let mut out = Vec::new();
     let synthetic = scene.roots.len() != 1;
@@ -202,6 +204,13 @@ fn occurrences(scene: &MeshScene) -> Result<Vec<Occ>, PrcWriteError> {
             .unwrap_or(&[]);
         stack.extend(children.iter().rev().map(|&c| (c, Some(me))));
     }
-    count(out.len())?;
+    let last = count(out.len())?.saturating_sub(1);
+    // Reversed pre-order: each subtree precedes its root; sons keep their order.
+    out.reverse();
+    for o in &mut out {
+        for s in &mut o.sons {
+            *s = last - *s;
+        }
+    }
     Ok(out)
 }

@@ -201,3 +201,27 @@ fn a_mirrored_rotation_reads_back() {
     };
     assert!(near([0.0, 13.0, 0.0]) && near([-2.0, 13.0, 0.0]), "{pts:?}");
 }
+
+/// Acrobat reads occurrences in one forward pass and drops a son written
+/// after its father, which shows as an empty grey 3D window.
+#[test]
+fn every_son_precedes_its_father_and_the_root_is_last() {
+    for roots in [vec![0], vec![0, 2, 3]] {
+        let mut s = scene();
+        if roots.len() > 1 {
+            s.nodes[0].children = vec![1];
+        }
+        s.roots = roots;
+        let occ = validate::plan(&s).unwrap().occurrences;
+        for (i, o) in occ.iter().enumerate() {
+            assert!(o.sons.iter().all(|&son| (son as usize) < i), "{i}");
+        }
+        let root = occ.len() - 1;
+        let fathered = |k: usize| occ.iter().any(|o| o.sons.contains(&(k as u32)));
+        assert!(!fathered(root));
+        assert!(
+            (0..root).all(fathered),
+            "every other occurrence has a father"
+        );
+    }
+}
