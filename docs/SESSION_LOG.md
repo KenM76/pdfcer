@@ -4,6 +4,55 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1299th filing) — `Pass 648.0` Acrobat-display fixes (`508e09b8`, `8d3bfd07`) and the click-to-activate read side
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here; both commits local on main, not pushed):**
+- `508e09b8`: PRC ProductOccurrences written sons before fathers, root last (WD 7.3.6); Acrobat dropped a son written after its father (empty grey 3D window). Test `every_son_precedes_its_father_and_the_root_is_last`, sabotage-verified.
+- `8d3bfd07`: perspective `/P` writes `/N` and explicit `/PS /W` (Acrobat will not activate otherwise; Ken bisected by hand); `ThreeDLighting` (Table 309) read/written, `3d-embed --lighting` (`auto` = `/CAD` for glTF-converted models); `ThreeDSavedView::from_camera`; activation READ side (`ThreeDArtwork.activation`, `3d-list` prints `activate=XA|PO|PV`). Write side was `Pass 419.1`. Tests: core `threed` 27, CLI `three_d` 38, `pdfcer-3d` write 13, all pass. fmt, clippy, code-structure, `check-core-api-verbs` PASS; no manifest change.
+- Operator verification: `Bancroft1974_3D_v4.pdf` in Acrobat Reader, "v4 works great"; also fine in `pdfcer-gui`. This supersedes the 1297th filing's open/failed Reader check, which is corrected IN PLACE (ROADMAP, ARCHITECTURE decision 210, this log's 1297th entry, FEATURES glTF row). The 1298th filing is untouched. Pass 647.4 `3ef99a37` was already filed (1297th); not repeated.
+- FEATURES: lighting row (core `[x]`, cli `[x]`, gui `[ ]`); saved-view-from-camera row (core `[x]`, cli `[ ]` internal use by `3d-embed` only, gui `[ ]`); activation-readback row (core `[x]`, cli `[x]`, gui `[ ]`). The `Pass 419.1` embed row already carries the write side (`--activate`, `/3DA`); its boxes (core `[x]` cli `[x]` gui `[ ]`) left as they were.
+- RAG: five `personal_rag/pdf` lessons (PRC son order; `/LS /CAD`; `/C2W` camera; `/PS /W`; stale Reader session after a bad 3D file), both indexes updated. Discrepancy flagged in the fifth lesson: the dispatch names the preference `b3DEnableContent`, the earlier lesson `bEnable3DContent`; exact spelling unconfirmed.
+- No decision (211 stays free); no new rule.
+
+**Open:** `pdfcer-gui` shows the poster until the click (notice sent by the engineer; gui project's work). `Pass 648.1` OBJ/STL unblocked. Push/CI/backup state not checked from here.
+
+**Hard-rule-11 survivors:** the "Reader check owed / FAILED" claim was swept for meaning across ROADMAP (two places), ARCHITECTURE decision 210, SESSION_LOG 1297th, FEATURES row 550 (all corrected). `docs/NEXT_SESSION.md` is engineer-owned and not edited here; line 88 is an unrelated 616.6 Reader check; I did not find a 648.0 Reader-check line there but did not read the whole file. In `crates/`: any `3d-embed` help or doc comment saying a perspective view needs no `/PS`, or that lighting is not written, is owed to the engineer.
+
+## 2026-10-29 (1298th filing) — request `X014`: seven capabilities filed as Backlog (filing only, no code)
+
+**Filed (docs only; no shell here, nothing checked from here beyond reading files):** `ROADMAP.md` Backlog block "Request `X014`" with `Pass 649.0` (predefined CJK CMaps + substitute face), `Pass 649.1` (spell check), `Pass 650.0` (DjVu/EPUB), `Pass 650.1` (WebP/AVIF decode). Item 2 (XFA text outside WinAnsi) is a dated bullet under `Pass 647.4`; item 3 (document JavaScript) a dated amendment under `Pass 131.3`; item 5 (Typewriter / Add Text) needs no entry. `FEATURES.md` *Planned*: six new rows, all boxes `[ ]`, Acrobat column `?`. No FEATURES box ticked; no decision minted (211 stays free); 1297th filing's uncommitted text left intact. IDs `649.x`/`650.x` grepped free across `*.md` and `*.rs/py/sh/toml/txt` before use.
+
+**Needs the operator:** item 3. `R53` calls a sandboxed JS engine "prohibited scope", `R54` forbids trigger events, FEATURES "Will not" lists it. Not `R13` (that is fetched code). Reversal needs a decision superseding decision 009 section 5.
+
+**Verified from source (read, not run):** `image_import::sniff` (`mod.rs:1294`) already identifies WebP/AVIF by magic bytes and refuses by name, so item 7's sniffing clause is shipped; only decoding is owed. `text_extract/font.rs:26` confirms the CJK CMap gap. Add-text and FreeText rows are `[x]` on all four columns, so item 5's engine side exists; a one-click Review-mode GUI tool is unverified.
+
+**Hard-rule-11 survivors:** none found; nothing here changed a counter's meaning.
+
+**For next session:** licence checks (CMaps, CJK face, dictionaries, decoders) and a spec-librarian dispatch precede `649.0`.
+
+## 2026-10-29 (1297th filing) — `Pass 648.0` on `bcd6fbea` (glTF 2.0 / GLB import to PRC for 3D embedding; decision 210)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 648.0` (filed `1c2b1361`, narrowed `32733bd2`), six commits: `b188b790` `write_prc`; `9e6c0389` `read_gltf` plus new `pdfcer-json` crate (core's `ocr/json_lite.rs` moved; core re-exports as `json_lite`); `9c2ce921` CLI `3d-convert` and `3d-embed --model x.gltf|x.glb` plus core-api 01 section and index row; `bcd6fbea` fuzz target `gltf`; `bd5e205c` crate-header docs; `dc442faa` gate findings fix.
+- Settings with defaults: `GltfColours::{Linear, AsStored}`, `GltfUpAxis::{ZUp, AsStored}`; CLI `--gltf-colours`, `--gltf-up`. Disclosure: MASK as `inferred:`, dropped textures/points/lines and rest-pose skins as `note:`. CLI resolver confines external buffers to the model's folder (exit 9 otherwise).
+- Decision 210 (ARCHITECTURE §12; ceiling was 209), flagged against decision 064 (sRGB transfer function only, no ICC; does not cross `iccce`). §3 gains `pdfcer-json\` and the `pdfcer-3d` authoring sentence. `Pass 648.1` (OBJ/STL) stays in Next up, annotated that its dependency shipped.
+- FEATURES: glTF row to Implemented (core `[x]` cli `[x]` gui `[ ]`); new PRC-writer row same boxes; OBJ/STL row stays `[ ]`x3.
+- Evidence (engineer): `pdfcer-3d` 192 lib + 3 integration + 15 doctests; 4 new CLI integration tests (`three_d_gltf.rs`) + 2 unit; fuzz 164,287 runs / 61 s = 2,693 runs/s, 0 crashes; clippy `-D warnings` clean both feature sets, fmt, code-structure clean; `cargo tree` for core/render/json/3d free of GUI/network crates; `check-core-api-verbs.py` PASS; `run-gates.sh` was NOT green as first filed (engineer-reported): first run failed 6 of 49 commands (two `pdfcer-cli` bin tests: `3d-convert` undecided for `--in-place` and ValueEnum help with Markdown code spans, including `xfa-layout --font-weight` from pushed `358dd5ce`; README subcommand count 239 vs 240; `fuzz/gltf.rs` unformatted; panic-allows baseline `struct W` vs `impl W` in `testw.rs`; non-3d `to_prc` lacking a doc comment). All fixed in `dc442faa`. Re-run result (engineer-reported): 48 of 49 green; the one failure was `cargo test --workspace`, a single `pdfcer-render` test `xfa::tests::the_paint_settings_and_notes_reach_the_caller`, red on main since pushed `358dd5ce` (captions now drawn, so its empty `<caption/>` no longer produced the `PaintNoteKind::Content` note); not a glTF defect. Fixed in `3ef99a37` (fixture now `<ui><imageEdit/></ui>`; `cargo test -p pdfcer-render --lib xfa::` 4 passed), recorded as an amendment under `Pass 647.4`. Targeted re-run only; the engineer will not repeat the full sweep for a one-line fixture change. Real model: 19,216 triangles / 325,488 bytes in ~1 s; 5467 meshes; 192 translucent parts.
+- RAG: two `personal_rag/pdf` lessons (glTF from FreeCAD/OCCT; Reader 3D preference and PRC vintage), one `claude_code` lesson (heredoc apostrophe), indexes updated; the pre-existing `freecad_to_3d_pdf_via_pymeshlab_u3d` lesson was missing from `pdf/index.md` and is now indexed.
+
+- Amendment: `bd5e205c` "docs(3d): crate header names the write side and glTF import" corrected the `pdfcer-3d` `lib.rs` header from "read side" to name `write_prc` and `read_gltf`; found by this filing's survivor sweep.
+
+**Gotchas:**
+- Bash-tool heredocs containing an apostrophe (e.g. "glTF's") fail with "unexpected EOF"; use the Write tool or a python script file.
+- A multi-line `&&` chain with a heredoc split mid-chain staged files into the wrong commit; fixed by amending the unpushed message (`9e6c0389` covers both).
+- `#[non_exhaustive]` on `GltfOptions` forced field reassignment in the CLI (out-of-crate construction).
+- The clap-help scrub cannot reach a ValueEnum variant's doc comment, so a backticked value list there ships as Markdown in `--help`. `358dd5ce` (Pass 647.4, `xfa-layout --font-weight`) shipped one to main, so CI on main has probably been red on `cli_help_ships_no_internal_markup` since that push (engineer to confirm on GitHub; not checked from here). Fixed locally in `dc442faa`.
+
+**Reader check (CORRECTED IN PLACE at the 1299th filing; was "OPEN, run and FAILED"):** the first run, `D:\Dev\EmilysOffice\Bancroft1974_3D_gltf.pdf`, activated the 3D runtime but drew nothing and showed a root-only Model Tree (cause: PRC sons written after fathers; fixed `508e09b8`). After the fixes, Ken opened `Bancroft1974_3D_v4.pdf` in Acrobat Reader: "v4 works great" (operator-reported). Glass, tree names and colours were not individually itemised. See the 1299th entry.
+**Owed / Backlog added:** Acrobat Reader check of a glTF-converted PDF (DONE at the 1299th filing, see above); CLI integration tests leak about 44,000 `pdfcer*` files into `%TEMP%` (fix: `CARGO_TARGET_TMPDIR` with cleanup; do not mass-delete `%TEMP%`).
+**Hard-rule-11 survivors to check (crates/, not edited here):** `3d-embed` help text and other `pdfcer-3d` module headers (not `lib.rs`, resolved by `bd5e205c`) for "read side only" / "cannot author" / "embeds only an existing U3D/PRC" wording.
+**For next session:** continue 647.x; `648.1` is unblocked. Push, CI and backup state not checked from here.
+
 ## 2026-10-29 (1296th filing) — `Pass 55.8` on `84f22c90` (background printer probe; `X013b` engine half)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

@@ -480,6 +480,26 @@ D:\Dev\pdfcer\
                                    transforms and U3D decode (`419.3`)
                                    remain unbuilt — `Pass 419.2` is IN
                                    PROGRESS, not shipped (`ROADMAP.md`).
+                                   **Authoring added (`Pass 648.0`,
+                                   2026-10-29, §12 decision 210):**
+                                   `write_prc(&MeshScene)` writes a
+                                   tessellated PRC and `read_gltf` imports
+                                   glTF 2.0 / GLB into a `MeshScene`; the
+                                   crate still opens no files (external
+                                   glTF buffers arrive through a caller
+                                   resolver). Also depends on `pdfcer-json`.
+    pdfcer-json\                  <- (`Pass 648.0`, 2026-10-29, §12 decision
+                                   210) shared minimal JSON reader, moved
+                                   out of `pdfcer-core`'s `ocr/json_lite.rs`
+                                   so `pdfcer-core` (OCR/host JSON) and
+                                   `pdfcer-3d` (glTF) share one parser
+                                   instead of a pasted copy. Depends on
+                                   `thiserror` only; wasm32-safe; zero
+                                   GUI/network deps (rule 2), its own
+                                   `cargo tree -p pdfcer-json` check.
+                                   `pdfcer-core` re-exports it as
+                                   `#[doc(hidden)] pub use pdfcer_json as
+                                   json_lite;`.
     pdfcer-core\                <- COS object model, tokenizer, xref (table + stream),
                                    object streams, incremental-update writer, filters,
                                    fonts, color spaces, encryption/decryption, digital
@@ -13618,3 +13638,19 @@ Full record: `docs/decisions/209-xfa-caption-font-is-a-setting.md`. Recorded at 
 **Decides.** Setting `CaptionFont { Own (default: font defaults, Courier 10 pt, per the grammar), Field (the field's or draw's font, the inheritance p.43 allows) }` via `PaintOptions::with_caption_font`. CLI: `xfa-layout --png-dir --caption-font {own,field}`. Caption region depth with no positive `reserve` (omitted, 0, or the grammar default -1) is derived, not a setting (gap G-D7).
 
 **Body-section effect.** None. **Decision ceiling.** Fills `209`. Next free decision: `210`. **New standing rule.** None.
+
+### 2026-10-29 (1297th filing, `Pass 648.0`, `bcd6fbea`) — decision 210: PRC writer layout and glTF import defaults
+
+Engineer-reported; no `docs/decisions/210-*.md` record written this filing (the record is this entry; the engineer may split it out). Citations: Khronos glTF 2.0 (ISO/IEC 12113); Adobe PRC 8137 / ISO 14739-1; IEC 61966-2-1. Applies decisions 064, 169, 180.
+
+**Decides.**
+1. **PRC writer layout.** `write_prc` emits a single-file-structure PRC: each scene node a named `ProductOccurrence`, each mesh a `PartDefinition`, each primitive a poly-B-rep item over one `TESS_3D`, styled by its material's RGB plus transparency. Multiple roots go under an unnamed root occurrence. `MAX_DEPTH` 1024 is the nesting guard. PRC styles are unnamed, so material names live only in the scene, not in the written file.
+2. **Colour default `Linear`.** glTF base colours are linear by spec; PRC and viewers display sRGB-encoded values, so the default applies the IEC 61966-2-1 sRGB transfer function. **FLAG against decision 064** (`iccce` owns ALL colour conversion): this is a transfer-function encoding only, with no profile or ICC conversion and no gamut mapping, so it does not cross the `iccce` boundary. `AsStored` exists for files that store sRGB against the spec. CLI `--gltf-colours linear|as-stored`.
+3. **Up-axis default `ZUp`.** glTF is +Y up; CAD and 3D PDF viewers expect +Z up. `(x,y,z) -> (x,-z,y)` is applied to root placements only. `AsStored` keeps the file's axes. CLI `--gltf-up z|as-stored`.
+4. **MASK materials** are drawn wholly opaque or wholly invisible against `alphaCutoff` (default 0.5), because PRC has no alpha test; disclosed as `inferred:` (rule 4).
+5. **The engine never opens files** (wasm32, no filesystem): external buffers come through a caller-supplied resolver; the CLI resolver confines reads to the model's folder (refuses absolute paths, `..`, anything containing `:`; exit 9, nothing written).
+6. **`pdfcer-json` split out of `pdfcer-core`** so the JSON reader is shared by `pdfcer-core` and `pdfcer-3d`, not pasted (global code-structure rule: never paste a helper into a second file).
+
+**Reader check (corrected in place at the 1299th filing, 2026-10-29; operator-reported):** the first Reader run FAILED (empty grey 3D window, Model Tree root only) because the writer emitted ProductOccurrences father-first. Item 1's layout is therefore amended: **occurrences are written sons before fathers, root LAST** (PRC WD 7.3.6; Acrobat reads in one forward pass and drops a son written after its father), commit `508e09b8`. After that and `8d3bfd07` (explicit `/N` and `/PS /W` on a perspective view, `/LS /CAD` default lighting for glTF-converted models, camera from the poster), Ken opened `Bancroft1974_3D_v4.pdf` in Acrobat Reader: "v4 works great". A general verdict; the default `Linear` colour encoding is thereby accepted at the Reader by eye, not by measurement, and transparency and tree names were not individually itemised. No new decision: bug fixes inside decision 210's layout.
+
+**Body-section effect.** §3 crate layout: `pdfcer-json\` added, `pdfcer-3d\` entry gains the authoring sentence. **Decision ceiling.** Fills `210`. Next free decision: `211`. **New standing rule.** None.
