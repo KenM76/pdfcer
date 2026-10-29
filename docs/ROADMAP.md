@@ -26456,24 +26456,32 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 
 Table/row layout in dynamic forms. Blocked until `pdfcer-spec-librarian` extracts the table/row layout slice (after SOM expressions).
 
-### Pass 648.0 — Mesh import for 3D embedding: author a PRC from OBJ / STL / glTF (NOT STARTED; filed 1297th filing, 2026-10-29)
+### Pass 648.0 — Mesh import for 3D embedding: author a PRC from glTF 2.0 (NOT STARTED; filed 1297th filing, 2026-10-29; narrowed to glTF only by operator direction, same day)
 
 **Operator words (Ken, 2026-10-29):** *"I want to get D:\Dev\EmilysOffice\Bancroft1974.FCStd made into a 3D pdf. Can you make that happen in some way with pdfcer? Do we need some new import options?"* Answer: yes, a mesh import.
 
 **Measured facts (engineer, 2026-10-29; not re-checked from here):** `3d-embed` (core `EditSession::add_3d_annotation`) embeds only an existing `.u3d` or `.prc`. `pdfcer-3d` is the PRC read side plus STL/OBJ export; it cannot author a U3D or a PRC. FreeCAD (LGPL: external tool and behavioural reference only, never linked) exports OBJ, STL and glTF, but neither U3D nor PRC. One-off done today: a U3D already inside `Bancroft1974_3D.pdf` (MuPDF producer) was pulled out with `3d-extract` and re-embedded with `3d-embed --poster Bancroft1974_iso.png --activate page-open` into `Bancroft1974_3D_pdfcer.pdf`. That route works only when another tool has already authored the model.
 
+**Operator direction, same day (Ken, 2026-10-29, verbatim):** *"is there a mesh that will give us transparency, etc? We should make an import for that first ad worry about the others later."* **Engineer answer (engineer-reported, not checked from here):** glTF 2.0 carries the most: per-material RGBA (`pbrMetallicRoughness.baseColorFactor` alpha plus `alphaMode` OPAQUE/MASK/BLEND), a named node hierarchy, per-node transforms, defined units (metres), optional textures. OBJ/MTL carries only a dissolve `d` value that exporters set inconsistently; STL has no colour at all. PRC can carry RGBA materials, so transparency survives into the PDF. **Result:** 648.0 is glTF 2.0 ONLY; OBJ/MTL and STL moved to `Pass 648.1`.
+
 **Scope.**
-- **core** (`pdfcer-3d`, behind the existing `3d` feature; no new dependency unless licence-checked, rule 13): write an ISO 14739-1 PRC file holding a tessellated model (PRC 3D tessellation): one product/part per mesh object, its colour/material, file units recorded; deterministic output. Readers: OBJ (+MTL colours), binary and ASCII STL, glTF 2.0 (`.gltf`/`.glb`, mesh + `baseColorFactor` only). Output-size and triangle-count ceilings (ARCHITECTURE §10); a fuzz target per new parser (§10.2).
-- **cli:** `3d-embed --model` accepts `.obj` / `.stl` / `.gltf` / `.glb`, converts to PRC and embeds; the existing PRC poster renderer then draws the poster. Standalone `3d-convert` (mesh to `.prc`) verb. Prints an `inferred:` line for anything assumed (units when the mesh states none, default colour) (rule 4).
+- **core** (`pdfcer-3d`, behind the existing `3d` feature; no new dependency unless licence-checked, rule 13): write an ISO 14739-1 PRC file holding a tessellated model (PRC 3D tessellation); deterministic output. Reader: glTF 2.0, `.gltf` (external or embedded base64 buffers) and `.glb`. Meshes are triangle primitives; any other primitive mode is refused with a note. The node hierarchy becomes the PRC product tree with node names; node transforms are applied; metres are recorded as the units. Per-material RGBA, including `alphaMode` BLEND, becomes a PRC transparent material; MASK is treated as its `alphaCutoff` and disclosed via `inferred:`. **Textures are NOT in 648.0**: dropped with a `note:` line, listed as a follow-on. Output-size and triangle-count ceilings (ARCHITECTURE §10); a fuzz target for the glTF/GLB parser (§10.2).
+- **cli:** `3d-embed --model` accepts `.gltf` / `.glb`, converts to PRC and embeds; the existing PRC poster renderer draws the poster. Whether that renderer honours alpha is TO BE MEASURED at start; if not, a follow-on. Standalone `3d-convert` (glTF to `.prc`) verb. Prints an `inferred:` line for anything assumed (MASK cutoff, default colour) and a `note:` line for anything dropped (textures, non-triangle primitives) (rule 4).
 - **gui:** `[ ]`, `pdfcer-gui` is a separate project.
 
-**Acceptance.** The Bancroft FCStd exported from FreeCAD as OBJ or glTF, then `pdfcer 3d-embed`, gives a PDF that Acrobat Reader rotates in 3D with per-object colours. Round trip: `3d-extract` of the result re-parses with pdfcer's own PRC reader to the same triangle count. The source PDF's untouched objects stay byte-identical (incremental save, rule 3).
+**Acceptance.** The Bancroft FCStd exported from FreeCAD as glTF, then `pdfcer 3d-embed`, gives a PDF that Acrobat Reader rotates in 3D with per-object colours. ADDED 2026-10-29: a transparent glass part (e.g. the Bancroft glass screens) appears see-through in Acrobat Reader; node names show in Reader's model tree; pdfcer's own PRC reader re-reads the written file with the same triangle count and the same RGBA values (`3d-extract` round trip). The source PDF's untouched objects stay byte-identical (incremental save, rule 3).
+
+**Verify at start (engineer):** whether FreeCAD's glTF export writes transparency and object names (FreeCAD is LGPL: external tool only).
 
 **Dependencies and rulings.** PRC WRITE-side coverage in `D:\Dev\Rag-Specialized\PDF_Spec\threed\` must be checked FIRST; dispatch `pdfcer-spec-librarian` if missing (rule 1). Decision 169 governs PRC sources. Whether the PRC writer needs its own decision entry is for the engineer to decide at start.
 
-**Non-goals.** Reading FCStd/BREP directly (FreeCAD is LGPL; the operator exports a mesh). U3D authoring (PRC is the ISO format and pdfcer already renders it).
+**Non-goals.** Reading FCStd/BREP directly (FreeCAD is LGPL; the operator exports a mesh). U3D authoring (PRC is the ISO format and pdfcer already renders it). OBJ/MTL and STL (see `Pass 648.1`).
 
-**Likely follow-ons, not filed:** per-object names/hierarchy from glTF nodes; B-rep PRC (exact surfaces) instead of tessellation.
+**Likely follow-ons, not filed:** glTF textures; B-rep PRC (exact surfaces) instead of tessellation; poster alpha in the PRC renderer if measured as not honoured. (Names/hierarchy from glTF nodes moved INTO 648.0.)
+
+### Pass 648.1 — Mesh import: OBJ/MTL and STL to PRC (NOT STARTED; filed 1297th filing, 2026-10-29)
+
+Split from `Pass 648.0` by operator direction ("worry about the others later"). Readers for OBJ (+MTL colours; dissolve `d` is exporter-inconsistent, so any transparency taken from it is disclosed via `inferred:`) and binary/ASCII STL (no colour: default colour disclosed), feeding the PRC writer built in 648.0. `3d-embed --model` and `3d-convert` accept `.obj` / `.stl`. A fuzz target per parser (§10.2). Depends on 648.0. gui `[ ]`.
 
 ### `Pass 626.0` — lower the declared PDF version — COMPLETE, MOVED TO *Shipped* (slice 2 `d0f7c993`, 1200th filing); slice 1 detail below stays
 
