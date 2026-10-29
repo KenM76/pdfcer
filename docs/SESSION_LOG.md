@@ -12,6 +12,8 @@ the affected entry. Maintained by `pdfce-librarian`.
 - Evidence: 3 new tests, sabotage fails 2; layout tests 44 pass; lib 3112 pass; fmt, clippy, structure, core-api-verbs clean; fuzz `xfa_packets` 90 s, 78,657 runs, clean; no manifest change.
 - ROADMAP: eighth-cut block added to `Pass 647.2` (stays in Next up). FEATURES: "Dynamic XFA, reading" row extended; boxes unchanged (`[x]`/`[ ]`/`[ ]`); row under the 1,200-character cap by Grep.
 
+Follow-up `5fd3893d`: doc comments on ten `pub(super)` layout helpers; the X012 reply now names its request file (`check-requests-scoped`).
+
 **Decisions / findings:** decision 205. `check-ledger-numbers.py` (engineer-run): next free decision 206, R251, filing 1286.
 
 **Still in flight:** 647.2 remaining: nested adhesion; `lr-tb` adhesion (G-L14); G-L12 `pageArea`; field/draw text splitting.

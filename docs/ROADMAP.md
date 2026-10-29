@@ -26296,6 +26296,7 @@ closes out the *prior* filing's business rather than opening this one's.
 - **Done (gap G-L21):** when a top-to-bottom split cuts a nested subform, that subform overflows too. The innermost cut subform lays the overflow trailer inside itself at the end of its top fragment (cut containers grow to hold it) and the overflow leader at the top of its rest (content below moves down). It spends its own chain, then the levels out to the instance, then the instance's. Trailer heights are reserved, re-splitting up to 4 times. Use counts are per nested instance. The instance's own trailer still follows the instance in flow.
 - **Setting (spec ambiguity, XFA 3.3 Ex 8.43 pp.323-324; decision 205):** `#[non_exhaustive] pub enum NestedOverflow { Innermost (default), EachAsserting }` via `LayoutOptions::with_nested_overflow`. `EachAsserting`: every enclosing cut subform asserting its own kind also lays it; trailers innermost first, leaders outermost first. `docs/core-api/03-capabilities.md` documents it.
 - **Evidence (engineer):** 3 new tests (`a_cut_nested_subform_lays_its_trailer_and_leader_inside_itself`, `an_inherited_trailer_lays_once_at_the_same_place`, `nested_overflow_lays_the_innermost_or_each_asserting_subform`); sabotage (disabling `EachAsserting` and container growth) fails 2; layout tests 44 pass; `pdfcer-core` lib 3112 pass; fmt, clippy `-D warnings`, `check-code-structure` (clean, none new), `check-core-api-verbs` PASS; fuzz `xfa_packets` 90 s, 78,657 runs, clean; no manifest change, `cargo tree` unaffected.
+- **Follow-up `5fd3893dbb6f97904ba54e84c8bfc8cc98a309a5`:** doc comments on ten `pub(super)` layout helpers (`check-public-fns-documented`); no behaviour change.
 - **REMAINING in 647.2 after the eighth cut:** nested adhesion; `lr-tb` adhesion (G-L14); the G-L12 `pageArea` keep setting; field/draw text splitting.
 
 **Seventh cut (`e35477095f8b6fda57b26986da7370b63c4aebc4` "feat(xfa): overflow@target moves a split to the named area (Pass 647.2, seventh cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision).** Core only; no CLI caller yet (`xfa-layout` is `647.5`), gui column unaffected.
@@ -26303,7 +26304,6 @@ closes out the *prior* filing's business rather than opening this one's.
 - **Targets:** a target naming no single contentArea/pageArea emits the existing `LayoutWarning::InvalidOverflowTarget { path, target }` (doc widened to cover it) and falls back to the next area.
 - **core-api:** `docs/core-api/03-capabilities.md` updated (the "overflow@target is not supported yet" line replaced); `check-core-api-verbs` passes.
 - **Evidence (engineer):** 3 new layout tests (44 xfa layout tests, was 41); sabotage (target ignored) fails all three; `pdfcer-core` lib 2054 passed/2 ignored, `all.rs` 3112 passed/2 ignored, plus 255; fmt, clippy `-D warnings`, `check-code-structure` clean; fuzz: `xfa_packets` 90 s run, 99,247 runs, no crash; no manifest change, `cargo tree` unaffected.
-- **REMAINING in 647.2 after the seventh cut:** nested overflow inside a split; nested adhesion; `lr-tb` adhesion (G-L14); the G-L12 `pageArea` keep setting; field/draw text splitting.
 
 **Sixth cut (`f6e76272bbc8ad84716876b4235c936765a6f9c5` "feat(xfa): bookend leaders and trailers (Pass 647.2, sixth cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision).** Core only; no CLI caller yet (`xfa-layout` is `647.5`), gui column unaffected. New `crates/pdfcer-core/src/xfa/layout/bookend.rs`; layout's `Ctx` now carries the template root and a cycle stack.
 - **Done:** `bookend@leader`/`@trailer` on a subform or subformSet are laid as its first and last content, once per instance (XFA 3.3 Ch.8 pp.317-318). A split puts the leader in the first fragment and the trailer in the last.
@@ -26312,7 +26312,6 @@ closes out the *prior* filing's business rather than opening this one's.
 - **Targets:** a target naming no single subform, or one already being laid as a bookend further up (cycle guard), is skipped with new `LayoutWarning::InvalidBookendTarget { path, target }`.
 - **core-api:** `docs/core-api/03-capabilities.md` updated in the same commit; `check-core-api-verbs` passes.
 - **Evidence (engineer):** 5 new tests in `xfa/layout/tests.rs`; all 5 fail with bookend resolution disabled (sabotage), pass restored; `pdfcer-core` 2051 + 3112 + 255 passed, 0 failed; fmt, clippy `-D warnings`, `check-code-structure` (563 baseline, none new) clean; no manifest change, `cargo tree` unaffected; fuzz: `xfa_packets` 90 s run, 99,713 runs, no crash.
-- **REMAINING in 647.2 after the sixth cut:** `overflow@target`; nested overflow inside a split; nested adhesion; `lr-tb` adhesion (G-L14); the G-L12 `pageArea` keep setting; field/draw text splitting.
 
 ---
 
@@ -26322,7 +26321,6 @@ closes out the *prior* filing's business rather than opening this one's.
 - **Defect found by sabotage, fixed in the same commit:** a member of a top-level subformSet was looked up by the set's path, so its own overflow assertion was ignored (the fourth cut shipped with this). `Placed` now carries its node's template path.
 - **core-api:** `docs/core-api/03-capabilities.md` updated (index line count updated).
 - **Evidence (engineer):** 3 new layout tests (33 in `xfa::layout`); 5 sabotages each fail a test; `pdfcer-core` lib 2046 + integration 3112 + doc 255 passed; fmt, clippy `-D warnings`, `check-code-structure` (563 baseline, none new), `check-core-api-verbs` PASS; fuzz `xfa_packets` 90 s, 94,775 runs = 1,053 runs/s, 0 crashes. No manifest change.
-- **REMAINING in 647.2 after the fifth cut:** bookends; `overflow@target`; nested overflow inside a split; nested adhesion; `lr-tb` adhesion (G-L14); the G-L12 `pageArea` setting; field/draw text splitting.
 
 ---
 
@@ -26333,7 +26331,6 @@ closes out the *prior* filing's business rather than opening this one's.
 - **Targets:** `#id` or a bare name (full SOM later). An item naming no single subform/subformSet emits new `LayoutWarning::InvalidOverflowTarget { path, target }` and is skipped (p.323).
 - **core-api:** `docs/core-api/03-capabilities.md` updated (now 5,333 lines; `index.md` updated).
 - **Evidence (engineer):** 3 new layout tests (30 in `xfa::layout`); `pdfcer-core` lib 2043 + integration 3112 + doc 255 passed; fmt, clippy `-D warnings`, `check-code-structure` (563 baseline, none new), `check-core-api-verbs` PASS; fuzz `xfa_packets` 90 s, 90,566 runs = 1,006 runs/s, 0 crashes; 4 sabotages (reservation off, leader off, max ignored, no-occur=1) each fail a test. No manifest change, `cargo tree` unaffected.
-- **REMAINING in 647.2 after the fourth cut:** leader/trailer inheritance from containing subforms (G-L22/G-L23); bookends; `overflow@target`; nested overflow inside a split; nested adhesion; `lr-tb` adhesion (G-L14); the G-L12 `pageArea` setting; field/draw text splitting.
 
 ---
 
