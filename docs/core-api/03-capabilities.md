@@ -872,7 +872,7 @@ approximated or left out, deduplicated per item and kind.
   point, not a branch of `render_page`, because the layout's page count need
   not match the file's placeholder pages: the shell chooses which page set
   it shows. Errors: `BadRasterSize` (empty or over `MAX_PIXMAP_EDGE`),
-  `RasterizerLimit`, `Cancelled`. Its CLI caller is a later 647.5 cut.
+  `RasterizerLimit`, `Cancelled`. Its CLI caller is `xfa-layout --png-dir`; `render-page` does not call it.
 - **Spec slice:** `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_appearance_drawing.md`
   (gaps G-D1 to G-D19).
 

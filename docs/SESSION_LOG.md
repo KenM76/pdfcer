@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1292nd filing) — `Pass 647.5` SECOND CUT on `b0e0d1a2` (CLI `xfa-layout --png-dir`; Pass NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 647.5` second cut, `b0e0d1a22a78f38e9e856297708202268f99ccc7`: `pdfcer xfa-layout <file> --png-dir DIR` writes `DIR/page-NNN.png` per computed page via `render_xfa_page`; prints `rendered`, `paint-note` and `xfa-render` summary lines; flags `--scale`, `--edge-placement`, `--missing-fill`. PDF never changed; write failure exits 1. Borders and fills only; `render-page` still does not draw dynamic XFA.
+- Evidence: new CLI test (suite 4 tests, passing); sabotage (wrong note label) fails it; fmt, clippy, gates green; no manifest change. core-api/03 updated; `index.md` 5434 lines.
+- ROADMAP: second-cut block under 647.5; 647.5 header names both cuts; 647.4 header now names both cuts (fixes drift: it named only the first), its REMAINING bullet points at the shipped CLI path. FEATURES: "Dynamic XFA, layout and drawing" row updated (stale "no CLI or GUI caller yet" removed); boxes NOT ticked (core and cli partial, no GUI). No decision (decision 204 applies; 207 already covers the settings), §12 untouched.
+
+**Still in flight:** 647.5: `render-page` integration. 647.4: captions, values, text; rounded corners; non-solid strokes and fills. 647.2: field/draw text splitting.
+**For next session:** continue the 647.x arc, slow pacing. Push, CI and backup state not checked from here.
+
 ## 2026-10-29 (1291st filing) — `Pass 647.4` SECOND CUT on `1baccb48` (XFA page rasterizer; Pass NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

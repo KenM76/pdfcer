@@ -26374,7 +26374,7 @@ Original scope: flowed containers, break and overflow rules, leaders/trailers. C
 
 Merge the `datasets` packet into the template per the normal-binding rules; defaults per gap IDs G-B. Explicit SOM references are BLOCKED on the owed SOM spec slice. Spec: `xfa_data_binding_normal`.
 
-### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing); NOT COMPLETE, stays here)
+### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing); NOT COMPLETE, stays here)
 
 `pdfcer-render` draws the computed layout instead of the placeholder page (render-time only, like decision 203). Inferred content renders exactly as saved content would (rule 4: no on-canvas marking); disclosure is off-canvas diagnostics. Needs `pdfcer-render` to stay GUI-free (`cargo tree` check).
 
@@ -26391,9 +26391,9 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 - **Scoping choice:** a SEPARATE entry point rather than a branch inside `render_page`, because the layout's page count need not match the file's placeholder pages; the shell chooses which page set it shows. API-shape call, no new decision.
 - **Tests/evidence (engineer):** 3 new unit tests in `crates/pdfcer-render/src/xfa/tests.rs` (position and y-flip; `MissingFill::White` reaches the pixels on a transparent backdrop and notes reach the caller; oversized page refused); sabotage (drop the y-flip) fails 2 of them; `pdfcer-render` 1145 passed, 0 failed across 3 suites; fmt, clippy `-D warnings`, all 36 project gates green; `check-code-structure` 563 baseline, none new; `check-core-api-verbs` PASS. No manifest change, `cargo tree` unaffected, render still GUI-free. No fuzz change (content is synthesised by core, which `xfa_packets` already fuzzes through `paint_page`).
 - **core-api:** `docs/core-api/03-capabilities.md` "Drawing a laid-out XFA page" gained a "Rasterizing it" bullet; `index.md` 5428 lines.
-- **REMAINING in 647.4:** captions, values and text; rounded corners; non-solid strokes and fills (G-D6 stipple, a future setting). CLI render path is 647.5 (`render-page` or an xfa render subcommand).
+- **REMAINING in 647.4:** captions, values and text; rounded corners; non-solid strokes and fills (G-D6 stipple, a future setting). CLI render path is 647.5 (`xfa-layout --png-dir` shipped as its second cut, `b0e0d1a2`; `render-page` integration still open).
 
-### Pass 647.5 — CLI `xfa-layout` report and `render-page` integration (FIRST CUT `c94ab2ee` (1289th filing); NOT COMPLETE, stays here)
+### Pass 647.5 — CLI `xfa-layout` report and `render-page` integration (FIRST CUT `c94ab2ee` (1289th filing), SECOND CUT `b0e0d1a2` (1292nd filing); NOT COMPLETE, stays here)
 
 `pdfcer xfa-layout` prints the layout model (pages, content per page, dropped-overflow list); `render-page` renders a dynamic form's computed layout and prints what was inferred. Ships its core-api docs row (R151: no core-only capability).
 
@@ -26401,7 +26401,14 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 - **Done (report half):** new subcommand `pdfcer xfa-layout <file>` (`crates/pdfcer-cli/src/xfa_layout.rs`; `Command::XfaLayout` in `cli.rs`; `dispatch.rs`; `main.rs`). Reads the XDP (`read_xdp`) and template (`read_template`), runs `layout_template`, prints `page ...`, `item ...` and `warning kind=... path=...` lines and an `xfa-layout pages= items= warnings=` summary. A stderr note discloses that the pages are computed with no data merged and are not stored in the file (rule 4). Flags `--negative-coordinates keep|clamp`, `--nested-overflow innermost|each-asserting`, `--page-area-keep spec|adobe` map onto `LayoutOptions` (decisions 205, 206; gap G-L1). Exit 1, by name, when there is no XFA form or template, or `LayoutError` applies.
 - **Tests:** `crates/pdfcer-cli/tests/xfa_layout.rs`, 3 tests (output lines, summary and disclosure; `--page-area-keep adobe` changes the layout; no-XFA file exits 1). Full pdfcer-cli suite green: 983 passed, 2 ignored, plus 47. Sabotage (adobe mapped to spec) fails the setting test. Clippy, fmt, full gate list green; `check-clap-help` needed the README count bumped from 238 to 239 working subcommands (in the commit).
 - **core-api:** `docs/core-api/03-capabilities.md` has a CLI bullet in the XFA layout section; the XDP and template paragraphs name `xfa-layout` as their CLI caller (they said "No shell calls it yet"); `index.md` line count 5386. No new dependency, no new pub core item.
-- **REMAINING in 647.5:** `render-page` renders a dynamic form's computed layout and prints what was inferred (depends on 647.4). Pass 647.2 still has field/draw text splitting open.
+- **REMAINING in 647.5 (as of first cut; see second cut):** `render-page` renders a dynamic form's computed layout and prints what was inferred (depends on 647.4). Pass 647.2 still has field/draw text splitting open.
+
+**Second cut (`b0e0d1a22a78f38e9e856297708202268f99ccc7` "feat(cli): xfa-layout --png-dir draws computed XFA pages (Pass 647.5, second cut)"; 1292nd filing; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision, 207 already covers the two settings).**
+- **Done (draw half, via the CLI):** `pdfcer xfa-layout <file> --png-dir DIR` rasterizes each computed page through `pdfcer_render::xfa::render_xfa_page` (647.4 second cut) to `DIR/page-NNN.png`. Prints `rendered page= file= width= height=`, a `paint-note page= kind= path=` line per PaintNote (kinds content-not-drawn, stroke-not-drawn, fill-not-drawn, corner-drawn-square, open-break-drawn-closed, colour-defaulted, other) and an `xfa-render pages= notes=` summary. New flags `--scale` (default 1), `--edge-placement {grammar,inward}`, `--missing-fill {none,white}`. The PDF is never changed; an image write failure exits 1.
+- **Not built:** text, captions, values, rounded corners, non-solid strokes, data merge, materialize. `render-page` still does NOT draw dynamic XFA.
+- **Tests/evidence (engineer):** new `xfa_layout::png_dir_writes_one_image_per_page_and_lists_what_was_not_drawn` (CLI `xfa_layout` suite now 4 tests, all passing); sabotage (wrong note label) fails it; clippy `-D warnings`, fmt, all project gates green. No `Cargo.toml` change, `cargo tree` unaffected.
+- **core-api:** `docs/core-api/03-capabilities.md` updated; `index.md` 5434 lines.
+- **REMAINING in 647.5:** `render-page` integration (draw the computed layout for a dynamic form and print what was inferred); depends on text drawing in 647.4 to be useful.
 
 ### Pass 647.6 — Explicit materialize verb (NOT STARTED)
 
