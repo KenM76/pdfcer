@@ -125,8 +125,10 @@ pub mod imposition;
 // three-defects-one-cause history that produced it.
 mod devmode;
 mod listing;
+mod probe;
 
 pub use listing::{PrinterName, list_printer_names, list_printers, printer_detail};
+pub use probe::{PrinterProbe, PrinterReport, ReportReader};
 
 pub use devmode::{
     ConfigurationError, ConfigurationSummary, MAX_CUSTOM_SHEET_TENTHS_MM, PaperForm,

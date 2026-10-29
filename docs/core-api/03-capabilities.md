@@ -3248,6 +3248,23 @@ it) cannot. An interactive shell lists with `list_printer_names` and runs the
 selected printer's reads on a worker thread. CLI:
 `pdfcer list-printers --names-only`.
 
+**Background probe.** `PrinterProbe` `probe.rs` reads every printer in the
+background, **one thread per printer**, so a printer that takes a minute holds
+back only its own entry. `PrinterProbe::start() -> Result<Self, PrintError>`
+lists with `list_printer_names` (returns at once) and starts the reads;
+`poll(&mut self) -> bool` takes whatever has arrived without blocking and says
+whether anything did (request a repaint); `printers() -> &[PrinterName]`;
+`report(name) -> Option<&PrinterReport>` (`None` = still asking);
+`is_complete()`; `refresh(name)` re-reads one printer, keeping the old report
+until the new one lands. `PrinterReport { detail, features, forms }` holds the
+three reads' own `Result`s, so one failing read does not hide the others;
+`PrinterReport::read(name)` is the blocking read itself. Dropping the probe
+abandons reads in flight (their answers are discarded). For a shell's tests,
+`PrinterProbe::start_with(names, reader)` takes a `ReportReader`
+(`Arc<dyn Fn(&str) -> PrinterReport + Send + Sync>`) — a fake spooler with a
+slow printer is a reader that sleeps for that name. Intended use: start one when
+the shell opens, so the details are ready before the Print dialog is.
+
 **Planning.** `JobSpec` `lib.rs` (`pages`, `mode: ScaleMode`, `max_dpi`,
 `subset: PageSubset`, `reverse`, `copies`, `collate`) →
 `JobSpec::sequence()` `lib.rs`, `first_page_pt(&page_sizes)`.
