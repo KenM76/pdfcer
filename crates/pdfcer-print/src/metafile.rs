@@ -12,6 +12,8 @@ use crate::PageBitmap;
 /// The destination rectangle of `page` on the sheet, in device pixels at
 /// `dpi`: `(x, y, width, height)`. 72 points to the inch is the PDF unit's
 /// definition.
+// Called only by the Windows playback; pure, so compiled and tested everywhere.
+#[cfg_attr(not(windows), allow(dead_code))]
 pub(crate) fn dest_rect(page: &PageBitmap, dpi: (i32, i32)) -> (i32, i32, i32, i32) {
     let px_x = |pt: f64| (pt * f64::from(dpi.0) / 72.0).round() as i32;
     let px_y = |pt: f64| (pt * f64::from(dpi.1) / 72.0).round() as i32;

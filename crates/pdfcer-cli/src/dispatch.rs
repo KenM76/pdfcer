@@ -907,6 +907,51 @@ pub(crate) fn run() -> ExitCode {
                 separations,
                 print_as_image,
             };
+            if crate::print_remote::routes_here(printer.as_deref()) {
+                let layout_flags = crate::print_remote::set_flags(&[
+                    ("--scale-percent", scale_percent.is_some()),
+                    ("--max-dpi", max_dpi != 300),
+                    ("--to-file", to_file.is_some()),
+                    ("--reverse", reverse),
+                    ("--pick-tray", pick_tray),
+                    ("--paper", paper.is_some()),
+                    ("--paper-size", paper_size.is_some()),
+                    ("--printer-config", printer_config.is_some()),
+                    ("--comments", comments != CommentsArg::Document),
+                    ("--n-up", n_up.is_some()),
+                    ("--booklet", booklet),
+                    ("--poster", poster),
+                    ("--line-width", line_width.is_some()),
+                    (
+                        "--color black-only",
+                        output.color == crate::print_output::ColorArg::BlackOnly,
+                    ),
+                    ("--separations", separations),
+                    ("--print-as-image", print_as_image),
+                ]);
+                let job = crate::print_remote::RemoteJob {
+                    printer: printer.as_deref(),
+                    requested: crate::print_presets::Requested {
+                        scale,
+                        scale_percent,
+                        pages,
+                        copies,
+                        duplex,
+                        pick_tray,
+                    },
+                    ignore_presets: ignore_document_presets,
+                    send,
+                    uncollated,
+                    subset,
+                    orientation,
+                    output: &output,
+                    layout_flags,
+                };
+                return crate::print_output::print_each(&input, to_file.as_deref(), |i| {
+                    crate::print_remote::print_remote(i, &job)
+                })
+                .into();
+            }
             crate::print_output::print_each(&input, to_file.as_deref(), |input| {
                 cmd_print(
                     input,

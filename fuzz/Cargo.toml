@@ -125,6 +125,10 @@ path = "../crates/pdfcer-pkix"
 [dependencies.pdfcer-3d]
 path = "../crates/pdfcer-3d"
 
+# The IPP response decoder (`ipp_response`); pure, no features.
+[dependencies.pdfcer-print]
+path = "../crates/pdfcer-print"
+
 # cargo-fuzz builds with the release profile; keep debuginfo so crash
 # backtraces point at real source lines.
 [profile.release]
@@ -786,6 +790,13 @@ doc = false
 [[bin]]
 name = "gltf"
 path = "fuzz_targets/gltf.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ipp_response"
+path = "fuzz_targets/ipp_response.rs"
 test = false
 doc = false
 bench = false

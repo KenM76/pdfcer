@@ -3824,6 +3824,16 @@ pub(crate) enum Command {
         input: Vec<PathBuf>,
         /// Printer name, as `list-printers` reports it. Defaults to the
         /// system default printer.
+        ///
+        /// An `ipp://` or `ipps://` URI prints to that network printer
+        /// directly, with no driver: the PDF itself is sent, and the
+        /// printer lays it out. Off Windows a name is a CUPS queue, printed
+        /// through `lp`. On both routes the options that need pdfcer to
+        /// compose the sheets (`--n-up`, `--booklet`, `--poster`,
+        /// `--paper`, `--scale-percent` and similar) are refused by name;
+        /// header, footer and `--marks` still apply. `ipps://` needs a
+        /// build with the `download` feature. Exit 17 when the printer
+        /// cannot be reached or `lp` is missing.
         #[arg(long)]
         printer: Option<String>,
         /// How the page is sized onto the sheet [default: fit, or actual

@@ -198,6 +198,16 @@ pub enum FetchError {
         /// The time-stamping authority's URL.
         url: String,
     },
+    /// This build was compiled without the `download` feature, so a
+    /// network printer cannot be reached. A named refusal, like
+    /// [`FetchError::FeatureUnsupported`].
+    #[error(
+        "this build was compiled without network support (the `download` feature is off) —          {url} cannot be reached"
+    )]
+    NetworkUnsupported {
+        /// The URL that would have been contacted.
+        url: String,
+    },
     /// Writing the verified bytes failed.
     #[error("could not write {path}: {source}")]
     Write {
@@ -220,6 +230,10 @@ pub const MAX_ARTIFACT_BYTES: u64 = 64 * 1024 * 1024;
 /// The largest RFC 3161 `TimeStampResp` accepted, in bytes (1 MiB). A real
 /// response is a few KB (token plus the TSA's certificate chain).
 pub const MAX_TIME_STAMP_RESPONSE_BYTES: u64 = 1024 * 1024;
+
+/// The largest IPP response accepted, in bytes (4 MiB). A printer's full
+/// attribute set is tens of KB.
+pub const MAX_IPP_RESPONSE_BYTES: u64 = 4 * 1024 * 1024;
 
 /// How long a download may wait for the server to connect and answer.
 ///
@@ -317,41 +331,103 @@ pub fn post_time_stamp_query_with(
                 url: url.to_owned(),
             });
         }
-        let agent: ureq::Agent = ureq::Agent::config_builder()
-            .timeout_global(Some(opts.timeout))
-            .build()
-            .into();
-        let response = agent
-            .post(url)
-            .header("Content-Type", "application/timestamp-query")
-            .send(query_der)
-            .map_err(|e| transport_error(url, e, opts.timeout))?;
-        response
-            .into_body()
-            .with_config()
-            .limit(MAX_TIME_STAMP_RESPONSE_BYTES)
-            .read_to_vec()
-            .map_err(|e| {
-                if matches!(e, ureq::Error::Timeout(_)) {
-                    return FetchError::TimedOut {
-                        url: url.to_owned(),
-                        after: opts.timeout,
-                    };
-                }
-                let msg = e.to_string();
-                if msg.contains("limit") {
-                    FetchError::TooLarge {
-                        url: url.to_owned(),
-                        limit: MAX_TIME_STAMP_RESPONSE_BYTES,
-                    }
-                } else {
-                    FetchError::Transport {
-                        url: url.to_owned(),
-                        reason: msg,
-                    }
-                }
-            })
+        post_bytes(
+            url,
+            "application/timestamp-query",
+            query_der,
+            opts.timeout,
+            MAX_TIME_STAMP_RESPONSE_BYTES,
+        )
     }
+}
+
+/// POST an encoded IPP request (RFC 8010 §3; HTTP transport per RFC 8010
+/// §4: `Content-Type: application/ipp`) and return the raw IPP response
+/// body, **unparsed**. The caller maps `ipp://` to `http://` and `ipps://`
+/// to `https://` (RFC 3510 §4, RFC 7472); any other scheme is refused.
+/// `timeout` bounds the whole exchange, upload included, so it must allow
+/// for the document's size.
+///
+/// # Errors
+///
+/// [`FetchError::NetworkUnsupported`] when the `download` feature is off;
+/// [`FetchError::InsecureUrl`] for a scheme other than `http`/`https`;
+/// [`FetchError::TimedOut`], [`FetchError::Transport`] (unreachable host,
+/// TLS failure), [`FetchError::HttpStatus`] or [`FetchError::TooLarge`]
+/// (over [`MAX_IPP_RESPONSE_BYTES`]).
+#[cfg_attr(not(feature = "download"), allow(unused_variables))]
+pub fn post_ipp(
+    url: &str,
+    request: &[u8],
+    timeout: std::time::Duration,
+) -> Result<Vec<u8>, FetchError> {
+    #[cfg(not(feature = "download"))]
+    {
+        Err(FetchError::NetworkUnsupported {
+            url: url.to_owned(),
+        })
+    }
+
+    #[cfg(feature = "download")]
+    {
+        if !(url.starts_with("https://") || url.starts_with("http://")) {
+            return Err(FetchError::InsecureUrl {
+                url: url.to_owned(),
+            });
+        }
+        post_bytes(
+            url,
+            "application/ipp",
+            request,
+            timeout,
+            MAX_IPP_RESPONSE_BYTES,
+        )
+    }
+}
+
+/// POST `body` as `content_type`; the response body, at most `limit` bytes.
+#[cfg(feature = "download")]
+fn post_bytes(
+    url: &str,
+    content_type: &str,
+    body: &[u8],
+    timeout: std::time::Duration,
+    limit: u64,
+) -> Result<Vec<u8>, FetchError> {
+    let agent: ureq::Agent = ureq::Agent::config_builder()
+        .timeout_global(Some(timeout))
+        .build()
+        .into();
+    let response = agent
+        .post(url)
+        .header("Content-Type", content_type)
+        .send(body)
+        .map_err(|e| transport_error(url, e, timeout))?;
+    response
+        .into_body()
+        .with_config()
+        .limit(limit)
+        .read_to_vec()
+        .map_err(|e| {
+            if matches!(e, ureq::Error::Timeout(_)) {
+                return FetchError::TimedOut {
+                    url: url.to_owned(),
+                    after: timeout,
+                };
+            }
+            let msg = e.to_string();
+            if msg.contains("limit") {
+                FetchError::TooLarge {
+                    url: url.to_owned(),
+                    limit,
+                }
+            } else {
+                FetchError::Transport {
+                    url: url.to_owned(),
+                    reason: msg,
+                }
+            }
+        })
 }
 
 /// Map a ureq request error to the named [`FetchError`] variants.

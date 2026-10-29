@@ -587,6 +587,7 @@ mod print;
 mod print_output;
 mod print_plates;
 mod print_presets;
+mod print_remote;
 mod print_vector;
 use print::*;
 mod fields;
@@ -841,6 +842,9 @@ mod exit {
     /// `compare --exit-code`: the compared text differs. The report was
     /// printed. Without `--exit-code` a completed comparison exits 0.
     pub const DOCUMENTS_DIFFER: u8 = 16;
+    /// `print`: the network printer could not be reached, or CUPS's `lp`
+    /// is not installed. Nothing was sent.
+    pub const PRINTER_UNREACHABLE: u8 = 17;
     /// The subcommand exists in the surface but is not implemented yet
     /// (Pass 0 stub). Distinct code so a script can tell "you asked for a
     /// feature pdfcer doesn't have yet" apart from a real failure.
