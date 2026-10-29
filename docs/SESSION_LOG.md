@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-28 (1284th filing) — `Pass 647.2` SEVENTH CUT on `e3547709` (XFA overflow@target; Pass NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 647.2` seventh cut, `e35477095f8b6fda57b26986da7370b63c4aebc4`: `layout_template` honours a subform's `overflow@target` (XFA 3.3 Ch.17 p.791; Ch.9 p.366 Ex 9.28): a split's remainder moves to the named contentArea/pageArea (a later contentArea on the same page first, else a fresh instance of the target's pageArea). A target naming no single area emits `LayoutWarning::InvalidOverflowTarget` (doc widened) and falls back to the next area. Core only; no CLI caller (`647.5`).
+- Evidence: 3 new tests (44 xfa layout tests, was 41), all fail with the target ignored; `pdfcer-core` lib 2054 + `all.rs` 3112 + 255 passed; fmt, clippy, structure clean, core-api-verbs pass; no manifest change. Fuzz: `xfa_packets` 90 s run, 99,247 runs, no crash.
+- ROADMAP: `Pass 647.2` gained a seventh-cut block, stays in Next up. `FEATURES.md`: "Dynamic XFA, reading" row extended to the seventh cut and `overflow@target` removed from its not-yet list; boxes unchanged (`[x]`/`[ ]`/`[ ]`).
+
+**Decisions / findings:** no new decision (204), no new R-rule.
+
+**Still in flight:** 647.2 remaining: nested overflow in a split; nested adhesion; `lr-tb` adhesion (G-L14); G-L12 `pageArea`; field/draw text splitting.
+
+**For next session:** continue `Pass 647.2`, slow pacing. Next free `Pass 646.30`, `647.8`; decision 206, R251 (relay, not re-run). Next filing 1285th. Push, CI and backup state not checked from here.
+
 ## 2026-10-28 (1283rd filing) — `Pass 647.2` SIXTH CUT on `f6e76272` (XFA bookend leaders/trailers; Pass NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

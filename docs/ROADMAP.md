@@ -26290,7 +26290,14 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > `Pass 647.1` SHIPPED and has left this section (1276th filing, `74023a53`); full entry at the top of *Shipped*.
 
-### Pass 647.2 — Flowed layout `tb` / `lr-tb` (FIRST CUT `7cfa9c40`, SECOND CUT `9d0ddb90` (1278th filing), THIRD CUT `5fceb520` (1279th filing), FOURTH CUT `fa1869c8` (1280th filing), FIFTH CUT `1abf9d5e` (1281st filing), SIXTH CUT `f6e76272` (1283rd filing); NOT COMPLETE, stays here)
+### Pass 647.2 — Flowed layout `tb` / `lr-tb` (FIRST CUT `7cfa9c40`, SECOND CUT `9d0ddb90` (1278th filing), THIRD CUT `5fceb520` (1279th filing), FOURTH CUT `fa1869c8` (1280th filing), FIFTH CUT `1abf9d5e` (1281st filing), SIXTH CUT `f6e76272` (1283rd filing), SEVENTH CUT `e3547709` (1284th filing); NOT COMPLETE, stays here)
+
+**Seventh cut (`e35477095f8b6fda57b26986da7370b63c4aebc4` "feat(xfa): overflow@target moves a split to the named area (Pass 647.2, seventh cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision).** Core only; no CLI caller yet (`xfa-layout` is `647.5`), gui column unaffected.
+- **Done:** `layout_template` honours a subform's own `overflow@target` (XFA 3.3 Ch.17 p.791; Ch.9 p.366 Ex 9.28; spec RAG `adobe_ext__xfa_layout_adhesion_leaders_trailers.md` lines 79, 86). When the subform splits, the remainder moves to the named contentArea or pageArea instead of the next area in sequence: a later contentArea on the same page is taken first, else a fresh instance of the target's pageArea (reuses the break-target resolver without forcing a new page).
+- **Targets:** a target naming no single contentArea/pageArea emits the existing `LayoutWarning::InvalidOverflowTarget { path, target }` (doc widened to cover it) and falls back to the next area.
+- **core-api:** `docs/core-api/03-capabilities.md` updated (the "overflow@target is not supported yet" line replaced); `check-core-api-verbs` passes.
+- **Evidence (engineer):** 3 new layout tests (44 xfa layout tests, was 41); sabotage (target ignored) fails all three; `pdfcer-core` lib 2054 passed/2 ignored, `all.rs` 3112 passed/2 ignored, plus 255; fmt, clippy `-D warnings`, `check-code-structure` clean; fuzz: `xfa_packets` 90 s run, 99,247 runs, no crash; no manifest change, `cargo tree` unaffected.
+- **REMAINING in 647.2 after the seventh cut:** nested overflow inside a split; nested adhesion; `lr-tb` adhesion (G-L14); the G-L12 `pageArea` keep setting; field/draw text splitting.
 
 **Sixth cut (`f6e76272bbc8ad84716876b4235c936765a6f9c5` "feat(xfa): bookend leaders and trailers (Pass 647.2, sixth cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision).** Core only; no CLI caller yet (`xfa-layout` is `647.5`), gui column unaffected. New `crates/pdfcer-core/src/xfa/layout/bookend.rs`; layout's `Ctx` now carries the template root and a cycle stack.
 - **Done:** `bookend@leader`/`@trailer` on a subform or subformSet are laid as its first and last content, once per instance (XFA 3.3 Ch.8 pp.317-318). A split puts the leader in the first fragment and the trailer in the last.
