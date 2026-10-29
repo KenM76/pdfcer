@@ -592,3 +592,97 @@ fn a_subform_set_is_an_inheritance_level() {
     ));
     assert_eq!(names(&l.pages[0]), ["d", "d1", "d2", "T"]);
 }
+
+const BOOKENDS: &str = r#"<proto><subform id="BL" name="BL" w="10pt" h="20pt"/>
+    <subform id="BT" name="BT" w="10pt" h="30pt"/></proto>"#;
+
+const BOOKEND: &str = r##"<bookend leader="#BL" trailer="#BT"/>"##;
+
+#[test]
+fn a_split_subform_lays_its_bookend_leader_first_and_trailer_last_once() {
+    let l = lay(&format!(
+        r#"<subform name="f" layout="tb">{PAGE}{BOOKENDS}{}</subform>"#,
+        tall("d", 4, BOOKEND),
+    ));
+    let pages: Vec<Vec<&str>> = l.pages.iter().map(names).collect();
+    assert_eq!(
+        pages,
+        [vec!["d", "BL", "d1", "d2"], vec!["d", "d3", "d4", "BT"]]
+    );
+    assert_eq!(rect(&l.pages[0], "d1"), r(36.0, 56.0, 10.0, 300.0));
+    assert_eq!(rect(&l.pages[1], "BT"), r(36.0, 636.0, 10.0, 30.0));
+    assert!(l.warnings.is_empty(), "{:?}", l.warnings);
+}
+
+/// Ex 8.46: first fragment bookend leader … overflow trailer; last
+/// fragment overflow leader … bookend trailer (pp.326-327).
+#[test]
+fn bookends_and_overflow_leaders_combine_as_in_the_spec_example() {
+    let l = lay(&format!(
+        r##"<subform name="f" layout="tb">{PAGE}{BOOKENDS}
+          <proto><subform id="L" name="L" w="10pt" h="20pt"/><subform id="T" name="T" w="10pt" h="30pt"/></proto>{}</subform>"##,
+        tall(
+            "d",
+            4,
+            &format!(r##"{BOOKEND}<overflow leader="#L" trailer="#T"/>"##)
+        ),
+    ));
+    let pages: Vec<Vec<&str>> = l.pages.iter().map(names).collect();
+    assert_eq!(
+        pages,
+        [
+            vec!["d", "BL", "d1", "d2", "T"],
+            vec!["L", "d", "d3", "d4", "BT"]
+        ]
+    );
+}
+
+#[test]
+fn the_root_bookends_open_and_close_the_document() {
+    let l = lay(&format!(
+        r#"<subform name="f" layout="tb">{PAGE}{BOOKENDS}{BOOKEND}{}</subform>"#,
+        tall("d", 3, ""),
+    ));
+    assert_eq!(pages_with(&l, "BL"), [0]);
+    assert_eq!(pages_with(&l, "BT"), [1]);
+    assert_eq!(names(&l.pages[0])[0], "BL");
+    assert_eq!(names(&l.pages[1]).last(), Some(&"BT"));
+}
+
+#[test]
+fn each_instance_and_each_subform_set_gets_its_own_bookends() {
+    let l = lay(&format!(
+        r#"<subform name="f" layout="tb">{PAGE}{BOOKENDS}
+          <subform name="s" layout="tb">{BOOKEND}<occur initial="2" max="2"/><field name="a" w="10pt" h="10pt"/></subform>
+          <subformSet>{BOOKEND}<field name="b" w="10pt" h="10pt"/></subformSet></subform>"#
+    ));
+    assert_eq!(
+        names(&l.pages[0]),
+        ["s", "BL", "a", "BT", "s", "BL", "a", "BT", "BL", "b", "BT"]
+    );
+    // A bookend is content: it sizes its subform.
+    let s = l.pages[0]
+        .items
+        .iter()
+        .find(|i| i.name.as_deref() == Some("s"));
+    assert_eq!(s.unwrap().rect.h, 60.0);
+}
+
+#[test]
+fn a_bad_or_cyclic_bookend_target_is_skipped_with_a_warning() {
+    let l = lay(&format!(
+        r##"<subform name="f" layout="tb">{PAGE}
+          <proto><subform id="C" name="C" layout="tb" w="10pt"><bookend leader="#C"/><field name="c" w="10pt" h="10pt"/></subform></proto>
+          <subform name="s" layout="tb"><bookend leader="#C" trailer="#nope"/></subform></subform>"##
+    ));
+    assert_eq!(names(&l.pages[0]), ["s", "C", "c"]);
+    let bad: Vec<&str> = l
+        .warnings
+        .iter()
+        .filter_map(|w| match w {
+            LayoutWarning::InvalidBookendTarget { target, .. } => Some(target.as_str()),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(bad, ["#C", "#nope"]);
+}

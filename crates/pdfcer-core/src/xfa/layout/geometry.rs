@@ -14,6 +14,11 @@ pub(super) struct Ctx<'o> {
     pub(super) opts: &'o LayoutOptions,
     pub(super) warnings: Vec<LayoutWarning>,
     pub(super) items: usize,
+    /// The template element: where bookend targets are looked up.
+    pub(super) root: &'o XfaNode,
+    /// Paths of the bookend targets being laid, outermost first: the
+    /// cycle guard.
+    pub(super) bookends: Vec<Vec<usize>>,
 }
 
 impl Ctx<'_> {
@@ -114,7 +119,9 @@ pub(super) fn instances(
         }
         if node.container_kind() == Some(ContainerKind::SubformSet) {
             ctx.items += 1;
-            children(ctx, node, path, parent, out);
+            let mut kids = Vec::new();
+            children(ctx, node, path, parent, &mut kids);
+            out.extend(super::bookend::wrap(ctx, node, path, parent, kids));
         } else if let Some(p) = lay_one(ctx, node, path, parent) {
             out.push(p);
         }
@@ -195,6 +202,9 @@ fn lay_one(
     let (right, bottom) = (inset(ctx, "rightInset"), inset(ctx, "bottomInset"));
     let mut kids = Vec::new();
     children(ctx, node, path, strategy, &mut kids);
+    if kind == ContainerKind::Subform {
+        kids = super::bookend::wrap(ctx, node, path, strategy, kids);
+    }
     let wrap = (ctx.length(node, path, "w"))
         .or_else(|| ctx.length(node, path, "maxW"))
         .map(|w| (w - left - right).max(0.0));

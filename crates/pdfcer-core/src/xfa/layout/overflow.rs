@@ -114,7 +114,7 @@ fn targets(ctx: &mut Ctx<'_>, root: &XfaNode, list: &str, path: &[usize]) -> Vec
 
 /// The one `subform`/`subformSet` under `root` whose `id` (for `#id`) or
 /// `name` is `spec`, with its path from `root`.
-fn find<'t>(root: &'t XfaNode, spec: &str) -> Option<(&'t XfaNode, Vec<usize>)> {
+pub(super) fn find<'t>(root: &'t XfaNode, spec: &str) -> Option<(&'t XfaNode, Vec<usize>)> {
     let (attr, want) = spec
         .strip_prefix('#')
         .map_or(("name", spec), |id| ("id", id));

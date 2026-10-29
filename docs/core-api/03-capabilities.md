@@ -748,8 +748,16 @@ with every `warnings` entry.
     containing `subform`/`subformSet` that does, sharing that container's
     counts; `leader=""` blocks inheritance. An asserting subform's counts
     start at zero per instance, and once its targets are spent it falls
-    back to the inherited ones (gaps G-L22, G-L23). Bookends and overflow
-    targets are not supported yet.
+    back to the inherited ones (gaps G-L22, G-L23). `overflow@target` is
+    not supported yet.
+  - **Bookend leaders and trailers** (`bookend@leader`/`@trailer`) of a
+    subform or subformSet: the leader is its first content and the trailer
+    its last, once per instance. A split puts the leader in the first
+    fragment and the trailer in the last; the root's open and close the
+    whole document. A bookend is ordinary content: it sizes its subform,
+    with no reservation, inheritance or occurrence limit (gap G-L25). A
+    target naming no single subform, or naming one already being laid as a
+    bookend (a cycle), is skipped with `InvalidBookendTarget`.
   Ordered-occurrence pagination is supported, with `breakBefore`/`breakAfter`:
   - `targetType` may be `contentArea`, `pageArea`, `pageEven` or `pageOdd`.
     The first page is odd.
@@ -766,6 +774,7 @@ with every `warnings` entry.
   - `UnboundedBoilerplate { path }`
   - `InvalidBreakTarget { path, target }`
   - `InvalidOverflowTarget { path, target }`: the list item was skipped.
+  - `InvalidBookendTarget { path, target }`: the bookend was skipped.
   - `MinGreaterThanMax { path, attribute }`: the values were swapped.
   - `NegativeCoordinate { path }`
   - `UnresolvedMeasurement { path, attribute }`: a `%` unit was ignored.

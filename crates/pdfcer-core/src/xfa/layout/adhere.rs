@@ -3,6 +3,7 @@
 use std::collections::VecDeque;
 
 use super::LayoutWarning;
+use super::bookend::bookend;
 use super::geometry::{Placed, instances, is_placeable};
 use super::split::split;
 use crate::xfa::{LayoutStrategy, XfaNode};
@@ -65,7 +66,7 @@ struct Pending {
     glued: bool,
 }
 
-impl<'t> super::Run<'t, '_> {
+impl<'t: 'o, 'o> super::Run<'t, 'o> {
     /// Lay the root's children in order, with their breaks. Adjacent
     /// instances that adhere (a `subformSet` is transparent, Ch.9 p.357) are
     /// held off together. Only a `tb` root enforces adhesion yet; an
@@ -74,14 +75,7 @@ impl<'t> super::Run<'t, '_> {
         let enforce = self.root_strategy == LayoutStrategy::Tb;
         let (mut meta, mut queue) = (Vec::new(), VecDeque::new());
         let mut prev: Option<(&XfaNode, Keep)> = None;
-        for (i, c) in root.children.iter().enumerate() {
-            if !is_placeable(c) {
-                continue;
-            }
-            let mut path = root_path.to_vec();
-            path.push(i);
-            let mut placed = Vec::new();
-            instances(&mut self.ctx, c, &path, self.root_strategy, &mut placed);
+        for (c, path, placed) in self.root_entries(root, root_path) {
             meta.push((c, path, placed.len()));
             for p in placed {
                 let glued = prev.is_some_and(|(n, k)| {
@@ -109,6 +103,32 @@ impl<'t> super::Run<'t, '_> {
                 self.apply_break(node, &path, "breakAfter");
             }
         }
+    }
+
+    /// The root's children with their instances, between the root's
+    /// bookend leader and trailer: the start and end of the whole document
+    /// (Ch.8 p.318).
+    fn root_entries(
+        &mut self,
+        root: &'t XfaNode,
+        root_path: &[usize],
+    ) -> Vec<(&'o XfaNode, Vec<usize>, Vec<Placed>)> {
+        let strategy = self.root_strategy;
+        let mut out: Vec<_> = bookend(&mut self.ctx, root, root_path, true, strategy)
+            .into_iter()
+            .collect();
+        for (i, c) in root.children.iter().enumerate() {
+            if !is_placeable(c) {
+                continue;
+            }
+            let mut path = root_path.to_vec();
+            path.push(i);
+            let mut placed = Vec::new();
+            instances(&mut self.ctx, c, &path, strategy, &mut placed);
+            out.push((c, path, placed));
+        }
+        out.extend(bookend(&mut self.ctx, root, root_path, false, strategy));
+        out
     }
 
     /// [`Self::put`], first moving to the next area when `p` heads an

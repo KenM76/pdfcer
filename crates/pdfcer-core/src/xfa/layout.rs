@@ -19,6 +19,7 @@
 //! [`LayoutWarning::FlowedLayoutPending`].
 
 mod adhere;
+mod bookend;
 mod flow;
 mod geometry;
 mod overflow;
@@ -169,6 +170,15 @@ pub enum LayoutWarning {
         /// The list item as written.
         target: String,
     },
+    /// A `bookend@leader`/`@trailer` names no single `subform` or
+    /// `subformSet`, or one already being laid as a bookend of itself or
+    /// a container (a cycle); it was skipped (Ch.17 p.625).
+    InvalidBookendTarget {
+        /// Path of the object asserting the bookend.
+        path: Vec<usize>,
+        /// The target as written.
+        target: String,
+    },
     /// A `min*` exceeded its `max*`; the two were swapped (Ch.8 p.276).
     MinGreaterThanMax {
         /// Its template path.
@@ -281,6 +291,8 @@ pub fn layout_template(
             opts,
             warnings: Vec::new(),
             items: 0,
+            root: root_el,
+            bookends: Vec::new(),
         },
         root: root_el,
         set,
