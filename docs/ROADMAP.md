@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.104.0` — release prep, version bump `a65b29d1` (`chore`), 2026-10-29 (1309th filing); NOT yet published
+
+Engineer-reported (shell held by the engineer); nothing checked from here. Same pattern as the v0.103.0 prep (1300th filing). The tag goes on this filing's own commit, to be made by the engineer.
+- **`a65b29d1`** "chore: bump workspace to 0.104.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`. Versions only. Parent `163ef805` (the 1308th filing, `Pass 55.14` docs), already pushed; `origin/main` is `163ef805` as reported.
+- **Passes carried since `v0.103.0`** (already filed, not re-filed; read from the *Shipped* headers and the one "after v0.103.0" marker in this file): the print arc `55.9` (presets), `55.10` (print-time header/footer, grayscale/black, multi-file), `55.11` (printer's marks, separations), `55.12` (vector printing, result line `mode=vector|raster|mixed`), `55.13` (`ipp://` and CUPS printing), `55.14` (staple/punch/fold/output bin, `list-finishing`; `5b6367b1`). Also the `647.4` fifth cut `cc5d7af4` (check boxes; Pass NOT complete, stays in *Next up*), the only cut this file marks "after v0.103.0". Decision 211 falls in the window.
+- **Slot:** `pdfcer1` (`pdfcer2` keeps 0.103.0), per the v0.103.0 PUBLISHED entry above ("Next release writes `pdfcer1`").
+- **Gates (engineer-reported, change-scoped per the standing release rule of 2026-10-16):** crates changed since `v0.103.0` are `pdfcer-print` and `pdfcer-cli`; their tests ran green in `Pass 55.14` (cli `--test all` 991 passed; finishing 9 + 6 unit tests), fmt clean, clippy clean on Windows and the Linux target, structure gate clean.
+- **Release plan (to run, NOT claimed done):** annotated tag `v0.104.0` on the filing commit, push of `main` and the tag, packaging, `verify-release.py v0.104.0`, fresh-folder smoke test, GitHub release assets, OneDrive slot `pdfcer1`, and `cargo publish` of `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` at 0.104.0.
+- **FEATURES:** no change (it carries no version string for these Passes; the print rows were moved in the 1304th-1308th filings). Nothing minted.
+
 ### Pass 55.14 — Print finishing: staple, hole punch, fold, output bin — SHIPPED `5b6367b1`, 2026-10-29 (1308th filing)
 
 Engineer-reported; no shell here, nothing checked from here. `feat(print): staple, punch, fold and output bin, and list-finishing (Pass 55.14)`; parent and remote `main` before it `02162f5a`; on local main, not yet pushed at filing. **Last Pass of the print arc `55.9`-`55.14`, now fully shipped.** Reasoning is in the commit message.

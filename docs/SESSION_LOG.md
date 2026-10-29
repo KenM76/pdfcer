@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1309th filing) — `v0.104.0` release PREP, version bump `a65b29d1`; NOT yet published
+
+**Filed (docs only; engineer-reported, the engineer holds the shell; nothing checked from here):**
+- `a65b29d1` "chore: bump workspace to 0.104.0" (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`), parent `163ef805` (1308th filing, already pushed; `origin/main` is `163ef805` as reported). The tag goes on this filing's commit.
+- Contents since `v0.103.0`: print arc `55.9`-`55.14` (presets, print-time header/footer, grayscale/black, multi-file, printer's marks, separations, vector printing, `ipp://` and CUPS, staple/punch/fold/output-bin and `list-finishing`) and the `647.4` fifth cut `cc5d7af4` (NOT COMPLETE). Slot `pdfcer1`; `pdfcer2` keeps 0.103.0.
+- Gates (engineer-reported, change-scoped, Ken 2026-10-16): changed crates `pdfcer-print`, `pdfcer-cli`; cli `--test all` 991 passed, finishing 9 + 6 unit tests, fmt, clippy (Windows and Linux target), structure clean.
+- FEATURES unchanged. No decision, no rule.
+
+**Open for the later filing:** tag, push, packaging, `verify-release.py`, fresh-folder smoke, GitHub release, OneDrive `pdfcer1`, crates.io (`pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.104.0). All "to run", none claimed passed. Backup currency not verifiable from here.
+
+**Hard-rule-11 survivors:** none; a version number only.
+
 ## 2026-10-29 (1308th filing) — `Pass 55.14` SHIPPED `5b6367b1` (print finishing); print arc `55.9`-`55.14` COMPLETE
 
 **Shipped (engineer-reported, no shell here, nothing checked from here; I edited ROADMAP/FEATURES/SESSION_LOG and the RAG only, the engineer commits):**
