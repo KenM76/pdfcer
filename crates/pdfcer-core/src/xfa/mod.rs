@@ -18,7 +18,8 @@ pub use layout::{
 
 pub use packets::{MAX_XDP_LEN, MAX_XML_DEPTH, XdpDocument, XdpPacket, XfaError, read_xdp};
 pub use paint::{
-    EdgePlacement, MissingFill, PaintNote, PaintNoteKind, PaintOptions, PaintedPage, paint_page,
+    EdgePlacement, FontWeight, MissingFill, PaintNote, PaintNoteKind, PaintOptions, PaintedPage,
+    paint_page,
 };
 pub use template::{
     AnchorType, ContainerKind, LayoutStrategy, Measurement, Occur, Presence, Template, XfaNode,

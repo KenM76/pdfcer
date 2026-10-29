@@ -30,9 +30,10 @@ pub struct RenderedXfaPage {
 
 /// Draw `page` of `template`'s layout at `scale` device pixels per point.
 ///
-/// `view` is the document the template came from; it supplies nothing yet
-/// (the synthesized content uses no resources) but is the source fonts and
-/// images will resolve against. The page is white-backed unless `options`
+/// `view` is the document the template came from; the synthesized content's
+/// only resources are the standard-14 fonts [`paint_page`] names, so it
+/// supplies nothing yet, but it is where embedded fonts and images will
+/// resolve. The page is white-backed unless `options`
 /// asks for [`PageBackdrop::Transparent`].
 ///
 /// # Errors
@@ -50,8 +51,9 @@ pub fn render_xfa_page(
 ) -> Result<RenderedXfaPage, RenderError> {
     let mut painted = paint_page(template, page, paint);
     let content = std::mem::take(&mut painted.content);
+    let resources = std::mem::take(&mut painted.resources);
     let rendered = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        rasterize(view, content, page, scale, options)
+        rasterize(view, content, &resources, page, scale, options)
     }))
     .unwrap_or_else(|payload| {
         Err(RenderError::RasterizerLimit {
@@ -68,6 +70,7 @@ pub fn render_xfa_page(
 fn rasterize(
     view: &DocumentView<'_>,
     content: Vec<u8>,
+    resources: &Dict,
     page: &LayoutPage,
     scale: f32,
     options: &RenderOptions,
@@ -101,7 +104,7 @@ fn rasterize(
         interpret::run_on(
             view,
             &parsed,
-            &Dict::default(),
+            resources,
             &options.fonts,
             gstate::GraphicsState::default_with_ctm(ctm),
             &mut canvas,

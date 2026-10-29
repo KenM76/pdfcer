@@ -145,6 +145,23 @@ fn png_dir_writes_one_image_per_page_and_lists_what_was_not_drawn() {
 }
 
 #[test]
+fn png_dir_draws_value_text_and_names_a_substituted_font() {
+    let dir = std::env::temp_dir().join(format!("pdfcer-xfa-text-{}", std::process::id()));
+    let t = format!(
+        r#"<subform name="f">{PAGE}<draw name="d" x="10pt" y="10pt" w="100pt" h="20pt"><font typeface="Arial"/><value><text>Hi</text></value></draw></subform>"#
+    );
+    let dir_arg = dir.to_str().unwrap();
+    let (code, stdout, stderr) = run("text", &pdf(Some(&t)), &["--png-dir", dir_arg]);
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(code, 0, "{stderr}");
+    assert!(
+        stdout.contains("paint-note page=0 kind=font-substituted path=0.1"),
+        "{stdout}"
+    );
+    assert!(stdout.ends_with("xfa-render pages=1 notes=1\n"), "{stdout}");
+}
+
+#[test]
 fn a_file_with_no_xfa_form_exits_one_by_name() {
     let (code, stdout, stderr) = run("none", &pdf(None), &[]);
     assert_eq!(code, 1);

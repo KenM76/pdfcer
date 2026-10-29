@@ -831,15 +831,19 @@ with every `warnings` entry.
   pixels per point, default 1), printing a `rendered page= file= width=
   height=` line, one `paint-note page= kind= path=` line per `PaintNote`,
   and an `xfa-render pages= notes=` summary; `--edge-placement
-  {grammar,inward}` and `--missing-fill {none,white}` map onto
-  `PaintOptions`. An image that cannot be written exits 1.
+  {grammar,inward}`, `--missing-fill {none,white}` and `--font-weight
+  {normal,bold}` map onto `PaintOptions`; note kinds print as
+  `content-not-drawn`, `font-substituted`, `text-approximated` and the
+  like. An image that cannot be written exits 1.
 
 **Drawing a laid-out XFA page** (`xfa/paint.rs`, decision 204, Pass 647.4
 first cut): `pdfcer_core::xfa::paint_page(&Template, &LayoutPage,
 &PaintOptions) -> PaintedPage`. Pure; writes nothing. `PaintedPage::content`
 is an unfiltered content stream in the page's default user space (origin
-bottom-left, points, DeviceRGB, no resources); `notes` lists what was
-approximated or left out, deduplicated per item and kind.
+bottom-left, points, DeviceRGB); `resources` is the `/Font` dictionary it
+names (`/XF0`, … standard-14 Type 1, WinAnsi; empty when no text is shown);
+`notes` lists what was approximated or left out, deduplicated per item and
+kind.
 
 - **Draws:** a field, draw, subform or exclGroup's own `border` (XFA 3.3
   p.629). It draws the solid `fill` (p.734, default white) and the solid
@@ -847,6 +851,13 @@ approximated or left out, deduplicated per item and kind.
   Both are drawn on the nominal extent inset by the border's own `margin`
   (p.50). Background items paint first; siblings paint in layout order; fill
   goes under the edges (p.70).
+- **Draws** a field's or draw's plain `value/text` (p.863) in a standard-14
+  face: `font` typeface (default Courier), size (default 10pt), weight,
+  posture and `fill` colour; `para` `hAlign` left/center/right, `vAlign`
+  top/middle/bottom and `lineHeight`. Lines break at newlines and wrap at
+  spaces inside the content region (item minus container margin minus a
+  text widget's margin), clipped to it. A typeface other than Courier,
+  Helvetica or Times is matched to the nearest standard-14 family.
 - **Skips** an item whose own or any ancestor container's `presence` is not
   `visible` (p.68), and a non-visible border, fill or edge.
 - **Settings:**
@@ -856,8 +867,15 @@ approximated or left out, deduplicated per item and kind.
     either.
   - `MissingFill { None (default), White }`: what a border with no `fill`
     element paints (gap G-D2).
+  - `FontWeight { Normal (default), Bold }` (`with_font_weight`): the weight
+    of a `font` with no `weight` attribute; the grammar says normal, p.58
+    prose says bold (gap G-T1).
 - **★ What the UI must disclose:** every `PaintNote` (path + `PaintNoteKind`):
-  - `Content`: caption, value, draw content or widget, not drawn yet.
+  - `Content`: a caption, rich or non-text value, or a widget drawing more
+    than its text (check button, choice list, bordered widget), not drawn yet.
+  - `Font`: the typeface was drawn in a substituted standard-14 face.
+  - `Text`: text approximated: an unencodable character, a word wider than
+    the region, overflow, or justify/radix alignment drawn left.
   - `Stroke`: a non-solid edge, not drawn.
   - `FillType`: a gradient, pattern or stipple fill, not drawn.
   - `Corner`: a rounded corner, drawn square.

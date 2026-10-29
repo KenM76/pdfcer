@@ -102,3 +102,16 @@ fn a_page_too_large_for_the_raster_is_refused() {
     );
     assert!(matches!(r, Err(RenderError::BadRasterSize { .. })));
 }
+
+#[test]
+fn value_text_reaches_the_raster_through_the_painted_font_resources() {
+    let body = r#"<draw name="d" x="0pt" y="0pt" w="100pt" h="100pt"><font typeface="Helvetica" size="40pt"/><value><text>WW</text></value></draw>"#;
+    let out = render(body, &PaintOptions::new());
+    let dark = (0..100)
+        .flat_map(|y| (0..100).map(move |x| (x, y)))
+        .filter(|&(x, y)| rgb(&out, x, y)[0] < 128)
+        .count();
+    assert!(dark > 200, "only {dark} dark pixels");
+    assert_eq!(out.page.diagnostics.unknown_ops, 0);
+    assert_eq!(out.page.diagnostics.deferred_ops, 0);
+}

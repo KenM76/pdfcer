@@ -5991,11 +5991,14 @@ pub(crate) enum Command {
     ///   paint-note page=N kind= path=
     ///   xfa-render pages= notes=
     ///
-    /// Only borders and fills are drawn so far. Each paint-note names
-    /// something left out or approximated: content-not-drawn (caption,
-    /// value or widget), stroke-not-drawn, fill-not-drawn (gradient,
-    /// pattern or stipple), corner-drawn-square, open-break-drawn-closed,
-    /// colour-defaulted.
+    /// Borders, fills and plain value text are drawn so far, text in the
+    /// nearest standard PDF font. Each paint-note names something left out
+    /// or approximated: content-not-drawn (caption, rich text or a non-text
+    /// widget), stroke-not-drawn, fill-not-drawn (gradient, pattern or
+    /// stipple), corner-drawn-square, open-break-drawn-closed,
+    /// colour-defaulted, font-substituted (typeface drawn in Courier,
+    /// Helvetica or Times), text-approximated (a character shown as ?, a
+    /// word too wide, justify drawn left, or lines clipped).
     ///
     /// A note on stderr says these pages are computed, not stored in the
     /// file. The PDF is never changed. Exits 1 when the file has no XFA
@@ -6018,8 +6021,8 @@ pub(crate) enum Command {
         #[arg(long, value_enum, default_value_t)]
         page_area_keep: PageAreaKeepArg,
         /// Also draw each computed page to page-NNN.png in this folder
-        /// (created if missing). Borders and fills only for now; every
-        /// caption, value or style not drawn is listed as a paint-note line.
+        /// (created if missing). Borders, fills and plain text only for now;
+        /// everything not drawn exactly is listed as a paint-note line.
         #[arg(long, value_name = "DIR")]
         png_dir: Option<PathBuf>,
         /// Pixels per point for --png-dir images (1.0 is 72 dpi).
@@ -6034,6 +6037,10 @@ pub(crate) enum Command {
         /// as the XFA grammar says, or white, as an XFA spec note says.
         #[arg(long, value_enum, default_value_t)]
         missing_fill: MissingFillArg,
+        /// The weight of text whose font names none, for --png-dir: normal,
+        /// as the XFA grammar says, or bold, as an XFA spec chapter says.
+        #[arg(long, value_enum, default_value_t)]
+        font_weight: FontWeightArg,
     },
 
     /// **Create a new text form field** (§12.7.2 + §12.5.6.19).

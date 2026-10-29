@@ -167,3 +167,141 @@ fn an_unreadable_colour_falls_back_and_is_disclosed() {
     assert_eq!(parse_rgb("1,2"), None);
     assert_eq!(parse_rgb("1,2,3,4"), None);
 }
+
+/// Paint `body` and return the whole page plus the normalized operators.
+fn painted(body: &str, opts: &PaintOptions) -> (PaintedPage, String) {
+    let xdp = format!(
+        r#"<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/"><template xmlns="http://www.xfa.org/schema/xfa-template/3.3/"><subform name="f">{PAGE}{body}</subform></template></xdp:xdp>"#
+    );
+    let t = read_template(&XdpDocument::parse(xdp).unwrap())
+        .unwrap()
+        .unwrap();
+    let l = layout_template(&t, &LayoutOptions::new()).unwrap();
+    let out = paint_page(&t, &l.pages[0], opts);
+    let ops = String::from_utf8(out.content.clone()).unwrap();
+    let ops = ops.split_whitespace().collect::<Vec<_>>().join(" ");
+    (out, ops)
+}
+
+fn draw(font: &str, para: &str, text: &str) -> String {
+    format!(
+        r#"<draw name="f1" x="10pt" y="20pt" w="200pt" h="40pt">{font}{para}<value><text>{text}</text></value></draw>"#
+    )
+}
+
+fn base_font(p: &PaintedPage, name: &[u8]) -> String {
+    let fonts = p.resources.get(b"Font").unwrap().as_dict().unwrap();
+    let f = fonts.get(name).unwrap().as_dict().unwrap();
+    String::from_utf8(
+        f.get(b"BaseFont")
+            .unwrap()
+            .as_name()
+            .unwrap()
+            .as_bytes()
+            .to_vec(),
+    )
+    .unwrap()
+}
+
+#[test]
+fn draw_text_is_set_at_its_first_baseline_in_a_named_standard_face() {
+    let body = draw(r#"<font typeface="Helvetica" size="12pt"/>"#, "", "Hello");
+    let (p, ops) = painted(&body, &PaintOptions::new());
+    assert!(p.notes.is_empty(), "{:?}", p.notes);
+    assert_eq!(base_font(&p, b"XF0"), "Helvetica");
+    // Top of region = 792 - 36 - 20 = 736; baseline = top - ascender (718/1000 * 12).
+    let baseline = 736.0 - 0.718 * 12.0;
+    assert!(
+        ops.contains(&format!(
+            "BT /XF0 12 Tf 1 0 0 1 46 {} Tm (Hello) Tj ET",
+            num(baseline)
+        )),
+        "{ops}"
+    );
+    assert!(
+        ops.contains(&format!("{} W n", re(46.0, 696.0, 200.0, 40.0))),
+        "{ops}"
+    );
+}
+
+#[test]
+fn the_default_face_is_courier_10_and_its_weight_is_a_setting() {
+    let body = draw("", "", "x");
+    let (p, ops) = painted(&body, &PaintOptions::new());
+    assert_eq!(base_font(&p, b"XF0"), "Courier");
+    assert!(ops.contains("/XF0 10 Tf"), "{ops}");
+    let (bold, _) = painted(
+        &body,
+        &PaintOptions::new().with_font_weight(FontWeight::Bold),
+    );
+    assert_eq!(base_font(&bold, b"XF0"), "Courier-Bold");
+    let explicit = draw(r#"<font weight="normal"/>"#, "", "x");
+    let (normal, _) = painted(
+        &explicit,
+        &PaintOptions::new().with_font_weight(FontWeight::Bold),
+    );
+    assert_eq!(
+        base_font(&normal, b"XF0"),
+        "Courier",
+        "an explicit weight wins"
+    );
+}
+
+#[test]
+fn a_substituted_typeface_is_disclosed() {
+    let body = draw(r#"<font typeface="Myriad Pro" posture="italic"/>"#, "", "x");
+    let (p, _) = painted(&body, &PaintOptions::new());
+    assert_eq!(base_font(&p, b"XF0"), "Helvetica-Oblique");
+    assert_eq!(p.notes.len(), 1);
+    assert_eq!(p.notes[0].kind, PaintNoteKind::Font);
+    let serif = draw(r#"<font typeface="Times New Roman"/>"#, "", "x");
+    assert_eq!(
+        base_font(&painted(&serif, &PaintOptions::new()).0, b"XF0"),
+        "Times-Roman"
+    );
+}
+
+#[test]
+fn h_align_and_v_align_place_the_line_in_the_region() {
+    let font = r#"<font typeface="Courier" size="10pt"/>"#;
+    let para = r#"<para hAlign="right" vAlign="bottom"/>"#;
+    let (_, ops) = painted(&draw(font, para, "ab"), &PaintOptions::new());
+    // Courier is 600/em: "ab" is 12pt wide; region x 46..246, bottom 696.
+    let line_h = (629.0 + 157.0) / 1000.0 * 10.0;
+    let baseline = 696.0 + line_h - 6.29;
+    assert!(
+        ops.contains(&format!("1 0 0 1 234 {} Tm (ab) Tj", num(baseline))),
+        "{ops}"
+    );
+}
+
+#[test]
+fn long_text_wraps_at_spaces_and_overflow_is_disclosed() {
+    let font = r#"<font typeface="Courier" size="10pt"/>"#;
+    // 200pt holds 33 Courier characters at 10pt.
+    let words = "aaaaaaaaaa ".repeat(6);
+    let (p, ops) = painted(&draw(font, "", words.trim_end()), &PaintOptions::new());
+    assert_eq!(ops.matches(" Tj").count(), 2, "{ops}");
+    assert!(p.notes.is_empty(), "{:?}", p.notes);
+    let tall = "a\nb\nc\nd\ne\nf";
+    let (p, ops) = painted(&draw(font, "", tall), &PaintOptions::new());
+    assert_eq!(ops.matches(" Tj").count(), 6, "{ops}");
+    assert_eq!(p.notes[0].kind, PaintNoteKind::Text, "clipped lines");
+}
+
+#[test]
+fn an_unencodable_character_is_disclosed_and_a_caption_still_is_not_drawn() {
+    let (p, ops) = painted(&draw("", "", "a\u{4e00}"), &PaintOptions::new());
+    assert!(ops.contains("(a?) Tj"), "{ops}");
+    assert_eq!(p.notes[0].kind, PaintNoteKind::Text);
+    let field = r#"<field name="f1" w="100pt" h="20pt"><ui><textEdit/></ui><value><text>v</text></value></field>"#;
+    let (p, ops) = painted(field, &PaintOptions::new());
+    assert!(
+        ops.contains("(v) Tj") && p.notes.is_empty(),
+        "{ops} {:?}",
+        p.notes
+    );
+    let captioned = field.replace("<ui>", "<caption/><ui>");
+    let (p, _) = painted(&captioned, &PaintOptions::new());
+    assert_eq!(p.notes[0].kind, PaintNoteKind::Content);
+}

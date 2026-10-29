@@ -1286,6 +1286,7 @@ pub(crate) fn run() -> ExitCode {
             scale,
             edge_placement,
             missing_fill,
+            font_weight,
         } => cmd_xfa_layout(
             &input,
             XfaLayoutArgs {
@@ -1299,6 +1300,7 @@ pub(crate) fn run() -> ExitCode {
                     scale,
                     edge_placement,
                     missing_fill,
+                    font_weight,
                 })
                 .as_ref(),
         ),

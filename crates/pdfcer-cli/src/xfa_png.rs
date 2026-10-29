@@ -3,7 +3,7 @@
 use super::*;
 
 use pdfcer_core::xfa::{
-    EdgePlacement, MissingFill, PaintNoteKind, PaintOptions, Template, XfaLayout,
+    EdgePlacement, FontWeight, MissingFill, PaintNoteKind, PaintOptions, Template, XfaLayout,
 };
 
 /// `xfa-layout --edge-placement` (gap G-D1, decision 207).
@@ -26,6 +26,16 @@ pub(crate) enum MissingFillArg {
     White,
 }
 
+/// `xfa-layout --font-weight` (gap G-T1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum FontWeightArg {
+    /// `normal` (the grammar).
+    #[default]
+    Normal,
+    /// `bold` (the Ch.2 prose).
+    Bold,
+}
+
 /// Where and how `xfa-layout` writes page images.
 #[derive(Debug, Clone)]
 pub(crate) struct XfaPngArgs {
@@ -33,6 +43,7 @@ pub(crate) struct XfaPngArgs {
     pub(crate) scale: f32,
     pub(crate) edge_placement: EdgePlacementArg,
     pub(crate) missing_fill: MissingFillArg,
+    pub(crate) font_weight: FontWeightArg,
 }
 
 impl XfaPngArgs {
@@ -45,6 +56,10 @@ impl XfaPngArgs {
             .with_missing_fill(match self.missing_fill {
                 MissingFillArg::None => MissingFill::None,
                 MissingFillArg::White => MissingFill::White,
+            })
+            .with_font_weight(match self.font_weight {
+                FontWeightArg::Normal => FontWeight::Normal,
+                FontWeightArg::Bold => FontWeight::Bold,
             })
     }
 }
@@ -106,6 +121,8 @@ fn note_label(k: PaintNoteKind) -> &'static str {
         PaintNoteKind::Corner => "corner-drawn-square",
         PaintNoteKind::OpenBreak => "open-break-drawn-closed",
         PaintNoteKind::Color => "colour-defaulted",
+        PaintNoteKind::Font => "font-substituted",
+        PaintNoteKind::Text => "text-approximated",
         _ => "other",
     }
 }

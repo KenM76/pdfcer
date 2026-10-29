@@ -10,9 +10,14 @@
 //! `adobe_ext__xfa_appearance_drawing.md` (gaps G-D1..G-D19).
 //!
 //! Scope: a container's own `border` (its `fill`, `margin` and solid square
-//! edges). Captions, values, `draw` content and widget borders are not drawn
-//! yet; each item carrying them is reported as [`PaintNoteKind::Content`].
+//! edges), and a `draw`'s or `field`'s plain value text in a standard-14
+//! face ([`PaintedPage::resources`] names them). Captions, rich text, other
+//! value content and non-text widgets are not drawn yet; each item carrying
+//! them is reported as [`PaintNoteKind::Content`].
 
+use crate::fontdata::Std14;
+use crate::object::{Dict, Name, Object};
+use crate::vartext::standard14_font_dict;
 use crate::writer::content::{ContentBuilder, LineCap, Paint};
 
 use super::{ContainerKind, LayoutItem, LayoutPage, LayoutRect, Presence, Template, XfaNode};
@@ -41,6 +46,17 @@ pub enum MissingFill {
     White,
 }
 
+/// The weight of a `font` with no `weight` attribute (gap G-T1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum FontWeight {
+    /// `normal`, as the `font` grammar says (p.741).
+    #[default]
+    Normal,
+    /// `bold`, as the Ch.2 p.58 prose says.
+    Bold,
+}
+
 /// The settings [`paint_page`] draws with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
@@ -49,6 +65,8 @@ pub struct PaintOptions {
     pub edge_placement: EdgePlacement,
     /// Gap G-D2.
     pub missing_fill: MissingFill,
+    /// Gap G-T1.
+    pub font_weight: FontWeight,
 }
 
 impl PaintOptions {
@@ -58,6 +76,7 @@ impl PaintOptions {
         Self {
             edge_placement: EdgePlacement::Grammar,
             missing_fill: MissingFill::None,
+            font_weight: FontWeight::Normal,
         }
     }
 
@@ -74,13 +93,21 @@ impl PaintOptions {
         self.missing_fill = missing_fill;
         self
     }
+
+    /// With `font_weight`.
+    #[must_use]
+    pub const fn with_font_weight(mut self, font_weight: FontWeight) -> Self {
+        self.font_weight = font_weight;
+        self
+    }
 }
 
 /// What [`paint_page`] drew differently from the template, or left out.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum PaintNoteKind {
-    /// A caption, value, `draw` content or widget border: not drawn yet.
+    /// A caption, rich text, non-text value content or non-text widget: not
+    /// drawn yet.
     Content,
     /// A non-`solid` edge stroke (dashed, 3-D...): that edge is not drawn.
     Stroke,
@@ -92,6 +119,13 @@ pub enum PaintNoteKind {
     OpenBreak,
     /// An unreadable `color` value: the enclosing object's default is used.
     Color,
+    /// A typeface that is not a standard-14 face: drawn in the nearest one
+    /// (Courier, Times or Helvetica family; p.58 best match).
+    Font,
+    /// Text drawn approximately: a character outside `WinAnsiEncoding` shown
+    /// as `?`, a word wider than its region, `justify`/`radix` alignment
+    /// drawn left, or lines taller than the region (clipped).
+    Text,
 }
 
 /// One disclosure from [`paint_page`].
@@ -110,6 +144,9 @@ pub struct PaintNote {
 pub struct PaintedPage {
     /// Content-stream bytes (unfiltered), in default user space.
     pub content: Vec<u8>,
+    /// The resource dictionary `content` needs: `/Font` with the standard-14
+    /// faces it names (`/XF0`, `/XF1`, ...); empty when it shows no text.
+    pub resources: Dict,
     /// What was approximated or left out, in paint order.
     pub notes: Vec<PaintNote>,
 }
@@ -127,6 +164,7 @@ pub fn paint_page(template: &Template, page: &LayoutPage, opts: &PaintOptions) -
         notes: Vec::new(),
         height: page.height,
         opts: *opts,
+        fonts: Vec::new(),
     };
     let (back, fore): (Vec<_>, Vec<_>) = page.items.iter().partition(|i| i.background);
     for item in back.into_iter().chain(fore) {
@@ -134,9 +172,11 @@ pub fn paint_page(template: &Template, page: &LayoutPage, opts: &PaintOptions) -
             p.item(item, node);
         }
     }
+    let resources = p.resources();
     PaintedPage {
         content: p.b.into_bytes(),
         notes: p.notes,
+        resources,
     }
 }
 
@@ -160,6 +200,7 @@ struct Painter {
     notes: Vec<PaintNote>,
     height: f64,
     opts: PaintOptions,
+    fonts: Vec<Std14>,
 }
 
 /// One side of a border, resolved.
@@ -196,12 +237,29 @@ impl Painter {
         {
             self.border(item, border);
         }
-        let content = ["caption", "value", "ui"]
-            .iter()
-            .any(|t| node.child(t).is_some());
-        if content {
+        if matches!(item.kind, ContainerKind::Field | ContainerKind::Draw) {
+            self.text(item, node);
+        }
+        if text::content_left_out(node) {
             self.note(item, PaintNoteKind::Content);
         }
+    }
+
+    fn resources(&self) -> Dict {
+        let mut res = Dict::new();
+        if self.fonts.is_empty() {
+            return res;
+        }
+        let mut fonts = Dict::new();
+        for (i, f) in self.fonts.iter().enumerate() {
+            let name = format!("XF{i}");
+            fonts.insert(
+                Name::from(name.as_bytes()),
+                Object::Dict(standard14_font_dict(*f)),
+            );
+        }
+        res.insert(Name::from(b"Font"), Object::Dict(fonts));
+        res
     }
 
     fn border(&mut self, item: &LayoutItem, border: &XfaNode) {
@@ -356,6 +414,8 @@ fn parse_rgb(v: &str) -> Option<[f64; 3]> {
     }
     parts.next().is_none().then_some(out)
 }
+
+mod text;
 
 #[cfg(test)]
 mod tests;
