@@ -451,6 +451,19 @@ pub(crate) fn run() -> ExitCode {
             cmd_mesh_3d(&input, index, &output, (format, mesh_fit, draw_hidden))
         }
         Command::ThreeDTree { input, index, json } => cmd_tree_3d(&input, index, json),
+        Command::ThreeDConvert {
+            input,
+            output,
+            gltf_colours,
+            gltf_up,
+        } => cmd_convert_3d(
+            &input,
+            &output,
+            GltfHow {
+                colours: gltf_colours,
+                up: gltf_up,
+            },
+        ),
         Command::ThreeDRender {
             input,
             index,
@@ -498,6 +511,8 @@ pub(crate) fn run() -> ExitCode {
             page,
             rect,
             format,
+            gltf_colours,
+            gltf_up,
             poster,
             placeholder_poster,
             activate,
@@ -512,6 +527,10 @@ pub(crate) fn run() -> ExitCode {
             page,
             rect: &rect,
             format,
+            gltf: GltfHow {
+                colours: gltf_colours,
+                up: gltf_up,
+            },
             poster: poster.as_deref(),
             placeholder_poster,
             activate,

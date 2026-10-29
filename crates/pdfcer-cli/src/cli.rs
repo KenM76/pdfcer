@@ -3288,9 +3288,12 @@ pub(crate) enum Command {
     /// **Embed a 3D model** (U3D or PRC) in a region of a page, as a 3D
     /// annotation a 3D-capable reader lets you rotate and zoom.
     ///
-    /// The model is stored unchanged. Its format is read from the file's
-    /// signature unless `--format` states it; a STEP file is refused (the
-    /// standard does not allow STEP in a 3D annotation). The region shows a
+    /// A U3D or PRC model is stored unchanged; a glTF model (`.gltf` /
+    /// `.glb`) is converted to PRC first, as `3d-convert` does, and its
+    /// `note:` / `inferred:` lines are printed. The format is read from the
+    /// file's signature (or a glTF extension) unless `--format` states it; a
+    /// STEP file is refused (the standard does not allow STEP in a 3D
+    /// annotation). The region shows a
     /// poster until the model activates, and the poster is what prints and
     /// what readers without 3D support show: `--poster` supplies an image
     /// (PNG, JPEG, ...); otherwise pdfcer draws a PRC model from above its
@@ -3305,7 +3308,7 @@ pub(crate) enum Command {
     ThreeDEmbed {
         /// Input PDF.
         input: PathBuf,
-        /// The `.u3d` or `.prc` model to embed.
+        /// The `.u3d`, `.prc`, `.gltf` or `.glb` model to embed.
         #[arg(long)]
         model: PathBuf,
         /// 1-based page number.
@@ -3314,11 +3317,19 @@ pub(crate) enum Command {
         /// Region `x0,y0,x1,y1` in default user space.
         #[arg(long)]
         rect: String,
-        /// The model's format: `auto` (default, from the file's signature),
-        /// `u3d` or `prc`. A stated format the signature contradicts is
-        /// refused.
+        /// The model's format: `auto` (default, from the file's signature or
+        /// a glTF extension), `u3d`, `prc` or `gltf`. A stated format the
+        /// signature contradicts is refused.
         #[arg(long, value_enum, default_value_t = ThreeDFormatArg::Auto)]
         format: ThreeDFormatArg,
+        /// glTF only: `linear` (default) reads base colours as glTF defines
+        /// them and encodes them to sRGB; `as-stored` uses them unchanged.
+        #[arg(long, value_enum, default_value_t)]
+        gltf_colours: GltfColoursArg,
+        /// glTF only: `z` (default) turns glTF's +Y up to +Z up; `as-stored`
+        /// keeps the file's axes.
+        #[arg(long, value_enum, default_value_t)]
+        gltf_up: GltfUpArg,
         /// Poster image, fitted inside the region with its aspect ratio kept.
         #[arg(long, value_name = "IMAGE")]
         poster: Option<PathBuf>,
@@ -3345,6 +3356,35 @@ pub(crate) enum Command {
         /// Which save path to use.
         #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
         mode: SaveMode,
+    },
+
+    /// **Convert a glTF model to PRC**, the format a 3D PDF embeds.
+    ///
+    /// Reads a `.gltf` (with its buffers, embedded or in files beside it) or
+    /// a `.glb`. The node tree, with its names and placements, becomes the
+    /// PRC model tree; triangles, normals and each material's colour and
+    /// opacity carry over, so a transparent material stays see-through.
+    /// Textures, points, lines, skins and morph targets do not, and each loss
+    /// is a `note:` line. An alpha-masked material is drawn wholly opaque or
+    /// wholly invisible, and an `inferred:` line says which. A buffer URI
+    /// that is absolute or leaves the model's folder is refused. Exit 9 when
+    /// the file cannot be converted, with the reason; `3d-embed` takes a
+    /// glTF model directly.
+    #[command(name = "3d-convert")]
+    ThreeDConvert {
+        /// The `.gltf` or `.glb` model.
+        input: PathBuf,
+        /// Where to write the `.prc` stream.
+        #[arg(long, short)]
+        output: PathBuf,
+        /// `linear` (default) reads base colours as glTF defines them and
+        /// encodes them to sRGB; `as-stored` uses them unchanged.
+        #[arg(long, value_enum, default_value_t)]
+        gltf_colours: GltfColoursArg,
+        /// `z` (default) turns glTF's +Y up to +Z up; `as-stored` keeps the
+        /// file's axes.
+        #[arg(long, value_enum, default_value_t)]
+        gltf_up: GltfUpArg,
     },
 
     /// **Replace a 3D annotation's poster** with an image (PNG, JPEG, ...).

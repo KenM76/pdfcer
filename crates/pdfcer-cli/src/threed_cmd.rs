@@ -7,11 +7,13 @@ use pdfcer_core::threed::{ThreeDArtwork, ThreeDSource, extract_3d, list_3d_with_
 #[cfg(feature = "3d")]
 mod aim;
 mod embed;
+mod gltf;
 mod tree;
 mod views;
 #[cfg(feature = "3d")]
 use aim::aim_camera;
 pub(crate) use embed::{EmbedThreeDArgs, PosterThreeDArgs, cmd_embed_3d, cmd_set_3d_poster};
+pub(crate) use gltf::{GltfHow, cmd_convert_3d};
 pub(crate) use tree::cmd_tree_3d;
 pub(crate) use views::{ViewsThreeDArgs, cmd_views_3d};
 

@@ -157,6 +157,7 @@ builds `--no-default-features`, so both configurations compile.
 | Extract a 3D model's bytes | `threed::extract_3d(&DocumentView, &ThreeDArtwork)` — `threed.rs` | §12.2 |
 | Read the view a 3D model opens on (camera, projection) | `threed::default_3d_view(&graph, &ThreeDArtwork)` — `threed/view.rs` | §12.2 |
 | List a PRC model's assembly tree (names, hierarchy, stored visibility) | `pdfcer_3d::PrcFile::model_tree() -> Result<Vec<ModelNode>, PrcError>` — `pdfcer-3d/src/tree/node.rs` | §12.2 |
+| Build a PRC model from triangle meshes, or from a glTF 2.0 / GLB file | `pdfcer_3d::write_prc(&MeshScene) -> Result<PrcWriteReport, PrcWriteError>`; `pdfcer_3d::read_gltf(data, &mut resolve, GltfOptions) -> Result<GltfImport, GltfError>` — `pdfcer-3d/src/write/`, `pdfcer-3d/src/gltf/` | §12.2 |
 | Turn a saved 3D view into a camera (`pdfcer_3d::Camera`) | `ThreeDSavedView::aim(aspect)` → `SavedViewAim::camera(&Bounds, aspect)` / `frame` — `threed/view_aim.rs` | §12.2 |
 | Enumerate optional-content layers + default visibility | `layers::read_layers(&graph)` — `layers.rs` | §12.3 |
 | Whether anything still draws on a layer | `layers::group_in_use(&DocumentView, group: ObjId) -> bool` (G173): page content in an `/OC` section bound to it, an annotation or XObject whose `/OC` names it (directly or via a membership dictionary), or a form that binds it; undecodable content counts as using it — `ocr/group.rs` | §8.11.2.2, §8.11.3.2 |
@@ -3468,6 +3469,49 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   material), and uncoloured. `fixtures/synthetic/prc/textured.prc` — a unit
   square carrying a 2x2 raw-RGB picture (red, green / blue, white from the
   top), mapped by stored coordinates.
+
+#### Building a PRC model: `write_prc` and glTF import (`pdfcer-3d`, no feature gate)
+
+`write_prc(&MeshScene) -> Result<PrcWriteReport, PrcWriteError>` writes a
+single-file-structure PRC stream for a 3D annotation's `/Subtype /PRC`
+stream; layout in `ARCHITECTURE.md` decision 210.
+
+- `MeshScene { nodes, roots, meshes, materials, units_in_mm }` (`Default`;
+  fields public). Nodes form a forest: `SceneNode { name, matrix: Option<[f64;
+  16]> (column-major, bottom row 0 0 0 1), mesh, children }`; several roots
+  are written under an unnamed root. Each node becomes a named
+  `ProductOccurrence` (what a viewer's model tree lists), each mesh a part.
+  `ScenePrimitive { positions, normals (empty = writer computes flat
+  normals), triangles: Vec<[u32; 3]> (CCW), material }`. `SceneMaterial {
+  name, rgba }` is sRGB-encoded 0–1 with opacity; opacity below 1 writes a
+  transparent style, so a see-through material stays see-through.
+- `PrcWriteReport { prc, triangles, flat_normals, empty_primitives }`;
+  disclose the last two. `PrcWriteError` (`#[non_exhaustive]`): `Empty`,
+  `BadIndex { what, index }`, `NotATree(why)` (two parents, a parented root,
+  nesting beyond `MAX_DEPTH` 1024), `BadNumber(what)`, `TooLarge`.
+- `read_gltf(data, &mut resolve, GltfOptions) -> Result<GltfImport,
+  GltfError>` reads a `.gltf` text or `.glb` into a `MeshScene` in metres
+  (`units_in_mm` 1000). The engine opens no files: `resolve(uri) ->
+  Option<Vec<u8>>` gets each external buffer's percent-decoded relative URI;
+  refuse absolute paths, `..` and anything with `:` (the CLI does). `data:`
+  and GLB buffers need no resolver.
+- `GltfOptions` (`#[non_exhaustive]`, `Default`; set fields on a default)
+  holds the two readings files differ on — offer each as a setting:
+  `colours: GltfColours::{Linear (default: glTF's linear base colour
+  encoded with the sRGB transfer function, no profile conversion),
+  AsStored}`; `up_axis: GltfUpAxis::{ZUp (default: +Y up turned to +Z up
+  on the root placements), AsStored}`.
+- `GltfImport { scene, notes, inferred }`: show every `notes` line (what was
+  dropped: textures, points/lines, skins and morphs at rest pose, a bad
+  primitive, a second scene, no scene) and every `inferred` line (an
+  `alphaMode` MASK material drawn wholly opaque or invisible against its
+  cutoff). `GltfError` (`#[non_exhaustive]`): `NotGltf(why)`, `Json`,
+  `RequiredExtension(name)` (only `KHR_mesh_quantization` is honoured),
+  `Buffer { index, why }`. One bad primitive is a note, not an error.
+- CLI: `3d-convert <model.gltf|.glb> -o out.prc [--gltf-colours
+  linear|as-stored] [--gltf-up z|as-stored]`; `3d-embed --model x.glb`
+  converts first and takes the same two flags. Both print `note:` /
+  `inferred:` lines — copy that wording.
 
 ### 12.3 Optional-content layers
 

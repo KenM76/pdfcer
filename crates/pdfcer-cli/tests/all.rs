@@ -153,6 +153,7 @@ mod text_locate;
 mod text_object_split_cli;
 mod text_opacity;
 mod three_d;
+mod three_d_gltf;
 mod two_line_dimension;
 mod unembed_font;
 mod vector_edit;

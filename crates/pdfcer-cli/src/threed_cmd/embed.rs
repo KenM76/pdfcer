@@ -11,6 +11,7 @@ pub(crate) struct EmbedThreeDArgs<'a> {
     pub(crate) page: u32,
     pub(crate) rect: &'a str,
     pub(crate) format: ThreeDFormatArg,
+    pub(crate) gltf: super::GltfHow,
     pub(crate) poster: Option<&'a Path>,
     pub(crate) placeholder_poster: bool,
     pub(crate) activate: ThreeDActivateArg,
@@ -33,8 +34,9 @@ fn read_poster(path: &Path) -> Result<pdfcer_core::image_import::ImportedImage, 
     })
 }
 
-/// The spec `3d-embed`'s options describe, or the exit code after the reason.
-fn embed_spec(a: &EmbedThreeDArgs<'_>) -> Result<ThreeDSpec, u8> {
+/// The spec `3d-embed`'s options describe, with the glTF conversion's
+/// lines when the model was converted, or the exit code after the reason.
+fn embed_spec(a: &EmbedThreeDArgs<'_>) -> Result<(ThreeDSpec, Option<Vec<String>>), u8> {
     use pdfcer_core::threed::{ThreeDActivation, ThreeDFormat};
     let refuse = |what: &str, err: &dyn std::fmt::Display| {
         eprintln!("pdfcer: {what}: {err}");
@@ -46,14 +48,25 @@ fn embed_spec(a: &EmbedThreeDArgs<'_>) -> Result<ThreeDSpec, u8> {
         .map(crate::annot_parse::parse_color)
         .transpose()
         .map_err(|err| refuse("--color", &err))?;
-    let data = std::fs::read(a.model).map_err(|err| {
+    let mut data = std::fs::read(a.model).map_err(|err| {
         eprintln!("pdfcer: {}: {err}", a.model.display());
         exit::IO_ERROR
     })?;
+    let gltf = a.format == ThreeDFormatArg::Gltf
+        || (a.format == ThreeDFormatArg::Auto && super::gltf::is_gltf(a.model, &data));
+    let mut lines = None;
+    if gltf {
+        let converted = super::gltf::to_prc(a.model, &data, a.gltf)?;
+        data = converted.prc;
+        lines = Some(converted.lines);
+    }
     let built = match a.format {
+        _ if gltf => ThreeDSpec::with_format(rect, ThreeDFormat::Prc, data),
         ThreeDFormatArg::Auto => ThreeDSpec::new(rect, data),
         ThreeDFormatArg::U3d => ThreeDSpec::with_format(rect, ThreeDFormat::U3d, data),
-        ThreeDFormatArg::Prc => ThreeDSpec::with_format(rect, ThreeDFormat::Prc, data),
+        ThreeDFormatArg::Prc | ThreeDFormatArg::Gltf => {
+            ThreeDSpec::with_format(rect, ThreeDFormat::Prc, data)
+        }
     };
     let mut spec = built.map_err(|err| refuse(&a.model.display().to_string(), &err))?;
     if let Some(path) = a.poster {
@@ -68,7 +81,7 @@ fn embed_spec(a: &EmbedThreeDArgs<'_>) -> Result<ThreeDSpec, u8> {
     if let Some(c) = color {
         spec.color = c;
     }
-    Ok(spec)
+    Ok((spec, lines))
 }
 
 /// `3d-embed` — one summary line, then `inferred:` / `note:` lines.
@@ -78,7 +91,7 @@ pub(crate) fn cmd_embed_3d(a: &EmbedThreeDArgs<'_>) -> u8 {
         eprintln!("pdfcer: --page is 1-based; 0 names no page");
         return exit::EDIT_REFUSED;
     };
-    let spec = match embed_spec(a) {
+    let (spec, gltf_lines) = match embed_spec(a) {
         Ok(spec) => spec,
         Err(code) => return code,
     };
@@ -114,11 +127,20 @@ pub(crate) fn cmd_embed_3d(a: &EmbedThreeDArgs<'_>) -> u8 {
         mode_token(a.mode),
         u32::from(a.apply)
     );
-    if a.format == ThreeDFormatArg::Auto {
-        println!(
+    match &gltf_lines {
+        Some(lines) => {
+            if a.format == ThreeDFormatArg::Auto {
+                println!("inferred: format glTF from the file's signature or extension");
+            }
+            for line in lines {
+                println!("{line}");
+            }
+        }
+        None if a.format == ThreeDFormatArg::Auto => println!(
             "inferred: format {} from the file's signature",
             spec.format.label()
-        );
+        ),
+        None => {}
     }
     print_poster_notes(&outcome.poster);
     if outcome.below_required_version() {

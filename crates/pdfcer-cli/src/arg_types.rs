@@ -1298,6 +1298,29 @@ pub(crate) enum ThreeDFormatArg {
     U3d,
     /// ISO 14739-1 PRC.
     Prc,
+    /// Khronos glTF 2.0 (`.gltf` / `.glb`), converted to PRC.
+    Gltf,
+}
+
+/// How glTF base colours are read.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum GltfColoursArg {
+    /// Linear, as glTF defines them, encoded to sRGB (default).
+    #[default]
+    Linear,
+    /// Used as stored, for files that store sRGB values.
+    AsStored,
+}
+
+/// Which way is up in a converted glTF model.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum GltfUpArg {
+    /// glTF's +Y up turned to +Z up, as CAD and 3D PDF readers expect
+    /// (default).
+    #[default]
+    Z,
+    /// The file's axes unchanged.
+    AsStored,
 }
 
 /// When a `3d-embed` model activates.
