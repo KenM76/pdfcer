@@ -3082,7 +3082,9 @@ pub(crate) enum Command {
     /// Finds both carriers: `/3D` annotations (ISO 32000-1 §13.6) and 3D
     /// assets inside RichMedia annotations (ISO 32000-2 §13.7). One line per
     /// model: its index (for `3d-extract`), page, declared format, number of
-    /// saved views, whether it has a poster image, and where it lives
+    /// saved views, whether it has a poster image, when it goes live
+    /// (`activate=XA` on a click, `PO` when the page opens, `PV` when it
+    /// becomes visible; until then a viewer shows the poster), and where it lives
     /// (`stream`, `shared-stream` when several annotations use one model, or
     /// `richmedia` with the asset's file name as the document gives it).
     ///
@@ -3330,6 +3332,13 @@ pub(crate) enum Command {
         /// keeps the file's axes.
         #[arg(long, value_enum, default_value_t)]
         gltf_up: GltfUpArg,
+        /// The lighting of the view the model opens on. `auto` (default)
+        /// writes a view lit by `cad` for a model converted from glTF,
+        /// which carries no lights and draws black in Acrobat without one,
+        /// and writes no view for a U3D or PRC model, whose own lights
+        /// apply. Any other value writes a default view with that scheme.
+        #[arg(long, value_enum, default_value_t)]
+        lighting: ThreeDLightingArg,
         /// Poster image, fitted inside the region with its aspect ratio kept.
         #[arg(long, value_name = "IMAGE")]
         poster: Option<PathBuf>,

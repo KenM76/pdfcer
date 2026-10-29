@@ -271,3 +271,59 @@ fn bad_views_and_bad_targets_are_refused_before_anything_is_written() {
     assert!(matches!(errors[7], EditError::AnnotationLocked { .. }));
     assert_eq!(session.undo(), None, "nothing was committed");
 }
+
+#[test]
+fn a_perspective_view_names_its_scaling_and_its_lighting() {
+    use pdfcer_core::threed::ThreeDLighting;
+    let view = ThreeDSavedView::new("Lit", BACK)
+        .with_orbit_distance(5.0)
+        .with_perspective(45.0)
+        .with_lighting(ThreeDLighting::Cad);
+    let mut session = EditSession::new(doc());
+    session
+        .set_3d_views(0, ANNOT, &[view], Some(0))
+        .expect("writes");
+    let back = saved(&session);
+    let Some(Object::Array(va)) = dict(&back, STREAM).get(b"VA").cloned() else {
+        panic!("/VA is an array");
+    };
+    let v = match &va[0] {
+        Object::Dict(d) => d.clone(),
+        Object::Reference(id) => dict(&back, *id),
+        other => panic!("view is {other:?}"),
+    };
+    let Some(Object::Dict(p)) = v.get(b"P") else {
+        panic!("/P is written");
+    };
+    // Acrobat will not activate a perspective view without an explicit /PS.
+    assert_eq!(p.get(b"PS"), Some(&Object::Name(b"W"[..].into())));
+    assert!(matches!(p.get(b"N"), Some(Object::Real(n)) if *n > 0.0));
+    let Some(Object::Dict(ls)) = v.get(b"LS") else {
+        panic!("/LS is written");
+    };
+    assert_eq!(ls.get(b"Subtype"), Some(&Object::Name(b"CAD"[..].into())));
+    let first = list_3d(&back)
+        .into_iter()
+        .find(|a| a.annot_id == Some(ANNOT))
+        .expect("listed");
+    let read = default_3d_view(&back, &first).expect("a default view");
+    assert_eq!(read.lighting, Some(ThreeDLighting::Cad));
+}
+
+#[test]
+fn the_activation_condition_reads_back_and_defaults_to_a_click() {
+    use pdfcer_core::threed::ThreeDActivation;
+    let of = |extra: &str| {
+        let doc = doc_with(&format!("5 0 R {extra}"));
+        list_3d(&doc)
+            .into_iter()
+            .find(|a| a.annot_id == Some(ANNOT))
+            .expect("listed")
+            .activation
+    };
+    assert_eq!(of(""), ThreeDActivation::Click);
+    assert_eq!(of("/3DA << /A /PO >>"), ThreeDActivation::PageOpen);
+    assert_eq!(of("/3DA << /A /PV >>"), ThreeDActivation::PageVisible);
+    assert_eq!(of("/3DA << /A /XA >>"), ThreeDActivation::Click);
+    assert_eq!(of("/3DA << /A /Bogus >>"), ThreeDActivation::Click);
+}

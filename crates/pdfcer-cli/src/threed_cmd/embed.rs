@@ -12,6 +12,7 @@ pub(crate) struct EmbedThreeDArgs<'a> {
     pub(crate) rect: &'a str,
     pub(crate) format: ThreeDFormatArg,
     pub(crate) gltf: super::GltfHow,
+    pub(crate) lighting: ThreeDLightingArg,
     pub(crate) poster: Option<&'a Path>,
     pub(crate) placeholder_poster: bool,
     pub(crate) activate: ThreeDActivateArg,
@@ -127,22 +128,19 @@ pub(crate) fn cmd_embed_3d(a: &EmbedThreeDArgs<'_>) -> u8 {
         mode_token(a.mode),
         u32::from(a.apply)
     );
-    match &gltf_lines {
-        Some(lines) => {
-            if a.format == ThreeDFormatArg::Auto {
-                println!("inferred: format glTF from the file's signature or extension");
-            }
-            for line in lines {
-                println!("{line}");
-            }
-        }
-        None if a.format == ThreeDFormatArg::Auto => println!(
-            "inferred: format {} from the file's signature",
-            spec.format.label()
-        ),
-        None => {}
-    }
+    print_format_lines(a.format, &spec, gltf_lines.as_deref());
     print_poster_notes(&outcome.poster);
+    let converted = gltf_lines.is_some();
+    if let Err(code) = light_view(
+        &mut session,
+        page_index,
+        outcome.annot_id,
+        &spec,
+        a.lighting,
+        converted,
+    ) {
+        return code;
+    }
     if outcome.below_required_version() {
         println!(
             "note: the document is PDF {} and {} needs PDF {}; a reader may show only the poster",
@@ -156,6 +154,117 @@ pub(crate) fn cmd_embed_3d(a: &EmbedThreeDArgs<'_>) -> u8 {
         return exit::SUCCESS;
     }
     finish_attachment_save(a.input, &mut session, a.output, a.mode)
+}
+
+/// The `inferred:` format line and a glTF conversion's `note:` lines.
+fn print_format_lines(format: ThreeDFormatArg, spec: &ThreeDSpec, gltf: Option<&[String]>) {
+    match gltf {
+        Some(lines) => {
+            if format == ThreeDFormatArg::Auto {
+                println!("inferred: format glTF from the file's signature or extension");
+            }
+            for line in lines {
+                println!("{line}");
+            }
+        }
+        None if format == ThreeDFormatArg::Auto => println!(
+            "inferred: format {} from the file's signature",
+            spec.format.label()
+        ),
+        None => {}
+    }
+}
+
+/// Write the default view lit by the scheme `arg` names (with `auto`,
+/// `cad` for a `converted` glTF model, else nothing), saying so. The view
+/// carries the poster's camera, so the model opens where the poster shows
+/// it rather than wherever a reader puts a camera-less view.
+fn light_view(
+    session: &mut pdfcer_core::edit::EditSession,
+    page_index: usize,
+    annot: pdfcer_core::object::ObjId,
+    spec: &ThreeDSpec,
+    arg: ThreeDLightingArg,
+    converted: bool,
+) -> Result<(), u8> {
+    let Some(scheme) = scheme_of(arg, converted) else {
+        return Ok(());
+    };
+    let mut view = poster_view(spec).unwrap_or_default().with_lighting(scheme);
+    view.name = "Default".to_owned();
+    let framed = view.camera_to_world.is_some();
+    if let Err(err) = session.set_3d_views(page_index, annot, &[view], Some(0)) {
+        eprintln!("pdfcer: {err}");
+        return Err(exit::EDIT_REFUSED);
+    }
+    let why = if arg == ThreeDLightingArg::Auto {
+        " (the converted model carries no lights of its own; --lighting picks another)"
+    } else {
+        ""
+    };
+    let camera = if framed {
+        "seen as the poster shows it"
+    } else {
+        "the camera left to the reader"
+    };
+    println!(
+        "note: the model opens on view \"Default\", {camera}, lit by the {} scheme{why}",
+        String::from_utf8_lossy(scheme.as_name())
+    );
+    Ok(())
+}
+
+/// The scheme `arg` asks for; `auto` is CAD for a model converted from
+/// glTF and nothing otherwise.
+fn scheme_of(
+    arg: ThreeDLightingArg,
+    converted: bool,
+) -> Option<pdfcer_core::threed::ThreeDLighting> {
+    use pdfcer_core::threed::ThreeDLighting as L;
+    Some(match arg {
+        ThreeDLightingArg::Auto if converted => L::Cad,
+        ThreeDLightingArg::Auto => return None,
+        ThreeDLightingArg::Artwork => L::Artwork,
+        ThreeDLightingArg::None => L::None,
+        ThreeDLightingArg::White => L::White,
+        ThreeDLightingArg::Day => L::Day,
+        ThreeDLightingArg::Night => L::Night,
+        ThreeDLightingArg::Hard => L::Hard,
+        ThreeDLightingArg::Primary => L::Primary,
+        ThreeDLightingArg::Blue => L::Blue,
+        ThreeDLightingArg::Red => L::Red,
+        ThreeDLightingArg::Cube => L::Cube,
+        ThreeDLightingArg::Cad => L::Cad,
+        ThreeDLightingArg::Headlamp => L::Headlamp,
+    })
+}
+
+/// The view of the camera the rendered poster uses (the model's default
+/// view, fitted to the annotation's aspect), or `None` for a model that
+/// does not mesh.
+#[cfg(feature = "3d")]
+fn poster_view(spec: &ThreeDSpec) -> Option<pdfcer_core::threed::ThreeDSavedView> {
+    use pdfcer_3d::{Camera, DEFAULT_VIEW_DIRECTION, DEFAULT_VIEW_UP, assemble};
+    if spec.format != pdfcer_core::threed::ThreeDFormat::Prc {
+        return None;
+    }
+    let model = assemble(&spec.data).ok()?;
+    let r = spec.rect;
+    let aspect = (r.urx - r.llx).abs() / (r.ury - r.lly).abs();
+    let camera = Camera::fit_meshes(
+        &model.meshes,
+        DEFAULT_VIEW_DIRECTION,
+        DEFAULT_VIEW_UP,
+        true,
+        aspect,
+    )
+    .ok()?;
+    pdfcer_core::threed::ThreeDSavedView::from_camera("Default", &camera, aspect)
+}
+
+#[cfg(not(feature = "3d"))]
+fn poster_view(_spec: &ThreeDSpec) -> Option<pdfcer_core::threed::ThreeDSavedView> {
+    None
 }
 
 /// The summary's `poster=` value: `supplied:WxH`, `rendered:WxH` or

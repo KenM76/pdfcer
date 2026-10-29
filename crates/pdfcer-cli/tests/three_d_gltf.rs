@@ -156,6 +156,12 @@ fn a_glb_embeds_as_prc_with_its_names_in_the_model_tree() {
         "{embed}"
     );
     assert!(embed.contains("note: glTF converted to PRC"), "{embed}");
+    assert!(
+        embed.contains("lit by the CAD scheme (the converted model carries no lights"),
+        "{embed}"
+    );
+    let list = stdout(&run(&["3d-list", &s.path("out.pdf")]));
+    assert!(list.contains(" activate=XA "), "{list}");
     let tree = stdout(&run(&["3d-tree", &s.path("out.pdf"), "--index", "0"]));
     for name in ["frame", "pane", "grille"] {
         assert!(tree.contains(name), "{name} missing from\n{tree}");

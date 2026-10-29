@@ -3193,7 +3193,7 @@ or a `/3DRef`) and `/3D` instances in RichMedia annotations (ISO 32000-2
 `#[non_exhaustive]`: `page_index`, `annot_id`, `source`, `stream_id`,
 `declared: Option<ThreeDFormat>` (stream `/Subtype`, else asset MIME, else
 file extension), `view_count` (`/VA` length; 0 for RichMedia), `has_poster`
-(`/AP /N`). `ThreeDFormat`: `U3d | Prc | Step | Other(Vec<u8>)`, with
+(`/AP /N`), `activation: ThreeDActivation` (when a reader turns the model on: `/3DA /A`, ISO 32000-1 Table 299, or RichMedia `/RichMediaSettings /Activation /Condition`, ISO 32000-2 Table 335; `Click` (`XA`, the default and the reading of an unknown name), `PageOpen` (`PO`), `PageVisible` (`PV`); `name()` / `from_name(&[u8])`). A viewer should show the poster until then: `Click` means poster until the operator clicks. `ThreeDFormat`: `U3d | Prc | Step | Other(Vec<u8>)`, with
 `extension()` and `label()`. `Extracted3D { data, sniffed }` — `data` is
 the filter-decoded model, untrusted and uninterpreted. `ThreeDNotes`:
 `truncated`, `page_tree_unwalkable`, `annotations_without_stream`.
@@ -3222,7 +3222,7 @@ pdfcer reads a binding as the bound side spanning `1/OS` camera units, and
 interpretation, disclosed. `ThreeDSavedView` implements `Default` (no
 matrix, perspective, `OS` 1, `Absolute`). `field_of_view: Option<f64>` is
 `/P /FOV` in degrees for a perspective view (Table 305: horizontal under the
-default `/PS /W`), `None` when absent. The write side of these fields is
+default `/PS /W`), `None` when absent. `lighting: Option<ThreeDLighting>` is `/LS /Subtype` (Table 309: `Artwork`, `None`, `White`, `Day`, `Night`, `Hard`, `Primary`, `Blue`, `Red`, `Cube`, `Cad`, `Headlamp`; `#[non_exhaustive]`; `as_name()` / `from_name`), `None` when absent or unlisted. The write side of these fields is
 `EditSession::set_3d_views` (`02-editing-and-saving.md`).
 
 **Named views and the up axis** (`pdfcer-3d`, no feature gate).

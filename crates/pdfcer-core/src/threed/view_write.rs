@@ -4,6 +4,7 @@
 use crate::object::{Dict, Name, ObjId, Object};
 
 use super::ThreeDEmbedError;
+use super::ThreeDLighting;
 use super::view::{OrthoBinding, ThreeDSavedView};
 
 /// Most views [`crate::edit::EditSession::set_3d_views`] writes.
@@ -79,6 +80,14 @@ impl ThreeDSavedView {
         self.ortho_scale = scale;
         self.ortho_binding = binding;
         self.field_of_view = None;
+        self
+    }
+
+    /// `/LS`: light the model with `scheme` (Table 309) when this view is
+    /// shown.
+    #[must_use]
+    pub fn with_lighting(mut self, scheme: ThreeDLighting) -> Self {
+        self.lighting = Some(scheme);
         self
     }
 }
@@ -230,8 +239,15 @@ pub(crate) fn view_dict(v: &ThreeDSavedView) -> Dict {
     if let Some(p) = projection_dict(v) {
         d.insert(Name::from(b"P"), Object::Dict(p));
     }
+    if let Some(l) = v.lighting {
+        d.insert(Name::from(b"LS"), Object::Dict(l.to_dict()));
+    }
     d
 }
+
+/// The `/N` a perspective `/P` carries: positive, as Table 305 requires, and
+/// unused under `/CS /ANF`.
+const PERSPECTIVE_NEAR: f64 = 0.001;
 
 fn projection_dict(v: &ThreeDSavedView) -> Option<Dict> {
     let mut p = Dict::new();
@@ -253,5 +269,11 @@ fn projection_dict(v: &ThreeDSavedView) -> Option<Dict> {
     let fov = v.field_of_view?;
     p.insert(Name::from(b"Subtype"), Object::Name(Name::from(b"P")));
     p.insert(Name::from(b"FOV"), Object::Real(fov));
+    // Table 305 requires `/N` whenever Subtype is P, though under the default
+    // `/CS /ANF` the reader picks the near plane itself. `/PS` defaults to
+    // `/W`, but Acrobat refuses to activate a perspective view that leaves it
+    // out, so both are written.
+    p.insert(Name::from(b"N"), Object::Real(PERSPECTIVE_NEAR));
+    p.insert(Name::from(b"PS"), Object::Name(Name::from(b"W")));
     Some(p)
 }

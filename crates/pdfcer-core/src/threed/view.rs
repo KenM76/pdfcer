@@ -5,7 +5,7 @@ use crate::graph::ObjectGraph;
 use crate::object::{Dict, Object};
 use crate::textstring::decode_text_string;
 
-use super::{ThreeDArtwork, name_of, stream_at};
+use super::{ThreeDArtwork, ThreeDLighting, name_of, stream_at};
 
 /// Ceiling on `/VA` entries searched for a view named by string (a pdfcer
 /// guard; the spec sets none).
@@ -47,6 +47,10 @@ pub struct ThreeDSavedView {
     /// projection's target coordinate system is centred on. `None` without
     /// an annotation or a well-formed rectangle.
     pub view_box: Option<[f64; 2]>,
+    /// `/LS /Subtype` (Table 309, PDF 1.7). `None` when absent, or naming
+    /// a scheme Table 309 does not list; a reader then lights the model
+    /// its own way.
+    pub lighting: Option<ThreeDLighting>,
 }
 
 impl Default for ThreeDSavedView {
@@ -62,6 +66,7 @@ impl Default for ThreeDSavedView {
             ortho_binding: OrthoBinding::Absolute,
             field_of_view: None,
             view_box: None,
+            lighting: None,
         }
     }
 }
@@ -230,6 +235,11 @@ fn read_view<G: ObjectGraph + ?Sized>(graph: &G, view: &Dict) -> ThreeDSavedView
         .and_then(|p| p.get(b"FOV"))
         .and_then(|o| graph.resolve(o).as_number())
         .filter(|f| f.is_finite() && *f > 0.0 && *f <= 180.0);
+    let lighting = view
+        .get(b"LS")
+        .and_then(|o| graph.resolve(o).as_dict())
+        .and_then(|ls| name_of(graph, ls, b"Subtype"))
+        .and_then(ThreeDLighting::from_name);
     ThreeDSavedView {
         name,
         camera_to_world,
@@ -239,6 +249,7 @@ fn read_view<G: ObjectGraph + ?Sized>(graph: &G, view: &Dict) -> ThreeDSavedView
         ortho_binding,
         field_of_view,
         view_box: None,
+        lighting,
     }
 }
 

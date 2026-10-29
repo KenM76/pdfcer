@@ -1323,6 +1323,41 @@ pub(crate) enum GltfUpArg {
     AsStored,
 }
 
+/// The lighting scheme of the view a `3d-embed` model opens on (ISO
+/// 32000-1 Table 309).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum ThreeDLightingArg {
+    /// `cad` for a model converted from glTF, which carries no lights;
+    /// otherwise no view is written and the model's own lights apply
+    /// (default).
+    #[default]
+    Auto,
+    /// The lights stored in the model.
+    Artwork,
+    /// No lights.
+    None,
+    /// Three white lights.
+    White,
+    /// Daylight.
+    Day,
+    /// Night.
+    Night,
+    /// Hard white lights.
+    Hard,
+    /// Red, green and blue lights.
+    Primary,
+    /// Blue lights.
+    Blue,
+    /// Red lights.
+    Red,
+    /// Six lights along the axes.
+    Cube,
+    /// Lights for CAD models.
+    Cad,
+    /// One light from the camera.
+    Headlamp,
+}
+
 /// When a `3d-embed` model activates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum ThreeDActivateArg {

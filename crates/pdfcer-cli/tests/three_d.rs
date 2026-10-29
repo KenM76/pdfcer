@@ -57,12 +57,14 @@ fn both_models_are_listed() {
     );
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
-        stdout.contains("3d index=0 page=1 format=U3D views=1 poster=yes source=stream\n"),
+        stdout.contains(
+            "3d index=0 page=1 format=U3D views=1 poster=yes activate=XA source=stream\n"
+        ),
         "{stdout}"
     );
     assert!(
         stdout.contains(
-            "3d index=1 page=1 format=U3D views=0 poster=no source=richmedia name=\"../evil.u3d\"\n"
+            "3d index=1 page=1 format=U3D views=0 poster=no activate=XA source=richmedia name=\"../evil.u3d\"\n"
         ),
         "{stdout}"
     );
@@ -1043,7 +1045,9 @@ fn a_replaced_poster_keeps_the_model() {
     let listed = run(&["3d-list", output.to_str().unwrap()]);
     let listed = String::from_utf8_lossy(&listed.stdout);
     assert!(
-        listed.contains("3d index=0 page=1 format=U3D views=1 poster=yes source=stream\n"),
+        listed.contains(
+            "3d index=0 page=1 format=U3D views=1 poster=yes activate=XA source=stream\n"
+        ),
         "{listed}"
     );
     let extracted = input.with_extension("poster.u3d");

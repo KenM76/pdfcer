@@ -43,11 +43,12 @@ pub(crate) fn cmd_list_3d(input: &Path) -> u8 {
             _ => "unknown".to_owned(),
         };
         println!(
-            "3d index={index} page={} format={} views={} poster={} source={source}",
+            "3d index={index} page={} format={} views={} poster={} activate={} source={source}",
             art.page_index + 1,
             format_label(art),
             art.view_count,
             if art.has_poster { "yes" } else { "no" },
+            String::from_utf8_lossy(art.activation.name()),
         );
     }
     println!("count={}", found.len());
