@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1289th filing) — `Pass 647.5` FIRST CUT on `c94ab2ee` (CLI `xfa-layout` report; Pass NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 647.5` first cut, `c94ab2ee77f2b35c28f1717eba30ea289d4f2487`: new `pdfcer xfa-layout <file>` prints a dynamic XFA form's computed `page`/`item`/`warning` lines plus an `xfa-layout pages= items= warnings=` summary; stderr discloses that pages are computed with no data merged and are not stored in the file (rule 4). Flags `--negative-coordinates`, `--nested-overflow`, `--page-area-keep` map onto `LayoutOptions` (decisions 205, 206). Exit 1 by name for no XFA form/template or `LayoutError`.
+- Evidence: 3 new CLI tests (`tests/xfa_layout.rs`); pdfcer-cli 983 passed, 2 ignored, plus 47; sabotage (adobe mapped to spec) fails the setting test; clippy, fmt, gates green; README subcommand count 238 to 239 for `check-clap-help`. core-api `03-capabilities.md` CLI bullet added and the "No shell calls it yet" wording removed; `index.md` 5386 lines. No new dependency, pub core item or decision.
+- ROADMAP: 647.5 header and first-cut block added, stays in place. FEATURES: "Dynamic XFA, reading" row cli ticked (`[x]`/`[x]`/`[ ]`), text updated; "Dynamic XFA, layout and drawing" row boxes unchanged (cli stays `[ ]`, it is about drawing) with a note.
+
+**Decisions / findings:** none new. Next free (engineer-stated): decision 207, R251, filing 1290.
+
+**Still in flight:** 647.5 remaining: `render-page` draws the computed layout (needs 647.4). 647.2 remaining: field/draw text splitting.
+
+**For next session:** continue the 647.x arc, slow pacing. Push, CI and backup state not checked from here.
+
 ## 2026-10-29 (1288th filing) — `Pass 647.2` ELEVENTH CUT on `5a9d3f30` (XFA adhesion under lr-tb/rl-tb; Pass NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

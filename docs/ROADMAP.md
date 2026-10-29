@@ -26378,9 +26378,15 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 
 `pdfcer-render` draws the computed layout instead of the placeholder page (render-time only, like decision 203). Inferred content renders exactly as saved content would (rule 4: no on-canvas marking); disclosure is off-canvas diagnostics. Needs `pdfcer-render` to stay GUI-free (`cargo tree` check).
 
-### Pass 647.5 — CLI `xfa-layout` report and `render-page` integration (NOT STARTED)
+### Pass 647.5 — CLI `xfa-layout` report and `render-page` integration (FIRST CUT `c94ab2ee` (1289th filing); NOT COMPLETE, stays here)
 
 `pdfcer xfa-layout` prints the layout model (pages, content per page, dropped-overflow list); `render-page` renders a dynamic form's computed layout and prints what was inferred. Ships its core-api docs row (R151: no core-only capability).
+
+**First cut (`c94ab2ee77f2b35c28f1717eba30ea289d4f2487` "feat(cli): xfa-layout prints a dynamic XFA form's computed pages (Pass 647.5, first cut)"; engineer-reported, nothing checked from here; decision 204, no new decision).**
+- **Done (report half):** new subcommand `pdfcer xfa-layout <file>` (`crates/pdfcer-cli/src/xfa_layout.rs`; `Command::XfaLayout` in `cli.rs`; `dispatch.rs`; `main.rs`). Reads the XDP (`read_xdp`) and template (`read_template`), runs `layout_template`, prints `page ...`, `item ...` and `warning kind=... path=...` lines and an `xfa-layout pages= items= warnings=` summary. A stderr note discloses that the pages are computed with no data merged and are not stored in the file (rule 4). Flags `--negative-coordinates keep|clamp`, `--nested-overflow innermost|each-asserting`, `--page-area-keep spec|adobe` map onto `LayoutOptions` (decisions 205, 206; gap G-L1). Exit 1, by name, when there is no XFA form or template, or `LayoutError` applies.
+- **Tests:** `crates/pdfcer-cli/tests/xfa_layout.rs`, 3 tests (output lines, summary and disclosure; `--page-area-keep adobe` changes the layout; no-XFA file exits 1). Full pdfcer-cli suite green: 983 passed, 2 ignored, plus 47. Sabotage (adobe mapped to spec) fails the setting test. Clippy, fmt, full gate list green; `check-clap-help` needed the README count bumped from 238 to 239 working subcommands (in the commit).
+- **core-api:** `docs/core-api/03-capabilities.md` has a CLI bullet in the XFA layout section; the XDP and template paragraphs name `xfa-layout` as their CLI caller (they said "No shell calls it yet"); `index.md` line count 5386. No new dependency, no new pub core item.
+- **REMAINING in 647.5:** `render-page` renders a dynamic form's computed layout and prints what was inferred (depends on 647.4). Pass 647.2 still has field/draw text splitting open.
 
 ### Pass 647.6 — Explicit materialize verb (NOT STARTED)
 
