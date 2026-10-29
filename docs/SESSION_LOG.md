@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1287th filing) — `Pass 647.2` TENTH CUT on `f64f12fe` (XFA pageArea keep; decision 206; Pass NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 647.2` tenth cut, `f64f12fe87a4c95cc8475c455199d12513c4243d` (gap G-L12): XFA 3.3 Ch.8 p.312 reads a `pageArea` keep as same-page; Adobe treats it as `none` (Ch.28 p.1229). New `PageAreaKeep { Spec (default), Adobe }` via `LayoutOptions::with_page_area_keep`; new `LayoutWarning::PageAreaKeep { path }` under either setting; stricter `contentArea` governs on disagreement (G-L13). Core only.
+- Decision 206 (ARCHITECTURE.md §12 entry + `docs/decisions/206-pagearea-keep-lays-per-spec-by-default.md`): two defensible readings, both ship, spec is the default as the published standard.
+- Evidence: 2 new tests (each top-level and nested), 2 sabotages fail them; lib 2063 passed / 2 ignored; fmt, clippy, structure (563, none new), core-api-verbs clean; 38 non-cargo gates green; no manifest change.
+- ROADMAP: tenth-cut block added, REMAINING line updated, a stray rule line dropped to hold the 80-line cap. FEATURES: "Dynamic XFA, reading" row covers cuts 1-10 (reworded shorter); boxes unchanged (`[x]`/`[ ]`/`[ ]`).
+
+**Decisions / findings:** decision 206. Next free (engineer-stated): decision 207, R251, filing 1288.
+
+**Still in flight:** 647.2 remaining: `lr-tb`/`rl-tb` adhesion (G-L14); field/draw text splitting.
+
+**For next session:** continue `Pass 647.2`, slow pacing. Push, CI and backup state not checked from here.
+
 ## 2026-10-29 (1286th filing) — `Pass 647.2` NINTH CUT on `f1b8baa6` (XFA nested adhesion; Pass NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

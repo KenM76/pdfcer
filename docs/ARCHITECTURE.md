@@ -13586,3 +13586,11 @@ Full record: `docs/decisions/205-nested-overflow-lays-innermost-by-default.md`. 
 **Decides.** XFA 3.3 Ex 8.43 (pp.323-324) is ambiguous on which enclosing subform lays an overflow leader/trailer when a split cuts a nested subform. Setting `NestedOverflow { Innermost (default), EachAsserting }` via `LayoutOptions::with_nested_overflow`: the default lays it once at the innermost cut subform (own chain, then levels out, then the instance's); `EachAsserting` has every asserting enclosing subform lay its own (trailers innermost first, leaders outermost first). Core only; CLI flag arrives with `Pass 647.5`.
 
 **Body-section effect.** None. **Decision ceiling.** Fills `205`. Next free decision: `206`. **New standing rule.** None.
+
+### 2026-10-29 (1287th filing) — decision 206: a `pageArea` keep is laid per the spec by default, Adobe's `none` as a setting
+
+Full record: `docs/decisions/206-pagearea-keep-lays-per-spec-by-default.md`. Recorded at `Pass 647.2` tenth cut (`f64f12fe`). Applies decision 204; gap G-L12.
+
+**Decides.** XFA 3.3 Ch.8 p.312 defines `keep@next`/`keep@previous="pageArea"` as "adjacent parts on the same page"; Adobe never supported it and treats it as `none` (Ch.28 p.1229). Setting `PageAreaKeep { Spec (default), Adobe }` via `LayoutOptions::with_page_area_keep`: under `Spec` a page-kept pair may part between content areas of one page and is held only at the page's last content area (top-level chains and split lines inside a subform); the stricter `contentArea` keep governs when the two sides disagree (G-L13). `LayoutWarning::PageAreaKeep { path }` is emitted under either setting. Core only; CLI flag arrives with `Pass 647.5`.
+
+**Body-section effect.** None. **Decision ceiling.** Fills `206`. Next free decision: `207`. **New standing rule.** None.
