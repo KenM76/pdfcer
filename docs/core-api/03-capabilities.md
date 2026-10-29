@@ -826,7 +826,13 @@ with every `warnings` entry.
   Its stderr note says the pages are computed, not stored. Its flags
   `--negative-coordinates`, `--nested-overflow` and `--page-area-keep` map
   one-to-one onto the options above. It exits 1 when the file has no
-  template or `LayoutError` applies. Rendering the layout is 647.4.
+  template or `LayoutError` applies. `--png-dir <DIR>` also draws each
+  computed page through `render_xfa_page` to `DIR/page-NNN.png` (`--scale`
+  pixels per point, default 1), printing a `rendered page= file= width=
+  height=` line, one `paint-note page= kind= path=` line per `PaintNote`,
+  and an `xfa-render pages= notes=` summary; `--edge-placement
+  {grammar,inward}` and `--missing-fill {none,white}` map onto
+  `PaintOptions`. An image that cannot be written exits 1.
 
 **Drawing a laid-out XFA page** (`xfa/paint.rs`, decision 204, Pass 647.4
 first cut): `pdfcer_core::xfa::paint_page(&Template, &LayoutPage,

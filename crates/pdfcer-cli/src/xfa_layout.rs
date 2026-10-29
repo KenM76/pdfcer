@@ -64,9 +64,10 @@ impl XfaLayoutArgs {
 }
 
 /// `xfa-layout`: lay the template out and print one line per page, item and
-/// warning, then a summary. Read-only. Exit 1 when the file has no XFA
+/// warning, then a summary; with `png`, also write page images. Read-only
+/// on the PDF. Exit 1 when the file has no XFA
 /// template or it cannot be laid out.
-pub(crate) fn cmd_xfa_layout(input: &Path, args: XfaLayoutArgs) -> u8 {
+pub(crate) fn cmd_xfa_layout(input: &Path, args: XfaLayoutArgs, png: Option<&XfaPngArgs>) -> u8 {
     let doc = match open_document(input) {
         Ok(doc) => doc,
         Err(err) => {
@@ -92,6 +93,11 @@ pub(crate) fn cmd_xfa_layout(input: &Path, args: XfaLayoutArgs) -> u8 {
         Err(e) => return fail(&e),
     };
     print_layout(&layout);
+    if let Some(png) = png
+        && let Err(e) = write_xfa_pngs(&doc, &template, &layout, png)
+    {
+        return fail(&e);
+    }
     eprintln!(
         "pdfcer: {}: these pages are pdfcer's layout of the XFA template with no form data merged; they are not stored in the file.",
         input.display()
@@ -152,7 +158,7 @@ const fn yes_no(b: bool) -> &'static str {
 }
 
 /// A template path as `0.2.1`; `-` when empty.
-fn dotted(path: &[usize]) -> String {
+pub(crate) fn dotted(path: &[usize]) -> String {
     if path.is_empty() {
         return "-".to_owned();
     }

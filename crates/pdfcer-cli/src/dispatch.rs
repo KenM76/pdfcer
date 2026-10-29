@@ -1282,6 +1282,10 @@ pub(crate) fn run() -> ExitCode {
             negative_coordinates,
             nested_overflow,
             page_area_keep,
+            png_dir,
+            scale,
+            edge_placement,
+            missing_fill,
         } => cmd_xfa_layout(
             &input,
             XfaLayoutArgs {
@@ -1289,6 +1293,14 @@ pub(crate) fn run() -> ExitCode {
                 nested_overflow,
                 page_area_keep,
             },
+            png_dir
+                .map(|dir| XfaPngArgs {
+                    dir,
+                    scale,
+                    edge_placement,
+                    missing_fill,
+                })
+                .as_ref(),
         ),
         Command::AddTextField {
             input,

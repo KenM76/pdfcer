@@ -121,6 +121,30 @@ fn a_setting_changes_the_layout() {
 }
 
 #[test]
+fn png_dir_writes_one_image_per_page_and_lists_what_was_not_drawn() {
+    let dir = std::env::temp_dir().join(format!("pdfcer-xfa-png-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let t = format!(
+        r#"<subform name="f">{PAGE}<field name="f1" x="10pt" y="10pt" w="40pt" h="40pt"><border><fill><color value="255,0,0"/></fill></border><caption/></field></subform>"#
+    );
+    let dir_arg = dir.to_str().unwrap();
+    let (code, stdout, stderr) = run("png", &pdf(Some(&t)), &["--png-dir", dir_arg]);
+    assert_eq!(code, 0, "{stderr}");
+    assert!(
+        stdout.contains("rendered page=0 ") && stdout.contains("width=612 height=792"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("paint-note page=0 kind=content-not-drawn path=0.1"),
+        "{stdout}"
+    );
+    assert!(stdout.ends_with("xfa-render pages=1 notes=1\n"), "{stdout}");
+    let png = std::fs::read(dir.join("page-000.png")).unwrap();
+    assert_eq!(&png[..4], b"\x89PNG");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn a_file_with_no_xfa_form_exits_one_by_name() {
     let (code, stdout, stderr) = run("none", &pdf(None), &[]);
     assert_eq!(code, 1);

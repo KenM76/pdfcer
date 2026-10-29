@@ -5985,9 +5985,21 @@ pub(crate) enum Command {
     /// content-overflow (placed past the bottom of its area) or
     /// content-discarded (the page areas ran out).
     ///
+    /// With --png-dir it also draws each page to an image and prints:
+    ///
+    ///   rendered page=N file=... width= height=
+    ///   paint-note page=N kind= path=
+    ///   xfa-render pages= notes=
+    ///
+    /// Only borders and fills are drawn so far. Each paint-note names
+    /// something left out or approximated: content-not-drawn (caption,
+    /// value or widget), stroke-not-drawn, fill-not-drawn (gradient,
+    /// pattern or stipple), corner-drawn-square, open-break-drawn-closed,
+    /// colour-defaulted.
+    ///
     /// A note on stderr says these pages are computed, not stored in the
-    /// file. Exits 1 when the file has no XFA template or it cannot be laid
-    /// out.
+    /// file. The PDF is never changed. Exits 1 when the file has no XFA
+    /// template, it cannot be laid out, or an image cannot be written.
     #[command(verbatim_doc_comment)]
     XfaLayout {
         /// Input PDF.
@@ -6005,6 +6017,23 @@ pub(crate) enum Command {
         /// XFA 3.3 defines it, or ignored, as Adobe's processor does.
         #[arg(long, value_enum, default_value_t)]
         page_area_keep: PageAreaKeepArg,
+        /// Also draw each computed page to page-NNN.png in this folder
+        /// (created if missing). Borders and fills only for now; every
+        /// caption, value or style not drawn is listed as a paint-note line.
+        #[arg(long, value_name = "DIR")]
+        png_dir: Option<PathBuf>,
+        /// Pixels per point for --png-dir images (1.0 is 72 dpi).
+        #[arg(long, default_value_t = 1.0)]
+        scale: f32,
+        /// Where an even-handed border edge sits for --png-dir: centred on
+        /// the border line, as the XFA grammar says, or inside it, as the
+        /// XFA spec's drawing chapter shows.
+        #[arg(long, value_enum, default_value_t)]
+        edge_placement: EdgePlacementArg,
+        /// What a border with no fill element paints for --png-dir: nothing,
+        /// as the XFA grammar says, or white, as an XFA spec note says.
+        #[arg(long, value_enum, default_value_t)]
+        missing_fill: MissingFillArg,
     },
 
     /// **Create a new text form field** (§12.7.2 + §12.5.6.19).

@@ -595,6 +595,8 @@ mod fields_list;
 use fields_list::*;
 mod xfa_layout;
 use xfa_layout::*;
+mod xfa_png;
+use xfa_png::*;
 mod fields_scripts;
 use fields_scripts::*;
 mod edit_common;
