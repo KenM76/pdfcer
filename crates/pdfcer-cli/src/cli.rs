@@ -3944,6 +3944,26 @@ pub(crate) enum Command {
         /// mis-draws vector pages.
         #[arg(long)]
         print_as_image: bool,
+        /// Staple the printed copy. Checked against what the printer
+        /// offers (`list-finishing`); one it does not offer is refused, not
+        /// dropped.
+        #[arg(long, value_enum, value_name = "POSITION")]
+        staple: Option<crate::print_finishing::StapleArg>,
+        /// Hole-punch the printed copy along this edge.
+        #[arg(long, value_enum, value_name = "EDGE")]
+        punch: Option<crate::print_finishing::EdgeArg>,
+        /// How many holes `--punch` makes, 2 to 4. Network printers and
+        /// CUPS only: Windows print settings carry no hole count. Without
+        /// it the printer's own count is used.
+        #[arg(long, requires = "punch", value_parser = clap::value_parser!(u8).range(2..=4))]
+        punch_holes: Option<u8>,
+        /// Fold the printed copy. Network printers and CUPS only: Windows
+        /// print settings have no fold types.
+        #[arg(long, value_enum, value_name = "FOLD")]
+        fold: Option<crate::print_finishing::FoldArg>,
+        /// The output bin, by the name `list-finishing` reports.
+        #[arg(long, value_name = "NAME")]
+        output_bin: Option<String>,
         /// Which sheet to print on: a form ID or a form NAME, as
         /// `list-paper-sizes` reports them.
         ///
@@ -4115,6 +4135,17 @@ pub(crate) enum Command {
     ListPaperSizes {
         /// Printer name, as `list-printers` reports it. Defaults to the
         /// system default printer.
+        #[arg(long)]
+        printer: Option<String>,
+    },
+
+    /// **List the finishing a printer offers**: the staple positions,
+    /// punch edges and hole counts, folds and output bins `print` can ask
+    /// for. A Windows printer is asked through its driver; a network
+    /// printer (`ipp://` URI) or CUPS queue through IPP.
+    ListFinishing {
+        /// Printer name or `ipp://` URI. Defaults to the system default
+        /// printer.
         #[arg(long)]
         printer: Option<String>,
     },

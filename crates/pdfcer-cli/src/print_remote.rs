@@ -20,8 +20,11 @@ use crate::print_presets::{Effective, Requested};
 /// How long to wait for a network printer's connect, and each read or write.
 const IPP_TIMEOUT: Duration = Duration::from_secs(60);
 
+/// How long to wait for the local CUPS server to describe a queue.
+const CUPS_QUERY_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// Exit code for an option this route cannot honour (clap's usage code).
-const USAGE: u8 = 2;
+pub(crate) const USAGE: u8 = 2;
 
 /// Whether `printer` names a network printer by URI rather than a queue.
 pub(crate) fn is_network_printer(printer: Option<&str>) -> bool {
@@ -91,8 +94,27 @@ pub(crate) fn print_remote(input: &Path, job: &RemoteJob<'_>) -> u8 {
         Err(code) => return code,
     };
     match job.printer.filter(|p| is_network_printer(Some(p))) {
-        Some(uri) => print_ipp(uri, &ipp_job(uri, job, &prepared), &prepared, job.send),
-        None => print_cups(job.printer, &lp_args(job, &prepared), &prepared, job.send),
+        Some(uri) => {
+            let finishing = &job.output.finishing;
+            print_ipp(
+                uri,
+                ipp_job(uri, job, &prepared),
+                finishing,
+                &prepared,
+                job.send,
+            )
+        }
+        None => {
+            let (values, bin) = match cups_finishing(job.printer, &job.output.finishing) {
+                Ok(v) => v,
+                Err(code) => return code,
+            };
+            let mut args = lp_args(job, &prepared);
+            for (k, v) in crate::print_finishing::lp_options(&values, bin.as_deref()) {
+                args.extend(["-o".to_owned(), format!("{k}={v}")]);
+            }
+            print_cups(job.printer, &args, &prepared, job.send)
+        }
     }
 }
 
@@ -285,6 +307,43 @@ fn post_tls(url: &str, _message: &[u8]) -> Result<Vec<u8>, (String, u8)> {
     ))
 }
 
+/// The IPP address CUPS serves queue `name` on, on this machine.
+pub(crate) fn cups_uri(name: &str) -> String {
+    format!("ipp://localhost:631/printers/{name}")
+}
+
+/// Ask a printer for its attributes. The exit code on failure, reported.
+pub(crate) fn query_printer(uri: &str) -> Result<ipp::IppResponse, u8> {
+    match exchange(uri, &ipp::get_printer_attributes(uri, &user_name(), 1))? {
+        r if r.is_success() => Ok(r),
+        r => Err(refused(uri, &r)),
+    }
+}
+
+/// The finishing for an `lp` job, checked against what CUPS lists for the
+/// queue when it answers at localhost; otherwise sent as given and said so.
+fn cups_finishing(
+    dest: Option<&str>,
+    f: &pdfcer_print::finishing::Finishing,
+) -> Result<(Vec<i32>, Option<String>), u8> {
+    if f.is_empty() {
+        return Ok((Vec::new(), None));
+    }
+    let who = dest.unwrap_or("the default CUPS queue");
+    let attrs = dest.and_then(|d| {
+        let uri = cups_uri(d);
+        let message = ipp::get_printer_attributes(&uri, &user_name(), 1);
+        let raw = ipp::post_ipp_http(&ipp::http_url(&uri)?, &message, CUPS_QUERY_TIMEOUT).ok()?;
+        ipp::parse_response(&raw)
+            .ok()
+            .filter(ipp::IppResponse::is_success)
+    });
+    if attrs.is_none() {
+        eprintln!("pdfcer: CUPS did not describe {who}; finishing not confirmed.");
+    }
+    crate::print_finishing::ipp_checked(f, attrs.as_ref(), who)
+}
+
 /// Send one request to `uri` and decode the reply.
 fn exchange(uri: &str, message: &[u8]) -> Result<ipp::IppResponse, u8> {
     let raw = post(uri, message).map_err(|(msg, code)| {
@@ -298,11 +357,15 @@ fn exchange(uri: &str, message: &[u8]) -> Result<ipp::IppResponse, u8> {
 }
 
 /// Query the printer, then (with `send`) print. The exit code.
-fn print_ipp(uri: &str, job: &IppJob, p: &Prepared, send: bool) -> u8 {
-    let query = ipp::get_printer_attributes(uri, &job.user, 1);
-    let attrs = match exchange(uri, &query) {
-        Ok(r) if r.is_success() => r,
-        Ok(r) => return refused(uri, &r),
+fn print_ipp(
+    uri: &str,
+    mut job: IppJob,
+    finishing: &pdfcer_print::finishing::Finishing,
+    p: &Prepared,
+    send: bool,
+) -> u8 {
+    let attrs = match query_printer(uri) {
+        Ok(r) => r,
         Err(code) => return code,
     };
     let model = attrs.printer_strings("printer-make-and-model");
@@ -318,6 +381,10 @@ fn print_ipp(uri: &str, job: &IppJob, p: &Prepared, send: bool) -> u8 {
             formats.join(", ")
         );
         return exit::EDIT_REFUSED;
+    }
+    match crate::print_finishing::ipp_checked(finishing, Some(&attrs), uri) {
+        Ok((values, bin)) => (job.finishings, job.output_bin) = (values, bin),
+        Err(code) => return code,
     }
     let asked: Vec<String> = job.job_attributes().iter().map(describe).collect();
     let summary = format!("{} bytes, {}", p.pdf.len(), asked.join(", "));

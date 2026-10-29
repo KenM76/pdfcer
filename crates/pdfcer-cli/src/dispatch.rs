@@ -898,6 +898,11 @@ pub(crate) fn run() -> ExitCode {
             marks,
             separations,
             print_as_image,
+            staple,
+            punch,
+            punch_holes,
+            fold,
+            output_bin,
         } => {
             let output = crate::print_output::PrintOutput {
                 color,
@@ -906,6 +911,13 @@ pub(crate) fn run() -> ExitCode {
                 marks,
                 separations,
                 print_as_image,
+                finishing: crate::print_finishing::finishing(
+                    staple,
+                    punch,
+                    punch_holes,
+                    fold,
+                    output_bin,
+                ),
             };
             if crate::print_remote::routes_here(printer.as_deref()) {
                 let layout_flags = crate::print_remote::set_flags(&[
@@ -1013,6 +1025,9 @@ pub(crate) fn run() -> ExitCode {
             paper_size.as_deref(),
         ),
         Command::ListPaperSizes { printer } => cmd_list_paper_sizes(printer.as_deref()),
+        Command::ListFinishing { printer } => {
+            crate::print_finishing::cmd_list_finishing(printer.as_deref())
+        }
         Command::PrinterProperties {
             printer,
             save,

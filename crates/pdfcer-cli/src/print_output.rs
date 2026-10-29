@@ -74,6 +74,7 @@ pub(crate) struct PrintOutput {
     pub marks: Vec<MarkArg>,
     pub separations: bool,
     pub print_as_image: bool,
+    pub finishing: pdfcer_print::finishing::Finishing,
 }
 
 // Consumed only by the `#[cfg(windows)]` `cmd_print`; pure, so compiled and

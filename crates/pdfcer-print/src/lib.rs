@@ -122,6 +122,9 @@ pub mod output_color;
 /// The IPP message codec for network printers. Pure, not gated.
 pub mod ipp;
 
+/// Staple, punch, fold and output bin. Pure, not gated.
+pub mod finishing;
+
 // The `DEVMODE` model — the driver's own settings structure, sourced
 // from the driver rather than synthesised. Also deliberately NOT
 // `cfg`-gated: the amend-a-DEVMODE logic is where the bugs are, it is
@@ -244,6 +247,21 @@ pub enum PrintError {
     /// reason rather than a generic parse failure, because the reasons
     /// send an operator somewhere different — see [`ConfigurationError`].
     Configuration(ConfigurationError),
+    /// The driver does not offer requested finishing, or the platform's
+    /// print settings cannot express it. One line per request, naming it.
+    FinishingRefused {
+        /// The printer asked.
+        printer: String,
+        /// What was refused, and why.
+        refused: Vec<String>,
+    },
+    /// The driver's PrintTicket provider failed.
+    PrintTicket {
+        /// The printer whose provider failed.
+        printer: String,
+        /// The provider's own message.
+        detail: String,
+    },
     /// Printing is not available on this platform.
     Unsupported,
 }
@@ -332,6 +350,15 @@ impl fmt::Display for PrintError {
                  still be sent, but only the settings pdfcer sets itself will apply"
             ),
             Self::Configuration(err) => write!(f, "{err}"),
+            Self::FinishingRefused { printer, refused } => {
+                write!(f, "{printer:?} does not offer: {}", refused.join("; "))
+            }
+            Self::PrintTicket { printer, detail } => {
+                write!(
+                    f,
+                    "{printer:?}'s driver refused a print-settings request: {detail}"
+                )
+            }
         }
     }
 }

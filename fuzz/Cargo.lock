@@ -746,6 +746,7 @@ dependencies = [
 name = "pdfcer-print"
 version = "0.103.0"
 dependencies = [
+ "roxmltree",
  "thiserror",
  "windows",
 ]

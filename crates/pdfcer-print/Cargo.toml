@@ -13,6 +13,9 @@ license.workspace = true
 # declares only the internal path dependencies, and each member names its
 # own external crates (root manifest, "Internal path dependencies").
 thiserror = "2"
+# Reads a printer's Print Schema capabilities document. Already in the tree
+# through pdfcer-core (MIT OR Apache-2.0), so no new licence.
+roxmltree = "0.20"
 
 # The Win32 printing surface. Confined to this crate on purpose: it is
 # the only place in the workspace that talks to a print spooler, and
@@ -28,6 +31,11 @@ windows = { version = "0.62", features = [
     "Win32_Foundation",
     "Win32_Graphics_Gdi",
     "Win32_Graphics_Printing",
+    # Finishing (staple, punch, output bin) goes through the driver's
+    # PrintTicket provider, which takes and returns COM streams.
+    "Win32_Graphics_Printing_PrintTicket",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
     # PRINTER_INFO_2W embeds a SECURITY_DESCRIPTOR pointer, so the struct
     # is feature-gated behind Win32_Security even though pdfcer never reads it.
     "Win32_Security",

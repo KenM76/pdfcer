@@ -979,6 +979,7 @@ version = "0.103.0"
 dependencies = [
  "pdfcer-core",
  "pdfcer-render",
+ "roxmltree",
  "thiserror",
  "windows",
 ]

@@ -336,6 +336,10 @@ pub(crate) fn cmd_print(
         },
         None => None,
     };
+    let config = match crate::print_finishing::driver_config(&name, config, &output.finishing) {
+        Ok(config) => config,
+        Err(code) => return code,
+    };
     let (selected_paper, requested_sheet_pt) = match resolve_paper(&name, paper, paper_size) {
         Ok(paper) => paper,
         Err(code) => return code,
@@ -1733,7 +1737,7 @@ pub(crate) fn cmd_print(
     _output: &crate::print_output::PrintOutput,
 ) -> u8 {
     eprintln!(
-        "pdfcer: printing is available on Windows only in this build \
+        "pdfcer: this printing command is Windows only; elsewhere `print` sends to a CUPS queue or an ipp:// printer \
          (docs/decisions/003-distribution-posture.md §4.1)"
     );
     exit::EDIT_REFUSED
@@ -1754,7 +1758,7 @@ pub(crate) fn cmd_print_preview(
     _paper_size: Option<&str>,
 ) -> u8 {
     eprintln!(
-        "pdfcer: printing is available on Windows only in this build \
+        "pdfcer: this printing command is Windows only; elsewhere `print` sends to a CUPS queue or an ipp:// printer \
          (docs/decisions/003-distribution-posture.md §4.1)"
     );
     exit::EDIT_REFUSED
@@ -1828,7 +1832,7 @@ fn list_printer_names() -> u8 {
 #[cfg(not(windows))]
 pub(crate) fn cmd_list_printers(_names_only: bool) -> u8 {
     eprintln!(
-        "pdfcer: printing is available on Windows only in this build \
+        "pdfcer: this printing command is Windows only; elsewhere `print` sends to a CUPS queue or an ipp:// printer \
          (docs/decisions/003-distribution-posture.md §4.1)"
     );
     exit::EDIT_REFUSED
@@ -2290,7 +2294,7 @@ pub(crate) fn cmd_printer_properties(
 #[cfg(not(windows))]
 pub(crate) fn cmd_list_paper_sizes(_printer: Option<&str>) -> u8 {
     eprintln!(
-        "pdfcer: printing is available on Windows only in this build \
+        "pdfcer: this printing command is Windows only; elsewhere `print` sends to a CUPS queue or an ipp:// printer \
          (docs/decisions/003-distribution-posture.md §4.1)"
     );
     exit::EDIT_REFUSED
@@ -2306,7 +2310,7 @@ pub(crate) fn cmd_printer_properties(
     _no_dialog: bool,
 ) -> u8 {
     eprintln!(
-        "pdfcer: printing is available on Windows only in this build \
+        "pdfcer: this printing command is Windows only; elsewhere `print` sends to a CUPS queue or an ipp:// printer \
          (docs/decisions/003-distribution-posture.md §4.1)"
     );
     exit::EDIT_REFUSED

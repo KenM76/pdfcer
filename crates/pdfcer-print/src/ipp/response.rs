@@ -57,6 +57,13 @@ impl IppResponse {
             .unwrap_or_default()
     }
 
+    /// The integer and enum values of printer attribute `name`, or `None`
+    /// when the printer does not report it.
+    pub fn printer_ints(&self, name: &str) -> Option<Vec<i32>> {
+        self.attribute(group::PRINTER, name)
+            .map(|a| a.values.iter().filter_map(IppValue::as_i32).collect())
+    }
+
     /// The names of the attributes the printer reported it ignored or
     /// substituted (the unsupported-attributes group).
     pub fn unsupported(&self) -> Vec<&str> {
