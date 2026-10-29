@@ -232,18 +232,15 @@ impl PrintScaleArg {
 /// with one printer whose owner is sitting at it — which is how this was
 /// written.
 ///
-/// # Rasterised, and it says so
+/// # Vector where it is safe, and it says so
 ///
-/// pdfcer renders each page to pixels and sends the bitmap. Reader sends
-/// vector and text to the driver and lets it RIP, keeping "print as
-/// image" as an explicitly-invoked fallback for driver bugs
-/// (`printing__rendering_pipeline_and_resolution.md`).
-///
-/// So pdfcer's default IS Reader's fallback. On a CAD drawing that is
-/// visibly coarser than the driver's own output, and an operator
-/// printing a drawing needs telling before the paper comes out, not
-/// after. The result line says `mode=raster` on every run for that
-/// reason.
+/// A page whose metafile carries all of it (nothing semi-transparent,
+/// blended or approximated) goes to the driver as vector graphics, as
+/// Reader prints by default (`printing__rendering_pipeline_and_resolution.md`);
+/// every other page, and every page of an imposed, separated, grey,
+/// black-only or `--print-as-image` job, goes as a bitmap. stderr names
+/// each page's route, and the result line's `mode=` is `vector`, `raster`
+/// or `mixed`.
 // Twelve arguments, five over clippy's bound. They are `clap`'s own
 // parsed flags handed straight through, and bundling them into a struct
 // would mean a second definition of the command's surface that has to be
@@ -1007,7 +1004,8 @@ untiled; {tiled_pages} page(s) were tiled."
         }
     };
 
-    if capped {
+    let raster_pages = bitmaps.len() - vectors.len();
+    if capped && raster_pages > 0 {
         eprintln!(
             "pdfcer: rendering at {dpi} DPI, below the printer's {}x{}. A full-resolution page \
              costs about {} MB of memory each; raise --max-dpi if you need the detail and have \
@@ -1055,7 +1053,7 @@ untiled; {tiled_pages} page(s) were tiled."
         );
     }
     println!(
-        "print {} printer={name:?} pages={} printed={} dpi={}x{} clipped={} mode=raster \
+        "print {} printer={name:?} pages={} printed={} dpi={}x{} clipped={} mode={} \
          settings={} setups={} job={}",
         input.display(),
         report.pages,
@@ -1063,6 +1061,11 @@ untiled; {tiled_pages} page(s) were tiled."
         report.dpi.0,
         report.dpi.1,
         report.clipped_pages,
+        match (vectors.len(), raster_pages) {
+            (0, _) => "raster",
+            (_, 0) => "vector",
+            _ => "mixed",
+        },
         match report.settings_source {
             pdfcer_print::SettingsSource::DeviceDefault => "device-default",
             pdfcer_print::SettingsSource::DriverSupplied => "driver",
