@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1288th filing) — `Pass 647.2` ELEVENTH CUT on `5a9d3f30` (XFA adhesion under lr-tb/rl-tb; Pass NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 647.2` eleventh cut, `5a9d3f30766fbe5e59bfa0c220439b8b519d0904` (gap G-L14 closed for the root): `keep@next`/`keep@previous` enforced under an `lr-tb`/`rl-tb` root; a chain a row wrap would part across areas moves to the next area together; fit test simulates the tiled flow (XFA 3.3 Ch.8 p.281). Inside a tiled subform adhesion has no effect (documented, not a gap). Core only; cli/gui unchanged.
+- Evidence: 1 new test (lr-tb, rl-tb, no-keep control); `xfa::layout` 51 passed (was 50); sabotage (enforce only for `tb`) fails it; clippy, fmt, full gate list, core-api-verbs, `cargo tree` green; no new pub item, dependency or decision.
+- ROADMAP: eleventh-cut block added (entry now 79 lines, cap 80), REMAINING line now field/draw text splitting only. FEATURES: "Dynamic XFA, reading" row covers cuts 1-11, lr-tb adhesion struck from "not yet"; boxes unchanged (`[x]`/`[ ]`/`[ ]`).
+
+**Decisions / findings:** none new. Next free (engineer-stated): decision 207, R251, filing 1289.
+
+**Still in flight:** 647.2 remaining: field/draw text splitting. Fuzz `xfa_packets` 90 s run pending at filing; engineer confirms before push.
+
+**For next session:** continue `Pass 647.2`, slow pacing. Push, CI and backup state not checked from here.
+
 ## 2026-10-29 (1287th filing) — `Pass 647.2` TENTH CUT on `f64f12fe` (XFA pageArea keep; decision 206; Pass NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
