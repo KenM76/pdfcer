@@ -112,6 +112,7 @@ fn empty(p: &Placed, h: f64) -> Placed {
 }
 
 impl Placed {
+    /// Append `item`; `breakable`: a split line may cut it.
     pub(super) fn push(&mut self, item: super::LayoutItem, breakable: bool) {
         self.items.push(item);
         self.breakable.push(breakable);

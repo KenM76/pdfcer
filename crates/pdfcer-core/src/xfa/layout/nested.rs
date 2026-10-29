@@ -22,6 +22,7 @@ pub(super) struct Nesting {
 }
 
 impl Nesting {
+    /// The unsplit instance `p`, before any split.
     pub(super) fn new(p: &Placed) -> Self {
         Self {
             ids: (0..p.items.len()).collect(),

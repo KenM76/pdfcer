@@ -18,6 +18,7 @@ pub(super) struct Keep {
 }
 
 impl Keep {
+    /// The `keep@next`/`keep@previous` edges `node` asserts.
     pub(super) fn of(node: &XfaNode) -> Self {
         let set = |a| {
             node.child("keep")

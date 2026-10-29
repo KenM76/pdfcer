@@ -30,6 +30,7 @@ pub(super) struct Pager<'t> {
 }
 
 impl<'t> Pager<'t> {
+    /// A pager over the root `pageSet` `root` at `path`.
     pub(super) fn new(root: &'t XfaNode, path: Vec<usize>) -> Self {
         Self {
             stack: vec![Frame {

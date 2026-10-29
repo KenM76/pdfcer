@@ -24,6 +24,7 @@ pub(super) struct Flow {
 }
 
 impl Flow {
+    /// A flow at the origin, wrapping at `width`.
     pub(super) const fn new(strategy: LayoutStrategy, width: Option<f64>) -> Self {
         Self {
             strategy,

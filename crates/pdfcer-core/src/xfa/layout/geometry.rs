@@ -22,6 +22,7 @@ pub(super) struct Ctx<'o> {
 }
 
 impl Ctx<'_> {
+    /// Record a layout warning.
     pub(super) fn warn(&mut self, w: LayoutWarning) {
         if !self.warnings.contains(&w) {
             self.warnings.push(w);
@@ -144,6 +145,7 @@ fn children(
     }
 }
 
+/// `items` moved by (`dx`, `dy`).
 pub(super) fn shifted(
     items: Vec<LayoutItem>,
     dx: f64,

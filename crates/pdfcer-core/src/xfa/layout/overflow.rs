@@ -36,6 +36,7 @@ impl Level {
         }
     }
 
+    /// The leader and trailer lists `node`'s `overflow` asserts, fresh counts.
     pub(super) fn of(ctx: &mut Ctx<'_>, root: &XfaNode, node: &XfaNode, path: &[usize]) -> Self {
         let o = node.child("overflow");
         let mut list = |a| {
@@ -90,6 +91,7 @@ pub(super) enum Link {
 }
 
 impl Overflow {
+    /// The levels spent for that kind, own first.
     pub(super) fn chain(&self, leader: bool) -> &[Link] {
         if leader {
             &self.leaders
@@ -222,6 +224,7 @@ impl super::Run<'_, '_> {
         Link::Shared(self.levels.len() - 1)
     }
 
+    /// Does the level `link` names assert a non-empty list of that kind?
     pub(super) fn asserts(&self, ov: &Overflow, link: Link, leader: bool) -> bool {
         self.level(ov, link).is_some_and(|l| l.asserts(leader))
     }
