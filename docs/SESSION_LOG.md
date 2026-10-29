@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1302nd filing) — `Pass 647.4` fifth cut `cc5d7af4` (check boxes); Pass NOT complete
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `cc5d7af4` "feat(xfa): draw a dynamic form's check boxes (Pass 647.4, fifth cut)", on main, unpushed, unreleased (after v0.103.0). `checkButton` box and mark drawn in core; state from `items`, neutral value disclosed (`PaintNoteKind::Content`); `mark` names share `annot_author::draw_check_mark`. exclGroup shared value not read (comes from 647.3 merge). Detail in the ROADMAP fifth-cut entry.
+- Tests: 6 new, `xfa::paint` 25 passed, `annot_author` + `xfa::paint` 49 passed, one sabotage caught; clippy (default and `--no-default-features`), fmt, code-structure clean.
+- ROADMAP: `Pass 647.4` stays in Next up, NOT COMPLETE. FEATURES: the "Dynamic XFA, layout and drawing" row text gained "check boxes"; boxes unchanged (core and cli `[ ]`, partial).
+
+**Operator request this turn, no Pass filed:** add sending a PDF to a printer. That already ships: `pdfcer print` (Windows only, `Pass 55.x`). Engineer verified with a real spool through "Microsoft Print to PDF" using `--to-file --send` (job=3, mode=raster). The operator was asked which further printing methods to build; no Pass is filed until the answer.
+
+**Decisions made:** none. **Hard-rule-11 survivors:** none; a capability was added, no meaning changed.
+
 ## 2026-10-29 (1301st filing) — `v0.103.0` PUBLISHED, tag on `aee919a1`
 
 **Filed (docs only; engineer-reported, each item stated checked; no shell here, nothing checked from here):**
