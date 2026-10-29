@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1308th filing) — `Pass 55.14` SHIPPED `5b6367b1` (print finishing); print arc `55.9`-`55.14` COMPLETE
+
+**Shipped (engineer-reported, no shell here, nothing checked from here; I edited ROADMAP/FEATURES/SESSION_LOG and the RAG only, the engineer commits):**
+- `Pass 55.14`, `5b6367b1` (parent and remote `main` before it `02162f5a`; local, not pushed at filing): `print --staple/--punch/--punch-holes/--fold/--output-bin` and new `list-finishing [--printer]`. IPP and CUPS checked against the printer's advertised support; Windows through the driver PrintTicket (`prntvpt`) with the merged ticket re-read. An option the printer does not offer is refused (exit 9), never dropped; Windows refuses fold types and hole counts by name. Detail in ROADMAP Shipped.
+- Tests: 9 `pdfcer-print` finishing + 6 CLI `print_finishing`; `run-gates.sh` 47/49 first sweep, both reds fixed in the commit and re-run green; cli `--test all` 991 passed / 2 ignored; core lib 3121 passed. Core/render manifests untouched, no new dependency.
+
+**Print arc:** `55.9`-`55.14` all shipped (1304th-1308th filings). Release follows: v0.104.0, OneDrive slot `pdfcer1`.
+
+**Gotchas (RAG, `D:\dev\rag\rust\`):** (a) PrintTicket merge returns success when the driver substitutes an option, so re-read the merged ticket (footer on the existing PrintTicket note; confirmed live on the IPP class driver); (b) `run-gates.sh` under a hard timeout starves the OCR tests into false failures (3 failures at exit 143, 3/3 alone); (c) `check-public-fns-documented` counts `pub(super)` fns in a private cfg-split `imp` module, so give them a one-line doc pointing at the public wrapper.
+
+**FEATURES:** the Planned "Print finishing" row removed; Implemented row added (core `—`, cli `[x]`, gui `[ ]`).
+
+**Hard-rule-11 survivors:** none changed meaning that I could find; I did not grep `crates/`. Engineer to confirm `print --help` / README describe finishing and that `NEXT_SESSION.md` no longer lists `55.14` as in flight. Not verified from here: push state, backup currency.
+
 ## 2026-10-29 (1307th filing) — `Pass 55.13` SHIPPED `f813cd31` (IPP network printing, CUPS `lp`); request `X015` filed as `Pass 651.0`
 
 **Shipped (engineer-reported, no shell here, nothing checked from here; I edited ROADMAP/FEATURES/SESSION_LOG/ARCHITECTURE only, the engineer commits):**

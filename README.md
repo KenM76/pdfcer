@@ -50,8 +50,10 @@ file is written;
 vector object and node editing; measurement and dimension authoring;
 image placement from PNG, JPEG, BMP and TIFF; printing, with page
 placement, orientation, duplex and copies — plus n-up, booklet and
-poster imposition **in `pdfcer` only**, which the GUI does not yet
-surface; **opening password-protected documents** — RC4 40–128 bit,
+poster imposition, presets, printer's marks, separations, vector
+printing, network (`ipp://`) and CUPS printing, and staple, punch, fold
+and output-bin finishing **in `pdfcer` only**, which the GUI does not
+yet surface; **opening password-protected documents** — RC4 40–128 bit,
 AES-128 and AES-256 (both `/R 5` and `/R 6`), including the
 empty-user-password case that opens with no prompt at all; and
 **authoring encryption** (AES-256, `/R 6`), setting the eight permission

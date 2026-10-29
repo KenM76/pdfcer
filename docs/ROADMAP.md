@@ -112,6 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
+### Pass 55.14 — Print finishing: staple, hole punch, fold, output bin — SHIPPED `5b6367b1`, 2026-10-29 (1308th filing)
+
+Engineer-reported; no shell here, nothing checked from here. `feat(print): staple, punch, fold and output bin, and list-finishing (Pass 55.14)`; parent and remote `main` before it `02162f5a`; on local main, not yet pushed at filing. **Last Pass of the print arc `55.9`-`55.14`, now fully shipped.** Reasoning is in the commit message.
+- **cli `print`:** `--staple` (top-left, top-right, bottom-left, bottom-right, dual-left/right/top/bottom, saddle), `--punch` (left/top/right/bottom), `--punch-holes` (2..=4, requires `--punch`), `--fold` (12 kinds: half, letter, z, half-z, gate, double-gate, left-gate, right-gate, accordion, parallel, poster, engineering-z), `--output-bin` (free text). New subcommand `list-finishing [--printer]` reports what a printer offers per flag (README count 240 to 241 working).
+- **Refusal:** a request the printer does not offer is refused (exit 9), never dropped.
+- **IPP (`ipp://`):** checked against `finishings-supported` and `output-bin-supported` (PWG 5100.1 / IANA enums: staple 20-31, saddle 8, punch 74/78/82/86, folds 90-101); sent as job `finishings` and `output-bin`. The bin is matched case-insensitively and sent in the printer's own spelling. A printer listing no support gets the request as given, with a stderr note.
+- **CUPS:** `lp -o finishings=20,74 -o output-bin=...`; checked against the queue's attributes via `ipp://localhost:631/printers/NAME` when CUPS answers, otherwise "finishing not confirmed" is said.
+- **Windows:** the driver's PrintTicket provider (`prntvpt`). Capabilities from `PTGetPrintCapabilities`; `JobStapleAllDocuments`, `JobHolePunch`, `JobOutputBin` parsed with `roxmltree` (already in the tree, MIT/Apache; no new licence). A delta ticket is merged onto the job's DEVMODE with `PTMergeAndValidatePrintTicket` and converted back to a DEVMODEW. The merged ticket is re-read and a driver-substituted option is refused (the merge returns success when it substitutes). Fold types and hole counts are not in the Print Schema, so they are refused by name on Windows.
+- **Code (`pdfcer-print`, not core):** new `finishing` module (`Finishing`, `Staple`, `Edge`, `Fold`, `ipp_finishings`, `finishing_name`, `print_schema::{parse_capabilities, delta_ticket, Capabilities, Bin}`, `printer_finishing`, `apply_finishing`); new `PrintError::{FinishingRefused, PrintTicket}`; new `windows` features `Win32_Graphics_Printing_PrintTicket`, `Win32_System_Com`, `Win32_System_Com_StructuredStorage` (crate already at 0.62). Off Windows the driver functions return `Unsupported`. `docs/core-api` unaffected; `pdfcer-core` unchanged.
+- **Tests:** 9 new in `pdfcer-print` finishing, 6 in the CLI `print_finishing` module. Full `tools/run-gates.sh`: 47 of 49 on the first sweep; the two red gates (`check-clap-help`, the README count; `check-public-fns-documented`, two private-module fns) were fixed in the same commit and re-run green individually. `pdfcer-cli --test all` 991 passed / 2 ignored; `pdfcer-core` lib 3121 passed. An earlier sweep under a 590 s timeout showed 3 OCR failures (exit 143); they pass alone (3/3) and passed in the uncapped sweep: load contention, not a defect. fmt clean; clippy `-D warnings` clean on Windows and `--target x86_64-unknown-linux-gnu`; structure gate clean (561 baseline, none new).
+- **Invariants:** `cargo tree` for core/render unaffected (no core/render manifest touched). No new dependency.
+- **Live dry runs (operator's machine, no paper):** "Microsoft Print to PDF" refuses `--staple top-left`; "MF260 Series" (Microsoft IPP Class Driver) lists output bin FaceDown and `--output-bin facedown` merged through its real driver; `--fold half` refused on Windows; `list-finishing` on Print to PDF and on ET-16600 lists nothing offered.
+- **Not verified from here:** push state, backup currency, macOS/Linux behaviour of `lp`. gui not built.
+- **Next:** release v0.104.0 to OneDrive slot `pdfcer1` (standing-authorized, decision 121; green `run-gates.sh`, fresh-folder smoke test, `verify-release.py`).
+
 ### Pass 55.13 — Print to a network printer by IPP URI, and through CUPS — SHIPPED `f813cd31`, 2026-10-29 (1307th filing)
 
 Engineer-reported; no shell here, nothing checked from here. `feat(print): print to a network printer by ipp:// URI, and through CUPS (Pass 55.13)`; parent and remote `main` before it `ed559c91`. Reasoning is in the commit message and ARCHITECTURE.md §12 decision 211.
@@ -26576,7 +26591,7 @@ Table/row layout in dynamic forms. Blocked until `pdfcer-spec-librarian` extract
 
 Split from `Pass 648.0` by operator direction ("worry about the others later"). Readers for OBJ (+MTL colours; dissolve `d` is exporter-inconsistent, so any transparency taken from it is disclosed via `inferred:`) and binary/ASCII STL (no colour: default colour disclosed), feeding the PRC writer built in 648.0. `3d-embed --model` and `3d-convert` accept `.obj` / `.stl`. A fuzz target per parser (§10.2). Depends on 648.0, now SHIPPED (1297th filing; `write_prc` exists, `3d-convert` and the format auto-detect exist, only the OBJ/STL readers and their extension/signature detection are owed). gui `[ ]`.
 
-### Print arc `Pass 55.9`-`55.14` — filed 1303rd filing, 2026-10-29 (ALL NOT STARTED; operator: "build all the print items the make a new release")
+### Print arc `Pass 55.9`-`55.14` — filed 1303rd filing, 2026-10-29 (ALL SHIPPED as of the 1308th filing; originally filed NOT STARTED; operator: "build all the print items the make a new release")
 
 Origin: the operator asked whether pdfcer can send a PDF to a printer and what other printing methods "everyone who uses pdfcer" would need. Sending already ships (`pdfcer print --send`, Windows, `Pass 55.x`; noted in the 1302nd filing). The engineer proposed six items; the operator asked for all six, then a release. Order below is the engineer's proposed build order. IDs `55.9`-`55.14` were grep-checked unused in `docs/` before filing. After the sixth Pass ships: a release (standing-authorized, decision 121; green `run-gates.sh`, fresh-folder smoke test, `verify-release.py`). Each Pass ships its CLI subcommand/flags in the same session (rule 11); gui `[ ]` throughout until a shell Pass is scoped. Rule 4 applies to every item: whatever pdfcer takes, substitutes or falls back on is printed, never silent.
 
@@ -26586,10 +26601,7 @@ Origin: the operator asked whether pdfcer can send a PDF to a printer and what o
 
 `Pass 55.13` SHIPPED `f813cd31` (1307th filing), see Shipped.
 
-### Pass 55.14 — Finishing: staple, hole punch, output bin, fold (IN PROGRESS)
-
-Staple, hole punch, output bin (and fold where offered). Windows: through the driver's PrintTicket. IPP and CUPS: through the `finishings` and `output-bin` attributes (`55.13` is shipped, so the IPP/CUPS transport exists). Research note for the Windows half, naming the deliverable: `D:\dev\rag\rust\windows_rs_062_printticket_finishing_staple_punch_bin_to_devmode.md` (PrintTicket finishing, staple/punch/bin, to DEVMODE, with the `windows` 0.62 crate).
-- **Acceptance:** the device's supported options are listed (`--list-finishing`-style query, name to be settled in the Pass); an option the device does not offer is refused by name, never dropped; what was requested and what was sent are both printed.
+`Pass 55.14` SHIPPED `5b6367b1` (1308th filing), see Shipped. **The print arc `55.9`-`55.14` is fully shipped.** Next: the release, v0.104.0, to OneDrive slot `pdfcer1`.
 
 ### `Pass 626.0` — lower the declared PDF version — COMPLETE, MOVED TO *Shipped* (slice 2 `d0f7c993`, 1200th filing); slice 1 detail below stays
 
