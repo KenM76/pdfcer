@@ -112,9 +112,25 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.103.0` — release prep, version bump `34aa423e` (`chore`), 2026-10-29 (1300th filing); NOT yet published
+### `v0.103.0` — PUBLISHED, 2026-10-29 (1301st filing)
 
-Engineer-reported; no shell here, nothing checked from here except one read of root `Cargo.toml` (line 99 `version = "0.103.0"`, line 131 `pdfcer-model` pin `version = "0.103.0"`). Same pattern as the v0.102.0 prep (1268th filing). All commits below are local on main, not pushed, as reported.
+Engineer-reported (engineer states each item checked); no shell here, nothing checked from here. Release record for the prep filed below (1300th, bump `34aa423e`, filing commit `aee919a1`).
+- **Tag:** `v0.103.0`, annotated, on `aee919a1282c5b3b51e15255465d2ce894abbea7` (the 1300th filing commit "docs: file v0.103.0 release prep"), pushed; `origin/main` contains it. CI green at the tagged commit (`verify-release`: "CI is GREEN at the tagged commit").
+- **Contents (commits):** `508e09b8` (PRC occurrence order), `8d3bfd07` (3D views Acrobat activates, CAD lighting, activation read back; Pass 648.0), `64406604` (filings 1297-1299), `b1f71556` (`--lighting` help text), `34aa423e` (bump to 0.103.0), `aee919a1`. Pass list: see the prep entry below.
+- **GitHub release** "pdfcer v0.103.0": 8 assets at local sizes, each with a `.sha256`: `pdfcer-v0.103.0-windows-x64.zip` (27,959,165 bytes), `ocr-addon-ocrs.zip` (11,352,262), `ocr-addon-tesseract.zip` (4,483,685), `ocr-addon-ocrcer.zip` (3,789,155).
+- **Portable build:** `D:\builds\pdfcer-20261029-1407-aee919a`; `pdfcer.exe` 39,766,016 bytes; folder 55,696,709 bytes.
+- **Fresh-folder smoke test (extracted zip):** `--version` 0.103.0, revision `v0.103.0`; `inspect` PDF 2.0; `bake-appearances` no-op byte-identical copy; `render-page` 612x396, `annots_painted=1`; `3d-embed` of a glTF onto blank.pdf with `--apply` wrote 818,404 bytes with the "lit by the CAD scheme" note; `3d-list` reported `format=PRC views=1 poster=yes activate=XA`.
+- **OneDrive:** slot `pdfcer2` holds 0.103.0 (6 items, 75,313,483 bytes); `pdfcer1` keeps 0.102.0. **Next release writes `pdfcer1`.**
+- **`verify-release.py v0.103.0`:** every check ok except "working tree clean", which fails on the uncommitted `.claude/agent-memory` files only (deliberate, as on earlier releases).
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.103.0 published, in that order. `pdfcer-json` is not in the publish set: it is `publish.workspace = true` and none of the three published crates depend on it (answers the question left open in the prep entry).
+- **Pre-tag gates (change-scoped, Ken 2026-10-16):** 7,972 tests, clippy, fmt, structure, core-api verbs, ledger, suite-name, fuzz build, all green.
+- **GUI notice** (outside the repo) `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_3d_activation_readback_and_acrobat_views.md` now says "released in v0.103.0".
+- **Gotcha:** the tag push hung once inside git after `main` had pushed, with no error; killing it and re-pushing the tag succeeded.
+- **FEATURES:** unchanged (the 3D activation-readback rows were filed in the 1297th-1299th filings; no new capability). Nothing minted.
+
+### `v0.103.0` — release prep, version bump `34aa423e` (`chore`), 2026-10-29 (1300th filing); published in the 1301st filing (entry above)
+
+Engineer-reported; no shell here, nothing checked from here except one read of root `Cargo.toml` (line 99 `version = "0.103.0"`, line 131 `pdfcer-model` pin `version = "0.103.0"`). Same pattern as the v0.102.0 prep (1268th filing). *Amended 1301st: header said "NOT yet published"; it was published, see above.* All commits below are local on main, not pushed, as reported.
 - **`b1f71556`** "fix(cli): --lighting auto help carries no Markdown code span (Pass 648.0)". A `ValueEnum` variant doc comment is shipped help that `plain_help` cannot scrub; test `cli_help_ships_no_internal_markup` caught the backticked `cad` in the `--lighting auto` help. Wording only.
 - **`34aa423e`** "chore: bump workspace to 0.103.0": root `Cargo.toml` version and the `pdfcer-model` workspace-dependency pin; `Cargo.lock` and `fuzz/Cargo.lock`. Versions only.
 - **Filing commit before the prep:** `64406604` (1297th-1299th filings). Code commits since `v0.102.0` that went into those filings: `b188b790`, `9e6c0389`, `9c2ce921`, `bcd6fbea`, `bd5e205c`, `dc442faa`, `3ef99a37`, `508e09b8`, `8d3bfd07`.

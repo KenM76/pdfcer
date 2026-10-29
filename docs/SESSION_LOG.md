@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1301st filing) — `v0.103.0` PUBLISHED, tag on `aee919a1`
+
+**Filed (docs only; engineer-reported, each item stated checked; no shell here, nothing checked from here):**
+- Tag `v0.103.0`, annotated, on `aee919a1282c5b3b51e15255465d2ce894abbea7` (the 1300th filing commit), pushed; `origin/main` contains it. CI green at the tagged commit per `verify-release`. Release contains `508e09b8`, `8d3bfd07`, `64406604`, `b1f71556`, `34aa423e`, `aee919a1`.
+- GitHub release "pdfcer v0.103.0": 8 assets, each with `.sha256`: `pdfcer-v0.103.0-windows-x64.zip` 27,959,165 bytes; `ocr-addon-ocrs.zip` 11,352,262; `ocr-addon-tesseract.zip` 4,483,685; `ocr-addon-ocrcer.zip` 3,789,155.
+- Portable build `D:\builds\pdfcer-20261029-1407-aee919a` (`pdfcer.exe` 39,766,016 bytes; folder 55,696,709 bytes). Fresh-folder smoke of the extracted zip passed: `--version` 0.103.0 / `v0.103.0`; `inspect` PDF 2.0; `bake-appearances` no-op byte-identical; `render-page` 612x396, `annots_painted=1`; `3d-embed` glTF with `--apply` wrote 818,404 bytes with the "lit by the CAD scheme" note; `3d-list` `format=PRC views=1 poster=yes activate=XA`.
+- OneDrive slot `pdfcer2` holds 0.103.0 (6 items, 75,313,483 bytes); `pdfcer1` keeps 0.102.0. The next release writes `pdfcer1`.
+- `verify-release.py v0.103.0`: all ok except "working tree clean" (uncommitted `.claude/agent-memory` files only; deliberate, accepted).
+- crates.io: `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.103.0, in that order. `pdfcer-json` not in the publish set (`publish.workspace = true`; none of the three depend on it) -- closes the open item from the 1300th entry.
+- Pre-tag gates (change-scoped): 7,972 tests, clippy, fmt, structure, core-api verbs, ledger, suite-name, fuzz build, green.
+- GUI notice `notice_3d_activation_readback_and_acrobat_views.md` (FeatureRequests `open/`) now says "released in v0.103.0".
+- Gotcha: the tag push hung once inside git after `main` pushed, no error; kill and re-push of the tag succeeded.
+
+**Decisions made:** none; nothing minted. **FEATURES.md:** unchanged. The 1300th ROADMAP prep header was amended (it said "NOT yet published").
+
 ## 2026-10-29 (1300th filing) — `v0.103.0` release PREP, version bump `34aa423e`; NOT yet published
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here beyond reading root `Cargo.toml`: version and `pdfcer-model` pin both 0.103.0):**
