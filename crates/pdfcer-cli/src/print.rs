@@ -280,6 +280,7 @@ pub(crate) fn cmd_print(
     line_width_mm: Option<f64>,
     poster_cut_marks: bool,
     poster_labels: bool,
+    output: &crate::print_output::PrintOutput,
 ) -> u8 {
     let doc = match open_document(input) {
         Ok(doc) => doc,
@@ -293,7 +294,14 @@ pub(crate) fn cmd_print(
         Err(code) => return code,
     };
     let presets = pdfcer_core::print_presets::print_presets(&doc);
-    let session = pdfcer_core::edit::EditSession::new(doc);
+    let mut session = pdfcer_core::edit::EditSession::new(doc);
+    match output.stamp(&mut session) {
+        Ok(notes) => notes.iter().for_each(|n| eprintln!("pdfcer: {n}")),
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            return exit::EDIT_REFUSED;
+        }
+    }
     let page_list = match session.pages() {
         Ok(p) => p,
         Err(err) => {
@@ -908,6 +916,9 @@ untiled; {tiled_pages} page(s) were tiled."
         device_settings.orientation,
         spec.first_page_pt(&page_sizes),
     );
+    if let Some(note) = output.recolor(&mut bitmaps) {
+        eprintln!("pdfcer: {note}");
+    }
     let sheets: Vec<pdfcer_print::Sheet<'_>> = bitmaps
         .iter()
         .enumerate()
@@ -1654,6 +1665,7 @@ pub(crate) fn cmd_print(
     _line_width_mm: Option<f64>,
     _poster_cut_marks: bool,
     _poster_labels: bool,
+    _output: &crate::print_output::PrintOutput,
 ) -> u8 {
     eprintln!(
         "pdfcer: printing is available on Windows only in this build \

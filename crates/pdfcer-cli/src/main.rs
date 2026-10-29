@@ -584,6 +584,7 @@ mod listing;
 use listing::*;
 mod hand_sig_cmd;
 mod print;
+mod print_output;
 mod print_presets;
 use print::*;
 mod fields;

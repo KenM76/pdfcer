@@ -105,6 +105,8 @@ mod redact_proof;
 mod redact_quad_inset;
 mod redact_vector;
 pub mod richtext;
+/// Header and footer lines (ISO 32000-1 §14.8.2.2).
+pub mod running_text;
 pub mod settings;
 #[cfg(feature = "signing")]
 pub mod sign;

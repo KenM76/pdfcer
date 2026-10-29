@@ -275,8 +275,19 @@ pub(crate) fn helvetica_width(bytes: &[u8]) -> f64 {
 /// leading `q` saved, then the label as a `/Pagination /Bates` artifact
 /// (ISO 32000-2 §14.8.2.2.2, Table 363) in font resource `font` at size 1
 /// under text matrix `m`, black, with `label` as WinAnsi bytes.
+#[cfg(test)]
 pub(crate) fn label_content(font: &[u8], m: [f64; 6], label: &[u8]) -> Vec<u8> {
-    let mut out = LABEL_HEAD.to_vec();
+    label_content_as(b"Bates", font, m, label)
+}
+
+/// [`label_content`] under artifact `/Subtype` `subtype`.
+pub(crate) fn label_content_as(subtype: &[u8], font: &[u8], m: [f64; 6], label: &[u8]) -> Vec<u8> {
+    let mut out = b"q /Artifact <</Type /Pagination /Subtype /".to_vec();
+    out.extend_from_slice(subtype);
+    out.extend_from_slice(
+        b">> BDC
+",
+    );
     out.extend_from_slice(b"BT /");
     out.extend_from_slice(font);
     out.extend_from_slice(b" 1 Tf 0 g ");

@@ -225,6 +225,7 @@ mod richtext_real_field;
 mod rotated_text;
 mod route_enumeration;
 mod run_repertoire;
+mod running_text;
 mod scattered_text_hit;
 mod screen_annotation;
 mod search_rotated;

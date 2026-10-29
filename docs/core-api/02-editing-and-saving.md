@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 384 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 385 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 384 public `EditSession` methods
+## 1. Verb index — all 385 public `EditSession` methods
 
-**Count: 384.** Established by brace-matched extraction of the
+**Count: 385.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -96,7 +96,7 @@ added `add_file_attachment_annotation`, and at 274 when `Pass 261.1` added
 `add_caret_annotation` and `add_replace_text`, and at 275 when `Pass 261.2`
 added `add_sound_annotation`, and at 276 when `Pass 261.3` added
 `add_screen_annotation`, and at 277 when `Pass 142.3` added
-`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`, and at 350 when `G168` added `set_3d_views`, and at 352 when `G164` added `metadata_inventory` and `remove_metadata`, and at 355 when `G165` added `page_scan_image`, `detect_image_skew` and `deskew_image`, and at 356 when `G171` added `coalesce_last_same`, and at 371 when `G198` added `upscale_image`.
+`preview_style_ladder_with_donors`, and at 279 when `Pass 375.0` added `set_crop_boxes` and `resize_pages`, at 283 when Bates numbering added `stamp_bates`, and at 284 when `remove_bates` followed, and at 348 when `G154` added `insert_node`, `convert_node`, `convert_segment` and their three `_in_form` twins, and at 349 when `G160` added `turn_widget`, and at 350 when `G168` added `set_3d_views`, and at 352 when `G164` added `metadata_inventory` and `remove_metadata`, and at 355 when `G165` added `page_scan_image`, `detect_image_skew` and `deskew_image`, and at 356 when `G171` added `coalesce_last_same`, and at 371 when `G198` added `upscale_image`, and at 385 when `Pass 55.10` added `stamp_running_text`.
 There are no `EditSession` methods in any other file
 (`grep -rn "impl EditSession" crates/pdfcer-core/src/` returns those lines only).
 
@@ -5156,6 +5156,7 @@ operator has to get the order of right.
 |---|---|---|
 | **Stamp Bates numbers on pages** | `stamp_bates(&mut self, stamp: &bates::BatesStamp, first: u64) -> Result<bates::BatesOutcome, EditError>` | One label per selected page, numbered from `first` in document order (`stamp.pages` is sorted and de-duplicated; `None` = every page). Label = `BatesNumbering { prefix, digits, suffix }` → prefix + number zero-padded to `digits` (1..=`bates::MAX_DIGITS` = 15) + suffix. Drawn in non-embedded Helvetica (WinAnsi) at `font_size` (default 10 pt), `margin` (default 36 pt) from the edges, at one of six `BatesPosition`s (default `BottomRight`), upright on the page **as displayed** (`/Rotate` honoured). Each label is a new content stream marked `/Artifact <</Type /Pagination /Subtype /Bates>> BDC … EMC` (ISO 32000-2 §14.8.2.2.2, Table 363), so text extraction reports it as `ArtifactKind::Pagination` + `ArtifactSubtype::Other("Bates")`; a shared `q` stream is prepended and each label opens with `Q q`, so a transformation the page leaves in effect cannot move it. Existing content streams stay byte-verbatim; the font is added under a free `/Font` name in a page-level copy of the (possibly inherited) resources. `BatesOutcome { first, next, pages, first_label, last_label }` — `next` is the `first` for the following file of a batch. ONE undo entry, `CommandKind::StampBates`. Refuses before any write: encrypted or certified session, suppressed objects; `EditError::Bates(BatesError::Digits / Unencodable / Geometry / NoPages / Overflow { number, digits })` — overflow is checked for the LAST number up front; `PageOutOfRange` for a bad index. A page already labelled gets a second label; replacing a set is `remove_bates` then `stamp_bates` (two undo entries; fold with `coalesce_last`). **Not yet:** font/colour choice, date tokens, reading Acrobat's own Bates sets (its `/PieceInfo` mechanism). CLI: `bates-stamp` (`--replace`). Acrobat reference: `Acrobat_Features\bates__*.md` (six files: numbering scheme, batch processing, placement and appearance, underlying mechanism and PieceInfo, interaction with headers/footers and signatures, limitations). |
 | **Remove pdfcer's Bates labels** | `remove_bates(&mut self, pages: Option<&[usize]>) -> Result<bates::BatesRemoval, EditError>` | Removes, from the selected pages (`None` = every page; sorted, de-duplicated), every label stream `stamp_bates` wrote — recognised by its exact bytes (after decoding any filter), so another producer's Bates numbers and look-alike text are never touched. One leading shared `q` stream goes with each label, keeping `q`/`Q` balanced across stacked stamps; every other `/Contents` entry stays, in order, by reference. The label's `/Font` entry is dropped from the page's direct `/Resources` when no kept stream names it (whole-token match, so `/Bates` ≠ `/Bates2`); `/Contents` is removed if nothing remains. Only page dicts are written; the orphaned streams stay in the earlier revision. `BatesRemoval { pages, labels }` (pages that lost a label; each label's text). ONE undo entry, `CommandKind::RemoveBates` — or none, with an empty result, when nothing was found. Refuses before any write: encrypted or certified session, `PageOutOfRange`. CLI: `bates-remove`, `bates-stamp --replace`. |
+| **Stamp a header or footer line** | `stamp_running_text(&mut self, stamp: &running_text::RunningText) -> Result<running_text::RunningTextOutcome, EditError>` | One line per selected page (`stamp.pages`, 0-based, sorted and de-duplicated; `None` = every page). `RunningText::new(kind, text)` → `kind` `Header` (top) or `Footer` (bottom), `align` `Left`/`Center`/`Right` (default `Center`), `margin` 36 pt, `font_size` 10 pt. `{page}` (`running_text::PAGE_TOKEN`) becomes the 1-based page number and `{pages}` (`PAGES_TOKEN`) the page count; `RunningText::label(page, pages)` previews it. Drawn exactly as a `stamp_bates` label (same writer): non-embedded Helvetica (WinAnsi), upright on the page as displayed, page content byte-verbatim, marked `/Artifact <</Type /Pagination /Subtype /Header>>` (or `/Footer`; ISO 32000-1 §14.8.2.2 Table 330). `RunningTextOutcome { pages, first_label }`. ONE undo entry, `CommandKind::StampRunningText`. Refuses before any write: the `stamp_bates` session refusals; `EditError::RunningText(RunningTextError::Empty / Unencodable(char) / Geometry / NoPages)`; `PageOutOfRange`. **Not yet:** a removal verb, a watermark, date tokens, font/colour choice. CLI: `print --header/--footer` (stamped on the in-memory session for the printed copy only; never saved).
 
 ### 1.34 Editable export, compiled back into the session (1) — `Pass 472.0`, `Pass 473.0`
 
@@ -6011,7 +6012,8 @@ borrow it (`tests/image_placement.rs`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**185 variants**, counted at depth 1 inside `pub enum EditError`.
+**186 variants**, counted at depth 1 inside `pub enum EditError`.
+`RunningText(RunningTextError)` wraps `stamp_running_text`'s request errors.
 (`NotARadioGroup` and `WidgetAlreadyInField`, Pass 582.0, are the newest; `SourcePageOutOfRange`: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 

@@ -116,6 +116,9 @@
 // three CI jobs without telling anyone.
 pub mod imposition;
 
+/// Print-time colour output (composite grey, black-only). Pure, not gated.
+pub mod output_color;
+
 // The `DEVMODE` model — the driver's own settings structure, sourced
 // from the driver rather than synthesised. Also deliberately NOT
 // `cfg`-gated: the amend-a-DEVMODE logic is where the bugs are, it is

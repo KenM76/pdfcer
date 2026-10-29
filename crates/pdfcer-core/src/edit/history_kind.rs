@@ -276,6 +276,7 @@ kind_codec! {
     AddText,
     StampBates,
     RemoveBates,
+    StampRunningText,
     PlaceText { pages: usize },
     AddOcrLayer,
     RemoveOcrLayer,

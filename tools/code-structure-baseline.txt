@@ -342,7 +342,6 @@ fn pdfcer-core/src/edit.rs::set_page_tabs
 fn pdfcer-core/src/edit.rs::set_text_annot_style
 fn pdfcer-core/src/edit.rs::sign_impl
 fn pdfcer-core/src/edit.rs::stage_layer_edit
-fn pdfcer-core/src/edit.rs::stamp_bates
 fn pdfcer-core/src/edit.rs::unembed_fonts
 fn pdfcer-core/src/edit.rs::unshare_form
 fn pdfcer-core/src/edit.rs::vector_surgery_inner

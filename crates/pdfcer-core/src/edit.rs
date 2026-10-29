@@ -157,6 +157,7 @@ mod node_shape;
 mod ocr_layer_write;
 mod page_import;
 mod restack;
+mod running_text;
 mod stroke_style;
 mod widget_angle;
 pub use annot_restyle::{
@@ -923,6 +924,9 @@ pub enum CommandKind {
     /// One Bates removal ([`EditSession::remove_bates`]): the stamped pages'
     /// `/Contents` and `/Resources` restored without the labels.
     RemoveBates,
+    /// One header or footer ([`EditSession::stamp_running_text`]): a shared
+    /// font and `q` stream plus one line stream per stamped page.
+    StampRunningText,
     /// One plain-text IMPORT: `pages` blank pages were created and the text was
     /// poured into them, all as ONE undo entry
     /// ([`EditSession::place_text`]).
@@ -9936,6 +9940,10 @@ pub enum EditError {
     /// ([`EditSession::add_3d_annotation`]).
     #[error(transparent)]
     ThreeD(#[from] crate::threed::ThreeDEmbedError),
+    /// A header or footer that cannot be written
+    /// ([`EditSession::stamp_running_text`]).
+    #[error(transparent)]
+    RunningText(#[from] crate::running_text::RunningTextError),
 }
 
 /// Find every occurrence of `needle` in `hay`, returned as `(start, end)`
@@ -15232,18 +15240,9 @@ impl EditSession {
         stamp: &crate::bates::BatesStamp,
         first: u64,
     ) -> Result<crate::bates::BatesOutcome, EditError> {
-        use crate::bates::{
-            BatesError, BatesOutcome, helvetica_width, label_content, label_matrix, winansi_bytes,
-        };
+        use crate::bates::{BatesError, BatesOutcome, winansi_bytes};
 
-        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
-            return Err(EditError::DocumentEncrypted);
-        }
-        self.check_certification()?;
-        let suppressed = self.base.suppressed_object_count();
-        if suppressed > 0 {
-            return Err(EditError::ObjectCreationWouldExposeHiddenObjects { count: suppressed });
-        }
+        self.check_page_stamp()?;
         stamp.numbering.check()?;
         let finite = stamp.margin.is_finite() && stamp.font_size.is_finite();
         if !finite || stamp.margin < 0.0 || stamp.font_size <= 0.0 {
@@ -15277,64 +15276,21 @@ impl EditSession {
         let first_label = stamp.numbering.label(first)?;
         let last_label = stamp.numbering.label(last)?;
 
-        let mut objects = Vec::new();
-        let mut wrap = None;
-        let font_id = ObjId::new(self.alloc_number()?, 0);
-        let mut font = Dict::new();
-        for (k, v) in [
-            (&b"Type"[..], &b"Font"[..]),
-            (b"Subtype", b"Type1"),
-            (b"BaseFont", b"Helvetica"),
-            (b"Encoding", b"WinAnsiEncoding"),
-        ] {
-            font.insert(Name::from(k), Object::Name(Name::from(v)));
-        }
-        objects.push(ObjectWrite {
-            id: font_id,
-            before: None,
-            after: Some(Object::Dict(font)),
-        });
-
+        let mut labels = Vec::with_capacity(selected.len());
         for (offset, &index) in (0u64..).zip(&selected) {
-            let Some(page) = pages.get(index) else {
-                continue;
-            };
-            let label = winansi_bytes(&stamp.numbering.label(first + offset)?);
-            let width = helvetica_width(&label) * stamp.font_size;
-            let m = label_matrix(
-                page.crop_box,
-                page.rotate,
-                stamp.position,
-                stamp.margin,
-                stamp.font_size,
-                width,
-            );
-            let mut resources = page.resources.clone();
-            let font_name = self.free_name_in(&resources, b"Font", "Bates");
-            self.put_resource(
-                &mut resources,
-                b"Font",
-                &font_name,
-                Object::Reference(font_id),
-            );
-            let content = label_content(&font_name, m, &label);
-            let label_id = self.new_stream(Dict::new(), &content, &mut objects)?;
-
-            let before = self.value(page.id).cloned();
-            let mut updated = self
-                .graph()
-                .resolved(page.id)
-                .as_dict()
-                .cloned()
-                .unwrap_or_default();
-            updated.insert(Name::from(b"Resources"), Object::Dict(resources));
-            self.append_page_content(&mut updated, label_id, &mut wrap, &mut objects)?;
-            objects.push(ObjectWrite {
-                id: page.id,
-                before,
-                after: Some(Object::Dict(updated)),
-            });
+            labels.push((
+                index,
+                winansi_bytes(&stamp.numbering.label(first + offset)?),
+            ));
         }
+        let style = running_text::LabelStyle {
+            position: stamp.position,
+            margin: stamp.margin,
+            font_size: stamp.font_size,
+            subtype: b"Bates",
+            font_prefix: "Bates",
+        };
+        let objects = self.write_page_labels(&pages, &labels, &style)?;
         self.commit(Command {
             kind: CommandKind::StampBates,
             objects,

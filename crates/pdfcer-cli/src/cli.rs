@@ -3817,8 +3817,11 @@ pub(crate) enum Command {
     /// irreversible, consumes paper, and occupies a device other people
     /// may share.
     Print {
-        /// Input PDF.
-        input: PathBuf,
+        /// Input PDF(s). Several print one after another; a file that
+        /// fails is named and the rest still print, and the exit code is
+        /// that of the first failure.
+        #[arg(required = true, num_args = 1..)]
+        input: Vec<PathBuf>,
         /// Printer name, as `list-printers` reports it. Defaults to the
         /// system default printer.
         #[arg(long)]
@@ -3892,6 +3895,25 @@ pub(crate) enum Command {
         /// any option not given here and reported on stderr.
         #[arg(long)]
         ignore_document_presets: bool,
+        /// Print in colour, as composite grey, or with every mark that is
+        /// not white in solid black. Changes the printed copy only.
+        #[arg(long, value_enum, default_value_t = crate::print_output::ColorArg::Color)]
+        color: crate::print_output::ColorArg,
+        /// A line printed at the top of every page. `{page}` becomes the
+        /// page number and `{pages}` the page count. Printed copy only; the
+        /// file is not changed. Helvetica, so Latin-1 characters only.
+        #[arg(long, value_name = "TEXT")]
+        header: Option<String>,
+        /// Where along the top edge `--header` sits.
+        #[arg(long, value_enum, default_value_t = crate::print_output::AlignArg::Center)]
+        header_align: crate::print_output::AlignArg,
+        /// A line printed at the bottom of every page, e.g. "Page {page}
+        /// of {pages}". Same rules as `--header`.
+        #[arg(long, value_name = "TEXT")]
+        footer: Option<String>,
+        /// Where along the bottom edge `--footer` sits.
+        #[arg(long, value_enum, default_value_t = crate::print_output::AlignArg::Center)]
+        footer_align: crate::print_output::AlignArg,
         /// Which sheet to print on: a form ID or a form NAME, as
         /// `list-paper-sizes` reports them.
         ///
