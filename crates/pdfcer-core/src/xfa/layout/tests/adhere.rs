@@ -64,3 +64,78 @@ fn adhesion_does_not_cross_a_parent_boundary() {
     assert_eq!(pages_with(&l, "p2"), [0]);
     assert_eq!(rect(&l.pages[1], "q").y, 36.0);
 }
+
+const PAGE_KEEP: &str = r#"<keep next="pageArea"/>"#;
+const TWO_AREAS: &str = r#"<pageSet><pageArea name="P"><contentArea x="36pt" y="36pt" w="540pt" h="360pt"/>
+    <contentArea x="36pt" y="400pt" w="540pt" h="360pt"/></pageArea></pageSet>"#;
+
+/// `a1`, `a2` (keep next by page) and `a3`, top-level or inside `o`.
+fn page_kept(page: &str, a1: u32, nested: bool, opts: &LayoutOptions) -> XfaLayout {
+    let fields = [
+        field("a1", a1, ""),
+        field("a2", 100, PAGE_KEEP),
+        field("a3", 100, ""),
+    ]
+    .concat();
+    let body = if nested {
+        format!(r#"<subform name="o" layout="tb">{fields}</subform>"#)
+    } else {
+        fields
+    };
+    lay_with(
+        &format!(r#"<subform name="f" layout="tb">{page}{body}</subform>"#),
+        opts,
+    )
+    .unwrap()
+}
+
+fn area_of(l: &XfaLayout, name: &str) -> (usize, Option<usize>) {
+    l.pages
+        .iter()
+        .enumerate()
+        .find_map(|(n, p)| {
+            p.items
+                .iter()
+                .find(|i| i.name.as_deref() == Some(name))
+                .map(|i| (n, i.content_area))
+        })
+        .unwrap()
+}
+
+#[test]
+fn a_page_area_keep_holds_at_a_page_end_unless_laid_as_adobe() {
+    let adobe = LayoutOptions::new().with_page_area_keep(PageAreaKeep::Adobe);
+    for nested in [false, true] {
+        let spec = page_kept(PAGE, 600, nested, &LayoutOptions::new());
+        assert_eq!(pages_with(&spec, "a2"), [1], "nested={nested}");
+        let a2 = path_of(&spec, "a2");
+        assert_eq!(
+            spec.warnings,
+            [LayoutWarning::PageAreaKeep { path: a2 }],
+            "nested={nested}"
+        );
+        let ours = page_kept(PAGE, 600, nested, &adobe);
+        assert_eq!(pages_with(&ours, "a2"), [0], "nested={nested}");
+        assert_eq!(pages_with(&ours, "a3"), [1], "nested={nested}");
+        assert!(!ours.warnings.is_empty(), "disclosed either way");
+    }
+}
+
+#[test]
+fn a_page_area_keep_lets_the_pair_part_between_areas_of_one_page() {
+    for nested in [false, true] {
+        let l = page_kept(TWO_AREAS, 200, nested, &LayoutOptions::new());
+        assert_eq!(area_of(&l, "a2"), (0, Some(0)), "nested={nested}");
+        assert_eq!(area_of(&l, "a3"), (0, Some(1)), "nested={nested}");
+    }
+}
+
+fn path_of(l: &XfaLayout, name: &str) -> Vec<usize> {
+    l.pages
+        .iter()
+        .flat_map(|p| &p.items)
+        .find(|i| i.name.as_deref() == Some(name))
+        .unwrap()
+        .path
+        .clone()
+}

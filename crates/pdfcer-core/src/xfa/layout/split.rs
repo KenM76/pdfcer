@@ -2,6 +2,7 @@
 //! pp.290-295).
 
 use super::LayoutRect;
+use super::adhere::holds;
 use super::geometry::{ItemFlags, Placed};
 
 /// Tolerance for an edge that lies on a split line.
@@ -38,15 +39,16 @@ impl Cut {
 /// part keeps the items above the line; a breakable item crossing it is cut
 /// in two. A line falling between two adhering siblings moves into the
 /// earlier one: it is cut when breakable and moves with its partner when
-/// not (pp.311-314). `Err(p)` when `p` is unbreakable or no line above
+/// not (pp.311-314); a pair adhering by page only when `page_end`, the
+/// line ending the page (gap G-L12). `Err(p)` when `p` is unbreakable or no line above
 /// `room` leaves content in the first part and content in the second
 /// (never a split inside a margin, p.290).
-pub(super) fn split(p: Placed, room: f64) -> Result<Cut, Placed> {
+pub(super) fn split(p: Placed, room: f64, page_end: bool) -> Result<Cut, Placed> {
     if !p.flags.first().is_some_and(|f| f.breakable) || room <= EPS {
         return Err(p);
     }
     let mut s = room;
-    while let Some(y) = blocker(&p, s) {
+    while let Some(y) = blocker(&p, s, page_end) {
         s = y;
     }
     let above = p
@@ -96,7 +98,7 @@ pub(super) fn split(p: Placed, room: f64) -> Result<Cut, Placed> {
 
 /// The highest line above `s` that the item or adhering pair `s` would
 /// break must move to, if any.
-fn blocker(p: &Placed, s: f64) -> Option<f64> {
+fn blocker(p: &Placed, s: f64, page_end: bool) -> Option<f64> {
     let crosses = |r: &LayoutRect| r.y + EPS < s && s < r.y + r.h - EPS;
     let cut = p
         .items
@@ -111,7 +113,9 @@ fn blocker(p: &Placed, s: f64) -> Option<f64> {
         .zip(&p.flags)
         .enumerate()
         .filter_map(|(j, (b, f))| {
-            let k = j.checked_sub(f.glue).filter(|_| f.glue > 0)?;
+            let k = j
+                .checked_sub(f.glue)
+                .filter(|_| f.glue > 0 && holds(f.hold, page_end))?;
             let (a, af) = (p.items.get(k)?, p.flags.get(k)?);
             let bottom = a.rect.y + a.rect.h;
             (bottom <= s + EPS && b.rect.y >= s - EPS && a.rect.h > EPS).then_some(

@@ -73,7 +73,7 @@ impl super::Run<'_, '_> {
         let mut reserve = self.trailer_height(ov, ov.chain(false));
         let mut tries = 0;
         let (mut cut, who) = loop {
-            let Ok(cut) = split(p.clone(), room - reserve) else {
+            let Ok(cut) = split(p.clone(), room - reserve, self.page_ends_here()) else {
                 return Err(p);
             };
             let who = self.overflowers(ov, nest, &cut);

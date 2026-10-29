@@ -1,7 +1,7 @@
 //! Positioned placement of one template subtree (XFA 3.3 Ch.7 pp.264-268,
 //! Ch.8 pp.275-279; box model Ch.2 pp.49-55).
 
-use super::adhere::{Keep, adheres};
+use super::adhere::{Hold, Keep, adheres};
 use super::flow::{Flow, is_flow};
 use super::{LayoutItem, LayoutOptions, LayoutRect, LayoutWarning, NegativeCoordinates};
 use crate::xfa::{AnchorType, ContainerKind, LayoutStrategy, Measurement, Presence, XfaNode};
@@ -88,6 +88,8 @@ pub(super) struct ItemFlags {
     /// How many items back its previous `tb` sibling sits, when the two
     /// adhere (Ch.8 pp.311-314); 0 when it adheres to none.
     pub(super) glue: usize,
+    /// How strongly it adheres to that sibling.
+    pub(super) hold: Hold,
 }
 
 /// Lay `node` (at `path`) positioned at `origin`, appending its items.
@@ -257,14 +259,14 @@ fn lay_one(
     items.extend(laid);
     let mut flags = vec![ItemFlags {
         breakable: breaks(node, kind, strategy),
-        glue: 0,
+        ..ItemFlags::default()
     }];
     flags.extend(kid_breaks);
     Some(Placed {
         rect,
         items,
         flags,
-        keep: Keep::of(node),
+        keep: Keep::of(ctx, node, path),
         path: path.to_vec(),
     })
 }
@@ -322,9 +324,10 @@ fn arrange(
         let mut kf = k.flags;
         if let (Some((at, keep)), Some(f)) = (prev, kf.first_mut())
             && strategy == LayoutStrategy::Tb
-            && adheres(keep, k.keep)
+            && adheres(keep, k.keep) > Hold::None
         {
             f.glue = start - at;
+            f.hold = adheres(keep, k.keep);
         }
         prev = Some((start, k.keep));
         let (x, y) = if is_flow(strategy) {

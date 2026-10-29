@@ -730,7 +730,8 @@ with every `warnings` entry.
     are not split yet.
   - Under a `tb` root, adjacent top-level instances adhere when the first
     has `keep@next` or the second `keep@previous` (`contentArea`, or
-    `pageArea`, laid as `contentArea`). A chain that cannot start in the
+    `pageArea` per `PageAreaKeep`; disagreeing sides take the stricter
+    `contentArea`). A chain that cannot start in the
     rest of a non-empty area moves to the next one together; a splittable
     member is split and only its top fragment adheres. A chain too tall for
     an empty area stays together and runs past its bottom
@@ -801,6 +802,9 @@ with every `warnings` entry.
     and not splittable there, was placed past its bottom edge.
   - `ContentDiscarded { path }`: the page areas ran out. This one must be
     disclosed.
+  - `PageAreaKeep { path }`: a `keep` asserts `pageArea`, which Adobe
+    ignores; disclosed under either setting, since the two readings can
+    lay the form differently.
   - `PageLimit` and `ItemLimit`: the ceilings are `MAX_LAYOUT_PAGES` (10 000)
     and `MAX_LAYOUT_ITEMS` (200 000).
 - **Options.** `LayoutOptions::new()`:
@@ -808,6 +812,10 @@ with every `warnings` entry.
   - `.with_nested_overflow(NestedOverflow::{Innermost (default), EachAsserting})`:
     which cut subforms lay overflow leaders and trailers at a split. XFA 3.3
     Ex 8.43 is ambiguous here; `#[non_exhaustive]`.
+  - `.with_page_area_keep(PageAreaKeep::{Spec (default), Adobe})`: a
+    `pageArea` keep holds a pair on one page (it may part between content
+    areas of that page), or is ignored as Adobe does (gap G-L12);
+    `#[non_exhaustive]`.
 - **Errors.** `LayoutError` is `NoRootSubform` or `NoPageArea`; the latter is
   fatal per XFA. No shell calls this yet; the CLI report is 647.5.
 

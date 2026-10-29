@@ -19,6 +19,8 @@
 //! [`LayoutWarning::FlowedLayoutPending`].
 
 mod adhere;
+
+pub use adhere::PageAreaKeep;
 mod bookend;
 mod flow;
 mod geometry;
@@ -83,6 +85,8 @@ pub struct LayoutOptions {
     pub negative_coordinates: NegativeCoordinates,
     /// Gap G-L21.
     pub nested_overflow: NestedOverflow,
+    /// Gap G-L12.
+    pub page_area_keep: PageAreaKeep,
 }
 
 impl LayoutOptions {
@@ -103,6 +107,13 @@ impl LayoutOptions {
     #[must_use]
     pub const fn with_nested_overflow(mut self, v: NestedOverflow) -> Self {
         self.nested_overflow = v;
+        self
+    }
+
+    /// Set [`Self::page_area_keep`].
+    #[must_use]
+    pub const fn with_page_area_keep(mut self, v: PageAreaKeep) -> Self {
+        self.page_area_keep = v;
         self
     }
 }
@@ -236,6 +247,12 @@ pub enum LayoutWarning {
     /// not splittable there, was placed past the area's bottom edge (Ch.8
     /// p.295).
     ContentOverflow {
+        /// Its template path.
+        path: Vec<usize>,
+    },
+    /// A `keep` asserts `pageArea`, which Adobe ignores; laid per
+    /// [`LayoutOptions::page_area_keep`] (gap G-L12).
+    PageAreaKeep {
         /// Its template path.
         path: Vec<usize>,
     },
