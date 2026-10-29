@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-28 (1283rd filing) — `Pass 647.2` SIXTH CUT on `f6e76272` (XFA bookend leaders/trailers; Pass NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 647.2` sixth cut, `f6e76272bbc8ad84716876b4235c936765a6f9c5`: `bookend@leader`/`@trailer` laid as a subform's or subformSet's first and last content once per instance (XFA 3.3 Ch.8 pp.317-318); a split puts the leader in the first fragment and the trailer in the last; combined with overflow leaders/trailers in the Ex 8.46 order (pp.326-327); the root's bookends open and close the document. A bookend is ordinary content (G-L25); attributes read as named (G-L24). Unresolvable or cyclic targets skipped with new `LayoutWarning::InvalidBookendTarget { path, target }`. New `xfa/layout/bookend.rs`; `Ctx` carries the template root and a cycle stack. Core only; no CLI caller (`647.5`).
+- Evidence: 5 new tests, all fail with bookend resolution disabled; `pdfcer-core` 2051 + 3112 + 255 passed; fmt, clippy, structure (563, none new), core-api-verbs clean; no manifest change. Fuzz: `xfa_packets` 90 s run (in progress at filing; engineer will correct this log if it finds anything).
+- ROADMAP: `Pass 647.2` gained a sixth-cut block, stays in Next up. `FEATURES.md`: "Dynamic XFA, reading" row extended to the sixth cut; boxes unchanged (`[x]`/`[ ]`/`[ ]`).
+- Housekeeping: the "Blend modes" FEATURES row (over the 1,200-character cap after the 1282nd filing) was trimmed to under the cap; the removed detail moved into the `Pass 646.29` ROADMAP entry.
+
+**Decisions / findings:** no new decision (204), no new R-rule.
+
+**Still in flight:** 647.2 remaining: `overflow@target`; nested overflow in a split; nested adhesion; `lr-tb` adhesion (G-L14); G-L12 `pageArea`; field/draw text splitting.
+
+**For next session:** continue `Pass 647.2`, slow pacing. Next free `Pass 646.30`, `647.8`; decision 206, R251 (relay, not re-run). Next filing 1284th. Push, CI and backup state not checked from here.
+
 ## 2026-10-28 (1282nd filing) — `Pass 646.29` on `8bffabb9` (isolated group blends in its own `/CS`, X012)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
