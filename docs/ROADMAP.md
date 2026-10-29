@@ -26298,7 +26298,7 @@ closes out the *prior* filing's business rather than opening this one's.
 - **Gaps:** G-L25: a bookend is ordinary content (sizes its subform; no reservation, inheritance or occurrence limit). G-L24: the attributes are read as named (p.625's grammar notes are swapped).
 - **Targets:** a target naming no single subform, or one already being laid as a bookend further up (cycle guard), is skipped with new `LayoutWarning::InvalidBookendTarget { path, target }`.
 - **core-api:** `docs/core-api/03-capabilities.md` updated in the same commit; `check-core-api-verbs` passes.
-- **Evidence (engineer):** 5 new tests in `xfa/layout/tests.rs`; all 5 fail with bookend resolution disabled (sabotage), pass restored; `pdfcer-core` 2051 + 3112 + 255 passed, 0 failed; fmt, clippy `-D warnings`, `check-code-structure` (563 baseline, none new) clean; no manifest change, `cargo tree` unaffected; fuzz: `xfa_packets` 90 s run (result pending at filing; engineer will correct the log if it finds anything).
+- **Evidence (engineer):** 5 new tests in `xfa/layout/tests.rs`; all 5 fail with bookend resolution disabled (sabotage), pass restored; `pdfcer-core` 2051 + 3112 + 255 passed, 0 failed; fmt, clippy `-D warnings`, `check-code-structure` (563 baseline, none new) clean; no manifest change, `cargo tree` unaffected; fuzz: `xfa_packets` 90 s run, 99,713 runs, no crash.
 - **REMAINING in 647.2 after the sixth cut:** `overflow@target`; nested overflow inside a split; nested adhesion; `lr-tb` adhesion (G-L14); the G-L12 `pageArea` keep setting; field/draw text splitting.
 
 ---
