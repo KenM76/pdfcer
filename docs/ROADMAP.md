@@ -126,6 +126,17 @@ Engineer-reported; no shell here, nothing checked from here. Single code commit 
 - **Delivers:** core yes; cli no; gui no (no renderer or CLI caller yet).
 - **FEATURES:** "Dynamic XFA, reading" row notes the core layout model; the layout-and-drawing row stays all `[ ]` (nothing draws or reports it). Next up head `Pass 647.2`.
 
+### `8bffabb9` `Pass 646.29` SHIPPED, 2026-10-28: an isolated transparency group blends in its own declared `/CS` (`X012`) (1282nd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `8bffabb9db2ff33b8917b46f625b8b433123c18a` "fix(render): an isolated group blends in its own declared /CS (X012)", on main, unreleased (after `v0.102.0`). Requester: the operator (crates consumer), `request_X012_an_isolated_group_blends_in_its_own_declared_space.md`; reply (outside the repo): `reply_X012_isolated_group_blends_in_its_own_space_SHIPPED.md`. Spec-correctness bug fix, ISO 32000-2 §11.3.4 and §11.4.7 Table 147 (`CS`); no new decision. Reasoning is in the commit message. `646.29` was free on grep (only "next free" mentions).
+- **Fix:** new `Canvas::group_in_space` (`pub(crate)`, `crates/pdfcer-render/src/canvas/group_space.rs`). A CMYK isolated group on an sRGB canvas runs in its own colorant buffer and is converted to sRGB as its result. An RGB isolated group on a CMYK page runs in a pixmap and is bridged into ink. A knockout group runs inside the new buffer. A recording refuses with `ColorantBuffer`. Non-isolated groups, and groups with no `/CS`, are unchanged.
+- **Test:** `tests/isolated_group_blends_in_its_own_space.rs` (6). With the switch disabled 4 fail; the 2 guards stay green by design.
+- **Tests (engineer):** `pdfcer-render` and `pdfcer-cli` suites green: 47 + 980 (2 ignored) + 516 + 601 + 25. fmt, clippy `-D warnings`, structure gate clean (563 baseline, none new). Full `run-gates.sh` not reported.
+- **Invariant:** no manifest changed, so `cargo tree` unaffected; `core-api` untouched (`pub(crate)` only).
+- **Delivers:** core (render) yes; cli yes (`render-page` inherits it); gui no (what the canvas draws changes, no call to wire).
+- **FEATURES:** the "Blend modes" row notes the isolated group's own `/CS` is honoured in both directions; boxes unchanged.
+- Nothing minted. Next free `Pass 646.30`, `647.8`; decision and `R` numbers not re-run here (last relayed: decision 206, R251); next filing 1283rd.
+
 ### `19fb00c0` `Pass 646.28` SHIPPED, 2026-10-28: a gray `ICCBased` colour converts through the CMYK output intent (`X011`) (1274th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `19fb00c0` "fix(render): a gray ICCBased colour converts through the CMYK output intent (X011)", on main, unreleased (after `v0.102.0`). Requester: the operator (crates consumer), `request_X011_*.md`; reply (outside the repo): `reply_X011_gray_iccbased_through_the_output_intent_SHIPPED.md`. Bug fix under decision 202; no new decision. Reasoning is in the commit message. `646.28` was free on grep (only "next free" mentions).

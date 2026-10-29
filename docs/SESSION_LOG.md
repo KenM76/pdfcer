@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-28 (1282nd filing) — `Pass 646.29` on `8bffabb9` (isolated group blends in its own `/CS`, X012)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 646.29`, `8bffabb9db2ff33b8917b46f625b8b433123c18a`: `Canvas::group_in_space` (`pub(crate)`) runs an isolated group in its own declared `/CS` (CMYK group on sRGB canvas via colorant buffer; RGB group on CMYK page via pixmap bridged to ink; knockout inside the buffer; recording refuses with `ColorantBuffer`). Non-isolated and no-`/CS` groups unchanged. ISO 32000-2 §11.3.4, §11.4.7 Table 147.
+- Evidence: 6 new tests, 4 fail with the switch off (2 guards by design); render + cli suites green (47 + 980 + 516 + 601 + 25); fmt, clippy, structure (563, none new) clean; no manifest or core-api change.
+- ROADMAP: new Shipped entry. `FEATURES.md`: "Blend modes" row extended; boxes unchanged.
+
+**Decisions / findings:** no new decision, no new R-rule.
+
+**For next session:** next free `Pass 646.30`, `647.8`; decision 206, R251 (relay, not re-run). Next filing 1283rd. Push, CI and backup state not checked from here.
+
 ## 2026-10-28 (1281st filing) — `Pass 647.2` FIFTH CUT on `1abf9d5e` (XFA inherited overflow leaders/trailers; Pass NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
