@@ -4,6 +4,7 @@ use std::collections::VecDeque;
 
 use super::LayoutWarning;
 use super::bookend::bookend;
+use super::flow::{Flow, is_flow};
 use super::geometry::{Ctx, Placed, instances, is_placeable};
 use super::split::split;
 use crate::xfa::{LayoutStrategy, XfaNode};
@@ -99,6 +100,16 @@ pub(super) fn chain_fits(chain: &[&Placed], mut room: f64, page_end: bool) -> bo
     true
 }
 
+/// Whether the adhering `chain` tiles whole into the rest of a `height`
+/// tall area from `flow` (a tiled root never splits, Ch.8 p.281).
+fn tiles_fit(mut flow: Flow, chain: &[&Placed], height: f64) -> bool {
+    chain.iter().all(|p| {
+        let (_, y) = flow.slot(p.rect.w);
+        flow.commit(p.rect.w, p.rect.h);
+        y + p.rect.h <= height
+    })
+}
+
 /// Does a pair adhering by `h` have to stay together at the end of a
 /// content area (`page_end`: the last on its page)?
 pub(super) fn holds(h: Hold, page_end: bool) -> bool {
@@ -115,10 +126,11 @@ struct Pending {
 impl<'t: 'o, 'o> super::Run<'t, 'o> {
     /// Lay the root's children in order, with their breaks. Adjacent
     /// instances that adhere (a `subformSet` is transparent, Ch.9 p.357) are
-    /// held off together. Only a `tb` root enforces adhesion yet; an
-    /// explicit break wins (gap G-L27).
+    /// held off together by any flowed root (`tb`, `lr-tb`, `rl-tb`: a
+    /// break can fall between flow neighbours only at a region change, gap
+    /// G-L14); an explicit break wins (gap G-L27).
     pub(super) fn place_children(&mut self, root: &'t XfaNode, root_path: &[usize]) {
-        let enforce = self.root_strategy == LayoutStrategy::Tb;
+        let enforce = is_flow(self.root_strategy);
         let (mut meta, mut queue) = (Vec::new(), VecDeque::new());
         let mut prev: Option<(&XfaNode, Keep)> = None;
         for (c, path, placed) in self.root_entries(root, root_path) {
@@ -188,7 +200,6 @@ impl<'t: 'o, 'o> super::Run<'t, 'o> {
             && let Some(ca) = self.content_area()
             && !self.current_empty()
         {
-            let room = ca.h - self.flow.slot(p.placed.rect.w).1;
             let chain: Vec<&Placed> = std::iter::once(&p.placed)
                 .chain(
                     rest.iter()
@@ -196,7 +207,13 @@ impl<'t: 'o, 'o> super::Run<'t, 'o> {
                         .map(|n| &n.placed),
                 )
                 .collect();
-            if !chain_fits(&chain, room, self.page_ends_here()) {
+            let fits = if self.root_strategy == LayoutStrategy::Tb {
+                let room = ca.h - self.flow.slot(p.placed.rect.w).1;
+                chain_fits(&chain, room, self.page_ends_here())
+            } else {
+                tiles_fit(self.flow, &chain, ca.h)
+            };
+            if !fits {
                 self.area_index += 1;
             }
         }

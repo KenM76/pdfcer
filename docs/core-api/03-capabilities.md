@@ -728,7 +728,7 @@ with every `warnings` entry.
     line is cut too. Each part is a separate `LayoutItem` with the same
     `path`, so one container can appear on several pages. Fields and draws
     are not split yet.
-  - Under a `tb` root, adjacent top-level instances adhere when the first
+  - Under a flowed root, adjacent top-level instances adhere when the first
     has `keep@next` or the second `keep@previous` (`contentArea`, or
     `pageArea` per `PageAreaKeep`; disagreeing sides take the stricter
     `contentArea`). A chain that cannot start in the
@@ -741,8 +741,10 @@ with every `warnings` entry.
     split line never falls between them, so the earlier one is cut when
     splittable and moves with its partner when not. Adhesion never crosses
     a parent's boundary. If no line is left above the pair, the whole
-    instance moves. Adhesion inside an `lr-tb`/`rl-tb` flow is not enforced
-    yet.
+    instance moves. An `lr-tb`/`rl-tb` root enforces it too: a pair a row
+    wrap would part across areas moves to the next area together (a tiled
+    root never splits). Inside a tiled subform adhesion has no effect,
+    since no break can fall there.
   - **Overflow leaders and trailers** (`overflow@leader`/`@trailer`) of a
     top-level subform: each split lays the trailer right after the top part
     and the leader at the top of the next area. The trailer's height is

@@ -139,3 +139,29 @@ fn path_of(l: &XfaLayout, name: &str) -> Vec<usize> {
         .path
         .clone()
 }
+
+/// `a1` filling a row, then `a2` (keep next by `keep`) and a row-wide `a3`
+/// whose row runs past the area, in a tiled root.
+fn tiled(strategy: &str, keep: &str) -> XfaLayout {
+    let tile = |n: &str, w: u32, h: u32, k: &str| {
+        format!(r#"<field name="{n}" w="{w}pt" h="{h}pt">{k}</field>"#)
+    };
+    lay(&format!(
+        r#"<subform name="f" layout="{strategy}">{PAGE}{}{}{}</subform>"#,
+        tile("a1", 540, 600, ""),
+        tile("a2", 100, 100, keep),
+        tile("a3", 540, 100, "")
+    ))
+}
+
+#[test]
+fn a_tiled_root_moves_an_adhering_pair_its_row_wrap_would_part() {
+    for s in ["lr-tb", "rl-tb"] {
+        let l = tiled(s, KEEP);
+        assert_eq!(pages_with(&l, "a2"), [1], "{s}: moves with a3");
+        assert_eq!(rect(&l.pages[1], "a2").y, 36.0, "{s}");
+        assert_eq!(rect(&l.pages[1], "a3").y, 136.0, "{s}");
+        let free = tiled(s, "");
+        assert_eq!(pages_with(&free, "a2"), [0], "{s}: without keep");
+    }
+}
