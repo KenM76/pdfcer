@@ -1327,7 +1327,7 @@ pub(crate) enum GltfUpArg {
 /// 32000-1 Table 309).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum ThreeDLightingArg {
-    /// `cad` for a model converted from glTF, which carries no lights;
+    /// CAD lighting for a model converted from glTF, which carries no lights;
     /// otherwise no view is written and the model's own lights apply
     /// (default).
     #[default]
