@@ -237,6 +237,35 @@ impl super::Run<'_, '_> {
         parts
     }
 
+    /// Move on after the instance at `at` splits: to its own
+    /// `overflow@target`, a `contentArea` (looked for first) or `pageArea`
+    /// of the root `pageSet`, else to the next content area (Ch.17 p.791,
+    /// Ch.9 p.366). The target is not inherited; only leaders and trailers
+    /// are (p.323). One naming no single area warns and moves on normally.
+    pub(super) fn overflow_move(&mut self, at: &[usize]) {
+        let target = resolve(self.root, &[], at)
+            .and_then(|n| n.child("overflow"))
+            .and_then(|o| o.attr("target"))
+            .map(str::trim)
+            .filter(|t| !t.is_empty())
+            .map(str::to_owned);
+        let Some(t) = target else {
+            self.area_index += 1;
+            return;
+        };
+        if ["contentArea", "pageArea"]
+            .iter()
+            .any(|kind| self.break_to_target(&t, kind, false))
+        {
+            return;
+        }
+        self.ctx.warn(LayoutWarning::InvalidOverflowTarget {
+            path: at.to_vec(),
+            target: t,
+        });
+        self.area_index += 1;
+    }
+
     /// Lay `parts` one after another in the current area's flow.
     pub(super) fn put_parts(&mut self, parts: Vec<Placed>, ca: super::LayoutRect) {
         for p in parts {

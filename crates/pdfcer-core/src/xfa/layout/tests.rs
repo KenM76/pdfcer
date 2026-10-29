@@ -686,3 +686,55 @@ fn a_bad_or_cyclic_bookend_target_is_skipped_with_a_warning() {
         .collect();
     assert_eq!(bad, ["#C", "#nope"]);
 }
+
+#[test]
+fn overflow_target_names_the_page_area_each_split_moves_to() {
+    let l = lay(&format!(
+        r##"<subform name="f" layout="tb"><pageSet>
+          <pageArea name="P"><contentArea w="540pt" h="720pt"/></pageArea>
+          <pageArea id="Q" name="Q"><contentArea w="540pt" h="720pt"/></pageArea></pageSet>{}</subform>"##,
+        tall("d", 6, r##"<overflow target="#Q"/>"##),
+    ));
+    assert_eq!(page_names(&l), ["P", "Q", "Q"]);
+    assert!(l.warnings.is_empty(), "{:?}", l.warnings);
+}
+
+#[test]
+fn overflow_target_can_skip_ahead_to_a_content_area_on_the_same_page() {
+    let l = lay(&format!(
+        r#"<subform name="f" layout="tb"><pageSet><pageArea name="P">
+          <contentArea name="A" w="540pt" h="350pt"/>
+          <contentArea name="B" y="350pt" w="540pt" h="350pt"/>
+          <contentArea name="C" y="700pt" w="540pt" h="350pt"/></pageArea></pageSet>{}</subform>"#,
+        tall("d", 3, r#"<overflow target="C"/>"#),
+    ));
+    let areas = |page: &LayoutPage| -> Vec<usize> {
+        page.items
+            .iter()
+            .filter(|i| {
+                i.name.as_deref().is_some_and(|n| n.starts_with("d"))
+                    && i.name.as_deref() != Some("d")
+            })
+            .filter_map(|i| i.content_area)
+            .collect()
+    };
+    assert_eq!(l.pages.len(), 2);
+    assert_eq!(areas(&l.pages[0]), [0, 2], "B skipped");
+    assert_eq!(areas(&l.pages[1]), [2], "a fresh page, straight to C");
+}
+
+#[test]
+fn an_overflow_target_naming_no_area_warns_and_moves_on_normally() {
+    let l = lay(&format!(
+        r#"<subform name="f" layout="tb">{PAGE}{}</subform>"#,
+        tall("d", 4, r#"<overflow target="nowhere"/>"#),
+    ));
+    assert_eq!(l.pages.len(), 2);
+    assert_eq!(
+        l.warnings,
+        [LayoutWarning::InvalidOverflowTarget {
+            path: vec![0, 1],
+            target: "nowhere".to_owned()
+        }]
+    );
+}

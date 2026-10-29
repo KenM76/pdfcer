@@ -748,8 +748,11 @@ with every `warnings` entry.
     containing `subform`/`subformSet` that does, sharing that container's
     counts; `leader=""` blocks inheritance. An asserting subform's counts
     start at zero per instance, and once its targets are spent it falls
-    back to the inherited ones (gaps G-L22, G-L23). `overflow@target` is
-    not supported yet.
+    back to the inherited ones (gaps G-L22, G-L23). A subform's own
+    `overflow@target` (not inherited) names the `contentArea` or `pageArea`
+    each split moves to: a later content area of the same page, else a
+    fresh instance of the target's page area. One naming no single area
+    warns with `InvalidOverflowTarget` and moves on normally.
   - **Bookend leaders and trailers** (`bookend@leader`/`@trailer`) of a
     subform or subformSet: the leader is its first content and the trailer
     its last, once per instance. A split puts the leader in the first
@@ -773,7 +776,8 @@ with every `warnings` entry.
   - `QualifiedPagination`
   - `UnboundedBoilerplate { path }`
   - `InvalidBreakTarget { path, target }`
-  - `InvalidOverflowTarget { path, target }`: the list item was skipped.
+  - `InvalidOverflowTarget { path, target }`: the list item or overflow
+    target was skipped.
   - `InvalidBookendTarget { path, target }`: the bookend was skipped.
   - `MinGreaterThanMax { path, attribute }`: the values were swapped.
   - `NegativeCoordinate { path }`

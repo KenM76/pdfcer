@@ -163,7 +163,8 @@ pub enum LayoutWarning {
         target: String,
     },
     /// An `overflow@leader`/`@trailer` item names no single `subform` or
-    /// `subformSet`; it was skipped (Ch.8 p.323).
+    /// `subformSet`, or `overflow@target` no single `contentArea` or
+    /// `pageArea`; it was skipped (Ch.8 p.323, Ch.17 p.791).
     InvalidOverflowTarget {
         /// Path of the object asserting the overflow.
         path: Vec<usize>,
@@ -442,8 +443,9 @@ impl Run<'_, '_> {
     /// one more item per container it cuts, each with the same `path`.
     /// An instance `glued` to the one before stays (split, or run past the
     /// bottom) rather than move away from it (Ch.8 p.312, gap G-L15).
-    /// Each split lays the instance's overflow trailer after the top part
-    /// and its leader before the rest, with the trailer's height reserved
+    /// Each split lays the instance's overflow trailer after the top part,
+    /// moves to its `overflow@target` if any, and lays its leader before
+    /// the rest, with the trailer's height reserved
     /// while filling (Ch.8 pp.318-320). `false` once the page areas are
     /// exhausted.
     fn put(&mut self, mut p: Placed, path: &[usize], glued: bool) -> bool {
@@ -475,7 +477,7 @@ impl Run<'_, '_> {
                             let parts = self.take_overflow(o, false);
                             self.put_parts(parts, ca);
                         }
-                        self.area_index += 1;
+                        self.overflow_move(&tail.path);
                         (p, lead) = (tail, true);
                         continue;
                     }
@@ -561,7 +563,7 @@ impl Run<'_, '_> {
     /// A `#id` or plain-name target naming exactly one `pageArea` or
     /// `contentArea` of the root `pageSet`; `false` when it names none or
     /// several. Full SOM resolution is not in this pass.
-    fn break_to_target(&mut self, target: &str, kind: &str, start_new: bool) -> bool {
+    pub(super) fn break_to_target(&mut self, target: &str, kind: &str, start_new: bool) -> bool {
         let base = self.set_path.clone();
         let Some(path) = find_unique(self.set, &base, target, kind) else {
             return false;
