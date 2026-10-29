@@ -96,6 +96,8 @@ pub mod paper;
 /// §12.7.4.3 Table 228 bit 14, §7.5.6).
 pub mod password_history;
 pub mod prepress;
+/// The print presets a document carries (ISO 32000-1 §12.2 Table 150).
+pub mod print_presets;
 pub mod redact;
 mod redact_image;
 mod redact_overlay_trim;

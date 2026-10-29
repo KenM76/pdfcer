@@ -254,19 +254,15 @@ impl PrintScaleArg {
 pub(crate) fn cmd_print(
     input: &Path,
     printer: Option<&str>,
-    scale: PrintScaleArg,
-    scale_percent: Option<u32>,
-    pages_spec: &str,
+    requested: crate::print_presets::Requested,
+    ignore_presets: bool,
     send: bool,
     dpi_cap: u32,
     to_file: Option<PathBuf>,
-    copies: u16,
     uncollated: bool,
     subset: SubsetArg,
     reverse: bool,
     orientation: OrientationArg,
-    duplex: DuplexArg,
-    pick_tray: bool,
     paper: Option<&str>,
     paper_size: Option<&str>,
     printer_config: Option<&Path>,
@@ -296,6 +292,7 @@ pub(crate) fn cmd_print(
         Ok(name) => name,
         Err(code) => return code,
     };
+    let presets = pdfcer_core::print_presets::print_presets(&doc);
     let session = pdfcer_core::edit::EditSession::new(doc);
     let page_list = match session.pages() {
         Ok(p) => p,
@@ -304,7 +301,20 @@ pub(crate) fn cmd_print(
             return exit::RUNTIME_ERROR;
         }
     };
-    let selected = match parse_pages(pages_spec, page_list.len()) {
+    // The document's own print settings fill what the operator left unset
+    // (ISO 32000-1 §12.2 Table 150), each one reported.
+    let job = crate::print_presets::merge(requested, &presets, page_list.len(), ignore_presets);
+    for note in &job.notes {
+        eprintln!("pdfcer: {note}");
+    }
+    let (scale, scale_percent, copies, duplex, pick_tray) = (
+        job.scale,
+        job.scale_percent,
+        job.copies,
+        job.duplex,
+        job.pick_tray,
+    );
+    let selected = match parse_pages(&job.pages, page_list.len()) {
         Ok(s) => s,
         Err(msg) => {
             eprintln!("pdfcer: {msg}");
@@ -1618,19 +1628,15 @@ pub(crate) fn cmd_print_preview(
 pub(crate) fn cmd_print(
     _input: &Path,
     _printer: Option<&str>,
-    _scale: PrintScaleArg,
-    _scale_percent: Option<u32>,
-    _pages_spec: &str,
+    _requested: crate::print_presets::Requested,
+    _ignore_presets: bool,
     _send: bool,
     _dpi_cap: u32,
     _to_file: Option<PathBuf>,
-    _copies: u16,
     _uncollated: bool,
     _subset: SubsetArg,
     _reverse: bool,
     _orientation: OrientationArg,
-    _duplex: DuplexArg,
-    _pick_tray: bool,
     _paper: Option<&str>,
     _paper_size: Option<&str>,
     _printer_config: Option<&Path>,

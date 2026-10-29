@@ -3239,6 +3239,23 @@ printer's driver and port; `OpenDevice` for an unknown name); `printer_caps(name
 `lib.rs`; `device_features(printer) -> Result<DeviceFeatures, PrintError>`
 `lib.rs` (`supports_duplex`, `max_copies`).
 
+**The document's own print presets** (`pdfcer-core` `print_presets.rs`):
+`pdfcer_core::print_presets::print_presets<G: ObjectGraph + ?Sized>(graph: &G) -> PrintPresets`.
+Reads the catalog's `/ViewerPreferences` print entries (ISO 32000-1 §12.2
+Table 150; ISO 32000-2 Tables 147-148). `PrintPresets` (`#[non_exhaustive]`,
+`Default`, `is_empty()`): `scaling: Option<PresetScaling>` (`None` = actual
+size, `AppDefault` also for an unknown name), `scaling_enforced` (PDF 2.0
+`/Enforce [/PrintScaling]`, only with `scaling == Some(None)`),
+`duplex: Option<PresetDuplex>` (`Simplex`/`FlipShortEdge`/`FlipLongEdge`),
+`pick_tray_by_pdf_size: Option<bool>`, `page_ranges: Vec<(u32, u32)>`
+(1-based inclusive), `copies: Option<u32>` (below 1 ignored),
+`print_area`/`print_clip: Option<PresetBoundary>`, and `ignored: Vec<String>`
+naming each entry present but unusable. Never fails. A shell pre-fills its
+print dialog from it, lets the operator's choice win, and says which values
+came from the document. CLI `print` uses each one for an option not given,
+prints one stderr line per preset used, lets an enforced actual size beat
+`--scale`, and drops all of them with `--ignore-document-presets`.
+
 **Which calls can block.** For an installed printer that is unreachable (a
 WSD-port printer on another network that Windows still reports as ready) the
 spooler takes about 45–50 s to answer any per-device query. `list_printers`,

@@ -3823,16 +3823,18 @@ pub(crate) enum Command {
         /// system default printer.
         #[arg(long)]
         printer: Option<String>,
-        /// How the page is sized onto the sheet.
-        #[arg(long, value_enum, default_value_t = PrintScaleArg::Fit)]
-        scale: PrintScaleArg,
+        /// How the page is sized onto the sheet [default: fit, or actual
+        /// when the document's print settings ask for it].
+        #[arg(long, value_enum)]
+        scale: Option<PrintScaleArg>,
         /// An explicit percentage, where 100 is actual size. OVERRIDES
         /// `--scale` when given.
         #[arg(long, value_parser = clap::value_parser!(u32).range(1..=1000))]
         scale_percent: Option<u32>,
-        /// 1-based pages: `all`, `3`, `1-4`, `5,1-2`.
-        #[arg(long, default_value = "all")]
-        pages: String,
+        /// 1-based pages: `all`, `3`, `1-4`, `5,1-2` [default: all, or the
+        /// document's own print range].
+        #[arg(long)]
+        pages: Option<String>,
         /// **Actually print.** Without this the command stops before
         /// starting the job and reports what it would have done.
         #[arg(long)]
@@ -3853,9 +3855,9 @@ pub(crate) enum Command {
         /// than only a testing device.
         #[arg(long, value_name = "PATH")]
         to_file: Option<PathBuf>,
-        /// How many copies.
-        #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u16).range(1..=999))]
-        copies: u16,
+        /// How many copies [default: 1, or the document's own count].
+        #[arg(long, value_parser = clap::value_parser!(u16).range(1..=999))]
+        copies: Option<u16>,
         /// Print each page's copies together (1,1,2,2) rather than whole
         /// documents in order (1,2,1,2).
         #[arg(long)]
@@ -3873,12 +3875,23 @@ pub(crate) enum Command {
         /// Two-sided printing, if the device supports it. Never
         /// simulated: a printer that cannot duplex will print
         /// single-sided and `list-printers` says which can.
-        #[arg(long, value_enum, default_value_t = DuplexArg::Simplex)]
-        duplex: DuplexArg,
+        ///
+        /// [default: simplex, or the document's own duplex setting]
+        #[arg(long, value_enum)]
+        duplex: Option<DuplexArg>,
         /// Ask the driver to choose the input tray from each page's
-        /// size rather than using its default tray.
+        /// size rather than using its default tray. Also on when the
+        /// document's print settings ask for it.
         #[arg(long)]
         pick_tray: bool,
+        /// Ignore the print settings the document carries (scaling, page
+        /// range, copies, duplex, tray choice), including an actual-size
+        /// setting the document marks as required.
+        ///
+        /// Without this, each setting the document carries is used for
+        /// any option not given here and reported on stderr.
+        #[arg(long)]
+        ignore_document_presets: bool,
         /// Which sheet to print on: a form ID or a form NAME, as
         /// `list-paper-sizes` reports them.
         ///
