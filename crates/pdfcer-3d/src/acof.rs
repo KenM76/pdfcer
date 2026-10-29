@@ -68,13 +68,22 @@ pub(crate) fn lookup(nbits: u32, code: u32) -> Option<Entry> {
     table()?.get(&key(nbits, code)).copied()
 }
 
-/// The `(nbits, code)` of IEEE exponent `e`'s row, for test encoders.
-#[cfg(test)]
+/// The `(nbits, code)` of IEEE exponent `e`'s row (`e` in 0..=2047), the
+/// writer's half of [`lookup`].
 pub(crate) fn exponent_code(e: u32) -> Option<(u32, u32)> {
-    table()?
-        .iter()
-        .find(|(_, v)| **v == Entry::Exponent(e << 20))
-        .map(|(k, _)| (k >> 24, k & 0xff_ffff))
+    static CODES: OnceLock<Vec<Option<(u32, u32)>>> = OnceLock::new();
+    let codes = CODES.get_or_init(|| {
+        let mut codes = vec![None; 2048];
+        for (&k, v) in table().into_iter().flatten() {
+            if let Entry::Exponent(upper) = v
+                && let Some(slot) = codes.get_mut((upper >> 20) as usize & 0x7ff)
+            {
+                *slot = Some((k >> 24, k & 0xff_ffff));
+            }
+        }
+        codes
+    });
+    codes.get(e as usize).copied().flatten()
 }
 
 #[cfg(test)]

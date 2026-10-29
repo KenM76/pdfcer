@@ -49,6 +49,7 @@ mod tree;
 // Some helpers serve only the rasterizer.
 #[cfg_attr(not(feature = "render"), allow(dead_code))]
 mod vec3;
+mod write;
 
 pub use compressed::PartialMesh;
 pub use container::{
@@ -75,4 +76,8 @@ pub use texture::{MAX_TEXTURE_PIXELS, Texture, TextureFunction, TextureOrigin, T
 pub use tree::{
     EntityOverrides, IDENTITY, Matrix, ModelNode, NameSource, PictureFiles, Placement, StyleAlpha,
     WrapBase, multiply, transform_point,
+};
+pub use write::{
+    MAX_DEPTH, MeshScene, PrcWriteError, PrcWriteReport, SceneMaterial, SceneMesh, SceneNode,
+    ScenePrimitive, write_prc,
 };

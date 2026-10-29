@@ -72,6 +72,7 @@
 use std::collections::HashMap;
 
 use crate::TriangleMesh;
+use crate::vec3::{cross, dot};
 
 mod bend;
 mod decide;
@@ -137,16 +138,6 @@ fn add(a: V, b: V) -> V {
 }
 fn mul(a: V, s: f64) -> V {
     [a[0] * s, a[1] * s, a[2] * s]
-}
-fn dot(a: V, b: V) -> f64 {
-    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-}
-fn cross(a: V, b: V) -> V {
-    [
-        a[1] * b[2] - a[2] * b[1],
-        a[2] * b[0] - a[0] * b[2],
-        a[0] * b[1] - a[1] * b[0],
-    ]
 }
 fn unit(a: V) -> V {
     let l = dot(a, a).sqrt();
