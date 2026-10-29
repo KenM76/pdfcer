@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1305th filing) — `Pass 55.10` SHIPPED `615cc4c7` (print-time extras)
+
+**Shipped (engineer-reported, no shell here, nothing checked from here):**
+- `Pass 55.10`, `615cc4c7`, commit not pushed as far as reported: core `EditSession::stamp_running_text` + `running_text` module (artifact marked content, ISO 32000-1 §14.8.2.2; shares `write_page_labels` with `stamp_bates`); `pdfcer-print` `output_color` (Color/Grayscale/BlackOnly); CLI `print` several inputs, `--color`, `--header`/`--footer` + aligns. Stamps are in-memory only; source SHA-1 identical after a real "Microsoft Print to PDF" `--to-file` print. core-api: 385 verbs, 186 `EditError` variants.
+- Tests: running_text 3 lib + 3 integration, output_color 5 (pdfcer-print 117 lib), CLI print_output 4. Clippy `-D warnings` (incl. `--no-default-features`), fmt and the structure/docs/help/bypass/requests gates green. No manifest change.
+
+**Not built (honest):** diagonal/centred watermark; a verb to remove running text; header/footer as a saved-document CLI edit. FEATURES: four rows added (header/footer print, grayscale/black-only, multi-file, document-edit with `cli [ ]`); Planned row narrowed to the remainder.
+
+**Side note:** request X014's reply file gained a "Re:" line so `check-requests-scoped` passes; no doc change.
+
+**Still in flight:** `55.11`-`55.14`, then the release. Hard-rule-11 survivors: none reported; capability added.
+
 ## 2026-10-29 (1304th filing) — `Pass 55.9` SHIPPED `02e790cc` (print honours document presets)
 
 **Shipped (engineer-reported, no shell here, nothing checked from here):**

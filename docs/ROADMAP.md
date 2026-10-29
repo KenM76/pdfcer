@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### Pass 55.10 — Print-time output options — SHIPPED `615cc4c7`, 2026-10-29 (1305th filing)
+
+Engineer-reported; no shell here, nothing checked from here. `feat(print): header/footer, grey and black-only, several files (Pass 55.10)`. Reasoning is in the commit message. `55.11`-`55.14` remain NOT STARTED.
+- **core:** `EditSession::stamp_running_text(&RunningText) -> Result<RunningTextOutcome, EditError>`; new `pdfcer_core::running_text` (`RunningText`, `RunningTextKind`, `RunningTextAlign`, `RunningTextOutcome`, `RunningTextError {Empty, Unencodable, Geometry, NoPages}`; tokens `{page}`, `{pages}`); `/Artifact /Pagination /Header|/Footer` (ISO 32000-1 §14.8.2.2 Table 330), Helvetica WinAnsi; `CommandKind::StampRunningText`, `EditError::RunningText`. Shared `write_page_labels` with `stamp_bates` (which left the code-structure baseline). core-api: 385 verbs, 186 `EditError` variants.
+- **pdfcer-print:** `output_color::apply_output_color`, `OutputColor {Color, Grayscale, BlackOnly}`; grey = BT.709 luma on premultiplied RGBA; black-only = any mark not within 250/255 of white prints black.
+- **cli `print`:** several inputs (each named on stderr; failure named, rest continue; exit = first failure's; `--to-file` with more than one input is usage exit 2); `--color`; `--header`/`--footer` + `--header-align`/`--footer-align`. Stamps touch the in-memory session only; source SHA-1 verified identical after a real print. Each extra disclosed on stderr.
+- **Tests/gates:** core running_text 3 + `tests/running_text.rs` 3; print output_color 5 (117 lib); CLI print_output 4. Clippy `-D warnings` (incl. `--no-default-features`), fmt, structure, public-fns-documented, clap-help, cli-help-leads, bypass-paths, requests-scoped, check-core-api-verbs green. No manifest change, no new dependency (`cargo tree` unaffected).
+- **NOT built:** diagonal/centred watermark; a verb to remove running text; header/footer as a saved-document CLI edit.
+
 ### Pass 55.9 — Honour the document's print presets — SHIPPED `02e790cc`, 2026-10-29 (1304th filing)
 
 Engineer-reported; no shell here, nothing checked from here. `feat(print): honour the document's own print presets (Pass 55.9)`, on main, not yet pushed. Reasoning is in the commit message. `55.10`-`55.14` remain NOT STARTED in Next up.
@@ -26538,10 +26547,7 @@ Split from `Pass 648.0` by operator direction ("worry about the others later"). 
 
 Origin: the operator asked whether pdfcer can send a PDF to a printer and what other printing methods "everyone who uses pdfcer" would need. Sending already ships (`pdfcer print --send`, Windows, `Pass 55.x`; noted in the 1302nd filing). The engineer proposed six items; the operator asked for all six, then a release. Order below is the engineer's proposed build order. IDs `55.9`-`55.14` were grep-checked unused in `docs/` before filing. After the sixth Pass ships: a release (standing-authorized, decision 121; green `run-gates.sh`, fresh-folder smoke test, `verify-release.py`). Each Pass ships its CLI subcommand/flags in the same session (rule 11); gui `[ ]` throughout until a shell Pass is scoped. Rule 4 applies to every item: whatever pdfcer takes, substitutes or falls back on is printed, never silent.
 
-### Pass 55.10 — Print-time output options (NOT STARTED)
-
-Options that change the printed copy only, never the file: (a) grayscale output and black-only output; (b) a watermark and/or header-footer stamped on the printed copy; (c) several PDFs in one print command.
-- **Acceptance:** the source file is byte-identical afterwards (test it); each option is stated in the printed-copy summary; grayscale and black-only are distinct modes (black-only maps every non-white ink to black, disclosed as such). Watermark/header-footer reuse existing stamp and header/footer machinery where it exists (engineer to grep before building a second path). Multi-file: one summary per file, one job order, a failing file named without aborting the rest (exit-code contract to be stated in the Pass).
+`Pass 55.10` SHIPPED `615cc4c7` (1305th filing), see Shipped; watermark, a remove-running-text verb and a CLI header/footer document edit were not built and sit in FEATURES Planned.
 
 ### Pass 55.11 — Prepress printing: printer marks and separations (NOT STARTED)
 
