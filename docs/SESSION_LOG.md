@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1296th filing) — `Pass 55.8` on `84f22c90` (background printer probe; `X013b` engine half)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 55.8` (minted; no grep hit), `84f22c90c6c331af22eb4dc028ddaa703884e146`: `pdfcer_print::PrinterProbe`, one thread per printer, non-blocking `poll`, per-printer `refresh`, injectable reader. Live: 13 printers, all reports in 0.31 s. 3 lib tests (one-shared-thread sabotage fails), gates fails=0, Linux and wasm32 checks clean, no manifest change. core-api 03 §6.1.
+- No new decision (ceiling 209, next free 210), no new rule. FEATURES: sibling row core `[x]` cli `[ ]` gui `[ ]`; CLI absence is by design (UI-loop facility).
+
+**Still in flight:** `pdfcer-gui` owns wiring (one probe at app open, dialog reads `probe.report(selected)`); request filed in the channel as `reply_X013b_...`.
+**For next session:** continue 647.x. Push, CI and backup state not checked from here.
+
 ## 2026-10-29 (1295th filing) — `Pass 55.7` on `f34db9fc` (printer names without touching a device; `X013` engine half)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

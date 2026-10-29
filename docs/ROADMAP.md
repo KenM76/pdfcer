@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `84f22c90` `Pass 55.8` SHIPPED, 2026-10-29: `PrinterProbe`, every printer read in the background, one thread each (`X013b`, engine half) (1296th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `84f22c90c6c331af22eb4dc028ddaa703884e146` "feat(print): PrinterProbe reads every printer in the background (X013b)", on main, unreleased. Operator ask (Ken, 2026-10-29): "can we make it so that when the pdfcer-gui is open it probes for the printer information in the background and does this in a way where if a printer is slow to respond the other printers still get their information retrieved in the meantime?" ID `55.8`: no hit on grep of `docs/`. No new decision (next free 210), no new rule. Reasoning is in the commit message.
+- **Core (`pdfcer-print`, `crates/pdfcer-print/src/probe.rs`):** `PrinterProbe::start()` lists with `list_printer_names`, then reads each printer on its own thread (`PrinterReport::read` = `printer_detail` + `device_features` + `printer_forms`). `poll()` is non-blocking and returns whether anything arrived; `printers()`, `report(name)`, `is_complete()`, `refresh(name)`. `PrinterReport { detail, features, forms }`, each its own `Result`. `start_with(names, ReportReader)` takes an injectable reader for shells' fake-spooler tests. A thread-spawn failure yields an all-Unsupported report.
+- **core-api:** `docs/core-api/03-capabilities.md` §6.1 "Background probe".
+- **Tests (engineer):** 3 lib tests: a slow printer holds back no other (sabotage forcing one shared worker thread fails it); `refresh` replaces a report; drop does not block. Live: 13 printers, all reports in 0.31 s.
+- **Gates (engineer):** full gate list fails=0; Linux and `wasm32` `cargo check` of `pdfcer-print` clean. No manifest or dependency change.
+- **Delivers:** core yes; cli NO, by design (a background-UI facility; `list-printers` unchanged, `--names-only` is the CLI's answer); gui NO. Open, owned by `pdfcer-gui`: start one probe at app open and have the dialog read `probe.report(selected)`. Request filed in the channel: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\reply_X013b_probe_every_printer_in_the_background_at_app_open.md`.
+- **FEATURES:** sibling row after the `Pass 55.7` row: core `[x]`, cli `[ ]`, gui `[ ]`.
+
 ### `f34db9fc` `Pass 55.7` SHIPPED, 2026-10-29: printer names listed without reaching a device; `list_printer_names`, `printer_detail`, `list-printers --names-only` (`X013`, engine half) (1295th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `f34db9fcfd1b0ebc827a88a487014549f61660b8` "feat(print): list printers by name without reaching a device (X013)", on main, unreleased. Requester: inbound `request_X013_print_dialog_waits_on_the_spooler_on_the_ui_thread.md` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`). ID chosen: `55.7`, the next free in the printing family (`55.0`-`55.6`; `55.7`-`55.9` had no hit on grep of `docs/`). No new decision, no new rule. Reasoning is in the commit message.
