@@ -22,6 +22,7 @@ mod adhere;
 mod bookend;
 mod flow;
 mod geometry;
+mod nested;
 mod overflow;
 mod pager;
 mod split;
@@ -30,7 +31,6 @@ use flow::{Flow, is_flow};
 use geometry::{Ctx, Placed, is_placeable, lay, shifted};
 use overflow::Level;
 use pager::{Area, Pager};
-use split::split;
 
 use super::{ContainerKind, LayoutStrategy, Template, XfaNode};
 
@@ -57,12 +57,32 @@ pub enum NegativeCoordinates {
     Clamp,
 }
 
+/// Which subforms lay an overflow leader and trailer when a split cuts
+/// nested subforms too. XFA 3.3 (Ch.8 pp.318-325) ties them to "the
+/// subform that overflows" without saying which of the cut subforms that
+/// is (gap G-L21).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum NestedOverflow {
+    /// The innermost cut subform alone, spending its own leaders and
+    /// trailers, then each enclosing level's in turn (p.325): one overflow,
+    /// one leader and one trailer.
+    #[default]
+    Innermost,
+    /// The innermost cut subform as above, plus every enclosing cut subform
+    /// that asserts a leader (or trailer) of its own, which lays that too,
+    /// trailers innermost first and leaders outermost first.
+    EachAsserting,
+}
+
 /// Settings for [`layout_template`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
 pub struct LayoutOptions {
     /// Gap G-L1.
     pub negative_coordinates: NegativeCoordinates,
+    /// Gap G-L21.
+    pub nested_overflow: NestedOverflow,
 }
 
 impl LayoutOptions {
@@ -76,6 +96,13 @@ impl LayoutOptions {
     #[must_use]
     pub const fn with_negative_coordinates(mut self, v: NegativeCoordinates) -> Self {
         self.negative_coordinates = v;
+        self
+    }
+
+    /// Set [`Self::nested_overflow`].
+    #[must_use]
+    pub const fn with_nested_overflow(mut self, v: NestedOverflow) -> Self {
+        self.nested_overflow = v;
         self
     }
 }
@@ -445,11 +472,14 @@ impl Run<'_, '_> {
     /// bottom) rather than move away from it (Ch.8 p.312, gap G-L15).
     /// Each split lays the instance's overflow trailer after the top part,
     /// moves to its `overflow@target` if any, and lays its leader before
-    /// the rest, with the trailer's height reserved
+    /// the rest (a nested subform the split cuts: inside it, per
+    /// [`NestedOverflow`]), with the trailer's height reserved
     /// while filling (Ch.8 pp.318-320). `false` once the page areas are
     /// exhausted.
     fn put(&mut self, mut p: Placed, path: &[usize], glued: bool) -> bool {
-        let mut ov = self.overflow_of(&p.path);
+        let tb = self.root_strategy == LayoutStrategy::Tb;
+        let mut ov = tb.then(|| self.overflow_of(&p.path));
+        let mut nest = nested::Nesting::new(&p);
         let mut lead = false;
         loop {
             let Some(ca) = self.content_area() else {
@@ -467,18 +497,16 @@ impl Run<'_, '_> {
                 return true;
             }
             let at = self.flow.slot(p.rect.w);
-            let reserve = ov.as_ref().map_or(0.0, |o| self.trailer_height(o));
-            if at.1 + p.rect.h > ca.h - reserve && self.root_strategy == LayoutStrategy::Tb {
-                match split(p, ca.h - at.1 - reserve) {
-                    Ok((head, tail)) => {
-                        self.flow.commit(head.rect.w, head.rect.h);
-                        self.emit(head, ca, at);
-                        if let Some(o) = ov.as_mut() {
-                            let parts = self.take_overflow(o, false);
-                            self.put_parts(parts, ca);
-                        }
-                        self.overflow_move(&tail.path);
-                        (p, lead) = (tail, true);
+            if let Some(o) = ov.as_mut()
+                && at.1 + p.rect.h > ca.h - self.trailer_height(o, o.chain(false))
+            {
+                match self.split_overflowing(p, o, &mut nest, ca.h - at.1) {
+                    Ok(cut) => {
+                        self.flow.commit(cut.head.rect.w, cut.head.rect.h);
+                        self.emit(cut.head, ca, at);
+                        self.put_parts(cut.trailer, ca);
+                        self.overflow_move(&cut.tail.path);
+                        (p, lead) = (cut.tail, cut.lead);
                         continue;
                     }
                     Err(whole) => p = whole,

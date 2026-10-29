@@ -28,7 +28,15 @@ struct Target {
 }
 
 impl Level {
-    fn of(ctx: &mut Ctx<'_>, root: &XfaNode, node: &XfaNode, path: &[usize]) -> Self {
+    fn none() -> Self {
+        Self {
+            leaders: None,
+            trailers: None,
+            used: HashMap::new(),
+        }
+    }
+
+    pub(super) fn of(ctx: &mut Ctx<'_>, root: &XfaNode, node: &XfaNode, path: &[usize]) -> Self {
         let o = node.child("overflow");
         let mut list = |a| {
             o.and_then(|o| o.attr(a))
@@ -39,6 +47,11 @@ impl Level {
             trailers: list("trailer"),
             used: HashMap::new(),
         }
+    }
+
+    /// Does this level assert a non-empty list of that kind?
+    pub(super) fn asserts(&self, leader: bool) -> bool {
+        self.list(leader).is_some_and(|l| !l.is_empty())
     }
 
     fn list(&self, leader: bool) -> Option<&[Target]> {
@@ -62,19 +75,22 @@ impl Level {
 /// level's are (p.325); a containing level's counts are shared by every
 /// instance inheriting them (p.323, gap G-L23).
 pub(super) struct Overflow {
-    own: Level,
+    pub(super) own: Level,
+    /// The containing levels above the instance, nearest first.
+    pub(super) ups: Vec<Link>,
     leaders: Vec<Link>,
     trailers: Vec<Link>,
 }
 
+/// One level of a chain: the instance's own, or one in `Run::levels`.
 #[derive(Clone, Copy)]
-enum Link {
+pub(super) enum Link {
     Own,
     Shared(usize),
 }
 
 impl Overflow {
-    fn chain(&self, leader: bool) -> &[Link] {
+    pub(super) fn chain(&self, leader: bool) -> &[Link] {
         if leader {
             &self.leaders
         } else {
@@ -134,18 +150,41 @@ pub(super) fn find<'t>(root: &'t XfaNode, spec: &str) -> Option<(&'t XfaNode, Ve
 }
 
 impl super::Run<'_, '_> {
-    /// The overflow chain of the top-level instance at `path`, when a `tb`
-    /// root can split it; `None` when no level offers a leader or trailer.
-    pub(super) fn overflow_of(&mut self, path: &[usize]) -> Option<Overflow> {
-        if self.root_strategy != LayoutStrategy::Tb {
-            return None;
-        }
+    /// The overflow chain of the top-level instance at `path`, laid by a
+    /// `tb` root (the only one that splits).
+    pub(super) fn overflow_of(&mut self, path: &[usize]) -> Overflow {
         let root = self.root;
-        let own = Level::of(&mut self.ctx, root, resolve(root, &[], path)?, path);
+        let own = match resolve(root, &[], path) {
+            Some(n) => Level::of(&mut self.ctx, root, n, path),
+            None => Level::none(),
+        };
+        let ups = self.levels_between(path, 1);
+        let mut ov = Overflow {
+            own,
+            ups,
+            leaders: Vec::new(),
+            trailers: Vec::new(),
+        };
+        let links: Vec<Link> = std::iter::once(Link::Own)
+            .chain(ov.ups.iter().copied())
+            .collect();
+        ov.leaders = self.chain_for(&ov, &links, true);
+        ov.trailers = self.chain_for(&ov, &links, false);
+        ov
+    }
+
+    /// The shared levels of the `subform`/`subformSet` ancestors of
+    /// `path` whose paths are at least `stop` long, nearest first.
+    pub(super) fn levels_between(&mut self, path: &[usize], stop: usize) -> Vec<Link> {
+        let root = self.root;
         let mut ups = Vec::new();
-        for n in (1..path.len()).rev() {
-            let at = path.get(..n)?;
-            let up = resolve(root, &[], at)?;
+        for n in (stop..path.len()).rev() {
+            let (Some(at), Some(up)) = (
+                path.get(..n),
+                path.get(..n).and_then(|a| resolve(root, &[], a)),
+            ) else {
+                continue;
+            };
             if matches!(
                 up.container_kind(),
                 Some(ContainerKind::Subform | ContainerKind::SubformSet)
@@ -153,30 +192,38 @@ impl super::Run<'_, '_> {
                 ups.push(Link::Shared(self.shared_level(up, at)));
             }
         }
-        let mut ov = Overflow {
-            own,
-            leaders: Vec::new(),
-            trailers: Vec::new(),
-        };
-        for leader in [true, false] {
-            let mut chain = Vec::new();
-            for link in std::iter::once(Link::Own).chain(ups.iter().copied()) {
-                let Some(list) = self.level(&ov, link).and_then(|l| l.list(leader)) else {
-                    continue;
-                };
-                let blocks = list.is_empty();
-                chain.push(link);
-                if blocks {
-                    break;
-                }
+        ups
+    }
+
+    /// `links` up to and including the first that blocks inheritance of
+    /// that kind, skipping those that do not assert it (p.325).
+    pub(super) fn chain_for(&self, ov: &Overflow, links: &[Link], leader: bool) -> Vec<Link> {
+        let mut chain = Vec::new();
+        for &link in links {
+            let Some(list) = self.level(ov, link).and_then(|l| l.list(leader)) else {
+                continue;
+            };
+            chain.push(link);
+            if list.is_empty() {
+                break;
             }
-            *(if leader {
-                &mut ov.leaders
-            } else {
-                &mut ov.trailers
-            }) = chain;
         }
-        (!ov.leaders.is_empty() || !ov.trailers.is_empty()).then_some(ov)
+        chain
+    }
+
+    /// A new level for the nested instance at `path`, in `Run::levels`.
+    pub(super) fn nested_level(&mut self, path: &[usize]) -> Link {
+        let root = self.root;
+        let level = match resolve(root, &[], path) {
+            Some(n) => Level::of(&mut self.ctx, root, n, path),
+            None => Level::none(),
+        };
+        self.levels.push(level);
+        Link::Shared(self.levels.len() - 1)
+    }
+
+    pub(super) fn asserts(&self, ov: &Overflow, link: Link, leader: bool) -> bool {
+        self.level(ov, link).is_some_and(|l| l.asserts(leader))
     }
 
     fn shared_level(&mut self, node: &XfaNode, at: &[usize]) -> usize {
@@ -197,8 +244,13 @@ impl super::Run<'_, '_> {
         }
     }
 
-    fn next<'a>(&'a self, ov: &'a Overflow, leader: bool) -> Option<(Link, &'a Target)> {
-        ov.chain(leader).iter().find_map(|&link| {
+    fn next<'a>(
+        &'a self,
+        ov: &'a Overflow,
+        chain: &[Link],
+        leader: bool,
+    ) -> Option<(Link, &'a Target)> {
+        chain.iter().find_map(|&link| {
             self.level(ov, link)
                 .and_then(|l| l.next(leader))
                 .map(|t| (link, t))
@@ -207,16 +259,28 @@ impl super::Run<'_, '_> {
 
     /// Height of the trailer the next overflow would lay: the space to
     /// reserve now (p.320, gap G-L21).
-    pub(super) fn trailer_height(&self, ov: &Overflow) -> f64 {
-        self.next(ov, false)
+    pub(super) fn trailer_height(&self, ov: &Overflow, chain: &[Link]) -> f64 {
+        self.next(ov, chain, false)
             .map_or(0.0, |(_, t)| t.parts.iter().map(|p| p.rect.h).sum())
     }
 
-    /// Spend one use of the next leader (or trailer) and return its parts.
-    /// Each copy spends its items against [`super::MAX_LAYOUT_ITEMS`].
+    /// Spend one use of the instance's next leader (or trailer).
     pub(super) fn take_overflow(&mut self, ov: &mut Overflow, leader: bool) -> Vec<Placed> {
+        let chain = ov.chain(leader).to_vec();
+        self.take_in(ov, &chain, leader)
+    }
+
+    /// Spend one use of the next leader (or trailer) along `chain` and
+    /// return its parts. Each copy spends its items against
+    /// [`super::MAX_LAYOUT_ITEMS`].
+    pub(super) fn take_in(
+        &mut self,
+        ov: &mut Overflow,
+        chain: &[Link],
+        leader: bool,
+    ) -> Vec<Placed> {
         let Some((link, path, parts)) = self
-            .next(ov, leader)
+            .next(ov, chain, leader)
             .map(|(l, t)| (l, t.path.clone(), t.parts.clone()))
         else {
             return Vec::new();

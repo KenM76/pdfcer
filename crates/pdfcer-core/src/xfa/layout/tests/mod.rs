@@ -738,3 +738,5 @@ fn an_overflow_target_naming_no_area_warns_and_moves_on_normally() {
         }]
     );
 }
+
+mod nested;

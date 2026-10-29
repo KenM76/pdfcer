@@ -753,6 +753,16 @@ with every `warnings` entry.
     each split moves to: a later content area of the same page, else a
     fresh instance of the target's page area. One naming no single area
     warns with `InvalidOverflowTarget` and moves on normally.
+  - **Nested overflow** (gap G-L21). When a split cuts a nested subform,
+    the innermost cut subform lays the trailer inside itself, at the end of
+    its top fragment (the cut containers grow to hold it), and the leader at
+    the top of its rest (the content below moves down). It spends its own
+    chain, then the levels out to the instance, then the instance's. The
+    trailers it will lay are reserved, re-splitting until they fit. Use
+    counts are per nested instance. `NestedOverflow::EachAsserting` also
+    lets every enclosing cut subform that asserts a kind lay its own:
+    trailers innermost first, leaders outermost first. The instance's own
+    trailer still follows the instance in flow.
   - **Bookend leaders and trailers** (`bookend@leader`/`@trailer`) of a
     subform or subformSet: the leader is its first content and the trailer
     its last, once per instance. A split puts the leader in the first
@@ -788,7 +798,11 @@ with every `warnings` entry.
     disclosed.
   - `PageLimit` and `ItemLimit`: the ceilings are `MAX_LAYOUT_PAGES` (10 000)
     and `MAX_LAYOUT_ITEMS` (200 000).
-- **Options.** `LayoutOptions::new().with_negative_coordinates(NegativeCoordinates::{Keep (default), Clamp})`.
+- **Options.** `LayoutOptions::new()`:
+  - `.with_negative_coordinates(NegativeCoordinates::{Keep (default), Clamp})`
+  - `.with_nested_overflow(NestedOverflow::{Innermost (default), EachAsserting})`:
+    which cut subforms lay overflow leaders and trailers at a split. XFA 3.3
+    Ex 8.43 is ambiguous here; `#[non_exhaustive]`.
 - **Errors.** `LayoutError` is `NoRootSubform` or `NoPageArea`; the latter is
   fatal per XFA. No shell calls this yet; the CLI report is 647.5.
 
