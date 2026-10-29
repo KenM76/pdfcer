@@ -26522,6 +26522,41 @@ Table/row layout in dynamic forms. Blocked until `pdfcer-spec-librarian` extract
 
 Split from `Pass 648.0` by operator direction ("worry about the others later"). Readers for OBJ (+MTL colours; dissolve `d` is exporter-inconsistent, so any transparency taken from it is disclosed via `inferred:`) and binary/ASCII STL (no colour: default colour disclosed), feeding the PRC writer built in 648.0. `3d-embed --model` and `3d-convert` accept `.obj` / `.stl`. A fuzz target per parser (§10.2). Depends on 648.0, now SHIPPED (1297th filing; `write_prc` exists, `3d-convert` and the format auto-detect exist, only the OBJ/STL readers and their extension/signature detection are owed). gui `[ ]`.
 
+### Print arc `Pass 55.9`-`55.14` — filed 1303rd filing, 2026-10-29 (ALL NOT STARTED; operator: "build all the print items the make a new release")
+
+Origin: the operator asked whether pdfcer can send a PDF to a printer and what other printing methods "everyone who uses pdfcer" would need. Sending already ships (`pdfcer print --send`, Windows, `Pass 55.x`; noted in the 1302nd filing). The engineer proposed six items; the operator asked for all six, then a release. Order below is the engineer's proposed build order. IDs `55.9`-`55.14` were grep-checked unused in `docs/` before filing. After the sixth Pass ships: a release (standing-authorized, decision 121; green `run-gates.sh`, fresh-folder smoke test, `verify-release.py`). Each Pass ships its CLI subcommand/flags in the same session (rule 11); gui `[ ]` throughout until a shell Pass is scoped. Rule 4 applies to every item: whatever pdfcer takes, substitutes or falls back on is printed, never silent.
+
+### Pass 55.9 — Honour the document's print presets (NOT STARTED)
+
+Core reader of the viewer-preferences print keys: `/PrintScaling` (`None` = actual size; ISO 32000-2 `/Enforce [/PrintScaling]` = the document's value is not overridable), `/Duplex`, `/PickTrayByPDFSize`, `/PrintPageRange` (1-based pairs), `/NumCopies` (values below 1 ignored, reading VP-A1), `/PrintArea` / `/PrintClip` (deprecated in 2.0). Spec: ISO 32000-1 section 12.2 Table 150; ISO 32000-2 Tables 147-148 (RAG `iso32000__s__12.2.md`). Acrobat reference: `Acrobat_Features/printing__viewer_preferences_and_page_setup.md`.
+- **Acceptance:** the print command uses each preset only where the operator did not pass the matching option; it prints what it took from the document (one line per preset used); `--ignore-document-presets` turns the whole thing off; an `/Enforce` entry is reported when an operator option overrides it or is refused (engineer to rule which, ship-both-pick-default setting if the standard leaves it open). Spec-librarian dispatch first for any clause the RAG file does not settle.
+- **Round-trip:** read-only; the file is never rewritten.
+
+### Pass 55.10 — Print-time output options (NOT STARTED)
+
+Options that change the printed copy only, never the file: (a) grayscale output and black-only output; (b) a watermark and/or header-footer stamped on the printed copy; (c) several PDFs in one print command.
+- **Acceptance:** the source file is byte-identical afterwards (test it); each option is stated in the printed-copy summary; grayscale and black-only are distinct modes (black-only maps every non-white ink to black, disclosed as such). Watermark/header-footer reuse existing stamp and header/footer machinery where it exists (engineer to grep before building a second path). Multi-file: one summary per file, one job order, a failing file named without aborting the rest (exit-code contract to be stated in the Pass).
+
+### Pass 55.11 — Prepress printing: printer marks and separations (NOT STARTED)
+
+(a) Printer marks (trim, bleed, registration, colour bars, page information) drawn around the trim box on a larger sheet; (b) separations: one sheet per ink, each printed as a grey plate. Acrobat reference: `Acrobat_Features/printing__advanced_output_panel.md`. Overlaps the Planned "Print and prepress (PDF/X)" FEATURES row; this Pass is its printing half, the PDF/X half stays there.
+- **Acceptance:** marks sit outside the trim box and never touch page content; sheet size grows by the stated mark offset; each plate is labelled with its ink name; overprint and spot-colour handling reuse the separation preview (`Pass 625.0`) rather than a second renderer. Anything inferred (assumed trim box when none is set, plate for an ink the device cannot name) is disclosed.
+
+### Pass 55.12 — Vector printing (NOT STARTED)
+
+Send paths, text (as outlines) and images to the Windows printer as vector drawing instead of one 300 DPI picture per page. A page using what GDI cannot draw faithfully (transparency, blend modes, soft masks, shadings) falls back to raster for that page, disclosed per page. `--print-as-image` forces raster (Acrobat's "Print as Image"). Acrobat reference: `Acrobat_Features/printing__rendering_pipeline_and_resolution.md`.
+- **Acceptance:** a vector-only page prints without a page raster (test by inspecting the GDI call sequence or a spooled-EMF dump, engineer to choose); per-page report line says `vector` or `raster (reason)`; a fallback never changes the page's appearance; `--print-as-image` always rasterises. Windows only; the render crate stays GUI-free (`cargo tree` check on any manifest change).
+
+### Pass 55.13 — Printing beyond Windows (NOT STARTED)
+
+(a) macOS and Linux through the system print queue (CUPS `lp`); (b) direct network printing to an IPP printer (`ipp://` URI) from any OS. Network use only when the operator asks to print, and only in the shell (decision 061 permits shell network use on operator request; no network code in `pdfcer-core` or `pdfcer-render`, `cargo tree` check). Plain `ipp://` first; `ipps://` would need a TLS dependency, licence check owed (LEGAL.md section 6.1, rule 13), weak copyleft flagged to the operator.
+- **Acceptance:** `pdfcer print --send` selects the backend by platform or URI scheme and says which; an unreachable printer or missing `lp` is a named error with its own exit code; no silent fallback to another printer; test against a local fake IPP endpoint (synthetic, rights-clear). Unverifiable here: macOS/Linux behaviour needs a runner or is reported as untested.
+
+### Pass 55.14 — Finishing: staple, hole punch, output bin, fold (NOT STARTED)
+
+Staple, hole punch, output bin (and fold where offered). Windows: through the driver's PrintTicket. IPP and CUPS: through the `finishings` and `output-bin` attributes. Depends on `55.13` for the IPP/CUPS half; the Windows half may ship first.
+- **Acceptance:** the device's supported options are listed (`--list-finishing`-style query, name to be settled in the Pass); an option the device does not offer is refused by name, never dropped; what was requested and what was sent are both printed.
+
 ### `Pass 626.0` — lower the declared PDF version — COMPLETE, MOVED TO *Shipped* (slice 2 `d0f7c993`, 1200th filing); slice 1 detail below stays
 
 **Slice 1 (`bdc7d088`, filed 1199th; engineer-reported, nothing checked from here).** Report only. Slice 2 (opt-in `--lower-version`) is in *Shipped*.

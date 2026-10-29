@@ -738,7 +738,13 @@ the model or verb exists and only the named shell is missing. The
 | [ ] | [ ] | [ ] | [ ] | **Transparency flattening** — flatten transparency so a file can honestly target PDF 1.3. Not built; `616.10` only reports it. `Pass 627.0` (Backlog). |
 | [x] | [x] | [ ] | [ ] | **Lowest PDF version the content needs (report)** — `pdfcer optimize --compat` prints "the content needs PDF x.y" (a lower bound when streams could not be read), the features that set it, and each ICC profile's version; `--strict-icc` applies the derived ICC-to-PDF table (default lists only); `--json` `compatibility.floor`. Follows every reference. Report only: the declared version is not changed. GUI not built. `Pass 626.0` slice 1. |
 | [x] | [x] | [ ] | [ ] | **Lower the declared PDF version** — `pdfcer optimize --compat VERSION --lower-version` rewrites the header (and drops catalog `/Version`) when the content is proven to fit; opt-in; refuses encrypted, not-lower, unproven and above-floor files (exit 9), signed files unless `--invalidate-signatures`; route and change disclosed (text line, `--json` `compatibility.lowered`). Below 1.5 an object-stream file is rebuilt with a classic xref. GUI not built. `Pass 626.0` slice 2. |
-| [ ] | [ ] | [ ] | [x] | Print and prepress (PDF/X). |
+| [ ] | [ ] | [ ] | [x] | Print and prepress (PDF/X). The printing half (marks, separations) is `Pass 55.11`, next row group. |
+| [ ] | [ ] | [ ] | ? | **Print honours the document's presets** — scaling, duplex, tray, page range, copies, enforced values; each preset taken is printed; `--ignore-document-presets` turns it off. Sending already ships (`print --send`, Windows). `Pass 55.9`. |
+| [ ] | [ ] | [ ] | ? | **Print-time output options** — grayscale, black-only, watermark / header-footer on the printed copy only, several PDFs in one command. `Pass 55.10`. |
+| [ ] | [ ] | [ ] | ? | **Print prepress output** — printer marks (trim, bleed, registration, colour bars, page info) on a larger sheet; one grey plate per ink. PDF/X half stays in the row above. `Pass 55.11`. |
+| [ ] | [ ] | [ ] | ? | **Vector printing** — paths, text and images sent as vector drawing; raster fallback per page, disclosed; `--print-as-image` forces raster. Windows. `Pass 55.12`. |
+| [ ] | [ ] | [ ] | ? | **Print beyond Windows** — macOS/Linux via CUPS `lp`; direct `ipp://` network printing from any OS (`ipps://` needs a TLS licence check). `Pass 55.13`. |
+| [ ] | [ ] | [ ] | ? | **Print finishing** — staple, hole punch, output bin, fold; PrintTicket on Windows, `finishings` / `output-bin` on IPP and CUPS. `Pass 55.14`. |
 | [ ] | [ ] | [ ] | ◐ | Vector editing at Inkscape-parity breadth. **General OCG layer AUTHORING split out to `Pass 358.0`–`358.6`, above** (2026-09-27) — see those rows, not this one. |
 | [ ] | [ ] | [ ] | [x] | Bulleted and numbered list authoring. |
 | [ ] | [ ] | [ ] | ? | Ribbon and keyboard customisation with saved layouts. |
