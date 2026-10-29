@@ -26456,6 +26456,25 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 
 Table/row layout in dynamic forms. Blocked until `pdfcer-spec-librarian` extracts the table/row layout slice (after SOM expressions).
 
+### Pass 648.0 — Mesh import for 3D embedding: author a PRC from OBJ / STL / glTF (NOT STARTED; filed 1297th filing, 2026-10-29)
+
+**Operator words (Ken, 2026-10-29):** *"I want to get D:\Dev\EmilysOffice\Bancroft1974.FCStd made into a 3D pdf. Can you make that happen in some way with pdfcer? Do we need some new import options?"* Answer: yes, a mesh import.
+
+**Measured facts (engineer, 2026-10-29; not re-checked from here):** `3d-embed` (core `EditSession::add_3d_annotation`) embeds only an existing `.u3d` or `.prc`. `pdfcer-3d` is the PRC read side plus STL/OBJ export; it cannot author a U3D or a PRC. FreeCAD (LGPL: external tool and behavioural reference only, never linked) exports OBJ, STL and glTF, but neither U3D nor PRC. One-off done today: a U3D already inside `Bancroft1974_3D.pdf` (MuPDF producer) was pulled out with `3d-extract` and re-embedded with `3d-embed --poster Bancroft1974_iso.png --activate page-open` into `Bancroft1974_3D_pdfcer.pdf`. That route works only when another tool has already authored the model.
+
+**Scope.**
+- **core** (`pdfcer-3d`, behind the existing `3d` feature; no new dependency unless licence-checked, rule 13): write an ISO 14739-1 PRC file holding a tessellated model (PRC 3D tessellation): one product/part per mesh object, its colour/material, file units recorded; deterministic output. Readers: OBJ (+MTL colours), binary and ASCII STL, glTF 2.0 (`.gltf`/`.glb`, mesh + `baseColorFactor` only). Output-size and triangle-count ceilings (ARCHITECTURE §10); a fuzz target per new parser (§10.2).
+- **cli:** `3d-embed --model` accepts `.obj` / `.stl` / `.gltf` / `.glb`, converts to PRC and embeds; the existing PRC poster renderer then draws the poster. Standalone `3d-convert` (mesh to `.prc`) verb. Prints an `inferred:` line for anything assumed (units when the mesh states none, default colour) (rule 4).
+- **gui:** `[ ]`, `pdfcer-gui` is a separate project.
+
+**Acceptance.** The Bancroft FCStd exported from FreeCAD as OBJ or glTF, then `pdfcer 3d-embed`, gives a PDF that Acrobat Reader rotates in 3D with per-object colours. Round trip: `3d-extract` of the result re-parses with pdfcer's own PRC reader to the same triangle count. The source PDF's untouched objects stay byte-identical (incremental save, rule 3).
+
+**Dependencies and rulings.** PRC WRITE-side coverage in `D:\Dev\Rag-Specialized\PDF_Spec\threed\` must be checked FIRST; dispatch `pdfcer-spec-librarian` if missing (rule 1). Decision 169 governs PRC sources. Whether the PRC writer needs its own decision entry is for the engineer to decide at start.
+
+**Non-goals.** Reading FCStd/BREP directly (FreeCAD is LGPL; the operator exports a mesh). U3D authoring (PRC is the ISO format and pdfcer already renders it).
+
+**Likely follow-ons, not filed:** per-object names/hierarchy from glTF nodes; B-rep PRC (exact surfaces) instead of tessellation.
+
 ### `Pass 626.0` — lower the declared PDF version — COMPLETE, MOVED TO *Shipped* (slice 2 `d0f7c993`, 1200th filing); slice 1 detail below stays
 
 **Slice 1 (`bdc7d088`, filed 1199th; engineer-reported, nothing checked from here).** Report only. Slice 2 (opt-in `--lower-version`) is in *Shipped*.
