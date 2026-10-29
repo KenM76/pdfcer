@@ -1829,6 +1829,7 @@ mod tests {
                 cmyk: None,
                 spots: Vec::new(),
                 process_tints: None,
+                all_colorants: None,
             },
             rule: FillRule::Winding,
             ctm: Transform::identity(),

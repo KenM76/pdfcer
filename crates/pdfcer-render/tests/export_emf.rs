@@ -179,7 +179,7 @@ fn a_filled_rectangle_is_a_brush_a_path_bracket_and_a_fillpath() {
 }
 
 #[test]
-fn a_stroke_is_a_geometric_pen_with_caps_joins_and_a_float_miter_limit() {
+fn a_stroke_is_a_geometric_pen_with_caps_joins_and_an_integer_miter_limit() {
     let (_, emf) = export(page("", "3 w 1 J 2 j 0 0 1 RG 10 10 m 90 70 l S"));
     assert_well_formed(&emf.emf);
     let r = walk_records(&emf.emf).unwrap();
@@ -205,10 +205,8 @@ fn a_stroke_is_a_geometric_pen_with_caps_joins_and_a_float_miter_limit() {
         .find(|((t, _), _)| *t == 0x3A)
         .unwrap()
         .1;
-    assert_eq!(
-        f32::from_le_bytes(emf.emf[miter + 8..miter + 12].try_into().unwrap()),
-        10.0
-    );
+    // An integer: GDI fails the stroke on FLOAT bits.
+    assert_eq!(u32_at(&emf.emf, miter + 8), 10);
 }
 
 #[test]

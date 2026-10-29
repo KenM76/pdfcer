@@ -128,6 +128,7 @@ pub mod output_color;
 // three-defects-one-cause history that produced it.
 mod devmode;
 mod listing;
+mod metafile;
 mod probe;
 
 pub use listing::{PrinterName, list_printer_names, list_printers, printer_detail};
@@ -222,6 +223,8 @@ pub enum PrintError {
     JobEnd,
     /// `StretchDIBits` drew nothing.
     Blit,
+    /// GDI did not accept or did not play a page's metafile.
+    Metafile,
     /// A page's pixel dimensions exceed what GDI accepts.
     PageTooLarge,
     /// `DocumentProperties` would not report a device's own settings.
@@ -302,6 +305,10 @@ impl fmt::Display for PrintError {
                 "the job did not close cleanly. Some pages may already have reached the printer — check the queue rather than reprinting blind"
             ),
             Self::Blit => write!(f, "the page image could not be drawn to the printer"),
+            Self::Metafile => write!(
+                f,
+                "the page could not be drawn to the printer as vector graphics; try --print-as-image"
+            ),
             Self::Unsupported => write!(
                 f,
                 "printing is not available on this platform in this release"
@@ -2710,6 +2717,10 @@ pub struct Sheet<'a> {
     pub bitmap: &'a PageBitmap,
     /// How this sheet is fed.
     pub setup: SheetSetup,
+    /// The page as an Enhanced Metafile, played onto the sheet in place of
+    /// the bitmap. When set, `bitmap` supplies only the placement and page
+    /// size, and its pixels are not read.
+    pub metafile: Option<&'a [u8]>,
 }
 
 /// Whether [`spool`] actually starts a print job.
@@ -2887,7 +2898,14 @@ pub fn spool_with_config(
         orientation: resolve_orientation(settings.orientation, first_page_pt),
         paper: settings.paper,
     };
-    let sheets: Vec<Sheet<'_>> = pages.iter().map(|bitmap| Sheet { bitmap, setup }).collect();
+    let sheets: Vec<Sheet<'_>> = pages
+        .iter()
+        .map(|bitmap| Sheet {
+            bitmap,
+            setup,
+            metafile: None,
+        })
+        .collect();
     spool_sheets(printer, &sheets, dry_run, output, settings, config)
 }
 
@@ -3138,7 +3156,11 @@ pub fn spool_sheets(
             if unsafe { StartPage(hdc) } <= 0 {
                 return Err(PrintError::PageStart);
             }
-            blit_page(hdc, sheet.bitmap, (caps.dpi_x as i32, caps.dpi_y as i32))?;
+            let dpi = (caps.dpi_x as i32, caps.dpi_y as i32);
+            match sheet.metafile {
+                Some(emf) => metafile::play_page(hdc, emf, sheet.bitmap, dpi)?,
+                None => blit_page(hdc, sheet.bitmap, dpi)?,
+            }
             if unsafe { EndPage(hdc) } <= 0 {
                 return Err(PrintError::PageEnd);
             }
@@ -3364,15 +3386,7 @@ fn blit_page(
         ..Default::default()
     };
 
-    // Points -> device pixels, at the device's own resolution. 72 points
-    // to the inch is the PDF unit's definition, not a convention.
-    let px_x = |pt: f64| (pt * f64::from(dpi.0) / 72.0).round() as i32;
-    let px_y = |pt: f64| (pt * f64::from(dpi.1) / 72.0).round() as i32;
-
-    let dest_w = px_x(page.page_pt.0 * page.placement.scale);
-    let dest_h = px_y(page.page_pt.1 * page.placement.scale);
-    let dest_x = px_x(page.placement.offset_x_pt);
-    let dest_y = px_y(page.placement.offset_y_pt);
+    let (dest_x, dest_y, dest_w, dest_h) = metafile::dest_rect(page, dpi);
 
     // SAFETY: `hdc` is valid with a page open; `info` and `bgra` outlive
     // the call; the dimensions are derived from the buffer itself.
@@ -3534,14 +3548,17 @@ mod windows_settings_tests {
             Sheet {
                 bitmap: &title,
                 setup,
+                metafile: None,
             },
             Sheet {
                 bitmap: &drawing,
                 setup,
+                metafile: None,
             },
             Sheet {
                 bitmap: &drawing,
                 setup,
+                metafile: None,
             },
         ];
         let resolved = resolve_sheet_setups(&sheets);
@@ -3579,6 +3596,7 @@ mod windows_settings_tests {
                 orientation: Orientation::Portrait,
                 paper: PaperSelection::DeviceDefault,
             },
+            metafile: None,
         }];
         assert_eq!(
             resolve_sheet_setups(&sheets)[0].orientation,

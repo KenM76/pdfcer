@@ -374,7 +374,7 @@ pub struct BatesRemoval {
 }
 
 /// A content-stream number: at most four decimals, no trailing zeros.
-fn number(v: f64) -> String {
+pub(crate) fn number(v: f64) -> String {
     let s = format!("{v:.4}");
     let s = s.trim_end_matches('0').trim_end_matches('.');
     if s == "-0" {

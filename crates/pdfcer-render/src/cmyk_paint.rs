@@ -339,6 +339,18 @@ pub(crate) fn paint_brush_coverage_into_cmyk(
                     f32::from(rgba[2]) / 255.0,
                 ),
             };
+            // §8.6.6.4 `/All`: every plate at the tint, the page's spot
+            // planes as they stand at this paint included.
+            let (colour, spots, bridged) = match brush.all_colorants {
+                Some(t) => {
+                    let mut all = [0.0_f32; crate::compositor::MAX_SPOTS];
+                    for slot in all.iter_mut().take(buf.spot_plane_count()) {
+                        *slot = t;
+                    }
+                    ([t; 4], all, false)
+                }
+                None => (colour, spots, bridged),
+            };
             let painted = buf.composite_mask(cov, region, colour, spots, alpha, blend);
             if bridged {
                 buf.record_bridged_solid(painted);

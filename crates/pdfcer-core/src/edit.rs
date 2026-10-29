@@ -156,6 +156,7 @@ mod insert_fields;
 mod node_shape;
 mod ocr_layer_write;
 mod page_import;
+mod printer_marks;
 mod restack;
 mod running_text;
 mod stroke_style;
@@ -927,6 +928,10 @@ pub enum CommandKind {
     /// One header or footer ([`EditSession::stamp_running_text`]): a shared
     /// font and `q` stream plus one line stream per stamped page.
     StampRunningText,
+    /// One printer's-marks pass ([`EditSession::add_printer_marks`]): a
+    /// shared font and colour space, then per page new boxes and a clip and
+    /// marks stream around the untouched content.
+    AddPrinterMarks,
     /// One plain-text IMPORT: `pages` blank pages were created and the text was
     /// poured into them, all as ONE undo entry
     /// ([`EditSession::place_text`]).
@@ -9944,6 +9949,10 @@ pub enum EditError {
     /// ([`EditSession::stamp_running_text`]).
     #[error(transparent)]
     RunningText(#[from] crate::running_text::RunningTextError),
+    /// Printer's marks that cannot be drawn
+    /// ([`EditSession::add_printer_marks`]).
+    #[error(transparent)]
+    PrinterMarks(#[from] crate::printer_marks::PrinterMarksError),
 }
 
 /// Find every occurrence of `needle` in `hay`, returned as `(start, end)`

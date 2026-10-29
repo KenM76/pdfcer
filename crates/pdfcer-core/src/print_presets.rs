@@ -3,7 +3,7 @@
 //! Tables 147 and 148).
 //!
 //! Read-only. A malformed entry reads as absent and is named in
-//! [`PrintPresets::ignored`] so a shell can say what it did not use.
+//! [`PrintPresets::ignored`](crate::print_presets::PrintPresets::ignored) so a shell can say what it did not use.
 
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, Object};

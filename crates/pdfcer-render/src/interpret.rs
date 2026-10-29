@@ -6740,6 +6740,8 @@ impl<'a> Interpreter<'a> {
             Some(cmyk) => spec.with_cmyk(cmyk),
             None => spec,
         };
+        let mut spec = spec;
+        spec.all_colorants = self.all_colorants_tint(stroking);
         let spots = self.authored_spot_inks(stroking);
         if spots.is_empty() {
             spec
@@ -6748,6 +6750,27 @@ impl<'a> Interpreter<'a> {
             // the flattened `cmyk` when these spots reach their own planes.
             // See `BrushSpec::process_tints`.
             spec.with_spots(spots, self.process_tints_only(stroking))
+        }
+    }
+
+    /// The tint of a `/Separation /All` colour, `None` for any other space
+    /// or under the composite device model (which substitutes the alternate).
+    fn all_colorants_tint(&self, stroking: bool) -> Option<f32> {
+        if matches!(
+            self.policy.spot_colorant_device_model,
+            pdfcer_core::settings::SpotColorantDeviceModel::AlternateSpaceSubstitution
+        ) {
+            return None;
+        }
+        match self.color.device_color(stroking)? {
+            (
+                crate::color::ColorSpace::Separation {
+                    colorant: crate::color::Colorant::All,
+                    ..
+                },
+                comps,
+            ) => Some(comps.first().copied().unwrap_or(1.0).clamp(0.0, 1.0)),
+            _ => None,
         }
     }
 

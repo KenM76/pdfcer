@@ -3914,6 +3914,26 @@ pub(crate) enum Command {
         /// Where along the bottom edge `--footer` sits.
         #[arg(long, value_enum, default_value_t = crate::print_output::AlignArg::Center)]
         footer_align: crate::print_output::AlignArg,
+        /// Printer's marks, comma-separated: `trim` (crop marks), `bleed`,
+        /// `registration`, `color-bars`, `info` (file name and page), or
+        /// `all`. The page grows past its trim box to make room, so
+        /// `--scale fit` prints it a little smaller; the page content is
+        /// cut to its bleed box. Printed copy only.
+        #[arg(long, value_enum, value_delimiter = ',', value_name = "MARK,...")]
+        marks: Vec<crate::print_output::MarkArg>,
+        /// Print one grey plate per ink (Cyan, Magenta, Yellow, Black, then
+        /// each spot colour) instead of the composite page, each labelled
+        /// with its ink. A plate's grey approximates its ink density. One
+        /// page per sheet: not with `--n-up`, `--booklet` or `--poster`.
+        #[arg(long, conflicts_with_all = ["n_up", "booklet", "poster"])]
+        separations: bool,
+        /// Send every page as an image. By default a page with nothing
+        /// semi-transparent goes to the printer as vector graphics (sharper
+        /// lines and text, smaller jobs), and any other page as an image;
+        /// stderr says which each page used. Use this when a printer
+        /// mis-draws vector pages.
+        #[arg(long)]
+        print_as_image: bool,
         /// Which sheet to print on: a form ID or a form NAME, as
         /// `list-paper-sizes` reports them.
         ///

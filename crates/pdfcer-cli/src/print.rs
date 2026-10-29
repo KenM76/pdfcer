@@ -295,7 +295,10 @@ pub(crate) fn cmd_print(
     };
     let presets = pdfcer_core::print_presets::print_presets(&doc);
     let mut session = pdfcer_core::edit::EditSession::new(doc);
-    match output.stamp(&mut session) {
+    let label = input
+        .file_name()
+        .map_or_else(String::new, |n| n.to_string_lossy().into_owned());
+    match output.stamp(&mut session, &label) {
         Ok(notes) => notes.iter().for_each(|n| eprintln!("pdfcer: {n}")),
         Err(err) => {
             eprintln!("pdfcer: {}: {err}", input.display());
@@ -859,6 +862,16 @@ untiled; {tiled_pages} page(s) were tiled."
     // reported sheet, so this costs no extra Win32 round trip and — more
     // importantly — goes through the ONE place rotation is written.
     let mut setups: Vec<pdfcer_print::SheetSetup> = Vec::new();
+    // Bitmap index -> the page's metafile, for pages printed as vectors.
+    let mut vectors: std::collections::HashMap<usize, Vec<u8>> = std::collections::HashMap::new();
+    let vector_wanted =
+        !output.print_as_image && output.color == crate::print_output::ColorArg::Color;
+    if !vector_wanted || n_up.is_some() || booklet || poster || output.separations {
+        eprintln!(
+            "pdfcer: every sheet prints as an image{}.",
+            crate::print_vector::why_all_raster(output, n_up.is_some() || booklet || poster)
+        );
+    }
     if n_up.is_none() && !booklet && !poster {
         for plan in &plans {
             let (Some(page), Some(&size)) = (page_list.get(plan.index), page_sizes.get(plan.index))
@@ -874,6 +887,57 @@ untiled; {tiled_pages} page(s) were tiled."
             // does NOT swap it (a 600x300 plotter must not be rendered
             // as 300x600).
             let render_scale = (f64::from(resolution.dpi) / 72.0) * placement.scale;
+            let setup = pdfcer_print::SheetSetup {
+                orientation: pdfcer_print::resolve_orientation(device_settings.orientation, size),
+                paper: selected_paper,
+            };
+            if output.separations {
+                let plates = match crate::print_plates::render_plates(
+                    &session.view(),
+                    page,
+                    render_scale as f32,
+                    &print_options,
+                ) {
+                    Ok(p) => p,
+                    Err(err) => {
+                        eprintln!("pdfcer: page {}: {err}", plan.index + 1);
+                        return exit::RUNTIME_ERROR;
+                    }
+                };
+                crate::print_plates::report_plates(plan.index, &plates);
+                for plate in plates {
+                    bitmaps.push(pdfcer_print::PageBitmap {
+                        width: plate.pixmap.width(),
+                        height: plate.pixmap.height(),
+                        rgba: plate.pixmap.take(),
+                        placement,
+                        page_pt: size,
+                    });
+                    setups.push(setup);
+                }
+                continue;
+            }
+            if vector_wanted {
+                let route = crate::print_vector::vector_page(
+                    &session.view(),
+                    page,
+                    render_scale as f32,
+                    &print_options,
+                );
+                crate::print_vector::report_route(plan.index, &route);
+                if let Ok(emf) = route {
+                    vectors.insert(bitmaps.len(), emf);
+                    bitmaps.push(pdfcer_print::PageBitmap {
+                        width: 0,
+                        height: 0,
+                        rgba: Vec::new(),
+                        placement,
+                        page_pt: size,
+                    });
+                    setups.push(setup);
+                    continue;
+                }
+            }
             let options = print_options.clone();
             let rendered = match pdfcer_render::render_page_with_view(
                 &session.view(),
@@ -894,10 +958,7 @@ untiled; {tiled_pages} page(s) were tiled."
                 placement,
                 page_pt: size,
             });
-            setups.push(pdfcer_print::SheetSetup {
-                orientation: pdfcer_print::resolve_orientation(device_settings.orientation, size),
-                paper: selected_paper,
-            });
+            setups.push(setup);
         }
     }
 
@@ -928,6 +989,7 @@ untiled; {tiled_pages} page(s) were tiled."
                 orientation: job_orientation,
                 paper: selected_paper,
             }),
+            metafile: vectors.get(&i).map(Vec::as_slice),
         })
         .collect();
     let report = match pdfcer_print::spool_sheets(

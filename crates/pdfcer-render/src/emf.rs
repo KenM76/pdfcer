@@ -57,8 +57,9 @@
 //!   is counted (`nonzero_fills_multi_subpath`) so the CLI can say so.
 //! - **LibreOffice renders `PS_USERSTYLE` dashes solid** — dashes are
 //!   pre-applied to the geometry instead.
-//! - **`EMR_SETMITERLIMIT` is a float on the wire** (Appendix A `<90>`);
-//!   LibreOffice ignores it, Inkscape misreads it as an int.
+//! - **`EMR_SETMITERLIMIT` is written as an integer** (§2.3.11.21): real
+//!   GDI playback fails the next stroke when it holds FLOAT bits, despite
+//!   Appendix A `<90>`. LibreOffice ignores it; Inkscape reads an int.
 //! - **Inkscape draws nothing for `EMR_ALPHABLEND`.** Inkscape is not an
 //!   EMF target (it prefers the SVG on the same clipboard); the choice is
 //!   GDI-correct rasters over Inkscape-visible ones, and it is disclosed.
@@ -848,8 +849,11 @@ impl Writer<'_> {
         self.record(0x5F, &body);
         self.max_handle = self.max_handle.max(IH);
         self.record(0x25, &u32le(IH));
-        // Miter limit: FLOAT bits on the wire (Appendix A <90>).
-        self.record(0x3A, &stroke.miter_limit.max(1.0).to_le_bytes());
+        // Miter limit: an integer, as Windows GDI plays it (§2.3.11.21). GDI
+        // fails the next STROKEPATH when it is given FLOAT bits.
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let miter = stroke.miter_limit.round().clamp(1.0, 1.0e6) as u32;
+        self.record(0x3A, &u32le(miter));
         if let Some(b) = self.path_bracket(&device) {
             self.record(0x40, &rectl(b[0], b[1], b[2], b[3])); // STROKEPATH
         }

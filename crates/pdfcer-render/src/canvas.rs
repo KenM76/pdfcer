@@ -195,6 +195,10 @@ pub(crate) struct BrushSpec {
     /// answers `[0, 0, 0, 0]` here, which is the truth: it states no
     /// process ink at all.
     pub process_tints: Option<[f32; 4]>,
+    /// The tint of a `/Separation /All` paint: every colorant of the page,
+    /// process and spot, at this tint (ISO 32000-1 §8.6.6.4), so a
+    /// registration mark lands on every plate. `None` for every other paint.
+    pub all_colorants: Option<f32>,
     /// The paint's colour as **authored subtractive tints**, when the
     /// canvas it lands on composites in a subtractive space.
     ///
@@ -284,6 +288,7 @@ impl BrushSpec {
             // vector here is the honest "this level was not told".
             spots: Vec::new(),
             process_tints: None,
+            all_colorants: None,
         }
     }
 
@@ -304,6 +309,7 @@ impl BrushSpec {
             cmyk: None,
             spots: Vec::new(),
             process_tints: None,
+            all_colorants: None,
         }
     }
 
@@ -448,6 +454,7 @@ impl BrushSpec {
                     // silently lose its plane and fall back to flattening.
                     spots: self.spots.clone(),
                     process_tints: self.process_tints,
+                    all_colorants: self.all_colorants,
                 },
                 f32::from(rgba[3]) / 255.0,
             ),
@@ -695,6 +702,7 @@ impl<'a> Canvas<'a> {
             cmyk: None,
             spots: Vec::new(),
             process_tints: None,
+            all_colorants: None,
         };
         r.push_masked(
             Op::Fill {
@@ -903,6 +911,7 @@ impl<'a> Canvas<'a> {
                             // no colorants at all, spot or process.
                             spots: Vec::new(),
                             process_tints: None,
+                            all_colorants: None,
                         },
                         rule: FillRule::Winding,
                         ctm,

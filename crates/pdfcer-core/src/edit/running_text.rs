@@ -126,18 +126,7 @@ impl EditSession {
         self.check_page_stamp()?;
         stamp.check()?;
         let pages = self.pages()?;
-        let mut selected = stamp
-            .pages
-            .clone()
-            .unwrap_or_else(|| (0..pages.len()).collect());
-        selected.sort_unstable();
-        selected.dedup();
-        if let Some(&index) = selected.iter().find(|&&i| i >= pages.len()) {
-            return Err(EditError::PageOutOfRange {
-                index,
-                count: pages.len(),
-            });
-        }
+        let selected = selected_pages(stamp.pages.as_deref(), pages.len())?;
         if selected.is_empty() {
             return Err(RunningTextError::NoPages.into());
         }
@@ -169,4 +158,19 @@ impl EditSession {
             first_label: texts.into_iter().next().unwrap_or_default(),
         })
     }
+}
+
+/// `selection` (`None` = every page) sorted and deduplicated, refusing an
+/// index at or past `count`. May be empty.
+pub(super) fn selected_pages(
+    selection: Option<&[usize]>,
+    count: usize,
+) -> Result<Vec<usize>, EditError> {
+    let mut selected = selection.map_or_else(|| (0..count).collect(), <[usize]>::to_vec);
+    selected.sort_unstable();
+    selected.dedup();
+    if let Some(&index) = selected.iter().find(|&&i| i >= count) {
+        return Err(EditError::PageOutOfRange { index, count });
+    }
+    Ok(selected)
 }

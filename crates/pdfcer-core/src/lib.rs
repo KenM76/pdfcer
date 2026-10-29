@@ -98,6 +98,8 @@ pub mod password_history;
 pub mod prepress;
 /// The print presets a document carries (ISO 32000-1 §12.2 Table 150).
 pub mod print_presets;
+/// Header and footer lines (ISO 32000-1 §14.8.2.2).
+pub mod printer_marks;
 pub mod redact;
 mod redact_image;
 mod redact_overlay_trim;
@@ -105,7 +107,6 @@ mod redact_proof;
 mod redact_quad_inset;
 mod redact_vector;
 pub mod richtext;
-/// Header and footer lines (ISO 32000-1 §14.8.2.2).
 pub mod running_text;
 pub mod settings;
 #[cfg(feature = "signing")]

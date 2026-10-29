@@ -37,7 +37,8 @@ pub(super) fn build(objects: &[(u32, Vec<u8>)]) -> Vec<u8> {
     buf
 }
 
-/// A 100 pt page painting `content`, with a `Spot1` separation (`/CS0`) and
+/// A 100 pt page painting `content`, with a `Spot1` separation (`/CS0`), a
+/// `/Separation /All` (`/All0`) and
 /// an overprinting graphics state (`/OP`). `cmyk_group` gives the page a
 /// `DeviceCMYK` transparency group, so it composites in ink.
 fn page(content: &str, cmyk_group: bool) -> Vec<u8> {
@@ -56,7 +57,7 @@ fn page(content: &str, cmyk_group: bool) -> Vec<u8> {
             3,
             format!(
                 "<< /Type /Page /Parent 2 0 R /Contents 4 0 R {group} /Resources << \
-                 /ColorSpace << /CS0 [/Separation /Spot1 /DeviceCMYK 5 0 R] >> \
+                 /ColorSpace << /CS0 [/Separation /Spot1 /DeviceCMYK 5 0 R] \n                 /All0 [/Separation /All /DeviceCMYK 5 0 R] >> \
                  /ExtGState << /OP << /OP true /op true /OPM 1 >> >> >> >>"
             )
             .into_bytes(),
@@ -150,4 +151,22 @@ fn without_a_preview_nothing_is_listed_or_forced() {
     assert!(d.inks.is_empty() && d.inks_unmatched.is_empty());
     assert_eq!((d.inks_hidden, d.inks_forced_subtractive), (0, 0));
     assert!(!d.cmyk_buffer_engaged);
+}
+
+#[test]
+fn a_separation_all_mark_prints_on_the_spot_plate_too() {
+    // ISO 32000-1 §8.6.6.4: `/All` marks every plate, spot ones included.
+    let content = format!("{SPOT} /All0 CS 1 SCN 4 w 5 95 m 95 95 l S");
+    let spot_plate = render(
+        page(&content, true),
+        hiding(&["Cyan", "Magenta", "Yellow", "Black"]),
+    );
+    let at = |r: &RenderedPage, x: u32, y: u32| {
+        let i = ((y * r.pixmap.width() + x) * 4) as usize;
+        r.pixmap.data()[i..i + 3].to_vec()
+    };
+    // The mark at y = 5 from the top: inked on the spot plate.
+    assert_ne!(at(&spot_plate, 50, 5), vec![255, 255, 255]);
+    // The empty corner stays paper.
+    assert_eq!(at(&spot_plate, 2, 50), vec![255, 255, 255]);
 }

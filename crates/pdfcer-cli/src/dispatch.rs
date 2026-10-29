@@ -895,11 +895,17 @@ pub(crate) fn run() -> ExitCode {
             header_align,
             footer,
             footer_align,
+            marks,
+            separations,
+            print_as_image,
         } => {
             let output = crate::print_output::PrintOutput {
                 color,
                 header: header.map(|t| (t, header_align)),
                 footer: footer.map(|t| (t, footer_align)),
+                marks,
+                separations,
+                print_as_image,
             };
             crate::print_output::print_each(&input, to_file.as_deref(), |input| {
                 cmd_print(

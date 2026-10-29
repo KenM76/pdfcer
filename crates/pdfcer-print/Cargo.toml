@@ -33,3 +33,9 @@ windows = { version = "0.62", features = [
     "Win32_Security",
     "Win32_Storage_Xps",
 ] }
+
+# The vector-page test plays a real page's metafile and compares it with the
+# same page's raster; dev-only, so the crate itself stays render-free.
+[dev-dependencies]
+pdfcer-core.workspace = true
+pdfcer-render.workspace = true

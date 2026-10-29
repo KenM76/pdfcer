@@ -977,6 +977,8 @@ dependencies = [
 name = "pdfcer-print"
 version = "0.103.0"
 dependencies = [
+ "pdfcer-core",
+ "pdfcer-render",
  "thiserror",
  "windows",
 ]
