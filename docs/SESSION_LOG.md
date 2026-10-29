@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-28 (1285th filing) — `Pass 647.2` EIGHTH CUT on `cac24637` (XFA nested overflow; decision 205; Pass NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 647.2` eighth cut, `cac2463714fdea52dd8c8f49dd2d094d70d07ca4` (gap G-L21): a top-to-bottom split that cuts a nested subform makes that subform overflow too; innermost cut subform lays its trailer (containers grow) and leader (rest moves down), own chain then outward; trailer heights reserved, re-split up to 4 times; use counts per nested instance. New `xfa/layout/nested.rs`. Core only (CLI is `647.5`).
+- New setting `NestedOverflow { Innermost (default), EachAsserting }` for the XFA 3.3 Ex 8.43 ambiguity: decision 205 (ARCHITECTURE.md §12 entry + `docs/decisions/205-nested-overflow-lays-innermost-by-default.md`).
+- Evidence: 3 new tests, sabotage fails 2; layout tests 44 pass; lib 3112 pass; fmt, clippy, structure, core-api-verbs clean; fuzz `xfa_packets` 90 s, 78,657 runs, clean; no manifest change.
+- ROADMAP: eighth-cut block added to `Pass 647.2` (stays in Next up). FEATURES: "Dynamic XFA, reading" row extended; boxes unchanged (`[x]`/`[ ]`/`[ ]`); row under the 1,200-character cap by Grep.
+
+**Decisions / findings:** decision 205. `check-ledger-numbers.py` (engineer-run): next free decision 206, R251, filing 1286.
+
+**Still in flight:** 647.2 remaining: nested adhesion; `lr-tb` adhesion (G-L14); G-L12 `pageArea`; field/draw text splitting.
+
+**For next session:** continue `Pass 647.2`, slow pacing. Next filing 1286th. Push, CI and backup state not checked from here.
+
 ## 2026-10-28 (1284th filing) — `Pass 647.2` SEVENTH CUT on `e3547709` (XFA overflow@target; Pass NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

@@ -13578,3 +13578,11 @@ Full record: `docs/decisions/204-dynamic-xfa-is-reopened-layout-at-render-time.m
 **Body-section effect.** `ARCHITECTURE.md` §5 needs no edit (the decision applies it). **Decision ceiling.** Fills `204`; next free decision `205`. **New standing rule.** None; `R263` stays next free.
 
 *Amended 1272nd filing, 2026-10-28: `Pass 647.0` SHIPPED on `26f53acd` and `554055e6` (packets and template reader, core only). Forward pointer added at decision 020 §3.2.1. No new decision; `205` stays next free.*
+
+### 2026-10-28 (1285th filing) — decision 205: nested overflow leaders/trailers lay at the innermost cut subform by default; `EachAsserting` is a setting
+
+Full record: `docs/decisions/205-nested-overflow-lays-innermost-by-default.md`. Recorded at `Pass 647.2` eighth cut (`cac24637`). Applies decision 204.
+
+**Decides.** XFA 3.3 Ex 8.43 (pp.323-324) is ambiguous on which enclosing subform lays an overflow leader/trailer when a split cuts a nested subform. Setting `NestedOverflow { Innermost (default), EachAsserting }` via `LayoutOptions::with_nested_overflow`: the default lays it once at the innermost cut subform (own chain, then levels out, then the instance's); `EachAsserting` has every asserting enclosing subform lay its own (trailers innermost first, leaders outermost first). Core only; CLI flag arrives with `Pass 647.5`.
+
+**Body-section effect.** None. **Decision ceiling.** Fills `205`. Next free decision: `206`. **New standing rule.** None.
