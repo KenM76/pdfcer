@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1286th filing) — `Pass 647.2` NINTH CUT on `f1b8baa6` (XFA nested adhesion; Pass NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 647.2` ninth cut, `f1b8baa6cce35990e801e3595f3995fdf34e0985`: sibling `keep@next`/`keep@previous` adhesion inside a split `tb` subform (XFA 3.3 Ch.8 pp.311-314); split never falls between an adhering pair; never crosses a parent boundary. `ItemFlags { breakable, glue }` on `Placed`. Core only.
+- Evidence: 4 new tests, sabotage fails 3 of 4 (boundary guard stays green); lib 2061 passed / 2 ignored; fmt, clippy, structure (563, none new), core-api-verbs clean; 38 non-cargo gates green; no manifest change, no new decision.
+- ROADMAP: ninth-cut block and a single consolidated REMAINING line added to `Pass 647.2`; the four superseded per-cut REMAINING lines removed to hold the 80-line cap. FEATURES: "Dynamic XFA, reading" row updated; boxes unchanged (`[x]`/`[ ]`/`[ ]`).
+
+**Decisions / findings:** none new. Next free per `check-ledger-numbers` (engineer-run): decision 206, R251, filing 1287 after this one.
+
+**Still in flight:** 647.2 remaining: `lr-tb`/`rl-tb` adhesion (G-L14); G-L12 `pageArea`; field/draw text splitting.
+
+**For next session:** continue `Pass 647.2`, slow pacing. Push, CI and backup state not checked from here.
+
 ## 2026-10-28 (1285th filing) — `Pass 647.2` EIGHTH CUT on `cac24637` (XFA nested overflow; decision 205; Pass NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

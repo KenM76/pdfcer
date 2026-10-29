@@ -26290,14 +26290,21 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > `Pass 647.1` SHIPPED and has left this section (1276th filing, `74023a53`); full entry at the top of *Shipped*.
 
-### Pass 647.2 — Flowed layout `tb` / `lr-tb` (FIRST CUT `7cfa9c40`, SECOND CUT `9d0ddb90` (1278th filing), THIRD CUT `5fceb520` (1279th filing), FOURTH CUT `fa1869c8` (1280th filing), FIFTH CUT `1abf9d5e` (1281st filing), SIXTH CUT `f6e76272` (1283rd filing), SEVENTH CUT `e3547709` (1284th filing), EIGHTH CUT `cac24637` (1285th filing); NOT COMPLETE, stays here)
+### Pass 647.2 — Flowed layout `tb` / `lr-tb` (FIRST CUT `7cfa9c40`, SECOND CUT `9d0ddb90` (1278th filing), THIRD CUT `5fceb520` (1279th filing), FOURTH CUT `fa1869c8` (1280th filing), FIFTH CUT `1abf9d5e` (1281st filing), SIXTH CUT `f6e76272` (1283rd filing), SEVENTH CUT `e3547709` (1284th filing), EIGHTH CUT `cac24637` (1285th filing), NINTH CUT `f1b8baa6` (1286th filing); NOT COMPLETE, stays here)
+
+**REMAINING in 647.2 after the ninth cut (supersedes the per-cut lists below, trimmed):** `lr-tb`/`rl-tb` adhesion (G-L14); the G-L12 `pageArea` keep setting (spec same-page vs Adobe none; currently laid as `contentArea`); field/draw text splitting once content is sized.
+
+**Ninth cut (`f1b8baa6cce35990e801e3595f3995fdf34e0985` "feat(xfa): nested adhesion inside a split subform (Pass 647.2, ninth cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision).** Core only; no shell caller (CLI report is `647.5`), gui column unaffected.
+- **Done:** adjacent siblings in a `tb` container adhere on `keep@next`/`keep@previous` (XFA 3.3 Ch.8 pp.311-314), including instances of one subform. The split line never falls between an adhering pair: a splittable earlier member is cut and its rest moves with the partner; an unsplittable one moves whole. Adhesion never crosses a parent's boundary: with no line left above the pair, the whole instance moves.
+- **Implementation:** per-item `ItemFlags { breakable, glue }` on `Placed`; `split()` treats a glued seam as a blocker.
+- **core-api:** `docs/core-api/03-capabilities.md` adhesion paragraph updated (`index.md` line count 5369); `check-core-api-verbs` passes.
+- **Evidence (engineer):** 4 new tests in `xfa/layout/tests/adhere.rs`; sabotage (glue forced to 0) fails 3 of 4, the parent-boundary guard correctly stays green; `pdfcer-core` lib 2061 passed / 2 ignored, other binaries green; fmt, clippy `-D warnings`, `check-code-structure` (563 baseline, none new) clean; all 38 non-cargo CI gates green; no manifest change, `cargo tree` unaffected, no new dependency.
 
 **Eighth cut (`cac2463714fdea52dd8c8f49dd2d094d70d07ca4` "feat(xfa): nested overflow leaders and trailers (Pass 647.2, eighth cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204 plus new decision 205).** Core only; no shell caller (the CLI report is `647.5`), gui column unaffected. New `crates/pdfcer-core/src/xfa/layout/nested.rs`; `split()` now returns a `Cut` carrying source indexes; layout tests moved to `layout/tests/mod.rs` + `tests/nested.rs`.
 - **Done (gap G-L21):** when a top-to-bottom split cuts a nested subform, that subform overflows too. The innermost cut subform lays the overflow trailer inside itself at the end of its top fragment (cut containers grow to hold it) and the overflow leader at the top of its rest (content below moves down). It spends its own chain, then the levels out to the instance, then the instance's. Trailer heights are reserved, re-splitting up to 4 times. Use counts are per nested instance. The instance's own trailer still follows the instance in flow.
 - **Setting (spec ambiguity, XFA 3.3 Ex 8.43 pp.323-324; decision 205):** `#[non_exhaustive] pub enum NestedOverflow { Innermost (default), EachAsserting }` via `LayoutOptions::with_nested_overflow`. `EachAsserting`: every enclosing cut subform asserting its own kind also lays it; trailers innermost first, leaders outermost first. `docs/core-api/03-capabilities.md` documents it.
 - **Evidence (engineer):** 3 new tests (`a_cut_nested_subform_lays_its_trailer_and_leader_inside_itself`, `an_inherited_trailer_lays_once_at_the_same_place`, `nested_overflow_lays_the_innermost_or_each_asserting_subform`); sabotage (disabling `EachAsserting` and container growth) fails 2; layout tests 44 pass; `pdfcer-core` lib 3112 pass; fmt, clippy `-D warnings`, `check-code-structure` (clean, none new), `check-core-api-verbs` PASS; fuzz `xfa_packets` 90 s, 78,657 runs, clean; no manifest change, `cargo tree` unaffected.
 - **Follow-up `5fd3893dbb6f97904ba54e84c8bfc8cc98a309a5`:** doc comments on ten `pub(super)` layout helpers (`check-public-fns-documented`); no behaviour change.
-- **REMAINING in 647.2 after the eighth cut:** nested adhesion; `lr-tb` adhesion (G-L14); the G-L12 `pageArea` keep setting; field/draw text splitting.
 
 **Seventh cut (`e35477095f8b6fda57b26986da7370b63c4aebc4` "feat(xfa): overflow@target moves a split to the named area (Pass 647.2, seventh cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision).** Core only; no CLI caller yet (`xfa-layout` is `647.5`), gui column unaffected.
 - **Done:** `layout_template` honours a subform's own `overflow@target` (XFA 3.3 Ch.17 p.791; Ch.9 p.366 Ex 9.28; spec RAG `adobe_ext__xfa_layout_adhesion_leaders_trailers.md` lines 79, 86). When the subform splits, the remainder moves to the named contentArea or pageArea instead of the next area in sequence: a later contentArea on the same page is taken first, else a fresh instance of the target's pageArea (reuses the break-target resolver without forcing a new page).
@@ -26322,8 +26329,6 @@ closes out the *prior* filing's business rather than opening this one's.
 - **core-api:** `docs/core-api/03-capabilities.md` updated (index line count updated).
 - **Evidence (engineer):** 3 new layout tests (33 in `xfa::layout`); 5 sabotages each fail a test; `pdfcer-core` lib 2046 + integration 3112 + doc 255 passed; fmt, clippy `-D warnings`, `check-code-structure` (563 baseline, none new), `check-core-api-verbs` PASS; fuzz `xfa_packets` 90 s, 94,775 runs = 1,053 runs/s, 0 crashes. No manifest change.
 
----
-
 **Fourth cut (`fa1869c89a621b46d1efff1f19270471381adac6` "feat(xfa): overflow leaders and trailers on a split (Pass 647.2, fourth cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision).** Core only (`crates/pdfcer-core/src/xfa/layout/overflow.rs` (new)). Spec: `adobe_ext__xfa_layout_adhesion_leaders_trailers.md` §2.
 - **Done:** a top-level `tb` subform asserting `overflow@leader`/`@trailer` lays its trailer right after each split's top part, in flow, and its leader at the top of the next content area (XFA 3.3 Ch.8 pp.318-320).
 - **Reservation:** the next trailer's height is reserved while filling, so it can force a split (p.320, gap G-L21).
@@ -26331,8 +26336,6 @@ closes out the *prior* filing's business rather than opening this one's.
 - **Targets:** `#id` or a bare name (full SOM later). An item naming no single subform/subformSet emits new `LayoutWarning::InvalidOverflowTarget { path, target }` and is skipped (p.323).
 - **core-api:** `docs/core-api/03-capabilities.md` updated (now 5,333 lines; `index.md` updated).
 - **Evidence (engineer):** 3 new layout tests (30 in `xfa::layout`); `pdfcer-core` lib 2043 + integration 3112 + doc 255 passed; fmt, clippy `-D warnings`, `check-code-structure` (563 baseline, none new), `check-core-api-verbs` PASS; fuzz `xfa_packets` 90 s, 90,566 runs = 1,006 runs/s, 0 crashes; 4 sabotages (reservation off, leader off, max ignored, no-occur=1) each fail a test. No manifest change, `cargo tree` unaffected.
-
----
 
 **Third cut (`5fceb5207e0198129845880037f90df9135afe5e` "feat(xfa): keep@next/previous adhesion between top-level instances (Pass 647.2, third cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision).** Core only (`crates/pdfcer-core/src/xfa/layout/adhere.rs` (new), `layout.rs`, `geometry.rs`, `split.rs`, `tests.rs`). **Spec hand-off for this cut and the next:** `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_layout_adhesion_leaders_trailers.md` (gaps G-L8 to G-L27; its cites are printed page numbers, which equal PDF pages).
 - **Done:** under a `tb` root, adjacent top-level instances adhere when the first has `keep@next` or the second has `keep@previous` (XFA 3.3 Ch.8 pp.311-314). Either side has the same effect, chains form, and a `subformSet` is transparent (Ch.9 p.357).
@@ -26342,9 +26345,6 @@ closes out the *prior* filing's business rather than opening this one's.
 - **G-L18 refines G-L7:** the `keep@intact` default keys on the subform's own layout (Ch.17 p.762).
 - **core-api:** `docs/core-api/03-capabilities.md` updated (`index.md` line count 5,323).
 - **Evidence (engineer):** `pdfcer-core` lib 2040 + integration 3112 + doc 255 passed (4 new layout tests); fmt, clippy, `check-code-structure` (563 baseline, none new), `check-core-api-verbs` PASS; fuzz `xfa_packets` 81,798 runs / 91 s = 899 runs/s, 0 crashes; sabotage (force `chain_fits` true; drop the glued no-move rule; clear the glue flags; ignore hard breaks) each fails a test. No manifest or dependency change.
-- **REMAINING in 647.2 after the third cut:** overflow leaders/trailers and bookends; adhesion between children nested inside a subform; adhesion in `lr-tb`/`rl-tb` roots (G-L14); the G-L12 `pageArea` setting (spec same-page vs Adobe none; currently laid as `contentArea`); field/draw text splitting once content is sized.
-
----
 
 **Second cut (`9d0ddb9097175971a6722b37feab9153f0c029e3` "feat(xfa): split tb subforms across content areas (Pass 647.2, second cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision).** Core only (`crates/pdfcer-core/src/xfa/layout/{split.rs (new), geometry.rs}`, `layout.rs`, `tests.rs`).
 - **Done:** a `tb` root splits an instance that does not fit the rest of the current content area (XFA 3.3 Ch.8 pp.290-295) instead of moving it whole. Only a `tb` root splits (every ancestor must be `tb`, p.281).
@@ -26353,9 +26353,6 @@ closes out the *prior* filing's business rather than opening this one's.
 - **Model:** each part is its own `LayoutItem` with the same path (one container can appear on several pages). `LayoutWarning::ContentOverflow` now means "taller than an empty area and not splittable there".
 - **core-api:** `docs/core-api/03-capabilities.md` updated (`index.md` line count 5,314).
 - **Evidence (engineer):** `pdfcer-core` lib 2036 + integration 3112 + doc 255 passed; 2 new layout tests (`a_tb_subform_splits_between_its_children_and_cuts_a_nested_one`, `keep_intact_moves_the_whole_subform_and_reports_its_overflow`); fmt, clippy, `check-code-structure` (563 baseline, none new), `check-core-api-verbs` PASS; fuzz `xfa_packets` 114,687 runs / 91 s = 1,260 runs/s, 0 crashes; sabotage (force `split()` to Err) fails the split test. No manifest change, `cargo tree` unaffected, no new dependency.
-- **REMAINING in 647.2 after the second cut:** leaders and trailers; `keep@next`/`keep@previous`; field/draw text splitting once content is sized.
-
----
 
 **First cut (`7cfa9c40eeb90160d9422ce569a2baaa2d48e419` "feat(xfa): flow tb/lr-tb/rl-tb content and move it between areas (Pass 647.2, first cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision).** Core only; no CLI or GUI caller.
 - **Done:** `layout_template` lays flowed containers (XFA 3.3 Ch.8 pp.279-282). `tb` stacks children from the margin corner; `lr-tb` and `rl-tb` tile children in rows, wrapping at the container's `w` (or `maxW` when `w` is absent) less margins, never wrapping when neither is present; `rl-tb` tiles from the right edge. A flowed child's x, y and anchorType are ignored.
@@ -26364,7 +26361,6 @@ closes out the *prior* filing's business rather than opening this one's.
 - **`FlowedLayoutPending`** now covers only `table`/`row` strategies (`647.7`).
 - **core-api:** `docs/core-api/03-capabilities.md` updated.
 - **Evidence (engineer):** `pdfcer-core` lib 2034 + integration 3112 + doc 255 passed; 4 new layout tests, 1 rewritten; fmt, clippy `-D warnings`, `check-code-structure` (no new debt), `check-core-api-verbs` clean; fuzz `xfa_packets` 115,505 runs / 91 s = 1,269 runs/s, 0 crashes; sabotage check (disable the move to the next area) fails the `tb` test. No manifest touched, `cargo tree` unaffected. Full `run-gates.sh` not reported.
-- **REMAINING in 647.2:** content splitting across areas (Ch.8 pp.290-295) including `keep@intact` and the creep-upward split consensus; leaders and trailers; the overflow/break rules that interact with splitting.
 
 Original scope: flowed containers, break and overflow rules, leaders/trailers. Content dropped on overflow is reported in the layout model and surfaced by 647.4/647.5 (disclosure, not silent). Table and row layouts are `647.7`. Spec: `xfa_layout_algorithm`.
 
