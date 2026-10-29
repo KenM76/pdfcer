@@ -1277,6 +1277,19 @@ pub(crate) fn run() -> ExitCode {
             rich_text,
             widgets,
         } => cmd_list_fields(&input, fillable_only, rich_text, widgets),
+        Command::XfaLayout {
+            input,
+            negative_coordinates,
+            nested_overflow,
+            page_area_keep,
+        } => cmd_xfa_layout(
+            &input,
+            XfaLayoutArgs {
+                negative_coordinates,
+                nested_overflow,
+                page_area_keep,
+            },
+        ),
         Command::AddTextField {
             input,
             name,

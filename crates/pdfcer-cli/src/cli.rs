@@ -5966,6 +5966,47 @@ pub(crate) enum Command {
         widgets: bool,
     },
 
+    /// Print the pages pdfcer lays out from a dynamic XFA form's template.
+    ///
+    /// A dynamic XFA form stores one placeholder page; its real pages exist
+    /// only once an XFA processor lays the template out. This prints that
+    /// layout, read-only, with no form data merged yet:
+    ///
+    ///   page index=N name="..." width= height= page_area= content_areas= items=
+    ///   item page=N kind= name="..." path= x= y= w= h= area= background= visible=
+    ///   warning kind= path= [target= | attribute= | strategy=]
+    ///   xfa-layout pages= items= warnings=
+    ///
+    /// Units are points; x and y run from the page's top-left corner,
+    /// y downward. path is the item's position in the template as child
+    /// indexes, for example 0.2.1. area is the index of the content area the
+    /// item flowed into, or - for page background. Each warning line names
+    /// something the template left open or that did not fit, for example
+    /// content-overflow (placed past the bottom of its area) or
+    /// content-discarded (the page areas ran out).
+    ///
+    /// A note on stderr says these pages are computed, not stored in the
+    /// file. Exits 1 when the file has no XFA template or it cannot be laid
+    /// out.
+    #[command(verbatim_doc_comment)]
+    XfaLayout {
+        /// Input PDF.
+        input: PathBuf,
+        /// What to do with a coordinate that resolves below zero: keep it,
+        /// even off the page, or clamp it to zero.
+        #[arg(long, value_enum, default_value_t)]
+        negative_coordinates: NegativeCoordinatesArg,
+        /// When a page break splits nested subforms, which of them lay an
+        /// overflow leader and trailer: only the innermost, or each one that
+        /// names its own.
+        #[arg(long, value_enum, default_value_t)]
+        nested_overflow: NestedOverflowArg,
+        /// How keep with next or previous by page is laid: on one page, as
+        /// XFA 3.3 defines it, or ignored, as Adobe's processor does.
+        #[arg(long, value_enum, default_value_t)]
+        page_area_keep: PageAreaKeepArg,
+    },
+
     /// **Create a new text form field** (§12.7.2 + §12.5.6.19).
     ///
     /// Writes a merged field/widget dictionary, registers it in the

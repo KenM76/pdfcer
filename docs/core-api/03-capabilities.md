@@ -667,7 +667,7 @@ children of `xdp:xdp` as `XdpPacket { name, namespace, range }`. A packet is
 known by its element's local name, not by the array's label. A root that is
 not `xdp` counts as one packet. `packet_text(name)` returns that element's
 text. `XfaError` is `#[non_exhaustive]`: `Malformed`, `Undecodable { index }`,
-`TooLarge`, `NotText`, `TooDeep`, `Xml`. No shell calls it yet.
+`TooLarge`, `NotText`, `TooDeep`, `Xml`. CLI: `xfa-layout`.
 
 **The XFA template** (`xfa/template.rs`, decision 204):
 `read_template(&XdpDocument) -> Result<Option<Template>, XfaError>`.
@@ -687,8 +687,8 @@ Ch.17 defaults:
   A number with no unit means inches. An absent attribute is `None`, never
   zero, and so is `maxW`/`maxH` of 0.
 
-The enums are `#[non_exhaustive]`, and unknown tokens read as the default. No
-shell calls this yet. `XdpDocument::parse(String)` reads standalone XDP text
+The enums are `#[non_exhaustive]`, and unknown tokens read as the default. CLI:
+`xfa-layout`. `XdpDocument::parse(String)` reads standalone XDP text
 (an `.xdp` file) the same way `read_xdp` reads a document's; it fails with
 `TooLarge`, `TooDeep` or `Xml`.
 
@@ -819,7 +819,14 @@ with every `warnings` entry.
     areas of that page), or is ignored as Adobe does (gap G-L12);
     `#[non_exhaustive]`.
 - **Errors.** `LayoutError` is `NoRootSubform` or `NoPageArea`; the latter is
-  fatal per XFA. No shell calls this yet; the CLI report is 647.5.
+  fatal per XFA.
+- **CLI.** `pdfcer xfa-layout <file>` reads the template through
+  `read_xdp` and `read_template`, lays it, and prints one `page`, `item` and
+  `warning` line each, then an `xfa-layout pages= items= warnings=` summary.
+  Its stderr note says the pages are computed, not stored. Its flags
+  `--negative-coordinates`, `--nested-overflow` and `--page-area-keep` map
+  one-to-one onto the options above. It exits 1 when the file has no
+  template or `LayoutError` applies. Rendering the layout is 647.4.
 
 `Field` (`forms.rs`) → `fully_qualified_name`, `partial_name`,
 `alternate_name` (`/TU`), `mapping_name` (`/TM`), `rich_value` (`/RV`),

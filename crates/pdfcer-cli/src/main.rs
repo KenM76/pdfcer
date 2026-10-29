@@ -593,6 +593,8 @@ mod fields_fill;
 use fields_fill::*;
 mod fields_list;
 use fields_list::*;
+mod xfa_layout;
+use xfa_layout::*;
 mod fields_scripts;
 use fields_scripts::*;
 mod edit_common;
