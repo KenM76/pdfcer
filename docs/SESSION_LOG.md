@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1306th filing) — `Pass 55.11` + `Pass 55.12` SHIPPED `be1d18a2` / `7bf76f74` (printer's marks, separations, vector printing)
+
+**Shipped (engineer-reported, no shell here, nothing checked from here; I edited ROADMAP/FEATURES/SESSION_LOG only, the engineer commits):**
+- `Pass 55.11`, `be1d18a2`: core `printer_marks` + `EditSession` verb (core-api 386 verbs, 187 `EditError` variants); render fix `/Separation /All` paints every plate; CLI `print --marks`, `--separations`.
+- `Pass 55.12`, `be1d18a2` + `7bf76f74`: `pdfcer-print` `Sheet.metafile` via `PlayEnhMetaFile`, `PrintError::Metafile`; CLI vector/image routing per page with reasons on stderr, `--print-as-image`, result line `mode=vector|raster|mixed`. Live: `hello.pdf` to "Microsoft Print to PDF" `--to-file`, output has no image.
+- Fixes: `EMR_SETMITERLIMIT` written as integer (real GDI fails the next `EMR_STROKEPATH` on FLOAT bits, A/B on 4 bytes; also affects EMF clipboard export to Office); RAG `D:\dev\rag\emf\` already corrected by the engineer. `print_presets` broken intra-doc link (from `55.9`) had turned CI `cargo doc` red; fixed.
+- Gates: `run-gates.sh` 48/49, the failure (`check-string-gaps`, deliberate 3-space page-info separator) fixed with exempt comments and re-run clean. `cargo tree` core/render unchanged; structure clean.
+
+**FEATURES:** added printer's marks, print separations, vector printing (each core `[x]` cli `[x]` gui `[ ]`); the two Planned rows for them removed; the PDF/X row now points at the shipped rows. No row said printing was raster-only.
+
+**Gotcha:** a `run-gates` started while edits are in flight certifies nothing; two such runs were discarded this session. Start it only on a settled tree.
+
+**Still in flight:** `55.13` (CUPS `lp` + IPP), `55.14` (finishing), then a release. Hard-rule-11 survivors: none found by my reading; the one changed meaning was the result line `mode=raster` (now three values), and no doc here quoted it.
+
 ## 2026-10-29 (1305th filing) — `Pass 55.10` SHIPPED `615cc4c7` (print-time extras)
 
 **Shipped (engineer-reported, no shell here, nothing checked from here):**

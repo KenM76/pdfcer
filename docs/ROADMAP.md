@@ -112,6 +112,25 @@ wherever it appears.*
 
 ## Shipped
 
+### Pass 55.12 — Vector printing — SHIPPED `be1d18a2` + `7bf76f74`, 2026-10-29 (1306th filing)
+
+Engineer-reported; no shell here, nothing checked from here. `feat(print): printer's marks, separations, vector pages (Passes 55.11, 55.12)` and `fix(print): the result line says mode=vector, raster or mixed (Pass 55.12)`. Reasoning is in the commit messages.
+- **pdfcer-print:** `Sheet.metafile: Option<&[u8]>`, played by GDI `PlayEnhMetaFile` into the bitmap's destination rectangle; new `PrintError::Metafile`. Test plays a metafile into a memory DC and compares with the raster: under 3% of pixels differ, placement exact.
+- **cli `print`:** pages the EMF writer carries whole print as vector; a page needing rasterisation or approximation (transparency, blend, shading, overprint, tiling pattern) prints as an image; stderr reports each page's route and why. `--print-as-image` forces images. Imposed, separations, grey and black-only jobs are all-raster, said on stderr. Result line `mode=vector|raster|mixed` (was always `mode=raster`; the second commit).
+- **Live verified:** `fixtures/synthetic/hello.pdf` printed to "Microsoft Print to PDF" with `--to-file`; the output contains no image.
+- **Fix, render/emf:** `EMR_SETMITERLIMIT` is now written as an integer. Measured: real Windows `PlayEnhMetaFile` fails the next `EMR_STROKEPATH` when the field holds FLOAT bits, despite MS-EMF Appendix A note 90 (A/B on those 4 bytes only). Also affects EMF clipboard export to Office. RAG `D:\dev\rag\emf\` (`consumers.md`, `path_records.md`, `index.md`) already corrected by the engineer.
+- **Fix, core/print_presets:** a broken intra-doc link from `Pass 55.9` had turned CI's `cargo doc` job red; fixed.
+- **Gates:** `tools/run-gates.sh` 48/49 on the final tree; the one failure (`check-string-gaps` on a deliberate 3-space page-info separator) fixed with string-gap-exempt comments, re-run clean. `cargo tree` for core/render unchanged (no manifest change to them; `pdfcer-print` gained dev-dependencies on core/render only). Code-structure clean, no new debt.
+- gui not built. Windows only.
+
+### Pass 55.11 — Printer's marks and separation plates — SHIPPED `be1d18a2`, 2026-10-29 (1306th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Same commit as above.
+- **core:** `printer_marks` module + `EditSession` verb: crop, registration, colour-bar and page-info marks in the bleed band, one undoable session edit. core-api updated: 386 verbs, 187 `EditError` variants; `check-core-api-verbs` clean.
+- **render fix:** `/Separation /All` now paints every plate in `cmyk_paint` (previously none).
+- **cli `print`:** `--marks <MARK,...>` and `--separations` (one grey plate per ink, labelled with the ink name; stderr says plate greys approximate ink density).
+- PDF/X half of the old "Print and prepress" row stays Planned.
+
 ### Pass 55.10 — Print-time output options — SHIPPED `615cc4c7`, 2026-10-29 (1305th filing)
 
 Engineer-reported; no shell here, nothing checked from here. `feat(print): header/footer, grey and black-only, several files (Pass 55.10)`. Reasoning is in the commit message. `55.11`-`55.14` remain NOT STARTED.
@@ -26549,15 +26568,7 @@ Origin: the operator asked whether pdfcer can send a PDF to a printer and what o
 
 `Pass 55.10` SHIPPED `615cc4c7` (1305th filing), see Shipped; watermark, a remove-running-text verb and a CLI header/footer document edit were not built and sit in FEATURES Planned.
 
-### Pass 55.11 — Prepress printing: printer marks and separations (NOT STARTED)
-
-(a) Printer marks (trim, bleed, registration, colour bars, page information) drawn around the trim box on a larger sheet; (b) separations: one sheet per ink, each printed as a grey plate. Acrobat reference: `Acrobat_Features/printing__advanced_output_panel.md`. Overlaps the Planned "Print and prepress (PDF/X)" FEATURES row; this Pass is its printing half, the PDF/X half stays there.
-- **Acceptance:** marks sit outside the trim box and never touch page content; sheet size grows by the stated mark offset; each plate is labelled with its ink name; overprint and spot-colour handling reuse the separation preview (`Pass 625.0`) rather than a second renderer. Anything inferred (assumed trim box when none is set, plate for an ink the device cannot name) is disclosed.
-
-### Pass 55.12 — Vector printing (NOT STARTED)
-
-Send paths, text (as outlines) and images to the Windows printer as vector drawing instead of one 300 DPI picture per page. A page using what GDI cannot draw faithfully (transparency, blend modes, soft masks, shadings) falls back to raster for that page, disclosed per page. `--print-as-image` forces raster (Acrobat's "Print as Image"). Acrobat reference: `Acrobat_Features/printing__rendering_pipeline_and_resolution.md`.
-- **Acceptance:** a vector-only page prints without a page raster (test by inspecting the GDI call sequence or a spooled-EMF dump, engineer to choose); per-page report line says `vector` or `raster (reason)`; a fallback never changes the page's appearance; `--print-as-image` always rasterises. Windows only; the render crate stays GUI-free (`cargo tree` check on any manifest change).
+`Pass 55.11` and `Pass 55.12` SHIPPED `be1d18a2` / `7bf76f74` (1306th filing), see Shipped.
 
 ### Pass 55.13 — Printing beyond Windows (NOT STARTED)
 
