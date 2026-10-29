@@ -20,6 +20,8 @@ render = ["textures"]
 textures = ["dep:png", "dep:zune-jpeg"]
 
 [dependencies]
+# pdfcer-json: glTF's JSON chunk (Pass 648.0).
+pdfcer-json = { path = "../pdfcer-json" }
 # thiserror: C-GOOD-ERR error derives. MIT OR Apache-2.0.
 thiserror = "2"
 # flate2: PRC sections are zlib streams (RFC 1950/1951). Pure-Rust backend

@@ -34,6 +34,7 @@ mod compressed;
 mod container;
 mod error;
 mod export;
+mod gltf;
 mod model;
 mod named_view;
 #[cfg(feature = "render")]
@@ -58,6 +59,7 @@ pub use container::{
 };
 pub use error::PrcError;
 pub use export::{to_obj, to_stl};
+pub use gltf::{GltfColours, GltfError, GltfImport, GltfOptions, GltfUpAxis, read_gltf};
 pub use model::{
     AssembleError, AssembleOptions, AssembledModel, DEFAULT_VIEW_DIRECTION, DEFAULT_VIEW_UP,
     MeshFit, StoredVisibility, assemble, assemble_with, assemble_with_options,

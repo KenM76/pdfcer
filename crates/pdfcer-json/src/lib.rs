@@ -1,6 +1,19 @@
-//! A minimal JSON reader (RFC 8259) for model metadata files, so the
-//! PaddleOCR-VL tokenizer needs no serde stack. Values only, no
-//! serialisation. Bounded by [`MAX_DEPTH`]; the caller bounds the input size.
+//! A minimal JSON reader (RFC 8259) shared by the PaddleOCR-VL tokenizer
+//! (`pdfcer-core`) and glTF import (`pdfcer-3d`), so neither needs a serde
+//! stack. Values only, no serialisation. Bounded by [`MAX_DEPTH`]; the
+//! caller bounds the input size. No GUI, network or thread dependency.
+
+#![forbid(unsafe_code)]
+// Panic-free: this crate reads untrusted input. Tests opt out.
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented
+)]
 
 /// Deepest array/object nesting accepted.
 pub const MAX_DEPTH: usize = 64;
@@ -70,6 +83,24 @@ impl Json {
     pub fn as_bool(&self) -> Option<bool> {
         match self {
             Self::Bool(b) => Some(*b),
+            _ => None,
+        }
+    }
+
+    /// The number, when `self` is one.
+    #[must_use]
+    pub fn as_f64(&self) -> Option<f64> {
+        match self {
+            Self::Num(n) => Some(*n),
+            _ => None,
+        }
+    }
+
+    /// The elements, when `self` is an array.
+    #[must_use]
+    pub fn as_array(&self) -> Option<&[Json]> {
+        match self {
+            Self::Arr(a) => Some(a),
             _ => None,
         }
     }

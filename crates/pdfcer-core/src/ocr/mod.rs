@@ -140,7 +140,7 @@ pub mod vl_page;
 // Workspace-internal: pub only so the fuzz crate can drive the PaddleOCR-VL
 // tokenizer and its JSON reader. Not API.
 #[doc(hidden)]
-pub mod json_lite;
+pub use pdfcer_json as json_lite;
 #[doc(hidden)]
 pub mod vl_tokenizer;
 

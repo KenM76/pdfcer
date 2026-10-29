@@ -141,7 +141,7 @@ paddle = ["dep:rten", "dep:rten-tensor"]
 # The PaddleOCR-VL engine, `ocr/engine_paddle_vl.rs` (decision 183). Default
 # ON (rule 1); off, the CLI refuses `--ocr-engine paddle-vl` by name (rule 2).
 # Same `rten` runtime as `paddle`, so no new crate; its tokenizer and JSON
-# reader are in-crate (`ocr/vl_tokenizer.rs`, `ocr/json_lite.rs`) and ungated
+# reader are `ocr/vl_tokenizer.rs` and the `pdfcer-json` crate, both ungated
 # so the fuzz crate reaches them. No weights ship; no network.
 ocr-vl = ["dep:rten", "dep:rten-tensor"]
 # PRC model decoding for the default 3D poster (`threed::poster`): an
@@ -178,6 +178,9 @@ pdfcer-pkix = { path = "../pdfcer-pkix" }
 pdfcer-color = { path = "../pdfcer-color" }
 # pdfcer-text: split out and re-exported at the old paths (Pass 325.0 step 3).
 pdfcer-text = { path = "../pdfcer-text" }
+# pdfcer-json: the JSON reader, shared with pdfcer-3d (Pass 648.0); re-exported
+# at `ocr::json_lite`.
+pdfcer-json = { path = "../pdfcer-json" }
 # pdfcer-function: split out and re-exported at the old path (Pass 325.0 step 3).
 pdfcer-function = { path = "../pdfcer-function" }
 
