@@ -8219,10 +8219,14 @@ impl<'a> Interpreter<'a> {
             if space.is_subtractive() {
                 self.diag.blend_space_subtractive += 1;
             }
-            space
+            (space, declared)
         } else {
-            self.blend_space
+            (self.blend_space, None)
         };
+        // The declared space is also the BUFFER's: an isolated group that
+        // names a space other than its parent's canvas blends in a buffer
+        // of its own (`Canvas::group_in_space`).
+        let (group_space, declared_space) = group_space;
 
         let mut active = self.active.clone();
         if let Some(id) = id {
@@ -8336,7 +8340,13 @@ impl<'a> Interpreter<'a> {
             // otherwise — see `Canvas::group` for why the second run is
             // both necessary and conditional. Only the first run's
             // diagnostics are returned, so nothing here double-counts.
-            canvas.group(
+            let ink = crate::canvas::InkSetup {
+                intent: policy.cmyk_intent,
+                max_bytes: policy.max_cmyk_buffer_bytes,
+            };
+            canvas.group_in_space(
+                declared_space,
+                ink,
                 paint,
                 group_flag(b"I"),
                 is_knockout,

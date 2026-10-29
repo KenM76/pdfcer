@@ -75,6 +75,9 @@ use crate::display_list::{
 
 use crate::cmyk_paint::{device_region, paint_solid_into_cmyk};
 
+mod group_space;
+pub(crate) use group_space::InkSetup;
+
 /// What a paint is made of, in **owned** terms.
 ///
 /// # Why this exists at all — `tiny_skia::Paint` cannot be stored

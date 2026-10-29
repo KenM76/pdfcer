@@ -47,6 +47,7 @@ mod image_stamp_transparency;
 mod image_transparency;
 mod ink_answered_before_rendering;
 mod ink_probe;
+mod isolated_group_blends_in_its_own_space;
 mod lab_ink;
 mod managed_shading;
 mod markup_without_ap;
