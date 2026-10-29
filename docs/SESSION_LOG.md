@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1295th filing) — `Pass 55.7` on `f34db9fc` (printer names without touching a device; `X013` engine half)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 55.7` (minted; next free in the printing family, `55.7`-`55.9` had no grep hit), `f34db9fcfd1b0ebc827a88a487014549f61660b8`: `pdfcer-print` `list_printer_names` and `printer_detail`, CLI `list-printers --names-only` (0.22 s over 13 printers incl. two WSD, vs ~45-50 s per unreachable WSD printer in the full listing). core-api 03 §6.1 says which calls can block.
+- Evidence: 2 lib tests + 1 CLI test, two sabotages caught, gates fails=0, Linux cross-check clean, no manifest change.
+- No new decision (ceiling 209), no new rule. FEATURES: new row core `[x]` cli `[x]` gui `[ ]`.
+
+**Still in flight:** `pdfcer-gui` owns the print dialog threading (worker reads, per-printer cache, Print disabled until the selected printer answers, UI-thread assertion); `X013` stays open on that half.
+**For next session:** continue 647.x. Push, CI and backup state not checked from here.
+
 ## 2026-10-29 (1294th filing) — `Pass 647.4` FOURTH CUT on `358dd5ce` (XFA captions; decision 209; Pass NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

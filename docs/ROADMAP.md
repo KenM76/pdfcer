@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `f34db9fc` `Pass 55.7` SHIPPED, 2026-10-29: printer names listed without reaching a device; `list_printer_names`, `printer_detail`, `list-printers --names-only` (`X013`, engine half) (1295th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `f34db9fcfd1b0ebc827a88a487014549f61660b8` "feat(print): list printers by name without reaching a device (X013)", on main, unreleased. Requester: inbound `request_X013_print_dialog_waits_on_the_spooler_on_the_ui_thread.md` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`). ID chosen: `55.7`, the next free in the printing family (`55.0`-`55.6`; `55.7`-`55.9` had no hit on grep of `docs/`). No new decision, no new rule. Reasoning is in the commit message.
+- **Core (`pdfcer-print`):** `list_printer_names() -> Result<Vec<PrinterName>, PrintError>` (`PrinterName { name, is_default }`; `EnumPrinters` level 4, answered from the spooler registry, contacts no device). `printer_detail(printer) -> Result<Printer, PrintError>` (one printer's driver and port via `GetPrinter` level 2; `OpenDevice` error for an unknown name). Listing moved to new `crates/pdfcer-print/src/listing.rs`; `list_printers` refactored onto shared helpers (its code-structure baseline entry deleted); spooler buffer now 8-byte aligned.
+- **CLI:** `pdfcer list-printers --names-only`. Measured 0.22 s over 13 printers including two WSD (Web Services for Devices) ones.
+- **core-api:** `docs/core-api/03-capabilities.md` §6.1 states which print calls can block (~45-50 s per unreachable WSD printer) and which cannot.
+- **Tests (engineer):** 2 `pdfcer-print` lib tests (listing and detail agree with the full listing; unknown printer gives `OpenDevice`), 1 CLI test `list_printers_names.rs`. Sabotage: dropping the default flag and blanking the port in detail each fail a test.
+- **Gates (engineer):** full gate list fails=0; Linux cross-target check of `pdfcer-print` and `pdfcer-cli` clean. No dependency or manifest change, so `cargo tree` unaffected.
+- **Delivers:** core yes; cli yes; gui no. Open, owned by `pdfcer-gui` (separate project, not pdfcer work): the dialog's threading (worker-thread reads, per-printer cache, Print disabled until the selected printer answers, a UI-thread assertion).
+- **FEATURES:** new row after "Printer paper selection": core `[x]`, cli `[x]`, gui `[ ]`. The existing "Print" row untouched.
+- Premises: last filing 1294th (`b203ed5c`) confirmed in `SESSION_LOG.md`; decision ceiling 209 relayed, not re-run here (no decision needed).
+
 ### `74023a53` `Pass 647.1` SHIPPED, 2026-10-28: positioned layout and pageSet pagination (dynamic XFA arc, decision 204) (1276th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `74023a539c8daad96cf6316d99001343f37e51af` "feat(xfa): lay positioned content onto pageSet pages (Pass 647.1)", on main, unreleased (after `v0.102.0`). Reasoning is in the commit message. No new decision.
