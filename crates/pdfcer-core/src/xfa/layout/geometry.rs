@@ -1,7 +1,7 @@
 //! Positioned placement of one template subtree (XFA 3.3 Ch.7 pp.264-268,
 //! Ch.8 pp.275-279; box model Ch.2 pp.49-55).
 
-use super::adhere::Keep;
+use super::adhere::{Keep, adheres};
 use super::flow::{Flow, is_flow};
 use super::{LayoutItem, LayoutOptions, LayoutRect, LayoutWarning, NegativeCoordinates};
 use crate::xfa::{AnchorType, ContainerKind, LayoutStrategy, Measurement, Presence, XfaNode};
@@ -72,12 +72,22 @@ pub(super) fn is_placeable(node: &XfaNode) -> bool {
 pub(super) struct Placed {
     pub(super) rect: LayoutRect,
     pub(super) items: Vec<LayoutItem>,
-    /// Per item: may a split line cut it (a `tb` subform whose
-    /// `keep@intact` is `none`, Ch.8 pp.281, 291)?
-    pub(super) breakable: Vec<bool>,
+    /// Per item, what a split line must respect.
+    pub(super) flags: Vec<ItemFlags>,
     pub(super) keep: Keep,
     /// Template path of the instance's node.
     pub(super) path: Vec<usize>,
+}
+
+/// What a split line must respect at one item.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(super) struct ItemFlags {
+    /// May a split line cut it (a `tb` subform whose `keep@intact` is
+    /// `none`, Ch.8 pp.281, 291)?
+    pub(super) breakable: bool,
+    /// How many items back its previous `tb` sibling sits, when the two
+    /// adhere (Ch.8 pp.311-314); 0 when it adheres to none.
+    pub(super) glue: usize,
 }
 
 /// Lay `node` (at `path`) positioned at `origin`, appending its items.
@@ -245,12 +255,15 @@ fn lay_one(
         content_area: None,
     }];
     items.extend(laid);
-    let mut breakable = vec![breaks(node, kind, strategy)];
-    breakable.extend(kid_breaks);
+    let mut flags = vec![ItemFlags {
+        breakable: breaks(node, kind, strategy),
+        glue: 0,
+    }];
+    flags.extend(kid_breaks);
     Some(Placed {
         rect,
         items,
-        breakable,
+        flags,
         keep: Keep::of(node),
         path: path.to_vec(),
     })
@@ -292,16 +305,28 @@ fn breaks(node: &XfaNode, kind: ContainerKind, strategy: LayoutStrategy) -> bool
 }
 
 /// Children's items relative to the container's top-left: positioned by
-/// their own rectangles, or flowed from the margin corner.
+/// their own rectangles, or flowed from the margin corner. In a `tb`
+/// container a child adhering to its previous sibling is glued to it
+/// (Ch.8 pp.311-314; instances of one subform are siblings too).
 fn arrange(
     kids: Vec<Placed>,
     strategy: LayoutStrategy,
     wrap: Option<f64>,
     (left, top): (f64, f64),
-) -> (Vec<LayoutItem>, Vec<bool>) {
+) -> (Vec<LayoutItem>, Vec<ItemFlags>) {
     let mut flow = Flow::new(strategy, wrap);
-    let (mut out, mut breaks) = (Vec::new(), Vec::new());
+    let (mut out, mut flags) = (Vec::new(), Vec::new());
+    let mut prev: Option<(usize, Keep)> = None;
     for k in kids {
+        let start = flags.len();
+        let mut kf = k.flags;
+        if let (Some((at, keep)), Some(f)) = (prev, kf.first_mut())
+            && strategy == LayoutStrategy::Tb
+            && adheres(keep, k.keep)
+        {
+            f.glue = start - at;
+        }
+        prev = Some((start, k.keep));
         let (x, y) = if is_flow(strategy) {
             let at = flow.slot(k.rect.w);
             flow.commit(k.rect.w, k.rect.h);
@@ -310,9 +335,9 @@ fn arrange(
             (k.rect.x, k.rect.y)
         };
         out.extend(shifted(k.items, left + x, top + y));
-        breaks.extend(k.breakable);
+        flags.extend(kf);
     }
-    (out, breaks)
+    (out, flags)
 }
 
 /// One axis: the given size, else the content extent clamped to min/max

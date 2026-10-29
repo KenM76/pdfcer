@@ -735,8 +735,13 @@ with every `warnings` entry.
     member is split and only its top fragment adheres. A chain too tall for
     an empty area stays together and runs past its bottom
     (`ContentOverflow`). An explicit `breakBefore`/`breakAfter` to another
-    region wins over adhesion. Adhesion between children nested inside a
-    subform is not enforced yet.
+    region wins over adhesion. Inside a split `tb` subform, adjacent
+    siblings (instances of one subform included) adhere the same way: the
+    split line never falls between them, so the earlier one is cut when
+    splittable and moves with its partner when not. Adhesion never crosses
+    a parent's boundary. If no line is left above the pair, the whole
+    instance moves. Adhesion inside an `lr-tb`/`rl-tb` flow is not enforced
+    yet.
   - **Overflow leaders and trailers** (`overflow@leader`/`@trailer`) of a
     top-level subform: each split lays the trailer right after the top part
     and the leader at the top of the next area. The trailer's height is

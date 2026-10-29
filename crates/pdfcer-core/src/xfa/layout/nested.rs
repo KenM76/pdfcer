@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 
 use super::NestedOverflow;
-use super::geometry::{Placed, shifted};
+use super::geometry::{ItemFlags, Placed, shifted};
 use super::overflow::{Link, Overflow};
 use super::split::{Cut, split};
 use crate::xfa::ContainerKind;
@@ -211,7 +211,7 @@ fn stack(p: &mut Placed, parts: Vec<Placed>, x: f64, mut y: f64) -> f64 {
     for part in parts {
         let h = part.rect.h;
         for item in shifted(part.items, x, y) {
-            p.push(item, false);
+            p.push(item, ItemFlags::default());
         }
         y += h;
     }
