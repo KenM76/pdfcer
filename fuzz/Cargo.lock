@@ -630,6 +630,7 @@ name = "pdfcer-3d"
 version = "0.102.0"
 dependencies = [
  "flate2",
+ "pdfcer-json",
  "png",
  "thiserror",
  "zune-jpeg",
@@ -656,6 +657,7 @@ dependencies = [
  "pdfcer-fonts",
  "pdfcer-function",
  "pdfcer-image-codec",
+ "pdfcer-json",
  "pdfcer-model",
  "pdfcer-pkix",
  "pdfcer-text",
@@ -708,6 +710,13 @@ dependencies = [
  "pdfcer-model",
  "thiserror",
  "zune-jpeg",
+]
+
+[[package]]
+name = "pdfcer-json"
+version = "0.102.0"
+dependencies = [
+ "thiserror",
 ]
 
 [[package]]
