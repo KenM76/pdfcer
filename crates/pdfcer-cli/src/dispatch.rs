@@ -834,7 +834,7 @@ pub(crate) fn run() -> ExitCode {
             digest,
             reserve,
         }),
-        Command::ListPrinters => cmd_list_printers(),
+        Command::ListPrinters { names_only } => cmd_list_printers(names_only),
         Command::Print {
             input,
             printer,

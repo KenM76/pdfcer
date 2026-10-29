@@ -3230,9 +3230,23 @@ Every entry point returns `Err(PrintError::Unsupported)` on non-Windows
 ### 6.1 Entry points
 
 **Device.** `list_printers() -> Result<Vec<Printer>, PrintError>`
-`lib.rs`; `printer_caps(name) -> Result<PrinterCaps, PrintError>`
+`listing.rs` (name, driver, port, default);
+`list_printer_names() -> Result<Vec<PrinterName>, PrintError>` `listing.rs`
+(`PrinterName { name, is_default }`, `EnumPrinters` level 4: answered from the
+spooler's registry, **never contacts a device**, so it returns at once);
+`printer_detail(printer) -> Result<Printer, PrintError>` `listing.rs` (one
+printer's driver and port; `OpenDevice` for an unknown name); `printer_caps(name) -> Result<PrinterCaps, PrintError>`
 `lib.rs`; `device_features(printer) -> Result<DeviceFeatures, PrintError>`
 `lib.rs` (`supports_duplex`, `max_copies`).
+
+**Which calls can block.** For an installed printer that is unreachable (a
+WSD-port printer on another network that Windows still reports as ready) the
+spooler takes about 45–50 s to answer any per-device query. `list_printers`,
+`printer_detail`, `printer_caps`, `device_features` and `printer_forms` can all
+wait that long; only `list_printer_names` (and the default-printer read inside
+it) cannot. An interactive shell lists with `list_printer_names` and runs the
+selected printer's reads on a worker thread. CLI:
+`pdfcer list-printers --names-only`.
 
 **Planning.** `JobSpec` `lib.rs` (`pages`, `mode: ScaleMode`, `max_dpi`,
 `subset: PageSubset`, `reverse`, `copies`, `collate`) →

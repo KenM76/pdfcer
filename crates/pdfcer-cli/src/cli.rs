@@ -4055,11 +4055,17 @@ pub(crate) enum Command {
     /// Read-only. It queries the print spooler and reports nothing else;
     /// it does not open a document and cannot start a print job.
     ///
-    /// The first slice of pdfcer's printing support, which does not spool
-    /// yet: printing consumes paper and occupies a shared device, so the
-    /// half that can be built and checked without side effects is built
-    /// first.
-    ListPrinters,
+    /// Each line gives the name, driver, port and whether it is the
+    /// default. Reading driver and port can take about a minute per
+    /// printer that is installed but unreachable (a WSD printer on another
+    /// network); `--names-only` skips them and answers at once.
+    ListPrinters {
+        /// List names and the default only, without asking the spooler for
+        /// any printer's driver or port, so an unreachable printer cannot
+        /// delay the answer.
+        #[arg(long)]
+        names_only: bool,
+    },
 
     /// **Find text in a document's pages**, reporting where each hit is.
     ///

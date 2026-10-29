@@ -1691,7 +1691,10 @@ pub(crate) fn cmd_print_preview(
 /// reports that it is unavailable rather than being silently missing —
 /// a command that vanishes by platform is indistinguishable from a typo.
 #[cfg(windows)]
-pub(crate) fn cmd_list_printers() -> u8 {
+pub(crate) fn cmd_list_printers(names_only: bool) -> u8 {
+    if names_only {
+        return list_printer_names();
+    }
     let printers = match pdfcer_print::list_printers() {
         Ok(p) => p,
         Err(err) => {
@@ -1716,10 +1719,31 @@ pub(crate) fn cmd_list_printers() -> u8 {
     exit::SUCCESS
 }
 
+/// `list-printers --names-only`: the same lines without `driver=`/`port=`.
+#[cfg(windows)]
+fn list_printer_names() -> u8 {
+    let printers = match pdfcer_print::list_printer_names() {
+        Ok(p) => p,
+        Err(err) => {
+            eprintln!("pdfcer: {err}");
+            return exit::IO_ERROR;
+        }
+    };
+    for p in &printers {
+        println!(
+            "printer name={:?} default={}",
+            p.name,
+            u32::from(p.is_default)
+        );
+    }
+    println!("list-printers count={}", printers.len());
+    exit::SUCCESS
+}
+
 /// The non-Windows arm — see the Windows version's docs for why this
 /// reports rather than disappears.
 #[cfg(not(windows))]
-pub(crate) fn cmd_list_printers() -> u8 {
+pub(crate) fn cmd_list_printers(_names_only: bool) -> u8 {
     eprintln!(
         "pdfcer: printing is available on Windows only in this build \
          (docs/decisions/003-distribution-posture.md §4.1)"
