@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1291st filing) — `Pass 647.4` SECOND CUT on `1baccb48` (XFA page rasterizer; Pass NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 647.4` second cut, `1baccb48e31d73c885fb1d9183ef7b5da1307fab`: `pdfcer_render::xfa::render_xfa_page(...)` returns `RenderedXfaPage { page, notes }`, rasterizing core's `paint_page` output (y-flipped, same guards as `render_page`). Separate entry point, not a `render_page` branch, because layout page count need not match the file's placeholder pages. No CLI or GUI caller; nothing written to the file (decision 203).
+- Evidence: 3 new render unit tests; sabotage (drop y-flip) fails 2; `pdfcer-render` 1145 passed, 0 failed; fmt, clippy, 36 gates green; no manifest change; no fuzz change. core-api "Rasterizing it" bullet; `index.md` 5428 lines.
+- ROADMAP: second-cut block added under 647.4 (stays in place); header unchanged except first-cut REMAINING marked superseded. FEATURES: "Dynamic XFA, layout and drawing" row text updated, boxes NOT ticked (no caller; no text drawn). No new decision, §12 untouched.
+
+**Still in flight:** 647.4 remaining: captions, values, text; rounded corners; non-solid strokes and fills (G-D6). 647.5 remaining: CLI render path. 647.2: field/draw text splitting.
+**For next session:** continue the 647.x arc, slow pacing. Push, CI and backup state not checked from here.
+
 ## 2026-10-29 (1290th filing) — `Pass 647.4` FIRST CUT on `4463b8e3` (XFA page drawing: borders and fills; decision 207; Pass NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
