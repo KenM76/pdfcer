@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1300th filing) — `v0.103.0` release PREP, version bump `34aa423e`; NOT yet published
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here beyond reading root `Cargo.toml`: version and `pdfcer-model` pin both 0.103.0):**
+- `b1f71556` `--lighting auto` help lost its backticked `cad` (a `ValueEnum` variant doc is shipped help `plain_help` cannot scrub; caught by `cli_help_ships_no_internal_markup`). `34aa423e` the version bump (`Cargo.toml`, `pdfcer-model` pin, `Cargo.lock`, `fuzz/Cargo.lock`). Filing commit under them: `64406604`. All local on main, not pushed.
+- Contents since `v0.102.0`, from the ROADMAP: `646.24`-`646.29`, `647.0`, `647.1`, cuts of `647.2`/`647.4`/`647.5` (all three NOT COMPLETE), `648.0` with the Acrobat-display fixes and activation readback, and `55.7`/`55.8` (not in the operator's list; ROADMAP marks them unreleased). Slot `pdfcer2`, verified against the 1269th PUBLISHED entry.
+- Gates (engineer-reported): 7,972 tests passed, 0 failed over 15 result lines (six crates, `pdfcer-cli/3d`); clippy, fmt, code-structure, core-api-verbs, ledger-numbers, suite-name-absent clean; fuzz build rc 0; `cargo doc` no broken links (3 old private-item warnings in `pdfcer-text`). No `run-gates.sh` reported; no manifest dependency change since 648.0, `cargo tree` unchanged.
+- FEATURES unchanged (no version string or "unreleased" claim in it). No decision, no rule.
+
+**Open for the later filing:** tag, push, build, GitHub release, smoke, `verify-release.py`, OneDrive `pdfcer2`, crates.io. `pdfcer-json` is new since 0.102.0: confirm its publish status before `cargo publish`. Push, CI and backup state not checked from here.
+
+**Hard-rule-11 survivors:** none; nothing here changed a counter's or capability's meaning (wording-only help fix and a version number).
+
 ## 2026-10-29 (1299th filing) — `Pass 648.0` Acrobat-display fixes (`508e09b8`, `8d3bfd07`) and the click-to-activate read side
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here; both commits local on main, not pushed):**
