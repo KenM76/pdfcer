@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### Pass 55.9 — Honour the document's print presets — SHIPPED `02e790cc`, 2026-10-29 (1304th filing)
+
+Engineer-reported; no shell here, nothing checked from here. `feat(print): honour the document's own print presets (Pass 55.9)`, on main, not yet pushed. Reasoning is in the commit message. `55.10`-`55.14` remain NOT STARTED in Next up.
+- **core:** `pdfcer_core::print_presets::print_presets<G: ObjectGraph + ?Sized>(&G) -> PrintPresets` reads `/ViewerPreferences` PrintScaling, Enforce (PDF 2.0; counted only with PrintScaling `/None`, Table 148), Duplex, PickTrayByPDFSize, PrintPageRange (1-based pairs, bad pairs dropped), NumCopies (<1 ignored, VP-A1), PrintArea, PrintClip. Malformed entries listed in `ignored`. Types `PrintPresets` (`#[non_exhaustive]`), `PresetScaling`, `PresetDuplex`, `PresetBoundary`. Spec: ISO 32000-1 §12.2 Table 150; ISO 32000-2 Tables 147-148.
+- **cli:** `print` `--scale`, `--pages`, `--copies`, `--duplex` are now Option-typed (help states the default); unset ones, and `--pick-tray`, are filled from the document; one stderr line per preset used.
+- **Ruling on the open `/Enforce` question (engineer):** an enforced actual size beats an explicit `--scale`/`--scale-percent`, and that is reported. New `--ignore-document-presets` drops every preset, enforced included, also reported. Ship-both-pick-default: the default honours the spec's "shall", the flag overrides.
+- **Disclosed, not honoured:** PrintArea/PrintClip other than CropBox; a preset NumCopies above 999 (capped); ranges past the last page (clipped or skipped).
+- **gui:** none; `pdfcer-gui` is a separate project, reader documented in `docs/core-api/03-capabilities.md` §6.1.
+- **Tests:** 8 core (`print_presets::tests`), 10 CLI merge unit tests. Manual dry run against "Microsoft Print to PDF" showed every disclosure line; nothing spooled.
+- **Gates:** clippy `-D warnings` (default and `--no-default-features`), fmt, structure, `check-core-api-verbs`, `check-clap-help` clean/PASS. No manifest change (`cargo tree` unaffected), no new dependency. Round-trip: read-only.
+- **FEATURES:** the "Print honours the document's presets" row moved Planned to Implemented as `[x]` core / `[x]` cli / `[ ]` gui. Nothing minted.
+
 ### `v0.103.0` — PUBLISHED, 2026-10-29 (1301st filing)
 
 Engineer-reported (engineer states each item checked); no shell here, nothing checked from here. Release record for the prep filed below (1300th, bump `34aa423e`, filing commit `aee919a1`).
@@ -26525,12 +26537,6 @@ Split from `Pass 648.0` by operator direction ("worry about the others later"). 
 ### Print arc `Pass 55.9`-`55.14` — filed 1303rd filing, 2026-10-29 (ALL NOT STARTED; operator: "build all the print items the make a new release")
 
 Origin: the operator asked whether pdfcer can send a PDF to a printer and what other printing methods "everyone who uses pdfcer" would need. Sending already ships (`pdfcer print --send`, Windows, `Pass 55.x`; noted in the 1302nd filing). The engineer proposed six items; the operator asked for all six, then a release. Order below is the engineer's proposed build order. IDs `55.9`-`55.14` were grep-checked unused in `docs/` before filing. After the sixth Pass ships: a release (standing-authorized, decision 121; green `run-gates.sh`, fresh-folder smoke test, `verify-release.py`). Each Pass ships its CLI subcommand/flags in the same session (rule 11); gui `[ ]` throughout until a shell Pass is scoped. Rule 4 applies to every item: whatever pdfcer takes, substitutes or falls back on is printed, never silent.
-
-### Pass 55.9 — Honour the document's print presets (NOT STARTED)
-
-Core reader of the viewer-preferences print keys: `/PrintScaling` (`None` = actual size; ISO 32000-2 `/Enforce [/PrintScaling]` = the document's value is not overridable), `/Duplex`, `/PickTrayByPDFSize`, `/PrintPageRange` (1-based pairs), `/NumCopies` (values below 1 ignored, reading VP-A1), `/PrintArea` / `/PrintClip` (deprecated in 2.0). Spec: ISO 32000-1 section 12.2 Table 150; ISO 32000-2 Tables 147-148 (RAG `iso32000__s__12.2.md`). Acrobat reference: `Acrobat_Features/printing__viewer_preferences_and_page_setup.md`.
-- **Acceptance:** the print command uses each preset only where the operator did not pass the matching option; it prints what it took from the document (one line per preset used); `--ignore-document-presets` turns the whole thing off; an `/Enforce` entry is reported when an operator option overrides it or is refused (engineer to rule which, ship-both-pick-default setting if the standard leaves it open). Spec-librarian dispatch first for any clause the RAG file does not settle.
-- **Round-trip:** read-only; the file is never rewritten.
 
 ### Pass 55.10 — Print-time output options (NOT STARTED)
 

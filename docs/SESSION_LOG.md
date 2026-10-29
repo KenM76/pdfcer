@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1304th filing) — `Pass 55.9` SHIPPED `02e790cc` (print honours document presets)
+
+**Shipped (engineer-reported, no shell here, nothing checked from here):**
+- `Pass 55.9`, `02e790cc`, on main, not pushed: core `print_presets` reader (PrintScaling, Enforce, Duplex, PickTrayByPDFSize, PrintPageRange, NumCopies, PrintArea, PrintClip); CLI `print` fills unset options from the file, one stderr line per preset, `--ignore-document-presets`. gui none (separate project). 8 core + 10 CLI tests; clippy, fmt, structure, core-api-verbs, clap-help clean.
+
+**Decision (engineer ruling, no ARCHITECTURE entry filed):** an enforced `/PrintScaling /None` beats an explicit `--scale`, reported; `--ignore-document-presets` is the override. Ship-both-pick-default.
+
+**Still in flight:** `55.10`-`55.14` NOT STARTED, then the operator's release. FEATURES row moved to Implemented (`[x]`/`[x]`/`[ ]`). Hard-rule-11 survivors: none reported; a capability was added.
+
 ## 2026-10-29 (1302nd filing) — `Pass 647.4` fifth cut `cc5d7af4` (check boxes); Pass NOT complete
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
