@@ -26374,7 +26374,7 @@ Original scope: flowed containers, break and overflow rules, leaders/trailers. C
 
 Merge the `datasets` packet into the template per the normal-binding rules; defaults per gap IDs G-B. Explicit SOM references are BLOCKED on the owed SOM spec slice. Spec: `xfa_data_binding_normal`.
 
-### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing); NOT COMPLETE, stays here)
+### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing); NOT COMPLETE, stays here)
 
 `pdfcer-render` draws the computed layout instead of the placeholder page (render-time only, like decision 203). Inferred content renders exactly as saved content would (rule 4: no on-canvas marking); disclosure is off-canvas diagnostics. Needs `pdfcer-render` to stay GUI-free (`cargo tree` check).
 
@@ -26399,7 +26399,15 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 - **Setting (decision 208; gap G-T1):** `FontWeight { Normal (default), Bold }` + `PaintOptions::with_font_weight`, the weight of a `font` element with no weight attribute (grammar default normal vs p.58 prose bold). CLI: `xfa-layout --png-dir DIR --font-weight {normal,bold}`; note labels font-substituted, text-approximated.
 - **Not built:** captions (still noted as content-not-drawn), rich text, widgets drawing more than text (check buttons, choice lists, bordered widgets), rounded corners, non-solid strokes and fills, embedded/real fonts, data merge (647.3), materializing layout into the file.
 - **Tests/evidence (engineer):** 6 new core paint tests (14 paint tests total), 1 new render test (sabotage: empty resources gives 0 dark pixels), 1 new CLI test (5 `xfa_layout` CLI tests); full gate list fails=0; `check-core-api-verbs` PASS; `03-capabilities.md` updated, `index.md` 5452 lines. No manifest change, `cargo tree` unchanged, no new dependency; read-only feature, no writer or round-trip impact.
-- **REMAINING in 647.4:** captions (next); rich text; widgets beyond text; rounded corners; non-solid strokes and fills (G-D6); real fonts.
+- **REMAINING in 647.4 (as of third cut; see fourth cut):** captions (next); rich text; widgets beyond text; rounded corners; non-solid strokes and fills (G-D6); real fonts.
+
+**Fourth cut (`358dd5ce808ea9ec31acedbb8f417f44ec18fdef` "feat(xfa): draw left/right/top/bottom captions (Pass 647.4, fourth cut)"; 1294th filing; engineer-reported, nothing checked from here; unreleased, on main; decisions 203, 207, 208 plus new decision 209).** Captions, core plus CLI.
+- **Done:** `xfa::paint_page` carves a caption's region from its side of the content region (XFA 3.3 pp.643-644, box model p.51) and sets the caption's plain text there in the caption's own font and para; the value text is set in the remainder. Region depth is `reserve`; with no positive reserve (omitted, 0, or grammar default -1 read as omitted; gap G-D7, derived, not a setting) it is the unwrapped caption text plus the caption margin. Invisible caption keeps its region and draws nothing; hidden and inactive take no space (p.68).
+- **Disclosure (rule 4):** inline captions and rich-text or non-text captions stay undrawn, noted `PaintNoteKind::Content` (rich ones still carve their reserve).
+- **Setting (decision 209; gap G-D11):** `CaptionFont { Own (default), Field }` + `PaintOptions::with_caption_font`, the font of a caption with no `font` element. CLI: `xfa-layout --png-dir DIR --caption-font {own,field}`; help text updated.
+- **Not built:** inline and rich captions, rich text, widgets drawing more than text, rounded corners, non-solid strokes and fills, real/embedded fonts, data merge (647.3), materializing layout into the file.
+- **Tests/evidence (engineer):** 5 new core paint tests (19 total), 1 new CLI test (6 `xfa_layout` CLI tests; the two `--caption-font` values give different images); three sabotages (auto-size margin, left-caption offset, CLI flag mapping) each caught; full gate list fails=0; `check-core-api-verbs` PASS; `03-capabilities.md` updated. No manifest change, `cargo tree` unchanged; read-only feature, no writer or round-trip impact.
+- **REMAINING in 647.4:** rich text; widgets beyond text (check buttons next likely); inline/rich captions; rounded corners; non-solid strokes and fills (G-D6); real fonts.
 
 ### Pass 647.5 — CLI `xfa-layout` report and `render-page` integration (FIRST CUT `c94ab2ee` (1289th filing), SECOND CUT `b0e0d1a2` (1292nd filing); NOT COMPLETE, stays here)
 

@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1294th filing) — `Pass 647.4` FOURTH CUT on `358dd5ce` (XFA captions; decision 209; Pass NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 647.4` fourth cut, `358dd5ce808ea9ec31acedbb8f417f44ec18fdef`: core `paint_page` carves left/right/top/bottom caption regions and sets caption text in the caption's own font/para; value text in the remainder. Depth = `reserve`, else derived from the text plus margin (G-D7). Inline and rich captions undrawn, noted `Content`.
+- Decision 209 (new, §12 plus `docs/decisions/209-xfa-caption-font-is-a-setting.md`): `CaptionFont { Own (default), Field }` (gap G-D11). Premises checked: 208 was the ceiling in §12, 209 free. `decisions/README.md` does not list 208, so left alone.
+- Evidence: 5 new core paint tests (19 total), 1 CLI test (6 total), three sabotages caught, gates fails=0, no manifest change.
+- ROADMAP: fourth-cut block under 647.4. FEATURES: "Dynamic XFA, layout and drawing" row text updated, boxes NOT ticked.
+
+**Still in flight:** 647.4: rich text, widgets beyond text, inline/rich captions, rounded corners, non-solid strokes/fills, real fonts. 647.5: `render-page` integration. 647.2: field/draw text splitting.
+**For next session:** continue 647.x, slow pacing. Push, CI and backup state not checked from here.
+
 ## 2026-10-29 (1293rd filing) — `Pass 647.4` THIRD CUT on `16a386c4` (XFA value text in standard-14 faces; decision 208; Pass NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

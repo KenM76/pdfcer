@@ -13610,3 +13610,11 @@ Recorded at `Pass 647.4` third cut (`16a386c4`). Applies decisions 203, 204, 207
 **Decides.** The XFA grammar defaults `font@weight` to `normal`, while the p.58 prose says bold. Setting `FontWeight { Normal (default, the grammar), Bold (the prose) }` via `PaintOptions::with_font_weight`: the weight used for a `font` element carrying no `weight` attribute; an explicit attribute always wins. CLI: `xfa-layout --png-dir --font-weight {normal,bold}`. Text drawn in a substituted standard-14 face is disclosed (`PaintNoteKind::Font`, `PaintNoteKind::Text`), never silent (rule 4).
 
 **Body-section effect.** None. **Decision ceiling.** Fills `208`. Next free decision: `209`. **New standing rule.** None.
+
+### 2026-10-29 (1294th filing) — decision 209: the font of an XFA caption with no `font` element is a setting, grammar default `own`
+
+Full record: `docs/decisions/209-xfa-caption-font-is-a-setting.md`. Recorded at `Pass 647.4` fourth cut (`358dd5ce`). Applies decisions 203, 204, 207, 208; gap G-D11 (spec slice `adobe_ext__xfa_appearance_drawing.md`).
+
+**Decides.** Setting `CaptionFont { Own (default: font defaults, Courier 10 pt, per the grammar), Field (the field's or draw's font, the inheritance p.43 allows) }` via `PaintOptions::with_caption_font`. CLI: `xfa-layout --png-dir --caption-font {own,field}`. Caption region depth with no positive `reserve` (omitted, 0, or the grammar default -1) is derived, not a setting (gap G-D7).
+
+**Body-section effect.** None. **Decision ceiling.** Fills `209`. Next free decision: `210`. **New standing rule.** None.
