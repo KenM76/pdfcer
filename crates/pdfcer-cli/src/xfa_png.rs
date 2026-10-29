@@ -30,10 +30,10 @@ pub(crate) enum MissingFillArg {
 /// `xfa-layout --font-weight` (gap G-T1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
 pub(crate) enum FontWeightArg {
-    /// `normal` (the grammar).
+    /// Normal weight, the XFA grammar's default.
     #[default]
     Normal,
-    /// `bold` (the Ch.2 prose).
+    /// Bold, as the XFA specification's prose describes.
     Bold,
 }
 

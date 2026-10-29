@@ -1,4 +1,4 @@
-crates/pdfcer-3d/src/testw.rs | expect_used,indexing_slicing,unwrap_used | struct W
+crates/pdfcer-3d/src/testw.rs | expect_used,indexing_slicing,unwrap_used | impl W
 crates/pdfcer-core/src/dimension/fit.rs | indexing_slicing | fn refine_geometric
 crates/pdfcer-core/src/dimension/fit.rs | indexing_slicing | fn solve3
 crates/pdfcer-core/src/svg_import/prescan.rs | indexing_slicing | fn heights

@@ -1298,7 +1298,7 @@ pub(crate) enum ThreeDFormatArg {
     U3d,
     /// ISO 14739-1 PRC.
     Prc,
-    /// Khronos glTF 2.0 (`.gltf` / `.glb`), converted to PRC.
+    /// Khronos glTF 2.0, a .gltf or .glb file, converted to PRC.
     Gltf,
 }
 

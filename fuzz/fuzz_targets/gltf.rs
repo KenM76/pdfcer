@@ -36,7 +36,11 @@ fuzz_target!(|data: &[u8]| {
     };
     let split = (usize::from(*hi) << 8 | usize::from(*lo)).min(rest.len());
     let (json, bin) = rest.split_at(split);
-    let input = if sel % 2 == 0 { rest.to_vec() } else { glb(json, bin) };
+    let input = if sel % 2 == 0 {
+        rest.to_vec()
+    } else {
+        glb(json, bin)
+    };
     let mut resolve = |_: &str| Some(bin.to_vec());
     let Ok(import) = read_gltf(&input, &mut resolve, GltfOptions::default()) else {
         return;

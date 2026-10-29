@@ -73,6 +73,7 @@ pub(crate) fn to_prc(path: &Path, data: &[u8], how: GltfHow) -> Result<Converted
     })
 }
 
+/// Without the `3d` feature: refuse, saying why.
 #[cfg(not(feature = "3d"))]
 pub(crate) fn to_prc(path: &Path, _data: &[u8], _how: GltfHow) -> Result<Converted, u8> {
     eprintln!(

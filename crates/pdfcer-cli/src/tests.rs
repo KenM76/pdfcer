@@ -456,6 +456,8 @@ const NOT_IN_PLACE: &[&str] = &[
     // Declares its own `--in-place`: replacing the input is skipped when the
     // rewrite is not smaller.
     "optimize",
+    // Writes a PRC stream, never a PDF.
+    "3d-convert",
 ];
 
 #[test]
