@@ -1,5 +1,7 @@
-//! pdfcer 3D model decoding: the PRC format (Adobe PRC 8137, the text
-//! ISO 14739-1 standardised), read side.
+//! pdfcer 3D models: the PRC format (Adobe PRC 8137, the text ISO 14739-1
+//! standardised), read and drawn; a triangle-mesh scene written as PRC
+//! ([`write_prc`]); and glTF 2.0 / GLB imported as such a scene
+//! ([`read_gltf`]).
 //!
 //! [`PrcFile::parse`] walks the container: the uncompressed file header,
 //! every file structure's header and its five zlib sections, and the model
