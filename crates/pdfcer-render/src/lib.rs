@@ -110,6 +110,7 @@ mod visual_compare;
 mod visual_diff;
 mod visual_match;
 mod visual_regions;
+pub mod xfa;
 
 use pdfcer_core::content::ContentStream;
 use pdfcer_core::document::Document;

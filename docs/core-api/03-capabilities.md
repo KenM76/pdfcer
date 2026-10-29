@@ -858,8 +858,15 @@ approximated or left out, deduplicated per item and kind.
   - `OpenBreak`: `break="open"`, drawn closed.
   - `Color`: an unreadable colour; the default was used.
 
-  Rendering it in place of the placeholder page, and its CLI caller, are
-  later 647.4/647.5 cuts.
+- **Rasterizing it:** `pdfcer_render::xfa::render_xfa_page(&DocumentView,
+  &Template, &LayoutPage, &PaintOptions, scale, &RenderOptions) ->
+  Result<RenderedXfaPage { page: RenderedPage, notes }, RenderError>`. The
+  pixmap is `width` x `height` points at `scale`, white-backed unless
+  `RenderOptions` asks for a transparent backdrop. It is a separate entry
+  point, not a branch of `render_page`, because the layout's page count need
+  not match the file's placeholder pages: the shell chooses which page set
+  it shows. Errors: `BadRasterSize` (empty or over `MAX_PIXMAP_EDGE`),
+  `RasterizerLimit`, `Cancelled`. Its CLI caller is a later 647.5 cut.
 - **Spec slice:** `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_appearance_drawing.md`
   (gaps G-D1 to G-D19).
 
