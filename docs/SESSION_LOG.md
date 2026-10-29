@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1293rd filing) — `Pass 647.4` THIRD CUT on `16a386c4` (XFA value text in standard-14 faces; decision 208; Pass NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 647.4` third cut, `16a386c48d44801dc7b9ac4d59beb0b08559e3a5`: core `paint_page` draws a field's/draw's plain value text (typeface, size, weight, posture, colour, hAlign/vAlign, lineHeight; newline breaks, space wraps; clipped); `PaintedPage.resources` carries the /Font dict so `render_xfa_page` rasterizes it. Non-Courier/Helvetica/Times faces drawn in the nearest standard-14 family, disclosed via new `PaintNoteKind::Font` and `::Text`. CLI `xfa-layout --png-dir --font-weight {normal,bold}`.
+- Decision 208 (new, §12): `FontWeight { Normal (default), Bold }` for an unweighted `font` (gap G-T1, grammar vs p.58 prose); a new entry rather than an amendment to 207, since 207's content is edge placement and fill. Premises checked: 207 was the ceiling, 208 free (read from §12).
+- Evidence: 6 new core paint tests (14 total), 1 render test (sabotage: empty resources, 0 dark pixels), 1 CLI test (5 total); full gates fails=0; no manifest change. core-api/03 updated, `index.md` 5452 lines.
+- ROADMAP: third-cut block under 647.4 (header names three cuts). FEATURES: "Dynamic XFA, layout and drawing" row text updated, boxes NOT ticked. `docs/decisions/208-*.md` not written (outside scope); §12 entry stands as the record.
+
+**Still in flight:** 647.4: captions (next), rich text, widgets beyond text, rounded corners, non-solid strokes/fills, real fonts. 647.5: `render-page` integration. 647.2: field/draw text splitting.
+**For next session:** continue the 647.x arc, slow pacing. Push, CI and backup state not checked from here.
+
 ## 2026-10-29 (1292nd filing) — `Pass 647.5` SECOND CUT on `b0e0d1a2` (CLI `xfa-layout --png-dir`; Pass NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

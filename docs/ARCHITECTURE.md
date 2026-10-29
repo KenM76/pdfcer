@@ -13602,3 +13602,11 @@ Full record: `docs/decisions/207-xfa-edge-placement-and-missing-fill-are-setting
 **Decides.** The XFA spec leaves two drawing points open, so each is a setting on `PaintOptions` with a default. `EdgePlacement { Grammar (default: a border edge is centred on the rect), Inward (Ch.2 prose: drawn inside the rect) }`. `MissingFill { None (default: no fill element means no fill, per the grammar), White (the p.39 note) }`. Anything not drawn yet or drawn approximately (`PaintNoteKind`: Content, Stroke, FillType, Corner, OpenBreak, Color) is returned in `PaintedPage::notes`, deduplicated by path, never silent (rule 4). Core only; no renderer or CLI caller yet.
 
 **Body-section effect.** None. **Decision ceiling.** Fills `207`. Next free decision: `208`. **New standing rule.** None.
+
+### 2026-10-29 (1293rd filing) — decision 208: the weight of an unweighted XFA `font` is a setting, grammar default `normal`
+
+Recorded at `Pass 647.4` third cut (`16a386c4`). Applies decisions 203, 204, 207 (same pattern as 207: spec-grammar default, other reading as a setting); gap G-T1 (spec slice `adobe_ext__xfa_appearance_drawing.md`).
+
+**Decides.** The XFA grammar defaults `font@weight` to `normal`, while the p.58 prose says bold. Setting `FontWeight { Normal (default, the grammar), Bold (the prose) }` via `PaintOptions::with_font_weight`: the weight used for a `font` element carrying no `weight` attribute; an explicit attribute always wins. CLI: `xfa-layout --png-dir --font-weight {normal,bold}`. Text drawn in a substituted standard-14 face is disclosed (`PaintNoteKind::Font`, `PaintNoteKind::Text`), never silent (rule 4).
+
+**Body-section effect.** None. **Decision ceiling.** Fills `208`. Next free decision: `209`. **New standing rule.** None.

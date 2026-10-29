@@ -26374,7 +26374,7 @@ Original scope: flowed containers, break and overflow rules, leaders/trailers. C
 
 Merge the `datasets` packet into the template per the normal-binding rules; defaults per gap IDs G-B. Explicit SOM references are BLOCKED on the owed SOM spec slice. Spec: `xfa_data_binding_normal`.
 
-### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing); NOT COMPLETE, stays here)
+### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing); NOT COMPLETE, stays here)
 
 `pdfcer-render` draws the computed layout instead of the placeholder page (render-time only, like decision 203). Inferred content renders exactly as saved content would (rule 4: no on-canvas marking); disclosure is off-canvas diagnostics. Needs `pdfcer-render` to stay GUI-free (`cargo tree` check).
 
@@ -26391,7 +26391,15 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 - **Scoping choice:** a SEPARATE entry point rather than a branch inside `render_page`, because the layout's page count need not match the file's placeholder pages; the shell chooses which page set it shows. API-shape call, no new decision.
 - **Tests/evidence (engineer):** 3 new unit tests in `crates/pdfcer-render/src/xfa/tests.rs` (position and y-flip; `MissingFill::White` reaches the pixels on a transparent backdrop and notes reach the caller; oversized page refused); sabotage (drop the y-flip) fails 2 of them; `pdfcer-render` 1145 passed, 0 failed across 3 suites; fmt, clippy `-D warnings`, all 36 project gates green; `check-code-structure` 563 baseline, none new; `check-core-api-verbs` PASS. No manifest change, `cargo tree` unaffected, render still GUI-free. No fuzz change (content is synthesised by core, which `xfa_packets` already fuzzes through `paint_page`).
 - **core-api:** `docs/core-api/03-capabilities.md` "Drawing a laid-out XFA page" gained a "Rasterizing it" bullet; `index.md` 5428 lines.
-- **REMAINING in 647.4:** captions, values and text; rounded corners; non-solid strokes and fills (G-D6 stipple, a future setting). CLI render path is 647.5 (`xfa-layout --png-dir` shipped as its second cut, `b0e0d1a2`; `render-page` integration still open).
+- **REMAINING in 647.4 (as of second cut; see third cut):** captions, values and text; rounded corners; non-solid strokes and fills (G-D6 stipple, a future setting). CLI render path is 647.5 (`xfa-layout --png-dir` shipped as its second cut, `b0e0d1a2`; `render-page` integration still open).
+
+**Third cut (`16a386c48d44801dc7b9ac4d59beb0b08559e3a5` "feat(xfa): draw plain value text in a standard-14 face (Pass 647.4, third cut)"; 1293rd filing; engineer-reported, nothing checked from here; unreleased, on main; decisions 203, 207 plus new decision 208).** Value text, core plus render plus CLI.
+- **Done:** `xfa::paint_page` draws a field's or draw's plain value (XFA 3.3 p.863) inside the content region (item rect minus container margin minus a text widget's margin), clipped. Honours font typeface (default Courier), size (default 10 pt), weight, posture, fill colour; para hAlign left/center/right, vAlign top/middle/bottom, lineHeight. Breaks at newlines, wraps at spaces. New `PaintedPage.resources` (the /Font dict, /XFn standard-14 Type 1 WinAnsi); `render_xfa_page` passes it to the rasterizer so text reaches the pixels.
+- **Disclosure (rule 4, off-canvas):** typefaces other than Courier/Helvetica/Times are drawn in the nearest standard-14 family and noted as new `PaintNoteKind::Font`; new `PaintNoteKind::Text` notes unencodable characters, over-wide words, overflow, and justify/justifyAll/radix drawn left.
+- **Setting (decision 208; gap G-T1):** `FontWeight { Normal (default), Bold }` + `PaintOptions::with_font_weight`, the weight of a `font` element with no weight attribute (grammar default normal vs p.58 prose bold). CLI: `xfa-layout --png-dir DIR --font-weight {normal,bold}`; note labels font-substituted, text-approximated.
+- **Not built:** captions (still noted as content-not-drawn), rich text, widgets drawing more than text (check buttons, choice lists, bordered widgets), rounded corners, non-solid strokes and fills, embedded/real fonts, data merge (647.3), materializing layout into the file.
+- **Tests/evidence (engineer):** 6 new core paint tests (14 paint tests total), 1 new render test (sabotage: empty resources gives 0 dark pixels), 1 new CLI test (5 `xfa_layout` CLI tests); full gate list fails=0; `check-core-api-verbs` PASS; `03-capabilities.md` updated, `index.md` 5452 lines. No manifest change, `cargo tree` unchanged, no new dependency; read-only feature, no writer or round-trip impact.
+- **REMAINING in 647.4:** captions (next); rich text; widgets beyond text; rounded corners; non-solid strokes and fills (G-D6); real fonts.
 
 ### Pass 647.5 — CLI `xfa-layout` report and `render-page` integration (FIRST CUT `c94ab2ee` (1289th filing), SECOND CUT `b0e0d1a2` (1292nd filing); NOT COMPLETE, stays here)
 
