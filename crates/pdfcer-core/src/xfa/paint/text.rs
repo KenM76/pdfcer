@@ -6,7 +6,7 @@ use crate::fontdata::{Std14, std14_descriptor, std14_styled};
 use crate::linebreak::greedy_pack;
 use crate::vartext::{encode_winansi, text_width};
 
-use super::{FontWeight, LayoutItem, LayoutRect, PaintNoteKind, Painter, Presence, XfaNode, inset};
+use super::{FontWeight, LayoutItem, LayoutRect, PaintNoteKind, Painter, XfaNode, inset};
 
 /// Widgets whose only drawing is the value text (p.865, p.784, p.669).
 const TEXT_WIDGETS: [&str; 4] = ["textEdit", "numericEdit", "dateTimeEdit", "passwordEdit"];
@@ -15,17 +15,20 @@ const TEXT_WIDGETS: [&str; 4] = ["textEdit", "numericEdit", "dateTimeEdit", "pas
 /// caption, non-text value content, rich text, or a widget that draws more
 /// than its text.
 pub(super) fn content_left_out(node: &XfaNode) -> bool {
-    let caption = node
-        .child("caption")
-        .is_some_and(|c| c.presence() == Presence::Visible);
-    let value = node.child("value").is_some_and(|v| {
-        v.children
-            .iter()
-            .any(|c| c.tag != "text" || !c.children.is_empty())
-    });
+    let caption = super::caption::left_out(node);
+    let value = has_unplain_value(node);
     let ui = widget(node)
         .is_some_and(|w| !TEXT_WIDGETS.contains(&w.tag.as_str()) || w.child("border").is_some());
     caption || value || ui
+}
+
+/// Whether `holder`'s `value` holds anything but plain `text`.
+pub(super) fn has_unplain_value(holder: &XfaNode) -> bool {
+    holder.child("value").is_some_and(|v| {
+        v.children
+            .iter()
+            .any(|c| c.tag != "text" || !c.children.is_empty())
+    })
 }
 
 /// The `ui` element's widget child (the one beside `extras` and `picture`).
@@ -58,10 +61,22 @@ fn face(typeface: &str, bold: bool, italic: bool) -> (Std14, bool) {
     (styled, !exact)
 }
 
-/// The text to draw: the value's `text` PCDATA, else nothing.
-fn value_text(node: &XfaNode) -> Option<&str> {
-    let text = node.child("value")?.child("text")?;
+/// The text to draw: `holder`'s `value/text` PCDATA, else nothing.
+pub(super) fn plain_text(holder: &XfaNode) -> Option<&str> {
+    let text = holder.child("value")?.child("text")?;
     (text.children.is_empty() && !text.text.is_empty()).then_some(text.text.as_str())
+}
+
+/// The ascent and the line height of `style` under `para`'s `lineHeight`.
+fn metrics(style: &Style, para: Option<&XfaNode>) -> (f64, f64) {
+    let d = std14_descriptor(style.font);
+    let ascent = f64::from(d.ascender) / 1000.0 * style.size;
+    let descent = f64::from(d.descender).abs() / 1000.0 * style.size;
+    let line_h = para
+        .and_then(|p| super::length(p, "lineHeight"))
+        .unwrap_or(0.0)
+        .max(ascent + descent);
+    (ascent, line_h)
 }
 
 /// Text-run settings read from `font` and `para`.
@@ -74,29 +89,56 @@ struct Style {
 }
 
 impl Painter {
-    /// Draw the item's value text inside its content region (p.50), inset by
-    /// a text widget's own margin; clipped to that region when it has area.
+    /// Draw the item's caption (p.51) and value text: the caption in the
+    /// region carved from the content region (p.50), the value in the rest,
+    /// inset by a text widget's own margin.
     pub(super) fn text(&mut self, item: &LayoutItem, node: &XfaNode) {
-        let Some(text) = value_text(node) else {
+        let r = inset(item.rect, node.child("margin"));
+        let mut r = self.caption(item, node, r);
+        let Some(text) = plain_text(node) else {
             return;
         };
-        let mut r = inset(item.rect, node.child("margin"));
         if let Some(w) = widget(node) {
             r = inset(r, w.child("margin"));
         }
-        let style = self.style(item, node);
+        self.set(item, text, node.child("font"), node.child("para"), r);
+    }
+
+    /// The unwrapped width and height `text` takes in `font`/`para`.
+    pub(super) fn extent(
+        &mut self,
+        item: &LayoutItem,
+        text: &str,
+        font: Option<&XfaNode>,
+        para: Option<&XfaNode>,
+    ) -> (f64, f64) {
+        let style = self.style(item, font, para);
+        let (lines, _) = self.lines(text, &style, 0.0);
+        let (_, line_h) = metrics(&style, para);
+        let w = lines
+            .iter()
+            .map(|l| text_width(style.font, style.size, l))
+            .fold(0.0, f64::max);
+        #[allow(clippy::cast_precision_loss)] // a line count fits f64 exactly
+        (w, line_h * lines.len() as f64)
+    }
+
+    /// Set `text` in `r` with `font`/`para`, wrapping at `r`'s width and
+    /// clipped to `r` when it has area.
+    pub(super) fn set(
+        &mut self,
+        item: &LayoutItem,
+        text: &str,
+        font: Option<&XfaNode>,
+        para: Option<&XfaNode>,
+        r: LayoutRect,
+    ) {
+        let style = self.style(item, font, para);
         let (lines, approximated) = self.lines(text, &style, r.w);
         if approximated {
             self.note(item, PaintNoteKind::Text);
         }
-        let d = std14_descriptor(style.font);
-        let ascent = f64::from(d.ascender) / 1000.0 * style.size;
-        let descent = f64::from(d.descender).abs() / 1000.0 * style.size;
-        let line_h = node
-            .child("para")
-            .and_then(|p| super::length(p, "lineHeight"))
-            .unwrap_or(0.0)
-            .max(ascent + descent);
+        let (ascent, line_h) = metrics(&style, para);
         #[allow(clippy::cast_precision_loss)] // a line count fits f64 exactly
         let block_h = line_h * lines.len() as f64;
         if r.h > 0.0 && block_h > r.h + 0.01 {
@@ -106,8 +148,12 @@ impl Painter {
         self.run(r, &style, &lines, top - ascent, line_h);
     }
 
-    fn style(&mut self, item: &LayoutItem, node: &XfaNode) -> Style {
-        let font = node.child("font");
+    fn style(
+        &mut self,
+        item: &LayoutItem,
+        font: Option<&XfaNode>,
+        para: Option<&XfaNode>,
+    ) -> Style {
         let attr = |a| font.and_then(|f| f.attr(a));
         let bold =
             attr("weight").map_or(self.opts.font_weight == FontWeight::Bold, |w| w == "bold");
@@ -120,7 +166,6 @@ impl Painter {
             Some(fill) => self.color(item, fill, [0.0; 3]),
             None => [0.0; 3],
         };
-        let para = node.child("para");
         let h_align = match para.and_then(|p| p.attr("hAlign")) {
             Some("center") => 0.5,
             Some("right") => 1.0,

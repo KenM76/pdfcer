@@ -832,7 +832,7 @@ with every `warnings` entry.
   height=` line, one `paint-note page= kind= path=` line per `PaintNote`,
   and an `xfa-render pages= notes=` summary; `--edge-placement
   {grammar,inward}`, `--missing-fill {none,white}` and `--font-weight
-  {normal,bold}` map onto `PaintOptions`; note kinds print as
+  {normal,bold}` and `--caption-font {own,field}` map onto `PaintOptions`; note kinds print as
   `content-not-drawn`, `font-substituted`, `text-approximated` and the
   like. An image that cannot be written exits 1.
 
@@ -858,6 +858,13 @@ kind.
   spaces inside the content region (item minus container margin minus a
   text widget's margin), clipped to it. A typeface other than Courier,
   Helvetica or Times is matched to the nearest standard-14 family.
+- **Draws** a `caption` placed `left`, `right`, `top` or `bottom` (p.643,
+  p.51). Its region is carved from that side of the content region:
+  `reserve` wide (left/right) or tall (top/bottom), or, with no positive
+  `reserve` (omitted, `0`, `-1`), just enough for its unwrapped text plus
+  its own `margin`. Its plain text is set there in its own `font`/`para`;
+  the value is set in the rest. An `invisible` caption keeps its region but
+  draws nothing; `hidden` and `inactive` ones take no space.
 - **Skips** an item whose own or any ancestor container's `presence` is not
   `visible` (p.68), and a non-visible border, fill or edge.
 - **Settings:**
@@ -870,9 +877,14 @@ kind.
   - `FontWeight { Normal (default), Bold }` (`with_font_weight`): the weight
     of a `font` with no `weight` attribute; the grammar says normal, p.58
     prose says bold (gap G-T1).
+  - `CaptionFont { Own (default), Field }` (`with_caption_font`): the font
+    of a caption with no `font` of its own. `Own` uses the `font` defaults,
+    as the grammar does; `Field` uses the field's or draw's `font` (gap
+    G-D11).
 - **★ What the UI must disclose:** every `PaintNote` (path + `PaintNoteKind`):
-  - `Content`: a caption, rich or non-text value, or a widget drawing more
-    than its text (check button, choice list, bordered widget), not drawn yet.
+  - `Content`: an `inline` or rich-text caption, a rich or non-text value,
+    or a widget drawing more than its text (check button, choice list,
+    bordered widget), not drawn yet.
   - `Font`: the typeface was drawn in a substituted standard-14 face.
   - `Text`: text approximated: an unencodable character, a word wider than
     the region, overflow, or justify/radix alignment drawn left.

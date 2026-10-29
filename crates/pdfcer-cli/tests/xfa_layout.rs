@@ -125,7 +125,7 @@ fn png_dir_writes_one_image_per_page_and_lists_what_was_not_drawn() {
     let dir = std::env::temp_dir().join(format!("pdfcer-xfa-png-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let t = format!(
-        r#"<subform name="f">{PAGE}<field name="f1" x="10pt" y="10pt" w="40pt" h="40pt"><border><fill><color value="255,0,0"/></fill></border><caption/></field></subform>"#
+        r#"<subform name="f">{PAGE}<field name="f1" x="10pt" y="10pt" w="40pt" h="40pt"><border><fill><color value="255,0,0"/></fill></border><caption placement="inline"/></field></subform>"#
     );
     let dir_arg = dir.to_str().unwrap();
     let (code, stdout, stderr) = run("png", &pdf(Some(&t)), &["--png-dir", dir_arg]);
@@ -159,6 +159,36 @@ fn png_dir_draws_value_text_and_names_a_substituted_font() {
         "{stdout}"
     );
     assert!(stdout.ends_with("xfa-render pages=1 notes=1\n"), "{stdout}");
+}
+
+#[test]
+fn png_dir_draws_a_caption_in_the_field_font_when_asked() {
+    let t = format!(
+        r#"<subform name="f">{PAGE}<field name="c" x="10pt" y="10pt" w="200pt" h="40pt"><caption reserve="120pt"><value><text>Name</text></value></caption><font typeface="Arial" size="24pt"/><ui><textEdit/></ui><value><text>v</text></value></field></subform>"#
+    );
+    let image = |caption_font: &str| {
+        let dir = std::env::temp_dir().join(format!(
+            "pdfcer-xfa-cap-{caption_font}-{}",
+            std::process::id()
+        ));
+        let dir_arg = dir.to_str().unwrap();
+        let flags = ["--png-dir", dir_arg, "--caption-font", caption_font];
+        let (code, stdout, stderr) = run(caption_font, &pdf(Some(&t)), &flags);
+        let png = std::fs::read(dir.join("page-000.png"));
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(code, 0, "{stderr}");
+        assert!(!stdout.contains("content-not-drawn"), "{stdout}");
+        assert!(
+            stdout.contains("paint-note page=0 kind=font-substituted path=0.1"),
+            "{stdout}"
+        );
+        png.unwrap()
+    };
+    assert_ne!(
+        image("own"),
+        image("field"),
+        "a 24pt Helvetica caption draws differently from a 10pt Courier one"
+    );
 }
 
 #[test]

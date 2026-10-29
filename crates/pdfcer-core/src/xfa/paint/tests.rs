@@ -145,7 +145,10 @@ fn what_is_not_drawn_yet_is_disclosed() {
     let border = r#"<edge stroke="dashed"/><corner radius="2pt"/><fill><pattern/></fill>"#;
     let body = field(border)
         .replace("<border>", r#"<border break="open">"#)
-        .replace("</field>", "<caption/><color/></field>");
+        .replace(
+            "</field>",
+            r#"<caption placement="inline"/><color/></field>"#,
+        );
     let (ops, notes, _) = paint(&body, &PaintOptions::new());
     assert!(ops.is_empty(), "{ops}");
     let kinds: Vec<_> = notes.iter().map(|n| n.kind).collect();
@@ -290,7 +293,7 @@ fn long_text_wraps_at_spaces_and_overflow_is_disclosed() {
 }
 
 #[test]
-fn an_unencodable_character_is_disclosed_and_a_caption_still_is_not_drawn() {
+fn an_unencodable_character_is_disclosed_and_an_inline_caption_is_not_drawn() {
     let (p, ops) = painted(&draw("", "", "a\u{4e00}"), &PaintOptions::new());
     assert!(ops.contains("(a?) Tj"), "{ops}");
     assert_eq!(p.notes[0].kind, PaintNoteKind::Text);
@@ -301,7 +304,111 @@ fn an_unencodable_character_is_disclosed_and_a_caption_still_is_not_drawn() {
         "{ops} {:?}",
         p.notes
     );
-    let captioned = field.replace("<ui>", "<caption/><ui>");
+    let captioned = field.replace("<ui>", r#"<caption placement="inline"/><ui>"#);
     let (p, _) = painted(&captioned, &PaintOptions::new());
     assert_eq!(p.notes[0].kind, PaintNoteKind::Content);
+}
+
+/// A 200 x 40pt field at (46, 56) top-left in page space, value `v`.
+fn captioned(caption: &str, font: &str) -> String {
+    format!(
+        r#"<field name="f1" x="10pt" y="20pt" w="200pt" h="40pt">{caption}{font}<ui><textEdit/></ui><value><text>v</text></value></field>"#
+    )
+}
+
+const COURIER: &str = r#"<font typeface="Courier"/>"#;
+
+/// Courier 10pt: ascent 6.29, line height 7.86; the item top is 736.
+const ASCENT: f64 = 6.29;
+
+#[test]
+fn a_left_caption_takes_its_reserve_and_the_value_takes_the_rest() {
+    let cap = r#"<caption reserve="50pt"><font typeface="Courier"/><value><text>Name</text></value></caption>"#;
+    let (p, ops) = painted(&captioned(cap, COURIER), &PaintOptions::new());
+    let y = num(736.0 - ASCENT);
+    assert!(
+        ops.contains(&format!("1 0 0 1 46 {y} Tm (Name) Tj")),
+        "{ops}"
+    );
+    assert!(ops.contains(&format!("1 0 0 1 96 {y} Tm (v) Tj")), "{ops}");
+    assert!(
+        ops.contains(&re(46.0, 696.0, 50.0, 40.0)),
+        "caption clip: {ops}"
+    );
+    assert!(p.notes.is_empty(), "{:?}", p.notes);
+}
+
+#[test]
+fn an_unreserved_caption_is_sized_to_its_text_and_margins() {
+    let top = r#"<caption placement="top"><margin topInset="2pt" bottomInset="3pt"/><font typeface="Courier"/><value><text>T</text></value></caption>"#;
+    let (_, ops) = painted(&captioned(top, COURIER), &PaintOptions::new());
+    let line_h = (629.0 + 157.0) / 1000.0 * 10.0;
+    assert!(
+        ops.contains(&format!(
+            "1 0 0 1 46 {} Tm (T) Tj",
+            num(736.0 - 2.0 - ASCENT)
+        )),
+        "{ops}"
+    );
+    let value_y = num(736.0 - (line_h + 5.0) - ASCENT);
+    assert!(
+        ops.contains(&format!("1 0 0 1 46 {value_y} Tm (v) Tj")),
+        "{ops}"
+    );
+    // "ab" is 12pt of Courier: a right caption starts 12pt from the right.
+    let right = r#"<caption placement="right" reserve="-1"><font typeface="Courier"/><value><text>ab</text></value></caption>"#;
+    let (_, ops) = painted(&captioned(right, COURIER), &PaintOptions::new());
+    let y = num(736.0 - ASCENT);
+    assert!(
+        ops.contains(&format!("1 0 0 1 234 {y} Tm (ab) Tj")),
+        "{ops}"
+    );
+    assert!(ops.contains(&format!("1 0 0 1 46 {y} Tm (v) Tj")), "{ops}");
+}
+
+#[test]
+fn an_invisible_caption_keeps_its_space_and_a_hidden_one_does_not() {
+    let cap = |presence: &str| {
+        format!(
+            r#"<caption reserve="30pt" presence="{presence}"><value><text>N</text></value></caption>"#
+        )
+    };
+    let y = num(736.0 - ASCENT);
+    let (_, ops) = painted(&captioned(&cap("invisible"), COURIER), &PaintOptions::new());
+    assert!(!ops.contains("(N)"), "{ops}");
+    assert!(ops.contains(&format!("1 0 0 1 76 {y} Tm (v) Tj")), "{ops}");
+    let (_, ops) = painted(&captioned(&cap("hidden"), COURIER), &PaintOptions::new());
+    assert!(ops.contains(&format!("1 0 0 1 46 {y} Tm (v) Tj")), "{ops}");
+}
+
+#[test]
+fn a_caption_without_a_font_uses_the_defaults_or_the_fields_font_by_setting() {
+    let cap = r#"<caption reserve="50pt"><value><text>N</text></value></caption>"#;
+    let body = captioned(cap, r#"<font typeface="Helvetica"/>"#);
+    let (own, _) = painted(&body, &PaintOptions::new());
+    assert_eq!(
+        base_font(&own, b"XF0"),
+        "Courier",
+        "the caption, in the defaults"
+    );
+    assert_eq!(base_font(&own, b"XF1"), "Helvetica", "the value");
+    let (field, _) = painted(
+        &body,
+        &PaintOptions::new().with_caption_font(CaptionFont::Field),
+    );
+    let fonts = field.resources.get(b"Font").unwrap().as_dict().unwrap();
+    assert_eq!(fonts.len(), 1, "caption and value share Helvetica");
+    assert_eq!(base_font(&field, b"XF0"), "Helvetica");
+}
+
+#[test]
+fn a_rich_text_caption_is_disclosed_and_its_space_still_carved() {
+    let cap =
+        r#"<caption reserve="40pt"><value><exData contentType="text/html"/></value></caption>"#;
+    let (p, ops) = painted(&captioned(cap, COURIER), &PaintOptions::new());
+    assert_eq!(p.notes[0].kind, PaintNoteKind::Content);
+    assert!(
+        ops.contains(&format!("1 0 0 1 86 {} Tm (v) Tj", num(736.0 - ASCENT))),
+        "{ops}"
+    );
 }

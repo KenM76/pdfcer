@@ -3,7 +3,8 @@
 use super::*;
 
 use pdfcer_core::xfa::{
-    EdgePlacement, FontWeight, MissingFill, PaintNoteKind, PaintOptions, Template, XfaLayout,
+    CaptionFont, EdgePlacement, FontWeight, MissingFill, PaintNoteKind, PaintOptions, Template,
+    XfaLayout,
 };
 
 /// `xfa-layout --edge-placement` (gap G-D1, decision 207).
@@ -36,6 +37,16 @@ pub(crate) enum FontWeightArg {
     Bold,
 }
 
+/// `xfa-layout --caption-font` (gap G-D11).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum CaptionFontArg {
+    /// The font defaults (the grammar).
+    #[default]
+    Own,
+    /// The field's own font.
+    Field,
+}
+
 /// Where and how `xfa-layout` writes page images.
 #[derive(Debug, Clone)]
 pub(crate) struct XfaPngArgs {
@@ -44,6 +55,7 @@ pub(crate) struct XfaPngArgs {
     pub(crate) edge_placement: EdgePlacementArg,
     pub(crate) missing_fill: MissingFillArg,
     pub(crate) font_weight: FontWeightArg,
+    pub(crate) caption_font: CaptionFontArg,
 }
 
 impl XfaPngArgs {
@@ -60,6 +72,10 @@ impl XfaPngArgs {
             .with_font_weight(match self.font_weight {
                 FontWeightArg::Normal => FontWeight::Normal,
                 FontWeightArg::Bold => FontWeight::Bold,
+            })
+            .with_caption_font(match self.caption_font {
+                CaptionFontArg::Own => CaptionFont::Own,
+                CaptionFontArg::Field => CaptionFont::Field,
             })
     }
 }

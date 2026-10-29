@@ -5991,10 +5991,11 @@ pub(crate) enum Command {
     ///   paint-note page=N kind= path=
     ///   xfa-render pages= notes=
     ///
-    /// Borders, fills and plain value text are drawn so far, text in the
-    /// nearest standard PDF font. Each paint-note names something left out
-    /// or approximated: content-not-drawn (caption, rich text or a non-text
-    /// widget), stroke-not-drawn, fill-not-drawn (gradient, pattern or
+    /// Borders, fills, plain value text and left, right, top or bottom
+    /// captions are drawn so far, text in the nearest standard PDF font.
+    /// Each paint-note names something left out or approximated:
+    /// content-not-drawn (an inline or rich caption, rich text or a
+    /// non-text widget), stroke-not-drawn, fill-not-drawn (gradient, pattern or
     /// stipple), corner-drawn-square, open-break-drawn-closed,
     /// colour-defaulted, font-substituted (typeface drawn in Courier,
     /// Helvetica or Times), text-approximated (a character shown as ?, a
@@ -6021,7 +6022,7 @@ pub(crate) enum Command {
         #[arg(long, value_enum, default_value_t)]
         page_area_keep: PageAreaKeepArg,
         /// Also draw each computed page to page-NNN.png in this folder
-        /// (created if missing). Borders, fills and plain text only for now;
+        /// (created if missing). Borders, fills, plain text and captions only;
         /// everything not drawn exactly is listed as a paint-note line.
         #[arg(long, value_name = "DIR")]
         png_dir: Option<PathBuf>,
@@ -6041,6 +6042,11 @@ pub(crate) enum Command {
         /// as the XFA grammar says, or bold, as an XFA spec chapter says.
         #[arg(long, value_enum, default_value_t)]
         font_weight: FontWeightArg,
+        /// The font of a caption that names none, for --png-dir: the XFA
+        /// font defaults (Courier 10pt), as the grammar says, or the
+        /// field's own font.
+        #[arg(long, value_enum, default_value_t)]
+        caption_font: CaptionFontArg,
     },
 
     /// **Create a new text form field** (§12.7.2 + §12.5.6.19).

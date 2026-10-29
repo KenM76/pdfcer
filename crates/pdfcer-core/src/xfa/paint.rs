@@ -11,9 +11,10 @@
 //!
 //! Scope: a container's own `border` (its `fill`, `margin` and solid square
 //! edges), and a `draw`'s or `field`'s plain value text in a standard-14
-//! face ([`PaintedPage::resources`] names them). Captions, rich text, other
-//! value content and non-text widgets are not drawn yet; each item carrying
-//! them is reported as [`PaintNoteKind::Content`].
+//! face ([`PaintedPage::resources`] names them), beside its left, right, top
+//! or bottom caption. Inline and rich captions, rich text, other value
+//! content and non-text widgets are not drawn yet; each item carrying them
+//! is reported as [`PaintNoteKind::Content`].
 
 use crate::fontdata::Std14;
 use crate::object::{Dict, Name, Object};
@@ -57,6 +58,18 @@ pub enum FontWeight {
     Bold,
 }
 
+/// The font a `caption` with no `font` of its own is set in (gap G-D11).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum CaptionFont {
+    /// The `font` defaults (Courier 10pt), as the grammar gives an omitted
+    /// `font` (p.643, p.741).
+    #[default]
+    Own,
+    /// The enclosing field's or draw's `font`, the inheritance p.43 allows.
+    Field,
+}
+
 /// The settings [`paint_page`] draws with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
@@ -67,6 +80,8 @@ pub struct PaintOptions {
     pub missing_fill: MissingFill,
     /// Gap G-T1.
     pub font_weight: FontWeight,
+    /// Gap G-D11.
+    pub caption_font: CaptionFont,
 }
 
 impl PaintOptions {
@@ -77,6 +92,7 @@ impl PaintOptions {
             edge_placement: EdgePlacement::Grammar,
             missing_fill: MissingFill::None,
             font_weight: FontWeight::Normal,
+            caption_font: CaptionFont::Own,
         }
     }
 
@@ -100,14 +116,21 @@ impl PaintOptions {
         self.font_weight = font_weight;
         self
     }
+
+    /// With `caption_font`.
+    #[must_use]
+    pub const fn with_caption_font(mut self, caption_font: CaptionFont) -> Self {
+        self.caption_font = caption_font;
+        self
+    }
 }
 
 /// What [`paint_page`] drew differently from the template, or left out.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum PaintNoteKind {
-    /// A caption, rich text, non-text value content or non-text widget: not
-    /// drawn yet.
+    /// An `inline` or non-plain-text caption, rich text, non-text value
+    /// content or non-text widget: not drawn yet.
     Content,
     /// A non-`solid` edge stroke (dashed, 3-D...): that edge is not drawn.
     Stroke,
@@ -415,6 +438,7 @@ fn parse_rgb(v: &str) -> Option<[f64; 3]> {
     parts.next().is_none().then_some(out)
 }
 
+mod caption;
 mod text;
 
 #[cfg(test)]
