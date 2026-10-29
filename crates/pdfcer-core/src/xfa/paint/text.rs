@@ -17,6 +17,9 @@ const TEXT_WIDGETS: [&str; 4] = ["textEdit", "numericEdit", "dateTimeEdit", "pas
 pub(super) fn content_left_out(node: &XfaNode) -> bool {
     let caption = super::caption::left_out(node);
     let value = has_unplain_value(node);
+    if super::check::is_check_button(node) {
+        return caption;
+    }
     let ui = widget(node)
         .is_some_and(|w| !TEXT_WIDGETS.contains(&w.tag.as_str()) || w.child("border").is_some());
     caption || value || ui
@@ -32,7 +35,7 @@ pub(super) fn has_unplain_value(holder: &XfaNode) -> bool {
 }
 
 /// The `ui` element's widget child (the one beside `extras` and `picture`).
-fn widget(node: &XfaNode) -> Option<&XfaNode> {
+pub(super) fn widget(node: &XfaNode) -> Option<&XfaNode> {
     node.child("ui")?
         .children
         .iter()
@@ -93,8 +96,7 @@ impl Painter {
     /// region carved from the content region (p.50), the value in the rest,
     /// inset by a text widget's own margin.
     pub(super) fn text(&mut self, item: &LayoutItem, node: &XfaNode) {
-        let r = inset(item.rect, node.child("margin"));
-        let mut r = self.caption(item, node, r);
+        let mut r = self.value_region(item, node);
         let Some(text) = plain_text(node) else {
             return;
         };
@@ -102,6 +104,22 @@ impl Painter {
             r = inset(r, w.child("margin"));
         }
         self.set(item, text, node.child("font"), node.child("para"), r);
+    }
+
+    /// The item's content region less its caption (p.50).
+    pub(super) fn value_region(&mut self, item: &LayoutItem, node: &XfaNode) -> LayoutRect {
+        let r = inset(item.rect, node.child("margin"));
+        self.caption(item, node, r)
+    }
+
+    /// A `checkButton` field: its caption, then its box in the rest inset
+    /// by the widget's margin.
+    pub(super) fn check_field(&mut self, item: &LayoutItem, node: &XfaNode) {
+        let mut r = self.value_region(item, node);
+        if let Some(w) = widget(node) {
+            r = inset(r, w.child("margin"));
+        }
+        self.check_button(item, node, r);
     }
 
     /// The unwrapped width and height `text` takes in `font`/`para`.

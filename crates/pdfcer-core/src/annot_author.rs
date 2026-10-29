@@ -4587,7 +4587,12 @@ pub fn build_check_box_appearances(
 /// Paint `style`'s mark centred at `(cx, cy)` within half-extent `s`, in
 /// the current stroke and fill colour. Shared by the check box and the
 /// radio button so one style draws one shape on both.
-fn draw_check_mark(b: &mut ContentBuilder, style: CheckStyle, (cx, cy): (f64, f64), s: f64) {
+pub(crate) fn draw_check_mark(
+    b: &mut ContentBuilder,
+    style: CheckStyle,
+    (cx, cy): (f64, f64),
+    s: f64,
+) {
     match style {
         CheckStyle::Check => {
             // A short down-stroke into a long up-stroke, round-joined so the
@@ -4610,28 +4615,7 @@ fn draw_check_mark(b: &mut ContentBuilder, style: CheckStyle, (cx, cy): (f64, f6
             b.line_to(cx + s * 0.8, cy - s * 0.8);
             b.paint(Paint::Stroke);
         }
-        CheckStyle::Star => {
-            // Five points, filled. Outer vertices every 72 degrees starting
-            // at 90 (a point straight up, which is what makes it read as a
-            // star rather than as a pentagon), inner vertices at 36 degrees
-            // offset and 0.382 of the radius -- the golden ratio the classic
-            // five-pointed star uses, so the arms are neither spindly nor
-            // stubby.
-            let outer = s * 0.95;
-            let inner = outer * 0.382;
-            for i in 0..10 {
-                let r = if i % 2 == 0 { outer } else { inner };
-                let a = std::f64::consts::FRAC_PI_2 + f64::from(i) * std::f64::consts::PI / 5.0;
-                let (x, y) = (cx + r * a.cos(), cy + r * a.sin());
-                if i == 0 {
-                    b.move_to(x, y);
-                } else {
-                    b.line_to(x, y);
-                }
-            }
-            b.close_subpath();
-            b.paint(Paint::Fill);
-        }
+        CheckStyle::Star => draw_star(b, (cx, cy), s),
         CheckStyle::Circle => {
             // Four Bezier arcs. 0.5523 is the standard circle constant
             // (4/3 * tan(pi/8)); a smaller value visibly flattens the
@@ -4663,6 +4647,30 @@ fn draw_check_mark(b: &mut ContentBuilder, style: CheckStyle, (cx, cy): (f64, f6
             b.paint(Paint::Fill);
         }
     }
+}
+
+/// A filled five-pointed star centred at `(cx, cy)` within half-extent `s`.
+fn draw_star(b: &mut ContentBuilder, (cx, cy): (f64, f64), s: f64) {
+    // Five points, filled. Outer vertices every 72 degrees starting
+    // at 90 (a point straight up, which is what makes it read as a
+    // star rather than as a pentagon), inner vertices at 36 degrees
+    // offset and 0.382 of the radius -- the golden ratio the classic
+    // five-pointed star uses, so the arms are neither spindly nor
+    // stubby.
+    let outer = s * 0.95;
+    let inner = outer * 0.382;
+    for i in 0..10 {
+        let r = if i % 2 == 0 { outer } else { inner };
+        let a = std::f64::consts::FRAC_PI_2 + f64::from(i) * std::f64::consts::PI / 5.0;
+        let (x, y) = (cx + r * a.cos(), cy + r * a.sin());
+        if i == 0 {
+            b.move_to(x, y);
+        } else {
+            b.line_to(x, y);
+        }
+    }
+    b.close_subpath();
+    b.paint(Paint::Fill);
 }
 
 /// Build a radio button's **two** appearance states — on and off — as

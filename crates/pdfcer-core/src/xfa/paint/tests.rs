@@ -412,3 +412,120 @@ fn a_rich_text_caption_is_disclosed_and_its_space_still_carved() {
         "{ops}"
     );
 }
+
+fn check(ui: &str, rest: &str) -> String {
+    format!(r#"<field name="f1" x="10pt" y="20pt" w="40pt" h="20pt"><ui>{ui}</ui>{rest}</field>"#)
+}
+
+const ON_OFF: &str = "<items><integer>1</integer><integer>0</integer><integer>2</integer></items>";
+
+#[test]
+fn an_on_check_button_draws_its_box_top_left_and_a_cross() {
+    let body = check(
+        "<checkButton/>",
+        &format!("{ON_OFF}<value><integer>1</integer></value>"),
+    );
+    let (ops, notes, [x, y, _, h]) = paint(&body, &PaintOptions::new());
+    let bx = re(x, y + h - 10.0, 10.0, 10.0);
+    assert!(ops.contains(&format!("0.5 w 0 J 0 0 0 RG {bx} S")), "{ops}");
+    let (cx, cy, s) = (x + 5.0, y + h - 5.0, 2.5);
+    let first = format!(
+        "{} {} m {} {} l",
+        num(cx - s * 0.8),
+        num(cy - s * 0.8),
+        num(cx + s * 0.8),
+        num(cy + s * 0.8)
+    );
+    assert!(
+        ops.contains(&first),
+        "a saltire, the default mark of a square box: {ops}"
+    );
+    assert!(notes.is_empty(), "{notes:?}");
+}
+
+#[test]
+fn an_off_or_neutral_check_button_draws_the_box_alone() {
+    for (v, note) in [("0", false), ("2", true)] {
+        let body = check(
+            "<checkButton/>",
+            &format!("{ON_OFF}<value><integer>{v}</integer></value>"),
+        );
+        let (ops, notes, _) = paint(&body, &PaintOptions::new());
+        assert!(
+            ops.ends_with(" re S"),
+            "the box and nothing after it: {ops}"
+        );
+        assert_eq!(
+            notes.iter().any(|n| n.kind == PaintNoteKind::Content),
+            note,
+            "{v}: {notes:?}"
+        );
+    }
+}
+
+#[test]
+fn without_items_a_value_of_one_or_on_is_on() {
+    for v in ["<integer>1</integer>", "<text>On</text>"] {
+        let body = check("<checkButton/>", &format!("<value>{v}</value>"));
+        let (ops, _, _) = paint(&body, &PaintOptions::new());
+        assert!(ops.contains(" l "), "{v} draws the mark: {ops}");
+    }
+    let (ops, _, _) = paint(
+        &check("<checkButton/>", "<value><text>yes</text></value>"),
+        &PaintOptions::new(),
+    );
+    assert!(!ops.contains(" l "), "{ops}");
+}
+
+#[test]
+fn a_round_box_strokes_a_circle_and_fills_a_dot() {
+    let body = check(
+        r#"<checkButton shape="round" size="12pt"/>"#,
+        &format!("{ON_OFF}<value><integer>1</integer></value>"),
+    );
+    let (ops, _, [x, y, _, h]) = paint(&body, &PaintOptions::new());
+    let (cx, cy) = (x + 6.0, y + h - 6.0);
+    assert!(
+        ops.contains(&format!("{} {} m", num(cx + 6.0), num(cy))),
+        "{ops}"
+    );
+    assert!(ops.contains(" h S"), "the circle is stroked: {ops}");
+    assert!(
+        ops.contains(" h f"),
+        "the default round mark is a filled circle: {ops}"
+    );
+}
+
+#[test]
+fn para_alignment_places_the_box_and_a_caption_takes_its_reserve() {
+    let body = check(
+        "<checkButton><border><edge thickness=\"1pt\"/></border></checkButton>",
+        &format!(
+            r#"<para hAlign="right" vAlign="middle"/><caption placement="left" reserve="10pt"><value><text>A</text></value></caption>{ON_OFF}"#
+        ),
+    );
+    let (ops, notes, [x, y, w, h]) = paint(&body, &PaintOptions::new());
+    let bx = re(x + w - 10.0, y + (h - 10.0) / 2.0, 10.0, 10.0);
+    assert!(
+        ops.contains(&format!("1 w 2 J 0 0 0 RG {bx} S")),
+        "the widget's own border: {ops}"
+    );
+    assert!(ops.contains("(A) Tj"), "{ops}");
+    assert!(
+        !notes.iter().any(|n| n.kind == PaintNoteKind::Content),
+        "{notes:?}"
+    );
+}
+
+#[test]
+fn a_named_mark_takes_the_font_fill_colour() {
+    let body = check(
+        r#"<checkButton mark="star"/>"#,
+        &format!(
+            r#"<font><fill><color value="255,0,0"/></fill></font>{ON_OFF}<value><integer>1</integer></value>"#
+        ),
+    );
+    let (ops, _, _) = paint(&body, &PaintOptions::new());
+    assert!(ops.contains("1 0 0 RG 1 0 0 rg"), "{ops}");
+    assert_eq!(ops.matches(" l ").count(), 9, "a ten-vertex star: {ops}");
+}

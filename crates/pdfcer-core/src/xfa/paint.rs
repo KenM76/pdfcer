@@ -12,9 +12,10 @@
 //! Scope: a container's own `border` (its `fill`, `margin` and solid square
 //! edges), and a `draw`'s or `field`'s plain value text in a standard-14
 //! face ([`PaintedPage::resources`] names them), beside its left, right, top
-//! or bottom caption. Inline and rich captions, rich text, other value
-//! content and non-text widgets are not drawn yet; each item carrying them
-//! is reported as [`PaintNoteKind::Content`].
+//! or bottom caption, and a `checkButton` field's box and mark. Inline and
+//! rich captions, rich text, other value content and other non-text widgets
+//! are not drawn yet; each item carrying them is reported as
+//! [`PaintNoteKind::Content`].
 
 use crate::fontdata::Std14;
 use crate::object::{Dict, Name, Object};
@@ -258,9 +259,11 @@ impl Painter {
         if let Some(border) = node.child("border")
             && border.presence() == Presence::Visible
         {
-            self.border(item, border);
+            self.border(item, border, item.rect);
         }
-        if matches!(item.kind, ContainerKind::Field | ContainerKind::Draw) {
+        if item.kind == ContainerKind::Field && check::is_check_button(node) {
+            self.check_field(item, node);
+        } else if matches!(item.kind, ContainerKind::Field | ContainerKind::Draw) {
             self.text(item, node);
         }
         if text::content_left_out(node) {
@@ -285,8 +288,9 @@ impl Painter {
         res
     }
 
-    fn border(&mut self, item: &LayoutItem, border: &XfaNode) {
-        let r = inset(item.rect, border.child("margin"));
+    /// Paint `border` around `rect`, inset by the border's own margin.
+    fn border(&mut self, item: &LayoutItem, border: &XfaNode, rect: LayoutRect) {
+        let r = inset(rect, border.child("margin"));
         if border.attr("break").is_some_and(|b| b.starts_with("open")) {
             self.note(item, PaintNoteKind::OpenBreak);
         }
@@ -439,6 +443,7 @@ fn parse_rgb(v: &str) -> Option<[f64; 3]> {
 }
 
 mod caption;
+mod check;
 mod text;
 
 #[cfg(test)]
