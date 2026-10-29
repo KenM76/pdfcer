@@ -828,6 +828,41 @@ with every `warnings` entry.
   one-to-one onto the options above. It exits 1 when the file has no
   template or `LayoutError` applies. Rendering the layout is 647.4.
 
+**Drawing a laid-out XFA page** (`xfa/paint.rs`, decision 204, Pass 647.4
+first cut): `pdfcer_core::xfa::paint_page(&Template, &LayoutPage,
+&PaintOptions) -> PaintedPage`. Pure; writes nothing. `PaintedPage::content`
+is an unfiltered content stream in the page's default user space (origin
+bottom-left, points, DeviceRGB, no resources); `notes` lists what was
+approximated or left out, deduplicated per item and kind.
+
+- **Draws:** a field, draw, subform or exclGroup's own `border` (XFA 3.3
+  p.629). It draws the solid `fill` (p.734, default white) and the solid
+  edges (p.687, default 0.5pt black, one to four repeating, top/right/bottom/left).
+  Both are drawn on the nominal extent inset by the border's own `margin`
+  (p.50). Background items paint first; siblings paint in layout order; fill
+  goes under the edges (p.70).
+- **Skips** an item whose own or any ancestor container's `presence` is not
+  `visible` (p.68), and a non-visible border, fill or edge.
+- **Settings:**
+  - `EdgePlacement { Grammar (default), Inward }`: where a `hand="even"` edge
+    sits. `Grammar` centres it on the border line (p.630); `Inward` grows it
+    inside, as Ch.2 p.38 does (gap G-D1). An explicit `left`/`right` overrides
+    either.
+  - `MissingFill { None (default), White }`: what a border with no `fill`
+    element paints (gap G-D2).
+- **★ What the UI must disclose:** every `PaintNote` (path + `PaintNoteKind`):
+  - `Content`: caption, value, draw content or widget, not drawn yet.
+  - `Stroke`: a non-solid edge, not drawn.
+  - `FillType`: a gradient, pattern or stipple fill, not drawn.
+  - `Corner`: a rounded corner, drawn square.
+  - `OpenBreak`: `break="open"`, drawn closed.
+  - `Color`: an unreadable colour; the default was used.
+
+  Rendering it in place of the placeholder page, and its CLI caller, are
+  later 647.4/647.5 cuts.
+- **Spec slice:** `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_appearance_drawing.md`
+  (gaps G-D1 to G-D19).
+
 `Field` (`forms.rs`) → `fully_qualified_name`, `partial_name`,
 `alternate_name` (`/TU`), `mapping_name` (`/TM`), `rich_value` (`/RV`),
 `default_style` (`/DS`), `value: FieldValue`, `selected_indices`,
