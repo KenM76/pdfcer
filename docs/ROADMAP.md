@@ -26374,9 +26374,17 @@ Original scope: flowed containers, break and overflow rules, leaders/trailers. C
 
 Merge the `datasets` packet into the template per the normal-binding rules; defaults per gap IDs G-B. Explicit SOM references are BLOCKED on the owed SOM spec slice. Spec: `xfa_data_binding_normal`.
 
-### Pass 647.4 — Render path for dynamic forms (NOT STARTED)
+### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing); NOT COMPLETE, stays here)
 
 `pdfcer-render` draws the computed layout instead of the placeholder page (render-time only, like decision 203). Inferred content renders exactly as saved content would (rule 4: no on-canvas marking); disclosure is off-canvas diagnostics. Needs `pdfcer-render` to stay GUI-free (`cargo tree` check).
+
+**First cut (`4463b8e385860f5e9013e8babe648810f2ee58b3` "feat(xfa): draw a laid-out page's borders and fills (Pass 647.4, first cut)"; engineer-reported, nothing checked from here; unreleased, on main; decisions 203, 204 plus new decision 207).** Core only; NO renderer caller and NO CLI caller yet, so nothing a user can see changes.
+- **Done:** new `pdfcer_core::xfa::paint_page(&Template, &LayoutPage, &PaintOptions) -> PaintedPage { content: Vec<u8>, notes: Vec<PaintNote> }`: synthesises content-stream bytes for one laid page (nothing written to the file, decision 203). Draws each visible field/draw/subform/exclGroup border, background-layer items first; `presence` is honoured on the item, every ancestor container and the border itself; the rect is inset by the border's margin. Solid fill (default white colour); 1-4 edges with the last-repeats rule, default 0.5 pt black; identical edges as one `re`, distinct edges as per-side lines with projecting-square caps. Spec slice: `adobe_ext__xfa_appearance_drawing.md`.
+- **Settings (decision 207; gaps G-D1, G-D2):** `EdgePlacement { Grammar (default: edge centred on the rect), Inward (Ch.2 prose: drawn inside) }`; `MissingFill { None (default: no fill element, no fill), White (p.39 note) }`.
+- **Disclosure (rule 4):** `PaintNoteKind { Content (caption/value/ui not drawn yet), Stroke (non-solid), FillType (non-solid), Corner (radius drawn square), OpenBreak, Color (unreadable colour, fallback used) }`, deduplicated by path.
+- **core-api:** `docs/core-api/03-capabilities.md` gains "Drawing a laid-out XFA page" naming the spec slice; `index.md` line count updated.
+- **Evidence (engineer):** 8 new unit tests (`xfa/paint/tests.rs`); sabotage (remove the Inward offset, White fill, note dedup, ancestor presence check) each fails a test; `pdfcer-core` 5439 passed, 0 failed; fuzz `xfa_packets` now paints every laid page, 95,688 runs in 91 s = 1,052 runs/s, clean; fmt, clippy, all project gates green; no manifest change, `cargo tree` unchanged (core/render clean).
+- **REMAINING in 647.4:** render integration (`pdfcer-render` draws `paint_page` output in place of the placeholder); captions, values and text; rounded corners; non-solid strokes and fills (G-D6 stipple, a future setting); CLI render path (with `647.5`).
 
 ### Pass 647.5 — CLI `xfa-layout` report and `render-page` integration (FIRST CUT `c94ab2ee` (1289th filing); NOT COMPLETE, stays here)
 

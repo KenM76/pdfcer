@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1290th filing) — `Pass 647.4` FIRST CUT on `4463b8e3` (XFA page drawing: borders and fills; decision 207; Pass NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here):**
+- `Pass 647.4` first cut, `4463b8e385860f5e9013e8babe648810f2ee58b3`: `pdfcer_core::xfa::paint_page` synthesises content bytes for a laid page's borders and fills (render-time, nothing written to the file, decision 203). Core only; no renderer or CLI caller.
+- Decision 207: two spec gaps become settings, `EdgePlacement { Grammar (default), Inward }` (G-D1) and `MissingFill { None (default), White }` (G-D2). Disclosure by `PaintNote` kinds, deduplicated by path (rule 4).
+- Evidence: 8 new unit tests; 4 sabotages each fail a test; `pdfcer-core` 5439 passed, 0 failed; fuzz `xfa_packets` paints every laid page, 95,688 runs in 91 s, clean; fmt, clippy, gates green; no manifest change. core-api section "Drawing a laid-out XFA page" added.
+- ROADMAP: 647.4 header and first-cut block (stays in place). FEATURES: "Dynamic XFA, layout and drawing" row boxes NOT ticked (partial, no caller), text updated. ARCHITECTURE §12: decision 207 entry; decision record `docs/decisions/207-xfa-edge-placement-and-missing-fill-are-settings.md` written.
+
+**Decisions / findings:** decision 207. Next free decision: 208. The dispatch stated "R251" as next free; the 1287th §12 entry says `R263` next free, so the rule number is unreconciled (no rule minted here; run `check-ledger-numbers.py`).
+**Still in flight:** 647.4 remaining: render integration, captions/values/text, rounded corners, non-solid strokes and fills (G-D6), CLI render path. 647.5 remaining: `render-page`. 647.2 remaining: field/draw text splitting.
+
+**For next session:** continue the 647.x arc, slow pacing. Push, CI and backup state not checked from here.
+
 ## 2026-10-29 (1289th filing) — `Pass 647.5` FIRST CUT on `c94ab2ee` (CLI `xfa-layout` report; Pass NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here):**

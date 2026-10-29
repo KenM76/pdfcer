@@ -13594,3 +13594,11 @@ Full record: `docs/decisions/206-pagearea-keep-lays-per-spec-by-default.md`. Rec
 **Decides.** XFA 3.3 Ch.8 p.312 defines `keep@next`/`keep@previous="pageArea"` as "adjacent parts on the same page"; Adobe never supported it and treats it as `none` (Ch.28 p.1229). Setting `PageAreaKeep { Spec (default), Adobe }` via `LayoutOptions::with_page_area_keep`: under `Spec` a page-kept pair may part between content areas of one page and is held only at the page's last content area (top-level chains and split lines inside a subform); the stricter `contentArea` keep governs when the two sides disagree (G-L13). `LayoutWarning::PageAreaKeep { path }` is emitted under either setting. Core only; CLI flag arrives with `Pass 647.5`.
 
 **Body-section effect.** None. **Decision ceiling.** Fills `206`. Next free decision: `207`. **New standing rule.** None.
+
+### 2026-10-29 (1290th filing) — decision 207: XFA border edge placement and a missing fill are settings, with spec-grammar defaults
+
+Full record: `docs/decisions/207-xfa-edge-placement-and-missing-fill-are-settings.md`. Recorded at `Pass 647.4` first cut (`4463b8e3`). Applies decisions 203, 204; gaps G-D1, G-D2 (spec slice `adobe_ext__xfa_appearance_drawing.md`).
+
+**Decides.** The XFA spec leaves two drawing points open, so each is a setting on `PaintOptions` with a default. `EdgePlacement { Grammar (default: a border edge is centred on the rect), Inward (Ch.2 prose: drawn inside the rect) }`. `MissingFill { None (default: no fill element means no fill, per the grammar), White (the p.39 note) }`. Anything not drawn yet or drawn approximately (`PaintNoteKind`: Content, Stroke, FillType, Corner, OpenBreak, Color) is returned in `PaintedPage::notes`, deduplicated by path, never silent (rule 4). Core only; no renderer or CLI caller yet.
+
+**Body-section effect.** None. **Decision ceiling.** Fills `207`. Next free decision: `208`. **New standing rule.** None.
