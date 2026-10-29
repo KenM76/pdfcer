@@ -72,7 +72,7 @@ fn a_filled_field_lands_at_its_layout_position_y_down() {
 
 #[test]
 fn the_paint_settings_and_notes_reach_the_caller() {
-    let body = r#"<field name="f1" x="10pt" y="10pt" w="40pt" h="40pt"><border><edge presence="hidden"/></border><caption/></field>"#;
+    let body = r#"<field name="f1" x="10pt" y="10pt" w="40pt" h="40pt"><border><edge presence="hidden"/></border><ui><imageEdit/></ui></field>"#;
     let clear = RenderOptions::default().with_backdrop(PageBackdrop::Transparent);
     let none = render_with(body, &PaintOptions::new(), &clear);
     let white = render_with(
