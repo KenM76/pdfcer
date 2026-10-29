@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### Pass 55.13 — Print to a network printer by IPP URI, and through CUPS — SHIPPED `f813cd31`, 2026-10-29 (1307th filing)
+
+Engineer-reported; no shell here, nothing checked from here. `feat(print): print to a network printer by ipp:// URI, and through CUPS (Pass 55.13)`; parent and remote `main` before it `ed559c91`. Reasoning is in the commit message and ARCHITECTURE.md §12 decision 211.
+- **cli `print`:** `--printer ipp://…|ipps://…` sends the PDF itself (RFC 8010 encoding, RFC 8011 semantics). Get-Printer-Attributes first (reports make-and-model; refuses if `document-format-supported` is present and lacks `application/pdf`); with `--send`, one Print-Job carrying copies, sides, page-ranges, print-color-mode (grayscale to monochrome), orientation-requested, print-scaling (fit to fit, actual to none, shrink to auto-fit), and `multiple-document-handling=separate-documents-uncollated-copies` for `--uncollated`. Defaults omitted so the printer's own apply; the unsupported-attributes group is reported as "the printer ignored or substituted". No `--send`: queries, sends nothing.
+- **Off Windows** every printer name is a CUPS queue printed through `lp`, same options as `-o` pairs (pure argv builder, tested). A note says the printer decides which annotations print. Header/footer/`--marks` are stamped into the copy sent.
+- **Refused by name, exit 2** (pdfcer would have to compose the sheets): `--scale-percent`, `--max-dpi` other than 300, `--to-file`, `--reverse`, `--pick-tray`, `--paper`, `--paper-size`, `--printer-config`, `--comments` other than `document`, `--n-up`, `--booklet`, `--poster`, `--line-width`, `--color black-only`, `--separations`, `--print-as-image`.
+- **New exit code 17 `PRINTER_UNREACHABLE`** (printer unreachable, or `lp` missing).
+- **Code:** `pdfcer-print::ipp` (pure codec; panic-free parser, `MAX_ATTRIBUTES` 20,000; `http_url` maps ipp to http:631, ipps to https:631) plus `ipp::post_ipp_http`, a `std::net` HTTP/1.1 transport (4 MiB response cap; chunked, content-length and 1xx handled). `pdfcer-fetch::post_ipp` (TLS for `ipps://`, only with the CLI `download` feature; `MAX_IPP_RESPONSE_BYTES` 4 MiB; new `FetchError::NetworkUnsupported`). CLI module `crates/pdfcer-cli/src/print_remote.rs`.
+- **Tests:** 16 codec/transport tests in `pdfcer-print` (ipp); 9 in `print_remote`, including a fake `TcpListener` IPP endpoint (query, then Print-Job, document byte-for-byte after the end tag) and an unreachable-printer exit-17 test. Fuzz target `fuzz/fuzz_targets/ipp_response.rs`: 562,820 runs in 61 s (about 9,226 runs/s), 0 crashes. `tools/run-gates.sh` PASS (49 commands). Linux cross clippy clean.
+- **Invariants:** `cargo tree` for core/render: manifests untouched. No new dependency (`THIRD_PARTY_LICENSES.md` unchanged).
+- **Also in `f813cd31`:** `metafile::dest_rect` gets `#[cfg_attr(not(windows), allow(dead_code))]`. CI clippy on ubuntu had been red since `be1d18a2` (`Pass 55.12`) on "function `dest_rect` is never used". Gotcha: a Windows-only caller leaves a non-Windows build with dead code; run a cross-target clippy before push.
+- **Not verified from here:** macOS/Linux behaviour of `lp` (argv tested, not run on those systems); push state, backup currency.
+- gui not built.
+
 ### Pass 55.12 — Vector printing — SHIPPED `be1d18a2` + `7bf76f74`, 2026-10-29 (1306th filing)
 
 Engineer-reported; no shell here, nothing checked from here. `feat(print): printer's marks, separations, vector pages (Passes 55.11, 55.12)` and `fix(print): the result line says mode=vector, raster or mixed (Pass 55.12)`. Reasoning is in the commit messages.
@@ -26570,14 +26584,11 @@ Origin: the operator asked whether pdfcer can send a PDF to a printer and what o
 
 `Pass 55.11` and `Pass 55.12` SHIPPED `be1d18a2` / `7bf76f74` (1306th filing), see Shipped.
 
-### Pass 55.13 — Printing beyond Windows (NOT STARTED)
+`Pass 55.13` SHIPPED `f813cd31` (1307th filing), see Shipped.
 
-(a) macOS and Linux through the system print queue (CUPS `lp`); (b) direct network printing to an IPP printer (`ipp://` URI) from any OS. Network use only when the operator asks to print, and only in the shell (decision 061 permits shell network use on operator request; no network code in `pdfcer-core` or `pdfcer-render`, `cargo tree` check). Plain `ipp://` first; `ipps://` would need a TLS dependency, licence check owed (LEGAL.md section 6.1, rule 13), weak copyleft flagged to the operator.
-- **Acceptance:** `pdfcer print --send` selects the backend by platform or URI scheme and says which; an unreachable printer or missing `lp` is a named error with its own exit code; no silent fallback to another printer; test against a local fake IPP endpoint (synthetic, rights-clear). Unverifiable here: macOS/Linux behaviour needs a runner or is reported as untested.
+### Pass 55.14 — Finishing: staple, hole punch, output bin, fold (IN PROGRESS)
 
-### Pass 55.14 — Finishing: staple, hole punch, output bin, fold (NOT STARTED)
-
-Staple, hole punch, output bin (and fold where offered). Windows: through the driver's PrintTicket. IPP and CUPS: through the `finishings` and `output-bin` attributes. Depends on `55.13` for the IPP/CUPS half; the Windows half may ship first.
+Staple, hole punch, output bin (and fold where offered). Windows: through the driver's PrintTicket. IPP and CUPS: through the `finishings` and `output-bin` attributes (`55.13` is shipped, so the IPP/CUPS transport exists). Research note for the Windows half, naming the deliverable: `D:\dev\rag\rust\windows_rs_062_printticket_finishing_staple_punch_bin_to_devmode.md` (PrintTicket finishing, staple/punch/bin, to DEVMODE, with the `windows` 0.62 crate).
 - **Acceptance:** the device's supported options are listed (`--list-finishing`-style query, name to be settled in the Pass); an option the device does not offer is refused by name, never dropped; what was requested and what was sent are both printed.
 
 ### `Pass 626.0` — lower the declared PDF version — COMPLETE, MOVED TO *Shipped* (slice 2 `d0f7c993`, 1200th filing); slice 1 detail below stays
@@ -35489,6 +35500,14 @@ View, or convert to PDF. No existing plan found. Both formats need a decoder or 
 ### `Pass 650.1` — decode WebP and AVIF for image import (BACKLOG; X014 item 7; group B, low)
 
 **Already shipped, verified by reading the source from here:** `image_import::sniff` (`crates/pdfcer-core/src/image_import/mod.rs:1294`) identifies the format from the leading bytes, never the extension, so a WebP saved as `.jpg` is recognised as WebP and refused by name (`ImageImportError::UnsupportedFormat { format: "WebP" }`, likewise AVIF, HEIC, JPEG 2000, ICO, BigTIFF). **Still owed:** actually decode WebP and AVIF and place them. The module header (`mod.rs:162`) records the blocker: a decoder dependency, which is a licence-classified, `PRIOR_ART.md`-recorded decision under rule 13 (every candidate decoder's licence checked, none GPL/AGPL, and its transitive dependencies; "licence check required"). Core, cli (`add-image`, image-to-PDF) and gui all route through the same import, so this is one core change. Fuzz target `image_import` extends to the new decoders (§10.2).
+
+### `Pass 651.0` — standard-14 Latin faces write Latin Extended-A letters through `/Differences` (BACKLOG; request `X015`, filed 1307th filing, 2026-10-29; filing only, nothing built)
+
+Requester: the operator (crates consumer), `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X015_standard_fonts_write_latin_extended_a_through_differences.md`. Text edits and added text in a non-embedded standard-14 Latin face (Helvetica, Times, Courier families) refuse letters outside the font's base encoding (`į č ć đ ł ő ę`); `std14_faces_covering` (`pdfcer-core/src/text_edit/encoding.rs:590` per the request) only points at other faces. The requester says the Latin faces carry 315 glyphs (`LATIN_WIDTHS`, `pdfcer-fonts` `fontdata/tables.rs`), 166 reachable only through `/Differences`, and `code_alloc.rs` already allocates `/Differences` codes for embedded subset fonts. The code pointers were not re-checked from here.
+- **Wanted:** when new or edited text needs a glyph of the 315-name set that the encoding lacks, give it a code through an inline `/Encoding << /BaseEncoding … /Differences […] >>`; prefer codes the base encoding leaves undefined, then codes of characters the text does not use (the order `code_alloc.rs` uses); copy-on-write font dict. Widths from `LATIN_WIDTHS`; extraction reads the letters back by glyph name (ISO 32000-2 §9.10.2). Paths: add text, text edit, FreeText/form appearances, and any path that refuses with the standard-font message.
+- **Out of scope:** Cyrillic, Greek, CJK (need an embedded face).
+- **Acceptance:** adding `Įį čćđ łőę` in Helvetica writes no `?`, embeds no font, extracts back as the same text; rendered glyphs match the same letters from an embedded face of the same family (by eye in Acrobat and in pdfcer's renderer); more distinct extra letters than free codes fall back to the existing refusal (or a second font resource), never to `?`.
+- **Before scoping:** spec-librarian for the simple-font `/Differences` and §9.10.2 sourcing (rule 1); a disclosure of the inferred encoding if any letter is substituted (rule 4). Queued after the print arc (`55.14` finishing) and the next release; order is pdfcer's call. FEATURES Planned row added; cli/gui consequence decided at scoping.
 
 > **X014 item 5 (Typewriter / Add Text): no entry, already covered (FEATURES.md, Implemented, read from here).** The "Add new page text" row (core, cli, gui, Acrobat all `[x]`): `Edit > Add text`, click to place one line or drag a box, with font, size and colour, no form field needed; and the "Author text-bearing annotations - FreeText and Stamp" row (all four `[x]`). **Not checked from here:** whether the GUI offers a one-click FreeText tool in Review mode as Acrobat's Typewriter does; if the requester means that, it is a `pdfcer-gui` question, not an engine gap, and the requester should say so. `Pass 131.3` (item 3) is amended in place in this section; `Pass 647.4` (item 2) under *Next up*.
 

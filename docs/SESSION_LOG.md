@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1307th filing) — `Pass 55.13` SHIPPED `f813cd31` (IPP network printing, CUPS `lp`); request `X015` filed as `Pass 651.0`
+
+**Shipped (engineer-reported, no shell here, nothing checked from here; I edited ROADMAP/FEATURES/SESSION_LOG/ARCHITECTURE only, the engineer commits):**
+- `Pass 55.13`, `f813cd31` (parent `ed559c91`): `pdfcer print --printer ipp://…|ipps://…` sends the PDF itself over IPP (query, then with `--send` one Print-Job); off Windows every printer name is a CUPS queue printed through `lp`. Options needing pdfcer to compose sheets are refused by name, exit 2. New exit 17 `PRINTER_UNREACHABLE`. Code: `pdfcer-print::ipp` (codec + `std::net` HTTP transport), `pdfcer-fetch::post_ipp` (`ipps://`, `download` feature only), `pdfcer-cli/src/print_remote.rs`. Detail in ROADMAP Shipped.
+- Tests: 16 codec/transport + 9 `print_remote` (fake `TcpListener` IPP endpoint, exit-17 test). Fuzz `ipp_response`: 562,820 runs in 61 s (about 9,226 runs/s), 0 crashes. `run-gates.sh` PASS (49 commands). Linux cross clippy clean. core/render manifests untouched; no new dependency.
+
+**Decision 211** (ARCHITECTURE §12): `ipp://` over a `std::net` plain-HTTP client inside `pdfcer-print`; `ipps://` only via `pdfcer-fetch` in `download` builds, otherwise refused by name.
+
+**Gotcha:** CI clippy on ubuntu had been red since `be1d18a2` (`Pass 55.12`): `metafile::dest_rect` has only a Windows caller, so non-Windows saw dead code. Fixed in `f813cd31` with `#[cfg_attr(not(windows), allow(dead_code))]`. Run a cross-target clippy before push when adding Windows-only callers.
+
+**Filed:** request `X015` (standard-14 Latin faces write Latin Extended-A letters through `/Differences`) as `Pass 651.0`, Backlog; grep for `Pass 651` before filing found no prior use. Queued after `55.14` and the next release.
+
+**FEATURES:** added two Implemented rows (network printing by IPP URI; printing through CUPS), core `—` (shell-side crates), cli `[x]`, gui `[ ]`; removed the Planned "Print beyond Windows" row; `55.14` row marked in progress with the research note; added the `651.0` Planned row.
+
+**Still in flight:** `Pass 55.14` (finishing: staple/punch/fold/output bin), then a release. Research note: `D:\dev\rag\rust\windows_rs_062_printticket_finishing_staple_punch_bin_to_devmode.md`.
+
+**Hard-rule-11 survivors:** none changed meaning, but one description is now stale and I could not rewrite it: the 1306th entry above and ROADMAP's print-arc paragraph said `55.13` was NOT STARTED (the latter updated in place). Any `pdfcer print --help` or doc comment saying printing is "Windows only" should be checked by the engineer (I did not grep `crates/`). Not verified from here: push state, backup currency, macOS/Linux behaviour of `lp`.
+
 ## 2026-10-29 (1306th filing) — `Pass 55.11` + `Pass 55.12` SHIPPED `be1d18a2` / `7bf76f74` (printer's marks, separations, vector printing)
 
 **Shipped (engineer-reported, no shell here, nothing checked from here; I edited ROADMAP/FEATURES/SESSION_LOG only, the engineer commits):**

@@ -13654,3 +13654,17 @@ Engineer-reported; no `docs/decisions/210-*.md` record written this filing (the 
 **Reader check (corrected in place at the 1299th filing, 2026-10-29; operator-reported):** the first Reader run FAILED (empty grey 3D window, Model Tree root only) because the writer emitted ProductOccurrences father-first. Item 1's layout is therefore amended: **occurrences are written sons before fathers, root LAST** (PRC WD 7.3.6; Acrobat reads in one forward pass and drops a son written after its father), commit `508e09b8`. After that and `8d3bfd07` (explicit `/N` and `/PS /W` on a perspective view, `/LS /CAD` default lighting for glTF-converted models, camera from the poster), Ken opened `Bancroft1974_3D_v4.pdf` in Acrobat Reader: "v4 works great". A general verdict; the default `Linear` colour encoding is thereby accepted at the Reader by eye, not by measurement, and transparency and tree names were not individually itemised. No new decision: bug fixes inside decision 210's layout.
 
 **Body-section effect.** §3 crate layout: `pdfcer-json\` added, `pdfcer-3d\` entry gains the authoring sentence. **Decision ceiling.** Fills `210`. Next free decision: `211`. **New standing rule.** None.
+
+### 2026-10-29 (1307th filing, `Pass 55.13`, `f813cd31`) — decision 211: `ipp://` printing travels over a `std::net` plain-HTTP client in `pdfcer-print`; `ipps://` only through `pdfcer-fetch` in `download` builds
+
+Engineer-reported; no `docs/decisions/211-*.md` record written this filing (the record is this entry). Citations: RFC 8010 (IPP encoding), RFC 8011 (IPP semantics). Applies decision 061 (shells may use the network when the operator asks).
+
+**Decides.**
+1. **`ipp://`** is carried by a small `std::net` HTTP/1.1 client (`pdfcer_print::ipp::post_ipp_http`; 4 MiB response cap; chunked, content-length and 1xx handled) inside `pdfcer-print`, a shell-side crate, so it works in the release build, which does not enable the `download` feature, with no new dependency. `http_url` maps `ipp` to http port 631 and `ipps` to https port 631.
+2. **`ipps://`** goes through `pdfcer_fetch::post_ipp` (TLS) only in builds with the CLI `download` feature; otherwise it is refused by name, pointing at the `ipp://` address (`FetchError::NetworkUnsupported`).
+3. **Why this is allowed.** Network use is operator-initiated (decision 061); §1.1 clause 2 is unchanged (nothing fires unasked); the CI no-network job covers the engine crates only and still passes; `pdfcer-core` and `pdfcer-render` are untouched (manifests unchanged, `cargo tree` unaffected).
+4. **Parser safety.** The IPP response parser is panic-free with a `MAX_ATTRIBUTES` ceiling of 20,000; fuzz target `ipp_response`, 562,820 runs in 61 s, 0 crashes.
+
+**Gotcha recorded.** Same commit fixes CI clippy red on ubuntu since `be1d18a2`: `metafile::dest_rect` had only a Windows caller; fixed with `#[cfg_attr(not(windows), allow(dead_code))]`. Run a cross-target clippy before push.
+
+**Body-section effect.** None (§1.1 and §3 unchanged; no new crate). **Decision ceiling.** Fills `211`. Next free decision: `212`. **New standing rule.** None.
