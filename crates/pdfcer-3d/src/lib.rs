@@ -83,5 +83,5 @@ pub use tree::{
 };
 pub use write::{
     MAX_DEPTH, MeshScene, PrcWriteError, PrcWriteReport, SceneMaterial, SceneMesh, SceneNode,
-    ScenePrimitive, write_prc,
+    ScenePrimitive, SceneTexture, write_prc,
 };

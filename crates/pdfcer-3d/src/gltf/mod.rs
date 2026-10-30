@@ -2,15 +2,18 @@
 //! a `.gltf` JSON text or a `.glb` binary as a [`MeshScene`] for
 //! [`crate::write_prc`].
 //!
-//! Triangles, normals, the node tree with its names and placements, and
-//! each material's base colour and opacity carry over. Textures, lines,
-//! points, skins and morph targets do not; each loss is a note, and each
-//! guess (an alpha mask drawn as a whole) an inference. Colour and up-axis
-//! handling are settings because files differ: decision 210.
+//! Triangles, normals, the node tree with its names and placements, each
+//! material's base colour and opacity, and its PNG or JPEG base-colour
+//! texture over its coordinates (`KHR_texture_transform` applied) carry
+//! over. Other texture kinds, lines, points, skins and morph targets do
+//! not; each loss is a note, and each guess (an alpha mask drawn as a
+//! whole) an inference. Colour and up-axis handling are settings because
+//! files differ: decision 210.
 
 mod accessor;
 mod build;
 mod container;
+mod textures;
 
 use pdfcer_json::Json;
 
@@ -86,13 +89,14 @@ pub enum GltfError {
 }
 
 /// Required extensions this reader honours.
-const SUPPORTED_EXTENSIONS: &[&str] = &["KHR_mesh_quantization"];
+const SUPPORTED_EXTENSIONS: &[&str] = &["KHR_mesh_quantization", "KHR_texture_transform"];
 
 /// Read a glTF 2.0 file.
 ///
-/// `resolve` is given each external buffer's decoded relative URI and
-/// returns its bytes, or `None` when it cannot; the engine itself opens
-/// no files. Embedded (`data:`) and GLB buffers need no resolver.
+/// `resolve` is given each external buffer's or image's decoded relative
+/// URI and returns its bytes, or `None` when it cannot; the engine itself
+/// opens no files. Embedded (`data:`) and GLB buffers and images need no
+/// resolver. An image that cannot be read is a note, not an error.
 ///
 /// # Errors
 ///
@@ -144,7 +148,8 @@ where
         return Err(GltfError::RequiredExtension(ext.to_owned()));
     }
     let buffers = container::buffers(&doc, bin, resolve)?;
-    Ok(build::scene(&doc, &buffers, options))
+    let images = textures::images(&doc, &buffers, resolve);
+    Ok(build::scene(&doc, &buffers, &images, options))
 }
 
 /// `v[key]` as an array; empty when missing or not an array.

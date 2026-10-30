@@ -315,8 +315,8 @@ fn jpeg(_: &[u8]) -> Result<(u32, u32, Vec<u8>), Undecoded> {
     Err("base colour drawn: a JPEG picture, and this build has no JPEG decoder")
 }
 
-/// Set to 255 every channel `channels` (`texture_mapping_attributes`:
-/// 0x1 R, 0x2 G, 0x4 B, 0x8 A; 0 = all four) does not supply [WD 7.5.7].
+/// Set to 255 every channel `channels` (the texture components: 0x1 R,
+/// 0x2 G, 0x4 B, 0x8 A; 0 = all four) does not supply [WD 7.5.7].
 pub(crate) fn keep_channels(rgba: &mut [u8], channels: u32) {
     let keep = if channels & 0xF == 0 { 0xF } else { channels };
     if keep & 0xF == 0xF {

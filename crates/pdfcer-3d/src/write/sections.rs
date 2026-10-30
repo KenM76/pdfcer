@@ -26,7 +26,7 @@ const LOAD_STATUS: i32 = 4;
 
 /// `ContentPRCBase` with no attributes and the current (section-start:
 /// empty) name [WD 7.2.3].
-fn base(w: &mut BitWriter) {
+pub(super) fn base(w: &mut BitWriter) {
     w.uint(0).bit(true);
 }
 
@@ -36,7 +36,7 @@ fn named(w: &mut BitWriter, name: Option<&str>) {
 }
 
 /// `ContentPRCRefBase`: `ContentPRCBase`, CAD ids 0, then `id`.
-fn ref_base(w: &mut BitWriter, name: Option<Option<&str>>, id: u32) {
+pub(super) fn ref_base(w: &mut BitWriter, name: Option<Option<&str>>, id: u32) {
     match name {
         None => base(w),
         Some(n) => named(w, n),
@@ -65,9 +65,10 @@ impl Ids {
     }
 }
 
-/// The globals section: an empty schema, then one colour and one style per
-/// material and the solid line pattern every style names.
-pub(super) fn globals(scene: &MeshScene) -> BitWriter {
+/// The globals section: an empty schema, one colour and one RGB style per
+/// material, the texture entities and one material style per textured
+/// material, and the solid line pattern every style names.
+pub(super) fn globals(scene: &MeshScene, plan: &Plan) -> BitWriter {
     let mut w = BitWriter::default();
     w.uint(0).uint(GLOBALS);
     base(&mut w);
@@ -82,12 +83,15 @@ pub(super) fn globals(scene: &MeshScene) -> BitWriter {
     for m in &scene.materials {
         w.doubles(m.rgba[..3].iter().map(|c| c.clamp(0.0, 1.0)));
     }
-    // Pictures, texture definitions, materials.
-    w.uint(0).uint(0).uint(0);
+    let styles = (scene.materials.len() + plan.textured.len()) as u32;
+    super::textures::pictures(&mut w, &plan.pictures);
+    super::textures::definitions(&mut w, scene, 2 + styles);
+    let first = 2 + styles + scene.textures.len() as u32;
+    super::textures::materials(&mut w, scene, &plan.textured, first);
     w.uint(1).uint(LINE_PATTERN);
     ref_base(&mut w, None, 1);
     w.uint(2).double(1.0e6).double(0.0).double(0.0).bit(false);
-    w.uint(scene.materials.len() as u32);
+    w.uint(styles);
     for (k, m) in scene.materials.iter().enumerate() {
         w.uint(STYLE);
         ref_base(&mut w, None, 2 + k as u32);
@@ -101,6 +105,15 @@ pub(super) fn globals(scene: &MeshScene) -> BitWriter {
             w.put((alpha * 255.0).round() as u64, 8);
         }
         w.bit(false).bit(false).bit(false);
+    }
+    for j in 0..plan.textured.len() as u32 {
+        w.uint(STYLE);
+        ref_base(&mut w, None, 2 + scene.materials.len() as u32 + j);
+        // As above, but a material: the TextureApplication entry (biased),
+        // which carries its own alpha.
+        w.double(1.0).bit(false).uint(1).bit(true);
+        w.uint(2 * j + 2);
+        w.bit(false).bit(false).bit(false).bit(false);
     }
     // Fill patterns, reference coordinate systems, user data.
     w.uint(0).uint(0).uint(0);
@@ -120,7 +133,7 @@ pub(super) fn empty_geometry(kind: u32) -> BitWriter {
 /// The tree section: parts, occurrences, then the file structure's
 /// internal data.
 pub(super) fn tree(scene: &MeshScene, plan: &Plan) -> BitWriter {
-    let mut ids = Ids(1 + scene.materials.len() as u32);
+    let mut ids = Ids(plan.global_ids(scene));
     let mut w = BitWriter::default();
     w.uint(TREE);
     base(&mut w);
@@ -175,7 +188,7 @@ fn part(
     w.uint(prims.len() as u32);
     for p in prims {
         w.uint(RI_POLY_BREP_MODEL);
-        graphics(w, None, ids.next(), p.material.map(|k| k as u32));
+        graphics(w, None, ids.next(), plan.style_of(scene, p));
         *tess += 1;
         // No local coordinate system; tessellation (biased); not closed;
         // no user data.

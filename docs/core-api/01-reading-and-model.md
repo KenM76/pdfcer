@@ -3477,23 +3477,35 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
 single-file-structure PRC stream for a 3D annotation's `/Subtype /PRC`
 stream; layout in `ARCHITECTURE.md` decision 210.
 
-- `MeshScene { nodes, roots, meshes, materials, units_in_mm }` (`Default`;
+- `MeshScene { nodes, roots, meshes, materials, textures, units_in_mm }` (`Default`;
   fields public). Nodes form a forest: `SceneNode { name, matrix: Option<[f64;
   16]> (column-major, bottom row 0 0 0 1), mesh, children }`; several roots
   are written under an unnamed root. Each node becomes a named
   `ProductOccurrence` (what a viewer's model tree lists), each mesh a part.
   `ScenePrimitive { positions, normals (empty = writer computes flat
-  normals), triangles: Vec<[u32; 3]> (CCW), material }`. `SceneMaterial {
-  name, rgba }` is sRGB-encoded 0–1 with opacity; opacity below 1 writes a
-  transparent style, so a see-through material stays see-through.
-- `PrcWriteReport { prc, triangles, flat_normals, empty_primitives }`;
-  disclose the last two. `PrcWriteError` (`#[non_exhaustive]`): `Empty`,
-  `BadIndex { what, index }`, `NotATree(why)` (two parents, a parented root,
-  nesting beyond `MAX_DEPTH` 1024), `BadNumber(what)`, `TooLarge`.
+  normals), triangles: Vec<[u32; 3]> (CCW), material, uvs }`. `SceneMaterial {
+  name, rgba, texture: Option<usize> }`: `rgba` is sRGB-encoded 0–1 with
+  opacity; opacity below 1 writes a transparent style, so a see-through
+  material stays see-through.
+- Textures: `SceneTexture { image (a whole PNG or JPEG file, stored as is),
+  wrap: [TextureWrap; 2] (u, v), alpha (the picture's alpha multiplies
+  opacity; otherwise colour only) }` (`Default`). A textured material
+  multiplies `rgba` by the picture over the primitive's `uvs` (one per
+  position; (0, 0) the picture's bottom-left). `uvs` under an untextured
+  material are ignored; a textured material over a primitive with no `uvs`
+  draws its base colour.
+- `PrcWriteReport { prc, triangles, flat_normals, empty_primitives,
+  textured }`; disclose the middle two, and `textured` (primitives written
+  with a picture) when non-zero. `PrcWriteError` (`#[non_exhaustive]`):
+  `Empty`, `BadIndex { what, index }` (including a missing texture or a
+  `uvs` count unequal to `positions`), `NotATree(why)` (two parents, a
+  parented root, nesting beyond `MAX_DEPTH` 1024), `BadNumber(what)`,
+  `TooLarge`, `BadTexture { index }` (not a PNG or JPEG whose size reads).
 - `read_gltf(data, &mut resolve, GltfOptions) -> Result<GltfImport,
   GltfError>` reads a `.gltf` text or `.glb` into a `MeshScene` in metres
   (`units_in_mm` 1000). The engine opens no files: `resolve(uri) ->
-  Option<Vec<u8>>` gets each external buffer's percent-decoded relative URI;
+  Option<Vec<u8>>` gets each external buffer's and image's percent-decoded
+  relative URI;
   refuse absolute paths, `..` and anything with `:` (the CLI does). `data:`
   and GLB buffers need no resolver.
 - `GltfOptions` (`#[non_exhaustive]`, `Default`; set fields on a default)
@@ -3503,11 +3515,17 @@ stream; layout in `ARCHITECTURE.md` decision 210.
   AsStored}`; `up_axis: GltfUpAxis::{ZUp (default: +Y up turned to +Z up
   on the root placements), AsStored}`.
 - `GltfImport { scene, notes, inferred }`: show every `notes` line (what was
-  dropped: textures, points/lines, skins and morphs at rest pose, a bad
-  primitive, a second scene, no scene) and every `inferred` line (an
-  `alphaMode` MASK material drawn wholly opaque or invisible against its
-  cutoff). `GltfError` (`#[non_exhaustive]`): `NotGltf(why)`, `Json`,
-  `RequiredExtension(name)` (only `KHR_mesh_quantization` is honoured),
+  dropped: a base-colour texture that cannot be drawn (no PNG/JPEG source,
+  an unreadable image, no `TEXCOORD_n`), points/lines, skins and morphs at
+  rest pose, a bad primitive, a second scene, no scene) and every `inferred`
+  line (an `alphaMode` MASK material drawn wholly opaque or invisible
+  against its cutoff, or whose texture alpha is not cut out). Base-colour
+  textures are carried: `KHR_texture_transform` is applied, v is flipped
+  to the bottom-left origin, sampler wrap modes kept, and texture alpha used
+  only under `alphaMode` BLEND. Other material textures are not read.
+  `GltfError` (`#[non_exhaustive]`): `NotGltf(why)`, `Json`,
+  `RequiredExtension(name)` (only `KHR_mesh_quantization` and
+  `KHR_texture_transform` are honoured),
   `Buffer { index, why }`. One bad primitive is a note, not an error.
 - CLI: `3d-convert <model.gltf|.glb> -o out.prc [--gltf-colours
   linear|as-stored] [--gltf-up z|as-stored]`; `3d-embed --model x.glb`

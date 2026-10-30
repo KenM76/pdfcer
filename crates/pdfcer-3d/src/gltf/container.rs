@@ -84,7 +84,7 @@ where
 }
 
 /// A `data:` URI's payload; only base64 payloads carry binary [§3.6.1.2].
-fn data_uri(uri: &str) -> Option<Vec<u8>> {
+pub(super) fn data_uri(uri: &str) -> Option<Vec<u8>> {
     let (head, body) = uri.split_once(',')?;
     head.ends_with(";base64").then(|| base64(body)).flatten()
 }
@@ -115,7 +115,7 @@ fn base64(s: &str) -> Option<Vec<u8>> {
 }
 
 /// `%XX` escapes resolved; a URI is a relative path otherwise [§3.6.1.1].
-fn percent_decode(uri: &str) -> String {
+pub(super) fn percent_decode(uri: &str) -> String {
     let b = uri.as_bytes();
     let mut out = Vec::with_capacity(b.len());
     let mut i = 0;

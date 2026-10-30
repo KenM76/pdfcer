@@ -135,7 +135,8 @@ pub(super) fn read(
     Ok(out)
 }
 
-fn view_bytes<'a>(view: &Json, buffers: &'a [Vec<u8>]) -> Option<&'a [u8]> {
+/// A buffer view's bytes; `None` when it runs past its buffer.
+pub(super) fn view_bytes<'a>(view: &Json, buffers: &'a [Vec<u8>]) -> Option<&'a [u8]> {
     let buffer = buffers.get(uint(view, "buffer")?)?;
     let start = uint(view, "byteOffset").unwrap_or(0);
     buffer.get(start..start.checked_add(uint(view, "byteLength")?)?)

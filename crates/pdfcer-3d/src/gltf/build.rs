@@ -4,6 +4,7 @@
 use pdfcer_json::Json;
 
 use super::accessor::{self, Refusal};
+use super::textures::{Images, TextureUse, Textures};
 use super::{GltfColours, GltfImport, GltfOptions, GltfUpAxis, member};
 use crate::{MeshScene, SceneMaterial, SceneMesh, SceneNode, ScenePrimitive};
 
@@ -45,7 +46,12 @@ fn srgb(c: f64) -> f64 {
 }
 
 /// The scene the document names, in metres.
-pub(super) fn scene(doc: &Json, buffers: &[Vec<u8>], options: GltfOptions) -> GltfImport {
+pub(super) fn scene(
+    doc: &Json,
+    buffers: &[Vec<u8>],
+    images: &Images,
+    options: GltfOptions,
+) -> GltfImport {
     let mut out = GltfImport {
         scene: MeshScene {
             units_in_mm: 1000.0,
@@ -54,14 +60,22 @@ pub(super) fn scene(doc: &Json, buffers: &[Vec<u8>], options: GltfOptions) -> Gl
         notes: Vec::new(),
         inferred: Vec::new(),
     };
-    materials(doc, options, &mut out);
-    meshes(doc, buffers, &mut out);
+    let uses = materials(doc, images, options, &mut out);
+    meshes(doc, buffers, &uses, &mut out);
     nodes(doc, &mut out);
     roots(doc, options, &mut out);
     out
 }
 
-fn materials(doc: &Json, options: GltfOptions, out: &mut GltfImport) {
+/// The materials, and how each draws its texture.
+fn materials(
+    doc: &Json,
+    images: &Images,
+    options: GltfOptions,
+    out: &mut GltfImport,
+) -> Vec<Option<TextureUse>> {
+    let mut textures = Textures::default();
+    let mut uses = Vec::new();
     for (i, m) in member(doc, "materials").iter().enumerate() {
         let pbr = m.get("pbrMetallicRoughness");
         let mut rgba = numbers::<4>(pbr.and_then(|p| p.get("baseColorFactor"))).unwrap_or([1.0; 4]);
@@ -71,11 +85,11 @@ fn materials(doc: &Json, options: GltfOptions, out: &mut GltfImport) {
             }
         }
         let label = name(m).unwrap_or_else(|| format!("material {i}"));
-        match m
+        let mode = m
             .get("alphaMode")
             .and_then(Json::as_str)
-            .unwrap_or("OPAQUE")
-        {
+            .unwrap_or("OPAQUE");
+        match mode {
             "BLEND" => {}
             "MASK" => {
                 let cutoff = m.get("alphaCutoff").and_then(Json::as_f64).unwrap_or(0.5);
@@ -88,19 +102,28 @@ fn materials(doc: &Json, options: GltfOptions, out: &mut GltfImport) {
             }
             _ => rgba[3] = 1.0,
         }
-        if pbr.and_then(|p| p.get("baseColorTexture")).is_some() {
-            out.notes.push(format!(
-                "{label}: base colour texture dropped; drawn in its base colour"
+        let texture = pbr
+            .and_then(|p| p.get("baseColorTexture"))
+            .and_then(|info| {
+                let used = (label.as_str(), mode == "BLEND");
+                textures.base_colour(doc, images, info, used, out)
+            });
+        if texture.is_some() && mode == "MASK" {
+            out.inferred.push(format!(
+                "{label}: texture alpha not cut out; the texture drawn opaque"
             ));
         }
+        uses.push(texture.map(|(_, u)| u));
         out.scene.materials.push(SceneMaterial {
             name: name(m),
             rgba,
+            texture: texture.map(|(k, _)| k),
         });
     }
+    uses
 }
 
-fn meshes(doc: &Json, buffers: &[Vec<u8>], out: &mut GltfImport) {
+fn meshes(doc: &Json, buffers: &[Vec<u8>], uses: &[Option<TextureUse>], out: &mut GltfImport) {
     let default_material = out.scene.materials.len();
     let mut used_default = false;
     for (m, mesh) in member(doc, "meshes").iter().enumerate() {
@@ -108,6 +131,7 @@ fn meshes(doc: &Json, buffers: &[Vec<u8>], out: &mut GltfImport) {
         for (p, prim) in member(mesh, "primitives").iter().enumerate() {
             match primitive(doc, buffers, prim) {
                 Ok(mut sp) => {
+                    texture_coordinates(doc, buffers, prim, uses, &mut sp, (m, p), out);
                     if sp.material.is_none() {
                         sp.material = Some(default_material);
                         used_default = true;
@@ -129,7 +153,33 @@ fn meshes(doc: &Json, buffers: &[Vec<u8>], out: &mut GltfImport) {
         out.scene.materials.push(SceneMaterial {
             name: None,
             rgba: [1.0; 4],
+            texture: None,
         });
+    }
+}
+
+/// `sp`'s coordinates for its material's texture, if it has one; a
+/// primitive without them is drawn in the base colour, with a note.
+fn texture_coordinates(
+    doc: &Json,
+    buffers: &[Vec<u8>],
+    prim: &Json,
+    uses: &[Option<TextureUse>],
+    sp: &mut ScenePrimitive,
+    (m, p): (usize, usize),
+    out: &mut GltfImport,
+) {
+    let Some(&Some(using)) = sp.material.and_then(|k| uses.get(k)) else {
+        return;
+    };
+    let Some(attrs) = prim.get("attributes") else {
+        return;
+    };
+    match super::textures::coordinates(doc, buffers, attrs, using, sp.positions.len()) {
+        Ok(uvs) => sp.uvs = uvs,
+        Err(why) => out.notes.push(format!(
+            "mesh {m} primitive {p}: texture not drawn ({why}); drawn in its base colour"
+        )),
     }
 }
 
@@ -168,6 +218,7 @@ fn primitive(doc: &Json, buffers: &[Vec<u8>], prim: &Json) -> Result<ScenePrimit
         normals,
         triangles: triangles(&corners, mode),
         material: index(prim, "material").filter(|&m| m < member(doc, "materials").len()),
+        uvs: Vec::new(),
     })
 }
 

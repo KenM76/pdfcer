@@ -2,7 +2,7 @@
 //! occurrence order, which meshes become parts, which primitives become
 //! tessellations.
 
-use super::{MAX_DEPTH, MeshScene, PrcWriteError};
+use super::{MAX_DEPTH, MeshScene, PrcWriteError, ScenePrimitive};
 
 /// One `ProductOccurrence`: the node it is for (`None` for the synthetic
 /// root over several roots) and its sons as occurrence indices.
@@ -22,6 +22,40 @@ pub(super) struct Plan {
     /// `(mesh, primitive)` of each tessellation, in section order.
     pub(super) tessellations: Vec<(usize, usize)>,
     pub(super) empty_primitives: usize,
+    /// Each texture's picture format, width and height.
+    pub(super) pictures: Vec<(u32, u32, u32)>,
+    /// The textured materials, in material order; the `j`th has material
+    /// style `materials.len() + j`.
+    pub(super) textured: Vec<usize>,
+}
+
+impl Plan {
+    /// Whether `p` is drawn with its material's texture: the material has
+    /// one and `p` has coordinates.
+    pub(super) fn is_textured(&self, scene: &MeshScene, p: &ScenePrimitive) -> bool {
+        !p.uvs.is_empty()
+            && p.material
+                .and_then(|m| scene.materials.get(m))
+                .is_some_and(|m| m.texture.is_some())
+    }
+
+    /// The 0-based style `p` names: its material's textured style when
+    /// [`Self::is_textured`], else its RGB style.
+    pub(super) fn style_of(&self, scene: &MeshScene, p: &ScenePrimitive) -> Option<u32> {
+        let m = p.material?;
+        if self.is_textured(scene, p) {
+            let j = self.textured.iter().position(|&t| t == m)?;
+            return Some((scene.materials.len() + j) as u32);
+        }
+        Some(m as u32)
+    }
+
+    /// The last unique id the globals take: the line pattern, the styles,
+    /// the texture definitions and two materials per textured material.
+    pub(super) fn global_ids(&self, scene: &MeshScene) -> u32 {
+        let styles = scene.materials.len() + self.textured.len();
+        (1 + styles + scene.textures.len() + 2 * self.textured.len()) as u32
+    }
 }
 
 fn bad(what: &'static str, index: usize) -> PrcWriteError {
@@ -38,6 +72,7 @@ pub(super) fn plan(scene: &MeshScene) -> Result<Plan, PrcWriteError> {
     check_forest(scene)?;
     // Style ids and double-scaled colour indices are u32s.
     count(scene.materials.len().saturating_mul(3).saturating_add(2))?;
+    count(scene.textures.len().saturating_mul(3))?;
     let occurrences = occurrences(scene)?;
     let mut plan = Plan {
         occurrences,
@@ -45,6 +80,8 @@ pub(super) fn plan(scene: &MeshScene) -> Result<Plan, PrcWriteError> {
         part_of_mesh: vec![None; scene.meshes.len()],
         tessellations: Vec::new(),
         empty_primitives: 0,
+        pictures: pictures(scene)?,
+        textured: textured(scene)?,
     };
     for o in &plan.occurrences {
         let Some(m) = o.node.and_then(|n| scene.nodes.get(n)?.mesh) else {
@@ -80,17 +117,45 @@ pub(super) fn plan(scene: &MeshScene) -> Result<Plan, PrcWriteError> {
     Ok(plan)
 }
 
-fn check_primitive(scene: &MeshScene, p: &super::ScenePrimitive) -> Result<(), PrcWriteError> {
+/// Each texture's [`super::textures::picture_info`].
+fn pictures(scene: &MeshScene) -> Result<Vec<(u32, u32, u32)>, PrcWriteError> {
+    scene
+        .textures
+        .iter()
+        .enumerate()
+        .map(|(index, t)| {
+            super::textures::picture_info(&t.image).ok_or(PrcWriteError::BadTexture { index })
+        })
+        .collect()
+}
+
+/// The materials with a texture, each naming one that exists.
+fn textured(scene: &MeshScene) -> Result<Vec<usize>, PrcWriteError> {
+    let mut out = Vec::new();
+    for (m, mat) in scene.materials.iter().enumerate() {
+        match mat.texture {
+            Some(t) if t >= scene.textures.len() => return Err(bad("texture", t)),
+            Some(_) => out.push(m),
+            None => {}
+        }
+    }
+    Ok(out)
+}
+
+fn check_primitive(scene: &MeshScene, p: &ScenePrimitive) -> Result<(), PrcWriteError> {
     if let Some(m) = p.material.filter(|&m| m >= scene.materials.len()) {
         return Err(bad("material", m));
     }
     if !p.normals.is_empty() && p.normals.len() != p.positions.len() {
         return Err(bad("normal count", p.normals.len()));
     }
+    if !p.uvs.is_empty() && p.uvs.len() != p.positions.len() {
+        return Err(bad("texture coordinate count", p.uvs.len()));
+    }
     // Every count the tessellation writes is a u32, coordinates three to a
-    // vertex and corner indices six to a triangle.
+    // vertex and corner indices up to nine to a triangle.
     count(p.positions.len().saturating_mul(3))?;
-    count(p.triangles.len().saturating_mul(6))?;
+    count(p.triangles.len().saturating_mul(9))?;
     let n = p.positions.len();
     match p.triangles.iter().flatten().find(|&&v| v as usize >= n) {
         Some(&v) => Err(bad("vertex", v as usize)),
@@ -121,6 +186,7 @@ fn check_numbers(scene: &MeshScene) -> Result<(), PrcWriteError> {
     for p in scene.meshes.iter().flat_map(|m| &m.primitives) {
         finite(p.positions.iter().flatten().copied(), "position")?;
         finite(p.normals.iter().flatten().copied(), "normal")?;
+        finite(p.uvs.iter().flatten().copied(), "texture coordinate")?;
     }
     Ok(())
 }

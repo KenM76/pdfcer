@@ -22,7 +22,8 @@ pub(crate) struct TextureDef {
     pub(crate) mapping: i32,
     pub(crate) function: i32,
     pub(crate) blend: [f64; 4],
-    /// `texture_mapping_attributes`: which channels the texture supplies.
+    /// The components the texture supplies (Table 100: 0x1 R, 0x2 G, 0x4
+    /// B, 0x8 A); RGBA when none is stored [WD 7.5.7 default].
     pub(crate) channels: u32,
     /// Wrapping modes S and T, as stored (T is 0 when not stored).
     pub(crate) wrap: [i32; 2],
@@ -98,14 +99,17 @@ impl Ctx<'_, '_> {
                 self.transformation()?;
             }
         }
-        d.channels = self.r.unsigned_integer()?;
+        // texture_mapping_attributes names the procedure (diffuse, bump
+        // ...), not channels: §14.0 of the RAG file above.
+        self.r.unsigned_integer()?;
         let n = self.count(1, "texture intensities")?;
         for _ in 0..n {
             self.r.double()?;
         }
         let n = self.count(1, "texture components")?;
+        d.channels = 0xF;
         for _ in 0..n {
-            self.r.character()?;
+            d.channels = u32::from(self.r.character()?);
         }
         d.function = self.r.integer()?;
         if d.function == TEXTURE_FUNCTION_BLEND {

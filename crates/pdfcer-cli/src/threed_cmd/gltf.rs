@@ -66,6 +66,12 @@ pub(crate) fn to_prc(path: &Path, data: &[u8], how: GltfHow) -> Result<Converted
             report.empty_primitives
         ));
     }
+    if report.textured > 0 {
+        lines.push(format!(
+            "note: {} primitive(s) drawn with their base-colour texture",
+            report.textured
+        ));
+    }
     Ok(Converted {
         prc: report.prc,
         triangles: report.triangles,
@@ -93,7 +99,7 @@ fn conversion_line(how: GltfHow) -> String {
         GltfUpArg::Z => "glTF's +Y up turned to +Z up",
         GltfUpArg::AsStored => "axes as stored",
     };
-    format!("note: glTF converted to PRC: {colours}; {up}; textures are not carried")
+    format!("note: glTF converted to PRC: {colours}; {up}")
 }
 
 #[cfg(feature = "3d")]

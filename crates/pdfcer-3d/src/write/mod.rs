@@ -5,14 +5,18 @@
 //! most mesh formats carry. Each node becomes a `ProductOccurrence` named
 //! for it (the names a viewer's model tree lists), each referenced mesh a
 //! `PartDefinition`, each primitive a poly-B-rep item over one `TESS_3D`
-//! styled by its material's RGB colour and transparency. Layout and the
-//! choices behind it: `docs/ARCHITECTURE.md` decision 210.
+//! styled by its material's RGB colour and transparency, or by a base-colour
+//! texture over stored (u, v) coordinates. Layout and the choices behind
+//! it: `docs/ARCHITECTURE.md` decision 210.
 
 mod bits;
 mod container;
 mod sections;
 mod tess;
+mod textures;
 mod validate;
+
+pub(crate) use textures::picture_info;
 
 #[cfg(test)]
 mod tests;
@@ -37,6 +41,8 @@ pub struct MeshScene {
     pub meshes: Vec<SceneMesh>,
     /// Materials, named by [`ScenePrimitive::material`].
     pub materials: Vec<SceneMaterial>,
+    /// Textures, named by [`SceneMaterial::texture`].
+    pub textures: Vec<SceneTexture>,
     /// Millimetres per scene unit: 1000 for metres (glTF), 1 for
     /// millimetres. Positive and finite.
     pub units_in_mm: f64,
@@ -79,6 +85,11 @@ pub struct ScenePrimitive {
     /// Index into [`MeshScene::materials`]; `None` leaves the colour to
     /// the viewer.
     pub material: Option<usize>,
+    /// Texture coordinates per vertex, the same length as `positions`, or
+    /// empty. (0, 0) is the picture's bottom-left corner and (1, 1) its
+    /// top-right. Written only when the material is textured; a textured
+    /// material over a primitive with none draws its base colour.
+    pub uvs: Vec<[f64; 2]>,
 }
 
 /// A material as PRC can display it: one colour and its opacity.
@@ -90,6 +101,21 @@ pub struct SceneMaterial {
     /// Display (sRGB-encoded) red, green, blue and opacity, each 0–1;
     /// opacity 1 is opaque. Values outside 0–1 are clamped.
     pub rgba: [f64; 4],
+    /// Index into [`MeshScene::textures`]: a picture multiplying `rgba`
+    /// over the primitive's [`ScenePrimitive::uvs`].
+    pub texture: Option<usize>,
+}
+
+/// A base-colour picture.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SceneTexture {
+    /// A complete PNG or JPEG file, stored in the PRC as it is.
+    pub image: Vec<u8>,
+    /// Wrapping along u, then v.
+    pub wrap: [crate::TextureWrap; 2],
+    /// Whether the picture's alpha multiplies the material's opacity;
+    /// otherwise only its colour is used.
+    pub alpha: bool,
 }
 
 /// A written PRC stream and what the writer had to supply itself.
@@ -103,6 +129,8 @@ pub struct PrcWriteReport {
     pub flat_normals: usize,
     /// Primitives left out for holding no triangles.
     pub empty_primitives: usize,
+    /// Primitives written with a texture and coordinates.
+    pub textured: usize,
 }
 
 /// Why a scene could not be written.
@@ -132,6 +160,12 @@ pub enum PrcWriteError {
     /// (32-bit counts and offsets).
     #[error("the scene is too large for a PRC stream")]
     TooLarge,
+    /// Texture `index` is not a PNG or JPEG file whose size can be read.
+    #[error("texture {index} is not a readable PNG or JPEG file")]
+    BadTexture {
+        /// Index into [`MeshScene::textures`].
+        index: usize,
+    },
 }
 
 /// The deepest node nesting the writer accepts.
@@ -142,7 +176,8 @@ pub const MAX_DEPTH: usize = 1024;
 /// # Errors
 ///
 /// [`PrcWriteError`] when the scene is not a valid forest over valid
-/// indices, holds a non-finite number, or draws no triangle.
+/// indices, holds a non-finite number or an unreadable texture, or draws
+/// no triangle.
 ///
 /// # Example
 ///
@@ -159,6 +194,7 @@ pub const MAX_DEPTH: usize = 1024;
 ///     roots: vec![0],
 ///     meshes: vec![SceneMesh { name: None, primitives: vec![tri] }],
 ///     materials: vec![],
+///     textures: vec![],
 ///     units_in_mm: 1000.0,
 /// };
 /// let report = write_prc(&scene)?;
@@ -171,7 +207,7 @@ pub fn write_prc(scene: &MeshScene) -> Result<PrcWriteReport, PrcWriteError> {
     let plan = validate::plan(scene)?;
     let ids = ids(scene);
     let tess = tess::section(scene, &plan)?;
-    let globals = sections::globals(scene).finish();
+    let globals = sections::globals(scene, &plan).finish();
     let tree = sections::tree(scene, &plan).finish();
     let geometry = sections::empty_geometry(306).finish();
     let extra = sections::empty_geometry(307).finish();
@@ -184,6 +220,7 @@ pub fn write_prc(scene: &MeshScene) -> Result<PrcWriteReport, PrcWriteError> {
     let structure = container::Structure {
         id: ids.structure,
         sections: [&globals, &tree, &tess.bytes, &geometry, &extra],
+        files: scene.textures.iter().map(|t| t.image.as_slice()).collect(),
     };
     let prc = container::container(&[structure], &model, &ids.container)
         .ok_or(PrcWriteError::TooLarge)?;
@@ -192,6 +229,7 @@ pub fn write_prc(scene: &MeshScene) -> Result<PrcWriteReport, PrcWriteError> {
         triangles: tess.triangles,
         flat_normals: tess.flat_normals,
         empty_primitives: plan.empty_primitives,
+        textured: tess.textured,
     })
 }
 

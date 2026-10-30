@@ -54,12 +54,15 @@ fn scene() -> MeshScene {
             SceneMaterial {
                 name: Some("glass".into()),
                 rgba: [0.2, 0.4, 0.6, 0.4],
+                texture: None,
             },
             SceneMaterial {
                 name: Some("steel".into()),
                 rgba: [1.0, 0.0, 0.0, 1.0],
+                texture: None,
             },
         ],
+        textures: vec![],
         units_in_mm: 1000.0,
     }
 }
@@ -224,4 +227,98 @@ fn every_son_precedes_its_father_and_the_root_is_last() {
             "every other occurrence has a father"
         );
     }
+}
+
+/// A 1 x 2 PNG: a half-transparent red row over an opaque blue one.
+#[cfg(feature = "textures")]
+fn red_over_blue() -> Vec<u8> {
+    let mut bytes = Vec::new();
+    let mut e = png::Encoder::new(&mut bytes, 1, 2);
+    e.set_color(png::ColorType::Rgba);
+    e.set_depth(png::BitDepth::Eight);
+    e.write_header()
+        .unwrap()
+        .write_image_data(&[255, 0, 0, 128, 0, 0, 255, 255])
+        .unwrap();
+    bytes
+}
+
+/// The bolt's first primitive textured: v = 1 is the picture's top row.
+#[cfg(feature = "textures")]
+fn textured(alpha: bool) -> MeshScene {
+    let mut s = scene();
+    s.textures = vec![SceneTexture {
+        image: red_over_blue(),
+        wrap: [
+            crate::TextureWrap::Clamp,
+            crate::TextureWrap::MirroredRepeat,
+        ],
+        alpha,
+    }];
+    s.materials[1].texture = Some(0);
+    s.meshes[1].primitives[0].uvs = vec![[0.5, 0.1], [0.5, 0.1], [0.5, 0.9]];
+    s
+}
+
+#[cfg(feature = "textures")]
+#[test]
+fn a_texture_and_its_coordinates_read_back() {
+    let r = write_prc(&textured(false)).unwrap();
+    assert_eq!(r.textured, 1);
+    let m = assemble(&r.prc).unwrap();
+    assert_eq!(m.textures.len(), 1, "{:?}", m.texture_notes);
+    assert_eq!(m.textured, 2, "the bolt's primitive at both placements");
+    let t = &m.textures[0];
+    assert_eq!((t.width, t.height), (1, 2));
+    assert_eq!(
+        t.wrap,
+        [
+            crate::TextureWrap::Clamp,
+            crate::TextureWrap::MirroredRepeat
+        ]
+    );
+    let k = m.mesh_textures.iter().position(Option::is_some).unwrap();
+    let mesh = &m.meshes[k];
+    assert_eq!(mesh.uvs, [[0.5, 0.1], [0.5, 0.1], [0.5, 0.9]]);
+    // RGB only: the picture's alpha is not used.
+    assert_eq!(
+        t.sample(mesh.uvs[2]),
+        [255, 0, 0, 255],
+        "v = 0.9 is the top row"
+    );
+    assert_eq!(t.sample(mesh.uvs[0]), [0, 0, 255, 255]);
+    // The untextured primitive and the glass keep their colours.
+    assert_eq!(m.mesh_textures.iter().flatten().count(), 2);
+}
+
+#[cfg(feature = "textures")]
+#[test]
+fn a_blended_texture_keeps_its_alpha() {
+    let m = assemble(&write_prc(&textured(true)).unwrap().prc).unwrap();
+    assert_eq!(m.textures[0].sample([0.5, 0.9])[3], 128);
+}
+
+#[test]
+fn textures_are_checked_before_writing() {
+    let mut s = scene();
+    s.materials[1].texture = Some(0);
+    assert_eq!(
+        write_prc(&s),
+        Err(PrcWriteError::BadIndex {
+            what: "texture",
+            index: 0
+        })
+    );
+    s.textures = vec![SceneTexture {
+        image: b"GIF89a".to_vec(),
+        ..SceneTexture::default()
+    }];
+    assert_eq!(write_prc(&s), Err(PrcWriteError::BadTexture { index: 0 }));
+    let mut s = scene();
+    s.meshes[0].primitives[0].uvs = vec![[0.0, 0.0]];
+    assert!(matches!(write_prc(&s), Err(PrcWriteError::BadIndex { .. })));
+    // Coordinates under an untextured material are not written.
+    let mut s = scene();
+    s.meshes[0].primitives[0].uvs = vec![[0.0, 0.0]; 3];
+    assert_eq!(write_prc(&s).unwrap().textured, 0);
 }

@@ -6,11 +6,13 @@ use std::io::Write as _;
 
 use crate::{PRC_READER_VERSION, UniqueId};
 
-/// One file structure: its id and its five inflated sections, in
-/// [`crate::SectionKind`] order.
+/// One file structure: its id, its five inflated sections in
+/// [`crate::SectionKind`] order, and the uncompressed files its header
+/// carries (texture pictures, WD 6.2.2).
 pub(crate) struct Structure<'a> {
     pub(crate) id: UniqueId,
     pub(crate) sections: [&'a [u8]; 5],
+    pub(crate) files: Vec<&'a [u8]>,
 }
 
 /// The ids a container carries besides its structures'.
@@ -37,7 +39,7 @@ fn offset(at: usize) -> Option<u32> {
 }
 
 /// The PRC stream: version 8137 for reading and authoring (Acrobat refuses
-/// 8138 and 10001), no uncompressed files. `None` past 4 GiB.
+/// 8138 and 10001), no file-header uncompressed files. `None` past 4 GiB.
 pub(crate) fn container(structures: &[Structure<'_>], model: &[u8], ids: &Ids) -> Option<Vec<u8>> {
     let v = PRC_READER_VERSION;
     // "PRC", 2 versions, 2 ids, count; 48 bytes per description; model
@@ -51,7 +53,11 @@ pub(crate) fn container(structures: &[Structure<'_>], model: &[u8], ids: &Ids) -
         le(&mut body, &[v, v]);
         le(&mut body, &s.id.0);
         le(&mut body, &ids.application.0);
-        le(&mut body, &[0]);
+        le(&mut body, &[u32::try_from(s.files.len()).ok()?]);
+        for f in &s.files {
+            le(&mut body, &[u32::try_from(f.len()).ok()?]);
+            body.extend_from_slice(f);
+        }
         le(&mut descriptions, &s.id.0);
         le(&mut descriptions, &[0, 6, start]);
         for section in s.sections {
