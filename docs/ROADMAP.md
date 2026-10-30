@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.106.0` — release prep, version bump `4b41bd50` (`chore`), 2026-10-30 (1315th filing); NOT yet published
+
+Engineer-reported (shell held by the engineer); nothing checked from here. Same pattern as the v0.105.0 prep (1312th filing). The tag goes on this filing's own commit, to be made by the engineer.
+- **`4b41bd50`** "chore: bump workspace to 0.106.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`. Versions only. Parent `93aa4843` (the 1314th filing, `Pass 647.4` image cut, decision 213), whose parent is `0851e68b`.
+- **Carried since `v0.105.0`:** `0851e68b` "feat(xfa): draw image values, inline and linked through XFAImages (`X017`)" (core, render, and the CLI's `xfa-layout --image-placement/--image-overflow/--image-dpi`; sixth cut of `Pass 647.4`, NOT complete); the 1313th filing (`00ff0aea`, v0.105.0 publication); the 1314th filing (`93aa4843`). The release is cut because `X017` asked for one.
+- **Target:** annotated tag `v0.106.0` on this filing's commit; OneDrive slot `pdfcer1` (`pdfcer2` keeps 0.105.0, per the v0.105.0 PUBLISHED entry below: "Next release writes `pdfcer1`"); `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.106.0 to be published to crates.io after the tag.
+- **Gates (engineer-reported):** `tools/run-gates.sh` PASS, 49 commands, run on the tree of `0851e68b` before the version commit. Fuzz `xfa_images` and `xfa_packets`: 0 crashes. `check-suite-name-absent`, `check-commits-filed` and `check-ledger-numbers` clean.
+- **Release plan (to run, NOT claimed done):** tag, push of `main` and the tag, packaging, `verify-release.py v0.106.0`, fresh-folder smoke test, GitHub release assets, OneDrive `pdfcer1`, `cargo publish`.
+- **FEATURES:** no change. Nothing minted.
+
 ### `v0.105.0` — PUBLISHED, 2026-10-29 (1313th filing)
 
 Engineer-reported (engineer states each item verified); no shell here, nothing checked from here. Release record for the prep filed below (1312th, bump `94d7f216`, filing commit `e53e9634`).

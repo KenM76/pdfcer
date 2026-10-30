@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1315th filing) — `v0.106.0` release PREP, version bump `4b41bd50`; NOT yet published
+
+**Filed (docs only; engineer-reported, the engineer holds the shell; nothing checked from here):**
+- `4b41bd50` "chore: bump workspace to 0.106.0" (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`), parent `93aa4843` (1314th filing), grandparent `0851e68b`. The tag goes on this filing's commit.
+- Contents since `v0.105.0`: `0851e68b` (XFA image values, `X017`; core, render, CLI `xfa-layout --image-*`), plus the 1313th (`00ff0aea`) and 1314th (`93aa4843`) filings. Cut because `X017` asked for a release. Slot `pdfcer1`; `pdfcer2` keeps 0.105.0.
+- Gates (engineer-reported): `run-gates.sh` PASS, 49 commands, on the tree of `0851e68b`; fuzz `xfa_images` and `xfa_packets` 0 crashes; `check-suite-name-absent`, `check-commits-filed`, `check-ledger-numbers` clean.
+- FEATURES unchanged. No decision, no rule.
+
+**Open for the later filing:** tag, push, packaging, `verify-release.py v0.106.0`, fresh-folder smoke, GitHub release, OneDrive `pdfcer1`, crates.io (`pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.106.0). All "to run", none claimed passed. Backup currency not verifiable from here.
+
+**Hard-rule-11 survivors:** none; a version number only.
+
 ## 2026-10-30 (1314th filing) — `Pass 647.4` sixth cut `0851e68b`: XFA image values (`X017`); decision 213 minted
 
 **Filed (docs only; engineer-reported, nothing checked from here; no shell):**
