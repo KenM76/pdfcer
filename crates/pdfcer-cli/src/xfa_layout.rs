@@ -3,7 +3,8 @@
 use super::*;
 
 use pdfcer_core::xfa::{
-    ContainerKind, LayoutItem, LayoutOptions, LayoutPage, LayoutWarning, XfaLayout,
+    ContainerKind, LayoutItem, LayoutOptions, LayoutPage, LayoutWarning, MergeOptions, MergedForm,
+    XfaLayout,
 };
 
 /// `xfa-layout --negative-coordinates` (gap G-L1).
@@ -36,15 +37,65 @@ pub(crate) enum PageAreaKeepArg {
     Adobe,
 }
 
-/// The settings `xfa-layout` lays the template with.
+/// `xfa-layout --scope-search` (gap G-SOM3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum ScopeSearchArg {
+    /// The current data group's children, then each enclosing group's.
+    #[default]
+    Upward,
+    /// The current data group's children only.
+    Children,
+}
+
+/// `xfa-layout --bare-ref` (gap G-SOM8).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum BareRefArg {
+    /// Ignore a ref without match="dataRef".
+    #[default]
+    Ignore,
+    /// Bind it as a data reference.
+    DataRef,
+}
+
+/// `xfa-layout --data-attributes` (gap G-SOM6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum DataAttributesArg {
+    /// Attributes are data values.
+    #[default]
+    Load,
+    /// Attributes are not data.
+    Ignore,
+}
+
+/// The settings `xfa-layout` merges and lays the template with.
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct XfaLayoutArgs {
     pub(crate) negative_coordinates: NegativeCoordinatesArg,
     pub(crate) nested_overflow: NestedOverflowArg,
     pub(crate) page_area_keep: PageAreaKeepArg,
+    pub(crate) scope_search: ScopeSearchArg,
+    pub(crate) bare_ref: BareRefArg,
+    pub(crate) data_attributes: DataAttributesArg,
 }
 
 impl XfaLayoutArgs {
+    fn merge(self) -> MergeOptions {
+        use pdfcer_core::xfa::{BareRef, DataAttributes, ScopeSearch};
+        MergeOptions::new()
+            .with_scope_search(match self.scope_search {
+                ScopeSearchArg::Upward => ScopeSearch::Upward,
+                ScopeSearchArg::Children => ScopeSearch::Children,
+            })
+            .with_bare_ref(match self.bare_ref {
+                BareRefArg::Ignore => BareRef::Ignore,
+                BareRefArg::DataRef => BareRef::DataRef,
+            })
+            .with_data_attributes(match self.data_attributes {
+                DataAttributesArg::Load => DataAttributes::Load,
+                DataAttributesArg::Ignore => DataAttributes::Ignore,
+            })
+    }
+
     fn options(self) -> LayoutOptions {
         use pdfcer_core::xfa::{NegativeCoordinates, NestedOverflow, PageAreaKeep};
         LayoutOptions::new()
@@ -79,47 +130,69 @@ pub(crate) fn cmd_xfa_layout(input: &Path, args: XfaLayoutArgs, png: Option<&Xfa
         eprintln!("pdfcer: {}: {msg}", input.display());
         exit::RUNTIME_ERROR
     };
-    let template = match pdfcer_core::xfa::read_xdp(&doc.view()) {
+    let merged = match read_merged(&doc, args) {
+        Ok(m) => m,
         Err(e) => return fail(&e),
-        Ok(None) => return fail(&"the file has no XFA form"),
-        Ok(Some(xdp)) => match pdfcer_core::xfa::read_template(&xdp) {
-            Err(e) => return fail(&e),
-            Ok(None) => return fail(&"the XFA form has no template packet"),
-            Ok(Some(t)) => t,
-        },
     };
-    let layout = match pdfcer_core::xfa::layout_template(&template, &args.options()) {
+    let layout = match pdfcer_core::xfa::layout_template(&merged.template, &args.options()) {
         Ok(l) => l,
         Err(e) => return fail(&e),
     };
-    print_layout(&layout);
+    print_layout(&layout, &merged);
     if let Some(png) = png
-        && let Err(e) = write_xfa_pngs(&doc, &template, &layout, png)
+        && let Err(e) = write_xfa_pngs(&doc, &merged.template, &layout, png)
     {
         return fail(&e);
     }
+    let data = if merged.bound.is_empty() {
+        "with no form data merged".to_owned()
+    } else {
+        format!(
+            "with {} value(s) merged from the form's data",
+            merged.bound.len()
+        )
+    };
     eprintln!(
-        "pdfcer: {}: these pages are pdfcer's layout of the XFA template with no form data merged; they are not stored in the file.",
+        "pdfcer: {}: these pages are pdfcer's layout of the XFA template {data}; they are not stored in the file.",
         input.display()
     );
     exit::SUCCESS
 }
 
-fn print_layout(layout: &XfaLayout) {
+/// The document's XFA template with its data merged in.
+fn read_merged(doc: &Document, args: XfaLayoutArgs) -> Result<MergedForm, String> {
+    let xdp = pdfcer_core::xfa::read_xdp(&doc.view())
+        .map_err(|e| e.to_string())?
+        .ok_or("the file has no XFA form")?;
+    let template = pdfcer_core::xfa::read_template(&xdp)
+        .map_err(|e| e.to_string())?
+        .ok_or("the XFA form has no template packet")?;
+    pdfcer_core::xfa::merge_data(&template, &xdp, &args.merge()).map_err(|e| e.to_string())
+}
+
+fn print_layout(layout: &XfaLayout, merged: &MergedForm) {
     for (i, page) in layout.pages.iter().enumerate() {
         print_page(i, page);
         for item in &page.items {
-            print_item(i, item);
+            print_item(i, item, merged.value_at(&item.path));
         }
     }
     for w in &layout.warnings {
         println!("warning {}", warning_fields(w));
     }
+    for w in &merged.warnings {
+        println!(
+            "warning kind=data-ref-{} path={} ref={:?}",
+            w.kind.as_str(),
+            dotted(&w.path),
+            w.reference
+        );
+    }
     let items: usize = layout.pages.iter().map(|p| p.items.len()).sum();
     println!(
         "xfa-layout pages={} items={items} warnings={}",
         layout.pages.len(),
-        layout.warnings.len()
+        layout.warnings.len() + merged.warnings.len()
     );
 }
 
@@ -135,10 +208,11 @@ fn print_page(i: usize, page: &LayoutPage) {
     );
 }
 
-fn print_item(page: usize, item: &LayoutItem) {
+fn print_item(page: usize, item: &LayoutItem, value: Option<&str>) {
     let r = item.rect;
+    let value = value.map_or_else(String::new, |v| format!(" value={v:?}"));
     println!(
-        "item page={page} kind={} name={:?} path={} x={} y={} w={} h={} area={} background={} visible={}",
+        "item page={page} kind={} name={:?} path={} x={} y={} w={} h={} area={} background={} visible={}{value}",
         kind_label(item.kind),
         item.name.as_deref().unwrap_or(""),
         dotted(&item.path),

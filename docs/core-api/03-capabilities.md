@@ -692,6 +692,42 @@ The enums are `#[non_exhaustive]`, and unknown tokens read as the default. CLI:
 (an `.xdp` file) the same way `read_xdp` reads a document's; it fails with
 `TooLarge`, `TooDeep` or `Xml`.
 
+**The XFA data merge** (`xfa/merge.rs`, decision 204, Pass 647.3a):
+`merge_data(&Template, &XdpDocument, &MergeOptions) -> Result<MergedForm, XfaError>`.
+It merges the `datasets` packet's `xfa:data` into fields and exclusion groups
+bound with `<bind match="dataRef" ref="…"/>` (XFA 3.3 p.183; SOM Ch.3). Lay
+out and paint `MergedForm::template`; nothing is written to the file.
+- **Scope.** The root subform binds to the top data group (p.182). `$` is
+  the data node of the nearest ancestor bound by a `dataRef`; an unbound
+  subform passes its parent's scope through. Normal name-matching binding
+  and instance creation are not merged yet.
+- **References.** `$`, `$data`, `$record`, `!data`, `xfa.datasets.data`,
+  unqualified names, `\.` escapes, `[n]` and `[*]` (the first match not yet
+  bound, p.108). `..`, `#class`, `*` names, predicates and `[+n]`/`[-n]` are
+  reported, not resolved.
+- **Output.** `MergedForm { template, bound: Vec<BoundValue { path, value }>,
+  warnings: Vec<MergeWarning { path, kind, reference }>, has_data }`, all
+  `#[non_exhaustive]`; `value_at(path)` looks one up. `path` uses
+  `LayoutItem::path`'s convention, and a field with no `value` element gains
+  one as its last child, so layout paths do not move. An exclusion group's
+  value is set on each member (the one whose on-value matches draws on).
+- **Never a failure.** A reference that binds nothing leaves the template
+  value and adds a `MergeWarningKind` (`Unresolved`, `WrongType`,
+  `Unsupported`, `TooLong` past 1,024 steps; `as_str()` gives the CLI name).
+  Errors are only `Xml`, `TooDeep`, or `TooLarge` past a million data nodes.
+- **Settings** (`MergeOptions`, spec gaps): `ScopeSearch` `Upward` (default,
+  p.110) or `Children`; `BareRef` `Ignore` (default, p.623) or `DataRef` for
+  a `ref` with no `match="dataRef"`; `DataAttributes` `Load` (default,
+  pp.99-100) or `Ignore`.
+- **CLI.** `xfa-layout` merges before laying out: bound items end with
+  `value="…"`, each warning prints as `warning kind=data-ref-<kind> path= ref="…"`
+  and counts in the summary, and `--scope-search`, `--bare-ref`,
+  `--data-attributes` set the options. The stderr note says how many values
+  were merged.
+- **★ What the UI must disclose:** the merged values are the file's own
+  data, but the layout they sit in is inferred (rule 4); show each merge
+  warning off-canvas with the layout warnings.
+
 **The XFA layout** (`xfa/layout.rs`, decision 204, Passes 647.1-647.2):
 `layout_template(&Template, &LayoutOptions) -> Result<XfaLayout, LayoutError>`.
 It is a pure function: it writes nothing to the document. Its result is

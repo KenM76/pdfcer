@@ -28,6 +28,11 @@ impl Template {
     pub fn root_subform(&self) -> Option<&XfaNode> {
         self.root.child("subform")
     }
+
+    /// The `template` element, for a merge to set field values in.
+    pub(super) fn element_mut(&mut self) -> &mut XfaNode {
+        &mut self.root
+    }
 }
 
 /// One template element.

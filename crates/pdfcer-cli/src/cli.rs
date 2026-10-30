@@ -6125,11 +6125,13 @@ pub(crate) enum Command {
     ///
     /// A dynamic XFA form stores one placeholder page; its real pages exist
     /// only once an XFA processor lays the template out. This prints that
-    /// layout, read-only, with no form data merged yet:
+    /// layout, read-only. Values from the form's data are merged into
+    /// fields bound with an explicit data reference (bind match="dataRef");
+    /// other bindings are not merged yet.
     ///
     ///   page index=N name="..." width= height= page_area= content_areas= items=
-    ///   item page=N kind= name="..." path= x= y= w= h= area= background= visible=
-    ///   warning kind= path= [target= | attribute= | strategy=]
+    ///   item page=N kind= name="..." path= x= y= w= h= area= background= visible= [value="..."]
+    ///   warning kind= path= [target= | attribute= | strategy= | ref="..."]
     ///   xfa-layout pages= items= warnings=
     ///
     /// Units are points; x and y run from the page's top-left corner,
@@ -6138,7 +6140,13 @@ pub(crate) enum Command {
     /// item flowed into, or - for page background. Each warning line names
     /// something the template left open or that did not fit, for example
     /// content-overflow (placed past the bottom of its area) or
-    /// content-discarded (the page areas ran out).
+    /// content-discarded (the page areas ran out). value is printed for a
+    /// field or exclusion group that took a value from the data. A data
+    /// reference that bound nothing is a warning, and the field keeps its
+    /// template value: data-ref-unresolved (no such data),
+    /// data-ref-wrong-type (a group where a value is needed, or the
+    /// reverse), data-ref-unsupported (SOM syntax not resolved yet, such as
+    /// .. or #class) or data-ref-too-long.
     ///
     /// With --png-dir it also draws each page to an image and prints:
     ///
@@ -6179,6 +6187,19 @@ pub(crate) enum Command {
         /// XFA 3.3 defines it, or ignored, as Adobe's processor does.
         #[arg(long, value_enum, default_value_t)]
         page_area_keep: PageAreaKeepArg,
+        /// Where a data reference with no leading $ finds its first name:
+        /// the current data group's children and then each enclosing
+        /// group's, as XFA 3.3 describes, or the current group's only.
+        #[arg(long, value_enum, default_value_t)]
+        scope_search: ScopeSearchArg,
+        /// What a bind with a ref but no match="dataRef" does: nothing, as
+        /// the XFA grammar says, or bind as a data reference.
+        #[arg(long, value_enum, default_value_t)]
+        bare_ref: BareRefArg,
+        /// Whether attributes in the form's data count as data values (as
+        /// XFA's default loader does) or are ignored.
+        #[arg(long, value_enum, default_value_t)]
+        data_attributes: DataAttributesArg,
         /// Also draw each computed page to page-NNN.png in this folder
         /// (created if missing). Borders, fills, plain text, captions and
         /// images only; everything not drawn exactly is listed as a

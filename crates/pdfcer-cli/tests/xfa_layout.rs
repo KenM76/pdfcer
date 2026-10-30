@@ -10,12 +10,24 @@ const BIN: &str = env!("CARGO_BIN_EXE_pdfcer");
 /// A one-page PDF whose `/AcroForm /XFA` stream holds `template` (with no
 /// `/XFA` at all when `None`).
 fn pdf(template: Option<&str>) -> Vec<u8> {
+    pdf_with_data(template, "")
+}
+
+/// [`pdf`] with `data` as the `xfa:data` element's content (none when empty).
+fn pdf_with_data(template: Option<&str>, data: &str) -> Vec<u8> {
+    let datasets = if data.is_empty() {
+        String::new()
+    } else {
+        format!(
+            r#"<xfa:datasets xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/"><xfa:data>{data}</xfa:data></xfa:datasets>"#
+        )
+    };
     let xfa = template.map_or_else(String::new, |_| {
         " /AcroForm << /Fields [] /XFA 4 0 R >>".into()
     });
     let xdp = template.map_or_else(String::new, |t| {
         format!(
-            r#"<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/"><template>{t}</template></xdp:xdp>"#
+            r#"<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/"><template>{t}</template>{datasets}</xdp:xdp>"#
         )
     });
     let objects = [
@@ -348,4 +360,89 @@ fn png_dir_draws_round_radio_buttons_with_three_d_edges() {
     );
     assert_eq!(ink, 0, "a dashed edge is still left out");
     let _ = std::fs::remove_dir_all(&base);
+}
+
+/// The X020 shape: data-referenced fields in an unbound page subform.
+fn data_ref_form(third_ref: &str) -> String {
+    let field = |n: &str, y: u32, r: &str| {
+        format!(
+            r#"<field name="{n}" x="10pt" y="{y}pt" w="200pt" h="20pt"><ui><textEdit/></ui><bind match="dataRef" ref="{r}"/></field>"#
+        )
+    };
+    format!(
+        r#"<subform name="data">{PAGE}<subform name="DemoPage" w="540pt" h="400pt">{}{}{}</subform></subform>"#,
+        field("Line1", 10, "$.GV_LINE1"),
+        field("Line2", 40, "$.GV_LINE2"),
+        field("RequestId", 70, third_ref),
+    )
+}
+
+const X020_DATA: &str = "<data><GV_LINE1>First line</GV_LINE1><GV_LINE2>Second line</GV_LINE2><IS_CREATE_VENDOR><REQUEST_ID>9000000123</REQUEST_ID></IS_CREATE_VENDOR></data>";
+
+#[test]
+fn data_referenced_fields_print_their_merged_values() {
+    let bytes = pdf_with_data(
+        Some(&data_ref_form("$.IS_CREATE_VENDOR.REQUEST_ID")),
+        X020_DATA,
+    );
+    let (code, stdout, stderr) = run("dataref", &bytes, &[]);
+    assert_eq!(code, 0, "{stderr}");
+    for (name, value) in [
+        ("Line1", "First line"),
+        ("Line2", "Second line"),
+        ("RequestId", "9000000123"),
+    ] {
+        let line = stdout
+            .lines()
+            .find(|l| l.contains(&format!(r#"name="{name}""#)))
+            .unwrap();
+        assert!(line.ends_with(&format!(r#" value="{value}""#)), "{line}");
+    }
+    assert!(
+        stdout.ends_with(
+            "warnings=0
+"
+        ),
+        "{stdout}"
+    );
+    assert!(stderr.contains("3 value(s) merged"), "{stderr}");
+}
+
+#[test]
+fn an_unresolvable_data_reference_is_a_warning_not_a_failure() {
+    let bytes = pdf_with_data(Some(&data_ref_form("$.IS_CREATE_VENDOR.NOPE")), X020_DATA);
+    let (code, stdout, stderr) = run("dataref-bad", &bytes, &[]);
+    assert_eq!(code, 0, "{stderr}");
+    assert!(
+        stdout.contains(
+            r#"warning kind=data-ref-unresolved path=0.1.2 ref="$.IS_CREATE_VENDOR.NOPE""#
+        ),
+        "{stdout}"
+    );
+    let line = stdout
+        .lines()
+        .find(|l| l.contains(r#"name="RequestId""#))
+        .unwrap();
+    assert!(!line.contains("value="), "{line}");
+    assert!(
+        stdout.ends_with(
+            "warnings=1
+"
+        ),
+        "{stdout}"
+    );
+}
+
+#[test]
+fn merged_values_are_drawn() {
+    let png = |name: &str, data: &str| {
+        let dir = std::env::temp_dir().join(format!("pdfcer-xfa-{name}-{}", std::process::id()));
+        let bytes = pdf_with_data(Some(&data_ref_form("$.IS_CREATE_VENDOR.REQUEST_ID")), data);
+        let (code, _, stderr) = run(name, &bytes, &["--png-dir", dir.to_str().unwrap()]);
+        assert_eq!(code, 0, "{stderr}");
+        let out = std::fs::read(dir.join("page-000.png")).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        out
+    };
+    assert_ne!(png("drawn", X020_DATA), png("empty", "<data/>"));
 }

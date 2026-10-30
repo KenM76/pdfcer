@@ -1388,6 +1388,9 @@ pub(crate) fn run() -> ExitCode {
             negative_coordinates,
             nested_overflow,
             page_area_keep,
+            scope_search,
+            bare_ref,
+            data_attributes,
             png_dir,
             scale,
             edge_placement,
@@ -1405,6 +1408,9 @@ pub(crate) fn run() -> ExitCode {
                 negative_coordinates,
                 nested_overflow,
                 page_area_keep,
+                scope_search,
+                bare_ref,
+                data_attributes,
             },
             png_dir
                 .map(|dir| XfaPngArgs {

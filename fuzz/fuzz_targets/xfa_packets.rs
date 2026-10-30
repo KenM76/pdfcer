@@ -1,6 +1,7 @@
 //! Fuzz target: the XDP reader behind `/AcroForm /XFA`
 //! template DOM and layout (`pdfcer_core::xfa::read_xdp`, `read_template`,
-//! `layout_template`, `paint_page_with_images`; decision 204, Passes 647.0-647.4).
+//! `merge_data`, `layout_template`, `paint_page_with_images`; decision 204,
+//! Passes 647.0-647.4, 647.3a).
 //!
 //! The fuzz bytes become the XFA stream of a fixed one-page document, raw
 //! or split into a two-stream packet array. Reading must never panic, and
@@ -82,6 +83,11 @@ fuzz_target!(|data: &[u8]| {
             }
             if let Ok(Some(t)) = pdfcer_core::xfa::read_template(&xdp) {
                 walk(t.element());
+                let merge = pdfcer_core::xfa::MergeOptions::new();
+                let Ok(merged) = pdfcer_core::xfa::merge_data(&t, &xdp, &merge) else {
+                    return;
+                };
+                let t = merged.template;
                 let opts = pdfcer_core::xfa::LayoutOptions::new();
                 if let Ok(l) = pdfcer_core::xfa::layout_template(&t, &opts) {
                     let paint = pdfcer_core::xfa::PaintOptions::new();
