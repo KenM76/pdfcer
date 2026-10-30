@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `074886ce` `Pass 648.2` SHIPPED, 2026-10-30: glTF/GLB base-colour textures carried into the PRC (1322nd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Implementation commit `074886ce` "feat(3d): glTF base-colour textures carried into the PRC (Pass 648.2)"; entry filed earlier in `0c9742b5`. On main; push and release state not checked from here. Operator ask (Ken, 2026-10-30). No decision minted. Reasoning is in the commit message.
+- **`pdfcer-3d` writer:** `write_prc` writes textures. New public items: `SceneTexture { image (whole PNG/JPEG), wrap: [TextureWrap;2], alpha }`, `MeshScene::textures`, `ScenePrimitive::uvs`, `SceneMaterial::texture: Option<usize>`, `PrcWriteReport::textured`, `PrcWriteError::BadTexture { index }`. Layout: 703 picture (file carried uncompressed in the file structure header), 712 texture definition (RGB, or RGBA when alpha), a 702/711 material pair, a textured style (is_material, index 2j+2); textured faces are TESS 0x0200 triangles with per-corner n/t/p indices. Spec: `PDF_Spec/threed/prc__8137__graphics_materials.md` section 14.
+- **`read_gltf`:** loads images (data URI, resolver, buffer view; PNG/JPEG only; 1 GiB ceiling) and carries each material's base-colour texture. `KHR_texture_transform` applied (now in the supported-extension list); v flipped to bottom-left origin; sampler wraps kept; texture alpha only under `alphaMode` BLEND; MASK + texture adds an inferred line (texture alpha not cut out). An undrawable texture (no PNG/JPEG source such as WebP/KTX2, unreadable image, missing `TEXCOORD_n`) is a note, base colour drawn. Normal, metallic, emissive and occlusion textures are NOT read.
+- **Reader fix (`tree/texture.rs`):** a 712's channels now come from its components array (RGBA when empty); `texture_mapping_attributes` is the procedure, not channels.
+- **CLI:** `3d-convert` / `3d-embed` conversion line no longer says "textures are not carried"; prints `note: N primitive(s) drawn with their base-colour texture`.
+- **Docs:** `docs/core-api/01-reading-and-model.md` "Building a PRC model" updated; `check-core-api-verbs.py` green.
+- **Tests:** `cargo test -p pdfcer-3d --features textures`: 202 lib + 3 + 15 pass (7 new: 3 writer, 4 glTF import, including a decode-and-sample right-way-up test that fails when the v flip is sabotaged). `pdfcer-cli` `three_d_gltf` 4 pass.
+- **Gates/invariants:** `tools/run-gates.sh` PASS (49 commands); `cargo fuzz build gltf` OK; `cargo tree`: no manifest change, no new deps. No packaging change.
+- **FEATURES:** textures row core `[x]` / cli `[x]` / gui `[ ]` (pdfcer-gui has no caller yet); glTF import row corrected.
+- **OPEN GAP, not closed by this Pass:** `MAPPING_DIFFUSE` is written as `0x0001` (value in no source; RAG section 14.0 GAP) and the 702 material uses ambient = diffuse; neither is verified in a real viewer. Wrap-mode base and v origin (RAG 14.4, 14.6) match pdfcer's own reader defaults only. **Operator (Ken) must open a textured GLB conversion in Acrobat Reader and confirm the picture appears and is upright.** Until then the acceptance line "operator confirms in Reader" is OPEN. Filed as an unverified finding at `C:\personal_rag\pdf\lesson_20261030_prc_texture_mapping_diffuse_value_0x0001_and_ambient_equals_diffuse_unverified_in_reader.md`.
+- **Survivors:** swept `FEATURES.md` for the dropped-texture claim (one found, fixed). Not swept: `ARCHITECTURE.md` section 4, `NEXT_SESSION.md`, `pdfcer-3d` doc comments and CLI help for "textures are dropped / not carried"; owed to the engineer.
+
 ### `ec8fac2d` `G240` SHIPPED, 2026-10-30: sending to an IPP printer is engine API (1321st filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `ec8fac2dc9b9c828f405a47f59feef88ec71e38c` "feat(print): sending to an IPP printer is engine API (G240)", on main, NOT pushed (origin/main is `410b9f9a`), NOT released (latest release `v0.106.0`). Request from `pdfcer-gui` (IPP send lived in the CLI). No Pass ID minted; no decision; no new rule. Reasoning is in the commit message.
@@ -26726,18 +26740,6 @@ Table/row layout in dynamic forms. Blocked until `pdfcer-spec-librarian` extract
 ### Pass 648.1 — Mesh import: OBJ/MTL and STL to PRC (NOT STARTED; filed 1297th filing, 2026-10-29)
 
 Split from `Pass 648.0` by operator direction ("worry about the others later"). Readers for OBJ (+MTL colours; dissolve `d` is exporter-inconsistent, so any transparency taken from it is disclosed via `inferred:`) and binary/ASCII STL (no colour: default colour disclosed), feeding the PRC writer built in 648.0. `3d-embed --model` and `3d-convert` accept `.obj` / `.stl`. A fuzz target per parser (§10.2). Depends on 648.0, now SHIPPED (1297th filing; `write_prc` exists, `3d-convert` and the format auto-detect exist, only the OBJ/STL readers and their extension/signature detection are owed). gui `[ ]`.
-
-### Pass 648.2 — glTF/GLB base-colour textures carried into the PRC (NOT STARTED; filed 2026-10-30, engineer starting now)
-
-Operator ask (Ken, 2026-10-30): "we need to support 3d textures for our glTF/GLB import." Today `read_gltf` drops `baseColorTexture` and discloses "base colour texture dropped; drawn in its base colour". ID `648.2` grep-checked free in `docs/` before filing (only 648.0 shipped, 648.1 Next up). No decision number yet; one is minted on request.
-
-- **Scene model:** `MeshScene` gains textures (PNG/JPEG picture bytes + wrap S/T); `SceneMaterial.texture`; `ScenePrimitive.uvs`.
-- **`write_prc`:** Picture 703 / TextureDefinition 712 / TextureApplication 711 in the globals; image bytes in the file-structure header's uncompressed files; texture coordinates in TESS_3D (textured triangle faces).
-- **`read_gltf`:** loads images (data: URI, external file via the resolver, GLB bufferView + mimeType), sampler wrap modes, `texCoord` set; bakes `KHR_texture_transform` into the UVs; flips v (glTF origin top-left). Unsupported image types (WebP, KTX2) and a missing TEXCOORD are disclosed (`inferred:`) and fall back to the base colour.
-- **Reader defect fixed in the same Pass (`pdfcer-3d`):** the PRC reader masked RGBA channels with `texture_mapping_attributes`, a procedure bit field (diffuse etc.), not the component mask; channels now come from the components array (spec RAG `prc__8137__graphics_materials.md` section 14.0 correction).
-- **Known unverified, to be disclosed in the shipped entry:** the numeric value of `PRC_TEXTURE_MAPPING_DIFFUSE` is in no source (RAG section 14.0 GAP); the writer uses `0x0001`, to be confirmed in Acrobat Reader by the operator. Also unverified: the stored wrap-mode base and the v origin (RAG sections 14.4, 14.6); the writer matches pdfcer's reader defaults (`WrapBase::ZeroBased`, `TextureOrigin::BottomLeft`).
-- **Acceptance:** a textured glTF round-trips through pdfcer's own PRC reader with the texture resolved (`Skin::Drawn`) and UVs present; `3d-render` draws the texture the right way up; fuzz target `gltf` stays green; core-api "Building a PRC model" updated; operator confirms in Reader.
-- **Boxes when shipped:** core and cli; gui `[ ]`.
 
 ### Print arc `Pass 55.9`-`55.14` — filed 1303rd filing, 2026-10-29 (ALL SHIPPED as of the 1308th filing; originally filed NOT STARTED; operator: "build all the print items the make a new release")
 

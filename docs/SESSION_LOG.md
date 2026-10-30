@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1322nd filing) — `Pass 648.2` shipped: glTF base-colour textures carried into the PRC, `074886ce`
+
+**Shipped (engineer-reported; no shell here, nothing checked from here; entry was filed in `0c9742b5`):**
+- `Pass 648.2` on `074886ce`: `write_prc` writes textures (703 picture, 712 texture definition, 702/711 material pair, textured style, TESS 0x0200 faces); `read_gltf` loads images and carries base-colour textures with `KHR_texture_transform`, v flip, sampler wraps, alpha only under BLEND; undrawable textures are a note. PRC reader's 712 channel mask fixed. CLI `3d-convert` / `3d-embed` now report textured primitives. `pdfcer-3d --features textures`: 202 lib + 3 + 15; 7 new tests (a v-flip sabotage test fails as intended); CLI `three_d_gltf` 4. `run-gates.sh` PASS (49 commands); `cargo fuzz build gltf` OK; no manifest change.
+
+**FEATURES.md:** new textures row core `[x]` / cli `[x]` / gui `[ ]` (moved from Planned); glTF import row corrected. **Decisions:** none.
+
+**Findings:** OPEN GAP filed as unverified at `C:\personal_rag\pdf\lesson_20261030_prc_texture_mapping_diffuse_value_0x0001_and_ambient_equals_diffuse_unverified_in_reader.md`: `MAPPING_DIFFUSE` written as `0x0001`, ambient = diffuse, neither seen in a real viewer.
+
+**For next session:** Ken to open a textured GLB conversion in Acrobat Reader: picture present and upright? Engineer to sweep `ARCHITECTURE.md` section 4, `NEXT_SESSION.md`, doc comments and CLI help for "textures dropped / not carried" survivors (owed). The untracked `docs/research/request-prc-compact-tessellation.md` is not part of this Pass.
+
 ## 2026-10-30 (1321st filing) — `G240` shipped: sending to an IPP printer is engine API, `ec8fac2d`
 
 **Shipped (engineer-reported; no shell here, nothing checked from here; unpushed, origin/main `410b9f9a`, unreleased, latest release `v0.106.0`):**
