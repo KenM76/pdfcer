@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `069c5857` `G239` SHIPPED, 2026-10-30: visual-compare marks and summary note are engine API (1320th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `069c5857` "feat(compare): visual-compare marks and summary note are engine API (G239)", on main, NOT pushed, NOT released (latest release `v0.106.0`). Request from `pdfcer-gui` (`request_G239_visual_compare_marks_and_summary_live_in_the_cli.md`). No Pass ID minted; no decision. Reasoning is in the commit message.
+- **`pdfcer-render`:** the CLI-private `compare_visual::marks` and `summary_note` are now public on `VisualCompareReport` (render owns the report; core cannot render). `region_marks(&self, new: &Document) -> Vec<RegionMark>`: a cloud per changed region of a paired page, a frame on each inserted page's crop box (`pdfcer_render::INSERTED_PAGE_NOTE`); deleted pages get no mark. `summary_note(&self) -> String`: the summary-page paragraph. `settings_text()` and `PagePair::match_text()`: the clauses both are built from; the CLI report reuses them.
+- **Wording change:** for a mapped comparison the settings clause now reads "pages paired as given" instead of "pages paired by --map", because the note is written into the PDF.
+- **Files:** new `crates/pdfcer-render/src/visual_compare/notes.rs` and `notes/tests.rs` (6 unit tests). CLI `compare_visual.rs` lost its copies and calls the engine.
+- **Docs:** `docs/core-api/03-capabilities.md` (visual comparison "Words and marks" bullet) and `01-reading-and-model.md` updated; `check-core-api-verbs.py` PASS.
+- **Gates:** `tools/run-gates.sh` PASS (49 commands).
+- **Invariants:** `cargo tree`: no `Cargo.toml` changed, no new dependency; untouched.
+- **FEATURES:** "Visual comparison and page matching" gains a note that marks and summary are render API; core `[x]`, cli `[x]`, gui stays `[ ]` (`pdfcer-gui` consumption is its own work). Reply to `pdfcer-gui` is the engineer's to write.
+- **Survivors:** not swept this filing: `docs/NEXT_SESSION.md`, `ARCHITECTURE.md` section 4, and CLI doc comments for a "marks live in the CLI" claim; owed. Also grep for the old wording "pages paired by --map" in tests and docs.
+
 ### `ac583cf2` `G238` SHIPPED, 2026-10-30: print-job composition is engine API, not CLI policy (1319th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `ac583cf2` "feat(print): preset merge and print decoration are engine API (G238)", on main, NOT pushed, NOT released (latest release `v0.106.0`). Request from `pdfcer-gui` ("print-job composition lives in the CLI"). No Pass ID minted; no decision. Reasoning is in the commit message.

@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1320th filing) — `G239` shipped: visual-compare marks and summary note are engine API, `069c5857`
+
+**Shipped (engineer-reported; no shell here, nothing checked from here; unpushed, unreleased, latest release `v0.106.0`):**
+- `G239` on `069c5857`: `VisualCompareReport::region_marks`, `summary_note`, `settings_text` and `PagePair::match_text` are public in `pdfcer-render` (new `visual_compare/notes.rs`, 6 unit tests); the CLI lost its private copies. Mapped-comparison wording changed to "pages paired as given". core-api docs updated, `check-core-api-verbs.py` PASS; `run-gates.sh` PASS (49 commands). No manifest change.
+
+**FEATURES.md:** "Visual comparison and page matching" notes the render API; gui stays `[ ]`. **Decisions:** none. No Pass ID minted. **Findings:** none for the RAG tiers.
+
+**For next session:** engineer to reply to `pdfcer-gui`; sweep `NEXT_SESSION.md`, `ARCHITECTURE.md` section 4, CLI comments and tests for "pages paired by --map" and "marks live in the CLI" survivors (owed).
+
 ## 2026-10-30 (1319th filing) — `G238` shipped: print-job composition is engine API, `ac583cf2`
 
 **Shipped (engineer-reported; no shell here, nothing checked from here; unpushed, unreleased, latest release `v0.106.0`):**
