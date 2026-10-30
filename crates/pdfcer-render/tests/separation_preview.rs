@@ -170,3 +170,41 @@ fn a_separation_all_mark_prints_on_the_spot_plate_too() {
     // The empty corner stays paper.
     assert_eq!(at(&spot_plate, 2, 50), vec![255, 255, 255]);
 }
+
+#[test]
+fn a_page_renders_as_one_labelled_grey_plate_per_ink() {
+    use pdfcer_render::plates::{Plates, render_plates};
+    let doc = Document::from_bytes(page(&format!("{CYAN} {SPOT}"), true)).expect("parses");
+    let pg = page_tree::pages(&doc).expect("page tree walks").remove(0);
+    let view = doc.view();
+    let plates = render_plates(&view, &pg, 1.0, &RenderOptions::default()).expect("renders");
+    let Plates::Separated(plates) = plates else {
+        panic!("expected separated plates");
+    };
+    let inks: Vec<&str> = plates.iter().map(|p| p.ink.as_str()).collect();
+    assert_eq!(inks, ["Cyan", "Magenta", "Yellow", "Black", "Spot1"]);
+    let grey = |p: &pdfcer_render::plates::Plate, x: u32, y: u32| {
+        let i = ((y * p.pixmap.width() + x) * 4) as usize;
+        let px = &p.pixmap.data()[i..i + 4];
+        assert!(
+            px[0] == px[1] && px[1] == px[2] && px[3] == 255,
+            "opaque grey"
+        );
+        px[0]
+    };
+    // (20, 80) in pixels is inside the cyan square only (pt y is flipped).
+    assert!(
+        grey(&plates[0], 20, 80) < 255,
+        "cyan plate carries the cyan"
+    );
+    assert_eq!(grey(&plates[4], 20, 80), 255, "spot plate is clear there");
+    assert!(
+        grey(&plates[4], 70, 30) < 255,
+        "spot plate carries the spot"
+    );
+    assert_eq!(grey(&plates[1], 95, 5), 255, "corner is paper");
+    // The label sits at the lower-left foot of every plate.
+    let foot_ink =
+        |p: &pdfcer_render::plates::Plate| (2..30).any(|x| (93..98).any(|y| grey(p, x, y) < 128));
+    assert!(plates.iter().all(foot_ink), "each plate is labelled");
+}

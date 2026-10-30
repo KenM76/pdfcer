@@ -98,6 +98,7 @@ pub mod mesh;
 pub(crate) mod minify;
 pub mod overprint;
 mod overprint_preview;
+pub mod plates;
 pub mod profile;
 mod separation_preview;
 pub mod shading;

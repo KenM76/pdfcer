@@ -893,7 +893,7 @@ untiled; {tiled_pages} page(s) were tiled."
                 paper: selected_paper,
             };
             if output.separations {
-                let plates = match crate::print_plates::render_plates(
+                let plates = match pdfcer_render::plates::render_plates(
                     &session.view(),
                     page,
                     render_scale as f32,
@@ -905,12 +905,11 @@ untiled; {tiled_pages} page(s) were tiled."
                         return exit::RUNTIME_ERROR;
                     }
                 };
-                crate::print_plates::report_plates(plan.index, &plates);
-                for plate in plates {
+                for pixmap in crate::print_plates::report_plates(plan.index, plates) {
                     bitmaps.push(pdfcer_print::PageBitmap {
-                        width: plate.pixmap.width(),
-                        height: plate.pixmap.height(),
-                        rgba: plate.pixmap.take(),
+                        width: pixmap.width(),
+                        height: pixmap.height(),
+                        rgba: pixmap.take(),
                         placement,
                         page_pt: size,
                     });

@@ -3751,6 +3751,21 @@ ink and cannot be hidden alone). A display aid; print and export leave it
 `None`. CLI: `render-page` / `export-image --separation-preview` and
 `--hide-ink NAME` (repeatable, implies the preview); notes go to stderr.
 
+**Separation plates** (`pdfcer_render::plates`, request G242) — the page as
+one grey plate per ink, what `pdfcer print --separations` prints.
+`render_plates(&view, &page, scale, &RenderOptions) -> Result<Plates,
+RenderError>`: a probe render lists the inks, then one render per ink with
+the others hidden. `Plates` (`#[non_exhaustive]`) is
+`Separated(Vec<Plate>)` — `Plate { ink: String, pixmap: Pixmap }`, process
+inks then spots in plane order — or `Composite(Pixmap)` when the colorant
+buffer was refused for memory (the ordinary colour render, unlabelled;
+disclose it). A plate is opaque grey: `to_plate_grey(&mut rgba)` composites
+premultiplied RGBA over white and keeps the darkest channel, so 100% ink is
+black (an approximation of density; say so). Each plate carries its ink
+name in 6 pt Helvetica at its foot: right-aligned inside the trim's right
+edge when the trim sits ≥ 10 pt above the crop box (clear of printer's
+marks), else lower left.
+
 **Before/after visual diff** (`pdfcer_render`). `visual_diff(before, after,
 &VisualDiffOptions) -> Result<Vec<Result<PageDiff, VisualDiffError>>,
 PageTreeError>` renders each page of both documents with the same scale and
