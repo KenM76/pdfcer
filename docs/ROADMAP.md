@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `8d414a9f` `Pass 648.4` SHIPPED, 2026-10-30: one engine verb for a placed model's lit opening view (`G247`; 1335th filing)
+
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Request `G247` (pdfcer-gui). On `main`, not pushed, unreleased (next release is after `v0.108.0`). No decision minted. Reasoning is in the commit message.
+- **Core:** `EditSession::set_3d_opening_view(page_index, annot_id, &ThreeDSpec, Option<ThreeDLighting>, converted: bool) -> Result<Option<ThreeDOpeningView>, EditError>` is the one place that decides the view a new /3D annotation opens on. Camera: `threed::opening_view(&spec)` builds a view named `OPENING_VIEW_NAME` ("Default") from `ThreeDSavedView::from_camera` over new `pdfcer_3d::default_view_camera(&model, aspect)` (the poster's camera; `render_default_view` now calls it), aspect = rect width/height; no camera (non-PRC, unmeshable, no `3d` feature) writes no /C2W. Lighting: `threed::opening_lighting`; automatic = CAD for a glTF-converted model, otherwise nothing written and `Ok(None)`. Written via `set_3d_views(.., &[view], Some(0))`, one undo entry. `ThreeDOpeningView { lighting, automatic, framed, view, outcome }` (`#[non_exhaustive]`) and `disclosure()` (the rule-4 line: scheme and framing).
+- **CLI:** `3d-embed --lighting` calls the verb (private poster_view/auto rule removed) and prints `note: <disclosure>`. Only textual change: the automatic hint now reads "...of its own); --lighting picks another".
+- **Tests:** 5 new core in `crates/pdfcer-core/tests/threed_opening.rs` (auto on a PRC writes nothing; auto on a converted model writes the CAD default; verb bytes equal hand-composed bytes, the G247 acceptance; camera equals the poster camera; an unmeshable model is left to the reader), plus 1 doctest. Sabotage of the auto rule and of the aspect each caught. CLI 3D tests 39 pass; `pdfcer-3d` lib 209 pass.
+- **Gates green:** fmt, clippy (with and without `3d`), code-structure, check-core-api-verbs (count 388; `docs/core-api/02` row added). No manifest changed, so no `cargo tree` impact.
+- **GUI:** not delivered; `pdfcer-gui` adopts the verb in its own project. GUI box stays `[ ]`.
+- **FEATURES:** the Planned row moved to Implemented as `[x]` core / `[x]` cli / `[ ]` gui. Also corrected a stale row (Type 3 fonts) that called `Pass 646.15` (`1136387a`) "unreleased"; it shipped in `v0.100.0`.
+- **Next up:** `Pass 648.5`, then `648.6` (`G245`; needs a spec-RAG check first), then XFA `647.3b`.
+
 ### `v0.108.0` — PUBLISHED, 2026-10-30 (1334th filing)
 
 Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Release record for the prep filed below (1332nd, bump `7c72aaa3`).
@@ -26877,15 +26888,6 @@ Table/row layout in dynamic forms. Blocked until `pdfcer-spec-librarian` extract
 ### Pass 648.1 — Mesh import: OBJ/MTL and STL to PRC (NOT STARTED; filed 1297th filing, 2026-10-29)
 
 Split from `Pass 648.0` by operator direction ("worry about the others later"). Readers for OBJ (+MTL colours; dissolve `d` is exporter-inconsistent, so any transparency taken from it is disclosed via `inferred:`) and binary/ASCII STL (no colour: default colour disclosed), feeding the PRC writer built in 648.0. `3d-embed --model` and `3d-convert` accept `.obj` / `.stl`. A fuzz target per parser (§10.2). Depends on 648.0, now SHIPPED (1297th filing; `write_prc` exists, `3d-convert` and the format auto-detect exist, only the OBJ/STL readers and their extension/signature detection are owed). gui `[ ]`.
-
-### Pass 648.4 — One public verb for a placed model's lit opening view (NOT STARTED; filed 1330th filing, request `G247`; order: after `647.3a`, then 648.4, 648.5, 648.6)
-
-Engineer-dispatched filing; nothing built, nothing checked from here. Request `G247` (pdfcer-gui, pin `14774b1f`): `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G247_lit_opening_view_at_insert.md`.
-- **Wanted:** one public verb that writes a placed model's lit opening view. It frames the view from the poster's camera, applies the automatic-lighting rule (CAD lights for a model converted from glTF; no view for a PRC), and writes it as the default via `set_3d_views`. It returns the scheme, whether the view was framed, and the disclosures. The CLI's private `light_view`, `scheme_of` and `poster_view` in `threed_cmd::embed` then call it, so the CLI and the GUI produce byte-identical `/VA` entries. (The request's suggested shape: `EditSession::light_3d_opening_view(page, annot, lighting: Option<ThreeDLighting>, converted: bool) -> Result<Option<LitView>>`, or a field on the embed options; the engineer decides.)
-- **Why:** the GUI re-composes the logic from public API (`pdfcer_3d::assemble`, `Camera::fit_meshes`, `ThreeDSavedView::from_camera`, `with_lighting`, `set_3d_views`) in its own `model_insert`; two copies drift when the poster's camera changes.
-- **Acceptance (the request's):** the CLI and the GUI produce byte-identical `/VA` entries for the same model, rect and lighting choice; automatic lighting on a PRC writes no view and on a converted glTF writes CAD lights.
-- **Rule 4:** the scheme chosen and whether the view was framed are returned as disclosures, printed by the CLI.
-- **FEATURES:** Planned row added (all three boxes `[ ]`).
 
 ### Pass 648.5 — 3D pick: nearest hit for a view pixel or ray (NOT STARTED; filed 1330th filing, request `G245` part 1; after 648.4)
 

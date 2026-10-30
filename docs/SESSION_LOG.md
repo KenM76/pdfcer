@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1335th filing) — `Pass 648.4` SHIPPED `8d414a9f` (`G247`): one engine verb for a placed model's lit opening view
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`Pass 648.4`** `8d414a9f`, on `main`, not pushed, unreleased. `EditSession::set_3d_opening_view` frames the view from the poster's camera, applies the automatic-lighting rule, writes the default view in one undo entry, returns a disclosure; `3d-embed --lighting` calls it. 5 new core tests plus 1 doctest; fmt, clippy, code-structure, core-api-verbs (388) green; no manifest change. ROADMAP Shipped entry added, Next up entry removed; FEATURES row moved to Implemented `[x]`/`[x]`/`[ ]`.
+- FEATURES Type 3 row: "unreleased" for `Pass 646.15` corrected to released in `v0.100.0` (engineer-supplied; closes the survivor flagged in the 1334th).
+
+**Decisions made this session:** none; nothing minted.
+
+**Still in flight:** GUI adoption of the verb is `pdfcer-gui`'s.
+
+**For next session:** `Pass 648.5`, then `648.6` (`G245`; spec-RAG check first), then XFA `647.3b`.
+
+**Hard-rule-11 survivors:** not swept beyond the Type 3 row; `docs/NEXT_SESSION.md` not swept (owed). Backup currency not verifiable from here.
+
 ## 2026-10-30 (1334th filing) — `v0.108.0` PUBLISHED (CI red at the tag on a docs-size gate); `X020` and `G246` closed
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
