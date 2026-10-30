@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1324th filing) — `G241` shipped: the print vector-or-raster decision is engine API, `75a3dc58`
+
+**Shipped (engineer-reported; no shell here, nothing checked from here; on main, push/release state not checked):**
+- `G241` on `75a3dc58`: `pdfcer_render::emf::print_metafile` + `EmfOutcome::print_fallback` + `#[non_exhaustive] RasterReason` (8 variants); `pdfcer print` now a caller, private copy removed, no CLI behaviour change. Home is `pdfcer-render`, not `pdfcer_print` as filed. Tests: `export_emf` 18 (2 new), CLI print 45; sabotage fails the new test. clippy render+cli, fmt, structure (561 baseline), core-api-verbs clean; no manifest change. Full `run-gates.sh` not yet run; runs before the release carrying `G241`, `G242`, `X018`.
+
+**FEATURES.md:** `G241` Planned row moved to Implemented, core `[x]` / cli `[x]` / gui `[ ]`. **Decisions:** none. `G242` and `X018` stay in *Next up*.
+
+**For next session:** `G242`, then `X018` (spec-librarian first), then release. Owed sweep: `NEXT_SESSION.md`, `ARCHITECTURE.md` section 4, CLI help for "private to the CLI" wording; reply to `pdfcer-gui`.
+
 ## 2026-10-30 (1323rd filing) — `Pass 647.4` seventh cut shipped: border corners with a radius are drawn, `e0795e2d`; `G241`, `G242`, `X018` filed
 
 **Shipped (engineer-reported; no shell here, nothing checked from here; on main, not pushed at filing, unreleased):**

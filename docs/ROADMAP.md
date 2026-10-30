@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `75a3dc58` `G241` SHIPPED, 2026-10-30: the print vector-or-raster decision is engine API (1324th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `75a3dc58` "feat(render): the print vector-or-raster decision is public API (G241)", on main; push and release state not checked from here. Request from `pdfcer-gui`. No Pass ID minted; no decision; no new rule. Reasoning is in the commit message. Home chosen: `pdfcer-render`, not `pdfcer_print` as the filed request guessed.
+- **`pdfcer_render::emf`:** `print_metafile(&DocumentView, &Page, &RenderOptions, raster_dpi: f32) -> Result<Vec<u8>, PrintMetafileError>`: the EMF when it is the whole page; `PrintMetafileError::Raster(RasterReason)` when the page must print as an image; `::Export(RenderError)` on export failure. `EmfOutcome::print_fallback() -> Option<RasterReason>`.
+- **`RasterReason`** (`#[non_exhaustive]`): SemiTransparentPaint, TransparencyGroup, BlendMode, Shading, Overprint, BlendingColourSpace, TilingPattern, ExtraRasters. `as_str()` / Display keep the CLI wording.
+- **CLI:** `pdfcer print` calls `print_metafile`; its private copy is removed, so CLI and GUI share one rule. No behaviour change.
+- **Docs:** `docs/core-api/03-capabilities.md` EMF table gains two rows; `index.md` line count updated. `check-core-api-verbs` PASS.
+- **Tests:** render `export_emf` 18 pass (2 new); CLI print 45 pass; sabotage of `print_fallback` fails the new reason test.
+- **Gates:** clippy render+cli, fmt, `check-code-structure` (561 baseline, none new) clean. Full `run-gates.sh` NOT yet run on this commit; it runs before the release carrying `G241`, `G242`, `X018`.
+- **Invariants:** no manifest change, so `cargo tree` unaffected.
+- **FEATURES:** the `G241` row moved Planned to Implemented: core `[x]` / cli `[x]` (unchanged, already shipped) / gui `[ ]` (pdfcer-gui's own; not delivered here).
+- **Survivors:** not swept this filing: `NEXT_SESSION.md`, `ARCHITECTURE.md` section 4, CLI help for "decision is private to the CLI"; owed to the engineer. Reply to `pdfcer-gui` is the engineer's.
+
 ### `074886ce` `Pass 648.2` SHIPPED, 2026-10-30: glTF/GLB base-colour textures carried into the PRC (1322nd filing)
 
 Engineer-reported; no shell here, nothing checked from here. Implementation commit `074886ce` "feat(3d): glTF base-colour textures carried into the PRC (Pass 648.2)"; entry filed earlier in `0c9742b5`. On main; push and release state not checked from here. Operator ask (Ken, 2026-10-30). No decision minted. Reasoning is in the commit message.
@@ -26557,10 +26570,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > `Pass 647.1` SHIPPED and has left this section (1276th filing, `74023a53`); full entry at the top of *Shipped*.
 
-### Requests `G241`, `G242`, `X018` — engine API and a 3D reader fix (filed 1323rd filing, 2026-10-30; filing only, nothing built; no Pass ID minted, as for `G238`-`G240`)
+### Requests `G242`, `X018` — engine API and a 3D reader fix (filed 1323rd filing, 2026-10-30; filing only, nothing built; no Pass ID minted, as for `G238`-`G240`)
 
-Engineer's planned order: `G241`, `G242`, `X018`, then one release. Requester claims below are the engineer's relay; the code locations were not checked from here.
-- **`G241` (`pdfcer-gui`): the vector-or-raster print decision is engine API.** `print_vector::raster_reason` and `vector_page` in `pdfcer-cli` become public (home to be chosen at scoping, `pdfcer_print` likely), with a typed `RasterReason` enum replacing whatever the CLI prints today. CLI becomes a caller; stderr wording and exit codes unchanged. core-api row and `check-core-api-verbs` in the same Pass (R151). FEATURES row: Planned, core `[ ]` / cli `[x]` / gui `[ ]`.
+Engineer's planned order: `G241` (SHIPPED, 1324th filing, `75a3dc58`, top of *Shipped*), `G242`, `X018`, then one release. Requester claims below are the engineer's relay; the code locations were not checked from here.
 - **`G242` (`pdfcer-gui`): separation plates are engine API.** `render_plates`, the plate grey and label placement move from `pdfcer-cli/src/print_plates.rs` into `pdfcer_print` as public API, with a typed composite fallback (the case where plates cannot be produced and the composite is used, stated, never silent: rule 4). Same shape as `G241`; do `G241` first.
 - **`X018` (crates consumer): read past PRC MarkupData (PMI) and views in the `pdfcer-3d` product tree,** so `placements()` and `model_tree()` survive PMI files instead of failing. Acceptance: a PRC with MarkupData and views yields the same placements and model tree as the same file without them; what is skipped is disclosed. Then cut a release (standing-authorised, decision 121; green `run-gates.sh`, fresh-folder smoke test, `verify-release.py` first). Spec: dispatch `pdfcer-spec-librarian` for the MarkupData and view tree entities before implementing (rule 1).
 
