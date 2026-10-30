@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1323rd filing) — `Pass 647.4` seventh cut shipped: border corners with a radius are drawn, `e0795e2d`; `G241`, `G242`, `X018` filed
+
+**Shipped (engineer-reported; no shell here, nothing checked from here; on main, not pushed at filing, unreleased):**
+- `Pass 647.4` seventh cut on `e0795e2d`: new `xfa/paint/corner.rs` draws round/square, convex/inverted corners, trims every edge by its corners' radii, clamps radius to half the shorter side; no-radius borders unchanged. `PaintNoteKind::Corner` now means only "inverted corner, concave shape is pdfcer's reading (G-D18)"; CLI note kind `corner-drawn-square` renamed `corner-inverted-inferred`. `xfa::paint` 34 to 39 tests (edge-trim sabotage fails all 5); structure gate clean (561 baseline); core and cli (no default features) clippy clean; no manifest change. Fuzz `xfa_packets`: build pending, no run recorded.
+
+**Filed (filing only):** `G241` (print vector-or-raster decision as API), `G242` (separation plates as API), `X018` (`pdfcer-3d` reads past PMI/views); order `G241`, `G242`, `X018`, then one release. No Pass IDs minted.
+
+**FEATURES.md:** XFA drawing row text amended (corners drawn; boxes stay `[ ] [ ] [ ]` while the arc is partial); three Planned rows added. **Decisions:** none. G-D18 stays partly open.
+
+**For next session:** engineer to sweep `NEXT_SESSION.md`, `ARCHITECTURE.md` section 4 and CLI help for the old `corner-drawn-square` / "drawn square" claim (owed); record the `xfa_packets` fuzz result when it finishes; run `check-commits-filed.py` before pushing.
+
 ## 2026-10-30 (1322nd filing) — `Pass 648.2` shipped: glTF base-colour textures carried into the PRC, `074886ce`
 
 **Shipped (engineer-reported; no shell here, nothing checked from here; entry was filed in `0c9742b5`):**
