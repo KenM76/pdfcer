@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1326th filing) — `X018` shipped: PRC trees read past markups, views, lights and clipping planes, `65dd718c`
+
+**Shipped (engineer-reported; no shell here, nothing checked from here; on main, push/release state not checked, unreleased):**
+- `X018` on `65dd718c`, crate `pdfcer-3d` only: PRC product occurrences / part definitions with markups or views, and scene display parameters (741) with lights or clipping planes, no longer fail with `PrcError::Unsupported`; placements and `model_tree` survive. New public `ModelNode::markups` / `views`. Tests: `pdfcer-3d` 209 lib + 3 integration + 15 doc, 8 new (sabotage of the 8137 view gate fails). fmt, clippy, structure clean; `check-core-api-verbs` PASS; no manifest change. Full `run-gates.sh` owed before the release.
+
+**Decisions made this session:** none numbered. View-field gate at authoring 7309 / 8016 versus prc-rs's 8137: recorded as an open gap; candidate setting if real files disagree.
+
+**FEATURES.md:** Planned row moved to Implemented, core `[x]` / cli `[ ]` / gui `[ ]`; new Planned row for the optional tessellation fallback. Full record: ROADMAP top of *Shipped*.
+
+**For next session:** `run-gates.sh`, fresh-folder smoke test, `verify-release.py`, then the release covering `G241`, `G242`, `X018` (add tag to the records after). Owed sweep for "PRC tree refuses PMI/views" wording (`NEXT_SESSION.md`, `ARCHITECTURE.md`, `pdfcer-3d` docs, `3d-tree` help); reply to the crates consumer.
+
 ## 2026-10-30 (1325th filing) — `G242` shipped: separation plates are engine API, `c17bb8ef`
 
 **Shipped (engineer-reported; no shell here, nothing checked from here; on main, push/release state not checked):**

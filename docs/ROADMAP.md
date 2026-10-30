@@ -112,6 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
+### `65dd718c` `X018` SHIPPED, 2026-10-30: PRC product trees read past markups, views, lights and clipping planes (1326th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `65dd718c` "feat(3d): PRC trees read past markups, views, lights and clipping planes (X018)", on main; push and release state not checked from here (not in a release yet; the release covering `G241`, `G242`, `X018` follows this session, tag to be added). Request `X018` from the crates consumer. No Pass ID minted; no decision; no new rule. Reasoning is in the commit message. Crate `pdfcer-3d` only; prior filing `G242`, `c17bb8ef`.
+- **Defect:** a product occurrence or part definition carrying PMI markups or views, or scene display parameters (entity 741) carrying lights or clipping planes, was refused with `PrcError::Unsupported`, losing every placement and `model_tree` node.
+- **Now read past,** per spec RAG `D:\Dev\Rag-Specialized\PDF_Spec\threed\prc__8137__markup_view_entities.md`: MarkupData (204 linked items, 503 leaders, 502 markups, 504/505/506 annotation entities; sets nest, capped at 32), MKP_View 501 with SURF_Plane 86 and optional SDP, lights 731-734 (directional intensity gated at authoring 8030), clipping planes. Every count is checked against bits remaining before looping (`Truncated`, never an allocation); schema additions are skipped per entity.
+- **View gate (decision, no decision number):** `is_annotation_view` gated at authoring version 7309; default/direction flags, linked items and filters at 8016 (from the writer's own schema program for 501). prc-rs gates all at 8137: recorded alternative, still an OPEN GAP; only files authored 7309..8137 differ. Candidate setting (standing rule: spec ambiguity becomes a setting) if real files ever disagree.
+- **Public API:** `ModelNode::markups: usize` and `ModelNode::views: usize` (the occurrence's own counts plus its part definition's). `docs/core-api/01-reading-and-model.md` row updated in the same commit; `check-core-api-verbs` PASS.
+- **Files:** new `crates/pdfcer-3d/src/tree/markup.rs`, `tree/markup/tests.rs`, `tree/scene.rs` (SDP and camera moved there).
+- **Tests:** `pdfcer-3d` 209 lib + 3 integration + 15 doc, all green. 8 new: per entity kind; views at 5 authoring versions; lights at the intensity gate; nesting ceiling; hostile count; every truncation errs; end to end through `PrcFile::parse` -> `placements_with` (placed, coloured red) and `model_tree` counts (2, 1). Sabotage: gating view fields at 8137 fails the version test.
+- **Gates:** fmt, clippy `-D warnings`, `check-code-structure` clean (no new debt). Full `run-gates.sh` NOT yet run on this commit; owed before the release.
+- **Invariants:** no manifest change, no new dependency, so `cargo tree` unaffected.
+- **Not done (optional part of `X018`):** fallback to tessellations-with-a-note when the tree still fails. Residue kept as a FEATURES *Planned* row; no Pass ID minted.
+- **FEATURES:** Planned row moved to Implemented: core `[x]` / cli `[ ]` (no CLI prints the counts) / gui `[ ]`. New Planned row for the fallback.
+- **Survivors:** sweep for claims that PRC trees "fail on" or "refuse" PMI/views not run from here (`NEXT_SESSION.md`, `ARCHITECTURE.md`, `pdfcer-3d` doc comments, CLI `3d-tree` help); owed to the engineer.
+
 ### `c17bb8ef` `G242` SHIPPED, 2026-10-30: separation plates are engine API (1325th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `c17bb8ef` "feat(render): separation plates are public API (G242)", on main; push and release state not checked from here. Request from `pdfcer-gui`. No Pass ID minted; no decision; no new rule. Reasoning is in the commit message. Home chosen: `pdfcer-render`, not `pdfcer-print` (no renderer dependency there) as the filed request guessed. Prior filing: `G241`, `c7ff1052`.
@@ -26583,10 +26598,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > `Pass 647.1` SHIPPED and has left this section (1276th filing, `74023a53`); full entry at the top of *Shipped*.
 
-### Request `X018` — a 3D reader fix (filed 1323rd filing, 2026-10-30, with `G242`, now shipped; filing only, nothing built; no Pass ID minted, as for `G238`-`G240`)
-
-Engineer's planned order: `G241` (SHIPPED, 1324th filing, `75a3dc58`, top of *Shipped*), `G242` (SHIPPED, 1325th filing, `c17bb8ef`, top of *Shipped*), `X018`, then one release. Requester claims below are the engineer's relay; the code locations were not checked from here.
-- **`X018` (crates consumer): read past PRC MarkupData (PMI) and views in the `pdfcer-3d` product tree,** so `placements()` and `model_tree()` survive PMI files instead of failing. Acceptance: a PRC with MarkupData and views yields the same placements and model tree as the same file without them; what is skipped is disclosed. Then cut a release (standing-authorised, decision 121; green `run-gates.sh`, fresh-folder smoke test, `verify-release.py` first). Spec: dispatch `pdfcer-spec-librarian` for the MarkupData and view tree entities before implementing (rule 1).
+> `X018` SHIPPED and has left this section (1326th filing, `65dd718c`); full entry at the top of *Shipped*. What remains of the request: the release covering `G241`, `G242`, `X018` (standing-authorised, decision 121; green `run-gates.sh`, fresh-folder smoke test, `verify-release.py` first), and the optional tessellation fallback (FEATURES *Planned*).
 
 ### Pass 647.2 — Flowed layout `tb` / `lr-tb` (FIRST CUT `7cfa9c40`, SECOND CUT `9d0ddb90` (1278th filing), THIRD CUT `5fceb520` (1279th filing), FOURTH CUT `fa1869c8` (1280th filing), FIFTH CUT `1abf9d5e` (1281st filing), SIXTH CUT `f6e76272` (1283rd filing), SEVENTH CUT `e3547709` (1284th filing), EIGHTH CUT `cac24637` (1285th filing), NINTH CUT `f1b8baa6` (1286th filing), TENTH CUT `f64f12fe` (1287th filing), ELEVENTH CUT `5a9d3f30` (1288th filing); NOT COMPLETE, stays here)
 
