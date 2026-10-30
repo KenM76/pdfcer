@@ -20,6 +20,14 @@ pub(super) fn is_check_button(node: &XfaNode) -> bool {
     super::text::widget(node).is_some_and(|w| w.tag == "checkButton")
 }
 
+/// The box's `size` (p.651; default 10pt).
+pub(super) fn box_size(node: &XfaNode) -> f64 {
+    super::text::widget(node)
+        .and_then(|w| length(w, "size"))
+        .filter(|s| *s > 0.0)
+        .unwrap_or(10.0)
+}
+
 /// The text of `holder`'s single value child (`text`, `integer`, ...).
 fn value_of(holder: &XfaNode) -> Option<&str> {
     let v = holder.child("value")?.children.first()?;
@@ -77,8 +85,7 @@ impl Painter<'_> {
         let Some(w) = super::text::widget(node) else {
             return;
         };
-        let size = length(w, "size").filter(|s| *s > 0.0).unwrap_or(10.0);
-        let size = size.min(r.w).min(r.h);
+        let size = box_size(node).min(r.w).min(r.h);
         if size <= 0.0 {
             return;
         }
@@ -121,13 +128,21 @@ impl Painter<'_> {
                 thickness: 0.5,
                 rgb: [0.0; 3],
                 drawn: true,
+                three_d: None,
             },
         };
         if !edge.drawn {
             return;
         }
-        self.stroke_style(edge, LineCap::Butt);
         let (cx, cy) = (bx.x + bx.w / 2.0, self.height - bx.y - bx.h / 2.0);
+        if edge.three_d.is_some() {
+            if self.bevels() {
+                self.bevel_circle(cx, cy, bx.w / 2.0, edge.thickness);
+                return;
+            }
+            self.note(item, PaintNoteKind::StrokeApproximated);
+        }
+        self.stroke_style(edge, LineCap::Butt);
         if round {
             self.circle(cx, cy, bx.w / 2.0);
         } else {

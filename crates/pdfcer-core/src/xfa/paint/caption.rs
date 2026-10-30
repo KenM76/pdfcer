@@ -50,6 +50,19 @@ impl Painter<'_> {
         node: &XfaNode,
         r: LayoutRect,
     ) -> LayoutRect {
+        self.caption_leaving(item, node, r, None)
+    }
+
+    /// [`Self::caption`], except that with no positive `reserve` and
+    /// `leave` given, the caption takes all of `r` but `leave` along its
+    /// placement axis (G-CB14's remainder reading).
+    pub(super) fn caption_leaving(
+        &mut self,
+        item: &LayoutItem,
+        node: &XfaNode,
+        r: LayoutRect,
+        leave: Option<f64>,
+    ) -> LayoutRect {
         let Some(c) = node.child("caption").filter(|c| occupies(c)) else {
             return r;
         };
@@ -67,6 +80,7 @@ impl Painter<'_> {
         let horizontal = matches!(side, Side::Left | Side::Right);
         let size = super::length(c, "reserve")
             .filter(|v| *v > 0.0)
+            .or_else(|| leave.map(|l| if horizontal { r.w - l } else { r.h - l }))
             .unwrap_or_else(|| {
                 let (w, h) = match image {
                     Some(i) => self.image_extent(i).unwrap_or((0.0, 0.0)),

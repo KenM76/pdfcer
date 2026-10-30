@@ -20,8 +20,9 @@ pub use layout::{
 pub use images::{MAX_XFA_IMAGE_BYTES, XfaImages};
 pub use packets::{MAX_XDP_LEN, MAX_XML_DEPTH, XdpDocument, XdpPacket, XfaError, read_xdp};
 pub use paint::{
-    CaptionFont, EdgePlacement, FontWeight, ImageOverflow, ImagePlacement, MissingFill, PaintNote,
-    PaintNoteKind, PaintOptions, PaintedPage, paint_page, paint_page_with_images,
+    CaptionFont, CheckCaption, EdgePlacement, FontWeight, ImageOverflow, ImagePlacement,
+    MissingFill, PaintNote, PaintNoteKind, PaintOptions, PaintedPage, ThreeDStroke, paint_page,
+    paint_page_with_images,
 };
 pub use template::{
     AnchorType, ContainerKind, LayoutStrategy, Measurement, Occur, Presence, Template, XfaNode,

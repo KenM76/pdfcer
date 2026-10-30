@@ -6142,15 +6142,18 @@ pub(crate) enum Command {
     ///   paint-note page=N kind= path=
     ///   xfa-render pages= notes=
     ///
-    /// Borders, fills, plain value text and left, right, top or bottom
-    /// captions are drawn so far, text in the nearest standard PDF font.
+    /// Borders, fills, plain value text, check boxes and radio buttons, and
+    /// left, right, top or bottom captions are drawn so far, text in the
+    /// nearest standard PDF font.
     /// Each paint-note names something left out or approximated:
     /// content-not-drawn (an inline or rich caption, rich text or a
-    /// non-text widget), stroke-not-drawn, fill-not-drawn (gradient, pattern or
-    /// stipple), corner-inverted-inferred, open-break-drawn-closed,
+    /// non-text widget), stroke-not-drawn (dashed or dotted),
+    /// stroke-approximated (a 3-D edge drawn as a plain line), fill-not-drawn
+    /// (gradient, pattern or stipple), corner-inverted-inferred, open-break-drawn-closed,
     /// colour-defaulted, font-substituted (typeface drawn in Courier,
     /// Helvetica or Times), text-approximated (a character shown as ?, a
-    /// word too wide, justify drawn left, or lines clipped).
+    /// word too wide, justify drawn left, or lines clipped), image-not-drawn,
+    /// image-transparency-flattened.
     ///
     /// A note on stderr says these pages are computed, not stored in the
     /// file. The PDF is never changed. Exits 1 when the file has no XFA
@@ -6213,6 +6216,17 @@ pub(crate) enum Command {
         /// --png-dir. It sets that image's natural size.
         #[arg(long, default_value_t = 72, value_parser = clap::value_parser!(u16).range(1..))]
         image_dpi: u16,
+        /// How a lowered, raised, etched or embossed border edge is drawn,
+        /// for --png-dir: as grey bevel bands, or as a plain line of the
+        /// edge's thickness and colour (the XFA spec gives only the look).
+        #[arg(long, value_enum, default_value_t)]
+        three_d_stroke: ThreeDStrokeArg,
+        /// How wide a check box's or radio button's caption is when its
+        /// reserve is zero, negative or absent, for --png-dir: just wide
+        /// enough for its text, or everything but the box, which then sits
+        /// against the far edge.
+        #[arg(long, value_enum, default_value_t)]
+        check_caption: CheckCaptionArg,
     },
 
     /// **Create a new text form field** (§12.7.2 + §12.5.6.19).

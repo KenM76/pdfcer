@@ -3,8 +3,8 @@
 use super::*;
 
 use pdfcer_core::xfa::{
-    CaptionFont, EdgePlacement, FontWeight, ImageOverflow, ImagePlacement, MissingFill,
-    PaintNoteKind, PaintOptions, Template, XfaLayout,
+    CaptionFont, CheckCaption, EdgePlacement, FontWeight, ImageOverflow, ImagePlacement,
+    MissingFill, PaintNoteKind, PaintOptions, Template, ThreeDStroke, XfaLayout,
 };
 
 /// `xfa-layout --edge-placement` (gap G-D1, decision 207).
@@ -67,6 +67,26 @@ pub(crate) enum ImageOverflowArg {
     Show,
 }
 
+/// `xfa-layout --three-d-stroke` (gap G-CB11).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum ThreeDStrokeArg {
+    /// Grey bevel bands.
+    #[default]
+    Bevel,
+    /// A plain stroke of the edge's thickness and colour.
+    Plain,
+}
+
+/// `xfa-layout --check-caption` (gap G-CB14).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum CheckCaptionArg {
+    /// Just wide enough for the caption.
+    #[default]
+    Fit,
+    /// Everything but the box.
+    Remainder,
+}
+
 /// Where and how `xfa-layout` writes page images.
 #[derive(Debug, Clone)]
 pub(crate) struct XfaPngArgs {
@@ -79,6 +99,8 @@ pub(crate) struct XfaPngArgs {
     pub(crate) image_placement: ImagePlacementArg,
     pub(crate) image_overflow: ImageOverflowArg,
     pub(crate) image_dpi: u16,
+    pub(crate) three_d_stroke: ThreeDStrokeArg,
+    pub(crate) check_caption: CheckCaptionArg,
 }
 
 impl XfaPngArgs {
@@ -109,6 +131,14 @@ impl XfaPngArgs {
                 ImageOverflowArg::Show => ImageOverflow::Show,
             })
             .with_image_dpi(self.image_dpi)
+            .with_three_d_stroke(match self.three_d_stroke {
+                ThreeDStrokeArg::Bevel => ThreeDStroke::Bevel,
+                ThreeDStrokeArg::Plain => ThreeDStroke::Plain,
+            })
+            .with_check_caption(match self.check_caption {
+                CheckCaptionArg::Fit => CheckCaption::Fit,
+                CheckCaptionArg::Remainder => CheckCaption::Remainder,
+            })
     }
 }
 
@@ -162,6 +192,7 @@ fn note_label(k: PaintNoteKind) -> &'static str {
     match k {
         PaintNoteKind::Content => "content-not-drawn",
         PaintNoteKind::Stroke => "stroke-not-drawn",
+        PaintNoteKind::StrokeApproximated => "stroke-approximated",
         PaintNoteKind::FillType => "fill-not-drawn",
         PaintNoteKind::Corner => "corner-inverted-inferred",
         PaintNoteKind::OpenBreak => "open-break-drawn-closed",

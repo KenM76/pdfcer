@@ -65,6 +65,7 @@ impl Painter<'_> {
                     thickness: 0.5,
                     rgb: [0.0; 3],
                     drawn: true,
+                    three_d: None,
                 },
             },
         };

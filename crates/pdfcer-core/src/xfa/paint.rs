@@ -98,6 +98,34 @@ pub enum ImageOverflow {
     Show,
 }
 
+/// How a `lowered`, `raised`, `etched` or `embossed` edge is drawn (gap
+/// G-CB11: p.688-689 state only the intent).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum ThreeDStroke {
+    /// Grey bevel bands inside the border (the PDFium witness's table:
+    /// fixed greys, the edge's colour ignored), box-wide from the first
+    /// edge's stroke.
+    #[default]
+    Bevel,
+    /// A plain stroke of the edge's thickness and colour, disclosed as
+    /// [`PaintNoteKind::StrokeApproximated`].
+    Plain,
+}
+
+/// The caption region of a `checkButton` with no positive `reserve` (gap
+/// G-CB14; a negative reserve reads as omitted, G-CB12/G-CB13).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum CheckCaption {
+    /// Just enough for the caption content, as for any field (p.644).
+    #[default]
+    Fit,
+    /// The whole widget less the box along the placement axis, so the box
+    /// sits against the far edge (the PDFium witness).
+    Remainder,
+}
+
 /// The settings [`paint_page`] draws with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
@@ -117,6 +145,10 @@ pub struct PaintOptions {
     /// The resolution assumed for an image that records none (p.51:
     /// application-dependent); 0 reads as 72.
     pub image_dpi: u16,
+    /// Gap G-CB11.
+    pub three_d_stroke: ThreeDStroke,
+    /// Gap G-CB14.
+    pub check_caption: CheckCaption,
 }
 
 impl PaintOptions {
@@ -131,6 +163,8 @@ impl PaintOptions {
             image_placement: ImagePlacement::TopLeft,
             image_overflow: ImageOverflow::Crop,
             image_dpi: 72,
+            three_d_stroke: ThreeDStroke::Bevel,
+            check_caption: CheckCaption::Fit,
         }
     }
 
@@ -182,6 +216,20 @@ impl PaintOptions {
         self.image_dpi = image_dpi;
         self
     }
+
+    /// With `three_d_stroke`.
+    #[must_use]
+    pub const fn with_three_d_stroke(mut self, three_d_stroke: ThreeDStroke) -> Self {
+        self.three_d_stroke = three_d_stroke;
+        self
+    }
+
+    /// With `check_caption`.
+    #[must_use]
+    pub const fn with_check_caption(mut self, check_caption: CheckCaption) -> Self {
+        self.check_caption = check_caption;
+        self
+    }
 }
 
 /// What [`paint_page`] drew differently from the template, or left out.
@@ -191,8 +239,14 @@ pub enum PaintNoteKind {
     /// An `inline` or non-plain-text caption, rich text, non-text value
     /// content or non-text widget: not drawn yet.
     Content,
-    /// A non-`solid` edge stroke (dashed, 3-D...): that edge is not drawn.
+    /// A dashed, dotted, `dashDot` or `dashDotDot` edge stroke: that edge
+    /// is not drawn.
     Stroke,
+    /// A 3-D edge stroke (`lowered`, `raised`, `etched`, `embossed`) drawn
+    /// as a plain stroke of its thickness and colour: by
+    /// [`ThreeDStroke::Plain`], on a border with rounded corners, or on a
+    /// later edge when the first edge (which sets a box's bevel) is not 3-D.
+    StrokeApproximated,
     /// A `linear`, `radial`, `pattern` or `stipple` fill: not drawn.
     FillType,
     /// An inverted corner with a radius: its concave shape is pdfcer's
@@ -312,6 +366,7 @@ struct Edge {
     thickness: f64,
     rgb: [f64; 3],
     drawn: bool,
+    three_d: Option<bevel::ThreeD>,
 }
 
 impl Painter<'_> {
@@ -388,7 +443,22 @@ impl Painter<'_> {
             (Some("right"), _) | (_, EdgePlacement::Inward) => -0.5,
             _ => 0.0,
         };
-        if corner::any_radius(border) {
+        let rounded = corner::any_radius(border);
+        if let Some(first) = sides.first().copied()
+            && let Some(kind) = first.three_d.filter(|_| self.bevels() && !rounded)
+        {
+            if let Some(rgb) = rgb {
+                self.fill(r, rgb);
+            }
+            if first.drawn {
+                self.bevel_rect(r, kind, first.thickness);
+            }
+            return;
+        }
+        if sides.iter().any(|s| s.three_d.is_some() && s.drawn) {
+            self.note(item, PaintNoteKind::StrokeApproximated);
+        }
+        if rounded {
             let corners = self.corners(item, border);
             self.rounded(r, rgb, &sides, corners, offset);
             return;
@@ -428,7 +498,9 @@ impl Painter<'_> {
     }
 
     fn edge(&mut self, item: &LayoutItem, e: &XfaNode) -> Edge {
-        let solid = e.attr("stroke").is_none_or(|s| s == "solid");
+        let stroke = e.attr("stroke");
+        let three_d = stroke.and_then(bevel::ThreeD::from_stroke);
+        let solid = stroke.is_none_or(|s| s == "solid") || three_d.is_some();
         if !solid {
             self.note(item, PaintNoteKind::Stroke);
         }
@@ -437,6 +509,7 @@ impl Painter<'_> {
             thickness,
             rgb: self.color(item, e, [0.0; 3]),
             drawn: solid && e.presence() == Presence::Visible && thickness > 0.0,
+            three_d,
         }
     }
 
@@ -485,6 +558,10 @@ impl Painter<'_> {
         }
     }
 
+    fn bevels(&self) -> bool {
+        self.opts.three_d_stroke == ThreeDStroke::Bevel
+    }
+
     fn stroke_style(&mut self, e: Edge, cap: LineCap) {
         self.b.set_line_width(e.thickness);
         self.b.set_line_cap(cap);
@@ -526,11 +603,14 @@ fn parse_rgb(v: &str) -> Option<[f64; 3]> {
     parts.next().is_none().then_some(out)
 }
 
+mod bevel;
 mod caption;
 mod check;
 mod corner;
 mod image;
 mod text;
 
+#[cfg(test)]
+mod check_tests;
 #[cfg(test)]
 mod tests;

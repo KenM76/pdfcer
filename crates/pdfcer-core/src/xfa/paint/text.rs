@@ -122,7 +122,10 @@ impl Painter<'_> {
     /// A `checkButton` field: its caption, then its box in the rest inset
     /// by the widget's margin.
     pub(super) fn check_field(&mut self, item: &LayoutItem, node: &XfaNode) {
-        let mut r = self.value_region(item, node);
+        let r = inset(item.rect, node.child("margin"));
+        let leave = (self.opts.check_caption == super::CheckCaption::Remainder)
+            .then(|| super::check::box_size(node));
+        let mut r = self.caption_leaving(item, node, r, leave);
         if let Some(w) = widget(node) {
             r = inset(r, w.child("margin"));
         }

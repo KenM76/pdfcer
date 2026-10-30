@@ -1397,6 +1397,8 @@ pub(crate) fn run() -> ExitCode {
             image_placement,
             image_overflow,
             image_dpi,
+            three_d_stroke,
+            check_caption,
         } => cmd_xfa_layout(
             &input,
             XfaLayoutArgs {
@@ -1415,6 +1417,8 @@ pub(crate) fn run() -> ExitCode {
                     image_placement,
                     image_overflow,
                     image_dpi,
+                    three_d_stroke,
+                    check_caption,
                 })
                 .as_ref(),
         ),

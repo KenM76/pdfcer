@@ -907,6 +907,18 @@ kind.
   - `image_dpi: u16` (`with_image_dpi`, default 72; `0` reads as 72): the
     resolution assumed for an image that records none, which sets its
     natural size (p.51: application-dependent).
+  - `ThreeDStroke { Bevel (default), Plain }` (`with_three_d_stroke`): how a
+    `lowered`/`raised`/`etched`/`embossed` edge draws. `Bevel` paints fixed
+    grey bands inside the border (PDFium's table, the edge colour ignored;
+    the first edge's stroke sets a box's look, and a round check button
+    draws every kind as lowered); `Plain` strokes the edge's thickness and
+    colour and notes `StrokeApproximated` (gap G-CB11; p.688-689 give the
+    intent only).
+  - `CheckCaption { Fit (default), Remainder }` (`with_check_caption`): a
+    check button's caption region when `reserve` is zero, negative or
+    absent. `Fit` sizes it to the caption content (p.644; a negative
+    reserve reads as omitted, G-CB12/13); `Remainder` gives it everything
+    but the box, which then sits against the far edge (PDFium, G-CB14).
 - **★ What the UI must disclose:** every `PaintNote` (path + `PaintNoteKind`):
   - `Content`: an `inline` or rich-text caption, a rich or non-text value,
     or a widget drawing more than its text (check button, choice list,
@@ -914,7 +926,10 @@ kind.
   - `Font`: the typeface was drawn in a substituted standard-14 face.
   - `Text`: text approximated: an unencodable character, a word wider than
     the region, overflow, or justify/radix alignment drawn left.
-  - `Stroke`: a non-solid edge, not drawn.
+  - `Stroke`: a dashed, dotted, `dashDot` or `dashDotDot` edge, not drawn.
+  - `StrokeApproximated`: a 3-D edge drawn as a plain stroke (`Plain`, a
+    border with rounded corners, or a later edge whose first edge is not
+    3-D).
   - `FillType`: a gradient, pattern or stipple fill, not drawn.
   - `Corner`: an inverted corner; its concave shape is inferred (G-D18).
   - `OpenBreak`: `break="open"`, drawn closed.

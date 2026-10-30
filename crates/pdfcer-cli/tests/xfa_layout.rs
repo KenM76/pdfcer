@@ -275,3 +275,77 @@ fn png_dir_names_an_image_link_the_file_does_not_hold() {
     );
     assert!(stdout.ends_with("xfa-render pages=1 notes=1\n"), "{stdout}");
 }
+
+/// Three X020-shaped rows: an `exclGroup` of two round radio buttons with a
+/// `stroke` edge, `minW` and no `w`, and a negative caption reserve.
+fn radio_rows(stroke: &str) -> String {
+    let radio = |name: &str, x: &str, on: &str| {
+        format!(
+            r#"<field name="{name}" x="{x}" y="0pt" minW="20mm" h="6mm"><ui><checkButton shape="round"><border><edge stroke="{stroke}"/><fill/></border></checkButton></ui><para hAlign="center"/><caption reserve="-5.08mm"><value><text>{name}</text></value></caption><items><text>{on}</text></items></field>"#
+        )
+    };
+    let rows: String = (0..3)
+        .map(|i| {
+            format!(
+                r#"<exclGroup name="g{i}" x="10pt" y="{}pt"><bind match="none"/>{}{}</exclGroup>"#,
+                20 + 30 * i,
+                radio("Yes", "0pt", "1"),
+                radio("No", "30mm", "2")
+            )
+        })
+        .collect();
+    format!(r#"<subform name="data">{PAGE}{rows}</subform>"#)
+}
+
+/// Non-white pixels in the first Yes button's box (x 78-89pt, y 55-67pt from
+/// the top of the 612x792 page at scale 1).
+fn inked_in_first_box(dir: &std::path::Path) -> usize {
+    let bytes = std::fs::read(dir.join("page-000.png")).unwrap();
+    let mut reader = png::Decoder::new(bytes.as_slice()).read_info().unwrap();
+    let mut buf = vec![0; reader.output_buffer_size()];
+    let info = reader.next_frame(&mut buf).unwrap();
+    let px = info.color_type.samples();
+    let mut n = 0;
+    for y in 55..67 {
+        for x in 78..89 {
+            let i = (y * info.width as usize + x) * px;
+            if buf[i..i + 3].iter().any(|&c| c < 250) {
+                n += 1;
+            }
+        }
+    }
+    n
+}
+
+#[test]
+fn png_dir_draws_round_radio_buttons_with_three_d_edges() {
+    let base = std::env::temp_dir().join(format!("pdfcer-xfa-radio-{}", std::process::id()));
+    let drawn = |stroke: &str, flags: &[&str]| {
+        let dir = base.join(stroke).join(flags.len().to_string());
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut args = vec!["--png-dir", dir.to_str().unwrap()];
+        args.extend_from_slice(flags);
+        let (code, stdout, stderr) = run("radio", &pdf(Some(&radio_rows(stroke))), &args);
+        assert_eq!(code, 0, "{stderr}");
+        (stdout, inked_in_first_box(&dir))
+    };
+    let (stdout, ink) = drawn("lowered", &[]);
+    assert!(!stdout.contains("stroke-not-drawn"), "{stdout}");
+    assert!(stdout.ends_with("xfa-render pages=1 notes=0\n"), "{stdout}");
+    assert!(ink > 20, "a bevelled circle: {ink}");
+    let (stdout, ink) = drawn("lowered", &["--three-d-stroke", "plain"]);
+    assert_eq!(
+        stdout.matches("kind=stroke-approximated").count(),
+        6,
+        "{stdout}"
+    );
+    assert!(ink > 20, "a plain circle: {ink}");
+    let (stdout, ink) = drawn("dashed", &[]);
+    assert_eq!(
+        stdout.matches("kind=stroke-not-drawn").count(),
+        6,
+        "{stdout}"
+    );
+    assert_eq!(ink, 0, "a dashed edge is still left out");
+    let _ = std::fs::remove_dir_all(&base);
+}
