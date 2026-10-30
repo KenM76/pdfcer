@@ -69,7 +69,7 @@ fn style(mark: Option<&str>, round: bool) -> CheckStyle {
     }
 }
 
-impl Painter {
+impl Painter<'_> {
     /// Draw the check box of `node` in `r` (the region left after the
     /// caption and the widget's margin), aligned in it by the field's
     /// `para`, with its mark when `node` is on.

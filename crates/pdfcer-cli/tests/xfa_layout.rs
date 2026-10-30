@@ -198,3 +198,80 @@ fn a_file_with_no_xfa_form_exits_one_by_name() {
     assert!(stdout.is_empty(), "{stdout}");
     assert!(stderr.contains("has no XFA form"), "{stderr}");
 }
+
+/// A `w` by `h` 24-bit red BMP, recording no resolution, in base64.
+fn red_bmp_base64(w: u32, h: u32) -> String {
+    let stride = (w * 3).div_ceil(4) * 4;
+    let mut b = b"BM".to_vec();
+    for v in [54 + stride * h, 0, 54, 40, w, h] {
+        b.extend_from_slice(&v.to_le_bytes());
+    }
+    b.extend_from_slice(&[1, 0, 24, 0]);
+    for v in [0, stride * h, 0, 0, 0, 0] {
+        b.extend_from_slice(&v.to_le_bytes());
+    }
+    for _ in 0..h {
+        let mut row: Vec<u8> = (0..w).flat_map(|_| [0, 0, 255]).collect();
+        row.resize(usize::try_from(stride).unwrap(), 0);
+        b.extend_from_slice(&row);
+    }
+    const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for c in b.chunks(3) {
+        let n = c
+            .iter()
+            .enumerate()
+            .fold(0u32, |n, (i, v)| n | (u32::from(*v) << (16 - 8 * i)));
+        for i in 0..=c.len() {
+            out.push(char::from(
+                *A.get(((n >> (18 - 6 * i)) & 63) as usize).unwrap(),
+            ));
+        }
+    }
+    out
+}
+
+/// The page-0 PNG `xfa-layout --png-dir` draws for `t` under `flags`, and
+/// its stdout.
+fn image_run(t: &str, name: &str, flags: &[&str]) -> (Vec<u8>, String) {
+    let dir = std::env::temp_dir().join(format!("pdfcer-xfa-img-{name}-{}", std::process::id()));
+    let dir_arg = dir.to_str().unwrap();
+    let mut all = vec!["--png-dir", dir_arg];
+    all.extend_from_slice(flags);
+    let (code, stdout, stderr) = run(name, &pdf(Some(t)), &all);
+    let png = std::fs::read(dir.join("page-000.png"));
+    let _ = std::fs::remove_dir_all(&dir);
+    assert_eq!(code, 0, "{stderr}");
+    (png.unwrap(), stdout)
+}
+
+#[test]
+fn png_dir_draws_an_inline_image_under_each_image_setting() {
+    let img = red_bmp_base64(20, 10);
+    let small = format!(
+        r#"<subform name="f">{PAGE}<field name="i" x="10pt" y="10pt" w="100pt" h="40pt"><ui><imageEdit/></ui><para hAlign="right"/><value><image aspect="actual">{img}</image></value></field></subform>"#
+    );
+    let (base, stdout) = image_run(&small, "base", &[]);
+    assert!(stdout.ends_with("xfa-render pages=1 notes=0\n"), "{stdout}");
+    let (para, _) = image_run(&small, "para", &["--image-placement", "para"]);
+    assert_ne!(base, para, "para alignment moves the image right");
+    let (dpi, _) = image_run(&small, "dpi", &["--image-dpi", "144"]);
+    assert_ne!(base, dpi, "144 dpi halves its natural size");
+    let big = small.replace(r#"w="100pt" h="40pt""#, r#"w="10pt" h="5pt""#);
+    let (crop, _) = image_run(&big, "crop", &[]);
+    let (show, _) = image_run(&big, "show", &["--image-overflow", "show"]);
+    assert_ne!(crop, show, "show draws past the box");
+}
+
+#[test]
+fn png_dir_names_an_image_link_the_file_does_not_hold() {
+    let t = format!(
+        r#"<subform name="f">{PAGE}<field name="i" x="10pt" y="10pt" w="100pt" h="40pt"><ui><imageEdit/></ui><value><image href="logo.png"/></value></field></subform>"#
+    );
+    let (_, stdout) = image_run(&t, "href", &[]);
+    assert!(
+        stdout.contains("paint-note page=0 kind=image-not-drawn path=0.1"),
+        "{stdout}"
+    );
+    assert!(stdout.ends_with("xfa-render pages=1 notes=1\n"), "{stdout}");
+}

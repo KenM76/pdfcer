@@ -322,18 +322,18 @@ pub(crate) fn to_jpeg(img: &ImportedImage, quality: u8) -> Result<ImportedImage,
 /// A struct rather than a tuple because the three fields must agree — a
 /// component count that disagrees with the colour space is precisely the bug
 /// that renders as plausible-looking wrong colours.
-struct SourceSamples {
+pub(crate) struct SourceSamples {
     /// Interleaved, row-major, row 0 at the top, exactly
     /// `width × height × components` bytes with **no row padding** (the
     /// encoder's own buffer contract; §8.9.3's padding has been undone).
-    samples: Vec<u8>,
-    width: u32,
-    height: u32,
+    pub(crate) samples: Vec<u8>,
+    pub(crate) width: u32,
+    pub(crate) height: u32,
     /// 1, 3 or 4 — the only component counts `/DCTDecode` expresses.
-    components: u8,
+    pub(crate) components: u8,
     /// The `/ColorSpace` the re-encoded image will declare, which is what
     /// the components *mean*.
-    space: ImportColorSpace,
+    pub(crate) space: ImportColorSpace,
 }
 
 /// Recover the source's pixels as 8-bit interleaved samples.
@@ -352,7 +352,7 @@ struct SourceSamples {
 /// filter chain — including §7.4.4.4's PNG predictor, which the verbatim
 /// `IDAT` passthrough depends on. Re-implementing an un-predictor here would
 /// mean two of them.
-fn source_samples(img: &ImportedImage) -> Result<SourceSamples, ImageImportError> {
+pub(crate) fn source_samples(img: &ImportedImage) -> Result<SourceSamples, ImageImportError> {
     use crate::image_codec::{CodecColorModel, decode_image_view};
     use crate::object::{Dict, Name, ObjId, Object};
     use crate::view::DocumentView;

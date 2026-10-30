@@ -788,6 +788,12 @@ test = false
 doc = false
 
 [[bin]]
+name = "xfa_images"
+path = "fuzz_targets/xfa_images.rs"
+test = false
+doc = false
+
+[[bin]]
 name = "gltf"
 path = "fuzz_targets/gltf.rs"
 test = false

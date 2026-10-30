@@ -6173,8 +6173,10 @@ pub(crate) enum Command {
         #[arg(long, value_enum, default_value_t)]
         page_area_keep: PageAreaKeepArg,
         /// Also draw each computed page to page-NNN.png in this folder
-        /// (created if missing). Borders, fills, plain text and captions only;
-        /// everything not drawn exactly is listed as a paint-note line.
+        /// (created if missing). Borders, fills, plain text, captions and
+        /// images only; everything not drawn exactly is listed as a
+        /// paint-note line. An image link is looked up only in the file's
+        /// XFAImages tree, never on disk or the network.
         #[arg(long, value_name = "DIR")]
         png_dir: Option<PathBuf>,
         /// Pixels per point for --png-dir images (1.0 is 72 dpi).
@@ -6198,6 +6200,19 @@ pub(crate) enum Command {
         /// field's own font.
         #[arg(long, value_enum, default_value_t)]
         caption_font: CaptionFontArg,
+        /// Where an image smaller than its box sits, for --png-dir: at the
+        /// box's top-left corner, or where the box's paragraph alignment
+        /// puts it (the XFA spec does not say).
+        #[arg(long, value_enum, default_value_t)]
+        image_placement: ImagePlacementArg,
+        /// Whether an image larger than its box is cut off at the box's
+        /// edges (as Acrobat does) or drawn whole, for --png-dir.
+        #[arg(long, value_enum, default_value_t)]
+        image_overflow: ImageOverflowArg,
+        /// The resolution assumed for an image that records none, for
+        /// --png-dir. It sets that image's natural size.
+        #[arg(long, default_value_t = 72, value_parser = clap::value_parser!(u16).range(1..))]
+        image_dpi: u16,
     },
 
     /// **Create a new text form field** (§12.7.2 + §12.5.6.19).

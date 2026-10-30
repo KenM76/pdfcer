@@ -3,8 +3,8 @@
 use super::*;
 
 use pdfcer_core::xfa::{
-    CaptionFont, EdgePlacement, FontWeight, MissingFill, PaintNoteKind, PaintOptions, Template,
-    XfaLayout,
+    CaptionFont, EdgePlacement, FontWeight, ImageOverflow, ImagePlacement, MissingFill,
+    PaintNoteKind, PaintOptions, Template, XfaLayout,
 };
 
 /// `xfa-layout --edge-placement` (gap G-D1, decision 207).
@@ -47,6 +47,26 @@ pub(crate) enum CaptionFontArg {
     Field,
 }
 
+/// `xfa-layout --image-placement` (gap G-D10).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum ImagePlacementArg {
+    /// At the box's top-left corner.
+    #[default]
+    TopLeft,
+    /// Where the box's paragraph alignment puts it.
+    Para,
+}
+
+/// `xfa-layout --image-overflow` (gap G-IM2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum ImageOverflowArg {
+    /// Cut off at the box's edges.
+    #[default]
+    Crop,
+    /// Drawn whole.
+    Show,
+}
+
 /// Where and how `xfa-layout` writes page images.
 #[derive(Debug, Clone)]
 pub(crate) struct XfaPngArgs {
@@ -56,6 +76,9 @@ pub(crate) struct XfaPngArgs {
     pub(crate) missing_fill: MissingFillArg,
     pub(crate) font_weight: FontWeightArg,
     pub(crate) caption_font: CaptionFontArg,
+    pub(crate) image_placement: ImagePlacementArg,
+    pub(crate) image_overflow: ImageOverflowArg,
+    pub(crate) image_dpi: u16,
 }
 
 impl XfaPngArgs {
@@ -77,6 +100,15 @@ impl XfaPngArgs {
                 CaptionFontArg::Own => CaptionFont::Own,
                 CaptionFontArg::Field => CaptionFont::Field,
             })
+            .with_image_placement(match self.image_placement {
+                ImagePlacementArg::TopLeft => ImagePlacement::TopLeft,
+                ImagePlacementArg::Para => ImagePlacement::Para,
+            })
+            .with_image_overflow(match self.image_overflow {
+                ImageOverflowArg::Crop => ImageOverflow::Crop,
+                ImageOverflowArg::Show => ImageOverflow::Show,
+            })
+            .with_image_dpi(self.image_dpi)
     }
 }
 
@@ -93,14 +125,11 @@ pub(crate) fn write_xfa_pngs(
     let paint = args.paint();
     let options = pdfcer_render::RenderOptions::default();
     let mut notes = 0usize;
+    let view = doc.view();
+    let images = pdfcer_core::xfa::XfaImages::from_view(&view);
     for (i, page) in layout.pages.iter().enumerate() {
-        let out = pdfcer_render::xfa::render_xfa_page(
-            &doc.view(),
-            template,
-            page,
-            &paint,
-            args.scale,
-            &options,
+        let out = pdfcer_render::xfa::render_xfa_page_with_images(
+            &view, template, page, &paint, &images, args.scale, &options,
         )
         .map_err(|e| format!("page {i}: {e}"))?;
         let png = out
@@ -139,6 +168,8 @@ fn note_label(k: PaintNoteKind) -> &'static str {
         PaintNoteKind::Color => "colour-defaulted",
         PaintNoteKind::Font => "font-substituted",
         PaintNoteKind::Text => "text-approximated",
+        PaintNoteKind::Image => "image-not-drawn",
+        PaintNoteKind::ImageTransparency => "image-transparency-flattened",
         _ => "other",
     }
 }

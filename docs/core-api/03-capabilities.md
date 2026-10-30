@@ -832,9 +832,13 @@ with every `warnings` entry.
   height=` line, one `paint-note page= kind= path=` line per `PaintNote`,
   and an `xfa-render pages= notes=` summary; `--edge-placement
   {grammar,inward}`, `--missing-fill {none,white}` and `--font-weight
-  {normal,bold}` and `--caption-font {own,field}` map onto `PaintOptions`; note kinds print as
-  `content-not-drawn`, `font-substituted`, `text-approximated` and the
-  like. An image that cannot be written exits 1.
+  {normal,bold}`, `--caption-font {own,field}`, `--image-placement
+  {top-left,para}`, `--image-overflow {crop,show}` and `--image-dpi N`
+  (default 72) map onto `PaintOptions`; note kinds print as
+  `content-not-drawn`, `font-substituted`, `text-approximated`,
+  `image-not-drawn`, `image-transparency-flattened` and the like. Image
+  `href`s resolve through the file's own `XfaImages`, built once per run.
+  An image that cannot be written exits 1.
 
 **Drawing a laid-out XFA page** (`xfa/paint.rs`, decision 204, Pass 647.4
 first cut): `pdfcer_core::xfa::paint_page(&Template, &LayoutPage,
@@ -864,7 +868,19 @@ kind.
   `reserve` (omitted, `0`, `-1`), just enough for its unwrapped text plus
   its own `margin`. Its plain text is set there in its own `font`/`para`;
   the value is set in the rest. An `invisible` caption keeps its region but
-  draws nothing; `hidden` and `inactive` ones take no space.
+  draws nothing; `hidden` and `inactive` ones take no space. A caption
+  holding an `image` sizes to the image's natural size instead of text.
+- **Draws** an `image` value (p.750-751) of a field (any text widget or
+  `imageEdit`), draw or caption: the `href` target when the given
+  `XfaImages` holds that exact string (it wins over inline content, p.257),
+  else the base64 inline content. The format (JPEG, PNG, GIF, BMP, TIFF) is
+  sniffed from the bytes; `contentType` is ignored. `aspect` `fit`
+  (default), `none`, `actual`, `width`, `height` sizes it in the content
+  region, clipped there by default; with no region area it is drawn at
+  natural size. It is emitted as an inline image (`BI … ID … EI`, ASCII-hex)
+  because the painted page owns no streams; transparency (an alpha channel
+  or colour key) is composited onto white first. Layout does not yet size
+  growable containers from an image's natural size.
 - **Skips** an item whose own or any ancestor container's `presence` is not
   `visible` (p.68), and a non-visible border, fill or edge.
 - **Settings:**
@@ -881,6 +897,16 @@ kind.
     of a caption with no `font` of its own. `Own` uses the `font` defaults,
     as the grammar does; `Field` uses the field's or draw's `font` (gap
     G-D11).
+  - `ImagePlacement { TopLeft (default), Para }` (`with_image_placement`):
+    where an image smaller than its region sits. `Para` uses the holder's
+    `para` `hAlign`/`vAlign`, which p.800/p.803 define for text only (gap
+    G-D10).
+  - `ImageOverflow { Crop (default), Show }` (`with_image_overflow`):
+    whether an image larger than its region is clipped, as Acrobat does
+    (p.492), or drawn whole (gap G-IM2).
+  - `image_dpi: u16` (`with_image_dpi`, default 72; `0` reads as 72): the
+    resolution assumed for an image that records none, which sets its
+    natural size (p.51: application-dependent).
 - **★ What the UI must disclose:** every `PaintNote` (path + `PaintNoteKind`):
   - `Content`: an `inline` or rich-text caption, a rich or non-text value,
     or a widget drawing more than its text (check button, choice list,
@@ -893,10 +919,26 @@ kind.
   - `Corner`: a rounded corner, drawn square.
   - `OpenBreak`: `break="open"`, drawn closed.
   - `Color`: an unreadable colour; the default was used.
+  - `Image`: an image not drawn: its `href` is not in the `XfaImages`
+    passed in (never fetched from disk or network), or its bytes are not
+    a decodable image.
+  - `ImageTransparency`: an image's transparency was flattened onto white.
 
+- **Linked images:** `pdfcer_core::xfa::XfaImages` maps an exact `href`
+  string to image bytes. `XfaImages::from_view(&DocumentView)` reads the
+  catalog's `/Names /XFAImages` name tree (XFA 3.3 p.257; in no PDF-spec
+  table): string keys to streams only, filters decoded, `/Kids` walked once
+  per node under the shared depth/node caps, at most `MAX_XFA_IMAGE_BYTES`
+  (256 MiB) in total; `is_complete()` is `false` when a cap cut it short.
+  `new()` / `insert(href, bytes)` let a shell supply images itself.
+  `paint_page_with_images(&Template, &LayoutPage, &PaintOptions,
+  &XfaImages)` resolves through it; `paint_page` passes an empty set.
 - **Rasterizing it:** `pdfcer_render::xfa::render_xfa_page(&DocumentView,
   &Template, &LayoutPage, &PaintOptions, scale, &RenderOptions) ->
-  Result<RenderedXfaPage { page: RenderedPage, notes }, RenderError>`. The
+  Result<RenderedXfaPage { page: RenderedPage, notes }, RenderError>`
+  builds `XfaImages::from_view` itself; `render_xfa_page_with_images(…,
+  &XfaImages, scale, &RenderOptions)` takes a prebuilt set, for drawing
+  many pages of one file. The
   pixmap is `width` x `height` points at `scale`, white-backed unless
   `RenderOptions` asks for a transparent backdrop. It is a separate entry
   point, not a branch of `render_page`, because the layout's page count need

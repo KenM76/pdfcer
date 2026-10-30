@@ -12,7 +12,8 @@
 //! Scope: a container's own `border` (its `fill`, `margin` and solid square
 //! edges), and a `draw`'s or `field`'s plain value text in a standard-14
 //! face ([`PaintedPage::resources`] names them), beside its left, right, top
-//! or bottom caption, and a `checkButton` field's box and mark. Inline and
+//! or bottom caption, and a `checkButton` field's box and mark; an `image`
+//! value or caption, inline or linked through [`XfaImages`]. Inline and
 //! rich captions, rich text, other value content and other non-text widgets
 //! are not drawn yet; each item carrying them is reported as
 //! [`PaintNoteKind::Content`].
@@ -22,7 +23,9 @@ use crate::object::{Dict, Name, Object};
 use crate::vartext::standard14_font_dict;
 use crate::writer::content::{ContentBuilder, LineCap, Paint};
 
-use super::{ContainerKind, LayoutItem, LayoutPage, LayoutRect, Presence, Template, XfaNode};
+use super::{
+    ContainerKind, LayoutItem, LayoutPage, LayoutRect, Presence, Template, XfaImages, XfaNode,
+};
 
 /// Where an `edge` with `hand="even"` sits (gap G-D1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -71,6 +74,30 @@ pub enum CaptionFont {
     Field,
 }
 
+/// Where an image smaller than its region sits in it (gap G-D10).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum ImagePlacement {
+    /// At the region's top-left corner.
+    #[default]
+    TopLeft,
+    /// Where the holder's `para` `hAlign`/`vAlign` put it (p.800, p.803:
+    /// defined for text only, so this reading is an extension).
+    Para,
+}
+
+/// What happens to an image larger than its region (gap G-IM2: Adobe crops,
+/// p.492; p.54 forbids clipping a printed field's content).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum ImageOverflow {
+    /// Clipped to the region.
+    #[default]
+    Crop,
+    /// Drawn whole, past the region's edges.
+    Show,
+}
+
 /// The settings [`paint_page`] draws with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
@@ -83,6 +110,13 @@ pub struct PaintOptions {
     pub font_weight: FontWeight,
     /// Gap G-D11.
     pub caption_font: CaptionFont,
+    /// Gap G-D10.
+    pub image_placement: ImagePlacement,
+    /// Gap G-IM2.
+    pub image_overflow: ImageOverflow,
+    /// The resolution assumed for an image that records none (p.51:
+    /// application-dependent); 0 reads as 72.
+    pub image_dpi: u16,
 }
 
 impl PaintOptions {
@@ -94,6 +128,9 @@ impl PaintOptions {
             missing_fill: MissingFill::None,
             font_weight: FontWeight::Normal,
             caption_font: CaptionFont::Own,
+            image_placement: ImagePlacement::TopLeft,
+            image_overflow: ImageOverflow::Crop,
+            image_dpi: 72,
         }
     }
 
@@ -124,6 +161,27 @@ impl PaintOptions {
         self.caption_font = caption_font;
         self
     }
+
+    /// With `image_placement`.
+    #[must_use]
+    pub const fn with_image_placement(mut self, image_placement: ImagePlacement) -> Self {
+        self.image_placement = image_placement;
+        self
+    }
+
+    /// With `image_overflow`.
+    #[must_use]
+    pub const fn with_image_overflow(mut self, image_overflow: ImageOverflow) -> Self {
+        self.image_overflow = image_overflow;
+        self
+    }
+
+    /// With `image_dpi`.
+    #[must_use]
+    pub const fn with_image_dpi(mut self, image_dpi: u16) -> Self {
+        self.image_dpi = image_dpi;
+        self
+    }
 }
 
 /// What [`paint_page`] drew differently from the template, or left out.
@@ -150,6 +208,13 @@ pub enum PaintNoteKind {
     /// as `?`, a word wider than its region, `justify`/`radix` alignment
     /// drawn left, or lines taller than the region (clipped).
     Text,
+    /// An `image` not drawn: its `href` names nothing in the file's
+    /// `XFAImages` tree (it is never followed outside the file) and it has
+    /// no usable inline content, or its bytes are not a JPEG, PNG, GIF, BMP
+    /// or TIFF image.
+    Image,
+    /// An image drawn with its transparency composited onto white.
+    ImageTransparency,
 }
 
 /// One disclosure from [`paint_page`].
@@ -183,7 +248,19 @@ pub struct PaintedPage {
 /// is not, draws nothing (p.68).
 #[must_use]
 pub fn paint_page(template: &Template, page: &LayoutPage, opts: &PaintOptions) -> PaintedPage {
+    paint_page_with_images(template, page, opts, &XfaImages::new())
+}
+
+/// [`paint_page`], resolving each image `href` in `images` (only there).
+#[must_use]
+pub fn paint_page_with_images(
+    template: &Template,
+    page: &LayoutPage,
+    opts: &PaintOptions,
+    images: &XfaImages,
+) -> PaintedPage {
     let mut p = Painter {
+        images,
         b: ContentBuilder::new(),
         notes: Vec::new(),
         height: page.height,
@@ -219,7 +296,8 @@ fn drawable<'t>(template: &'t Template, item: &LayoutItem) -> Option<&'t XfaNode
     Some(node)
 }
 
-struct Painter {
+struct Painter<'i> {
+    images: &'i XfaImages,
     b: ContentBuilder,
     notes: Vec<PaintNote>,
     height: f64,
@@ -235,7 +313,7 @@ struct Edge {
     drawn: bool,
 }
 
-impl Painter {
+impl Painter<'_> {
     fn note(&mut self, item: &LayoutItem, kind: PaintNoteKind) {
         let note = PaintNote {
             path: item.path.clone(),
@@ -444,6 +522,7 @@ fn parse_rgb(v: &str) -> Option<[f64; 3]> {
 
 mod caption;
 mod check;
+mod image;
 mod text;
 
 #[cfg(test)]

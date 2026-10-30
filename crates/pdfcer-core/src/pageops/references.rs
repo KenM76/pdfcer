@@ -115,8 +115,15 @@ impl DestinationResolver {
             let mut budget = MAX_NAME_TREE_NODES;
             let mut visited = HashSet::new();
             let mut from_tree = HashMap::new();
-            let _complete =
-                flatten_name_tree(graph, tree, 0, &mut budget, &mut visited, &mut from_tree);
+            let _complete = flatten_name_tree(
+                graph,
+                tree,
+                0,
+                &mut budget,
+                &mut visited,
+                &mut from_tree,
+                true,
+            );
             let in_tree = from_tree.keys().cloned().collect();
             named.extend(from_tree);
             return Self { named, in_tree };
@@ -299,6 +306,7 @@ fn flatten_name_tree<G: ObjectGraph + ?Sized>(
     budget: &mut usize,
     visited: &mut HashSet<ObjId>,
     out: &mut HashMap<Vec<u8>, Object>,
+    names_ok: bool,
 ) -> bool {
     if depth > MAX_NAME_TREE_DEPTH || *budget == 0 {
         return false;
@@ -320,7 +328,7 @@ fn flatten_name_tree<G: ObjectGraph + ?Sized>(
             // same reason `resolve_destination` accepts both.
             let key_bytes = match graph.resolve(key) {
                 Object::String(bytes) => bytes.clone(),
-                Object::Name(name) => name.as_bytes().to_vec(),
+                Object::Name(name) if names_ok => name.as_bytes().to_vec(),
                 _ => continue,
             };
             out.insert(key_bytes, value.clone());
@@ -343,7 +351,8 @@ fn flatten_name_tree<G: ObjectGraph + ?Sized>(
                 continue;
             }
             if let Some(dict) = graph.resolve(kid).as_dict() {
-                complete &= flatten_name_tree(graph, dict, depth + 1, budget, visited, out);
+                complete &=
+                    flatten_name_tree(graph, dict, depth + 1, budget, visited, out, names_ok);
             }
         }
     }
@@ -359,7 +368,36 @@ pub(crate) fn name_tree_entries<G: ObjectGraph + ?Sized>(
 ) -> Option<HashMap<Vec<u8>, Object>> {
     let mut budget = MAX_NAME_TREE_NODES;
     let mut out = HashMap::new();
-    flatten_name_tree(graph, root, 0, &mut budget, &mut HashSet::new(), &mut out).then_some(out)
+    flatten_name_tree(
+        graph,
+        root,
+        0,
+        &mut budget,
+        &mut HashSet::new(),
+        &mut out,
+        true,
+    )
+    .then_some(out)
+}
+
+/// [`name_tree_entries`] keeping only the string keys §7.9.6 requires: a
+/// name key is skipped rather than read as the string it spells.
+pub(crate) fn name_tree_string_entries<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    root: &Dict,
+) -> Option<HashMap<Vec<u8>, Object>> {
+    let mut budget = MAX_NAME_TREE_NODES;
+    let mut out = HashMap::new();
+    flatten_name_tree(
+        graph,
+        root,
+        0,
+        &mut budget,
+        &mut HashSet::new(),
+        &mut out,
+        false,
+    )
+    .then_some(out)
 }
 
 /// What a structural operation would break, counted.

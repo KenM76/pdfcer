@@ -1394,6 +1394,9 @@ pub(crate) fn run() -> ExitCode {
             missing_fill,
             font_weight,
             caption_font,
+            image_placement,
+            image_overflow,
+            image_dpi,
         } => cmd_xfa_layout(
             &input,
             XfaLayoutArgs {
@@ -1409,6 +1412,9 @@ pub(crate) fn run() -> ExitCode {
                     missing_fill,
                     font_weight,
                     caption_font,
+                    image_placement,
+                    image_overflow,
+                    image_dpi,
                 })
                 .as_ref(),
         ),

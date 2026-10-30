@@ -8,8 +8,14 @@ use crate::vartext::{encode_winansi, text_width};
 
 use super::{FontWeight, LayoutItem, LayoutRect, PaintNoteKind, Painter, XfaNode, inset};
 
-/// Widgets whose only drawing is the value text (p.865, p.784, p.669).
-const TEXT_WIDGETS: [&str; 4] = ["textEdit", "numericEdit", "dateTimeEdit", "passwordEdit"];
+/// Widgets whose only drawing is the value (p.865, p.784, p.669, p.750).
+const TEXT_WIDGETS: [&str; 5] = [
+    "textEdit",
+    "numericEdit",
+    "dateTimeEdit",
+    "passwordEdit",
+    "imageEdit",
+];
 
 /// Whether `node` has drawable content this cut does not draw: a visible
 /// caption, non-text value content, rich text, or a widget that draws more
@@ -25,12 +31,12 @@ pub(super) fn content_left_out(node: &XfaNode) -> bool {
     caption || value || ui
 }
 
-/// Whether `holder`'s `value` holds anything but plain `text`.
+/// Whether `holder`'s `value` holds anything but plain `text` or an `image`.
 pub(super) fn has_unplain_value(holder: &XfaNode) -> bool {
     holder.child("value").is_some_and(|v| {
         v.children
             .iter()
-            .any(|c| c.tag != "text" || !c.children.is_empty())
+            .any(|c| !(c.tag == "image" || (c.tag == "text" && c.children.is_empty())))
     })
 }
 
@@ -91,19 +97,20 @@ struct Style {
     v_align: f64,
 }
 
-impl Painter {
-    /// Draw the item's caption (p.51) and value text: the caption in the
+impl Painter<'_> {
+    /// Draw the item's caption (p.51) and value text or image: the caption in the
     /// region carved from the content region (p.50), the value in the rest,
     /// inset by a text widget's own margin.
     pub(super) fn text(&mut self, item: &LayoutItem, node: &XfaNode) {
         let mut r = self.value_region(item, node);
-        let Some(text) = plain_text(node) else {
-            return;
-        };
         if let Some(w) = widget(node) {
             r = inset(r, w.child("margin"));
         }
-        self.set(item, text, node.child("font"), node.child("para"), r);
+        if let Some(image) = super::image::value_image(node) {
+            self.image(item, image, node.child("para"), r);
+        } else if let Some(text) = plain_text(node) {
+            self.set(item, text, node.child("font"), node.child("para"), r);
+        }
     }
 
     /// The item's content region less its caption (p.50).

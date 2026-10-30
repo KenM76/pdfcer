@@ -31,14 +31,15 @@ fn occupies(caption: &XfaNode) -> bool {
 }
 
 /// Whether `node` has a visible caption this cut does not draw: an
-/// `inline` one, or one holding rich text or non-text content.
+/// `inline` one, or one holding rich text or other non-text, non-image
+/// content.
 pub(super) fn left_out(node: &XfaNode) -> bool {
     node.child("caption").is_some_and(|c| {
         c.presence() == Presence::Visible && (side(c).is_none() || has_unplain_value(c))
     })
 }
 
-impl Painter {
+impl Painter<'_> {
     /// Draw `node`'s caption in its region of `r` and return the rest of `r`
     /// (p.51). The region is `reserve` wide (left/right) or tall (top/bottom);
     /// with no positive `reserve` it is just enough for the unwrapped caption
@@ -56,6 +57,7 @@ impl Painter {
             return r;
         };
         let text = plain_text(c).filter(|_| !has_unplain_value(c));
+        let image = super::image::value_image(c);
         let font = match self.opts.caption_font {
             CaptionFont::Field => c.child("font").or_else(|| node.child("font")),
             _ => c.child("font"),
@@ -66,16 +68,21 @@ impl Painter {
         let size = super::length(c, "reserve")
             .filter(|v| *v > 0.0)
             .unwrap_or_else(|| {
-                let (w, h) = text.map_or((0.0, 0.0), |t| self.extent(item, t, font, para));
+                let (w, h) = match image {
+                    Some(i) => self.image_extent(i).unwrap_or((0.0, 0.0)),
+                    None => text.map_or((0.0, 0.0), |t| self.extent(item, t, font, para)),
+                };
                 // An empty rect inset by the margin has extent -(near + far).
                 let m = inset(LayoutRect::default(), margin);
                 if horizontal { w - m.w } else { h - m.h }
             });
         let (cap, rest) = split(r, side, size);
-        if c.presence() == Presence::Visible
-            && let Some(t) = text
-        {
-            self.set(item, t, font, para, inset(cap, margin));
+        if c.presence() == Presence::Visible {
+            if let Some(i) = image {
+                self.image(item, i, para, inset(cap, margin));
+            } else if let Some(t) = text {
+                self.set(item, t, font, para, inset(cap, margin));
+            }
         }
         rest
     }

@@ -9,7 +9,9 @@
 
 use pdfcer_core::content::ContentStream;
 use pdfcer_core::object::Dict;
-use pdfcer_core::xfa::{LayoutPage, PaintNote, PaintOptions, Template, paint_page};
+use pdfcer_core::xfa::{
+    LayoutPage, PaintNote, PaintOptions, Template, XfaImages, paint_page_with_images,
+};
 use tiny_skia::{Pixmap, Transform};
 
 use crate::{
@@ -23,18 +25,17 @@ use crate::{
 pub struct RenderedXfaPage {
     /// Pixels and render diagnostics, as for a PDF page.
     pub page: RenderedPage,
-    /// What [`paint_page`] did not draw or drew approximately (rule 4: the
+    /// What [`pdfcer_core::xfa::paint_page`] did not draw or drew approximately (rule 4: the
     /// shell discloses these off-canvas).
     pub notes: Vec<PaintNote>,
 }
 
 /// Draw `page` of `template`'s layout at `scale` device pixels per point.
 ///
-/// `view` is the document the template came from; the synthesized content's
-/// only resources are the standard-14 fonts [`paint_page`] names, so it
-/// supplies nothing yet, but it is where embedded fonts and images will
-/// resolve. The page is white-backed unless `options`
-/// asks for [`PageBackdrop::Transparent`].
+/// `view` is the document the template came from: an image `href` resolves
+/// in its `/Names /XFAImages` tree ([`XfaImages::from_view`], read on each
+/// call; [`render_xfa_page_with_images`] reuses one). The page is
+/// white-backed unless `options` asks for [`PageBackdrop::Transparent`].
 ///
 /// # Errors
 ///
@@ -49,7 +50,26 @@ pub fn render_xfa_page(
     scale: f32,
     options: &RenderOptions,
 ) -> Result<RenderedXfaPage, RenderError> {
-    let mut painted = paint_page(template, page, paint);
+    let images = XfaImages::from_view(view);
+    render_xfa_page_with_images(view, template, page, paint, &images, scale, options)
+}
+
+/// [`render_xfa_page`] with `images` already read, for a caller drawing
+/// several pages of one form.
+///
+/// # Errors
+///
+/// As [`render_xfa_page`].
+pub fn render_xfa_page_with_images(
+    view: &DocumentView<'_>,
+    template: &Template,
+    page: &LayoutPage,
+    paint: &PaintOptions,
+    images: &XfaImages,
+    scale: f32,
+    options: &RenderOptions,
+) -> Result<RenderedXfaPage, RenderError> {
+    let mut painted = paint_page_with_images(template, page, paint, images);
     let content = std::mem::take(&mut painted.content);
     let resources = std::mem::take(&mut painted.resources);
     let rendered = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
