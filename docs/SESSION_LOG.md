@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1325th filing) — `G242` shipped: separation plates are engine API, `c17bb8ef`
+
+**Shipped (engineer-reported; no shell here, nothing checked from here; on main, push/release state not checked):**
+- `G242` on `c17bb8ef`: `pdfcer_render::plates::render_plates` -> `Plates::{Separated(Vec<Plate>), Composite(Pixmap)}` (`#[non_exhaustive]`; typed composite fallback replaces the empty-ink-name signal), `Plate { ink, pixmap }`, public `to_plate_grey`; label rule moved unchanged; `pdfcer print --separations` is a caller, no CLI behaviour change. Home is `pdfcer-render`, not `pdfcer-print` as filed. Tests: `separation_preview` 6 (1 new), plates unit 2, CLI print 43; removing the label fails the new test. clippy render+cli, fmt, structure (561, none new), core-api-verbs clean; no manifest change. Full `run-gates.sh` owed before the release (carries `G241`, `G242`, `X018`).
+- The `xfa_packets` fuzz build for `e0795e2d` (`Pass 647.4` seventh cut) completed green; amended in that cut's ROADMAP record. No fuzz run recorded.
+
+**FEATURES.md:** `G242` row moved to Implemented, core `[x]` / cli `[x]` / gui `[ ]`. **Decisions:** none. `X018` stays in *Next up*.
+
+**For next session:** `X018` (spec-librarian first), then `run-gates.sh`, then release. Owed sweep: `NEXT_SESSION.md`, `ARCHITECTURE.md` section 4, CLI help for "private to the CLI" wording (covers `G241` and `G242`); reply to `pdfcer-gui`.
+
 ## 2026-10-30 (1324th filing) — `G241` shipped: the print vector-or-raster decision is engine API, `75a3dc58`
 
 **Shipped (engineer-reported; no shell here, nothing checked from here; on main, push/release state not checked):**
