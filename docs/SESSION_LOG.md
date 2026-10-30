@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1319th filing) — `G238` shipped: print-job composition is engine API, `ac583cf2`
+
+**Shipped (engineer-reported; no shell here, nothing checked from here; unpushed, unreleased, latest release `v0.106.0`):**
+- `G238` on `ac583cf2`: `pdfcer-core` `print_presets::merge_print_presets` (typed `PresetNote`, `PrintScale`, `MAX_PRINT_COPIES` = 999) and `EditSession::decorate_for_print` (all or nothing). The CLI `print` now calls both and words the notes; stderr unchanged and pinned by a new test. 12 unit + 3 integration tests; core-api docs updated, verb count 387, `check-core-api-verbs.py` PASS; `run-gates.sh` PASS (49 commands).
+- No manifest change, no new dependency; decoration runs on a throwaway never-saved session, so round-trip guarantees are untouched.
+
+**Findings:** the first gate run failed on disk-full (os error 112); freed by deleting 91 GB of `target/debug/incremental`. Already on file in `D:/dev/rag/rust/` (by `Grep`), so no new lesson written; nothing added to `C:\personal_rag\claude_code\`.
+
+**FEATURES.md:** three print rows (presets, header/footer, printer's marks) name the engine entry points; gui boxes unchanged `[ ]`. **Decisions:** none. No Pass ID minted.
+
+**For next session:** engineer to reply to `pdfcer-gui`; sweep `docs/NEXT_SESSION.md`, `ARCHITECTURE.md` section 4 and CLI doc comments for "policy lives in the CLI" survivors (owed).
+
 ## 2026-10-30 (1318th filing) — `pdfcer-gui` consumed `X013`/`X013b` (printer probe), pin `e1236835`
 
 **Filed (docs only; no shell here; evidence is the GUI project's marker `D:\Dev\FeatureRequests\pdfce_FeatureRequests\done_X013_CONSUMED.md`, read from disk, not checked against `pdfcer-gui` source):**

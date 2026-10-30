@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `ac583cf2` `G238` SHIPPED, 2026-10-30: print-job composition is engine API, not CLI policy (1319th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `ac583cf2` "feat(print): preset merge and print decoration are engine API (G238)", on main, NOT pushed, NOT released (latest release `v0.106.0`). Request from `pdfcer-gui` ("print-job composition lives in the CLI"). No Pass ID minted; no decision. Reasoning is in the commit message.
+- **`pdfcer-core` merge:** `print_presets::merge_print_presets(PrintRequest, &PrintPresets, page_count, ignore) -> EffectivePrint`. Typed `#[non_exhaustive]` `PresetNote`: `AllIgnored`, `EnforcedOverridden`, `ActualSize { enforced }`, `Pages(spec)`, `RangePastEnd { first, last, page_count }`, `CopiesClamped { asked }`, `Copies(n)`, `Duplex(PresetDuplex)`, `PickTrayBySize`, `PrintAreaNotHonoured`/`PrintClipNotHonoured(PresetBoundary)`, `Unusable(String)`. Also `PrintScale { Fit, Actual, Shrink }`, `MAX_PRINT_COPIES` = 999. New `crates/pdfcer-core/src/print_presets/merge.rs`; 12 unit tests in `merge/tests.rs`.
+- **`pdfcer-core` decoration:** `EditSession::decorate_for_print(&PrintDecoration) -> Result<PrintDecorationReport, EditError>`: running text (headers and footers, in order), then printer's marks. All or nothing: a refused step undoes the earlier ones. New `crates/pdfcer-core/src/edit/print_decoration.rs`; 3 integration tests in `crates/pdfcer-core/tests/printer_marks.rs`.
+- **CLI:** policy moved out of the crate-private `crates/pdfcer-cli/src/print_presets.rs` and `print_output.rs`; `print` calls both engine functions and words each note itself. Every stderr line unchanged; one new CLI test pins all of them.
+- **Docs:** `docs/core-api/03-capabilities.md` gains "Merging them into a job"; `02-editing-and-saving.md` gains a verb row. `EditSession` verb count now 387; `check-core-api-verbs.py` PASS.
+- **Gates:** `tools/run-gates.sh` PASS (49 commands). First run failed only on disk-full (os error 112); passed after deleting 91 GB of `target/debug/incremental` (already filed under `D:/dev/rag/rust/`, see `cargo_incremental_cache_grows_unbounded_on_long_lived_workspace.md`).
+- **Invariants:** `cargo tree`: no manifest changed, no new dependency. Round-trip: decoration runs only on a throwaway, never-saved session; the stamp/marks byte-verbatim guarantees are unchanged.
+- **FEATURES:** "Print honours the document's presets", "Print with a header and/or footer", "Printer's marks": text now names the engine entry points; core/cli stay `[x]`, gui stays `[ ]` (no evidence `pdfcer-gui` calls either). Reply to `pdfcer-gui` is the engineer's to write.
+- **Survivors:** not swept this filing: `docs/NEXT_SESSION.md`, `docs/ARCHITECTURE.md` section 4, and `crates/pdfcer-cli` doc comments for a "policy lives in the CLI" claim; owed.
+
 ### `v0.106.0` — PUBLISHED, 2026-10-30 (1316th filing)
 
 Engineer-reported (engineer states each item checked); no shell here, nothing checked from here. Release record for the prep filed below (1315th, bump `4b41bd50`, filing commit `e1236835`).
