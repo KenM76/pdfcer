@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `4319af9f` `Pass 647.3a` SHIPPED, 2026-10-30: XFA `dataRef` data merge (`X020` part 1; 1331st filing)
+
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Slice of `647.3`; request `X020` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X020_xfa_dataref_merge_and_round_checkbuttons_in_exclgroups.md`). Unreleased. No decision minted. Reasoning is in the commit message. Spec: XFA 3.3 p.183, p.182, p.108, p.623; SOM Ch.3.
+- **Core:** `pdfcer_core::xfa::merge_data(&Template, &XdpDocument, &MergeOptions) -> Result<MergedForm, XfaError>` sets the value of every field or exclGroup bound with `<bind match="dataRef" ref="…"/>` from the datasets `xfa:data`. Root subform binds to the top data group; `$` is the nearest dataRef-bound ancestor's data node; an unbound subform passes scope through (G-SOM1). Supported: `$`, `$data`, `$record`, `!data`, `xfa.datasets.data`, unqualified names (upward search), `\.` escapes, `[n]`, `[*]` (first unbound match). Reported Unsupported: `..`, `#class`, `*` names, predicates, `[+n]`/`[-n]`. Unresolvable reference keeps the template value and returns a `MergeWarning` (Unresolved/WrongType/Unsupported/TooLong); never fails. Guards: 1,024 steps per reference, 1,000,000 data nodes, `MAX_XML_DEPTH`. Transient; nothing written to the file (G-SOM5).
+- **Settings (each defaults to the spec text):** `ScopeSearch { Upward (default), Children }` (G-SOM3), `BareRef { Ignore (default, p.623), DataRef }` (G-SOM8), `DataAttributes { Load (default), Ignore }` (G-SOM6). New public types: `ScopeSearch`, `BareRef`, `DataAttributes`, `MergeOptions`, `MergeWarningKind`, `MergeWarning`, `BoundValue`, `MergedForm`. `docs/core-api/03-capabilities.md`: new section "The XFA data merge".
+- **CLI:** `xfa-layout` merges before layout and painting; each bound item line ends `value="…"`; each warning prints `warning kind=data-ref-<kind> path=… ref="…"` and counts in the summary; flags `--scope-search`, `--bare-ref`, `--data-attributes`; stderr note reports values merged.
+- **Tests:** 14 new core unit, 1 doctest, 3 new CLI integration (12 `xfa_layout` CLI tests total), all green. Fuzz target `xfa_packets` now runs `merge_data`; new seed `seed_dataref_merge`.
+- **Gates green:** fmt, clippy `-D warnings`, code-structure, public-fns-documented, reexport-closure, clap-help, core-api-verbs, suite-name-absent. No manifest change, so no `cargo tree` impact.
+- **GUI:** not delivered; `pdfcer-gui` owns it. GUI box stays `[ ]`.
+- **X020 NOT closed:** acceptance needs one release carrying both parts (`647.4a` `56ef7bcd` and this); that release is planned as `v0.108.0`, not yet cut. The reply to `X020` names it when cut.
+- **Still open under `647.x`:** `647.3` beyond this slice (normal name-matching binding, once/global, occur, instance creation, re-normalization, page-instance criteria, writing merged data back).
+- **FEATURES:** the explicit-dataRef merge row moved to Implemented as `[x]` core / `[x]` cli / `[ ]` gui; three neighbouring rows' "no data merged" wording narrowed.
+
 ### `30bd10a6` `Pass 648.3` SHIPPED, 2026-10-30: list every saved 3D view with its named default (`G246`; 1330th filing)
 
 Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Request `G246` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G246_list_saved_3d_views.md`, pdfcer-gui). Unreleased. No decision minted. Reasoning is in the commit message.
@@ -26738,22 +26751,6 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 - **Synthetic acceptance:** a template whose page area holds a text field, laid over three pages, gives three distinct SOM paths and three data nodes, and saved values round-trip per page; a `match="global"` field in the same page area stays one value on every page. Tests use synthetic templates only.
 - **Public form for a manual check (not a fixture):** US DD Form 214 (dd0214.pdf): typing `1 2 3 4` in the four "Page __" boxes and saving must reopen as `1 2 3 4`, not `1 1 1 1`.
 - **Side-effect guard, bites only once scripting exists:** an event whose target no longer exists (a page removed by a layout re-run after its events were queued) is skipped, never run with `this` at the form root. Without it, a page-background button whose initialize script set `this.presence = "hidden"` hid the whole form (3 pages became 1) in the reporter's other viewer. Also recorded on `Pass 131.3`.
-
-### Pass 647.3a — XFA data merge, explicit `dataRef` bindings first (slice of 647.3; NOT STARTED; filed 1328th filing, request `X020`; NEXT, `647.4a` shipped `56ef7bcd` (1329th filing))
-
-Engineer-dispatched filing; nothing built, nothing checked from here. Request `X020` (operator as a crates consumer; a public viewer bug report with a one-page synthetic dynamic-XFA form, fictional data only), read in full: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X020_xfa_dataref_merge_and_round_checkbuttons_in_exclgroups.md`. `647.3` itself stays NOT STARTED beyond this slice (normal match, once/global, occur, re-normalization, the page-instance criteria above).
-- **Wanted:** merge the `datasets` packet for `<bind match="dataRef" ref="…"/>` fields. `$` resolves to the data node the nearest bound ancestor subform matched (the root `<data>`; an unbound, unnamed-in-data page subform is transparent); a dotted SOM path walks down from it. Each resolved value becomes the field's value, is drawn, and is printed by `xfa-layout` on the field's `item` line as `value="…"`, so the merge is testable without rendering. An unresolvable `ref` leaves the field empty and prints a `warning kind=` line, never a failure of the whole layout. Today `xfa-layout` says "no form data merged".
-- **Form shape (enough to rebuild it synthetically):** root subform named `data`; data root `<data>` under `xfa:data`; refs `$.GV_LINE1`, `$.GV_LINE2`, `$.IS_CREATE_VENDOR.REQUEST_ID`; fields inside an unbound page subform (`DemoPage`); data `<data><GV_LINE1>…</GV_LINE1><GV_LINE2>…</GV_LINE2><IS_CREATE_VENDOR><REQUEST_ID>9000000123</REQUEST_ID></IS_CREATE_VENDOR></data>` plus a mirroring `dd:dataDescription`.
-- **Hostile data:** a missing node, a deep path, repeated names (the request's "cycle via repeated names") return warnings, never a panic. A fuzz target covering the merge is the natural carrier (`xfa_packets` already reaches layout and paint).
-- **Spec:** `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_data_binding_normal.md` (`dataRef` rows; gap **G-B2**, "SOM expression evaluation ... not ingested"). **SOM slice: PENDING.** The spec librarian is ingesting it at filing time; cite it as pending and do not implement SOM resolution from memory (project rule 1). Verify the slice exists on disk before starting.
-- **Settings candidates (project rule: spec ambiguity becomes a setting):** the engineer decides when the slice lands; nothing is decided here.
-- **Acceptance (the request's section, verbatim; the whole is checked against one synthetic form once both slices have landed):**
-  - A synthetic form built as above: `xfa-layout` prints the three values (`GV_LINE1`, `GV_LINE2`, `9000000123`) on their field items, and the rendered page shows them.
-  - The same form's three rows each show two circles, Yes and No, with no `stroke-not-drawn` note for them. *(Carried by `647.4a`.)*
-  - Truncated or hostile data (a `ref` naming a missing node, a deep path, a cycle in the data via repeated names) returns warnings, never a panic.
-  - A release that carries it.
-- **Release:** one release carries `647.3a` and `647.4a` when both are done; the reply to `X020` names it. Do not cut one per slice unless the operator asks.
-- **FEATURES:** Planned row added (all three boxes `[ ]`).
 
 ### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing); NOT COMPLETE, stays here)
 

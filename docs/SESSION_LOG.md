@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1331st filing) — `Pass 647.3a` SHIPPED `4319af9f` (`X020` part 1): XFA `dataRef` data merge
+
+**Shipped (engineer-reported, stated checked from his shell; no shell here, nothing checked from here):**
+- `Pass 647.3a`, commit `4319af9f` "feat(xfa): merge form data into dataRef-bound fields". Core `xfa::merge_data` -> `MergedForm` with `MergeWarning`s (never fails; transient, nothing written); settings `ScopeSearch`, `BareRef`, `DataAttributes`, each defaulting to the spec text. CLI `xfa-layout` merges before layout/paint, prints `value="…"` and `warning kind=data-ref-<kind>`, flags `--scope-search`, `--bare-ref`, `--data-attributes`. Tests: 14 core, 1 doctest, 3 CLI (12 `xfa_layout` total); fuzz `xfa_packets` runs the merge, seed `seed_dataref_merge`. fmt, clippy, structure, public-fns, reexport, clap-help, core-api-verbs, suite-name green. No manifest change. Unreleased.
+- ROADMAP: Next-up entry removed, Shipped entry added. FEATURES: merge row to Implemented `[x]/[x]/[ ]`; three neighbouring rows' "no data merged" wording narrowed.
+
+**Decisions made this session:** none.
+
+**Still in flight:** `X020` is NOT closed: acceptance needs one release carrying `647.4a` and `647.3a`, planned `v0.108.0`, not cut. `647.3` beyond this slice (name-matching binding, instance creation, write-back) stays open under `647.x`.
+
+**For next session:** `648.4`; cut the release, then reply to `X020` naming it.
+
+**Hard-rule-11 survivors:** swept the claim "no data merged / merge not built" over FEATURES (three rows narrowed). ROADMAP's earlier `647.x` cut entries are dated history; stand. Not swept from here: `docs/NEXT_SESSION.md` (names `647.3a`), `ARCHITECTURE.md` section 4, CLI help for `xfa-layout`; owed to the engineer. Backup currency not verifiable from here.
+
 ## 2026-10-30 (1330th filing) — `Pass 648.3` SHIPPED `30bd10a6` (`G246`): list every saved 3D view; `Pass 648.4`-`648.6` filed (`G247`, `G245`)
 
 **Shipped (engineer-reported, stated checked from his shell; no shell here, nothing checked from here):**
