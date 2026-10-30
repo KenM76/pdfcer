@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1330th filing) — `Pass 648.3` SHIPPED `30bd10a6` (`G246`): list every saved 3D view; `Pass 648.4`-`648.6` filed (`G247`, `G245`)
+
+**Shipped (engineer-reported, stated checked from his shell; no shell here, nothing checked from here):**
+- `Pass 648.3`, commit `30bd10a6` "feat(3d): list every saved view with its named default". Core `threed::saved_3d_views` -> `SavedViews { views, default }`; CLI `3d-list` prints `view index= name= default=yes|no`. 2 new core tests, 1 CLI assertion; core `threed_views` 12/12, CLI `three_d` 39/39; fmt, clippy, code-structure, public-fns, clap-help, reexport, core-api-verbs, suite-name green. No manifest change. Unreleased.
+- ROADMAP: Shipped entry added. FEATURES: new Implemented row `[x]/[x]/[ ]`.
+
+**Filed (NOT STARTED):** `Pass 648.4` (`G247`, one lit-opening-view verb), `Pass 648.5` (`G245` part 1, 3D pick), `Pass 648.6` (`G245` part 2, `/MA` measurements; needs a spec-RAG check first). Order after `647.3a`: 648.4, 648.5, 648.6. IDs grep-checked unused in `docs/` before filing (only 648.2 existed above 648.1). FEATURES: three Planned rows, all boxes `[ ]`.
+
+**Decisions made this session:** none.
+
+**Still in flight:** `Pass 647.3a` (dataRef merge, awaiting the SOM spec slice), `Pass 648.1` (OBJ/STL).
+
+**For next session:** `647.3a`, then `648.4`; reply to `G246` naming the release when one is cut.
+
+**Hard-rule-11 survivors:** swept the claim "3d-list shows no per-view detail / only the default view" over FEATURES (rows 545, 556 name `3d-list` for other fields; stand, correct). Not swept from here: `docs/NEXT_SESSION.md`, `ARCHITECTURE.md` section 4, CLI help text for `3d-list`; owed to the engineer. Backup currency not verifiable from here.
+
 ## 2026-10-30 (1329th filing) — `Pass 647.4a` SHIPPED `56ef7bcd` (`X020` part 2): XFA round checkButtons, 3-D edges, caption reserve
 
 **Shipped (engineer-reported, stated checked from his shell; no shell here, nothing checked from here):**

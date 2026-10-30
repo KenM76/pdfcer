@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `30bd10a6` `Pass 648.3` SHIPPED, 2026-10-30: list every saved 3D view with its named default (`G246`; 1330th filing)
+
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Request `G246` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G246_list_saved_3d_views.md`, pdfcer-gui). Unreleased. No decision minted. Reasoning is in the commit message.
+- **Core:** `pdfcer_core::threed::saved_3d_views(&graph, &ThreeDArtwork) -> SavedViews` (`#[non_exhaustive]`). `views: Vec<ThreeDSavedView>` = every `/VA` view dictionary in file order, read as `default_3d_view` reads one, with the annotation's view box; non-dictionary entries skipped; at most 4,096 read. `default: Option<usize>` = the index the file names: `/3DV` unless it is `/D`, otherwise `/DV`; `None` when neither names a `/VA` entry (a reader then opens on the first) or when the selector is an inline dictionary.
+- **Spec:** ISO 32000-1 section 13.6.3, Tables 298 and 300.
+- **CLI:** `3d-list` prints `  view index=I name="…" default=yes|no` under each model.
+- **Tests:** 2 new core (`tests/threed_views.rs`) and one CLI assertion in `named_views_are_written_and_listed`; core `threed_views` filter 12/12, CLI `three_d` 39/39.
+- **Gates green:** fmt, clippy, code-structure, public-fns, clap-help, reexport, core-api-verbs, suite-name. `docs/core-api/01-reading-and-model.md` updated. No manifest change.
+- **FEATURES:** new row `[x]` core / `[x]` cli / `[ ]` gui (GUI not evidenced).
+- **Next:** `Pass 648.4`-`648.6` filed this filing (Next up), after `647.3a`.
+
 ### `56ef7bcd` Pass 647.4a SHIPPED, 2026-10-30: XFA round checkButtons, 3-D edge strokes, caption reserve (X020 part 2; 1329th filing)
 
 Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Slice of `647.4`; request `X020`. Unreleased (the single release will carry `647.3a` too). Reasoning is in the commit message.
@@ -26843,6 +26854,30 @@ Table/row layout in dynamic forms. Blocked until `pdfcer-spec-librarian` extract
 ### Pass 648.1 — Mesh import: OBJ/MTL and STL to PRC (NOT STARTED; filed 1297th filing, 2026-10-29)
 
 Split from `Pass 648.0` by operator direction ("worry about the others later"). Readers for OBJ (+MTL colours; dissolve `d` is exporter-inconsistent, so any transparency taken from it is disclosed via `inferred:`) and binary/ASCII STL (no colour: default colour disclosed), feeding the PRC writer built in 648.0. `3d-embed --model` and `3d-convert` accept `.obj` / `.stl`. A fuzz target per parser (§10.2). Depends on 648.0, now SHIPPED (1297th filing; `write_prc` exists, `3d-convert` and the format auto-detect exist, only the OBJ/STL readers and their extension/signature detection are owed). gui `[ ]`.
+
+### Pass 648.4 — One public verb for a placed model's lit opening view (NOT STARTED; filed 1330th filing, request `G247`; order: after `647.3a`, then 648.4, 648.5, 648.6)
+
+Engineer-dispatched filing; nothing built, nothing checked from here. Request `G247` (pdfcer-gui, pin `14774b1f`): `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G247_lit_opening_view_at_insert.md`.
+- **Wanted:** one public verb that writes a placed model's lit opening view. It frames the view from the poster's camera, applies the automatic-lighting rule (CAD lights for a model converted from glTF; no view for a PRC), and writes it as the default via `set_3d_views`. It returns the scheme, whether the view was framed, and the disclosures. The CLI's private `light_view`, `scheme_of` and `poster_view` in `threed_cmd::embed` then call it, so the CLI and the GUI produce byte-identical `/VA` entries. (The request's suggested shape: `EditSession::light_3d_opening_view(page, annot, lighting: Option<ThreeDLighting>, converted: bool) -> Result<Option<LitView>>`, or a field on the embed options; the engineer decides.)
+- **Why:** the GUI re-composes the logic from public API (`pdfcer_3d::assemble`, `Camera::fit_meshes`, `ThreeDSavedView::from_camera`, `with_lighting`, `set_3d_views`) in its own `model_insert`; two copies drift when the poster's camera changes.
+- **Acceptance (the request's):** the CLI and the GUI produce byte-identical `/VA` entries for the same model, rect and lighting choice; automatic lighting on a PRC writes no view and on a converted glTF writes CAD lights.
+- **Rule 4:** the scheme chosen and whether the view was framed are returned as disclosures, printed by the CLI.
+- **FEATURES:** Planned row added (all three boxes `[ ]`).
+
+### Pass 648.5 — 3D pick: nearest hit for a view pixel or ray (NOT STARTED; filed 1330th filing, request `G245` part 1; after 648.4)
+
+Engineer-dispatched filing; nothing built. Request `G245` (pdfcer-gui, pin `14774b1f`): `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G245_3d_measuring.md`. Part 1 of 2 (the request calls part 2 "separately decidable").
+- **Wanted:** given meshes, a camera and a view pixel (or a ray), return the nearest hit: mesh index, triangle, model-space point and normal, so the GUI can snap to vertices and edges and show live distances off-canvas. Today `Camera` has `fit`, `fit_meshes` and `basis` but nothing turns a pixel into a ray or a model-space point, and `render` / `render_coloured` return no depth or triangle identity.
+- **Acceptance:** a pick on a known cube returns the face's point and normal within tessellation tolerance.
+- **FEATURES:** Planned row added (all three boxes `[ ]`).
+
+### Pass 648.6 — 3D measurements: write and read `/MA` on a saved view (NOT STARTED; filed 1330th filing, request `G245` part 2; after 648.5)
+
+Engineer-dispatched filing; nothing built. Same request file as 648.5. Part 2 of 2.
+- **Wanted:** write and read `/MA` 3D measurement dictionaries on a saved view (ISO 32000-2 section 13.6.7, Table 315 onward), so a measurement saved in pdfcer opens in Acrobat. `ThreeDSavedView` and `set_3d_views` carry cameras only today.
+- **Needs a spec-RAG check before implementing** (project rule 1): dispatch `pdfcer-spec-librarian` for section 13.6.7 and Table 315 onward; this entry cites the clause from the request and has not been checked against the RAG. Not to be written from memory.
+- **Acceptance:** stored measurements round-trip through write and read; a linear measurement reads back its two anchor points and its value. (The request also states: a file written by Acrobat with a linear measurement reads back likewise; no such fixture is filed here and fixtures must be synthetic or rights-cleared, `LEGAL.md` section 5.)
+- **FEATURES:** Planned row added (all three boxes `[ ]`).
 
 ### Print arc `Pass 55.9`-`55.14` — filed 1303rd filing, 2026-10-29 (ALL SHIPPED as of the 1308th filing; originally filed NOT STARTED; operator: "build all the print items the make a new release")
 
