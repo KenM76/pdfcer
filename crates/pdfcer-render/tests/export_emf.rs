@@ -314,6 +314,49 @@ fn a_gradient_becomes_a_bitmap_here_and_says_so() {
     assert_eq!(emf.outcome.rasters_embedded, 1);
 }
 
+/// What `print_metafile` decides for a one-page document.
+fn print_route(
+    resources: &str,
+    content: &str,
+) -> Result<Vec<u8>, pdfcer_render::emf::PrintMetafileError> {
+    let doc = Document::from_bytes(page(resources, content)).expect("fixture parses");
+    let p = page_tree::pages(&doc).expect("page tree").remove(0);
+    pdfcer_render::emf::print_metafile(&doc.view(), &p, &RenderOptions::default(), DPI)
+}
+
+#[test]
+fn an_opaque_page_prints_as_its_metafile() {
+    let emf = print_route("", "1 0 0 rg 10 10 50 50 re f").expect("vector");
+    assert_well_formed(&emf);
+}
+
+#[test]
+fn a_page_the_metafile_cannot_carry_names_why_it_prints_as_an_image() {
+    use pdfcer_render::emf::{PrintMetafileError as E, RasterReason as R};
+    let gradient = "/Shading << /Sh0 << /ShadingType 2 /ColorSpace /DeviceRGB /Coords [10 0 90 0] \
+         /Function << /FunctionType 2 /Domain [0 1] /C0 [1 0 0] /C1 [0 0 1] /N 1 >> >> >>";
+    let cases = [
+        (
+            "/ExtGState << /G0 << /ca 0.5 >> >>",
+            "/G0 gs 1 0 0 rg 10 10 50 50 re f",
+            R::SemiTransparentPaint,
+        ),
+        (
+            "/ExtGState << /G0 << /BM /Multiply >> >>",
+            "0 0 1 rg 0 0 60 60 re f /G0 gs 1 0 0 rg 30 30 60 60 re f",
+            R::BlendMode,
+        ),
+        (gradient, "q 10 10 80 60 re W n /Sh0 sh Q", R::Shading),
+    ];
+    for (resources, content, want) in cases {
+        match print_route(resources, content) {
+            Err(E::Raster(why)) => assert_eq!(why, want, "{content}"),
+            other => panic!("{content}: {other:?}"),
+        }
+    }
+    assert_eq!(R::ExtraRasters.to_string(), "transparency");
+}
+
 // ---------------------------------------------------------------------------
 // GDI itself (Windows) and Inkscape — when present
 // ---------------------------------------------------------------------------

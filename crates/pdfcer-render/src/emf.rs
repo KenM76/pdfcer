@@ -90,6 +90,9 @@ use crate::export::Rgb;
 use crate::font::RenderOptions;
 use crate::interpret::Diagnostics;
 
+mod print;
+pub use print::{PrintMetafileError, RasterReason, print_metafile};
+
 /// How an EMF is written.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
