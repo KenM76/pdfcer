@@ -168,9 +168,9 @@ fn write_result(
         options = options.with_author(a.clone());
     }
     if let Some(v) = visual {
-        options = options.with_summary_note(crate::compare_visual::summary_note(v));
+        options = options.with_summary_note(v.summary_note());
     }
-    let region_marks = visual.map(|v| crate::compare_visual::marks(v, &new));
+    let region_marks = visual.map(|v| v.region_marks(&new));
     let mut session = pdfcer_core::edit::EditSession::new(new);
     // Regions first: the summary page shifts every page index by one.
     let regions = match region_marks.map(|m| mark_regions(&mut session, &m, &options)) {

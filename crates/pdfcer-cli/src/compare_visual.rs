@@ -3,9 +3,8 @@
 
 use std::fmt::Write as _;
 
-use pdfcer_core::compare::{RegionMark, RegionReport};
+use pdfcer_core::compare::RegionReport;
 use pdfcer_core::document::Document;
-use pdfcer_core::page_tree::Rect;
 use pdfcer_render::{PageMatch, PagePair, VisualCompareOptions, VisualCompareReport};
 
 use super::compare_cmd::CompareArgs;
@@ -94,38 +93,6 @@ pub(crate) fn differs(r: &VisualCompareReport) -> bool {
         .any(|p| !p.regions.is_empty() || p.old.is_none() || p.new.is_none() || p.error.is_some())
 }
 
-fn page(p: Option<usize>) -> String {
-    p.map_or_else(|| "-".to_owned(), |i| (i + 1).to_string())
-}
-
-fn how(p: &PagePair) -> String {
-    match p.how {
-        PageMatch::Inserted => format!("new p{} inserted (no matching old page)", page(p.new)),
-        PageMatch::Deleted => format!("old p{} deleted (no matching new page)", page(p.old)),
-        PageMatch::Moved => format!("old p{} moved to new p{}", page(p.old), page(p.new)),
-        PageMatch::Mapped => format!("old p{} = new p{} (mapped)", page(p.old), page(p.new)),
-        _ => format!("old p{} = new p{}", page(p.old), page(p.new)),
-    }
-}
-
-fn settings(r: &VisualCompareReport) -> String {
-    format!(
-        "{:.0} dpi, tolerance {}, regions merged within {} pt and under {} px dropped; {}",
-        r.scale * 72.0,
-        r.threshold,
-        r.merge_gap,
-        r.min_pixels,
-        if r.matched_automatically {
-            format!(
-                "pages matched by appearance (paired at similarity {} or more)",
-                r.match_threshold
-            )
-        } else {
-            "pages paired by --map".to_owned()
-        }
-    )
-}
-
 /// The human report: settings, then one line per page row.
 pub(crate) fn report_text(r: &VisualCompareReport) -> String {
     let mut out = String::new();
@@ -134,7 +101,7 @@ pub(crate) fn report_text(r: &VisualCompareReport) -> String {
         "visual: {} changed region(s) over {} page row(s); {}",
         r.region_count(),
         r.pairs.len(),
-        settings(r)
+        r.settings_text()
     );
     for p in &r.pairs {
         let sim = p
@@ -153,7 +120,7 @@ pub(crate) fn report_text(r: &VisualCompareReport) -> String {
             }
             None => String::new(),
         };
-        let _ = writeln!(out, "  {}{sim}{size}{tail}", how(p));
+        let _ = writeln!(out, "  {}{sim}{size}{tail}", p.match_text());
     }
     if r.nothing_matched() {
         let _ = writeln!(
@@ -162,56 +129,6 @@ pub(crate) fn report_text(r: &VisualCompareReport) -> String {
              mean \"no match found\", not \"every page changed\". Try --map or a lower \
              --match-threshold."
         );
-    }
-    out
-}
-
-/// The summary-page paragraph for the marked result.
-pub(crate) fn summary_note(r: &VisualCompareReport) -> String {
-    let mut s = format!(
-        "Visual comparison: {} changed area(s), each an orange cloud with a note; a blue frame \
-         marks a page with no match in the old document. {}.\n",
-        r.region_count(),
-        settings(r)
-    );
-    for p in r.pairs.iter().filter(|p| p.how != PageMatch::InOrder) {
-        let _ = writeln!(s, "{}", how(p));
-    }
-    if r.nothing_matched() {
-        s.push_str("No page of one document looked like any page of the other.\n");
-    }
-    s
-}
-
-/// The marks for the result, in page order.
-pub(crate) fn marks(r: &VisualCompareReport, new: &Document) -> Vec<RegionMark> {
-    let boxes: Vec<Rect> = pdfcer_core::page_tree::pages(new)
-        .map(|p| p.iter().map(|p| p.crop_box).collect())
-        .unwrap_or_default();
-    let mut out = Vec::new();
-    for p in &r.pairs {
-        let Some(n) = p.new else { continue };
-        if p.old.is_none() {
-            if let Some(b) = boxes.get(n) {
-                out.push(RegionMark::inserted_page(
-                    n,
-                    *b,
-                    "Inserted page: no page of the old document looks like it.",
-                ));
-            }
-            continue;
-        }
-        let from = format!("old page {}", page(p.old));
-        for g in &p.regions {
-            out.push(RegionMark::changed(
-                n,
-                g.rect,
-                format!(
-                    "Changed appearance (compared with {from}; {} px)",
-                    g.changed_pixels
-                ),
-            ));
-        }
     }
     out
 }

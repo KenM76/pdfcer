@@ -14,6 +14,9 @@ use crate::visual_match::{self, Pairing};
 use crate::visual_regions::changed_groups;
 use crate::{ChangedRegion, RenderError, RenderOptions, page_device_geometry, render_page_with};
 
+mod notes;
+pub use notes::INSERTED_PAGE_NOTE;
+
 /// How [`visual_compare`] matches pages and finds changed regions.
 #[derive(Debug, Clone)]
 #[non_exhaustive]

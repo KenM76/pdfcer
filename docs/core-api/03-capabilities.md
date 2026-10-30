@@ -3778,10 +3778,19 @@ regions, not one bounding box.
   render keeps going with `error` set.
 - `VisualCompareError`: `Pages { side, source }`, `NoSuchPage { side, index,
   count }`, `Signature { side, index, source }`.
+- **Words and marks, shared by every front end:**
+  `VisualCompareReport::summary_note() -> String` is the paragraph for the
+  marked result's summary page (pass it to `ResultOptions::with_summary_note`);
+  `region_marks(&new) -> Vec<RegionMark>` is a cloud per changed region of a
+  paired page and a frame on each inserted page's crop box (note
+  `INSERTED_PAGE_NOTE`), for `compare::mark_regions` / `mark_comparison`; a
+  deleted page gets none. `settings_text()` and `PagePair::match_text()`
+  (`old p2 moved to new p3`, 1-based) are the clauses both are built from.
 
 ★ **What the UI must disclose:** the settings (dpi, tolerance, merge gap,
 minimum region, match threshold or "paired by mapping"), every non-in-order
 pairing with its similarity, size-differs pairs, and `nothing_matched()`.
+`summary_note()` states all but the similarities and size differences.
 No OCR: a scan pair is compared as pixels.
 
 CLI: `compare OLD NEW --visual` (with `--dpi`, `--tolerance`, `--min-region`,

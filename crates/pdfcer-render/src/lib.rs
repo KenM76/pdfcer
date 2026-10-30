@@ -151,8 +151,8 @@ pub use overprint_preview::OverprintPreview;
 pub use separation_preview::{PROCESS_INKS, SeparationPreview};
 pub use shading::{ColorRamp, Geometry, PaintRoute, Shading, ShadingDiagnostics, ShadingFunction};
 pub use visual_compare::{
-    PageMatch, PagePair, VisualCompareError, VisualCompareOptions, VisualCompareReport,
-    VisualRegion, visual_compare,
+    INSERTED_PAGE_NOTE, PageMatch, PagePair, VisualCompareError, VisualCompareOptions,
+    VisualCompareReport, VisualRegion, visual_compare,
 };
 pub use visual_diff::{
     ChangedRegion, PageDiff, VisualDiffError, VisualDiffOptions, diff_heatmap, diff_rendered,

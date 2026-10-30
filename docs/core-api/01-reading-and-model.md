@@ -2030,7 +2030,8 @@ evicts one old entry, not one per mark. Do not `coalesce_last` after it.
 - **Trap:** a deletion's caret sits at its *content-order* position, which on
   a drawing can be far from where the words were drawn.
 - `ResultOptions::with_summary_note(text)` appends `text` to the summary
-  page (the CLI puts the visual comparison's page matching there).
+  page (`pdfcer_render::VisualCompareReport::summary_note()` is the visual
+  comparison's).
 
 **Region marks (`Pass 645.2`)** — `compare/region_marks.rs`. Core cannot
 render, so a visual comparison's regions arrive already in each page's
