@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1337th filing) — request `X022` filed as `Pass 647.3b`, `647.3c`, `647.3d`
+
+**Filed (docs only; no shell here, nothing checked from here):**
+- Request `X022` (pdfcraft, XFA global binding and shared values) as three slices of `647.3`: `647.3b` normal name-matching merge, `647.3c` `match="global"` (two settings, defaults `Document` and `Honour`), `647.3d` form fill written to `xfa:datasets` at Save plus CLI verb. Then a release, named in the `X022` reply. All in Next up after the `647.3` entry, therefore ahead of `648.6`. `647.3b` did not exist as an entry (only "then 647.3b" mentions), so it was created; occur/instance creation stays on `647.3`. Three FEATURES Planned rows added, all `[ ]`.
+
+**Decisions made this session:** none; nothing minted. Spec gaps G-B7..G-B16 are settings with defaults in the entries, not decisions yet.
+
+**For the `X022` reply:** X022 says Form F "already works"; it does not in pdfcer today (only `dataRef` merges).
+
+**Hard-rule-11 survivors:** `docs/NEXT_SESSION.md` still says `648.6` then `647.3b` (order now 647.3b-d first); engineer-owned, not edited. Backup currency not verifiable from here.
+
 ## 2026-10-30 (1336th filing) — `Pass 648.5` SHIPPED `d8e7ac87` (`G245` part 1): 3D pick
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**

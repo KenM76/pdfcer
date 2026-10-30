@@ -26802,6 +26802,32 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 - **Public form for a manual check (not a fixture):** US DD Form 214 (dd0214.pdf): typing `1 2 3 4` in the four "Page __" boxes and saving must reopen as `1 2 3 4`, not `1 1 1 1`.
 - **Side-effect guard, bites only once scripting exists:** an event whose target no longer exists (a page removed by a layout re-run after its events were queued) is skipped, never run with `this` at the form root. Without it, a page-background button whose initialize script set `this.presence = "hidden"` hid the whole form (3 pages became 1) in the reporter's other viewer. Also recorded on `Pass 131.3`.
 
+### Pass 647.3b — XFA normal (`once`) name-matching data merge (NOT STARTED; filed 1337th filing, request `X022` slice 1; first of 3b/3c/3d, then a release, all ahead of `648.6`)
+
+Engineer-dispatched filing; nothing built. Slice of `647.3` (occur and instance creation stay on `647.3`). Request `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X022_xfa_global_binding_shared_values.md` (pdfcraft, the operator's crates consumer). Spec: `adobe_ext__xfa_data_binding_normal.md` (XFA 3.3 Ch.4). No ID collision: `647.3b`-`647.3d` grep-checked, only earlier "then 647.3b" mentions existed.
+- **Today:** `xfa::merge_data` resolves only `dataRef`; once/global/none pass through unmerged.
+- **Wanted:** normal matching: direct match relative to the current record (p.181); top subform binds the current record (p.182); scope match (p.183); ancestor/sibling priority; a bound group's children never bind outside its subform (p.189); indistinguishable same-named fields bind in document order (p.191); a field binds a data value, not a data group (p.181), a wrong-type node is skipped with a warning (derived reading); one field per data node. An exclGroup with default binding selects the member whose on-value equals the data value. Still transient: nothing written.
+- **Acceptance:** X022 Form F (exclGroup `LikesPizza`, default binding, data `form1.Section1.LikesPizza=Yes`) selects Yes; `xfa-layout` prints `value=` for name-matched fields; hostile data warns, never panics. **Reply note:** X022 says Form F "already works"; it does not in pdfcer today.
+- **Re-scope note:** earlier mentions called `647.3b` "normal name-matching binding and occur instances"; occur/instance creation is NOT in this slice.
+- **FEATURES:** Planned row added (all three boxes `[ ]`).
+
+### Pass 647.3c — XFA `bind match="global"` (NOT STARTED; filed 1337th filing, request `X022` slice 2; after 647.3b)
+
+Engineer-dispatched filing; nothing built. Spec: `adobe_ext__xfa_data_binding_global_writeback.md` (gaps G-B7..G-B16), XFA 3.3 pp.176, 245-247, 348.
+- **Wanted:** after normal matching fails, a global field binds a same-named data value elsewhere; one data node binds every same-named global field; global fields are passive (never pull a subform in, pp.247/348). Still transient.
+- **Two settings (spec leaves them open; ship both, pick the default):** (a) global search scope `Document` (DEFAULT: whole data, PDFium behaviour, what X022 needs; with no config `record` the spec makes the whole document one record and `global` a no-op, pp.247/917) vs `Records` (strict spec reading: values outside every record only, index = record number); (b) global on an exclGroup `Honour` (DEFAULT, p.348, X022) vs `AsOnce` (pp.176/246/623 say field only).
+- **Warnings:** global on a subform is treated as once (p.176); a mix of global and non-global same-named fields (unsupported, p.247).
+- **Acceptance:** X022 Form E (global `LikesPizza` in Section1, data `form1.LikesPizza=Yes`) gives Yes; every global copy of a name shows the same value in `xfa-layout`; 1,000 copies of one global name handled within limits; hostile input warns.
+- **FEATURES:** Planned row added (all three boxes `[ ]`).
+
+### Pass 647.3d — XFA form fill written to `xfa:datasets` at Save (NOT STARTED; filed 1337th filing, request `X022` slice 3; after 647.3c; then a release)
+
+Engineer-dispatched filing; nothing built. Spec as 647.3c (pp.85, 129, 149-151, 175, 200; nothing written for `match="none"`, p.176).
+- **Wanted:** a new `EditSession` verb setting a bound XFA field's value through the Data DOM. Every field bound to the same data node (global copies, protected and readOnly copies included) shows the new value; one undo entry; the datasets packet is rewritten only when a value changed (round-trip invariant: nothing else in the file changes, the template is untouched). Unbound field with no data node: the verb creates ONE data node (global: one node for the name, under the current record or root data group) and discloses the creation (rule 4). On save exactly one node per global name holds the edited value; reopening shows it in every copy. CLI subcommand to fill an XFA field (rule 11). `docs/core-api/` updated.
+- **Acceptance:** X022 Form G (`userName` global on page 1 plus a protected copy; fill "A. Tester", save: one node, both copies show it; edit the protected copy to "B", save: both show "B").
+- **Release:** after 647.3d, cut a release (standing-authorized, decision 121: green `run-gates.sh`, fresh-folder smoke test, `verify-release.py`) and name it in the `X022` reply.
+- **FEATURES:** Planned row added (all three boxes `[ ]`).
+
 ### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing); NOT COMPLETE, stays here)
 
 `pdfcer-render` draws the computed layout instead of the placeholder page (render-time only, like decision 203). Inferred content renders exactly as saved content would (rule 4: no on-canvas marking); disclosure is off-canvas diagnostics. Needs `pdfcer-render` to stay GUI-free (`cargo tree` check).
