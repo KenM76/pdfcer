@@ -5,9 +5,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use pdfcer_core::document::Document;
-use pdfcer_core::edit::{CommandKind, EditError, EditSession};
+use pdfcer_core::edit::{
+    CommandKind, EditError, EditSession, PrintDecoration, PrintDecorationReport,
+};
 use pdfcer_core::page_tree::{self, BoxResolution, Rect};
 use pdfcer_core::printer_marks::{PrinterMarks, PrinterMarksError};
+use pdfcer_core::running_text::{RunningText, RunningTextKind};
 use pdfcer_core::text_extract::{self, ArtifactKind, ExtractOptions};
 use pdfcer_core::writer::SaveOptions;
 
@@ -157,4 +160,55 @@ fn a_bad_request_is_refused_before_anything_is_written() {
         Err(EditError::PrinterMarks(PrinterMarksError::NoPages))
     ));
     assert_eq!(s.undo_kind(), None);
+}
+
+#[test]
+fn decorate_for_print_stamps_text_then_marks_and_reports_each() {
+    let mut s = session();
+    let mut d = PrintDecoration::default();
+    d.running_text
+        .push(RunningText::new(RunningTextKind::Header, "Draft {page}"));
+    d.running_text
+        .push(RunningText::new(RunningTextKind::Footer, "of {pages}"));
+    d.marks = Some(PrinterMarks::all("a.pdf"));
+    let r = s.decorate_for_print(&d).expect("decorated");
+    assert_eq!(r.running_text.len(), 2);
+    assert_eq!(r.running_text[0].first_label, "Draft 1");
+    assert_eq!(r.running_text[1].pages, [0, 1]);
+    let marks = r.marks.expect("marks report");
+    assert_eq!(marks.trim_assumed, [1]);
+    assert_eq!(s.undo(), Some(CommandKind::AddPrinterMarks));
+    assert_eq!(s.undo(), Some(CommandKind::StampRunningText));
+    assert_eq!(s.undo(), Some(CommandKind::StampRunningText));
+    assert!(!s.can_undo());
+}
+
+#[test]
+fn a_refused_decoration_step_undoes_the_steps_before_it() {
+    let mut s = session();
+    let mut d = PrintDecoration::default();
+    d.running_text
+        .push(RunningText::new(RunningTextKind::Header, "Draft"));
+    d.marks = Some(PrinterMarks::none(""));
+    assert!(matches!(
+        s.decorate_for_print(&d),
+        Err(EditError::PrinterMarks(PrinterMarksError::NoMarks))
+    ));
+    assert!(!s.can_undo());
+    assert_eq!(
+        s.pages().expect("pages")[0].media_box,
+        rect(0.0, 0.0, 300.0, 200.0)
+    );
+}
+
+#[test]
+fn an_empty_decoration_adds_nothing() {
+    let mut s = session();
+    let d = PrintDecoration::default();
+    assert!(d.is_empty());
+    assert_eq!(
+        s.decorate_for_print(&d).expect("nothing to do"),
+        PrintDecorationReport::default()
+    );
+    assert!(!s.can_undo());
 }

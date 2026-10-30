@@ -3298,6 +3298,30 @@ came from the document. CLI `print` uses each one for an option not given,
 prints one stderr line per preset used, lets an enforced actual size beat
 `--scale`, and drops all of them with `--ignore-document-presets`.
 
+**Merging them into a job** (`print_presets/merge.rs`, G238):
+`merge_print_presets(req: PrintRequest, presets: &PrintPresets, page_count: usize, ignore: bool) -> EffectivePrint`.
+`PrintRequest` (`#[non_exhaustive]`, `Default`; set fields on a default):
+`scale: Option<PrintScale>` (`Fit` default / `Actual` / `Shrink`),
+`scale_percent: Option<u32>` (counts as choosing a scale), `pages:
+Option<String>` (`print --pages` form, 1-based), `copies: Option<u16>`,
+`duplex: Option<PresetDuplex>`, `pick_tray: bool`. `None`/`false` = not
+chosen, so a preset may fill it. `EffectivePrint` carries the same fields
+resolved (`pages` `"all"` when neither side names one, `copies` at least 1,
+`duplex` `Simplex` by default) plus `notes: Vec<PresetNote>`, in order.
+Rules: a preset fills only an unset option; `/Enforce [/PrintScaling]` beats
+an explicit scale and clears `scale_percent`; `/NumCopies` clamps to
+`MAX_PRINT_COPIES` (999); `/PrintPageRange` pairs clip to the last page and
+join with `,`; `ignore` uses no preset. `PresetNote` (`#[non_exhaustive]`;
+a shell words each one itself): `AllIgnored`, `EnforcedOverridden` (both only
+with `ignore`), `ActualSize { enforced }`, `Pages(spec)`, `RangePastEnd {
+first, last, page_count }` (pair skipped), `CopiesClamped { asked }` (then
+`Copies(n)`), `Copies(n)`, `Duplex(PresetDuplex)`, `PickTrayBySize`,
+`PrintAreaNotHonoured(PresetBoundary)` / `PrintClipNotHonoured(..)` (a box
+other than `CropBox`; pdfcer prints the page as displayed), `Unusable(String)`
+(each `PrintPresets::ignored` entry, last). CLI `print` maps its flags in and
+words each note on stderr; the printed copy's header, footer and marks go
+through `EditSession::decorate_for_print` (02-editing-and-saving).
+
 **Which calls can block.** For an installed printer that is unreachable (a
 WSD-port printer on another network that Windows still reports as ready) the
 spooler takes about 45–50 s to answer any per-device query. `list_printers`,

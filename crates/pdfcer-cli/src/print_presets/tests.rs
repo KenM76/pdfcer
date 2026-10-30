@@ -1,4 +1,5 @@
 use super::*;
+use pdfcer_core::print_presets::{PresetBoundary, PresetScaling};
 
 fn presets(f: impl FnOnce(&mut PrintPresets)) -> PrintPresets {
     let mut p = PrintPresets::default();
@@ -128,4 +129,26 @@ fn a_print_area_other_than_the_crop_box_is_disclosed() {
     let e = merge(Requested::default(), &p, 1, false);
     assert_eq!(e.notes.len(), 1, "{:?}", e.notes);
     assert!(e.notes[0].contains("TrimBox"));
+}
+
+#[test]
+fn every_note_reads_as_before_the_merge_moved_to_the_engine() {
+    let mut p = all_set();
+    p.copies = Some(5000);
+    p.print_clip = Some(PresetBoundary::BleedBox);
+    p.ignored = vec!["Duplex: not a name".into()];
+    let e = merge(Requested::default(), &p, 9, false);
+    assert_eq!(
+        e.notes,
+        [
+            "actual size, from the document's print settings.",
+            "pages 2-3,5, from the document's print range.",
+            "the document asks for 5000 copies; pdfcer prints at most 999.",
+            "999 copies, from the document's print settings.",
+            "two-sided, flipped on the short edge, from the document's print settings.",
+            "tray chosen by page size, from the document's print settings.",
+            "the document's /PrintClip asks for its BleedBox; pdfcer prints the page as it displays.",
+            "unusable print setting ignored: Duplex: not a name.",
+        ]
+    );
 }

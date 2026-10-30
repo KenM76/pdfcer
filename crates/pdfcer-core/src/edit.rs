@@ -156,6 +156,7 @@ mod insert_fields;
 mod node_shape;
 mod ocr_layer_write;
 mod page_import;
+mod print_decoration;
 mod printer_marks;
 mod restack;
 mod running_text;
@@ -166,6 +167,7 @@ pub use annot_restyle::{
 };
 pub use foreign_button::ForeignAppearance;
 pub use form_paint::FormPaintOutcome;
+pub use print_decoration::{PrintDecoration, PrintDecorationReport};
 mod markup_respan;
 mod metadata_remove;
 mod optimize;

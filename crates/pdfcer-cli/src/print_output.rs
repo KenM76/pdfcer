@@ -4,7 +4,7 @@
 
 use std::path::{Path, PathBuf};
 
-use pdfcer_core::edit::{EditError, EditSession};
+use pdfcer_core::edit::{EditError, EditSession, PrintDecoration};
 use pdfcer_core::printer_marks::PrinterMarks;
 use pdfcer_core::running_text::{RunningText, RunningTextAlign, RunningTextKind};
 use pdfcer_print::output_color::{OutputColor, apply_output_color};
@@ -101,34 +101,44 @@ impl PrintOutput {
         Some(m)
     }
 
+    /// The engine's decoration request: header, footer, then marks.
+    fn decoration(&self, label: &str) -> PrintDecoration {
+        let mut d = PrintDecoration::default();
+        for (kind, line) in [
+            (RunningTextKind::Header, &self.header),
+            (RunningTextKind::Footer, &self.footer),
+        ] {
+            if let Some((text, align)) = line {
+                let mut stamp = RunningText::new(kind, text.clone());
+                stamp.align = align.core();
+                d.running_text.push(stamp);
+            }
+        }
+        d.marks = self.printer_marks(label);
+        d
+    }
+
     /// Stamp the header, footer and printer's marks onto `session` (never
-    /// saved). `label` names the file in the marks' information line.
-    /// Returns the lines saying what the printed copy carries.
+    /// saved) through [`EditSession::decorate_for_print`]. `label` names the
+    /// file in the marks' information line. Returns the lines saying what
+    /// the printed copy carries.
     pub(crate) fn stamp(
         &self,
         session: &mut EditSession,
         label: &str,
     ) -> Result<Vec<String>, EditError> {
+        let decoration = self.decoration(label);
+        let report = session.decorate_for_print(&decoration)?;
         let mut notes = Vec::new();
-        for (kind, line) in [
-            (RunningTextKind::Header, &self.header),
-            (RunningTextKind::Footer, &self.footer),
-        ] {
-            let Some((text, align)) = line else {
-                continue;
-            };
-            let mut stamp = RunningText::new(kind, text.clone());
-            stamp.align = align.core();
-            let out = session.stamp_running_text(&stamp)?;
+        for (stamp, out) in decoration.running_text.iter().zip(&report.running_text) {
             notes.push(format!(
                 "printed copy only: {} \"{}\" on {} page(s); the file is unchanged.",
-                kind.subtype().to_ascii_lowercase(),
+                stamp.kind.subtype().to_ascii_lowercase(),
                 out.first_label,
                 out.pages.len()
             ));
         }
-        if let Some(marks) = self.printer_marks(label) {
-            let out = session.add_printer_marks(&marks)?;
+        if let Some(out) = &report.marks {
             notes.push(format!(
                 "printed copy only: printer's marks on {} page(s), each page grown by up to {} pt per side and its content cut to its bleed box.",
                 out.pages.len(),

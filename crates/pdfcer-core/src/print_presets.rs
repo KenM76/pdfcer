@@ -8,6 +8,12 @@
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, Object};
 
+mod merge;
+
+pub use merge::{
+    EffectivePrint, MAX_PRINT_COPIES, PresetNote, PrintRequest, PrintScale, merge_print_presets,
+};
+
 /// `/PrintScaling` (PDF 1.6).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PresetScaling {

@@ -1,12 +1,11 @@
-//! `print`'s merge of the operator's options with the document's own print
-//! presets (ISO 32000-1 §12.2 Table 150; ISO 32000-2 Tables 147-148).
-//!
-//! A preset fills only an option the operator left unset, and every preset
-//! used is reported. The one exception is `/Enforce [/PrintScaling]`: the
-//! document's actual-size setting then wins over `--scale` too, unless
-//! `--ignore-document-presets` is given, and either way it is reported.
+//! `print`'s use of the engine's preset merge
+//! ([`pdfcer_core::print_presets::merge_print_presets`]): the operator's
+//! options in, the job and its notes out, each note worded for the CLI.
 
-use pdfcer_core::print_presets::{PresetBoundary, PresetDuplex, PresetScaling, PrintPresets};
+use pdfcer_core::print_presets::{
+    EffectivePrint, MAX_PRINT_COPIES, PresetDuplex, PresetNote, PrintPresets, PrintRequest,
+    PrintScale,
+};
 
 use crate::print::{DuplexArg, PrintScaleArg};
 
@@ -33,9 +32,6 @@ pub(crate) struct Effective {
     pub notes: Vec<String>,
 }
 
-/// The most copies `print --copies` accepts.
-const MAX_COPIES: u16 = 999;
-
 /// Merge `req` with `presets` for a document of `page_count` pages.
 /// `ignore` drops every preset, enforced or not.
 // Consumed only by the `#[cfg(windows)]` `cmd_print`; the merge is pure,
@@ -47,135 +43,112 @@ pub(crate) fn merge(
     page_count: usize,
     ignore: bool,
 ) -> Effective {
-    let mut notes = Vec::new();
-    let mut eff = Effective {
-        scale: req.scale.unwrap_or(PrintScaleArg::Fit),
-        scale_percent: req.scale_percent,
-        pages: req.pages.clone().unwrap_or_else(|| "all".to_owned()),
-        copies: req.copies.unwrap_or(1),
-        duplex: req.duplex.unwrap_or(DuplexArg::Simplex),
-        pick_tray: req.pick_tray,
-        notes: Vec::new(),
-    };
-    if ignore {
-        if !presets.is_empty() {
-            notes.push(
-                "the document's own print settings were ignored (--ignore-document-presets)."
-                    .to_owned(),
-            );
-        }
-        if presets.scaling_enforced {
-            notes.push(
-                "the document requires actual size (/Enforce); that was overridden too.".to_owned(),
-            );
-        }
-        eff.notes = notes;
-        return eff;
+    let mut core = PrintRequest::default();
+    core.scale = req.scale.map(scale_to_core);
+    core.scale_percent = req.scale_percent;
+    core.pages = req.pages;
+    core.copies = req.copies;
+    core.duplex = req.duplex.map(duplex_to_core);
+    core.pick_tray = req.pick_tray;
+    let EffectivePrint {
+        scale,
+        scale_percent,
+        pages,
+        copies,
+        duplex,
+        pick_tray,
+        notes,
+        ..
+    } = pdfcer_core::print_presets::merge_print_presets(core, presets, page_count, ignore);
+    Effective {
+        scale: scale_from_core(scale),
+        scale_percent,
+        pages,
+        copies,
+        duplex: duplex_from_core(duplex),
+        pick_tray,
+        notes: notes.iter().map(note_text).collect(),
     }
-    scaling(&req, presets, &mut eff, &mut notes);
-    if req.pages.is_none()
-        && let Some(spec) = ranges(&presets.page_ranges, page_count, &mut notes)
-    {
-        notes.push(format!("pages {spec}, from the document's print range."));
-        eff.pages = spec;
-    }
-    if req.copies.is_none()
-        && let Some(n) = presets.copies
-    {
-        let asked = n;
-        let n = u16::try_from(n).unwrap_or(u16::MAX).min(MAX_COPIES);
-        if u32::from(n) < asked {
-            notes.push(format!(
-                "the document asks for {asked} copies; pdfcer prints at most {MAX_COPIES}."
-            ));
-        }
-        notes.push(format!("{n} copies, from the document's print settings."));
-        eff.copies = n;
-    }
-    if req.duplex.is_none()
-        && let Some(d) = presets.duplex
-    {
-        eff.duplex = match d {
-            PresetDuplex::Simplex => DuplexArg::Simplex,
-            PresetDuplex::FlipLongEdge => DuplexArg::LongEdge,
-            PresetDuplex::FlipShortEdge => DuplexArg::ShortEdge,
-        };
-        notes.push(format!(
-            "{}, from the document's print settings.",
-            duplex_words(eff.duplex)
-        ));
-    }
-    if !req.pick_tray && presets.pick_tray_by_pdf_size == Some(true) {
-        eff.pick_tray = true;
-        notes.push("tray chosen by page size, from the document's print settings.".to_owned());
-    }
-    boundaries(presets, &mut notes);
-    notes.extend(
-        presets
-            .ignored
-            .iter()
-            .map(|i| format!("unusable print setting ignored: {i}.")),
-    );
-    eff.notes = notes;
-    eff
 }
 
-fn scaling(req: &Requested, presets: &PrintPresets, eff: &mut Effective, notes: &mut Vec<String>) {
-    if presets.scaling != Some(PresetScaling::None) {
-        return;
-    }
-    let operator_set = req.scale.is_some() || req.scale_percent.is_some();
-    if !operator_set {
-        eff.scale = PrintScaleArg::Actual;
-        notes.push("actual size, from the document's print settings.".to_owned());
-    } else if presets.scaling_enforced {
-        eff.scale = PrintScaleArg::Actual;
-        eff.scale_percent = None;
-        notes.push(
+/// `note` as the line `print` writes for it.
+fn note_text(note: &PresetNote) -> String {
+    match note {
+        PresetNote::AllIgnored => {
+            "the document's own print settings were ignored (--ignore-document-presets).".into()
+        }
+        PresetNote::EnforcedOverridden => {
+            "the document requires actual size (/Enforce); that was overridden too.".into()
+        }
+        PresetNote::ActualSize { enforced: false } => {
+            "actual size, from the document's print settings.".into()
+        }
+        PresetNote::ActualSize { enforced: true } => {
             "actual size: the document requires it (/Enforce), so your scale was not used. \
              Add --ignore-document-presets to use it."
-                .to_owned(),
-        );
+                .into()
+        }
+        PresetNote::Pages(spec) => format!("pages {spec}, from the document's print range."),
+        PresetNote::RangePastEnd {
+            first,
+            last,
+            page_count,
+        } => format!(
+            "the document's print range {first}-{last} is past its last page ({page_count}); skipped."
+        ),
+        PresetNote::CopiesClamped { asked } => format!(
+            "the document asks for {asked} copies; pdfcer prints at most {MAX_PRINT_COPIES}."
+        ),
+        PresetNote::Copies(n) => format!("{n} copies, from the document's print settings."),
+        PresetNote::Duplex(d) => format!(
+            "{}, from the document's print settings.",
+            duplex_words(duplex_from_core(*d))
+        ),
+        PresetNote::PickTrayBySize => {
+            "tray chosen by page size, from the document's print settings.".into()
+        }
+        PresetNote::PrintAreaNotHonoured(b) => boundary_text("PrintArea", b.name()),
+        PresetNote::PrintClipNotHonoured(b) => boundary_text("PrintClip", b.name()),
+        PresetNote::Unusable(why) => format!("unusable print setting ignored: {why}."),
+        // `PresetNote` is `#[non_exhaustive]`; a variant this build does not
+        // know is still disclosed rather than dropped.
+        other => format!("document print setting: {other:?}."),
     }
 }
 
-/// `ranges` as a `--pages` spec, clipped to the document's pages.
-fn ranges(ranges: &[(u32, u32)], page_count: usize, notes: &mut Vec<String>) -> Option<String> {
-    if ranges.is_empty() {
-        return None;
-    }
-    let last = u32::try_from(page_count).unwrap_or(u32::MAX);
-    let mut parts = Vec::new();
-    for &(a, b) in ranges {
-        if a > last {
-            notes.push(format!(
-                "the document's print range {a}-{b} is past its last page ({last}); skipped."
-            ));
-            continue;
-        }
-        let b = b.min(last);
-        parts.push(if a == b {
-            a.to_string()
-        } else {
-            format!("{a}-{b}")
-        });
-    }
-    (!parts.is_empty()).then(|| parts.join(","))
+fn boundary_text(key: &str, boundary: &str) -> String {
+    format!("the document's /{key} asks for its {boundary}; pdfcer prints the page as it displays.")
 }
 
-fn boundaries(presets: &PrintPresets, notes: &mut Vec<String>) {
-    for (key, b) in [
-        ("PrintArea", presets.print_area),
-        ("PrintClip", presets.print_clip),
-    ] {
-        if let Some(b) = b
-            && b != PresetBoundary::CropBox
-        {
-            notes.push(format!(
-                "the document's /{key} asks for its {}; pdfcer prints the page as it displays.",
-                b.name()
-            ));
-        }
+const fn scale_to_core(s: PrintScaleArg) -> PrintScale {
+    match s {
+        PrintScaleArg::Fit => PrintScale::Fit,
+        PrintScaleArg::Actual => PrintScale::Actual,
+        PrintScaleArg::Shrink => PrintScale::Shrink,
+    }
+}
+
+const fn scale_from_core(s: PrintScale) -> PrintScaleArg {
+    match s {
+        PrintScale::Fit => PrintScaleArg::Fit,
+        PrintScale::Actual => PrintScaleArg::Actual,
+        PrintScale::Shrink => PrintScaleArg::Shrink,
+    }
+}
+
+const fn duplex_to_core(d: DuplexArg) -> PresetDuplex {
+    match d {
+        DuplexArg::Simplex => PresetDuplex::Simplex,
+        DuplexArg::LongEdge => PresetDuplex::FlipLongEdge,
+        DuplexArg::ShortEdge => PresetDuplex::FlipShortEdge,
+    }
+}
+
+const fn duplex_from_core(d: PresetDuplex) -> DuplexArg {
+    match d {
+        PresetDuplex::Simplex => DuplexArg::Simplex,
+        PresetDuplex::FlipLongEdge => DuplexArg::LongEdge,
+        PresetDuplex::FlipShortEdge => DuplexArg::ShortEdge,
     }
 }
 
