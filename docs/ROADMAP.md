@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `56ef7bcd` Pass 647.4a SHIPPED, 2026-10-30: XFA round checkButtons, 3-D edge strokes, caption reserve (X020 part 2; 1329th filing)
+
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Slice of `647.4`; request `X020`. Unreleased (the single release will carry `647.3a` too). Reasoning is in the commit message.
+- **Finding:** every `exclGroup` member already painted its own widget; the X020 rows vanished only because the lowered edge was skipped. The synthetic X020 form (no data) now renders six empty sunken circles with captions, `notes=0`, observed by the engineer at scale 4. Group value marking from data waits on `647.3a`.
+- **Core, 3-D edges (setting `ThreeDStroke { Bevel (default), Plain }`, gap G-CB11):** Bevel = PDFium-witness fixed-grey bands inside the border (lowered/raised: black ring t/2 plus bevel; etched/embossed: two bevels); a round checkButton draws every 3-D kind as two lowered-style rings of half-arcs. Plain = plain stroke of edge thickness and colour plus new `PaintNoteKind::StrokeApproximated` (also emitted for a rounded border, or a later 3-D edge behind a non-3-D first edge). Dashed/dotted/dashDot/dashDotDot still not drawn (`Stroke` note).
+- **Core, caption reserve (setting `CheckCaption { Fit (default), Remainder }`, gap G-CB14):** zero, negative or absent reserve reads as omitted (G-CB12/13), so `-5.08mm` is covered (reading taken for the `X020` reply). Fit = caption sized to content (XFA 3.3 p.644); Remainder = caption takes all but the box (PDFium).
+- **CLI:** `xfa-layout --three-d-stroke bevel|plain`, `--check-caption fit|remainder`; `paint-note kind=stroke-approximated`; help lists every note kind. `docs/core-api/03-capabilities.md` updated (settings, note kind); `index.md` line count fixed; `check-core-api-verbs` green.
+- **Tests:** 7 new core (`xfa::paint::check_tests`); 1 new CLI end-to-end with PNG pixel checks (bevel, plain, dashed) in `crates/pdfcer-cli/tests/xfa_layout.rs`. xfa lib 123 pass; CLI `xfa_layout` 9 pass. fmt, clippy `-D warnings`, code-structure (561 baseline, none new), public-fns-documented clean. No manifest change (`cargo tree` unaffected), no new dependency.
+- **Spec:** `adobe_ext__xfa_checkbutton_exclgroup_paint.md` (G-CB11..14). **Decisions:** none minted; the two settings follow the "ship both, pick the default" rule.
+- **GUI:** not built; the GUI box stays `[ ]`.
+- **Next:** `Pass 647.3a` (dataRef merge), NOT STARTED, awaiting the SOM spec slice.
+
 ### `v0.107.0` — PUBLISHED, 2026-10-30 (1328th filing)
 
 Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Release record for the prep filed below (1327th, bump `15cdee3b`).
@@ -26716,7 +26728,7 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 - **Public form for a manual check (not a fixture):** US DD Form 214 (dd0214.pdf): typing `1 2 3 4` in the four "Page __" boxes and saving must reopen as `1 2 3 4`, not `1 1 1 1`.
 - **Side-effect guard, bites only once scripting exists:** an event whose target no longer exists (a page removed by a layout re-run after its events were queued) is skipped, never run with `this` at the form root. Without it, a page-background button whose initialize script set `this.presence = "hidden"` hid the whole form (3 pages became 1) in the reporter's other viewer. Also recorded on `Pass 131.3`.
 
-### Pass 647.3a — XFA data merge, explicit `dataRef` bindings first (slice of 647.3; NOT STARTED; filed 1328th filing, request `X020`; second in order, after 647.4a)
+### Pass 647.3a — XFA data merge, explicit `dataRef` bindings first (slice of 647.3; NOT STARTED; filed 1328th filing, request `X020`; NEXT, `647.4a` shipped `56ef7bcd` (1329th filing))
 
 Engineer-dispatched filing; nothing built, nothing checked from here. Request `X020` (operator as a crates consumer; a public viewer bug report with a one-page synthetic dynamic-XFA form, fictional data only), read in full: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X020_xfa_dataref_merge_and_round_checkbuttons_in_exclgroups.md`. `647.3` itself stays NOT STARTED beyond this slice (normal match, once/global, occur, re-normalization, the page-instance criteria above).
 - **Wanted:** merge the `datasets` packet for `<bind match="dataRef" ref="…"/>` fields. `$` resolves to the data node the nearest bound ancestor subform matched (the root `<data>`; an unbound, unnamed-in-data page subform is transparent); a dotted SOM path walks down from it. Each resolved value becomes the field's value, is drawn, and is printed by `xfa-layout` on the field's `item` line as `value="…"`, so the merge is testable without rendering. An unresolvable `ref` leaves the field empty and prints a `warning kind=` line, never a failure of the whole layout. Today `xfa-layout` says "no form data merged".
@@ -26793,25 +26805,6 @@ Engineer-dispatched filing; nothing built, nothing checked from here. Request `X
 - **G-D18 stays PARTLY:** the inverted geometry is a reading, not spec text.
 - **REMAINING in 647.4:** rich text; other widgets (choice lists, bordered widgets, radio groups via exclGroup value); inline/rich captions; non-solid strokes and gradient fills (still disclosed); real fonts (`X014` item 2). Rounded corners are no longer on this list.
 - **Survivors:** the claim "corner drawn square" was swept in `ROADMAP.md` (second-cut text below amended in place; earlier cuts' "rounded corners" lines are dated history and stand), `FEATURES.md` (row amended). Not swept from here: `NEXT_SESSION.md`, `ARCHITECTURE.md` section 4, CLI help text; owed to the engineer.
-
-### Pass 647.4a — Round checkButtons, per-member exclGroup widgets, 3D edge strokes, negative caption reserve (slice of 647.4; NOT STARTED; filed 1328th filing, request `X020`; FIRST in order)
-
-Engineer-dispatched filing; nothing built, nothing checked from here. Request `X020` (see `647.3a` for the source). **Order, recorded: this slice first, then `647.3a`.** Why: this slice is pure paint on the layout model already built (no spec gap, no data merge needed), while `647.3a` waits on the SOM spec slice the spec librarian is still ingesting. Doing the unblocked slice first costs nothing and removes the blank-radio defect now.
-- **Observed defect (`v0.106.0`):** the form's three rows each hold an `exclGroup` (`bind match="none"`) of two fields, each `<checkButton shape="round">` with `<border><edge stroke="lowered"/><fill/></border>`, `minW` and no `w`, and a caption with a **negative** `reserve` (`-5.08mm`, `para hAlign="center"`). `xfa-layout` prints `paint-note kind=stroke-not-drawn` for all six and draws only the captions.
-- **Wanted, four parts:**
-  - **Round:** `checkButton shape="round"` paints a circle, not a box, sized and aligned as already done for square buttons (fifth cut, `cc5d7af4`). The mark default on a round box is already a filled dot (XFA 3.3 p.651).
-  - **Per-member widgets:** every field in an `exclGroup` paints its own widget; the group's shared value marks at most one. With no value, all are empty circles. The fifth cut deliberately did not read an exclGroup value (templates carry none; it comes from the data merge, `647.3a`), so until `647.3a` lands every member draws empty.
-  - **3D edges:** a `lowered`/`raised`/`embossed`/`etched` edge stroke draws at least as a plain stroke of the edge's thickness and colour instead of being skipped (a `paint-note` may say it was approximated; rule 4, off-canvas). Today these are `PaintNoteKind::Stroke`, "non-solid", not drawn.
-  - **Negative caption `reserve`:** read per the spec or reported, and never makes the widget vanish. **The reply to `X020` must say which reading was taken.** Current behaviour is the fourth cut's gap G-D7 reading (no positive reserve, including the grammar default -1, is read as omitted); whether that already covers a non-default negative such as `-5.08mm` is NOT established from here. Spec reading to be taken from the XFA caption/`reserve` text (spec librarian if the slice lacks it).
-  - **Sizing:** `minW` with no `w` must size the widget (part of the reported form); check that it does.
-- **Acceptance (the request's section, verbatim):**
-  - A synthetic form built as above: `xfa-layout` prints the three values (`GV_LINE1`, `GV_LINE2`, `9000000123`) on their field items, and the rendered page shows them. *(Carried by `647.3a`.)*
-  - The same form's three rows each show two circles, Yes and No, with no `stroke-not-drawn` note for them.
-  - Truncated or hostile data (a `ref` naming a missing node, a deep path, a cycle in the data via repeated names) returns warnings, never a panic. *(Carried by `647.3a`.)*
-  - A release that carries it.
-  - Standalone check for this slice, before `647.3a`: the same synthetic form without the data renders six empty circles with captions and no `stroke-not-drawn` for them.
-- **Release:** the single release that carries both slices; the reply names it.
-- **FEATURES:** Planned row added (all three boxes `[ ]`); the existing "Dynamic XFA, layout and drawing" row's "other widgets" wording stays true until this ships.
 
 ### Pass 647.5 — CLI `xfa-layout` report and `render-page` integration (FIRST CUT `c94ab2ee` (1289th filing), SECOND CUT `b0e0d1a2` (1292nd filing); NOT COMPLETE, stays here)
 

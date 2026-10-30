@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1329th filing) — `Pass 647.4a` SHIPPED `56ef7bcd` (`X020` part 2): XFA round checkButtons, 3-D edges, caption reserve
+
+**Shipped (engineer-reported, stated checked from his shell; no shell here, nothing checked from here):**
+- `Pass 647.4a`, commit `56ef7bcd` "feat(xfa): draw 3-D edges, round radio buttons in exclGroups". Core settings `ThreeDStroke { Bevel (default), Plain }` (G-CB11; Plain adds `PaintNoteKind::StrokeApproximated`) and `CheckCaption { Fit (default), Remainder }` (G-CB14); zero, negative or absent caption reserve reads as omitted (G-CB12/13). CLI `xfa-layout --three-d-stroke`, `--check-caption`, `paint-note kind=stroke-approximated`. Core-api `03-capabilities.md` updated. Tests: 7 core, 1 CLI end-to-end with PNG pixel checks; xfa lib 123 pass, CLI `xfa_layout` 9 pass; fmt, clippy, structure (561 baseline, none new), public-fns-documented clean. No manifest change, no new dependency. Dashed strokes still not drawn.
+- ROADMAP: Shipped entry added, Next-up entry removed. FEATURES: Planned row replaced by an Implemented-style row `[x] core / [x] cli / [ ] gui` (GUI not evidenced); the "layout and drawing" row's "other widgets" wording narrowed.
+
+**Decisions made this session:** none; the two settings follow the "ship both, pick the default" rule.
+
+**Findings:** every `exclGroup` member already painted its own widget; X020's rows vanished only because the lowered edge was skipped. The synthetic form now shows six empty sunken circles with captions, `notes=0` (engineer, scale 4). The 1328th-filing open question is closed: `-5.08mm` reserve is covered by the omitted reading (name this in the `X020` reply).
+
+**Still in flight:** `Pass 647.3a` (dataRef merge), NOT STARTED; needs the SOM spec slice on disk (verify first). Release not cut; one release carries both slices.
+
+**For next session:** `647.3a`, then reply to `X020` naming the release.
+
+**Hard-rule-11 survivors:** swept the claim "other widgets / 3-D edges not drawn" in ROADMAP (the 647.5 and earlier-cut entries are dated history; stand) and FEATURES (row narrowed). Not swept from here: `docs/NEXT_SESSION.md`, `ARCHITECTURE.md` section 4, the CLI help for the layout row; owed to the engineer. Backup currency not verifiable from here.
+
 ## 2026-10-30 (1328th filing) — `v0.107.0` PUBLISHED; request `X020` filed as `Pass 647.4a` and `Pass 647.3a`
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
