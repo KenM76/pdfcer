@@ -112,9 +112,23 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.106.0` — release prep, version bump `4b41bd50` (`chore`), 2026-10-30 (1315th filing); NOT yet published
+### `v0.106.0` — PUBLISHED, 2026-10-30 (1316th filing)
 
-Engineer-reported (shell held by the engineer); nothing checked from here. Same pattern as the v0.105.0 prep (1312th filing). The tag goes on this filing's own commit, to be made by the engineer.
+Engineer-reported (engineer states each item checked); no shell here, nothing checked from here. Release record for the prep filed below (1315th, bump `4b41bd50`, filing commit `e1236835`).
+- **Tag:** `v0.106.0`, annotated, on `e1236835` (the 1315th filing commit "docs: file v0.106.0 release prep"). Pushed; `origin/main` contains it. CI green at `e1236835`.
+- **Contents:** `0851e68b` (XFA image values, `X017`; sixth cut of `Pass 647.4`, NOT complete) plus the 1313th/1314th filings and the bump. See the prep entry below.
+- **Packaging:** build `D:\builds\pdfcer-20261030-0255-e123683`; `pdfcer.exe --version` reports 0.106.0, revision `v0.106.0`. The main zip was first made with PowerShell `Compress-Archive` (backslash entry separators); rebuilt with Python `zipfile` (forward slashes, top folder `pdfcer-v0.106.0/`) before upload. Finding filed: `D:/dev/rag/rust/windows_powershell_5_compress_archive_writes_backslash_zip_entry_separators.md`.
+- **GitHub release:** "pdfcer v0.106.0 — XFA images", 8 assets uploaded at their local sizes; `gh-release.py` PASS.
+- **`verify-release.py v0.106.0`:** all ok except the expected "working tree clean" (untracked root file `-` and agent-memory edits).
+- **Fresh-folder smoke** (`D:\builds\smoke-v0.106.0`): unzipped, `--version` 0.106.0; `xfa-layout --help` lists `--image-placement/--image-overflow/--image-dpi`; a synthetic XFA PDF with an `imageEdit` field whose `href` resolves through `/Names /XFAImages` to a 20x10 BMP rendered 20,000 red pixels (a 200x100 aspect-fit in a 200x100 pt box at 72 dpi scale = 200 x 100 = 20,000), `notes=0`.
+- **OneDrive:** slot `pdfcer1` now 0.106.0 (6 items, 75,797,467 bytes); `pdfcer2` keeps 0.105.0. **Next release writes `pdfcer2`.**
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.106.0 published; crates.io reports `max_version` 0.106.0 for each.
+- **Inbound channel** (outside the repo, `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`): `reply_X017_xfa_images_inline_and_linked_through_xfaimages_name_tree_SHIPPED.md` (names v0.106.0) and `notice_2026-10-30_v0.106.0_released.md`. `X017`'s pending item, layout not sizing growable containers from an image's natural size, stays on `647.4`.
+- **Next:** XFA, `Pass 647.4` remaining render cuts, then `647.3`; slow pace. FEATURES unchanged. Nothing minted.
+
+### `v0.106.0` — release prep, version bump `4b41bd50` (`chore`), 2026-10-30 (1315th filing); published in the 1316th filing (entry above)
+
+Engineer-reported (shell held by the engineer); nothing checked from here. Same pattern as the v0.105.0 prep (1312th filing). The tag goes on this filing's own commit, to be made by the engineer. *Amended 1316th: header said "NOT yet published"; it was published, see above; every "to run" item in the release plan below is done.*
 - **`4b41bd50`** "chore: bump workspace to 0.106.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`. Versions only. Parent `93aa4843` (the 1314th filing, `Pass 647.4` image cut, decision 213), whose parent is `0851e68b`.
 - **Carried since `v0.105.0`:** `0851e68b` "feat(xfa): draw image values, inline and linked through XFAImages (`X017`)" (core, render, and the CLI's `xfa-layout --image-placement/--image-overflow/--image-dpi`; sixth cut of `Pass 647.4`, NOT complete); the 1313th filing (`00ff0aea`, v0.105.0 publication); the 1314th filing (`93aa4843`). The release is cut because `X017` asked for one.
 - **Target:** annotated tag `v0.106.0` on this filing's commit; OneDrive slot `pdfcer1` (`pdfcer2` keeps 0.105.0, per the v0.105.0 PUBLISHED entry below: "Next release writes `pdfcer1`"); `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.106.0 to be published to crates.io after the tag.

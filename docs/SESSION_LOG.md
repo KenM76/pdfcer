@@ -4,7 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
-## 2026-10-30 (1315th filing) — `v0.106.0` release PREP, version bump `4b41bd50`; NOT yet published
+## 2026-10-30 (1316th filing) — `v0.106.0` PUBLISHED, tag on `e1236835`
+
+**Filed (docs only; engineer-reported, each item stated checked; no shell here, nothing checked from here):**
+- Tag `v0.106.0`, annotated, on `e1236835` (the 1315th filing commit; bump was `4b41bd50`). Pushed; `origin/main` contains it. CI green at the tagged commit.
+- Build `D:\builds\pdfcer-20261030-0255-e123683`; `--version` 0.106.0, revision `v0.106.0`. GitHub release "pdfcer v0.106.0 — XFA images": 8 assets at local sizes, `gh-release.py` PASS.
+- **Zip gotcha:** the main zip was first made with `Compress-Archive` (backslash separators, `unzip` warns); rebuilt with Python `zipfile` (forward slashes, top folder `pdfcer-v0.106.0/`). Judged general; written to `D:/dev/rag/rust/windows_powershell_5_compress_archive_writes_backslash_zip_entry_separators.md` and indexed.
+- `verify-release.py v0.106.0`: all ok except "working tree clean", expected (untracked root `-`, agent-memory edits).
+- Fresh-folder smoke (`D:\builds\smoke-v0.106.0`): `--version` OK; `xfa-layout --help` lists `--image-*`; synthetic XFA PDF with an `imageEdit` field resolving through `/Names /XFAImages` to a 20x10 BMP rendered 20,000 red pixels (200x100 aspect-fit at 72 dpi scale), `notes=0`.
+- OneDrive `pdfcer1` now 0.106.0 (6 items, 75,797,467 bytes); `pdfcer2` keeps 0.105.0. **Next release writes `pdfcer2`.**
+- crates.io: `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.106.0 published (`max_version` 0.106.0 each).
+- Channel: `reply_X017_..._SHIPPED.md` and `notice_2026-10-30_v0.106.0_released.md` written in FeatureRequests `open/`. `X017` pending item (layout does not size growable containers from image natural size) stays on `647.4`.
+
+**Decisions made:** none; nothing minted. **FEATURES.md:** unchanged. The 1315th ROADMAP prep header and this log's 1315th entry were amended (said "NOT yet published").
+
+**For next session:** XFA, `Pass 647.4` remaining render cuts, then `647.3`; slow pace. Backup currency not verifiable from here.
+
+**Hard-rule-11 survivors:** none; a release record only.
+
+## 2026-10-30 (1315th filing) — `v0.106.0` release PREP, version bump `4b41bd50`; published in the 1316th filing (entry above)
 
 **Filed (docs only; engineer-reported, the engineer holds the shell; nothing checked from here):**
 - `4b41bd50` "chore: bump workspace to 0.106.0" (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`), parent `93aa4843` (1314th filing), grandparent `0851e68b`. The tag goes on this filing's commit.
