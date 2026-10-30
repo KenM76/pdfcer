@@ -112,9 +112,23 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.104.0` — release prep, version bump `a65b29d1` (`chore`), 2026-10-29 (1309th filing); NOT yet published
+### `v0.104.0` — PUBLISHED, 2026-10-29 (1310th filing)
 
-Engineer-reported (shell held by the engineer); nothing checked from here. Same pattern as the v0.103.0 prep (1300th filing). The tag goes on this filing's own commit, to be made by the engineer.
+Engineer-reported (engineer states each item checked); no shell here, nothing checked from here. Release record for the prep filed below (1309th, bump `a65b29d1`, filing commit `c9382561`).
+- **Tag:** `v0.104.0`, annotated, on `c9382561` (the 1309th filing commit "docs: file v0.104.0 release prep"), pushed; `git ls-remote` shows `c9382561`. CI green at `c9382561` and `163ef805`.
+- **Contents:** print arc `55.9`-`55.14`, the `647.4` fifth cut `cc5d7af4` (NOT COMPLETE), `a65b29d1`, `c9382561`. Pass list: see the prep entry below.
+- **Packaging:** `package-portable.py` built `D:\builds\pdfcer-20261029-2017-c938256` (not dirty); `pdfcer.exe` 40,201,216 bytes; folder 56,126,893 bytes.
+- **GitHub release** "pdfcer v0.104.0": 8 assets at local sizes, each with a `.sha256`: `pdfcer-v0.104.0-windows-x64.zip` (28,096,721 bytes) and the `ocr-addon-ocrs`, `ocr-addon-tesseract`, `ocr-addon-ocrcer` zips.
+- **`verify-release.py v0.104.0`:** every check ok except "working tree clean" (the deliberate uncommitted agent-memory files, as on every release).
+- **Fresh-folder smoke test (extracted zip):** `--version` 0.104.0, revision `v0.104.0`; `inspect`; `render-page`; `list-finishing --printer "Microsoft Print to PDF"` (every kind none; holes and fold not settable on Windows); `print` dry run `mode=vector`; `print --staple top-left` refused, exit 9.
+- **OneDrive:** slot `pdfcer1` now 0.104.0; `pdfcer2` keeps 0.103.0. **Next release writes `pdfcer2`.**
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.104.0 published.
+- **GUI notice** (outside the repo): `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-10-29_v0.104.0_released.md`.
+- **Next:** XFA, `Pass 647.4` remaining render cuts, then `647.3`; slow pace. FEATURES unchanged. Nothing minted.
+
+### `v0.104.0` — release prep, version bump `a65b29d1` (`chore`), 2026-10-29 (1309th filing); published in the 1310th filing (entry above)
+
+Engineer-reported (shell held by the engineer); nothing checked from here. Same pattern as the v0.103.0 prep (1300th filing). The tag goes on this filing's own commit, to be made by the engineer. *Amended 1310th: header said "NOT yet published"; it was published, see above; every "to run" item in the release plan below is done.*
 - **`a65b29d1`** "chore: bump workspace to 0.104.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`. Versions only. Parent `163ef805` (the 1308th filing, `Pass 55.14` docs), already pushed; `origin/main` is `163ef805` as reported.
 - **Passes carried since `v0.103.0`** (already filed, not re-filed; read from the *Shipped* headers and the one "after v0.103.0" marker in this file): the print arc `55.9` (presets), `55.10` (print-time header/footer, grayscale/black, multi-file), `55.11` (printer's marks, separations), `55.12` (vector printing, result line `mode=vector|raster|mixed`), `55.13` (`ipp://` and CUPS printing), `55.14` (staple/punch/fold/output bin, `list-finishing`; `5b6367b1`). Also the `647.4` fifth cut `cc5d7af4` (check boxes; Pass NOT complete, stays in *Next up*), the only cut this file marks "after v0.103.0". Decision 211 falls in the window.
 - **Slot:** `pdfcer1` (`pdfcer2` keeps 0.103.0), per the v0.103.0 PUBLISHED entry above ("Next release writes `pdfcer1`").

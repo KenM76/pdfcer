@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1310th filing) — `v0.104.0` PUBLISHED, tag on `c9382561`
+
+**Filed (docs only; engineer-reported, each item stated checked; no shell here, nothing checked from here):**
+- Tag `v0.104.0`, annotated, on `c9382561` (the 1309th filing commit), pushed; `git ls-remote` shows `c9382561`. CI green at `c9382561` and `163ef805`.
+- Portable build `D:\builds\pdfcer-20261029-2017-c938256` (not dirty; `pdfcer.exe` 40,201,216 bytes; folder 56,126,893). GitHub release "pdfcer v0.104.0": 8 assets with `.sha256`; `pdfcer-v0.104.0-windows-x64.zip` 28,096,721 bytes plus the three OCR add-on zips.
+- `verify-release.py v0.104.0`: all ok except "working tree clean" (deliberate uncommitted agent-memory files).
+- Fresh-folder smoke (extracted zip): `--version` 0.104.0 / `v0.104.0`; `inspect`; `render-page`; `list-finishing --printer "Microsoft Print to PDF"` (all none; holes and fold not settable on Windows); `print` dry run `mode=vector`; `print --staple top-left` refused, exit 9.
+- OneDrive `pdfcer1` now 0.104.0; `pdfcer2` keeps 0.103.0. **Next release writes `pdfcer2`.**
+- crates.io: `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.104.0 published.
+- GUI notice `notice_2026-10-29_v0.104.0_released.md` written (FeatureRequests `open/`).
+
+**Decisions made:** none; nothing minted. **FEATURES.md:** unchanged. The 1309th ROADMAP prep header was amended (it said "NOT yet published").
+
+**For next session:** XFA, `Pass 647.4` remaining render cuts, then `647.3`; slow pace. Backup currency not verifiable from here.
+
+**Hard-rule-11 survivors:** none; a release record only.
+
 ## 2026-10-29 (1309th filing) — `v0.104.0` release PREP, version bump `a65b29d1`; NOT yet published
 
 **Filed (docs only; engineer-reported, the engineer holds the shell; nothing checked from here):**
