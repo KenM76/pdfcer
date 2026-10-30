@@ -3,15 +3,18 @@
 //! SOM Ch.3; slices `adobe_ext__xfa_som_data_binding.md` and
 //! `adobe_ext__xfa_data_binding_normal.md`).
 //!
-//! Scope of this cut: the root subform binds to the top data group (p.182),
-//! a `dataRef` binding resolves its reference, and a subform it binds to a
-//! group becomes `$` for everything under it. A container with no binding,
-//! or `once`/`global`/`none` binding, passes its parent's scope through
-//! (G-SOM1); normal name-matching binding and instance creation are later
-//! cuts. Nothing is written to the file: the merge is a transient read of
-//! the template for layout and drawing (G-SOM5).
+//! The root subform binds to the top data group (p.182). A `dataRef`
+//! binding resolves its reference; a named container with `once` (or no)
+//! binding matches by name ([`normal`]); a subform either binds becomes the
+//! scope for everything under it. Transparent containers pass their parent's
+//! scope through (pp.193-194): nameless ones, `scope="none"` subforms,
+//! `match="none"`, areas and subform sets. Exclusion-group members and page
+//! sets do not bind by name. `global` binding and instance creation are later
+//! cuts. Nothing is written to the file: the merge is a transient read of the
+//! template for layout and drawing (G-SOM5).
 
 mod data;
+mod normal;
 mod som;
 
 use std::collections::HashSet;
@@ -20,6 +23,7 @@ use super::packets::{XdpDocument, XfaError, parse_xml};
 use super::template::{ContainerKind, Template, XfaNode};
 
 use data::{DataNode, node_at};
+use normal::{Found, Search};
 
 /// How an unqualified reference finds its first name (gap G-SOM3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -133,8 +137,11 @@ pub struct MergeWarning {
     pub path: Vec<usize>,
     /// Why.
     pub kind: MergeWarningKind,
-    /// The reference as written.
+    /// The reference as written, or the container's name when
+    /// [`Self::by_name`].
     pub reference: String,
+    /// The container was matching by name, not by a data reference.
+    pub by_name: bool,
 }
 
 /// One field or exclusion group that took a data value.
@@ -228,6 +235,8 @@ pub fn merge_data(
         root: &root,
         record: &record,
         opts,
+        direct_only: false,
+        passive: 0,
         bound_nodes: HashSet::new(),
         bound: Vec::new(),
         warnings: Vec::new(),
@@ -237,6 +246,7 @@ pub fn merge_data(
     let mut path = Vec::new();
     for (i, child) in element.children.iter_mut().enumerate() {
         if child.tag == "subform" {
+            m.direct_only = child.attr("mergeMode") == Some("matchTemplate");
             path.push(i);
             // The root subform binds to the top data group (p.182).
             let scope = record.clone();
@@ -257,6 +267,11 @@ struct Merger<'a> {
     root: &'a DataNode,
     record: &'a [usize],
     opts: &'a MergeOptions,
+    /// The root subform's `mergeMode` is `matchTemplate`.
+    direct_only: bool,
+    /// How many exclusion groups or page sets enclose the container; inside
+    /// one nothing binds by name.
+    passive: usize,
     bound_nodes: HashSet<Vec<usize>>,
     bound: Vec<BoundValue>,
     warnings: Vec<MergeWarning>,
@@ -267,7 +282,15 @@ impl Merger<'_> {
     fn container(&mut self, node: &mut XfaNode, path: &mut Vec<usize>, scope: &[usize]) {
         let kind = node.container_kind();
         let mut inner = scope.to_vec();
-        if let Some(reference) = self.data_ref(node) {
+        // The root subform is bound to the record already (p.182).
+        let name = if path.len() > 1 {
+            self.bind_name(node, kind)
+        } else {
+            None
+        };
+        if let Some(name) = name {
+            self.by_name(node, path, scope, &name, &mut inner);
+        } else if let Some(reference) = self.data_ref(node) {
             let want_value = matches!(kind, Some(ContainerKind::Field | ContainerKind::ExclGroup));
             match self.lookup(&reference, scope, want_value) {
                 Ok(at) => {
@@ -289,18 +312,93 @@ impl Merger<'_> {
                     path: path.clone(),
                     kind,
                     reference,
+                    by_name: false,
                 }),
             }
         }
         if matches!(kind, Some(ContainerKind::Field | ContainerKind::Draw)) {
             return;
         }
+        let passive = matches!(
+            kind,
+            Some(ContainerKind::ExclGroup | ContainerKind::PageSet)
+        );
+        self.passive += usize::from(passive);
         for (i, child) in node.children.iter_mut().enumerate() {
             if child.container_kind().is_some() {
                 path.push(i);
                 self.container(child, path, &inner);
                 path.pop();
             }
+        }
+        self.passive -= usize::from(passive);
+    }
+
+    /// The name `node` binds by, when it binds by name: a named subform,
+    /// field or exclusion group whose `bind` is absent, `once` or `global`
+    /// (which tries normal matching first, p.176), outside exclusion groups
+    /// and page sets. A `dataRef` or `none` binding, a nameless container
+    /// and a `scope="none"` subform do not (pp.193-194).
+    fn bind_name(&self, node: &XfaNode, kind: Option<ContainerKind>) -> Option<String> {
+        if self.passive > 0 {
+            return None;
+        }
+        let bind = node.child("bind");
+        let by_name = match bind.and_then(|b| b.attr("match")) {
+            None => {
+                bind.and_then(|b| b.attr("ref")).is_none() || self.opts.bare_ref == BareRef::Ignore
+            }
+            Some("once" | "global") => true,
+            Some(_) => false,
+        };
+        let eligible = match kind {
+            Some(ContainerKind::Field | ContainerKind::ExclGroup) => true,
+            Some(ContainerKind::Subform) => node.attr("scope") != Some("none"),
+            _ => false,
+        };
+        let name = node.name().filter(|n| !n.is_empty())?;
+        (by_name && eligible).then(|| name.to_owned())
+    }
+
+    /// Bind `node` to the data node named `name` (normal matching).
+    fn by_name(
+        &mut self,
+        node: &mut XfaNode,
+        path: &[usize],
+        scope: &[usize],
+        name: &str,
+        inner: &mut Vec<usize>,
+    ) {
+        let want_value = node.tag != "subform";
+        let search = Search {
+            root: self.root,
+            record: self.record,
+            bound: &self.bound_nodes,
+            direct_only: self.direct_only,
+        };
+        match search.find(scope, name, want_value) {
+            Found::Hit(at) => {
+                if want_value {
+                    let value = node_at(self.root, &at)
+                        .map(|d| d.value.clone())
+                        .unwrap_or_default();
+                    set_value(node, &value);
+                    self.bound.push(BoundValue {
+                        path: path.to_vec(),
+                        value,
+                    });
+                } else {
+                    inner.clone_from(&at);
+                }
+                self.bound_nodes.insert(at);
+            }
+            Found::WrongType => self.warnings.push(MergeWarning {
+                path: path.to_vec(),
+                kind: MergeWarningKind::WrongType,
+                reference: name.to_owned(),
+                by_name: true,
+            }),
+            Found::Miss => {}
         }
     }
 

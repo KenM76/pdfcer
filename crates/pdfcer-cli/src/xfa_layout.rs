@@ -181,8 +181,13 @@ fn print_layout(layout: &XfaLayout, merged: &MergedForm) {
         println!("warning {}", warning_fields(w));
     }
     for w in &merged.warnings {
+        let (how, key) = if w.by_name {
+            ("name", "name")
+        } else {
+            ("ref", "ref")
+        };
         println!(
-            "warning kind=data-ref-{} path={} ref={:?}",
+            "warning kind=data-{how}-{} path={} {key}={:?}",
             w.kind.as_str(),
             dotted(&w.path),
             w.reference

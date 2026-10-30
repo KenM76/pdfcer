@@ -214,3 +214,120 @@ fn an_exclgroup_value_turns_on_the_member_with_that_on_value() {
     }
     assert_eq!(m.bound.len(), 1);
 }
+
+fn values(m: &MergedForm) -> Vec<&str> {
+    m.bound.iter().map(|b| b.value.as_str()).collect()
+}
+
+/// X022 Form F: an exclusion group with default binding selects by name.
+#[test]
+fn an_exclgroup_binds_by_name_and_its_members_do_not() {
+    let body = r#"<subform name="Section1"><exclGroup name="LikesPizza"><field name="Yes"><items><text>Yes</text></items></field><field name="No"><items><text>No</text></items></field></exclGroup></subform>"#;
+    let m = merged(
+        body,
+        "<data><Section1><LikesPizza>Yes</LikesPizza><Yes>member</Yes></Section1></data>",
+    );
+    assert_eq!(values(&m), ["Yes"]);
+    assert_eq!(m.value_at(&[0, 0, 0]), Some("Yes"));
+}
+
+/// X023 Form A: a `match="none"` subform opens no data scope, a bound
+/// subform inside it still does.
+#[test]
+fn a_none_subform_is_not_a_data_scope() {
+    let body = r#"<subform name="sec"><bind match="none"/><field name="colour"/><subform name="inner"><field name="pet"/></subform></subform><subform name="bound"><field name="town"/></subform>"#;
+    let m = merged(
+        body,
+        "<data><colour>Teal</colour><inner><pet>Biscuit</pet></inner><bound><town>Springfield</town></bound></data>",
+    );
+    assert_eq!(values(&m), ["Teal", "Biscuit", "Springfield"]);
+    assert!(m.warnings.is_empty(), "{:?}", m.warnings);
+}
+
+/// X023 Form B: the control, a bound subform with nested data.
+#[test]
+fn a_named_subform_binds_its_group() {
+    let body = r#"<subform name="sec"><field name="colour"/></subform>"#;
+    let m = merged(
+        body,
+        "<data><sec><colour>Teal</colour></sec><colour>outer</colour></data>",
+    );
+    assert_eq!(values(&m), ["Teal"]);
+}
+
+#[test]
+fn transparent_containers_pass_their_scope_through() {
+    let body = r#"<subform><field name="a"/></subform><subform name="s" scope="none"><field name="b"/></subform><area name="x"><field name="c"/></area>"#;
+    let m = merged(body, "<data><a>1</a><b>2</b><c>3</c></data>");
+    assert_eq!(values(&m), ["1", "2", "3"]);
+}
+
+/// p.185: a field may match data a generation up; never data inside another
+/// group (p.189).
+#[test]
+fn a_scope_match_looks_up_but_never_into_another_group() {
+    let body = r#"<subform name="g"><field name="up"/><field name="hidden"/></subform>"#;
+    let m = merged(
+        body,
+        "<data><g><z>0</z></g><up>u</up><other><hidden>h</hidden></other></data>",
+    );
+    assert_eq!(values(&m), ["u"]);
+    assert!(m.warnings.is_empty(), "{:?}", m.warnings);
+}
+
+#[test]
+fn match_template_allows_direct_matches_only() {
+    let x = XdpDocument::parse(format!(
+        r#"<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/"><template><subform name="data" mergeMode="matchTemplate"><subform name="g"><field name="up"/></subform></subform></template><xfa:datasets xmlns:xfa="{DATA_NS}"><xfa:data><data><g><z>0</z></g><up>u</up></data></xfa:data></xfa:datasets></xdp:xdp>"#
+    ))
+    .unwrap();
+    let t = read_template(&x).unwrap().unwrap();
+    let m = merge_data(&t, &x, &MergeOptions::new()).unwrap();
+    assert!(m.bound.is_empty(), "{:?}", m.bound);
+}
+
+/// p.191, p.200: same-named fields take same-named values in document
+/// order, one each; a spare field keeps its template value.
+#[test]
+fn same_named_fields_bind_in_document_order_one_node_each() {
+    let body = r#"<field name="n"/><field name="n"/><field name="n"/>"#;
+    let m = merged(body, "<data><n>1</n><n>2</n></data>");
+    assert_eq!(values(&m), ["1", "2"]);
+    assert_eq!(m.value_at(&[0, 2]), None);
+}
+
+#[test]
+fn a_dataref_bound_node_is_not_taken_again_by_name() {
+    let body = format!(r#"{}<field name="n"/>"#, field("r", "$.n"));
+    let m = merged(&body, "<data><n>1</n><n>2</n></data>");
+    assert_eq!(values(&m), ["1", "2"]);
+}
+
+/// p.181: a field never binds a group; it is skipped with a warning.
+#[test]
+fn a_same_named_group_is_a_wrong_type_for_a_field() {
+    let m = merged(r#"<field name="g"/>"#, "<data><g><x>1</x></g></data>");
+    assert!(m.bound.is_empty());
+    assert_eq!(m.warnings[0].kind, MergeWarningKind::WrongType);
+    assert_eq!(m.warnings[0].reference, "g");
+}
+
+#[test]
+fn page_set_fields_do_not_bind_by_name() {
+    let body =
+        r#"<pageSet><pageArea name="p"><field name="a"/></pageArea></pageSet><field name="a"/>"#;
+    let m = merged(body, "<data><a>1</a></data>");
+    assert_eq!(m.bound.len(), 1);
+    assert_eq!(m.bound[0].path, [0, 1]);
+}
+
+#[test]
+fn a_thousand_same_named_fields_and_deep_none_chains_stay_sane() {
+    let mut body = "<field name=\"n\"/>".repeat(1_000);
+    for _ in 0..200 {
+        body = format!(r#"<subform name="s"><bind match="none"/>{body}</subform>"#);
+    }
+    let data = format!("<data>{}</data>", "<n>v</n>".repeat(1_500));
+    let m = merged(&body, &data);
+    assert_eq!(m.bound.len(), 1_000);
+}

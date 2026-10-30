@@ -446,3 +446,40 @@ fn merged_values_are_drawn() {
     };
     assert_ne!(png("drawn", X020_DATA), png("empty", "<data/>"));
 }
+
+/// X023 Form A and X022 Form F: fields, an exclusion group and subforms
+/// with the default binding take same-named data; a `match="none"` subform
+/// opens no data scope.
+#[test]
+fn name_matched_fields_print_their_merged_values() {
+    let text = |n: &str, y: u32| {
+        format!(
+            r#"<field name="{n}" x="10pt" y="{y}pt" w="200pt" h="20pt"><ui><textEdit/></ui></field>"#
+        )
+    };
+    let form = format!(
+        r#"<subform name="form">{PAGE}<subform name="sec" w="540pt" h="400pt"><bind match="none"/>{}<subform name="inner">{}</subform><exclGroup name="LikesPizza"><field name="y" x="10pt" y="80pt" w="20pt" h="20pt"><ui><checkButton shape="round"/></ui><items><text>Yes</text></items></field></exclGroup></subform><subform name="bound">{}</subform><field name="g" x="10pt" y="300pt" w="200pt" h="20pt"><ui><textEdit/></ui></field></subform>"#,
+        text("colour", 10),
+        text("pet", 40),
+        text("town", 120),
+    );
+    let data = "<form><colour>Teal</colour><inner><pet>Biscuit</pet></inner><LikesPizza>Yes</LikesPizza><bound><town>Springfield</town></bound><g><x>1</x></g></form>";
+    let (code, stdout, stderr) = run("byname", &pdf_with_data(Some(&form), data), &[]);
+    assert_eq!(code, 0, "{stderr}");
+    for (name, value) in [
+        ("colour", "Teal"),
+        ("pet", "Biscuit"),
+        ("LikesPizza", "Yes"),
+        ("town", "Springfield"),
+    ] {
+        let line = stdout
+            .lines()
+            .find(|l| l.contains(&format!(r#"name="{name}""#)))
+            .unwrap_or_else(|| panic!("{name}: {stdout}"));
+        assert!(line.ends_with(&format!(r#" value="{value}""#)), "{line}");
+    }
+    assert!(
+        stdout.contains(r#"warning kind=data-name-wrong-type path=0.3 name="g""#),
+        "{stdout}"
+    );
+}

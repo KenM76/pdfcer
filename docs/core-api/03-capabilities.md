@@ -692,21 +692,31 @@ The enums are `#[non_exhaustive]`, and unknown tokens read as the default. CLI:
 (an `.xdp` file) the same way `read_xdp` reads a document's; it fails with
 `TooLarge`, `TooDeep` or `Xml`.
 
-**The XFA data merge** (`xfa/merge.rs`, decision 204, Pass 647.3a):
+**The XFA data merge** (`xfa/merge.rs`, decision 204, Passes 647.3a/647.3b):
 `merge_data(&Template, &XdpDocument, &MergeOptions) -> Result<MergedForm, XfaError>`.
 It merges the `datasets` packet's `xfa:data` into fields and exclusion groups
-bound with `<bind match="dataRef" ref="…"/>` (XFA 3.3 p.183; SOM Ch.3). Lay
-out and paint `MergedForm::template`; nothing is written to the file.
-- **Scope.** The root subform binds to the top data group (p.182). `$` is
-  the data node of the nearest ancestor bound by a `dataRef`; an unbound
-  subform passes its parent's scope through. Normal name-matching binding
-  and instance creation are not merged yet.
+bound with `<bind match="dataRef" ref="…"/>` (XFA 3.3 p.183; SOM Ch.3) or
+by name. Lay out and paint `MergedForm::template`; nothing is written to the
+file.
+- **Scope.** The root subform binds to the top data group (p.182). A
+  subform bound by a `dataRef` or by name is the data scope (`$`) for
+  everything under it; an unbound subform passes its parent's scope through.
+- **By name** (default or `match="once"`/`"global"` binding, pp.181-191).
+  A named subform takes a same-named data group, a named field or exclusion
+  group a same-named data value: the first not yet bound (document order,
+  one node each, p.200), among the scope's children, then a generation up at
+  a time to the record (p.185), never inside another group (p.189). A root
+  `mergeMode="matchTemplate"` allows the scope's children only. Transparent,
+  so their contents match the enclosing data (pp.193-194): nameless
+  containers, `scope="none"` subforms, `match="none"`, areas and subform
+  sets. Exclusion-group members and page sets do not bind by name. The
+  `global` fallback and instance creation are not merged yet.
 - **References.** `$`, `$data`, `$record`, `!data`, `xfa.datasets.data`,
   unqualified names, `\.` escapes, `[n]` and `[*]` (the first match not yet
   bound, p.108). `..`, `#class`, `*` names, predicates and `[+n]`/`[-n]` are
   reported, not resolved.
 - **Output.** `MergedForm { template, bound: Vec<BoundValue { path, value }>,
-  warnings: Vec<MergeWarning { path, kind, reference }>, has_data }`, all
+  warnings: Vec<MergeWarning { path, kind, reference, by_name }>, has_data }`, all
   `#[non_exhaustive]`; `value_at(path)` looks one up. `path` uses
   `LayoutItem::path`'s convention, and a field with no `value` element gains
   one as its last child, so layout paths do not move. An exclusion group's
@@ -714,6 +724,8 @@ out and paint `MergedForm::template`; nothing is written to the file.
 - **Never a failure.** A reference that binds nothing leaves the template
   value and adds a `MergeWarningKind` (`Unresolved`, `WrongType`,
   `Unsupported`, `TooLong` past 1,024 steps; `as_str()` gives the CLI name).
+  By name, a same-named node of the wrong type is skipped as `WrongType`
+  with `by_name` set and `reference` the name; no match at all is silent.
   Errors are only `Xml`, `TooDeep`, or `TooLarge` past a million data nodes.
 - **Settings** (`MergeOptions`, spec gaps): `ScopeSearch` `Upward` (default,
   p.110) or `Children`; `BareRef` `Ignore` (default, p.623) or `DataRef` for
@@ -721,6 +733,7 @@ out and paint `MergedForm::template`; nothing is written to the file.
   pp.99-100) or `Ignore`.
 - **CLI.** `xfa-layout` merges before laying out: bound items end with
   `value="…"`, each warning prints as `warning kind=data-ref-<kind> path= ref="…"`
+  (or `kind=data-name-<kind> path= name="…"`)
   and counts in the summary, and `--scope-search`, `--bare-ref`,
   `--data-attributes` set the options. The stderr note says how many values
   were merged.

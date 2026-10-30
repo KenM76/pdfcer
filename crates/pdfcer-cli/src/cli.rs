@@ -6136,8 +6136,12 @@ pub(crate) enum Command {
     /// A dynamic XFA form stores one placeholder page; its real pages exist
     /// only once an XFA processor lays the template out. This prints that
     /// layout, read-only. Values from the form's data are merged into
-    /// fields bound with an explicit data reference (bind match="dataRef");
-    /// other bindings are not merged yet.
+    /// fields bound with an explicit data reference (bind match="dataRef")
+    /// and into named fields, exclusion groups and subforms with the default
+    /// binding, which match data of the same name. A subform with
+    /// bind match="none" and a nameless one are not a data scope: what they
+    /// hold matches the enclosing data. match="global" fallback is not
+    /// merged yet.
     ///
     ///   page index=N name="..." width= height= page_area= content_areas= items=
     ///   item page=N kind= name="..." path= x= y= w= h= area= background= visible= [value="..."]
@@ -6156,7 +6160,9 @@ pub(crate) enum Command {
     /// template value: data-ref-unresolved (no such data),
     /// data-ref-wrong-type (a group where a value is needed, or the
     /// reverse), data-ref-unsupported (SOM syntax not resolved yet, such as
-    /// .. or #class) or data-ref-too-long.
+    /// .. or #class) or data-ref-too-long. data-name-wrong-type with name=
+    /// says a same-named data node was skipped because it is a group where
+    /// a value is needed, or the reverse.
     ///
     /// With --png-dir it also draws each page to an image and prints:
     ///
