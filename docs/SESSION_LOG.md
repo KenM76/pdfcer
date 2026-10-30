@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1313th filing) — `v0.105.0` PUBLISHED, tag on `e53e9634`
+
+**Filed (docs only; engineer-reported, each item stated verified; no shell here, nothing checked from here):**
+- Tag `v0.105.0`, annotated, on `e53e9634` (the 1312th filing commit; bump was `94d7f216`). CI green at `e53e9634`.
+- Build `D:\builds\pdfcer-20261029-2101-e53e963` (not dirty; `pdfcer.exe` 40,200,704 bytes). GitHub release: 8 assets with `.sha256`; `pdfcer-v0.105.0-windows-x64.zip` 28,097,002 bytes plus the three OCR add-on zips; `gh-release.py` PASS, 8 uploaded at local sizes.
+- `verify-release.py v0.105.0`: one problem, "working tree clean" (untracked agent-memory files and root file `-`), expected.
+- Fresh-folder smoke (`D:\builds\smoke-v0.105.0`): `--version` 0.105.0, `inspect`, `render-page` p1.png, `list-finishing` all OK.
+- OneDrive `pdfcer2` now 0.105.0 (6 items, 75,748,315 bytes); `pdfcer1` keeps 0.104.0. **Next release writes `pdfcer1`.**
+- crates.io: `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.105.0 published.
+- Release content: `X016` item 2 only (`dc549ef3`, a test; no behaviour change). Items 1 and 3 sit on `647.3` / `647.7` (1311th, decision 212).
+- Channel: wrote `notice_2026-10-29_v0.105.0_released.md` and the `X016` reply (`reply_X016_xfa_page_background_values_per_page_subformset_test_and_table_cell_height_SHIPPED.md`) in FeatureRequests `open/`. The reply promises replies on items 1 and 3 when `647.3` / `647.7` ship. `X016` stays open in spirit.
+
+**Decisions made:** none; nothing minted. **FEATURES.md:** unchanged. The 1312th ROADMAP prep header was amended (it said "NOT yet published").
+
+**For next session:** XFA, `Pass 647.4` remaining render cuts, then `647.3`; slow pace. The operator asked the engineer to check the FeatureRequests folder regularly for pdfcraft's XFA follow-ups. Backup currency not verifiable from here.
+
+**Hard-rule-11 survivors:** none; a release record only.
+
 ## 2026-10-29 (1312th filing) — `v0.105.0` release PREP, version bump `94d7f216`; NOT yet published
 
 **Filed (docs only; engineer-reported, the engineer holds the shell; nothing checked from here):**

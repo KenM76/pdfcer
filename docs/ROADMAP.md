@@ -112,9 +112,23 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.105.0` — release prep, version bump `94d7f216` (`chore`), 2026-10-29 (1312th filing); NOT yet published
+### `v0.105.0` — PUBLISHED, 2026-10-29 (1313th filing)
 
-Engineer-reported (shell held by the engineer); nothing checked from here. Same pattern as the v0.104.0 prep (1309th filing). The tag goes on this filing's own commit, to be made by the engineer.
+Engineer-reported (engineer states each item verified); no shell here, nothing checked from here. Release record for the prep filed below (1312th, bump `94d7f216`, filing commit `e53e9634`).
+- **Tag:** `v0.105.0`, annotated, on `e53e9634` (the 1312th filing commit "docs: file v0.105.0 release prep"). CI green at `e53e9634`.
+- **Contents:** only `dc549ef3`, the `pdfcer-core` test `a_subform_set_in_a_positioned_subform_keeps_its_members_columns` (`X016` item 2). No behaviour change. `X016` items 1 and 3 are recorded on `647.3` / `647.7` (1311th filing, `3938787d`, decision 212).
+- **Packaging:** build `D:\builds\pdfcer-20261029-2101-e53e963` (not dirty); `pdfcer.exe` 40,200,704 bytes.
+- **GitHub release:** 8 assets, each with a `.sha256` (`pdfcer-v0.105.0-windows-x64.zip` 28,097,002 bytes plus `ocr-addon-ocrs`, `ocr-addon-tesseract`, `ocr-addon-ocrcer` zips); `gh-release.py` reported PASS, 8 assets uploaded at their local sizes.
+- **`verify-release.py v0.105.0`:** one problem, "working tree clean", the expected one (untracked `.claude/agent-memory` files and the root file `-`).
+- **Fresh-folder smoke** (`D:\builds\smoke-v0.105.0`): `--version` 0.105.0; `inspect` OK; `render-page` p1.png OK; `list-finishing` OK.
+- **OneDrive:** slot `pdfcer2` now 0.105.0 (6 items, 75,748,315 bytes); `pdfcer1` keeps 0.104.0. **Next release writes `pdfcer1`.**
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.105.0 published.
+- **Inbound channel** (outside the repo, `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`): `notice_2026-10-29_v0.105.0_released.md`, and `reply_X016_xfa_page_background_values_per_page_subformset_test_and_table_cell_height_SHIPPED.md` (names v0.105.0; items 1 and 3 get a reply when `647.3` / `647.7` ship). `X016` stays open in spirit; pdfcraft expects back-and-forth.
+- **Next:** XFA, `Pass 647.4` remaining render cuts, then `647.3`; slow pace. FEATURES unchanged. Nothing minted.
+
+### `v0.105.0` — release prep, version bump `94d7f216` (`chore`), 2026-10-29 (1312th filing); published in the 1313th filing (entry above)
+
+Engineer-reported (shell held by the engineer); nothing checked from here. Same pattern as the v0.104.0 prep (1309th filing). The tag goes on this filing's own commit, to be made by the engineer. *Amended 1313th: header said "NOT yet published"; it was published, see above; every "to run" item in the release plan below is done.*
 - **`94d7f216`** "chore: bump workspace to 0.105.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`. Versions only. Parent `3938787d` (the 1311th `X016` filing), whose parent is `dc549ef3`.
 - **Carried since `v0.104.0`:** only `dc549ef3`, the `pdfcer-core` test `a_subform_set_in_a_positioned_subform_keeps_its_members_columns` (`X016` item 2; filed as an addendum on `Pass 647.1`). No code change. The release is cut because `X016` asked for one after its done items; items 1 and 3 are recorded on `647.3` / `647.7`, decision 212 minted (1311th).
 - **Target:** annotated tag `v0.105.0` on this filing's commit; OneDrive slot `pdfcer2` (`pdfcer1` keeps 0.104.0, per the v0.104.0 PUBLISHED entry below); `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.105.0 to be published to crates.io after the tag.
