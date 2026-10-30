@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.105.0` — release prep, version bump `94d7f216` (`chore`), 2026-10-29 (1312th filing); NOT yet published
+
+Engineer-reported (shell held by the engineer); nothing checked from here. Same pattern as the v0.104.0 prep (1309th filing). The tag goes on this filing's own commit, to be made by the engineer.
+- **`94d7f216`** "chore: bump workspace to 0.105.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`. Versions only. Parent `3938787d` (the 1311th `X016` filing), whose parent is `dc549ef3`.
+- **Carried since `v0.104.0`:** only `dc549ef3`, the `pdfcer-core` test `a_subform_set_in_a_positioned_subform_keeps_its_members_columns` (`X016` item 2; filed as an addendum on `Pass 647.1`). No code change. The release is cut because `X016` asked for one after its done items; items 1 and 3 are recorded on `647.3` / `647.7`, decision 212 minted (1311th).
+- **Target:** annotated tag `v0.105.0` on this filing's commit; OneDrive slot `pdfcer2` (`pdfcer1` keeps 0.104.0, per the v0.104.0 PUBLISHED entry below); `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.105.0 to be published to crates.io after the tag.
+- **Gates (engineer-reported, change-scoped):** only `pdfcer-core` tests changed; `xfa::` 97 passed. fmt, clippy (`--all-targets -D warnings`) and the structure gate clean.
+- **Release plan (to run, NOT claimed done):** tag, push of `main` and the tag, packaging, `verify-release.py v0.105.0`, fresh-folder smoke test, GitHub release assets, OneDrive `pdfcer2`, `cargo publish`.
+- **FEATURES:** no change. Nothing minted.
+
 ### `v0.104.0` — PUBLISHED, 2026-10-29 (1310th filing)
 
 Engineer-reported (engineer states each item checked); no shell here, nothing checked from here. Release record for the prep filed below (1309th, bump `a65b29d1`, filing commit `c9382561`).

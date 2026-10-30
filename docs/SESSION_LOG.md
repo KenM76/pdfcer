@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1312th filing) — `v0.105.0` release PREP, version bump `94d7f216`; NOT yet published
+
+**Filed (docs only; engineer-reported, the engineer holds the shell; nothing checked from here):**
+- `94d7f216` "chore: bump workspace to 0.105.0" (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`), parent `3938787d` (1311th filing), grandparent `dc549ef3`. The tag goes on this filing's commit.
+- Contents since `v0.104.0`: only `dc549ef3` (`pdfcer-core` subformSet test, `X016` item 2). No code change. Slot `pdfcer2`; `pdfcer1` keeps 0.104.0.
+- Gates (engineer-reported, change-scoped): `pdfcer-core` tests only, `xfa::` 97 passed; fmt, clippy (`--all-targets -D warnings`), structure clean.
+- FEATURES unchanged. No decision, no rule.
+
+**Open for the later filing:** tag, push, packaging, `verify-release.py`, fresh-folder smoke, GitHub release, OneDrive `pdfcer2`, crates.io (`pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.105.0). All "to run", none claimed passed. Backup currency not verifiable from here.
+
+**Hard-rule-11 survivors:** none; a version number only.
+
 ## 2026-10-29 (1311th filing) — request `X016`: subformSet test `dc549ef3` shipped; items 1 and 3 recorded on `647.3` / `647.7`; decision 212 minted
 
 **Filed (docs only; engineer-reported, the engineer commits; nothing checked from here):**
