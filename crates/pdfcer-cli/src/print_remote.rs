@@ -267,44 +267,68 @@ fn lp_args(job: &RemoteJob<'_>, p: &Prepared) -> Vec<String> {
     head
 }
 
-/// POST an IPP message to `uri` over the transport its scheme needs.
-fn post(uri: &str, message: &[u8]) -> Result<Vec<u8>, (String, u8)> {
-    let url = ipp::http_url(uri).unwrap_or_default();
-    if url.to_ascii_lowercase().starts_with("https://") {
-        return post_tls(&url, message);
+/// The CLI's transport: plain HTTP, and TLS through `pdfcer_fetch` in a
+/// build with the `download` feature.
+struct CliTransport {
+    timeout: Duration,
+}
+
+impl ipp::IppTransport for CliTransport {
+    fn post(&mut self, url: &str, message: &[u8]) -> Result<Vec<u8>, ipp::TransportError> {
+        #[cfg(feature = "download")]
+        if url.to_ascii_lowercase().starts_with("https://") {
+            // The whole exchange, the document upload included.
+            return pdfcer_fetch::post_ipp(url, message, self.timeout * 5).map_err(|e| {
+                ipp::TransportError::Other {
+                    url: url.to_owned(),
+                    message: e.to_string(),
+                    unreachable: matches!(
+                        e,
+                        pdfcer_fetch::FetchError::Transport { .. }
+                            | pdfcer_fetch::FetchError::TimedOut { .. }
+                    ),
+                }
+            });
+        }
+        ipp::HttpTransport {
+            timeout: self.timeout,
+        }
+        .post(url, message)
     }
-    ipp::post_ipp_http(&url, message, IPP_TIMEOUT).map_err(|e| {
-        let code = match e {
-            ipp::TransportError::Unreachable { .. } => exit::PRINTER_UNREACHABLE,
-            _ => exit::RUNTIME_ERROR,
-        };
-        (e.to_string(), code)
-    })
 }
 
-#[cfg(feature = "download")]
-fn post_tls(url: &str, message: &[u8]) -> Result<Vec<u8>, (String, u8)> {
-    // The whole exchange, the document upload included.
-    pdfcer_fetch::post_ipp(url, message, IPP_TIMEOUT * 5).map_err(|e| {
-        let code = match e {
-            pdfcer_fetch::FetchError::Transport { .. }
-            | pdfcer_fetch::FetchError::TimedOut { .. } => exit::PRINTER_UNREACHABLE,
-            _ => exit::RUNTIME_ERROR,
-        };
-        (e.to_string(), code)
-    })
+fn transport() -> CliTransport {
+    CliTransport {
+        timeout: IPP_TIMEOUT,
+    }
 }
 
-#[cfg(not(feature = "download"))]
-fn post_tls(url: &str, _message: &[u8]) -> Result<Vec<u8>, (String, u8)> {
-    Err((
-        format!(
-            "{url} needs TLS, and this build has no TLS client (the `download` \
-             feature is off). Use the printer's ipp:// address, or a build with \
-             `--features download`."
-        ),
-        exit::EDIT_REFUSED,
-    ))
+/// Report a failed query or job. The exit code.
+fn report(e: &ipp::IppSendError) -> u8 {
+    use ipp::{IppSendError as E, TransportError as T};
+    match e {
+        E::Transport(T::NeedsTls { url }) => {
+            eprintln!(
+                "pdfcer: {url} needs TLS, and this build has no TLS client (the \
+                 `download` feature is off). Use the printer's ipp:// address, or a \
+                 build with `--features download`."
+            );
+            return exit::EDIT_REFUSED;
+        }
+        E::NotOffered { uri, notes, .. } => crate::print_finishing::report_notes(notes, uri),
+        _ => {}
+    }
+    eprintln!("pdfcer: {e}");
+    match e {
+        E::Transport(
+            T::Unreachable { .. }
+            | T::Other {
+                unreachable: true, ..
+            },
+        ) => exit::PRINTER_UNREACHABLE,
+        E::NotPdf { .. } | E::NotOffered { .. } => exit::EDIT_REFUSED,
+        _ => exit::RUNTIME_ERROR,
+    }
 }
 
 /// The IPP address CUPS serves queue `name` on, on this machine.
@@ -312,12 +336,9 @@ pub(crate) fn cups_uri(name: &str) -> String {
     format!("ipp://localhost:631/printers/{name}")
 }
 
-/// Ask a printer for its attributes. The exit code on failure, reported.
-pub(crate) fn query_printer(uri: &str) -> Result<ipp::IppResponse, u8> {
-    match exchange(uri, &ipp::get_printer_attributes(uri, &user_name(), 1))? {
-        r if r.is_success() => Ok(r),
-        r => Err(refused(uri, &r)),
-    }
+/// Ask a printer what it offers. The exit code on failure, reported.
+pub(crate) fn query_printer(uri: &str) -> Result<ipp::PrinterOffer, u8> {
+    ipp::query_printer(uri, &user_name(), &mut transport()).map_err(|e| report(&e))
 }
 
 /// The finishing for an `lp` job, checked against what CUPS lists for the
@@ -331,12 +352,10 @@ fn cups_finishing(
     }
     let who = dest.unwrap_or("the default CUPS queue");
     let attrs = dest.and_then(|d| {
-        let uri = cups_uri(d);
-        let message = ipp::get_printer_attributes(&uri, &user_name(), 1);
-        let raw = ipp::post_ipp_http(&ipp::http_url(&uri)?, &message, CUPS_QUERY_TIMEOUT).ok()?;
-        ipp::parse_response(&raw)
-            .ok()
-            .filter(ipp::IppResponse::is_success)
+        let mut t = ipp::HttpTransport {
+            timeout: CUPS_QUERY_TIMEOUT,
+        };
+        ipp::query_printer(&cups_uri(d), &user_name(), &mut t).ok()
     });
     if attrs.is_none() {
         eprintln!("pdfcer: CUPS did not describe {who}; finishing not confirmed.");
@@ -344,49 +363,32 @@ fn cups_finishing(
     crate::print_finishing::ipp_checked(f, attrs.as_ref(), who)
 }
 
-/// Send one request to `uri` and decode the reply.
-fn exchange(uri: &str, message: &[u8]) -> Result<ipp::IppResponse, u8> {
-    let raw = post(uri, message).map_err(|(msg, code)| {
-        eprintln!("pdfcer: {msg}");
-        code
-    })?;
-    ipp::parse_response(&raw).map_err(|e| {
-        eprintln!("pdfcer: {uri}: {e}");
-        exit::RUNTIME_ERROR
-    })
-}
-
 /// Query the printer, then (with `send`) print. The exit code.
 fn print_ipp(
     uri: &str,
-    mut job: IppJob,
+    job: IppJob,
     finishing: &pdfcer_print::finishing::Finishing,
     p: &Prepared,
     send: bool,
 ) -> u8 {
-    let attrs = match query_printer(uri) {
-        Ok(r) => r,
+    let offer = match query_printer(uri) {
+        Ok(o) => o,
         Err(code) => return code,
     };
-    let model = attrs.printer_strings("printer-make-and-model");
     eprintln!(
         "pdfcer: printer {uri}{}",
-        model.first().map(|m| format!(" ({m})")).unwrap_or_default()
+        offer
+            .make_and_model
+            .as_ref()
+            .map(|m| format!(" ({m})"))
+            .unwrap_or_default()
     );
-    let formats = attrs.printer_strings("document-format-supported");
-    if !formats.is_empty() && !formats.contains(&"application/pdf") {
-        eprintln!(
-            "pdfcer: {uri} does not accept PDF (it takes {}). Print through a \
-             driver that converts it.",
-            formats.join(", ")
-        );
-        return exit::EDIT_REFUSED;
-    }
-    match crate::print_finishing::ipp_checked(finishing, Some(&attrs), uri) {
-        Ok((values, bin)) => (job.finishings, job.output_bin) = (values, bin),
-        Err(code) => return code,
-    }
-    let asked: Vec<String> = job.job_attributes().iter().map(describe).collect();
+    let plan = match ipp::plan_ipp_job(job, finishing, &offer) {
+        Ok(plan) => plan,
+        Err(e) => return report(&e),
+    };
+    crate::print_finishing::report_notes(&plan.notes, uri);
+    let asked: Vec<String> = plan.job.job_attributes().iter().map(describe).collect();
     let summary = format!("{} bytes, {}", p.pdf.len(), asked.join(", "));
     if !send {
         eprintln!(
@@ -395,36 +397,22 @@ fn print_ipp(
         );
         return exit::SUCCESS;
     }
-    let reply = match exchange(uri, &job.print_job(2, &p.pdf)) {
-        Ok(r) if r.is_success() => r,
-        Ok(r) => return refused(uri, &r),
-        Err(code) => return code,
+    let receipt = match ipp::send_ipp_job(&plan.job, &p.pdf, &mut transport()) {
+        Ok(r) => r,
+        Err(e) => return report(&e),
     };
-    let id = reply
-        .job_id()
+    let id = receipt
+        .job_id
         .map(|n| format!(" as job {n}"))
         .unwrap_or_default();
     println!("sent {} to {uri}{id} ({summary})", p.name);
-    let ignored = reply.unsupported();
-    if !ignored.is_empty() {
+    if !receipt.ignored.is_empty() {
         eprintln!(
             "pdfcer: the printer ignored or substituted: {}",
-            ignored.join(", ")
+            receipt.ignored.join(", ")
         );
     }
     exit::SUCCESS
-}
-
-/// Report an IPP error status. The exit code.
-fn refused(uri: &str, r: &ipp::IppResponse) -> u8 {
-    eprintln!(
-        "pdfcer: {uri} refused: {}{}",
-        ipp::status_name(r.status),
-        r.status_message()
-            .map(|m| format!(" ({m})"))
-            .unwrap_or_default()
-    );
-    exit::RUNTIME_ERROR
 }
 
 /// `name=value` for a report line.

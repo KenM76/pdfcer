@@ -271,7 +271,10 @@ fn an_unreachable_printer_has_its_own_exit_code() {
 #[cfg(not(feature = "download"))]
 #[test]
 fn ipps_without_tls_is_refused_by_name() {
-    let (msg, code) = post("ipps://p/ipp/print", b"x").unwrap_err();
-    assert!(msg.contains("download"), "{msg}");
-    assert_eq!(code, exit::EDIT_REFUSED);
+    use pdfcer_print::ipp::IppTransport;
+    let e = transport()
+        .post("https://p:631/ipp/print", b"x")
+        .unwrap_err();
+    let e = pdfcer_print::ipp::IppSendError::Transport(e);
+    assert_eq!(report(&e), exit::EDIT_REFUSED);
 }

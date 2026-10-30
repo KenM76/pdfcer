@@ -3348,6 +3348,49 @@ abandons reads in flight (their answers are discarded). For a shell's tests,
 slow printer is a reader that sleeps for that name. Intended use: start one when
 the shell opens, so the details are ready before the Print dialog is.
 
+**Network printers (IPP)** (`pdfcer_print::ipp`, G240; RFC 8010/8011,
+`finishings` per PWG 5100.1). Every target, no platform code. What `pdfcer
+print --printer ipp://… --send` does, as library calls:
+
+- `query_printer(uri, user, &mut dyn IppTransport) -> Result<PrinterOffer,
+  IppSendError>` sends Get-Printer-Attributes (request id 1).
+- `PrinterOffer` (`#[non_exhaustive]`, `Default`; also
+  `PrinterOffer::from_response(&IppResponse)`): `make_and_model`, `formats`,
+  `finishings: Option<Vec<i32>>` (raw; `None` = not listed, the only list
+  that tells "not listed" from "none"), `staples: Vec<Staple>`, `punches:
+  Vec<Punch { edge, holes: Vec<Option<u8>> }>` (`None` = `punch-multiple-*`),
+  `folds: Vec<Fold>`, `other_finishings` (registry keywords a `Finishing`
+  cannot ask for), `output_bins`, `sides: Vec<Sides>`, `color_modes`.
+  `accepts_pdf()` is true when PDF is listed or no format is listed.
+- `check_finishing(&Finishing, Option<&PrinterOffer>) -> CheckedFinishing
+  { values, output_bin, notes: Vec<OfferNote>, refused: Vec<String> }`.
+  Listed and not offered goes to `refused`, by name; unlisted is asked for
+  as given and noted (`OfferNote::FinishingNotListed`, `BinsNotListed {
+  asked }`; `describe(who)` gives the CLI's sentence). A bin matches
+  case-insensitively and is sent as the printer spells it. Do not send
+  unless `refused` is empty.
+- `plan_ipp_job(IppJob, &Finishing, &PrinterOffer) -> Result<IppPlan { job,
+  notes }, IppSendError>` checks PDF and finishing and fills the job's
+  `finishings`/`output_bin`. Nothing is sent: this is the dry run.
+- `send_ipp_job(&IppJob, pdf, t) -> Result<IppReceipt { job_id: Option<i32>,
+  ignored: Vec<String> }, IppSendError>` sends Print-Job (request id 2).
+- `send_ipp(job, &Finishing, pdf, t) -> Result<IppSent { offer, plan,
+  receipt }, IppSendError>` does all three.
+- `IppSendError` (`thiserror`, `#[non_exhaustive]`; `Display` is the CLI's
+  sentence): `NotAPrinterUri`, `Transport(TransportError)`, `Malformed`,
+  `Refused { uri, status, message }`, `NotPdf { uri, formats }`,
+  `NotOffered { uri, refused, notes }` (report `notes` first). CLI exit
+  codes: unreachable (`TransportError::Unreachable`, or `Other {
+  unreachable: true }`) = printer-unreachable; `NeedsTls`, `NotPdf`,
+  `NotOffered` = refused; else runtime error.
+- **Transport is injected** so `pdfcer-print` carries no TLS client.
+  `IppTransport::post(&mut self, url, message)` gets the HTTP URL
+  (`http_url`). `HttpTransport { timeout }` (`Default` 60 s) does `http://`
+  and returns `TransportError::NeedsTls` for `https://`. A shell with TLS
+  wraps it and maps its own failures to `TransportError::Other { url,
+  message, unreachable }`. The CLI does this with `pdfcer_fetch::post_ipp`
+  under its `download` feature, timeout ×5 for the upload.
+
 **Planning.** `JobSpec` `lib.rs` (`pages`, `mode: ScaleMode`, `max_dpi`,
 `subset: PageSubset`, `reverse`, `copies`, `collate`) →
 `JobSpec::sequence()` `lib.rs`, `first_page_pt(&page_sizes)`.

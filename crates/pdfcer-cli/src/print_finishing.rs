@@ -4,7 +4,7 @@
 //! not list what it offers, the request is sent as given and that is said.
 
 use pdfcer_print::finishing::{self, Edge, Finishing, Fold, Staple};
-use pdfcer_print::ipp::IppResponse;
+use pdfcer_print::ipp::{self, PrinterOffer};
 
 use crate::exit;
 
@@ -138,81 +138,53 @@ pub(crate) fn finishing(
 }
 
 /// The `finishings` values and `output-bin` for an IPP job to `who`,
-/// checked against what its Get-Printer-Attributes reply lists (`None`
-/// when there was no reply). Refusals are reported; the error is the exit
-/// code.
+/// checked against what it offers (`None` when there was no reply).
+/// Notes and refusals are reported; the error is the exit code.
 pub(crate) fn ipp_checked(
     f: &Finishing,
-    attrs: Option<&IppResponse>,
+    offer: Option<&PrinterOffer>,
     who: &str,
 ) -> Result<(Vec<i32>, Option<String>), u8> {
-    let supported = attrs.and_then(|a| a.printer_ints("finishings-supported"));
-    let asks_finishing = f.staple.is_some() || f.punch.is_some() || f.fold.is_some();
-    if asks_finishing && supported.is_none() {
-        eprintln!("pdfcer: {who} does not say which finishing it offers; asking as given.");
-    }
-    let mut refused = finishing::ipp_finishings(f, supported.as_deref())
-        .err()
-        .unwrap_or_default();
-    let values = finishing::ipp_finishings(f, None).unwrap_or_default();
-    let bins: Vec<&str> =
-        attrs.map_or_else(Vec::new, |a| a.printer_strings("output-bin-supported"));
-    let bin = match &f.output_bin {
-        None => None,
-        Some(want) if bins.is_empty() => {
-            eprintln!("pdfcer: {who} does not list its output bins; asking for {want:?} as given.");
-            Some(want.clone())
-        }
-        Some(want) => match bins.iter().find(|b| b.eq_ignore_ascii_case(want)) {
-            Some(b) => Some((*b).to_owned()),
-            None => {
-                refused.push(format!(
-                    "output bin {want:?} (it lists {})",
-                    bins.join(", ")
-                ));
-                None
-            }
-        },
-    };
-    if !refused.is_empty() {
-        eprintln!("pdfcer: {who} does not offer: {}", refused.join("; "));
+    let c = ipp::check_finishing(f, offer);
+    report_notes(&c.notes, who);
+    if !c.refused.is_empty() {
+        eprintln!("pdfcer: {who} does not offer: {}", c.refused.join("; "));
         return Err(exit::EDIT_REFUSED);
     }
-    Ok((values, bin))
+    Ok((c.values, c.output_bin))
 }
 
-/// The `list-finishing` lines for an IPP printer's reply.
-pub(crate) fn describe_ipp(attrs: &IppResponse) -> Vec<String> {
-    let supported = attrs.printer_ints("finishings-supported");
+/// Report what `who` could not confirm.
+pub(crate) fn report_notes(notes: &[ipp::OfferNote], who: &str) {
+    notes
+        .iter()
+        .for_each(|n| eprintln!("pdfcer: {}", n.describe(who)));
+}
+
+/// The `list-finishing` lines for an IPP printer's offer.
+pub(crate) fn describe_ipp(o: &PrinterOffer) -> Vec<String> {
     let mut lines = Vec::new();
-    match &supported {
-        None => lines.push("finishing: not listed by the printer".to_owned()),
-        Some(list) => {
-            let staples = names(&STAPLES, |s| list.contains(&s.ipp()));
-            let folds = names(&FOLDS, |x| list.contains(&x.ipp()));
-            lines.push(format!("--staple: {}", or_none(&staples)));
-            lines.push(format!("--punch: {}", or_none(&punches(list))));
-            lines.push(format!("--fold: {}", or_none(&folds)));
-            let other: Vec<&str> = list
-                .iter()
-                .filter(|n| ![3, 4, 5, 10].contains(*n))
-                .filter_map(|n| finishing::finishing_name(*n))
-                .filter(|n| {
-                    !n.starts_with("staple") && !n.starts_with("punch") && !n.starts_with("fold")
-                })
-                .collect();
-            if !other.is_empty() {
-                lines.push(format!("other (not settable here): {}", other.join(", ")));
-            }
+    if o.finishings.is_none() {
+        lines.push("finishing: not listed by the printer".to_owned());
+    } else {
+        let staples = names(&STAPLES, |s| o.staples.contains(&s));
+        let folds = names(&FOLDS, |x| o.folds.contains(&x));
+        lines.push(format!("--staple: {}", or_none(&staples)));
+        lines.push(format!("--punch: {}", or_none(&punches(&o.punches))));
+        lines.push(format!("--fold: {}", or_none(&folds)));
+        if !o.other_finishings.is_empty() {
+            lines.push(format!(
+                "other (not settable here): {}",
+                o.other_finishings.join(", ")
+            ));
         }
     }
-    let bins = attrs.printer_strings("output-bin-supported");
     lines.push(format!(
         "--output-bin: {}",
-        if bins.is_empty() {
+        if o.output_bins.is_empty() {
             "not listed".to_owned()
         } else {
-            bins.join(", ")
+            o.output_bins.join(", ")
         }
     ));
     lines
@@ -229,20 +201,18 @@ fn names<A: clap::ValueEnum + Copy, C: Copy>(
         .collect()
 }
 
-/// `edge` per edge offered, with its hole counts (`--punch-holes`).
-fn punches(list: &[i32]) -> Vec<String> {
-    const RUNS: [(&str, i32); 4] = [("2", 74), ("3", 78), ("4", 82), ("multiple", 86)];
-    EDGES
+/// `edge (counts holes)` per edge offered (`--punch-holes`).
+fn punches(offered: &[ipp::Punch]) -> Vec<String> {
+    offered
         .iter()
-        .enumerate()
-        .filter_map(|(i, (arg, _))| {
-            let offset = i32::try_from(i).unwrap_or(0);
-            let counts: Vec<&str> = RUNS
+        .map(|p| {
+            let counts: Vec<String> = p
+                .holes
                 .iter()
-                .filter(|(_, s)| list.contains(&(s + offset)))
-                .map(|(c, _)| *c)
+                .map(|h| h.map_or_else(|| "multiple".to_owned(), |n| n.to_string()))
                 .collect();
-            (!counts.is_empty()).then(|| format!("{} ({} holes)", flag_name(arg), counts.join("/")))
+            let edge = flag_name(&reverse(&EDGES, p.edge));
+            format!("{edge} ({} holes)", counts.join("/"))
         })
         .collect()
 }
@@ -290,8 +260,6 @@ pub(crate) fn describe(f: &Finishing) -> String {
     parts.join(", ")
 }
 
-// Only the Windows driver route reports through it; tested on every target.
-#[cfg_attr(not(windows), allow(dead_code))]
 fn reverse<A: Copy, C: PartialEq + Copy>(table: &[(A, C)], c: C) -> A {
     table
         .iter()

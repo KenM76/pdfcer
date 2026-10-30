@@ -275,11 +275,18 @@ pub fn get_printer_attributes(printer_uri: &str, user: &str, request_id: u32) ->
 
 mod http;
 mod job;
+mod offer;
 mod response;
+mod send;
 
 pub use http::{MAX_HTTP_RESPONSE_BYTES, TransportError, post_ipp_http};
 pub use job::{IppJob, Sides};
+pub use offer::{CheckedFinishing, OfferNote, PrinterOffer, Punch, check_finishing};
 pub use response::{IppError, IppResponse, http_url, parse_response, status_name};
+pub use send::{
+    HttpTransport, IppPlan, IppReceipt, IppSendError, IppSent, IppTransport, plan_ipp_job,
+    query_printer, send_ipp, send_ipp_job,
+};
 
 #[cfg(test)]
 mod tests;

@@ -2,7 +2,7 @@ use pdfcer_print::ipp::{self, IppAttribute, IppGroup, IppValue, group};
 
 use super::*;
 
-fn reply(finishings: Option<&[i32]>, bins: &[&str]) -> IppResponse {
+fn reply(finishings: Option<&[i32]>, bins: &[&str]) -> PrinterOffer {
     let mut attrs = Vec::new();
     if let Some(list) = finishings {
         let values = list.iter().map(|&n| IppValue::Enum(n)).collect();
@@ -13,7 +13,7 @@ fn reply(finishings: Option<&[i32]>, bins: &[&str]) -> IppResponse {
         attrs.push(IppAttribute::many("output-bin-supported", values));
     }
     let bytes = ipp::encode_request(0, 1, &[IppGroup::new(group::PRINTER, attrs)], b"");
-    ipp::parse_response(&bytes).unwrap()
+    PrinterOffer::from_response(&ipp::parse_response(&bytes).unwrap())
 }
 
 fn ask(

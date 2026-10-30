@@ -49,6 +49,23 @@ pub enum TransportError {
         /// What was wrong.
         reason: &'static str,
     },
+    /// The URL is `https://` and the transport has no TLS client.
+    #[error("{url} needs TLS, and this transport has no TLS client")]
+    NeedsTls {
+        /// The printer URL.
+        url: String,
+    },
+    /// A transport outside this crate failed; `message` is its own report.
+    #[error("{message}")]
+    Other {
+        /// The printer URL.
+        url: String,
+        /// The transport's report.
+        message: String,
+        /// Whether the printer could not be reached (connect, TLS
+        /// handshake or timeout) rather than answering badly.
+        unreachable: bool,
+    },
 }
 
 /// `(host, port, path)` of an `http://` URL; the port defaults to 80.

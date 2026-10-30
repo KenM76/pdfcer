@@ -100,6 +100,19 @@ impl Finishing {
 }
 
 impl Staple {
+    /// Every position, in declaration order.
+    pub const ALL: [Self; 9] = [
+        Self::TopLeft,
+        Self::TopRight,
+        Self::BottomLeft,
+        Self::BottomRight,
+        Self::DualLeft,
+        Self::DualRight,
+        Self::DualTop,
+        Self::DualBottom,
+        Self::Saddle,
+    ];
+
     /// The IPP `finishings` value (IANA IPP registry, PWG 5100.1).
     pub const fn ipp(self) -> i32 {
         match self {
@@ -117,9 +130,12 @@ impl Staple {
 }
 
 impl Edge {
+    /// Every edge, in declaration order.
+    pub const ALL: [Self; 4] = [Self::Left, Self::Top, Self::Right, Self::Bottom];
+
     /// The edge's offset in each four-value `punch-*-{left,top,right,bottom}`
     /// run of the registry.
-    const fn ipp_offset(self) -> i32 {
+    pub(crate) const fn ipp_offset(self) -> i32 {
         match self {
             Self::Left => 0,
             Self::Top => 1,
@@ -130,6 +146,22 @@ impl Edge {
 }
 
 impl Fold {
+    /// Every fold, in declaration order.
+    pub const ALL: [Self; 12] = [
+        Self::Half,
+        Self::Letter,
+        Self::Z,
+        Self::HalfZ,
+        Self::Gate,
+        Self::DoubleGate,
+        Self::LeftGate,
+        Self::RightGate,
+        Self::Accordion,
+        Self::Parallel,
+        Self::Poster,
+        Self::EngineeringZ,
+    ];
+
     /// The IPP `finishings` value.
     pub const fn ipp(self) -> i32 {
         match self {
@@ -151,7 +183,7 @@ impl Fold {
 
 /// The first value of the `punch-dual-*`, `punch-triple-*`, `punch-quad-*`
 /// and `punch-multiple-*` runs, each `left, top, right, bottom`.
-const PUNCH_RUNS: [(u8, i32); 4] = [(2, 74), (3, 78), (4, 82), (0, 86)];
+pub(crate) const PUNCH_RUNS: [(u8, i32); 4] = [(2, 74), (3, 78), (4, 82), (0, 86)];
 
 /// The IPP `finishings` values for `f`, checked against `supported` (the
 /// device's `finishings-supported`). `None` means the device's list is not
