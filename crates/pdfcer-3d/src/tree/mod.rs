@@ -4,16 +4,19 @@
 //! follow the spec RAG's `threed/prc__8137__model_tree_asm.md`,
 //! `prc__8137__transformations.md` and `prc__8137__representation_items.md`.
 //!
-//! Markups, views, scene lights and clipping planes cannot be read past
-//! yet; a tree carrying any of them is [`PrcError::Unsupported`].
+//! Markups (PMI), views, scene lights and clipping planes are read past
+//! (`markup`, `scene`); only how many markups and views each node carries
+//! is kept.
 
 use crate::PrcError;
 use crate::container::UniqueId;
 use crate::tess::{Ctx, malformed};
 
 mod geometry;
+mod markup;
 mod node;
 mod overrides;
+mod scene;
 mod style;
 mod texture;
 mod walk;
@@ -236,6 +239,14 @@ pub(crate) struct Product {
     pub(crate) name: Option<String>,
     /// Its entity references that name a target.
     pub(crate) overrides: Vec<Override>,
+    pub(crate) notes: Notes,
+}
+
+/// How many markups and views an occurrence or part definition carries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) struct Notes {
+    pub(crate) markups: usize,
+    pub(crate) views: usize,
 }
 
 /// One file structure's tree section.
@@ -244,6 +255,8 @@ pub(crate) struct Tree {
     pub(crate) parts: Vec<Vec<Item>>,
     /// Each part definition's name, parallel to `parts`.
     pub(crate) part_names: Vec<Option<String>>,
+    /// Each part definition's markup and view counts, parallel to `parts`.
+    pub(crate) part_notes: Vec<Notes>,
     pub(crate) products: Vec<Product>,
     /// `index_product_occurrence + 1` of this structure's root.
     pub(crate) root: u32,
@@ -495,96 +508,47 @@ impl Ctx<'_, '_> {
         Ok(None)
     }
 
-    /// `SceneDisplayParameters` (741) [WD 7.5.19; PRCRS]: read past. Lights
-    /// and clipping planes are [`PrcError::Unsupported`].
-    fn scene_display_parameters(&mut self) -> Result<(), PrcError> {
-        self.expect_type(SCENE_DISPLAY_PARAMETERS)?;
-        self.content_prc_ref_base()?;
-        self.r.bit()?; // is_active
-        if self.r.unsigned_integer()? != 0 {
-            return Err(PrcError::Unsupported("scene lights"));
-        }
-        if self.r.bit()? {
-            self.camera()?;
-        }
-        if self.r.bit()? {
-            self.vector3()?; // rotation centre
-        }
-        if self.r.unsigned_integer()? != 0 {
-            return Err(PrcError::Unsupported("scene clipping planes"));
-        }
-        self.r.unsigned_integer()?; // background style + 1
-        self.r.unsigned_integer()?; // default style + 1
-        let n = self.count(2, "scene default styles")?;
-        for _ in 0..2 * n {
-            self.r.unsigned_integer()?;
-        }
-        if self.version >= ABSOLUTE_SCENE_FROM {
-            self.r.bit()?; // is_absolute
-        }
-        self.schema
-            .skip_added_fields(SCENE_DISPLAY_PARAMETERS, &mut self.r)
-    }
-
-    /// `Camera` (742) [WD 7.5.20; PRCRS]: read past.
-    fn camera(&mut self) -> Result<(), PrcError> {
-        self.expect_type(CAMERA)?;
-        self.content_prc_ref_base()?;
-        self.r.bit()?; // is_orthographic
-        for _ in 0..3 {
-            self.vector3()?; // position, look, up
-        }
-        for _ in 0..6 {
-            self.r.double()?; // x, y, ratio, near, far, zoom
-        }
-        self.schema.skip_added_fields(CAMERA, &mut self.r)
-    }
-
-    /// `MarkupData` [WD 7.3.10.4]: only the empty form reads past.
-    fn markup_data(&mut self) -> Result<(), PrcError> {
-        for _ in 0..4 {
-            if self.r.unsigned_integer()? != 0 {
-                return Err(PrcError::Unsupported("tree markups (PMI)"));
-            }
-        }
-        Ok(())
-    }
-
-    fn views(&mut self) -> Result<(), PrcError> {
-        if self.r.unsigned_integer()? != 0 {
-            return Err(PrcError::Unsupported("tree views"));
-        }
-        Ok(())
-    }
-
     /// `MISC_EntityReference` (203) [WD 7.4.4, 7.4.10; PRCRS]; `None`
     /// when it names no target.
     fn entity_reference(&mut self) -> Result<Option<Override>, PrcError> {
         self.expect_type(ENTITY_REFERENCE)?;
-        let (hidden, graphics) = self.base_with_graphics()?;
-        let local = self.r.unsigned_integer()?;
-        let mut target = None;
-        if self.r.bit()? {
-            match self.r.unsigned_integer()? {
-                REFERENCE_ON_PRC_BASE => {
-                    let kind = self.r.unsigned_integer()?;
-                    let fs = self.file_identifier()?;
-                    let uid = self.r.unsigned_integer()?;
-                    target = Some(Target::Entity { kind, fs, uid });
-                }
-                REFERENCE_ON_TOPOLOGY => target = self.reference_on_topology()?,
-                t => return Err(malformed(format!("entity type {t} as reference data"))),
-            }
-        }
+        let o = self.entity_reference_body()?;
         self.schema
             .skip_added_fields(ENTITY_REFERENCE, &mut self.r)?;
         self.user_data()?;
+        Ok(o)
+    }
+
+    /// `ContentEntityReference` [WD 7.4.10]: graphics, local coordinate
+    /// system, optional reference data.
+    fn entity_reference_body(&mut self) -> Result<Option<Override>, PrcError> {
+        let (hidden, graphics) = self.base_with_graphics()?;
+        let local = self.r.unsigned_integer()?;
+        let target = self.reference_data()?;
         Ok(target.map(|target| Override {
             graphics,
             hidden,
             local,
             target,
         }))
+    }
+
+    /// An optional `ReferenceOnPRCBase` (205) or `ReferenceOnTopology`
+    /// (206) behind a presence bit.
+    fn reference_data(&mut self) -> Result<Option<Target>, PrcError> {
+        if !self.r.bit()? {
+            return Ok(None);
+        }
+        match self.r.unsigned_integer()? {
+            REFERENCE_ON_PRC_BASE => {
+                let kind = self.r.unsigned_integer()?;
+                let fs = self.file_identifier()?;
+                let uid = self.r.unsigned_integer()?;
+                Ok(Some(Target::Entity { kind, fs, uid }))
+            }
+            REFERENCE_ON_TOPOLOGY => self.reference_on_topology(),
+            t => Err(malformed(format!("entity type {t} as reference data"))),
+        }
     }
 
     /// `ReferenceOnTopology` (206) after its type code; `None` without a
@@ -629,7 +593,7 @@ impl Ctx<'_, '_> {
     }
 
     /// `PartDefinition` (311): its drawable items and its name.
-    fn part_definition(&mut self) -> Result<(Vec<Item>, Option<String>), PrcError> {
+    fn part_definition(&mut self) -> Result<(Vec<Item>, Option<String>, Notes), PrcError> {
         self.expect_type(PART_DEFINITION)?;
         let (hidden, own) = self.base_with_graphics()?;
         let name = self.name.clone();
@@ -640,15 +604,17 @@ impl Ctx<'_, '_> {
         for _ in 0..n {
             self.representation_item(&[], &[own], &[], &mut items, 0)?;
         }
-        self.markup_data()?;
-        self.views()?;
+        let notes = Notes {
+            markups: self.markup_data()?,
+            views: self.views()?,
+        };
         self.schema
             .skip_added_fields(PART_DEFINITION, &mut self.r)?;
         self.user_data()?;
         if hidden {
             items.clear();
         }
-        Ok((items, name))
+        Ok((items, name, notes))
     }
 
     /// `FileIdentifier` [WD 7.3.10.2.2]: `None` for the same structure.
@@ -695,8 +661,10 @@ impl Ctx<'_, '_> {
         for _ in 0..n {
             p.overrides.extend(self.entity_reference()?);
         }
-        self.markup_data()?;
-        self.views()?;
+        p.notes = Notes {
+            markups: self.markup_data()?,
+            views: self.views()?,
+        };
         if self.r.bit()? {
             self.filter()?;
         }
@@ -721,9 +689,10 @@ impl Ctx<'_, '_> {
         let n = self.count(1, "part definitions")?;
         let mut tree = Tree::default();
         for _ in 0..n {
-            let (items, name) = self.part_definition()?;
+            let (items, name, notes) = self.part_definition()?;
             tree.parts.push(items);
             tree.part_names.push(name);
+            tree.part_notes.push(notes);
         }
         let n = self.count(1, "product occurrences")?;
         for _ in 0..n {
@@ -864,6 +833,8 @@ mod tests {
         location: Option<[f64; 3]>,
         mirror: bool,
         camera: bool,
+        /// One of each markup entity and a view, not none.
+        markups: bool,
         /// `(prototype + 1, its file structure)`, `None` meaning this one.
         prototype: Option<(u32, Option<UniqueId>)>,
         /// As [`named`].
@@ -919,6 +890,7 @@ mod tests {
         location: None,
         mirror: false,
         camera: false,
+        markups: false,
         prototype: None,
         name: None,
         refs: &[],
@@ -950,7 +922,12 @@ mod tests {
         for er in o.refs {
             entity_reference(w, er);
         }
-        no_markups_or_views(w);
+        if o.markups {
+            markup::tests::markup_data(w);
+            markup::tests::views(w, 8137);
+        } else {
+            no_markups_or_views(w);
+        }
         w.bit(false).uint(0);
         if o.camera {
             w.uint(1).uint(SCENE_DISPLAY_PARAMETERS);
@@ -1371,6 +1348,11 @@ mod tests {
     /// One file structure holding `tess` and the tree section `tree`.
     fn placed_tree(tess: &[u8], tree: &[u8]) -> Vec<u8> {
         let schema = W::default().uint(0).bytes();
+        crate::testw::prc_container(&schema, tree, tess, &placed_model())
+    }
+
+    /// The model file naming `prc_container`'s one structure, root 1.
+    fn placed_model() -> Vec<u8> {
         let mut model = W::default();
         model
             .uint(0)
@@ -1385,7 +1367,7 @@ mod tests {
             model.uint(id);
         }
         model.uint(1).bit(true);
-        crate::testw::prc_container(&schema, tree, tess, &model.bytes())
+        model.bytes()
     }
 
     /// The square under a root with a part named directly, one named by
@@ -1807,6 +1789,42 @@ mod tests {
             ],
             &model.bytes(),
         )
+    }
+
+    #[test]
+    fn a_part_under_markups_and_a_view_is_placed_and_coloured() {
+        let tess = crate::PrcFile::parse(include_bytes!(
+            "../../../../fixtures/synthetic/prc/square.prc"
+        ))
+        .unwrap();
+        let tess = tess.file_structures[0].section(crate::SectionKind::Tessellation);
+        let occs = [
+            Occ {
+                sons: &[1],
+                markups: true,
+                ..OCC
+            },
+            Occ {
+                part: 1,
+                behaviour: Some((1, SHOW)),
+                markups: true,
+                ..OCC
+            },
+        ];
+        let bytes = crate::testw::prc_container(
+            &coloured_globals(false).bytes(),
+            &tree(&occs, 0, false).bytes(),
+            tess,
+            &placed_model(),
+        );
+        let f = crate::PrcFile::parse(&bytes).unwrap();
+        let p = f.placements_with(StyleAlpha::StyleWins).unwrap();
+        assert_eq!(p.len(), 1);
+        assert_eq!(p[0].colour, Some([1.0, 0.0, 0.0, 1.0]));
+        let nodes = f.model_tree().unwrap();
+        let counts: Vec<_> = nodes.iter().map(|n| (n.markups, n.views)).collect();
+        assert_eq!(counts, [(2, 1), (2, 1)]);
+        assert!(nodes[1].has_part && nodes[1].drawn);
     }
 
     #[test]

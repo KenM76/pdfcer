@@ -156,7 +156,7 @@ builds `--no-default-features`, so both configurations compile.
 | List embedded 3D models (U3D/PRC/STEP) | `threed::list_3d_with_notes(&graph)` — `threed.rs` | §12.2 |
 | Extract a 3D model's bytes | `threed::extract_3d(&DocumentView, &ThreeDArtwork)` — `threed.rs` | §12.2 |
 | Read the view a 3D model opens on (camera, projection) | `threed::default_3d_view(&graph, &ThreeDArtwork)` — `threed/view.rs` | §12.2 |
-| List a PRC model's assembly tree (names, hierarchy, stored visibility) | `pdfcer_3d::PrcFile::model_tree() -> Result<Vec<ModelNode>, PrcError>` — `pdfcer-3d/src/tree/node.rs` | §12.2 |
+| List a PRC model's assembly tree (names, hierarchy, stored visibility, markup and view counts) | `pdfcer_3d::PrcFile::model_tree() -> Result<Vec<ModelNode>, PrcError>` — `pdfcer-3d/src/tree/node.rs`. `ModelNode::markups` / `views` count the PMI markups and views the occurrence and its part carry; the tree reads past them (and past scene lights and clipping planes) rather than refusing the file. | §12.2 |
 | Build a PRC model from triangle meshes, or from a glTF 2.0 / GLB file | `pdfcer_3d::write_prc(&MeshScene) -> Result<PrcWriteReport, PrcWriteError>`; `pdfcer_3d::read_gltf(data, &mut resolve, GltfOptions) -> Result<GltfImport, GltfError>` — `pdfcer-3d/src/write/`, `pdfcer-3d/src/gltf/` | §12.2 |
 | Turn a saved 3D view into a camera (`pdfcer_3d::Camera`) | `ThreeDSavedView::aim(aspect)` → `SavedViewAim::camera(&Bounds, aspect)` / `frame` — `threed/view_aim.rs` | §12.2 |
 | Enumerate optional-content layers + default visibility | `layers::read_layers(&graph)` — `layers.rs` | §12.3 |

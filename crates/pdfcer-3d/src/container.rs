@@ -404,10 +404,8 @@ impl PrcFile {
     /// ([`Self::stores_tree`]).
     ///
     /// # Errors
-    /// [`PrcError::Unsupported`] for a tree carrying markups (PMI), views,
-    /// scene lights or clipping planes, or, when an item is placed by a
-    /// reference coordinate system, globals carrying fonts or fill
-    /// patterns; [`PrcError::Malformed`] for an index naming no
+    /// [`PrcError::Unsupported`] when an item is placed by a reference
+    /// coordinate system and the globals carry fonts or fill patterns; [`PrcError::Malformed`] for an index naming no
     /// entity or a tree past the depth ceiling; read errors as
     /// [`FileStructure::tessellations`].
     pub fn placements(&self) -> Result<Vec<crate::Placement>, PrcError> {

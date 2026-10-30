@@ -52,6 +52,11 @@ pub struct ModelNode {
     /// `placements_with`, which yields the same order). Empty when nothing
     /// under it is drawn.
     pub placements: Range<usize>,
+    /// Markups (PMI) the occurrence and the part definition it draws
+    /// carry, counted; their drawing is their markup tessellations.
+    pub markups: usize,
+    /// Views (`MKP_View`) the occurrence and its part definition carry.
+    pub views: usize,
 }
 
 impl ModelNode {

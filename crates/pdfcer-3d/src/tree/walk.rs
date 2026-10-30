@@ -157,6 +157,7 @@ impl<'t> Walk<'t> {
         let node = self.nodes.len();
         let (name, name_from) = self.name_of(p, &r);
         let first = self.out.len();
+        let notes = self.notes_of(p, &r);
         self.nodes.push(ModelNode {
             name,
             name_from,
@@ -169,6 +170,8 @@ impl<'t> Walk<'t> {
             drawn,
             has_part: r.part.1 != 0,
             placements: first..first,
+            markups: notes.markups,
+            views: notes.views,
         });
         let placed = drawn || self.stored == crate::StoredVisibility::DrawAll;
         if placed && r.part.1 != 0 {
@@ -238,6 +241,20 @@ impl<'t> Walk<'t> {
             proto_name,
             overrides,
         })
+    }
+
+    /// The occurrence's own markup and view counts plus its part's.
+    fn notes_of(&self, p: &Product, r: &Resolved<'_>) -> Notes {
+        let part = (r.part.1 != 0)
+            .then(|| self.trees.get(r.part.0))
+            .flatten()
+            .and_then(|t| t.1.part_notes.get(r.part.1 as usize - 1))
+            .copied()
+            .unwrap_or_default();
+        Notes {
+            markups: p.notes.markups.saturating_add(part.markups),
+            views: p.notes.views.saturating_add(part.views),
+        }
     }
 
     /// The display name: the occurrence's, its prototype chain's, then its
