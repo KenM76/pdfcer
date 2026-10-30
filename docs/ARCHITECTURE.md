@@ -13680,3 +13680,18 @@ Engineer-reported; no `docs/decisions/212-*.md` record written this filing (the 
 4. **Named side effect.** A cell whose content is taller than its `h` now grows, so page counts move either way (reporter: a 72-page form became 73, another 11 became 10).
 
 **Body-section effect.** None. **Decision ceiling.** Fills `212`. Next free decision: `213`. **New standing rule.** None.
+
+### 2026-10-30 (1314th filing, request `X017`, `Pass 647.4` sixth cut, `0851e68b`) — decision 213: XFA image values; five spec gaps resolved as settings with safe defaults
+
+Engineer-reported; no `docs/decisions/213-*.md` record written this filing (the record is this entry). Applies decisions 203, 204 and the standing "make spec ambiguity a setting" rule. Spec RAG sources: `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext__xfa_images_name_tree.md` (gaps G-XI1..7) and `adobe_ext__xfa_image_element.md` (gaps G-IM1..9). Citations: XFA 3.3 pp.51, 54, 257, 492, 750-751, 800, 803.
+
+**Decides.**
+1. **(a) Placement (G-D10).** The placement of an image smaller than its region is unstated. Default `ImagePlacement::TopLeft` (PDFium does the same); option `Para` uses the holder's para hAlign/vAlign, which pp.800/803 define for text only.
+2. **(b) Overflow (G-IM2).** Default `ImageOverflow::Crop`, as Adobe does (p.492), although p.54 conflicts; option `Show`.
+3. **(c) Fallback DPI.** Application-dependent (p.51). Default 72 (PDF user-space units); PDFium uses 96. A setting, `PaintOptions::image_dpi`.
+4. **(d) Alpha and colour keys** are composited onto white with a disclosure note (`PaintNoteKind::ImageTransparency`; fuzzy-never-sneaky), not drawn as an `SMask`.
+5. **(e) `href` resolution** is exact-string only and within the file only, through `/Names /XFAImages` (p.257; untrusted forms resolve within the package); never the filesystem or the network. Exact match is inferred, not stated.
+
+**Built:** `0851e68b`; settings reach the CLI as `xfa-layout --image-placement`, `--image-overflow`, `--image-dpi`. **Not built:** sizing growable containers from an image's natural size (layout measures no field/draw content yet).
+
+**Body-section effect.** None. **Decision ceiling.** Fills `213`. Next free decision: `214`. **New standing rule.** None.

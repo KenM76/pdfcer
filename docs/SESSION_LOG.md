@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1314th filing) — `Pass 647.4` sixth cut `0851e68b`: XFA image values (`X017`); decision 213 minted
+
+**Filed (docs only; engineer-reported, nothing checked from here; no shell):**
+- **Shipped:** `0851e68b` "feat(xfa): draw image values, inline and linked through XFAImages (X017)". A field, draw or caption whose value is an `<image>` is painted; `href` resolves only through `/Names /XFAImages` (exact string, in-file). Core + render + CLI (`xfa-layout --image-placement/--image-overflow/--image-dpi`); no GUI. Detail is in the `647.4` sixth-cut entry in ROADMAP.
+- **Placement:** filed as the sixth cut of `Pass 647.4`, which the premise had right; no roadmap header places XFA image painting elsewhere. `X017` was not found in docs other than `core-api/03-capabilities.md` before this filing.
+- **Evidence (engineer-reported):** 9 core + 2 render + 2 CLI tests; one sabotage; fuzz `xfa_images` 38,447 runs in 46 s, `xfa_packets` 27,712 runs in 31 s, 0 crashes; `run-gates.sh` PASS (49 commands); `cargo tree` unchanged.
+
+**Decisions made:** **decision 213** (ARCHITECTURE §12): placement top-left (option para), overflow crop (option show), fallback DPI 72 (setting), transparency flattened onto white with a note, href exact-string within the file. Premise "next is 213" confirmed against the live ledger (212 was the last).
+
+**FEATURES.md:** new row "Dynamic XFA, image values" `[x]` core `[x]` cli `[ ]` gui; the partial "layout and drawing" row stays `[ ]` and now points at it.
+
+**Still in flight:** layout does not size growable containers from an image's natural size (layout measures no field/draw content). `647.4` otherwise: rich text, other widgets, inline/rich captions, rounded corners, non-solid strokes, real fonts.
+
+**For next session:** release `v0.106.0` follows in a separate filing (OneDrive slot `pdfcer1`); the engineer writes the `X017` reply. Backup currency not verifiable from here.
+
+**Hard-rule-11 survivors:** none found. The row text "images ... not built" did not exist; the `647.4` REMAINING lists never named images; `03-capabilities.md` is the engineer's and was updated by `0851e68b`.
+
 ## 2026-10-29 (1313th filing) — `v0.105.0` PUBLISHED, tag on `e53e9634`
 
 **Filed (docs only; engineer-reported, each item stated verified; no shell here, nothing checked from here):**
