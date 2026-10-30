@@ -9,15 +9,13 @@
 //!   `/Configurations` hold a `/3D` instance naming an embedded-file asset
 //!   (ISO 32000-2 §13.7, Tables 341–343).
 //!
-//! Nothing here decodes a model. [`extract_3d`] undoes the stream's `/Filter`
-//! chain (bounded by [`crate::filters::MAX_DECODED_LEN`]) and returns the
-//! U3D / PRC / STEP bytes as the file carried them. The returned bytes are
-//! untrusted.
+//! Nothing here decodes a model: [`extract_3d`] undoes the `/Filter` chain
+//! (bounded by [`crate::filters::MAX_DECODED_LEN`]) and returns the file's
+//! U3D / PRC / STEP bytes, untrusted.
 //!
-//! Every walk is bounded: annotations per page by
-//! [`crate::annot::MAX_ANNOTS_PER_PAGE`], configurations and instances by
-//! [`MAX_RICH_MEDIA_ENTRIES`], the whole listing by [`MAX_3D_ARTWORKS`].
-//! Hitting a bound sets [`ThreeDNotes::truncated`].
+//! Walks are bounded ([`crate::annot::MAX_ANNOTS_PER_PAGE`] per page,
+//! [`MAX_RICH_MEDIA_ENTRIES`] configurations and instances,
+//! [`MAX_3D_ARTWORKS`] in all); a hit sets [`ThreeDNotes::truncated`].
 
 use std::collections::HashSet;
 
@@ -33,12 +31,14 @@ use crate::textstring::decode_text_string;
 use crate::view::DocumentView;
 
 mod lighting;
+mod opening;
 mod poster;
 mod view;
 mod view_aim;
 mod view_list;
 mod view_write;
 pub use lighting::ThreeDLighting;
+pub use opening::{OPENING_VIEW_NAME, ThreeDOpeningView, opening_lighting, opening_view};
 pub(crate) use poster::default_poster;
 pub use poster::{PlaceholderReason, RenderedPoster, ThreeDPoster, ThreeDPosterOutcome};
 pub use view::{OrthoBinding, ThreeDSavedView, default_3d_view};

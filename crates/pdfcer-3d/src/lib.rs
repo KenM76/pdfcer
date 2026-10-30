@@ -67,7 +67,7 @@ pub use model::{
     MeshFit, StoredVisibility, assemble, assemble_with, assemble_with_options,
 };
 #[cfg(feature = "render")]
-pub use model::{render_default_view, render_model};
+pub use model::{default_view_camera, render_default_view, render_model};
 pub use named_view::{NamedView, UnknownName, UpAxis};
 #[cfg(feature = "render")]
 pub use render::{

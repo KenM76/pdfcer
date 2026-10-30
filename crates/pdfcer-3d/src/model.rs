@@ -593,6 +593,28 @@ pub const DEFAULT_VIEW_DIRECTION: [f64; 3] = [-1.0, 1.0, -1.0];
 /// The model axis [`render_default_view`] shows upward.
 pub const DEFAULT_VIEW_UP: [f64; 3] = [0.0, 0.0, 1.0];
 
+/// The camera [`render_default_view`] draws `model` with in an image of
+/// `aspect` (width / height): looking along [`DEFAULT_VIEW_DIRECTION`] with
+/// [`DEFAULT_VIEW_UP`] upward, in perspective, fitted to the meshes.
+///
+/// # Errors
+///
+/// [`crate::RenderError::Camera`] for a model with no finite vertex or a
+/// non-positive `aspect`.
+#[cfg(feature = "render")]
+pub fn default_view_camera(
+    model: &AssembledModel,
+    aspect: f64,
+) -> Result<crate::Camera, crate::RenderError> {
+    crate::Camera::fit_meshes(
+        &model.meshes,
+        DEFAULT_VIEW_DIRECTION,
+        DEFAULT_VIEW_UP,
+        true,
+        aspect,
+    )
+}
+
 /// Draw `model` from [`DEFAULT_VIEW_DIRECTION`] with a 30° perspective
 /// camera fitted to the meshes, each mesh in its tree colour (grey when it
 /// has none) on an opaque white background.
@@ -608,13 +630,7 @@ pub fn render_default_view(
     height: u32,
 ) -> Result<crate::Image, crate::RenderError> {
     let aspect = f64::from(width) / f64::from(height.max(1));
-    let camera = crate::Camera::fit_meshes(
-        &model.meshes,
-        DEFAULT_VIEW_DIRECTION,
-        DEFAULT_VIEW_UP,
-        true,
-        aspect,
-    )?;
+    let camera = default_view_camera(model, aspect)?;
     let options = crate::RenderOptions {
         width,
         height,

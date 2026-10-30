@@ -208,6 +208,7 @@ mod rc4_append;
 pub(crate) mod stream_localize;
 #[cfg(feature = "svg-import")]
 mod svg;
+mod threed_opening;
 mod threed_poster;
 mod threed_views;
 

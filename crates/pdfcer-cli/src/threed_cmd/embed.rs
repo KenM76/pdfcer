@@ -176,9 +176,8 @@ fn print_format_lines(format: ThreeDFormatArg, spec: &ThreeDSpec, gltf: Option<&
 }
 
 /// Write the default view lit by the scheme `arg` names (with `auto`,
-/// `cad` for a `converted` glTF model, else nothing), saying so. The view
-/// carries the poster's camera, so the model opens where the poster shows
-/// it rather than wherever a reader puts a camera-less view.
+/// `cad` for a `converted` glTF model, else nothing), saying so
+/// ([`pdfcer_core::edit::EditSession::set_3d_opening_view`]).
 fn light_view(
     session: &mut pdfcer_core::edit::EditSession,
     page_index: usize,
@@ -187,42 +186,28 @@ fn light_view(
     arg: ThreeDLightingArg,
     converted: bool,
 ) -> Result<(), u8> {
-    let Some(scheme) = scheme_of(arg, converted) else {
-        return Ok(());
-    };
-    let mut view = poster_view(spec).unwrap_or_default().with_lighting(scheme);
-    view.name = "Default".to_owned();
-    let framed = view.camera_to_world.is_some();
-    if let Err(err) = session.set_3d_views(page_index, annot, &[view], Some(0)) {
-        eprintln!("pdfcer: {err}");
-        return Err(exit::EDIT_REFUSED);
+    match session.set_3d_opening_view(page_index, annot, spec, scheme_of(arg), converted) {
+        Ok(Some(opened)) => {
+            let hint = if opened.automatic {
+                "; --lighting picks another"
+            } else {
+                ""
+            };
+            println!("note: {}{hint}", opened.disclosure());
+            Ok(())
+        }
+        Ok(None) => Ok(()),
+        Err(err) => {
+            eprintln!("pdfcer: {err}");
+            Err(exit::EDIT_REFUSED)
+        }
     }
-    let why = if arg == ThreeDLightingArg::Auto {
-        " (the converted model carries no lights of its own; --lighting picks another)"
-    } else {
-        ""
-    };
-    let camera = if framed {
-        "seen as the poster shows it"
-    } else {
-        "the camera left to the reader"
-    };
-    println!(
-        "note: the model opens on view \"Default\", {camera}, lit by the {} scheme{why}",
-        String::from_utf8_lossy(scheme.as_name())
-    );
-    Ok(())
 }
 
-/// The scheme `arg` asks for; `auto` is CAD for a model converted from
-/// glTF and nothing otherwise.
-fn scheme_of(
-    arg: ThreeDLightingArg,
-    converted: bool,
-) -> Option<pdfcer_core::threed::ThreeDLighting> {
+/// The scheme `arg` names; `auto` is `None`, the engine's automatic rule.
+fn scheme_of(arg: ThreeDLightingArg) -> Option<pdfcer_core::threed::ThreeDLighting> {
     use pdfcer_core::threed::ThreeDLighting as L;
     Some(match arg {
-        ThreeDLightingArg::Auto if converted => L::Cad,
         ThreeDLightingArg::Auto => return None,
         ThreeDLightingArg::Artwork => L::Artwork,
         ThreeDLightingArg::None => L::None,
@@ -237,34 +222,6 @@ fn scheme_of(
         ThreeDLightingArg::Cad => L::Cad,
         ThreeDLightingArg::Headlamp => L::Headlamp,
     })
-}
-
-/// The view of the camera the rendered poster uses (the model's default
-/// view, fitted to the annotation's aspect), or `None` for a model that
-/// does not mesh.
-#[cfg(feature = "3d")]
-fn poster_view(spec: &ThreeDSpec) -> Option<pdfcer_core::threed::ThreeDSavedView> {
-    use pdfcer_3d::{Camera, DEFAULT_VIEW_DIRECTION, DEFAULT_VIEW_UP, assemble};
-    if spec.format != pdfcer_core::threed::ThreeDFormat::Prc {
-        return None;
-    }
-    let model = assemble(&spec.data).ok()?;
-    let r = spec.rect;
-    let aspect = (r.urx - r.llx).abs() / (r.ury - r.lly).abs();
-    let camera = Camera::fit_meshes(
-        &model.meshes,
-        DEFAULT_VIEW_DIRECTION,
-        DEFAULT_VIEW_UP,
-        true,
-        aspect,
-    )
-    .ok()?;
-    pdfcer_core::threed::ThreeDSavedView::from_camera("Default", &camera, aspect)
-}
-
-#[cfg(not(feature = "3d"))]
-fn poster_view(_spec: &ThreeDSpec) -> Option<pdfcer_core::threed::ThreeDSavedView> {
-    None
 }
 
 /// The summary's `poster=` value: `supplied:WxH`, `rendered:WxH` or
