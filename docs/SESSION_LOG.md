@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1327th filing) — `v0.107.0` release PREP, version bump `15cdee3b`; NOT yet published
+
+**Filed (docs only; engineer-reported, the engineer holds the shell; nothing checked from here):**
+- `15cdee3b` "chore: bump workspace to 0.107.0" (`Cargo.toml` workspace version and `pdfcer-model` workspace-dependency version, `Cargo.lock`, `fuzz/Cargo.lock`), a code commit. The tag goes on this filing's commit.
+- Contents since `v0.106.0`: `G241` (`75a3dc58`, filed `c7ff1052`), `G242` (`c17bb8ef`, filed `aa9b335c`), `X018` (`65dd718c` + `3b53a789`, filed `d0bb4c7f`, amended `ad68e5ba`). Slot `pdfcer2` (0.105.0, older); `pdfcer1` holds 0.106.0.
+- Gates (engineer-reported): `run-gates.sh` 48 of 49; the failure was `check-commits-filed` on unfiled `3b53a789`, fixed by `ad68e5ba`, then clean (1,747 commits checked). Fuzz `prc_tree`: 84,544 inputs in 61 s (about 0.72 ms each), 0 crashes.
+- FEATURES unchanged. No decision, no rule. The X018 ROADMAP entry's "not in a release yet" now reads "release v0.107.0 in preparation".
+
+**Open for the later filing:** tag, push, packaging, `verify-release.py v0.107.0`, fresh-folder smoke, GitHub release, OneDrive `pdfcer2`, crates.io. All "to run", none claimed passed. Backup currency not verifiable from here.
+
+**Hard-rule-11 survivors:** none; a version number only. The owed `G241`/`G242`/`X018` wording sweeps from the 1324th-1326th filings remain owed.
+
 ## 2026-10-30 (1326th filing) — `X018` shipped: PRC trees read past markups, views, lights and clipping planes, `65dd718c`
 
 **Shipped (engineer-reported; no shell here, nothing checked from here; on main, push/release state not checked, unreleased):**
