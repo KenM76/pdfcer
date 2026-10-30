@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1321st filing) — `G240` shipped: sending to an IPP printer is engine API, `ec8fac2d`
+
+**Shipped (engineer-reported; no shell here, nothing checked from here; unpushed, origin/main `410b9f9a`, unreleased, latest release `v0.106.0`):**
+- `G240` on `ec8fac2d`: `pdfcer_print::ipp` gains `PrinterOffer`, `check_finishing`, `query_printer`, `plan_ipp_job`, `send_ipp_job`, `send_ipp` over an injected `IppTransport` (no TLS client in the crate; `HttpTransport` returns `NeedsTls` for https), plus `IppSendError`. CLI `print_remote` uses them through `CliTransport`; stderr and exit codes unchanged; PDF format check now case-insensitive. 8 new send tests; `pdfcer-print` 149 lib + 10 doc; CLI print 37 + 4. `run-gates.sh` PASS (49 commands). No manifest change.
+
+**FEATURES.md:** IPP network printing and print finishing rows now core `[x]` / cli `[x]`; gui stays `[ ]`. **Decisions:** none. No Pass ID minted. **Findings:** none for the RAG tiers.
+
+**For next session:** engineer to reply to `pdfcer-gui` (its own IPP copy can be deleted); sweep `NEXT_SESSION.md`, `ARCHITECTURE.md` section 4 and doc comments for "IPP send lives in the CLI" survivors (owed).
+
 ## 2026-10-30 (1320th filing) — `G239` shipped: visual-compare marks and summary note are engine API, `069c5857`
 
 **Shipped (engineer-reported; no shell here, nothing checked from here; unpushed, unreleased, latest release `v0.106.0`):**

@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `ec8fac2d` `G240` SHIPPED, 2026-10-30: sending to an IPP printer is engine API (1321st filing)
+
+Engineer-reported; no shell here, nothing checked from here. Single code commit `ec8fac2dc9b9c828f405a47f59feef88ec71e38c` "feat(print): sending to an IPP printer is engine API (G240)", on main, NOT pushed (origin/main is `410b9f9a`), NOT released (latest release `v0.106.0`). Request from `pdfcer-gui` (IPP send lived in the CLI). No Pass ID minted; no decision; no new rule. Reasoning is in the commit message.
+- **`pdfcer-print::ipp`:** now carries the whole network-printer exchange the CLI did inline (RFC 8010/8011; finishings per PWG 5100.1). `PrinterOffer` (formats, finishings decoded into staples / punches per edge / folds / other keywords, output bins, sides, colour modes; from Get-Printer-Attributes); `check_finishing` (listed-and-absent refused by name, unlisted asked as given and noted via `OfferNote`); `query_printer`; `plan_ipp_job` (the dry run); `send_ipp_job`; `send_ipp`. All over an injected `IppTransport` trait, so the crate holds no TLS client. `HttpTransport` does http and returns `TransportError::NeedsTls` for https. `IppSendError` (`thiserror`, Display = the CLI's sentence).
+- **CLI:** `print_remote` calls these through a `CliTransport` (TLS via `pdfcer_fetch` under the `download` feature). Stderr wording and exit codes unchanged; the PDF format check is now case-insensitive.
+- **Docs:** `docs/core-api/03-capabilities.md` gains "Network printers (IPP)"; core-api `index.md` count updated to 5,630.
+- **Tests:** `pdfcer-print` 149 lib + 10 doc (8 new send tests over a fake transport); CLI print tests 37 + 4.
+- **Gates:** `tools/run-gates.sh` PASS (49 commands).
+- **Invariants:** no manifest dependency change, so `cargo tree` unchanged.
+- **FEATURES:** "Print to a network printer by ipp:// URI" and "Print finishing" now core `[x]` / cli `[x]`; gui stays `[ ]` (not wired; the GUI project's own copy can now be deleted).
+- **Survivors:** not swept this filing: `docs/NEXT_SESSION.md`, `ARCHITECTURE.md` section 4, and CLI/`pdfcer-print` doc comments for an "IPP send lives in the CLI" claim; owed. Reply to `pdfcer-gui` is the engineer's to write.
+
 ### `069c5857` `G239` SHIPPED, 2026-10-30: visual-compare marks and summary note are engine API (1320th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Single code commit `069c5857` "feat(compare): visual-compare marks and summary note are engine API (G239)", on main, NOT pushed, NOT released (latest release `v0.106.0`). Request from `pdfcer-gui` (`request_G239_visual_compare_marks_and_summary_live_in_the_cli.md`). No Pass ID minted; no decision. Reasoning is in the commit message.
