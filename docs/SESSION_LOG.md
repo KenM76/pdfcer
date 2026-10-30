@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1336th filing) — `Pass 648.5` SHIPPED `d8e7ac87` (`G245` part 1): 3D pick
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`Pass 648.5`** `d8e7ac87`, on `main`, unreleased. `Camera::ray_through` plus `pick` in `pdfcer-3d` (feature `render`); `3d-render --pick X,Y`. 5 new unit tests (`pick.rs`) and 1 CLI test; `pdfcer-3d` lib 214 pass, CLI three_d 40 pass, doctests pass; clippy and code-structure clean; core-api-verbs PASS (388); no manifest change. ROADMAP Shipped entry added, Next up entry removed; FEATURES row moved to Implemented `[x]`/`[x]`/`[ ]`.
+
+**Decisions made this session:** none; nothing minted.
+
+**Still in flight:** GUI adoption is `pdfcer-gui`'s. `Pass 648.6` (`/MA` measurements) not started.
+
+**For next session:** `Pass 648.6` (spec-RAG check first), then XFA `647.3b`.
+
+**Hard-rule-11 survivors:** not swept; `docs/NEXT_SESSION.md` not swept (owed). Backup currency not verifiable from here.
+
 ## 2026-10-30 (1335th filing) — `Pass 648.4` SHIPPED `8d414a9f` (`G247`): one engine verb for a placed model's lit opening view
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**

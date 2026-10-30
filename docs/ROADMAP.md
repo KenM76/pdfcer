@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `d8e7ac87` `Pass 648.5` SHIPPED, 2026-10-30: pick the model point under a pixel of a render (`G245` part 1; 1336th filing)
+
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Request `G245` (pdfcer-gui). On `main` after `v0.108.0`, with 648.4; not released. No decision minted. Reasoning is in the commit message.
+- **Core (`pdfcer-3d`, feature `render`):** `Camera::ray_through(x, y, width, height) -> Result<Ray, RenderError>`, the exact inverse of the renderer's projection (pixel (i,j) centre is (i+0.5, j+0.5), y down). `Ray { origin, direction, min_distance }`: the renderer's near plane under perspective, -inf under orthographic. `pick(&[TriangleMesh], &Ray) -> Option<Hit { mesh, triangle, point, normal, distance }>`: two-sided Möller-Trumbore nearest hit, skipping triangles the renderer skips (missing or non-finite corner, zero area). Normal is the unit face normal from the winding (outward on a closed CCW solid), not turned towards the viewer.
+- **CLI:** `pdfcer 3d-render ... --pick X,Y` (repeatable) prints `pick x= y= mesh= triangle= point= normal= distance=` or `pick x= y= miss`, through the camera the PNG was drawn with. The `3d-render --help` no longer claims textures are unread (they render since 648.2).
+- **Docs:** `docs/core-api/01-reading-and-model.md` lookup row and "Picking (G245)" bullet; `index.md` 4,375 lines / 254 clauses; check-core-api-verbs PASS (EditSession verb count unchanged at 388: pick is a `pdfcer-3d` function, not a verb).
+- **Acceptance met:** a pick on a known cube returns the face's point and outward normal exact to 1e-9.
+- **Tests:** 5 new unit tests in `pdfcer-3d/src/pick.rs` (centre pixel hits the +z face at (0,0,1), normal (0,0,1), distance 9; a hit projects back onto its pixel under perspective and orthographic on 160x90; nearer face wins and a miss; nothing behind the perspective eye; zero-size image refused) and 1 CLI test `a_pick_reports_the_model_point_under_a_pixel` in `crates/pdfcer-cli/tests/three_d.rs`. Sabotage: inverting the y mapping fails the round-trip test. `pdfcer-3d` lib 214 pass, CLI three_d 40 pass, doctests pass.
+- **Gates green:** clippy -D warnings (pdfcer-3d with and without `render`; pdfcer-cli with and without default features), code-structure (561 baseline, none new). No `Cargo.toml` changed, so `cargo tree` unchanged.
+- **GUI:** not delivered; box stays `[ ]`.
+- **FEATURES:** Planned row moved to Implemented as `[x]` core / `[x]` cli / `[ ]` gui. Measurements (`Pass 648.6`) are NOT done and keep their Planned row.
+- **Next up:** `Pass 648.6` (`G245` part 2; spec-RAG check first), then XFA `647.3b`.
+
 ### `8d414a9f` `Pass 648.4` SHIPPED, 2026-10-30: one engine verb for a placed model's lit opening view (`G247`; 1335th filing)
 
 Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Request `G247` (pdfcer-gui). On `main`, not pushed, unreleased (next release is after `v0.108.0`). No decision minted. Reasoning is in the commit message.
@@ -26888,13 +26901,6 @@ Table/row layout in dynamic forms. Blocked until `pdfcer-spec-librarian` extract
 ### Pass 648.1 — Mesh import: OBJ/MTL and STL to PRC (NOT STARTED; filed 1297th filing, 2026-10-29)
 
 Split from `Pass 648.0` by operator direction ("worry about the others later"). Readers for OBJ (+MTL colours; dissolve `d` is exporter-inconsistent, so any transparency taken from it is disclosed via `inferred:`) and binary/ASCII STL (no colour: default colour disclosed), feeding the PRC writer built in 648.0. `3d-embed --model` and `3d-convert` accept `.obj` / `.stl`. A fuzz target per parser (§10.2). Depends on 648.0, now SHIPPED (1297th filing; `write_prc` exists, `3d-convert` and the format auto-detect exist, only the OBJ/STL readers and their extension/signature detection are owed). gui `[ ]`.
-
-### Pass 648.5 — 3D pick: nearest hit for a view pixel or ray (NOT STARTED; filed 1330th filing, request `G245` part 1; after 648.4)
-
-Engineer-dispatched filing; nothing built. Request `G245` (pdfcer-gui, pin `14774b1f`): `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G245_3d_measuring.md`. Part 1 of 2 (the request calls part 2 "separately decidable").
-- **Wanted:** given meshes, a camera and a view pixel (or a ray), return the nearest hit: mesh index, triangle, model-space point and normal, so the GUI can snap to vertices and edges and show live distances off-canvas. Today `Camera` has `fit`, `fit_meshes` and `basis` but nothing turns a pixel into a ray or a model-space point, and `render` / `render_coloured` return no depth or triangle identity.
-- **Acceptance:** a pick on a known cube returns the face's point and normal within tessellation tolerance.
-- **FEATURES:** Planned row added (all three boxes `[ ]`).
 
 ### Pass 648.6 — 3D measurements: write and read `/MA` on a saved view (NOT STARTED; filed 1330th filing, request `G245` part 2; after 648.5)
 
