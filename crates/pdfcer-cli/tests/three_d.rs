@@ -1191,6 +1191,14 @@ fn named_views_are_written_and_listed() {
         listed.contains("3d index=2 page=1 format=PRC views=2 "),
         "{listed}"
     );
+    assert!(
+        listed.contains(
+            "  view index=0 name=\"Front\" default=no
+  view index=1 name=\"Top\" default=yes
+"
+        ),
+        "{listed}"
+    );
 
     let cleared = output.with_extension("cleared.pdf");
     let out = views_3d(

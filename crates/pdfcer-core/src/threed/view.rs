@@ -9,7 +9,7 @@ use super::{ThreeDArtwork, ThreeDLighting, name_of, stream_at};
 
 /// Ceiling on `/VA` entries searched for a view named by string (a pdfcer
 /// guard; the spec sets none).
-const MAX_VIEWS_SEARCHED: usize = 4096;
+pub(super) const MAX_VIEWS_SEARCHED: usize = 4096;
 
 /// A 3D view dictionary's camera, as far as a renderer needs it.
 #[derive(Debug, Clone, PartialEq)]
@@ -114,16 +114,7 @@ pub fn default_3d_view<G: ObjectGraph + ?Sized>(
     graph: &G,
     artwork: &ThreeDArtwork,
 ) -> Option<ThreeDSavedView> {
-    let stream = artwork
-        .stream_id
-        .and_then(|id| stream_at(graph, &Object::Reference(id)))
-        .map(|(_, dict)| dict);
-    let views = stream.map_or(&[][..], |s| {
-        s.get(b"VA")
-            .map(|o| graph.resolve(o))
-            .and_then(Object::as_array)
-            .unwrap_or_default()
-    });
+    let (stream, views) = views_of(graph, artwork);
     let annot = artwork.annot_id.and_then(|id| graph.resolved(id).as_dict());
     let annot_choice = annot.and_then(|a| a.get(b"3DV"));
     let dict = match annot_choice {
@@ -137,8 +128,26 @@ pub fn default_3d_view<G: ObjectGraph + ?Sized>(
     Some(view)
 }
 
+/// The artwork's 3D stream dictionary and its `/VA` entries.
+pub(super) fn views_of<'a, G: ObjectGraph + ?Sized>(
+    graph: &'a G,
+    artwork: &ThreeDArtwork,
+) -> (Option<&'a Dict>, &'a [Object]) {
+    let stream = artwork
+        .stream_id
+        .and_then(|id| stream_at(graph, &Object::Reference(id)))
+        .map(|(_, dict)| dict);
+    let views = stream.map_or(&[][..], |s| {
+        s.get(b"VA")
+            .map(|o| graph.resolve(o))
+            .and_then(Object::as_array)
+            .unwrap_or_default()
+    });
+    (stream, views)
+}
+
 /// Table 298 `/3DB`, else the annotation's `/Rect`: width and height.
-fn view_box<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict) -> Option<[f64; 2]> {
+pub(super) fn view_box<G: ObjectGraph + ?Sized>(graph: &G, annot: &Dict) -> Option<[f64; 2]> {
     [b"3DB".as_slice(), b"Rect"].iter().find_map(|k| {
         let r = graph.resolve(annot.get(k)?).as_array()?;
         let n: Vec<f64> = r
@@ -193,7 +202,7 @@ fn pick<'a, G: ObjectGraph + ?Sized>(
 }
 
 /// Table 304: `/IN`, defaulting to `/XN`.
-fn internal_name<G: ObjectGraph + ?Sized>(graph: &G, view: &Dict) -> Option<String> {
+pub(super) fn internal_name<G: ObjectGraph + ?Sized>(graph: &G, view: &Dict) -> Option<String> {
     [b"IN".as_slice(), b"XN"]
         .iter()
         .find_map(|k| match graph.resolve(view.get(k)?) {
@@ -202,7 +211,8 @@ fn internal_name<G: ObjectGraph + ?Sized>(graph: &G, view: &Dict) -> Option<Stri
         })
 }
 
-fn read_view<G: ObjectGraph + ?Sized>(graph: &G, view: &Dict) -> ThreeDSavedView {
+/// One Table 304 view dictionary as a [`ThreeDSavedView`], without its view box.
+pub(super) fn read_view<G: ObjectGraph + ?Sized>(graph: &G, view: &Dict) -> ThreeDSavedView {
     let name = match view.get(b"XN").map(|o| graph.resolve(o)) {
         Some(Object::String(s)) => decode_text_string(s).text,
         _ => String::new(),

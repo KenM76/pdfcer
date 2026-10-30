@@ -36,12 +36,14 @@ mod lighting;
 mod poster;
 mod view;
 mod view_aim;
+mod view_list;
 mod view_write;
 pub use lighting::ThreeDLighting;
 pub(crate) use poster::default_poster;
 pub use poster::{PlaceholderReason, RenderedPoster, ThreeDPoster, ThreeDPosterOutcome};
 pub use view::{OrthoBinding, ThreeDSavedView, default_3d_view};
 pub use view_aim::{SavedViewAim, ViewFit};
+pub use view_list::{SavedViews, saved_3d_views};
 pub use view_write::{MAX_3D_VIEWS, ThreeDViewsOutcome};
 pub(crate) use view_write::{check_view, view_dict};
 

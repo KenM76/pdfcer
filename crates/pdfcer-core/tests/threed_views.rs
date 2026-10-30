@@ -7,7 +7,7 @@ use pdfcer_core::edit::{CommandKind, EditError, EditSession};
 use pdfcer_core::object::{Dict, ObjId, Object};
 use pdfcer_core::threed::{
     MAX_3D_VIEWS, OrthoBinding, ThreeDEmbedError, ThreeDSavedView, default_3d_view, extract_3d,
-    list_3d,
+    list_3d, saved_3d_views,
 };
 use pdfcer_core::writer::{SaveOptions, save_full};
 
@@ -326,4 +326,39 @@ fn the_activation_condition_reads_back_and_defaults_to_a_click() {
     assert_eq!(of("/3DA << /A /PV >>"), ThreeDActivation::PageVisible);
     assert_eq!(of("/3DA << /A /XA >>"), ThreeDActivation::Click);
     assert_eq!(of("/3DA << /A /Bogus >>"), ThreeDActivation::Click);
+}
+
+#[test]
+fn every_saved_view_lists_in_file_order_with_the_named_default() {
+    let mut session = EditSession::new(doc());
+    let mut views = two_views();
+    views.push(ThreeDSavedView::new("Side", BACK).with_orbit_distance(2.0));
+    session
+        .set_3d_views(0, ANNOT, &views, Some(2))
+        .expect("views write");
+    let reread = saved(&session);
+    let art = &list_3d(&reread)[0];
+    let listed = saved_3d_views(&reread, art);
+    let names: Vec<_> = listed.views.iter().map(|v| v.name.as_str()).collect();
+    assert_eq!(names, ["Back", "Top", "Side"]);
+    assert_eq!(listed.default, Some(2));
+    assert_eq!(listed.views[1].camera_to_world, Some(TOP));
+    assert!(listed.views[1].orthographic);
+    assert_eq!(listed.views[2].view_box, Some([100.0, 50.0]));
+    assert_eq!(default_3d_view(&reread, art).as_ref(), listed.views.get(2));
+}
+
+#[test]
+fn a_listing_reads_the_old_default_and_no_default_when_none_is_named() {
+    let original = doc();
+    let art = &list_3d(&original)[0];
+    let listed = saved_3d_views(&original, art);
+    assert_eq!(listed.views.len(), 1);
+    assert_eq!(listed.default, Some(0), "/3DV /F names the first");
+    let mut session = EditSession::new(doc());
+    session
+        .set_3d_views(0, ANNOT, &two_views(), None)
+        .expect("views write");
+    let reread = saved(&session);
+    assert_eq!(saved_3d_views(&reread, &list_3d(&reread)[0]).default, None);
 }

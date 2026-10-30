@@ -156,6 +156,7 @@ builds `--no-default-features`, so both configurations compile.
 | List embedded 3D models (U3D/PRC/STEP) | `threed::list_3d_with_notes(&graph)` — `threed.rs` | §12.2 |
 | Extract a 3D model's bytes | `threed::extract_3d(&DocumentView, &ThreeDArtwork)` — `threed.rs` | §12.2 |
 | Read the view a 3D model opens on (camera, projection) | `threed::default_3d_view(&graph, &ThreeDArtwork)` — `threed/view.rs` | §12.2 |
+| List every saved view of a 3D model, with the named default | `threed::saved_3d_views(&graph, &ThreeDArtwork) -> SavedViews` — `threed/view_list.rs` | §12.2 |
 | List a PRC model's assembly tree (names, hierarchy, stored visibility, markup and view counts) | `pdfcer_3d::PrcFile::model_tree() -> Result<Vec<ModelNode>, PrcError>` — `pdfcer-3d/src/tree/node.rs`. `ModelNode::markups` / `views` count the PMI markups and views the occurrence and its part carry; the tree reads past them (and past scene lights and clipping planes) rather than refusing the file. | §12.2 |
 | Build a PRC model from triangle meshes, or from a glTF 2.0 / GLB file | `pdfcer_3d::write_prc(&MeshScene) -> Result<PrcWriteReport, PrcWriteError>`; `pdfcer_3d::read_gltf(data, &mut resolve, GltfOptions) -> Result<GltfImport, GltfError>` — `pdfcer-3d/src/write/`, `pdfcer-3d/src/gltf/` | §12.2 |
 | Turn a saved 3D view into a camera (`pdfcer_3d::Camera`) | `ThreeDSavedView::aim(aspect)` → `SavedViewAim::camera(&Bounds, aspect)` / `frame` — `threed/view_aim.rs` | §12.2 |
@@ -3201,6 +3202,16 @@ the filter-decoded model, untrusted and uninterpreted. `ThreeDNotes`:
 `ThreeDError`: `NoStream`, `StreamUnresolvable`, `SpanUnservable`, `Decode`.
 Caps: `MAX_3D_ARTWORKS`, `MAX_RICH_MEDIA_ENTRIES`. `pdfcer-core` decodes no
 model. CLI: `3d-list`, `3d-extract --index N -o FILE`.
+
+**Every saved view.** `threed::saved_3d_views(&graph, &art) -> SavedViews`
+(`#[non_exhaustive]`, `Default`): `views: Vec<ThreeDSavedView>`, every `/VA`
+dictionary in file order read as `default_3d_view` reads one (non-dictionary
+entries skipped, at most 4,096), and `default: Option<usize>`, the index the
+file names — `/3DV` (unless `/D`), else `/DV`; `None` when neither names a
+`/VA` entry (a reader opens on the first) or names an inline dictionary.
+Empty for a RichMedia asset. Edit one entry and pass the list to
+`set_3d_views` to keep the rest. CLI: `3d-list` prints a `view index=I
+name="…" default=yes|no` line per view.
 
 **The opening view.** `threed::default_3d_view(&graph, &art) ->
 Option<ThreeDSavedView>` — the view a reader opens on: the annotation's

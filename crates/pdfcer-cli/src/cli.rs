@@ -3087,6 +3087,10 @@ pub(crate) enum Command {
     /// becomes visible; until then a viewer shows the poster), and where it lives
     /// (`stream`, `shared-stream` when several annotations use one model, or
     /// `richmedia` with the asset's file name as the document gives it).
+    /// Under each model, one `view` line per saved view in file order: its
+    /// index, name, and `default=yes` on the view the file names as the one
+    /// to open on (none says `yes` when the file names none; a viewer then
+    /// opens on the first).
     ///
     /// Read-only. Nothing is decoded or rendered.
     #[command(name = "3d-list")]

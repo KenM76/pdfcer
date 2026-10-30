@@ -50,6 +50,18 @@ pub(crate) fn cmd_list_3d(input: &Path) -> u8 {
             if art.has_poster { "yes" } else { "no" },
             String::from_utf8_lossy(art.activation.name()),
         );
+        let saved = pdfcer_core::threed::saved_3d_views(&doc, art);
+        for (i, view) in saved.views.iter().enumerate() {
+            println!(
+                "  view index={i} name={:?} default={}",
+                view.name,
+                if saved.default == Some(i) {
+                    "yes"
+                } else {
+                    "no"
+                },
+            );
+        }
     }
     println!("count={}", found.len());
     if notes.annotations_without_stream > 0 {
