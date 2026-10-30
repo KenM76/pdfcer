@@ -3122,8 +3122,8 @@ pub(crate) enum Command {
     /// the model's product tree puts it, moved, rotated and mirrored into
     /// position, so a bolt used eight times is written eight times.
     /// Coordinates are in the model's units. When the tree cannot be read
-    /// (markups, views, scene lights or clipping planes in it, which pdfcer
-    /// does not read yet) a note says why and each mesh is written once, in
+    /// (global fonts or fill patterns behind a reference coordinate system)
+    /// a note says why and each mesh is written once, in
     /// its own coordinates, so parts may overlap. Meshes saved with PRC's
     /// compressed tessellation are rebuilt
     /// and written, and a note says so: the encoding is undocumented and
