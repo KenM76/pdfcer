@@ -4,7 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
-## 2026-10-30 (1327th filing) — `v0.107.0` release PREP, version bump `15cdee3b`; NOT yet published
+## 2026-10-30 (1328th filing) — `v0.107.0` PUBLISHED; request `X020` filed as `Pass 647.4a` and `Pass 647.3a`
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **A. `v0.107.0` publication.** Tag on `14774b1f` (the 1327th filing commit); `main` and tag pushed; CI green at the tag. Build `D:\builds\pdfcer-20261030-1312-14774b1` (not dirty). GitHub release: 8 assets (`pdfcer-v0.107.0-windows-x64.zip`, 3 `ocr-addon-*.zip`, each with `.sha256`); main zip sha256 `1f46a4ba3fec8b7c04d45bc982681a8cf0a4a9bf76afffd84e8b566530705764`. Smoke: `--version` 0.107.0 / revision `v0.107.0`, `inspect` on a fixture, `3d-mesh --help` carries the `3b53a789` wording. `verify-release.py`: all ok except "working tree clean" (agent-memory edits and two untracked files, the known deliberate case). OneDrive `pdfcer2` 0.107.0, `pdfcer1` 0.106.0; **next release writes `pdfcer1`**. crates.io `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.107.0 (crates.io API). Replies `G241`, `G242`, `X018` name `v0.107.0`.
+- Amended to "released in v0.107.0": ROADMAP `G241`, `G242`, `X018` Shipped entries and the 1327th prep entry (header and "nothing published" sentence); FEATURES `X018` row ("Unreleased" to released); the `X018` Next-up pointer shortened (only the optional tessellation fallback remains, a FEATURES *Planned* row). This log's 1324th-1327th entries carry one-line amendment footers.
+- **B. `X020` filed** (request read in full; operator as a crates consumer, a public viewer bug report, synthetic fictional-data form). Two Next-up slices of the `Pass 647` arc: **`Pass 647.4a`** (round checkButtons, per-member exclGroup widgets, 3D edge strokes, negative caption reserve; part of `647.4`) and **`Pass 647.3a`** (data merge for explicit `dataRef`, `$` and dotted SOM paths, value on the `xfa-layout` item line, unresolvable ref a `warning kind=`, no panic on hostile data; part of `647.3`, which stays NOT STARTED beyond it). IDs checked free by grep of `docs/` before filing. Acceptance is the request's section, verbatim, in both. FEATURES: two new Planned rows, all `[ ]`.
+
+**Decisions made this session:** none; nothing minted. **Order recorded: `647.4a` first, then `647.3a`.** Why: `647.4a` is pure paint on the layout model already built (no spec gap, no merge needed); `647.3a` waits on the SOM slice the spec librarian is ingesting now (gap G-B2, `adobe_ext__xfa_data_binding_normal.md`), cited as pending. One release carries both; the reply to `X020` names it and states which reading of a negative `reserve` was taken.
+
+**Findings:** the fourth-cut reading of caption `reserve` (G-D7: no positive reserve, including the grammar default -1, is read as omitted) may or may not already cover `-5.08mm`; not established from here, left to the engineer in `647.4a`. The fifth cut deliberately did not read an exclGroup value, so until `647.3a` lands every group member draws empty.
+
+**For next session:** `Pass 647.4a`, then `Pass 647.3a` once the SOM slice is on disk (verify it exists first). Reply to `X020` after the release that carries both.
+
+**Hard-rule-11 survivors:** `docs/NEXT_SESSION.md` line 8 already says v0.107.0 is the latest and `pdfcer1` is next (read, correct). Not swept from here: `docs/NEXT_SESSION.md` and the FEATURES "Dynamic XFA, layout and drawing" row for "other widgets / merge not built" (still true until the slices ship; hits that survive and are correct).
+
+## 2026-10-30 (1327th filing) — `v0.107.0` release PREP, version bump `15cdee3b`; published in the 1328th filing (entry above)
 
 **Filed (docs only; engineer-reported, the engineer holds the shell; nothing checked from here):**
 - `15cdee3b` "chore: bump workspace to 0.107.0" (`Cargo.toml` workspace version and `pdfcer-model` workspace-dependency version, `Cargo.lock`, `fuzz/Cargo.lock`), a code commit. The tag goes on this filing's commit.
@@ -15,6 +30,8 @@ the affected entry. Maintained by `pdfce-librarian`.
 **Open for the later filing:** tag, push, packaging, `verify-release.py v0.107.0`, fresh-folder smoke, GitHub release, OneDrive `pdfcer2`, crates.io. All "to run", none claimed passed. Backup currency not verifiable from here.
 
 **Hard-rule-11 survivors:** none; a version number only. The owed `G241`/`G242`/`X018` wording sweeps from the 1324th-1326th filings remain owed.
+
+*Amended 1328th: published as `v0.107.0`; every "to run" item above is done (see the 1328th entry).*
 
 ## 2026-10-30 (1326th filing) — `X018` shipped: PRC trees read past markups, views, lights and clipping planes, `65dd718c`
 
@@ -27,6 +44,8 @@ the affected entry. Maintained by `pdfce-librarian`.
 
 **For next session:** `run-gates.sh`, fresh-folder smoke test, `verify-release.py`, then the release covering `G241`, `G242`, `X018` (add tag to the records after). Owed sweep for "PRC tree refuses PMI/views" wording (`NEXT_SESSION.md`, `ARCHITECTURE.md`, `pdfcer-3d` docs, `3d-tree` help); reply to the crates consumer.
 
+*Amended 1328th: `X018` released in `v0.107.0` with `G241` and `G242`; the release item above is done.*
+
 ## 2026-10-30 (1325th filing) — `G242` shipped: separation plates are engine API, `c17bb8ef`
 
 **Shipped (engineer-reported; no shell here, nothing checked from here; on main, push/release state not checked):**
@@ -37,6 +56,8 @@ the affected entry. Maintained by `pdfce-librarian`.
 
 **For next session:** `X018` (spec-librarian first), then `run-gates.sh`, then release. Owed sweep: `NEXT_SESSION.md`, `ARCHITECTURE.md` section 4, CLI help for "private to the CLI" wording (covers `G241` and `G242`); reply to `pdfcer-gui`.
 
+*Amended 1328th: `G242` released in `v0.107.0`.*
+
 ## 2026-10-30 (1324th filing) — `G241` shipped: the print vector-or-raster decision is engine API, `75a3dc58`
 
 **Shipped (engineer-reported; no shell here, nothing checked from here; on main, push/release state not checked):**
@@ -45,6 +66,8 @@ the affected entry. Maintained by `pdfce-librarian`.
 **FEATURES.md:** `G241` Planned row moved to Implemented, core `[x]` / cli `[x]` / gui `[ ]`. **Decisions:** none. `G242` and `X018` stay in *Next up*.
 
 **For next session:** `G242`, then `X018` (spec-librarian first), then release. Owed sweep: `NEXT_SESSION.md`, `ARCHITECTURE.md` section 4, CLI help for "private to the CLI" wording; reply to `pdfcer-gui`.
+
+*Amended 1328th: `G241` released in `v0.107.0`.*
 
 ## 2026-10-30 (1323rd filing) — `Pass 647.4` seventh cut shipped: border corners with a radius are drawn, `e0795e2d`; `G241`, `G242`, `X018` filed
 

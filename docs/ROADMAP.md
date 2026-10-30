@@ -112,9 +112,23 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.107.0` — release PREP, version bump `15cdee3b` (`chore`), 2026-10-30 (1327th filing); NOT yet published
+### `v0.107.0` — PUBLISHED, 2026-10-30 (1328th filing)
 
-Engineer-reported (shell held by the engineer; each item stated checked); nothing checked from here. Same pattern as the v0.106.0 prep (1315th filing). The tag goes on this filing's own commit. Nothing is pushed or published; publication is a later filing.
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Release record for the prep filed below (1327th, bump `15cdee3b`).
+- **Tag:** `v0.107.0` on `14774b1f` (the 1327th filing commit "docs: file v0.107.0 release prep"). `main` and the tag are pushed. CI green at the tag.
+- **Contents:** `G241` (`75a3dc58`), `G242` (`c17bb8ef`), `X018` (`65dd718c` + `3b53a789`) plus their filings and the bump. Release title not relayed.
+- **Packaging:** build `D:\builds\pdfcer-20261030-1312-14774b1` (not dirty). GitHub release published with 8 assets: `pdfcer-v0.107.0-windows-x64.zip` plus 3 `ocr-addon-*.zip`, each with a `.sha256`. Main zip sha256 `1f46a4ba3fec8b7c04d45bc982681a8cf0a4a9bf76afffd84e8b566530705764`.
+- **Fresh-folder smoke:** `pdfcer --version` reports 0.107.0, revision `v0.107.0`; `inspect` runs on a fixture; `3d-mesh --help` carries the `3b53a789` wording.
+- **`verify-release.py v0.107.0`:** every check ok (tag at HEAD, pushed, origin contains it, release has assets, CI green at the tag, OneDrive current and previous) except "working tree clean", which fails on uncommitted agent-memory files and two untracked files that are not part of the release: the known deliberate case.
+- **OneDrive:** slot `pdfcer2` now holds 0.107.0; `pdfcer1` keeps 0.106.0. **Next release writes `pdfcer1`.**
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` published at 0.107.0, confirmed from the crates.io API.
+- **Inbound channel** (outside the repo, `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`): replies `G241`, `G242` and `X018` now name `v0.107.0`.
+- **Released with this tag:** `G241`, `G242`, `X018`. Their Shipped entries below carry a 1328th amendment. The `X018` Next-up pointer was shortened (only the optional tessellation fallback remains, a FEATURES *Planned* row).
+- **Next:** request `X020` filed this filing as `Pass 647.4a` (first) and `Pass 647.3a` (second), both slices of the `647` arc, one release for both. FEATURES: `X018` row "Unreleased" changed to released; nothing else. Nothing minted. Backup currency not verifiable from here.
+
+### `v0.107.0` — release PREP, version bump `15cdee3b` (`chore`), 2026-10-30 (1327th filing); published in the 1328th filing (entry above)
+
+Engineer-reported (shell held by the engineer; each item stated checked); nothing checked from here. Same pattern as the v0.106.0 prep (1315th filing). The tag goes on this filing's own commit. *Amended 1328th: this entry said "Nothing is pushed or published"; it was published, see above; every "to run" item in the release plan below is done.*
 - **`15cdee3b`** "chore: bump workspace to 0.107.0": `Cargo.toml` (workspace version and the `pdfcer-model` workspace-dependency version, 0.106.0 to 0.107.0), `Cargo.lock`, `fuzz/Cargo.lock`. Versions only. A code commit, cited here.
 - **Carried since `v0.106.0`:** `G241` (`75a3dc58`, filed `c7ff1052`: print vector-or-raster decision is public API); `G242` (`c17bb8ef`, filed `aa9b335c`: separation plates are public API); `X018` (`65dd718c` + `3b53a789`, filed `d0bb4c7f`, amended `ad68e5ba`: PRC trees read past markups, views, lights and clipping planes).
 - **Target:** annotated tag `v0.107.0` on this filing's commit; OneDrive slot `pdfcer2` (holds 0.105.0, the older; `pdfcer1` holds 0.106.0).
@@ -124,7 +138,7 @@ Engineer-reported (shell held by the engineer; each item stated checked); nothin
 
 ### `65dd718c` `X018` SHIPPED, 2026-10-30: PRC product trees read past markups, views, lights and clipping planes (1326th filing)
 
-Engineer-reported; no shell here, nothing checked from here. Two code commits: `65dd718c` "feat(3d): PRC trees read past markups, views, lights and clipping planes (X018)" and `3b53a789` "docs(cli): 3d-export help names what still stops the tree (X018)" (help text in `crates/pdfcer-cli/src/cli.rs` only, no behaviour change: it no longer says the tree refuses markups or views, and says it fails only on global fonts or fill patterns behind a reference coordinate system), both on local main; push and release state not checked from here (release v0.107.0, covering `G241`, `G242`, `X018`, in preparation as of the 1327th filing; not published). Request `X018` from the crates consumer. No Pass ID minted; no decision; no new rule. Reasoning is in the commit message. Crate `pdfcer-3d` only; prior filing `G242`, `c17bb8ef`.
+Engineer-reported; no shell here, nothing checked from here. Two code commits: `65dd718c` "feat(3d): PRC trees read past markups, views, lights and clipping planes (X018)" and `3b53a789` "docs(cli): 3d-export help names what still stops the tree (X018)" (help text in `crates/pdfcer-cli/src/cli.rs` only, no behaviour change: it no longer says the tree refuses markups or views, and says it fails only on global fonts or fill patterns behind a reference coordinate system), both on local main; push and release state not checked from here (*amended 1328th: released in `v0.107.0`, with `G241` and `G242`; the "in preparation, not published" wording this parenthesis carried as of the 1327th filing is superseded*). Request `X018` from the crates consumer. No Pass ID minted; no decision; no new rule. Reasoning is in the commit message. Crate `pdfcer-3d` only; prior filing `G242`, `c17bb8ef`.
 - **Defect:** a product occurrence or part definition carrying PMI markups or views, or scene display parameters (entity 741) carrying lights or clipping planes, was refused with `PrcError::Unsupported`, losing every placement and `model_tree` node.
 - **Now read past,** per spec RAG `D:\Dev\Rag-Specialized\PDF_Spec\threed\prc__8137__markup_view_entities.md`: MarkupData (204 linked items, 503 leaders, 502 markups, 504/505/506 annotation entities; sets nest, capped at 32), MKP_View 501 with SURF_Plane 86 and optional SDP, lights 731-734 (directional intensity gated at authoring 8030), clipping planes. Every count is checked against bits remaining before looping (`Truncated`, never an allocation); schema additions are skipped per entity.
 - **View gate (decision, no decision number):** `is_annotation_view` gated at authoring version 7309; default/direction flags, linked items and filters at 8016 (from the writer's own schema program for 501). prc-rs gates all at 8137: recorded alternative, still an OPEN GAP; only files authored 7309..8137 differ. Candidate setting (standing rule: spec ambiguity becomes a setting) if real files ever disagree.
@@ -139,7 +153,7 @@ Engineer-reported; no shell here, nothing checked from here. Two code commits: `
 
 ### `c17bb8ef` `G242` SHIPPED, 2026-10-30: separation plates are engine API (1325th filing)
 
-Engineer-reported; no shell here, nothing checked from here. Single code commit `c17bb8ef` "feat(render): separation plates are public API (G242)", on main; push and release state not checked from here. Request from `pdfcer-gui`. No Pass ID minted; no decision; no new rule. Reasoning is in the commit message. Home chosen: `pdfcer-render`, not `pdfcer-print` (no renderer dependency there) as the filed request guessed. Prior filing: `G241`, `c7ff1052`.
+Engineer-reported; no shell here, nothing checked from here. Single code commit `c17bb8ef` "feat(render): separation plates are public API (G242)", on main; push and release state not checked from here. Request from `pdfcer-gui`. No Pass ID minted; no decision; no new rule. Reasoning is in the commit message. Home chosen: `pdfcer-render`, not `pdfcer-print` (no renderer dependency there) as the filed request guessed. Prior filing: `G241`, `c7ff1052`. *Amended 1328th: released in `v0.107.0`.*
 - **`pdfcer_render::plates::render_plates`:** `(&DocumentView, &Page, scale, &RenderOptions) -> Result<Plates, RenderError>`. `Plates` (`#[non_exhaustive]`): `Separated(Vec<Plate>)` (process inks then spots, plane order) or `Composite(Pixmap)` when the colorant buffer was refused for memory; typed, replacing the empty-ink-name signal.
 - **`Plate { ink: String, pixmap: Pixmap }`;** `to_plate_grey(&mut [u8])` public. Label rule moved unchanged: 6 pt Helvetica, right of the trim when the trim sits at least 10 pt above the crop, else lower left.
 - **CLI:** `pdfcer print --separations` calls `render_plates`; the CLI keeps only the stderr report. No behaviour change.
@@ -152,7 +166,7 @@ Engineer-reported; no shell here, nothing checked from here. Single code commit 
 
 ### `75a3dc58` `G241` SHIPPED, 2026-10-30: the print vector-or-raster decision is engine API (1324th filing)
 
-Engineer-reported; no shell here, nothing checked from here. Single code commit `75a3dc58` "feat(render): the print vector-or-raster decision is public API (G241)", on main; push and release state not checked from here. Request from `pdfcer-gui`. No Pass ID minted; no decision; no new rule. Reasoning is in the commit message. Home chosen: `pdfcer-render`, not `pdfcer_print` as the filed request guessed.
+Engineer-reported; no shell here, nothing checked from here. Single code commit `75a3dc58` "feat(render): the print vector-or-raster decision is public API (G241)", on main; push and release state not checked from here. Request from `pdfcer-gui`. No Pass ID minted; no decision; no new rule. Reasoning is in the commit message. Home chosen: `pdfcer-render`, not `pdfcer_print` as the filed request guessed. *Amended 1328th: released in `v0.107.0`.*
 - **`pdfcer_render::emf`:** `print_metafile(&DocumentView, &Page, &RenderOptions, raster_dpi: f32) -> Result<Vec<u8>, PrintMetafileError>`: the EMF when it is the whole page; `PrintMetafileError::Raster(RasterReason)` when the page must print as an image; `::Export(RenderError)` on export failure. `EmfOutcome::print_fallback() -> Option<RasterReason>`.
 - **`RasterReason`** (`#[non_exhaustive]`): SemiTransparentPaint, TransparencyGroup, BlendMode, Shading, Overprint, BlendingColourSpace, TilingPattern, ExtraRasters. `as_str()` / Display keep the CLI wording.
 - **CLI:** `pdfcer print` calls `print_metafile`; its private copy is removed, so CLI and GUI share one rule. No behaviour change.
@@ -26608,7 +26622,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > `Pass 647.1` SHIPPED and has left this section (1276th filing, `74023a53`); full entry at the top of *Shipped*.
 
-> `X018` SHIPPED and has left this section (1326th filing, `65dd718c`); full entry at the top of *Shipped*. What remains of the request: the release covering `G241`, `G242`, `X018` (standing-authorised, decision 121; green `run-gates.sh`, fresh-folder smoke test, `verify-release.py` first), and the optional tessellation fallback (FEATURES *Planned*).
+> `X018` SHIPPED and has left this section (1326th filing, `65dd718c`), released in `v0.107.0` (1328th filing); full entries in *Shipped*. Only the optional tessellation fallback remains, as a FEATURES *Planned* row (no Pass ID).
 
 ### Pass 647.2 — Flowed layout `tb` / `lr-tb` (FIRST CUT `7cfa9c40`, SECOND CUT `9d0ddb90` (1278th filing), THIRD CUT `5fceb520` (1279th filing), FOURTH CUT `fa1869c8` (1280th filing), FIFTH CUT `1abf9d5e` (1281st filing), SIXTH CUT `f6e76272` (1283rd filing), SEVENTH CUT `e3547709` (1284th filing), EIGHTH CUT `cac24637` (1285th filing), NINTH CUT `f1b8baa6` (1286th filing), TENTH CUT `f64f12fe` (1287th filing), ELEVENTH CUT `5a9d3f30` (1288th filing); NOT COMPLETE, stays here)
 
@@ -26702,6 +26716,22 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 - **Public form for a manual check (not a fixture):** US DD Form 214 (dd0214.pdf): typing `1 2 3 4` in the four "Page __" boxes and saving must reopen as `1 2 3 4`, not `1 1 1 1`.
 - **Side-effect guard, bites only once scripting exists:** an event whose target no longer exists (a page removed by a layout re-run after its events were queued) is skipped, never run with `this` at the form root. Without it, a page-background button whose initialize script set `this.presence = "hidden"` hid the whole form (3 pages became 1) in the reporter's other viewer. Also recorded on `Pass 131.3`.
 
+### Pass 647.3a — XFA data merge, explicit `dataRef` bindings first (slice of 647.3; NOT STARTED; filed 1328th filing, request `X020`; second in order, after 647.4a)
+
+Engineer-dispatched filing; nothing built, nothing checked from here. Request `X020` (operator as a crates consumer; a public viewer bug report with a one-page synthetic dynamic-XFA form, fictional data only), read in full: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X020_xfa_dataref_merge_and_round_checkbuttons_in_exclgroups.md`. `647.3` itself stays NOT STARTED beyond this slice (normal match, once/global, occur, re-normalization, the page-instance criteria above).
+- **Wanted:** merge the `datasets` packet for `<bind match="dataRef" ref="…"/>` fields. `$` resolves to the data node the nearest bound ancestor subform matched (the root `<data>`; an unbound, unnamed-in-data page subform is transparent); a dotted SOM path walks down from it. Each resolved value becomes the field's value, is drawn, and is printed by `xfa-layout` on the field's `item` line as `value="…"`, so the merge is testable without rendering. An unresolvable `ref` leaves the field empty and prints a `warning kind=` line, never a failure of the whole layout. Today `xfa-layout` says "no form data merged".
+- **Form shape (enough to rebuild it synthetically):** root subform named `data`; data root `<data>` under `xfa:data`; refs `$.GV_LINE1`, `$.GV_LINE2`, `$.IS_CREATE_VENDOR.REQUEST_ID`; fields inside an unbound page subform (`DemoPage`); data `<data><GV_LINE1>…</GV_LINE1><GV_LINE2>…</GV_LINE2><IS_CREATE_VENDOR><REQUEST_ID>9000000123</REQUEST_ID></IS_CREATE_VENDOR></data>` plus a mirroring `dd:dataDescription`.
+- **Hostile data:** a missing node, a deep path, repeated names (the request's "cycle via repeated names") return warnings, never a panic. A fuzz target covering the merge is the natural carrier (`xfa_packets` already reaches layout and paint).
+- **Spec:** `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_data_binding_normal.md` (`dataRef` rows; gap **G-B2**, "SOM expression evaluation ... not ingested"). **SOM slice: PENDING.** The spec librarian is ingesting it at filing time; cite it as pending and do not implement SOM resolution from memory (project rule 1). Verify the slice exists on disk before starting.
+- **Settings candidates (project rule: spec ambiguity becomes a setting):** the engineer decides when the slice lands; nothing is decided here.
+- **Acceptance (the request's section, verbatim; the whole is checked against one synthetic form once both slices have landed):**
+  - A synthetic form built as above: `xfa-layout` prints the three values (`GV_LINE1`, `GV_LINE2`, `9000000123`) on their field items, and the rendered page shows them.
+  - The same form's three rows each show two circles, Yes and No, with no `stroke-not-drawn` note for them. *(Carried by `647.4a`.)*
+  - Truncated or hostile data (a `ref` naming a missing node, a deep path, a cycle in the data via repeated names) returns warnings, never a panic.
+  - A release that carries it.
+- **Release:** one release carries `647.3a` and `647.4a` when both are done; the reply to `X020` names it. Do not cut one per slice unless the operator asks.
+- **FEATURES:** Planned row added (all three boxes `[ ]`).
+
 ### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing); NOT COMPLETE, stays here)
 
 `pdfcer-render` draws the computed layout instead of the placeholder page (render-time only, like decision 203). Inferred content renders exactly as saved content would (rule 4: no on-canvas marking); disclosure is off-canvas diagnostics. Needs `pdfcer-render` to stay GUI-free (`cargo tree` check).
@@ -26763,6 +26793,25 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 - **G-D18 stays PARTLY:** the inverted geometry is a reading, not spec text.
 - **REMAINING in 647.4:** rich text; other widgets (choice lists, bordered widgets, radio groups via exclGroup value); inline/rich captions; non-solid strokes and gradient fills (still disclosed); real fonts (`X014` item 2). Rounded corners are no longer on this list.
 - **Survivors:** the claim "corner drawn square" was swept in `ROADMAP.md` (second-cut text below amended in place; earlier cuts' "rounded corners" lines are dated history and stand), `FEATURES.md` (row amended). Not swept from here: `NEXT_SESSION.md`, `ARCHITECTURE.md` section 4, CLI help text; owed to the engineer.
+
+### Pass 647.4a — Round checkButtons, per-member exclGroup widgets, 3D edge strokes, negative caption reserve (slice of 647.4; NOT STARTED; filed 1328th filing, request `X020`; FIRST in order)
+
+Engineer-dispatched filing; nothing built, nothing checked from here. Request `X020` (see `647.3a` for the source). **Order, recorded: this slice first, then `647.3a`.** Why: this slice is pure paint on the layout model already built (no spec gap, no data merge needed), while `647.3a` waits on the SOM spec slice the spec librarian is still ingesting. Doing the unblocked slice first costs nothing and removes the blank-radio defect now.
+- **Observed defect (`v0.106.0`):** the form's three rows each hold an `exclGroup` (`bind match="none"`) of two fields, each `<checkButton shape="round">` with `<border><edge stroke="lowered"/><fill/></border>`, `minW` and no `w`, and a caption with a **negative** `reserve` (`-5.08mm`, `para hAlign="center"`). `xfa-layout` prints `paint-note kind=stroke-not-drawn` for all six and draws only the captions.
+- **Wanted, four parts:**
+  - **Round:** `checkButton shape="round"` paints a circle, not a box, sized and aligned as already done for square buttons (fifth cut, `cc5d7af4`). The mark default on a round box is already a filled dot (XFA 3.3 p.651).
+  - **Per-member widgets:** every field in an `exclGroup` paints its own widget; the group's shared value marks at most one. With no value, all are empty circles. The fifth cut deliberately did not read an exclGroup value (templates carry none; it comes from the data merge, `647.3a`), so until `647.3a` lands every member draws empty.
+  - **3D edges:** a `lowered`/`raised`/`embossed`/`etched` edge stroke draws at least as a plain stroke of the edge's thickness and colour instead of being skipped (a `paint-note` may say it was approximated; rule 4, off-canvas). Today these are `PaintNoteKind::Stroke`, "non-solid", not drawn.
+  - **Negative caption `reserve`:** read per the spec or reported, and never makes the widget vanish. **The reply to `X020` must say which reading was taken.** Current behaviour is the fourth cut's gap G-D7 reading (no positive reserve, including the grammar default -1, is read as omitted); whether that already covers a non-default negative such as `-5.08mm` is NOT established from here. Spec reading to be taken from the XFA caption/`reserve` text (spec librarian if the slice lacks it).
+  - **Sizing:** `minW` with no `w` must size the widget (part of the reported form); check that it does.
+- **Acceptance (the request's section, verbatim):**
+  - A synthetic form built as above: `xfa-layout` prints the three values (`GV_LINE1`, `GV_LINE2`, `9000000123`) on their field items, and the rendered page shows them. *(Carried by `647.3a`.)*
+  - The same form's three rows each show two circles, Yes and No, with no `stroke-not-drawn` note for them.
+  - Truncated or hostile data (a `ref` naming a missing node, a deep path, a cycle in the data via repeated names) returns warnings, never a panic. *(Carried by `647.3a`.)*
+  - A release that carries it.
+  - Standalone check for this slice, before `647.3a`: the same synthetic form without the data renders six empty circles with captions and no `stroke-not-drawn` for them.
+- **Release:** the single release that carries both slices; the reply names it.
+- **FEATURES:** Planned row added (all three boxes `[ ]`); the existing "Dynamic XFA, layout and drawing" row's "other widgets" wording stays true until this ships.
 
 ### Pass 647.5 — CLI `xfa-layout` report and `render-page` integration (FIRST CUT `c94ab2ee` (1289th filing), SECOND CUT `b0e0d1a2` (1292nd filing); NOT COMPLETE, stays here)
 
