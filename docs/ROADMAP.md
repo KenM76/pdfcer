@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.108.0` — release PREP, version bump `7c72aaa3` (`chore`), 2026-10-30 (1332nd filing)
+
+Engineer-reported (shell held by the engineer; each item stated checked); nothing checked from here. Same pattern as the v0.107.0 prep (1327th filing, `14774b1f`). The tag `v0.108.0` goes on this filing's own commit. Nothing is pushed or published as of this entry.
+- **`7c72aaa3`** "chore: bump workspace to 0.108.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`, on top of `d414b0ee` (the 1331st filing). Versions only. A code commit, cited here.
+- **Carried since `v0.107.0`:** `Pass 647.3a` (`4319af9f`, XFA `dataRef` data merge, `X020` part 1); `Pass 647.4a` (`56ef7bcd`, XFA 3-D edges and round radio buttons in exclGroups, `X020` part 2); `Pass 648.3` (`30bd10a6`, every saved 3D view listed with its named default, `G246`). Their filings are the 1329th-1331st.
+- **Target:** annotated tag `v0.108.0` on this filing's commit; OneDrive slot `pdfcer1` (holds 0.106.0, the older; `pdfcer2` holds 0.107.0).
+- **Gates (engineer-reported, change-scoped: only `pdfcer-core` and `pdfcer-cli` changed since v0.107.0):** `cargo test -p pdfcer-core -p pdfcer-cli` all green, 0 failed, 6 ignored; passed per binary 2154 + 263 + 3126 + 82 + 997 = 6,622. Fuzz `xfa_packets`: 47,209 runs in 61 s (about 1.3 ms each), no crash. `check-suite-name-absent` clean; `check-commits-filed` clean.
+- **Release plan (to run, NOT claimed done):** tag, push of `main` and the tag, packaging, `verify-release.py v0.108.0`, fresh-folder smoke test, GitHub release assets, OneDrive `pdfcer1`.
+- **`X020` NOT closed:** it closes once `v0.108.0` is published; that comes in the publication filing, with the reply naming the release. `G246` likewise gets its release reply then.
+- **FEATURES:** no change (the rows read "Unreleased" nowhere that this prep alters; the published filing updates any). Nothing minted: no decision, no rule.
+
 ### `4319af9f` `Pass 647.3a` SHIPPED, 2026-10-30: XFA `dataRef` data merge (`X020` part 1; 1331st filing)
 
 Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Slice of `647.3`; request `X020` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X020_xfa_dataref_merge_and_round_checkbuttons_in_exclgroups.md`). Unreleased. No decision minted. Reasoning is in the commit message. Spec: XFA 3.3 p.183, p.182, p.108, p.623; SOM Ch.3.

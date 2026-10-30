@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1332nd filing) — `v0.108.0` release PREP, version bump `7c72aaa3`
+
+**Filed (docs only; engineer-reported, the engineer holds the shell; nothing checked from here):**
+- `7c72aaa3` "chore: bump workspace to 0.108.0" (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`), a code commit, on top of `d414b0ee` (1331st). The tag `v0.108.0` goes on this filing's commit.
+- Contents since `v0.107.0`: `Pass 647.3a` (`4319af9f`), `Pass 647.4a` (`56ef7bcd`) (together `X020`), `Pass 648.3` (`30bd10a6`, `G246`). Slot `pdfcer1` (0.106.0, older); `pdfcer2` holds 0.107.0.
+- Gates (engineer-reported, change-scoped to `pdfcer-core` and `pdfcer-cli`): tests green, 2154 + 263 + 3126 + 82 + 997 = 6,622 passed, 0 failed, 6 ignored. Fuzz `xfa_packets` 47,209 runs in 61 s (about 1.3 ms each), no crash. `check-suite-name-absent` and `check-commits-filed` clean.
+- FEATURES unchanged. No decision, no rule.
+
+**Open for the later filing:** tag, push, packaging, `verify-release.py v0.108.0`, fresh-folder smoke, GitHub release, OneDrive `pdfcer1`. All "to run", none claimed passed. **`X020` stays open until publication**; then reply to `X020` and `G246` naming `v0.108.0`. Backup currency not verifiable from here.
+
+**Hard-rule-11 survivors:** none; a version number only. The owed `docs/NEXT_SESSION.md` sweeps from the 1329th-1331st filings remain owed.
+
 ## 2026-10-30 (1331st filing) — `Pass 647.3a` SHIPPED `4319af9f` (`X020` part 1): XFA `dataRef` data merge
 
 **Shipped (engineer-reported, stated checked from his shell; no shell here, nothing checked from here):**
