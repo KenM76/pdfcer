@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1318th filing) — `pdfcer-gui` consumed `X013`/`X013b` (printer probe), pin `e1236835`
+
+**Filed (docs only; no shell here; evidence is the GUI project's marker `D:\Dev\FeatureRequests\pdfce_FeatureRequests\done_X013_CONSUMED.md`, read from disk, not checked against `pdfcer-gui` source):**
+- GUI calls `printspooler::probe::start` at launch, `list_printer_names`, `PrinterProbe::start_with`, `PrinterProbe::report` (spinner while `None`), and `printer_caps_for` on a worker per (printer, driver configuration, paper), cached for the dialog's life. Driven test `print_dialog_never_waits_on_a_printer`, default printer held 10 s, 13 printers.
+- **Not driven:** selecting a second printer while the first is held. `PrinterProbe::refresh` has no GUI caller in the evidence.
+
+**FEATURES.md:** "Printer list that never waits on a device" gui `[ ]` to `[x]` (text corrected); "Background printer probe" gui `[ ]` to `◐` (refresh unconsumed; cli stays `[ ]` by design). "Printer paper selection" unchanged (already `[x]`). **Decisions:** none.
+
+**Hard-rule-11 survivors:** the "does not call either yet" and "does not start a probe yet" wording in those two rows was corrected. Not swept: `docs/NEXT_SESSION.md`, `docs/core-api/`, and `crates/pdfcer-print` doc comments for a "no GUI caller" claim about the probe; owed.
+
 ## 2026-10-30 (1317th filing) — `pdfcer-gui` consumed `G237` and the `G236` FreeText `/C` setting, pin `e1236835`
 
 **Filed (docs only; no shell here, nothing checked from here; the consumption evidence is the GUI project's own marker notes, read from disk, not verified against `pdfcer-gui` source):**
