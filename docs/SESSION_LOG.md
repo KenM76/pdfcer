@@ -4,7 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
-## 2026-10-30 (1316th filing) — `v0.106.0` PUBLISHED, tag on `e1236835`
+## 2026-10-30 (1317th filing) — `pdfcer-gui` consumed `G237` and the `G236` FreeText `/C` setting, pin `e1236835`
+
+**Filed (docs only; no shell here, nothing checked from here; the consumption evidence is the GUI project's own marker notes, read from disk, not verified against `pdfcer-gui` source):**
+- **Where the markers are:** not the folder root. By `Glob` on `D:\Dev\FeatureRequests`, `done_G237_CONSUMED.md` and `done_G236_free_text_c_CONSUMED.md` no longer exist at the root; both were archived as `archive\2026-10-30-G237-dynamic-xfa-form-kind-done.md` and `archive\2026-10-30-G236-markup-without-appearance-done-free-text-c.md`. The original request is `archive\2026-10-30-G237-dynamic-xfa-form-kind-request.md` (operator row `O336`). The GUI project's own `OPERATOR_REQUESTS.md` and `ENGINE_BACKLOG.md` still show O336 `OPEN` and G237 "Filed; open" (by `Grep`): the GUI side to update, not ours.
+- `G237`: open-time dynamic-XFA sentence plus Form preview (`read_xdp`, `read_template`, `layout_template`, `render_xfa_page_with_images` with `XfaImages::from_view`, warnings and `PaintNoteKind` counts off-canvas). Filled-in values not consumed (engine has no data merge). Driven test `form_preview_draws_a_dynamic_form`.
+- `G236` `/C` setting: Settings ▸ Comments offers `free_text_c`; `render_options()` carries it; Markup ▸ Comments ▸ Store appearances passes it to `bake_missing_appearances`.
+
+**FEATURES.md:** "Dynamic XFA, reading" gui `[x]`; "Bake the geometry-drawn look" gui `[x]`; "Dynamic XFA, image values" gui `◐`; "Draw a markup annotation with no /AP" gui `◐`; "Detect XFA" stays `◐` (text updated). Left `[ ]`: "Dynamic XFA, layout and drawing" (core/cli partial). **Decisions:** none.
+
+**Hard-rule-11 survivors:** the "no GUI caller yet" and "no GUI" wording in the two dynamic-XFA rows was corrected in this filing. `docs/NEXT_SESSION.md` and `docs/core-api/` not swept for a "no GUI caller" claim about `xfa-layout`; owed.
+
 
 **Filed (docs only; engineer-reported, each item stated checked; no shell here, nothing checked from here):**
 - Tag `v0.106.0`, annotated, on `e1236835` (the 1315th filing commit; bump was `4b41bd50`). Pushed; `origin/main` contains it. CI green at the tagged commit.
