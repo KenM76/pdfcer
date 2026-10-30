@@ -293,6 +293,7 @@ Engineer-reported; no shell here, nothing checked from here. Single code commit 
 - **core-api:** `docs/core-api/03-capabilities.md` gained "The XFA layout" section; `index.md` line count updated.
 - **Delivers:** core yes; cli no; gui no (no renderer or CLI caller yet).
 - **FEATURES:** "Dynamic XFA, reading" row notes the core layout model; the layout-and-drawing row stays all `[ ]` (nothing draws or reports it). Next up head `Pass 647.2`.
+- **Addendum, 2026-10-29 (1311th filing; request `X016` item 2; engineer-reported, nothing checked from here): test-only commit `dc549ef3` "test(xfa): a subformSet in a positioned subform keeps its columns (X016 item 2)", after the v0.104.0 publication filing.** Test `xfa::layout::tests::nested::a_subform_set_in_a_positioned_subform_keeps_its_members_columns` (`pdfcer-core`). **No code change:** it pins `geometry::instances` treating a `subformSet` as transparent (XFA 3.3 p.357), so two members at different x sit side by side in a positioned parent. Sabotage: laying the set's children with `LayoutStrategy::Tb` fails it (b at y=36 under a, instead of y=46 beside it); restored and rebuilt. `pdfcer-core` `xfa::` 97 passed; fmt, clippy `--all-targets -D warnings`, structure gate clean. Public form for a manual check: Hong Kong IRD IRSD142 section 3.2, page 2 (laid wrongly the form gains a near-blank page). Ships in v0.105.0 (release facts follow in a later filing). No new Pass, no decision; FEATURES unchanged (a test).
 
 ### `8bffabb9` `Pass 646.29` SHIPPED, 2026-10-28: an isolated transparency group blends in its own declared `/CS` (`X012`) (1282nd filing)
 
@@ -26542,6 +26543,14 @@ Original scope: flowed containers, break and overflow rules, leaders/trailers. C
 
 Merge the `datasets` packet into the template per the normal-binding rules; defaults per gap IDs G-B. Explicit SOM references are BLOCKED on the owed SOM spec slice. Spec: `xfa_data_binding_normal`.
 
+**Acceptance criteria added, 2026-10-29 (1311th filing; request `X016` item 1, operator as a crates consumer; criteria only, nothing built):** `page_for()` (`crates/pdfcer-core/src/xfa/layout.rs`) re-lays a `pageArea`'s content on every page instance and flags it `background`; that is right for drawing. When merge and write-back arrive, each page's copy must be its own form node.
+- Each page instance of a `pageArea` gets its own instance index (`Area[0]`, `Area[1]`, ...), not one shared `Area[0]`.
+- A field in it binds and saves per page: a value typed on page 3 stays on page 3 (XFA 3.3 "Page Background", pp.270-271: page-background content binds to data only through an explicit reference).
+- A field with `match="global"` or an explicit `<bind ref>` resolves as instance 0 on every page: one shared value.
+- **Synthetic acceptance:** a template whose page area holds a text field, laid over three pages, gives three distinct SOM paths and three data nodes, and saved values round-trip per page; a `match="global"` field in the same page area stays one value on every page. Tests use synthetic templates only.
+- **Public form for a manual check (not a fixture):** US DD Form 214 (dd0214.pdf): typing `1 2 3 4` in the four "Page __" boxes and saving must reopen as `1 2 3 4`, not `1 1 1 1`.
+- **Side-effect guard, bites only once scripting exists:** an event whose target no longer exists (a page removed by a layout re-run after its events were queued) is skipped, never run with `this` at the form root. Without it, a page-background button whose initialize script set `this.presence = "hidden"` hid the whole form (3 pages became 1) in the reporter's other viewer. Also recorded on `Pass 131.3`.
+
 ### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing); NOT COMPLETE, stays here)
 
 `pdfcer-render` draws the computed layout instead of the placeholder page (render-time only, like decision 203). Inferred content renders exactly as saved content would (rule 4: no on-canvas marking); disclosure is off-canvas diagnostics. Needs `pdfcer-render` to stay GUI-free (`cargo tree` check).
@@ -26610,6 +26619,15 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 ### Pass 647.7 — Table and row layout (NOT STARTED, BLOCKED on spec slice)
 
 Table/row layout in dynamic forms. Blocked until `pdfcer-spec-librarian` extracts the table/row layout slice (after SOM expressions).
+
+**Acceptance criteria added, 2026-10-29 (1311th filing; request `X016` item 3; binding design: decision 212; criteria only, nothing built):** `geometry.rs::extent` returns a declared `h` as is; that stays so outside tables.
+- A table-row cell that is a *flowed* subform (`tb`, `lr-tb`, `rl-tb` or `table` layout) is as tall as its content, even when it declares `h`; `maxH` still caps it.
+- A *positioned* cell keeps its `h`. A flowed subform outside a table keeps its `h`.
+- The row is as tall as its tallest cell (XFA 3.3 p.329).
+- **Departure from the text, recorded as decision 212:** XFA 3.3 p.275 says a non-empty `h` fixes a container's height; Adobe Acrobat and PDF-XChange Editor lay such a cell out content-tall (Netherlands Ministry of Justice "teruggeleiding" and "omgang" forms: the child's row ends right after its last question). Default = the viewer-matching reading; the spec-literal reading ships as a layout setting (`table_cell_height: content | declared`), **built with this Pass, not before**.
+- **Side effect, named:** a cell whose content is *taller* than its `h` now grows, so page counts move either way (reporter saw a 72-page form become 73, and another 11 become 10). The only cap is `maxH`.
+- **Synthetic acceptance:** a table whose row cell is a `tb` subform with `h="186mm"` holding two short fields: the row is as tall as the fields; the same cell positioned keeps 186mm; the same `tb` subform outside a table keeps 186mm.
+- **Public form for a manual check (not a fixture):** Netherlands "Aanvraagformulier omgang" (formulier-omgangsregeling-versie-6-5.pdf): section 2's questions start under their heading on page 2, the heading not alone above a blank remainder.
 
 ### Pass 648.1 — Mesh import: OBJ/MTL and STL to PRC (NOT STARTED; filed 1297th filing, 2026-10-29)
 
@@ -39284,6 +39302,8 @@ eventually win. **It has not been made to the operator yet, and this
 entry does not make it — it only preserves it.**
 
 **Amendment, 2026-10-29 (1298th filing): request `X014` item 3 asks for exactly this, so it is filed HERE, not as a new Pass.** Wanted, later: a sandboxed interpreter for the common form subset (`app.alert`; field calculate, format, validate and keystroke; `AFNumber_*` / `AFDate_*`), with **no file, network or launch reach**. Today pdfcer reports JavaScript actions as `foreign:JavaScript` and runs none. **NEEDS AN OPERATOR RULING ON SCOPE before any work:** a standing rule forbids it. `R53` says pdfce never executes embedded PDF JavaScript and calls a sandboxed engine "prohibited scope, not deferred scope" (`history/standing-rules-full.md`, decision 009 section 5); `R54` says no trigger event ever fires; FEATURES.md "Will not" lists "Executing embedded JavaScript". The operator deferred the reversal (ruling O8, plan doc section 1.1). Two points for the ruling, stated so it is not mistaken for a settled answer: (1) `R13` clause 5 forbids executing anything *fetched*; a document-JS interpreter runs *document* content, so `R13` is not the blocker here, `R53`/`R54` are; (2) the requested sandbox constraints (no file, no network, no launch) are the plan doc's "effects, not edits" boundary (`docs/plan-scripting-submit-and-plugins.md` sections 5.1-5.5) and the narrowest form of `Pass 131.3`; posture B (`Pass 7.2`) already covers the whitelisted built-ins natively without an interpreter. Reversal needs a new decision record superseding decision 009 section 5 openly, not a workaround. No decision number minted here (211 stays free).
+
+**Note added, 2026-10-29 (1311th filing; request `X016` item 1; a requirement for whoever builds any event-running layer, not a scope change):** once each `pageArea` page instance is its own form node (`Pass 647.3`), a script that re-runs layout during opening can remove a page after its events were queued. **An event whose target no longer exists must be skipped, never run with `this` at the form root.** Without that guard a page-background button whose initialize script set `this.presence = "hidden"` hid the whole form (3 pages became 1). Recorded here and on `Pass 647.3`; note that this Pass is JavaScript-plugin-shaped and deferred, and XFA events may land in a different Pass, in which case the guard travels with them.
 
 ---
 

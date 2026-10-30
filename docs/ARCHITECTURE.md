@@ -13668,3 +13668,15 @@ Engineer-reported; no `docs/decisions/211-*.md` record written this filing (the 
 **Gotcha recorded.** Same commit fixes CI clippy red on ubuntu since `be1d18a2`: `metafile::dest_rect` had only a Windows caller; fixed with `#[cfg_attr(not(windows), allow(dead_code))]`. Run a cross-target clippy before push.
 
 **Body-section effect.** None (§1.1 and §3 unchanged; no new crate). **Decision ceiling.** Fills `211`. Next free decision: `212`. **New standing rule.** None.
+
+### 2026-10-29 (1311th filing, request `X016` item 3) — decision 212: a flowed table cell's declared `h` is a minimum-free hint; the cell is content-tall, `maxH` caps
+
+Engineer-reported; no `docs/decisions/212-*.md` record written this filing (the record is this entry). **Not built:** it binds `Pass 647.7` (table and row layout, NOT STARTED, blocked on the table/row spec slice). Applies decisions 203, 204 and the standing "a spec ambiguity or departure ships both readings" rule. Citations: XFA 3.3 p.275 (a non-empty `h` fixes a container's height), p.329 (a row is as tall as its tallest cell).
+
+**Decides.**
+1. **Default (viewer-matching).** A table-row cell that is a *flowed* subform (`tb`, `lr-tb`, `rl-tb`, `table`) is as tall as its content even when it declares `h`; `maxH` still caps it. A *positioned* cell keeps its `h`; a flowed subform outside a table keeps its `h` (`geometry.rs::extent` is unchanged there). The row is as tall as its tallest cell.
+2. **Why it departs from the text.** p.275 would fix the height at the declared `h`. Adobe Acrobat and PDF-XChange Editor both lay such a cell out content-tall (Netherlands Ministry of Justice "teruggeleiding" and "omgang" forms: the child's row ends right after its last question). The default follows the viewers the operator's users compare against.
+3. **Spec-literal reading as a setting.** A layout setting `table_cell_height: content | declared` (default `content`; `declared` is the p.275 reading), built **with `Pass 647.7`, not now**.
+4. **Named side effect.** A cell whose content is taller than its `h` now grows, so page counts move either way (reporter: a 72-page form became 73, another 11 became 10).
+
+**Body-section effect.** None. **Decision ceiling.** Fills `212`. Next free decision: `213`. **New standing rule.** None.

@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-29 (1311th filing) — request `X016`: subformSet test `dc549ef3` shipped; items 1 and 3 recorded on `647.3` / `647.7`; decision 212 minted
+
+**Filed (docs only; engineer-reported, the engineer commits; nothing checked from here):**
+- **Item 2 DONE:** `dc549ef3` "test(xfa): a subformSet in a positioned subform keeps its columns (X016 item 2)". Test-only, no code change; pins `geometry::instances` treating a `subformSet` as transparent (XFA 3.3 p.357). Sabotage (set's children laid `Tb`) fails it (b at y=36 vs 46). `pdfcer-core` `xfa::` 97 passed; fmt, clippy, structure gate clean. Filed as an addendum on shipped `Pass 647.1`, not a new Pass.
+- **Item 1** (per-page `pageArea` instances; DD 214) added to `Pass 647.3` as acceptance criteria; its event-target guard (skip, never run at the form root) is a note on `Pass 131.3` and cross-referenced on `647.3`. `131.3` exists (a deferred JS plugin under `R53`), so the note says XFA events may land elsewhere and the guard travels with them.
+- **Item 3** (flowed table cell is content-tall) added to `Pass 647.7` as acceptance criteria, with the page-count side effect named.
+
+**Decisions made:** **decision 212** minted (ARCHITECTURE §12): a flowed table cell's declared `h` is a minimum-free hint, `maxH` caps; viewer-matching default, spec-literal reading as `table_cell_height: content | declared`, built with `647.7`. The dispatch guessed 206; the live ledger said next free `212` (decisions 206-211 were taken), so 212 is what was minted. No standing rule.
+
+**FEATURES.md:** unchanged (a test; both other items are unbuilt criteria).
+
+**Release:** `v0.105.0` will carry item 2, OneDrive slot `pdfcer2`. No release entry yet; the engineer sends the facts after it publishes. The engineer writes the `X016` reply file after release. Backup currency not verifiable from here.
+
+**Hard-rule-11 survivors:** none; no counter or capability changed meaning.
+
 ## 2026-10-29 (1310th filing) — `v0.104.0` PUBLISHED, tag on `c9382561`
 
 **Filed (docs only; engineer-reported, each item stated checked; no shell here, nothing checked from here):**
