@@ -73,3 +73,33 @@ fn nested_overflow_lays_the_innermost_or_each_asserting_subform() {
     assert_eq!(rect(p0, "o").h, 630.0, "the instance lays U after itself");
     assert_eq!(names(&each.pages[1])[2], "i3");
 }
+
+/// X016 item 2: a `subformSet` is transparent (Ch.9 p.357), so in a
+/// positioned parent its members keep their own x/y (two columns), and in
+/// a `tb` parent they flow one under the other.
+#[test]
+fn a_subform_set_in_a_positioned_subform_keeps_its_members_columns() {
+    let set = r#"<subformSet name="cols">
+        <subform name="a" x="0pt" y="10pt"><field name="fa" w="100pt" h="20pt"/></subform>
+        <subform name="b" x="200pt" y="10pt"><field name="fb" w="100pt" h="20pt"/></subform>
+        </subformSet>"#;
+    let l = lay(&format!(
+        r#"<subform name="f" layout="tb">{PAGE}<subform name="s">{set}</subform></subform>"#
+    ));
+    assert_eq!(l.pages.len(), 1);
+    let p = &l.pages[0];
+    assert_eq!(rect(p, "a"), r(36.0, 46.0, 100.0, 20.0));
+    assert_eq!(
+        rect(p, "b"),
+        r(236.0, 46.0, 100.0, 20.0),
+        "beside a, not under it"
+    );
+
+    let l = lay(&format!(
+        r#"<subform name="f" layout="tb">{PAGE}<subform name="s" layout="tb">{set}</subform></subform>"#
+    ));
+    let p = &l.pages[0];
+    assert_eq!(rect(p, "a"), r(36.0, 36.0, 100.0, 20.0));
+    assert_eq!(rect(p, "b"), r(36.0, 56.0, 100.0, 20.0), "flowed under a");
+    assert!(l.warnings.is_empty(), "{:?}", l.warnings);
+}
