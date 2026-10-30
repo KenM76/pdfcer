@@ -8,6 +8,8 @@ use pdfcer_core::threed::{ThreeDArtwork, ThreeDSource, extract_3d, list_3d_with_
 mod aim;
 mod embed;
 mod gltf;
+#[cfg(feature = "3d")]
+mod pick;
 mod tree;
 mod views;
 #[cfg(feature = "3d")]
@@ -404,6 +406,8 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) texture_origin: TextureOriginArg,
     pub(crate) texture_wrap_base: TextureWrapBaseArg,
     pub(crate) texture_pictures: TexturePicturesArg,
+    /// Image positions to report the model point under (`--pick`).
+    pub(crate) pick: &'a [[f64; 2]],
 }
 
 /// `3d-render` — draw one PRC model to a PNG from a camera.
@@ -532,6 +536,7 @@ fn render_from_bytes(
         " (`--style-alpha style` draws them invisible, as the literal reading does)",
     );
     print_texture_notes(model.textured, &model.texture_notes);
+    pick::print_picks(a, &model.meshes, &camera);
     if model.overridden > 0 {
         println!(
             "note: {} placement(s) drawn in a colour an enclosing assembly overrides them with \

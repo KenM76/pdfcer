@@ -168,6 +168,17 @@ pub(crate) fn parse_point3(s: &str) -> Result<[f64; 3], String> {
     <[f64; 3]>::try_from(parts).map_err(|_| format!("`{s}` is not three numbers like 1,2.5,-3"))
 }
 
+/// Clap parser for an image position `X,Y` (two finite numbers).
+pub(crate) fn parse_point2(s: &str) -> Result<[f64; 2], String> {
+    let bad = || format!("`{s}` is not two numbers like 80,45.5");
+    let parts: Vec<f64> = s
+        .split(',')
+        .map(|t| t.trim().parse::<f64>().ok().filter(|v| v.is_finite()))
+        .collect::<Option<_>>()
+        .ok_or_else(bad)?;
+    <[f64; 2]>::try_from(parts).map_err(|_| bad())
+}
+
 /// Clap parser for an sRGB colour as `RRGGBB` hex, with or without `#`.
 pub(crate) fn parse_hex_rgb(s: &str) -> Result<[u8; 3], String> {
     let hex = s.trim().trim_start_matches('#');

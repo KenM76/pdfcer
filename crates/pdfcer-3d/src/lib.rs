@@ -40,6 +40,8 @@ mod gltf;
 mod model;
 mod named_view;
 #[cfg(feature = "render")]
+mod pick;
+#[cfg(feature = "render")]
 mod raster;
 #[cfg(feature = "render")]
 mod render;
@@ -69,6 +71,8 @@ pub use model::{
 #[cfg(feature = "render")]
 pub use model::{default_view_camera, render_default_view, render_model};
 pub use named_view::{NamedView, UnknownName, UpAxis};
+#[cfg(feature = "render")]
+pub use pick::{Hit, Ray, pick};
 #[cfg(feature = "render")]
 pub use render::{
     Bounds, Camera, Image, MAX_RENDER_PIXELS, Projection, RenderError, RenderOptions, render,

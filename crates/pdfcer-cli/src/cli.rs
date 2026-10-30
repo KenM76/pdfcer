@@ -3200,14 +3200,19 @@ pub(crate) enum Command {
     /// draws it: each part, and each face styled on its own, in the colour
     /// its model tree gives it (grey when it has none, see-through parts
     /// blended), shaded by its angle to the camera, nearer surfaces hiding
-    /// farther ones. Textures and lights are not read yet (a note says
-    /// so). With no camera option, the model is seen from the direction and
+    /// farther ones, textures painted where the model carries them. Lights
+    /// are not read yet (a note says so). With no camera option, the model is seen from the direction and
     /// with the projection of the view the file opens on, fitted so the
     /// whole model fills the image; a `note: camera:` line says which view
     /// was used, or why none could be. `--view` picks a named direction
     /// instead; `--up` says which model axis is vertical for those views. `--eye` places the camera at a point instead, looking at
     /// `--target` (default: the model's centre). A summary line reports the
     /// camera used, so a view can be reproduced or adjusted.
+    ///
+    /// `--pick X,Y` reports the model point drawn at that image position:
+    /// one `pick` line per `--pick`, with the mesh and triangle hit, the
+    /// point and the face's outward normal in model units, and the distance
+    /// from the camera, or `miss` when the background is drawn there.
     ///
     /// Refuses a U3D model, a model with no triangles, and an image larger
     /// than 64 megapixels. Exit 9 when refused, with the reason.
@@ -3289,6 +3294,11 @@ pub(crate) enum Command {
         /// picture appears.
         #[arg(long, value_enum, default_value_t)]
         texture_pictures: TexturePicturesArg,
+        /// Report the model point under image position X,Y (pixels from
+        /// the top-left corner, y down; pixel 0's centre is 0.5).
+        /// Repeatable.
+        #[arg(long, value_name = "X,Y", value_parser = parse_point2, allow_hyphen_values = true)]
+        pick: Vec<[f64; 2]>,
     },
 
     /// **Embed a 3D model** (U3D or PRC) in a region of a page, as a 3D

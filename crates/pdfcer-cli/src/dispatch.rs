@@ -484,6 +484,7 @@ pub(crate) fn run() -> ExitCode {
             texture_origin,
             texture_wrap_base,
             texture_pictures,
+            pick,
         } => cmd_render_3d(&RenderThreeDArgs {
             input: &input,
             index,
@@ -504,6 +505,7 @@ pub(crate) fn run() -> ExitCode {
             texture_origin,
             texture_wrap_base,
             texture_pictures,
+            pick: &pick,
         }),
         Command::ThreeDEmbed {
             input,

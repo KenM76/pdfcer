@@ -239,7 +239,7 @@ impl Camera {
     }
 
     /// Right, up and forward unit vectors.
-    fn basis(&self) -> Result<[[f64; 3]; 3], RenderError> {
+    pub(crate) fn basis(&self) -> Result<[[f64; 3]; 3], RenderError> {
         let forward = normalize(sub(self.target, self.eye))
             .ok_or(RenderError::Camera("the eye and the target coincide"))?;
         let right = normalize(cross(forward, self.up)).ok_or(RenderError::Camera(
@@ -510,7 +510,7 @@ fn stored_normals(mesh: &TriangleMesh, t: usize) -> Option<[Option<[f64; 3]>; 3]
 
 /// The three corners of a triangle, or `None` when one is missing or not
 /// finite.
-fn corners(mesh: &TriangleMesh, tri: &[u32; 3]) -> Option<[[f64; 3]; 3]> {
+pub(crate) fn corners(mesh: &TriangleMesh, tri: &[u32; 3]) -> Option<[[f64; 3]; 3]> {
     let mut out = [[0.0; 3]; 3];
     for (slot, &i) in out.iter_mut().zip(tri) {
         let p = *mesh.positions.get(i as usize)?;

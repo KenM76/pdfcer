@@ -160,6 +160,7 @@ builds `--no-default-features`, so both configurations compile.
 | List a PRC model's assembly tree (names, hierarchy, stored visibility, markup and view counts) | `pdfcer_3d::PrcFile::model_tree() -> Result<Vec<ModelNode>, PrcError>` — `pdfcer-3d/src/tree/node.rs`. `ModelNode::markups` / `views` count the PMI markups and views the occurrence and its part carry; the tree reads past them (and past scene lights and clipping planes) rather than refusing the file. | §12.2 |
 | Build a PRC model from triangle meshes, or from a glTF 2.0 / GLB file | `pdfcer_3d::write_prc(&MeshScene) -> Result<PrcWriteReport, PrcWriteError>`; `pdfcer_3d::read_gltf(data, &mut resolve, GltfOptions) -> Result<GltfImport, GltfError>` — `pdfcer-3d/src/write/`, `pdfcer-3d/src/gltf/` | §12.2 |
 | Turn a saved 3D view into a camera (`pdfcer_3d::Camera`) | `ThreeDSavedView::aim(aspect)` → `SavedViewAim::camera(&Bounds, aspect)` / `frame` — `threed/view_aim.rs` | §12.2 |
+| The model point under a pixel of a 3D render (`G245`) | `Camera::ray_through(x, y, w, h)` → `pdfcer_3d::pick(&meshes, &ray) -> Option<Hit>` — `pdfcer-3d/src/pick.rs` | §12.2 |
 | Enumerate optional-content layers + default visibility | `layers::read_layers(&graph)` — `layers.rs` | §12.3 |
 | Whether anything still draws on a layer | `layers::group_in_use(&DocumentView, group: ObjId) -> bool` (G173): page content in an `/OC` section bound to it, an annotation or XObject whose `/OC` names it (directly or via a membership dictionary), or a form that binds it; undecodable content counts as using it — `ocr/group.rs` | §8.11.2.2, §8.11.3.2 |
 | Compute hidden layers, correctly for print/export | `annot::optional_content_default_off(&graph)` — `annot.rs` | §12.3 |
@@ -3292,6 +3293,19 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   nearer opaque surfaces, not by each other); alpha 0 is not drawn.
   `render(meshes, camera, options)` draws everything in the one
   `RenderOptions::colour`.
+- **Picking** (`G245`): `camera.ray_through(x, y, width, height) ->
+  Result<Ray, RenderError>` inverts the renderer's projection for image
+  position (`x`, `y`) of a `width` × `height` render (pixel `(i, j)`'s centre
+  is `(i + 0.5, j + 0.5)`, y down); `pick(&meshes, &ray) -> Option<Hit>` is
+  the nearest triangle, both faces counted as the renderer draws both.
+  `Ray { origin, direction (unit), min_distance }` — the near plane under
+  perspective, `-inf` under orthographic (which draws behind the eye).
+  `Hit { mesh, triangle, point, normal, distance }`: `mesh` indexes the
+  slice passed (e.g. `AssembledModel::meshes`), `normal` is the unit face
+  normal from the winding, not turned towards the viewer. Pass the camera
+  the image was drawn with and the hit is the surface shown at that pixel.
+  CLI: `3d-render … --pick X,Y` (repeatable) prints `pick x= y= mesh=
+  triangle= point= normal= distance=` or `pick x= y= miss`.
 - `Placement::colour: Option<[f64; 4]>` is the part's colour from its tree
   (style inheritance and father/son heritage resolved, material diffuse and
   transparency applied), straight RGBA 0–1. `None`: no style reaches it or it

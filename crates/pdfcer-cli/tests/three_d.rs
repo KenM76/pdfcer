@@ -1254,3 +1254,69 @@ fn views_on_a_u3d_model_or_a_richmedia_index_are_refused() {
         assert_eq!(out.status.code(), Some(9), "index {index}");
     }
 }
+
+/// `--pick` reports the point drawn at an image position through the
+/// render's own camera: each placed copy is hit, the gap between is a miss.
+#[cfg(feature = "3d")]
+#[test]
+fn a_pick_reports_the_model_point_under_a_pixel() {
+    let input = with_prc("render_pick", "assembly.prc");
+    let output = input.with_extension("png");
+    let out = run(&[
+        "3d-render",
+        input.to_str().unwrap(),
+        "--index",
+        "2",
+        "--view",
+        "top",
+        "--ortho",
+        "--width",
+        "200",
+        "--height",
+        "100",
+        "--pick",
+        "27.5,50.5",
+        "--pick",
+        "100.5,50.5",
+        "--pick",
+        "173.5,50.5",
+        "-o",
+        output.to_str().unwrap(),
+    ]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let picks: Vec<&str> = stdout.lines().filter(|l| l.starts_with("pick ")).collect();
+    assert_eq!(picks.len(), 3, "{stdout}");
+    assert!(picks[0].starts_with("pick x=27.5 y=50.5 mesh="), "{stdout}");
+    assert_eq!(picks[1], "pick x=100.5 y=50.5 miss", "{stdout}");
+    assert!(picks[2].contains(" mesh="), "{stdout}");
+    let field = |line: &str, key: &str| -> String {
+        let rest = &line[line.find(key).unwrap() + key.len()..];
+        rest.split(' ').next().unwrap().to_owned()
+    };
+    assert_ne!(field(picks[0], "mesh="), field(picks[2], "mesh="));
+    let x = |line: &str| -> f64 {
+        field(line, "point=")
+            .split(',')
+            .next()
+            .unwrap()
+            .parse()
+            .unwrap()
+    };
+    assert!((0.0..=1.0).contains(&x(picks[0])), "{stdout}");
+    assert!((4.0..=5.0).contains(&x(picks[2])), "{stdout}");
+    for p in [picks[0], picks[2]] {
+        let n: Vec<f64> = field(p, "normal=")
+            .split(',')
+            .map(|c| c.parse().unwrap())
+            .collect();
+        assert!(
+            n[0].abs() < 1e-9 && n[1].abs() < 1e-9 && (n[2].abs() - 1.0).abs() < 1e-9,
+            "{p}"
+        );
+    }
+}
