@@ -195,7 +195,8 @@ pub enum PaintNoteKind {
     Stroke,
     /// A `linear`, `radial`, `pattern` or `stipple` fill: not drawn.
     FillType,
-    /// A rounded or inverted corner: drawn square.
+    /// An inverted corner with a radius: its concave shape is pdfcer's
+    /// reading of the template's "concave" (gap G-D18).
     Corner,
     /// `break="open"`: the border is drawn closed on every fragment.
     OpenBreak,
@@ -372,49 +373,54 @@ impl Painter<'_> {
         if border.attr("break").is_some_and(|b| b.starts_with("open")) {
             self.note(item, PaintNoteKind::OpenBreak);
         }
-        self.fill(item, border, r);
-        if border
-            .children_named("corner")
-            .any(|c| length(c, "radius").unwrap_or(0.0) > 0.0)
-        {
-            self.note(item, PaintNoteKind::Corner);
-        }
+        let rgb = self
+            .fill_rgb(item, border)
+            .filter(|_| r.w > 0.0 && r.h > 0.0);
         let edges: Vec<_> = border.children_named("edge").collect();
-        let Some(&last) = edges.last() else {
-            return;
+        let sides: Vec<Edge> = match edges.last() {
+            Some(&last) => (0..4)
+                .map(|i| self.edge(item, edges.get(i).copied().unwrap_or(last)))
+                .collect(),
+            None => Vec::new(),
         };
-        let sides: Vec<Edge> = (0..4)
-            .map(|i| self.edge(item, edges.get(i).copied().unwrap_or(last)))
-            .collect();
         let offset = match (border.attr("hand"), self.opts.edge_placement) {
             (Some("left"), _) => 0.5,
             (Some("right"), _) | (_, EdgePlacement::Inward) => -0.5,
             _ => 0.0,
         };
+        if corner::any_radius(border) {
+            let corners = self.corners(item, border);
+            self.rounded(r, rgb, &sides, corners, offset);
+            return;
+        }
+        if let Some(rgb) = rgb {
+            self.fill(r, rgb);
+        }
         self.edges(r, &sides, offset);
     }
 
-    fn fill(&mut self, item: &LayoutItem, border: &XfaNode, r: LayoutRect) {
-        let rgb = match border.child("fill") {
+    /// The colour `border`'s fill paints, or `None` for no fill.
+    fn fill_rgb(&mut self, item: &LayoutItem, border: &XfaNode) -> Option<[f64; 3]> {
+        match border.child("fill") {
             None => match self.opts.missing_fill {
-                MissingFill::None => return,
-                MissingFill::White => [1.0; 3],
+                MissingFill::None => None,
+                MissingFill::White => Some([1.0; 3]),
             },
-            Some(f) if f.presence() != Presence::Visible => return,
+            Some(f) if f.presence() != Presence::Visible => None,
             Some(f) => {
                 let other = ["linear", "radial", "pattern", "stipple"]
                     .iter()
                     .any(|t| f.child(t).is_some());
                 if other {
                     self.note(item, PaintNoteKind::FillType);
-                    return;
+                    return None;
                 }
-                self.color(item, f, [1.0; 3])
+                Some(self.color(item, f, [1.0; 3]))
             }
-        };
-        if r.w <= 0.0 || r.h <= 0.0 {
-            return;
         }
+    }
+
+    fn fill(&mut self, r: LayoutRect, rgb: [f64; 3]) {
         self.b.set_fill_rgb(rgb[0], rgb[1], rgb[2]);
         let y = self.height - r.y - r.h;
         self.b.rect(r.x, y, r.w, r.h);
@@ -522,6 +528,7 @@ fn parse_rgb(v: &str) -> Option<[f64; 3]> {
 
 mod caption;
 mod check;
+mod corner;
 mod image;
 mod text;
 

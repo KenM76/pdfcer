@@ -6147,7 +6147,7 @@ pub(crate) enum Command {
     /// Each paint-note names something left out or approximated:
     /// content-not-drawn (an inline or rich caption, rich text or a
     /// non-text widget), stroke-not-drawn, fill-not-drawn (gradient, pattern or
-    /// stipple), corner-drawn-square, open-break-drawn-closed,
+    /// stipple), corner-inverted-inferred, open-break-drawn-closed,
     /// colour-defaulted, font-substituted (typeface drawn in Courier,
     /// Helvetica or Times), text-approximated (a character shown as ?, a
     /// word too wide, justify drawn left, or lines clipped).

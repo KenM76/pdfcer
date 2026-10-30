@@ -142,7 +142,7 @@ fn an_invisible_ancestor_or_border_draws_nothing() {
 
 #[test]
 fn what_is_not_drawn_yet_is_disclosed() {
-    let border = r#"<edge stroke="dashed"/><corner radius="2pt"/><fill><pattern/></fill>"#;
+    let border = r#"<edge stroke="dashed"/><corner radius="2pt" inverted="1" presence="invisible"/><fill><pattern/></fill>"#;
     let body = field(border)
         .replace("<border>", r#"<border break="open">"#)
         .replace(
@@ -155,7 +155,7 @@ fn what_is_not_drawn_yet_is_disclosed() {
     use PaintNoteKind as K;
     assert_eq!(
         kinds,
-        [K::OpenBreak, K::FillType, K::Corner, K::Stroke, K::Content]
+        [K::OpenBreak, K::FillType, K::Stroke, K::Corner, K::Content]
     );
 }
 
@@ -528,4 +528,93 @@ fn a_named_mark_takes_the_font_fill_colour() {
     let (ops, _, _) = paint(&body, &PaintOptions::new());
     assert!(ops.contains("1 0 0 RG 1 0 0 rg"), "{ops}");
     assert_eq!(ops.matches(" l ").count(), 9, "a ten-vertex star: {ops}");
+}
+
+#[test]
+fn a_round_corner_trims_its_edges_and_draws_an_arc() {
+    let border = r#"<edge/><corner join="round" radius="4pt"/>"#;
+    let (ops, notes, [x, y, w, h]) = paint(&field(border), &PaintOptions::new());
+    let top = y + h;
+    let edge = format!(
+        "{} {} m {} {} l S",
+        num(x + 4.0),
+        num(top),
+        num(x + w - 4.0),
+        num(top)
+    );
+    assert!(ops.contains(&format!("0.5 w 0 J 0 0 0 RG {edge}")), "{ops}");
+    assert!(
+        ops.contains(&format!("0 j {} {} m", num(x), num(top - 4.0))),
+        "{ops}"
+    );
+    assert!(
+        ops.contains(&format!("{} {} c S", num(x + 4.0), num(top))),
+        "{ops}"
+    );
+    assert_eq!(ops.matches(" c S").count(), 4, "{ops}");
+    assert!(!ops.contains(" re"), "{ops}");
+    assert!(notes.is_empty(), "{notes:?}");
+}
+
+#[test]
+fn a_rounded_fill_follows_the_corners() {
+    let border = r#"<edge/><corner join="round" radius="4pt"/><fill/>"#;
+    let (ops, _, [x, y, _, h]) = paint(&field(border), &PaintOptions::new());
+    let fill = ops.split(" f").next().unwrap();
+    assert!(
+        fill.contains(&format!("1 1 1 rg {} {} m", num(x), num(y + h - 4.0))),
+        "{ops}"
+    );
+    assert_eq!(fill.matches(" c").count(), 4, "{ops}");
+    assert!(fill.ends_with(" h"), "{ops}");
+}
+
+#[test]
+fn an_inverted_square_corner_is_a_notch_and_is_disclosed() {
+    let border = r#"<edge/><corner inverted="1" radius="3pt"/>"#;
+    let (ops, notes, [x, y, _, h]) = paint(&field(border), &PaintOptions::new());
+    let top = y + h;
+    let notch = format!(
+        "{} {} m {} {} l {} {} l S",
+        num(x),
+        num(top - 3.0),
+        num(x + 3.0),
+        num(top - 3.0),
+        num(x + 3.0),
+        num(top)
+    );
+    assert!(ops.contains(&notch), "{ops}");
+    assert_eq!(notes.len(), 1);
+    assert_eq!(notes[0].kind, PaintNoteKind::Corner);
+}
+
+#[test]
+fn an_invisible_corner_leaves_the_trimmed_gap() {
+    let border = r#"<edge/><corner join="round" radius="4pt" presence="invisible"/>"#;
+    let (ops, notes, [x, y, w, h]) = paint(&field(border), &PaintOptions::new());
+    let top = y + h;
+    let edge = format!(
+        "{} {} m {} {} l S",
+        num(x + 4.0),
+        num(top),
+        num(x + w - 4.0),
+        num(top)
+    );
+    assert!(ops.contains(&edge), "{ops}");
+    assert!(!ops.contains(" c"), "{ops}");
+    assert!(notes.is_empty(), "{notes:?}");
+}
+
+#[test]
+fn a_radius_is_held_to_half_the_shorter_side() {
+    let border = r#"<edge/><corner join="round" radius="50pt"/>"#;
+    let (ops, _, [x, y, _, h]) = paint(&field(border), &PaintOptions::new());
+    assert!(
+        ops.contains(&format!("{} {} m", num(x), num(y + h - 10.0))),
+        "{ops}"
+    );
+    assert!(
+        ops.contains(&format!("{} {} c S", num(x + 10.0), num(y + h))),
+        "{ops}"
+    );
 }

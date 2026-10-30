@@ -916,7 +916,7 @@ kind.
     the region, overflow, or justify/radix alignment drawn left.
   - `Stroke`: a non-solid edge, not drawn.
   - `FillType`: a gradient, pattern or stipple fill, not drawn.
-  - `Corner`: a rounded corner, drawn square.
+  - `Corner`: an inverted corner; its concave shape is inferred (G-D18).
   - `OpenBreak`: `break="open"`, drawn closed.
   - `Color`: an unreadable colour; the default was used.
   - `Image`: an image not drawn: its `href` is not in the `XfaImages`

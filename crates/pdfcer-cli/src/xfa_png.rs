@@ -163,7 +163,7 @@ fn note_label(k: PaintNoteKind) -> &'static str {
         PaintNoteKind::Content => "content-not-drawn",
         PaintNoteKind::Stroke => "stroke-not-drawn",
         PaintNoteKind::FillType => "fill-not-drawn",
-        PaintNoteKind::Corner => "corner-drawn-square",
+        PaintNoteKind::Corner => "corner-inverted-inferred",
         PaintNoteKind::OpenBreak => "open-break-drawn-closed",
         PaintNoteKind::Color => "colour-defaulted",
         PaintNoteKind::Font => "font-substituted",
