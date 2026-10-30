@@ -112,9 +112,24 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.108.0` — release PREP, version bump `7c72aaa3` (`chore`), 2026-10-30 (1332nd filing)
+### `v0.108.0` — PUBLISHED, 2026-10-30 (1334th filing)
 
-Engineer-reported (shell held by the engineer; each item stated checked); nothing checked from here. Same pattern as the v0.107.0 prep (1327th filing, `14774b1f`). The tag `v0.108.0` goes on this filing's own commit. Nothing is pushed or published as of this entry.
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Release record for the prep filed below (1332nd, bump `7c72aaa3`).
+- **Tag:** annotated `v0.108.0` (object `cc0a1579`) on `fa9af179` (the 1332nd filing commit), pushed. `main`'s tip is now `212f0ce5` (1333rd filing).
+- **CI at the tag is RED, on a docs-size gate only.** `verify-release.py` check "CI is GREEN at the tagged commit" FAILED: the 1331st filing (`d414b0ee`) grew the FEATURES row "Dynamic XFA, layout and drawing" to 1,262 characters, over the 1,200 cap of `check-register-entry-size.py` (repository-audits job). Fixed on `main` by `212f0ce5` (1333rd, two XFA rows trimmed; the gate is clean locally, 114 over-cap entries, all baselined). The published tag is NOT moved. No code failure.
+- **Contents:** `X020` (`4319af9f` + `56ef7bcd`) and `G246` (`30bd10a6`), plus their filings and the bump.
+- **Packaging:** build `D:\builds\pdfcer-20261030-1641-fa9af17`. GitHub release published with 8 assets: `pdfcer-v0.108.0-windows-x64.zip`, `ocr-addon-ocrcer/ocrs/tesseract` zips, each with a `.sha256`; `tools/gh-release.py` PASS, all uploaded at local sizes.
+- **Fresh-folder smoke:** `pdfcer --version` prints 0.108.0 (revision `v0.108.0`); `xfa-layout` and `3d-list` run; `xfa-layout --help` lists the data-ref warning kinds.
+- **`verify-release.py v0.108.0`:** every check passes except (a) "working tree clean", failing on agent-memory and other untracked files that are not part of the release (the known case), and (b) the red CI above.
+- **OneDrive:** slot `pdfcer1` now holds 0.108.0; `pdfcer2` keeps 0.107.0. **Next release writes `pdfcer2`.**
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` published at 0.108.0, confirmed from the crates.io API.
+- **Inbound channel** (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`): `X020` closed, reply `reply_X020_xfa_dataref_merge_and_round_checkbuttons_in_exclgroups_SHIPPED.md`; `G246` closed, reply `reply_G246_list_saved_3d_views_SHIPPED.md`; notice `notice_2026-10-30_v0.108.0_released.md`. New inbound `X021` (case-blind picker filters on Linux) is addressed to `pdfcer-gui`, not pdfcer: no action here.
+- **Process lesson:** the change-scoped pre-release gates (cargo test for changed crates, suite-name, commits-filed) skipped the repository-audit doc gates, so the filing that went into the tag was never put through them. Before tagging, run the repo-audit doc gates on the filing commit, at least `check-register-entry-size.py`.
+- **Next up unchanged:** `Pass 648.4` (`G247`), `648.5`, `648.6` (`G245`; `648.6` needs a spec-RAG check first). Nothing minted. Backup currency not verifiable from here.
+
+### `v0.108.0` — release PREP, version bump `7c72aaa3` (`chore`), 2026-10-30 (1332nd filing); published in the 1334th filing (entry above)
+
+Engineer-reported (shell held by the engineer; each item stated checked); nothing checked from here. Same pattern as the v0.107.0 prep (1327th filing, `14774b1f`). The tag `v0.108.0` goes on this filing's own commit. *Amended 1334th: this entry said "Nothing is pushed or published"; it was published, see above; the "to run" items in the release plan are done.*
 - **`7c72aaa3`** "chore: bump workspace to 0.108.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`, on top of `d414b0ee` (the 1331st filing). Versions only. A code commit, cited here.
 - **Carried since `v0.107.0`:** `Pass 647.3a` (`4319af9f`, XFA `dataRef` data merge, `X020` part 1); `Pass 647.4a` (`56ef7bcd`, XFA 3-D edges and round radio buttons in exclGroups, `X020` part 2); `Pass 648.3` (`30bd10a6`, every saved 3D view listed with its named default, `G246`). Their filings are the 1329th-1331st.
 - **Target:** annotated tag `v0.108.0` on this filing's commit; OneDrive slot `pdfcer1` (holds 0.106.0, the older; `pdfcer2` holds 0.107.0).
@@ -125,20 +140,20 @@ Engineer-reported (shell held by the engineer; each item stated checked); nothin
 
 ### `4319af9f` `Pass 647.3a` SHIPPED, 2026-10-30: XFA `dataRef` data merge (`X020` part 1; 1331st filing)
 
-Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Slice of `647.3`; request `X020` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X020_xfa_dataref_merge_and_round_checkbuttons_in_exclgroups.md`). Unreleased. No decision minted. Reasoning is in the commit message. Spec: XFA 3.3 p.183, p.182, p.108, p.623; SOM Ch.3.
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Slice of `647.3`; request `X020` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X020_xfa_dataref_merge_and_round_checkbuttons_in_exclgroups.md`). Unreleased. No decision minted. Reasoning is in the commit message. Spec: XFA 3.3 p.183, p.182, p.108, p.623; SOM Ch.3. *Amended 1334th: released in `v0.108.0`; `X020` closed.*
 - **Core:** `pdfcer_core::xfa::merge_data(&Template, &XdpDocument, &MergeOptions) -> Result<MergedForm, XfaError>` sets the value of every field or exclGroup bound with `<bind match="dataRef" ref="…"/>` from the datasets `xfa:data`. Root subform binds to the top data group; `$` is the nearest dataRef-bound ancestor's data node; an unbound subform passes scope through (G-SOM1). Supported: `$`, `$data`, `$record`, `!data`, `xfa.datasets.data`, unqualified names (upward search), `\.` escapes, `[n]`, `[*]` (first unbound match). Reported Unsupported: `..`, `#class`, `*` names, predicates, `[+n]`/`[-n]`. Unresolvable reference keeps the template value and returns a `MergeWarning` (Unresolved/WrongType/Unsupported/TooLong); never fails. Guards: 1,024 steps per reference, 1,000,000 data nodes, `MAX_XML_DEPTH`. Transient; nothing written to the file (G-SOM5).
 - **Settings (each defaults to the spec text):** `ScopeSearch { Upward (default), Children }` (G-SOM3), `BareRef { Ignore (default, p.623), DataRef }` (G-SOM8), `DataAttributes { Load (default), Ignore }` (G-SOM6). New public types: `ScopeSearch`, `BareRef`, `DataAttributes`, `MergeOptions`, `MergeWarningKind`, `MergeWarning`, `BoundValue`, `MergedForm`. `docs/core-api/03-capabilities.md`: new section "The XFA data merge".
 - **CLI:** `xfa-layout` merges before layout and painting; each bound item line ends `value="…"`; each warning prints `warning kind=data-ref-<kind> path=… ref="…"` and counts in the summary; flags `--scope-search`, `--bare-ref`, `--data-attributes`; stderr note reports values merged.
 - **Tests:** 14 new core unit, 1 doctest, 3 new CLI integration (12 `xfa_layout` CLI tests total), all green. Fuzz target `xfa_packets` now runs `merge_data`; new seed `seed_dataref_merge`.
 - **Gates green:** fmt, clippy `-D warnings`, code-structure, public-fns-documented, reexport-closure, clap-help, core-api-verbs, suite-name-absent. No manifest change, so no `cargo tree` impact.
 - **GUI:** not delivered; `pdfcer-gui` owns it. GUI box stays `[ ]`.
-- **X020 NOT closed:** acceptance needs one release carrying both parts (`647.4a` `56ef7bcd` and this); that release is planned as `v0.108.0`, not yet cut. The reply to `X020` names it when cut.
+- **X020 closed 1334th:** both parts (`647.4a` `56ef7bcd` and this) shipped in `v0.108.0`. (Was: NOT closed, release not yet cut.)
 - **Still open under `647.x`:** `647.3` beyond this slice (normal name-matching binding, once/global, occur, instance creation, re-normalization, page-instance criteria, writing merged data back).
 - **FEATURES:** the explicit-dataRef merge row moved to Implemented as `[x]` core / `[x]` cli / `[ ]` gui; three neighbouring rows' "no data merged" wording narrowed.
 
 ### `30bd10a6` `Pass 648.3` SHIPPED, 2026-10-30: list every saved 3D view with its named default (`G246`; 1330th filing)
 
-Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Request `G246` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G246_list_saved_3d_views.md`, pdfcer-gui). Unreleased. No decision minted. Reasoning is in the commit message.
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Request `G246` (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G246_list_saved_3d_views.md`, pdfcer-gui). Unreleased. No decision minted. Reasoning is in the commit message. *Amended 1334th: released in `v0.108.0`; `G246` closed.*
 - **Core:** `pdfcer_core::threed::saved_3d_views(&graph, &ThreeDArtwork) -> SavedViews` (`#[non_exhaustive]`). `views: Vec<ThreeDSavedView>` = every `/VA` view dictionary in file order, read as `default_3d_view` reads one, with the annotation's view box; non-dictionary entries skipped; at most 4,096 read. `default: Option<usize>` = the index the file names: `/3DV` unless it is `/D`, otherwise `/DV`; `None` when neither names a `/VA` entry (a reader then opens on the first) or when the selector is an inline dictionary.
 - **Spec:** ISO 32000-1 section 13.6.3, Tables 298 and 300.
 - **CLI:** `3d-list` prints `  view index=I name="…" default=yes|no` under each model.
@@ -149,7 +164,7 @@ Engineer-reported (the engineer states each item checked from his shell); no she
 
 ### `56ef7bcd` Pass 647.4a SHIPPED, 2026-10-30: XFA round checkButtons, 3-D edge strokes, caption reserve (X020 part 2; 1329th filing)
 
-Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Slice of `647.4`; request `X020`. Unreleased (the single release will carry `647.3a` too). Reasoning is in the commit message.
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Slice of `647.4`; request `X020`. Unreleased (the single release will carry `647.3a` too). Reasoning is in the commit message. *Amended 1334th: released in `v0.108.0`; `X020` closed.*
 - **Finding:** every `exclGroup` member already painted its own widget; the X020 rows vanished only because the lowered edge was skipped. The synthetic X020 form (no data) now renders six empty sunken circles with captions, `notes=0`, observed by the engineer at scale 4. Group value marking from data waits on `647.3a`.
 - **Core, 3-D edges (setting `ThreeDStroke { Bevel (default), Plain }`, gap G-CB11):** Bevel = PDFium-witness fixed-grey bands inside the border (lowered/raised: black ring t/2 plus bevel; etched/embossed: two bevels); a round checkButton draws every 3-D kind as two lowered-style rings of half-arcs. Plain = plain stroke of edge thickness and colour plus new `PaintNoteKind::StrokeApproximated` (also emitted for a rounded border, or a later 3-D edge behind a non-3-D first edge). Dashed/dotted/dashDot/dashDotDot still not drawn (`Stroke` note).
 - **Core, caption reserve (setting `CheckCaption { Fit (default), Remainder }`, gap G-CB14):** zero, negative or absent reserve reads as omitted (G-CB12/13), so `-5.08mm` is covered (reading taken for the `X020` reply). Fit = caption sized to content (XFA 3.3 p.644); Remainder = caption takes all but the box (PDFium).

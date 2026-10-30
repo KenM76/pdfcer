@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1334th filing) — `v0.108.0` PUBLISHED (CI red at the tag on a docs-size gate); `X020` and `G246` closed
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`v0.108.0` publication.** Annotated tag (object `cc0a1579`) on `fa9af179` (1332nd filing commit), pushed; `main` tip `212f0ce5`. Build `D:\builds\pdfcer-20261030-1641-fa9af17`. GitHub release: 8 assets (`pdfcer-v0.108.0-windows-x64.zip`, `ocr-addon-ocrcer/ocrs/tesseract` zips, each with `.sha256`); `gh-release.py` PASS at local sizes. Smoke: `--version` 0.108.0 (revision `v0.108.0`); `xfa-layout` and `3d-list` run; `xfa-layout --help` lists the data-ref warning kinds. OneDrive `pdfcer1` 0.108.0, `pdfcer2` 0.107.0; **next release writes `pdfcer2`**. crates.io `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.108.0 (crates.io API).
+- **`verify-release.py`:** all ok except "working tree clean" (agent-memory and other untracked files, the known case) and **"CI is GREEN at the tagged commit", which FAILED**: the 1331st filing grew the FEATURES row "Dynamic XFA, layout and drawing" to 1,262 characters, over the 1,200 cap of `check-register-entry-size.py` (repository-audits job). Fixed on `main` by `212f0ce5` (1333rd); gate clean locally (114 over-cap entries, all baselined). The tag stays: a published tag is never moved. The tagged commit's CI is red on a docs-size gate only.
+- **Closures:** `X020` closed (both parts in `v0.108.0`: `4319af9f`, `56ef7bcd`); `G246` closed (`30bd10a6`). Replies `reply_X020_..._SHIPPED.md`, `reply_G246_list_saved_3d_views_SHIPPED.md`; notice `notice_2026-10-30_v0.108.0_released.md`.
+- Amended "Unreleased" to released in `v0.108.0`: ROADMAP `647.3a`, `648.3`, `647.4a` Shipped entries and the 1332nd prep entry; FEATURES rows for `647.4a` and `647.3a`.
+
+**Decisions made this session:** none; nothing minted.
+
+**Findings:** **Process lesson.** The change-scoped pre-release gates (cargo test for changed crates, suite-name, commits-filed) skipped the repository-audit doc gates, so the filing commit that went into the tag was never put through them. A docs filing is code to those gates. Before tagging, run the repo-audit doc gates on the filing commit, at least `check-register-entry-size.py`.
+
+**Still in flight:** nothing new.
+
+**For next session:** `Pass 648.4` (`G247`), `648.5`, `648.6` (`G245`; `648.6` needs a spec-RAG check first). `X021` (case-blind picker filters on Linux) is addressed to `pdfcer-gui`: no action here.
+
+**Hard-rule-11 survivors:** FEATURES line 507 still says `Pass 646.15` is "unreleased"; not mine and not established from here whether a later release carried it (owed to the engineer). `docs/NEXT_SESSION.md` not swept; owed. Backup currency not verifiable from here.
+
 ## 2026-10-30 (1332nd filing) — `v0.108.0` release PREP, version bump `7c72aaa3`
 
 **Filed (docs only; engineer-reported, the engineer holds the shell; nothing checked from here):**
