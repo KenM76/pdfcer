@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1338th filing) — `Pass 647.3b` SHIPPED `f5c1f27e` (`X022` slice 1): XFA normal name-matching merge; `X023` filed
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`Pass 647.3b`** `f5c1f27e`, on `main` after `v0.108.0`, unreleased. `xfa::merge_data` now does normal (`once`) name matching (`xfa/merge/normal.rs`, XFA 3.3 pp.181-191, 193-194, 200); new `MergeWarning::by_name`; `xfa-layout` prints `data-name-wrong-type`. Acceptance met: `X022` Form F, `X023` Forms A and B (read side). 11 new core tests (xfa::merge 25, core xfa 148 pass), 1 CLI test (CLI xfa 15, help 6 pass); clippy, fmt, code-structure clean; core-api-verbs PASS; no manifest change. ROADMAP Shipped entry added, Next up entry removed; FEATURES row ticked `[x]`/`[x]`/`[ ]`.
+- **`X023`** (pdfcraft; `match="none"` subforms are not data scopes) read side delivered by `647.3b`; its write side (Form A save round-trip, no `sec` group) added to `647.3d`'s acceptance and to the release note owed. No new Pass ID.
+
+**Decisions made this session:** none; nothing minted.
+
+**Still in flight:** `647.3c`, `647.3d`, then a release naming `X022` and `X023`; `648.6` after. GUI adoption is `pdfcer-gui`'s.
+
+**Replies owed:** `X022` (Form F "already works" was wrong before this Pass); `X023` at the release.
+
+**Hard-rule-11 survivors:** FEATURES row "layout and drawing" listed "name-matching merge" as not built: fixed. `docs/NEXT_SESSION.md` not swept (engineer-owned, still orders `648.6` before `647.3b`). Backup currency not verifiable from here.
+
 ## 2026-10-30 (1337th filing) — request `X022` filed as `Pass 647.3b`, `647.3c`, `647.3d`
 
 **Filed (docs only; no shell here, nothing checked from here):**

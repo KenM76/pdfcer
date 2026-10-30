@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `f5c1f27e` `Pass 647.3b` SHIPPED, 2026-10-30: XFA normal (`once`) name-matching data merge (`X022` slice 1, `X023` read side; 1338th filing)
+
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. On `main` after `v0.108.0`, with 648.4/648.5; not released. No decision minted. Reasoning is in the commit message.
+- **Core (`xfa::merge_data`, new private module `xfa/merge/normal.rs`), XFA 3.3 pp.181-191, 193-194, 200:** a named container takes the first unbound same-named data node of compatible type (subform<->group, field/exclGroup<->value), searching the scope's children, then one generation up at a time to the record (p.185), never inside another group (p.189); document order, one node each (p.200). Root `mergeMode="matchTemplate"` is direct-only. Transparent (pp.193-194): nameless containers, `scope="none"` subforms, `match="none"` (covers `X023`'s read side), areas, subform sets. ExclGroup members and page sets do not bind by name. `global` fields try normal matching first; the global fallback stays `647.3c`. Merge remains transient.
+- **Warning:** a wrong-type same-named node is skipped with a warning: new pub field `MergeWarning::by_name: bool`. CLI `xfa-layout` prints `warning kind=data-name-wrong-type path= name="..."`; its help updated.
+- **Acceptance met:** `X022` Form F (exclGroup `LikesPizza`, default binding, selects Yes); `X023` Forms A and B (read side). `X023`'s write side (Form A save round-trip) is added to `647.3d`.
+- **Tests:** 11 new core unit tests in `xfa::merge` (25 total, all pass; core lib xfa 148 pass); 1 new CLI test `name_matched_fields_print_their_merged_values` (CLI xfa 15 pass, help 6 pass). Sabotage of the bound-node exclusion fails two tests.
+- **Gates green:** clippy -D warnings (core, cli, all targets), fmt, code-structure, check-core-api-verbs PASS (`docs/core-api/03-capabilities.md` merge section updated; index 5,711 lines). No `Cargo.toml` change, so no `cargo tree` run. Fuzz: no new parser; `fuzz/fuzz_targets/xfa_packets.rs` already drives `merge_data`.
+- **GUI:** not delivered; box stays `[ ]`.
+- **FEATURES:** the "normal name-matching data merge" row ticked `[x]` core / `[x]` cli / `[ ]` gui (stays in place in the XFA block).
+- **Reply owed:** `X022` says Form F "already works"; it did not before this Pass.
+- **Next up:** `647.3c`, then `647.3d` (now also carrying `X023`'s write side), then a release naming `X022` and `X023`; then `648.6`.
+
 ### `d8e7ac87` `Pass 648.5` SHIPPED, 2026-10-30: pick the model point under a pixel of a render (`G245` part 1; 1336th filing)
 
 Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Request `G245` (pdfcer-gui). On `main` after `v0.108.0`, with 648.4; not released. No decision minted. Reasoning is in the commit message.
@@ -26802,15 +26815,6 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 - **Public form for a manual check (not a fixture):** US DD Form 214 (dd0214.pdf): typing `1 2 3 4` in the four "Page __" boxes and saving must reopen as `1 2 3 4`, not `1 1 1 1`.
 - **Side-effect guard, bites only once scripting exists:** an event whose target no longer exists (a page removed by a layout re-run after its events were queued) is skipped, never run with `this` at the form root. Without it, a page-background button whose initialize script set `this.presence = "hidden"` hid the whole form (3 pages became 1) in the reporter's other viewer. Also recorded on `Pass 131.3`.
 
-### Pass 647.3b — XFA normal (`once`) name-matching data merge (NOT STARTED; filed 1337th filing, request `X022` slice 1; first of 3b/3c/3d, then a release, all ahead of `648.6`)
-
-Engineer-dispatched filing; nothing built. Slice of `647.3` (occur and instance creation stay on `647.3`). Request `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X022_xfa_global_binding_shared_values.md` (pdfcraft, the operator's crates consumer). Spec: `adobe_ext__xfa_data_binding_normal.md` (XFA 3.3 Ch.4). No ID collision: `647.3b`-`647.3d` grep-checked, only earlier "then 647.3b" mentions existed.
-- **Today:** `xfa::merge_data` resolves only `dataRef`; once/global/none pass through unmerged.
-- **Wanted:** normal matching: direct match relative to the current record (p.181); top subform binds the current record (p.182); scope match (p.183); ancestor/sibling priority; a bound group's children never bind outside its subform (p.189); indistinguishable same-named fields bind in document order (p.191); a field binds a data value, not a data group (p.181), a wrong-type node is skipped with a warning (derived reading); one field per data node. An exclGroup with default binding selects the member whose on-value equals the data value. Still transient: nothing written.
-- **Acceptance:** X022 Form F (exclGroup `LikesPizza`, default binding, data `form1.Section1.LikesPizza=Yes`) selects Yes; `xfa-layout` prints `value=` for name-matched fields; hostile data warns, never panics. **Reply note:** X022 says Form F "already works"; it does not in pdfcer today.
-- **Re-scope note:** earlier mentions called `647.3b` "normal name-matching binding and occur instances"; occur/instance creation is NOT in this slice.
-- **FEATURES:** Planned row added (all three boxes `[ ]`).
-
 ### Pass 647.3c — XFA `bind match="global"` (NOT STARTED; filed 1337th filing, request `X022` slice 2; after 647.3b)
 
 Engineer-dispatched filing; nothing built. Spec: `adobe_ext__xfa_data_binding_global_writeback.md` (gaps G-B7..G-B16), XFA 3.3 pp.176, 245-247, 348.
@@ -26825,6 +26829,7 @@ Engineer-dispatched filing; nothing built. Spec: `adobe_ext__xfa_data_binding_gl
 Engineer-dispatched filing; nothing built. Spec as 647.3c (pp.85, 129, 149-151, 175, 200; nothing written for `match="none"`, p.176).
 - **Wanted:** a new `EditSession` verb setting a bound XFA field's value through the Data DOM. Every field bound to the same data node (global copies, protected and readOnly copies included) shows the new value; one undo entry; the datasets packet is rewritten only when a value changed (round-trip invariant: nothing else in the file changes, the template is untouched). Unbound field with no data node: the verb creates ONE data node (global: one node for the name, under the current record or root data group) and discloses the creation (rule 4). On save exactly one node per global name holds the edited value; reopening shows it in every copy. CLI subcommand to fill an XFA field (rule 11). `docs/core-api/` updated.
 - **Acceptance:** X022 Form G (`userName` global on page 1 plus a protected copy; fill "A. Tester", save: one node, both copies show it; edit the protected copy to "B", save: both show "B").
+- **Acceptance added by `X023` (1338th filing; write side):** request `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X023_xfa_bind_none_subform_not_a_data_scope.md` (pdfcraft): `match="none"` subforms are not data scopes. Form A save round-trip: fill `colour` = Red under a `match="none"` subform, save; the data keeps `form/colour` and NO `sec` group is created. Nothing is written for the `match="none"` subform itself (p.176). The read side shipped in `647.3b`. Name `X023` in the release note and the reply.
 - **Release:** after 647.3d, cut a release (standing-authorized, decision 121: green `run-gates.sh`, fresh-folder smoke test, `verify-release.py`) and name it in the `X022` reply.
 - **FEATURES:** Planned row added (all three boxes `[ ]`).
 
