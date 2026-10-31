@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-31 (1347th filing) — `Pass 647.2b` SHIPPED `fe0135a1` (`X025`): XFA growable field/draw splits between text lines
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`Pass 647.2b`**, commit `fe0135a1` on `main`, unreleased (goes out alone as `v0.110.0`). A `tb` root is cut between text lines at a content-area break when growable in height, `keep intact="none"`, multi-line, unrotated, with positive caption `reserve`; orphans/widows honoured; else moves whole. New `Fragment { offset, height }` and `LayoutItem.fragment`; CLI `xfa-layout` prints ` fragment=OFFSET/HEIGHT`. Core-api doc updated.
+- Tests: 7 layout, 1 paint, 1 CLI; sabotage of split line and piece clip each fails; XFA core lib 166, CLI 20, doctests 4; fmt, clippy, 34 CI gate scripts green; no `Cargo.toml` change.
+- ROADMAP: Shipped entry added; Next up `647.2b` entry removed (shipped). FEATURES: Planned row moved to Implemented, core `[x]` / cli `[x]` / gui `[ ]`.
+
+**Decisions made this session:** none minted (judged not needed).
+
+**Findings:**
+- Every standard-14 weight shares its family's ascender/descender (Times-Bold 683/-217 = Times-Roman), so a font-weight setting cannot change a split; layout takes no weight option. A planned `LayoutOptions::with_font_weight` was dropped; do not re-add.
+- **Spec RAG error:** `D:\Dev\Rag-Specialized\PDF_Spec` `adobe_ext__xfa_appearance_drawing.md` ~line 174 says `textEdit multiLine` defaults to 1 with no context; XFA 3.3 p.866 says 1 in a draw, 0 in a field. Being corrected by `pdfcer-spec-librarian` separately.
+
+**Still in flight:** nothing mid-Pass. Release `v0.110.0` pending.
+
+**For next session:** release `v0.110.0` (writes OneDrive `pdfcer1`), reply to `X025` after publication; then `Pass 647.3e` (`G248` items 2-3), then `648.6` (`G245` part 2). Backup currency not verifiable from here.
+
 ## 2026-10-31 (1346th filing) — `v0.109.0` PUBLISHED (CI green at the tag); `X022`, `X023`, `X024`, `G247` closed
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**

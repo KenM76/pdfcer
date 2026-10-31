@@ -112,6 +112,23 @@ wherever it appears.*
 
 ## Shipped
 
+### `fe0135a1` `Pass 647.2b` SHIPPED, 2026-10-31: XFA growable field/draw split between text lines (`X025`; 1347th filing)
+
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. On `main`, pushed or not per the engineer; **unreleased: it goes out alone as `v0.110.0`**. No decision minted. Reasoning is in the commit message.
+- **Core:** a `tb` root cuts an XFA field or draw across content areas between its text lines (XFA 3.3 Ch.8 p.291) when it is growable in height (no `h`), `keep intact="none"` (a field's default; a draw's default is `contentArea`, p.292), multi-line (`textEdit multiLine="1"`; default 1 in a draw, 0 in a field, p.866), unrotated, and any top/bottom caption has a positive `reserve`. The cut falls on the paint line pitch and leaves `para` orphans lines above and widows below (at least one each). Anything else moves whole, as before.
+- **New public type** `pdfcer_core::xfa::Fragment { offset, height }` (`#[non_exhaustive]`) and field `LayoutItem.fragment: Option<Fragment>`, set on every piece of a cut container (subforms too).
+- **Paint:** a split piece paints the whole container's text clipped to the piece; each piece keeps its own closed border.
+- **CLI:** `pdfcer xfa-layout` prints ` fragment=OFFSET/HEIGHT` on split pieces (documented in `--help`).
+- **Finding (do not re-add):** every standard-14 weight shares its family's ascender/descender (Times-Bold 683/-217 = Times-Roman), so the gap G-T1 font-weight setting cannot change a split; layout takes no weight option. A planned `LayoutOptions::with_font_weight` was dropped for that reason.
+- **Docs:** `docs/core-api/03-capabilities.md` (`LayoutItem.fragment`, split rules); `check-core-api-verbs.py` green.
+- **Tests:** 7 layout (`crates/pdfcer-core/src/xfa/layout/tests/lines.rs`), 1 paint, 1 CLI (`crates/pdfcer-cli/tests/xfa_layout.rs`). Sabotage of the split line and of the piece clip each fails them. XFA counts: core lib xfa 166 pass, CLI xfa 20 pass, xfa doctests 4 pass.
+- **Gates green:** fmt, clippy -D warnings, all 34 CI-named gate scripts. No `Cargo.toml` change (`cargo tree` unaffected). Not a writer change: layout is a pure function, nothing saved.
+- **GUI:** not delivered; box stays `[ ]`.
+- **FEATURES:** Planned row moved to Implemented, core `[x]` / cli `[x]` / gui `[ ]`.
+- **Request:** `X025` satisfied at release (reply owed after publication, none sent now).
+- **Spec RAG error found:** `adobe_ext__xfa_appearance_drawing.md` (~line 174) says `textEdit multiLine` defaults to 1 with no context; spec p.866 says 1 in a draw, 0 in a field. Being corrected by `pdfcer-spec-librarian`.
+- **Next up:** the release `v0.110.0` (slot `pdfcer1`); then `Pass 647.3e` (`G248` items 2-3), then `648.6` (`G245` part 2).
+
 ### `v0.109.0` — PUBLISHED, 2026-10-31 (1346th filing)
 
 Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Release record for the prep filed below (1345th, bump `304be34e`).
@@ -26905,17 +26922,6 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 - **Synthetic acceptance:** a template whose page area holds a text field, laid over three pages, gives three distinct SOM paths and three data nodes, and saved values round-trip per page; a `match="global"` field in the same page area stays one value on every page. Tests use synthetic templates only.
 - **Public form for a manual check (not a fixture):** US DD Form 214 (dd0214.pdf): typing `1 2 3 4` in the four "Page __" boxes and saving must reopen as `1 2 3 4`, not `1 1 1 1`.
 - **Side-effect guard, bites only once scripting exists:** an event whose target no longer exists (a page removed by a layout re-run after its events were queued) is skipped, never run with `this` at the form root. Without it, a page-background button whose initialize script set `this.presence = "hidden"` hid the whole form (3 pages became 1) in the reporter's other viewer. Also recorded on `Pass 131.3`.
-
-### Pass 647.2b — XFA field/draw split across a content-area break (NOT STARTED; filed 1343rd filing, request `X025`, crates; after `v0.109.0`, before 647.3e; head of Next up since 1346th filing)
-
-Engineer-dispatched filing; nothing built. Named remainder of `Pass 647.2` ("field/draw text splitting once content is sized"), split out so it can be ordered and released on its own; `647.2` keeps the other open items. Request: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X025_xfa_growable_field_splits.md`. Spec: XFA 3.3 pp.291-292, 629-630.
-- **Scope (core; cli surfaces it through `xfa-layout`; gui consumes):** a growable field or draw (`minH`, no fixed `h`, `keep intact="none"`) that does not fit the room left in a content area splits between text lines at the break, rather than moving whole. Each piece is bordered closed (border `break` default `close`).
-- **Still moves whole:** `keep intact="contentArea"` or `"pageArea"`; a single-line content or fixed `h`; less than one line of room (it then moves with its caption and border). A bordered parent subform breaks with the split.
-- **Never panics:** splitting is bounded (hostile content, huge line counts, zero-height areas).
-- **Acceptance (synthetic only):** field `minH 200` starting 60pt above the area bottom: first piece ends at the area bottom, second starts at the next area top, the following draw lands after the second piece, page count minimal. `keep intact="contentArea"` moves whole. Less than one line of room moves whole with its caption.
-- **Release:** the engineer asked that a release follow when this lands.
-- **Docs:** `docs/core-api/03-capabilities.md`; the `647.2` REMAINING line points here.
-- **FEATURES:** Planned row added (all three boxes `[ ]`).
 
 ### Pass 647.3e — XFA data-driven instances and unfilled counts (NOT STARTED; filed 1341st filing, request `G248` items 2-3, pdfceGUI; after 647.2b; `647.3d` and its release `v0.109.0` are done)
 
