@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-31 (1353rd filing) — `Pass 647.2c` SHIPPED `ead2642a` (`X026`): XFA fields and draws sized from their text
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`Pass 647.2c`** (`ead2642af11bf442c212eedf9eb06b57597ec0ca`, parent `0d40d1a1`, unreleased, not yet pushed at filing): a field or draw with no `w`/`h` takes the extent its plain-text value needs (XFA 3.3 Ch.8 pp.275-278, Ch.2 p.51), clamped to `min*`/`max*`; one measurement path shared with paint (`paint/size.rs` `content_size`, `paint/text.rs` `text_extent`); wraps at `w` or positive `maxW`; single-line fields grow in width only; `maxW`/`maxH` = 0 reads as omitted for every container; empty or non-text value keeps `min*`. Known limit: sized at paint defaults. Image sizing NOT done (stays `Pass 647.4`). CLI: no new flag, `xfa-layout` output reflects grown fields.
+- **Tests:** 8 new core (`xfa/layout/tests/grow.rs`), 1 new CLI; 34 CI gates green before commit; no `Cargo.toml` change; no new fuzz target (no new parser).
+- ROADMAP: Shipped entry added; the `647.2c` Next-up entry deleted; banner rewritten (head now `648.6`). FEATURES: sizing row ticked `[x]` `[x]` `[ ]` and reworded to text only; new Planned row for image sizing (`647.4`).
+- **Channel:** `X026` reply to be renamed SHIPPED at release (`v0.111.0`, slot `pdfcer2`, with `647.3e`).
+
+**Decisions made this session:** none minted.
+
+**Hard-rule-11 survivors:** FEATURES row 739 still says "field/draw splitting not yet" although `647.2b` shipped it (pre-existing, not reworded here; owed). Row 741 "Layout does not yet size containers from an image" is still true. Older dated Next-up lines in ROADMAP and `docs/NEXT_SESSION.md` (engineer-owned) not swept.
+
+**Still in flight:** nothing mid-Pass; `647.3e` and `647.2c` unreleased.
+
+**For next session:** `Pass 648.6`; release `v0.111.0` (slot `pdfcer2`).
+
 ## 2026-10-31 (1352nd filing) — `d4ffa8fd` doc-comment fix to `Pass 647.3e`; fuzz build green
 
 **Filed (docs only; engineer-reported; no shell here, nothing checked from here):**

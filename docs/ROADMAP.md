@@ -112,6 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
+### `ead2642a` `Pass 647.2c` SHIPPED, 2026-10-31: XFA fields and draws sized from their text (`X026`; 1353rd filing)
+
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Full hash `ead2642af11bf442c212eedf9eb06b57597ec0ca` (parent `0d40d1a1`), "feat(xfa): size growable fields and draws from their text (Pass 647.2c)". On `main`, **unreleased**, not yet pushed at filing (pushed with this filing); planned for `v0.111.0` (slot `pdfcer2`) together with `Pass 647.3e`. No decision minted. Reasoning is in the commit message.
+- **Core (XFA 3.3 Ch.8 pp.275-278; field auto-size Ch.2 p.51):** a field or draw with no `w`/`h` takes the extent its plain-text value needs, clamped to `minW`/`minH` and `maxW`/`maxH`. Before, it always took `min*`: long text overflowed a `minH` box, nothing after it moved, and the `647.2b` split never fired from text alone.
+- **One measurement path shared with painting:** `paint/size.rs` `content_size` (container margins + caption [positive reserve, else unwrapped caption text + caption margins] + a field's widget margins; border adds nothing, p.50) and `paint/text.rs` `text_extent` (same face, size, lineHeight and greedy wrap as painting).
+- **Rules:** wraps at `w` or a positive `maxW`; a single-line field (no `textEdit multiLine="1"`) is one unwrapped line and grows in width only; `maxW`/`maxH` = 0 now reads as omitted (XFA 3.0), for every container; an empty or non-text value (image, rich text) keeps `min*`.
+- **Known limit:** measured at paint defaults (gap G-T1 weight normal; caption in its own font, `CaptionFont::Own`); non-default paint settings can draw text wider than it was sized. Documented in `docs/core-api/03-capabilities.md`.
+- **Not done:** image natural sizing stays on `Pass 647.4` (`X017` remainder).
+- **CLI:** no new flag; `pdfcer xfa-layout` output now reflects grown fields (item height, splits, following items pushed).
+- **Tests (engineer-reported):** 8 new core tests (`crates/pdfcer-core/src/xfa/layout/tests/grow.rs`), 1 new CLI test (`a_field_grows_to_its_bound_text_and_pushes_what_follows`, `crates/pdfcer-cli/tests/xfa_layout.rs`). Full CI gate list (34 gates: workspace tests, fmt, clippy `-D warnings`, code-structure, public-fns-documented, core-api-verbs) green on the tree before commit. No dependency or `Cargo.toml` change, `cargo tree` unchanged. No new untrusted-input parser, so no new fuzz target.
+- **GUI:** not delivered; box stays `[ ]`.
+- **FEATURES:** the "fields and draws sized from their content" row ticked core `[x]` / cli `[x]` / gui `[ ]`, reworded to text only; new Planned row for image sizing (`647.4`), all `[ ]`.
+- **Request:** `X026` satisfied at release; its reply is renamed SHIPPED then (reply `open/reply_X026_xfa_field_draw_size_from_content_PLANNED.md` still PLANNED now).
+- **Next up:** `Pass 648.6` (`G245` part 2); then the release `v0.111.0`.
+
 ### `53f4e938` `Pass 647.3e` SHIPPED, 2026-10-31: XFA subform instances from data, unfilled and unbound counts (`G248` items 2-3, by-name case; 1351st filing)
 
 Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Full hash `53f4e9383a0efbae616b124bb9e3596998e2aa32`. On `main`, **unreleased** (next release writes `pdfcer2`). No decision minted. Reasoning is in the commit message.
@@ -24953,7 +24968,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Next up head (rewritten 1351st filing; `Pass 647.3e` SHIPPED `53f4e938`, unreleased): `Pass 647.2c` (`X026`, XFA content-sized fields and draws; its own release), then `Pass 648.6` (`G245` part 2, spec-RAG check first).** `Pass 647.3f` (dataRef-bound and subform-set instances, residue of `647.3e`) is filed below, not yet ordered. Release slot: next release writes `pdfcer2` (`pdfcer1` holds 0.110.0, `pdfcer2` holds 0.109.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
+> **Next up head (rewritten 1353rd filing; `Pass 647.3e` `53f4e938` and `Pass 647.2c` `ead2642a` SHIPPED, both unreleased; planned `v0.111.0`): `Pass 648.6` (`G245` part 2, spec-RAG check first).** `Pass 647.3f` (dataRef-bound and subform-set instances, residue of `647.3e`) is filed below, not yet ordered. Release slot: next release writes `pdfcer2` (`pdfcer1` holds 0.110.0, `pdfcer2` holds 0.109.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
 
 (1271st filing: `Pass 646.25` (`G237`, `XfaFormKind`) SHIPPED on `5f401310`; decision 204 reopens dynamic XFA; arc `647.0`-`647.7` filed below. All Passes below are NOT STARTED. Spec source (extracted by `pdfcer-spec-librarian`): `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_{xdp_packaging,static_vs_dynamic_rendering,template_layout_dom,layout_algorithm,data_binding_normal}.md`; its gap IDs G-X/S/T/L/B are the arc's default-decisions list. Spec slice still owed: SOM expressions, then table/row layout. Arc-wide acceptance: (1) opening never rewrites structure (§5); (2) layout inferred at render time is rule-4 disclosed; (3) content a dynamic form drops on overflow is disclosed, which the spec only warns about; (4) no external XFA code is relied on.)
 
@@ -26951,22 +26966,6 @@ closes out the *prior* filing's business rather than opening this one's.
 - **Evidence (engineer):** `pdfcer-core` lib 2034 + integration 3112 + doc 255 passed; 4 new layout tests, 1 rewritten; fmt, clippy `-D warnings`, `check-code-structure` (no new debt), `check-core-api-verbs` clean; fuzz `xfa_packets` 115,505 runs / 91 s = 1,269 runs/s, 0 crashes; sabotage check (disable the move to the next area) fails the `tb` test. No manifest touched, `cargo tree` unaffected. Full `run-gates.sh` not reported.
 
 Original scope: flowed containers, break and overflow rules, leaders/trailers. Content dropped on overflow is reported in the layout model and surfaced by 647.4/647.5 (disclosure, not silent). Table and row layouts are `647.7`. Spec: `xfa_layout_algorithm`.
-
-### Pass 647.2c — XFA content-sized fields and draws (NOT STARTED; filed 1350th filing, request `X026`; after 647.3e; its own release, writes `pdfcer2`)
-
-Filed from the request; nothing built, nothing checked from here. Request: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X026_xfa_field_draw_size_from_content.md`; reply `open/reply_X026_xfa_field_draw_size_from_content_PLANNED.md` (already written). Decision 204 arc, beside the shipped `647.2b` (`fe0135a1`, `X025`).
-- **Defect (requester's root cause):** `crates/pdfcer-core/src/xfa/layout/geometry.rs` has `let grows = !matches!(kind, ContainerKind::Field | ContainerKind::Draw);`, so a field or draw with no `h` always lays at `minH` (or 0) whatever its value holds. The `647.2b` split therefore fires only when `minH` itself crosses the break.
-- **Scope (core + cli; gui consumes). Spec: XFA 3.3 Ch.8 pp.275-278; spec RAG check FIRST** (`xfa_layout_algorithm`), dispatch `pdfcer-spec-librarian` if a point is missing.
-  1. **Height:** no `h` takes the height the content needs: wrapped text at the paint line pitch and font metrics (ONE measurement path shared with paint, never a second copy), plus margins, caption (reserve, or natural height when no reserve), border insets, and field widget margins; clamped to `[minH, maxH]` (maxH omitted or 0 = unbounded).
-  2. **Width:** no `w` likewise: longest unwrapped line (and a left/right caption), clamped to `[minW, maxW]`. Text wraps only at `w` or `maxW`.
-  3. **Single-line fields** grow in width only; height is one line.
-  4. **Images** use the same path: closes the `X017` remainder held on `647.4` (image natural size for growable containers).
-  5. **Split:** a field grown past the remaining room splits under the `647.2b` rules, with no `minH` needed.
-  6. **Never panics:** huge values, zero font sizes, missing fonts stay bounded; a measurement failure falls back to `minH`/`minW`.
-- **Acceptance (synthetic only):** a `tb` root holding a 5in-wide field (`minH="20pt"`, no `h`, `multiLine="1"`, Helvetica 10pt, ~5,000-character value) lays at roughly 100 lines of 10pt, not 20pt; the same text as a draw value likewise; a draw placed after follows them. Same field with `maxH="100pt"` lays at 100pt. A one-page form whose lead subform leaves 60pt, then that field: it splits across pages with no `minH`, page count the minimum. An empty field with `minH="20pt"` stays 20pt.
-- **Release:** its own release; reply names it. Next release writes OneDrive slot `pdfcer2`.
-- **Docs:** `docs/core-api/03-capabilities.md`; `xfa-layout --help` if output changes.
-- **FEATURES:** Planned row added (all three boxes `[ ]`).
 
 ### Pass 647.3 — Normal data merge (NOT STARTED)
 
