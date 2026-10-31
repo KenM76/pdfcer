@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-31 (1357th filing) — `Pass 647.4b` SHIPPED `96af5ff3` (`X027`): XFA draw shapes, dashed edges, rotate
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`Pass 647.4b`** (`96af5ff3`, parent `a2b44aca` = 1356th filing; unreleased): XFA `<rectangle>` (through the border painter), `<line>` (`slope`, `hand`, cap) and `<arc>` draw values; dashed/dotted/dashDot/dashDotDot edges drawn; `rotate` 0/90/180/270 on draws and fields (layout reserves the turned extent; subforms do not rotate). New settings `ArcCircle`, `ArcFill`, `DashLengths`, `DashCaps`, `OddRotate`; new `PaintNoteKind::Shape`/`Rotate`; `Stroke` redefined to "unnamed stroke value, drawn solid". CLI `xfa-layout` flags `--odd-rotate --dash-lengths --dash-caps --arc-circle --arc-fill`; item line gains `rotate=DEG`; label `stroke-not-drawn` renamed `stroke-drawn-solid`. `docs/core-api/03-capabilities.md` updated.
+- **Tests:** core `xfa::paint` 61, `xfa::layout` 71, CLI `xfa_layout` 18; 34 CI gates, fmt, clippy `-D warnings`, structure gate green; no manifest change; no new fuzz target.
+- ROADMAP: Shipped entry added; the `647.4b` Next up entry deleted; Next up banner amended (head back to `648.6` after the release). FEATURES: the `647.4b` row ticked core and cli.
+
+**Decisions made this session:** none minted. The 1356th filing's owed question (layout footprint of a rotated item) was answered at build: layout sees the turned extent.
+
+**Hard-rule-11 survivors (swept for the claim "non-solid/dashed strokes are not drawn", read by meaning in FEATURES.md):** two found and fixed (the "check buttons and 3-D edges" row, the "layout and drawing" row). Hits that stay correct: `Pass 490.0`/`501.0` AcroForm widget `/BS` dash rows and the markup/ce-dimension dash rows, which are other subsystems. Not swept (engineer-owned or outside remit): `docs/NEXT_SESSION.md`; doc comments and CLI help in `crates/` that may still say "not drawn" (e.g. `xfa/paint.rs` module header, `PaintNoteKind::Stroke` rustdoc), owed to the engineer. Backup currency not verifiable from here.
+
+**Still in flight:** the release `v0.112.0` (slot `pdfcer1`), separate filing.
+
+**For next session:** release `v0.112.0`; then `Pass 648.6`. Backlog XFA: `Pass 647.3f`, `Pass 647.4`.
+
 ## 2026-10-31 (1355th filing) — `v0.111.0` PUBLISHED (CI green at the tag); `X026` and `G248` replies SHIPPED
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
