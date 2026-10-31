@@ -322,3 +322,23 @@ fn textures_are_checked_before_writing() {
     s.meshes[0].primitives[0].uvs = vec![[0.0, 0.0]; 3];
     assert_eq!(write_prc(&s).unwrap().textured, 0);
 }
+
+#[test]
+fn the_model_unit_reads_back_onto_the_assembled_model() {
+    let mut s = scene();
+    s.units_in_mm = 25.4;
+    let prc = write_prc(&s).unwrap().prc;
+    let want = Some(crate::ModelUnits {
+        mm_per_unit: 25.4,
+        from_cad_file: true,
+    });
+    assert_eq!(PrcFile::parse(&prc).unwrap().units().unwrap(), want);
+    assert_eq!(assemble(&prc).unwrap().units, want);
+}
+
+#[test]
+fn no_model_file_means_no_unit() {
+    let mut f = PrcFile::parse(&write_prc(&scene()).unwrap().prc).unwrap();
+    f.model_file = vec![0; 8];
+    assert_eq!(f.units().unwrap(), None);
+}

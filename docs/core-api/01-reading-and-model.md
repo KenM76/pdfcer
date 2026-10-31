@@ -3430,6 +3430,16 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   isolate or highlight by that test. A placement can draw no mesh (left out,
   or wire only) or several (one per colour). Both empty when `unplaced` is
   `Some`.
+- **Model unit** (`G250`). `AssembledModel::units: Option<ModelUnits>`, also
+  `PrcFile::units() -> Result<Option<ModelUnits>, PrcError>`, from the model
+  file [ISO 14739-1 WD 7.3.3]. `ModelUnits` (`#[non_exhaustive]`, `Copy`):
+  `mm_per_unit: f64` (1.0 = millimetres, 25.4 = inches) and `from_cad_file:
+  bool`. `true` means the file says the unit came from the CAD system and is
+  fit for measurement ("unit as exported"); `false` means an exporter's
+  default ("unit assumed"). `None` when the file stores no model file or the
+  unit is not a positive finite number. pdfcer's own PRC writer always
+  writes `from_cad_file: true`; a glTF import is metres (`1000.0`). CLI:
+  `3d-mesh` prints the unit, since STL and OBJ store none.
 - **Showing a stored-hidden part.** `AssembleOptions::stored_visibility:
   StoredVisibility::{Honour (default), DrawAll}` (`Copy`, `Hash`,
   `#[non_exhaustive]`, re-exported at the crate root). `DrawAll` also places

@@ -86,6 +86,9 @@ pub struct AssembledModel {
     /// hide a placement, which shifts the ranges); empty when placements
     /// were not applied.
     pub tree: Vec<crate::ModelNode>,
+    /// The unit the model is drawn in ([`PrcFile::units`]); `None` when the
+    /// file gives none or it does not read.
+    pub units: Option<crate::ModelUnits>,
 }
 
 /// How [`assemble_with_options`] reads choices ISO 14739-1 leaves open.
@@ -250,6 +253,7 @@ pub fn assemble_with_options(
     model.best_fit_parts = part_labels(&prc, &flagged.best_fit);
     model.partial_parts = part_labels(&prc, &flagged.partial);
     model.triangles = model.meshes.iter().map(|m| m.triangles.len()).sum();
+    model.units = prc.units().ok().flatten();
     if model.triangles == 0 {
         return Err(if model.compressed > 0 {
             let why: Vec<&str> = model.skipped_why.iter().map(|(w, _)| w.as_str()).collect();

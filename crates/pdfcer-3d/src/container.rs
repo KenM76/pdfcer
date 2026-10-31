@@ -456,6 +456,27 @@ impl PrcFile {
             .1)
     }
 
+    /// The unit the model is drawn in, from its model file [WD 7.3.3]:
+    /// `None` when the file stores no model file (see [`Self::stores_tree`])
+    /// or its unit is not a positive finite number.
+    ///
+    /// # Errors
+    /// [`PrcError`] when the model file is stored but does not parse.
+    pub fn units(&self) -> Result<Option<ModelUnits>, PrcError> {
+        if !self.stores_tree() {
+            return Ok(None);
+        }
+        let mut r = crate::bits::BitReader::new(&self.model_file);
+        let schema = crate::Schema::read(&mut r)?;
+        let model =
+            crate::tess::Ctx::new(r, &schema, self.header.authoring_version).model_file()?;
+        let mm = model.units_in_mm;
+        Ok((mm.is_finite() && mm > 0.0).then_some(ModelUnits {
+            mm_per_unit: mm,
+            from_cad_file: model.units_from_cad_file,
+        }))
+    }
+
     /// Whether the file stores an assembly tree: its model file holds an
     /// entity. ISO 14739-1 requires one, but a tessellation-only file still
     /// draws (unplaced), so its absence reads as an empty tree, not an
@@ -538,4 +559,16 @@ impl PrcFile {
         }
         Ok((walk.out, walk.nodes))
     }
+}
+
+/// The unit a PRC model is drawn in [WD 7.3.3].
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[non_exhaustive]
+pub struct ModelUnits {
+    /// Millimetres per model unit (1.0 for millimetres, 25.4 for inches).
+    pub mm_per_unit: f64,
+    /// The file says the unit came from the CAD system that wrote it, so it
+    /// is fit for measurement. When `false` the unit is the exporter's
+    /// default and may not be the model's real scale: say "unit assumed".
+    pub from_cad_file: bool,
 }

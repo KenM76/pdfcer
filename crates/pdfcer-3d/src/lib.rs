@@ -58,8 +58,8 @@ mod write;
 
 pub use compressed::PartialMesh;
 pub use container::{
-    FileStructure, MAX_FILE_STRUCTURES, MAX_INFLATED_BYTES, PRC_READER_VERSION, PrcFile, PrcHeader,
-    SectionKind, UniqueId,
+    FileStructure, MAX_FILE_STRUCTURES, MAX_INFLATED_BYTES, ModelUnits, PRC_READER_VERSION,
+    PrcFile, PrcHeader, SectionKind, UniqueId,
 };
 pub use error::PrcError;
 pub use export::{to_obj, to_stl};

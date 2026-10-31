@@ -351,6 +351,10 @@ fn a_prc_model_meshes_to_stl_by_default() {
         stdout.contains("note: part placements are not applied"),
         "{stdout}"
     );
+    assert!(
+        stdout.contains("note: the model gives no unit; the mesh file stores none"),
+        "{stdout}"
+    );
     assert!(!stdout.contains("normals"), "{stdout}");
 }
 

@@ -267,6 +267,7 @@ pub(crate) struct Tree {
 pub(crate) struct ModelFile {
     pub(crate) roots: Vec<(UniqueId, u32)>,
     pub(crate) units_in_mm: f64,
+    pub(crate) units_from_cad_file: bool,
 }
 
 impl Ctx<'_, '_> {
@@ -714,7 +715,7 @@ impl Ctx<'_, '_> {
     pub(crate) fn model_file(&mut self) -> Result<ModelFile, PrcError> {
         self.expect_type(MODEL_FILE)?;
         self.content_prc_base()?;
-        self.r.bit()?; // units_from_cad_file
+        let units_from_cad_file = self.r.bit()?;
         let units_in_mm = self.r.double()?;
         let n = self.count(6, "root occurrences")?;
         let mut roots = Vec::with_capacity(n);
@@ -724,7 +725,11 @@ impl Ctx<'_, '_> {
             self.r.bit()?; // is_active
             roots.push((id, index));
         }
-        Ok(ModelFile { roots, units_in_mm })
+        Ok(ModelFile {
+            roots,
+            units_in_mm,
+            units_from_cad_file,
+        })
     }
 }
 
@@ -1314,6 +1319,17 @@ mod tests {
         assert!(crate::model::part_labels(&prc, &[(0, 1)]).is_empty());
         let square = crate::assemble(&assembly_prc()).unwrap();
         assert!(square.left_out_parts.is_empty());
+    }
+
+    #[test]
+    fn a_unit_not_from_the_cad_file_reads_as_assumed() {
+        let prc = crate::PrcFile::parse(&assembly_prc()).unwrap();
+        let want = Some(crate::ModelUnits {
+            mm_per_unit: 1.0,
+            from_cad_file: false,
+        });
+        assert_eq!(prc.units().unwrap(), want);
+        assert_eq!(crate::assemble(&assembly_prc()).unwrap().units, want);
     }
 
     /// A two-occurrence assembly of the unit square: once in place, once

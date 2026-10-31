@@ -376,6 +376,18 @@ fn mesh_from_bytes(
         output.display()
     );
     print_assembly_notes(&a, "written");
+    match a.units {
+        Some(u) => println!(
+            "note: coordinates are in model units of {} mm ({}); the mesh file stores no unit",
+            u.mm_per_unit,
+            if u.from_cad_file {
+                "from the CAD file"
+            } else {
+                "assumed by the exporter"
+            }
+        ),
+        None => println!("note: the model gives no unit; the mesh file stores none"),
+    }
     if a.textured > 0 {
         println!(
             "note: {} mesh(es) carry a texture; the mesh file holds geometry only",
