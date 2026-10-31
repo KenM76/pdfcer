@@ -31,9 +31,12 @@
 //! > 254 followed by 255."
 //!
 //! `254 255` decimal is `0xFE 0xFF` — the UTF-16BE byte-order marker
-//! U+FEFF. **The prefix is the entire test.** There is no length-parity
-//! heuristic, no statistical sniffing, and no `/Encoding` key on a
-//! string object. Absent the prefix, the bytes are PDFDocEncoding.
+//! U+FEFF. PDF 2.0 adds a second Unicode form, UTF-8 behind `EF BB BF`,
+//! and pdfcer also accepts UTF-16LE behind `FF FE`, which no edition
+//! defines but real exporters write. **The prefix is the entire test.**
+//! There is no length-parity heuristic, no statistical sniffing, and no
+//! `/Encoding` key on a string object. Absent a prefix, the bytes are
+//! PDFDocEncoding.
 //!
 //! §7.9.2.2 NOTE 3 records why the discriminator is safe: it precludes a
 //! PDFDocEncoded string beginning with `thorn ydieresis` (`þÿ`), "which
@@ -87,7 +90,8 @@
 //!
 //! §7.9.2.2 scopes the escape to "a Unicode text string" only, and
 //! `0x1B` is an *undefined* PDFDocEncoding code — so the escape is
-//! recognized **only** on the UTF-16BE branch (N5).
+//! recognized **only** on the UTF-16BE branch (N5) and, per ISO 32000-2
+//! §7.9.2.2.2, the UTF-8 branch (byte 27, then ASCII letter bytes).
 //!
 //! ## Round-trip discipline
 //!
@@ -311,15 +315,28 @@ pub enum TextStringForm {
     PdfDocEncoding,
     /// A leading `FE FF` byte-order marker: the rest is UTF-16BE.
     Utf16Be,
+    /// A leading `EF BB BF` byte-order marker: the rest is UTF-8 (the
+    /// PDF 2.0 form, ISO 32000-2 §7.9.2.2).
+    Utf8,
+    /// A leading `FF FE` byte-order marker: the rest is UTF-16LE. Not a
+    /// form the standard defines; accepted because real producers write
+    /// it (see [`decode_text_string`]).
+    Utf16Le,
 }
 
-/// Decode a `text string` (§7.9.2.2): UTF-16BE if the bytes begin with
-/// the `FE FF` byte-order marker, PDFDocEncoding (Annex D.3) otherwise.
+/// Decode a `text string` (§7.9.2.2) by its leading byte-order marker:
+/// `FE FF` UTF-16BE, `EF BB BF` UTF-8 (ISO 32000-2 §7.9.2.2.1, PDF 2.0;
+/// accepted whatever the header version), `FF FE` UTF-16LE (a
+/// pdfcer leniency: no edition of the standard defines it, but GIS and
+/// other exporters write it, and as PDFDocEncoding it reads as `ÿþ` plus
+/// letters spaced by undefined `0x00` codes). Anything else is
+/// PDFDocEncoding (Annex D.3). Leading U+FEFF left after the marker (a
+/// doubled BOM) is dropped.
 ///
 /// In-band language escape sequences (U+001B `xx` \[`yy`\] U+001B) are
 /// stripped from the output and reported in
-/// [`DecodedText::languages`]; per §7.9.2.2 they are recognized only on
-/// the UTF-16BE branch, where `0x1B` is not an undefined code.
+/// [`DecodedText::languages`]; per §7.9.2.2 (2.0 §7.9.2.2.2) they are
+/// recognized only on the UTF-16BE and UTF-8 branches.
 ///
 /// # Failure modes (all reported, never silent)
 ///
@@ -331,9 +348,10 @@ pub enum TextStringForm {
 ///
 /// - an undefined PDFDocEncoding code (24 of the 256; §7.9.2 N4 states
 ///   no recovery rule, so U+FFFD is disclosed pdfcer policy);
-/// - an odd trailing byte after the BOM (UTF-16BE requires an even
-///   length; §7.9.2 N1 states no recovery);
-/// - an unpaired surrogate code unit (§7.9.2 N2).
+/// - an odd trailing byte after a UTF-16 BOM (UTF-16 requires an even
+///   length; §7.9.2 N1 states no recovery); it is dropped;
+/// - an unpaired surrogate code unit (§7.9.2 N2);
+/// - an invalid UTF-8 sequence (one U+FFFD per maximal invalid subpart).
 ///
 /// # Examples
 ///
@@ -350,6 +368,10 @@ pub enum TextStringForm {
 /// assert_eq!(d.text, "Hi");
 /// assert_eq!(d.form, TextStringForm::Utf16Be);
 ///
+/// // UTF-8 (PDF 2.0) and UTF-16LE, each by its own BOM.
+/// assert_eq!(decode_text_string(b"\xEF\xBB\xBF\xE7\xAC\xAC").text, "\u{7B2C}");
+/// assert_eq!(decode_text_string(b"\xFF\xFEH\x00i\x00").text, "Hi");
+///
 /// // 0xA0 is EURO in PDFDocEncoding, not a no-break space.
 /// assert_eq!(decode_text_string(b"\xA05").text, "\u{20AC}5");
 ///
@@ -361,10 +383,66 @@ pub enum TextStringForm {
 /// ```
 #[must_use]
 pub fn decode_text_string(bytes: &[u8]) -> DecodedText {
-    if bytes.starts_with(&[0xFE, 0xFF]) {
-        decode_utf16be(bytes.get(2..).unwrap_or(&[]))
+    let mut d = if let Some(rest) = bytes.strip_prefix(&[0xFE, 0xFF]) {
+        decode_utf16be(rest)
+    } else if let Some(rest) = bytes.strip_prefix(&[0xEF, 0xBB, 0xBF]) {
+        decode_utf8(rest)
+    } else if let Some(rest) = bytes.strip_prefix(&[0xFF, 0xFE]) {
+        decode_utf16le(rest)
     } else {
-        decode_pdf_doc(bytes)
+        return decode_pdf_doc(bytes);
+    };
+    // A doubled BOM is a producer bug, not text: U+FEFF at the start of
+    // the decoded text is dropped, however many there are.
+    let kept = d.text.trim_start_matches('\u{FEFF}').len();
+    d.text.drain(..d.text.len() - kept);
+    d
+}
+
+/// The UTF-8 branch of [`decode_text_string`] (ISO 32000-2 §7.9.2.2.1).
+/// The standard gives no recovery for invalid UTF-8; pdfcer substitutes
+/// U+FFFD per maximal invalid subpart (`String::from_utf8_lossy`'s rule)
+/// and counts each. Language escapes (§7.9.2.2.2, byte 27 then ASCII
+/// letters) are stripped by re-walking the text as UTF-16 code units.
+fn decode_utf8(bytes: &[u8]) -> DecodedText {
+    let mut text = String::with_capacity(bytes.len());
+    let mut replacements = 0usize;
+    for chunk in bytes.utf8_chunks() {
+        text.push_str(chunk.valid());
+        if !chunk.invalid().is_empty() {
+            text.push(char::REPLACEMENT_CHARACTER);
+            replacements += 1;
+        }
+    }
+    let mut languages = Vec::new();
+    if text.contains('\u{1B}') {
+        let units: Vec<u8> = text.encode_utf16().flat_map(u16::to_be_bytes).collect();
+        (text, languages, _) = utf16be_walk(&units, true);
+    }
+    DecodedText {
+        text,
+        form: TextStringForm::Utf8,
+        exact: replacements == 0,
+        replacements,
+        languages,
+    }
+}
+
+/// The UTF-16LE branch of [`decode_text_string`]: byte-swapped onto the
+/// UTF-16BE walk, with no language-escape stripping (§7.9.2.2.2 defines
+/// the escape only for UTF-16BE and UTF-8).
+fn decode_utf16le(bytes: &[u8]) -> DecodedText {
+    let mut swapped: Vec<u8> = Vec::with_capacity(bytes.len());
+    for pair in bytes.chunks(2) {
+        swapped.extend(pair.iter().rev());
+    }
+    let (text, languages, replacements) = utf16be_walk(&swapped, false);
+    DecodedText {
+        text,
+        form: TextStringForm::Utf16Le,
+        exact: replacements == 0,
+        replacements,
+        languages,
     }
 }
 
@@ -798,5 +876,83 @@ mod tests {
         assert_eq!(decode_text_string(b"").text, "");
         assert_eq!(decode_text_string(b"\xFE\xFF").text, "");
         assert!(decode_text_string(b"").exact);
+    }
+
+    #[test]
+    fn utf16le_and_utf8_boms_x024() {
+        let le = |hex: &str| decode_text_string(&hex_bytes(hex));
+        let d = le("FFFE4F00740068006500720020003300");
+        assert_eq!(
+            (d.text.as_str(), d.form, d.exact),
+            ("Other 3", TextStringForm::Utf16Le, true)
+        );
+        assert_eq!(le("FFFE53004900540055004100C700C3004F00").text, "SITUAÇÃO");
+        let d = le("EFBBBFE7ACAC");
+        assert_eq!((d.text.as_str(), d.form), ("第", TextStringForm::Utf8));
+        let d = le("FFFE00D84100");
+        assert_eq!(
+            (d.text.as_str(), d.exact, d.replacements),
+            ("\u{FFFD}A", false, 1)
+        );
+        assert_eq!(le("FFFE").text, "");
+        assert_eq!(le("EFBBBF").text, "");
+        // ISO 32000-2 §7.9.2.2.2: the escape applies to UTF-8 too.
+        let d = decode_text_string(b"\xEF\xBB\xBF\x1Ben\x1BHi");
+        assert_eq!(
+            (d.text.as_str(), d.languages.as_slice()),
+            ("Hi", ["en".to_owned()].as_slice())
+        );
+    }
+
+    #[test]
+    fn x024_hostile_bytes_are_total() {
+        let d = decode_text_string(b"\xFF\xFEA\x00B");
+        assert_eq!((d.text.as_str(), d.replacements), ("A", 1));
+        let d = decode_text_string(b"\xEF\xBB\xBFa\xC3b\xFF");
+        assert_eq!(
+            (d.text.as_str(), d.replacements, d.exact),
+            ("a\u{FFFD}b\u{FFFD}", 2, false)
+        );
+        assert_eq!(decode_text_string(b"\xFF\xFE\xFF\xFEx\x00").text, "x");
+        assert_eq!(decode_text_string(b"\xEF\xBB\xBF\xEF\xBB\xBFx").text, "x");
+        assert_eq!(decode_text_string(b"\xFE\xFF\xFE\xFF\x00x").text, "x");
+        // No escape stripping outside the standard's forms.
+        assert!(
+            decode_text_string(b"\xFF\xFE\x1B\x00e\x00n\x00\x1B\x00")
+                .languages
+                .is_empty()
+        );
+        for n in 0..64u8 {
+            let bytes: Vec<u8> = [0xFF, 0xFE]
+                .into_iter()
+                .chain((0..n).map(|i| i.wrapping_mul(37)))
+                .collect();
+            let _ = decode_text_string(&bytes);
+            let bytes: Vec<u8> = [0xEF, 0xBB, 0xBF]
+                .into_iter()
+                .chain((0..n).map(|i| i.wrapping_mul(91)))
+                .collect();
+            let _ = decode_text_string(&bytes);
+        }
+    }
+
+    #[test]
+    fn pdfdoc_without_a_bom_is_unchanged() {
+        let d = decode_text_string(b"\xFF\xFDab\xA0");
+        assert_eq!(
+            (d.text.as_str(), d.form),
+            ("ÿýab\u{20AC}", TextStringForm::PdfDocEncoding)
+        );
+        assert_eq!(
+            decode_text_string(b"\xEF\xBB").form,
+            TextStringForm::PdfDocEncoding
+        );
+    }
+
+    fn hex_bytes(hex: &str) -> Vec<u8> {
+        (0..hex.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
+            .collect()
     }
 }

@@ -2024,6 +2024,33 @@ mod tests {
         );
     }
 
+    /// Layer names behind a UTF-16LE or UTF-8 byte-order marker read as
+    /// text (request X024), not as PDFDocEncoded `ÿþ` plus spaced letters.
+    #[test]
+    fn utf16le_and_utf8_layer_names_x024() {
+        let raw = |bytes: &[u8]| {
+            Object::Dict(dict(&[
+                (b"Type", Object::Name(Name(b"OCG".to_vec()))),
+                (b"Name", Object::String(bytes.to_vec())),
+            ]))
+        };
+        let graph = graph_with(
+            Object::Dict(dict(&[
+                (b"OCGs", refs(&[4, 5, 6])),
+                (b"D", Object::Dict(dict(&[(b"Order", refs(&[4, 5, 6]))]))),
+            ])),
+            &[
+                (4, raw(b"\xFF\xFEO\0t\0h\0e\0r\0 \x003\0")),
+                (5, raw(b"\xFF\xFES\0I\0T\0U\0A\0\xC7\0\xC3\0O\0")),
+                (6, raw(b"\xEF\xBB\xBF\xE7\xAC\xAC")),
+            ],
+        );
+        let layers = read_layers(&graph);
+        let names: Vec<&str> = layers.layers.iter().map(|l| l.name.as_str()).collect();
+        assert_eq!(names, ["Other 3", "SITUAÇÃO", "第"]);
+        assert!(layers.layers.iter().all(|l| l.name_exact));
+    }
+
     /// A nested array becomes the preceding node's children, and a nested
     /// array that begins with a text string becomes a labelled subtree.
     ///

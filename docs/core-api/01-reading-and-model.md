@@ -1882,15 +1882,17 @@ and that wildcard silently prints a future variant as the fallback.
 use pdfcer_core::textstring::{decode_text_string, DecodedText, TextStringForm};
 
 let d: DecodedText = decode_text_string(bytes);   // textstring.rs, infallible
-// d.text: String, d.form: TextStringForm (PdfDocEncoding | Utf16Be), plus flags
+// d.text: String, d.form: TextStringForm (PdfDocEncoding | Utf16Be | Utf8 | Utf16Le), plus flags
 ```
 
 Also: `decode_utf16be_bytes`, `encode_text_string`,
 `pdf_doc_char(u8) -> Option<char>`.
 
 **Never `String::from_utf8` a PDF string.** §7.9.2 strings are
-PDFDocEncoding by default and UTF-16BE when they carry a BOM. This function
-is the only correct decoder.
+PDFDocEncoding by default, UTF-16BE behind `FE FF`, UTF-8 behind `EF BB BF`
+(PDF 2.0), and UTF-16LE behind `FF FE` (a leniency: no edition defines it,
+real exporters write it). A doubled BOM leaves no U+FEFF; malformed bytes
+become counted U+FFFD. This function is the only correct decoder.
 
 **Naming trap:** there is a *second* `decode_text_string` at `edit.rs`
 returning an `InfoText` — a different type for the `/Info`-dictionary path.
