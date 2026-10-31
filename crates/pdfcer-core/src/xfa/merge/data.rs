@@ -130,6 +130,9 @@ fn convert(
     Ok(out)
 }
 
+/// Where `node`'s content lies, so a fill can replace or append to it: its
+/// first to last child, an empty range before an empty element's end tag,
+/// or the whole tag of a self-closing one.
 pub(super) fn content_span(node: roxmltree::Node<'_, '_>) -> ValueSpan {
     let range = node.range();
     if let (Some(first), Some(last)) = (node.first_child(), node.last_child()) {
