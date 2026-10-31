@@ -112,9 +112,23 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.110.0` — release PREP, version bump `d898e049` (`chore`), 2026-10-31 (1348th filing)
+### `v0.110.0` — PUBLISHED, 2026-10-31 (1349th filing)
 
-Engineer-reported (shell held by the engineer; each item stated checked); nothing checked from here. Same pattern as the `v0.109.0` prep (1345th filing, `91924926`). The tag `v0.110.0` goes on this filing's own commit.
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Release record for the prep filed below (1348th, bump `d898e049`).
+- **Tag:** annotated `v0.110.0` on `5c296530` (the 1348th filing commit), pushed with `main`.
+- **Contents:** `Pass 647.2b` (`fe0135a1`, `X025`) plus its filing and the bump.
+- **Packaging:** build `D:\builds\pdfcer-20261031-0451-5c29653` (TOTAL 56,514,399 bytes; `pdfcer.exe` 40,589,824). GitHub release published with 8 assets at local sizes: `pdfcer-v0.110.0-windows-x64.zip` (28,222,569 bytes, sha256 prefix `537cfa9c0963`), `ocr-addon-ocrcer.zip`, `ocr-addon-ocrs.zip`, `ocr-addon-tesseract.zip`, and 4 `.sha256` files.
+- **Fresh-folder smoke (`D:\builds\smoke-v0110`):** `pdfcer --version` reports 0.110.0, revision `v0.110.0`; `xfa-layout --help` documents `fragment`.
+- **`verify-release.py v0.110.0`:** all checks ok (tag pushed, `main` contains tag, assets present, CI GREEN at the tag, CLI on OneDrive, previous version kept) except "working tree clean": the only dirt is `.claude/agent-memory` edits and three untracked files not the engineer's (root `-`, `docs/research/request-3d-views-iso-corners.md`, `docs/research/request-prc-compact-tessellation.md`). The known case.
+- **OneDrive:** wrote `pdfcer1` (6 items, 76,137,435 bytes = 0.110.0). `pdfcer2` keeps 0.109.0 as previous. **Next release writes `pdfcer2`.**
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.110.0 published.
+- **Inbound channel** (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`): `reply_X025_xfa_growable_field_splits_SHIPPED.md` (renamed from PLANNED); notice `notice_2026-10-31_v0.110.0_released.md`. **`X025` is closed.**
+- **Next up:** `Pass 647.3e` (`G248` items 2-3), then `648.6` (`G245` part 2, spec RAG first).
+- **FEATURES:** the `647.2b` row now says released in `v0.110.0`. Nothing minted: no decision, no rule.
+
+### `v0.110.0` — release PREP, version bump `d898e049` (`chore`), 2026-10-31 (1348th filing); published in the 1349th filing (entry above)
+
+Engineer-reported (shell held by the engineer; each item stated checked); nothing checked from here. Same pattern as the `v0.109.0` prep (1345th filing, `91924926`). The tag `v0.110.0` goes on this filing's own commit. *Amended 1349th: published, see above; the "to run" items are done; the "reply owed" item `X025` is sent.*
 - **`d898e049`** "chore: bump workspace to 0.110.0": `Cargo.toml` (workspace version and the `pdfcer-model` dependency version), `Cargo.lock`, `fuzz/Cargo.lock`. On top of `263c6a6f`. A code commit, cited here. `cargo check --workspace` clean after the bump.
 - **Carried since `v0.109.0`:** only `Pass 647.2b` (`fe0135a1`, `X025`; filed in the 1347th, `263c6a6f`). Both commits are on `main` and pushed.
 - **Gates (engineer-reported):** xfa tests: `pdfcer-core` 166 pass, `pdfcer-cli` 20 pass, xfa doctests 4 pass; fmt and clippy clean; all 34 CI-named gate scripts green.
@@ -126,7 +140,7 @@ Engineer-reported (shell held by the engineer; each item stated checked); nothin
 
 ### `fe0135a1` `Pass 647.2b` SHIPPED, 2026-10-31: XFA growable field/draw split between text lines (`X025`; 1347th filing)
 
-Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. On `main`, pushed or not per the engineer; **unreleased: it goes out alone as `v0.110.0`**. No decision minted. Reasoning is in the commit message.
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. On `main`, pushed or not per the engineer; **released alone as `v0.110.0`** (*amended 1349th*; reply `reply_X025_xfa_growable_field_splits_SHIPPED.md`). No decision minted. Reasoning is in the commit message.
 - **Core:** a `tb` root cuts an XFA field or draw across content areas between its text lines (XFA 3.3 Ch.8 p.291) when it is growable in height (no `h`), `keep intact="none"` (a field's default; a draw's default is `contentArea`, p.292), multi-line (`textEdit multiLine="1"`; default 1 in a draw, 0 in a field, p.866), unrotated, and any top/bottom caption has a positive `reserve`. The cut falls on the paint line pitch and leaves `para` orphans lines above and widows below (at least one each). Anything else moves whole, as before.
 - **New public type** `pdfcer_core::xfa::Fragment { offset, height }` (`#[non_exhaustive]`) and field `LayoutItem.fragment: Option<Fragment>`, set on every piece of a cut container (subforms too).
 - **Paint:** a split piece paints the whole container's text clipped to the piece; each piece keeps its own closed border.
@@ -24924,7 +24938,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Next up head (rewritten 1348th filing; the previous banner was stale since the 1277th): the release `v0.110.0` (prep filed, bump `d898e049`; carries only `Pass 647.2b`), then `Pass 647.3e` (`G248` items 2-3), then `Pass 648.6` (`G245` part 2, spec-RAG check first).** Release slot `pdfcer1` (holds 0.108.0, the older; `pdfcer2` holds 0.109.0). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
+> **Next up head (rewritten 1349th filing; `v0.110.0` is PUBLISHED, see *Shipped*): `Pass 647.3e` (`G248` items 2-3), then `Pass 648.6` (`G245` part 2, spec-RAG check first).** Release slot: next release writes `pdfcer2` (`pdfcer1` holds 0.110.0, `pdfcer2` holds 0.109.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
 
 (1271st filing: `Pass 646.25` (`G237`, `XfaFormKind`) SHIPPED on `5f401310`; decision 204 reopens dynamic XFA; arc `647.0`-`647.7` filed below. All Passes below are NOT STARTED. Spec source (extracted by `pdfcer-spec-librarian`): `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_{xdp_packaging,static_vs_dynamic_rendering,template_layout_dom,layout_algorithm,data_binding_normal}.md`; its gap IDs G-X/S/T/L/B are the arc's default-decisions list. Spec slice still owed: SOM expressions, then table/row layout. Arc-wide acceptance: (1) opening never rewrites structure (§5); (2) layout inferred at render time is rule-4 disclosed; (3) content a dynamic form drops on overflow is disclosed, which the spec only warns about; (4) no external XFA code is relied on.)
 

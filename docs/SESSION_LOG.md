@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-31 (1349th filing) — `v0.110.0` PUBLISHED (CI green at the tag); `X025` closed
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`v0.110.0` publication.** Annotated tag on `5c296530` (1348th filing commit), pushed with `main`. Build `D:\builds\pdfcer-20261031-0451-5c29653` (56,514,399 bytes total; `pdfcer.exe` 40,589,824). GitHub release: 8 assets at local sizes (`pdfcer-v0.110.0-windows-x64.zip` 28,222,569 bytes, sha256 prefix `537cfa9c0963`; `ocr-addon-ocrcer/ocrs/tesseract` zips; 4 `.sha256`).
+- **Smoke (`D:\builds\smoke-v0110`):** `--version` 0.110.0, revision `v0.110.0`; `xfa-layout --help` documents `fragment`.
+- **`verify-release.py`:** all ok (tag pushed, main contains tag, assets, CI GREEN at the tag, CLI on OneDrive, previous kept) except "working tree clean" (agent-memory edits plus three untracked files not the engineer's: root `-`, `docs/research/request-3d-views-iso-corners.md`, `docs/research/request-prc-compact-tessellation.md`; the known case).
+- **OneDrive:** `pdfcer1` = 0.110.0 (6 items, 76,137,435 bytes); `pdfcer2` keeps 0.109.0. Next release writes `pdfcer2`.
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.110.0 published.
+- **Channel:** `reply_X025_xfa_growable_field_splits_SHIPPED.md` (renamed from PLANNED) and `notice_2026-10-31_v0.110.0_released.md` in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`. `X025` closed.
+- ROADMAP: publication entry added; prep entry and `647.2b` Shipped entry amended "released"; Next up banner rewritten (release done, slot `pdfcer2` next). FEATURES: `647.2b` row says released in `v0.110.0`.
+
+**Decisions made this session:** none minted.
+
+**Hard-rule-11 survivors:** "release pending" wording for `647.2b` fixed in FEATURES, its Shipped entry, and the prep entry (amended). The 1347th/1348th SESSION_LOG entries ("unreleased", "Reply owed") are history, left as filed. `docs/NEXT_SESSION.md` (engineer-owned) not swept or edited. Backup currency not verifiable from here.
+
+**Still in flight:** nothing mid-Pass.
+
+**For next session:** `Pass 647.3e` (`G248` items 2-3), then `648.6` (`G245` part 2, spec RAG first). The three untracked files and agent-memory dirt remain the operator's to dispose of.
+
 ## 2026-10-31 (1348th filing) — `v0.110.0` release PREP, bump `d898e049`
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
