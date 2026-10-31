@@ -831,7 +831,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-3d"
-version = "0.108.0"
+version = "0.109.0"
 dependencies = [
  "flate2",
  "pdfcer-json",
@@ -842,7 +842,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-cli"
-version = "0.108.0"
+version = "0.109.0"
 dependencies = [
  "clap",
  "clipboard-win",
@@ -859,11 +859,11 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-color"
-version = "0.108.0"
+version = "0.109.0"
 
 [[package]]
 name = "pdfcer-core"
-version = "0.108.0"
+version = "0.109.0"
 dependencies = [
  "aes",
  "cbc",
@@ -901,7 +901,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-fetch"
-version = "0.108.0"
+version = "0.109.0"
 dependencies = [
  "sha2",
  "thiserror",
@@ -910,7 +910,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-fonts"
-version = "0.108.0"
+version = "0.109.0"
 dependencies = [
  "pdfcer-model",
  "thiserror",
@@ -918,7 +918,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-function"
-version = "0.108.0"
+version = "0.109.0"
 dependencies = [
  "pdfcer-model",
  "thiserror",
@@ -926,7 +926,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-image-codec"
-version = "0.108.0"
+version = "0.109.0"
 dependencies = [
  "hayro-ccitt",
  "hayro-jbig2",
@@ -938,14 +938,14 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-json"
-version = "0.108.0"
+version = "0.109.0"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "pdfcer-model"
-version = "0.108.0"
+version = "0.109.0"
 dependencies = [
  "aes",
  "brotli",
@@ -959,7 +959,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-ocr-host"
-version = "0.108.0"
+version = "0.109.0"
 dependencies = [
  "pdfcer-core",
  "thiserror",
@@ -967,7 +967,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-pkix"
-version = "0.108.0"
+version = "0.109.0"
 dependencies = [
  "pdfcer-model",
  "thiserror",
@@ -975,7 +975,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-print"
-version = "0.108.0"
+version = "0.109.0"
 dependencies = [
  "pdfcer-core",
  "pdfcer-render",
@@ -986,7 +986,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-render"
-version = "0.108.0"
+version = "0.109.0"
 dependencies = [
  "flate2",
  "icccer-cmm",
@@ -1006,7 +1006,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-text"
-version = "0.108.0"
+version = "0.109.0"
 dependencies = [
  "pdfcer-fonts",
  "pdfcer-model",

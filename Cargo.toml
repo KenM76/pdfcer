@@ -96,7 +96,7 @@ exclude = [
 # Fields inherited by every member via `<field>.workspace = true`, so the
 # version/edition/MSRV are set in exactly one place.
 [workspace.package]
-version = "0.108.0"
+version = "0.109.0"
 edition = "2024"
 # MSRV (minimum supported Rust version) — docs/ARCHITECTURE.md §2.1a asked
 # for this to be set at Pass 0, and to be re-checked against the candidate
@@ -128,7 +128,7 @@ license = "MIT"
 [workspace.dependencies]
 # A version beside the path is what `cargo package` needs; bump it with
 # [workspace.package] version or the next build fails to resolve.
-pdfcer-model = { path = "crates/pdfcer-model", version = "0.108.0" }
+pdfcer-model = { path = "crates/pdfcer-model", version = "0.109.0" }
 # Internal path dependencies, declared once here and referenced by members
 # with `pdfcer-core.workspace = true` etc. External crates (thiserror, eframe,
 # rfd, clap) are declared in the individual member manifests that use them.
