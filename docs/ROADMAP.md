@@ -112,7 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.111.0` — release PREP, version bump `01cddb14` (`chore`), 2026-10-31 (1354th filing); NOT yet tagged, packaged or published
+### `v0.111.0` — PUBLISHED, 2026-10-31 (1355th filing)
+
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Release record for the prep filed below (1354th, bump `01cddb14`).
+- **Tag:** annotated `v0.111.0` on `f7b50b50` (the 1354th filing commit, also HEAD), pushed with `main`.
+- **Contents:** `Pass 647.3e` (`53f4e938`, doc fix `d4ffa8fd`; `G248` items 2-3) and `Pass 647.2c` (`ead2642a`; `X026`), plus their filings and the bump `01cddb14`.
+- **Packaging:** build `D:\builds\pdfcer-20261031-0804-f7b50b5` (TOTAL 56,553,286 bytes; `pdfcer.exe` 40,628,224). GitHub release "pdfcer v0.111.0" with 8 assets, each uploaded and verified at its local size by `tools/gh-release.py`: `pdfcer-v0.111.0-windows-x64.zip` (28,227,740 bytes), `ocr-addon-ocrcer.zip`, `ocr-addon-ocrs.zip`, `ocr-addon-tesseract.zip`, and a `.sha256` for each.
+- **Fresh-folder smoke:** `pdfcer --version` 0.111.0, revision `v0.111.0`; `inspect` and an incremental `rotate --degrees 90` on `fixtures/external/pdf20examples/PDF 2.0 image with BPC.pdf` (rc 0, 9,392-byte output, reopened as PDF 2.0); `xfa-layout` on a veraPDF 6-4-2 XFA fixture (page plus 4 items).
+- **`verify-release.py v0.111.0`:** every check ok except "working tree clean": only the known dirt (`.claude/agent-memory` edits, root `-`, two `docs/research/request-*.md` files not ours). CI completed success at `f7b50b50`.
+- **OneDrive:** deployed to `pdfcer2` (0.111.0). `pdfcer1` keeps 0.110.0 as previous. **Next release writes `pdfcer1`.**
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.111.0 published.
+- **Inbound channel** (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`): `X026` and `G248` replies renamed `_PLANNED` to `_SHIPPED`; `notice_2026-10-31_v0.111.0_released.md` written.
+- **Next up:** `Pass 648.6` (`G245` part 2, /MA measurements). `Pass 647.3f` and `Pass 647.4` stay in the Backlog.
+- **FEATURES:** the `647.3e` and `647.2c` rows say released in `v0.111.0` (were "unreleased"); no box changed. Nothing minted: no decision, no rule.
+
+### `v0.111.0` — release PREP, version bump `01cddb14` (`chore`), 2026-10-31 (1354th filing); published in the 1355th filing (entry above)
 
 Engineer-reported (shell held by the engineer; each item stated checked); nothing checked from here. Same pattern as the `v0.110.0` prep (1348th filing, `d898e049`).
 - **`01cddb14`** (`01cddb14b3c493ef21f51f5840fe042d86a54648`) "chore: bump version to 0.111.0", parent `c991317f` (the 1353rd filing): workspace version in `Cargo.toml` lines 99 and 131, `Cargo.lock`, `fuzz/Cargo.lock`; nothing else. A code commit, cited here.
@@ -24978,7 +24992,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Next up head (rewritten 1353rd filing; `Pass 647.3e` `53f4e938` and `Pass 647.2c` `ead2642a` SHIPPED, both unreleased; planned `v0.111.0`): `Pass 648.6` (`G245` part 2, spec-RAG check first).** `Pass 647.3f` (dataRef-bound and subform-set instances, residue of `647.3e`) is filed below, not yet ordered. Release slot: next release writes `pdfcer2` (`pdfcer1` holds 0.110.0, `pdfcer2` holds 0.109.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
+> **Next up head (rewritten 1355th filing; `Pass 647.3e` `53f4e938` and `Pass 647.2c` `ead2642a` SHIPPED and released in `v0.111.0`, published): `Pass 648.6` (`G245` part 2, /MA measurements, spec-RAG check first).** `Pass 647.3f` (dataRef-bound and subform-set instances, residue of `647.3e`) and `Pass 647.4` stay in the Backlog, not yet ordered. Release slot: next release writes `pdfcer1` (`pdfcer2` holds 0.111.0, `pdfcer1` holds 0.110.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
 
 (1271st filing: `Pass 646.25` (`G237`, `XfaFormKind`) SHIPPED on `5f401310`; decision 204 reopens dynamic XFA; arc `647.0`-`647.7` filed below. All Passes below are NOT STARTED. Spec source (extracted by `pdfcer-spec-librarian`): `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_{xdp_packaging,static_vs_dynamic_rendering,template_layout_dom,layout_algorithm,data_binding_normal}.md`; its gap IDs G-X/S/T/L/B are the arc's default-decisions list. Spec slice still owed: SOM expressions, then table/row layout. Arc-wide acceptance: (1) opening never rewrites structure (§5); (2) layout inferred at render time is rule-4 disclosed; (3) content a dynamic form drops on overflow is disclosed, which the spec only warns about; (4) no external XFA code is relied on.)
 

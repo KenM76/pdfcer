@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-31 (1355th filing) — `v0.111.0` PUBLISHED (CI green at the tag); `X026` and `G248` replies SHIPPED
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`v0.111.0` publication.** Annotated tag on `f7b50b50` (1354th filing commit, HEAD), pushed with `main`. Build `D:\builds\pdfcer-20261031-0804-f7b50b5` (56,553,286 bytes total; `pdfcer.exe` 40,628,224). GitHub release "pdfcer v0.111.0": 8 assets uploaded and verified at local sizes by `tools/gh-release.py` (`pdfcer-v0.111.0-windows-x64.zip` 28,227,740 bytes; `ocr-addon-ocrcer/ocrs/tesseract` zips; 4 `.sha256`).
+- **Smoke:** `--version` 0.111.0, revision `v0.111.0`; `inspect` and incremental `rotate --degrees 90` on `PDF 2.0 image with BPC.pdf` (rc 0, 9,392 bytes, reopened as PDF 2.0); `xfa-layout` on a veraPDF 6-4-2 XFA fixture (page plus 4 items).
+- **`verify-release.py`:** all ok except "working tree clean" (agent-memory edits, root `-`, two `docs/research/request-*.md`; the known case). CI success at `f7b50b50`.
+- **OneDrive:** `pdfcer2` = 0.111.0; `pdfcer1` keeps 0.110.0. Next release writes `pdfcer1`.
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.111.0 published.
+- **Channel:** `G248` and `X026` replies renamed `_PLANNED` to `_SHIPPED`; `notice_2026-10-31_v0.111.0_released.md` written (in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`).
+- ROADMAP: publication entry added; prep entry retitled "published in the 1355th filing"; Next up banner rewritten (release done, head `648.6`, slot `pdfcer1` next). FEATURES: `647.3e` and `647.2c` rows say released in `v0.111.0` (were "unreleased"); no box changed.
+
+**Decisions made this session:** none minted.
+
+**Hard-rule-11 survivors:** the two "unreleased" FEATURES rows, fixed. The 1353rd/1354th SESSION_LOG entries and the `647.2c`/`647.3e` Shipped entries' "unreleased" wording are history, left as filed. `docs/NEXT_SESSION.md` (engineer-owned) not swept. Backup currency not verifiable from here.
+
+**Still in flight:** nothing mid-Pass.
+
+**For next session:** `Pass 648.6` (`G245` part 2, /MA measurements, spec RAG first). The agent-memory dirt, root `-` and the two research request files remain the operator's to dispose of.
+
 ## 2026-10-31 (1354th filing) — `v0.111.0` release PREP, bump `01cddb14`; prepared, not published
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
