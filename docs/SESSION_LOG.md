@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-31 (1358th filing) — `v0.112.0` release PREP, bump `807c274b`; prepared, not published
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`cb525cf9`** "xfa: paint module scope names shapes, dashes and rotate": doc-comment only; `xfa/paint.rs` module header now names shapes, dashed or 3-D edges and rotation. Closes the 1357th filing's owed stale-docs note (the `PaintNoteKind::Stroke` rustdoc was already done in `96af5ff3`).
+- **`807c274b`** "chore: bump version to 0.112.0": workspace 0.111.0 to 0.112.0; `Cargo.lock`, `fuzz/Cargo.lock` refreshed.
+- **Contents of `v0.112.0`:** `Pass 647.4b` (`96af5ff3`, `X027`) plus the two commits above. Target OneDrive slot `pdfcer1` (alternation from `pdfcer2`). **Status: prepared, not tagged, packaged or published.**
+- ROADMAP: prep entry added at the top of Shipped. FEATURES: no change; the "unreleased, planned for v0.112.0" rows are updated at publication.
+
+**Decisions made this session:** none minted.
+
+**Hard-rule-11 survivors:** none new; the doc-comment claim swept in the 1357th is now fixed at source. `docs/NEXT_SESSION.md` (engineer-owned) not swept. Backup currency not verifiable from here.
+
+**Still in flight:** the release itself.
+
+**For next session:** gates, tag, package, smoke, publish, verify `v0.112.0` (slot `pdfcer1`), then a publication filing; then `Pass 648.6`.
+
 ## 2026-10-31 (1357th filing) — `Pass 647.4b` SHIPPED `96af5ff3` (`X027`): XFA draw shapes, dashed edges, rotate
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**

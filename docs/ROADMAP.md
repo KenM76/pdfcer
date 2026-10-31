@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.112.0` — release PREP, version bump `807c274b` (`chore`), 2026-10-31 (1358th filing); prepared, not published
+
+Engineer-reported (shell held by the engineer; each item stated checked); nothing checked from here. Same pattern as the `v0.111.0` prep (1354th filing, `f7b50b50`).
+- **`807c274b`** "chore: bump version to 0.112.0": workspace version 0.111.0 to 0.112.0; `Cargo.lock` and `fuzz/Cargo.lock` refreshed. A code commit, cited here.
+- **`cb525cf9`** "xfa: paint module scope names shapes, dashes and rotate": doc-comment-only follow-up to `Pass 647.4b`; the `xfa/paint.rs` module header now lists shapes, dashed or 3-D edges and rotation in scope. Discharges the stale-crate-docs note owed to the engineer in the 1357th filing; the `PaintNoteKind::Stroke` rustdoc was already updated in `96af5ff3`.
+- **Carried since `v0.111.0`:** `Pass 647.4b` (`96af5ff3`, `X027`), plus its filings (1356th, 1357th), `cb525cf9` and the bump.
+- **Target:** OneDrive slot `pdfcer1` (holds 0.110.0, the older; `pdfcer2` holds 0.111.0).
+- **Release plan (to run, NOT claimed done):** gates, tag, packaging, fresh-folder smoke, GitHub release assets, OneDrive deploy to `pdfcer1`, `verify-release.py v0.112.0`, crates.io publish. A later publication filing records the results.
+- **FEATURES:** no change now. The rows marked "unreleased, planned for v0.112.0" are updated only at publication. Nothing minted: no decision, no rule.
+
 ### `96af5ff3` `Pass 647.4b` SHIPPED, 2026-10-31: XFA geometric draw values, dashed edges, rotate (`X027`; 1357th filing)
 
 Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Commit `96af5ff3`, "xfa: draw shapes, dashed edges and rotate (Pass 647.4b, X027)", parent `a2b44aca` (the 1356th filing, where it was filed). On `main`, **unreleased**; release `v0.112.0` (slot `pdfcer1`) is a separate filing. No decision or rule minted. Reasoning is in the commit message. The "layout footprint of a rotated item" question filed as owed in the 1356th filing was settled at build: layout sees the turned extent (below).
