@@ -212,3 +212,60 @@ fn an_empty_decoration_adds_nothing() {
     );
     assert!(!s.can_undo());
 }
+
+#[test]
+fn a_print_fork_is_decorated_and_the_open_session_is_untouched() {
+    let mut s = session();
+    s.stamp_running_text(&RunningText::new(RunningTextKind::Header, "Mine"))
+        .expect("an edit made before printing");
+    let before = s
+        .to_incremental_bytes(&SaveOptions::identity())
+        .expect("save")
+        .0;
+    let mut d = PrintDecoration::default();
+    d.running_text
+        .push(RunningText::new(RunningTextKind::Footer, "Printed"));
+    d.marks = Some(PrinterMarks::all("a.pdf"));
+    let (fork, report) = s.decorated_for_print(&d).expect("decorated");
+    assert_eq!(report.running_text.len(), 1);
+
+    assert_eq!(s.undo_depth(), 1);
+    assert_eq!(
+        s.to_incremental_bytes(&SaveOptions::identity())
+            .expect("save")
+            .0,
+        before
+    );
+    assert_eq!(
+        s.pages().expect("pages")[0].media_box,
+        rect(0.0, 0.0, 300.0, 200.0)
+    );
+
+    assert_eq!(fork.undo_depth(), 2);
+    assert_ne!(
+        fork.pages().expect("pages")[0].media_box,
+        rect(0.0, 0.0, 300.0, 200.0)
+    );
+    let doc = saved(&fork);
+    let pages = page_tree::pages(&doc).expect("pages");
+    let runs = text_extract::extract_page(&doc, &pages[0], 0, &ExtractOptions::default())
+        .expect("extract")
+        .runs;
+    assert!(
+        runs.iter().any(|r| r.text == "Mine"),
+        "the fork keeps the open edits"
+    );
+    assert!(runs.iter().any(|r| r.text == "Printed"));
+}
+
+#[test]
+fn a_refused_print_fork_leaves_the_open_session_alone() {
+    let s = session();
+    let mut d = PrintDecoration::default();
+    d.marks = Some(PrinterMarks::none(""));
+    assert!(s.decorated_for_print(&d).is_err());
+    assert!(!s.can_undo());
+    let fork = s.fork_for_print();
+    assert!(!fork.can_undo());
+    assert_eq!(fork.pages().expect("pages").len(), 2);
+}

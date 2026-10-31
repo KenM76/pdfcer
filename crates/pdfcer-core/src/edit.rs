@@ -10249,8 +10249,9 @@ pub struct OcrPageLayer<'a> {
 pub struct EditSession {
     /// The base revision. Never mutated; every `ByteSpan` in the
     /// document indexes into its retained buffer, which is what keeps
-    /// verbatim re-emission available for untouched objects.
-    base: Document,
+    /// verbatim re-emission available for untouched objects. Shared with
+    /// any [`Self::fork_for_print`] copy, which is why it is never mutated.
+    base: std::sync::Arc<Document>,
     /// Current value of every object an edit has touched. An id absent
     /// here reads through to `base`.
     state: BTreeMap<ObjId, Object>,
@@ -10505,7 +10506,7 @@ impl EditSession {
         #[cfg(debug_assertions)]
         let walkable = page_tree::pages(&doc).is_ok();
         Self {
-            base: doc,
+            base: std::sync::Arc::new(doc),
             state: BTreeMap::new(),
             deleted: BTreeSet::new(),
             trailer,
@@ -10662,14 +10663,14 @@ impl EditSession {
     /// — the renderer, the page-tree walk, the writer's span lookups —
     /// wants exactly this.
     #[must_use]
-    pub const fn document(&self) -> &Document {
+    pub fn document(&self) -> &Document {
         &self.base
     }
 
     /// Give the base document back, discarding any unsaved edits.
     #[must_use]
     pub fn into_document(self) -> Document {
-        self.base
+        std::sync::Arc::try_unwrap(self.base).unwrap_or_else(|shared| (*shared).clone())
     }
 
     /// The current value of `id`: the session's overlay if an edit
@@ -13024,7 +13025,7 @@ impl EditSession {
         // (decrypt-in-place at load); dropping the `/Encrypt` field makes the
         // base a genuine plaintext document, so save_full_encrypted's
         // "already encrypted, refuse" guard is correct to pass.
-        self.base.clear_encryption();
+        std::sync::Arc::make_mut(&mut self.base).clear_encryption();
         crate::writer::save_full_encrypted(
             &self.base,
             &self.save_dirty_set(options),
@@ -13074,7 +13075,7 @@ impl EditSession {
         // trailer carrying `/Encrypt`, which the save-time trailer diff would
         // then re-add as an operator change — exactly the drift the dirty set
         // computes against the base to avoid.
-        self.base.clear_encryption();
+        std::sync::Arc::make_mut(&mut self.base).clear_encryption();
         self.trailer.remove(b"Encrypt");
         crate::writer::save_full_decrypted(&self.base, &self.save_dirty_set(options), options)
             .map_err(EncryptError::Write)
@@ -14899,7 +14900,7 @@ impl EditSession {
         if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(OlError::Encrypted);
         }
-        let census = crate::signature::census(&self.base);
+        let census = crate::signature::census(&*self.base);
         if census.forbids_structural_change() {
             return Err(OlError::CertificationForbidsChange {
                 permission: census.certification_permission.unwrap_or(2),
@@ -27449,7 +27450,8 @@ impl EditSession {
         if !self.deleted.is_empty() {
             return true;
         }
-        let (Ok(before), Ok(after)) = (page_tree::page_slots(&self.base), self.page_slots()) else {
+        let (Ok(before), Ok(after)) = (page_tree::page_slots(&*self.base), self.page_slots())
+        else {
             // A tree that cannot be walked on one side is a change worth
             // reporting conservatively; the alternative is claiming
             // "nothing structural happened" about a document pdfcer

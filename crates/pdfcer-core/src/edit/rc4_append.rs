@@ -34,7 +34,7 @@ impl EditSession {
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn set_rc4_append(&mut self, policy: Rc4Append) {
-        self.base.set_rc4_append(policy);
+        std::sync::Arc::make_mut(&mut self.base).set_rc4_append(policy);
     }
 
     /// The RC4 append policy in force, or `None` for a plain document.

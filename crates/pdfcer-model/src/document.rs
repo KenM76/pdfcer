@@ -273,7 +273,7 @@ pub enum DocError {
 ///
 /// See the module docs for the three design commitments this type
 /// embodies (one model, retained buffer, strict eager load).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Document {
     /// The complete, untouched source bytes (the provenance substrate —
     /// every span in `objects` indexes into this).

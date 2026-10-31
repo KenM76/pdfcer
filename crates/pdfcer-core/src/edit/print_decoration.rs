@@ -74,3 +74,61 @@ impl EditSession {
         }
     }
 }
+
+impl EditSession {
+    /// **Fork for print**: an independent session showing exactly what this
+    /// one shows now, for a printed copy that is decorated and dropped.
+    ///
+    /// The fork shares the parsed base (no reparse, no re-serialise) and
+    /// copies the overlay, so it costs the edits made so far, not the
+    /// document. Edits to the fork never reach `self`, and `self` is only
+    /// borrowed: its undo/redo history, caches and checkpoints are
+    /// untouched. The fork starts with an empty history and its own
+    /// checkpoint identity. It keeps this session's settings and its
+    /// redaction state, so a fork of a session with a deferred redaction
+    /// refuses ordinary saves just as this one does.
+    #[must_use]
+    pub fn fork_for_print(&self) -> EditSession {
+        Self {
+            base: std::sync::Arc::clone(&self.base),
+            state: self.state.clone(),
+            deleted: self.deleted.clone(),
+            trailer: self.trailer.clone(),
+            next_number: self.next_number,
+            staging: self.staging.clone(),
+            structure_notes: Vec::new(),
+            undo: Vec::new(),
+            redo: Vec::new(),
+            session_serial: super::checkpoint::next_serial(),
+            evictions: 0,
+            evicted_tail: std::collections::VecDeque::new(),
+            undo_group: None,
+            page_import: None,
+            quad_point_order: self.quad_point_order,
+            redact_options: self.redact_options,
+            widget_tab_tail: self.widget_tab_tail,
+            tab_row_tolerance: self.tab_row_tolerance,
+            page_objects_cache: None,
+            text_walk_cache: std::sync::Mutex::new(None),
+            redacted: self.redacted,
+            redaction_pending: self.redaction_pending,
+            #[cfg(debug_assertions)]
+            base_page_tree_walked: self.base_page_tree_walked,
+        }
+    }
+
+    /// [`Self::fork_for_print`] then [`Self::decorate_for_print`] on the
+    /// fork: the decorated printed copy, leaving `self` untouched.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::decorate_for_print`]; the fork is dropped.
+    pub fn decorated_for_print(
+        &self,
+        decoration: &PrintDecoration,
+    ) -> Result<(EditSession, PrintDecorationReport), EditError> {
+        let mut fork = self.fork_for_print();
+        let report = fork.decorate_for_print(decoration)?;
+        Ok((fork, report))
+    }
+}

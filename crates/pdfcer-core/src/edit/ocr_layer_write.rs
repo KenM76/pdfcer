@@ -22,7 +22,7 @@ impl EditSession {
         if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
             return Err(OcrLayerError::Encrypted);
         }
-        let census = crate::signature::census(&self.base);
+        let census = crate::signature::census(&*self.base);
         if census.forbids_structural_change() {
             return Err(OcrLayerError::CertificationForbidsChange {
                 permission: census.certification_permission.unwrap_or(2),
