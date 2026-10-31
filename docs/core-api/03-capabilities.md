@@ -721,11 +721,13 @@ file.
   unqualified names, `\.` escapes, `[n]` and `[*]` (the first match not yet
   bound, p.108). `..`, `#class`, `*` names, predicates and `[+n]`/`[-n]` are
   reported, not resolved.
-- **Output.** `MergedForm { template, bound: Vec<BoundValue { path, value }>,
+- **Output.** `MergedForm { template, bound: Vec<BoundValue { path, value, data }>,
   warnings: Vec<MergeWarning { path, kind, reference, by_name }>, has_data }`, all
   `#[non_exhaustive]`; `value_at(path)` looks one up. `path` uses
   `LayoutItem::path`'s convention, and a field with no `value` element gains
-  one as its last child, so layout paths do not move. An exclusion group's
+  one as its last child, so layout paths do not move. `data` is the data
+  node's path from `xfa:data` (attributes first when loaded); equal `data`
+  means one shared value. An exclusion group's
   value is set on each member (the one whose on-value matches draws on).
 - **Never a failure.** A reference that binds nothing leaves the template
   value and adds a `MergeWarningKind` (`Unresolved`, `WrongType`,
@@ -748,6 +750,10 @@ file.
   `--data-attributes`, `--global-scope`, `--global-exclgroup` set the
   options. The stderr note says how many values
   were merged.
+- **Fill.** `EditSession::fill_xfa_field` writes a value back into the
+  bound data node (02, *Forms*); CLI `xfa-fill IN --set PATH=VALUE -o OUT`
+  prints `xfa-set path= data= stream= shared_with=` per set. Show
+  `shared_with` off-canvas: other fields changed with the one edited.
 - **★ What the UI must disclose:** the merged values are the file's own
   data, but the layout they sit in is inferred (rule 4); show each merge
   warning off-canvas with the layout warnings.

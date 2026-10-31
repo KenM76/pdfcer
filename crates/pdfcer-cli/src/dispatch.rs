@@ -1390,11 +1390,7 @@ pub(crate) fn run() -> ExitCode {
             negative_coordinates,
             nested_overflow,
             page_area_keep,
-            scope_search,
-            bare_ref,
-            data_attributes,
-            global_scope,
-            global_exclgroup,
+            merge,
             png_dir,
             scale,
             edge_placement,
@@ -1412,11 +1408,7 @@ pub(crate) fn run() -> ExitCode {
                 negative_coordinates,
                 nested_overflow,
                 page_area_keep,
-                scope_search,
-                bare_ref,
-                data_attributes,
-                global_scope,
-                global_exclgroup,
+                merge,
             },
             png_dir
                 .map(|dir| XfaPngArgs {
@@ -1434,6 +1426,14 @@ pub(crate) fn run() -> ExitCode {
                 })
                 .as_ref(),
         ),
+        Command::XfaFill {
+            input,
+            sets,
+            output,
+            mode,
+            verify_undo,
+            merge,
+        } => cmd_xfa_fill(&input, &sets, &output, mode, verify_undo, merge),
         Command::AddTextField {
             input,
             name,

@@ -14,6 +14,7 @@
 //! template for layout and drawing (G-SOM5).
 
 mod data;
+pub(super) mod fill;
 mod normal;
 mod som;
 
@@ -204,6 +205,10 @@ pub struct BoundValue {
     pub path: Vec<usize>,
     /// The value it took.
     pub value: String,
+    /// The data node it took it from, as child indices from `xfa:data`
+    /// (attributes first when they are loaded). Bound values sharing a
+    /// path share one node, so a fill through one changes them all.
+    pub data: Vec<usize>,
 }
 
 /// A template with its data merged in.
@@ -276,6 +281,7 @@ pub fn merge_data(
         value: String::new(),
         children: Vec::new(),
         group: true,
+        span: data::ValueSpan::None,
     });
     let record: Vec<usize> = root
         .children
@@ -355,14 +361,7 @@ impl Merger<'_> {
             match self.lookup(&reference, scope, want_value) {
                 Ok(at) => {
                     if want_value {
-                        let value = node_at(self.root, &at)
-                            .map(|d| d.value.clone())
-                            .unwrap_or_default();
-                        set_value(node, &value);
-                        self.bound.push(BoundValue {
-                            path: path.clone(),
-                            value,
-                        });
+                        self.take_value(node, path, &at);
                     } else {
                         inner.clone_from(&at);
                     }
@@ -483,18 +482,24 @@ impl Merger<'_> {
             self.global_nodes.insert(at.clone());
         }
         if want_value {
-            let value = node_at(self.root, &at)
-                .map(|d| d.value.clone())
-                .unwrap_or_default();
-            set_value(node, &value);
-            self.bound.push(BoundValue {
-                path: path.to_vec(),
-                value,
-            });
+            self.take_value(node, path, &at);
         } else {
             inner.clone_from(&at);
         }
         self.bound_nodes.insert(at);
+    }
+
+    /// Give `node` (at `path`) the value of the data node at `at`.
+    fn take_value(&mut self, node: &mut XfaNode, path: &[usize], at: &[usize]) {
+        let value = node_at(self.root, at)
+            .map(|d| d.value.clone())
+            .unwrap_or_default();
+        set_value(node, &value);
+        self.bound.push(BoundValue {
+            path: path.to_vec(),
+            value,
+            data: at.to_vec(),
+        });
     }
 
     fn warn(&mut self, path: &[usize], kind: MergeWarningKind, name: &str) {

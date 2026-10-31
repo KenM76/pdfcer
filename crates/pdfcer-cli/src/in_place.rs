@@ -77,6 +77,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "embed-font",
     "encrypt",
     "fill-field",
+    "xfa-fill",
     "flatten",
     "flatten-annotations",
     "format-text",

@@ -10,7 +10,7 @@
 use std::ops::Range;
 
 use crate::graph::ObjectGraph;
-use crate::object::Object;
+use crate::object::{ObjId, Object};
 use crate::view::DocumentView;
 
 /// Largest XDP text accepted, summed over every packet stream.
@@ -112,11 +112,32 @@ impl XdpDocument {
 ///
 /// [`XfaError`] when the layer exists but cannot be read.
 pub fn read_xdp(view: &DocumentView<'_>) -> Result<Option<XdpDocument>, XfaError> {
+    Ok(read_xdp_sources(view)?.map(|(doc, _)| doc))
+}
+
+/// One `/XFA` packet stream and where its decoded bytes sit in the XDP text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PacketSource {
+    /// The stream object; `None` when the entry is not an indirect
+    /// reference, so no writer can replace it.
+    pub(crate) id: Option<ObjId>,
+    /// Its bytes' range in [`XdpDocument::text`].
+    pub(crate) text: Range<usize>,
+    /// It starts with a UTF-8 BOM, which the text omits.
+    pub(crate) bom: bool,
+}
+
+/// [`read_xdp`], plus each packet stream's range in the text. The sources
+/// are empty for a UTF-16 XDP, whose text offsets are not stream bytes.
+pub(crate) fn read_xdp_sources(
+    view: &DocumentView<'_>,
+) -> Result<Option<(XdpDocument, Vec<PacketSource>)>, XfaError> {
     let Some(xfa) = xfa_entry(view) else {
         return Ok(None);
     };
     let mut bytes = Vec::new();
-    for (index, stream) in packet_streams(view, xfa)?.into_iter().enumerate() {
+    let mut sources = Vec::new();
+    for (index, (id, stream)) in packet_streams(view, xfa)?.into_iter().enumerate() {
         let decoded = view
             .slice(stream.data_span)
             .and_then(|raw| crate::filters::decode_stream(&stream.dict, raw).ok())
@@ -124,30 +145,56 @@ pub fn read_xdp(view: &DocumentView<'_>) -> Result<Option<XdpDocument>, XfaError
         if bytes.len() + decoded.len() > MAX_XDP_LEN {
             return Err(XfaError::TooLarge);
         }
+        sources.push(PacketSource {
+            id,
+            text: bytes.len()..bytes.len() + decoded.len(),
+            bom: false,
+        });
         bytes.extend_from_slice(&decoded);
     }
-    parse_xdp(text_of(&bytes)?).map(Some)
+    let bom = match bytes.as_slice() {
+        [0xFE, 0xFF, ..] | [0xFF, 0xFE, ..] => None,
+        [0xEF, 0xBB, 0xBF, ..] => Some(3),
+        _ => Some(0),
+    };
+    let sources = match bom {
+        None => Vec::new(),
+        Some(n) => sources
+            .into_iter()
+            .enumerate()
+            .map(|(i, s)| PacketSource {
+                text: s.text.start.saturating_sub(n)..s.text.end.saturating_sub(n),
+                bom: i == 0 && n > 0,
+                ..s
+            })
+            .collect(),
+    };
+    Ok(Some((parse_xdp(text_of(&bytes)?)?, sources)))
 }
 
 fn xfa_entry<'a>(view: &'a DocumentView<'_>) -> Option<&'a Object> {
     let acro = view
         .resolve(view.catalog_dict()?.get(b"AcroForm")?)
         .as_dict()?;
-    Some(view.resolve(acro.get(b"XFA")?))
+    acro.get(b"XFA")
 }
 
 fn packet_streams<'a>(
     view: &'a DocumentView<'_>,
     xfa: &'a Object,
-) -> Result<Vec<&'a crate::object::Stream>, XfaError> {
-    match xfa {
-        Object::Stream(s) => Ok(vec![s]),
+) -> Result<Vec<(Option<ObjId>, &'a crate::object::Stream)>, XfaError> {
+    let id = |o: &Object| match o {
+        Object::Reference(r) => Some(*r),
+        _ => None,
+    };
+    match view.resolve(xfa) {
+        Object::Stream(s) => Ok(vec![(id(xfa), s)]),
         Object::Array(items) => items
             .iter()
             .skip(1)
             .step_by(2)
             .map(|o| match view.resolve(o) {
-                Object::Stream(s) => Ok(s),
+                Object::Stream(s) => Ok((id(o), s)),
                 _ => Err(XfaError::Malformed("a packet entry is not a stream")),
             })
             .collect(),

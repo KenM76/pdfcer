@@ -87,21 +87,46 @@ pub(crate) enum GlobalExclGroupArg {
     AsOnce,
 }
 
+/// The data-binding settings `xfa-layout` and `xfa-fill` merge with.
+#[derive(Debug, Clone, Copy, Default, clap::Args)]
+pub(crate) struct XfaMergeFlags {
+    /// Where a data reference with no leading $ finds its first name:
+    /// the current data group's children and then each enclosing
+    /// group's, as XFA 3.3 describes, or the current group's only.
+    #[arg(long, value_enum, default_value_t)]
+    pub(crate) scope_search: ScopeSearchArg,
+    /// What a bind with a ref but no match="dataRef" does: nothing, as
+    /// the XFA grammar says, or bind as a data reference.
+    #[arg(long, value_enum, default_value_t)]
+    pub(crate) bare_ref: BareRefArg,
+    /// Whether attributes in the form's data count as data values (as
+    /// XFA's default loader does) or are ignored.
+    #[arg(long, value_enum, default_value_t)]
+    pub(crate) data_attributes: DataAttributesArg,
+    /// Where a match="global" field that found no value by name looks
+    /// for the one value every copy shares: anywhere in the data, or
+    /// only outside every record (the strict XFA reading).
+    #[arg(long, value_enum, default_value_t)]
+    pub(crate) global_scope: GlobalScopeArg,
+    /// Whether match="global" on an exclusion group shares its value
+    /// like a field (honour) or binds as match="once" (as-once). XFA 3.3
+    /// says both in different places.
+    #[arg(long, value_enum, default_value_t)]
+    pub(crate) global_exclgroup: GlobalExclGroupArg,
+}
+
 /// The settings `xfa-layout` merges and lays the template with.
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct XfaLayoutArgs {
     pub(crate) negative_coordinates: NegativeCoordinatesArg,
     pub(crate) nested_overflow: NestedOverflowArg,
     pub(crate) page_area_keep: PageAreaKeepArg,
-    pub(crate) scope_search: ScopeSearchArg,
-    pub(crate) bare_ref: BareRefArg,
-    pub(crate) data_attributes: DataAttributesArg,
-    pub(crate) global_scope: GlobalScopeArg,
-    pub(crate) global_exclgroup: GlobalExclGroupArg,
+    pub(crate) merge: XfaMergeFlags,
 }
 
-impl XfaLayoutArgs {
-    fn merge(self) -> MergeOptions {
+impl XfaMergeFlags {
+    /// The core merge options these flags select.
+    pub(crate) fn options(self) -> MergeOptions {
         use pdfcer_core::xfa::{
             BareRef, DataAttributes, GlobalExclGroup, GlobalScope, ScopeSearch,
         };
@@ -127,7 +152,9 @@ impl XfaLayoutArgs {
                 GlobalExclGroupArg::AsOnce => GlobalExclGroup::AsOnce,
             })
     }
+}
 
+impl XfaLayoutArgs {
     fn options(self) -> LayoutOptions {
         use pdfcer_core::xfa::{NegativeCoordinates, NestedOverflow, PageAreaKeep};
         LayoutOptions::new()
@@ -199,7 +226,7 @@ fn read_merged(doc: &Document, args: XfaLayoutArgs) -> Result<MergedForm, String
     let template = pdfcer_core::xfa::read_template(&xdp)
         .map_err(|e| e.to_string())?
         .ok_or("the XFA form has no template packet")?;
-    pdfcer_core::xfa::merge_data(&template, &xdp, &args.merge()).map_err(|e| e.to_string())
+    pdfcer_core::xfa::merge_data(&template, &xdp, &args.merge.options()).map_err(|e| e.to_string())
 }
 
 fn print_layout(layout: &XfaLayout, merged: &MergedForm) {

@@ -211,6 +211,7 @@ mod svg;
 mod threed_opening;
 mod threed_poster;
 mod threed_views;
+mod xfa_fill;
 
 pub use button_icon::ButtonIconEdit;
 use checkpoint::Entry;
@@ -764,6 +765,9 @@ pub enum CommandKind {
     /// regenerated (Pass 7, §12.7.3.3). One fill — the field's `/V` and
     /// every widget's `/AP` — is one undo entry.
     FillTextField,
+    /// [`EditSession::fill_xfa_field`] rewrote one data value in an XFA
+    /// form's `datasets` packet.
+    FillXfaField,
     /// [`EditSession::reset_form`] — §12.7.5.3.
     ResetForm,
     /// [`EditSession::remove_metadata`] removed metadata items, with the
@@ -9944,6 +9948,10 @@ pub enum EditError {
     /// ([`EditSession::stamp_bates`]).
     #[error(transparent)]
     Bates(#[from] crate::bates::BatesError),
+    /// An XFA field value that cannot be written
+    /// ([`EditSession::fill_xfa_field`]).
+    #[error(transparent)]
+    XfaFill(#[from] crate::xfa::XfaFillError),
     /// A 3D model that cannot be embedded
     /// ([`EditSession::add_3d_annotation`]).
     #[error(transparent)]

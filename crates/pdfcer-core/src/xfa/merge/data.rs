@@ -2,6 +2,8 @@
 //! packet as groups and values (XFA 3.3 Ch.4 pp.97-100, p.202;
 //! `adobe_ext__xfa_som_data_binding.md` §7).
 
+use std::ops::Range;
+
 use super::super::packets::{MAX_XML_DEPTH, XfaError};
 use super::DataAttributes;
 
@@ -20,6 +22,27 @@ pub(super) struct DataNode {
     /// Loaded attributes first, then elements (p.100 Ex 3.20).
     pub(super) children: Vec<DataNode>,
     pub(super) group: bool,
+    /// Where the value's text sits in the XDP text, for a fill to replace.
+    pub(super) span: ValueSpan,
+}
+
+/// The bytes of the XDP text a new value replaces.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub(crate) enum ValueSpan {
+    /// A group, or a node not read from the text.
+    #[default]
+    None,
+    /// An attribute's value, between its quotes.
+    Attribute(Range<usize>),
+    /// An element's content, between its start and end tags (empty when
+    /// it has none: `<a></a>`).
+    Content(Range<usize>),
+    /// A self-closing element (`<a/>`), the whole element: a fill rewrites
+    /// it as `<qname>value</qname>`.
+    Empty {
+        element: Range<usize>,
+        qname: String,
+    },
 }
 
 /// The `xfa:data` element of `doc` as the Data DOM root, or `None` when the
@@ -64,6 +87,7 @@ fn convert(
         value: String::new(),
         children: Vec::new(),
         group: false,
+        span: content_span(node),
     };
     if attributes == DataAttributes::Load {
         // Namespaced attributes (`xfa:dataNode`, `xmlns`) direct the loader;
@@ -75,6 +99,7 @@ fn convert(
                 value: a.value().to_owned(),
                 children: Vec::new(),
                 group: false,
+                span: ValueSpan::Attribute(a.range_value()),
             });
         }
     }
@@ -96,8 +121,38 @@ fn convert(
     };
     if out.group {
         out.value.clear();
+        out.span = ValueSpan::None;
     }
     Ok(out)
+}
+
+fn content_span(node: roxmltree::Node<'_, '_>) -> ValueSpan {
+    let range = node.range();
+    if let (Some(first), Some(last)) = (node.first_child(), node.last_child()) {
+        return ValueSpan::Content(first.range().start..last.range().end);
+    }
+    let text = node
+        .document()
+        .input_text()
+        .get(range.clone())
+        .unwrap_or("");
+    if text.ends_with("/>") {
+        let qname = text
+            .get(1..)
+            .unwrap_or("")
+            .split(|c: char| c.is_whitespace() || c == '/' || c == '>')
+            .next()
+            .unwrap_or("")
+            .to_owned();
+        return ValueSpan::Empty {
+            element: range,
+            qname,
+        };
+    }
+    match text.rfind("</") {
+        Some(at) => ValueSpan::Content(range.start + at..range.start + at),
+        None => ValueSpan::None,
+    }
 }
 
 fn take(budget: &mut usize) -> Result<(), XfaError> {

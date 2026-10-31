@@ -425,3 +425,31 @@ fn a_global_name_with_only_a_group_warns_wrong_type() {
     assert!(m.bound.is_empty());
     assert_eq!(m.warnings[0].kind, MergeWarningKind::WrongType);
 }
+
+#[test]
+fn every_value_records_its_data_node_and_span() {
+    let data = r#"<data k="7"><a>one</a><b/><c></c><a>two</a></data>"#;
+    let x = xdp("", data);
+    let doc = parse_xml(x.text()).unwrap();
+    let root = data::read_data(&doc, DataAttributes::Load)
+        .unwrap()
+        .unwrap();
+    let rec = &root.children[0];
+    let text = x.text();
+    let span_text = |s: &data::ValueSpan| match s {
+        data::ValueSpan::Attribute(r) | data::ValueSpan::Content(r) => text[r.clone()].to_owned(),
+        data::ValueSpan::Empty { element, qname } => format!("{qname}|{}", &text[element.clone()]),
+        data::ValueSpan::None => "none".to_owned(),
+    };
+    let got: Vec<String> = rec.children.iter().map(|c| span_text(&c.span)).collect();
+    assert_eq!(got, ["7", "one", "b|<b/>", "", "two"]);
+    assert_eq!(span_text(&rec.span), "none");
+    if let data::ValueSpan::Content(r) = &rec.children[3].span {
+        assert_eq!(&text[r.start..r.start + 4], "</c>");
+    }
+
+    let body = r#"<field name="a"/><field name="a"/><field name="c"/>"#;
+    let m = merged(body, data);
+    let paths: Vec<&[usize]> = m.bound.iter().map(|b| b.data.as_slice()).collect();
+    assert_eq!(paths, [&[0, 1][..], &[0, 4], &[0, 3]]);
+}

@@ -60,6 +60,46 @@ fn an_array_concatenates_and_trusts_the_element_over_the_label() {
 }
 
 #[test]
+fn each_source_maps_its_stream_to_its_text() {
+    let (a, rest) = XDP.split_at(XDP.find("<template").unwrap());
+    let (b, c) = rest.split_at(rest.find("<xfa:datasets").unwrap());
+    let doc = doc_with(
+        "[(preamble) 4 0 R (template) 5 0 R (postamble) 6 0 R]",
+        &[(4, stream(a)), (5, stream(b)), (6, stream(c))],
+    );
+    let (xdp, sources) = read_xdp_sources(&doc.view()).unwrap().unwrap();
+    let got: Vec<(u32, &str)> = sources
+        .iter()
+        .map(|s| (s.id.unwrap().num, &xdp.text()[s.text.clone()]))
+        .collect();
+    assert_eq!(got, [(4, a), (5, b), (6, c)]);
+
+    // A UTF-8 BOM is not text; the first range starts after it.
+    let bom = format!("\u{FEFF}{XDP}");
+    let doc = doc_with("4 0 R", &[(4, stream(&bom))]);
+    let (xdp, sources) = read_xdp_sources(&doc.view()).unwrap().unwrap();
+    assert_eq!(&xdp.text()[sources[0].text.clone()], XDP);
+
+    // UTF-16 text offsets are not stream bytes: no sources.
+    let mut hex = String::from("FEFF");
+    for u in XDP.encode_utf16() {
+        hex.push_str(&format!("{u:04X}"));
+    }
+    hex.push('>');
+    let obj = format!(
+        "<< /Length {} /Filter /ASCIIHexDecode >>
+stream
+{hex}
+endstream",
+        hex.len()
+    );
+    let doc = doc_with("4 0 R", &[(4, obj)]);
+    let (xdp, sources) = read_xdp_sources(&doc.view()).unwrap().unwrap();
+    assert!(xdp.packet_text("template").is_some());
+    assert!(sources.is_empty());
+}
+
+#[test]
 fn no_xfa_layer_reads_as_none() {
     let doc = build_pdf(&[
         (1, "<< /Type /Catalog /Pages 2 0 R >>"),

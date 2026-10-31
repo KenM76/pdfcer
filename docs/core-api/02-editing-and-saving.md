@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 388 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 389 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 388 public `EditSession` methods
+## 1. Verb index — all 389 public `EditSession` methods
 
-**Count: 388.** Established by brace-matched extraction of the
+**Count: 389.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -2140,6 +2140,7 @@ would alter how every pdfcer-authored check box already in the wild renders.
 | Remove stored password values | `purge_password_values(&mut self) -> Result<PasswordPurgeOutcome, EditError>` | §12.7.4.3 Table 228 bit 14. For each Password text field whose OWN dict holds a non-empty `/V`: removes `/V`, redraws every widget appearance empty, and removes superseded appearance objects no live object still references. ONE undoable command; nothing to purge commits nothing. `PasswordPurgeOutcome { fields_purged, read_only_purged, inherited_not_removed, appearance_objects_removed, layout }` (`#[non_exhaustive]`, `changed()`): read-only fields ARE purged and named; a value inherited from an ancestor's `/V` (§12.7.3.1) is NOT removed (the ancestor may carry other values) and is named. Cleans the session only — save with `to_full_bytes_decomposing_containers`, then re-check the bytes with `scan_stored_password_values`. Errors: the fill guards (certification/encryption). |
 | Make inline `/DR` fonts indirect | `promote_inline_dr_fonts(&mut self) -> Result<usize, EditError>` | Moves each inline dictionary in `/AcroForm /DR /Font` into a new indirect object and points the key at it; returns how many moved. Acrobat draws nothing for a filled text field whose `/DA` font is an inline `/DR` dictionary (G068); this repairs forms saved before pdfcer made its own `/DR` fonts indirect, or by another producer. Keys, font dictionaries and every `/DA` resolution are unchanged, so rendering is unchanged; the only other visible effect is the incremental revision itself (one new object per font, plus a rewrite of whichever object holds `/DR /Font`), which a signature viewer reports like any post-signing change. Entries already indirect are left alone. ONE undoable command (`CommandKind::PromoteInlineDrFonts`); nothing inline commits nothing and returns 0. Errors: the fill guards (encryption, enforced certification, hidden objects), `ObjectNumbersExhausted`. CLI: `promote-dr-fonts`. |
 | Fill a rich-text field, downgrading it | `fill_text_field_downgrading_rich_text(&mut self, fqn, text) -> Result<FillOutcome, EditError>` | **Lossy and deliberate** — clears `/Ff` bit 26, deletes `/RV`. |
+| Fill an **XFA** field | `fill_xfa_field(&mut self, path: &[usize], value, &MergeOptions) -> Result<XfaFillOutcome, EditError>` | `path` is the template path (`LayoutItem::path`, as `xfa-layout` prints it). Writes `value` (XML-escaped, no picture formatting) into the data node the field or exclusion group is bound to under the options (XFA 3.3 Ch.9 p.343), so it reads back through `merge_data`; only that node's text in the `datasets` packet changes, every other XDP byte is kept, and a packet stream keeps a UTF-8 BOM. The rewritten stream is FlateDecode if it had any filter, else unfiltered. ONE undoable command (`CommandKind::FillXfaField`). `XfaFillOutcome { stream, data, shared_with }` (`#[non_exhaustive]`): `shared_with` lists the other bound containers on the same node (global binding, a shared `dataRef`), which show the value too. Errors: `EditError::XfaFill(XfaFillError)` = `NoXfa`, `Unbound` (no data node yet; creating one is not done), `Utf16`, `SplitAcrossStreams`, `DirectStream`, `Xfa`. CLI: `xfa-fill`. |
 | Select a check box / radio state | `set_button_state(&mut self, fqn, on_state) -> Result<(), EditError>` | Sets `/V` + every widget `/AS`. No regeneration. |
 | Preview a form reset | `reset_preview(&self, only: Option<&[String]>) -> Vec<ResetPreviewRow>` | Rows for **every** field in scope, including ineligible and already-at-default ones. Filtering is the shell's job. |
 | List the document's **metadata** (`G164`) | `metadata_inventory(&self) -> doc_metadata::MetadataInventory` | Read-only; also `pdfcer_core::doc_metadata::metadata_inventory(&DocumentView, file_bytes)`. One `MetadataItem { id, kind, location, preview, bytes }` per removable carrier, in this order: each `/Info` entry (§14.3.3), the catalog's XMP `/Metadata` (§14.3.2), every other object's `/Metadata` (`ObjectXmp`), `/PieceInfo` (§14.5), page `/Thumb` (§12.3.4), JavaScript in `/OpenAction`, `/A` and `/AA` (following `/Next`, §12.6.4.17) and the `/Names /JavaScript` tree, embedded files (§7.11.4), comments (every annotation except Link, Widget, Popup, PrinterMark, TrapNet, Watermark, 3D, RichMedia, Screen, Movie, Sound), optional-content groups hidden in the default configuration (§8.11.4.3), filled form data, earlier revisions (incremental updates, §7.5.6) and the trailer `/ID` (§14.4). `MetadataKind` (12 variants, `as_str()` → `info`, `document-xmp`, `object-xmp`, `pieceinfo`, `thumbnail`, `javascript`, `attachment`, `comment`, `hidden-layer`, `form-data`, `earlier-revisions`, `document-id`; `MetadataKind::ALL`). `preview` is at most 80 characters of decoded text; `bytes` the serialised (or decoded stream) size. `MetadataItemId` is a stable text id (`info/<key>`, `xmp/N-G`, `pieceinfo/N-G`, `thumb/N-G`, `js/N-G/OpenAction`, `js/N-G/A`, `js/N-G/AA/<key>`, `js/names`, `attachment/<name>`, `comment/N-G`, `layer/N-G`, `form-data`, `revisions`, `document-id`), `Display`/`as_str()`/`new()`, so a shell can store it and pass it back. `MetadataInventory { items, truncated }` (`#[non_exhaustive]`); `truncated` = the object walk hit its budget. CLI: `pdfcer list-metadata IN [--json]`. |
@@ -5863,7 +5864,7 @@ upgrades it to **prevention** (`edit.rs`).
 |---|---|
 | **Strict** `check_certification` | all 11 vector verbs (via `vector_surgery`); all 5 field-creation verbs (via `field_authoring_preflight`); `delete_field`, `delete_widget`, `move_widget` (via `deletion_preflight`); `delete_field_group`, `field_group_deletion_preview`; `rename_field`; `flatten_fields`; `delete_pages_with`; `reorder_pages`; `rotate_pages`; all 11 ce-dimension verbs; `unembed_refusal`; `embed_refusal`; `add_image`; `deletion_refusal`/`rename_refusal` (via `structural_form_refusal`) |
 | **Annotation** | `add_markup`; `attach_file`; `add_file_attachment_annotation`; `add_caret_annotation`; `add_replace_text`; `add_sound_annotation`; `add_screen_annotation`; `detach_file`; `add_redaction`; `delete_redaction_mark`; `delete_annotation`+`annotation_deletion_preview` (via `annotation_deletion_guards`); `annotation_deletion_refusal`; the three `mark_redactions_*` (via `author_text_matches`); `add_text_annotation` |
-| **Fill** | `fill_text_field`, `fill_text_field_downgrading_rich_text`, `reset_form`, `set_choice_value`, `regenerate_appearances` (via `fill_guards`); `set_button_state`; `fill_refusal` |
+| **Fill** | `fill_text_field`, `fill_xfa_field`, `fill_text_field_downgrading_rich_text`, `reset_form`, `set_choice_value`, `regenerate_appearances` (via `fill_guards`); `set_button_state`; `fill_refusal` |
 | **None** | `set_info_field` (deliberate — argued at `edit.rs` as an owed decision, not an oversight); `set_page_rotation`; `rotate_page_by`; `delete_pages` (encryption-ungated too) |
 
 ★ **The singular/plural page verbs diverge.** `rotate_pages` (plural)
@@ -6015,10 +6016,10 @@ borrow it (`tests/image_placement.rs`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**187 variants**, counted at depth 1 inside `pub enum EditError`.
+**188 variants**, counted at depth 1 inside `pub enum EditError`.
 `RunningText(RunningTextError)` wraps `stamp_running_text`'s request errors.
 `PrinterMarks(PrinterMarksError)` wraps `add_printer_marks`'s request errors.
-(`NotARadioGroup` and `WidgetAlreadyInField`, Pass 582.0, are the newest; `SourcePageOutOfRange`: a SOURCE document's page index, kept
+(`XfaFill`, Pass 647.3d, is the newest; `SourcePageOutOfRange`: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 
 `Pass 270.2` added `AnnotationContentsLocked` — **Table 165 bit 10,

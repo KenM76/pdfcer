@@ -253,6 +253,7 @@ kind_codec! {
     EditFormField,
     EditWidget,
     FillTextField,
+    FillXfaField,
     ResetForm,
     RemoveMetadata,
     PurgePasswordValues,

@@ -599,6 +599,8 @@ mod fields_fill;
 use fields_fill::*;
 mod fields_list;
 use fields_list::*;
+mod xfa_fill;
+use xfa_fill::*;
 mod xfa_layout;
 use xfa_layout::*;
 mod xfa_png;

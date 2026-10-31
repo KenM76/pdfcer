@@ -6205,29 +6205,8 @@ pub(crate) enum Command {
         /// XFA 3.3 defines it, or ignored, as Adobe's processor does.
         #[arg(long, value_enum, default_value_t)]
         page_area_keep: PageAreaKeepArg,
-        /// Where a data reference with no leading $ finds its first name:
-        /// the current data group's children and then each enclosing
-        /// group's, as XFA 3.3 describes, or the current group's only.
-        #[arg(long, value_enum, default_value_t)]
-        scope_search: ScopeSearchArg,
-        /// What a bind with a ref but no match="dataRef" does: nothing, as
-        /// the XFA grammar says, or bind as a data reference.
-        #[arg(long, value_enum, default_value_t)]
-        bare_ref: BareRefArg,
-        /// Whether attributes in the form's data count as data values (as
-        /// XFA's default loader does) or are ignored.
-        #[arg(long, value_enum, default_value_t)]
-        data_attributes: DataAttributesArg,
-        /// Where a match="global" field that found no value by name looks
-        /// for the one value every copy shares: anywhere in the data, or
-        /// only outside every record (the strict XFA reading).
-        #[arg(long, value_enum, default_value_t)]
-        global_scope: GlobalScopeArg,
-        /// Whether match="global" on an exclusion group shares its value
-        /// like a field (honour) or binds as match="once" (as-once). XFA 3.3
-        /// says both in different places.
-        #[arg(long, value_enum, default_value_t)]
-        global_exclgroup: GlobalExclGroupArg,
+        #[command(flatten)]
+        merge: XfaMergeFlags,
         /// Also draw each computed page to page-NNN.png in this folder
         /// (created if missing). Borders, fills, plain text, captions and
         /// images only; everything not drawn exactly is listed as a
@@ -6280,6 +6259,45 @@ pub(crate) enum Command {
         /// against the far edge.
         #[arg(long, value_enum, default_value_t)]
         check_caption: CheckCaptionArg,
+    },
+
+    /// Write a value into an XFA form field and save.
+    ///
+    /// Each --set PATH=VALUE names a field (or exclusion group) by its
+    /// template path, the path= that xfa-layout prints, and writes VALUE
+    /// into the form data the field is bound to. Other fields bound to the
+    /// same data show the value too; they are listed. Only that data text
+    /// changes; the rest of the XFA form is kept byte for byte, and the
+    /// save is incremental by default.
+    ///
+    /// Output, one line per --set, then a summary:
+    ///
+    ///   xfa-set path=P data=D stream=N shared_with=P,P|-
+    ///   xfa-fill FILE sets=N mode=M -> OUT; changed= objects= ...
+    ///
+    /// VALUE is written as given (XML-escaped), with no picture-clause
+    /// formatting. Exits 1 when a path is not bound to a data value (a
+    /// field with no data node yet is refused), the file has no XFA form,
+    /// or the XDP is UTF-16.
+    #[command(verbatim_doc_comment)]
+    XfaFill {
+        /// Input PDF.
+        input: PathBuf,
+        /// A field assignment PATH=VALUE, PATH dotted (0.1.2). Repeatable.
+        #[arg(long = "set", value_name = "PATH=VALUE", required = true)]
+        sets: Vec<String>,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Also verify that undoing the fill reproduces the input file byte
+        /// for byte.
+        #[arg(long)]
+        verify_undo: bool,
+        #[command(flatten)]
+        merge: XfaMergeFlags,
     },
 
     /// **Create a new text form field** (§12.7.2 + §12.5.6.19).
