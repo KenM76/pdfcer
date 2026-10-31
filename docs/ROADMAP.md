@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `53f4e938` `Pass 647.3e` SHIPPED, 2026-10-31: XFA subform instances from data, unfilled and unbound counts (`G248` items 2-3, by-name case; 1351st filing)
+
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Full hash `53f4e9383a0efbae616b124bb9e3596998e2aa32`. On `main`, **unreleased** (next release writes `pdfcer2`). No decision minted. Reasoning is in the commit message.
+- **Core (XFA 3.3 Ch.9 pp.339-347):** with data, a named by-name subform carrying `occur` gets one instance per data group it binds, greedily (scope matches included), at least `occur@min`, at most `occur@max`. Instances replace the template subform in its parent: instance k sits at the first one's child index + k, later siblings shift; paths are read from `MergedForm::template`. Each instance's `occur@initial` is set to 1; a subform with no instance stays at initial 0, unmerged (layout lays nothing; a fill plans nothing under it). Without data nothing repeats. New file `crates/pdfcer-core/src/xfa/merge/occur.rs`; 100,000-instance guard.
+- **New public surface:** `MergeWarningKind::ExcessData` (`excess-data`, one per data group left past `max`) and `InstanceLimit` (`instance-limit`); `MergedForm.unfilled: usize` (fields and exclusion groups that tried to bind by name or dataRef and took nothing; `match="none"` excluded) and `MergedForm.unbound_values: usize` (data values, not groups, nothing bound).
+- **CLI:** `pdfcer xfa-layout` prints `data unfilled=N unbound-values=N` before its summary when the form has data; its `--help` no longer wrongly says `match="global"` is unmerged.
+- **Not built (open remainder, filed as `Pass 647.3f`):** dataRef-bound instances and subform-set instances.
+- **Tests (engineer-reported):** core lib 2190 passed / 2 ignored (6 new merge tests); CLI `all` 1005 passed / 2 ignored (1 new); `xfa::` filter 169 passed. clippy `-D warnings` clean (core + cli); `check-code-structure` clean (`Merger::container` split into `container` + `bind` to stay under 80 lines); `check-core-api-verbs` PASS; `docs/core-api/03-capabilities.md` and its index line count updated in the same commit. No `Cargo.toml` change, `cargo tree` unchanged. **Fuzz build result: not reported at filing; do not read this as passed.**
+- **GUI:** not delivered; box stays `[ ]`.
+- **FEATURES:** the "instances created from data and unfilled counts" row ticked core `[x]` / cli `[x]` / gui `[ ]`, with a new Planned row for `647.3f`; the explicit-dataRef merge row's "instance creation is not built" sentence corrected.
+- **Request:** `G248` items 2-3 satisfied for the by-name case at release (reply owed after publication, none sent now).
+- **Next up:** `Pass 647.2c` (`X026`; its own release), then `Pass 648.6` (`G245` part 2).
+
 ### `v0.110.0` — PUBLISHED, 2026-10-31 (1349th filing)
 
 Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Release record for the prep filed below (1348th, bump `d898e049`).
@@ -24938,7 +24951,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Next up head (rewritten 1350th filing; `v0.110.0` is PUBLISHED, see *Shipped*): `Pass 647.3e` (`G248` items 2-3), then `Pass 647.2c` (`X026`, XFA content-sized fields and draws; its own release), then `Pass 648.6` (`G245` part 2, spec-RAG check first).** Release slot: next release writes `pdfcer2` (`pdfcer1` holds 0.110.0, `pdfcer2` holds 0.109.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
+> **Next up head (rewritten 1351st filing; `Pass 647.3e` SHIPPED `53f4e938`, unreleased): `Pass 647.2c` (`X026`, XFA content-sized fields and draws; its own release), then `Pass 648.6` (`G245` part 2, spec-RAG check first).** `Pass 647.3f` (dataRef-bound and subform-set instances, residue of `647.3e`) is filed below, not yet ordered. Release slot: next release writes `pdfcer2` (`pdfcer1` holds 0.110.0, `pdfcer2` holds 0.109.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
 
 (1271st filing: `Pass 646.25` (`G237`, `XfaFormKind`) SHIPPED on `5f401310`; decision 204 reopens dynamic XFA; arc `647.0`-`647.7` filed below. All Passes below are NOT STARTED. Spec source (extracted by `pdfcer-spec-librarian`): `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_{xdp_packaging,static_vs_dynamic_rendering,template_layout_dom,layout_algorithm,data_binding_normal}.md`; its gap IDs G-X/S/T/L/B are the arc's default-decisions list. Spec slice still owed: SOM expressions, then table/row layout. Arc-wide acceptance: (1) opening never rewrites structure (§5); (2) layout inferred at render time is rule-4 disclosed; (3) content a dynamic form drops on overflow is disclosed, which the spec only warns about; (4) no external XFA code is relied on.)
 
@@ -26965,15 +26978,9 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 - **Public form for a manual check (not a fixture):** US DD Form 214 (dd0214.pdf): typing `1 2 3 4` in the four "Page __" boxes and saving must reopen as `1 2 3 4`, not `1 1 1 1`.
 - **Side-effect guard, bites only once scripting exists:** an event whose target no longer exists (a page removed by a layout re-run after its events were queued) is skipped, never run with `this` at the form root. Without it, a page-background button whose initialize script set `this.presence = "hidden"` hid the whole form (3 pages became 1) in the reporter's other viewer. Also recorded on `Pass 131.3`.
 
-### Pass 647.3e — XFA data-driven instances and unfilled counts (NOT STARTED; filed 1341st filing, request `G248` items 2-3, pdfceGUI; after 647.2b; `647.3d` and its release `v0.109.0` are done)
+### Pass 647.3f — XFA instances for dataRef-bound subforms and subform sets (NOT STARTED; filed 1351st filing; residue of `Pass 647.3e`)
 
-Engineer-dispatched filing; nothing built. `G248` item 1 (normal binding) shipped in `647.3b` (`f5c1f27e`, released in `v0.109.0`, 1346th filing). Engineer probe at HEAD `484446ee` with `G248`'s synthetic shape: `landlordName`="A Landlord", `section2.answer`="yes", `q` (dataRef `$.section2.answer`, `$`=body)="yes", first `tenant` "One", no warnings; but only ONE tenant instance (second data group "Two" unbound): instance creation from data is missing. Request: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\request_G248_xfa_normal_binding.md` (channel root, not `open/`); reply `open/reply_G248_xfa_normal_binding_PLANNED.md`.
-- **Scope (core + cli; gui consumes):** during merge, a subform (and subformSet) with `occur` gets one instance per matching same-named data group, up to `max` (-1 unbounded), at least `min`; greedy matching per XFA 3.3 pp.339-347 (spec RAG `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_data_binding_normal.md`, occur/greedy bullets, gaps G-B3, G-B5). Excess data groups are reported as unbound, with a count. Instance paths are stable and documented. Layout uses the merged instances; its own `occur@initial` copies must be reconciled with them (no double-instancing).
-- **Unfilled counts:** `MergedForm` reports the count of value-bearing fields with no bound value, and the count of data value nodes nothing bound. CLI `xfa-layout` prints both counts.
-- **Acceptance:** `G248` synthetic shape gives two `tenant` instances "One" and "Two"; a 4-group / `occur max=4` case gives four; data past `max` is counted unbound; hostile: 1,000 data groups against `max -1` are bounded by a guard with a warning, no panic.
-- **Docs:** `docs/core-api/03-capabilities.md`.
-- **Order:** `647.3d` (shipped `93f62d86`, 1342nd filing) -> release -> `647.2b` (`X025`) -> `647.3e`. *Amended 1350th: `647.2b` and its release `v0.110.0` are done; `647.3e` is Next up, then `647.2c` (`X026`), then `648.6`.*
-- **FEATURES:** Planned row added (all three boxes `[ ]`).
+Filed from the `647.3e` close; nothing built. `647.3e` (`53f4e938`) creates instances only for named by-name subforms with `occur`. Not yet built: (1) instances for subforms bound with `bind match="dataRef"`; (2) instances for `subformSet`. Same spec (XFA 3.3 pp.339-347, `adobe_ext__xfa_data_binding_normal.md`), same `MergeWarningKind::{ExcessData, InstanceLimit}`, same guard. Acceptance to be written when scoped; synthetic only. Request `G248` items 2-3 are answered for the by-name case only. FEATURES: Planned row added (all three boxes `[ ]`).
 
 ### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing); NOT COMPLETE, stays here)
 

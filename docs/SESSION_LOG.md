@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-31 (1351st filing) — `Pass 647.3e` SHIPPED `53f4e938` (`G248` items 2-3, by-name case)
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`Pass 647.3e`** (`53f4e9383a0efbae616b124bb9e3596998e2aa32`, unreleased): a named by-name subform with `occur` gets one instance per data group it binds (greedy, `min`..`max`); new `xfa/merge/occur.rs`; 100,000-instance guard; `MergeWarningKind::{ExcessData, InstanceLimit}`; `MergedForm.{unfilled, unbound_values}`; `xfa-layout` prints `data unfilled=N unbound-values=N`. Tests: core lib 2190 passed / 2 ignored, CLI `all` 1005 passed / 2 ignored, `xfa::` 169; clippy, `check-code-structure`, `check-core-api-verbs` clean. Fuzz build result NOT reported.
+- **Residue filed as `Pass 647.3f`** (dataRef-bound and subform-set instances); ID grepped free in `docs/` (one prior mention, a rejected alternative in the 1347th entry).
+- ROADMAP: Shipped entry added; the `647.3e` Next-up entry replaced by `647.3f`; banner rewritten (`647.2c`, then `648.6`). FEATURES: instances row ticked `[x]` `[x]` `[ ]`, `647.3f` Planned row added; the dataRef-merge row's stale "instance creation is not built" sentence and the `647.2c` row's "after 647.3e" corrected.
+
+**Decisions made this session:** none minted.
+
+**Findings:** `D:` filled to 19 MB free mid-session (`link.exe` exit 1140); clearing `target/debug/incremental` (63 GB) fixed it. Matches an existing memory; no new RAG lesson.
+
+**Hard-rule-11 survivors:** older dated Next-up lines in ROADMAP (lines naming `647.3e` as next) are history, left as filed. `docs/NEXT_SESSION.md` (engineer-owned) not swept. `G248` reply file is the engineer's to amend.
+
+**Still in flight:** nothing mid-Pass; `647.3e` unreleased.
+
+**For next session:** `Pass 647.2c` (own release, `pdfcer2`), then `648.6`.
+
 ## 2026-10-31 (1350th filing) — `Pass 647.2c` FILED (`X026`): XFA content-sized fields and draws
 
 **Filed (docs only; nothing built; no shell here, nothing checked from here):**
