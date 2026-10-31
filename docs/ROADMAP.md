@@ -112,6 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
+### `3ce0017e` `Pass 647.3d2` SHIPPED, 2026-10-31: XFA fill creates the missing data node (`X022` Form G, decision 204 arc; 1344th filing)
+
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Full hash `3ce0017e1869e297e866c2ef7bc6894a2211747c`. On `main`, not pushed, unreleased. No decision minted. Pass number grepped free across `*.md` before filing. Reasoning is in the commit message.
+- **Core:** `fill_xfa_field` and `xfa-fill` no longer refuse a field bound to no data node (`XfaFillError::Unbound`). The node is created as XFA 3.3 re-normalization does (pp.209-210, Ex 4.69): a value named after the field, appended last to the data group of its nearest bound ancestor, with a data group inserted for each unmatched ancestor subform. A `match="global"` field's value goes under the record so every copy shares it (spec gap G-B12; PDFium behaviour). With no data at all the fill creates the record group and `xfa:data`; in a single-stream XDP it also creates the `datasets` packet.
+- **Setting:** `MergeOptions::data_creation`, `pub enum DataCreation { Create (default), Refuse }` (gaps G-B12/G-B16). CLI `--data-creation create|refuse`.
+- **Disclosure (fuzzy-never-sneaky):** `XfaFillOutcome::created: Vec<String>`; the CLI prints `created=` on each `xfa-set` line. The outcome is read back by re-merging the edited XDP.
+- **New error:** `XfaFillError::NoDatasetsPacket` -- a packet array with no datasets stream is refused rather than written into another packet.
+- **Counts unchanged:** public verbs 389, `EditError` variants 188; `docs/core-api` 02/03/index updated.
+- **Tests:** core `xfa_fill` integration 9 (3 new); CLI `xfa_fill` 2 -> 3 (1 new); core lib xfa 158. Sabotage run confirmed the inserted-group test bites.
+- **Gates green:** fmt, clippy -D warnings, code-structure, check-core-api-verbs. No `Cargo.toml` changed (no `cargo tree` check); no packaging change.
+- **GUI:** not delivered; box stays `[ ]`.
+- **FEATURES:** the "form fill saved to the datasets packet" row now says an unbound field's data node is created (shared for global fields), `[x]`/`[x]`/`[ ]`; the residue row narrowed to UTF-16 XDP only.
+- **Request:** satisfies `X022` Form G. `X022` is NOT yet released, so it stays in progress; reply owed at the release.
+- **Still open:** UTF-16 XDP fill (no Pass ID; FEATURES Planned row).
+- **Next up:** the release carrying `648.4`, `648.5`, `647.3b`-`647.3d2` and `652.0`; then `647.2b`, `647.3e`, `648.6`.
+
 ### `93f62d86` `Pass 647.3d` SHIPPED, 2026-10-31: XFA field fill written to the `xfa:datasets` packet (`X022` slice 3 write-back, `X023` Form A save round trip; 1342nd filing)
 
 Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Full hash `93f62d86a8f1c98200a193e9ac041df794ffe3fd`. On `main` after `652.0`/`647.3e` filing (`46706f16`), unreleased. No decision minted. Reasoning is in the commit message.

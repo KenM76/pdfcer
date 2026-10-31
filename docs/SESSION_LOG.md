@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-31 (1344th filing) — `Pass 647.3d2` SHIPPED `3ce0017e` (`X022` Form G): XFA fill creates the missing data node
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`Pass 647.3d2`** `3ce0017e1869e297e866c2ef7bc6894a2211747c`, core + cli, on `main`, unpushed, unreleased. An unbound field's data node is now created (nearest bound ancestor's group, inserted groups for unmatched subforms; `match="global"` goes under the record; record, `xfa:data` and single-stream `datasets` packet created if absent). New `MergeOptions::data_creation` / `DataCreation { Create, Refuse }`, CLI `--data-creation`; `XfaFillOutcome::created` printed as `created=`; new `XfaFillError::NoDatasetsPacket`. Tests: core `xfa_fill` 9 (3 new), CLI `xfa_fill` 3 (1 new), core lib xfa 158; sabotage confirmed. fmt, clippy, code-structure, core-api-verbs clean (389 verbs, 188 `EditError`); no manifest change. ROADMAP Shipped entry added; FEATURES fill row text updated (`[x]`/`[x]`/`[ ]`), residue row narrowed to UTF-16 XDP.
+
+**Decisions made this session:** none minted.
+
+**Findings:** Closes the `647.3d` residue "data-node creation" and the `X022` Form G global-plus-protected acceptance. UTF-16 XDP fill remains open, no Pass ID.
+
+**Hard-rule-11 survivors:** the 1342nd entry and the `647.3d` ROADMAP entry still say an unbound field is refused; left as history, superseded here. Not swept: `docs/NEXT_SESSION.md` (engineer-owned); `xfa-fill` `--help` text and `XfaFillError::Unbound` rustdoc, if they say creation is unsupported. Backup currency not verifiable from here.
+
+**Still in flight:** release carrying `648.4`, `648.5`, `647.3b`-`647.3d2`, `652.0` (names `X022`, `X023`, `X024`); then `647.2b`, `647.3e`, `648.6`.
+
+**Replies owed:** `X022` (slices 1-3 plus Form G), `X023`, `X024` at the release.
+
 ## 2026-10-31 (1343rd filing) — request `X025` filed as `Pass 647.2b`
 
 **Filed (docs only; engineer-dispatched; no shell here, nothing checked from here):**
