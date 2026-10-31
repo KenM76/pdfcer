@@ -42,6 +42,7 @@ pub(crate) struct FontArgs {
 pub(crate) fn apply(settings: &mut OptimizeSettings, args: &FontArgs) {
     apply_args(settings, &args.unembed_fonts, args.keep_subset_tag);
     apply_resubset(settings, args.resubset_fonts, !args.no_merge_font_subsets);
+    settings.install_resubsetter(&pdfcer_render::font::resubset::GLYPH_ZERO_RESUBSETTER);
 }
 
 /// Set [`OptimizeSettings::unembed`] from `--unembed-fonts` (`all`, `none`

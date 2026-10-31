@@ -286,6 +286,15 @@ impl OptimizeSettings {
         }
     }
 
+    /// Install `source` as the font cutter of a [`Self::resubset`] request
+    /// that has none ([`resubset::ResubsetFonts::unbound`], as a parsed
+    /// profile gives); a request already naming a cutter is left as it is.
+    pub fn install_resubsetter(&mut self, source: &'static dyn resubset::FontResubsetter) {
+        if let Some(r) = self.resubset.as_mut().filter(|r| !r.is_bound()) {
+            *r = r.with_source(source);
+        }
+    }
+
     /// Every action matching one object, folded in the precedence in the
     /// module docs: `streams`, then `images`, then `content`, then matching
     /// rules in order,

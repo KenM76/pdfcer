@@ -203,6 +203,36 @@ fn copies_of_one_face_merge_unless_told_not_to() {
 }
 
 #[test]
+fn a_saved_profile_carries_the_resubset_choice_and_runs_it() {
+    let o = Command::new(BIN)
+        .args([
+            "optimize",
+            "--write-profile",
+            "-",
+            "--resubset-fonts",
+            "--no-merge-font-subsets",
+        ])
+        .output()
+        .unwrap();
+    let profile = text(&o);
+    assert!(
+        profile.contains(
+            "resubset-fonts = true
+merge-font-subsets = false"
+        ),
+        "{profile}"
+    );
+    let path = out("resubset-profile.toml");
+    std::fs::write(&path, &profile).unwrap();
+    let o = run(
+        "resubset/simple.pdf",
+        &["--dry-run", "--profile", path.to_str().unwrap()],
+    );
+    let report = text(&o);
+    assert!(report.contains("resubset: 1 cut, 0 refused"), "{report}");
+}
+
+#[test]
 fn no_resubset_flag_cuts_nothing() {
     let o = run("resubset/simple.pdf", &["--dry-run", "--json"]);
     assert!(text(&o).contains("\"resubset\":null"), "{}", text(&o));

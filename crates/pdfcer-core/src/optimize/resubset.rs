@@ -207,6 +207,28 @@ impl ResubsetFonts {
         }
     }
 
+    /// A request naming no cutter yet: what a saved profile's
+    /// `resubset-fonts = true` reads as, since core holds no font-program
+    /// code. Until a shell installs one ([`Self::with_source`],
+    /// [`super::OptimizeSettings::install_resubsetter`]) every program is
+    /// kept whole and refused with the token `no-cutter`.
+    #[must_use]
+    pub fn unbound() -> Self {
+        Self::new(&NO_RESUBSETTER)
+    }
+
+    /// Whether a cutter is installed: false for [`Self::unbound`].
+    #[must_use]
+    pub fn is_bound(&self) -> bool {
+        !std::ptr::addr_eq(self.source, &NO_RESUBSETTER)
+    }
+
+    /// These settings cut with `source`, keeping [`Self::merge`].
+    #[must_use]
+    pub fn with_source(self, source: &'static dyn FontResubsetter) -> Self {
+        Self { source, ..self }
+    }
+
     /// These settings with [`Self::merge`] off: each program is cut on its
     /// own.
     #[must_use]
@@ -215,6 +237,27 @@ impl ResubsetFonts {
             merge: false,
             ..self
         }
+    }
+}
+
+/// The cutter of [`ResubsetFonts::unbound`]: refuses every program.
+pub static NO_RESUBSETTER: NoResubsetter = NoResubsetter;
+
+/// A [`FontResubsetter`] that cuts nothing: every program is refused with
+/// the token `no-cutter`, so a request no shell bound is disclosed, not
+/// silently dropped.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct NoResubsetter;
+
+impl FontResubsetter for NoResubsetter {
+    fn resubset(
+        &self,
+        _request: &ResubsetRequest<'_, '_>,
+    ) -> Result<ResubsetProgram, ResubsetRefusal> {
+        Err(ResubsetRefusal::new(
+            "no-cutter",
+            "no font cutter is installed, so the program is kept whole",
+        ))
     }
 }
 

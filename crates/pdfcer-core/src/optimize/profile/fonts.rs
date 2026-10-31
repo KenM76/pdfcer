@@ -1,10 +1,16 @@
-//! The profile keys for [`OptimizeSettings::unembed`]:
+//! The profile keys for [`OptimizeSettings::unembed`] and
+//! [`OptimizeSettings::resubset`]:
 //!
 //! ```toml
 //! unembed-fonts = "all"          # or ["Arial", "Helvetica"]; [] unembeds none
 //! unembed-font-ids = ["12 0"]    # font dictionaries by id, instead of names
 //! keep-subset-tag = false        # after either key: keep the ABCDEF+ tag
+//! resubset-fonts = true          # cut programs to the glyphs drawn
+//! merge-font-subsets = true      # after it: merge copies of one face
 //! ```
+//!
+//! `resubset-fonts = true` parses to [`ResubsetFonts::unbound`]: the shell
+//! installs its cutter with [`OptimizeSettings::install_resubsetter`].
 
 use std::fmt::Write as _;
 
@@ -12,6 +18,7 @@ use super::syntax::{self, Value};
 use super::{boolean, object_ids, strings};
 use crate::font_unembed::{SubsetTagPolicy, UnembedRequest, UnembedSelection};
 use crate::optimize::OptimizeSettings;
+use crate::optimize::resubset::ResubsetFonts;
 
 /// Apply `key` if it is a font key: `None` when it is not one.
 pub(super) fn apply(
@@ -43,6 +50,17 @@ pub(super) fn apply(
                 Err("keep-subset-tag needs unembed-fonts or unembed-font-ids before it".to_owned())
             }
         }),
+        "resubset-fonts" => boolean(value).map(|on| {
+            settings.resubset =
+                on.then(|| settings.resubset.unwrap_or_else(ResubsetFonts::unbound));
+        }),
+        "merge-font-subsets" => boolean(value).and_then(|merge| match settings.resubset.as_mut() {
+            Some(r) => {
+                r.merge = merge;
+                Ok(())
+            }
+            None => Err("merge-font-subsets needs resubset-fonts = true before it".to_owned()),
+        }),
         _ => return None,
     };
     Some(result)
@@ -50,6 +68,24 @@ pub(super) fn apply(
 
 /// The font keys for `settings`, one per line.
 pub(super) fn write(out: &mut String, settings: &OptimizeSettings) {
+    write_unembed(out, settings);
+    match &settings.resubset {
+        Some(r) => {
+            let _ = writeln!(
+                out,
+                "resubset-fonts = true
+merge-font-subsets = {}",
+                r.merge
+            );
+        }
+        None => out.push_str(
+            "resubset-fonts = false
+",
+        ),
+    }
+}
+
+fn write_unembed(out: &mut String, settings: &OptimizeSettings) {
     let Some(request) = &settings.unembed else {
         out.push_str("unembed-fonts = []\n");
         return;

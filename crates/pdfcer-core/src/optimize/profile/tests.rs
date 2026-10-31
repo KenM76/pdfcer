@@ -286,6 +286,75 @@ fn keep_subset_tag_before_a_font_selection_is_an_error() {
 }
 
 #[test]
+fn resubset_round_trips_and_parses_unbound() {
+    use crate::optimize::resubset::ResubsetFonts;
+    for request in [
+        None,
+        Some(ResubsetFonts::unbound()),
+        Some(ResubsetFonts::unbound().without_merge()),
+    ] {
+        let mut s = OptimizeSettings::new();
+        s.resubset = request;
+        let back = parse("p.toml", &to_profile(&s), &mut none).unwrap();
+        assert_eq!(back, s);
+        assert!(back.resubset.is_none_or(|r| !r.is_bound()));
+    }
+    let off = parse(
+        "p.toml",
+        "resubset-fonts = false
+",
+        &mut none,
+    )
+    .unwrap();
+    assert!(off.resubset.is_none());
+}
+
+#[test]
+fn merge_font_subsets_before_resubset_fonts_is_an_error() {
+    let bad = parse(
+        "p.toml",
+        "merge-font-subsets = false
+",
+        &mut none,
+    )
+    .unwrap_err();
+    assert!(bad.message.contains("needs resubset-fonts"), "{bad}");
+}
+
+#[test]
+fn an_installed_cutter_binds_only_an_unbound_request() {
+    use crate::optimize::resubset::{NO_RESUBSETTER, ResubsetFonts};
+    #[derive(Debug)]
+    struct Other;
+    impl crate::optimize::resubset::FontResubsetter for Other {
+        fn resubset(
+            &self,
+            _: &crate::optimize::resubset::ResubsetRequest<'_, '_>,
+        ) -> Result<
+            crate::optimize::resubset::ResubsetProgram,
+            crate::optimize::resubset::ResubsetRefusal,
+        > {
+            Err(crate::optimize::resubset::ResubsetRefusal::new("x", "x"))
+        }
+    }
+    static OTHER: Other = Other;
+    let mut s = parse(
+        "p.toml",
+        "resubset-fonts = true
+merge-font-subsets = false
+",
+        &mut none,
+    )
+    .unwrap();
+    s.install_resubsetter(&OTHER);
+    let r = s.resubset.unwrap();
+    assert!(r.is_bound() && !r.merge);
+    assert_eq!(r, ResubsetFonts::new(&OTHER).without_merge());
+    s.install_resubsetter(&NO_RESUBSETTER);
+    assert!(s.resubset.unwrap().is_bound(), "a bound cutter is kept");
+}
+
+#[test]
 fn an_empty_font_list_clears_the_parents() {
     let text = "unembed-fonts = \"all\"\n";
     let parent = parse("p.toml", text, &mut none).unwrap();
