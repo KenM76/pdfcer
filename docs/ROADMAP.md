@@ -123,7 +123,7 @@ Engineer-reported (the engineer states each item checked from his shell); no she
 - **OneDrive:** deployed to `pdfcer2` (0.111.0). `pdfcer1` keeps 0.110.0 as previous. **Next release writes `pdfcer1`.**
 - **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.111.0 published.
 - **Inbound channel** (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`): `X026` and `G248` replies renamed `_PLANNED` to `_SHIPPED`; `notice_2026-10-31_v0.111.0_released.md` written.
-- **Next up:** `Pass 648.6` (`G245` part 2, /MA measurements). `Pass 647.3f` and `Pass 647.4` stay in the Backlog.
+- **Next up:** `Pass 648.6` (`G245` part 2, /MA measurements). `Pass 647.3f` and `Pass 647.4` stay in the Backlog. *(Amended 1356th filing: head is now `Pass 647.4b`, ahead of `648.6`.)*
 - **FEATURES:** the `647.3e` and `647.2c` rows say released in `v0.111.0` (were "unreleased"); no box changed. Nothing minted: no decision, no rule.
 
 ### `v0.111.0` — release PREP, version bump `01cddb14` (`chore`), 2026-10-31 (1354th filing); published in the 1355th filing (entry above)
@@ -24994,6 +24994,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **Next up head (rewritten 1355th filing; `Pass 647.3e` `53f4e938` and `Pass 647.2c` `ead2642a` SHIPPED and released in `v0.111.0`, published): `Pass 648.6` (`G245` part 2, /MA measurements, spec-RAG check first).** `Pass 647.3f` (dataRef-bound and subform-set instances, residue of `647.3e`) and `Pass 647.4` stay in the Backlog, not yet ordered. Release slot: next release writes `pdfcer1` (`pdfcer2` holds 0.111.0, `pdfcer1` holds 0.110.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
 
+> **Head amended 1356th filing: `Pass 647.4b` (request `X027`, XFA geometric draw values, dashed edges, rotate) is now the head of Next up, AHEAD of `Pass 648.6`** (operator direction: the loop's focus is dynamic XFA and `X027` asks for a release). `648.6` is second. `647.3f` and `647.4` stay in the Backlog. Entry below.
+
 (1271st filing: `Pass 646.25` (`G237`, `XfaFormKind`) SHIPPED on `5f401310`; decision 204 reopens dynamic XFA; arc `647.0`-`647.7` filed below. All Passes below are NOT STARTED. Spec source (extracted by `pdfcer-spec-librarian`): `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_{xdp_packaging,static_vs_dynamic_rendering,template_layout_dom,layout_algorithm,data_binding_normal}.md`; its gap IDs G-X/S/T/L/B are the arc's default-decisions list. Spec slice still owed: SOM expressions, then table/row layout. Arc-wide acceptance: (1) opening never rewrites structure (§5); (2) layout inferred at render time is rule-4 disclosed; (3) content a dynamic form drops on overflow is disclosed, which the spec only warns about; (4) no external XFA code is relied on.)
 
 (1270th filing: `Pass 646.24` (FreeText `/C` persisted as `Settings::free_text_c`) SHIPPED on `0403197c`, see *Shipped*. Nothing minted; next free `Pass 646.25`, decision `204`, `R263`; next filing 1271st. Unreleased since `v0.102.0`: `646.24`.)
@@ -27068,6 +27070,25 @@ Filed from the `647.3e` close; nothing built. `647.3e` (`53f4e938`) creates inst
 - **G-D18 stays PARTLY:** the inverted geometry is a reading, not spec text.
 - **REMAINING in 647.4:** rich text; other widgets (choice lists, bordered widgets, radio groups via exclGroup value); inline/rich captions; non-solid strokes and gradient fills (still disclosed); real fonts (`X014` item 2). Rounded corners are no longer on this list.
 - **Survivors:** the claim "corner drawn square" was swept in `ROADMAP.md` (second-cut text below amended in place; earlier cuts' "rounded corners" lines are dated history and stand), `FEATURES.md` (row amended). Not swept from here: `NEXT_SESSION.md`, `ARCHITECTURE.md` section 4, CLI help text; owed to the engineer.
+
+### Pass 647.4b — XFA geometric draw values, dashed edges, rotate (NOT STARTED; filed 1356th filing, 2026-10-31; request `X027`, pdfcraft; slice of the `647.4` render arc)
+
+Filing only; nothing built, nothing checked from here (no shell). Request: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X027_xfa_draw_shapes_dash_rotate.md`, read at `7b2d37e8` (`v0.111.0`). Today `has_unplain_value` (`xfa/paint/text.rs`) leaves a draw whose value is `<rectangle>`, `<line>` or `<arc>` out with a `Content` note; `PaintNoteKind::Stroke` (`xfa/paint.rs`) leaves non-solid edges undrawn; nothing reads `rotate`. **Release follows** (single release naming `X027`; slot `pdfcer1`).
+- **Spec:** `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_appearance_drawing.md` section 1.3 (edge), sections 5.1-5.3 (line, rectangle, arc), gaps G-D5 and G-D9; `rotate` XFA 3.3 pp.680-681. **Owed before the rotate half is built:** the layout footprint of a rotated item (does layout see the rotated or the unrotated box) is being sourced by `pdfcer-spec-librarian`; do not guess it.
+- **Acceptance (from the request, synthetic fixtures only):**
+  1. `<rectangle>` paints through the same code as `<border>`: edges cycling, presence, thickness, colour, `hand`, corners (radius, join, inverted, presence), fill. One implementation, not two.
+  2. `<line>` runs corner to corner of the content box; `slope` `\` (default) or `/`; zero `w` or `h` gives a vertical or horizontal line; both zero gives a point visible only through the cap; `hand` shifts the stroke as for edges.
+  3. `<arc>` is the elliptical arc inscribed in the content box, `startAngle` and `sweepAngle` counter-clockwise from 3 o'clock; `circular="1"` forces a circle; a fill closes a partial arc (`sweepAngle` below 360).
+  4. `dashed`, `dotted`, `dashDot`, `dashDotDot` strokes draw as dashes on lines, arcs, rectangles and borders. A 3pt dashed line and a 3pt dotted line show visibly different patterns; a dashed field border paints all four edges.
+  5. `rotate` 0/90/180/270 turns the container, content included, counter-clockwise about its anchor (`anchorType`, default `topLeft`). A draw with `rotate="90"` and a text value paints turned 90 degrees counter-clockwise about its top-left corner.
+  6. Never panics: zero or huge sizes and negative or huge angles stay bounded; an unknown `stroke`, `slope` or `rotate` value falls back to the default with a disclosed note.
+  7. Fixtures: a rounded-rectangle draw (`w="1.4in" h="0.9in"`, one `edge thickness="3pt"`, `corner radius="0.2in"`), a `/` line, an arc, a `w="0in" h="1.2in"` line, a `w="1.6in" h="0in"` line.
+- **Settings (standing rule "two defensible answers: ship both, pick the default"; each is also a CLI flag on `xfa-layout`, names to be chosen at build):**
+  - **Dash lengths (spec gap G-D5, unspecified).** Default: scaled with thickness, matching the arrays seen in an Acrobat-flattened form at 3pt (dashed `[12 6]`, dotted `[3 6]`, dashDot `[9 6 3 6]`, dashDotDot `[9 6 3 6 3 6]`, solid `[]`; i.e. multiples of thickness t, such as dashed 4t/2t, dotted t/2t). Alternative: those arrays fixed as observed. The request's observation used 3pt edges only, so thickness scaling is unconfirmed; it is a black-box observation, not a spec value. The same form drew projecting caps (`2 J`).
+  - **Arc (spec gap G-D9).** `circular=1` default: diameter = min(w,h); option: radius = min(w,h). A filled partial arc default: closes as a pie; option: closes as a chord.
+- **Disclosure (rule 4):** every fallback and every inferred dash/closure choice prints in the `xfa-layout` report; nothing marked on the page.
+- **Out of scope:** 3-D strokes on a `<line>` (the observed flattened form drew them solid); gradient fills and G-D6 stipple stay with `647.4`.
+- **FEATURES:** Planned row added (`[ ]` core / `[ ]` cli / `[ ]` gui); no box ticked.
 
 ### Pass 647.5 — CLI `xfa-layout` report and `render-page` integration (FIRST CUT `c94ab2ee` (1289th filing), SECOND CUT `b0e0d1a2` (1292nd filing); NOT COMPLETE, stays here)
 
