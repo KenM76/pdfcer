@@ -626,7 +626,9 @@ mod caption;
 mod check;
 mod corner;
 mod image;
+mod size;
 mod text;
+pub(super) use size::content_size;
 pub(super) use text::{line_pitch, widget};
 
 #[cfg(test)]

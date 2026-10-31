@@ -2,7 +2,7 @@
 //! 3.3 Ch.8 pp.290-292; `multiLine` p.866, `para` orphans/widows p.800).
 
 use super::geometry::Ctx;
-use crate::xfa::paint::{line_pitch, widget};
+use crate::xfa::paint::{content_size, line_pitch, widget};
 use crate::xfa::{ContainerKind, Presence, XfaNode};
 
 /// Rounding allowance when a split line is compared with a line boundary.
@@ -123,6 +123,17 @@ impl Lines {
             ..self
         }
     }
+}
+
+/// The width and height `node` (a field or draw) needs for its plain
+/// text, wrapped at `wrap`; one line when its text may not run to several.
+pub(super) fn content(
+    node: &XfaNode,
+    kind: ContainerKind,
+    wrap: Option<f64>,
+) -> Option<(f64, f64)> {
+    let single = !multi_line(node, kind == ContainerKind::Draw);
+    content_size(node, wrap, single)
 }
 
 /// Whether `node`'s content is text that may run to several lines.

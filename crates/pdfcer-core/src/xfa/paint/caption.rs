@@ -7,7 +7,7 @@ use super::{CaptionFont, LayoutItem, LayoutRect, Painter, Presence, XfaNode, ins
 
 /// Where a caption sits against the rest of the content region.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum Side {
+pub(super) enum Side {
     Left,
     Right,
     Top,
@@ -15,7 +15,7 @@ enum Side {
 }
 
 /// The side of a laid-out (non-`inline`) caption; `None` for `inline`.
-fn side(caption: &XfaNode) -> Option<Side> {
+pub(super) fn side(caption: &XfaNode) -> Option<Side> {
     match caption.attr("placement").map(str::trim) {
         Some("right") => Some(Side::Right),
         Some("top") => Some(Side::Top),
@@ -26,7 +26,7 @@ fn side(caption: &XfaNode) -> Option<Side> {
 }
 
 /// Whether the caption takes space: `hidden` and `inactive` do not (p.68).
-fn occupies(caption: &XfaNode) -> bool {
+pub(super) fn occupies(caption: &XfaNode) -> bool {
     matches!(caption.presence(), Presence::Visible | Presence::Invisible)
 }
 

@@ -540,6 +540,28 @@ fn a_repeating_subform_prints_one_copy_per_data_group() {
 }
 
 #[test]
+fn a_field_grows_to_its_bound_text_and_pushes_what_follows() {
+    let form = format!(
+        r#"<subform name="form" layout="tb">{PAGE}<field name="note" w="5in" minH="20pt"><font typeface="Helvetica" size="10pt"/><ui><textEdit multiLine="1"/></ui></field><draw name="after" w="10pt" h="20pt"/></subform>"#
+    );
+    let text = vec!["word"; 1500].join(" ");
+    let data = format!("<form><note>{text}</note></form>");
+    let (code, stdout, stderr) = run("grow", &pdf_with_data(Some(&form), &data), &[]);
+    assert_eq!(code, 0, "{stderr}");
+    let pages: Vec<_> = stdout
+        .lines()
+        .filter(|l| l.contains(r#"name="note""#))
+        .collect();
+    assert_eq!(pages.len(), 2, "split over two pages: {stdout}");
+    assert!(
+        stdout
+            .lines()
+            .any(|l| l.starts_with("item page=1 ") && l.contains(r#"name="after""#)),
+        "{stdout}"
+    );
+}
+
+#[test]
 fn a_tall_text_field_splits_between_lines_and_prints_its_fragments() {
     let body = format!(
         r#"<subform name="f" layout="tb">{PAGE}<field name="a" w="10pt" h="660pt"/><field name="t" w="200pt" minH="200pt"><font typeface="Times"/><ui><textEdit multiLine="1"/></ui></field></subform>"#

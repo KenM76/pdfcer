@@ -71,7 +71,7 @@ fn face(typeface: &str, bold: bool, italic: bool) -> (Std14, bool) {
 }
 
 /// The text to draw: `holder`'s `value/text` PCDATA, else nothing.
-pub(super) fn plain_text(holder: &XfaNode) -> Option<&str> {
+pub(in crate::xfa) fn plain_text(holder: &XfaNode) -> Option<&str> {
     let text = holder.child("value")?.child("text")?;
     (text.children.is_empty() && !text.text.is_empty()).then_some(text.text.as_str())
 }
@@ -110,6 +110,33 @@ fn metrics(face: Std14, size: f64, para: Option<&XfaNode>) -> (f64, f64) {
         .unwrap_or(0.0)
         .max(ascent + descent);
     (ascent, line_h)
+}
+
+/// The width and height `text` takes set in `font`/`para` at the paint
+/// defaults (gap G-T1 weight `normal`), wrapped at `wrap` when positive:
+/// what a growable field or draw sizes its content from (Ch.8 pp.275-278).
+/// `single` sets one line, unwrapped, as a single-line `textEdit` does.
+pub(in crate::xfa) fn text_extent(
+    text: &str,
+    font: Option<&XfaNode>,
+    para: Option<&XfaNode>,
+    wrap_at: f64,
+    single: bool,
+) -> (f64, f64) {
+    let (face, size, _) = face_of(font, FontWeight::Normal);
+    let (_, line_h) = metrics(face, size, para);
+    let (lines, _) = wrap(text, face, size, if single { 0.0 } else { wrap_at });
+    let w = lines
+        .iter()
+        .map(|l| text_width(face, size, l))
+        .fold(0.0, f64::max);
+    let n = if single {
+        lines.len().min(1)
+    } else {
+        lines.len()
+    };
+    #[allow(clippy::cast_precision_loss)] // a line count fits f64 exactly
+    (w, line_h * n as f64)
 }
 
 /// Text-run settings read from `font` and `para`.
@@ -165,7 +192,7 @@ impl Painter<'_> {
         para: Option<&XfaNode>,
     ) -> (f64, f64) {
         let style = self.style(item, font, para);
-        let (lines, _) = self.lines(text, &style, 0.0);
+        let (lines, _) = wrap(text, style.font, style.size, 0.0);
         let (_, line_h) = metrics(style.font, style.size, para);
         let w = lines
             .iter()
@@ -186,7 +213,7 @@ impl Painter<'_> {
         r: LayoutRect,
     ) {
         let style = self.style(item, font, para);
-        let (lines, approximated) = self.lines(text, &style, r.w);
+        let (lines, approximated) = wrap(text, style.font, style.size, r.w);
         if approximated {
             self.note(item, PaintNoteKind::Text);
         }
@@ -237,30 +264,6 @@ impl Painter<'_> {
         }
     }
 
-    /// `text` broken at newlines and, when `width` is positive, wrapped at
-    /// spaces; `true` when a character was not encodable or a word is wider
-    /// than the region (drawn unbroken and clipped, not split, here).
-    fn lines(&self, text: &str, style: &Style, width: f64) -> (Vec<String>, bool) {
-        let mut out = Vec::new();
-        let mut approximated = encode_winansi(text).1 > 0;
-        let measure = |s: &str| text_width(style.font, style.size, s);
-        for para in text.lines() {
-            let words: Vec<&str> = para.split(' ').collect();
-            if width <= 0.0 {
-                out.push(para.to_owned());
-                continue;
-            }
-            for range in greedy_pack(words.len(), width, |a, b| {
-                words.get(a..b).map_or(0.0, |w| measure(&w.join(" ")))
-            }) {
-                let line = words.get(range).unwrap_or_default().join(" ");
-                approximated |= measure(&line) > width + 0.01;
-                out.push(line);
-            }
-        }
-        (out, approximated)
-    }
-
     fn run(&mut self, r: LayoutRect, style: &Style, lines: &[String], first: f64, line_h: f64) {
         let clip = r.w > 0.0 && r.h > 0.0;
         self.b.save_state();
@@ -297,4 +300,28 @@ impl Painter<'_> {
             });
         format!("XF{i}")
     }
+}
+
+/// `text` broken at newlines and, when `width` is positive, wrapped at
+/// spaces; `true` when a character was not encodable or a word is wider
+/// than the region (drawn unbroken and clipped, not split, here).
+fn wrap(text: &str, face: Std14, size: f64, width: f64) -> (Vec<String>, bool) {
+    let mut out = Vec::new();
+    let mut approximated = encode_winansi(text).1 > 0;
+    let measure = |s: &str| text_width(face, size, s);
+    for para in text.lines() {
+        let words: Vec<&str> = para.split(' ').collect();
+        if width <= 0.0 {
+            out.push(para.to_owned());
+            continue;
+        }
+        for range in greedy_pack(words.len(), width, |a, b| {
+            words.get(a..b).map_or(0.0, |w| measure(&w.join(" ")))
+        }) {
+            let line = words.get(range).unwrap_or_default().join(" ");
+            approximated |= measure(&line) > width + 0.01;
+            out.push(line);
+        }
+    }
+    (out, approximated)
 }

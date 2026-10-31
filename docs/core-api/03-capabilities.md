@@ -798,8 +798,16 @@ with every `warnings` entry.
   painter sets the whole container's content and clips it to `rect`.
 - **Scope.** Positioned and flowed placement. Anchor points and subform
   margins are applied; containers grow to their children's extent within min/max. A field
-  or draw with no `w`/`h` takes its `min*`, because content sizing is not done
-  yet. The merge is empty: each subform is instantiated `occur@initial` times,
+  or draw with no `w`/`h` grows to its plain-text value (Pass 647.2c, Ch.8
+  pp.275-278): the text set as painting sets it (face, size, `lineHeight`),
+  wrapped at `w` or a positive `maxW`, plus the container margins, a
+  `caption` (positive `reserve`, else its unwrapped text plus its margins)
+  and a field's widget margins, clamped to `min*`/`max*` (`max*` of 0 is
+  omitted). A single-line field (no `textEdit multiLine="1"`) is one line,
+  unwrapped. The border adds nothing (it insets independently, p.50).
+  Measured at the paint defaults (gap G-T1 weight `normal`, a caption in its
+  own `font`); other paint settings can draw text wider than it was sized.
+  An empty or non-text value (an image, rich text) keeps `min*`. The merge is empty: each subform is instantiated `occur@initial` times,
   and the data merge is 647.3. `hidden` and `inactive` content is omitted.
   Flow (`tb`, `lr-tb`, `rl-tb`) ignores a child's `x`/`y`/`anchorType`:
   - `tb` stacks children from the margin corner.

@@ -3,7 +3,7 @@
 
 use super::adhere::{Hold, Keep, adheres};
 use super::flow::{Flow, is_flow};
-use super::lines::Lines;
+use super::lines::{Lines, content};
 use super::{LayoutItem, LayoutOptions, LayoutRect, LayoutWarning, NegativeCoordinates};
 use crate::xfa::{AnchorType, ContainerKind, LayoutStrategy, Measurement, Presence, XfaNode};
 
@@ -229,21 +229,7 @@ fn lay_one(
     let (ex, ey) = laid.iter().fold((0.0_f64, 0.0_f64), |(x, y), i| {
         (x.max(i.rect.x + i.rect.w), y.max(i.rect.y + i.rect.h))
     });
-    let grows = !matches!(kind, ContainerKind::Field | ContainerKind::Draw);
-    let w = extent(
-        ctx,
-        node,
-        path,
-        ["w", "minW", "maxW"],
-        grows.then_some(ex + right),
-    );
-    let h = extent(
-        ctx,
-        node,
-        path,
-        ["h", "minH", "maxH"],
-        grows.then_some(ey + bottom),
-    );
+    let (w, h) = size(ctx, node, path, kind, (ex + right, ey + bottom));
     let rect = position(ctx, node, path, parent, (w, h));
     let mut items = vec![LayoutItem {
         kind,
@@ -348,8 +334,34 @@ fn arrange(
     (out, flags)
 }
 
+/// `node`'s width and height: `w`/`h` when given, else the content's
+/// extent clamped to min/max (Ch.8 pp.275-277). A subform's content is
+/// `laid`, its laid children; a field's or draw's is its text, wrapped at
+/// `w` or a positive `maxW`.
+fn size(
+    ctx: &mut Ctx<'_>,
+    node: &XfaNode,
+    path: &[usize],
+    kind: ContainerKind,
+    laid: (f64, f64),
+) -> (f64, f64) {
+    let own = match kind {
+        ContainerKind::Field | ContainerKind::Draw => {
+            let wrap = ctx
+                .length(node, path, "w")
+                .or_else(|| ctx.length(node, path, "maxW").filter(|v| *v > 0.0));
+            content(node, kind, wrap)
+        }
+        _ => Some(laid),
+    };
+    let w = extent(ctx, node, path, ["w", "minW", "maxW"], own.map(|c| c.0));
+    let h = extent(ctx, node, path, ["h", "minH", "maxH"], own.map(|c| c.1));
+    (w, h)
+}
+
 /// One axis: the given size, else the content extent clamped to min/max
-/// (Ch.8 p.276; min > max warns and swaps), else min.
+/// (Ch.8 p.276; min > max warns and swaps; a max of 0 is omitted, 3.0),
+/// else min.
 fn extent(
     ctx: &mut Ctx<'_>,
     node: &XfaNode,
@@ -361,7 +373,9 @@ fn extent(
         return v;
     }
     let mut lo = ctx.length(node, path, min).unwrap_or(0.0);
-    let mut hi = ctx.length(node, path, max).unwrap_or(f64::INFINITY);
+    let mut hi = (ctx.length(node, path, max))
+        .filter(|v| *v != 0.0)
+        .unwrap_or(f64::INFINITY);
     if lo > hi {
         ctx.warn(LayoutWarning::MinGreaterThanMax {
             path: path.to_vec(),
