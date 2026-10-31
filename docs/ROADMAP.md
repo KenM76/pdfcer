@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.111.0` — release PREP, version bump `01cddb14` (`chore`), 2026-10-31 (1354th filing); NOT yet tagged, packaged or published
+
+Engineer-reported (shell held by the engineer; each item stated checked); nothing checked from here. Same pattern as the `v0.110.0` prep (1348th filing, `d898e049`).
+- **`01cddb14`** (`01cddb14b3c493ef21f51f5840fe042d86a54648`) "chore: bump version to 0.111.0", parent `c991317f` (the 1353rd filing): workspace version in `Cargo.toml` lines 99 and 131, `Cargo.lock`, `fuzz/Cargo.lock`; nothing else. A code commit, cited here.
+- **Carried since `v0.110.0`:** `Pass 647.3e` (`53f4e938`, with doc fix `d4ffa8fd`) and `Pass 647.2c` (`ead2642a`, `X026`), plus their filings and the bump.
+- **Target:** OneDrive slot `pdfcer2` (holds 0.109.0, the older; `pdfcer1` holds 0.110.0).
+- **Release plan (to run, NOT claimed done):** tag, packaging, fresh-folder smoke, GitHub release assets, OneDrive deploy to `pdfcer2`, `verify-release.py v0.111.0`, crates.io publish. A later publication filing records the results.
+- **Replies owed after publication (none sent now):** `X026` (rename to SHIPPED) and `G248` items 2-3 (by-name case).
+- **FEATURES:** no box changes; row 739's stale "field/draw splitting not yet" corrected (`647.2b` shipped it). Nothing minted.
+
 ### `ead2642a` `Pass 647.2c` SHIPPED, 2026-10-31: XFA fields and draws sized from their text (`X026`; 1353rd filing)
 
 Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Full hash `ead2642af11bf442c212eedf9eb06b57597ec0ca` (parent `0d40d1a1`), "feat(xfa): size growable fields and draws from their text (Pass 647.2c)". On `main`, **unreleased**, not yet pushed at filing (pushed with this filing); planned for `v0.111.0` (slot `pdfcer2`) together with `Pass 647.3e`. No decision minted. Reasoning is in the commit message.

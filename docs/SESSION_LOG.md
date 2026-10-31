@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-31 (1354th filing) — `v0.111.0` release PREP, bump `01cddb14`; prepared, not published
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`01cddb14`** (`01cddb14b3c493ef21f51f5840fe042d86a54648`, parent `c991317f`) "chore: bump version to 0.111.0": `Cargo.toml` lines 99 and 131, `Cargo.lock`, `fuzz/Cargo.lock`; nothing else.
+- **Contents of `v0.111.0`:** `Pass 647.3e` (`53f4e938`, plus doc fix `d4ffa8fd`) and `Pass 647.2c` (`ead2642a`). Premise checked against the ledger: `v0.110.0` is the latest published release (1349th filing); no contradiction.
+- **Target:** OneDrive slot `pdfcer2`. **Status: prepared, not tagged, packaged or published**; a later publication filing records those.
+- ROADMAP: prep entry added at the top of Shipped. FEATURES: row 739's stale "field/draw splitting not yet" replaced (`647.2b` shipped it, released in `v0.110.0`); no box changed.
+
+**Decisions made this session:** none minted.
+
+**Hard-rule-11 survivors:** the row 739 sentence above, now fixed (owed since the 1353rd). `docs/NEXT_SESSION.md` (engineer-owned) not swept.
+
+**Still in flight:** the release itself.
+
+**For next session:** tag and publish `v0.111.0` (slot `pdfcer2`); reply `X026` and `G248`; then `Pass 648.6`.
+
 ## 2026-10-31 (1353rd filing) — `Pass 647.2c` SHIPPED `ead2642a` (`X026`): XFA fields and draws sized from their text
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
