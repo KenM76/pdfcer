@@ -23,7 +23,7 @@ use super::packets::{XdpDocument, XfaError, parse_xml};
 use super::template::{ContainerKind, Template, XfaNode};
 
 use data::{DataNode, node_at};
-use normal::{Found, Search};
+use normal::{Found, Globals, Search};
 
 /// How an unqualified reference finds its first name (gap G-SOM3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -58,6 +58,33 @@ pub enum DataAttributes {
     Ignore,
 }
 
+/// Where a `match="global"` container that normal matching missed looks
+/// for its shared value (gap G-B9, p.247).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum GlobalScope {
+    /// The first same-named data value anywhere in the data, in document
+    /// order. With no configured record this is the only reading under
+    /// which `global` does anything.
+    #[default]
+    Document,
+    /// Only values outside every record (the data root's own values), the
+    /// strict reading of pp.245-247.
+    Records,
+}
+
+/// Whether `match="global"` applies to an exclusion group (gap G-B10:
+/// p.348 says yes, pp.176, 246 and 623 say fields only).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum GlobalExclGroup {
+    /// The exclusion group shares its value like a field.
+    #[default]
+    Honour,
+    /// The exclusion group binds as `once`.
+    AsOnce,
+}
+
 /// The settings where XFA leaves a merge choice open.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
@@ -68,6 +95,10 @@ pub struct MergeOptions {
     pub bare_ref: BareRef,
     /// See [`DataAttributes`].
     pub data_attributes: DataAttributes,
+    /// See [`GlobalScope`].
+    pub global_scope: GlobalScope,
+    /// See [`GlobalExclGroup`].
+    pub global_exclgroup: GlobalExclGroup,
 }
 
 impl MergeOptions {
@@ -97,9 +128,25 @@ impl MergeOptions {
         self.data_attributes = v;
         self
     }
+
+    /// Set [`Self::global_scope`].
+    #[must_use]
+    pub const fn with_global_scope(mut self, v: GlobalScope) -> Self {
+        self.global_scope = v;
+        self
+    }
+
+    /// Set [`Self::global_exclgroup`].
+    #[must_use]
+    pub const fn with_global_exclgroup(mut self, v: GlobalExclGroup) -> Self {
+        self.global_exclgroup = v;
+        self
+    }
 }
 
-/// Why a reference bound nothing. The container keeps its template value.
+/// Why a reference bound nothing, or bound with a caveat
+/// ([`MergeWarningKind::MixedGlobal`]). An unbound container keeps its
+/// template value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum MergeWarningKind {
@@ -113,6 +160,10 @@ pub enum MergeWarningKind {
     Unsupported,
     /// More than 1,024 steps (a pdfcer guard).
     TooLong,
+    /// A `match="global"` container shares a data value that a non-global
+    /// container also binds; the spec leaves the mix unsupported (p.246).
+    /// The value is still shared.
+    MixedGlobal,
 }
 
 impl MergeWarningKind {
@@ -124,6 +175,7 @@ impl MergeWarningKind {
             Self::WrongType => "wrong-type",
             Self::Unsupported => "unsupported",
             Self::TooLong => "too-long",
+            Self::MixedGlobal => "mixed-global",
         }
     }
 }
@@ -237,6 +289,9 @@ pub fn merge_data(
         opts,
         direct_only: false,
         passive: 0,
+        page_set: 0,
+        globals: Globals::default(),
+        global_nodes: HashSet::new(),
         bound_nodes: HashSet::new(),
         bound: Vec::new(),
         warnings: Vec::new(),
@@ -269,9 +324,14 @@ struct Merger<'a> {
     opts: &'a MergeOptions,
     /// The root subform's `mergeMode` is `matchTemplate`.
     direct_only: bool,
-    /// How many exclusion groups or page sets enclose the container; inside
-    /// one nothing binds by name.
+    /// How many exclusion groups enclose the container; inside one nothing
+    /// binds by name.
     passive: usize,
+    /// How many page sets enclose it; inside one only a `global` field binds.
+    page_set: usize,
+    globals: Globals,
+    /// Data nodes bound by a `global` container, which may share them.
+    global_nodes: HashSet<Vec<usize>>,
     bound_nodes: HashSet<Vec<usize>>,
     bound: Vec<BoundValue>,
     warnings: Vec<MergeWarning>,
@@ -288,8 +348,8 @@ impl Merger<'_> {
         } else {
             None
         };
-        if let Some(name) = name {
-            self.by_name(node, path, scope, &name, &mut inner);
+        if let Some((name, global)) = name {
+            self.by_name(node, path, scope, (&name, global), &mut inner);
         } else if let Some(reference) = self.data_ref(node) {
             let want_value = matches!(kind, Some(ContainerKind::Field | ContainerKind::ExclGroup));
             match self.lookup(&reference, scope, want_value) {
@@ -319,11 +379,10 @@ impl Merger<'_> {
         if matches!(kind, Some(ContainerKind::Field | ContainerKind::Draw)) {
             return;
         }
-        let passive = matches!(
-            kind,
-            Some(ContainerKind::ExclGroup | ContainerKind::PageSet)
-        );
+        let passive = kind == Some(ContainerKind::ExclGroup);
+        let page_set = kind == Some(ContainerKind::PageSet);
         self.passive += usize::from(passive);
+        self.page_set += usize::from(page_set);
         for (i, child) in node.children.iter_mut().enumerate() {
             if child.container_kind().is_some() {
                 path.push(i);
@@ -332,74 +391,119 @@ impl Merger<'_> {
             }
         }
         self.passive -= usize::from(passive);
+        self.page_set -= usize::from(page_set);
     }
 
-    /// The name `node` binds by, when it binds by name: a named subform,
-    /// field or exclusion group whose `bind` is absent, `once` or `global`
-    /// (which tries normal matching first, p.176), outside exclusion groups
-    /// and page sets. A `dataRef` or `none` binding, a nameless container
-    /// and a `scope="none"` subform do not (pp.193-194).
-    fn bind_name(&self, node: &XfaNode, kind: Option<ContainerKind>) -> Option<String> {
+    /// The name `node` binds by, and whether it is `global`, when it binds
+    /// by name: a named subform, field or exclusion group whose `bind` is
+    /// absent, `once` or `global` (which tries normal matching first,
+    /// p.176), outside exclusion groups. In a page set only a `global` field
+    /// binds. A `dataRef` or `none` binding, a nameless container and a
+    /// `scope="none"` subform do not (pp.193-194). A `global` subform binds
+    /// as `once`, and so does a `global` exclusion group under
+    /// [`GlobalExclGroup::AsOnce`].
+    fn bind_name(&self, node: &XfaNode, kind: Option<ContainerKind>) -> Option<(String, bool)> {
         if self.passive > 0 {
             return None;
         }
         let bind = node.child("bind");
-        let by_name = match bind.and_then(|b| b.attr("match")) {
-            None => {
-                bind.and_then(|b| b.attr("ref")).is_none() || self.opts.bare_ref == BareRef::Ignore
-            }
-            Some("once" | "global") => true,
-            Some(_) => false,
+        let (by_name, global) = match bind.and_then(|b| b.attr("match")) {
+            None => (
+                bind.and_then(|b| b.attr("ref")).is_none() || self.opts.bare_ref == BareRef::Ignore,
+                false,
+            ),
+            Some("once") => (true, false),
+            Some("global") => (true, true),
+            Some(_) => (false, false),
         };
+        let global = global
+            && match kind {
+                Some(ContainerKind::Field) => true,
+                Some(ContainerKind::ExclGroup) => {
+                    self.opts.global_exclgroup == GlobalExclGroup::Honour
+                }
+                _ => false,
+            };
         let eligible = match kind {
             Some(ContainerKind::Field | ContainerKind::ExclGroup) => true,
             Some(ContainerKind::Subform) => node.attr("scope") != Some("none"),
             _ => false,
         };
+        if self.page_set > 0 && !(global && kind == Some(ContainerKind::Field)) {
+            return None;
+        }
         let name = node.name().filter(|n| !n.is_empty())?;
-        (by_name && eligible).then(|| name.to_owned())
+        (by_name && eligible).then(|| (name.to_owned(), global))
     }
 
-    /// Bind `node` to the data node named `name` (normal matching).
+    /// Bind `node` to the data node named `name`: normal matching, then for
+    /// a `global` container the shared value (pp.245-247). A page set's
+    /// global field takes the shared value only.
     fn by_name(
         &mut self,
         node: &mut XfaNode,
         path: &[usize],
         scope: &[usize],
-        name: &str,
+        (name, global): (&str, bool),
         inner: &mut Vec<usize>,
     ) {
         let want_value = node.tag != "subform";
-        let search = Search {
-            root: self.root,
-            record: self.record,
-            bound: &self.bound_nodes,
-            direct_only: self.direct_only,
-        };
-        match search.find(scope, name, want_value) {
-            Found::Hit(at) => {
-                if want_value {
-                    let value = node_at(self.root, &at)
-                        .map(|d| d.value.clone())
-                        .unwrap_or_default();
-                    set_value(node, &value);
-                    self.bound.push(BoundValue {
-                        path: path.to_vec(),
-                        value,
-                    });
-                } else {
-                    inner.clone_from(&at);
-                }
-                self.bound_nodes.insert(at);
+        let found = if self.page_set > 0 {
+            Found::Miss
+        } else {
+            Search {
+                root: self.root,
+                record: self.record,
+                bound: &self.bound_nodes,
+                direct_only: self.direct_only,
             }
-            Found::WrongType => self.warnings.push(MergeWarning {
-                path: path.to_vec(),
-                kind: MergeWarningKind::WrongType,
-                reference: name.to_owned(),
-                by_name: true,
-            }),
-            Found::Miss => {}
+            .find(scope, name, want_value)
+        };
+        let at = match found {
+            Found::Hit(at) => Some(at),
+            miss if global => {
+                let records_only = self.opts.global_scope == GlobalScope::Records;
+                let shared = self.globals.find(self.root, name, records_only);
+                if shared.is_none() && matches!(miss, Found::WrongType) {
+                    self.warn(path, MergeWarningKind::WrongType, name);
+                }
+                shared
+            }
+            Found::WrongType => {
+                self.warn(path, MergeWarningKind::WrongType, name);
+                None
+            }
+            Found::Miss => None,
+        };
+        let Some(at) = at else { return };
+        if global {
+            if self.bound_nodes.contains(&at) && !self.global_nodes.contains(&at) {
+                self.warn(path, MergeWarningKind::MixedGlobal, name);
+            }
+            self.global_nodes.insert(at.clone());
         }
+        if want_value {
+            let value = node_at(self.root, &at)
+                .map(|d| d.value.clone())
+                .unwrap_or_default();
+            set_value(node, &value);
+            self.bound.push(BoundValue {
+                path: path.to_vec(),
+                value,
+            });
+        } else {
+            inner.clone_from(&at);
+        }
+        self.bound_nodes.insert(at);
+    }
+
+    fn warn(&mut self, path: &[usize], kind: MergeWarningKind, name: &str) {
+        self.warnings.push(MergeWarning {
+            path: path.to_vec(),
+            kind,
+            reference: name.to_owned(),
+            by_name: true,
+        });
     }
 
     /// The reference `node`'s `bind` names, when it is a data reference.

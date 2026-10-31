@@ -8,9 +8,9 @@
 //! the record (scope match, fewer generations first, p.185). It never looks
 //! inside another group, so a bound group's children stay with its subform
 //! (p.189). Document order decides between indistinguishable fields
-//! (p.191).
+//! (p.191). [`Globals`] is the `match="global"` fallback.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use super::data::{DataNode, node_at};
 
@@ -67,4 +67,55 @@ impl Search<'_> {
         }
         if wrong { Found::WrongType } else { Found::Miss }
     }
+}
+
+/// The `match="global"` fallback's lookups, cached by name so many copies
+/// of one global name cost one walk (pp.245-247).
+#[derive(Default)]
+pub(super) struct Globals {
+    cache: HashMap<String, Option<Vec<usize>>>,
+}
+
+impl Globals {
+    /// The data value every global field named `name` shares: the first
+    /// in document order. `records_only` limits it to values outside every
+    /// record (the data root's own values, p.245); otherwise the whole
+    /// document is searched.
+    pub(super) fn find(
+        &mut self,
+        root: &DataNode,
+        name: &str,
+        records_only: bool,
+    ) -> Option<Vec<usize>> {
+        if let Some(hit) = self.cache.get(name) {
+            return hit.clone();
+        }
+        let hit = if records_only {
+            root.children
+                .iter()
+                .position(|c| !c.group && c.name == name)
+                .map(|i| vec![i])
+        } else {
+            first_value(root, name)
+        };
+        self.cache.insert(name.to_owned(), hit.clone());
+        hit
+    }
+}
+
+/// The first data value named `name` below `root`, depth first in
+/// document order, without recursion.
+fn first_value(root: &DataNode, name: &str) -> Option<Vec<usize>> {
+    let mut stack: Vec<(Vec<usize>, &DataNode)> = vec![(Vec::new(), root)];
+    while let Some((path, node)) = stack.pop() {
+        if !node.group && node.name == name && !path.is_empty() {
+            return Some(path);
+        }
+        for (i, child) in node.children.iter().enumerate().rev() {
+            let mut p = path.clone();
+            p.push(i);
+            stack.push((p, child));
+        }
+    }
+    None
 }

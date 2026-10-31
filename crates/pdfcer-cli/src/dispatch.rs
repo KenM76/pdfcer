@@ -1393,6 +1393,8 @@ pub(crate) fn run() -> ExitCode {
             scope_search,
             bare_ref,
             data_attributes,
+            global_scope,
+            global_exclgroup,
             png_dir,
             scale,
             edge_placement,
@@ -1413,6 +1415,8 @@ pub(crate) fn run() -> ExitCode {
                 scope_search,
                 bare_ref,
                 data_attributes,
+                global_scope,
+                global_exclgroup,
             },
             png_dir
                 .map(|dir| XfaPngArgs {

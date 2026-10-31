@@ -483,3 +483,35 @@ fn name_matched_fields_print_their_merged_values() {
         "{stdout}"
     );
 }
+
+/// X022: every `match="global"` copy prints the one shared value, found in
+/// another subform's data group; `--global-scope records` finds none there.
+#[test]
+fn global_copies_print_the_shared_value() {
+    let copy = |y: u32, access: &str| {
+        format!(
+            r#"<field name="userName" access="{access}" x="10pt" y="{y}pt" w="200pt" h="20pt"><ui><textEdit/></ui><bind match="global"/></field>"#
+        )
+    };
+    let form = format!(
+        r#"<subform name="form">{PAGE}<subform name="page1" w="540pt" h="100pt">{}</subform><subform name="later" w="540pt" h="100pt">{}</subform></subform>"#,
+        copy(10, "open"),
+        copy(10, "protected"),
+    );
+    let data = "<form><page1><q>0</q></page1><other><userName>A. Tester</userName></other></form>";
+    let pdf = pdf_with_data(Some(&form), data);
+    let (code, stdout, stderr) = run("global", &pdf, &[]);
+    assert_eq!(code, 0, "{stderr}");
+    let copies: Vec<_> = stdout
+        .lines()
+        .filter(|l| l.contains(r#"name="userName""#))
+        .collect();
+    assert_eq!(copies.len(), 2, "{stdout}");
+    assert!(
+        copies.iter().all(|l| l.ends_with(r#" value="A. Tester""#)),
+        "{stdout}"
+    );
+    let (code, stdout, _) = run("global-rec", &pdf, &["--global-scope", "records"]);
+    assert_eq!(code, 0);
+    assert!(!stdout.contains("A. Tester"), "{stdout}");
+}

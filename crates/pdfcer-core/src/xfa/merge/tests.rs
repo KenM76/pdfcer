@@ -331,3 +331,97 @@ fn a_thousand_same_named_fields_and_deep_none_chains_stay_sane() {
     let m = merged(&body, &data);
     assert_eq!(m.bound.len(), 1_000);
 }
+
+const PIZZA: &str = r#"<exclGroup name="LikesPizza"><bind match="global"/><field name="Yes"><items><text>Yes</text></items></field><field name="No"><items><text>No</text></items></field></exclGroup>"#;
+
+/// X022 Form E: a global exclusion group, data outside its subform's group.
+#[test]
+fn x022_form_e_selects_yes() {
+    let body = format!(r#"<subform name="Section1">{PIZZA}</subform>"#);
+    let m = merged(
+        &body,
+        "<data><Section1><note>n</note></Section1><LikesPizza>Yes</LikesPizza></data>",
+    );
+    assert_eq!(values(&m), ["Yes"]);
+    assert_eq!(m.value_at(&[0, 0, 0]), Some("Yes"));
+    assert!(m.warnings.is_empty(), "{:?}", m.warnings);
+}
+
+/// Global reaches into another subform's group, where `once` cannot, and
+/// `AsOnce` turns it off for exclusion groups only.
+#[test]
+fn global_reaches_another_group_unless_as_once() {
+    let body = format!(
+        r#"<subform name="Section1">{PIZZA}<field name="who"><bind match="global"/></field></subform>"#
+    );
+    let data = "<data><Section1><note>n</note></Section1><Other><LikesPizza>Yes</LikesPizza><who>Ann</who></Other></data>";
+    assert_eq!(values(&merged(&body, data)), ["Yes", "Ann"]);
+    let as_once = MergeOptions::new().with_global_exclgroup(GlobalExclGroup::AsOnce);
+    assert_eq!(values(&merged_with(&body, data, &as_once)), ["Ann"]);
+    let once = body.replace(r#"<bind match="global"/>"#, "");
+    assert!(values(&merged(&once, data)).is_empty());
+}
+
+/// X022 point 2: every copy shows the one value, protected copies and
+/// repeated subforms included, and they all name one data node.
+#[test]
+fn every_global_copy_shares_one_value() {
+    let copy = r#"<field name="userName"><bind match="global"/></field>"#;
+    let body = format!(
+        r#"<subform name="page1">{copy}</subform><subform name="later"><field name="userName" access="protected"><bind match="global"/></field></subform><subform name="rep">{copy}</subform><subform name="rep">{copy}</subform>"#
+    );
+    let m = merged(&body, "<data><userName>A. Tester</userName></data>");
+    assert_eq!(values(&m), ["A. Tester"; 4]);
+    assert!(m.warnings.is_empty(), "{:?}", m.warnings);
+}
+
+#[test]
+fn a_thousand_global_copies_bind() {
+    let copy = r#"<subform name="s"><field name="n"><bind match="global"/></field></subform>"#;
+    let m = merged(&copy.repeat(1000), "<data><n>v</n></data>");
+    assert_eq!(m.bound.len(), 1000);
+    assert!(m.bound.iter().all(|b| b.value == "v"));
+}
+
+/// `Records` looks only outside every record (the data root's values).
+#[test]
+fn the_records_scope_skips_values_inside_a_record() {
+    let body = r#"<subform name="t"><field name="n"><bind match="global"/></field></subform>"#;
+    let inside = "<data><s><n>A</n></s><t><q>0</q></t></data>";
+    let records = MergeOptions::new().with_global_scope(GlobalScope::Records);
+    assert_eq!(values(&merged(body, inside)), ["A"]);
+    assert!(values(&merged_with(body, inside, &records)).is_empty());
+    let outside = "<data><t><q>0</q></t></data><n>B</n>";
+    assert_eq!(values(&merged_with(body, outside, &records)), ["B"]);
+}
+
+/// A global copy of a normally bound value shares it, with a warning.
+#[test]
+fn mixing_global_and_once_warns_and_shares() {
+    let body = r#"<field name="n"/><field name="n"><bind match="global"/></field>"#;
+    let m = merged(body, "<data><n>v</n></data>");
+    assert_eq!(values(&m), ["v", "v"]);
+    assert_eq!(m.warnings.len(), 1);
+    assert_eq!(m.warnings[0].kind, MergeWarningKind::MixedGlobal);
+    assert_eq!(m.warnings[0].path, [0, 1]);
+}
+
+/// A global field on a master page takes the shared value; a global
+/// subform binds as `once`.
+#[test]
+fn page_set_globals_bind_and_global_subforms_bind_once() {
+    let body = r#"<pageSet><pageArea name="p"><field name="n"><bind match="global"/></field><field name="m"/></pageArea></pageSet><subform name="g"><bind match="global"/><field name="x"/></subform>"#;
+    let m = merged(
+        body,
+        "<data><n>v</n><m>no</m><g><x>1</x></g><x>2</x></data>",
+    );
+    assert_eq!(values(&m), ["v", "1"]);
+}
+
+#[test]
+fn a_global_name_with_only_a_group_warns_wrong_type() {
+    let body = r#"<subform name="s"><field name="n"><bind match="global"/></field></subform>"#;
+    let m = merged(body, "<data><s><n><k>1</k></n></s></data>");
+    assert!(m.bound.is_empty());
+    assert_eq!(m.warnings[0].kind, MergeWarningKind::WrongType);
+}

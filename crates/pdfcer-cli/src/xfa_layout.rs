@@ -67,6 +67,26 @@ pub(crate) enum DataAttributesArg {
     Ignore,
 }
 
+/// `xfa-layout --global-scope` (gap G-B9).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum GlobalScopeArg {
+    /// The first same-named value anywhere in the data.
+    #[default]
+    Document,
+    /// Only values outside every record.
+    Records,
+}
+
+/// `xfa-layout --global-exclgroup` (gap G-B10).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum GlobalExclGroupArg {
+    /// An exclusion group shares its value like a field.
+    #[default]
+    Honour,
+    /// An exclusion group binds as match="once".
+    AsOnce,
+}
+
 /// The settings `xfa-layout` merges and lays the template with.
 #[derive(Debug, Clone, Copy, Default)]
 pub(crate) struct XfaLayoutArgs {
@@ -76,11 +96,15 @@ pub(crate) struct XfaLayoutArgs {
     pub(crate) scope_search: ScopeSearchArg,
     pub(crate) bare_ref: BareRefArg,
     pub(crate) data_attributes: DataAttributesArg,
+    pub(crate) global_scope: GlobalScopeArg,
+    pub(crate) global_exclgroup: GlobalExclGroupArg,
 }
 
 impl XfaLayoutArgs {
     fn merge(self) -> MergeOptions {
-        use pdfcer_core::xfa::{BareRef, DataAttributes, ScopeSearch};
+        use pdfcer_core::xfa::{
+            BareRef, DataAttributes, GlobalExclGroup, GlobalScope, ScopeSearch,
+        };
         MergeOptions::new()
             .with_scope_search(match self.scope_search {
                 ScopeSearchArg::Upward => ScopeSearch::Upward,
@@ -93,6 +117,14 @@ impl XfaLayoutArgs {
             .with_data_attributes(match self.data_attributes {
                 DataAttributesArg::Load => DataAttributes::Load,
                 DataAttributesArg::Ignore => DataAttributes::Ignore,
+            })
+            .with_global_scope(match self.global_scope {
+                GlobalScopeArg::Document => GlobalScope::Document,
+                GlobalScopeArg::Records => GlobalScope::Records,
+            })
+            .with_global_exclgroup(match self.global_exclgroup {
+                GlobalExclGroupArg::Honour => GlobalExclGroup::Honour,
+                GlobalExclGroupArg::AsOnce => GlobalExclGroup::AsOnce,
             })
     }
 

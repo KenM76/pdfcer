@@ -6162,7 +6162,9 @@ pub(crate) enum Command {
     /// reverse), data-ref-unsupported (SOM syntax not resolved yet, such as
     /// .. or #class) or data-ref-too-long. data-name-wrong-type with name=
     /// says a same-named data node was skipped because it is a group where
-    /// a value is needed, or the reverse.
+    /// a value is needed, or the reverse. data-name-mixed-global says a
+    /// match="global" field shares a value that a normally bound field also
+    /// uses, which XFA leaves unsupported; the value is still shown.
     ///
     /// With --png-dir it also draws each page to an image and prints:
     ///
@@ -6216,6 +6218,16 @@ pub(crate) enum Command {
         /// XFA's default loader does) or are ignored.
         #[arg(long, value_enum, default_value_t)]
         data_attributes: DataAttributesArg,
+        /// Where a match="global" field that found no value by name looks
+        /// for the one value every copy shares: anywhere in the data, or
+        /// only outside every record (the strict XFA reading).
+        #[arg(long, value_enum, default_value_t)]
+        global_scope: GlobalScopeArg,
+        /// Whether match="global" on an exclusion group shares its value
+        /// like a field (honour) or binds as match="once" (as-once). XFA 3.3
+        /// says both in different places.
+        #[arg(long, value_enum, default_value_t)]
+        global_exclgroup: GlobalExclGroupArg,
         /// Also draw each computed page to page-NNN.png in this folder
         /// (created if missing). Borders, fills, plain text, captions and
         /// images only; everything not drawn exactly is listed as a

@@ -20,8 +20,8 @@ pub use layout::{
 
 pub use images::{MAX_XFA_IMAGE_BYTES, XfaImages};
 pub use merge::{
-    BareRef, BoundValue, DataAttributes, MergeOptions, MergeWarning, MergeWarningKind, MergedForm,
-    ScopeSearch, merge_data,
+    BareRef, BoundValue, DataAttributes, GlobalExclGroup, GlobalScope, MergeOptions, MergeWarning,
+    MergeWarningKind, MergedForm, ScopeSearch, merge_data,
 };
 pub use packets::{MAX_XDP_LEN, MAX_XML_DEPTH, XdpDocument, XdpPacket, XfaError, read_xdp};
 pub use paint::{

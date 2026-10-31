@@ -692,7 +692,7 @@ The enums are `#[non_exhaustive]`, and unknown tokens read as the default. CLI:
 (an `.xdp` file) the same way `read_xdp` reads a document's; it fails with
 `TooLarge`, `TooDeep` or `Xml`.
 
-**The XFA data merge** (`xfa/merge.rs`, decision 204, Passes 647.3a/647.3b):
+**The XFA data merge** (`xfa/merge.rs`, decision 204, Passes 647.3a-647.3c):
 `merge_data(&Template, &XdpDocument, &MergeOptions) -> Result<MergedForm, XfaError>`.
 It merges the `datasets` packet's `xfa:data` into fields and exclusion groups
 bound with `<bind match="dataRef" ref="…"/>` (XFA 3.3 p.183; SOM Ch.3) or
@@ -709,8 +709,14 @@ file.
   `mergeMode="matchTemplate"` allows the scope's children only. Transparent,
   so their contents match the enclosing data (pp.193-194): nameless
   containers, `scope="none"` subforms, `match="none"`, areas and subform
-  sets. Exclusion-group members and page sets do not bind by name. The
-  `global` fallback and instance creation are not merged yet.
+  sets. Exclusion-group members and page sets do not bind by name.
+  Instance creation is not merged yet.
+- **Global** (`match="global"`, pp.176, 245-247). Normal matching first;
+  on a miss, every copy of the name shares one data value (`GlobalScope`
+  below), even one already bound, so all copies show the same value. A
+  `global` field in a page set takes only the shared value. A `global`
+  subform binds as `once`. Sharing a value a non-global container also
+  binds warns `MixedGlobal` (the value is still shared).
 - **References.** `$`, `$data`, `$record`, `!data`, `xfa.datasets.data`,
   unqualified names, `\.` escapes, `[n]` and `[*]` (the first match not yet
   bound, p.108). `..`, `#class`, `*` names, predicates and `[+n]`/`[-n]` are
@@ -723,19 +729,24 @@ file.
   value is set on each member (the one whose on-value matches draws on).
 - **Never a failure.** A reference that binds nothing leaves the template
   value and adds a `MergeWarningKind` (`Unresolved`, `WrongType`,
-  `Unsupported`, `TooLong` past 1,024 steps; `as_str()` gives the CLI name).
+  `Unsupported`, `TooLong` past 1,024 steps, `MixedGlobal`; `as_str()`
+  gives the CLI name).
   By name, a same-named node of the wrong type is skipped as `WrongType`
   with `by_name` set and `reference` the name; no match at all is silent.
   Errors are only `Xml`, `TooDeep`, or `TooLarge` past a million data nodes.
 - **Settings** (`MergeOptions`, spec gaps): `ScopeSearch` `Upward` (default,
   p.110) or `Children`; `BareRef` `Ignore` (default, p.623) or `DataRef` for
   a `ref` with no `match="dataRef"`; `DataAttributes` `Load` (default,
-  pp.99-100) or `Ignore`.
+  pp.99-100) or `Ignore`; `GlobalScope` `Document` (default: the first
+  same-named value anywhere, document order) or `Records` (only values
+  outside every record, the strict reading); `GlobalExclGroup` `Honour`
+  (default, p.348) or `AsOnce` (pp.176, 246).
 - **CLI.** `xfa-layout` merges before laying out: bound items end with
   `value="…"`, each warning prints as `warning kind=data-ref-<kind> path= ref="…"`
   (or `kind=data-name-<kind> path= name="…"`)
   and counts in the summary, and `--scope-search`, `--bare-ref`,
-  `--data-attributes` set the options. The stderr note says how many values
+  `--data-attributes`, `--global-scope`, `--global-exclgroup` set the
+  options. The stderr note says how many values
   were merged.
 - **★ What the UI must disclose:** the merged values are the file's own
   data, but the layout they sit in is inferred (rule 4); show each merge
