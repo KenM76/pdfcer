@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-31 (1367th filing) — `v0.113.0` PUBLISHED; CI fix-forward `5587fca6`
+
+**Filed (docs only; engineer-reported, shell held by the engineer; nothing checked from here):**
+- **Release `v0.113.0`:** annotated tag at `ca9aa1dd` (the 1366th prep filing), not moved. GitHub release with 8 assets (portable CLI zip, 3 OCR add-ons, a `.sha256` each). OneDrive `pdfcer2` deployed; `pdfcer1` keeps 0.112.0. Fresh-folder smoke: version 0.113.0, render OK. Pre-tag: 8,626 passed / 0 failed (change-scoped: `pdfcer-3d`, `pdfcer-cli`, `pdfcer-core`, `pdfcer-model`, `pdfcer-render`), 34 gates green.
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.113.0 (`pdfcer-pkix` retried for index lag).
+- **Contents:** `G249` `121eb7d9` (653.2), `G250` `82aee9d6` (653.3), `G251` `edb2d1ae` (653.4), `G243` `396c7c70`, `G244` `5c16e092`, `G245` part 2 `01c5f515` (648.6), bump `c9247c11`.
+- **CI RED at the tag** (run `41239368282`), two feature-off steps: `cargo test -p pdfcer-3d --no-default-features` (`pick_index` used render-gated modules without its own gate) and `cargo clippy -p pdfcer-cli --no-default-features --all-targets -- -D warnings` (`ThreeDMeasurement` imported unconditionally, used only under feature `3d`). Default build and shipped binary unaffected. Fixed forward by `5587fca6`; tag not moved. `pdfcer_3d::PickIndex` now requires `pdfcer-3d`'s `render` feature, like `pick`. Verified locally with CI's five feature-off steps plus 34 gates.
+- **GUI:** `notice_2026-10-31_v0.113.0_released.md` in FeatureRequests `open/`; round `G249`-`G251` complete, none left.
+- ROADMAP: publication entry at the top of Shipped; amendment line on the `653.4` entry. FEATURES: no change. `NEXT_SESSION.md` not touched.
+
+**Decisions made this session:** none minted.
+
+**Findings + decisions (lesson):** second time (after `v0.95.0`, 2026-10-23) a tag landed CI-red on the CLI no-default-features clippy variant. The local change-scoped set ran default-feature builds only, so feature-off breakage passed locally and failed in CI. The engineer's scoped release set now always includes CI's feature-off steps, run before tagging, not after.
+
+**Hard-rule-11 survivors:** "unreleased (last release `v0.112.0`)" in the 1360th-1365th entries and the prep entries is history, left as filed. `docs/NEXT_SESSION.md` (engineer-owned) not swept. Backup currency not verifiable from here.
+
+**Still in flight:** nothing from this release.
+
+**For next session:** `pdfcer-gui` consumption of `PickIndex`; next Backlog head.
+
 ## 2026-10-31 (1366th filing) — `v0.113.0` release PREP, bump `c9247c11`; prepared, not published
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**

@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.113.0` PUBLISHED, 2026-10-31 (1367th filing); tag at `ca9aa1dd`, CI fix-forward `5587fca6`
+
+Engineer-reported (shell held by the engineer); nothing checked from here. Supersedes the "prepared, not published" status of the prep entry below, which stays as filed.
+- **Tag:** annotated `v0.113.0` at `ca9aa1dd` (the 1366th prep filing); not moved afterwards. **GitHub release:** 8 assets (portable CLI zip, 3 OCR add-ons, a `.sha256` each). **OneDrive:** `pdfcer2` deployed (0.113.0); `pdfcer1` keeps 0.112.0. **Fresh-folder smoke:** version 0.113.0, render OK.
+- **Crates published (0.113.0):** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` (`pdfcer-pkix` needed a retry for crates.io index lag).
+- **Pre-tag checks:** 8,626 tests passed / 0 failed, change-scoped to `pdfcer-3d`, `pdfcer-cli`, `pdfcer-core`, `pdfcer-model`, `pdfcer-render`; 34 gates green.
+- **Contents:** `G249` `121eb7d9` (`Pass 653.2`), `G250` `82aee9d6` (`653.3`), `G251` `edb2d1ae` (`653.4`), `G243` `396c7c70`, `G244` `5c16e092`, `G245` part 2 `01c5f515` (`Pass 648.6`), bump `c9247c11`.
+- **CI was RED at the tag** (run `41239368282`), two feature-off steps: `cargo test -p pdfcer-3d --no-default-features` (`pick_index` used render-gated modules without its own gate) and `cargo clippy -p pdfcer-cli --no-default-features --all-targets -- -D warnings` (`ThreeDMeasurement` imported unconditionally, used only under feature `3d`). Default build and shipped binary unaffected. **Fixed forward on `main` by `5587fca6`** "build: gate the 3D pick index and a CLI import on their features"; tag not moved. Verified locally with CI's five feature-off steps plus the 34 gates.
+- **Consequence:** `pdfcer_3d::PickIndex` now requires `pdfcer-3d`'s `render` feature, like `pick`.
+- **Recurrence:** second tag to land CI-red on the CLI no-default-features clippy variant (first `v0.95.0`, 2026-10-23). The scoped release set now always includes CI's feature-off steps.
+- **GUI:** notified by `notice_2026-10-31_v0.113.0_released.md` in the FeatureRequests `open/` folder; round `G249`-`G251` complete, none left.
+- **FEATURES:** no box changes. Nothing minted.
+
 ### `v0.113.0` — release PREP, version bump `c9247c11` (`chore`), 2026-10-31 (1366th filing); prepared, not published
 
 Engineer-reported (shell held by the engineer; each item stated checked); nothing checked from here. Same pattern as the `v0.112.0` prep (1358th filing).
@@ -128,6 +141,7 @@ Engineer-reported; no shell here, nothing checked from here. Commit `edb2d1ae`, 
 - **Core:** `pdfcer_3d::PickIndex::new(&meshes)`, a bounding-volume hierarchy built once (median split on the longest centroid axis, four triangles per leaf; corners copied, meshes not borrowed). `index.pick(&ray)` returns the same `Hit` as `pick(&meshes, &ray)`, including `min_distance` and the tie to the lower (mesh, triangle). `index.pick_where(&ray, max_distance, |mesh| ..)` skips meshes the predicate rejects (hidden parts) and hits beyond `max_distance`. Triangles the renderer skips are left out, as `pick` skips them. The slab test widens by a relative epsilon so a box never rejects a hit the triangle test accepts; `pick::intersect` is now `pub(crate)` and shared.
 - **Tests (per commit message):** 800 rays (perspective-style and orthographic) agree exactly with the linear pick over 500 scattered triangles; a masked mesh equals `pick` over the visible mesh alone; a distance limit drops only farther hits; coincident triangles tie to the lower index. Sabotage (tightening the slab test) fails 3 of 4. `docs/core-api` 01: the `PickIndex` row.
 - **CLI / GUI:** no CLI caller; gui not consumed yet (`pdfcer-gui` asked for it). Boxes: `[x]` / `[ ]` / `[ ]`.
+- **Amended 2026-10-31 (1367th):** `PickIndex` requires `pdfcer-3d`'s `render` feature, gated by `5587fca6` after the `v0.113.0` tag went CI-red without it; released in `v0.113.0`.
 - **FEATURES:** new Implemented row "A reusable pick index over a 3D model".
 
 ### `82aee9d6` `Pass 653.3` SHIPPED, 2026-10-31: a placed PRC model carries its unit (`G250`; 1364th filing)
