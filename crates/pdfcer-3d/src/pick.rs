@@ -137,7 +137,7 @@ pub fn pick(meshes: &[TriangleMesh], ray: &Ray) -> Option<Hit> {
 }
 
 /// Möller–Trumbore ray–triangle intersection, two-sided.
-fn intersect(c: &[[f64; 3]; 3], ray: &Ray) -> Option<Hit> {
+pub(crate) fn intersect(c: &[[f64; 3]; 3], ray: &Ray) -> Option<Hit> {
     let e1 = sub(c[1], c[0]);
     let e2 = sub(c[2], c[0]);
     let normal = normalize(cross(e1, e2))?;
