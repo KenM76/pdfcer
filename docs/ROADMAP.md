@@ -26855,6 +26855,16 @@ Engineer-dispatched filing; nothing built. Spec as 647.3c (pp.85, 129, 149-151, 
 - **Release:** after 647.3d, cut a release (standing-authorized, decision 121: green `run-gates.sh`, fresh-folder smoke test, `verify-release.py`) and name it in the `X022` reply.
 - **FEATURES:** Planned row added (all three boxes `[ ]`).
 
+### Pass 647.3e — XFA data-driven instances and unfilled counts (NOT STARTED; filed 1341st filing, request `G248` items 2-3, pdfceGUI; after 647.3d and its release)
+
+Engineer-dispatched filing; nothing built. `G248` item 1 (normal binding) shipped in `647.3b` (`f5c1f27e`, unreleased). Engineer probe at HEAD `484446ee` with `G248`'s synthetic shape: `landlordName`="A Landlord", `section2.answer`="yes", `q` (dataRef `$.section2.answer`, `$`=body)="yes", first `tenant` "One", no warnings; but only ONE tenant instance (second data group "Two" unbound): instance creation from data is missing. Request: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\request_G248_xfa_normal_binding.md` (channel root, not `open/`); reply `open/reply_G248_xfa_normal_binding_PLANNED.md`.
+- **Scope (core + cli; gui consumes):** during merge, a subform (and subformSet) with `occur` gets one instance per matching same-named data group, up to `max` (-1 unbounded), at least `min`; greedy matching per XFA 3.3 pp.339-347 (spec RAG `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_data_binding_normal.md`, occur/greedy bullets, gaps G-B3, G-B5). Excess data groups are reported as unbound, with a count. Instance paths are stable and documented. Layout uses the merged instances; its own `occur@initial` copies must be reconciled with them (no double-instancing).
+- **Unfilled counts:** `MergedForm` reports the count of value-bearing fields with no bound value, and the count of data value nodes nothing bound. CLI `xfa-layout` prints both counts.
+- **Acceptance:** `G248` synthetic shape gives two `tenant` instances "One" and "Two"; a 4-group / `occur max=4` case gives four; data past `max` is counted unbound; hostile: 1,000 data groups against `max -1` are bounded by a guard with a warning, no panic.
+- **Docs:** `docs/core-api/03-capabilities.md`.
+- **Order:** `647.3d` (in progress; `X022`/`X023` fill write-back) -> release -> `647.3e`.
+- **FEATURES:** Planned row added (all three boxes `[ ]`).
+
 ### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing); NOT COMPLETE, stays here)
 
 `pdfcer-render` draws the computed layout instead of the placeholder page (render-time only, like decision 203). Inferred content renders exactly as saved content would (rule 4: no on-canvas marking); disclosure is off-canvas diagnostics. Needs `pdfcer-render` to stay GUI-free (`cargo tree` check).
