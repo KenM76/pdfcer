@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-31 (1352nd filing) — `d4ffa8fd` doc-comment fix to `Pass 647.3e`; fuzz build green
+
+**Filed (docs only; engineer-reported; no shell here, nothing checked from here):**
+- **`d4ffa8fd`** (`d4ffa8fd91222ac87bc3d6ff401410533ad2c860`): restored `node_at`'s doc comment in `crates/pdfcer-core/src/xfa/merge/data.rs`, displaced when `count_values` was inserted immediately before it. Caught by `tools/check-public-fns-documented.py` in the pre-push gate sweep. Doc only, no behaviour change.
+- **Fuzz build:** `cargo +nightly fuzz build` for `647.3e` green, 13m36s. Resolves the 1351st entry's "fuzz build not reported" (that entry not rewritten).
+- ROADMAP: two bullets added to the `647.3e` Shipped entry. FEATURES: no rows change.
+
+**Decisions made this session:** none minted.
+
+**Findings:** recurrence of "inserting before an anchor orphans its doc comment" (already in engineer memory); no new RAG lesson.
+
+**Hard-rule-11 survivors:** none; nothing changed meaning.
+
+**Still in flight:** nothing; `647.3e` unreleased.
+
+**For next session:** `Pass 647.2c` (own release, `pdfcer2`), then `648.6`.
+
 ## 2026-10-31 (1351st filing) — `Pass 647.3e` SHIPPED `53f4e938` (`G248` items 2-3, by-name case)
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
