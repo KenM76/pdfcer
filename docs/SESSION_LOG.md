@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-31 (1359th filing) — `v0.112.0` PUBLISHED; `X027` reply SHIPPED
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`v0.112.0` publication.** Annotated tag on `0a19909f` (1358th filing commit), pushed with `main`. Build `D:\builds\pdfcer-20261031-1122-0a19909` (56,682,472 bytes total). GitHub release: 8 assets verified at local sizes by `tools/gh-release.py` (PASS); `pdfcer-v0.112.0-windows-x64.zip` 28,240,390 bytes (sha256 `efd34d1fe504`...), three OCR add-on zips, 4 `.sha256`.
+- **Smoke:** `--version` 0.112.0, revision `v0.112.0`; `inspect` on `PDF 2.0 image with BPC.pdf` gives PDF 2.0.
+- **Gates/CI:** 34 gates green locally at `0a19909f` (`check-commits-filed` included); CI run 41214398377 green. `verify-release.py`: all ok except "working tree clean" (root `-`, two `docs/research/request-*.md`, agent-memory edits; not ours).
+- **OneDrive:** `pdfcer1` = 0.112.0 (held 0.110.0); `pdfcer2` keeps 0.111.0. Next release writes `pdfcer2`.
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.112.0 published.
+- **Channel:** `X027` reply renamed `_PLANNED` to `_SHIPPED`; `notice_2026-10-31_v0.112.0_released.md` written.
+- ROADMAP: publication entry added; prep entry retitled "published in the 1359th filing"; Next up banner amended. FEATURES: `647.4b` row says released in `v0.112.0`; no box changed.
+
+**Decisions made this session:** none minted.
+
+**Hard-rule-11 survivors:** the one "unreleased, planned `v0.112.0`" FEATURES row (grep `v0.112.0` found only that row), fixed. The 1357th/1358th entries' "unreleased" wording and the `647.4b` Shipped entry's are history, left as filed. `docs/NEXT_SESSION.md` (engineer-owned) not swept. Backup currency not verifiable from here.
+
+**Still in flight:** nothing mid-Pass.
+
+**For next session:** `Pass 648.6` (`G245` part 2, measurements, spec RAG first). Agent-memory dirt, root `-` and the two research request files remain the operator's to dispose of.
+
 ## 2026-10-31 (1358th filing) — `v0.112.0` release PREP, bump `807c274b`; prepared, not published
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**

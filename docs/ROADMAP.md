@@ -112,7 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
-### `v0.112.0` — release PREP, version bump `807c274b` (`chore`), 2026-10-31 (1358th filing); prepared, not published
+### `v0.112.0` — PUBLISHED, 2026-10-31 (1359th filing)
+
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Release record for the prep filed below (1358th, bump `807c274b`).
+- **Tag:** annotated `v0.112.0` on `0a19909f` (the 1358th filing commit); `main` and the tag pushed.
+- **Contents:** `Pass 647.4b` (`96af5ff3`, `X027`), `cb525cf9` (module-doc), bump `807c274b`, plus their filings.
+- **Packaging:** build `D:\builds\pdfcer-20261031-1122-0a19909` (TOTAL 56,682,472 bytes). GitHub release with 8 assets, each verified at its local size by `tools/gh-release.py` (PASS): `pdfcer-v0.112.0-windows-x64.zip` (28,240,390 bytes, sha256 `efd34d1fe504`...), `ocr-addon-ocrcer.zip`, `ocr-addon-ocrs.zip`, `ocr-addon-tesseract.zip`, and a `.sha256` for each.
+- **Fresh-folder smoke:** `pdfcer --version` 0.112.0, revision `v0.112.0`; `inspect` on `fixtures/external/pdf20examples/PDF 2.0 image with BPC.pdf` gives PDF 2.0.
+- **Gates and CI:** the 34 CI gates green locally on `0a19909f` (`check-commits-filed` included). CI run 41214398377 green at `0a19909f`.
+- **`verify-release.py v0.112.0`:** every check ok except "working tree clean": only the known dirt (root `-`, two `docs/research/request-*.md` files, agent-memory edits; not ours).
+- **OneDrive:** deployed to `pdfcer1` (held 0.110.0). `pdfcer2` keeps 0.111.0 as previous. **Next release writes `pdfcer2`.**
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.112.0 published.
+- **Inbound channel** (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`): `reply_X027_..._PLANNED.md` replaced by `reply_X027_xfa_draw_shapes_dash_rotate_SHIPPED.md`; `notice_2026-10-31_v0.112.0_released.md` written.
+- **Next up:** `Pass 648.6` (`G245` part 2, measurements). `Pass 647.3f` and `Pass 647.4` stay in the Backlog.
+- **FEATURES:** the `647.4b` row says released in `v0.112.0` (was "unreleased"); no box changed. Nothing minted: no decision, no rule.
+
+### `v0.112.0` — release PREP, version bump `807c274b` (`chore`), 2026-10-31 (1358th filing); published in the 1359th filing (entry above)
 
 Engineer-reported (shell held by the engineer; each item stated checked); nothing checked from here. Same pattern as the `v0.111.0` prep (1354th filing, `f7b50b50`).
 - **`807c274b`** "chore: bump version to 0.112.0": workspace version 0.111.0 to 0.112.0; `Cargo.lock` and `fuzz/Cargo.lock` refreshed. A code commit, cited here.
@@ -25019,7 +25034,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **Next up head (rewritten 1355th filing; `Pass 647.3e` `53f4e938` and `Pass 647.2c` `ead2642a` SHIPPED and released in `v0.111.0`, published): `Pass 648.6` (`G245` part 2, /MA measurements, spec-RAG check first).** `Pass 647.3f` (dataRef-bound and subform-set instances, residue of `647.3e`) and `Pass 647.4` stay in the Backlog, not yet ordered. Release slot: next release writes `pdfcer1` (`pdfcer2` holds 0.111.0, `pdfcer1` holds 0.110.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
 
-> **Head amended 1357th filing: `Pass 647.4b` (`X027`) SHIPPED `96af5ff3`, see *Shipped*; the head is `Pass 648.6` again, after the release `v0.112.0` (slot `pdfcer1`), which is a separate filing.** `647.3f` and `647.4` (image natural sizing) stay in the Backlog. *(The 1356th-filing note that put `647.4b` ahead of `648.6` is history.)*
+> **Head amended 1357th filing: `Pass 647.4b` (`X027`) SHIPPED `96af5ff3`, see *Shipped*; the head is `Pass 648.6` again, after the release `v0.112.0` (slot `pdfcer1`), which is a separate filing.** *(Amended 1359th filing: `v0.112.0` PUBLISHED, see *Shipped*; the head is `Pass 648.6`, next release writes `pdfcer2`.)* `647.3f` and `647.4` (image natural sizing) stay in the Backlog. *(The 1356th-filing note that put `647.4b` ahead of `648.6` is history.)*
 
 (1271st filing: `Pass 646.25` (`G237`, `XfaFormKind`) SHIPPED on `5f401310`; decision 204 reopens dynamic XFA; arc `647.0`-`647.7` filed below. All Passes below are NOT STARTED. Spec source (extracted by `pdfcer-spec-librarian`): `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_{xdp_packaging,static_vs_dynamic_rendering,template_layout_dom,layout_algorithm,data_binding_normal}.md`; its gap IDs G-X/S/T/L/B are the arc's default-decisions list. Spec slice still owed: SOM expressions, then table/row layout. Arc-wide acceptance: (1) opening never rewrites structure (§5); (2) layout inferred at render time is rule-4 disclosed; (3) content a dynamic form drops on overflow is disclosed, which the spec only warns about; (4) no external XFA code is relied on.)
 
