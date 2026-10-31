@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-31 (1348th filing) — `v0.110.0` release PREP, bump `d898e049`
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`v0.110.0` prep** on top of `263c6a6f` (1347th) and the bump `d898e049` (`Cargo.toml` workspace version plus `pdfcer-model` dependency, `Cargo.lock`, `fuzz/Cargo.lock`). Carries only `Pass 647.2b` (`fe0135a1`, `X025`). Both pushed to `main`. `cargo check --workspace` clean after the bump. Tag goes on this filing's commit; OneDrive slot `pdfcer1`. Not tagged or published as of this filing.
+- **Gates (engineer-reported):** xfa tests core 166, CLI 20, doctests 4; fmt, clippy clean; 34 CI gate scripts green.
+- ROADMAP: prep entry added to Shipped; the long-stale `## Next up` head banner (flagged in the 1346th) rewritten to point at the release, then `647.3e`, then `648.6`. FEATURES unchanged (as in the `v0.109.0` prep).
+
+**Decisions made this session:** none minted.
+
+**Hard-rule-11 survivors:** the stale Next up banner is fixed. Its dated parenthetical history lines beneath were left as history. `docs/NEXT_SESSION.md` (engineer-owned) not swept. Backup currency not verifiable from here.
+
+**Still in flight:** release plan (to run, not claimed done): tag, push, package, fresh-folder smoke, GitHub release, OneDrive `pdfcer1`, `verify-release.py`, crates.io 0.110.0 for `pdfcer-color`/`-model`/`-pkix`.
+
+**Reply owed after publication:** `X025`.
+
+**For next session:** after the release, `Pass 647.3e` (`G248` items 2-3), then `648.6` (`G245` part 2).
+
 ## 2026-10-31 (1347th filing) — `Pass 647.2b` SHIPPED `fe0135a1` (`X025`): XFA growable field/draw splits between text lines
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**

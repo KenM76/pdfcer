@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.110.0` — release PREP, version bump `d898e049` (`chore`), 2026-10-31 (1348th filing)
+
+Engineer-reported (shell held by the engineer; each item stated checked); nothing checked from here. Same pattern as the `v0.109.0` prep (1345th filing, `91924926`). The tag `v0.110.0` goes on this filing's own commit.
+- **`d898e049`** "chore: bump workspace to 0.110.0": `Cargo.toml` (workspace version and the `pdfcer-model` dependency version), `Cargo.lock`, `fuzz/Cargo.lock`. On top of `263c6a6f`. A code commit, cited here. `cargo check --workspace` clean after the bump.
+- **Carried since `v0.109.0`:** only `Pass 647.2b` (`fe0135a1`, `X025`; filed in the 1347th, `263c6a6f`). Both commits are on `main` and pushed.
+- **Gates (engineer-reported):** xfa tests: `pdfcer-core` 166 pass, `pdfcer-cli` 20 pass, xfa doctests 4 pass; fmt and clippy clean; all 34 CI-named gate scripts green.
+- **Target:** annotated tag `v0.110.0` on this filing's commit; OneDrive slot `pdfcer1` (holds 0.108.0, the older).
+- **Release plan (to run, NOT claimed done):** tag, push of the tag, packaging, fresh-folder smoke test, GitHub release assets, OneDrive deploy to `pdfcer1`, `verify-release.py v0.110.0`, crates.io publish of `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.110.0.
+- **Reply owed after publication (none sent now):** `X025`.
+- **Next after the release:** `Pass 647.3e` (`G248` items 2-3), then `648.6` (`G245` part 2).
+- **FEATURES:** no change. Nothing minted: no decision, no rule.
+
 ### `fe0135a1` `Pass 647.2b` SHIPPED, 2026-10-31: XFA growable field/draw split between text lines (`X025`; 1347th filing)
 
 Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. On `main`, pushed or not per the engineer; **unreleased: it goes out alone as `v0.110.0`**. No decision minted. Reasoning is in the commit message.
@@ -24912,7 +24924,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Next up head: `Pass 647.2` (dynamic XFA arc, decision 204; `647.0` shipped 1272nd filing, `647.1` shipped 1276th), operator-paced: Ken asked for slow progress this week, so no start date is implied.** `G236` family is complete. Next free `Pass 646.29`, `647.8`, decision `206`, `R251` (decision and R per the 1274th filing's relay of `check-ledger-numbers.py`; not re-run here); next filing 1277th. Release slot `pdfcer2` (next release). Unreleased since `v0.102.0`: `646.24`, `646.25`, `647.0`, `647.1` (and later `646.x` per their entries). Open on the arc: qualified (simplex/duplex) pagination has no Pass.
+> **Next up head (rewritten 1348th filing; the previous banner was stale since the 1277th): the release `v0.110.0` (prep filed, bump `d898e049`; carries only `Pass 647.2b`), then `Pass 647.3e` (`G248` items 2-3), then `Pass 648.6` (`G245` part 2, spec-RAG check first).** Release slot `pdfcer1` (holds 0.108.0, the older; `pdfcer2` holds 0.109.0). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
 
 (1271st filing: `Pass 646.25` (`G237`, `XfaFormKind`) SHIPPED on `5f401310`; decision 204 reopens dynamic XFA; arc `647.0`-`647.7` filed below. All Passes below are NOT STARTED. Spec source (extracted by `pdfcer-spec-librarian`): `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_{xdp_packaging,static_vs_dynamic_rendering,template_layout_dom,layout_algorithm,data_binding_normal}.md`; its gap IDs G-X/S/T/L/B are the arc's default-decisions list. Spec slice still owed: SOM expressions, then table/row layout. Arc-wide acceptance: (1) opening never rewrites structure (§5); (2) layout inferred at render time is rule-4 disclosed; (3) content a dynamic form drops on overflow is disclosed, which the spec only warns about; (4) no external XFA code is relied on.)
 
