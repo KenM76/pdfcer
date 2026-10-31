@@ -9,11 +9,13 @@
 //! p.655, presence p.68, box model pp.49-50, Z-order p.70; slice
 //! `adobe_ext__xfa_appearance_drawing.md` (gaps G-D1..G-D19).
 //!
-//! Scope: a container's own `border` (its `fill`, `margin` and solid square
-//! edges), and a `draw`'s or `field`'s plain value text in a standard-14
-//! face ([`PaintedPage::resources`] names them), beside its left, right, top
-//! or bottom caption, and a `checkButton` field's box and mark; an `image`
-//! value or caption, inline or linked through [`XfaImages`]. Inline and
+//! Scope: a container's own `border` (its `fill`, `margin`, corners and
+//! solid, dashed or 3-D edges); a `draw`'s `rectangle`, `line` or `arc`
+//! value; a `draw`'s or `field`'s plain value text in a standard-14 face
+//! ([`PaintedPage::resources`] names them), beside its left, right, top or
+//! bottom caption; a `checkButton` field's box and mark; an `image` value
+//! or caption, inline or linked through [`XfaImages`]. A rotated draw or
+//! field is drawn turned. Inline and
 //! rich captions, rich text, other value content and other non-text widgets
 //! are not drawn yet; each item carrying them is reported as
 //! [`PaintNoteKind::Content`].
