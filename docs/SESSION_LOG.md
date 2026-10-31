@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-31 (1346th filing) — `v0.109.0` PUBLISHED (CI green at the tag); `X022`, `X023`, `X024`, `G247` closed
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`v0.109.0` publication.** Annotated tag (object `e18df237`) on `91924926f3ca5e25f22a76aa0b15b176a074257c` (1345th filing commit), pushed; `main` at `91924926`. Build `D:\builds\pdfcer-20261031-0252-9192492`, staged `D:\builds\rel-v0.109.0`. GitHub release: 8 assets (`pdfcer-v0.109.0-windows-x64.zip` 28,210,010 bytes; `ocr-addon-ocrcer/ocrs/tesseract` zips; each with `.sha256`); `gh-release.py` PASS at local sizes.
+- **Smoke (fresh temp copy):** `--version` 0.109.0 (revision `v0.109.0`); `xfa-fill --help` lists `--data-creation`; synthetic Form G (one-stream XDP, no datasets packet, two global `userName` fields, second protected): fill `0.1.0` "A. Tester" printed `created=form1/userName shared_with=0.2.0`; fill `0.2.0` "B" printed `created=-`; `xfa-layout` showed `value="B"` on both.
+- **`verify-release.py`:** all ok except "working tree clean" (known case); "CI is GREEN at the tagged commit" passed.
+- **OneDrive:** `pdfcer2` = 0.109.0 (6 items, 76,186,587 bytes); `pdfcer1` keeps 0.108.0. Next release writes `pdfcer1`.
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.109.0, `max_version` 0.109.0 each per the crates.io API.
+- **Channel** (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`): replies renamed SHIPPED for `X022`, `X023`, `X024`; `G247` and `G245` part 1 retitled released (`G245` part 2 open); `G248` reply amended (item 1 released, items 2-3 `647.3e`); notice `notice_2026-10-31_v0.109.0_released.md`; `check-requests-scoped.py` clean, 181 answered.
+- ROADMAP: publication entry added; prep entry and the seven carried Shipped entries (`648.4`, `648.5`, `647.3b`, `647.3c`, `647.3d`, `647.3d2`, `652.0`) amended "released in `v0.109.0`"; `647.2b`/`647.3e` Next up headers re-ordered text. FEATURES: six rows say released in `v0.109.0`.
+
+**Decisions made this session:** none minted.
+
+**Findings:** the 1334th/1345th process lesson held: running every CI python gate before tagging gave green CI at the tag (red at `v0.108.0`).
+
+**Hard-rule-11 survivors:** FEATURES row "data merge for explicit data references" still said name-matching binding and write-back were "not built": fixed. The 1342nd and 1344th entries and the carried entries' "Reply owed" bullets are history, superseded by the amendments. **Not fixed, owed (stale, not mine to rewrite):** ROADMAP *Next up* head banner (`## Next up`, "Next up head: Pass 647.2 ... Release slot pdfcer2 (next release)") is long stale; `docs/NEXT_SESSION.md` (engineer-owned) not swept. Backup currency not verifiable from here.
+
+**Still in flight:** nothing mid-Pass.
+
+**For next session:** `Pass 647.2b` (`X025`, own release); then `647.3e` (`G248` items 2-3) and `648.6` (`G245` part 2, spec-RAG check first).
+
 ## 2026-10-31 (1345th filing) — `v0.109.0` release PREP, bump `304be34e`; follow-up `732fb530` recorded under `647.3d2`
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
