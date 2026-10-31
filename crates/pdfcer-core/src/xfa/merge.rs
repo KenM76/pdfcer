@@ -16,6 +16,7 @@
 mod data;
 pub(super) mod fill;
 mod normal;
+mod occur;
 mod som;
 
 use std::collections::HashSet;
@@ -203,6 +204,12 @@ pub enum MergeWarningKind {
     /// container also binds; the spec leaves the mix unsupported (p.246).
     /// The value is still shared.
     MixedGlobal,
+    /// A data group a repeating subform would bind, left over once
+    /// `occur@max` instances exist (p.340); one warning per group.
+    ExcessData,
+    /// More than 100,000 subform instances (a pdfcer guard); no more are
+    /// made.
+    InstanceLimit,
 }
 
 impl MergeWarningKind {
@@ -215,6 +222,8 @@ impl MergeWarningKind {
             Self::Unsupported => "unsupported",
             Self::TooLong => "too-long",
             Self::MixedGlobal => "mixed-global",
+            Self::ExcessData => "excess-data",
+            Self::InstanceLimit => "instance-limit",
         }
     }
 }
@@ -263,6 +272,12 @@ pub struct MergedForm {
     pub warnings: Vec<MergeWarning>,
     /// Whether the XDP had an `xfa:data` element at all.
     pub has_data: bool,
+    /// Fields and exclusion groups that tried to bind (by name or by data
+    /// reference) and took no value. `match="none"` containers are not
+    /// counted.
+    pub unfilled: usize,
+    /// Data values (not groups) that nothing bound.
+    pub unbound_values: usize,
 }
 
 impl MergedForm {
@@ -348,6 +363,9 @@ pub(super) fn merge_planned(
         global_nodes: HashSet::new(),
         bound_nodes: HashSet::new(),
         bound: Vec::new(),
+        has_data,
+        instances_made: 0,
+        unfilled: 0,
         warnings: Vec::new(),
         unbound: Vec::new(),
         record_groups: Vec::new(),
@@ -372,11 +390,14 @@ pub(super) fn merge_planned(
             break;
         }
     }
+    let unbound_values = data::count_values(&root, &m.bound_nodes);
     let form = MergedForm {
         template: out,
         bound: m.bound,
         warnings: m.warnings,
         has_data,
+        unfilled: m.unfilled,
+        unbound_values,
     };
     Ok((form, m.unbound))
 }
@@ -397,6 +418,10 @@ struct Merger<'a> {
     global_nodes: HashSet<Vec<usize>>,
     bound_nodes: HashSet<Vec<usize>>,
     bound: Vec<BoundValue>,
+    /// Merging against an `xfa:data` element, so subforms repeat from it.
+    has_data: bool,
+    instances_made: usize,
+    unfilled: usize,
     warnings: Vec<MergeWarning>,
     unbound: Vec<Unbound>,
     /// The record group a fill must create first (empty when it exists).
@@ -413,6 +438,38 @@ impl Merger<'_> {
         scope: &[usize],
         pending: &[String],
     ) {
+        let kind = node.container_kind();
+        let (inner, inner_pending) = self.bind(node, path, scope, pending);
+        if matches!(kind, Some(ContainerKind::Field | ContainerKind::Draw)) {
+            return;
+        }
+        let passive = kind == Some(ContainerKind::ExclGroup);
+        let page_set = kind == Some(ContainerKind::PageSet);
+        self.passive += usize::from(passive);
+        self.page_set += usize::from(page_set);
+        // Repeating subforms expand in place (see `occur`).
+        for child in std::mem::take(&mut node.children) {
+            if child.container_kind().is_none() {
+                node.children.push(child);
+            } else if self.repeats(&child) {
+                self.instances(&mut node.children, child, path, &inner, &inner_pending);
+            } else {
+                self.place(&mut node.children, child, path, &inner, &inner_pending);
+            }
+        }
+        self.passive -= usize::from(passive);
+        self.page_set -= usize::from(page_set);
+    }
+
+    /// Bind `node` itself; returns the data scope and pending subform names
+    /// for its children.
+    fn bind(
+        &mut self,
+        node: &mut XfaNode,
+        path: &[usize],
+        scope: &[usize],
+        pending: &[String],
+    ) -> (Vec<usize>, Vec<String>) {
         let kind = node.container_kind();
         let mut inner = scope.to_vec();
         let mut inner_pending = pending.to_vec();
@@ -431,8 +488,9 @@ impl Merger<'_> {
                     inner_pending.push(name);
                 }
             } else if at.is_none() {
+                self.unfilled += 1;
                 self.unbound.push(Unbound {
-                    path: path.clone(),
+                    path: path.to_vec(),
                     scope: if global {
                         self.record.to_vec()
                     } else {
@@ -458,30 +516,18 @@ impl Merger<'_> {
                     }
                     self.bound_nodes.insert(at);
                 }
-                Err(kind) => self.warnings.push(MergeWarning {
-                    path: path.clone(),
-                    kind,
-                    reference,
-                    by_name: false,
-                }),
+                Err(kind) => {
+                    self.unfilled += usize::from(want_value);
+                    self.warnings.push(MergeWarning {
+                        path: path.to_vec(),
+                        kind,
+                        reference,
+                        by_name: false,
+                    });
+                }
             }
         }
-        if matches!(kind, Some(ContainerKind::Field | ContainerKind::Draw)) {
-            return;
-        }
-        let passive = kind == Some(ContainerKind::ExclGroup);
-        let page_set = kind == Some(ContainerKind::PageSet);
-        self.passive += usize::from(passive);
-        self.page_set += usize::from(page_set);
-        for (i, child) in node.children.iter_mut().enumerate() {
-            if child.container_kind().is_some() {
-                path.push(i);
-                self.container(child, path, &inner, &inner_pending);
-                path.pop();
-            }
-        }
-        self.passive -= usize::from(passive);
-        self.page_set -= usize::from(page_set);
+        (inner, inner_pending)
     }
 
     /// The name `node` binds by, and whether it is `global`, when it binds

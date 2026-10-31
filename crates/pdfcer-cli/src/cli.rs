@@ -6140,13 +6140,19 @@ pub(crate) enum Command {
     /// and into named fields, exclusion groups and subforms with the default
     /// binding, which match data of the same name. A subform with
     /// bind match="none" and a nameless one are not a data scope: what they
-    /// hold matches the enclosing data. match="global" fallback is not
-    /// merged yet.
+    /// hold matches the enclosing data. A named subform with an occur
+    /// element repeats once per matching data group, between its min and
+    /// max; each copy is an item of its own, and later paths shift.
     ///
     ///   page index=N name="..." width= height= page_area= content_areas= items=
     ///   item page=N kind= name="..." path= x= y= w= h= area= background= visible= [fragment=OFFSET/HEIGHT] [value="..."]
     ///   warning kind= path= [target= | attribute= | strategy= | ref="..."]
+    ///   data unfilled=N unbound-values=N
     ///   xfa-layout pages= items= warnings=
+    ///
+    /// The data line appears when the form has data: unfilled counts the
+    /// fields that looked for a value and found none, unbound-values the
+    /// data values no field took.
     ///
     /// fragment= marks one piece of a container split across content
     /// areas: OFFSET is where the piece starts down the whole container

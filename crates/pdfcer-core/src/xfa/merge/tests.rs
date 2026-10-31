@@ -453,3 +453,124 @@ fn every_value_records_its_data_node_and_span() {
     let paths: Vec<&[usize]> = m.bound.iter().map(|b| b.data.as_slice()).collect();
     assert_eq!(paths, [&[0, 1][..], &[0, 4], &[0, 3]]);
 }
+
+const TENANTS: &str = "<data><tenant><name>One</name></tenant><tenant><name>Two</name></tenant><tenant><name>Three</name></tenant></data>";
+
+fn tenant(occur: &str) -> String {
+    format!(r#"<subform name="tenant">{occur}<field name="name"/></subform><field name="after"/>"#)
+}
+
+#[test]
+fn a_repeating_subform_gets_one_instance_per_data_group() {
+    let m = merged(&tenant(r#"<occur min="0" max="-1"/>"#), TENANTS);
+    let values: Vec<_> = m
+        .bound
+        .iter()
+        .map(|b| (b.path.clone(), b.value.as_str()))
+        .collect();
+    assert_eq!(
+        values,
+        [
+            (vec![0, 0, 1], "One"),
+            (vec![0, 1, 1], "Two"),
+            (vec![0, 2, 1], "Three")
+        ]
+    );
+    let root = &m.template.element().children[0];
+    let tags: Vec<_> = root.children.iter().map(|c| c.name().unwrap()).collect();
+    assert_eq!(tags, ["tenant", "tenant", "tenant", "after"]);
+    for t in &root.children[..3] {
+        assert_eq!(t.occur().unwrap().initial, 1);
+    }
+    assert!(m.warnings.is_empty(), "{:?}", m.warnings);
+    assert_eq!((m.unfilled, m.unbound_values), (1, 0));
+}
+
+#[test]
+fn data_past_max_is_reported_as_excess() {
+    let m = merged(&tenant(r#"<occur min="1" max="2"/>"#), TENANTS);
+    assert_eq!(m.bound.len(), 2);
+    let excess: Vec<_> = m
+        .warnings
+        .iter()
+        .filter(|w| w.kind == MergeWarningKind::ExcessData)
+        .collect();
+    assert_eq!(excess.len(), 1);
+    assert_eq!(excess[0].path, [0, 1]);
+    assert_eq!(excess[0].reference, "tenant");
+    assert_eq!(m.unbound_values, 1);
+}
+
+#[test]
+fn min_instances_exist_without_matching_data() {
+    let m = merged(
+        &tenant(r#"<occur min="2" max="4"/>"#),
+        "<data><other>x</other></data>",
+    );
+    let root = &m.template.element().children[0];
+    assert_eq!(root.children.len(), 3);
+    assert!(m.bound.is_empty());
+    assert_eq!((m.unfilled, m.unbound_values), (3, 1));
+}
+
+#[test]
+fn an_unmatched_optional_subform_lays_out_nothing() {
+    let page =
+        r#"<pageSet><pageArea><contentArea x="0" y="0" w="8in" h="10in"/></pageArea></pageSet>"#;
+    let body = format!(
+        r#"{page}<subform name="tenant" w="2in" h="1in"><occur min="0" max="3" initial="1"/><field name="name" w="1in" h="10pt"/></subform>"#
+    );
+    let x = xdp(&body, "<data><other>x</other></data>");
+    let t = read_template(&x).unwrap().unwrap();
+    let m = merge_data(&t, &x, &MergeOptions::new()).unwrap();
+    let opts = crate::xfa::LayoutOptions::new();
+    let laid = crate::xfa::layout_template(&m.template, &opts).unwrap();
+    let items = laid
+        .pages
+        .iter()
+        .flat_map(|p| &p.items)
+        .filter(|i| i.path.starts_with(&[0, 1]))
+        .count();
+    assert_eq!(items, 0);
+    // The empty merge (no data) keeps occur@initial.
+    let empty = crate::xfa::layout_template(&t, &opts).unwrap();
+    assert!(
+        empty
+            .pages
+            .iter()
+            .flat_map(|p| &p.items)
+            .any(|i| i.path.starts_with(&[0, 1]))
+    );
+}
+
+#[test]
+fn instances_lay_out_at_their_own_paths() {
+    let page =
+        r#"<pageSet><pageArea><contentArea x="0" y="0" w="8in" h="10in"/></pageArea></pageSet>"#;
+    let body = format!(
+        r#"{page}<subform name="tenant" w="2in" h="1in"><occur min="0" max="-1"/><field name="name" w="1in" h="10pt"/></subform>"#
+    );
+    let x = xdp(&body, TENANTS);
+    let t = read_template(&x).unwrap().unwrap();
+    let m = merge_data(&t, &x, &MergeOptions::new()).unwrap();
+    let laid = crate::xfa::layout_template(&m.template, &crate::xfa::LayoutOptions::new()).unwrap();
+    let names: Vec<_> = laid
+        .pages
+        .iter()
+        .flat_map(|p| &p.items)
+        .filter_map(|i| m.value_at(&i.path))
+        .collect();
+    assert_eq!(names, ["One", "Two", "Three"]);
+}
+
+#[test]
+fn without_data_nothing_repeats() {
+    let x = XdpDocument::parse(
+        r#"<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/"><template><subform name="data"><subform name="tenant"><occur min="0" max="-1"/><field name="name"/></subform></subform></template></xdp:xdp>"#
+            .to_owned(),
+    )
+    .unwrap();
+    let t = read_template(&x).unwrap().unwrap();
+    let m = merge_data(&t, &x, &MergeOptions::new()).unwrap();
+    assert_eq!(m.template, t);
+}

@@ -252,6 +252,12 @@ fn print_layout(layout: &XfaLayout, merged: &MergedForm) {
             w.reference
         );
     }
+    if merged.has_data {
+        println!(
+            "data unfilled={} unbound-values={}",
+            merged.unfilled, merged.unbound_values
+        );
+    }
     let items: usize = layout.pages.iter().map(|p| p.items.len()).sum();
     println!(
         "xfa-layout pages={} items={items} warnings={}",

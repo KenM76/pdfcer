@@ -516,6 +516,29 @@ fn global_copies_print_the_shared_value() {
     assert!(!stdout.contains("A. Tester"), "{stdout}");
 }
 
+/// G248 items 2-3: a repeating subform lays one copy per data group, and
+/// the data line counts what found no partner.
+#[test]
+fn a_repeating_subform_prints_one_copy_per_data_group() {
+    let form = format!(
+        r#"<subform name="form" layout="tb">{PAGE}<subform name="tenant" w="540pt" h="30pt"><occur min="0" max="-1"/><field name="name" x="10pt" y="5pt" w="200pt" h="20pt"><ui><textEdit/></ui></field></subform><field name="note" w="200pt" h="20pt"><ui><textEdit/></ui></field></subform>"#
+    );
+    let data = "<form><tenant><name>One</name></tenant><tenant><name>Two</name></tenant><stray>x</stray></form>";
+    let (code, stdout, stderr) = run("repeat", &pdf_with_data(Some(&form), data), &[]);
+    assert_eq!(code, 0, "{stderr}");
+    let names: Vec<_> = stdout
+        .lines()
+        .filter(|l| l.contains(r#"name="name""#))
+        .collect();
+    assert_eq!(names.len(), 2, "{stdout}");
+    assert!(names[0].ends_with(r#" value="One""#), "{stdout}");
+    assert!(names[1].ends_with(r#" value="Two""#), "{stdout}");
+    assert!(
+        stdout.contains("data unfilled=1 unbound-values=1\n"),
+        "{stdout}"
+    );
+}
+
 #[test]
 fn a_tall_text_field_splits_between_lines_and_prints_its_fragments() {
     let body = format!(

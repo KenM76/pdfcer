@@ -710,7 +710,16 @@ file.
   so their contents match the enclosing data (pp.193-194): nameless
   containers, `scope="none"` subforms, `match="none"`, areas and subform
   sets. Exclusion-group members and page sets do not bind by name.
-  Instance creation is not merged yet.
+- **Instances from data** (pp.339-347, Pass 647.3e). With data, a named
+  by-name subform that has an `occur` element gets one instance per data
+  group it binds, greedily (scope matches included), at least `min` and at
+  most `max`. Instances replace the subform in its parent: instance `k` is
+  at the first one's child index + `k`, and later siblings shift by the
+  extra count, so read every path from `MergedForm::template`. Each
+  instance's `occur@initial` is set to 1; a subform with no instance stays
+  with `initial` 0 and is not merged (layout lays nothing, a fill plans
+  nothing under it). Groups left past `max` warn `ExcessData`, one each.
+  Not yet: `dataRef`-bound and subform-set instances.
 - **Global** (`match="global"`, pp.176, 245-247). Normal matching first;
   on a miss, every copy of the name shares one data value (`GlobalScope`
   below), even one already bound, so all copies show the same value. A
@@ -722,16 +731,21 @@ file.
   bound, p.108). `..`, `#class`, `*` names, predicates and `[+n]`/`[-n]` are
   reported, not resolved.
 - **Output.** `MergedForm { template, bound: Vec<BoundValue { path, value, data }>,
-  warnings: Vec<MergeWarning { path, kind, reference, by_name }>, has_data }`, all
+  warnings: Vec<MergeWarning { path, kind, reference, by_name }>, has_data,
+  unfilled, unbound_values }`, all
   `#[non_exhaustive]`; `value_at(path)` looks one up. `path` uses
   `LayoutItem::path`'s convention, and a field with no `value` element gains
   one as its last child, so layout paths do not move. `data` is the data
   node's path from `xfa:data` (attributes first when loaded); equal `data`
   means one shared value. An exclusion group's
   value is set on each member (the one whose on-value matches draws on).
+  `unfilled` counts fields and exclusion groups that tried to bind and took
+  nothing (`match="none"` excluded); `unbound_values` counts data values
+  (not groups) nothing bound.
 - **Never a failure.** A reference that binds nothing leaves the template
   value and adds a `MergeWarningKind` (`Unresolved`, `WrongType`,
-  `Unsupported`, `TooLong` past 1,024 steps, `MixedGlobal`; `as_str()`
+  `Unsupported`, `TooLong` past 1,024 steps, `MixedGlobal`, `ExcessData`,
+  `InstanceLimit` past 100,000 subform instances; `as_str()`
   gives the CLI name).
   By name, a same-named node of the wrong type is skipped as `WrongType`
   with `by_name` set and `reference` the name; no match at all is silent.
@@ -748,7 +762,8 @@ file.
 - **CLI.** `xfa-layout` merges before laying out: bound items end with
   `value="…"`, each warning prints as `warning kind=data-ref-<kind> path= ref="…"`
   (or `kind=data-name-<kind> path= name="…"`)
-  and counts in the summary, and `--scope-search`, `--bare-ref`,
+  and counts in the summary, a `data unfilled= unbound-values=` line
+  precedes the summary when the form has data, and `--scope-search`, `--bare-ref`,
   `--data-attributes`, `--global-scope`, `--global-exclgroup` set the
   options. The stderr note says how many values
   were merged.

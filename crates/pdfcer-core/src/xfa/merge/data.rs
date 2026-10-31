@@ -2,6 +2,7 @@
 //! packet as groups and values (XFA 3.3 Ch.4 pp.97-100, p.202;
 //! `adobe_ext__xfa_som_data_binding.md` §7).
 
+use std::collections::HashSet;
 use std::ops::Range;
 
 use super::super::packets::{MAX_XML_DEPTH, XfaError};
@@ -168,6 +169,23 @@ fn take(budget: &mut usize) -> Result<(), XfaError> {
 }
 
 /// The node at `path` (child indices) below `root`.
+/// How many data values (not groups) under `root` are absent from `bound`.
+pub(super) fn count_values(root: &DataNode, bound: &HashSet<Vec<usize>>) -> usize {
+    let mut n = 0;
+    let mut stack = vec![(root, Vec::new())];
+    while let Some((node, path)) = stack.pop() {
+        if !node.group && !bound.contains(&path) {
+            n += 1;
+        }
+        for (i, child) in node.children.iter().enumerate() {
+            let mut p = path.clone();
+            p.push(i);
+            stack.push((child, p));
+        }
+    }
+    n
+}
+
 pub(super) fn node_at<'a>(root: &'a DataNode, path: &[usize]) -> Option<&'a DataNode> {
     path.iter().try_fold(root, |node, &i| node.children.get(i))
 }
