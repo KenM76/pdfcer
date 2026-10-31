@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `93f62d86` `Pass 647.3d` SHIPPED, 2026-10-31: XFA field fill written to the `xfa:datasets` packet (`X022` slice 3 write-back, `X023` Form A save round trip; 1342nd filing)
+
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Full hash `93f62d86a8f1c98200a193e9ac041df794ffe3fd`. On `main` after `652.0`/`647.3e` filing (`46706f16`), unreleased. No decision minted. Reasoning is in the commit message.
+- **Core:** `EditSession::fill_xfa_field(path, value, &MergeOptions) -> Result<XfaFillOutcome, EditError>` writes the value into the bound Data DOM node (XFA 3.3 Ch.9 p.343) in the datasets packet. Only that node's text changes; every other XDP byte is kept; a UTF-8 BOM is kept; the rewritten packet stream is FlateDecode if it had any filter. One undo entry, `CommandKind::FillXfaField`. `XfaFillOutcome { stream, data, shared_with }`; `XfaFillError { NoXfa, Unbound, Utf16, SplitAcrossStreams, DirectStream, Xfa }`; new `EditError::XfaFill`. `BoundValue.data` (the data-node path) added.
+- **CLI:** `pdfcer xfa-fill IN --set PATH=VALUE -o OUT` (repeatable `--set`; `--mode`, `--verify-undo`, `--in-place`; the five data-binding flags are now one flattened group shared with `xfa-layout`). Prints `xfa-set path= data= stream= shared_with=` per set. README subcommand count 241 -> 242.
+- **NOT done (stated honestly):** a field that is bound to no data node yet is REFUSED (`Unbound`); creating a data node (and so the "created data node disclosed" and "one node per global name" parts of the original filing) is not built. UTF-16 XDP is refused (`Utf16`). The `X022` Form G acceptance (global `userName` plus protected copy) is therefore met only where the node already exists; the engineer did not report it as run.
+- **Tests:** core integration `xfa_fill` 6; lib merge/packets source tests; CLI `xfa_fill` 2. Full `pdfcer-core` + `pdfcer-cli` suites green after one in-place list fix. Sabotage: removing the `&` escape and the BOM keep each fail a test.
+- **Gates green:** clippy -D warnings, fmt, code-structure, check-core-api-verbs (389 verbs, 188 `EditError` variants in `docs/core-api/`), clap-help. No manifest change, so `cargo tree` unchanged.
+- **GUI:** not delivered; box stays `[ ]` (`pdfcer-gui` consumes).
+- **FEATURES:** the "form fill saved to the datasets packet" Planned row moved to Implemented as `[x]` core / `[x]` cli / `[ ]` gui, narrowed to what shipped; a new Planned row (no Pass ID) holds the residue below. The "Detect XFA ..." row's "XFA half is never written" sentence corrected.
+- **Residue, no Pass ID assigned (engineer's call):** creating a data node for an unbound field (with disclosure) and filling a UTF-16 XDP are open. Flagged in the 1342nd session entry.
+- **Reply owed:** `X022` slice 3 and `X023` write side, at the release that follows.
+- **Next up:** a release naming `X022`, `X023` (and `X024`), then `Pass 647.2b` (`X025`), then `647.3e`; `648.6` after.
+
 ### `1e5c6b35` `Pass 652.0` SHIPPED, 2026-10-30: text strings decode UTF-8 and UTF-16LE as well as UTF-16BE (`X024`, from pdfcraft; 1340th filing)
 
 Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. On `main` after `647.3c`, unpushed, unreleased. No decision minted. Pass number chosen by this filing: next after the newest in ROADMAP (`651.0`, Backlog); `652`/`653` grepped free. Reasoning is in the commit message.
@@ -26756,7 +26770,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ### Pass 647.2 — Flowed layout `tb` / `lr-tb` (FIRST CUT `7cfa9c40`, SECOND CUT `9d0ddb90` (1278th filing), THIRD CUT `5fceb520` (1279th filing), FOURTH CUT `fa1869c8` (1280th filing), FIFTH CUT `1abf9d5e` (1281st filing), SIXTH CUT `f6e76272` (1283rd filing), SEVENTH CUT `e3547709` (1284th filing), EIGHTH CUT `cac24637` (1285th filing), NINTH CUT `f1b8baa6` (1286th filing), TENTH CUT `f64f12fe` (1287th filing), ELEVENTH CUT `5a9d3f30` (1288th filing); NOT COMPLETE, stays here)
 
-**REMAINING in 647.2 after the eleventh cut (supersedes the per-cut lists below, trimmed):** field/draw text splitting once content is sized.
+**REMAINING in 647.2 after the eleventh cut (supersedes the per-cut lists below, trimmed):** field/draw text splitting once content is sized (filed as `Pass 647.2b`, `X025`, 1343rd filing).
 
 **Eleventh cut (`5a9d3f30766fbe5e59bfa0c220439b8b519d0904` "feat(xfa): adhesion under an lr-tb/rl-tb root (Pass 647.2, eleventh cut)"; engineer-reported, nothing checked from here; unreleased, on main; decision 204, no new decision).** Core only; no shell caller change, cli/gui unaffected.
 - **Done (gap G-L14, closed for the root):** `keep@next`/`keep@previous` is enforced under an `lr-tb` or `rl-tb` root, not only `tb` (`xfa/layout/adhere.rs`: `place_children` enforces for any flow root; new private `tiles_fit`; `put_adhering` picks `chain_fits` for `tb`, `tiles_fit` otherwise). A tiled root breaks only at a content-area change, so a chain a row wrap would part across areas moves to the next area together; the fit test simulates the tiled flow because a tiled root never splits (XFA 3.3 Ch.8 p.281). Inside a tiled subform no break can fall, so adhesion there has no effect (documented, not a gap). No new pub items or dependency.
@@ -26846,13 +26860,15 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 - **Public form for a manual check (not a fixture):** US DD Form 214 (dd0214.pdf): typing `1 2 3 4` in the four "Page __" boxes and saving must reopen as `1 2 3 4`, not `1 1 1 1`.
 - **Side-effect guard, bites only once scripting exists:** an event whose target no longer exists (a page removed by a layout re-run after its events were queued) is skipped, never run with `this` at the form root. Without it, a page-background button whose initialize script set `this.presence = "hidden"` hid the whole form (3 pages became 1) in the reporter's other viewer. Also recorded on `Pass 131.3`.
 
-### Pass 647.3d — XFA form fill written to `xfa:datasets` at Save (NOT STARTED; filed 1337th filing, request `X022` slice 3; after 647.3c; then a release)
+### Pass 647.2b — XFA field/draw split across a content-area break (NOT STARTED; filed 1343rd filing, request `X025`, crates; after the release that follows 647.3d, before 647.3e)
 
-Engineer-dispatched filing; nothing built. Spec as 647.3c (pp.85, 129, 149-151, 175, 200; nothing written for `match="none"`, p.176).
-- **Wanted:** a new `EditSession` verb setting a bound XFA field's value through the Data DOM. Every field bound to the same data node (global copies, protected and readOnly copies included) shows the new value; one undo entry; the datasets packet is rewritten only when a value changed (round-trip invariant: nothing else in the file changes, the template is untouched). Unbound field with no data node: the verb creates ONE data node (global: one node for the name, under the current record or root data group) and discloses the creation (rule 4). On save exactly one node per global name holds the edited value; reopening shows it in every copy. CLI subcommand to fill an XFA field (rule 11). `docs/core-api/` updated.
-- **Acceptance:** X022 Form G (`userName` global on page 1 plus a protected copy; fill "A. Tester", save: one node, both copies show it; edit the protected copy to "B", save: both show "B").
-- **Acceptance added by `X023` (1338th filing; write side):** request `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X023_xfa_bind_none_subform_not_a_data_scope.md` (pdfcraft): `match="none"` subforms are not data scopes. Form A save round-trip: fill `colour` = Red under a `match="none"` subform, save; the data keeps `form/colour` and NO `sec` group is created. Nothing is written for the `match="none"` subform itself (p.176). The read side shipped in `647.3b`. Name `X023` in the release note and the reply.
-- **Release:** after 647.3d, cut a release (standing-authorized, decision 121: green `run-gates.sh`, fresh-folder smoke test, `verify-release.py`) and name it in the `X022` reply.
+Engineer-dispatched filing; nothing built. Named remainder of `Pass 647.2` ("field/draw text splitting once content is sized"), split out so it can be ordered and released on its own; `647.2` keeps the other open items. Request: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X025_xfa_growable_field_splits.md`. Spec: XFA 3.3 pp.291-292, 629-630.
+- **Scope (core; cli surfaces it through `xfa-layout`; gui consumes):** a growable field or draw (`minH`, no fixed `h`, `keep intact="none"`) that does not fit the room left in a content area splits between text lines at the break, rather than moving whole. Each piece is bordered closed (border `break` default `close`).
+- **Still moves whole:** `keep intact="contentArea"` or `"pageArea"`; a single-line content or fixed `h`; less than one line of room (it then moves with its caption and border). A bordered parent subform breaks with the split.
+- **Never panics:** splitting is bounded (hostile content, huge line counts, zero-height areas).
+- **Acceptance (synthetic only):** field `minH 200` starting 60pt above the area bottom: first piece ends at the area bottom, second starts at the next area top, the following draw lands after the second piece, page count minimal. `keep intact="contentArea"` moves whole. Less than one line of room moves whole with its caption.
+- **Release:** the engineer asked that a release follow when this lands.
+- **Docs:** `docs/core-api/03-capabilities.md`; the `647.2` REMAINING line points here.
 - **FEATURES:** Planned row added (all three boxes `[ ]`).
 
 ### Pass 647.3e — XFA data-driven instances and unfilled counts (NOT STARTED; filed 1341st filing, request `G248` items 2-3, pdfceGUI; after 647.3d and its release)
@@ -26862,7 +26878,7 @@ Engineer-dispatched filing; nothing built. `G248` item 1 (normal binding) shippe
 - **Unfilled counts:** `MergedForm` reports the count of value-bearing fields with no bound value, and the count of data value nodes nothing bound. CLI `xfa-layout` prints both counts.
 - **Acceptance:** `G248` synthetic shape gives two `tenant` instances "One" and "Two"; a 4-group / `occur max=4` case gives four; data past `max` is counted unbound; hostile: 1,000 data groups against `max -1` are bounded by a guard with a warning, no panic.
 - **Docs:** `docs/core-api/03-capabilities.md`.
-- **Order:** `647.3d` (in progress; `X022`/`X023` fill write-back) -> release -> `647.3e`.
+- **Order:** `647.3d` (shipped `93f62d86`, 1342nd filing) -> release -> `647.2b` (`X025`) -> `647.3e`.
 - **FEATURES:** Planned row added (all three boxes `[ ]`).
 
 ### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing); NOT COMPLETE, stays here)

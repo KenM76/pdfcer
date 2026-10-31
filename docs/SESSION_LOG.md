@@ -4,6 +4,34 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-31 (1343rd filing) — request `X025` filed as `Pass 647.2b`
+
+**Filed (docs only; engineer-dispatched; no shell here, nothing checked from here):**
+- **`Pass 647.2b`** (`X025`, crates): growable XFA field/draw splits between text lines at a content-area break; named remainder of `647.2`. Ordered after the release following `647.3d`, before `647.3e`. ROADMAP Next up entry added, `647.2` REMAINING line and `647.3e` Order line updated; FEATURES Planned row added `[ ]`/`[ ]`/`[ ]`.
+
+**Pass-number choice:** `647.2b` over `647.3f` because the work is the `647.2` remainder (layout), not data binding; grepped free across `*.md/*.rs/*.py`.
+
+**Still in flight:** release naming `X022`, `X023`, `X024`; then `647.2b`; `647.3e`; `648.6`.
+
+**Replies owed:** `X025` (filed); `X022` slice 3, `X023`, `X024` at the release.
+
+## 2026-10-31 (1342nd filing) — `Pass 647.3d` SHIPPED `93f62d86` (`X022` slice 3, `X023` write side): XFA field fill saved to the datasets packet
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`Pass 647.3d`** `93f62d86a8f1c98200a193e9ac041df794ffe3fd`, core + cli, unreleased. `EditSession::fill_xfa_field` rewrites one Data DOM node's text in the datasets packet (XFA 3.3 p.343); `pdfcer xfa-fill`. Tests: core `xfa_fill` 6, CLI `xfa_fill` 2, suites green; sabotage (`&` escape, BOM keep) fails a test each. clippy, fmt, code-structure, core-api-verbs (389 verbs, 188 `EditError`), clap-help clean; no manifest change. ROADMAP Shipped entry added, Next up entry removed; FEATURES row ticked `[x]`/`[x]`/`[ ]`.
+
+**Decisions made this session:** none minted.
+
+**Findings:** Not done and stated so in the entry: data-node creation for an unbound field (the original filing's "creates ONE data node and discloses it") and UTF-16 XDP are refused, so the `X022` Form G global-plus-protected acceptance holds only where the node exists. Residue has NO Pass ID; a FEATURES Planned row carries it. Engineer to assign.
+
+**Hard-rule-11 survivors:** FEATURES "Detect XFA ..." row said "The XFA half is never written": corrected in this filing. Not swept (engineer-owned or source): `docs/NEXT_SESSION.md`; `pdfcer-cli` `list-fields` / fill warnings that say a hybrid form's XFA half is stale (still true for AcroForm fill, left alone); any `--help` text for `xfa-layout` calling the merge read-only. Backup currency not verifiable from here.
+
+**Ordinal note:** the 1341st filing (`46706f16`, `647.3e`) is recorded in ROADMAP only; SESSION_LOG has no 1341st entry. Not backfilled here.
+
+**Still in flight:** release naming `X022`, `X023`, `X024`; then `647.2b`, `647.3e`, `648.6`.
+
+**Replies owed:** `X022` slice 3, `X023` write side, `X024` at the release.
+
 ## 2026-10-30 (1340th filing) — `Pass 652.0` SHIPPED `1e5c6b35` (`X024`): text strings decode UTF-8 and UTF-16LE
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
