@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1340th filing) — `Pass 652.0` SHIPPED `1e5c6b35` (`X024`): text strings decode UTF-8 and UTF-16LE
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`Pass 652.0`** `1e5c6b35`, on `main` after `647.3c`, unpushed, unreleased. `decode_text_string` dispatches on the BOM (`FE FF` BE; `EF BB BF` UTF-8; `FF FE` LE leniency; else PDFDocEncoding); total and lenient, counted U+FFFD and `exact=false` on damage; `TextStringForm` gains `Utf8`/`Utf16Le`. Core-only delivery, CLI benefits through existing readers. Tests: fonts 117+31, core lib 2,174, CLI `all layers` 6; clippy, code-structure, core-api-verbs clean. ROADMAP Shipped entry added; new FEATURES row `[x]`/`[x]`/`[ ]` (no prior text-string decode row existed; rows 538/543 only mention encoding in passing).
+- **RAG:** new `C:\personal_rag\pdf\lesson_20261030_gis_exporters_write_ocg_name_as_utf16le_...md`; pdf `index.md` and master `index.md` updated. `C:\Users\Ken\.claude\CLAUDE.md` already lists the pdf subject; nothing to flag.
+
+**Decisions made this session:** none minted. Policy calls recorded in the Shipped entry: UTF-8 BOM accepted regardless of header version; invalid-UTF-8 recovery; UTF-16LE as leniency.
+
+**Findings:** PDF Association issue #169 (UTF-16LE, open; 2 of 18+ processors decode it); issue #757 (2.0 defines no cross-encoding text-string equality) is an open question for any future field-name comparison.
+
+**Still in flight:** `647.3d`, then a release naming `X022`, `X023` (and `X024`); `648.6` after.
+
+**Replies owed:** `X024`.
+
+**Pass-number choice:** `652.0` = next after the newest in ROADMAP (`651.0`, Backlog); grepped free across `*.md/*.rs/*.py`.
+
+**Hard-rule-11 survivors:** none that assert the old behaviour. `crates/pdfcer-core/src/outline.rs:2426` and `fuzz/fuzz_targets/form_edit_sequence.rs:44` say "PDFDocEncoding or UTF-16BE", describing what the spec defines; correct as written, left alone (engineer's call if he wants UTF-8 mentioned). `docs/NEXT_SESSION.md` not swept (engineer-owned). Backup currency not verifiable from here.
+
 ## 2026-10-30 (1339th filing) — `Pass 647.3c` SHIPPED `f9fb9ecb` (`X022` slice 2): XFA `match="global"` binding
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**

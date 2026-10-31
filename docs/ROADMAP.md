@@ -112,6 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
+### `1e5c6b35` `Pass 652.0` SHIPPED, 2026-10-30: text strings decode UTF-8 and UTF-16LE as well as UTF-16BE (`X024`, from pdfcraft; 1340th filing)
+
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. On `main` after `647.3c`, unpushed, unreleased. No decision minted. Pass number chosen by this filing: next after the newest in ROADMAP (`651.0`, Backlog); `652`/`653` grepped free. Reasoning is in the commit message.
+- **Core (`pdfcer_fonts::textstring::decode_text_string`, re-exported `pdfcer_core::textstring`; `pdfcer_core::edit::decode_text_string` delegates):** dispatches on the leading BOM. `FE FF` UTF-16BE (unchanged); `EF BB BF` UTF-8 (ISO 32000-2 §7.9.2.2.1, PDF 2.0; accepted whatever the header version, a policy call, the spec is silent); `FF FE` UTF-16LE (a leniency, no edition defines it; PDF Association issue #169 open). Anything else is PDFDocEncoding exactly as before.
+- **Language escapes (§7.9.2.2.2)** stripped on the UTF-8 branch too, not on UTF-16LE.
+- **Lenient and total:** odd trailing byte dropped and counted; unpaired surrogate or invalid UTF-8 subpart -> counted U+FFFD with `exact=false` (invalid-UTF-8 recovery is pdfcer policy, spec silent); bare BOM -> empty string; a leading U+FEFF from a doubled BOM dropped on all three Unicode forms.
+- **API:** `TextStringForm` gains `Utf8` and `Utf16Le` (`#[non_exhaustive]`, additive).
+- **Reach:** every text-string reader: layer/OCG names, outline titles, Info values, annotation contents, field values. The CLI reads through it (`list-layers` now prints these names); no new CLI surface.
+- **Tests:** `pdfcer-fonts` 117 unit + 31 doc pass; `pdfcer-core` lib 2,174 pass (new `layers::tests::utf16le_and_utf8_layer_names_x024`); CLI `all layers` 6 pass.
+- **Gates green:** clippy -D warnings, code-structure clean, check-core-api-verbs PASS (`docs/core-api/01-reading-and-model.md` §8.6 updated; `index.md` 4,377 lines). No manifest change, so `cargo tree` unaffected.
+- **Spec sourcing:** `pdfcer-spec-librarian` updated `PDF_Spec/iso32000/iso32000__s__7.9.2.md` (U8-1..U8-6). **Open:** PDF Association issue #757, PDF 2.0 never defines text-string equality across encodings; relevant if field-name matching ever compares strings.
+- **RAG:** `C:\personal_rag\pdf\` lesson on GIS exporters writing OCG `/Name` as UTF-16LE.
+- **GUI:** not delivered (no new surface); box stays `[ ]`.
+- **FEATURES:** new Implemented row "Text strings decode UTF-8 and UTF-16LE" ticked `[x]` core / `[x]` cli (existing callers benefit, no new verb) / `[ ]` gui.
+- **Reply owed:** `X024` (at the next release, or now; unreleased).
+
 ### `f9fb9ecb` `Pass 647.3c` SHIPPED, 2026-10-30: XFA `match="global"` binding (`X022` slice 2; 1339th filing)
 
 Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. On `main` after `647.3b`, unpushed, unreleased. No decision minted (the two ambiguities are settings with defaults). Reasoning is in the commit message.
