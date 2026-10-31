@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-30 (1339th filing) — `Pass 647.3c` SHIPPED `f9fb9ecb` (`X022` slice 2): XFA `match="global"` binding
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`Pass 647.3c`** `f9fb9ecb`, on `main` after `647.3b`, unpushed, unreleased. `xfa::merge_data` global fallback after normal matching: every copy of a global name shares one data value (XFA 3.3 pp.176, 245-247, 348). New settings `GlobalScope { Document (default), Records }` and `GlobalExclGroup { Honour (default), AsOnce }` on `MergeOptions`; new `MergeWarningKind::MixedGlobal`; CLI `xfa-layout --global-scope --global-exclgroup`, warning `data-name-mixed-global`. Tests: core xfa lib 156 (+8), CLI xfa 16 (+1), help 6, doctests 4; sabotage fails 6. clippy, fmt, code-structure clean; core-api-verbs PASS; no manifest change. ROADMAP Shipped entry added, Next up entry removed; FEATURES row ticked `[x]`/`[x]`/`[ ]`.
+
+**Decisions made this session:** none; the two spec ambiguities (G-B9, G-B10) are settings with defaults.
+
+**Findings:** `X022` Form E also binds under normal scope matching (the request's data places the value in an ancestor group); global is what reaches another subform's group and shares already-bound nodes.
+
+**Still in flight:** `647.3d` (form fill written to `xfa:datasets` at Save; `X022` Form G, `X023` Form A save round trip), then a release naming `X022` and `X023`; `648.6` after.
+
+**Replies owed:** `X022` (slice 2 shipped); `X023` at the release.
+
+**Hard-rule-11 survivors:** none found in `ROADMAP.md`/`FEATURES.md` (the 647.3d Next up wording "after 647.3c" is now just ordering and still true). `docs/NEXT_SESSION.md` not swept (engineer-owned). Backup currency not verifiable from here.
+
 ## 2026-10-30 (1338th filing) — `Pass 647.3b` SHIPPED `f5c1f27e` (`X022` slice 1): XFA normal name-matching merge; `X023` filed
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**

@@ -112,6 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
+### `f9fb9ecb` `Pass 647.3c` SHIPPED, 2026-10-30: XFA `match="global"` binding (`X022` slice 2; 1339th filing)
+
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. On `main` after `647.3b`, unpushed, unreleased. No decision minted (the two ambiguities are settings with defaults). Reasoning is in the commit message.
+- **Core (`xfa::merge_data`, `xfa/merge.rs` + `merge/normal.rs` `Globals` cache), XFA 3.3 pp.176, 245-247, 348:** a global field/exclGroup tries normal name matching first (647.3b); on a miss every copy of the name shares one data value even if already bound. A global field inside a pageSet takes only the shared value; a global subform binds as once. Merge remains transient; no writer change.
+- **Settings (spec gaps G-B9, G-B10), on `MergeOptions` with `with_global_scope` / `with_global_exclgroup`, re-exported from `pdfcer_core::xfa`:** `GlobalScope { Document (default: first same-named value anywhere, document order, PDFium behaviour), Records (strict: only values outside every record) }`; `GlobalExclGroup { Honour (default, p.348), AsOnce (pp.176/246/623) }`.
+- **Warning:** new `MergeWarningKind::MixedGlobal` ("mixed-global"): a global copy shares a value that a non-global container also binds (p.246 unsupported); the value is still shared.
+- **CLI:** `pdfcer xfa-layout --global-scope document|records --global-exclgroup honour|as-once`; warning `data-name-mixed-global` documented in `--help`.
+- **Acceptance:** `X022` Form E gives Yes. Engineer's note: Form E also binds under normal scope matching (the request's data puts the value in an ancestor group); global is what reaches another subform's group and shares already-bound nodes.
+- **Tests:** core xfa lib 156 pass (+8), CLI xfa 16 pass (+1), help 6, core xfa doctests 4. Sabotage (fallback disabled) fails 6 tests.
+- **Gates green:** clippy -D warnings, fmt, code-structure clean, check-core-api-verbs PASS (`docs/core-api/03-capabilities.md` XFA merge section updated). No `Cargo.toml` change, so `cargo tree` unaffected.
+- **GUI:** not delivered; box stays `[ ]`.
+- **FEATURES:** the "`match="global"` binding" Planned row moved to Implemented as `[x]` core / `[x]` cli / `[ ]` gui.
+- **Reply owed:** `X022` slice 2.
+- **Next up:** `647.3d` (form fill written to `xfa:datasets` at Save; `X022` Form G, `X023` Form A save round trip), then a release naming `X022` and `X023`; then `648.6`.
+
 ### `f5c1f27e` `Pass 647.3b` SHIPPED, 2026-10-30: XFA normal (`once`) name-matching data merge (`X022` slice 1, `X023` read side; 1338th filing)
 
 Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. On `main` after `v0.108.0`, with 648.4/648.5; not released. No decision minted. Reasoning is in the commit message.
@@ -26814,15 +26829,6 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 - **Synthetic acceptance:** a template whose page area holds a text field, laid over three pages, gives three distinct SOM paths and three data nodes, and saved values round-trip per page; a `match="global"` field in the same page area stays one value on every page. Tests use synthetic templates only.
 - **Public form for a manual check (not a fixture):** US DD Form 214 (dd0214.pdf): typing `1 2 3 4` in the four "Page __" boxes and saving must reopen as `1 2 3 4`, not `1 1 1 1`.
 - **Side-effect guard, bites only once scripting exists:** an event whose target no longer exists (a page removed by a layout re-run after its events were queued) is skipped, never run with `this` at the form root. Without it, a page-background button whose initialize script set `this.presence = "hidden"` hid the whole form (3 pages became 1) in the reporter's other viewer. Also recorded on `Pass 131.3`.
-
-### Pass 647.3c — XFA `bind match="global"` (NOT STARTED; filed 1337th filing, request `X022` slice 2; after 647.3b)
-
-Engineer-dispatched filing; nothing built. Spec: `adobe_ext__xfa_data_binding_global_writeback.md` (gaps G-B7..G-B16), XFA 3.3 pp.176, 245-247, 348.
-- **Wanted:** after normal matching fails, a global field binds a same-named data value elsewhere; one data node binds every same-named global field; global fields are passive (never pull a subform in, pp.247/348). Still transient.
-- **Two settings (spec leaves them open; ship both, pick the default):** (a) global search scope `Document` (DEFAULT: whole data, PDFium behaviour, what X022 needs; with no config `record` the spec makes the whole document one record and `global` a no-op, pp.247/917) vs `Records` (strict spec reading: values outside every record only, index = record number); (b) global on an exclGroup `Honour` (DEFAULT, p.348, X022) vs `AsOnce` (pp.176/246/623 say field only).
-- **Warnings:** global on a subform is treated as once (p.176); a mix of global and non-global same-named fields (unsupported, p.247).
-- **Acceptance:** X022 Form E (global `LikesPizza` in Section1, data `form1.LikesPizza=Yes`) gives Yes; every global copy of a name shows the same value in `xfa-layout`; 1,000 copies of one global name handled within limits; hostile input warns.
-- **FEATURES:** Planned row added (all three boxes `[ ]`).
 
 ### Pass 647.3d — XFA form fill written to `xfa:datasets` at Save (NOT STARTED; filed 1337th filing, request `X022` slice 3; after 647.3c; then a release)
 
