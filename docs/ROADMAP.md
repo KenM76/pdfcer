@@ -112,6 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
+### `01c5f515` `Pass 648.6` SHIPPED, 2026-10-31: 3D measurements (`/MA`) read and written on a saved view (`G245` part 2; 1360th filing)
+
+Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Commit `01c5f515`, "threed: read and write 3D measurements on saved views (/MA)". On `main`, **unreleased** (last release `v0.112.0`). No decision or rule minted. Reasoning is in the commit message. Closes request `G245` (part 1 was `Pass 648.5`).
+- **Spec:** ISO 32000-2 section 13.6.7.3, Tables 326-331; `/MA` is an array on a 3D view dictionary (Table 315). PDF 2.0 only.
+- **Core (`threed`):** `ThreeDMeasurement` carries every Table 327-331 key as `Option` (`has_comment` is read-only, standing in for `/S`); `ThreeDMeasureKind` {Linear `LD3`, Perpendicular `PD3`, Angular `AD3`, Radial `RD3`, Comment `3DC`}; `MAX_3D_MEASUREMENTS` 4096; `ThreeDSavedView.measurements`, read by `default_3d_view` and `saved_3d_views`; builders `ThreeDSavedView::with_measurement` and `ThreeDMeasurement::linear(a1, a2, plane, units)`; `value_text()`.
+- **Writer:** `set_3d_views` writes `/MA` as direct `/Type /3DMeasure` dictionaries, never `/S`. It refuses (`ViewInvalid`) a measurement missing a required key, a non-finite number, or more than 4096. `/V` is stored, never re-measured. No writer byte-layout change outside `/MA`.
+- **Disclosures (rule 4):** a PDF 2.0 feature and the header version is not raised; values are shown as written; a comment link is dropped.
+- **CLI:** `pdfcer 3d-views ... --measure X,Y,Z:X,Y,Z --units U` adds a linear measurement to every view, in the plane facing its camera. `3d-list` and `3d-views` print a `measure` line per measurement.
+- **Refactor:** `ThreeDActivation` moved to `threed/activation.rs`, which leaves `threed.rs` under 800 lines.
+- **Tests (engineer-reported):** +8 unit, +3 core integration, +2 CLI. The 34 CI gates green (fmt, clippy, structure, core-api verbs, public-fns-documented after a fix); `cargo +nightly fuzz build` green. No `Cargo.toml` change, so `cargo tree` unchanged.
+- **Not done:** 3D units `/3DU` (Table 325); the CLI writes linear only (the core writes any kind); comment-linked (Projection annotation) measurements. Residue filed as `Pass 648.7` (Backlog).
+- **GUI:** not delivered (separate project); box stays `[ ]`.
+- **FEATURES:** the "3D measurements in a saved view" Planned row moved to Implemented as `[x]` core / `[x]` cli / `[ ]` gui, CLI clause "linear only"; a Planned row added for `Pass 648.7`.
+- **Next up:** none; see the Next up banner (amended this filing). Not verified from here: push state, backup currency.
+
 ### `v0.112.0` — PUBLISHED, 2026-10-31 (1359th filing)
 
 Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Release record for the prep filed below (1358th, bump `807c274b`).
@@ -25034,7 +25049,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **Next up head (rewritten 1355th filing; `Pass 647.3e` `53f4e938` and `Pass 647.2c` `ead2642a` SHIPPED and released in `v0.111.0`, published): `Pass 648.6` (`G245` part 2, /MA measurements, spec-RAG check first).** `Pass 647.3f` (dataRef-bound and subform-set instances, residue of `647.3e`) and `Pass 647.4` stay in the Backlog, not yet ordered. Release slot: next release writes `pdfcer1` (`pdfcer2` holds 0.111.0, `pdfcer1` holds 0.110.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
 
-> **Head amended 1357th filing: `Pass 647.4b` (`X027`) SHIPPED `96af5ff3`, see *Shipped*; the head is `Pass 648.6` again, after the release `v0.112.0` (slot `pdfcer1`), which is a separate filing.** *(Amended 1359th filing: `v0.112.0` PUBLISHED, see *Shipped*; the head is `Pass 648.6`, next release writes `pdfcer2`.)* `647.3f` and `647.4` (image natural sizing) stay in the Backlog. *(The 1356th-filing note that put `647.4b` ahead of `648.6` is history.)*
+> **Head amended 1357th filing: `Pass 647.4b` (`X027`) SHIPPED `96af5ff3`, see *Shipped*; the head is `Pass 648.6` again, after the release `v0.112.0` (slot `pdfcer1`), which is a separate filing.** *(Amended 1359th filing: `v0.112.0` PUBLISHED, see *Shipped*; the head is `Pass 648.6`, next release writes `pdfcer2`.)* `647.3f` and `647.4` (image natural sizing) stay in the Backlog. *(The 1356th-filing note that put `647.4b` ahead of `648.6` is history.)* **Amended 1360th filing: `Pass 648.6` SHIPPED `01c5f515` (unreleased), see *Shipped*; `G245` is now complete. Next up has no head: `647.3f`, `647.4` and `Pass 648.7` (residue) are Backlog, unordered.**
 
 (1271st filing: `Pass 646.25` (`G237`, `XfaFormKind`) SHIPPED on `5f401310`; decision 204 reopens dynamic XFA; arc `647.0`-`647.7` filed below. All Passes below are NOT STARTED. Spec source (extracted by `pdfcer-spec-librarian`): `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_{xdp_packaging,static_vs_dynamic_rendering,template_layout_dom,layout_algorithm,data_binding_normal}.md`; its gap IDs G-X/S/T/L/B are the arc's default-decisions list. Spec slice still owed: SOM expressions, then table/row layout. Arc-wide acceptance: (1) opening never rewrites structure (§5); (2) layout inferred at render time is rule-4 disclosed; (3) content a dynamic form drops on overflow is disclosed, which the spec only warns about; (4) no external XFA code is relied on.)
 
@@ -27148,14 +27163,6 @@ Table/row layout in dynamic forms. Blocked until `pdfcer-spec-librarian` extract
 ### Pass 648.1 — Mesh import: OBJ/MTL and STL to PRC (NOT STARTED; filed 1297th filing, 2026-10-29)
 
 Split from `Pass 648.0` by operator direction ("worry about the others later"). Readers for OBJ (+MTL colours; dissolve `d` is exporter-inconsistent, so any transparency taken from it is disclosed via `inferred:`) and binary/ASCII STL (no colour: default colour disclosed), feeding the PRC writer built in 648.0. `3d-embed --model` and `3d-convert` accept `.obj` / `.stl`. A fuzz target per parser (§10.2). Depends on 648.0, now SHIPPED (1297th filing; `write_prc` exists, `3d-convert` and the format auto-detect exist, only the OBJ/STL readers and their extension/signature detection are owed). gui `[ ]`.
-
-### Pass 648.6 — 3D measurements: write and read `/MA` on a saved view (NOT STARTED; filed 1330th filing, request `G245` part 2; after 648.5)
-
-Engineer-dispatched filing; nothing built. Same request file as 648.5. Part 2 of 2.
-- **Wanted:** write and read `/MA` 3D measurement dictionaries on a saved view (ISO 32000-2 section 13.6.7, Table 315 onward), so a measurement saved in pdfcer opens in Acrobat. `ThreeDSavedView` and `set_3d_views` carry cameras only today.
-- **Needs a spec-RAG check before implementing** (project rule 1): dispatch `pdfcer-spec-librarian` for section 13.6.7 and Table 315 onward; this entry cites the clause from the request and has not been checked against the RAG. Not to be written from memory.
-- **Acceptance:** stored measurements round-trip through write and read; a linear measurement reads back its two anchor points and its value. (The request also states: a file written by Acrobat with a linear measurement reads back likewise; no such fixture is filed here and fixtures must be synthetic or rights-cleared, `LEGAL.md` section 5.)
-- **FEATURES:** Planned row added (all three boxes `[ ]`).
 
 ### Print arc `Pass 55.9`-`55.14` — filed 1303rd filing, 2026-10-29 (ALL SHIPPED as of the 1308th filing; originally filed NOT STARTED; operator: "build all the print items the make a new release")
 
@@ -36058,6 +36065,14 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### `Pass 648.7` — 3D units `/3DU` and the other measurement kinds from the CLI (BACKLOG; filed 1360th filing; residue of `Pass 648.6`)
+
+Not started. `Pass 648.7` was grep-checked unused in `docs/` before filing. Three pieces `648.6` left out, none requested separately yet:
+- **3D units `/3DU`** (ISO 32000-2 Table 325): the unit dictionary on a 3D view or node. Not read or written; a measurement's `/V` is shown as written, in whatever unit its own `/U` names. Spec-RAG check first (rule 1).
+- **CLI writing of perpendicular, angular, radial and comment measurements.** The core writes any kind (`ThreeDSavedView::with_measurement`); `3d-views --measure` writes linear only.
+- **Comment-linked measurements** (a `3DC` comment whose link is a Projection annotation): the link is dropped on write today, with a disclosure.
+- **FEATURES:** Planned row added (all three boxes `[ ]`).
 
 ### Request `X014` — seven capabilities for the Backlog (filed 1298th filing, 2026-10-29; filing only, nothing built)
 

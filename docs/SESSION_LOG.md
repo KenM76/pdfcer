@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-31 (1360th filing) — `Pass 648.6` SHIPPED `01c5f515` (`G245` part 2): 3D measurements `/MA`
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`Pass 648.6`** (`01c5f515`, unreleased; last release `v0.112.0`): `/MA` on a saved 3D view read and written (ISO 32000-2 §13.6.7.3, Tables 326-331; PDF 2.0). Core: `ThreeDMeasurement`, `ThreeDMeasureKind`, `MAX_3D_MEASUREMENTS` 4096, `ThreeDSavedView::with_measurement`, `ThreeDMeasurement::linear`, `value_text`. Writer refuses a missing required key, non-finite number or over 4096; `/V` stored, never re-measured; header not raised, disclosed. CLI: `3d-views --measure X,Y,Z:X,Y,Z --units U` (linear only); `3d-list`/`3d-views` print `measure` lines. `ThreeDActivation` moved to `threed/activation.rs`.
+- **Tests:** +8 unit, +3 core integration, +2 CLI; 34 CI gates green; `cargo +nightly fuzz build` green; no `Cargo.toml` change.
+- ROADMAP: Shipped entry added; the Next up `Pass 648.6` entry removed; Next up banner amended (no head); Backlog `Pass 648.7` filed (`/3DU`, CLI writing of the other kinds, comment-linked measurements; ID grep-checked unused). FEATURES: Planned row moved to Implemented `[x]`/`[x]`/`[ ]`; Planned row added for `648.7`; the `648.5` pick row's "not done" clause fixed.
+
+**Decisions made this session:** none minted.
+
+**Hard-rule-11 survivors:** one, the `648.5` pick row ("Measurements (`/MA`) ... not done"), fixed. Older ROADMAP/SESSION_LOG mentions of 648.6 as "next up" are history, left. `docs/NEXT_SESSION.md` (engineer-owned) not swept; it likely still names 648.6 as the head. Backup currency not verifiable from here.
+
+**Still in flight:** nothing mid-Pass. Unreleased since `v0.112.0`: `648.6`.
+
+**For next session:** no ordered head; pick from Backlog (`647.3f`, `647.4`, `648.7`) or a release (next writes `pdfcer2`).
+
 ## 2026-10-31 (1359th filing) — `v0.112.0` PUBLISHED; `X027` reply SHIPPED
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
