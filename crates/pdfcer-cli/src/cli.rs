@@ -6145,7 +6145,7 @@ pub(crate) enum Command {
     /// max; each copy is an item of its own, and later paths shift.
     ///
     ///   page index=N name="..." width= height= page_area= content_areas= items=
-    ///   item page=N kind= name="..." path= x= y= w= h= area= background= visible= [fragment=OFFSET/HEIGHT] [value="..."]
+    ///   item page=N kind= name="..." path= x= y= w= h= area= background= visible= [fragment=OFFSET/HEIGHT] [rotate=DEG] [value="..."]
     ///   warning kind= path= [target= | attribute= | strategy= | ref="..."]
     ///   data unfilled=N unbound-values=N
     ///   xfa-layout pages= items= warnings=
@@ -6158,6 +6158,9 @@ pub(crate) enum Command {
     /// areas: OFFSET is where the piece starts down the whole container
     /// and HEIGHT the whole container's height. A tall multi-line text
     /// field (or a draw with keep intact="none") splits between its lines.
+    ///
+    /// rotate= is a draw's or field's turn, counter-clockwise in degrees;
+    /// x, y, w and h are then the turned extent.
     ///
     /// Units are points; x and y run from the page's top-left corner,
     /// y downward. path is the item's position in the template as child
@@ -6188,8 +6191,10 @@ pub(crate) enum Command {
     /// nearest standard PDF font.
     /// Each paint-note names something left out or approximated:
     /// content-not-drawn (an inline or rich caption, rich text or a
-    /// non-text widget), stroke-not-drawn (dashed or dotted),
-    /// stroke-approximated (a 3-D edge drawn as a plain line), fill-not-drawn
+    /// non-text widget), stroke-drawn-solid (a stroke style XFA does not
+    /// name), shape-defaulted (a line slope, arc angle or edge cap XFA does
+    /// not name, drawn with its default), rotate-adjusted (a rotation not a
+    /// multiple of 90, or on a subform), stroke-approximated (a 3-D edge drawn as a plain line), fill-not-drawn
     /// (gradient, pattern or stipple), corner-inverted-inferred, open-break-drawn-closed,
     /// colour-defaulted, font-substituted (typeface drawn in Courier,
     /// Helvetica or Times), text-approximated (a character shown as ?, a
@@ -6270,6 +6275,29 @@ pub(crate) enum Command {
         /// against the far edge.
         #[arg(long, value_enum, default_value_t)]
         check_caption: CheckCaptionArg,
+        /// A draw's or field's rotate that is not a multiple of 90 degrees
+        /// (the XFA spec allows no other): ignored, or turned to the
+        /// nearest multiple. Listed as rotate-adjusted either way.
+        #[arg(long, value_enum, default_value_t)]
+        odd_rotate: OddRotateArg,
+        /// How long the dashes and gaps of a dashed or dotted edge are, for
+        /// --png-dir: multiples of the edge's thickness, or the fixed
+        /// lengths Acrobat draws (the XFA spec names no lengths).
+        #[arg(long, value_enum, default_value_t)]
+        dash_lengths: DashLengthsArg,
+        /// The ends of a dashed edge's dashes and dots, for --png-dir:
+        /// square, projecting half the thickness, or round.
+        #[arg(long, value_enum, default_value_t)]
+        dash_caps: DashCapsArg,
+        /// How big a circular arc is, for --png-dir: the circle inscribed in
+        /// its box, or a radius of the box's smaller side.
+        #[arg(long, value_enum, default_value_t)]
+        arc_circle: ArcCircleArg,
+        /// How a filled arc of less than a full turn is closed, for
+        /// --png-dir: through the centre (a pie slice) or straight between
+        /// its ends (a chord).
+        #[arg(long, value_enum, default_value_t)]
+        arc_fill: ArcFillArg,
     },
 
     /// Write a value into an XFA form field and save.

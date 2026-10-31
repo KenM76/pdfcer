@@ -1402,12 +1402,18 @@ pub(crate) fn run() -> ExitCode {
             image_dpi,
             three_d_stroke,
             check_caption,
+            odd_rotate,
+            dash_lengths,
+            dash_caps,
+            arc_circle,
+            arc_fill,
         } => cmd_xfa_layout(
             &input,
             XfaLayoutArgs {
                 negative_coordinates,
                 nested_overflow,
                 page_area_keep,
+                odd_rotate,
                 merge,
             },
             png_dir
@@ -1423,6 +1429,10 @@ pub(crate) fn run() -> ExitCode {
                     image_dpi,
                     three_d_stroke,
                     check_caption,
+                    dash_lengths,
+                    dash_caps,
+                    arc_circle,
+                    arc_fill,
                 })
                 .as_ref(),
         ),

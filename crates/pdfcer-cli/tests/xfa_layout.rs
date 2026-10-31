@@ -342,7 +342,7 @@ fn png_dir_draws_round_radio_buttons_with_three_d_edges() {
         (stdout, inked_in_first_box(&dir))
     };
     let (stdout, ink) = drawn("lowered", &[]);
-    assert!(!stdout.contains("stroke-not-drawn"), "{stdout}");
+    assert!(!stdout.contains("stroke-drawn-solid"), "{stdout}");
     assert!(stdout.ends_with("xfa-render pages=1 notes=0\n"), "{stdout}");
     assert!(ink > 20, "a bevelled circle: {ink}");
     let (stdout, ink) = drawn("lowered", &["--three-d-stroke", "plain"]);
@@ -352,13 +352,27 @@ fn png_dir_draws_round_radio_buttons_with_three_d_edges() {
         "{stdout}"
     );
     assert!(ink > 20, "a plain circle: {ink}");
-    let (stdout, ink) = drawn("dashed", &[]);
+    let (stdout, dashed) = drawn("dashed", &[]);
+    assert!(
+        stdout.ends_with(
+            "notes=0
+"
+        ),
+        "{stdout}"
+    );
+    assert!(dashed > 0, "a dashed circle is drawn");
+    let (_, round) = drawn(
+        "dashed",
+        &["--dash-caps", "round", "--dash-lengths", "fixed"],
+    );
+    assert_ne!(round, dashed, "the dash flags reach the painter");
+    let (stdout, ink) = drawn("wavy", &[]);
     assert_eq!(
-        stdout.matches("kind=stroke-not-drawn").count(),
+        stdout.matches("kind=stroke-drawn-solid").count(),
         6,
         "{stdout}"
     );
-    assert_eq!(ink, 0, "a dashed edge is still left out");
+    assert!(ink > 0, "an unknown stroke is drawn solid");
     let _ = std::fs::remove_dir_all(&base);
 }
 
@@ -577,4 +591,24 @@ fn a_tall_text_field_splits_between_lines_and_prints_its_fragments() {
         stdout.contains(r#"item page=1 kind=field name="t" path=0.2 x=36 y=36 w=200 h=146 area=0 background=no visible=yes fragment=54/200"#),
         "{stdout}"
     );
+}
+
+#[test]
+fn a_rotated_draw_reports_its_turn_and_odd_rotate_reaches_layout() {
+    let t = format!(
+        r#"<subform name="f">{PAGE}<draw name="a" x="10pt" y="60pt" w="40pt" h="10pt" rotate="90"/><draw name="b" w="40pt" h="10pt" rotate="45"/></subform>"#
+    );
+    let (code, stdout, stderr) = run("rotate", &pdf(Some(&t)), &[]);
+    assert_eq!(code, 0, "{stderr}");
+    assert!(
+        stdout.contains("name=\"a\" path=0.1 x=46 y=56 w=10 h=40") && stdout.contains("rotate=90"),
+        "{stdout}"
+    );
+    assert_eq!(
+        stdout.matches("rotate=").count(),
+        1,
+        "45 is ignored: {stdout}"
+    );
+    let (_, stdout, _) = run("rotate-near", &pdf(Some(&t)), &["--odd-rotate", "nearest"]);
+    assert_eq!(stdout.matches("rotate=90").count(), 2, "{stdout}");
 }

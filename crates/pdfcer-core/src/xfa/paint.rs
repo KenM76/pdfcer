@@ -23,6 +23,9 @@ use crate::object::{Dict, Name, Object};
 use crate::vartext::standard14_font_dict;
 use crate::writer::content::{ContentBuilder, LineCap, Paint};
 
+pub use dash::{DashCaps, DashLengths};
+pub use shape::{ArcCircle, ArcFill};
+
 use super::{
     ContainerKind, LayoutItem, LayoutPage, LayoutRect, Presence, Template, XfaImages, XfaNode,
 };
@@ -149,6 +152,14 @@ pub struct PaintOptions {
     pub three_d_stroke: ThreeDStroke,
     /// Gap G-CB14.
     pub check_caption: CheckCaption,
+    /// Gap G-D5.
+    pub dash_lengths: DashLengths,
+    /// The cap a dashed edge is drawn with.
+    pub dash_caps: DashCaps,
+    /// Gap G-D9, size.
+    pub arc_circle: ArcCircle,
+    /// Gap G-D9, closure.
+    pub arc_fill: ArcFill,
 }
 
 impl PaintOptions {
@@ -165,6 +176,10 @@ impl PaintOptions {
             image_dpi: 72,
             three_d_stroke: ThreeDStroke::Bevel,
             check_caption: CheckCaption::Fit,
+            dash_lengths: DashLengths::Scaled,
+            dash_caps: DashCaps::Projecting,
+            arc_circle: ArcCircle::Diameter,
+            arc_fill: ArcFill::Pie,
         }
     }
 
@@ -230,6 +245,34 @@ impl PaintOptions {
         self.check_caption = check_caption;
         self
     }
+
+    /// With `dash_lengths`.
+    #[must_use]
+    pub const fn with_dash_lengths(mut self, dash_lengths: DashLengths) -> Self {
+        self.dash_lengths = dash_lengths;
+        self
+    }
+
+    /// With `dash_caps`.
+    #[must_use]
+    pub const fn with_dash_caps(mut self, dash_caps: DashCaps) -> Self {
+        self.dash_caps = dash_caps;
+        self
+    }
+
+    /// With `arc_circle`.
+    #[must_use]
+    pub const fn with_arc_circle(mut self, arc_circle: ArcCircle) -> Self {
+        self.arc_circle = arc_circle;
+        self
+    }
+
+    /// With `arc_fill`.
+    #[must_use]
+    pub const fn with_arc_fill(mut self, arc_fill: ArcFill) -> Self {
+        self.arc_fill = arc_fill;
+        self
+    }
 }
 
 /// What [`paint_page`] drew differently from the template, or left out.
@@ -239,8 +282,8 @@ pub enum PaintNoteKind {
     /// An `inline` or non-plain-text caption, rich text, non-text value
     /// content or non-text widget: not drawn yet.
     Content,
-    /// A dashed, dotted, `dashDot` or `dashDotDot` edge stroke: that edge
-    /// is not drawn.
+    /// An edge `stroke` value the grammar does not name (p.688): drawn
+    /// solid.
     Stroke,
     /// A 3-D edge stroke (`lowered`, `raised`, `etched`, `embossed`) drawn
     /// as a plain stroke of its thickness and colour: by
@@ -270,6 +313,14 @@ pub enum PaintNoteKind {
     Image,
     /// An image drawn with its transparency composited onto white.
     ImageTransparency,
+    /// A `line` `slope`, an `arc` angle or an edge `cap` value the grammar
+    /// does not name or that is not a number: its default is used.
+    Shape,
+    /// A `rotate` that is not a multiple of 90 or not a number, or one on
+    /// a subform or exclusion group, which do not rotate (p.55): handled
+    /// per [`LayoutOptions::odd_rotate`](super::LayoutOptions::odd_rotate)
+    /// or ignored.
+    Rotate,
 }
 
 /// One disclosure from [`paint_page`].
@@ -321,11 +372,12 @@ pub fn paint_page_with_images(
         height: page.height,
         opts: *opts,
         fonts: Vec::new(),
+        dashed: false,
     };
     let (back, fore): (Vec<_>, Vec<_>) = page.items.iter().partition(|i| i.background);
     for item in back.into_iter().chain(fore) {
         if let Some(node) = drawable(template, item) {
-            p.item(item, node);
+            p.turned(item, node);
         }
     }
     let resources = p.resources();
@@ -358,6 +410,8 @@ struct Painter<'i> {
     height: f64,
     opts: PaintOptions,
     fonts: Vec<Std14>,
+    /// Whether the graphics state holds a dash pattern.
+    dashed: bool,
 }
 
 /// One side of a border, resolved.
@@ -367,6 +421,18 @@ struct Edge {
     rgb: [f64; 3],
     drawn: bool,
     three_d: Option<bevel::ThreeD>,
+    dash: Option<dash::Pattern>,
+}
+
+impl Edge {
+    /// An omitted `edge`: 0.5pt solid black (p.687).
+    const PLAIN: Self = Self {
+        thickness: 0.5,
+        rgb: [0.0; 3],
+        drawn: true,
+        three_d: None,
+        dash: None,
+    };
 }
 
 impl Painter<'_> {
@@ -487,7 +553,7 @@ impl Painter<'_> {
         self.edges(r, &sides, offset);
     }
 
-    /// The colour `border`'s fill paints, or `None` for no fill.
+    /// The colour `border`'s (or a shape's) fill paints, or `None` for no fill.
     fn fill_rgb(&mut self, item: &LayoutItem, border: &XfaNode) -> Option<[f64; 3]> {
         match border.child("fill") {
             None => match self.opts.missing_fill {
@@ -518,16 +584,18 @@ impl Painter<'_> {
     fn edge(&mut self, item: &LayoutItem, e: &XfaNode) -> Edge {
         let stroke = e.attr("stroke");
         let three_d = stroke.and_then(bevel::ThreeD::from_stroke);
-        let solid = stroke.is_none_or(|s| s == "solid") || three_d.is_some();
-        if !solid {
+        let dash = stroke.and_then(dash::Pattern::from_stroke);
+        let known = stroke.is_none_or(|s| s == "solid") || three_d.is_some() || dash.is_some();
+        if !known {
             self.note(item, PaintNoteKind::Stroke);
         }
         let thickness = length(e, "thickness").unwrap_or(0.5);
         Edge {
             thickness,
             rgb: self.color(item, e, [0.0; 3]),
-            drawn: solid && e.presence() == Presence::Visible && thickness > 0.0,
+            drawn: e.presence() == Presence::Visible && thickness > 0.0,
             three_d,
+            dash,
         }
     }
 
@@ -580,7 +648,10 @@ impl Painter<'_> {
         self.opts.three_d_stroke == ThreeDStroke::Bevel
     }
 
+    /// Width, cap and colour for stroking `e`; a dashed edge takes its
+    /// dash's cap in place of `cap`.
     fn stroke_style(&mut self, e: Edge, cap: LineCap) {
+        let cap = self.set_dash(e.dash, e.thickness, cap);
         self.b.set_line_width(e.thickness);
         self.b.set_line_cap(cap);
         self.b.set_stroke_rgb(e.rgb[0], e.rgb[1], e.rgb[2]);
@@ -625,13 +696,18 @@ mod bevel;
 mod caption;
 mod check;
 mod corner;
+mod dash;
 mod image;
+mod shape;
 mod size;
 mod text;
+mod turn;
 pub(super) use size::content_size;
 pub(super) use text::{line_pitch, widget};
 
 #[cfg(test)]
 mod check_tests;
+#[cfg(test)]
+mod shape_tests;
 #[cfg(test)]
 mod tests;

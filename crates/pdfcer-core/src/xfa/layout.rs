@@ -28,8 +28,11 @@ mod geometry;
 mod lines;
 pub use lines::Fragment;
 mod nested;
+mod options;
+pub use options::{LayoutOptions, NegativeCoordinates, NestedOverflow, OddRotate};
 mod overflow;
 mod pager;
+mod rotate;
 mod split;
 
 use flow::{Flow, is_flow};
@@ -48,78 +51,6 @@ pub const MAX_LAYOUT_ITEMS: usize = 200_000;
 
 /// Letter, the `medium@stock` default (Ch.17 p.780), in points.
 const LETTER: (f64, f64) = (612.0, 792.0);
-
-/// What to do with a negative resolved coordinate, which XFA leaves
-/// unspecified (gap G-L1). Reported as [`LayoutWarning::NegativeCoordinate`]
-/// either way.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-#[non_exhaustive]
-pub enum NegativeCoordinates {
-    /// Keep the template's geometry, even if it lands off the page.
-    #[default]
-    Keep,
-    /// Clamp the coordinate to zero.
-    Clamp,
-}
-
-/// Which subforms lay an overflow leader and trailer when a split cuts
-/// nested subforms too. XFA 3.3 (Ch.8 pp.318-325) ties them to "the
-/// subform that overflows" without saying which of the cut subforms that
-/// is (gap G-L21).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-#[non_exhaustive]
-pub enum NestedOverflow {
-    /// The innermost cut subform alone, spending its own leaders and
-    /// trailers, then each enclosing level's in turn (p.325): one overflow,
-    /// one leader and one trailer.
-    #[default]
-    Innermost,
-    /// The innermost cut subform as above, plus every enclosing cut subform
-    /// that asserts a leader (or trailer) of its own, which lays that too,
-    /// trailers innermost first and leaders outermost first.
-    EachAsserting,
-}
-
-/// Settings for [`layout_template`].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-#[non_exhaustive]
-pub struct LayoutOptions {
-    /// Gap G-L1.
-    pub negative_coordinates: NegativeCoordinates,
-    /// Gap G-L21.
-    pub nested_overflow: NestedOverflow,
-    /// Gap G-L12.
-    pub page_area_keep: PageAreaKeep,
-}
-
-impl LayoutOptions {
-    /// The defaults.
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Set [`Self::negative_coordinates`].
-    #[must_use]
-    pub const fn with_negative_coordinates(mut self, v: NegativeCoordinates) -> Self {
-        self.negative_coordinates = v;
-        self
-    }
-
-    /// Set [`Self::nested_overflow`].
-    #[must_use]
-    pub const fn with_nested_overflow(mut self, v: NestedOverflow) -> Self {
-        self.nested_overflow = v;
-        self
-    }
-
-    /// Set [`Self::page_area_keep`].
-    #[must_use]
-    pub const fn with_page_area_keep(mut self, v: PageAreaKeep) -> Self {
-        self.page_area_keep = v;
-        self
-    }
-}
 
 /// A rectangle in points, origin at the page's top-left, `y` downward (the
 /// XFA coordinate system, Ch.2 p.36).
@@ -156,6 +87,9 @@ pub struct LayoutItem {
     pub content_area: Option<usize>,
     /// Set when a split cut this container: where `rect` lies in it.
     pub fragment: Option<Fragment>,
+    /// Its `rotate`, counter-clockwise: 0, 90, 180 or 270. `rect` is then
+    /// the rotated extent; the unrotated one has `w`/`h` swapped at 90/270.
+    pub rotate: u16,
 }
 
 /// One laid-out page.

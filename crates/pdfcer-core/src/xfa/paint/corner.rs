@@ -61,12 +61,7 @@ impl Painter<'_> {
                 radius: 0.0,
                 inverted: false,
                 round: false,
-                line: Edge {
-                    thickness: 0.5,
-                    rgb: [0.0; 3],
-                    drawn: true,
-                    three_d: None,
-                },
+                line: Edge::PLAIN,
             },
         };
         [one(self, 0), one(self, 1), one(self, 2), one(self, 3)]

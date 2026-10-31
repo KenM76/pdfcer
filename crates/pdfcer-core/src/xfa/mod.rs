@@ -14,8 +14,8 @@ mod template;
 
 pub use layout::{
     Fragment, LayoutError, LayoutItem, LayoutOptions, LayoutPage, LayoutRect, LayoutWarning,
-    MAX_LAYOUT_ITEMS, MAX_LAYOUT_PAGES, NegativeCoordinates, NestedOverflow, PageAreaKeep,
-    XfaLayout, layout_template,
+    MAX_LAYOUT_ITEMS, MAX_LAYOUT_PAGES, NegativeCoordinates, NestedOverflow, OddRotate,
+    PageAreaKeep, XfaLayout, layout_template,
 };
 
 pub use images::{MAX_XFA_IMAGE_BYTES, XfaImages};
@@ -28,9 +28,9 @@ pub use merge::{
 pub use packets::{MAX_XDP_LEN, MAX_XML_DEPTH, XdpDocument, XdpPacket, XfaError, read_xdp};
 pub(crate) use packets::{parse_xdp, read_xdp_sources};
 pub use paint::{
-    CaptionFont, CheckCaption, EdgePlacement, FontWeight, ImageOverflow, ImagePlacement,
-    MissingFill, PaintNote, PaintNoteKind, PaintOptions, PaintedPage, ThreeDStroke, paint_page,
-    paint_page_with_images,
+    ArcCircle, ArcFill, CaptionFont, CheckCaption, DashCaps, DashLengths, EdgePlacement,
+    FontWeight, ImageOverflow, ImagePlacement, MissingFill, PaintNote, PaintNoteKind, PaintOptions,
+    PaintedPage, ThreeDStroke, paint_page, paint_page_with_images,
 };
 pub use template::{
     AnchorType, ContainerKind, LayoutStrategy, Measurement, Occur, Presence, Template, XfaNode,

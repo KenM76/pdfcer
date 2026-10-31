@@ -142,7 +142,7 @@ fn an_invisible_ancestor_or_border_draws_nothing() {
 
 #[test]
 fn what_is_not_drawn_yet_is_disclosed() {
-    let border = r#"<edge stroke="dashed"/><corner radius="2pt" inverted="1" presence="invisible"/><fill><pattern/></fill>"#;
+    let border = r#"<edge stroke="wavy"/><corner radius="2pt" inverted="1" presence="invisible"/><fill><pattern/></fill>"#;
     let body = field(border)
         .replace("<border>", r#"<border break="open">"#)
         .replace(
@@ -150,7 +150,8 @@ fn what_is_not_drawn_yet_is_disclosed() {
             r#"<caption placement="inline"/><color/></field>"#,
         );
     let (ops, notes, _) = paint(&body, &PaintOptions::new());
-    assert!(ops.is_empty(), "{ops}");
+    // The unknown stroke falls back to a solid one.
+    assert!(ops.contains(" l S") && !ops.contains(" d "), "{ops}");
     let kinds: Vec<_> = notes.iter().map(|n| n.kind).collect();
     use PaintNoteKind as K;
     assert_eq!(

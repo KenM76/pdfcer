@@ -22,7 +22,7 @@ const TEXT_WIDGETS: [&str; 5] = [
 /// than its text.
 pub(super) fn content_left_out(node: &XfaNode) -> bool {
     let caption = super::caption::left_out(node);
-    let value = has_unplain_value(node);
+    let value = has_unplain_value(node) && super::shape::value_shape(node).is_none();
     if super::check::is_check_button(node) {
         return caption;
     }
@@ -157,7 +157,9 @@ impl Painter<'_> {
         if let Some(w) = widget(node) {
             r = inset(r, w.child("margin"));
         }
-        if let Some(image) = super::image::value_image(node) {
+        if let Some(shape) = super::shape::value_shape(node) {
+            self.shape(item, shape, r);
+        } else if let Some(image) = super::image::value_image(node) {
             self.image(item, image, node.child("para"), r);
         } else if let Some(text) = plain_text(node) {
             self.set(item, text, node.child("font"), node.child("para"), r);

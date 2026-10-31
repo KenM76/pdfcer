@@ -3,8 +3,9 @@
 use super::*;
 
 use pdfcer_core::xfa::{
-    CaptionFont, CheckCaption, EdgePlacement, FontWeight, ImageOverflow, ImagePlacement,
-    MissingFill, PaintNoteKind, PaintOptions, Template, ThreeDStroke, XfaLayout,
+    ArcCircle, ArcFill, CaptionFont, CheckCaption, DashCaps, DashLengths, EdgePlacement,
+    FontWeight, ImageOverflow, ImagePlacement, MissingFill, PaintNoteKind, PaintOptions, Template,
+    ThreeDStroke, XfaLayout,
 };
 
 /// `xfa-layout --edge-placement` (gap G-D1, decision 207).
@@ -96,6 +97,46 @@ pub(crate) enum CheckCaptionArg {
     Remainder,
 }
 
+/// `xfa-layout --dash-lengths` (gap G-D5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum DashLengthsArg {
+    /// Multiples of the edge's thickness.
+    #[default]
+    Scaled,
+    /// The 3pt arrays Acrobat draws, at every thickness.
+    Fixed,
+}
+
+/// `xfa-layout --dash-caps`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum DashCapsArg {
+    /// Square ends projecting half the thickness.
+    #[default]
+    Projecting,
+    /// Round dots and dash ends.
+    Round,
+}
+
+/// `xfa-layout --arc-circle` (gap G-D9).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum ArcCircleArg {
+    /// The circle inscribed in the box.
+    #[default]
+    Diameter,
+    /// A radius of the box's smaller side.
+    Radius,
+}
+
+/// `xfa-layout --arc-fill` (gap G-D9).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum ArcFillArg {
+    /// Closed through the centre.
+    #[default]
+    Pie,
+    /// Closed straight between the ends.
+    Chord,
+}
+
 /// Where and how `xfa-layout` writes page images.
 #[derive(Debug, Clone)]
 pub(crate) struct XfaPngArgs {
@@ -110,6 +151,10 @@ pub(crate) struct XfaPngArgs {
     pub(crate) image_dpi: u16,
     pub(crate) three_d_stroke: ThreeDStrokeArg,
     pub(crate) check_caption: CheckCaptionArg,
+    pub(crate) dash_lengths: DashLengthsArg,
+    pub(crate) dash_caps: DashCapsArg,
+    pub(crate) arc_circle: ArcCircleArg,
+    pub(crate) arc_fill: ArcFillArg,
 }
 
 impl XfaPngArgs {
@@ -144,6 +189,22 @@ impl XfaPngArgs {
             .with_check_caption(match self.check_caption {
                 CheckCaptionArg::Fit => CheckCaption::Fit,
                 CheckCaptionArg::Remainder => CheckCaption::Remainder,
+            })
+            .with_dash_lengths(match self.dash_lengths {
+                DashLengthsArg::Scaled => DashLengths::Scaled,
+                DashLengthsArg::Fixed => DashLengths::Fixed,
+            })
+            .with_dash_caps(match self.dash_caps {
+                DashCapsArg::Projecting => DashCaps::Projecting,
+                DashCapsArg::Round => DashCaps::Round,
+            })
+            .with_arc_circle(match self.arc_circle {
+                ArcCircleArg::Diameter => ArcCircle::Diameter,
+                ArcCircleArg::Radius => ArcCircle::Radius,
+            })
+            .with_arc_fill(match self.arc_fill {
+                ArcFillArg::Pie => ArcFill::Pie,
+                ArcFillArg::Chord => ArcFill::Chord,
             })
     }
 }
@@ -197,7 +258,7 @@ pub(crate) fn write_xfa_pngs(
 fn note_label(k: PaintNoteKind) -> &'static str {
     match k {
         PaintNoteKind::Content => "content-not-drawn",
-        PaintNoteKind::Stroke => "stroke-not-drawn",
+        PaintNoteKind::Stroke => "stroke-drawn-solid",
         PaintNoteKind::StrokeApproximated => "stroke-approximated",
         PaintNoteKind::FillType => "fill-not-drawn",
         PaintNoteKind::Corner => "corner-inverted-inferred",
@@ -207,6 +268,8 @@ fn note_label(k: PaintNoteKind) -> &'static str {
         PaintNoteKind::Text => "text-approximated",
         PaintNoteKind::Image => "image-not-drawn",
         PaintNoteKind::ImageTransparency => "image-transparency-flattened",
+        PaintNoteKind::Shape => "shape-defaulted",
+        PaintNoteKind::Rotate => "rotate-adjusted",
         _ => "other",
     }
 }

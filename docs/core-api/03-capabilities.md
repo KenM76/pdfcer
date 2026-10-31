@@ -796,6 +796,11 @@ with every `warnings` entry.
   a split container: `Fragment { offset, height }` gives where the piece
   starts down the whole container and the whole container's height, so a
   painter sets the whole container's content and clips it to `rect`.
+  `rotate: u16` is a draw's or field's turn, counter-clockwise: 0, 90, 180
+  or 270; `rect` is then the turned extent, and the unturned box (`w`/`h`
+  swapped at 90/270) shares its centre. A positioned item turns about its
+  anchor point; a flowed parent reserves the turned extent (p.286). Only
+  draws and fields turn (p.55); a negative value turns clockwise.
 - **Scope.** Positioned and flowed placement. Anchor points and subform
   margins are applied; containers grow to their children's extent within min/max. A field
   or draw with no `w`/`h` grows to its plain-text value (Pass 647.2c, Ch.8
@@ -920,6 +925,9 @@ with every `warnings` entry.
     `pageArea` keep holds a pair on one page (it may part between content
     areas of that page), or is ignored as Adobe does (gap G-L12);
     `#[non_exhaustive]`.
+  - `.with_odd_rotate(OddRotate::{Ignore (default), Nearest})`: a `rotate`
+    not a multiple of 90 is no turn, or the nearest multiple (gap G-L29);
+    the painter notes it as `Rotate` either way. `#[non_exhaustive]`.
 - **Errors.** `LayoutError` is `NoRootSubform` or `NoPageArea`; the latter is
   fatal per XFA.
 - **CLI.** `pdfcer xfa-layout <file>` reads the template through
@@ -1021,6 +1029,27 @@ kind.
     absent. `Fit` sizes it to the caption content (p.644; a negative
     reserve reads as omitted, G-CB12/13); `Remainder` gives it everything
     but the box, which then sits against the far edge (PDFium, G-CB14).
+  - `DashLengths { Scaled (default), Fixed }` (`with_dash_lengths`): a
+    `dashed`/`dotted`/`dashDot`/`dashDotDot` edge's dash array. `Scaled`
+    is multiples of the thickness t (`[4t 2t]`, `[t 2t]`, `[3t 2t t 2t]`,
+    `[3t 2t t 2t t 2t]`); `Fixed` is Acrobat's 3pt arrays at every
+    thickness (gap G-D5: p.688 names shapes, not lengths).
+  - `DashCaps { Projecting (default), Round }` (`with_dash_caps`): square
+    ends projecting t/2 (`2 J`), or round ends with each dash shortened
+    and each gap widened by t so the period holds.
+  - `ArcCircle { Diameter (default), Radius }` (`with_arc_circle`): a
+    `circular="1"` arc is the circle inscribed in its region, or one whose
+    radius is the region's smaller side (gap G-D9).
+  - `ArcFill { Pie (default), Chord }` (`with_arc_fill`): a filled arc
+    under 360 degrees closes through the centre or straight between its
+    ends (gap G-D9).
+- **Shape values.** A draw's `rectangle`, `line` or `arc` value is drawn in
+  its content region: a rectangle like a border (a corner `radius` rounds
+  only with `join="round"`; `join` defaults to square, a cut corner,
+  p.663), a line corner to corner per `slope` (`\` default, `/`) shifted
+  by `hand`, an arc from `startAngle` through `sweepAngle` degrees
+  counter-clockwise from 3 o'clock, filled per its `fill`. The shape's
+  `edge` `cap` (square default, butt, round) is honoured.
 - **★ What the UI must disclose:** every `PaintNote` (path + `PaintNoteKind`):
   - `Content`: an `inline` or rich-text caption, a rich or non-text value,
     or a widget drawing more than its text (check button, choice list,
@@ -1028,7 +1057,11 @@ kind.
   - `Font`: the typeface was drawn in a substituted standard-14 face.
   - `Text`: text approximated: an unencodable character, a word wider than
     the region, overflow, or justify/radix alignment drawn left.
-  - `Stroke`: a dashed, dotted, `dashDot` or `dashDotDot` edge, not drawn.
+  - `Stroke`: an edge `stroke` value XFA does not name, drawn solid.
+  - `Shape`: a `line` `slope`, an `arc` angle or an edge `cap` XFA does not
+    name or that is not a number; its default was used.
+  - `Rotate`: a `rotate` not a multiple of 90 or not a number (handled per
+    `OddRotate`), or one on a subform or exclusion group (ignored).
   - `StrokeApproximated`: a 3-D edge drawn as a plain stroke (`Plain`, a
     border with rounded corners, or a later edge whose first edge is not
     3-D).

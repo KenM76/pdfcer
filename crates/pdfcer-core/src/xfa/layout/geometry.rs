@@ -230,7 +230,8 @@ fn lay_one(
         (x.max(i.rect.x + i.rect.w), y.max(i.rect.y + i.rect.h))
     });
     let (w, h) = size(ctx, node, path, kind, (ex + right, ey + bottom));
-    let rect = position(ctx, node, path, parent, (w, h));
+    let rotate = super::rotate::degrees(node, kind, ctx.opts.odd_rotate);
+    let rect = position(ctx, node, path, parent, (w, h), rotate);
     let mut items = vec![LayoutItem {
         kind,
         name: node.name().map(str::to_owned),
@@ -238,13 +239,14 @@ fn lay_one(
         rect: LayoutRect {
             x: 0.0,
             y: 0.0,
-            w,
-            h,
+            w: rect.w,
+            h: rect.h,
         },
         background: false,
         visible: node.presence() == Presence::Visible,
         content_area: None,
         fragment: None,
+        rotate,
     }];
     items.extend(laid);
     let lines = Lines::of(ctx, node, path, kind, h);
@@ -263,15 +265,20 @@ fn lay_one(
     })
 }
 
-/// Where a `w` × `h` instance sits in its parent: at the origin when the
-/// parent flows (p.279), else by `x`/`y` and `anchorType`.
+/// Where a `w` × `h` instance turned `rotate` degrees sits in its parent:
+/// at the origin when the parent flows (p.279), reserving the rotated
+/// extent (p.286), else by `x`/`y` and `anchorType`, turned about that
+/// anchor.
 fn position(
     ctx: &mut Ctx<'_>,
     node: &XfaNode,
     path: &[usize],
     parent: LayoutStrategy,
     (w, h): (f64, f64),
+    rotate: u16,
 ) -> LayoutRect {
+    let anchor = anchor_fraction(node.anchor_type());
+    let (dx, dy, w, h) = super::rotate::extent(rotate, anchor, (w, h));
     if is_flow(parent) {
         return LayoutRect {
             x: 0.0,
@@ -280,9 +287,8 @@ fn position(
             h,
         };
     }
-    let (ax, ay) = anchor_fraction(node.anchor_type());
-    let x = ctx.length(node, path, "x").unwrap_or(0.0) - ax * w;
-    let y = ctx.length(node, path, "y").unwrap_or(0.0) - ay * h;
+    let x = ctx.length(node, path, "x").unwrap_or(0.0) + dx;
+    let y = ctx.length(node, path, "y").unwrap_or(0.0) + dy;
     place(ctx, path, LayoutRect { x, y, w, h })
 }
 

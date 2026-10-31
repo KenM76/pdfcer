@@ -5,7 +5,9 @@ use crate::xfa::{LayoutOptions, XdpDocument, layout_template, read_template};
 
 const PAGE: &str = r#"<pageSet><pageArea name="P"><contentArea x="36pt" y="36pt" w="540pt" h="720pt"/></pageArea></pageSet>"#;
 
-fn painted(body: &str, opts: &PaintOptions) -> (String, Vec<PaintNote>) {
+/// `body` laid out in a 36pt content area and painted: the page content as
+/// one space-separated line, and its notes.
+pub(super) fn painted(body: &str, opts: &PaintOptions) -> (String, Vec<PaintNote>) {
     let xdp = format!(
         r#"<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/"><template xmlns="http://www.xfa.org/schema/xfa-template/3.3/"><subform name="f">{PAGE}{body}</subform></template></xdp:xdp>"#
     );
@@ -120,9 +122,32 @@ fn an_etched_rectangle_is_two_bevels() {
 }
 
 #[test]
-fn a_dashed_edge_is_still_left_out_and_disclosed() {
+fn a_dashed_border_strokes_all_four_edges_dashed() {
     let (ops, notes) = painted(&bordered("dashed"), &PaintOptions::new());
-    assert!(!ops.contains(" S"), "{ops}");
+    assert!(notes.is_empty(), "{notes:?}");
+    assert!(ops.contains("[8 4] 0 d 2 w 2 J"), "{ops}");
+    assert!(ops.contains(" re S"), "{ops}");
+}
+
+#[test]
+fn dotted_and_dashed_edges_differ_and_the_dash_is_reset() {
+    let dotted = format!(
+        "{}{}",
+        bordered("dotted"),
+        bordered("solid").replace(r#"name="d""#, r#"name="e""#)
+    );
+    let (ops, _) = painted(&dotted, &PaintOptions::new());
+    assert!(ops.contains("[2 4] 0 d"), "{ops}");
+    assert!(ops.contains("[] 0 d"), "solid after dotted resets: {ops}");
+    let round = PaintOptions::new().with_dash_caps(super::DashCaps::Round);
+    let (ops, _) = painted(&bordered("dotted"), &round);
+    assert!(ops.contains("[0 6] 0 d 2 w 1 J"), "{ops}");
+}
+
+#[test]
+fn an_unknown_stroke_is_drawn_solid_and_disclosed() {
+    let (ops, notes) = painted(&bordered("wavy"), &PaintOptions::new());
+    assert!(ops.contains(" re S") && !ops.contains(" d "), "{ops}");
     assert_eq!(notes[0].kind, PaintNoteKind::Stroke);
 }
 

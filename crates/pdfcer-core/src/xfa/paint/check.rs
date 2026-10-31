@@ -124,12 +124,7 @@ impl Painter<'_> {
         }
         let edge = match border.and_then(|b| b.child("edge")) {
             Some(e) => self.edge(item, e),
-            None => super::Edge {
-                thickness: 0.5,
-                rgb: [0.0; 3],
-                drawn: true,
-                three_d: None,
-            },
+            None => super::Edge::PLAIN,
         };
         if !edge.drawn {
             return;

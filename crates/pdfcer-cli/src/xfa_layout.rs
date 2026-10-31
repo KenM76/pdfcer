@@ -37,6 +37,16 @@ pub(crate) enum PageAreaKeepArg {
     Adobe,
 }
 
+/// `xfa-layout --odd-rotate` (gap G-L29).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum OddRotateArg {
+    /// No rotation.
+    #[default]
+    Ignore,
+    /// The nearest multiple of 90 degrees.
+    Nearest,
+}
+
 /// `xfa-layout --scope-search` (gap G-SOM3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
 pub(crate) enum ScopeSearchArg {
@@ -121,6 +131,7 @@ pub(crate) struct XfaLayoutArgs {
     pub(crate) negative_coordinates: NegativeCoordinatesArg,
     pub(crate) nested_overflow: NestedOverflowArg,
     pub(crate) page_area_keep: PageAreaKeepArg,
+    pub(crate) odd_rotate: OddRotateArg,
     pub(crate) merge: XfaMergeFlags,
 }
 
@@ -156,7 +167,7 @@ impl XfaMergeFlags {
 
 impl XfaLayoutArgs {
     fn options(self) -> LayoutOptions {
-        use pdfcer_core::xfa::{NegativeCoordinates, NestedOverflow, PageAreaKeep};
+        use pdfcer_core::xfa::{NegativeCoordinates, NestedOverflow, OddRotate, PageAreaKeep};
         LayoutOptions::new()
             .with_negative_coordinates(match self.negative_coordinates {
                 NegativeCoordinatesArg::Keep => NegativeCoordinates::Keep,
@@ -169,6 +180,10 @@ impl XfaLayoutArgs {
             .with_page_area_keep(match self.page_area_keep {
                 PageAreaKeepArg::Spec => PageAreaKeep::Spec,
                 PageAreaKeepArg::Adobe => PageAreaKeep::Adobe,
+            })
+            .with_odd_rotate(match self.odd_rotate {
+                OddRotateArg::Ignore => OddRotate::Ignore,
+                OddRotateArg::Nearest => OddRotate::Nearest,
             })
     }
 }
@@ -284,8 +299,13 @@ fn print_item(page: usize, item: &LayoutItem, value: Option<&str>) {
     let piece = item.fragment.map_or_else(String::new, |f| {
         format!(" fragment={}/{}", f.offset, f.height)
     });
+    let turn = if item.rotate == 0 {
+        String::new()
+    } else {
+        format!(" rotate={}", item.rotate)
+    };
     println!(
-        "item page={page} kind={} name={:?} path={} x={} y={} w={} h={} area={} background={} visible={}{piece}{value}",
+        "item page={page} kind={} name={:?} path={} x={} y={} w={} h={} area={} background={} visible={}{piece}{turn}{value}",
         kind_label(item.kind),
         item.name.as_deref().unwrap_or(""),
         dotted(&item.path),
