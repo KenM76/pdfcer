@@ -86,6 +86,22 @@ pub enum GlobalExclGroup {
     AsOnce,
 }
 
+/// Whether filling an unbound field creates its data node (gaps G-B12 and
+/// G-B16): XFA 3.3 creates one only by re-normalization (pp.209-210), and
+/// leaves an unmatched `global` field unbound (p.247).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum DataCreation {
+    /// Create it, as re-normalization would: a value named as the field,
+    /// appended last to the data group of its nearest bound ancestor, with
+    /// the data groups of unmatched ancestor subforms inserted. A `global`
+    /// field's value goes under the record, shared by every copy.
+    #[default]
+    Create,
+    /// Refuse with [`super::XfaFillError::Unbound`].
+    Refuse,
+}
+
 /// The settings where XFA leaves a merge choice open.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
@@ -100,6 +116,8 @@ pub struct MergeOptions {
     pub global_scope: GlobalScope,
     /// See [`GlobalExclGroup`].
     pub global_exclgroup: GlobalExclGroup,
+    /// See [`DataCreation`]. Read by a fill, not by the merge.
+    pub data_creation: DataCreation,
 }
 
 impl MergeOptions {
@@ -143,6 +161,26 @@ impl MergeOptions {
         self.global_exclgroup = v;
         self
     }
+
+    /// Set [`Self::data_creation`].
+    #[must_use]
+    pub const fn with_data_creation(mut self, v: DataCreation) -> Self {
+        self.data_creation = v;
+        self
+    }
+}
+
+/// A field or exclusion group that bound by name and found nothing: where
+/// a fill would create its data node.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct Unbound {
+    pub(super) path: Vec<usize>,
+    pub(super) name: String,
+    /// The data group the new node goes under.
+    pub(super) scope: Vec<usize>,
+    /// Data groups to insert first, outermost first: the names of the
+    /// ancestor subforms that matched nothing.
+    pub(super) groups: Vec<String>,
 }
 
 /// Why a reference bound nothing, or bound with a caveat
@@ -273,6 +311,15 @@ pub fn merge_data(
     xdp: &XdpDocument,
     opts: &MergeOptions,
 ) -> Result<MergedForm, XfaError> {
+    merge_planned(template, xdp, opts).map(|(form, _)| form)
+}
+
+/// [`merge_data`], plus every container a fill would create a node for.
+pub(super) fn merge_planned(
+    template: &Template,
+    xdp: &XdpDocument,
+    opts: &MergeOptions,
+) -> Result<(MergedForm, Vec<Unbound>), XfaError> {
     let doc = parse_xml(xdp.text())?;
     let data = data::read_data(&doc, opts.data_attributes)?;
     let has_data = data.is_some();
@@ -282,6 +329,7 @@ pub fn merge_data(
         children: Vec::new(),
         group: true,
         span: data::ValueSpan::None,
+        body: data::ValueSpan::None,
     });
     let record: Vec<usize> = root
         .children
@@ -301,6 +349,8 @@ pub fn merge_data(
         bound_nodes: HashSet::new(),
         bound: Vec::new(),
         warnings: Vec::new(),
+        unbound: Vec::new(),
+        record_groups: Vec::new(),
     };
     let mut out = template.clone();
     let element = out.element_mut();
@@ -309,19 +359,26 @@ pub fn merge_data(
         if child.tag == "subform" {
             m.direct_only = child.attr("mergeMode") == Some("matchTemplate");
             path.push(i);
-            // The root subform binds to the top data group (p.182).
+            // The root subform binds to the top data group (p.182); with
+            // no data at all, a fill creates that group.
             let scope = record.clone();
-            m.container(child, &mut path, &scope);
+            let pending: Vec<String> = match child.name() {
+                Some(n) if root.children.is_empty() => vec![n.to_owned()],
+                _ => Vec::new(),
+            };
+            m.record_groups.clone_from(&pending);
+            m.container(child, &mut path, &scope, &pending);
             path.pop();
             break;
         }
     }
-    Ok(MergedForm {
+    let form = MergedForm {
         template: out,
         bound: m.bound,
         warnings: m.warnings,
         has_data,
-    })
+    };
+    Ok((form, m.unbound))
 }
 
 struct Merger<'a> {
@@ -341,13 +398,24 @@ struct Merger<'a> {
     bound_nodes: HashSet<Vec<usize>>,
     bound: Vec<BoundValue>,
     warnings: Vec<MergeWarning>,
+    unbound: Vec<Unbound>,
+    /// The record group a fill must create first (empty when it exists).
+    record_groups: Vec<String>,
 }
 
 impl Merger<'_> {
     /// Merge `node` (at `path`) in data scope `scope`, then its children.
-    fn container(&mut self, node: &mut XfaNode, path: &mut Vec<usize>, scope: &[usize]) {
+    /// `pending` names the unmatched subforms between `scope` and `node`.
+    fn container(
+        &mut self,
+        node: &mut XfaNode,
+        path: &mut Vec<usize>,
+        scope: &[usize],
+        pending: &[String],
+    ) {
         let kind = node.container_kind();
         let mut inner = scope.to_vec();
+        let mut inner_pending = pending.to_vec();
         // The root subform is bound to the record already (p.182).
         let name = if path.len() > 1 {
             self.bind_name(node, kind)
@@ -355,7 +423,29 @@ impl Merger<'_> {
             None
         };
         if let Some((name, global)) = name {
-            self.by_name(node, path, scope, (&name, global), &mut inner);
+            let at = self.by_name(node, path, scope, (&name, global), &mut inner);
+            if node.tag == "subform" {
+                if at.is_some() {
+                    inner_pending.clear();
+                } else {
+                    inner_pending.push(name);
+                }
+            } else if at.is_none() {
+                self.unbound.push(Unbound {
+                    path: path.clone(),
+                    scope: if global {
+                        self.record.to_vec()
+                    } else {
+                        scope.to_vec()
+                    },
+                    groups: if global {
+                        self.record_groups.clone()
+                    } else {
+                        pending.to_vec()
+                    },
+                    name,
+                });
+            }
         } else if let Some(reference) = self.data_ref(node) {
             let want_value = matches!(kind, Some(ContainerKind::Field | ContainerKind::ExclGroup));
             match self.lookup(&reference, scope, want_value) {
@@ -364,6 +454,7 @@ impl Merger<'_> {
                         self.take_value(node, path, &at);
                     } else {
                         inner.clone_from(&at);
+                        inner_pending.clear();
                     }
                     self.bound_nodes.insert(at);
                 }
@@ -385,7 +476,7 @@ impl Merger<'_> {
         for (i, child) in node.children.iter_mut().enumerate() {
             if child.container_kind().is_some() {
                 path.push(i);
-                self.container(child, path, &inner);
+                self.container(child, path, &inner, &inner_pending);
                 path.pop();
             }
         }
@@ -437,7 +528,7 @@ impl Merger<'_> {
 
     /// Bind `node` to the data node named `name`: normal matching, then for
     /// a `global` container the shared value (pp.245-247). A page set's
-    /// global field takes the shared value only.
+    /// global field takes the shared value only. Returns the node bound.
     fn by_name(
         &mut self,
         node: &mut XfaNode,
@@ -445,7 +536,7 @@ impl Merger<'_> {
         scope: &[usize],
         (name, global): (&str, bool),
         inner: &mut Vec<usize>,
-    ) {
+    ) -> Option<Vec<usize>> {
         let want_value = node.tag != "subform";
         let found = if self.page_set > 0 {
             Found::Miss
@@ -474,7 +565,7 @@ impl Merger<'_> {
             }
             Found::Miss => None,
         };
-        let Some(at) = at else { return };
+        let at = at?;
         if global {
             if self.bound_nodes.contains(&at) && !self.global_nodes.contains(&at) {
                 self.warn(path, MergeWarningKind::MixedGlobal, name);
@@ -486,7 +577,8 @@ impl Merger<'_> {
         } else {
             inner.clone_from(&at);
         }
-        self.bound_nodes.insert(at);
+        self.bound_nodes.insert(at.clone());
+        Some(at)
     }
 
     /// Give `node` (at `path`) the value of the data node at `at`.

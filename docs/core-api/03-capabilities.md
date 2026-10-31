@@ -742,7 +742,9 @@ file.
   pp.99-100) or `Ignore`; `GlobalScope` `Document` (default: the first
   same-named value anywhere, document order) or `Records` (only values
   outside every record, the strict reading); `GlobalExclGroup` `Honour`
-  (default, p.348) or `AsOnce` (pp.176, 246).
+  (default, p.348) or `AsOnce` (pp.176, 246); `DataCreation` `Create`
+  (default) or `Refuse`, read by a fill only (an unbound field's data
+  node is created, gaps G-B12/G-B16).
 - **CLI.** `xfa-layout` merges before laying out: bound items end with
   `value="…"`, each warning prints as `warning kind=data-ref-<kind> path= ref="…"`
   (or `kind=data-name-<kind> path= name="…"`)
@@ -752,8 +754,10 @@ file.
   were merged.
 - **Fill.** `EditSession::fill_xfa_field` writes a value back into the
   bound data node (02, *Forms*); CLI `xfa-fill IN --set PATH=VALUE -o OUT`
-  prints `xfa-set path= data= stream= shared_with=` per set. Show
-  `shared_with` off-canvas: other fields changed with the one edited.
+  prints `xfa-set path= data= stream= shared_with= created=` per set
+  (`--data-creation create|refuse`). Show `shared_with` and `created`
+  off-canvas: other fields changed with the one edited, and data nodes
+  the fill added.
 - **★ What the UI must disclose:** the merged values are the file's own
   data, but the layout they sit in is inferred (rule 4); show each merge
   warning off-canvas with the layout warnings.

@@ -10,8 +10,8 @@ use std::process::Command;
 const BIN: &str = env!("CARGO_BIN_EXE_pdfcer");
 
 /// A page set, two fields named `a` (both `match="global"`, sharing one
-/// value) and `c`: template paths 0.1, 0.2 and 0.3.
-const TEMPLATE: &str = r#"<subform name="form1" layout="tb"><pageSet><pageArea><contentArea w="200" h="200"/></pageArea></pageSet><field name="a" w="50" h="10"><bind match="global"/></field><field name="a" w="50" h="10"><bind match="global"/></field><field name="c" w="50" h="10"/></subform>"#;
+/// value), `c` and `d` (no data): template paths 0.1 to 0.4.
+const TEMPLATE: &str = r#"<subform name="form1" layout="tb"><pageSet><pageArea><contentArea w="200" h="200"/></pageArea></pageSet><field name="a" w="50" h="10"><bind match="global"/></field><field name="a" w="50" h="10"><bind match="global"/></field><field name="c" w="50" h="10"/><field name="d" w="50" h="10"/></subform>"#;
 const DATA: &str = "<form1><a>one</a><c>three</c></form1>";
 
 fn pdf() -> Vec<u8> {
@@ -110,4 +110,36 @@ fn an_unbound_or_malformed_path_is_refused_and_writes_nothing() {
         assert!(!output.exists(), "{set} wrote an output");
     }
     let _ = std::fs::remove_file(input);
+}
+
+#[test]
+fn a_field_with_no_data_node_gets_one_created_and_disclosed() {
+    let input = temp("create-in");
+    let output = temp("create-out");
+    std::fs::write(&input, pdf()).unwrap();
+    let (input_s, output_s) = (input.to_str().unwrap(), output.to_str().unwrap());
+    let (code, _) = run(&[
+        "xfa-fill",
+        input_s,
+        "--set",
+        "0.4=dee",
+        "-o",
+        output_s,
+        "--data-creation",
+        "refuse",
+    ]);
+    assert_ne!(code, 0);
+    assert!(!output.exists(), "a refused fill writes nothing");
+
+    let (code, stdout) = run(&["xfa-fill", input_s, "--set", "0.4=dee", "-o", output_s]);
+    assert_eq!(code, 0, "{stdout}");
+    assert!(
+        stdout.contains("xfa-set path=0.4 data=0.2 stream=4 shared_with=- created=d"),
+        "{stdout}"
+    );
+    let (code, layout) = run(&["xfa-layout", output_s]);
+    assert_eq!(code, 0, "{layout}");
+    assert!(layout.contains("value=\"dee\""), "{layout}");
+    let _ = std::fs::remove_file(&input);
+    let _ = std::fs::remove_file(&output);
 }

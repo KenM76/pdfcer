@@ -8,7 +8,7 @@ use super::super::packets::{MAX_XML_DEPTH, XfaError};
 use super::DataAttributes;
 
 /// The XFA data namespace (`xfa:data`, XFA 3.3 p.130).
-const DATA_NS: &str = "http://www.xfa.org/schema/xfa-data/1.0/";
+pub(super) const DATA_NS: &str = "http://www.xfa.org/schema/xfa-data/1.0/";
 
 /// Ceiling on data nodes read (a pdfcer guard; the spec sets none).
 pub(super) const MAX_DATA_NODES: usize = 1_000_000;
@@ -24,6 +24,8 @@ pub(super) struct DataNode {
     pub(super) group: bool,
     /// Where the value's text sits in the XDP text, for a fill to replace.
     pub(super) span: ValueSpan,
+    /// The element's content, group or not, for a fill to append to.
+    pub(super) body: ValueSpan,
 }
 
 /// The bytes of the XDP text a new value replaces.
@@ -88,6 +90,7 @@ fn convert(
         children: Vec::new(),
         group: false,
         span: content_span(node),
+        body: content_span(node),
     };
     if attributes == DataAttributes::Load {
         // Namespaced attributes (`xfa:dataNode`, `xmlns`) direct the loader;
@@ -100,6 +103,7 @@ fn convert(
                 children: Vec::new(),
                 group: false,
                 span: ValueSpan::Attribute(a.range_value()),
+                body: ValueSpan::None,
             });
         }
     }
@@ -126,7 +130,7 @@ fn convert(
     Ok(out)
 }
 
-fn content_span(node: roxmltree::Node<'_, '_>) -> ValueSpan {
+pub(super) fn content_span(node: roxmltree::Node<'_, '_>) -> ValueSpan {
     let range = node.range();
     if let (Some(first), Some(last)) = (node.first_child(), node.last_child()) {
         return ValueSpan::Content(first.range().start..last.range().end);

@@ -6296,6 +6296,12 @@ pub(crate) enum Command {
         /// for byte.
         #[arg(long)]
         verify_undo: bool,
+        /// What filling a field with no data node does: create the node
+        /// (as XFA re-normalization does; a match="global" field's goes
+        /// under the record, shared by every copy) and print created=, or
+        /// refuse.
+        #[arg(long, value_enum, default_value_t)]
+        data_creation: DataCreationArg,
         #[command(flatten)]
         merge: XfaMergeFlags,
     },

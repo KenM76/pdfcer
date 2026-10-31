@@ -1432,8 +1432,12 @@ pub(crate) fn run() -> ExitCode {
             output,
             mode,
             verify_undo,
+            data_creation,
             merge,
-        } => cmd_xfa_fill(&input, &sets, &output, mode, verify_undo, merge),
+        } => {
+            let opts = merge.options().with_data_creation(data_creation.into());
+            cmd_xfa_fill(&input, &sets, &output, mode, verify_undo, &opts)
+        }
         Command::AddTextField {
             input,
             name,

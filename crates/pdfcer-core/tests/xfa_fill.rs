@@ -10,7 +10,7 @@ use pdfcer_core::document::Document;
 use pdfcer_core::edit::{CommandKind, EditError, EditSession};
 use pdfcer_core::writer::SaveOptions;
 use pdfcer_core::xfa::{
-    MergeOptions, MergedForm, XfaFillError, merge_data, read_template, read_xdp,
+    DataCreation, MergeOptions, MergedForm, XfaFillError, merge_data, read_template, read_xdp,
 };
 
 const XDP: &str = r#"<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/"><template xmlns="http://www.xfa.org/schema/xfa-template/3.3/"><subform name="form1"><field name="a"/><field name="b"/><field name="c"/></subform></template><xfa:datasets xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/"><xfa:data><form1 c="7"><a>old</a><b/></form1></xfa:data></xfa:datasets></xdp:xdp>"#;
@@ -202,4 +202,78 @@ fn refusals_are_named() {
         .fill_xfa_field(&[0], "x", &MergeOptions::new())
         .unwrap_err();
     assert!(matches!(err, EditError::XfaFill(_)), "{err:?}");
+}
+
+/// X022 Form G: a global `userName` on page 1 and a protected copy later,
+/// with no data at all.
+const FORM_G: &str = r#"<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/"><template xmlns="http://www.xfa.org/schema/xfa-template/3.3/"><subform name="form1"><subform name="page1"><field name="userName"><bind match="global"/></field></subform><subform name="later"><field name="userName" access="protected"><bind match="global"/></field></subform></subform></template></xdp:xdp>"#;
+
+#[test]
+fn a_global_field_with_no_data_creates_one_shared_node() {
+    let original = pdf("4 0 R", &[("", FORM_G.as_bytes().to_vec())]);
+    let mut s = session(original.clone());
+    let opts = MergeOptions::new();
+    let out = s.fill_xfa_field(&[0, 0, 0], "A. Tester", &opts).unwrap();
+    assert_eq!(out.created, ["form1", "userName"]);
+    assert_eq!(out.shared_with, [vec![0, 1, 0]]);
+    let bytes = saved(&s);
+    assert_eq!(values(bytes.clone()), ["A. Tester", "A. Tester"]);
+    let form = merged(&Document::from_bytes(bytes.clone()).unwrap());
+    assert_eq!(form.bound[0].data, form.bound[1].data, "one node");
+
+    let mut s = session(bytes);
+    let out = s.fill_xfa_field(&[0, 1, 0], "B", &opts).unwrap();
+    assert!(out.created.is_empty());
+    let bytes = saved(&s);
+    let appended = String::from_utf8_lossy(&bytes).into_owned();
+    assert_eq!(appended.matches("<userName>B</userName>").count(), 1);
+    assert_eq!(values(bytes), ["B", "B"]);
+
+    let mut fresh = session(original);
+    fresh.fill_xfa_field(&[0, 0, 0], "x", &opts).unwrap();
+    assert_eq!(fresh.undo(), Some(CommandKind::FillXfaField));
+    assert_eq!(values(saved(&fresh)), Vec::<String>::new());
+}
+
+#[test]
+fn an_unmatched_subform_gets_its_data_group_inserted() {
+    const XDP: &str = r#"<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/"><template><subform name="form1"><field name="a"/><subform name="sec"><field name="x"/></subform></subform></template><xfa:datasets xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/"><xfa:data><form1><a>1</a></form1></xfa:data></xfa:datasets></xdp:xdp>"#;
+    let original = pdf("4 0 R", &[("", XDP.as_bytes().to_vec())]);
+    let base = original.len();
+    let mut s = session(original.clone());
+    let refuse = MergeOptions::new().with_data_creation(DataCreation::Refuse);
+    let err = s.fill_xfa_field(&[0, 1, 0], "v", &refuse).unwrap_err();
+    assert!(matches!(err, EditError::XfaFill(XfaFillError::Unbound)));
+
+    let out = s
+        .fill_xfa_field(&[0, 1, 0], "v & w", &MergeOptions::new())
+        .unwrap();
+    assert_eq!(out.created, ["sec", "x"]);
+    let bytes = saved(&s);
+    let appended = String::from_utf8_lossy(&bytes[base..]).into_owned();
+    assert!(
+        appended.contains("<form1><a>1</a><sec><x>v &amp; w</x></sec></form1>"),
+        "{appended}"
+    );
+    assert_eq!(values(bytes), ["1", "v & w"]);
+}
+
+#[test]
+fn a_packet_array_with_no_datasets_stream_is_refused() {
+    let at = FORM_G.find("</xdp:xdp>").unwrap();
+    let original = pdf(
+        "[(template) 4 0 R (</xdp:xdp>) 5 0 R]",
+        &[
+            ("", FORM_G.as_bytes()[..at].to_vec()),
+            ("", b"</xdp:xdp>".to_vec()),
+        ],
+    );
+    let mut s = session(original);
+    let err = s
+        .fill_xfa_field(&[0, 0, 0], "x", &MergeOptions::new())
+        .unwrap_err();
+    assert!(
+        matches!(err, EditError::XfaFill(XfaFillError::NoDatasetsPacket)),
+        "{err:?}"
+    );
 }
