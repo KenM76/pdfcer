@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.113.0` — release PREP, version bump `c9247c11` (`chore`), 2026-10-31 (1366th filing); prepared, not published
+
+Engineer-reported (shell held by the engineer; each item stated checked); nothing checked from here. Same pattern as the `v0.112.0` prep (1358th filing).
+- **`c9247c11`** "chore: bump version to 0.113.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` only. A code commit, cited here.
+- **`1f5a9658`** "docs: file Passes 653.0-653.4": the filings of the batch below, committed.
+- **Carried since `v0.112.0`:** `Pass 648.6` (`01c5f515`, `G245` part 2), `Pass 653.0` (`5c16e092`, `G244`), `653.1` (`396c7c70`, `G243`), `653.2` (`121eb7d9`, `G249`), `653.3` (`82aee9d6`, `G250`), `653.4` (`edb2d1ae`, `G251`), their filings and the bump. This completes the `pdfcer-gui` round (`G249`, `G250`, `G251`), which asked for a release once all three shipped.
+- **Target:** OneDrive slot `pdfcer2` (holds 0.111.0, the older; `pdfcer1` holds 0.112.0).
+- **Release plan (to run, NOT claimed done):** gates, tag, packaging, fresh-folder smoke, GitHub release assets, OneDrive deploy to `pdfcer2`, `verify-release.py v0.113.0`, crates.io publish. A later publication filing records the results.
+- **FEATURES:** no change now; "unreleased" wording is updated only at publication. Nothing minted: no decision, no rule.
+
 ### `edb2d1ae` `Pass 653.4` SHIPPED, 2026-10-31: a reusable 3D pick index with a part mask and a distance limit (`G251`; 1365th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Commit `edb2d1ae`, "3d: a reusable pick index with a part mask and distance limit (G251)". On `main`, **unreleased** (last release `v0.112.0`). Reasoning is in the commit message. Request from `pdfcer-gui`; reply `reply_G251_pick_index_SHIPPED.md` in `open/`.

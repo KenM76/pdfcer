@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-31 (1366th filing) — `v0.113.0` release PREP, bump `c9247c11`; prepared, not published
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`c9247c11`** "chore: bump version to 0.113.0": touched `Cargo.toml`, `Cargo.lock` and `fuzz/Cargo.lock` only.
+- **`1f5a9658`** "docs: file Passes 653.0-653.4 (G243, G244, G249, G250, G251)": the 1361st-1365th filings, committed.
+- **Contents of `v0.113.0`** (since `v0.112.0`): `Pass 648.6` (`01c5f515`, `G245` part 2), `Pass 653.0` (`5c16e092`, `G244`), `653.1` (`396c7c70`, `G243`), `653.2` (`121eb7d9`, `G249`), `653.3` (`82aee9d6`, `G250`), `653.4` (`edb2d1ae`, `G251`), plus their filings and the bump. The `653.x` set completes the round `pdfcer-gui` named (`G249`, `G250`, `G251`), which asked for a release once all three shipped. (`648.6` was filed in the 1360th, after `v0.112.0` and before the `653.x` batch; included here from the log order, not from a diff.)
+- Target OneDrive slot `pdfcer2` (the 1359th filing records `pdfcer1` = 0.112.0, `pdfcer2` = 0.111.0, "next release writes `pdfcer2`"; consistent with the engineer's statement).
+- **Status: prepared, not tagged, packaged or published.** ROADMAP: prep entry added at the top of Shipped. FEATURES: no change; any "unreleased" wording is updated at publication.
+
+**Decisions made this session:** none minted.
+
+**Hard-rule-11 survivors:** none new. The 1360th-1365th entries and their ROADMAP entries say "unreleased (last release `v0.112.0`)"; that is history, left as filed. `docs/NEXT_SESSION.md` (engineer-owned) not swept. Backup currency not verifiable from here.
+
+**Still in flight:** the release itself.
+
+**For next session:** gates, tag, package, smoke, publish, verify `v0.113.0` (slot `pdfcer2`), then a publication filing.
+
 ## 2026-10-31 (1365th filing) — `Pass 653.4` SHIPPED `edb2d1ae` (`G251`): reusable 3D pick index
 
 **Filed (docs only; engineer-reported, nothing checked from here; no shell):**
