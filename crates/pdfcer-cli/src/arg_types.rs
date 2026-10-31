@@ -168,6 +168,15 @@ pub(crate) fn parse_point3(s: &str) -> Result<[f64; 3], String> {
     <[f64; 3]>::try_from(parts).map_err(|_| format!("`{s}` is not three numbers like 1,2.5,-3"))
 }
 
+/// Clap parser for a segment `X,Y,Z:X,Y,Z` (two points of three finite
+/// numbers each).
+pub(crate) fn parse_segment3(s: &str) -> Result<[[f64; 3]; 2], String> {
+    let (a, b) = s
+        .split_once(':')
+        .ok_or_else(|| format!("`{s}` is not two points like 0,0,0:10,0,0"))?;
+    Ok([parse_point3(a)?, parse_point3(b)?])
+}
+
 /// Clap parser for an image position `X,Y` (two finite numbers).
 pub(crate) fn parse_point2(s: &str) -> Result<[f64; 2], String> {
     let bad = || format!("`{s}` is not two numbers like 80,45.5");

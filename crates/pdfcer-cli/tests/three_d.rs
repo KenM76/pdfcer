@@ -1217,6 +1217,67 @@ fn named_views_are_written_and_listed() {
 
 #[cfg(feature = "3d")]
 #[test]
+fn a_measurement_is_written_into_every_view_and_listed() {
+    let input = with_prc_square("views_measure");
+    let output = input.with_extension("measured.pdf");
+    let out = views_3d(
+        &input,
+        &[
+            "--view",
+            "front",
+            "--view",
+            "top",
+            "--measure",
+            "0,0,0:3,4,0",
+            "--units",
+            "mm",
+            "--apply",
+            "-o",
+            output.to_str().unwrap(),
+        ],
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(out.status.success(), "{stderr}");
+    assert!(
+        stderr.contains("note: 3D measurements are a PDF 2.0"),
+        "{stderr}"
+    );
+    let listed = run(&["3d-list", output.to_str().unwrap()]);
+    let listed = String::from_utf8_lossy(&listed.stdout);
+    for view in ["Front", "Top"] {
+        assert!(
+            listed.contains(&format!(
+                "    measure view=\"{view}\" index=0 kind=linear name=\"-\" a1=0,0,0 a2=3,4,0 \
+                 value=\"5.000 mm\" comment=no"
+            )),
+            "{listed}"
+        );
+    }
+}
+
+#[cfg(feature = "3d")]
+#[test]
+fn a_measurement_needs_units_and_two_distinct_points() {
+    let input = with_prc_square("views_measure_bad");
+    let out = views_3d(&input, &["--view", "front", "--measure", "0,0,0:1,0,0"]);
+    assert_eq!(out.status.code(), Some(2), "--units is required");
+    let out = views_3d(
+        &input,
+        &[
+            "--view",
+            "front",
+            "--measure",
+            "1,1,1:1,1,1",
+            "--units",
+            "mm",
+        ],
+    );
+    assert_eq!(out.status.code(), Some(9));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("its two points coincide"));
+}
+
+#[cfg(feature = "3d")]
+#[test]
 fn an_orthographic_views_dry_run_discloses_and_writes_nothing() {
     let input = with_prc_square("views_dry");
     let output = input.with_extension("dry.pdf");

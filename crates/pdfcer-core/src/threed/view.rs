@@ -5,7 +5,8 @@ use crate::graph::ObjectGraph;
 use crate::object::{Dict, Object};
 use crate::textstring::decode_text_string;
 
-use super::{ThreeDArtwork, ThreeDLighting, name_of, stream_at};
+use super::measure::read_measurements;
+use super::{ThreeDArtwork, ThreeDLighting, ThreeDMeasurement, name_of, stream_at};
 
 /// Ceiling on `/VA` entries searched for a view named by string (a pdfcer
 /// guard; the spec sets none).
@@ -51,6 +52,10 @@ pub struct ThreeDSavedView {
     /// a scheme Table 309 does not list; a reader then lights the model
     /// its own way.
     pub lighting: Option<ThreeDLighting>,
+    /// `/MA` (ISO 32000-2 Table 315): the 3D measurements a reader shows
+    /// while this view is active, in file order; at most
+    /// [`super::MAX_3D_MEASUREMENTS`] are read.
+    pub measurements: Vec<ThreeDMeasurement>,
 }
 
 impl Default for ThreeDSavedView {
@@ -67,6 +72,7 @@ impl Default for ThreeDSavedView {
             field_of_view: None,
             view_box: None,
             lighting: None,
+            measurements: Vec::new(),
         }
     }
 }
@@ -260,6 +266,7 @@ pub(super) fn read_view<G: ObjectGraph + ?Sized>(graph: &G, view: &Dict) -> Thre
         field_of_view,
         view_box: None,
         lighting,
+        measurements: read_measurements(graph, view),
     }
 }
 

@@ -3450,7 +3450,13 @@ pub(crate) enum Command {
     /// view so the reader opens on the model's own. Needs a PRC model pdfcer
     /// can mesh (except `--clear`). A `note:` line says when an orthographic
     /// view's scale is pdfcer's reading, or when the 3D data is shared with
-    /// other annotations, which then get the same views. A DRY RUN unless
+    /// other annotations, which then get the same views.
+    ///
+    /// Each `--measure` adds a linear measurement between two model points to
+    /// every view, drawn facing that view's camera and labelled `--units`.
+    /// The value is the straight-line distance in model units, written as
+    /// is; a reader shows it rather than measuring again. Measurements are a
+    /// PDF 2.0 feature, which a `note:` line says. A DRY RUN unless
     /// `--apply`.
     #[command(name = "3d-views")]
     ThreeDViews {
@@ -3471,8 +3477,16 @@ pub(crate) enum Command {
         /// The view the reader opens on. Default: the first `--view`.
         #[arg(long, value_enum)]
         default: Option<ThreeDView>,
+        /// A linear measurement from one model point to another, added to
+        /// every view; repeat for several.
+        #[arg(long = "measure", value_name = "X,Y,Z:X,Y,Z", value_parser = parse_segment3,
+              allow_hyphen_values = true, requires = "units")]
+        measures: Vec<[[f64; 3]; 2]>,
+        /// The units label shown after each measured value, e.g. `mm`.
+        #[arg(long, requires = "measures")]
+        units: Option<String>,
         /// Remove every view instead.
-        #[arg(long, conflicts_with_all = ["views", "default", "ortho"])]
+        #[arg(long, conflicts_with_all = ["views", "default", "ortho", "measures"])]
         clear: bool,
         /// Actually write the output. Without it this is a DRY RUN.
         #[arg(long)]

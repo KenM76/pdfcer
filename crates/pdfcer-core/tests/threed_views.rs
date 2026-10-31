@@ -6,8 +6,8 @@ use pdfcer_core::document::Document;
 use pdfcer_core::edit::{CommandKind, EditError, EditSession};
 use pdfcer_core::object::{Dict, ObjId, Object};
 use pdfcer_core::threed::{
-    MAX_3D_VIEWS, OrthoBinding, ThreeDEmbedError, ThreeDSavedView, default_3d_view, extract_3d,
-    list_3d, saved_3d_views,
+    MAX_3D_VIEWS, OrthoBinding, ThreeDEmbedError, ThreeDMeasureKind, ThreeDMeasurement,
+    ThreeDSavedView, default_3d_view, extract_3d, list_3d, saved_3d_views,
 };
 use pdfcer_core::writer::{SaveOptions, save_full};
 
@@ -137,6 +137,61 @@ fn a_perspective_field_of_view_reads_back() {
     assert_eq!(view.field_of_view, Some(30.0));
     let aim = view.aim(1.0).expect("a matrix");
     assert_eq!(aim.direction, [0., -1., 0.]);
+}
+
+#[test]
+fn a_linear_measurement_reads_back_its_anchors_and_value() {
+    let m = ThreeDMeasurement::linear([0., 0., 0.], [3., 4., 0.], [0., 0., 1.], "mm")
+        .expect("a measurement");
+    let views = vec![ThreeDSavedView::new("Back", BACK).with_measurement(m.clone())];
+    let mut session = EditSession::new(doc());
+    let outcome = session
+        .set_3d_views(0, ANNOT, &views, Some(0))
+        .expect("writes");
+    assert!(outcome.disclosures.iter().any(|d| d.contains("PDF 2.0")));
+    assert!(!outcome.disclosures.iter().any(|d| d.contains("comment")));
+    let back = saved(&session);
+    let view = default_3d_view(&back, &list_3d(&back)[0]).expect("a default view");
+    assert_eq!(view.measurements, vec![m]);
+    let read = &view.measurements[0];
+    assert_eq!(read.kind, ThreeDMeasureKind::Linear);
+    assert_eq!((read.a1, read.a2), (Some([0.; 3]), Some([3., 4., 0.])));
+    assert_eq!(read.value_text().as_deref(), Some("5.000 mm"));
+    assert_eq!(
+        saved_3d_views(&back, &list_3d(&back)[0]).views[0]
+            .measurements
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn a_measurement_missing_a_required_key_is_refused() {
+    let mut m = ThreeDMeasurement::linear([0.; 3], [1., 0., 0.], [0., 0., 1.], "mm")
+        .expect("a measurement");
+    m.units = None;
+    let views = vec![ThreeDSavedView::new("Back", BACK).with_measurement(m)];
+    let mut session = EditSession::new(doc());
+    let err = session
+        .set_3d_views(0, ANNOT, &views, Some(0))
+        .expect_err("refused");
+    assert!(err.to_string().contains("/U"), "{err}");
+}
+
+#[test]
+fn a_comment_link_is_dropped_and_disclosed() {
+    let mut m = ThreeDMeasurement::linear([0.; 3], [1., 0., 0.], [0., 0., 1.], "mm")
+        .expect("a measurement");
+    m.has_comment = true;
+    let views = vec![ThreeDSavedView::new("Back", BACK).with_measurement(m)];
+    let mut session = EditSession::new(doc());
+    let outcome = session
+        .set_3d_views(0, ANNOT, &views, Some(0))
+        .expect("writes");
+    assert!(outcome.disclosures.iter().any(|d| d.contains("Projection")));
+    let back = saved(&session);
+    let view = default_3d_view(&back, &list_3d(&back)[0]).expect("a default view");
+    assert!(!view.measurements[0].has_comment);
 }
 
 #[test]

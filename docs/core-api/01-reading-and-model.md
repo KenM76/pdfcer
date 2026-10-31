@@ -3237,7 +3237,28 @@ pdfcer reads a binding as the bound side spanning `1/OS` camera units, and
 interpretation, disclosed. `ThreeDSavedView` implements `Default` (no
 matrix, perspective, `OS` 1, `Absolute`). `field_of_view: Option<f64>` is
 `/P /FOV` in degrees for a perspective view (Table 305: horizontal under the
-default `/PS /W`), `None` when absent. `lighting: Option<ThreeDLighting>` is `/LS /Subtype` (Table 309: `Artwork`, `None`, `White`, `Day`, `Night`, `Hard`, `Primary`, `Blue`, `Red`, `Cube`, `Cad`, `Headlamp`; `#[non_exhaustive]`; `as_name()` / `from_name`), `None` when absent or unlisted. The write side of these fields is
+default `/PS /W`), `None` when absent. `lighting: Option<ThreeDLighting>` is `/LS /Subtype` (Table 309: `Artwork`, `None`, `White`, `Day`, `Night`, `Hard`, `Primary`, `Blue`, `Red`, `Cube`, `Cad`, `Headlamp`; `#[non_exhaustive]`; `as_name()` / `from_name`), `None` when absent or unlisted. `measurements: Vec<ThreeDMeasurement>` is
+`/MA` (ISO 32000-2 Table 315, §13.6.7.3), in file order, at most
+`MAX_3D_MEASUREMENTS` (4096); an entry that is not a dictionary or names no
+listed subtype is skipped. `ThreeDMeasurement` (`#[non_exhaustive]`, every
+field `pub`; `new(kind)`): `kind: ThreeDMeasureKind` (`Linear` `/LD3`,
+`Perpendicular` `/PD3`, `Angular` `/AD3`, `Radial` `/RD3`, `Comment` `/3DC`;
+`#[non_exhaustive]`), and each Table 327-331 key as an `Option`, `None` when
+absent or malformed: `name` (`/TRL`), `plane` (`/AP`), `a1`-`a4` (`/A1`-`/A4`),
+`node1`/`node2` (`/N1`/`/N2`), `d1`/`d2`, `text_anchor` (`/TP`), `text_x`
+(`/TX`), `text_up` (`/TY`), `text_size` (`/TS`, default 12), `color` (`/C`,
+DeviceRGB, default white), `value` (`/V`), `units` (`/U`), `places: Option<u32>`
+(`/P`, default 3), `user_text` (`/UT`), `degrees` (`/DR`), `extension` (`/EL`),
+`show_circle` (`/SC`), `radius` (`/R`), `text_box: Option<[u32; 2]>` (`/TB`);
+`has_comment: bool` is whether `/S` links a Projection annotation (read only).
+Points are world space. **`/V` is the stored value; pdfcer never re-measures.**
+`value_text()` formats it as pdfcer shows it (`/V` to `/P` places, then
+` /U`, then `/UT`; a `Comment` returns `/UT`; the spec leaves formatting to the
+reader). `ThreeDMeasurement::linear(a1, a2, plane, units) -> Option<Self>`
+builds a writable linear one: value = distance, text at the midpoint, up =
+`plane × (a2 - a1)` normalised; `None` when the points coincide, the line is
+along `plane`, or a number is not finite. 3D units (`/3DU`, Table 325) are not
+read. The write side of these fields is
 `EditSession::set_3d_views` (`02-editing-and-saving.md`).
 
 **Named views and the up axis** (`pdfcer-3d`, no feature gate).

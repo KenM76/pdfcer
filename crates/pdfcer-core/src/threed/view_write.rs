@@ -5,6 +5,7 @@ use crate::object::{Dict, Name, ObjId, Object};
 
 use super::ThreeDEmbedError;
 use super::ThreeDLighting;
+use super::measure::{MAX_3D_MEASUREMENTS, ThreeDMeasurement, check_measurement, measurement_dict};
 use super::view::{OrthoBinding, ThreeDSavedView};
 
 /// Most views [`crate::edit::EditSession::set_3d_views`] writes.
@@ -90,6 +91,13 @@ impl ThreeDSavedView {
         self.lighting = Some(scheme);
         self
     }
+
+    /// `/MA`: add `measurement` to those shown while this view is active.
+    #[must_use]
+    pub fn with_measurement(mut self, measurement: ThreeDMeasurement) -> Self {
+        self.measurements.push(measurement);
+        self
+    }
 }
 
 #[cfg(feature = "3d")]
@@ -169,8 +177,8 @@ fn dot([a0, a1, a2]: [f64; 3], [b0, b1, b2]: [f64; 3]) -> f64 {
     a0 * b0 + a1 * b1 + a2 * b2
 }
 
-#[cfg(feature = "3d")]
-fn cross([a0, a1, a2]: [f64; 3], [b0, b1, b2]: [f64; 3]) -> [f64; 3] {
+/// The cross product `a × b`; shared with the measurement builder.
+pub(super) fn cross([a0, a1, a2]: [f64; 3], [b0, b1, b2]: [f64; 3]) -> [f64; 3] {
     [a1 * b2 - a2 * b1, a2 * b0 - a0 * b2, a0 * b1 - a1 * b0]
 }
 
@@ -212,6 +220,14 @@ pub(crate) fn check_view(index: usize, v: &ThreeDSavedView) -> Result<(), ThreeD
     {
         return Err(invalid("its field of view is outside 0-180 degrees"));
     }
+    if v.measurements.len() > MAX_3D_MEASUREMENTS {
+        return Err(invalid(
+            "it has more 3D measurements than pdfcer writes (4096)",
+        ));
+    }
+    for (k, m) in v.measurements.iter().enumerate() {
+        check_measurement(m).map_err(|why| invalid(&format!("its measurement {k}: {why}")))?;
+    }
     Ok(())
 }
 
@@ -241,6 +257,13 @@ pub(crate) fn view_dict(v: &ThreeDSavedView) -> Dict {
     }
     if let Some(l) = v.lighting {
         d.insert(Name::from(b"LS"), Object::Dict(l.to_dict()));
+    }
+    if !v.measurements.is_empty() {
+        let ma = v
+            .measurements
+            .iter()
+            .map(|m| Object::Dict(measurement_dict(m)));
+        d.insert(Name::from(b"MA"), Object::Array(ma.collect()));
     }
     d
 }

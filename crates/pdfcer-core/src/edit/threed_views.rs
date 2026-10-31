@@ -10,6 +10,12 @@ use crate::threed::{
 /// Disclosed for every orthographic view written.
 const ORTHO_DISCLOSURE: &str = "an orthographic view's scale is written as pdfcer reads it (the bound side spans 1/OS camera units); ISO 32000 gives the scale no unit, so another reader may frame it differently";
 
+/// Disclosed when any view carries a 3D measurement.
+const MEASURE_DISCLOSURE: &str = "3D measurements are a PDF 2.0 feature (Adobe extension level 3 before it); the file's declared version is not changed, and a reader shows each value as written rather than measuring it";
+
+/// Disclosed when a measurement written was linked to a comment.
+const COMMENT_DISCLOSURE: &str = "a 3D measurement linked to a comment (a Projection annotation) is written without that link; the comment stays on the page but no longer points at a measurement in these views";
+
 /// Disclosed when the 3D stream is reached through a `/3DRef`.
 const SHARED_DISCLOSURE: &str = "the 3D stream is shared through a 3D reference dictionary, so every annotation that names it gets these views";
 
@@ -27,8 +33,12 @@ impl EditSession {
     ///   the new default.
     /// - Empty `views` removes `/VA`, `/DV` and `/3DV`: the reader opens on
     ///   the artwork's own default view.
+    /// - Each view's [`ThreeDSavedView::measurements`] become its `/MA`
+    ///   (ISO 32000-2 §13.6.7.3), one direct dictionary each, without `/S`.
     /// - [`ThreeDViewsOutcome::disclosures`] states an orthographic view's
-    ///   scale reading and a stream shared through a `/3DRef`.
+    ///   scale reading, a stream shared through a `/3DRef`, that
+    ///   measurements are PDF 2.0, and a measurement whose comment link was
+    ///   dropped.
     ///
     /// # Errors
     ///
@@ -109,6 +119,13 @@ impl EditSession {
         let mut disclosures = Vec::new();
         if views.iter().any(|v| v.orthographic) {
             disclosures.push(ORTHO_DISCLOSURE.to_owned());
+        }
+        let measures = || views.iter().flat_map(|v| &v.measurements);
+        if measures().next().is_some() {
+            disclosures.push(MEASURE_DISCLOSURE.to_owned());
+        }
+        if measures().any(|m| m.has_comment) {
+            disclosures.push(COMMENT_DISCLOSURE.to_owned());
         }
         if shared_stream {
             disclosures.push(SHARED_DISCLOSURE.to_owned());

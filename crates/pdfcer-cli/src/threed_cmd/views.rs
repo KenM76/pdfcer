@@ -3,7 +3,7 @@
 
 use super::*;
 use pdfcer_core::document::Document;
-use pdfcer_core::threed::{ThreeDArtwork, ThreeDSavedView, ThreeDViewsOutcome};
+use pdfcer_core::threed::{ThreeDArtwork, ThreeDMeasurement, ThreeDSavedView, ThreeDViewsOutcome};
 
 /// The arguments of `3d-views`, borrowed from the parsed command.
 #[cfg_attr(not(feature = "3d"), allow(dead_code))]
@@ -14,6 +14,8 @@ pub(crate) struct ViewsThreeDArgs<'a> {
     pub(crate) up: Axis3,
     pub(crate) ortho: bool,
     pub(crate) default: Option<ThreeDView>,
+    pub(crate) measures: &'a [[[f64; 3]; 2]],
+    pub(crate) units: &'a str,
     pub(crate) clear: bool,
     pub(crate) apply: bool,
     pub(crate) output: Option<&'a Path>,
@@ -103,6 +105,9 @@ fn print_summary(
         mode_token(a.mode),
         u8::from(a.apply)
     );
+    for v in views {
+        super::print_measurements(&v.measurements, &v.name);
+    }
     for d in &o.disclosures {
         eprintln!("note: {d}");
     }
@@ -157,10 +162,35 @@ fn fitted_views(
             let camera =
                 pdfcer_3d::Camera::fit_meshes(&model.meshes, direction, up, !a.ortho, aspect)
                     .map_err(|err| refuse(err.to_string()))?;
-            ThreeDSavedView::from_camera(named.label(), &camera, aspect)
-                .ok_or_else(|| refuse(format!("the {} view has no usable camera", named.label())))
+            let view =
+                ThreeDSavedView::from_camera(named.label(), &camera, aspect).ok_or_else(|| {
+                    refuse(format!("the {} view has no usable camera", named.label()))
+                })?;
+            with_measures(view, a.measures, a.units).map_err(refuse)
         })
         .collect()
+}
+
+/// `view` with one linear measurement per segment, in the plane facing its
+/// camera (normal = the camera's z axis); a segment along that axis is
+/// drawn in the plane holding the camera's up axis instead.
+#[cfg(feature = "3d")]
+fn with_measures(
+    mut view: ThreeDSavedView,
+    segments: &[[[f64; 3]; 2]],
+    units: &str,
+) -> Result<ThreeDSavedView, String> {
+    let Some(c2w) = view.camera_to_world else {
+        return Ok(view);
+    };
+    let (facing, up) = ([c2w[6], c2w[7], c2w[8]], [c2w[3], c2w[4], c2w[5]]);
+    for (i, [p, q]) in segments.iter().enumerate() {
+        let m = ThreeDMeasurement::linear(*p, *q, facing, units)
+            .or_else(|| ThreeDMeasurement::linear(*p, *q, up, units))
+            .ok_or_else(|| format!("--measure {}: its two points coincide", i + 1))?;
+        view = view.with_measurement(m);
+    }
+    Ok(view)
 }
 
 #[cfg(not(feature = "3d"))]

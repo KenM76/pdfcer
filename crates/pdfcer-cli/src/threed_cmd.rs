@@ -19,6 +19,35 @@ pub(crate) use gltf::{GltfHow, cmd_convert_3d};
 pub(crate) use tree::cmd_tree_3d;
 pub(crate) use views::{ViewsThreeDArgs, cmd_views_3d};
 
+/// One `measure` line per 3D measurement of the view named `view`.
+fn print_measurements(list: &[pdfcer_core::threed::ThreeDMeasurement], view: &str) {
+    let point =
+        |p: Option<[f64; 3]>| p.map_or_else(|| "-".to_owned(), |[x, y, z]| format!("{x},{y},{z}"));
+    for (i, m) in list.iter().enumerate() {
+        println!(
+            "    measure view={view:?} index={i} kind={} name={:?} a1={} a2={} value={:?} comment={}",
+            measure_kind(m.kind),
+            m.name.as_deref().unwrap_or("-"),
+            point(m.a1),
+            point(m.a2),
+            m.value_text().unwrap_or_default(),
+            if m.has_comment { "yes" } else { "no" },
+        );
+    }
+}
+
+fn measure_kind(k: pdfcer_core::threed::ThreeDMeasureKind) -> &'static str {
+    use pdfcer_core::threed::ThreeDMeasureKind as K;
+    match k {
+        K::Linear => "linear",
+        K::Perpendicular => "perpendicular",
+        K::Angular => "angular",
+        K::Radial => "radial",
+        K::Comment => "comment",
+        _ => "unknown",
+    }
+}
+
 fn format_label(art: &ThreeDArtwork) -> String {
     art.declared
         .as_ref()
@@ -63,6 +92,7 @@ pub(crate) fn cmd_list_3d(input: &Path) -> u8 {
                     "no"
                 },
             );
+            print_measurements(&view.measurements, &view.name);
         }
     }
     println!("count={}", found.len());
