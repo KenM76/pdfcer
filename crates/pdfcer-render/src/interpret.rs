@@ -3952,7 +3952,8 @@ impl<'a> Interpreter<'a> {
         else {
             return None;
         };
-        self.icc.get_srgb(src, 3, self.gs.current.rendering_intent)
+        self.icc
+            .get_srgb(src, 3, self.conversion(self.gs.current.rendering_intent))
     }
 
     /// Run `f` against the live [`TextObject`], or diagnose the §9.4.2
@@ -5161,6 +5162,10 @@ impl<'a> Interpreter<'a> {
                 pdfcer_core::color::RenderingIntent::from_name(n.as_bytes());
             self.diag.rendering_intents_set += 1;
         }
+        if let Some(Object::Name(n)) = ext.get(b"UseBlackPtComp").map(|o| self.doc.resolve(o)) {
+            self.gs.current.use_black_pt_comp =
+                black_pt_comp_from_name(n.as_bytes()).unwrap_or(self.gs.current.use_black_pt_comp);
+        }
         if self.gs.current.overprint_stroke || self.gs.current.overprint_fill {
             self.diag.overprint_requested += 1;
             if self.gs.current.overprint_mode == 1 {
@@ -5428,7 +5433,10 @@ impl<'a> Interpreter<'a> {
             entry,
             resources,
             self.policy,
-            crate::image::IccContext::managed(&self.icc, self.gs.current.rendering_intent),
+            crate::image::IccContext::managed(
+                &self.icc,
+                self.conversion(self.gs.current.rendering_intent),
+            ),
             &mut self.diag.color,
             &mut self.diag.shading,
         );
@@ -6512,6 +6520,15 @@ impl<'a> Interpreter<'a> {
     /// `overprint::rgb_to_cmyk`, which is §11.6.6's required conversion —
     /// and is measurably not the same thing as an authored value, which is
     /// why the two are distinguished all the way down to the paint.
+    /// The conversion a paint at `intent` runs: the gstate's
+    /// `/UseBlackPtComp` when the file set `/ON` or `/OFF`, else the
+    /// `black_point_compensation` setting (§8.6.5.9 leaves `/Default` to the
+    /// processor).
+    fn conversion(&self, intent: pdfcer_core::color::RenderingIntent) -> crate::icc::Conversion {
+        let bpc = self.gs.current.use_black_pt_comp;
+        crate::icc::Conversion::new(intent, bpc.unwrap_or(self.policy.black_point_compensation))
+    }
+
     fn authored_cmyk(&self, stroking: bool) -> Option<[f32; 4]> {
         let (space, comps) = self.color.device_color(stroking)?;
         let resolved = space.indexed_entry(comps);
@@ -6612,7 +6629,9 @@ impl<'a> Interpreter<'a> {
             ..
         } = space
             && self.icc.has_destination()
-            && let Some(bridge) = self.icc.get(src, *n, self.gs.current.rendering_intent)
+            && let Some(bridge) =
+                self.icc
+                    .get(src, *n, self.conversion(self.gs.current.rendering_intent))
             && let Some(cmyk) = bridge.convert_components(comps)
         {
             self.icc.note_managed();
@@ -7528,7 +7547,10 @@ impl<'a> Interpreter<'a> {
             shading_entry,
             resources,
             self.policy,
-            crate::image::IccContext::managed(&self.icc, self.gs.current.rendering_intent),
+            crate::image::IccContext::managed(
+                &self.icc,
+                self.conversion(self.gs.current.rendering_intent),
+            ),
             &mut self.diag.color,
             &mut self.diag.shading,
         ) else {
@@ -8659,7 +8681,7 @@ impl<'a> Interpreter<'a> {
             // the same texel. The ink bridge still only builds when the
             // document names a destination, so an additive page without one
             // costs nothing more than before.
-            crate::image::IccContext::managed(&self.icc, image_intent),
+            crate::image::IccContext::managed(&self.icc, self.conversion(image_intent)),
         ) {
             Ok(decoded) => {
                 // Cloned rather than moved: `ImageNotes` stopped being `Copy`
@@ -10324,6 +10346,18 @@ fn image_edge_needs_antialiasing(ctm: Transform) -> bool {
         (ctm.kx.abs(), ctm.ky.abs())
     };
     wide < 1.0 || tall < 1.0
+}
+
+/// `/UseBlackPtComp`'s value: `Some(Some(on))` for `/ON`/`/OFF`,
+/// `Some(None)` for `/Default`, `None` for an unknown name (ignored, so the
+/// previous value persists as §8.4.5's cumulative rule has it).
+pub(crate) fn black_pt_comp_from_name(name: &[u8]) -> Option<Option<bool>> {
+    match name {
+        b"ON" => Some(Some(true)),
+        b"OFF" => Some(Some(false)),
+        b"Default" => Some(None),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

@@ -34,7 +34,8 @@ pub(crate) fn cmd_inspect_ink(input: &Path, pages_spec: &str) -> u8 {
         pdfcer_core::settings::Settings::load(pdfcer_core::settings::resolve_store());
     report_settings(&settings_report);
     let options = pdfcer_render::RenderOptions::default()
-        .with_page_blend_space_source(settings.page_blend_space_source);
+        .with_page_blend_space_source(settings.page_blend_space_source)
+        .with_black_point_compensation(settings.black_point_compensation);
 
     let view = doc.view();
     let (mut in_ink, mut inferred) = (0usize, Vec::new());

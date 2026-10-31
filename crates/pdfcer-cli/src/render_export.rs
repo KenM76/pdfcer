@@ -234,6 +234,7 @@ pub(crate) fn resolve_render_options(
         // of which is knowable from inside the renderer.
         .with_max_cmyk_buffer_bytes(max_cmyk_buffer_bytes)
         .with_page_blend_space_source(settings.page_blend_space_source)
+        .with_black_point_compensation(settings.black_point_compensation)
         // Which colour spaces get OPM 1's zero-tint rule. The default
         // preserves a spot backdrop under a DeviceGray fill, which is a
         // DIVERGENCE from ISO 32000-1 (and matches Acrobat only over a spot

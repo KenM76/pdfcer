@@ -479,6 +479,10 @@ pub struct GraphicsState {
     /// Reusing this field for that conversion would apply a source-side choice
     /// to a destination-side one.
     pub rendering_intent: pdfcer_core::color::RenderingIntent,
+    /// `/UseBlackPtComp` (ISO 32000-2 Table 57, §8.6.5.9): `Some(true)` for
+    /// `/ON`, `Some(false)` for `/OFF`, `None` for `/Default` or never set,
+    /// which leaves the choice to the `black_point_compensation` setting.
+    pub(crate) use_black_pt_comp: Option<bool>,
     /// Current clipping path as a device-space mask, `None` = the
     /// initial clip = the entire page (§8.5.4). Stored rasterized
     /// (tiny-skia `Mask`) because PDF only ever intersects clips —
@@ -659,6 +663,8 @@ impl GraphicsState {
             overprint_mode: 0,
             // Table 52's *Initial value* for the rendering intent.
             rendering_intent: pdfcer_core::color::RenderingIntent::RelativeColorimetric,
+            // Table 57's initial value is `Default`.
+            use_black_pt_comp: None,
             clip: None,
             clip_before_smask: None,
             soft_mask: None,

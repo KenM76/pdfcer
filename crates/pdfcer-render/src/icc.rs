@@ -159,11 +159,11 @@ impl IccBridge {
         src_profile: &[u8],
         src_components: usize,
         dst_profile: &[u8],
-        intent: RenderingIntent,
+        conv: Conversion,
     ) -> Option<Self> {
         let src = icccer_profile::Profile::parse(src_profile).ok()?;
         let dst = icccer_profile::Profile::parse(dst_profile).ok()?;
-        let chain = icccer_cmm::transform::Chain::new(&src, &dst, to_icccer_intent(intent)).ok()?;
+        let chain = chain_for(conv, |i| icccer_cmm::transform::Chain::new(&src, &dst, i))?;
         // A destination profile that is not 4-component is a perfectly valid
         // profile; it is just not one this bridge can feed a CMYK buffer.
         // Probing with a mid-grey is cheaper and more honest than trusting a
@@ -209,15 +209,16 @@ impl IccBridge {
     pub(crate) fn build_to_srgb(
         src_profile: &[u8],
         src_components: usize,
-        intent: RenderingIntent,
+        conv: Conversion,
     ) -> Option<Self> {
         let src = icccer_profile::Profile::parse(src_profile).ok()?;
-        let chain = icccer_cmm::transform::Chain::with_destination(
-            &src,
-            icccer_cmm::transform::Destination::None,
-            to_icccer_intent(intent),
-        )
-        .ok()?;
+        let chain = chain_for(conv, |i| {
+            icccer_cmm::transform::Chain::with_destination(
+                &src,
+                icccer_cmm::transform::Destination::None,
+                i,
+            )
+        })?;
         // Same probe as `build`, same reason: exercise the transform that
         // will actually run rather than trust a header field. The constructed
         // destination is three-component by construction, so this also pins
@@ -283,6 +284,43 @@ impl IccBridge {
         };
         Some([get(0), get(1), get(2), get(3)])
     }
+}
+
+/// How one colour conversion runs: its rendering intent and whether black
+/// point compensation applies. Both belong in every cache key, because a
+/// chain built with BPC is a different transform.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Conversion {
+    pub(crate) intent: RenderingIntent,
+    bpc: bool,
+}
+
+impl Conversion {
+    /// `bpc` is dropped under `AbsoluteColorimetric`: ISO 32000-2 §8.6.5.9
+    /// treats `/UseBlackPtComp` as `OFF` for that intent.
+    pub(crate) fn new(intent: RenderingIntent, bpc: bool) -> Self {
+        Self {
+            intent,
+            bpc: bpc && intent != RenderingIntent::AbsoluteColorimetric,
+        }
+    }
+}
+
+/// Build a chain with `make`, adding black point compensation (ISO 18619,
+/// via icccer) when `conv` asks for it. A profile whose black point icccer
+/// cannot estimate converts without BPC rather than not at all.
+fn chain_for(
+    conv: Conversion,
+    make: impl Fn(
+        icccer_cmm::matrix_trc::Intent,
+    ) -> Result<icccer_cmm::transform::Chain, icccer_cmm::transform::ChainError>,
+) -> Option<icccer_cmm::transform::Chain> {
+    let intent = to_icccer_intent(conv.intent);
+    let chain = make(intent).ok()?;
+    if !conv.bpc {
+        return Some(chain);
+    }
+    chain.with_bpc().ok().or_else(|| make(intent).ok())
 }
 
 /// Map pdfcer's rendering intent onto icccer's.
@@ -520,7 +558,7 @@ struct CacheEntry {
     /// keeps the bytes for the equality fallback.
     src: std::sync::Arc<[u8]>,
     src_components: usize,
-    intent: RenderingIntent,
+    conv: Conversion,
     dest: BridgeDest,
     bridge: Option<std::sync::Arc<IccBridge>>,
 }
@@ -625,7 +663,7 @@ impl IccBridgeCache {
     pub(crate) fn bridges_for(
         &self,
         space: &crate::color::ColorSpace,
-        intent: RenderingIntent,
+        conv: Conversion,
     ) -> ColorBridges {
         match space {
             crate::color::ColorSpace::IccBased {
@@ -633,8 +671,8 @@ impl IccBridgeCache {
                 profile: Some(src),
                 ..
             } => ColorBridges {
-                display: (*n == 3).then(|| self.get_srgb(src, 3, intent)).flatten(),
-                ink: self.get(src, *n, intent),
+                display: (*n == 3).then(|| self.get_srgb(src, 3, conv)).flatten(),
+                ink: self.get(src, *n, conv),
                 pcs: None,
             },
             crate::color::ColorSpace::Lab { .. }
@@ -642,7 +680,7 @@ impl IccBridgeCache {
             | crate::color::ColorSpace::CalGray { .. } => ColorBridges {
                 display: None,
                 ink: None,
-                pcs: self.pcs_bridge(intent),
+                pcs: self.pcs_bridge(conv.intent),
             },
             _ => ColorBridges::none(),
         }
@@ -653,17 +691,17 @@ impl IccBridgeCache {
         &self,
         src: &std::sync::Arc<[u8]>,
         src_components: usize,
-        intent: RenderingIntent,
+        conv: Conversion,
     ) -> Option<std::sync::Arc<IccBridge>> {
         let dest = self.dest.as_ref()?;
-        if let Some(hit) = self.lookup(src, src_components, intent, BridgeDest::OutputIntent) {
+        if let Some(hit) = self.lookup(src, src_components, conv, BridgeDest::OutputIntent) {
             return hit;
         }
-        let bridge = IccBridge::build(src, src_components, dest, intent).map(std::sync::Arc::new);
+        let bridge = IccBridge::build(src, src_components, dest, conv).map(std::sync::Arc::new);
         self.entries.borrow_mut().push(CacheEntry {
             src: std::sync::Arc::clone(src),
             src_components,
-            intent,
+            conv,
             dest: BridgeDest::OutputIntent,
             bridge: bridge.clone(),
         });
@@ -682,16 +720,16 @@ impl IccBridgeCache {
         &self,
         src: &std::sync::Arc<[u8]>,
         src_components: usize,
-        intent: RenderingIntent,
+        conv: Conversion,
     ) -> Option<std::sync::Arc<IccBridge>> {
-        if let Some(hit) = self.lookup(src, src_components, intent, BridgeDest::Srgb) {
+        if let Some(hit) = self.lookup(src, src_components, conv, BridgeDest::Srgb) {
             return hit;
         }
-        let bridge = IccBridge::build_to_srgb(src, src_components, intent).map(std::sync::Arc::new);
+        let bridge = IccBridge::build_to_srgb(src, src_components, conv).map(std::sync::Arc::new);
         self.entries.borrow_mut().push(CacheEntry {
             src: std::sync::Arc::clone(src),
             src_components,
-            intent,
+            conv,
             dest: BridgeDest::Srgb,
             bridge: bridge.clone(),
         });
@@ -707,7 +745,7 @@ impl IccBridgeCache {
         &self,
         src: &std::sync::Arc<[u8]>,
         src_components: usize,
-        intent: RenderingIntent,
+        conv: Conversion,
         dest: BridgeDest,
     ) -> Option<Option<std::sync::Arc<IccBridge>>> {
         self.entries
@@ -715,10 +753,70 @@ impl IccBridgeCache {
             .iter()
             .find(|e| {
                 e.src_components == src_components
-                    && e.intent == intent
+                    && e.conv == conv
                     && e.dest == dest
                     && same_profile(&e.src, src)
             })
             .map(|e| e.bridge.clone())
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::indexing_slicing)] // Tests fail loudly by design.
+mod tests {
+    use super::*;
+
+    const SRC: &[u8] = include_bytes!("../../../fixtures/synthetic/icc-rgb/swap-rg.icc");
+    const DST: &[u8] = include_bytes!("../../../fixtures/synthetic/icc-rgb/dest-cmyk.icc");
+
+    fn ink(intent: RenderingIntent, bpc: bool, rgb: [f32; 3]) -> [f32; 4] {
+        IccBridge::build(SRC, 3, DST, Conversion::new(intent, bpc))
+            .expect("the fixture profiles build a chain")
+            .convert_components(&rgb)
+            .expect("three components convert")
+    }
+
+    /// A v4 CMYK source at perceptual has the fixed v4 perceptual black; the
+    /// display destination's is zero. BPC must lift that gap: dark inks move,
+    /// and move more than near-paper ones.
+    #[test]
+    fn black_point_compensation_moves_dark_values_most() {
+        const V4: &[u8] = include_bytes!("../../../fixtures/synthetic/icc-rgb/v4-cmyk-mab-lab.icc");
+        let srgb = |bpc: bool, cmyk: [f32; 4]| {
+            let c =
+                IccBridge::build_to_srgb(V4, 4, Conversion::new(RenderingIntent::Perceptual, bpc))
+                    .expect("the v4 fixture builds a display chain")
+                    .convert_to_rgb(&cmyk)
+                    .expect("four components convert");
+            [c.r, c.g, c.b]
+        };
+        let shift = |cmyk: [f32; 4]| {
+            let (on, off) = (srgb(true, cmyk), srgb(false, cmyk));
+            on.iter()
+                .zip(off)
+                .map(|(a, b)| (a - b).abs())
+                .fold(0.0, f32::max)
+        };
+        let dark = shift([0.1, 0.1, 0.1, 0.9]);
+        let light = shift([0.05, 0.05, 0.05, 0.0]);
+        assert!(dark > 0.0, "BPC must change a dark ink");
+        assert!(dark > light, "dark {dark} vs light {light}");
+    }
+
+    #[test]
+    fn use_black_pt_comp_names() {
+        use crate::interpret::black_pt_comp_from_name as f;
+        assert_eq!(f(b"ON"), Some(Some(true)));
+        assert_eq!(f(b"OFF"), Some(Some(false)));
+        assert_eq!(f(b"Default"), Some(None));
+        assert_eq!(f(b"on"), None);
+    }
+
+    #[test]
+    fn absolute_colorimetric_never_compensates() {
+        let abs = RenderingIntent::AbsoluteColorimetric;
+        assert_eq!(Conversion::new(abs, true), Conversion::new(abs, false));
+        let rgb = [0.1, 0.1, 0.1];
+        assert_eq!(ink(abs, true, rgb), ink(abs, false, rgb));
     }
 }

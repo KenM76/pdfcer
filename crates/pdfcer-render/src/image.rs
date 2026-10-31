@@ -2775,11 +2775,11 @@ type IccRgbBridges = (
 fn icc_rgb_bridges(
     cache: &crate::icc::IccBridgeCache,
     profile: &[u8],
-    intent: pdfcer_core::color::RenderingIntent,
+    conv: crate::icc::Conversion,
 ) -> Option<IccRgbBridges> {
     let profile: std::sync::Arc<[u8]> = std::sync::Arc::from(profile);
-    let display = cache.get_srgb(&profile, 3, intent)?;
-    let ink = cache.get(&profile, 3, intent);
+    let display = cache.get_srgb(&profile, 3, conv)?;
+    let ink = cache.get(&profile, 3, conv);
     Some((display, ink))
 }
 
@@ -2828,7 +2828,7 @@ fn codestream_space(coded: &CodedImage, icc: IccContext<'_>) -> Result<Space, Im
         CodecColorModel::Rgb
             if let Some(cache) = icc.cache
                 && let Some(profile) = coded.icc_profile.as_deref()
-                && let Some((display, ink)) = icc_rgb_bridges(cache, profile, icc.intent) =>
+                && let Some((display, ink)) = icc_rgb_bridges(cache, profile, icc.conv) =>
         {
             Ok(Space::IccRgb { display, ink })
         }
@@ -2875,8 +2875,9 @@ pub struct IccContext<'a> {
     cache: Option<&'a crate::icc::IccBridgeCache>,
     /// §8.6.5.8's intent, from the GRAPHICS STATE rather than the profile —
     /// `ri` and `/RI` override a profile's default, so reading the profile's
-    /// would make the operator's `ri` a no-op.
-    intent: pdfcer_core::color::RenderingIntent,
+    /// would make the operator's `ri` a no-op. Black point compensation
+    /// rides with it, resolved from `/UseBlackPtComp` and the setting.
+    conv: crate::icc::Conversion,
 }
 
 impl<'a> IccContext<'a> {
@@ -2885,11 +2886,11 @@ impl<'a> IccContext<'a> {
     /// Crate-internal because the cache is: only the interpreter has one.
     pub(crate) fn managed(
         cache: &'a crate::icc::IccBridgeCache,
-        intent: pdfcer_core::color::RenderingIntent,
+        conv: crate::icc::Conversion,
     ) -> Self {
         Self {
             cache: Some(cache),
-            intent,
+            conv,
         }
     }
 
@@ -2900,7 +2901,7 @@ impl<'a> IccContext<'a> {
     #[must_use]
     pub fn bridges_for(&self, space: &crate::color::ColorSpace) -> crate::icc::ColorBridges {
         match self.cache {
-            Some(cache) => cache.bridges_for(space, self.intent),
+            Some(cache) => cache.bridges_for(space, self.conv),
             None => crate::icc::ColorBridges::none(),
         }
     }
@@ -2910,7 +2911,10 @@ impl<'a> IccContext<'a> {
     pub fn unmanaged() -> Self {
         Self {
             cache: None,
-            intent: pdfcer_core::color::RenderingIntent::RelativeColorimetric,
+            conv: crate::icc::Conversion::new(
+                pdfcer_core::color::RenderingIntent::RelativeColorimetric,
+                false,
+            ),
         }
     }
 }
@@ -3028,7 +3032,7 @@ fn resolve_space_array(
                 && let Some(raw) = doc.slice(st.data_span)
                 && let Ok(profile) = pdfcer_core::filters::decode_stream(&st.dict, raw)
                 && let Some(bridge) =
-                    cache.get(&std::sync::Arc::from(profile), components, icc.intent)
+                    cache.get(&std::sync::Arc::from(profile), components, icc.conv)
             {
                 return Ok(Space::Icc {
                     n: components,
@@ -3061,7 +3065,7 @@ fn resolve_space_array(
                 && let Object::Stream(st) = doc.resolve(stream)
                 && let Some(raw) = doc.slice(st.data_span)
                 && let Ok(profile) = pdfcer_core::filters::decode_stream(&st.dict, raw)
-                && let Some((display, ink)) = icc_rgb_bridges(cache, &profile, icc.intent)
+                && let Some((display, ink)) = icc_rgb_bridges(cache, &profile, icc.conv)
             {
                 return Ok(Space::IccRgb { display, ink });
             }
@@ -3100,7 +3104,7 @@ fn resolve_space_array(
                     // once here. `pcs_bridge` answers `None` without a
                     // destination, so an ordinary document is unaffected.
                     let pcs = match (icc.cache, cs.to_pcs_xyz(&vec![0.0; cs.components()])) {
-                        (Some(cache), Some(_)) => cache.pcs_bridge(icc.intent),
+                        (Some(cache), Some(_)) => cache.pcs_bridge(icc.conv.intent),
                         _ => None,
                     };
                     Ok(Space::Special { cs, pcs })

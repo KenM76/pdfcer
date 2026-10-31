@@ -664,6 +664,10 @@ pub struct RenderOptions {
     /// [`pdfcer_core::settings::PageBlendSpaceSource`], whose docs carry the
     /// clause citations and the reason this is a setting rather than a fix.
     pub page_blend_space_source: pdfcer_core::settings::PageBlendSpaceSource,
+    /// Whether ICC conversions compensate the black point where the document
+    /// leaves it open. See
+    /// [`pdfcer_core::settings::Settings::black_point_compensation`].
+    pub black_point_compensation: bool,
     /// Which colour spaces get `OPM 1`'s zero-tint rule under overprint —
     /// a **divergence from ISO 32000-1** toward Acrobat (`Pass 143.0`), and
     /// edition-gated: 32000-2 deletes two of the three provisions that
@@ -970,6 +974,8 @@ pub struct RenderPolicy<'a> {
     pub max_cmyk_buffer_bytes: Option<usize>,
     /// See [`RenderOptions::page_blend_space_source`].
     pub page_blend_space_source: pdfcer_core::settings::PageBlendSpaceSource,
+    /// See [`RenderOptions::black_point_compensation`].
+    pub black_point_compensation: bool,
     /// See [`RenderOptions::overprint_zero_tint_scope`].
     pub overprint_zero_tint_scope: pdfcer_core::settings::OverprintZeroTintScope,
     /// See [`RenderOptions::spot_colorant_device_model`].
@@ -1149,6 +1155,7 @@ impl Default for RenderOptions {
             // intent is subtractive -- see `PageBlendSpaceSource`, whose
             // docs carry why this is a choice and not a right answer.
             page_blend_space_source: pdfcer_core::settings::PageBlendSpaceSource::default(),
+            black_point_compensation: true,
             // A DIVERGENCE from §8.6.7's literal reading, kept as the default
             // for the sequencing reason given at
             // `OverprintZeroTintScope::GreyAsKOnly` -- NOT because it is
@@ -1443,6 +1450,16 @@ impl RenderOptions {
         self
     }
 
+    /// Set [`Self::black_point_compensation`], returning `self` for
+    /// chaining: the seam for the operator's persisted setting,
+    /// `settings.black_point_compensation`. A document's own
+    /// `/UseBlackPtComp /ON` or `/OFF` still wins.
+    #[must_use]
+    pub fn with_black_point_compensation(mut self, on: bool) -> Self {
+        self.black_point_compensation = on;
+        self
+    }
+
     /// Attach a cancellation flag, returning `self` for chaining.
     ///
     /// Same consuming-builder reason as [`Self::with_annotations`]:
@@ -1641,6 +1658,7 @@ impl RenderOptions {
             cmyk_intent: self.cmyk_intent,
             max_cmyk_buffer_bytes: self.max_cmyk_buffer_bytes,
             page_blend_space_source: self.page_blend_space_source,
+            black_point_compensation: self.black_point_compensation,
             overprint_zero_tint_scope: self.overprint_zero_tint_scope,
             spot_colorant_device_model: self.spot_colorant_device_model,
             mesh_patch_padding: self.mesh_patch_padding,
@@ -1706,6 +1724,7 @@ mod render_policy_tests {
         let options = RenderOptions::default()
             .with_cmyk_intent(pdfcer_core::settings::CmykIntent::NeutralBlack)
             .with_page_blend_space_source(pdfcer_core::settings::PageBlendSpaceSource::DeviceNative)
+            .with_black_point_compensation(false)
             .with_overprint_zero_tint_scope(
                 pdfcer_core::settings::OverprintZeroTintScope::DeviceCmykOnly,
             )
@@ -1737,6 +1756,8 @@ mod render_policy_tests {
                 // the policy, and a field left at its default would pass
                 // whether or not `with_page_blend_space_source` did anything.
                 page_blend_space_source: pdfcer_core::settings::PageBlendSpaceSource::DeviceNative,
+                // NOT the default (`true`).
+                black_point_compensation: false,
                 // NOT the default (`GreyAsKOnly`), for the same reason as the
                 // two above: a projection that dropped this field would still
                 // match if the expected value were the default.

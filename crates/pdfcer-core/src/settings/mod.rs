@@ -1490,6 +1490,13 @@ pub struct Settings {
     /// [`PageBlendSpaceSource`], whose docs carry the clause citations
     /// and the reason this is a setting rather than a fix.
     pub page_blend_space_source: PageBlendSpaceSource,
+    /// Whether an ICC conversion compensates the black point (ISO 18619)
+    /// where the document leaves it open: no `/UseBlackPtComp`, or
+    /// `/Default` (ISO 32000-2 §8.6.5.9, "left to the PDF processor").
+    /// `true` by default, as print-industry test references and Acrobat
+    /// assume. An explicit `/ON` or `/OFF` always wins, and absolute
+    /// colorimetric never compensates.
+    pub black_point_compensation: bool,
     /// Which colour spaces get `OPM 1`'s zero-tint rule (`Pass 143.0`).
     /// See [`OverprintZeroTintScope`] — a **divergence from ISO 32000-1**
     /// toward Acrobat, edition-gated (32000-2 opens the question that 1.7
@@ -1609,6 +1616,7 @@ impl Default for Settings {
             // answer to "what does pdfcer do by default?", and tests in
             // this module and in `pdfcer-render` pin that agreement.
             page_blend_space_source: PageBlendSpaceSource::default(),
+            black_point_compensation: true,
             overprint_zero_tint_scope: OverprintZeroTintScope::default(),
             spot_colorant_device_model: SpotColorantDeviceModel::default(),
             mesh_patch_padding: MeshPatchPadding::default(),
@@ -2199,6 +2207,16 @@ impl Settings {
                     using: Self::default().word_gap_ratio.to_string(),
                 }),
             },
+            "black_point_compensation" => match value {
+                "true" => self.black_point_compensation = true,
+                "false" => self.black_point_compensation = false,
+                _ => notes.push(SettingNote::BadValue {
+                    key: key.to_owned(),
+                    value: value.to_owned(),
+                    line,
+                    using: Self::default().black_point_compensation.to_string(),
+                }),
+            },
             "word_gap_auto" => match value {
                 "true" => self.word_gap_auto = true,
                 "false" => self.word_gap_auto = false,
@@ -2638,6 +2656,20 @@ impl Settings {
             out,
             "page_blend_space_source = {}\n",
             page_blend_space_source_token(self.page_blend_space_source)
+        );
+
+        out.push_str(
+            "# Black point compensation (ISO 18619) for ICC colour conversions the\n\
+             # document leaves open: no /UseBlackPtComp, or /Default (ISO 32000-2\n\
+             # 8.6.5.9 leaves those to the processor). true maps the source's black\n\
+             # to the destination's, as print workflows and Acrobat do; false converts\n\
+             # colorimetrically. A file's /ON or /OFF always wins, and absolute\n\
+             # colorimetric never compensates.\n",
+        );
+        let _ = writeln!(
+            out,
+            "black_point_compensation = {}\n",
+            self.black_point_compensation
         );
 
         out.push_str(
@@ -3468,6 +3500,8 @@ mod tests {
             // NOT the default (`OutputIntentIfSubtractive`) -- see the note
             // above about a value that matches the default proving nothing.
             page_blend_space_source: PageBlendSpaceSource::DeviceNative,
+            // NOT the default (`true`), same reason.
+            black_point_compensation: false,
             // NOT the default (`DeviceCmykOnly` since `Pass 244.0`), same reason.
             overprint_zero_tint_scope: OverprintZeroTintScope::GreyAsKOnly,
             // Non-default, per the discipline the comment above states.

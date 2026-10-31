@@ -4155,6 +4155,13 @@ the same `RenderOptions` the render will use — `page_blend_space_source`
 can change the answer. `output_intent` is an inference: disclose it. CLI:
 `pdfcer inspect FILE --ink [--pages ..]`.
 
+**Black point compensation**: `RenderOptions::with_black_point_compensation(on)`,
+fed from `Settings::black_point_compensation` (default `true`). It applies to
+ICC conversions where the file leaves it open (no `/UseBlackPtComp`, or
+`/Default`; ISO 32000-2 §8.6.5.9); a file's `/ON` or `/OFF` wins, and absolute
+colorimetric never compensates. Off reproduces the colorimetric conversion,
+which lifts a dark RGB image above the CMYK vectors beside it.
+
 **Do not hardcode 13,421,772.** The predicate exists so the 20-B/px
 arithmetic stays on this side of the crate boundary; a copy of a measured
 limit is a copy that rots the next time the buffer's element type changes.
