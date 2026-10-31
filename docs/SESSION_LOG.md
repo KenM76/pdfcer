@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-31 (1350th filing) — `Pass 647.2c` FILED (`X026`): XFA content-sized fields and draws
+
+**Filed (docs only; nothing built; no shell here, nothing checked from here):**
+- **`Pass 647.2c`** (NOT STARTED), request `X026`: a field or draw with no `h` (`w`) takes the height (width) its content needs, clamped to min/max; one measurement path shared with paint; single-line fields grow in width only; images use the same path (closes the `X017` remainder on `647.4`); `647.2b`'s split then fires from content; never panics. Requester's root cause: `geometry.rs` `let grows = !matches!(kind, ContainerKind::Field | ContainerKind::Draw);`. Spec XFA 3.3 Ch.8 pp.275-278, spec RAG first. Own release, writes `pdfcer2`.
+- **Channel:** `reply_X026_xfa_field_draw_size_from_content_PLANNED.md` already written (per the engineer); `X026` stays open until the release.
+- ROADMAP: Pass entry added after `647.2`; Next up banner rewritten (order `647.3e`, `647.2c`, `648.6`); `647.3e` order line and the `v0.110.0` publication Next-up line amended. FEATURES: Planned row added (`[ ]` `[ ]` `[ ]`); `647.3e` row's "after 647.2b" corrected to "next up".
+
+**Decisions made this session:** none minted. Pass ID `647.2c` grepped free in `docs/` before filing.
+
+**Hard-rule-11 survivors:** the older dated "Next up" parentheticals under the banner and prior SESSION_LOG entries are history, left as filed. `docs/NEXT_SESSION.md` (engineer-owned) not swept.
+
+**Still in flight:** nothing mid-Pass.
+
+**For next session:** `Pass 647.3e`, then `647.2c`, then `648.6`.
+
 ## 2026-10-31 (1349th filing) — `v0.110.0` PUBLISHED (CI green at the tag); `X025` closed
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**

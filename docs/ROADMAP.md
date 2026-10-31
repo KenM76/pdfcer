@@ -123,7 +123,7 @@ Engineer-reported (the engineer states each item checked from his shell); no she
 - **OneDrive:** wrote `pdfcer1` (6 items, 76,137,435 bytes = 0.110.0). `pdfcer2` keeps 0.109.0 as previous. **Next release writes `pdfcer2`.**
 - **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.110.0 published.
 - **Inbound channel** (`D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`): `reply_X025_xfa_growable_field_splits_SHIPPED.md` (renamed from PLANNED); notice `notice_2026-10-31_v0.110.0_released.md`. **`X025` is closed.**
-- **Next up:** `Pass 647.3e` (`G248` items 2-3), then `648.6` (`G245` part 2, spec RAG first).
+- **Next up:** `Pass 647.3e` (`G248` items 2-3), then `648.6` (`G245` part 2, spec RAG first). *Amended 1350th: now `647.3e`, then `647.2c` (`X026`), then `648.6`.*
 - **FEATURES:** the `647.2b` row now says released in `v0.110.0`. Nothing minted: no decision, no rule.
 
 ### `v0.110.0` — release PREP, version bump `d898e049` (`chore`), 2026-10-31 (1348th filing); published in the 1349th filing (entry above)
@@ -24938,7 +24938,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Next up head (rewritten 1349th filing; `v0.110.0` is PUBLISHED, see *Shipped*): `Pass 647.3e` (`G248` items 2-3), then `Pass 648.6` (`G245` part 2, spec-RAG check first).** Release slot: next release writes `pdfcer2` (`pdfcer1` holds 0.110.0, `pdfcer2` holds 0.109.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
+> **Next up head (rewritten 1350th filing; `v0.110.0` is PUBLISHED, see *Shipped*): `Pass 647.3e` (`G248` items 2-3), then `Pass 647.2c` (`X026`, XFA content-sized fields and draws; its own release), then `Pass 648.6` (`G245` part 2, spec-RAG check first).** Release slot: next release writes `pdfcer2` (`pdfcer1` holds 0.110.0, `pdfcer2` holds 0.109.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
 
 (1271st filing: `Pass 646.25` (`G237`, `XfaFormKind`) SHIPPED on `5f401310`; decision 204 reopens dynamic XFA; arc `647.0`-`647.7` filed below. All Passes below are NOT STARTED. Spec source (extracted by `pdfcer-spec-librarian`): `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_{xdp_packaging,static_vs_dynamic_rendering,template_layout_dom,layout_algorithm,data_binding_normal}.md`; its gap IDs G-X/S/T/L/B are the arc's default-decisions list. Spec slice still owed: SOM expressions, then table/row layout. Arc-wide acceptance: (1) opening never rewrites structure (§5); (2) layout inferred at render time is rule-4 disclosed; (3) content a dynamic form drops on overflow is disclosed, which the spec only warns about; (4) no external XFA code is relied on.)
 
@@ -26937,6 +26937,22 @@ closes out the *prior* filing's business rather than opening this one's.
 
 Original scope: flowed containers, break and overflow rules, leaders/trailers. Content dropped on overflow is reported in the layout model and surfaced by 647.4/647.5 (disclosure, not silent). Table and row layouts are `647.7`. Spec: `xfa_layout_algorithm`.
 
+### Pass 647.2c — XFA content-sized fields and draws (NOT STARTED; filed 1350th filing, request `X026`; after 647.3e; its own release, writes `pdfcer2`)
+
+Filed from the request; nothing built, nothing checked from here. Request: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X026_xfa_field_draw_size_from_content.md`; reply `open/reply_X026_xfa_field_draw_size_from_content_PLANNED.md` (already written). Decision 204 arc, beside the shipped `647.2b` (`fe0135a1`, `X025`).
+- **Defect (requester's root cause):** `crates/pdfcer-core/src/xfa/layout/geometry.rs` has `let grows = !matches!(kind, ContainerKind::Field | ContainerKind::Draw);`, so a field or draw with no `h` always lays at `minH` (or 0) whatever its value holds. The `647.2b` split therefore fires only when `minH` itself crosses the break.
+- **Scope (core + cli; gui consumes). Spec: XFA 3.3 Ch.8 pp.275-278; spec RAG check FIRST** (`xfa_layout_algorithm`), dispatch `pdfcer-spec-librarian` if a point is missing.
+  1. **Height:** no `h` takes the height the content needs: wrapped text at the paint line pitch and font metrics (ONE measurement path shared with paint, never a second copy), plus margins, caption (reserve, or natural height when no reserve), border insets, and field widget margins; clamped to `[minH, maxH]` (maxH omitted or 0 = unbounded).
+  2. **Width:** no `w` likewise: longest unwrapped line (and a left/right caption), clamped to `[minW, maxW]`. Text wraps only at `w` or `maxW`.
+  3. **Single-line fields** grow in width only; height is one line.
+  4. **Images** use the same path: closes the `X017` remainder held on `647.4` (image natural size for growable containers).
+  5. **Split:** a field grown past the remaining room splits under the `647.2b` rules, with no `minH` needed.
+  6. **Never panics:** huge values, zero font sizes, missing fonts stay bounded; a measurement failure falls back to `minH`/`minW`.
+- **Acceptance (synthetic only):** a `tb` root holding a 5in-wide field (`minH="20pt"`, no `h`, `multiLine="1"`, Helvetica 10pt, ~5,000-character value) lays at roughly 100 lines of 10pt, not 20pt; the same text as a draw value likewise; a draw placed after follows them. Same field with `maxH="100pt"` lays at 100pt. A one-page form whose lead subform leaves 60pt, then that field: it splits across pages with no `minH`, page count the minimum. An empty field with `minH="20pt"` stays 20pt.
+- **Release:** its own release; reply names it. Next release writes OneDrive slot `pdfcer2`.
+- **Docs:** `docs/core-api/03-capabilities.md`; `xfa-layout --help` if output changes.
+- **FEATURES:** Planned row added (all three boxes `[ ]`).
+
 ### Pass 647.3 — Normal data merge (NOT STARTED)
 
 Merge the `datasets` packet into the template per the normal-binding rules; defaults per gap IDs G-B. Explicit SOM references are BLOCKED on the owed SOM spec slice. Spec: `xfa_data_binding_normal`.
@@ -26956,7 +26972,7 @@ Engineer-dispatched filing; nothing built. `G248` item 1 (normal binding) shippe
 - **Unfilled counts:** `MergedForm` reports the count of value-bearing fields with no bound value, and the count of data value nodes nothing bound. CLI `xfa-layout` prints both counts.
 - **Acceptance:** `G248` synthetic shape gives two `tenant` instances "One" and "Two"; a 4-group / `occur max=4` case gives four; data past `max` is counted unbound; hostile: 1,000 data groups against `max -1` are bounded by a guard with a warning, no panic.
 - **Docs:** `docs/core-api/03-capabilities.md`.
-- **Order:** `647.3d` (shipped `93f62d86`, 1342nd filing) -> release -> `647.2b` (`X025`) -> `647.3e`.
+- **Order:** `647.3d` (shipped `93f62d86`, 1342nd filing) -> release -> `647.2b` (`X025`) -> `647.3e`. *Amended 1350th: `647.2b` and its release `v0.110.0` are done; `647.3e` is Next up, then `647.2c` (`X026`), then `648.6`.*
 - **FEATURES:** Planned row added (all three boxes `[ ]`).
 
 ### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing); NOT COMPLETE, stays here)
