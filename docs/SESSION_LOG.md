@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-31 (1345th filing) — `v0.109.0` release PREP, bump `304be34e`; follow-up `732fb530` recorded under `647.3d2`
+
+**Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**
+- **`v0.109.0` prep** on top of `732fb530` and the bump `304be34e` (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`; `pdfcer-model` dependency to 0.109.0). Carries `648.4` (`8d414a9f`), `648.5` (`d8e7ac87`), `647.3b` (`f5c1f27e`), `647.3c` (`f9fb9ecb`), `647.3d` (`93f62d86`), `647.3d2` (`3ce0017e` + `732fb530`), `652.0` (`1e5c6b35`). ROADMAP prep entry added; `647.3d2` entry gained a follow-up bullet. Tag goes on this filing's commit; OneDrive slot `pdfcer2`. Not pushed or published as of this filing.
+- **`732fb530`** `732fb530221fee0618345667492e26c4cd62ec7a`: doc comment for `content_span`; fixes red CI `check-public-fns-documented.py` at `2a9f04ae`.
+
+**Decisions made this session:** none minted.
+
+**Gates (engineer-reported):** `cargo test -p` on `pdfcer-core`, `pdfcer-cli`, `pdfcer-3d`, `pdfcer-fonts`: 7,047 passed, 0 failed; fmt clean.
+
+**Findings:** Process lesson, same class as the 1334th filing: change-scoped push gates skipped the repo-audit python gates. Before the tag the engineer runs every `python tools/*.py` gate named in `.github/workflows/ci.yml`.
+
+**Hard-rule-11 survivors:** none new; FEATURES unchanged. Not swept: `docs/NEXT_SESSION.md` (engineer-owned). Backup currency not verifiable from here.
+
+**Still in flight:** release plan above (to run, not claimed done); then `647.2b` (`X025`, own release), `647.3e` (`G248` items 2-3), `648.6`.
+
+**Replies owed after publication:** `X022` (Forms E, F, G), `X023`, `X024`, `G248` item 1, `G247`, `G245` part 1.
+
 ## 2026-10-31 (1344th filing) — `Pass 647.3d2` SHIPPED `3ce0017e` (`X022` Form G): XFA fill creates the missing data node
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**

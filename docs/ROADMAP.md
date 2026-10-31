@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.109.0` — release PREP, version bump `304be34e` (`chore`), 2026-10-31 (1345th filing)
+
+Engineer-reported (shell held by the engineer; each item stated checked); nothing checked from here. Same pattern as the v0.108.0 prep (1332nd filing, `fa9af179`). The tag `v0.109.0` goes on this filing's own commit. Not pushed, not published as of this filing.
+- **`304be34e`** "chore: bump workspace to 0.109.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`; the `pdfcer-model` workspace dependency also moved to 0.109.0. On top of `732fb530`. A code commit, cited here.
+- **Carried since `v0.108.0`:** `Pass 648.4` (`8d414a9f`, `G247`); `Pass 648.5` (`d8e7ac87`, `G245` part 1); `Pass 647.3b` (`f5c1f27e`); `Pass 647.3c` (`f9fb9ecb`); `Pass 647.3d` (`93f62d86`); `Pass 647.3d2` (`3ce0017e` plus follow-up `732fb530`); `Pass 652.0` (`1e5c6b35`, `X024`). No other code Pass is unreleased: `647.3e` and `647.2b` are filed only.
+- **`732fb530` recorded as part of `647.3d2`:** CI `repository-audits` / `check-public-fns-documented.py` went red at `2a9f04ae` (a private helper made `pub(super)` with no doc comment); fixed by a doc comment on `content_span`; gate clean locally.
+- **Target:** annotated tag `v0.109.0` on this filing's commit; OneDrive slot `pdfcer2` (holds 0.107.0, the older; `pdfcer1` holds 0.108.0).
+- **Gates (engineer-reported, change-scoped: `pdfcer-core`, `pdfcer-cli`, `pdfcer-3d`, `pdfcer-fonts` changed since v0.108.0):** `cargo test -p` on those four: 7,047 passed, 0 failed. fmt clean. Before the tag the engineer runs every `python tools/*.py` gate named in `.github/workflows/ci.yml` (not only change-scoped ones).
+- **Process lesson (same class as the 1334th filing):** the change-scoped push gates skipped the repo-audit python gates, which is how `check-public-fns-documented.py` went red at `2a9f04ae` unseen.
+- **Release plan (to run, NOT claimed done):** tag, push of `main` and the tag, packaging, `verify-release.py v0.109.0`, fresh-folder smoke test, GitHub release assets, OneDrive `pdfcer2`.
+- **Requests answered at publication (replies come AFTER publication, none sent now):** `X022` (Forms E, F, G all satisfied), `X023`, `X024`, `G248` item 1, `G247`, `G245` part 1. None is closed by this prep.
+- **Next after the release:** `Pass 647.2b` (`X025`, its own release); then `647.3e` (`G248` items 2-3) and `648.6`.
+- **FEATURES:** no change. Nothing minted: no decision, no rule.
+
 ### `3ce0017e` `Pass 647.3d2` SHIPPED, 2026-10-31: XFA fill creates the missing data node (`X022` Form G, decision 204 arc; 1344th filing)
 
 Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Full hash `3ce0017e1869e297e866c2ef7bc6894a2211747c`. On `main`, not pushed, unreleased. No decision minted. Pass number grepped free across `*.md` before filing. Reasoning is in the commit message.
@@ -120,6 +134,7 @@ Engineer-reported (the engineer states each item checked from his shell); no she
 - **Disclosure (fuzzy-never-sneaky):** `XfaFillOutcome::created: Vec<String>`; the CLI prints `created=` on each `xfa-set` line. The outcome is read back by re-merging the edited XDP.
 - **New error:** `XfaFillError::NoDatasetsPacket` -- a packet array with no datasets stream is refused rather than written into another packet.
 - **Counts unchanged:** public verbs 389, `EditError` variants 188; `docs/core-api` 02/03/index updated.
+- **Follow-up fix `732fb530`** (1345th filing): "docs(xfa): doc comment for content_span, now crate-visible". This Pass made a private helper `pub(super)` with no doc comment, so CI `check-public-fns-documented.py` went red at `2a9f04ae`; the doc comment fixes it.
 - **Tests:** core `xfa_fill` integration 9 (3 new); CLI `xfa_fill` 2 -> 3 (1 new); core lib xfa 158. Sabotage run confirmed the inserted-group test bites.
 - **Gates green:** fmt, clippy -D warnings, code-structure, check-core-api-verbs. No `Cargo.toml` changed (no `cargo tree` check); no packaging change.
 - **GUI:** not delivered; box stays `[ ]`.
