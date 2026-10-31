@@ -168,7 +168,6 @@ fn take(budget: &mut usize) -> Result<(), XfaError> {
     Ok(())
 }
 
-/// The node at `path` (child indices) below `root`.
 /// How many data values (not groups) under `root` are absent from `bound`.
 pub(super) fn count_values(root: &DataNode, bound: &HashSet<Vec<usize>>) -> usize {
     let mut n = 0;
@@ -186,6 +185,7 @@ pub(super) fn count_values(root: &DataNode, bound: &HashSet<Vec<usize>>) -> usiz
     n
 }
 
+/// The node at `path` (child indices) below `root`.
 pub(super) fn node_at<'a>(root: &'a DataNode, path: &[usize]) -> Option<&'a DataNode> {
     path.iter().try_fold(root, |node, &i| node.children.get(i))
 }
