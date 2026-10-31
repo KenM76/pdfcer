@@ -3,7 +3,9 @@
 
 use super::*;
 use pdfcer_core::document::Document;
-use pdfcer_core::threed::{ThreeDArtwork, ThreeDMeasurement, ThreeDSavedView, ThreeDViewsOutcome};
+#[cfg(feature = "3d")]
+use pdfcer_core::threed::ThreeDMeasurement;
+use pdfcer_core::threed::{ThreeDArtwork, ThreeDSavedView, ThreeDViewsOutcome};
 
 /// The arguments of `3d-views`, borrowed from the parsed command.
 #[cfg_attr(not(feature = "3d"), allow(dead_code))]
