@@ -13,7 +13,7 @@ mod paint;
 mod template;
 
 pub use layout::{
-    LayoutError, LayoutItem, LayoutOptions, LayoutPage, LayoutRect, LayoutWarning,
+    Fragment, LayoutError, LayoutItem, LayoutOptions, LayoutPage, LayoutRect, LayoutWarning,
     MAX_LAYOUT_ITEMS, MAX_LAYOUT_PAGES, NegativeCoordinates, NestedOverflow, PageAreaKeep,
     XfaLayout, layout_template,
 };

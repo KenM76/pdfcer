@@ -777,7 +777,10 @@ with every `warnings` entry.
 - **`LayoutItem`.** `kind`, `name`, `path`, and `rect` (points, page top-left
   origin, y down). `background` is true for direct `pageArea` content.
   `visible` is false for `presence="invisible"`. `content_area` indexes the
-  page's content areas.
+  page's content areas. `fragment: Option<Fragment>` is set on each piece of
+  a split container: `Fragment { offset, height }` gives where the piece
+  starts down the whole container and the whole container's height, so a
+  painter sets the whole container's content and clips it to `rect`.
 - **Scope.** Positioned and flowed placement. Anchor points and subform
   margins are applied; containers grow to their children's extent within min/max. A field
   or draw with no `w`/`h` takes its `min*`, because content sizing is not done
@@ -796,8 +799,14 @@ with every `warnings` entry.
     default for a `tb` subform, gap G-L18) at the highest line no field,
     draw or unsplittable subform crosses; a splittable subform crossing the
     line is cut too. Each part is a separate `LayoutItem` with the same
-    `path`, so one container can appear on several pages. Fields and draws
-    are not split yet.
+    `path`, so one container can appear on several pages.
+  - A field or draw splits between its text lines (Ch.8 p.291) when it is
+    growable in height (no `h`), `keep@intact="none"` (a field's default; a
+    draw's default is `contentArea`), multi-line (`textEdit multiLine="1"`:
+    the default in a draw, not in a field), unrotated, and any top/bottom
+    caption has a positive `reserve`. The cut falls on the font's line pitch
+    and leaves at least `para@orphans` lines above and `para@widows` below
+    (at least one each). Any other field or draw moves whole.
   - Under a flowed root, adjacent top-level instances adhere when the first
     has `keep@next` or the second `keep@previous` (`contentArea`, or
     `pageArea` per `PageAreaKeep`; disagreeing sides take the stricter

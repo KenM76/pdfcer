@@ -3,6 +3,7 @@
 
 use super::adhere::{Hold, Keep, adheres};
 use super::flow::{Flow, is_flow};
+use super::lines::Lines;
 use super::{LayoutItem, LayoutOptions, LayoutRect, LayoutWarning, NegativeCoordinates};
 use crate::xfa::{AnchorType, ContainerKind, LayoutStrategy, Measurement, Presence, XfaNode};
 
@@ -80,11 +81,13 @@ pub(super) struct Placed {
 }
 
 /// What a split line must respect at one item.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub(super) struct ItemFlags {
     /// May a split line cut it (a `tb` subform whose `keep@intact` is
-    /// `none`, Ch.8 pp.281, 291)?
+    /// `none`, Ch.8 pp.281, 291, or a text container with `lines`)?
     pub(super) breakable: bool,
+    /// The line grid a split must fall on, for a field or draw.
+    pub(super) lines: Option<Lines>,
     /// How many items back its previous `tb` sibling sits, when the two
     /// adhere (Ch.8 pp.311-314); 0 when it adheres to none.
     pub(super) glue: usize,
@@ -255,10 +258,13 @@ fn lay_one(
         background: false,
         visible: node.presence() == Presence::Visible,
         content_area: None,
+        fragment: None,
     }];
     items.extend(laid);
+    let lines = Lines::of(ctx, node, path, kind, h);
     let mut flags = vec![ItemFlags {
-        breakable: breaks(node, kind, strategy),
+        breakable: breaks(node, kind, strategy) || lines.is_some(),
+        lines,
         ..ItemFlags::default()
     }];
     flags.extend(kid_breaks);
@@ -296,8 +302,7 @@ fn position(
 
 /// A `tb` subform may be split unless `keep@intact` says otherwise. The
 /// default keys on the subform's own layout, `none` for a flowing one (gap
-/// G-L18, Ch.17 p.762). Fields and draws are not split until their content
-/// is sized.
+/// G-L18, Ch.17 p.762). Fields and draws split by [`Lines::of`].
 fn breaks(node: &XfaNode, kind: ContainerKind, strategy: LayoutStrategy) -> bool {
     let intact = node
         .child("keep")

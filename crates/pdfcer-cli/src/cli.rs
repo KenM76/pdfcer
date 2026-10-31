@@ -6144,9 +6144,14 @@ pub(crate) enum Command {
     /// merged yet.
     ///
     ///   page index=N name="..." width= height= page_area= content_areas= items=
-    ///   item page=N kind= name="..." path= x= y= w= h= area= background= visible= [value="..."]
+    ///   item page=N kind= name="..." path= x= y= w= h= area= background= visible= [fragment=OFFSET/HEIGHT] [value="..."]
     ///   warning kind= path= [target= | attribute= | strategy= | ref="..."]
     ///   xfa-layout pages= items= warnings=
+    ///
+    /// fragment= marks one piece of a container split across content
+    /// areas: OFFSET is where the piece starts down the whole container
+    /// and HEIGHT the whole container's height. A tall multi-line text
+    /// field (or a draw with keep intact="none") splits between its lines.
     ///
     /// Units are points; x and y run from the page's top-left corner,
     /// y downward. path is the item's position in the template as child

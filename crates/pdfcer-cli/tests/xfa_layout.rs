@@ -515,3 +515,21 @@ fn global_copies_print_the_shared_value() {
     assert_eq!(code, 0);
     assert!(!stdout.contains("A. Tester"), "{stdout}");
 }
+
+#[test]
+fn a_tall_text_field_splits_between_lines_and_prints_its_fragments() {
+    let body = format!(
+        r#"<subform name="f" layout="tb">{PAGE}<field name="a" w="10pt" h="660pt"/><field name="t" w="200pt" minH="200pt"><font typeface="Times"/><ui><textEdit multiLine="1"/></ui></field></subform>"#
+    );
+    let (code, stdout, stderr) = run("split", &pdf(Some(&body)), &[]);
+    assert_eq!(code, 0, "{stderr}");
+    // Six 9pt Times lines fit the 60pt left on page 0.
+    assert!(
+        stdout.contains(r#"item page=0 kind=field name="t" path=0.2 x=36 y=696 w=200 h=54 area=0 background=no visible=yes fragment=0/200"#),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains(r#"item page=1 kind=field name="t" path=0.2 x=36 y=36 w=200 h=146 area=0 background=no visible=yes fragment=54/200"#),
+        "{stdout}"
+    );
+}

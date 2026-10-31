@@ -37,6 +37,15 @@ pub(crate) enum FontWeightArg {
     Bold,
 }
 
+impl From<FontWeightArg> for FontWeight {
+    fn from(w: FontWeightArg) -> Self {
+        match w {
+            FontWeightArg::Normal => Self::Normal,
+            FontWeightArg::Bold => Self::Bold,
+        }
+    }
+}
+
 /// `xfa-layout --caption-font` (gap G-D11).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
 pub(crate) enum CaptionFontArg {
@@ -114,10 +123,7 @@ impl XfaPngArgs {
                 MissingFillArg::None => MissingFill::None,
                 MissingFillArg::White => MissingFill::White,
             })
-            .with_font_weight(match self.font_weight {
-                FontWeightArg::Normal => FontWeight::Normal,
-                FontWeightArg::Bold => FontWeight::Bold,
-            })
+            .with_font_weight(self.font_weight.into())
             .with_caption_font(match self.caption_font {
                 CaptionFontArg::Own => CaptionFont::Own,
                 CaptionFontArg::Field => CaptionFont::Field,

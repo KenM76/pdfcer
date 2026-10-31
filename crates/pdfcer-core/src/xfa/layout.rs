@@ -12,9 +12,10 @@
 //! 647.3), and ordered-occurrence pagination with `breakBefore`/`breakAfter`.
 //! A flowed root moves an object that does not fit the rest of its content
 //! area to the next one; a `tb` root splits a `tb` subform across areas
-//! between the objects it holds. Fields and draws are not split (their
-//! content is not sized yet): one taller than an area overflows it
-//! ([`LayoutWarning::ContentOverflow`]). Table strategies are Pass 647.7:
+//! between the objects it holds, and a growable multi-line text field or
+//! draw with `keep@intact="none"` between its lines (Pass 647.2b; each
+//! piece carries a [`Fragment`]). Any other field or draw taller than an
+//! area overflows it ([`LayoutWarning::ContentOverflow`]). Table strategies are Pass 647.7:
 //! such a container is laid as if positioned and reported as
 //! [`LayoutWarning::FlowedLayoutPending`].
 
@@ -24,6 +25,8 @@ pub use adhere::PageAreaKeep;
 mod bookend;
 mod flow;
 mod geometry;
+mod lines;
+pub use lines::Fragment;
 mod nested;
 mod overflow;
 mod pager;
@@ -151,6 +154,8 @@ pub struct LayoutItem {
     pub visible: bool,
     /// Index into [`LayoutPage::content_areas`] for foreground content.
     pub content_area: Option<usize>,
+    /// Set when a split cut this container: where `rect` lies in it.
+    pub fragment: Option<Fragment>,
 }
 
 /// One laid-out page.

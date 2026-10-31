@@ -618,3 +618,34 @@ fn a_radius_is_held_to_half_the_shorter_side() {
         "{ops}"
     );
 }
+
+#[test]
+fn a_split_draw_shows_its_own_lines_in_each_piece() {
+    let xdp = format!(
+        r#"<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/"><template xmlns="http://www.xfa.org/schema/xfa-template/3.3/"><subform name="f" layout="tb">{PAGE}<subform name="a" w="10pt" h="690pt"/><draw name="t" w="20pt" minH="60pt"><keep intact="none"/><font typeface="Courier" size="10pt"/><para lineHeight="12pt"/><value><text>aa bb cc dd ee</text></value></draw></subform></template></xdp:xdp>"#
+    );
+    let t = read_template(&XdpDocument::parse(xdp).unwrap())
+        .unwrap()
+        .unwrap();
+    let l = layout_template(&t, &LayoutOptions::new()).unwrap();
+    let ops = |p: usize| {
+        let out = paint_page(&t, &l.pages[p], &PaintOptions::new());
+        let s = String::from_utf8(out.content).unwrap();
+        s.split_whitespace().collect::<Vec<_>>().join(" ")
+    };
+    let (head, tail) = (ops(0), ops(1));
+    assert!(
+        head.contains(&format!("{} W n", re(36.0, 42.0, 20.0, 24.0))),
+        "{head}"
+    );
+    assert!(
+        tail.contains(&format!("{} W n", re(36.0, 720.0, 20.0, 36.0))),
+        "{tail}"
+    );
+    // The whole draw's top sits 24pt above the area: line 3 is the tail's first.
+    let baseline = 792.0 - (36.0 - 24.0) - 6.29 - 24.0;
+    assert!(
+        tail.contains(&format!("36 {} Tm (cc) Tj", num(baseline))),
+        "{tail}"
+    );
+}

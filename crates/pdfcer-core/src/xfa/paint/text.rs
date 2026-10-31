@@ -41,7 +41,7 @@ pub(super) fn has_unplain_value(holder: &XfaNode) -> bool {
 }
 
 /// The `ui` element's widget child (the one beside `extras` and `picture`).
-pub(super) fn widget(node: &XfaNode) -> Option<&XfaNode> {
+pub(in crate::xfa) fn widget(node: &XfaNode) -> Option<&XfaNode> {
     node.child("ui")?
         .children
         .iter()
@@ -76,11 +76,35 @@ pub(super) fn plain_text(holder: &XfaNode) -> Option<&str> {
     (text.children.is_empty() && !text.text.is_empty()).then_some(text.text.as_str())
 }
 
-/// The ascent and the line height of `style` under `para`'s `lineHeight`.
-fn metrics(style: &Style, para: Option<&XfaNode>) -> (f64, f64) {
-    let d = std14_descriptor(style.font);
-    let ascent = f64::from(d.ascender) / 1000.0 * style.size;
-    let descent = f64::from(d.descender).abs() / 1000.0 * style.size;
+/// The face and size `font` sets text in, and whether the face is a
+/// substitution; `weight` for a `font` naming none (gap G-T1).
+fn face_of(font: Option<&XfaNode>, weight: FontWeight) -> (Std14, f64, bool) {
+    let attr = |a| font.and_then(|f| f.attr(a));
+    let bold = attr("weight").map_or(weight == FontWeight::Bold, |w| w == "bold");
+    let italic = attr("posture") == Some("italic");
+    let (face, substituted) = face(attr("typeface").unwrap_or("Courier"), bold, italic);
+    let size = font
+        .and_then(|f| super::length(f, "size"))
+        .filter(|s| *s > 0.0)
+        .unwrap_or(10.0);
+    (face, size, substituted)
+}
+
+/// The distance between lines of text in `font`/`para`, as painting sets
+/// them: layout splits a text container on this pitch (Ch.8 p.291). Every
+/// standard-14 weight shares its family's line metrics, so the gap G-T1
+/// weight setting cannot change it.
+pub(in crate::xfa) fn line_pitch(font: Option<&XfaNode>, para: Option<&XfaNode>) -> f64 {
+    let (face, size, _) = face_of(font, FontWeight::Normal);
+    metrics(face, size, para).1
+}
+
+/// The ascent and the line height of `face` at `size` under `para`'s
+/// `lineHeight`.
+fn metrics(face: Std14, size: f64, para: Option<&XfaNode>) -> (f64, f64) {
+    let d = std14_descriptor(face);
+    let ascent = f64::from(d.ascender) / 1000.0 * size;
+    let descent = f64::from(d.descender).abs() / 1000.0 * size;
     let line_h = para
         .and_then(|p| super::length(p, "lineHeight"))
         .unwrap_or(0.0)
@@ -142,7 +166,7 @@ impl Painter<'_> {
     ) -> (f64, f64) {
         let style = self.style(item, font, para);
         let (lines, _) = self.lines(text, &style, 0.0);
-        let (_, line_h) = metrics(&style, para);
+        let (_, line_h) = metrics(style.font, style.size, para);
         let w = lines
             .iter()
             .map(|l| text_width(style.font, style.size, l))
@@ -166,7 +190,7 @@ impl Painter<'_> {
         if approximated {
             self.note(item, PaintNoteKind::Text);
         }
-        let (ascent, line_h) = metrics(&style, para);
+        let (ascent, line_h) = metrics(style.font, style.size, para);
         #[allow(clippy::cast_precision_loss)] // a line count fits f64 exactly
         let block_h = line_h * lines.len() as f64;
         if r.h > 0.0 && block_h > r.h + 0.01 {
@@ -182,11 +206,7 @@ impl Painter<'_> {
         font: Option<&XfaNode>,
         para: Option<&XfaNode>,
     ) -> Style {
-        let attr = |a| font.and_then(|f| f.attr(a));
-        let bold =
-            attr("weight").map_or(self.opts.font_weight == FontWeight::Bold, |w| w == "bold");
-        let italic = attr("posture") == Some("italic");
-        let (face, substituted) = face(attr("typeface").unwrap_or("Courier"), bold, italic);
+        let (face, size, substituted) = face_of(font, self.opts.font_weight);
         if substituted {
             self.note(item, PaintNoteKind::Font);
         }
@@ -210,10 +230,7 @@ impl Painter<'_> {
         };
         Style {
             font: face,
-            size: font
-                .and_then(|f| super::length(f, "size"))
-                .filter(|s| *s > 0.0)
-                .unwrap_or(10.0),
+            size,
             rgb,
             h_align,
             v_align,

@@ -398,11 +398,29 @@ impl Painter<'_> {
         if item.kind == ContainerKind::Field && check::is_check_button(node) {
             self.check_field(item, node);
         } else if matches!(item.kind, ContainerKind::Field | ContainerKind::Draw) {
-            self.text(item, node);
+            self.text_piece(item, node);
         }
         if text::content_left_out(node) {
             self.note(item, PaintNoteKind::Content);
         }
+    }
+
+    /// Text of `item`; a split piece sets its whole container's text and
+    /// shows the lines inside the piece (Ch.8 p.291).
+    fn text_piece(&mut self, item: &LayoutItem, node: &XfaNode) {
+        let Some(f) = item.fragment else {
+            return self.text(item, node);
+        };
+        let r = item.rect;
+        let mut whole = item.clone();
+        whole.rect.y = r.y - f.offset;
+        whole.rect.h = f.height;
+        self.b.save_state();
+        self.b.rect(r.x, self.height - r.y - r.h, r.w, r.h);
+        self.b.clip_nonzero();
+        self.b.paint(crate::writer::content::Paint::NoPaint);
+        self.text(&whole, node);
+        self.b.restore_state();
     }
 
     fn resources(&self) -> Dict {
@@ -609,6 +627,7 @@ mod check;
 mod corner;
 mod image;
 mod text;
+pub(super) use text::{line_pitch, widget};
 
 #[cfg(test)]
 mod check_tests;

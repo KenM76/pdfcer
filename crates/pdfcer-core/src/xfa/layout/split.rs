@@ -4,6 +4,7 @@
 use super::LayoutRect;
 use super::adhere::holds;
 use super::geometry::{ItemFlags, Placed};
+use super::lines::Fragment;
 
 /// Tolerance for an edge that lies on a split line.
 const EPS: f64 = 1e-6;
@@ -40,8 +41,9 @@ impl Cut {
 /// in two. A line falling between two adhering siblings moves into the
 /// earlier one: it is cut when breakable and moves with its partner when
 /// not (pp.311-314); a pair adhering by page only when `page_end`, the
-/// line ending the page (gap G-L12). `Err(p)` when `p` is unbreakable or no line above
-/// `room` leaves content in the first part and content in the second
+/// line ending the page (gap G-L12). A text field or draw is cut only
+/// between its lines (p.291). `Err(p)` when `p` is unbreakable or no line
+/// above `room` leaves content in the first part and content in the second
 /// (never a split inside a margin, p.290).
 pub(super) fn split(p: Placed, room: f64, page_end: bool) -> Result<Cut, Placed> {
     if !p.flags.first().is_some_and(|f| f.breakable) || room <= EPS {
@@ -51,15 +53,16 @@ pub(super) fn split(p: Placed, room: f64, page_end: bool) -> Result<Cut, Placed>
     while let Some(y) = blocker(&p, s, page_end) {
         s = y;
     }
-    let above = p
-        .items
-        .iter()
-        .skip(1)
-        .any(|i| i.rect.y + i.rect.h <= s + EPS);
+    let leaf = p.items.len() == 1;
+    let mut kids = p.items.iter().zip(&p.flags).skip(1);
+    let above = leaf
+        || kids.any(|(i, f)| {
+            i.rect.y + i.rect.h <= s + EPS || (f.lines.is_some() && i.rect.y < s - EPS)
+        });
     let below = p
         .items
         .iter()
-        .skip(1)
+        .skip(usize::from(!leaf))
         .any(|i| i.rect.y + i.rect.h > s + EPS);
     if s <= EPS || !above || !below {
         return Err(p);
@@ -77,11 +80,17 @@ pub(super) fn split(p: Placed, room: f64, page_end: bool) -> Result<Cut, Placed>
             tail_src.push(k);
         } else {
             let mut tail = item.clone();
+            tail.fragment = Some(Fragment::tail_of(item.fragment, r.h, s - r.y));
+            item.fragment = Some(Fragment::head_of(item.fragment, r.h));
             item.rect.h = s - r.y;
             tail.rect.y = 0.0;
             tail.rect.h = r.y + r.h - s;
+            let after = ItemFlags {
+                lines: b.lines.map(|l| l.after(s - r.y)),
+                ..b
+            };
             first.push(item, b);
-            rest.push(tail, b);
+            rest.push(tail, after);
             head_src.push(k);
             tail_src.push(k);
         }
@@ -96,17 +105,25 @@ pub(super) fn split(p: Placed, room: f64, page_end: bool) -> Result<Cut, Placed>
     })
 }
 
-/// The highest line above `s` that the item or adhering pair `s` would
-/// break must move to, if any.
+/// The highest line above `s` that the item, text line or adhering pair `s`
+/// would break must move to, if any.
 fn blocker(p: &Placed, s: f64, page_end: bool) -> Option<f64> {
     let crosses = |r: &LayoutRect| r.y + EPS < s && s < r.y + r.h - EPS;
     let cut = p
         .items
         .iter()
         .zip(&p.flags)
-        .skip(1)
-        .filter(|(i, f)| !f.breakable && crosses(&i.rect))
-        .map(|(i, _)| i.rect.y);
+        .enumerate()
+        .filter(|(_, (i, _))| crosses(&i.rect))
+        .filter_map(|(k, (i, f))| match f.lines {
+            Some(l) => {
+                let y = l
+                    .at_or_above(s - i.rect.y)
+                    .map_or(i.rect.y, |d| i.rect.y + d);
+                (y < s - EPS).then_some(y)
+            }
+            None => (k > 0 && !f.breakable).then_some(i.rect.y),
+        });
     let seams = p
         .items
         .iter()

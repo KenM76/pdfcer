@@ -275,8 +275,11 @@ fn print_page(i: usize, page: &LayoutPage) {
 fn print_item(page: usize, item: &LayoutItem, value: Option<&str>) {
     let r = item.rect;
     let value = value.map_or_else(String::new, |v| format!(" value={v:?}"));
+    let piece = item.fragment.map_or_else(String::new, |f| {
+        format!(" fragment={}/{}", f.offset, f.height)
+    });
     println!(
-        "item page={page} kind={} name={:?} path={} x={} y={} w={} h={} area={} background={} visible={}{value}",
+        "item page={page} kind={} name={:?} path={} x={} y={} w={} h={} area={} background={} visible={}{piece}{value}",
         kind_label(item.kind),
         item.name.as_deref().unwrap_or(""),
         dotted(&item.path),
