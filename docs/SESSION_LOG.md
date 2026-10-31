@@ -4,6 +4,83 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-10-31 (1365th filing) — `Pass 653.4` SHIPPED `edb2d1ae` (`G251`): reusable 3D pick index
+
+**Filed (docs only; engineer-reported, nothing checked from here; no shell):**
+- **`Pass 653.4`** (`edb2d1ae`, unreleased): `pdfcer_3d::PickIndex` (BVH built once; `pick` equals the linear pick; `pick_where` takes a part mask and a distance limit). Tests per commit: 800 rays agree with the linear pick over 500 triangles; sabotage fails 3 of 4. Reply `reply_G251_pick_index_SHIPPED.md` in `open/`.
+- ROADMAP Shipped entry; FEATURES row `[x]`/`[ ]`/`[ ]` (no CLI caller named).
+
+**Decisions made this session:** none minted.
+
+**Hard-rule-11 survivors:** none found; the `648.5` pick row says "`gui [ ]`: no caller yet" and stays true. `docs/NEXT_SESSION.md` (engineer-owned) not swept. Backup currency not verifiable from here.
+
+**Still in flight:** the release.
+
+**For next session:** release the version after `0.112.0` (slot `pdfcer2`); `pdfcer-gui` asked for it once `G249`-`G251` shipped.
+
+## 2026-10-31 (1364th filing) — `Pass 653.3` SHIPPED `82aee9d6` (`G250`): a placed PRC model carries its unit
+
+**Filed (docs only; engineer-reported, nothing checked from here; no shell):**
+- **`Pass 653.3`** (`82aee9d6`, unreleased): `ModelUnits { mm_per_unit, from_cad_file }`, `PrcFile::units()`, `AssembledModel::units` (ISO 14739-1 WD 7.3.3, read unconditionally per the spec RAG's ISS #740 note); CLI `3d-mesh` prints the unit or "no unit". Reply `reply_G250_model_unit_SHIPPED.md` in `open/`.
+- ROADMAP Shipped entry; FEATURES row `[x]`/`[x]`/`[ ]` (cli named in the commit).
+
+**Decisions made this session:** none minted.
+
+**Hard-rule-11 survivors:** none found. `docs/NEXT_SESSION.md` not swept. Backup currency not verifiable from here.
+
+**Still in flight:** the release.
+
+**For next session:** as the 1365th.
+
+## 2026-10-31 (1363rd filing) — `Pass 653.2` SHIPPED `121eb7d9` (`G249`): black point compensation for ICC conversions
+
+**Filed (docs only; engineer-reported, nothing checked from here; no shell):**
+- **`Pass 653.2`** (`121eb7d9`, unreleased): new `Settings::black_point_compensation` (default true), `/UseBlackPtComp` read from ExtGState, cache keyed by intent+bpc. `render-page` and `inspect --ink` pass it through. Test patch 17.2 at scale 4: the square is within one level; setting false brings the old X back. Reply `reply_G249_black_point_compensation_SHIPPED.md` in `open/`.
+- ROADMAP Shipped entry (carries the limits below); FEATURES row `[x]`/`[x]`/`[ ]`.
+
+**Findings (engineer-supplied):**
+- Not a regression: v0.104 and v0.106 render the same faint X as v0.112. The cause was that BPC had never been applied.
+- The `device_native` page-blending route still shows a strong X by design: it does no proofing (RGB profile straight to sRGB).
+- Lab/CalRGB/CalGray (PCS route) is not compensated: icccer applies BPC only in profile-to-profile conversion.
+- `fixtures/synthetic/icc-rgb/dest-cmyk.icc` has a zero estimated black point, so BPC is the identity against it; the test uses the v4 fixture copied from icccer (`PROVENANCE.md`).
+- JBIG2 patch 17.3 is untouched; the GUI was asked to file it separately.
+
+**Decisions made this session:** none minted.
+
+**Hard-rule-11 survivors:** none found; the colour-space rows (`ICCBased`, output-intent) do not claim BPC either way. A reader of the `ICCBased` Planned row could assume conversions are uncompensated; not edited, since those rows describe routes, not compensation. `docs/NEXT_SESSION.md` not swept. Backup currency not verifiable from here.
+
+**Still in flight:** the release.
+
+**For next session:** as the 1365th.
+
+## 2026-10-31 (1362nd filing) — `Pass 653.1` SHIPPED `396c7c70` (`G243`): a print-only copy of an open session
+
+**Filed (docs only; engineer-reported, nothing checked from here; no shell):**
+- **`Pass 653.1`** (`396c7c70`, unreleased): `EditSession::fork_for_print` / `decorated_for_print`; session base now `Arc<Document>`, setters via `Arc::make_mut`; `pdfcer-model` `Document` derives `Clone`. Tests per commit; `docs/core-api` 02 row, verb count 391. Reply `reply_G243_print_copy_of_a_session_SHIPPED.md` (at the channel root, not `open/` or `done/`).
+- ROADMAP Shipped entry; FEATURES row `[x]`/`[ ]`/`[ ]`.
+
+**Decisions made this session:** none minted.
+
+**Hard-rule-11 survivors:** none found. `docs/NEXT_SESSION.md` not swept. Backup currency not verifiable from here.
+
+**Still in flight:** the release.
+
+**For next session:** as the 1365th.
+
+## 2026-10-31 (1361st filing) — `Pass 653.0` SHIPPED `5c16e092` (`G244`): a profile carries the font re-subset choice
+
+**Filed (docs only; engineer-reported, nothing checked from here; no shell):**
+- **`Pass 653.0`** (`5c16e092`, unreleased): profile keys `resubset-fonts` and `merge-font-subsets`; a parsed profile is unbound and refuses with `no-cutter` until bound; `pdfcer optimize` binds its glyph-zeroing cutter. Tests per commit: 3 core, 1 CLI. Reply `reply_G244_profile_resubset_SHIPPED.md` (at the channel root).
+- ROADMAP Shipped entry; FEATURES row `[x]`/`[x]`/`[ ]`. The Planned row "Re-subset an embedded font" is a different capability and was not touched.
+
+**Decisions made this session:** none minted.
+
+**Hard-rule-11 survivors:** none found. `docs/NEXT_SESSION.md` not swept. Backup currency not verifiable from here.
+
+**Still in flight:** the release.
+
+**For next session:** as the 1365th.
+
 ## 2026-10-31 (1360th filing) — `Pass 648.6` SHIPPED `01c5f515` (`G245` part 2): 3D measurements `/MA`
 
 **Filed (docs only; engineer-reported, each item stated checked from his shell; no shell here, nothing checked from here):**

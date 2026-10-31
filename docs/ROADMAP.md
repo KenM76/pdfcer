@@ -112,6 +112,56 @@ wherever it appears.*
 
 ## Shipped
 
+### `edb2d1ae` `Pass 653.4` SHIPPED, 2026-10-31: a reusable 3D pick index with a part mask and a distance limit (`G251`; 1365th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `edb2d1ae`, "3d: a reusable pick index with a part mask and distance limit (G251)". On `main`, **unreleased** (last release `v0.112.0`). Reasoning is in the commit message. Request from `pdfcer-gui`; reply `reply_G251_pick_index_SHIPPED.md` in `open/`.
+- **Core:** `pdfcer_3d::PickIndex::new(&meshes)`, a bounding-volume hierarchy built once (median split on the longest centroid axis, four triangles per leaf; corners copied, meshes not borrowed). `index.pick(&ray)` returns the same `Hit` as `pick(&meshes, &ray)`, including `min_distance` and the tie to the lower (mesh, triangle). `index.pick_where(&ray, max_distance, |mesh| ..)` skips meshes the predicate rejects (hidden parts) and hits beyond `max_distance`. Triangles the renderer skips are left out, as `pick` skips them. The slab test widens by a relative epsilon so a box never rejects a hit the triangle test accepts; `pick::intersect` is now `pub(crate)` and shared.
+- **Tests (per commit message):** 800 rays (perspective-style and orthographic) agree exactly with the linear pick over 500 scattered triangles; a masked mesh equals `pick` over the visible mesh alone; a distance limit drops only farther hits; coincident triangles tie to the lower index. Sabotage (tightening the slab test) fails 3 of 4. `docs/core-api` 01: the `PickIndex` row.
+- **CLI / GUI:** no CLI caller; gui not consumed yet (`pdfcer-gui` asked for it). Boxes: `[x]` / `[ ]` / `[ ]`.
+- **FEATURES:** new Implemented row "A reusable pick index over a 3D model".
+
+### `82aee9d6` `Pass 653.3` SHIPPED, 2026-10-31: a placed PRC model carries its unit (`G250`; 1364th filing)
+
+Engineer-reported; no shell here. Commit `82aee9d6`, "3d: a placed PRC model carries its unit (G250)". On `main`, **unreleased**. Reply `reply_G250_model_unit_SHIPPED.md` in `open/`.
+- **Spec:** ISO 14739-1 WD 7.3.3, the ModelFile's `units_from_cad_file` and `units_in_mm`, read unconditionally per the spec RAG's ISS #740 note.
+- **Core:** `pdfcer_3d::ModelUnits { mm_per_unit, from_cad_file }` (`non_exhaustive`, `Copy`); `PrcFile::units() -> Result<Option<ModelUnits>, PrcError>`, `None` when no model file is stored or the unit is not positive and finite; `AssembledModel::units` filled by `assemble*`, `None` (not a failure) when the model file does not read. The model-file reader now keeps `units_from_cad_file` instead of skipping it.
+- **CLI:** `3d-mesh` prints the unit, or that there is none (STL and OBJ store none).
+- **Tests (per commit message):** writer round trip at 25.4 mm (from CAD); the tree fixture's stored 1.0 mm assumed unit; no model file gives `None` (sabotage: dropping the assignment fails); CLI `3d-mesh` "no unit" note. `docs/core-api` 01: the model-unit paragraph.
+- **Boxes:** `[x]` / `[x]` / `[ ]`. **FEATURES:** new Implemented row "A placed PRC model's unit".
+
+### `121eb7d9` `Pass 653.2` SHIPPED, 2026-10-31: black point compensation for ICC conversions (`G249`; 1363rd filing)
+
+Engineer-reported; no shell here. Commit `121eb7d9`, "render: black point compensation for ICC conversions (G249)". On `main`, **unreleased**. Reply `reply_G249_black_point_compensation_SHIPPED.md` in `open/`. Reasoning is in the commit message.
+- **Defect, and what it was not:** test patch 17.2 showed a faint X: an ICCBased RGB JPX image converted to the X-4 output intent landed at (76,185,71) beside the DeviceCMYK vector green at (71,184,72). **Not a regression**: v0.104 and v0.106 render the same faint X as v0.112. Cause: pdfcer never applied black point compensation, which print-industry test references (and Acrobat) assume.
+- **Core:** `icc.rs`: a `Conversion` (intent + bpc) keys every bridge in the cache; `chain_for` adds icccer's `Chain::with_bpc` when asked and falls back to the uncompensated chain if a black point cannot be estimated. Absolute colorimetric never compensates (ISO 32000-2 8.6.5.9). `/UseBlackPtComp` ON/OFF/Default is read from ExtGState (`gstate`/`interpret`): ON or OFF wins, Default or absent defers to the setting; unknown names are ignored so the previous value persists (8.4.5). New `Settings::black_point_compensation` (default **true**, persisted) and `RenderOptions::with_black_point_compensation`.
+- **CLI:** `render-page` and `inspect --ink` pass the setting through.
+- **Measured (local only; the patch is third-party and not committed):** test patch 17.2 at scale 4, every pixel of the square is now within one level, (71..72,184,71..73); with the setting false the old (76,185,71) X returns.
+- **Limits recorded here, not in a public file:**
+  - The `device_native` page-blending route still shows a strong X by design: that route does no proofing (the image goes from its RGB profile straight to sRGB).
+  - The Lab/CalRGB/CalGray (PCS) route is **not** compensated, because icccer applies BPC only in profile-to-profile conversion (`convert`), not in `pcs_to_destination`.
+  - `fixtures/synthetic/icc-rgb/dest-cmyk.icc` has a zero estimated black point, so BPC is the identity against it; the test therefore uses the v4 fixture `v4-cmyk-mab-lab.icc`, copied from icccer (MIT, own work) and recorded in `PROVENANCE.md`.
+  - The JBIG2 patch 17.3 is untouched; the GUI was asked to file it separately.
+- **Tests (per commit message):** BPC moves a dark CMYK colour more than a light one (v4 fixture's perceptual black against the display's zero black); absolute colorimetric ignores BPC; `/UseBlackPtComp` name parsing. Sabotage (`chain_for` never compensating) fails the first. `docs/core-api` 03: the black point compensation paragraph.
+- **Boxes:** `[x]` / `[x]` / `[ ]`. **FEATURES:** new Implemented row "Black point compensation for ICC conversions".
+
+### `396c7c70` `Pass 653.1` SHIPPED, 2026-10-31: a print-only copy of an open session (`G243`; 1362nd filing)
+
+Engineer-reported; no shell here. Commit `396c7c70`, "edit: a print-only copy of an open session (G243)". On `main`, **unreleased**. Reply `reply_G243_print_copy_of_a_session_SHIPPED.md`, found at the root of `D:\Dev\FeatureRequests\pdfce_FeatureRequests\` (not in `open/` or `done/` when checked).
+- **Why:** the GUI printed a decorated copy by serialising the open session, reparsing and opening a second session. It now forks.
+- **Core:** `EditSession::fork_for_print(&self)` shares the parsed base and copies the overlay (state, deleted, trailer, staging, next number) plus settings and redaction flags; empty undo/redo, new checkpoint serial, empty caches; a fork of a session with a pending deferred redaction still refuses ordinary saves. `EditSession::decorated_for_print(&self, &PrintDecoration)` forks, then `decorate_for_print` on the fork; a refusal drops the fork. The session base is now `Arc<Document>`; the two setters that changed the base in place (`clear_encryption`, `set_rc4_append`) go through `Arc::make_mut`, so a fork never sees the other side's change. `pdfcer-model`: `Document` derives `Clone` (additive).
+- **Tests (per commit message):** the open session's undo depth, saved bytes and page boxes are unchanged after a decorated fork, and the fork carries both the open edits and the decoration (sabotage: a fork without the overlay fails); a refused decoration leaves the session alone. `docs/core-api` 02: new row, verb count 391.
+- **Boxes:** `[x]` / `[ ]` (no CLI caller named) / `[ ]`. **FEATURES:** new Implemented row "A print-only copy of an open session".
+
+### `5c16e092` `Pass 653.0` SHIPPED, 2026-10-31: a profile carries the font re-subset choice (`G244`; 1361st filing)
+
+Engineer-reported; no shell here. Commit `5c16e092`, "optimize: a profile carries the font re-subset choice (G244)". On `main`, **unreleased**. Reply `reply_G244_profile_resubset_SHIPPED.md`, found at the root of `D:\Dev\FeatureRequests\pdfce_FeatureRequests\`.
+- **Core:** profile keys `resubset-fonts` (bool) and `merge-font-subsets` (must follow it), read by `profile::parse` and written by `to_profile`. Core has no font cutter, so a parsed profile gives `ResubsetFonts::unbound()` (cutter `NO_RESUBSETTER`), which refuses every program with token `no-cutter` (disclosed, never silently dropped). New `ResubsetFonts::is_bound`, `with_source`; `OptimizeSettings::install_resubsetter` binds only an unbound request.
+- **CLI:** `pdfcer optimize` installs the glyph-zeroing cutter after the profile and flags.
+- **Tests (per commit message):** 3 core profile tests (round trip, key order, install binds only an unbound request); 1 CLI test (a written profile cuts fonts when run; fails with the install line removed).
+- **Boxes:** `[x]` / `[x]` / `[ ]`. **FEATURES:** new Implemented row "A saved optimize profile carries the font re-subset choice".
+
+**Batch note (1361st-1365th filings):** all five are `pdfcer-gui` requests, on `main` and unpushed at filing time; no decision or rule minted. Per `pdfcer-gui`, this round is exactly `G249`, `G250` and `G251`, and a release was asked for once all three shipped. **Next step: release the version after `0.112.0`, next slot `pdfcer2`.** Gates and invariants (`cargo tree`, fmt, clippy, packaging) were not reported for this batch and are not claimed.
+
 ### `01c5f515` `Pass 648.6` SHIPPED, 2026-10-31: 3D measurements (`/MA`) read and written on a saved view (`G245` part 2; 1360th filing)
 
 Engineer-reported (the engineer states each item checked from his shell); no shell here, nothing checked from here. Commit `01c5f515`, "threed: read and write 3D measurements on saved views (/MA)". On `main`, **unreleased** (last release `v0.112.0`). No decision or rule minted. Reasoning is in the commit message. Closes request `G245` (part 1 was `Pass 648.5`).
@@ -25049,7 +25099,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **Next up head (rewritten 1355th filing; `Pass 647.3e` `53f4e938` and `Pass 647.2c` `ead2642a` SHIPPED and released in `v0.111.0`, published): `Pass 648.6` (`G245` part 2, /MA measurements, spec-RAG check first).** `Pass 647.3f` (dataRef-bound and subform-set instances, residue of `647.3e`) and `Pass 647.4` stay in the Backlog, not yet ordered. Release slot: next release writes `pdfcer1` (`pdfcer2` holds 0.111.0, `pdfcer1` holds 0.110.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
 
-> **Head amended 1357th filing: `Pass 647.4b` (`X027`) SHIPPED `96af5ff3`, see *Shipped*; the head is `Pass 648.6` again, after the release `v0.112.0` (slot `pdfcer1`), which is a separate filing.** *(Amended 1359th filing: `v0.112.0` PUBLISHED, see *Shipped*; the head is `Pass 648.6`, next release writes `pdfcer2`.)* `647.3f` and `647.4` (image natural sizing) stay in the Backlog. *(The 1356th-filing note that put `647.4b` ahead of `648.6` is history.)* **Amended 1360th filing: `Pass 648.6` SHIPPED `01c5f515` (unreleased), see *Shipped*; `G245` is now complete. Next up has no head: `647.3f`, `647.4` and `Pass 648.7` (residue) are Backlog, unordered.**
+> **Head amended 1357th filing: `Pass 647.4b` (`X027`) SHIPPED `96af5ff3`, see *Shipped*; the head is `Pass 648.6` again, after the release `v0.112.0` (slot `pdfcer1`), which is a separate filing.** *(Amended 1359th filing: `v0.112.0` PUBLISHED, see *Shipped*; the head is `Pass 648.6`, next release writes `pdfcer2`.)* `647.3f` and `647.4` (image natural sizing) stay in the Backlog. *(The 1356th-filing note that put `647.4b` ahead of `648.6` is history.)* **Amended 1360th filing: `Pass 648.6` SHIPPED `01c5f515` (unreleased), see *Shipped*; `G245` is now complete. Next up has no head: `647.3f`, `647.4` and `Pass 648.7` (residue) are Backlog, unordered.** **Amended 1361st-1365th filings: `Pass 653.0`-`653.4` (`G244`, `G243`, `G249`, `G250`, `G251`) SHIPPED, unreleased, see *Shipped*. Still no head; the next step is a release (version after `0.112.0`, slot `pdfcer2`), asked for by `pdfcer-gui` once `G249`-`G251` shipped.**
 
 (1271st filing: `Pass 646.25` (`G237`, `XfaFormKind`) SHIPPED on `5f401310`; decision 204 reopens dynamic XFA; arc `647.0`-`647.7` filed below. All Passes below are NOT STARTED. Spec source (extracted by `pdfcer-spec-librarian`): `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_{xdp_packaging,static_vs_dynamic_rendering,template_layout_dom,layout_algorithm,data_binding_normal}.md`; its gap IDs G-X/S/T/L/B are the arc's default-decisions list. Spec slice still owed: SOM expressions, then table/row layout. Arc-wide acceptance: (1) opening never rewrites structure (§5); (2) layout inferred at render time is rule-4 disclosed; (3) content a dynamic form drops on overflow is disclosed, which the spec only warns about; (4) no external XFA code is relied on.)
 
