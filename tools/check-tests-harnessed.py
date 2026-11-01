@@ -11,6 +11,10 @@ The cost of ``autotests = false`` is that a new ``tests/foo.rs`` not declared
 in ``all.rs`` is never compiled and never run, and nothing goes red. This gate
 is that red.
 
+A file the manifest names as its own ``[[test]]`` target is exempt: that is for
+a test needing a fresh process (a set-once global), and the manifest entry is
+what compiles it.
+
 Usage:  python tools/check-tests-harnessed.py [--write]
         --write regenerates every ``tests/all.rs`` from the files on disk.
 Exit:   0 every file harnessed (or written), 1 a file is missing or a crate
@@ -36,9 +40,17 @@ def crates() -> list[Path]:
     return sorted(p.parent for p in (ROOT / "crates").glob("*/tests") if p.is_dir())
 
 
+def own_targets(crate: Path) -> set[str]:
+    text = (crate / "Cargo.toml").read_text(encoding="utf-8")
+    return set(re.findall(r'^path\s*=\s*"tests/([^"/]+\.rs)"', text, re.M)) - {HARNESS}
+
+
 def expected(crate: Path) -> str:
+    own = own_targets(crate)
     names = sorted(
-        p.stem for p in (crate / "tests").glob("*.rs") if p.name != HARNESS
+        p.stem
+        for p in (crate / "tests").glob("*.rs")
+        if p.name != HARNESS and p.name not in own
     )
     return HEADER + "".join(f"mod {n};\n" for n in names)
 
