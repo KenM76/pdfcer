@@ -3420,9 +3420,13 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `3d-render` prints `note: lighting: <Name> (<source>): <how>`. CLI:
   `3d-render --lighting <scheme>|auto --light-frame camera|world`.
 - **Interactive frame rate.** `PreparedModel::new(&model)` (re-exported at
-  the crate root) does the camera-independent work once (texture opacity);
-  `prepared.render(&camera, &options)` draws a frame — keep it while the
-  model is open and call `render` per orbit/pan/zoom step.
+  the crate root) does the camera-independent work once (texture opacity)
+  and does not borrow the model; `prepared.render(&model, &camera,
+  &options)` draws a frame. Keep it beside the model while the viewer is
+  open and call `render` per orbit/pan/zoom step. Repainting the model
+  between frames (`colours`, `mesh_textures`) needs no new preparation; a
+  model whose texture count differs is rescanned for that frame (right,
+  only slower).
   `RenderOptions::threads: usize` (default 1; 0 = every core; wasm32 always
   draws on one) splits the image into row bands; the pixels are
   byte-identical at any count (decision 080). Measured on a real CAD

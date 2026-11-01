@@ -655,7 +655,7 @@ pub fn render_model(
     camera: &crate::Camera,
     options: &crate::RenderOptions,
 ) -> Result<crate::Image, crate::RenderError> {
-    crate::PreparedModel::new(model).render(camera, options)
+    crate::PreparedModel::new(model).render(model, camera, options)
 }
 
 #[cfg(test)]
