@@ -112,6 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.114.0` PUBLISHED, 2026-11-01 (1370th filing); tag at `c0cc5465`, CI red on a ROADMAP structure audit, fix-forward in the 1370th filing commit
+
+Engineer-reported (shell held by the engineer); nothing checked from here. Supersedes the "prepared, not published" status of the prep entry below, which stays as filed.
+- **Tag:** annotated `v0.114.0` on `c0cc5465` (the 1369th prep filing; bump `da4ff0b5`); not moved. **GitHub release:** 8 assets (`pdfcer-v0.114.0-windows-x64.zip` 28,294,679 bytes, the `ocr-addon` zips for ocrcer, ocrs and tesseract, a `.sha256` each); `gh-release.py` reported PASS.
+- **Package:** `D:\builds\pdfcer-20261101-0145-c0cc546` (`pdfcer.exe` 40,866,816 bytes). **Fresh-folder smoke:** `--version` 0.114.0; `3d-embed --apply`, then `3d-render --lighting night` printed the lighting note and wrote a PNG.
+- **OneDrive:** `pdfcer1` written with 0.114.0; `pdfcer2` keeps 0.113.0. The next release writes `pdfcer2`.
+- **Crates published (0.114.0):** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix`, confirmed via the crates.io API.
+- **Pre-tag checks:** 39 CI gates green locally (before `G254`); the feature-off and wasm subset green after `G254`; `check-commits-filed` and `check-suite-name-absent` clean.
+- **Contents:** `Pass 654.0` and `654.1` (`78f16dc2`, `G252`, `G253` CPU half), `Pass 655.0` (`2a10522f`, `G254`), `5587fca6`, the filings and bump `da4ff0b5`. `Pass 654.2` (`G253` GPU half) NOT STARTED, stays in Next up.
+- **Bench (engineer, `Bancroft_3D`, 109k triangles, all cores):** 21 / 20 / 40 ms at 64x41 / 700x450 / 1400x900, from 299 / 352 / 617 ms in `v0.113.0` (about 14x, 17x and 15x faster, by division).
+- **GUI:** notified by `notice_2026-11-01_v0.114.0_released.md` in the FeatureRequests `open/` folder, plus `reply_G252_lighting_schemes_SHIPPED.md`, `reply_G253_frame_rate_CPU_SHIPPED_GPU_OWED.md`, `reply_G254_host_settings_dir_SHIPPED.md`; `INDEX.md` rows added.
+- **`verify-release.py v0.114.0`:** everything ok except "working tree clean" (agent-memory files only, expected) and "CI is GREEN at the tagged commit".
+- **CI was RED at the tag** (run `41281913617`), one step only: the "check no register entry has grown into an essay" audit (`tools/check-register-entry-size.py`). **Cause:** the 1368th filing inserted `### Pass 654.2` as the first `###` under `## Next up`, directly above the long run of untitled "(NNNNth filing: ...)" paragraphs. The checker measures a `###` item until the next heading, so `654.2` came to own 1,926 lines against the Next-up cap of 80. Before that filing those paragraphs had no `###` above them and were not measured. **Fix:** the whole `654.2` block (heading through its Boxes bullet, 7 lines) moved to sit immediately before `### Pass 647.2 — Flowed layout`, content verbatim apart from the heading's status. The baseline file was not touched (it is debt, never grown). Code and shipped binary unaffected; tag not moved.
+- **Lesson:** a new `###` item placed above unheaded prose silently adopts that prose. A Next-up `###` goes after the unheaded paragraphs, directly before the next `###`.
+- **FEATURES:** no box changes. Nothing minted.
+
 ### `v0.114.0` — release PREP, version bump `da4ff0b5` (`chore`), 2026-11-01 (1369th filing); prepared, not published
 
 Engineer-reported (shell held by the engineer); nothing checked from here. Same pattern as the `v0.113.0` prep (1366th filing).
@@ -25166,14 +25182,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **Head amended 1357th filing: `Pass 647.4b` (`X027`) SHIPPED `96af5ff3`, see *Shipped*; the head is `Pass 648.6` again, after the release `v0.112.0` (slot `pdfcer1`), which is a separate filing.** *(Amended 1359th filing: `v0.112.0` PUBLISHED, see *Shipped*; the head is `Pass 648.6`, next release writes `pdfcer2`.)* `647.3f` and `647.4` (image natural sizing) stay in the Backlog. *(The 1356th-filing note that put `647.4b` ahead of `648.6` is history.)* **Amended 1360th filing: `Pass 648.6` SHIPPED `01c5f515` (unreleased), see *Shipped*; `G245` is now complete. Next up has no head: `647.3f`, `647.4` and `Pass 648.7` (residue) are Backlog, unordered.** **Amended 1361st-1365th filings: `Pass 653.0`-`653.4` (`G244`, `G243`, `G249`, `G250`, `G251`) SHIPPED, unreleased, see *Shipped*. Still no head; the next step is a release (version after `0.112.0`, slot `pdfcer2`), asked for by `pdfcer-gui` once `G249`-`G251` shipped.** **Amended 1367th filing: `v0.113.0` PUBLISHED. Amended 1368th filing: `Pass 654.0`, `654.1` (`78f16dc2`, `G252`, `G253` CPU half) and `Pass 655.0` (`2a10522f`, `G254`) SHIPPED, unreleased, see *Shipped*. The head is now `Pass 654.2` (below), behind the GUI-request rule. Next release writes OneDrive `pdfcer1` (`pdfcer2` holds 0.113.0).**
 
-### `Pass 654.2` — GPU-ready 3D buffers and matrices (`G253` GPU half; NOT STARTED; filed 1368th)
-
-Request from `pdfcer-gui` (`G253`, in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\`); the CPU half shipped as `Pass 654.1`. Queued behind the GUI-request rule.
-- **Ask:** `pdfcer-3d` supplies GPU-ready vertex and index buffers and view and projection matrices, so the GUI can draw the model with wgpu itself.
-- **Constraint (invariant 1):** `pdfcer-3d`, `pdfcer-core` and `pdfcer-render` stay free of any GPU or windowing crate. The engine supplies plain buffers and plain matrices only; the GUI owns every wgpu type.
-- **Acceptance (to settle at scoping):** buffer layout documented (vertex fields, index width, winding, colour and opacity source); matrices agree with `Camera` and the CPU renderer's projection, including the light frame of `Pass 654.0`; a test compares a CPU-side transform of the buffers against the renderer's projected positions; `cargo tree -p pdfcer-3d` shows no GPU crate.
-- **Needs before scoping:** the GUI's vertex format wish (`G253` text), and the egui/wgpu RAG (`D:\dev\rag\egui\`) for the paint-callback shape.
-- **Boxes:** `[ ]` / `[ ]` / `[ ]`; a CLI form is not evident (undecided). **FEATURES:** Planned row "GPU-ready 3D buffers and matrices".
+> (1370th filing: `v0.114.0` PUBLISHED, see *Shipped*; the head is `Pass 654.2` (now placed lower in this section, after these notes, so the register-size audit does not measure these notes as part of it). Next release writes OneDrive `pdfcer2` (`pdfcer1` holds 0.114.0, `pdfcer2` holds 0.113.0).)
 
 (1271st filing: `Pass 646.25` (`G237`, `XfaFormKind`) SHIPPED on `5f401310`; decision 204 reopens dynamic XFA; arc `647.0`-`647.7` filed below. All Passes below are NOT STARTED. Spec source (extracted by `pdfcer-spec-librarian`): `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_{xdp_packaging,static_vs_dynamic_rendering,template_layout_dom,layout_algorithm,data_binding_normal}.md`; its gap IDs G-X/S/T/L/B are the arc's default-decisions list. Spec slice still owed: SOM expressions, then table/row layout. Arc-wide acceptance: (1) opening never rewrites structure (§5); (2) layout inferred at render time is rule-4 disclosed; (3) content a dynamic form drops on overflow is disclosed, which the spec only warns about; (4) no external XFA code is relied on.)
 
@@ -27091,6 +27100,15 @@ Request from `pdfcer-gui` (`G253`, in `D:\Dev\FeatureRequests\pdfce_FeatureReque
 > `Pass 647.1` SHIPPED and has left this section (1276th filing, `74023a53`); full entry at the top of *Shipped*.
 
 > `X018` SHIPPED and has left this section (1326th filing, `65dd718c`), released in `v0.107.0` (1328th filing); full entries in *Shipped*. Only the optional tessellation fallback remains, as a FEATURES *Planned* row (no Pass ID).
+
+### `Pass 654.2` — GPU-ready 3D buffers and matrices (`G253` GPU half; NOT STARTED; head of queue; filed 1368th, moved here 1370th)
+
+Request from `pdfcer-gui` (`G253`, in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\`); the CPU half shipped as `Pass 654.1`. Queued behind the GUI-request rule.
+- **Ask:** `pdfcer-3d` supplies GPU-ready vertex and index buffers and view and projection matrices, so the GUI can draw the model with wgpu itself.
+- **Constraint (invariant 1):** `pdfcer-3d`, `pdfcer-core` and `pdfcer-render` stay free of any GPU or windowing crate. The engine supplies plain buffers and plain matrices only; the GUI owns every wgpu type.
+- **Acceptance (to settle at scoping):** buffer layout documented (vertex fields, index width, winding, colour and opacity source); matrices agree with `Camera` and the CPU renderer's projection, including the light frame of `Pass 654.0`; a test compares a CPU-side transform of the buffers against the renderer's projected positions; `cargo tree -p pdfcer-3d` shows no GPU crate.
+- **Needs before scoping:** the GUI's vertex format wish (`G253` text), and the egui/wgpu RAG (`D:\dev\rag\egui\`) for the paint-callback shape.
+- **Boxes:** `[ ]` / `[ ]` / `[ ]`; a CLI form is not evident (undecided). **FEATURES:** Planned row "GPU-ready 3D buffers and matrices".
 
 ### Pass 647.2 — Flowed layout `tb` / `lr-tb` (FIRST CUT `7cfa9c40`, SECOND CUT `9d0ddb90` (1278th filing), THIRD CUT `5fceb520` (1279th filing), FOURTH CUT `fa1869c8` (1280th filing), FIFTH CUT `1abf9d5e` (1281st filing), SIXTH CUT `f6e76272` (1283rd filing), SEVENTH CUT `e3547709` (1284th filing), EIGHTH CUT `cac24637` (1285th filing), NINTH CUT `f1b8baa6` (1286th filing), TENTH CUT `f64f12fe` (1287th filing), ELEVENTH CUT `5a9d3f30` (1288th filing); NOT COMPLETE, stays here)
 

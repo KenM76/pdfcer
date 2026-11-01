@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-01 (1370th filing) — `v0.114.0` PUBLISHED; ROADMAP structure fix (CI red at the tag)
+
+**Filed (docs only; engineer-reported, shell held by the engineer; nothing checked from here):**
+- **Release `v0.114.0`:** annotated tag on `c0cc5465` (the 1369th prep filing; bump `da4ff0b5`), not moved. GitHub release with 8 assets (`pdfcer-v0.114.0-windows-x64.zip` 28,294,679 bytes, 3 OCR add-on zips, a `.sha256` each); `gh-release.py` PASS. Package `D:\builds\pdfcer-20261101-0145-c0cc546` (`pdfcer.exe` 40,866,816 bytes). Fresh-folder smoke: `--version` 0.114.0; `3d-embed --apply` then `3d-render --lighting night` printed the lighting note and wrote a PNG.
+- **OneDrive:** `pdfcer1` = 0.114.0, `pdfcer2` = 0.113.0; the next release writes `pdfcer2`. **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.114.0 (API-confirmed).
+- **Pre-tag:** 39 CI gates green locally (before `G254`), feature-off and wasm subset green after; `check-commits-filed`, `check-suite-name-absent` clean. **Bench** (`Bancroft_3D`, 109k triangles, all cores): 21 / 20 / 40 ms from 299 / 352 / 617 ms.
+- **GUI:** `notice_2026-11-01_v0.114.0_released.md` plus replies for `G252`, `G253` (GPU owed), `G254` in FeatureRequests `open/`; `INDEX.md` rows added.
+- **`verify-release.py`:** all ok except "working tree clean" (agent-memory files, expected) and "CI GREEN at the tagged commit".
+- **CI red (run `41281913617`):** only the register-entry-size audit. The 1368th filing put `### Pass 654.2` as the first `###` under `## Next up`, above the untitled filing paragraphs, so the checker counted 1,926 lines against the cap of 80. **Fixed** by moving the 7-line block to just before `### Pass 647.2 — Flowed layout` (verbatim but for status); baseline not grown. The 1370th Next-up note sits with the unmeasured paragraphs.
+- ROADMAP: publication entry at the top of Shipped; Next-up note. FEATURES: no change.
+
+**Decisions made this session:** none minted.
+
+**Findings + decisions (lesson):** a `###` heading inserted above unheaded prose adopts that prose for the size audit. Place Next-up items after the unheaded paragraphs. Local gates passed because `check-register-entry-size.py` was not in the scoped set run before the 1368th push; CI caught it. The engineer should run it after any ROADMAP structure edit.
+
+**Hard-rule-11 survivors:** none new. `docs/NEXT_SESSION.md` (engineer-owned) not swept. Backup currency not verifiable from here.
+
+**Still in flight:** `Pass 654.2`.
+
+**For next session:** `pdfcer-gui` consumption of `LightingScheme`, `PreparedModel`, `set_store_dir`; scope `654.2`.
+
 ## 2026-11-01 (1369th filing) — `v0.114.0` release PREP, bump `da4ff0b5`; prepared, not published
 
 **Filed (docs only; engineer-reported, shell held by the engineer; no shell here, nothing checked from here):**
