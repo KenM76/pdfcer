@@ -39,8 +39,11 @@ mod export;
 #[cfg(feature = "render")]
 mod frame;
 mod gltf;
+#[cfg(feature = "render")]
 mod gpu;
+#[cfg(feature = "render")]
 mod gpu_frame;
+#[cfg(feature = "render")]
 mod gpu_shader;
 #[cfg(feature = "render")]
 mod lighting;
@@ -77,8 +80,11 @@ pub use container::{
 pub use error::PrcError;
 pub use export::{to_obj, to_stl};
 pub use gltf::{GltfColours, GltfError, GltfImport, GltfOptions, GltfUpAxis, read_gltf};
+#[cfg(feature = "render")]
 pub use gpu::{Draw, DrawData, VERTEX_FLOATS};
+#[cfg(feature = "render")]
 pub use gpu_frame::{FrameLights, MAX_LIGHTS, ShadeMode};
+#[cfg(feature = "render")]
 pub use gpu_shader::{GLSL_ES_300_FRAGMENT, GLSL_ES_300_VERTEX};
 #[cfg(feature = "render")]
 pub use lighting::{Light, LightFrame, LightSet, LightingScheme, Lights};
