@@ -31,6 +31,7 @@ out vec3 v_shade;
 flat out vec3 v_flat_shade;
 flat out float v_flat;
 out vec2 v_uv;
+out float v_w;
 
 vec3 shade(vec3 n, vec3 v) {
     if (u_mode == 0) return vec3(0.3 + 0.7 * abs(dot(n, v)));
@@ -52,6 +53,7 @@ void main() {
     v_flat = a_flat;
     v_uv = a_uv;
     gl_Position = u_projection * u_view * vec4(a_position, 1.0);
+    v_w = gl_Position.w;
 }
 ";
 
@@ -59,13 +61,22 @@ void main() {
 /// `u_textured`, `u_texture` (the [`crate::Texture`]'s `rgba` uploaded top
 /// row first, `GL_LINEAR` both ways, no mipmaps, wrap from its `wrap`),
 /// `u_function` and `u_blend_colour` (from
-/// [`TextureFunction::shader_code`]). Writes straight RGBA.
+/// [`TextureFunction::shader_code`]), `u_depth_range` ([`crate::Camera::depth_range`])
+/// and `u_orthographic`. Writes straight RGBA.
+///
+/// It writes `gl_FragDepth`: logarithmic in perspective (see
+/// [`crate::Camera::depth_range`] for the precision), the matrix's linear
+/// depth in orthographic. It assumes a depth buffer of at least 24 bits
+/// cleared to 1.0 with `LESS`; a 16-bit buffer resolves 256 times coarser.
 pub const GLSL_ES_300_FRAGMENT: &str = r"#version 300 es
 precision highp float;
 in vec3 v_shade;
 flat in vec3 v_flat_shade;
 flat in float v_flat;
 in vec2 v_uv;
+in float v_w;
+uniform vec2 u_depth_range;
+uniform bool u_orthographic;
 uniform vec4 u_colour;
 uniform bool u_textured;
 uniform sampler2D u_texture;
@@ -86,6 +97,9 @@ void main() {
     }
     vec3 s = v_flat > 0.5 ? v_flat_shade : v_shade;
     o_colour = vec4(clamp(base.rgb * s, 0.0, 1.0), base.a);
+    gl_FragDepth = u_orthographic
+        ? gl_FragCoord.z
+        : clamp(log2(v_w / u_depth_range.x) / log2(u_depth_range.y / u_depth_range.x), 0.0, 1.0);
 }
 ";
 
@@ -129,6 +143,8 @@ mod tests {
             "u_texture",
             "u_function",
             "u_blend_colour",
+            "u_depth_range",
+            "u_orthographic",
         ] {
             assert!(
                 GLSL_ES_300_FRAGMENT.contains(&format!(" {name};")),

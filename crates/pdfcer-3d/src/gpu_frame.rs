@@ -127,8 +127,8 @@ impl Camera {
 
     /// The eye-to-clip matrix for an image `aspect` (width / height) wide,
     /// column-major. It frames exactly as the CPU path frames; its depth
-    /// range encloses `bounds` (from [`Bounds::of`] over the model's
-    /// meshes), which the CPU path, having no far plane, does not need.
+    /// range is [`Camera::depth_range`], which the CPU path, having no far
+    /// plane, does not need.
     ///
     /// # Errors
     ///
@@ -139,18 +139,10 @@ impl Camera {
         aspect: f64,
         bounds: &Bounds,
     ) -> Result<[f32; 16], RenderError> {
-        let [_, _, forward] = self.basis()?;
-        let centre = dot(sub(bounds.centre(), self.eye), forward);
-        let reach = bounds.radius() * 1.01 + length(sub(self.target, self.eye)) * 1e-6;
+        let (view, near, far) = self.clip_range(aspect, bounds)?;
         let mut m = [0.0f32; 16];
-        match View::new(self, aspect)? {
-            View::Perspective {
-                focal,
-                aspect,
-                near,
-            } => {
-                let near = near.max(centre - reach);
-                let far = (centre + reach).max(near * 2.0);
+        match view {
+            View::Perspective { focal, aspect, .. } => {
                 set(&mut m, 0, 0, focal / aspect);
                 set(&mut m, 1, 1, focal);
                 set(&mut m, 2, 2, (far + near) / (near - far));
@@ -161,7 +153,6 @@ impl Camera {
                 half_height,
                 aspect,
             } => {
-                let (near, far) = (centre - reach, centre + reach);
                 set(&mut m, 0, 0, 1.0 / (half_height * aspect));
                 set(&mut m, 1, 1, 1.0 / half_height);
                 set(&mut m, 2, 2, -2.0 / (far - near));
@@ -170,6 +161,44 @@ impl Camera {
             }
         }
         Ok(m)
+    }
+
+    /// `[near, far]`, the eye-space distances [`Camera::projection_matrix`]
+    /// clips to, for the fragment shader's `u_depth_range`.
+    ///
+    /// In perspective the reference fragment shader writes logarithmic
+    /// depth, `log2(w / near) / log2(far / near)` with `w` the fragment's
+    /// view distance, instead of the matrix's hyperbolic depth. In a 24-bit
+    /// depth buffer that resolves about `w · ln(far / near) / 2²⁴`: some
+    /// 3 µm at 5 m in a 30 m room with a sub-millimetre near plane, where
+    /// hyperbolic depth resolves millimetres and lets a texture panel and
+    /// the wall behind it fight. Orthographic depth is already linear and is
+    /// left as the matrix gives it.
+    ///
+    /// # Errors
+    ///
+    /// As [`Camera::projection_matrix`].
+    pub fn depth_range(&self, aspect: f64, bounds: &Bounds) -> Result<[f32; 2], RenderError> {
+        let (_, near, far) = self.clip_range(aspect, bounds)?;
+        Ok([near as f32, far as f32])
+    }
+
+    /// The CPU path's view and the depth range enclosing `bounds`. The
+    /// perspective near plane keeps the CPU path's unless the whole model
+    /// lies further away.
+    fn clip_range(&self, aspect: f64, bounds: &Bounds) -> Result<(View, f64, f64), RenderError> {
+        let [_, _, forward] = self.basis()?;
+        let centre = dot(sub(bounds.centre(), self.eye), forward);
+        let reach = bounds.radius() * 1.01 + length(sub(self.target, self.eye)) * 1e-6;
+        let view = View::new(self, aspect)?;
+        let (near, far) = match view {
+            View::Perspective { near, .. } => {
+                let near = near.max(centre - reach);
+                (near, (centre + reach).max(near * 2.0))
+            }
+            View::Orthographic { .. } => (centre - reach, centre + reach),
+        };
+        Ok((view, near, far))
     }
 }
 
@@ -255,6 +284,59 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// G256: a walker's camera in a 25 m building (`near` ≈ 0.6 mm).
+    fn walker() -> (Camera, Bounds) {
+        let camera = Camera {
+            eye: [3.0, -10.0, 1.6],
+            target: [3.0, -3.6, 1.6],
+            up: [0.0, 0.0, 1.0],
+            projection: Projection::Perspective { fov_y: 60.0 },
+        };
+        let bounds = Bounds {
+            min: [-0.29, -23.12, -0.03],
+            max: [7.72, 0.39, 3.56],
+        };
+        (camera, bounds)
+    }
+
+    /// The depth a 24-bit buffer stores, as an integer step.
+    fn quantised(depth: f64) -> i64 {
+        (depth * f64::from(1u32 << 24)).round() as i64
+    }
+
+    #[test]
+    fn the_depth_range_is_where_the_matrix_clips() {
+        let (camera, bounds) = walker();
+        for camera in [camera, cameras()[0], cameras()[1]] {
+            let p = camera.projection_matrix(1.5, &bounds).unwrap();
+            let [near, far] = camera.depth_range(1.5, &bounds).unwrap().map(f64::from);
+            assert!(near > 0.0 || matches!(camera.projection, Projection::Orthographic { .. }));
+            for (w, ndc) in [(near, -1.0), (far, 1.0)] {
+                let clip = mul(&p, [0.0, 0.0, -w]);
+                assert!((clip[2] / clip[3] - ndc).abs() < 1e-3, "{camera:?} {w}");
+            }
+        }
+    }
+
+    #[test]
+    fn log_depth_separates_a_panel_a_millimetre_off_its_wall() {
+        let (camera, bounds) = walker();
+        let [near, far] = camera.depth_range(1.5, &bounds).unwrap().map(f64::from);
+        assert!(
+            near < 1e-3,
+            "the walker's near plane is sub-millimetre: {near}"
+        );
+        // The reference fragment shader's mapping, and the matrix's.
+        let log = |w: f64| (w / near).log2() / (far / near).log2();
+        let hyperbolic = |w: f64| (far / (far - near)) * (1.0 - near / w);
+        for w in [5.0, 10.0, 20.0] {
+            let (panel, wall) = (w, w + 1e-3);
+            assert!(quantised(log(panel)) < quantised(log(wall)), "log at {w} m");
+        }
+        // The defect the shader replaces: hyperbolic depth merges them at 10 m.
+        assert_eq!(quantised(hyperbolic(10.0)), quantised(hyperbolic(10.001)));
     }
 
     #[test]

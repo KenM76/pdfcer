@@ -3448,7 +3448,17 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     sizing the depth range), and `FrameLights::new(&camera, &options)` for
     the lighting uniforms (`mode.code()`, `ambient`, `count`, `directions`
     with w = 1 meaning "along the line of sight", `colours`, `eye`,
-    `forward`, `orthographic`; up to `MAX_LIGHTS` = 8).
+    `forward`, `orthographic`; up to `MAX_LIGHTS` = 8), and
+    `camera.depth_range(aspect, &bounds) -> [near, far]` for the fragment
+    shader's `u_depth_range` (with `u_orthographic`).
+  - Depth: the fragment shader writes logarithmic depth
+    `log2(w/near)/log2(far/near)` in perspective (orthographic keeps
+    `gl_FragCoord.z`), so a 24-bit buffer resolves about
+    `w·ln(far/near)/2^24` (micrometres at 5 m) where the matrix's hyperbolic
+    depth would give `w²/(near·2^24)` (9 mm at 10 m for a walker's 0.6 mm
+    near plane). Assumes a depth buffer of at least 24 bits, cleared to 1.0;
+    a 16-bit buffer is 256 times coarser. Writing `gl_FragDepth` disables
+    early-Z.
   - `GLSL_ES_300_VERTEX` / `GLSL_ES_300_FRAGMENT`: the reference shader,
     which reproduces the CPU lighting and texture functions;
     `TextureFunction::shader_code()` gives `u_function` and
