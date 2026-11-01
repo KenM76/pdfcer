@@ -40,6 +40,7 @@ mod export;
 mod frame;
 mod gltf;
 mod gpu;
+mod gpu_frame;
 #[cfg(feature = "render")]
 mod lighting;
 mod model;
@@ -76,6 +77,7 @@ pub use error::PrcError;
 pub use export::{to_obj, to_stl};
 pub use gltf::{GltfColours, GltfError, GltfImport, GltfOptions, GltfUpAxis, read_gltf};
 pub use gpu::{Draw, DrawData, VERTEX_FLOATS};
+pub use gpu_frame::{FrameLights, MAX_LIGHTS, ShadeMode};
 #[cfg(feature = "render")]
 pub use lighting::{Light, LightFrame, LightSet, LightingScheme, Lights};
 pub use model::{
