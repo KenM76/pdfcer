@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-01 (1372nd filing) — `Pass 654.2` SHIPPED `98c2560e`..`37c27e60` (`G253` GPU half)
+
+**Filed (docs only; engineer-reported, shell held by the engineer; nothing checked from here):**
+- **`Pass 654.2`:** `pdfcer-3d` GPU draw data (`PreparedModel::draw_data`, 9-float unshared vertices, ordered `Draw`s), `Camera::view_matrix` / `projection_matrix`, `FrameLights` / `ShadeMode` / `MAX_LIGHTS`, and the reference `GLSL_ES_300_VERTEX` / `_FRAGMENT` shader. Commits `98c2560e`, `5b33a93c`, `37c27e60`, `8eee4f53` (core-api index count). Not pushed, unreleased since `v0.114.0`.
+- **Tests (engineer-reported):** 7 new unit tests (3 draw-data, 2 frame, 2 shader); projection checked to 1e-5 NDC vs the CPU projector; lights checked vs the CPU `Shader` for 12 schemes x 2 light frames x 2 projections. Clippy, fmt, code-structure, core-api-verbs clean. No manifest change.
+- ROADMAP: Shipped entry added, Next-up item removed (pointer left), Next-up note. FEATURES: Planned row moved to Implemented as core `[x]` / cli `[ ]` / gui `[ ]`.
+
+**Decisions made this session:** none minted.
+
+**Findings + decisions:** the shader was never compiled by pdfcer (no GL context) and the design doc's per-pixel software shader-vs-CPU test was not done; the entry states both limits.
+
+**Hard-rule-11 survivors:** the ROADMAP Next-up banner/notes saying the head is `Pass 654.2` are dated history and were left; the 1371st note's "head is still `Pass 654.2`" is superseded by the 1372nd note. `docs/NEXT_SESSION.md` (engineer-owned) not swept. Backup currency not verifiable from here.
+
+**Still in flight:** none in the engine; the GUI half of `G253` is owed to `pdfcer-gui`.
+
+**For next session:** reply to `G253` in FeatureRequests (engineer); push when ready; pick the next Next-up/Backlog item (no head).
+
 ## 2026-11-01 (1371st filing) — `Pass 656.0` SHIPPED `62c4946a` (`G255`); CI audit fix `9a929245`
 
 **Filed (docs only; engineer-reported, shell held by the engineer; nothing checked from here):**

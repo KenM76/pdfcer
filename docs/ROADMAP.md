@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `37c27e60` `Pass 654.2` SHIPPED, 2026-11-01: GPU draw data, camera matrices, frame lights and a reference GLSL ES 3.00 shader (`G253` GPU half; 1372nd filing)
+
+Engineer-reported (shell held by the engineer); nothing checked from here. Commits `98c2560e`, `5b33a93c`, `37c27e60`, `8eee4f53` on `main`, **not yet pushed, unreleased** (last release `v0.114.0`). All in `pdfcer-3d`. Reasoning is in the commit messages and `docs/research/gpu-3d-draw-data-design.md`.
+- **`98c2560e` draw data:** `PreparedModel::draw_data(&model, &options) -> DrawData { vertices: Vec<f32>, draws: Vec<Draw> }`. `VERTEX_FLOATS` = 9 (position 3, normal 3, sample-space uv 2, flat flag 1), unshared vertices. `Draw { mesh, first, count, colour, texture, translucent }`, ordered opaque then translucent as the CPU frame orders them. Flat triangles emit corner 0 last so GL's last-vertex flat varying takes the CPU's corner-0 shade. Paint selection moved to `PreparedModel::paints` (`pub(crate)`), shared by both paths.
+- **`5b33a93c` matrices and lights:** `Camera::view_matrix()`, `Camera::projection_matrix(aspect, &bounds)` (column-major `[f32; 16]`, agree with the CPU projector to 1e-5 NDC in perspective and orthographic; sabotage-verified), `FrameLights::new(&camera, &options)`, `ShadeMode` (`code()`), `MAX_LIGHTS` = 8. `FrameLights` tested against the CPU `Shader` for all 12 lighting schemes x both light frames x both projections. The perspective near plane rises to the model's front for 24-bit depth precision without clipping anything the CPU draws.
+- **`37c27e60` shader:** `GLSL_ES_300_VERTEX` / `GLSL_ES_300_FRAGMENT` and `TextureFunction::shader_code()`; `docs/core-api/01-reading-and-model.md` gained the "GPU drawing (glow / GLES 3.0)" bullet. `8eee4f53`: `docs/core-api/index.md` line count 4,479.
+- **Honest limits:** the shader text was NOT compiled by pdfcer (no GL context here); the GUI compiles it. The design doc's proposed per-pixel software evaluation of the shader against `PreparedModel::render` was NOT done; projection and lighting are tested separately instead, so a shader-side error that survives both would not be caught here.
+- **Tests (engineer-reported):** 7 new unit tests in `pdfcer-3d` (3 draw-data, 2 frame, 2 shader), all pass. Clippy `-D warnings` and fmt clean for `pdfcer-3d`; `check-code-structure` clean (no new debt); `check-core-api-verbs` PASS. No manifest change, so no `cargo tree` run; no new dependency; no GPU or windowing crate enters the engine (invariant 1 untouched by construction).
+- **Boxes:** core `[x]`; cli `[ ]` (GPU data, no CLI verb); gui `[ ]` (owed to `pdfcer-gui`, which compiles the shader and draws).
+- **FEATURES:** the Planned row "GPU-ready 3D buffers and matrices" moved to *Implemented*. Nothing minted: no decision, no rule.
+
 ### `62c4946a` `Pass 656.0` SHIPPED, 2026-11-01: `PreparedModel` is owned and no longer borrows the model (`G255`; 1371st filing)
 
 Engineer-reported (shell held by the engineer); nothing checked from here. Commit `62c4946a`, "feat(3d): PreparedModel no longer borrows the model (G255)". On `main`, **unreleased** (last release `v0.114.0`, tag `c0cc5465`). Reasoning is in the commit message.
@@ -25201,6 +25212,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **Head amended 1357th filing: `Pass 647.4b` (`X027`) SHIPPED `96af5ff3`, see *Shipped*; the head is `Pass 648.6` again, after the release `v0.112.0` (slot `pdfcer1`), which is a separate filing.** *(Amended 1359th filing: `v0.112.0` PUBLISHED, see *Shipped*; the head is `Pass 648.6`, next release writes `pdfcer2`.)* `647.3f` and `647.4` (image natural sizing) stay in the Backlog. *(The 1356th-filing note that put `647.4b` ahead of `648.6` is history.)* **Amended 1360th filing: `Pass 648.6` SHIPPED `01c5f515` (unreleased), see *Shipped*; `G245` is now complete. Next up has no head: `647.3f`, `647.4` and `Pass 648.7` (residue) are Backlog, unordered.** **Amended 1361st-1365th filings: `Pass 653.0`-`653.4` (`G244`, `G243`, `G249`, `G250`, `G251`) SHIPPED, unreleased, see *Shipped*. Still no head; the next step is a release (version after `0.112.0`, slot `pdfcer2`), asked for by `pdfcer-gui` once `G249`-`G251` shipped.** **Amended 1367th filing: `v0.113.0` PUBLISHED. Amended 1368th filing: `Pass 654.0`, `654.1` (`78f16dc2`, `G252`, `G253` CPU half) and `Pass 655.0` (`2a10522f`, `G254`) SHIPPED, unreleased, see *Shipped*. The head is now `Pass 654.2` (below), behind the GUI-request rule. Next release writes OneDrive `pdfcer1` (`pdfcer2` holds 0.113.0).**
 
+> (1372nd filing: `Pass 654.2` (`G253` GPU half) SHIPPED, unreleased since `v0.114.0`, see *Shipped*; it was the head, so Next up has no head again. The `G253` round is complete in the engine; the GUI half is owed to `pdfcer-gui`. Next free `Pass 656.1` / `657.0` by grep of `docs/` (not run through `tools/check-ledger-numbers.py`). Next release writes OneDrive `pdfcer2`.)
+
 > (1371st filing: `Pass 656.0` (`G255`, owned `PreparedModel`) SHIPPED `62c4946a` and the `check-tests-harnessed.py` fix `9a929245`, both unreleased since `v0.114.0`, see *Shipped*. The 1370th note's CI-red account is extended: the tag carried a second red audit, masked by the first. The head is still `Pass 654.2`. Next free `Pass 656.1` / `657.0` (not re-derived here; run `tools/check-ledger-numbers.py`). Next release writes OneDrive `pdfcer2`.)
 
 > (1370th filing: `v0.114.0` PUBLISHED, see *Shipped*; the head is `Pass 654.2` (now placed lower in this section, after these notes, so the register-size audit does not measure these notes as part of it). Next release writes OneDrive `pdfcer2` (`pdfcer1` holds 0.114.0, `pdfcer2` holds 0.113.0).)
@@ -27122,14 +27135,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > `X018` SHIPPED and has left this section (1326th filing, `65dd718c`), released in `v0.107.0` (1328th filing); full entries in *Shipped*. Only the optional tessellation fallback remains, as a FEATURES *Planned* row (no Pass ID).
 
-### `Pass 654.2` — GPU-ready 3D buffers and matrices (`G253` GPU half; NOT STARTED; head of queue; filed 1368th, moved here 1370th)
-
-Request from `pdfcer-gui` (`G253`, in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\`); the CPU half shipped as `Pass 654.1`. Queued behind the GUI-request rule.
-- **Ask:** `pdfcer-3d` supplies GPU-ready vertex and index buffers and view and projection matrices, so the GUI can draw the model with wgpu itself.
-- **Constraint (invariant 1):** `pdfcer-3d`, `pdfcer-core` and `pdfcer-render` stay free of any GPU or windowing crate. The engine supplies plain buffers and plain matrices only; the GUI owns every wgpu type.
-- **Acceptance (to settle at scoping):** buffer layout documented (vertex fields, index width, winding, colour and opacity source); matrices agree with `Camera` and the CPU renderer's projection, including the light frame of `Pass 654.0`; a test compares a CPU-side transform of the buffers against the renderer's projected positions; `cargo tree -p pdfcer-3d` shows no GPU crate.
-- **Needs before scoping:** the GUI's vertex format wish (`G253` text), and the egui/wgpu RAG (`D:\dev\rag\egui\`) for the paint-callback shape.
-- **Boxes:** `[ ]` / `[ ]` / `[ ]`; a CLI form is not evident (undecided). **FEATURES:** Planned row "GPU-ready 3D buffers and matrices".
+> `Pass 654.2` (`G253` GPU half) SHIPPED and has left this section (1372nd filing, `98c2560e`..`37c27e60`); full entry at the top of *Shipped*.
 
 ### Pass 647.2 — Flowed layout `tb` / `lr-tb` (FIRST CUT `7cfa9c40`, SECOND CUT `9d0ddb90` (1278th filing), THIRD CUT `5fceb520` (1279th filing), FOURTH CUT `fa1869c8` (1280th filing), FIFTH CUT `1abf9d5e` (1281st filing), SIXTH CUT `f6e76272` (1283rd filing), SEVENTH CUT `e3547709` (1284th filing), EIGHTH CUT `cac24637` (1285th filing), NINTH CUT `f1b8baa6` (1286th filing), TENTH CUT `f64f12fe` (1287th filing), ELEVENTH CUT `5a9d3f30` (1288th filing); NOT COMPLETE, stays here)
 
