@@ -547,7 +547,7 @@ impl Scene<'_> {
 
 /// Triangle `t`'s texture coordinates in set `set`, or `None` when it has
 /// none.
-fn triangle_uvs(mesh: &TriangleMesh, set: usize, t: usize) -> Option<[[f64; 2]; 3]> {
+pub(crate) fn triangle_uvs(mesh: &TriangleMesh, set: usize, t: usize) -> Option<[[f64; 2]; 3]> {
     let slots = (*mesh.triangle_uvs.get(set)?.get(t)?)?;
     let mut out = [[0.0; 2]; 3];
     for (o, i) in out.iter_mut().zip(slots) {
@@ -559,7 +559,7 @@ fn triangle_uvs(mesh: &TriangleMesh, set: usize, t: usize) -> Option<[[f64; 2]; 
 /// Triangle `t`'s stored corner normals, unit length; a corner whose normal
 /// is zero or not finite is `None`, and so is the whole when the mesh
 /// stores none.
-fn stored_normals(mesh: &TriangleMesh, t: usize) -> Option<[Option<[f64; 3]>; 3]> {
+pub(crate) fn stored_normals(mesh: &TriangleMesh, t: usize) -> Option<[Option<[f64; 3]>; 3]> {
     let slots = mesh.triangle_normals.get(t)?;
     Some(slots.map(|i| mesh.normals.get(i as usize).copied().and_then(normalize)))
 }
@@ -578,7 +578,7 @@ pub(crate) fn corners(mesh: &TriangleMesh, tri: &[u32; 3]) -> Option<[[f64; 3]; 
     Some(out)
 }
 
-fn at3(v: &[[f64; 3]; 3], i: usize) -> [f64; 3] {
+pub(crate) fn at3(v: &[[f64; 3]; 3], i: usize) -> [f64; 3] {
     v.get(i).copied().unwrap_or([0.0; 3])
 }
 

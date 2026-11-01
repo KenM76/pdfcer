@@ -60,6 +60,17 @@ impl PreparedModel {
         camera: &Camera,
         options: &RenderOptions,
     ) -> Result<Image, RenderError> {
+        let (paints, opaque) = self.paints(model, options);
+        render_painted(&model.meshes, &paints, &opaque, camera, options)
+    }
+
+    /// Each mesh's paint, and whether it is opaque (opaque colour and, when
+    /// textured, an opaque texture).
+    pub(crate) fn paints<'m>(
+        &self,
+        model: &'m AssembledModel,
+        options: &RenderOptions,
+    ) -> (Vec<Paint<'m>>, Vec<bool>) {
         let rescanned;
         let opaque_textures = if self.opaque_textures.len() == model.textures.len() {
             &self.opaque_textures
@@ -68,7 +79,7 @@ impl PreparedModel {
             &rescanned
         };
         let [r, g, b] = options.colour;
-        let (paints, opaque): (Vec<Paint>, Vec<bool>) = (0..model.meshes.len())
+        (0..model.meshes.len())
             .map(|i| {
                 let colour = model
                     .colours
@@ -85,8 +96,7 @@ impl PreparedModel {
                     colour[3] == 255 && texture_opaque,
                 )
             })
-            .unzip();
-        render_painted(&model.meshes, &paints, &opaque, camera, options)
+            .unzip()
     }
 }
 
