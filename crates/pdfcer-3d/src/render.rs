@@ -578,6 +578,7 @@ pub(crate) fn corners(mesh: &TriangleMesh, tri: &[u32; 3]) -> Option<[[f64; 3]; 
     Some(out)
 }
 
+/// Corner `i` of a triangle, the origin when out of range (the crate denies indexing).
 pub(crate) fn at3(v: &[[f64; 3]; 3], i: usize) -> [f64; 3] {
     v.get(i).copied().unwrap_or([0.0; 3])
 }
