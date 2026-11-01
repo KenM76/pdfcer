@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-01 (1371st filing) — `Pass 656.0` SHIPPED `62c4946a` (`G255`); CI audit fix `9a929245`
+
+**Filed (docs only; engineer-reported, shell held by the engineer; nothing checked from here):**
+- **`Pass 656.0` (`62c4946a`, `G255`):** `pdfcer_3d::PreparedModel` owned (per-texture opacity only; `Clone`, `Default`, `PartialEq`, `Eq`); `model()` removed; `render(&self, model: &AssembledModel, camera, options)`. Breaking for `pdfcer-gui`, whose viewer could not keep the borrowing form. 2 new unit tests; `pdfcer-3d` all-features 228 lib + 3 + 20 passed; clippy, wasm32 check and the structure/doc/core-api gates clean. Boxes core `[x]`, cli `[ ]`, gui `[ ]`. Unreleased since `v0.114.0`.
+- **`9a929245`:** `check-tests-harnessed.py` exempts a `tests/*.rs` named as its own `[[test]]` path in `Cargo.toml`. Cause: `Pass 655.0`'s `settings_host_dir.rs` is deliberately its own binary; the gate was red from `2a10522f`, hidden at the tag by the register-size failure ahead of it, surfaced on `406f2a61`'s CI. All 34 CI python/shell audits green locally after.
+- ROADMAP: two Shipped entries, Next-up note. FEATURES: the "Interactive 3D frame rate (CPU)" row names the owned form.
+
+**Decisions made this session:** none minted. `Pass 656.0` minted (no `656.x` existed in `docs/` by grep).
+
+**Findings + decisions (lesson):** a CI job that stops at its first failing step can hide a second failure; read the whole audit list locally, not just the first red. The `v0.114.0` tag carried two red audits.
+
+**Hard-rule-11 survivors:** none new; `docs/NEXT_SESSION.md` (engineer-owned) not swept. Backup currency not verifiable from here.
+
+**Still in flight:** `Pass 654.2` (`G253` GPU half).
+
+**For next session:** `pdfcer-gui` adopts the owned `PreparedModel`; scope `654.2`.
+
 ## 2026-11-01 (1370th filing) — `v0.114.0` PUBLISHED; ROADMAP structure fix (CI red at the tag)
 
 **Filed (docs only; engineer-reported, shell held by the engineer; nothing checked from here):**

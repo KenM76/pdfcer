@@ -112,6 +112,25 @@ wherever it appears.*
 
 ## Shipped
 
+### `62c4946a` `Pass 656.0` SHIPPED, 2026-11-01: `PreparedModel` is owned and no longer borrows the model (`G255`; 1371st filing)
+
+Engineer-reported (shell held by the engineer); nothing checked from here. Commit `62c4946a`, "feat(3d): PreparedModel no longer borrows the model (G255)". On `main`, **unreleased** (last release `v0.114.0`, tag `c0cc5465`). Reasoning is in the commit message.
+- **Why:** `pdfcer-gui` could not keep `PreparedModel<'m>` because its viewer owns the `AssembledModel` in the same struct (self-referential under `forbid(unsafe_code)`) and repaints `colours` / `mesh_textures` every frame.
+- **Change:** `pdfcer_3d::PreparedModel` is now owned: it holds per-texture opacity only, and derives `Clone`, `Default`, `PartialEq`, `Eq`. `model()` is removed; `render(&self, model: &AssembledModel, camera, options)`. A repaint needs no new preparation; a model with a different texture count is rescanned for that frame. **Breaking** for the GUI (no back-compat, pre-release).
+- **Tests (engineer-reported):** 2 new unit tests in `crates/pdfcer-3d/src/prepared.rs`, `a_kept_preparation_draws_a_repainted_model_as_a_fresh_one_does` and `a_model_with_other_textures_is_scanned_again` (sabotaging the rescan fails the second). `pdfcer-3d` all-features: 228 lib + 3 + 20 passed, 0 failed.
+- **Checks (engineer-reported):** clippy `-D warnings` clean; wasm32 check of `pdfcer-3d` clean; code-structure, public-fns-documented, core-api-verbs (index count 4,451) clean. No manifest change, so no `cargo tree` run.
+- **Boxes:** core `[x]`; cli `[ ]` (no CLI caller: `3d-render` draws one frame, so the kept form is not evident there); gui `[ ]` (owed to `pdfcer-gui`).
+- **GUI:** `reply_G255_prepared_model_owned_SHIPPED.md` in FeatureRequests `open/`; `INDEX.md` row updated.
+- **FEATURES:** the "Interactive 3D frame rate (CPU)" row now names the owned form. Nothing minted: no decision, no rule.
+
+### `9a929245` CI audit fix, 2026-11-01: `tools/check-tests-harnessed.py` exempts a `[[test]]` target (1371st filing)
+
+Engineer-reported; nothing checked from here. Commit `9a929245`, "fix(tools): tests-harnessed exempts a file with its own [[test]] target". Tooling only; no product code.
+- **Cause:** `Pass 655.0` (`2a10522f`) gave `crates/pdfcer-core/tests/settings_host_dir.rs` its own test binary on purpose (a set-once process global needs a fresh process). The gate demanded every `tests/*.rs` be a module of `tests/all.rs`, so CI's repository audits were red from `2a10522f` on.
+- **Why it surfaced late:** at the `v0.114.0` tag the register-entry-size failure (see the 1370th entry) stopped the audit job first and hid this one; it surfaced on `406f2a61`'s CI run. The tag therefore carried TWO red audits, the second masked by the first.
+- **Fix:** the gate now exempts a `tests/*.rs` that the crate's `Cargo.toml` names as its own `[[test]]` path. **Probe:** a stray `tests/zz_probe_tmp.rs` still fails the gate. All 34 CI python/shell audits green locally afterwards (engineer-reported).
+- **Lesson:** a CI job that stops at its first failing step can hide a second failure; read the whole audit list locally, not just the first red.
+
 ### `v0.114.0` PUBLISHED, 2026-11-01 (1370th filing); tag at `c0cc5465`, CI red on a ROADMAP structure audit, fix-forward in the 1370th filing commit
 
 Engineer-reported (shell held by the engineer); nothing checked from here. Supersedes the "prepared, not published" status of the prep entry below, which stays as filed.
@@ -25181,6 +25200,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **Next up head (rewritten 1355th filing; `Pass 647.3e` `53f4e938` and `Pass 647.2c` `ead2642a` SHIPPED and released in `v0.111.0`, published): `Pass 648.6` (`G245` part 2, /MA measurements, spec-RAG check first).** `Pass 647.3f` (dataRef-bound and subform-set instances, residue of `647.3e`) and `Pass 647.4` stay in the Backlog, not yet ordered. Release slot: next release writes `pdfcer1` (`pdfcer2` holds 0.111.0, `pdfcer1` holds 0.110.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
 
 > **Head amended 1357th filing: `Pass 647.4b` (`X027`) SHIPPED `96af5ff3`, see *Shipped*; the head is `Pass 648.6` again, after the release `v0.112.0` (slot `pdfcer1`), which is a separate filing.** *(Amended 1359th filing: `v0.112.0` PUBLISHED, see *Shipped*; the head is `Pass 648.6`, next release writes `pdfcer2`.)* `647.3f` and `647.4` (image natural sizing) stay in the Backlog. *(The 1356th-filing note that put `647.4b` ahead of `648.6` is history.)* **Amended 1360th filing: `Pass 648.6` SHIPPED `01c5f515` (unreleased), see *Shipped*; `G245` is now complete. Next up has no head: `647.3f`, `647.4` and `Pass 648.7` (residue) are Backlog, unordered.** **Amended 1361st-1365th filings: `Pass 653.0`-`653.4` (`G244`, `G243`, `G249`, `G250`, `G251`) SHIPPED, unreleased, see *Shipped*. Still no head; the next step is a release (version after `0.112.0`, slot `pdfcer2`), asked for by `pdfcer-gui` once `G249`-`G251` shipped.** **Amended 1367th filing: `v0.113.0` PUBLISHED. Amended 1368th filing: `Pass 654.0`, `654.1` (`78f16dc2`, `G252`, `G253` CPU half) and `Pass 655.0` (`2a10522f`, `G254`) SHIPPED, unreleased, see *Shipped*. The head is now `Pass 654.2` (below), behind the GUI-request rule. Next release writes OneDrive `pdfcer1` (`pdfcer2` holds 0.113.0).**
+
+> (1371st filing: `Pass 656.0` (`G255`, owned `PreparedModel`) SHIPPED `62c4946a` and the `check-tests-harnessed.py` fix `9a929245`, both unreleased since `v0.114.0`, see *Shipped*. The 1370th note's CI-red account is extended: the tag carried a second red audit, masked by the first. The head is still `Pass 654.2`. Next free `Pass 656.1` / `657.0` (not re-derived here; run `tools/check-ledger-numbers.py`). Next release writes OneDrive `pdfcer2`.)
 
 > (1370th filing: `v0.114.0` PUBLISHED, see *Shipped*; the head is `Pass 654.2` (now placed lower in this section, after these notes, so the register-size audit does not measure these notes as part of it). Next release writes OneDrive `pdfcer2` (`pdfcer1` holds 0.114.0, `pdfcer2` holds 0.113.0).)
 
