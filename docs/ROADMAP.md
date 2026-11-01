@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.115.0` PUBLISHED, 2026-11-01 (1374th filing); tag at `89f3ee58`, CI red at the tag on a feature-gating miss, fix-forward `986a7d2f`
+
+Engineer-reported (shell held by the engineer); nothing checked from here. Supersedes the "prepared, not published" status of the prep entry below, which stays as filed.
+- **Tag:** annotated `v0.115.0` on `89f3ee58` (the 1373rd prep filing; bump `a38114a3`); not moved. **GitHub release:** 8 assets at local sizes (`pdfcer-v0.115.0-windows-x64.zip` 28,294,781 bytes, three OCR add-on zips, a `.sha256` each).
+- **Package:** `D:\builds\pdfcer-20261101-0549-89f3ee5`. **Fresh-folder smoke (passed):** `pdfcer --version` 0.115.0 / revision `v0.115.0`; `3d-render --index 0` (default) and `--lighting night --threads 1` each wrote a PNG; `merge` of two files wrote a 2-page PDF.
+- **OneDrive:** `pdfcer2` written (6 items, 76,415,963 bytes); `pdfcer1` keeps 0.114.0 as the previous version. The next release writes `pdfcer1`.
+- **crates.io** (`pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.115.0): **pending** at filing time.
+- **GUI:** the round `G252`-`G255` is now fully released across `v0.114.0` and `v0.115.0`. Notification to `pdfcer-gui`: pending at filing time.
+- **`verify-release.py v0.115.0`:** OneDrive checks ok; two problems. (1) Working tree not clean: agent-memory files and untracked scratch files the operator keeps out of commits; expected. (2) **CI RED at the tagged commit** (run `41299175685`), both `cargo test` jobs (ubuntu, windows), step `cargo test -p pdfcer-3d --no-default-features`.
+- **Cause:** the `Pass 654.2` modules `gpu`, `gpu_frame` and `gpu_shader` were not gated on the `render` feature yet use rasterizer types, so the render-less build failed to compile. The shipped binary builds with default features and is unaffected. Tag not moved (published tags are never moved).
+- **Fix `986a7d2f`** "fix(3d): gate the GPU draw-data modules on the render feature (Pass 654.2)", on `main`, **unreleased**, in the next release. Verified locally by the engineer: `cargo test -p pdfcer-3d --no-default-features` 207 passed (193 + 3 + 11); clippy `-D warnings` clean for that config; fmt clean; `cargo check -p pdfcer-3d --target wasm32-unknown-unknown` clean.
+- **Lesson:** a new module added beside feature-gated siblings must carry the same `#[cfg(feature = ...)]`. The change-scoped release gate ran default features only and missed it; CI's no-default-features step is the only place that config is built.
+- **FEATURES:** no change. Nothing minted: no decision, no rule.
+
 ### `v0.115.0` — release PREP, version bump `a38114a3` (`chore`), 2026-11-01 (1373rd filing); prepared, not published
 
 Engineer-reported (shell held by the engineer); nothing checked from here. Same pattern as the `v0.114.0` prep (1369th filing).
@@ -25221,6 +25235,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **Next up head (rewritten 1355th filing; `Pass 647.3e` `53f4e938` and `Pass 647.2c` `ead2642a` SHIPPED and released in `v0.111.0`, published): `Pass 648.6` (`G245` part 2, /MA measurements, spec-RAG check first).** `Pass 647.3f` (dataRef-bound and subform-set instances, residue of `647.3e`) and `Pass 647.4` stay in the Backlog, not yet ordered. Release slot: next release writes `pdfcer1` (`pdfcer2` holds 0.111.0, `pdfcer1` holds 0.110.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
 
 > **Head amended 1357th filing: `Pass 647.4b` (`X027`) SHIPPED `96af5ff3`, see *Shipped*; the head is `Pass 648.6` again, after the release `v0.112.0` (slot `pdfcer1`), which is a separate filing.** *(Amended 1359th filing: `v0.112.0` PUBLISHED, see *Shipped*; the head is `Pass 648.6`, next release writes `pdfcer2`.)* `647.3f` and `647.4` (image natural sizing) stay in the Backlog. *(The 1356th-filing note that put `647.4b` ahead of `648.6` is history.)* **Amended 1360th filing: `Pass 648.6` SHIPPED `01c5f515` (unreleased), see *Shipped*; `G245` is now complete. Next up has no head: `647.3f`, `647.4` and `Pass 648.7` (residue) are Backlog, unordered.** **Amended 1361st-1365th filings: `Pass 653.0`-`653.4` (`G244`, `G243`, `G249`, `G250`, `G251`) SHIPPED, unreleased, see *Shipped*. Still no head; the next step is a release (version after `0.112.0`, slot `pdfcer2`), asked for by `pdfcer-gui` once `G249`-`G251` shipped.** **Amended 1367th filing: `v0.113.0` PUBLISHED. Amended 1368th filing: `Pass 654.0`, `654.1` (`78f16dc2`, `G252`, `G253` CPU half) and `Pass 655.0` (`2a10522f`, `G254`) SHIPPED, unreleased, see *Shipped*. The head is now `Pass 654.2` (below), behind the GUI-request rule. Next release writes OneDrive `pdfcer1` (`pdfcer2` holds 0.113.0).**
+
+> (1374th filing: `v0.115.0` PUBLISHED (tag `89f3ee58`), see *Shipped*; CI was red at the tag on the `--no-default-features` step, fixed forward by `986a7d2f` (unreleased). Still no head. Next release writes OneDrive `pdfcer1` (`pdfcer2` holds 0.115.0, `pdfcer1` holds 0.114.0). crates.io publish and GUI notification pending at filing time.)
 
 > (1373rd filing: `v0.115.0` release PREP (bump `a38114a3`), see *Shipped*; carries `656.0`, `654.2` and `9a929245`. Still no head. Release in progress; this release writes OneDrive `pdfcer2`, so the one after writes `pdfcer1` (`pdfcer1` holds 0.114.0).)
 

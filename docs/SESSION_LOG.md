@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-01 (1374th filing) — `v0.115.0` PUBLISHED; CI red at the tag, fix-forward `986a7d2f`
+
+**Filed (docs only; engineer-reported, shell held by the engineer; nothing checked from here):**
+- **Release `v0.115.0`:** annotated tag on `89f3ee58` (the 1373rd prep filing; bump `a38114a3`), not moved. GitHub release with 8 assets (`pdfcer-v0.115.0-windows-x64.zip` 28,294,781 bytes, 3 OCR add-on zips, a `.sha256` each). Package `D:\builds\pdfcer-20261101-0549-89f3ee5`. Fresh-folder smoke passed: `--version` 0.115.0 / `v0.115.0`; `3d-render --index 0` default and `--lighting night --threads 1` wrote PNGs; `merge` of two files wrote a 2-page PDF.
+- **OneDrive:** `pdfcer2` written (6 items, 76,415,963 bytes); `pdfcer1` keeps 0.114.0. The next release writes `pdfcer1`. **crates.io** (`pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.115.0): pending. **GUI** notification: pending (round `G252`-`G255` now fully released).
+- **`verify-release.py`:** OneDrive ok; working tree not clean (agent-memory and untracked scratch files, expected); **CI RED at the tag** (run `41299175685`, both `cargo test` jobs, step `cargo test -p pdfcer-3d --no-default-features`).
+- **Cause:** the `Pass 654.2` modules `gpu`, `gpu_frame`, `gpu_shader` were not gated on `render` but use rasterizer types; the render-less build failed to compile. Shipped binary (default features) unaffected. Tag not moved.
+- **Fix `986a7d2f`** (unreleased): modules gated on `render`. Engineer-verified: `cargo test -p pdfcer-3d --no-default-features` 207 passed (193 + 3 + 11); clippy `-D warnings` and fmt clean for that config; wasm32 check clean.
+- ROADMAP: publication entry at the top of Shipped; Next-up note. FEATURES: no change (the 1370th pattern touched none).
+
+**Decisions made this session:** none minted.
+
+**Findings + decisions (lesson):** a new module added beside feature-gated siblings must carry the same `#[cfg(feature = ...)]`. The change-scoped release gate ran default features only and missed it; CI's no-default-features step is the only place that config is built.
+
+**Hard-rule-11 survivors:** none new. `docs/NEXT_SESSION.md` (engineer-owned) not swept. Backup currency not verifiable from here.
+
+**Still in flight:** crates.io publish of 0.115.0; GUI notification; `986a7d2f` push/CI confirmation.
+
+**For next session:** confirm CI green on `986a7d2f`; no head in Next up.
+
 ## 2026-11-01 (1373rd filing) — `v0.115.0` release PREP, bump `a38114a3`; prepared, not published
 
 **Filed (docs only; engineer-reported, shell held by the engineer; nothing checked from here):**
