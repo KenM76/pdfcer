@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-01 (1369th filing) — `v0.114.0` release PREP, bump `da4ff0b5`; prepared, not published
+
+**Filed (docs only; engineer-reported, shell held by the engineer; no shell here, nothing checked from here):**
+- **`da4ff0b5`** "chore: bump version to 0.114.0": `Cargo.toml` (workspace version, `pdfcer-model` dependency version), `Cargo.lock`, `fuzz/Cargo.lock`.
+- **`15f005ce`** "docs: file Passes 654.0, 654.1, 654.2 and 655.0 (G252, G253, G254) (1368th)": the 1368th filing, committed.
+- **Contents of `v0.114.0`** (since `v0.113.0`): `Pass 654.0` and `654.1` (`78f16dc2`, `G252`, `G253` CPU half), `Pass 655.0` (`2a10522f`, `G254`), CI fix `5587fca6` (after the `v0.113.0` tag), their filings and the bump. `Pass 654.2` (`G253` GPU half) is NOT in it and stays owed.
+- Target OneDrive slot `pdfcer1` (the 1367th filing records `pdfcer1` = 0.112.0, `pdfcer2` = 0.113.0; consistent).
+- **Status: prepared, not tagged, packaged or published.** ROADMAP: prep entry at the top of Shipped.
+- **FEATURES fix (hard-rule-11 survivor 1 of the 1368th, discharged):** the "Portable settings file" row said core was "not applicable by design — core stays filesystem-free". False: `pdfcer_core::settings` holds the store resolver and `set_store_dir`. Core box changed `—` to `[x]`, with the wording scoped to the store-directory resolver only (checked by `Grep` of `crates/`: the `pdfcer-settings.txt` keys and parsing live in `crates/pdfcer-cli/src/settings.rs`, none in core). Row length is under 1,200 characters.
+
+**Decisions made this session:** none minted.
+
+**Hard-rule-11 survivors:** the 1368th's survivors (2) and (3) stand: `docs/core-api` and `docs/NEXT_SESSION.md` (engineer-owned) not swept. Backup currency not verifiable from here.
+
+**Still in flight:** the release itself; `Pass 654.2`.
+
+**For next session:** gates, tag, package, smoke, publish, verify `v0.114.0` (slot `pdfcer1`), then a publication filing; the release notice to `pdfcer-gui` names the `654.2` residue.
+
 ## 2026-11-01 (1368th filing) — `Pass 654.0`, `654.1` SHIPPED `78f16dc2` (`G252`, `G253` CPU half); `Pass 655.0` SHIPPED `2a10522f` (`G254`); `Pass 654.2` filed
 
 **Filed (docs only; engineer-reported, no shell here, nothing checked from here; the premises "last filed Pass 653.4, `654.x` and `655.0` unused" were the engineer's, and a `Grep` of `docs/` for `Pass 654.` / `Pass 655.` returned no matches before filing):**

@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.114.0` — release PREP, version bump `da4ff0b5` (`chore`), 2026-11-01 (1369th filing); prepared, not published
+
+Engineer-reported (shell held by the engineer); nothing checked from here. Same pattern as the `v0.113.0` prep (1366th filing).
+- **`da4ff0b5`** "chore: bump version to 0.114.0": `Cargo.toml` (workspace version and the `pdfcer-model` dependency version), `Cargo.lock`, `fuzz/Cargo.lock`. A code commit, cited here.
+- **`15f005ce`** "docs: file Passes 654.0, 654.1, 654.2 and 655.0 (G252, G253, G254) (1368th)": the filing of the batch below, committed.
+- **Carried since `v0.113.0`:** `Pass 654.0` (`78f16dc2`, `G252` lighting), `Pass 654.1` (`78f16dc2`, `G253` CPU frame rate), `Pass 655.0` (`2a10522f`, `G254` host-supplied settings directory), the CI fix `5587fca6` (landed after the `v0.113.0` tag), their filings and the bump.
+- **Not in it:** `Pass 654.2` (`G253` GPU half) stays owed, Next up.
+- **Target:** OneDrive slot `pdfcer1` (holds 0.112.0, the older; `pdfcer2` holds 0.113.0).
+- **Release plan (to run, NOT claimed done):** gates (including CI's feature-off steps), tag, packaging, fresh-folder smoke, GitHub release assets, OneDrive deploy to `pdfcer1`, `verify-release.py v0.114.0`, crates.io publish. A later publication filing records the results.
+- **FEATURES:** no box changes now; "unreleased" wording is updated only at publication. The "Portable settings file" row's core wording was corrected in this filing (see the session log). Nothing minted: no decision, no rule.
+
 ### `2a10522f` `Pass 655.0` SHIPPED, 2026-11-01: a host-supplied settings directory (`G254`; 1368th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Commit `2a10522f`, "feat(settings): a host-supplied store directory (G254)". On `main`, **unreleased** (last release `v0.113.0`). Reasoning is in the commit message.
