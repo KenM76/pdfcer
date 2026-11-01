@@ -3434,6 +3434,34 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   1400x900 (previously 299 / 352 / 617 ms). Build `RenderOptions` with
   `..Default::default()`: it gained fields. CLI: `3d-render --threads N`
   (default 0).
+- **GPU drawing (glow / GLES 3.0).** pdfcer-3d stays GPU-free; the host
+  makes every GL call. Design and the CPU-to-GL mapping:
+  `docs/research/gpu-3d-draw-data-design.md`.
+  - Per model/paint change: `prepared.draw_data(&model, &options) ->
+    DrawData { vertices: Vec<f32>, draws: Vec<Draw> }`. `VERTEX_FLOATS` (9)
+    per vertex, unshared, 3 per triangle: position 3, normal 3, uv 2
+    (already in sampling space), flat 1. `Draw { mesh, first, count,
+    colour: [f32; 4], texture: Option<usize>, translucent }`, in draw order:
+    opaque first, then translucent in mesh order.
+  - Per frame: `camera.view_matrix()` and `camera.projection_matrix(aspect,
+    &bounds)` (column-major `[f32; 16]`; `bounds` = `Bounds::of(&model.meshes)`,
+    sizing the depth range), and `FrameLights::new(&camera, &options)` for
+    the lighting uniforms (`mode.code()`, `ambient`, `count`, `directions`
+    with w = 1 meaning "along the line of sight", `colours`, `eye`,
+    `forward`, `orthographic`; up to `MAX_LIGHTS` = 8).
+  - `GLSL_ES_300_VERTEX` / `GLSL_ES_300_FRAGMENT`: the reference shader,
+    which reproduces the CPU lighting and texture functions;
+    `TextureFunction::shader_code()` gives `u_function` and
+    `u_blend_colour`. Upload each `Texture::rgba` top row first, with
+    `GL_LINEAR` and no mipmaps, and map its `wrap` to `GL_REPEAT`,
+    `GL_CLAMP_TO_EDGE` or `GL_MIRRORED_REPEAT`.
+  - State: depth test `LESS`, no culling. For opaque draws, depth write on
+    and no blending. For translucent draws, depth write off and
+    `glBlendFuncSeparate(SRC_ALPHA, ONE_MINUS_SRC_ALPHA, ONE,
+    ONE_MINUS_SRC_ALPHA)`.
+  - Tested against the CPU path: projection to 1e-5 NDC, and lighting for
+    all 12 schemes × both light frames × both projections. The shader text
+    has not been compiled by pdfcer, which has no GL context.
 - `prc.model_tree() -> Result<Vec<ModelNode>, PrcError>`: the model-tree
   panel's rows, depth first (parent before children, children in file
   order), one per product occurrence the roots reach — hidden and

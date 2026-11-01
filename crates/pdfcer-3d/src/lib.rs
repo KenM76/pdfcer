@@ -41,6 +41,7 @@ mod frame;
 mod gltf;
 mod gpu;
 mod gpu_frame;
+mod gpu_shader;
 #[cfg(feature = "render")]
 mod lighting;
 mod model;
@@ -78,6 +79,7 @@ pub use export::{to_obj, to_stl};
 pub use gltf::{GltfColours, GltfError, GltfImport, GltfOptions, GltfUpAxis, read_gltf};
 pub use gpu::{Draw, DrawData, VERTEX_FLOATS};
 pub use gpu_frame::{FrameLights, MAX_LIGHTS, ShadeMode};
+pub use gpu_shader::{GLSL_ES_300_FRAGMENT, GLSL_ES_300_VERTEX};
 #[cfg(feature = "render")]
 pub use lighting::{Light, LightFrame, LightSet, LightingScheme, Lights};
 pub use model::{
