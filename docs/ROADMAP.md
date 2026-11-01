@@ -112,6 +112,27 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.116.0` — release PREP, version bump `cb80886d` (`chore`), 2026-11-01 (1375th filing); prepared, not published
+
+Engineer-reported (shell held by the engineer); nothing checked from here. Same pattern as the `v0.115.0` prep (1373rd filing). `v0.116.0` is NOT yet tagged or published.
+- **`cb80886d`** "chore: bump version to 0.116.0". A code commit, cited here.
+- **Carried since `v0.115.0`:** `Pass 654.3` (`b3c1bb4e`, `G256`), the `v0.115.0` CI fix `986a7d2f` (`--no-default-features` gating), their filings and the bump.
+- **Target:** OneDrive slot `pdfcer1` (holds 0.114.0, the older; `pdfcer2` holds 0.115.0).
+- **Release plan (to run, NOT claimed done):** tag, packaging, fresh-folder smoke, GitHub release assets, OneDrive deploy to `pdfcer1`, `verify-release.py v0.116.0`, crates.io publish, notify `pdfcer-gui` (`G256` answered).
+- **FEATURES:** no box changes. Nothing minted: no decision, no rule.
+
+### `b3c1bb4e` `Pass 654.3` SHIPPED, 2026-11-01: logarithmic depth in the GPU reference shader (`G256`, operator report `O360`; 1375th filing)
+
+Engineer-reported (shell held by the engineer); nothing checked from here. Commit `b3c1bb4e`, "fix(3d): logarithmic depth in the GPU reference shader (G256, Pass 654.3)". On `main`, **unreleased** (last release `v0.115.0`; carried by the `v0.116.0` prep above). Follow-on to `Pass 654.2`. ID `654.3` confirmed free by grep of `docs/` before filing. Reasoning is in the commit message.
+- **Defect:** `O360` against `v0.115.0`: in the `G253` GPU path a texture panel a few mm off its wall z-fought with it (Bancroft building model, walking camera). The CPU path (f64 `1/z`) was clean. Platform-independent: desktop GL is affected too, not only Android.
+- **Cause:** hyperbolic depth from the projection matrix into a `DEPTH_COMPONENT24` buffer at near = distance x 1e-4 (about 0.64 mm) and far about 25-38 m. Depth step = z^2/(near x 2^24): 2.3 mm at 5 m, 9 mm at 10 m.
+- **Fix:** new `pub Camera::depth_range(aspect, &bounds) -> Result<[f32; 2], RenderError>` (`pdfcer-3d`, behind the default `render` feature) returns the planes the projection matrix clips at. `GLSL_ES_300_VERTEX` passes `gl_Position.w` as varying `v_w`; `GLSL_ES_300_FRAGMENT` takes uniforms `u_depth_range` and `u_orthographic` and writes `gl_FragDepth = log2(w/near)/log2(far/near)` (perspective) or `gl_FragCoord.z` (orthographic). Precision about w x ln(far/near)/2^24, i.e. micrometres. The projection matrix is unchanged. **Cost:** writing `gl_FragDepth` disables early-Z.
+- **Docs:** `docs/core-api/01-reading-and-model.md` GPU-drawing bullet; `docs/core-api/index.md` line count; `docs/research/gpu-3d-draw-data-design.md` Projection row.
+- **Tests (engineer-reported):** `pdfcer-3d` 237 lib tests pass (2 new: `the_depth_range_is_where_the_matrix_clips`, `log_depth_separates_a_panel_a_millimetre_off_its_wall`); `--no-default-features` 193 pass. Clippy, fmt, `check-code-structure`, `check-core-api-verbs` clean. No manifest change, so no `cargo tree` run.
+- **Honest limit:** the shader is still not compiled by pdfcer (no GL context here); the GUI compiles it, so the z-fight fix on a real GPU is confirmed only when `pdfcer-gui` consumes it.
+- **Boxes:** core `[x]`; cli n/a (GPU data); gui `[ ]` (owed to `pdfcer-gui`).
+- **FEATURES:** the GPU draw-data row now names the log-depth shader. Nothing minted: no decision, no rule.
+
 ### `v0.115.0` PUBLISHED, 2026-11-01 (1374th filing); tag at `89f3ee58`, CI red at the tag on a feature-gating miss, fix-forward `986a7d2f`
 
 Engineer-reported (shell held by the engineer); nothing checked from here. Supersedes the "prepared, not published" status of the prep entry below, which stays as filed.
@@ -25235,6 +25256,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **Next up head (rewritten 1355th filing; `Pass 647.3e` `53f4e938` and `Pass 647.2c` `ead2642a` SHIPPED and released in `v0.111.0`, published): `Pass 648.6` (`G245` part 2, /MA measurements, spec-RAG check first).** `Pass 647.3f` (dataRef-bound and subform-set instances, residue of `647.3e`) and `Pass 647.4` stay in the Backlog, not yet ordered. Release slot: next release writes `pdfcer1` (`pdfcer2` holds 0.111.0, `pdfcer1` holds 0.110.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
 
 > **Head amended 1357th filing: `Pass 647.4b` (`X027`) SHIPPED `96af5ff3`, see *Shipped*; the head is `Pass 648.6` again, after the release `v0.112.0` (slot `pdfcer1`), which is a separate filing.** *(Amended 1359th filing: `v0.112.0` PUBLISHED, see *Shipped*; the head is `Pass 648.6`, next release writes `pdfcer2`.)* `647.3f` and `647.4` (image natural sizing) stay in the Backlog. *(The 1356th-filing note that put `647.4b` ahead of `648.6` is history.)* **Amended 1360th filing: `Pass 648.6` SHIPPED `01c5f515` (unreleased), see *Shipped*; `G245` is now complete. Next up has no head: `647.3f`, `647.4` and `Pass 648.7` (residue) are Backlog, unordered.** **Amended 1361st-1365th filings: `Pass 653.0`-`653.4` (`G244`, `G243`, `G249`, `G250`, `G251`) SHIPPED, unreleased, see *Shipped*. Still no head; the next step is a release (version after `0.112.0`, slot `pdfcer2`), asked for by `pdfcer-gui` once `G249`-`G251` shipped.** **Amended 1367th filing: `v0.113.0` PUBLISHED. Amended 1368th filing: `Pass 654.0`, `654.1` (`78f16dc2`, `G252`, `G253` CPU half) and `Pass 655.0` (`2a10522f`, `G254`) SHIPPED, unreleased, see *Shipped*. The head is now `Pass 654.2` (below), behind the GUI-request rule. Next release writes OneDrive `pdfcer1` (`pdfcer2` holds 0.113.0).**
+
+> (1375th filing: `Pass 654.3` (`G256`, log depth in the GPU reference shader) SHIPPED `b3c1bb4e` and `v0.116.0` release PREP (bump `cb80886d`), see *Shipped*; `v0.116.0` not yet tagged. Still no head. This release writes OneDrive `pdfcer1`. Next free `Pass 656.1` / `657.0` (not run through `tools/check-ledger-numbers.py`).)
 
 > (1374th filing: `v0.115.0` PUBLISHED (tag `89f3ee58`), see *Shipped*; CI was red at the tag on the `--no-default-features` step, fixed forward by `986a7d2f` (unreleased). Still no head. Next release writes OneDrive `pdfcer1` (`pdfcer2` holds 0.115.0, `pdfcer1` holds 0.114.0). crates.io publish and GUI notification pending at filing time.)
 

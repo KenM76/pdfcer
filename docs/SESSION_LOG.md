@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-01 (1375th filing) — `Pass 654.3` SHIPPED `b3c1bb4e` (`G256`); `v0.116.0` release PREP, bump `cb80886d`
+
+**Filed (docs only; engineer-reported, shell held by the engineer; nothing checked from here):**
+- **`Pass 654.3`, `b3c1bb4e`** (`G256`, operator report `O360` against `v0.115.0`): in the GPU 3D path a texture panel a few mm off its wall z-fought (Bancroft model, walking camera). Cause: hyperbolic depth into `DEPTH_COMPONENT24` at near about 0.64 mm, far about 25-38 m (step 2.3 mm at 5 m, 9 mm at 10 m); CPU path (f64 `1/z`) clean; platform-independent. Fix: `pub Camera::depth_range(aspect, &bounds) -> Result<[f32;2], RenderError>`; reference shaders write `gl_FragDepth = log2(w/near)/log2(far/near)` (perspective) or `gl_FragCoord.z` (orthographic) via `v_w`, `u_depth_range`, `u_orthographic`. Micrometre precision; projection matrix unchanged; early-Z disabled. Docs: core-api `01-reading-and-model.md`, `index.md` count, `gpu-3d-draw-data-design.md` Projection row.
+- **Tests (engineer-reported):** `pdfcer-3d` 237 lib pass (2 new); `--no-default-features` 193 pass; clippy, fmt, code-structure, core-api-verbs clean; no manifest change.
+- **ID:** `654.3` chosen as the dispatch asked; grep of `docs/` showed it free (only a forward mention in the design doc as `G256`).
+- **`cb80886d`** "chore: bump version to 0.116.0": release PREP only. `v0.116.0` is NOT tagged or published. Carries `654.3`, `986a7d2f` and filings. Target OneDrive slot `pdfcer1`.
+- ROADMAP: two entries at the top of Shipped; Next-up note. FEATURES: GPU draw-data row text updated; boxes unchanged (core `[x]`, cli `[ ]`, gui `[ ]`).
+
+**Decisions made this session:** none minted.
+
+**Hard-rule-11 survivors:** keyword sweep of `docs/` for `654.3` / `G256` found only the design-doc Projection row (already updated by the commit). `docs/NEXT_SESSION.md` (engineer-owned) not swept. Backup currency not verifiable from here.
+
+**Still in flight:** the `v0.116.0` release (tag, package, smoke, publish, verify); crates.io for 0.115.0 and GUI notification from the prior filing.
+
+**For next session:** run the release; tell `pdfcer-gui` `G256` is released once published; GPU z-fight fix is confirmed on real hardware only when the GUI compiles the shader.
+
 ## 2026-11-01 (1374th filing) — `v0.115.0` PUBLISHED; CI red at the tag, fix-forward `986a7d2f`
 
 **Filed (docs only; engineer-reported, shell held by the engineer; nothing checked from here):**
