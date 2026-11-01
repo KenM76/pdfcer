@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.115.0` — release PREP, version bump `a38114a3` (`chore`), 2026-11-01 (1373rd filing); prepared, not published
+
+Engineer-reported (shell held by the engineer); nothing checked from here. Same pattern as the `v0.114.0` prep (1369th filing).
+- **`a38114a3`** "chore: bump version to 0.115.0": `Cargo.toml` (workspace version and the `pdfcer-model` dependency version), `Cargo.lock`, `fuzz/Cargo.lock`. A code commit, cited here.
+- **Carried since `v0.114.0`:** `Pass 656.0` (`62c4946a`, `G255`, owned `PreparedModel`; 1371st filing), `Pass 654.2` (`98c2560e`, `5b33a93c`, `37c27e60`, `8eee4f53`, `75edce63`; `G253` GPU half; 1372nd filing, addendum `86b4cdd8`), the CI audit fix `9a929245`, their filings and the bump. This completes the `pdfcer-gui` round `G252`-`G255` in the engine. Every code change is in `pdfcer-3d` (plus the tooling fix).
+- **Gates so far (change-scoped; engineer-reported):** only `pdfcer-3d` changed under `crates/` since `v0.114.0`; `cargo test -p pdfcer-3d` 258 passed (235 lib + 3 + 20); clippy `-D warnings` and fmt clean; all 34 CI python/shell audits green; `check-suite-name-absent`, `check-commits-filed` and control-bytes clean.
+- **Target:** OneDrive slot `pdfcer2` (holds 0.113.0, the older; `pdfcer1` holds 0.114.0).
+- **Release plan (to run, NOT claimed done):** tag, packaging, fresh-folder smoke, GitHub release assets, OneDrive deploy to `pdfcer2`, `verify-release.py v0.115.0`, crates.io publish. Release in progress; tag, packaging and smoke are recorded in the release filing.
+- **FEATURES:** no box changes; the stale word "unreleased" was dropped from the `Pass 648.6` row (that Pass predates the `v0.113.0` tag). Rows for `654.2`/`656.0` still carry no release word. Nothing minted: no decision, no rule.
+
 ### `37c27e60` `Pass 654.2` SHIPPED, 2026-11-01: GPU draw data, camera matrices, frame lights and a reference GLSL ES 3.00 shader (`G253` GPU half; 1372nd filing)
 
 Engineer-reported (shell held by the engineer); nothing checked from here. Commits `98c2560e`, `5b33a93c`, `37c27e60`, `8eee4f53`, `75edce63` (doc comment on `at3`, made `pub(crate)` by this Pass; `check-public-fns-documented` flagged it) on `main`, **not yet pushed, unreleased** (last release `v0.114.0`). All in `pdfcer-3d`. Reasoning is in the commit messages and `docs/research/gpu-3d-draw-data-design.md`.
@@ -25211,6 +25221,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **Next up head (rewritten 1355th filing; `Pass 647.3e` `53f4e938` and `Pass 647.2c` `ead2642a` SHIPPED and released in `v0.111.0`, published): `Pass 648.6` (`G245` part 2, /MA measurements, spec-RAG check first).** `Pass 647.3f` (dataRef-bound and subform-set instances, residue of `647.3e`) and `Pass 647.4` stay in the Backlog, not yet ordered. Release slot: next release writes `pdfcer1` (`pdfcer2` holds 0.111.0, `pdfcer1` holds 0.110.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
 
 > **Head amended 1357th filing: `Pass 647.4b` (`X027`) SHIPPED `96af5ff3`, see *Shipped*; the head is `Pass 648.6` again, after the release `v0.112.0` (slot `pdfcer1`), which is a separate filing.** *(Amended 1359th filing: `v0.112.0` PUBLISHED, see *Shipped*; the head is `Pass 648.6`, next release writes `pdfcer2`.)* `647.3f` and `647.4` (image natural sizing) stay in the Backlog. *(The 1356th-filing note that put `647.4b` ahead of `648.6` is history.)* **Amended 1360th filing: `Pass 648.6` SHIPPED `01c5f515` (unreleased), see *Shipped*; `G245` is now complete. Next up has no head: `647.3f`, `647.4` and `Pass 648.7` (residue) are Backlog, unordered.** **Amended 1361st-1365th filings: `Pass 653.0`-`653.4` (`G244`, `G243`, `G249`, `G250`, `G251`) SHIPPED, unreleased, see *Shipped*. Still no head; the next step is a release (version after `0.112.0`, slot `pdfcer2`), asked for by `pdfcer-gui` once `G249`-`G251` shipped.** **Amended 1367th filing: `v0.113.0` PUBLISHED. Amended 1368th filing: `Pass 654.0`, `654.1` (`78f16dc2`, `G252`, `G253` CPU half) and `Pass 655.0` (`2a10522f`, `G254`) SHIPPED, unreleased, see *Shipped*. The head is now `Pass 654.2` (below), behind the GUI-request rule. Next release writes OneDrive `pdfcer1` (`pdfcer2` holds 0.113.0).**
+
+> (1373rd filing: `v0.115.0` release PREP (bump `a38114a3`), see *Shipped*; carries `656.0`, `654.2` and `9a929245`. Still no head. Release in progress; this release writes OneDrive `pdfcer2`, so the one after writes `pdfcer1` (`pdfcer1` holds 0.114.0).)
 
 > (1372nd filing: `Pass 654.2` (`G253` GPU half) SHIPPED, unreleased since `v0.114.0`, see *Shipped*; it was the head, so Next up has no head again. The `G253` round is complete in the engine; the GUI half is owed to `pdfcer-gui`. Next free `Pass 656.1` / `657.0` by grep of `docs/` (not run through `tools/check-ledger-numbers.py`). Next release writes OneDrive `pdfcer2`.)
 

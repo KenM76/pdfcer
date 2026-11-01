@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-01 (1373rd filing) — `v0.115.0` release PREP, bump `a38114a3`; prepared, not published
+
+**Filed (docs only; engineer-reported, shell held by the engineer; nothing checked from here):**
+- **`a38114a3`** "chore: bump version to 0.115.0": `Cargo.toml` (workspace version, `pdfcer-model` dependency version), `Cargo.lock`, `fuzz/Cargo.lock`.
+- **Contents of `v0.115.0`** (since `v0.114.0`): `Pass 656.0` (`62c4946a`, `G255`), `Pass 654.2` (`98c2560e`, `5b33a93c`, `37c27e60`, `8eee4f53`, `75edce63`; `G253` GPU half), CI fix `9a929245`, their filings (1371st, 1372nd, addendum `86b4cdd8`) and the bump. All engine code is in `pdfcer-3d`; this finishes the `pdfcer-gui` round `G252`-`G255` engine-side.
+- **Gates (change-scoped; engineer-reported):** `cargo test -p pdfcer-3d` 258 passed (235 + 3 + 20), clippy `-D warnings` and fmt clean, all 34 CI audit scripts green, suite-name, commits-filed and control-bytes clean.
+- Target OneDrive slot `pdfcer2` (the 1370th filing records `pdfcer1` = 0.114.0, `pdfcer2` = 0.113.0; consistent).
+- **Status: release in progress.** Tag, packaging, fresh-folder smoke and publication are recorded in the release filing. ROADMAP: prep entry at the top of Shipped; Next-up note.
+- **FEATURES:** the `Pass 648.6` row (3D measurements, `/MA`) said "unreleased"; false since `v0.113.0` (that Pass's commit `01c5f515` precedes the `v0.113.0` filing in the log order). Word dropped; no box changes.
+
+**Decisions made this session:** none minted.
+
+**Hard-rule-11 survivors:** the dispatch called the owned-`PreparedModel` work "Pass 655.x"; the ledger ID is `Pass 656.0` (`655.0` is `G254`), filed as `656.0`. Other FEATURES rows saying "unreleased" were looked for by keyword: only the one above. `docs/NEXT_SESSION.md` (engineer-owned) not swept. Backup currency not verifiable from here.
+
+**Still in flight:** the release itself.
+
+**For next session:** tag, package, smoke, publish, verify `v0.115.0` (slot `pdfcer2`), then a publication filing; notify `pdfcer-gui` that `G253` GPU data and the owned `PreparedModel` are released.
+
 ## 2026-11-01 (1372nd filing) — `Pass 654.2` SHIPPED `98c2560e`..`37c27e60` (`G253` GPU half)
 
 **Filed (docs only; engineer-reported, shell held by the engineer; nothing checked from here):**
