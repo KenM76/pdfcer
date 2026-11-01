@@ -139,7 +139,10 @@
 
 /// Named render-setting bundles for the PDF subset standards
 /// (PDF/X, PDF/A, PDF/UA) - each value carrying its own evidence tier.
+mod host_dir;
 pub mod presets;
+
+pub use host_dir::{StoreDirError, set_store_dir};
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -172,6 +175,9 @@ pub enum StoreKind {
     /// without elevation). Survives a folder replace on its own, and is
     /// **not** portable — it does not travel with the program folder.
     PlatformFallback,
+    /// The directory the host application supplied with
+    /// [`set_store_dir`] (Android, where neither location below exists).
+    HostSupplied,
     /// No writable location was found at all. Settings still load from
     /// defaults and the session works; saving will report why it cannot.
     None,
@@ -3019,7 +3025,8 @@ pub enum SaveError {
 
 /// Decide where settings live, preferring the portable location.
 ///
-/// Tries `<exe dir>/userdata/` first and falls back to the platform
+/// Tries a directory supplied with [`set_store_dir`] first, then
+/// `<exe dir>/userdata/`, and falls back to the platform
 /// configuration directory only if that cannot be written. Returns
 /// [`StoreKind::None`] when neither works, which is still a usable state:
 /// defaults load, the session runs, and only [`Settings::save`] fails.
@@ -3062,13 +3069,22 @@ pub fn resolve_store() -> StoreLocation {
     // outcome than one that is stale. `store_in` remains the escape hatch for
     // an explicit directory (tests, and a future `--user-data-dir`), and it
     // does not consult this cache.
-    static RESOLVED: std::sync::OnceLock<StoreLocation> = std::sync::OnceLock::new();
-    RESOLVED.get_or_init(resolve_store_uncached).clone()
+    host_dir::RESOLVED
+        .get_or_init(resolve_store_uncached)
+        .clone()
 }
 
 /// The uncached resolution [`resolve_store`] memoises. See its doc comment for
 /// why the memoisation is a correctness property.
 fn resolve_store_uncached() -> StoreLocation {
+    if let Some(dir) = host_dir::host_dir()
+        && directory_is_writable(dir)
+    {
+        return StoreLocation {
+            path: Some(dir.join(SETTINGS_FILE)),
+            kind: StoreKind::HostSupplied,
+        };
+    }
     if let Some(dir) = portable_dir()
         && directory_is_writable(&dir)
     {

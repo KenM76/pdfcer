@@ -4255,10 +4255,21 @@ cfg.save(&store)?;                                   // settings/mod.rs
 ```
 
 `resolve_store() -> StoreLocation` · `store_in(&Path)` ·
+`set_store_dir(&Path) -> Result<(), StoreDirError>` ·
 `StoreLocation` · `StoreKind` · `Settings` ·
 `Settings::load` · `::parse` · `::write_to_string` ·
 `::save` · `LoadReport` · `LoadReport::stated` · `::was_stated` · `SettingNote` ·
 `SaveError`.
+
+**Host-supplied directory** (`settings/host_dir.rs`): a host that knows
+its own data folder (Android: `AndroidApp::internal_data_path`, where
+neither location below exists) calls `settings::set_store_dir(&dir)` once
+at start-up, before the first `resolve_store` / `Settings::load`. When
+`dir` is writable it wins, as `StoreKind::HostSupplied`; when not,
+resolution falls through to the order below. The same directory twice is
+`Ok`; `StoreDirError::AlreadyResolved { resolved }` if the store was
+resolved first (one answer per process), `AlreadySet(dir)` if a different
+directory was supplied.
 
 **Store location** (`settings/mod.rs`, verified): portable first —
 `<directory of the running executable>/userdata/settings.txt`, used when

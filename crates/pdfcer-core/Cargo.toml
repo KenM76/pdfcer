@@ -428,3 +428,8 @@ ocrcer-core = { path = "../../vendor/ocrcer-core", optional = true }
 [[test]]
 name = "all"
 path = "tests/all.rs"
+
+# Process-global settings state; must not share a process with `all`.
+[[test]]
+name = "settings_host_dir"
+path = "tests/settings_host_dir.rs"
