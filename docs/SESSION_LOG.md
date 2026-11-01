@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-01 (1368th filing) — `Pass 654.0`, `654.1` SHIPPED `78f16dc2` (`G252`, `G253` CPU half); `Pass 655.0` SHIPPED `2a10522f` (`G254`); `Pass 654.2` filed
+
+**Filed (docs only; engineer-reported, no shell here, nothing checked from here; the premises "last filed Pass 653.4, `654.x` and `655.0` unused" were the engineer's, and a `Grep` of `docs/` for `Pass 654.` / `Pass 655.` returned no matches before filing):**
+- **`Pass 654.0`** (`78f16dc2`, `G252`): `pdfcer_3d::LightingScheme` (12 schemes, ISO 32000-1 Table 310, default Artwork), `RenderOptions::lighting`, `light_frame` (`Camera` default / `World`), `From<ThreeDLighting>`; CLI `3d-render --lighting <scheme>|auto`, `--light-frame`, which prints `note: lighting: ...`. core `[x]`, cli `[x]`, gui `[ ]`.
+- **`Pass 654.1`** (same commit, `G253` CPU half): `PreparedModel` plus `RenderOptions::threads`, byte-identical at any thread count. Engineer-measured on a real CAD assembly PRC, all cores: 21 / 20 / 40 ms at 64x41 / 700x450 / 1400x900, from 299 / 352 / 617 ms; one thread 35 / 91 / 236 ms. GUI target 30 ms at window size. CLI `--threads N`. core `[x]`, cli `[x]`, gui `[ ]`.
+- **`Pass 655.0`** (`2a10522f`, `G254`): `pdfcer_core::settings::set_store_dir`, `StoreKind::HostSupplied`, `StoreDirError`. Fixes settings and the recent list being forgotten on Android (read-only `current_exe()`, no `XDG_CONFIG_HOME` or `HOME`). core `[x]`, cli `—` (executable folder writable on desktop), gui `[ ]`.
+- **`Pass 654.2`** (NOT STARTED, Next up head, behind the GUI-request rule): `G253` GPU half, plain vertex / index buffers and view / projection matrices from `pdfcer-3d`, no GPU or windowing crate (invariant 1).
+- **Tests (engineer-reported):** `pdfcer-3d` 226 lib plus doctests; `pdfcer-cli` 1,010 integration plus 82 unit (one new: `render_lighting_is_reported_and_threads_draw_the_same_image`); core `settings` lib 44 plus the new `settings_host_dir` binary, 1 test. The 39-gate release set passed on the tree before `2a10522f`; `public-fns-documented` was fixed and rechecked. `cargo tree`: no manifest dependency change.
+- ROADMAP: three Shipped entries at the top; `654.2` as a Next up item and a banner amendment. FEATURES: new rows "Render a 3D model under a lighting scheme", "Interactive 3D frame rate (CPU)", "A host-supplied settings directory"; Planned row "GPU-ready 3D buffers and matrices"; the `/LS` row gained a pointer.
+
+**Round status:** the GUI's round `G252` / `G253` / `G254` is shipped except `G253`'s GPU half (`Pass 654.2`), which the next release notice will name as still owed.
+
+**Decisions made this session:** none minted (decision 080, byte-identical output at any thread count, cited). Artwork lighting from the camera because the model's lights are not read yet is recorded in the `654.0` entry.
+
+**Hard-rule-11 survivors:** (1) FEATURES "Portable settings file" row says "`core` not applicable by design — core stays filesystem-free" while `pdfcer_core::settings` holds the store resolver (and now `set_store_dir`); left unedited as the dispatch did not ask, but it reads false of core; owed a wording fix. (2) The `3d-embed --lighting` text in the `/LS` row ("a glTF-converted model... draws black under `/Artwork`") describes a Table 309 write choice and stays true; `3d-render` differs, as the new row states. (3) `docs/core-api` and `docs/NEXT_SESSION.md` (engineer-owned) not swept. Backup currency not verifiable from here.
+
+**Still in flight:** `Pass 654.2`. Release: nothing unreleased is tagged; next slot `pdfcer1`.
+
+**For next session:** scope `654.2` with the GUI's vertex-format wish; a release notice to `pdfcer-gui` naming the `654.2` residue; `pdfcer-gui` consumption of `LightingScheme`, `PreparedModel` and `set_store_dir` (delete its `XDG_CONFIG_HOME` workaround).
+
 ## 2026-10-31 (1367th filing) — `v0.113.0` PUBLISHED; CI fix-forward `5587fca6`
 
 **Filed (docs only; engineer-reported, shell held by the engineer; nothing checked from here):**

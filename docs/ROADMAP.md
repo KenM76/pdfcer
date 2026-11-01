@@ -112,6 +112,36 @@ wherever it appears.*
 
 ## Shipped
 
+### `2a10522f` `Pass 655.0` SHIPPED, 2026-11-01: a host-supplied settings directory (`G254`; 1368th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `2a10522f`, "feat(settings): a host-supplied store directory (G254)". On `main`, **unreleased** (last release `v0.113.0`). Reasoning is in the commit message.
+- **Why:** on Android `current_exe()` is the read-only `/system/bin/app_process64` and neither `XDG_CONFIG_HOME` nor `HOME` is set, so settings and the GUI's recent list were forgotten. The GUI's workaround set `XDG_CONFIG_HOME`.
+- **Core:** `pdfcer_core::settings::set_store_dir(&Path) -> Result<(), StoreDirError>`, called once before the first `resolve_store` / `Settings::load`. New `StoreKind::HostSupplied` wins when the directory is writable; otherwise the old Portable, then PlatformFallback, then none order holds. `StoreDirError::{AlreadyResolved { resolved }, AlreadySet(PathBuf)}`.
+- **Tests (engineer-reported):** the state is process-global, so the test is a separate binary, `settings_host_dir` (a new `[[test]]` target in core's `Cargo.toml`, 1 test); core `settings` lib tests 44 green.
+- **Invariants:** `cargo tree`: no manifest dependency change (core's `Cargo.toml` gained only the `[[test]]` target).
+- **CLI:** none, by design: the executable folder is writable on desktop. **Boxes:** core `[x]`, cli `—` (not applicable), gui `[ ]`.
+- **FEATURES:** new Implemented row "A host-supplied settings directory", after the portable-settings-file row.
+
+### `78f16dc2` `Pass 654.1` SHIPPED, 2026-11-01: interactive 3D frame rate, CPU half (`G253` part 1; 1368th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Same commit as `Pass 654.0` (`78f16dc2`, "feat(3d): lighting schemes, a prepared model and threaded drawing (G252, G253)"). On `main`, **unreleased**.
+- **Core:** `pdfcer_3d::PreparedModel` (`new(&AssembledModel)`, `model()`, `render(&Camera, &RenderOptions)`) caches per-texture opacity, which was rescanned every frame. `RenderOptions::threads: usize` (default 1; `0` = all cores; wasm32 serial) splits the image into row bands with triangles binned by projected rows. Output is byte-identical at any thread count (decision 080).
+- **CLI:** `3d-render --threads N` (default 0, all cores).
+- **Measured (engineer, real CAD assembly PRC):** all cores 21 / 20 / 40 ms at 64x41 / 700x450 / 1400x900, from 299 / 352 / 617 ms before; one thread 35 / 91 / 236 ms. The GUI's target was 30 ms at window size (the 700x450 figure, 20 ms, meets it).
+- **Not delivered:** the GPU half of `G253` is `Pass 654.2`, Next up.
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]`. **FEATURES:** new Implemented row "Interactive 3D frame rate (CPU)".
+
+### `78f16dc2` `Pass 654.0` SHIPPED, 2026-11-01: 3D lighting schemes in the renderer (`G252`; 1368th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `78f16dc2` (shared with `654.1`). On `main`, **unreleased**. Reasoning is in the commit message.
+- **Core:** `pdfcer_3d::LightingScheme`, the 12 schemes of ISO 32000-1 §13.6.4.5 Table 310 (default Artwork), with `name()` and `lights() -> Lights::{Headlight, Unlit, Set(LightSet)}`, plus `Light` and `LightSet`. `RenderOptions::lighting`. `RenderOptions::light_frame: LightFrame::{Camera (default), World}`: the standard does not state the frame the light directions are in, so it is a setting. `impl From<pdfcer_core::threed::ThreeDLighting> for LightingScheme` (core feature `3d`).
+- **Decision recorded here:** Artwork lights from the camera because the model's own lights are not read yet. Acrobat draws a light-less model black under Artwork; pdfcer does not.
+- **CLI:** `3d-render --lighting <scheme>|auto` (`auto` = the opening view's `/LS`, else Artwork) and `--light-frame camera|world`; prints `note: lighting: <Name> (<source>): <how>`.
+- **Tests (engineer-reported):** `pdfcer-3d` 226 lib tests plus doctests green; `pdfcer-cli` 1,010 integration plus 82 unit green, one new: `render_lighting_is_reported_and_threads_draw_the_same_image`. The 39-gate release set passed on the tree before `2a10522f`; one gate, `public-fns-documented`, was fixed and rechecked.
+- **Invariants:** no manifest dependency change.
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]`. **FEATURES:** new Implemented row "Render a 3D model under a lighting scheme"; the `/LS` read/write row (`Pass 648.0`) gained a pointer to it.
+- **Round status:** the GUI round `G252` / `G253` / `G254` is shipped except `G253`'s GPU half (`Pass 654.2`), which the next release notice names as still owed.
+
 ### `v0.113.0` PUBLISHED, 2026-10-31 (1367th filing); tag at `ca9aa1dd`, CI fix-forward `5587fca6`
 
 Engineer-reported (shell held by the engineer); nothing checked from here. Supersedes the "prepared, not published" status of the prep entry below, which stays as filed.
@@ -25123,7 +25153,16 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **Next up head (rewritten 1355th filing; `Pass 647.3e` `53f4e938` and `Pass 647.2c` `ead2642a` SHIPPED and released in `v0.111.0`, published): `Pass 648.6` (`G245` part 2, /MA measurements, spec-RAG check first).** `Pass 647.3f` (dataRef-bound and subform-set instances, residue of `647.3e`) and `Pass 647.4` stay in the Backlog, not yet ordered. Release slot: next release writes `pdfcer1` (`pdfcer2` holds 0.111.0, `pdfcer1` holds 0.110.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
 
-> **Head amended 1357th filing: `Pass 647.4b` (`X027`) SHIPPED `96af5ff3`, see *Shipped*; the head is `Pass 648.6` again, after the release `v0.112.0` (slot `pdfcer1`), which is a separate filing.** *(Amended 1359th filing: `v0.112.0` PUBLISHED, see *Shipped*; the head is `Pass 648.6`, next release writes `pdfcer2`.)* `647.3f` and `647.4` (image natural sizing) stay in the Backlog. *(The 1356th-filing note that put `647.4b` ahead of `648.6` is history.)* **Amended 1360th filing: `Pass 648.6` SHIPPED `01c5f515` (unreleased), see *Shipped*; `G245` is now complete. Next up has no head: `647.3f`, `647.4` and `Pass 648.7` (residue) are Backlog, unordered.** **Amended 1361st-1365th filings: `Pass 653.0`-`653.4` (`G244`, `G243`, `G249`, `G250`, `G251`) SHIPPED, unreleased, see *Shipped*. Still no head; the next step is a release (version after `0.112.0`, slot `pdfcer2`), asked for by `pdfcer-gui` once `G249`-`G251` shipped.**
+> **Head amended 1357th filing: `Pass 647.4b` (`X027`) SHIPPED `96af5ff3`, see *Shipped*; the head is `Pass 648.6` again, after the release `v0.112.0` (slot `pdfcer1`), which is a separate filing.** *(Amended 1359th filing: `v0.112.0` PUBLISHED, see *Shipped*; the head is `Pass 648.6`, next release writes `pdfcer2`.)* `647.3f` and `647.4` (image natural sizing) stay in the Backlog. *(The 1356th-filing note that put `647.4b` ahead of `648.6` is history.)* **Amended 1360th filing: `Pass 648.6` SHIPPED `01c5f515` (unreleased), see *Shipped*; `G245` is now complete. Next up has no head: `647.3f`, `647.4` and `Pass 648.7` (residue) are Backlog, unordered.** **Amended 1361st-1365th filings: `Pass 653.0`-`653.4` (`G244`, `G243`, `G249`, `G250`, `G251`) SHIPPED, unreleased, see *Shipped*. Still no head; the next step is a release (version after `0.112.0`, slot `pdfcer2`), asked for by `pdfcer-gui` once `G249`-`G251` shipped.** **Amended 1367th filing: `v0.113.0` PUBLISHED. Amended 1368th filing: `Pass 654.0`, `654.1` (`78f16dc2`, `G252`, `G253` CPU half) and `Pass 655.0` (`2a10522f`, `G254`) SHIPPED, unreleased, see *Shipped*. The head is now `Pass 654.2` (below), behind the GUI-request rule. Next release writes OneDrive `pdfcer1` (`pdfcer2` holds 0.113.0).**
+
+### `Pass 654.2` — GPU-ready 3D buffers and matrices (`G253` GPU half; NOT STARTED; filed 1368th)
+
+Request from `pdfcer-gui` (`G253`, in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\`); the CPU half shipped as `Pass 654.1`. Queued behind the GUI-request rule.
+- **Ask:** `pdfcer-3d` supplies GPU-ready vertex and index buffers and view and projection matrices, so the GUI can draw the model with wgpu itself.
+- **Constraint (invariant 1):** `pdfcer-3d`, `pdfcer-core` and `pdfcer-render` stay free of any GPU or windowing crate. The engine supplies plain buffers and plain matrices only; the GUI owns every wgpu type.
+- **Acceptance (to settle at scoping):** buffer layout documented (vertex fields, index width, winding, colour and opacity source); matrices agree with `Camera` and the CPU renderer's projection, including the light frame of `Pass 654.0`; a test compares a CPU-side transform of the buffers against the renderer's projected positions; `cargo tree -p pdfcer-3d` shows no GPU crate.
+- **Needs before scoping:** the GUI's vertex format wish (`G253` text), and the egui/wgpu RAG (`D:\dev\rag\egui\`) for the paint-callback shape.
+- **Boxes:** `[ ]` / `[ ]` / `[ ]`; a CLI form is not evident (undecided). **FEATURES:** Planned row "GPU-ready 3D buffers and matrices".
 
 (1271st filing: `Pass 646.25` (`G237`, `XfaFormKind`) SHIPPED on `5f401310`; decision 204 reopens dynamic XFA; arc `647.0`-`647.7` filed below. All Passes below are NOT STARTED. Spec source (extracted by `pdfcer-spec-librarian`): `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_{xdp_packaging,static_vs_dynamic_rendering,template_layout_dom,layout_algorithm,data_binding_normal}.md`; its gap IDs G-X/S/T/L/B are the arc's default-decisions list. Spec slice still owed: SOM expressions, then table/row layout. Arc-wide acceptance: (1) opening never rewrites structure (§5); (2) layout inferred at render time is rule-4 disclosed; (3) content a dynamic form drops on overflow is disclosed, which the spec only warns about; (4) no external XFA code is relied on.)
 
