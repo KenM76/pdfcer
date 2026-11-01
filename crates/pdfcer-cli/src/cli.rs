@@ -3200,8 +3200,10 @@ pub(crate) enum Command {
     /// draws it: each part, and each face styled on its own, in the colour
     /// its model tree gives it (grey when it has none, see-through parts
     /// blended), shaded by its angle to the camera, nearer surfaces hiding
-    /// farther ones, textures painted where the model carries them. Lights
-    /// are not read yet (a note says so). With no camera option, the model is seen from the direction and
+    /// farther ones, textures painted where the model carries them, lit by
+    /// the opening view's lighting scheme or `--lighting` (a note names
+    /// it). The model's own lights are not read yet: `artwork` lights it
+    /// from the camera. With no camera option, the model is seen from the direction and
     /// with the projection of the view the file opens on, fitted so the
     /// whole model fills the image; a `note: camera:` line says which view
     /// was used, or why none could be. `--view` picks a named direction
@@ -3294,6 +3296,18 @@ pub(crate) enum Command {
         /// picture appears.
         #[arg(long, value_enum, default_value_t)]
         texture_pictures: TexturePicturesArg,
+        /// The lighting scheme: `auto` (default) uses the scheme of the
+        /// view the model opens on, else `artwork`.
+        #[arg(long, value_enum, default_value_t)]
+        lighting: RenderLightingArg,
+        /// Which frame a scheme's light directions are in: `camera`
+        /// (default) or `world`. The standard does not say.
+        #[arg(long, value_enum, default_value_t)]
+        light_frame: LightFrameArg,
+        /// Threads to draw with; 0 (default) uses every core. The image is
+        /// the same at any count.
+        #[arg(long, default_value_t = 0)]
+        threads: usize,
         /// Report the model point under image position X,Y (pixels from
         /// the top-left corner, y down; pixel 0's centre is 0.5).
         /// Repeatable.

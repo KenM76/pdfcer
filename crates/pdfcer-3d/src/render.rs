@@ -1,13 +1,17 @@
 //! Headless rendering of triangle meshes to an RGBA image from a camera.
 //!
-//! A z-buffered scanline-free rasterizer: one sample per pixel centre, flat
-//! shading from a light at the camera, no antialiasing. Faces are lit on
+//! A z-buffered scanline-free rasterizer: one sample per pixel centre,
+//! lit per [`crate::LightingScheme`], no antialiasing. Faces are lit on
 //! both sides because a producer's winding is not trusted to face outward.
-//! No threads and no GUI dependency, so it runs unchanged on wasm32.
+//! Threads only through [`crate::parallel`]; no GUI dependency, so it runs
+//! unchanged (single-threaded) on wasm32.
 
+use crate::TriangleMesh;
+use crate::frame::Frame;
+use crate::lighting::{LightFrame, LightingScheme, Shader};
+use crate::parallel;
 use crate::raster::{Corner, Paint, Target, View, at};
 use crate::vec3::{cross, dot, length, normalize, scale, sub};
-use crate::{Texture, TriangleMesh};
 
 /// The largest image [`render`] draws, in pixels (width × height).
 pub const MAX_RENDER_PIXELS: u64 = 64 * 1024 * 1024;
@@ -258,18 +262,31 @@ pub struct RenderOptions {
     pub height: u32,
     /// Background colour, straight RGBA.
     pub background: [u8; 4],
-    /// The surface colour, lit by a light at the camera.
+    /// The colour of a surface with none of its own.
     pub colour: [u8; 3],
+    /// How surfaces are lit. The default, [`LightingScheme::Artwork`], is
+    /// one light at the camera.
+    pub lighting: LightingScheme,
+    /// The frame a scheme's light directions are in.
+    pub light_frame: LightFrame,
+    /// Threads to draw with: 1 (the default) draws on the caller's thread,
+    /// 0 uses every core. Ignored on wasm32. The image is the same at any
+    /// count.
+    pub threads: usize,
 }
 
 impl Default for RenderOptions {
-    /// 1024 × 768, opaque white background, light grey surface.
+    /// 1024 × 768, opaque white background, light grey surface, the
+    /// default light, one thread.
     fn default() -> Self {
         RenderOptions {
             width: 1024,
             height: 768,
             background: [255, 255, 255, 255],
             colour: [190, 192, 200],
+            lighting: LightingScheme::Artwork,
+            light_frame: LightFrame::Camera,
+            threads: 1,
         }
     }
 }
@@ -305,10 +322,10 @@ pub enum RenderError {
 
 /// Draw `meshes` as seen by `camera`.
 ///
-/// Every triangle is filled in [`RenderOptions::colour`], shaded by the
-/// angle between its face and the direction to the camera; nearer surfaces
-/// hide farther ones. Triangles with a non-finite or out-of-range vertex are
-/// skipped. A perspective camera clips what lies behind it.
+/// Every triangle is filled in [`RenderOptions::colour`], lit per
+/// [`RenderOptions::lighting`] by the angle between its face and each light;
+/// nearer surfaces hide farther ones. Triangles with a non-finite or
+/// out-of-range vertex are skipped. A perspective camera clips what lies behind it.
 ///
 /// # Errors
 ///
@@ -370,22 +387,25 @@ pub fn render_coloured(
     options: &RenderOptions,
 ) -> Result<Image, RenderError> {
     let [r, g, b] = options.colour;
-    render_painted(
-        meshes,
-        &|i| Paint {
+    let paints: Vec<Paint> = (0..meshes.len())
+        .map(|i| Paint {
             colour: colours.get(i).copied().flatten().unwrap_or([r, g, b, 255]),
             texture: None,
-        },
-        camera,
-        options,
-    )
+        })
+        .collect();
+    let opaque: Vec<bool> = paints.iter().map(|p| p.colour[3] == 255).collect();
+    render_painted(meshes, &paints, &opaque, camera, options)
 }
 
-/// [`render_coloured`] with mesh `i` filled with `paint(i)`; a textured
-/// mesh takes part in the opaque pass only when its texture is opaque.
-pub(crate) fn render_painted<'a>(
+/// Draws mesh `i` filled with `paints[i]`: meshes with `opaque[i]` first,
+/// then the rest blended over them, both in mesh order; fully transparent
+/// ones not at all. With [`RenderOptions::threads`] above one the image is
+/// split into row bands drawn at once, each taking every triangle in the
+/// same order, so the pixels are the same at any thread count.
+pub(crate) fn render_painted(
     meshes: &[TriangleMesh],
-    paint: &dyn Fn(usize) -> Paint<'a>,
+    paints: &[Paint<'_>],
+    opaque: &[bool],
     camera: &Camera,
     options: &RenderOptions,
 ) -> Result<Image, RenderError> {
@@ -395,49 +415,85 @@ pub(crate) fn render_painted<'a>(
         return Err(RenderError::Size { width, height });
     }
     let aspect = f64::from(width) / f64::from(height);
+    let basis = camera.basis()?;
     let scene = Scene {
         camera,
-        basis: camera.basis()?,
+        basis,
         view: View::new(camera, aspect)?,
-    };
-    let mut target = Target {
-        width,
+        shader: Shader::new(options.lighting.lights(), options.light_frame, &basis),
         height,
-        rgba: options.background.repeat(pixels as usize),
-        depth: vec![f64::NEG_INFINITY; pixels as usize],
     };
-    for opaque_pass in [true, false] {
-        for (i, mesh) in meshes.iter().enumerate() {
-            let paint = paint(i);
-            let alpha = paint.colour[3];
-            let opaque = alpha == 255 && paint.texture.is_none_or(Texture::is_opaque);
-            if alpha == 0 || opaque != opaque_pass {
-                continue;
-            }
-            for t in 0..mesh.triangles.len() {
-                scene.draw(&mut target, mesh, t, paint);
-            }
-        }
+    let mut rgba = options.background.repeat(pixels as usize);
+    let mut depth = vec![f64::NEG_INFINITY; pixels as usize];
+    Frame {
+        scene: &scene,
+        meshes,
+        paints,
+        opaque,
     }
+    .draw(
+        (&mut rgba, &mut depth),
+        (width, height),
+        parallel::workers(options.threads),
+    );
     Ok(Image {
         width,
         height,
-        rgba: target.rgba,
+        rgba,
     })
 }
 
 /// The camera a frame is drawn from, with its basis and projection.
-struct Scene<'c> {
+pub(crate) struct Scene<'c> {
     camera: &'c Camera,
     /// Right, up and forward.
     basis: [[f64; 3]; 3],
     view: View,
+    shader: Shader,
+    /// The image height, pixels.
+    height: u32,
 }
 
 impl Scene<'_> {
+    /// The screen rows triangle `t` of `mesh` may cover, unclipped to the
+    /// image; every row when part of it is behind the near plane, `None`
+    /// when it is not drawn at all.
+    pub(crate) fn rows(&self, mesh: &TriangleMesh, t: usize) -> Option<(f64, f64)> {
+        let world = corners(mesh, mesh.triangles.get(t)?)?;
+        let [right, up, forward] = self.basis;
+        let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+        for k in 0..3 {
+            let d = sub(at3(&world, k), self.camera.eye);
+            let v = [
+                dot(d, right),
+                dot(d, up),
+                dot(d, forward),
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+            ];
+            if let View::Perspective { near, .. } = self.view
+                && (dot(d, forward) < near || dot(d, forward).is_nan())
+            {
+                return Some((f64::NEG_INFINITY, f64::INFINITY));
+            }
+            let y = at(self.view.project(v, 1, self.height).at, 1);
+            (lo, hi) = (lo.min(y), hi.max(y));
+        }
+        Some((lo, hi))
+    }
+
     /// Draw triangle `t` of `mesh` into `target`, lit and, when `paint` is
     /// textured, carrying the triangle's texture coordinates.
-    fn draw(&self, target: &mut Target, mesh: &TriangleMesh, t: usize, paint: Paint<'_>) {
+    pub(crate) fn draw(
+        &self,
+        target: &mut Target,
+        mesh: &TriangleMesh,
+        t: usize,
+        paint: Paint<'_>,
+    ) {
         let Some(world) = mesh.triangles.get(t).and_then(|tri| corners(mesh, tri)) else {
             return;
         };
@@ -458,7 +514,7 @@ impl Scene<'_> {
             let normal = stored
                 .and_then(|n| n.get(k).copied().flatten())
                 .unwrap_or(face);
-            0.3 + 0.7 * towards.map_or(0.0, |l| dot(normal, l).abs())
+            self.shader.shade(normal, towards)
         };
         // Without stored normals the triangle is flat: one shade, lit along
         // the view ray to its first corner.
@@ -469,8 +525,8 @@ impl Scene<'_> {
         let view_corners = [0, 1, 2].map(|k| {
             let d = sub(at3(&world, k), self.camera.eye);
             let [u, v] = uvs.and_then(|c| c.get(k).copied()).unwrap_or([0.0; 2]);
-            let s = flat.unwrap_or_else(|| shade(k));
-            [dot(d, right), dot(d, up), dot(d, forward), s, u, v]
+            let [r, g, b] = flat.unwrap_or_else(|| shade(k));
+            [dot(d, right), dot(d, up), dot(d, forward), r, g, b, u, v]
         });
         let (width, height) = (target.width, target.height);
         let screen: Vec<Corner> = self
@@ -938,5 +994,71 @@ mod tests {
         let image = render(std::slice::from_ref(&mesh), &ortho(4.0), &small()).unwrap();
         assert!(image.rgba.chunks(4).all(|p| p == [255, 255, 255, 255]));
         assert_eq!(Bounds::of(&[mesh]).unwrap().max, [0.0, 1.0, 0.0]);
+    }
+
+    #[test]
+    fn a_scheme_lights_each_channel() {
+        let lit = |lighting| {
+            let options = RenderOptions {
+                lighting,
+                ..small()
+            };
+            let image = render(&[quad(0.0, 1.0, 0.0)], &ortho(4.0), &options).unwrap();
+            pixel(&image, 20, 20)
+        };
+        assert_eq!(lit(LightingScheme::None), [190, 192, 200, 255]);
+        // A face square to the camera: ambient .1 plus the camera light.
+        assert_eq!(lit(LightingScheme::Headlamp), [171, 173, 200, 255]);
+        assert_eq!(lit(LightingScheme::Artwork), [190, 192, 200, 255]);
+        assert_eq!(lit(LightingScheme::Hard)[0], 255, "over-bright saturates");
+    }
+
+    #[test]
+    fn every_thread_count_draws_the_same_pixels() {
+        // Overlapping tilted squares, glass, and a floor crossing the near
+        // plane, in a tall image so the bands are many.
+        let mut meshes: Vec<TriangleMesh> = (0..12)
+            .map(|k| {
+                let mut q = quad(f64::from(k) * 0.3 - 2.0, 1.0 + f64::from(k) * 0.1, 0.4);
+                for p in &mut q.positions {
+                    p[1] += f64::from(k % 5) * 0.4 - 0.8;
+                }
+                q
+            })
+            .collect();
+        meshes.push(TriangleMesh {
+            positions: vec![[-5.0, -1.0, 20.0], [5.0, -1.0, 20.0], [0.0, -1.0, -20.0]],
+            triangles: vec![[0, 1, 2]],
+            ..quad(0.0, 1.0, 0.0)
+        });
+        let colours: Vec<_> = (0..meshes.len())
+            .map(|k| {
+                Some([
+                    40 * (k % 6) as u8,
+                    100,
+                    200,
+                    if k % 3 == 0 { 120 } else { 255 },
+                ])
+            })
+            .collect();
+        let camera = Camera {
+            projection: Projection::Perspective { fov_y: 60.0 },
+            ..ortho(1.0)
+        };
+        let draw = |threads| {
+            let options = RenderOptions {
+                width: 37,
+                height: 301,
+                lighting: LightingScheme::Night,
+                threads,
+                ..RenderOptions::default()
+            };
+            render_coloured(&meshes, &colours, &camera, &options).unwrap()
+        };
+        let one = draw(1);
+        assert!(one.rgba.chunks(4).any(|p| p != [255, 255, 255, 255]));
+        for threads in [2, 3, 7, 64, 0] {
+            assert_eq!(draw(threads), one, "{threads} threads");
+        }
     }
 }

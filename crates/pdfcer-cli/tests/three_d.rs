@@ -1385,3 +1385,40 @@ fn a_pick_reports_the_model_point_under_a_pixel() {
         );
     }
 }
+
+/// `--lighting` names its scheme and source, and `--threads` never changes
+/// a pixel.
+#[cfg(feature = "3d")]
+#[test]
+fn render_lighting_is_reported_and_threads_draw_the_same_image() {
+    let input = with_prc("render_lighting", "assembly.prc");
+    let render = |tag: &str, extra: &[&str]| {
+        let output = input.with_extension(format!("{tag}.png"));
+        let mut args = vec!["3d-render", input.to_str().unwrap(), "--index", "2"];
+        args.extend_from_slice(extra);
+        let out_path = output.to_str().unwrap().to_owned();
+        args.extend_from_slice(&["--width", "120", "--height", "80", "-o", &out_path]);
+        let out = run(&args);
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        (
+            String::from_utf8_lossy(&out.stdout).into_owned(),
+            std::fs::read(&output).unwrap(),
+        )
+    };
+    let (default, _) = render("default", &[]);
+    assert!(
+        default.contains("note: lighting: Artwork (the default"),
+        "{default}"
+    );
+    let (night, one) = render("night1", &["--lighting", "night", "--threads", "1"]);
+    assert!(
+        night.contains("note: lighting: Night (--lighting)"),
+        "{night}"
+    );
+    let (_, many) = render("night0", &["--lighting", "night", "--threads", "0"]);
+    assert_eq!(one, many, "the thread count changes no pixel");
+}

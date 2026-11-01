@@ -5,14 +5,14 @@ use crate::Texture;
 use crate::render::{Camera, Projection, RenderError};
 use crate::vec3::{length, sub};
 
-/// One clipped view-space corner: x, y, z, shade, u, v.
-pub(crate) type ViewCorner = [f64; 6];
+/// One clipped view-space corner: x, y, z, red/green/blue shade, u, v.
+pub(crate) type ViewCorner = [f64; 8];
 
 /// One screen-space corner: pixel x, pixel y, depth key; shade; u, v.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Corner {
     pub(crate) at: [f64; 3],
-    pub(crate) shade: f64,
+    pub(crate) shade: [f64; 3],
     pub(crate) uv: [f64; 2],
 }
 
@@ -100,7 +100,7 @@ impl View {
     /// The screen corner of view corner `v`: pixel x, pixel y and a depth
     /// key that is linear in screen space and larger for nearer points.
     pub(crate) fn project(&self, v: ViewCorner, width: u32, height: u32) -> Corner {
-        let [x, y, z, shade, u, w] = v;
+        let [x, y, z, r, g, b, u, w] = v;
         let (nx, ny, key) = match *self {
             View::Perspective { focal, aspect, .. } => {
                 (x * focal / (z * aspect), y * focal / z, 1.0 / z)
@@ -116,7 +116,7 @@ impl View {
                 (1.0 - ny) / 2.0 * f64::from(height),
                 key,
             ],
-            shade,
+            shade: [r, g, b],
             uv: [u, w],
         }
     }
@@ -131,14 +131,17 @@ impl View {
     }
 }
 
-pub(crate) struct Target {
+/// A band of whole image rows from row `top`: `rgba` and `depth` hold the
+/// band's pixels; `width` and `height` are the whole image's.
+pub(crate) struct Target<'b> {
     pub(crate) width: u32,
     pub(crate) height: u32,
-    pub(crate) rgba: Vec<u8>,
-    pub(crate) depth: Vec<f64>,
+    pub(crate) top: u32,
+    pub(crate) rgba: &'b mut [u8],
+    pub(crate) depth: &'b mut [f64],
 }
 
-impl Target {
+impl Target<'_> {
     /// Fill the screen triangle of `corners` with `paint`, depth-tested at
     /// pixel centres, the shade (and any texture coordinate,
     /// perspective-correct) interpolated across it. An opaque pixel
@@ -170,14 +173,14 @@ impl Target {
                     w.iter().zip(&corners).map(|(k, c)| k * f(c)).sum::<f64>()
                 };
                 let key = mix(&|c| at(c.at, 2));
-                let i = y as usize * self.width as usize + x as usize;
+                let i = (y - self.top) as usize * self.width as usize + x as usize;
                 if self.depth.get(i).is_none_or(|&d| key <= d) {
                     continue;
                 }
                 let shade = if a.shade == b.shade && b.shade == c.shade {
                     a.shade
                 } else {
-                    mix(&|c| c.shade)
+                    [0, 1, 2].map(|j| mix(&|c| c.shade.get(j).copied().unwrap_or(0.0)))
                 };
                 let colour = match paint.texture {
                     Some(t) => {
@@ -201,7 +204,7 @@ impl Target {
     }
 
     /// The pixel rows and columns `corners` may cover, clipped to the
-    /// target; `None` when off it.
+    /// band; `None` when off it.
     fn bounds(&self, corners: &[Corner; 3]) -> Option<(u32, u32, u32, u32)> {
         let lo = |i: usize| {
             corners
@@ -219,7 +222,10 @@ impl Target {
                 .ceil()
                 .min(f64::from(limit) - 1.0)
         };
-        let (x0, x1, y0, y1) = (lo(0), hi(0, self.width), lo(1), hi(1, self.height));
+        let rows = (self.depth.len() / self.width.max(1) as usize) as u32;
+        let bottom = self.height.min(self.top.saturating_add(rows));
+        let (x0, x1) = (lo(0), hi(0, self.width));
+        let (y0, y1) = (lo(1).max(f64::from(self.top)), hi(1, bottom));
         (x0 <= x1 && y0 <= y1).then_some((x0 as u32, x1 as u32, y0 as u32, y1 as u32))
     }
 
@@ -251,10 +257,12 @@ impl Target {
     }
 }
 
-/// `colour`'s RGB scaled by `shade`, alpha kept.
-fn shaded(colour: [u8; 4], shade: f64) -> [u8; 4] {
+/// `colour`'s RGB scaled channel by channel by `shade`, saturating at 255;
+/// alpha kept.
+fn shaded(colour: [u8; 4], shade: [f64; 3]) -> [u8; 4] {
     let [r, g, b, a] = colour;
-    let [r, g, b] = [r, g, b].map(|v| (f64::from(v) * shade).round() as u8);
+    let [sr, sg, sb] = shade;
+    let [r, g, b] = [(r, sr), (g, sg), (b, sb)].map(|(v, s)| (f64::from(v) * s).round() as u8);
     [r, g, b, a]
 }
 
@@ -292,7 +300,7 @@ mod tests {
         // four times as far as the others.
         let corner = |at, u| Corner {
             at,
-            shade: 1.0,
+            shade: [1.0; 3],
             uv: [u, 0.0],
         };
         let corners = [
@@ -305,14 +313,16 @@ mod tests {
             texture: Some(&texture),
         };
         let fill = |view: &View| {
+            let (mut rgba, mut depth) = (vec![0; 8 * 8 * 4], vec![f64::NEG_INFINITY; 64]);
             let mut target = Target {
                 width: 8,
                 height: 8,
-                rgba: vec![0; 8 * 8 * 4],
-                depth: vec![f64::NEG_INFINITY; 64],
+                top: 0,
+                rgba: &mut rgba,
+                depth: &mut depth,
             };
             target.fill(view, corners, paint);
-            target.rgba[4 * 4..4 * 4 + 4].to_vec()
+            rgba[4 * 4..4 * 4 + 4].to_vec()
         };
         let perspective = View::Perspective {
             focal: 1.0,

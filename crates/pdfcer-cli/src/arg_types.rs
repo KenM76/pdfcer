@@ -1378,6 +1378,74 @@ pub(crate) enum ThreeDLightingArg {
     Headlamp,
 }
 
+/// How `3d-render` lights the model (ISO 32000-1 Table 310).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum RenderLightingArg {
+    /// The scheme of the view the model opens on, when it names one;
+    /// otherwise artwork (default).
+    #[default]
+    Auto,
+    /// The model's own lights. Not read yet: drawn with one light at the
+    /// camera.
+    Artwork,
+    /// No lights: every surface in its own colour, unshaded.
+    None,
+    /// Three white lights.
+    White,
+    /// Daylight.
+    Day,
+    /// Night.
+    Night,
+    /// Hard white lights and an ambient term.
+    Hard,
+    /// Red, green and blue lights.
+    Primary,
+    /// Blue lights.
+    Blue,
+    /// Red lights.
+    Red,
+    /// Six lights along the axes.
+    Cube,
+    /// Lights for CAD models.
+    Cad,
+    /// One light from the camera and an ambient term.
+    Headlamp,
+}
+
+impl RenderLightingArg {
+    /// The chosen scheme; `None` for `auto`.
+    #[cfg(feature = "3d")]
+    pub(crate) fn scheme(self) -> Option<pdfcer_3d::LightingScheme> {
+        use pdfcer_3d::LightingScheme as S;
+        Some(match self {
+            RenderLightingArg::Auto => return None,
+            RenderLightingArg::Artwork => S::Artwork,
+            RenderLightingArg::None => S::None,
+            RenderLightingArg::White => S::White,
+            RenderLightingArg::Day => S::Day,
+            RenderLightingArg::Night => S::Night,
+            RenderLightingArg::Hard => S::Hard,
+            RenderLightingArg::Primary => S::Primary,
+            RenderLightingArg::Blue => S::Blue,
+            RenderLightingArg::Red => S::Red,
+            RenderLightingArg::Cube => S::Cube,
+            RenderLightingArg::Cad => S::Cad,
+            RenderLightingArg::Headlamp => S::Headlamp,
+        })
+    }
+}
+
+/// Which frame `3d-render`'s scheme light directions are in; ISO 32000
+/// does not say.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum LightFrameArg {
+    /// Fixed to the camera, so the lighting turns with the view (default).
+    #[default]
+    Camera,
+    /// Fixed to the model.
+    World,
+}
+
 /// When a `3d-embed` model activates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum ThreeDActivateArg {

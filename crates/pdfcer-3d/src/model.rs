@@ -655,26 +655,7 @@ pub fn render_model(
     camera: &crate::Camera,
     options: &crate::RenderOptions,
 ) -> Result<crate::Image, crate::RenderError> {
-    let [r, g, b] = options.colour;
-    crate::render::render_painted(
-        &model.meshes,
-        &|i| crate::raster::Paint {
-            colour: model
-                .colours
-                .get(i)
-                .copied()
-                .flatten()
-                .unwrap_or([r, g, b, 255]),
-            texture: model
-                .mesh_textures
-                .get(i)
-                .copied()
-                .flatten()
-                .and_then(|t| model.textures.get(t)),
-        },
-        camera,
-        options,
-    )
+    crate::PreparedModel::new(model).render(camera, options)
 }
 
 #[cfg(test)]

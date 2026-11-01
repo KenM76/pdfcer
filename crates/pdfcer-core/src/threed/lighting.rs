@@ -53,6 +53,35 @@ const NAMES: [(ThreeDLighting, &[u8]); 12] = [
     (ThreeDLighting::Headlamp, b"Headlamp"),
 ];
 
+/// The renderer's scheme for this `/Subtype`, for drawing a view as it
+/// is lit: `pdfcer_3d::RenderOptions::lighting`.
+///
+/// ```
+/// use pdfcer_core::threed::ThreeDLighting;
+/// let scheme = pdfcer_3d::LightingScheme::from(ThreeDLighting::Cad);
+/// assert_eq!(scheme, pdfcer_3d::LightingScheme::Cad);
+/// ```
+#[cfg(feature = "3d")]
+impl From<ThreeDLighting> for pdfcer_3d::LightingScheme {
+    fn from(lighting: ThreeDLighting) -> Self {
+        use pdfcer_3d::LightingScheme as S;
+        match lighting {
+            ThreeDLighting::Artwork => S::Artwork,
+            ThreeDLighting::None => S::None,
+            ThreeDLighting::White => S::White,
+            ThreeDLighting::Day => S::Day,
+            ThreeDLighting::Night => S::Night,
+            ThreeDLighting::Hard => S::Hard,
+            ThreeDLighting::Primary => S::Primary,
+            ThreeDLighting::Blue => S::Blue,
+            ThreeDLighting::Red => S::Red,
+            ThreeDLighting::Cube => S::Cube,
+            ThreeDLighting::Cad => S::Cad,
+            ThreeDLighting::Headlamp => S::Headlamp,
+        }
+    }
+}
+
 impl ThreeDLighting {
     /// The `/Subtype` name, as written.
     ///

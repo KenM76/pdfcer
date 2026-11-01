@@ -448,8 +448,51 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) texture_origin: TextureOriginArg,
     pub(crate) texture_wrap_base: TextureWrapBaseArg,
     pub(crate) texture_pictures: TexturePicturesArg,
+    pub(crate) lighting: RenderLightingArg,
+    pub(crate) light_frame: LightFrameArg,
+    pub(crate) threads: usize,
     /// Image positions to report the model point under (`--pick`).
     pub(crate) pick: &'a [[f64; 2]],
+}
+
+/// The scheme `3d-render` lights with, and where it came from.
+#[cfg(feature = "3d")]
+struct RenderLighting {
+    scheme: pdfcer_3d::LightingScheme,
+    source: &'static str,
+}
+
+#[cfg(feature = "3d")]
+fn render_lighting(
+    arg: RenderLightingArg,
+    saved: Option<&pdfcer_core::threed::ThreeDSavedView>,
+) -> RenderLighting {
+    let (scheme, source) = match (arg.scheme(), saved.and_then(|v| v.lighting)) {
+        (Some(scheme), _) => (scheme, "--lighting"),
+        (None, Some(lighting)) => (lighting.into(), "the opening view's"),
+        (None, None) => (
+            pdfcer_3d::LightingScheme::Artwork,
+            "the default; the opening view names none",
+        ),
+    };
+    RenderLighting { scheme, source }
+}
+
+#[cfg(feature = "3d")]
+impl RenderLighting {
+    fn print_note(&self) {
+        use pdfcer_3d::LightingScheme as S;
+        let how = match self.scheme {
+            S::Artwork => "the model's own lights are not read yet, so it is lit from the camera",
+            S::None => "no lights, every surface in its own colour",
+            _ => "the scheme's fixed lights (ISO 32000-1 Table 310)",
+        };
+        println!(
+            "note: lighting: {} ({}): {how}",
+            self.scheme.name(),
+            self.source
+        );
+    }
 }
 
 /// `3d-render` — draw one PRC model to a PNG from a camera.
@@ -501,6 +544,7 @@ fn render_from_bytes(
     if let Projection::Perspective { fov_y } = &mut camera.projection {
         *fov_y = a.fov;
     }
+    let lighting = render_lighting(a.lighting, saved);
     let options = RenderOptions {
         width: a.width,
         height: a.height,
@@ -509,6 +553,12 @@ fn render_from_bytes(
         } else {
             [255, 255, 255, 255]
         },
+        lighting: lighting.scheme,
+        light_frame: match a.light_frame {
+            LightFrameArg::Camera => pdfcer_3d::LightFrame::Camera,
+            LightFrameArg::World => pdfcer_3d::LightFrame::World,
+        },
+        threads: a.threads,
         ..RenderOptions::default()
     };
     let image = match render_model(&model, &camera, &options) {
@@ -570,9 +620,10 @@ fn render_from_bytes(
         .count();
     println!(
         "note: each part, and each face styled on its own, is drawn in the colour its model \
-         tree gives it ({translucent} translucent), lit from the camera; {uncoloured} mesh(es) \
-         had none and are drawn grey; lights are not read yet"
+         tree gives it ({translucent} translucent); {uncoloured} mesh(es) had none and are \
+         drawn grey"
     );
+    lighting.print_note();
     print_alpha_unset_note(
         model.alpha_unset,
         " (`--style-alpha style` draws them invisible, as the literal reading does)",

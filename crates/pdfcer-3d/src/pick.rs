@@ -253,7 +253,16 @@ mod tests {
                 let d = sub(hit.point, cam.eye);
                 let at = view
                     .project(
-                        [dot(d, right), dot(d, up), dot(d, forward), 0.0, 0.0, 0.0],
+                        [
+                            dot(d, right),
+                            dot(d, up),
+                            dot(d, forward),
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                        ],
                         w,
                         h,
                     )

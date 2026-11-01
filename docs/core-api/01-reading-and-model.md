@@ -3403,6 +3403,33 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   Fixture: `fixtures/synthetic/prc/overridden.prc` — three copies; the
   first recoloured translucent blue, the second face 0 only, the third
   hidden. CLI: `3d-render --entity-overrides subtree|everywhere|ignore`.
+- **Lighting** (ISO 32000-1 §13.6.4.5, Table 310; `pdfcer-3d`'s `render`
+  feature). `RenderOptions::lighting: LightingScheme` (`Copy`,
+  `#[non_exhaustive]`, default `Artwork`; `ALL`, `name()` gives the PDF
+  `/Subtype` name, `lights() -> Lights::{Headlight, Unlit, Set(LightSet)}`)
+  — the 12 named schemes. `None` draws every surface in its own colour;
+  the 10 fixed schemes use the table's infinite lights plus ambient
+  (`LightSet { lights: &[Light { colour, direction }], ambient }`).
+  `Artwork` lights from the camera until the model's own lights are read
+  (ISO 32000-1 says Acrobat draws a light-less model black; pdfcer does
+  not). `pdfcer_core::threed::ThreeDLighting` converts with `.into()`
+  (core feature `3d`), so a saved view's `lighting` feeds it directly. The
+  standard does not say which frame the light directions are in:
+  `RenderOptions::light_frame: LightFrame::{Camera (default), World}` —
+  offer it as a setting. Disclose the scheme and where it came from;
+  `3d-render` prints `note: lighting: <Name> (<source>): <how>`. CLI:
+  `3d-render --lighting <scheme>|auto --light-frame camera|world`.
+- **Interactive frame rate.** `PreparedModel::new(&model)` (re-exported at
+  the crate root) does the camera-independent work once (texture opacity);
+  `prepared.render(&camera, &options)` draws a frame — keep it while the
+  model is open and call `render` per orbit/pan/zoom step.
+  `RenderOptions::threads: usize` (default 1; 0 = every core; wasm32 always
+  draws on one) splits the image into row bands; the pixels are
+  byte-identical at any count (decision 080). Measured on a real CAD
+  assembly, all cores: 21 ms at 64x41, 20 ms at 700x450, 40 ms at
+  1400x900 (previously 299 / 352 / 617 ms). Build `RenderOptions` with
+  `..Default::default()`: it gained fields. CLI: `3d-render --threads N`
+  (default 0).
 - `prc.model_tree() -> Result<Vec<ModelNode>, PrcError>`: the model-tree
   panel's rows, depth first (parent before children, children in file
   order), one per product occurrence the roots reach — hidden and
