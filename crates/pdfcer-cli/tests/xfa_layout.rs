@@ -612,3 +612,22 @@ fn a_rotated_draw_reports_its_turn_and_odd_rotate_reaches_layout() {
     let (_, stdout, _) = run("rotate-near", &pdf(Some(&t)), &["--odd-rotate", "nearest"]);
     assert_eq!(stdout.matches("rotate=90").count(), 2, "{stdout}");
 }
+
+#[test]
+fn an_lr_tb_subform_splits_unless_tiled_split_says_tb_only() {
+    let t = format!(
+        r#"<subform name="f" layout="tb">{PAGE}<field name="h" w="540pt" h="300pt"/><subform name="d" layout="lr-tb" w="540pt"><field name="a" w="540pt" h="300pt"/><field name="c" w="540pt" h="300pt"/></subform></subform>"#
+    );
+    let page_of = |stdout: &str, name: &str| {
+        stdout
+            .lines()
+            .find(|l| l.contains(&format!(r#"name="{name}""#)))
+            .map(|l| l.split(' ').nth(1).unwrap_or_default().to_owned())
+    };
+    let (code, stdout, stderr) = run("tiled", &pdf(Some(&t)), &[]);
+    assert_eq!(code, 0, "{stderr}");
+    assert_eq!(page_of(&stdout, "a").as_deref(), Some("page=0"), "{stdout}");
+    assert_eq!(page_of(&stdout, "c").as_deref(), Some("page=1"), "{stdout}");
+    let (_, stdout, _) = run("tiled-tb", &pdf(Some(&t)), &["--tiled-split", "tb-only"]);
+    assert_eq!(page_of(&stdout, "a").as_deref(), Some("page=1"), "{stdout}");
+}

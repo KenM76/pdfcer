@@ -928,14 +928,20 @@ with every `warnings` entry.
   - `.with_odd_rotate(OddRotate::{Ignore (default), Nearest})`: a `rotate`
     not a multiple of 90 is no turn, or the nearest multiple (gap G-L29);
     the painter notes it as `Rotate` either way. `#[non_exhaustive]`.
+  - `.with_tiled_split(TiledSplit::{Split (default), TbOnly})`: whether an
+    `lr-tb`/`rl-tb` subform that does not fit splits between its rows like
+    a `tb` one, or moves whole to the next content area. XFA 3.3 says both
+    (p.282 vs p.281). An explicit `keep@intact` wins either way; a tiled
+    root subform does not split under either. `#[non_exhaustive]`.
 - **Errors.** `LayoutError` is `NoRootSubform` or `NoPageArea`; the latter is
   fatal per XFA.
 - **CLI.** `pdfcer xfa-layout <file>` reads the template through
   `read_xdp` and `read_template`, lays it, and prints one `page`, `item` and
   `warning` line each, then an `xfa-layout pages= items= warnings=` summary.
   Its stderr note says the pages are computed, not stored. Its flags
-  `--negative-coordinates`, `--nested-overflow` and `--page-area-keep` map
-  one-to-one onto the options above. It exits 1 when the file has no
+  `--negative-coordinates`, `--nested-overflow`, `--page-area-keep`,
+  `--odd-rotate` and `--tiled-split {split,tb-only}` map one-to-one onto
+  the options above. It exits 1 when the file has no
   template or `LayoutError` applies. `--png-dir <DIR>` also draws each
   computed page through `render_xfa_page` to `DIR/page-NNN.png` (`--scale`
   pixels per point, default 1), printing a `rendered page= file= width=

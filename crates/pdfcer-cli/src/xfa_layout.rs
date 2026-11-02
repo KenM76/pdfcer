@@ -47,6 +47,16 @@ pub(crate) enum OddRotateArg {
     Nearest,
 }
 
+/// `xfa-layout --tiled-split` (XFA 3.3 pp.281-282).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum TiledSplitArg {
+    /// An lr-tb or rl-tb subform splits between its rows.
+    #[default]
+    Split,
+    /// Only tb subforms split; a tiled one moves whole to the next page.
+    TbOnly,
+}
+
 /// `xfa-layout --scope-search` (gap G-SOM3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
 pub(crate) enum ScopeSearchArg {
@@ -132,6 +142,7 @@ pub(crate) struct XfaLayoutArgs {
     pub(crate) nested_overflow: NestedOverflowArg,
     pub(crate) page_area_keep: PageAreaKeepArg,
     pub(crate) odd_rotate: OddRotateArg,
+    pub(crate) tiled_split: TiledSplitArg,
     pub(crate) merge: XfaMergeFlags,
 }
 
@@ -167,7 +178,9 @@ impl XfaMergeFlags {
 
 impl XfaLayoutArgs {
     fn options(self) -> LayoutOptions {
-        use pdfcer_core::xfa::{NegativeCoordinates, NestedOverflow, OddRotate, PageAreaKeep};
+        use pdfcer_core::xfa::{
+            NegativeCoordinates, NestedOverflow, OddRotate, PageAreaKeep, TiledSplit,
+        };
         LayoutOptions::new()
             .with_negative_coordinates(match self.negative_coordinates {
                 NegativeCoordinatesArg::Keep => NegativeCoordinates::Keep,
@@ -184,6 +197,10 @@ impl XfaLayoutArgs {
             .with_odd_rotate(match self.odd_rotate {
                 OddRotateArg::Ignore => OddRotate::Ignore,
                 OddRotateArg::Nearest => OddRotate::Nearest,
+            })
+            .with_tiled_split(match self.tiled_split {
+                TiledSplitArg::Split => TiledSplit::Split,
+                TiledSplitArg::TbOnly => TiledSplit::TbOnly,
             })
     }
 }

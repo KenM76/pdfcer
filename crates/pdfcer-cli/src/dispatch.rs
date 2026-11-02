@@ -1419,6 +1419,7 @@ pub(crate) fn run() -> ExitCode {
             three_d_stroke,
             check_caption,
             odd_rotate,
+            tiled_split,
             dash_lengths,
             dash_caps,
             arc_circle,
@@ -1430,6 +1431,7 @@ pub(crate) fn run() -> ExitCode {
                 nested_overflow,
                 page_area_keep,
                 odd_rotate,
+                tiled_split,
                 merge,
             },
             png_dir

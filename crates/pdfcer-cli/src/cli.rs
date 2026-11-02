@@ -6325,6 +6325,12 @@ pub(crate) enum Command {
         /// nearest multiple. Listed as rotate-adjusted either way.
         #[arg(long, value_enum, default_value_t)]
         odd_rotate: OddRotateArg,
+        /// Whether a subform that lays its contents in rows (lr-tb or
+        /// rl-tb) may continue on the next page when it does not fit, as a
+        /// top-to-bottom one does, or moves there whole. The XFA spec says
+        /// both.
+        #[arg(long, value_enum, default_value_t)]
+        tiled_split: TiledSplitArg,
         /// How long the dashes and gaps of a dashed or dotted edge are, for
         /// --png-dir: multiples of the edge's thickness, or the fixed
         /// lengths Acrobat draws (the XFA spec names no lengths).

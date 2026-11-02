@@ -29,7 +29,7 @@ mod lines;
 pub use lines::Fragment;
 mod nested;
 mod options;
-pub use options::{LayoutOptions, NegativeCoordinates, NestedOverflow, OddRotate};
+pub use options::{LayoutOptions, NegativeCoordinates, NestedOverflow, OddRotate, TiledSplit};
 mod overflow;
 mod pager;
 mod rotate;

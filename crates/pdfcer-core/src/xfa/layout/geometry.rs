@@ -4,7 +4,9 @@
 use super::adhere::{Hold, Keep, adheres};
 use super::flow::{Flow, is_flow};
 use super::lines::{Lines, content};
-use super::{LayoutItem, LayoutOptions, LayoutRect, LayoutWarning, NegativeCoordinates};
+use super::{
+    LayoutItem, LayoutOptions, LayoutRect, LayoutWarning, NegativeCoordinates, TiledSplit,
+};
 use crate::xfa::{AnchorType, ContainerKind, LayoutStrategy, Measurement, Presence, XfaNode};
 
 /// `font@size` default (Ch.17 p.741), the base of an `em` measurement.
@@ -251,7 +253,7 @@ fn lay_one(
     items.extend(laid);
     let lines = Lines::of(ctx, node, path, kind, h);
     let mut flags = vec![ItemFlags {
-        breakable: breaks(node, kind, strategy) || lines.is_some(),
+        breakable: breaks(node, kind, strategy, ctx.opts.tiled_split) || lines.is_some(),
         lines,
         ..ItemFlags::default()
     }];
@@ -292,15 +294,26 @@ fn position(
     place(ctx, path, LayoutRect { x, y, w, h })
 }
 
-/// A `tb` subform may be split unless `keep@intact` says otherwise. The
-/// default keys on the subform's own layout, `none` for a flowing one (gap
-/// G-L18, Ch.17 p.762). Fields and draws split by [`Lines::of`].
-fn breaks(node: &XfaNode, kind: ContainerKind, strategy: LayoutStrategy) -> bool {
+/// A flowing subform may be split unless `keep@intact` says otherwise: `tb`
+/// always, `lr-tb`/`rl-tb` per [`TiledSplit`]. The default keys on the
+/// subform's own layout, `none` for a flowing one (gap G-L18, Ch.17 p.762).
+/// Fields and draws split by [`Lines::of`].
+fn breaks(
+    node: &XfaNode,
+    kind: ContainerKind,
+    strategy: LayoutStrategy,
+    tiled: TiledSplit,
+) -> bool {
     let intact = node
         .child("keep")
         .and_then(|k| k.attr("intact"))
         .map_or("none", str::trim);
-    kind == ContainerKind::Subform && strategy == LayoutStrategy::Tb && intact == "none"
+    let flows = match strategy {
+        LayoutStrategy::Tb => true,
+        LayoutStrategy::LrTb | LayoutStrategy::RlTb => tiled == TiledSplit::Split,
+        _ => false,
+    };
+    kind == ContainerKind::Subform && flows && intact == "none"
 }
 
 /// Children's items relative to the container's top-left: positioned by

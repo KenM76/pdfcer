@@ -15,7 +15,7 @@ mod template;
 pub use layout::{
     Fragment, LayoutError, LayoutItem, LayoutOptions, LayoutPage, LayoutRect, LayoutWarning,
     MAX_LAYOUT_ITEMS, MAX_LAYOUT_PAGES, NegativeCoordinates, NestedOverflow, OddRotate,
-    PageAreaKeep, XfaLayout, layout_template,
+    PageAreaKeep, TiledSplit, XfaLayout, layout_template,
 };
 
 pub use images::{MAX_XFA_IMAGE_BYTES, XfaImages};

@@ -46,6 +46,23 @@ pub enum NestedOverflow {
     EachAsserting,
 }
 
+/// Whether a flowing subform that tiles (`layout="lr-tb"` or `"rl-tb"`)
+/// may split across content areas. XFA 3.3 conflicts: p.282 has a tiled
+/// container split an object that does not fit its remaining height, and
+/// `keep@intact` defaults to `none` for any flowing subform (Ch.17 p.762);
+/// p.281 says splitting across pages needs every ancestor to be `tb`.
+/// An explicit `keep@intact` wins either way.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum TiledSplit {
+    /// A tiled subform splits between its rows, like a `tb` one.
+    #[default]
+    Split,
+    /// Only `tb` subforms split; a tiled one moves whole to the next
+    /// content area.
+    TbOnly,
+}
+
 /// Settings for [`layout_template`](super::layout_template).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
@@ -58,6 +75,8 @@ pub struct LayoutOptions {
     pub page_area_keep: PageAreaKeep,
     /// Gap G-L29.
     pub odd_rotate: OddRotate,
+    /// Splitting `lr-tb`/`rl-tb` subforms (pp.281-282).
+    pub tiled_split: TiledSplit,
 }
 
 impl LayoutOptions {
@@ -92,6 +111,13 @@ impl LayoutOptions {
     #[must_use]
     pub const fn with_odd_rotate(mut self, v: OddRotate) -> Self {
         self.odd_rotate = v;
+        self
+    }
+
+    /// Set [`Self::tiled_split`].
+    #[must_use]
+    pub const fn with_tiled_split(mut self, v: TiledSplit) -> Self {
+        self.tiled_split = v;
         self
     }
 }
