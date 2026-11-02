@@ -47,7 +47,8 @@ pub enum NestedOverflow {
 }
 
 /// Whether a flowing subform that tiles (`layout="lr-tb"` or `"rl-tb"`)
-/// may split across content areas. XFA 3.3 conflicts: p.282 has a tiled
+/// may split across content areas. XFA 3.3 conflicts (gap G-L35): p.281's
+/// `lr-tb` paragraph (and p.280 Example 8.7, p.290's Caution) has a tiled
 /// container split an object that does not fit its remaining height, and
 /// `keep@intact` defaults to `none` for any flowing subform (Ch.17 p.762);
 /// p.281 says splitting across pages needs every ancestor to be `tb`.

@@ -46,6 +46,8 @@ pub(crate) struct Screen {
 }
 
 impl Screen {
+    /// The mapping for `view` at `width` x `height` pixels; shared by the CPU
+    /// pass and the GPU uniforms so both unproject identically.
     pub(crate) fn new(view: &View, width: u32, height: u32) -> Screen {
         let h = f64::from(height);
         match *view {

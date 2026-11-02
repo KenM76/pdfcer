@@ -931,7 +931,7 @@ with every `warnings` entry.
   - `.with_tiled_split(TiledSplit::{Split (default), TbOnly})`: whether an
     `lr-tb`/`rl-tb` subform that does not fit splits between its rows like
     a `tb` one, or moves whole to the next content area. XFA 3.3 says both
-    (p.282 vs p.281). An explicit `keep@intact` wins either way; a tiled
+    (gap G-L35). An explicit `keep@intact` wins either way; a tiled
     root subform does not split under either. `#[non_exhaustive]`.
 - **Errors.** `LayoutError` is `NoRootSubform` or `NoPageArea`; the latter is
   fatal per XFA.
