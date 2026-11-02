@@ -284,8 +284,8 @@ pub struct RenderOptions {
     pub shadows: bool,
     /// Which way the scheme's light directions point, for shadows.
     pub light_sense: LightSense,
-    /// The shadow map's side, texels ([`DEFAULT_SHADOW_MAP_SIZE`]), clamped
-    /// to 64–[`MAX_SHADOW_MAP_SIZE`]. It spans the model's bounding sphere,
+    /// The shadow map's side, texels ([`DEFAULT_SHADOW_MAP_SIZE`](crate::DEFAULT_SHADOW_MAP_SIZE)), clamped
+    /// to 64–[`MAX_SHADOW_MAP_SIZE`](crate::MAX_SHADOW_MAP_SIZE). It spans the model's bounding sphere,
     /// so a texel is the model's diameter / this.
     pub shadow_map_size: u32,
     /// Whether creases, corners and contacts are darkened by screen-space
