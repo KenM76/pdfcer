@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-02 (1377th filing) — `Pass 657.0` + `657.1` SHIPPED `97db158e` (`G257`, `G258`); `Pass 647.8` SHIPPED `0486e1ba` (XFA tiled-subform split)
+
+**Filed (docs only; engineer-reported, no shell here; nothing checked from here):**
+- **`Pass 657.0` + `657.1`, `97db158e`:** cast shadows (one caster per frame, shadow map default 2048, 3x3 PCF, `LightSense` setting) and screen-space ambient occlusion in `pdfcer-3d`, CPU and GPU, with `3d-render --no-shadows --no-ambient-occlusion --light-sense`. GPU shaders verified in WebGL 2 against the CPU render (mean diff under 0.2 levels). Bancroft (187,698 triangles, 1024x768): Artwork 53 ms plain, 224 ms with both. `657.2` (`occlusionTexture`) stays Backlog. Replies to `pdfcer-gui` written by the engineer.
+- **`Pass 647.8`, `0486e1ba`** (new ID, XFA arc, operator report on an IRCC dynamic XFA form `imm1344e`, not rights-cleared, not in the repo): `geometry.rs::breaks()` let only `tb` subforms split, so a 687.8 pt `lr-tb` section moved whole to page 2. Spec conflict XFA 3.3 p.282 / p.762 vs p.281; both ship as `TiledSplit::{Split (default), TbOnly}`, CLI `xfa-layout --tiled-split`. Real file: 13 to 12 pages, page-0 items 28 to 138.
+- ROADMAP: two entries at the top of Shipped; `657.0` / `657.1` Next-up entries deleted; Next-up note. FEATURES: two Planned rows replaced by one Implemented row (core `[x]`, cli `[x]`, gui `[ ]`); XFA layout row gained the split sentence.
+
+**Decisions made this session:** none minted. Both new settings follow the standing spec-ambiguity rule and decision 204; judged not to need a decision-log entry.
+
+**Findings:** the filed `657.0` scope gave `Bancroft.glb` as 109,358 triangles; the engineer reports 187,698 at ship time. Recorded in the Shipped entry as not reconciled. The prior filing (1376th, `4a49df43`, filing `657.x`) has no `SESSION_LOG.md` entry; it exists only in ROADMAP.
+
+**Still in flight / open:** (a) `pdfcer-gui` canvas shows only the XFA "Please wait..." placeholder; computed pages are only in the Form preview (GUI-side; engineer raises in the channel). (b) Missing XFA labels (rich-text and inline captions, about 275 notes; some check boxes): paused `Pass 647.4`. (c) A tiled root subform never splits. (d) A spec-gap ID for the p.281 / p.282 conflict is owed: engineer to dispatch `pdfcer-spec-librarian`. Release `v0.117.0` is a separate filing.
+
+**Hard-rule-11 survivors:** keyword sweep of `docs/ROADMAP.md` and `docs/FEATURES.md` for `shadow`, `occlusion` and `tiled` found the Planned rows (replaced) and the `657.2` row (still correct). The caveat "shader text has not been compiled by pdfcer" survives in the `Pass 654.3` Shipped entry (correct at its date) and probably in `docs/research/gpu-3d-draw-data-design.md` and core-api docs, which were NOT swept: owed to the engineer. `docs/NEXT_SESSION.md` (engineer-owned) not swept. Backup currency not verifiable from here.
+
+**For next session:** release `v0.117.0` (slot `pdfcer2`, since `pdfcer1` was the 0.116.0 target); notify `pdfcer-gui` of `G257` / `G258` when published; run `tools/check-ledger-numbers.py` before minting.
+
 ## 2026-11-01 (1375th filing) — `Pass 654.3` SHIPPED `b3c1bb4e` (`G256`); `v0.116.0` release PREP, bump `cb80886d`
 
 **Filed (docs only; engineer-reported, shell held by the engineer; nothing checked from here):**
