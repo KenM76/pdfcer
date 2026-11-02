@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-02 (1378th filing) — `v0.117.0` release PREP, bump `5d95f12d`; prepared, not published
+
+**Filed (docs only; engineer-reported, no shell here; nothing checked from here):**
+- **`5d95f12d`** "chore: bump version to 0.117.0": `Cargo.toml` (workspace version, `pdfcer-model` dependency 0.116.0 to 0.117.0); `Cargo.lock` and `fuzz/Cargo.lock` via `cargo update -w`.
+- **Contents of `v0.117.0`** (since `v0.116.0`): `97db158e` (`Pass 657.0` + `657.1`, `G257` shadows, `G258` ambient occlusion, CPU and GPU), `0486e1ba` (`Pass 647.8`, XFA tiled-subform split), filed 1377th by `b1c76eba`; plus the 1376th filing `4a49df43` and the bump.
+- Target OneDrive slot `pdfcer2` (`pdfcer1` keeps 0.116.0). Tag, publication and crates are NOT done; they come after this filing.
+- **Amendment, same filing:** commit **`76a8cd48`** "docs(3d, xfa): document ao::Screen::new; cite gap G-L35 for TiledSplit" (docs only). Documents the crate-private `Screen::new` (`crates/pdfcer-3d/src/ao.rs`, `Pass 657.1`, flagged by `check-public-fns-documented.py`) and cites `G-L35` in `TiledSplit`'s doc and `docs/core-api/03-capabilities.md`; resolves open item (d) of `Pass 647.8` (noted there). New `personal_rag/pdf` lesson `lesson_20261102_xfa_acrobat_splits_lr_tb_subforms...g_l35.md` (behaviour only, no form content).
+- ROADMAP: prep entry at the top of Shipped; Next-up note. FEATURES: no change (no row cites a version; the shadows row's word "unreleased" is true until publication and will need dropping in the publication filing).
+
+**Decisions made this session:** none minted.
+
+**Findings:** (1) The 1376th filing (`4a49df43`, which filed `657.0`-`657.2`) has no `SESSION_LOG.md` entry; noted, not backfilled. (2) The triangle-count mismatch from the 1377th entry is resolved: 109,358 is the count in the GUI's request, 187,698 is pdfcer's tessellation of `Bancroft.glb` (PRC round trip); both are correct for their source.
+
+**Hard-rule-11 survivors:** none new. `docs/NEXT_SESSION.md` (engineer-owned) not swept. Backup currency not verifiable from here.
+
+**For next session:** run the `v0.117.0` release; notify `pdfcer-gui` of `G257` / `G258` once published; drop "unreleased" from the FEATURES shadows row at publication.
+
 ## 2026-11-02 (1377th filing) — `Pass 657.0` + `657.1` SHIPPED `97db158e` (`G257`, `G258`); `Pass 647.8` SHIPPED `0486e1ba` (XFA tiled-subform split)
 
 **Filed (docs only; engineer-reported, no shell here; nothing checked from here):**

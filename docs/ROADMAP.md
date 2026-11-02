@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.117.0` — release PREP, version bump `5d95f12d` (`chore`), 2026-11-02 (1378th filing); prepared, not published
+
+Engineer-reported; no shell here, nothing checked from here. Same pattern as the `v0.116.0` prep (1375th filing). `v0.117.0` is NOT yet tagged or published.
+- **`5d95f12d`** "chore: bump version to 0.117.0": `Cargo.toml` (workspace version and the `pdfcer-model` workspace dependency, 0.116.0 to 0.117.0); `Cargo.lock` and `fuzz/Cargo.lock` via `cargo update -w`. A code commit, cited here.
+- **Carried since `v0.116.0`:** `Pass 657.0` + `657.1` (`97db158e`, `G257`, `G258`), `Pass 647.8` (`0486e1ba`), the `4a49df43` and `b1c76eba` filings (1376th, 1377th) and the bump.
+- **Also `76a8cd48`** "docs(3d, xfa): document ao::Screen::new; cite gap G-L35 for TiledSplit" (docs only, after the bump): documents the crate-private `Screen::new` in `crates/pdfcer-3d/src/ao.rs` (`Pass 657.1`; flagged by `check-public-fns-documented.py`), and corrects `TiledSplit`'s doc and `docs/core-api/03-capabilities.md` to cite XFA spec gap `G-L35` (see `Pass 647.8` below).
+- **Target:** OneDrive slot `pdfcer2` (`pdfcer1` keeps 0.116.0).
+- **Release plan (to run, NOT claimed done):** tag, packaging, fresh-folder smoke, GitHub release assets, OneDrive deploy to `pdfcer2`, `verify-release.py v0.117.0`, crates.io publish, notify `pdfcer-gui` (`G257`, `G258`).
+- **Triangle counts reconciled:** 109,358 is the figure in the GUI's request; 187,698 is pdfcer's own tessellation of `Bancroft.glb` (PRC round trip). Both are correct for their source, so the "not reconciled" note in the `657.0` / `657.1` entry below is resolved.
+- **FEATURES:** no box changes. Nothing minted: no decision, no rule.
+
 ### `0486e1ba` `Pass 647.8` SHIPPED, 2026-11-02: XFA `lr-tb` / `rl-tb` subforms split across content areas (operator report, an IRCC dynamic XFA form `imm1344e`; decision 204 arc; 1377th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Commit `0486e1ba` "fix(xfa): let lr-tb / rl-tb subforms split across content areas". On `main`, **unreleased**, not pushed at filing. ID `647.8` confirmed free by grep of `docs/` (it was only the "next free" figure). No new decision (decision 204's arc; the setting follows the standing spec-ambiguity rule). Reasoning is in the commit message. The form is NOT rights-cleared and is not in the repo; tests are synthetic.
@@ -122,6 +133,7 @@ Engineer-reported; no shell here, nothing checked from here. Commit `0486e1ba` "
 - **Tests (engineer-reported):** 3 new core tests (`xfa/layout/tests/tiled.rs`), 1 new CLI test (`an_lr_tb_subform_splits_unless_tiled_split_says_tb_only`); core xfa 200 passed, `xfa::layout` 74, render xfa 6, CLI `xfa_layout` 19. Docs: `docs/core-api/03-capabilities.md`.
 - **Boxes:** core `[x]`, cli `[x]`, gui `[ ]`. FEATURES: the "Dynamic XFA, layout and drawing" row gains the split sentence; boxes stay `[ ]` (the capability is partial).
 - **Still open (none minted as a Pass):** (a) `pdfcer-gui` shows only the PDF's "Please wait..." placeholder page on the canvas; the computed pages are only in the Form preview dialog. GUI-side; the engineer raises it in the channel. (b) Many labels are missing: rich-text and inline captions are not drawn (about 275 content-not-drawn notes) and some check boxes. Belongs to the paused `Pass 647.4`. (c) A tiled **root** subform still never splits. (d) The p.281 / p.282 conflict needs a spec-gap ID: owed to `pdfcer-spec-librarian` (dispatch by the engineer).
+- **Item (d) RESOLVED (1378th filing, engineer-reported):** the gap is `G-L35` (`PDF_Spec` `adobe_ext__xfa_layout_algorithm.md`: p.281 requires all ancestors `tb` for page splitting; p.281's `lr-tb` paragraph, p.280 Example 8.7 and p.290's Caution allow splitting under a flowing ancestor). Cited from `TiledSplit`'s doc and `docs/core-api/03-capabilities.md` by `76a8cd48`. Empirical lesson in `C:\personal_rag\pdf\` (2026-11-02, Acrobat splits such subforms).
 
 ### `97db158e` `Pass 657.0` + `Pass 657.1` SHIPPED, 2026-11-02: cast shadows and screen-space ambient occlusion in the 3D picture (`G257`, `G258` items 1-2; 1377th filing)
 
@@ -25279,6 +25291,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **Next up head (rewritten 1355th filing; `Pass 647.3e` `53f4e938` and `Pass 647.2c` `ead2642a` SHIPPED and released in `v0.111.0`, published): `Pass 648.6` (`G245` part 2, /MA measurements, spec-RAG check first).** `Pass 647.3f` (dataRef-bound and subform-set instances, residue of `647.3e`) and `Pass 647.4` stay in the Backlog, not yet ordered. Release slot: next release writes `pdfcer1` (`pdfcer2` holds 0.111.0, `pdfcer1` holds 0.110.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
 
 > **Head amended 1357th filing: `Pass 647.4b` (`X027`) SHIPPED `96af5ff3`, see *Shipped*; the head is `Pass 648.6` again, after the release `v0.112.0` (slot `pdfcer1`), which is a separate filing.** *(Amended 1359th filing: `v0.112.0` PUBLISHED, see *Shipped*; the head is `Pass 648.6`, next release writes `pdfcer2`.)* `647.3f` and `647.4` (image natural sizing) stay in the Backlog. *(The 1356th-filing note that put `647.4b` ahead of `648.6` is history.)* **Amended 1360th filing: `Pass 648.6` SHIPPED `01c5f515` (unreleased), see *Shipped*; `G245` is now complete. Next up has no head: `647.3f`, `647.4` and `Pass 648.7` (residue) are Backlog, unordered.** **Amended 1361st-1365th filings: `Pass 653.0`-`653.4` (`G244`, `G243`, `G249`, `G250`, `G251`) SHIPPED, unreleased, see *Shipped*. Still no head; the next step is a release (version after `0.112.0`, slot `pdfcer2`), asked for by `pdfcer-gui` once `G249`-`G251` shipped.** **Amended 1367th filing: `v0.113.0` PUBLISHED. Amended 1368th filing: `Pass 654.0`, `654.1` (`78f16dc2`, `G252`, `G253` CPU half) and `Pass 655.0` (`2a10522f`, `G254`) SHIPPED, unreleased, see *Shipped*. The head is now `Pass 654.2` (below), behind the GUI-request rule. Next release writes OneDrive `pdfcer1` (`pdfcer2` holds 0.113.0).**
+
+> (1378th filing: `v0.117.0` release PREP (bump `5d95f12d`), see *Shipped*; not yet tagged. Still no head. This release writes OneDrive `pdfcer2` (`pdfcer1` keeps 0.116.0). Next free numbers unchanged from the 1377th note.)
 
 > (1377th filing: `Pass 657.0` + `657.1` (`G257`, `G258`) SHIPPED `97db158e` and `Pass 647.8` (XFA tiled-subform split) SHIPPED `0486e1ba`, both unreleased, see *Shipped*; their Next-up entries were deleted. Still no head. `Pass 657.2` stays in the Backlog. Next release is `v0.117.0` (separate filing). Next free `Pass 647.9`, `657.3`: from grep of `docs/`, not `tools/check-ledger-numbers.py`.)
 
