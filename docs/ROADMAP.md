@@ -27268,6 +27268,23 @@ closes out the *prior* filing's business rather than opening this one's.
 
 Original scope: flowed containers, break and overflow rules, leaders/trailers. Content dropped on overflow is reported in the layout model and surfaced by 647.4/647.5 (disclosure, not silent). Table and row layouts are `647.7`. Spec: `xfa_layout_algorithm`.
 
+### Pass 657.0 — Cast shadows from one directional light in the 3D picture (NOT STARTED; filed 1376th filing; `G257`)
+
+Filed from `G257` (`pdfcer-gui`, operator report 2026-11-02); nothing built. Crate `pdfcer-3d`, `render` feature; core = library, cli = `pdfcer 3d-render`, gui = `pdfcer-gui`. Engine decisions:
+- **One shadow-casting light per frame:** the scheme's brightest light that is not attached to the camera. Table 310 direction is read as the direction light travels (ISO 32000-1 §13.6.4.5 LT-1 "emitted along"); the opposite sense is a setting, because LT-N1 leaves the sign unstated.
+- **Schemes whose lights are all at the camera** (Artwork default headlight, Headlamp) use a fixed camera-frame "shadow key" from above-left behind the viewer; it darkens the shade and removes no light's term. `None` = no shadows.
+- **Shadow map:** orthographic, fitted to the model's Bounds sphere, default 2048 texels, 3x3 nearest-texel PCF, normal-offset plus constant bias, the same arithmetic on CPU and GPU.
+- **Published for the host:** depth-pass GLSL ES 3.00 shaders, the light matrix, the map size and the new main-shader uniforms.
+- **Surface:** `RenderOptions` gains a shadows switch (default on); `3d-render` gains `--no-shadows` and the direction-sense flag.
+- **Acceptance:** the CPU picture shows a floor shadow under a raised box; GPU uniform and shader text tests; camera-frame lights rebuild the map per frame, with the cost measured on `Bancroft.glb` (109,358 triangles) and filed as total beside per-frame figure. Synthetic models only for tests.
+- Disclosure (rule 4): the shadow is a lighting computation, not inferred content; the sense setting is stated in `3d-render` output.
+
+FEATURES: Planned row added (all three boxes `[ ]`).
+
+### Pass 657.1 — Screen-space ambient occlusion in the 3D picture (NOT STARTED; filed 1376th filing; `G258` items 1-2)
+
+Filed from `G258` (`pdfcer-gui`, 2026-11-02); nothing built. SSAO as a published post pass (AO shader plus composite shader, with their uniforms) and the same algorithm on the CPU path over its depth buffer. Radius derived from the model's Bounds. A switch beside the shadows switch (default on); `3d-render` gains `--no-ambient-occlusion`. **Chosen over baked per-vertex AO** (`G258` option 2) because per-vertex occlusion cannot darken the middle of a large floor triangle under furniture, which is the operator's own example. Order: after `657.0` (shares the switch and options plumbing). Acceptance: a synthetic scene shows a darker crease at a wall-floor join and a darker contact under a raised box on the CPU path; GPU shader/uniform text tests; cost measured on `Bancroft.glb` (109,358 triangles). `occlusionTexture` is `Pass 657.2` (Backlog). FEATURES: Planned row added (all three boxes `[ ]`).
+
 ### Pass 647.3 — Normal data merge (NOT STARTED)
 
 Merge the `datasets` packet into the template per the normal-binding rules; defaults per gap IDs G-B. Explicit SOM references are BLOCKED on the owed SOM spec slice. Spec: `xfa_data_binding_normal`.
@@ -36285,6 +36302,10 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### `Pass 657.2` — glTF `occlusionTexture` honoured in the 3D picture (BACKLOG; filed 1376th filing; `G258` item 3)
+
+Filed from `G258` (`pdfcer-gui`, 2026-11-02); nothing built. `gltf/build.rs` reads `pbrMetallicRoughness` only. **Measured by the engineer: `Bancroft.glb` carries 0 `occlusionTexture` in 42 materials, so this changes nothing for the operator's file.** It needs a second texture slot and UV set per mesh in `AssembledModel`/`DrawData` (a vertex-layout change), hence deferred, not Next up. Acceptance when scoped: a synthetic glTF with an `occlusionTexture` darkens the ambient term on both the CPU and GPU paths, and `strength` is honoured; a file without one is unchanged byte-for-byte in the picture. FEATURES: Planned row added (all three boxes `[ ]`).
 
 ### `Pass 648.7` — 3D units `/3DU` and the other measurement kinds from the CLI (BACKLOG; filed 1360th filing; residue of `Pass 648.6`)
 

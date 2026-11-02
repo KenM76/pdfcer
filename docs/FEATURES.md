@@ -673,6 +673,9 @@ the model or verb exists and only the named shell is missing. The
 
 | core | cli | gui | Acrobat | Feature |
 |:----:|:---:|:---:|:-------:|---------|
+| [ ] | [ ] | [ ] | ? | **Cast shadows in the 3D picture** — one directional light per frame, CPU and GPU agreeing; published depth-pass shaders; a shadows switch (default on) and `3d-render --no-shadows`. `Pass 657.0` (`G257`), *Next up*. |
+| [ ] | [ ] | [ ] | ? | **Ambient occlusion in the 3D picture** — screen-space, a published post pass plus the same algorithm on the CPU path; a switch (default on) and `3d-render --no-ambient-occlusion`. `Pass 657.1` (`G258`), *Next up*, after 657.0. |
+| [ ] | [ ] | [ ] | ? | **glTF `occlusionTexture` honoured** — changes nothing for `Bancroft.glb` (none in 42 materials); needs a second UV set per mesh. `Pass 657.2` (`G258` item 3), Backlog. |
 | [ ] | [ ] | [ ] | ? | **3D model still shown when the product tree cannot be read** — fall back to the stored tessellations with a disclosed note instead of failing. Optional residue of `X018`; not scheduled. |
 | [ ] | [ ] | [ ] | ? | **Make a 3D PDF from an OBJ or STL mesh** — same PRC writer as the glTF row (shipped, `Pass 648.0`); OBJ/MTL colours, STL uncoloured (default disclosed). `Pass 648.1`, *Next up*, after 648.0. |
 | [ ] | [ ] | [ ] | ? | **3D units and the other measurement kinds** — 3D units `/3DU` (Table 325); `3d-views --measure` for perpendicular, angular, radial and comment measurements (the core writes them; the CLI writes linear only); comment-linked measurements. `Pass 648.7`, Backlog. |
