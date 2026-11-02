@@ -450,6 +450,9 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) texture_pictures: TexturePicturesArg,
     pub(crate) lighting: RenderLightingArg,
     pub(crate) light_frame: LightFrameArg,
+    pub(crate) shadows: bool,
+    pub(crate) ambient_occlusion: bool,
+    pub(crate) light_sense: LightSenseArg,
     pub(crate) threads: usize,
     /// Image positions to report the model point under (`--pick`).
     pub(crate) pick: &'a [[f64; 2]],
@@ -558,6 +561,12 @@ fn render_from_bytes(
             LightFrameArg::Camera => pdfcer_3d::LightFrame::Camera,
             LightFrameArg::World => pdfcer_3d::LightFrame::World,
         },
+        shadows: a.shadows,
+        ambient_occlusion: a.ambient_occlusion,
+        light_sense: match a.light_sense {
+            LightSenseArg::Towards => pdfcer_3d::LightSense::TowardsLight,
+            LightSenseArg::Emitted => pdfcer_3d::LightSense::Emitted,
+        },
         threads: a.threads,
         ..RenderOptions::default()
     };
@@ -624,6 +633,22 @@ fn render_from_bytes(
          drawn grey"
     );
     lighting.print_note();
+    println!(
+        "note: shadows: {}",
+        if a.shadows {
+            "cast by one light (`--no-shadows` turns them off)"
+        } else {
+            "off"
+        }
+    );
+    println!(
+        "note: ambient occlusion: {}",
+        if a.ambient_occlusion {
+            "creases and contacts darkened when lit (`--no-ambient-occlusion` turns it off)"
+        } else {
+            "off"
+        }
+    );
     print_alpha_unset_note(
         model.alpha_unset,
         " (`--style-alpha style` draws them invisible, as the literal reading does)",

@@ -1446,6 +1446,17 @@ pub(crate) enum LightFrameArg {
     World,
 }
 
+/// Which way `3d-render`'s scheme light directions point, for shadows;
+/// ISO 32000 does not say.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum LightSenseArg {
+    /// From the surface towards the light (default).
+    #[default]
+    Towards,
+    /// The direction the light travels.
+    Emitted,
+}
+
 /// When a `3d-embed` model activates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum ThreeDActivateArg {

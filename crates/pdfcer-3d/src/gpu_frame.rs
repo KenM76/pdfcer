@@ -255,16 +255,7 @@ mod tests {
                 let ndc = [clip[0] / clip[3], clip[1] / clip[3], clip[2] / clip[3]];
                 let d = sub(point, camera.eye);
                 let cpu = view.project(
-                    [
-                        dot(d, right),
-                        dot(d, up),
-                        dot(d, forward),
-                        0.0,
-                        0.0,
-                        0.0,
-                        0.0,
-                        0.0,
-                    ],
+                    crate::raster::view_point(dot(d, right), dot(d, up), dot(d, forward)),
                     2,
                     2,
                 );

@@ -3,17 +3,32 @@
 
 use crate::Texture;
 use crate::render::{Camera, Projection, RenderError};
+use crate::shadow::ShadowMap;
 use crate::vec3::{length, sub};
 
-/// One clipped view-space corner: x, y, z, red/green/blue shade, u, v.
-pub(crate) type ViewCorner = [f64; 8];
+/// One clipped view-space corner: x, y, z, red/green/blue shade, u, v,
+/// red/green/blue shadowed share of the shade, shadow-map lookup point.
+pub(crate) type ViewCorner = [f64; 14];
 
-/// One screen-space corner: pixel x, pixel y, depth key; shade; u, v.
+/// A view corner at `x, y, z` carrying no shade, texture or shadow.
+pub(crate) fn view_point(x: f64, y: f64, z: f64) -> ViewCorner {
+    let mut v = [0.0; 14];
+    for (slot, c) in v.iter_mut().zip([x, y, z]) {
+        *slot = c;
+    }
+    v
+}
+
+/// One screen-space corner: pixel x, pixel y, depth key; shade; u, v; the
+/// share of the shade a shadow removes ([`crate::shadow`]); its shadow-map
+/// lookup point.
 #[derive(Debug, Clone, Copy)]
 pub(crate) struct Corner {
     pub(crate) at: [f64; 3],
     pub(crate) shade: [f64; 3],
     pub(crate) uv: [f64; 2],
+    pub(crate) key: [f64; 3],
+    pub(crate) light: [f64; 3],
 }
 
 /// What a triangle is filled with: a straight-RGBA colour and, when
@@ -100,7 +115,7 @@ impl View {
     /// The screen corner of view corner `v`: pixel x, pixel y and a depth
     /// key that is linear in screen space and larger for nearer points.
     pub(crate) fn project(&self, v: ViewCorner, width: u32, height: u32) -> Corner {
-        let [x, y, z, r, g, b, u, w] = v;
+        let [x, y, z, r, g, b, u, w, kr, kg, kb, lx, ly, lz] = v;
         let (nx, ny, key) = match *self {
             View::Perspective { focal, aspect, .. } => {
                 (x * focal / (z * aspect), y * focal / z, 1.0 / z)
@@ -118,6 +133,8 @@ impl View {
             ],
             shade: [r, g, b],
             uv: [u, w],
+            key: [kr, kg, kb],
+            light: [lx, ly, lz],
         }
     }
 
@@ -146,8 +163,15 @@ impl Target<'_> {
     /// pixel centres, the shade (and any texture coordinate,
     /// perspective-correct) interpolated across it. An opaque pixel
     /// replaces the pixel and its depth; a translucent one is blended over
-    /// it, leaving the depth.
-    pub(crate) fn fill(&mut self, view: &View, corners: [Corner; 3], paint: Paint<'_>) {
+    /// it, leaving the depth. With `shadow`, each pixel's `key` share of the
+    /// shade is scaled by its visibility from the casting light.
+    pub(crate) fn fill(
+        &mut self,
+        view: &View,
+        corners: [Corner; 3],
+        paint: Paint<'_>,
+        shadow: Option<&ShadowMap>,
+    ) {
         let [a, b, c] = corners;
         let area = edge(a.at, b.at, c.at);
         if !area.is_finite() || area.abs() < 1e-12 {
@@ -177,23 +201,33 @@ impl Target<'_> {
                 if self.depth.get(i).is_none_or(|&d| key <= d) {
                     continue;
                 }
-                let shade = if a.shade == b.shade && b.shade == c.shade {
+                let mut shade = if a.shade == b.shade && b.shade == c.shade {
                     a.shade
                 } else {
-                    [0, 1, 2].map(|j| mix(&|c| c.shade.get(j).copied().unwrap_or(0.0)))
+                    [0, 1, 2].map(|j| mix(&|c| at(c.shade, j)))
                 };
+                let qw: f64 = w.iter().zip(q).map(|(k, q)| k * q).sum();
+                let correct = |f: &dyn Fn(&Corner) -> f64| {
+                    let s: f64 = w
+                        .iter()
+                        .zip(&corners)
+                        .zip(q)
+                        .map(|((k, c), q)| k * q * f(c))
+                        .sum();
+                    s / qw
+                };
+                if let Some(map) = shadow
+                    && corners.iter().any(|c| c.key != [0.0; 3])
+                {
+                    let lit = map.visibility([0, 1, 2].map(|j| correct(&|c| at(c.light, j))));
+                    let key = [0, 1, 2].map(|j| mix(&|c| at(c.key, j)));
+                    for (s, k) in shade.iter_mut().zip(key) {
+                        *s += lit * k;
+                    }
+                }
                 let colour = match paint.texture {
                     Some(t) => {
-                        let qw: f64 = w.iter().zip(q).map(|(k, q)| k * q).sum();
-                        let uv = [0, 1].map(|j| {
-                            let s: f64 = w
-                                .iter()
-                                .zip(&corners)
-                                .zip(q)
-                                .map(|((k, c), q)| k * q * c.uv.get(j).copied().unwrap_or(0.0))
-                                .sum();
-                            s / qw
-                        });
+                        let uv = [0, 1].map(|j| correct(&|c| c.uv.get(j).copied().unwrap_or(0.0)));
                         t.apply(paint.colour, t.sample(uv))
                     }
                     None => paint.colour,
@@ -302,6 +336,8 @@ mod tests {
             at,
             shade: [1.0; 3],
             uv: [u, 0.0],
+            key: [0.0; 3],
+            light: [0.0; 3],
         };
         let corners = [
             corner([0.0, 0.0, 1.0], 0.0),
@@ -321,7 +357,7 @@ mod tests {
                 rgba: &mut rgba,
                 depth: &mut depth,
             };
-            target.fill(view, corners, paint);
+            target.fill(view, corners, paint, None);
             rgba[4 * 4..4 * 4 + 4].to_vec()
         };
         let perspective = View::Perspective {

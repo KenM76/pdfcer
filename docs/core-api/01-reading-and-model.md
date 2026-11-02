@@ -3419,6 +3419,23 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   offer it as a setting. Disclose the scheme and where it came from;
   `3d-render` prints `note: lighting: <Name> (<source>): <how>`. CLI:
   `3d-render --lighting <scheme>|auto --light-frame camera|world`.
+- **Shadows and ambient occlusion** (`render` feature; the standard
+  defines neither, so both are pdfcer's and disclosed). On by default.
+  `RenderOptions::shadows: bool` — one light casts: the scheme's brightest
+  light on the viewer's side; when every light is at the camera
+  (`Artwork`, `Headlight`), a fixed light above-left that keeps half the
+  shade where blocked. `RenderOptions::light_sense: LightSense::{
+  TowardsLight (default), Emitted}` — which way a Table 310 direction
+  points (the standard does not say; offer it as a setting).
+  `RenderOptions::shadow_map_size: u32` (default `DEFAULT_SHADOW_MAP_SIZE`
+  2048, clamped 64..=`MAX_SHADOW_MAP_SIZE` 8192): an orthographic depth map
+  over the bounding sphere, 3 × 3 filtered. `RenderOptions::
+  ambient_occlusion: bool` — screen-space, from the finished depth buffer:
+  creases and contacts darken, flat surfaces do not; none when unlit.
+  Measured on a 188k-triangle building, 1024×768, all cores: 53 ms plain,
+  153 ms shadowed, 224 ms both (Artwork); the shadow map is rebuilt every
+  frame when lights are in `LightFrame::Camera`. CLI: `3d-render
+  --no-shadows --no-ambient-occlusion --light-sense towards|emitted`.
 - **Interactive frame rate.** `PreparedModel::new(&model)` (re-exported at
   the crate root) does the camera-independent work once (texture opacity)
   and does not borrow the model; `prepared.render(&model, &camera,
@@ -3469,9 +3486,32 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     and no blending. For translucent draws, depth write off and
     `glBlendFuncSeparate(SRC_ALPHA, ONE_MINUS_SRC_ALPHA, ONE,
     ONE_MINUS_SRC_ALPHA)`.
+  - Shadows, per frame: `FrameShadow::new(&camera, &options, &bounds) ->
+    Result<Option<FrameShadow>, RenderError>` (`None` when off or unlit).
+    Allocate a `size`² `DEPTH_COMPONENT32F` texture (`NEAREST`, no compare
+    mode); draw every non-translucent draw into it with
+    `GLSL_ES_300_SHADOW_VERTEX` / `GLSL_ES_300_SHADOW_FRAGMENT` (`matrix`
+    as `u_shadow_matrix`, depth cleared to 1.0, `LESS`, no culling); then
+    bind it as the main pass's `u_shadow_map` with `u_shadows` true and
+    `light` → `u_shadow_light`, `dim` → `u_shadow_dim`, `size` →
+    `u_shadow_size` (float), `to_light`, `normal_offset` → `u_shadow_offset`,
+    `bias`. Redraw it when the camera moves if lights are camera-framed,
+    else only when the model or options change.
+  - Ambient occlusion, per frame: `FrameAmbientOcclusion::new(&camera,
+    &options, &bounds, [w, h]) -> Result<Option<_>, RenderError>`. Render
+    the main pass into a colour texture plus a ≥24-bit depth texture
+    (`NEAREST`); draw `GLSL_ES_300_SCREEN_VERTEX` (3 vertices, no buffers,
+    no depth test) with `GLSL_ES_300_AO_FRAGMENT` into an `RGBA8`/`R8`
+    texture, then with `GLSL_ES_300_AO_COMPOSITE_FRAGMENT` (`u_colour`,
+    `u_ao`) to the screen. Both bind the main depth as `u_depth` and take
+    `size` → `u_ao_size` (ivec2), `orthographic`, `depth_range`,
+    `unproject`, `pixels`, `radius` as `u_ao_*`.
   - Tested against the CPU path: projection to 1e-5 NDC, and lighting for
-    all 12 schemes × both light frames × both projections. The shader text
-    has not been compiled by pdfcer, which has no GL context.
+    all 12 schemes × both light frames × both projections. Every shader has
+    been compiled and run in WebGL 2 (headless Edge, SwiftShader) on a
+    188k-triangle building: GPU and CPU differ by under 0.2 levels mean,
+    with 0.12–0.32% of pixels (triangle edges) over 8 levels, shadows and
+    occlusion on or off.
 - `prc.model_tree() -> Result<Vec<ModelNode>, PrcError>`: the model-tree
   panel's rows, depth first (parent before children, children in file
   order), one per product occurrence the roots reach — hidden and

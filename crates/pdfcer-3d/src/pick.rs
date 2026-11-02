@@ -253,16 +253,7 @@ mod tests {
                 let d = sub(hit.point, cam.eye);
                 let at = view
                     .project(
-                        [
-                            dot(d, right),
-                            dot(d, up),
-                            dot(d, forward),
-                            0.0,
-                            0.0,
-                            0.0,
-                            0.0,
-                            0.0,
-                        ],
+                        crate::raster::view_point(dot(d, right), dot(d, up), dot(d, forward)),
                         w,
                         h,
                     )

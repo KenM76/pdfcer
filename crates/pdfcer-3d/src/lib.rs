@@ -28,6 +28,8 @@
 )]
 
 mod acof;
+#[cfg(feature = "render")]
+mod ao;
 mod arrays;
 // Public only so the fuzz target can drive the bit reader directly.
 #[doc(hidden)]
@@ -42,9 +44,13 @@ mod gltf;
 #[cfg(feature = "render")]
 mod gpu;
 #[cfg(feature = "render")]
+mod gpu_ao;
+#[cfg(feature = "render")]
 mod gpu_frame;
 #[cfg(feature = "render")]
 mod gpu_shader;
+#[cfg(feature = "render")]
+mod gpu_shadow;
 #[cfg(feature = "render")]
 mod lighting;
 mod model;
@@ -62,6 +68,8 @@ mod raster;
 #[cfg(feature = "render")]
 mod render;
 mod schema;
+#[cfg(feature = "render")]
+mod shadow;
 mod tess;
 #[cfg(test)]
 mod testw;
@@ -83,9 +91,16 @@ pub use gltf::{GltfColours, GltfError, GltfImport, GltfOptions, GltfUpAxis, read
 #[cfg(feature = "render")]
 pub use gpu::{Draw, DrawData, VERTEX_FLOATS};
 #[cfg(feature = "render")]
+pub use gpu_ao::{
+    FrameAmbientOcclusion, GLSL_ES_300_AO_COMPOSITE_FRAGMENT, GLSL_ES_300_AO_FRAGMENT,
+    GLSL_ES_300_SCREEN_VERTEX,
+};
+#[cfg(feature = "render")]
 pub use gpu_frame::{FrameLights, MAX_LIGHTS, ShadeMode};
 #[cfg(feature = "render")]
 pub use gpu_shader::{GLSL_ES_300_FRAGMENT, GLSL_ES_300_VERTEX};
+#[cfg(feature = "render")]
+pub use gpu_shadow::{FrameShadow, GLSL_ES_300_SHADOW_FRAGMENT, GLSL_ES_300_SHADOW_VERTEX};
 #[cfg(feature = "render")]
 pub use lighting::{Light, LightFrame, LightSet, LightingScheme, Lights};
 pub use model::{
@@ -107,6 +122,8 @@ pub use render::{
     render_coloured,
 };
 pub use schema::Schema;
+#[cfg(feature = "render")]
+pub use shadow::{DEFAULT_SHADOW_MAP_SIZE, LightSense, MAX_SHADOW_MAP_SIZE};
 pub use tess::{Tessellation, TriangleMesh};
 pub use texture::{MAX_TEXTURE_PIXELS, Texture, TextureFunction, TextureOrigin, TextureWrap};
 pub use tree::{

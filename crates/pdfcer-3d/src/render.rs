@@ -7,10 +7,12 @@
 //! unchanged (single-threaded) on wasm32.
 
 use crate::TriangleMesh;
+use crate::ao::{self, Depths, Screen};
 use crate::frame::Frame;
 use crate::lighting::{LightFrame, LightingScheme, Shader};
 use crate::parallel;
-use crate::raster::{Corner, Paint, Target, View, at};
+use crate::raster::{Corner, Paint, Target, View, ViewCorner, at};
+use crate::shadow::{Caster, DEFAULT_SHADOW_MAP_SIZE, LightSense, LightView, ShadowMap};
 use crate::vec3::{cross, dot, length, normalize, scale, sub};
 
 /// The largest image [`render`] draws, in pixels (width × height).
@@ -273,11 +275,29 @@ pub struct RenderOptions {
     /// 0 uses every core. Ignored on wasm32. The image is the same at any
     /// count.
     pub threads: usize,
+    /// Whether one light casts shadows (the default): the scheme's brightest
+    /// light on the viewer's side, removing its share of the shade where
+    /// something nearer that light is in the way. A scheme whose lights are
+    /// all at the camera, such as the default, instead halves the shade
+    /// where a fixed light above, left of and in front of the view is
+    /// blocked. No effect unlit.
+    pub shadows: bool,
+    /// Which way the scheme's light directions point, for shadows.
+    pub light_sense: LightSense,
+    /// The shadow map's side, texels ([`DEFAULT_SHADOW_MAP_SIZE`]), clamped
+    /// to 64–[`MAX_SHADOW_MAP_SIZE`]. It spans the model's bounding sphere,
+    /// so a texel is the model's diameter / this.
+    pub shadow_map_size: u32,
+    /// Whether creases, corners and contacts are darkened by screen-space
+    /// ambient occlusion (the default): each pixel keeps the share of its
+    /// colour that nearby surfaces, within 4% of the model's bounding
+    /// radius, leave open above it. No effect unlit.
+    pub ambient_occlusion: bool,
 }
 
 impl Default for RenderOptions {
     /// 1024 × 768, opaque white background, light grey surface, the
-    /// default light, one thread.
+    /// default light, one thread, shadows and ambient occlusion on.
     fn default() -> Self {
         RenderOptions {
             width: 1024,
@@ -287,6 +307,10 @@ impl Default for RenderOptions {
             lighting: LightingScheme::Artwork,
             light_frame: LightFrame::Camera,
             threads: 1,
+            shadows: true,
+            light_sense: LightSense::TowardsLight,
+            shadow_map_size: DEFAULT_SHADOW_MAP_SIZE,
+            ambient_occlusion: true,
         }
     }
 }
@@ -416,11 +440,24 @@ pub(crate) fn render_painted(
     }
     let aspect = f64::from(width) / f64::from(height);
     let basis = camera.basis()?;
+    let shader = Shader::new(options.lighting.lights(), options.light_frame, &basis);
+    let caster = options
+        .shadows
+        .then(|| Caster::choose(&shader, options.light_sense, &basis))
+        .flatten();
+    let bounds = Bounds::of(meshes);
+    let workers = parallel::workers(options.threads);
+    let shadow = caster.zip(bounds.as_ref()).and_then(|(c, bounds)| {
+        let view = LightView::new(c.to_light, bounds, options.shadow_map_size)?;
+        Some(ShadowMap::build(view, meshes, paints, opaque, workers))
+    });
     let scene = Scene {
         camera,
         basis,
         view: View::new(camera, aspect)?,
-        shader: Shader::new(options.lighting.lights(), options.light_frame, &basis),
+        shader,
+        caster: caster.filter(|_| shadow.is_some()),
+        shadow,
         height,
     };
     let mut rgba = options.background.repeat(pixels as usize);
@@ -431,16 +468,29 @@ pub(crate) fn render_painted(
         paints,
         opaque,
     }
-    .draw(
-        (&mut rgba, &mut depth),
-        (width, height),
-        parallel::workers(options.threads),
-    );
+    .draw((&mut rgba, &mut depth), (width, height), workers);
+    if let Some(bounds) = bounds.filter(|_| ambient_occlusion(options, &scene.shader)) {
+        let depths = Depths {
+            screen: Screen::new(&scene.view, width, height),
+            keys: &depth,
+        };
+        ao::apply(
+            &mut rgba,
+            &depths,
+            bounds.radius() * ao::RADIUS_SHARE,
+            workers,
+        );
+    }
     Ok(Image {
         width,
         height,
         rgba,
     })
+}
+
+/// Whether `options` asks for ambient occlusion and the frame is lit.
+pub(crate) fn ambient_occlusion(options: &RenderOptions, shader: &Shader) -> bool {
+    options.ambient_occlusion && !matches!(shader, Shader::Unlit)
 }
 
 /// The camera a frame is drawn from, with its basis and projection.
@@ -450,6 +500,9 @@ pub(crate) struct Scene<'c> {
     basis: [[f64; 3]; 3],
     view: View,
     shader: Shader,
+    /// The light casting shadows and its map, when shadows are drawn.
+    caster: Option<Caster>,
+    shadow: Option<ShadowMap>,
     /// The image height, pixels.
     height: u32,
 }
@@ -464,16 +517,7 @@ impl Scene<'_> {
         let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
         for k in 0..3 {
             let d = sub(at3(&world, k), self.camera.eye);
-            let v = [
-                dot(d, right),
-                dot(d, up),
-                dot(d, forward),
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-            ];
+            let v = crate::raster::view_point(dot(d, right), dot(d, up), dot(d, forward));
             if let View::Perspective { near, .. } = self.view
                 && (dot(d, forward) < near || dot(d, forward).is_nan())
             {
@@ -483,6 +527,52 @@ impl Scene<'_> {
             (lo, hi) = (lo.min(y), hi.max(y));
         }
         Some((lo, hi))
+    }
+
+    /// The shade at model point `p` with normal `n`, and the share of it
+    /// the shadow caster supplies.
+    fn shade(&self, p: [f64; 3], n: [f64; 3]) -> ([f64; 3], [f64; 3]) {
+        let towards = match self.view {
+            View::Perspective { .. } => normalize(sub(self.camera.eye, p)),
+            View::Orthographic { .. } => Some(scale(at3(&self.basis, 2), -1.0)),
+        };
+        match &self.caster {
+            Some(c) => c.split(&self.shader, n, towards),
+            None => (self.shader.shade(n, towards), [0.0; 3]),
+        }
+    }
+
+    /// Model point `p` of a triangle facing `face` in view space, with its
+    /// texture coordinates, shade and shadow-map lookup point.
+    fn view_corner(
+        &self,
+        p: [f64; 3],
+        face: [f64; 3],
+        [u, v]: [f64; 2],
+        ([r, g, b], [kr, kg, kb]): ([f64; 3], [f64; 3]),
+    ) -> ViewCorner {
+        let [right, up, forward] = self.basis;
+        let d = sub(p, self.camera.eye);
+        let [lx, ly, lz] = self
+            .shadow
+            .as_ref()
+            .map_or([0.0; 3], |m| m.view.lookup_point(p, face));
+        [
+            dot(d, right),
+            dot(d, up),
+            dot(d, forward),
+            r,
+            g,
+            b,
+            u,
+            v,
+            kr,
+            kg,
+            kb,
+            lx,
+            ly,
+            lz,
+        ]
     }
 
     /// Draw triangle `t` of `mesh` into `target`, lit and, when `paint` is
@@ -503,30 +593,25 @@ impl Scene<'_> {
         )) else {
             return;
         };
-        let [right, up, forward] = self.basis;
         let stored = stored_normals(mesh, t);
-        let shade = |k: usize| {
-            let p = at3(&world, k);
-            let towards = match self.view {
-                View::Perspective { .. } => normalize(sub(self.camera.eye, p)),
-                View::Orthographic { .. } => Some(scale(forward, -1.0)),
-            };
-            let normal = stored
+        let normal = |k: usize| {
+            stored
                 .and_then(|n| n.get(k).copied().flatten())
-                .unwrap_or(face);
-            self.shader.shade(normal, towards)
+                .unwrap_or(face)
         };
         // Without stored normals the triangle is flat: one shade, lit along
         // the view ray to its first corner.
-        let flat = stored.is_none().then(|| shade(0));
+        let flat = stored
+            .is_none()
+            .then(|| self.shade(at3(&world, 0), normal(0)));
         let uvs = paint
             .texture
             .and_then(|tex| triangle_uvs(mesh, tex.uv_set, t));
         let view_corners = [0, 1, 2].map(|k| {
-            let d = sub(at3(&world, k), self.camera.eye);
-            let [u, v] = uvs.and_then(|c| c.get(k).copied()).unwrap_or([0.0; 2]);
-            let [r, g, b] = flat.unwrap_or_else(|| shade(k));
-            [dot(d, right), dot(d, up), dot(d, forward), r, g, b, u, v]
+            let p = at3(&world, k);
+            let uv = uvs.and_then(|c| c.get(k).copied()).unwrap_or([0.0; 2]);
+            let lit = flat.unwrap_or_else(|| self.shade(p, normal(k)));
+            self.view_corner(p, face, uv, lit)
         });
         let (width, height) = (target.width, target.height);
         let screen: Vec<Corner> = self
@@ -538,7 +623,7 @@ impl Scene<'_> {
         if let Some((&a, rest)) = screen.split_first() {
             for pair in rest.windows(2) {
                 if let [b, c] = pair {
-                    target.fill(&self.view, [a, *b, *c], paint);
+                    target.fill(&self.view, [a, *b, *c], paint, self.shadow.as_ref());
                 }
             }
         }

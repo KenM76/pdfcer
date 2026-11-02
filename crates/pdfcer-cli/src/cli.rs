@@ -3304,6 +3304,23 @@ pub(crate) enum Command {
         /// (default) or `world`. The standard does not say.
         #[arg(long, value_enum, default_value_t)]
         light_frame: LightFrameArg,
+        /// Draw without cast shadows. By default one light casts them: the
+        /// scheme's brightest light on the viewer's side, or, when every
+        /// light is at the camera, a fixed light above-left that halves the
+        /// shade where blocked.
+        #[arg(long)]
+        no_shadows: bool,
+        /// Draw without ambient occlusion. By default creases, corners and
+        /// contacts are darkened by how much nearby surface rises around
+        /// them, read from the depth of the finished picture; an unlit
+        /// scheme has none.
+        #[arg(long)]
+        no_ambient_occlusion: bool,
+        /// Which way a scheme's light directions point, for shadows:
+        /// `towards` the light (default) or the way the light is
+        /// `emitted`. The standard does not say.
+        #[arg(long, value_enum, default_value_t)]
+        light_sense: LightSenseArg,
         /// Threads to draw with; 0 (default) uses every core. The image is
         /// the same at any count.
         #[arg(long, default_value_t = 0)]
