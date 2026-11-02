@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-02 (1379th filing) — `v0.117.0` PUBLISHED; CI red at the tag, fix-forward `7d0ef09d`
+
+**Filed (docs only; engineer-reported, no shell here; nothing checked from here):**
+- **Release `v0.117.0`:** annotated tag on `e12dd3b3` (1378th prep filing; bump `5d95f12d`), pushed, not moved. GitHub release, 8 assets, `gh-release.py` PASS (`pdfcer-v0.117.0-windows-x64.zip` 28,314,924 bytes; OCR add-ons 3,789,155 / 11,352,262 / 4,483,685; a `.sha256` each). Package `D:\builds\pdfcer-20261102-1401-e12dd3b` (56,860,979 bytes total; `pdfcer.exe` 40,935,936). Smoke passed in `D:\builds\smoke-v0117`: version, `3d-convert`, `3d-embed --apply`, `3d-render` with shadows/AO on (notes printed, visible shadows) and off (PNG 56,742 vs 64,166 bytes), new flags in `--help`.
+- **OneDrive:** `pdfcer2` written (6 items, 76,483,547 bytes); `pdfcer1` keeps 0.116.0; next release writes `pdfcer1`. **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.117.0 published.
+- **`verify-release.py`:** ok on origin/main, assets, OneDrive CLI, previous version; FAIL on working tree (known agent-memory files, deliberate) and on CI at the tag.
+- **CI red:** one job, `cargo doc` with broken intra-doc links denied; `render.rs` linked `MAX_SHADOW_MAP_SIZE` out of scope. Fix `7d0ef09d` (links via crate-root re-exports; engineer-run `cargo doc` green locally), unreleased. Tag not moved.
+- **Channel:** notice `notice_2026-11-02_v0.117.0_released.md`; `G257`, `G258` replies SHIPPED.
+- ROADMAP: publication entry at the top of Shipped; Next-up note. FEATURES: "unreleased" dropped from the shadows/AO row; no box changes.
+
+**Decisions made this session:** none minted.
+
+**Findings + decisions (lesson):** the change-scoped release gate must also run CI's `cargo doc` step (`RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links" cargo doc --workspace --no-deps`) whenever a `pub` doc comment changed. Fourth feature/step-scoped CI miss at a tag (`v0.108.0`, `v0.113.0`, `v0.114.0`, `v0.115.0` preceded); three of the four are the same shape (a CI step the local gate does not run). Not minted as a rule; the engineer decides whether to extend the gate script.
+
+**Hard-rule-11 survivors:** keyword sweep of `docs/FEATURES.md` for `unreleased` found one hit (the shadows row, fixed). The `Pass 657.0` / `657.1` Shipped entry still says "unreleased" (correct at its date, history). `docs/NEXT_SESSION.md` (engineer-owned) not swept. Backup currency not verifiable from here.
+
+**Still in flight:** `7d0ef09d` CI confirmation; `pdfcer-gui` has the notice.
+
+**For next session:** confirm CI green on `7d0ef09d`; extend the release gate with the `cargo doc` step; no head in Next up.
+
 ## 2026-11-02 (1378th filing) — `v0.117.0` release PREP, bump `5d95f12d`; prepared, not published
 
 **Filed (docs only; engineer-reported, no shell here; nothing checked from here):**

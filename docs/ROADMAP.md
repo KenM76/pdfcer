@@ -112,6 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.117.0` PUBLISHED, 2026-11-02 (1379th filing); tag at `e12dd3b3`, CI red at the tag on a rustdoc link miss, fix-forward `7d0ef09d`
+
+Engineer-reported; no shell here, nothing checked from here. Supersedes the "prepared, not published" status of the prep entry below, which stays as filed.
+- **Tag:** annotated `v0.117.0` on `e12dd3b3` (the 1378th prep filing; bump `5d95f12d`); pushed; not moved. **GitHub release** "pdfcer v0.117.0": 8 assets, `tools/gh-release.py` PASS at local sizes (`pdfcer-v0.117.0-windows-x64.zip` 28,314,924 bytes; `ocr-addon-ocrcer.zip` 3,789,155; `ocr-addon-ocrs.zip` 11,352,262; `ocr-addon-tesseract.zip` 4,483,685; a `.sha256` each).
+- **Package:** `D:\builds\pdfcer-20261102-1401-e12dd3b` (total 56,860,979 bytes; `pdfcer.exe` 40,935,936); not dirty.
+- **Fresh-folder smoke (passed, `D:\builds\smoke-v0117`):** `--version` 0.117.0 / revision `v0.117.0`; `3d-convert` Bancroft.glb to PRC; `3d-embed --apply` into a synthetic 1-page PDF; `3d-render --index 0` with defaults printed the shadows and AO notes and drew visible shadows; with `--no-shadows --no-ambient-occlusion` it printed "off" and the PNG differed (64,166 vs 56,742 bytes). `3d-render --help` and `xfa-layout --help` show the new flags.
+- **OneDrive:** `deploy-onedrive.py` wrote `pdfcer2` (6 items, 76,483,547 bytes); `pdfcer1` keeps 0.116.0. The next release writes `pdfcer1`.
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.117.0 published, in that order.
+- **`verify-release.py v0.117.0`:** ok on origin/main contains tag, assets, CLI on OneDrive, previous version on OneDrive; FAIL on working tree clean (the known uncommitted agent-memory files, deliberate); FAIL on CI green at the tag.
+- **CI red at the tag:** one job, "cargo doc, broken intra-doc links denied": `render.rs` linked `MAX_SHADOW_MAP_SIZE` out of scope. Shipped binary unaffected. Tag not moved.
+- **Fix `7d0ef09d`** "fix(3d): resolve the shadow-map size doc links (Pass 657.0)", on `main`, **unreleased**, in the next release: links through the crate-root re-exports; `cargo doc --workspace --no-deps` with `-D rustdoc::broken_intra_doc_links` green locally (engineer-reported).
+- **Lesson for the release recipe:** the change-scoped release gate must also run CI's `cargo doc` step (`RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links" cargo doc --workspace --no-deps`) whenever a `pub` doc comment changed. Fourth class of feature/step-scoped CI miss at a tag (`v0.108.0`, `v0.113.0`, `v0.114.0`, `v0.115.0` preceded). Not minted as a rule here; flagged for the engineer.
+- **Channel:** notice `open/notice_2026-11-02_v0.117.0_released.md`; replies `G257`, `G258` SHIPPED.
+- **FEATURES:** the word "unreleased" dropped from the shadows / ambient-occlusion row (row stays under 1,200 characters, shorter than before). No box changes. Nothing minted: no decision, no rule.
+
 ### `v0.117.0` — release PREP, version bump `5d95f12d` (`chore`), 2026-11-02 (1378th filing); prepared, not published
 
 Engineer-reported; no shell here, nothing checked from here. Same pattern as the `v0.116.0` prep (1375th filing). `v0.117.0` is NOT yet tagged or published.
@@ -25291,6 +25306,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **Next up head (rewritten 1355th filing; `Pass 647.3e` `53f4e938` and `Pass 647.2c` `ead2642a` SHIPPED and released in `v0.111.0`, published): `Pass 648.6` (`G245` part 2, /MA measurements, spec-RAG check first).** `Pass 647.3f` (dataRef-bound and subform-set instances, residue of `647.3e`) and `Pass 647.4` stay in the Backlog, not yet ordered. Release slot: next release writes `pdfcer1` (`pdfcer2` holds 0.111.0, `pdfcer1` holds 0.110.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
 
 > **Head amended 1357th filing: `Pass 647.4b` (`X027`) SHIPPED `96af5ff3`, see *Shipped*; the head is `Pass 648.6` again, after the release `v0.112.0` (slot `pdfcer1`), which is a separate filing.** *(Amended 1359th filing: `v0.112.0` PUBLISHED, see *Shipped*; the head is `Pass 648.6`, next release writes `pdfcer2`.)* `647.3f` and `647.4` (image natural sizing) stay in the Backlog. *(The 1356th-filing note that put `647.4b` ahead of `648.6` is history.)* **Amended 1360th filing: `Pass 648.6` SHIPPED `01c5f515` (unreleased), see *Shipped*; `G245` is now complete. Next up has no head: `647.3f`, `647.4` and `Pass 648.7` (residue) are Backlog, unordered.** **Amended 1361st-1365th filings: `Pass 653.0`-`653.4` (`G244`, `G243`, `G249`, `G250`, `G251`) SHIPPED, unreleased, see *Shipped*. Still no head; the next step is a release (version after `0.112.0`, slot `pdfcer2`), asked for by `pdfcer-gui` once `G249`-`G251` shipped.** **Amended 1367th filing: `v0.113.0` PUBLISHED. Amended 1368th filing: `Pass 654.0`, `654.1` (`78f16dc2`, `G252`, `G253` CPU half) and `Pass 655.0` (`2a10522f`, `G254`) SHIPPED, unreleased, see *Shipped*. The head is now `Pass 654.2` (below), behind the GUI-request rule. Next release writes OneDrive `pdfcer1` (`pdfcer2` holds 0.113.0).**
+
+> (1379th filing: `v0.117.0` PUBLISHED, see *Shipped*; the next release writes OneDrive `pdfcer1`. Still no head. CI fix-forward `7d0ef09d` is on `main`, unreleased.)
 
 > (1378th filing: `v0.117.0` release PREP (bump `5d95f12d`), see *Shipped*; not yet tagged. Still no head. This release writes OneDrive `pdfcer2` (`pdfcer1` keeps 0.116.0). Next free numbers unchanged from the 1377th note.)
 
