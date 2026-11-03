@@ -452,10 +452,24 @@ impl Run<'_, '_> {
         Some(ca)
     }
 
+    /// Whether the root lets a top-level instance split across content
+    /// areas: a `tb` root always; a tiled one per [`TiledSplit`] (gap
+    /// G-L50: p.281 needs every ancestor `tb`, but p.280 exempts the root
+    /// from its own layout and Example 8.7 splits under an `lr-tb` root).
+    pub(super) fn root_splits(&self) -> bool {
+        match self.root_strategy {
+            LayoutStrategy::Tb => true,
+            LayoutStrategy::LrTb | LayoutStrategy::RlTb => {
+                self.ctx.opts.tiled_split == TiledSplit::Split
+            }
+            _ => false,
+        }
+    }
+
     /// Put one top-level instance in the current content area. A flowed
     /// root moves it to the next area when it does not fit the rest of a
-    /// non-empty one; a `tb` root first splits it there when it can
-    /// (splitting needs every ancestor `tb`, Ch.8 p.281). A split part is
+    /// non-empty one; a root that [`Self::root_splits`] first splits it
+    /// there when it can. A split part is
     /// one more item per container it cuts, each with the same `path`.
     /// An instance `glued` to the one before stays (split, or run past the
     /// bottom) rather than move away from it (Ch.8 p.312, gap G-L15).
@@ -466,7 +480,7 @@ impl Run<'_, '_> {
     /// while filling (Ch.8 pp.318-320). `false` once the page areas are
     /// exhausted.
     fn put(&mut self, mut p: Placed, path: &[usize], glued: bool) -> bool {
-        let tb = self.root_strategy == LayoutStrategy::Tb;
+        let tb = self.root_splits();
         let mut ov = tb.then(|| self.overflow_of(&p.path));
         let mut nest = nested::Nesting::new(&p);
         let mut lead = false;

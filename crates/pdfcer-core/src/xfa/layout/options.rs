@@ -52,7 +52,9 @@ pub enum NestedOverflow {
 /// container split an object that does not fit its remaining height, and
 /// `keep@intact` defaults to `none` for any flowing subform (Ch.17 p.762);
 /// p.281 says splitting across pages needs every ancestor to be `tb`.
-/// An explicit `keep@intact` wins either way.
+/// An explicit `keep@intact` wins either way. The same choice governs a
+/// tiled root subform (gap G-L50): `Split` exempts the root from p.281's
+/// ancestor test (p.280's root note, Example 8.7); `TbOnly` applies it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
 pub enum TiledSplit {

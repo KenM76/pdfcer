@@ -6370,8 +6370,9 @@ pub(crate) enum Command {
         odd_rotate: OddRotateArg,
         /// Whether a subform that lays its contents in rows (lr-tb or
         /// rl-tb) may continue on the next page when it does not fit, as a
-        /// top-to-bottom one does, or moves there whole. The XFA spec says
-        /// both.
+        /// top-to-bottom one does, or moves there whole. The same choice
+        /// applies to content under a root subform that lays in rows. The
+        /// XFA spec says both.
         #[arg(long, value_enum, default_value_t)]
         tiled_split: TiledSplitArg,
         /// How tall a cell of a table row is when it lays its own contents

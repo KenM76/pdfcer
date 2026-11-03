@@ -43,3 +43,33 @@ fn keep_intact_holds_a_tiled_subform_together() {
     let l = lay(&held);
     assert_eq!(names(&l.pages[0]), ["p", "h"]);
 }
+
+/// An `lr-tb` root holding a header and a `tb` subform of three fields
+/// taller than the room left on the page (gap G-L50, p.280 Example 8.7).
+fn tiled_root() -> String {
+    format!(
+        r#"<subform name="f" layout="lr-tb" w="540pt">{PAGE}
+          <field name="h" w="540pt" h="160pt"/>
+          <subform name="d" layout="tb" w="540pt">
+            <field name="a" w="540pt" h="300pt"/>
+            <field name="b" w="540pt" h="300pt"/>
+            <field name="c" w="540pt" h="300pt"/>
+          </subform></subform>"#
+    )
+}
+
+#[test]
+fn a_tiled_root_splits_its_content_across_pages() {
+    let l = lay(&tiled_root());
+    assert_eq!(names(&l.pages[0]), ["h", "d", "a"]);
+    assert_eq!(names(&l.pages[1]), ["d", "b", "c"]);
+    assert!(l.warnings.is_empty(), "{:?}", l.warnings);
+}
+
+#[test]
+fn tb_only_moves_content_under_a_tiled_root_whole() {
+    let opts = LayoutOptions::new().with_tiled_split(TiledSplit::TbOnly);
+    let l = lay_with(&tiled_root(), &opts).unwrap();
+    assert_eq!(names(&l.pages[0]), ["h"]);
+    assert_eq!(names(&l.pages[1]), ["d", "a", "b", "c"]);
+}

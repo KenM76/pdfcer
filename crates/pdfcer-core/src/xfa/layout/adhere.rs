@@ -101,7 +101,7 @@ pub(super) fn chain_fits(chain: &[&Placed], mut room: f64, page_end: bool) -> bo
 }
 
 /// Whether the adhering `chain` tiles whole into the rest of a `height`
-/// tall area from `flow` (a tiled root never splits, Ch.8 p.281).
+/// tall area from `flow`.
 fn tiles_fit(mut flow: Flow, chain: &[&Placed], height: f64) -> bool {
     chain.iter().all(|p| {
         let (_, y) = flow.slot(p.rect.w);
@@ -217,12 +217,11 @@ impl<'t: 'o, 'o> super::Run<'t, 'o> {
                         .map(|n| &n.placed),
                 )
                 .collect();
-            let fits = if self.root_strategy == LayoutStrategy::Tb {
-                let room = ca.h - self.flow.slot(p.placed.rect.w).1;
-                chain_fits(&chain, room, self.page_ends_here())
-            } else {
-                tiles_fit(self.flow, &chain, ca.h)
-            };
+            let fits = tiles_fit(self.flow, &chain, ca.h)
+                || self.root_splits() && {
+                    let room = ca.h - self.flow.slot(p.placed.rect.w).1;
+                    chain_fits(&chain, room, self.page_ends_here())
+                };
             if !fits {
                 self.area_index += 1;
             }

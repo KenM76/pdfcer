@@ -969,8 +969,9 @@ with every `warnings` entry.
   - `.with_tiled_split(TiledSplit::{Split (default), TbOnly})`: whether an
     `lr-tb`/`rl-tb` subform that does not fit splits between its rows like
     a `tb` one, or moves whole to the next content area. XFA 3.3 says both
-    (gap G-L35). An explicit `keep@intact` wins either way; a tiled
-    root subform does not split under either. `#[non_exhaustive]`.
+    (gap G-L35). An explicit `keep@intact` wins either way. A tiled
+    root follows the same choice (gap G-L50): `Split` lets content under it
+    continue on the next page, `TbOnly` moves it whole. `#[non_exhaustive]`.
   - `.with_table_cell_height(TableCellHeight::{Content (default), Declared})`:
     a flowed subform cell (`tb`, `lr-tb`, `rl-tb`, `table`) of a row is as
     tall as its content, ignoring its declared `h`, or keeps that `h`
