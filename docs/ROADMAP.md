@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `2e6847ee` `Pass 658.9`, 2026-11-03: converted glTF lamps are metered over the model's surfaces (`G262`) (1401st filing)
+
+Engineer-reported (measured); no shell here, git state not checked from here. Commit `2e6847ee` "feat(3d): converted glTF lamps metered over the model's surfaces (Pass 658.9, G262)". Request from `pdfcer-gui`. Local `main`; release `v0.122.0` follows carrying only this Pass and writes OneDrive `pdfcer1`; a separate prep filing is planned. No decision record; reasoning is in the commit message.
+- **Problem:** `GltfLights::Normalise` scaled every `KHR_lights_punctual` light by one factor so that all together lit the model's centre to 80%, which divides each lamp by the lamp count. A building lit room by room converted near black: Ken's Bancroft office (64 downlights) reached at most 1/10 of full strength under each lamp.
+- **What shipped (`pdfcer-3d`, `crates/pdfcer-3d/src/gltf/exposure.rs`):** new default `GltfLights::Exposure`, metered like a camera's automatic exposure. It sums the light on up to 20,000 evenly sampled triangles (world-space centroids and areas); light model is inverse square past a floor of 5% of the diagonal, zero outside a spot's cone, `cos^exponent` inside it, no occlusion, no facing term. The area-weighted median of the lit triangles is put at 80%, plus 20% ambient. One factor for all lamps, so relative brightness is kept. If nothing is lit it falls back to `Normalise` with a `notes` line; the `inferred` line names the mode applied. `Normalise`, `Stored`, `Drop` remain; the enum is `#[non_exhaustive]`; the default changed.
+- **CLI:** `--gltf-lights exposure|normalise|stored|drop` on `3d-convert` and `3d-embed`, default `exposure`. `docs/core-api/01-reading-and-model.md` updated (now 4,833 lines), index count updated.
+- **Measured:** `Bancroft.glb` converts with scale 0.0090 against 0.00113 under `Normalise` (about 8x brighter, 0.0090 / 0.00113 = 7.96). Interior renders lit, floors bright under their lamps (inspected visually before and after).
+- **Tests:** three light tests (exact 80% at the metered surface, fallback note, default) and two unit tests (area-weighted median, spot cone). Sabotaging `TARGET` fails the 80% test.
+- **Gates (engineer-reported):** pass: clippy (default, all-features, cli no-default), `cargo test -p pdfcer-3d` (also no-default-features), `pdfcer-cli` `--bin pdfcer` (also no-default-features) and `--test all`, `cargo doc` with broken intra-doc links denied, code-structure, core-api-verbs, public-fns-documented, suite-name-absent, panic-allows. `cargo tree` unchanged: no manifest touched.
+- **Unchanged (the file, not the engine):** the lamp lenses in `Bancroft.glb` carry no emissive material.
+- **Not done:** renderer-side exposure for already-converted files, filed as Backlog `Pass 658.10`.
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]` unchanged (`pdfcer-gui` has not adopted anything here).
+- **Meaning change swept (the default changed from `Normalise` to `Exposure`):** FEATURES row 561 amended in this filing, by grep of `docs/FEATURES.md` for `KHR_lights_punctual`; row 564 (3D view lighting) mentions lights but not the normalise default, left. Survivors in `crates/` (rustdoc on `GltfOptions::lights`, `--gltf-lights` help text, `eprintln!` strings saying "normalise" is the default) and in older ROADMAP entries (`Pass 658.1`, append-only, left as filed) not checked from here: engineer should grep `crates/pdfcer-3d` and `crates/pdfcer-cli` for "Normalise"/"normalise" near default wording.
+
 ### `v0.121.0` PUBLISHED, 2026-11-03 (1400th filing); tag on `3435f01a`, CI green at the tag
 
 Engineer-reported; no shell here, nothing checked from here (tag, release, crates, OneDrive and CI are the engineer's report, not looked at by me). Operator: "please finish the release. it definitely needs the gpu support for all features or it runs horribly." Prep and publish filed together.
@@ -36692,6 +36706,10 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### `Pass 658.10` — render-time exposure (`RenderOptions`) (BACKLOG; filed 1401st filing; residue of `Pass 658.9`)
+
+Not started; **not requested by the operator.** `pdfcer-gui` (`G262`) offered it as an alternative to a convert-time fix. Add a renderer-side exposure/brightness setting so a viewer can offer a brightness control and an already-converted file can be brightened without re-converting. `Pass 658.10` was grep-checked unused in `docs/` before filing. Decide whether it reuses the `GltfLights::Exposure` metering or is a plain multiplier.
 
 ### `Pass 648.7` — 3D units `/3DU` and the other measurement kinds from the CLI (BACKLOG; filed 1360th filing; residue of `Pass 648.6`)
 

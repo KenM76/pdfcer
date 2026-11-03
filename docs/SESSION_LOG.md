@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1401st filing) — `Pass 658.9` (`2e6847ee`): converted glTF lamps metered over the model's surfaces
+
+**Filed (engineer-reported, measured; no shell here, git state not checked from here; docs only, nothing committed by me):**
+- **`Pass 658.9` (`G262`, from `pdfcer-gui`):** the old `Normalise` default divided every lamp by the lamp count (Bancroft: 64 downlights, at most 1/10 strength under each). New default `GltfLights::Exposure` meters over up to 20,000 sampled triangles and puts the area-weighted median lit triangle at 80% (plus 20% ambient), one factor for all lamps; falls back to `Normalise` with a note if nothing is lit. CLI `--gltf-lights exposure|normalise|stored|drop`, default `exposure`.
+- **Measured:** `Bancroft.glb` scale 0.0090 vs 0.00113 under `Normalise` (7.96x). Five new tests, sabotage of `TARGET` fails the 80% test. Gates listed in the ROADMAP entry passed; `cargo tree` unchanged.
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]` unchanged. FEATURES row 561 (glTF lights) amended to name `Exposure` as default.
+- **Filed:** Backlog `Pass 658.10` (render-time exposure in `RenderOptions`), not requested by the operator.
+- **Planned:** release `v0.122.0` carrying only this Pass, writes OneDrive `pdfcer1`; separate prep filing to come.
+- **Owed / not done:** survivor sweep of `crates/` for "normalise is the default" wording not done from here; the "16" light-wording sweep from the 1399th filing also still open. Run `check-commits-filed.py` before the push. Backup currency not verifiable from here.
+
 ## 2026-11-03 (1400th filing) — `v0.121.0` PUBLISHED (tag on `3435f01a`)
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, nothing committed by me):**
