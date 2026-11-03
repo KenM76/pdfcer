@@ -8,6 +8,7 @@ use super::caption::{Side, occupies, side};
 use super::rich_set::rich_extent;
 use super::text::{has_unplain_value, plain_text, text_extent, widget};
 use super::{LayoutRect, XfaNode, inset, length};
+use crate::xfa::XfaFonts;
 
 /// The narrowest positive wrap width: a region with no room left still
 /// wraps, one word a line, rather than reading as unwrapped.
@@ -19,6 +20,7 @@ const MIN_WRAP: f64 = 1e-3;
 /// `None` when the value is empty, an image that did not decode, or
 /// neither, so the container keeps `minW`/`minH`.
 pub(in crate::xfa) fn content_size(
+    fonts: &XfaFonts,
     node: &XfaNode,
     wrap: Option<f64>,
     single: bool,
@@ -39,7 +41,7 @@ pub(in crate::xfa) fn content_size(
     };
     let (mw, mh) = room(node.child("margin"));
     let (ww, wh) = room(widget(node).and_then(|w| w.child("margin")));
-    let cap = caption_size(node);
+    let cap = caption_size(fonts, node);
     let (cw, ch) = match cap {
         Some((Side::Left | Side::Right, w, _)) => (w, 0.0),
         Some((Side::Top | Side::Bottom, _, h)) => (0.0, h),
@@ -50,8 +52,8 @@ pub(in crate::xfa) fn content_size(
     let (font, para) = (node.child("font"), node.child("para"));
     let (tw, th) = match image {
         Some(e) => e,
-        None => rich_extent(node, font, para, wrap_at)
-            .unwrap_or_else(|| text_extent(text, font, para, wrap_at, single)),
+        None => rich_extent(fonts, node, font, para, wrap_at)
+            .unwrap_or_else(|| text_extent(fonts, text, font, para, wrap_at, single)),
     };
     let mut h = th + wh;
     if let Some((Side::Left | Side::Right, _, cap_h)) = cap {
@@ -64,16 +66,17 @@ pub(in crate::xfa) fn content_size(
 /// (`reserve` along its axis when positive, else its unwrapped text plus
 /// the caption's margins, p.644; set in its own `font`, gap G-D11's
 /// default).
-fn caption_size(node: &XfaNode) -> Option<(Side, f64, f64)> {
+fn caption_size(fonts: &XfaFonts, node: &XfaNode) -> Option<(Side, f64, f64)> {
     let c = node.child("caption").filter(|c| occupies(c))?;
     let side = side(c)?;
-    let natural = rich_extent(c, c.child("font"), c.child("para"), 0.0).unwrap_or_else(|| {
-        plain_text(c)
-            .filter(|_| !has_unplain_value(c))
-            .map_or((0.0, 0.0), |t| {
-                text_extent(t, c.child("font"), c.child("para"), 0.0, false)
-            })
-    });
+    let natural =
+        rich_extent(fonts, c, c.child("font"), c.child("para"), 0.0).unwrap_or_else(|| {
+            plain_text(c)
+                .filter(|_| !has_unplain_value(c))
+                .map_or((0.0, 0.0), |t| {
+                    text_extent(fonts, t, c.child("font"), c.child("para"), 0.0, false)
+                })
+        });
     let m = inset(LayoutRect::default(), c.child("margin"));
     let (mut w, mut h) = (natural.0 - m.w, natural.1 - m.h);
     if let Some(r) = length(c, "reserve").filter(|v| *v > 0.0) {

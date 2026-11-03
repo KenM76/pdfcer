@@ -23,6 +23,11 @@ const XDP: &str = r#"<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/"><template xml
 /// from 6 on. Object 4 is the XDP stream, 5 a placeholder field with
 /// `field` extras.
 fn pdf(catalog: &str, field: &str, extra: &[&str]) -> Vec<u8> {
+    pdf_with(XDP, catalog, field, extra)
+}
+
+/// [`pdf`] carrying `xdp`.
+pub(crate) fn pdf_with(xdp: &str, catalog: &str, field: &str, extra: &[&str]) -> Vec<u8> {
     let mut objects: Vec<Vec<u8>> = vec![
         format!(
             "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [5 0 R] /XFA 4 0 R >> {catalog} >>"
@@ -30,7 +35,7 @@ fn pdf(catalog: &str, field: &str, extra: &[&str]) -> Vec<u8> {
         .into_bytes(),
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 10 10] >>".to_vec(),
         b"<< /Type /Page /Parent 2 0 R /Annots [5 0 R] >>".to_vec(),
-        format!("<< /Length {} >>\nstream\n{XDP}\nendstream", XDP.len()).into_bytes(),
+        format!("<< /Length {} >>\nstream\n{xdp}\nendstream", xdp.len()).into_bytes(),
         format!("<< /FT /Tx /T (b) /Subtype /Widget /Rect [0 0 1 1] /P 3 0 R {field} >>")
             .into_bytes(),
     ];
@@ -55,7 +60,7 @@ fn pdf(catalog: &str, field: &str, extra: &[&str]) -> Vec<u8> {
     out
 }
 
-const DYNAMIC: &str = "/NeedsRendering true /Perms << /UR3 6 0 R >>";
+pub(crate) const DYNAMIC: &str = "/NeedsRendering true /Perms << /UR3 6 0 R >>";
 const UR3: &str = "<< /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached >>";
 
 fn laid_out(doc: &Document) -> (MergedForm, XfaLayout) {
@@ -72,13 +77,14 @@ fn materialize(s: &mut EditSession, doc: &Document) -> Result<usize, EditError> 
         &merged.template,
         &layout.pages,
         &PaintOptions::new(),
+        &pdfcer_core::xfa::XfaFonts::new(),
         XfaSignatures::Refuse,
     )
     .map(|o| o.pages_written)
 }
 
 /// The decoded content of each page of `doc`.
-fn contents(doc: &Document) -> Vec<String> {
+pub(crate) fn contents(doc: &Document) -> Vec<String> {
     pages(doc)
         .unwrap()
         .iter()
@@ -111,6 +117,7 @@ fn the_computed_pages_replace_the_placeholder_and_survive_save() {
             &merged.template,
             &layout.pages,
             &PaintOptions::new(),
+            &pdfcer_core::xfa::XfaFonts::new(),
             XfaSignatures::Refuse,
         )
         .unwrap();
@@ -207,6 +214,7 @@ fn signatures_are_removed_when_asked() {
             &merged.template,
             &layout.pages,
             &PaintOptions::new(),
+            &pdfcer_core::xfa::XfaFonts::new(),
             XfaSignatures::Remove,
         )
         .unwrap();

@@ -43,7 +43,7 @@ use geometry::{Ctx, Placed, is_placeable, lay, shifted};
 use overflow::Level;
 use pager::{Area, Pager};
 
-use super::{ContainerKind, LayoutStrategy, Template, XfaImages, XfaNode};
+use super::{ContainerKind, LayoutStrategy, Template, XfaFonts, XfaImages, XfaNode};
 
 /// Pages one layout may produce; past it the rest is discarded and
 /// [`LayoutWarning::PageLimit`] reported (`ARCHITECTURE.md` §10).
@@ -281,6 +281,21 @@ pub fn layout_template_with_images(
     opts: &LayoutOptions,
     images: &XfaImages,
 ) -> Result<XfaLayout, LayoutError> {
+    layout_template_with(template, opts, images, &XfaFonts::new())
+}
+
+/// [`layout_template_with_images`], measuring text in `fonts`'s faces.
+/// Pass the same `fonts` painting gets, so text is drawn as it was laid.
+///
+/// # Errors
+///
+/// As [`layout_template`].
+pub fn layout_template_with(
+    template: &Template,
+    opts: &LayoutOptions,
+    images: &XfaImages,
+    fonts: &XfaFonts,
+) -> Result<XfaLayout, LayoutError> {
     let root_el = template.element();
     let (ri, root) = root_el
         .children
@@ -301,6 +316,7 @@ pub fn layout_template_with_images(
             items: 0,
             root: root_el,
             images,
+            fonts,
             bookends: Vec::new(),
         },
         root: root_el,

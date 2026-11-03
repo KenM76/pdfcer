@@ -8,8 +8,9 @@ use std::cell::Cell;
 use super::rich::{Base, Para, Piece, Rich, RunStyle, read, rich_value};
 use super::text::{metrics, plain_text};
 use super::{FontWeight, LayoutItem, LayoutRect, PaintNoteKind, Painter, XfaNode};
-use crate::vartext::{encode_winansi, text_width};
+use crate::vartext::encode_winansi;
 use crate::writer::content::Paint;
+use crate::xfa::XfaFonts;
 
 /// One run placed on a line, `x` from the line's left edge.
 struct Placed {
@@ -160,7 +161,7 @@ impl<'p> Setter<'p> {
         }
         for piece in word {
             if let Piece::Text(text, style) = piece {
-                self.approximated |= encode_winansi(text).1 > 0;
+                self.approximated |= style.face.lacks_glyph(text);
                 self.cur.pieces.push(Placed {
                     x: self.x,
                     text: text.clone(),
@@ -238,7 +239,7 @@ fn line_metrics(styles: &[&RunStyle]) -> (f64, f64) {
     let mut ascent = 0.0_f64;
     let mut descent = 0.0_f64;
     for s in styles {
-        let (a, h) = metrics(s.face, s.size, None);
+        let (a, h) = metrics(&s.face, s.size, None);
         ascent = ascent.max(a + s.shift.max(0.0));
         descent = descent.max(h - a - s.shift.min(0.0));
     }
@@ -246,7 +247,7 @@ fn line_metrics(styles: &[&RunStyle]) -> (f64, f64) {
 }
 
 fn width(style: &RunStyle, text: &str) -> f64 {
-    text_width(style.face, style.size, text)
+    style.face.width(style.size, text)
 }
 
 fn piece_width(p: &Piece) -> f64 {
@@ -290,7 +291,7 @@ impl Painter<'_> {
         }
         self.b.begin_text();
         for p in &line.pieces {
-            let name = self.font_name(p.style.face);
+            let name = self.font_name(&p.style.face);
             let [r, g, b] = p.style.rgb;
             self.b.set_fill_rgb(r, g, b);
             self.b.set_font(name.as_bytes(), p.style.size);
@@ -360,15 +361,15 @@ pub(super) fn base(
 /// paint defaults, wrapped at `wrap_at` when positive; `None` when its value
 /// is not rich text. Floating fields measure empty.
 pub(in crate::xfa) fn rich_extent(
+    fonts: &XfaFonts,
     holder: &XfaNode,
     font: Option<&XfaNode>,
     para: Option<&XfaNode>,
     wrap_at: f64,
 ) -> Option<(f64, f64)> {
     let ex = rich_value(holder)?;
-    let rich = read(ex, &base(font, para, FontWeight::Normal, [0.0; 3]), &|_| {
-        None
-    });
+    let base = base(font, para, FontWeight::Normal, [0.0; 3]);
+    let rich = read(ex, &base, fonts, &|_| None);
     let block = lay_out(&rich, wrap_at);
     Some((block.width, block.height))
 }
@@ -412,7 +413,9 @@ impl Painter<'_> {
         };
         let base = base(font, para, self.opts.font_weight, rgb);
         let (root, page, scripted) = (self.root, self.page, Cell::new(false));
-        let rich = read(ex, &base, &|key| floating(root, key, page, &scripted));
+        let rich = read(ex, &base, self.faces, &|key| {
+            floating(root, key, page, &scripted)
+        });
         if scripted.get() {
             self.note(item, PaintNoteKind::Script);
         }

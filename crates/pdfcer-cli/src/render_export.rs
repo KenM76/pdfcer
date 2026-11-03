@@ -465,7 +465,14 @@ pub(crate) fn cmd_render_page(
             );
             return exit::RUNTIME_ERROR;
         }
-        return crate::xfa_page::render_dynamic_page(&doc, input, page_number, scale, output);
+        return crate::xfa_page::render_dynamic_page(
+            &doc,
+            input,
+            page_number,
+            scale,
+            output,
+            &font_env,
+        );
     }
 
     let pages = match pdfcer_core::page_tree::pages(&doc) {

@@ -90,7 +90,7 @@ impl Painter<'_> {
         let (font, para) = (node.child("font"), node.child("para"));
         let style = self.style(item, font, para);
         let r = para_inset(r, para);
-        let (ascent, line_h) = metrics(style.font, style.size, para);
+        let (ascent, line_h) = metrics(&style.font, style.size, para);
         let mut y = r.y;
         for (i, _) in labels.iter().enumerate() {
             if r.h > 0.0 && y + line_h > r.y + r.h + 0.01 {

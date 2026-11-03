@@ -73,7 +73,7 @@ fn run(name: &str, bytes: &[u8], extra: &[&str]) -> (u8, String, String) {
     )
 }
 
-const PAGE: &str = r#"<pageSet><pageArea name="P"><contentArea x="36pt" y="36pt" w="540pt" h="720pt"/></pageArea></pageSet>"#;
+pub(crate) const PAGE: &str = r#"<pageSet><pageArea name="P"><contentArea x="36pt" y="36pt" w="540pt" h="720pt"/></pageArea></pageSet>"#;
 
 /// `a` (500pt) then `b` (200pt, keep next by page) then `c`, flowed.
 pub(crate) fn flowed() -> String {

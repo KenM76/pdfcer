@@ -5,7 +5,7 @@
 
 use std::process::Command;
 
-use super::xfa_layout::{flowed, pdf_with_data};
+use super::xfa_layout::{PAGE, flowed, pdf_with_data};
 
 const BIN: &str = env!("CARGO_BIN_EXE_pdfcer");
 
@@ -73,4 +73,36 @@ fn a_file_without_a_dynamic_form_exits_one() {
     let (code, _, stderr, out) = run("plain", &pdf_with_data(None, ""), &[]);
     assert_eq!(code, 1, "{stderr}");
     assert!(out.is_empty());
+}
+
+#[test]
+fn font_dir_faces_are_embedded_refused_or_reported_missing() {
+    let fonts = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../fixtures/synthetic/xfa/fonts"
+    );
+    let template = format!(
+        r#"<subform name="f" layout="tb">{PAGE}<draw name="s" w="200pt" h="20pt"><font typeface="Xfa Test Sans"/><value><text>Sans</text></value></draw><draw name="l" w="200pt" h="20pt"><font typeface="Xfa Test Locked"/><value><text>Locked</text></value></draw><draw name="m" w="200pt" h="20pt"><font typeface="Myriad Pro"/><value><text>Myriad</text></value></draw></subform>"#
+    );
+    let input = pdf_with_data(Some(&template), "<f/>");
+    let (code, stdout, stderr, out) = run("fonts", &input, &["--font-dir", fonts]);
+    assert_eq!(code, 0, "{stderr}");
+    assert!(
+        stdout.contains("xfa-font base=XfaTestSans-Regular embedded=1"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("xfa-font base=XfaTestLocked-Regular embedded=0"),
+        "{stdout}"
+    );
+    assert!(
+        stderr.contains(r#"XFA typeface "Myriad Pro" is not among the supplied fonts"#),
+        "{stderr}"
+    );
+    assert!(
+        stderr.contains("font XfaTestLocked-Regular is referenced by name, not embedded (Restricted License embedding)"),
+        "{stderr}"
+    );
+    let count = |n: &[u8]| out.windows(n.len()).filter(|w| *w == n).count();
+    assert_eq!(count(b"/FontFile2"), 1);
 }

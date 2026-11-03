@@ -16,6 +16,59 @@ pub(crate) enum DynamicXfaArg {
     Shell,
 }
 
+/// `xfa-materialize --font-embedding`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum FontEmbeddingArg {
+    /// Embed each supplied face's whole program.
+    #[default]
+    Embed,
+    /// Reference each supplied face by name only.
+    Reference,
+}
+
+/// The fonts an XFA command sets text in.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct XfaFontArgs<'a> {
+    pub(crate) dirs: &'a [PathBuf],
+    pub(crate) embedding: FontEmbeddingArg,
+}
+
+/// The renderer's environment and the XFA faces over it for `--font-dir`
+/// `dirs` (and the settings file's folders), its notes printed to stderr.
+pub(crate) fn xfa_font_env(
+    dirs: &[PathBuf],
+) -> (pdfcer_render::FontEnvironment, pdfcer_core::xfa::XfaFonts) {
+    let (env, _, notes) = build_font_environment(dirs);
+    for note in &notes {
+        eprintln!("pdfcer: font-dir: {note}");
+    }
+    let fonts = pdfcer_render::font::xfa_fonts(&env);
+    (env, fonts)
+}
+
+/// Rule 4's disclosure on stderr: each typeface drawn in a standard-14
+/// face, and each supplied face written by name only and why.
+pub(crate) fn disclose_fonts(
+    input: &Path,
+    fonts: &pdfcer_core::xfa::XfaFonts,
+    written: &[pdfcer_core::xfa::PaintedFont],
+) {
+    for (typeface, base) in fonts.fallbacks() {
+        eprintln!(
+            "pdfcer: {}: XFA typeface \"{typeface}\" is not among the supplied fonts; its text is drawn in {base} (--font-dir adds a folder).",
+            input.display()
+        );
+    }
+    for f in written.iter().filter(|f| f.program.is_none()) {
+        let why = f.refusal.unwrap_or("--font-embedding reference");
+        eprintln!(
+            "pdfcer: {}: font {} is referenced by name, not embedded ({why}); it is drawn right only where that font is installed.",
+            input.display(),
+            f.base_font
+        );
+    }
+}
+
 /// Whether `render-page` takes the computed-layout route for `doc`.
 pub(crate) fn wants_layout(doc: &Document, arg: DynamicXfaArg) -> bool {
     arg == DynamicXfaArg::Layout
@@ -32,12 +85,14 @@ pub(crate) fn render_dynamic_page(
     page_number: u32,
     scale: f32,
     output: &Path,
+    font_env: &pdfcer_render::FontEnvironment,
 ) -> u8 {
     let fail = |msg: &dyn std::fmt::Display| {
         eprintln!("pdfcer: {}: {msg}", input.display());
         exit::RUNTIME_ERROR
     };
-    let (merged, layout) = match lay_out(doc) {
+    let fonts = pdfcer_render::font::xfa_fonts(font_env);
+    let (merged, layout) = match lay_out(doc, &fonts) {
         Ok(m) => m,
         Err(e) => return fail(&e),
     };
@@ -53,6 +108,8 @@ pub(crate) fn render_dynamic_page(
         ));
     };
     let paint = pdfcer_core::xfa::PaintOptions::new();
+    let mut options = pdfcer_render::RenderOptions::default();
+    options.fonts = font_env.clone();
     let out = match pdfcer_render::xfa::render_xfa_page_with_images(
         &view,
         &merged.template,
@@ -60,7 +117,7 @@ pub(crate) fn render_dynamic_page(
         &paint,
         &images,
         scale,
-        &pdfcer_render::RenderOptions::default(),
+        &options,
     ) {
         Ok(o) => o,
         Err(e) => return fail(&format_args!("page {page_number}: {e}")),
@@ -77,6 +134,7 @@ pub(crate) fn render_dynamic_page(
         return exit::IO_ERROR;
     }
     report(input, output, page_number, count, &out);
+    disclose_fonts(input, &fonts, &[]);
     eprintln!(
         "pdfcer: {}: dynamic XFA form; page {page_number} is pdfcer's layout of the template with {} value(s) merged from the form's data, not a page stored in the file (--dynamic-xfa shell draws the stored page).",
         input.display(),
@@ -85,9 +143,11 @@ pub(crate) fn render_dynamic_page(
     exit::SUCCESS
 }
 
-/// The form's merged template and its computed layout, at default settings.
+/// The form's merged template and its computed layout in `fonts`, at
+/// default settings.
 pub(crate) fn lay_out(
     doc: &Document,
+    fonts: &pdfcer_core::xfa::XfaFonts,
 ) -> Result<(pdfcer_core::xfa::MergedForm, pdfcer_core::xfa::XfaLayout), String> {
     let args = XfaLayoutArgs {
         image_dpi: 72,
@@ -96,7 +156,7 @@ pub(crate) fn lay_out(
     let (merged, _) = read_merged(doc, args, &XfaViewFlags::default())?;
     let images = pdfcer_core::xfa::XfaImages::from_view(&doc.view());
     let layout =
-        pdfcer_core::xfa::layout_template_with_images(&merged.template, &args.options(), &images)
+        pdfcer_core::xfa::layout_template_with(&merged.template, &args.options(), &images, fonts)
             .map_err(|e| e.to_string())?;
     Ok((merged, layout))
 }

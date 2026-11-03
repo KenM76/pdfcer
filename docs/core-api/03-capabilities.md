@@ -820,7 +820,7 @@ file.
   off-canvas: other fields changed with the one edited, and data nodes
   the fill added.
 - **Materialize.** `EditSession::materialize_xfa(&Template, &[LayoutPage],
-  &PaintOptions, XfaSignatures) -> Result<XfaMaterializeOutcome, EditError>` replaces a
+  &PaintOptions, &XfaFonts, XfaSignatures) -> Result<XfaMaterializeOutcome, EditError>` replaces a
   dynamic form's placeholder pages with the given layout pages, painted
   with images as image XObjects (ISO 32000-1 §8.9.7 caps inline images at
   4 KB) and `XfaImages::from_view` resolved. Each page carries its own
@@ -831,7 +831,8 @@ file.
   undoable command (`CommandKind::MaterializeXfa { pages }`), committed at
   Save. `XfaMaterializeOutcome { pages_written, pages_replaced, notes:
   Vec<(page, PaintNote)>, images, fields_dropped, usage_rights_removed,
-  signatures_removed }` (`#[non_exhaustive]`). `XfaSignatures::Refuse`
+  signatures_removed, fonts: Vec<PaintedFont> }` (`#[non_exhaustive]`;
+  `fonts` lists each supplied face written, once). `XfaSignatures::Refuse`
   (default) refuses a signed or certified form; `Remove` drops all of the
   catalog's `/Perms` and the AcroForm's `/SigFlags` with the fields, and
   counts the signatures in `signatures_removed` (certified government
@@ -840,11 +841,35 @@ file.
   signatures }` (any signature other than the usage-rights one) under
   `Refuse`, `XfaNotDynamic` (static forms are refused, decision 020),
   `NotADictionary`, `ObjectNumbersExhausted`. CLI `xfa-materialize IN -o
-  OUT [--mode] [--verify-undo] [--remove-signatures]` lays out at the
-  default settings and prints `paint-note`/`warning` lines (layout and
-  merge) and an `xfa-materialize` summary.
+  OUT [--mode] [--verify-undo] [--remove-signatures] [--font-dir DIR]...
+  [--font-embedding embed|reference]` lays out at the default settings and
+  prints `paint-note`, `xfa-font base= embedded=0|1` and `warning` lines
+  (layout and merge) and an `xfa-materialize` summary.
   **★ Disclose:** every page is pdfcer's layout, the form is gone, and any
   removed usage-rights signature or signature.
+- **Fonts.** `XfaFonts` (`pdfcer_core::xfa`) is where text finds a face
+  for a `font` element's `typeface`: `XfaFonts::new()` is the standard 14
+  only (the bytes written before supplied fonts existed);
+  `XfaFonts::with_source(impl XfaFaceSource)` asks the shell's source first.
+  `XfaFaceSource::face(typeface, bold, italic) -> Option<XfaFace>`; an
+  `XfaFace` carries `base_font`, WinAnsi `widths` (glyph space), metrics,
+  style flags and an optional `XfaFontProgram { bytes, kind:
+  FontProgramKind::{TrueType, OpenTypeCff}, fs_type }`. Core parses no font
+  file: `pdfcer_render::font::xfa_fonts(&FontEnvironment)` builds the source
+  over the renderer's named faces (family match ignoring case, spaces and
+  hyphens; nearest weight/italic, normal width preferred), so a rendered
+  page and a written one resolve the same face. Pass ONE `XfaFonts` to
+  `layout_template_with`, `paint_page_with` and `materialize_xfa`, or text
+  is measured in one face and drawn in another. Embedding
+  (`PaintOptions::with_font_embedding(FontEmbedding::{Embed, Reference})`,
+  default `Embed`) writes the whole program (`/FontFile2` + `/Length1`, or
+  `/FontFile3 /Subtype /OpenType`, ISO 32000-1 §9.9) with correct `/Widths`
+  either way; a face whose `fsType` is Restricted, ambiguous or bitmap-only
+  is referenced by name and `PaintedFont::refusal` says why. A collection
+  (TTC) or CID-keyed CFF face measures but has no program (referenced).
+  **★ Disclose** `XfaFonts::fallbacks()` (each typeface drawn in a
+  standard-14 face, and which) and every supplied face referenced rather
+  than embedded, with its refusal; the CLI prints both on stderr.
 - **★ What the UI must disclose:** the merged values are the file's own
   data, but the layout they sit in is inferred (rule 4); show each merge
   warning off-canvas with the layout warnings.
@@ -854,7 +879,9 @@ file.
 or `layout_template_with_images(&Template, &LayoutOptions, &XfaImages)`
 (the same `XfaImages` painting gets) so a growable field or draw holding a
 linked (`href`) image is laid at that image's natural size; an inline image
-is measured by both. It is a pure function: it writes nothing to the document. Its result is
+is measured by both. `layout_template_with(&Template, &LayoutOptions,
+&XfaImages, &XfaFonts)` also measures text in the supplied faces (*Fonts*
+above); the other two use the standard 14. It is a pure function: it writes nothing to the document. Its result is
 inferred content (rule 4), so a shell that renders it discloses that, along
 with every `warnings` entry.
 - **Output.** `XfaLayout { pages, warnings }`. Each `LayoutPage` carries:
@@ -1243,6 +1270,11 @@ kind.
   `new()` / `insert(href, bytes)` let a shell supply images itself.
   `paint_page_with_images(&Template, &LayoutPage, &PaintOptions,
   &XfaImages)` resolves through it; `paint_page` passes an empty set.
+  `paint_page_with(…, &XfaImages, &XfaFonts)` also sets text in supplied
+  faces and returns them in `PaintedPage::fonts: Vec<PaintedFont { name,
+  base_font, supplied, program, refusal }>`; a supplied face's `/Font`
+  entry carries an inline descriptor with no program, which a writer
+  (`materialize_xfa`) fills from `program`.
 - **Image streams.** `PaintOptions::with_image_streams(ImageStreams)`:
   `Inline` (default) draws `BI … ID … EI`; `XObject` draws `/XIn Do` and
   returns each image as `PaintedPage::images: Vec<PaintedImage { name,
@@ -1253,7 +1285,9 @@ kind.
   Result<RenderedXfaPage { page: RenderedPage, notes }, RenderError>`
   builds `XfaImages::from_view` itself; `render_xfa_page_with_images(…,
   &XfaImages, scale, &RenderOptions)` takes a prebuilt set, for drawing
-  many pages of one file. The
+  many pages of one file. Both set text in
+  `pdfcer_render::font::xfa_fonts(&options.fonts)`, so the faces in
+  `RenderOptions::fonts` are the faces the page is laid and drawn in. The
   pixmap is `width` x `height` points at `scale`, white-backed unless
   `RenderOptions` asks for a transparent backdrop. It is a separate entry
   point, not a branch of `render_page`, because the layout's page count need

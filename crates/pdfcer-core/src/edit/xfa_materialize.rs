@@ -4,9 +4,11 @@
 use super::{Command, CommandKind, EditError, EditSession, ObjectWrite};
 use crate::graph::ObjectGraph;
 use crate::object::{Dict, Name, ObjId, Object};
+use std::collections::HashMap;
+
 use crate::xfa::{
-    ImageStreams, LayoutPage, PaintNote, PaintOptions, PaintedPage, Template, XfaImages, form_kind,
-    paint_page_with_images,
+    FontProgramKind, ImageStreams, LayoutPage, PaintNote, PaintOptions, PaintedFont, PaintedPage,
+    Template, XfaFonts, XfaImages, form_kind, paint_page_with,
 };
 
 /// What [`EditSession::materialize_xfa`] does with a signed form's
@@ -48,16 +50,21 @@ pub struct XfaMaterializeOutcome {
     /// Signatures removed under [`XfaSignatures::Remove`], certification
     /// included, usage rights not.
     pub signatures_removed: usize,
+    /// Each supplied face drawn, once per `/BaseFont`: embedded when its
+    /// [`PaintedFont::program`] is set, else referenced by name (see its
+    /// [`PaintedFont::refusal`]).
+    pub fonts: Vec<PaintedFont>,
 }
 
 impl EditSession {
     /// Replace a dynamic XFA form's placeholder pages with `pages`, laid out
-    /// from `template` (as [`crate::xfa::layout_template_with_images`] returns them) and drawn
-    /// per `paint`, and remove the XFA layer. A signed form is refused
+    /// from `template` (as [`crate::xfa::layout_template_with`] returns them
+    /// for `fonts`) and drawn per `paint` in `fonts`, and remove the XFA
+    /// layer. A signed form is refused
     /// unless `signatures` is [`XfaSignatures::Remove`]. One undo entry; committed at
     /// Save, never on open.
     ///
-    /// Each page is drawn by [`crate::xfa::paint_page_with_images`] with
+    /// Each page is drawn by [`crate::xfa::paint_page_with`] with
     /// images as XObjects (ISO 32000-1 §8.9.7 limits inline images to
     /// 4 KB) and the document's `/XFAImages` resolved. It gets its own
     /// `/MediaBox`, `/CropBox`, `/Rotate 0` and `/Resources`, so nothing is
@@ -65,7 +72,11 @@ impl EditSession {
     /// the new pages; the catalog loses `/NeedsRendering` and `/Perms
     /// /UR3`; the AcroForm loses `/XFA` and `/NeedsRendering` and gets an
     /// empty `/Fields`. The pages are flat: field values are drawn, not
-    /// fillable. Everything is reported in [`XfaMaterializeOutcome`].
+    /// fillable. A supplied face is written once as an indirect simple font
+    /// shared by every page, its whole program embedded per
+    /// [`PaintOptions::font_embedding`] (`/FontFile2` for TrueType outlines,
+    /// `/FontFile3 /OpenType` for CFF; ISO 32000-1 §9.9). Everything is
+    /// reported in [`XfaMaterializeOutcome`].
     ///
     /// # Errors
     ///
@@ -84,6 +95,7 @@ impl EditSession {
         template: &Template,
         pages: &[LayoutPage],
         paint: &PaintOptions,
+        fonts: &XfaFonts,
         signatures: XfaSignatures,
     ) -> Result<XfaMaterializeOutcome, EditError> {
         use crate::crypto::PermissionBit;
@@ -111,7 +123,7 @@ impl EditSession {
         if signed > 0 && !remove {
             return Err(EditError::XfaSigned { signatures: signed });
         }
-        let painted = self.paint_xfa_pages(template, pages, paint);
+        let painted = self.paint_xfa_pages(template, pages, paint, fonts);
         let mut out = XfaMaterializeOutcome {
             pages_written: pages.len(),
             pages_replaced: self.page_slots().map_or(0, |s| s.len()),
@@ -121,9 +133,11 @@ impl EditSession {
         let mut objects = Vec::new();
         let (catalog_id, root_id) = self.catalog_and_root()?;
         let mut kids = Vec::with_capacity(painted.len());
-        for (i, (page, p)) in pages.iter().zip(painted).enumerate() {
+        let mut shared = HashMap::new();
+        for (i, (page, mut p)) in pages.iter().zip(painted).enumerate() {
             out.notes.extend(p.notes.iter().map(|n| (i, n.clone())));
             out.images += p.images.len();
+            self.share_fonts(&mut p, &mut shared, &mut out, &mut objects)?;
             let id = self.write_xfa_page(page, p, root_id, &mut objects)?;
             kids.push(Object::Reference(id));
         }
@@ -151,13 +165,99 @@ impl EditSession {
         template: &Template,
         pages: &[LayoutPage],
         paint: &PaintOptions,
+        fonts: &XfaFonts,
     ) -> Vec<PaintedPage> {
         let images = XfaImages::from_view(&self.view());
         let opts = paint.with_image_streams(ImageStreams::XObject);
         pages
             .iter()
-            .map(|p| paint_page_with_images(template, p, &opts, &images))
+            .map(|p| paint_page_with(template, p, &opts, &images, fonts))
             .collect()
+    }
+
+    /// Point `painted`'s supplied faces at one indirect font dictionary per
+    /// `/BaseFont`, writing it, and its program when embedded, on first use.
+    fn share_fonts(
+        &mut self,
+        painted: &mut PaintedPage,
+        shared: &mut HashMap<String, ObjId>,
+        out: &mut XfaMaterializeOutcome,
+        objects: &mut Vec<ObjectWrite>,
+    ) -> Result<(), EditError> {
+        if !painted.fonts.iter().any(|f| f.supplied) {
+            return Ok(());
+        }
+        let Some(Object::Dict(mut fonts)) = painted.resources.remove(b"Font") else {
+            return Ok(());
+        };
+        for f in painted.fonts.iter().filter(|f| f.supplied) {
+            let key = Name::from(f.name.as_bytes());
+            let id = if let Some(id) = shared.get(&f.base_font) {
+                *id
+            } else {
+                let Some(Object::Dict(mut dict)) = fonts.get(&key.0).cloned() else {
+                    continue;
+                };
+                if let Some(program) = &f.program {
+                    let file = self.font_file(program.kind, &program.bytes, objects)?;
+                    if let Some(Object::Dict(mut desc)) = dict.remove(b"FontDescriptor") {
+                        let slot = match program.kind {
+                            FontProgramKind::TrueType => &b"FontFile2"[..],
+                            _ => &b"FontFile3"[..],
+                        };
+                        desc.insert(Name::from(slot), Object::Reference(file));
+                        dict.insert(Name::from(b"FontDescriptor"), Object::Dict(desc));
+                    }
+                }
+                let id = ObjId::new(self.alloc_number()?, 0);
+                objects.push(ObjectWrite {
+                    id,
+                    before: None,
+                    after: Some(Object::Dict(dict)),
+                });
+                shared.insert(f.base_font.clone(), id);
+                out.fonts.push(f.clone());
+                id
+            };
+            fonts.insert(key, Object::Reference(id));
+        }
+        painted
+            .resources
+            .insert(Name::from(b"Font"), Object::Dict(fonts));
+        Ok(())
+    }
+
+    /// A font program stream: `/Length1` for TrueType (§9.9 Table 125),
+    /// `/Subtype /OpenType` for CFF outlines; Flate-compressed.
+    fn font_file(
+        &mut self,
+        kind: FontProgramKind,
+        bytes: &[u8],
+        objects: &mut Vec<ObjectWrite>,
+    ) -> Result<ObjId, EditError> {
+        let mut dict = Dict::new();
+        match kind {
+            FontProgramKind::TrueType => {
+                let len = i64::try_from(bytes.len()).unwrap_or(i64::MAX);
+                dict.insert(Name::from(b"Length1"), Object::Integer(len));
+            }
+            _ => {
+                dict.insert(
+                    Name::from(b"Subtype"),
+                    Object::Name(Name::from(b"OpenType")),
+                );
+            }
+        }
+        match crate::image_import::flate_encode(bytes) {
+            Ok(z) => {
+                dict.insert(
+                    Name::from(b"Filter"),
+                    Object::Name(Name::from(b"FlateDecode")),
+                );
+                self.new_stream(dict, &z, objects)
+            }
+            Err(_) => self.new_stream(dict, bytes, objects),
+        }
     }
 
     fn catalog_and_root(&self) -> Result<(ObjId, ObjId), EditError> {

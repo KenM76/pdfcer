@@ -96,7 +96,7 @@ impl Lines {
                 .and_then(|v| v.trim().parse::<u32>().ok())
                 .map_or(1.0, |n| f64::from(n.max(1)))
         };
-        let pitch = line_pitch(node.child("font"), para);
+        let pitch = line_pitch(ctx.fonts, node.child("font"), para);
         (pitch > SNAP).then_some(Self {
             top: top + cap_top,
             pitch,
@@ -138,7 +138,7 @@ pub(super) fn content(
     if image == Some(None) {
         return None;
     }
-    content_size(node, wrap, single, image.flatten())
+    content_size(ctx.fonts, node, wrap, single, image.flatten())
 }
 
 /// Whether `node`'s content is text that may run to several lines.

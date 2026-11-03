@@ -132,7 +132,11 @@ fn a_growable_rich_draw_takes_its_text_height() {
         .iter()
         .find(|i| i.name.as_deref() == Some("f1"))
         .unwrap();
-    let (_, line_h) = text::metrics(crate::fontdata::Std14::Helvetica, 10.0, None);
+    let (_, line_h) = text::metrics(
+        &super::face::Face::Std(crate::fontdata::Std14::Helvetica),
+        10.0,
+        None,
+    );
     assert!((item.rect.h - 2.0 * line_h).abs() < 1e-9, "{}", item.rect.h);
 }
 

@@ -5,6 +5,7 @@
 //! dynamic one (one placeholder page; the real pages exist only once an XFA
 //! engine lays the template out). [`form_kind`] tells the two apart.
 
+mod fonts;
 mod images;
 mod layout;
 mod merge;
@@ -17,10 +18,11 @@ mod template;
 pub use layout::{
     Fragment, LayoutError, LayoutItem, LayoutOptions, LayoutPage, LayoutRect, LayoutWarning,
     MAX_LAYOUT_ITEMS, MAX_LAYOUT_PAGES, NegativeCoordinates, NestedOverflow, OddRotate,
-    PageAreaKeep, TableCellHeight, TiledSplit, XfaLayout, layout_template,
+    PageAreaKeep, TableCellHeight, TiledSplit, XfaLayout, layout_template, layout_template_with,
     layout_template_with_images,
 };
 
+pub use fonts::{FontProgramKind, XfaFace, XfaFaceSource, XfaFontProgram, XfaFonts, winansi_chars};
 pub use images::{MAX_XFA_IMAGE_BYTES, XfaImages};
 pub(crate) use merge::fill::plan_fill;
 pub use merge::fill::{XfaFillError, XfaFillOutcome};
@@ -33,9 +35,9 @@ pub use packets::{MAX_XDP_LEN, MAX_XML_DEPTH, XdpDocument, XdpPacket, XfaError, 
 pub(crate) use packets::{parse_xdp, read_xdp_sources};
 pub use paint::{
     ArcCircle, ArcFill, CaptionFont, CheckCaption, CheckEdge, DashCaps, DashLengths, EdgePlacement,
-    FontWeight, ImageOverflow, ImagePlacement, ImageStreams, Medium, MissingFill, PaintNote,
-    PaintNoteKind, PaintOptions, PaintedImage, PaintedPage, PictureRounding, Stipple, ThreeDStroke,
-    paint_page, paint_page_with_images,
+    FontEmbedding, FontWeight, ImageOverflow, ImagePlacement, ImageStreams, Medium, MissingFill,
+    PaintNote, PaintNoteKind, PaintOptions, PaintedFont, PaintedImage, PaintedPage,
+    PictureRounding, Stipple, ThreeDStroke, paint_page, paint_page_with, paint_page_with_images,
 };
 pub use relevant::{ViewMatch, Views};
 pub use template::{

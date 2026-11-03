@@ -1438,6 +1438,7 @@ pub(crate) fn run() -> ExitCode {
             arc_circle,
             arc_fill,
             stipple,
+            font_dirs,
         } => cmd_xfa_layout(
             &input,
             XfaLayoutArgs {
@@ -1474,6 +1475,7 @@ pub(crate) fn run() -> ExitCode {
                     stipple,
                 })
                 .as_ref(),
+            &font_dirs,
         ),
         Command::XfaMaterialize {
             input,
@@ -1481,7 +1483,19 @@ pub(crate) fn run() -> ExitCode {
             mode,
             verify_undo,
             remove_signatures,
-        } => cmd_xfa_materialize(&input, &output, mode, verify_undo, remove_signatures),
+            font_dirs,
+            font_embedding,
+        } => cmd_xfa_materialize(
+            &input,
+            &output,
+            mode,
+            verify_undo,
+            remove_signatures,
+            crate::xfa_page::XfaFontArgs {
+                dirs: &font_dirs,
+                embedding: font_embedding,
+            },
+        ),
         Command::XfaFill {
             input,
             sets,

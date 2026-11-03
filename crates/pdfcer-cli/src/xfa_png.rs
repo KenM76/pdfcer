@@ -279,11 +279,13 @@ pub(crate) fn write_xfa_pngs(
     template: &Template,
     layout: &XfaLayout,
     args: &XfaPngArgs,
+    font_env: &pdfcer_render::FontEnvironment,
 ) -> Result<(), String> {
     std::fs::create_dir_all(&args.dir)
         .map_err(|e| format!("cannot create {}: {e}", args.dir.display()))?;
     let paint = args.paint();
-    let options = pdfcer_render::RenderOptions::default();
+    let mut options = pdfcer_render::RenderOptions::default();
+    options.fonts = font_env.clone();
     let mut notes = 0usize;
     let view = doc.view();
     let images = pdfcer_core::xfa::XfaImages::from_view(&view);

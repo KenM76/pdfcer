@@ -343,7 +343,9 @@ pub(crate) fn cmd_xfa_layout(
     args: XfaLayoutArgs,
     views: &XfaViewFlags,
     png: Option<&XfaPngArgs>,
+    font_dirs: &[PathBuf],
 ) -> u8 {
+    let (font_env, fonts) = crate::xfa_page::xfa_font_env(font_dirs);
     let doc = match open_document(input) {
         Ok(doc) => doc,
         Err(err) => {
@@ -364,14 +366,14 @@ pub(crate) fn cmd_xfa_layout(
     }
     let images = pdfcer_core::xfa::XfaImages::from_view(&doc.view());
     let laid =
-        pdfcer_core::xfa::layout_template_with_images(&merged.template, &args.options(), &images);
+        pdfcer_core::xfa::layout_template_with(&merged.template, &args.options(), &images, &fonts);
     let layout = match laid {
         Ok(l) => l,
         Err(e) => return fail(&e),
     };
     print_layout(&layout, &merged);
     if let Some(png) = png
-        && let Err(e) = write_xfa_pngs(&doc, &merged.template, &layout, png)
+        && let Err(e) = write_xfa_pngs(&doc, &merged.template, &layout, png, &font_env)
     {
         return fail(&e);
     }
@@ -387,6 +389,7 @@ pub(crate) fn cmd_xfa_layout(
         "pdfcer: {}: these pages are pdfcer's layout of the XFA template {data}; they are not stored in the file.",
         input.display()
     );
+    crate::xfa_page::disclose_fonts(input, &fonts, &[]);
     exit::SUCCESS
 }
 

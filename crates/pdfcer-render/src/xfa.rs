@@ -9,9 +9,7 @@
 
 use pdfcer_core::content::ContentStream;
 use pdfcer_core::object::Dict;
-use pdfcer_core::xfa::{
-    LayoutPage, PaintNote, PaintOptions, Template, XfaImages, paint_page_with_images,
-};
+use pdfcer_core::xfa::{LayoutPage, PaintNote, PaintOptions, Template, XfaImages, paint_page_with};
 use tiny_skia::{Pixmap, Transform};
 
 use crate::{
@@ -36,6 +34,9 @@ pub struct RenderedXfaPage {
 /// in its `/Names /XFAImages` tree ([`XfaImages::from_view`], read on each
 /// call; [`render_xfa_page_with_images`] reuses one). The page is
 /// white-backed unless `options` asks for [`PageBackdrop::Transparent`].
+/// Text is set in `options.fonts`'s registered faces as
+/// [`crate::font::xfa_fonts`] matches them; lay the page out with the same
+/// [`pdfcer_core::xfa::XfaFonts`] so it is drawn as it was laid.
 ///
 /// # Errors
 ///
@@ -69,7 +70,8 @@ pub fn render_xfa_page_with_images(
     scale: f32,
     options: &RenderOptions,
 ) -> Result<RenderedXfaPage, RenderError> {
-    let mut painted = paint_page_with_images(template, page, paint, images);
+    let fonts = crate::font::xfa_fonts(&options.fonts);
+    let mut painted = paint_page_with(template, page, paint, images, &fonts);
     let content = std::mem::take(&mut painted.content);
     let resources = std::mem::take(&mut painted.resources);
     let rendered = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {

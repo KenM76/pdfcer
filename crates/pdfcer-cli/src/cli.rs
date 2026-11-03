@@ -6411,6 +6411,12 @@ pub(crate) enum Command {
         /// colour).
         #[arg(long, value_enum, default_value_t)]
         stipple: StippleArg,
+        /// A folder of font files to set the form's typefaces in.
+        /// Repeatable. A typeface matches a face whose family name it is
+        /// (case, spaces and hyphens ignored); one with no match is drawn
+        /// in a standard-14 face and said so on stderr.
+        #[arg(long = "font-dir", value_name = "DIR")]
+        font_dirs: Vec<PathBuf>,
     },
 
     /// Write a dynamic XFA form's pages into the file and save.
@@ -6450,6 +6456,18 @@ pub(crate) enum Command {
         /// refusing. The saved file is no longer signed.
         #[arg(long)]
         remove_signatures: bool,
+        /// A folder of font files to set the form's typefaces in.
+        /// Repeatable. A typeface matches a face whose family name it is
+        /// (case, spaces and hyphens ignored); one with no match is drawn
+        /// in a standard-14 face and said so on stderr.
+        #[arg(long = "font-dir", value_name = "DIR")]
+        font_dirs: Vec<PathBuf>,
+        /// Whether a --font-dir face is embedded whole in the saved file, or
+        /// referenced by name only (smaller, but drawn right only where
+        /// that font is installed). A face whose licence forbids
+        /// embedding is referenced either way, and said so on stderr.
+        #[arg(long, value_enum, default_value_t)]
+        font_embedding: crate::xfa_page::FontEmbeddingArg,
     },
 
     /// Write a value into an XFA form field and save.

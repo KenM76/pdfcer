@@ -21,21 +21,22 @@
 //! drawn yet; each item carrying them is reported as
 //! [`PaintNoteKind::Content`].
 
-use crate::fontdata::Std14;
 use crate::object::{Dict, Name, Object};
-use crate::vartext::standard14_font_dict;
 use crate::writer::content::{ContentBuilder, LineCap, Paint};
 
 pub use dash::{DashCaps, DashLengths};
+pub use font_res::PaintedFont;
 pub use image::PaintedImage;
 pub use options::{
-    CaptionFont, CheckCaption, CheckEdge, EdgePlacement, FontWeight, ImageOverflow, ImagePlacement,
-    ImageStreams, Medium, MissingFill, PaintOptions, PictureRounding, Stipple, ThreeDStroke,
+    CaptionFont, CheckCaption, CheckEdge, EdgePlacement, FontEmbedding, FontWeight, ImageOverflow,
+    ImagePlacement, ImageStreams, Medium, MissingFill, PaintOptions, PictureRounding, Stipple,
+    ThreeDStroke,
 };
 pub use shape::{ArcCircle, ArcFill};
 
 use super::{
-    ContainerKind, LayoutItem, LayoutPage, LayoutRect, Presence, Template, XfaImages, XfaNode,
+    ContainerKind, LayoutItem, LayoutPage, LayoutRect, Presence, Template, XfaFonts, XfaImages,
+    XfaNode,
 };
 /// What [`paint_page`] drew differently from the template, or left out.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -119,8 +120,8 @@ pub struct PaintNote {
 pub struct PaintedPage {
     /// Content-stream bytes (unfiltered), in default user space.
     pub content: Vec<u8>,
-    /// The resource dictionary `content` needs: `/Font` with the standard-14
-    /// faces it names (`/XF0`, `/XF1`, ...); empty when it shows no text.
+    /// The resource dictionary `content` needs: `/Font` with the faces it
+    /// names (`/XF0`, `/XF1`, ...); empty when it shows no text.
     pub resources: Dict,
     /// What was approximated or left out, in paint order.
     pub notes: Vec<PaintNote>,
@@ -128,6 +129,9 @@ pub struct PaintedPage {
     /// for the caller to write as streams and add to `resources` `/XObject`
     /// under their names; empty otherwise.
     pub images: Vec<PaintedImage>,
+    /// The `/Font` entries, in name order: which are supplied faces and
+    /// which programs to embed.
+    pub fonts: Vec<PaintedFont>,
 }
 
 /// Draw `page`, laid out from `template`.
@@ -149,8 +153,22 @@ pub fn paint_page_with_images(
     opts: &PaintOptions,
     images: &XfaImages,
 ) -> PaintedPage {
+    paint_page_with(template, page, opts, images, &XfaFonts::new())
+}
+
+/// [`paint_page_with_images`], setting text in `fonts` (pass the
+/// [`XfaFonts`] the page was laid out with).
+#[must_use]
+pub fn paint_page_with(
+    template: &Template,
+    page: &LayoutPage,
+    opts: &PaintOptions,
+    images: &XfaImages,
+    fonts: &XfaFonts,
+) -> PaintedPage {
     let mut p = Painter {
         images,
+        faces: fonts,
         root: template.element(),
         b: ContentBuilder::new(),
         notes: Vec::new(),
@@ -168,12 +186,13 @@ pub fn paint_page_with_images(
             p.turned(item, node);
         }
     }
-    let resources = p.resources();
+    let (resources, fonts) = p.resources();
     PaintedPage {
         content: p.b.into_bytes(),
         notes: p.notes,
         resources,
         images: p.xobjects,
+        fonts,
     }
 }
 
@@ -194,13 +213,14 @@ fn drawable<'t>(template: &'t Template, item: &LayoutItem) -> Option<&'t XfaNode
 
 struct Painter<'i> {
     images: &'i XfaImages,
+    faces: &'i XfaFonts,
     /// The template root, where floating fields are looked up.
     root: &'i XfaNode,
     b: ContentBuilder,
     notes: Vec<PaintNote>,
     height: f64,
     opts: PaintOptions,
-    fonts: Vec<Std14>,
+    fonts: Vec<face::Face>,
     /// Whether the graphics state holds a dash pattern.
     dashed: bool,
     /// The `/Shading` resources, named `XS0`, `XS1`, ...
@@ -286,7 +306,7 @@ impl Painter<'_> {
         self.b.restore_state();
     }
 
-    fn resources(&self) -> Dict {
+    fn resources(&self) -> (Dict, Vec<PaintedFont>) {
         let mut res = Dict::new();
         if !self.shadings.is_empty() {
             let mut sh = Dict::new();
@@ -299,18 +319,17 @@ impl Painter<'_> {
             res.insert(Name::from(b"Shading"), Object::Dict(sh));
         }
         if self.fonts.is_empty() {
-            return res;
+            return (res, Vec::new());
         }
         let mut fonts = Dict::new();
+        let mut painted = Vec::new();
         for (i, f) in self.fonts.iter().enumerate() {
             let name = format!("XF{i}");
-            fonts.insert(
-                Name::from(name.as_bytes()),
-                Object::Dict(standard14_font_dict(*f)),
-            );
+            fonts.insert(Name::from(name.as_bytes()), Object::Dict(font_res::dict(f)));
+            painted.push(PaintedFont::of(name, f, self.opts.font_embedding));
         }
         res.insert(Name::from(b"Font"), Object::Dict(fonts));
-        res
+        (res, painted)
     }
 
     /// Paint `border` around `rect`, inset by the border's own margin.
@@ -510,7 +529,9 @@ mod choice;
 mod comb;
 mod corner;
 mod dash;
+mod face;
 mod fill;
+mod font_res;
 mod image;
 mod options;
 mod page_script;

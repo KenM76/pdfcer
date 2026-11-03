@@ -6,7 +6,6 @@
 
 use super::text::{metrics, para_inset};
 use super::{Edge, LayoutItem, LayoutRect, PaintNoteKind, Painter, Presence, XfaNode, inset};
-use crate::vartext::encode_winansi;
 use crate::writer::content::{LineCap, Paint};
 
 /// The widgets a `comb` may sit in (p.657).
@@ -33,15 +32,15 @@ impl Painter<'_> {
             .shown(item, node)
             .map(|t| clusters(&t))
             .unwrap_or_default();
-        let unencodable = clusters.iter().any(|c| encode_winansi(c).1 > 0);
+        let (font, para) = (node.child("font"), node.child("para"));
+        let mut style = self.style(item, font, para);
+        let unencodable = clusters.iter().any(|c| style.font.lacks_glyph(c));
         if clusters.len() > n || unencodable {
             self.note(item, PaintNoteKind::Text);
         }
-        let (font, para) = (node.child("font"), node.child("para"));
-        let mut style = self.style(item, font, para);
         style.h_align = 0.5;
         let text_box = para_inset(inset(bx, w.child("margin")), para);
-        let (ascent, line_h) = metrics(style.font, style.size, para);
+        let (ascent, line_h) = metrics(&style.font, style.size, para);
         let top = self.height - text_box.y - (text_box.h - line_h).max(0.0) * style.v_align;
         #[allow(clippy::cast_precision_loss)] // a cell count fits f64 exactly
         let cw = bx.w / n as f64;

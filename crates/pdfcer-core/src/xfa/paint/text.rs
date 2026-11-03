@@ -1,10 +1,12 @@
-//! A `draw`'s or `field`'s plain `value/text`, set in a standard-14 face
+//! A `draw`'s or `field`'s plain `value/text`, set in a supplied or standard-14 face
 //! (XFA 3.3 text p.863, value p.882, font pp.741-744, para pp.800-803,
 //! box model pp.49-54; slice `adobe_ext__xfa_appearance_drawing.md` §6-§7).
 
-use crate::fontdata::{Std14, std14_descriptor, std14_styled};
 use crate::linebreak::greedy_pack;
-use crate::vartext::{encode_winansi, text_width};
+use crate::vartext::encode_winansi;
+use crate::xfa::XfaFonts;
+
+use super::face::Face;
 
 use super::{FontWeight, LayoutItem, LayoutRect, PaintNoteKind, Painter, Presence, XfaNode, inset};
 
@@ -73,28 +75,6 @@ pub(in crate::xfa) fn widget(node: &XfaNode) -> Option<&XfaNode> {
         .find(|c| c.tag != "extras" && c.tag != "picture")
 }
 
-/// The face `typeface` is drawn in, and whether that is a substitution (the
-/// standard 14 carry no Arial, Myriad or the like; p.58 best match).
-pub(super) fn face(typeface: &str, bold: bool, italic: bool) -> (Std14, bool) {
-    let t = typeface.trim().to_ascii_lowercase();
-    let exact = matches!(
-        t.as_str(),
-        "courier" | "helvetica" | "times" | "times roman" | "times-roman"
-    );
-    let serif = [
-        "times", "georgia", "garamond", "minion", "palatino", "cambria",
-    ];
-    let family = if t.contains("courier") || t.contains("mono") {
-        Std14::Courier
-    } else if serif.iter().any(|s| t.contains(s)) || (t.contains("serif") && !t.contains("sans")) {
-        Std14::TimesRoman
-    } else {
-        Std14::Helvetica
-    };
-    let styled = std14_styled(family, bold, italic).unwrap_or(family);
-    (styled, !exact)
-}
-
 /// The text to draw: `holder`'s scalar value PCDATA, else nothing.
 pub(in crate::xfa) fn plain_text(holder: &XfaNode) -> Option<&str> {
     let text = scalar(holder)?;
@@ -103,11 +83,12 @@ pub(in crate::xfa) fn plain_text(holder: &XfaNode) -> Option<&str> {
 
 /// The face and size `font` sets text in, and whether the face is a
 /// substitution; `weight` for a `font` naming none (gap G-T1).
-fn face_of(font: Option<&XfaNode>, weight: FontWeight) -> (Std14, f64, bool) {
+fn face_of(fonts: &XfaFonts, font: Option<&XfaNode>, weight: FontWeight) -> (Face, f64, bool) {
     let attr = |a| font.and_then(|f| f.attr(a));
     let bold = attr("weight").map_or(weight == FontWeight::Bold, |w| w == "bold");
     let italic = attr("posture") == Some("italic");
-    let (face, substituted) = face(attr("typeface").unwrap_or("Courier"), bold, italic);
+    let (face, substituted) =
+        Face::resolve(fonts, attr("typeface").unwrap_or("Courier"), bold, italic);
     let size = font
         .and_then(|f| super::length(f, "size"))
         .filter(|s| *s > 0.0)
@@ -116,20 +97,22 @@ fn face_of(font: Option<&XfaNode>, weight: FontWeight) -> (Std14, f64, bool) {
 }
 
 /// The distance between lines of text in `font`/`para`, as painting sets
-/// them: layout splits a text container on this pitch (Ch.8 p.291). Every
-/// standard-14 weight shares its family's line metrics, so the gap G-T1
-/// weight setting cannot change it.
-pub(in crate::xfa) fn line_pitch(font: Option<&XfaNode>, para: Option<&XfaNode>) -> f64 {
-    let (face, size, _) = face_of(font, FontWeight::Normal);
-    metrics(face, size, para).1
+/// them: layout splits a text container on this pitch (Ch.8 p.291).
+pub(in crate::xfa) fn line_pitch(
+    fonts: &XfaFonts,
+    font: Option<&XfaNode>,
+    para: Option<&XfaNode>,
+) -> f64 {
+    let (face, size, _) = face_of(fonts, font, FontWeight::Normal);
+    metrics(&face, size, para).1
 }
 
 /// The ascent and the line height of `face` at `size` under `para`'s
 /// `lineHeight`.
-pub(super) fn metrics(face: Std14, size: f64, para: Option<&XfaNode>) -> (f64, f64) {
-    let d = std14_descriptor(face);
-    let ascent = f64::from(d.ascender) / 1000.0 * size;
-    let descent = f64::from(d.descender).abs() / 1000.0 * size;
+pub(super) fn metrics(face: &Face, size: f64, para: Option<&XfaNode>) -> (f64, f64) {
+    let (a, d) = face.extents();
+    let ascent = a / 1000.0 * size;
+    let descent = d / 1000.0 * size;
     let line_h = para
         .and_then(|p| super::length(p, "lineHeight"))
         .unwrap_or(0.0)
@@ -142,18 +125,19 @@ pub(super) fn metrics(face: Std14, size: f64, para: Option<&XfaNode>) -> (f64, f
 /// what a growable field or draw sizes its content from (Ch.8 pp.275-278).
 /// `single` sets one line, unwrapped, as a single-line `textEdit` does.
 pub(in crate::xfa) fn text_extent(
+    fonts: &XfaFonts,
     text: &str,
     font: Option<&XfaNode>,
     para: Option<&XfaNode>,
     wrap_at: f64,
     single: bool,
 ) -> (f64, f64) {
-    let (face, size, _) = face_of(font, FontWeight::Normal);
-    let (_, line_h) = metrics(face, size, para);
-    let (lines, _) = wrap(text, face, size, if single { 0.0 } else { wrap_at });
+    let (face, size, _) = face_of(fonts, font, FontWeight::Normal);
+    let (_, line_h) = metrics(&face, size, para);
+    let (lines, _) = wrap(text, &face, size, if single { 0.0 } else { wrap_at });
     let w = lines
         .iter()
-        .map(|l| text_width(face, size, l))
+        .map(|l| face.width(size, l))
         .fold(0.0, f64::max);
     let n = if single {
         lines.len().min(1)
@@ -166,7 +150,7 @@ pub(in crate::xfa) fn text_extent(
 
 /// Text-run settings read from `font` and `para`.
 pub(super) struct Style {
-    pub(super) font: Std14,
+    pub(super) font: Face,
     pub(super) size: f64,
     rgb: [f64; 3],
     pub(super) h_align: f64,
@@ -263,11 +247,11 @@ impl Painter<'_> {
         para: Option<&XfaNode>,
     ) -> (f64, f64) {
         let style = self.style(item, font, para);
-        let (lines, _) = wrap(text, style.font, style.size, 0.0);
-        let (_, line_h) = metrics(style.font, style.size, para);
+        let (lines, _) = wrap(text, &style.font, style.size, 0.0);
+        let (_, line_h) = metrics(&style.font, style.size, para);
         let w = lines
             .iter()
-            .map(|l| text_width(style.font, style.size, l))
+            .map(|l| style.font.width(style.size, l))
             .fold(0.0, f64::max);
         #[allow(clippy::cast_precision_loss)] // a line count fits f64 exactly
         (w, line_h * lines.len() as f64)
@@ -289,11 +273,11 @@ impl Painter<'_> {
         if indent.is_some_and(|i| i != 0.0) {
             self.note(item, PaintNoteKind::Text);
         }
-        let (lines, approximated) = wrap(text, style.font, style.size, r.w);
+        let (lines, approximated) = wrap(text, &style.font, style.size, r.w);
         if approximated {
             self.note(item, PaintNoteKind::Text);
         }
-        let (ascent, line_h) = metrics(style.font, style.size, para);
+        let (ascent, line_h) = metrics(&style.font, style.size, para);
         #[allow(clippy::cast_precision_loss)] // a line count fits f64 exactly
         let block_h = line_h * lines.len() as f64;
         if r.h > 0.0 && block_h > r.h + 0.01 {
@@ -311,7 +295,7 @@ impl Painter<'_> {
         font: Option<&XfaNode>,
         para: Option<&XfaNode>,
     ) -> Style {
-        let (face, size, substituted) = face_of(font, self.opts.font_weight);
+        let (face, size, substituted) = face_of(self.faces, font, self.opts.font_weight);
         if substituted {
             self.note(item, PaintNoteKind::Font);
         }
@@ -359,14 +343,14 @@ impl Painter<'_> {
             self.b.clip_nonzero();
             self.b.paint(crate::writer::content::Paint::NoPaint);
         }
-        let name = self.font_name(style.font);
+        let name = self.font_name(&style.font);
         self.b
             .set_fill_rgb(style.rgb[0], style.rgb[1], style.rgb[2]);
         self.b.begin_text();
         self.b.set_font(name.as_bytes(), style.size);
         let mut y = first;
         for line in lines {
-            let x = r.x + (r.w - text_width(style.font, style.size, line)).max(0.0) * style.h_align;
+            let x = r.x + (r.w - style.font.width(style.size, line)).max(0.0) * style.h_align;
             self.b.set_text_matrix(1.0, 0.0, 0.0, 1.0, x, y);
             self.b.show_text(&encode_winansi(line).0);
             y -= line_h;
@@ -376,13 +360,13 @@ impl Painter<'_> {
     }
 
     /// The page-resource name for `font`, registering it on first use.
-    pub(super) fn font_name(&mut self, font: Std14) -> String {
+    pub(super) fn font_name(&mut self, font: &Face) -> String {
         let i = self
             .fonts
             .iter()
-            .position(|f| *f == font)
+            .position(|f| f == font)
             .unwrap_or_else(|| {
-                self.fonts.push(font);
+                self.fonts.push(font.clone());
                 self.fonts.len() - 1
             });
         format!("XF{i}")
@@ -401,10 +385,10 @@ fn joined(cap: Option<&str>, value: Option<String>) -> Option<String> {
 /// `text` broken at newlines and, when `width` is positive, wrapped at
 /// spaces; `true` when a character was not encodable or a word is wider
 /// than the region (drawn unbroken and clipped, not split, here).
-fn wrap(text: &str, face: Std14, size: f64, width: f64) -> (Vec<String>, bool) {
+fn wrap(text: &str, face: &Face, size: f64, width: f64) -> (Vec<String>, bool) {
     let mut out = Vec::new();
-    let mut approximated = encode_winansi(text).1 > 0;
-    let measure = |s: &str| text_width(face, size, s);
+    let mut approximated = face.lacks_glyph(text);
+    let measure = |s: &str| face.width(size, s);
     for para in text.lines() {
         let words: Vec<&str> = para.split(' ').collect();
         if width <= 0.0 {

@@ -95,7 +95,7 @@ pub(super) fn collection_indices(bytes: &[u8]) -> std::ops::Range<u32> {
 
 /// The first `id` string the face's `name` table holds, control characters
 /// dropped.
-fn name_string(font: &FontRef<'_>, id: StringId) -> Option<String> {
+pub(super) fn name_string(font: &FontRef<'_>, id: StringId) -> Option<String> {
     let s = font.localized_strings(id).english_or_first()?;
     let s: String = s.chars().filter(|c| !c.is_control()).collect();
     (!s.trim().is_empty()).then(|| s.trim().to_owned())
@@ -103,7 +103,7 @@ fn name_string(font: &FontRef<'_>, id: StringId) -> Option<String> {
 
 /// Serif style from `OS/2`: PANOSE Latin-text serif style (2–10 serif,
 /// 11–15 sans), else the IBM family class (1–5 and 7 serif, 8 sans).
-fn serif_of(panose: &[u8], family_class: i16) -> Option<bool> {
+pub(super) fn serif_of(panose: &[u8], family_class: i16) -> Option<bool> {
     if panose.first() == Some(&2) {
         match panose.get(1) {
             Some(2..=10) => return Some(true),

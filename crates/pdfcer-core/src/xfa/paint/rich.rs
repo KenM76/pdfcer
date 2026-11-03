@@ -11,10 +11,9 @@
 //! style. A floating field (`span` with `embed="#id"`) shows the named
 //! node's plain value.
 
-use super::text::face;
+use super::face::Face;
 use super::{XfaNode, parse_rgb};
-use crate::fontdata::Std14;
-use crate::xfa::Measurement;
+use crate::xfa::{Measurement, XfaFonts};
 
 /// The default tab interval: half an inch.
 const TAB_INTERVAL: f64 = 36.0;
@@ -25,7 +24,7 @@ const MAX_DEPTH: usize = 64;
 /// How one run of characters is drawn.
 #[derive(Debug, Clone, PartialEq)]
 pub(super) struct RunStyle {
-    pub(super) face: Std14,
+    pub(super) face: Face,
     pub(super) size: f64,
     pub(super) rgb: [f64; 3],
     pub(super) underline: bool,
@@ -73,7 +72,7 @@ pub(super) struct Rich {
     pub(super) paras: Vec<Para>,
     /// Markup was dropped or drawn approximately.
     pub(super) approximated: bool,
-    /// A face is not a standard-14 one.
+    /// A face was neither supplied nor a standard-14 one.
     pub(super) substituted: bool,
 }
 
@@ -121,8 +120,14 @@ pub(super) fn rich_value(holder: &XfaNode) -> Option<&XfaNode> {
         .filter(|e| e.attr("contentType").map(str::trim) == Some("text/html"))
 }
 
-/// Read `ex` from `base`; `lookup` gives a floating field's value by `id`.
-pub(super) fn read(ex: &XfaNode, base: &Base, lookup: &dyn Fn(&str) -> Option<String>) -> Rich {
+/// Read `ex` from `base` in `fonts`; `lookup` gives a floating field's
+/// value by `id`.
+pub(super) fn read(
+    ex: &XfaNode,
+    base: &Base,
+    fonts: &XfaFonts,
+    lookup: &dyn Fn(&str) -> Option<String>,
+) -> Rich {
     let cascade = Cascade {
         family: base.family.clone(),
         bold: base.bold,
@@ -143,6 +148,7 @@ pub(super) fn read(ex: &XfaNode, base: &Base, lookup: &dyn Fn(&str) -> Option<St
         out: Rich::default(),
         cur: None,
         base: base.clone(),
+        fonts,
         lookup,
     };
     r.walk(ex, &cascade, 0);
@@ -154,6 +160,7 @@ struct Reader<'l> {
     out: Rich,
     cur: Option<Para>,
     base: Base,
+    fonts: &'l XfaFonts,
     lookup: &'l dyn Fn(&str) -> Option<String>,
 }
 
@@ -187,12 +194,12 @@ impl Reader<'_> {
         let margins = self.style(e, &mut c);
         match e.tag.as_str() {
             "br" => {
-                let style = run_style(&c, &mut self.out);
+                let style = run_style(&c, &mut self.out, self.fonts);
                 self.push(Piece::Break(style), &c);
             }
             "p" | "li" => {
                 self.finish();
-                self.cur = Some(para(&c, margins, &self.base, &mut self.out));
+                self.cur = Some(para(&c, margins, &self.base, &mut self.out, self.fonts));
                 self.walk(e, &c, depth);
                 self.finish();
             }
@@ -266,7 +273,7 @@ impl Reader<'_> {
             "xfa-spacerun" => c.spacerun = lower == "yes",
             "xfa-tab-count" => {
                 let n = lower.parse::<usize>().unwrap_or(0).min(64);
-                let style = run_style(c, &mut self.out);
+                let style = run_style(c, &mut self.out, self.fonts);
                 for _ in 0..n {
                     self.push(Piece::Tab(style.clone()), c);
                 }
@@ -311,7 +318,7 @@ impl Reader<'_> {
     /// Character data: collapsed to single breakable spaces unless under
     /// `xfa-spacerun`.
     fn text(&mut self, t: &str, c: &Cascade) {
-        let style = run_style(c, &mut self.out);
+        let style = run_style(c, &mut self.out, self.fonts);
         for ch in t.chars() {
             if ch == ' ' && c.spacerun {
                 self.push(Piece::Space(style.clone(), true), c);
@@ -343,7 +350,7 @@ impl Reader<'_> {
 
     fn push(&mut self, piece: Piece, c: &Cascade) {
         if self.cur.is_none() {
-            self.cur = Some(para(c, [None; 4], &self.base, &mut self.out));
+            self.cur = Some(para(c, [None; 4], &self.base, &mut self.out, self.fonts));
         }
         if let Some(p) = self.cur.as_mut() {
             p.pieces.push(piece);
@@ -359,7 +366,7 @@ impl Reader<'_> {
 
 /// A paragraph opened under `c`; an omitted margin takes the container
 /// `para`'s.
-fn para(c: &Cascade, m: [Option<f64>; 4], base: &Base, out: &mut Rich) -> Para {
+fn para(c: &Cascade, m: [Option<f64>; 4], base: &Base, out: &mut Rich, fonts: &XfaFonts) -> Para {
     Para {
         pieces: Vec::new(),
         align: c.align,
@@ -371,12 +378,12 @@ fn para(c: &Cascade, m: [Option<f64>; 4], base: &Base, out: &mut Rich) -> Para {
         line_height: c.line_height,
         tab_interval: c.tab_interval,
         tab_stops: c.tab_stops.clone(),
-        base: run_style(c, out),
+        base: run_style(c, out, fonts),
     }
 }
 
-fn run_style(c: &Cascade, out: &mut Rich) -> RunStyle {
-    let (face, substituted) = face(&c.family, c.bold, c.italic);
+fn run_style(c: &Cascade, out: &mut Rich, fonts: &XfaFonts) -> RunStyle {
+    let (face, substituted) = Face::resolve(fonts, &c.family, c.bold, c.italic);
     out.substituted |= substituted;
     RunStyle {
         face,

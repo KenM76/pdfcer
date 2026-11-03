@@ -23,8 +23,10 @@ pub use augment::InstalledFaceAugmenter;
 /// Installed faces for the replacement-face ladder (decision 178).
 mod face_catalog;
 mod installed_faces;
+mod xfa_faces;
 pub use face_catalog::FaceCatalog;
 pub use installed_faces::InstalledFaces;
+pub use xfa_faces::xfa_fonts;
 pub mod bundled;
 pub mod coredata;
 pub mod embedded_glyphs;

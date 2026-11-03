@@ -10,7 +10,7 @@ use super::{
     TiledSplit,
 };
 use crate::xfa::{
-    AnchorType, ContainerKind, LayoutStrategy, Measurement, Presence, XfaImages, XfaNode,
+    AnchorType, ContainerKind, LayoutStrategy, Measurement, Presence, XfaFonts, XfaImages, XfaNode,
 };
 
 /// `font@size` default (Ch.17 p.741), the base of an `em` measurement.
@@ -25,6 +25,8 @@ pub(super) struct Ctx<'o> {
     pub(super) root: &'o XfaNode,
     /// The files an image value's `href` names.
     pub(super) images: &'o XfaImages,
+    /// The faces text is measured in.
+    pub(super) fonts: &'o XfaFonts,
     /// Paths of the bookend targets being laid, outermost first: the
     /// cycle guard.
     pub(super) bookends: Vec<Vec<usize>>,

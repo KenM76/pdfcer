@@ -42,6 +42,19 @@ pub enum ImageStreams {
     XObject,
 }
 
+/// Whether a supplied face's program travels in the written file
+/// ([`PaintedFont::program`](super::PaintedFont::program)).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum FontEmbedding {
+    /// Embed the whole program, unless its `fsType` forbids it: the page
+    /// draws the same in any viewer (ISO 32000-1 §9.9).
+    #[default]
+    Embed,
+    /// Name the face only (`/BaseFont`); a viewer without it substitutes.
+    Reference,
+}
+
 /// How a `stipple` fill's `rate` blends (gap G-D6).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
@@ -214,6 +227,8 @@ pub struct PaintOptions {
     pub stipple: Stipple,
     /// Inline images or image XObjects.
     pub image_streams: ImageStreams,
+    /// Embed or reference supplied faces.
+    pub font_embedding: FontEmbedding,
 }
 
 impl PaintOptions {
@@ -239,6 +254,7 @@ impl PaintOptions {
             picture_rounding: PictureRounding::HalfUp,
             stipple: Stipple::Viewer,
             image_streams: ImageStreams::Inline,
+            font_embedding: FontEmbedding::Embed,
         }
     }
 
@@ -365,6 +381,13 @@ impl PaintOptions {
     #[must_use]
     pub const fn with_image_streams(mut self, image_streams: ImageStreams) -> Self {
         self.image_streams = image_streams;
+        self
+    }
+
+    /// With `font_embedding`.
+    #[must_use]
+    pub const fn with_font_embedding(mut self, font_embedding: FontEmbedding) -> Self {
+        self.font_embedding = font_embedding;
         self
     }
 }
