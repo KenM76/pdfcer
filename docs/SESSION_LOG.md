@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1384th filing) — `Pass 647.7` SHIPPED `9082a5be` (XFA tables); `Pass 647.4` rounding cut `a49eb8c7` (G-W10; NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here; nothing checked from here):**
+- **`9082a5be`:** `table` subforms stack rows and split between rows; `columnWidths`, `colSpan`, `rl-row`; cells stretch to column width and row height; a row outside a table is laid positioned and reported (`LayoutWarning::InappropriateLayout`, replacing `FlowedLayoutPending`; CLI kind `row-outside-table`). Setting `TableCellHeight::{Content, Declared}` (decision 212); CLI `xfa-layout --table-cell-height`. `docs/core-api/03-capabilities.md` updated.
+- **`a49eb8c7`:** `PaintOptions::with_picture_rounding(PictureRounding::{HalfUp, HalfEven, Truncate})`; CLI `xfa-layout --png-dir <dir> --picture-rounding` (no `xfa-png` verb).
+- **Tests (engineer-reported):** 5 new table tests, `pdfcer-core` xfa 236 passed, CLI xfa 25 passed; 1 new rounding test. No manifest change.
+- Both on local `main`, **unpushed** at filing. Tests are synthetic; no real-world form is named.
+- ROADMAP: two Shipped entries; `647.7` Next-up heading marked shipped; `647.4` heading and remaining list updated (G-W10 removed); `647.2` bullet on `FlowedLayoutPending` given a superseded note. FEATURES: new row "tables and rows" (core `[x]`, cli `[x]`, gui `[ ]`); picture-rounding added to the display-pictures row; umbrella row boxes stay `[ ]`.
+
+**Decisions made this session:** none minted (decision 212 existed; its setting is now built).
+
+**Hard-rule-11 survivors:** the `FlowedLayoutPending` mentions in the `647.1` Shipped entry are history and left. Not swept from here: `docs/NEXT_SESSION.md`, `ARCHITECTURE.md` section 4, doc comments and CLI help naming `FlowedLayoutPending` or the "rounding is half-up, setting owed" disclosure text in `crates/`. Backup currency not verifiable from here.
+
+**Still in flight:** push of both commits; `647.4` remainder (comb, inline captions, real fonts, gradient / stipple fills, non-solid strokes, image natural sizing, barcode encoders).
+
+**For next session:** run `tools/check-commits-filed.py` before the push.
+
 ## 2026-11-03 (1383rd filing) — `Pass 647.4` check-box cut `89dc9fbe` and widget cut `cf7960b2` (NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here; nothing checked from here):**

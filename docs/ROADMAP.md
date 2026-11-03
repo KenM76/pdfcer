@@ -112,6 +112,23 @@ wherever it appears.*
 
 ## Shipped
 
+### `9082a5be` `Pass 647.7` SHIPPED, 2026-11-03: XFA table and row layout; decision 212 setting `table_cell_height` (1384th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `9082a5be` "feat(xfa): table and row layout (Pass 647.7)". On local `main`, **unpushed, unreleased** at filing. Reasoning is in the commit message. Tests are synthetic.
+- **Layout:** a dynamic-XFA `table` subform stacks its rows and splits between rows (a row is never split). `columnWidths`: `-1` or a missing entry takes the widest one-column cell. Cells stretch to the column width and to the row's tallest cell. `colSpan`: `-1` spans the rest of the row and later cells in that row are not shown. An `rl-row` puts column 1 at the right.
+- **Outside a table:** a row outside a table is laid positioned and reported by `LayoutWarning::InappropriateLayout`, which replaces `FlowedLayoutPending`. CLI warning kind `row-outside-table`.
+- **New setting (decision 212):** `LayoutOptions::with_table_cell_height(TableCellHeight::{Content (default), Declared})`; CLI `pdfcer xfa-layout --table-cell-height content|declared`. `Content` is the viewer-matching reading, `Declared` the spec-literal one, as the criteria filed under `Pass 647.7` in the 1311th filing required.
+- **Tests (engineer-reported):** 5 new table tests; `pdfcer-core` xfa suite 236 passed; CLI xfa 25 passed. No manifest change; `cargo tree` unchanged. `docs/core-api/03-capabilities.md` updated (Tables section).
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]` (not evidenced). FEATURES: new Implemented-style row "tables and rows"; the umbrella "layout and drawing" row is amended, its boxes stay `[ ]` (partial).
+
+### `a49eb8c7` `Pass 647.4` ROUNDING CUT, 2026-11-03: picture rounding as a setting (spec gap G-W10; 1384th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `a49eb8c7` "feat(xfa): picture rounding as a setting (gap G-W10, Pass 647.4)". On local `main`, **unpushed, unreleased** at filing. **`Pass 647.4` is NOT complete**; it stays in Next up.
+- **Done:** `PaintOptions::with_picture_rounding(PictureRounding::{HalfUp (default), HalfEven, Truncate})`. CLI: `pdfcer xfa-layout --png-dir <dir> --picture-rounding half-up|half-even|truncate` (there is no `xfa-png` verb).
+- **Tests (engineer-reported):** 1 new test.
+- **Closes** the "setting still owed" clause of the widget cut below.
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]` (not evidenced).
+
 ### `cf7960b2` `Pass 647.4` WIDGET CUT, 2026-11-03: XFA display pictures, typed values, password / button / signature / barcode widgets, screen / paper medium (1383rd filing)
 
 Engineer-reported; no shell here, nothing checked from here. Commit `cf7960b2` "feat(xfa): display pictures, typed values, password/button/signature/barcode widgets, screen/paper medium (Pass 647.4)". On local `main`, **unpushed, unreleased** at filing. **`Pass 647.4` is NOT complete**; it stays in Next up. Tests are synthetic. Reasoning is in the commit message.
@@ -27387,7 +27404,7 @@ closes out the *prior* filing's business rather than opening this one's.
 - **Done:** `layout_template` lays flowed containers (XFA 3.3 Ch.8 pp.279-282). `tb` stacks children from the margin corner; `lr-tb` and `rl-tb` tile children in rows, wrapping at the container's `w` (or `maxW` when `w` is absent) less margins, never wrapping when neither is present; `rl-tb` tiles from the right edge. A flowed child's x, y and anchorType are ignored.
 - **Gap G-L2 (derived reading):** a subform uses its own `layout`; an area or exclGroup inherits its parent's.
 - **Areas:** a flowed root flows through each content area in turn. An object that does not fit the rest of a non-empty area moves to the next area. An object taller than an empty area is placed past the area's bottom edge and reported by new `LayoutWarning::ContentOverflow { path }`.
-- **`FlowedLayoutPending`** now covers only `table`/`row` strategies (`647.7`).
+- **`FlowedLayoutPending`** now covers only `table`/`row` strategies (`647.7`). *(Superseded, 1384th filing: `647.7` shipped `9082a5be`; the variant is replaced by `LayoutWarning::InappropriateLayout`, CLI kind `row-outside-table`.)*
 - **core-api:** `docs/core-api/03-capabilities.md` updated.
 - **Evidence (engineer):** `pdfcer-core` lib 2034 + integration 3112 + doc 255 passed; 4 new layout tests, 1 rewritten; fmt, clippy `-D warnings`, `check-code-structure` (no new debt), `check-core-api-verbs` clean; fuzz `xfa_packets` 115,505 runs / 91 s = 1,269 runs/s, 0 crashes; sabotage check (disable the move to the next area) fails the `tb` test. No manifest touched, `cargo tree` unaffected. Full `run-gates.sh` not reported.
 
@@ -27409,7 +27426,7 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 
 Filed from the `647.3e` close; nothing built. `647.3e` (`53f4e938`) creates instances only for named by-name subforms with `occur`. Not yet built: (1) instances for subforms bound with `bind match="dataRef"`; (2) instances for `subformSet`. Same spec (XFA 3.3 pp.339-347, `adobe_ext__xfa_data_binding_normal.md`), same `MergeWarningKind::{ExcessData, InstanceLimit}`, same guard. Acceptance to be written when scoped; synthetic only. Request `G248` items 2-3 are answered for the by-name case only. FEATURES: Planned row added (all three boxes `[ ]`).
 
-### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing), RICH-TEXT CUT `7450b595` (1380th filing, see *Shipped*), BORDER CUT `a5e17baf` (1381st filing, see *Shipped*), CHECK-BOX CUT `89dc9fbe` and WIDGET CUT `cf7960b2` (1383rd filing, see *Shipped*); NOT COMPLETE, stays here)
+### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing), RICH-TEXT CUT `7450b595` (1380th filing, see *Shipped*), BORDER CUT `a5e17baf` (1381st filing, see *Shipped*), CHECK-BOX CUT `89dc9fbe` and WIDGET CUT `cf7960b2` (1383rd filing, see *Shipped*), ROUNDING CUT `a49eb8c7` (1384th filing, see *Shipped*); NOT COMPLETE, stays here)
 
 `pdfcer-render` draws the computed layout instead of the placeholder page (render-time only, like decision 203). Inferred content renders exactly as saved content would (rule 4: no on-canvas marking); disclosure is off-canvas diagnostics. Needs `pdfcer-render` to stay GUI-free (`cargo tree` check).
 
@@ -27473,7 +27490,7 @@ Filed from the `647.3e` close; nothing built. `647.3e` (`53f4e938`) creates inst
 
 **Rich-text cut (`7450b595`; 1380th filing; detail in *Shipped*).** `exData text/html` values and captions are drawn; WinAnsi nbsp / soft hyphen fixed. **REMAINING in 647.4:** inline captions; choiceList / button / barcode / signature widgets; check boxes on real forms; real fonts (`X014` item 2); gradient fills; non-solid strokes. Rich text is no longer on this list.
 
-**Check-box and widget cuts (`89dc9fbe`, `cf7960b2`; 1383rd filing; detail in *Shipped*).** Edgeless check boxes, page-number scripts, para margins, display pictures, typed values, password / button / signature / barcode-as-text widgets and `PaintOptions::medium` are drawn. **REMAINING in 647.4:** comb; inline captions; real (embedded / system) fonts (`X014` item 2); gradient and stipple fills; non-solid strokes; image natural sizing (`X017` remainder); barcode encoders; the G-W10 rounding setting. Check boxes, page-number fields, button, password, signature and typed values are no longer on this list.
+**Check-box and widget cuts (`89dc9fbe`, `cf7960b2`; 1383rd filing; detail in *Shipped*).** Edgeless check boxes, page-number scripts, para margins, display pictures, typed values, password / button / signature / barcode-as-text widgets and `PaintOptions::medium` are drawn. **REMAINING in 647.4:** comb; inline captions; real (embedded / system) fonts (`X014` item 2); gradient and stipple fills; non-solid strokes; image natural sizing (`X017` remainder); barcode encoders. **The G-W10 rounding setting shipped `a49eb8c7` (1384th filing) and is off this list.** Check boxes, page-number fields, button, password, signature and typed values are no longer on this list.
 
 ### Pass 647.5 — CLI `xfa-layout` report and `render-page` integration (FIRST CUT `c94ab2ee` (1289th filing), SECOND CUT `b0e0d1a2` (1292nd filing); NOT COMPLETE, stays here)
 
@@ -27496,7 +27513,7 @@ Filed from the `647.3e` close; nothing built. `647.3e` (`53f4e938`) creates inst
 
 `EditSession` verb plus CLI subcommand that writes the computed pages and fields into the file. Commits at Save only, never on open; disclosed as inferred content (rule 4). Static-XFA hybrid field creation stays refused (decision 020).
 
-### Pass 647.7 — Table and row layout (NOT STARTED, BLOCKED on spec slice)
+### Pass 647.7 — Table and row layout (SHIPPED `9082a5be`, 1384th filing, see *Shipped*; the criteria below are kept as filed)
 
 Table/row layout in dynamic forms. Blocked until `pdfcer-spec-librarian` extracts the table/row layout slice (after SOM expressions).
 
