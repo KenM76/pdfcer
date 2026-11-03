@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `12345f8d` `Pass 658.8`, 2026-11-03: the GPU draws up to 1,024 lights of each kind (1399th filing)
+
+Engineer-reported (measured); no shell here, git state not checked from here. Commit `12345f8d` "feat(3d): the GPU draws up to 1,024 lights of each kind (Pass 658.8)". Operator asked why pdfcer was limited to 16 lights, then asked for the limit lifted. Local `main`, unpushed at filing (engineer pushes after this filing), unreleased: rides the next release (OneDrive `pdfcer2`) with `Pass 658.7`. No decision record; reasoning is in the commit message.
+- **Why 16 existed:** the WebGL 2 uniform budget.
+- **What shipped (`pdfcer-3d`, CLI):** lights travel in one RGBA32F texture `u_lights`, built by `FrameLights::light_table()` (`light_table_rows()` rows, `LIGHT_TABLE_WIDTH` = 5). `MAX_LIGHTS` = 1024 per kind (directional; point/spot). **Breaking:** `FrameLights` is `Clone`, no longer `Copy`; its light lists are `Vec`s; the per-light uniform arrays are gone from the shaders.
+- **Shadows:** casters stay at 16, now the named constant `MAX_SHADOW_CASTERS`. Lamps past 16 light without a shadow on the CPU path too (parity with GPU). New field `FrameLampShadows::dropped`; the CLI `3d-render` lamp-shadow note prints how many lamps were left without a shadow.
+- **Tests (sabotage-verified):** 40+40-light table matches `Shader::shade`; lights past the limit are dropped and counted; lamps past the caster limit light without a shadow on both paths; shader texel-coverage check.
+- **Measurement (WebGL 2, headless Edge + SwiftShader, vs CPU, 40 suns + 40 lamps):** mean difference 0.018 levels, 0.01% of pixels more than 8 levels off. Light counts forced to 16: 42.7% of pixels off, so sabotage is caught.
+- **Gates (engineer-reported):** `tools/run-gates.sh` PASS (49 commands); `check-core-api-verbs` PASS. `cargo tree` not applicable (no manifest changed). Core-api contract updated in the same commit. GUI notice being filed in the FeatureRequests channel.
+- **Boxes:** core `[x]`; cli `[x]` (the lamp-shadow note only; the CLI render is CPU and was already unlimited); gui `[ ]` unchanged (the GUI must adopt the texture).
+- **Meaning change swept:** the "16 of each kind" claim was amended in the 1394th-filing text (Shipped, `16ac1d77` entry) with a pointer, and in two FEATURES rows. Survivors in `crates/` (rustdoc, `eprintln!`, shader comments, `u_light_specular[16]`/`u_local_specular[16]` naming from the `Pass 658.4` entry) not checked from here: engineer should grep `crates/pdfcer-3d` and `crates/pdfcer-cli` for "16" near light/lamp wording. The `Pass 658.4` and `658.3` entries are append-only and left as filed.
+
 ### `v0.120.0` PUBLISHED, 2026-11-03 (1398th filing); tag on `a4d9b0cf`, CI green at the tag
 
 Engineer-reported; no shell here, nothing checked from here (tag, release, crates, OneDrive and CI are the engineer's report, not looked at by me). Supersedes the "prepared, NOT tagged, NOT published" status in the 1396th-filing entry below, which stays as filed.
@@ -209,7 +221,7 @@ Engineer-reported; no shell here, nothing checked from here. Commit `16ac1d77` "
 - **Follow-up `4450c561` (doc comments and `docs/core-api/02` only, 2026-11-03; 1393rd filing):** `set_3d_opening_view` / `threed::opening_lighting` docs said a converted glTF "carries no lights"; corrected: automatic `/CAD` applies only to a converted glTF WITHOUT lights. The CLI already passed `converted=false` when the glTF had lights, so `3d-embed --lighting auto` gives such a model no automatic CAD view (its own lights light it). Confirmed by code; closes the 1392nd filing's open question. FEATURES `--lighting` row (560) updated.
 - **Release prep `30c84b3e` (version `0.119.0`; NOT tagged or published; engineer-reported):** carries `Pass 658.0` (`G260`), `Pass 658.1` (`G261`) and everything on `main` since `v0.118.0` (the XFA arc: `647.3f`, `647.4` cuts, `647.5`, `647.6` incl. `76c716b0` `--in-place`, `647.7`, real fonts `5a0a9665`). `tools/run-gates.sh` PASS (49 commands, incl. CI's five `--no-default-features` steps) on the tree just before `16ac1d77`. cargo-fuzz 60 s each, 0 crashes: `prc_tree` 88,008 runs, `gltf` 1,538,885, `xfa_packets` 58,312. `check-commits-filed` clean. OneDrive slot will be `pdfcer2`.
 - **RAG:** two rasterizer lessons in `C:\personal_rag\pdf\` (per-vertex lighting hides point/spot lamps; non-antisymmetric edge function cracks).
-- **Amended 1394th filing (meaning changes since this entry):** lamp (point/spot) cast shadows SHIPPED in `Pass 658.2` (`d1345a27`); the light limit is now 16 of each kind in the GPU shader (`Pass 658.3`, `2b69b90f`); `v0.119.0` is PUBLISHED (see above). "Unpushed, unreleased" and "up to 8 lights" above describe `16ac1d77` at its filing.
+- **Amended 1394th filing (meaning changes since this entry):** lamp (point/spot) cast shadows SHIPPED in `Pass 658.2` (`d1345a27`); the light limit is now 16 of each kind in the GPU shader (`Pass 658.3`, `2b69b90f`) [**superseded, 1399th filing: `Pass 658.8` (`12345f8d`) lifts it to 1,024 of each kind**]; `v0.119.0` is PUBLISHED (see above). "Unpushed, unreleased" and "up to 8 lights" above describe `16ac1d77` at its filing.
 
 ### `fa66d3fc` `Pass 658.0`, 2026-11-03: the shadow sun on a model's negative up side (`G260`; 1392nd filing)
 

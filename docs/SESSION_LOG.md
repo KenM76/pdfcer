@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1399th filing) — `Pass 658.8` (`12345f8d`): the GPU draws up to 1,024 lights of each kind
+
+**Filed (engineer-reported, measured; no shell here, git state not checked from here; docs only, nothing committed by me):**
+- **`Pass 658.8`:** operator asked why the limit was 16 (WebGL 2 uniform budget), then asked for it lifted. Lights now travel in an RGBA32F texture `u_lights` (`FrameLights::light_table()`, width 5); `MAX_LIGHTS` 1024 per kind. Breaking: `FrameLights` is `Clone`, not `Copy`, with `Vec` lists. Shadow casters stay 16 (`MAX_SHADOW_CASTERS`); lamps past 16 light without a shadow on CPU and GPU; `FrameLampShadows::dropped` is printed in the CLI lamp-shadow note.
+- **Measured:** WebGL 2 vs CPU, 40 suns + 40 lamps: mean 0.018 levels, 0.01% of pixels over 8 levels; counts forced to 16: 42.7% off (sabotage caught). `run-gates.sh` PASS (49 commands), `check-core-api-verbs` PASS; `cargo tree` n/a (no manifest change).
+- **Boxes:** core `[x]`, cli `[x]` (lamp-shadow note only), gui `[ ]` unchanged. FEATURES: the model-lights row and the lamp-shadows row amended (1,024 per kind on the GPU, 16 casters).
+- **Amended:** the 1394th-filing "16 of each kind" text in the ROADMAP (`16ac1d77` entry) now carries a pointer to `658.8`.
+- **Owed / not done:** commit `12345f8d` is unpushed at filing; run `check-commits-filed.py` before the push. GUI notice in FeatureRequests is the engineer's. Survivor sweep of `crates/` for "16" light wording not done from here. Backup currency not verifiable from here.
+
 ## 2026-11-03 (1398th filing) — `v0.120.0` PUBLISHED (tag on `a4d9b0cf`)
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, nothing committed by me):**
