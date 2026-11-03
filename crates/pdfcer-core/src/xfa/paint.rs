@@ -48,9 +48,10 @@ pub enum PaintNoteKind {
     /// solid.
     Stroke,
     /// A 3-D edge stroke (`lowered`, `raised`, `etched`, `embossed`) drawn
-    /// as a plain stroke of its thickness and colour: by
-    /// [`ThreeDStroke::Plain`], on a border with rounded corners, or on a
-    /// later edge when the first edge (which sets a box's bevel) is not 3-D.
+    /// without the witness's bands: plain in its thickness and colour (by
+    /// [`ThreeDStroke::Plain`], on a line draw, or on a later edge when the
+    /// first edge, which sets a box's bevel, is not 3-D), or in two greys
+    /// on a border with rounded corners or an arc.
     StrokeApproximated,
     /// Unused: every `fill` type is drawn.
     FillType,
@@ -341,7 +342,26 @@ impl Painter<'_> {
         }
         if rounded {
             let corners = self.corners(item, border);
-            self.rounded(r, fill, &sides, corners, offset);
+            match sides
+                .first()
+                .and_then(|f| f.three_d.filter(|_| f.drawn && self.bevels()))
+            {
+                Some(kind) => {
+                    self.rounded(r, fill, &[], corners, offset);
+                    let pad = sides.iter().map(|s| s.thickness).fold(0.0, f64::max);
+                    self.two_tone(r, kind, pad, |p, rgb| {
+                        let tone = |e: Edge| Edge {
+                            rgb,
+                            three_d: None,
+                            ..e
+                        };
+                        let sides: Vec<Edge> = sides.iter().map(|&s| tone(s)).collect();
+                        let corners = corners.map(|c| c.with_line(tone(c.line())));
+                        p.rounded(r, None, &sides, corners, offset);
+                    });
+                }
+                None => self.rounded(r, fill, &sides, corners, offset),
+            }
             return;
         }
         if let Some(fill) = fill {

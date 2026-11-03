@@ -96,7 +96,8 @@ pub enum ImageOverflow {
 pub enum ThreeDStroke {
     /// Grey bevel bands inside the border (the PDFium witness's table:
     /// fixed greys, the edge's colour ignored), box-wide from the first
-    /// edge's stroke.
+    /// edge's stroke. A rounded border or an arc strokes its outline in
+    /// the inner band's two greys instead (no witness).
     #[default]
     Bevel,
     /// A plain stroke of the edge's thickness and colour, disclosed as

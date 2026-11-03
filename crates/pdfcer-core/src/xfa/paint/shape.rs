@@ -162,14 +162,37 @@ impl Painter<'_> {
         if !edge.drawn || sweep == 0.0 {
             return;
         }
-        self.stroke_style(edge, cap);
-        let p = point(c, rx, ry, start.to_radians());
-        self.b.move_to(p.0, p.1);
-        self.arc_path(c, rx, ry, start, sweep);
-        if whole {
-            self.b.close_subpath();
+        let stroke = |me: &mut Self, e: Edge| {
+            me.stroke_style(e, cap);
+            let p = point(c, rx, ry, start.to_radians());
+            me.b.move_to(p.0, p.1);
+            me.arc_path(c, rx, ry, start, sweep);
+            if whole {
+                me.b.close_subpath();
+            }
+            me.b.paint(Paint::Stroke);
+        };
+        match edge.three_d.filter(|_| self.bevels()) {
+            Some(kind) => {
+                let bx = LayoutRect {
+                    x: c.0 - rx,
+                    y: self.height - c.1 - ry,
+                    w: 2.0 * rx,
+                    h: 2.0 * ry,
+                };
+                self.two_tone(bx, kind, edge.thickness, |me, rgb| {
+                    stroke(
+                        me,
+                        Edge {
+                            rgb,
+                            three_d: None,
+                            ..edge
+                        },
+                    );
+                });
+            }
+            None => stroke(self, edge),
         }
-        self.b.paint(Paint::Stroke);
     }
 
     /// Bezier segments of at most 90 degrees from the current point.

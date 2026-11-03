@@ -1074,7 +1074,9 @@ kind.
     `lowered`/`raised`/`etched`/`embossed` edge draws. `Bevel` paints fixed
     grey bands inside the border (PDFium's table, the edge colour ignored;
     the first edge's stroke sets a box's look, and a round check button
-    draws every kind as lowered); `Plain` strokes the edge's thickness and
+    draws every kind as lowered; a rounded border or an arc, which have no
+    witness, strokes its outline in the inner band's two greys, split on
+    the box's top-right to bottom-left diagonal); `Plain` strokes the edge's thickness and
     colour and notes `StrokeApproximated` (gap G-CB11; p.688-689 give the
     intent only).
   - `CheckCaption { Fit (default), Remainder }` (`with_check_caption`): a
@@ -1168,9 +1170,9 @@ kind.
     name or that is not a number; its default was used.
   - `Rotate`: a `rotate` not a multiple of 90 or not a number (handled per
     `OddRotate`), or one on a subform or exclusion group (ignored).
-  - `StrokeApproximated`: a 3-D edge drawn as a plain stroke (`Plain`, a
-    border with rounded corners, or a later edge whose first edge is not
-    3-D).
+  - `StrokeApproximated`: a 3-D edge drawn without the witness's bands:
+    plain (`Plain`, a line draw, or a later edge whose first edge is not
+    3-D) or two-tone (a rounded border or an arc).
   - `FillType`: never produced; every fill type is drawn.
   - `Corner`: an inverted corner; its concave shape is inferred (G-D18).
   - `OpenBreak`: `break="open"`, drawn closed.

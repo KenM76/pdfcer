@@ -45,12 +45,40 @@ impl Painter<'_> {
             ThreeD::Etched => self.bands(r, t, GREY, WHITE),
             ThreeD::Embossed => self.bands(r, t, GREY, BLACK),
         }
-        let (tl, br) = match kind {
-            ThreeD::Lowered => (GREY, LIGHT),
-            ThreeD::Raised | ThreeD::Etched => (WHITE, GREY),
-            ThreeD::Embossed => (BLACK, GREY),
-        };
+        let (tl, br) = inner_pair(kind);
         self.bands(inner, h, tl, br);
+    }
+
+    /// A 3-D edge on a path with no witness (rounded corners, arcs): the
+    /// path stroked by `draw` twice, in the inner band's upper-left colour
+    /// clipped above `r`'s top-right to bottom-left diagonal and its
+    /// lower-right colour below it. `pad` widens the clip past `r`.
+    pub(super) fn two_tone(
+        &mut self,
+        r: LayoutRect,
+        kind: ThreeD,
+        pad: f64,
+        mut draw: impl FnMut(&mut Self, [f64; 3]),
+    ) {
+        let (tl, br) = inner_pair(kind);
+        let (x0, x1) = (r.x - pad, r.x + r.w + pad);
+        let (top, bottom) = (self.height - r.y + pad, self.height - r.y - r.h - pad);
+        let halves = [
+            ([(x0, top), (x1, top), (x0, bottom)], tl),
+            ([(x1, top), (x1, bottom), (x0, bottom)], br),
+        ];
+        for (pts, rgb) in halves {
+            self.b.save_state();
+            let [(ax, ay), (bx, by), (cx, cy)] = pts;
+            self.b.move_to(ax, ay);
+            self.b.line_to(bx, by);
+            self.b.line_to(cx, cy);
+            self.b.close_subpath();
+            self.b.clip_nonzero();
+            self.b.paint(Paint::NoPaint);
+            draw(self, rgb);
+            self.b.restore_state();
+        }
     }
 
     /// A black band `w` wide just inside `r`.
@@ -143,6 +171,15 @@ impl Painter<'_> {
             );
         }
         self.b.paint(Paint::Stroke);
+    }
+}
+
+/// The upper-left and lower-right colours of `kind`'s inner bevel.
+const fn inner_pair(kind: ThreeD) -> ([f64; 3], [f64; 3]) {
+    match kind {
+        ThreeD::Lowered => (GREY, LIGHT),
+        ThreeD::Raised | ThreeD::Etched => (WHITE, GREY),
+        ThreeD::Embossed => (BLACK, GREY),
     }
 }
 

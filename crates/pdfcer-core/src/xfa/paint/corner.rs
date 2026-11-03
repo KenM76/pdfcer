@@ -23,6 +23,17 @@ pub(super) struct Corner {
     line: Edge,
 }
 
+impl Corner {
+    /// This corner with `line` as its stroke.
+    pub(super) const fn with_line(self, line: Edge) -> Self {
+        Self { line, ..self }
+    }
+
+    pub(super) const fn line(self) -> Edge {
+        self.line
+    }
+}
+
 /// Where one corner's stroke runs: from `start` on the incoming edge, past
 /// the rectangle's corner point `at`, to `end` on the outgoing edge.
 #[derive(Debug, Clone, Copy)]

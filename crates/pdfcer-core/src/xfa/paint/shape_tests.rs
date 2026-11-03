@@ -135,3 +135,34 @@ fn a_rotated_draw_paints_upright_then_turns_about_its_centre() {
         PaintNoteKind::Rotate
     );
 }
+
+#[test]
+fn a_rounded_three_d_border_is_stroked_in_two_tones() {
+    let border = r#"<edge stroke="lowered" thickness="2pt"/><corner join="round" radius="4pt"/>"#;
+    let body = format!(
+        r#"<field name="f1" x="10pt" y="20pt" w="100pt" h="20pt"><border>{border}</border></field>"#
+    );
+    let (ops, notes) = painted(&body, &PaintOptions::new());
+    assert_eq!(ops.matches(" W n").count(), 2, "{ops}");
+    assert!(ops.contains("0.5019607843137255 RG"), "{ops}");
+    assert!(ops.contains("0.7529411764705882 RG"), "{ops}");
+    assert_eq!(ops.matches(" c S").count(), 8, "{ops}");
+    assert!(
+        notes
+            .iter()
+            .any(|n| n.kind == PaintNoteKind::StrokeApproximated),
+        "{notes:?}"
+    );
+    let plain = PaintOptions::new().with_three_d_stroke(ThreeDStroke::Plain);
+    let (ops, _) = painted(&body, &plain);
+    assert!(!ops.contains(" W n"), "{ops}");
+}
+
+#[test]
+fn a_three_d_arc_is_stroked_in_two_tones() {
+    let body = r#"<draw name="a" x="10pt" y="10pt" w="40pt" h="40pt"><value><arc><edge stroke="raised"/></arc></value></draw>"#;
+    let (ops, _) = painted(body, &PaintOptions::new());
+    assert_eq!(ops.matches(" W n").count(), 2, "{ops}");
+    assert!(ops.contains("1 1 1 RG"), "{ops}");
+    assert!(ops.contains("0.5019607843137255 RG"), "{ops}");
+}
