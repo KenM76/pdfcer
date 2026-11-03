@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1393rd filing) — `v0.119.0` release PREP (`30c84b3e`), `4450c561` doc follow-up, two rasterizer lessons
+
+**Filed (engineer-reported, no shell here; nothing checked from here; docs only, nothing committed by me):**
+- **`4450c561`:** doc comments and `docs/core-api/02` corrected: automatic CAD applies only to a converted glTF WITHOUT lights. Answers the 1392nd filing's open `3d-embed --lighting auto` question (confirmed by code: the CLI already passed `converted=false` for a glTF with lights). FEATURES `--lighting` row updated (no longer "unconfirmed"). That filing's hard-rule-11 survivor on "has no lights" wording is the thing this commit fixed.
+- **`30c84b3e`:** version `0.119.0`. NOT tagged or published; OneDrive slot will be `pdfcer2`. Carries `Pass 658.0` (`G260`), `Pass 658.1` (`G261`) and all of `main` since `v0.118.0` (XFA arc `647.3f`-`647.7`, real fonts `5a0a9665`, `76c716b0`).
+- **Gates (engineer-reported):** `tools/run-gates.sh` PASS, 49 commands incl. CI's five `--no-default-features` steps, on the tree just before `16ac1d77`. cargo-fuzz 60 s each, 0 crashes: `prc_tree` 88,008 runs, `gltf` 1,538,885, `xfa_packets` 58,312. `check-commits-filed` clean.
+- **RAG written (`C:\personal_rag\pdf\`):** (1) per-vertex Gouraud lighting hides point/spot lamps, so point/spot are evaluated per pixel; (2) edge-function cracks from non-antisymmetric float evaluation, fixed by one canonical vertex order. Both indexed in the subject and master `index.md`.
+- **ROADMAP:** follow-up and release-prep bullets under the `Pass 658.1` Shipped entry. No decision, no rule.
+- **For the release:** tag/publish still owed; run `check-commits-filed.py` immediately before the push (the 373rd-filing lesson). Backup currency not verifiable from here.
+
 ## 2026-11-03 (1392nd filing) — `Pass 658.0` (`fa66d3fc`) and `Pass 658.1` (`16ac1d77`)
 
 **Filed (engineer-reported, no shell here; nothing checked from here; both on local `main`, unpushed, unreleased; `v0.119.0` to follow, not recorded):**
