@@ -112,6 +112,29 @@ wherever it appears.*
 
 ## Shipped
 
+### `2b69b90f` `Pass 658.3`, 2026-11-03: the GPU shader takes 16 lights of each kind, not 8 (1394th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `2b69b90f` "feat(3d): the GPU shader takes 16 lights of each kind, not 8 (Pass 658.3)". Local `main`, unpushed, unreleased. Found by the gap audit Ken asked for ("check for other shading and shadow gaps before release too. I'm waiting on all of it."). `MAX_LIGHTS` and every light uniform array in the reference shader go from 8 to 16. WebGL rerun (engineer-reported): compiled and linked, numbers unchanged. **Boxes:** core `[x]`, cli `[x]` (no new flag), gui `[ ]`. FEATURES: lighting row says 16. No decision.
+
+### `d1345a27` `Pass 658.2`, 2026-11-03: a model's point and spot lights cast shadows, CPU and GPU (1394th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `d1345a27` "feat(3d): a model's point and spot lights cast shadows, CPU and GPU (Pass 658.2)". Local `main`, unpushed, unreleased. Ken's ask, 2026-11-03: "Get the lamps shadow casting working and release when done." Closes the "lamp cast shadows" follow-on named in the `Pass 658.1` entry. No decision record. Reasoning is in the commit message.
+- **Method:** each point or spot light builds a six-face cube depth map over the model bounds; faces built in parallel, sampled 3x3 with a normal offset and bias. CPU: each lamp's light is scaled by its visibility. GPU: `FrameLampShadows` (a `DEPTH_COMPONENT32F` 2D array, layer `6i+face`), `GLSL_ES_300_LAMP_SHADOW_VERTEX` / `_FRAGMENT`, and `lamp_lit()` in the main fragment shader.
+- **New pub items (`pdfcer-3d`):** `RenderOptions::lamp_shadows` (default true, applies under `shadows`), `RenderOptions::lamp_shadow_map_size` (default 512, accepted 64..=4096), `DEFAULT_LAMP_SHADOW_MAP_SIZE`, `MAX_LAMP_SHADOW_MAP_SIZE`.
+- **CLI `3d-render`:** `--no-lamp-shadows`, `--lamp-shadow-map-size N`, and `--shadow-map-size N` (the directional map's size, which had no flag before); prints a `note: lamp shadows:` line.
+- **Verified (engineer-reported):** WebGL 2 (headless Edge + SwiftShader), GPU vs CPU: 0.026 levels mean, 0.02% of pixels over 8 levels; lamp shadows change 5.4% of pixels. End to end: a glTF floor plus card with a point lamp, `3d-embed` then `3d-render`: 4,205 of 40,000 pixels (10.5%) differ with `--no-lamp-shadows`. `pdfcer-3d` lib 290 pass; clippy and fmt clean; `docs/core-api` updated, `check-core-api-verbs` clean.
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]` (`pdfcer-gui` has not consumed it). FEATURES: new Implemented row; the Planned "U3D lights and lamp shadows" row narrowed to U3D lights only.
+
+### `v0.119.0` PUBLISHED, 2026-11-03 (1394th filing); tag on `d80553cd`, CI green at the tag
+
+Engineer-reported; no shell here, nothing checked from here. Supersedes the "prepared, not published" status in the `Pass 658.1` entry's release-prep bullet and the 1393rd filing, which stay as filed.
+- **Tag:** annotated `v0.119.0` on `d80553cd` (the 1393rd prep filing; bump `30c84b3e`). **CI green at the tag:** run 41635194154, "docs: file v0.119.0 release prep (30c84b3e) and 4450c561 (1393rd)", success.
+- **GitHub release:** 8 assets: the main zip, 3 OCR add-on zips, 4 `.sha256` files.
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.119.0 published.
+- **OneDrive:** slot `pdfcer2`; `pdfcer1` keeps 0.118.0. **The next release (`v0.120.0`) writes `pdfcer1`.**
+- **Carried:** `Pass 658.0` (`fa66d3fc`, `G260`), `Pass 658.1` (`16ac1d77`, `G261`: the model's own lights), the XFA arc since `v0.118.0`. NOT carried: `Pass 658.2` (`d1345a27`) and `658.3` (`2b69b90f`), committed after the tag; they ride the next release.
+- Smoke-test, `verify-release.py` and size figures were not relayed to me; not recorded. No box changes (everything carried was already ticked). Nothing minted.
+
 ### `16ac1d77` `Pass 658.1`, 2026-11-03: a 3D model's own lights, from PRC and glTF, drawn under Artwork (`G261`; 1392nd filing)
 
 Engineer-reported; no shell here, nothing checked from here. Commit `16ac1d77` "feat(3d): draw a model's own lights under Artwork, from PRC and glTF (Pass 658.1)". Local `main`, **unpushed, unreleased** (last release `v0.118.0`; `v0.119.0` will follow, not recorded here). Ken's ask: lamps, import from glb, "all lighting that pdf can handle". Reasoning is in the commit message.
@@ -127,6 +150,7 @@ Engineer-reported; no shell here, nothing checked from here. Commit `16ac1d77` "
 - **Follow-up `4450c561` (doc comments and `docs/core-api/02` only, 2026-11-03; 1393rd filing):** `set_3d_opening_view` / `threed::opening_lighting` docs said a converted glTF "carries no lights"; corrected: automatic `/CAD` applies only to a converted glTF WITHOUT lights. The CLI already passed `converted=false` when the glTF had lights, so `3d-embed --lighting auto` gives such a model no automatic CAD view (its own lights light it). Confirmed by code; closes the 1392nd filing's open question. FEATURES `--lighting` row (560) updated.
 - **Release prep `30c84b3e` (version `0.119.0`; NOT tagged or published; engineer-reported):** carries `Pass 658.0` (`G260`), `Pass 658.1` (`G261`) and everything on `main` since `v0.118.0` (the XFA arc: `647.3f`, `647.4` cuts, `647.5`, `647.6` incl. `76c716b0` `--in-place`, `647.7`, real fonts `5a0a9665`). `tools/run-gates.sh` PASS (49 commands, incl. CI's five `--no-default-features` steps) on the tree just before `16ac1d77`. cargo-fuzz 60 s each, 0 crashes: `prc_tree` 88,008 runs, `gltf` 1,538,885, `xfa_packets` 58,312. `check-commits-filed` clean. OneDrive slot will be `pdfcer2`.
 - **RAG:** two rasterizer lessons in `C:\personal_rag\pdf\` (per-vertex lighting hides point/spot lamps; non-antisymmetric edge function cracks).
+- **Amended 1394th filing (meaning changes since this entry):** lamp (point/spot) cast shadows SHIPPED in `Pass 658.2` (`d1345a27`); the light limit is now 16 of each kind in the GPU shader (`Pass 658.3`, `2b69b90f`); `v0.119.0` is PUBLISHED (see above). "Unpushed, unreleased" and "up to 8 lights" above describe `16ac1d77` at its filing.
 
 ### `fa66d3fc` `Pass 658.0`, 2026-11-03: the shadow sun on a model's negative up side (`G260`; 1392nd filing)
 
@@ -25527,6 +25551,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **Head amended 1357th filing: `Pass 647.4b` (`X027`) SHIPPED `96af5ff3`, see *Shipped*; the head is `Pass 648.6` again, after the release `v0.112.0` (slot `pdfcer1`), which is a separate filing.** *(Amended 1359th filing: `v0.112.0` PUBLISHED, see *Shipped*; the head is `Pass 648.6`, next release writes `pdfcer2`.)* `647.3f` and `647.4` (image natural sizing) stay in the Backlog. *(The 1356th-filing note that put `647.4b` ahead of `648.6` is history.)* **Amended 1360th filing: `Pass 648.6` SHIPPED `01c5f515` (unreleased), see *Shipped*; `G245` is now complete. Next up has no head: `647.3f`, `647.4` and `Pass 648.7` (residue) are Backlog, unordered.** **Amended 1361st-1365th filings: `Pass 653.0`-`653.4` (`G244`, `G243`, `G249`, `G250`, `G251`) SHIPPED, unreleased, see *Shipped*. Still no head; the next step is a release (version after `0.112.0`, slot `pdfcer2`), asked for by `pdfcer-gui` once `G249`-`G251` shipped.** **Amended 1367th filing: `v0.113.0` PUBLISHED. Amended 1368th filing: `Pass 654.0`, `654.1` (`78f16dc2`, `G252`, `G253` CPU half) and `Pass 655.0` (`2a10522f`, `G254`) SHIPPED, unreleased, see *Shipped*. The head is now `Pass 654.2` (below), behind the GUI-request rule. Next release writes OneDrive `pdfcer1` (`pdfcer2` holds 0.113.0).**
 
+> **(1394th filing: IN PROGRESS, three parallel worker agents, `Pass 658.4`-`658.6`, from a 3D shading and shadow gap audit Ken asked for before the next release. `v0.119.0` PUBLISHED, `658.2` and `658.3` SHIPPED unreleased, see *Shipped*. The next release (`v0.120.0`) writes OneDrive `pdfcer1`. Engineer-reported; status of each worker is not known to me. When one ships, file it and delete its entry below.)**
+
 > (1380th filing: `Pass 647.4` rich-text cut `7450b595` and `Pass 657.2` + `657.3` `a64bf4e0` SHIPPED, local `main`, unpushed, unreleased, see *Shipped*; `647.4` stays below, not complete; the `657.2` Backlog entry was deleted. Still no head. Next free `Pass 647.9`, `657.4` by grep of `docs/`, not `tools/check-ledger-numbers.py`.)
 
 > (1379th filing: `v0.117.0` PUBLISHED, see *Shipped*; the next release writes OneDrive `pdfcer1`. Still no head. CI fix-forward `7d0ef09d` is on `main`, unreleased.)
@@ -27465,6 +27491,22 @@ closes out the *prior* filing's business rather than opening this one's.
 > `X018` SHIPPED and has left this section (1326th filing, `65dd718c`), released in `v0.107.0` (1328th filing); full entries in *Shipped*. Only the optional tessellation fallback remains, as a FEATURES *Planned* row (no Pass ID).
 
 > `Pass 654.2` (`G253` GPU half) SHIPPED and has left this section (1372nd filing, `98c2560e`..`37c27e60`); full entry at the top of *Shipped*.
+
+### `Pass 658.4` IN PROGRESS: material specular / shininess, emissive and material ambient in the 3D picture (CPU and GPU)
+
+Source: gap audit. PRC material plus light specular, and glTF `emissiveFactor`, drawn on the CPU path and in the GPU reference shader. Boxes planned: core, cli, gui `[ ]`. No numbers yet. Engineer ran this as a parallel worker.
+
+### `Pass 658.5` IN PROGRESS: every directional light casts, translucent casters cast partial shadows, alpha-cutout textures cast per texel
+
+Source: gap audit. Today only the brightest directional light casts. Covers the directional shadow maps and the lamp cubes (`Pass 658.2`), CPU and GPU. Boxes planned: core, cli, gui `[ ]`.
+
+### `Pass 658.6` IN PROGRESS: PRC wire tessellations drawn, and ISO 32000 13.6 3D render modes (`/RM`, 15 modes)
+
+Source: gap audit. PRC wire tessellations are today counted as `wires_skipped`; they become drawn. Render modes: the 15 modes of the standard (clause 13.6 as cited by the engineer; the spec RAG was not consulted by me), CPU and GPU, plus a `--render-mode` flag on `3d-render`. Boxes planned: core, cli, gui `[ ]`.
+
+### Known limits recorded from the gap audit (NOT being done)
+
+These come from the format, not from pdfcer. glTF normal and metallic-roughness maps: PRC cannot store them. glTF light `range` and the smooth inner-cone falloff: PRC lights have neither, so they are approximated (a `cos^n` exponent), with a note.
 
 ### Pass 647.2 — Flowed layout `tb` / `lr-tb` (FIRST CUT `7cfa9c40`, SECOND CUT `9d0ddb90` (1278th filing), THIRD CUT `5fceb520` (1279th filing), FOURTH CUT `fa1869c8` (1280th filing), FIFTH CUT `1abf9d5e` (1281st filing), SIXTH CUT `f6e76272` (1283rd filing), SEVENTH CUT `e3547709` (1284th filing), EIGHTH CUT `cac24637` (1285th filing), NINTH CUT `f1b8baa6` (1286th filing), TENTH CUT `f64f12fe` (1287th filing), ELEVENTH CUT `5a9d3f30` (1288th filing); NOT COMPLETE, stays here)
 

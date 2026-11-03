@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1394th filing) — `v0.119.0` PUBLISHED; `Pass 658.2` (`d1345a27`), `Pass 658.3` (`2b69b90f`); `658.4`-`658.6` in flight
+
+**Filed (engineer-reported, no shell here; nothing checked from here; docs only, nothing committed by me):**
+- **`v0.119.0` PUBLISHED:** annotated tag on `d80553cd`; CI green at the tag (run 41635194154); 8 release assets (main zip, 3 OCR add-on zips, 4 `.sha256`); `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.119.0 on crates.io; OneDrive `pdfcer2`, `pdfcer1` keeps 0.118.0; **next release `v0.120.0` writes `pdfcer1`**. Carries `658.0` and `658.1`; not `658.2`/`658.3`.
+- **`Pass 658.2`:** lamp (point/spot) cast shadows, cube depth maps, CPU and GPU; new `RenderOptions::lamp_shadows` / `lamp_shadow_map_size`, CLI `--no-lamp-shadows`, `--lamp-shadow-map-size`, `--shadow-map-size`. WebGL 2 GPU vs CPU 0.026 levels mean; end to end 4,205 of 40,000 pixels differ without lamp shadows. `pdfcer-3d` lib 290 pass. Ken's ask: "Get the lamps shadow casting working and release when done." No decision.
+- **`Pass 658.3`:** GPU shader light limit 8 to 16 per kind, found by Ken's requested gap audit.
+- **In flight (three parallel workers, Ken: "If it will speed things up use agents in parallel"):** `658.4` material specular/emissive/ambient; `658.5` all directional lights cast, translucent and alpha-cutout casters; `658.6` PRC wire tessellations and ISO 32000 13.6 render modes (`--render-mode`). Filed under *Next up* as in progress.
+- **Known limits recorded (format, not pdfcer):** PRC cannot store glTF normal or metallic-roughness maps; PRC lights have no `range` or smooth inner-cone falloff (approximated by `cos^n`, with a note).
+- **FEATURES:** new lamp-shadow Implemented row (core/cli ticked, gui open); lighting, shadow and camera-controls rows amended; the Planned U3D-and-lamp-shadows row narrowed to U3D lights; three Planned rows added for `658.4`-`658.6`. gui never ticked.
+- **Hard rule 11:** swept `docs/FEATURES.md`, `docs/core-api/` and `crates/` for "8 lights" and "lamps cast no shadow" wording; no survivors found (grep over keywords `lamp`, `MAX_LIGHTS`, `8 lights`, `no shadow`). The `Pass 658.1` Shipped entry carries a dated amendment instead of a rewrite. I did not read the GLSL/rustdoc in full, so a survivor phrased differently is possible.
+- **Not recorded:** smoke-test and `verify-release.py` results for `v0.119.0` (not relayed). Backup currency not verifiable from here.
+
 ## 2026-11-03 (1393rd filing) — `v0.119.0` release PREP (`30c84b3e`), `4450c561` doc follow-up, two rasterizer lessons
 
 **Filed (engineer-reported, no shell here; nothing checked from here; docs only, nothing committed by me):**
