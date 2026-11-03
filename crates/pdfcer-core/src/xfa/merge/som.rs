@@ -173,6 +173,62 @@ pub(super) fn resolve(r: &Ref, cx: &Context<'_>) -> Option<Vec<usize>> {
     }
 }
 
+/// Every data node `r` names, in document order: a `[*]` step takes all
+/// its same-named siblings, any other step one (p.119).
+pub(super) fn resolve_all(r: &Ref, cx: &Context<'_>) -> Vec<Vec<usize>> {
+    let from = match r.start {
+        Start::Scope => cx.scope.to_vec(),
+        Start::Data => Vec::new(),
+        Start::Record => cx.record.to_vec(),
+        Start::Unqualified => {
+            let mut from = cx.scope.to_vec();
+            loop {
+                let found = r
+                    .steps
+                    .first()
+                    .is_some_and(|s| !named(cx, &from, s).is_empty());
+                if found {
+                    break from;
+                }
+                if cx.search == ScopeSearch::Children || from.pop().is_none() {
+                    return Vec::new();
+                }
+            }
+        }
+    };
+    let mut paths = vec![from];
+    for s in &r.steps {
+        paths = paths
+            .iter()
+            .flat_map(|p| {
+                named(cx, p, s).into_iter().map(move |i| {
+                    let mut q = p.clone();
+                    q.push(i);
+                    q
+                })
+            })
+            .collect();
+    }
+    paths
+}
+
+/// The children of the node at `path` that `step` names, ignoring binding.
+fn named(cx: &Context<'_>, path: &[usize], step: &Step) -> Vec<usize> {
+    let Some(node) = node_at(cx.root, path) else {
+        return Vec::new();
+    };
+    let mut it = node
+        .children
+        .iter()
+        .enumerate()
+        .filter(|(_, c)| c.name == step.name)
+        .map(|(i, _)| i);
+    match step.index {
+        Index::At(n) => it.nth(n).into_iter().collect(),
+        Index::All => it.collect(),
+    }
+}
+
 fn first_match(cx: &Context<'_>, from: &[usize], steps: &[Step]) -> Option<usize> {
     let first = steps.first()?;
     pick(cx, from, first, steps.len() == 1)

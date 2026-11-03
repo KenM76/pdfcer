@@ -1,4 +1,10 @@
-#![allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::float_cmp)] // a panic here is the test failing
+#![allow(
+    clippy::unwrap_used,
+    clippy::indexing_slicing,
+    clippy::float_cmp,
+    clippy::panic,
+    clippy::cast_precision_loss
+)] // a panic here is the test failing
 
 use super::*;
 use crate::xfa::{LayoutOptions, XdpDocument, layout_template, read_template};

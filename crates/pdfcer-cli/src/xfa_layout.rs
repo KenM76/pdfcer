@@ -117,6 +117,36 @@ pub(crate) enum GlobalExclGroupArg {
     AsOnce,
 }
 
+/// `xfa-layout --bind-items-repeat` (gap G-BI1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum BindItemsRepeatArg {
+    /// The last bindItems wins.
+    #[default]
+    Last,
+    /// The first bindItems wins.
+    First,
+}
+
+/// `xfa-layout --bind-items-missing` (gap G-BI4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum BindItemsMissingArg {
+    /// An item whose value or label is missing gets an empty string.
+    #[default]
+    Empty,
+    /// An item whose value or label is missing is left out.
+    Skip,
+}
+
+/// `xfa-layout --bind-items-unbound` (gap G-BI5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum BindItemsUnboundArg {
+    /// Resolve from the enclosing data scope.
+    #[default]
+    Scope,
+    /// Keep the template's own items.
+    Ignore,
+}
+
 /// `xfa-layout --view-match` (gap G-RV1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
 pub(crate) enum ViewMatchArg {
@@ -171,6 +201,22 @@ pub(crate) struct XfaMergeFlags {
     /// says both in different places.
     #[arg(long, value_enum, default_value_t)]
     pub(crate) global_exclgroup: GlobalExclGroupArg,
+    /// Which of several bindItems on one field fills its list: the last
+    /// or the first.
+    #[arg(long, value_enum, default_value_t)]
+    pub(crate) bind_items_repeat: BindItemsRepeatArg,
+    /// What a bindItems item with no value or label node becomes: an
+    /// empty string, or nothing (the item is left out).
+    #[arg(long, value_enum, default_value_t)]
+    pub(crate) bind_items_missing: BindItemsMissingArg,
+    /// Where a bindItems on a field bound to no data resolves: from the
+    /// enclosing data scope, or not at all (the template items stay).
+    #[arg(long, value_enum, default_value_t)]
+    pub(crate) bind_items_unbound: BindItemsUnboundArg,
+    /// Where a bindItems reference with no leading $ finds its first
+    /// name; as --scope-search.
+    #[arg(long, value_enum, default_value_t)]
+    pub(crate) bind_items_search: ScopeSearchArg,
 }
 
 /// The settings `xfa-layout` merges and lays the template with.
@@ -189,7 +235,8 @@ impl XfaMergeFlags {
     /// The core merge options these flags select.
     pub(crate) fn options(self) -> MergeOptions {
         use pdfcer_core::xfa::{
-            BareRef, DataAttributes, GlobalExclGroup, GlobalScope, ScopeSearch,
+            BareRef, BindItemsMissing, BindItemsRepeat, BindItemsUnbound, DataAttributes,
+            GlobalExclGroup, GlobalScope, ScopeSearch,
         };
         MergeOptions::new()
             .with_scope_search(match self.scope_search {
@@ -211,6 +258,22 @@ impl XfaMergeFlags {
             .with_global_exclgroup(match self.global_exclgroup {
                 GlobalExclGroupArg::Honour => GlobalExclGroup::Honour,
                 GlobalExclGroupArg::AsOnce => GlobalExclGroup::AsOnce,
+            })
+            .with_bind_items_repeat(match self.bind_items_repeat {
+                BindItemsRepeatArg::Last => BindItemsRepeat::Last,
+                BindItemsRepeatArg::First => BindItemsRepeat::First,
+            })
+            .with_bind_items_missing(match self.bind_items_missing {
+                BindItemsMissingArg::Empty => BindItemsMissing::Empty,
+                BindItemsMissingArg::Skip => BindItemsMissing::Skip,
+            })
+            .with_bind_items_unbound(match self.bind_items_unbound {
+                BindItemsUnboundArg::Scope => BindItemsUnbound::Scope,
+                BindItemsUnboundArg::Ignore => BindItemsUnbound::Ignore,
+            })
+            .with_bind_items_search(match self.bind_items_search {
+                ScopeSearchArg::Upward => ScopeSearch::Upward,
+                ScopeSearchArg::Children => ScopeSearch::Children,
             })
     }
 }

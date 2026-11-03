@@ -759,12 +759,27 @@ file.
   (default, p.348) or `AsOnce` (pp.176, 246); `DataCreation` `Create`
   (default) or `Refuse`, read by a fill only (an unbound field's data
   node is created, gaps G-B12/G-B16).
+- **bindItems** (XFA 3.3 p.441, choiceList/checkButton fields only). The
+  merge replaces the field's `items` with one list built from the data
+  nodes `ref` names (`[*]` takes every match): labels (`labelRef`, else
+  the value) in the first list and, when they differ, values (`valueRef`,
+  else the node's own value) in a `save="1"` list. A checkButton keeps the
+  first three values. A `connection` bind is `Unsupported` and keeps the
+  template's items; a `ref` that names nothing empties the list with an
+  `Unresolved` warning. `ref` resolves from the field's bound data node.
+  Settings: `BindItemsRepeat` `Last` (default) or `First` of several
+  (G-BI1); `BindItemsMissing` `Empty` (default) or `Skip` for an item with
+  no value/label node (G-BI4); `BindItemsUnbound` `Scope` (default: the
+  enclosing data scope) or `Ignore` for an unbound field (G-BI5);
+  `bind_items_search: ScopeSearch` for an un-prefixed `ref` (G-BI6).
 - **CLI.** `xfa-layout` merges before laying out: bound items end with
   `value="…"`, each warning prints as `warning kind=data-ref-<kind> path= ref="…"`
   (or `kind=data-name-<kind> path= name="…"`)
   and counts in the summary, a `data unfilled= unbound-values=` line
   precedes the summary when the form has data, and `--scope-search`, `--bare-ref`,
-  `--data-attributes`, `--global-scope`, `--global-exclgroup` set the
+  `--data-attributes`, `--global-scope`, `--global-exclgroup`,
+  `--bind-items-repeat`, `--bind-items-missing`, `--bind-items-unbound`,
+  `--bind-items-search` set the
   options. The stderr note says how many values
   were merged.
 - **Views** (`relevant`, XFA 3.3 pp.69-70, p.607). `Views` is the set of

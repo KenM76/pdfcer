@@ -24,8 +24,9 @@ pub use images::{MAX_XFA_IMAGE_BYTES, XfaImages};
 pub(crate) use merge::fill::plan_fill;
 pub use merge::fill::{XfaFillError, XfaFillOutcome};
 pub use merge::{
-    BareRef, BoundValue, DataAttributes, DataCreation, GlobalExclGroup, GlobalScope, MergeOptions,
-    MergeWarning, MergeWarningKind, MergedForm, ScopeSearch, merge_data,
+    BareRef, BindItemsMissing, BindItemsRepeat, BindItemsUnbound, BoundValue, DataAttributes,
+    DataCreation, GlobalExclGroup, GlobalScope, MergeOptions, MergeWarning, MergeWarningKind,
+    MergedForm, ScopeSearch, merge_data,
 };
 pub use packets::{MAX_XDP_LEN, MAX_XML_DEPTH, XdpDocument, XdpPacket, XfaError, read_xdp};
 pub(crate) use packets::{parse_xdp, read_xdp_sources};

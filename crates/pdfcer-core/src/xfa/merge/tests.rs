@@ -574,3 +574,124 @@ fn without_data_nothing_repeats() {
     let m = merge_data(&t, &x, &MergeOptions::new()).unwrap();
     assert_eq!(m.template, t);
 }
+
+const CARDS: &str = r#"<data><cardTypes><card uiname="Visa" token="VISA"/><card uiname="Mastercard" token="MC"/><card uiname="Amex"/></cardTypes><CardName>MC</CardName></data>"#;
+
+fn card_field(ui: &str, binds: &str) -> String {
+    format!(
+        r#"<field name="CardName"><ui>{ui}</ui><items><text>stale</text></items>{binds}</field>"#
+    )
+}
+
+/// The `items` lists of the merged root's first field, as text.
+fn item_lists(m: &MergedForm) -> Vec<(bool, Vec<String>)> {
+    m.template.element().children[0].children[0]
+        .children_named("items")
+        .map(|l| {
+            let texts = l.children.iter().map(|t| t.text.clone()).collect();
+            (l.attr("save") == Some("1"), texts)
+        })
+        .collect()
+}
+
+#[test]
+fn bind_items_replace_the_items_from_the_fields_own_data_node() {
+    let bind = r#"<bindItems ref="cardTypes.card[*]" labelRef="uiname" valueRef="token"/>"#;
+    let m = merged(&card_field("<choiceList/>", bind), CARDS);
+    assert_eq!(m.value_at(&[0, 0]), Some("MC"));
+    let s = |v: &[&str]| v.iter().map(|t| (*t).to_owned()).collect::<Vec<_>>();
+    assert_eq!(
+        item_lists(&m),
+        [
+            (false, s(&["Visa", "Mastercard", "Amex"])),
+            (true, s(&["VISA", "MC", ""])),
+        ]
+    );
+    assert!(m.warnings.is_empty(), "{:?}", m.warnings);
+}
+
+#[test]
+fn bind_items_with_no_label_ref_make_one_list() {
+    let bind = r#"<bindItems ref="$record.cardTypes.card[*]" valueRef="uiname"/>"#;
+    let m = merged(&card_field("<choiceList/>", bind), CARDS);
+    assert_eq!(item_lists(&m).len(), 1);
+    assert_eq!(item_lists(&m)[0].1, ["Visa", "Mastercard", "Amex"]);
+}
+
+#[test]
+fn a_missing_value_is_empty_or_skipped_by_the_setting() {
+    let bind = r#"<bindItems ref="$record.cardTypes.card[*]" valueRef="token"/>"#;
+    let body = card_field("<choiceList/>", bind);
+    assert_eq!(item_lists(&merged(&body, CARDS))[0].1, ["VISA", "MC", ""]);
+    let skip = MergeOptions::new().with_bind_items_missing(BindItemsMissing::Skip);
+    assert_eq!(
+        item_lists(&merged_with(&body, CARDS, &skip))[0].1,
+        ["VISA", "MC"]
+    );
+}
+
+#[test]
+fn several_bind_items_take_the_last_or_the_first() {
+    let binds = r#"<bindItems ref="$record.cardTypes.card[*]" valueRef="uiname"/><bindItems ref="$record.cardTypes.card[0]" valueRef="token"/>"#;
+    let body = card_field("<choiceList/>", binds);
+    assert_eq!(item_lists(&merged(&body, CARDS))[0].1, ["VISA"]);
+    let first = MergeOptions::new().with_bind_items_repeat(BindItemsRepeat::First);
+    assert_eq!(
+        item_lists(&merged_with(&body, CARDS, &first))[0].1,
+        ["Visa", "Mastercard", "Amex"]
+    );
+}
+
+#[test]
+fn an_unresolved_ref_empties_the_list_and_warns() {
+    let bind = r#"<bindItems ref="$record.nothing[*]" valueRef="token"/>"#;
+    let m = merged(&card_field("<choiceList/>", bind), CARDS);
+    assert_eq!(item_lists(&m), [(false, Vec::<String>::new())]);
+    assert_eq!(m.warnings.len(), 1);
+    assert_eq!(m.warnings[0].kind, MergeWarningKind::Unresolved);
+    assert_eq!(m.warnings[0].reference, "$record.nothing[*]");
+}
+
+#[test]
+fn bind_items_apply_only_to_choice_and_check_buttons() {
+    let bind = r#"<bindItems ref="$record.cardTypes.card[*]" valueRef="uiname"/>"#;
+    let text = merged(&card_field("<textEdit/>", bind), CARDS);
+    assert_eq!(item_lists(&text)[0].1, ["stale"]);
+    let check = merged(
+        &card_field(
+            "<checkButton/>",
+            r#"<bindItems ref="$record.cardTypes.card[*]" valueRef="uiname" labelRef="token"/>"#,
+        ),
+        CARDS,
+    );
+    assert_eq!(
+        item_lists(&check),
+        [(
+            false,
+            ["Visa", "Mastercard", "Amex"].map(String::from).to_vec()
+        )],
+        "labels ignored, three states at most"
+    );
+}
+
+#[test]
+fn a_connection_bind_is_refused_and_keeps_the_template_items() {
+    let bind = r#"<bindItems connection="db" ref="$record.cardTypes.card[*]" valueRef="uiname"/>"#;
+    let m = merged(&card_field("<choiceList/>", bind), CARDS);
+    assert_eq!(item_lists(&m)[0].1, ["stale"]);
+    assert_eq!(m.warnings[0].kind, MergeWarningKind::Unsupported);
+}
+
+#[test]
+fn an_unbound_field_resolves_from_its_scope_or_is_ignored() {
+    let body = r#"<field name="Other"><bind match="none"/><ui><choiceList/></ui><items><text>stale</text></items><bindItems ref="$.cardTypes.card[*]" valueRef="uiname"/></field>"#;
+    assert_eq!(
+        item_lists(&merged(body, CARDS))[0].1,
+        ["Visa", "Mastercard", "Amex"]
+    );
+    let ignore = MergeOptions::new().with_bind_items_unbound(BindItemsUnbound::Ignore);
+    assert_eq!(
+        item_lists(&merged_with(body, CARDS, &ignore))[0].1,
+        ["stale"]
+    );
+}

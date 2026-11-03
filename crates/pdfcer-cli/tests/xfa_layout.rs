@@ -311,8 +311,13 @@ fn png_dir_draws_gradient_and_stipple_fills() {
     };
     let (solid, _) = image_run(&field(""), "solid", &[]);
     let (linear, stdout) = image_run(&field("<linear/>"), "linear", &[]);
-    assert!(stdout.ends_with("xfa-render pages=1 notes=0
-"), "{stdout}");
+    assert!(
+        stdout.ends_with(
+            "xfa-render pages=1 notes=0
+"
+        ),
+        "{stdout}"
+    );
     assert_ne!(solid, linear, "a gradient is drawn");
     let stipple = field(r#"<stipple rate="40"><color value="255,0,0"/></stipple>"#);
     let (viewer, _) = image_run(&stipple, "viewer", &[]);
@@ -686,4 +691,17 @@ fn check_edge_reaches_the_painter_and_a_page_script_is_disclosed() {
     assert!(stdout.contains("kind=page-script-recognised"), "{stdout}");
     let (spec, _) = image_run(&t, "edge-spec", &["--check-edge", "spec"]);
     assert_ne!(plain, spec, "spec leaves the box unstroked");
+}
+
+#[test]
+fn bind_items_flags_reach_the_merge() {
+    let t = format!(
+        r#"<subform name="form1" layout="tb">{PAGE}<field name="c" w="100pt" h="12pt"><ui><choiceList/></ui><bindItems ref="$record.card[*]" valueRef="code"/><bindItems ref="$record.none[*]" valueRef="code"/></field></subform>"#
+    );
+    let bytes = pdf_with_data(Some(&t), "<form1><card><code>V</code></card></form1>");
+    let (code, last, stderr) = run("binditems-last", &bytes, &[]);
+    assert_eq!(code, 0, "{stderr}");
+    assert!(last.contains(r#"ref="$record.none[*]""#), "{last}");
+    let (_, first, _) = run("binditems-first", &bytes, &["--bind-items-repeat", "first"]);
+    assert!(first.ends_with("warnings=0\n"), "{first}");
 }

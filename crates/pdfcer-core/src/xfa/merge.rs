@@ -15,6 +15,7 @@
 
 mod data;
 pub(super) mod fill;
+mod items;
 mod normal;
 mod occur;
 mod som;
@@ -23,6 +24,8 @@ use std::collections::HashSet;
 
 use super::packets::{XdpDocument, XfaError, parse_xml};
 use super::template::{ContainerKind, Template, XfaNode};
+
+pub use items::{BindItemsMissing, BindItemsRepeat, BindItemsUnbound};
 
 use data::{DataNode, node_at};
 use normal::{Found, Globals, Search};
@@ -119,6 +122,17 @@ pub struct MergeOptions {
     pub global_exclgroup: GlobalExclGroup,
     /// See [`DataCreation`]. Read by a fill, not by the merge.
     pub data_creation: DataCreation,
+    /// See [`BindItemsRepeat`].
+    pub bind_items_repeat: BindItemsRepeat,
+    /// See [`BindItemsMissing`].
+    pub bind_items_missing: BindItemsMissing,
+    /// See [`BindItemsUnbound`].
+    pub bind_items_unbound: BindItemsUnbound,
+    /// How a `bindItems` `valueRef` or `labelRef` finds its first name
+    /// from an item's data node: that node's children, then each
+    /// ancestor's, as SOM reads (the default), or its children only (gap
+    /// G-BI6).
+    pub bind_items_search: ScopeSearch,
 }
 
 impl MergeOptions {
@@ -167,6 +181,34 @@ impl MergeOptions {
     #[must_use]
     pub const fn with_data_creation(mut self, v: DataCreation) -> Self {
         self.data_creation = v;
+        self
+    }
+
+    /// Set [`Self::bind_items_repeat`].
+    #[must_use]
+    pub const fn with_bind_items_repeat(mut self, v: BindItemsRepeat) -> Self {
+        self.bind_items_repeat = v;
+        self
+    }
+
+    /// Set [`Self::bind_items_missing`].
+    #[must_use]
+    pub const fn with_bind_items_missing(mut self, v: BindItemsMissing) -> Self {
+        self.bind_items_missing = v;
+        self
+    }
+
+    /// Set [`Self::bind_items_unbound`].
+    #[must_use]
+    pub const fn with_bind_items_unbound(mut self, v: BindItemsUnbound) -> Self {
+        self.bind_items_unbound = v;
+        self
+    }
+
+    /// Set [`Self::bind_items_search`].
+    #[must_use]
+    pub const fn with_bind_items_search(mut self, v: ScopeSearch) -> Self {
+        self.bind_items_search = v;
         self
     }
 }
@@ -440,6 +482,9 @@ impl Merger<'_> {
     ) {
         let kind = node.container_kind();
         let (inner, inner_pending) = self.bind(node, path, scope, pending);
+        if kind == Some(ContainerKind::Field) && self.has_data {
+            self.bind_items(node, path, scope);
+        }
         if matches!(kind, Some(ContainerKind::Field | ContainerKind::Draw)) {
             return;
         }
