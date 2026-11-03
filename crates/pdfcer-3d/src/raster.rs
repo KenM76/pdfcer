@@ -2,6 +2,7 @@
 //! behind [`crate::render`].
 
 use crate::Texture;
+use crate::gloss::{Gloss, Resolved};
 use crate::lamp_shadow::LampShadows;
 use crate::model_shade::{Local, add_local};
 use crate::render::{Camera, Projection, RenderError};
@@ -199,6 +200,8 @@ pub(crate) struct PixelLights<'a> {
     pub(crate) extra: Option<&'a ExtraShadows>,
     /// The triangle's unit normal.
     pub(crate) face: [f64; 3],
+    /// The frame's finishes and the triangle's own, when it has one.
+    pub(crate) gloss: Option<(&'a Gloss, &'a Resolved)>,
 }
 
 impl Target<'_> {
@@ -224,6 +227,7 @@ impl Target<'_> {
             lamps,
             extra,
             face,
+            ..
         } = lights;
         let [a, b, c] = corners;
         let area = edge(a.at, b.at, c.at);
@@ -295,7 +299,15 @@ impl Target<'_> {
                     }
                     None => paint.colour,
                 };
-                self.blend(i, key, shaded(colour, shade));
+                let out = match lights.gloss {
+                    Some((g, f)) => {
+                        g.pixel(f, (colour, shade), paint.texture.is_some(), &lights, &|f| {
+                            [0, 1, 2].map(|j| correct(&|c| at(f(c), j)))
+                        })
+                    }
+                    None => shaded(colour, shade),
+                };
+                self.blend(i, key, out);
             }
         }
     }

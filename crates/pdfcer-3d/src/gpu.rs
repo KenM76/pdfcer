@@ -56,6 +56,9 @@ pub struct Draw {
     /// Drawn after every opaque draw, blended, depth-tested but not
     /// writing depth.
     pub translucent: bool,
+    /// The mesh's specular, emissive and ambient terms; `None` (the
+    /// shader's `u_finished` false) draws the plain colour.
+    pub finish: Option<crate::DrawFinish>,
 }
 
 impl PreparedModel {
@@ -90,6 +93,12 @@ impl PreparedModel {
                         .flatten()
                         .filter(|_| paint.texture.is_some()),
                     translucent: !pass,
+                    finish: model
+                        .finishes
+                        .get(i)
+                        .copied()
+                        .flatten()
+                        .map(|f| crate::DrawFinish::new(&f, options)),
                 });
             }
         }

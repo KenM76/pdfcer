@@ -52,6 +52,10 @@ pub struct FrameLights {
     pub directions: [[f32; 4]; MAX_LIGHTS],
     /// Each light's colour, 0–1.
     pub colours: [[f32; 3]; MAX_LIGHTS],
+    /// Each light's specular colour, for a [`crate::DrawFinish`]: its
+    /// colour unless a model light names another
+    /// ([`crate::ModelLight::specular`]).
+    pub specular: [[f32; 3]; MAX_LIGHTS],
     /// The camera position, model units.
     pub eye: [f32; 3],
     /// The unit view direction.
@@ -70,6 +74,8 @@ pub struct FrameLights {
     pub local_positions: [[f32; 4]; MAX_LIGHTS],
     /// Colour times intensity.
     pub local_colours: [[f32; 3]; MAX_LIGHTS],
+    /// Specular colour times intensity, as `specular`.
+    pub local_specular: [[f32; 3]; MAX_LIGHTS],
     /// Constant, linear and quadratic attenuation: `fade = 1 / (c + l·d +
     /// q·d²)`, 1 when that denominator is not positive.
     pub local_attenuation: [[f32; 3]; MAX_LIGHTS],
@@ -113,17 +119,21 @@ impl FrameLights {
             count: 0,
             directions: [[0.0; 4]; MAX_LIGHTS],
             colours: [[0.0; 3]; MAX_LIGHTS],
+            specular: [[0.0; 3]; MAX_LIGHTS],
             eye: camera.eye.map(|c| c as f32),
             forward: forward.map(|c| c as f32),
             orthographic: matches!(camera.projection, crate::Projection::Orthographic { .. }),
             local_count: 0,
             local_positions: [[0.0; 4]; MAX_LIGHTS],
             local_colours: [[0.0; 3]; MAX_LIGHTS],
+            local_specular: [[0.0; 3]; MAX_LIGHTS],
             local_attenuation: [[0.0; 3]; MAX_LIGHTS],
             local_cones: [[0.0; 4]; MAX_LIGHTS],
             dropped: 0,
         };
-        match Shader::for_frame(options, lights, &basis) {
+        let shader = Shader::for_frame(options, lights, &basis);
+        out.set_specular(&crate::gloss::GlossLights::new(&shader, options, lights));
+        match shader {
             Shader::Headlight => {}
             Shader::Unlit => out.mode = ShadeMode::Unlit,
             Shader::Set {

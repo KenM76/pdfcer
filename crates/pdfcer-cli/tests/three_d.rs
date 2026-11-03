@@ -764,6 +764,52 @@ fn a_zero_material_alpha_is_drawn_opaque_by_default_and_disclosed() {
     }
 }
 
+/// A square whose material stores a highlight: drawn with it and said so,
+/// `--shininess-scale` changes how sharp it is, and an unlit render draws
+/// and says nothing of it.
+#[cfg(feature = "3d")]
+#[test]
+fn a_material_highlight_is_drawn_said_and_scaled() {
+    let input = with_prc("render_shiny", "shiny.prc");
+    let output = input.with_extension("png");
+    let render = |extra: &[&str]| {
+        let mut args = vec![
+            "3d-render",
+            input.to_str().unwrap(),
+            "--index",
+            "2",
+            "--view",
+            "top",
+            "--width",
+            "64",
+            "--height",
+            "64",
+            "-o",
+            output.to_str().unwrap(),
+        ];
+        args.extend_from_slice(extra);
+        let out = run(&args);
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+        (stdout, std::fs::read(&output).unwrap())
+    };
+    let (stdout, auto) = render(&[]);
+    assert!(
+        stdout.contains("note: finish: 1 mesh(es) drawn with the highlight")
+            && stdout.contains("shininess read as `auto`"),
+        "{stdout}"
+    );
+    let (stdout, exponent) = render(&["--shininess-scale", "exponent"]);
+    assert!(stdout.contains("shininess read as `exponent`"), "{stdout}");
+    assert_ne!(auto, exponent, "the scale changed nothing");
+    let (stdout, _) = render(&["--lighting", "none"]);
+    assert!(!stdout.contains("note: finish"), "{stdout}");
+}
+
 /// The fixture's first copy is recoloured translucent blue and its third
 /// hidden by the assembly's entity references: drawn so and said so by
 /// default, and each copy in its own colour under `--entity-overrides

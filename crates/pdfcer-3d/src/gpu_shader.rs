@@ -102,7 +102,14 @@ void main() {
 /// `u_shadow_extra_colour[15]`, `u_shadow_extra_centre`,
 /// `u_shadow_extra_reach`, `u_shadow_veiled`, `u_shadow_veil`,
 /// `u_shadow_transmit`, `u_lamp_veiled`, `u_lamp_veil`, `u_lamp_transmit`.
-/// Writes straight RGBA.
+/// A [`crate::DrawFinish`] adds `u_finished` (false
+/// without one), `u_material_ambient`, `u_specular`, `u_emissive` and
+/// `u_shininess`, drawn with [`crate::FrameLights::specular`] and
+/// `local_specular` as `u_light_specular[16]` and `u_local_specular[16]`;
+/// the fragment shader also reads the vertex shader's `u_mode`,
+/// `u_ambient`, `u_count`, `u_light_dir[16]`, `u_eye`, `u_forward`,
+/// `u_shadow_light` and `u_shadow_dim` (its ints declared `highp`, as the
+/// vertex stage's default). Writes straight RGBA.
 ///
 /// It writes `gl_FragDepth`: logarithmic in perspective (see
 /// [`crate::Camera::depth_range`] for the precision), the matrix's linear
@@ -155,6 +162,21 @@ uniform highp sampler2DArray u_shadow_transmit;
 uniform bool u_lamp_veiled;
 uniform highp sampler2DArray u_lamp_veil;
 uniform highp sampler2DArray u_lamp_transmit;
+uniform highp int u_mode;
+uniform vec3 u_ambient;
+uniform highp int u_count;
+uniform vec4 u_light_dir[16];
+uniform vec3 u_eye;
+uniform vec3 u_forward;
+uniform highp int u_shadow_light;
+uniform float u_shadow_dim;
+uniform vec3 u_light_specular[16];
+uniform vec3 u_local_specular[16];
+uniform bool u_finished;
+uniform vec3 u_material_ambient;
+uniform vec3 u_specular;
+uniform vec3 u_emissive;
+uniform float u_shininess;
 out vec4 o_colour;
 
 // The share texel q of a veil lets through to depth d: its transmission
@@ -271,6 +293,73 @@ vec3 extra(vec3 n, vec3 f) {
     return s;
 }
 
+// max(n.h, 0)^e with h the unit half-vector of l and v; 0 when n.h is
+// not positive, so e = 0 never meets 0^0.
+float blinn(vec3 n, vec3 v, vec3 l) {
+    vec3 h = l + v;
+    float hl = length(h);
+    if (hl <= 0.0) return 0.0;
+    float nh = dot(n, h / hl);
+    return nh > 0.0 ? pow(nh, u_shininess) : 0.0;
+}
+
+// The specular light at p with unit normal n on a face with unit normal f,
+// sh the shadow map's lit share there: each light's specular colour times
+// its reach and blinn(). A directional light is turned to the lit side; a
+// point or spot light behind the surface adds nothing.
+vec3 highlights(vec3 p, vec3 n, vec3 f, float sh) {
+    vec3 tv = u_orthographic ? -u_forward : u_eye - p;
+    float vl = length(tv);
+    if (vl <= 0.0) return vec3(0.0);
+    vec3 v = tv / vl;
+    if (dot(n, v) < 0.0) n = -n;
+    if (u_mode == 0) return vec3(0.7 * blinn(n, v, v));
+    vec3 s = vec3(0.0);
+    for (int i = 0; i < 16; i++) {
+        if (i >= u_count) break;
+        vec3 l = u_light_dir[i].w > 0.5 ? v : u_light_dir[i].xyz;
+        if (dot(n, l) < 0.0) l = -l;
+        float k = 1.0;
+        if (u_shadows && u_shadow_light == i) k = sh;
+        if (u_shadows && u_shadow_light < 0) k = u_shadow_dim + (1.0 - u_shadow_dim) * sh;
+        s += u_light_specular[i] * (k * blinn(n, v, l));
+    }
+    for (int i = 0; i < 16; i++) {
+        if (i >= u_local_count) break;
+        vec3 to_light = u_local_position[i].xyz - p;
+        float d = length(to_light);
+        if (d <= 0.0) continue;
+        vec3 l = to_light / d;
+        if (dot(n, l) <= 0.0) continue;
+        vec3 a = u_local_attenuation[i];
+        float den = a.x + a.y * d + a.z * d * d;
+        float k = den > 0.0 ? 1.0 / den : 1.0;
+        if (u_local_position[i].w > -1.5) {
+            float c = -dot(l, u_local_cone[i].xyz);
+            if (c < u_local_position[i].w) k = 0.0;
+            else if (u_local_cone[i].w > 0.0) k *= pow(max(c, 0.0), u_local_cone[i].w);
+        }
+        if (k > 0.0) k *= lamp_lit(i, p, f);
+        s += u_local_specular[i] * (k * blinn(n, v, l));
+    }
+    return s;
+}
+
+// The finish's terms added to the lit colour rgb of base, as the CPU path
+// adds them: (ambient - base) * ambient light (dimmed in shadow, none when
+// textured), the emission, and the highlights.
+vec3 finish(vec3 rgb, vec3 base, vec3 f, float sh) {
+    if (u_mode == 2 && !u_textured) {
+        float dim = u_shadows && u_shadow_light < 0 ? u_shadow_dim + (1.0 - u_shadow_dim) * sh : 1.0;
+        rgb += (u_material_ambient - base) * u_ambient * dim;
+    }
+    rgb += u_emissive;
+    vec3 n = v_flat > 0.5 ? v_flat_normal : v_normal;
+    float l = length(n);
+    if (l > 0.0) rgb += u_specular * highlights(v_world, n / l, f, sh);
+    return rgb;
+}
+
 void main() {
     vec4 base = u_colour;
     if (u_textured) {
@@ -286,12 +375,15 @@ void main() {
     float fl = length(f);
     f = fl > 0.0 ? f / fl : vec3(0.0);
     vec3 s = v_flat > 0.5 ? v_flat_shade : v_shade;
-    if (u_shadows) s += lit(f) * (v_flat > 0.5 ? v_flat_key : v_key);
+    float sh = u_shadows ? lit(f) : 1.0;
+    if (u_shadows) s += sh * (v_flat > 0.5 ? v_flat_key : v_key);
     vec3 n = v_flat > 0.5 ? v_flat_normal : v_normal;
     float nl = length(n);
     if (u_shadow_extra > 0 && nl > 0.0) s -= extra(n / nl, f);
     if (u_local_count > 0 && nl > 0.0) s += local(v_world, n / nl, f);
-    o_colour = vec4(clamp(base.rgb * s, 0.0, 1.0), base.a);
+    vec3 rgb = base.rgb * s;
+    if (u_finished && u_mode != 1) rgb = finish(rgb, base.rgb, f, sh);
+    o_colour = vec4(clamp(rgb, 0.0, 1.0), base.a);
     gl_FragDepth = u_orthographic
         ? gl_FragCoord.z
         : clamp(log2(v_w / u_depth_range.x) / log2(u_depth_range.y / u_depth_range.x), 0.0, 1.0);
@@ -345,6 +437,21 @@ mod tests {
             "u_local_colour[16]",
             "u_local_attenuation[16]",
             "u_local_cone[16]",
+            "u_mode",
+            "u_ambient",
+            "u_count",
+            "u_light_dir[16]",
+            "u_eye",
+            "u_forward",
+            "u_shadow_light",
+            "u_shadow_dim",
+            "u_light_specular[16]",
+            "u_local_specular[16]",
+            "u_finished",
+            "u_material_ambient",
+            "u_specular",
+            "u_emissive",
+            "u_shininess",
         ] {
             assert!(
                 GLSL_ES_300_FRAGMENT.contains(&format!(" {name};")),

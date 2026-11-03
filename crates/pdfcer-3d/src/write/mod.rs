@@ -100,7 +100,8 @@ pub struct ScenePrimitive {
     pub uvs: Vec<[f64; 2]>,
 }
 
-/// A material as PRC can display it: one colour and its opacity.
+/// A material as PRC can display it: one colour, its opacity, a picture
+/// and an emission.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SceneMaterial {
     /// The material's name (carried in the scene only; PRC styles are
@@ -112,6 +113,12 @@ pub struct SceneMaterial {
     /// Index into [`MeshScene::textures`]: a picture multiplying `rgba`
     /// over the primitive's [`ScenePrimitive::uvs`].
     pub texture: Option<usize>,
+    /// Display (sRGB-encoded) light the surface gives off, each 0–1
+    /// (clamped); black for none. A non-black one is written as the
+    /// material's emissive colour [WD 7.5.4], so its primitives are drawn
+    /// through a material style; a textured material's primitive without
+    /// coordinates is drawn in its RGB style and does not glow.
+    pub emissive: [f64; 3],
 }
 
 /// A base-colour picture.

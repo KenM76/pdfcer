@@ -66,8 +66,9 @@ impl Ids {
 }
 
 /// The globals section: an empty schema, one colour and one RGB style per
-/// material, the lights' colours after the materials', the texture entities and one material style per textured
-/// material, and the solid line pattern every style names.
+/// material, the lights' colours and then the emissive colours after the
+/// materials', the texture entities, one material style per textured and
+/// per glowing material, and the solid line pattern every style names.
 pub(super) fn globals(scene: &MeshScene, plan: &Plan) -> BitWriter {
     let mut w = BitWriter::default();
     w.uint(0).uint(GLOBALS);
@@ -80,18 +81,20 @@ pub(super) fn globals(scene: &MeshScene, plan: &Plan) -> BitWriter {
         .string(Some(""))
         .uint(0);
     let light_colours = super::lights::colours(&scene.lights);
-    w.uint((scene.materials.len() + light_colours.len()) as u32);
+    let emissive = super::textures::emissive_colours(scene);
+    let emissive_first = (scene.materials.len() + light_colours.len()) as u32;
+    w.uint(emissive_first + emissive.len() as u32);
     for m in &scene.materials {
         w.doubles(m.rgba[..3].iter().map(|c| c.clamp(0.0, 1.0)));
     }
-    for c in light_colours {
+    for c in light_colours.into_iter().chain(emissive) {
         w.doubles(c);
     }
-    let styles = (scene.materials.len() + plan.textured.len()) as u32;
+    let styles = plan.styles(scene) as u32;
     super::textures::pictures(&mut w, &plan.pictures);
     super::textures::definitions(&mut w, scene, 2 + styles);
     let first = 2 + styles + scene.textures.len() as u32;
-    super::textures::materials(&mut w, scene, &plan.textured, first);
+    super::textures::materials(&mut w, (scene, plan), emissive_first, first);
     w.uint(1).uint(LINE_PATTERN);
     ref_base(&mut w, None, 1);
     w.uint(2).double(1.0e6).double(0.0).double(0.0).bit(false);
@@ -117,6 +120,17 @@ pub(super) fn globals(scene: &MeshScene, plan: &Plan) -> BitWriter {
         // which carries its own alpha.
         w.double(1.0).bit(false).uint(1).bit(true);
         w.uint(2 * j + 2);
+        w.bit(false).bit(false).bit(false).bit(false);
+    }
+    let pairs = 2 * plan.textured.len() as u32;
+    let first_glow = 2 + (scene.materials.len() + plan.textured.len()) as u32;
+    for g in 0..plan.glowing.len() as u32 {
+        w.uint(STYLE);
+        ref_base(&mut w, None, first_glow + g);
+        // A material style naming the glowing material's `Material`
+        // (biased entry), which carries its own alpha.
+        w.double(1.0).bit(false).uint(1).bit(true);
+        w.uint(pairs + g + 1);
         w.bit(false).bit(false).bit(false).bit(false);
     }
     // Fill patterns, reference coordinate systems, user data.

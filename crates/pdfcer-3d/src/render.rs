@@ -9,6 +9,7 @@
 use crate::TriangleMesh;
 use crate::ao::{self, Depths, Screen};
 use crate::frame::Frame;
+use crate::gloss::Gloss;
 use crate::lamp_shadow::LampShadows;
 use crate::lighting::{LightFrame, LightingScheme, Shader};
 use crate::parallel;
@@ -319,6 +320,10 @@ pub struct RenderOptions {
     /// How see-through and cut-out surfaces cast, in every map
     /// ([`ShadowAlpha::Transmit`] by default).
     pub shadow_alpha: ShadowAlpha,
+    /// How a material's stored shininess becomes its highlight exponent
+    /// ([`ShininessScale::Auto`](crate::ShininessScale::Auto)). Only a
+    /// mesh with a [`crate::MaterialFinish`] draws highlights.
+    pub shininess: crate::ShininessScale,
 }
 
 impl Default for RenderOptions {
@@ -343,6 +348,7 @@ impl Default for RenderOptions {
             lamp_shadow_map_size: crate::DEFAULT_LAMP_SHADOW_MAP_SIZE,
             shadow_casters: ShadowCasters::EveryLight,
             shadow_alpha: ShadowAlpha::Transmit,
+            shininess: crate::ShininessScale::Auto,
         }
     }
 }
@@ -465,6 +471,18 @@ pub(crate) fn render_painted(
     camera: &Camera,
     options: &RenderOptions,
 ) -> Result<Image, RenderError> {
+    let model = (meshes, model_lights, &[][..]);
+    render_finished(model, paints, opaque, camera, options)
+}
+
+/// [`render_painted`], each mesh drawn with its `finishes` entry.
+pub(crate) fn render_finished(
+    (meshes, model_lights, finishes): crate::gloss::Model<'_>,
+    paints: &[Paint<'_>],
+    opaque: &[bool],
+    camera: &Camera,
+    options: &RenderOptions,
+) -> Result<Image, RenderError> {
     let (width, height) = (options.width, options.height);
     let pixels = u64::from(width) * u64::from(height);
     if pixels == 0 || pixels > MAX_RENDER_PIXELS {
@@ -481,16 +499,25 @@ pub(crate) fn render_painted(
         (meshes, paints, opaque),
         workers,
     );
+    let view = View::new(camera, aspect)?;
+    let gloss = Gloss::new(
+        (meshes, model_lights, finishes),
+        &shader,
+        (camera, &view),
+        options,
+    )
+    .map(|g| g.with_caster(shadows.caster.map(|c| c.kind)));
     let scene = Scene {
         camera,
         basis,
-        view: View::new(camera, aspect)?,
+        view,
         shader,
         caster: shadows.caster,
         shadow: shadows.key,
         extra: shadows.extra,
         lamps: shadows.lamps,
         height,
+        gloss,
     };
     let mut rgba = options.background.repeat(pixels as usize);
     let mut depth = vec![f64::NEG_INFINITY; pixels as usize];
@@ -541,6 +568,8 @@ pub(crate) struct Scene<'c> {
     lamps: Option<LampShadows>,
     /// The image height, pixels.
     height: u32,
+    /// The meshes' material finishes, when any draws one.
+    gloss: Option<Gloss>,
 }
 
 impl Scene<'_> {
@@ -673,6 +702,10 @@ impl Scene<'_> {
                         lamps: self.lamps.as_ref(),
                         extra: self.extra.as_ref(),
                         face,
+                        gloss: self
+                            .gloss
+                            .as_ref()
+                            .and_then(|g| Some((g, g.finish_of(mesh)?))),
                     };
                     target.fill(&self.view, [a, *b, *c], paint, lights);
                 }

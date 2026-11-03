@@ -3372,6 +3372,14 @@ pub(crate) enum Command {
         /// casts a full shadow under `--shadow-alpha cutout`.
         #[arg(long, default_value_t = 0.5, value_parser = parse_alpha_cutoff)]
         shadow_cutoff: f64,
+        /// How a material's stored shininess becomes the sharpness of its
+        /// highlight: `auto` (default) reads 0 to 1 as a fraction of 128
+        /// and a larger number as the exponent itself; `exponent` always
+        /// as the exponent; `fraction` always as a fraction of 128. The
+        /// standard does not say. Try another if highlights look too
+        /// broad or too pinpoint.
+        #[arg(long, value_enum, default_value_t)]
+        shininess_scale: ShininessScaleArg,
         /// Threads to draw with; 0 (default) uses every core. The image is
         /// the same at any count.
         #[arg(long, default_value_t = 0)]

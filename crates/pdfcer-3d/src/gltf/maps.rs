@@ -182,19 +182,15 @@ pub(super) struct Unread {
 }
 
 impl Unread {
-    /// Counts material `m`'s normal and metallic-roughness maps and its
-    /// emission (a texture or a non-black factor).
+    /// Counts material `m`'s normal, metallic-roughness and emissive maps
+    /// (an `emissiveFactor` is carried).
     pub(super) fn count(&mut self, m: &Json) {
         let has = |v: Option<&Json>| usize::from(v.is_some());
         self.normal += has(m.get("normalTexture"));
         self.metal += has(m
             .get("pbrMetallicRoughness")
             .and_then(|p| p.get("metallicRoughnessTexture")));
-        let glows = m
-            .get("emissiveFactor")
-            .and_then(Json::as_array)
-            .is_some_and(|f| f.iter().any(|c| c.as_f64().is_some_and(|c| c > 0.0)));
-        self.emissive += usize::from(glows || m.get("emissiveTexture").is_some());
+        self.emissive += has(m.get("emissiveTexture"));
     }
 
     /// One note naming what was not carried, if anything.
@@ -202,7 +198,7 @@ impl Unread {
         let parts: Vec<String> = [
             (self.normal, "a normal map"),
             (self.metal, "a metallic-roughness map"),
-            (self.emissive, "emission"),
+            (self.emissive, "an emissive map"),
         ]
         .iter()
         .filter(|(n, _)| *n > 0)
@@ -210,8 +206,8 @@ impl Unread {
         .collect();
         if !parts.is_empty() {
             out.notes.push(format!(
-                "materials: {}; not drawn, since the PRC is written with a diffuse colour \
-                 and texture only",
+                "materials: {}; not drawn, since the PRC is written with a diffuse colour, \
+                 texture and emissive colour only",
                 parts.join(", ")
             ));
         }

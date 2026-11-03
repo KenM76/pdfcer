@@ -245,7 +245,9 @@ fn a_sun_shadow_light_is_reported_and_drawn() {
     };
     let (scheme_note, scheme) = render("scheme", &[]);
     assert!(
-        scheme_note.contains("note: shadows: cast by one of the lights in use"),
+        scheme_note.contains(
+            "note: shadows: cast by 3 of the lights in use, each shadow taking only its own light"
+        ),
         "{scheme_note}"
     );
     let (sun_note, sun) = render("sun", &["--shadow-light", "sun"]);

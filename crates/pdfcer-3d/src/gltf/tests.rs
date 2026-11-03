@@ -449,8 +449,13 @@ fn a_textured_alpha_mask_is_cut_out() {
 #[test]
 fn unread_maps_are_one_note() {
     let m = r#"{"name":"lamp","normalTexture":{"index":0},"emissiveFactor":[1,0.5,0],
+        "emissiveTexture":{"index":0},
         "pbrMetallicRoughness":{"metallicRoughnessTexture":{"index":0}}}"#;
     let import = read(&textured_glb(PNG_HEADER, m), GltfOptions::default());
+    // The factor is carried, linear to display as the base colour is.
+    let e = import.scene.materials[0].emissive;
+    assert!((e[0] - 1.0).abs() < 1e-12 && e[2] == 0.0, "{e:?}");
+    assert!((e[1] - super::build::srgb(0.5)).abs() < 1e-12);
     let unread: Vec<_> = import
         .notes
         .iter()
@@ -459,8 +464,9 @@ fn unread_maps_are_one_note() {
     assert_eq!(
         unread,
         [
-            "materials: 1 with a normal map, 1 with a metallic-roughness map, 1 with emission; \
-          not drawn, since the PRC is written with a diffuse colour and texture only"
+            "materials: 1 with a normal map, 1 with a metallic-roughness map, 1 with an emissive \
+          map; not drawn, since the PRC is written with a diffuse colour, texture and emissive \
+          colour only"
         ]
     );
 }

@@ -45,11 +45,19 @@ impl Local {
     /// The light's per-channel factor at point `p` with unit normal `n`,
     /// lit on both sides.
     pub(crate) fn at(&self, p: [f64; 3], n: [f64; 3]) -> [f64; 3] {
-        let to_light = sub(self.position, p);
-        let d = length(to_light);
-        let Some(l) = unit(to_light) else {
+        let Some((l, reach)) = self.reach(p) else {
             return self.colour;
         };
+        let k = reach * dot(n, l).abs();
+        self.colour.map(|c| c * k)
+    }
+
+    /// The unit direction from `p` to the light and the share of it that
+    /// reaches `p` (fade times cone); `None` at the light itself.
+    pub(crate) fn reach(&self, p: [f64; 3]) -> Option<([f64; 3], f64)> {
+        let to_light = sub(self.position, p);
+        let d = length(to_light);
+        let l = unit(to_light)?;
         let [c, k1, k2] = self.attenuation;
         let denominator = c + k1 * d + k2 * d * d;
         let fade = if denominator > 0.0 && denominator.is_finite() {
@@ -67,8 +75,7 @@ impl Local {
                 1.0
             }
         });
-        let k = fade * cone * dot(n, l).abs();
-        self.colour.map(|c| c * k)
+        Some((l, fade * cone))
     }
 }
 

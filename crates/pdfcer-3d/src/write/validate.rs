@@ -27,6 +27,9 @@ pub(super) struct Plan {
     /// The textured materials, in material order; the `j`th has material
     /// style `materials.len() + j`.
     pub(super) textured: Vec<usize>,
+    /// The untextured materials that glow, in material order; the `g`th
+    /// has material style `materials.len() + textured.len() + g`.
+    pub(super) glowing: Vec<usize>,
 }
 
 impl Plan {
@@ -47,14 +50,24 @@ impl Plan {
             let j = self.textured.iter().position(|&t| t == m)?;
             return Some((scene.materials.len() + j) as u32);
         }
+        if let Some(g) = self.glowing.iter().position(|&t| t == m) {
+            return Some((scene.materials.len() + self.textured.len() + g) as u32);
+        }
         Some(m as u32)
     }
 
     /// The last unique id the globals take: the line pattern, the styles,
-    /// the texture definitions and two materials per textured material.
+    /// the texture definitions, two materials per textured material and
+    /// one per glowing one.
     pub(super) fn global_ids(&self, scene: &MeshScene) -> u32 {
-        let styles = scene.materials.len() + self.textured.len();
-        (1 + styles + scene.textures.len() + 2 * self.textured.len()) as u32
+        let materials = 2 * self.textured.len() + self.glowing.len();
+        (1 + self.styles(scene) + scene.textures.len() + materials) as u32
+    }
+
+    /// How many styles the globals write: one RGB style per material, then
+    /// the textured and the glowing materials' material styles.
+    pub(super) fn styles(&self, scene: &MeshScene) -> usize {
+        scene.materials.len() + self.textured.len() + self.glowing.len()
     }
 }
 
@@ -82,6 +95,13 @@ pub(super) fn plan(scene: &MeshScene) -> Result<Plan, PrcWriteError> {
         empty_primitives: 0,
         pictures: pictures(scene)?,
         textured: textured(scene)?,
+        glowing: scene
+            .materials
+            .iter()
+            .enumerate()
+            .filter(|(_, m)| m.texture.is_none() && super::textures::glows(m))
+            .map(|(i, _)| i)
+            .collect(),
     };
     for o in &plan.occurrences {
         let Some(m) = o.node.and_then(|n| scene.nodes.get(n)?.mesh) else {

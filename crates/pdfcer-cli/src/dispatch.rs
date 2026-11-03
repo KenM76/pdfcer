@@ -504,6 +504,7 @@ pub(crate) fn run() -> ExitCode {
             shadow_casters,
             shadow_alpha,
             shadow_cutoff,
+            shininess_scale,
             threads,
             pick,
         } => cmd_render_3d(&RenderThreeDArgs {
@@ -540,6 +541,7 @@ pub(crate) fn run() -> ExitCode {
             shadow_casters,
             shadow_alpha,
             shadow_cutoff,
+            shininess_scale,
             threads,
             pick: &pick,
         }),

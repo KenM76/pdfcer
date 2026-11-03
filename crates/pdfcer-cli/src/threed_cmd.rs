@@ -469,6 +469,7 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) shadow_casters: ShadowCastersArg,
     pub(crate) shadow_alpha: ShadowAlphaArg,
     pub(crate) shadow_cutoff: f64,
+    pub(crate) shininess_scale: ShininessScaleArg,
     pub(crate) threads: usize,
     /// Image positions to report the model point under (`--pick`).
     pub(crate) pick: &'a [[f64; 2]],
@@ -636,6 +637,7 @@ fn render_from_bytes(
         shadow_alpha: shadow_note::alpha(a.shadow_alpha, a.shadow_cutoff),
         threads: a.threads,
         artwork_headlight: a.artwork_headlight,
+        shininess: lights::shininess_scale(a.shininess_scale),
         ..RenderOptions::default()
     };
     let image = match render_model(&model, &camera, &options) {
@@ -702,6 +704,7 @@ fn render_from_bytes(
     );
     lighting.print_note(&model, a.artwork_headlight);
     shadow_note::print(a, &model, &camera, &options);
+    lights::print_finish_note(&model, &options);
     println!(
         "note: ambient occlusion: {}",
         if a.ambient_occlusion {

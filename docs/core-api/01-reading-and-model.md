@@ -3434,7 +3434,9 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   (default: the first default view that is active and holds a light
   replaces the occurrences' lights, the scene the model opens on; PRC does
   not say which wins), Ignore}`. `ModelLight { kind, colour: [f64; 3] (0-1), ambient:
-  [f64; 3] (an added ambient part), intensity, name: Option<String> }`
+  [f64; 3] (an added ambient part), intensity, name: Option<String>,
+  specular: Option<[f64; 3]> (the colour its highlights take, when the
+  file gives one apart from `colour`; `None` highlights in `colour`) }`
   (`#[non_exhaustive]`; build with `ModelLight::new(kind, colour)`); `ModelLightKind::{Ambient, Point {
   position, attenuation }, Directional { direction }, Spot { position,
   direction, attenuation, angle (half-angle, radians), exponent }}`
@@ -3511,6 +3513,30 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   every|key --shadow-alpha transmit|cutout|opaque --shadow-cutoff 0..1`
   (default 0.5); `note: shadows:` names the casters, the number left
   without a shadow by the cap, and the alpha rule.
+- **Material finish** (PRC `Material` 702, WD 7.5.3,
+  `prc__8137__graphics_materials.md` §11; `render` feature for drawing).
+  `AssembledModel::finishes: Vec<Option<MaterialFinish>>`, parallel to
+  `meshes`: `None` when the mesh's material adds nothing to its colour.
+  `MaterialFinish { ambient, specular, emissive: [f64; 3] (0–1),
+  shininess: f64 (as stored) }` (`Copy`, `#[non_exhaustive]`;
+  `MaterialFinish::new(ambient, specular, shininess)`, `is_specular()`,
+  `is_emissive()`). Drawn Blinn-Phong per pixel, every lit scheme, CPU and
+  GPU alike: `colour·shade + (ambient − colour)·scheme ambient + emissive +
+  specular·Σ light_specular·max(n·h, 0)^e`, clamped. `ambient` replaces
+  the diffuse colour under the scheme's ambient light (no change when the
+  two are equal, as pdfcer's writer stores them); `emissive` adds unlit
+  colour; the highlight takes each light's own `ModelLight::specular`, a
+  Table 310 light's colour, or 0.7 grey for the camera light. `None`
+  lighting draws no finish; a texture's ambient term is skipped. A mesh
+  with no finish, or a black one, draws byte-identical to a build without
+  this. The standard does not give shininess's scale:
+  `RenderOptions::shininess: ShininessScale::{Auto (default: 0–1 a
+  fraction of 128, above 1 the exponent), Exponent, Fraction}` (`Copy`,
+  `#[non_exhaustive]`, `exponent(stored)`, `name()`), clamped to 0–128 —
+  offer it as a setting. Disclose drawn finishes: `3d-render` prints `note:
+  finish: N mesh(es) drawn with the highlight their material stores …, M
+  with the light their material gives off`. CLI: `3d-render
+  --shininess-scale auto|exponent|fraction`.
 - **Interactive frame rate.** `PreparedModel::new(&model)` (re-exported at
   the crate root) does the camera-independent work once (texture opacity)
   and does not borrow the model; `prepared.render(&model, &camera,
@@ -3533,8 +3559,13 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     DrawData { vertices: Vec<f32>, draws: Vec<Draw> }`. `VERTEX_FLOATS` (9)
     per vertex, unshared, 3 per triangle: position 3, normal 3, uv 2
     (already in sampling space), flat 1. `Draw { mesh, first, count,
-    colour: [f32; 4], texture: Option<usize>, translucent }`, in draw order:
-    opaque first, then translucent in mesh order.
+    colour: [f32; 4], texture: Option<usize>, translucent, finish:
+    Option<DrawFinish> }`, in draw order: opaque first, then translucent in
+    mesh order. `DrawFinish { ambient, specular, emissive: [f32; 3] (0–1),
+    exponent: f32 }` (`#[non_exhaustive]`) is the mesh's
+    `MaterialFinish` already read through `RenderOptions::shininess`: set
+    `u_finished` true and `u_material_ambient`, `u_specular`, `u_emissive`,
+    `u_shininess` from it; `None` sets `u_finished` false.
   - Per frame: `camera.view_matrix()` and `camera.projection_matrix(aspect,
     &bounds)` (column-major `[f32; 16]`; `bounds` = `Bounds::of(&model.meshes)`,
     sizing the depth range), and `FrameLights::new(&camera, &options)` for
@@ -3545,8 +3576,11 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     model's own lights under Artwork, which also fills the fragment
     shader's point/spot uniforms (`local_count` → `u_local_count`,
     `local_positions`, `local_colours`, `local_attenuation`, `local_cones`
-    → `u_local_*[16]`) and counts `dropped` lights past 16 (disclose them),
-    and
+    → `u_local_*[16]`) and counts `dropped` lights past 16 (disclose them).
+    Both fill `specular` → `u_light_specular[16]` and `local_specular` →
+    `u_local_specular[16]`, the lights' highlight colours. The fragment
+    shader also takes `u_mode`, `u_ambient`, `u_count`, `u_light_dir`,
+    `u_eye`, `u_forward` (the vertex shader's values), and
     `camera.depth_range(aspect, &bounds) -> [near, far]` for the fragment
     shader's `u_depth_range` (with `u_orthographic`).
   - Depth: the fragment shader writes logarithmic depth
@@ -3782,9 +3816,14 @@ stream; layout in `ARCHITECTURE.md` decision 210.
   `ProductOccurrence` (what a viewer's model tree lists), each mesh a part.
   `ScenePrimitive { positions, normals (empty = writer computes flat
   normals), triangles: Vec<[u32; 3]> (CCW), material, uvs }`. `SceneMaterial {
-  name, rgba, texture: Option<usize> }`: `rgba` is sRGB-encoded 0–1 with
-  opacity; opacity below 1 writes a transparent style, so a see-through
-  material stays see-through.
+  name, rgba, texture: Option<usize>, emissive: [f64; 3] }`: `rgba` is
+  sRGB-encoded 0–1 with opacity; opacity below 1 writes a transparent
+  style, so a see-through material stays see-through. A non-black
+  `emissive` (sRGB 0–1; `read_gltf` fills it from `emissiveFactor`) is
+  written as the material's emissive colour, through a material style, and
+  reads back as `AssembledModel::finishes`; a textured material's primitive
+  with no `uvs` draws its base colour without the glow. Specular and
+  shininess are not written.
 - Textures: `SceneTexture { image (a whole PNG or JPEG file, stored as is),
   wrap: [TextureWrap; 2] (u, v), alpha (the picture's alpha multiplies
   opacity; otherwise colour only) }` (`Default`). A textured material

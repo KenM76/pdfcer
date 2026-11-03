@@ -67,6 +67,10 @@ pub struct AssembledModel {
     /// Each mesh's texture, an index into [`Self::textures`], parallel to
     /// [`Self::meshes`] (empty when placements were not applied).
     pub mesh_textures: Vec<Option<usize>>,
+    /// Each mesh's material terms beyond its colour, parallel to
+    /// [`Self::meshes`] (empty when placements were not applied); `None`
+    /// for a mesh whose material has none that change the picture.
+    pub finishes: Vec<Option<crate::MaterialFinish>>,
     /// Meshes drawn textured.
     pub textured: usize,
     /// Placements an assembly's entity references recoloured, in whole or
@@ -417,9 +421,13 @@ fn to_rgba8(c: [f64; 4]) -> [u8; 4] {
     c.map(|v| (v.clamp(0.0, 1.0) * 255.0).round() as u8)
 }
 
-/// A placed triangle's look: its 8-bit colour and its texture's index into
-/// [`AssembledModel::textures`].
-type Look = (Option<[u8; 4]>, Option<usize>);
+/// A placed triangle's look: its 8-bit colour, its texture's index into
+/// [`AssembledModel::textures`] and its material finish.
+type Look = (
+    Option<[u8; 4]>,
+    Option<usize>,
+    Option<crate::MaterialFinish>,
+);
 
 /// Place each mesh where the assembly tree draws it, split by face look.
 fn place(
@@ -474,6 +482,7 @@ fn place(
             .extend(by_index.into_iter().flatten().flatten());
         model.colours.clear();
         model.mesh_textures.clear();
+        model.finishes.clear();
         model.mesh_placements.clear();
     }
     model.textured = model.mesh_textures.iter().flatten().count();
@@ -497,7 +506,11 @@ fn place_one(
             let texture = skin
                 .as_ref()
                 .and_then(|s| textures.index(s, mesh, k, &mut notes));
-            let look = (paint.map(|p| to_rgba8(p.rgba)), texture);
+            let look = (
+                paint.map(|p| to_rgba8(p.rgba)),
+                texture,
+                paint.and_then(|p| p.finish),
+            );
             if paint.is_some_and(|p| p.alpha_unset) && !unset.contains(&look) {
                 unset.push(look);
             }
@@ -509,11 +522,12 @@ fn place_one(
     for why in notes {
         textures.note(why);
     }
-    for (part, (colour, texture)) in split_by_look(&placed, &per) {
-        model.alpha_unset += usize::from(unset.contains(&(colour, texture)));
+    for (part, look) in split_by_look(&placed, &per) {
+        model.alpha_unset += usize::from(unset.contains(&look));
         model.meshes.push(part);
-        model.colours.push(colour);
-        model.mesh_textures.push(texture);
+        model.colours.push(look.0);
+        model.mesh_textures.push(look.1);
+        model.finishes.push(look.2);
     }
 }
 
@@ -692,20 +706,34 @@ mod tests {
             ..TriangleMesh::default()
         };
         let red = Some([255, 0, 0, 255]);
-        let parts = split_by_look(&mesh, &[(red, Some(0)), (None, None), (red, Some(0))]);
+        let parts = split_by_look(
+            &mesh,
+            &[
+                (red, Some(0), None),
+                (None, None, None),
+                (red, Some(0), None),
+            ],
+        );
         assert_eq!(parts.len(), 2);
-        assert_eq!(parts[0].1, (red, Some(0)));
+        assert_eq!(parts[0].1, (red, Some(0), None));
         assert_eq!(
             parts[0].0.triangle_uvs,
             [vec![Some([0, 1, 2]), Some([3, 4, 5])]]
         );
         assert_eq!(parts[1].0.triangle_uvs, [vec![None]]);
-        let textured = split_by_look(&mesh, &[(red, Some(0)), (red, None), (red, Some(0))]);
+        let textured = split_by_look(
+            &mesh,
+            &[
+                (red, Some(0), None),
+                (red, None, None),
+                (red, Some(0), None),
+            ],
+        );
         assert_eq!(textured.len(), 2, "a texture alone splits a mesh");
         assert_eq!(parts[0].0.triangles, [[0, 1, 2], [1, 2, 3]]);
         assert_eq!(parts[0].0.faces.len(), 1);
         assert_eq!(parts[0].0.faces[0], 0..2);
-        assert_eq!(parts[1].1, (None, None));
+        assert_eq!(parts[1].1, (None, None, None));
         assert_eq!(parts[1].0.triangles, [[0, 2, 3]]);
         assert_eq!(parts[1].0.positions.len(), 4);
         assert_eq!(parts[0].0.triangle_normals, [[0, 0, 0], [2, 2, 2]]);

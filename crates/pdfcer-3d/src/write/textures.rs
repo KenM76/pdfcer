@@ -3,7 +3,8 @@
 //! pairs [WD 7.5.4-7.5.7; `prc__8137__graphics_materials.md` §14].
 
 use super::sections::{base, ref_base};
-use super::{BitWriter, MeshScene};
+use super::validate::Plan;
+use super::{BitWriter, MeshScene, SceneMaterial};
 use crate::TextureWrap;
 
 const MATERIAL: u32 = 702;
@@ -120,24 +121,53 @@ pub(super) fn definitions(w: &mut BitWriter, scene: &MeshScene, first_id: u32) {
     }
 }
 
-/// The materials array: per textured material, in `textured` order, its
-/// base `Material` then the `TextureApplication` naming it, with unique ids
-/// from `first_id`. `textured` lists the textured materials' indices.
-pub(super) fn materials(w: &mut BitWriter, scene: &MeshScene, textured: &[usize], first_id: u32) {
-    w.uint(2 * textured.len() as u32);
+/// Whether `m` gives off light the writer carries: a non-black emission
+/// on a material that is not wholly transparent (a material alpha of 0
+/// reads as unset).
+pub(super) fn glows(m: &SceneMaterial) -> bool {
+    m.rgba[3] > 0.0 && m.emissive.iter().any(|&c| c > 0.0)
+}
+
+/// The emissive colours, 0-1, of the materials that [`glows`], in material
+/// order; the globals write them after the lights' colours.
+pub(super) fn emissive_colours(scene: &MeshScene) -> Vec<[f64; 3]> {
+    let clamp = |m: &SceneMaterial| m.emissive.map(|c| c.clamp(0.0, 1.0));
+    scene
+        .materials
+        .iter()
+        .filter(|m| glows(m))
+        .map(clamp)
+        .collect()
+}
+
+/// The materials array, with unique ids from `first_id`: per textured
+/// material (`plan.textured`) its base `Material` then the
+/// `TextureApplication` naming it, then per glowing untextured material
+/// (`plan.glowing`) a `Material`. Emissive colours count from colour
+/// `emissive_first`, in [`emissive_colours`] order.
+pub(super) fn materials(
+    w: &mut BitWriter,
+    (scene, plan): (&MeshScene, &Plan),
+    emissive_first: u32,
+    first_id: u32,
+) {
+    w.uint((2 * plan.textured.len() + plan.glowing.len()) as u32);
+    // Double-scaled, biased (WD 7.5.3); 0 names none.
+    let emissive = |m: usize| {
+        let before = scene.materials.iter().take(m).filter(|m| glows(m)).count() as u32;
+        let glowing = scene.materials.get(m).is_some_and(glows);
+        if glowing {
+            3 * (emissive_first + before) + 1
+        } else {
+            0
+        }
+    };
     let mut id = first_id;
-    for (j, &m) in textured.iter().enumerate() {
+    for (j, &m) in plan.textured.iter().enumerate() {
         let Some(mat) = scene.materials.get(m) else {
             continue;
         };
-        let alpha = mat.rgba[3].clamp(0.0, 1.0);
-        // Double-scaled colour index of material m's colour (WD 7.5.3).
-        let colour = 3 * m as u32 + 1;
-        w.uint(MATERIAL);
-        ref_base(w, None, id);
-        // Ambient and diffuse the base colour; no emissive or specular.
-        w.uint(colour).uint(colour).uint(0).uint(0);
-        w.double(0.0).doubles([alpha; 4]);
+        material(w, (m, mat), emissive(m), id);
         w.uint(TEXTURE_APPLICATION);
         ref_base(w, None, id + 1);
         let texture = mat.texture.map_or(0, |t| t as u32 + 1);
@@ -145,6 +175,24 @@ pub(super) fn materials(w: &mut BitWriter, scene: &MeshScene, textured: &[usize]
         w.uint(2 * j as u32 + 1).uint(texture).uint(0).uint(1);
         id += 2;
     }
+    for &m in &plan.glowing {
+        if let Some(mat) = scene.materials.get(m) {
+            material(w, (m, mat), emissive(m), id);
+            id += 1;
+        }
+    }
+}
+
+/// Material `m`'s `Material` (702) with id `id`: ambient and diffuse its
+/// base colour, `emissive` its emissive colour index, no specular.
+fn material(w: &mut BitWriter, (m, mat): (usize, &SceneMaterial), emissive: u32, id: u32) {
+    let alpha = mat.rgba[3].clamp(0.0, 1.0);
+    // Double-scaled colour index of material m's colour (WD 7.5.3).
+    let colour = 3 * m as u32 + 1;
+    w.uint(MATERIAL);
+    ref_base(w, None, id);
+    w.uint(colour).uint(colour).uint(emissive).uint(0);
+    w.double(0.0).doubles([alpha; 4]);
 }
 
 #[cfg(test)]

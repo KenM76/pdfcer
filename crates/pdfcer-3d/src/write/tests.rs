@@ -55,11 +55,13 @@ fn scene() -> MeshScene {
                 name: Some("glass".into()),
                 rgba: [0.2, 0.4, 0.6, 0.4],
                 texture: None,
+                emissive: [0.0; 3],
             },
             SceneMaterial {
                 name: Some("steel".into()),
                 rgba: [1.0, 0.0, 0.0, 1.0],
                 texture: None,
+                emissive: [0.0; 3],
             },
         ],
         textures: vec![],
@@ -421,4 +423,46 @@ fn a_non_finite_light_is_refused() {
         write_prc(&s),
         Err(PrcWriteError::BadNumber("light colour"))
     ));
+}
+
+/// The glass glows; a light comes first so the emissive colours' indices
+/// count past the lights' colours.
+fn glowing() -> MeshScene {
+    let mut s = scene();
+    s.materials[0].emissive = [0.0, 0.5, 1.0];
+    s.lights = vec![ModelLight::new(ModelLightKind::Ambient, [0.2, 0.2, 0.2])];
+    s
+}
+
+#[test]
+fn an_emissive_colour_reads_back_on_its_material_only() {
+    let m = assemble(&write_prc(&glowing()).unwrap().prc).unwrap();
+    assert_eq!(m.lights.len(), 1);
+    let lit: Vec<_> = m.finishes.iter().flatten().collect();
+    assert_eq!(lit.len(), 1, "{:?}", m.finishes);
+    assert!(close(lit[0].emissive, [0.0, 0.5, 1.0]), "{:?}", lit[0]);
+    assert!(lit[0].is_emissive() && !lit[0].is_specular());
+    // The glass keeps its colour and alpha through the material style.
+    let colours: Vec<_> = m.colours.iter().flatten().copied().collect();
+    assert!(colours.contains(&[51, 102, 153, 102]), "{colours:?}");
+    let plain = write_prc(&scene()).unwrap().prc;
+    assert!(
+        assemble(&plain)
+            .unwrap()
+            .finishes
+            .iter()
+            .all(Option::is_none)
+    );
+}
+
+#[cfg(feature = "textures")]
+#[test]
+fn a_textured_material_carries_its_glow() {
+    let mut s = textured(false);
+    s.materials[1].emissive = [1.0, 0.0, 0.0];
+    let m = assemble(&write_prc(&s).unwrap().prc).unwrap();
+    assert_eq!(m.textures.len(), 1, "{:?}", m.texture_notes);
+    let k = m.mesh_textures.iter().position(Option::is_some).unwrap();
+    let f = m.finishes[k].unwrap();
+    assert!(close(f.emissive, [1.0, 0.0, 0.0]), "{f:?}");
 }

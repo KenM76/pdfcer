@@ -38,13 +38,18 @@ mod compressed;
 mod container;
 mod error;
 mod export;
+mod finish;
 #[cfg(feature = "render")]
 mod frame;
+#[cfg(feature = "render")]
+mod gloss;
 mod gltf;
 #[cfg(feature = "render")]
 mod gpu;
 #[cfg(feature = "render")]
 mod gpu_ao;
+#[cfg(feature = "render")]
+mod gpu_finish;
 #[cfg(feature = "render")]
 mod gpu_frame;
 #[cfg(feature = "render")]
@@ -102,6 +107,7 @@ pub use container::{
 };
 pub use error::PrcError;
 pub use export::{to_obj, to_stl};
+pub use finish::{MaterialFinish, ShininessScale};
 pub use gltf::{
     GltfColours, GltfError, GltfImport, GltfLights, GltfOcclusion, GltfOptions, GltfUpAxis,
     read_gltf,
@@ -113,6 +119,8 @@ pub use gpu_ao::{
     FrameAmbientOcclusion, GLSL_ES_300_AO_COMPOSITE_FRAGMENT, GLSL_ES_300_AO_FRAGMENT,
     GLSL_ES_300_SCREEN_VERTEX,
 };
+#[cfg(feature = "render")]
+pub use gpu_finish::DrawFinish;
 #[cfg(feature = "render")]
 pub use gpu_frame::{FrameLights, MAX_LIGHTS, ShadeMode};
 #[cfg(feature = "render")]

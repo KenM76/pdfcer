@@ -747,7 +747,7 @@ impl Ctx<'_, '_> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
-    use super::style::{Material, Style};
+    use super::style::{Material, Style, Terms};
     use super::*;
     use crate::Schema;
     use crate::bits::BitReader;
@@ -1661,6 +1661,7 @@ mod tests {
                     c.map(|rgba| Paint {
                         rgba,
                         alpha_unset: false,
+                        finish: None,
                     })
                 },
             ))]),
@@ -1693,6 +1694,7 @@ mod tests {
                 Material::Plain {
                     diffuse: 4,
                     alpha: 0.5,
+                    terms: Terms::default(),
                 },
                 Material::Textured {
                     base: 1,
@@ -2155,7 +2157,7 @@ mod tests {
         w.uint(2);
         w.uint(MATERIAL);
         ref_base(&mut w, 2);
-        w.uint(1).uint(1).uint(1).uint(1);
+        w.uint(1).uint(1).uint(0).uint(0);
         for v in [0.5, 1.0, 1.0, 1.0, 1.0] {
             w.double(v);
         }
@@ -2174,6 +2176,20 @@ mod tests {
     /// through a style that states no transparency: the layout CAD exports
     /// write for parts meant to be seen. The CLI's unset-alpha fixture.
     pub(crate) fn alpha_unset_prc() -> Vec<u8> {
+        grey_square_prc([1, 1, 0, 0], [0.5, 0.0, 0.0, 0.0, 0.0])
+    }
+
+    /// The grey square with a grey highlight of stored shininess 0.5 and no
+    /// glow. The CLI's finish fixture.
+    pub(crate) fn shiny_prc() -> Vec<u8> {
+        grey_square_prc([1, 1, 0, 1], [0.5, 1.0, 1.0, 1.0, 1.0])
+    }
+
+    /// The unit square through a style over one material whose ambient,
+    /// diffuse, emissive and specular slots are `slots` (colour index + 1
+    /// into a single grey, 0 for none), followed by `doubles`: shininess
+    /// and the four alphas.
+    fn grey_square_prc(slots: [u32; 4], doubles: [f64; 5]) -> Vec<u8> {
         let mut g = W::default();
         g.uint(0).uint(FILE_STRUCTURE_GLOBALS);
         base(&mut g);
@@ -2185,8 +2201,10 @@ mod tests {
         g.uint(1).double(0.75).double(0.75).double(0.75);
         g.uint(0).uint(0).uint(1).uint(MATERIAL);
         ref_base(&mut g, 1);
-        g.uint(1).uint(1).uint(1).uint(1);
-        for v in [0.5, 0.0, 0.0, 0.0, 0.0] {
+        for i in slots {
+            g.uint(i);
+        }
+        for v in doubles {
             g.double(v);
         }
         g.uint(0).uint(1).uint(STYLE);
@@ -2216,6 +2234,19 @@ mod tests {
             &[[&g.bytes(), &tree(&[occ], 0, false).bytes(), tess]],
             &model.bytes(),
         )
+    }
+
+    #[test]
+    fn a_shiny_square_reads_its_highlight_from_the_file() {
+        let bytes = shiny_prc();
+        crate::testw::check_fixture("shiny.prc", &bytes);
+        let m = crate::assemble(&bytes).unwrap();
+        let f = m.finishes[0].unwrap();
+        assert_eq!(
+            (f.specular, f.emissive, f.shininess),
+            ([0.75; 3], [0.0; 3], 0.5)
+        );
+        assert!(f.is_specular() && !f.is_emissive());
     }
 
     #[test]
@@ -2301,6 +2332,8 @@ mod tests {
     #[test]
     fn a_textured_square_renders_its_picture_the_right_way_up() {
         let m = crate::assemble(&textured_prc(1)).unwrap();
+        // The fixture's material names no highlight and no glow.
+        assert!(m.finishes.iter().all(Option::is_none), "{:?}", m.finishes);
         let camera = crate::Camera {
             eye: [0.5, 0.5, 10.0],
             target: [0.5, 0.5, 0.0],
@@ -2345,5 +2378,64 @@ mod tests {
         let m = crate::assemble(&textured_prc_with(&textured_globals(1, 1), &uvs)).unwrap();
         assert_eq!(m.textured, 1, "the first level still draws");
         assert_eq!(m.texture_notes, [(super::why::MORE_LEVELS.to_owned(), 1)]);
+    }
+
+    /// Globals with grey, white and orange, one 702 per `(ambient, emissive,
+    /// specular, shininess)` over diffuse grey, and a style per material.
+    fn lit_globals(materials: &[(u32, u32, u32, f64)]) -> Globals {
+        let mut w = W::default();
+        w.uint(FILE_STRUCTURE_GLOBALS);
+        base(&mut w);
+        w.uint(0)
+            .double(2000.0)
+            .double(40.0)
+            .string(Some(""))
+            .uint(0);
+        w.uint(3);
+        for c in [0.5, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 0.5, 0.0] {
+            w.double(c);
+        }
+        w.uint(0).uint(0).uint(materials.len() as u32);
+        for (id, &(ambient, emissive, specular, shininess)) in (2..).zip(materials) {
+            w.uint(MATERIAL);
+            ref_base(&mut w, id);
+            w.uint(ambient).uint(1).uint(emissive).uint(specular);
+            for d in [shininess, 1.0, 1.0, 1.0, 0.25] {
+                w.double(d);
+            }
+        }
+        w.uint(0).uint(materials.len() as u32);
+        for (id, m) in (20..).zip(1..=materials.len() as u32) {
+            w.uint(STYLE);
+            ref_base(&mut w, id);
+            w.double(1.0).bit(false).uint(0).bit(true).uint(m);
+            w.bit(false).bit(false).bit(false).bit(false);
+        }
+        w.uint(0).uint(0).uint(0);
+        ctx(&w.bytes(), &Schema::default()).globals().unwrap()
+    }
+
+    #[test]
+    fn a_material_keeps_its_specular_emissive_and_ambient_terms() {
+        let (grey, white, orange) = ([0.5; 3], [1.0; 3], [1.0, 0.5, 0.0]);
+        let gl = lit_globals(&[
+            (0, 0, 4, 0.75),
+            (1, 7, 0, 0.0),
+            (7, 0, 0, 0.0),
+            (1, 0, 0, 0.5),
+            (2, 2, 2, 9.0),
+        ]);
+        let finish = |style| gl.style_paint(style, StyleAlpha::default()).unwrap().finish;
+        let shiny = finish(1).unwrap();
+        assert_eq!(
+            (shiny.ambient, shiny.specular, shiny.shininess),
+            (grey, white, 0.75),
+            "no ambient index reads as the diffuse colour"
+        );
+        assert_eq!(shiny.emissive, [0.0; 3]);
+        assert_eq!(finish(2).unwrap().emissive, orange);
+        assert_eq!(finish(3).unwrap().ambient, orange);
+        assert_eq!(finish(4), None, "diffuse-coloured ambient, no light terms");
+        assert_eq!(finish(5), None, "indices that name nothing are unset");
     }
 }

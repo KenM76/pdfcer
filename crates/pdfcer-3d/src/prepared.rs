@@ -1,7 +1,7 @@
 //! A model readied once for drawing many frames.
 
 use crate::raster::Paint;
-use crate::render::{Camera, Image, RenderError, RenderOptions, render_painted};
+use crate::render::{Camera, Image, RenderError, RenderOptions, render_finished};
 use crate::{AssembledModel, Texture};
 
 /// The camera-independent per-frame work for an [`AssembledModel`], done
@@ -61,8 +61,8 @@ impl PreparedModel {
         options: &RenderOptions,
     ) -> Result<Image, RenderError> {
         let (paints, opaque) = self.paints(model, options);
-        render_painted(
-            (&model.meshes, &model.lights),
+        render_finished(
+            (&model.meshes, &model.lights, &model.finishes),
             &paints,
             &opaque,
             camera,

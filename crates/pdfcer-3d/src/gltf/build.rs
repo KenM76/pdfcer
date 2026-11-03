@@ -111,10 +111,25 @@ fn materials(
             name: name(m),
             rgba,
             texture: drawn.map(|d| d.texture),
+            emissive: emissive(m, options.colours),
         });
     }
     unread.note(out);
     uses
+}
+
+/// The material's `emissiveFactor` [§3.9.2], 0–1 display colour; its
+/// texture is not carried (see [`Unread`]).
+fn emissive(m: &Json, colours: GltfColours) -> [f64; 3] {
+    let e = numbers::<3>(m.get("emissiveFactor")).unwrap_or([0.0; 3]);
+    e.map(|c| {
+        let c = c.clamp(0.0, 1.0);
+        if colours == GltfColours::Linear {
+            srgb(c)
+        } else {
+            c
+        }
+    })
 }
 
 /// The material's alpha: blended as given, opaque, or a mask drawn whole
@@ -166,6 +181,7 @@ fn meshes(doc: &Json, buffers: &[Vec<u8>], uses: &[Option<TextureUse>], out: &mu
             name: None,
             rgba: [1.0; 4],
             texture: None,
+            emissive: [0.0; 3],
         });
     }
 }

@@ -160,13 +160,51 @@ fn light_fields(l: &pdfcer_3d::ModelLight) -> String {
         ),
         _ => String::new(),
     };
+    let specular = l.specular.map(|s| format!(" specular={}", v(s)));
     format!(
-        "kind={} name={:?}{place} colour={} intensity={:.6}",
+        "kind={} name={:?}{place} colour={} intensity={:.6}{}",
         l.kind.name(),
         l.name.as_deref().unwrap_or("-"),
         v(l.colour),
-        l.intensity
+        l.intensity,
+        specular.unwrap_or_default()
     )
+}
+
+/// `--shininess-scale` as the engine's setting.
+#[cfg(feature = "3d")]
+pub(crate) fn shininess_scale(s: crate::ShininessScaleArg) -> pdfcer_3d::ShininessScale {
+    use crate::ShininessScaleArg as A;
+    match s {
+        A::Auto => pdfcer_3d::ShininessScale::Auto,
+        A::Exponent => pdfcer_3d::ShininessScale::Exponent,
+        A::Fraction => pdfcer_3d::ShininessScale::Fraction,
+    }
+}
+
+/// The `note: finish:` line: how many meshes were drawn with a highlight
+/// or a glow, and how shininess was read. Nothing when none carries one,
+/// or the scheme is unlit.
+#[cfg(feature = "3d")]
+pub(crate) fn print_finish_note(
+    model: &pdfcer_3d::AssembledModel,
+    options: &pdfcer_3d::RenderOptions,
+) {
+    if options.lighting == pdfcer_3d::LightingScheme::None {
+        return;
+    }
+    let finishes = model.finishes.iter().flatten();
+    let shiny = finishes.clone().filter(|f| f.is_specular()).count();
+    let glowing = finishes.filter(|f| f.is_emissive()).count();
+    if shiny + glowing == 0 {
+        return;
+    }
+    println!(
+        "note: finish: {shiny} mesh(es) drawn with the highlight their material stores \
+         (Blinn-Phong, shininess read as `{}`; `--shininess-scale` sets it), {glowing} with \
+         the light their material gives off",
+        options.shininess.name()
+    );
 }
 
 #[cfg(test)]

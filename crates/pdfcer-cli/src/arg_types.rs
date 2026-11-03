@@ -1524,6 +1524,19 @@ pub(crate) fn parse_alpha_cutoff(s: &str) -> Result<f64, String> {
     }
 }
 
+/// How `3d-render` reads a material's stored shininess as a Blinn-Phong
+/// exponent; the PRC standard does not give its scale.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum ShininessScaleArg {
+    /// 0-1 is a fraction of 128, above 1 the exponent itself (default).
+    #[default]
+    Auto,
+    /// The stored number is the exponent.
+    Exponent,
+    /// The stored number is a fraction of 128.
+    Fraction,
+}
+
 /// When a `3d-embed` model activates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum ThreeDActivateArg {

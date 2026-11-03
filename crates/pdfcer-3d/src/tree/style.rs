@@ -44,6 +44,8 @@ pub enum StyleAlpha {
 pub(crate) struct Paint {
     pub(crate) rgba: [f64; 4],
     pub(crate) alpha_unset: bool,
+    /// Its material's terms beyond diffuse, when they change the picture.
+    pub(crate) finish: Option<crate::MaterialFinish>,
 }
 
 /// A `Style` (701) as far as colour: `index` is `colour_or_material + 1`.
@@ -57,9 +59,13 @@ pub(crate) struct Style {
 /// A `materials` entry as far as colour.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) enum Material {
-    /// `Material` (702): `diffuse + 1` (a double-scaled colour index) and
-    /// the diffuse alpha.
-    Plain { diffuse: u32, alpha: f64 },
+    /// `Material` (702): `diffuse + 1` (a double-scaled colour index), the
+    /// diffuse alpha and the other lighting terms.
+    Plain {
+        diffuse: u32,
+        alpha: f64,
+        terms: Terms,
+    },
     /// `TextureApplication` (711) [WD 7.5.6]: `material_generic_index`,
     /// `texture_definition_index`, `next_texture_index` and
     /// `UV_coordinates_index`, each + 1.
@@ -69,6 +75,19 @@ pub(crate) enum Material {
         next: u32,
         uv: u32,
     },
+}
+
+/// A `Material`'s (702) ambient, emissive and specular colour indices
+/// (each + 1, double-scaled, 0 = none) and shininess [WD 7.5.4]. Its
+/// ambient, emissive and specular alphas are read past: the material model
+/// is OpenGL's (`prc__8137__graphics_materials.md` §4), where only the
+/// diffuse alpha reaches the fragment.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub(crate) struct Terms {
+    pub(crate) ambient: u32,
+    pub(crate) emissive: u32,
+    pub(crate) specular: u32,
+    pub(crate) shininess: f64,
 }
 
 /// What `FileStructureGlobals` contributes to placing and colouring.
@@ -106,17 +125,24 @@ impl Globals {
     /// alpha as unset.
     pub(crate) fn style_paint(&self, biased: u32, rule: StyleAlpha) -> Option<Paint> {
         let style = self.styles.get(biased.checked_sub(1)? as usize)?;
-        let (rgb, mut alpha) = if style.is_material {
+        let (rgb, mut alpha, finish) = if style.is_material {
             let mut m = self.materials.get(style.index.checked_sub(1)? as usize)?;
             if let Material::Textured { base, .. } = *m {
                 m = self.materials.get(base.checked_sub(1)? as usize)?;
             }
             match *m {
-                Material::Plain { diffuse, alpha } => (self.colour(diffuse)?, alpha),
+                Material::Plain {
+                    diffuse,
+                    alpha,
+                    terms,
+                } => {
+                    let rgb = self.colour(diffuse)?;
+                    (rgb, alpha, self.finish(terms, rgb))
+                }
                 Material::Textured { .. } => return None,
             }
         } else {
-            (self.colour(style.index)?, 1.0)
+            (self.colour(style.index)?, 1.0, None)
         };
         let mut alpha_unset = false;
         match style.transparency {
@@ -137,7 +163,24 @@ impl Globals {
         Some(Paint {
             rgba: [r, g, b, alpha.clamp(0.0, 1.0)],
             alpha_unset,
+            finish,
         })
+    }
+
+    /// The finish of a material with diffuse colour `diffuse`. A colour
+    /// index naming nothing is read as unset: ambient falls back to the
+    /// diffuse colour, emissive and specular to black.
+    fn finish(&self, terms: Terms, diffuse: [f64; 3]) -> Option<crate::MaterialFinish> {
+        let black = |i| self.colour(i).unwrap_or([0.0; 3]);
+        let ambient = self.colour(terms.ambient).unwrap_or(diffuse);
+        let shininess = if terms.shininess.is_finite() {
+            terms.shininess
+        } else {
+            0.0
+        };
+        let mut finish = crate::MaterialFinish::new(ambient, black(terms.specular), shininess);
+        finish.emissive = black(terms.emissive);
+        finish.of(diffuse)
     }
 }
 
@@ -244,16 +287,26 @@ impl Ctx<'_, '_> {
         self.content_prc_ref_base()?;
         let m = match t {
             MATERIAL => {
-                self.r.unsigned_integer()?; // ambient + 1
+                let ambient = self.r.unsigned_integer()?;
                 let diffuse = self.r.unsigned_integer()?;
-                self.r.unsigned_integer()?; // emissive + 1
-                self.r.unsigned_integer()?; // specular + 1
-                self.r.double()?; // shininess
+                let emissive = self.r.unsigned_integer()?;
+                let specular = self.r.unsigned_integer()?;
+                let shininess = self.r.double()?;
                 self.r.double()?; // ambient alpha
                 let alpha = self.r.double()?;
                 self.r.double()?; // emissive alpha
                 self.r.double()?; // specular alpha
-                Material::Plain { diffuse, alpha }
+                let terms = Terms {
+                    ambient,
+                    emissive,
+                    specular,
+                    shininess,
+                };
+                Material::Plain {
+                    diffuse,
+                    alpha,
+                    terms,
+                }
             }
             TEXTURE_APPLICATION => Material::Textured {
                 base: self.r.unsigned_integer()?,

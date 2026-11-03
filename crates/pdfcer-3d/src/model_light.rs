@@ -19,6 +19,11 @@ pub struct ModelLight {
     /// A scale on [`Self::colour`]: a directional light's stored intensity
     /// (PRC authoring version 8030 on), 1 for every other light.
     pub intensity: f64,
+    /// The colour of the highlights it makes, scaled like [`Self::colour`],
+    /// when the file names one apart from it; `None` for the same colour.
+    /// A specular index equal to the ambient one is read as unused
+    /// (`prc__8137__lights_semantics.md` §2).
+    pub specular: Option<[f64; 3]>,
     /// The light's name, if the file gives one.
     pub name: Option<String>,
 }
@@ -82,6 +87,7 @@ impl ModelLight {
             colour,
             ambient: [0.0; 3],
             intensity: 1.0,
+            specular: None,
             name: None,
         }
     }
@@ -241,7 +247,7 @@ pub(crate) struct SceneLights {
 impl StoredLight {
     /// The light with its colours looked up in `globals` and placed by `m`.
     pub(crate) fn resolve(&self, globals: &crate::tree::Globals, m: &crate::Matrix) -> ModelLight {
-        let [a, d, _] = self.colours.map(|c| globals.colour(c));
+        let [a, d, s] = self.colours.map(|c| globals.colour(c));
         let ambient_only = matches!(self.kind, ModelLightKind::Ambient);
         let colour = if ambient_only { a.or(d) } else { d }.unwrap_or([1.0; 3]);
         ModelLight {
@@ -253,6 +259,7 @@ impl StoredLight {
                 a.unwrap_or([0.0; 3])
             },
             intensity: self.intensity,
+            specular: s.filter(|&s| self.colours[2] != self.colours[0] && s != colour),
             name: self.name.clone(),
         }
     }
