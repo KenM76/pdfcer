@@ -167,7 +167,7 @@ impl Ctx<'_, '_> {
 
     /// Schema additions, then user data.
     fn end_entity(&mut self, t: u32) -> Result<(), PrcError> {
-        self.schema.skip_added_fields(t, &mut self.r)?;
+        self.skip_added(t)?;
         self.user_data()
     }
 }

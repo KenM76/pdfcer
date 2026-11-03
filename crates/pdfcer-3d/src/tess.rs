@@ -132,6 +132,12 @@ pub(crate) struct Ctx<'a, 's> {
     pub(crate) name: Option<String>,
     /// The last `ContentPRCRefBase`'s PRC unique id [WD 7.2.3.2].
     pub(crate) uid: u32,
+    /// Schema steps the reading pass has taken; a pass over several
+    /// sections carries it from one reader to the next.
+    pub(crate) schema_steps: u64,
+    /// An entity reference read so far names a local coordinate system
+    /// [WD 7.4.10], so the globals' reference systems are needed.
+    pub(crate) names_cs: bool,
 }
 
 impl<'a, 's> Ctx<'a, 's> {
@@ -145,6 +151,8 @@ impl<'a, 's> Ctx<'a, 's> {
             graphics: crate::tree::Graphics::default(),
             name: None,
             uid: 0,
+            schema_steps: 0,
+            names_cs: false,
         }
     }
 }
@@ -162,6 +170,12 @@ impl Ctx<'_, '_> {
             return Err(malformed(format!("entity type {t} where {want} belongs")));
         }
         Ok(())
+    }
+
+    /// The schema's added fields for `entity_type`, charged to this pass.
+    pub(crate) fn skip_added(&mut self, entity_type: u32) -> Result<(), PrcError> {
+        self.schema
+            .skip_added_fields_within(entity_type, &mut self.r, &mut self.schema_steps)
     }
 
     /// A count that must fit in the remaining data at `min_bits` per item.
@@ -222,7 +236,7 @@ impl Ctx<'_, '_> {
                     k => return Err(malformed(format!("attribute value kind {k}"))),
                 }
             }
-            self.schema.skip_added_fields(ATTRIBUTE, &mut self.r)?;
+            self.skip_added(ATTRIBUTE)?;
         }
         // Name: `same_name` TRUE reuses the current name [WD 7.2.3.4].
         if !self.r.bit()? {
@@ -247,7 +261,13 @@ impl Ctx<'_, '_> {
         }
         let count = if per_segment { count / 2 } else { count };
         let bytes = if rgba { 4 } else { 3 };
-        if count.saturating_mul(1 + 8 * bytes) > self.r.remaining().saturating_add(8 * bytes) {
+        // The first colour is stored in full; each later one may be just
+        // its reuse bit.
+        let least = match count {
+            0 => 0,
+            n => (n - 1).saturating_add(8 * bytes),
+        };
+        if least > self.r.remaining() {
             return Err(PrcError::Truncated("vertex colours"));
         }
         for i in 0..count {
@@ -296,8 +316,7 @@ impl Ctx<'_, '_> {
                 }
             });
         }
-        self.schema
-            .skip_added_fields(FILE_STRUCTURE_TESSELLATION, &mut self.r)?;
+        self.skip_added(FILE_STRUCTURE_TESSELLATION)?;
         self.user_data()?;
         Ok(out)
     }
@@ -383,8 +402,7 @@ impl Ctx<'_, '_> {
         if self.r.bit()? {
             behaviours = arrays::character_array(&mut self.r, 8, None, false)?;
         }
-        self.schema
-            .skip_added_fields(TESS_3D_COMPRESSED, &mut self.r)?;
+        self.skip_added(TESS_3D_COMPRESSED)?;
         let graphics = compressed_graphics(&face_of, &multi, &line_attributes, &behaviours, faces);
         // A partial mesh holds a prefix of the entity's triangles; the
         // per-triangle arrays are cut to it.
@@ -469,7 +487,7 @@ impl Ctx<'_, '_> {
             faces.push(self.face()?);
         }
         let texture = self.doubles("texture coordinates")?;
-        self.schema.skip_added_fields(TESS_3D, &mut self.r)?;
+        self.skip_added(TESS_3D)?;
 
         let positions = points(&coords);
         let mut mesh = TriangleMesh {
@@ -524,7 +542,7 @@ impl Ctx<'_, '_> {
         if !face.styles.is_empty() {
             face.behaviour = u16::try_from(self.r.unsigned_integer()?).unwrap_or(0);
         }
-        self.schema.skip_added_fields(TESS_FACE, &mut self.r)?;
+        self.skip_added(TESS_FACE)?;
         Ok(face)
     }
 
@@ -565,7 +583,7 @@ impl Ctx<'_, '_> {
         if self.r.bit()? {
             self.vertex_colors(colours, true)?;
         }
-        self.schema.skip_added_fields(TESS_3D_WIRE, &mut self.r)?;
+        self.skip_added(TESS_3D_WIRE)?;
         Ok(wires)
     }
 
@@ -579,7 +597,7 @@ impl Ctx<'_, '_> {
         }
         self.r.string()?;
         self.r.character()?;
-        self.schema.skip_added_fields(TESS_MARKUP, &mut self.r)
+        self.skip_added(TESS_MARKUP)
     }
 }
 
@@ -1310,6 +1328,59 @@ pub(crate) mod tests {
         assert_eq!(w.len(), 1);
         assert_eq!(w[0].len(), 4);
         assert!(matches!(t[1], Tessellation::Wire(_)));
+    }
+
+    #[test]
+    fn a_tessellation_ending_in_reused_vertex_colours_reads() {
+        // A four-point RGBA polyline, the last entity: one colour stored in
+        // full, three reusing it, then only the section's user data.
+        let mut b = W::default();
+        square(&mut b, 175);
+        b.uint(0).bit(true);
+        b.bit(true).bit(false).bit(false).put(0x1020_3040, 32);
+        for _ in 1..4 {
+            b.bit(true);
+        }
+        let t = decode(&section(1, &b), &Schema::default(), 8137).unwrap();
+        let Tessellation::Wire(w) = &t[0] else {
+            panic!("not a wire")
+        };
+        assert_eq!(w[0].len(), 4);
+
+        // A first colour cut short still cannot fit.
+        let mut b = W::default();
+        square(&mut b, 175);
+        b.uint(0).bit(true);
+        b.bit(true).bit(false).bit(false).put(0x10_2030, 24);
+        assert!(matches!(
+            decode(&section(1, &b), &Schema::default(), 8137),
+            Err(PrcError::Truncated(_))
+        ));
+    }
+
+    #[test]
+    fn programs_on_one_stream_share_one_step_allowance() {
+        // For 1_500_000 { {} } after each wire: about 3M steps, under the
+        // 2^22 ceiling once, over it twice.
+        let mut sw = W::default();
+        sw.uint(1).uint(TESS_3D_WIRE).uint(5);
+        for t in [15, 26, 1_500_000, 19, 21] {
+            sw.uint(t);
+        }
+        let sb = sw.bytes();
+        let schema = Schema::read(&mut BitReader::new(&sb)).unwrap();
+        let wires = |n| {
+            let mut b = W::default();
+            for _ in 0..n {
+                wire(&mut b, false);
+            }
+            decode(&section(n, &b), &schema, 8137)
+        };
+        assert_eq!(wires(1).unwrap().len(), 1);
+        match wires(2) {
+            Err(PrcError::Malformed(m)) => assert!(m.contains("step ceiling"), "{m}"),
+            other => panic!("not refused: {other:?}"),
+        }
     }
 
     #[test]

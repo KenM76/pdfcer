@@ -493,38 +493,16 @@ impl PrcFile {
         textures: Option<(crate::tree::TextureRules, crate::StoredVisibility)>,
     ) -> Result<(Vec<crate::Placement>, Vec<crate::ModelNode>), PrcError> {
         use crate::bits::BitReader;
-        use crate::tess::Ctx;
         if !self.stores_tree() {
             return Ok((Vec::new(), Vec::new()));
         }
-        let mut trees = Vec::with_capacity(self.file_structures.len());
-        for fs in &self.file_structures {
-            let schema = fs.schema()?;
-            let tree = Ctx::new(
-                BitReader::new(fs.section(SectionKind::Tree)),
-                &schema,
-                fs.authoring_version,
-            )
-            .file_structure_tree()?;
-            // Globals carry the reference systems and the colours. Colours
-            // alone are not worth refusing the placements over.
-            let globals = (|| {
-                let mut r = BitReader::new(fs.section(SectionKind::Globals));
-                crate::Schema::read(&mut r)?; // the globals section opens with it
-                Ctx::new(r, &schema, fs.authoring_version).globals()
-            })();
-            let globals = match globals {
-                Ok(g) => g,
-                Err(e) if tree.parts.iter().flatten().any(|i| !i.local.is_empty()) => {
-                    return Err(e);
-                }
-                Err(_) => crate::tree::Globals::default(),
-            };
-            trees.push((fs.id, tree, globals));
-        }
+        let mut steps = 0;
+        let trees = self.read_trees(&mut steps)?;
         let mut r = BitReader::new(&self.model_file);
         let schema = crate::Schema::read(&mut r)?;
-        let model = Ctx::new(r, &schema, self.header.authoring_version).model_file()?;
+        let model = read_pass(&mut steps, r, &schema, self.header.authoring_version, |c| {
+            c.model_file()
+        })?;
         let mut walk = crate::tree::Walk::new(
             trees.iter().map(|(id, t, g)| (*id, t, g)).collect(),
             rule,
@@ -559,6 +537,54 @@ impl PrcFile {
         }
         Ok((walk.out, walk.nodes))
     }
+}
+
+impl PrcFile {
+    /// Each file structure's id, tree and globals, read as part of one
+    /// reading pass that has taken `steps` schema steps so far. Globals that
+    /// do not read fall back to the defaults (default colours) unless the
+    /// tree names a coordinate system, whose transform would be missing.
+    fn read_trees(
+        &self,
+        steps: &mut u64,
+    ) -> Result<Vec<(UniqueId, crate::tree::Tree, crate::tree::Globals)>, PrcError> {
+        use crate::bits::BitReader;
+        let mut trees = Vec::with_capacity(self.file_structures.len());
+        for fs in &self.file_structures {
+            let schema = fs.schema()?;
+            let v = fs.authoring_version;
+            let r = BitReader::new(fs.section(SectionKind::Tree));
+            let tree = read_pass(steps, r, &schema, v, |c| c.file_structure_tree())?;
+            let globals = (|| {
+                let mut r = BitReader::new(fs.section(SectionKind::Globals));
+                crate::Schema::read(&mut r)?; // the globals section opens with it
+                read_pass(steps, r, &schema, v, |c| c.globals())
+            })();
+            let globals = match globals {
+                Ok(g) => g,
+                Err(e) if tree.names_cs => return Err(e),
+                Err(_) => crate::tree::Globals::default(),
+            };
+            trees.push((fs.id, tree, globals));
+        }
+        Ok(trees)
+    }
+}
+
+/// `read` over a fresh reader at `r`, charging its schema steps to the
+/// reading pass's `steps`.
+fn read_pass<'a, 's, T>(
+    steps: &mut u64,
+    r: crate::bits::BitReader<'a>,
+    schema: &'s crate::Schema,
+    version: u32,
+    read: impl FnOnce(&mut crate::tess::Ctx<'a, 's>) -> Result<T, PrcError>,
+) -> Result<T, PrcError> {
+    let mut ctx = crate::tess::Ctx::new(r, schema, version);
+    ctx.schema_steps = *steps;
+    let out = read(&mut ctx);
+    *steps = ctx.schema_steps;
+    out
 }
 
 /// The unit a PRC model is drawn in [WD 7.3.3].

@@ -260,6 +260,9 @@ pub(crate) struct Tree {
     pub(crate) products: Vec<Product>,
     /// `index_product_occurrence + 1` of this structure's root.
     pub(crate) root: u32,
+    /// A representation item or an entity reference names a local
+    /// coordinate system: placing needs the globals' reference systems.
+    pub(crate) names_cs: bool,
 }
 
 /// The model file's roots: file structure id and biased occurrence index.
@@ -312,8 +315,7 @@ impl Ctx<'_, '_> {
             bits & SHOW == 0 || bits & REMOVED != 0
         };
         // Schema additions to the base itself, after the graphics [PRCRS].
-        self.schema
-            .skip_added_fields(BASE_WITH_GRAPHICS, &mut self.r)?;
+        self.skip_added(BASE_WITH_GRAPHICS)?;
         Ok((hidden, self.graphics))
     }
 
@@ -337,7 +339,7 @@ impl Ctx<'_, '_> {
             CARTESIAN_TRANSFORMATION => self.transformation_3d()?,
             t => return Err(malformed(format!("entity type {t} as a transformation"))),
         };
-        self.schema.skip_added_fields(t, &mut self.r)?;
+        self.skip_added(t)?;
         Ok(m)
     }
 
@@ -441,7 +443,7 @@ impl Ctx<'_, '_> {
         } else {
             self.leaf_item_fields(t)?
         };
-        self.schema.skip_added_fields(t, &mut self.r)?;
+        self.skip_added(t)?;
         self.user_data()?;
         if drawable && !hidden && tess != 0 {
             out.push(Item {
@@ -514,8 +516,7 @@ impl Ctx<'_, '_> {
     fn entity_reference(&mut self) -> Result<Option<Override>, PrcError> {
         self.expect_type(ENTITY_REFERENCE)?;
         let o = self.entity_reference_body()?;
-        self.schema
-            .skip_added_fields(ENTITY_REFERENCE, &mut self.r)?;
+        self.skip_added(ENTITY_REFERENCE)?;
         self.user_data()?;
         Ok(o)
     }
@@ -525,6 +526,7 @@ impl Ctx<'_, '_> {
     fn entity_reference_body(&mut self) -> Result<Option<Override>, PrcError> {
         let (hidden, graphics) = self.base_with_graphics()?;
         let local = self.r.unsigned_integer()?;
+        self.names_cs |= local != 0;
         let target = self.reference_data()?;
         Ok(target.map(|target| Override {
             graphics,
@@ -589,7 +591,7 @@ impl Ctx<'_, '_> {
         for _ in 0..n {
             self.entity_reference()?;
         }
-        self.schema.skip_added_fields(FILTER, &mut self.r)?;
+        self.skip_added(FILTER)?;
         self.user_data()
     }
 
@@ -609,8 +611,7 @@ impl Ctx<'_, '_> {
             markups: self.markup_data()?,
             views: self.views()?,
         };
-        self.schema
-            .skip_added_fields(PART_DEFINITION, &mut self.r)?;
+        self.skip_added(PART_DEFINITION)?;
         self.user_data()?;
         if hidden {
             items.clear();
@@ -677,8 +678,7 @@ impl Ctx<'_, '_> {
         for _ in 0..n {
             self.scene_display_parameters()?;
         }
-        self.schema
-            .skip_added_fields(PRODUCT_OCCURRENCE, &mut self.r)?;
+        self.skip_added(PRODUCT_OCCURRENCE)?;
         self.user_data()?;
         Ok(p)
     }
@@ -703,10 +703,10 @@ impl Ctx<'_, '_> {
         self.content_prc_base()?;
         self.r.unsigned_integer()?; // next_available_index
         tree.root = self.r.unsigned_integer()?;
-        self.schema.skip_added_fields(FILE_STRUCTURE, &mut self.r)?;
-        self.schema
-            .skip_added_fields(FILE_STRUCTURE_TREE, &mut self.r)?;
+        self.skip_added(FILE_STRUCTURE)?;
+        self.skip_added(FILE_STRUCTURE_TREE)?;
         self.user_data()?;
+        tree.names_cs = self.names_cs || tree.parts.iter().flatten().any(|i| !i.local.is_empty());
         Ok(tree)
     }
 
@@ -850,11 +850,13 @@ mod tests {
     /// A `MISC_EntityReference` with graphics `(style + 1, behaviour)`.
     #[derive(Clone, Copy)]
     enum Er<'a> {
-        /// `ReferenceOnPRCBase` to item `uid`; `fs` `None` for this one.
+        /// `ReferenceOnPRCBase` to item `uid`; `fs` `None` for this one;
+        /// `cs` the biased local coordinate system, 0 none.
         Item {
             g: (u32, u16),
             fs: Option<UniqueId>,
             uid: u32,
+            cs: u32,
         },
         /// `ReferenceOnTopology` to faces of B-rep `(1, 1)`, same structure.
         Faces { g: (u32, u16), faces: &'a [u32] },
@@ -866,7 +868,11 @@ mod tests {
             Er::Item { g, .. } | Er::Faces { g, .. } => *g,
         };
         graphics(w, Some(g), false);
-        w.uint(0).bit(true);
+        let cs = match er {
+            Er::Item { cs, .. } => *cs,
+            Er::Faces { .. } => 0,
+        };
+        w.uint(cs).bit(true);
         match er {
             Er::Item { fs, uid, .. } => {
                 w.uint(REFERENCE_ON_PRC_BASE).uint(RI_BREP_MODEL);
@@ -1121,6 +1127,80 @@ mod tests {
         let t = Ctx::new(r, &schema, 8137).file_structure_tree().unwrap();
         assert_eq!(t.parts[0][0].tessellation, 1);
         assert_eq!(t.root, 1);
+    }
+
+    /// The square's tessellation, from the committed fixture.
+    fn square_tess() -> Vec<u8> {
+        let square = crate::PrcFile::parse(include_bytes!(
+            "../../../../fixtures/synthetic/prc/square.prc"
+        ))
+        .unwrap();
+        square.file_structures[0]
+            .section(crate::SectionKind::Tessellation)
+            .to_vec()
+    }
+
+    #[test]
+    fn unreadable_globals_are_an_error_when_a_reference_names_a_system() {
+        // The globals section holds only its schema, so it does not read.
+        let tess = square_tess();
+        let file = |cs| {
+            let refs = [Er::Item {
+                g: (0, SHOW),
+                fs: None,
+                uid: 7,
+                cs,
+            }];
+            let occs = [Occ {
+                part: 1,
+                refs: &refs,
+                ..OCC
+            }];
+            placed(&tess, &occs)
+        };
+        // Nothing needs the globals: default colours, the square placed.
+        let bytes = file(0);
+        let f = crate::PrcFile::parse(&bytes).unwrap();
+        assert_eq!(f.placements().unwrap().len(), 1);
+        // The occurrence's reference names system 1: the globals' own error,
+        // whether or not the walk applies the reference.
+        let bytes = file(1);
+        let f = crate::PrcFile::parse(&bytes).unwrap();
+        let globals_error = |r: Result<_, PrcError>| matches!(r, Err(PrcError::Malformed(m)) if m.contains("where 303 belongs"));
+        assert!(globals_error(f.placements()));
+        let ignored = f.textured_placements(
+            StyleAlpha::default(),
+            TextureRules::default(),
+            EntityOverrides::Ignore,
+            crate::StoredVisibility::Honour,
+        );
+        assert!(globals_error(ignored.map(|p| p.0)));
+    }
+
+    #[test]
+    fn one_tree_walk_shares_one_schema_step_allowance() {
+        // A schema program for the tree entity: For 1_500_000 { {} }, about
+        // 3M steps, under the 2^22 ceiling once, over it twice.
+        let mut sw = W::default();
+        sw.uint(1).uint(FILE_STRUCTURE_TREE).uint(5);
+        for t in [15, 26, 1_500_000, 19, 21] {
+            sw.uint(t);
+        }
+        let schema = sw.bytes();
+        let tess = square_tess();
+        let tree = tree(&[Occ { part: 1, ..OCC }], 0, false).bytes();
+        let one = [&schema[..], &tree[..], &tess[..]];
+        let other = [&schema[..], &tree[..], &[][..]];
+        let bytes = crate::testw::prc_container_n(&[one], &placed_model());
+        let f = crate::PrcFile::parse(&bytes).unwrap();
+        assert_eq!(f.placements().unwrap().len(), 1);
+        let bytes = crate::testw::prc_container_n(&[one, other], &placed_model());
+        let f = crate::PrcFile::parse(&bytes).unwrap();
+        let r = f.placements();
+        assert!(
+            matches!(&r, Err(PrcError::Malformed(m)) if m.contains("step ceiling")),
+            "not refused: {r:?}"
+        );
     }
 
     #[test]
@@ -1899,6 +1979,7 @@ mod tests {
             g: (2, SHOW),
             fs: Some(a),
             uid: 7,
+            cs: 0,
         }];
         let face = [Er::Faces {
             g: (2, SHOW),
@@ -1908,6 +1989,7 @@ mod tests {
             g: (0, 0),
             fs: Some(a),
             uid: 7,
+            cs: 0,
         }];
         let b_occs = [
             Occ {

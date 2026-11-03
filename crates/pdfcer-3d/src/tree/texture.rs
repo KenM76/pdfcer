@@ -78,7 +78,7 @@ impl Ctx<'_, '_> {
             width: self.r.unsigned_integer()?,
             height: self.r.unsigned_integer()?,
         };
-        self.schema.skip_added_fields(PICTURE, &mut self.r)?;
+        self.skip_added(PICTURE)?;
         Ok(p)
     }
 
@@ -136,8 +136,7 @@ impl Ctx<'_, '_> {
         if self.r.bit()? {
             d.transform = Some(self.texture_transformation()?);
         }
-        self.schema
-            .skip_added_fields(TEXTURE_DEFINITION, &mut self.r)?;
+        self.skip_added(TEXTURE_DEFINITION)?;
         Ok(d)
     }
 
@@ -175,8 +174,7 @@ impl Ctx<'_, '_> {
             }
         }
         t.unsupported = behaviour & (0x04 | 0x20 | 0x40) != 0;
-        self.schema
-            .skip_added_fields(TEXTURE_TRANSFORMATION, &mut self.r)?;
+        self.skip_added(TEXTURE_TRANSFORMATION)?;
         Ok(t)
     }
 }

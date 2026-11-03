@@ -27,9 +27,10 @@ use std::collections::HashMap;
 use crate::PrcError;
 use crate::bits::BitReader;
 
-/// Steps (tokens executed, loop iterations included) one
-/// [`Schema::skip_added_fields`] call may take.
-const MAX_STEPS: u64 = 1 << 22;
+/// Steps (tokens executed, loop iterations included) one reading pass may
+/// take, summed over every program it runs: a stream of many described
+/// entities, or a tree walk over several streams, shares one allowance.
+pub(crate) const MAX_STEPS: u64 = 1 << 22;
 
 /// Nesting depth of blocks, loops, expressions and `Father_Type` calls.
 const MAX_DEPTH: u32 = 64;
@@ -85,7 +86,8 @@ impl Schema {
     }
 
     /// Consume the fields a newer producer appended to `entity_type`, if the
-    /// schema describes it; a no-op otherwise.
+    /// schema describes it; a no-op otherwise. The call is its own reading
+    /// pass: it gets the whole step allowance.
     ///
     /// # Errors
     /// [`PrcError::Unsupported`] for a token that needs exact geometry;
@@ -96,6 +98,18 @@ impl Schema {
         entity_type: u32,
         r: &mut BitReader<'_>,
     ) -> Result<(), PrcError> {
+        self.skip_added_fields_within(entity_type, r, &mut 0)
+    }
+
+    /// [`Self::skip_added_fields`] charging its steps to `spent`, the steps
+    /// the reading pass has already taken; refused once the pass's total
+    /// passes [`MAX_STEPS`].
+    pub(crate) fn skip_added_fields_within(
+        &self,
+        entity_type: u32,
+        r: &mut BitReader<'_>,
+        spent: &mut u64,
+    ) -> Result<(), PrcError> {
         let Some(program) = self.programs.get(&entity_type) else {
             return Ok(());
         };
@@ -104,9 +118,11 @@ impl Schema {
             r,
             vars: HashMap::new(),
             loop_counter: 0,
-            steps: 0,
+            steps: *spent,
         };
-        exec.program(program, 0)
+        let out = exec.program(program, 0);
+        *spent = exec.steps;
+        out
     }
 }
 
@@ -591,6 +607,23 @@ mod tests {
             run(&[(172, &[23, 0, 30, 26, 1, 26, 0])], &d).0,
             Err(PrcError::Malformed(_))
         ));
+    }
+
+    #[test]
+    fn programs_charged_to_one_pass_share_the_ceiling() {
+        // For 1_500_000 { {} }: about 3M steps, under the ceiling alone.
+        let bytes = schema(&[(172, &[15, 26, 1_500_000, 19, 21])]).bytes();
+        let mut r = BitReader::new(&bytes);
+        let s = Schema::read(&mut r).unwrap();
+        let mut spent = 0;
+        s.skip_added_fields_within(172, &mut r, &mut spent).unwrap();
+        assert!(spent > MAX_STEPS / 2 && spent <= MAX_STEPS);
+        assert!(matches!(
+            s.skip_added_fields_within(172, &mut r, &mut spent),
+            Err(PrcError::Malformed(_))
+        ));
+        // A call on its own is its own pass.
+        s.skip_added_fields(172, &mut r).unwrap();
     }
 
     #[test]

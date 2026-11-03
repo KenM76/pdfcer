@@ -211,7 +211,7 @@ impl Ctx<'_, '_> {
             }
             self.r.double()?; // start offset
             self.r.bit()?; // scale
-            self.schema.skip_added_fields(LINE_PATTERN, &mut self.r)?;
+            self.skip_added(LINE_PATTERN)?;
         }
         let n = self.count(1, "styles")?;
         for _ in 0..n {
@@ -229,12 +229,10 @@ impl Ctx<'_, '_> {
             self.r.unsigned_integer()?; // tessellation + 1
             let m = self.transformation()?;
             g.systems.push(m);
-            self.schema
-                .skip_added_fields(RI_COORDINATE_SYSTEM, &mut self.r)?;
+            self.skip_added(RI_COORDINATE_SYSTEM)?;
             self.user_data()?;
         }
-        self.schema
-            .skip_added_fields(FILE_STRUCTURE_GLOBALS, &mut self.r)?;
+        self.skip_added(FILE_STRUCTURE_GLOBALS)?;
         self.user_data()?;
         Ok(g)
     }
@@ -265,7 +263,7 @@ impl Ctx<'_, '_> {
             },
             t => return Err(malformed(format!("entity type {t} as a material"))),
         };
-        self.schema.skip_added_fields(t, &mut self.r)?;
+        self.skip_added(t)?;
         Ok(m)
     }
 
@@ -289,7 +287,7 @@ impl Ctx<'_, '_> {
                 self.r.character()?;
             }
         }
-        self.schema.skip_added_fields(STYLE, &mut self.r)?;
+        self.skip_added(STYLE)?;
         Ok(Style {
             is_material,
             index,

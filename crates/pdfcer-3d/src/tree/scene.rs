@@ -46,8 +46,7 @@ impl Ctx<'_, '_> {
         if self.version >= ABSOLUTE_SCENE_FROM {
             self.r.bit()?; // is_absolute
         }
-        self.schema
-            .skip_added_fields(SCENE_DISPLAY_PARAMETERS, &mut self.r)
+        self.skip_added(SCENE_DISPLAY_PARAMETERS)
     }
 
     /// `Camera` (742) [WD 7.5.20; PRCRS]: read past.
@@ -61,7 +60,7 @@ impl Ctx<'_, '_> {
         for _ in 0..6 {
             self.r.double()?; // x, y, ratio, near, far, zoom
         }
-        self.schema.skip_added_fields(CAMERA, &mut self.r)
+        self.skip_added(CAMERA)
     }
 
     /// A light (731-734), type code first: three colour indices, then its
@@ -94,7 +93,7 @@ impl Ctx<'_, '_> {
             }
             _ => {}
         }
-        self.schema.skip_added_fields(t, &mut self.r)
+        self.skip_added(t)
     }
 
     /// `SURF_Plane` (86), read with its own type code: a view's plane or a
@@ -110,7 +109,7 @@ impl Ctx<'_, '_> {
         self.transformation_3d()?;
         self.skip_doubles(4)?; // domain: min, max
         self.skip_doubles(4)?; // u, v coefficients a then b
-        self.schema.skip_added_fields(SURF_PLANE, &mut self.r)
+        self.skip_added(SURF_PLANE)
     }
 
     fn skip_doubles(&mut self, n: usize) -> Result<(), PrcError> {
