@@ -112,6 +112,29 @@ wherever it appears.*
 
 ## Shipped
 
+### `bb8e190e` `Pass 647.5` COMPLETE, 2026-11-03: `render-page` draws a dynamic XFA form's computed page (1388th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `bb8e190e65421a15cc159bffe784590a732ef984` "feat(cli): render-page draws a dynamic XFA form's computed page (Pass 647.5)". Local `main`, **unpushed, unreleased** (last release `v0.118.0`). Decision 204; no new decision. Closes the last open item of `Pass 647.5` (first cut `c94ab2ee`, second cut `b0e0d1a2`).
+- **Done:** for a form whose XFA is dynamic (`/NeedsRendering true`), `pdfcer render-page` merges data, lays out the template and paints computed page N. `--dynamic-xfa shell` renders the stored placeholder page instead. `--region` is refused on the computed route. A page past the computed layout is reported out of range.
+- **Output:** stdout gets `rendered-xfa ... pages=P notes=K` plus `paint-note` lines. stderr discloses that the form is dynamic XFA and the page is computed, not stored (rule 4).
+- **Render-parity harness** keeps passing `shell`, because pdfium draws the shell.
+- **Tests (engineer-reported):** 4 CLI.
+- **Boxes:** render-page for dynamic XFA core `[x]`, cli `[x]`, gui `[ ]`.
+
+### `7ef431d3` `Pass 647.3f` COMPLETE, 2026-11-03: subform sets merge by relation; `ChoiceInstances` setting (1388th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `7ef431d375c47487df1080a79bf3ff6400bb567b` "feat(xfa): subform sets merge by relation (Pass 647.3f)". Local `main`, **unpushed, unreleased**. Decision 204; no new decision. Second half of `Pass 647.3f` (first half `1585dabe`, below); **`647.3f` is COMPLETE.**
+- **Done (XFA 3.3 Ch.9 pp.349-353; spec slice `adobe_ext__xfa_subformset_merge.md`, gaps `G-SS1`..`G-SS15`):** `ordered` keeps template order; `unordered` puts members that bind data first, in data order; `choice` takes the member matched first breadth-first (empty when none binds; the first member when there is no data). Set copies: `min`, then one per copy that binds, up to `max`.
+- **Setting `ChoiceInstances {Occur (default), One}` (`G-SS5`),** CLI `--choice-instances` on the xfa merge flags (`xfa-layout`, `xfa-fill`). Absent `occur@max` is now `max(1, min)` (`G-SS9`).
+- **Owed measurement:** Acrobat behaviour for `G-SS7` (choice with no match: empty set vs first member), `G-SS11` and `G-SS15` is unmeasured; pdfcer ships the spec reading. Filed in `personal_rag/pdf` as an open question.
+- **Tests / gates (engineer-reported):** 7 core + 1 CLI; sabotage verified. Core lib 2302 + integration 3145 green; clippy clean; structure gate clean; `check-core-api-verbs` PASS. `docs/core-api/03-capabilities.md` updated in the same commit.
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]`.
+
+### `1585dabe` `Pass 647.3f` FIRST HALF, 2026-11-03: instances for dataRef-bound repeating subforms (1388th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `1585dabefc1f11c93af9ae97ee326d160908fe0b` "feat(xfa): instances for dataRef-bound repeating subforms (Pass 647.3f)". Local `main`, **unpushed, unreleased**. Decision 204; no new decision.
+- **Done:** a repeating subform bound with `match="dataRef"` creates one instance per data node its ref resolves to (`[*]`). Core plus the existing `xfa-layout` / `xfa-fill` CLI paths. gui `[ ]`. The subform-set half followed in `7ef431d3`.
+
 ### `f67b51c5` `Pass 647.4` TILED-ROOT CUT, 2026-11-03: a tiled XFA root splits per TiledSplit, closes G-L50 (1387th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Commit `f67b51c5922062aad4c0ab71061a13f165a27a9e` "feat(xfa): a tiled root splits per TiledSplit (Pass 647.4, G-L50)". Local `main`, **unpushed, unreleased**. **`Pass 647.4` is NOT complete.** No new decision.
@@ -27487,11 +27510,7 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 - **Public form for a manual check (not a fixture):** US DD Form 214 (dd0214.pdf): typing `1 2 3 4` in the four "Page __" boxes and saving must reopen as `1 2 3 4`, not `1 1 1 1`.
 - **Side-effect guard, bites only once scripting exists:** an event whose target no longer exists (a page removed by a layout re-run after its events were queued) is skipped, never run with `this` at the form root. Without it, a page-background button whose initialize script set `this.presence = "hidden"` hid the whole form (3 pages became 1) in the reporter's other viewer. Also recorded on `Pass 131.3`.
 
-### Pass 647.3f — XFA instances for dataRef-bound subforms and subform sets (NOT STARTED; filed 1351st filing; residue of `Pass 647.3e`)
-
-Filed from the `647.3e` close; nothing built. `647.3e` (`53f4e938`) creates instances only for named by-name subforms with `occur`. Not yet built: (1) instances for subforms bound with `bind match="dataRef"`; (2) instances for `subformSet`. Same spec (XFA 3.3 pp.339-347, `adobe_ext__xfa_data_binding_normal.md`), same `MergeWarningKind::{ExcessData, InstanceLimit}`, same guard. Acceptance to be written when scoped; synthetic only. Request `G248` items 2-3 are answered for the by-name case only. FEATURES: Planned row added (all three boxes `[ ]`).
-
-### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing), RICH-TEXT CUT `7450b595` (1380th filing, see *Shipped*), BORDER CUT `a5e17baf` (1381st filing, see *Shipped*), CHECK-BOX CUT `89dc9fbe` and WIDGET CUT `cf7960b2` (1383rd filing, see *Shipped*), ROUNDING CUT `a49eb8c7` (1384th filing, see *Shipped*), COMB CUT `c0af6aea`, INLINE-CAPTION CUT `7a7d682e` and VIEWS CUT `7eb052d8` (1385th filing, see *Shipped*), FILLS CUT `4a5400ea` and BINDITEMS CUT `d7e74226` (1386th filing, see *Shipped*), STROKES CUT `edfeeb9a`, IMAGE-SIZE CUT `3e29f183` and TILED-ROOT CUT `f67b51c5` (1387th filing, see *Shipped*); NOT COMPLETE, stays here. REMAINING as of the 1387th filing: real fonts; barcode encoders; `647.3f` (in progress next); `647.5` (render-page draws dynamic XFA); `647.6` (materialize verb))
+### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing), RICH-TEXT CUT `7450b595` (1380th filing, see *Shipped*), BORDER CUT `a5e17baf` (1381st filing, see *Shipped*), CHECK-BOX CUT `89dc9fbe` and WIDGET CUT `cf7960b2` (1383rd filing, see *Shipped*), ROUNDING CUT `a49eb8c7` (1384th filing, see *Shipped*), COMB CUT `c0af6aea`, INLINE-CAPTION CUT `7a7d682e` and VIEWS CUT `7eb052d8` (1385th filing, see *Shipped*), FILLS CUT `4a5400ea` and BINDITEMS CUT `d7e74226` (1386th filing, see *Shipped*), STROKES CUT `edfeeb9a`, IMAGE-SIZE CUT `3e29f183` and TILED-ROOT CUT `f67b51c5` (1387th filing, see *Shipped*); NOT COMPLETE, stays here. REMAINING as of the 1388th filing: real fonts; barcode encoders; `647.6` (materialize verb). *(1388th filing: `647.3f` COMPLETE `1585dabe` + `7ef431d3` and `647.5` COMPLETE `bb8e190e`, see *Shipped*; both off this list.)*)
 
 `pdfcer-render` draws the computed layout instead of the placeholder page (render-time only, like decision 203). Inferred content renders exactly as saved content would (rule 4: no on-canvas marking); disclosure is off-canvas diagnostics. Needs `pdfcer-render` to stay GUI-free (`cargo tree` check).
 
@@ -27557,7 +27576,7 @@ Filed from the `647.3e` close; nothing built. `647.3e` (`53f4e938`) creates inst
 
 **Check-box and widget cuts (`89dc9fbe`, `cf7960b2`; 1383rd filing; detail in *Shipped*).** Edgeless check boxes, page-number scripts, para margins, display pictures, typed values, password / button / signature / barcode-as-text widgets and `PaintOptions::medium` are drawn. **REMAINING in 647.4:** comb; inline captions; real (embedded / system) fonts (`X014` item 2); gradient and stipple fills; non-solid strokes; image natural sizing (`X017` remainder); barcode encoders. **The G-W10 rounding setting shipped `a49eb8c7` (1384th filing) and is off this list.** Check boxes, page-number fields, button, password, signature and typed values are no longer on this list.
 
-### Pass 647.5 — CLI `xfa-layout` report and `render-page` integration (FIRST CUT `c94ab2ee` (1289th filing), SECOND CUT `b0e0d1a2` (1292nd filing); NOT COMPLETE, stays here)
+### Pass 647.5 — CLI `xfa-layout` report and `render-page` integration (FIRST CUT `c94ab2ee` (1289th filing), SECOND CUT `b0e0d1a2` (1292nd filing), FINAL CUT `bb8e190e` (1388th filing, see *Shipped*); COMPLETE; the cut records below are kept as filed)
 
 `pdfcer xfa-layout` prints the layout model (pages, content per page, dropped-overflow list); `render-page` renders a dynamic form's computed layout and prints what was inferred. Ships its core-api docs row (R151: no core-only capability).
 

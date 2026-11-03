@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1388th filing) — `Pass 647.3f` COMPLETE (`1585dabe`, `7ef431d3`), `Pass 647.5` COMPLETE (`bb8e190e`)
+
+**Filed (docs only; engineer-reported, no shell here; nothing checked from here; all three commits on local `main`, unpushed, unreleased, last release `v0.118.0`):**
+- **`1585dabe`:** a repeating subform bound `match="dataRef"` gets one instance per data node its ref resolves to (`[*]`). Core plus `xfa-layout` / `xfa-fill`.
+- **`7ef431d3`:** subform sets merge by relation (`ordered`, `unordered`, `choice`; copies `min`..`max`), setting `ChoiceInstances {Occur, One}` with `--choice-instances`, absent `occur@max` = `max(1, min)`. XFA 3.3 Ch.9 pp.349-353, gaps `G-SS1`..`G-SS15`. 7 core + 1 CLI test; sabotage verified; core lib 2302 + integration 3145, clippy, structure gate, `check-core-api-verbs` green (engineer-reported). Completes `647.3f`.
+- **`bb8e190e`:** `render-page` draws a dynamic XFA form's computed page; `--dynamic-xfa shell` keeps the stored page; `--region` refused on the computed route; stderr discloses (rule 4). 4 CLI tests. Completes `647.5`. The render-parity harness keeps passing `shell`.
+- ROADMAP: three Shipped entries; `647.3f` Next-up entry deleted; `647.5` heading marked COMPLETE (cut records kept); `647.4` REMAINING now "real fonts; barcode encoders; `647.6` (materialize verb)". FEATURES: `647.3f` row ticked core/cli; new `render-page` row core/cli; umbrella and explicit-dataRef rows reworded. All gui `[ ]`.
+
+**Decisions made this session:** none minted; decision 204 covers all three.
+
+**Findings:** Acrobat behaviour for `G-SS7` (choice, no match: empty vs first member), `G-SS11` and `G-SS15` is unmeasured; pdfcer ships the spec reading. Filed as an OPEN lesson in `personal_rag/pdf` (new file; subject index and master index updated). The text of `G-SS11` and `G-SS15` was not supplied, so the lesson says to read the slice.
+
+**Still open under `647.4`:** real fonts; barcode encoders; `647.6` (materialize verb).
+
+**Hard-rule-11 survivors:** swept `FEATURES.md` for "render-page does not draw" and "not built (647.3f)", both fixed. Not swept from here, owed to the engineer: `docs/NEXT_SESSION.md`, `--help` and doc comments in `crates/pdfcer-cli` saying `render-page` ignores dynamic XFA, `ARCHITECTURE.md` section 4. Run `check-register-entry-size.py`. Backup currency not verifiable from here.
+
 ## 2026-11-03 (1387th filing) — `Pass 647.4` strokes `edfeeb9a`, image size `3e29f183`, tiled root `f67b51c5` (NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here; nothing checked from here):**
