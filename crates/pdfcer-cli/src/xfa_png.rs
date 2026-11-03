@@ -320,6 +320,7 @@ pub(crate) fn write_xfa_pngs(
     Ok(())
 }
 
+/// The `kind=` token a `paint-note` line prints for this note.
 pub(crate) fn note_label(k: PaintNoteKind) -> &'static str {
     match k {
         PaintNoteKind::Content => "content-not-drawn",

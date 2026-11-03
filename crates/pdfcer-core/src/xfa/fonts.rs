@@ -279,6 +279,8 @@ impl XfaFonts {
         map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     }
 
+    /// Records that `typeface` was drawn in a standard-14 face, for the
+    /// disclosure; the first face recorded for a typeface wins.
     pub(crate) fn record_fallback(&self, typeface: &str, base_font: impl FnOnce() -> String) {
         let mut map = self
             .fallbacks

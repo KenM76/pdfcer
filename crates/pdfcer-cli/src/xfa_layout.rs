@@ -300,6 +300,7 @@ impl XfaMergeFlags {
 }
 
 impl XfaLayoutArgs {
+    /// The core layout options these flags select.
     pub(crate) fn options(self) -> LayoutOptions {
         use pdfcer_core::xfa::{
             NegativeCoordinates, NestedOverflow, OddRotate, PageAreaKeep, TableCellHeight,

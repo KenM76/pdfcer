@@ -60,6 +60,7 @@ fn png(colour: u8, raw: &[u8]) -> Vec<u8> {
     out
 }
 
+/// Standard base64, as an inline XFA image carries its bytes.
 pub(super) fn base64(bytes: &[u8]) -> String {
     const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut s = String::new();

@@ -29,6 +29,7 @@ impl Corner {
         Self { line, ..self }
     }
 
+    /// The stroke this corner is drawn with.
     pub(super) const fn line(self) -> Edge {
         self.line
     }

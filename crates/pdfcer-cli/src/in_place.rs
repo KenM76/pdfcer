@@ -78,6 +78,7 @@ pub(crate) const IN_PLACE_COMMANDS: &[&str] = &[
     "encrypt",
     "fill-field",
     "xfa-fill",
+    "xfa-materialize",
     "flatten",
     "flatten-annotations",
     "format-text",

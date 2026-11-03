@@ -32,6 +32,8 @@ pub struct PaintedFont {
 }
 
 impl PaintedFont {
+    /// The record for a face painted under `name`; a supplied face keeps its
+    /// program only when embedding is on and permitted (`refusal` says why not).
     pub(super) fn of(name: String, face: &Face, embedding: FontEmbedding) -> Self {
         let mut out = Self {
             name,
