@@ -15,9 +15,9 @@
 //! between the objects it holds, and a growable multi-line text field or
 //! draw with `keep@intact="none"` between its lines (Pass 647.2b; each
 //! piece carries a [`Fragment`]). Any other field or draw taller than an
-//! area overflows it ([`LayoutWarning::ContentOverflow`]). Table strategies are Pass 647.7:
-//! such a container is laid as if positioned and reported as
-//! [`LayoutWarning::FlowedLayoutPending`].
+//! area overflows it ([`LayoutWarning::ContentOverflow`]). A `table` lays its
+//! rows top to bottom and splits between them; its rows align their cells
+//! in columns (Ch.8 pp.327-332).
 
 mod adhere;
 
@@ -29,11 +29,14 @@ mod lines;
 pub use lines::Fragment;
 mod nested;
 mod options;
-pub use options::{LayoutOptions, NegativeCoordinates, NestedOverflow, OddRotate, TiledSplit};
+pub use options::{
+    LayoutOptions, NegativeCoordinates, NestedOverflow, OddRotate, TableCellHeight, TiledSplit,
+};
 mod overflow;
 mod pager;
 mod rotate;
 mod split;
+mod table;
 
 use flow::{Flow, is_flow};
 use geometry::{Ctx, Placed, is_placeable, lay, shifted};
@@ -119,8 +122,9 @@ pub struct LayoutPage {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum LayoutWarning {
-    /// A `table`/`row` container laid as positioned until Pass 647.7.
-    FlowedLayoutPending {
+    /// A `row`/`rl-row` container outside a table, laid as positioned
+    /// (Ch.8 p.282).
+    InappropriateLayout {
         /// Its template path.
         path: Vec<usize>,
         /// Its strategy.
@@ -292,7 +296,11 @@ pub fn layout_template(
         filled: Vec::new(),
         area_index: 0,
         exhausted: false,
-        root_strategy: root.layout(),
+        root_strategy: match root.layout() {
+            LayoutStrategy::Table => LayoutStrategy::Tb,
+            s if table::is_row(s) => LayoutStrategy::Position,
+            s => s,
+        },
         flow: Flow::new(LayoutStrategy::Position, None),
         flow_key: (0, usize::MAX),
     };
@@ -303,8 +311,8 @@ pub fn layout_template(
         return Err(LayoutError::NoPageArea);
     }
     let root_path = vec![ri];
-    if root.layout() != LayoutStrategy::Position && !is_flow(root.layout()) {
-        run.ctx.warn(LayoutWarning::FlowedLayoutPending {
+    if table::is_row(root.layout()) {
+        run.ctx.warn(LayoutWarning::InappropriateLayout {
             path: root_path.clone(),
             strategy: root.layout(),
         });

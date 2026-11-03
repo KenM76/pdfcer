@@ -6366,6 +6366,11 @@ pub(crate) enum Command {
         /// both.
         #[arg(long, value_enum, default_value_t)]
         tiled_split: TiledSplitArg,
+        /// How tall a cell of a table row is when it lays its own contents
+        /// top to bottom or in rows and also declares a height: as tall as
+        /// its contents, or the declared height. The XFA spec does not say.
+        #[arg(long, value_enum, default_value_t)]
+        table_cell_height: TableCellHeightArg,
         /// How long the dashes and gaps of a dashed or dotted edge are, for
         /// --png-dir: multiples of the edge's thickness, or the fixed
         /// lengths Acrobat draws (the XFA spec names no lengths).

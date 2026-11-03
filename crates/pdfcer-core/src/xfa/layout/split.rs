@@ -170,6 +170,8 @@ fn empty(p: &Placed, h: f64) -> Placed {
         flags: Vec::new(),
         keep: p.keep,
         path: p.path.clone(),
+        col_span: p.col_span,
+        row: None,
     }
 }
 

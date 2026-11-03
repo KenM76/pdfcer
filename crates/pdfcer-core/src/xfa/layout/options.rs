@@ -64,6 +64,21 @@ pub enum TiledSplit {
     TbOnly,
 }
 
+/// How tall a flowed cell subform (`tb`, `lr-tb`, `rl-tb` or `table`) in
+/// a row is laid when it also declares `h`. XFA 3.3 p.329 sizes cells by
+/// their content and never shrinks them; it does not say whether a
+/// declared `h` is content (decision 212). A positioned cell always keeps
+/// its `h`; `maxH` caps a content-tall cell either way.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum TableCellHeight {
+    /// Content-tall: the declared `h` is ignored, as Designer forms expect.
+    #[default]
+    Content,
+    /// The declared `h`, like any other container.
+    Declared,
+}
+
 /// Settings for [`layout_template`](super::layout_template).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
@@ -78,6 +93,8 @@ pub struct LayoutOptions {
     pub odd_rotate: OddRotate,
     /// Splitting `lr-tb`/`rl-tb` subforms (pp.281-282).
     pub tiled_split: TiledSplit,
+    /// Decision 212.
+    pub table_cell_height: TableCellHeight,
 }
 
 impl LayoutOptions {
@@ -119,6 +136,13 @@ impl LayoutOptions {
     #[must_use]
     pub const fn with_tiled_split(mut self, v: TiledSplit) -> Self {
         self.tiled_split = v;
+        self
+    }
+
+    /// Set [`Self::table_cell_height`].
+    #[must_use]
+    pub const fn with_table_cell_height(mut self, v: TableCellHeight) -> Self {
+        self.table_cell_height = v;
         self
     }
 }

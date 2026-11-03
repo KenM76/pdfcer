@@ -230,16 +230,16 @@ fn presence_and_initial_occurrences_decide_what_is_placed() {
 }
 
 #[test]
-fn a_table_root_is_laid_positioned_and_reported() {
+fn a_row_root_is_laid_positioned_and_reported() {
     let l = lay(&format!(
-        r#"<subform name="f" layout="table">{PAGE}<field name="a"/></subform>"#
+        r#"<subform name="f" layout="row">{PAGE}<field name="a"/></subform>"#
     ));
     assert_eq!(names(&l.pages[0]), ["a"]);
     assert_eq!(
         l.warnings,
-        [LayoutWarning::FlowedLayoutPending {
+        [LayoutWarning::InappropriateLayout {
             path: vec![0],
-            strategy: LayoutStrategy::Table
+            strategy: LayoutStrategy::Row
         }]
     );
 }
@@ -744,4 +744,5 @@ mod grow;
 mod lines;
 mod nested;
 mod rotate;
+mod tables;
 mod tiled;

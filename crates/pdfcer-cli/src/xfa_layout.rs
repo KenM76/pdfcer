@@ -57,6 +57,16 @@ pub(crate) enum TiledSplitArg {
     TbOnly,
 }
 
+/// `xfa-layout --table-cell-height` (decision 212).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum TableCellHeightArg {
+    /// A flowing cell in a table row is as tall as its content.
+    #[default]
+    Content,
+    /// A cell keeps the height its template declares.
+    Declared,
+}
+
 /// `xfa-layout --scope-search` (gap G-SOM3).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
 pub(crate) enum ScopeSearchArg {
@@ -143,6 +153,7 @@ pub(crate) struct XfaLayoutArgs {
     pub(crate) page_area_keep: PageAreaKeepArg,
     pub(crate) odd_rotate: OddRotateArg,
     pub(crate) tiled_split: TiledSplitArg,
+    pub(crate) table_cell_height: TableCellHeightArg,
     pub(crate) merge: XfaMergeFlags,
 }
 
@@ -179,7 +190,8 @@ impl XfaMergeFlags {
 impl XfaLayoutArgs {
     fn options(self) -> LayoutOptions {
         use pdfcer_core::xfa::{
-            NegativeCoordinates, NestedOverflow, OddRotate, PageAreaKeep, TiledSplit,
+            NegativeCoordinates, NestedOverflow, OddRotate, PageAreaKeep, TableCellHeight,
+            TiledSplit,
         };
         LayoutOptions::new()
             .with_negative_coordinates(match self.negative_coordinates {
@@ -201,6 +213,10 @@ impl XfaLayoutArgs {
             .with_tiled_split(match self.tiled_split {
                 TiledSplitArg::Split => TiledSplit::Split,
                 TiledSplitArg::TbOnly => TiledSplit::TbOnly,
+            })
+            .with_table_cell_height(match self.table_cell_height {
+                TableCellHeightArg::Content => TableCellHeight::Content,
+                TableCellHeightArg::Declared => TableCellHeight::Declared,
             })
     }
 }
@@ -369,10 +385,10 @@ fn warning_fields(w: &LayoutWarning) -> String {
     use LayoutWarning as W;
     let at = |kind: &str, path: &[usize]| format!("kind={kind} path={}", dotted(path));
     match w {
-        W::FlowedLayoutPending { path, strategy } => {
+        W::InappropriateLayout { path, strategy } => {
             format!(
                 "{} strategy={}",
-                at("flowed-layout-pending", path),
+                at("row-outside-table", path),
                 format!("{strategy:?}").to_lowercase()
             )
         }

@@ -897,8 +897,8 @@ with every `warnings` entry.
   - When content ends, the current page area and the rest of the pass are
     padded to `occur@min`.
 - **Warnings.** `LayoutWarning` is `#[non_exhaustive]`:
-  - `FlowedLayoutPending { path, strategy }`: a `table`/`row` container laid
-    as positioned (647.7).
+  - `InappropriateLayout { path, strategy }`: a `row`/`rl-row` container
+    outside a `table`, laid as positioned (XFA 3.3 p.282).
   - `QualifiedPagination`
   - `UnboundedBoilerplate { path }`
   - `InvalidBreakTarget { path, target }`
@@ -934,6 +934,18 @@ with every `warnings` entry.
     a `tb` one, or moves whole to the next content area. XFA 3.3 says both
     (gap G-L35). An explicit `keep@intact` wins either way; a tiled
     root subform does not split under either. `#[non_exhaustive]`.
+  - `.with_table_cell_height(TableCellHeight::{Content (default), Declared})`:
+    a flowed subform cell (`tb`, `lr-tb`, `rl-tb`, `table`) of a row is as
+    tall as its content, ignoring its declared `h`, or keeps that `h`
+    (decision 212; `maxH` caps it either way; a positioned cell always
+    keeps `h`). `#[non_exhaustive]`.
+- **Tables.** A `table` subform stacks its rows top to bottom and splits
+  between them. Column widths come from `columnWidths` (`-1` or a column
+  past the list: as wide as its widest one-column cell). Each cell
+  stretches to its columns' width and the row's tallest cell; `colSpan`
+  spans columns (`-1`: the rest of the row, later cells not shown);
+  `rl-row` puts column 1 at the right. A row is not split. Non-row
+  children of a table are stacked unaligned.
 - **Errors.** `LayoutError` is `NoRootSubform` or `NoPageArea`; the latter is
   fatal per XFA.
 - **CLI.** `pdfcer xfa-layout <file>` reads the template through

@@ -4,8 +4,10 @@
 use super::adhere::{Hold, Keep, adheres};
 use super::flow::{Flow, is_flow};
 use super::lines::{Lines, content};
+use super::table::{self, RowCells, is_row, places_children};
 use super::{
-    LayoutItem, LayoutOptions, LayoutRect, LayoutWarning, NegativeCoordinates, TiledSplit,
+    LayoutItem, LayoutOptions, LayoutRect, LayoutWarning, NegativeCoordinates, TableCellHeight,
+    TiledSplit,
 };
 use crate::xfa::{AnchorType, ContainerKind, LayoutStrategy, Measurement, Presence, XfaNode};
 
@@ -80,6 +82,10 @@ pub(super) struct Placed {
     pub(super) keep: Keep,
     /// Template path of the instance's node.
     pub(super) path: Vec<usize>,
+    /// Its `colSpan` as a table cell; `None` for the rest of the row.
+    pub(super) col_span: Option<u16>,
+    /// A row's cells, until its table aligns them.
+    pub(super) row: Option<Box<RowCells>>,
 }
 
 /// What a split line must respect at one item.
@@ -176,7 +182,10 @@ pub(super) fn shifted(
 }
 
 /// The strategy `node` lays its children by. Gap G-L2 (derived reading): a
-/// subform uses its own `layout`, an area or exclGroup inherits.
+/// subform uses its own `layout`, an area or exclGroup inherits a
+/// positioned or flowing parent's, and an exclGroup may itself be a row
+/// (p.327). A row outside a table is inappropriate: reported and laid as
+/// positioned (p.282).
 fn strategy_of(
     ctx: &mut Ctx<'_>,
     node: &XfaNode,
@@ -184,16 +193,23 @@ fn strategy_of(
     kind: ContainerKind,
     parent: LayoutStrategy,
 ) -> LayoutStrategy {
+    let inherit = if is_flow(parent) {
+        parent
+    } else {
+        LayoutStrategy::Position
+    };
     let s = match kind {
         ContainerKind::Subform => node.layout(),
-        ContainerKind::Area | ContainerKind::ExclGroup => parent,
+        ContainerKind::ExclGroup if is_row(node.layout()) => node.layout(),
+        ContainerKind::Area | ContainerKind::ExclGroup => inherit,
         _ => LayoutStrategy::Position,
     };
-    if s != LayoutStrategy::Position && !is_flow(s) {
-        ctx.warn(LayoutWarning::FlowedLayoutPending {
+    if is_row(s) && parent != LayoutStrategy::Table {
+        ctx.warn(LayoutWarning::InappropriateLayout {
             path: path.to_vec(),
             strategy: s,
         });
+        return LayoutStrategy::Position;
     }
     s
 }
@@ -224,14 +240,18 @@ fn lay_one(
     if kind == ContainerKind::Subform {
         kids = super::bookend::wrap(ctx, node, path, strategy, kids);
     }
-    let wrap = (ctx.length(node, path, "w"))
-        .or_else(|| ctx.length(node, path, "maxW"))
-        .map(|w| (w - left - right).max(0.0));
-    let (laid, kid_breaks) = arrange(kids, strategy, wrap, (left, top));
+    let row = is_row(strategy).then(|| RowCells {
+        cells: kids.clone(),
+        inset: [left, top, right, bottom],
+        rtl: strategy == LayoutStrategy::RlRow,
+        given: (ctx.length(node, path, "w"), ctx.length(node, path, "h")),
+    });
+    let (laid, kid_breaks) = arrange_kids(ctx, node, path, strategy, kids, [left, top, right]);
     let (ex, ey) = laid.iter().fold((0.0_f64, 0.0_f64), |(x, y), i| {
         (x.max(i.rect.x + i.rect.w), y.max(i.rect.y + i.rect.h))
     });
-    let (w, h) = size(ctx, node, path, kind, (ex + right, ey + bottom));
+    let free_h = content_tall_cell(ctx, kind, parent, strategy);
+    let (w, h) = size(ctx, node, path, kind, (ex + right, ey + bottom), free_h);
     let rotate = super::rotate::degrees(node, kind, ctx.opts.odd_rotate);
     let rect = position(ctx, node, path, parent, (w, h), rotate);
     let mut items = vec![LayoutItem {
@@ -264,7 +284,48 @@ fn lay_one(
         flags,
         keep: Keep::of(ctx, node, path),
         path: path.to_vec(),
+        col_span: table::col_span(node),
+        row: row.map(Box::new),
     })
+}
+
+/// Lay `kids` in `node`'s content region: a table first aligns its rows'
+/// columns, then stacks them (`tb`); a row puts its cells side by side at
+/// their natural sizes until its table aligns them.
+fn arrange_kids(
+    ctx: &mut Ctx<'_>,
+    node: &XfaNode,
+    path: &[usize],
+    strategy: LayoutStrategy,
+    mut kids: Vec<Placed>,
+    [left, top, right]: [f64; 3],
+) -> (Vec<LayoutItem>, Vec<ItemFlags>) {
+    let (strategy, wrap) = if strategy == LayoutStrategy::Table {
+        table::align(node, kids.iter_mut().collect());
+        (LayoutStrategy::Tb, None)
+    } else if is_row(strategy) {
+        (LayoutStrategy::LrTb, None)
+    } else {
+        let wrap = (ctx.length(node, path, "w"))
+            .or_else(|| ctx.length(node, path, "maxW"))
+            .map(|w| (w - left - right).max(0.0));
+        (strategy, wrap)
+    };
+    arrange(kids, strategy, wrap, (left, top))
+}
+
+/// Decision 212: a flowed subform cell of a row is content-tall, its own
+/// `h` ignored, unless [`TableCellHeight::Declared`].
+fn content_tall_cell(
+    ctx: &Ctx<'_>,
+    kind: ContainerKind,
+    parent: LayoutStrategy,
+    strategy: LayoutStrategy,
+) -> bool {
+    kind == ContainerKind::Subform
+        && is_row(parent)
+        && (is_flow(strategy) || strategy == LayoutStrategy::Table)
+        && ctx.opts.table_cell_height == TableCellHeight::Content
 }
 
 /// Where a `w` × `h` instance turned `rotate` degrees sits in its parent:
@@ -281,7 +342,7 @@ fn position(
 ) -> LayoutRect {
     let anchor = anchor_fraction(node.anchor_type());
     let (dx, dy, w, h) = super::rotate::extent(rotate, anchor, (w, h));
-    if is_flow(parent) {
+    if places_children(parent) {
         return LayoutRect {
             x: 0.0,
             y: 0.0,
@@ -309,7 +370,7 @@ fn breaks(
         .and_then(|k| k.attr("intact"))
         .map_or("none", str::trim);
     let flows = match strategy {
-        LayoutStrategy::Tb => true,
+        LayoutStrategy::Tb | LayoutStrategy::Table => true,
         LayoutStrategy::LrTb | LayoutStrategy::RlTb => tiled == TiledSplit::Split,
         _ => false,
     };
@@ -356,13 +417,14 @@ fn arrange(
 /// `node`'s width and height: `w`/`h` when given, else the content's
 /// extent clamped to min/max (Ch.8 pp.275-277). A subform's content is
 /// `laid`, its laid children; a field's or draw's is its text, wrapped at
-/// `w` or a positive `maxW`.
+/// `w` or a positive `maxW`. `free_h` ignores a given `h` (decision 212).
 fn size(
     ctx: &mut Ctx<'_>,
     node: &XfaNode,
     path: &[usize],
     kind: ContainerKind,
     laid: (f64, f64),
+    free_h: bool,
 ) -> (f64, f64) {
     let own = match kind {
         ContainerKind::Field | ContainerKind::Draw => {
@@ -374,7 +436,8 @@ fn size(
         _ => Some(laid),
     };
     let w = extent(ctx, node, path, ["w", "minW", "maxW"], own.map(|c| c.0));
-    let h = extent(ctx, node, path, ["h", "minH", "maxH"], own.map(|c| c.1));
+    let h_attr = if free_h { "" } else { "h" };
+    let h = extent(ctx, node, path, [h_attr, "minH", "maxH"], own.map(|c| c.1));
     (w, h)
 }
 

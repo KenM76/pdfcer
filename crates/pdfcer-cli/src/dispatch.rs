@@ -1428,6 +1428,7 @@ pub(crate) fn run() -> ExitCode {
             medium,
             odd_rotate,
             tiled_split,
+            table_cell_height,
             dash_lengths,
             dash_caps,
             arc_circle,
@@ -1440,6 +1441,7 @@ pub(crate) fn run() -> ExitCode {
                 page_area_keep,
                 odd_rotate,
                 tiled_split,
+                table_cell_height,
                 merge,
             },
             png_dir

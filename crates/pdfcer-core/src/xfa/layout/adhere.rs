@@ -173,6 +173,12 @@ impl<'t: 'o, 'o> super::Run<'t, 'o> {
         root_path: &[usize],
     ) -> Vec<(&'o XfaNode, Vec<usize>, Vec<Placed>)> {
         let strategy = self.root_strategy;
+        let table = root.layout() == LayoutStrategy::Table;
+        let parent = if table {
+            LayoutStrategy::Table
+        } else {
+            strategy
+        };
         let mut out: Vec<_> = bookend(&mut self.ctx, root, root_path, true, strategy)
             .into_iter()
             .collect();
@@ -183,8 +189,12 @@ impl<'t: 'o, 'o> super::Run<'t, 'o> {
             let mut path = root_path.to_vec();
             path.push(i);
             let mut placed = Vec::new();
-            instances(&mut self.ctx, c, &path, strategy, &mut placed);
+            instances(&mut self.ctx, c, &path, parent, &mut placed);
             out.push((c, path, placed));
+        }
+        if table {
+            let rows = out.iter_mut().flat_map(|(_, _, v)| v.iter_mut());
+            super::table::align(root, rows.collect());
         }
         out.extend(bookend(&mut self.ctx, root, root_path, false, strategy));
         out
