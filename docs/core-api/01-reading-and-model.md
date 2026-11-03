@@ -3238,7 +3238,7 @@ pdfcer reads a binding as the bound side spanning `1/OS` camera units, and
 interpretation, disclosed. `ThreeDSavedView` implements `Default` (no
 matrix, perspective, `OS` 1, `Absolute`). `field_of_view: Option<f64>` is
 `/P /FOV` in degrees for a perspective view (Table 305: horizontal under the
-default `/PS /W`), `None` when absent. `lighting: Option<ThreeDLighting>` is `/LS /Subtype` (Table 309: `Artwork`, `None`, `White`, `Day`, `Night`, `Hard`, `Primary`, `Blue`, `Red`, `Cube`, `Cad`, `Headlamp`; `#[non_exhaustive]`; `as_name()` / `from_name`), `None` when absent or unlisted. `measurements: Vec<ThreeDMeasurement>` is
+default `/PS /W`), `None` when absent. `lighting: Option<ThreeDLighting>` is `/LS /Subtype` (Table 309: `Artwork`, `None`, `White`, `Day`, `Night`, `Hard`, `Primary`, `Blue`, `Red`, `Cube`, `Cad`, `Headlamp`; `#[non_exhaustive]`; `as_name()` / `from_name`), `None` when absent or unlisted. `render_mode: Option<ThreeDRenderMode>` is `/RM` (§13.6.4.4 Table 307), `None` when absent, not a dictionary, or naming a `/Subtype` Table 308 does not list (the whole dictionary is then ignored, as the table requires); `ThreeDRenderMode { kind: ThreeDRenderModeKind, aux_colour: [f64; 3], face_colour: Option<[f64; 3]> (None = /BG), opacity, crease_angle }` (`#[non_exhaustive]`, `Copy`, `PartialEq`; `new(kind)` gives Table 307's defaults: black, `/BG`, 0.5, 45). Only `[/DeviceRGB r g b]` with components in 0–1 is read as a colour; a malformed `/AC`, `/FC`, `/O` or `/CV` reads as its default. `ThreeDRenderModeKind` (15 variants, `#[non_exhaustive]`, `as_name() -> &'static [u8]`, `from_name(&[u8])`). Behind feature `3d`, `pdfcer_3d::RenderMode::from(mode)`. A node's `/RM` (PDF 2.0) is not read. `measurements: Vec<ThreeDMeasurement>` is
 `/MA` (ISO 32000-2 Table 315, §13.6.7.3), in file order, at most
 `MAX_3D_MEASUREMENTS` (4096); an entry that is not a dictionary or names no
 listed subtype is skipped. `ThreeDMeasurement` (`#[non_exhaustive]`, every
@@ -3553,6 +3553,49 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   (`RenderOptions::line_width: u32`, default 1). A wire-only model is still
   refused (`NoTriangles`). CLI: `3d-render --line-width N` (1–16); the
   `rendered` line prints `wires=`.
+- **Render modes** (ISO 32000-1 §13.6.4.4 Tables 307, 308).
+  `RenderOptions::render_mode: RenderMode` (default Solid, which draws as
+  before). `RenderMode { kind: RenderModeKind, aux_colour: [u8; 3] (/AC,
+  black), face_colour: FaceColour::{Background (default, /FC /BG), Rgb},
+  opacity (/O, 0.5), crease_angle (/CV, 45°), emissive (0.5), edges:
+  EdgeSet::{Triangles (default), Creases}, point_size (3 px) }`; `new(kind)`
+  and `Default`. `RenderModeKind` (`#[non_exhaustive]`, `ALL`, `as_name()`,
+  `from_name`) lists all 15 Table 308 modes; `from_name("Points")` is `None`
+  (Table 307's NOTE names a mode Table 308 lacks). What each draws: Solid —
+  lit faces; SolidWireframe / TransparentWireframe — faces (opaque, or at
+  `opacity`) then mesh edges in `aux_colour`; Transparent — faces at
+  `opacity`, multiplying their own alpha, composited source-over (the
+  standard's "additive blend" is undefined); BoundingBox — each placement's
+  box edges (`AssembledModel::boxes: Vec<NodeBox>`, one per placement that
+  drew a visible mesh, or per mesh when placements are not applied;
+  `NodeBox { corners: [[f64; 3]; 8], placement }`, `NodeBox::EDGES`);
+  TransparentBoundingBox(Outline) — the boxes' faces in `face_colour` at
+  `opacity` (plus their edges); Wireframe — edges only; ShadedWireframe —
+  edges in their mesh colour, shaded by the viewing angle (`colour ×
+  (0.25 + 0.75·|n·v|)`, `n` the vertex normal); HiddenWireframe — faces
+  drawn into depth only in the background colour, edges over them;
+  Vertices / ShadedVertices — welded vertices as `point_size` squares;
+  Illustration — unlit faces in `face_colour` plus silhouette edges;
+  SolidOutline — lit faces plus silhouettes; ShadedIllustration —
+  SolidOutline with `emissive × unlit colour` added. A silhouette is an
+  edge whose two faces differ in facing, or both face the viewer with
+  normals `crease_angle` or more apart; an open or non-manifold edge always
+  is one. Edges and vertices are welded by exact position. A model's own
+  wires show in the face modes, draw in `aux_colour` in Wireframe and
+  HiddenWireframe, are hidden in the bounding-box modes, and draw as
+  points in the vertex modes. Faces that are unlit in a mode (none,
+  Illustration, HiddenWireframe, the box faces) have no lighting, shadows
+  or ambient occlusion. **Every mode draws on the CPU and the GPU**;
+  `line_width` > 1 and wide points beyond the GL point-size range stay
+  CPU-only, and ShadedIllustration's emissive term on the GPU is a second
+  pass the host draws (`DrawData::emissive`). Reading a view's `/RM`:
+  `pdfcer_core::threed::ThreeDSavedView::render_mode` converts with
+  `.into()`. CLI: `3d-render --render-mode auto|solid|solid-wireframe|…|
+  shaded-illustration` (`auto`, the default, uses the opening view's `/RM`,
+  else solid; an explicit mode keeps the view's AC/FC/O/CV),
+  `--mode-edges triangles|creases`, `--point-size N` (1–16), `--emissive
+  X` (0–1); it prints `note: render mode: <Name> (<source>); edge and point
+  colour #rrggbb, opacity O, crease angle CV`.
 - **Interactive frame rate.** `PreparedModel::new(&model)` (re-exported at
   the crate root) does the camera-independent work once (texture opacity)
   and does not borrow the model; `prepared.render(&model, &camera,
@@ -3694,6 +3737,15 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     `u_forward`, `u_orthographic`, `u_depth_range`, `u_crease_cos` = 1),
     depth `LEQUAL`, source-alpha blending. `glLineWidth` above 1 is not
     portable (WebGL clamps it), so `line_width` > 1 is CPU-only.
+    Under a render mode the faces come from `draws` as usual (in the box
+    modes `Draw::mesh` indexes `AssembledModel::boxes`, and a mode with no
+    faces has no draws); set `u_crease_cos` = `DrawData::crease_cos`.
+    `DrawData::points: Vec<f32>` (same layout, midpoint = position) draw
+    after the lines as `GL_POINTS` with the same shaders, `u_point_size` =
+    `DrawData::point_size`. `DrawData::emissive` > 0 (ShadedIllustration
+    only): redraw the opaque draws under an unlit `FrameLights` (scheme
+    `None`), depth `EQUAL`, `glBlendFunc(GL_CONSTANT_COLOR, GL_ONE)` with
+    the blend colour `emissive` in every channel, before the lines.
   - Tested against the CPU path: projection to 1e-5 NDC, and lighting for
     all 12 schemes × both light frames × both projections. Every shader has
     been compiled and run in WebGL 2 (headless Edge, SwiftShader) on a

@@ -4,6 +4,7 @@
 //! depth-tested nearer-or-equal.
 
 use crate::lines::Stroke;
+use crate::mode_lines::at;
 use crate::{AssembledModel, DrawData, RenderOptions};
 
 /// Floats per vertex in [`DrawData::lines`]:
@@ -18,7 +19,9 @@ use crate::{AssembledModel, DrawData, RenderOptions};
 /// | 16 | kind: 0 always drawn; 1 only on a silhouette; 2 only when a face beside it faces the viewer |
 /// | 17 | 1.0 when the colour is shaded by the viewing angle, else 0.0 |
 ///
-/// A model's wires are kind 0, unshaded.
+/// A model's wires are kind 0, unshaded. A render mode's mesh edges are
+/// kind 0 (shaded in the shaded modes), its silhouettes kind 1, its
+/// bounding-box edges kind 0; [`DrawData::points`] carry the same layout.
 pub const LINE_VERTEX_FLOATS: usize = 18;
 
 /// The line vertex shader. Attributes, matching [`DrawData::lines`]:
@@ -26,10 +29,12 @@ pub const LINE_VERTEX_FLOATS: usize = 18;
 /// normal (vec3), 4 second normal (vec3), 5 kind (float), 6 shaded (float).
 /// Uniforms: `u_view`, `u_projection`, `u_eye`, `u_forward`,
 /// `u_orthographic` (as [`crate::GLSL_ES_300_VERTEX`]'s), `u_bias`
-/// ([`DrawData::line_bias`]), `u_crease_cos` (the cosine of the crease
-/// angle a kind-1 edge between two faces both facing the viewer must
-/// reach; 1 when unused). A vertex whose segment is not drawn is moved
-/// outside the clip volume, so the segment is clipped away whole.
+/// ([`DrawData::line_bias`]), `u_crease_cos` ([`DrawData::crease_cos`]:
+/// the cosine of the crease angle a kind-1 edge between two faces both
+/// facing the viewer must reach), `u_point_size`
+/// ([`DrawData::point_size`], read only when drawing `GL_POINTS`). A
+/// vertex whose segment is not drawn is moved outside the clip volume, so
+/// the segment is clipped away whole.
 ///
 /// The facing test uses the midpoint: a face faces the viewer when
 /// `n·v > 0`, `v` towards the eye from the midpoint (−`u_forward`
@@ -51,6 +56,7 @@ uniform vec3 u_forward;
 uniform bool u_orthographic;
 uniform float u_bias;
 uniform float u_crease_cos;
+uniform float u_point_size;
 out vec4 v_colour;
 out float v_w;
 
@@ -70,15 +76,17 @@ void main() {
         ? u_projection * u_view * vec4(a_position + towards * u_bias, 1.0)
         : vec4(2.0, 2.0, 2.0, 1.0);
     v_w = gl_Position.w;
+    gl_PointSize = u_point_size;
 }
 ";
 
 /// The line fragment shader: the interpolated colour, straight RGBA, and
 /// the same `gl_FragDepth` as [`crate::GLSL_ES_300_FRAGMENT`] (uniforms
 /// `u_depth_range`, `u_orthographic`). Draw [`DrawData::lines`] as
-/// `GL_LINES` after the faces (and any ambient-occlusion composite), depth
-/// function `LEQUAL`, blending source-alpha over. `glLineWidth` above 1 is
-/// not portable (WebGL clamps it to 1), so wider lines are CPU-only.
+/// `GL_LINES` after the faces (and any ambient-occlusion composite), then
+/// [`DrawData::points`] as `GL_POINTS`, depth function `LEQUAL`, blending
+/// source-alpha over. `glLineWidth` above 1 is not portable (WebGL clamps
+/// it to 1), so wider lines are CPU-only.
 pub const GLSL_ES_300_LINE_FRAGMENT: &str = r"#version 300 es
 precision highp float;
 in vec4 v_colour;
@@ -103,30 +111,43 @@ pub(crate) struct LineExtra {
     pub(crate) shaded: bool,
 }
 
-/// Appends `stroke` as two [`LINE_VERTEX_FLOATS`] vertices.
-pub(crate) fn push_stroke(out: &mut Vec<f32>, stroke: &Stroke, extra: &LineExtra) {
+/// Appends `stroke` as two [`LINE_VERTEX_FLOATS`] vertices, end `i`
+/// carrying `extras[i]`.
+pub(crate) fn push_stroke(out: &mut Vec<f32>, stroke: &Stroke, extras: &[LineExtra; 2]) {
     let [a, b] = stroke.ends;
     let mid = [0, 1, 2].map(|i| (at(a, i) + at(b, i)) / 2.0);
-    for (p, colour) in [a, b].into_iter().zip(stroke.colours) {
-        out.extend(p.map(|c| c as f32));
-        out.extend(colour.map(|c| f32::from(c) / 255.0));
-        out.extend(mid.map(|c| c as f32));
-        for n in extra.normals {
-            out.extend(n.map(|c| c as f32));
-        }
-        out.extend([extra.kind, if extra.shaded { 1.0 } else { 0.0 }]);
+    for ((p, colour), extra) in [a, b].into_iter().zip(stroke.colours).zip(extras) {
+        push_vertex(out, p, colour, mid, extra);
     }
 }
 
-fn at(v: [f64; 3], i: usize) -> f64 {
-    v.get(i).copied().unwrap_or(0.0)
+fn push_vertex(out: &mut Vec<f32>, p: [f64; 3], colour: [u8; 4], mid: [f64; 3], e: &LineExtra) {
+    out.extend(p.map(|c| c as f32));
+    out.extend(colour.map(|c| f32::from(c) / 255.0));
+    out.extend(mid.map(|c| c as f32));
+    for n in e.normals {
+        out.extend(n.map(|c| c as f32));
+    }
+    out.extend([e.kind, if e.shaded { 1.0 } else { 0.0 }]);
 }
 
-/// Fills `data`'s line fields with `model`'s wires.
-pub(crate) fn add_wires(data: &mut DrawData, model: &AssembledModel, options: &RenderOptions) {
+/// Fills `data`'s line and point fields with what `options`' render mode
+/// draws over `model`'s faces, mesh `i` painted `colours[i]`.
+pub(crate) fn add_overlays(
+    data: &mut DrawData,
+    model: &AssembledModel,
+    options: &RenderOptions,
+    colours: &[[u8; 4]],
+) {
     data.line_bias = crate::lines::bias(model) as f32;
-    for stroke in crate::lines::wire_strokes(&model.lines, options.colour) {
-        push_stroke(&mut data.lines, &stroke, &LineExtra::default());
+    data.crease_cos = options.render_mode.crease_cos() as f32;
+    data.point_size = options.render_mode.point_size.max(1) as f32;
+    let over = crate::mode_lines::overlays(model, options, colours);
+    for item in &over.lines {
+        push_stroke(&mut data.lines, &item.stroke, &item.extras);
+    }
+    for dot in &over.points {
+        push_vertex(&mut data.points, dot.at, dot.colour, dot.at, &dot.extra);
     }
 }
 
@@ -155,8 +176,43 @@ mod tests {
     }
 
     #[test]
+    fn a_mode_fills_points_and_per_end_normals() {
+        use crate::{RenderMode, RenderModeKind, TriangleMesh};
+        let model = AssembledModel {
+            meshes: vec![TriangleMesh {
+                positions: vec![[0., 0., 0.], [1., 0., 0.], [0., 1., 0.]],
+                triangles: vec![[0, 1, 2]],
+                ..TriangleMesh::default()
+            }],
+            ..AssembledModel::default()
+        };
+        let options = |kind| RenderOptions {
+            render_mode: RenderMode::new(kind),
+            ..RenderOptions::default()
+        };
+        let p = PreparedModel::new(&model);
+        let dots = p.draw_data(&model, &options(RenderModeKind::ShadedVertices));
+        assert!(dots.draws.is_empty(), "no faces");
+        assert_eq!(dots.points.len(), 3 * LINE_VERTEX_FLOATS);
+        assert_eq!(dots.point_size, 3.0);
+        assert_eq!(dots.points[LINE_VERTEX_FLOATS - 1], 1.0, "shaded");
+        let wire = p.draw_data(&model, &options(RenderModeKind::ShadedWireframe));
+        assert_eq!(wire.lines.len(), 6 * LINE_VERTEX_FLOATS, "three edges");
+        assert_eq!(&wire.lines[10..13], &[0.0, 0.0, 1.0], "vertex normal");
+        let ill = p.draw_data(&model, &options(RenderModeKind::ShadedIllustration));
+        assert_eq!((ill.draws.len(), ill.emissive), (1, 0.5));
+        assert_eq!(ill.lines[16], 1.0, "a silhouette");
+    }
+
+    #[test]
     fn the_shaders_declare_what_their_docs_name() {
-        for name in ["u_bias", "u_crease_cos", "u_eye", "u_forward"] {
+        for name in [
+            "u_bias",
+            "u_crease_cos",
+            "u_eye",
+            "u_forward",
+            "u_point_size",
+        ] {
             assert!(
                 GLSL_ES_300_LINE_VERTEX.contains(&format!(" {name};")),
                 "{name}"

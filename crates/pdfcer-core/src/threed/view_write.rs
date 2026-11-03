@@ -4,9 +4,9 @@
 use crate::object::{Dict, Name, ObjId, Object};
 
 use super::ThreeDEmbedError;
-use super::ThreeDLighting;
 use super::measure::{MAX_3D_MEASUREMENTS, ThreeDMeasurement, check_measurement, measurement_dict};
 use super::view::{OrthoBinding, ThreeDSavedView};
+use super::{ThreeDLighting, ThreeDRenderMode};
 
 /// Most views [`crate::edit::EditSession::set_3d_views`] writes.
 pub const MAX_3D_VIEWS: usize = 4096;
@@ -89,6 +89,13 @@ impl ThreeDSavedView {
     #[must_use]
     pub fn with_lighting(mut self, scheme: ThreeDLighting) -> Self {
         self.lighting = Some(scheme);
+        self
+    }
+
+    /// `/RM`: draw the model in `mode` (Table 307) when this view is shown.
+    #[must_use]
+    pub fn with_render_mode(mut self, mode: ThreeDRenderMode) -> Self {
+        self.render_mode = Some(mode);
         self
     }
 
@@ -257,6 +264,9 @@ pub(crate) fn view_dict(v: &ThreeDSavedView) -> Dict {
     }
     if let Some(l) = v.lighting {
         d.insert(Name::from(b"LS"), Object::Dict(l.to_dict()));
+    }
+    if let Some(rm) = v.render_mode {
+        d.insert(Name::from(b"RM"), Object::Dict(rm.to_dict()));
     }
     if !v.measurements.is_empty() {
         let ma = v

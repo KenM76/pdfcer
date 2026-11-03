@@ -26,6 +26,10 @@ pub struct AssembledModel {
     pub wires: usize,
     /// The wires' polylines, placed as the meshes are.
     pub lines: Vec<crate::ModelLine>,
+    /// Each placement's bounding box in its own axes, for the bounding-box
+    /// render modes; one per mesh, in model axes, when placements were not
+    /// applied.
+    pub boxes: Vec<crate::NodeBox>,
     /// Markup tessellations, not drawn.
     pub markups: usize,
     /// Compressed tessellations rebuilt into triangles.
@@ -470,6 +474,9 @@ fn place(
                     model.overridden +=
                         usize::from(p.item_override.is_some() || !p.face_overrides.is_empty());
                     place_one(p, mesh, &mut textures, model);
+                    model
+                        .boxes
+                        .extend(crate::NodeBox::of(mesh, &p.matrix, Some(k)));
                     model.mesh_placements.resize(model.meshes.len(), k);
                 }
             }
@@ -491,6 +498,11 @@ fn place(
         model.finishes.clear();
         model.mesh_placements.clear();
         model.lines.clear();
+        model.boxes = model
+            .meshes
+            .iter()
+            .filter_map(|m| crate::NodeBox::of(m, &crate::IDENTITY, None))
+            .collect();
         crate::wire::unplaced(wires, model);
     }
     model.textured = model.mesh_textures.iter().flatten().count();

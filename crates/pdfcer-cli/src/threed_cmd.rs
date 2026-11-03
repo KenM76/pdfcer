@@ -9,6 +9,7 @@ mod aim;
 mod embed;
 mod gltf;
 mod lights;
+mod mode;
 #[cfg(feature = "3d")]
 mod pick;
 #[cfg(feature = "3d")]
@@ -20,6 +21,7 @@ use aim::aim_camera;
 pub(crate) use embed::{EmbedThreeDArgs, PosterThreeDArgs, cmd_embed_3d, cmd_set_3d_poster};
 pub(crate) use gltf::{GltfHow, cmd_convert_3d};
 pub(crate) use lights::{LightArg, parse_light};
+pub(crate) use mode::RenderModeArgs;
 pub(crate) use tree::cmd_tree_3d;
 pub(crate) use views::{ViewsThreeDArgs, cmd_views_3d};
 
@@ -461,6 +463,7 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) lamp_shadows: bool,
     pub(crate) lamp_shadow_map_size: u32,
     pub(crate) line_width: u32,
+    pub(crate) mode: RenderModeArgs,
     pub(crate) shadow_map_size: u32,
     pub(crate) ambient_occlusion: bool,
     pub(crate) artwork_headlight: bool,
@@ -601,6 +604,7 @@ fn render_from_bytes(
         *fov_y = a.fov;
     }
     let lighting = render_lighting(a.lighting, saved);
+    let mode = mode::render_mode(&a.mode, saved);
     let options = RenderOptions {
         width: a.width,
         height: a.height,
@@ -618,6 +622,7 @@ fn render_from_bytes(
         lamp_shadows: a.lamp_shadows,
         lamp_shadow_map_size: a.lamp_shadow_map_size,
         line_width: a.line_width,
+        render_mode: mode.mode,
         shadow_map_size: a.shadow_map_size,
         ambient_occlusion: a.ambient_occlusion,
         light_sense: match a.light_sense {
@@ -705,6 +710,7 @@ fn render_from_bytes(
          drawn grey"
     );
     lighting.print_note(&model, a.artwork_headlight);
+    mode.print_note();
     shadow_note::print(a, &model, &camera, &options);
     lights::print_finish_note(&model, &options);
     println!(

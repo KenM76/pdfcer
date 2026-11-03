@@ -48,16 +48,46 @@ impl Overlay {
         })
     }
 
-    /// `p` moved `bias` towards the eye, in view space: along the ray to
-    /// the eye in perspective, against the view direction in orthographic.
+    /// The unit vector from `p` towards the viewer: along the ray to the
+    /// eye in perspective, against the view direction in orthographic.
+    pub(crate) fn towards(&self, p: [f64; 3]) -> [f64; 3] {
+        match self.view {
+            View::Perspective { .. } => normalize(sub(self.eye, p)).unwrap_or([0.0; 3]),
+            View::Orthographic { .. } => scale(self.basis[2], -1.0),
+        }
+    }
+
+    /// `p` moved `bias` towards the eye, in view space.
     fn view_of(&self, p: [f64; 3]) -> ViewCorner {
         let [right, up, forward] = self.basis;
-        let towards = match self.view {
-            View::Perspective { .. } => normalize(sub(self.eye, p)).unwrap_or([0.0; 3]),
-            View::Orthographic { .. } => scale(forward, -1.0),
-        };
-        let d = sub(add(p, scale(towards, self.bias)), self.eye);
+        let d = sub(add(p, scale(self.towards(p), self.bias)), self.eye);
         view_point(dot(d, right), dot(d, up), dot(d, forward))
+    }
+
+    /// Draws a `size`-pixel square point at `p` in `rgba`.
+    pub(crate) fn point(&self, target: &mut Target, p: [f64; 3], rgba: [u8; 4], size: u32) {
+        let v = self.view_of(p);
+        if let View::Perspective { near, .. } = self.view
+            && v.get(2).is_none_or(|&z| z < near || z.is_nan())
+        {
+            return;
+        }
+        let c = self.view.project(v, target.width, target.height).at;
+        if !c.iter().all(|x| x.is_finite()) {
+            return;
+        }
+        let half = f64::from(size.max(1)) / 2.0;
+        let span = |centre: f64| ((centre - half - 0.5).ceil(), centre + half - 0.5);
+        let ((x0, x1), (y0, y1)) = (span(at(c, 0)), span(at(c, 1)));
+        let mut y = y0.max(0.0);
+        while y < y1 && y < f64::from(target.height) {
+            let mut x = x0.max(0.0);
+            while x < x1 && x < f64::from(target.width) {
+                put(target, (x, y), at(c, 2), rgba);
+                x += 1.0;
+            }
+            y += 1.0;
+        }
     }
 
     /// The part of the segment `a`–`b` (view space) in front of the near
@@ -176,15 +206,15 @@ pub(crate) fn wire_strokes(lines: &[ModelLine], fallback: [u8; 3]) -> Vec<Stroke
     out
 }
 
-/// Draws `model`'s wires over a frame `rgba` whose depth keys are `depth`.
-pub(crate) fn draw_wires(
-    model: &AssembledModel,
+/// Draws `overlays` over a frame `rgba` whose depth keys are `depth`.
+pub(crate) fn draw_overlays(
+    overlays: &crate::mode_lines::Overlays,
     camera: &Camera,
     (rgba, depth): (&mut [u8], &mut [f64]),
     options: &crate::RenderOptions,
     bias: f64,
 ) -> Result<(), RenderError> {
-    if model.lines.is_empty() {
+    if overlays.lines.is_empty() && overlays.points.is_empty() {
         return Ok(());
     }
     let size = (options.width, options.height);
@@ -196,8 +226,15 @@ pub(crate) fn draw_wires(
         rgba,
         depth,
     };
-    for stroke in wire_strokes(&model.lines, options.colour) {
-        overlay.line(&mut target, &stroke, options.line_width);
+    let crease_cos = options.render_mode.crease_cos();
+    for item in &overlays.lines {
+        if let Some(stroke) = item.resolve(&overlay, crease_cos) {
+            overlay.line(&mut target, &stroke, options.line_width);
+        }
+    }
+    for dot in &overlays.points {
+        let rgba = dot.resolve(&overlay);
+        overlay.point(&mut target, dot.at, rgba, options.render_mode.point_size);
     }
     Ok(())
 }

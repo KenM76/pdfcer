@@ -259,3 +259,48 @@ fn a_sun_shadow_light_is_reported_and_drawn() {
     let (_, sun_x) = render("sun_x", &["--shadow-light", "sun", "--up", "x"]);
     assert_ne!(sun, sun_x, "the sun follows --up");
 }
+
+/// `--render-mode` reaches the renderer and is disclosed with its source;
+/// `auto` on a view naming no mode draws solid.
+#[test]
+fn a_render_mode_is_reported_and_drawn() {
+    let s = Scratch::new("mode");
+    std::fs::write(s.path("m.glb"), floor_and_square()).unwrap();
+    let pdf = format!(
+        "{}/../../fixtures/synthetic/minimal.pdf",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let (m, out) = (s.path("m.glb"), s.path("out.pdf"));
+    let args = ["3d-embed", &pdf, "--model", &m, "--page", "1"];
+    stdout(&run(&[
+        &args[..],
+        &["--rect", "10,10,190,190", "--apply", "-o", &out],
+    ]
+    .concat()));
+    let render = |tag: &str, extra: &[&str]| {
+        let png = s.path(&format!("{tag}.png"));
+        let mut args = vec!["3d-render", &out, "--index", "0", "--eye=1,-3,4"];
+        args.extend_from_slice(&["--width", "120", "--height", "80", "-o", &png]);
+        args.extend_from_slice(extra);
+        (stdout(&run(&args)), std::fs::read(&png).unwrap())
+    };
+    let (auto_note, solid) = render("auto", &[]);
+    assert!(
+        auto_note.contains("note: render mode: Solid (the default; the opening view names none)"),
+        "{auto_note}"
+    );
+    let (wire_note, wire) = render("wire", &["--render-mode", "wireframe"]);
+    assert!(
+        wire_note.contains("note: render mode: Wireframe (--render-mode)"),
+        "{wire_note}"
+    );
+    assert_ne!(solid, wire, "wireframe draws no faces");
+    let (_, dots) = render("dots", &["--render-mode", "vertices", "--point-size", "5"]);
+    assert_ne!(wire, dots);
+    let (_, glow) = render("glow", &["--render-mode", "shaded-illustration"]);
+    let (_, dim) = render(
+        "dim",
+        &["--render-mode", "shaded-illustration", "--emissive", "0"],
+    );
+    assert_ne!(glow, dim, "--emissive reaches the renderer");
+}

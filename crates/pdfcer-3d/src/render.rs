@@ -326,8 +326,13 @@ pub struct RenderOptions {
     pub shininess: crate::ShininessScale,
     /// Lines' width, pixels (1, the default): a model's wires
     /// ([`AssembledModel::lines`](crate::AssembledModel::lines)), drawn
-    /// unlit and depth-tested. 0 draws as 1.
+    /// unlit and depth-tested. 0 draws as 1. Also the width of the edges a
+    /// [`render_mode`](Self::render_mode) draws.
     pub line_width: u32,
+    /// How faces, edges and vertices are drawn (ISO 32000-1 §13.6.4.4,
+    /// `/RM`); [`RenderMode::default`](crate::RenderMode::default) is
+    /// Solid, the frame this crate always drew.
+    pub render_mode: crate::RenderMode,
 }
 
 impl Default for RenderOptions {
@@ -354,6 +359,7 @@ impl Default for RenderOptions {
             shadow_alpha: ShadowAlpha::Transmit,
             shininess: crate::ShininessScale::Auto,
             line_width: 1,
+            render_mode: crate::RenderMode::default(),
         }
     }
 }

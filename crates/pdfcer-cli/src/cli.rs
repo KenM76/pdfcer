@@ -3328,6 +3328,8 @@ pub(crate) enum Command {
         /// nearer surfaces.
         #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..=16))]
         line_width: u32,
+        #[command(flatten)]
+        mode: crate::threed_cmd::RenderModeArgs,
         /// Draw without ambient occlusion. By default creases, corners and
         /// contacts are darkened by how much nearby surface rises around
         /// them, read from the depth of the finished picture; an unlit

@@ -206,6 +206,7 @@ impl FrameAmbientOcclusion {
             return Err(RenderError::Size { width, height });
         }
         let basis = camera.basis()?;
+        let options = &crate::render_mode::frame_options(options);
         let shader = Shader::new(options.lighting.lights(), options.light_frame, &basis);
         let radius = bounds.radius() * ao::RADIUS_SHARE;
         if !crate::render::ambient_occlusion(options, &shader) || radius.is_nan() || radius <= 0.0 {

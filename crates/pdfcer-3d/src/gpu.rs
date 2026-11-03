@@ -43,6 +43,21 @@ pub struct DrawData {
     /// Model units every line vertex is moved towards the eye (the line
     /// shader's `u_bias`), so an edge on a face is not hidden by it.
     pub line_bias: f32,
+    /// Points to draw after the lines, as `GL_POINTS`, in the same vertex
+    /// format and shader as [`DrawData::lines`] (midpoint = position).
+    pub points: Vec<f32>,
+    /// The points' size in pixels (the line shader's `u_point_size`).
+    pub point_size: f32,
+    /// The line shader's `u_crease_cos` under the render mode.
+    pub crease_cos: f32,
+    /// The share of the unlit face colour added over the lit frame
+    /// ([`RenderModeKind::ShadedIllustration`](crate::RenderModeKind::ShadedIllustration));
+    /// 0 for every other mode. A host draws the opaque draws a second time
+    /// under an unlit [`crate::FrameLights`] (lighting
+    /// [`crate::LightingScheme::None`]), depth function `EQUAL`, blending
+    /// `glBlendFunc(GL_CONSTANT_COLOR, GL_ONE)` with every channel of the
+    /// blend colour set to this, before the lines.
+    pub emissive: f32,
 }
 
 /// One mesh's triangles and paint.
@@ -70,15 +85,32 @@ pub struct Draw {
 
 impl PreparedModel {
     /// The model's draw data, painted as [`PreparedModel::render`] paints
-    /// it with `options` (only [`RenderOptions::colour`] matters here).
-    /// Fully transparent meshes, and triangles with a missing or non-finite
-    /// corner or no area, are left out, as the CPU path leaves them out.
+    /// it with `options` ([`RenderOptions::colour`] and
+    /// [`RenderOptions::render_mode`] matter here). Fully transparent
+    /// meshes, and triangles with a missing or non-finite corner or no
+    /// area, are left out, as the CPU path leaves them out.
+    ///
+    /// The render mode is applied: draws are recoloured or made translucent
+    /// as the mode's faces are, a mode that draws no faces has no draws, and
+    /// in the two transparent bounding-box modes each [`Draw::mesh`]
+    /// indexes the model's visible [`AssembledModel::boxes`] (box `i` as
+    /// twelve triangles), not its meshes. Edges, silhouettes and vertices
+    /// are in [`DrawData::lines`] and [`DrawData::points`].
     #[must_use]
     pub fn draw_data(&self, model: &AssembledModel, options: &RenderOptions) -> DrawData {
-        let (paints, opaque) = self.paints(model, options);
+        let plan = crate::render_mode::Plan::of(options);
+        let painted = self.paints(model, options);
+        let colours: Vec<[u8; 4]> = painted.0.iter().map(|p| p.colour).collect();
+        // Finishes index the model's own meshes, drawn in their own colour.
+        let finished = matches!(
+            plan.faces,
+            crate::render_mode::Faces::Painted | crate::render_mode::Faces::Translucent(_)
+        );
+        let faces = crate::mode_frame::face_pass(&plan, model, painted);
+        let (paints, opaque) = (&faces.paints, &faces.opaque);
         let mut data = DrawData::default();
         for pass in [true, false] {
-            for (i, (mesh, paint)) in model.meshes.iter().zip(&paints).enumerate() {
+            for (i, (mesh, paint)) in faces.meshes.iter().zip(paints).enumerate() {
                 if paint.colour[3] == 0 || opaque.get(i).copied().unwrap_or(false) != pass {
                     continue;
                 }
@@ -105,11 +137,13 @@ impl PreparedModel {
                         .get(i)
                         .copied()
                         .flatten()
+                        .filter(|_| finished)
                         .map(|f| crate::DrawFinish::new(&f, options)),
                 });
             }
         }
-        crate::gpu_lines::add_wires(&mut data, model, options);
+        crate::gpu_lines::add_overlays(&mut data, model, options, &colours);
+        data.emissive = plan.emissive as f32;
         data
     }
 }

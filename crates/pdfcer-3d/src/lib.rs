@@ -36,6 +36,8 @@ mod arrays;
 pub mod bits;
 mod compressed;
 mod container;
+#[cfg(feature = "render")]
+mod edges;
 mod error;
 mod export;
 mod finish;
@@ -68,11 +70,16 @@ mod lamp_shadow;
 mod lighting;
 #[cfg(feature = "render")]
 mod lines;
+#[cfg(feature = "render")]
+mod mode_frame;
+#[cfg(feature = "render")]
+mod mode_lines;
 mod model;
 mod model_light;
 #[cfg(feature = "render")]
 mod model_shade;
 mod named_view;
+mod node_box;
 #[cfg(feature = "render")]
 mod parallel;
 #[cfg(feature = "render")]
@@ -85,6 +92,8 @@ mod prepared;
 mod raster;
 #[cfg(feature = "render")]
 mod render;
+#[cfg(feature = "render")]
+mod render_mode;
 mod schema;
 #[cfg(feature = "render")]
 mod shadow;
@@ -156,6 +165,7 @@ pub use model::{
 pub use model::{default_view_camera, render_default_view, render_model};
 pub use model_light::{ModelLight, ModelLightKind, ViewLightUse, ViewLights};
 pub use named_view::{NamedView, UnknownName, UpAxis};
+pub use node_box::NodeBox;
 #[cfg(feature = "render")]
 pub use pick::{Hit, Ray, pick};
 #[cfg(feature = "render")]
@@ -167,6 +177,8 @@ pub use render::{
     Bounds, Camera, Image, MAX_RENDER_PIXELS, Projection, RenderError, RenderOptions, render,
     render_coloured,
 };
+#[cfg(feature = "render")]
+pub use render_mode::{EdgeSet, FaceColour, RenderMode, RenderModeKind};
 pub use schema::Schema;
 #[cfg(feature = "render")]
 pub use shadow::{DEFAULT_SHADOW_MAP_SIZE, LightSense, MAX_SHADOW_MAP_SIZE, ShadowLight};

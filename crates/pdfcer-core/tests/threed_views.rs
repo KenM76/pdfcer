@@ -366,6 +366,25 @@ fn a_perspective_view_names_its_scaling_and_its_lighting() {
 }
 
 #[test]
+fn a_view_render_mode_is_written_and_reads_back() {
+    use pdfcer_core::threed::{ThreeDRenderMode, ThreeDRenderModeKind};
+    let mut mode = ThreeDRenderMode::new(ThreeDRenderModeKind::HiddenWireframe);
+    mode.aux_colour = [1.0, 0.0, 0.0];
+    let view = ThreeDSavedView::new("Lines", BACK).with_render_mode(mode);
+    let mut session = EditSession::new(doc());
+    session
+        .set_3d_views(0, ANNOT, &[view], Some(0))
+        .expect("writes");
+    let back = saved(&session);
+    let first = list_3d(&back)
+        .into_iter()
+        .find(|a| a.annot_id == Some(ANNOT))
+        .expect("listed");
+    let read = default_3d_view(&back, &first).expect("a default view");
+    assert_eq!(read.render_mode, Some(mode));
+}
+
+#[test]
 fn the_activation_condition_reads_back_and_defaults_to_a_click() {
     use pdfcer_core::threed::ThreeDActivation;
     let of = |extra: &str| {

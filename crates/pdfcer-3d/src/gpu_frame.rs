@@ -131,6 +131,7 @@ impl FrameLights {
             local_cones: [[0.0; 4]; MAX_LIGHTS],
             dropped: 0,
         };
+        let options = &crate::render_mode::frame_options(options);
         let shader = Shader::for_frame(options, lights, &basis);
         out.set_specular(&crate::gloss::GlossLights::new(&shader, options, lights));
         match shader {
