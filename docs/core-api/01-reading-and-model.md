@@ -3695,8 +3695,9 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     layer `e` < `count` exactly as the key map with `matrix(e)` →
     `u_shadow_matrix`. Bind it as `u_shadow_extra_map` with
     `u_shadow_extra` = `count`, `to_light`, `colour` →
-    `u_shadow_extra_*[15]` (`lights` names each caster's light, for
-    disclosure; no uniform), `centre`, `reach` →
+    `u_shadow_extra_*[15]`, `lights` → `u_shadow_extra_light[15]` (each
+    caster's light, so its map also shades that light's highlights on a
+    finished draw), `centre`, `reach` →
     `u_shadow_extra_centre` / `u_shadow_extra_reach`; the lookup reuses
     `u_shadow_size`, `u_shadow_offset`, `u_shadow_bias`. At most
     `MAX_EXTRA_SHADOWS` (15); disclose `dropped`.

@@ -252,7 +252,10 @@ impl Gloss {
                 Some(CasterKind::Dim) => SHADOW_DIM + (1.0 - SHADOW_DIM) * lit,
                 _ => 1.0,
             };
-            add_light(*colour, shadow * blinn_phong(n, v, l, e));
+            let extra = lights
+                .extra
+                .map_or(1.0, |x| x.visibility(i, p, lights.face));
+            add_light(*colour, shadow * extra * blinn_phong(n, v, l, e));
         }
         for (i, (local, colour)) in lights.local.iter().zip(&self.lights.near).enumerate() {
             let Some((l, reach)) = local.reach(p) else {

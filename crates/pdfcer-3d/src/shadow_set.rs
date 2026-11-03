@@ -105,6 +105,17 @@ impl ExtraShadows {
         ExtraShadows { maps }
     }
 
+    /// Light `light`'s visibility at model point `p` on a face of unit
+    /// normal `face`: 1 when it casts no map here.
+    pub(crate) fn visibility(&self, light: usize, p: [f64; 3], face: [f64; 3]) -> f64 {
+        self.maps
+            .iter()
+            .find(|(e, _)| e.light == light)
+            .map_or(1.0, |(_, map)| {
+                map.visibility(map.view.lookup_point(p, face))
+            })
+    }
+
     /// Removes from `shade`, at model point `p` with (unnormalised) normal
     /// `n` on a face of unit normal `face`, each caster's light where its
     /// map shadows the point: `(1 − lit) · colour · |n · d|`.

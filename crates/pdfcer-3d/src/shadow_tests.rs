@@ -270,3 +270,27 @@ fn a_lamp_sees_through_translucent_and_cut_out_cards() {
     assert_eq!(red(&cut, 24), red(&solid, 24));
     assert_eq!(red(&cut, 28), open);
 }
+
+#[test]
+fn a_highlight_dims_inside_the_shadow_of_the_light_that_makes_it() {
+    // The floor shines; the card shades the second sun's share at pixel 26.
+    let both = [sun([1.0, 0.0, 1.0], 0.8), sun([-1.0, 0.0, 1.0], 0.5)];
+    let meshes = [quad(0.0, 3.0), quad(1.0, 0.5)];
+    let shiny = crate::MaterialFinish::new([0.0; 3], [0.3; 3], 0.05);
+    let dark = Paint {
+        colour: [60, 60, 60, 255],
+        texture: None,
+    };
+    let options = options(ShadowAlpha::Transmit, ShadowCasters::EveryLight);
+    let shot = |finishes: &[Option<crate::MaterialFinish>]| {
+        let model = (&meshes[..], &both[..], finishes);
+        crate::render::render_finished(model, &[dark, SOLID], &[true, true], &camera(), &options)
+            .unwrap()
+            .0
+    };
+    let plain = shot(&[]);
+    let glossy = shot(&[Some(shiny), None]);
+    let shine = |x| red(&glossy, x) - red(&plain, x);
+    assert!(shine(2) > 10, "{}", shine(2));
+    assert!(shine(26) < shine(2) - 5, "{} {}", shine(26), shine(2));
+}

@@ -98,7 +98,7 @@ void main() {
 /// without one), `u_lamp_shadow_map`, `u_lamp_shadow_size`,
 /// `u_lamp_far[16]`; and from [`crate::FrameExtraShadows`] the further
 /// casters and the see-through layers: `u_shadow_extra` (0 without one),
-/// `u_shadow_extra_map`, `u_shadow_extra_to_light[15]`,
+/// `u_shadow_extra_map`, `u_shadow_extra_to_light[15]`, `u_shadow_extra_light[15]`,
 /// `u_shadow_extra_colour[15]`, `u_shadow_extra_centre`,
 /// `u_shadow_extra_reach`, `u_shadow_veiled`, `u_shadow_veil`,
 /// `u_shadow_transmit`, `u_lamp_veiled`, `u_lamp_veil`, `u_lamp_transmit`.
@@ -153,6 +153,7 @@ uniform float u_lamp_far[16];
 uniform int u_shadow_extra;
 uniform highp sampler2DArray u_shadow_extra_map;
 uniform vec3 u_shadow_extra_to_light[15];
+uniform int u_shadow_extra_light[15];
 uniform vec3 u_shadow_extra_colour[15];
 uniform vec3 u_shadow_extra_centre;
 uniform float u_shadow_extra_reach;
@@ -276,21 +277,36 @@ float lit(vec3 f) {
     return pcf((c.xyz + 1.0) * 0.5, 0);
 }
 
+// Further caster e's lit share on a face with unit normal f. Each map is
+// the key map's frame turned to its light.
+float extra_lit(int e, vec3 f) {
+    vec3 l = u_shadow_extra_to_light[e];
+    vec3 g = dot(f, l) < 0.0 ? -f : f;
+    vec3 d = v_world + g * u_shadow_offset - u_shadow_extra_centre;
+    vec3 r = normalize(cross(abs(l.z) < 0.9 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0), l));
+    vec3 c = vec3(dot(d, r), dot(d, cross(l, r)), -dot(d, l)) / u_shadow_extra_reach;
+    return pcf((c + 1.0) * 0.5, e + 1);
+}
+
 // What the further casters' shadows remove at unit normal n on a face with
-// unit normal f: each one's light where its map shadows the point. Each map
-// is the key map's frame turned to its light.
+// unit normal f: each one's light where its map shadows the point.
 vec3 extra(vec3 n, vec3 f) {
     vec3 s = vec3(0.0);
     for (int e = 0; e < 15; e++) {
         if (e >= u_shadow_extra) break;
         vec3 l = u_shadow_extra_to_light[e];
-        vec3 g = dot(f, l) < 0.0 ? -f : f;
-        vec3 d = v_world + g * u_shadow_offset - u_shadow_extra_centre;
-        vec3 r = normalize(cross(abs(l.z) < 0.9 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0), l));
-        vec3 c = vec3(dot(d, r), dot(d, cross(l, r)), -dot(d, l)) / u_shadow_extra_reach;
-        s += (1.0 - pcf((c + 1.0) * 0.5, e + 1)) * abs(dot(n, l)) * u_shadow_extra_colour[e];
+        s += (1.0 - extra_lit(e, f)) * abs(dot(n, l)) * u_shadow_extra_colour[e];
     }
     return s;
+}
+
+// Directional light i's visibility in its own further map, 1 without one.
+float extra_of(int i, vec3 f) {
+    for (int e = 0; e < 15; e++) {
+        if (e >= u_shadow_extra) break;
+        if (u_shadow_extra_light[e] == i) return extra_lit(e, f);
+    }
+    return 1.0;
 }
 
 // max(n.h, 0)^e with h the unit half-vector of l and v; 0 when n.h is
@@ -322,6 +338,7 @@ vec3 highlights(vec3 p, vec3 n, vec3 f, float sh) {
         float k = 1.0;
         if (u_shadows && u_shadow_light == i) k = sh;
         if (u_shadows && u_shadow_light < 0) k = u_shadow_dim + (1.0 - u_shadow_dim) * sh;
+        k *= extra_of(i, f);
         s += u_light_specular[i] * (k * blinn(n, v, l));
     }
     for (int i = 0; i < 16; i++) {

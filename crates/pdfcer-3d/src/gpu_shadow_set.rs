@@ -129,7 +129,8 @@ pub struct FrameExtraShadows {
     pub size: u32,
     /// How many further casters (`u_shadow_extra`).
     pub count: usize,
-    /// Each one's light, an index into [`crate::FrameLights::directions`].
+    /// Each one's light, an index into [`crate::FrameLights::directions`]
+    /// (`u_shadow_extra_light[15]`, so its map also shades its highlight).
     pub lights: [i32; MAX_EXTRA_SHADOWS],
     /// Unit, model space, towards each (`u_shadow_extra_to_light[15]`).
     pub to_light: [[f32; 3]; MAX_EXTRA_SHADOWS],
@@ -317,6 +318,7 @@ mod tests {
             "u_shadow_extra",
             "u_shadow_extra_map",
             "u_shadow_extra_to_light[15]",
+            "u_shadow_extra_light[15]",
             "u_shadow_extra_colour[15]",
             "u_shadow_extra_centre",
             "u_shadow_extra_reach",
