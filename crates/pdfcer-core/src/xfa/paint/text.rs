@@ -8,10 +8,16 @@ use crate::vartext::{encode_winansi, text_width};
 
 use super::{FontWeight, LayoutItem, LayoutRect, PaintNoteKind, Painter, Presence, XfaNode, inset};
 
-/// Widgets whose only drawing is the value and their own border (p.865,
-/// p.784, p.669, p.750). `defaultUi` stands for the value type's widget
-/// (pp.490-491); a non-text value is disclosed by its own check.
-const TEXT_WIDGETS: [&str; 6] = [
+/// Widgets this painter draws in full: the value (or a button's caption)
+/// and their own border (p.865, p.784, p.669, p.750, p.462, p.858). A
+/// `barcode` is disclosed by its own note. `defaultUi` stands for the value
+/// type's widget (pp.490-491); a non-text value is disclosed by its own
+/// check.
+const TEXT_WIDGETS: [&str; 10] = [
+    "barcode",
+    "button",
+    "signature",
+    "choiceList",
     "textEdit",
     "numericEdit",
     "dateTimeEdit",
@@ -38,10 +44,25 @@ pub(super) fn content_left_out(node: &XfaNode) -> bool {
 pub(super) fn has_unplain_value(holder: &XfaNode) -> bool {
     super::rich::rich_value(holder).is_none()
         && holder.child("value").is_some_and(|v| {
-            v.children
-                .iter()
-                .any(|c| !(c.tag == "image" || (c.tag == "text" && c.children.is_empty())))
+            v.children.iter().any(|c| {
+                !(c.tag == "image" || (SCALAR.contains(&c.tag.as_str()) && c.children.is_empty()))
+            })
         })
+}
+
+/// Value elements holding one scalar as PCDATA (pp.486-492); a merged
+/// field's bound value lands in whichever its template declares.
+const SCALAR: [&str; 8] = [
+    "text", "date", "time", "dateTime", "integer", "decimal", "float", "boolean",
+];
+
+/// `holder`'s scalar value element.
+pub(super) fn scalar(holder: &XfaNode) -> Option<&XfaNode> {
+    holder
+        .child("value")?
+        .children
+        .iter()
+        .find(|c| SCALAR.contains(&c.tag.as_str()))
 }
 
 /// The `ui` element's widget child (the one beside `extras` and `picture`).
@@ -74,9 +95,9 @@ pub(super) fn face(typeface: &str, bold: bool, italic: bool) -> (Std14, bool) {
     (styled, !exact)
 }
 
-/// The text to draw: `holder`'s `value/text` PCDATA, else nothing.
+/// The text to draw: `holder`'s scalar value PCDATA, else nothing.
 pub(in crate::xfa) fn plain_text(holder: &XfaNode) -> Option<&str> {
-    let text = holder.child("value")?.child("text")?;
+    let text = scalar(holder)?;
     (text.children.is_empty() && !text.text.is_empty()).then_some(text.text.as_str())
 }
 
@@ -144,9 +165,9 @@ pub(in crate::xfa) fn text_extent(
 }
 
 /// Text-run settings read from `font` and `para`.
-struct Style {
-    font: Std14,
-    size: f64,
+pub(super) struct Style {
+    pub(super) font: Std14,
+    pub(super) size: f64,
     rgb: [f64; 3],
     h_align: f64,
     v_align: f64,
@@ -157,8 +178,14 @@ impl Painter<'_> {
     /// region carved from the content region (p.50), the value in the rest,
     /// inset by a text widget's own margin.
     pub(super) fn text(&mut self, item: &LayoutItem, node: &XfaNode) {
+        let w = widget(node);
+        match w.map(|w| w.tag.as_str()) {
+            Some("button") => return self.button(item, node, w),
+            Some("signature") if self.opts.medium == super::Medium::Paper => return,
+            _ => {}
+        }
         let mut r = self.value_region(item, node);
-        if let Some(w) = widget(node) {
+        if let Some(w) = w {
             if let Some(b) = w
                 .child("border")
                 .filter(|b| b.presence() == Presence::Visible)
@@ -166,6 +193,12 @@ impl Painter<'_> {
                 self.border(item, b, r);
             }
             r = inset(r, w.child("margin"));
+            match w.tag.as_str() {
+                "choiceList" => return self.choice(item, node, w, r),
+                "signature" => return,
+                "barcode" if plain_text(node).is_some() => self.note(item, PaintNoteKind::Barcode),
+                _ => {}
+            }
         }
         if let Some(shape) = super::shape::value_shape(node) {
             self.shape(item, shape, r);
@@ -175,8 +208,8 @@ impl Painter<'_> {
         } else if let Some(v) = super::page_script::value(node, self.page.0, self.page.1) {
             self.note(item, PaintNoteKind::Script);
             self.set(item, &v, node.child("font"), node.child("para"), r);
-        } else if let Some(text) = plain_text(node) {
-            self.set(item, text, node.child("font"), node.child("para"), r);
+        } else if let Some(text) = self.shown(item, node) {
+            self.set(item, &text, node.child("font"), node.child("para"), r);
         }
     }
 
@@ -248,7 +281,9 @@ impl Painter<'_> {
         self.run(r, &style, &lines, top - ascent, line_h);
     }
 
-    fn style(
+    /// The font, colour and paragraph settings `item` draws its text with;
+    /// a substituted face adds a Font note.
+    pub(super) fn style(
         &mut self,
         item: &LayoutItem,
         font: Option<&XfaNode>,
@@ -285,7 +320,16 @@ impl Painter<'_> {
         }
     }
 
-    fn run(&mut self, r: LayoutRect, style: &Style, lines: &[String], first: f64, line_h: f64) {
+    /// Draw `lines` in `r`, clipped to it, the first baseline at `first`
+    /// (PDF y-up) and each next one `line_h` lower.
+    pub(super) fn run(
+        &mut self,
+        r: LayoutRect,
+        style: &Style,
+        lines: &[String],
+        first: f64,
+        line_h: f64,
+    ) {
         let clip = r.w > 0.0 && r.h > 0.0;
         self.b.save_state();
         if clip {
@@ -349,7 +393,7 @@ fn wrap(text: &str, face: Std14, size: f64, width: f64) -> (Vec<String>, bool) {
 
 /// `r` less `para`'s `marginLeft`/`marginRight` and `spaceAbove`/
 /// `spaceBelow` (p.802); a zero height (unbounded) stays zero.
-fn para_inset(r: LayoutRect, para: Option<&XfaNode>) -> LayoutRect {
+pub(super) fn para_inset(r: LayoutRect, para: Option<&XfaNode>) -> LayoutRect {
     let p = |a: &str| para.and_then(|n| super::length(n, a)).unwrap_or(0.0);
     let (left, right, above, below) = (
         p("marginLeft"),

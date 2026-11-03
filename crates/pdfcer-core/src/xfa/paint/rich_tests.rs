@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)] // a panic here is the test failing
 
-use super::check_tests::painted;
+use super::check_tests::{kinds, painted};
 use super::*;
 
 const XHTML: &str = r#"xmlns="http://www.w3.org/1999/xhtml""#;
@@ -10,10 +10,6 @@ fn draw(w: &str, body: &str) -> String {
     format!(
         r#"<draw name="f1" x="10pt" y="20pt" w="{w}" h="40pt"><font typeface="Helvetica"/><value><exData contentType="text/html"><body {XHTML}>{body}</body></exData></value></draw>"#
     )
-}
-
-fn kinds(notes: &[PaintNote]) -> Vec<PaintNoteKind> {
-    notes.iter().map(|n| n.kind).collect()
 }
 
 /// The `x y` of every `Tm` in `ops`, in order.

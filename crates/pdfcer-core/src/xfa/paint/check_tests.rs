@@ -5,6 +5,11 @@ use crate::xfa::{LayoutOptions, XdpDocument, layout_template, read_template};
 
 const PAGE: &str = r#"<pageSet><pageArea name="P"><contentArea x="36pt" y="36pt" w="540pt" h="720pt"/></pageArea></pageSet>"#;
 
+/// The kinds of `notes`, in order.
+pub(super) fn kinds(notes: &[PaintNote]) -> Vec<PaintNoteKind> {
+    notes.iter().map(|n| n.kind).collect()
+}
+
 /// `body` laid out in a 36pt content area and painted: the page content as
 /// one space-separated line, and its notes.
 pub(super) fn painted(body: &str, opts: &PaintOptions) -> (String, Vec<PaintNote>) {

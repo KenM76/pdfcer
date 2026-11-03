@@ -10,6 +10,7 @@ mod layout;
 mod merge;
 mod packets;
 mod paint;
+mod picture;
 mod template;
 
 pub use layout::{
@@ -29,8 +30,8 @@ pub use packets::{MAX_XDP_LEN, MAX_XML_DEPTH, XdpDocument, XdpPacket, XfaError, 
 pub(crate) use packets::{parse_xdp, read_xdp_sources};
 pub use paint::{
     ArcCircle, ArcFill, CaptionFont, CheckCaption, CheckEdge, DashCaps, DashLengths, EdgePlacement,
-    FontWeight, ImageOverflow, ImagePlacement, MissingFill, PaintNote, PaintNoteKind, PaintOptions,
-    PaintedPage, ThreeDStroke, paint_page, paint_page_with_images,
+    FontWeight, ImageOverflow, ImagePlacement, Medium, MissingFill, PaintNote, PaintNoteKind,
+    PaintOptions, PaintedPage, ThreeDStroke, paint_page, paint_page_with_images,
 };
 pub use template::{
     AnchorType, ContainerKind, LayoutStrategy, Measurement, Occur, Presence, Template, XfaNode,

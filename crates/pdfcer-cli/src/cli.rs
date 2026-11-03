@@ -6350,6 +6350,11 @@ pub(crate) enum Command {
         /// it, or none, as the XFA specification reads.
         #[arg(long, value_enum, default_value_t)]
         check_edge: CheckEdgeArg,
+        /// Which presentation --png-dir paints: screen, as a viewer shows
+        /// the form (drop-down list buttons, signature field borders), or
+        /// paper, as it prints (neither).
+        #[arg(long, value_enum, default_value_t)]
+        medium: MediumArg,
         /// A draw's or field's rotate that is not a multiple of 90 degrees
         /// (the XFA spec allows no other): ignored, or turned to the
         /// nearest multiple. Listed as rotate-adjusted either way.

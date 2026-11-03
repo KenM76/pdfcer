@@ -1054,6 +1054,20 @@ kind.
   - `ArcFill { Pie (default), Chord }` (`with_arc_fill`): a filled arc
     under 360 degrees closes through the centre or straight between its
     ends (gap G-D9).
+  - `Medium { Screen (default), Paper }` (`with_medium`): the screen
+    presentation draws a drop-down `choiceList`'s button and a `signature`
+    widget's border; paper draws neither (pp.482-483).
+- **Field widgets.** A value element of any scalar type (`text`, `date`,
+  `time`, `dateTime`, `integer`, `decimal`, `float`, `boolean`) is drawn,
+  through the field's display picture (`format/picture`, Ch.26: `date{}`,
+  `time{}`, `num{}`, `text{}`, `null{}`, `zero{}`, `|` alternates,
+  predefined `date.short{}`-style pictures in `en_US`; rounding half-up). A
+  value no alternate matches shows as saved. `passwordEdit` shows one
+  `passwordChar` (default `*`) per character. A `choiceList` shows its
+  selection's display text (positional `items`, `save="1"` holding values),
+  or with `open="always"`/`multiSelect` every item with the selection
+  highlighted. A `button` shows its caption over its whole content region.
+  A `barcode` shows its value as text.
 - **Shape values.** A draw's `rectangle`, `line` or `arc` value is drawn in
   its content region: a rectangle like a border (a corner `radius` rounds
   only with `join="round"`; `join` defaults to square, a cut corner,
@@ -1063,9 +1077,15 @@ kind.
   `edge` `cap` (square default, butt, round) is honoured.
 - **★ What the UI must disclose:** every `PaintNote` (path + `PaintNoteKind`):
   - `Content`: an `inline` or rich-text caption, a rich or non-text value,
-    or a widget drawing more than its text (check button, choice list,
-    bordered widget), not drawn yet.
+    or a widget pdfcer does not draw, not drawn yet.
   - `Font`: the typeface was drawn in a substituted standard-14 face.
+  - `Choice`: a `choiceList` value shown as saved (it matches no item and
+    `textEntry` is off, or the items come from `bindItems`, which are not
+    resolved; an open list with `bindItems` shows no items).
+  - `Picture`: a display picture applied only in part: a symbol pdfcer does
+    not format (the value shows as saved), or month, day or currency names
+    shown in English under a non-English `locale`.
+  - `Barcode`: a `barcode` value shown as text; barcodes are not encoded.
   - `Script`: a value shown from a recognised page-number script (a
     `$layout` `ready` event assigning `xfa.layout.page(this)`,
     `pageCount()`, `absPage`/`absPageCount`, `sheet`/`sheetCount` (one

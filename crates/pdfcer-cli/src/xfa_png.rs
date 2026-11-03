@@ -4,8 +4,8 @@ use super::*;
 
 use pdfcer_core::xfa::{
     ArcCircle, ArcFill, CaptionFont, CheckCaption, CheckEdge, DashCaps, DashLengths, EdgePlacement,
-    FontWeight, ImageOverflow, ImagePlacement, MissingFill, PaintNoteKind, PaintOptions, Template,
-    ThreeDStroke, XfaLayout,
+    FontWeight, ImageOverflow, ImagePlacement, Medium, MissingFill, PaintNoteKind, PaintOptions,
+    Template, ThreeDStroke, XfaLayout,
 };
 
 /// `xfa-layout --edge-placement` (gap G-D1, decision 207).
@@ -36,6 +36,16 @@ pub(crate) enum CheckEdgeArg {
     Plain,
     /// No outline, only the fill (the XFA specification).
     Spec,
+}
+
+/// `xfa-layout --medium`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum MediumArg {
+    /// As a viewer shows the form.
+    #[default]
+    Screen,
+    /// As the form prints.
+    Paper,
 }
 
 /// `xfa-layout --font-weight` (gap G-T1).
@@ -162,6 +172,7 @@ pub(crate) struct XfaPngArgs {
     pub(crate) three_d_stroke: ThreeDStrokeArg,
     pub(crate) check_caption: CheckCaptionArg,
     pub(crate) check_edge: CheckEdgeArg,
+    pub(crate) medium: MediumArg,
     pub(crate) dash_lengths: DashLengthsArg,
     pub(crate) dash_caps: DashCapsArg,
     pub(crate) arc_circle: ArcCircleArg,
@@ -204,6 +215,10 @@ impl XfaPngArgs {
             .with_check_edge(match self.check_edge {
                 CheckEdgeArg::Plain => CheckEdge::Plain,
                 CheckEdgeArg::Spec => CheckEdge::Spec,
+            })
+            .with_medium(match self.medium {
+                MediumArg::Paper => Medium::Paper,
+                MediumArg::Screen => Medium::Screen,
             })
             .with_dash_lengths(match self.dash_lengths {
                 DashLengthsArg::Scaled => DashLengths::Scaled,
@@ -286,6 +301,9 @@ fn note_label(k: PaintNoteKind) -> &'static str {
         PaintNoteKind::Shape => "shape-defaulted",
         PaintNoteKind::Rotate => "rotate-adjusted",
         PaintNoteKind::Script => "page-script-recognised",
+        PaintNoteKind::Choice => "choice-shown-as-saved",
+        PaintNoteKind::Picture => "picture-approximated",
+        PaintNoteKind::Barcode => "barcode-shown-as-text",
         _ => "other",
     }
 }
