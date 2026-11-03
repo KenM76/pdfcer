@@ -6332,8 +6332,9 @@ pub(crate) enum Command {
         /// edges (as Acrobat does) or drawn whole, for --png-dir.
         #[arg(long, value_enum, default_value_t)]
         image_overflow: ImageOverflowArg,
-        /// The resolution assumed for an image that records none, for
-        /// --png-dir. It sets that image's natural size.
+        /// The resolution assumed for an image that records none. It sets
+        /// that image's natural size: the size a growable field or draw
+        /// holding it is laid at, and the size it is drawn at in --png-dir.
         #[arg(long, default_value_t = 72, value_parser = clap::value_parser!(u16).range(1..))]
         image_dpi: u16,
         /// How a lowered, raised, etched or embossed border edge is drawn,

@@ -43,7 +43,7 @@ use geometry::{Ctx, Placed, is_placeable, lay, shifted};
 use overflow::Level;
 use pager::{Area, Pager};
 
-use super::{ContainerKind, LayoutStrategy, Template, XfaNode};
+use super::{ContainerKind, LayoutStrategy, Template, XfaImages, XfaNode};
 
 /// Pages one layout may produce; past it the rest is discarded and
 /// [`LayoutWarning::PageLimit`] reported (`ARCHITECTURE.md` §10).
@@ -265,6 +265,22 @@ pub fn layout_template(
     template: &Template,
     opts: &LayoutOptions,
 ) -> Result<XfaLayout, LayoutError> {
+    layout_template_with_images(template, opts, &XfaImages::new())
+}
+
+/// [`layout_template`], with the files an image value's `href` names, so
+/// a growable field or draw holding a linked image is laid at the image's
+/// natural size (an inline image is measured either way). Pass the same
+/// `images` painting gets.
+///
+/// # Errors
+///
+/// As [`layout_template`].
+pub fn layout_template_with_images(
+    template: &Template,
+    opts: &LayoutOptions,
+    images: &XfaImages,
+) -> Result<XfaLayout, LayoutError> {
     let root_el = template.element();
     let (ri, root) = root_el
         .children
@@ -284,6 +300,7 @@ pub fn layout_template(
             warnings: Vec::new(),
             items: 0,
             root: root_el,
+            images,
             bookends: Vec::new(),
         },
         root: root_el,

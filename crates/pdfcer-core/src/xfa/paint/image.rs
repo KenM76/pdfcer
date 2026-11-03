@@ -13,14 +13,14 @@ use std::fmt::Write as _;
 use crate::filters::flate;
 use crate::image_import::jpeg_encode::source_samples;
 use crate::image_import::{self, ImportColorSpace, ImportFilter, ImportedImage, flate_encode};
-use crate::xfa::images::decode_base64;
+use crate::xfa::images::{XfaImages, decode_base64};
 
 use super::{
     ImageOverflow, ImagePlacement, LayoutItem, LayoutRect, PaintNoteKind, Painter, XfaNode,
 };
 
 /// `holder`'s `value/image`, when its value is an image.
-pub(super) fn value_image(holder: &XfaNode) -> Option<&XfaNode> {
+pub(in crate::xfa) fn value_image(holder: &XfaNode) -> Option<&XfaNode> {
     holder.child("value")?.child("image")
 }
 
@@ -131,36 +131,51 @@ impl Painter<'_> {
 
     /// The natural size of `node`'s image in points, when it resolves.
     pub(super) fn image_extent(&self, node: &XfaNode) -> Option<(f64, f64)> {
-        let bytes = self.image_bytes(node)?;
-        self.import(&bytes).map(|i| i.natural_size_pt())
+        natural_size(node, self.images, self.opts.image_dpi)
     }
 
-    /// `bytes` decoded, with the assumed resolution when they record none.
     fn import(&self, bytes: &[u8]) -> Option<ImportedImage> {
-        let mut img = image_import::import(bytes).ok()?;
-        if img.dpi.is_none() {
-            let dpi = f64::from(if self.opts.image_dpi == 0 {
-                72
-            } else {
-                self.opts.image_dpi
-            });
-            img.dpi = Some((dpi, dpi));
-        }
-        Some(img)
+        import(bytes, self.opts.image_dpi)
     }
 
-    /// The `href` target held in the file, else the inline content (p.750:
-    /// `href` takes priority).
     fn image_bytes<'n>(&'n self, node: &'n XfaNode) -> Option<Cow<'n, [u8]>> {
-        if let Some(found) = node.attr("href").and_then(|h| self.images.get(h)) {
-            return Some(Cow::Borrowed(found));
-        }
-        let text = node.text.trim();
-        if text.is_empty() {
-            return None;
-        }
-        decode_base64(text.as_bytes()).map(Cow::Owned)
+        image_bytes(node, self.images)
     }
+}
+
+/// The natural size in points of the `image` element `node`: its `href`
+/// target in `images`, else its inline content, at `dpi` when the image
+/// records no resolution (0 reads as 72). `None` when it does not decode.
+pub(in crate::xfa) fn natural_size(
+    node: &XfaNode,
+    images: &XfaImages,
+    dpi: u16,
+) -> Option<(f64, f64)> {
+    let bytes = image_bytes(node, images)?;
+    import(&bytes, dpi).map(|i| i.natural_size_pt())
+}
+
+/// `bytes` decoded, with `dpi` assumed when they record none.
+fn import(bytes: &[u8], dpi: u16) -> Option<ImportedImage> {
+    let mut img = image_import::import(bytes).ok()?;
+    if img.dpi.is_none() {
+        let dpi = f64::from(if dpi == 0 { 72 } else { dpi });
+        img.dpi = Some((dpi, dpi));
+    }
+    Some(img)
+}
+
+/// The `href` target held in the file, else the inline content (p.750:
+/// `href` takes priority).
+fn image_bytes<'n>(node: &'n XfaNode, images: &'n XfaImages) -> Option<Cow<'n, [u8]>> {
+    if let Some(found) = node.attr("href").and_then(|h| images.get(h)) {
+        return Some(Cow::Borrowed(found));
+    }
+    let text = node.text.trim();
+    if text.is_empty() {
+        return None;
+    }
+    decode_base64(text.as_bytes()).map(Cow::Owned)
 }
 
 /// `img` as `BI` samples, and whether its transparency was flattened onto
@@ -274,5 +289,7 @@ fn inline_image(r: &Raster) -> Vec<u8> {
     out
 }
 
+#[cfg(test)]
+mod layout_tests;
 #[cfg(test)]
 mod tests;

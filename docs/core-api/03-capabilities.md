@@ -812,8 +812,11 @@ file.
   warning off-canvas with the layout warnings.
 
 **The XFA layout** (`xfa/layout.rs`, decision 204, Passes 647.1-647.2):
-`layout_template(&Template, &LayoutOptions) -> Result<XfaLayout, LayoutError>`.
-It is a pure function: it writes nothing to the document. Its result is
+`layout_template(&Template, &LayoutOptions) -> Result<XfaLayout, LayoutError>`,
+or `layout_template_with_images(&Template, &LayoutOptions, &XfaImages)`
+(the same `XfaImages` painting gets) so a growable field or draw holding a
+linked (`href`) image is laid at that image's natural size; an inline image
+is measured by both. It is a pure function: it writes nothing to the document. Its result is
 inferred content (rule 4), so a shell that renders it discloses that, along
 with every `warnings` entry.
 - **Output.** `XfaLayout { pages, warnings }`. Each `LayoutPage` carries:
@@ -973,6 +976,10 @@ with every `warnings` entry.
     tall as its content, ignoring its declared `h`, or keeps that `h`
     (decision 212; `maxH` caps it either way; a positioned cell always
     keeps `h`). `#[non_exhaustive]`.
+  - `.with_image_dpi(u16)` (default 0, read as 72): the resolution assumed
+    for an image value that records none, which sets the natural size a
+    growable container holding it is laid at. Pass the same value as
+    `PaintOptions::with_image_dpi` so the box and the drawn image agree.
 - **Tables.** A `table` subform stacks its rows top to bottom and splits
   between them. Column widths come from `columnWidths` (`-1` or a column
   past the list: as wide as its widest one-column cell). Each cell

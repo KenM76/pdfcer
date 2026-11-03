@@ -512,6 +512,7 @@ mod size;
 mod text;
 mod turn;
 mod widgets;
+pub(super) use image::{natural_size, value_image};
 pub(super) use size::content_size;
 pub(super) use text::{line_pitch, widget};
 

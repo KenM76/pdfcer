@@ -705,3 +705,23 @@ fn bind_items_flags_reach_the_merge() {
     let (_, first, _) = run("binditems-first", &bytes, &["--bind-items-repeat", "first"]);
     assert!(first.ends_with("warnings=0\n"), "{first}");
 }
+
+#[test]
+fn an_image_draw_is_laid_at_its_natural_size_under_image_dpi() {
+    let img = red_bmp_base64(20, 10);
+    let t = format!(
+        r#"<subform name="f">{PAGE}<draw name="pic" x="0pt" y="0pt"><value><image>{img}</image></value></draw></subform>"#
+    );
+    let bytes = pdf(Some(&t));
+    let (code, at72, stderr) = run("img-size-72", &bytes, &[]);
+    assert_eq!(code, 0, "{stderr}");
+    let (_, at144, _) = run("img-size-144", &bytes, &["--image-dpi", "144"]);
+    let line = |s: &str| {
+        s.lines()
+            .find(|l| l.contains(r#"name="pic""#))
+            .unwrap()
+            .to_owned()
+    };
+    assert!(line(&at72).contains("w=20 h=10"), "{at72}");
+    assert!(line(&at144).contains("w=10 h=5"), "{at144}");
+}

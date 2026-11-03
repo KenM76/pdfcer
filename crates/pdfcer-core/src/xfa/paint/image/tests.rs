@@ -10,7 +10,7 @@ use crate::xfa::{LayoutOptions, XdpDocument, layout_template, read_template};
 const PAGE: &str = r#"<pageSet><pageArea name="P"><contentArea x="0pt" y="0pt" w="540pt" h="720pt"/></pageArea></pageSet>"#;
 
 /// A `w` by `h` 24-bit BMP of one colour; `ppm` pixels per metre (0: none).
-fn bmp(w: u32, h: u32, rgb: [u8; 3], ppm: u32) -> Vec<u8> {
+pub(super) fn bmp(w: u32, h: u32, rgb: [u8; 3], ppm: u32) -> Vec<u8> {
     let stride = (w * 3).div_ceil(4) * 4;
     let size = 54 + stride * h;
     let mut b = b"BM".to_vec();
@@ -60,7 +60,7 @@ fn png(colour: u8, raw: &[u8]) -> Vec<u8> {
     out
 }
 
-fn base64(bytes: &[u8]) -> String {
+pub(super) fn base64(bytes: &[u8]) -> String {
     const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     let mut s = String::new();
     for c in bytes.chunks(3) {

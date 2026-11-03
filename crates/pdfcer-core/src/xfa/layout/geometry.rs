@@ -9,7 +9,9 @@ use super::{
     LayoutItem, LayoutOptions, LayoutRect, LayoutWarning, NegativeCoordinates, TableCellHeight,
     TiledSplit,
 };
-use crate::xfa::{AnchorType, ContainerKind, LayoutStrategy, Measurement, Presence, XfaNode};
+use crate::xfa::{
+    AnchorType, ContainerKind, LayoutStrategy, Measurement, Presence, XfaImages, XfaNode,
+};
 
 /// `font@size` default (Ch.17 p.741), the base of an `em` measurement.
 const DEFAULT_FONT_SIZE: f64 = 10.0;
@@ -21,6 +23,8 @@ pub(super) struct Ctx<'o> {
     pub(super) items: usize,
     /// The template element: where bookend targets are looked up.
     pub(super) root: &'o XfaNode,
+    /// The files an image value's `href` names.
+    pub(super) images: &'o XfaImages,
     /// Paths of the bookend targets being laid, outermost first: the
     /// cycle guard.
     pub(super) bookends: Vec<Vec<usize>>,
@@ -431,7 +435,7 @@ fn size(
             let wrap = ctx
                 .length(node, path, "w")
                 .or_else(|| ctx.length(node, path, "maxW").filter(|v| *v > 0.0));
-            content(node, kind, wrap)
+            content(ctx, node, kind, wrap)
         }
         _ => Some(laid),
     };

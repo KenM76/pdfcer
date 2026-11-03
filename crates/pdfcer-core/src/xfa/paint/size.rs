@@ -13,20 +13,26 @@ use super::{LayoutRect, XfaNode, inset, length};
 /// wraps, one word a line, rather than reading as unwrapped.
 const MIN_WRAP: f64 = 1e-3;
 
-/// The width and height `node`'s plain-text value needs, wrapped at
-/// `wrap` (its nominal width) when given, one unwrapped line when
-/// `single`; `None` when the value is empty or not plain text (an image's
-/// size is not measured here), so the container keeps `minW`/`minH`.
+/// The width and height `node`'s value needs: `image`, the natural size
+/// of an image value, when given; else its plain text wrapped at `wrap`
+/// (its nominal width) when given, one unwrapped line when `single`.
+/// `None` when the value is empty, an image that did not decode, or
+/// neither, so the container keeps `minW`/`minH`.
 pub(in crate::xfa) fn content_size(
     node: &XfaNode,
     wrap: Option<f64>,
     single: bool,
+    image: Option<(f64, f64)>,
 ) -> Option<(f64, f64)> {
-    if has_unplain_value(node) {
+    if image.is_none() && has_unplain_value(node) {
         return None;
     }
-    let rich = super::rich::rich_value(node).is_some();
-    let text = if rich { "" } else { plain_text(node)? };
+    let rich = image.is_none() && super::rich::rich_value(node).is_some();
+    let text = if rich || image.is_some() {
+        ""
+    } else {
+        plain_text(node)?
+    };
     let room = |m: Option<&XfaNode>| {
         let r = inset(LayoutRect::default(), m);
         (-r.w, -r.h)
@@ -42,9 +48,10 @@ pub(in crate::xfa) fn content_size(
     let around_w = mw + ww + cw;
     let wrap_at = wrap.map_or(0.0, |w| (w - around_w).max(MIN_WRAP));
     let (font, para) = (node.child("font"), node.child("para"));
-    let (tw, th) = match rich_extent(node, font, para, wrap_at) {
+    let (tw, th) = match image {
         Some(e) => e,
-        None => text_extent(text, font, para, wrap_at, single),
+        None => rich_extent(node, font, para, wrap_at)
+            .unwrap_or_else(|| text_extent(text, font, para, wrap_at, single)),
     };
     let mut h = th + wh;
     if let Some((Side::Left | Side::Right, _, cap_h)) = cap {

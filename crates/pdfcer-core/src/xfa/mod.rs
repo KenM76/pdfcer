@@ -18,6 +18,7 @@ pub use layout::{
     Fragment, LayoutError, LayoutItem, LayoutOptions, LayoutPage, LayoutRect, LayoutWarning,
     MAX_LAYOUT_ITEMS, MAX_LAYOUT_PAGES, NegativeCoordinates, NestedOverflow, OddRotate,
     PageAreaKeep, TableCellHeight, TiledSplit, XfaLayout, layout_template,
+    layout_template_with_images,
 };
 
 pub use images::{MAX_XFA_IMAGE_BYTES, XfaImages};

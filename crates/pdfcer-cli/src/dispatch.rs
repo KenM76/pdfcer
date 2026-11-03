@@ -1445,6 +1445,7 @@ pub(crate) fn run() -> ExitCode {
                 odd_rotate,
                 tiled_split,
                 table_cell_height,
+                image_dpi,
                 merge,
             },
             &views,

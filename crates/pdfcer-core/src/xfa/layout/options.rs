@@ -95,6 +95,12 @@ pub struct LayoutOptions {
     pub tiled_split: TiledSplit,
     /// Decision 212.
     pub table_cell_height: TableCellHeight,
+    /// The resolution, in dots per inch, assumed for an image value that
+    /// records none: it sets the natural size a growable field or draw
+    /// holding the image is laid at. 0 reads as 72. Pass the same value
+    /// as [`PaintOptions::image_dpi`](crate::xfa::PaintOptions::image_dpi)
+    /// so the box and the drawn image agree.
+    pub image_dpi: u16,
 }
 
 impl LayoutOptions {
@@ -143,6 +149,13 @@ impl LayoutOptions {
     #[must_use]
     pub const fn with_table_cell_height(mut self, v: TableCellHeight) -> Self {
         self.table_cell_height = v;
+        self
+    }
+
+    /// Set [`Self::image_dpi`].
+    #[must_use]
+    pub const fn with_image_dpi(mut self, v: u16) -> Self {
+        self.image_dpi = v;
         self
     }
 }

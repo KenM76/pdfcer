@@ -228,6 +228,7 @@ pub(crate) struct XfaLayoutArgs {
     pub(crate) odd_rotate: OddRotateArg,
     pub(crate) tiled_split: TiledSplitArg,
     pub(crate) table_cell_height: TableCellHeightArg,
+    pub(crate) image_dpi: u16,
     pub(crate) merge: XfaMergeFlags,
 }
 
@@ -309,6 +310,7 @@ impl XfaLayoutArgs {
                 TableCellHeightArg::Content => TableCellHeight::Content,
                 TableCellHeightArg::Declared => TableCellHeight::Declared,
             })
+            .with_image_dpi(self.image_dpi)
     }
 }
 
@@ -340,7 +342,10 @@ pub(crate) fn cmd_xfa_layout(
     for path in &excluded {
         println!("excluded path={}", dotted(path));
     }
-    let layout = match pdfcer_core::xfa::layout_template(&merged.template, &args.options()) {
+    let images = pdfcer_core::xfa::XfaImages::from_view(&doc.view());
+    let laid =
+        pdfcer_core::xfa::layout_template_with_images(&merged.template, &args.options(), &images);
+    let layout = match laid {
         Ok(l) => l,
         Err(e) => return fail(&e),
     };
