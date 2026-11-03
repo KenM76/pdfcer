@@ -283,12 +283,13 @@ pub struct RenderOptions {
     /// 0 uses every core. Ignored on wasm32. The image is the same at any
     /// count.
     pub threads: usize,
-    /// Whether one light casts shadows (the default): the scheme's brightest
-    /// light on the viewer's side, removing its share of the shade where
-    /// something nearer that light is in the way. A scheme whose lights are
-    /// all at the camera, such as the default, instead halves the shade
-    /// where a fixed light above, left of and in front of the view is
-    /// blocked. No effect unlit.
+    /// Whether lights cast shadows (the default). The key light is the
+    /// scheme's brightest light on the viewer's side, removing its share of
+    /// the shade where something nearer that light is in the way; a scheme
+    /// whose lights are all at the camera, such as the default, instead
+    /// halves the shade where a fixed light above, left of and in front of
+    /// the view is blocked. The other directional lights cast too, per
+    /// [`shadow_casters`](Self::shadow_casters). No effect unlit.
     pub shadows: bool,
     /// Which way the scheme's light directions point, for shadows.
     pub light_sense: LightSense,

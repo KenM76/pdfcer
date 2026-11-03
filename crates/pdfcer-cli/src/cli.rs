@@ -3304,10 +3304,11 @@ pub(crate) enum Command {
         /// (default) or `world`. The standard does not say.
         #[arg(long, value_enum, default_value_t)]
         light_frame: LightFrameArg,
-        /// Draw without cast shadows. By default one light casts them: the
-        /// scheme's brightest light on the viewer's side, or, when every
-        /// light is at the camera, a fixed light above-left that halves the
-        /// shade where blocked.
+        /// Draw without cast shadows. By default the key light casts them
+        /// (the scheme's brightest light on the viewer's side, or, when
+        /// every light is at the camera, a fixed light above-left that
+        /// halves the shade where blocked), and so does every other
+        /// directional light; `--shadow-casters` limits it to the key.
         #[arg(long)]
         no_shadows: bool,
         /// Draw without the shadows a model's own point and spot lights

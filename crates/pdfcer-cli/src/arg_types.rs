@@ -1500,7 +1500,7 @@ pub(crate) enum ShadowCastersArg {
     /// (default).
     #[default]
     Every,
-    /// The one light `--shadow-light` names.
+    /// Only the key light: the one the shadow-light option names.
     Key,
 }
 
@@ -1510,7 +1510,7 @@ pub(crate) enum ShadowAlphaArg {
     /// A shadow as dark as the surface is opaque (default).
     #[default]
     Transmit,
-    /// Solid where the alpha reaches `--shadow-cutoff`, none elsewhere.
+    /// Solid where the alpha reaches the shadow cutoff, none elsewhere.
     Cutout,
     /// Only wholly opaque surfaces cast.
     Opaque,
