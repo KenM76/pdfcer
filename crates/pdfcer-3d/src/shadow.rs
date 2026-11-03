@@ -90,8 +90,10 @@ pub(crate) struct Caster {
 impl Caster {
     /// The scheme's brightest light on the viewer's side, else its brightest,
     /// not counting lights at the camera; the shadow key when every light is
-    /// at the camera; `None` unlit. `basis` is the camera's right, up and
-    /// forward.
+    /// at the camera; `None` unlit. Only the first
+    /// [`crate::gpu_frame::MAX_LIGHTS`] lights are candidates, the ones a GPU
+    /// frame draws, so both paths shadow the same light. `basis` is the
+    /// camera's right, up and forward.
     pub(crate) fn choose(
         shader: &Shader,
         sense: LightSense,
@@ -104,14 +106,18 @@ impl Caster {
             Shader::Set { lights, .. } => lights,
         };
         let brightness = |c: &[f64; 3]| c.iter().sum::<f64>();
-        let candidates = lights.iter().enumerate().filter_map(|(i, (dir, colour))| {
-            let d = (*dir)?;
-            let to_light = match sense {
-                LightSense::Emitted => d.map(|c| -c),
-                _ => d,
-            };
-            Some((i, to_light, brightness(colour)))
-        });
+        let candidates = lights
+            .iter()
+            .take(crate::gpu_frame::MAX_LIGHTS)
+            .enumerate()
+            .filter_map(|(i, (dir, colour))| {
+                let d = (*dir)?;
+                let to_light = match sense {
+                    LightSense::Emitted => d.map(|c| -c),
+                    _ => d,
+                };
+                Some((i, to_light, brightness(colour)))
+            });
         let best = |front: bool| {
             candidates
                 .clone()
@@ -434,6 +440,21 @@ mod tests {
         let shader =
             crate::lighting::Shader::new(scheme.lights(), crate::LightFrame::Camera, &BASIS);
         Caster::choose(&shader, sense, &BASIS)
+    }
+
+    #[test]
+    fn the_key_light_is_one_the_gpu_draws() {
+        let dim = (Some([0.0, 0.0, -1.0]), [0.1; 3]);
+        let mut lights = vec![dim; crate::gpu_frame::MAX_LIGHTS];
+        lights.push((Some([0.0, 0.0, -1.0]), [1.0; 3]));
+        lights[3].1 = [0.5; 3];
+        let shader = crate::lighting::Shader::Set {
+            ambient: [0.0; 3],
+            lights,
+            local: Vec::new(),
+        };
+        let c = Caster::choose(&shader, LightSense::TowardsLight, &BASIS).unwrap();
+        assert_eq!(c.kind, CasterKind::Light(3));
     }
 
     #[test]
