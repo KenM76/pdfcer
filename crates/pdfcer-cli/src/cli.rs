@@ -6293,6 +6293,8 @@ pub(crate) enum Command {
         page_area_keep: PageAreaKeepArg,
         #[command(flatten)]
         merge: XfaMergeFlags,
+        #[command(flatten)]
+        views: XfaViewFlags,
         /// Also draw each computed page to page-NNN.png in this folder
         /// (created if missing). Borders, fills, plain text, captions and
         /// images only; everything not drawn exactly is listed as a

@@ -117,6 +117,34 @@ pub(crate) enum GlobalExclGroupArg {
     AsOnce,
 }
 
+/// `xfa-layout --view-match` (gap G-RV1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum ViewMatchArg {
+    /// An element naming several views needs all of them active.
+    #[default]
+    All,
+    /// One active view is enough.
+    Any,
+}
+
+/// The views `xfa-layout` processes the template for.
+#[derive(Debug, Clone, Default, clap::Args)]
+pub(crate) struct XfaViewFlags {
+    /// Process the form for this view too, besides those the form's
+    /// configuration names: elements marked for other views only, or
+    /// marked to leave this one out, are dropped. Print is the view for
+    /// printing. Repeatable.
+    #[arg(long = "view", value_name = "NAME")]
+    pub(crate) views: Vec<String>,
+    /// Ignore the views the form's configuration names.
+    #[arg(long)]
+    pub(crate) ignore_config_views: bool,
+    /// Whether an element naming several views needs all of them active or
+    /// any one. The XFA spec reads both ways.
+    #[arg(long, value_enum, default_value_t)]
+    pub(crate) view_match: ViewMatchArg,
+}
+
 /// The data-binding settings `xfa-layout` and `xfa-fill` merge with.
 #[derive(Debug, Clone, Copy, Default, clap::Args)]
 pub(crate) struct XfaMergeFlags {
@@ -225,7 +253,12 @@ impl XfaLayoutArgs {
 /// warning, then a summary; with `png`, also write page images. Read-only
 /// on the PDF. Exit 1 when the file has no XFA
 /// template or it cannot be laid out.
-pub(crate) fn cmd_xfa_layout(input: &Path, args: XfaLayoutArgs, png: Option<&XfaPngArgs>) -> u8 {
+pub(crate) fn cmd_xfa_layout(
+    input: &Path,
+    args: XfaLayoutArgs,
+    views: &XfaViewFlags,
+    png: Option<&XfaPngArgs>,
+) -> u8 {
     let doc = match open_document(input) {
         Ok(doc) => doc,
         Err(err) => {
@@ -237,10 +270,13 @@ pub(crate) fn cmd_xfa_layout(input: &Path, args: XfaLayoutArgs, png: Option<&Xfa
         eprintln!("pdfcer: {}: {msg}", input.display());
         exit::RUNTIME_ERROR
     };
-    let merged = match read_merged(&doc, args) {
+    let (merged, excluded) = match read_merged(&doc, args, views) {
         Ok(m) => m,
         Err(e) => return fail(&e),
     };
+    for path in &excluded {
+        println!("excluded path={}", dotted(path));
+    }
     let layout = match pdfcer_core::xfa::layout_template(&merged.template, &args.options()) {
         Ok(l) => l,
         Err(e) => return fail(&e),
@@ -266,15 +302,36 @@ pub(crate) fn cmd_xfa_layout(input: &Path, args: XfaLayoutArgs, png: Option<&Xfa
     exit::SUCCESS
 }
 
-/// The document's XFA template with its data merged in.
-fn read_merged(doc: &Document, args: XfaLayoutArgs) -> Result<MergedForm, String> {
+/// The document's XFA template, less the elements outside the active views
+/// (returned as template paths), with its data merged in.
+fn read_merged(
+    doc: &Document,
+    args: XfaLayoutArgs,
+    flags: &XfaViewFlags,
+) -> Result<(MergedForm, Vec<Vec<usize>>), String> {
+    use pdfcer_core::xfa::{ViewMatch, Views};
     let xdp = pdfcer_core::xfa::read_xdp(&doc.view())
         .map_err(|e| e.to_string())?
         .ok_or("the file has no XFA form")?;
-    let template = pdfcer_core::xfa::read_template(&xdp)
+    let mut template = pdfcer_core::xfa::read_template(&xdp)
         .map_err(|e| e.to_string())?
         .ok_or("the XFA form has no template packet")?;
-    pdfcer_core::xfa::merge_data(&template, &xdp, &args.merge.options()).map_err(|e| e.to_string())
+    let mut views = if flags.ignore_config_views {
+        Views::new()
+    } else {
+        Views::from_config(&xdp).map_err(|e| e.to_string())?
+    };
+    for v in &flags.views {
+        views = views.with_view(v.as_str());
+    }
+    views = views.with_matching(match flags.view_match {
+        ViewMatchArg::All => ViewMatch::All,
+        ViewMatchArg::Any => ViewMatch::Any,
+    });
+    let excluded = template.exclude_irrelevant(&views);
+    let merged = pdfcer_core::xfa::merge_data(&template, &xdp, &args.merge.options())
+        .map_err(|e| e.to_string())?;
+    Ok((merged, excluded))
 }
 
 fn print_layout(layout: &XfaLayout, merged: &MergedForm) {

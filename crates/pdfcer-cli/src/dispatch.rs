@@ -1413,6 +1413,7 @@ pub(crate) fn run() -> ExitCode {
             nested_overflow,
             page_area_keep,
             merge,
+            views,
             png_dir,
             scale,
             edge_placement,
@@ -1445,6 +1446,7 @@ pub(crate) fn run() -> ExitCode {
                 table_cell_height,
                 merge,
             },
+            &views,
             png_dir
                 .map(|dir| XfaPngArgs {
                     dir,

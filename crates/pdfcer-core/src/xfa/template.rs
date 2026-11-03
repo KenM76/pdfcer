@@ -188,6 +188,11 @@ impl XfaNode {
     /// [`XfaNode::children`]); no XML element can carry it.
     pub const TEXT_TAG: &'static str = "#text";
 
+    /// The tag of an element the active views exclude
+    /// ([`Template::exclude_irrelevant`]): it has no attributes, text or
+    /// children, and nothing processes it.
+    pub const EXCLUDED_TAG: &'static str = "#excluded";
+
     /// The attribute named `name`, if present.
     #[must_use]
     pub fn attr(&self, name: &str) -> Option<&str> {

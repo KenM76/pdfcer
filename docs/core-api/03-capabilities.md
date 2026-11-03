@@ -767,6 +767,25 @@ file.
   `--data-attributes`, `--global-scope`, `--global-exclgroup` set the
   options. The stderr note says how many values
   were merged.
+- **Views** (`relevant`, XFA 3.3 pp.69-70, p.607). `Views` is the set of
+  active view names: `Views::new()` (none: everything included),
+  `Views::from_config(&XdpDocument)` (the text of
+  `config/<agent>/common/template/relevant`, `acrobat` agent first, then
+  `present`, then any, gap G-RV8; `Xml`/`TooDeep` errors),
+  `.with_view(name)`, `.with_matching(ViewMatch::{All (default), Any})`
+  (several un-prefixed names on one element: all active or one, G-RV1),
+  `.names()`, `.matching()`, `.includes(attr) -> bool`. A `-name` that is
+  active excludes. `Template::exclude_irrelevant(&mut self, &Views) ->
+  Vec<Vec<usize>>` replaces each excluded element (any element with
+  `relevant`, `border`/`value` included, G-RV7) by an inert
+  `XfaNode::EXCLUDED_TAG` (`"#excluded"`) node, so other paths stay put,
+  and returns the excluded paths. Call it before `merge_data`: excluded
+  elements neither bind, lay out nor draw. Nothing is removed from the
+  file. `print` is never activated unasked (G-RV4); `LegacyPlusPrint` is
+  not honoured (G-RV9). CLI `xfa-layout`: `--view NAME` (repeatable, added
+  to the config's views), `--ignore-config-views`, `--view-match all|any`;
+  prints `excluded path=` per element before the pages. `xfa-fill` does
+  not apply views.
 - **Fill.** `EditSession::fill_xfa_field` writes a value back into the
   bound data node (02, *Forms*); CLI `xfa-fill IN --set PATH=VALUE -o OUT`
   prints `xfa-set path= data= stream= shared_with= created=` per set

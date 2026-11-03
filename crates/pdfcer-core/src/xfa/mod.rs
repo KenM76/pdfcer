@@ -11,6 +11,7 @@ mod merge;
 mod packets;
 mod paint;
 mod picture;
+mod relevant;
 mod template;
 
 pub use layout::{
@@ -33,6 +34,7 @@ pub use paint::{
     FontWeight, ImageOverflow, ImagePlacement, Medium, MissingFill, PaintNote, PaintNoteKind,
     PaintOptions, PaintedPage, PictureRounding, ThreeDStroke, paint_page, paint_page_with_images,
 };
+pub use relevant::{ViewMatch, Views};
 pub use template::{
     AnchorType, ContainerKind, LayoutStrategy, Measurement, Occur, Presence, Template, XfaNode,
     read_template,

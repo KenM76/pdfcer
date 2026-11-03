@@ -110,6 +110,33 @@ fn prints_pages_items_and_a_summary_and_discloses_the_inference() {
 }
 
 #[test]
+fn view_flags_drop_elements_outside_the_active_views() {
+    let t = format!(
+        r#"<subform name="f">{PAGE}<subform layout="tb" name="s">
+        <field name="a" w="10pt" h="50pt" relevant="-print"/><field name="b" w="10pt" h="50pt"/>
+        </subform></subform>"#
+    );
+    let all = run("view-none", &pdf(Some(&t)), &[]).1;
+    assert!(
+        all.contains(r#"name="a""#) && !all.contains("excluded"),
+        "{all}"
+    );
+    let print = run("view-print", &pdf(Some(&t)), &["--view", "print"]).1;
+    assert!(
+        print.contains(
+            "excluded path=0.1.0
+"
+        ),
+        "{print}"
+    );
+    assert!(!print.contains(r#"name="a""#), "{print}");
+    assert!(
+        print.contains(r#"kind=field name="b" path=0.1.1 x=36 y=36"#),
+        "b takes a's place: {print}"
+    );
+}
+
+#[test]
 fn a_setting_changes_the_layout() {
     let spec = run("spec", &pdf(Some(&flowed())), &[]).1;
     let adobe = run(
