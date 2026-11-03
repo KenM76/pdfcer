@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1400th filing) — `v0.121.0` PUBLISHED (tag on `3435f01a`)
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, nothing committed by me):**
+- **Operator request:** "please finish the release. it definitely needs the gpu support for all features or it runs horribly."
+- **Tag/CI:** bump `3435f01a`, annotated `v0.121.0` (tag object `615588f9`), pushed; CI run 41685982621 on the tag concluded success. `run-gates.sh` PASS (49 commands) on `12345f8d`; filing gates clean.
+- **Carries:** `Pass 658.7` (`ef0f64e8`), `Pass 658.8` (`12345f8d`, BREAKING for GPU hosts), docs commits `8786266c`, `04a75ecd`, `3eb2fbb8`, `aaf83ad1`.
+- **Published:** GitHub release, 8 assets (windows zip 28,627,702 bytes; OCR zips byte-identical to v0.120.0's); crates `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.121.0; OneDrive `pdfcer2` (77,551,591 bytes, 6 items), `pdfcer1` keeps 0.120.0, next release writes `pdfcer1`. Fresh-folder smoke (24 lamps, "8 more past the limit of 16") and `verify-release.py` passed.
+- **Channel:** three notices in FeatureRequests `open/` (released; a thousand lights; operator's GPU-for-every-3d-pass priority, owed to `pdfcer-gui`, not a pdfcer Pass).
+- **Disk:** D: 1 GB free before the build; `target/debug/incremental` deleted freed 18 GB (19 GB now).
+- **ROADMAP:** new Shipped entry; `658.7` and `658.8` entries amended with a pointer. FEATURES: no change needed, by grep no "unreleased"/"next release" wording on the 658.7/658.8 rows (rows 556, 557, 560); the only "next release" hit (row 805, `Pass 651.0` ordering) is unrelated. No box changes, nothing minted.
+- **Owed / not done:** survivor sweep of `crates/` for "16" light wording (from the 1399th filing) still not done from here. Backup currency not verifiable from here.
+
 ## 2026-11-03 (1399th filing) — `Pass 658.8` (`12345f8d`): the GPU draws up to 1,024 lights of each kind
 
 **Filed (engineer-reported, measured; no shell here, git state not checked from here; docs only, nothing committed by me):**

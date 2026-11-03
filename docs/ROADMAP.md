@@ -112,7 +112,25 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.121.0` PUBLISHED, 2026-11-03 (1400th filing); tag on `3435f01a`, CI green at the tag
+
+Engineer-reported; no shell here, nothing checked from here (tag, release, crates, OneDrive and CI are the engineer's report, not looked at by me). Operator: "please finish the release. it definitely needs the gpu support for all features or it runs horribly." Prep and publish filed together.
+- **Bump:** `3435f01a` "chore: bump version to 0.121.0" (workspace version, `pdfcer-model` dependency version, `Cargo.lock`, `fuzz/Cargo.lock`); pushed. **Tag:** annotated `v0.121.0` on `3435f01a`, pushed (tag object `615588f9`). **CI:** run 41685982621 on the tag concluded success; also green on `3eb2fbb8` and `aaf83ad1`.
+- **Carries:** `Pass 658.7` (`ef0f64e8`, wide lines on the GPU); `Pass 658.8` (`12345f8d`, up to 1,024 lights of each kind on the GPU, **BREAKING for GPU hosts**); docs commits `8786266c`, `04a75ecd`, `3eb2fbb8`, `aaf83ad1` (NEXT_SESSION handoff).
+- **Gates before tagging:** `tools/run-gates.sh` PASS (49 commands) on `12345f8d`; only docs and the version changed after. Filing gates clean (register-entry-size, commits-filed, ledger-numbers, cited-commits-exist, suite-name-absent).
+- **Package:** `D:\builds\pdfcer-20261103-1216-3435f01`, 57,928,787 bytes total, `pdfcer.exe` 42,003,968 bytes, not dirty.
+- **Fresh-folder smoke (`D:\builds\smoke-v0121`) passed:** `--version` 0.121.0; synthetic glTF with 24 point lamps embedded by `3d-embed --apply` into `fixtures/synthetic/minimal.pdf`; `3d-render` drew all 24 lamps and printed "8 more past the limit of 16 light without a shadow"; with `--no-lamp-shadows` the PNG changed (202,867 vs 201,012 bytes).
+- **GitHub release** "pdfcer v0.121.0": 8 assets, `gh-release.py` PASS at local sizes; `pdfcer-v0.121.0-windows-x64.zip` 28,627,702 bytes; OCR add-on zips byte-identical to v0.120.0's (ocrcer 3,789,155; ocrs 11,352,262; tesseract 4,483,685); each asset has a `.sha256`; staged in `D:\builds\rel-v0.121.0`.
+- **OneDrive:** `deploy-onedrive.py` wrote `pdfcer2` (6 items, 77,551,591 bytes); `pdfcer1` keeps 0.120.0. **The next release writes `pdfcer1`.**
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.121.0 published, in that order.
+- **`verify-release.py v0.121.0`:** ok (tag at HEAD, tag pushed, origin/main contains the tag, assets present, CLI on OneDrive `pdfcer2`, previous version on OneDrive). CI was still running when it ran and has since gone green. Working tree reported not clean only for the known uncommitted agent-memory files.
+- **Disk:** D: was at 1 GB free before the build; deleting `target/debug/incremental` freed 18 GB, leaving 19 GB.
+- **Channel (FeatureRequests `open/`, each with an INDEX row):** `notice_2026-11-03_v0.121.0_released.md`; `notice_2026-11-03_a_thousand_lights_on_the_gpu.md` (`Pass 658.8`, BREAKING); `notice_2026-11-03_operator_gpu_for_every_3d_pass.md` relays the operator's priority that `pdfcer-gui` move every software-drawn 3D pass to the GPU (lines and points including wide lines, emissive, lamp shadows, extra casters, see-through casters). Engine side complete; **owed to `pdfcer-gui`, not a pdfcer Pass.**
+- No box changes (gui stays `[ ]` on the 658.7 and 658.8 rows). Nothing minted.
+
 ### `12345f8d` `Pass 658.8`, 2026-11-03: the GPU draws up to 1,024 lights of each kind (1399th filing)
+
+**Amended 1400th filing:** published in `v0.121.0` (see above); "unpushed" and "unreleased" below describe the commit at its filing.
 
 Engineer-reported (measured); no shell here, git state not checked from here. Commit `12345f8d` "feat(3d): the GPU draws up to 1,024 lights of each kind (Pass 658.8)". Operator asked why pdfcer was limited to 16 lights, then asked for the limit lifted. Local `main`, unpushed at filing (engineer pushes after this filing), unreleased: rides the next release (OneDrive `pdfcer2`) with `Pass 658.7`. No decision record; reasoning is in the commit message.
 - **Why 16 existed:** the WebGL 2 uniform budget.
@@ -137,6 +155,8 @@ Engineer-reported; no shell here, nothing checked from here (tag, release, crate
 - No box changes (everything carried was already ticked). Nothing minted. `pdfcer-gui` has not consumed `658.4`-`658.6`; the notice is the hand-off.
 
 ### `ef0f64e8` `Pass 658.7`, 2026-11-03: wide lines (`line_width` > 1) draw on the GPU, any width (1397th filing)
+
+**Amended 1400th filing:** published in `v0.121.0` (see the entry above `Pass 658.8`); the "NOT carried" note in the `v0.120.0` entry stays true of `v0.120.0`. "Unpushed, unreleased" below describes the commit at its filing.
 
 Engineer-reported (measured); no shell here, git state not checked from here. Commit `ef0f64e8` "feat(3d): wide lines on the GPU, any width (Pass 658.7)". Operator request: "Work on getting this into the GPU - Lines thicker than 1 pixel only draw on the CPU path." Local `main`, unpushed, unreleased. No decision record; reasoning is in the commit message.
 - **What shipped (`pdfcer-3d`, `gpu_wide_lines.rs`):** new pub const `GLSL_ES_300_WIDE_LINE_VERTEX` draws `DrawData::lines` as one instanced quad per segment (per-instance attributes, stride 144 bytes, `drawArraysInstanced` TRIANGLE_STRIP 4), near-plane clipped in clip space, widened along the minor screen axis to match the CPU's aliased wide line; reuses `GLSL_ES_300_LINE_FRAGMENT`. New pub field `DrawData::line_width: f32` (from `RenderOptions::line_width`, at least 1). New uniforms `u_line_width`, `u_viewport`. Closes the "`line_width` > 1 is CPU-only" gap recorded under `Pass 658.6`.
