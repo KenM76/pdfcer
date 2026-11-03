@@ -112,7 +112,23 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.122.0` PUBLISHED, 2026-11-03 (1402nd filing); tag on `c7226cd8`, CI green at the commit
+
+Engineer-reported; no shell here, nothing checked from here (tag, release, crates, OneDrive and CI are the engineer's report, not looked at by me). Carries only `Pass 658.9` (`G262`).
+- **Bump:** `c7226cd8` "chore: bump version to 0.122.0"; no manifest change beyond the version, so no `cargo tree` / `THIRD_PARTY_LICENSES.md` change. **Tag:** annotated `v0.122.0` on `c7226cd8`, pushed. **Also on `main` before it:** `2e6847ee` (`Pass 658.9`, `G262`) and `2c607051` (1401st filing). **CI:** GitHub Actions "CI" (push) green at `c7226cd8`.
+- **Gates before the push:** `check-commits-filed.py` clean, `check-suite-name-absent.py` clean.
+- **Package:** `D:\builds\pdfcer-20261103-1557-c7226cd`, `pdfcer.exe` 42,022,400 bytes, no `-dirty` suffix.
+- **Fresh-folder smoke passed (scratch copy):** `pdfcer --version` = 0.122.0 rev `v0.121.0-4-gc7226cd8`; `3d-convert` of the 64-lamp Bancroft office `.glb` printed "64 model lights scaled by 0.0090 so the median lit surface of the model gets 80%" (181,006 triangles, 65 lights).
+- **GitHub release** https://github.com/KenM76/pdfcer/releases/tag/v0.122.0: 8 assets uploaded at local sizes; `pdfcer-v0.122.0-windows-x64.zip` 28,635,880 bytes; `ocr-addon-ocrcer.zip`, `ocr-addon-ocrs.zip`, `ocr-addon-tesseract.zip`; each asset has a `.sha256`.
+- **OneDrive:** written to `pdfcer1`; `pdfcer2` keeps 0.121.0. **The next release writes `pdfcer2`.**
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.122.0 published.
+- **`verify-release.py`:** all checks ok except "working tree clean": 15 uncommitted paths, all local-only (agent-memory files, `docs/research` request notes, an untracked `-` file, `docs/NEXT_SESSION.md`); none are in the build.
+- **Channel:** `notice_2026-11-03_v0.122.0_released.md` in FeatureRequests `open/`, with an `INDEX.md` row.
+- No box changes. Nothing minted.
+
 ### `2e6847ee` `Pass 658.9`, 2026-11-03: converted glTF lamps are metered over the model's surfaces (`G262`) (1401st filing)
+
+**Amended 1402nd filing:** published in `v0.122.0` (see above); "release follows" below describes the commit at its filing.
 
 Engineer-reported (measured); no shell here, git state not checked from here. Commit `2e6847ee` "feat(3d): converted glTF lamps metered over the model's surfaces (Pass 658.9, G262)". Request from `pdfcer-gui`. Local `main`; release `v0.122.0` follows carrying only this Pass and writes OneDrive `pdfcer1`; a separate prep filing is planned. No decision record; reasoning is in the commit message.
 - **Problem:** `GltfLights::Normalise` scaled every `KHR_lights_punctual` light by one factor so that all together lit the model's centre to 80%, which divides each lamp by the lamp count. A building lit room by room converted near black: Ken's Bancroft office (64 downlights) reached at most 1/10 of full strength under each lamp.

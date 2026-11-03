@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1402nd filing) — `v0.122.0` PUBLISHED (tag on `c7226cd8`)
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, nothing committed by me):**
+- **Tag/CI:** bump `c7226cd8`, annotated `v0.122.0`, pushed; CI green at `c7226cd8`. Carries only `Pass 658.9` (`2e6847ee`, `G262`); `2c607051` was the 1401st filing. Gates before the push: `check-commits-filed.py` and `check-suite-name-absent.py` clean. No manifest change beyond the version.
+- **Published:** GitHub release with 8 assets (windows zip 28,635,880 bytes; three OCR add-on zips, each with `.sha256`); crates `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.122.0; OneDrive `pdfcer1`, `pdfcer2` keeps 0.121.0, next release writes `pdfcer2`.
+- **Smoke:** fresh-folder copy of `D:\builds\pdfcer-20261103-1557-c7226cd` (`pdfcer.exe` 42,022,400 bytes): `--version` 0.122.0; `3d-convert` of the 64-lamp Bancroft `.glb` printed "64 model lights scaled by 0.0090 ... 80%" (181,006 triangles, 65 lights).
+- **`verify-release.py`:** all ok except "working tree clean" (15 local-only uncommitted paths, none in the build).
+- **Channel:** `notice_2026-11-03_v0.122.0_released.md` with an `INDEX.md` row.
+- **ROADMAP:** new Shipped entry; `658.9` entry amended with a pointer. FEATURES: no change (the 1400th filing touched none; row 561 carries no release wording). No box changes, nothing minted.
+- **Owed / not done:** survivor sweeps of `crates/` ("normalise is the default" wording; "16" light wording) still not done from here. Backup currency not verifiable from here.
+
 ## 2026-11-03 (1401st filing) — `Pass 658.9` (`2e6847ee`): converted glTF lamps metered over the model's surfaces
 
 **Filed (engineer-reported, measured; no shell here, git state not checked from here; docs only, nothing committed by me):**
