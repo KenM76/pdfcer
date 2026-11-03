@@ -432,19 +432,7 @@ fn print_layout(layout: &XfaLayout, merged: &MergedForm) {
     for w in &layout.warnings {
         println!("warning {}", warning_fields(w));
     }
-    for w in &merged.warnings {
-        let (how, key) = if w.by_name {
-            ("name", "name")
-        } else {
-            ("ref", "ref")
-        };
-        println!(
-            "warning kind=data-{how}-{} path={} {key}={:?}",
-            w.kind.as_str(),
-            dotted(&w.path),
-            w.reference
-        );
-    }
+    print_merge_warnings(merged);
     if merged.has_data {
         println!(
             "data unfilled={} unbound-values={}",
@@ -525,8 +513,25 @@ fn kind_label(k: ContainerKind) -> &'static str {
     }
 }
 
+/// One `warning kind=data-...` line per merge warning.
+pub(crate) fn print_merge_warnings(merged: &pdfcer_core::xfa::MergedForm) {
+    for w in &merged.warnings {
+        let (how, key) = if w.by_name {
+            ("name", "name")
+        } else {
+            ("ref", "ref")
+        };
+        println!(
+            "warning kind=data-{how}-{} path={} {key}={:?}",
+            w.kind.as_str(),
+            dotted(&w.path),
+            w.reference
+        );
+    }
+}
+
 /// `kind=… path=…` and any detail, for one warning line.
-fn warning_fields(w: &LayoutWarning) -> String {
+pub(crate) fn warning_fields(w: &LayoutWarning) -> String {
     use LayoutWarning as W;
     let at = |kind: &str, path: &[usize]| format!("kind={kind} path={}", dotted(path));
     match w {

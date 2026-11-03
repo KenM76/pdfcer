@@ -1475,6 +1475,13 @@ pub(crate) fn run() -> ExitCode {
                 })
                 .as_ref(),
         ),
+        Command::XfaMaterialize {
+            input,
+            output,
+            mode,
+            verify_undo,
+            remove_signatures,
+        } => cmd_xfa_materialize(&input, &output, mode, verify_undo, remove_signatures),
         Command::XfaFill {
             input,
             sets,

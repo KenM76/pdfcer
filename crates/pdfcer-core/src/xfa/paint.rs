@@ -27,9 +27,10 @@ use crate::vartext::standard14_font_dict;
 use crate::writer::content::{ContentBuilder, LineCap, Paint};
 
 pub use dash::{DashCaps, DashLengths};
+pub use image::PaintedImage;
 pub use options::{
     CaptionFont, CheckCaption, CheckEdge, EdgePlacement, FontWeight, ImageOverflow, ImagePlacement,
-    Medium, MissingFill, PaintOptions, PictureRounding, Stipple, ThreeDStroke,
+    ImageStreams, Medium, MissingFill, PaintOptions, PictureRounding, Stipple, ThreeDStroke,
 };
 pub use shape::{ArcCircle, ArcFill};
 
@@ -123,6 +124,10 @@ pub struct PaintedPage {
     pub resources: Dict,
     /// What was approximated or left out, in paint order.
     pub notes: Vec<PaintNote>,
+    /// The image XObjects `content` draws under [`ImageStreams::XObject`],
+    /// for the caller to write as streams and add to `resources` `/XObject`
+    /// under their names; empty otherwise.
+    pub images: Vec<PaintedImage>,
 }
 
 /// Draw `page`, laid out from `template`.
@@ -155,6 +160,7 @@ pub fn paint_page_with_images(
         dashed: false,
         shadings: Vec::new(),
         page: (page.number, page.count),
+        xobjects: Vec::new(),
     };
     let (back, fore): (Vec<_>, Vec<_>) = page.items.iter().partition(|i| i.background);
     for item in back.into_iter().chain(fore) {
@@ -167,6 +173,7 @@ pub fn paint_page_with_images(
         content: p.b.into_bytes(),
         notes: p.notes,
         resources,
+        images: p.xobjects,
     }
 }
 
@@ -198,6 +205,8 @@ struct Painter<'i> {
     dashed: bool,
     /// The `/Shading` resources, named `XS0`, `XS1`, ...
     shadings: Vec<Dict>,
+    /// The image XObjects drawn, named `XI0`, `XI1`, ...
+    xobjects: Vec<PaintedImage>,
     /// The page's number and the layout's page count.
     page: (usize, usize),
 }

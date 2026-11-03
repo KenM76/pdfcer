@@ -28,6 +28,20 @@ pub enum MissingFill {
     White,
 }
 
+/// How [`paint_page`](super::paint_page) writes an image's samples.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum ImageStreams {
+    /// An inline image in the content (ISO 32000-1 §8.9.7): the page needs
+    /// no streams, for drawing it in place.
+    #[default]
+    Inline,
+    /// `Do` of an image XObject listed in
+    /// [`PaintedPage::images`](super::PaintedPage::images), for writing the
+    /// page to a file: §8.9.7 allows inline images of 4 KB or less only.
+    XObject,
+}
+
 /// How a `stipple` fill's `rate` blends (gap G-D6).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
@@ -198,6 +212,8 @@ pub struct PaintOptions {
     pub picture_rounding: PictureRounding,
     /// Gap G-D6.
     pub stipple: Stipple,
+    /// Inline images or image XObjects.
+    pub image_streams: ImageStreams,
 }
 
 impl PaintOptions {
@@ -222,6 +238,7 @@ impl PaintOptions {
             arc_fill: ArcFill::Pie,
             picture_rounding: PictureRounding::HalfUp,
             stipple: Stipple::Viewer,
+            image_streams: ImageStreams::Inline,
         }
     }
 
@@ -341,6 +358,13 @@ impl PaintOptions {
     #[must_use]
     pub const fn with_stipple(mut self, stipple: Stipple) -> Self {
         self.stipple = stipple;
+        self
+    }
+
+    /// With `image_streams`.
+    #[must_use]
+    pub const fn with_image_streams(mut self, image_streams: ImageStreams) -> Self {
+        self.image_streams = image_streams;
         self
     }
 }

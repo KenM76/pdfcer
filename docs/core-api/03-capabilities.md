@@ -819,6 +819,32 @@ file.
   (`--data-creation create|refuse`). Show `shared_with` and `created`
   off-canvas: other fields changed with the one edited, and data nodes
   the fill added.
+- **Materialize.** `EditSession::materialize_xfa(&Template, &[LayoutPage],
+  &PaintOptions, XfaSignatures) -> Result<XfaMaterializeOutcome, EditError>` replaces a
+  dynamic form's placeholder pages with the given layout pages, painted
+  with images as image XObjects (ISO 32000-1 §8.9.7 caps inline images at
+  4 KB) and `XfaImages::from_view` resolved. Each page carries its own
+  `/MediaBox`, `/CropBox`, `/Rotate 0` and `/Resources`; the root `/Pages`
+  gets the new `/Kids`. The catalog loses `/NeedsRendering` and `/Perms
+  /UR3`; the AcroForm loses `/XFA` and `/NeedsRendering` and gets an empty
+  `/Fields`. The pages are flat: values are drawn, not fillable. ONE
+  undoable command (`CommandKind::MaterializeXfa { pages }`), committed at
+  Save. `XfaMaterializeOutcome { pages_written, pages_replaced, notes:
+  Vec<(page, PaintNote)>, images, fields_dropped, usage_rights_removed,
+  signatures_removed }` (`#[non_exhaustive]`). `XfaSignatures::Refuse`
+  (default) refuses a signed or certified form; `Remove` drops all of the
+  catalog's `/Perms` and the AcroForm's `/SigFlags` with the fields, and
+  counts the signatures in `signatures_removed` (certified government
+  forms are the common case). Errors: `DocumentEncrypted` (assembly or
+  modification forbidden), `CertificationForbidsChange` and `XfaSigned {
+  signatures }` (any signature other than the usage-rights one) under
+  `Refuse`, `XfaNotDynamic` (static forms are refused, decision 020),
+  `NotADictionary`, `ObjectNumbersExhausted`. CLI `xfa-materialize IN -o
+  OUT [--mode] [--verify-undo] [--remove-signatures]` lays out at the
+  default settings and prints `paint-note`/`warning` lines (layout and
+  merge) and an `xfa-materialize` summary.
+  **★ Disclose:** every page is pdfcer's layout, the form is gone, and any
+  removed usage-rights signature or signature.
 - **★ What the UI must disclose:** the merged values are the file's own
   data, but the layout they sit in is inferred (rule 4); show each merge
   warning off-canvas with the layout warnings.
@@ -1217,6 +1243,11 @@ kind.
   `new()` / `insert(href, bytes)` let a shell supply images itself.
   `paint_page_with_images(&Template, &LayoutPage, &PaintOptions,
   &XfaImages)` resolves through it; `paint_page` passes an empty set.
+- **Image streams.** `PaintOptions::with_image_streams(ImageStreams)`:
+  `Inline` (default) draws `BI … ID … EI`; `XObject` draws `/XIn Do` and
+  returns each image as `PaintedPage::images: Vec<PaintedImage { name,
+  dict, data }>` (`dict` has no `/Length`) for the caller to write as an
+  image XObject under `/Resources /XObject`.
 - **Rasterizing it:** `pdfcer_render::xfa::render_xfa_page(&DocumentView,
   &Template, &LayoutPage, &PaintOptions, scale, &RenderOptions) ->
   Result<RenderedXfaPage { page: RenderedPage, notes }, RenderError>`
@@ -1228,7 +1259,7 @@ kind.
   point, not a branch of `render_page`, because the layout's page count need
   not match the file's placeholder pages: the shell chooses which page set
   it shows. Errors: `BadRasterSize` (empty or over `MAX_PIXMAP_EDGE`),
-  `RasterizerLimit`, `Cancelled`. Its CLI caller is `xfa-layout --png-dir`; `render-page` does not call it.
+  `RasterizerLimit`, `Cancelled`. Its CLI callers are `xfa-layout --png-dir` and `render-page` on a dynamic form.
 - **Spec slice:** `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_appearance_drawing.md`
   (gaps G-D1 to G-D19).
 

@@ -6413,6 +6413,45 @@ pub(crate) enum Command {
         stipple: StippleArg,
     },
 
+    /// Write a dynamic XFA form's pages into the file and save.
+    ///
+    /// Lays the form out from its template and data, as render-page and
+    /// xfa-layout do at their default settings, replaces the placeholder
+    /// pages the file stores with those pages, and removes the XFA form.
+    /// The result opens the same in any PDF viewer, XFA engine or not.
+    /// Field values are drawn into the pages: the result is not fillable.
+    /// A usage-rights signature, which signed the removed form, is removed.
+    ///
+    /// Output: one paint-note line per thing not drawn as declared, one
+    /// warning line per layout warning, then
+    ///
+    ///   xfa-materialize FILE pages=N replaced=N images=N fields_dropped=N
+    ///     usage_rights_removed=0|1 signatures_removed=N notes=N warnings=N
+    ///     mode=M -> OUT; ...
+    ///
+    /// stderr says the pages are pdfcer's layout. Exits 1 when the file is
+    /// not a dynamic XFA form (a static one's pages are already the
+    /// document), or carries a signature or certification, which new pages
+    /// would break, unless --remove-signatures is given.
+    #[command(verbatim_doc_comment)]
+    XfaMaterialize {
+        /// Input PDF.
+        input: PathBuf,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+        /// Also verify that undoing reproduces the input file byte for byte.
+        #[arg(long)]
+        verify_undo: bool,
+        /// Remove the form's signatures and certification instead of
+        /// refusing. The saved file is no longer signed.
+        #[arg(long)]
+        remove_signatures: bool,
+    },
+
     /// Write a value into an XFA form field and save.
     ///
     /// Each --set PATH=VALUE names a field (or exclusion group) by its

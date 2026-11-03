@@ -4,8 +4,10 @@
 //! from the bytes; `contentType` is not trusted.
 //!
 //! Drawn as an inline image (ISO 32000-1 §8.9.7) because the painted page
-//! owns no streams. An inline image has no `/SMask` or `/Mask`, so an image
-//! with transparency is composited onto white first and noted.
+//! owns no streams, or under [`ImageStreams::XObject`] as an image XObject
+//! (§8.9.5) for the caller to write. Neither carries `/SMask` or `/Mask`
+//! (an inline image cannot, and the two must draw alike), so an image with
+//! transparency is composited onto white first and noted.
 
 use std::borrow::Cow;
 use std::fmt::Write as _;
@@ -16,8 +18,22 @@ use crate::image_import::{self, ImportColorSpace, ImportFilter, ImportedImage, f
 use crate::xfa::images::{XfaImages, decode_base64};
 
 use super::{
-    ImageOverflow, ImagePlacement, LayoutItem, LayoutRect, PaintNoteKind, Painter, XfaNode,
+    ImageOverflow, ImagePlacement, ImageStreams, LayoutItem, LayoutRect, PaintNoteKind, Painter,
+    XfaNode,
 };
+use crate::object::{Dict, Name, Object};
+
+/// An image XObject a painted page draws (ISO 32000-1 §8.9.5 Table 89).
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct PaintedImage {
+    /// Its `/XObject` resource name (`XI0`, `XI1`, ...).
+    pub name: String,
+    /// The stream dictionary, without `/Length`.
+    pub dict: Dict,
+    /// The stream data, encoded as `dict`'s `/Filter` says.
+    pub data: Vec<u8>,
+}
 
 /// `holder`'s `value/image`, when its value is an image.
 pub(in crate::xfa) fn value_image(holder: &XfaNode) -> Option<&XfaNode> {
@@ -125,7 +141,17 @@ impl Painter<'_> {
             let [a, b, c, d, e, f] = orientation;
             self.b.concat_matrix(a, b, c, d, e, f);
         }
-        self.b.append_raw(&inline_image(&raster));
+        if self.opts.image_streams == ImageStreams::XObject {
+            let name = format!("XI{}", self.xobjects.len());
+            self.b.append_raw(format!("\n/{name} Do\n").as_bytes());
+            self.xobjects.push(PaintedImage {
+                name,
+                dict: xobject_dict(&raster),
+                data: raster.data,
+            });
+        } else {
+            self.b.append_raw(&inline_image(&raster));
+        }
         self.b.restore_state();
     }
 
@@ -244,6 +270,52 @@ fn alpha(img: &ImportedImage, samples: &[u8], n: usize, pixels: usize) -> Option
             })
             .collect(),
     )
+}
+
+/// The image XObject dictionary for `r`: [`inline_image`]'s keys in full.
+fn xobject_dict(r: &Raster) -> Dict {
+    let name = |n: &[u8]| Object::Name(Name::from(n));
+    let int = |n: u32| Object::Integer(i64::from(n));
+    let mut d = Dict::new();
+    d.insert(Name::from(b"Type"), name(b"XObject"));
+    d.insert(Name::from(b"Subtype"), name(b"Image"));
+    d.insert(Name::from(b"Width"), int(r.width));
+    d.insert(Name::from(b"Height"), int(r.height));
+    let space = match &r.space {
+        ImportColorSpace::DeviceRgb => name(b"DeviceRGB"),
+        ImportColorSpace::DeviceCmyk => name(b"DeviceCMYK"),
+        ImportColorSpace::Indexed { hival, lookup } => Object::Array(vec![
+            name(b"Indexed"),
+            name(b"DeviceRGB"),
+            int(u32::from(*hival)),
+            Object::String(lookup.clone()),
+        ]),
+        _ => name(b"DeviceGray"),
+    };
+    d.insert(Name::from(b"ColorSpace"), space);
+    d.insert(Name::from(b"BitsPerComponent"), int(u32::from(r.bpc)));
+    let filter = match r.filter {
+        ImportFilter::DctDecode => b"DCTDecode".as_slice(),
+        ImportFilter::FlatePngPredictor {
+            colors,
+            bits_per_component,
+            columns,
+        } => {
+            let mut p = Dict::new();
+            p.insert(Name::from(b"Predictor"), Object::Integer(15));
+            p.insert(Name::from(b"Colors"), int(u32::from(colors)));
+            p.insert(
+                Name::from(b"BitsPerComponent"),
+                int(u32::from(bits_per_component)),
+            );
+            p.insert(Name::from(b"Columns"), int(columns));
+            d.insert(Name::from(b"DecodeParms"), Object::Dict(p));
+            b"FlateDecode".as_slice()
+        }
+        _ => b"FlateDecode".as_slice(),
+    };
+    d.insert(Name::from(b"Filter"), name(filter));
+    d
 }
 
 /// The `BI … ID … EI` operator for `r`, its data ASCII-hex encoded so no

@@ -212,6 +212,7 @@ mod threed_opening;
 mod threed_poster;
 mod threed_views;
 mod xfa_fill;
+mod xfa_materialize;
 
 pub use button_icon::ButtonIconEdit;
 use checkpoint::Entry;
@@ -221,6 +222,7 @@ use foreign_button::ButtonSlot;
 pub use page_artwork::PlacedPageContent;
 #[cfg(feature = "svg-import")]
 pub use svg::PlacedSvg;
+pub use xfa_materialize::{XfaMaterializeOutcome, XfaSignatures};
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
@@ -768,6 +770,12 @@ pub enum CommandKind {
     /// [`EditSession::fill_xfa_field`] rewrote one data value in an XFA
     /// form's `datasets` packet.
     FillXfaField,
+    /// [`EditSession::materialize_xfa`] replaced a dynamic XFA form's
+    /// placeholder pages with `pages` computed pages.
+    MaterializeXfa {
+        /// Pages written.
+        pages: usize,
+    },
     /// [`EditSession::reset_form`] — §12.7.5.3.
     ResetForm,
     /// [`EditSession::remove_metadata`] removed metadata items, with the
@@ -9952,6 +9960,17 @@ pub enum EditError {
     /// ([`EditSession::fill_xfa_field`]).
     #[error(transparent)]
     XfaFill(#[from] crate::xfa::XfaFillError),
+    /// [`EditSession::materialize_xfa`] on a document that is not a dynamic
+    /// XFA form.
+    #[error("the document is not a dynamic XFA form")]
+    XfaNotDynamic,
+    /// [`EditSession::materialize_xfa`] on a signed document: replacing its
+    /// pages would orphan the signatures.
+    #[error("the form carries {signatures} signature(s); writing its pages would orphan them")]
+    XfaSigned {
+        /// Signature dictionaries found.
+        signatures: usize,
+    },
     /// A 3D model that cannot be embedded
     /// ([`EditSession::add_3d_annotation`]).
     #[error(transparent)]

@@ -254,6 +254,7 @@ kind_codec! {
     EditWidget,
     FillTextField,
     FillXfaField,
+    MaterializeXfa { pages: usize },
     ResetForm,
     RemoveMetadata,
     PurgePasswordValues,

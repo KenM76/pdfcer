@@ -311,5 +311,6 @@ mod widget_resize_appearance;
 mod widget_turn;
 mod writer_roundtrip;
 mod xfa_fill;
+mod xfa_materialize;
 mod xref_eol;
 mod xref_recover;

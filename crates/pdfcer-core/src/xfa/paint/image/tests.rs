@@ -309,3 +309,40 @@ fn a_draw_with_an_inline_png_is_painted_at_its_box() {
     );
     assert!(notes.is_empty(), "{notes:?}");
 }
+
+#[test]
+fn xobject_mode_draws_by_name_with_the_inline_images_samples() {
+    let body = field(&inline("actual"));
+    let xdp = format!(
+        r#"<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/"><template xmlns="http://www.xfa.org/schema/xfa-template/3.3/"><subform name="f" layout="position">{PAGE}{body}{body}</subform></template></xdp:xdp>"#
+    );
+    let t = read_template(&XdpDocument::parse(xdp).unwrap())
+        .unwrap()
+        .unwrap();
+    let page = &layout_template(&t, &LayoutOptions::new()).unwrap().pages[0];
+    let inline = paint_page(&t, page, &PaintOptions::new());
+    assert!(inline.images.is_empty());
+    let opts = PaintOptions::new().with_image_streams(ImageStreams::XObject);
+    let out = paint_page(&t, page, &opts);
+    let ops = String::from_utf8_lossy(&out.content);
+    assert!(!ops.contains("BI "), "{ops}");
+    assert!(ops.contains("/XI0 Do") && ops.contains("/XI1 Do"), "{ops}");
+    assert_eq!(out.images.len(), 2);
+    let img = &out.images[0];
+    assert_eq!(img.name, "XI0");
+    let get = |k: &[u8]| img.dict.get(k).cloned();
+    assert_eq!(get(b"Subtype"), Some(Object::Name(Name::from(b"Image"))));
+    assert_eq!(get(b"Width"), Some(Object::Integer(20)));
+    assert_eq!(get(b"Height"), Some(Object::Integer(10)));
+    assert_eq!(
+        get(b"ColorSpace"),
+        Some(Object::Name(Name::from(b"DeviceRGB")))
+    );
+    assert_eq!(
+        get(b"Filter"),
+        Some(Object::Name(Name::from(b"FlateDecode")))
+    );
+    let samples = crate::filters::flate::decode(&img.data, None).unwrap();
+    assert_eq!(samples.len(), 20 * 10 * 3);
+    assert_eq!(&samples[..3], [255, 0, 0]);
+}

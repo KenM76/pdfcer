@@ -86,7 +86,7 @@ pub(crate) fn render_dynamic_page(
 }
 
 /// The form's merged template and its computed layout, at default settings.
-fn lay_out(
+pub(crate) fn lay_out(
     doc: &Document,
 ) -> Result<(pdfcer_core::xfa::MergedForm, pdfcer_core::xfa::XfaLayout), String> {
     let args = XfaLayoutArgs {

@@ -601,6 +601,8 @@ mod fields_list;
 use fields_list::*;
 mod xfa_fill;
 use xfa_fill::*;
+mod xfa_materialize;
+use xfa_materialize::*;
 mod xfa_layout;
 mod xfa_page;
 use xfa_layout::*;
