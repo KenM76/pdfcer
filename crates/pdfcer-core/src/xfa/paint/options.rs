@@ -28,6 +28,20 @@ pub enum MissingFill {
     White,
 }
 
+/// How a `stipple` fill's `rate` blends (gap G-D6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum Stipple {
+    /// As viewers do: a rate of 25, 50 or 75 blends the stipple colour
+    /// over white at that percentage; any other rate is solid stipple
+    /// colour.
+    #[default]
+    Viewer,
+    /// As the grammar says (p.806): `rate` percent of the stipple colour
+    /// over the fill colour.
+    Spec,
+}
+
 /// The weight of a `font` with no `weight` attribute (gap G-T1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
@@ -181,6 +195,8 @@ pub struct PaintOptions {
     pub arc_fill: ArcFill,
     /// Gap G-W10.
     pub picture_rounding: PictureRounding,
+    /// Gap G-D6.
+    pub stipple: Stipple,
 }
 
 impl PaintOptions {
@@ -204,6 +220,7 @@ impl PaintOptions {
             arc_circle: ArcCircle::Diameter,
             arc_fill: ArcFill::Pie,
             picture_rounding: PictureRounding::HalfUp,
+            stipple: Stipple::Viewer,
         }
     }
 
@@ -316,6 +333,13 @@ impl PaintOptions {
     #[must_use]
     pub const fn with_picture_rounding(mut self, picture_rounding: PictureRounding) -> Self {
         self.picture_rounding = picture_rounding;
+        self
+    }
+
+    /// With `stipple`.
+    #[must_use]
+    pub const fn with_stipple(mut self, stipple: Stipple) -> Self {
+        self.stipple = stipple;
         self
     }
 }

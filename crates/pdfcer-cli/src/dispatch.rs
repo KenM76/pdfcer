@@ -1435,6 +1435,7 @@ pub(crate) fn run() -> ExitCode {
             dash_caps,
             arc_circle,
             arc_fill,
+            stipple,
         } => cmd_xfa_layout(
             &input,
             XfaLayoutArgs {
@@ -1467,6 +1468,7 @@ pub(crate) fn run() -> ExitCode {
                     dash_caps,
                     arc_circle,
                     arc_fill,
+                    stipple,
                 })
                 .as_ref(),
         ),

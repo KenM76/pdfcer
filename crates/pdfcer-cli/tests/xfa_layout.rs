@@ -303,6 +303,24 @@ fn png_dir_draws_an_inline_image_under_each_image_setting() {
 }
 
 #[test]
+fn png_dir_draws_gradient_and_stipple_fills() {
+    let field = |fill: &str| {
+        format!(
+            r#"<subform name="f">{PAGE}<draw name="d" x="10pt" y="10pt" w="100pt" h="40pt"><border><fill><color value="0,0,255"/>{fill}</fill></border></draw></subform>"#
+        )
+    };
+    let (solid, _) = image_run(&field(""), "solid", &[]);
+    let (linear, stdout) = image_run(&field("<linear/>"), "linear", &[]);
+    assert!(stdout.ends_with("xfa-render pages=1 notes=0
+"), "{stdout}");
+    assert_ne!(solid, linear, "a gradient is drawn");
+    let stipple = field(r#"<stipple rate="40"><color value="255,0,0"/></stipple>"#);
+    let (viewer, _) = image_run(&stipple, "viewer", &[]);
+    let (spec, _) = image_run(&stipple, "spec", &["--stipple", "spec"]);
+    assert_ne!(viewer, spec, "--stipple reaches the painter");
+}
+
+#[test]
 fn png_dir_names_an_image_link_the_file_does_not_hold() {
     let t = format!(
         r#"<subform name="f">{PAGE}<field name="i" x="10pt" y="10pt" w="100pt" h="40pt"><ui><imageEdit/></ui><value><image href="logo.png"/></value></field></subform>"#

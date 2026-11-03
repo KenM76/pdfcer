@@ -142,7 +142,7 @@ fn an_invisible_ancestor_or_border_draws_nothing() {
 
 #[test]
 fn what_is_not_drawn_yet_is_disclosed() {
-    let border = r#"<edge stroke="wavy"/><corner radius="2pt" inverted="1" presence="invisible"/><fill><pattern/></fill>"#;
+    let border = r#"<edge stroke="wavy"/><corner radius="2pt" inverted="1" presence="invisible"/>"#;
     let body = field(border)
         .replace("<border>", r#"<border break="open">"#)
         .replace(
@@ -154,10 +154,7 @@ fn what_is_not_drawn_yet_is_disclosed() {
     assert!(ops.contains(" l S") && !ops.contains(" d "), "{ops}");
     let kinds: Vec<_> = notes.iter().map(|n| n.kind).collect();
     use PaintNoteKind as K;
-    assert_eq!(
-        kinds,
-        [K::OpenBreak, K::FillType, K::Stroke, K::Corner, K::Content]
-    );
+    assert_eq!(kinds, [K::OpenBreak, K::Stroke, K::Corner, K::Content]);
 }
 
 #[test]
@@ -686,4 +683,87 @@ fn a_default_ui_draw_is_not_disclosed() {
     let (ops, notes, _) = paint(body, &PaintOptions::new());
     assert!(ops.contains("(t) Tj"), "{ops}");
     assert!(!content_noted(&notes), "{notes:?}");
+}
+
+fn shading(page: &PaintedPage, name: &str) -> Dict {
+    let Some(Object::Dict(sh)) = page.resources.get(b"Shading") else {
+        panic!("no /Shading: {:?}", page.resources);
+    };
+    let Some(Object::Dict(d)) = sh.get(name.as_bytes()) else {
+        panic!("no {name}");
+    };
+    d.clone()
+}
+
+fn reals(o: Option<&Object>) -> Vec<f64> {
+    let Some(Object::Array(a)) = o else {
+        panic!("not an array: {o:?}")
+    };
+    a.iter()
+        .map(|v| match v {
+            Object::Real(r) => *r,
+            Object::Integer(i) => *i as f64,
+            _ => panic!("{v:?}"),
+        })
+        .collect()
+}
+
+#[test]
+fn a_linear_fill_is_an_axial_shading_clipped_to_the_box() {
+    let fill = r#"<fill><color value="255,0,0"/><linear type="toLeft"><color value="0,0,255"/></linear></fill>"#;
+    let (page, ops) = painted(&field(fill), &PaintOptions::new());
+    assert!(ops.contains("re W n /XS0 sh Q"), "{ops}");
+    assert!(page.notes.is_empty(), "{:?}", page.notes);
+    let sh = shading(&page, "XS0");
+    assert_eq!(sh.get(b"ShadingType"), Some(&Object::Integer(2)));
+    // toLeft: the start (fill colour) at the right edge, the end at the left.
+    assert_eq!(reals(sh.get(b"Coords")), [146.0, 726.0, 46.0, 726.0]);
+    let Some(Object::Dict(f)) = sh.get(b"Function") else {
+        panic!()
+    };
+    assert_eq!(reals(f.get(b"C0")), [1.0, 0.0, 0.0]);
+    assert_eq!(reals(f.get(b"C1")), [0.0, 0.0, 1.0]);
+}
+
+#[test]
+fn a_radial_fill_maps_the_unit_circle_onto_the_box() {
+    let fill = r#"<fill><radial type="toCenter"/></fill>"#;
+    let (page, ops) = painted(&field(fill), &PaintOptions::new());
+    assert!(ops.contains("50 0 0 10 96 726 cm /XS0 sh Q"), "{ops}");
+    let sh = shading(&page, "XS0");
+    assert_eq!(sh.get(b"ShadingType"), Some(&Object::Integer(3)));
+    let Some(Object::Dict(f)) = sh.get(b"Function") else {
+        panic!()
+    };
+    // toCenter: the type colour (default black) at the centre.
+    assert_eq!(reals(f.get(b"C0")), [0.0; 3]);
+    assert_eq!(reals(f.get(b"C1")), [1.0; 3]);
+}
+
+#[test]
+fn a_pattern_fill_hatches_over_the_fill_colour() {
+    let fill = r#"<fill><pattern type="vertical"><color value="0,128,0"/></pattern></fill>"#;
+    let (page, ops) = painted(&field(fill), &PaintOptions::new());
+    assert!(ops.contains("W n 1 1 1 rg"), "white ground: {ops}");
+    assert!(ops.contains("0.5 w"), "{ops}");
+    // 100pt wide at 4pt spacing: 26 vertical lines, no horizontals.
+    assert_eq!(ops.matches(" l").count(), 26, "{ops}");
+    assert!(!page.resources.contains_key(b"Shading"));
+}
+
+#[test]
+fn a_stipple_blends_by_the_setting() {
+    let fill = |rate: &str| {
+        format!(
+            r#"<fill><color value="0,0,255"/><stipple rate="{rate}"><color value="255,0,0"/></stipple></fill>"#
+        )
+    };
+    let viewer = PaintOptions::new();
+    let (_, ops) = painted(&field(&fill("50")), &viewer);
+    assert!(ops.contains("1 0.5 0.5 rg"), "50% red over white: {ops}");
+    let (_, ops) = painted(&field(&fill("40")), &viewer);
+    assert!(ops.contains("1 0 0 rg"), "an odd rate is solid: {ops}");
+    let spec = PaintOptions::new().with_stipple(Stipple::Spec);
+    let (_, ops) = painted(&field(&fill("40")), &spec);
+    assert!(ops.contains("0.4 0 0.6 rg"), "40% red over blue: {ops}");
 }

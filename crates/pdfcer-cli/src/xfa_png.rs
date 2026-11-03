@@ -5,7 +5,7 @@ use super::*;
 use pdfcer_core::xfa::{
     ArcCircle, ArcFill, CaptionFont, CheckCaption, CheckEdge, DashCaps, DashLengths, EdgePlacement,
     FontWeight, ImageOverflow, ImagePlacement, Medium, MissingFill, PaintNoteKind, PaintOptions,
-    PictureRounding, Template, ThreeDStroke, XfaLayout,
+    PictureRounding, Stipple, Template, ThreeDStroke, XfaLayout,
 };
 
 /// `xfa-layout --edge-placement` (gap G-D1, decision 207).
@@ -169,6 +169,16 @@ pub(crate) enum ArcFillArg {
     Chord,
 }
 
+/// `xfa-layout --stipple` (gap G-D6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum StippleArg {
+    /// 25, 50 or 75 percent over white; any other rate solid.
+    #[default]
+    Viewer,
+    /// The rate's percentage over the fill colour.
+    Spec,
+}
+
 /// Where and how `xfa-layout` writes page images.
 #[derive(Debug, Clone)]
 pub(crate) struct XfaPngArgs {
@@ -190,6 +200,7 @@ pub(crate) struct XfaPngArgs {
     pub(crate) dash_caps: DashCapsArg,
     pub(crate) arc_circle: ArcCircleArg,
     pub(crate) arc_fill: ArcFillArg,
+    pub(crate) stipple: StippleArg,
 }
 
 impl XfaPngArgs {
@@ -253,6 +264,10 @@ impl XfaPngArgs {
             .with_arc_fill(match self.arc_fill {
                 ArcFillArg::Pie => ArcFill::Pie,
                 ArcFillArg::Chord => ArcFill::Chord,
+            })
+            .with_stipple(match self.stipple {
+                StippleArg::Viewer => Stipple::Viewer,
+                StippleArg::Spec => Stipple::Spec,
             })
     }
 }

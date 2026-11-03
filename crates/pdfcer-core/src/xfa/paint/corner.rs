@@ -86,7 +86,7 @@ impl Painter<'_> {
     pub(super) fn rounded(
         &mut self,
         r: LayoutRect,
-        rgb: Option<[f64; 3]>,
+        fill: Option<super::fill::Fill>,
         sides: &[Edge],
         corners: [Corner; 4],
         offset: f64,
@@ -96,16 +96,16 @@ impl Painter<'_> {
             radius: c.radius.min(limit),
             ..c
         });
-        if let Some(rgb) = rgb {
+        if let Some(fill) = fill {
             let arms = self.arms(r, &corners, [0.0; 4]);
-            self.b.set_fill_rgb(rgb[0], rgb[1], rgb[2]);
-            self.b.move_to(arms[0].start.0, arms[0].start.1);
-            for (c, a) in corners.iter().zip(arms) {
-                self.b.line_to(a.start.0, a.start.1);
-                self.arm_path(*c, a);
-            }
-            self.b.close_subpath();
-            self.b.paint(Paint::Fill);
+            self.paint_fill(fill, r, |p| {
+                p.b.move_to(arms[0].start.0, arms[0].start.1);
+                for (c, a) in corners.iter().zip(arms) {
+                    p.b.line_to(a.start.0, a.start.1);
+                    p.arm_path(*c, a);
+                }
+                p.b.close_subpath();
+            });
         }
         if sides.len() < 4 {
             return;

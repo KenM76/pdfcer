@@ -1091,6 +1091,16 @@ kind.
   - `PictureRounding { HalfUp (default), HalfEven, Truncate }`
     (`with_picture_rounding`): how a `num{}` picture drops fraction digits
     it has no place for; half-up is half away from zero (gap G-W10).
+  - `Stipple { Viewer (default), Spec }` (`with_stipple`): a `stipple`
+    fill's `rate` of 25, 50 or 75 blends its colour over white and any
+    other rate is solid, as viewers draw it; `Spec` blends `rate` percent
+    over the fill colour (p.806; gap G-D6).
+- **Fills.** A `fill` is solid, a `linear` (axial) or `radial` shading
+  spanning the box it paints (radial as the inscribed ellipse; gap G-F1),
+  `pattern` hatching 0.5pt lines 4pt apart (gap G-D5) or a uniform
+  `stipple` blend (gap G-F2). A type child with no `color` is black
+  (gap G-D4). The shadings are named `XS0`, `XS1`, ... under `/Shading`
+  in `PaintedPage::resources`.
 - **Field widgets.** A value element of any scalar type (`text`, `date`,
   `time`, `dateTime`, `integer`, `decimal`, `float`, `boolean`) is drawn,
   through the field's display picture (`format/picture`, Ch.26: `date{}`,
@@ -1146,7 +1156,7 @@ kind.
   - `StrokeApproximated`: a 3-D edge drawn as a plain stroke (`Plain`, a
     border with rounded corners, or a later edge whose first edge is not
     3-D).
-  - `FillType`: a gradient, pattern or stipple fill, not drawn.
+  - `FillType`: never produced; every fill type is drawn.
   - `Corner`: an inverted corner; its concave shape is inferred (G-D18).
   - `OpenBreak`: `break="open"`, drawn closed.
   - `Color`: an unreadable colour; the default was used.

@@ -138,19 +138,25 @@ impl Painter<'_> {
             self.height - r.y - r.h.max(0.0) / 2.0,
         );
         let whole = sweep.abs() >= 360.0;
-        if let Some(rgb) = self.fill_rgb(item, s) {
-            self.b.set_fill_rgb(rgb[0], rgb[1], rgb[2]);
-            if !whole && self.opts.arc_fill == ArcFill::Pie {
-                self.b.move_to(c.0, c.1);
+        if let Some(fill) = self.fill_of(item, s) {
+            let pie = !whole && self.opts.arc_fill == ArcFill::Pie;
+            let bx = LayoutRect {
+                x: c.0 - rx,
+                y: self.height - c.1 - ry,
+                w: 2.0 * rx,
+                h: 2.0 * ry,
+            };
+            self.paint_fill(fill, bx, |me| {
                 let p = point(c, rx, ry, start.to_radians());
-                self.b.line_to(p.0, p.1);
-            } else {
-                let p = point(c, rx, ry, start.to_radians());
-                self.b.move_to(p.0, p.1);
-            }
-            self.arc_path(c, rx, ry, start, sweep);
-            self.b.close_subpath();
-            self.b.paint(Paint::Fill);
+                if pie {
+                    me.b.move_to(c.0, c.1);
+                    me.b.line_to(p.0, p.1);
+                } else {
+                    me.b.move_to(p.0, p.1);
+                }
+                me.arc_path(c, rx, ry, start, sweep);
+                me.b.close_subpath();
+            });
         }
         let (edge, cap) = self.shape_edge(item, s);
         if !edge.drawn || sweep == 0.0 {

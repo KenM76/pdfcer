@@ -15,8 +15,10 @@
 //! faces ([`PaintedPage::resources`] names them), beside its left, right,
 //! top or bottom caption, itself plain or rich; a `checkButton` field's box and mark; an `image` value
 //! or caption, inline or linked through [`XfaImages`]. A rotated draw or
-//! field is drawn turned. Inline captions, other value content and other
-//! non-text widgets are not drawn yet; each item carrying them is reported as
+//! field is drawn turned. A `fill` is solid, a `linear` or `radial`
+//! shading ([`PaintedPage::resources`] names them), `pattern` hatching or a
+//! `stipple` blend. Other value content and other non-text widgets are not
+//! drawn yet; each item carrying them is reported as
 //! [`PaintNoteKind::Content`].
 
 use crate::fontdata::Std14;
@@ -27,7 +29,7 @@ use crate::writer::content::{ContentBuilder, LineCap, Paint};
 pub use dash::{DashCaps, DashLengths};
 pub use options::{
     CaptionFont, CheckCaption, CheckEdge, EdgePlacement, FontWeight, ImageOverflow, ImagePlacement,
-    Medium, MissingFill, PaintOptions, PictureRounding, ThreeDStroke,
+    Medium, MissingFill, PaintOptions, PictureRounding, Stipple, ThreeDStroke,
 };
 pub use shape::{ArcCircle, ArcFill};
 
@@ -50,7 +52,7 @@ pub enum PaintNoteKind {
     /// [`ThreeDStroke::Plain`], on a border with rounded corners, or on a
     /// later edge when the first edge (which sets a box's bevel) is not 3-D.
     StrokeApproximated,
-    /// A `linear`, `radial`, `pattern` or `stipple` fill: not drawn.
+    /// Unused: every `fill` type is drawn.
     FillType,
     /// An inverted corner with a radius: its concave shape is pdfcer's
     /// reading of the template's "concave" (gap G-D18).
@@ -150,6 +152,7 @@ pub fn paint_page_with_images(
         opts: *opts,
         fonts: Vec::new(),
         dashed: false,
+        shadings: Vec::new(),
         page: (page.number, page.count),
     };
     let (back, fore): (Vec<_>, Vec<_>) = page.items.iter().partition(|i| i.background);
@@ -192,6 +195,8 @@ struct Painter<'i> {
     fonts: Vec<Std14>,
     /// Whether the graphics state holds a dash pattern.
     dashed: bool,
+    /// The `/Shading` resources, named `XS0`, `XS1`, ...
+    shadings: Vec<Dict>,
     /// The page's number and the layout's page count.
     page: (usize, usize),
 }
@@ -273,6 +278,16 @@ impl Painter<'_> {
 
     fn resources(&self) -> Dict {
         let mut res = Dict::new();
+        if !self.shadings.is_empty() {
+            let mut sh = Dict::new();
+            for (i, d) in self.shadings.iter().enumerate() {
+                sh.insert(
+                    Name::from(format!("XS{i}").as_bytes()),
+                    Object::Dict(d.clone()),
+                );
+            }
+            res.insert(Name::from(b"Shading"), Object::Dict(sh));
+        }
         if self.fonts.is_empty() {
             return res;
         }
@@ -294,8 +309,8 @@ impl Painter<'_> {
         if border.attr("break").is_some_and(|b| b.starts_with("open")) {
             self.note(item, PaintNoteKind::OpenBreak);
         }
-        let rgb = self
-            .fill_rgb(item, border)
+        let fill = self
+            .fill_of(item, border)
             .filter(|_| r.w > 0.0 && r.h > 0.0);
         let edges: Vec<_> = border.children_named("edge").collect();
         let sides: Vec<Edge> = match edges.last() {
@@ -313,8 +328,8 @@ impl Painter<'_> {
         if let Some(first) = sides.first().copied()
             && let Some(kind) = first.three_d.filter(|_| self.bevels() && !rounded)
         {
-            if let Some(rgb) = rgb {
-                self.fill(r, rgb);
+            if let Some(fill) = fill {
+                self.fill_rect(r, fill);
             }
             if first.drawn {
                 self.bevel_rect(r, kind, first.thickness);
@@ -326,34 +341,19 @@ impl Painter<'_> {
         }
         if rounded {
             let corners = self.corners(item, border);
-            self.rounded(r, rgb, &sides, corners, offset);
+            self.rounded(r, fill, &sides, corners, offset);
             return;
         }
-        if let Some(rgb) = rgb {
-            self.fill(r, rgb);
+        if let Some(fill) = fill {
+            self.fill_rect(r, fill);
         }
         self.edges(r, &sides, offset);
     }
 
-    /// The colour `border`'s (or a shape's) fill paints, or `None` for no fill.
-    fn fill_rgb(&mut self, item: &LayoutItem, border: &XfaNode) -> Option<[f64; 3]> {
-        match border.child("fill") {
-            None => match self.opts.missing_fill {
-                MissingFill::None => None,
-                MissingFill::White => Some([1.0; 3]),
-            },
-            Some(f) if f.presence() != Presence::Visible => None,
-            Some(f) => {
-                let other = ["linear", "radial", "pattern", "stipple"]
-                    .iter()
-                    .any(|t| f.child(t).is_some());
-                if other {
-                    self.note(item, PaintNoteKind::FillType);
-                    return None;
-                }
-                Some(self.color(item, f, [1.0; 3]))
-            }
-        }
+    /// `fill` over `r`.
+    fn fill_rect(&mut self, r: LayoutRect, fill: fill::Fill) {
+        let y = self.height - r.y - r.h;
+        self.paint_fill(fill, r, |p| p.b.rect(r.x, y, r.w, r.h));
     }
 
     fn fill(&mut self, r: LayoutRect, rgb: [f64; 3]) {
@@ -481,6 +481,7 @@ mod choice;
 mod comb;
 mod corner;
 mod dash;
+mod fill;
 mod image;
 mod options;
 mod page_script;

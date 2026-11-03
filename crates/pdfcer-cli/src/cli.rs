@@ -6396,6 +6396,12 @@ pub(crate) enum Command {
         /// its ends (a chord).
         #[arg(long, value_enum, default_value_t)]
         arc_fill: ArcFillArg,
+        /// How a stippled fill is drawn, for --png-dir: as viewers do (a
+        /// rate of 25, 50 or 75 percent over white, any other rate solid),
+        /// or as the XFA spec says (the rate's percentage over the fill
+        /// colour).
+        #[arg(long, value_enum, default_value_t)]
+        stipple: StippleArg,
     },
 
     /// Write a value into an XFA form field and save.
