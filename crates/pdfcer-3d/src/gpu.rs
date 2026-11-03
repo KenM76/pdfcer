@@ -37,8 +37,12 @@ pub struct DrawData {
     /// one, each group in mesh order.
     pub draws: Vec<Draw>,
     /// Line segments to draw after the faces, two vertices each,
-    /// [`LINE_VERTEX_FLOATS`](crate::LINE_VERTEX_FLOATS) floats per vertex,
-    /// with [`GLSL_ES_300_LINE_VERTEX`](crate::GLSL_ES_300_LINE_VERTEX).
+    /// [`LINE_VERTEX_FLOATS`](crate::LINE_VERTEX_FLOATS) floats per vertex:
+    /// as instanced quads with
+    /// [`GLSL_ES_300_WIDE_LINE_VERTEX`](crate::GLSL_ES_300_WIDE_LINE_VERTEX)
+    /// (any width), or as `GL_LINES` with
+    /// [`GLSL_ES_300_LINE_VERTEX`](crate::GLSL_ES_300_LINE_VERTEX) when
+    /// [`line_width`](Self::line_width) is 1.
     pub lines: Vec<f32>,
     /// Model units every line vertex is moved towards the eye (the line
     /// shader's `u_bias`), so an edge on a face is not hidden by it.
@@ -48,6 +52,9 @@ pub struct DrawData {
     pub points: Vec<f32>,
     /// The points' size in pixels (the line shader's `u_point_size`).
     pub point_size: f32,
+    /// Lines' width in pixels, at least 1 ([`RenderOptions::line_width`](crate::RenderOptions::line_width)):
+    /// the wide-line shader's `u_line_width`.
+    pub line_width: f32,
     /// The line shader's `u_crease_cos` under the render mode.
     pub crease_cos: f32,
     /// The share of the unlit face colour added over the lit frame

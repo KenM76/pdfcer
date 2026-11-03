@@ -328,7 +328,8 @@ pub struct RenderOptions {
     /// Lines' width, pixels (1, the default): a model's wires
     /// ([`AssembledModel::lines`](crate::AssembledModel::lines)), drawn
     /// unlit and depth-tested. 0 draws as 1. Also the width of the edges a
-    /// [`render_mode`](Self::render_mode) draws.
+    /// [`render_mode`](Self::render_mode) draws. The GPU path draws any
+    /// width ([`crate::GLSL_ES_300_WIDE_LINE_VERTEX`]).
     pub line_width: u32,
     /// How faces, edges and vertices are drawn (ISO 32000-1 §13.6.4.4,
     /// `/RM`); [`RenderMode::default`](crate::RenderMode::default) is

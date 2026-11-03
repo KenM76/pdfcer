@@ -3586,8 +3586,8 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   points in the vertex modes. Faces that are unlit in a mode (none,
   Illustration, HiddenWireframe, the box faces) have no lighting, shadows
   or ambient occlusion. **Every mode draws on the CPU and the GPU**;
-  `line_width` > 1 and wide points beyond the GL point-size range stay
-  CPU-only, and ShadedIllustration's emissive term on the GPU is a second
+  wide points beyond the GL point-size range stay CPU-only, and
+  ShadedIllustration's emissive term on the GPU is a second
   pass the host draws (`DrawData::emissive`). Reading a view's `/RM`:
   `pdfcer_core::threed::ThreeDSavedView::render_mode` converts with
   `.into()`. CLI: `3d-render --render-mode auto|solid|solid-wireframe|…|
@@ -3736,8 +3736,16 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     (and the AO composite) with `GLSL_ES_300_LINE_VERTEX` /
     `GLSL_ES_300_LINE_FRAGMENT` (`u_view`, `u_projection`, `u_eye`,
     `u_forward`, `u_orthographic`, `u_depth_range`, `u_crease_cos` = 1),
-    depth `LEQUAL`, source-alpha blending. `glLineWidth` above 1 is not
-    portable (WebGL clamps it), so `line_width` > 1 is CPU-only.
+    depth `LEQUAL`, source-alpha blending. Any width, including 1:
+    `GLSL_ES_300_WIDE_LINE_VERTEX` with the same fragment shader draws one
+    instanced quad per segment — bind `lines` per-instance (divisor 1,
+    stride 144 bytes: locations 0–6 as above for the first end, 7 second
+    end @72, 8 its colour @84, 9 its first normal @112) and
+    `drawArraysInstanced(TRIANGLE_STRIP, 0, 4, lines.len() / 36)`; extra
+    uniforms `u_line_width` = `DrawData::line_width` (px, ≥ 1) and
+    `u_viewport` (px). It covers the CPU frame's pixels (WebGL 2 against
+    the CPU, widths 1–5: mean ≤ 0.12 levels, ≤ 0.07% of pixels > 8 off).
+    `glLineWidth` above 1 is not portable, so `GL_LINES` is width 1 only.
     Under a render mode the faces come from `draws` as usual (in the box
     modes `Draw::mesh` indexes `AssembledModel::boxes`, and a mode with no
     faces has no draws); set `u_crease_cos` = `DrawData::crease_cos`.

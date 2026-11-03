@@ -85,8 +85,8 @@ void main() {
 /// `u_depth_range`, `u_orthographic`). Draw [`DrawData::lines`] as
 /// `GL_LINES` after the faces (and any ambient-occlusion composite), then
 /// [`DrawData::points`] as `GL_POINTS`, depth function `LEQUAL`, blending
-/// source-alpha over. `glLineWidth` above 1 is not portable (WebGL clamps
-/// it to 1), so wider lines are CPU-only.
+/// source-alpha over. Lines wider than 1 pixel are drawn with
+/// [`crate::GLSL_ES_300_WIDE_LINE_VERTEX`] instead, with this fragment shader.
 pub const GLSL_ES_300_LINE_FRAGMENT: &str = r"#version 300 es
 precision highp float;
 in vec4 v_colour;
@@ -142,6 +142,7 @@ pub(crate) fn add_overlays(
     data.line_bias = crate::lines::bias(model) as f32;
     data.crease_cos = options.render_mode.crease_cos() as f32;
     data.point_size = options.render_mode.point_size.max(1) as f32;
+    data.line_width = options.line_width.max(1) as f32;
     let over = crate::mode_lines::overlays(model, options, colours);
     for item in &over.lines {
         push_stroke(&mut data.lines, &item.stroke, &item.extras);
@@ -173,6 +174,15 @@ mod tests {
         assert_eq!(&v[..7], &[2.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0]);
         assert_eq!(&v[7..10], &[1.0, 0.0, 0.0], "the midpoint");
         assert_eq!(&v[16..], &[0.0, 0.0], "always drawn, unshaded");
+        assert_eq!(d.line_width, 1.0);
+        for (asked, drawn) in [(0, 1.0), (3, 3.0)] {
+            let options = RenderOptions {
+                line_width: asked,
+                ..RenderOptions::default()
+            };
+            let d = PreparedModel::new(&model).draw_data(&model, &options);
+            assert_eq!(d.line_width, drawn, "{asked}");
+        }
     }
 
     #[test]

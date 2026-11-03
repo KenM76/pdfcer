@@ -65,6 +65,8 @@ mod gpu_shadow;
 #[cfg(feature = "render")]
 mod gpu_shadow_set;
 #[cfg(feature = "render")]
+mod gpu_wide_lines;
+#[cfg(feature = "render")]
 mod lamp_shadow;
 #[cfg(feature = "render")]
 mod lighting;
@@ -153,6 +155,8 @@ pub use gpu_shadow_set::{
     GLSL_ES_300_LAMP_SHADOW_ALPHA_VERTEX, GLSL_ES_300_SHADOW_ALPHA_FRAGMENT,
     GLSL_ES_300_SHADOW_ALPHA_VERTEX, MAX_EXTRA_SHADOWS,
 };
+#[cfg(feature = "render")]
+pub use gpu_wide_lines::GLSL_ES_300_WIDE_LINE_VERTEX;
 #[cfg(feature = "render")]
 pub use lamp_shadow::{DEFAULT_LAMP_SHADOW_MAP_SIZE, MAX_LAMP_SHADOW_MAP_SIZE};
 #[cfg(feature = "render")]
