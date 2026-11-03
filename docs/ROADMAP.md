@@ -112,6 +112,24 @@ wherever it appears.*
 
 ## Shipped
 
+### `cf7960b2` `Pass 647.4` WIDGET CUT, 2026-11-03: XFA display pictures, typed values, password / button / signature / barcode widgets, screen / paper medium (1383rd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `cf7960b2` "feat(xfa): display pictures, typed values, password/button/signature/barcode widgets, screen/paper medium (Pass 647.4)". On local `main`, **unpushed, unreleased** at filing. **`Pass 647.4` is NOT complete**; it stays in Next up. Tests are synthetic. Reasoning is in the commit message.
+- **Display pictures** (`format/picture`, XFA 3.3 Ch.26): date, time, dateTime, num and text pictures, alternates, null and zero categories. Rounding is half-up (spec gap G-W10; a setting is still owed). English names stand in for other locales; the `E` exponent symbol is unsupported. Both are disclosed as a Picture note.
+- **Typed values:** date, time, decimal, integer and similar value elements hold the merged value like text.
+- **Widgets:** `passwordEdit` masks with `passwordChar` (default `*`); `button` draws border and caption; `signature` border is screen-only; `barcode` value is shown as text with a Barcode note (encoders owed).
+- **New public setting** `PaintOptions::medium` (`Screen` default, `Paper`) replaces the earlier choice-button option; the drop-down button and the signature border are screen-only. `docs/core-api/03-capabilities.md` updated.
+- **CLI:** `pdfcer xfa-layout --png-dir <dir> --medium screen|paper`; new note labels.
+- **Tests (engineer-reported):** `pdfcer-core` xfa 230 passed; `pdfcer-render` xfa 6 passed; fmt and clippy clean. No dependency or manifest change (`cargo tree` unaffected).
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]` (separate project, not evidenced). FEATURES: new Implemented row "display pictures and more widgets"; the umbrella "layout and drawing" row amended, its boxes stay `[ ]` (partial).
+
+### `89dc9fbe` `Pass 647.4` CHECK-BOX CUT, 2026-11-03: edgeless check boxes outlined, page-number scripts, para margins (1383rd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `89dc9fbe` "feat(xfa): edgeless check boxes outlined, page-number scripts, para margins (Pass 647.4)". On local `main`, **unpushed, unreleased** at filing. **`Pass 647.4` is NOT complete.** Reasoning is in the commit message.
+- **Done:** a `checkButton` with no border edge gets an outlined box (what Designer forms rely on); the Designer "page n of m" script pattern is recognised and its value painted (no script is executed; the substitution is disclosed as a note); caption and field para margins (`spaceAbove`, `spaceBelow`, `marginLeft`, `marginRight`) are honoured.
+- **Closes two items** named in the border cut: check boxes not visible, and "Page _ of _" fields blank.
+- **Boxes:** core `[x]`, cli `[x]` (via the existing XFA drawing verbs). FEATURES: covered by the new row above.
+
 ### `daff1ca8` `chore`: version bump to 0.118.0, 2026-11-02 (1381st filing); release `v0.118.0` PREPARED, not published
 
 Engineer-reported; no shell here, nothing checked from here. `daff1ca8` "chore: bump version to 0.118.0". Carries `Pass 657.2` / `657.3` (`a64bf4e0`), `Pass 647.4` (`7450b595`, `a5e17baf`), `Pass 657.4` (`f11c2730`), `Pass 657.5` (`981b3dcf`), plus `7d0ef09d` (rustdoc link fix). Tag, package, smoke, deploy (`pdfcer1` is the next slot) are NOT claimed done here. No box changes; nothing minted.
@@ -27391,7 +27409,7 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 
 Filed from the `647.3e` close; nothing built. `647.3e` (`53f4e938`) creates instances only for named by-name subforms with `occur`. Not yet built: (1) instances for subforms bound with `bind match="dataRef"`; (2) instances for `subformSet`. Same spec (XFA 3.3 pp.339-347, `adobe_ext__xfa_data_binding_normal.md`), same `MergeWarningKind::{ExcessData, InstanceLimit}`, same guard. Acceptance to be written when scoped; synthetic only. Request `G248` items 2-3 are answered for the by-name case only. FEATURES: Planned row added (all three boxes `[ ]`).
 
-### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing), RICH-TEXT CUT `7450b595` (1380th filing, see *Shipped*), BORDER CUT `a5e17baf` (1381st filing, see *Shipped*); NOT COMPLETE, stays here)
+### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing), RICH-TEXT CUT `7450b595` (1380th filing, see *Shipped*), BORDER CUT `a5e17baf` (1381st filing, see *Shipped*), CHECK-BOX CUT `89dc9fbe` and WIDGET CUT `cf7960b2` (1383rd filing, see *Shipped*); NOT COMPLETE, stays here)
 
 `pdfcer-render` draws the computed layout instead of the placeholder page (render-time only, like decision 203). Inferred content renders exactly as saved content would (rule 4: no on-canvas marking); disclosure is off-canvas diagnostics. Needs `pdfcer-render` to stay GUI-free (`cargo tree` check).
 
@@ -27454,6 +27472,8 @@ Filed from the `647.3e` close; nothing built. `647.3e` (`53f4e938`) creates inst
 - **Survivors:** the claim "corner drawn square" was swept in `ROADMAP.md` (second-cut text below amended in place; earlier cuts' "rounded corners" lines are dated history and stand), `FEATURES.md` (row amended). Not swept from here: `NEXT_SESSION.md`, `ARCHITECTURE.md` section 4, CLI help text; owed to the engineer.
 
 **Rich-text cut (`7450b595`; 1380th filing; detail in *Shipped*).** `exData text/html` values and captions are drawn; WinAnsi nbsp / soft hyphen fixed. **REMAINING in 647.4:** inline captions; choiceList / button / barcode / signature widgets; check boxes on real forms; real fonts (`X014` item 2); gradient fills; non-solid strokes. Rich text is no longer on this list.
+
+**Check-box and widget cuts (`89dc9fbe`, `cf7960b2`; 1383rd filing; detail in *Shipped*).** Edgeless check boxes, page-number scripts, para margins, display pictures, typed values, password / button / signature / barcode-as-text widgets and `PaintOptions::medium` are drawn. **REMAINING in 647.4:** comb; inline captions; real (embedded / system) fonts (`X014` item 2); gradient and stipple fills; non-solid strokes; image natural sizing (`X017` remainder); barcode encoders; the G-W10 rounding setting. Check boxes, page-number fields, button, password, signature and typed values are no longer on this list.
 
 ### Pass 647.5 — CLI `xfa-layout` report and `render-page` integration (FIRST CUT `c94ab2ee` (1289th filing), SECOND CUT `b0e0d1a2` (1292nd filing); NOT COMPLETE, stays here)
 

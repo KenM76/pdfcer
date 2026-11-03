@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1383rd filing) — `Pass 647.4` check-box cut `89dc9fbe` and widget cut `cf7960b2` (NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here; nothing checked from here):**
+- **`89dc9fbe`:** edgeless `checkButton` outlined; Designer "page n of m" script recognised and its value painted (no script run, substitution noted); para margins honoured.
+- **`cf7960b2`:** `format/picture` display pictures (XFA 3.3 Ch.26), typed values, password / button / signature / barcode-as-text widgets; new public `PaintOptions::medium` (Screen default | Paper); CLI `xfa-layout --png-dir <dir> --medium`; `docs/core-api/03-capabilities.md` updated. Half-up rounding (gap G-W10, setting owed), English names for other locales, no `E` exponent: all disclosed as a Picture note.
+- **Tests (engineer-reported):** `pdfcer-core` xfa 230, `pdfcer-render` xfa 6; fmt and clippy clean; no manifest change. Tests are synthetic; no real-world form is named in the docs (not rights-cleared).
+- Both commits on local `main`, **unpushed** at filing.
+- ROADMAP: two Shipped entries; `647.4` Next-up title and a remaining-list paragraph. FEATURES: new Implemented row (core `[x]`, cli `[x]`, gui `[ ]`); the umbrella "layout and drawing" row text amended, boxes stay `[ ]` (partial).
+
+**Decisions made this session:** none minted.
+
+**Hard-rule-11 survivors:** `FEATURES.md` row for XFA drawing amended (it listed "other widgets" and omitted check-box outlines). Not swept from here: `docs/NEXT_SESSION.md`, CLI `--help` / comments naming the removed choice-button option, `ARCHITECTURE.md` section 4. Verb name reconciled: the CLI verb is `xfa-layout --png-dir` (no `xfa-png` verb; `xfa_png.rs` is only the module), corrected in all three files. Backup currency not verifiable from here.
+
+**Still in flight:** push of both commits; `647.4` remainder (comb, inline captions, real fonts, gradient / stipple fills, non-solid strokes, image natural sizing, barcode encoders, G-W10 rounding setting); `O368` in `pdfcer-gui`.
+
+**For next session:** run `tools/check-commits-filed.py` before the push.
+
 ## 2026-11-02 (1382nd filing) — `v0.118.0` PUBLISHED; tag at `c6baca00`; help-text fix `c6baca00`
 
 **Filed (docs only; engineer-reported, no shell here; nothing checked from here):**
