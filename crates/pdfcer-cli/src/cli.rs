@@ -3310,6 +3310,19 @@ pub(crate) enum Command {
         /// shade where blocked.
         #[arg(long)]
         no_shadows: bool,
+        /// Draw without the shadows a model's own point and spot lights
+        /// cast. By default each casts them in every direction it reaches;
+        /// `--no-shadows` turns these off too.
+        #[arg(long)]
+        no_lamp_shadows: bool,
+        /// Texels along each side of the cast-shadow map, 64 to 8192
+        /// (default 2048); larger is sharper and slower.
+        #[arg(long, default_value_t = 2048, value_parser = clap::value_parser!(u32).range(64..=8192))]
+        shadow_map_size: u32,
+        /// Texels along each side of a lamp shadow's six cube faces, 64 to
+        /// 4096 (default 512); larger is sharper and slower.
+        #[arg(long, default_value_t = 512, value_parser = clap::value_parser!(u32).range(64..=4096))]
+        lamp_shadow_map_size: u32,
         /// Draw without ambient occlusion. By default creases, corners and
         /// contacts are darkened by how much nearby surface rises around
         /// them, read from the depth of the finished picture; an unlit

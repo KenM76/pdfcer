@@ -456,6 +456,9 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) lighting: RenderLightingArg,
     pub(crate) light_frame: LightFrameArg,
     pub(crate) shadows: bool,
+    pub(crate) lamp_shadows: bool,
+    pub(crate) lamp_shadow_map_size: u32,
+    pub(crate) shadow_map_size: u32,
     pub(crate) ambient_occlusion: bool,
     pub(crate) artwork_headlight: bool,
     pub(crate) view_lights: bool,
@@ -605,6 +608,9 @@ fn render_from_bytes(
             LightFrameArg::World => pdfcer_3d::LightFrame::World,
         },
         shadows: a.shadows,
+        lamp_shadows: a.lamp_shadows,
+        lamp_shadow_map_size: a.lamp_shadow_map_size,
+        shadow_map_size: a.shadow_map_size,
         ambient_occlusion: a.ambient_occlusion,
         light_sense: match a.light_sense {
             LightSenseArg::Towards => pdfcer_3d::LightSense::TowardsLight,
@@ -703,6 +709,15 @@ fn render_from_bytes(
                 "cast by a sun fixed on the negative side of the `--up` axis \
                  (`--no-shadows` turns them off)"
             }
+        }
+    );
+    println!(
+        "note: lamp shadows: {}",
+        if a.shadows && a.lamp_shadows {
+            "cast by the model's own point and spot lights, if any \
+             (`--no-lamp-shadows` turns them off)"
+        } else {
+            "off"
         }
     );
     println!(

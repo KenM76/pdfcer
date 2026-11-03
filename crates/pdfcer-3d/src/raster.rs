@@ -2,6 +2,7 @@
 //! behind [`crate::render`].
 
 use crate::Texture;
+use crate::lamp_shadow::LampShadows;
 use crate::model_shade::{Local, add_local};
 use crate::render::{Camera, Projection, RenderError};
 use crate::shadow::ShadowMap;
@@ -184,6 +185,19 @@ pub(crate) struct Target<'b> {
     pub(crate) depth: &'b mut [f64],
 }
 
+/// What lights a triangle's pixels beyond its corners' shade.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct PixelLights<'a> {
+    /// The casting light's map.
+    pub(crate) shadow: Option<&'a ShadowMap>,
+    /// Point and spot lights, added per pixel.
+    pub(crate) local: &'a [Local],
+    /// Their shadows.
+    pub(crate) lamps: Option<&'a LampShadows>,
+    /// The triangle's unit normal.
+    pub(crate) face: [f64; 3],
+}
+
 impl Target<'_> {
     /// Fill the screen triangle of `corners` with `paint`, depth-tested at
     /// pixel centres, the shade (and any texture coordinate,
@@ -192,14 +206,21 @@ impl Target<'_> {
     /// it, leaving the depth. With `shadow`, each pixel's `key` share of the
     /// shade is scaled by its visibility from the casting light. Each of
     /// `local` is added per pixel at the perspective-correct model point
-    /// and normal.
+    /// and normal, scaled by its visibility in `lamps` for a triangle with
+    /// unit normal `face`.
     pub(crate) fn fill(
         &mut self,
         view: &View,
         corners: [Corner; 3],
         paint: Paint<'_>,
-        (shadow, local): (Option<&ShadowMap>, &[Local]),
+        lights: PixelLights<'_>,
     ) {
+        let PixelLights {
+            shadow,
+            local,
+            lamps,
+            face,
+        } = lights;
         let [a, b, c] = corners;
         let area = edge(a.at, b.at, c.at);
         if !area.is_finite() || area.abs() < 1e-12 {
@@ -257,7 +278,8 @@ impl Target<'_> {
                     let model =
                         |f: fn(&Corner) -> [f64; 3]| [0, 1, 2].map(|j| correct(&|c| at(f(c), j)));
                     let (p, n) = (model(|c| c.model[0]), model(|c| c.model[1]));
-                    add_local(&mut shade, local, p, n);
+                    let lit = |i: usize| lamps.map_or(1.0, |m| m.visibility(i, p, face));
+                    add_local(&mut shade, local, (p, n), &lit);
                 }
                 let colour = match paint.texture {
                     Some(t) => {
@@ -398,7 +420,7 @@ mod tests {
                 rgba: &mut rgba,
                 depth: &mut depth,
             };
-            target.fill(view, corners, paint, (None, &[]));
+            target.fill(view, corners, paint, PixelLights::default());
             rgba[4 * 4..4 * 4 + 4].to_vec()
         };
         let perspective = View::Perspective {

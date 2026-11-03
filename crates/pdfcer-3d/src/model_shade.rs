@@ -73,14 +73,23 @@ impl Local {
 }
 
 /// Add each of `local` at model point `p` with normal `n` (renormalised
-/// here) to `shade`.
-pub(crate) fn add_local(shade: &mut [f64; 3], local: &[Local], p: [f64; 3], n: [f64; 3]) {
+/// here) to `shade`, light `i` scaled by `lit(i)`, its unshadowed share.
+pub(crate) fn add_local(
+    shade: &mut [f64; 3],
+    local: &[Local],
+    (p, n): ([f64; 3], [f64; 3]),
+    lit: &dyn Fn(usize) -> f64,
+) {
     let Some(n) = unit(n) else {
         return;
     };
-    for l in local {
+    for (i, l) in local.iter().enumerate() {
+        let k = lit(i);
+        if k <= 0.0 {
+            continue;
+        }
         for (o, c) in shade.iter_mut().zip(l.at(p, n)) {
-            *o += c;
+            *o += k * c;
         }
     }
 }

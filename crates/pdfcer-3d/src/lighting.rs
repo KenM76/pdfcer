@@ -271,7 +271,7 @@ impl Shader {
         towards: Option<[f64; 3]>,
     ) -> [f64; 3] {
         let mut out = self.shade_far(normal, towards);
-        crate::model_shade::add_local(&mut out, self.local(), p, normal);
+        crate::model_shade::add_local(&mut out, self.local(), (p, normal), &|_| 1.0);
         out
     }
 

@@ -9,9 +9,10 @@
 use crate::TriangleMesh;
 use crate::ao::{self, Depths, Screen};
 use crate::frame::Frame;
+use crate::lamp_shadow::LampShadows;
 use crate::lighting::{LightFrame, LightingScheme, Shader};
 use crate::parallel;
-use crate::raster::{Corner, Paint, Target, View, ViewCorner, at};
+use crate::raster::{Corner, Paint, PixelLights, Target, View, ViewCorner, at};
 use crate::shadow::{
     Caster, DEFAULT_SHADOW_MAP_SIZE, LightSense, LightView, ShadowLight, ShadowMap,
 };
@@ -302,6 +303,15 @@ pub struct RenderOptions {
     /// colour that nearby surfaces, within 4% of the model's bounding
     /// radius, leave open above it. No effect unlit.
     pub ambient_occlusion: bool,
+    /// Whether a model's point and spot lights cast shadows too (the
+    /// default), each lamp seeing the model through a cube of six depth
+    /// maps around it. Only with [`RenderOptions::shadows`]. A lamp inside
+    /// a closed mesh, such as a bulb in its shade, is shadowed by it.
+    pub lamp_shadows: bool,
+    /// Each lamp shadow cube face's side, texels
+    /// ([`DEFAULT_LAMP_SHADOW_MAP_SIZE`](crate::DEFAULT_LAMP_SHADOW_MAP_SIZE)),
+    /// clamped to 64–[`MAX_LAMP_SHADOW_MAP_SIZE`](crate::MAX_LAMP_SHADOW_MAP_SIZE).
+    pub lamp_shadow_map_size: u32,
 }
 
 impl Default for RenderOptions {
@@ -322,6 +332,8 @@ impl Default for RenderOptions {
             shadow_light: ShadowLight::FollowsScheme,
             shadow_map_size: DEFAULT_SHADOW_MAP_SIZE,
             ambient_occlusion: true,
+            lamp_shadows: true,
+            lamp_shadow_map_size: crate::DEFAULT_LAMP_SHADOW_MAP_SIZE,
         }
     }
 }
@@ -462,6 +474,19 @@ pub(crate) fn render_painted(
         let view = LightView::new(c.to_light, bounds, options.shadow_map_size)?;
         Some(ShadowMap::build(view, meshes, paints, opaque, workers))
     });
+    let lamps = (options.shadows && options.lamp_shadows && !shader.local().is_empty())
+        .then_some(bounds.as_ref())
+        .flatten()
+        .map(|bounds| {
+            let size = options.lamp_shadow_map_size;
+            LampShadows::build(
+                shader.local(),
+                bounds,
+                size,
+                (meshes, paints, opaque),
+                workers,
+            )
+        });
     let scene = Scene {
         camera,
         basis,
@@ -469,6 +494,7 @@ pub(crate) fn render_painted(
         shader,
         caster: caster.filter(|_| shadow.is_some()),
         shadow,
+        lamps,
         height,
     };
     let mut rgba = options.background.repeat(pixels as usize);
@@ -514,6 +540,8 @@ pub(crate) struct Scene<'c> {
     /// The light casting shadows and its map, when shadows are drawn.
     caster: Option<Caster>,
     shadow: Option<ShadowMap>,
+    /// The point and spot lights' shadows, when drawn.
+    lamps: Option<LampShadows>,
     /// The image height, pixels.
     height: u32,
 }
@@ -642,7 +670,12 @@ impl Scene<'_> {
         if let Some((&a, rest)) = screen.split_first() {
             for pair in rest.windows(2) {
                 if let [b, c] = pair {
-                    let lights = (self.shadow.as_ref(), self.shader.local());
+                    let lights = PixelLights {
+                        shadow: self.shadow.as_ref(),
+                        local: self.shader.local(),
+                        lamps: self.lamps.as_ref(),
+                        face,
+                    };
                     target.fill(&self.view, [a, *b, *c], paint, lights);
                 }
             }
@@ -1198,5 +1231,46 @@ mod tests {
             red(20, 20),
             red(2, 2)
         );
+    }
+
+    #[test]
+    fn a_lamp_casts_a_card_s_shadow_on_the_floor() {
+        // Lamp at (-1, 0, 2), card spanning x -0.5..0.5 at z 1: its shadow
+        // on the floor spans x 0..2, the part past x 0.5 visible.
+        let lamp = crate::ModelLight::new(
+            crate::ModelLightKind::Point {
+                position: [-1.0, 0.0, 2.0],
+                attenuation: [1.0, 0.0, 0.0],
+            },
+            [1.0; 3],
+        );
+        let paint = Paint {
+            colour: [200, 200, 200, 255],
+            texture: None,
+        };
+        let draw = |lamp_shadows| {
+            let options = RenderOptions {
+                lamp_shadows,
+                ambient_occlusion: false,
+                ..small()
+            };
+            let meshes = [quad(0.0, 3.0, 0.0), quad(1.0, 0.5, 0.0)];
+            render_painted(
+                (&meshes, std::slice::from_ref(&lamp)),
+                &[paint; 2],
+                &[true; 2],
+                &ortho(6.0),
+                &options,
+            )
+            .unwrap()
+        };
+        let (on, off) = (draw(true), draw(false));
+        let red = |image: &Image, x| pixel(image, x, 20)[0];
+        // x = 1.3 is in the shadow, x = 2.6 past it, x = -2.5 behind the lamp.
+        assert!(red(&on, 28) < 20 && red(&off, 28) > 100, "{}", red(&on, 28));
+        assert_eq!(red(&on, 37), red(&off, 37));
+        assert_eq!(red(&on, 3), red(&off, 3));
+        // Off the shadow's edge the card's top is lit.
+        assert_eq!(red(&on, 20), red(&off, 20));
     }
 }

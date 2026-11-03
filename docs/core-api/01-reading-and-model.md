@@ -3480,6 +3480,13 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   frame when lights are in `LightFrame::Camera`. CLI: `3d-render
   --no-shadows --no-ambient-occlusion --light-sense towards|emitted
   --shadow-light scheme|sun|sun-negative` (the sun takes `--up`).
+  Lamp shadows: with `shadows` on, each of a model's own point and spot
+  lights also casts, from a six-face cube depth map
+  (`RenderOptions::lamp_shadows: bool`, default true;
+  `RenderOptions::lamp_shadow_map_size: u32`, texels per face side, default
+  `DEFAULT_LAMP_SHADOW_MAP_SIZE` 512, clamped 64..=`MAX_LAMP_SHADOW_MAP_SIZE`
+  4096; 3 × 3 filtered, built once per frame across the worker threads).
+  CLI: `--no-lamp-shadows --lamp-shadow-map-size N --shadow-map-size N`.
 - **Interactive frame rate.** `PreparedModel::new(&model)` (re-exported at
   the crate root) does the camera-independent work once (texture opacity)
   and does not borrow the model; `prepared.render(&model, &camera,
@@ -3549,6 +3556,21 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     `u_shadow_size` (float), `to_light`, `normal_offset` → `u_shadow_offset`,
     `bias`. Redraw it when the camera moves if lights are camera-framed,
     else only when the model or options change.
+  - Lamp shadows: `FrameLampShadows::for_model(&camera, &options, &bounds,
+    &model.lights) -> Result<Option<FrameLampShadows>, RenderError>`
+    (`None` when shadows or lamp shadows are off, or there is no point or
+    spot light). Allocate a `size` × `size` × `layers()` `DEPTH_COMPONENT32F`
+    `TEXTURE_2D_ARRAY` (`NEAREST`, no compare mode). For each lamp `i` <
+    `count` with `far[i]` > 0 and each face 0–5, draw every non-translucent
+    draw into layer `6 i + face` with `GLSL_ES_300_LAMP_SHADOW_VERTEX` /
+    `GLSL_ES_300_LAMP_SHADOW_FRAGMENT` (`face_matrix(i, face)` →
+    `u_lamp_matrix`, `far[i]` → `u_lamp_far`; depth cleared to 1.0, `LESS`,
+    no culling). Bind it as the main pass's `u_lamp_shadow_map` with
+    `u_lamp_shadows` true, `u_lamp_shadow_size` = `size` (float) and
+    `u_lamp_far[8]` = `far`. Lamps are fixed in the model: redraw only when
+    the model or options change. 6 MiB per lamp at 512. WebGL 2 run (point
+    lamp and spot over a floor and two boxes): GPU vs CPU 0.026 levels mean,
+    0.02% of pixels over 8 levels.
   - Ambient occlusion, per frame: `FrameAmbientOcclusion::new(&camera,
     &options, &bounds, [w, h]) -> Result<Option<_>, RenderError>`. Render
     the main pass into a colour texture plus a ≥24-bit depth texture

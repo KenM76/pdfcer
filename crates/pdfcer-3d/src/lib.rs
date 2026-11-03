@@ -48,9 +48,13 @@ mod gpu_ao;
 #[cfg(feature = "render")]
 mod gpu_frame;
 #[cfg(feature = "render")]
+mod gpu_lamp_shadow;
+#[cfg(feature = "render")]
 mod gpu_shader;
 #[cfg(feature = "render")]
 mod gpu_shadow;
+#[cfg(feature = "render")]
+mod lamp_shadow;
 #[cfg(feature = "render")]
 mod lighting;
 mod model;
@@ -104,9 +108,15 @@ pub use gpu_ao::{
 #[cfg(feature = "render")]
 pub use gpu_frame::{FrameLights, MAX_LIGHTS, ShadeMode};
 #[cfg(feature = "render")]
+pub use gpu_lamp_shadow::{
+    FrameLampShadows, GLSL_ES_300_LAMP_SHADOW_FRAGMENT, GLSL_ES_300_LAMP_SHADOW_VERTEX,
+};
+#[cfg(feature = "render")]
 pub use gpu_shader::{GLSL_ES_300_FRAGMENT, GLSL_ES_300_VERTEX};
 #[cfg(feature = "render")]
 pub use gpu_shadow::{FrameShadow, GLSL_ES_300_SHADOW_FRAGMENT, GLSL_ES_300_SHADOW_VERTEX};
+#[cfg(feature = "render")]
+pub use lamp_shadow::{DEFAULT_LAMP_SHADOW_MAP_SIZE, MAX_LAMP_SHADOW_MAP_SIZE};
 #[cfg(feature = "render")]
 pub use lighting::{Light, LightFrame, LightSet, LightingScheme, Lights};
 pub use model::{

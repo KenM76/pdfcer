@@ -93,7 +93,10 @@ void main() {
 /// `u_shadow_to_light`, `u_shadow_offset` and `u_shadow_bias`; from
 /// [`crate::FrameLights`], the point and spot lights, added per pixel:
 /// `u_local_count`, `u_local_position[8]`, `u_local_colour[8]`,
-/// `u_local_attenuation[8]`, `u_local_cone[8]`. Writes straight RGBA.
+/// `u_local_attenuation[8]`, `u_local_cone[8]`; and from
+/// [`crate::FrameLampShadows`] their shadows: `u_lamp_shadows` (false
+/// without one), `u_lamp_shadow_map`, `u_lamp_shadow_size`,
+/// `u_lamp_far[8]`. Writes straight RGBA.
 ///
 /// It writes `gl_FragDepth`: logarithmic in perspective (see
 /// [`crate::Camera::depth_range`] for the precision), the matrix's linear
@@ -130,10 +133,49 @@ uniform vec4 u_local_position[8];
 uniform vec3 u_local_colour[8];
 uniform vec3 u_local_attenuation[8];
 uniform vec4 u_local_cone[8];
+uniform bool u_lamp_shadows;
+uniform highp sampler2DArray u_lamp_shadow_map;
+uniform float u_lamp_shadow_size;
+uniform float u_lamp_far[8];
 out vec4 o_colour;
 
-// The point and spot lights at p with unit normal n.
-vec3 local(vec3 p, vec3 n) {
+// Lamp i's lit share, 0-1, at p on a face with unit normal f: 3 x 3 texels
+// of its cube face around the point moved off its face towards the lamp,
+// clamped to that face.
+float lamp_lit(int i, vec3 p, vec3 f) {
+    float far = u_lamp_far[i];
+    if (!u_lamp_shadows || far <= 0.0) return 1.0;
+    vec3 o = p - u_local_position[i].xyz;
+    vec3 m = abs(o);
+    float z0 = max(m.x, max(m.y, m.z));
+    if (z0 <= 0.0) return 1.0;
+    float texel = 2.0 * z0 / u_lamp_shadow_size;
+    o += (dot(f, o) > 0.0 ? -f : f) * (1.5 * texel);
+    m = abs(o);
+    int face;
+    float z;
+    vec2 uv;
+    if (m.x >= m.y && m.x >= m.z) { face = o.x < 0.0 ? 1 : 0; z = m.x; uv = o.yz; }
+    else if (m.y >= m.z) { face = o.y < 0.0 ? 3 : 2; z = m.y; uv = o.zx; }
+    else { face = o.z < 0.0 ? 5 : 4; z = m.z; uv = o.xy; }
+    if (z <= 0.0) return 1.0;
+    int size = int(u_lamp_shadow_size);
+    ivec2 t = ivec2(floor((uv / z + 1.0) * 0.5 * u_lamp_shadow_size));
+    float d = (z - 2.0 * texel) / far;
+    int layer = i * 6 + face;
+    int n = 0;
+    for (int y = -1; y <= 1; y++) {
+        for (int x = -1; x <= 1; x++) {
+            ivec2 q = clamp(t + ivec2(x, y), ivec2(0), ivec2(size - 1));
+            if (d <= texelFetch(u_lamp_shadow_map, ivec3(q, layer), 0).r) n++;
+        }
+    }
+    return float(n) / 9.0;
+}
+
+// The point and spot lights at p with unit normal n on a face with unit
+// normal f.
+vec3 local(vec3 p, vec3 n, vec3 f) {
     vec3 s = vec3(0.0);
     for (int i = 0; i < 8; i++) {
         if (i >= u_local_count) break;
@@ -150,17 +192,17 @@ vec3 local(vec3 p, vec3 n) {
             if (c < u_local_position[i].w) cone = 0.0;
             else if (u_local_cone[i].w > 0.0) cone = pow(max(c, 0.0), u_local_cone[i].w);
         }
-        s += u_local_colour[i] * (fade * cone * abs(dot(n, l)));
+        float k = fade * cone * abs(dot(n, l));
+        if (k > 0.0) k *= lamp_lit(i, p, f);
+        s += u_local_colour[i] * k;
     }
     return s;
 }
 
-// The lit share, 0-1: 3 x 3 map texels around the point moved off its face
-// towards the light; a texel off the map is lit.
-float lit() {
-    vec3 f = cross(dFdx(v_world), dFdy(v_world));
-    float l = length(f);
-    f = l > 0.0 ? f / l : vec3(0.0);
+// The lit share, 0-1, on a face with unit normal f: 3 x 3 map texels
+// around the point moved off its face towards the light; a texel off the
+// map is lit.
+float lit(vec3 f) {
     if (dot(f, u_shadow_to_light) < 0.0) f = -f;
     vec4 c = u_shadow_matrix * vec4(v_world + f * u_shadow_offset, 1.0);
     vec3 p = (c.xyz + 1.0) * 0.5;
@@ -189,12 +231,15 @@ void main() {
         else if (u_function == 3) { rgb = base.rgb * (1.0 - t.a) + t.rgb * t.a; a = base.a; }
         base = vec4(clamp(rgb, 0.0, 1.0), a);
     }
+    vec3 f = cross(dFdx(v_world), dFdy(v_world));
+    float fl = length(f);
+    f = fl > 0.0 ? f / fl : vec3(0.0);
     vec3 s = v_flat > 0.5 ? v_flat_shade : v_shade;
-    if (u_shadows) s += lit() * (v_flat > 0.5 ? v_flat_key : v_key);
+    if (u_shadows) s += lit(f) * (v_flat > 0.5 ? v_flat_key : v_key);
     if (u_local_count > 0) {
         vec3 n = v_flat > 0.5 ? v_flat_normal : v_normal;
         float l = length(n);
-        if (l > 0.0) s += local(v_world, n / l);
+        if (l > 0.0) s += local(v_world, n / l, f);
     }
     o_colour = vec4(clamp(base.rgb * s, 0.0, 1.0), base.a);
     gl_FragDepth = u_orthographic
