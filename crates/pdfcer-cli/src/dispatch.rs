@@ -456,12 +456,14 @@ pub(crate) fn run() -> ExitCode {
             output,
             gltf_colours,
             gltf_up,
+            gltf_occlusion,
         } => cmd_convert_3d(
             &input,
             &output,
             GltfHow {
                 colours: gltf_colours,
                 up: gltf_up,
+                occlusion: gltf_occlusion,
             },
         ),
         Command::ThreeDRender {
@@ -527,6 +529,7 @@ pub(crate) fn run() -> ExitCode {
             format,
             gltf_colours,
             gltf_up,
+            gltf_occlusion,
             lighting,
             poster,
             placeholder_poster,
@@ -545,6 +548,7 @@ pub(crate) fn run() -> ExitCode {
             gltf: GltfHow {
                 colours: gltf_colours,
                 up: gltf_up,
+                occlusion: gltf_occlusion,
             },
             lighting,
             poster: poster.as_deref(),

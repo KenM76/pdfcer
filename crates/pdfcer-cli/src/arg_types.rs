@@ -1343,6 +1343,16 @@ pub(crate) enum GltfUpArg {
     AsStored,
 }
 
+/// What becomes of a glTF material's occlusion map, which PRC cannot carry.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum GltfOcclusionArg {
+    /// Baked into the base-colour texture (default).
+    #[default]
+    Bake,
+    /// Left out.
+    Drop,
+}
+
 /// The lighting scheme of the view a `3d-embed` model opens on (ISO
 /// 32000-1 Table 309).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]

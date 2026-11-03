@@ -87,7 +87,9 @@ pub use container::{
 };
 pub use error::PrcError;
 pub use export::{to_obj, to_stl};
-pub use gltf::{GltfColours, GltfError, GltfImport, GltfOptions, GltfUpAxis, read_gltf};
+pub use gltf::{
+    GltfColours, GltfError, GltfImport, GltfOcclusion, GltfOptions, GltfUpAxis, read_gltf,
+};
 #[cfg(feature = "render")]
 pub use gpu::{Draw, DrawData, VERTEX_FLOATS};
 #[cfg(feature = "render")]

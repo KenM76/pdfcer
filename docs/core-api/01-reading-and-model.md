@@ -3677,28 +3677,44 @@ stream; layout in `ARCHITECTURE.md` decision 210.
   refuse absolute paths, `..` and anything with `:` (the CLI does). `data:`
   and GLB buffers need no resolver.
 - `GltfOptions` (`#[non_exhaustive]`, `Default`; set fields on a default)
-  holds the two readings files differ on — offer each as a setting:
+  holds the readings files differ on — offer each as a setting:
   `colours: GltfColours::{Linear (default: glTF's linear base colour
   encoded with the sRGB transfer function, no profile conversion),
   AsStored}`; `up_axis: GltfUpAxis::{ZUp (default: +Y up turned to +Z up
-  on the root placements), AsStored}`.
+  on the root placements), AsStored}`; `occlusion: GltfOcclusion::{Bake
+  (default), Drop}`.
+- `GltfOcclusion` (`#[non_exhaustive]`) — PRC has no occlusion map
+  (glTF 2.0 §3.9.3). `Bake` multiplies `1 + strength × (R − 1)` into the
+  base-colour texels in linear light, or into a synthesised texture of the
+  base-colour factor when the material has none; the result is a new PNG
+  at the larger of the two pictures' sizes. It darkens direct light too
+  (glTF's darkens ambient only), so it is an `inferred` line. It is a note,
+  not a bake, when the two textures differ in `texCoord`, transform or
+  wrap, or the build lacks the `textures` feature. `Drop` leaves it out
+  with a note.
 - `GltfImport { scene, notes, inferred }`: show every `notes` line (what was
   dropped: a base-colour texture that cannot be drawn (no PNG/JPEG source,
-  an unreadable image, no `TEXCOORD_n`), points/lines, skins and morphs at
-  rest pose, a bad primitive, a second scene, no scene) and every `inferred`
-  line (an `alphaMode` MASK material drawn wholly opaque or invisible
-  against its cutoff, or whose texture alpha is not cut out). Base-colour
-  textures are carried: `KHR_texture_transform` is applied, v is flipped
-  to the bottom-left origin, sampler wrap modes kept, and texture alpha used
-  only under `alphaMode` BLEND. Other material textures are not read.
+  an unreadable image, no `TEXCOORD_n`), an occlusion map not baked,
+  points/lines, skins and morphs at rest pose, a bad primitive, a second
+  scene, no scene, and one aggregate `materials: …` line counting normal
+  maps, metallic-roughness maps and emission, which PRC's diffuse-only
+  material cannot carry) and every `inferred` line (an occlusion bake; an
+  `alphaMode` MASK material cut out by its texture's alpha, thresholded to
+  0/255 against `alphaCutoff` with material alpha set to 1 and texture
+  alpha kept; an untextured MASK material drawn wholly opaque or invisible
+  against its cutoff). Base-colour textures are carried:
+  `KHR_texture_transform` is applied, v is flipped to the bottom-left
+  origin, sampler wrap modes kept, and texture alpha used under BLEND and a
+  cut MASK. A texture is stored as read unless it is baked; identical
+  bakes share one texture.
   `GltfError` (`#[non_exhaustive]`): `NotGltf(why)`, `Json`,
   `RequiredExtension(name)` (only `KHR_mesh_quantization` and
   `KHR_texture_transform` are honoured),
   `Buffer { index, why }`. One bad primitive is a note, not an error.
 - CLI: `3d-convert <model.gltf|.glb> -o out.prc [--gltf-colours
-  linear|as-stored] [--gltf-up z|as-stored]`; `3d-embed --model x.glb`
-  converts first and takes the same two flags. Both print `note:` /
-  `inferred:` lines — copy that wording.
+  linear|as-stored] [--gltf-up z|as-stored] [--gltf-occlusion bake|drop]`;
+  `3d-embed --model x.glb` converts first and takes the same three flags.
+  Both print `note:` / `inferred:` lines — copy that wording.
 
 ### 12.3 Optional-content layers
 

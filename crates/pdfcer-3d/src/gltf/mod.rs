@@ -5,14 +5,18 @@
 //! Triangles, normals, the node tree with its names and placements, each
 //! material's base colour and opacity, and its PNG or JPEG base-colour
 //! texture over its coordinates (`KHR_texture_transform` applied) carry
-//! over. Other texture kinds, lines, points, skins and morph targets do
-//! not; each loss is a note, and each guess (an alpha mask drawn as a
-//! whole) an inference. Colour and up-axis handling are settings because
-//! files differ: decision 210.
+//! over. An occlusion map is baked into the base colour and an alpha mask
+//! cut out by the texture's alpha, since PRC has neither ([`GltfOcclusion`]).
+//! Normal, metallic-roughness and emissive maps, lines, points, skins and
+//! morph targets do not carry over; each loss is a note, and each guess
+//! (a bake, an alpha mask drawn as a whole) an inference. Colour, up-axis
+//! and occlusion handling are settings because files differ: decision 210.
 
 mod accessor;
+mod bake;
 mod build;
 mod container;
+mod maps;
 mod textures;
 
 use pdfcer_json::Json;
@@ -43,6 +47,26 @@ pub enum GltfUpAxis {
     AsStored,
 }
 
+/// What becomes of a material's `occlusionTexture` [glTF 2.0 §3.9.3].
+///
+/// PRC has no occlusion map, so it can reach the picture only folded into
+/// the base colour, where it also darkens direct light: glTF's occlusion
+/// darkens ambient light only.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum GltfOcclusion {
+    /// Multiplied into the base-colour texels (`1 + strength × (R − 1)`,
+    /// in linear light), or into a texture of the base colour factor when
+    /// the material has no base-colour texture; an [`GltfImport::inferred`]
+    /// line says so. Needs the `textures` feature; without it, or when the
+    /// two textures use different coordinates, a note says why it was
+    /// left out.
+    #[default]
+    Bake,
+    /// Left out, with a note.
+    Drop,
+}
+
 /// Settings for [`read_gltf`].
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -51,6 +75,8 @@ pub struct GltfOptions {
     pub colours: GltfColours,
     /// Up-axis handling.
     pub up_axis: GltfUpAxis,
+    /// Occlusion-map handling.
+    pub occlusion: GltfOcclusion,
 }
 
 /// A read glTF scene and what was lost or guessed reading it.

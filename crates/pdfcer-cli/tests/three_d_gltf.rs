@@ -57,7 +57,11 @@ fn gltf_json(buffer: &str) -> String {
 }
 
 fn glb() -> Vec<u8> {
-    let mut json = gltf_json("").into_bytes();
+    glb_of(gltf_json(""))
+}
+
+fn glb_of(json: String) -> Vec<u8> {
+    let mut json = json.into_bytes();
     while !json.len().is_multiple_of(4) {
         json.push(b' ');
     }
@@ -107,6 +111,26 @@ fn a_glb_converts_to_prc_and_discloses_the_mask() {
         "{text}"
     );
     assert!(std::fs::read(s.path("m.prc")).unwrap().starts_with(b"PRC"));
+}
+
+#[test]
+fn gltf_occlusion_drop_reaches_the_reader() {
+    // The grille names an occlusion map whose texture the file lacks.
+    let json = gltf_json("").replace(
+        r#""name":"grille","#,
+        r#""name":"grille","occlusionTexture":{"index":0},"#,
+    );
+    let s = Scratch::new("occlusion");
+    std::fs::write(s.path("m.glb"), glb_of(json)).unwrap();
+    let convert = |how: &str| {
+        let (m, o) = (s.path("m.glb"), s.path("m.prc"));
+        stdout(&run(&["3d-convert", &m, "-o", &o, "--gltf-occlusion", how]))
+    };
+    let dropped = "note: grille: occlusion texture not drawn, as asked";
+    assert!(convert("drop").contains(dropped));
+    let baked = convert("bake");
+    assert!(!baked.contains(dropped), "{baked}");
+    assert!(baked.contains("note: grille: occlusion texture"), "{baked}");
 }
 
 #[test]

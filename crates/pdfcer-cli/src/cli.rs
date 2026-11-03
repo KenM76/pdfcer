@@ -3377,6 +3377,10 @@ pub(crate) enum Command {
         /// keeps the file's axes.
         #[arg(long, value_enum, default_value_t)]
         gltf_up: GltfUpArg,
+        /// glTF only: `bake` (default) multiplies an occlusion map into the
+        /// base-colour texture; `drop` leaves it out. See `3d-convert`.
+        #[arg(long, value_enum, default_value_t)]
+        gltf_occlusion: GltfOcclusionArg,
         /// The lighting of the view the model opens on. `auto` (default)
         /// writes a view lit by `cad` for a model converted from glTF,
         /// which carries no lights and draws black in Acrobat without one,
@@ -3416,14 +3420,24 @@ pub(crate) enum Command {
     ///
     /// Reads a `.gltf` (with its buffers, embedded or in files beside it) or
     /// a `.glb`. The node tree, with its names and placements, becomes the
-    /// PRC model tree; triangles, normals and each material's colour and
-    /// opacity carry over, so a transparent material stays see-through.
-    /// Textures, points, lines, skins and morph targets do not, and each loss
-    /// is a `note:` line. An alpha-masked material is drawn wholly opaque or
-    /// wholly invisible, and an `inferred:` line says which. A buffer URI
-    /// that is absolute or leaves the model's folder is refused. Exit 9 when
-    /// the file cannot be converted, with the reason; `3d-embed` takes a
-    /// glTF model directly.
+    /// PRC model tree; triangles, normals, each material's colour and
+    /// opacity, and its PNG or JPEG base-colour texture carry over, so a
+    /// transparent material stays see-through.
+    ///
+    /// PRC has no occlusion map, the texture some models carry to darken
+    /// their own corners and creases, so by default it is multiplied into
+    /// the base-colour texture (a texture is made from the base colour when
+    /// there is none); it then darkens direct light as well as ambient, and
+    /// an `inferred:` line says so. `--gltf-occlusion drop` leaves it out.
+    /// An alpha-masked material with a texture is cut out by the texture's
+    /// alpha; without one it is drawn wholly opaque or wholly invisible. Both
+    /// are `inferred:` lines.
+    ///
+    /// Normal, metallic-roughness and emissive maps, points, lines, skins and
+    /// morph targets do not carry over, and each loss is a `note:` line. A
+    /// buffer URI that is absolute or leaves the model's folder is refused.
+    /// Exit 9 when the file cannot be converted, with the reason; `3d-embed`
+    /// takes a glTF model directly.
     #[command(name = "3d-convert")]
     ThreeDConvert {
         /// The `.gltf` or `.glb` model.
@@ -3439,6 +3453,10 @@ pub(crate) enum Command {
         /// file's axes.
         #[arg(long, value_enum, default_value_t)]
         gltf_up: GltfUpArg,
+        /// `bake` (default) multiplies an occlusion map into the base-colour
+        /// texture; `drop` leaves it out, with a `note:` line.
+        #[arg(long, value_enum, default_value_t)]
+        gltf_occlusion: GltfOcclusionArg,
     },
 
     /// **Replace a 3D annotation's poster** with an image (PNG, JPEG, ...).

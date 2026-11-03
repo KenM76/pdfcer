@@ -4,6 +4,8 @@
 use pdfcer_json::Json;
 
 use super::accessor::{self, Refusal};
+use super::bake::Alpha;
+use super::maps::{self, Inputs, Unread};
 use super::textures::{Images, TextureUse, Textures};
 use super::{GltfColours, GltfImport, GltfOptions, GltfUpAxis, member};
 use crate::{MeshScene, SceneMaterial, SceneMesh, SceneNode, ScenePrimitive};
@@ -36,7 +38,7 @@ fn numbers<const N: usize>(v: Option<&Json>) -> Option<[f64; N]> {
 }
 
 /// IEC 61966-2-1 sRGB encoding of a linear component.
-fn srgb(c: f64) -> f64 {
+pub(super) fn srgb(c: f64) -> f64 {
     let c = c.clamp(0.0, 1.0);
     if c <= 0.003_130_8 {
         12.92 * c
@@ -75,6 +77,12 @@ fn materials(
     out: &mut GltfImport,
 ) -> Vec<Option<TextureUse>> {
     let mut textures = Textures::default();
+    let mut unread = Unread::default();
+    let cx = Inputs {
+        doc,
+        images,
+        occlusion: options.occlusion,
+    };
     let mut uses = Vec::new();
     for (i, m) in member(doc, "materials").iter().enumerate() {
         let pbr = m.get("pbrMetallicRoughness");
@@ -85,42 +93,44 @@ fn materials(
             }
         }
         let label = name(m).unwrap_or_else(|| format!("material {i}"));
-        let mode = m
-            .get("alphaMode")
-            .and_then(Json::as_str)
-            .unwrap_or("OPAQUE");
-        match mode {
-            "BLEND" => {}
-            "MASK" => {
-                let cutoff = m.get("alphaCutoff").and_then(Json::as_f64).unwrap_or(0.5);
-                let shown = rgba[3] >= cutoff;
-                rgba[3] = if shown { 1.0 } else { 0.0 };
-                out.inferred.push(format!(
-                    "{label}: alpha mask drawn wholly {} (base alpha against cutoff {cutoff})",
-                    if shown { "opaque" } else { "invisible" }
-                ));
-            }
-            _ => rgba[3] = 1.0,
-        }
-        let texture = pbr
-            .and_then(|p| p.get("baseColorTexture"))
-            .and_then(|info| {
-                let used = (label.as_str(), mode == "BLEND");
-                textures.base_colour(doc, images, info, used, out)
-            });
-        if texture.is_some() && mode == "MASK" {
-            out.inferred.push(format!(
-                "{label}: texture alpha not cut out; the texture drawn opaque"
-            ));
-        }
-        uses.push(texture.map(|(_, u)| u));
+        let alpha = match m.get("alphaMode").and_then(Json::as_str) {
+            Some("BLEND") => Alpha::Blend,
+            Some("MASK") => Alpha::Mask {
+                cutoff: m.get("alphaCutoff").and_then(Json::as_f64).unwrap_or(0.5),
+                factor: rgba[3],
+            },
+            _ => Alpha::Opaque,
+        };
+        let drawn = maps::texture(&cx, m, (&label, alpha), &mut textures, out);
+        rgba[3] = opacity(alpha, rgba[3], drawn.is_some_and(|d| d.cut), &label, out);
+        unread.count(m);
+        uses.push(drawn.map(|d| d.using));
         out.scene.materials.push(SceneMaterial {
             name: name(m),
             rgba,
-            texture: texture.map(|(k, _)| k),
+            texture: drawn.map(|d| d.texture),
         });
     }
+    unread.note(out);
     uses
+}
+
+/// The material's alpha: blended as given, opaque, or a mask drawn whole
+/// unless its texture cuts it out [§3.9.4].
+fn opacity(alpha: Alpha, given: f64, cut: bool, label: &str, out: &mut GltfImport) -> f64 {
+    match alpha {
+        Alpha::Blend => given,
+        Alpha::Opaque => 1.0,
+        Alpha::Mask { .. } if cut => 1.0,
+        Alpha::Mask { cutoff, factor } => {
+            let shown = factor >= cutoff;
+            out.inferred.push(format!(
+                "{label}: alpha mask drawn wholly {} (base alpha against cutoff {cutoff})",
+                if shown { "opaque" } else { "invisible" }
+            ));
+            if shown { 1.0 } else { 0.0 }
+        }
+    }
 }
 
 fn meshes(doc: &Json, buffers: &[Vec<u8>], uses: &[Option<TextureUse>], out: &mut GltfImport) {

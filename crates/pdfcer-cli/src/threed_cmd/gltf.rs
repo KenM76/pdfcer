@@ -9,6 +9,7 @@ use super::*;
 pub(crate) struct GltfHow {
     pub(crate) colours: GltfColoursArg,
     pub(crate) up: GltfUpArg,
+    pub(crate) occlusion: GltfOcclusionArg,
 }
 
 /// Whether `data` from `path` is glTF: a GLB signature, or a `.gltf` /
@@ -33,8 +34,12 @@ pub(crate) struct Converted {
 /// or climbs out of that folder is refused.
 #[cfg(feature = "3d")]
 pub(crate) fn to_prc(path: &Path, data: &[u8], how: GltfHow) -> Result<Converted, u8> {
-    use pdfcer_3d::{GltfColours, GltfOptions, GltfUpAxis, read_gltf, write_prc};
+    use pdfcer_3d::{GltfColours, GltfOcclusion, GltfOptions, GltfUpAxis, read_gltf, write_prc};
     let mut options = GltfOptions::default();
+    options.occlusion = match how.occlusion {
+        GltfOcclusionArg::Bake => GltfOcclusion::Bake,
+        GltfOcclusionArg::Drop => GltfOcclusion::Drop,
+    };
     options.colours = match how.colours {
         GltfColoursArg::Linear => GltfColours::Linear,
         GltfColoursArg::AsStored => GltfColours::AsStored,
@@ -68,7 +73,7 @@ pub(crate) fn to_prc(path: &Path, data: &[u8], how: GltfHow) -> Result<Converted
     }
     if report.textured > 0 {
         lines.push(format!(
-            "note: {} primitive(s) drawn with their base-colour texture",
+            "note: {} primitive(s) drawn with a texture",
             report.textured
         ));
     }

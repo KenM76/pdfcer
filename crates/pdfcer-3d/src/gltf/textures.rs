@@ -1,4 +1,4 @@
-//! glTF base-colour textures as [`SceneTexture`]s, and the coordinates
+//! glTF textures as [`SceneTexture`]s, and the coordinates
 //! that draw them [glTF 2.0 §3.8, §3.9.2; `KHR_texture_transform`].
 
 use pdfcer_json::Json;
@@ -48,7 +48,7 @@ fn checked(b: Vec<u8>) -> Result<Vec<u8>, &'static str> {
     }
 }
 
-/// How one material draws its base-colour texture.
+/// How one material draws a texture.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct TextureUse {
     /// The `TEXCOORD_n` set read.
@@ -58,66 +58,87 @@ pub(super) struct TextureUse {
     pub(super) matrix: [[f64; 3]; 2],
 }
 
-/// The glTF texture-to-scene map: one [`SceneTexture`] per (texture,
-/// alpha) pair a material uses.
+/// A texture a material names, ready to draw or bake.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct Source<'a> {
+    /// The glTF texture index.
+    pub(super) texture: usize,
+    /// The image file's bytes.
+    pub(super) image: &'a [u8],
+    pub(super) wrap: [TextureWrap; 2],
+    pub(super) using: TextureUse,
+}
+
+/// What makes two scene textures the same: the base and occlusion texture
+/// indices, the occlusion strength's bits, and the alpha handling.
+pub(super) type Key = (Option<usize>, Option<(usize, u64)>, (u8, u64, u64));
+
+/// The glTF texture-to-scene map: one [`SceneTexture`] per distinct
+/// [`Key`].
 #[derive(Debug, Default)]
 pub(super) struct Textures {
-    seen: Vec<((usize, bool), usize)>,
+    seen: Vec<(Key, usize)>,
 }
 
 impl Textures {
-    /// Material `label`'s base-colour texture `info`, added to the scene;
-    /// `alpha` when the material blends. `None`, with a note, when it
+    /// Material `label`'s `kind` texture `info` ("base colour",
+    /// "occlusion"). `None`, with a note ending in `fallback`, when it
     /// cannot be drawn.
-    pub(super) fn base_colour(
-        &mut self,
+    pub(super) fn source<'a>(
         doc: &Json,
-        images: &Images,
+        images: &'a Images,
         info: &Json,
-        (label, alpha): (&str, bool),
+        (label, kind, fallback): (&str, &str, &str),
         out: &mut GltfImport,
-    ) -> Option<(usize, TextureUse)> {
-        let drawn =
-            |why: &str| format!("{label}: base colour texture {why}; drawn in its base colour");
+    ) -> Option<Source<'a>> {
+        let mut drawn = |why: &str| {
+            out.notes
+                .push(format!("{label}: {kind} texture {why}; {fallback}"));
+        };
         let Some(t) = info.get("index").and_then(Json::as_u32).map(|t| t as usize) else {
-            out.notes.push(drawn("names no texture"));
+            drawn("names no texture");
             return None;
         };
         let Some(tex) = member(doc, "textures").get(t) else {
-            out.notes.push(drawn("does not exist"));
+            drawn("does not exist");
             return None;
         };
         let Some(source) = tex.get("source").and_then(Json::as_u32) else {
-            out.notes.push(drawn(
-                "uses an image format pdfcer does not read (WebP, KTX2)",
-            ));
+            drawn("uses an image format pdfcer does not read (WebP, KTX2)");
             return None;
         };
-        let image = match images.get(source as usize) {
-            Some(Ok(b)) => b,
+        match images.get(source as usize) {
+            Some(Ok(image)) => Some(Source {
+                texture: t,
+                image,
+                wrap: wraps(doc, tex),
+                using: uses(info),
+            }),
             Some(Err(why)) => {
-                out.notes.push(drawn(&format!("dropped: {why}")));
-                return None;
+                drawn(&format!("dropped: {why}"));
+                None
             }
             None => {
-                out.notes.push(drawn("names no image"));
-                return None;
+                drawn("names no image");
+                None
             }
-        };
-        let k = match self.seen.iter().find(|(key, _)| *key == (t, alpha)) {
-            Some(&(_, k)) => k,
-            None => {
-                let k = out.scene.textures.len();
-                out.scene.textures.push(SceneTexture {
-                    image: image.clone(),
-                    wrap: wraps(doc, tex),
-                    alpha,
-                });
-                self.seen.push(((t, alpha), k));
-                k
-            }
-        };
-        Some((k, uses(info)))
+        }
+    }
+
+    /// The scene texture for `key`, made by `make` the first time.
+    pub(super) fn add(
+        &mut self,
+        key: Key,
+        make: impl FnOnce() -> SceneTexture,
+        out: &mut GltfImport,
+    ) -> usize {
+        if let Some(&(_, k)) = self.seen.iter().find(|(seen, _)| *seen == key) {
+            return k;
+        }
+        let k = out.scene.textures.len();
+        out.scene.textures.push(make());
+        self.seen.push((key, k));
+        k
     }
 }
 

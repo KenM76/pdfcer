@@ -99,6 +99,7 @@ fn as_stored_leaves_colours_and_axes_alone() {
     let options = GltfOptions {
         colours: GltfColours::AsStored,
         up_axis: GltfUpAxis::AsStored,
+        ..GltfOptions::default()
     };
     let s = read(&glb(&doc(""), &bin), options).scene;
     assert!((s.materials[0].rgba[0] - 0.214_041).abs() < 1e-9);
@@ -304,4 +305,183 @@ fn a_textured_glb_draws_its_picture_the_right_way_up() {
     let (t, mesh) = (&model.textures[0], &model.meshes[k]);
     assert_eq!(t.sample(mesh.uvs[2]), [255, 0, 0, 255], "glTF v = 0.1");
     assert_eq!(t.sample(mesh.uvs[0]), [0, 0, 255, 255], "glTF v = 0.9");
+}
+
+/// A 2 x 1 RGBA PNG: `left`, then `right`.
+#[cfg(feature = "textures")]
+fn png2(left: [u8; 4], right: [u8; 4]) -> Vec<u8> {
+    let mut png = Vec::new();
+    let mut e = png::Encoder::new(&mut png, 2, 1);
+    e.set_color(png::ColorType::Rgba);
+    e.set_depth(png::BitDepth::Eight);
+    let mut w = e.write_header().unwrap();
+    w.write_image_data(&[left, right].concat()).unwrap();
+    w.finish().unwrap();
+    png
+}
+
+/// Texture `k`'s pixels, decoded.
+#[cfg(feature = "textures")]
+fn pixels(s: &MeshScene, k: usize) -> Vec<u8> {
+    let image = &s.textures[k].image;
+    let (f, w, h) = crate::write::picture_info(image).unwrap();
+    crate::texture::decode_picture(f, image, w, h).unwrap().2
+}
+
+#[cfg(feature = "textures")]
+const AGED: &str = r#"{"name":"aged","pbrMetallicRoughness":{"baseColorTexture":{"index":0}},
+    "occlusionTexture":{"index":0,"strength":0.5}}"#;
+
+#[cfg(feature = "textures")]
+#[test]
+fn an_occlusion_map_is_baked_into_the_base_colour() {
+    // Base colour and occlusion share one picture: R 255 left, R 0 right.
+    let image = png2([255, 200, 200, 255], [0, 200, 200, 255]);
+    let import = read(&textured_glb(&image, AGED), GltfOptions::default());
+    let s = &import.scene;
+    assert_ne!(s.textures[0].image, image, "a new picture");
+    let px = pixels(s, 0);
+    assert_eq!(
+        &px[..3],
+        &[255, 200, 200],
+        "occlusion 1 leaves the left texel"
+    );
+    // Right: occlusion 0 at strength 0.5 halves G and B in linear light.
+    let half = (super::build::srgb(super::bake::linear(200.0 / 255.0) * 0.5) * 255.0).round() as u8;
+    assert_eq!(&px[4..7], &[0, half, half], "{px:?}");
+    assert!(!s.textures[0].alpha, "an opaque material stays opaque");
+    assert!(
+        import.inferred.iter().any(|i| i
+            == "aged: occlusion texture baked into the base colour texture at strength 0.5; \
+                it darkens direct light as well as ambient"),
+        "{:?}",
+        import.inferred
+    );
+    // The baked picture is the one the PRC draws.
+    let model = assemble(&write_prc(&import.scene).unwrap().prc).unwrap();
+    assert_eq!(model.textures[0].sample([0.75, 0.5])[1], half);
+}
+
+#[cfg(feature = "textures")]
+#[test]
+fn occlusion_without_a_base_texture_makes_one() {
+    let m = r#"{"name":"ao","pbrMetallicRoughness":{"baseColorFactor":[1,0,0,1]},
+        "occlusionTexture":{"index":0}}"#;
+    let image = png2([255, 0, 0, 255], [0, 0, 0, 255]);
+    let import = read(&textured_glb(&image, m), GltfOptions::default());
+    let s = &import.scene;
+    assert_eq!(s.materials[0].texture, Some(0));
+    assert_eq!(pixels(s, 0), [255, 255, 255, 255, 0, 0, 0, 255]);
+    assert_eq!(
+        s.textures[0].wrap,
+        [
+            crate::TextureWrap::Clamp,
+            crate::TextureWrap::MirroredRepeat
+        ]
+    );
+    assert!(
+        !s.meshes[0].primitives[0].uvs.is_empty(),
+        "drawn over its coordinates"
+    );
+    assert!(
+        import.inferred[0].contains("baked into a texture of the base colour"),
+        "{:?}",
+        import.inferred
+    );
+}
+
+#[cfg(feature = "textures")]
+#[test]
+fn occlusion_over_other_coordinates_is_a_note() {
+    let m = r#"{"name":"aged","pbrMetallicRoughness":{"baseColorTexture":{"index":0}},
+        "occlusionTexture":{"index":0,"texCoord":1}}"#;
+    let image = png2([255; 4], [0, 0, 0, 255]);
+    let import = read(&textured_glb(&image, m), GltfOptions::default());
+    assert_eq!(
+        import.scene.textures[0].image, image,
+        "the base picture as stored"
+    );
+    assert!(import.inferred.is_empty(), "{:?}", import.inferred);
+    assert!(
+        import.notes.iter().any(|n| n.starts_with(
+            "aged: occlusion texture not drawn: its texture coordinates, transform or wrapping"
+        )),
+        "{:?}",
+        import.notes
+    );
+}
+
+#[cfg(feature = "textures")]
+#[test]
+fn occlusion_can_be_dropped() {
+    let image = png2([255; 4], [0, 0, 0, 255]);
+    let options = GltfOptions {
+        occlusion: GltfOcclusion::Drop,
+        ..GltfOptions::default()
+    };
+    let import = read(&textured_glb(&image, AGED), options);
+    assert_eq!(import.scene.textures[0].image, image);
+    assert!(import.inferred.is_empty());
+    assert!(
+        import
+            .notes
+            .iter()
+            .any(|n| n == "aged: occlusion texture not drawn, as asked")
+    );
+}
+
+#[cfg(feature = "textures")]
+#[test]
+fn a_textured_alpha_mask_is_cut_out() {
+    let m = r#"{"name":"leaf","alphaMode":"MASK","alphaCutoff":0.5,
+        "pbrMetallicRoughness":{"baseColorTexture":{"index":0}}}"#;
+    let image = png2([10, 20, 30, 200], [10, 20, 30, 60]);
+    let import = read(&textured_glb(&image, m), GltfOptions::default());
+    let s = &import.scene;
+    assert_eq!(s.materials[0].rgba[3], 1.0, "the texture carries the mask");
+    assert!(s.textures[0].alpha);
+    let px = pixels(s, 0);
+    assert_eq!((px[3], px[7]), (255, 0), "{px:?}");
+    assert_eq!(import.inferred.len(), 1, "{:?}", import.inferred);
+    assert!(import.inferred[0].starts_with("leaf: alpha mask cut out by the texture's alpha"));
+}
+
+#[test]
+fn unread_maps_are_one_note() {
+    let m = r#"{"name":"lamp","normalTexture":{"index":0},"emissiveFactor":[1,0.5,0],
+        "pbrMetallicRoughness":{"metallicRoughnessTexture":{"index":0}}}"#;
+    let import = read(&textured_glb(PNG_HEADER, m), GltfOptions::default());
+    let unread: Vec<_> = import
+        .notes
+        .iter()
+        .filter(|n| n.starts_with("materials:"))
+        .collect();
+    assert_eq!(
+        unread,
+        [
+            "materials: 1 with a normal map, 1 with a metallic-roughness map, 1 with emission; \
+          not drawn, since the PRC is written with a diffuse colour and texture only"
+        ]
+    );
+}
+
+#[cfg(not(feature = "textures"))]
+#[test]
+fn without_decoders_occlusion_is_a_note() {
+    let m = r#"{"name":"aged","pbrMetallicRoughness":{"baseColorTexture":{"index":0}},
+        "occlusionTexture":{"index":0}}"#;
+    let import = read(&textured_glb(PNG_HEADER, m), GltfOptions::default());
+    assert_eq!(
+        import.scene.textures[0].image, PNG_HEADER,
+        "base drawn as stored"
+    );
+    assert!(
+        import
+            .notes
+            .iter()
+            .any(|n| n
+                == "aged: occlusion texture not drawn: this build decodes no texture pictures"),
+        "{:?}",
+        import.notes
+    );
 }
