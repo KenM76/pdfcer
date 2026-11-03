@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1398th filing) — `v0.120.0` PUBLISHED (tag on `a4d9b0cf`)
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, nothing committed by me):**
+- **Tag/CI:** annotated `v0.120.0` on `a4d9b0cf`; CI run 41663922102 on the tag commit concluded success. Fresh-folder smoke and `verify-release.py` passed before publishing.
+- **Published:** GitHub release with 8 assets; crates `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` at 0.120.0; OneDrive `pdfcer1` = 0.120.0, `pdfcer2` keeps 0.119.0 (next release writes `pdfcer2`).
+- **Not in the release:** `Pass 658.7` (`ef0f64e8`) is on `main` after the tag (docs `8786266c`); it rides the next release.
+- **Correction:** the release notes' false U3D finish claim was fixed by `gh release edit` to "PRC and glTF"; GUI notice `open/notice_2026-11-03_v0.120.0_released.md` likewise.
+- **ROADMAP:** new Shipped entry, Next-up banner amended. FEATURES: no change. No decision, no rule.
+- **Hard rule 11 sweep:** I did not grep the tree for other "U3D finish" survivors (no shell, not requested beyond the two named places); engineer should check `docs/` and release-note templates for the same phrase. Backup currency not verifiable from here.
+
 ## 2026-11-03 (1397th filing) — `Pass 658.7` (`ef0f64e8`): wide lines on the GPU
 
 **Filed (engineer-reported, measured; no shell here, git state not checked from here; docs only, nothing committed by me):**

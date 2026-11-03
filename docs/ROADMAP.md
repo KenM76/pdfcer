@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.120.0` PUBLISHED, 2026-11-03 (1398th filing); tag on `a4d9b0cf`, CI green at the tag
+
+Engineer-reported; no shell here, nothing checked from here (tag, release, crates, OneDrive and CI are the engineer's report, not looked at by me). Supersedes the "prepared, NOT tagged, NOT published" status in the 1396th-filing entry below, which stays as filed.
+- **Tag:** annotated `v0.120.0` on `a4d9b0cf` (the 1396th prep filing; bump `f0599138`). **CI green at the tag:** run 41663922102 on the tag commit, concluded success.
+- **GitHub release:** published with 8 assets. **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.120.0 published.
+- **OneDrive:** slot `pdfcer1` holds 0.120.0; `pdfcer2` keeps 0.119.0. **The next release writes `pdfcer2`.**
+- **Gates before publishing (engineer-reported):** fresh-folder smoke and `verify-release.py` passed. Size figures not relayed; not recorded.
+- **Carried:** `Pass 658.2` (`d1345a27`), `658.3` (`2b69b90f`), `658.4` (`536a3bf2`), `658.5` (`647a9b55`..`7946e10c`, `657f579a`, `2a78909d`), `658.6` (`b43a3e1b`, `ba21b6aa`).
+- **NOT carried: `Pass 658.7` (`ef0f64e8`, wide lines on the GPU).** It is on `main` AFTER the tag (docs commit `8786266c`), so it is NOT in `v0.120.0`; it rides the next release. Any earlier wording implying otherwise is wrong.
+- **Correction (release notes and GUI notice):** the GitHub release notes claimed a U3D finish (material) rendering; corrected via `gh release edit` to "PRC and glTF" (U3D has no reader yet). The GUI notice `open/notice_2026-11-03_v0.120.0_released.md` was corrected likewise.
+- No box changes (everything carried was already ticked). Nothing minted. `pdfcer-gui` has not consumed `658.4`-`658.6`; the notice is the hand-off.
+
 ### `ef0f64e8` `Pass 658.7`, 2026-11-03: wide lines (`line_width` > 1) draw on the GPU, any width (1397th filing)
 
 Engineer-reported (measured); no shell here, git state not checked from here. Commit `ef0f64e8` "feat(3d): wide lines on the GPU, any width (Pass 658.7)". Operator request: "Work on getting this into the GPU - Lines thicker than 1 pixel only draw on the CPU path." Local `main`, unpushed, unreleased. No decision record; reasoning is in the commit message.
@@ -25598,7 +25610,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **Head amended 1357th filing: `Pass 647.4b` (`X027`) SHIPPED `96af5ff3`, see *Shipped*; the head is `Pass 648.6` again, after the release `v0.112.0` (slot `pdfcer1`), which is a separate filing.** *(Amended 1359th filing: `v0.112.0` PUBLISHED, see *Shipped*; the head is `Pass 648.6`, next release writes `pdfcer2`.)* `647.3f` and `647.4` (image natural sizing) stay in the Backlog. *(The 1356th-filing note that put `647.4b` ahead of `648.6` is history.)* **Amended 1360th filing: `Pass 648.6` SHIPPED `01c5f515` (unreleased), see *Shipped*; `G245` is now complete. Next up has no head: `647.3f`, `647.4` and `Pass 648.7` (residue) are Backlog, unordered.** **Amended 1361st-1365th filings: `Pass 653.0`-`653.4` (`G244`, `G243`, `G249`, `G250`, `G251`) SHIPPED, unreleased, see *Shipped*. Still no head; the next step is a release (version after `0.112.0`, slot `pdfcer2`), asked for by `pdfcer-gui` once `G249`-`G251` shipped.** **Amended 1367th filing: `v0.113.0` PUBLISHED. Amended 1368th filing: `Pass 654.0`, `654.1` (`78f16dc2`, `G252`, `G253` CPU half) and `Pass 655.0` (`2a10522f`, `G254`) SHIPPED, unreleased, see *Shipped*. The head is now `Pass 654.2` (below), behind the GUI-request rule. Next release writes OneDrive `pdfcer1` (`pdfcer2` holds 0.113.0).**
 
-> **(1394th filing, amended 1395th: `Pass 658.4`-`658.6` (the three parallel workers from the 3D shading and shadow gap audit) are all SHIPPED, local `main`, unpushed, unreleased, see *Shipped*; their entries are deleted below. `v0.119.0` PUBLISHED; `658.2`-`658.6` ride `v0.120.0`, which writes OneDrive `pdfcer1` and is a separate filing.) Amended 1396th: `v0.120.0` is PREPARED (bump `f0599138`), NOT tagged or published, see *Shipped*.**
+> **(1394th filing, amended 1395th: `Pass 658.4`-`658.6` (the three parallel workers from the 3D shading and shadow gap audit) are all SHIPPED, local `main`, unpushed, unreleased, see *Shipped*; their entries are deleted below. `v0.119.0` PUBLISHED; `658.2`-`658.6` ride `v0.120.0`, which writes OneDrive `pdfcer1` and is a separate filing.) Amended 1396th: `v0.120.0` is PREPARED (bump `f0599138`), NOT tagged or published, see *Shipped*. Amended 1398th: `v0.120.0` is PUBLISHED (tag `a4d9b0cf`); `Pass 658.7` (`ef0f64e8`) is NOT in it and rides the next release (OneDrive `pdfcer2`).**
 
 > (1380th filing: `Pass 647.4` rich-text cut `7450b595` and `Pass 657.2` + `657.3` `a64bf4e0` SHIPPED, local `main`, unpushed, unreleased, see *Shipped*; `647.4` stays below, not complete; the `657.2` Backlog entry was deleted. Still no head. Next free `Pass 647.9`, `657.4` by grep of `docs/`, not `tools/check-ledger-numbers.py`.)
 
