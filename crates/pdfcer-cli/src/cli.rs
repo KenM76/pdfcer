@@ -3325,7 +3325,9 @@ pub(crate) enum Command {
         /// the scheme's lights, so with `--light-frame camera` the shadow
         /// turns with the view; or `sun`, fixed above the model on the
         /// `--up` axis, so the shadow stays in one place on the model from
-        /// every camera and halves the shade where blocked.
+        /// every camera and halves the shade where blocked; or
+        /// `sun-negative`, the same sun for a model whose up is minus the
+        /// `--up` axis.
         #[arg(long, value_enum, default_value_t)]
         shadow_light: ShadowLightArg,
         /// Threads to draw with; 0 (default) uses every core. The image is

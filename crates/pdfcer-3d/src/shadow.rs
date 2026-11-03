@@ -61,6 +61,10 @@ pub enum ShadowLight {
     Sun {
         /// The model's vertical axis.
         up: UpAxis,
+        /// The model's up is the negative of `up` (the sun is on the
+        /// negative side): the iso placement turned 180 degrees about the
+        /// axis after `up` (X to Y, Y to Z, Z to X).
+        negative: bool,
     },
 }
 
@@ -136,8 +140,8 @@ impl Caster {
         basis: &[[f64; 3]; 3],
     ) -> Option<Caster> {
         match light {
-            ShadowLight::Sun { up } if !matches!(shader, Shader::Unlit) => Some(Caster {
-                to_light: sun(up)?,
+            ShadowLight::Sun { up, negative } if !matches!(shader, Shader::Unlit) => Some(Caster {
+                to_light: sun(up, negative)?,
                 kind: CasterKind::Dim,
             }),
             ShadowLight::Sun { .. } => None,
@@ -178,12 +182,22 @@ fn shadow_key([right, up, forward]: &[[f64; 3]; 3]) -> Option<[f64; 3]> {
 }
 
 /// [`ShadowLight::Sun`]'s direction: the shadow key of the iso view about
-/// `up`.
-fn sun(up: UpAxis) -> Option<[f64; 3]> {
+/// `up`, turned half a revolution about the next axis when `negative`.
+fn sun(up: UpAxis, negative: bool) -> Option<[f64; 3]> {
     let (dir, image_up) = NamedView::Iso.direction(up);
     let forward = normalize(dir)?;
     let right = normalize(cross(forward, image_up))?;
-    shadow_key(&[right, cross(right, forward), forward])
+    let v = shadow_key(&[right, cross(right, forward), forward])?;
+    if !negative {
+        return Some(v);
+    }
+    let a = match up {
+        UpAxis::X => 1,
+        UpAxis::Y => 2,
+        UpAxis::Z => 0,
+    };
+    // v' = 2(a.v)a - v for the unit axis a.
+    Some([0, 1, 2].map(|i| if i == a { at(v, i) } else { -at(v, i) }))
 }
 
 /// The orthographic view from the casting light over the model's bounding
@@ -534,7 +548,11 @@ mod tests {
         let tilted = [[0.0, 0.0, 1.0], [0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]];
         let sun = |basis: &[[f64; 3]; 3], scheme: LightingScheme, up: UpAxis| {
             let shader = Shader::new(scheme.lights(), crate::LightFrame::Camera, basis);
-            Caster::for_light(ShadowLight::Sun { up }, &shader, LightSense::Emitted, basis)
+            let light = ShadowLight::Sun {
+                up,
+                negative: false,
+            };
+            Caster::for_light(light, &shader, LightSense::Emitted, basis)
         };
         let a = sun(&BASIS, LightingScheme::Day, UpAxis::Z).unwrap();
         assert_eq!(a, sun(&tilted, LightingScheme::Artwork, UpAxis::Z).unwrap());
@@ -543,6 +561,28 @@ mod tests {
         let y = sun(&BASIS, LightingScheme::Day, UpAxis::Y).unwrap();
         assert!(y.to_light[1] > 0.9, "{y:?}");
         assert!(sun(&BASIS, LightingScheme::None, UpAxis::Z).is_none());
+    }
+
+    #[test]
+    fn a_negative_up_puts_the_sun_on_the_negative_side() {
+        let shader = Shader::new(
+            LightingScheme::Day.lights(),
+            crate::LightFrame::Camera,
+            &BASIS,
+        );
+        for (up, i) in [(UpAxis::X, 0), (UpAxis::Y, 1), (UpAxis::Z, 2)] {
+            let get = |negative| {
+                let light = ShadowLight::Sun { up, negative };
+                Caster::for_light(light, &shader, LightSense::Emitted, &BASIS)
+                    .unwrap()
+                    .to_light
+            };
+            let (pos, neg) = (get(false), get(true));
+            assert!(neg[i] < -0.9, "{up:?}: {neg:?}");
+            assert!((neg[i] + pos[i]).abs() < 1e-12, "{up:?}");
+            let len: f64 = neg.iter().map(|c| c * c).sum();
+            assert!((len - 1.0).abs() < 1e-12);
+        }
     }
 
     #[test]
@@ -571,7 +611,10 @@ mod tests {
         };
         // The sun is high, from -x and -y: the shadow reaches (0.36, 0.25)
         // past the square, so (0.7, 0.3) is in it from every turn.
-        let sun = ShadowLight::Sun { up: UpAxis::Z };
+        let sun = ShadowLight::Sun {
+            up: UpAxis::Z,
+            negative: false,
+        };
         let mut followed = Vec::new();
         for quarter in 0..4 {
             let turn = f64::from(quarter) * std::f64::consts::FRAC_PI_2;

@@ -572,6 +572,11 @@ fn render_from_bytes(
             ShadowLightArg::Scheme => pdfcer_3d::ShadowLight::FollowsScheme,
             ShadowLightArg::Sun => pdfcer_3d::ShadowLight::Sun {
                 up: a.up.unwrap_or_default().axis(),
+                negative: false,
+            },
+            ShadowLightArg::SunNegative => pdfcer_3d::ShadowLight::Sun {
+                up: a.up.unwrap_or_default().axis(),
+                negative: true,
             },
         },
         threads: a.threads,
@@ -649,6 +654,10 @@ fn render_from_bytes(
             }
             (true, ShadowLightArg::Sun) => {
                 "cast by a sun fixed above the model on the `--up` axis \
+                 (`--no-shadows` turns them off)"
+            }
+            (true, ShadowLightArg::SunNegative) => {
+                "cast by a sun fixed on the negative side of the `--up` axis \
                  (`--no-shadows` turns them off)"
             }
         }

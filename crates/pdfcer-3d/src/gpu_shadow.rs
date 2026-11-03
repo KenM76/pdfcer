@@ -184,6 +184,7 @@ mod tests {
             lighting: LightingScheme::Cad,
             shadow_light: crate::ShadowLight::Sun {
                 up: crate::UpAxis::Z,
+                negative: false,
             },
             ..RenderOptions::default()
         };

@@ -1475,6 +1475,9 @@ pub(crate) enum ShadowLightArg {
     Scheme,
     /// A sun fixed in the model, above it on the --up axis.
     Sun,
+    /// A sun fixed in the model on the negative side of the --up axis,
+    /// for a model whose up is minus that axis.
+    SunNegative,
 }
 
 /// When a `3d-embed` model activates.
