@@ -1237,6 +1237,14 @@ fn winansi_code(ch: char) -> Option<u8> {
     if ('\u{20}'..='\u{7E}').contains(&ch) {
         return Some(ch as u8);
     }
+    // ISO 32000-1 Annex D footnotes 5-6: codes 0xA0 and 0xAD repeat the
+    // `space` and `hyphen` glyph names, which reverse-map to ASCII, so the
+    // no-break space and soft hyphen are matched by code here.
+    match ch {
+        '\u{A0}' => return Some(0xA0),
+        '\u{AD}' => return Some(0xAD),
+        _ => {}
+    }
     for code in 0x80u8..=0xFF {
         if WINANSI_BULLET_FALLBACKS.contains(&code) {
             continue;
@@ -1405,6 +1413,14 @@ fn join_words(words: &[&[u16]], space: u16) -> Vec<u16> {
 )]
 mod tests {
     use super::*;
+
+    #[test]
+    fn nbsp_and_soft_hyphen_encode_to_their_own_winansi_codes() {
+        assert_eq!(
+            encode_winansi("a\u{a0}b\u{ad}"),
+            (vec![b'a', 0xA0, b'b', 0xAD], 0)
+        );
+    }
 
     fn helv() -> Vec<FontResource> {
         vec![FontResource {

@@ -44,7 +44,10 @@ pub struct XfaNode {
     pub attributes: Vec<(String, String)>,
     /// The element's own text, its direct text children joined.
     pub text: String,
-    /// Child elements in document order (Z-order, p.70).
+    /// Child elements in document order (Z-order, p.70). Inside an
+    /// `exData`, character data also appears here, in order, as nodes
+    /// tagged [`XfaNode::TEXT_TAG`] holding it in `text`, so rich text's
+    /// mixed content keeps its order (Ch.5 p.215).
     pub children: Vec<XfaNode>,
 }
 
@@ -181,6 +184,10 @@ pub struct Occur {
 }
 
 impl XfaNode {
+    /// The tag of a character-data node inside an `exData` (see
+    /// [`XfaNode::children`]); no XML element can carry it.
+    pub const TEXT_TAG: &'static str = "#text";
+
     /// The attribute named `name`, if present.
     #[must_use]
     pub fn attr(&self, name: &str) -> Option<&str> {
@@ -335,11 +342,11 @@ pub fn read_template(xdp: &XdpDocument) -> Result<Option<Template>, XfaError> {
         None
     };
     element
-        .map(|e| convert(e, 0).map(|root| Template { root }))
+        .map(|e| convert(e, 0, false).map(|root| Template { root }))
         .transpose()
 }
 
-fn convert(node: roxmltree::Node<'_, '_>, depth: usize) -> Result<XfaNode, XfaError> {
+fn convert(node: roxmltree::Node<'_, '_>, depth: usize, rich: bool) -> Result<XfaNode, XfaError> {
     if depth > MAX_XML_DEPTH {
         return Err(XfaError::TooDeep);
     }
@@ -352,11 +359,20 @@ fn convert(node: roxmltree::Node<'_, '_>, depth: usize) -> Result<XfaNode, XfaEr
         text: String::new(),
         children: Vec::new(),
     };
+    let rich = rich || out.tag == "exData";
     for child in node.children() {
         if child.is_element() {
-            out.children.push(convert(child, depth + 1)?);
+            out.children.push(convert(child, depth + 1, rich)?);
         } else if let Some(t) = child.text().filter(|_| child.is_text()) {
             out.text.push_str(t);
+            if rich {
+                out.children.push(XfaNode {
+                    tag: XfaNode::TEXT_TAG.to_owned(),
+                    attributes: Vec::new(),
+                    text: t.to_owned(),
+                    children: Vec::new(),
+                });
+            }
         }
     }
     Ok(out)

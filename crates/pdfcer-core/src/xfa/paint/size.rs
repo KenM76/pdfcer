@@ -5,6 +5,7 @@
 //! independently of the content region (p.50) and adds nothing.
 
 use super::caption::{Side, occupies, side};
+use super::rich_set::rich_extent;
 use super::text::{has_unplain_value, plain_text, text_extent, widget};
 use super::{LayoutRect, XfaNode, inset, length};
 
@@ -24,7 +25,8 @@ pub(in crate::xfa) fn content_size(
     if has_unplain_value(node) {
         return None;
     }
-    let text = plain_text(node)?;
+    let rich = super::rich::rich_value(node).is_some();
+    let text = if rich { "" } else { plain_text(node)? };
     let room = |m: Option<&XfaNode>| {
         let r = inset(LayoutRect::default(), m);
         (-r.w, -r.h)
@@ -39,13 +41,11 @@ pub(in crate::xfa) fn content_size(
     };
     let around_w = mw + ww + cw;
     let wrap_at = wrap.map_or(0.0, |w| (w - around_w).max(MIN_WRAP));
-    let (tw, th) = text_extent(
-        text,
-        node.child("font"),
-        node.child("para"),
-        wrap_at,
-        single,
-    );
+    let (font, para) = (node.child("font"), node.child("para"));
+    let (tw, th) = match rich_extent(node, font, para, wrap_at) {
+        Some(e) => e,
+        None => text_extent(text, font, para, wrap_at, single),
+    };
     let mut h = th + wh;
     if let Some((Side::Left | Side::Right, _, cap_h)) = cap {
         h = h.max(cap_h);
@@ -60,11 +60,13 @@ pub(in crate::xfa) fn content_size(
 fn caption_size(node: &XfaNode) -> Option<(Side, f64, f64)> {
     let c = node.child("caption").filter(|c| occupies(c))?;
     let side = side(c)?;
-    let natural = plain_text(c)
-        .filter(|_| !has_unplain_value(c))
-        .map_or((0.0, 0.0), |t| {
-            text_extent(t, c.child("font"), c.child("para"), 0.0, false)
-        });
+    let natural = rich_extent(c, c.child("font"), c.child("para"), 0.0).unwrap_or_else(|| {
+        plain_text(c)
+            .filter(|_| !has_unplain_value(c))
+            .map_or((0.0, 0.0), |t| {
+                text_extent(t, c.child("font"), c.child("para"), 0.0, false)
+            })
+    });
     let m = inset(LayoutRect::default(), c.child("margin"));
     let (mut w, mut h) = (natural.0 - m.w, natural.1 - m.h);
     if let Some(r) = length(c, "reserve").filter(|v| *v > 0.0) {

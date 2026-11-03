@@ -403,9 +403,9 @@ fn a_caption_without_a_font_uses_the_defaults_or_the_fields_font_by_setting() {
 }
 
 #[test]
-fn a_rich_text_caption_is_disclosed_and_its_space_still_carved() {
+fn a_non_text_caption_is_disclosed_and_its_space_still_carved() {
     let cap =
-        r#"<caption reserve="40pt"><value><exData contentType="text/html"/></value></caption>"#;
+        r#"<caption reserve="40pt"><value><exData contentType="text/xml"/></value></caption>"#;
     let (p, ops) = painted(&captioned(cap, COURIER), &PaintOptions::new());
     assert_eq!(p.notes[0].kind, PaintNoteKind::Content);
     assert!(

@@ -11,13 +11,12 @@
 //!
 //! Scope: a container's own `border` (its `fill`, `margin`, corners and
 //! solid, dashed or 3-D edges); a `draw`'s `rectangle`, `line` or `arc`
-//! value; a `draw`'s or `field`'s plain value text in a standard-14 face
-//! ([`PaintedPage::resources`] names them), beside its left, right, top or
-//! bottom caption; a `checkButton` field's box and mark; an `image` value
+//! value; a `draw`'s or `field`'s plain or rich value text in standard-14
+//! faces ([`PaintedPage::resources`] names them), beside its left, right,
+//! top or bottom caption, itself plain or rich; a `checkButton` field's box and mark; an `image` value
 //! or caption, inline or linked through [`XfaImages`]. A rotated draw or
-//! field is drawn turned. Inline and
-//! rich captions, rich text, other value content and other non-text widgets
-//! are not drawn yet; each item carrying them is reported as
+//! field is drawn turned. Inline captions, other value content and other
+//! non-text widgets are not drawn yet; each item carrying them is reported as
 //! [`PaintNoteKind::Content`].
 
 use crate::fontdata::Std14;
@@ -369,6 +368,7 @@ pub fn paint_page_with_images(
 ) -> PaintedPage {
     let mut p = Painter {
         images,
+        root: template.element(),
         b: ContentBuilder::new(),
         notes: Vec::new(),
         height: page.height,
@@ -407,6 +407,8 @@ fn drawable<'t>(template: &'t Template, item: &LayoutItem) -> Option<&'t XfaNode
 
 struct Painter<'i> {
     images: &'i XfaImages,
+    /// The template root, where floating fields are looked up.
+    root: &'i XfaNode,
     b: ContentBuilder,
     notes: Vec<PaintNote>,
     height: f64,
@@ -700,6 +702,8 @@ mod check;
 mod corner;
 mod dash;
 mod image;
+mod rich;
+mod rich_set;
 mod shape;
 mod size;
 mod text;
@@ -709,6 +713,8 @@ pub(super) use text::{line_pitch, widget};
 
 #[cfg(test)]
 mod check_tests;
+#[cfg(test)]
+mod rich_tests;
 #[cfg(test)]
 mod shape_tests;
 #[cfg(test)]

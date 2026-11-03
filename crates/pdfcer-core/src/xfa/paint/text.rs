@@ -18,7 +18,7 @@ const TEXT_WIDGETS: [&str; 5] = [
 ];
 
 /// Whether `node` has drawable content this cut does not draw: a visible
-/// caption, non-text value content, rich text, or a widget that draws more
+/// caption, non-text value content, or a widget that draws more
 /// than its text.
 pub(super) fn content_left_out(node: &XfaNode) -> bool {
     let caption = super::caption::left_out(node);
@@ -31,13 +31,15 @@ pub(super) fn content_left_out(node: &XfaNode) -> bool {
     caption || value || ui
 }
 
-/// Whether `holder`'s `value` holds anything but plain `text` or an `image`.
+/// Whether `holder`'s `value` holds anything but plain `text`, an `image`
+/// or rich text.
 pub(super) fn has_unplain_value(holder: &XfaNode) -> bool {
-    holder.child("value").is_some_and(|v| {
-        v.children
-            .iter()
-            .any(|c| !(c.tag == "image" || (c.tag == "text" && c.children.is_empty())))
-    })
+    super::rich::rich_value(holder).is_none()
+        && holder.child("value").is_some_and(|v| {
+            v.children
+                .iter()
+                .any(|c| !(c.tag == "image" || (c.tag == "text" && c.children.is_empty())))
+        })
 }
 
 /// The `ui` element's widget child (the one beside `extras` and `picture`).
@@ -50,7 +52,7 @@ pub(in crate::xfa) fn widget(node: &XfaNode) -> Option<&XfaNode> {
 
 /// The face `typeface` is drawn in, and whether that is a substitution (the
 /// standard 14 carry no Arial, Myriad or the like; p.58 best match).
-fn face(typeface: &str, bold: bool, italic: bool) -> (Std14, bool) {
+pub(super) fn face(typeface: &str, bold: bool, italic: bool) -> (Std14, bool) {
     let t = typeface.trim().to_ascii_lowercase();
     let exact = matches!(
         t.as_str(),
@@ -101,7 +103,7 @@ pub(in crate::xfa) fn line_pitch(font: Option<&XfaNode>, para: Option<&XfaNode>)
 
 /// The ascent and the line height of `face` at `size` under `para`'s
 /// `lineHeight`.
-fn metrics(face: Std14, size: f64, para: Option<&XfaNode>) -> (f64, f64) {
+pub(super) fn metrics(face: Std14, size: f64, para: Option<&XfaNode>) -> (f64, f64) {
     let d = std14_descriptor(face);
     let ascent = f64::from(d.ascender) / 1000.0 * size;
     let descent = f64::from(d.descender).abs() / 1000.0 * size;
@@ -161,6 +163,7 @@ impl Painter<'_> {
             self.shape(item, shape, r);
         } else if let Some(image) = super::image::value_image(node) {
             self.image(item, image, node.child("para"), r);
+        } else if self.set_rich_value(item, node, node.child("font"), node.child("para"), r) {
         } else if let Some(text) = plain_text(node) {
             self.set(item, text, node.child("font"), node.child("para"), r);
         }
@@ -291,7 +294,7 @@ impl Painter<'_> {
     }
 
     /// The page-resource name for `font`, registering it on first use.
-    fn font_name(&mut self, font: Std14) -> String {
+    pub(super) fn font_name(&mut self, font: Std14) -> String {
         let i = self
             .fonts
             .iter()

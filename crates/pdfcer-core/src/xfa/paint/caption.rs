@@ -31,8 +31,7 @@ pub(super) fn occupies(caption: &XfaNode) -> bool {
 }
 
 /// Whether `node` has a visible caption this cut does not draw: an
-/// `inline` one, or one holding rich text or other non-text, non-image
-/// content.
+/// `inline` one, or one holding non-text, non-image content.
 pub(super) fn left_out(node: &XfaNode) -> bool {
     node.child("caption").is_some_and(|c| {
         c.presence() == Presence::Visible && (side(c).is_none() || has_unplain_value(c))
@@ -69,22 +68,27 @@ impl Painter<'_> {
         let Some(side) = side(c) else {
             return r;
         };
-        let text = plain_text(c).filter(|_| !has_unplain_value(c));
-        let image = super::image::value_image(c);
         let font = match self.opts.caption_font {
             CaptionFont::Field => c.child("font").or_else(|| node.child("font")),
             _ => c.child("font"),
         };
         let para = c.child("para");
+        let rich = self.rich(item, c, font, para);
+        let text = plain_text(c).filter(|_| rich.is_none() && !has_unplain_value(c));
+        let image = super::image::value_image(c);
         let margin = c.child("margin");
         let horizontal = matches!(side, Side::Left | Side::Right);
         let size = super::length(c, "reserve")
             .filter(|v| *v > 0.0)
             .or_else(|| leave.map(|l| if horizontal { r.w - l } else { r.h - l }))
             .unwrap_or_else(|| {
-                let (w, h) = match image {
-                    Some(i) => self.image_extent(i).unwrap_or((0.0, 0.0)),
-                    None => text.map_or((0.0, 0.0), |t| self.extent(item, t, font, para)),
+                let (w, h) = match (image, &rich) {
+                    (Some(i), _) => self.image_extent(i).unwrap_or((0.0, 0.0)),
+                    (None, Some(rich)) => {
+                        let block = super::rich_set::lay_out(rich, 0.0);
+                        (block.width, block.height)
+                    }
+                    (None, None) => text.map_or((0.0, 0.0), |t| self.extent(item, t, font, para)),
                 };
                 // An empty rect inset by the margin has extent -(near + far).
                 let m = inset(LayoutRect::default(), margin);
@@ -94,6 +98,13 @@ impl Painter<'_> {
         if c.presence() == Presence::Visible {
             if let Some(i) = image {
                 self.image(item, i, para, inset(cap, margin));
+            } else if let Some(rich) = &rich {
+                let v_align = match para.and_then(|p| p.attr("vAlign")) {
+                    Some("middle") => 0.5,
+                    Some("bottom") => 1.0,
+                    _ => 0.0,
+                };
+                self.set_rich(item, rich, v_align, inset(cap, margin));
             } else if let Some(t) = text {
                 self.set(item, t, font, para, inset(cap, margin));
             }
