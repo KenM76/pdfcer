@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1390th filing) — `Pass 647.4` real-fonts cut (`5a0a9665`, NOT complete), decision 214
+
+**Filed (docs only; engineer-reported, no shell here; nothing checked from here; local `main`, unpushed, unreleased, last release `v0.118.0`):**
+- **`5a0a9665`:** dynamic XFA text is measured and drawn in shell-supplied fonts (`XfaFonts`, `XfaFaceSource` trait; core parses no font file), and `xfa-materialize` embeds each face once. `materialize_xfa` gained a `&XfaFonts` parameter (signature change). CLI `--font-dir`, `--font-embedding embed|reference`. Core 6 + render 4 + CLI 1 tests (engineer-reported); sabotage of face sharing failed 2, restored. Clippy, structure gate, `check-core-api-verbs` green; no manifest change. Closes `X014` item 2.
+- ROADMAP: Shipped entry; 647.4 REMAINING now "barcode encoders" only; the 647.6 entry's "decision pending" sentence amended in place. FEATURES: new row `Dynamic XFA, real fonts` core `[x]` cli `[x]` gui `[ ]`; layout-and-drawing row no longer lists real fonts as unbuilt (boxes stay `[ ]`); materialize row mentions the font flags.
+
+**Decisions made this session:** decision 214 (`ARCHITECTURE.md` section 12): shell-supplied faces through a trait seam, standard 14 as the disclosed fallback, embedding a setting (default `Embed`), refuse restricted/ambiguous/bitmap-only, opt-in system fonts, no bundled Adobe fonts, materialize equals `render-page` under one font environment. Next free decision `215`. No new standing rule.
+
+**Findings:** on a non-rights-cleared real form (unnamed), Myriad Pro Regular/Bold/Italic embedded, Courier New fell back to Courier with disclosure, page 1 renders the same in pdfcer and pdfium, clipping gone.
+
+**Still open:** bundling an OFL Myriad-metric-compatible fallback face is an open question to Ken. `Pass 647.4` remains in Next up for barcode encoders. The Planned row `Dynamic XFA text outside WinAnsi` is left unticked (not evidenced by this report).
+
+**Hard-rule-11 survivors:** `FEATURES.md` "Not built: real fonts" and ROADMAP "decision pending" fixed; older cut records saying "real fonts" remain are historical, left. Not swept from here, owed to the engineer: `docs/NEXT_SESSION.md`, CLI help and doc comments saying Helvetica is the only XFA face, `ARCHITECTURE.md` section 4. Run `check-register-entry-size.py` (the FEATURES layout row and new row may exceed 1,200 characters; I could not measure). Backup currency not verifiable from here.
+
 ## 2026-11-03 (1389th filing) — `Pass 647.6` COMPLETE (`7a2e767f`)
 
 **Filed (docs only; engineer-reported, no shell here; nothing checked from here; local `main`, unpushed, unreleased, last release `v0.118.0`):**

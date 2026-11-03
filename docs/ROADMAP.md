@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `5a0a9665` `Pass 647.4` REAL-FONTS CUT, 2026-11-03: dynamic XFA text set in supplied fonts and embedded; closes `X014` item 2 (1390th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `5a0a9665648ccae80203d719bf09a4de6e88ffaa` "feat(xfa): set XFA text in supplied fonts and embed them (Pass 647.4)". Local `main`, **unpushed, unreleased** (last release `v0.118.0`). **`Pass 647.4` is NOT complete**: barcode encoders remain (JS execution stays out of scope). **New decision 214** (`ARCHITECTURE.md` section 12).
+- **Core (`pdfcer_core::xfa`):** `XfaFonts` (`new()` = standard 14 only, byte-identical to before; `with_source(impl XfaFaceSource)`), `XfaFaceSource`, `XfaFace`, `XfaFontProgram`, `FontProgramKind {TrueType, OpenTypeCff}`, `winansi_chars`. `layout_template_with(.., &XfaFonts)`; `paint_page_with(.., &XfaFonts)` returns `PaintedPage::fonts: Vec<PaintedFont{name, base_font, supplied, program, refusal}>`; `PaintOptions::with_font_embedding(FontEmbedding::{Embed (default), Reference})`. Core parses no font file.
+- **Signature change:** `EditSession::materialize_xfa(&Template, &[LayoutPage], &PaintOptions, &XfaFonts, XfaSignatures)`; `XfaMaterializeOutcome` gained `fonts: Vec<PaintedFont>`. Each supplied face written once, shared across pages; whole program embedded (`/FontFile2` + `/Length1`, or `/FontFile3 /Subtype /OpenType`; ISO 32000-1 section 9.9); `/Widths` always correct. `fsType` Restricted, ambiguous or bitmap-only: referenced by name, refusal recorded. TTC and CID-keyed CFF faces measure but are referenced.
+- **Render:** `pdfcer_render::font::xfa_fonts(&FontEnvironment)` builds the source over the renderer's named faces (family match ignoring case, spaces and hyphens; nearest weight and italic; normal width preferred). `render_xfa_page(_with_images)` lays and draws text in `RenderOptions::fonts`.
+- **CLI:** `--font-dir DIR` (repeatable) on `xfa-layout` and `xfa-materialize`; `xfa-materialize --font-embedding embed|reference`; `render-page` on a dynamic form uses its font environment. stdout `xfa-font base=X embedded=0|1`. stderr (rule 4): each typeface drawn in a standard-14 face and which; each supplied face referenced, not embedded, and why.
+- **Decision 214:** faces via a shell-supplied trait seam; standard 14 stays the disclosed fallback; embedding a setting; refuse restricted/ambiguous/bitmap-only; system fonts opt-in only, Adobe fonts never bundled; a materialized page equals `render-page` under the same font environment. **Open:** bundling an OFL Myriad-metric-compatible fallback face (question to Ken).
+- **Fixtures:** `fixtures/synthetic/xfa/fonts/` (5 synthetic faces, `PROVENANCE.md`), generator `tools/gen-xfa-font-fixtures.py` (deterministic).
+- **Tests / gates (engineer-reported):** core `tests/xfa_fonts.rs` 6 (sabotage of face sharing failed 2, then restored); render 4; CLI font-dir test 1 (CLI xfa tests 37 pass). Clippy `-D warnings` clean on core, render, cli; structure gate clean (`cmd_xfa_materialize` split to stay at or under 80 lines); `check-core-api-verbs` PASS; `docs/core-api/02` and `03` and index counts updated. No new dependency, no `Cargo.toml` change, so `cargo tree` is unchanged.
+- **Real-form check (non-rights-cleared form, deliberately unnamed):** with `--font-dir` at an installed viewer's font folder, Myriad Pro Regular, Bold and Italic embedded; Courier New disclosed as a Courier fallback; page 1 renders the same in pdfcer and pdfium; the Helvetica-substitution clipping is gone.
+- **Boxes:** real fonts core `[x]`, cli `[x]`, gui `[ ]` (not consumed).
+
 ### `7a2e767f` `Pass 647.6`, 2026-11-03: `xfa-materialize` writes a dynamic form's computed pages (1389th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Commit `7a2e767faf2ff3a60e749e3416e9dd9f19e0edf2` "feat(xfa): xfa-materialize writes a dynamic form's computed pages (Pass 647.6)". Local `main`, **unpushed, unreleased** (last release `v0.118.0`). Decision 204; no new decision. Decision 020 honoured: static forms refused.
@@ -120,7 +133,7 @@ Engineer-reported; no shell here, nothing checked from here. Commit `7a2e767faf2
 - **CLI:** `pdfcer xfa-materialize IN -o OUT [--mode] [--verify-undo] [--remove-signatures]`. Prints paint-note and warning lines (layout and merge warnings, via a new shared `print_merge_warnings`, which also fixed materialize reporting 0 warnings where `xfa-layout` reported 21) and a summary `xfa-materialize FILE pages= replaced= images= fields_dropped= usage_rights_removed= signatures_removed= notes= warnings= mode=`. stderr discloses that the pages are pdfcer's inferred layout (rule 4) and any removed signatures. Full-mode save of an encrypted file is refused by the writer; incremental (default) works.
 - **Tests / gates (engineer-reported):** 5 core (`crates/pdfcer-core/tests/xfa_materialize.rs`) + 2 CLI (`crates/pdfcer-cli/tests/xfa_materialize.rs`). core-api updated (02: 392 verbs, 190 `EditError` variants; 03); `check-core-api-verbs` green; clippy and structure gate clean. No manifest change.
 - **Smoke (real government dynamic form, not rights-cleared, deliberately unnamed):** 12 pages materialized, 8 images, 1 usage right and 1 certification signature removed (`--remove-signatures`), 21 warnings, page 1 renders well, saved file lists 0 fields and `xfa_kind=none`.
-- **Measured finding (real fonts, `X014` item 2, under `647.4`):** of 23 text notes on that form, 15 rich-text overflows + 6 plain-text overflows + 2 words wider than their line = 23; 0 unencodable characters. Cause: the template's typeface Myriad Pro (622 uses) is substituted with the wider standard-14 Helvetica, so text wraps more and clips. Real fonts matter for metrics on Latin text, not only non-WinAnsi characters. **Decision pending with the operator (supplied vs bundled face).**
+- **Measured finding (real fonts, `X014` item 2, under `647.4`):** of 23 text notes on that form, 15 rich-text overflows + 6 plain-text overflows + 2 words wider than their line = 23; 0 unencodable characters. Cause: the template's typeface Myriad Pro (622 uses) is substituted with the wider standard-14 Helvetica, so text wraps more and clips. Real fonts matter for metrics on Latin text, not only non-WinAnsi characters. **Decision pending with the operator (supplied vs bundled face).** *(Amended 1390th filing: resolved for supplied faces by decision 214, `5a0a9665`; bundling an OFL fallback face stays open.)*
 - **Boxes:** materialize core `[x]`, cli `[x]`, gui `[ ]`.
 
 ### `bb8e190e` `Pass 647.5` COMPLETE, 2026-11-03: `render-page` draws a dynamic XFA form's computed page (1388th filing)
@@ -27609,6 +27622,8 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 `EditSession` verb plus CLI subcommand that writes the computed pages and fields into the file. Commits at Save only, never on open; disclosed as inferred content (rule 4). Static-XFA hybrid field creation stays refused (decision 020).
 
 **REMAINING in 647.4 after 647.6 (1389th filing):** real fonts (`X014` item 2; measured need, see the 647.6 Shipped entry); barcode encoders. `647.6` is off the list.
+
+**REMAINING in 647.4 after the real-fonts cut (`5a0a9665`, 1390th filing):** barcode encoders only (JS execution stays out of scope). Real fonts is off the list; open sub-question to Ken: bundle an OFL Myriad-metric-compatible fallback face.
 
 ### Pass 647.7 — Table and row layout (SHIPPED `9082a5be`, 1384th filing, see *Shipped*; the criteria below are kept as filed)
 

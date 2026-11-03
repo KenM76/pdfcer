@@ -13695,3 +13695,19 @@ Engineer-reported; no `docs/decisions/213-*.md` record written this filing (the 
 **Built:** `0851e68b`; settings reach the CLI as `xfa-layout --image-placement`, `--image-overflow`, `--image-dpi`. **Not built:** sizing growable containers from an image's natural size (layout measures no field/draw content yet).
 
 **Body-section effect.** None. **Decision ceiling.** Fills `213`. Next free decision: `214`. **New standing rule.** None.
+
+### 2026-11-03 (1390th filing, request `X014` item 2, `Pass 647.4`, `5a0a9665`) — decision 214: dynamic XFA text is set in shell-supplied fonts through a trait seam; standard 14 stays the disclosed fallback
+
+Engineer-reported; reached via autonomous-builder/KenAgent, option A; no `docs/decisions/214-*.md` record written this filing (the record is this entry). Applies decisions 204, 208, 209 and rule 4 (fuzzy, never sneaky). Spec: ISO 32000-1 section 9.9 (font programs, `/FontFile2`, `/FontFile3 /Subtype /OpenType`).
+
+**Decides.**
+1. **Seam.** Faces come from a shell-supplied provider (`XfaFaceSource`, wrapped in `XfaFonts`); `pdfcer-core` parses no font file and gains no dependency. The renderer builds the source over its named faces (`pdfcer_render::font::xfa_fonts`).
+2. **Fallback.** Standard 14 stays the fallback. No fonts supplied = byte-identical output to before. Every fallback is disclosed (stderr in the CLI; `PaintedFont`).
+3. **Embedding.** `FontEmbedding {Embed (default), Reference}` is a setting. `/Widths` always correct. Each supplied face written once, shared across pages.
+4. **Licence flags.** `fsType` Restricted, ambiguous or bitmap-only: refuse to embed, reference by name, record the refusal. Whole program embedded, no subsetting. TTC and CID-keyed CFF measure but are referenced.
+5. **Sources.** System fonts are opt-in only (`--font-dir`, or the settings file). Adobe fonts are never bundled.
+6. **Parity.** A materialized page must equal `render-page` under the same font environment: one `XfaFonts` is passed to layout, paint and write.
+
+**Not decided.** Whether to bundle an OFL Myriad-metric-compatible fallback face: open sub-question to Ken.
+
+**Built:** `5a0a9665` (core, render, CLI `--font-dir`, `xfa-materialize --font-embedding`; GUI none). **Body-section effect.** None to the numbered body sections; `docs/core-api/02` and `03` updated in the commit. **Decision ceiling.** Fills `214`. Next free decision: `215`. **New standing rule.** None.
