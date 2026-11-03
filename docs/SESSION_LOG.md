@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1392nd filing) — `Pass 658.0` (`fa66d3fc`) and `Pass 658.1` (`16ac1d77`)
+
+**Filed (engineer-reported, no shell here; nothing checked from here; both on local `main`, unpushed, unreleased; `v0.119.0` to follow, not recorded):**
+- **`Pass 658.0` (`G260`):** `ShadowLight::Sun { up, negative }`, CLI `--shadow-light sun-negative`. Breaking for external `Sun` constructors.
+- **`Pass 658.1` (`G261`):** a model's own lights read from PRC (occurrence 731-734 in 741; per-view MKP_View 501) and from glTF `KHR_lights_punctual`, written into PRC, drawn under Artwork (per-corner ambient/directional, per-pixel point/spot, CPU and GPU). Settings for spec-open choices: `ViewLightUse` (default `DefaultView`), `GltfLights` (default `Normalise`, disclosed). CLI `--gltf-lights`, `--light`, `--artwork-headlight`, `--no-view-lights`. Raster shared-edge crack fix. `pdfcer-3d` lib 285 pass; `run-gates.sh` PASS (49 commands), engineer-reported.
+- **Not done:** U3D lights; lamp cast shadows; end-to-end CLI view-light fixture (no PRC writer emits views).
+- **Decision log:** nothing written. The `ViewLightUse` default is a spec-ambiguity setting recorded in the ROADMAP entry and the commit; I judged it does not need a decision number.
+- **FEATURES:** lighting row (558, 559), shadow row, camera-controls row (719) corrected; two Implemented rows and one Planned row added. Boxes core/cli ticked, gui open throughout.
+- **Hard rule 11 survivors to check (reported, not edited; outside `docs/`):** any doc comment, `eprintln!` or core-api text saying model lights are not read, or that Artwork "lights from the camera" only, or that a glTF-converted model "has no lights"; and whether `3d-embed --lighting auto` should now treat a glTF with lights differently (row 558 says unconfirmed).
+- Backup currency not verifiable from here.
+
 ## 2026-11-03 (1391st filing) — follow-up to `Pass 647.6`: `76c716b0`
 
 **Filed (docs only; engineer-reported, no shell here; nothing checked from here; local `main`, unpushed):** `76c716b0` "fix(cli): xfa-materialize takes --in-place; README count; missing doc comments". `xfa-materialize` joins `IN_PLACE_COMMANDS` (accepts `--in-place`); README count 242 to 243; doc comments on six crate-private fns. No pub API or core-api change, no new decision or rule. ROADMAP: follow-up bullet under the `Pass 647.6` Shipped entry. FEATURES: unchanged (the materialize row is already near or over its character cap and I could not measure it; `--in-place` is not worth the risk). Backup currency not verifiable from here.

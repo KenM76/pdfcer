@@ -112,6 +112,26 @@ wherever it appears.*
 
 ## Shipped
 
+### `16ac1d77` `Pass 658.1`, 2026-11-03: a 3D model's own lights, from PRC and glTF, drawn under Artwork (`G261`; 1392nd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `16ac1d77` "feat(3d): draw a model's own lights under Artwork, from PRC and glTF (Pass 658.1)". Local `main`, **unpushed, unreleased** (last release `v0.118.0`; `v0.119.0` will follow, not recorded here). Ken's ask: lamps, import from glb, "all lighting that pdf can handle". Reasoning is in the commit message.
+- **PRC occurrence lights:** lights 731-734 in scene display parameters (741), on every reached occurrence, in model space: `PrcFile::lights`, `AssembledModel::lights: Vec<ModelLight>`, `ModelLightKind::{Ambient, Point, Directional, Spot}`.
+- **PRC view lights (MKP_View 501):** `PrcFile::view_lights`, `ViewLights { view, default, active, lights }`, `AssembledModel::view_lights` / `lights_view`, `AssembleOptions::view_lights: ViewLightUse::{DefaultView (default), Ignore}`. PRC does not say whether occurrence or view lights win (spec ambiguity made a setting, both offered); default: the first active lit default view replaces the occurrences' lights.
+- **glTF/GLB:** `KHR_lights_punctual` into `MeshScene::lights`, written to PRC as 741 + 731-734. `GltfOptions::lights: GltfLights::{Normalise (default), Stored, Drop}`; CLI `3d-convert` / `3d-embed` `--gltf-lights normalise|stored|drop`, `--light kind[:params][:RRGGBB[:INTENSITY]]`. Normalisation is inferred and disclosed (rule 4).
+- **Drawing (`LightingScheme::Artwork`):** ambient and directional per corner, point and spot per pixel (CPU `Target::fill` and the GPU fragment shader). `FrameLights::for_model`, `FrameShadow::for_model`, `FrameLights::dropped` (lights beyond `MAX_LIGHTS` = 8, disclosed); `RenderOptions::artwork_headlight`. The brightest directional model light casts shadows. Spec-open defaults: direction = the way the light travels; spot `cos^exponent` inside the cone, cut off outside. Poster rendering (`pdfcer-core` `threed/poster.rs`) uses the model's lights.
+- **CLI:** `3d-render` prints `light` and `view-light` lines; `--artwork-headlight`, `--no-view-lights`.
+- **Also fixed:** the raster edge function evaluates a shared edge in canonical vertex order (no crack pixels between triangles).
+- **Not done (disclosed):** U3D lights (`pdfcer-3d` has no U3D reader); lamp (point/spot) cast shadows (follow-on). The CLI view-light lines and `--no-view-lights` wiring are verified only by core-path unit tests and code reading: no PRC writer emits views, so there is no end-to-end CLI fixture.
+- **Tests / gates (engineer-reported):** `pdfcer-3d` lib 285 pass (view-light selection sabotage-checked); full `tools/run-gates.sh` PASS (49 commands) on the tree just before commit. No dependency change; core and render manifests untouched.
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]`. FEATURES: lighting row corrected (it said model lights "are not read yet"), two new rows (model lights; glTF lights), one Planned row (U3D lights, lamp shadows).
+
+### `fa66d3fc` `Pass 658.0`, 2026-11-03: the shadow sun on a model's negative up side (`G260`; 1392nd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `fa66d3fc` "feat(3d): the shadow sun can sit on a model's negative up side (Pass 658.0)". Local `main`, **unpushed, unreleased**. No decision.
+- `pdfcer_3d::ShadowLight::Sun { up: UpAxis, negative: bool }`: with `negative`, the iso placement is turned 180 degrees about the axis after `up` (X to Y, Y to Z, Z to X). CLI `3d-render --shadow-light sun-negative`. `docs/core-api` updated.
+- **Breaking** for external constructors of `Sun` (new field).
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]`. FEATURES: shadow row amended.
+
 ### `5a0a9665` `Pass 647.4` REAL-FONTS CUT, 2026-11-03: dynamic XFA text set in supplied fonts and embedded; closes `X014` item 2 (1390th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Commit `5a0a9665648ccae80203d719bf09a4de6e88ffaa` "feat(xfa): set XFA text in supplied fonts and embed them (Pass 647.4)". Local `main`, **unpushed, unreleased** (last release `v0.118.0`). **`Pass 647.4` is NOT complete**: barcode encoders remain (JS execution stays out of scope). **New decision 214** (`ARCHITECTURE.md` section 12).
