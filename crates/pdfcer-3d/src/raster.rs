@@ -6,6 +6,7 @@ use crate::lamp_shadow::LampShadows;
 use crate::model_shade::{Local, add_local};
 use crate::render::{Camera, Projection, RenderError};
 use crate::shadow::ShadowMap;
+use crate::shadow_set::ExtraShadows;
 use crate::vec3::{length, sub};
 
 /// One clipped view-space corner: x, y, z, red/green/blue shade, u, v,
@@ -194,6 +195,8 @@ pub(crate) struct PixelLights<'a> {
     pub(crate) local: &'a [Local],
     /// Their shadows.
     pub(crate) lamps: Option<&'a LampShadows>,
+    /// The further directional lights' shadows.
+    pub(crate) extra: Option<&'a ExtraShadows>,
     /// The triangle's unit normal.
     pub(crate) face: [f64; 3],
 }
@@ -219,6 +222,7 @@ impl Target<'_> {
             shadow,
             local,
             lamps,
+            extra,
             face,
         } = lights;
         let [a, b, c] = corners;
@@ -274,10 +278,13 @@ impl Target<'_> {
                         *s += lit * k;
                     }
                 }
-                if !local.is_empty() {
+                if !local.is_empty() || extra.is_some() {
                     let model =
                         |f: fn(&Corner) -> [f64; 3]| [0, 1, 2].map(|j| correct(&|c| at(f(c), j)));
                     let (p, n) = (model(|c| c.model[0]), model(|c| c.model[1]));
+                    if let Some(extra) = extra {
+                        extra.darken(&mut shade, p, n, face);
+                    }
                     let lit = |i: usize| lamps.map_or(1.0, |m| m.visibility(i, p, face));
                     add_local(&mut shade, local, (p, n), &lit);
                 }

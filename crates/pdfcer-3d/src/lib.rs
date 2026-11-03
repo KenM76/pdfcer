@@ -54,6 +54,8 @@ mod gpu_shader;
 #[cfg(feature = "render")]
 mod gpu_shadow;
 #[cfg(feature = "render")]
+mod gpu_shadow_set;
+#[cfg(feature = "render")]
 mod lamp_shadow;
 #[cfg(feature = "render")]
 mod lighting;
@@ -77,6 +79,12 @@ mod render;
 mod schema;
 #[cfg(feature = "render")]
 mod shadow;
+#[cfg(feature = "render")]
+mod shadow_cast;
+#[cfg(feature = "render")]
+mod shadow_set;
+#[cfg(all(test, feature = "render"))]
+mod shadow_tests;
 mod tess;
 #[cfg(test)]
 mod testw;
@@ -116,6 +124,12 @@ pub use gpu_shader::{GLSL_ES_300_FRAGMENT, GLSL_ES_300_VERTEX};
 #[cfg(feature = "render")]
 pub use gpu_shadow::{FrameShadow, GLSL_ES_300_SHADOW_FRAGMENT, GLSL_ES_300_SHADOW_VERTEX};
 #[cfg(feature = "render")]
+pub use gpu_shadow_set::{
+    FrameExtraShadows, GLSL_ES_300_LAMP_SHADOW_ALPHA_FRAGMENT,
+    GLSL_ES_300_LAMP_SHADOW_ALPHA_VERTEX, GLSL_ES_300_SHADOW_ALPHA_FRAGMENT,
+    GLSL_ES_300_SHADOW_ALPHA_VERTEX, MAX_EXTRA_SHADOWS,
+};
+#[cfg(feature = "render")]
 pub use lamp_shadow::{DEFAULT_LAMP_SHADOW_MAP_SIZE, MAX_LAMP_SHADOW_MAP_SIZE};
 #[cfg(feature = "render")]
 pub use lighting::{Light, LightFrame, LightSet, LightingScheme, Lights};
@@ -141,6 +155,8 @@ pub use render::{
 pub use schema::Schema;
 #[cfg(feature = "render")]
 pub use shadow::{DEFAULT_SHADOW_MAP_SIZE, LightSense, MAX_SHADOW_MAP_SIZE, ShadowLight};
+#[cfg(feature = "render")]
+pub use shadow_cast::{DEFAULT_SHADOW_CUTOFF, ShadowAlpha, ShadowCasters};
 pub use tess::{Tessellation, TriangleMesh};
 pub use texture::{MAX_TEXTURE_PIXELS, Texture, TextureFunction, TextureOrigin, TextureWrap};
 pub use tree::{

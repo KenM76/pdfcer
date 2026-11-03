@@ -3354,6 +3354,24 @@ pub(crate) enum Command {
         /// `--up` axis.
         #[arg(long, value_enum, default_value_t)]
         shadow_light: ShadowLightArg,
+        /// Which directional lights cast shadows: `every` (default), up to
+        /// 16, each shadow taking only its own light, or `key`, the one
+        /// `--shadow-light` names. Each further light costs about one more
+        /// shadow map; past 16 the rest light without a shadow, and the
+        /// shadows note says how many.
+        #[arg(long, value_enum, default_value_t)]
+        shadow_casters: ShadowCastersArg,
+        /// How translucent and cut-out surfaces cast shadows: `transmit`
+        /// (default), a shadow as dark as the surface is opaque, so 40%
+        /// glass lets 60% of the light through; `cutout`, solid where the
+        /// alpha (colour times texture) reaches `--shadow-cutoff`, none
+        /// elsewhere; or `opaque`, only wholly opaque surfaces cast.
+        #[arg(long, value_enum, default_value_t)]
+        shadow_alpha: ShadowAlphaArg,
+        /// The alpha, 0 to 1 (default 0.5, glTF's), from which a surface
+        /// casts a full shadow under `--shadow-alpha cutout`.
+        #[arg(long, default_value_t = 0.5, value_parser = parse_alpha_cutoff)]
+        shadow_cutoff: f64,
         /// Threads to draw with; 0 (default) uses every core. The image is
         /// the same at any count.
         #[arg(long, default_value_t = 0)]

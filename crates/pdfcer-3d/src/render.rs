@@ -13,9 +13,9 @@ use crate::lamp_shadow::LampShadows;
 use crate::lighting::{LightFrame, LightingScheme, Shader};
 use crate::parallel;
 use crate::raster::{Corner, Paint, PixelLights, Target, View, ViewCorner, at};
-use crate::shadow::{
-    Caster, DEFAULT_SHADOW_MAP_SIZE, LightSense, LightView, ShadowLight, ShadowMap,
-};
+use crate::shadow::{Caster, DEFAULT_SHADOW_MAP_SIZE, LightSense, ShadowLight, ShadowMap};
+use crate::shadow_cast::{ShadowAlpha, ShadowCasters};
+use crate::shadow_set::{ExtraShadows, Shadows};
 use crate::vec3::{cross, dot, length, normalize, scale, sub};
 
 /// The largest image [`render`] draws, in pixels (width × height).
@@ -312,6 +312,13 @@ pub struct RenderOptions {
     /// ([`DEFAULT_LAMP_SHADOW_MAP_SIZE`](crate::DEFAULT_LAMP_SHADOW_MAP_SIZE)),
     /// clamped to 64–[`MAX_LAMP_SHADOW_MAP_SIZE`](crate::MAX_LAMP_SHADOW_MAP_SIZE).
     pub lamp_shadow_map_size: u32,
+    /// Which directional lights cast ([`ShadowCasters::EveryLight`] by
+    /// default, up to [`MAX_LIGHTS`](crate::MAX_LIGHTS), each shadow taking
+    /// only its own light). Lights at the camera never cast.
+    pub shadow_casters: ShadowCasters,
+    /// How see-through and cut-out surfaces cast, in every map
+    /// ([`ShadowAlpha::Transmit`] by default).
+    pub shadow_alpha: ShadowAlpha,
 }
 
 impl Default for RenderOptions {
@@ -334,6 +341,8 @@ impl Default for RenderOptions {
             ambient_occlusion: true,
             lamp_shadows: true,
             lamp_shadow_map_size: crate::DEFAULT_LAMP_SHADOW_MAP_SIZE,
+            shadow_casters: ShadowCasters::EveryLight,
+            shadow_alpha: ShadowAlpha::Transmit,
         }
     }
 }
@@ -464,37 +473,23 @@ pub(crate) fn render_painted(
     let aspect = f64::from(width) / f64::from(height);
     let basis = camera.basis()?;
     let shader = Shader::for_frame(options, model_lights, &basis);
-    let caster = options
-        .shadows
-        .then(|| Caster::for_light(options.shadow_light, &shader, options.light_sense, &basis))
-        .flatten();
     let bounds = Bounds::of(meshes);
     let workers = parallel::workers(options.threads);
-    let shadow = caster.zip(bounds.as_ref()).and_then(|(c, bounds)| {
-        let view = LightView::new(c.to_light, bounds, options.shadow_map_size)?;
-        Some(ShadowMap::build(view, meshes, paints, opaque, workers))
-    });
-    let lamps = (options.shadows && options.lamp_shadows && !shader.local().is_empty())
-        .then_some(bounds.as_ref())
-        .flatten()
-        .map(|bounds| {
-            let size = options.lamp_shadow_map_size;
-            LampShadows::build(
-                shader.local(),
-                bounds,
-                size,
-                (meshes, paints, opaque),
-                workers,
-            )
-        });
+    let shadows = Shadows::build(
+        (options, &shader, &basis),
+        bounds.as_ref(),
+        (meshes, paints, opaque),
+        workers,
+    );
     let scene = Scene {
         camera,
         basis,
         view: View::new(camera, aspect)?,
         shader,
-        caster: caster.filter(|_| shadow.is_some()),
-        shadow,
-        lamps,
+        caster: shadows.caster,
+        shadow: shadows.key,
+        extra: shadows.extra,
+        lamps: shadows.lamps,
         height,
     };
     let mut rgba = options.background.repeat(pixels as usize);
@@ -540,6 +535,8 @@ pub(crate) struct Scene<'c> {
     /// The light casting shadows and its map, when shadows are drawn.
     caster: Option<Caster>,
     shadow: Option<ShadowMap>,
+    /// The further directional lights' shadows, when drawn.
+    extra: Option<ExtraShadows>,
     /// The point and spot lights' shadows, when drawn.
     lamps: Option<LampShadows>,
     /// The image height, pixels.
@@ -674,6 +671,7 @@ impl Scene<'_> {
                         shadow: self.shadow.as_ref(),
                         local: self.shader.local(),
                         lamps: self.lamps.as_ref(),
+                        extra: self.extra.as_ref(),
                         face,
                     };
                     target.fill(&self.view, [a, *b, *c], paint, lights);

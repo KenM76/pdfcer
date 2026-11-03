@@ -10,10 +10,10 @@
 //! texel y `(o_c / z + 1) / 2 · size`, row 0 at the bottom. A point belongs
 //! to the face of its largest `|o_i|`, ties to the lower axis.
 
-use crate::TriangleMesh;
 use crate::model_shade::Local;
-use crate::raster::{Paint, at, edge};
-use crate::render::{Bounds, at3, corners};
+use crate::raster::{at, edge};
+use crate::render::{Bounds, at3};
+use crate::shadow_cast::{Cast, Occluder, Surface, Texels, Veil, runs};
 use crate::vec3::{dot, sub};
 
 /// [`crate::RenderOptions::lamp_shadow_map_size`]'s default, texels per
@@ -120,6 +120,7 @@ pub(crate) struct LampCube {
     far: f64,
     size: u32,
     depth: Vec<f32>,
+    veil: Option<Veil>,
 }
 
 impl LampCube {
@@ -147,22 +148,22 @@ impl LampCube {
             ((v + 1.0) / 2.0 * size).floor() as i64,
         );
         let base = f * (self.size as usize).pow(2);
-        let mut lit = 0u32;
+        let mut lit = 0.0;
         for dy in -1..=1 {
             for dx in -1..=1 {
                 let (x, y) = ((cx + dx).clamp(0, n - 1), (cy + dy).clamp(0, n - 1));
-                let stored = self.depth.get(base + (y * n + x) as usize).copied();
-                if stored.is_none_or(|d| depth <= f64::from(d)) {
-                    lit += 1;
+                let i = base + (y * n + x) as usize;
+                if self.depth.get(i).is_none_or(|&d| depth <= f64::from(d)) {
+                    lit += self.veil.as_ref().map_or(1.0, |v| v.through(i, depth));
                 }
             }
         }
-        f64::from(lit) / 9.0
+        lit / 9.0
     }
 }
 
-/// A face to draw: its index, lamp position and reach, and its depths.
-type FaceJob<'a> = (usize, [f64; 3], f64, &'a mut [f32]);
+/// A face to draw: its index, lamp position and reach, and its texels.
+type FaceJob<'a> = (usize, [f64; 3], f64, Texels<'a>);
 
 /// The cubes of a frame's point and spot lights, one per
 /// [`crate::lighting::Shader::local`] entry (`None` where a lamp casts no
@@ -172,25 +173,18 @@ pub(crate) struct LampShadows {
 }
 
 impl LampShadows {
-    /// Every opaque mesh drawn into each face of each of `lamps`' cubes,
-    /// faces on `workers` threads; each texel keeps its nearest depth, so
-    /// the maps are the same at any count.
+    /// `occluders` drawn into each face of each of `lamps`' cubes, with
+    /// veil layers when `veiled`, faces on `workers` threads; each texel
+    /// keeps its nearest depth and multiplies its transmission, so the maps
+    /// are the same at any count.
     pub(crate) fn build(
         lamps: &[Local],
         bounds: &Bounds,
         size: u32,
-        (meshes, paints, opaque): (&[TriangleMesh], &[Paint<'_>], &[bool]),
+        (occluders, veiled): (&[Occluder<'_>], bool),
         workers: usize,
     ) -> LampShadows {
         let size = face_size(size);
-        let mut tris = Vec::new();
-        for (i, mesh) in meshes.iter().enumerate() {
-            let casts = opaque.get(i).copied().unwrap_or(false)
-                && paints.get(i).is_some_and(|p| p.colour[3] != 0);
-            if casts {
-                tris.extend(mesh.triangles.iter().filter_map(|t| corners(mesh, t)));
-            }
-        }
         let face_len = (size as usize).pow(2);
         let mut cubes: Vec<Option<LampCube>> = lamps
             .iter()
@@ -200,25 +194,29 @@ impl LampShadows {
                     far: reach(l.position, bounds)?,
                     size,
                     depth: vec![1.0; face_len * FACES],
+                    veil: veiled.then(|| Veil::new(face_len * FACES)),
                 })
             })
             .collect();
         let mut jobs: Vec<Vec<FaceJob<'_>>> = (0..workers.max(1)).map(|_| Vec::new()).collect();
         let mut k = 0;
         for cube in cubes.iter_mut().flatten() {
-            for (face, slot) in cube.depth.chunks_mut(face_len).enumerate() {
+            let (position, far) = (cube.position, cube.far);
+            for (face, slot) in runs(&mut cube.depth, cube.veil.as_mut(), face_len)
+                .into_iter()
+                .enumerate()
+            {
                 if let Some(job) = jobs.get_mut(k % workers.max(1)) {
-                    job.push((face, cube.position, cube.far, slot));
+                    job.push((face, position, far, slot));
                 }
                 k += 1;
             }
         }
-        let tris = &tris;
         crate::parallel::run_each(jobs, &|job| {
-            for (face, position, far, depth) in job {
-                for world in tris {
-                    let o = [0, 1, 2].map(|k| face_view(face, sub(at3(world, k), position)));
-                    fill_face(depth, size, far, o);
+            for (face, position, far, mut texels) in job {
+                for o in occluders {
+                    let v = [0, 1, 2].map(|k| face_view(face, sub(at3(&o.world, k), position)));
+                    fill_face(&mut texels, size, far, v, o.surface.as_ref());
                 }
             }
         });
@@ -235,48 +233,69 @@ impl LampShadows {
     }
 }
 
-/// Keeps the nearest depth over `far` of face-view triangle `t` at each
-/// texel centre of a `size`-square face, clipped to the near plane.
-fn fill_face(depth: &mut [f32], size: u32, far: f64, t: [[f64; 3]; 3]) {
+/// Draws face-view triangle `t` at each texel centre of a `size`-square
+/// face, depth over `far`, clipped to the near plane. An opaque triangle
+/// (`surface` `None`) casts fully; a see-through one per fragment, its
+/// texture coordinates perspective-correct.
+fn fill_face(
+    texels: &mut Texels<'_>,
+    size: u32,
+    far: f64,
+    t: [[f64; 3]; 3],
+    surface: Option<&Surface<'_>>,
+) {
     let near = far * NEAR_SHARE;
     if t.iter().all(|v| at(*v, 2) < near) {
         return;
     }
-    let mut poly: Vec<[f64; 3]> = Vec::with_capacity(4);
+    let unit = |k: usize| [0, 1, 2].map(|i| if i == k { 1.0 } else { 0.0 });
+    // Each clipped corner with its weights over `t`'s corners.
+    let mut poly: Vec<([f64; 3], [f64; 3])> = Vec::with_capacity(4);
     for (k, &p) in t.iter().enumerate() {
-        let q = t.get((k + 1) % 3).copied().unwrap_or(p);
+        let next = (k + 1) % 3;
+        let q = t.get(next).copied().unwrap_or(p);
         let (p_in, q_in) = (at(p, 2) >= near, at(q, 2) >= near);
         if p_in {
-            poly.push(p);
+            poly.push((p, unit(k)));
         }
         if p_in != q_in {
             let s = (near - at(p, 2)) / (at(q, 2) - at(p, 2));
-            poly.push([0, 1, 2].map(|i| at(p, i) + s * (at(q, i) - at(p, i))));
+            let lerp =
+                |a: [f64; 3], b: [f64; 3]| [0, 1, 2].map(|i| at(a, i) + s * (at(b, i) - at(a, i)));
+            poly.push((lerp(p, q), lerp(unit(k), unit(next))));
         }
     }
     let n = f64::from(size);
     // Screen x, y and 1/z, which is linear in screen space.
-    let screen: Vec<[f64; 3]> = poly
+    let screen: Vec<([f64; 3], [f64; 3])> = poly
         .iter()
-        .map(|v| {
-            let z = at(*v, 2);
-            [
-                (at(*v, 0) / z + 1.0) / 2.0 * n,
-                (at(*v, 1) / z + 1.0) / 2.0 * n,
-                1.0 / z,
-            ]
+        .map(|&(v, w)| {
+            let z = at(v, 2);
+            let x = (at(v, 0) / z + 1.0) / 2.0 * n;
+            ([x, (at(v, 1) / z + 1.0) / 2.0 * n, 1.0 / z], w)
         })
         .collect();
     if let Some((&a, rest)) = screen.split_first() {
         for pair in rest.windows(2) {
             if let [b, c] = pair {
-                fill_triangle(depth, size, far, [a, *b, *c]);
+                let tri = ([a.0, b.0, c.0], [a.1, b.1, c.1]);
+                fill_triangle(texels, size, far, tri, surface);
             }
         }
     }
 }
 
-fn fill_triangle(depth: &mut [f32], size: u32, far: f64, t: [[f64; 3]; 3]) {
+/// One screen triangle of [`fill_face`]: corners `[x, y, 1/z]` and their
+/// weights over the original triangle's corners.
+type ScreenTriangle = ([[f64; 3]; 3], [[f64; 3]; 3]);
+
+fn fill_triangle(
+    texels: &mut Texels<'_>,
+    size: u32,
+    far: f64,
+    (t, weights): ScreenTriangle,
+    surface: Option<&Surface<'_>>,
+) {
     let [a, b, c] = t;
     let area = edge(a, b, c);
     if !area.is_finite() || area.abs() < 1e-12 {
@@ -306,11 +325,14 @@ fn fill_triangle(depth: &mut [f32], size: u32, far: f64, t: [[f64; 3]; 3]) {
                 continue;
             }
             let z = (1.0 / inverse / far) as f32;
-            if let Some(d) = depth.get_mut(y * size as usize + x)
-                && z < *d
-            {
-                *d = z;
-            }
+            let cast = surface.map_or(Cast::Solid, |s| {
+                let q = [w[0] * a[2], w[1] * b[2], w[2] * c[2]];
+                s.cast([0, 1, 2].map(|j| {
+                    let sum: f64 = q.iter().zip(&weights).map(|(k, c)| k * at(*c, j)).sum();
+                    sum / inverse
+                }))
+            });
+            texels.put(y * size as usize + x, z, cast);
         }
     }
 }
@@ -319,6 +341,9 @@ fn fill_triangle(depth: &mut [f32], size: u32, far: f64, t: [[f64; 3]; 3]) {
 #[allow(clippy::indexing_slicing, clippy::unwrap_used)] // Tests fail loudly by design.
 mod tests {
     use super::*;
+    use crate::TriangleMesh;
+    use crate::raster::Paint;
+    use crate::shadow_cast::{ShadowAlpha, occluders};
 
     #[test]
     fn every_face_matrix_agrees_with_face_of() {
@@ -371,19 +396,19 @@ mod tests {
             texture: None,
         };
         let bounds = Bounds::of(&meshes).unwrap();
+        let casts = occluders(
+            &meshes,
+            &[paint, paint],
+            &[true, true],
+            ShadowAlpha::Transmit,
+        );
         let lamp = Local {
             position: [0.0, 0.0, 2.0],
             colour: [1.0; 3],
             attenuation: [1.0, 0.0, 0.0],
             cone: None,
         };
-        let shadows = LampShadows::build(
-            &[lamp],
-            &bounds,
-            256,
-            (&meshes, &[paint, paint], &[true, true]),
-            3,
-        );
+        let shadows = LampShadows::build(&[lamp], &bounds, 256, (&casts, false), 3);
         let up = [0.0, 0.0, 1.0];
         // Under the card's centre, and its shadow's edge at x = 1.0.
         assert_eq!(shadows.visibility(0, [0.0, 0.0, 0.0], up), 0.0);
@@ -393,13 +418,7 @@ mod tests {
         // The card's top faces the lamp.
         assert_eq!(shadows.visibility(0, [0.2, 0.2, 1.0], up), 1.0);
         // The same at one worker.
-        let one = LampShadows::build(
-            &[lamp],
-            &bounds,
-            256,
-            (&meshes, &[paint, paint], &[true, true]),
-            1,
-        );
+        let one = LampShadows::build(&[lamp], &bounds, 256, (&casts, false), 1);
         let (a, b) = (&shadows.cubes[0], &one.cubes[0]);
         assert!(a.as_ref().unwrap().depth == b.as_ref().unwrap().depth);
     }

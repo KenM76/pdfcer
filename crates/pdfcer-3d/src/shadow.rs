@@ -5,10 +5,11 @@
 //! `docs/research/3d-shadows-and-occlusion-design.md`.
 
 use crate::lighting::Shader;
-use crate::raster::{Paint, at, edge};
-use crate::render::{Bounds, at3, corners};
+use crate::raster::{at, edge};
+use crate::render::{Bounds, at3};
+use crate::shadow_cast::{Cast, Occluder, Surface, Texels, Veil, runs};
 use crate::vec3::{cross, dot, normalize, sub};
-use crate::{NamedView, TriangleMesh, UpAxis};
+use crate::{NamedView, UpAxis};
 
 /// [`crate::RenderOptions::shadow_map_size`]'s default, texels per side.
 pub const DEFAULT_SHADOW_MAP_SIZE: u32 = 2048;
@@ -267,6 +268,11 @@ impl LightView {
         m
     }
 
+    /// The map's centre, model space, and its half-width, model units.
+    pub(crate) fn frame(&self) -> ([f64; 3], f64) {
+        (self.centre, self.reach)
+    }
+
     /// How far a point moves along its normal before the lookup, model units.
     pub(crate) fn normal_offset(&self) -> f64 {
         NORMAL_OFFSET_TEXELS * 2.0 * self.reach / f64::from(self.size)
@@ -294,84 +300,94 @@ impl LightView {
 }
 
 /// The CPU shadow map: depth 0–1 per texel, row 0 at the bottom, 1.0 where
-/// nothing is.
+/// nothing is; with veil layers when something casts partly.
 pub(crate) struct ShadowMap {
     pub(crate) view: LightView,
     depth: Vec<f32>,
+    veil: Option<Veil>,
 }
 
 impl ShadowMap {
-    /// Every opaque mesh's triangles drawn from the light, in row bands on
-    /// `workers` threads. A texel keeps its nearest depth, so the map is the
-    /// same at any count.
+    /// `occluders` drawn from the light, in row bands on `workers` threads;
+    /// veil layers when `veiled`. A texel keeps its nearest depth and
+    /// multiplies its transmission, so the map is the same at any count.
     pub(crate) fn build(
         view: LightView,
-        meshes: &[TriangleMesh],
-        paints: &[Paint<'_>],
-        opaque: &[bool],
+        occluders: &[Occluder<'_>],
+        veiled: bool,
         workers: usize,
     ) -> ShadowMap {
         let s = f64::from(view.size);
-        let mut tris = Vec::new();
-        for (i, mesh) in meshes.iter().enumerate() {
-            let casts = opaque.get(i).copied().unwrap_or(false)
-                && paints.get(i).is_some_and(|p| p.colour[3] != 0);
-            if casts {
-                tris.extend(mesh.triangles.iter().filter_map(|tri| {
-                    let world = corners(mesh, tri)?;
-                    Some([0, 1, 2].map(|k| {
-                        let [x, y, z] = view.clip(at3(&world, k));
-                        [(x + 1.0) / 2.0 * s, (y + 1.0) / 2.0 * s, (z + 1.0) / 2.0]
-                    }))
-                }));
-            }
-        }
+        let tris: Vec<_> = occluders
+            .iter()
+            .map(|o| {
+                let t = [0, 1, 2].map(|k| {
+                    let [x, y, z] = view.clip(at3(&o.world, k));
+                    [(x + 1.0) / 2.0 * s, (y + 1.0) / 2.0 * s, (z + 1.0) / 2.0]
+                });
+                (t, o.surface)
+            })
+            .collect();
         let side = view.size as usize;
         let mut depth = vec![1.0f32; side * side];
+        let mut veil = veiled.then(|| Veil::new(side * side));
         let workers = workers.max(1);
         let rows = side.div_ceil(workers * 4).max(1);
-        let mut jobs: Vec<Vec<(usize, &mut [f32])>> = (0..workers).map(|_| Vec::new()).collect();
-        for (k, band) in depth.chunks_mut(rows * side).enumerate() {
+        let mut jobs: Vec<Vec<(usize, Texels)>> = (0..workers).map(|_| Vec::new()).collect();
+        for (k, band) in runs(&mut depth, veil.as_mut(), rows * side)
+            .into_iter()
+            .enumerate()
+        {
             if let Some(job) = jobs.get_mut(k % workers) {
                 job.push((k * rows, band));
             }
         }
         crate::parallel::run_each(jobs, &|job| {
-            for (top, band) in job {
-                for &t in &tris {
-                    fill(band, side, top, t);
+            for (top, mut band) in job {
+                for (t, surface) in &tris {
+                    fill(&mut band, side, top, *t, surface.as_ref());
                 }
             }
         });
-        ShadowMap { view, depth }
+        ShadowMap { view, depth, veil }
     }
 
     /// The lit share (0–1) of a [`LightView::lookup_point`]: 3 × 3 texels
     /// around it, each lit when the point is no deeper than it plus the
-    /// bias; a texel off the map is lit.
+    /// bias, times what its veil lets through; a texel off the map is lit.
     pub(crate) fn visibility(&self, at: [f64; 3]) -> f64 {
         let side = i64::from(self.view.size);
         let (cx, cy) = (at[0].floor() as i64, at[1].floor() as i64);
         let depth = at[2] - self.view.bias();
-        let mut lit = 0u32;
+        let mut lit = 0.0;
         for dy in -1..=1 {
             for dx in -1..=1 {
                 let (x, y) = (cx + dx, cy + dy);
-                let stored = (x >= 0 && y >= 0 && x < side && y < side)
-                    .then(|| self.depth.get((y * side + x) as usize).copied())
-                    .flatten();
+                let i =
+                    (x >= 0 && y >= 0 && x < side && y < side).then_some((y * side + x) as usize);
+                let stored = i.and_then(|i| self.depth.get(i).copied());
                 if stored.is_none_or(|d| depth <= f64::from(d)) {
-                    lit += 1;
+                    lit += match (i, &self.veil) {
+                        (Some(i), Some(veil)) => veil.through(i, depth),
+                        _ => 1.0,
+                    };
                 }
             }
         }
-        f64::from(lit) / 9.0
+        lit / 9.0
     }
 }
 
-/// Keeps the nearest depth of map triangle `t` at each texel centre inside
-/// it, within `band`: the rows from `top` of a map `side` texels wide.
-fn fill(band: &mut [f32], side: usize, top: usize, t: [[f64; 3]; 3]) {
+/// Draws map triangle `t` at each texel centre inside it, within `band`:
+/// the rows from `top` of a map `side` texels wide. An opaque triangle
+/// (`surface` `None`) casts fully; a see-through one per fragment.
+fn fill(
+    band: &mut Texels<'_>,
+    side: usize,
+    top: usize,
+    t: [[f64; 3]; 3],
+    surface: Option<&Surface<'_>>,
+) {
     let [a, b, c] = t;
     let area = edge(a, b, c);
     if !area.is_finite() || area.abs() < 1e-12 || side == 0 {
@@ -383,7 +399,7 @@ fn fill(band: &mut [f32], side: usize, top: usize, t: [[f64; 3]; 3]) {
             .map(|p| at(*p, i))
             .fold(f64::NEG_INFINITY, f64::max)
     };
-    let bottom = (top + band.len() / side) as f64 - 1.0;
+    let bottom = (top + band.depth.len() / side) as f64 - 1.0;
     let (x0, x1) = (lo(0).floor().max(0.0), hi(0).ceil().min(side as f64 - 1.0));
     let (y0, y1) = (lo(1).floor().max(top as f64), hi(1).ceil().min(bottom));
     if !(x0 <= x1 && y0 <= y1) {
@@ -397,11 +413,8 @@ fn fill(band: &mut [f32], side: usize, top: usize, t: [[f64; 3]; 3]) {
                 continue;
             }
             let z = (w[0] * a[2] + w[1] * b[2] + w[2] * c[2]) as f32;
-            if let Some(d) = band.get_mut((y - top) * side + x)
-                && z < *d
-            {
-                *d = z;
-            }
+            let cast = surface.map_or(Cast::Solid, |s| s.cast(w));
+            band.put((y - top) * side + x, z, cast);
         }
     }
 }
@@ -411,6 +424,9 @@ fn fill(band: &mut [f32], side: usize, top: usize, t: [[f64; 3]; 3]) {
 mod tests {
     use super::*;
     use crate::LightingScheme;
+    use crate::TriangleMesh;
+    use crate::raster::Paint;
+    use crate::shadow_cast::{ShadowAlpha, occluders};
 
     const BASIS: [[f64; 3]; 3] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
 
@@ -486,7 +502,8 @@ mod tests {
             colour: [0, 0, 0, 255],
             texture: None,
         };
-        let map = ShadowMap::build(view, &[square], &[paint], &[true], 3);
+        let casts = occluders(&[square], &[paint], &[true], ShadowAlpha::Transmit);
+        let map = ShadowMap::build(view, &casts, false, 3);
         let up = [0.0, 0.0, 1.0];
         let under = map.visibility(view.lookup_point([0.0, 0.0, -1.0], up));
         let beside = map.visibility(view.lookup_point([1.8, 0.0, -1.0], up));

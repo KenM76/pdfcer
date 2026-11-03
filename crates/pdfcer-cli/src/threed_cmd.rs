@@ -11,6 +11,8 @@ mod gltf;
 mod lights;
 #[cfg(feature = "3d")]
 mod pick;
+#[cfg(feature = "3d")]
+mod shadow_note;
 mod tree;
 mod views;
 #[cfg(feature = "3d")]
@@ -464,6 +466,9 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) view_lights: bool,
     pub(crate) light_sense: LightSenseArg,
     pub(crate) shadow_light: ShadowLightArg,
+    pub(crate) shadow_casters: ShadowCastersArg,
+    pub(crate) shadow_alpha: ShadowAlphaArg,
+    pub(crate) shadow_cutoff: f64,
     pub(crate) threads: usize,
     /// Image positions to report the model point under (`--pick`).
     pub(crate) pick: &'a [[f64; 2]],
@@ -627,6 +632,8 @@ fn render_from_bytes(
                 negative: true,
             },
         },
+        shadow_casters: shadow_note::casters(a.shadow_casters),
+        shadow_alpha: shadow_note::alpha(a.shadow_alpha, a.shadow_cutoff),
         threads: a.threads,
         artwork_headlight: a.artwork_headlight,
         ..RenderOptions::default()
@@ -694,32 +701,7 @@ fn render_from_bytes(
          drawn grey"
     );
     lighting.print_note(&model, a.artwork_headlight);
-    println!(
-        "note: shadows: {}",
-        match (a.shadows, a.shadow_light) {
-            (false, _) => "off",
-            (true, ShadowLightArg::Scheme) => {
-                "cast by one of the lights in use (`--no-shadows` turns them off)"
-            }
-            (true, ShadowLightArg::Sun) => {
-                "cast by a sun fixed above the model on the `--up` axis \
-                 (`--no-shadows` turns them off)"
-            }
-            (true, ShadowLightArg::SunNegative) => {
-                "cast by a sun fixed on the negative side of the `--up` axis \
-                 (`--no-shadows` turns them off)"
-            }
-        }
-    );
-    println!(
-        "note: lamp shadows: {}",
-        if a.shadows && a.lamp_shadows {
-            "cast by the model's own point and spot lights, if any \
-             (`--no-lamp-shadows` turns them off)"
-        } else {
-            "off"
-        }
-    );
+    shadow_note::print(a, &model, &camera, &options);
     println!(
         "note: ambient occlusion: {}",
         if a.ambient_occlusion {

@@ -1493,6 +1493,37 @@ pub(crate) enum ShadowLightArg {
     SunNegative,
 }
 
+/// Which directional lights cast `3d-render`'s shadows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum ShadowCastersArg {
+    /// Every directional light, each shadow taking only its own light
+    /// (default).
+    #[default]
+    Every,
+    /// The one light `--shadow-light` names.
+    Key,
+}
+
+/// How `3d-render`'s translucent and cut-out surfaces cast shadows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum ShadowAlphaArg {
+    /// A shadow as dark as the surface is opaque (default).
+    #[default]
+    Transmit,
+    /// Solid where the alpha reaches `--shadow-cutoff`, none elsewhere.
+    Cutout,
+    /// Only wholly opaque surfaces cast.
+    Opaque,
+}
+
+/// Clap parser for `--shadow-cutoff`: an alpha from 0 to 1.
+pub(crate) fn parse_alpha_cutoff(s: &str) -> Result<f64, String> {
+    match s.parse::<f64>() {
+        Ok(v) if (0.0..=1.0).contains(&v) => Ok(v),
+        _ => Err(format!("a cutoff is an alpha from 0 to 1, not {s}")),
+    }
+}
+
 /// When a `3d-embed` model activates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum ThreeDActivateArg {

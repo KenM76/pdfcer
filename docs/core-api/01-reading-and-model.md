@@ -3487,6 +3487,30 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `DEFAULT_LAMP_SHADOW_MAP_SIZE` 512, clamped 64..=`MAX_LAMP_SHADOW_MAP_SIZE`
   4096; 3 × 3 filtered, built once per frame across the worker threads).
   CLI: `--no-lamp-shadows --lamp-shadow-map-size N --shadow-map-size N`.
+  Every directional light: `RenderOptions::shadow_casters:
+  ShadowCasters::{EveryLight (default), KeyLight}` — under a scheme or a
+  model's own lights, each directional light lighting the frame casts its
+  own map (the key light's size) and each shadow removes only its own
+  light; one caster draws byte-identically to `KeyLight`. Only lights
+  0..`MAX_LIGHTS` (16, the ones a GPU frame draws) cast, brightest first;
+  the rest light without a shadow, counted in `FrameExtraShadows::dropped`
+  (disclose it). The fixed fallback light is unchanged. Each map costs
+  about one key-map pass (debug build, 800×600: 0.38 s one sun, 1.5 s
+  four, 5.5 s sixteen).
+  See-through casters: `RenderOptions::shadow_alpha: ShadowAlpha::{
+  Transmit (default), Cutout { cutoff: u8 }, OpaqueOnly}` — the drawn alpha
+  (paint × texture), on directional maps and lamp cubes alike. `Transmit`:
+  a fragment of alpha `a` lets `1 − a` through, layers multiplying (the CPU
+  takes the product of every see-through layer between the light and the
+  point; the GPU's veil layer keeps the nearest such depth and the product
+  of all of them, so a see-through surface behind the receiver can still
+  darken it). `Cutout`: casts fully where alpha ≥ `cutoff`
+  (`DEFAULT_SHADOW_CUTOFF` 128, glTF's 0.5), nothing below — per texel for
+  a cut-out texture. `OpaqueOnly`: the previous behaviour. Wholly opaque
+  scenes draw byte-identically under all three. CLI: `--shadow-casters
+  every|key --shadow-alpha transmit|cutout|opaque --shadow-cutoff 0..1`
+  (default 0.5); `note: shadows:` names the casters, the number left
+  without a shadow by the cap, and the alpha rule.
 - **Interactive frame rate.** `PreparedModel::new(&model)` (re-exported at
   the crate root) does the camera-independent work once (texture opacity)
   and does not borrow the model; `prepared.render(&model, &camera,
@@ -3571,6 +3595,37 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     the model or options change. 6 MiB per lamp at 512. WebGL 2 run (point
     lamp and spot over a floor and two boxes): GPU vs CPU 0.026 levels mean,
     0.02% of pixels over 8 levels.
+  - Further directional casters: `FrameExtraShadows::for_model(&camera,
+    &options, &bounds, &model.lights) -> Result<Option<FrameExtraShadows>,
+    RenderError>` (`None` when only the key light casts). Allocate a `size`
+    × `size` × `layers()` `DEPTH_COMPONENT32F` `TEXTURE_2D_ARRAY` and draw
+    layer `e` < `count` exactly as the key map with `matrix(e)` →
+    `u_shadow_matrix`. Bind it as `u_shadow_extra_map` with
+    `u_shadow_extra` = `count`, `to_light`, `colour` →
+    `u_shadow_extra_*[15]` (`lights` names each caster's light, for
+    disclosure; no uniform), `centre`, `reach` →
+    `u_shadow_extra_centre` / `u_shadow_extra_reach`; the lookup reuses
+    `u_shadow_size`, `u_shadow_offset`, `u_shadow_bias`. At most
+    `MAX_EXTRA_SHADOWS` (15); disclose `dropped`.
+  - See-through casters (`shadow_alpha`): after the opaque draws, draw
+    each translucent draw into the same depth layer with
+    `GLSL_ES_300_SHADOW_ALPHA_VERTEX` / `GLSL_ES_300_SHADOW_ALPHA_FRAGMENT`
+    (`u_keep` = `ShadowAlpha::solid_range()`, skipped when `None`; the
+    fragment shader takes the main pass's `u_colour`, `u_textured`,
+    `u_texture`, `u_function` and discards outside `u_keep`). When
+    `veil_range()` is `Some` and a translucent draw exists, also fill, per
+    directional layer `l` (0 the key map, `1 + e` extra map `e`), layer `l`
+    of `u_shadow_veil` (`DEPTH_COMPONENT32F` array, cleared to 1.0, `LESS`,
+    colour writes off; `u_keep` = the veil range) and of
+    `u_shadow_transmit` (`R8` array, cleared to 1.0, depth test off, blend
+    `ZERO`, `SRC_COLOR`), and set `u_shadow_veiled` true. Lamp cubes do the
+    same with `GLSL_ES_300_LAMP_SHADOW_ALPHA_VERTEX` / `_FRAGMENT` into
+    `u_lamp_veil` / `u_lamp_transmit`, layer `6 i + face`,
+    `u_lamp_veiled` true. Every sampler the main shader declares needs its
+    own texture unit, bound even when its feature is off. WebGL 2 run
+    (headless Edge, SwiftShader; all five programs compile and link): GPU vs
+    CPU 0.009–0.045 levels mean, 0.02–0.13% of pixels over 8 levels, over
+    two and three suns, a 40%-alpha card and a cut-out checker.
   - Ambient occlusion, per frame: `FrameAmbientOcclusion::new(&camera,
     &options, &bounds, [w, h]) -> Result<Option<_>, RenderError>`. Render
     the main pass into a colour texture plus a ≥24-bit depth texture

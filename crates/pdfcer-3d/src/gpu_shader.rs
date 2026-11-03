@@ -96,7 +96,13 @@ void main() {
 /// `u_local_attenuation[16]`, `u_local_cone[16]`; and from
 /// [`crate::FrameLampShadows`] their shadows: `u_lamp_shadows` (false
 /// without one), `u_lamp_shadow_map`, `u_lamp_shadow_size`,
-/// `u_lamp_far[16]`. Writes straight RGBA.
+/// `u_lamp_far[16]`; and from [`crate::FrameExtraShadows`] the further
+/// casters and the see-through layers: `u_shadow_extra` (0 without one),
+/// `u_shadow_extra_map`, `u_shadow_extra_to_light[15]`,
+/// `u_shadow_extra_colour[15]`, `u_shadow_extra_centre`,
+/// `u_shadow_extra_reach`, `u_shadow_veiled`, `u_shadow_veil`,
+/// `u_shadow_transmit`, `u_lamp_veiled`, `u_lamp_veil`, `u_lamp_transmit`.
+/// Writes straight RGBA.
 ///
 /// It writes `gl_FragDepth`: logarithmic in perspective (see
 /// [`crate::Camera::depth_range`] for the precision), the matrix's linear
@@ -137,7 +143,26 @@ uniform bool u_lamp_shadows;
 uniform highp sampler2DArray u_lamp_shadow_map;
 uniform float u_lamp_shadow_size;
 uniform float u_lamp_far[16];
+uniform int u_shadow_extra;
+uniform highp sampler2DArray u_shadow_extra_map;
+uniform vec3 u_shadow_extra_to_light[15];
+uniform vec3 u_shadow_extra_colour[15];
+uniform vec3 u_shadow_extra_centre;
+uniform float u_shadow_extra_reach;
+uniform bool u_shadow_veiled;
+uniform highp sampler2DArray u_shadow_veil;
+uniform highp sampler2DArray u_shadow_transmit;
+uniform bool u_lamp_veiled;
+uniform highp sampler2DArray u_lamp_veil;
+uniform highp sampler2DArray u_lamp_transmit;
 out vec4 o_colour;
+
+// The share texel q of a veil lets through to depth d: its transmission
+// when d is past its nearest see-through fragment, else all.
+float through(bool on, highp sampler2DArray veil, highp sampler2DArray transmit, ivec3 q, float d) {
+    if (!on || d <= texelFetch(veil, q, 0).r) return 1.0;
+    return texelFetch(transmit, q, 0).r;
+}
 
 // Lamp i's lit share, 0-1, at p on a face with unit normal f: 3 x 3 texels
 // of its cube face around the point moved off its face towards the lamp,
@@ -163,14 +188,15 @@ float lamp_lit(int i, vec3 p, vec3 f) {
     ivec2 t = ivec2(floor((uv / z + 1.0) * 0.5 * u_lamp_shadow_size));
     float d = (z - 2.0 * texel) / far;
     int layer = i * 6 + face;
-    int n = 0;
+    float n = 0.0;
     for (int y = -1; y <= 1; y++) {
         for (int x = -1; x <= 1; x++) {
-            ivec2 q = clamp(t + ivec2(x, y), ivec2(0), ivec2(size - 1));
-            if (d <= texelFetch(u_lamp_shadow_map, ivec3(q, layer), 0).r) n++;
+            ivec3 q = ivec3(clamp(t + ivec2(x, y), ivec2(0), ivec2(size - 1)), layer);
+            if (d <= texelFetch(u_lamp_shadow_map, q, 0).r)
+                n += through(u_lamp_veiled, u_lamp_veil, u_lamp_transmit, q, d);
         }
     }
-    return float(n) / 9.0;
+    return n / 9.0;
 }
 
 // The point and spot lights at p with unit normal n on a face with unit
@@ -199,25 +225,50 @@ vec3 local(vec3 p, vec3 n, vec3 f) {
     return s;
 }
 
-// The lit share, 0-1, on a face with unit normal f: 3 x 3 map texels
-// around the point moved off its face towards the light; a texel off the
+// The lit share, 0-1, at map point p (0-1 each way) of directional map l
+// (0 the key light's, 1 + e extra map e): 3 x 3 texels; a texel off the
 // map is lit.
-float lit(vec3 f) {
-    if (dot(f, u_shadow_to_light) < 0.0) f = -f;
-    vec4 c = u_shadow_matrix * vec4(v_world + f * u_shadow_offset, 1.0);
-    vec3 p = (c.xyz + 1.0) * 0.5;
+float pcf(vec3 p, int l) {
     ivec2 t = ivec2(floor(p.xy * u_shadow_size));
     int size = int(u_shadow_size);
     float d = p.z - u_shadow_bias;
-    int n = 0;
+    float n = 0.0;
     for (int y = -1; y <= 1; y++) {
         for (int x = -1; x <= 1; x++) {
             ivec2 q = t + ivec2(x, y);
-            bool off = q.x < 0 || q.y < 0 || q.x >= size || q.y >= size;
-            if (off || d <= texelFetch(u_shadow_map, q, 0).r) n++;
+            if (q.x < 0 || q.y < 0 || q.x >= size || q.y >= size) { n += 1.0; continue; }
+            float stored = l == 0
+                ? texelFetch(u_shadow_map, q, 0).r
+                : texelFetch(u_shadow_extra_map, ivec3(q, l - 1), 0).r;
+            if (d <= stored) n += through(u_shadow_veiled, u_shadow_veil, u_shadow_transmit, ivec3(q, l), d);
         }
     }
-    return float(n) / 9.0;
+    return n / 9.0;
+}
+
+// The key light's lit share on a face with unit normal f, looked up at the
+// point moved off its face towards the light.
+float lit(vec3 f) {
+    if (dot(f, u_shadow_to_light) < 0.0) f = -f;
+    vec4 c = u_shadow_matrix * vec4(v_world + f * u_shadow_offset, 1.0);
+    return pcf((c.xyz + 1.0) * 0.5, 0);
+}
+
+// What the further casters' shadows remove at unit normal n on a face with
+// unit normal f: each one's light where its map shadows the point. Each map
+// is the key map's frame turned to its light.
+vec3 extra(vec3 n, vec3 f) {
+    vec3 s = vec3(0.0);
+    for (int e = 0; e < 15; e++) {
+        if (e >= u_shadow_extra) break;
+        vec3 l = u_shadow_extra_to_light[e];
+        vec3 g = dot(f, l) < 0.0 ? -f : f;
+        vec3 d = v_world + g * u_shadow_offset - u_shadow_extra_centre;
+        vec3 r = normalize(cross(abs(l.z) < 0.9 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0), l));
+        vec3 c = vec3(dot(d, r), dot(d, cross(l, r)), -dot(d, l)) / u_shadow_extra_reach;
+        s += (1.0 - pcf((c + 1.0) * 0.5, e + 1)) * abs(dot(n, l)) * u_shadow_extra_colour[e];
+    }
+    return s;
 }
 
 void main() {
@@ -236,11 +287,10 @@ void main() {
     f = fl > 0.0 ? f / fl : vec3(0.0);
     vec3 s = v_flat > 0.5 ? v_flat_shade : v_shade;
     if (u_shadows) s += lit(f) * (v_flat > 0.5 ? v_flat_key : v_key);
-    if (u_local_count > 0) {
-        vec3 n = v_flat > 0.5 ? v_flat_normal : v_normal;
-        float l = length(n);
-        if (l > 0.0) s += local(v_world, n / l, f);
-    }
+    vec3 n = v_flat > 0.5 ? v_flat_normal : v_normal;
+    float nl = length(n);
+    if (u_shadow_extra > 0 && nl > 0.0) s -= extra(n / nl, f);
+    if (u_local_count > 0 && nl > 0.0) s += local(v_world, n / nl, f);
     o_colour = vec4(clamp(base.rgb * s, 0.0, 1.0), base.a);
     gl_FragDepth = u_orthographic
         ? gl_FragCoord.z
