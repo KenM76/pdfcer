@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1395th filing) — `Pass 658.4` (`536a3bf2`), `658.5` (`647a9b55`..`7946e10c`), `658.6` (`b43a3e1b`, `ba21b6aa`)
+
+**Filed (engineer-reported, measured; no shell here, git state not checked from here; docs only, nothing committed by me):**
+- **`Pass 658.4`:** PRC/U3D/glTF material specular, shininess, emissive, ambient on CPU and GPU (Blinn-Phong, `RenderOptions::shininess`, per-light specular colour, CLI flags). GPU uniforms `u_finished`, `u_material_ambient`, `u_specular`, `u_emissive`, `u_shininess`, `u_light_specular[16]`, `u_local_specular[16]`.
+- **`Pass 658.5`:** `ShadowCasters::{KeyLight, EveryLight}` (default every light, up to 15 extra maps, overflow disclosed) and `ShadowAlpha::{Transmit, OpaqueOnly, Cutout}`; `7ce46438` makes the key light one of the 16 GPU lights; `7946e10c` shadows a highlight by its own light's extra map (`u_shadow_extra_light[15]`; WebGL 2 GPU vs CPU 0.015 levels mean, 0.04% of pixels over 8 levels; uniform unbound: 2.41% diverge).
+- **`Pass 658.6`:** PRC wires as depth-tested lines; all 15 `/RM` render modes from a view, CPU and GPU, CLI override.
+- **Tests at `7946e10c`:** `pdfcer-3d` `render` 338 lib + 3 + 25; `--no-default-features` 220 + 3 + 14; `pdfcer-core` threed lib 16; CLI `--test all` 1030 passed at `ba21b6aa` (rerun at `7946e10c` in progress, not recorded). clippy, fmt, `check-code-structure`, `check-public-fns-documented`, `check-reexport-closure`, `check-doc-block-spliced`, `check-core-api-verbs` green. `cargo tree` unaffected; `pdfcer-3d` manifest unchanged, no new dependencies.
+- **Known gaps recorded, not fixed** (ROADMAP Next up note "Known limits recorded from the gap audit"): PRC writer writes a light's specular as its main colour; material alphas unused; `KHR_materials_emissive_strength` unread; glTF normal and metal-roughness maps unused; a node's own `/RM` unread; edges rebuilt every frame; wires not in framing bounds; wire-only models refused; CLI `auto` render-mode path untested; **cargo-fuzz gate NOT run for `658.6`**; GPU ShadedIllustration emissive is a host-drawn second pass; `line_width` > 1 CPU-only. Format limit: PRC stores no light range or spot inner cone.
+- **Owed:** (1) `pdfcer-spec-librarian`: the spec RAG wrongly calls the PRC material slots "unused". (2) A notice to `pdfcer-gui`: none of `658.4`-`658.6` is consumed yet (gui never ticked). (3) The `v0.120.0` release (OneDrive `pdfcer1`), a separate filing; not filed here.
+- **FEATURES:** three Planned rows removed, three Implemented rows added (core/cli `[x]`, gui `[ ]`); the shadows row's "one directional shadow caster" wording amended.
+- **Hard rule 11 sweep (by keyword over `FEATURES.md`, `docs/core-api/`, `crates/`):** survivors reported to the engineer, not edited: `docs/core-api/01-reading-and-model.md` lines ~3452 ("The brightest directional light casts shadows") and ~3462 ("one light casts") contradict line ~3497 (every light, up to `MAX_LIGHTS`, casts); `crates/pdfcer-3d/src/gpu_shadow.rs:84` and `shadow.rs:1` ("one directional light") may be stale; `crates/pdfcer-cli/src/threed_cmd.rs:377` and its test still print `wires_skipped=` (check whether the field still means anything now that wires are drawn). Correct hits left alone: none identified. Backup currency not verifiable from here.
+
 ## 2026-11-03 (1394th filing) — `v0.119.0` PUBLISHED; `Pass 658.2` (`d1345a27`), `Pass 658.3` (`2b69b90f`); `658.4`-`658.6` in flight
 
 **Filed (engineer-reported, no shell here; nothing checked from here; docs only, nothing committed by me):**

@@ -112,6 +112,34 @@ wherever it appears.*
 
 ## Shipped
 
+### `b43a3e1b` `ba21b6aa` `Pass 658.6`, 2026-11-03: PRC wires are drawn, and all 15 ISO 32000 3D render modes (`/RM`), CPU and GPU (1395th filing)
+
+Engineer-reported (measured); no shell here, git state not checked from here. Commits `b43a3e1b` "feat(3d): PRC wires are drawn as depth-tested lines, CPU and GPU (Pass 658.6)" and `ba21b6aa` "feat(3d): all 15 render modes, read from a view's /RM, CPU and GPU (Pass 658.6)". Local `main`, unpushed, unreleased (rides `v0.120.0`, a separate filing). From the gap audit Ken asked for. No decision record; reasoning is in the commit messages.
+- **What shipped:** PRC wire tessellations are drawn as depth-tested lines (they were counted as `wires_skipped`). All 15 `/RM` render modes of ISO 32000 are read from a view and drawn on both CPU and GPU, with a CLI override on `3d-render`. Material finishes (`Pass 658.4`) apply only to the Painted and Translucent face kinds.
+- **Known gaps, recorded and NOT fixed (see the Next up note "Known limits recorded from the gap audit"):** a node's own `/RM` is not read; edges are rebuilt every frame; wires are not in the framing bounds; wire-only models are refused; the CLI `auto` render-mode path has no CLI test; the cargo-fuzz gate was NOT run for this Pass; the GPU ShadedIllustration emissive is a host-drawn second pass; `line_width` > 1 is CPU-only.
+- **Tests and gates:** see the `Pass 658.4` entry below for the figures at `7946e10c` (the tip carrying all three Passes). CLI `--test all` was 1030 passed at `ba21b6aa`; a rerun at `7946e10c` was in progress at filing and is not recorded.
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]` (`pdfcer-gui` has not consumed it; a notice is owed). FEATURES: Planned row removed, new Implemented row.
+
+### `647a9b55` `7ce46438` `7946e10c` `Pass 658.5`, 2026-11-03: every directional light casts, and translucent casters cast partial tinted shadows, CPU and GPU (1395th filing)
+
+Engineer-reported (measured); no shell here, git state not checked from here. Commits `647a9b55` (the Pass), `7ce46438` "fix(3d): the shadow key light is one of the 16 lights a GPU frame draws (Pass 658.5)", `7946e10c` "fix(3d): a highlight is shadowed by the extra caster of its own light, CPU and GPU (Pass 658.5)". Local `main`, unpushed, unreleased. No decision record.
+- **New pub items (`pdfcer-3d`):** `ShadowCasters::{KeyLight, EveryLight}` (default `EveryLight`): each directional light past the key casts its own map, up to 15 extra (`MAX_EXTRA_SHADOWS`; `FrameExtraShadows::dropped` discloses any beyond), `MAX_LIGHTS` = 16. `ShadowAlpha::{Transmit, OpaqueOnly, Cutout}`: translucent casters cast partial, tinted shadows (a veil plus transmit maps), CPU and GPU. Lamp (point/spot) shadows are unchanged from `Pass 658.3`.
+- **`7ce46438`:** the shadow key light is one of the 16 lights a GPU frame draws. **`7946e10c`:** a material highlight is shadowed by its own light's extra map; new GPU uniform `u_shadow_extra_light[15]`, fed from `FrameExtraShadows::lights`. Test sabotage-verified. WebGL 2 (SwiftShader) check on a glossy two-sun scene, GPU vs CPU: 0.015 levels mean, 0.04% of pixels over 8 levels; with the uniform unbound it diverges at 2.41% of pixels.
+- **Disclosure:** the CLI prints a shadow note naming which lights cast (fuzzy-never-sneaky).
+- **Format limit (not a pdfcer gap):** PRC stores neither a light's range nor a spot's inner cone.
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]` (notice owed to `pdfcer-gui`). FEATURES: Planned row removed, new Implemented row; the "one directional shadow caster" wording in the shadows row amended.
+
+### `536a3bf2` `Pass 658.4`, 2026-11-03: material specular, shininess, emissive and ambient in the 3D picture, CPU and GPU (1395th filing)
+
+Engineer-reported (measured); no shell here, git state not checked from here. Commit `536a3bf2` "feat(3d): material specular, shininess, emissive and ambient, CPU and GPU (Pass 658.4)". Local `main`, unpushed, unreleased. No decision record.
+- **What shipped:** PRC, U3D and glTF material specular, shininess, emissive and ambient render on CPU and GPU: Blinn-Phong highlights, a `RenderOptions::shininess` scale, CLI flags, and per-light specular colour.
+- **GPU contract:** uniforms `u_finished`, `u_material_ambient`, `u_specular`, `u_emissive`, `u_shininess`, `u_light_specular[16]`, `u_local_specular[16]`; `Draw::finish`.
+- **Known limits, recorded and NOT fixed:** the PRC writer writes a light's specular as its main colour; material alphas are read but unused; `KHR_materials_emissive_strength` is not read; glTF normal and metallic-roughness maps are not used (a format-mapping gap).
+- **Owed to `pdfcer-spec-librarian` (I do not write the spec RAG):** the spec RAG wrongly calls the PRC material slots "unused"; they carry specular, shininess, emissive and ambient and are now rendered.
+- **Tests at `7946e10c` (covers all of 658.4-658.6):** `pdfcer-3d` with `render`: 338 lib + 3 + 25; `--no-default-features`: 220 + 3 + 14; `pdfcer-core` threed lib: 16. CLI `--test all`: 1030 passed at `ba21b6aa` (rerun at `7946e10c` in progress, not recorded). clippy and fmt clean. `check-code-structure`, `check-public-fns-documented`, `check-reexport-closure`, `check-doc-block-spliced`, `check-core-api-verbs` green. `docs/core-api/01-reading-and-model.md` updated in each Pass.
+- **Invariants:** `cargo tree` unaffected; the `pdfcer-3d` manifest was not changed in these commits, no new dependencies.
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]` (notice owed to `pdfcer-gui`). FEATURES: Planned row removed, new Implemented row.
+
 ### `2b69b90f` `Pass 658.3`, 2026-11-03: the GPU shader takes 16 lights of each kind, not 8 (1394th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Commit `2b69b90f` "feat(3d): the GPU shader takes 16 lights of each kind, not 8 (Pass 658.3)". Local `main`, unpushed, unreleased. Found by the gap audit Ken asked for ("check for other shading and shadow gaps before release too. I'm waiting on all of it."). `MAX_LIGHTS` and every light uniform array in the reference shader go from 8 to 16. WebGL rerun (engineer-reported): compiled and linked, numbers unchanged. **Boxes:** core `[x]`, cli `[x]` (no new flag), gui `[ ]`. FEATURES: lighting row says 16. No decision.
@@ -25551,7 +25579,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **Head amended 1357th filing: `Pass 647.4b` (`X027`) SHIPPED `96af5ff3`, see *Shipped*; the head is `Pass 648.6` again, after the release `v0.112.0` (slot `pdfcer1`), which is a separate filing.** *(Amended 1359th filing: `v0.112.0` PUBLISHED, see *Shipped*; the head is `Pass 648.6`, next release writes `pdfcer2`.)* `647.3f` and `647.4` (image natural sizing) stay in the Backlog. *(The 1356th-filing note that put `647.4b` ahead of `648.6` is history.)* **Amended 1360th filing: `Pass 648.6` SHIPPED `01c5f515` (unreleased), see *Shipped*; `G245` is now complete. Next up has no head: `647.3f`, `647.4` and `Pass 648.7` (residue) are Backlog, unordered.** **Amended 1361st-1365th filings: `Pass 653.0`-`653.4` (`G244`, `G243`, `G249`, `G250`, `G251`) SHIPPED, unreleased, see *Shipped*. Still no head; the next step is a release (version after `0.112.0`, slot `pdfcer2`), asked for by `pdfcer-gui` once `G249`-`G251` shipped.** **Amended 1367th filing: `v0.113.0` PUBLISHED. Amended 1368th filing: `Pass 654.0`, `654.1` (`78f16dc2`, `G252`, `G253` CPU half) and `Pass 655.0` (`2a10522f`, `G254`) SHIPPED, unreleased, see *Shipped*. The head is now `Pass 654.2` (below), behind the GUI-request rule. Next release writes OneDrive `pdfcer1` (`pdfcer2` holds 0.113.0).**
 
-> **(1394th filing: IN PROGRESS, three parallel worker agents, `Pass 658.4`-`658.6`, from a 3D shading and shadow gap audit Ken asked for before the next release. `v0.119.0` PUBLISHED, `658.2` and `658.3` SHIPPED unreleased, see *Shipped*. The next release (`v0.120.0`) writes OneDrive `pdfcer1`. Engineer-reported; status of each worker is not known to me. When one ships, file it and delete its entry below.)**
+> **(1394th filing, amended 1395th: `Pass 658.4`-`658.6` (the three parallel workers from the 3D shading and shadow gap audit) are all SHIPPED, local `main`, unpushed, unreleased, see *Shipped*; their entries are deleted below. `v0.119.0` PUBLISHED; `658.2`-`658.6` ride `v0.120.0`, which writes OneDrive `pdfcer1` and is a separate filing.)**
 
 > (1380th filing: `Pass 647.4` rich-text cut `7450b595` and `Pass 657.2` + `657.3` `a64bf4e0` SHIPPED, local `main`, unpushed, unreleased, see *Shipped*; `647.4` stays below, not complete; the `657.2` Backlog entry was deleted. Still no head. Next free `Pass 647.9`, `657.4` by grep of `docs/`, not `tools/check-ledger-numbers.py`.)
 
@@ -27492,21 +27520,13 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > `Pass 654.2` (`G253` GPU half) SHIPPED and has left this section (1372nd filing, `98c2560e`..`37c27e60`); full entry at the top of *Shipped*.
 
-### `Pass 658.4` IN PROGRESS: material specular / shininess, emissive and material ambient in the 3D picture (CPU and GPU)
-
-Source: gap audit. PRC material plus light specular, and glTF `emissiveFactor`, drawn on the CPU path and in the GPU reference shader. Boxes planned: core, cli, gui `[ ]`. No numbers yet. Engineer ran this as a parallel worker.
-
-### `Pass 658.5` IN PROGRESS: every directional light casts, translucent casters cast partial shadows, alpha-cutout textures cast per texel
-
-Source: gap audit. Today only the brightest directional light casts. Covers the directional shadow maps and the lamp cubes (`Pass 658.2`), CPU and GPU. Boxes planned: core, cli, gui `[ ]`.
-
-### `Pass 658.6` IN PROGRESS: PRC wire tessellations drawn, and ISO 32000 13.6 3D render modes (`/RM`, 15 modes)
-
-Source: gap audit. PRC wire tessellations are today counted as `wires_skipped`; they become drawn. Render modes: the 15 modes of the standard (clause 13.6 as cited by the engineer; the spec RAG was not consulted by me), CPU and GPU, plus a `--render-mode` flag on `3d-render`. Boxes planned: core, cli, gui `[ ]`.
+> `Pass 658.4`, `658.5` and `658.6` SHIPPED and have left this section (1395th filing, `536a3bf2`; `647a9b55`..`7946e10c`; `b43a3e1b`, `ba21b6aa`); full entries at the top of *Shipped*.
 
 ### Known limits recorded from the gap audit (NOT being done)
 
-These come from the format, not from pdfcer. glTF normal and metallic-roughness maps: PRC cannot store them. glTF light `range` and the smooth inner-cone falloff: PRC lights have neither, so they are approximated (a `cos^n` exponent), with a note.
+These come from the format, not from pdfcer. glTF normal and metallic-roughness maps: PRC cannot store them. glTF light `range` and the smooth inner-cone falloff: PRC lights have neither, so they are approximated (a `cos^n` exponent), with a note. PRC also stores neither a light's range nor a spot's inner cone.
+
+**Gaps left by `Pass 658.4`-`658.6` (1395th filing; pdfcer's own, unordered, no Pass IDs minted):** the PRC writer writes a light's specular as its main colour; material alphas are read but unused; `KHR_materials_emissive_strength` is not read; a node's own `/RM` is not read; edges are rebuilt every frame; wires are not in the framing bounds; wire-only models are refused; the CLI `auto` render-mode path has no CLI test; the cargo-fuzz gate was not run for `658.6`; the GPU ShadedIllustration emissive is a host-drawn second pass; `line_width` > 1 is CPU-only.
 
 ### Pass 647.2 — Flowed layout `tb` / `lr-tb` (FIRST CUT `7cfa9c40`, SECOND CUT `9d0ddb90` (1278th filing), THIRD CUT `5fceb520` (1279th filing), FOURTH CUT `fa1869c8` (1280th filing), FIFTH CUT `1abf9d5e` (1281st filing), SIXTH CUT `f6e76272` (1283rd filing), SEVENTH CUT `e3547709` (1284th filing), EIGHTH CUT `cac24637` (1285th filing), NINTH CUT `f1b8baa6` (1286th filing), TENTH CUT `f64f12fe` (1287th filing), ELEVENTH CUT `5a9d3f30` (1288th filing); NOT COMPLETE, stays here)
 
