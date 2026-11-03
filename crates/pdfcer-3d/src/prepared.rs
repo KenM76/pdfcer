@@ -61,7 +61,13 @@ impl PreparedModel {
         options: &RenderOptions,
     ) -> Result<Image, RenderError> {
         let (paints, opaque) = self.paints(model, options);
-        render_painted(&model.meshes, &paints, &opaque, camera, options)
+        render_painted(
+            (&model.meshes, &model.lights),
+            &paints,
+            &opaque,
+            camera,
+            options,
+        )
     }
 
     /// Each mesh's paint, and whether it is opaque (opaque colour and, when

@@ -66,6 +66,8 @@ pub(super) fn scene(
     meshes(doc, buffers, &uses, &mut out);
     nodes(doc, &mut out);
     roots(doc, options, &mut out);
+    let linear = options.colours == GltfColours::Linear;
+    super::lights::lights(doc, options.lights, linear, &mut out);
     out
 }
 

@@ -53,6 +53,11 @@ pub(crate) struct Walk<'t> {
     /// The entity references of the occurrences being walked, outermost
     /// first; under [`EntityOverrides::Everywhere`], every occurrence's.
     active: Vec<Active<'t>>,
+    /// The active lights of every occurrence walked, in model space.
+    pub(crate) lights: Vec<crate::ModelLight>,
+    /// Every lit view of the occurrences walked and their parts, in model
+    /// space.
+    pub(crate) view_lights: Vec<crate::ViewLights>,
 }
 
 impl<'t> Walk<'t> {
@@ -81,6 +86,8 @@ impl<'t> Walk<'t> {
             scope,
             stored: crate::StoredVisibility::Honour,
             active: Vec::new(),
+            lights: Vec::new(),
+            view_lights: Vec::new(),
         };
         if scope == EntityOverrides::Everywhere {
             let trees = walk.trees.clone();
@@ -146,9 +153,11 @@ impl<'t> Walk<'t> {
             Some(l) => multiply(father, l),
             None => *father,
         };
+        self.collect_lights(fs, p, &m);
         let mut chain = graphics.to_vec();
         chain.push(Graphics { fs, ..p.graphics });
         let r = self.resolve(fs, p)?;
+        self.collect_view_lights((fs, p), &r, &m);
         let drawn = at.drawn && !p.hidden && !p.suppressed;
         let in_force = self.active.len();
         if self.scope == EntityOverrides::Subtree {
@@ -198,6 +207,34 @@ impl<'t> Walk<'t> {
             n.placements = first..end;
         }
         Ok(())
+    }
+
+    /// `p`'s active lights, placed by its location `m` unless absolute.
+    fn collect_lights(&mut self, fs: usize, p: &Product, m: &Matrix) {
+        let Some((_, _, globals)) = self.trees.get(fs) else {
+            return;
+        };
+        for set in p.lights.iter().filter(|s| s.active) {
+            let at = if set.absolute { &IDENTITY } else { m };
+            for l in &set.lights {
+                self.lights.push(l.resolve(globals, at));
+            }
+        }
+    }
+
+    /// The lit views of occurrence `p` (in structure `fs`) and of its
+    /// part, placed by its location `m`.
+    fn collect_view_lights(&mut self, (fs, p): (usize, &Product), r: &Resolved<'_>, m: &Matrix) {
+        let part = (r.part.1 != 0)
+            .then(|| self.trees.get(r.part.0))
+            .flatten()
+            .and_then(|t| Some((t.2, t.1.part_view_lights.get(r.part.1 as usize - 1)?)));
+        let own = self.trees.get(fs).map(|t| (t.2, &p.view_lights));
+        for (globals, views) in own.into_iter().chain(part) {
+            for v in views {
+                self.view_lights.push(v.resolve(globals, m));
+            }
+        }
     }
 
     /// The part and sons of `p`, falling back to its prototype chain's for

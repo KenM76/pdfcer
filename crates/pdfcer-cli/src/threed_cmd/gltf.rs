@@ -6,10 +6,13 @@ use super::*;
 // Without `3d` the settings are parsed but there is nothing to apply them to.
 #[cfg_attr(not(feature = "3d"), allow(dead_code))]
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct GltfHow {
+pub(crate) struct GltfHow<'a> {
     pub(crate) colours: GltfColoursArg,
     pub(crate) up: GltfUpArg,
     pub(crate) occlusion: GltfOcclusionArg,
+    pub(crate) lights: GltfLightsArg,
+    /// `--light`: lights added after the file's own.
+    pub(crate) added: &'a [super::LightArg],
 }
 
 /// Whether `data` from `path` is glTF: a GLB signature, or a `.gltf` /
@@ -27,14 +30,18 @@ pub(crate) struct Converted {
     pub(crate) prc: Vec<u8>,
     pub(crate) triangles: usize,
     pub(crate) lines: Vec<String>,
+    /// The model lights written, the file's and `--light`'s.
+    pub(crate) lights: usize,
 }
 
 /// Convert the glTF `data` read from `path`, or the exit code after the
 /// reason. External buffers are read beside `path`; a URI that is absolute
 /// or climbs out of that folder is refused.
 #[cfg(feature = "3d")]
-pub(crate) fn to_prc(path: &Path, data: &[u8], how: GltfHow) -> Result<Converted, u8> {
-    use pdfcer_3d::{GltfColours, GltfOcclusion, GltfOptions, GltfUpAxis, read_gltf, write_prc};
+pub(crate) fn to_prc(path: &Path, data: &[u8], how: GltfHow<'_>) -> Result<Converted, u8> {
+    use pdfcer_3d::{
+        GltfColours, GltfLights, GltfOcclusion, GltfOptions, GltfUpAxis, read_gltf, write_prc,
+    };
     let mut options = GltfOptions::default();
     options.occlusion = match how.occlusion {
         GltfOcclusionArg::Bake => GltfOcclusion::Bake,
@@ -48,13 +55,21 @@ pub(crate) fn to_prc(path: &Path, data: &[u8], how: GltfHow) -> Result<Converted
         GltfUpArg::Z => GltfUpAxis::ZUp,
         GltfUpArg::AsStored => GltfUpAxis::AsStored,
     };
+    options.lights = match how.lights {
+        GltfLightsArg::Normalise => GltfLights::Normalise,
+        GltfLightsArg::Stored => GltfLights::Stored,
+        GltfLightsArg::Drop => GltfLights::Drop,
+    };
     let dir = path.parent().unwrap_or(Path::new("."));
     let mut resolve = |uri: &str| beside(dir, uri).and_then(|p| std::fs::read(p).ok());
     let refuse = |err: &dyn std::fmt::Display| {
         eprintln!("pdfcer: {}: {err}", path.display());
         exit::EDIT_REFUSED
     };
-    let import = read_gltf(data, &mut resolve, options).map_err(|e| refuse(&e))?;
+    let mut import = read_gltf(data, &mut resolve, options).map_err(|e| refuse(&e))?;
+    let lights = &mut import.scene.lights;
+    lights.extend(how.added.iter().map(super::LightArg::to_model));
+    let lights = lights.len();
     let report = write_prc(&import.scene).map_err(|e| refuse(&e))?;
     let mut lines = vec![conversion_line(how)];
     lines.extend(import.inferred.iter().map(|i| format!("inferred: {i}")));
@@ -71,6 +86,9 @@ pub(crate) fn to_prc(path: &Path, data: &[u8], how: GltfHow) -> Result<Converted
             report.empty_primitives
         ));
     }
+    if !how.added.is_empty() {
+        lines.push(format!("note: {} --light light(s) added", how.added.len()));
+    }
     if report.textured > 0 {
         lines.push(format!(
             "note: {} primitive(s) drawn with a texture",
@@ -81,12 +99,13 @@ pub(crate) fn to_prc(path: &Path, data: &[u8], how: GltfHow) -> Result<Converted
         prc: report.prc,
         triangles: report.triangles,
         lines,
+        lights,
     })
 }
 
 /// Without the `3d` feature: refuse, saying why.
 #[cfg(not(feature = "3d"))]
-pub(crate) fn to_prc(path: &Path, _data: &[u8], _how: GltfHow) -> Result<Converted, u8> {
+pub(crate) fn to_prc(path: &Path, _data: &[u8], _how: GltfHow<'_>) -> Result<Converted, u8> {
     eprintln!(
         "pdfcer: {}: this pdfcer was built without the `3d` feature; glTF import is unavailable",
         path.display()
@@ -95,7 +114,7 @@ pub(crate) fn to_prc(path: &Path, _data: &[u8], _how: GltfHow) -> Result<Convert
 }
 
 #[cfg(feature = "3d")]
-fn conversion_line(how: GltfHow) -> String {
+fn conversion_line(how: GltfHow<'_>) -> String {
     let colours = match how.colours {
         GltfColoursArg::Linear => "linear base colours encoded to sRGB",
         GltfColoursArg::AsStored => "base colours used as stored",
@@ -121,7 +140,7 @@ fn beside(dir: &Path, uri: &str) -> Option<PathBuf> {
 }
 
 /// `3d-convert`: write the PRC a glTF model converts to.
-pub(crate) fn cmd_convert_3d(input: &Path, output: &Path, how: GltfHow) -> u8 {
+pub(crate) fn cmd_convert_3d(input: &Path, output: &Path, how: GltfHow<'_>) -> u8 {
     let data = match std::fs::read(input) {
         Ok(d) => d,
         Err(err) => {
@@ -138,10 +157,11 @@ pub(crate) fn cmd_convert_3d(input: &Path, output: &Path, how: GltfHow) -> u8 {
         return exit::IO_ERROR;
     }
     println!(
-        "3d-convert {} output={} format=prc triangles={} bytes={}",
+        "3d-convert {} output={} format=prc triangles={} lights={} bytes={}",
         input.display(),
         output.display(),
         converted.triangles,
+        converted.lights,
         converted.prc.len()
     );
     for line in &converted.lines {

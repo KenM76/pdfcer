@@ -88,7 +88,7 @@ impl Globals {
     /// double-scaled: stored `i + 1` names `colours[i / 3]`
     /// (`prc__8137__graphics_materials.md` §2, ISS #816); one that is not a
     /// multiple of three names nothing.
-    fn colour(&self, biased: u32) -> Option<[f64; 3]> {
+    pub(crate) fn colour(&self, biased: u32) -> Option<[f64; 3]> {
         let i = biased.checked_sub(1)?;
         if i % 3 != 0 {
             return None;

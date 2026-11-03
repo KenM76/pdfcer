@@ -66,7 +66,7 @@ impl Ids {
 }
 
 /// The globals section: an empty schema, one colour and one RGB style per
-/// material, the texture entities and one material style per textured
+/// material, the lights' colours after the materials', the texture entities and one material style per textured
 /// material, and the solid line pattern every style names.
 pub(super) fn globals(scene: &MeshScene, plan: &Plan) -> BitWriter {
     let mut w = BitWriter::default();
@@ -79,9 +79,13 @@ pub(super) fn globals(scene: &MeshScene, plan: &Plan) -> BitWriter {
         .double(40.0)
         .string(Some(""))
         .uint(0);
-    w.uint(scene.materials.len() as u32);
+    let light_colours = super::lights::colours(&scene.lights);
+    w.uint((scene.materials.len() + light_colours.len()) as u32);
     for m in &scene.materials {
         w.doubles(m.rgba[..3].iter().map(|c| c.clamp(0.0, 1.0)));
+    }
+    for c in light_colours {
+        w.doubles(c);
     }
     let styles = (scene.materials.len() + plan.textured.len()) as u32;
     super::textures::pictures(&mut w, &plan.pictures);
@@ -143,8 +147,14 @@ pub(super) fn tree(scene: &MeshScene, plan: &Plan) -> BitWriter {
         part(&mut w, scene, plan, m, &mut tess, &mut ids);
     }
     w.uint(plan.occurrences.len() as u32);
-    for o in &plan.occurrences {
+    let last = plan.occurrences.len().saturating_sub(1);
+    for (i, o) in plan.occurrences.iter().enumerate() {
         occurrence(&mut w, scene, plan, o, &mut ids);
+        // Scene display parameters: the lights, on the root only.
+        let lights = if i == last { &scene.lights[..] } else { &[] };
+        let first = scene.materials.len() as u32;
+        super::lights::scene(&mut w, lights, first, || ids.next());
+        w.uint(0); // user data
     }
     w.uint(FILE_STRUCTURE);
     base(&mut w);
@@ -229,9 +239,9 @@ fn occurrence(
         transformation(w, &m);
     }
     // No entity references, markups (4 lists), views, no entity filter,
-    // display filters, scene display parameters, user data.
+    // display filters; the caller writes the rest.
     w.uint(0).uint(0).uint(0).uint(0).uint(0).uint(0);
-    w.bit(false).uint(0).uint(0).uint(0);
+    w.bit(false).uint(0);
 }
 
 const IDENTITY: [f64; 16] = [

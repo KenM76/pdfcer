@@ -15,9 +15,9 @@ pub enum ThreeDPoster {
     /// [`ThreeDSpec::poster`] was supplied and drawn.
     Supplied,
     /// pdfcer rendered the model from its default view
-    /// (`pdfcer_3d::DEFAULT_VIEW_DIRECTION`). This is an inference — the
-    /// file's own views and lighting are not read — and a caller discloses
-    /// it.
+    /// (`pdfcer_3d::DEFAULT_VIEW_DIRECTION`), lit by the model's own lights
+    /// (from the camera when it has none). This is an inference — the
+    /// file's own views are not read — and a caller discloses it.
     Rendered(RenderedPoster),
     /// The placeholder (a frame and a wireframe cube in
     /// [`ThreeDSpec::color`]) was drawn.

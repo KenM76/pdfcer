@@ -5,7 +5,7 @@
 //! `docs/research/3d-shadows-and-occlusion-design.md`.
 
 use crate::lighting::Shader;
-use crate::raster::{Paint, at};
+use crate::raster::{Paint, at, edge};
 use crate::render::{Bounds, at3, corners};
 use crate::vec3::{cross, dot, normalize, sub};
 use crate::{NamedView, TriangleMesh, UpAxis};
@@ -47,7 +47,8 @@ pub enum LightSense {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
 pub enum ShadowLight {
-    /// One of the scheme's lights, chosen each frame as
+    /// One of the scheme's lights (a model's own directional ones under
+    /// [`crate::LightingScheme::Artwork`]), chosen each frame as
     /// [`crate::RenderOptions::shadows`] says. In
     /// [`crate::LightFrame::Camera`] the shadow turns with the view. The
     /// default.
@@ -158,7 +159,7 @@ impl Caster {
         normal: [f64; 3],
         towards: Option<[f64; 3]>,
     ) -> ([f64; 3], [f64; 3]) {
-        let total = shader.shade(normal, towards);
+        let total = shader.shade_far(normal, towards);
         let key = match (self.kind, shader) {
             (CasterKind::Dim, _) => total.map(|c| c * (1.0 - SHADOW_DIM)),
             (CasterKind::Light(i), Shader::Set { lights, .. }) => match lights.get(i) {
@@ -403,11 +404,6 @@ fn fill(band: &mut [f32], side: usize, top: usize, t: [[f64; 3]; 3]) {
             }
         }
     }
-}
-
-/// Twice the signed area of (a, b, p) in the xy plane.
-fn edge(a: [f64; 3], b: [f64; 3], p: [f64; 3]) -> f64 {
-    (b[0] - a[0]) * (p[1] - a[1]) - (b[1] - a[1]) * (p[0] - a[0])
 }
 
 #[cfg(test)]

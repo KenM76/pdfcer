@@ -11,8 +11,10 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
 pub enum LightingScheme {
-    /// `/Artwork`: the model's own lights. They are not read yet, so this
-    /// draws as [`Lights::Headlight`]. The default.
+    /// `/Artwork`: the model's own lights ([`crate::AssembledModel::lights`]),
+    /// drawn by [`crate::render_model`] and [`crate::PreparedModel::render`];
+    /// [`Lights::Headlight`] when the model has none, and for the mesh-only
+    /// [`crate::render`]. The default.
     #[default]
     Artwork,
     /// `/None`: no lights; every surface shows its own colour, unshaded.
@@ -221,6 +223,8 @@ pub(crate) enum Shader {
         ambient: [f64; 3],
         /// Unit direction (`None`: along the line of sight) and colour.
         lights: Vec<(Option<[f64; 3]>, [f64; 3])>,
+        /// A model's point and spot lights.
+        local: Vec<crate::model_shade::Local>,
     },
 }
 
@@ -251,20 +255,45 @@ impl Shader {
                         .iter()
                         .map(|l| (normalize(to_model(l.direction)), l.colour))
                         .collect(),
+                    local: Vec::new(),
                 }
             }
         }
     }
 
-    /// The per-channel factor for a surface with unit normal `normal`;
-    /// `towards` points to the eye.
-    pub(crate) fn shade(&self, normal: [f64; 3], towards: Option<[f64; 3]>) -> [f64; 3] {
+    /// The per-channel factor at model point `p` for a surface with unit
+    /// normal `normal`; `towards` points to the eye.
+    #[cfg(test)]
+    pub(crate) fn shade(
+        &self,
+        p: [f64; 3],
+        normal: [f64; 3],
+        towards: Option<[f64; 3]>,
+    ) -> [f64; 3] {
+        let mut out = self.shade_far(normal, towards);
+        crate::model_shade::add_local(&mut out, self.local(), p, normal);
+        out
+    }
+
+    /// The point and spot lights, which the renderers apply per pixel.
+    pub(crate) fn local(&self) -> &[crate::model_shade::Local] {
+        match self {
+            Shader::Set { local, .. } => local,
+            _ => &[],
+        }
+    }
+
+    /// [`Shader::shade`] without the point and spot lights: the part
+    /// interpolated across a triangle from its corners.
+    pub(crate) fn shade_far(&self, normal: [f64; 3], towards: Option<[f64; 3]>) -> [f64; 3] {
         use crate::vec3::dot;
         let facing = |d: Option<[f64; 3]>| d.map_or(0.0, |l| dot(normal, l).abs());
         match self {
             Shader::Headlight => [0.3 + 0.7 * facing(towards); 3],
             Shader::Unlit => [1.0; 3],
-            Shader::Set { ambient, lights } => {
+            Shader::Set {
+                ambient, lights, ..
+            } => {
                 let mut out = *ambient;
                 for (dir, colour) in lights {
                     let k = facing(dir.or(towards));
@@ -302,9 +331,9 @@ mod tests {
             LightFrame::Camera,
             &BASIS,
         );
-        let facing = shader.shade([0.0, 0.0, 1.0], Some([0.0, 0.0, 1.0]));
+        let facing = shader.shade([0.0; 3], [0.0, 0.0, 1.0], Some([0.0, 0.0, 1.0]));
         assert!((facing[0] - 0.9).abs() < 1e-12 && (facing[2] - 1.0).abs() < 1e-12);
-        let edge_on = shader.shade([1.0, 0.0, 0.0], Some([0.0, 0.0, 1.0]));
+        let edge_on = shader.shade([0.0; 3], [1.0, 0.0, 0.0], Some([0.0, 0.0, 1.0]));
         assert_eq!(edge_on, [0.1; 3], "only the ambient term");
     }
 
@@ -314,7 +343,7 @@ mod tests {
         // model axes up to sign, so the frames agree. Tilted, they differ.
         let normal = [0.0, 0.0, 1.0];
         let day = |frame, basis: &[[f64; 3]; 3]| {
-            Shader::new(LightingScheme::Day.lights(), frame, basis).shade(normal, None)
+            Shader::new(LightingScheme::Day.lights(), frame, basis).shade([0.0; 3], normal, None)
         };
         assert_eq!(
             day(LightFrame::Camera, &BASIS),

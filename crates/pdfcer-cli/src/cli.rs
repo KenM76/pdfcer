@@ -3202,8 +3202,8 @@ pub(crate) enum Command {
     /// blended), shaded by its angle to the camera, nearer surfaces hiding
     /// farther ones, textures painted where the model carries them, lit by
     /// the opening view's lighting scheme or `--lighting` (a note names
-    /// it). The model's own lights are not read yet: `artwork` lights it
-    /// from the camera. With no camera option, the model is seen from the direction and
+    /// it). Under artwork the model's own lights light it, one light line
+    /// each; a model with none is lit from the camera. With no camera option, the model is seen from the direction and
     /// with the projection of the view the file opens on, fitted so the
     /// whole model fills the image; a `note: camera:` line says which view
     /// was used, or why none could be. `--view` picks a named direction
@@ -3316,6 +3316,17 @@ pub(crate) enum Command {
         /// scheme has none.
         #[arg(long)]
         no_ambient_occlusion: bool,
+        /// With artwork lighting, add the light at the camera to the
+        /// model's own lights, for a model whose lights leave the side
+        /// facing the viewer dark. A model without lights always has it.
+        #[arg(long)]
+        artwork_headlight: bool,
+        /// With artwork lighting, light the model with its own lights even
+        /// when the view it opens on carries lights of its own. By default
+        /// that view's lights are used in their place, as when the model
+        /// opens; every view's lights are listed either way.
+        #[arg(long)]
+        no_view_lights: bool,
         /// Which way a scheme's light directions point, for shadows:
         /// `towards` the light (default) or the way the light is
         /// `emitted`. The standard does not say.
@@ -3390,11 +3401,26 @@ pub(crate) enum Command {
         /// base-colour texture; `drop` leaves it out. See `3d-convert`.
         #[arg(long, value_enum, default_value_t)]
         gltf_occlusion: GltfOcclusionArg,
-        /// The lighting of the view the model opens on. `auto` (default)
-        /// writes a view lit by `cad` for a model converted from glTF,
-        /// which carries no lights and draws black in Acrobat without one,
-        /// and writes no view for a U3D or PRC model, whose own lights
-        /// apply. Any other value writes a default view with that scheme.
+        /// glTF only: what becomes of the lights the file carries
+        /// (KHR_lights_punctual). normalise (default) scales them so they
+        /// light the model's centre to 80% and adds a 20% ambient light,
+        /// saying so; stored keeps their physical values; drop leaves them
+        /// out, with a note line.
+        #[arg(long, value_enum, default_value_t)]
+        gltf_lights: GltfLightsArg,
+        /// glTF only, repeatable: add a light to the converted model, in
+        /// its coordinates after the up-axis turn. ambient, point:X,Y,Z,
+        /// directional:DX,DY,DZ (the way the light travels) or
+        /// spot:X,Y,Z:DX,DY,DZ:DEGREES (half-angle), each optionally
+        /// followed by :RRGGBB and :INTENSITY (default white, 1). Added
+        /// lights do not fade with distance and are not scaled.
+        #[arg(long = "light", value_parser = crate::threed_cmd::parse_light)]
+        light: Vec<crate::threed_cmd::LightArg>,
+        /// The lighting of the view the model opens on. auto (default)
+        /// writes a view lit by cad for a model converted from glTF with
+        /// no lights, which draws black in Acrobat without one, and writes
+        /// no view for any other model, whose own lights apply. Any other
+        /// value writes a default view with that scheme.
         #[arg(long, value_enum, default_value_t)]
         lighting: ThreeDLightingArg,
         /// Poster image, fitted inside the region with its aspect ratio kept.
@@ -3466,6 +3492,21 @@ pub(crate) enum Command {
         /// texture; `drop` leaves it out, with a `note:` line.
         #[arg(long, value_enum, default_value_t)]
         gltf_occlusion: GltfOcclusionArg,
+        /// glTF only: what becomes of the lights the file carries
+        /// (KHR_lights_punctual). normalise (default) scales them so they
+        /// light the model's centre to 80% and adds a 20% ambient light,
+        /// saying so; stored keeps their physical values; drop leaves them
+        /// out, with a note line.
+        #[arg(long, value_enum, default_value_t)]
+        gltf_lights: GltfLightsArg,
+        /// glTF only, repeatable: add a light to the converted model, in
+        /// its coordinates after the up-axis turn. ambient, point:X,Y,Z,
+        /// directional:DX,DY,DZ (the way the light travels) or
+        /// spot:X,Y,Z:DX,DY,DZ:DEGREES (half-angle), each optionally
+        /// followed by :RRGGBB and :INTENSITY (default white, 1). Added
+        /// lights do not fade with distance and are not scaled.
+        #[arg(long = "light", value_parser = crate::threed_cmd::parse_light)]
+        light: Vec<crate::threed_cmd::LightArg>,
     },
 
     /// **Replace a 3D annotation's poster** with an image (PNG, JPEG, ...).

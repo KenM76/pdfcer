@@ -1,9 +1,9 @@
 //! write_prc → reader round trips.
 
-#![allow(clippy::unwrap_used, clippy::indexing_slicing)]
+#![allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::panic)]
 
 use super::*;
-use crate::{PrcFile, assemble};
+use crate::{ModelLight, ModelLightKind, PrcFile, assemble};
 
 fn tri(material: Option<usize>, dx: f64) -> ScenePrimitive {
     ScenePrimitive {
@@ -64,6 +64,7 @@ fn scene() -> MeshScene {
         ],
         textures: vec![],
         units_in_mm: 1000.0,
+        lights: vec![],
     }
 }
 
@@ -341,4 +342,83 @@ fn no_model_file_means_no_unit() {
     let mut f = PrcFile::parse(&write_prc(&scene()).unwrap().prc).unwrap();
     f.model_file = vec![0; 8];
     assert_eq!(f.units().unwrap(), None);
+}
+
+fn close(a: [f64; 3], b: [f64; 3]) -> bool {
+    a.iter().zip(b).all(|(x, y)| (x - y).abs() < 1e-9)
+}
+
+#[test]
+fn lights_read_back_in_model_space() {
+    let mut s = scene();
+    let mut lamp = ModelLight::new(
+        ModelLightKind::Point {
+            position: [1.0, 2.0, 3.0],
+            attenuation: [1.0, 0.0, 0.5],
+        },
+        [2.0, 1.0, 0.0],
+    );
+    lamp.name = Some("lamp".into());
+    lamp.ambient = [0.1, 0.1, 0.1];
+    let mut sun = ModelLight::new(
+        ModelLightKind::Directional {
+            direction: [0.0, 0.0, -1.0],
+        },
+        [1.0, 1.0, 1.0],
+    );
+    sun.intensity = 0.5;
+    let spot = ModelLight::new(
+        ModelLightKind::Spot {
+            position: [0.0, 5.0, 0.0],
+            direction: [0.0, -1.0, 0.0],
+            attenuation: [1.0, 0.0, 0.0],
+            angle: 0.5,
+            exponent: 4.0,
+        },
+        [0.5, 0.5, 1.0],
+    );
+    let fill = ModelLight::new(ModelLightKind::Ambient, [0.2, 0.2, 0.2]);
+    s.lights = vec![lamp, sun, spot.clone(), fill];
+    let r = write_prc(&s).unwrap();
+    let m = assemble(&r.prc).unwrap();
+    assert_eq!(m.lights.len(), 4, "{:?}", m.lights);
+    // The lamp's colour above 1 comes back as 0-1 with the excess in its
+    // attenuation: the same light at every distance.
+    let l = &m.lights[0];
+    assert_eq!(l.name.as_deref(), Some("lamp"));
+    assert!(close(l.colour, [1.0, 0.5, 0.0]), "{l:?}");
+    assert!(close(l.ambient, [0.1, 0.1, 0.1]), "{l:?}");
+    let ModelLightKind::Point {
+        position,
+        attenuation,
+    } = l.kind
+    else {
+        panic!("{l:?}")
+    };
+    assert!(close(position, [1.0, 2.0, 3.0]));
+    assert!(close(attenuation, [0.5, 0.0, 0.25]), "{attenuation:?}");
+    assert_eq!(m.lights[1].intensity, 0.5);
+    assert!(close(m.lights[1].colour, [1.0; 3]));
+    assert_eq!(m.lights[2], spot);
+    assert_eq!(m.lights[3].kind, ModelLightKind::Ambient);
+    assert!(close(m.lights[3].colour, [0.2; 3]));
+    // The materials' colours are untouched by the lights'.
+    let colours: Vec<_> = m.colours.iter().flatten().copied().collect();
+    assert!(colours.contains(&[51, 102, 153, 102]), "{colours:?}");
+}
+
+#[test]
+fn a_scene_without_lights_reads_none() {
+    let m = assemble(&write_prc(&scene()).unwrap().prc).unwrap();
+    assert!(m.lights.is_empty());
+}
+
+#[test]
+fn a_non_finite_light_is_refused() {
+    let mut s = scene();
+    s.lights = vec![ModelLight::new(ModelLightKind::Ambient, [f64::NAN; 3])];
+    assert!(matches!(
+        write_prc(&s),
+        Err(PrcWriteError::BadNumber("light colour"))
+    ));
 }

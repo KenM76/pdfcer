@@ -424,6 +424,43 @@ impl PrcFile {
         Ok(self.walk(rule, crate::EntityOverrides::default(), None)?.0)
     }
 
+    /// The model's own lights: those of every active scene display
+    /// parameters entity on an occurrence the model file's roots reach
+    /// [WD 7.5.15-7.5.19], in model space (an entity that is not absolute
+    /// is placed by its occurrence's location). A view's own lights are in
+    /// [`Self::view_lights`]. Empty when the file stores no assembly tree.
+    ///
+    /// # Errors
+    /// As [`Self::placements`].
+    pub fn lights(&self) -> Result<Vec<crate::ModelLight>, PrcError> {
+        Ok(self
+            .walk(
+                crate::StyleAlpha::default(),
+                crate::EntityOverrides::default(),
+                None,
+            )?
+            .2
+            .0)
+    }
+
+    /// The lights of every view (`MKP_View`) that carries scene display
+    /// parameters, on an occurrence the model file's roots reach or on the
+    /// part it draws, in model space, in walk order. Empty when the file
+    /// stores no assembly tree.
+    ///
+    /// # Errors
+    /// As [`Self::placements`].
+    pub fn view_lights(&self) -> Result<Vec<crate::ViewLights>, PrcError> {
+        Ok(self
+            .walk(
+                crate::StyleAlpha::default(),
+                crate::EntityOverrides::default(),
+                None,
+            )?
+            .2
+            .1)
+    }
+
     /// [`Self::placements_with`], each placement also carrying its styles'
     /// textures, resolved by `rules`, and its entity references applied
     /// by `scope`; with the model tree whose ranges index them.
@@ -433,7 +470,7 @@ impl PrcFile {
         rules: crate::tree::TextureRules,
         scope: crate::EntityOverrides,
         stored: crate::StoredVisibility,
-    ) -> Result<(Vec<crate::Placement>, Vec<crate::ModelNode>), PrcError> {
+    ) -> Result<Walked, PrcError> {
         self.walk(rule, scope, Some((rules, stored)))
     }
 
@@ -491,10 +528,10 @@ impl PrcFile {
         rule: crate::StyleAlpha,
         scope: crate::EntityOverrides,
         textures: Option<(crate::tree::TextureRules, crate::StoredVisibility)>,
-    ) -> Result<(Vec<crate::Placement>, Vec<crate::ModelNode>), PrcError> {
+    ) -> Result<Walked, PrcError> {
         use crate::bits::BitReader;
         if !self.stores_tree() {
-            return Ok((Vec::new(), Vec::new()));
+            return Ok(Default::default());
         }
         let mut steps = 0;
         let trees = self.read_trees(&mut steps)?;
@@ -535,9 +572,17 @@ impl PrcFile {
                 crate::tree::At::ROOT,
             )?;
         }
-        Ok((walk.out, walk.nodes))
+        Ok((walk.out, walk.nodes, (walk.lights, walk.view_lights)))
     }
 }
+
+/// What the occurrence walk yields: placements, model tree, the
+/// occurrences' lights and the views'.
+pub(crate) type Walked = (
+    Vec<crate::Placement>,
+    Vec<crate::ModelNode>,
+    (Vec<crate::ModelLight>, Vec<crate::ViewLights>),
+);
 
 impl PrcFile {
     /// Each file structure's id, tree and globals, read as part of one

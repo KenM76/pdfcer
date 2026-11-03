@@ -58,6 +58,28 @@ pub struct FrameLights {
     pub forward: [f32; 3],
     /// Whether the projection is orthographic (then `v` = −`forward`).
     pub orthographic: bool,
+    /// How many entries of the `local_` arrays are used: a model's point
+    /// and spot lights under [`crate::LightingScheme::Artwork`]
+    /// ([`FrameLights::for_model`]), each adding
+    /// `colour·fade·cone·|n·l|` with `l` the unit direction from the surface
+    /// point to the light, added per pixel by the fragment shader.
+    pub local_count: usize,
+    /// Model-space position in xyz; `w` the cosine of a spot's cut-off
+    /// half-angle (a point with `−l·direction` below it gets nothing), −2
+    /// for a point light.
+    pub local_positions: [[f32; 4]; MAX_LIGHTS],
+    /// Colour times intensity.
+    pub local_colours: [[f32; 3]; MAX_LIGHTS],
+    /// Constant, linear and quadratic attenuation: `fade = 1 / (c + l·d +
+    /// q·d²)`, 1 when that denominator is not positive.
+    pub local_attenuation: [[f32; 3]; MAX_LIGHTS],
+    /// A spot's unit direction in xyz, its exponent in `w`
+    /// (`cone = max(−l·direction, 0)^w` inside the cut-off, 1 when `w` is
+    /// 0); zero for a point light.
+    pub local_cones: [[f32; 4]; MAX_LIGHTS],
+    /// Lights beyond [`MAX_LIGHTS`] in either list, not drawn; for the host
+    /// to disclose.
+    pub dropped: usize,
 }
 
 impl FrameLights {
@@ -67,6 +89,22 @@ impl FrameLights {
     ///
     /// [`RenderError::Camera`] for a degenerate camera, as [`crate::render`].
     pub fn new(camera: &Camera, options: &RenderOptions) -> Result<Self, RenderError> {
+        Self::for_model(camera, options, &[])
+    }
+
+    /// As [`FrameLights::new`], with `lights` (a model's
+    /// [`crate::AssembledModel::lights`]) drawn under
+    /// [`crate::LightingScheme::Artwork`], as [`crate::render_model`] draws
+    /// them.
+    ///
+    /// # Errors
+    ///
+    /// As [`FrameLights::new`].
+    pub fn for_model(
+        camera: &Camera,
+        options: &RenderOptions,
+        lights: &[crate::ModelLight],
+    ) -> Result<Self, RenderError> {
         let basis = camera.basis()?;
         let [_, _, forward] = basis;
         let mut out = FrameLights {
@@ -78,11 +116,24 @@ impl FrameLights {
             eye: camera.eye.map(|c| c as f32),
             forward: forward.map(|c| c as f32),
             orthographic: matches!(camera.projection, crate::Projection::Orthographic { .. }),
+            local_count: 0,
+            local_positions: [[0.0; 4]; MAX_LIGHTS],
+            local_colours: [[0.0; 3]; MAX_LIGHTS],
+            local_attenuation: [[0.0; 3]; MAX_LIGHTS],
+            local_cones: [[0.0; 4]; MAX_LIGHTS],
+            dropped: 0,
         };
-        match Shader::new(options.lighting.lights(), options.light_frame, &basis) {
+        match Shader::for_frame(options, lights, &basis) {
             Shader::Headlight => {}
             Shader::Unlit => out.mode = ShadeMode::Unlit,
-            Shader::Set { ambient, lights } => {
+            Shader::Set {
+                ambient,
+                lights,
+                local,
+            } => {
+                out.dropped = lights.len().saturating_sub(MAX_LIGHTS)
+                    + local.len().saturating_sub(MAX_LIGHTS);
+                out.set_local(&local);
                 out.mode = ShadeMode::Lights;
                 out.ambient = ambient.map(|c| c as f32);
                 for ((slot, colour), (dir, c)) in out
@@ -101,6 +152,31 @@ impl FrameLights {
             }
         }
         Ok(out)
+    }
+}
+
+impl FrameLights {
+    fn set_local(&mut self, local: &[crate::model_shade::Local]) {
+        let f = |v: [f64; 3]| v.map(|c| c as f32);
+        for (i, l) in local.iter().take(MAX_LIGHTS).enumerate() {
+            let [x, y, z] = f(l.position);
+            let (cut, [dx, dy, dz], e) = l.cone.map_or((-2.0, [0.0; 3], 0.0), |c| {
+                (c.cos_cutoff as f32, f(c.direction), c.exponent as f32)
+            });
+            if let Some(slot) = self.local_positions.get_mut(i) {
+                *slot = [x, y, z, cut];
+            }
+            if let Some(slot) = self.local_colours.get_mut(i) {
+                *slot = f(l.colour);
+            }
+            if let Some(slot) = self.local_attenuation.get_mut(i) {
+                *slot = f(l.attenuation);
+            }
+            if let Some(slot) = self.local_cones.get_mut(i) {
+                *slot = [dx, dy, dz, e];
+            }
+            self.local_count = i + 1;
+        }
     }
 }
 
@@ -346,8 +422,11 @@ mod tests {
                         light_frame: frame,
                         ..RenderOptions::default()
                     };
-                    let want =
-                        Shader::new(scheme.lights(), frame, &basis).shade(normal, Some(towards));
+                    let want = Shader::new(scheme.lights(), frame, &basis).shade(
+                        [0.0; 3],
+                        normal,
+                        Some(towards),
+                    );
                     let l = FrameLights::new(&camera, &options).unwrap();
                     let n = normal.map(|c| c as f32);
                     let v = towards.map(|c| c as f32);
@@ -371,6 +450,78 @@ mod tests {
                         assert!((f64::from(*g) - w).abs() < 1e-5, "{scheme:?} {frame:?}");
                     }
                 }
+            }
+        }
+    }
+
+    /// The reference shader's local-light loop, in f32.
+    fn local(l: &FrameLights, p: [f32; 3], n: [f32; 3]) -> [f32; 3] {
+        let dot = |a: [f32; 3], b: [f32; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+        let mut s = l.ambient;
+        for i in 0..l.local_count {
+            let [x, y, z, cut] = l.local_positions[i];
+            let t = [x - p[0], y - p[1], z - p[2]];
+            let d = dot(t, t).sqrt();
+            let v = t.map(|c| c / d);
+            let [a, b, c] = l.local_attenuation[i];
+            let den = a + b * d + c * d * d;
+            let fade = if den > 0.0 { 1.0 / den } else { 1.0 };
+            let [dx, dy, dz, e] = l.local_cones[i];
+            let mut cone = 1.0;
+            if cut > -1.5 {
+                let k = -dot(v, [dx, dy, dz]);
+                cone = if k < cut {
+                    0.0
+                } else if e > 0.0 {
+                    k.max(0.0).powf(e)
+                } else {
+                    1.0
+                };
+            }
+            for (o, c) in s.iter_mut().zip(l.local_colours[i]) {
+                *o += c * fade * cone * dot(n, v).abs();
+            }
+        }
+        s
+    }
+
+    #[test]
+    fn model_lamps_shade_as_the_cpu_shader_does() {
+        use crate::{ModelLight, ModelLightKind};
+        let lamp = ModelLight::new(
+            ModelLightKind::Point {
+                position: [0.0, 0.0, 2.0],
+                attenuation: [0.2, 0.1, 0.5],
+            },
+            [1.0, 0.8, 0.6],
+        );
+        let spot = ModelLight::new(
+            ModelLightKind::Spot {
+                position: [1.0, 0.0, 1.0],
+                direction: [0.0, 0.0, -1.0],
+                attenuation: [1.0, 0.0, 0.0],
+                angle: 0.6,
+                exponent: 3.0,
+            },
+            [0.3, 0.3, 1.0],
+        );
+        let fill = ModelLight::new(ModelLightKind::Ambient, [0.1; 3]);
+        let lights = [lamp, spot, fill];
+        let camera = cameras()[0];
+        let basis = camera.basis().unwrap();
+        let options = RenderOptions::default();
+        let l = FrameLights::for_model(&camera, &options, &lights).unwrap();
+        assert_eq!(
+            (l.mode, l.count, l.local_count, l.dropped),
+            (ShadeMode::Lights, 0, 2, 0)
+        );
+        let shader = Shader::for_frame(&options, &lights, &basis);
+        let n = normalize([0.3, -0.5, 0.8]).unwrap();
+        for p in [[0.0; 3], [1.0, 0.1, 0.0], [1.5, 0.0, 0.2], [-1.0, 2.0, 0.5]] {
+            let want = shader.shade(p, n, None);
+            let got = local(&l, p.map(|c| c as f32), n.map(|c| c as f32));
+            for (g, w) in got.iter().zip(want) {
+                assert!((f64::from(*g) - w).abs() < 1e-5, "{p:?}: {got:?} {want:?}");
             }
         }
     }

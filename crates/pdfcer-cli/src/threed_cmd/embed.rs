@@ -11,7 +11,7 @@ pub(crate) struct EmbedThreeDArgs<'a> {
     pub(crate) page: u32,
     pub(crate) rect: &'a str,
     pub(crate) format: ThreeDFormatArg,
-    pub(crate) gltf: super::GltfHow,
+    pub(crate) gltf: super::GltfHow<'a>,
     pub(crate) lighting: ThreeDLightingArg,
     pub(crate) poster: Option<&'a Path>,
     pub(crate) placeholder_poster: bool,
@@ -35,9 +35,13 @@ fn read_poster(path: &Path) -> Result<pdfcer_core::image_import::ImportedImage, 
     })
 }
 
+/// A glTF conversion's `note:` / `inferred:` lines and model-light count.
+type GltfReport = (Vec<String>, usize);
+
 /// The spec `3d-embed`'s options describe, with the glTF conversion's
-/// lines when the model was converted, or the exit code after the reason.
-fn embed_spec(a: &EmbedThreeDArgs<'_>) -> Result<(ThreeDSpec, Option<Vec<String>>), u8> {
+/// lines and light count when the model was converted, or the exit code
+/// after the reason.
+fn embed_spec(a: &EmbedThreeDArgs<'_>) -> Result<(ThreeDSpec, Option<GltfReport>), u8> {
     use pdfcer_core::threed::{ThreeDActivation, ThreeDFormat};
     let refuse = |what: &str, err: &dyn std::fmt::Display| {
         eprintln!("pdfcer: {what}: {err}");
@@ -55,11 +59,15 @@ fn embed_spec(a: &EmbedThreeDArgs<'_>) -> Result<(ThreeDSpec, Option<Vec<String>
     })?;
     let gltf = a.format == ThreeDFormatArg::Gltf
         || (a.format == ThreeDFormatArg::Auto && super::gltf::is_gltf(a.model, &data));
+    if !gltf && !a.gltf.added.is_empty() {
+        eprintln!("pdfcer: --light adds lights to a model converted from glTF only");
+        return Err(exit::EDIT_REFUSED);
+    }
     let mut lines = None;
     if gltf {
         let converted = super::gltf::to_prc(a.model, &data, a.gltf)?;
         data = converted.prc;
-        lines = Some(converted.lines);
+        lines = Some((converted.lines, converted.lights));
     }
     let built = match a.format {
         _ if gltf => ThreeDSpec::with_format(rect, ThreeDFormat::Prc, data),
@@ -92,7 +100,7 @@ pub(crate) fn cmd_embed_3d(a: &EmbedThreeDArgs<'_>) -> u8 {
         eprintln!("pdfcer: --page is 1-based; 0 names no page");
         return exit::EDIT_REFUSED;
     };
-    let (spec, gltf_lines) = match embed_spec(a) {
+    let (spec, gltf) = match embed_spec(a) {
         Ok(spec) => spec,
         Err(code) => return code,
     };
@@ -128,9 +136,10 @@ pub(crate) fn cmd_embed_3d(a: &EmbedThreeDArgs<'_>) -> u8 {
         mode_token(a.mode),
         u32::from(a.apply)
     );
-    print_format_lines(a.format, &spec, gltf_lines.as_deref());
+    print_format_lines(a.format, &spec, gltf.as_ref().map(|g| g.0.as_slice()));
     print_poster_notes(&outcome.poster);
-    let converted = gltf_lines.is_some();
+    // A glTF model with lights is lit by them, as a PRC or U3D model is.
+    let converted = gltf.as_ref().is_some_and(|g| g.1 == 0);
     if let Err(code) = light_view(
         &mut session,
         page_index,
@@ -176,7 +185,8 @@ fn print_format_lines(format: ThreeDFormatArg, spec: &ThreeDSpec, gltf: Option<&
 }
 
 /// Write the default view lit by the scheme `arg` names (with `auto`,
-/// `cad` for a `converted` glTF model, else nothing), saying so
+/// `cad` for a `converted` glTF model without lights, else nothing),
+/// saying so
 /// ([`pdfcer_core::edit::EditSession::set_3d_opening_view`]).
 fn light_view(
     session: &mut pdfcer_core::edit::EditSession,
@@ -253,7 +263,8 @@ fn print_rendered_notes(r: &RenderedPoster) {
     println!(
         "inferred: poster rendered by pdfcer from the model ({} mesh(es), {} triangle(s)), \
          seen from above the front-right corner with z up, in perspective, each part in its \
-         tree colour, or its texture, on white; the file's own views and lights are not read",
+         tree colour, or its texture, on white, lit by the model's own lights if it has any, \
+         else from the camera; the file's own views are not read",
         r.meshes, r.triangles
     );
     if let Some(why) = &r.unplaced {

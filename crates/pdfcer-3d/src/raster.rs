@@ -2,17 +2,19 @@
 //! behind [`crate::render`].
 
 use crate::Texture;
+use crate::model_shade::{Local, add_local};
 use crate::render::{Camera, Projection, RenderError};
 use crate::shadow::ShadowMap;
 use crate::vec3::{length, sub};
 
 /// One clipped view-space corner: x, y, z, red/green/blue shade, u, v,
-/// red/green/blue shadowed share of the shade, shadow-map lookup point.
-pub(crate) type ViewCorner = [f64; 14];
+/// red/green/blue shadowed share of the shade, shadow-map lookup point,
+/// model point, model normal.
+pub(crate) type ViewCorner = [f64; 20];
 
 /// A view corner at `x, y, z` carrying no shade, texture or shadow.
 pub(crate) fn view_point(x: f64, y: f64, z: f64) -> ViewCorner {
-    let mut v = [0.0; 14];
+    let mut v = [0.0; 20];
     for (slot, c) in v.iter_mut().zip([x, y, z]) {
         *slot = c;
     }
@@ -29,6 +31,8 @@ pub(crate) struct Corner {
     pub(crate) uv: [f64; 2],
     pub(crate) key: [f64; 3],
     pub(crate) light: [f64; 3],
+    /// The model point and normal, for point and spot lights.
+    pub(crate) model: [[f64; 3]; 2],
 }
 
 /// What a triangle is filled with: a straight-RGBA colour and, when
@@ -115,7 +119,28 @@ impl View {
     /// The screen corner of view corner `v`: pixel x, pixel y and a depth
     /// key that is linear in screen space and larger for nearer points.
     pub(crate) fn project(&self, v: ViewCorner, width: u32, height: u32) -> Corner {
-        let [x, y, z, r, g, b, u, w, kr, kg, kb, lx, ly, lz] = v;
+        let [
+            x,
+            y,
+            z,
+            r,
+            g,
+            b,
+            u,
+            w,
+            kr,
+            kg,
+            kb,
+            lx,
+            ly,
+            lz,
+            px,
+            py,
+            pz,
+            mx,
+            my,
+            mz,
+        ] = v;
         let (nx, ny, key) = match *self {
             View::Perspective { focal, aspect, .. } => {
                 (x * focal / (z * aspect), y * focal / z, 1.0 / z)
@@ -135,6 +160,7 @@ impl View {
             uv: [u, w],
             key: [kr, kg, kb],
             light: [lx, ly, lz],
+            model: [[px, py, pz], [mx, my, mz]],
         }
     }
 
@@ -164,13 +190,15 @@ impl Target<'_> {
     /// perspective-correct) interpolated across it. An opaque pixel
     /// replaces the pixel and its depth; a translucent one is blended over
     /// it, leaving the depth. With `shadow`, each pixel's `key` share of the
-    /// shade is scaled by its visibility from the casting light.
+    /// shade is scaled by its visibility from the casting light. Each of
+    /// `local` is added per pixel at the perspective-correct model point
+    /// and normal.
     pub(crate) fn fill(
         &mut self,
         view: &View,
         corners: [Corner; 3],
         paint: Paint<'_>,
-        shadow: Option<&ShadowMap>,
+        (shadow, local): (Option<&ShadowMap>, &[Local]),
     ) {
         let [a, b, c] = corners;
         let area = edge(a.at, b.at, c.at);
@@ -224,6 +252,12 @@ impl Target<'_> {
                     for (s, k) in shade.iter_mut().zip(key) {
                         *s += lit * k;
                     }
+                }
+                if !local.is_empty() {
+                    let model =
+                        |f: fn(&Corner) -> [f64; 3]| [0, 1, 2].map(|j| correct(&|c| at(f(c), j)));
+                    let (p, n) = (model(|c| c.model[0]), model(|c| c.model[1]));
+                    add_local(&mut shade, local, p, n);
                 }
                 let colour = match paint.texture {
                     Some(t) => {
@@ -301,7 +335,13 @@ fn shaded(colour: [u8; 4], shade: [f64; 3]) -> [u8; 4] {
 }
 
 /// Twice the signed area of (a, b, p) in the xy plane.
-fn edge(a: [f64; 3], b: [f64; 3], p: [f64; 3]) -> f64 {
+pub(crate) fn edge(a: [f64; 3], b: [f64; 3], p: [f64; 3]) -> f64 {
+    // Two triangles sharing an edge meet it in opposite orders; evaluating
+    // it in one canonical order makes their values exact negatives, so a
+    // pixel centre on the edge cannot round out of both and leave a crack.
+    if (at(a, 0), at(a, 1)) > (at(b, 0), at(b, 1)) {
+        return -edge(b, a, p);
+    }
     (at(b, 0) - at(a, 0)) * (at(p, 1) - at(a, 1)) - (at(b, 1) - at(a, 1)) * (at(p, 0) - at(a, 0))
 }
 
@@ -338,6 +378,7 @@ mod tests {
             uv: [u, 0.0],
             key: [0.0; 3],
             light: [0.0; 3],
+            model: [[0.0; 3]; 2],
         };
         let corners = [
             corner([0.0, 0.0, 1.0], 0.0),
@@ -357,7 +398,7 @@ mod tests {
                 rgba: &mut rgba,
                 depth: &mut depth,
             };
-            target.fill(view, corners, paint, None);
+            target.fill(view, corners, paint, (None, &[]));
             rgba[4 * 4..4 * 4 + 4].to_vec()
         };
         let perspective = View::Perspective {
@@ -372,5 +413,21 @@ mod tests {
             aspect: 1.0,
         };
         assert_ne!(fill(&ortho), [255, 0, 0, 255], "affine would reach green");
+    }
+
+    #[test]
+    fn an_edge_seen_from_either_triangle_is_exactly_negated() {
+        // So no pixel centre on a shared edge is rejected by both.
+        let vals = [0.1, 0.7, 1.3, 2.9, 3.3, 5.5];
+        for (a, b, p) in [
+            ([0.1, 0.1], [0.7, 0.7], [0.1, 2.9]),
+            ([5.5, 0.7], [1.3, 3.3], [2.9, 0.1]),
+        ]
+        .into_iter()
+        .chain(vals.iter().map(|&v| ([v, 0.1], [0.7, v], [v, v])))
+        {
+            let [a, b, p] = [a, b, p].map(|[x, y]| [x, y, 0.0]);
+            assert_eq!(edge(a, b, p), -edge(b, a, p), "{a:?} {b:?} {p:?}");
+        }
     }
 }

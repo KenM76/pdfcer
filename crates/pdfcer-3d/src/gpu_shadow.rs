@@ -77,11 +77,27 @@ impl FrameShadow {
         options: &RenderOptions,
         bounds: &Bounds,
     ) -> Result<Option<Self>, RenderError> {
+        Self::for_model(camera, options, bounds, &[])
+    }
+
+    /// As [`FrameShadow::new`] with `lights`, a model's own, under
+    /// [`crate::LightingScheme::Artwork`]: its brightest directional light
+    /// casts, as in [`crate::render_model`]; with none, the shadow key.
+    ///
+    /// # Errors
+    ///
+    /// As [`FrameShadow::new`].
+    pub fn for_model(
+        camera: &Camera,
+        options: &RenderOptions,
+        bounds: &Bounds,
+        lights: &[crate::ModelLight],
+    ) -> Result<Option<Self>, RenderError> {
         let basis = camera.basis()?;
         if !options.shadows {
             return Ok(None);
         }
-        let shader = Shader::new(options.lighting.lights(), options.light_frame, &basis);
+        let shader = Shader::for_frame(options, lights, &basis);
         let Some(caster) =
             Caster::for_light(options.shadow_light, &shader, options.light_sense, &basis)
         else {

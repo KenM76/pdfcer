@@ -4,6 +4,7 @@
 //! `threed/prc__8137__markup_view_entities.md` §7-8.
 
 use crate::PrcError;
+use crate::model_light::{ModelLightKind, SceneLights, StoredLight, unit};
 use crate::tess::{Ctx, malformed};
 
 use super::{ABSOLUTE_SCENE_FROM, CAMERA, SCENE_DISPLAY_PARAMETERS};
@@ -18,14 +19,18 @@ const SURF_PLANE: u32 = 86;
 const LIGHT_INTENSITY_FROM: u32 = 8030;
 
 impl Ctx<'_, '_> {
-    /// `SceneDisplayParameters` (741) [WD 7.5.19; PRCRS]: read past.
-    pub(super) fn scene_display_parameters(&mut self) -> Result<(), PrcError> {
+    /// `SceneDisplayParameters` (741) [WD 7.5.19; PRCRS]: its lights; the
+    /// rest read past.
+    pub(super) fn scene_display_parameters(&mut self) -> Result<SceneLights, PrcError> {
         self.expect_type(SCENE_DISPLAY_PARAMETERS)?;
         self.content_prc_ref_base()?;
-        self.r.bit()?; // is_active
+        let mut out = SceneLights {
+            active: self.r.bit()?,
+            ..SceneLights::default()
+        };
         let n = self.count(8, "scene lights")?;
         for _ in 0..n {
-            self.light()?;
+            out.lights.push(self.light()?);
         }
         if self.r.bit()? {
             self.camera()?;
@@ -44,9 +49,10 @@ impl Ctx<'_, '_> {
             self.r.unsigned_integer()?;
         }
         if self.version >= ABSOLUTE_SCENE_FROM {
-            self.r.bit()?; // is_absolute
+            out.absolute = self.r.bit()?;
         }
-        self.skip_added(SCENE_DISPLAY_PARAMETERS)
+        self.skip_added(SCENE_DISPLAY_PARAMETERS)?;
+        Ok(out)
     }
 
     /// `Camera` (742) [WD 7.5.20; PRCRS]: read past.
@@ -65,35 +71,49 @@ impl Ctx<'_, '_> {
 
     /// A light (731-734), type code first: three colour indices, then its
     /// own fields. No user data [PRCRS; ISS #745 corrects the WD's table].
-    fn light(&mut self) -> Result<(), PrcError> {
+    /// The fall-off angle is stored in degrees.
+    fn light(&mut self) -> Result<StoredLight, PrcError> {
         let t = self.r.unsigned_integer()?;
         if !(AMBIENT_LIGHT..=SPOT_LIGHT).contains(&t) {
             return Err(malformed(format!("entity type {t} as a light")));
         }
         self.content_prc_ref_base()?;
-        for _ in 0..3 {
-            self.r.unsigned_integer()?; // ambient, diffuse, specular + 1
+        let name = self.name.clone();
+        let mut colours = [0; 3];
+        for c in &mut colours {
+            *c = self.r.unsigned_integer()?; // ambient, diffuse, specular + 1
         }
-        match t {
-            POINT_LIGHT => {
-                self.vector3()?; // location
-                self.skip_doubles(3)?; // attenuation
-            }
+        let mut intensity = 1.0;
+        let kind = match t {
+            POINT_LIGHT => ModelLightKind::Point {
+                position: self.vector3()?,
+                attenuation: self.vector3()?,
+            },
             DIRECTIONAL_LIGHT => {
-                self.vector3()?; // direction
+                let direction = self.vector3()?;
                 if self.version >= LIGHT_INTENSITY_FROM {
-                    self.r.double()?;
+                    intensity = self.r.double()?;
+                }
+                ModelLightKind::Directional {
+                    direction: unit(direction).unwrap_or([0.0, 0.0, -1.0]),
                 }
             }
-            SPOT_LIGHT => {
-                self.vector3()?; // location
-                self.skip_doubles(3)?; // attenuation
-                self.vector3()?; // direction
-                self.skip_doubles(2)?; // fall-off angle and exponent
-            }
-            _ => {}
-        }
-        self.skip_added(t)
+            SPOT_LIGHT => ModelLightKind::Spot {
+                position: self.vector3()?,
+                attenuation: self.vector3()?,
+                direction: unit(self.vector3()?).unwrap_or([0.0, 0.0, -1.0]),
+                angle: self.r.double()?.to_radians(),
+                exponent: self.r.double()?,
+            },
+            _ => ModelLightKind::Ambient,
+        };
+        self.skip_added(t)?;
+        Ok(StoredLight {
+            kind,
+            colours,
+            intensity,
+            name,
+        })
     }
 
     /// `SURF_Plane` (86), read with its own type code: a view's plane or a

@@ -54,6 +54,9 @@ mod gpu_shadow;
 #[cfg(feature = "render")]
 mod lighting;
 mod model;
+mod model_light;
+#[cfg(feature = "render")]
+mod model_shade;
 mod named_view;
 #[cfg(feature = "render")]
 mod parallel;
@@ -88,7 +91,8 @@ pub use container::{
 pub use error::PrcError;
 pub use export::{to_obj, to_stl};
 pub use gltf::{
-    GltfColours, GltfError, GltfImport, GltfOcclusion, GltfOptions, GltfUpAxis, read_gltf,
+    GltfColours, GltfError, GltfImport, GltfLights, GltfOcclusion, GltfOptions, GltfUpAxis,
+    read_gltf,
 };
 #[cfg(feature = "render")]
 pub use gpu::{Draw, DrawData, VERTEX_FLOATS};
@@ -111,6 +115,7 @@ pub use model::{
 };
 #[cfg(feature = "render")]
 pub use model::{default_view_camera, render_default_view, render_model};
+pub use model_light::{ModelLight, ModelLightKind, ViewLightUse, ViewLights};
 pub use named_view::{NamedView, UnknownName, UpAxis};
 #[cfg(feature = "render")]
 pub use pick::{Hit, Ray, pick};

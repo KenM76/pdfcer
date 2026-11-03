@@ -11,6 +11,7 @@
 
 mod bits;
 mod container;
+mod lights;
 mod sections;
 mod tess;
 mod textures;
@@ -46,6 +47,13 @@ pub struct MeshScene {
     /// Millimetres per scene unit: 1000 for metres (glTF), 1 for
     /// millimetres. Positive and finite.
     pub units_in_mm: f64,
+    /// The scene's lights, in scene space (after every node's matrix):
+    /// written as the root occurrence's scene display parameters, read back
+    /// by [`crate::PrcFile::lights`]. A colour above 1 is written as a 0-1
+    /// colour with the excess moved into attenuation (point, spot) or
+    /// intensity (directional, whose intensity is then clamped to 1); an
+    /// ambient light's is clamped.
+    pub lights: Vec<crate::ModelLight>,
 }
 
 /// One node: a placement, an optional mesh, children.
@@ -196,6 +204,7 @@ pub const MAX_DEPTH: usize = 1024;
 ///     materials: vec![],
 ///     textures: vec![],
 ///     units_in_mm: 1000.0,
+///     lights: vec![],
 /// };
 /// let report = write_prc(&scene)?;
 /// assert_eq!(report.triangles, 1);

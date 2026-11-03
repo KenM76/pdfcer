@@ -3333,8 +3333,8 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
 - `Placement::colour: Option<[f64; 4]>` is the part's colour from its tree
   (style inheritance and father/son heritage resolved, material diffuse and
   transparency applied), straight RGBA 0–1. `None`: no style reaches it or it
-  names a textured material with no plain base. Lights are **not read**
-  (the opening view IS read — see above); say so in the shell. A style's index
+  names a textured material with no plain base. Lights are separate
+  (**Model lights** below; the opening view IS read — see above); say so in the shell. A style's index
   resolves in the globals of the file structure whose occurrence set it,
   not the one defining the part.
 - `StyleAlpha` (`ZeroUnset` default, `StyleWins`, `Multiply`): how a
@@ -3410,15 +3410,51 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   — the 12 named schemes. `None` draws every surface in its own colour;
   the 10 fixed schemes use the table's infinite lights plus ambient
   (`LightSet { lights: &[Light { colour, direction }], ambient }`).
-  `Artwork` lights from the camera until the model's own lights are read
-  (ISO 32000-1 says Acrobat draws a light-less model black; pdfcer does
-  not). `pdfcer_core::threed::ThreeDLighting` converts with `.into()`
+  `Artwork` draws the model's own lights (below); a model with none is lit
+  from the camera (ISO 32000-1 says Acrobat draws a light-less model black;
+  pdfcer does not). `pdfcer_core::threed::ThreeDLighting` converts with `.into()`
   (core feature `3d`), so a saved view's `lighting` feeds it directly. The
   standard does not say which frame the light directions are in:
   `RenderOptions::light_frame: LightFrame::{Camera (default), World}` —
   offer it as a setting. Disclose the scheme and where it came from;
   `3d-render` prints `note: lighting: <Name> (<source>): <how>`. CLI:
   `3d-render --lighting <scheme>|auto --light-frame camera|world`.
+- **Model lights** (PRC scene display parameters 741 with lights 731-734,
+  WD 7.5.15-7.5.19; `G261`). `PrcFile::lights() -> Result<Vec<ModelLight>,
+  PrcError>` reads every 741 on an occurrence the roots reach, in model
+  space; `PrcFile::view_lights() -> Result<Vec<ViewLights>, PrcError>`
+  reads every view (`MKP_View` 501) with scene display parameters, on an
+  occurrence or the part it draws: `ViewLights { view: Option<String>
+  (its name), default: bool (is_default_view, 8016 on), active: bool,
+  lights: Vec<ModelLight> }` (`#[non_exhaustive]`). `AssembledModel::lights:
+  Vec<ModelLight>` holds the lights it is drawn with in the meshes' space
+  (empty when placements were not applied), `view_lights` every lit view,
+  `lights_view: Option<usize>` which view supplied `lights` (`None`: the
+  occurrences'). `AssembleOptions::view_lights: ViewLightUse::{DefaultView
+  (default: the first default view that is active and holds a light
+  replaces the occurrences' lights, the scene the model opens on; PRC does
+  not say which wins), Ignore}`. `ModelLight { kind, colour: [f64; 3] (0-1), ambient:
+  [f64; 3] (an added ambient part), intensity, name: Option<String> }`
+  (`#[non_exhaustive]`; build with `ModelLight::new(kind, colour)`); `ModelLightKind::{Ambient, Point {
+  position, attenuation }, Directional { direction }, Spot { position,
+  direction, attenuation, angle (half-angle, radians), exponent }}`
+  (`#[non_exhaustive]`; `name()` gives `ambient`/`point`/`directional`/
+  `spot`). `attenuation` is `[constant, linear, quadratic]`: fade =
+  `1 / (c + l·d + q·d²)`. Readings the standard leaves open, pdfcer's
+  defaults: a direction is the way the light travels; a spot fades as
+  `cos(θ)^exponent` inside its cone and is cut off outside. Under
+  `LightingScheme::Artwork`, `render_model` and `PreparedModel::render`
+  draw them, point and spot lights per pixel, so a lamp makes a pool of
+  light on a large face; `RenderOptions::artwork_headlight: bool` (default
+  false) adds the camera light too, for a model whose lights leave the
+  viewer's side dark. The brightest directional light casts shadows; with
+  none, the shadow key. Show the list off-canvas: `3d-render` prints one
+  `light index=… kind=… name=… [position=… direction=… attenuation=…
+  angle=… exponent=…] colour=… intensity=…` line per light under Artwork,
+  and one `view-light view=… view-name=… default=yes|no active=yes|no
+  used=yes|no index=… kind=…` line per view light, after a note naming the
+  view whose lights are used. CLI: `3d-render --artwork-headlight
+  --no-view-lights`. U3D has no reader yet, so its lights are not read.
 - **Shadows and ambient occlusion** (`render` feature; the standard
   defines neither, so both are pdfcer's and disclosed). On by default.
   `RenderOptions::shadows: bool` — one light casts: the scheme's brightest
@@ -3473,7 +3509,13 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     sizing the depth range), and `FrameLights::new(&camera, &options)` for
     the lighting uniforms (`mode.code()`, `ambient`, `count`, `directions`
     with w = 1 meaning "along the line of sight", `colours`, `eye`,
-    `forward`, `orthographic`; up to `MAX_LIGHTS` = 8), and
+    `forward`, `orthographic`; up to `MAX_LIGHTS` = 8) — or
+    `FrameLights::for_model(&camera, &options, &model.lights)` to draw a
+    model's own lights under Artwork, which also fills the fragment
+    shader's point/spot uniforms (`local_count` → `u_local_count`,
+    `local_positions`, `local_colours`, `local_attenuation`, `local_cones`
+    → `u_local_*[8]`) and counts `dropped` lights past 8 (disclose them),
+    and
     `camera.depth_range(aspect, &bounds) -> [near, far]` for the fragment
     shader's `u_depth_range` (with `u_orthographic`).
   - Depth: the fragment shader writes logarithmic depth
@@ -3495,7 +3537,9 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     `glBlendFuncSeparate(SRC_ALPHA, ONE_MINUS_SRC_ALPHA, ONE,
     ONE_MINUS_SRC_ALPHA)`.
   - Shadows, per frame: `FrameShadow::new(&camera, &options, &bounds) ->
-    Result<Option<FrameShadow>, RenderError>` (`None` when off or unlit).
+    Result<Option<FrameShadow>, RenderError>` (`None` when off or unlit);
+    `FrameShadow::for_model(&camera, &options, &bounds, &model.lights)`
+    with a model's lights, matching `FrameLights::for_model`.
     Allocate a `size`² `DEPTH_COMPONENT32F` texture (`NEAREST`, no compare
     mode); draw every non-translucent draw into it with
     `GLSL_ES_300_SHADOW_VERTEX` / `GLSL_ES_300_SHADOW_FRAGMENT` (`matrix`
@@ -3653,7 +3697,8 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
 single-file-structure PRC stream for a 3D annotation's `/Subtype /PRC`
 stream; layout in `ARCHITECTURE.md` decision 210.
 
-- `MeshScene { nodes, roots, meshes, materials, textures, units_in_mm }` (`Default`;
+- `MeshScene { nodes, roots, meshes, materials, textures, units_in_mm,
+  lights: Vec<ModelLight> }` (`Default`;
   fields public). Nodes form a forest: `SceneNode { name, matrix: Option<[f64;
   16]> (column-major, bottom row 0 0 0 1), mesh, children }`; several roots
   are written under an unnamed root. Each node becomes a named
@@ -3690,7 +3735,23 @@ stream; layout in `ARCHITECTURE.md` decision 210.
   encoded with the sRGB transfer function, no profile conversion),
   AsStored}`; `up_axis: GltfUpAxis::{ZUp (default: +Y up turned to +Z up
   on the root placements), AsStored}`; `occlusion: GltfOcclusion::{Bake
-  (default), Drop}`.
+  (default), Drop}`; `lights: GltfLights::{Normalise (default), Stored,
+  Drop}`.
+- `GltfLights` (`#[non_exhaustive]`) — `KHR_lights_punctual` lights placed
+  by their nodes into `MeshScene::lights` (written as PRC 741 with 731-734;). glTF intensities are physical
+  (candela, lux) where PRC's are 0-1 colours with attenuation, so
+  `Normalise` scales every light by one factor to light the model's centre
+  to 80% and adds a 20% ambient light (glTF has none), both `inferred`
+  lines; a point or spot light counts as no nearer than 5% of the
+  diagonal. `Stored` keeps the values: candela as the inverse-square
+  attenuation `1 / candela`, lux as a directional intensity, no ambient.
+  `Drop` reads none and says how many were left out in `notes`. A glTF
+  `range` is not carried (a note). CLI: `3d-convert` / `3d-embed
+  --gltf-lights normalise|stored|drop`, and `--light
+  kind[:params][:RRGGBB[:INTENSITY]]` (repeatable; `ambient`,
+  `point:X,Y,Z`, `directional:DX,DY,DZ`, `spot:X,Y,Z:DX,DY,DZ:DEGREES`) to
+  add lights to a converted model; `3d-embed --lighting auto` names the
+  CAD scheme for a converted model only when it has no lights.
 - `GltfOcclusion` (`#[non_exhaustive]`) — PRC has no occlusion map
   (glTF 2.0 §3.9.3). `Bake` multiplies `1 + strength × (R − 1)` into the
   base-colour texels in linear light, or into a synthesised texture of the

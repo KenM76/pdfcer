@@ -183,6 +183,28 @@ fn check_numbers(scene: &MeshScene) -> Result<(), PrcWriteError> {
         }
     }
     finite(scene.materials.iter().flat_map(|m| m.rgba), "colour")?;
+    for l in &scene.lights {
+        finite(l.colour.into_iter().chain(l.ambient), "light colour")?;
+        finite([l.intensity], "light intensity")?;
+        let (p, d, a, cone) = match l.kind {
+            crate::ModelLightKind::Point {
+                position,
+                attenuation,
+            } => (position, [0.0; 3], attenuation, [0.0; 2]),
+            crate::ModelLightKind::Directional { direction } => {
+                ([0.0; 3], direction, [0.0; 3], [0.0; 2])
+            }
+            crate::ModelLightKind::Spot {
+                position,
+                direction,
+                attenuation,
+                angle,
+                exponent,
+            } => (position, direction, attenuation, [angle, exponent]),
+            _ => ([0.0; 3], [0.0; 3], [0.0; 3], [0.0; 2]),
+        };
+        finite(p.into_iter().chain(d).chain(a).chain(cone), "light")?;
+    }
     for p in scene.meshes.iter().flat_map(|m| &m.primitives) {
         finite(p.positions.iter().flatten().copied(), "position")?;
         finite(p.normals.iter().flatten().copied(), "normal")?;

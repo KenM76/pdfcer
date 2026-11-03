@@ -6,6 +6,7 @@
 //! drawing is their `TESS_Markup` tessellations.
 
 use crate::PrcError;
+use crate::model_light::StoredView;
 use crate::tess::{Ctx, malformed};
 
 use super::REFERENCE_ON_PRC_BASE;
@@ -50,13 +51,15 @@ impl Ctx<'_, '_> {
         Ok(markups)
     }
 
-    /// A list of views; returns how many.
-    pub(super) fn views(&mut self) -> Result<usize, PrcError> {
+    /// A list of views; returns how many, and those carrying scene
+    /// display parameters.
+    pub(super) fn views(&mut self) -> Result<(usize, Vec<StoredView>), PrcError> {
         let n = self.count(8, "views")?;
+        let mut lit = Vec::new();
         for _ in 0..n {
-            self.view()?;
+            lit.extend(self.view()?);
         }
-        Ok(n)
+        Ok((n, lit))
     }
 
     /// `MISC_MarkupLinkedItem` (204): a `ContentExtendedEntityReference`
@@ -121,20 +124,25 @@ impl Ctx<'_, '_> {
     }
 
     /// `MKP_View` (501): annotations, its plane, optional scene
-    /// parameters, then the fields later authoring versions add.
-    fn view(&mut self) -> Result<(), PrcError> {
+    /// parameters, then the fields later authoring versions add. Returns
+    /// its scene parameters, if it has them.
+    fn view(&mut self) -> Result<Option<StoredView>, PrcError> {
         self.expect_type(VIEW)?;
         self.base_with_graphics()?;
+        let name = self.name.clone();
         self.references("view annotations")?;
         self.surface_plane()?;
-        if self.r.bit()? {
-            self.scene_display_parameters()?;
-        }
+        let scene = if self.r.bit()? {
+            Some(self.scene_display_parameters()?)
+        } else {
+            None
+        };
         if self.version >= VIEW_ANNOTATION_FROM {
             self.r.bit()?; // is_annotation_view
         }
+        let mut default = false;
         if self.version >= VIEW_DEFAULT_FROM {
-            self.r.bit()?; // is_default_view
+            default = self.r.bit()?;
             self.r.bit()?; // is_direction
             self.references("view linked items")?;
             let n = self.count(8, "view filters")?;
@@ -142,7 +150,12 @@ impl Ctx<'_, '_> {
                 self.filter()?;
             }
         }
-        self.end_entity(VIEW)
+        self.end_entity(VIEW)?;
+        Ok(scene.map(|scene| StoredView {
+            name,
+            default,
+            scene,
+        }))
     }
 
     /// A counted list of `ReferenceOnPRCBase`.

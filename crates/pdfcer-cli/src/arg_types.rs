@@ -1353,11 +1353,24 @@ pub(crate) enum GltfOcclusionArg {
     Drop,
 }
 
+/// What becomes of the lights a glTF file carries.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum GltfLightsArg {
+    /// Scaled to light the model's centre to 80%, with a 20% ambient light
+    /// added (default).
+    #[default]
+    Normalise,
+    /// Their physical values as stored.
+    Stored,
+    /// Left out.
+    Drop,
+}
+
 /// The lighting scheme of the view a `3d-embed` model opens on (ISO
 /// 32000-1 Table 309).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum ThreeDLightingArg {
-    /// CAD lighting for a model converted from glTF, which carries no lights;
+    /// CAD lighting for a model converted from glTF with no lights;
     /// otherwise no view is written and the model's own lights apply
     /// (default).
     #[default]
@@ -1395,8 +1408,8 @@ pub(crate) enum RenderLightingArg {
     /// otherwise artwork (default).
     #[default]
     Auto,
-    /// The model's own lights. Not read yet: drawn with one light at the
-    /// camera.
+    /// The model's own lights, or those of the view it opens on; one
+    /// light at the camera when it has none.
     Artwork,
     /// No lights: every surface in its own colour, unshaded.
     None,

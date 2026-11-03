@@ -16,6 +16,7 @@ mod accessor;
 mod bake;
 mod build;
 mod container;
+mod lights;
 mod maps;
 mod textures;
 
@@ -67,6 +68,27 @@ pub enum GltfOcclusion {
     Drop,
 }
 
+/// How `KHR_lights_punctual` light intensities are carried into PRC,
+/// whose lights are unitless where glTF's are candela and lux.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum GltfLights {
+    /// Every light scaled by one factor so together they light the model's
+    /// centre to 80%, with an ambient light of 20% added (glTF has none),
+    /// both [`GltfImport::inferred`]. A point or spot light is taken to be
+    /// no nearer than 5% of the model's diagonal, so a lamp inside the
+    /// model does not blow it out.
+    #[default]
+    Normalise,
+    /// The values as stored: a point or spot light's candela as its
+    /// inverse-square attenuation (`1 / candela`), a directional light's
+    /// lux as its intensity (clamped to 1 on writing), no ambient light.
+    Stored,
+    /// No lights are read; a file that has some says so in
+    /// [`GltfImport::notes`].
+    Drop,
+}
+
 /// Settings for [`read_gltf`].
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -77,6 +99,8 @@ pub struct GltfOptions {
     pub up_axis: GltfUpAxis,
     /// Occlusion-map handling.
     pub occlusion: GltfOcclusion,
+    /// Light-intensity handling.
+    pub lights: GltfLights,
 }
 
 /// A read glTF scene and what was lost or guessed reading it.
@@ -115,7 +139,11 @@ pub enum GltfError {
 }
 
 /// Required extensions this reader honours.
-const SUPPORTED_EXTENSIONS: &[&str] = &["KHR_mesh_quantization", "KHR_texture_transform"];
+const SUPPORTED_EXTENSIONS: &[&str] = &[
+    "KHR_lights_punctual",
+    "KHR_mesh_quantization",
+    "KHR_texture_transform",
+];
 
 /// Read a glTF 2.0 file.
 ///
@@ -183,5 +211,7 @@ fn member<'a>(v: &'a Json, key: &str) -> &'a [Json] {
     v.get(key).and_then(Json::as_array).unwrap_or(&[])
 }
 
+#[cfg(test)]
+mod light_tests;
 #[cfg(test)]
 mod tests;

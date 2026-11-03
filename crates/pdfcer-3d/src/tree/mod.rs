@@ -240,6 +240,10 @@ pub(crate) struct Product {
     /// Its entity references that name a target.
     pub(crate) overrides: Vec<Override>,
     pub(crate) notes: Notes,
+    /// Its scene display parameters' lights.
+    pub(crate) lights: Vec<crate::model_light::SceneLights>,
+    /// Its views' scene display parameters.
+    pub(crate) view_lights: Vec<crate::model_light::StoredView>,
 }
 
 /// How many markups and views an occurrence or part definition carries.
@@ -249,6 +253,9 @@ pub(crate) struct Notes {
     pub(crate) views: usize,
 }
 
+/// A part definition's notes and its views' scene display parameters.
+type PartNotes = (Notes, Vec<crate::model_light::StoredView>);
+
 /// One file structure's tree section.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub(crate) struct Tree {
@@ -257,6 +264,9 @@ pub(crate) struct Tree {
     pub(crate) part_names: Vec<Option<String>>,
     /// Each part definition's markup and view counts, parallel to `parts`.
     pub(crate) part_notes: Vec<Notes>,
+    /// Each part definition's views' scene display parameters, parallel to
+    /// `parts`.
+    pub(crate) part_view_lights: Vec<Vec<crate::model_light::StoredView>>,
     pub(crate) products: Vec<Product>,
     /// `index_product_occurrence + 1` of this structure's root.
     pub(crate) root: u32,
@@ -595,8 +605,9 @@ impl Ctx<'_, '_> {
         self.user_data()
     }
 
-    /// `PartDefinition` (311): its drawable items and its name.
-    fn part_definition(&mut self) -> Result<(Vec<Item>, Option<String>, Notes), PrcError> {
+    /// `PartDefinition` (311): its drawable items, its name, and its notes
+    /// and views' lights.
+    fn part_definition(&mut self) -> Result<(Vec<Item>, Option<String>, PartNotes), PrcError> {
         self.expect_type(PART_DEFINITION)?;
         let (hidden, own) = self.base_with_graphics()?;
         let name = self.name.clone();
@@ -607,16 +618,14 @@ impl Ctx<'_, '_> {
         for _ in 0..n {
             self.representation_item(&[], &[own], &[], &mut items, 0)?;
         }
-        let notes = Notes {
-            markups: self.markup_data()?,
-            views: self.views()?,
-        };
+        let markups = self.markup_data()?;
+        let (views, lit) = self.views()?;
         self.skip_added(PART_DEFINITION)?;
         self.user_data()?;
         if hidden {
             items.clear();
         }
-        Ok((items, name, notes))
+        Ok((items, name, (Notes { markups, views }, lit)))
     }
 
     /// `FileIdentifier` [WD 7.3.10.2.2]: `None` for the same structure.
@@ -663,10 +672,10 @@ impl Ctx<'_, '_> {
         for _ in 0..n {
             p.overrides.extend(self.entity_reference()?);
         }
-        p.notes = Notes {
-            markups: self.markup_data()?,
-            views: self.views()?,
-        };
+        let markups = self.markup_data()?;
+        let (views, lit) = self.views()?;
+        p.notes = Notes { markups, views };
+        p.view_lights = lit;
         if self.r.bit()? {
             self.filter()?;
         }
@@ -676,7 +685,8 @@ impl Ctx<'_, '_> {
         }
         let n = self.count(1, "scene display parameters")?;
         for _ in 0..n {
-            self.scene_display_parameters()?;
+            let s = self.scene_display_parameters()?;
+            p.lights.push(s);
         }
         self.skip_added(PRODUCT_OCCURRENCE)?;
         self.user_data()?;
@@ -690,10 +700,11 @@ impl Ctx<'_, '_> {
         let n = self.count(1, "part definitions")?;
         let mut tree = Tree::default();
         for _ in 0..n {
-            let (items, name, notes) = self.part_definition()?;
+            let (items, name, (notes, lit)) = self.part_definition()?;
             tree.parts.push(items);
             tree.part_names.push(name);
             tree.part_notes.push(notes);
+            tree.part_view_lights.push(lit);
         }
         let n = self.count(1, "product occurrences")?;
         for _ in 0..n {
@@ -1921,6 +1932,24 @@ mod tests {
         let counts: Vec<_> = nodes.iter().map(|n| (n.markups, n.views)).collect();
         assert_eq!(counts, [(2, 1), (2, 1)]);
         assert!(nodes[1].has_part && nodes[1].drawn);
+        let views = f.view_lights().unwrap();
+        assert_eq!(views.len(), 2, "each occurrence's view");
+        assert!(
+            views
+                .iter()
+                .all(|v| v.default && v.active && v.lights.len() == 4)
+        );
+        assert!(f.lights().unwrap().is_empty(), "no occurrence lights");
+        let mut options = crate::AssembleOptions::default();
+        let m = crate::assemble_with_options(&bytes, &options).unwrap();
+        assert_eq!(m.lights_view, Some(0));
+        assert_eq!(m.lights, m.view_lights[0].lights);
+        options.view_lights = crate::ViewLightUse::Ignore;
+        let m = crate::assemble_with_options(&bytes, &options).unwrap();
+        assert_eq!(
+            (m.lights_view, m.lights.len(), m.view_lights.len()),
+            (None, 0, 2)
+        );
     }
 
     #[test]

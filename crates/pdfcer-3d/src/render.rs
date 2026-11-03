@@ -269,8 +269,12 @@ pub struct RenderOptions {
     /// The colour of a surface with none of its own.
     pub colour: [u8; 3],
     /// How surfaces are lit. The default, [`LightingScheme::Artwork`], is
-    /// one light at the camera.
+    /// the model's own lights, or one light at the camera when it has none.
     pub lighting: LightingScheme,
+    /// Whether [`LightingScheme::Artwork`] adds the light at the camera to
+    /// a model's own lights (off by default): for a model whose lights
+    /// leave the side facing the viewer dark.
+    pub artwork_headlight: bool,
     /// The frame a scheme's light directions are in.
     pub light_frame: LightFrame,
     /// Threads to draw with: 1 (the default) draws on the caller's thread,
@@ -310,6 +314,7 @@ impl Default for RenderOptions {
             background: [255, 255, 255, 255],
             colour: [190, 192, 200],
             lighting: LightingScheme::Artwork,
+            artwork_headlight: false,
             light_frame: LightFrame::Camera,
             threads: 1,
             shadows: true,
@@ -424,7 +429,7 @@ pub fn render_coloured(
         })
         .collect();
     let opaque: Vec<bool> = paints.iter().map(|p| p.colour[3] == 255).collect();
-    render_painted(meshes, &paints, &opaque, camera, options)
+    render_painted((meshes, &[]), &paints, &opaque, camera, options)
 }
 
 /// Draws mesh `i` filled with `paints[i]`: meshes with `opaque[i]` first,
@@ -433,7 +438,7 @@ pub fn render_coloured(
 /// split into row bands drawn at once, each taking every triangle in the
 /// same order, so the pixels are the same at any thread count.
 pub(crate) fn render_painted(
-    meshes: &[TriangleMesh],
+    (meshes, model_lights): (&[TriangleMesh], &[crate::ModelLight]),
     paints: &[Paint<'_>],
     opaque: &[bool],
     camera: &Camera,
@@ -446,7 +451,7 @@ pub(crate) fn render_painted(
     }
     let aspect = f64::from(width) / f64::from(height);
     let basis = camera.basis()?;
-    let shader = Shader::new(options.lighting.lights(), options.light_frame, &basis);
+    let shader = Shader::for_frame(options, model_lights, &basis);
     let caster = options
         .shadows
         .then(|| Caster::for_light(options.shadow_light, &shader, options.light_sense, &basis))
@@ -535,8 +540,9 @@ impl Scene<'_> {
         Some((lo, hi))
     }
 
-    /// The shade at model point `p` with normal `n`, and the share of it
-    /// the shadow caster supplies.
+    /// The shade at model point `p` with normal `n`, but for the point and
+    /// spot lights [`Target::fill`] adds per pixel, and the share of it the
+    /// shadow caster supplies.
     fn shade(&self, p: [f64; 3], n: [f64; 3]) -> ([f64; 3], [f64; 3]) {
         let towards = match self.view {
             View::Perspective { .. } => normalize(sub(self.camera.eye, p)),
@@ -544,15 +550,16 @@ impl Scene<'_> {
         };
         match &self.caster {
             Some(c) => c.split(&self.shader, n, towards),
-            None => (self.shader.shade(n, towards), [0.0; 3]),
+            None => (self.shader.shade_far(n, towards), [0.0; 3]),
         }
     }
 
-    /// Model point `p` of a triangle facing `face` in view space, with its
-    /// texture coordinates, shade and shadow-map lookup point.
+    /// Model point `p` with normal `n` of a triangle facing `face` in view
+    /// space, with its texture coordinates, shade and shadow-map lookup
+    /// point.
     fn view_corner(
         &self,
-        p: [f64; 3],
+        (p, [nx, ny, nz]): ([f64; 3], [f64; 3]),
         face: [f64; 3],
         [u, v]: [f64; 2],
         ([r, g, b], [kr, kg, kb]): ([f64; 3], [f64; 3]),
@@ -578,6 +585,12 @@ impl Scene<'_> {
             lx,
             ly,
             lz,
+            p[0],
+            p[1],
+            p[2],
+            nx,
+            ny,
+            nz,
         ]
     }
 
@@ -617,7 +630,7 @@ impl Scene<'_> {
             let p = at3(&world, k);
             let uv = uvs.and_then(|c| c.get(k).copied()).unwrap_or([0.0; 2]);
             let lit = flat.unwrap_or_else(|| self.shade(p, normal(k)));
-            self.view_corner(p, face, uv, lit)
+            self.view_corner((p, normal(k)), face, uv, lit)
         });
         let (width, height) = (target.width, target.height);
         let screen: Vec<Corner> = self
@@ -629,7 +642,8 @@ impl Scene<'_> {
         if let Some((&a, rest)) = screen.split_first() {
             for pair in rest.windows(2) {
                 if let [b, c] = pair {
-                    target.fill(&self.view, [a, *b, *c], paint, self.shadow.as_ref());
+                    let lights = (self.shadow.as_ref(), self.shader.local());
+                    target.fill(&self.view, [a, *b, *c], paint, lights);
                 }
             }
         }
@@ -1152,5 +1166,37 @@ mod tests {
         for threads in [2, 3, 7, 64, 0] {
             assert_eq!(draw(threads), one, "{threads} threads");
         }
+    }
+
+    #[test]
+    fn a_lamp_lights_a_pool_on_one_large_face() {
+        // No stored normals and four corners all far from the lamp: shaded
+        // per corner, every pixel would get one shade.
+        let lamp = crate::ModelLight::new(
+            crate::ModelLightKind::Point {
+                position: [0.0, 0.0, 1.0],
+                attenuation: [0.0, 0.0, 1.0],
+            },
+            [1.0; 3],
+        );
+        let paint = Paint {
+            colour: [100, 100, 100, 255],
+            texture: None,
+        };
+        let image = render_painted(
+            (&[quad(0.0, 1.0, 0.0)], &[lamp]),
+            &[paint],
+            &[true],
+            &ortho(2.0),
+            &small(),
+        )
+        .unwrap();
+        let red = |x, y| pixel(&image, x, y)[0];
+        assert!(
+            red(20, 20) > red(2, 2) + 50,
+            "{} {}",
+            red(20, 20),
+            red(2, 2)
+        );
     }
 }

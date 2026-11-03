@@ -155,7 +155,7 @@ fn view(w: &mut W, version: u32) {
         w.bit(true);
     }
     if version >= 8016 {
-        w.bit(false).bit(true).uint(1);
+        w.bit(true).bit(true).uint(1); // the default view
         r205(w);
         w.uint(0);
     }
@@ -203,7 +203,12 @@ fn every_markup_entity_reads_past() {
 #[test]
 fn views_read_past_at_each_authoring_version() {
     for v in [7094, 7309, 8016, 8030, 8137] {
-        assert_eq!(reads(v, |w| views(w, v), |c| c.views()), 1, "version {v}");
+        let (n, lit) = reads(v, |w| views(w, v), |c| c.views());
+        assert_eq!(n, 1, "version {v}");
+        assert_eq!(lit.len(), 1, "version {v}");
+        assert_eq!(lit[0].scene.lights.len(), 4, "version {v}");
+        assert!(lit[0].scene.active);
+        assert_eq!(lit[0].default, v >= 8016, "version {v}");
     }
 }
 

@@ -89,6 +89,16 @@ pub struct AssembledModel {
     /// The unit the model is drawn in ([`PrcFile::units`]); `None` when the
     /// file gives none or it does not read.
     pub units: Option<crate::ModelUnits>,
+    /// The lights it is drawn with, in the space [`Self::meshes`] are
+    /// placed in: the occurrences' ([`PrcFile::lights`]), or a default
+    /// view's per [`AssembleOptions::view_lights`]. Empty when it has none
+    /// or placements were not applied.
+    pub lights: Vec<crate::ModelLight>,
+    /// Every lit view's lights ([`PrcFile::view_lights`]), same space.
+    pub view_lights: Vec<crate::ViewLights>,
+    /// Which of [`Self::view_lights`] supplied [`Self::lights`]; `None`
+    /// when they are the occurrences'.
+    pub lights_view: Option<usize>,
 }
 
 /// How [`assemble_with_options`] reads choices ISO 14739-1 leaves open.
@@ -110,6 +120,8 @@ pub struct AssembleOptions {
     pub mesh_fit: MeshFit,
     /// Whether occurrences the file stores hidden or suppressed are drawn.
     pub stored_visibility: StoredVisibility,
+    /// Whether a default view's lights replace the occurrences'.
+    pub view_lights: crate::ViewLightUse,
 }
 
 /// Whether [`assemble_with_options`] draws product occurrences the file
@@ -427,7 +439,13 @@ fn place(
         options.entity_overrides,
         options.stored_visibility,
     ) {
-        Ok((placements, tree)) if !placements.is_empty() => {
+        Ok((placements, tree, (lights, views))) if !placements.is_empty() => {
+            model.lights_view = options.view_lights.pick(&views);
+            model.lights = match model.lights_view.and_then(|i| views.get(i)) {
+                Some(v) => v.lights.clone(),
+                None => lights,
+            };
+            model.view_lights = views;
             let mut textures = Textures::default();
             for (k, p) in placements.iter().enumerate() {
                 let mesh = by_index

@@ -39,6 +39,8 @@ flat out float v_flat;
 out vec2 v_uv;
 out float v_w;
 out vec3 v_world;
+out vec3 v_normal;
+flat out vec3 v_flat_normal;
 
 vec3 shade(vec3 n, vec3 v) {
     if (u_mode == 0) return vec3(0.3 + 0.7 * abs(dot(n, v)));
@@ -72,6 +74,8 @@ void main() {
     v_key = k;
     v_flat_key = k;
     v_world = a_position;
+    v_normal = n;
+    v_flat_normal = n;
     v_flat = a_flat;
     v_uv = a_uv;
     gl_Position = u_projection * u_view * vec4(a_position, 1.0);
@@ -86,8 +90,10 @@ void main() {
 /// [`TextureFunction::shader_code`]), `u_depth_range` ([`crate::Camera::depth_range`])
 /// and `u_orthographic`; from [`crate::FrameShadow`]: `u_shadows`,
 /// `u_shadow_matrix`, `u_shadow_map` (its depth texture), `u_shadow_size`,
-/// `u_shadow_to_light`, `u_shadow_offset` and `u_shadow_bias`. Writes
-/// straight RGBA.
+/// `u_shadow_to_light`, `u_shadow_offset` and `u_shadow_bias`; from
+/// [`crate::FrameLights`], the point and spot lights, added per pixel:
+/// `u_local_count`, `u_local_position[8]`, `u_local_colour[8]`,
+/// `u_local_attenuation[8]`, `u_local_cone[8]`. Writes straight RGBA.
 ///
 /// It writes `gl_FragDepth`: logarithmic in perspective (see
 /// [`crate::Camera::depth_range`] for the precision), the matrix's linear
@@ -103,6 +109,8 @@ in float v_w;
 in vec3 v_key;
 flat in vec3 v_flat_key;
 in vec3 v_world;
+in vec3 v_normal;
+flat in vec3 v_flat_normal;
 uniform vec2 u_depth_range;
 uniform bool u_orthographic;
 uniform vec4 u_colour;
@@ -117,7 +125,35 @@ uniform float u_shadow_size;
 uniform vec3 u_shadow_to_light;
 uniform float u_shadow_offset;
 uniform float u_shadow_bias;
+uniform int u_local_count;
+uniform vec4 u_local_position[8];
+uniform vec3 u_local_colour[8];
+uniform vec3 u_local_attenuation[8];
+uniform vec4 u_local_cone[8];
 out vec4 o_colour;
+
+// The point and spot lights at p with unit normal n.
+vec3 local(vec3 p, vec3 n) {
+    vec3 s = vec3(0.0);
+    for (int i = 0; i < 8; i++) {
+        if (i >= u_local_count) break;
+        vec3 to_light = u_local_position[i].xyz - p;
+        float d = length(to_light);
+        if (d <= 0.0) { s += u_local_colour[i]; continue; }
+        vec3 l = to_light / d;
+        vec3 a = u_local_attenuation[i];
+        float den = a.x + a.y * d + a.z * d * d;
+        float fade = den > 0.0 ? 1.0 / den : 1.0;
+        float cone = 1.0;
+        if (u_local_position[i].w > -1.5) {
+            float c = -dot(l, u_local_cone[i].xyz);
+            if (c < u_local_position[i].w) cone = 0.0;
+            else if (u_local_cone[i].w > 0.0) cone = pow(max(c, 0.0), u_local_cone[i].w);
+        }
+        s += u_local_colour[i] * (fade * cone * abs(dot(n, l)));
+    }
+    return s;
+}
 
 // The lit share, 0-1: 3 x 3 map texels around the point moved off its face
 // towards the light; a texel off the map is lit.
@@ -155,6 +191,11 @@ void main() {
     }
     vec3 s = v_flat > 0.5 ? v_flat_shade : v_shade;
     if (u_shadows) s += lit() * (v_flat > 0.5 ? v_flat_key : v_key);
+    if (u_local_count > 0) {
+        vec3 n = v_flat > 0.5 ? v_flat_normal : v_normal;
+        float l = length(n);
+        if (l > 0.0) s += local(v_world, n / l);
+    }
     o_colour = vec4(clamp(base.rgb * s, 0.0, 1.0), base.a);
     gl_FragDepth = u_orthographic
         ? gl_FragCoord.z
@@ -204,6 +245,11 @@ mod tests {
             "u_blend_colour",
             "u_depth_range",
             "u_orthographic",
+            "u_local_count",
+            "u_local_position[8]",
+            "u_local_colour[8]",
+            "u_local_attenuation[8]",
+            "u_local_cone[8]",
         ] {
             assert!(
                 GLSL_ES_300_FRAGMENT.contains(&format!(" {name};")),
