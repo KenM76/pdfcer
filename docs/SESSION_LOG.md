@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1386th filing) — `Pass 647.4` fills `4a5400ea`, bindItems `d7e74226` (NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here; nothing checked from here):**
+- **`4a5400ea`:** linear, radial, pattern and stipple XFA fills on rectangles, rounded corners and arcs; type colour defaults to black (G-D4). Setting `Stipple::{Viewer, Spec}` (G-D6); CLI `xfa-layout --stipple`. 4 core paint tests + CLI `png_dir_draws_gradient_and_stipple_fills`.
+- **`d7e74226`:** `bindItems` fills choice lists at merge (XFA 3.3 p.441); settings `BindItemsRepeat`, `BindItemsMissing`, `BindItemsUnbound`, `bind_items_search` (G-BI1/4/5/6); four CLI flags. 8 core merge tests + CLI `bind_items_flags_reach_the_merge` (core `xfa::merge` 48, CLI `xfa_layout` 23). Also fixed the clippy allow list in `paint/tests.rs` broken by `4a5400ea`.
+- Both core + cli `[x]`, gui `[ ]`. No dependency change. ROADMAP: two Shipped entries; `647.4` Backlog header updated. FEATURES: two new rows; umbrella row edited.
+
+**Decisions made this session:** none minted.
+
+**Still open under `647.4`:** real fonts; rest of non-solid strokes; image natural sizing; barcodes (plus `G-L50`, `647.3f`, `647.5`, `647.6`).
+
+**Hard-rule-11 survivors:** `docs/core-api/03-capabilities.md` was updated in both commits per the engineer; other descriptions (CLI help, `docs/NEXT_SESSION.md`) not swept from here, owed to the engineer. Backup currency not verifiable from here.
+
 ## 2026-11-03 (1385th filing) — `Pass 647.4` comb `c0af6aea`, inline captions `7a7d682e`, relevant views `7eb052d8` (NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here; nothing checked from here):**

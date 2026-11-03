@@ -112,6 +112,24 @@ wherever it appears.*
 
 ## Shipped
 
+### `d7e74226` `Pass 647.4` BINDITEMS CUT, 2026-11-03: XFA bindItems fill choice lists from data (1386th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `d7e74226` "feat(xfa): bindItems fill choice lists from data (Pass 647.4)". Local `main`, **unpushed, unreleased**. **`Pass 647.4` is NOT complete.** Gaps `G-BI1`, `G-BI4`, `G-BI5`, `G-BI6`. Reasoning is in the commit message.
+- **Done:** `bindItems` on a `choiceList` or `checkButton` (XFA 3.3 p.441) replaces the field's items at merge. Label from `labelRef`, else the value; value from `valueRef`, else the node value, in a `save="1"` list. `ref` resolves from the field's bound data node; `[*]` takes all matches. A `checkButton` keeps the first 3 values. A connection bind is warned `Unsupported` and keeps the template items; a `ref` resolving nothing empties the list and warns `Unresolved`.
+- **Settings (`MergeOptions`):** `BindItemsRepeat` `Last` (default) / `First` (`G-BI1`); `BindItemsMissing` `Empty` (default) / `Skip` (`G-BI4`); `BindItemsUnbound` `Scope` (default) / `Ignore` (`G-BI5`); `bind_items_search: ScopeSearch` (`G-BI6`).
+- **CLI:** `xfa-layout --bind-items-repeat`, `--bind-items-missing`, `--bind-items-unbound`, `--bind-items-search`.
+- **Also in this commit:** fixed the clippy allow list in `paint/tests.rs`, which `4a5400ea`'s tests had broken under `clippy --all-targets`.
+- **Tests (engineer-reported):** 8 core merge tests, CLI `bind_items_flags_reach_the_merge`. Totals: core `xfa::merge` 48; CLI `xfa_layout` 23. No dependency change; `cargo tree` unchanged. `docs/core-api/03-capabilities.md` updated in the commit.
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]` (not consumed).
+
+### `4a5400ea` `Pass 647.4` FILLS CUT, 2026-11-03: XFA gradient, pattern and stipple fills (1386th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `4a5400ea` "feat(xfa): gradient, pattern and stipple fills (Pass 647.4)". Local `main`, **unpushed, unreleased**. **`Pass 647.4` is NOT complete.** Gaps `G-D4`, `G-D6`.
+- **Done:** a fill can be linear (axial shading across the fill rectangle, DeviceRGB, `toRight`/`toLeft`/`toTop`/`toBottom`), radial (shading inscribed in the rectangle, `toEdge`/`toCenter`), pattern (hatch lines 0.5 pt wide, 4 pt apart over the fill colour: `crossHatch`/`crossDiagonal`/`diagonalLeft`/`diagonalRight`/`horizontal`/`vertical`) or stipple (uniform blend). The type child's colour defaults to black (`G-D4`). Painted on rectangles, rounded corners and arcs.
+- **Setting:** `Stipple::{Viewer (default), Spec}` (`G-D6`): `Viewer` blends rates 25/50/75 over white, other rates solid; `Spec` blends rate% over the fill colour. CLI `xfa-layout --stipple viewer|spec`.
+- **Tests (engineer-reported):** 4 core paint tests, CLI `png_dir_draws_gradient_and_stipple_fills`. `docs/core-api/03-capabilities.md` updated in the commit.
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]` (not consumed).
+
 ### `7eb052d8` `Pass 647.4` VIEWS CUT, 2026-11-03: XFA relevant (print / screen view) filtering as a setting (1385th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Commit `7eb052d8` "feat(xfa): relevant view filtering as a setting (Pass 647.4)". On local `main`, **unpushed, unreleased** at filing. **`Pass 647.4` is NOT complete**; it stays in Next up. Tests are synthetic. Reasoning is in the commit message. Spec gaps: `adobe_ext__xfa_relevant_views.md` (`G-RV1`..`G-RV9`).
@@ -27449,7 +27467,7 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 
 Filed from the `647.3e` close; nothing built. `647.3e` (`53f4e938`) creates instances only for named by-name subforms with `occur`. Not yet built: (1) instances for subforms bound with `bind match="dataRef"`; (2) instances for `subformSet`. Same spec (XFA 3.3 pp.339-347, `adobe_ext__xfa_data_binding_normal.md`), same `MergeWarningKind::{ExcessData, InstanceLimit}`, same guard. Acceptance to be written when scoped; synthetic only. Request `G248` items 2-3 are answered for the by-name case only. FEATURES: Planned row added (all three boxes `[ ]`).
 
-### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing), RICH-TEXT CUT `7450b595` (1380th filing, see *Shipped*), BORDER CUT `a5e17baf` (1381st filing, see *Shipped*), CHECK-BOX CUT `89dc9fbe` and WIDGET CUT `cf7960b2` (1383rd filing, see *Shipped*), ROUNDING CUT `a49eb8c7` (1384th filing, see *Shipped*), COMB CUT `c0af6aea`, INLINE-CAPTION CUT `7a7d682e` and VIEWS CUT `7eb052d8` (1385th filing, see *Shipped*); NOT COMPLETE, stays here. REMAINING as of the 1385th filing: bindItems resolution; real fonts (font substitution notes); gradient / stipple fills; non-solid strokes remainder; image natural sizing; barcode encoders; `G-L50`; `647.3f`; `647.5` (render-page draws dynamic XFA); `647.6` (materialize verb))
+### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing), RICH-TEXT CUT `7450b595` (1380th filing, see *Shipped*), BORDER CUT `a5e17baf` (1381st filing, see *Shipped*), CHECK-BOX CUT `89dc9fbe` and WIDGET CUT `cf7960b2` (1383rd filing, see *Shipped*), ROUNDING CUT `a49eb8c7` (1384th filing, see *Shipped*), COMB CUT `c0af6aea`, INLINE-CAPTION CUT `7a7d682e` and VIEWS CUT `7eb052d8` (1385th filing, see *Shipped*), FILLS CUT `4a5400ea` and BINDITEMS CUT `d7e74226` (1386th filing, see *Shipped*); NOT COMPLETE, stays here. REMAINING as of the 1386th filing: real fonts (font substitution notes); non-solid strokes remainder; image natural sizing; barcode encoders; `G-L50`; `647.3f`; `647.5` (render-page draws dynamic XFA); `647.6` (materialize verb))
 
 `pdfcer-render` draws the computed layout instead of the placeholder page (render-time only, like decision 203). Inferred content renders exactly as saved content would (rule 4: no on-canvas marking); disclosure is off-canvas diagnostics. Needs `pdfcer-render` to stay GUI-free (`cargo tree` check).
 
