@@ -3516,12 +3516,12 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     sizing the depth range), and `FrameLights::new(&camera, &options)` for
     the lighting uniforms (`mode.code()`, `ambient`, `count`, `directions`
     with w = 1 meaning "along the line of sight", `colours`, `eye`,
-    `forward`, `orthographic`; up to `MAX_LIGHTS` = 8) — or
+    `forward`, `orthographic`; up to `MAX_LIGHTS` = 16) — or
     `FrameLights::for_model(&camera, &options, &model.lights)` to draw a
     model's own lights under Artwork, which also fills the fragment
     shader's point/spot uniforms (`local_count` → `u_local_count`,
     `local_positions`, `local_colours`, `local_attenuation`, `local_cones`
-    → `u_local_*[8]`) and counts `dropped` lights past 8 (disclose them),
+    → `u_local_*[16]`) and counts `dropped` lights past 16 (disclose them),
     and
     `camera.depth_range(aspect, &bounds) -> [near, far]` for the fragment
     shader's `u_depth_range` (with `u_orthographic`).
@@ -3567,7 +3567,7 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     `u_lamp_matrix`, `far[i]` → `u_lamp_far`; depth cleared to 1.0, `LESS`,
     no culling). Bind it as the main pass's `u_lamp_shadow_map` with
     `u_lamp_shadows` true, `u_lamp_shadow_size` = `size` (float) and
-    `u_lamp_far[8]` = `far`. Lamps are fixed in the model: redraw only when
+    `u_lamp_far[16]` = `far`. Lamps are fixed in the model: redraw only when
     the model or options change. 6 MiB per lamp at 512. WebGL 2 run (point
     lamp and spot over a floor and two boxes): GPU vs CPU 0.026 levels mean,
     0.02% of pixels over 8 levels.

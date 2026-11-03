@@ -7,7 +7,7 @@ use crate::render::{Bounds, Camera, RenderError, RenderOptions};
 use crate::vec3::{dot, length, sub};
 
 /// The most lights a [`FrameLights`] carries; every standard scheme fits.
-pub const MAX_LIGHTS: usize = 8;
+pub const MAX_LIGHTS: usize = 16;
 
 /// How [`FrameLights`] shades a corner, as the CPU path does. With `n` the
 /// unit normal and `v` the unit direction towards the eye (eye − point in

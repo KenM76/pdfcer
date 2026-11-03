@@ -48,7 +48,7 @@ void main() {
 /// `u_lamp_far` = `far[i]`: viewport `size` × `size`, depth cleared to 1.0,
 /// `LESS`, no culling. The main pass binds it as `u_lamp_shadow_map` with
 /// `u_lamp_shadows` true, `u_lamp_shadow_size` = `size` (a float) and
-/// `u_lamp_far[8]` = `far`; the lamp positions are
+/// `u_lamp_far[16]` = `far`; the lamp positions are
 /// [`crate::FrameLights::local_positions`]. Lamps are fixed in the model,
 /// so the faces are redrawn only when the model or options change. At the
 /// default 512 texels each lamp takes 6 MiB.
@@ -60,7 +60,7 @@ pub struct FrameLampShadows {
     /// How many lamps, the first [`crate::FrameLights::local_count`].
     pub count: usize,
     /// Each lamp's reach, model units: the depth a face stores is its view
-    /// depth over this. Zero for a lamp casting no shadow (`u_lamp_far[8]`).
+    /// depth over this. Zero for a lamp casting no shadow (`u_lamp_far[16]`).
     pub far: [f32; MAX_LIGHTS],
     positions: [[f64; 3]; MAX_LIGHTS],
 }
@@ -189,7 +189,7 @@ mod tests {
             "u_lamp_shadows",
             "u_lamp_shadow_map",
             "u_lamp_shadow_size",
-            "u_lamp_far[8]",
+            "u_lamp_far[16]",
         ] {
             assert!(
                 GLSL_ES_300_FRAGMENT.contains(&format!(" {name};")),

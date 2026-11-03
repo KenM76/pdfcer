@@ -9,7 +9,7 @@ use crate::TextureFunction;
 /// (float). Uniforms: `u_view`, `u_projection` (from
 /// [`crate::Camera::view_matrix`] / [`crate::Camera::projection_matrix`]),
 /// and from [`crate::FrameLights`]: `u_mode` ([`crate::ShadeMode::code`]),
-/// `u_ambient`, `u_count`, `u_light_dir[8]`, `u_light_colour[8]`, `u_eye`,
+/// `u_ambient`, `u_count`, `u_light_dir[16]`, `u_light_colour[16]`, `u_eye`,
 /// `u_forward`, `u_orthographic`; from [`crate::FrameShadow`]: `u_shadows`
 /// (false without one), `u_shadow_light`, `u_shadow_dim`.
 pub const GLSL_ES_300_VERTEX: &str = r"#version 300 es
@@ -23,8 +23,8 @@ uniform mat4 u_projection;
 uniform int u_mode;
 uniform vec3 u_ambient;
 uniform int u_count;
-uniform vec4 u_light_dir[8];
-uniform vec3 u_light_colour[8];
+uniform vec4 u_light_dir[16];
+uniform vec3 u_light_colour[16];
 uniform vec3 u_eye;
 uniform vec3 u_forward;
 uniform bool u_orthographic;
@@ -46,7 +46,7 @@ vec3 shade(vec3 n, vec3 v) {
     if (u_mode == 0) return vec3(0.3 + 0.7 * abs(dot(n, v)));
     if (u_mode == 1) return vec3(1.0);
     vec3 s = u_ambient;
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 16; i++) {
         if (i >= u_count) break;
         vec3 d = u_light_dir[i].w > 0.5 ? v : u_light_dir[i].xyz;
         s += u_light_colour[i] * abs(dot(n, d));
@@ -58,7 +58,7 @@ vec3 shade(vec3 n, vec3 v) {
 vec3 key(vec3 n, vec3 s) {
     if (!u_shadows) return vec3(0.0);
     if (u_shadow_light < 0) return s * (1.0 - u_shadow_dim);
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 16; i++) {
         if (i == u_shadow_light) return u_light_colour[i] * abs(dot(n, u_light_dir[i].xyz));
     }
     return vec3(0.0);
@@ -92,11 +92,11 @@ void main() {
 /// `u_shadow_matrix`, `u_shadow_map` (its depth texture), `u_shadow_size`,
 /// `u_shadow_to_light`, `u_shadow_offset` and `u_shadow_bias`; from
 /// [`crate::FrameLights`], the point and spot lights, added per pixel:
-/// `u_local_count`, `u_local_position[8]`, `u_local_colour[8]`,
-/// `u_local_attenuation[8]`, `u_local_cone[8]`; and from
+/// `u_local_count`, `u_local_position[16]`, `u_local_colour[16]`,
+/// `u_local_attenuation[16]`, `u_local_cone[16]`; and from
 /// [`crate::FrameLampShadows`] their shadows: `u_lamp_shadows` (false
 /// without one), `u_lamp_shadow_map`, `u_lamp_shadow_size`,
-/// `u_lamp_far[8]`. Writes straight RGBA.
+/// `u_lamp_far[16]`. Writes straight RGBA.
 ///
 /// It writes `gl_FragDepth`: logarithmic in perspective (see
 /// [`crate::Camera::depth_range`] for the precision), the matrix's linear
@@ -129,14 +129,14 @@ uniform vec3 u_shadow_to_light;
 uniform float u_shadow_offset;
 uniform float u_shadow_bias;
 uniform int u_local_count;
-uniform vec4 u_local_position[8];
-uniform vec3 u_local_colour[8];
-uniform vec3 u_local_attenuation[8];
-uniform vec4 u_local_cone[8];
+uniform vec4 u_local_position[16];
+uniform vec3 u_local_colour[16];
+uniform vec3 u_local_attenuation[16];
+uniform vec4 u_local_cone[16];
 uniform bool u_lamp_shadows;
 uniform highp sampler2DArray u_lamp_shadow_map;
 uniform float u_lamp_shadow_size;
-uniform float u_lamp_far[8];
+uniform float u_lamp_far[16];
 out vec4 o_colour;
 
 // Lamp i's lit share, 0-1, at p on a face with unit normal f: 3 x 3 texels
@@ -177,7 +177,7 @@ float lamp_lit(int i, vec3 p, vec3 f) {
 // normal f.
 vec3 local(vec3 p, vec3 n, vec3 f) {
     vec3 s = vec3(0.0);
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 16; i++) {
         if (i >= u_local_count) break;
         vec3 to_light = u_local_position[i].xyz - p;
         float d = length(to_light);
@@ -274,8 +274,8 @@ mod tests {
             "u_mode",
             "u_ambient",
             "u_count",
-            "u_light_dir[8]",
-            "u_light_colour[8]",
+            "u_light_dir[16]",
+            "u_light_colour[16]",
             "u_eye",
             "u_forward",
             "u_orthographic",
@@ -291,10 +291,10 @@ mod tests {
             "u_depth_range",
             "u_orthographic",
             "u_local_count",
-            "u_local_position[8]",
-            "u_local_colour[8]",
-            "u_local_attenuation[8]",
-            "u_local_cone[8]",
+            "u_local_position[16]",
+            "u_local_colour[16]",
+            "u_local_attenuation[16]",
+            "u_local_cone[16]",
         ] {
             assert!(
                 GLSL_ES_300_FRAGMENT.contains(&format!(" {name};")),
