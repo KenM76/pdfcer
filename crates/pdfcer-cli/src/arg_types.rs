@@ -1356,9 +1356,12 @@ pub(crate) enum GltfOcclusionArg {
 /// What becomes of the lights a glTF file carries.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum GltfLightsArg {
-    /// Scaled to light the model's centre to 80%, with a 20% ambient light
-    /// added (default).
+    /// Scaled by one factor so the median lit surface gets 80%, with a 20%
+    /// ambient light added (default).
     #[default]
+    Exposure,
+    /// Scaled so together they light the model's centre to 80%, with a 20%
+    /// ambient light added.
     Normalise,
     /// Their physical values as stored.
     Stored,

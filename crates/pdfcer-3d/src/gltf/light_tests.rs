@@ -219,3 +219,64 @@ fn a_file_without_lights_has_none() {
     assert!(import.scene.lights.is_empty());
     assert!(import.inferred.is_empty());
 }
+
+const LAMP: &str = r#"{"type":"point","intensity":100}"#;
+const ABOVE: &str = r#",
+  {"translation":[0.5,0.5,1],"extensions":{"KHR_lights_punctual":{"light":0}}}"#;
+
+#[test]
+fn exposure_lights_the_metered_surface_to_80_percent() {
+    let options = GltfOptions {
+        lights: GltfLights::Exposure,
+        ..AS_STORED
+    };
+    let import = read(LAMP, ABOVE, options);
+    let ModelLightKind::Point { attenuation, .. } = import.scene.lights[0].kind else {
+        panic!("{:?}", import.scene.lights)
+    };
+    // Both fan triangles' centroids sit 1 + 2/36 squared from the lamp.
+    let d2 = 1.0 + 2.0 / 36.0;
+    let lit = 1.0 / (attenuation[0] + attenuation[2] * d2);
+    assert!(close(lit, 0.8), "{lit}");
+    assert_eq!(import.scene.lights[1].kind, ModelLightKind::Ambient);
+    assert!(
+        import
+            .inferred
+            .iter()
+            .any(|s| s.contains("median lit surface")),
+        "{:?}",
+        import.inferred
+    );
+}
+
+#[test]
+fn exposure_falls_back_to_the_centre_when_nothing_is_lit() {
+    // A spot above the quad turned to face up (a half turn about X).
+    let spot = r#"{"type":"spot","intensity":100}"#;
+    let up = r#",
+  {"translation":[0.5,0.5,1],"rotation":[1,0,0,0],
+   "extensions":{"KHR_lights_punctual":{"light":0}}}"#;
+    let options = GltfOptions {
+        lights: GltfLights::Exposure,
+        ..AS_STORED
+    };
+    let import = read(spot, up, options);
+    assert!(
+        import
+            .notes
+            .iter()
+            .any(|s| s.contains("scaled at its centre")),
+        "{:?}",
+        import.notes
+    );
+    assert!(
+        import.inferred.iter().any(|s| s.contains("model's centre")),
+        "{:?}",
+        import.inferred
+    );
+}
+
+#[test]
+fn exposure_is_the_default() {
+    assert_eq!(GltfOptions::default().lights, GltfLights::Exposure);
+}

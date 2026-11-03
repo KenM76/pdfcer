@@ -3449,9 +3449,12 @@ pub(crate) enum Command {
         #[arg(long, value_enum, default_value_t)]
         gltf_occlusion: GltfOcclusionArg,
         /// glTF only: what becomes of the lights the file carries
-        /// (KHR_lights_punctual). normalise (default) scales them so they
-        /// light the model's centre to 80% and adds a 20% ambient light,
-        /// saying so; stored keeps their physical values; drop leaves them
+        /// (KHR_lights_punctual). exposure (default) scales them all by one
+        /// factor, metered over the model's surfaces like a camera's
+        /// automatic exposure, so the median lit surface gets 80%, and adds
+        /// a 20% ambient light, saying so; normalise instead scales them so
+        /// together they light the model's centre to 80% (dim when many
+        /// lamps are spread through a building); stored keeps their physical values; drop leaves them
         /// out, with a note line.
         #[arg(long, value_enum, default_value_t)]
         gltf_lights: GltfLightsArg,
@@ -3540,9 +3543,12 @@ pub(crate) enum Command {
         #[arg(long, value_enum, default_value_t)]
         gltf_occlusion: GltfOcclusionArg,
         /// glTF only: what becomes of the lights the file carries
-        /// (KHR_lights_punctual). normalise (default) scales them so they
-        /// light the model's centre to 80% and adds a 20% ambient light,
-        /// saying so; stored keeps their physical values; drop leaves them
+        /// (KHR_lights_punctual). exposure (default) scales them all by one
+        /// factor, metered over the model's surfaces like a camera's
+        /// automatic exposure, so the median lit surface gets 80%, and adds
+        /// a 20% ambient light, saying so; normalise instead scales them so
+        /// together they light the model's centre to 80% (dim when many
+        /// lamps are spread through a building); stored keeps their physical values; drop leaves them
         /// out, with a note line.
         #[arg(long, value_enum, default_value_t)]
         gltf_lights: GltfLightsArg,

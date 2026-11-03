@@ -56,6 +56,7 @@ pub(crate) fn to_prc(path: &Path, data: &[u8], how: GltfHow<'_>) -> Result<Conve
         GltfUpArg::AsStored => GltfUpAxis::AsStored,
     };
     options.lights = match how.lights {
+        GltfLightsArg::Exposure => GltfLights::Exposure,
         GltfLightsArg::Normalise => GltfLights::Normalise,
         GltfLightsArg::Stored => GltfLights::Stored,
         GltfLightsArg::Drop => GltfLights::Drop,

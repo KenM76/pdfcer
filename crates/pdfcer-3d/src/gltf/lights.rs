@@ -1,9 +1,10 @@
 //! `KHR_lights_punctual` lights as [`ModelLight`]s in scene space.
 //!
 //! glTF intensities are physical (candela, lux) and have no ambient term;
-//! PRC's are unitless. [`GltfLights::Normalise`] scales every light by one
-//! factor so they sum to `1 - AMBIENT` at the model's centre and adds an
-//! ambient light of `AMBIENT`, both disclosed as inferred.
+//! PRC's are unitless. [`GltfLights::Exposure`] and [`GltfLights::Normalise`]
+//! scale every light by one factor (metered on the model's surfaces, or
+//! summed at its centre) and add an ambient light of `AMBIENT`, both
+//! disclosed as inferred.
 
 use pdfcer_json::Json;
 
@@ -12,16 +13,16 @@ use super::{GltfImport, GltfLights, member};
 use crate::{IDENTITY, MAX_DEPTH, Matrix, ModelLight, ModelLightKind, multiply, transform_point};
 
 /// The ambient light a normalised import adds.
-const AMBIENT: f64 = 0.2;
+pub(super) const AMBIENT: f64 = 0.2;
 /// The nearest a point or spot light is taken to be, as a fraction of the
 /// model's diagonal, so a lamp inside the model does not blow out.
 const FLOOR: f64 = 0.05;
 
 /// One light as placed: its definition, world position and direction.
-struct Placed<'a> {
+pub(super) struct Placed<'a> {
     def: &'a Json,
-    position: [f64; 3],
-    direction: [f64; 3],
+    pub(super) position: [f64; 3],
+    pub(super) direction: [f64; 3],
     /// Whether its colour is linear, to be encoded to sRGB.
     linear: bool,
 }
@@ -33,7 +34,7 @@ pub(super) fn lights(doc: &Json, mode: GltfLights, linear: bool, out: &mut GltfI
         .get("extensions")
         .and_then(|e| e.get("KHR_lights_punctual"))
         .map_or(&[][..], |k| member(k, "lights"));
-    let (mut placed, bounds) = walk(doc, defs, out);
+    let (mut placed, bounds, instances) = walk(doc, defs, out);
     for p in &mut placed {
         p.linear = linear;
     }
@@ -52,7 +53,29 @@ pub(super) fn lights(doc: &Json, mode: GltfLights, linear: bool, out: &mut GltfI
     });
     let centre = bounds.map_or([0.0; 3], |(lo, hi)| each(lo, hi, |l, h| (l + h) / 2.0));
     let floor = (FLOOR * diagonal).max(f64::MIN_POSITIVE);
+    let mut mode = mode;
     let scale = match mode {
+        GltfLights::Exposure => {
+            let lamps: Vec<_> = placed
+                .iter()
+                .filter_map(|p| {
+                    let (kind, colour, intensity) = read(p);
+                    let bright = colour.iter().copied().fold(0.0, f64::max) * intensity;
+                    super::exposure::lamp(p, kind, bright)
+                })
+                .collect();
+            super::exposure::scale(&lamps, &instances, &out.scene.meshes, floor).unwrap_or_else(
+                || {
+                    out.notes.push(
+                        "no surface is lit by the model's lights, so they were scaled at \
+                         its centre instead"
+                            .to_owned(),
+                    );
+                    mode = GltfLights::Normalise;
+                    normal_scale(&placed, centre, floor)
+                },
+            )
+        }
         GltfLights::Normalise => normal_scale(&placed, centre, floor),
         GltfLights::Stored | GltfLights::Drop => 1.0,
     };
@@ -68,11 +91,15 @@ pub(super) fn lights(doc: &Json, mode: GltfLights, linear: bool, out: &mut GltfI
 
 fn disclose(mode: GltfLights, scale: f64, spots: usize, out: &mut GltfImport) {
     let n = out.scene.lights.len();
-    if mode == GltfLights::Normalise && n > 0 {
+    let how = match mode {
+        GltfLights::Exposure => "the median lit surface of the model gets",
+        GltfLights::Normalise => "together they light the model's centre to",
+        GltfLights::Stored | GltfLights::Drop => "",
+    };
+    if !how.is_empty() && n > 0 {
         out.inferred.push(format!(
-            "{n} model lights scaled by {scale:.4} so together they light the model's \
-             centre to {:.0}% (glTF intensities are physical, PRC's are not), plus an \
-             ambient light of {:.0}%",
+            "{n} model lights scaled by {scale:.4} so {how} {:.0}% (glTF intensities are \
+             physical, PRC's are not), plus an ambient light of {:.0}%",
             100.0 * (1.0 - AMBIENT),
             100.0 * AMBIENT
         ));
@@ -92,11 +119,19 @@ fn disclose(mode: GltfLights, scale: f64, spots: usize, out: &mut GltfImport) {
 /// bounds of the meshes drawn.
 type Bounds = Option<([f64; 3], [f64; 3])>;
 
-fn walk<'a>(doc: &Json, defs: &'a [Json], out: &mut GltfImport) -> (Vec<Placed<'a>>, Bounds) {
+/// Each drawn mesh and its world matrix.
+type Instances = Vec<(usize, Matrix)>;
+
+fn walk<'a>(
+    doc: &Json,
+    defs: &'a [Json],
+    out: &mut GltfImport,
+) -> (Vec<Placed<'a>>, Bounds, Instances) {
     let nodes = member(doc, "nodes");
     let local: Vec<_> = out.scene.meshes.iter().map(mesh_bounds).collect();
     let mut placed = Vec::new();
     let mut bounds: Bounds = None;
+    let mut instances = Vec::new();
     let mut seen = vec![false; out.scene.nodes.len()];
     let mut stack: Vec<(usize, Matrix, usize)> = out
         .scene
@@ -114,6 +149,7 @@ fn walk<'a>(doc: &Json, defs: &'a [Json], out: &mut GltfImport) -> (Vec<Placed<'
             continue;
         }
         let m = node.matrix.map_or(parent, |l| multiply(&parent, &rows(&l)));
+        instances.extend(node.mesh.map(|k| (k, m)));
         if let Some((lo, hi)) = node.mesh.and_then(|k| *local.get(k)?) {
             for c in 0..8 {
                 let mut corner = lo;
@@ -150,7 +186,7 @@ fn walk<'a>(doc: &Json, defs: &'a [Json], out: &mut GltfImport) -> (Vec<Placed<'
         }
         stack.extend(node.children.iter().rev().map(|&c| (c, m, depth + 1)));
     }
-    (placed, bounds)
+    (placed, bounds, instances)
 }
 
 /// `f` of each pair of components.
@@ -245,7 +281,7 @@ fn light(
     let colour = if k > 0.0 { colour } else { [0.0; 3] };
     let attenuation = match (k > 0.0, mode) {
         (false, _) => [1.0, 0.0, 0.0],
-        (true, GltfLights::Normalise) => [floor * floor / k, 0.0, 1.0 / k],
+        (true, GltfLights::Normalise | GltfLights::Exposure) => [floor * floor / k, 0.0, 1.0 / k],
         (true, GltfLights::Stored | GltfLights::Drop) => [0.0, 0.0, 1.0 / k],
     };
     let mut l = match kind {
@@ -282,7 +318,7 @@ fn light(
 /// `cos(theta)^exponent`, so the outer cone is the angle and the exponent is
 /// fitted to fall to 1/4 midway between the inner and outer cones; a cone
 /// with no soft edge has exponent 0.
-fn spot(p: &Placed, attenuation: [f64; 3]) -> ModelLightKind {
+pub(super) fn spot(p: &Placed, attenuation: [f64; 3]) -> ModelLightKind {
     let angle = |key, default: f64| {
         p.def
             .get("spot")

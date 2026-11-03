@@ -16,6 +16,7 @@ mod accessor;
 mod bake;
 mod build;
 mod container;
+mod exposure;
 mod lights;
 mod maps;
 mod textures;
@@ -73,12 +74,23 @@ pub enum GltfOcclusion {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum GltfLights {
-    /// Every light scaled by one factor so together they light the model's
-    /// centre to 80%, with an ambient light of 20% added (glTF has none),
-    /// both [`GltfImport::inferred`]. A point or spot light is taken to be
-    /// no nearer than 5% of the model's diagonal, so a lamp inside the
-    /// model does not blow it out.
+    /// Every light scaled by one factor, metered like a camera's automatic
+    /// exposure over the whole model: the summed light on each triangle
+    /// (inverse square, inside a spot's cone, ignoring occlusion and
+    /// facing) is taken, and the area-weighted median of the lit triangles
+    /// is put at 80%, with an ambient light of 20% added (glTF has none),
+    /// both [`GltfImport::inferred`]. Suits lamps spread room by room as
+    /// well as a few round a product; relative brightness between lamps is
+    /// kept. Falls back to [`Self::Normalise`], with a note, when no
+    /// surface is lit.
     #[default]
+    Exposure,
+    /// Every light scaled by one factor so together they light the model's
+    /// centre to 80%, with an ambient light of 20% added, both
+    /// [`GltfImport::inferred`]. With many lamps spread through a building
+    /// this leaves each one dim. In both scaled modes a point or spot light
+    /// is taken to be no nearer than 5% of the model's diagonal, so a lamp
+    /// inside the model does not blow it out.
     Normalise,
     /// The values as stored: a point or spot light's candela as its
     /// inverse-square attenuation (`1 / candela`), a directional light's

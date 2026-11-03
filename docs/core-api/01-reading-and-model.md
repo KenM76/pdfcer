@@ -3948,19 +3948,25 @@ stream; layout in `ARCHITECTURE.md` decision 210.
   encoded with the sRGB transfer function, no profile conversion),
   AsStored}`; `up_axis: GltfUpAxis::{ZUp (default: +Y up turned to +Z up
   on the root placements), AsStored}`; `occlusion: GltfOcclusion::{Bake
-  (default), Drop}`; `lights: GltfLights::{Normalise (default), Stored,
+  (default), Drop}`; `lights: GltfLights::{Exposure (default), Normalise, Stored,
   Drop}`.
 - `GltfLights` (`#[non_exhaustive]`) — `KHR_lights_punctual` lights placed
   by their nodes into `MeshScene::lights` (written as PRC 741 with 731-734;). glTF intensities are physical
-  (candela, lux) where PRC's are 0-1 colours with attenuation, so
-  `Normalise` scales every light by one factor to light the model's centre
-  to 80% and adds a 20% ambient light (glTF has none), both `inferred`
-  lines; a point or spot light counts as no nearer than 5% of the
-  diagonal. `Stored` keeps the values: candela as the inverse-square
+  (candela, lux) where PRC's are 0-1 colours with attenuation, so the
+  scaled modes multiply every light by one factor and add a 20% ambient
+  light (glTF has none), both `inferred` lines. `Exposure` meters the
+  factor like a camera's automatic exposure: the summed light on up to
+  20,000 sampled triangles (inverse square, inside a spot's cone, no
+  occlusion or facing), with the area-weighted median of the lit ones put
+  at 80%; it suits lamps spread room by room, and falls back to
+  `Normalise` with a `notes` line when nothing is lit. `Normalise` lights
+  the model's centre to 80% with all lights together, which leaves each of
+  many spread lamps dim. In both, a point or spot light counts as no
+  nearer than 5% of the diagonal. `Stored` keeps the values: candela as the inverse-square
   attenuation `1 / candela`, lux as a directional intensity, no ambient.
   `Drop` reads none and says how many were left out in `notes`. A glTF
   `range` is not carried (a note). CLI: `3d-convert` / `3d-embed
-  --gltf-lights normalise|stored|drop`, and `--light
+  --gltf-lights exposure|normalise|stored|drop`, and `--light
   kind[:params][:RRGGBB[:INTENSITY]]` (repeatable; `ambient`,
   `point:X,Y,Z`, `directional:DX,DY,DZ`, `spot:X,Y,Z:DX,DY,DZ:DEGREES`) to
   add lights to a converted model; `3d-embed --lighting auto` names the
