@@ -15,7 +15,7 @@ pub struct ThreeDOpeningView {
     /// The scheme the view lights the model with.
     pub lighting: ThreeDLighting,
     /// The scheme was chosen by the automatic rule (CAD for a model
-    /// converted from glTF), not named by the caller.
+    /// converted from glTF without lights), not named by the caller.
     pub automatic: bool,
     /// The view carries the poster's camera. `false` leaves the camera to
     /// the reader: a model pdfcer cannot mesh, or a build without the `3d`
@@ -50,8 +50,9 @@ impl ThreeDOpeningView {
 }
 
 /// The scheme an opening view uses: `lighting`, or with `None` (automatic)
-/// CAD for a model `converted` from glTF, which carries no lights of its
-/// own, and no view otherwise.
+/// CAD for a model `converted` from glTF with no lights of its own (pass
+/// `false` for one that has lights, so they light it), and no view
+/// otherwise.
 #[must_use]
 pub fn opening_lighting(
     lighting: Option<ThreeDLighting>,

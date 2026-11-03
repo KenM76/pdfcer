@@ -19,7 +19,8 @@ impl EditSession {
     ///   model opens where its poster shows it. With no camera (not PRC,
     ///   does not mesh, no `3d` feature) the reader places it.
     /// - **Lighting:** `lighting`, or with `None` (automatic) CAD when the
-    ///   model was `converted` from glTF and **no view at all** otherwise
+    ///   model was `converted` from glTF without lights (pass `false` when
+    ///   it has lights, so they light it) and **no view at all** otherwise
     ///   ([`crate::threed::opening_lighting`]); then nothing is written and
     ///   `Ok(None)` is returned.
     /// - The returned [`ThreeDOpeningView::disclosure`] states the scheme
