@@ -4,6 +4,10 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1391st filing) — follow-up to `Pass 647.6`: `76c716b0`
+
+**Filed (docs only; engineer-reported, no shell here; nothing checked from here; local `main`, unpushed):** `76c716b0` "fix(cli): xfa-materialize takes --in-place; README count; missing doc comments". `xfa-materialize` joins `IN_PLACE_COMMANDS` (accepts `--in-place`); README count 242 to 243; doc comments on six crate-private fns. No pub API or core-api change, no new decision or rule. ROADMAP: follow-up bullet under the `Pass 647.6` Shipped entry. FEATURES: unchanged (the materialize row is already near or over its character cap and I could not measure it; `--in-place` is not worth the risk). Backup currency not verifiable from here.
+
 ## 2026-11-03 (1390th filing) — `Pass 647.4` real-fonts cut (`5a0a9665`, NOT complete), decision 214
 
 **Filed (docs only; engineer-reported, no shell here; nothing checked from here; local `main`, unpushed, unreleased, last release `v0.118.0`):**

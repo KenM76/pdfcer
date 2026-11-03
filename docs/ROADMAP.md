@@ -135,6 +135,7 @@ Engineer-reported; no shell here, nothing checked from here. Commit `7a2e767faf2
 - **Smoke (real government dynamic form, not rights-cleared, deliberately unnamed):** 12 pages materialized, 8 images, 1 usage right and 1 certification signature removed (`--remove-signatures`), 21 warnings, page 1 renders well, saved file lists 0 fields and `xfa_kind=none`.
 - **Measured finding (real fonts, `X014` item 2, under `647.4`):** of 23 text notes on that form, 15 rich-text overflows + 6 plain-text overflows + 2 words wider than their line = 23; 0 unencodable characters. Cause: the template's typeface Myriad Pro (622 uses) is substituted with the wider standard-14 Helvetica, so text wraps more and clips. Real fonts matter for metrics on Latin text, not only non-WinAnsi characters. **Decision pending with the operator (supplied vs bundled face).** *(Amended 1390th filing: resolved for supplied faces by decision 214, `5a0a9665`; bundling an OFL fallback face stays open.)*
 - **Boxes:** materialize core `[x]`, cli `[x]`, gui `[ ]`.
+- **Follow-up `76c716b0` (1391st filing, engineer-reported, unpushed):** `xfa-materialize` added to the CLI's `IN_PLACE_COMMANDS`, so it accepts `--in-place` (test `in_place_covers_every_input_output_subcommand` failed without it); README subcommand count 242 to 243 (`check-clap-help`); doc comments on six crate-private fns from the XFA passes (`check-public-fns-documented`). No pub API or core-api change.
 
 ### `bb8e190e` `Pass 647.5` COMPLETE, 2026-11-03: `render-page` draws a dynamic XFA form's computed page (1388th filing)
 
