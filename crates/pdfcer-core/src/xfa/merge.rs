@@ -9,8 +9,8 @@
 //! scope for everything under it. Transparent containers pass their parent's
 //! scope through (pp.193-194): nameless ones, `scope="none"` subforms,
 //! `match="none"`, areas and subform sets. Exclusion-group members and page
-//! sets do not bind by name. `global` binding and instance creation are later
-//! cuts. Nothing is written to the file: the merge is a transient read of the
+//! sets do not bind by name. A subform with `occur` repeats from data
+//! ([`occur`]). Nothing is written to the file: the merge is a transient read of the
 //! template for layout and drawing (G-SOM5).
 
 mod data;
@@ -712,12 +712,23 @@ impl Merger<'_> {
         scope: &[usize],
         want_value: bool,
     ) -> Result<Vec<usize>, MergeWarningKind> {
+        self.lookup_in(reference, scope, want_value, &self.bound_nodes)
+    }
+
+    /// [`Self::lookup`] against the bound set `bound`.
+    fn lookup_in(
+        &self,
+        reference: &str,
+        scope: &[usize],
+        want_value: bool,
+        bound: &HashSet<Vec<usize>>,
+    ) -> Result<Vec<usize>, MergeWarningKind> {
         let r = som::parse(reference)?;
         let cx = som::Context {
             root: self.root,
             scope,
             record: self.record,
-            bound: &self.bound_nodes,
+            bound,
             search: self.opts.scope_search,
         };
         let at = som::resolve(&r, &cx).ok_or(MergeWarningKind::Unresolved)?;

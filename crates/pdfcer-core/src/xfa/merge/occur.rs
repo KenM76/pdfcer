@@ -1,7 +1,10 @@
 //! Instances from data: a subform with an `occur` element gets one instance
 //! per data group it matches, up to `occur@max`, and at least `occur@min`
 //! (XFA 3.3 Ch.9 pp.339-347). Matching is greedy (p.346): each instance
-//! takes the next unbound group its name finds, scope matches included.
+//! takes the next unbound group its name finds, scope matches included. A
+//! subform bound by `dataRef` re-resolves its reference per instance, so a
+//! `[*]` step takes the next unbound match (p.108, p.349); a reference that
+//! names one node yields one instance beyond `occur@min`.
 //!
 //! Instances replace the template subform in its parent: instance `k` sits
 //! at the first instance's child index plus `k`, and later siblings shift
@@ -12,7 +15,7 @@
 use std::collections::HashSet;
 
 use super::normal::{Found, Search};
-use super::{MergeWarningKind, Merger};
+use super::{MergeWarning, MergeWarningKind, Merger};
 use crate::xfa::template::{ContainerKind, XfaNode};
 
 /// The most subform instances one merge creates, nested ones included.
@@ -25,9 +28,40 @@ impl Merger<'_> {
         self.has_data
             && child.tag == "subform"
             && child.child("occur").is_some()
-            && self
+            && (self
                 .bind_name(child, Some(ContainerKind::Subform))
                 .is_some()
+                || self.data_ref(child).is_some())
+    }
+
+    /// What one more instance would bind: by name, the next
+    /// unbound group `name` finds; by `dataRef`, the group its reference
+    /// resolves to, unless already bound (a `[*]` step takes the first
+    /// unbound match, p.108).
+    fn next_hit(
+        &self,
+        (reference, name): (Option<&str>, &str),
+        scope: &[usize],
+        bound: &HashSet<Vec<usize>>,
+    ) -> Option<Vec<usize>> {
+        match reference {
+            Some(reference) => self
+                .lookup_in(reference, scope, false, bound)
+                .ok()
+                .filter(|at| !bound.contains(at)),
+            None => {
+                let search = Search {
+                    root: self.root,
+                    record: self.record,
+                    bound,
+                    direct_only: self.direct_only,
+                };
+                match search.find(scope, name, false) {
+                    Found::Hit(at) => Some(at),
+                    _ => None,
+                }
+            }
+        }
     }
 
     /// Append `child`'s instances to `out`, each merged in `scope`.
@@ -43,6 +77,8 @@ impl Merger<'_> {
             .bind_name(&child, Some(ContainerKind::Subform))
             .map(|(n, _)| n)
             .unwrap_or_default();
+        let reference = self.data_ref(&child);
+        let target = (reference.as_deref(), name.as_str());
         let Some(occur) = child.occur() else {
             self.place(out, child, path, scope, pending);
             return;
@@ -50,10 +86,10 @@ impl Merger<'_> {
         let max = occur.max.unwrap_or(u32::MAX);
         let mut made = 0u32;
         while made < max {
-            let hit = self.peek(scope, &name, &self.bound_nodes);
+            let hit = self.next_hit(target, scope, &self.bound_nodes).is_some();
             if (!hit && made >= occur.min) || self.instances_made >= MAX_INSTANCES {
                 if self.instances_made >= MAX_INSTANCES {
-                    self.warn(path, MergeWarningKind::InstanceLimit, &name);
+                    self.warn_target(path, MergeWarningKind::InstanceLimit, target);
                 }
                 break;
             }
@@ -64,13 +100,22 @@ impl Merger<'_> {
             made += 1;
         }
         if made == 0 {
+            // A reference that cannot resolve at all says why, not silence.
+            if let Some(r) = target.0
+                && let Err(kind) = self.lookup(r, scope, false)
+                && kind != MergeWarningKind::Unresolved
+            {
+                path.push(out.len());
+                self.warn_target(path, kind, target);
+                path.pop();
+            }
             let mut skipped = child;
             set_initial(&mut skipped, 0);
             out.push(skipped);
         }
         path.push(out.len().saturating_sub(1));
-        for _ in 0..self.excess(scope, &name) {
-            self.warn(path, MergeWarningKind::ExcessData, &name);
+        for _ in 0..self.excess(target, scope) {
+            self.warn_target(path, MergeWarningKind::ExcessData, target);
         }
         path.pop();
     }
@@ -92,30 +137,29 @@ impl Merger<'_> {
         path.pop();
     }
 
-    /// Whether a subform named `name` would bind a data group from `scope`.
-    fn peek(&self, scope: &[usize], name: &str, bound: &HashSet<Vec<usize>>) -> bool {
-        let search = Search {
-            root: self.root,
-            record: self.record,
-            bound,
-            direct_only: self.direct_only,
-        };
-        matches!(search.find(scope, name, false), Found::Hit(_))
+    /// Warn about the subform `target` names: its reference when bound
+    /// by `dataRef`, else its name.
+    fn warn_target(
+        &mut self,
+        path: &[usize],
+        kind: MergeWarningKind,
+        target: (Option<&str>, &str),
+    ) {
+        self.warnings.push(MergeWarning {
+            path: path.to_vec(),
+            kind,
+            reference: target.0.unwrap_or(target.1).to_owned(),
+            by_name: target.0.is_none(),
+        });
     }
 
-    /// How many more groups `name` matches from `scope` once its instances
-    /// are spent: data the form leaves unbound.
-    fn excess(&self, scope: &[usize], name: &str) -> usize {
+    /// How many more groups `target` matches from `scope` once its
+    /// instances are spent: data the form leaves unbound.
+    fn excess(&self, target: (Option<&str>, &str), scope: &[usize]) -> usize {
         let mut bound = self.bound_nodes.clone();
         let mut n = 0;
         while n < MAX_INSTANCES {
-            let search = Search {
-                root: self.root,
-                record: self.record,
-                bound: &bound,
-                direct_only: self.direct_only,
-            };
-            let Found::Hit(at) = search.find(scope, name, false) else {
+            let Some(at) = self.next_hit(target, scope, &bound) else {
                 break;
             };
             bound.insert(at);

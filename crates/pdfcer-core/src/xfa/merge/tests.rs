@@ -454,6 +454,8 @@ fn every_value_records_its_data_node_and_span() {
     assert_eq!(paths, [&[0, 1][..], &[0, 4], &[0, 3]]);
 }
 
+mod data_ref_instances;
+
 const TENANTS: &str = "<data><tenant><name>One</name></tenant><tenant><name>Two</name></tenant><tenant><name>Three</name></tenant></data>";
 
 fn tenant(occur: &str) -> String {
