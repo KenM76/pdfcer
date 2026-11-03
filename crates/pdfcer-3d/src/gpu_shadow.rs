@@ -82,7 +82,8 @@ impl FrameShadow {
 
     /// As [`FrameShadow::new`] with `lights`, a model's own, under
     /// [`crate::LightingScheme::Artwork`]: its brightest directional light
-    /// casts, as in [`crate::render_model`]; with none, the shadow key.
+    /// is the key, as in [`crate::render_model`]; with none, the shadow key.
+    /// The others are [`crate::FrameExtraShadows`].
     ///
     /// # Errors
     ///

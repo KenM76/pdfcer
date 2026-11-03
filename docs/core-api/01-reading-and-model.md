@@ -3449,8 +3449,8 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   draw them, point and spot lights per pixel, so a lamp makes a pool of
   light on a large face; `RenderOptions::artwork_headlight: bool` (default
   false) adds the camera light too, for a model whose lights leave the
-  viewer's side dark. The brightest directional light casts shadows; with
-  none, the shadow key. Show the list off-canvas: `3d-render` prints one
+  viewer's side dark. The brightest directional light is the shadow key;
+  under `ShadowCasters::EveryLight` (the default) the others cast too. Show the list off-canvas: `3d-render` prints one
   `light index=… kind=… name=… [position=… direction=… attenuation=…
   angle=… exponent=…] colour=… intensity=…` line per light under Artwork,
   and one `view-light view=… view-name=… default=yes|no active=yes|no
@@ -3459,7 +3459,7 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   --no-view-lights`. U3D has no reader yet, so its lights are not read.
 - **Shadows and ambient occlusion** (`render` feature; the standard
   defines neither, so both are pdfcer's and disclosed). On by default.
-  `RenderOptions::shadows: bool` — one light casts: the scheme's brightest
+  `RenderOptions::shadows: bool` — the key light casts: the scheme's brightest
   light on the viewer's side; when every light is at the camera
   (`Artwork`, `Headlight`), a fixed light above-left that keeps half the
   shade where blocked. `RenderOptions::light_sense: LightSense::{

@@ -1,5 +1,6 @@
-//! Cast shadows from one directional light: which light casts, the
+//! Cast shadows from the key directional light: which light is the key, the
 //! orthographic light view fitted to the model, and the CPU shadow map.
+//! Further directional casters are in `shadow_set`.
 //! [`crate::FrameShadow`] publishes the same numbers to a GPU, so both paths
 //! test the same texels with the same arithmetic. Design:
 //! `docs/research/3d-shadows-and-occlusion-design.md`.
