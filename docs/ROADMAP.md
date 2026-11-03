@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `7a2e767f` `Pass 647.6`, 2026-11-03: `xfa-materialize` writes a dynamic form's computed pages (1389th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `7a2e767faf2ff3a60e749e3416e9dd9f19e0edf2` "feat(xfa): xfa-materialize writes a dynamic form's computed pages (Pass 647.6)". Local `main`, **unpushed, unreleased** (last release `v0.118.0`). Decision 204; no new decision. Decision 020 honoured: static forms refused.
+- **Core:** `EditSession::materialize_xfa(&Template, &[LayoutPage], &PaintOptions, XfaSignatures) -> Result<XfaMaterializeOutcome, EditError>`. Replaces the page slots with pdfcer's computed pages (content via the paint path; images as image XObjects, because ISO 32000-1 section 8.9.7 caps inline images at 4 KB). Removes the XFA layer, the AcroForm fields, `/NeedsRendering` and `/Perms /UR3`. Undoable (`CommandKind::MaterializeXfa{pages}`); commits at Save. New errors `EditError::XfaNotDynamic` and `XfaSigned{signatures}`.
+- **`XfaSignatures { Refuse (default), Remove }`** (`non_exhaustive`). `Remove` drops the catalog's whole `/Perms` and the AcroForm's `/SigFlags`, counted as `signatures_removed`. Why: certified government forms are common and DocMDP otherwise blocks the page change. Safe default, opt-in override.
+- **CLI:** `pdfcer xfa-materialize IN -o OUT [--mode] [--verify-undo] [--remove-signatures]`. Prints paint-note and warning lines (layout and merge warnings, via a new shared `print_merge_warnings`, which also fixed materialize reporting 0 warnings where `xfa-layout` reported 21) and a summary `xfa-materialize FILE pages= replaced= images= fields_dropped= usage_rights_removed= signatures_removed= notes= warnings= mode=`. stderr discloses that the pages are pdfcer's inferred layout (rule 4) and any removed signatures. Full-mode save of an encrypted file is refused by the writer; incremental (default) works.
+- **Tests / gates (engineer-reported):** 5 core (`crates/pdfcer-core/tests/xfa_materialize.rs`) + 2 CLI (`crates/pdfcer-cli/tests/xfa_materialize.rs`). core-api updated (02: 392 verbs, 190 `EditError` variants; 03); `check-core-api-verbs` green; clippy and structure gate clean. No manifest change.
+- **Smoke (real government dynamic form, not rights-cleared, deliberately unnamed):** 12 pages materialized, 8 images, 1 usage right and 1 certification signature removed (`--remove-signatures`), 21 warnings, page 1 renders well, saved file lists 0 fields and `xfa_kind=none`.
+- **Measured finding (real fonts, `X014` item 2, under `647.4`):** of 23 text notes on that form, 15 rich-text overflows + 6 plain-text overflows + 2 words wider than their line = 23; 0 unencodable characters. Cause: the template's typeface Myriad Pro (622 uses) is substituted with the wider standard-14 Helvetica, so text wraps more and clips. Real fonts matter for metrics on Latin text, not only non-WinAnsi characters. **Decision pending with the operator (supplied vs bundled face).**
+- **Boxes:** materialize core `[x]`, cli `[x]`, gui `[ ]`.
+
 ### `bb8e190e` `Pass 647.5` COMPLETE, 2026-11-03: `render-page` draws a dynamic XFA form's computed page (1388th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Commit `bb8e190e65421a15cc159bffe784590a732ef984` "feat(cli): render-page draws a dynamic XFA form's computed page (Pass 647.5)". Local `main`, **unpushed, unreleased** (last release `v0.118.0`). Decision 204; no new decision. Closes the last open item of `Pass 647.5` (first cut `c94ab2ee`, second cut `b0e0d1a2`).
@@ -27593,9 +27604,11 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 - **core-api:** `docs/core-api/03-capabilities.md` updated; `index.md` 5434 lines.
 - **REMAINING in 647.5:** `render-page` integration (draw the computed layout for a dynamic form and print what was inferred); depends on text drawing in 647.4 to be useful.
 
-### Pass 647.6 — Explicit materialize verb (NOT STARTED)
+### Pass 647.6 — Explicit materialize verb (SHIPPED `7a2e767f`, 1389th filing, see *Shipped*; the criteria below are kept as filed)
 
 `EditSession` verb plus CLI subcommand that writes the computed pages and fields into the file. Commits at Save only, never on open; disclosed as inferred content (rule 4). Static-XFA hybrid field creation stays refused (decision 020).
+
+**REMAINING in 647.4 after 647.6 (1389th filing):** real fonts (`X014` item 2; measured need, see the 647.6 Shipped entry); barcode encoders. `647.6` is off the list.
 
 ### Pass 647.7 — Table and row layout (SHIPPED `9082a5be`, 1384th filing, see *Shipped*; the criteria below are kept as filed)
 

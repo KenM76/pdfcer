@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1389th filing) — `Pass 647.6` COMPLETE (`7a2e767f`)
+
+**Filed (docs only; engineer-reported, no shell here; nothing checked from here; local `main`, unpushed, unreleased, last release `v0.118.0`):**
+- **`7a2e767f`:** `EditSession::materialize_xfa` plus `pdfcer xfa-materialize` write a dynamic form's computed pages, drop the XFA layer, fields, `/NeedsRendering` and `/Perms /UR3`. New `XfaSignatures {Refuse, Remove}` (certified forms refused by default). Shared `print_merge_warnings` fixed a 0-vs-21 warning mismatch. 5 core + 2 CLI tests (engineer-reported). Smoke on a real government form (unnamed): 12 pages, 8 images, 21 warnings.
+- ROADMAP: Shipped entry; `647.6` heading marked SHIPPED; 647.4 REMAINING now "real fonts; barcode encoders". FEATURES: `Dynamic XFA, layout and drawing` row no longer says materialize is unbuilt; new materialize row core `[x]` cli `[x]` gui `[ ]`.
+
+**Decisions made this session:** none minted; decision 204 covers it. Pending with the operator: supplied vs bundled face for real fonts.
+
+**Findings:** of 23 text notes on the smoke form, 15 rich-text overflows, 6 plain-text, 2 over-wide words, 0 unencodable. Myriad Pro (622 uses) is substituted by wider Helvetica, so real fonts matter for Latin metrics too (`X014` item 2).
+
+**Hard-rule-11 survivors:** fixed in `FEATURES.md` ("Not built: ... materialize") and ROADMAP 647.6 heading. Left as historical cut records: ROADMAP lines saying materialize "not built". Not swept from here, owed to the engineer: `docs/NEXT_SESSION.md`, CLI help and doc comments, `ARCHITECTURE.md` section 4. Run `check-register-entry-size.py`. Backup currency not verifiable from here.
+
 ## 2026-11-03 (1388th filing) — `Pass 647.3f` COMPLETE (`1585dabe`, `7ef431d3`), `Pass 647.5` COMPLETE (`bb8e190e`)
 
 **Filed (docs only; engineer-reported, no shell here; nothing checked from here; all three commits on local `main`, unpushed, unreleased, last release `v0.118.0`):**
