@@ -112,6 +112,29 @@ wherever it appears.*
 
 ## Shipped
 
+### `a64bf4e0` `Pass 657.2` + `Pass 657.3` SHIPPED, 2026-11-02: glTF occlusion maps baked into the base colour; textured alpha cut-outs (`G258` item 3; 1380th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `a64bf4e0` "feat(3d): bake glTF occlusion maps and cut out textured alpha masks (Passes 657.2, 657.3)". On local `main`, **not pushed, unreleased** at filing (base `37d8aba9`, the `v0.117.0` filing). `657.2` was the Backlog entry (deleted); `657.3` is a new Pass (ID free by grep of `docs/`). No new decision, no dependency or manifest change. Reasoning is in the commit message. `pdfcer-3d`; GUI is the separate `pdfcer-gui` project.
+- **657.2, occlusion:** `occlusionTexture` is baked into the base-colour texture at conversion (linear light, factor `1 + strength * (ao - 1)`). On by default; `--gltf-occlusion drop` disables; each bake prints an `inferred:` line (rule 4). It needs no second UV set, which the filed scope assumed.
+- **DEVIATION from the filed acceptance criterion** (ambient-only darkening on both renderers): PDF 3D data has no ambient-only slot, so the bake also darkens direct light. Disclosed in the `inferred:` line.
+- **657.3, alpha cut-out:** MASK-mode alpha of textured materials gives real holes in both the software and GPU renderers (edges slightly soft; disclosed by `inferred:`). Normal, metallic-roughness and emissive maps are counted in one `note:` line (no carrier in PRC, no renderer term).
+- **NOT done:** ambient-only AO (format limit); occlusion on a different UV set / transform / wrap than the base colour (not baked, noted); normal / MR / emissive maps; Acrobat Reader visual check open; the fuzz target compiled, not run.
+- **Tests (engineer-reported):** `pdfcer-3d` default 258 lib + 3 + 20, `--no-default-features` 195 + 3 + 11; CLI 82 unit (default), 80 (no-default); 44 CLI 3D integration (1 new). `docs/core-api` updated in the commit.
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]`. FEATURES: the `657.2` Planned row moved to Implemented (new row); the glTF and texture rows' texture sentences amended.
+- **Channel:** `G258` item 3 is now answered; the reply file is the engineer's.
+
+### `7450b595` `Pass 647.4` RICH-TEXT CUT, 2026-11-02: XFA rich text and rich captions are drawn; WinAnsi nbsp / soft hyphen fix (1380th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `7450b595` "feat(xfa): draw rich-text values and captions (Pass 647.4, rich-text cut)". On local `main`, **not pushed, unreleased** at filing. **`Pass 647.4` is NOT complete**; it stays in Next up with this cut recorded. Decisions 203, 204; no new decision. Reasoning is in the commit message.
+- **Done:** `exData text/html` values AND captions are drawn: `p`, `span`, `b`, `i`, `u`, `br`; CSS `font-family`, `font-size`, `font-weight`, `font-style`, `color`, `text-align`, margins; `xfa-spacerun`; `xfa-tab-count`; floating fields (`embed="#id"`). Greedy word wrap per run face; growable containers size to the rich block. The template parser now keeps mixed content as `#text` children.
+- **Disclosure (rule 4):** unknown elements and missing floating fields are dropped and noted as `PaintNoteKind::Text`.
+- **Also fixed (`pdfcer-fonts`, `vartext.rs::winansi_code`):** U+00A0 and U+00AD now encode to 0xA0 / 0xAD (ISO 32000-1 Annex D footnotes 5-6). Both used to become `?` because their glyph names (`space`, `hyphen`) reverse-map to ASCII. AcroForm appearance text paths benefit too. Lesson: `C:\personal_rag\pdf\` (WinAnsi 0xA0/0xAD).
+- **Measured on a real government sponsorship XFA form (not rights-cleared, not in the repo, not named):** content-not-drawn notes 270 to 163; total notes 756 to 703 after the nbsp fix; 272 stray `?` glyphs gone. Visible gaps left on that form: check boxes not drawn, "Page _ of _" page-number floating fields blank.
+- **Tests (engineer-reported):** 7 new rich-text paint tests, 1 new vartext test; XFA suite 204 passed; `pdfcer-fonts` lib 118.
+- **Gates:** `tools/run-gates.sh` green (49 commands) on the XFA tree after one string-gap exemption. The first run failed only on a full D: drive (os error 112), cleared by deleting `target/debug/incremental`.
+- **Boxes:** core `[x]`, cli `[x]` (via `pdfcer xfa-layout`), gui `[ ]`. FEATURES: the "Dynamic XFA, layout and drawing" row amended; its boxes stay `[ ]` (partial).
+- **REMAINING in 647.4:** inline captions; choiceList, button, barcode and signature widgets; check boxes on real forms; real fonts (`X014` item 2); gradient fills; non-solid strokes.
+
 ### `v0.117.0` PUBLISHED, 2026-11-02 (1379th filing); tag at `e12dd3b3`, CI red at the tag on a rustdoc link miss, fix-forward `7d0ef09d`
 
 Engineer-reported; no shell here, nothing checked from here. Supersedes the "prepared, not published" status of the prep entry below, which stays as filed.
@@ -25307,6 +25330,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **Head amended 1357th filing: `Pass 647.4b` (`X027`) SHIPPED `96af5ff3`, see *Shipped*; the head is `Pass 648.6` again, after the release `v0.112.0` (slot `pdfcer1`), which is a separate filing.** *(Amended 1359th filing: `v0.112.0` PUBLISHED, see *Shipped*; the head is `Pass 648.6`, next release writes `pdfcer2`.)* `647.3f` and `647.4` (image natural sizing) stay in the Backlog. *(The 1356th-filing note that put `647.4b` ahead of `648.6` is history.)* **Amended 1360th filing: `Pass 648.6` SHIPPED `01c5f515` (unreleased), see *Shipped*; `G245` is now complete. Next up has no head: `647.3f`, `647.4` and `Pass 648.7` (residue) are Backlog, unordered.** **Amended 1361st-1365th filings: `Pass 653.0`-`653.4` (`G244`, `G243`, `G249`, `G250`, `G251`) SHIPPED, unreleased, see *Shipped*. Still no head; the next step is a release (version after `0.112.0`, slot `pdfcer2`), asked for by `pdfcer-gui` once `G249`-`G251` shipped.** **Amended 1367th filing: `v0.113.0` PUBLISHED. Amended 1368th filing: `Pass 654.0`, `654.1` (`78f16dc2`, `G252`, `G253` CPU half) and `Pass 655.0` (`2a10522f`, `G254`) SHIPPED, unreleased, see *Shipped*. The head is now `Pass 654.2` (below), behind the GUI-request rule. Next release writes OneDrive `pdfcer1` (`pdfcer2` holds 0.113.0).**
 
+> (1380th filing: `Pass 647.4` rich-text cut `7450b595` and `Pass 657.2` + `657.3` `a64bf4e0` SHIPPED, local `main`, unpushed, unreleased, see *Shipped*; `647.4` stays below, not complete; the `657.2` Backlog entry was deleted. Still no head. Next free `Pass 647.9`, `657.4` by grep of `docs/`, not `tools/check-ledger-numbers.py`.)
+
 > (1379th filing: `v0.117.0` PUBLISHED, see *Shipped*; the next release writes OneDrive `pdfcer1`. Still no head. CI fix-forward `7d0ef09d` is on `main`, unreleased.)
 
 > (1378th filing: `v0.117.0` release PREP (bump `5d95f12d`), see *Shipped*; not yet tagged. Still no head. This release writes OneDrive `pdfcer2` (`pdfcer1` keeps 0.116.0). Next free numbers unchanged from the 1377th note.)
@@ -27340,7 +27365,7 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 
 Filed from the `647.3e` close; nothing built. `647.3e` (`53f4e938`) creates instances only for named by-name subforms with `occur`. Not yet built: (1) instances for subforms bound with `bind match="dataRef"`; (2) instances for `subformSet`. Same spec (XFA 3.3 pp.339-347, `adobe_ext__xfa_data_binding_normal.md`), same `MergeWarningKind::{ExcessData, InstanceLimit}`, same guard. Acceptance to be written when scoped; synthetic only. Request `G248` items 2-3 are answered for the by-name case only. FEATURES: Planned row added (all three boxes `[ ]`).
 
-### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing); NOT COMPLETE, stays here)
+### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing), RICH-TEXT CUT `7450b595` (1380th filing, see *Shipped*); NOT COMPLETE, stays here)
 
 `pdfcer-render` draws the computed layout instead of the placeholder page (render-time only, like decision 203). Inferred content renders exactly as saved content would (rule 4: no on-canvas marking); disclosure is off-canvas diagnostics. Needs `pdfcer-render` to stay GUI-free (`cargo tree` check).
 
@@ -27401,6 +27426,8 @@ Filed from the `647.3e` close; nothing built. `647.3e` (`53f4e938`) creates inst
 - **G-D18 stays PARTLY:** the inverted geometry is a reading, not spec text.
 - **REMAINING in 647.4:** rich text; other widgets (choice lists, bordered widgets, radio groups via exclGroup value); inline/rich captions; non-solid strokes and gradient fills (still disclosed); real fonts (`X014` item 2). Rounded corners are no longer on this list.
 - **Survivors:** the claim "corner drawn square" was swept in `ROADMAP.md` (second-cut text below amended in place; earlier cuts' "rounded corners" lines are dated history and stand), `FEATURES.md` (row amended). Not swept from here: `NEXT_SESSION.md`, `ARCHITECTURE.md` section 4, CLI help text; owed to the engineer.
+
+**Rich-text cut (`7450b595`; 1380th filing; detail in *Shipped*).** `exData text/html` values and captions are drawn; WinAnsi nbsp / soft hyphen fixed. **REMAINING in 647.4:** inline captions; choiceList / button / barcode / signature widgets; check boxes on real forms; real fonts (`X014` item 2); gradient fills; non-solid strokes. Rich text is no longer on this list.
 
 ### Pass 647.5 — CLI `xfa-layout` report and `render-page` integration (FIRST CUT `c94ab2ee` (1289th filing), SECOND CUT `b0e0d1a2` (1292nd filing); NOT COMPLETE, stays here)
 
@@ -36341,10 +36368,6 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
-
-### `Pass 657.2` — glTF `occlusionTexture` honoured in the 3D picture (BACKLOG; filed 1376th filing; `G258` item 3)
-
-Filed from `G258` (`pdfcer-gui`, 2026-11-02); nothing built. `gltf/build.rs` reads `pbrMetallicRoughness` only. **Measured by the engineer: `Bancroft.glb` carries 0 `occlusionTexture` in 42 materials, so this changes nothing for the operator's file.** It needs a second texture slot and UV set per mesh in `AssembledModel`/`DrawData` (a vertex-layout change), hence deferred, not Next up. Acceptance when scoped: a synthetic glTF with an `occlusionTexture` darkens the ambient term on both the CPU and GPU paths, and `strength` is honoured; a file without one is unchanged byte-for-byte in the picture. FEATURES: Planned row added (all three boxes `[ ]`).
 
 ### `Pass 648.7` — 3D units `/3DU` and the other measurement kinds from the CLI (BACKLOG; filed 1360th filing; residue of `Pass 648.6`)
 

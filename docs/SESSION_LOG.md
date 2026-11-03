@@ -4,6 +4,24 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-02 (1380th filing) — `Pass 647.4` rich-text cut `7450b595`; `Pass 657.2` + `657.3` SHIPPED `a64bf4e0`
+
+**Filed (docs only; engineer-reported, no shell here; nothing checked from here):**
+- **`7450b595` (`Pass 647.4`, rich-text cut, NOT complete):** `exData text/html` values and captions drawn (`p`/`span`/`b`/`i`/`u`/`br`, CSS font/colour/align/margins, `xfa-spacerun`, `xfa-tab-count`, floating fields); unknown elements and missing floating fields dropped and noted (`PaintNoteKind::Text`). Also WinAnsi fix: U+00A0 and U+00AD now encode to 0xA0 / 0xAD (`pdfcer-fonts` `vartext.rs`). On a real, not rights-cleared government sponsorship XFA form (not in the repo): content-not-drawn notes 270 to 163, total notes 756 to 703, 272 stray `?` gone. Tests: 7 paint + 1 vartext new; XFA suite 204; `pdfcer-fonts` lib 118.
+- **`a64bf4e0` (`Pass 657.2` + new `657.3`):** glTF `occlusionTexture` baked into the base colour (on by default, `--gltf-occlusion drop`, `inferred:` line); deviation from the filed criterion because PDF 3D has no ambient-only slot, so direct light is darkened too. `657.3`: MASK alpha cut-out of textured materials in both renderers; normal / MR / emissive counted in one `note:`. Tests: `pdfcer-3d` 258 + 3 + 20 (default), 195 + 3 + 11 (no-default); CLI 82 / 80; 44 CLI 3D integration (1 new).
+- **State:** both commits local `main`, **not pushed**, base `37d8aba9`. Gates: `tools/run-gates.sh` green (49 commands) on the XFA tree after one string-gap exemption; the first run failed only on a full D: drive (os error 112), cleared by deleting `target/debug/incremental`.
+- ROADMAP: two Shipped entries; `647.4` Next-up title and a rich-text paragraph; `657.2` Backlog entry deleted; Next-up note. FEATURES: new glTF-occlusion Implemented row; `657.2` Planned row removed; glTF row texture sentence and XFA drawing row amended (boxes stay `[ ]`, partial). RAG: `personal_rag/pdf` WinAnsi 0xA0/0xAD lesson, subject and master index.
+
+**Decisions made this session:** none minted.
+
+**Findings:** WinAnsi codes 0xA0 / 0xAD carry glyph names `space` / `hyphen`, so a name-reversed encoder table never reaches them (lesson filed). The filed `657.2` scope assumed a second UV set; baking into the base colour needs none.
+
+**Hard-rule-11 survivors:** keyword sweep of `FEATURES.md` for `occlusion` and `rich text`: the glTF row (fixed), the Planned row (removed), the XFA drawing row (fixed). Not swept from here: `docs/NEXT_SESSION.md` (engineer-owned), CLI `--help` text, `ARCHITECTURE.md` section 4. Backup currency not verifiable from here.
+
+**Still in flight:** push of both commits; `647.4` remainder (inline captions, other widgets, check boxes on real forms, real fonts, gradients); Acrobat Reader check of the occlusion bake; fuzz target for the new 3D path compiled, not run.
+
+**For next session:** run `tools/check-commits-filed.py` before the push; no head in Next up.
+
 ## 2026-11-02 (1379th filing) — `v0.117.0` PUBLISHED; CI red at the tag, fix-forward `7d0ef09d`
 
 **Filed (docs only; engineer-reported, no shell here; nothing checked from here):**
