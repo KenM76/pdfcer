@@ -112,6 +112,29 @@ wherever it appears.*
 
 ## Shipped
 
+### `7eb052d8` `Pass 647.4` VIEWS CUT, 2026-11-03: XFA relevant (print / screen view) filtering as a setting (1385th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `7eb052d8` "feat(xfa): relevant view filtering as a setting (Pass 647.4)". On local `main`, **unpushed, unreleased** at filing. **`Pass 647.4` is NOT complete**; it stays in Next up. Tests are synthetic. Reasoning is in the commit message. Spec gaps: `adobe_ext__xfa_relevant_views.md` (`G-RV1`..`G-RV9`).
+- **Core:** new `pdfcer_core::xfa::{Views, ViewMatch}`; `Template::exclude_irrelevant(&Views) -> Vec<Vec<usize>>` replaces each excluded element with an inert `XfaNode::EXCLUDED_TAG` (`"#excluded"`) so paths stay stable. Applied before the data merge: an excluded element neither binds, lays out nor draws; the file is untouched. `Views::from_config` reads `config/<agent>/common/template/relevant` (acrobat, then present, then any agent; `G-RV8`).
+- **Setting:** `ViewMatch::{All (default), Any}` (`G-RV1`, AND vs OR of positive names).
+- **CLI:** `xfa-layout --view NAME` (repeatable), `--ignore-config-views`, `--view-match all|any`; prints `excluded path=`. `xfa-fill` does not apply views.
+- **Reading choices recorded, not settings:** any element carrying `relevant` is tested (`G-RV7`); pdfcer never activates print unasked (`G-RV4`); `LegacyPlusPrint` not honoured (`G-RV9`).
+- **Tests (engineer-reported):** 5 core unit tests in `xfa/relevant.rs`, 1 doctest, CLI `view_flags_drop_elements_outside_the_active_views`. Totals at this commit: core xfa unit suite 240 passed; CLI `xfa_layout` 21 passed. clippy `-D warnings` clean (core, cli); fmt applied; `check-core-api-verbs` PASS; `check-code-structure` clean (561 baseline, none new). No manifest change; `cargo tree` unchanged.
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]` (not evidenced).
+
+### `7a7d682e` `Pass 647.4` INLINE-CAPTION CUT, 2026-11-03: XFA inline captions drawn (1385th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `7a7d682e` "feat(xfa): inline captions (Pass 647.4)". Local `main`, **unpushed, unreleased**. **`Pass 647.4` is NOT complete.**
+- **Done:** a caption with no placement and plain text runs inline before the value text, in the value's font and para (p.643). A caption with its own font is noted `Text`; shape, image or rich values are noted `Content`.
+- **Test (engineer-reported):** `an_inline_caption_runs_before_the_value`. Core `[x]`, cli `[x]` (via `xfa-layout --png-dir`), gui `[ ]`.
+
+### `c0af6aea` `Pass 647.4` COMB CUT, 2026-11-03: XFA comb fields drawn (spec gap G-W17; 1385th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `c0af6aea` "feat(xfa): comb fields (Pass 647.4)". Local `main`, **unpushed, unreleased**. **`Pass 647.4` is NOT complete.**
+- **Done:** a `textEdit`, `numericEdit` or `dateTimeEdit` with `<comb>` paints its value one character per cell: N equal cells across the widget border box (`G-W17` reading), glyphs centred, N-1 tines the full field height drawn with the widget border's bottom edge (p.657), combining marks sharing a cell. Cells: `numberOfCells`, else value text `maxChars`, else 1. More characters than cells, or a non-WinAnsi character, adds a `Text` paint note.
+- **Test (engineer-reported):** `a_comb_puts_one_character_per_cell_between_tines`. Core `[x]`, cli `[x]` (`xfa-layout --png-dir`), gui `[ ]`.
+- **Open, recorded here (1385th filing):** `G-L50` (tiled root split: is the root exempt from p.281's all-ancestors-`tb` rule?) is filed in the layout gap file; pdfcer takes the literal reading and plans to fold it into the `TiledSplit` setting. Owed under `647.4` / `647.x`.
+
 ### `9082a5be` `Pass 647.7` SHIPPED, 2026-11-03: XFA table and row layout; decision 212 setting `table_cell_height` (1384th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Commit `9082a5be` "feat(xfa): table and row layout (Pass 647.7)". On local `main`, **unpushed, unreleased** at filing. Reasoning is in the commit message. Tests are synthetic.
@@ -27426,7 +27449,7 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 
 Filed from the `647.3e` close; nothing built. `647.3e` (`53f4e938`) creates instances only for named by-name subforms with `occur`. Not yet built: (1) instances for subforms bound with `bind match="dataRef"`; (2) instances for `subformSet`. Same spec (XFA 3.3 pp.339-347, `adobe_ext__xfa_data_binding_normal.md`), same `MergeWarningKind::{ExcessData, InstanceLimit}`, same guard. Acceptance to be written when scoped; synthetic only. Request `G248` items 2-3 are answered for the by-name case only. FEATURES: Planned row added (all three boxes `[ ]`).
 
-### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing), RICH-TEXT CUT `7450b595` (1380th filing, see *Shipped*), BORDER CUT `a5e17baf` (1381st filing, see *Shipped*), CHECK-BOX CUT `89dc9fbe` and WIDGET CUT `cf7960b2` (1383rd filing, see *Shipped*), ROUNDING CUT `a49eb8c7` (1384th filing, see *Shipped*); NOT COMPLETE, stays here)
+### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing), RICH-TEXT CUT `7450b595` (1380th filing, see *Shipped*), BORDER CUT `a5e17baf` (1381st filing, see *Shipped*), CHECK-BOX CUT `89dc9fbe` and WIDGET CUT `cf7960b2` (1383rd filing, see *Shipped*), ROUNDING CUT `a49eb8c7` (1384th filing, see *Shipped*), COMB CUT `c0af6aea`, INLINE-CAPTION CUT `7a7d682e` and VIEWS CUT `7eb052d8` (1385th filing, see *Shipped*); NOT COMPLETE, stays here. REMAINING as of the 1385th filing: bindItems resolution; real fonts (font substitution notes); gradient / stipple fills; non-solid strokes remainder; image natural sizing; barcode encoders; `G-L50`; `647.3f`; `647.5` (render-page draws dynamic XFA); `647.6` (materialize verb))
 
 `pdfcer-render` draws the computed layout instead of the placeholder page (render-time only, like decision 203). Inferred content renders exactly as saved content would (rule 4: no on-canvas marking); disclosure is off-canvas diagnostics. Needs `pdfcer-render` to stay GUI-free (`cargo tree` check).
 

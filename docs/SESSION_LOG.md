@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1385th filing) — `Pass 647.4` comb `c0af6aea`, inline captions `7a7d682e`, relevant views `7eb052d8` (NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here; nothing checked from here):**
+- **`c0af6aea`:** comb fields, one character per cell, N-1 tines, cells from `numberOfCells` / `maxChars` / 1 (gap G-W17); overflow and non-WinAnsi noted `Text`. Test `a_comb_puts_one_character_per_cell_between_tines`.
+- **`7a7d682e`:** inline captions before the value (p.643); own-font caption noted `Text`, shape / image / rich values noted `Content`. Test `an_inline_caption_runs_before_the_value`.
+- **`7eb052d8`:** `xfa::{Views, ViewMatch}`, `Template::exclude_irrelevant`, inert `#excluded` node keeps paths stable, applied before merge; `Views::from_config` (acrobat, present, any). Setting `ViewMatch::{All, Any}`; CLI `xfa-layout --view`, `--ignore-config-views`, `--view-match`; `xfa-fill` does not apply views. Gaps G-RV1 (setting), G-RV4, G-RV7, G-RV8, G-RV9 resolved as recorded readings; G-RV2/3/5/6 exist, not addressed here.
+- **Tests (engineer-reported):** core xfa unit suite 240 passed; CLI `xfa_layout` 21 passed; 5 new relevant unit tests + 1 doctest + 1 CLI test. clippy `-D warnings`, fmt, `check-core-api-verbs`, `check-code-structure` (561 baseline, none new) clean. No manifest change.
+- All three delivered core + cli, gui no. ROADMAP: three Shipped entries; the `647.4` Backlog header carries the cuts and the remaining list. FEATURES: new rows "comb fields and inline captions" and "print/screen views (relevant)" (core `[x]`, cli `[x]`, gui `[ ]`); umbrella row "Not built" list trimmed (comb, inline captions removed; bindItems added).
+
+**Decisions made this session:** none minted.
+
+**Still open under `647.x`:** bindItems resolution; real fonts; gradient / stipple fills; non-solid strokes remainder; image natural sizing; barcode encoders; `G-L50` (fold into `TiledSplit`); `647.3f`; `647.5`; `647.6`.
+
+**Hard-rule-11 survivors:** not swept from here: `docs/NEXT_SESSION.md`, `docs/core-api/03-capabilities.md`, CLI help and `PaintNoteKind::Content` rustdoc that may still say inline captions are undrawn. Owed to the engineer. Backup currency not verifiable from here.
+
+**For next session:** run `tools/check-commits-filed.py` before the push.
+
 ## 2026-11-03 (1384th filing) — `Pass 647.7` SHIPPED `9082a5be` (XFA tables); `Pass 647.4` rounding cut `a49eb8c7` (G-W10; NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here; nothing checked from here):**
