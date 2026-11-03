@@ -9,6 +9,8 @@
 mod date;
 mod num;
 
+use super::PictureRounding;
+
 /// The type a value element gives its content (p.486, p.492).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::xfa) enum ValueKind {
@@ -43,11 +45,13 @@ pub(in crate::xfa) struct Shown {
 
 /// `value` formatted by `picture`, trying each alternate in turn (p.1159);
 /// `None` when none matches, so the value passes through unchanged.
+/// Excess fraction digits are dropped by `rounding` (gap G-W10).
 pub(in crate::xfa) fn format(
     picture: &str,
     value: &str,
     kind: ValueKind,
     english: bool,
+    rounding: PictureRounding,
 ) -> Option<Shown> {
     for alt in split_unquoted(picture, '|') {
         let alt = alt.trim();
@@ -57,11 +61,11 @@ pub(in crate::xfa) fn format(
         let out = match category {
             "date" => date::format_date(body, value),
             "time" => date::format_time(body, value),
-            "num" => num::format(body, value),
+            "num" => num::format(body, value, rounding),
             "text" => text(body, value),
             "null" => (value.is_empty()).then(|| literal_only(body)).flatten(),
             "zero" => num::is_zero(value)
-                .then(|| num::format(body, value))
+                .then(|| num::format(body, value, rounding))
                 .flatten(),
             _ => return Some(raw(value)),
         };

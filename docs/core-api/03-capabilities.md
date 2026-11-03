@@ -1069,11 +1069,15 @@ kind.
   - `Medium { Screen (default), Paper }` (`with_medium`): the screen
     presentation draws a drop-down `choiceList`'s button and a `signature`
     widget's border; paper draws neither (pp.482-483).
+  - `PictureRounding { HalfUp (default), HalfEven, Truncate }`
+    (`with_picture_rounding`): how a `num{}` picture drops fraction digits
+    it has no place for; half-up is half away from zero (gap G-W10).
 - **Field widgets.** A value element of any scalar type (`text`, `date`,
   `time`, `dateTime`, `integer`, `decimal`, `float`, `boolean`) is drawn,
   through the field's display picture (`format/picture`, Ch.26: `date{}`,
   `time{}`, `num{}`, `text{}`, `null{}`, `zero{}`, `|` alternates,
-  predefined `date.short{}`-style pictures in `en_US`; rounding half-up). A
+  predefined `date.short{}`-style pictures in `en_US`; rounding per
+  `PictureRounding`). A
   value no alternate matches shows as saved. `passwordEdit` shows one
   `passwordChar` (default `*`) per character. A `choiceList` shows its
   selection's display text (positional `items`, `save="1"` holding values),

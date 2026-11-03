@@ -129,6 +129,21 @@ pub enum Medium {
     Paper,
 }
 
+/// How a `num{}` picture drops fraction digits it has no place for. XFA
+/// 3.3 Ch.26 does not say (gap G-W10).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum PictureRounding {
+    /// Half away from zero (`2.5` shows `3`, `-2.5` shows `-3`), as
+    /// Designer forms display.
+    #[default]
+    HalfUp,
+    /// Half to the even digit (`2.5` shows `2`, `3.5` shows `4`).
+    HalfEven,
+    /// Dropped (`2.9` shows `2`).
+    Truncate,
+}
+
 /// The settings [`paint_page`](super::paint_page) draws with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
@@ -164,6 +179,8 @@ pub struct PaintOptions {
     pub arc_circle: ArcCircle,
     /// Gap G-D9, closure.
     pub arc_fill: ArcFill,
+    /// Gap G-W10.
+    pub picture_rounding: PictureRounding,
 }
 
 impl PaintOptions {
@@ -186,6 +203,7 @@ impl PaintOptions {
             dash_caps: DashCaps::Projecting,
             arc_circle: ArcCircle::Diameter,
             arc_fill: ArcFill::Pie,
+            picture_rounding: PictureRounding::HalfUp,
         }
     }
 
@@ -291,6 +309,13 @@ impl PaintOptions {
     #[must_use]
     pub const fn with_arc_fill(mut self, arc_fill: ArcFill) -> Self {
         self.arc_fill = arc_fill;
+        self
+    }
+
+    /// With `picture_rounding`.
+    #[must_use]
+    pub const fn with_picture_rounding(mut self, picture_rounding: PictureRounding) -> Self {
+        self.picture_rounding = picture_rounding;
         self
     }
 }

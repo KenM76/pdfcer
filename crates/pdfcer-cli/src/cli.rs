@@ -6355,6 +6355,11 @@ pub(crate) enum Command {
         /// paper, as it prints (neither).
         #[arg(long, value_enum, default_value_t)]
         medium: MediumArg,
+        /// How --png-dir shows a number whose display picture has fewer
+        /// decimal places than the value: rounded half up, rounded half to
+        /// even, or truncated. The XFA spec does not say.
+        #[arg(long, value_enum, default_value_t)]
+        picture_rounding: PictureRoundingArg,
         /// A draw's or field's rotate that is not a multiple of 90 degrees
         /// (the XFA spec allows no other): ignored, or turned to the
         /// nearest multiple. Listed as rotate-adjusted either way.

@@ -2,7 +2,33 @@
 
 //! The spec's own picture examples (pp.1167-1185).
 
-use super::{Shown, ValueKind, format};
+use super::{PictureRounding, Shown, ValueKind};
+
+fn format(picture: &str, value: &str, kind: ValueKind, english: bool) -> Option<Shown> {
+    super::format(picture, value, kind, english, PictureRounding::HalfUp)
+}
+
+#[test]
+fn each_rounding_mode_drops_excess_fraction_digits_its_own_way() {
+    let r = |mode, v| {
+        super::format("num{S9.9}", v, ValueKind::Num, true, mode).map(|s| s.text.trim().to_owned())
+    };
+    let (up, even, cut) = (
+        PictureRounding::HalfUp,
+        PictureRounding::HalfEven,
+        PictureRounding::Truncate,
+    );
+    assert_eq!(r(up, "2.25").as_deref(), Some("2.3"));
+    assert_eq!(r(up, "-2.25").as_deref(), Some("-2.3"));
+    assert_eq!(r(even, "2.25").as_deref(), Some("2.2"));
+    assert_eq!(r(even, "2.35").as_deref(), Some("2.4"));
+    assert_eq!(r(even, "2.251").as_deref(), Some("2.3"));
+    assert_eq!(r(cut, "2.29").as_deref(), Some("2.2"));
+    let whole = |mode, v| super::format("num{9}", v, ValueKind::Num, true, mode).map(|s| s.text);
+    assert_eq!(whole(even, "2.5").as_deref(), Some("2"));
+    assert_eq!(whole(even, "3.5").as_deref(), Some("4"));
+    assert_eq!(whole(even, ".5").as_deref(), Some("0"));
+}
 
 fn num(picture: &str, value: &str) -> Option<String> {
     format(picture, value, ValueKind::Num, true).map(|s| s.text)

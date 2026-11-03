@@ -5,7 +5,7 @@ use super::*;
 use pdfcer_core::xfa::{
     ArcCircle, ArcFill, CaptionFont, CheckCaption, CheckEdge, DashCaps, DashLengths, EdgePlacement,
     FontWeight, ImageOverflow, ImagePlacement, Medium, MissingFill, PaintNoteKind, PaintOptions,
-    Template, ThreeDStroke, XfaLayout,
+    PictureRounding, Template, ThreeDStroke, XfaLayout,
 };
 
 /// `xfa-layout --edge-placement` (gap G-D1, decision 207).
@@ -46,6 +46,18 @@ pub(crate) enum MediumArg {
     Screen,
     /// As the form prints.
     Paper,
+}
+
+/// `xfa-layout --picture-rounding` (gap G-W10).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum PictureRoundingArg {
+    /// Half away from zero: 2.5 shows 3.
+    #[default]
+    HalfUp,
+    /// Half to the even digit: 2.5 shows 2, 3.5 shows 4.
+    HalfEven,
+    /// Extra digits dropped: 2.9 shows 2.
+    Truncate,
 }
 
 /// `xfa-layout --font-weight` (gap G-T1).
@@ -173,6 +185,7 @@ pub(crate) struct XfaPngArgs {
     pub(crate) check_caption: CheckCaptionArg,
     pub(crate) check_edge: CheckEdgeArg,
     pub(crate) medium: MediumArg,
+    pub(crate) picture_rounding: PictureRoundingArg,
     pub(crate) dash_lengths: DashLengthsArg,
     pub(crate) dash_caps: DashCapsArg,
     pub(crate) arc_circle: ArcCircleArg,
@@ -219,6 +232,11 @@ impl XfaPngArgs {
             .with_medium(match self.medium {
                 MediumArg::Paper => Medium::Paper,
                 MediumArg::Screen => Medium::Screen,
+            })
+            .with_picture_rounding(match self.picture_rounding {
+                PictureRoundingArg::HalfUp => PictureRounding::HalfUp,
+                PictureRoundingArg::HalfEven => PictureRounding::HalfEven,
+                PictureRoundingArg::Truncate => PictureRounding::Truncate,
             })
             .with_dash_lengths(match self.dash_lengths {
                 DashLengthsArg::Scaled => DashLengths::Scaled,

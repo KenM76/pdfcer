@@ -19,7 +19,8 @@ impl Painter<'_> {
         let mut text = raw.to_owned();
         if let Some(pic) = pic {
             let kind = scalar(node).map_or(ValueKind::Text, |c| ValueKind::of(&c.tag));
-            if let Some(s) = picture::format(pic, raw, kind, self.english(item)) {
+            let rounding = self.opts.picture_rounding;
+            if let Some(s) = picture::format(pic, raw, kind, self.english(item), rounding) {
                 if s.approximated {
                     self.note(item, PaintNoteKind::Picture);
                 }

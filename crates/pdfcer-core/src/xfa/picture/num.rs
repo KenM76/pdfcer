@@ -1,8 +1,8 @@
 //! `num{}` pictures on canonical numbers (pp.1176-1182): digits, sign,
 //! radix, grouping, currency and percent, formatted on the decimal string
-//! so no float rounding enters. Rounding is half-up (gap G-W10).
+//! so no float rounding enters. Rounding per [`PictureRounding`] (gap G-W10).
 
-use super::{Out, Tok, tokens};
+use super::{Out, PictureRounding, Tok, tokens};
 
 /// A canonical number as signed decimal digits.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -54,12 +54,29 @@ impl Dec {
         self
     }
 
-    /// Rounded half-up to `k` fraction digits.
-    fn round(mut self, k: usize) -> Self {
+    /// Rounded to `k` fraction digits by `mode`; the sign is kept, so
+    /// half-up is half away from zero.
+    fn round(mut self, k: usize, mode: PictureRounding) -> Self {
         if self.frac.len() <= k {
             return self;
         }
-        let up = self.frac.as_bytes().get(k).is_some_and(|&b| b >= b'5');
+        let digit = self.frac.as_bytes().get(k).copied().unwrap_or(b'0');
+        let tail = self.frac.get(k + 1..).unwrap_or("");
+        let last = if k == 0 {
+            self.int.as_bytes().last()
+        } else {
+            self.frac.as_bytes().get(k - 1)
+        };
+        let up = match mode {
+            PictureRounding::HalfUp => digit >= b'5',
+            PictureRounding::HalfEven => {
+                digit > b'5'
+                    || (digit == b'5'
+                        && (tail.bytes().any(|b| b != b'0')
+                            || last.is_some_and(|d| (d - b'0') % 2 == 1)))
+            }
+            PictureRounding::Truncate => false,
+        };
         self.frac.truncate(k);
         if up {
             let mut all: Vec<u8> = format!("0{}{}", self.int, self.frac).into_bytes();
@@ -160,7 +177,7 @@ fn pieces(body: &str) -> Result<Vec<Piece>, ()> {
 
 /// `value` by a num picture; `None` when it does not fit (too many
 /// integer digits, or negative with no sign symbol).
-pub(super) fn format(body: &str, value: &str) -> Option<Out> {
+pub(super) fn format(body: &str, value: &str, rounding: PictureRounding) -> Option<Out> {
     let Ok(ps) = pieces(body) else {
         return Some(Out::Unsupported);
     };
@@ -184,7 +201,7 @@ pub(super) fn format(body: &str, value: &str) -> Option<Out> {
         })
         .collect();
     if !frac_slots.contains(&'8') {
-        d = d.round(frac_slots.len());
+        d = d.round(frac_slots.len(), rounding);
     }
     let int_slots = int_ps
         .iter()

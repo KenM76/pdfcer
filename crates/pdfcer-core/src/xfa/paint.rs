@@ -27,7 +27,7 @@ use crate::writer::content::{ContentBuilder, LineCap, Paint};
 pub use dash::{DashCaps, DashLengths};
 pub use options::{
     CaptionFont, CheckCaption, CheckEdge, EdgePlacement, FontWeight, ImageOverflow, ImagePlacement,
-    Medium, MissingFill, PaintOptions, ThreeDStroke,
+    Medium, MissingFill, PaintOptions, PictureRounding, ThreeDStroke,
 };
 pub use shape::{ArcCircle, ArcFill};
 
