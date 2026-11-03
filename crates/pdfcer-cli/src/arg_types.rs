@@ -1473,7 +1473,7 @@ pub(crate) enum ShadowLightArg {
     /// One of the scheme's lights (default); it may turn with the view.
     #[default]
     Scheme,
-    /// A sun fixed in the model, above it on the `--up` axis.
+    /// A sun fixed in the model, above it on the --up axis.
     Sun,
 }
 
