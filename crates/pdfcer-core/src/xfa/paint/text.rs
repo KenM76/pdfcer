@@ -203,16 +203,35 @@ impl Painter<'_> {
                 _ => {}
             }
         }
+        let cap = super::caption::inline_text(node);
+        if cap.is_some_and(|_| {
+            node.child("caption")
+                .and_then(|c| c.child("font"))
+                .is_some()
+        }) {
+            self.note(item, PaintNoteKind::Text);
+        }
         if let Some(shape) = super::shape::value_shape(node) {
+            self.note_inline(item, cap);
             self.shape(item, shape, r);
         } else if let Some(image) = super::image::value_image(node) {
+            self.note_inline(item, cap);
             self.image(item, image, node.child("para"), r);
         } else if self.set_rich_value(item, node, node.child("font"), node.child("para"), r) {
+            self.note_inline(item, cap);
         } else if let Some(v) = super::page_script::value(node, self.page.0, self.page.1) {
             self.note(item, PaintNoteKind::Script);
+            let v = format!("{}{v}", cap.unwrap_or(""));
             self.set(item, &v, node.child("font"), node.child("para"), r);
-        } else if let Some(text) = self.shown(item, node) {
+        } else if let Some(text) = joined(cap, self.shown(item, node)) {
             self.set(item, &text, node.child("font"), node.child("para"), r);
+        }
+    }
+
+    /// An inline caption beside a value that is not text is not drawn.
+    fn note_inline(&mut self, item: &LayoutItem, cap: Option<&str>) {
+        if cap.is_some() {
+            self.note(item, PaintNoteKind::Content);
         }
     }
 
@@ -367,6 +386,15 @@ impl Painter<'_> {
                 self.fonts.len() - 1
             });
         format!("XF{i}")
+    }
+}
+
+/// An inline caption's text followed by the value's; `None` when both are
+/// absent.
+fn joined(cap: Option<&str>, value: Option<String>) -> Option<String> {
+    match (cap, value) {
+        (None, v) => v,
+        (Some(c), v) => Some(format!("{c}{}", v.unwrap_or_default())),
     }
 }
 

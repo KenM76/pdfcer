@@ -86,3 +86,17 @@ fn a_comb_puts_one_character_per_cell_between_tines() {
     assert_eq!(ops.matches(" Tj").count(), 2, "{ops}");
     assert_eq!(kinds(&notes), [PaintNoteKind::Text]);
 }
+
+#[test]
+fn an_inline_caption_runs_before_the_value() {
+    let f = r#"<field name="i" w="200pt" h="20pt"><caption placement="inline"><value><text>Name: </text></value></caption><value><text>Ada</text></value></field>"#;
+    let (ops, notes) = painted(f, &PaintOptions::new());
+    assert!(ops.contains("(Name: Ada) Tj"), "{ops}");
+    assert!(notes.is_empty(), "{notes:?}");
+    let f = r#"<field name="i" w="200pt" h="20pt"><caption placement="inline"><value><text>Empty</text></value></caption></field>"#;
+    let (ops, _) = painted(f, &PaintOptions::new());
+    assert!(ops.contains("(Empty) Tj"), "{ops}");
+    let f = r#"<field name="i" w="200pt" h="20pt"><caption placement="inline"><value><exData contentType="text/html"><body xmlns="http://www.w3.org/1999/xhtml"><p>R</p></body></exData></value></caption><value><text>v</text></value></field>"#;
+    let (_, notes) = painted(f, &PaintOptions::new());
+    assert!(kinds(&notes).contains(&PaintNoteKind::Content), "{notes:?}");
+}

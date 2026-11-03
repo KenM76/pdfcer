@@ -38,8 +38,9 @@ use super::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum PaintNoteKind {
-    /// An `inline` or non-plain-text caption, rich text, non-text value
-    /// content or non-text widget: not drawn yet.
+    /// A non-plain-text caption, an `inline` caption beside a non-text or
+    /// rich value, non-text value content or a non-text widget: not drawn
+    /// yet.
     Content,
     /// An edge `stroke` value the grammar does not name (p.688): drawn
     /// solid.

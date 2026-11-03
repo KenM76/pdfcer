@@ -31,11 +31,21 @@ pub(super) fn occupies(caption: &XfaNode) -> bool {
 }
 
 /// Whether `node` has a visible caption this cut does not draw: an
-/// `inline` one, or one holding non-text, non-image content.
+/// `inline` one holding anything but plain text, or one holding non-text,
+/// non-image content.
 pub(super) fn left_out(node: &XfaNode) -> bool {
     node.child("caption").is_some_and(|c| {
-        c.presence() == Presence::Visible && (side(c).is_none() || has_unplain_value(c))
+        c.presence() == Presence::Visible
+            && (has_unplain_value(c) || (side(c).is_none() && plain_text(c).is_none()))
     })
+}
+
+/// The plain text of `node`'s visible `inline` caption, set before its
+/// value text in the value's font and paragraph (p.643).
+pub(super) fn inline_text(node: &XfaNode) -> Option<&str> {
+    let c = node.child("caption")?;
+    let shown = c.presence() == Presence::Visible && side(c).is_none();
+    plain_text(c).filter(|_| shown && !has_unplain_value(c))
 }
 
 impl Painter<'_> {

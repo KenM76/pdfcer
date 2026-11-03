@@ -1092,8 +1092,11 @@ kind.
   counter-clockwise from 3 o'clock, filled per its `fill`. The shape's
   `edge` `cap` (square default, butt, round) is honoured.
 - **★ What the UI must disclose:** every `PaintNote` (path + `PaintNoteKind`):
-  - `Content`: an `inline` or rich-text caption, a rich or non-text value,
-    or a widget pdfcer does not draw, not drawn yet.
+  - `Content`: a non-plain-text caption, an `inline` caption beside a
+    non-text or rich value, a rich or non-text value, or a widget pdfcer
+    does not draw, not drawn yet. A plain-text `inline` caption is set
+    directly before the value text in the value's font and paragraph
+    (p.643); one declaring its own `font` notes `Text`.
   - `Font`: the typeface was drawn in a substituted standard-14 face.
   - `Choice`: a `choiceList` value shown as saved (it matches no item and
     `textEntry` is off, or the items come from `bindItems`, which are not
