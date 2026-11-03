@@ -3321,6 +3321,13 @@ pub(crate) enum Command {
         /// `emitted`. The standard does not say.
         #[arg(long, value_enum, default_value_t)]
         light_sense: LightSenseArg,
+        /// Where the shadow-casting light is: `scheme` (default), one of
+        /// the scheme's lights, so with `--light-frame camera` the shadow
+        /// turns with the view; or `sun`, fixed above the model on the
+        /// `--up` axis, so the shadow stays in one place on the model from
+        /// every camera and halves the shade where blocked.
+        #[arg(long, value_enum, default_value_t)]
+        shadow_light: ShadowLightArg,
         /// Threads to draw with; 0 (default) uses every core. The image is
         /// the same at any count.
         #[arg(long, default_value_t = 0)]

@@ -125,7 +125,7 @@ pub use render::{
 };
 pub use schema::Schema;
 #[cfg(feature = "render")]
-pub use shadow::{DEFAULT_SHADOW_MAP_SIZE, LightSense, MAX_SHADOW_MAP_SIZE};
+pub use shadow::{DEFAULT_SHADOW_MAP_SIZE, LightSense, MAX_SHADOW_MAP_SIZE, ShadowLight};
 pub use tess::{Tessellation, TriangleMesh};
 pub use texture::{MAX_TEXTURE_PIXELS, Texture, TextureFunction, TextureOrigin, TextureWrap};
 pub use tree::{

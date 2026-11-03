@@ -200,3 +200,60 @@ fn a_non_gltf_file_stated_as_gltf_is_refused() {
     assert_eq!(out.status.code(), Some(9));
     assert!(!Path::new(&s.path("m.prc")).exists());
 }
+
+/// A 4 x 4 floor with a 1 x 1 square held one unit above it (glTF y up),
+/// both opaque.
+fn floor_and_square() -> Vec<u8> {
+    glb_of(
+        r#"{"asset":{"version":"2.0"},"scene":0,
+  "buffers":[{"byteLength":60}],
+  "bufferViews":[{"buffer":0,"byteLength":48},{"buffer":0,"byteOffset":48,"byteLength":12}],
+  "accessors":[{"bufferView":0,"componentType":5126,"count":4,"type":"VEC3"},
+    {"bufferView":1,"componentType":5123,"count":6,"type":"SCALAR"}],
+  "meshes":[{"primitives":[{"attributes":{"POSITION":0},"indices":1}]}],
+  "nodes":[{"name":"floor","mesh":0,"translation":[-2,0,-2],"rotation":[0.70710678,0,0,0.70710678],"scale":[4,4,1]},
+    {"name":"square","mesh":0,"translation":[-0.5,1,-0.5],"rotation":[0.70710678,0,0,0.70710678]}],
+  "scenes":[{"nodes":[0,1]}]}"#
+            .to_owned(),
+    )
+}
+
+/// `--shadow-light sun` reaches the renderer and is disclosed: the sun
+/// casts a different shadow from the scheme's key, and moves with `--up`.
+#[test]
+fn a_sun_shadow_light_is_reported_and_drawn() {
+    let s = Scratch::new("sun");
+    std::fs::write(s.path("m.glb"), floor_and_square()).unwrap();
+    let pdf = format!(
+        "{}/../../fixtures/synthetic/minimal.pdf",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let (m, out) = (s.path("m.glb"), s.path("out.pdf"));
+    let args = ["3d-embed", &pdf, "--model", &m, "--page", "1"];
+    stdout(&run(&[
+        &args[..],
+        &["--rect", "10,10,190,190", "--apply", "-o", &out],
+    ]
+    .concat()));
+    let render = |tag: &str, extra: &[&str]| {
+        let png = s.path(&format!("{tag}.png"));
+        let mut args = vec!["3d-render", &out, "--index", "0", "--eye=1,-3,4"];
+        args.extend_from_slice(&["--no-ambient-occlusion", "--width", "120"]);
+        args.extend_from_slice(&["--height", "80", "-o", &png]);
+        args.extend_from_slice(extra);
+        (stdout(&run(&args)), std::fs::read(&png).unwrap())
+    };
+    let (scheme_note, scheme) = render("scheme", &[]);
+    assert!(
+        scheme_note.contains("note: shadows: cast by one of the scheme's lights"),
+        "{scheme_note}"
+    );
+    let (sun_note, sun) = render("sun", &["--shadow-light", "sun"]);
+    assert!(
+        sun_note.contains("note: shadows: cast by a sun fixed above the model"),
+        "{sun_note}"
+    );
+    assert_ne!(scheme, sun, "the sun is not the scheme's key light");
+    let (_, sun_x) = render("sun_x", &["--shadow-light", "sun", "--up", "x"]);
+    assert_ne!(sun, sun_x, "the sun follows --up");
+}

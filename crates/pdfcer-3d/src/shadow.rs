@@ -4,11 +4,11 @@
 //! test the same texels with the same arithmetic. Design:
 //! `docs/research/3d-shadows-and-occlusion-design.md`.
 
-use crate::TriangleMesh;
 use crate::lighting::Shader;
 use crate::raster::{Paint, at};
 use crate::render::{Bounds, at3, corners};
 use crate::vec3::{cross, dot, normalize, sub};
+use crate::{NamedView, TriangleMesh, UpAxis};
 
 /// [`crate::RenderOptions::shadow_map_size`]'s default, texels per side.
 pub const DEFAULT_SHADOW_MAP_SIZE: u32 = 2048;
@@ -42,6 +42,28 @@ pub enum LightSense {
     Emitted,
 }
 
+/// Where the shadow-casting light is ([`crate::RenderOptions::shadow_light`]).
+/// pdfcer's: the standard defines no shadows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum ShadowLight {
+    /// One of the scheme's lights, chosen each frame as
+    /// [`crate::RenderOptions::shadows`] says. In
+    /// [`crate::LightFrame::Camera`] the shadow turns with the view. The
+    /// default.
+    #[default]
+    FollowsScheme,
+    /// A sun fixed in the model, whatever the scheme or camera: above, left
+    /// of and in front of the model as seen from the iso view of a model
+    /// whose vertical axis is `up`. Where blocked, half the shade is kept.
+    /// The shadow stays in one model place as the camera moves, so a GPU
+    /// shadow map is redrawn only when the model or options change.
+    Sun {
+        /// The model's vertical axis.
+        up: UpAxis,
+    },
+}
+
 /// How the casting light's shadow changes a corner's shade.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CasterKind {
@@ -69,7 +91,7 @@ impl Caster {
         sense: LightSense,
         basis: &[[f64; 3]; 3],
     ) -> Option<Caster> {
-        let [right, up, forward] = basis;
+        let forward = basis[2];
         let lights: &[(Option<[f64; 3]>, [f64; 3])] = match shader {
             Shader::Unlit => return None,
             Shader::Headlight => &[],
@@ -87,7 +109,7 @@ impl Caster {
         let best = |front: bool| {
             candidates
                 .clone()
-                .filter(|(_, l, _)| !front || dot(*l, *forward) < 0.0)
+                .filter(|(_, l, _)| !front || dot(*l, forward) < 0.0)
                 .fold(None, |acc: Option<(usize, [f64; 3], f64)>, c| match acc {
                     Some(a) if a.2 >= c.2 => Some(a),
                     _ => Some(c),
@@ -99,12 +121,28 @@ impl Caster {
                 kind: CasterKind::Light(i),
             });
         }
-        let [x, y, z] = SHADOW_KEY;
-        let key = [0, 1, 2].map(|i| x * at(*right, i) + y * at(*up, i) + z * at(*forward, i));
         Some(Caster {
-            to_light: normalize(key)?,
+            to_light: shadow_key(basis)?,
             kind: CasterKind::Dim,
         })
+    }
+
+    /// The caster for `light`: [`Caster::choose`] for
+    /// [`ShadowLight::FollowsScheme`], else the sun; `None` unlit.
+    pub(crate) fn for_light(
+        light: ShadowLight,
+        shader: &Shader,
+        sense: LightSense,
+        basis: &[[f64; 3]; 3],
+    ) -> Option<Caster> {
+        match light {
+            ShadowLight::Sun { up } if !matches!(shader, Shader::Unlit) => Some(Caster {
+                to_light: sun(up)?,
+                kind: CasterKind::Dim,
+            }),
+            ShadowLight::Sun { .. } => None,
+            ShadowLight::FollowsScheme => Self::choose(shader, sense, basis),
+        }
     }
 
     /// `shader`'s shade at a corner split into what the caster's shadow
@@ -130,6 +168,22 @@ impl Caster {
         };
         ([0, 1, 2].map(|i| at(total, i) - at(key, i)), key)
     }
+}
+
+/// [`SHADOW_KEY`] in the camera `basis` (right, up, forward), unit, model
+/// space.
+fn shadow_key([right, up, forward]: &[[f64; 3]; 3]) -> Option<[f64; 3]> {
+    let [x, y, z] = SHADOW_KEY;
+    normalize([0, 1, 2].map(|i| x * at(*right, i) + y * at(*up, i) + z * at(*forward, i)))
+}
+
+/// [`ShadowLight::Sun`]'s direction: the shadow key of the iso view about
+/// `up`.
+fn sun(up: UpAxis) -> Option<[f64; 3]> {
+    let (dir, image_up) = NamedView::Iso.direction(up);
+    let forward = normalize(dir)?;
+    let right = normalize(cross(forward, image_up))?;
+    shadow_key(&[right, cross(right, forward), forward])
 }
 
 /// The orthographic view from the casting light over the model's bounding
@@ -473,5 +527,61 @@ mod tests {
             ..options
         };
         assert_eq!(red(&off, 0.8, -1.6), 190);
+    }
+
+    #[test]
+    fn the_sun_is_fixed_in_the_model_and_above_it() {
+        let tilted = [[0.0, 0.0, 1.0], [0.0, 1.0, 0.0], [-1.0, 0.0, 0.0]];
+        let sun = |basis: &[[f64; 3]; 3], scheme: LightingScheme, up: UpAxis| {
+            let shader = Shader::new(scheme.lights(), crate::LightFrame::Camera, basis);
+            Caster::for_light(ShadowLight::Sun { up }, &shader, LightSense::Emitted, basis)
+        };
+        let a = sun(&BASIS, LightingScheme::Day, UpAxis::Z).unwrap();
+        assert_eq!(a, sun(&tilted, LightingScheme::Artwork, UpAxis::Z).unwrap());
+        assert_eq!(a.kind, CasterKind::Dim);
+        assert!(a.to_light[2] > 0.9, "high above a z-up model: {a:?}");
+        let y = sun(&BASIS, LightingScheme::Day, UpAxis::Y).unwrap();
+        assert!(y.to_light[1] > 0.9, "{y:?}");
+        assert!(sun(&BASIS, LightingScheme::None, UpAxis::Z).is_none());
+    }
+
+    #[test]
+    fn a_sun_shadow_stays_on_the_floor_as_the_camera_turns() {
+        use crate::{Camera, Projection, RenderOptions, render};
+        let meshes = [square(2.0, 0.0), square(0.5, 1.0)];
+        let red = |light: ShadowLight, turn: f64, p: [f64; 2]| {
+            let up = [turn.cos(), turn.sin(), 0.0];
+            let camera = Camera {
+                eye: [0.0, 0.0, 10.0],
+                target: [0.0; 3],
+                up,
+                projection: Projection::Orthographic { height: 5.0 },
+            };
+            let options = RenderOptions {
+                width: 100,
+                height: 100,
+                shadow_light: light,
+                ambient_occlusion: false,
+                ..RenderOptions::default()
+            };
+            let image = render(&meshes, &camera, &options).unwrap();
+            let (x, y) = (p[0] * up[1] - p[1] * up[0], p[0] * up[0] + p[1] * up[1]);
+            let (px, py) = ((50.0 + 20.0 * x) as usize, (50.0 - 20.0 * y) as usize);
+            image.rgba[(py * 100 + px) * 4]
+        };
+        // The sun is high, from -x and -y: the shadow reaches (0.36, 0.25)
+        // past the square, so (0.7, 0.3) is in it from every turn.
+        let sun = ShadowLight::Sun { up: UpAxis::Z };
+        let mut followed = Vec::new();
+        for quarter in 0..4 {
+            let turn = f64::from(quarter) * std::f64::consts::FRAC_PI_2;
+            assert_eq!(red(sun, turn, [0.7, 0.3]), 95, "turn {quarter}");
+            assert_eq!(red(sun, turn, [-0.7, -0.3]), 190, "turn {quarter}");
+            followed.push(red(ShadowLight::FollowsScheme, turn, [0.7, 0.3]));
+        }
+        assert!(
+            followed.contains(&190),
+            "the camera key moves: {followed:?}"
+        );
     }
 }

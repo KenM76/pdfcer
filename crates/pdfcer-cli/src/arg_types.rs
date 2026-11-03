@@ -1467,6 +1467,16 @@ pub(crate) enum LightSenseArg {
     Emitted,
 }
 
+/// Where `3d-render`'s shadow-casting light is.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum ShadowLightArg {
+    /// One of the scheme's lights (default); it may turn with the view.
+    #[default]
+    Scheme,
+    /// A sun fixed in the model, above it on the `--up` axis.
+    Sun,
+}
+
 /// When a `3d-embed` model activates.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum ThreeDActivateArg {

@@ -37,8 +37,8 @@ void main() {}
 /// range. The main pass then binds it as `u_shadow_map` with `u_shadows`
 /// true and the uniforms named on each field. A light in
 /// [`crate::LightFrame::Camera`] moves with the eye, so the map is redrawn
-/// whenever the camera moves; in [`crate::LightFrame::World`] only when the
-/// model or options change.
+/// whenever the camera moves; in [`crate::LightFrame::World`], or with
+/// [`crate::ShadowLight::Sun`], only when the model or options change.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
 pub struct FrameShadow {
@@ -82,7 +82,9 @@ impl FrameShadow {
             return Ok(None);
         }
         let shader = Shader::new(options.lighting.lights(), options.light_frame, &basis);
-        let Some(caster) = Caster::choose(&shader, options.light_sense, &basis) else {
+        let Some(caster) =
+            Caster::for_light(options.shadow_light, &shader, options.light_sense, &basis)
+        else {
             return Ok(None);
         };
         let Some(view) = LightView::new(caster.to_light, bounds, options.shadow_map_size) else {
@@ -174,5 +176,28 @@ mod tests {
                 "{name}"
             );
         }
+    }
+
+    #[test]
+    fn a_sun_frame_shadow_is_the_same_from_every_camera() {
+        let options = RenderOptions {
+            lighting: LightingScheme::Cad,
+            shadow_light: crate::ShadowLight::Sun {
+                up: crate::UpAxis::Z,
+            },
+            ..RenderOptions::default()
+        };
+        let other = Camera {
+            eye: [-4.0, 4.0, 2.0],
+            ..camera()
+        };
+        let a = FrameShadow::new(&camera(), &options, &BOUNDS)
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            Some(a),
+            FrameShadow::new(&other, &options, &BOUNDS).unwrap()
+        );
+        assert_eq!((a.light, a.dim), (-1, SHADOW_DIM as f32));
     }
 }

@@ -3430,12 +3430,18 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `RenderOptions::shadow_map_size: u32` (default `DEFAULT_SHADOW_MAP_SIZE`
   2048, clamped 64..=`MAX_SHADOW_MAP_SIZE` 8192): an orthographic depth map
   over the bounding sphere, 3 × 3 filtered. `RenderOptions::
+  shadow_light: ShadowLight::{FollowsScheme (default), Sun { up: UpAxis }}`
+  — `Sun` is the same above-left light (dim `SHADOW_DIM`) fixed in the
+  model, placed from the iso view about `up`, so shadows stay put as the
+  camera orbits and `FrameShadow` need not be redrawn per frame; none when
+  unlit. `RenderOptions::
   ambient_occlusion: bool` — screen-space, from the finished depth buffer:
   creases and contacts darken, flat surfaces do not; none when unlit.
   Measured on a 188k-triangle building, 1024×768, all cores: 53 ms plain,
   153 ms shadowed, 224 ms both (Artwork); the shadow map is rebuilt every
   frame when lights are in `LightFrame::Camera`. CLI: `3d-render
-  --no-shadows --no-ambient-occlusion --light-sense towards|emitted`.
+  --no-shadows --no-ambient-occlusion --light-sense towards|emitted
+  --shadow-light scheme|sun` (the sun takes `--up`).
 - **Interactive frame rate.** `PreparedModel::new(&model)` (re-exported at
   the crate root) does the camera-independent work once (texture opacity)
   and does not borrow the model; `prepared.render(&model, &camera,

@@ -453,6 +453,7 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) shadows: bool,
     pub(crate) ambient_occlusion: bool,
     pub(crate) light_sense: LightSenseArg,
+    pub(crate) shadow_light: ShadowLightArg,
     pub(crate) threads: usize,
     /// Image positions to report the model point under (`--pick`).
     pub(crate) pick: &'a [[f64; 2]],
@@ -567,6 +568,12 @@ fn render_from_bytes(
             LightSenseArg::Towards => pdfcer_3d::LightSense::TowardsLight,
             LightSenseArg::Emitted => pdfcer_3d::LightSense::Emitted,
         },
+        shadow_light: match a.shadow_light {
+            ShadowLightArg::Scheme => pdfcer_3d::ShadowLight::FollowsScheme,
+            ShadowLightArg::Sun => pdfcer_3d::ShadowLight::Sun {
+                up: a.up.unwrap_or_default().axis(),
+            },
+        },
         threads: a.threads,
         ..RenderOptions::default()
     };
@@ -635,10 +642,15 @@ fn render_from_bytes(
     lighting.print_note();
     println!(
         "note: shadows: {}",
-        if a.shadows {
-            "cast by one light (`--no-shadows` turns them off)"
-        } else {
-            "off"
+        match (a.shadows, a.shadow_light) {
+            (false, _) => "off",
+            (true, ShadowLightArg::Scheme) => {
+                "cast by one of the scheme's lights (`--no-shadows` turns them off)"
+            }
+            (true, ShadowLightArg::Sun) => {
+                "cast by a sun fixed above the model on the `--up` axis \
+                 (`--no-shadows` turns them off)"
+            }
         }
     );
     println!(

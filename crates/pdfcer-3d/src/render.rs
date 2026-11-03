@@ -12,7 +12,9 @@ use crate::frame::Frame;
 use crate::lighting::{LightFrame, LightingScheme, Shader};
 use crate::parallel;
 use crate::raster::{Corner, Paint, Target, View, ViewCorner, at};
-use crate::shadow::{Caster, DEFAULT_SHADOW_MAP_SIZE, LightSense, LightView, ShadowMap};
+use crate::shadow::{
+    Caster, DEFAULT_SHADOW_MAP_SIZE, LightSense, LightView, ShadowLight, ShadowMap,
+};
 use crate::vec3::{cross, dot, length, normalize, scale, sub};
 
 /// The largest image [`render`] draws, in pixels (width × height).
@@ -284,6 +286,9 @@ pub struct RenderOptions {
     pub shadows: bool,
     /// Which way the scheme's light directions point, for shadows.
     pub light_sense: LightSense,
+    /// Where the shadow-casting light is: one of the scheme's lights (the
+    /// default) or a sun fixed in the model.
+    pub shadow_light: ShadowLight,
     /// The shadow map's side, texels ([`DEFAULT_SHADOW_MAP_SIZE`](crate::DEFAULT_SHADOW_MAP_SIZE)), clamped
     /// to 64–[`MAX_SHADOW_MAP_SIZE`](crate::MAX_SHADOW_MAP_SIZE). It spans the model's bounding sphere,
     /// so a texel is the model's diameter / this.
@@ -309,6 +314,7 @@ impl Default for RenderOptions {
             threads: 1,
             shadows: true,
             light_sense: LightSense::TowardsLight,
+            shadow_light: ShadowLight::FollowsScheme,
             shadow_map_size: DEFAULT_SHADOW_MAP_SIZE,
             ambient_occlusion: true,
         }
@@ -443,7 +449,7 @@ pub(crate) fn render_painted(
     let shader = Shader::new(options.lighting.lights(), options.light_frame, &basis);
     let caster = options
         .shadows
-        .then(|| Caster::choose(&shader, options.light_sense, &basis))
+        .then(|| Caster::for_light(options.shadow_light, &shader, options.light_sense, &basis))
         .flatten();
     let bounds = Bounds::of(meshes);
     let workers = parallel::workers(options.threads);

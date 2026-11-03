@@ -491,6 +491,7 @@ pub(crate) fn run() -> ExitCode {
             no_shadows,
             no_ambient_occlusion,
             light_sense,
+            shadow_light,
             threads,
             pick,
         } => cmd_render_3d(&RenderThreeDArgs {
@@ -518,6 +519,7 @@ pub(crate) fn run() -> ExitCode {
             shadows: !no_shadows,
             ambient_occlusion: !no_ambient_occlusion,
             light_sense,
+            shadow_light,
             threads,
             pick: &pick,
         }),
