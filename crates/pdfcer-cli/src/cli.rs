@@ -5484,6 +5484,13 @@ pub(crate) enum Command {
         /// out. The file is not changed.
         #[arg(long, value_enum, default_value_t)]
         widgets_without_ap: crate::viewer_preview::WidgetsWithoutApArg,
+        /// What to draw for a dynamic XFA form, whose stored pages are a
+        /// placeholder: layout draws the page pdfcer computes from the form's
+        /// template and data, as XFA viewers do, and --page counts computed
+        /// pages; shell draws the stored placeholder page. Other files are
+        /// unaffected. The computed page is disclosed on stderr.
+        #[arg(long, value_enum, default_value_t)]
+        dynamic_xfa: crate::xfa_page::DynamicXfaArg,
     },
 
     /// Export page(s) as PNG, JPEG or SVG files — with REAL transparency

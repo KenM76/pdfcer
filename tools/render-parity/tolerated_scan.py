@@ -65,7 +65,7 @@ def probe(rel: str, page: int, scale: float, corpus_root: Path, timeout: float) 
         out = Path(td) / "p.png"
         cmd = [str(rp.CLI), "render-page", str(corpus_root / rel),
                "--page", str(page), "--scale", f"{scale:.6f}",
-               "--no-annotations", "-o", str(out)]
+               "--no-annotations", "--dynamic-xfa", "shell", "-o", str(out)]
         try:
             r = subprocess.run(cmd, capture_output=True, timeout=timeout)
         except subprocess.TimeoutExpired:

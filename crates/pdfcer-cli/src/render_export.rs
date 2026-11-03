@@ -440,6 +440,7 @@ pub(crate) fn cmd_render_page(
     omit_annotations: &[usize],
     invisible_text: Option<pdfcer_render::InvisibleTextPaint>,
     preview: crate::viewer_preview::ViewerPreview,
+    dynamic_xfa: crate::xfa_page::DynamicXfaArg,
 ) -> u8 {
     // Build the font environment from any `--font-dir` BEFORE loading the
     // document: the walk is pure shell-side I/O (R61), and a bad font dir
@@ -457,6 +458,15 @@ pub(crate) fn cmd_render_page(
             return exit_code_for_doc(&err);
         }
     };
+    if crate::xfa_page::wants_layout(&doc, dynamic_xfa) {
+        if region.is_some() {
+            eprintln!(
+                "pdfcer: --region applies to stored pages; this is a dynamic XFA form, so add --dynamic-xfa shell"
+            );
+            return exit::RUNTIME_ERROR;
+        }
+        return crate::xfa_page::render_dynamic_page(&doc, input, page_number, scale, output);
+    }
 
     let pages = match pdfcer_core::page_tree::pages(&doc) {
         Ok(pages) => pages,

@@ -318,7 +318,7 @@ pub(crate) fn write_xfa_pngs(
     Ok(())
 }
 
-fn note_label(k: PaintNoteKind) -> &'static str {
+pub(crate) fn note_label(k: PaintNoteKind) -> &'static str {
     match k {
         PaintNoteKind::Content => "content-not-drawn",
         PaintNoteKind::Stroke => "stroke-drawn-solid",

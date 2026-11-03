@@ -1237,6 +1237,7 @@ pub(crate) fn run() -> ExitCode {
             markup_without_ap,
             free_text_c,
             widgets_without_ap,
+            dynamic_xfa,
         } => cmd_render_page(
             &input,
             page,
@@ -1261,6 +1262,7 @@ pub(crate) fn run() -> ExitCode {
             ViewerPreview::from_flags(no_overprint_preview, separation_preview, hide_ink)
                 .with_no_ap(markup_without_ap, widgets_without_ap)
                 .with_free_text_c(free_text_c),
+            dynamic_xfa,
         ),
         Command::ExportImage {
             input,

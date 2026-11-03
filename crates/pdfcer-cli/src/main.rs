@@ -602,6 +602,7 @@ use fields_list::*;
 mod xfa_fill;
 use xfa_fill::*;
 mod xfa_layout;
+mod xfa_page;
 use xfa_layout::*;
 mod xfa_png;
 use xfa_png::*;

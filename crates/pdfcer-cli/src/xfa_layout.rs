@@ -280,7 +280,7 @@ impl XfaMergeFlags {
 }
 
 impl XfaLayoutArgs {
-    fn options(self) -> LayoutOptions {
+    pub(crate) fn options(self) -> LayoutOptions {
         use pdfcer_core::xfa::{
             NegativeCoordinates, NestedOverflow, OddRotate, PageAreaKeep, TableCellHeight,
             TiledSplit,
@@ -372,7 +372,7 @@ pub(crate) fn cmd_xfa_layout(
 
 /// The document's XFA template, less the elements outside the active views
 /// (returned as template paths), with its data merged in.
-fn read_merged(
+pub(crate) fn read_merged(
     doc: &Document,
     args: XfaLayoutArgs,
     flags: &XfaViewFlags,

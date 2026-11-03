@@ -1010,6 +1010,12 @@ with every `warnings` entry.
   `image-not-drawn`, `image-transparency-flattened` and the like. Image
   `href`s resolve through the file's own `XfaImages`, built once per run.
   An image that cannot be written exits 1.
+- **CLI `render-page`.** On a file `form_kind` calls `Dynamic`, `--page N`
+  counts computed pages and draws page N at default merge, layout and paint
+  options, printing `rendered-xfa <in> page N -> <out> WxH; pages= notes=`
+  then `paint-note` lines, with a stderr note that the page is computed.
+  `--dynamic-xfa shell` draws the stored placeholder page instead (the
+  render-parity harness passes it); `--region` requires it.
 
 **Drawing a laid-out XFA page** (`xfa/paint.rs`, decision 204, Pass 647.4
 first cut): `pdfcer_core::xfa::paint_page(&Template, &LayoutPage,

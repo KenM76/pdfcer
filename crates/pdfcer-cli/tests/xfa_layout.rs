@@ -14,7 +14,7 @@ fn pdf(template: Option<&str>) -> Vec<u8> {
 }
 
 /// [`pdf`] with `data` as the `xfa:data` element's content (none when empty).
-fn pdf_with_data(template: Option<&str>, data: &str) -> Vec<u8> {
+pub(crate) fn pdf_with_data(template: Option<&str>, data: &str) -> Vec<u8> {
     let datasets = if data.is_empty() {
         String::new()
     } else {
@@ -76,7 +76,7 @@ fn run(name: &str, bytes: &[u8], extra: &[&str]) -> (u8, String, String) {
 const PAGE: &str = r#"<pageSet><pageArea name="P"><contentArea x="36pt" y="36pt" w="540pt" h="720pt"/></pageArea></pageSet>"#;
 
 /// `a` (500pt) then `b` (200pt, keep next by page) then `c`, flowed.
-fn flowed() -> String {
+pub(crate) fn flowed() -> String {
     format!(
         r#"<subform name="f" layout="tb">{PAGE}<field name="a" w="10pt" h="500pt"/><field name="b" w="10pt" h="200pt"><keep next="pageArea"/></field><field name="c" w="10pt" h="100pt"/></subform>"#
     )

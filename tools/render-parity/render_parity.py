@@ -750,6 +750,8 @@ def render_pdfce(
     cmd = [
         str(CLI), "render-page", str(path),
         "--page", str(page), "--scale", f"{scale:.6f}", "-o", str(out),
+        # pdfium draws a dynamic XFA form's stored placeholder page.
+        "--dynamic-xfa", "shell",
     ]
     if not annots:
         cmd.append("--no-annotations")
