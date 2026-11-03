@@ -650,3 +650,40 @@ fn a_split_draw_shows_its_own_lines_in_each_piece() {
         "{tail}"
     );
 }
+
+fn ui_field(ui: &str) -> String {
+    format!(
+        r#"<field name="f1" x="10pt" y="20pt" w="100pt" h="20pt"><caption placement="top" reserve="5pt"><value><text>C</text></value></caption><ui>{ui}</ui></field>"#
+    )
+}
+
+fn content_noted(notes: &[PaintNote]) -> bool {
+    notes.iter().any(|n| n.kind == PaintNoteKind::Content)
+}
+
+#[test]
+fn a_visible_widget_border_strokes_the_region_below_the_caption() {
+    let ui = "<textEdit><border><edge/></border></textEdit>";
+    let (ops, notes, [x, y, w, _]) = paint(&ui_field(ui), &PaintOptions::new());
+    assert!(
+        ops.contains(&format!("0.5 w 2 J 0 0 0 RG {} S", re(x, y, w, 15.0))),
+        "{ops}"
+    );
+    assert!(!content_noted(&notes), "{notes:?}");
+}
+
+#[test]
+fn a_hidden_widget_border_draws_nothing_and_is_not_disclosed() {
+    let ui = r#"<textEdit><border presence="hidden"><edge/></border></textEdit>"#;
+    let (ops, notes, _) = paint(&ui_field(ui), &PaintOptions::new());
+    assert!(!ops.contains(" S"), "{ops}");
+    assert!(!content_noted(&notes), "{notes:?}");
+}
+
+#[test]
+fn a_default_ui_draw_is_not_disclosed() {
+    let body = r#"<draw name="f1" x="10pt" y="20pt" w="100pt" h="20pt"><ui><defaultUi/></ui><value><text>t</text></value></draw>"#;
+    let (ops, notes, _) = paint(body, &PaintOptions::new());
+    assert!(ops.contains("(t) Tj"), "{ops}");
+    assert!(!content_noted(&notes), "{notes:?}");
+}

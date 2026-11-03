@@ -6,28 +6,30 @@ use crate::fontdata::{Std14, std14_descriptor, std14_styled};
 use crate::linebreak::greedy_pack;
 use crate::vartext::{encode_winansi, text_width};
 
-use super::{FontWeight, LayoutItem, LayoutRect, PaintNoteKind, Painter, XfaNode, inset};
+use super::{FontWeight, LayoutItem, LayoutRect, PaintNoteKind, Painter, Presence, XfaNode, inset};
 
-/// Widgets whose only drawing is the value (p.865, p.784, p.669, p.750).
-const TEXT_WIDGETS: [&str; 5] = [
+/// Widgets whose only drawing is the value and their own border (p.865,
+/// p.784, p.669, p.750). `defaultUi` stands for the value type's widget
+/// (pp.490-491); a non-text value is disclosed by its own check.
+const TEXT_WIDGETS: [&str; 6] = [
     "textEdit",
     "numericEdit",
     "dateTimeEdit",
     "passwordEdit",
     "imageEdit",
+    "defaultUi",
 ];
 
 /// Whether `node` has drawable content this cut does not draw: a visible
-/// caption, non-text value content, or a widget that draws more
-/// than its text.
+/// caption, non-text value content, or a widget that draws more than its
+/// text and border.
 pub(super) fn content_left_out(node: &XfaNode) -> bool {
     let caption = super::caption::left_out(node);
     let value = has_unplain_value(node) && super::shape::value_shape(node).is_none();
     if super::check::is_check_button(node) {
         return caption;
     }
-    let ui = widget(node)
-        .is_some_and(|w| !TEXT_WIDGETS.contains(&w.tag.as_str()) || w.child("border").is_some());
+    let ui = widget(node).is_some_and(|w| !TEXT_WIDGETS.contains(&w.tag.as_str()));
     caption || value || ui
 }
 
@@ -157,6 +159,12 @@ impl Painter<'_> {
     pub(super) fn text(&mut self, item: &LayoutItem, node: &XfaNode) {
         let mut r = self.value_region(item, node);
         if let Some(w) = widget(node) {
+            if let Some(b) = w
+                .child("border")
+                .filter(|b| b.presence() == Presence::Visible)
+            {
+                self.border(item, b, r);
+            }
             r = inset(r, w.child("margin"));
         }
         if let Some(shape) = super::shape::value_shape(node) {
