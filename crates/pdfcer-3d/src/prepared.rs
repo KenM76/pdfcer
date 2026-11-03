@@ -61,13 +61,16 @@ impl PreparedModel {
         options: &RenderOptions,
     ) -> Result<Image, RenderError> {
         let (paints, opaque) = self.paints(model, options);
-        render_finished(
+        let (mut image, mut depth) = render_finished(
             (&model.meshes, &model.lights, &model.finishes),
             &paints,
             &opaque,
             camera,
             options,
-        )
+        )?;
+        let bias = crate::lines::bias(model);
+        crate::lines::draw_wires(model, camera, (&mut image.rgba, &mut depth), options, bias)?;
+        Ok(image)
     }
 
     /// Each mesh's paint, and whether it is opaque (opaque colour and, when

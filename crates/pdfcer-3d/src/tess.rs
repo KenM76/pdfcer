@@ -41,6 +41,33 @@ const WIRE_COUNT_MASK: u32 = 0x0FFF_FFFF;
 const WIRE_IS_CLOSING: u32 = 0x1000_0000;
 const WIRE_IS_CONTINUOUS: u32 = 0x2000_0000;
 
+/// A `TESS_3D_Wire` [WD 7.8.7]: its polylines, each point in the
+/// tessellation's own coordinates, a closing wire ending on a repeat of its
+/// first point and a continuous one already joined to the wire before it.
+#[derive(Debug, Clone, Default, PartialEq)]
+#[non_exhaustive]
+pub struct WireTessellation {
+    /// The polylines; one of fewer than two points draws nothing.
+    pub polylines: Vec<Vec<[f64; 3]>>,
+    /// Each point's 8-bit RGBA colour, parallel to `polylines` (a segment
+    /// colour [WD 7.8.7.2] given to both its points, RGB read opaque), or
+    /// empty when the wire has none or their count does not match.
+    pub colours: Vec<Vec<[u8; 4]>>,
+}
+
+/// `flat` cut into runs as long as each of `wires`, or nothing when the
+/// lengths disagree.
+fn split_like(wires: &[Vec<[f64; 3]>], flat: Vec<[u8; 4]>) -> Vec<Vec<[u8; 4]>> {
+    if flat.len() != wires.iter().map(Vec::len).sum::<usize>() {
+        return Vec::new();
+    }
+    let mut rest = flat.into_iter();
+    wires
+        .iter()
+        .map(|w| rest.by_ref().take(w.len()).collect())
+        .collect()
+}
+
 /// One entry of the tessellation array; a representation item's
 /// `index_tessellation` selects one by position.
 #[derive(Debug, Clone, PartialEq)]
@@ -48,8 +75,8 @@ const WIRE_IS_CONTINUOUS: u32 = 0x2000_0000;
 pub enum Tessellation {
     /// A `TESS_3D` triangle mesh.
     Mesh(TriangleMesh),
-    /// A `TESS_3D_Wire`: polylines.
-    Wire(Vec<Vec<[f64; 3]>>),
+    /// A `TESS_3D_Wire`: polylines and their colours.
+    Wire(WireTessellation),
     /// A `TESS_Markup` (PMI drawing), read past but not decoded.
     Markup,
     /// A `TESS_3D_Compressed` mesh.
@@ -252,13 +279,15 @@ impl Ctx<'_, '_> {
     }
 
     /// `VertexColors` [WD 7.8.7.2], for `count` points; `is_segment_color`
-    /// exists only inside a wire [PRCRS].
-    fn vertex_colors(&mut self, count: usize, in_wire: bool) -> Result<(), PrcError> {
+    /// exists only inside a wire [PRCRS]. One colour per point, a segment
+    /// colour repeated for both of its points.
+    fn vertex_colors(&mut self, count: usize, in_wire: bool) -> Result<Vec<[u8; 4]>, PrcError> {
         let rgba = self.r.bit()?;
         let per_segment = in_wire && self.r.bit()?;
         if self.r.bit()? {
             return Err(PrcError::Unsupported("optimised vertex colours"));
         }
+        let points = count;
         let count = if per_segment { count / 2 } else { count };
         let bytes = if rgba { 4 } else { 3 };
         // The first colour is stored in full; each later one may be just
@@ -270,14 +299,24 @@ impl Ctx<'_, '_> {
         if least > self.r.remaining() {
             return Err(PrcError::Truncated("vertex colours"));
         }
+        let mut out: Vec<[u8; 4]> = Vec::with_capacity(count.min(1 << 16));
+        let mut last = [0, 0, 0, 255];
         for i in 0..count {
             if i == 0 || !self.r.bit()? {
-                for _ in 0..bytes {
-                    self.r.character()?;
+                for c in last.iter_mut().take(bytes) {
+                    *c = self.r.character()?;
                 }
             }
+            out.push(last);
+            if per_segment {
+                out.push(last);
+            }
         }
-        Ok(())
+        // An odd point count leaves the last point to the last segment.
+        if per_segment && count > 0 && out.len() < points {
+            out.push(last);
+        }
+        Ok(out)
     }
 
     /// `FileStructureTessellation` (305) [WD 7.3.7].
@@ -547,7 +586,7 @@ impl Ctx<'_, '_> {
     }
 
     /// `TESS_3D_Wire` (175) after its type code [WD 7.8.7].
-    fn wire(&mut self) -> Result<Vec<Vec<[f64; 3]>>, PrcError> {
+    fn wire(&mut self) -> Result<WireTessellation, PrcError> {
         let pts = points(&self.base_tess_data()?);
         let words = self.uints("wire indices")?;
         let mut wires: Vec<Vec<[f64; 3]>> = Vec::new();
@@ -580,11 +619,16 @@ impl Ctx<'_, '_> {
                 _ => wires.push(wire),
             }
         }
-        if self.r.bit()? {
-            self.vertex_colors(colours, true)?;
-        }
+        let flat = if self.r.bit()? {
+            self.vertex_colors(colours, true)?
+        } else {
+            Vec::new()
+        };
         self.skip_added(TESS_3D_WIRE)?;
-        Ok(wires)
+        Ok(WireTessellation {
+            colours: split_like(&wires, flat),
+            polylines: wires,
+        })
     }
 
     /// `TESS_Markup` (176) after its type code [WD 7.8.8], read past.
@@ -1261,13 +1305,22 @@ pub(crate) mod tests {
             // A second entity: a wrong colour count would desync it.
             wire(&mut b, false);
             let t = decode(&section(2, &b), &Schema::default(), 8137).unwrap();
-            for e in &t {
+            for (i, e) in t.iter().enumerate() {
                 let Tessellation::Wire(w) = e else {
                     panic!("not a wire")
                 };
+                // Two red segments cover four points; the odd fifth takes
+                // the last segment's colour.
+                let red = vec![[255, 0, 0, 255]; 5];
+                let want: Vec<Vec<[u8; 4]>> = if colours && i == 0 {
+                    vec![red]
+                } else {
+                    Vec::new()
+                };
+                assert_eq!(w.colours, want);
                 assert_eq!(
-                    w,
-                    &[vec![
+                    w.polylines,
+                    [vec![
                         [0., 0., 0.],
                         [1., 0., 0.],
                         [1., 1., 0.],
@@ -1294,8 +1347,11 @@ pub(crate) mod tests {
         }
         wire(&mut b, false);
         let t = decode(&section(2, &b), &Schema::default(), 8137).unwrap();
-        assert!(matches!(t[1], Tessellation::Wire(_)));
-        assert_eq!(t[0], t[1]);
+        let (Tessellation::Wire(a), Tessellation::Wire(b)) = (&t[0], &t[1]) else {
+            panic!("not wires")
+        };
+        assert_eq!(a.polylines, b.polylines);
+        assert_eq!(a.colours, [vec![[0, 0, 1, 255]; 5]]);
     }
 
     #[test]
@@ -1325,8 +1381,8 @@ pub(crate) mod tests {
         let Tessellation::Wire(w) = &t[0] else {
             panic!("not a wire")
         };
-        assert_eq!(w.len(), 1);
-        assert_eq!(w[0].len(), 4);
+        assert_eq!(w.polylines.len(), 1);
+        assert_eq!(w.polylines[0].len(), 4);
         assert!(matches!(t[1], Tessellation::Wire(_)));
     }
 
@@ -1345,7 +1401,7 @@ pub(crate) mod tests {
         let Tessellation::Wire(w) = &t[0] else {
             panic!("not a wire")
         };
-        assert_eq!(w[0].len(), 4);
+        assert_eq!(w.polylines[0].len(), 4);
 
         // A first colour cut short still cannot fit.
         let mut b = W::default();
@@ -1770,6 +1826,64 @@ pub(crate) mod tests {
             },
         );
         prc_file(&section(1, &body))
+    }
+
+    /// [`square_prc`] plus a red wire along its diagonal, (0,0,0)–(1,1,0):
+    /// a `TESS_3D_Wire` of two indexed points and one segment colour.
+    fn wired_prc() -> Vec<u8> {
+        let mut body = W::default();
+        tess_3d(
+            &mut body,
+            8137,
+            &Mesh {
+                recalc: false,
+                indices: &[0, 0, 0, 3, 0, 6, 0, 0, 0, 6, 0, 9],
+                faces: &[(0x2, 0, &[2])],
+                textures: 0,
+                uvs: &[],
+            },
+        );
+        square(&mut body, 175);
+        uints(&mut body, &[2, 0, 6]);
+        body.bit(true)
+            .bit(false)
+            .bit(true)
+            .bit(false)
+            .put(0xff0000, 24);
+        prc_file(&section(2, &body))
+    }
+
+    /// `fixtures/synthetic/prc/wired.prc` is [`wired_prc`], and draws its
+    /// wire red over the grey square.
+    #[test]
+    fn the_wired_fixture_is_current_and_its_wire_is_drawn() {
+        let bytes = wired_prc();
+        let f = crate::PrcFile::parse(&bytes).unwrap();
+        let t = f.file_structures[0].tessellations().unwrap();
+        let Tessellation::Wire(w) = &t[1] else {
+            panic!("not a wire")
+        };
+        assert_eq!(w.polylines, [vec![[0., 0., 0.], [1., 1., 0.]]]);
+        assert_eq!(w.colours, [vec![[255, 0, 0, 255]; 2]]);
+        crate::testw::check_fixture("wired.prc", &bytes);
+        let model = crate::assemble(&bytes).unwrap();
+        assert_eq!((model.wires, model.lines.len()), (1, 1));
+        #[cfg(feature = "render")]
+        {
+            let bounds = crate::Bounds::of(&model.meshes).unwrap();
+            let camera =
+                crate::Camera::fit(&bounds, [0., 0., -1.], [0., 1., 0.], false, 1.0).unwrap();
+            let options = crate::RenderOptions {
+                width: 50,
+                height: 50,
+                ..crate::RenderOptions::default()
+            };
+            let image = crate::render_model(&model, &camera, &options).unwrap();
+            let px = |x: usize, y: usize| &image.rgba[(y * 50 + x) * 4..][..4];
+            // The diagonal runs bottom left to top right through the centre.
+            assert!((10..40).all(|x| px(x, 49 - x) == [255, 0, 0, 255]));
+            assert_ne!(px(25, 20), [255, 0, 0, 255]);
+        }
     }
 
     /// A one-file-structure PRC whose tessellation section is `tess`.

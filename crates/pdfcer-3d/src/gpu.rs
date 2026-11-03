@@ -36,6 +36,13 @@ pub struct DrawData {
     /// What to draw, in order: every opaque draw, then every translucent
     /// one, each group in mesh order.
     pub draws: Vec<Draw>,
+    /// Line segments to draw after the faces, two vertices each,
+    /// [`LINE_VERTEX_FLOATS`](crate::LINE_VERTEX_FLOATS) floats per vertex,
+    /// with [`GLSL_ES_300_LINE_VERTEX`](crate::GLSL_ES_300_LINE_VERTEX).
+    pub lines: Vec<f32>,
+    /// Model units every line vertex is moved towards the eye (the line
+    /// shader's `u_bias`), so an edge on a face is not hidden by it.
+    pub line_bias: f32,
 }
 
 /// One mesh's triangles and paint.
@@ -102,6 +109,7 @@ impl PreparedModel {
                 });
             }
         }
+        crate::gpu_lines::add_wires(&mut data, model, options);
         data
     }
 }

@@ -609,6 +609,50 @@ fn a_prc_assembly_renders_both_placed_copies() {
     assert_eq!(px(100, 50), 255, "nothing between the copies");
 }
 
+/// A PRC wire is drawn in its colour, counted as `wires=`, and
+/// `--line-width` widens it.
+#[cfg(feature = "3d")]
+#[test]
+fn a_prc_wire_is_drawn_and_line_width_widens_it() {
+    let input = with_prc("render_wired", "wired.prc");
+    let mut red = Vec::new();
+    for width in ["1", "3"] {
+        let output = input.with_extension(format!("w{width}.png"));
+        let out = run(&[
+            "3d-render",
+            input.to_str().unwrap(),
+            "--index",
+            "2",
+            "--view",
+            "top",
+            "--ortho",
+            "--width",
+            "100",
+            "--height",
+            "100",
+            "--line-width",
+            width,
+            "-o",
+            output.to_str().unwrap(),
+        ]);
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        assert!(stdout.contains(" wires=1 "), "{stdout}");
+        let decoder = png::Decoder::new(std::fs::File::open(&output).unwrap());
+        let mut reader = decoder.read_info().unwrap();
+        let mut buf = vec![0; reader.output_buffer_size()];
+        reader.next_frame(&mut buf).unwrap();
+        red.push(buf.chunks(4).filter(|p| *p == [255, 0, 0, 255]).count());
+    }
+    // The diagonal spans about 90 pixels each way.
+    assert!((80..=100).contains(&red[0]), "{red:?}");
+    assert!(red[1] > 2 * red[0], "{red:?}");
+}
+
 /// A square textured with a 2x2 red/green/blue/white picture draws each
 /// texel, says so, and `--texture-origin top` flips it.
 #[cfg(feature = "3d")]

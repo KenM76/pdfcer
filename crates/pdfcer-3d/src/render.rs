@@ -324,6 +324,10 @@ pub struct RenderOptions {
     /// ([`ShininessScale::Auto`](crate::ShininessScale::Auto)). Only a
     /// mesh with a [`crate::MaterialFinish`] draws highlights.
     pub shininess: crate::ShininessScale,
+    /// Lines' width, pixels (1, the default): a model's wires
+    /// ([`AssembledModel::lines`](crate::AssembledModel::lines)), drawn
+    /// unlit and depth-tested. 0 draws as 1.
+    pub line_width: u32,
 }
 
 impl Default for RenderOptions {
@@ -349,6 +353,7 @@ impl Default for RenderOptions {
             shadow_casters: ShadowCasters::EveryLight,
             shadow_alpha: ShadowAlpha::Transmit,
             shininess: crate::ShininessScale::Auto,
+            line_width: 1,
         }
     }
 }
@@ -465,24 +470,27 @@ pub fn render_coloured(
 /// split into row bands drawn at once, each taking every triangle in the
 /// same order, so the pixels are the same at any thread count.
 pub(crate) fn render_painted(
-    (meshes, model_lights): (&[TriangleMesh], &[crate::ModelLight]),
+    scene: (&[TriangleMesh], &[crate::ModelLight]),
     paints: &[Paint<'_>],
     opaque: &[bool],
     camera: &Camera,
     options: &RenderOptions,
 ) -> Result<Image, RenderError> {
+    let (meshes, model_lights) = scene;
     let model = (meshes, model_lights, &[][..]);
-    render_finished(model, paints, opaque, camera, options)
+    render_finished(model, paints, opaque, camera, options).map(|(image, _)| image)
 }
 
-/// [`render_painted`], each mesh drawn with its `finishes` entry.
+/// [`render_painted`], each mesh drawn with its `finishes` entry, with each
+/// pixel's depth key ([`View::project`]), `NEG_INFINITY` where nothing
+/// opaque was drawn.
 pub(crate) fn render_finished(
     (meshes, model_lights, finishes): crate::gloss::Model<'_>,
     paints: &[Paint<'_>],
     opaque: &[bool],
     camera: &Camera,
     options: &RenderOptions,
-) -> Result<Image, RenderError> {
+) -> Result<(Image, Vec<f64>), RenderError> {
     let (width, height) = (options.width, options.height);
     let pixels = u64::from(width) * u64::from(height);
     if pixels == 0 || pixels > MAX_RENDER_PIXELS {
@@ -540,11 +548,14 @@ pub(crate) fn render_finished(
             workers,
         );
     }
-    Ok(Image {
-        width,
-        height,
-        rgba,
-    })
+    Ok((
+        Image {
+            width,
+            height,
+            rgba,
+        },
+        depth,
+    ))
 }
 
 /// Whether `options` asks for ambient occlusion and the frame is lit.

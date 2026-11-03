@@ -3537,6 +3537,22 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   finish: N mesh(es) drawn with the highlight their material stores …, M
   with the light their material gives off`. CLI: `3d-render
   --shininess-scale auto|exponent|fraction`.
+- **Wires.** `Tessellation::Wire(WireTessellation { polylines: Vec<Vec<[f64;
+  3]>>, colours: Vec<Vec<[u8; 4]>> })` — closing and continuous wires
+  resolved [WD 7.8.7]; `colours` is per point, parallel to `polylines`
+  (a per-segment colour given to both its points), empty when the wire has
+  none. Assembly places each wire as its placement places the meshes:
+  `AssembledModel::lines: Vec<ModelLine>` (`AssembledModel::wires` still
+  counts tessellations). `ModelLine { points, colours, colour:
+  Option<[u8; 4]> (the tree colour), placement: Option<usize> }`;
+  `line.colour_at(i, fallback)` = vertex colour, else tree colour, else
+  `fallback`. The renderer draws them after the faces and ambient
+  occlusion, unlit, depth-tested nearer-or-equal, pulled 0.2% of the
+  meshes' bounding radius towards the eye so an edge lying on a face
+  shows, colour interpolated perspective-correct, as aliased OpenGL lines
+  (`RenderOptions::line_width: u32`, default 1). A wire-only model is still
+  refused (`NoTriangles`). CLI: `3d-render --line-width N` (1–16); the
+  `rendered` line prints `wires=`.
 - **Interactive frame rate.** `PreparedModel::new(&model)` (re-exported at
   the crate root) does the camera-independent work once (texture opacity)
   and does not borrow the model; `prepared.render(&model, &camera,
@@ -3669,6 +3685,15 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     `u_ao`) to the screen. Both bind the main depth as `u_depth` and take
     `size` → `u_ao_size` (ivec2), `orthographic`, `depth_range`,
     `unproject`, `pixels`, `radius` as `u_ao_*`.
+  - Lines: `DrawData::lines: Vec<f32>`, two vertices per segment,
+    `LINE_VERTEX_FLOATS` (18) per vertex — position 3, colour RGBA 4 (0–1),
+    segment midpoint 3, two face normals 3 + 3, kind 1 (0 always drawn), shaded 1;
+    `DrawData::line_bias` → `u_bias`. Draw as `GL_LINES` after the faces
+    (and the AO composite) with `GLSL_ES_300_LINE_VERTEX` /
+    `GLSL_ES_300_LINE_FRAGMENT` (`u_view`, `u_projection`, `u_eye`,
+    `u_forward`, `u_orthographic`, `u_depth_range`, `u_crease_cos` = 1),
+    depth `LEQUAL`, source-alpha blending. `glLineWidth` above 1 is not
+    portable (WebGL clamps it), so `line_width` > 1 is CPU-only.
   - Tested against the CPU path: projection to 1e-5 NDC, and lighting for
     all 12 schemes × both light frames × both projections. Every shader has
     been compiled and run in WebGL 2 (headless Edge, SwiftShader) on a

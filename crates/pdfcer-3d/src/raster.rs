@@ -340,7 +340,7 @@ impl Target<'_> {
 
     /// Write straight-RGBA `rgba` at pixel `i`: replacing it and its depth
     /// when opaque, blended over it otherwise.
-    fn blend(&mut self, i: usize, key: f64, rgba: [u8; 4]) {
+    pub(crate) fn blend(&mut self, i: usize, key: f64, rgba: [u8; 4]) {
         let opaque = rgba[3] == 255;
         if opaque && let Some(d) = self.depth.get_mut(i) {
             *d = key;

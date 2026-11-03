@@ -22,8 +22,10 @@ pub struct AssembledModel {
     /// material's diffuse alpha of 0.0 as unset; ISO 14739-1 read
     /// literally draws them invisible.
     pub alpha_unset: usize,
-    /// Wire tessellations, not drawn.
+    /// Wire tessellations; each placed copy draws as [`Self::lines`].
     pub wires: usize,
+    /// The wires' polylines, placed as the meshes are.
+    pub lines: Vec<crate::ModelLine>,
     /// Markup tessellations, not drawn.
     pub markups: usize,
     /// Compressed tessellations rebuilt into triangles.
@@ -264,7 +266,7 @@ pub fn assemble_with_options(
     let mut model = AssembledModel::default();
     let mut flagged = Flagged::default();
     let by_index = decode_meshes(&prc, options.mesh_fit, &mut model, &mut flagged)?;
-    place(&prc, by_index, options, &mut model);
+    place(&prc, (by_index, &flagged.wires), options, &mut model);
     model.left_out_parts = part_labels(&prc, &flagged.left_out);
     model.best_fit_parts = part_labels(&prc, &flagged.best_fit);
     model.partial_parts = part_labels(&prc, &flagged.partial);
@@ -299,8 +301,9 @@ fn decode_meshes(
         for (i, t) in tess.into_iter().enumerate() {
             row.push(match t {
                 Tessellation::Mesh(m) => Some(m),
-                Tessellation::Wire(_) => {
+                Tessellation::Wire(w) => {
                     model.wires += 1;
+                    flagged.wires.push(((f, i), w));
                     None
                 }
                 Tessellation::Compressed {
@@ -365,12 +368,14 @@ fn count_why(tally: &mut Vec<(String, usize)>, why: String) {
 }
 
 /// Compressed tessellations, as (file structure, tessellation) indices,
-/// that [`decode_meshes`] left out, rebuilt by best fit or drew in part.
+/// that [`decode_meshes`] left out, rebuilt by best fit or drew in part,
+/// and the wires it found.
 #[derive(Default)]
 struct Flagged {
     left_out: Vec<(usize, usize)>,
     best_fit: Vec<(usize, usize)>,
     partial: Vec<(usize, usize)>,
+    wires: crate::wire::Wires,
 }
 
 /// The labels of the parts whose placements draw one of `tess`: for each
@@ -417,7 +422,7 @@ pub(crate) fn part_labels(prc: &PrcFile, tess: &[(usize, usize)]) -> Vec<String>
 }
 
 /// A 0-1 colour as 8-bit straight RGBA.
-fn to_rgba8(c: [f64; 4]) -> [u8; 4] {
+pub(crate) fn to_rgba8(c: [f64; 4]) -> [u8; 4] {
     c.map(|v| (v.clamp(0.0, 1.0) * 255.0).round() as u8)
 }
 
@@ -432,7 +437,7 @@ type Look = (
 /// Place each mesh where the assembly tree draws it, split by face look.
 fn place(
     prc: &PrcFile,
-    by_index: Vec<Vec<Option<TriangleMesh>>>,
+    (by_index, wires): (Vec<Vec<Option<TriangleMesh>>>, &crate::wire::Wires),
     options: &AssembleOptions,
     model: &mut AssembledModel,
 ) {
@@ -456,6 +461,7 @@ fn place(
             model.view_lights = views;
             let mut textures = Textures::default();
             for (k, p) in placements.iter().enumerate() {
+                crate::wire::place(p, k, wires, model);
                 let mesh = by_index
                     .get(p.file_structure)
                     .and_then(|row| row.get(p.tessellation))
@@ -484,6 +490,8 @@ fn place(
         model.mesh_textures.clear();
         model.finishes.clear();
         model.mesh_placements.clear();
+        model.lines.clear();
+        crate::wire::unplaced(wires, model);
     }
     model.textured = model.mesh_textures.iter().flatten().count();
 }
@@ -812,7 +820,12 @@ mod tests {
             mesh.triangles.extend_from_within(..);
             mesh.faces = vec![0..n, n..2 * n];
         }
-        place(&prc, by_index, &AssembleOptions::default(), &mut model);
+        place(
+            &prc,
+            (by_index, &Vec::new()),
+            &AssembleOptions::default(),
+            &mut model,
+        );
         assert_eq!(model.mesh_placements, [0, 1, 1]);
         assert_eq!(model.meshes.len(), 3);
         assert_ne!(model.colours[1], model.colours[2]);

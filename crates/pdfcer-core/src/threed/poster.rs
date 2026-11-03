@@ -36,8 +36,8 @@ pub struct RenderedPoster {
     pub meshes: usize,
     /// Triangles drawn.
     pub triangles: usize,
-    /// Wire tessellations not drawn.
-    pub wires_skipped: usize,
+    /// Wire tessellations, drawn as one-pixel lines in their colours.
+    pub wires: usize,
     /// Markup tessellations not drawn.
     pub markups_skipped: usize,
     /// Compressed meshes rebuilt by pdfcer's reconstruction and drawn.
@@ -169,7 +169,7 @@ fn render(
             height: image.height,
             meshes: model.meshes.len(),
             triangles: model.triangles,
-            wires_skipped: model.wires,
+            wires: model.wires,
             markups_skipped: model.markups,
             compressed_rebuilt: model.rebuilt,
             compressed_best_fit: model.best_fit,

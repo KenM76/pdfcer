@@ -460,6 +460,7 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) shadows: bool,
     pub(crate) lamp_shadows: bool,
     pub(crate) lamp_shadow_map_size: u32,
+    pub(crate) line_width: u32,
     pub(crate) shadow_map_size: u32,
     pub(crate) ambient_occlusion: bool,
     pub(crate) artwork_headlight: bool,
@@ -616,6 +617,7 @@ fn render_from_bytes(
         shadows: a.shadows,
         lamp_shadows: a.lamp_shadows,
         lamp_shadow_map_size: a.lamp_shadow_map_size,
+        line_width: a.line_width,
         shadow_map_size: a.shadow_map_size,
         ambient_occlusion: a.ambient_occlusion,
         light_sense: match a.light_sense {
@@ -670,7 +672,7 @@ fn render_from_bytes(
     }
     let fmt3 = |p: [f64; 3]| p.map(|c| format!("{c:.6}")).join(",");
     println!(
-        "rendered index={} meshes={} triangles={} wires_skipped={} markup_skipped={} \
+        "rendered index={} meshes={} triangles={} wires={} markup_skipped={} \
          compressed_skipped={} width={} height={} projection={} eye={} target={} -> {}",
         a.index,
         model.meshes.len(),

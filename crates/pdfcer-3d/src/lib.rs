@@ -55,6 +55,8 @@ mod gpu_frame;
 #[cfg(feature = "render")]
 mod gpu_lamp_shadow;
 #[cfg(feature = "render")]
+mod gpu_lines;
+#[cfg(feature = "render")]
 mod gpu_shader;
 #[cfg(feature = "render")]
 mod gpu_shadow;
@@ -64,6 +66,8 @@ mod gpu_shadow_set;
 mod lamp_shadow;
 #[cfg(feature = "render")]
 mod lighting;
+#[cfg(feature = "render")]
+mod lines;
 mod model;
 mod model_light;
 #[cfg(feature = "render")]
@@ -98,6 +102,7 @@ mod tree;
 // Some helpers serve only the rasterizer.
 #[cfg_attr(not(feature = "render"), allow(dead_code))]
 mod vec3;
+mod wire;
 mod write;
 
 pub use compressed::PartialMesh;
@@ -127,6 +132,8 @@ pub use gpu_frame::{FrameLights, MAX_LIGHTS, ShadeMode};
 pub use gpu_lamp_shadow::{
     FrameLampShadows, GLSL_ES_300_LAMP_SHADOW_FRAGMENT, GLSL_ES_300_LAMP_SHADOW_VERTEX,
 };
+#[cfg(feature = "render")]
+pub use gpu_lines::{GLSL_ES_300_LINE_FRAGMENT, GLSL_ES_300_LINE_VERTEX, LINE_VERTEX_FLOATS};
 #[cfg(feature = "render")]
 pub use gpu_shader::{GLSL_ES_300_FRAGMENT, GLSL_ES_300_VERTEX};
 #[cfg(feature = "render")]
@@ -165,12 +172,13 @@ pub use schema::Schema;
 pub use shadow::{DEFAULT_SHADOW_MAP_SIZE, LightSense, MAX_SHADOW_MAP_SIZE, ShadowLight};
 #[cfg(feature = "render")]
 pub use shadow_cast::{DEFAULT_SHADOW_CUTOFF, ShadowAlpha, ShadowCasters};
-pub use tess::{Tessellation, TriangleMesh};
+pub use tess::{Tessellation, TriangleMesh, WireTessellation};
 pub use texture::{MAX_TEXTURE_PIXELS, Texture, TextureFunction, TextureOrigin, TextureWrap};
 pub use tree::{
     EntityOverrides, IDENTITY, Matrix, ModelNode, NameSource, PictureFiles, Placement, StyleAlpha,
     WrapBase, multiply, transform_point,
 };
+pub use wire::ModelLine;
 pub use write::{
     MAX_DEPTH, MeshScene, PrcWriteError, PrcWriteReport, SceneMaterial, SceneMesh, SceneNode,
     ScenePrimitive, SceneTexture, write_prc,

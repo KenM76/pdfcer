@@ -3323,6 +3323,11 @@ pub(crate) enum Command {
         /// 4096 (default 512); larger is sharper and slower.
         #[arg(long, default_value_t = 512, value_parser = clap::value_parser!(u32).range(64..=4096))]
         lamp_shadow_map_size: u32,
+        /// Width in pixels, 1 to 16 (default 1), of the lines drawn: a PRC
+        /// model's wires, unlit in their own colours and hidden behind
+        /// nearer surfaces.
+        #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..=16))]
+        line_width: u32,
         /// Draw without ambient occlusion. By default creases, corners and
         /// contacts are darkened by how much nearby surface rises around
         /// them, read from the depth of the finished picture; an unlit
