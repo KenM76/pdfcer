@@ -169,8 +169,8 @@ pub(super) struct Style {
     pub(super) font: Std14,
     pub(super) size: f64,
     rgb: [f64; 3],
-    h_align: f64,
-    v_align: f64,
+    pub(super) h_align: f64,
+    pub(super) v_align: f64,
 }
 
 impl Painter<'_> {
@@ -191,6 +191,9 @@ impl Painter<'_> {
                 .filter(|b| b.presence() == Presence::Visible)
             {
                 self.border(item, b, r);
+            }
+            if self.comb(item, node, w, r) {
+                return;
             }
             r = inset(r, w.child("margin"));
             match w.tag.as_str() {

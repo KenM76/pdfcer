@@ -1110,7 +1110,12 @@ kind.
     A plain value's `para` margins and spacing apply; a non-zero
     `textIndent` is not drawn and notes `Text`.
   - `Text`: text approximated: an unencodable character, a word wider than
-    the region, overflow, or justify/radix alignment drawn left.
+    the region, overflow, justify/radix alignment drawn left, or a comb
+    value with more characters than cells. A `comb` (in `textEdit`,
+    `numericEdit`, `dateTimeEdit`) draws `numberOfCells` (else the value's
+    `maxChars`, else 1) equal cells across the widget's border box, one
+    character centred per cell (a combining mark shares its base's cell),
+    tines in the border's bottom edge (gap G-W17).
   - `Stroke`: an edge `stroke` value XFA does not name, drawn solid.
   - `Shape`: a `line` `slope`, an `arc` angle or an edge `cap` XFA does not
     name or that is not a number; its default was used.

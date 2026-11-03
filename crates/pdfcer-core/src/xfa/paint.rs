@@ -63,7 +63,8 @@ pub enum PaintNoteKind {
     Font,
     /// Text drawn approximately: a character outside `WinAnsiEncoding` shown
     /// as `?`, a word wider than its region, `justify`/`radix` alignment
-    /// drawn left, or lines taller than the region (clipped).
+    /// drawn left, lines taller than the region (clipped), or a comb
+    /// value with more characters than cells (the rest not drawn).
     Text,
     /// An `image` not drawn: its `href` names nothing in the file's
     /// `XFAImages` tree (it is never followed outside the file) and it has
@@ -476,6 +477,7 @@ mod bevel;
 mod caption;
 mod check;
 mod choice;
+mod comb;
 mod corner;
 mod dash;
 mod image;

@@ -65,3 +65,24 @@ fn a_barcode_value_is_shown_as_text_and_disclosed() {
     assert!(ops.contains("(A1) Tj"), "{ops}");
     assert_eq!(kinds(&notes), [PaintNoteKind::Barcode]);
 }
+
+#[test]
+fn a_comb_puts_one_character_per_cell_between_tines() {
+    let f = r#"<field name="c" w="40pt" h="20pt"><ui><textEdit><border hand="right"><edge thickness="1pt"/><edge/><edge thickness="2pt"><color value="255,0,0"/></edge></border><comb numberOfCells="4"/></textEdit></ui><value><text>abe&#x301;</text></value></field>"#;
+    let (ops, notes) = painted(f, &PaintOptions::new());
+    assert_eq!(ops.matches(" Tj").count(), 3, "{ops}");
+    assert!(ops.contains("2 w") && ops.contains("1 0 0 RG"), "{ops}");
+    assert_eq!(
+        ops.matches(" l").count(),
+        3 + 4,
+        "three tines and four edges: {ops}"
+    );
+    assert!(
+        kinds(&notes).contains(&PaintNoteKind::Text),
+        "a combining mark is not in WinAnsiEncoding: {notes:?}"
+    );
+    let f = r#"<field name="c" w="40pt" h="20pt"><ui><textEdit><comb/></textEdit></ui><value><text maxChars="2">abc</text></value></field>"#;
+    let (ops, notes) = painted(f, &PaintOptions::new());
+    assert_eq!(ops.matches(" Tj").count(), 2, "{ops}");
+    assert_eq!(kinds(&notes), [PaintNoteKind::Text]);
+}
