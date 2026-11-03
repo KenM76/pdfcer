@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1387th filing) — `Pass 647.4` strokes `edfeeb9a`, image size `3e29f183`, tiled root `f67b51c5` (NOT complete)
+
+**Filed (docs only; engineer-reported, no shell here; nothing checked from here):**
+- **`edfeeb9a`:** 3-D edges on rounded borders and arcs draw as a two-tone bevel (`ThreeDStroke::Bevel`), still noted `StrokeApproximated`; line draws stay plain. 2 tests in `paint/shape_tests.rs`. Closes the non-solid strokes remainder.
+- **`3e29f183`:** growable image containers laid at natural size (own DPI, else `image_dpi` 72); `layout_template_with_images`, `LayoutOptions::with_image_dpi`; CLI `--image-dpi` governs layout. 3 core + 1 CLI test. Closes image natural sizing and `X017`'s pending item.
+- **`f67b51c5`:** a `lr-tb`/`rl-tb` root splits per `TiledSplit` (default `Split`; p.280, Example 8.7). Closes `G-L50` into the existing setting. 2 core tests.
+- All core + cli `[x]`, gui `[ ]`. No dependency change. ROADMAP: three Shipped entries; `647.4` heading updated. FEATURES: image-size row ticked; umbrella, image-values and check-button rows edited.
+
+**Decisions made this session:** none minted.
+
+**Still open under `647.4`:** real fonts; barcode encoders; `647.3f` (next); `647.5`; `647.6`.
+
+**Hard-rule-11 survivors:** `docs/NEXT_SESSION.md` and CLI help beyond `--tiled-split` not swept from here, owed to the engineer. Backup currency not verifiable from here.
+
 ## 2026-11-03 (1386th filing) — `Pass 647.4` fills `4a5400ea`, bindItems `d7e74226` (NOT complete)
 
 **Filed (docs only; engineer-reported, no shell here; nothing checked from here):**

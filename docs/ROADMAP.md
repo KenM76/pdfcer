@@ -112,6 +112,30 @@ wherever it appears.*
 
 ## Shipped
 
+### `f67b51c5` `Pass 647.4` TILED-ROOT CUT, 2026-11-03: a tiled XFA root splits per TiledSplit, closes G-L50 (1387th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `f67b51c5922062aad4c0ab71061a13f165a27a9e` "feat(xfa): a tiled root splits per TiledSplit (Pass 647.4, G-L50)". Local `main`, **unpushed, unreleased**. **`Pass 647.4` is NOT complete.** No new decision.
+- **Done:** a root subform laid out `lr-tb`/`rl-tb` now lets a top-level instance split across content areas under the default `TiledSplit::Split`. Spec support: p.280 exempts the root; Example 8.7 splits under an lr-tb root. `TiledSplit::TbOnly` keeps the literal p.281 reading.
+- **Gap `G-L50`** resolved into the existing `TiledSplit` setting; no new setting. CLI `--tiled-split` help now mentions the root.
+- **Tests (engineer-reported):** 2 core in `layout/tests/tiled.rs`.
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]`.
+
+### `3e29f183` `Pass 647.4` IMAGE-SIZE CUT, 2026-11-03: growable XFA image containers laid at natural size (1387th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `3e29f1835fbdcdfe6e4271fe5c8eaa4fe563af69` "feat(xfa): lay growable image containers at the image's natural size (Pass 647.4)". Local `main`, **unpushed, unreleased**. **`Pass 647.4` is NOT complete.**
+- **Done:** layout measures an image draw or field at its natural size (pixels at its own DPI, else fallback `image_dpi`, default 72), plus margins and caption. A declared w/h still wins. Closes "image natural sizing" and request `X017`'s pending item.
+- **Core API:** `layout_template_with_images(template, opts, &XfaImages)`; `LayoutOptions::with_image_dpi`.
+- **CLI:** `xfa-layout --image-dpi` now also governs layout.
+- **Tests (engineer-reported):** 3 core in `paint/image/layout_tests.rs`; CLI `an_image_draw_is_laid_at_its_natural_size_under_image_dpi`.
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]`.
+
+### `edfeeb9a` `Pass 647.4` STROKES CUT, 2026-11-03: two-tone 3-D strokes on rounded XFA borders and arcs (1387th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `edfeeb9a64b21315629607734f637a00dcb1d1da` "feat(xfa): two-tone 3-D strokes on rounded borders and arcs (Pass 647.4)". Local `main`, **unpushed, unreleased**. **`Pass 647.4` is NOT complete.**
+- **Done:** a lowered/raised/etched/embossed edge on a rounded-corner border or an arc draw now draws as a two-tone bevel (`ThreeDStroke::Bevel`), clipped along the box diagonal. Still disclosed as `StrokeApproximated`: the PDFium witness covers only square boxes and round check buttons. A line draw stays plain, as does a later 3-D edge on a box whose first edge is flat. Closes the "non-solid strokes remainder" item.
+- **Tests (engineer-reported):** 2 in `paint/shape_tests.rs`. Core only; `docs/core-api/03-capabilities.md` updated in the commit.
+- **Boxes:** core `[x]`, cli `[x]` (drawn by the existing `xfa-layout --png-dir` path), gui `[ ]`.
+
 ### `d7e74226` `Pass 647.4` BINDITEMS CUT, 2026-11-03: XFA bindItems fill choice lists from data (1386th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Commit `d7e74226` "feat(xfa): bindItems fill choice lists from data (Pass 647.4)". Local `main`, **unpushed, unreleased**. **`Pass 647.4` is NOT complete.** Gaps `G-BI1`, `G-BI4`, `G-BI5`, `G-BI6`. Reasoning is in the commit message.
@@ -27467,7 +27491,7 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 
 Filed from the `647.3e` close; nothing built. `647.3e` (`53f4e938`) creates instances only for named by-name subforms with `occur`. Not yet built: (1) instances for subforms bound with `bind match="dataRef"`; (2) instances for `subformSet`. Same spec (XFA 3.3 pp.339-347, `adobe_ext__xfa_data_binding_normal.md`), same `MergeWarningKind::{ExcessData, InstanceLimit}`, same guard. Acceptance to be written when scoped; synthetic only. Request `G248` items 2-3 are answered for the by-name case only. FEATURES: Planned row added (all three boxes `[ ]`).
 
-### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing), RICH-TEXT CUT `7450b595` (1380th filing, see *Shipped*), BORDER CUT `a5e17baf` (1381st filing, see *Shipped*), CHECK-BOX CUT `89dc9fbe` and WIDGET CUT `cf7960b2` (1383rd filing, see *Shipped*), ROUNDING CUT `a49eb8c7` (1384th filing, see *Shipped*), COMB CUT `c0af6aea`, INLINE-CAPTION CUT `7a7d682e` and VIEWS CUT `7eb052d8` (1385th filing, see *Shipped*), FILLS CUT `4a5400ea` and BINDITEMS CUT `d7e74226` (1386th filing, see *Shipped*); NOT COMPLETE, stays here. REMAINING as of the 1386th filing: real fonts (font substitution notes); non-solid strokes remainder; image natural sizing; barcode encoders; `G-L50`; `647.3f`; `647.5` (render-page draws dynamic XFA); `647.6` (materialize verb))
+### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing), RICH-TEXT CUT `7450b595` (1380th filing, see *Shipped*), BORDER CUT `a5e17baf` (1381st filing, see *Shipped*), CHECK-BOX CUT `89dc9fbe` and WIDGET CUT `cf7960b2` (1383rd filing, see *Shipped*), ROUNDING CUT `a49eb8c7` (1384th filing, see *Shipped*), COMB CUT `c0af6aea`, INLINE-CAPTION CUT `7a7d682e` and VIEWS CUT `7eb052d8` (1385th filing, see *Shipped*), FILLS CUT `4a5400ea` and BINDITEMS CUT `d7e74226` (1386th filing, see *Shipped*), STROKES CUT `edfeeb9a`, IMAGE-SIZE CUT `3e29f183` and TILED-ROOT CUT `f67b51c5` (1387th filing, see *Shipped*); NOT COMPLETE, stays here. REMAINING as of the 1387th filing: real fonts; barcode encoders; `647.3f` (in progress next); `647.5` (render-page draws dynamic XFA); `647.6` (materialize verb))
 
 `pdfcer-render` draws the computed layout instead of the placeholder page (render-time only, like decision 203). Inferred content renders exactly as saved content would (rule 4: no on-canvas marking); disclosure is off-canvas diagnostics. Needs `pdfcer-render` to stay GUI-free (`cargo tree` check).
 
