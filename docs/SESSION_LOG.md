@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1397th filing) — `Pass 658.7` (`ef0f64e8`): wide lines on the GPU
+
+**Filed (engineer-reported, measured; no shell here, git state not checked from here; docs only, nothing committed by me):**
+- **`Pass 658.7`** (new, minted): `GLSL_ES_300_WIDE_LINE_VERTEX` and `DrawData::line_width` in `pdfcer-3d`; wires of any width draw on the GPU as instanced quads. WebGL 2 vs CPU, 15 modes + 2 wires, widths 1/2/3/5: mean <= 0.115 levels, <= 0.07% of pixels over 8 levels; sabotage 8.15% / 2.73%. Tests `pdfcer-3d` 339 + 3 + 25. Full detail in the ROADMAP entry and the commit.
+- **Boxes:** core `[x]`, cli `[ ]` unchanged, gui `[ ]` owed to `pdfcer-gui`. FEATURES row (3D wire tessellations / 15 render modes) amended.
+- **Closed gap:** "`line_width` > 1 is CPU-only" (Pass 658.6 entry and its Next-up note) marked closed with a pointer, text kept.
+- **Correction:** `Pass 658.4` entry "PRC, U3D and glTF" became "PRC and glTF" (U3D has no reader yet). The 1395th filing's line above carries the same phrase in its `Pass 658.4` summary ("PRC/U3D/glTF"); append-only, left as filed.
+- **Not done / owed:** `check-commits-filed.py` before the push; cargo-fuzz still unrun for `658.6`. Backup currency not verifiable from here.
+
 ## 2026-11-03 (1396th filing) — `v0.120.0` release PREP (`f0599138`), `657f579a` shadow-wording follow-up
 
 **Filed (engineer-reported, no shell here; nothing checked from here; docs only, nothing committed by me; both commits on local `main`):**
