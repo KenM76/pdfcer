@@ -3,6 +3,8 @@
 //! processor's choice; where a style cannot be honoured all the text is
 //! still shown (Ch.5 p.222; slice `adobe_ext__xfa_rich_text.md` §6).
 
+use std::cell::Cell;
+
 use super::rich::{Base, Para, Piece, Rich, RunStyle, read, rich_value};
 use super::text::{metrics, plain_text};
 use super::{FontWeight, LayoutItem, LayoutRect, PaintNoteKind, Painter, XfaNode};
@@ -373,11 +375,20 @@ pub(in crate::xfa) fn rich_extent(
 
 /// The plain value of the node in `root` whose `id` is `key` (a leading
 /// `#` ignored): what a floating field shows (Ch.5 p.219).
-fn floating(root: &XfaNode, key: &str) -> Option<String> {
+fn floating(
+    root: &XfaNode,
+    key: &str,
+    page: (usize, usize),
+    scripted: &Cell<bool>,
+) -> Option<String> {
     let key = key.trim().trim_start_matches('#');
     let mut stack = vec![root];
     while let Some(n) = stack.pop() {
         if n.attr("id") == Some(key) {
+            if let Some(v) = super::page_script::value(n, page.0, page.1) {
+                scripted.set(true);
+                return Some(v);
+            }
             return Some(plain_text(n).unwrap_or_default().to_owned());
         }
         stack.extend(n.children.iter());
@@ -400,8 +411,12 @@ impl Painter<'_> {
             None => [0.0; 3],
         };
         let base = base(font, para, self.opts.font_weight, rgb);
-        let root = self.root;
-        Some(read(ex, &base, &|key| floating(root, key)))
+        let (root, page, scripted) = (self.root, self.page, Cell::new(false));
+        let rich = read(ex, &base, &|key| floating(root, key, page, &scripted));
+        if scripted.get() {
+            self.note(item, PaintNoteKind::Script);
+        }
+        Some(rich)
     }
 
     /// Draw `holder`'s rich value in `r`; `false` when it has none.

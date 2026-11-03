@@ -631,3 +631,14 @@ fn an_lr_tb_subform_splits_unless_tiled_split_says_tb_only() {
     let (_, stdout, _) = run("tiled-tb", &pdf(Some(&t)), &["--tiled-split", "tb-only"]);
     assert_eq!(page_of(&stdout, "a").as_deref(), Some("page=1"), "{stdout}");
 }
+
+#[test]
+fn check_edge_reaches_the_painter_and_a_page_script_is_disclosed() {
+    let t = format!(
+        r##"<subform name="f">{PAGE}<field name="c" x="10pt" y="10pt" w="40pt" h="12pt"><ui><checkButton><border><fill/></border></checkButton></ui></field><draw name="d" x="10pt" y="40pt" w="100pt" h="12pt"><value><exData contentType="text/html"><body xmlns="http://www.w3.org/1999/xhtml"><p>Page <span embed="#n" embedType="uri"/></p></body></exData></value></draw><field name="n" id="n" presence="hidden" x="0pt" y="0pt" w="1pt" h="1pt"><event activity="ready" ref="$layout"><script>$ = xfa.layout.page($)</script></event></field></subform>"##
+    );
+    let (plain, stdout) = image_run(&t, "edge", &[]);
+    assert!(stdout.contains("kind=page-script-recognised"), "{stdout}");
+    let (spec, _) = image_run(&t, "edge-spec", &["--check-edge", "spec"]);
+    assert_ne!(plain, spec, "spec leaves the box unstroked");
+}

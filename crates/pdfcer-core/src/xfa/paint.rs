@@ -130,6 +130,19 @@ pub enum CheckCaption {
     Remainder,
 }
 
+/// The outline of a square check box whose ui `border` has no `edge`
+/// (gap G-CB4: p.38 strokes no edge; viewers draw the box).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum CheckEdge {
+    /// The default edge (0.5pt black solid), as a round button draws and
+    /// viewers draw a square one.
+    #[default]
+    Plain,
+    /// None: the border is only filled (p.38).
+    Spec,
+}
+
 /// The settings [`paint_page`] draws with.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
@@ -153,6 +166,8 @@ pub struct PaintOptions {
     pub three_d_stroke: ThreeDStroke,
     /// Gap G-CB14.
     pub check_caption: CheckCaption,
+    /// Gap G-CB4, square box outline.
+    pub check_edge: CheckEdge,
     /// Gap G-D5.
     pub dash_lengths: DashLengths,
     /// The cap a dashed edge is drawn with.
@@ -177,6 +192,7 @@ impl PaintOptions {
             image_dpi: 72,
             three_d_stroke: ThreeDStroke::Bevel,
             check_caption: CheckCaption::Fit,
+            check_edge: CheckEdge::Plain,
             dash_lengths: DashLengths::Scaled,
             dash_caps: DashCaps::Projecting,
             arc_circle: ArcCircle::Diameter,
@@ -237,6 +253,13 @@ impl PaintOptions {
     #[must_use]
     pub const fn with_three_d_stroke(mut self, three_d_stroke: ThreeDStroke) -> Self {
         self.three_d_stroke = three_d_stroke;
+        self
+    }
+
+    /// With `check_edge`.
+    #[must_use]
+    pub const fn with_check_edge(mut self, check_edge: CheckEdge) -> Self {
+        self.check_edge = check_edge;
         self
     }
 
@@ -322,6 +345,10 @@ pub enum PaintNoteKind {
     /// per [`LayoutOptions::odd_rotate`](super::LayoutOptions::odd_rotate)
     /// or ignored.
     Rotate,
+    /// A value shown from a recognised page-number script (`xfa.layout`
+    /// page or count assigned on the `$layout` `ready` event), which is
+    /// not run.
+    Script,
 }
 
 /// One disclosure from [`paint_page`].
@@ -375,6 +402,7 @@ pub fn paint_page_with_images(
         opts: *opts,
         fonts: Vec::new(),
         dashed: false,
+        page: (page.number, page.count),
     };
     let (back, fore): (Vec<_>, Vec<_>) = page.items.iter().partition(|i| i.background);
     for item in back.into_iter().chain(fore) {
@@ -416,6 +444,8 @@ struct Painter<'i> {
     fonts: Vec<Std14>,
     /// Whether the graphics state holds a dash pattern.
     dashed: bool,
+    /// The page's number and the layout's page count.
+    page: (usize, usize),
 }
 
 /// One side of a border, resolved.
@@ -702,6 +732,7 @@ mod check;
 mod corner;
 mod dash;
 mod image;
+mod page_script;
 mod rich;
 mod rich_set;
 mod shape;

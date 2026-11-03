@@ -170,3 +170,14 @@ fn a_negative_reserve_fits_the_caption_or_leaves_only_the_box() {
     assert!((start(&rest) - right).abs() < 0.01, "{rest}");
     assert!(start(&fit) < right - 1.0, "{fit}");
 }
+
+#[test]
+fn an_edgeless_square_box_is_outlined_unless_the_spec_reading_is_asked() {
+    let body = r#"<field name="c" x="10pt" y="20pt" w="40pt" h="12pt"><ui><checkButton mark="check"><border><fill><color value="255,255,255"/></fill></border></checkButton></ui></field>"#;
+    let (plain, notes) = painted(body, &PaintOptions::new());
+    assert!(notes.is_empty(), "{notes:?}");
+    assert!(plain.contains("re f") && plain.contains(" re S"), "{plain}");
+    let opts = PaintOptions::new().with_check_edge(CheckEdge::Spec);
+    let (spec, _) = painted(body, &opts);
+    assert!(spec.contains("re f") && !spec.contains(" S"), "{spec}");
+}

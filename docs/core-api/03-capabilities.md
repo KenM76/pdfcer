@@ -789,6 +789,7 @@ with every `warnings` entry.
   - `content_areas: Vec<LayoutRect>`.
   - `items: Vec<LayoutItem>`, background first and then in document order,
     parent before child.
+  - `number` (1-based) and `count`: this page's place in the layout.
 - **`LayoutItem`.** `kind`, `name`, `path`, and `rect` (points, page top-left
   origin, y down). `background` is true for direct `pageArea` content.
   `visible` is false for `presence="invisible"`. `content_area` indexes the
@@ -1035,6 +1036,10 @@ kind.
     absent. `Fit` sizes it to the caption content (p.644; a negative
     reserve reads as omitted, G-CB12/13); `Remainder` gives it everything
     but the box, which then sits against the far edge (PDFium, G-CB14).
+  - `CheckEdge { Plain (default), Spec }` (`with_check_edge`): a square
+    check button whose ui `border` has no `edge`. `Plain` strokes the
+    default 0.5pt black edge around the box, as viewers do and as a round
+    button already is; `Spec` only fills it (p.38, gap G-CB4).
   - `DashLengths { Scaled (default), Fixed }` (`with_dash_lengths`): a
     `dashed`/`dotted`/`dashDot`/`dashDotDot` edge's dash array. `Scaled`
     is multiples of the thickness t (`[4t 2t]`, `[t 2t]`, `[3t 2t t 2t]`,
@@ -1061,6 +1066,13 @@ kind.
     or a widget drawing more than its text (check button, choice list,
     bordered widget), not drawn yet.
   - `Font`: the typeface was drawn in a substituted standard-14 face.
+  - `Script`: a value shown from a recognised page-number script (a
+    `$layout` `ready` event assigning `xfa.layout.page(this)`,
+    `pageCount()`, `absPage`/`absPageCount`, `sheet`/`sheetCount` (one
+    sheet per page) and their FormCalc `$` spellings to the field
+    itself), matched by text and never run. Any other script is ignored.
+    A plain value's `para` margins and spacing apply; a non-zero
+    `textIndent` is not drawn and notes `Text`.
   - `Text`: text approximated: an unencodable character, a word wider than
     the region, overflow, or justify/radix alignment drawn left.
   - `Stroke`: an edge `stroke` value XFA does not name, drawn solid.

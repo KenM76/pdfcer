@@ -3,7 +3,7 @@
 use super::*;
 
 use pdfcer_core::xfa::{
-    ArcCircle, ArcFill, CaptionFont, CheckCaption, DashCaps, DashLengths, EdgePlacement,
+    ArcCircle, ArcFill, CaptionFont, CheckCaption, CheckEdge, DashCaps, DashLengths, EdgePlacement,
     FontWeight, ImageOverflow, ImagePlacement, MissingFill, PaintNoteKind, PaintOptions, Template,
     ThreeDStroke, XfaLayout,
 };
@@ -26,6 +26,16 @@ pub(crate) enum MissingFillArg {
     None,
     /// It paints white (the p.39 note).
     White,
+}
+
+/// `xfa-layout --check-edge` (gap G-CB4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum CheckEdgeArg {
+    /// The default thin black edge, as viewers draw it.
+    #[default]
+    Plain,
+    /// No outline, only the fill (the XFA specification).
+    Spec,
 }
 
 /// `xfa-layout --font-weight` (gap G-T1).
@@ -151,6 +161,7 @@ pub(crate) struct XfaPngArgs {
     pub(crate) image_dpi: u16,
     pub(crate) three_d_stroke: ThreeDStrokeArg,
     pub(crate) check_caption: CheckCaptionArg,
+    pub(crate) check_edge: CheckEdgeArg,
     pub(crate) dash_lengths: DashLengthsArg,
     pub(crate) dash_caps: DashCapsArg,
     pub(crate) arc_circle: ArcCircleArg,
@@ -189,6 +200,10 @@ impl XfaPngArgs {
             .with_check_caption(match self.check_caption {
                 CheckCaptionArg::Fit => CheckCaption::Fit,
                 CheckCaptionArg::Remainder => CheckCaption::Remainder,
+            })
+            .with_check_edge(match self.check_edge {
+                CheckEdgeArg::Plain => CheckEdge::Plain,
+                CheckEdgeArg::Spec => CheckEdge::Spec,
             })
             .with_dash_lengths(match self.dash_lengths {
                 DashLengthsArg::Scaled => DashLengths::Scaled,
@@ -270,6 +285,7 @@ fn note_label(k: PaintNoteKind) -> &'static str {
         PaintNoteKind::ImageTransparency => "image-transparency-flattened",
         PaintNoteKind::Shape => "shape-defaulted",
         PaintNoteKind::Rotate => "rotate-adjusted",
+        PaintNoteKind::Script => "page-script-recognised",
         _ => "other",
     }
 }

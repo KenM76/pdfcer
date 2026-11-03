@@ -139,3 +139,36 @@ fn a_growable_rich_draw_takes_its_text_height() {
     let (_, line_h) = text::metrics(crate::fontdata::Std14::Helvetica, 10.0, None);
     assert!((item.rect.h - 2.0 * line_h).abs() < 1e-9, "{}", item.rect.h);
 }
+
+#[test]
+fn a_floating_page_number_comes_from_its_layout_script_and_is_disclosed() {
+    let float = r##"<p>Page <span embed="#cp" embedType="uri" embedMode="raw"/> of <span embed="#pc" embedType="uri" embedMode="raw"/></p>"##;
+    let field = |id: &str, call: &str| {
+        format!(
+            r#"<field name="{id}" id="{id}" presence="hidden" x="300pt" y="0pt" w="20pt" h="20pt"><ui><numericEdit/></ui><event activity="ready" ref="$layout"><script contentType="application/x-javascript">this.rawValue = xfa.layout.{call};</script></event></field>"#
+        )
+    };
+    let body = format!(
+        "{}{}{}",
+        draw("200pt", float),
+        field("cp", "page(this)"),
+        field("pc", "pageCount()")
+    );
+    let (ops, notes) = painted(&body, &PaintOptions::new());
+    assert!(
+        ops.contains("(1) Tj") && ops.matches("(1) Tj").count() == 2,
+        "{ops}"
+    );
+    assert_eq!(kinds(&notes), [PaintNoteKind::Script]);
+}
+
+#[test]
+fn a_plain_caption_keeps_its_para_margin() {
+    let field = |margin: &str| {
+        format!(
+            r#"<field name="f" x="10pt" y="20pt" w="100pt" h="30pt"><ui><textEdit/></ui><caption placement="top" reserve="10pt"><font typeface="Helvetica"/><para marginLeft="{margin}"/><value><text>Cap</text></value></caption></field>"#
+        )
+    };
+    let x = |m: &str| origins(&painted(&field(m), &PaintOptions::new()).0)[0].0;
+    assert_eq!(x("12pt") - x("0pt"), 12.0);
+}

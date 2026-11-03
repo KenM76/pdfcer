@@ -172,6 +172,9 @@ impl Painter<'_> {
         } else if let Some(image) = super::image::value_image(node) {
             self.image(item, image, node.child("para"), r);
         } else if self.set_rich_value(item, node, node.child("font"), node.child("para"), r) {
+        } else if let Some(v) = super::page_script::value(node, self.page.0, self.page.1) {
+            self.note(item, PaintNoteKind::Script);
+            self.set(item, &v, node.child("font"), node.child("para"), r);
         } else if let Some(text) = plain_text(node) {
             self.set(item, text, node.child("font"), node.child("para"), r);
         }
@@ -226,6 +229,11 @@ impl Painter<'_> {
         r: LayoutRect,
     ) {
         let style = self.style(item, font, para);
+        let r = para_inset(r, para);
+        let indent = para.and_then(|p| super::length(p, "textIndent"));
+        if indent.is_some_and(|i| i != 0.0) {
+            self.note(item, PaintNoteKind::Text);
+        }
         let (lines, approximated) = wrap(text, style.font, style.size, r.w);
         if approximated {
             self.note(item, PaintNoteKind::Text);
@@ -337,4 +345,26 @@ fn wrap(text: &str, face: Std14, size: f64, width: f64) -> (Vec<String>, bool) {
         }
     }
     (out, approximated)
+}
+
+/// `r` less `para`'s `marginLeft`/`marginRight` and `spaceAbove`/
+/// `spaceBelow` (p.802); a zero height (unbounded) stays zero.
+fn para_inset(r: LayoutRect, para: Option<&XfaNode>) -> LayoutRect {
+    let p = |a: &str| para.and_then(|n| super::length(n, a)).unwrap_or(0.0);
+    let (left, right, above, below) = (
+        p("marginLeft"),
+        p("marginRight"),
+        p("spaceAbove"),
+        p("spaceBelow"),
+    );
+    LayoutRect {
+        x: r.x + left,
+        y: r.y + above,
+        w: (r.w - left - right).max(0.0),
+        h: if r.h > 0.0 {
+            (r.h - above - below).max(0.0)
+        } else {
+            r.h
+        },
+    }
 }

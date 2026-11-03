@@ -108,6 +108,10 @@ pub struct LayoutPage {
     pub content_areas: Vec<LayoutRect>,
     /// Placed containers, background first, then in document order.
     pub items: Vec<LayoutItem>,
+    /// This page's 1-based number in the layout.
+    pub number: usize,
+    /// How many pages the layout has.
+    pub count: usize,
 }
 
 /// Something layout did that the template did not say exactly. Each one is
@@ -309,6 +313,10 @@ pub fn layout_template(
     run.place_children(root, &root_path);
     run.apply_break(root, &root_path, "breakAfter");
     run.pad_minimums();
+    let count = run.pages.len();
+    for (i, p) in run.pages.iter_mut().enumerate() {
+        (p.number, p.count) = (i + 1, count);
+    }
     Ok(XfaLayout {
         pages: run.pages,
         warnings: run.ctx.warnings,
@@ -663,6 +671,8 @@ fn page_for(ctx: &mut Ctx<'_>, area: &Area<'_>) -> LayoutPage {
         height,
         content_areas,
         items,
+        number: 0,
+        count: 0,
     }
 }
 

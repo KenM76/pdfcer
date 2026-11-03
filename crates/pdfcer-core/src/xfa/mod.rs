@@ -28,7 +28,7 @@ pub use merge::{
 pub use packets::{MAX_XDP_LEN, MAX_XML_DEPTH, XdpDocument, XdpPacket, XfaError, read_xdp};
 pub(crate) use packets::{parse_xdp, read_xdp_sources};
 pub use paint::{
-    ArcCircle, ArcFill, CaptionFont, CheckCaption, DashCaps, DashLengths, EdgePlacement,
+    ArcCircle, ArcFill, CaptionFont, CheckCaption, CheckEdge, DashCaps, DashLengths, EdgePlacement,
     FontWeight, ImageOverflow, ImagePlacement, MissingFill, PaintNote, PaintNoteKind, PaintOptions,
     PaintedPage, ThreeDStroke, paint_page, paint_page_with_images,
 };

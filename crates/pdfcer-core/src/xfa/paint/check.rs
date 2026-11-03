@@ -120,7 +120,9 @@ impl Painter<'_> {
             && !round
         {
             self.border(item, b, bx);
-            return;
+            if b.child("edge").is_some() || self.opts.check_edge == super::CheckEdge::Spec {
+                return;
+            }
         }
         let edge = match border.and_then(|b| b.child("edge")) {
             Some(e) => self.edge(item, e),

@@ -6345,6 +6345,11 @@ pub(crate) enum Command {
         /// against the far edge.
         #[arg(long, value_enum, default_value_t)]
         check_caption: CheckCaptionArg,
+        /// The outline of a square check box whose border names no edge,
+        /// for --png-dir: the default thin black edge, as viewers draw
+        /// it, or none, as the XFA specification reads.
+        #[arg(long, value_enum, default_value_t)]
+        check_edge: CheckEdgeArg,
         /// A draw's or field's rotate that is not a multiple of 90 degrees
         /// (the XFA spec allows no other): ignored, or turned to the
         /// nearest multiple. Listed as rotate-adjusted either way.
