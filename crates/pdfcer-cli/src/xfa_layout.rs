@@ -147,6 +147,16 @@ pub(crate) enum BindItemsUnboundArg {
     Ignore,
 }
 
+/// `xfa-layout --choice-instances` (gap G-SS5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum ChoiceInstancesArg {
+    /// As many as its data and occur max allow.
+    #[default]
+    Occur,
+    /// Exactly one.
+    One,
+}
+
 /// `xfa-layout --view-match` (gap G-RV1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
 pub(crate) enum ViewMatchArg {
@@ -217,6 +227,12 @@ pub(crate) struct XfaMergeFlags {
     /// name; as --scope-search.
     #[arg(long, value_enum, default_value_t)]
     pub(crate) bind_items_search: ScopeSearchArg,
+    /// How many copies the subform a choice subform set picks gets: as
+    /// many as its data and occur max allow, or exactly one. XFA 3.3
+    /// says only one is copied without saying whether that counts
+    /// subforms or copies.
+    #[arg(long, value_enum, default_value_t)]
+    pub(crate) choice_instances: ChoiceInstancesArg,
 }
 
 /// The settings `xfa-layout` merges and lays the template with.
@@ -236,8 +252,8 @@ impl XfaMergeFlags {
     /// The core merge options these flags select.
     pub(crate) fn options(self) -> MergeOptions {
         use pdfcer_core::xfa::{
-            BareRef, BindItemsMissing, BindItemsRepeat, BindItemsUnbound, DataAttributes,
-            GlobalExclGroup, GlobalScope, ScopeSearch,
+            BareRef, BindItemsMissing, BindItemsRepeat, BindItemsUnbound, ChoiceInstances,
+            DataAttributes, GlobalExclGroup, GlobalScope, ScopeSearch,
         };
         MergeOptions::new()
             .with_scope_search(match self.scope_search {
@@ -275,6 +291,10 @@ impl XfaMergeFlags {
             .with_bind_items_search(match self.bind_items_search {
                 ScopeSearchArg::Upward => ScopeSearch::Upward,
                 ScopeSearchArg::Children => ScopeSearch::Children,
+            })
+            .with_choice_instances(match self.choice_instances {
+                ChoiceInstancesArg::Occur => ChoiceInstances::Occur,
+                ChoiceInstancesArg::One => ChoiceInstances::One,
             })
     }
 }

@@ -725,3 +725,30 @@ fn an_image_draw_is_laid_at_its_natural_size_under_image_dpi() {
     assert!(line(&at72).contains("w=20 h=10"), "{at72}");
     assert!(line(&at144).contains("w=10 h=5"), "{at144}");
 }
+
+/// A choice subform set keeps the member its data names, and
+/// --choice-instances one caps it at one copy.
+#[test]
+fn a_choice_subform_set_lays_the_member_its_data_picks() {
+    let t = format!(
+        r#"<subform name="form" layout="tb">{PAGE}<subformSet name="pick" relation="choice"><subform name="a" w="100pt" h="20pt"><occur max="-1"/><field name="n" w="90pt" h="12pt"><ui><textEdit/></ui></field></subform><subform name="b" w="100pt" h="20pt"><occur max="-1"/><field name="n" w="90pt" h="12pt"><ui><textEdit/></ui></field></subform></subformSet></subform>"#
+    );
+    let bytes = pdf_with_data(
+        Some(&t),
+        "<form><b><n>X</n></b><b><n>Y</n></b><a><n>Z</n></a></form>",
+    );
+    let lines = |out: &str| -> Vec<String> {
+        out.lines()
+            .filter(|l| l.contains(r#"name="n""#))
+            .map(str::to_owned)
+            .collect()
+    };
+    let (code, both, stderr) = run("choice", &bytes, &[]);
+    assert_eq!(code, 0, "{stderr}");
+    let both = lines(&both);
+    assert_eq!(both.len(), 2, "{both:?}");
+    assert!(both[0].ends_with(r#" value="X""#), "{both:?}");
+    assert!(both[1].ends_with(r#" value="Y""#), "{both:?}");
+    let (_, one, _) = run("choice-one", &bytes, &["--choice-instances", "one"]);
+    assert_eq!(lines(&one).len(), 1, "{one}");
+}

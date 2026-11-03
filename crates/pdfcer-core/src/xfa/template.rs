@@ -172,7 +172,8 @@ impl Measurement {
     }
 }
 
-/// `occur` bounds (Ch.17 p.786; gap G-T3 resolved to the min-derived rule).
+/// `occur` bounds (Ch.17 p.786). An absent `max` is `max(1, min)` and an
+/// absent `initial` is `min` (gaps G-T3, G-SS9: the one reading Ex 9.13 fits).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Occur {
     /// Fewest instances.
@@ -317,7 +318,7 @@ impl XfaNode {
             Some(-1) => None,
             Some(v) => Some(u32::try_from(v).unwrap_or(min)),
             None if page => None,
-            None => Some(min),
+            None => Some(min.max(1)),
         };
         let initial = int("initial")
             .and_then(|v| u32::try_from(v).ok())

@@ -772,6 +772,18 @@ file.
   no value/label node (G-BI4); `BindItemsUnbound` `Scope` (default: the
   enclosing data scope) or `Ignore` for an unbound field (G-BI5);
   `bind_items_search: ScopeSearch` for an un-prefixed `ref` (G-BI6).
+- **Subform sets** (XFA 3.3 pp.349-353). A `subformSet` binds nothing; its
+  members match in its parent's data scope. `relation="ordered"` (default):
+  members in template order, each by its own `occur`. `unordered`: members
+  that bind data first, ordered by the first data node each binds, then the
+  rest in template order at their `min`. `choice`: only the member whose
+  first bound node comes first breadth-first, its `occur@min` ignored; none
+  when no member binds; without data, the first member only. The set
+  itself gets `occur@min` copies, then one more per copy that binds data,
+  up to `occur@max`. Setting: `MergeOptions::with_choice_instances(
+  ChoiceInstances::{Occur (default), One})` — how many copies the chosen
+  member gets (G-SS5). An absent `occur@max` is `max(1, min)` (G-SS9).
+  Spec slice: `D:\Dev\Rag-Specialized\PDF_Spec\adobe_ext\adobe_ext__xfa_subformset_merge.md`.
 - **CLI.** `xfa-layout` merges before laying out: bound items end with
   `value="…"`, each warning prints as `warning kind=data-ref-<kind> path= ref="…"`
   (or `kind=data-name-<kind> path= name="…"`)
@@ -779,7 +791,7 @@ file.
   precedes the summary when the form has data, and `--scope-search`, `--bare-ref`,
   `--data-attributes`, `--global-scope`, `--global-exclgroup`,
   `--bind-items-repeat`, `--bind-items-missing`, `--bind-items-unbound`,
-  `--bind-items-search` set the
+  `--bind-items-search`, `--choice-instances` set the
   options. The stderr note says how many values
   were merged.
 - **Views** (`relevant`, XFA 3.3 pp.69-70, p.607). `Views` is the set of

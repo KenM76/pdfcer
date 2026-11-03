@@ -94,7 +94,7 @@ impl Merger<'_> {
                 break;
             }
             let mut copy = child.clone();
-            set_initial(&mut copy, 1);
+            set_occur(&mut copy, "initial", 1);
             self.place(out, copy, path, scope, pending);
             self.instances_made += 1;
             made += 1;
@@ -110,7 +110,7 @@ impl Merger<'_> {
                 path.pop();
             }
             let mut skipped = child;
-            set_initial(&mut skipped, 0);
+            set_occur(&mut skipped, "initial", 0);
             out.push(skipped);
         }
         path.push(out.len().saturating_sub(1));
@@ -169,14 +169,14 @@ impl Merger<'_> {
     }
 }
 
-/// Set `node`'s `occur@initial`, adding the attribute if it is absent.
-fn set_initial(node: &mut XfaNode, n: u32) {
+/// Set `node`'s `occur@{key}` to `n`, adding the attribute if it is absent.
+pub(super) fn set_occur(node: &mut XfaNode, key: &str, n: u32) {
     let Some(occur) = node.children.iter_mut().find(|c| c.tag == "occur") else {
         return;
     };
     let value = n.to_string();
-    match occur.attributes.iter_mut().find(|(k, _)| k == "initial") {
+    match occur.attributes.iter_mut().find(|(k, _)| k == key) {
         Some((_, v)) => *v = value,
-        None => occur.attributes.push(("initial".to_owned(), value)),
+        None => occur.attributes.push((key.to_owned(), value)),
     }
 }

@@ -10,7 +10,8 @@
 //! scope through (pp.193-194): nameless ones, `scope="none"` subforms,
 //! `match="none"`, areas and subform sets. Exclusion-group members and page
 //! sets do not bind by name. A subform with `occur` repeats from data
-//! ([`occur`]). Nothing is written to the file: the merge is a transient read of the
+//! ([`occur`]); a subform set merges its members by its `relation`
+//! ([`set`]). Nothing is written to the file: the merge is a transient read of the
 //! template for layout and drawing (G-SOM5).
 
 mod data;
@@ -18,6 +19,7 @@ pub(super) mod fill;
 mod items;
 mod normal;
 mod occur;
+mod set;
 mod som;
 
 use std::collections::HashSet;
@@ -26,6 +28,7 @@ use super::packets::{XdpDocument, XfaError, parse_xml};
 use super::template::{ContainerKind, Template, XfaNode};
 
 pub use items::{BindItemsMissing, BindItemsRepeat, BindItemsUnbound};
+pub use set::ChoiceInstances;
 
 use data::{DataNode, node_at};
 use normal::{Found, Globals, Search};
@@ -133,6 +136,8 @@ pub struct MergeOptions {
     /// ancestor's, as SOM reads (the default), or its children only (gap
     /// G-BI6).
     pub bind_items_search: ScopeSearch,
+    /// See [`ChoiceInstances`].
+    pub choice_instances: ChoiceInstances,
 }
 
 impl MergeOptions {
@@ -209,6 +214,13 @@ impl MergeOptions {
     #[must_use]
     pub const fn with_bind_items_search(mut self, v: ScopeSearch) -> Self {
         self.bind_items_search = v;
+        self
+    }
+
+    /// Set [`Self::choice_instances`].
+    #[must_use]
+    pub const fn with_choice_instances(mut self, v: ChoiceInstances) -> Self {
+        self.choice_instances = v;
         self
     }
 }
@@ -444,6 +456,7 @@ pub(super) fn merge_planned(
     Ok((form, m.unbound))
 }
 
+#[derive(Clone)]
 struct Merger<'a> {
     root: &'a DataNode,
     record: &'a [usize],
@@ -492,14 +505,17 @@ impl Merger<'_> {
         let page_set = kind == Some(ContainerKind::PageSet);
         self.passive += usize::from(passive);
         self.page_set += usize::from(page_set);
-        // Repeating subforms expand in place (see `occur`).
-        for child in std::mem::take(&mut node.children) {
-            if child.container_kind().is_none() {
-                node.children.push(child);
-            } else if self.repeats(&child) {
-                self.instances(&mut node.children, child, path, &inner, &inner_pending);
-            } else {
-                self.place(&mut node.children, child, path, &inner, &inner_pending);
+        // Repeating subforms and subform sets expand in place (see `occur`
+        // and `set`).
+        if kind == Some(ContainerKind::SubformSet) {
+            self.set_members(node, path, &inner, &inner_pending);
+        } else {
+            for child in std::mem::take(&mut node.children) {
+                if child.container_kind().is_none() {
+                    node.children.push(child);
+                } else {
+                    self.member(&mut node.children, child, path, &inner, &inner_pending);
+                }
             }
         }
         self.passive -= usize::from(passive);

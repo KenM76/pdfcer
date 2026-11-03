@@ -71,7 +71,7 @@ impl Search<'_> {
 
 /// The `match="global"` fallback's lookups, cached by name so many copies
 /// of one global name cost one walk (pp.245-247).
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub(super) struct Globals {
     cache: HashMap<String, Option<Vec<usize>>>,
 }
