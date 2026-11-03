@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-02 (1381st filing) — `Pass 647.4` border cut `a5e17baf`; `Pass 657.4` `f11c2730`; `Pass 657.5` `981b3dcf`; bump `daff1ca8` (`v0.118.0` prepared)
+
+**Filed (docs only; engineer-reported, no shell here; nothing checked from here):**
+- **`a5e17baf` (`Pass 647.4`, NOT complete):** visible XFA field borders drawn; hidden borders and `defaultUi` no longer noted. Real government XFA form (unnamed): notes 703 to 577, content-not-drawn 163 to 37. Open: check boxes, "Page _ of _" fields, inline captions, choiceList / button / barcode / signature, real fonts, gradients.
+- **`f11c2730` (`Pass 657.4`, `X028`):** PRC reader: schema steps bounded per reading pass, vertex colours by reuse bit, globals by any CS reference. `pdfcer-3d` 263 + 3 + 20 default, 200 + 3 + 11 no-default.
+- **`981b3dcf` (`Pass 657.5`, `G259`):** `ShadowLight::{FollowsScheme, Sun { up }}`; CLI `3d-render --shadow-light scheme|sun`; GPU `FrameShadow` shares the caster. `pdfcer-3d` 266 + 3 + 20 default, 200 + 3 + 11 no-default; `cargo tree` unchanged. GUI side tracked as `O368`.
+- **`daff1ca8`:** version bump to 0.118.0; the release carries 657.2 / 657.3 / 647.4 / 657.4 / 657.5. Not tagged or published at filing.
+- ROADMAP: four Shipped entries; `647.4` Next-up title. FEATURES: shadows row (`--shadow-light`) and XFA drawing row amended; no box changes.
+
+**Decisions made this session:** none minted.
+
+**Hard-rule-11 survivors:** keyword sweep of `FEATURES.md` for `shadow` and `defaultUi`: shadows row (fixed), XFA drawing row (fixed). Not swept from here: `docs/NEXT_SESSION.md`, CLI `--help`, `ARCHITECTURE.md` section 4. Backup currency not verifiable from here.
+
+**Still in flight:** push of the commits; `v0.118.0` release; `647.4` remainder; `O368` in `pdfcer-gui`.
+
+**For next session:** run `tools/check-commits-filed.py` before the push.
+
 ## 2026-11-02 (1380th filing) — `Pass 647.4` rich-text cut `7450b595`; `Pass 657.2` + `657.3` SHIPPED `a64bf4e0`
 
 **Filed (docs only; engineer-reported, no shell here; nothing checked from here):**

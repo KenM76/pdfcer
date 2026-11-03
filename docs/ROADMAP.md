@@ -112,6 +112,31 @@ wherever it appears.*
 
 ## Shipped
 
+### `daff1ca8` `chore`: version bump to 0.118.0, 2026-11-02 (1381st filing); release `v0.118.0` PREPARED, not published
+
+Engineer-reported; no shell here, nothing checked from here. `daff1ca8` "chore: bump version to 0.118.0". Carries `Pass 657.2` / `657.3` (`a64bf4e0`), `Pass 647.4` (`7450b595`, `a5e17baf`), `Pass 657.4` (`f11c2730`), `Pass 657.5` (`981b3dcf`), plus `7d0ef09d` (rustdoc link fix). Tag, package, smoke, deploy (`pdfcer1` is the next slot) are NOT claimed done here. No box changes; nothing minted.
+
+### `981b3dcf` `Pass 657.5` SHIPPED, 2026-11-02: a shadow light fixed in the model (`G259`; 1381st filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `981b3dcf` "feat(3d): a shadow light fixed in the model (Pass 657.5, G259)". On local `main`, unreleased at filing (carried by `v0.118.0`). No new decision, no manifest change (`cargo tree` unchanged). Reasoning is in the commit message.
+- **Done:** `RenderOptions::shadow_light: ShadowLight::{FollowsScheme (default), Sun { up: UpAxis }}`. `Sun` is a shadow key placed in the iso view about the up axis, fixed in model space, dim `SHADOW_DIM`, and absent when the scene is unlit. `FrameShadow` (GPU path) uses the same caster. CLI `3d-render --shadow-light scheme|sun`. `docs/core-api` updated.
+- **Tests (engineer-reported):** `pdfcer-3d` default 266 lib + 3 + 20; `--no-default-features` 200 + 3 + 11.
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]` (the GUI tracks it as `O368`). FEATURES: shadows / ambient-occlusion row amended.
+
+### `f11c2730` `Pass 657.4` SHIPPED, 2026-11-02: PRC reader robustness (`X028`; 1381st filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `f11c2730` "fix(3d): bound PRC schema steps per reading pass, vertex colours by reuse bit, globals by any CS reference (Pass 657.4, X028)". Local `main`, unreleased at filing. Three `pdfcer-3d` PRC reader fixes from request `X028`: schema steps bounded per reading pass; vertex colours decided by the reuse bit; globals recognised by any coordinate-system reference. Reasoning is in the commit message.
+- **Tests (engineer-reported):** `pdfcer-3d` default 263 lib + 3 + 20; `--no-default-features` 200 + 3 + 11.
+- **Boxes:** core `[x]`, cli `[ ]`, gui `[ ]` (reader fix, no new verb). FEATURES: no row change (fixes to an existing reader).
+
+### `a5e17baf` `Pass 647.4` BORDER CUT, 2026-11-02: XFA visible widget borders drawn; hidden borders and `defaultUi` no longer noted (1381st filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `a5e17baf` "fix(xfa): draw visible widget borders; stop disclosing hidden ones and defaultUi (Pass 647.4)". Local `main`, unreleased at filing. **`Pass 647.4` is NOT complete**; it stays in Next up. Reasoning is in the commit message.
+- **Done:** the XFA painter draws visible field borders; hidden borders and `defaultUi` stop producing "content not drawn" notes.
+- **Measured on a real government XFA form (not rights-cleared, not in the repo, not named):** total notes 703 to 577; content-not-drawn notes 163 to 37.
+- **REMAINING in 647.4:** check boxes not visible; "Page _ of _" floating fields blank; inline captions; choiceList, button, barcode and signature widgets; real fonts; gradients.
+- **Boxes:** core `[x]` (render path), cli unchanged. FEATURES: the "Dynamic XFA, layout and drawing" row amended; boxes stay `[ ]` (partial).
+
 ### `a64bf4e0` `Pass 657.2` + `Pass 657.3` SHIPPED, 2026-11-02: glTF occlusion maps baked into the base colour; textured alpha cut-outs (`G258` item 3; 1380th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Commit `a64bf4e0` "feat(3d): bake glTF occlusion maps and cut out textured alpha masks (Passes 657.2, 657.3)". On local `main`, **not pushed, unreleased** at filing (base `37d8aba9`, the `v0.117.0` filing). `657.2` was the Backlog entry (deleted); `657.3` is a new Pass (ID free by grep of `docs/`). No new decision, no dependency or manifest change. Reasoning is in the commit message. `pdfcer-3d`; GUI is the separate `pdfcer-gui` project.
@@ -27365,7 +27390,7 @@ Merge the `datasets` packet into the template per the normal-binding rules; defa
 
 Filed from the `647.3e` close; nothing built. `647.3e` (`53f4e938`) creates instances only for named by-name subforms with `occur`. Not yet built: (1) instances for subforms bound with `bind match="dataRef"`; (2) instances for `subformSet`. Same spec (XFA 3.3 pp.339-347, `adobe_ext__xfa_data_binding_normal.md`), same `MergeWarningKind::{ExcessData, InstanceLimit}`, same guard. Acceptance to be written when scoped; synthetic only. Request `G248` items 2-3 are answered for the by-name case only. FEATURES: Planned row added (all three boxes `[ ]`).
 
-### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing), RICH-TEXT CUT `7450b595` (1380th filing, see *Shipped*); NOT COMPLETE, stays here)
+### Pass 647.4 — Render path for dynamic forms (FIRST CUT `4463b8e3` (1290th filing), SECOND CUT `1baccb48` (1291st filing), THIRD CUT `16a386c4` (1293rd filing), FOURTH CUT `358dd5ce` (1294th filing), FIFTH CUT `cc5d7af4` (1302nd filing), SIXTH CUT `0851e68b` (1314th filing), SEVENTH CUT `e0795e2d` (1323rd filing), RICH-TEXT CUT `7450b595` (1380th filing, see *Shipped*), BORDER CUT `a5e17baf` (1381st filing, see *Shipped*); NOT COMPLETE, stays here)
 
 `pdfcer-render` draws the computed layout instead of the placeholder page (render-time only, like decision 203). Inferred content renders exactly as saved content would (rule 4: no on-canvas marking); disclosure is off-canvas diagnostics. Needs `pdfcer-render` to stay GUI-free (`cargo tree` check).
 
