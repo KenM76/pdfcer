@@ -2,7 +2,7 @@
 //! shaders: the CPU path's cube faces ([`crate::lamp_shadow`]), so both paths
 //! shadow a model's point and spot lights with the same texels.
 
-use crate::gpu_frame::MAX_LIGHTS;
+use crate::gpu_frame::MAX_SHADOW_CASTERS;
 use crate::lamp_shadow::{FACES, face_matrix, face_size, reach};
 use crate::lighting::Shader;
 use crate::render::{Bounds, Camera, RenderError, RenderOptions};
@@ -57,12 +57,16 @@ void main() {
 pub struct FrameLampShadows {
     /// Each face's side, texels.
     pub size: u32,
-    /// How many lamps, the first [`crate::FrameLights::local_count`].
+    /// How many lamps cast, the first of [`crate::FrameLights::local_count`],
+    /// at most [`MAX_SHADOW_CASTERS`].
     pub count: usize,
     /// Each lamp's reach, model units: the depth a face stores is its view
     /// depth over this. Zero for a lamp casting no shadow (`u_lamp_far[16]`).
-    pub far: [f32; MAX_LIGHTS],
-    positions: [[f64; 3]; MAX_LIGHTS],
+    pub far: [f32; MAX_SHADOW_CASTERS],
+    /// Lamps past the first [`MAX_SHADOW_CASTERS`], lit without a shadow;
+    /// for the host to disclose.
+    pub dropped: usize,
+    positions: [[f64; 3]; MAX_SHADOW_CASTERS],
 }
 
 impl FrameLampShadows {
@@ -92,10 +96,11 @@ impl FrameLampShadows {
         let mut out = FrameLampShadows {
             size: face_size(options.lamp_shadow_map_size),
             count: 0,
-            far: [0.0; MAX_LIGHTS],
-            positions: [[0.0; 3]; MAX_LIGHTS],
+            far: [0.0; MAX_SHADOW_CASTERS],
+            dropped: lamps.len().saturating_sub(MAX_SHADOW_CASTERS),
+            positions: [[0.0; 3]; MAX_SHADOW_CASTERS],
         };
-        for (i, lamp) in lamps.iter().take(MAX_LIGHTS).enumerate() {
+        for (i, lamp) in lamps.iter().take(MAX_SHADOW_CASTERS).enumerate() {
             if let (Some(far), Some(position)) = (out.far.get_mut(i), out.positions.get_mut(i)) {
                 *far = reach(lamp.position, bounds).map_or(0.0, |r| r as f32);
                 *position = lamp.position;
@@ -179,6 +184,25 @@ mod tests {
         }
         let none = FrameLampShadows::for_model(&camera(), &options, &BOUNDS, &[]).unwrap();
         assert_eq!(none, None);
+    }
+
+    #[test]
+    fn lamps_past_the_caster_limit_light_without_a_shadow_on_both_paths() {
+        let lights: Vec<ModelLight> = (0..MAX_SHADOW_CASTERS + 4)
+            .map(|i| lamp([0.1 * i as f64, 0.0, 3.0]))
+            .collect();
+        let options = RenderOptions::default();
+        let gpu = FrameLampShadows::for_model(&camera(), &options, &BOUNDS, &lights)
+            .unwrap()
+            .unwrap();
+        assert_eq!((gpu.count, gpu.dropped), (MAX_SHADOW_CASTERS, 4));
+        let basis = camera().basis().unwrap();
+        let shader = Shader::for_frame(&options, &lights, &basis);
+        let cpu = crate::shadow_set::lamp_casters(&shader);
+        assert_eq!(cpu.len(), MAX_SHADOW_CASTERS);
+        // Every lamp still lights the GPU frame.
+        let drawn = crate::FrameLights::for_model(&camera(), &options, &lights).unwrap();
+        assert_eq!(drawn.local_count, MAX_SHADOW_CASTERS + 4);
     }
 
     #[test]

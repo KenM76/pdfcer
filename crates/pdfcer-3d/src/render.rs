@@ -315,7 +315,7 @@ pub struct RenderOptions {
     /// clamped to 64–[`MAX_LAMP_SHADOW_MAP_SIZE`](crate::MAX_LAMP_SHADOW_MAP_SIZE).
     pub lamp_shadow_map_size: u32,
     /// Which directional lights cast ([`ShadowCasters::EveryLight`] by
-    /// default, up to [`MAX_LIGHTS`](crate::MAX_LIGHTS), each shadow taking
+    /// default, up to [`MAX_SHADOW_CASTERS`](crate::MAX_SHADOW_CASTERS), each shadow taking
     /// only its own light). Lights at the camera never cast.
     pub shadow_casters: ShadowCasters,
     /// How see-through and cut-out surfaces cast, in every map

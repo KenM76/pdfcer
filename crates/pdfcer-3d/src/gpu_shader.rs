@@ -9,9 +9,10 @@ use crate::TextureFunction;
 /// (float). Uniforms: `u_view`, `u_projection` (from
 /// [`crate::Camera::view_matrix`] / [`crate::Camera::projection_matrix`]),
 /// and from [`crate::FrameLights`]: `u_mode` ([`crate::ShadeMode::code`]),
-/// `u_ambient`, `u_count`, `u_light_dir[16]`, `u_light_colour[16]`, `u_eye`,
-/// `u_forward`, `u_orthographic`; from [`crate::FrameShadow`]: `u_shadows`
-/// (false without one), `u_shadow_light`, `u_shadow_dim`.
+/// `u_ambient`, `u_count`, `u_lights` ([`crate::FrameLights::light_table`],
+/// read with `texelFetch`), `u_eye`, `u_forward`, `u_orthographic`; from
+/// [`crate::FrameShadow`]: `u_shadows` (false without one),
+/// `u_shadow_light`, `u_shadow_dim`.
 pub const GLSL_ES_300_VERTEX: &str = r"#version 300 es
 precision highp float;
 layout(location = 0) in vec3 a_position;
@@ -23,8 +24,7 @@ uniform mat4 u_projection;
 uniform int u_mode;
 uniform vec3 u_ambient;
 uniform int u_count;
-uniform vec4 u_light_dir[16];
-uniform vec3 u_light_colour[16];
+uniform highp sampler2D u_lights;
 uniform vec3 u_eye;
 uniform vec3 u_forward;
 uniform bool u_orthographic;
@@ -42,14 +42,18 @@ out vec3 v_world;
 out vec3 v_normal;
 flat out vec3 v_flat_normal;
 
+// Texel t of light table row r.
+vec4 light(int r, int t) {
+    return texelFetch(u_lights, ivec2(t, r), 0);
+}
+
 vec3 shade(vec3 n, vec3 v) {
     if (u_mode == 0) return vec3(0.3 + 0.7 * abs(dot(n, v)));
     if (u_mode == 1) return vec3(1.0);
     vec3 s = u_ambient;
-    for (int i = 0; i < 16; i++) {
-        if (i >= u_count) break;
-        vec3 d = u_light_dir[i].w > 0.5 ? v : u_light_dir[i].xyz;
-        s += u_light_colour[i] * abs(dot(n, d));
+    for (int i = 0; i < u_count; i++) {
+        vec4 d = light(i, 0);
+        s += light(i, 1).rgb * abs(dot(n, d.w > 0.5 ? v : d.xyz));
     }
     return s;
 }
@@ -58,10 +62,8 @@ vec3 shade(vec3 n, vec3 v) {
 vec3 key(vec3 n, vec3 s) {
     if (!u_shadows) return vec3(0.0);
     if (u_shadow_light < 0) return s * (1.0 - u_shadow_dim);
-    for (int i = 0; i < 16; i++) {
-        if (i == u_shadow_light) return u_light_colour[i] * abs(dot(n, u_light_dir[i].xyz));
-    }
-    return vec3(0.0);
+    if (u_shadow_light >= u_count) return vec3(0.0);
+    return light(u_shadow_light, 1).rgb * abs(dot(n, light(u_shadow_light, 0).xyz));
 }
 
 void main() {
@@ -92,11 +94,11 @@ void main() {
 /// `u_shadow_matrix`, `u_shadow_map` (its depth texture), `u_shadow_size`,
 /// `u_shadow_to_light`, `u_shadow_offset` and `u_shadow_bias`; from
 /// [`crate::FrameLights`], the point and spot lights, added per pixel:
-/// `u_local_count`, `u_local_position[16]`, `u_local_colour[16]`,
-/// `u_local_attenuation[16]`, `u_local_cone[16]`; and from
-/// [`crate::FrameLampShadows`] their shadows: `u_lamp_shadows` (false
-/// without one), `u_lamp_shadow_map`, `u_lamp_shadow_size`,
-/// `u_lamp_far[16]`; and from [`crate::FrameExtraShadows`] the further
+/// `u_local_count` and their rows of `u_lights`; and from
+/// [`crate::FrameLampShadows`] the first
+/// [`MAX_SHADOW_CASTERS`](crate::MAX_SHADOW_CASTERS) lamps' shadows:
+/// `u_lamp_shadows` (false without one), `u_lamp_shadow_map`,
+/// `u_lamp_shadow_size`, `u_lamp_far[16]`; and from [`crate::FrameExtraShadows`] the further
 /// casters and the see-through layers: `u_shadow_extra` (0 without one),
 /// `u_shadow_extra_map`, `u_shadow_extra_to_light[15]`, `u_shadow_extra_light[15]`,
 /// `u_shadow_extra_colour[15]`, `u_shadow_extra_centre`,
@@ -104,10 +106,9 @@ void main() {
 /// `u_shadow_transmit`, `u_lamp_veiled`, `u_lamp_veil`, `u_lamp_transmit`.
 /// A [`crate::DrawFinish`] adds `u_finished` (false
 /// without one), `u_material_ambient`, `u_specular`, `u_emissive` and
-/// `u_shininess`, drawn with [`crate::FrameLights::specular`] and
-/// `local_specular` as `u_light_specular[16]` and `u_local_specular[16]`;
+/// `u_shininess`, drawn with the lights' specular colours in `u_lights`;
 /// the fragment shader also reads the vertex shader's `u_mode`,
-/// `u_ambient`, `u_count`, `u_light_dir[16]`, `u_eye`, `u_forward`,
+/// `u_ambient`, `u_count`, `u_lights`, `u_eye`, `u_forward`,
 /// `u_shadow_light` and `u_shadow_dim` (its ints declared `highp`, as the
 /// vertex stage's default). Writes straight RGBA.
 ///
@@ -141,11 +142,7 @@ uniform float u_shadow_size;
 uniform vec3 u_shadow_to_light;
 uniform float u_shadow_offset;
 uniform float u_shadow_bias;
-uniform int u_local_count;
-uniform vec4 u_local_position[16];
-uniform vec3 u_local_colour[16];
-uniform vec3 u_local_attenuation[16];
-uniform vec4 u_local_cone[16];
+uniform highp int u_local_count;
 uniform bool u_lamp_shadows;
 uniform highp sampler2DArray u_lamp_shadow_map;
 uniform float u_lamp_shadow_size;
@@ -166,19 +163,22 @@ uniform highp sampler2DArray u_lamp_transmit;
 uniform highp int u_mode;
 uniform vec3 u_ambient;
 uniform highp int u_count;
-uniform vec4 u_light_dir[16];
+uniform highp sampler2D u_lights;
 uniform vec3 u_eye;
 uniform vec3 u_forward;
 uniform highp int u_shadow_light;
 uniform float u_shadow_dim;
-uniform vec3 u_light_specular[16];
-uniform vec3 u_local_specular[16];
 uniform bool u_finished;
 uniform vec3 u_material_ambient;
 uniform vec3 u_specular;
 uniform vec3 u_emissive;
 uniform float u_shininess;
 out vec4 o_colour;
+
+// Texel t of light table row r.
+vec4 light(int r, int t) {
+    return texelFetch(u_lights, ivec2(t, r), 0);
+}
 
 // The share texel q of a veil lets through to depth d: its transmission
 // when d is past its nearest see-through fragment, else all.
@@ -189,11 +189,12 @@ float through(bool on, highp sampler2DArray veil, highp sampler2DArray transmit,
 
 // Lamp i's lit share, 0-1, at p on a face with unit normal f: 3 x 3 texels
 // of its cube face around the point moved off its face towards the lamp,
-// clamped to that face.
+// clamped to that face. Lamps past the first 16 cast none.
 float lamp_lit(int i, vec3 p, vec3 f) {
+    if (!u_lamp_shadows || i >= 16) return 1.0;
     float far = u_lamp_far[i];
-    if (!u_lamp_shadows || far <= 0.0) return 1.0;
-    vec3 o = p - u_local_position[i].xyz;
+    if (far <= 0.0) return 1.0;
+    vec3 o = p - light(u_count + i, 0).xyz;
     vec3 m = abs(o);
     float z0 = max(m.x, max(m.y, m.z));
     if (z0 <= 0.0) return 1.0;
@@ -222,28 +223,35 @@ float lamp_lit(int i, vec3 p, vec3 f) {
     return n / 9.0;
 }
 
+// Lamp row r's fade times cone at distance d along unit direction l to
+// it, cut the cosine of its cut-off (below -1.5 for a point light).
+float reach(int r, float cut, vec3 l, float d) {
+    vec3 a = light(r, 3).xyz;
+    float den = a.x + a.y * d + a.z * d * d;
+    float k = den > 0.0 ? 1.0 / den : 1.0;
+    if (cut > -1.5) {
+        vec4 cone = light(r, 4);
+        float c = -dot(l, cone.xyz);
+        if (c < cut) k = 0.0;
+        else if (cone.w > 0.0) k *= pow(max(c, 0.0), cone.w);
+    }
+    return k;
+}
+
 // The point and spot lights at p with unit normal n on a face with unit
 // normal f.
 vec3 local(vec3 p, vec3 n, vec3 f) {
     vec3 s = vec3(0.0);
-    for (int i = 0; i < 16; i++) {
-        if (i >= u_local_count) break;
-        vec3 to_light = u_local_position[i].xyz - p;
+    for (int i = 0; i < u_local_count; i++) {
+        int r = u_count + i;
+        vec4 at = light(r, 0);
+        vec3 to_light = at.xyz - p;
         float d = length(to_light);
-        if (d <= 0.0) { s += u_local_colour[i]; continue; }
+        if (d <= 0.0) { s += light(r, 1).rgb; continue; }
         vec3 l = to_light / d;
-        vec3 a = u_local_attenuation[i];
-        float den = a.x + a.y * d + a.z * d * d;
-        float fade = den > 0.0 ? 1.0 / den : 1.0;
-        float cone = 1.0;
-        if (u_local_position[i].w > -1.5) {
-            float c = -dot(l, u_local_cone[i].xyz);
-            if (c < u_local_position[i].w) cone = 0.0;
-            else if (u_local_cone[i].w > 0.0) cone = pow(max(c, 0.0), u_local_cone[i].w);
-        }
-        float k = fade * cone * abs(dot(n, l));
+        float k = reach(r, at.w, l, d) * abs(dot(n, l));
         if (k > 0.0) k *= lamp_lit(i, p, f);
-        s += u_local_colour[i] * k;
+        s += light(r, 1).rgb * k;
     }
     return s;
 }
@@ -331,33 +339,27 @@ vec3 highlights(vec3 p, vec3 n, vec3 f, float sh) {
     if (dot(n, v) < 0.0) n = -n;
     if (u_mode == 0) return vec3(0.7 * blinn(n, v, v));
     vec3 s = vec3(0.0);
-    for (int i = 0; i < 16; i++) {
-        if (i >= u_count) break;
-        vec3 l = u_light_dir[i].w > 0.5 ? v : u_light_dir[i].xyz;
+    for (int i = 0; i < u_count; i++) {
+        vec4 d = light(i, 0);
+        vec3 l = d.w > 0.5 ? v : d.xyz;
         if (dot(n, l) < 0.0) l = -l;
         float k = 1.0;
         if (u_shadows && u_shadow_light == i) k = sh;
         if (u_shadows && u_shadow_light < 0) k = u_shadow_dim + (1.0 - u_shadow_dim) * sh;
         k *= extra_of(i, f);
-        s += u_light_specular[i] * (k * blinn(n, v, l));
+        s += light(i, 2).rgb * (k * blinn(n, v, l));
     }
-    for (int i = 0; i < 16; i++) {
-        if (i >= u_local_count) break;
-        vec3 to_light = u_local_position[i].xyz - p;
+    for (int i = 0; i < u_local_count; i++) {
+        int r = u_count + i;
+        vec4 at = light(r, 0);
+        vec3 to_light = at.xyz - p;
         float d = length(to_light);
         if (d <= 0.0) continue;
         vec3 l = to_light / d;
         if (dot(n, l) <= 0.0) continue;
-        vec3 a = u_local_attenuation[i];
-        float den = a.x + a.y * d + a.z * d * d;
-        float k = den > 0.0 ? 1.0 / den : 1.0;
-        if (u_local_position[i].w > -1.5) {
-            float c = -dot(l, u_local_cone[i].xyz);
-            if (c < u_local_position[i].w) k = 0.0;
-            else if (u_local_cone[i].w > 0.0) k *= pow(max(c, 0.0), u_local_cone[i].w);
-        }
+        float k = reach(r, at.w, l, d);
         if (k > 0.0) k *= lamp_lit(i, p, f);
-        s += u_local_specular[i] * (k * blinn(n, v, l));
+        s += light(r, 2).rgb * (k * blinn(n, v, l));
     }
     return s;
 }
@@ -433,8 +435,7 @@ mod tests {
             "u_mode",
             "u_ambient",
             "u_count",
-            "u_light_dir[16]",
-            "u_light_colour[16]",
+            "u_lights",
             "u_eye",
             "u_forward",
             "u_orthographic",
@@ -450,20 +451,14 @@ mod tests {
             "u_depth_range",
             "u_orthographic",
             "u_local_count",
-            "u_local_position[16]",
-            "u_local_colour[16]",
-            "u_local_attenuation[16]",
-            "u_local_cone[16]",
             "u_mode",
             "u_ambient",
             "u_count",
-            "u_light_dir[16]",
+            "u_lights",
             "u_eye",
             "u_forward",
             "u_shadow_light",
             "u_shadow_dim",
-            "u_light_specular[16]",
-            "u_local_specular[16]",
             "u_finished",
             "u_material_ambient",
             "u_specular",
@@ -475,8 +470,38 @@ mod tests {
                 "{name}"
             );
         }
-        // The light array matches what FrameLights fills.
-        assert!(GLSL_ES_300_VERTEX.contains(&format!("[{}]", crate::MAX_LIGHTS)));
+        // The lamp shadows stop where FrameLampShadows does.
+        let casters = crate::MAX_SHADOW_CASTERS;
+        assert!(GLSL_ES_300_FRAGMENT.contains(&format!(" u_lamp_far[{casters}];")));
+        assert!(GLSL_ES_300_FRAGMENT.contains(&format!("i >= {casters})")));
+    }
+
+    /// Every `light(row, t)` read, `t` as written.
+    fn texels(shader: &str) -> Vec<usize> {
+        shader
+            .split("light(")
+            .skip(1)
+            .filter_map(|rest| {
+                let args = rest.split(')').next()?;
+                args.rsplit(", ").next()?.trim().parse().ok()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_shaders_read_every_light_table_texel_and_no_more() {
+        for shader in [GLSL_ES_300_VERTEX, GLSL_ES_300_FRAGMENT] {
+            let t = texels(shader);
+            assert!(t.iter().all(|&t| t < crate::LIGHT_TABLE_WIDTH), "{t:?}");
+        }
+        let mut t = texels(GLSL_ES_300_FRAGMENT);
+        t.sort_unstable();
+        t.dedup();
+        assert_eq!(t, (0..crate::LIGHT_TABLE_WIDTH).collect::<Vec<_>>());
+        // No light array is left behind, so no count is capped at 16.
+        for shader in [GLSL_ES_300_VERTEX, GLSL_ES_300_FRAGMENT] {
+            assert!(!shader.contains("i < 16"));
+        }
     }
 
     #[test]

@@ -4,14 +4,14 @@
 //! ([`crate::ShadowAlpha`]), mirroring [`crate::shadow_set`] and
 //! [`crate::shadow_cast`] so both paths shadow the same texels.
 
-use crate::gpu_frame::MAX_LIGHTS;
+use crate::gpu_frame::MAX_SHADOW_CASTERS;
 use crate::lighting::Shader;
 use crate::render::{Bounds, Camera, RenderError, RenderOptions};
 use crate::shadow::{Caster, LightView};
 use crate::shadow_set::extras;
 
 /// The most further casters: every light but the key light.
-pub const MAX_EXTRA_SHADOWS: usize = MAX_LIGHTS - 1;
+pub const MAX_EXTRA_SHADOWS: usize = MAX_SHADOW_CASTERS - 1;
 
 /// The alpha depth pass's vertex shader, for a draw whose
 /// [`crate::Draw::translucent`] is true: location 0 position (vec3) and 2
@@ -284,7 +284,7 @@ mod tests {
         let suns: Vec<ModelLight> = (0..20)
             .map(|i| {
                 // Light 0 the key; the rest brighter with their index, so the
-                // brightest further lights are past the limit.
+                // dimmest further lights are past the caster limit.
                 let a = f64::from(i) * 0.3;
                 let (direction, grey) = match i {
                     0 => ([0.3, -0.4, 0.8], 1.0),
@@ -301,14 +301,14 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(extra.count, MAX_EXTRA_SHADOWS);
-        assert_eq!(extra.dropped, 20 - MAX_LIGHTS);
+        assert_eq!(extra.dropped, 20 - MAX_SHADOW_CASTERS);
         // Every caster is a light the GPU frame draws, and none twice.
         let drawn = FrameLights::for_model(&camera(), &options, &suns).unwrap();
         let mut cast: Vec<i32> = extra.lights.to_vec();
         cast.push(key.light);
         cast.sort_unstable();
         cast.dedup();
-        assert_eq!(cast.len(), MAX_LIGHTS);
+        assert_eq!(cast.len(), MAX_SHADOW_CASTERS);
         assert!(cast.iter().all(|&l| (l as usize) < drawn.count));
     }
 

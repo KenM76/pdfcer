@@ -3,7 +3,8 @@
 use super::RenderThreeDArgs;
 use crate::{ShadowAlphaArg, ShadowCastersArg, ShadowLightArg};
 use pdfcer_3d::{
-    AssembledModel, Bounds, Camera, FrameExtraShadows, RenderOptions, ShadowAlpha, ShadowCasters,
+    AssembledModel, Bounds, Camera, FrameExtraShadows, FrameLampShadows, RenderOptions,
+    ShadowAlpha, ShadowCasters,
 };
 
 /// `--shadow-casters` as the engine's setting.
@@ -38,13 +39,36 @@ pub(super) fn print(
     println!("note: shadows: {}", shadows(a, model, camera, options));
     println!(
         "note: lamp shadows: {}",
-        if a.shadows && a.lamp_shadows {
-            "cast by the model's own point and spot lights, if any \
-             (`--no-lamp-shadows` turns them off)"
-        } else {
-            "off"
-        }
+        lamp_shadows(a, model, camera, options)
     );
+}
+
+fn lamp_shadows(
+    a: &RenderThreeDArgs<'_>,
+    model: &AssembledModel,
+    camera: &Camera,
+    options: &RenderOptions,
+) -> String {
+    if !(a.shadows && a.lamp_shadows) {
+        return "off".to_owned();
+    }
+    let mut out = "cast by the model's own point and spot lights, if any \
+                   (`--no-lamp-shadows` turns them off)"
+        .to_owned();
+    let dropped = Bounds::of(&model.meshes)
+        .and_then(|bounds| {
+            FrameLampShadows::for_model(camera, options, &bounds, &model.lights)
+                .ok()
+                .flatten()
+        })
+        .map_or(0, |l| l.dropped);
+    if dropped > 0 {
+        out.push_str(&format!(
+            "; {dropped} more past the limit of {} light without a shadow",
+            pdfcer_3d::MAX_SHADOW_CASTERS
+        ));
+    }
+    out
 }
 
 fn shadows(
@@ -77,7 +101,7 @@ fn shadows(
                             "; {} more directional light(s) past the limit of {} casters \
                              light without a shadow",
                             e.dropped,
-                            pdfcer_3d::MAX_LIGHTS
+                            pdfcer_3d::MAX_SHADOW_CASTERS
                         ));
                     }
                     who

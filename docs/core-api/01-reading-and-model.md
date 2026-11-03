@@ -3494,7 +3494,7 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   model's own lights, each directional light lighting the frame casts its
   own map (the key light's size) and each shadow removes only its own
   light; one caster draws byte-identically to `KeyLight`. Only lights
-  0..`MAX_LIGHTS` (16, the ones a GPU frame draws) cast, brightest first;
+  0..`MAX_SHADOW_CASTERS` (16, memory-bound) cast, brightest first;
   the rest light without a shadow, counted in `FrameExtraShadows::dropped`
   (disclose it). The fixed fallback light is unchanged. Each map costs
   about one key-map pass (debug build, 800×600: 0.38 s one sun, 1.5 s
@@ -3630,15 +3630,24 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     sizing the depth range), and `FrameLights::new(&camera, &options)` for
     the lighting uniforms (`mode.code()`, `ambient`, `count`, `directions`
     with w = 1 meaning "along the line of sight", `colours`, `eye`,
-    `forward`, `orthographic`; up to `MAX_LIGHTS` = 16) — or
+    `forward`, `orthographic`) — or
     `FrameLights::for_model(&camera, &options, &model.lights)` to draw a
-    model's own lights under Artwork, which also fills the fragment
-    shader's point/spot uniforms (`local_count` → `u_local_count`,
-    `local_positions`, `local_colours`, `local_attenuation`, `local_cones`
-    → `u_local_*[16]`) and counts `dropped` lights past 16 (disclose them).
-    Both fill `specular` → `u_light_specular[16]` and `local_specular` →
-    `u_local_specular[16]`, the lights' highlight colours. The fragment
-    shader also takes `u_mode`, `u_ambient`, `u_count`, `u_light_dir`,
+    model's own lights under Artwork, which also fills the point/spot
+    lights (`local_count` → `u_local_count`, `local_positions`,
+    `local_colours`, `local_attenuation`, `local_cones`). Both fill
+    `specular` and `local_specular`, the lights' highlight colours.
+    `FrameLights` is `Clone`, not `Copy`; its light lists are `Vec`s, up to
+    `MAX_LIGHTS` (1024) of each kind, with `dropped` counting any past that
+    (disclose them). Both shaders read every light from one texture,
+    `u_lights` (`highp sampler2D`, `texelFetch`): upload
+    `light_table()` as `RGBA32F`, `LIGHT_TABLE_WIDTH` (5) texels wide and
+    `light_table_rows()` high, `NEAREST`, no mipmaps, on its own texture
+    unit. Rows `0..count` are directional lights (texel 0 direction, 1
+    colour, 2 specular); rows `count..count + local_count` are point/spot
+    lights (0 position with w = cos cut-off or −2, 1 colour, 2 specular, 3
+    attenuation, 4 cone). There are no per-light uniform arrays (no `u_light_dir`,
+    `u_light_colour`, `u_light_specular` or `u_local_*`). Both
+    shaders also take `u_mode`, `u_ambient`, `u_count`,
     `u_eye`, `u_forward` (the vertex shader's values), and
     `camera.depth_range(aspect, &bounds) -> [near, far]` for the fragment
     shader's `u_depth_range` (with `u_orthographic`).
@@ -3684,7 +3693,9 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     `u_lamp_matrix`, `far[i]` → `u_lamp_far`; depth cleared to 1.0, `LESS`,
     no culling). Bind it as the main pass's `u_lamp_shadow_map` with
     `u_lamp_shadows` true, `u_lamp_shadow_size` = `size` (float) and
-    `u_lamp_far[16]` = `far`. Lamps are fixed in the model: redraw only when
+    `u_lamp_far[16]` = `far`. Only the first `MAX_SHADOW_CASTERS` (16)
+    lamps cast, on both paths; the rest light without a shadow, counted in
+    `dropped` (disclose it). Lamps are fixed in the model: redraw only when
     the model or options change. 6 MiB per lamp at 512. WebGL 2 run (point
     lamp and spot over a floor and two boxes): GPU vs CPU 0.026 levels mean,
     0.02% of pixels over 8 levels.

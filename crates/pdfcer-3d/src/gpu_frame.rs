@@ -6,8 +6,20 @@ use crate::raster::View;
 use crate::render::{Bounds, Camera, RenderError, RenderOptions};
 use crate::vec3::{dot, length, sub};
 
-/// The most lights a [`FrameLights`] carries; every standard scheme fits.
-pub const MAX_LIGHTS: usize = 16;
+/// The most directional lights, and separately the most point and spot
+/// lights, a [`FrameLights`] carries: its [`FrameLights::light_table`]
+/// stays within the 2,048 rows WebGL 2 guarantees a texture.
+pub const MAX_LIGHTS: usize = 1024;
+
+/// The most lights casting a shadow in one frame, on both paths: the key
+/// light and [`crate::MAX_EXTRA_SHADOWS`] further directional lights, and
+/// separately the first this many point and spot lights
+/// ([`crate::FrameLampShadows`]). Each caster holds depth maps of its own,
+/// so this bounds memory, not the shader.
+pub const MAX_SHADOW_CASTERS: usize = 16;
+
+/// Texels per row of [`FrameLights::light_table`].
+pub const LIGHT_TABLE_WIDTH: usize = 5;
 
 /// How [`FrameLights`] shades a corner, as the CPU path does. With `n` the
 /// unit normal and `v` the unit direction towards the eye (eye − point in
@@ -37,52 +49,54 @@ impl ShadeMode {
 }
 
 /// One frame's lighting uniforms: a [`crate::LightingScheme`] resolved
-/// against a camera into model space.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// against a camera into model space. The shaders read the lights from
+/// [`FrameLights::light_table`]; the fields hold the same values.
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct FrameLights {
     /// The formula.
     pub mode: ShadeMode,
     /// The ambient term, for [`ShadeMode::Lights`].
     pub ambient: [f32; 3],
-    /// How many entries of `directions` and `colours` are used.
+    /// How many directional lights: the length of `directions`, `colours`
+    /// and `specular`.
     pub count: usize,
     /// Unit model-space direction in xyz; `w` = 1 means "along the line of
     /// sight" (xyz then zero).
-    pub directions: [[f32; 4]; MAX_LIGHTS],
+    pub directions: Vec<[f32; 4]>,
     /// Each light's colour, 0–1.
-    pub colours: [[f32; 3]; MAX_LIGHTS],
+    pub colours: Vec<[f32; 3]>,
     /// Each light's specular colour, for a [`crate::DrawFinish`]: its
     /// colour unless a model light names another
     /// ([`crate::ModelLight::specular`]).
-    pub specular: [[f32; 3]; MAX_LIGHTS],
+    pub specular: Vec<[f32; 3]>,
     /// The camera position, model units.
     pub eye: [f32; 3],
     /// The unit view direction.
     pub forward: [f32; 3],
     /// Whether the projection is orthographic (then `v` = −`forward`).
     pub orthographic: bool,
-    /// How many entries of the `local_` arrays are used: a model's point
-    /// and spot lights under [`crate::LightingScheme::Artwork`]
-    /// ([`FrameLights::for_model`]), each adding
-    /// `colour·fade·cone·|n·l|` with `l` the unit direction from the surface
-    /// point to the light, added per pixel by the fragment shader.
+    /// How many point and spot lights: the length of the `local_` lists. A
+    /// model's lamps under [`crate::LightingScheme::Artwork`]
+    /// ([`FrameLights::for_model`]), each adding `colour·fade·cone·|n·l|`
+    /// with `l` the unit direction from the surface point to the light,
+    /// added per pixel by the fragment shader.
     pub local_count: usize,
     /// Model-space position in xyz; `w` the cosine of a spot's cut-off
     /// half-angle (a point with `−l·direction` below it gets nothing), −2
     /// for a point light.
-    pub local_positions: [[f32; 4]; MAX_LIGHTS],
+    pub local_positions: Vec<[f32; 4]>,
     /// Colour times intensity.
-    pub local_colours: [[f32; 3]; MAX_LIGHTS],
+    pub local_colours: Vec<[f32; 3]>,
     /// Specular colour times intensity, as `specular`.
-    pub local_specular: [[f32; 3]; MAX_LIGHTS],
+    pub local_specular: Vec<[f32; 3]>,
     /// Constant, linear and quadratic attenuation: `fade = 1 / (c + l·d +
     /// q·d²)`, 1 when that denominator is not positive.
-    pub local_attenuation: [[f32; 3]; MAX_LIGHTS],
+    pub local_attenuation: Vec<[f32; 3]>,
     /// A spot's unit direction in xyz, its exponent in `w`
     /// (`cone = max(−l·direction, 0)^w` inside the cut-off, 1 when `w` is
     /// 0); zero for a point light.
-    pub local_cones: [[f32; 4]; MAX_LIGHTS],
+    pub local_cones: Vec<[f32; 4]>,
     /// Lights beyond [`MAX_LIGHTS`] in either list, not drawn; for the host
     /// to disclose.
     pub dropped: usize,
@@ -117,23 +131,23 @@ impl FrameLights {
             mode: ShadeMode::Headlight,
             ambient: [0.0; 3],
             count: 0,
-            directions: [[0.0; 4]; MAX_LIGHTS],
-            colours: [[0.0; 3]; MAX_LIGHTS],
-            specular: [[0.0; 3]; MAX_LIGHTS],
+            directions: Vec::new(),
+            colours: Vec::new(),
+            specular: Vec::new(),
             eye: camera.eye.map(|c| c as f32),
             forward: forward.map(|c| c as f32),
             orthographic: matches!(camera.projection, crate::Projection::Orthographic { .. }),
             local_count: 0,
-            local_positions: [[0.0; 4]; MAX_LIGHTS],
-            local_colours: [[0.0; 3]; MAX_LIGHTS],
-            local_specular: [[0.0; 3]; MAX_LIGHTS],
-            local_attenuation: [[0.0; 3]; MAX_LIGHTS],
-            local_cones: [[0.0; 4]; MAX_LIGHTS],
+            local_positions: Vec::new(),
+            local_colours: Vec::new(),
+            local_specular: Vec::new(),
+            local_attenuation: Vec::new(),
+            local_cones: Vec::new(),
             dropped: 0,
         };
         let options = &crate::render_mode::frame_options(options);
         let shader = Shader::for_frame(options, lights, &basis);
-        out.set_specular(&crate::gloss::GlossLights::new(&shader, options, lights));
+        let gloss = crate::gloss::GlossLights::new(&shader, options, lights);
         match shader {
             Shader::Headlight => {}
             Shader::Unlit => out.mode = ShadeMode::Unlit,
@@ -147,47 +161,86 @@ impl FrameLights {
                 out.set_local(&local);
                 out.mode = ShadeMode::Lights;
                 out.ambient = ambient.map(|c| c as f32);
-                for ((slot, colour), (dir, c)) in out
-                    .directions
-                    .iter_mut()
-                    .zip(out.colours.iter_mut())
-                    .zip(lights)
-                {
-                    *slot = match dir {
-                        Some([x, y, z]) => [x as f32, y as f32, z as f32, 0.0],
+                for (dir, c) in lights.iter().take(MAX_LIGHTS) {
+                    out.directions.push(match dir {
+                        Some([x, y, z]) => [*x as f32, *y as f32, *z as f32, 0.0],
                         None => [0.0, 0.0, 0.0, 1.0],
-                    };
-                    *colour = c.map(|v| v as f32);
-                    out.count += 1;
+                    });
+                    out.colours.push(c.map(|v| v as f32));
                 }
+                out.count = out.directions.len();
             }
         }
+        out.set_specular(&gloss);
         Ok(out)
+    }
+
+    /// The rows of [`FrameLights::light_table`]: `count + local_count`, at
+    /// least 1 so the texture is never empty.
+    #[must_use]
+    pub fn light_table_rows(&self) -> usize {
+        (self.count + self.local_count).max(1)
+    }
+
+    /// The lights as the shaders' `u_lights`: an RGBA32F texture
+    /// [`LIGHT_TABLE_WIDTH`] texels wide and
+    /// [`FrameLights::light_table_rows`] high, row 0 first, four floats a
+    /// texel. Upload it with `NEAREST` filtering and no mipmaps (WebGL 2
+    /// cannot filter 32-bit floats); the shaders read it with `texelFetch`.
+    ///
+    /// Rows `0..count` are the directional lights: texel 0 its direction
+    /// (as `directions`), 1 its colour, 2 its specular colour. Rows
+    /// `count..count + local_count` are the point and spot lights: texel 0
+    /// its position, 1 its colour, 2 its specular colour, 3 its
+    /// attenuation, 4 its cone. Unused channels and texels are zero.
+    #[must_use]
+    pub fn light_table(&self) -> Vec<f32> {
+        let mut out = vec![0.0; self.light_table_rows() * LIGHT_TABLE_WIDTH * 4];
+        let three = |c: &[f32; 3]| [c[0], c[1], c[2], 0.0];
+        let far = (0..self.count).map(|i| {
+            [
+                self.directions.get(i).copied(),
+                self.colours.get(i).map(three),
+                self.specular.get(i).map(three),
+                None,
+                None,
+            ]
+        });
+        let near = (0..self.local_count).map(|i| {
+            [
+                self.local_positions.get(i).copied(),
+                self.local_colours.get(i).map(three),
+                self.local_specular.get(i).map(three),
+                self.local_attenuation.get(i).map(three),
+                self.local_cones.get(i).copied(),
+            ]
+        });
+        for (row, texels) in out
+            .chunks_exact_mut(LIGHT_TABLE_WIDTH * 4)
+            .zip(far.chain(near))
+        {
+            for (slot, texel) in row.chunks_exact_mut(4).zip(texels) {
+                slot.copy_from_slice(&texel.unwrap_or([0.0; 4]));
+            }
+        }
+        out
     }
 }
 
 impl FrameLights {
     fn set_local(&mut self, local: &[crate::model_shade::Local]) {
         let f = |v: [f64; 3]| v.map(|c| c as f32);
-        for (i, l) in local.iter().take(MAX_LIGHTS).enumerate() {
+        for l in local.iter().take(MAX_LIGHTS) {
             let [x, y, z] = f(l.position);
             let (cut, [dx, dy, dz], e) = l.cone.map_or((-2.0, [0.0; 3], 0.0), |c| {
                 (c.cos_cutoff as f32, f(c.direction), c.exponent as f32)
             });
-            if let Some(slot) = self.local_positions.get_mut(i) {
-                *slot = [x, y, z, cut];
-            }
-            if let Some(slot) = self.local_colours.get_mut(i) {
-                *slot = f(l.colour);
-            }
-            if let Some(slot) = self.local_attenuation.get_mut(i) {
-                *slot = f(l.attenuation);
-            }
-            if let Some(slot) = self.local_cones.get_mut(i) {
-                *slot = [dx, dy, dz, e];
-            }
-            self.local_count = i + 1;
+            self.local_positions.push([x, y, z, cut]);
+            self.local_colours.push(f(l.colour));
+            self.local_attenuation.push(f(l.attenuation));
+            self.local_cones.push([dx, dy, dz, e]);
         }
+        self.local_count = self.local_positions.len();
     }
 }
 
@@ -535,5 +588,129 @@ mod tests {
                 assert!((f64::from(*g) - w).abs() < 1e-5, "{p:?}: {got:?} {want:?}");
             }
         }
+    }
+
+    /// The reference shaders' lighting read from `table` as they read
+    /// `u_lights`: directional rows, then lamp rows.
+    fn from_table(l: &FrameLights, p: [f32; 3], n: [f32; 3], v: [f32; 3]) -> [f32; 3] {
+        let t = l.light_table();
+        let texel = |r: usize, k: usize| -> [f32; 4] {
+            let at = (r * LIGHT_TABLE_WIDTH + k) * 4;
+            [t[at], t[at + 1], t[at + 2], t[at + 3]]
+        };
+        let dot = |a: [f32; 3], b: [f32; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+        let mut s = l.ambient;
+        for i in 0..l.count {
+            let [x, y, z, w] = texel(i, 0);
+            let k = dot(n, if w > 0.5 { v } else { [x, y, z] }).abs();
+            for (o, c) in s.iter_mut().zip(texel(i, 1)) {
+                *o += c * k;
+            }
+        }
+        for i in 0..l.local_count {
+            let r = l.count + i;
+            let [x, y, z, cut] = texel(r, 0);
+            let to = [x - p[0], y - p[1], z - p[2]];
+            let d = dot(to, to).sqrt();
+            let u = to.map(|c| c / d);
+            let [a, b, c, _] = texel(r, 3);
+            let den = a + b * d + c * d * d;
+            let mut k = if den > 0.0 { 1.0 / den } else { 1.0 };
+            let [dx, dy, dz, e] = texel(r, 4);
+            if cut > -1.5 {
+                let c = -dot(u, [dx, dy, dz]);
+                k *= if c < cut {
+                    0.0
+                } else if e > 0.0 {
+                    c.max(0.0).powf(e)
+                } else {
+                    1.0
+                };
+            }
+            for (o, col) in s.iter_mut().zip(texel(r, 1)) {
+                *o += col * k * dot(n, u).abs();
+            }
+        }
+        s
+    }
+
+    /// `n` suns and `n` alternating point and spot lamps, all different.
+    fn crowd(n: usize) -> Vec<crate::ModelLight> {
+        use crate::{ModelLight, ModelLightKind};
+        let mut out = Vec::new();
+        for i in 0..n {
+            let a = i as f64 * 0.37;
+            let grey = 0.01 + 0.0005 * i as f64;
+            out.push(ModelLight::new(
+                ModelLightKind::Directional {
+                    direction: [a.cos(), a.sin(), -0.5],
+                },
+                [grey, grey * 0.5, 0.02],
+            ));
+            let position = [2.0 * a.cos(), 2.0 * a.sin(), 1.0 + 0.01 * i as f64];
+            let attenuation = [1.0, 0.05, 0.01];
+            let kind = if i % 2 == 0 {
+                ModelLightKind::Point {
+                    position,
+                    attenuation,
+                }
+            } else {
+                ModelLightKind::Spot {
+                    position,
+                    direction: position.map(|c| -c),
+                    attenuation,
+                    angle: 0.9,
+                    exponent: 2.0,
+                }
+            };
+            out.push(ModelLight::new(kind, [0.02, grey, 0.01]));
+        }
+        out
+    }
+
+    #[test]
+    fn the_light_table_carries_more_than_sixteen_lights_as_the_cpu_shades_them() {
+        let lights = crowd(40);
+        let camera = cameras()[0];
+        let basis = camera.basis().unwrap();
+        let options = RenderOptions::default();
+        let l = FrameLights::for_model(&camera, &options, &lights).unwrap();
+        assert_eq!((l.count, l.local_count, l.dropped), (40, 40, 0));
+        assert_eq!(l.light_table().len(), 80 * LIGHT_TABLE_WIDTH * 4);
+        assert_eq!(l.light_table_rows(), 80);
+        let shader = Shader::for_frame(&options, &lights, &basis);
+        let n = normalize([0.3, -0.5, 0.8]).unwrap();
+        let v = normalize(sub(camera.eye, [0.0; 3])).unwrap();
+        for p in [[0.0; 3], [1.0, 0.1, 0.0], [-0.5, 0.7, 0.2]] {
+            let want = shader.shade(p, n, Some(v));
+            let f = |a: [f64; 3]| a.map(|c| c as f32);
+            let got = from_table(&l, f(p), f(n), f(v));
+            for (g, w) in got.iter().zip(want) {
+                assert!((f64::from(*g) - w).abs() < 1e-4, "{p:?}: {got:?} {want:?}");
+            }
+        }
+        // The specular colours sit in texel 2 of each row.
+        let t = l.light_table();
+        let row = |r: usize| &t[(r * LIGHT_TABLE_WIDTH + 2) * 4..][..3];
+        assert_eq!(row(39), l.specular[39]);
+        assert_eq!(row(40 + 39), l.local_specular[39]);
+    }
+
+    #[test]
+    fn lights_past_the_table_are_dropped_and_counted() {
+        let lights = crowd(MAX_LIGHTS + 3);
+        let l = FrameLights::for_model(&cameras()[0], &RenderOptions::default(), &lights).unwrap();
+        assert_eq!(
+            (l.count, l.local_count, l.dropped),
+            (MAX_LIGHTS, MAX_LIGHTS, 6)
+        );
+        // WebGL 2 guarantees 2,048 rows.
+        assert!(l.light_table_rows() <= 2048);
+        let unlit = FrameLights::new(&cameras()[0], &RenderOptions::default()).unwrap();
+        assert!(unlit.light_table_rows() >= 1);
+        assert_eq!(
+            unlit.light_table().len(),
+            unlit.light_table_rows() * LIGHT_TABLE_WIDTH * 4
+        );
     }
 }

@@ -79,7 +79,7 @@ impl ShadowAlpha {
 #[non_exhaustive]
 pub enum ShadowCasters {
     /// Every directional light lighting the frame, up to
-    /// [`crate::MAX_LIGHTS`]; each shadow removes only its own light. The
+    /// [`crate::MAX_SHADOW_CASTERS`]; each shadow removes only its own light. The
     /// default.
     #[default]
     EveryLight,

@@ -38,14 +38,15 @@ impl DrawFinish {
 }
 
 impl FrameLights {
-    /// Fill `specular` and `local_specular` from `lights`.
+    /// Fill `specular` and `local_specular` from `lights`, one per light
+    /// drawn.
     pub(crate) fn set_specular(&mut self, lights: &GlossLights) {
         let f = |c: &[f64; 3]| c.map(|v| v as f32);
-        for (slot, (_, c)) in self.specular.iter_mut().zip(&lights.far) {
-            *slot = f(c);
-        }
-        for (slot, c) in self.local_specular.iter_mut().zip(&lights.near) {
-            *slot = f(c);
-        }
+        self.specular = (0..self.count)
+            .map(|i| lights.far.get(i).map_or([0.0; 3], |(_, c)| f(c)))
+            .collect();
+        self.local_specular = (0..self.local_count)
+            .map(|i| lights.near.get(i).map_or([0.0; 3], f))
+            .collect();
     }
 }

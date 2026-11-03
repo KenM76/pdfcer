@@ -5,7 +5,7 @@
 //! where only the key light casts draws exactly as before.
 
 use crate::TriangleMesh;
-use crate::gpu_frame::MAX_LIGHTS;
+use crate::gpu_frame::{MAX_LIGHTS, MAX_SHADOW_CASTERS};
 use crate::lamp_shadow::LampShadows;
 use crate::lighting::Shader;
 use crate::raster::Paint;
@@ -28,9 +28,9 @@ pub(crate) struct Extra {
 }
 
 /// The lights casting besides `key`, brightest first (ties by index), and
-/// how many more would have cast past [`MAX_LIGHTS`] in all. Only the first
-/// [`MAX_LIGHTS`] lights cast, the ones a GPU frame draws
-/// ([`crate::FrameLights`]), so both paths shadow the same lights. None
+/// how many more would have cast past [`MAX_SHADOW_CASTERS`] in all. Only
+/// the first [`MAX_LIGHTS`] lights are candidates, the ones a GPU frame
+/// draws ([`crate::FrameLights`]), so both paths shadow the same lights. None
 /// unless `casters` is [`ShadowCasters::EveryLight`] and `key` is a scheme
 /// light.
 pub(crate) fn extras(
@@ -75,9 +75,16 @@ pub(crate) fn extras(
     let eligible = out.len();
     out.retain(|(_, e)| e.light < MAX_LIGHTS);
     out.sort_by(|a, b| b.0.total_cmp(&a.0));
-    out.truncate(MAX_LIGHTS - 1);
+    out.truncate(MAX_SHADOW_CASTERS - 1);
     let dropped = eligible - out.len();
     (out.into_iter().map(|(_, e)| e).collect(), dropped)
+}
+
+/// The lamps casting a shadow: the first [`MAX_SHADOW_CASTERS`], as
+/// [`crate::FrameLampShadows`] on the GPU; the rest light unshadowed.
+pub(crate) fn lamp_casters(shader: &Shader) -> &[crate::model_shade::Local] {
+    let lamps = shader.local();
+    lamps.get(..MAX_SHADOW_CASTERS).unwrap_or(lamps)
 }
 
 /// The further casters' maps for one frame.
@@ -183,7 +190,7 @@ impl Shadows {
         });
         let lamps = bounds.filter(|_| lamps_cast).map(|bounds| {
             let size = options.lamp_shadow_map_size;
-            LampShadows::build(shader.local(), bounds, size, (&casts, veil), workers)
+            LampShadows::build(lamp_casters(shader), bounds, size, (&casts, veil), workers)
         });
         Shadows {
             caster,
