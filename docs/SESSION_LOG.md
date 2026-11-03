@@ -4,6 +4,27 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-02 (1382nd filing) — `v0.118.0` PUBLISHED; tag at `c6baca00`; help-text fix `c6baca00`
+
+**Filed (docs only; engineer-reported, no shell here; nothing checked from here):**
+- **`c6baca00` (`Pass 657.5` follow-up):** plain text in the `--shadow-light` sun help. A `ValueEnum` variant doc comment bypasses the help scrub, so a Markdown code span reached `--help` and failed `cli_help_ships_no_internal_markup`. Filed on the existing `Pass 657.5` Shipped entry.
+- **Tag:** `v0.118.0` at `c6baca00`, pushed.
+- **GitHub release:** 8 assets: `pdfcer-v0.118.0-windows-x64.zip` 28,367,170 B plus 3 OCR add-on zips, a `.sha256` each.
+- **OneDrive:** slot `pdfcer1` has 0.118.0; `pdfcer2` keeps 0.117.0.
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.118.0 published, confirmed on crates.io.
+- **Fresh-folder smoke (passed):** `--version` reports 0.118.0; `3d-render --shadow-light sun` printed the sun note.
+- **`verify-release.py`:** all ok including CI green at the tag, except "working tree clean". The 14 dirty paths are agent-memory files, `docs/research/request-*.md` and a stray `-` file; none is a build input, and the build folder carries no `-dirty` suffix.
+- **Gates:** the `run-gates.sh` run before the fix failed only on that help test; re-run green after the fix. `cargo doc` with `-D broken_intra_doc_links` clean (warnings only).
+- **Contents:** `657.2` / `657.3` (`a64bf4e0`), `647.4` cut (`a5e17baf`), `657.4` / `X028` (`f11c2730`), `657.5` / `G259` (`981b3dcf`, `c6baca00`).
+- **`G259` verification:** GUI floor-box fixture from 4 corners (+-4, +-4, 4): the floor shadow stays in one model place.
+- **Channel:** GUI replies written in FeatureRequests, plus a release notice.
+
+**Decisions made this session:** none minted. No FEATURES box changes. ROADMAP has no separate release/version line; the `daff1ca8` Shipped entry still reads "PREPARED, not published" and is superseded by this entry (append-only; not rewritten).
+
+**Still in flight:** `647.4` remainder; `O368` in `pdfcer-gui`.
+
+**For next session:** nothing new. Backup currency not verifiable from here.
+
 ## 2026-11-02 (1381st filing) — `Pass 647.4` border cut `a5e17baf`; `Pass 657.4` `f11c2730`; `Pass 657.5` `981b3dcf`; bump `daff1ca8` (`v0.118.0` prepared)
 
 **Filed (docs only; engineer-reported, no shell here; nothing checked from here):**

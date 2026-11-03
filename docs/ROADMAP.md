@@ -122,6 +122,7 @@ Engineer-reported; no shell here, nothing checked from here. Commit `981b3dcf` "
 - **Done:** `RenderOptions::shadow_light: ShadowLight::{FollowsScheme (default), Sun { up: UpAxis }}`. `Sun` is a shadow key placed in the iso view about the up axis, fixed in model space, dim `SHADOW_DIM`, and absent when the scene is unlit. `FrameShadow` (GPU path) uses the same caster. CLI `3d-render --shadow-light scheme|sun`. `docs/core-api` updated.
 - **Tests (engineer-reported):** `pdfcer-3d` default 266 lib + 3 + 20; `--no-default-features` 200 + 3 + 11.
 - **Boxes:** core `[x]`, cli `[x]`, gui `[ ]` (the GUI tracks it as `O368`). FEATURES: shadows / ambient-occlusion row amended.
+- **Follow-up `c6baca00`** "fix(cli): plain text in the --shadow-light sun help (Pass 657.5)" (1382nd filing): a `ValueEnum` variant's doc comment bypasses the help scrub, so a Markdown code span reached `--help` and failed `cli_help_ships_no_internal_markup`. Help text is now plain. Released in `v0.118.0` (tag at `c6baca00`).
 
 ### `f11c2730` `Pass 657.4` SHIPPED, 2026-11-02: PRC reader robustness (`X028`; 1381st filing)
 
