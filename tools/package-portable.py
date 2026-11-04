@@ -558,6 +558,9 @@ OCR add-ons beside this folder (unzip into models/ to install): {", ".join(z.nam
     print(f"  {'TOTAL':<32} {total:>10,} bytes")
     if dirty:
         print("\n  WARNING: built from an uncommitted working tree (-dirty).")
+    # Each version bump leaves a superseded copy of every crate in target/;
+    # without this sweep it grew past 60 GB. Failure here never fails a build.
+    subprocess.run([sys.executable, str(REPO / "tools" / "clean-target-cache.py")], check=False)
     return 0
 
 
