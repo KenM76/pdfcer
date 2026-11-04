@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-04 (1423rd filing) — `R263` minted (decision 216); `eba71f2f` test follow-up; `v0.128.0` in progress
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, I commit nothing):**
+- **`R263` MINTED, decision 216:** operator ruling that test skipping be standing when safe. Scope tests to what changed; always run the filing gates, core-api-verbs, `cargo doc` broken-link check, Linux cross-check, feature-variant clippy/tests, packaging smoke; full `run-gates.sh` for shared plumbing, no green baseline since the last tag, or CI down; CI is the full sweep. Text in ROADMAP *Standing rules* and ARCHITECTURE §12.
+- **Number correction:** dispatch said `R251`; that is already the re-export-closure rule and the ceiling was `R262` (grep of ROADMAP, ARCHITECTURE, `tools/`; `R263` appears only as "next free"). Minted `R263`; next free `R264`; decision `217`.
+- **`eba71f2f` filed** as a test follow-up to `Pass 660.0` and `Pass 663.0` (undo depth 4 -> 5 via `InfoField::all`; `truncated=` in the copy line). Tests only.
+- **`v0.128.0`:** tagged on `eba71f2f`, being pushed and packaged. Not recorded as published.
+- **Files:** `ROADMAP.md`, `SESSION_LOG.md`, `ARCHITECTURE.md` (§12). `FEATURES.md` untouched (no capability change).
+
+**Owed / open:** run `check-register-entry-size.py`, `check-ledger-numbers.py` (may count the rule ceiling), `check-commits-filed.py`; not run from here. `NEXT_SESSION.md` (engineer-owned) not edited. Release filing for `v0.128.0` owed. Next filing 1424th.
+
 ## 2026-11-04 (1422nd filing) — `Pass 664.0` (`G267`, `517f96d9`) shipped
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, I commit nothing):**

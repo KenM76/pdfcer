@@ -13729,3 +13729,18 @@ Operator ruling (Ken, 2026-11-04), verbatim: *"Also with any that come from PdfC
 **First application.** `Pass 658.20` (`X035`) and `Pass 658.21` (`X036`) port PdfCraft commits `51b68a8b`, `c2d8c5f3`, `bca0211a` (in `D:\Dev\PdfCraft\upstream`, author `KenM76`, per the engineer); anything PdfCraft has not written, pdfcer writes and PdfCraft ports.
 
 **Body-section effect.** None to the numbered body sections. **Decision ceiling.** Fills `215`. Next free decision: `216`. **New standing rule.** None numbered (no `R` minted); a process line was added to the ROADMAP Standing rules index, a judgment call with no gate.
+
+### 2026-11-04 (1423rd filing, `v0.128.0` gate run) — decision 216: tests are scoped to what changed when that is safe; the cheap gates always run
+
+Operator ruling (Ken, 2026-11-04), verbatim: *"can we make it a standing rule that we do this test skipping when it is safe to do so?"* "This" is what had just happened: after a full gate run, only two test files had changed, so only those two tests were re-run rather than the workspace. Engineer-reported; no `docs/decisions/216-*.md` written (this entry is the record). Formalises the existing release practice described in many Shipped entries as "change-scoped"; mints `R263`.
+
+**Decides.**
+1. **Scope tests to what changed.** Before a release, or after a failed gate run, test only what changed since the last green run: the crates whose files changed, plus their dependents if a non-test `pub` surface changed. A failed gate command is re-run by re-running only the failed test binary or filter when the fix touched only test files.
+2. **Always run (cheap; a skipped one has gone wrong before):** the filing gates (`check-commits-filed`, `check-suite-name-absent`, `check-register-entry-size`, `check-ledger-numbers`); `check-core-api-verbs` when the core-api docs or a `pub` item changed; `cargo doc` with `-D rustdoc::broken_intra_doc_links`; a Linux cross-check of the touched crates; `--no-default-features` / feature-variant clippy and tests for any change touching feature-gated code; the packaging smoke test.
+3. **Not safe to skip, run the full `tools/run-gates.sh`:** a change to shared plumbing (writer, xref, parser, filters, the CLI argument tree, workspace manifests or the dependency set); a run with no green full-suite baseline since the last tag; CI unavailable.
+4. **CI on push is the full sweep.** Its colour is read from GitHub before the next tag.
+5. **Why.** A full run is about an hour and repeats suites that cannot have changed. Five earlier misses (2026-10-21, 10-23, 10-30, 10-31) each came from skipping one of the cheap always-run gates, which is why those stay mandatory.
+
+**Number correction.** The operator-side dispatch named the rule `R251`; `R251` is already the re-export-closure rule (`check-reexport-closure.py`), and the live ceiling is `R262`. Minted as `R263` after grepping ROADMAP, ARCHITECTURE and `tools/`.
+
+**Body-section effect.** None. **Decision ceiling.** Fills `216`; next free decision `217`. **New standing rule.** `R263`; next free `R264`. No gate: whether a change touched shared plumbing is a judgment, not a mechanical test.
