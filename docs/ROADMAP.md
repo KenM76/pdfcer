@@ -112,6 +112,24 @@ wherever it appears.*
 
 ## Shipped
 
+### `fb98413e` `Pass 658.17`, 2026-11-04: a per-frame render work ceiling, finite camera fit, checked schema and per-copy block charge (`X033`) (1410th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `fb98413e` "fix(3d): raster work ceiling, finite fit, checked schema, per-copy block charge, balanced mirror test (X033)". Inbound request `X033` (operator as crates consumer; reply `reply_X033_3d_reader_and_raster_scale_and_work_bounds_SHIPPED.md` in the FeatureRequests `open/` folder; INDEX row SHIPPED). Local `main`. No decision record. Pass number `658.17` assigned at this filing (grep of `docs/` for `658.17` found none before filing).
+- **New pub items (`pdfcer-3d`):** `pdfcer_3d::MAX_RENDER_PIXEL_TESTS` = 2^37 and `RenderError::TooMuchWork { limit: u64 }`. `Bounds` moved to a new `bounds` module (pub path `pdfcer_3d::render::Bounds` unchanged); a private `work` module added. `docs/core-api/01-reading-and-model.md` updated.
+- **The seven items:**
+  1. **Work ceiling:** a per-frame pixel-test ceiling charged per triangle's clipped bbox before scanning, the frame first and then every shadow and lamp map summed; line and AO passes are not charged. Basis (engineer-measured, pixel tests per frame): `Bancroft_3D_plan` default 811,543,205; 8192x8192 1,289,230,895; 8192x8192 with maximal maps 44,527,920,571 (2^37 = 137,438,953,472, so about 3.1x under that worst case); `Bancroft_3D` 122,907,602; `TS-0232` 229,317,200; `TR-0522` 64,789,344.
+  2. `Bounds::centre` halves, then adds (no overflow at large coordinates).
+  3. `Bounds::of` counts drawn triangles only.
+  4. `Camera::fit` takes its basis from direction and up only, with the eye-distance floor at max|coord| x 2^-30.
+  5. Copied blocks are charged against `MAX_INFLATED_BYTES` (512 MiB kept) per copying structure. Measured maximum decode 26,425,157 bytes (`Bancroft_3D_plan`; 512 MiB = 536,870,912, so about 20x under).
+  6. Schema ops are checked; overflow is `Malformed`.
+  7. The orientation determinant balances rows, then columns.
+- **Departures, recorded:** item 7 balances columns as well as rows. Item 4 asserts "drawn" for orthographic only: with perspective a unit triangle at 1e17 is sub-pixel at the floored eye distance. The existing test `non_finite_and_missing_vertices_are_skipped` was re-pinned to `Bounds::of == None`.
+- **Tests (engineer-reported; every new test sabotage-verified):** `pdfcer-3d` default 383 lib + 5 integration + 25 doctests; `--no-default-features` 242 + 5 + 14; `pdfcer-cli` `three_d` 49 + 3 unit. clippy clean both feature sets; fmt clean; structure gate none new (561 baseline). `check-core-api-verbs` PASS. `cargo tree` unchanged (no manifest edits).
+- **Boxes:** core `[x]`; cli no new flag (the existing `3d-render` surfaces the refusal as an error), so cli untouched; gui `—` for this Pass (the separate `pdfcer-gui` consumes it through its existing error path). FEATURES: the "Render a 3D model under a lighting scheme" row gained one clause; no box changed.
+- **Release plan, NOT claimed done:** ships in `v0.126.0` (planned, not tagged, not published; OneDrive slot `pdfcer2`). Nothing about the tag, GitHub release, OneDrive deploy or crates is recorded here as done.
+- **Owed:** `crates/` doc-comment survivors not checked from here. Ledgers: no decision; next filing 1411th.
+
 ### `906896b2` `Pass 658.16`, 2026-11-03: mesh winding and normal sign follow the full 4x4 determinant (`X032`) (1408th filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `906896b2` "fix(3d): mesh winding and normal sign follow the full 4x4 determinant (X032)". Inbound request `X032` (operator as crates consumer; reply `reply_X032_mesh_transform_winding_by_full_determinant_SHIPPED.md` in the FeatureRequests `open/` folder). Local `main`; ships in `v0.125.0` (not yet tagged). No decision record. Pass number `658.16` assigned at this filing (grep of `docs/` for `658.16` found none before filing).
@@ -27721,6 +27739,10 @@ closes out the *prior* filing's business rather than opening this one's.
 > `Pass 654.2` (`G253` GPU half) SHIPPED and has left this section (1372nd filing, `98c2560e`..`37c27e60`); full entry at the top of *Shipped*.
 
 > `Pass 658.4`, `658.5` and `658.6` SHIPPED and have left this section (1395th filing, `536a3bf2`; `647a9b55`..`7946e10c`; `b43a3e1b`, `ba21b6aa`); full entries at the top of *Shipped*.
+
+### `Pass 658.18` (`G265`, operator `O374`, from `pdfcer-gui`): draw what survives of a damaged 3D model; refuse only on a resource ceiling (filed 1410th filing, IN PROGRESS, not shipped)
+
+Engineer-reported; no shell here. Planned for the same `v0.126.0` release as `Pass 658.17` (release NOT claimed done). Intent as relayed: a damaged or partly unreadable 3D model draws whatever of it can be read, and a refusal is reserved for hitting a resource ceiling (for example `MAX_RENDER_PIXEL_TESTS`, `MAX_INFLATED_BYTES`, `MAX_DECODED_ELEMENTS`). Related FEATURES planned row: "3D model still shown when the product tree cannot be read". Pass number `658.18` assigned at this filing (grep of `docs/` found none before filing). Acceptance criteria are not yet written; the engineer supplies them on shipping.
 
 ### Known limits recorded from the gap audit (NOT being done)
 

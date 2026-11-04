@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-04 (1410th filing) — `Pass 658.17` (`fb98413e`, `X033`): render work ceiling and reader bounds; release PENDING
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed by me):**
+- **`Pass 658.17` (`fb98413e`, `X033`):** seven `pdfcer-3d` items. New pub: `MAX_RENDER_PIXEL_TESTS` = 2^37, `RenderError::TooMuchWork { limit: u64 }`; `Bounds` moved to a `bounds` module (path unchanged). (1) per-frame pixel-test ceiling over the frame plus all shadow/lamp maps (lines and AO not charged; worst measured 44,527,920,571 at 8192² with maximal maps, 2^37 = 137,438,953,472, ~3.1x under); (2) `Bounds::centre` halves then adds; (3) `Bounds::of` counts drawn triangles; (4) `Camera::fit` basis from direction+up, eye floor max|coord|×2^-30; (5) copied blocks charged to `MAX_INFLATED_BYTES` per copying structure (max decode 26,425,157 of 536,870,912 bytes, ~20x under); (6) schema ops checked, overflow `Malformed`; (7) orientation determinant balances rows then columns.
+- **Departures:** item 7 also balances columns; item 4 asserts "drawn" for orthographic only (perspective unit triangle at 1e17 is sub-pixel at the floored eye distance); `non_finite_and_missing_vertices_are_skipped` re-pinned to `Bounds::of == None`.
+- **Engineer-reported figures:** `pdfcer-3d` default 383 lib + 5 integration + 25 doctests; `--no-default-features` 242 + 5 + 14; `pdfcer-cli` `three_d` 49 + 3. All new tests sabotage-verified; clippy and fmt clean; structure gate none new (561 baseline); `check-core-api-verbs` PASS; no manifest edits.
+- **Boxes:** core `[x]`, cli no new flag, gui `—`. FEATURES: lighting-scheme render row gained a work-ceiling clause; the "3D model still shown when the product tree cannot be read" planned row now points at `G265`. No box changed, none rounded up.
+- **Reply/ledgers:** reply file `reply_X033_..._SHIPPED.md`, INDEX row SHIPPED. No decision. Numbering: `658.17`, `658.18` assigned by grep of `docs/` (none used).
+
+**In flight (NOT shipped):** `Pass 658.18` (`G265`, `pdfcer-gui` operator `O374`): draw what survives of a damaged 3D model, refuse only on a resource ceiling; filed under Next up.
+
+**Release plan, NOT claimed done:** `v0.126.0` (OneDrive slot `pdfcer2`) would carry `658.17`, and `658.18` if it lands; not tagged, not published.
+
+**Owed / open:** `crates/` doc-comment survivors not checked from here; uncommitted stray local files from the 1409th remain. Backup currency not verifiable from here. Next filing 1411th.
+
 ## 2026-11-04 (1409th filing) — release publication facts: `v0.124.0` tag only, `v0.125.0` published
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed by me; no new Passes, no FEATURES change):**
