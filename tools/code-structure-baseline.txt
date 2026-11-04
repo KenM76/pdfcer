@@ -461,7 +461,6 @@ fn pdfcer-model/src/crypto/r6.rs::hash_2b
 fn pdfcer-model/src/crypto/standard.rs::parse
 fn pdfcer-model/src/document.rs::assemble
 fn pdfcer-model/src/document.rs::decrypt_in_place
-fn pdfcer-model/src/document.rs::load_compressed
 fn pdfcer-model/src/lexer.rs::scan_literal_string_body
 fn pdfcer-model/src/page_tree.rs::resolve_page
 fn pdfcer-model/src/page_tree.rs::walk

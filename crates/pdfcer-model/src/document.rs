@@ -1201,7 +1201,9 @@ impl Document {
     /// `compressed` is `(object number, container object number, index
     /// within container)`, sorted. Containers are looked up in
     /// `objects` — which is why this runs strictly after phase 1 (module
-    /// docs) — decoded once, and cached for the rest of the load.
+    /// docs) — decoded once, and cached for the rest of the load. A
+    /// container that fails is remembered too: its later members are
+    /// recorded with the first failure's reason, without another decode.
     ///
     /// Every compressed object is inserted with generation **0**:
     /// §7.5.7 fixes the generation of a compressed object at zero, and a
@@ -1214,6 +1216,9 @@ impl Document {
         anomalies: &mut Vec<LoadAnomaly>,
     ) -> Result<(), DocError> {
         let mut cache: HashMap<u32, ObjectStream> = HashMap::new();
+        // Containers that could not be decoded, with the reason, so a bad
+        // stream costs one decode per load rather than one per member.
+        let mut failed: HashMap<u32, String> = HashMap::new();
 
         // A COMPRESSED OBJECT THAT CANNOT BE READ IS UNDEFINED, NOT FATAL
         // — the same §7.3.10 reading the file-level loop applies, and for the
@@ -1240,74 +1245,31 @@ impl Document {
             // any compressed object shall be zero."
             let container = ObjId::new(stream_num, 0);
 
+            // A container that already failed is not decoded again: its
+            // members get the first failure's reason. Only reachable under
+            // the lenient policy (strict returned on that first failure).
+            if let Some(reason) = failed.get(&stream_num) {
+                anomalies.push(LoadAnomaly::ObjectUnreadable {
+                    object: ObjId::new(num, 0),
+                    reason: reason.clone(),
+                });
+                continue;
+            }
             let objstm = match cache.entry(stream_num) {
                 Entry::Occupied(slot) => slot.into_mut(),
-                Entry::Vacant(slot) => {
-                    let Some(io) = objects.get(&container) else {
-                        give_up_on!(
-                            num,
-                            format!("its object stream {container} is not in the file"),
-                            DocError::ObjectStreamMissing { container, num }
-                        )
-                    };
-                    let Object::Stream(stream) = &io.value else {
-                        give_up_on!(
-                            num,
-                            format!(
-                                "object {container} is named as its container but is not a stream"
-                            ),
-                            DocError::ObjectStream {
-                                container,
-                                source: ObjStmError::NotAStream,
-                            }
-                        )
-                    };
-                    let Some(raw) = stream.data_span.slice(buf) else {
-                        give_up_on!(
-                            num,
-                            format!("its object stream {container} declares data outside the file"),
-                            DocError::ObjectStream {
-                                container,
-                                source: ObjStmError::DataOutOfRange,
-                            }
-                        )
-                    };
-                    match ObjectStream::parse(&stream.dict, raw) {
-                        Ok(parsed) => slot.insert(parsed),
-                        Err(source) => give_up_on!(
-                            num,
-                            format!("its object stream {container} could not be decoded: {source}"),
-                            DocError::ObjectStream { container, source }
-                        ),
+                Entry::Vacant(slot) => match decode_container(buf, objects, container, num) {
+                    Ok(parsed) => slot.insert(parsed),
+                    Err((reason, err)) => {
+                        failed.insert(stream_num, reason.clone());
+                        give_up_on!(num, reason, err)
                     }
-                }
+                },
             };
 
-            let idx = usize::try_from(index).unwrap_or(usize::MAX);
-            let (found, value) = match objstm.object_at(idx) {
-                Ok(pair) => pair,
-                Err(source) => give_up_on!(
-                    num,
-                    format!(
-                        "index {index} of object stream {container} could not be read: {source}"
-                    ),
-                    DocError::ObjectStream { container, source }
-                ),
+            let value = match member_at(objstm, container, num, index) {
+                Ok(value) => value,
+                Err((reason, err)) => give_up_on!(num, reason, err),
             };
-            if found != num {
-                give_up_on!(
-                    num,
-                    format!(
-                        "object stream {container} stores object {found} at index {index}, where the cross-reference table promised {num}"
-                    ),
-                    DocError::ObjectStreamIdMismatch {
-                        container,
-                        index,
-                        expected: num,
-                        found,
-                    }
-                )
-            }
 
             let id = ObjId::new(num, 0);
             objects.insert(
@@ -2125,6 +2087,79 @@ fn parse_version_name(name: &[u8]) -> Option<PdfVersion> {
     })
 }
 
+/// Member `num` at `index` of a decoded object stream, or the anomaly
+/// reason and the strict-policy error.
+fn member_at(
+    objstm: &ObjectStream,
+    container: ObjId,
+    num: u32,
+    index: u32,
+) -> Result<Object, (String, DocError)> {
+    let idx = usize::try_from(index).unwrap_or(usize::MAX);
+    let (found, value) = objstm.object_at(idx).map_err(|source| {
+        (
+            format!("index {index} of object stream {container} could not be read: {source}"),
+            DocError::ObjectStream { container, source },
+        )
+    })?;
+    if found != num {
+        return Err((
+            format!(
+                "object stream {container} stores object {found} at index {index}, where the cross-reference table promised {num}"
+            ),
+            DocError::ObjectStreamIdMismatch {
+                container,
+                index,
+                expected: num,
+                found,
+            },
+        ));
+    }
+    Ok(value)
+}
+
+/// Decode the object stream `container` for member `num`, or return the
+/// anomaly reason and the strict-policy error. §7.5.7.
+fn decode_container(
+    buf: &[u8],
+    objects: &HashMap<ObjId, IndirectObject>,
+    container: ObjId,
+    num: u32,
+) -> Result<ObjectStream, (String, DocError)> {
+    let Some(io) = objects.get(&container) else {
+        return Err((
+            format!("its object stream {container} is not in the file"),
+            DocError::ObjectStreamMissing { container, num },
+        ));
+    };
+    let Object::Stream(stream) = &io.value else {
+        return Err((
+            format!("object {container} is named as its container but is not a stream"),
+            DocError::ObjectStream {
+                container,
+                source: ObjStmError::NotAStream,
+            },
+        ));
+    };
+    let Some(raw) = stream.data_span.slice(buf) else {
+        return Err((
+            format!("its object stream {container} declares data outside the file"),
+            DocError::ObjectStream {
+                container,
+                source: ObjStmError::DataOutOfRange,
+            },
+        ));
+    };
+    #[cfg(test)]
+    tests::OBJSTM_DECODES.with(|n| n.set(n.get() + 1));
+    ObjectStream::parse(&stream.dict, raw).map_err(|source| {
+        (
+            format!("its object stream {container} could not be decoded: {source}"),
+            DocError::ObjectStream { container, source },
+        )
+    })
+}
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -2134,6 +2169,12 @@ fn parse_version_name(name: &[u8]) -> Option<PdfVersion> {
 )]
 mod tests {
     use super::*;
+
+    thread_local! {
+        /// Object-stream decodes attempted on this thread (X039 counter).
+        pub(super) static OBJSTM_DECODES: std::cell::Cell<usize> =
+            const { std::cell::Cell::new(0) };
+    }
 
     /// Build a small, offset-consistent classic PDF from parts: each
     /// entry in `objects` is (object number, body text); generation 0.
@@ -2339,5 +2380,113 @@ mod tests {
             panic!("not a stream");
         };
         assert_eq!(s.data_span.slice(doc.bytes()).unwrap(), b"hello wo");
+    }
+
+    /// A file whose only object stream (object 3, an unknown filter) holds
+    /// objects 4..=13, all listed in an uncompressed cross-reference stream.
+    fn bad_objstm_with_ten_members() -> Vec<u8> {
+        let mut buf = b"%PDF-1.5
+"
+        .to_vec();
+        let bodies = [
+            (1, "<< /Type /Catalog /Pages 2 0 R >>".to_string()),
+            (2, "<< /Type /Pages /Kids [] /Count 0 >>".to_string()),
+            (
+                3,
+                "<< /Type /ObjStm /N 10 /First 0 /Filter /NoSuchFilter /Length 4 >>
+stream
+xxxx
+endstream"
+                    .to_string(),
+            ),
+        ];
+        let mut offsets = Vec::new();
+        for (num, body) in &bodies {
+            offsets.push(buf.len());
+            buf.extend_from_slice(
+                format!(
+                    "{num} 0 obj
+{body}
+endobj
+"
+                )
+                .as_bytes(),
+            );
+        }
+        let xref_at = buf.len();
+        // /W [1 4 2]: type, field 2, field 3.
+        let mut rows: Vec<u8> = Vec::new();
+        let mut row = |t: u8, f2: u32, f3: u16| {
+            rows.push(t);
+            rows.extend_from_slice(&f2.to_be_bytes());
+            rows.extend_from_slice(&f3.to_be_bytes());
+        };
+        row(0, 0, 0xFFFF);
+        for off in &offsets {
+            row(1, u32::try_from(*off).unwrap(), 0);
+        }
+        for i in 0..10u16 {
+            row(2, 3, i);
+        }
+        row(1, u32::try_from(xref_at).unwrap(), 0);
+        buf.extend_from_slice(
+            format!(
+                "14 0 obj
+<< /Type /XRef /Size 15 /W [1 4 2] /Root 1 0 R /Length {} >>
+stream
+",
+                rows.len()
+            )
+            .as_bytes(),
+        );
+        buf.extend_from_slice(&rows);
+        buf.extend_from_slice(
+            format!(
+                "
+endstream
+endobj
+startxref
+{xref_at}
+%%EOF
+"
+            )
+            .as_bytes(),
+        );
+        buf
+    }
+
+    #[test]
+    fn a_failed_object_stream_is_decoded_once_per_load() {
+        OBJSTM_DECODES.with(|n| n.set(0));
+        let doc = Document::from_bytes(bad_objstm_with_ten_members())
+            .expect("one bad object stream is not an unreadable file");
+        assert_eq!(OBJSTM_DECODES.with(std::cell::Cell::get), 1);
+
+        let reasons: Vec<(u32, &str)> = doc
+            .load_anomalies()
+            .iter()
+            .filter_map(|a| match a {
+                LoadAnomaly::ObjectUnreadable { object, reason } => {
+                    Some((object.num, reason.as_str()))
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            reasons.iter().map(|r| r.0).collect::<Vec<_>>(),
+            (4..=13).collect::<Vec<_>>(),
+            "{reasons:?}"
+        );
+        assert!(reasons[0].1.contains("could not be decoded"), "{reasons:?}");
+        assert!(reasons.iter().all(|r| r.1 == reasons[0].1), "{reasons:?}");
+
+        // Strict: the first failure is still the error.
+        let err = Document::from_bytes_with_options(
+            bad_objstm_with_ten_members(),
+            None,
+            LoadOptions::strict(),
+        )
+        .unwrap_err();
+        assert!(matches!(err, DocError::ObjectStream { .. }), "{err:?}");
     }
 }
