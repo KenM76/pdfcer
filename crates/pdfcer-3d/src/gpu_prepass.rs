@@ -30,21 +30,23 @@
 //!    `u_prepass_spread` 0 for a single-sample target, 1 for a multisampled
 //!    one.
 //!
-//! The main pass discards a fragment only when its depth is more than 2⁻²⁰
-//! behind the prepass's nearest-surface depth at its pixel and at every
-//! pixel within `u_prepass_spread`. A fragment within the tolerance is lit
-//! and resolved by the depth test as before.
+//! The main pass discards a fragment only when its own surface, carried
+//! along its screen-space depth slope to its pixel and to every pixel within
+//! `u_prepass_spread`, is behind the prepass's nearest-surface depth at each
+//! of them by more than 2⁻²⁰ plus a quarter of that slope. A fragment within
+//! the tolerance is lit and resolved by the depth test as before.
 //!
 //! Single-sample targets are exact: on the Bancroft plan (181k triangles,
 //! 64 lamps, 1280×800, Intel Arc) the image is pixel-identical and the main
-//! pass drops from 9.1 ms to 0.3 ms prepass + 2.8 ms shading. Multisampled
-//! targets are not exact at silhouettes: the prepass sees one depth per
-//! pixel, so a fragment covering only edge samples of a pixel can be
-//! dropped. At 4× MSAA and spread 1 that is 2,582 of 1,024,000 pixels, mean
-//! 32/255 off, max 120 (about one sample's share), at 9.8 → 3.6 ms. Spread
-//! 0 roughly quadruples the count; a derivative-based slack removes most
-//! of it but gives back most of the speed-up. A host that needs an exact
-//! multisampled image (a screenshot) draws it without the prepass.
+//! pass drops from 9.1 ms to 0.3 ms prepass + 2.8 ms shading. On a
+//! multisampled target the prepass sees one depth per pixel, so at a
+//! silhouette a surface can show at edge samples of a pixel whose centre a
+//! nearer surface owns. Comparing against the nearest depth alone dropped
+//! it and left the clear colour as a light outline; carried along its slope,
+//! the surface matches its own depth at a neighbour whose centre it does
+//! own, and is kept. What can still be dropped is a sliver no pixel centre
+//! within the spread sees. A host that needs an exact multisampled image (a
+//! screenshot) draws it without the prepass.
 
 /// The prepass vertex shader: location 0 position (vec3) from
 /// [`crate::DrawData::vertices`], the rest of the vertex ignored; uniforms
@@ -117,6 +119,23 @@ mod tests {
     }
 
     #[test]
+    fn a_neighbour_is_compared_with_this_surface_carried_along_its_slope() {
+        let hidden =
+            &GLSL_ES_300_FRAGMENT[GLSL_ES_300_FRAGMENT.find("bool prepass_hidden").unwrap()..];
+        let hidden = &hidden[..hidden.find("\n}\n").unwrap()];
+        assert!(hidden.contains("float here = d + float(x) * slope.x + float(y) * slope.y;"));
+        assert!(
+            hidden.contains("if (here <= texelFetch(u_prepass_depth, q, 0).r + tol) return false;")
+        );
+        // The nearest depth over the neighbourhood is not this surface's depth at
+        // any of them; testing against it drops silhouette edge samples.
+        assert!(!hidden.contains("max("));
+        assert!(
+            GLSL_ES_300_FRAGMENT.contains("vec2 depth_slope = vec2(dFdx(depth), dFdy(depth));")
+        );
+    }
+
+    #[test]
     fn the_main_pass_skips_hidden_fragments_before_any_lighting() {
         for name in ["u_prepass", "u_prepass_depth", "u_prepass_spread"] {
             assert!(
@@ -125,7 +144,9 @@ mod tests {
             );
         }
         let main = &GLSL_ES_300_FRAGMENT[GLSL_ES_300_FRAGMENT.find("void main()").unwrap()..];
-        let skip = main.find("if (prepass_hidden(depth)) discard;").unwrap();
+        let skip = main
+            .find("if (prepass_hidden(depth, depth_slope)) discard;")
+            .unwrap();
         // Derivatives are taken before the discard, lighting after it.
         assert!(main.find("dFdx").unwrap() < skip);
         for after in ["local(", "lit(f)", "extra(", "finish("] {

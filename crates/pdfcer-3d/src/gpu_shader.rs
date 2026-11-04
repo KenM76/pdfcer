@@ -190,19 +190,23 @@ float frag_depth() {
 }
 
 // True when the prepass puts an opaque surface in front of depth d at this
-// pixel and its u_prepass_spread neighbours, so nothing here can show.
-bool prepass_hidden(float d) {
+// pixel and at each of its u_prepass_spread neighbours. Each neighbour is
+// compared with this surface's own depth carried there along slope (depth
+// per pixel in x and y), so a surface that shows at a neighbour's centre,
+// and here only at a multisampled silhouette's edge samples, is kept.
+bool prepass_hidden(float d, vec2 slope) {
     if (!u_prepass) return false;
     ivec2 last = textureSize(u_prepass_depth, 0) - 1;
     ivec2 c = ivec2(gl_FragCoord.xy);
-    float m = 0.0;
+    float tol = 1.0 / 1048576.0 + 0.25 * (abs(slope.x) + abs(slope.y));
     for (int y = -u_prepass_spread; y <= u_prepass_spread; y++) {
         for (int x = -u_prepass_spread; x <= u_prepass_spread; x++) {
             ivec2 q = clamp(c + ivec2(x, y), ivec2(0), last);
-            m = max(m, texelFetch(u_prepass_depth, q, 0).r);
+            float here = d + float(x) * slope.x + float(y) * slope.y;
+            if (here <= texelFetch(u_prepass_depth, q, 0).r + tol) return false;
         }
     }
-    return d > m + 1.0 / 1048576.0;
+    return true;
 }
 
 // Texel t of light table row r.
@@ -423,7 +427,8 @@ void main() {
     float fl = length(f);
     f = fl > 0.0 ? f / fl : vec3(0.0);
     float depth = frag_depth();
-    if (prepass_hidden(depth)) discard;
+    vec2 depth_slope = vec2(dFdx(depth), dFdy(depth));
+    if (prepass_hidden(depth, depth_slope)) discard;
     vec3 s = v_flat > 0.5 ? v_flat_shade : v_shade;
     float sh = u_shadows ? lit(f) : 1.0;
     if (u_shadows) s += sh * (v_flat > 0.5 ? v_flat_key : v_key);
