@@ -234,7 +234,9 @@ pub enum AssembleError {
     /// Placing the model's meshes would copy more than a fixed ceiling of
     /// `what`: [`MAX_PLACED_TRIANGLES`] triangles or
     /// [`MAX_PLACED_ATTRIBUTES`] vertex attributes. Checked before each
-    /// copy, so nothing past the ceiling is allocated.
+    /// copy, so nothing past the ceiling is allocated. The decoded meshes,
+    /// all held before any is placed, are charged too, one file structure
+    /// at a time.
     #[error("placing the model needs more than {limit} {what}")]
     PlacedTooLarge {
         /// `"triangles"` or `"vertex attributes"`.
@@ -467,10 +469,10 @@ fn place_all<'p>(
     Ok(textures)
 }
 
-/// What the placements copied so far, against [`MAX_PLACED_TRIANGLES`] and
-/// [`MAX_PLACED_ATTRIBUTES`].
+/// What the placements copied (or the decoder built) so far, against
+/// [`MAX_PLACED_TRIANGLES`] and [`MAX_PLACED_ATTRIBUTES`].
 #[derive(Default)]
-struct Budget {
+pub(crate) struct Budget {
     triangles: usize,
     attributes: usize,
 }
@@ -478,7 +480,11 @@ struct Budget {
 impl Budget {
     /// Counts `triangles` and `attributes` about to be copied, refusing
     /// before a ceiling is passed.
-    fn take(&mut self, triangles: usize, attributes: usize) -> Result<(), AssembleError> {
+    pub(crate) fn take(
+        &mut self,
+        triangles: usize,
+        attributes: usize,
+    ) -> Result<(), AssembleError> {
         let add = |have: usize, more: usize, limit: usize, what| {
             have.checked_add(more)
                 .filter(|&n| n <= limit)
@@ -493,6 +499,12 @@ impl Budget {
         )?;
         Ok(())
     }
+}
+
+/// The vertex attributes `mesh` holds: positions, normals and texture
+/// coordinates.
+pub(crate) fn attributes(mesh: &TriangleMesh) -> usize {
+    mesh.positions.len() + mesh.normals.len() + mesh.uvs.len()
 }
 
 /// Draw `mesh` once where `p` places it, one mesh per distinct look.
@@ -536,7 +548,7 @@ fn place_one(
         }
     }
     // Each look's part copies every vertex attribute; the transform one more.
-    let attributes = mesh.positions.len() + mesh.normals.len() + mesh.uvs.len();
+    let attributes = attributes(mesh);
     budget.take(
         mesh.triangles.len(),
         attributes.saturating_mul(distinct.len().max(1) + 1),

@@ -14,6 +14,17 @@ pub(crate) fn sub(a: Vec3, b: Vec3) -> Vec3 {
     [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
 }
 
+/// The direction from `from` to `to`: `to - from`, halved when the full
+/// difference overflows (the direction is unchanged).
+pub(crate) fn span(from: Vec3, to: Vec3) -> Vec3 {
+    let d = sub(to, from);
+    if d.iter().all(|c| c.is_finite()) {
+        d
+    } else {
+        sub(scale(to, 0.5), scale(from, 0.5))
+    }
+}
+
 /// `a` times `s`.
 pub(crate) fn scale(a: Vec3, s: f64) -> Vec3 {
     a.map(|c| c * s)
@@ -101,6 +112,13 @@ mod tests {
         assert_eq!(normalize([0.0, -3e-320, 0.0]), Some([0.0, -1.0, 0.0]));
         assert_eq!(length([0.0, 0.0, -1e200]), 1e200);
         assert_eq!(length([0.0, -3e-320, 0.0]), 3e-320);
+    }
+
+    #[test]
+    fn span_keeps_the_direction_of_a_difference_that_overflows() {
+        assert_eq!(span([1.0, 2.0, 3.0], [4.0, 0.0, 3.0]), [3.0, -2.0, 0.0]);
+        let wide = span([-1e308, 0.0, 0.0], [1e308, 1e308, 0.0]);
+        assert_eq!(wide, [1e308, 5e307, 0.0]);
     }
 
     #[test]

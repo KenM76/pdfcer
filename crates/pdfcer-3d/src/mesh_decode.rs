@@ -6,8 +6,10 @@
 //! Resource ceilings are never contained: they stay errors.
 
 use crate::container::{FileStructure, SectionKind};
-use crate::model::BEST_FIT_REFUSED;
-use crate::{AssembledModel, MeshFit, PrcError, PrcFile, Tessellation, TriangleMesh};
+use crate::model::{BEST_FIT_REFUSED, Budget};
+use crate::{
+    AssembleError, AssembledModel, MeshFit, PrcError, PrcFile, Tessellation, TriangleMesh,
+};
 
 /// Damage reasons, each `defect: what is left out`.
 pub(crate) const MISSING_TESSELLATION: &str =
@@ -43,10 +45,9 @@ pub(crate) fn decode_meshes(
     fit: MeshFit,
     model: &mut AssembledModel,
     flagged: &mut Flagged,
-) -> Result<Vec<Vec<Option<TriangleMesh>>>, PrcError> {
+) -> Result<Vec<Vec<Option<TriangleMesh>>>, AssembleError> {
     flagged.lenient = fit != MeshFit::Unique;
-    let mut by_index = Vec::new();
-    for (f, fs) in prc.file_structures.iter().enumerate() {
+    let rows = prc.file_structures.iter().enumerate().map(|(f, fs)| {
         let tess = if flagged.lenient {
             read_section(fs, f, model, flagged)?
         } else {
@@ -56,9 +57,29 @@ pub(crate) fn decode_meshes(
         for (i, t) in tess.into_iter().enumerate() {
             row.push(t.and_then(|t| decode_one(t, (f, i), fit, model, flagged)));
         }
-        by_index.push(row);
+        Ok(row)
+    });
+    collect_charged(rows, Budget::default())
+}
+
+/// Each file structure's meshes, decoded one structure at a time and
+/// charged to `budget` as they are, so decoding stops at the structure that
+/// passes [`crate::MAX_PLACED_TRIANGLES`] or
+/// [`crate::MAX_PLACED_ATTRIBUTES`]: every structure's meshes are held at
+/// once, and the per-structure element allowance does not bound their sum.
+pub(crate) fn collect_charged(
+    rows: impl IntoIterator<Item = Result<Vec<Option<TriangleMesh>>, PrcError>>,
+    mut budget: Budget,
+) -> Result<Vec<Vec<Option<TriangleMesh>>>, AssembleError> {
+    let mut out = Vec::new();
+    for row in rows {
+        let row = row?;
+        for m in row.iter().flatten() {
+            budget.take(m.triangles.len(), crate::model::attributes(m))?;
+        }
+        out.push(row);
     }
-    Ok(by_index)
+    Ok(out)
 }
 
 /// One tessellation's mesh, counting it into `model` when it draws none.
@@ -330,4 +351,37 @@ pub(crate) fn part_labels_where(
         .into_iter()
         .map(|(l, n)| if n == 1 { l } else { format!("{l} x{n}") })
         .collect()
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)] // Tests fail loudly by design.
+mod tests {
+    use super::*;
+
+    #[test]
+    fn decoding_stops_at_the_structure_that_passes_the_ceiling() {
+        let pulled = std::cell::Cell::new(0);
+        let triangle = TriangleMesh {
+            positions: vec![[0.0; 3]; 3],
+            triangles: vec![[0, 1, 2]],
+            ..TriangleMesh::default()
+        };
+        let rows = std::iter::repeat_with(|| {
+            pulled.set(pulled.get() + 1);
+            Ok(vec![Some(triangle.clone())])
+        })
+        .take(3);
+        let mut nearly_full = Budget::default();
+        nearly_full
+            .take(crate::MAX_PLACED_TRIANGLES - 1, 0)
+            .unwrap();
+        assert_eq!(
+            collect_charged(rows, nearly_full).err(),
+            Some(AssembleError::PlacedTooLarge {
+                what: "triangles",
+                limit: crate::MAX_PLACED_TRIANGLES,
+            })
+        );
+        assert_eq!(pulled.get(), 2, "the third structure is never decoded");
+    }
 }

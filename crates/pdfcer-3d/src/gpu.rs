@@ -5,7 +5,7 @@
 
 use crate::raster::Paint;
 use crate::render::{RenderOptions, at3, corners, stored_normals, triangle_uvs};
-use crate::vec3::{sub, unit_cross};
+use crate::vec3::{span, unit_cross};
 use crate::{AssembledModel, PreparedModel, Texture, TextureOrigin, TriangleMesh};
 
 /// Floats per vertex in [`DrawData::vertices`].
@@ -162,8 +162,8 @@ fn push_mesh(out: &mut Vec<f32>, mesh: &TriangleMesh, paint: &Paint<'_>) {
             continue;
         };
         let Some(face) = unit_cross(
-            sub(at3(&world, 1), at3(&world, 0)),
-            sub(at3(&world, 2), at3(&world, 0)),
+            span(at3(&world, 0), at3(&world, 1)),
+            span(at3(&world, 0), at3(&world, 2)),
         ) else {
             continue;
         };

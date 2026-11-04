@@ -115,9 +115,12 @@ impl View {
                 out.push(p);
             }
             if p_in != q_in {
-                let t = (near - z(p)) / (z(q) - z(p));
-                let mut cut = p;
-                for (c, d) in cut.iter_mut().zip(q) {
+                // Cut from the same end whichever way round the edge is met,
+                // so two triangles sharing it get the same cut point.
+                let (s, e) = if first(&p, &q) { (p, q) } else { (q, p) };
+                let t = (near - z(s)) / (z(e) - z(s));
+                let mut cut = s;
+                for (c, d) in cut.iter_mut().zip(e) {
                     *c += t * (d - *c);
                 }
                 out.push(cut);
@@ -152,13 +155,15 @@ impl View {
             mz,
         ] = v;
         let (nx, ny, key) = match *self {
+            // Divided before multiplied, so an on-screen point's
+            // intermediate values stay finite.
             View::Perspective { focal, aspect, .. } => {
-                (x * focal / (z * aspect), y * focal / z, 1.0 / z)
+                (x / z * (focal / aspect), y / z * focal, 1.0 / z)
             }
             View::Orthographic {
                 half_height,
                 aspect,
-            } => (x / (half_height * aspect), y / half_height, -z),
+            } => (x / half_height / aspect, y / half_height, -z),
         };
         Corner {
             at: [
@@ -182,6 +187,17 @@ impl View {
             View::Orthographic { .. } => 1.0,
         }
     }
+}
+
+/// Whether view corner `a`'s position comes before `b`'s, ordering x, then
+/// y, then z.
+fn first(a: &ViewCorner, b: &ViewCorner) -> bool {
+    a.iter()
+        .zip(b)
+        .take(3)
+        .map(|(p, q)| p.total_cmp(q))
+        .find(|o| o.is_ne())
+        .is_none_or(std::cmp::Ordering::is_lt)
 }
 
 /// A band of whole image rows from row `top`: `rgba` and `depth` hold the
@@ -432,6 +448,63 @@ pub(crate) fn at(v: [f64; 3], i: usize) -> f64 {
 mod tests {
     use super::*;
     use crate::{TextureFunction, TextureOrigin, TextureWrap};
+
+    #[test]
+    fn projection_divides_before_it_multiplies() {
+        let corner = |x: f64, z: f64| {
+            let mut c = [1.0; 20];
+            c[..3].copy_from_slice(&[x, 0.0, z]);
+            c
+        };
+        // x times the focal length overflows; x over z is on screen.
+        let narrow = View::Perspective {
+            focal: 1.1e300,
+            aspect: 1.0,
+            near: 1.0,
+        };
+        let at = narrow.project(corner(2e7, 1e308), 30, 10).at;
+        assert!(at[0] > 15.0 && at[0] < 30.0, "{at:?}");
+        // Half the height times the aspect ratio overflows.
+        let tall = View::Orthographic {
+            half_height: 7.5e307,
+            aspect: 3.0,
+        };
+        let at = tall.project(corner(1e308, 0.0), 30, 10).at;
+        assert!(
+            (at[0] - 30.0 * (1.0 + 1.0 / 2.25) / 2.0).abs() < 1e-9,
+            "{at:?}"
+        );
+        // ... or underflows to zero, and the centre divides 0 by 0.
+        let thin = View::Orthographic {
+            half_height: 1e-300,
+            aspect: 1e-30,
+        };
+        assert_eq!(thin.project(corner(0.0, 0.0), 30, 10).at[0], 15.0);
+    }
+
+    #[test]
+    fn a_shared_edge_is_cut_at_the_same_point_from_either_triangle() {
+        // Cutting this edge from P towards Q and from Q towards P rounds
+        // differently.
+        let view = View::Perspective {
+            focal: 1.0,
+            aspect: 1.0,
+            near: 0.5,
+        };
+        let corner = |x: f64, y: f64, z: f64| {
+            let mut c = [1.0; 20];
+            c[..3].copy_from_slice(&[x, y, z]);
+            c
+        };
+        let (p, q) = (corner(0.1, 0.1, 0.2), corner(0.7, 0.2, 1.6));
+        let one = view.clip([p, q, corner(0.0, 3.0, 2.0)]);
+        let other = view.clip([q, p, corner(3.0, 0.0, 2.0)]);
+        let shared = one
+            .iter()
+            .filter(|a| other.iter().any(|b| a[..3] == b[..3]))
+            .count();
+        assert_eq!(shared, 2, "Q and the cut on PQ: {one:?} {other:?}");
+    }
 
     #[test]
     fn texture_coordinates_are_perspective_correct() {

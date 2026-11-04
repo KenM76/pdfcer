@@ -19,7 +19,7 @@ use crate::raster::{Corner, Paint, PixelLights, Target, View, ViewCorner, at};
 use crate::shadow::{Caster, DEFAULT_SHADOW_MAP_SIZE, LightSense, ShadowLight, ShadowMap};
 use crate::shadow_cast::{ShadowAlpha, ShadowCasters};
 use crate::shadow_set::{ExtraShadows, Shadows};
-use crate::vec3::{cross, dot, normalize, scale, sub, unit_cross};
+use crate::vec3::{cross, dot, normalize, scale, span, sub, unit_cross};
 use crate::work::{Work, charge_frame};
 
 /// The largest image [`render`] draws, in pixels (width × height).
@@ -172,7 +172,7 @@ impl Camera {
         if !(x0 <= x1 && y0 <= y1) {
             return Err(RenderError::Camera("the model has no vertex"));
         }
-        let (mx, my) = ((x0 + x1) / 2.0, (y0 + y1) / 2.0);
+        let (mx, my) = (x0 / 2.0 + x1 / 2.0, y0 / 2.0 + y1 / 2.0);
         let target = [0, 1, 2].map(|i| at(centre, i) + mx * at(right, i) + my * at(upward, i));
         let floor = radius * 1e-3;
         let (projection, distance) = if perspective {
@@ -187,15 +187,18 @@ impl Camera {
             });
             (Projection::Perspective { fov_y }, d)
         } else {
-            let height = ((y1 - y0).max((x1 - x0) / aspect) * FIT_MARGIN).max(floor);
+            // A model wider than the largest float is framed at the
+            // largest height.
+            let height = ((y1 - y0).max((x1 - x0) / aspect) * FIT_MARGIN)
+                .max(floor)
+                .min(f64::MAX);
             (Projection::Orthographic { height }, 2.0 * radius)
         };
         // Far enough off the target that `target - eye` still points along
         // `dir` once the eye's coordinates round (by up to 2^-53 of each).
         let placeable = target.iter().fold(0.0_f64, |m, c| m.max(c.abs())) * EYE_SHARE;
-        let distance = distance.max(placeable);
         let camera = Camera {
-            eye: sub(target, scale(dir, distance)),
+            eye: eye_at(target, dir, distance.max(placeable)),
             target,
             up,
             projection,
@@ -210,6 +213,22 @@ impl Camera {
             .ok_or(RenderError::Camera("the eye and the target coincide"))?;
         basis_along(forward, self.up)
     }
+}
+
+/// The point `distance` back from `target` along unit `dir`, brought
+/// nearer (halving, at most 64 times) until it is finite, so a model
+/// near the largest float still gets an eye.
+fn eye_at(target: [f64; 3], dir: [f64; 3], distance: f64) -> [f64; 3] {
+    let mut d = distance.min(f64::MAX);
+    let mut eye = sub(target, scale(dir, d));
+    for _ in 0..64 {
+        if eye.iter().all(|c| c.is_finite()) {
+            break;
+        }
+        d /= 2.0;
+        eye = sub(target, scale(dir, d));
+    }
+    eye
 }
 
 /// Right, up and forward unit vectors looking along unit `forward`.
@@ -663,8 +682,8 @@ impl Scene<'_> {
             return;
         };
         let Some(face) = unit_cross(
-            sub(at3(&world, 1), at3(&world, 0)),
-            sub(at3(&world, 2), at3(&world, 0)),
+            span(at3(&world, 0), at3(&world, 1)),
+            span(at3(&world, 0), at3(&world, 2)),
         ) else {
             return;
         };
@@ -1406,6 +1425,62 @@ mod tests {
                 // it (EYE_SHARE), so the model may be framed below a pixel.
                 assert!(perspective || drawn > 0, "{drawn}");
             }
+        }
+    }
+
+    fn drawn(image: &Image) -> usize {
+        image.rgba.chunks(4).filter(|p| *p != [255; 4]).count()
+    }
+
+    #[test]
+    fn an_on_screen_triangle_is_drawn_when_projecting_it_would_overflow() {
+        let wide = RenderOptions {
+            width: 30,
+            height: 10,
+            ..RenderOptions::default()
+        };
+        // A tiny field of view: x times the focal length (about 1.1e300)
+        // overflows, though x over z does not.
+        let camera = Camera {
+            eye: [0.0; 3],
+            target: [0.0, 0.0, 1e308],
+            up: [0.0, 1.0, 0.0],
+            projection: Projection::Perspective { fov_y: 1e-298 },
+        };
+        let far = triangles(
+            vec![
+                [1.5e8, -3e7, 1e308],
+                [2.5e8, -3e7, 1e308],
+                [2e8, 3e7, 1e308],
+            ],
+            vec![[0, 1, 2]],
+        );
+        assert!(drawn(&render(&[far], &camera, &wide).unwrap()) > 0);
+        // Half the orthographic height times the aspect ratio overflows.
+        let big = triangles(
+            vec![
+                [-5e307, -5e307, 0.0],
+                [5e307, -5e307, 0.0],
+                [0.0, 5e307, 0.0],
+            ],
+            vec![[0, 1, 2]],
+        );
+        let image = render(&[big], &ortho(1.5e308), &wide).unwrap();
+        assert_ne!(pixel(&image, 15, 5), [255; 4]);
+    }
+
+    #[test]
+    fn a_triangle_whose_edges_overflow_is_drawn_after_framing() {
+        let h = f64::MAX / 1.5;
+        let meshes = [triangles(
+            vec![[-h, 0.0, 0.0], [h, 0.0, 0.0], [0.0, h, 0.0]],
+            vec![[0, 1, 2]],
+        )];
+        for perspective in [false, true] {
+            let camera =
+                Camera::fit_meshes(&meshes, [0.0, 0.0, -1.0], [0.0, 1.0, 0.0], perspective, 1.0);
+            let image = render(&meshes, &camera.unwrap(), &small()).unwrap();
+            assert!(drawn(&image) > 0, "perspective {perspective}");
         }
     }
 }

@@ -8,7 +8,7 @@ use crate::TriangleMesh;
 use crate::raster::View;
 use crate::raster::{at, edge, view_point};
 use crate::render::{Camera, RenderError, at3, corners};
-use crate::vec3::{dot, sub, unit_cross};
+use crate::vec3::{dot, span, sub, unit_cross};
 
 /// Ceiling on the pixel- and texel-centre tests drawing one frame may make:
 /// every triangle's box, clipped to its target, summed over the image and
@@ -86,7 +86,7 @@ pub(crate) fn charge_frame<'m>(
         let Some(world) = mesh.triangles.get(t).and_then(|tri| corners(mesh, tri)) else {
             continue;
         };
-        let edges = [1, 2].map(|k| sub(at3(&world, k), at3(&world, 0)));
+        let edges = [1, 2].map(|k| span(at3(&world, 0), at3(&world, k)));
         if unit_cross(edges[0], edges[1]).is_none() {
             continue;
         }
