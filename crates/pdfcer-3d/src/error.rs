@@ -30,6 +30,13 @@ pub enum PrcError {
         /// The ceiling that was hit.
         limit: usize,
     },
+    /// One file structure would decode to more elements (schema entries,
+    /// triangles) than [`crate::MAX_DECODED_ELEMENTS`].
+    #[error("PRC data decodes past the {limit}-element ceiling")]
+    TooManyElements {
+        /// The ceiling that was hit.
+        limit: u64,
+    },
     /// A construct this reader does not decode yet; the named part of the
     /// file cannot be read past, so the caller gets nothing from it.
     #[error("PRC {0} is not supported yet")]

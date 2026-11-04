@@ -48,13 +48,22 @@ impl Schema {
     ///
     /// # Errors
     /// [`PrcError::Truncated`] when a count runs past the data;
-    /// [`PrcError::Malformed`] for an entity type listed twice.
+    /// [`PrcError::Malformed`] for an entity type listed twice;
+    /// [`PrcError::TooManyElements`] for a schema whose entries and tokens
+    /// pass [`crate::MAX_DECODED_ELEMENTS`].
     pub fn read(r: &mut BitReader<'_>) -> Result<Self, PrcError> {
+        Self::read_within(r, &mut 0)
+    }
+
+    /// [`Self::read`] charging each entry (1 plus its token count) to the
+    /// file structure's decoded-element allowance, `spent` so far.
+    pub(crate) fn read_within(r: &mut BitReader<'_>, spent: &mut u64) -> Result<Self, PrcError> {
         let n = r.unsigned_integer()? as usize;
         // Every entry takes at least two bits.
         if n > r.remaining() / 2 {
             return Err(PrcError::Truncated("the schema"));
         }
+        crate::elements::charge(spent, n as u64)?;
         let mut programs = HashMap::new();
         for _ in 0..n {
             let entity_type = r.unsigned_integer()?;
@@ -62,6 +71,7 @@ impl Schema {
             if len > r.remaining() {
                 return Err(PrcError::Truncated("a schema program"));
             }
+            crate::elements::charge(spent, len as u64)?;
             let tokens = (0..len)
                 .map(|_| r.unsigned_integer())
                 .collect::<Result<Vec<_>, _>>()?;
@@ -624,6 +634,31 @@ mod tests {
         ));
         // A call on its own is its own pass.
         s.skip_added_fields(172, &mut r).unwrap();
+    }
+
+    #[test]
+    fn a_schema_past_the_element_allowance_is_refused_up_front() {
+        // MAX + 1 entries of two zero bits each: (type 0, no tokens). Read
+        // one by one they would be refused only at the second type 0, after
+        // building one; refused up front, nothing is built.
+        let n = crate::MAX_DECODED_ELEMENTS + 1;
+        let mut w = W::default();
+        w.uint(n as u32);
+        let mut bytes = w.bytes();
+        bytes.resize(bytes.len() + (2 * n as usize).div_ceil(8), 0);
+        assert_eq!(
+            Schema::read(&mut BitReader::new(&bytes)).unwrap_err(),
+            PrcError::TooManyElements {
+                limit: crate::MAX_DECODED_ELEMENTS
+            }
+        );
+        // Entry counts and token counts share the allowance.
+        let mut spent = crate::MAX_DECODED_ELEMENTS - 3;
+        let ok = schema(&[(172, &[3])]).bytes();
+        Schema::read_within(&mut BitReader::new(&ok), &mut spent).unwrap();
+        assert_eq!(spent, crate::MAX_DECODED_ELEMENTS - 1);
+        let mut spent = crate::MAX_DECODED_ELEMENTS - 1;
+        assert!(Schema::read_within(&mut BitReader::new(&ok), &mut spent).is_err());
     }
 
     #[test]

@@ -112,9 +112,19 @@ impl FileStructure {
     /// # Errors
     /// As [`Schema::read`](crate::Schema::read).
     pub fn schema(&self) -> Result<crate::Schema, PrcError> {
-        crate::Schema::read(&mut crate::bits::BitReader::new(
-            self.section(SectionKind::Globals),
-        ))
+        Ok(self.schema_within(&mut 0)?.0)
+    }
+
+    /// [`Self::schema`] charged to this file structure's decoded-element
+    /// allowance, `spent` so far, with a reader over the globals section
+    /// positioned after it.
+    pub(crate) fn schema_within(
+        &self,
+        spent: &mut u64,
+    ) -> Result<(crate::Schema, crate::bits::BitReader<'_>), PrcError> {
+        let mut r = crate::bits::BitReader::new(self.section(SectionKind::Globals));
+        let schema = crate::Schema::read_within(&mut r, spent)?;
+        Ok((schema, r))
     }
 
     /// The tessellation section decoded [WD 7.3.7]: one entry per
@@ -124,19 +134,24 @@ impl FileStructure {
     /// # Errors
     /// [`PrcError::Unsupported`] for compressed tessellation or optimised
     /// vertex colours, which cannot be read past; [`PrcError::Truncated`] or
-    /// [`PrcError::Malformed`] for damaged data; errors from [`Self::schema`].
+    /// [`PrcError::Malformed`] for damaged data; [`PrcError::TooManyElements`]
+    /// once the schema and the triangles pass
+    /// [`MAX_DECODED_ELEMENTS`](crate::MAX_DECODED_ELEMENTS); errors from
+    /// [`Self::schema`].
     pub fn tessellations(&self) -> Result<Vec<crate::Tessellation>, PrcError> {
         let data = self.section(SectionKind::Tessellation);
         if data.is_empty() {
             return Ok(Vec::new());
         }
-        let schema = self.schema()?;
-        crate::tess::Ctx::new(
+        let mut elements = 0;
+        let (schema, _) = self.schema_within(&mut elements)?;
+        let mut ctx = crate::tess::Ctx::new(
             crate::bits::BitReader::new(data),
             &schema,
             self.authoring_version,
-        )
-        .file_structure_tessellation()
+        );
+        ctx.elements = elements;
+        ctx.file_structure_tessellation()
     }
 }
 
@@ -327,7 +342,8 @@ impl PrcFile {
     ///
     /// # Errors
     /// [`PrcError::NotPrc`] without the magic; [`PrcError::Truncated`] or
-    /// [`PrcError::Malformed`] for a damaged header or offset table;
+    /// [`PrcError::Malformed`] for a damaged header or offset table (a
+    /// model-file end past the data included);
     /// [`PrcError::Inflate`] for a section that is not zlib;
     /// [`PrcError::TooLarge`] past [`MAX_INFLATED_BYTES`] in total.
     ///
@@ -377,13 +393,15 @@ impl PrcFile {
                 "model file ends before it starts".into(),
             ));
         }
-        let model_file = inflate(
-            data,
-            (mf_start, mf_end.min(data.len())),
-            "model file",
-            &mut budget,
-            limit,
-        )?;
+        // The header states the model file's end [WD 6.1.1]; a container
+        // that claims more bytes than it holds is damaged, not clipped.
+        if mf_end > data.len() {
+            return Err(PrcError::Malformed(format!(
+                "model file ends at {mf_end}, past the {}-byte data",
+                data.len()
+            )));
+        }
+        let model_file = inflate(data, (mf_start, mf_end), "model file", &mut budget, limit)?;
         Ok(PrcFile {
             header,
             file_structures,
@@ -536,8 +554,9 @@ impl PrcFile {
         let mut steps = 0;
         let trees = self.read_trees(&mut steps)?;
         let mut r = BitReader::new(&self.model_file);
-        let schema = crate::Schema::read(&mut r)?;
-        let model = read_pass(&mut steps, r, &schema, self.header.authoring_version, |c| {
+        let mut spent = Spent { steps, elements: 0 };
+        let schema = crate::Schema::read_within(&mut r, &mut spent.elements)?;
+        let model = read_pass(&mut spent, r, &schema, self.header.authoring_version, |c| {
             c.model_file()
         })?;
         let mut walk = crate::tree::Walk::new(
@@ -586,9 +605,11 @@ pub(crate) type Walked = (
 
 impl PrcFile {
     /// Each file structure's id, tree and globals, read as part of one
-    /// reading pass that has taken `steps` schema steps so far. Globals that
-    /// do not read fall back to the defaults (default colours) unless the
-    /// tree names a coordinate system, whose transform would be missing.
+    /// reading pass that has taken `steps` schema steps so far; each file
+    /// structure's schema, tree and globals share one decoded-element
+    /// allowance. Globals that do not read fall back to the defaults
+    /// (default colours) unless the tree names a coordinate system, whose
+    /// transform would be missing.
     fn read_trees(
         &self,
         steps: &mut u64,
@@ -596,15 +617,16 @@ impl PrcFile {
         use crate::bits::BitReader;
         let mut trees = Vec::with_capacity(self.file_structures.len());
         for fs in &self.file_structures {
-            let schema = fs.schema()?;
+            let mut spent = Spent {
+                steps: *steps,
+                elements: 0,
+            };
+            let (schema, globals_r) = fs.schema_within(&mut spent.elements)?;
             let v = fs.authoring_version;
             let r = BitReader::new(fs.section(SectionKind::Tree));
-            let tree = read_pass(steps, r, &schema, v, |c| c.file_structure_tree())?;
-            let globals = (|| {
-                let mut r = BitReader::new(fs.section(SectionKind::Globals));
-                crate::Schema::read(&mut r)?; // the globals section opens with it
-                read_pass(steps, r, &schema, v, |c| c.globals())
-            })();
+            let tree = read_pass(&mut spent, r, &schema, v, |c| c.file_structure_tree())?;
+            let globals = read_pass(&mut spent, globals_r, &schema, v, |c| c.globals());
+            *steps = spent.steps;
             let globals = match globals {
                 Ok(g) => g,
                 Err(e) if tree.names_cs => return Err(e),
@@ -616,19 +638,28 @@ impl PrcFile {
     }
 }
 
-/// `read` over a fresh reader at `r`, charging its schema steps to the
-/// reading pass's `steps`.
+/// What a reading pass has spent: schema steps, shared by the whole pass,
+/// and decoded elements, per file structure or model-file stream.
+struct Spent {
+    steps: u64,
+    elements: u64,
+}
+
+/// `read` over a fresh reader at `r`, charging its schema steps and decoded
+/// elements to `spent`.
 fn read_pass<'a, 's, T>(
-    steps: &mut u64,
+    spent: &mut Spent,
     r: crate::bits::BitReader<'a>,
     schema: &'s crate::Schema,
     version: u32,
     read: impl FnOnce(&mut crate::tess::Ctx<'a, 's>) -> Result<T, PrcError>,
 ) -> Result<T, PrcError> {
     let mut ctx = crate::tess::Ctx::new(r, schema, version);
-    ctx.schema_steps = *steps;
+    ctx.schema_steps = spent.steps;
+    ctx.elements = spent.elements;
     let out = read(&mut ctx);
-    *steps = ctx.schema_steps;
+    spent.steps = ctx.schema_steps;
+    spent.elements = ctx.elements;
     out
 }
 

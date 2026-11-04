@@ -162,6 +162,9 @@ pub(crate) struct Ctx<'a, 's> {
     /// Schema steps the reading pass has taken; a pass over several
     /// sections carries it from one reader to the next.
     pub(crate) schema_steps: u64,
+    /// Decoded elements the file structure's readers have built so far,
+    /// charged against [`crate::MAX_DECODED_ELEMENTS`].
+    pub(crate) elements: u64,
     /// An entity reference read so far names a local coordinate system
     /// [WD 7.4.10], so the globals' reference systems are needed.
     pub(crate) names_cs: bool,
@@ -179,6 +182,7 @@ impl<'a, 's> Ctx<'a, 's> {
             name: None,
             uid: 0,
             schema_steps: 0,
+            elements: 0,
             names_cs: false,
         }
     }
@@ -388,6 +392,7 @@ impl Ctx<'_, '_> {
         let edge_status = arrays::character_array(r, 2, None, false)?;
         let face_of = arrays::compressed_indice_array(r, None)?;
         let t = face_of.len();
+        crate::elements::charge(&mut self.elements, t as u64)?;
         if edge_status.len() != t && edge_status.len() != t.saturating_mul(3) {
             return Err(malformed(format!(
                 "{} edge statuses for {t} triangles",
@@ -528,7 +533,7 @@ impl Ctx<'_, '_> {
         let texture = self.doubles("texture coordinates")?;
         self.skip_added(TESS_3D)?;
 
-        let positions = points(&coords);
+        let positions = points(&coords, "position")?;
         let mut mesh = TriangleMesh {
             positions,
             normals_recalculated: recalc,
@@ -545,6 +550,7 @@ impl Ctx<'_, '_> {
                 mesh.positions.len(),
                 &mut mesh.triangles,
                 &mut corners,
+                &mut self.elements,
             )?;
             mesh.faces.push(start..mesh.triangles.len());
             if styled {
@@ -579,7 +585,11 @@ impl Ctx<'_, '_> {
             self.vertex_colors(n, false)?;
         }
         if !face.styles.is_empty() {
-            face.behaviour = u16::try_from(self.r.unsigned_integer()?).unwrap_or(0);
+            // Behaviour bits are 16 wide [WD 7.2.4.2: two Characters]; a
+            // wider value would lose its inherit flags if cut.
+            let b = self.r.unsigned_integer()?;
+            face.behaviour = u16::try_from(b)
+                .map_err(|_| malformed(format!("face behaviour {b:#x} wider than 16 bits")))?;
         }
         self.skip_added(TESS_FACE)?;
         Ok(face)
@@ -587,7 +597,7 @@ impl Ctx<'_, '_> {
 
     /// `TESS_3D_Wire` (175) after its type code [WD 7.8.7].
     fn wire(&mut self) -> Result<WireTessellation, PrcError> {
-        let pts = points(&self.base_tess_data()?);
+        let pts = points(&self.base_tess_data()?, "wire")?;
         let words = self.uints("wire indices")?;
         let mut wires: Vec<Vec<[f64; 3]>> = Vec::new();
         let mut colours = 0usize;
@@ -646,14 +656,16 @@ impl Ctx<'_, '_> {
 }
 
 /// The normal array and each triangle's corner normals, or both empty when
-/// any slot fails to name a normal: a mesh shades from its stored normals
-/// wholly or not at all.
+/// any slot fails to name a normal or the array ends in a partial triple: a
+/// mesh shades from its stored normals wholly or not at all.
 fn stored_normals(
     coords: &[f64],
     slots: &[[u32; 3]],
     triangles: usize,
 ) -> (Vec<[f64; 3]>, Vec<[u32; 3]>) {
-    let normals = points(coords);
+    let Ok(normals) = points(coords, "normal") else {
+        return (Vec::new(), Vec::new());
+    };
     let named = |k: u32| k.is_multiple_of(3) && (k as usize / 3) < normals.len();
     if normals.is_empty() || slots.len() != triangles || !slots.iter().flatten().all(|&k| named(k))
     {
@@ -663,14 +675,23 @@ fn stored_normals(
     (normals, corners)
 }
 
-fn points(coords: &[f64]) -> Vec<[f64; 3]> {
-    coords
+/// `coords` as (x, y, z) triples [WD 7.8.4: a TESS_3D's or wire's Doubles
+/// are triples]; Malformed when the length is not a multiple of 3, as no
+/// reading of a partial last point is defined. `what` names the array.
+fn points(coords: &[f64], what: &str) -> Result<Vec<[f64; 3]>, PrcError> {
+    if !coords.len().is_multiple_of(3) {
+        return Err(malformed(format!(
+            "{} {what} coordinates are not whole points",
+            coords.len()
+        )));
+    }
+    Ok(coords
         .chunks_exact(3)
         .map(|c| match c {
             [x, y, z] => [*x, *y, *z],
             _ => [0.0; 3],
         })
-        .collect()
+        .collect())
 }
 
 /// The point a Double-offset index names [WD 7.8.5.2: multiples of 3].
@@ -856,6 +877,10 @@ struct Corners {
 /// its corner texture slots. Returns the triangles each triangulation entity
 /// emitted, in order: one entity per triangle of a triangle block, per fan,
 /// per strip [WD 7.8.6].
+///
+/// Each triangle is charged to `elements` before its entity is built. Faces
+/// may start anywhere in the index array, so F faces over one range of k
+/// triangles cost F x k: the input bounds each entity, not their sum.
 fn triangulate(
     face: &Face,
     indices: &[u32],
@@ -863,6 +888,7 @@ fn triangulate(
     n_points: usize,
     out: &mut Vec<[u32; 3]>,
     corners: &mut Corners,
+    elements: &mut u64,
 ) -> Result<Vec<usize>, PrcError> {
     let mut entities = Vec::new();
     let mut slots = indices.get(face.start..).unwrap_or(&[]).iter().copied();
@@ -889,6 +915,11 @@ fn triangulate(
                     "face runs past the triangulated index array".into(),
                 ));
             }
+            let triangles = match shape {
+                Shape::Triangles => count,
+                Shape::Fan | Shape::Strip => points.saturating_sub(2),
+            };
+            crate::elements::charge(elements, triangles as u64)?;
             let mut s = Slots {
                 textures: vec![Vec::with_capacity(points); t],
                 ..Slots::default()
@@ -1031,11 +1062,19 @@ pub(crate) mod tests {
     }
 
     fn square(w: &mut W, entity: u32) {
-        w.uint(entity).bit(false).uint(12);
-        for c in SQUARE {
+        coordinates(w, entity, &SQUARE);
+    }
+
+    /// An entity header over `coords` (any length, whole points or not).
+    fn coordinates(w: &mut W, entity: u32, coords: &[f64]) {
+        w.uint(entity).bit(false).uint(coords.len() as u32);
+        for &c in coords {
             w.double(c);
         }
     }
+
+    /// Two normals: slot 0 is +z, slot 3 is -z.
+    const NORMALS: [f64; 6] = [0., 0., 1., 0., 0., -1.];
 
     struct Mesh<'a> {
         recalc: bool,
@@ -1047,7 +1086,13 @@ pub(crate) mod tests {
 
     /// A TESS_3D over [`SQUARE`] at authoring version `v`.
     fn tess_3d(w: &mut W, v: u32, m: &Mesh<'_>) {
-        square(w, 172);
+        tess_3d_over(w, v, m, &SQUARE, &NORMALS);
+    }
+
+    /// [`tess_3d`] over the given positions and (unless recalculated)
+    /// normals.
+    fn tess_3d_over(w: &mut W, v: u32, m: &Mesh<'_>, coords: &[f64], normals: &[f64]) {
+        coordinates(w, 172, coords);
         w.bit(true);
         if v >= HAS_LOOPS_FROM {
             w.bit(false);
@@ -1061,9 +1106,8 @@ pub(crate) mod tests {
         if m.recalc {
             w.uint(0);
         } else {
-            // Two normals: slot 0 is +z, slot 3 is -z.
-            w.uint(6);
-            for c in [0., 0., 1., 0., 0., -1.] {
+            w.uint(normals.len() as u32);
+            for &c in normals {
                 w.double(c);
             }
         }
@@ -1281,6 +1325,91 @@ pub(crate) mod tests {
         assert_eq!(m.faces, [0..1, 1..2]);
     }
 
+    /// One triangle with normals, over `coords` and `normals`.
+    fn one_over(coords: &[f64], normals: &[f64]) -> Result<Vec<Tessellation>, PrcError> {
+        let m = Mesh {
+            recalc: false,
+            indices: &[3, 0, 0, 3, 3, 6],
+            faces: &[(0x2, 0, &[1])],
+            textures: 0,
+            uvs: &[],
+        };
+        let mut b = W::default();
+        tess_3d_over(&mut b, 8137, &m, coords, normals);
+        decode(&section(1, &b), &Schema::default(), 8137)
+    }
+
+    #[test]
+    fn partial_position_and_wire_points_are_malformed() {
+        for extra in [1, 2] {
+            let coords: Vec<f64> = SQUARE
+                .iter()
+                .copied()
+                .chain([0.0; 2])
+                .take(12 + extra)
+                .collect();
+            let got = one_over(&coords, &NORMALS);
+            assert!(matches!(got, Err(PrcError::Malformed(_))), "{got:?}");
+            let mut b = W::default();
+            coordinates(&mut b, 175, &coords);
+            b.uint(0).bit(false);
+            let got = decode(&section(1, &b), &Schema::default(), 8137);
+            assert!(matches!(got, Err(PrcError::Malformed(_))), "{got:?}");
+        }
+        assert!(one_over(&SQUARE, &NORMALS).is_ok());
+    }
+
+    #[test]
+    fn a_partial_normal_triple_drops_every_stored_normal() {
+        let whole = one_over(&SQUARE, &NORMALS).unwrap();
+        assert_eq!(mesh(&whole[0]).normals.len(), 2);
+        let normals: Vec<f64> = NORMALS.iter().copied().chain([0.0]).collect();
+        let t = one_over(&SQUARE, &normals).unwrap();
+        let m = mesh(&t[0]);
+        assert_eq!(m.triangles, [[0, 1, 2]]);
+        assert!(m.normals.is_empty());
+        assert!(m.triangle_normals.is_empty());
+    }
+
+    #[test]
+    fn faces_reusing_one_index_range_are_charged_per_face() {
+        // F faces, each a run of k triangles over the same k-triangle range.
+        const F: u64 = 5;
+        const K: u64 = 40;
+        let indices: Vec<u32> = [3, 0, 0, 3, 3, 6].repeat(K as usize);
+        let sizes = [K as u32];
+        let faces = vec![(0x2, 0, &sizes[..]); F as usize];
+        let m = Mesh {
+            recalc: false,
+            indices: &indices,
+            faces: &faces,
+            textures: 0,
+            uvs: &[],
+        };
+        let mut b = W::default();
+        tess_3d(&mut b, 8137, &m);
+        let bytes = section(1, &b).bytes();
+        let schema = Schema::default();
+        let run = |already: u64| {
+            let mut ctx = Ctx::new(BitReader::new(&bytes), &schema, 8137);
+            ctx.elements = already;
+            let got = ctx.file_structure_tessellation();
+            (got, ctx.elements)
+        };
+        let (got, spent) = run(0);
+        assert_eq!(mesh(&got.unwrap()[0]).triangles.len() as u64, F * K);
+        assert_eq!(spent, F * K);
+        // Room for exactly F x k fits; one element less is refused.
+        let room = crate::MAX_DECODED_ELEMENTS - F * K;
+        assert!(run(room).0.is_ok());
+        assert_eq!(
+            run(room + 1).0.unwrap_err(),
+            PrcError::TooManyElements {
+                limit: crate::MAX_DECODED_ELEMENTS
+            }
+        );
+    }
+
     /// A wire over [`SQUARE`]: an open two-point wire continued by a closing
     /// two-point wire, then optionally per-segment RGB colours.
     fn wire(w: &mut W, colours: bool) {
@@ -1485,6 +1614,13 @@ pub(crate) mod tests {
     /// A square as one triangle plus one 4-vertex fan (two entities, three
     /// triangles), the face carrying `attrs`; behaviour bits 0x30.
     fn styled_face(attrs: &[u32]) -> TriangleMesh {
+        let t = styled_face_with(attrs, 0x30).unwrap();
+        assert!(matches!(t[1], Tessellation::Wire(_)));
+        mesh(&t[0]).clone()
+    }
+
+    /// [`styled_face`]'s section with the face behaviour written as `bits`.
+    fn styled_face_with(attrs: &[u32], bits: u32) -> Result<Vec<Tessellation>, PrcError> {
         let mut b = W::default();
         square(&mut b, 172);
         b.bit(true).bit(false).bit(false).uint(0).uint(0);
@@ -1495,13 +1631,22 @@ pub(crate) mod tests {
         uints(&mut b, &[1, 1, 4]);
         b.uint(0).bit(false);
         if !attrs.is_empty() {
-            b.uint(0x30);
+            b.uint(bits);
         }
         b.uint(0);
         wire(&mut b, false);
-        let t = decode(&section(2, &b), &Schema::default(), 8137).unwrap();
-        assert!(matches!(t[1], Tessellation::Wire(_)));
-        mesh(&t[0]).clone()
+        decode(&section(2, &b), &Schema::default(), 8137)
+    }
+
+    #[test]
+    fn a_face_behaviour_wider_than_16_bits_is_malformed() {
+        // SonHeritColor (0x0008) with bit 16 set: cut to u16 it would read
+        // as a plain inherit flag.
+        assert!(matches!(
+            styled_face_with(&[5], 0x1_0000 | 0x0008),
+            Err(PrcError::Malformed(_))
+        ));
+        assert!(styled_face_with(&[5], 0xffff).is_ok());
     }
 
     fn styles(m: &TriangleMesh) -> Vec<(u32, u16)> {

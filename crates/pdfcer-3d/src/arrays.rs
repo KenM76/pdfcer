@@ -66,6 +66,17 @@ fn sign_extend(v: u32, n: u32) -> i32 {
     }
 }
 
+/// True when one stored code is a proper prefix of another: the leaves of a
+/// Huffman tree are its only coded nodes [WD 12.2: "each input value is
+/// located on a leaf"], so a decoder stopping at the shorter code could
+/// never reach the longer. Codes are keyed `(length, value)`, first bit most
+/// significant; each code's shorter prefixes are looked up, at most 31.
+fn has_prefix_pair(codes: &HashMap<(u32, u32), i32>) -> bool {
+    codes
+        .keys()
+        .any(|&(len, code)| (1..len).any(|l| codes.contains_key(&(l, code >> (len - l)))))
+}
+
 /// The Huffman container of a compressed Character/Short array [WD 11.6,
 /// 11.7, 12.2]: symbols are `nbits` wide, sign-extended when `signed`.
 fn huffman(r: &mut BitReader<'_>, nbits: u32, signed: bool) -> Result<Vec<i32>, PrcError> {
@@ -113,6 +124,9 @@ fn huffman(r: &mut BitReader<'_>, nbits: u32, signed: bool) -> Result<Vec<i32>, 
         if codes.insert((len, code), symbol).is_some() {
             return Err(malformed("duplicate Huffman code"));
         }
+    }
+    if has_prefix_pair(&codes) {
+        return Err(malformed("a Huffman code that is a prefix of another"));
     }
     let count = b.bits(32)? as usize;
     if count > b.remaining() {
@@ -285,6 +299,20 @@ mod tests {
         let mut empty = W::default();
         empty.uint(0);
         assert!(read(&empty, |r| huffman(r, 2, false)).is_empty());
+    }
+
+    #[test]
+    fn huffman_refuses_a_code_that_prefixes_another() {
+        // Stored `10` is a prefix of stored `100`: not a tree of leaves.
+        let mut w = W::default();
+        w.huffman(2, 2, &[(1, 0b10, 2), (2, 0b100, 3)], &[1, 2, 1]);
+        let bytes = w.bytes();
+        let err = huffman(&mut BitReader::new(&bytes), 2, false).unwrap_err();
+        assert!(matches!(err, PrcError::Malformed(_)), "{err:?}");
+        // The same table without the prefix pair decodes.
+        let mut ok = W::default();
+        ok.huffman(2, 2, &[(1, 0b10, 2), (2, 0b110, 3)], &[1, 2, 1]);
+        assert_eq!(read(&ok, |r| huffman(r, 2, false)), [1, 2, 1]);
     }
 
     #[test]

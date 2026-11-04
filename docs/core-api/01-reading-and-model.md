@@ -3006,6 +3006,7 @@ f.eval_into(&inputs, &mut buf)?;                           // function.rs
 | Type-4 brace nesting | `MAX_PS_NESTING` = 32 | `PostScriptNestingTooDeep{limit}` |
 | Type-0 input dimensions | `MAX_SAMPLED_INPUTS` = 8 | `TooManyInputs{got,limit}` |
 | Type-3 recursion (also catches `/Functions` cycles) | `MAX_FUNCTION_DEPTH` = 8 | `NestingTooDeep{limit}` |
+| PRC decoded elements per file structure per reading pass (schema entries + tokens, triangles; faces reusing one index range charged per face) | `pdfcer_3d::MAX_DECODED_ELEMENTS` = 8,388,608 | `PrcError::TooManyElements{limit}` |
 
 **There is no runtime API to raise any of these.** The private ones you
 cannot even observe. Do not attempt to bypass them; the only deliberate

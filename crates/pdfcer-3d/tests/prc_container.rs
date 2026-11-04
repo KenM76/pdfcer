@@ -112,3 +112,15 @@ fn the_inflation_ceiling_is_reported_not_exceeded() {
         PrcError::TooLarge { limit: 1199 }
     );
 }
+
+#[test]
+fn a_model_file_end_past_the_data_is_refused_not_clipped() {
+    // The model file is a complete zlib stream; only its end offset lies.
+    let good = build(SECTIONS, b"model file", 0);
+    let end = u32::from_le_bytes(good[99..103].try_into().unwrap());
+    assert_eq!(end as usize, good.len());
+    assert!(PrcFile::parse(&good).is_ok());
+    let mut bad = good.clone();
+    bad[99..103].copy_from_slice(&(end + 1).to_le_bytes());
+    assert!(matches!(PrcFile::parse(&bad), Err(PrcError::Malformed(_))));
+}
