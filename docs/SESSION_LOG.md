@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1405th filing) — `Pass 658.12` (`69da19d3`): GPU depth prepass (`G264`)
+
+**Filed (engineer-reported, measured; no shell here, git state not checked from here; docs only):**
+- **`Pass 658.12` (`G264`, from `pdfcer-gui`):** `pdfcer-3d` gains `GLSL_ES_300_PREPASS_VERTEX`/`_FRAGMENT` and a main-shader discard against a prepass depth texture (`u_prepass`, `u_prepass_depth`, `u_prepass_spread`). Chosen over the literal ask (no-`gl_FragDepth` variant, depth EQUAL) because vertex-side log depth interpolates linearly and brings back coplanar z-fighting.
+- **Measured (Bancroft, 181,006 triangles, 64 lamps, Intel Arc):** single-sample pixel-identical, 9.08 -> 3.01 ms (0.26 + 2.75; lamp cut `Auto`); 4x MSAA 9.77 -> 3.63 ms with 2,582 of 1,024,000 silhouette pixels differing.
+- **Tests/gates:** 3 new tests, `gpu_` 30 passed; clippy, fmt, structure gate, core-api-verbs clean (engineer-reported). No manifest change.
+- **Boxes:** new FEATURES row: core `[x]`, cli `—`, gui `[ ]`. Backlog `Pass 658.12` removed. `G264` answered (reply in FeatureRequests `open/`).
+- **RAG:** nothing written; `D:\dev\rag\egui\` has no wgpu/GL shader-depth finding to extend and the engineer marked it optional. Candidate if wanted: "writing `gl_FragDepth` disables early-Z; an in-shader prepass-texture discard recovers most of the cost; MSAA silhouettes differ (one depth per pixel)".
+- **Owed / open:** release in `v0.124.0` (filed separately); `crates/` survivor sweep not done; CI on `ba33466d` still to be read (1404th filing). Backup currency not verifiable from here.
+
 ## 2026-11-03 (1404th filing) — `v0.123.0` PUBLISHED with CI RED at the tag; `ba33466d` fix; `3c679967` target-cache sweep
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, nothing committed by me):**

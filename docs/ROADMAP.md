@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `69da19d3` `Pass 658.12`, 2026-11-03: depth prepass so the GPU shader skips hidden fragments (`G264`) (1405th filing)
+
+Engineer-reported (measured); no shell here, git state not checked from here. Commit `69da19d3` "feat(3d): depth prepass so the GPU shader skips hidden fragments (Pass 658.12, G264)". Request from `pdfcer-gui`; reply `reply_G264_depth_prepass_SHIPPED.md` in the FeatureRequests `open/` folder (G264 is answered). Closes the Backlog `Pass 658.12` filed in the 1403rd filing (entry removed from Backlog). On `main`; ships in `v0.124.0` (not yet tagged; filed separately). No decision record; reasoning is in the commit message.
+- **API (`pdfcer-3d`, `render` feature only):** new `pub const`s `GLSL_ES_300_PREPASS_VERTEX` and `GLSL_ES_300_PREPASS_FRAGMENT`: a depth-only program writing the same logarithmic `gl_FragDepth` as the main shader; `invariant gl_Position` in both vertex shaders. `GLSL_ES_300_FRAGMENT` gains uniforms `u_prepass` (bool), `u_prepass_depth` (sampler2D), `u_prepass_spread` (int) and discards a fragment more than 2^-20 behind the prepass depth (max over a (2*spread+1)^2 neighbourhood) after derivatives and before any lighting. Main-pass depth test and writes unchanged; `u_prepass = false` is the old shader.
+- **Why not what G264 literally asked** (a shading variant without the `gl_FragDepth` write, depth EQUAL): that needs vertex-side (rasterised) log depth, which is linearly interpolated and wrong by centimetres on long triangles (a 2:1 w ratio is about 6% of distance), bringing back the coplanar z-fighting log depth prevents. So the early-out is in the shader against a sampled prepass texture.
+- **Measured** (moderngl harness compiling the shipped GLSL; `Bancroft_3D_plan.pdf`: 181,006 triangles, 1,120 draws, 64 lamps, 1280x800, Intel Arc): single-sample is pixel-identical, 9.08 ms -> 0.26 + 2.75 ms = 3.01 ms (lamp cut `Auto`); 8.78 -> 3.30 ms (`Off`). 4x MSAA spread 1: 2,582 of 1,024,000 pixels differ (silhouettes; mean 32/255, max 120), 9.77 -> 3.63 ms; spread 0: 9,539 differ. A `fwidth` slack cut the differing pixels to 287 but cost most of the speed-up (about 9.3 ms), so it is not shipped. MSAA silhouettes differ because the prepass holds one depth per pixel. The host draws exact screenshots without the prepass.
+- **Tests:** 3 new unit tests in `crates/pdfcer-3d/src/gpu_prepass.rs`; `pdfcer-3d` `gpu_` tests 30 passed.
+- **Gates (engineer-reported):** clippy clean (default and `--no-default-features`), fmt clean, code-structure gate clean (561 baseline, none new), `check-core-api-verbs` green. No `Cargo.toml` change and no new dependency, so `cargo tree` unaffected. Not checked from here: `pdfcer-cli` `--no-default-features` (the process miss recorded in the 1404th filing); engineer to confirm against `tools/run-gates.sh`.
+- **Core-api:** `docs/core-api/01-reading-and-model.md` gained a "Depth prepass" bullet; `index.md` line count 4,865.
+- **Boxes:** new FEATURES row after the lamp-cut row: core `[x]`, cli `—` (no CLI surface), gui `[ ]` (pending `pdfcer-gui` consuming it).
+- **Meaning change swept:** FEATURES row 558 (lamp cut) says "Not timed on a phone GPU" and describes per-fragment cost only for the lamp loop; still true, left. `crates/` survivors (shader or rustdoc claiming the fragment shader always shades every overdrawn fragment, or `gl_FragDepth` early-Z wording) not checked from here: engineer to grep `crates/pdfcer-3d` for it.
+
 ### `3c679967` tooling, 2026-11-03: `tools/clean-target-cache.py` sweeps superseded build outputs after every release build (1404th filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `3c679967d2dbbcd97b47656110dee961857b8bfe` "chore(tools): sweep superseded build outputs after every release build". Operator request (Ken, 2026-11-03): "Clear your old rust cache files. Please set yourself up to do this after a new build renders the old ones uneeded, or set a reasonable number of builds to do this after." Not a Pass; no decision record.
@@ -36767,10 +36779,6 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
-
-### `Pass 658.12` — overdraw: the fragment shader's `gl_FragDepth` write disables early-Z (BACKLOG; filed 1403rd filing; residue of `Pass 658.11`)
-
-Not started; **awaiting the `pdfcer-gui` choice** between the two options the engineer offered it. The GPU fragment shader writes `gl_FragDepth` (log depth), which disables early-Z / LRZ on tile GPUs, so every overlapping fragment is shaded in full before the depth test. Options: (1) a depth prepass, then shade with an EQUAL depth test; (2) a non-log-depth navigation variant (re-opens coplanar z-fighting). `Pass 658.12` was grep-checked unused in `docs/` before filing.
 
 ### `Pass 658.10` — render-time exposure (`RenderOptions`) (BACKLOG; filed 1401st filing; residue of `Pass 658.9`)
 
