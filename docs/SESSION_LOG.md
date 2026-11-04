@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-04 (1420th filing) — `Pass 662.0` (`f8da53ad`) shipped; `Pass 663.0` (`X040`) opened
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, I commit nothing):**
+- **`Pass 662.0` SHIPPED `f8da53ad`** (core, `pdfcer-3d` shader): operator-reported white outline at silhouette edges under "skip lighting hidden surfaces" at 4x MSAA. `prepass_hidden` discarded edge-sample surfaces; neighbours are now compared along the fragment's own depth slope. Test `a_neighbour_is_compared_with_this_surface_carried_along_its_slope`; 31 `gpu_` tests pass; gates clean. Not GPU-measured; `pdfcer-gui` asked to re-run `model_skip_hidden` at 4x.
+- **`Pass 663.0` (`X040`) opened IN PROGRESS:** rich copy writer hardening, written fresh (decision 215). A worker is implementing it. Next-up banner added; no new FEATURES row (pointer added to the existing rich-copy row).
+- **Next-up head:** next release (`v0.127.1` or `v0.128.0`, `pdfcer2`) waits on `G266` / `660.0` and `X040` / `663.0`.
+- **Files:** `ROADMAP.md`, `FEATURES.md` (depth-prepass row amended, rich-copy row pointer), `SESSION_LOG.md`.
+
+**Owed / open:** `tools/check-register-entry-size.py` not run from here; re-run it. Doc-comment survivors not checked; the prepass row's old "about 0.25% of pixels" caveat was replaced, other copies not swept. Backup currency not verifiable from here. Next filing 1421st.
+
 ## 2026-11-04 (1419th filing) — `Pass 661.0` (`X039`, `a6a1ed44`) shipped
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, I commit nothing):**

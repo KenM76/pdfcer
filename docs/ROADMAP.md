@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `f8da53ad` `Pass 662.0`, 2026-11-04: a surface at a multisampled silhouette's edge samples survives the depth prepass (1420th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `f8da53ad` "fix(3d): keep a surface at a multisampled silhouette's edge samples under the depth prepass (Pass 662.0)", local `main`, not pushed at filing, after `5a1dd9ac`. Opened and shipped in one session. Core only (`pdfcer-3d` engine shader); cli `—`; gui follows when `pdfcer-gui` bumps. Unreleased.
+- **Source:** operator report in chat, 2026-11-04: "when the skip lighting hidden surfaces is enabled there is a small white outline rendered on the edges of some objects."
+- **Cause:** `prepass_hidden` in `pdfcer_3d::GLSL_ES_300_FRAGMENT` compared a fragment with the nearest prepass depth over its 3x3 neighbourhood. On a multisampled target, a surface showing only at silhouette edge samples was discarded and the clear colour showed through.
+- **Fix:** each neighbour is compared with the fragment's own depth extrapolated along `dFdx`/`dFdy`, tolerance 2^-20 + 0.25·|slope|. Single-sample output unchanged; host contract unchanged; no manifest change.
+- **Engineer-reported tests:** new `a_neighbour_is_compared_with_this_surface_carried_along_its_slope`; 31 `pdfcer-3d` `gpu_` tests pass; clippy `-D warnings`, fmt, code-structure clean. The `gpu_prepass` module docs no longer quote the old 2,582-pixel residual.
+- **Not GPU-measured here** (operator using the PC; no shader compiler in the workspace). `pdfcer-gui` asked, via `notice_2026-11-04_prepass_silhouette_outline_fixed.md`, to re-run ui-verify `model_skip_hidden` at 4x MSAA.
+- **Boxes:** FEATURES row "GPU depth prepass" (`Pass 658.12`) amended in place: its "4x MSAA silhouettes can differ" caveat replaced by this fix; core `[x]`, gui stays `[ ]`.
+
 ### `a6a1ed44` `Pass 661.0`, 2026-11-04: an object stream that fails to decode is tried once per load (`X039`) (1419th filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `a6a1ed44` "fix(model): an object stream that fails to decode is tried once per load (X039, Pass 661.0)", local `main`, not pushed at filing, after `07f1a35f`. Core only (`pdfcer-model`); cli `—`, gui `—`. Reply `open/reply_X039_bad_object_stream_decoded_once_SHIPPED.md`. Unreleased; next release (`v0.127.1` or `v0.128.0`, OneDrive `pdfcer2`) follows `Pass 660.0`.
@@ -25884,7 +25894,14 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Head (1419th filing): `Pass 660.0` (`G266`), below; `Pass 661.0` (`X039`) is SHIPPED `a6a1ed44` (see *Shipped*). Both ride the next release (`v0.127.1` or `v0.128.0`, writes OneDrive `pdfcer2`; `v0.127.0` PUBLISHED).** The older banners that follow are history.
+> **Head (1420th filing): `Pass 660.0` (`G266`) and `Pass 663.0` (`X040`), below. `Pass 661.0` (`X039`, `a6a1ed44`) and `Pass 662.0` (`f8da53ad`) are SHIPPED (see *Shipped*). The next release (`v0.127.1` or `v0.128.0`, writes OneDrive `pdfcer2`; `v0.127.0` PUBLISHED) waits on `G266` / `Pass 660.0` and `X040` / `Pass 663.0`.** The older banners that follow are history.
+
+> **`Pass 663.0` (`X040`): rich copy writer hardening**
+>
+> IN PROGRESS (a worker is implementing it). Request file `open/request_X040_rich_copy_writer_hardening.md` is the authority. Written fresh in pdfcer: PdfCraft has no fix for it (decision 215). ID `663.0` grepped across `docs/*.md` before filing: no prior use.
+> - **Scope:** the rich copy writers (HTML, CF_HTML, RTF): CSS-escape font families; drop C0 controls and NUL; escape `;` and `{}\` in the RTF font table; sizes finite and clamped to 1-1638 pt; checked sums; span, paragraph and output-byte caps with well-formed truncation; never panic.
+> - **Surfaces:** core (`EditableTextModel::rich_text`); the CLI `copy-text` reaches it unchanged. gui is `pdfcer-gui`'s.
+> - **FEATURES:** the existing "Copy text with its formatting and paragraphs" row carries a pointer; no new row.
 
 > **`Pass 660.0` (`G266`, operator `O381`): custom `/Info` entries, `/Creator`, and XMP kept in step with `/Info`**
 >
