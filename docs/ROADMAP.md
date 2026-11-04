@@ -112,6 +112,39 @@ wherever it appears.*
 
 ## Shipped
 
+### `e320e645` `v0.125.0` version bump filed, 2026-11-03; release PENDING (1407th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `e320e645` "chore: bump version to 0.125.0". Carries `Pass 658.13` (`eb91233d`, `X031`), `Pass 658.14` (`bafc19d4`, `X030`), `Pass 658.15` (`3f86c024`, `X029`), filed in this same 1407th filing. No `Cargo.toml` dependency change, so `cargo tree` is unaffected.
+- **Release plan, NOT claimed done:** `v0.125.0` is to be tagged on the commit containing this filing. Tag, GitHub release, OneDrive slot and crates are not done; a later filing records them. `v0.124.0` (`d787bf98`) was filed at the 1406th and its release is likewise not recorded as done here.
+- Ledgers: no decision; next filing 1408th.
+
+### `3f86c024` `Pass 658.15`, 2026-11-03: the PRC reader refuses prefix codes, lying lengths, wide behaviours and partial arrays, and bounds decoded elements (`X029`) (1407th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `3f86c024` "fix(3d): PRC reader refuses prefix codes, lying lengths, wide behaviours, partial arrays; element allowance (X029)". Inbound request `X029` (operator as crates consumer; reply `reply_X029_..._SHIPPED.md` in the FeatureRequests `open/` folder). Local `main`; ships in `v0.125.0`. No decision record; reasoning is in the commit message. Pass number `658.15` assigned at this filing (grep of `docs/` for `658.13`..`658.19` found none before filing). Follows `Pass 657.4` (`X028`, the earlier PRC reader hardening).
+- **Refused as `PrcError::Malformed`:** a Huffman prefix pair (WD 12.2); a model-file end past the data (WD 6.1.1); a behaviour wider than 16 bits (WD 7.2.4.2); a partial position or wire triple (WD 7.8.4 / 7.8.5.2). A partial NORMAL triple drops all normals instead of refusing.
+- **New pub (`pdfcer-3d`):** `MAX_DECODED_ELEMENTS` = 1<<23 (8,388,608) and `PrcError::TooManyElements { limit: u64 }`. Faces are charged F x k. New file `crates/pdfcer-3d/src/elements.rs`.
+- **Departure from the request, recorded here rather than as a decision:** the allowance is per file structure per reading pass, not one allowance shared across all readers. Measured need: `Bancroft_3D_plan.pdf` peaks at 181,006 elements per file structure, so the limit is about 46x the real maximum (8,388,608 / 181,006 = 46.3).
+- **Tests:** 7 new, each sabotage-verified (engineer-reported). `docs/core-api/01-reading-and-model.md` section 11.5 gained the PRC row.
+- **Real file:** `Bancroft_3D_plan.pdf` lists 8 views and view 0 renders correctly with the new allowances (engineer-reported smoke).
+- **Boxes:** core `[x]`, cli `—` (no flag changed; the existing `3d-*` subcommands inherit the stricter reader), gui untouched. FEATURES: no row change (hardening of an existing reader).
+
+### `bafc19d4` `Pass 658.14`, 2026-11-03: the assembly refuses a missing tessellation, caps placed geometry and applies hidden topology (`X030`) (1407th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `bafc19d4` "fix(3d): assembly refuses missing tessellations, caps placed geometry, applies hidden topology (X030)". Inbound request `X030` (reply `reply_X030_..._SHIPPED.md` in `open/`). Local `main`; ships in `v0.125.0`. No decision record. Pass number assigned at this filing.
+- **New pub (`pdfcer-3d`):** `MAX_PLACED_TRIANGLES` and `MAX_PLACED_ATTRIBUTES` (both 2^25 = 33,554,432); `AssembleError::PlacedTooLarge { what, limit }` (`AssembleError` is `#[non_exhaustive]`, so adding the variant is not breaking). Placed totals are capped before each copy.
+- **Refused:** a missing tessellation index is `AssembleError::Prc(PrcError::Malformed)`.
+- **Applied:** topology references whose behaviour is Show clear or Removed set (0x0001 / 0x2000; PRC WD 7.2.4.2, WD 7.4.7) remove that face's triangles; the outer occurrence wins.
+- **Tests:** 4 new, sabotage-verified (engineer-reported).
+- **Boxes:** core `[x]`, cli `—`, gui untouched. FEATURES: row "Export an embedded PRC 3D model's tessellation" amended in place (missing tessellation refused, placed geometry capped).
+- **Meaning-change sweep (claim: "a hidden face is not applied"):** confirmed stale by the engineer (the topology-reference handling is the entity-reference face override, `tree/overrides.rs`); the FEATURES "PRC assembly colour/visibility overrides (entity references)" row now says a Show-clear/Removed face reference removes the face's triangles.
+
+### `eb91233d` `Pass 658.13`, 2026-11-03: software raster fill rule, perspective-correct shade, and focal-length and normalize guards (`X031`) (1407th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `eb91233d` "fix(3d): software raster fill rule, perspective shade, fov and normalize guards (X031)". Inbound request `X031` (reply `reply_X031_..._SHIPPED.md` in `open/`). Local `main`; ships in `v0.125.0`. No decision record. Pass number assigned at this filing.
+- **Fixed:** top-left fill rule on shared edges; perspective-correct shade and shadow key; a non-finite or subnormal focal length is `RenderError::Camera` from `View::new` (`projection_matrix` uses it too); `normalize` / `length` rescale to avoid overflow on huge triangles, with a crate-private `unit_cross`; near-plane behaviour documented.
+- **OPEN LIMIT, not fixed, documented:** the GPU path's f32 positions become infinite near 1e160.
+- **Boxes:** core `[x]`, cli `—`, gui untouched. FEATURES: no row change.
+
 ### `d787bf98` `v0.124.0` version bump filed, 2026-11-03; release PENDING (1406th filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `d787bf98` "chore: bump version to 0.124.0": `Cargo.toml` workspace version and the `pdfcer-model` dependency version, `Cargo.lock`, `fuzz/Cargo.lock`. No dependency-set change, so no `cargo tree` or `THIRD_PARTY_LICENSES.md` change. Carries `Pass 658.12` (`69da19d3`, filed at the 1405th as `3221fadb`).

@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1407th filing) — `Pass 658.13`/`658.14`/`658.15` (`X031`/`X030`/`X029`) and `v0.125.0` bump `e320e645`; release PENDING
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed by me):**
+- **`Pass 658.13` (`eb91233d`, `X031`):** software raster top-left fill rule, perspective-correct shade and shadow key, non-finite or subnormal focal length is `RenderError::Camera`, normalize/length overflow guard. **Open limit:** the GPU path's f32 positions become infinite near 1e160; not fixed, documented.
+- **`Pass 658.14` (`bafc19d4`, `X030`):** assembly refuses a missing tessellation (`AssembleError::Prc(Malformed)`), caps placed geometry (`MAX_PLACED_TRIANGLES`, `MAX_PLACED_ATTRIBUTES`, both 2^25; `AssembleError::PlacedTooLarge`), applies hidden topology (Show clear / Removed set). 4 tests, sabotage-verified.
+- **`Pass 658.15` (`3f86c024`, `X029`):** PRC reader refuses Huffman prefix pairs, lying model-file lengths, behaviours over 16 bits, partial position/wire triples (partial normals drop all normals); `MAX_DECODED_ELEMENTS` = 1<<23, `PrcError::TooManyElements`. **Departure from the request:** allowance is per file structure per reading pass, not shared across readers (Bancroft peaks at 181,006 per structure; 8,388,608 / 181,006 = 46.3x). 7 tests, sabotage-verified.
+- **Bump `e320e645`** to 0.125.0; no dependency change.
+- **Numbering:** `658.13`..`658.15` assigned by this filing in commit order (grep of `docs/` found none used); the commit messages carry only the `X` ids. `X028` precedent used `657.4`, but `658.x` is the current arc.
+- **Engineer-reported figures:** `pdfcer-3d` lib 372 passed (default), 237 (`--no-default-features`), integration suites green; clippy `-D warnings` clean for `pdfcer-3d` and `pdfcer-cli` in both feature sets; fmt clean; structure gate clean (561 baseline, none new). Smoke: `Bancroft_3D_plan.pdf` lists 8 views and view 0 renders.
+- **Boxes:** core `[x]`, cli `—`, gui untouched. FEATURES: one clause added to the PRC tessellation-export row; no box changes.
+- **Ledgers:** no decision. Next filing 1408th.
+
+**Owed / open:** `v0.124.0` and `v0.125.0` tag and release not recorded as done; FEATURES "entity references" row's hidden-face claim confirmed stale by the engineer and corrected; `crates/` doc-comment survivors not checked from here. Backup currency not verifiable from here.
+
 ## 2026-11-03 (1406th filing) — `v0.124.0` version bump `d787bf98` filed; release PENDING
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only):**
