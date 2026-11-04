@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1406th filing) — `v0.124.0` version bump `d787bf98` filed; release PENDING
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only):**
+- **Bump `d787bf98`** "chore: bump version to 0.124.0": workspace version, `pdfcer-model` dep version, `Cargo.lock`, `fuzz/Cargo.lock`. No dependency-set change (no `cargo tree` / `THIRD_PARTY_LICENSES.md` change). Carries `Pass 658.12` (`69da19d3`, filed `3221fadb`, 1405th).
+- **Not done:** tag on the commit containing this filing, GitHub release, OneDrive `pdfcer1` (`pdfcer2` keeps 0.123.0), crates. A later filing records them.
+- **FEATURES:** no row changes.
+
+**For next session:** tag and release `v0.124.0`; next filing 1407th. Backup currency not verifiable from here.
+
 ## 2026-11-03 (1405th filing) — `Pass 658.12` (`69da19d3`): GPU depth prepass (`G264`)
 
 **Filed (engineer-reported, measured; no shell here, git state not checked from here; docs only):**

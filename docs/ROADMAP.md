@@ -112,6 +112,12 @@ wherever it appears.*
 
 ## Shipped
 
+### `d787bf98` `v0.124.0` version bump filed, 2026-11-03; release PENDING (1406th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `d787bf98` "chore: bump version to 0.124.0": `Cargo.toml` workspace version and the `pdfcer-model` dependency version, `Cargo.lock`, `fuzz/Cargo.lock`. No dependency-set change, so no `cargo tree` or `THIRD_PARTY_LICENSES.md` change. Carries `Pass 658.12` (`69da19d3`, filed at the 1405th as `3221fadb`).
+- **Release plan, NOT claimed done:** `v0.124.0` is to be tagged on the commit that contains this filing. Tag, GitHub release, OneDrive slot `pdfcer1` (`pdfcer2` keeps 0.123.0) and crates are not done; a later filing records them.
+- `FEATURES.md`: no row changes. Ledgers: no decision; next filing 1407th.
+
 ### `69da19d3` `Pass 658.12`, 2026-11-03: depth prepass so the GPU shader skips hidden fragments (`G264`) (1405th filing)
 
 Engineer-reported (measured); no shell here, git state not checked from here. Commit `69da19d3` "feat(3d): depth prepass so the GPU shader skips hidden fragments (Pass 658.12, G264)". Request from `pdfcer-gui`; reply `reply_G264_depth_prepass_SHIPPED.md` in the FeatureRequests `open/` folder (G264 is answered). Closes the Backlog `Pass 658.12` filed in the 1403rd filing (entry removed from Backlog). On `main`; ships in `v0.124.0` (not yet tagged; filed separately). No decision record; reasoning is in the commit message.
