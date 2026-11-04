@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `eba71f2f` `v0.128.0` PUBLISHED, 2026-11-04 (1424th filing)
+
+Engineer-reported; no shell here, nothing checked from here (GitHub, crates.io, OneDrive, CI and git state all as reported). Tag `v0.128.0` on `eba71f2f`; version bump `7d02540a`. Pushed. Carries `Pass 660.0` (`G266`, `d77620b6`), `Pass 663.0` (`X040`, `7760a3bf`), `Pass 664.0` (`G267`, `517f96d9`), test fix `eba71f2f`, plus the earlier-filed `Pass 661.0` (`X039`) and `Pass 662.0` per the 1421st/1422nd filings; standing rule `R263` / decision 216 (`a469d379`) landed in the same window. All filed earlier (1421st-1423rd).
+- **GitHub release `v0.128.0`:** 8 assets (portable zip `pdfcer-v0.128.0`, `.sha256` files, `ocr-addon-{ocrcer,ocrs,tesseract}.zip`).
+- **OneDrive:** `pdfcer2` = 0.128.0; `pdfcer1` keeps 0.127.0. **The next release writes `pdfcer1`.**
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` all 0.128.0 (confirmed via the crates.io API).
+- **CI on `eba71f2f`:** completed success.
+- **Gates (change-scoped per `R263`):** affected tests rerun green after two stale tests were fixed in `eba71f2f`; fresh-folder smoke test passed; `cargo doc` with `broken_intra_doc_links` denied clean; Linux cross-check of `pdfcer-core`, `pdfcer-3d`, `pdfcer-cli` clean.
+- **Open from this round for pdfcer:** none. `X041` belongs to pdfcer-gui (no pdfcer Pass).
+- No box changes (release record). Nothing minted.
+
 ### `eba71f2f` `Pass 660.0` / `Pass 663.0` test follow-up, 2026-11-04: two integration tests updated to the shipped shape (1423rd filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `eba71f2f` "test: count InfoField edits from InfoField::all and expect truncated= in the copy line (Pass 660.0, Pass 663.0)". Tests only; no shipped behaviour, API or box changed.

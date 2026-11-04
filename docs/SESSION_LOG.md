@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-04 (1424th filing) — `v0.128.0` PUBLISHED
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, I commit nothing):**
+- **Tag `v0.128.0` on `eba71f2f`** (bump `7d02540a`), pushed. Carries `G266`/`660.0`, `X040`/`663.0`, `G267`/`664.0`, the `eba71f2f` test fix, and the earlier-filed `661.0`/`662.0`; `R263`/decision 216 in the same window.
+- **GitHub release:** 8 assets (portable zip, sha256 files, three OCR add-on zips). **OneDrive:** `pdfcer2` = 0.128.0, `pdfcer1` keeps 0.127.0; next release writes `pdfcer1`. **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` at 0.128.0 (crates.io API). **CI on `eba71f2f`:** success.
+- **Gates (change-scoped, `R263`):** affected tests green after two stale tests fixed; fresh-folder smoke passed; `cargo doc` broken-links denied clean; Linux cross-check of core/3d/cli clean.
+- **Open for pdfcer:** none. `X041` is pdfcer-gui's, no pdfcer Pass.
+- **Files:** `ROADMAP.md` (Shipped release entry), `SESSION_LOG.md`. `FEATURES.md` untouched (release record only).
+
+**Owed / open:** `check-commits-filed.py` and the size/ledger gates not run from here. Backup currency not verifiable from here. Next filing 1425th.
+
 ## 2026-11-04 (1423rd filing) — `R263` minted (decision 216); `eba71f2f` test follow-up; `v0.128.0` in progress
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, I commit nothing):**
