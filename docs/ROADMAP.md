@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `21800243` `Pass 658.18`, 2026-11-04: draw what survives of a damaged 3D model, disclose the loss (`G265`, operator `O374`) (1412th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `21800243` "feat(3d): draw what survives of a damaged PRC model, disclose the loss (G265)", cherry-picked onto local `main` from agent commit `dea8fbce`, not pushed; rides `v0.126.0` with `658.17` (`fb98413e`) and `658.19` (`d481d708`) if it lands. Inbound request `G265` (reply `open/reply_G265_damaged_model_salvage_SHIPPED.md`, being written by the operator). No decision record.
+- **Salvage (smallest sound unit dropped):** partial mesh point drops the triangles using it; partial wire point drops that polyline; face behaviour wider than 16 bits drops that face; recoverable read error (e.g. Huffman prefix pair) drops that tessellation; an error losing the reader's position drops that tessellation and counts the later ones in the section as lost; a placement naming a missing tessellation drops that placement; a model-file end past the data is read to the data's end. Refused only when nothing survives (`AssembleError::Damaged { count, reasons }`, new) or a ceiling is hit.
+- **Follows MeshFit:** default BestFit and every fit except `Unique` salvage; strict `Unique` refuses with the old error (each salvage test also asserts that).
+- **Public API:** `AssembledModel` gains `damaged`, `damaged_why` (reason/count pairs), `damaged_parts` (part labels); distinct from the compressed-mesh reasons. CLI `3d-*` commands print one damage line per reason plus affected part names. `docs/core-api/01-reading-and-model.md` updated (index 4,907 lines); `check-core-api-verbs` rc=0.
+- **RULING (G265 ceiling question):** ceilings stay hard refusals. Salvage past one would be memory-safe (every ceiling is checked before allocating), but a model past a ceiling is hostile or too big to show and a truncated picture misleads.
+- **X033 bounds classified:** ceilings = raster work limit, per-copy block charge, schema step/nesting limits. Local damage now salvaged = schema arithmetic overflow inside a tessellation section. Numeric fixes, not damage = bounds centre, drawn-corner bounds, camera fit, mirror balancing.
+- **Departures recorded:** truncated zlib stream for the model file still refuses; tree/placement read error still falls back to drawing unplaced; a failed section header/count/trailer counts as one unit; colour count for a partial point uses whole+1; a wires-only model is still refused.
+- **Engineer-reported figures:** `pdfcer-3d` 389+5+25 default features, 248+5+14 no-default; `pdfcer-cli` 1031 (2 ignored) + 85. All six salvage mechanisms sabotage-verified. fmt, clippy (both feature sets), structure gate clean. Real files (Bancroft_3D_plan, Bancroft, TS-0232, TR-0522) give identical mesh/triangle counts to `v0.125.0` with no damage notes. No `Cargo.toml` change.
+- **Housekeeping:** face and wire code split out of `tess.rs` into new `tess_face.rs` / `tess_wire.rs` (`tess.rs` now under 800 lines; its structure-baseline entry removed); new `mesh_decode.rs`.
+- **Boxes:** core `[x]`, cli `[x]`, gui not ticked. FEATURES: Planned row "3D model still shown when the product tree cannot be read" replaced by an Implemented row (the unreadable-tree fallback to unplaced drawing is the existing behaviour recorded as a departure).
+
 ### `d481d708` `Pass 658.19`, 2026-11-04: `OutlineClip` reports what its depth guard and malformed-entry skip leave out (`X034`) (1411th filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `d481d708` "feat(outline): OutlineClip reports what its depth guard and malformed-entry skip leave out (X034)", local `main` after `91ad38f3`, not pushed; rides `v0.126.0` with `658.17` and `658.18` if it lands. Inbound request `X034` (reply `reply_X034_outline_clip_reports_what_it_drops_SHIPPED.md` in the FeatureRequests `open/` folder; INDEX row SHIPPED). Never opened in Next up; filed directly as Shipped. No decision record.
@@ -27750,9 +27763,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > `Pass 658.4`, `658.5` and `658.6` SHIPPED and have left this section (1395th filing, `536a3bf2`; `647a9b55`..`7946e10c`; `b43a3e1b`, `ba21b6aa`); full entries at the top of *Shipped*.
 
-### `Pass 658.18` (`G265`, operator `O374`, from `pdfcer-gui`): draw what survives of a damaged 3D model; refuse only on a resource ceiling (filed 1410th filing, IN PROGRESS, not shipped)
-
-Engineer-reported; no shell here. Planned for the same `v0.126.0` release as `Pass 658.17` (release NOT claimed done). Intent as relayed: a damaged or partly unreadable 3D model draws whatever of it can be read, and a refusal is reserved for hitting a resource ceiling (for example `MAX_RENDER_PIXEL_TESTS`, `MAX_INFLATED_BYTES`, `MAX_DECODED_ELEMENTS`). Related FEATURES planned row: "3D model still shown when the product tree cannot be read". Pass number `658.18` assigned at this filing (grep of `docs/` found none before filing). Acceptance criteria are not yet written; the engineer supplies them on shipping.
+> `Pass 658.18` (`G265`) SHIPPED and has left this section (1412th filing, `21800243`); full entry at the top of *Shipped*.
 
 ### Known limits recorded from the gap audit (NOT being done)
 

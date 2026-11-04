@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-04 (1412th filing) — `Pass 658.18` (`21800243`, `G265`): damaged 3D models draw, loss disclosed
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed by me):**
+- **`Pass 658.18` (`21800243`, from agent `dea8fbce`, `G265`):** damaged PRC models drop only the smallest damaged unit; `AssembleError::Damaged` when nothing survives; `AssembledModel::damaged` / `damaged_why` / `damaged_parts`; CLI prints damage lines. Salvage follows MeshFit (strict `Unique` refuses). Moved from Next up to Shipped.
+- **Ruling recorded:** resource ceilings stay hard refusals (answers the G265 ceiling question). X033 bounds classified in the ROADMAP entry.
+- **Engineer-reported figures:** `pdfcer-3d` 389+5+25 / 248+5+14; `pdfcer-cli` 1031 + 85; six salvage mechanisms sabotage-verified; real files unchanged vs `v0.125.0`.
+- **Boxes:** core `[x]`, cli `[x]`, gui not ticked. FEATURES: Planned "product tree cannot be read" row replaced by an Implemented damaged-model row.
+- **Inbound:** reply `open/reply_G265_damaged_model_salvage_SHIPPED.md` is being written by the operator.
+
+**Still in flight:** `v0.126.0` would carry `658.17`, `658.19`, `658.18`; not tagged, not published, not pushed. Doc-comment survivors not checked from here; backup currency not verifiable from here.
+
 ## 2026-11-04 (1411th filing) — `Pass 658.19` (`d481d708`, `X034`): `OutlineClip` reports what it drops
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed by me):**
