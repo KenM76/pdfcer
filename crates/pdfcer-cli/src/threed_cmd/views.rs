@@ -163,7 +163,7 @@ fn fitted_views(
             let (direction, up) = named.direction(a.up.axis());
             let camera = pdfcer_3d::Camera::fit_coloured(
                 &model.meshes,
-                &model.colours,
+                super::framing_colours(&model.meshes, &model.colours),
                 direction,
                 up,
                 !a.ortho,

@@ -587,24 +587,19 @@ fn render_from_bytes(
         Ok(model) => model,
         Err(why) => return refuse(why),
     };
-    let Some(bounds) = Bounds::of_coloured(&model.meshes, &model.colours) else {
+    let framed = framing_colours(&model.meshes, &model.colours);
+    let Some(bounds) = Bounds::of_coloured(&model.meshes, framed) else {
         return refuse("the model has no finite vertex to draw".to_owned());
     };
     let target = a.target.unwrap_or_else(|| bounds.centre());
     let aim = aim_camera(a, target, saved);
     let (direction, up) = (aim.direction, aim.up);
     let aspect = f64::from(a.width) / f64::from(a.height.max(1));
-    let mut camera = match Camera::fit_coloured(
-        &model.meshes,
-        &model.colours,
-        direction,
-        up,
-        !aim.ortho,
-        aspect,
-    ) {
-        Ok(camera) => camera,
-        Err(err) => return refuse(err.to_string()),
-    };
+    let mut camera =
+        match Camera::fit_coloured(&model.meshes, framed, direction, up, !aim.ortho, aspect) {
+            Ok(camera) => camera,
+            Err(err) => return refuse(err.to_string()),
+        };
     if let Some(eye) = a.eye {
         camera.eye = eye;
         camera.target = target;
@@ -752,6 +747,21 @@ fn render_from_bytes(
         );
     }
     exit::SUCCESS
+}
+
+/// The colours to frame by: the drawn ones, or none when every mesh is
+/// fully transparent, so an invisible model frames by its geometry and
+/// renders blank instead of being refused.
+#[cfg(feature = "3d")]
+pub(crate) fn framing_colours<'a>(
+    meshes: &[pdfcer_3d::TriangleMesh],
+    colours: &'a [Option<[u8; 4]>],
+) -> &'a [Option<[u8; 4]>] {
+    if pdfcer_3d::Bounds::of_coloured(meshes, colours).is_some() {
+        colours
+    } else {
+        &[]
+    }
 }
 
 /// How many meshes [`pdfcer_3d::StyleAlpha::ZeroUnset`] drew opaque, with
