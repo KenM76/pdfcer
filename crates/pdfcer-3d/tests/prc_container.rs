@@ -105,11 +105,55 @@ fn damaged_containers_are_refused_by_name() {
 
 #[test]
 fn the_inflation_ceiling_is_reported_not_exceeded() {
+    // 1200 inflated bytes plus the header's 3-byte picture block.
     let f = build([&[0u8; 600], &[0u8; 600], b"", b"", b""], b"", 0);
-    assert!(PrcFile::parse_with_limit(&f, 1200).is_ok());
+    assert!(PrcFile::parse_with_limit(&f, 1203).is_ok());
     assert_eq!(
-        PrcFile::parse_with_limit(&f, 1199).unwrap_err(),
-        PrcError::TooLarge { limit: 1199 }
+        PrcFile::parse_with_limit(&f, 1202).unwrap_err(),
+        PrcError::TooLarge { limit: 1202 }
+    );
+}
+
+/// `n` file structures whose descriptions all name one header holding one
+/// `block`-byte picture, every section empty, and no model file.
+fn shared_header(n: u32, block: usize) -> Vec<u8> {
+    let head = 3 + 4 * 11 + n as usize * 4 * 12 + 4 * 3;
+    let mut fs = b"PRC".to_vec();
+    u32s(
+        &mut fs,
+        &[8137, 8137, 5, 6, 7, 8, 0, 0, 0, 0, 1, block as u32],
+    );
+    fs.extend(std::iter::repeat_n(7u8, block));
+    let end = (head + fs.len()) as u32;
+    let mut out = b"PRC".to_vec();
+    u32s(&mut out, &[8137, 8137, 1, 2, 3, 4, 0, 0, 0, 0, n]);
+    for _ in 0..n {
+        u32s(
+            &mut out,
+            &[5, 6, 7, 8, 0, 6, head as u32, end, end, end, end, end],
+        );
+    }
+    u32s(&mut out, &[end, end, 0]);
+    assert_eq!(out.len(), head);
+    out.extend(fs);
+    out
+}
+
+#[test]
+fn overlapping_structures_copying_one_block_are_charged_per_copy() {
+    let f = shared_header(10, 1000);
+    let parsed = PrcFile::parse_with_limit(&f, 10_000).unwrap();
+    assert_eq!(parsed.file_structures.len(), 10);
+    assert!(
+        parsed
+            .file_structures
+            .iter()
+            .all(|fs| fs.pictures == [vec![7u8; 1000]])
+    );
+    // The sixth copy of the one stored block passes 5,999 bytes.
+    assert_eq!(
+        PrcFile::parse_with_limit(&f, 5_999).unwrap_err(),
+        PrcError::TooLarge { limit: 5_999 }
     );
 }
 

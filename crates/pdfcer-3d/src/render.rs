@@ -8,6 +8,8 @@
 
 use crate::TriangleMesh;
 use crate::ao::{self, Depths, Screen};
+pub use crate::bounds::Bounds;
+use crate::bounds::drawn_corners;
 use crate::frame::Frame;
 use crate::gloss::Gloss;
 use crate::lamp_shadow::LampShadows;
@@ -17,13 +19,18 @@ use crate::raster::{Corner, Paint, PixelLights, Target, View, ViewCorner, at};
 use crate::shadow::{Caster, DEFAULT_SHADOW_MAP_SIZE, LightSense, ShadowLight, ShadowMap};
 use crate::shadow_cast::{ShadowAlpha, ShadowCasters};
 use crate::shadow_set::{ExtraShadows, Shadows};
-use crate::vec3::{cross, dot, length, normalize, scale, sub, unit_cross};
+use crate::vec3::{cross, dot, normalize, scale, sub, unit_cross};
+use crate::work::{Work, charge_frame};
 
 /// The largest image [`render`] draws, in pixels (width × height).
 pub const MAX_RENDER_PIXELS: u64 = 64 * 1024 * 1024;
 
 /// [`Camera::fit`]'s framed extent over the model's: 5% clear on each side.
 const FIT_MARGIN: f64 = 1.1;
+/// The least eye-to-target distance a fit uses, over the target's largest
+/// coordinate: the view direction then survives the eye's rounding to
+/// within about 2^-22 radians.
+const EYE_SHARE: f64 = 1.0 / (1u64 << 30) as f64;
 
 /// How the camera projects the scene onto the image.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -56,60 +63,6 @@ pub struct Camera {
     pub projection: Projection,
 }
 
-/// An axis-aligned box around every point a set of meshes draws.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Bounds {
-    /// The smallest x, y and z.
-    pub min: [f64; 3],
-    /// The largest x, y and z.
-    pub max: [f64; 3],
-}
-
-impl Bounds {
-    /// The box around every finite vertex the meshes' triangles use, or
-    /// `None` when there is none.
-    ///
-    /// ```
-    /// use pdfcer_3d::{Bounds, TriangleMesh};
-    /// let mut mesh = TriangleMesh::default();
-    /// mesh.positions = vec![[0.0, 0.0, 0.0], [2.0, 0.0, 0.0], [0.0, 3.0, 1.0]];
-    /// mesh.triangles = vec![[0, 1, 2]];
-    /// let b = Bounds::of(&[mesh]).unwrap();
-    /// assert_eq!(b.max, [2.0, 3.0, 1.0]);
-    /// ```
-    pub fn of(meshes: &[TriangleMesh]) -> Option<Bounds> {
-        let mut out: Option<Bounds> = None;
-        for mesh in meshes {
-            for tri in &mesh.triangles {
-                for &i in tri {
-                    let Some(&p) = mesh.positions.get(i as usize) else {
-                        continue;
-                    };
-                    if !p.iter().all(|c| c.is_finite()) {
-                        continue;
-                    }
-                    let b = out.get_or_insert(Bounds { min: p, max: p });
-                    for ((lo, hi), c) in b.min.iter_mut().zip(b.max.iter_mut()).zip(p) {
-                        *lo = lo.min(c);
-                        *hi = hi.max(c);
-                    }
-                }
-            }
-        }
-        out
-    }
-
-    /// The box's centre.
-    pub fn centre(&self) -> [f64; 3] {
-        [0, 1, 2].map(|i| (at(self.min, i) + at(self.max, i)) / 2.0)
-    }
-
-    /// Half the box's diagonal: the radius of a sphere holding it.
-    pub fn radius(&self) -> f64 {
-        length(sub(self.max, self.min)) / 2.0
-    }
-}
-
 impl Camera {
     /// A camera looking along `direction` that fits `bounds` in an image of
     /// the given aspect ratio (width / height), with a 30° perspective or an
@@ -118,6 +71,9 @@ impl Camera {
     /// The box's eight corners are framed as they project from this
     /// direction, aimed at the box's centre, with about 5% clear on each
     /// side of the tighter axis (perspective: of the corner that limits it).
+    /// The eye stays at least 2^-30 of the target's largest coordinate away,
+    /// so a model small beside its distance from the origin keeps the view
+    /// direction (in perspective it is then framed smaller).
     ///
     /// # Errors
     ///
@@ -170,14 +126,14 @@ impl Camera {
         aspect: f64,
     ) -> Result<Camera, RenderError> {
         let bounds = Bounds::of(meshes).ok_or(RenderError::Camera("the model has no vertex"))?;
-        let vertices = meshes.iter().flat_map(|m| {
-            m.triangles
-                .iter()
-                .flatten()
-                .filter_map(|&i| m.positions.get(i as usize).copied())
-                .filter(|p| p.iter().all(|c| c.is_finite()))
-        });
-        Camera::frame(&bounds, vertices, direction, up, perspective, aspect)
+        Camera::frame(
+            &bounds,
+            drawn_corners(meshes),
+            direction,
+            up,
+            perspective,
+            aspect,
+        )
     }
 
     /// Frames `points` (which `bounds` holds) from `direction`, aimed at the
@@ -199,13 +155,9 @@ impl Camera {
             r if r.is_finite() && r > 0.0 => r,
             _ => 1.0,
         };
-        let [right, upward, forward] = Camera {
-            eye: sub(centre, dir),
-            target: centre,
-            up,
-            projection: Projection::Orthographic { height: 1.0 },
-        }
-        .basis()?;
+        // From the direction alone: a point such as `centre - dir` can
+        // round back to `centre` for a small model far from the origin.
+        let [right, upward, forward] = basis_along(dir, up)?;
         let view = |p: [f64; 3]| {
             let r = sub(p, centre);
             [dot(r, right), dot(r, upward), dot(r, forward)]
@@ -238,6 +190,10 @@ impl Camera {
             let height = ((y1 - y0).max((x1 - x0) / aspect) * FIT_MARGIN).max(floor);
             (Projection::Orthographic { height }, 2.0 * radius)
         };
+        // Far enough off the target that `target - eye` still points along
+        // `dir` once the eye's coordinates round (by up to 2^-53 of each).
+        let placeable = target.iter().fold(0.0_f64, |m, c| m.max(c.abs())) * EYE_SHARE;
+        let distance = distance.max(placeable);
         let camera = Camera {
             eye: sub(target, scale(dir, distance)),
             target,
@@ -252,11 +208,16 @@ impl Camera {
     pub(crate) fn basis(&self) -> Result<[[f64; 3]; 3], RenderError> {
         let forward = normalize(sub(self.target, self.eye))
             .ok_or(RenderError::Camera("the eye and the target coincide"))?;
-        let right = normalize(cross(forward, self.up)).ok_or(RenderError::Camera(
-            "the up direction is zero or parallel to the view direction",
-        ))?;
-        Ok([right, cross(right, forward), forward])
+        basis_along(forward, self.up)
     }
+}
+
+/// Right, up and forward unit vectors looking along unit `forward`.
+fn basis_along(forward: [f64; 3], up: [f64; 3]) -> Result<[[f64; 3]; 3], RenderError> {
+    let right = normalize(cross(forward, up)).ok_or(RenderError::Camera(
+        "the up direction is zero or parallel to the view direction",
+    ))?;
+    Ok([right, cross(right, forward), forward])
 }
 
 /// What [`render`] draws.
@@ -397,6 +358,13 @@ pub enum RenderError {
     /// The camera cannot form a view.
     #[error("invalid camera: {0}")]
     Camera(&'static str),
+    /// Drawing would test more pixel and texel centres than `limit`
+    /// ([`crate::MAX_RENDER_PIXEL_TESTS`]).
+    #[error("drawing the model would take more than {limit} pixel tests")]
+    TooMuchWork {
+        /// The ceiling passed.
+        limit: u64,
+    },
 }
 
 /// Draw `meshes` as seen by `camera`.
@@ -418,7 +386,8 @@ pub enum RenderError {
 /// [`RenderError::Camera`] for a camera that cannot form a view (eye on the
 /// target, `up` parallel to the view, a field of view outside 0–180° or so
 /// small its focal length is not finite, a non-positive orthographic
-/// height).
+/// height); [`RenderError::TooMuchWork`] for a model whose triangles would
+/// take past [`crate::MAX_RENDER_PIXEL_TESTS`] to draw.
 ///
 /// ```
 /// use pdfcer_3d::{Bounds, Camera, RenderOptions, TriangleMesh, render};
@@ -520,13 +489,16 @@ pub(crate) fn render_finished(
     let shader = Shader::for_frame(options, model_lights, &basis);
     let bounds = Bounds::of(meshes);
     let workers = parallel::workers(options.threads);
+    let view = View::new(camera, aspect)?;
+    let mut work = Work::default();
+    let drawn = crate::frame::drawn(meshes, paints, opaque).map(|(m, t, _)| (m, t));
+    charge_frame(&mut work, (camera, &basis, &view), drawn, (width, height))?;
     let shadows = Shadows::build(
         (options, &shader, &basis),
         bounds.as_ref(),
         (meshes, paints, opaque),
-        workers,
-    );
-    let view = View::new(camera, aspect)?;
+        (workers, &mut work),
+    )?;
     let gloss = Gloss::new(
         (meshes, model_lights, finishes),
         &shader,
@@ -546,15 +518,15 @@ pub(crate) fn render_finished(
         height,
         gloss,
     };
-    let mut rgba = options.background.repeat(pixels as usize);
-    let mut depth = vec![f64::NEG_INFINITY; pixels as usize];
-    Frame {
+    let frame = Frame {
         scene: &scene,
         meshes,
         paints,
         opaque,
-    }
-    .draw((&mut rgba, &mut depth), (width, height), workers);
+    };
+    let mut rgba = options.background.repeat(pixels as usize);
+    let mut depth = vec![f64::NEG_INFINITY; pixels as usize];
+    frame.draw((&mut rgba, &mut depth), (width, height), workers);
     if let Some(bounds) = bounds.filter(|_| ambient_occlusion(options, &scene.shader)) {
         let depths = Depths {
             screen: Screen::new(&scene.view, width, height),
@@ -788,6 +760,7 @@ pub(crate) fn at3(v: &[[f64; 3]; 3], i: usize) -> [f64; 3] {
 #[allow(clippy::single_range_in_vec_init)] // One face spanning every triangle is intended.
 mod tests {
     use super::*;
+    use crate::vec3::length;
 
     fn quad(z: f64, half: f64, tilt: f64) -> TriangleMesh {
         TriangleMesh {
@@ -1193,7 +1166,8 @@ mod tests {
         };
         let image = render(std::slice::from_ref(&mesh), &ortho(4.0), &small()).unwrap();
         assert!(image.rgba.chunks(4).all(|p| p == [255, 255, 255, 255]));
-        assert_eq!(Bounds::of(&[mesh]).unwrap().max, [0.0, 1.0, 0.0]);
+        // Neither triangle draws, so neither widens the box.
+        assert_eq!(Bounds::of(&[mesh]), None);
     }
 
     #[test]
@@ -1333,5 +1307,105 @@ mod tests {
         assert_eq!(red(&on, 3), red(&off, 3));
         // Off the shadow's edge the card's top is lit.
         assert_eq!(red(&on, 20), red(&off, 20));
+    }
+
+    fn triangles(positions: Vec<[f64; 3]>, triangles: Vec<[u32; 3]>) -> TriangleMesh {
+        TriangleMesh {
+            positions,
+            triangles,
+            ..TriangleMesh::default()
+        }
+    }
+
+    #[test]
+    fn a_model_past_the_pixel_test_ceiling_is_refused_before_drawing() {
+        // 2^14 triangles, each covering every pixel of a 4096 x 4096 image.
+        let big = [[-10.0, -10.0, 0.0], [30.0, -10.0, 0.0], [-10.0, 30.0, 0.0]];
+        let mesh = triangles(big.to_vec(), vec![[0, 1, 2]; 1 << 14]);
+        let options = RenderOptions {
+            width: 4096,
+            height: 4096,
+            ..RenderOptions::default()
+        };
+        let start = std::time::Instant::now();
+        assert_eq!(
+            render(&[mesh], &ortho(4.0), &options),
+            Err(RenderError::TooMuchWork {
+                limit: crate::MAX_RENDER_PIXEL_TESTS
+            })
+        );
+        assert!(start.elapsed() < std::time::Duration::from_secs(20));
+        // One such triangle, shadows and all, is far inside it.
+        let one = triangles(big.to_vec(), vec![[0, 1, 2]]);
+        let image = render(&[one], &ortho(4.0), &small()).unwrap();
+        assert!(image.rgba.chunks(4).all(|p| p != [255, 255, 255, 255]));
+    }
+
+    #[test]
+    fn a_box_at_the_float_ceiling_has_a_finite_centre_inside_it() {
+        let b = Bounds {
+            min: [f64::MAX / 2.0; 3],
+            max: [f64::MAX; 3],
+        };
+        let c = b.centre();
+        assert!(c.iter().all(|v| v.is_finite()));
+        assert!((0..3).all(|i| b.min[i] <= c[i] && c[i] <= b.max[i]));
+        assert_eq!(c, [f64::MAX * 0.75; 3]);
+    }
+
+    #[test]
+    fn an_undrawn_triangle_neither_widens_the_box_nor_the_fit() {
+        let mesh = triangles(
+            vec![
+                [0.0, 0.0, 0.0],
+                [1.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0],
+                [f64::NAN, 0.0, 0.0],
+                [1e6, 0.0, 0.0],
+                [0.0, 1e6, 0.0],
+            ],
+            vec![[0, 1, 2], [3, 4, 5]],
+        );
+        let meshes = [mesh];
+        let bounds = Bounds::of(&meshes).unwrap();
+        assert_eq!((bounds.min, bounds.max), ([0.0; 3], [1.0, 1.0, 0.0]));
+        let camera =
+            Camera::fit_meshes(&meshes, [0.0, 0.0, -1.0], [0.0, 1.0, 0.0], false, 1.0).unwrap();
+        let Projection::Orthographic { height } = camera.projection else {
+            unreachable!()
+        };
+        assert!((height - 1.1).abs() < 1e-9, "{height}");
+        assert!((0..3).all(|i| (camera.target[i] - [0.5, 0.5, 0.0][i]).abs() < 1e-9));
+    }
+
+    #[test]
+    fn a_small_model_far_from_the_origin_keeps_its_view_direction() {
+        let dir = [-1.0, 1.0, -1.0];
+        let far = 1e17;
+        // A unit triangle at x = 1e17, and one 64 units across (1e17 rounds
+        // to multiples of 16) out on every axis.
+        let models = [
+            vec![[far, 0.0, 0.0], [far, 1.0, 0.0], [far, 0.0, 1.0]],
+            vec![
+                [far, far, far],
+                [far + 64.0, far, far],
+                [far, far + 64.0, far],
+            ],
+        ];
+        for positions in models {
+            let meshes = [triangles(positions, vec![[0, 1, 2]])];
+            for perspective in [false, true] {
+                let camera =
+                    Camera::fit_meshes(&meshes, dir, [0.0, 0.0, 1.0], perspective, 1.0).unwrap();
+                let seen = normalize(sub(camera.target, camera.eye)).unwrap();
+                let want = normalize(dir).unwrap();
+                assert!((0..3).all(|i| (seen[i] - want[i]).abs() < 1e-6), "{seen:?}");
+                let image = render(&meshes, &camera, &small()).unwrap();
+                let drawn = image.rgba.chunks(4).filter(|p| *p != [255; 4]).count();
+                // In perspective the eye cannot come nearer than f64 can place
+                // it (EYE_SHARE), so the model may be framed below a pixel.
+                assert!(perspective || drawn > 0, "{drawn}");
+            }
+        }
     }
 }

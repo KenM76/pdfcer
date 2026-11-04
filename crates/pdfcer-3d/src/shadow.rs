@@ -10,6 +10,7 @@ use crate::raster::{at, edge};
 use crate::render::{Bounds, at3};
 use crate::shadow_cast::{Cast, Occluder, Surface, Texels, Veil, runs};
 use crate::vec3::{cross, dot, normalize, sub};
+use crate::work::box_tests;
 use crate::{NamedView, UpAxis};
 
 /// [`crate::RenderOptions::shadow_map_size`]'s default, texels per side.
@@ -255,6 +256,15 @@ impl LightView {
         ]
     }
 
+    /// Occluder `o`'s corners on the map: x, y in texels, depth 0–1.
+    pub(crate) fn texels(&self, o: &Occluder<'_>) -> [[f64; 3]; 3] {
+        let s = f64::from(self.size);
+        [0, 1, 2].map(|k| {
+            let [x, y, z] = self.clip(at3(&o.world, k));
+            [(x + 1.0) / 2.0 * s, (y + 1.0) / 2.0 * s, (z + 1.0) / 2.0]
+        })
+    }
+
     /// [`LightView::clip`] as a column-major matrix.
     pub(crate) fn matrix(&self) -> [f32; 16] {
         let mut m = [0.0f32; 16];
@@ -324,16 +334,9 @@ impl ShadowMap {
         veiled: bool,
         workers: usize,
     ) -> ShadowMap {
-        let s = f64::from(view.size);
         let tris: Vec<_> = occluders
             .iter()
-            .map(|o| {
-                let t = [0, 1, 2].map(|k| {
-                    let [x, y, z] = view.clip(at3(&o.world, k));
-                    [(x + 1.0) / 2.0 * s, (y + 1.0) / 2.0 * s, (z + 1.0) / 2.0]
-                });
-                (t, o.surface)
-            })
+            .map(|o| (view.texels(o), o.surface))
             .collect();
         let side = view.size as usize;
         let mut depth = vec![1.0f32; side * side];
@@ -357,6 +360,13 @@ impl ShadowMap {
             }
         });
         ShadowMap { view, depth, veil }
+    }
+
+    /// The texel tests [`Self::build`] makes drawing `occluders` in `view`.
+    pub(crate) fn tests(view: &LightView, occluders: &[Occluder<'_>]) -> u64 {
+        occluders.iter().fold(0u64, |sum, o| {
+            sum.saturating_add(box_tests(view.texels(o), view.size, view.size))
+        })
     }
 
     /// The lit share (0–1) of a [`LightView::lookup_point`]: 3 × 3 texels

@@ -18,6 +18,26 @@ const BANDS_PER_WORKER: usize = 4;
 /// The fewest rows a band holds.
 const MIN_BAND_ROWS: usize = 8;
 
+/// Every triangle of `meshes` a frame draws, in draw order (opaque meshes,
+/// then translucent ones, each in mesh order): mesh, triangle index, paint.
+/// A mesh with no paint or a transparent one is not drawn.
+pub(crate) fn drawn<'a, 'p>(
+    meshes: &'a [TriangleMesh],
+    paints: &'a [Paint<'p>],
+    opaque: &'a [bool],
+) -> impl Iterator<Item = (&'a TriangleMesh, usize, Paint<'p>)> + 'a {
+    [true, false].into_iter().flat_map(move |pass| {
+        meshes.iter().enumerate().flat_map(move |(i, mesh)| {
+            let paint = paints.get(i).copied();
+            let drawn = paint
+                .filter(|p| p.colour[3] != 0 && opaque.get(i).copied().unwrap_or(false) == pass);
+            drawn
+                .into_iter()
+                .flat_map(move |p| (0..mesh.triangles.len()).map(move |t| (mesh, t, p)))
+        })
+    })
+}
+
 /// What a frame draws: meshes, their paints, and which are opaque.
 pub(crate) struct Frame<'a, 'p> {
     pub(crate) scene: &'a Scene<'a>,
@@ -82,17 +102,7 @@ impl Frame<'_, '_> {
 
     /// Every triangle drawn, in draw order: mesh, triangle index, paint.
     fn sequence(&self) -> impl Iterator<Item = (&TriangleMesh, usize, Paint<'_>)> + '_ {
-        [true, false].into_iter().flat_map(move |pass| {
-            self.meshes.iter().enumerate().flat_map(move |(i, mesh)| {
-                let paint = self.paints.get(i).copied();
-                let drawn = paint.filter(|p| {
-                    p.colour[3] != 0 && self.opaque.get(i).copied().unwrap_or(false) == pass
-                });
-                drawn
-                    .into_iter()
-                    .flat_map(move |p| (0..mesh.triangles.len()).map(move |t| (mesh, t, p)))
-            })
-        })
+        drawn(self.meshes, self.paints, self.opaque)
     }
 
     /// For each of `workers` contiguous chunks of `seq`, the `seq` indices

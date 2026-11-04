@@ -9,10 +9,11 @@ use crate::gpu_frame::{MAX_LIGHTS, MAX_SHADOW_CASTERS};
 use crate::lamp_shadow::LampShadows;
 use crate::lighting::Shader;
 use crate::raster::Paint;
-use crate::render::{Bounds, RenderOptions};
+use crate::render::{Bounds, RenderError, RenderOptions};
 use crate::shadow::{Caster, CasterKind, LightSense, LightView, ShadowMap};
 use crate::shadow_cast::{Occluder, ShadowCasters, occluders, veiled};
 use crate::vec3::{dot, normalize};
+use crate::work::Work;
 
 /// A directional light casting besides the key light.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -104,12 +105,20 @@ impl ExtraShadows {
     ) -> ExtraShadows {
         let maps = extras
             .iter()
-            .filter_map(|e| {
-                let view = LightView::new(e.to_light, bounds, size)?;
-                Some((*e, ShadowMap::build(view, occluders, veiled, workers)))
-            })
+            .filter_map(|e| LightView::new(e.to_light, bounds, size).map(|v| (*e, v)))
+            .map(|(e, view)| (e, ShadowMap::build(view, occluders, veiled, workers)))
             .collect();
         ExtraShadows { maps }
+    }
+
+    /// The texel tests [`Self::build`] makes for the same arguments.
+    fn tests(extras: &[Extra], bounds: &Bounds, size: u32, occluders: &[Occluder<'_>]) -> u64 {
+        extras
+            .iter()
+            .filter_map(|e| LightView::new(e.to_light, bounds, size))
+            .fold(0u64, |sum, view| {
+                sum.saturating_add(ShadowMap::tests(&view, occluders))
+            })
     }
 
     /// Light `light`'s visibility at model point `p` on a face of unit
@@ -155,13 +164,14 @@ pub(crate) struct Shadows {
 impl Shadows {
     /// The shadows `options` asks for, lit by `shader` from a camera of
     /// `basis`, over a model of `bounds` whose meshes are drawn with
-    /// `paints` (`opaque` where wholly opaque).
+    /// `paints` (`opaque` where wholly opaque). Every map's and cube's
+    /// texel tests are charged to `work` before any is drawn.
     pub(crate) fn build(
         (options, shader, basis): (&RenderOptions, &Shader, &[[f64; 3]; 3]),
         bounds: Option<&Bounds>,
         (meshes, paints, opaque): (&[TriangleMesh], &[Paint<'_>], &[bool]),
-        workers: usize,
-    ) -> Shadows {
+        (workers, work): (usize, &mut Work),
+    ) -> Result<Shadows, RenderError> {
         let caster = options
             .shadows
             .then(|| Caster::for_light(options.shadow_light, shader, options.light_sense, basis))
@@ -173,31 +183,37 @@ impl Shadows {
             Vec::new()
         };
         let veil = veiled(&casts);
-        let key = caster.zip(bounds).and_then(|(c, bounds)| {
-            let view = LightView::new(c.to_light, bounds, options.shadow_map_size)?;
-            Some(ShadowMap::build(view, &casts, veil, workers))
-        });
-        let caster = caster.filter(|_| key.is_some());
+        let key_view = caster
+            .zip(bounds)
+            .and_then(|(c, bounds)| LightView::new(c.to_light, bounds, options.shadow_map_size));
+        let caster = caster.filter(|_| key_view.is_some());
         let (list, _) = extras(
             caster.as_ref(),
             shader,
             options.light_sense,
             options.shadow_casters,
         );
-        let extra = bounds.filter(|_| !list.is_empty()).map(|bounds| {
-            let size = options.shadow_map_size;
-            ExtraShadows::build(&list, bounds, size, (&casts, veil), workers)
-        });
-        let lamps = bounds.filter(|_| lamps_cast).map(|bounds| {
-            let size = options.lamp_shadow_map_size;
-            LampShadows::build(lamp_casters(shader), bounds, size, (&casts, veil), workers)
-        });
-        Shadows {
-            caster,
-            key,
-            extra,
-            lamps,
+        let (size, lamp_size) = (options.shadow_map_size, options.lamp_shadow_map_size);
+        let lamps = lamp_casters(shader);
+        if let Some(bounds) = bounds {
+            let maps = key_view.as_ref().map_or(0, |v| ShadowMap::tests(v, &casts));
+            let extra = ExtraShadows::tests(&list, bounds, size, &casts);
+            let cubes = lamps_cast.then(|| LampShadows::tests(lamps, bounds, lamp_size, &casts));
+            work.charge(
+                maps.saturating_add(extra)
+                    .saturating_add(cubes.unwrap_or(0)),
+            )?;
         }
+        Ok(Shadows {
+            caster,
+            key: key_view.map(|view| ShadowMap::build(view, &casts, veil, workers)),
+            extra: bounds
+                .filter(|_| !list.is_empty())
+                .map(|bounds| ExtraShadows::build(&list, bounds, size, (&casts, veil), workers)),
+            lamps: bounds.filter(|_| lamps_cast).map(|bounds| {
+                LampShadows::build(lamps, bounds, lamp_size, (&casts, veil), workers)
+            }),
+        })
     }
 }
 

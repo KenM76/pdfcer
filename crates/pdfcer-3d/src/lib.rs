@@ -34,6 +34,8 @@ mod arrays;
 // Public only so the fuzz target can drive the bit reader directly.
 #[doc(hidden)]
 pub mod bits;
+#[cfg(feature = "render")]
+mod bounds;
 mod compressed;
 mod container;
 #[cfg(feature = "render")]
@@ -117,6 +119,8 @@ mod tree;
 #[cfg_attr(not(feature = "render"), allow(dead_code))]
 mod vec3;
 mod wire;
+#[cfg(feature = "render")]
+mod work;
 mod write;
 
 pub use compressed::PartialMesh;
@@ -204,6 +208,8 @@ pub use tree::{
     WrapBase, multiply, transform_point,
 };
 pub use wire::ModelLine;
+#[cfg(feature = "render")]
+pub use work::MAX_RENDER_PIXEL_TESTS;
 pub use write::{
     MAX_DEPTH, MeshScene, PrcWriteError, PrcWriteReport, SceneMaterial, SceneMesh, SceneNode,
     ScenePrimitive, SceneTexture, write_prc,

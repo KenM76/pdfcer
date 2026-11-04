@@ -15,6 +15,7 @@ use crate::raster::{at, edge};
 use crate::render::{Bounds, at3};
 use crate::shadow_cast::{Cast, Occluder, Surface, Texels, Veil, runs};
 use crate::vec3::{dot, sub};
+use crate::work::{box_tests, fan};
 
 /// [`crate::RenderOptions::lamp_shadow_map_size`]'s default, texels per
 /// cube face side.
@@ -223,6 +224,23 @@ impl LampShadows {
         LampShadows { cubes }
     }
 
+    /// The texel tests [`Self::build`] makes drawing `occluders` into each
+    /// of `lamps`' cubes over `bounds`, `size` texels a face side.
+    pub(crate) fn tests(
+        lamps: &[Local],
+        bounds: &Bounds,
+        size: u32,
+        occluders: &[Occluder<'_>],
+    ) -> u64 {
+        let size = face_size(size);
+        lamps
+            .iter()
+            .filter_map(|l| reach(l.position, bounds).map(|far| (l.position, far)))
+            .fold(0u64, |sum, cube| {
+                sum.saturating_add(cube_tests(size, cube, occluders))
+            })
+    }
+
     /// Lamp `i`'s lit share at `p` on a face with normal `face`; 1 when it
     /// has no cube.
     pub(crate) fn visibility(&self, i: usize, p: [f64; 3], face: [f64; 3]) -> f64 {
@@ -231,6 +249,25 @@ impl LampShadows {
             _ => 1.0,
         }
     }
+}
+
+/// The texels every face of a `size`-square cube at `position` reaching
+/// `far` tests for `occluders`, as [`fill_face`] clips and scans them.
+fn cube_tests(size: u32, (position, far): ([f64; 3], f64), occluders: &[Occluder<'_>]) -> u64 {
+    let mut sum = 0u64;
+    for face in 0..FACES {
+        for o in occluders {
+            let v = [0, 1, 2].map(|k| face_view(face, sub(at3(&o.world, k), position)));
+            let screen: Vec<_> = face_polygon(size, far, v)
+                .into_iter()
+                .map(|c| c.0)
+                .collect();
+            for t in fan(&screen) {
+                sum = sum.saturating_add(box_tests(t, size, size));
+            }
+        }
+    }
+    sum
 }
 
 /// Draws face-view triangle `t` at each texel centre of a `size`-square
@@ -244,9 +281,20 @@ fn fill_face(
     t: [[f64; 3]; 3],
     surface: Option<&Surface<'_>>,
 ) {
+    let screen = face_polygon(size, far, t);
+    for [a, b, c] in fan(&screen) {
+        let tri = ([a.0, b.0, c.0], [a.1, b.1, c.1]);
+        fill_triangle(texels, size, far, tri, surface);
+    }
+}
+
+/// Face-view triangle `t` clipped to the near plane of a cube reaching
+/// `far`, projected onto a `size`-square face: screen `[x, y, 1/z]` per
+/// corner, with its weights over `t`'s corners; empty when wholly behind.
+fn face_polygon(size: u32, far: f64, t: [[f64; 3]; 3]) -> Vec<([f64; 3], [f64; 3])> {
     let near = far * NEAR_SHARE;
     if t.iter().all(|v| at(*v, 2) < near) {
-        return;
+        return Vec::new();
     }
     let unit = |k: usize| [0, 1, 2].map(|i| if i == k { 1.0 } else { 0.0 });
     // Each clipped corner with its weights over `t`'s corners.
@@ -267,22 +315,13 @@ fn fill_face(
     }
     let n = f64::from(size);
     // Screen x, y and 1/z, which is linear in screen space.
-    let screen: Vec<([f64; 3], [f64; 3])> = poly
-        .iter()
+    poly.iter()
         .map(|&(v, w)| {
             let z = at(v, 2);
             let x = (at(v, 0) / z + 1.0) / 2.0 * n;
             ([x, (at(v, 1) / z + 1.0) / 2.0 * n, 1.0 / z], w)
         })
-        .collect();
-    if let Some((&a, rest)) = screen.split_first() {
-        for pair in rest.windows(2) {
-            if let [b, c] = pair {
-                let tri = ([a.0, b.0, c.0], [a.1, b.1, c.1]);
-                fill_triangle(texels, size, far, tri, surface);
-            }
-        }
-    }
+        .collect()
 }
 
 /// One screen triangle of [`fill_face`]: corners `[x, y, 1/z]` and their

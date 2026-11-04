@@ -391,13 +391,16 @@ impl Exec<'_, '_, '_> {
                 if !run {
                     return Ok(0);
                 }
+                // Checked: a wrapped value would steer the reader (a loop
+                // count, a branch) by a number the file never meant.
+                let checked = |v: Option<i64>| {
+                    v.ok_or_else(|| malformed("arithmetic overflows or divides by zero"))
+                };
                 Ok(match t {
-                    29 => a.wrapping_mul(b),
-                    30 => a
-                        .checked_div(b)
-                        .ok_or_else(|| malformed("division by zero"))?,
-                    31 => a.wrapping_add(b),
-                    32 => a.wrapping_sub(b),
+                    29 => checked(a.checked_mul(b))?,
+                    30 => checked(a.checked_div(b))?,
+                    31 => checked(a.checked_add(b))?,
+                    32 => checked(a.checked_sub(b))?,
                     33 => i64::from(a < b),
                     34 => i64::from(a <= b),
                     35 => i64::from(a > b),
@@ -617,6 +620,29 @@ mod tests {
             run(&[(172, &[23, 0, 30, 26, 1, 26, 0])], &d).0,
             Err(PrcError::Malformed(_))
         ));
+    }
+
+    #[test]
+    fn overflowing_arithmetic_is_malformed_not_wrapped() {
+        // 2^62, as 2^31 * 2^31.
+        const P: [u32; 5] = [29, 26, 1 << 31, 26, 1 << 31];
+        // i64::MAX = (2^62 - 1) + 2^62; i64::MIN = 0 - 2^62 - 2^62.
+        let max: Vec<u32> = [&[31, 32][..], &P, &[26, 1], &P].concat();
+        let min: Vec<u32> = [&[32, 32, 26, 0][..], &P, &P].concat();
+        let set = |expr: &[u32]| [&[23, 0][..], expr].concat();
+        let d = W::default();
+        for fine in [&max, &min] {
+            run(&[(172, &set(fine))], &d).0.unwrap();
+        }
+        let add: Vec<u32> = [&[31][..], &max, &[26, 1]].concat();
+        let sub: Vec<u32> = [&[32][..], &min, &[26, 1]].concat();
+        let mul = [29, 26, u32::MAX, 26, u32::MAX];
+        for expr in [&add[..], &sub, &mul] {
+            assert!(
+                matches!(run(&[(172, &set(expr))], &d).0, Err(PrcError::Malformed(_))),
+                "{expr:?}"
+            );
+        }
     }
 
     #[test]

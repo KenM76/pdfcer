@@ -54,9 +54,44 @@ fn minor3(m: &Matrix, rows: [usize; 3], cols: [usize; 3]) -> f64 {
         + a(0, 2) * (a(1, 0) * a(2, 1) - a(1, 1) * a(2, 0))
 }
 
+/// `m` with each row, then each column, divided by its largest absolute
+/// entry (an all-zero or non-finite one is left as it is). Dividing a row or
+/// column by a positive number divides every determinant through it by that
+/// number, so their signs are unchanged, and none underflows or overflows
+/// for want of scale: a mirror scaled by 1e-110 has a 4×4 determinant of
+/// -1e-330 unscaled, which is 0 in `f64`.
+fn balanced(m: &Matrix) -> Matrix {
+    let mut out = *m;
+    let divide = |v: f64, by: f64| {
+        if by > 0.0 && by.is_finite() {
+            v / by
+        } else {
+            v
+        }
+    };
+    for row in &mut out {
+        let by = row.iter().fold(0.0_f64, |a, c| a.max(c.abs()));
+        for c in row.iter_mut() {
+            *c = divide(*c, by);
+        }
+    }
+    for j in 0..4 {
+        let by = out
+            .iter()
+            .filter_map(|r| r.get(j))
+            .fold(0.0_f64, |a, c| a.max(c.abs()));
+        for c in out.iter_mut().filter_map(|r| r.get_mut(j)) {
+            *c = divide(*c, by);
+        }
+    }
+    out
+}
+
 /// A value whose sign is the orientation of the point map `m`: the 4×4
-/// determinant, or the upper 3×3 one when that is 0 or not a number.
+/// determinant, or the upper 3×3 one when that is 0 or not a number, both
+/// of [`balanced`]`(m)`.
 fn orientation(m: &Matrix) -> f64 {
+    let m = &balanced(m);
     let last = |j: usize| m.get(3).and_then(|r| r.get(j)).copied().unwrap_or(0.0);
     let det4: f64 = (0..4)
         .map(|j| {
@@ -197,6 +232,18 @@ mod tests {
                 "z = {z}"
             );
         }
+    }
+
+    /// Every determinant of a mirror this small underflows to 0 unscaled.
+    #[test]
+    fn a_tiny_mirror_still_reverses_the_winding() {
+        let mut m = IDENTITY;
+        m[0][0] = 1e-110;
+        m[1][1] = 1e-110;
+        m[2][2] = -1e-110;
+        assert_eq!(triangle(1.0).transformed(&m).triangles[0], [0, 2, 1]);
+        m[2][2] = 1e-110;
+        assert_eq!(triangle(1.0).transformed(&m).triangles[0], [0, 1, 2]);
     }
 
     #[test]

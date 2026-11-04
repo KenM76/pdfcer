@@ -16,7 +16,10 @@ pub const PRC_READER_VERSION: u32 = 8137;
 /// The most file structures [`PrcFile::parse`] accepts.
 pub const MAX_FILE_STRUCTURES: usize = 65_536;
 
-/// Ceiling on the total inflated size of every section in one PRC stream.
+/// Ceiling on the bytes [`PrcFile::parse`] decodes from one PRC stream:
+/// every inflated section plus every uncompressed block it copies (the
+/// file's and each file structure's pictures, once per structure that
+/// copies them, since structures' headers may overlap).
 pub const MAX_INFLATED_BYTES: usize = 512 * 1024 * 1024;
 
 /// Sections per file structure [WD 6.1.2]: header, then the five in
@@ -210,8 +213,15 @@ impl<'a> Bytes<'a> {
         }
     }
 
-    /// `UncompressedBlock`s: a count, then size-prefixed blocks [WD 10.2.2-3].
-    fn blocks(&mut self, what: &'static str) -> Result<Vec<Vec<u8>>, PrcError> {
+    /// `UncompressedBlock`s: a count, then size-prefixed blocks
+    /// [WD 10.2.2-3]. Each block is charged to `budget` before it is
+    /// copied; [`PrcError::TooLarge`] (carrying `limit`) once it would pass.
+    fn blocks(
+        &mut self,
+        what: &'static str,
+        budget: &mut usize,
+        limit: usize,
+    ) -> Result<Vec<Vec<u8>>, PrcError> {
         let n = self.u32(what)? as usize;
         // Each block needs at least its 4-byte size.
         if n > self.data.len().saturating_sub(self.pos) / 4 {
@@ -220,7 +230,11 @@ impl<'a> Bytes<'a> {
         (0..n)
             .map(|_| {
                 let len = self.u32(what)? as usize;
-                Ok(self.take(len, what)?.to_vec())
+                let block = self.take(len, what)?;
+                *budget = budget
+                    .checked_sub(len)
+                    .ok_or(PrcError::TooLarge { limit })?;
+                Ok(block.to_vec())
             })
             .collect()
     }
@@ -281,7 +295,7 @@ fn file_structure(
         ));
     }
     let _application = h.id("file structure header")?;
-    let pictures = h.blocks("file structure pictures")?;
+    let pictures = h.blocks("file structure pictures", budget, limit)?;
     let mut sections: [Vec<u8>; 5] = Default::default();
     for (i, (slot, kind)) in sections.iter_mut().zip(SectionKind::ALL).enumerate() {
         let end = if i + 2 < SECTIONS { bound(i + 2) } else { last };
@@ -345,7 +359,7 @@ impl PrcFile {
     /// [`PrcError::Malformed`] for a damaged header or offset table (a
     /// model-file end past the data included);
     /// [`PrcError::Inflate`] for a section that is not zlib;
-    /// [`PrcError::TooLarge`] past [`MAX_INFLATED_BYTES`] in total.
+    /// [`PrcError::TooLarge`] past [`MAX_INFLATED_BYTES`] decoded in total.
     ///
     /// # Examples
     /// ```
@@ -356,8 +370,8 @@ impl PrcFile {
         Self::parse_with_limit(data, MAX_INFLATED_BYTES)
     }
 
-    /// [`Self::parse`] with a caller-chosen ceiling on the total inflated
-    /// size, for callers with less memory to spend than
+    /// [`Self::parse`] with a caller-chosen ceiling on the total decoded
+    /// size (inflated sections and copied blocks), for callers with less memory to spend than
     /// [`MAX_INFLATED_BYTES`].
     ///
     /// # Errors
@@ -380,9 +394,8 @@ impl PrcFile {
             .collect::<Result<Vec<_>, _>>()?;
         let mf_start = offset(r.u32("model file offsets")?);
         let mf_end = offset(r.u32("model file offsets")?);
-        let uncompressed_files = r.blocks("uncompressed files")?;
-
         let mut budget = limit;
+        let uncompressed_files = r.blocks("uncompressed files", &mut budget, limit)?;
         let mut file_structures = Vec::with_capacity(n_fs);
         for (id, offs) in descriptions {
             let last = mf_start.min(data.len());

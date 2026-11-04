@@ -3007,6 +3007,8 @@ f.eval_into(&inputs, &mut buf)?;                           // function.rs
 | Type-0 input dimensions | `MAX_SAMPLED_INPUTS` = 8 | `TooManyInputs{got,limit}` |
 | Type-3 recursion (also catches `/Functions` cycles) | `MAX_FUNCTION_DEPTH` = 8 | `NestingTooDeep{limit}` |
 | PRC decoded elements per file structure per reading pass (schema entries + tokens, triangles; faces reusing one index range charged per face) | `pdfcer_3d::MAX_DECODED_ELEMENTS` = 8,388,608 | `PrcError::TooManyElements{limit}` |
+| PRC decoded bytes per stream (inflated sections + copied uncompressed blocks, each block charged once per file structure that copies it) | `pdfcer_3d::MAX_INFLATED_BYTES` = 512 MiB | `PrcError::TooLarge{limit}` |
+| 3D render pixel/texel-centre tests per frame (each triangle's box clipped to the image or shadow map, charged before anything is scanned) | `pdfcer_3d::MAX_RENDER_PIXEL_TESTS` = 2^37 | `RenderError::TooMuchWork{limit}` |
 
 **There is no runtime API to raise any of these.** The private ones you
 cannot even observe. Do not attempt to bypass them; the only deliberate
@@ -3876,8 +3878,14 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   box's eight corners instead (looser in oblique views; cheap for a huge
   model). Move `eye` afterwards to orbit.
 - `RenderError::Size` past `MAX_RENDER_PIXELS` (64M) or a zero side;
-  `RenderError::Camera` for a degenerate or non-finite camera. Non-finite
-  vertices and out-of-range indices are skipped, not errors.
+  `RenderError::Camera` for a degenerate or non-finite camera;
+  `RenderError::TooMuchWork { limit }` when the frame's triangles would
+  test more than `MAX_RENDER_PIXEL_TESTS` pixel and texel centres (image
+  plus shadow maps, refused before drawing). Non-finite vertices and
+  out-of-range indices are skipped, not errors, and do not count toward
+  `Bounds::of` or a fit. A fit keeps the eye at least 2^-30 of the target's
+  largest coordinate away, so the view direction survives f64 rounding; a
+  small model far from the origin is then framed smaller in perspective.
 - Inferred content a shell must disclose: a `Compressed { mesh: Some(..) }`
   was rebuilt by pdfcer's reconstruction of an undocumented encoding, and
   `placements()` failing means meshes are drawn unplaced. `pdfcer 3d-render`

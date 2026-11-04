@@ -24,7 +24,8 @@ pub enum PrcError {
         /// The decoder's message.
         reason: String,
     },
-    /// The inflated sections together exceed [`crate::MAX_INFLATED_BYTES`].
+    /// The inflated sections and copied uncompressed blocks together
+    /// exceed [`crate::MAX_INFLATED_BYTES`] (or the caller's ceiling).
     #[error("PRC sections inflate past the {limit}-byte ceiling")]
     TooLarge {
         /// The ceiling that was hit.
