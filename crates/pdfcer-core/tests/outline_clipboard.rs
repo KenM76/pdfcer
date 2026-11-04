@@ -264,3 +264,46 @@ fn an_empty_clip_pastes_nothing_and_commits_nothing() {
     assert_eq!(outcome.items_pasted, 0);
     assert_eq!(s.undo_depth(), 0, "nothing reached the undo stack");
 }
+
+/// A payload of `levels` bookmarks, each the only child of the one before.
+fn nested_payload(levels: usize) -> Vec<u8> {
+    let mut body = String::new();
+    for i in 0..levels {
+        body.push_str(&format!("[<< /T (L{i}) /K "));
+    }
+    body.push_str("[]");
+    for _ in 0..levels {
+        body.push_str(" >>]");
+    }
+    let mut out = pdfcer_core::outline::OUTLINE_CLIP_MAGIC.to_vec();
+    out.extend_from_slice(body.as_bytes());
+    out
+}
+
+#[test]
+fn a_clip_deeper_than_the_cap_reports_the_subtree_it_cut() {
+    let cap = pdfcer_core::outline::MAX_OUTLINE_DEPTH;
+    let (clip, loss) = OutlineClip::from_bytes_with_loss(&nested_payload(cap + 5)).unwrap();
+    assert_eq!(clip.len(), cap + 1);
+    assert_eq!(loss.cut_at_depth, 1);
+    assert_eq!(loss.skipped_malformed, 0);
+
+    let (whole, loss) = OutlineClip::from_bytes_with_loss(&nested_payload(cap + 1)).unwrap();
+    assert_eq!(whole.len(), cap + 1);
+    assert!(loss.is_empty(), "{loss:?}");
+
+    // The report round-trips: what came back whole writes back whole.
+    let (bytes, loss) = whole.to_bytes_with_loss();
+    assert!(loss.is_empty(), "{loss:?}");
+    assert_eq!(OutlineClip::from_bytes(&bytes).unwrap(), whole);
+}
+
+#[test]
+fn a_clip_entry_that_is_not_a_dictionary_is_skipped_and_counted() {
+    let mut payload = pdfcer_core::outline::OUTLINE_CLIP_MAGIC.to_vec();
+    payload.extend_from_slice(b"[<< /T (A) /K [7 << /T (B) >> (x)] >> /Oops]");
+    let (clip, loss) = OutlineClip::from_bytes_with_loss(&payload).unwrap();
+    assert_eq!(clip.len(), 2);
+    assert_eq!(loss.skipped_malformed, 3);
+    assert_eq!(loss.cut_at_depth, 0);
+}

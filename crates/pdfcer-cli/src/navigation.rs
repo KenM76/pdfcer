@@ -1954,7 +1954,8 @@ pub(crate) fn cmd_bookmark_copy(args: &BookmarkCopyArgs<'_>) -> u8 {
             Err(err) => return report_edit_error(args.input, &err),
         }
     };
-    let bytes = clip.to_bytes();
+    let (bytes, loss) = clip.to_bytes_with_loss();
+    report_clip_loss(args.clip, "written", loss);
     if let Err(err) = write_output(args.clip, &bytes) {
         eprintln!("pdfcer: {}: {err}", args.clip.display());
         return exit::IO_ERROR;
@@ -2016,8 +2017,11 @@ pub(crate) fn cmd_bookmark_paste(args: &BookmarkPasteArgs<'_>) -> u8 {
             return exit::IO_ERROR;
         }
     };
-    let clip = match pdfcer_core::outline::OutlineClip::from_bytes(&bytes) {
-        Ok(clip) => clip,
+    let clip = match pdfcer_core::outline::OutlineClip::from_bytes_with_loss(&bytes) {
+        Ok((clip, loss)) => {
+            report_clip_loss(args.clip, "read", loss);
+            clip
+        }
         Err(err) => {
             eprintln!("pdfcer: {}: {err}", args.clip.display());
             return exit::EDIT_REFUSED;
@@ -2065,4 +2069,23 @@ pub(crate) fn cmd_bookmark_paste(args: &BookmarkPasteArgs<'_>) -> u8 {
         outcome.changed,
     );
     finish_edit(args.input, &outcome)
+}
+
+/// Disclose what a bookmark clip round-trip left out (silent otherwise).
+fn report_clip_loss(clip: &Path, verb: &str, loss: pdfcer_core::outline::OutlineClipLoss) {
+    if loss.cut_at_depth > 0 {
+        eprintln!(
+            "pdfcer: {}: {} bookmark subtree(s) {verb} without their children -- nested deeper than {} levels.",
+            clip.display(),
+            loss.cut_at_depth,
+            pdfcer_core::outline::MAX_OUTLINE_DEPTH
+        );
+    }
+    if loss.skipped_malformed > 0 {
+        eprintln!(
+            "pdfcer: {}: {} clip entr(ies) skipped -- not a bookmark dictionary.",
+            clip.display(),
+            loss.skipped_malformed
+        );
+    }
 }

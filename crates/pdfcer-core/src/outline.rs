@@ -1258,11 +1258,23 @@ impl OutlineClip {
     /// implementation on each side rather than a second one per format.
     #[must_use]
     pub fn to_bytes(&self) -> Vec<u8> {
+        self.to_bytes_with_loss().0
+    }
+
+    /// [`Self::to_bytes`], plus what the depth guard left out.
+    ///
+    /// Only `cut_at_depth` can be nonzero: a subtree whose root sits at
+    /// [`MAX_OUTLINE_DEPTH`] is written without its children. A clip read
+    /// from a document never reaches the cap (the outline reader caps it
+    /// first); a hand-built one can.
+    #[must_use]
+    pub fn to_bytes_with_loss(&self) -> (Vec<u8>, OutlineClipLoss) {
+        let mut loss = OutlineClipLoss::default();
         let mut out = Vec::new();
         out.extend_from_slice(OUTLINE_CLIP_MAGIC);
         let mut items = Vec::with_capacity(self.items.len());
         for item in &self.items {
-            items.push(encode_item(item, 0));
+            items.push(encode_item(item, 0, &mut loss));
         }
         let mut encoded = Vec::new();
         crate::writer::serialize::write_object(
@@ -1273,7 +1285,7 @@ impl OutlineClip {
             &crate::writer::encoder::IdentityEncoder,
         );
         out.extend_from_slice(&encoded);
-        out
+        (out, loss)
     }
 
     /// Parse a payload written by [`Self::to_bytes`].
@@ -1286,6 +1298,20 @@ impl OutlineClip {
     /// [`OutlineClipError::Content`] when the payload is not the COS shape
     /// this format writes.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, OutlineClipError> {
+        Self::from_bytes_with_loss(bytes).map(|(clip, _)| clip)
+    }
+
+    /// [`Self::from_bytes`], plus what was left out while reading.
+    ///
+    /// `cut_at_depth` counts bookmarks at [`MAX_OUTLINE_DEPTH`] whose
+    /// children were not read; `skipped_malformed` counts entries that were
+    /// not dictionaries, at any level. A zero [`OutlineClipLoss`] means the
+    /// clip came back whole.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::from_bytes`].
+    pub fn from_bytes_with_loss(bytes: &[u8]) -> Result<(Self, OutlineClipLoss), OutlineClipError> {
         let Some(body) = bytes.strip_prefix(OUTLINE_CLIP_MAGIC.as_slice()) else {
             return Err(OutlineClipError::NotAClip);
         };
@@ -1297,9 +1323,30 @@ impl OutlineClip {
                 "the payload is not an array of bookmarks".to_owned(),
             ));
         };
-        Ok(Self {
-            items: array.iter().filter_map(|o| decode_item(o, 0)).collect(),
-        })
+        let mut loss = OutlineClipLoss::default();
+        let items = decode_items(array, 0, &mut loss);
+        Ok((Self { items }, loss))
+    }
+}
+
+/// What an [`OutlineClip`] round-trip left out. All zero means nothing.
+///
+/// The guards themselves are unchanged; this only reports them.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct OutlineClipLoss {
+    /// Bookmarks at [`MAX_OUTLINE_DEPTH`] that had children, written or read
+    /// without them. Each is one subtree cut, however large.
+    pub cut_at_depth: usize,
+    /// Entries skipped because they were not dictionaries (read side only).
+    pub skipped_malformed: usize,
+}
+
+impl OutlineClipLoss {
+    /// Whether nothing was left out.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.cut_at_depth == 0 && self.skipped_malformed == 0
     }
 }
 
@@ -1318,7 +1365,7 @@ pub enum OutlineClipError {
     Content(String),
 }
 
-fn encode_item(item: &OutlineClipItem, depth: usize) -> Object {
+fn encode_item(item: &OutlineClipItem, depth: usize, loss: &mut OutlineClipLoss) -> Object {
     let mut d = Dict::new();
     d.insert(
         Name::from(b"T"),
@@ -1349,36 +1396,50 @@ fn encode_item(item: &OutlineClipItem, depth: usize) -> Object {
     // Depth-guarded for the same reason the outline reader is: a clip is
     // untrusted input, and a hostile nesting must cost a truncated subtree
     // rather than a stack.
-    if depth < crate::outline::MAX_OUTLINE_DEPTH && !item.children.is_empty() {
+    if item.children.is_empty() {
+        // Nothing to write or cut.
+    } else if depth < crate::outline::MAX_OUTLINE_DEPTH {
         d.insert(
             Name::from(b"K"),
             Object::Array(
                 item.children
                     .iter()
-                    .map(|c| encode_item(c, depth + 1))
+                    .map(|c| encode_item(c, depth + 1, loss))
                     .collect(),
             ),
         );
+    } else {
+        loss.cut_at_depth += 1;
     }
     Object::Dict(d)
 }
 
-fn decode_item(obj: &Object, depth: usize) -> Option<OutlineClipItem> {
+fn decode_items(objs: &[Object], depth: usize, loss: &mut OutlineClipLoss) -> Vec<OutlineClipItem> {
+    let mut items = Vec::with_capacity(objs.len());
+    for obj in objs {
+        match decode_item(obj, depth, loss) {
+            Some(item) => items.push(item),
+            None => loss.skipped_malformed += 1,
+        }
+    }
+    items
+}
+
+fn decode_item(obj: &Object, depth: usize, loss: &mut OutlineClipLoss) -> Option<OutlineClipItem> {
     let d = obj.as_dict()?;
     let title = match d.get(b"T") {
         Some(Object::String(bytes)) => crate::edit::decode_text_string(bytes).text,
         _ => String::new(),
     };
-    let children = if depth < crate::outline::MAX_OUTLINE_DEPTH {
-        match d.get(b"K") {
-            Some(Object::Array(kids)) => kids
-                .iter()
-                .filter_map(|k| decode_item(k, depth + 1))
-                .collect(),
-            _ => Vec::new(),
+    let children = match d.get(b"K") {
+        Some(Object::Array(kids)) if depth < crate::outline::MAX_OUTLINE_DEPTH => {
+            decode_items(kids, depth + 1, loss)
         }
-    } else {
-        Vec::new()
+        Some(Object::Array(kids)) if !kids.is_empty() => {
+            loss.cut_at_depth += 1;
+            Vec::new()
+        }
+        _ => Vec::new(),
     };
     Some(OutlineClipItem {
         title,
@@ -2894,6 +2955,37 @@ fn flatten_name_tree<G: ObjectGraph + ?Sized>(
 mod tests {
     use super::*;
     use std::collections::BTreeMap;
+
+    #[test]
+    fn writing_a_clip_deeper_than_the_cap_reports_the_cut() {
+        fn chain(levels: usize) -> OutlineClipItem {
+            let mut item = OutlineClipItem {
+                title: String::new(),
+                destination: None,
+                open: false,
+                color: None,
+                style_flags: None,
+                children: Vec::new(),
+            };
+            for _ in 1..levels {
+                item = OutlineClipItem {
+                    children: vec![item.clone()],
+                    ..item
+                };
+            }
+            item
+        }
+        let deep = OutlineClip {
+            items: vec![chain(MAX_OUTLINE_DEPTH + 5), chain(3)],
+        };
+        let (bytes, loss) = deep.to_bytes_with_loss();
+        assert_eq!(loss.cut_at_depth, 1);
+        assert_eq!(loss.skipped_malformed, 0);
+        assert_eq!(deep.to_bytes(), bytes);
+        let (back, read_loss) = OutlineClip::from_bytes_with_loss(&bytes).unwrap();
+        assert!(read_loss.is_empty());
+        assert_eq!(back.len(), MAX_OUTLINE_DEPTH + 1 + 3);
+    }
 
     /// A hand-built graph, so the traversal's guards can be tested on
     /// shapes no fixture generator should have to express — a `/First`

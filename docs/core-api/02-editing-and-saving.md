@@ -4957,7 +4957,13 @@ error but a file that opens to nothing.
 
 `OutlineClip` and `OutlineClipItem` live in **`pdfcer_core::outline`**, with
 `empty()`, `len()` (counting descendants), `is_empty()`, `deepest_page()`,
-`to_bytes()`, `from_bytes()`.
+`to_bytes()`, `from_bytes()`. `to_bytes_with_loss()` and `from_bytes_with_loss()` also
+return an `OutlineClipLoss { cut_at_depth, skipped_malformed }` (all zero =
+nothing left out; `is_empty()`): `cut_at_depth` counts bookmarks at
+`MAX_OUTLINE_DEPTH` written or read without their children, and
+`skipped_malformed` counts non-dictionary entries skipped on read. The guards
+are unchanged; the plain verbs drop the report. The CLI's `bookmark-copy`,
+`bookmark-cut` and `bookmark-paste` print a stderr line when either is nonzero.
 
 #### ★ Acrobat cannot do this between two files at all
 
