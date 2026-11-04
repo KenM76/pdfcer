@@ -1519,6 +1519,37 @@ pub(crate) enum ShadowAlphaArg {
     Opaque,
 }
 
+/// `3d-render --lamp-cut`, held without the 3D crate so the flag parses in
+/// every build; mapped onto `pdfcer_3d::LampCut`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) enum LampCutArg {
+    /// Each lamp stops where the rest of its light changes no pixel.
+    #[default]
+    Auto,
+    /// Every lamp reaches everywhere.
+    Off,
+    /// At most this many hundredths of an 8-bit level left out of any point.
+    Threshold(u16),
+}
+
+/// Clap parser for `--lamp-cut`: `auto`, `off`, or 8-bit levels from 0 to 255.
+pub(crate) fn parse_lamp_cut(s: &str) -> Result<LampCutArg, String> {
+    match s.trim() {
+        "auto" => return Ok(LampCutArg::Auto),
+        "off" => return Ok(LampCutArg::Off),
+        _ => {}
+    }
+    let levels: f64 = s
+        .trim()
+        .parse()
+        .map_err(|_| format!("`{s}` is not auto, off or a number of levels"))?;
+    if !(0.0..=255.0).contains(&levels) {
+        return Err(format!("{s} is outside 0 to 255"));
+    }
+    let hundredths = u16::try_from((levels * 100.0).round() as i64).map_err(|e| e.to_string())?;
+    Ok(LampCutArg::Threshold(hundredths))
+}
+
 /// Clap parser for `--shadow-cutoff`: an alpha from 0 to 1.
 pub(crate) fn parse_alpha_cutoff(s: &str) -> Result<f64, String> {
     match s.parse::<f64>() {

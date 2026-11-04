@@ -3330,8 +3330,8 @@ pub(crate) enum Command {
         /// point, in 8-bit levels from 0 to 255, such as `4`: larger draws
         /// a model with many lamps faster, and darker far from them. Each
         /// lamp stops where it has faded to its share of that.
-        #[arg(long, default_value = "auto", value_parser = crate::threed_cmd::parse_lamp_cut)]
-        lamp_cut: pdfcer_3d::LampCut,
+        #[arg(long, default_value = "auto", value_parser = parse_lamp_cut)]
+        lamp_cut: LampCutArg,
         /// Width in pixels, 1 to 16 (default 1), of the lines drawn: a PRC
         /// model's wires, unlit in their own colours and hidden behind
         /// nearer surfaces.
