@@ -112,6 +112,14 @@ wherever it appears.*
 
 ## Shipped
 
+### `517f96d9` `Pass 664.0`, 2026-11-04: rich copy plain text drops the controls HTML and RTF drop (`G267`) (1422nd filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `517f96d9` "fix(copy): rich copy plain text drops the controls HTML and RTF drop", local `main`. Request `G267` from `pdfcer-gui`. Core only; cli `—` (no CLI change), gui is `pdfcer-gui`'s. Rides in `v0.128.0` with `X039`, `662.0`, `G266` and `X040`; the release is being cut (bump `7d02540a`), not filed as published.
+- **Change:** `RichText::plain_text` now drops C0 and C1 controls except tab and newline, through the same private `is_dropped` filter that `to_cf_html` and `to_rtf` use, so the three clipboard formats carry the same text. Follow-up to `Pass 663.0`, which hardened HTML and RTF only.
+- **API:** no new pub items. `docs/core-api` 01 §8.4.4c updated.
+- **Engineer-reported tests:** one new synthetic test, sabotage-verified (fails with the filter reverted).
+- **Boxes:** FEATURES "Copy text with its formatting and paragraphs" row gains one clause (plain text drops controls); boxes unchanged.
+
 ### `7760a3bf` `Pass 663.0`, 2026-11-04: the rich copy writer is hardened against hostile font names, controls, sizes and size (`X040`) (1421st filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `7760a3bf` "fix(copy): harden the rich copy writer against hostile font names, controls, sizes and size (X040, Pass 663.0)", local `main`. Core + CLI `copy-text`; gui is `pdfcer-gui`'s (FEATURES gui box left as it was). Written fresh in pdfcer: no PdfCraft fix existed; PdfCraft ports it (decision 215). Carried by `v0.128.0`, which is being cut (not yet filed as published).

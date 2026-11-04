@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-04 (1422nd filing) — `Pass 664.0` (`G267`, `517f96d9`) shipped
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, I commit nothing):**
+- **`Pass 664.0` SHIPPED `517f96d9`:** `RichText::plain_text` drops C0/C1 controls except tab and newline, via the same private `is_dropped` filter as `to_cf_html` and `to_rtf`. One new synthetic test, sabotage-verified. core-api 01 §8.4.4c updated; no new pub items.
+- **Release:** rides in `v0.128.0` with `X039`, `662.0`, `G266` and `X040`. The release is still being cut (`7d02540a`); not recorded as published.
+- **FEATURES:** one clause added to the rich-copy row; boxes unchanged.
+- **Files:** `ROADMAP.md`, `FEATURES.md`, `SESSION_LOG.md`.
+
+**Owed / open:** `tools/check-register-entry-size.py` and `check-ledger-numbers.py` not run from here; run them. Backup currency not verifiable from here. Next filing 1423rd.
+
 ## 2026-11-04 (1421st filing) — `Pass 660.0` (`G266`) and `Pass 663.0` (`X040`) shipped; `662.0` measured; `v0.128.0` being cut
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, I commit nothing):**
