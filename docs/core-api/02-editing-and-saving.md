@@ -18,7 +18,7 @@ answers *"I want to do X — what do I call, in what order, and what will bite m
 | **Date** | 2026-08-29 |
 | **Verified against** | `5c37c7c` (`git rev-parse --short HEAD`) — *"he gave no reason" was a claim, and it has been corrected* |
 | **Primary subject** | `crates/pdfcer-core/src/edit.rs` (35655) |
-| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 392 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
+| **Covers** | `EditSession` end to end: construction, the command/undo/redo model, **all 396 public methods**, the `EditError` taxonomy, the save path (incremental vs full rewrite), the guard/refusal model (encryption, certification, sidecar version, `/Size` suppression), object allocation and byte staging |
 | **Does NOT cover** | Document loading and the read-only object model → **`01-reading-and-model.md`**. Per-feature capability guides (ce dimensions, forms, annotations, redaction, OCR, printing) → **`03-capabilities.md`**. This document covers the *session mechanics* those features flow through; part 3 covers the features. |
 | **Terminology** | Project rule 15. **ce dimensions** = the dimension objects pdfcer authors (`/Line` + `/IT /LineDimension` + baked `/AP` + `/PieceInfo` sidecar). **pdf dimensions** = dimensions already present in the page content, exported by CAD. Never bare "dimension". This document only concerns ce dimensions. |
 
@@ -69,9 +69,9 @@ Five consequences a GUI author must internalise before writing any code:
 
 ---
 
-## 1. Verb index — all 392 public `EditSession` methods
+## 1. Verb index — all 396 public `EditSession` methods
 
-**Count: 392.** Established by brace-matched extraction of the
+**Count: 396.** Established by brace-matched extraction of the
 `impl EditSession` blocks in `edit.rs` and its `edit/` child modules, matching `pub fn` / `pub const fn`, and checked
 on every run by `tools/check-core-api-verbs.py` — which is what caught this
 figure at 120 when `add_outline_item` landed, and caught it again at 227 when
@@ -196,18 +196,52 @@ clear the undo stack or the dirty set, and none write to disk. **Detail: §5.5.*
 | Census the document's signatures | `signature_census(&self) -> SignatureCensus` | Counts + `/P` + `perms_enforced`. |
 | Ask whether pages were added/removed/moved | `changes_structure(&self) -> bool` | Computed from the page tree, not from history. |
 
-### 1.7 Document metadata (3)
+### 1.7 Document metadata (7)
 
 | I want to… | Call | Returns |
 |---|---|---|
-| Set or clear `/Title`, `/Author`, … | `set_info_field(&mut self, field: InfoField, value: Option<&str>) -> Result<(), EditError>` | `Some` sets, `None` **removes the key**. Creates `/Info` if absent. **A no-op records no command.** |
+| Set or clear `/Title`, `/Author`, `/Subject`, `/Keywords`, `/Creator` | `set_info_field(&mut self, field: InfoField, value: Option<&str>) -> Result<InfoEditOutcome, EditError>` | `Some` sets, `None` **removes the key**. Creates `/Info` if absent. Mirrors the value into the XMP packet in the **same undo entry** (below). **A no-op records no command** (`outcome.recorded() == false`). Refuses on an encrypted document without modify permission. |
+| Set or clear **any** `/Info` entry | `set_info_entry(&mut self, key: &[u8], value: Option<&str>) -> Result<InfoEditOutcome, EditError>` | `key` is the decoded name bytes without `/`. Standard keys behave exactly as `set_info_field` (and record `SetInfoField`/`ClearInfoField`); any other key records `SetInfoEntry`/`ClearInfoEntry`. Values are written as text strings. Refuses `Producer`, `CreationDate`, `ModDate`, `Trapped` → `EditError::InfoKeyReserved { key: ReservedInfoKey }`; an empty key, one holding NUL, or one over 127 bytes → `EditError::InvalidInfoKey { problem: InfoKeyProblem }`. One undo entry; a no-op records nothing. |
+| List every `/Info` entry | `info_entries(&self) -> Vec<InfoEntry>` | `InfoEntry { key: Vec<u8>, value: InfoValue }` in dictionary order, **full values**, unsaved edits included. `InfoValue::Text(InfoText)` / `Name(Vec<u8>)` (e.g. `/Trapped`) / `Other`. One level of indirect value is resolved. |
+| Choose how `/Info` edits treat XMP | `set_xmp_sync(&mut self, options: XmpSyncOptions)` / `xmp_sync(&self) -> XmpSyncOptions` | Session setting, not an edit (no undo entry). Defaults below. |
 | Name the pages, making a stamp collection | `set_named_pages(&mut self, names: Vec<Object>) -> Result<(), EditError>` | Writes the catalog's `/Names` → `/Pages` name tree (§7.7.4 Table 31) — the structure that makes a PDF an **Acrobat-compatible stamp collection** (`Pass 288.0`, §12 of `03-capabilities.md`). `names` is the flattened tree, **already sorted lexicographically** (§7.9.6 requires it; Adobe's own files obey it, so page order is *not* tree order). ⚠️ **Preserves an existing `/Names` dictionary's other trees** — `Dynamic.pdf` carries `/JavaScript` beside `/Pages`, and replacing the dictionary wholesale would delete the document-level JavaScript its dynamic stamps need. Refuses on an encrypted document. Prefer `stamp_file::name_stamp_pages`, which sorts and validates page indices for you. |
 | Read a field's raw bytes | `info_bytes(&self, field: InfoField) -> Option<Vec<u8>>` | Reflects unsaved edits. |
 | Read a field as text | `info_text(&self, field: InfoField) -> Option<InfoText>` | `InfoText{ text, exact }`. `exact == false` ⇒ **do not write it back** unless the operator changed it. |
 
 `InfoField` (`edit.rs`, `#[non_exhaustive]`) deliberately **excludes**
 `/Producer` (R41 fingerprint rule) and `/CreationDate`/`/ModDate` (§7.9.4 dates
-need their own policy).
+need their own policy); `set_info_entry` refuses the same keys plus `/Trapped`
+(a name, not text).
+
+**XMP kept in step** (`edit/info_entries.rs`, `edit/xmp_rewrite.rs`). Each
+`/Info` edit rewrites the catalog's `/Metadata` packet in the same command, so
+one Ctrl+Z restores both. Mapping: `Title` → `dc:title` (Alt, `x-default`),
+`Author` → `dc:creator` (Seq), `Subject` → `dc:description` (Alt), `Keywords`
+→ `pdf:Keywords`, `Creator` → `xmp:CreatorTool`, any other key → `pdfx:<key>`
+(`http://ns.adobe.com/pdfx/1.3/`, non-NCName characters escaped as U+2182 +
+four hex digits, XMP Part 3 §2.2.1). Only the property's bytes change; the
+`<?xpacket?>` wrapper, padding and every other property stay byte-identical,
+and the rewritten stream is written **unfiltered**. Dates are never written.
+
+`InfoEditOutcome { info_changed: bool, xmp: XmpSync }` — `XmpSync::NoPacket`
+(no `/Metadata`), `Updated { property }`, `InStep { property }` (the packet
+already said it; an XMP-only fix of a stale packet is `Updated` with
+`info_changed == false` and still one undo entry), or `Skipped { property,
+reason: XmpSkip }`. ★ **The UI must disclose every `Skipped`** — the packet now
+disagrees with `/Info`: `Off` (setting), `Signed` (document is signed and
+`SignedPacket::Leave`), `PdfaCustomKey { part }` (a custom key under a PDF/A-1,
+-2 or -3 claim, where `pdfx:` without an extension schema breaks conformance;
+`/Info` is still written), `Unrepresentable` (a character XML 1.0 cannot carry,
+or a non-UTF-8 key), `Unreadable` (not a stream, undecodable, UTF-16, not XML,
+or no `rdf:RDF`). `XmpSkip::token()` gives a stable kebab-case word.
+
+`XmpSyncOptions` (plain struct, `Default`): `mirror: XmpMirror` (`Always`* /
+`Never`), `signed: SignedPacket` (`Leave`* / `Update`), `languages:
+AltLanguages` (`ReplaceDuplicates`* drops the other-language item that repeated
+the old value / `Keep` / `Drop`), `authors: AuthorItems` (`Whole`* one item /
+`SplitOnSemicolons`, forced back to `Whole` under PDF/A-1). `*` = default. CLI:
+`set-info --set KEY=VALUE --remove KEY --creator --xmp --xmp-signed
+--xmp-languages --xmp-authors`, `list-info [--json]`.
 
 ### 1.8 Page rotation, geometry and organisation (9)
 
@@ -6024,10 +6058,10 @@ borrow it (`tests/image_placement.rs`).
 ### 6.7 The `EditError` taxonomy
 
 `edit.rs`, `#[derive(Debug, Clone, thiserror::Error)]`, `#[non_exhaustive]`.
-**190 variants**, counted at depth 1 inside `pub enum EditError`.
+**192 variants**, counted at depth 1 inside `pub enum EditError`.
 `RunningText(RunningTextError)` wraps `stamp_running_text`'s request errors.
 `PrinterMarks(PrinterMarksError)` wraps `add_printer_marks`'s request errors.
-(`XfaNotDynamic` and `XfaSigned`, Pass 647.6, are the newest; `SourcePageOutOfRange`: a SOURCE document's page index, kept
+(`InfoKeyReserved { key: ReservedInfoKey }` and `InvalidInfoKey { problem: InfoKeyProblem }`, from `set_info_entry`, are the newest; `XfaNotDynamic` and `XfaSigned`; `SourcePageOutOfRange`: a SOURCE document's page index, kept
 distinct from `PageOutOfRange` because the two name different mistakes.)
 
 `Pass 270.2` added `AnnotationContentsLocked` — **Table 165 bit 10,

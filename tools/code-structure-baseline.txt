@@ -181,7 +181,6 @@ fn pdfcer-cli/src/page_edit.rs::cmd_annotate
 fn pdfcer-cli/src/page_edit.rs::cmd_redact_mark
 fn pdfcer-cli/src/page_edit.rs::cmd_scale_pages
 fn pdfcer-cli/src/page_edit.rs::cmd_set_crop_box
-fn pdfcer-cli/src/page_edit.rs::cmd_set_info
 fn pdfcer-cli/src/page_edit.rs::cmd_set_page_size
 fn pdfcer-cli/src/pages.rs::cmd_delete_pages
 fn pdfcer-cli/src/pages.rs::cmd_page_paste
@@ -334,7 +333,6 @@ fn pdfcer-core/src/edit.rs::set_button_state
 fn pdfcer-core/src/edit.rs::set_choice_value
 fn pdfcer-core/src/edit.rs::set_dimension_label
 fn pdfcer-core/src/edit.rs::set_field_script
-fn pdfcer-core/src/edit.rs::set_info_field
 fn pdfcer-core/src/edit.rs::set_markup_style
 fn pdfcer-core/src/edit.rs::set_objects_layer
 fn pdfcer-core/src/edit.rs::set_page_tabs

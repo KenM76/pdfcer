@@ -1216,11 +1216,21 @@ pub(crate) enum Command {
         verify_undo: bool,
     },
 
-    /// Set or clear document information dictionary fields (§14.3.3).
+    /// Set or remove document information entries (§14.3.3), keeping the
+    /// XMP metadata packet in step.
     ///
     /// Creates an `/Info` dictionary if the file has none — the operator
     /// asked for the metadata by name, which is what distinguishes this
     /// from pdfcer stamping its own producer id (see `--producer`).
+    ///
+    /// Each edit is mirrored into the catalog's XMP packet in the same save:
+    /// Title to dc:title, Author to dc:creator, Subject to dc:description,
+    /// Keywords to pdf:Keywords, Creator to xmp:CreatorTool, and any other
+    /// key to pdfx:KEY. A packet left alone is reported on stderr with the
+    /// reason: --xmp off, a signed document, a custom key in a file claiming
+    /// PDF/A-1, -2 or -3, a value XML cannot carry, or a packet that cannot
+    /// be read. Dates are never set. Producer, CreationDate, ModDate and
+    /// Trapped are refused with exit code 9.
     SetInfo {
         /// Input PDF.
         input: PathBuf,
@@ -1236,12 +1246,39 @@ pub(crate) enum Command {
         /// New `/Keywords`.
         #[arg(long)]
         keywords: Option<String>,
+        /// New `/Creator`: the program that made the original document.
+        #[arg(long)]
+        creator: Option<String>,
+        /// Set any entry, standard or custom, as text. Repeatable.
+        #[arg(long = "set", value_name = "KEY=VALUE", value_parser = parse_info_entry)]
+        set: Vec<(String, String)>,
         /// Remove a field entirely. Repeatable. Removal is a distinct
         /// flag rather than "pass an empty string", because an empty
         /// title and an absent title are different things in the file
         /// and a script must be able to ask for either.
         #[arg(long = "clear", value_enum)]
         clear: Vec<InfoFieldArg>,
+        /// Remove any entry by key. Repeatable. A key both set and removed
+        /// is removed.
+        #[arg(long = "remove", value_name = "KEY")]
+        remove: Vec<String>,
+        /// `sync` mirrors each edit into the XMP packet; `off` writes
+        /// `/Info` only and reports the packet as skipped.
+        #[arg(long, value_enum, default_value_t = XmpArg::Sync)]
+        xmp: XmpArg,
+        /// What to do with a signed document's packet. `leave` reports it
+        /// as skipped; `update` rewrites it, which a validator may flag as
+        /// a change after signing.
+        #[arg(long, value_enum, default_value_t = XmpSignedArg::Leave)]
+        xmp_signed: XmpSignedArg,
+        /// What happens to a title's or subject's items in other languages
+        /// when it is set.
+        #[arg(long, value_enum, default_value_t = XmpLanguagesArg::ReplaceDuplicates)]
+        xmp_languages: XmpLanguagesArg,
+        /// How `/Author` becomes XMP author items. `split` writes one per
+        /// `;`-separated name, except in a file claiming PDF/A-1.
+        #[arg(long, value_enum, default_value_t = XmpAuthorsArg::Whole)]
+        xmp_authors: XmpAuthorsArg,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,
@@ -1255,6 +1292,19 @@ pub(crate) enum Command {
         /// byte for byte (ARCHITECTURE.md §11.1). Costs one extra save.
         #[arg(long)]
         verify_undo: bool,
+    },
+
+    /// List every document information entry (§14.3.3) with its full value.
+    ///
+    /// One row per entry: the key, its kind (`text`, `name` or `other`) and
+    /// the value with control characters escaped. A text value with bytes
+    /// pdfcer could not decode is marked `(inexact)`.
+    ListInfo {
+        /// Input PDF.
+        input: PathBuf,
+        /// One JSON object instead of text rows.
+        #[arg(long)]
+        json: bool,
     },
 
     /// Add a geometric-markup annotation to a page (Pass 6.1, §12.5.6).

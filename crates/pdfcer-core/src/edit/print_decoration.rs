@@ -108,6 +108,7 @@ impl EditSession {
             redact_options: self.redact_options,
             widget_tab_tail: self.widget_tab_tail,
             tab_row_tolerance: self.tab_row_tolerance,
+            xmp_sync: self.xmp_sync,
             page_objects_cache: None,
             text_walk_cache: std::sync::Mutex::new(None),
             redacted: self.redacted,

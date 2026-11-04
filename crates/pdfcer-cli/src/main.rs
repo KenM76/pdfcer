@@ -720,6 +720,8 @@ mod block_text_cmd;
 use block_text_cmd::*;
 mod metadata_cmd;
 use metadata_cmd::*;
+mod info_cmd;
+use info_cmd::*;
 mod space_cmd;
 use space_cmd::*;
 mod compare_cmd;

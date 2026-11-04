@@ -1137,6 +1137,8 @@ pub(crate) enum InfoFieldArg {
     Subject,
     /// /Keywords.
     Keywords,
+    /// /Creator.
+    Creator,
 }
 
 impl From<InfoFieldArg> for pdfcer_core::edit::InfoField {
@@ -1146,6 +1148,7 @@ impl From<InfoFieldArg> for pdfcer_core::edit::InfoField {
             InfoFieldArg::Author => Self::Author,
             InfoFieldArg::Subject => Self::Subject,
             InfoFieldArg::Keywords => Self::Keywords,
+            InfoFieldArg::Creator => Self::Creator,
         }
     }
 }

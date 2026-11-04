@@ -117,7 +117,7 @@ macro_rules! named_enum {
     };
 }
 
-named_enum!(InfoField: Title, Author, Subject, Keywords);
+named_enum!(InfoField: Title, Author, Subject, Keywords, Creator);
 named_enum!(VertexEditKind: Moved, Inserted, Removed);
 named_enum!(
     InkEditKind: PointMoved,
@@ -202,6 +202,8 @@ kind_codec! {
     SetNamedPages,
     SetInfoField(field: InfoField),
     ClearInfoField(field: InfoField),
+    SetInfoEntry,
+    ClearInfoEntry,
     SetPageRotation { page_index: usize, degrees: u16 },
     SetMediaBox { page_index: usize },
     SetMarkupStyle,

@@ -375,6 +375,7 @@ fn info_field_args_map_one_to_one_onto_the_core_enum() {
         (InfoFieldArg::Author, InfoField::Author),
         (InfoFieldArg::Subject, InfoField::Subject),
         (InfoFieldArg::Keywords, InfoField::Keywords),
+        (InfoFieldArg::Creator, InfoField::Creator),
     ];
     for (arg, expected) in pairs {
         assert_eq!(InfoField::from(arg), expected);

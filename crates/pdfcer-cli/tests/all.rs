@@ -72,6 +72,7 @@ mod import_data_cli;
 mod import_structure_certified;
 mod import_structure_stale;
 mod in_place;
+mod info_cli;
 mod ink_edit;
 mod inspect_ink;
 mod inspect_prepress;

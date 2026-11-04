@@ -222,6 +222,9 @@ OUTCOME_STRUCTS: list[tuple[str, str]] = [
     # struct whose fields can be dropped on the floor while the gate reports
     # clean. Added when the second disclosure landed rather than afterwards.
     ("crates/pdfcer-core/src/edit.rs", "FieldRename"),
+    # `Pass 660.0`, registered with the struct. `xmp` is the only place an
+    # operator learns the packet was left disagreeing with `/Info`.
+    ("crates/pdfcer-core/src/edit/info_entries.rs", "InfoEditOutcome"),
 ]
 
 # `Struct::field` -> why no shell reads it. A reason is mandatory: see the

@@ -168,6 +168,7 @@ pub use annot_restyle::{
 pub use foreign_button::ForeignAppearance;
 pub use form_paint::FormPaintOutcome;
 pub use print_decoration::{PrintDecoration, PrintDecorationReport};
+mod info_entries;
 mod markup_respan;
 mod metadata_remove;
 mod optimize;
@@ -213,12 +214,17 @@ mod threed_poster;
 mod threed_views;
 mod xfa_fill;
 mod xfa_materialize;
+mod xmp_rewrite;
 
 pub use button_icon::ButtonIconEdit;
 use checkpoint::Entry;
 pub use checkpoint::{Checkpoint, CheckpointError, Rollback};
 pub use emf::PlacedEmf;
 use foreign_button::ButtonSlot;
+pub use info_entries::{
+    AltLanguages, AuthorItems, InfoEditOutcome, InfoEntry, InfoKeyProblem, InfoValue,
+    ReservedInfoKey, SignedPacket, XmpMirror, XmpSkip, XmpSync, XmpSyncOptions,
+};
 pub use page_artwork::PlacedPageContent;
 #[cfg(feature = "svg-import")]
 pub use svg::PlacedSvg;
@@ -304,8 +310,9 @@ pub const MAX_UNDO_DEPTH: usize = 256;
 /// request that deserves an error.
 pub const MIN_DIMENSION_ARC_RADIUS: f64 = 4.0;
 
-/// The document-information-dictionary fields an operator may edit
-/// (§14.3.3, Table 317).
+/// The standard document-information-dictionary text fields an operator
+/// may edit (§14.3.3, Table 317). Any other key goes through
+/// [`EditSession::set_info_entry`].
 ///
 /// A closed enum rather than an arbitrary key, for two reasons. The
 /// first is ordinary API hygiene: a typo'd key would silently create a
@@ -331,6 +338,9 @@ pub enum InfoField {
     Subject,
     /// `/Keywords` — keywords associated with the document.
     Keywords,
+    /// `/Creator` — the program that created the original document, as
+    /// distinct from `/Producer`, the one that converted it to PDF.
+    Creator,
 }
 
 impl InfoField {
@@ -342,6 +352,7 @@ impl InfoField {
             Self::Author => b"Author",
             Self::Subject => b"Subject",
             Self::Keywords => b"Keywords",
+            Self::Creator => b"Creator",
         }
     }
 
@@ -354,11 +365,15 @@ impl InfoField {
     /// is that a front end not hard-code a list that drifts — and
     /// `-> [Self; 4]` put the cardinality **into the signature**, so the
     /// front end hard-coded it anyway, in a type, where it is harder to see.
-    /// §14.3.3 defines `/Creator`, `/Producer`, `/CreationDate` and
-    /// `/ModDate` besides these four, so this set is expected to grow.
     #[must_use]
     pub const fn all() -> &'static [Self] {
-        &[Self::Title, Self::Author, Self::Subject, Self::Keywords]
+        &[
+            Self::Title,
+            Self::Author,
+            Self::Subject,
+            Self::Keywords,
+            Self::Creator,
+        ]
     }
 }
 
@@ -416,6 +431,10 @@ pub enum CommandKind {
     SetInfoField(InfoField),
     /// A document-information field was removed.
     ClearInfoField(InfoField),
+    /// A non-standard document-information entry was given a value.
+    SetInfoEntry,
+    /// A non-standard document-information entry was removed.
+    ClearInfoEntry,
     /// One page's `/Rotate` was set. The index is into
     /// [`EditSession::pages`]' document-order list.
     SetPageRotation {
@@ -6986,6 +7005,18 @@ pub const ENCRYPTED_EDIT_REFUSED: &str = "the document is encrypted, and either 
 #[derive(Debug, Clone, thiserror::Error)]
 #[non_exhaustive]
 pub enum EditError {
+    /// [`EditSession::set_info_entry`] was given a key it does not edit.
+    #[error("/Info key {key:?} is not editable as text")]
+    InfoKeyReserved {
+        /// Which key.
+        key: ReservedInfoKey,
+    },
+    /// [`EditSession::set_info_entry`] was given a key no PDF name can be.
+    #[error("not a usable /Info key: {problem:?}")]
+    InvalidInfoKey {
+        /// What is wrong with it.
+        problem: InfoKeyProblem,
+    },
     /// [`EditSession::delete_outline_item`] was given the outline ROOT
     /// rather than an item (`Pass 156.0`).
     ///
@@ -10371,6 +10402,8 @@ pub struct EditSession {
     /// §12.5.1 defines no such test; this number is pdfcer's, and every
     /// sequence [`EditSession::page_tab_sequence`] returns discloses it.
     tab_row_tolerance: f64,
+    /// How `/Info` edits treat the XMP packet ([`Self::set_xmp_sync`]).
+    xmp_sync: XmpSyncOptions,
     /// The most recent page decode + decomposition, keyed by the content
     /// object and **the staged span its bytes occupy** (`Pass 181.0`).
     ///
@@ -10543,6 +10576,7 @@ impl EditSession {
             redact_options: crate::redact::RedactOptions::default(),
             widget_tab_tail: WidgetTabTail::default(),
             tab_row_tolerance: crate::settings::DEFAULT_TAB_ROW_TOLERANCE,
+            xmp_sync: XmpSyncOptions::default(),
             page_objects_cache: None,
             text_walk_cache: std::sync::Mutex::new(None),
             redacted: false,
@@ -11128,135 +11162,6 @@ impl EditSession {
             trailer: None,
         });
         Ok(())
-    }
-
-    /// Set or clear one document-information field (§14.3.3).
-    ///
-    /// `Some(text)` sets it; `None` removes the entry entirely (see
-    /// [`Dict::remove`] for why removal rather than an explicit `null`).
-    /// Text is encoded by [`encode_text_string`].
-    ///
-    /// ## Creating `/Info` when the file has none
-    ///
-    /// A file with no document information dictionary gets one, together
-    /// with the trailer's `/Info` reference (Table 15: *"shall be an
-    /// indirect reference"*). That is **not** in tension with R41's
-    /// no-fingerprint rule, which
-    /// [`ProducerPolicy::Set`](crate::writer::ProducerPolicy::Set)
-    /// deliberately narrows itself to avoid: R41 forbids pdfcer writing
-    /// *its own* identity into a file unasked. An operator who types a
-    /// title has asked, by name, for exactly this dictionary to exist.
-    /// The distinction is authorship, not novelty.
-    ///
-    /// ## No-ops do not reach the undo stack
-    ///
-    /// Setting a field to the value it already has, or clearing an
-    /// absent one, changes nothing — so no command is recorded and the
-    /// redo stack is left alone. An Undo control that steps through
-    /// entries which visibly do nothing is worse than useless.
-    ///
-    /// # Errors
-    ///
-    /// [`EditError::NotADictionary`] if `/Info` points at a non-dictionary;
-    /// [`EditError::ObjectNumbersExhausted`] if a new object is needed
-    /// and no number is free.
-    pub fn set_info_field(
-        &mut self,
-        field: InfoField,
-        value: Option<&str>,
-    ) -> Result<(), EditError> {
-        if crate::encryption_gate::forbids(&self.base, &[PermissionBit::ModifyContents]) {
-            return Err(EditError::DocumentEncrypted);
-        }
-        let kind = match value {
-            Some(_) => CommandKind::SetInfoField(field),
-            None => CommandKind::ClearInfoField(field),
-        };
-        let key = Name::from(field.key());
-
-        match self.info_id() {
-            // The document already has an /Info dictionary: edit it.
-            Some(id) => {
-                let Some(Object::Dict(current)) = self.value(id) else {
-                    // No /Info dictionary value to edit. If the operator
-                    // is CLEARING a field on a malformed /Info, doing
-                    // nothing is right; setting one must refuse rather
-                    // than overwrite whatever is really there.
-                    if value.is_none() {
-                        return Ok(());
-                    }
-                    return Err(EditError::NotADictionary {
-                        id,
-                        key: field_key_str(field),
-                    });
-                };
-                let mut updated = current.clone();
-                match value {
-                    Some(text) => {
-                        updated.insert(key, Object::String(encode_text_string(text)));
-                    }
-                    None => {
-                        updated.remove(field.key());
-                    }
-                }
-                if updated == *current {
-                    return Ok(()); // no-op
-                }
-                let before = self.state.get(&id).cloned();
-                self.commit(Command {
-                    kind,
-                    objects: vec![ObjectWrite {
-                        id,
-                        before,
-                        after: Some(Object::Dict(updated)),
-                    }],
-                    removals: Vec::new(),
-                    trailer: None,
-                });
-                Ok(())
-            }
-            // No /Info at all. Clearing a field is already true; setting
-            // one creates the dictionary and the trailer reference in a
-            // single undoable command.
-            None => {
-                let Some(text) = value else {
-                    return Ok(()); // no-op
-                };
-                // Creating an object raises `/Size`, which exposes every
-                // entry this file's `/Size` is suppressing. Refuse by
-                // name rather than resurrect objects nobody touched —
-                // see `Document::suppressed_object_count`.
-                let suppressed = self.base.suppressed_object_count();
-                if suppressed > 0 {
-                    return Err(EditError::ObjectCreationWouldExposeHiddenObjects {
-                        count: suppressed,
-                    });
-                }
-                let id = ObjId::new(
-                    self.next_number.ok_or(EditError::ObjectNumbersExhausted)?,
-                    0,
-                );
-                let mut info = Dict::new();
-                info.insert(key, Object::String(encode_text_string(text)));
-
-                let trailer_before = self.trailer.clone();
-                let mut trailer_after = self.trailer.clone();
-                trailer_after.insert(Name::from(b"Info"), Object::Reference(id));
-
-                self.next_number = self.next_number.and_then(|n| n.checked_add(1));
-                self.commit(Command {
-                    kind,
-                    objects: vec![ObjectWrite {
-                        id,
-                        before: None, // did not exist
-                        after: Some(Object::Dict(info)),
-                    }],
-                    removals: Vec::new(),
-                    trailer: Some((trailer_before, trailer_after)),
-                });
-                Ok(())
-            }
-        }
     }
 
     /// The current raw bytes of a document-information field, or `None`
@@ -20748,12 +20653,13 @@ impl EditSession {
 
 /// The `/Rotate` key name for an [`EditError::NotADictionary`] on an
 /// `/Info` field.
-const fn field_key_str(field: InfoField) -> &'static str {
+pub(crate) const fn field_key_str(field: InfoField) -> &'static str {
     match field {
         InfoField::Title => "Title",
         InfoField::Author => "Author",
         InfoField::Subject => "Subject",
         InfoField::Keywords => "Keywords",
+        InfoField::Creator => "Creator",
     }
 }
 
