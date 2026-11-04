@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `c102b748` `Pass 659.0`, 2026-11-04: CLI clipboard: checked DIBV5 sizes, all-or-nothing placement, timed open retry (`X037`) (1416th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `c102b748` "fix(cli): checked DIBV5 sizes, all-or-nothing clipboard placement (X037, Pass 659.0)", local `main` after `91665b7f`. CLI only (`crates/pdfcer-cli/src/clipboard.rs`, `copy_text.rs`); core `—`, gui `—`. Reply `open/reply_X037_clipboard_dib_sizes_and_atomic_place_SHIPPED.md`. Decision 215 applied; no new decision. Unreleased; release `v0.127.0` follows.
+- **Written fresh in pdfcer, for PdfCraft to port** (PdfCraft had no fix): DIBV5 sizes use checked arithmetic / `try_from`; a side or resolution beyond `i32::MAX`, or an image beyond 4 GiB, is refused naming the field (CLI: "the page raster is too large to copy as a bitmap: <field>; nothing was copied (lower --dpi)"); allocation failure is a refusal (`try_reserve_exact`), not an abort.
+- **Header length:** the 124-byte header is a fixed-size array, so a mismatch is a refused copy in release builds (no debug-only assert).
+- **All-or-nothing:** every format is built before the clipboard opens; if a later format fails the clipboard is emptied again before the error; if that empty also fails the error says a partial copy may remain. Setter sits behind a trait for tests.
+- **Open retry:** 10 attempts 30 ms apart (~270 ms). `clipboard-win` 5.4.1 only yields between tries (`Sleep(0)`), so pdfcer loops itself; RAG `D:\dev\rag\rust\clipboard_win_5_4_1_open_retry_has_no_timed_wait_so_callers_loop_with_a_pause.md`.
+- **`copy-text`** shared the same defects and now places through the same path.
+- **Engineer-reported tests:** clipboard unit tests 2 to 11 (9 new plus updated header test); 8 `copy-page`/`copy-text` integration tests green; each of six fixes sabotage-verified (header length is type-enforced, so it cannot be sabotaged); Linux cross-check and `--no-default-features` clean. **Live clipboard round trip NOT run** (operator using the PC).
+- **Boxes:** cli `[x]`; FEATURES rows for `copy-page` and `copy-text` got a clause, no box changed (cli already `[x]`, gui unchanged).
+
 ### `91665b7f` `Pass 658.21`, 2026-11-04: 3D reader texture-set cap, full face charge, framing that skips invisible meshes (`X036`) (1415th filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `91665b7f` "fix(3d): cap texture sets, charge corner arrays, skip clear meshes when framing (X036, Pass 658.21)", local `main` after `de68b8c7`. Unreleased; the release follows with `X037` (`Pass 659.0`). Reply `open/reply_X036_3d_face_charges_and_framing_SHIPPED.md`. Decision 215 applied; no new decision.
@@ -27796,21 +27807,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > `Pass 658.20` (`X035`) and `Pass 658.21` (`X036`) SHIPPED and have left this section (1415th filing, `de68b8c7`, `91665b7f`); full entries at the top of *Shipped*.
 
-### `Pass 659.0` — CLI Windows clipboard: checked DIBV5 header sizes, release-build header length, all-or-nothing placement, short wait between open attempts (`X037`) (IN PROGRESS; filed 1415th filing)
-
-Inbound request `X037` from PdfCraft ("operator (crates consumer)"): `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X037_clipboard_dib_sizes_and_atomic_place.md`. Crate: `pdfcer-cli` (Windows clipboard code). Boxes: core `—`, cli `[ ]`, gui `—` until built.
-
-**Approach (decision 215):** PdfCraft has no fix of its own for this, so pdfcer writes it and PdfCraft ports it; the `SHIPPED` reply names the pdfcer commit and says all of it was written fresh.
-
-**Wanted (request's list, as relayed by the engineer; the request file is the authority):**
-1. DIBV5 header sizes computed with checked arithmetic, and refused rather than truncated.
-2. The header length guaranteed in release builds, not only in debug builds.
-3. Placement all-or-nothing as seen by a reader of the clipboard.
-4. A short wait between clipboard-open attempts.
-
-**Note, not a pdfcer Pass:** request `X038` (the same defect in `pdfcer-gui`'s `gui-base`) is addressed to `pdfcer-gui`; nothing filed here for it.
-
-**Acceptance and invariants:** not yet stated here beyond the request file; to be filled in when the engineer reports the shape. FEATURES: no row changed at filing (a hardening of the existing clipboard path; confirm at ship time which row it touches).
+> `Pass 659.0` (`X037`) SHIPPED and has left this section (1416th filing, `c102b748`); full entry at the top of *Shipped*. Request `X038` (same defect in `pdfcer-gui`'s `gui-base`) is addressed to `pdfcer-gui`, not a pdfcer Pass.
 
 ### Known limits recorded from the gap audit (NOT being done)
 

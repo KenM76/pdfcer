@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-04 (1416th filing) — `Pass 659.0` (`c102b748`, `X037`) shipped; clipboard-win retry finding to the Rust RAG
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, I commit nothing):**
+- **`Pass 659.0` (`c102b748`):** CLI only (`clipboard.rs`, `copy_text.rs`). Written fresh (PdfCraft had none; PdfCraft ports it, decision 215). Checked DIBV5 sizes with a named-field refusal, `try_reserve_exact`, fixed-size 124-byte header refused in release, all-or-nothing placement (build all, open, re-empty on later failure, disclose if the re-empty fails), 10 x 30 ms open retry; `copy-text` uses the same path.
+- **Engineer-reported tests:** clipboard 2 to 11; 8 copy-page/copy-text integration tests; six fixes sabotage-verified (header length type-enforced, cannot be); Linux cross-check and `--no-default-features` clean. **Live clipboard round trip not run.**
+- **Reply:** `reply_X037_clipboard_dib_sizes_and_atomic_place_SHIPPED.md`. Unreleased; `v0.127.0` follows. `X038` (gui-base) is `pdfcer-gui`'s, not a pdfcer Pass.
+- **FEATURES:** a clause on the `copy-page` and `copy-text` rows; no box changed. `ROADMAP.md`: Next up entry replaced by a banner, Shipped entry added.
+- **RAG:** new `D:\dev\rag\rust\clipboard_win_5_4_1_open_retry_has_no_timed_wait_so_callers_loop_with_a_pause.md` (verified against the crate source in the cargo registry: `Sleep(0)` between tries). The older clipboard file's "ten attempts is clipboard-win's convention" claim got a dated amendment (hard rule 11 sweep; that was the one survivor found).
+
+**Owed / open:** doc-comment survivors in `crates/` not checked from here; backup currency not verifiable from here. Next filing 1417th.
+
 ## 2026-11-04 (1415th filing) — `Pass 658.20` (`de68b8c7`, `X035`) and `Pass 658.21` (`91665b7f`, `X036`) shipped; `Pass 659.0` (`X037`) opened
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, I commit nothing):**
