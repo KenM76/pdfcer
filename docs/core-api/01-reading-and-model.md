@@ -1632,7 +1632,7 @@ slant, family, underline/strikethrough and colour.
 | `RichText::to_html()` | UTF-8 HTML: `<p>` per paragraph with inline-styled `<span>`s, between `<!--StartFragment-->` and `<!--EndFragment-->`. |
 | `RichText::to_cf_html()` | `to_html` behind the Windows `CF_HTML` header (`Version:0.9`, ten-digit `StartHTML`/`EndHTML`/`StartFragment`/`EndFragment` byte offsets); clipboard format name `HTML Format`. |
 | `RichText::to_rtf()` | RTF with font and colour tables, `\pard\saN … \par` per paragraph, `\line` for a break, `\tab` for a tab, non-ASCII as `\uN?`; clipboard format name `Rich Text Format`. A font-table name loses `;` and control characters and keeps `\ { }` escaped, so the table has one entry per font. |
-| Text from the file | HTML and RTF both leave out C0 and C1 control characters other than tab and line feed (NUL included). In HTML a family is cut at 64 characters, control characters dropped, and every ASCII character other than letters, digits, space, `-`, `_` and `.` written as a CSS hex escape `\HH ` (CSS Syntax 3 §4.3.7), so neither the CSS string nor the `style` attribute can end early. `plain_text` is the model's text unchanged. |
+| Text from the file | HTML, RTF and `plain_text` all leave out C0 and C1 control characters other than tab and line feed (NUL included). In HTML a family is cut at 64 characters, control characters dropped, and every ASCII character other than letters, digits, space, `-`, `_` and `.` written as a CSS hex escape `\HH ` (CSS Syntax 3 §4.3.7), so neither the CSS string nor the `style` attribute can end early. `plain_text` is otherwise the model's text unchanged. |
 
 A shell offering formatted copy puts `to_cf_html`, `to_rtf` and
 `plain_text` on the clipboard together, and shows the outcome counts

@@ -41,13 +41,21 @@ const _: () = assert!(
 
 impl RichText {
     /// The text with paragraphs separated by `\n`, a wrapped line joined by
-    /// a space, and a blank paragraph as an empty line.
+    /// a space, and a blank paragraph as an empty line. C0 and C1 controls
+    /// other than tab and line feed are left out, as in [`Self::to_html`]
+    /// and [`Self::to_rtf`], so all three formats carry the same text.
     #[must_use]
     pub fn plain_text(&self) -> String {
         let paras: Vec<String> = self
             .paragraphs
             .iter()
-            .map(|p| p.spans.iter().map(|s| s.text.as_str()).collect())
+            .map(|p| {
+                p.spans
+                    .iter()
+                    .flat_map(|s| s.text.chars())
+                    .filter(|&c| !is_dropped(c))
+                    .collect()
+            })
             .collect();
         paras.join("\n")
     }

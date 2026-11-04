@@ -155,6 +155,16 @@ fn control_characters_are_absent_from_both_outputs() {
 }
 
 #[test]
+fn plain_text_drops_the_controls_the_other_writers_drop() {
+    let rich = copy(vec![vec![span(
+        "a\0b\u{1}c\td\u{85}",
+        Some("Helvetica"),
+        12.0,
+    )]]);
+    assert_eq!(rich.plain_text(), "abc\td");
+}
+
+#[test]
 fn non_finite_and_out_of_range_sizes_are_written_finite_and_in_range() {
     let sizes = [
         f32::NAN,
