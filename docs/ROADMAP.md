@@ -27778,6 +27778,47 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > `Pass 658.18` (`G265`) SHIPPED and has left this section (1412th filing, `21800243`); full entry at the top of *Shipped*.
 
+### `Pass 658.20` — 3D software raster: order-independent near-plane cut, divide-first projection, overflow-safe face-normal edge (`X035`) (NOT STARTED; filed 1414th filing)
+
+Inbound request `X035` from PdfCraft ("operator (crates consumer)"), 2026-11-04, read there at pdfcer `8cb6bfbe`: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X035_3d_raster_projection_and_edge_scale.md`. All four items reach every picture drawn through `render_model`. Crate: `pdfcer-3d` (`raster.rs`, `render.rs`). **Delivers core only**; no CLI or GUI surface change expected (boxes: core `[ ]`, cli `—`, gui `—` until built).
+
+**Approach (decision 215):** being implemented by adapting fixes PdfCraft already wrote, PdfCraft commits `51b68a8b`, `c2d8c5f3`, `bca0211a` in `D:\Dev\PdfCraft\upstream` (author `KenM76`); anything PdfCraft has not written, pdfcer writes and PdfCraft ports. Which commit covers which item is not stated in the request and not checked from here. The `SHIPPED` reply must say which parts were adopted and which written fresh, and cite the commits.
+
+**Wanted (request's list):**
+1. A near-plane cut point for an edge is the same whichever triangle cuts it (`View::clip`, `raster.rs` ~118-122; today it interpolates from `p` towards `q`). Suggested: always interpolate from the endpoint that sorts first by x, then y, then z.
+2. Perspective projection divides first: `(x / z) * (focal / aspect)` and `(y / z) * focal` (`raster.rs` ~156), finite whenever the true result is finite.
+3. Orthographic projection divides by `half_height`, then by `aspect`, in two steps (`raster.rs` ~161).
+4. The face-normal edge survives overflow (`render.rs` ~665-667): when `b - a` is not finite, use `b/2 - a/2`; only the direction matters to `unit_cross`.
+5. Never panics.
+
+**Acceptance (synthetic only, built in the test; each test fails with its fix reverted):**
+- Two triangles sharing an edge that crosses the near plane get bit-identical cut points for that edge.
+- A triangle on screen under a perspective camera with a field of view of 1e-298 degrees is drawn; under an orthographic camera with half-height near 1e-300 and aspect 1e10, an on-screen triangle is drawn.
+- A triangle with corners `[-f64::MAX/1.5, 0, 0]`, `[f64::MAX/1.5, 0, 0]`, `[0, f64::MAX/1.5, 0]` is drawn after framing.
+- When it lands, cut a release and name it in the reply (release slot: OneDrive `pdfcer1`, `pdfcer2` holds 0.126.0, per the 1413th filing, engineer-reported). Order and timing are pdfcer's call.
+
+**Invariants to verify at close:** `cargo tree -p pdfcer-core` / `-p pdfcer-render` unchanged (no manifest edit expected); clippy and fmt clean; `check-core-api-verbs`; structure gate no new violation. FEATURES: no row changed at filing.
+
+### `Pass 658.21` — 3D reader and framing: texture-set count cap, full face charge, framing that matches what `render_coloured` draws (`X036`) (NOT STARTED; filed 1414th filing)
+
+Inbound request `X036` from PdfCraft ("operator (crates consumer)"), 2026-11-04, read there at pdfcer `8cb6bfbe`: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X036_3d_face_charges_and_transparent_framing.md`. Items 1-2 reach every model that is opened; item 3 reaches every caller that frames coloured meshes with `fit_meshes`. Crate: `pdfcer-3d` (`tess.rs`, `tess_face.rs`, `bounds.rs`, `render.rs`). Boxes: core `[ ]`; cli and gui not expected to change (`—`, to be confirmed at close; item 3 adds a public framing entry point, so the `check-core-api-verbs` gate and `docs/core-api/` are in scope).
+
+**Approach (decision 215):** same as `Pass 658.20`: adapt what PdfCraft already wrote (commits `51b68a8b`, `c2d8c5f3`, `bca0211a`, `D:\Dev\PdfCraft\upstream`, author `KenM76`), write fresh what it has not, name the pdfcer commit in the `SHIPPED` reply for PdfCraft to port, and say which parts were adopted vs written fresh.
+
+**Wanted (request's list):**
+1. Cap a face's texture-set count at a small fixed number (request suggests 8); a larger count is `Malformed`, checked before any allocation (`tess.rs` ~634; `tess_face.rs` ~216-236 allocates `vec![Vec::with_capacity(points); t]` per entity, and the guard `points * (t + 1) > indices.len()` passes when `points` is 0).
+2. Before triangulating a face, charge it for everything its triangles will hold: corners, normal slots, one texture triple per set any face uses, and the padding (`tess_face.rs` ~234 charges one element per triangle only; the `vec![None; before]` padding at ~283 is uncharged).
+3. A way to fit to exactly what `render_coloured` draws (`bounds.rs` ~56-62 `drawn_corners`; `render.rs` ~121-131 `fit_meshes`; `render_coloured` ~438 skips fully transparent meshes): `fit_meshes` takes the same colours, or a sibling does, so fully transparent meshes are excluded from the fit.
+4. Never panics.
+
+**Acceptance (synthetic only, built in the test; each test fails with its fix reverted):**
+- A face declaring 2^32 - 1 texture sets with an empty fan is refused quickly, without a large allocation.
+- Many faces reusing one textured index range are refused once their total corner-array cost passes the allowance; a normal textured model still opens.
+- A drawn unit triangle plus a fully transparent triangle at 1e6 fits to the drawn one only.
+- When it lands, cut a release and name it in the reply. Order and timing are pdfcer's call.
+
+**Invariants to verify at close:** as `Pass 658.20`; additionally the real-file regression check used for `658.17`/`658.18` (real files unchanged against the previous release) since items 1-2 tighten the reader. FEATURES: no row changed at filing.
+
 ### Known limits recorded from the gap audit (NOT being done)
 
 These come from the format, not from pdfcer. glTF normal and metallic-roughness maps: PRC cannot store them. glTF light `range` and the smooth inner-cone falloff: PRC lights have neither, so they are approximated (a `cos^n` exponent), with a note. PRC also stores neither a light's range nor a spot's inner cone.
@@ -50579,6 +50620,7 @@ not a judgment call:**
 - **No network calls without explicit user opt-in, ever.**
 - **Solo by default.**
 - **KenAgent decision routing (operator process rule, 2026-07-30).**
+- **PdfCraft fixes are shared, not duplicated (operator process rule, 2026-11-04, decision 215; judgment call, no gate, no `R` number).** For any `X`-series request from PdfCraft, check its `docs/ROADMAP.md` row and its fork at `D:\Dev\PdfCraft\upstream` first; adapt a fix it already wrote (only `KenM76`-authored commits) and cite the commit, else write it and name the commit in the `SHIPPED` reply for PdfCraft to port; the reply says adopted vs fresh. Other upstream contributors' code stays behavioural reference only. Narrows decision 204's "no code copying" for our own code.
 - **i18n/l10n discipline R1–R8 (decision 002, 2026-07-30).**
 - **Distribution-posture discipline R9–R16 (decision 003, 2026-07-30).**
 - **Text-rendering/font discipline R17–R22 (decision 004, 2026-07-30).**

@@ -13711,3 +13711,21 @@ Engineer-reported; reached via autonomous-builder/KenAgent, option A; no `docs/d
 **Not decided.** Whether to bundle an OFL Myriad-metric-compatible fallback face: open sub-question to Ken.
 
 **Built:** `5a0a9665` (core, render, CLI `--font-dir`, `xfa-materialize --font-embedding`; GUI none). **Body-section effect.** None to the numbered body sections; `docs/core-api/02` and `03` updated in the commit. **Decision ceiling.** Fills `214`. Next free decision: `215`. **New standing rule.** None.
+
+### 2026-11-04 (1414th filing, requests `X035`, `X036`, `Pass 658.20`, `Pass 658.21`) — decision 215: a fix PdfCraft already wrote is adapted, not rewritten; and what pdfcer writes first is handed to PdfCraft
+
+Operator ruling (Ken, 2026-11-04), verbatim: *"Also with any that come from PdfCraft the two of you need to co-ordinate on writing fixes so you aren't duplicating effort. The two of you can use the same fix if we are writing it."* Engineer-reported; no `docs/decisions/215-*.md` record written this filing (the record is this entry). Applies the 2026-10-26 permission by which PdfCraft may use pdfcer code (as relayed by the engineer; not re-read from here). Narrows decision 204 (below). No shell here; nothing checked from the PdfCraft fork from here.
+
+**Decides.**
+1. **Check first.** For any request from PdfCraft (the `X`-series, from "operator (crates consumer)"), before writing a fix pdfcer checks whether PdfCraft has already written it: its `docs/ROADMAP.md` row for the request and its fork at `D:\Dev\PdfCraft\upstream`.
+2. **Already written: adapt.** pdfcer adapts that fix to its own tree and cites the PdfCraft commit in the Pass entry and the commit message.
+3. **Not written: write and hand over.** pdfcer writes it, and the `SHIPPED` reply names the pdfcer commit so PdfCraft ports it (PdfCraft already holds the 2026-10-26 permission to use pdfcer code).
+4. **Scope boundary: "if we are writing it".** Only code written by Ken's own agents (`KenM76`-authored commits in the fork) may be adopted. Code by other upstream `pdfcraft` contributors stays behavioural reference only, as before.
+5. **Disclosure in the reply.** The `SHIPPED` reply says which parts were adopted and which were written fresh.
+6. **Licence reasoning (the operator's ruling, recorded as given).** Adopted code is the operator's own, contributed upstream under `MIT OR Apache-2.0`, so taking it into MIT pdfcer needs no new dependency and no attribution beyond the commit citation. `docs/PRIOR_ART.md` and `LEGAL.md` §6.1 are unchanged; GPL/AGPL stays categorically out.
+
+**Relation to decision 204.** Narrows only the "no code copying" clause of the XFA arc (`647.x`) for code the operator's own agents wrote. Everything else in 204 stands, including: no external XFA code is relied on, `pdfcraft` stays behavioural reference, an out-of-tree oracle and a fixture source for code written by others.
+
+**First application.** `Pass 658.20` (`X035`) and `Pass 658.21` (`X036`) port PdfCraft commits `51b68a8b`, `c2d8c5f3`, `bca0211a` (in `D:\Dev\PdfCraft\upstream`, author `KenM76`, per the engineer); anything PdfCraft has not written, pdfcer writes and PdfCraft ports.
+
+**Body-section effect.** None to the numbered body sections. **Decision ceiling.** Fills `215`. Next free decision: `216`. **New standing rule.** None numbered (no `R` minted); a process line was added to the ROADMAP Standing rules index, a judgment call with no gate.
