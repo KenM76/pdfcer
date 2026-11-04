@@ -112,6 +112,36 @@ wherever it appears.*
 
 ## Shipped
 
+### `3c679967` tooling, 2026-11-03: `tools/clean-target-cache.py` sweeps superseded build outputs after every release build (1404th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `3c679967d2dbbcd97b47656110dee961857b8bfe` "chore(tools): sweep superseded build outputs after every release build". Operator request (Ken, 2026-11-03): "Clear your old rust cache files. Please set yourself up to do this after a new build renders the old ones uneeded, or set a reasonable number of builds to do this after." Not a Pass; no decision record.
+- **Cause of growth:** every version bump re-hashes every workspace crate and cargo never removes the old copy.
+- **Rule:** delete a crate's build output only when it predates the `--keep-versions-th` newest `chore: bump version` commit (default 2 = current + previous release kept) AND a newer output of the same crate exists. Also deletes agent-worktree `target/` dirs untouched since that cutoff. Skips a profile whose `.cargo-lock` a running build holds (not a global cargo-running check, since other projects build concurrently).
+- **Wiring:** `tools/package-portable.py` runs it at the end of every build and never fails the build over it.
+- **First run freed 85.7 GiB** (`target/debug` 57.6, `target/release` 2.8, three `.claude/worktrees` target caches 25.4 = 85.8 as summed; engineer's total 85.7); D: 96% -> 87%.
+- **RAG:** dated footer added to `D:/dev/rag/rust/cargo_target_dir_debug_deps_grows_without_bound_and_fills_the_disk_195gb_test_binaries.md`.
+- No FEATURES row (release tooling, not a capability).
+
+### `ba33466d` fix, 2026-11-03: `--lamp-cut` parses without the `3d` feature (`Pass 658.11` follow-up) (1404th filing)
+
+Engineer-reported; no shell here. Commit `ba33466d6d01d550810a48f4c9f2c71589f61f81` "fix(cli): --lamp-cut parses without the 3d feature (Pass 658.11 follow-up)".
+- **Cause:** the clap struct and parser named `pdfcer_3d::LampCut`, but `pdfcer-3d` is an optional CLI dependency (feature `3d`), so the CLI's `--no-default-features` build failed (clippy and both cargo test jobs) from `a35c962c` onward.
+- **Fix:** CLI-local `LampCutArg` + `parse_lamp_cut` in `crates/pdfcer-cli/src/arg_types.rs`, mapped to `LampCut` only in the 3D-gated render path.
+- **Verified locally (engineer-reported):** clippy `-D warnings` clean with and without default features; `--no-default-features --bin pdfcer` 82 passed; `--test all lamp_cut` 1 passed; check-code-structure clean. **CI on `ba33466d` pending at filing time; do not read this as green.**
+- **Process miss (engineer's own):** the `Pass 658.11` verification ran `pdfcer-3d` with `--no-default-features` but not `pdfcer-cli` with `--no-default-features`. CI's job list is the authority; run `tools/run-gates.sh` (existing memory "a gate sweep certifies the tree it ran on"). No new rule minted.
+
+### `v0.123.0` PUBLISHED, 2026-11-03 (1404th filing); tag on `912437c3`, **CI RED at the tag commit**
+
+Engineer-reported; no shell here, nothing checked from here. Carries only `Pass 658.11` (`G263`, `ece1c15e`, filed as `a35c962c` in the 1403rd filing).
+- **Bump:** `912437c38ca90bf2e7891f0356a7857e1a7e102e` "chore: bump version to 0.123.0". **Tag:** annotated `v0.123.0` (tag object `1ca183f3`) on `912437c3`.
+- **CI RED at the tag commit, stated honestly:** the CLI `--no-default-features` build (clippy and both cargo test jobs) has failed since `a35c962c`; cause and fix are the entry above (`ba33466d`, CI result pending). **The released binary uses default features and is unaffected.** CI green is NOT recorded for this release.
+- **GitHub release:** 8 assets (portable zip + 3 OCR add-on zips, each with `.sha256`).
+- **OneDrive:** written to slot `pdfcer2`; `pdfcer1` keeps 0.122.0. **The next release writes `pdfcer1`.**
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.123.0 published.
+- **Package:** `D:\builds\pdfcer-20261103-2020-912437c`. **Fresh-folder smoke (`D:\builds\smoke-v0123`) passed:** `--version` 0.123.0; `3d-render --help` shows `--lamp-cut`; `3d-render` of a PRC fixture with `--lamp-cut 4` and with `off` both OK.
+- **Open item:** the GUI notice for v0.123.0 is written by the engineer into the FeatureRequests channel (not by me).
+- No box changes. Nothing minted.
+
 ### `ece1c15e` `Pass 658.11`, 2026-11-03: bounded per-fragment lamp work, with a lamp-cut setting (`G263`) (1403rd filing)
 
 Engineer-reported (measured); no shell here, git state not checked from here. Commit `ece1c15efe76c26f340d8db5f9f3a4bf0b804c6b` "perf(3d): bounded per-fragment lamp work, with a lamp-cut setting (Pass 658.11, G263)". Request from `pdfcer-gui` (`request_G263_every_fragment_shades_every_lamp.md`; reply `reply_G263_bounded_lamp_work_and_lamp_cut_SHIPPED.md`). Local `main`; release `v0.123.0` follows carrying it (filed separately). No decision record; reasoning is in the commit message.

@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1404th filing) — `v0.123.0` PUBLISHED with CI RED at the tag; `ba33466d` fix; `3c679967` target-cache sweep
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, nothing committed by me):**
+- **`v0.123.0`:** bump `912437c3`, annotated tag (object `1ca183f3`), carries only `Pass 658.11`. GitHub release 8 assets; OneDrive `pdfcer2` (`pdfcer1` keeps 0.122.0, next release writes `pdfcer1`); crates `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.123.0. Smoke in `D:\builds\smoke-v0123` passed (`--version`, `--lamp-cut 4` and `off`).
+- **CI is RED at the tag commit:** CLI `--no-default-features` (clippy, two test jobs) failing since `a35c962c`. Released binary uses default features and is unaffected. Not recorded green.
+- **`ba33466d`:** fix, `LampCutArg`/`parse_lamp_cut` CLI-local in `arg_types.rs`; local verification clean; **CI on it pending at filing**. Engineer's process miss: `Pass 658.11` ran `pdfcer-3d` with `--no-default-features` but not `pdfcer-cli`; CI's job list is the authority (`tools/run-gates.sh`). No rule minted.
+- **`3c679967`:** `tools/clean-target-cache.py` (operator request), run at the end of `package-portable.py`; first run freed 85.7 GiB, D: 96% -> 87%. RAG: dated footer on `D:/dev/rag/rust/cargo_target_dir_debug_deps_grows_without_bound_and_fills_the_disk_195gb_test_binaries.md` (grepped first; existing file, so no new file or index bullet).
+- **FEATURES:** no row changes (none of the three is a capability row).
+- **Owed / open:** (1) engineer writes the GUI notice for v0.123.0 into the FeatureRequests channel; (2) read CI on `ba33466d` from GitHub and amend the two ROADMAP entries with the colour; (3) `crates/` survivor sweeps from the 1401st-1403rd filings still open. Backup currency not verifiable from here.
+
 ## 2026-11-03 (1403rd filing) — `Pass 658.11` (`ece1c15e`): bounded per-fragment lamp work, with a lamp-cut setting
 
 **Filed (engineer-reported, measured; no shell here, git state not checked from here; docs only, nothing committed by me):**
