@@ -36,7 +36,7 @@ pub struct AssembledModel {
     /// Compressed tessellations rebuilt into triangles.
     pub rebuilt: usize,
     /// Of [`Self::rebuilt`], those only a best-fit search rebuilt (see
-    /// [`Tessellation::Compressed`]): the shape drawn consumes every stored
+    /// [`Tessellation::Compressed`](crate::tess::Tessellation::Compressed)): the shape drawn consumes every stored
     /// array, but another shape might as well.
     pub best_fit: usize,
     /// Compressed tessellations drawn in part under [`MeshFit::Partial`]
