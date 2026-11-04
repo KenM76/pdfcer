@@ -112,6 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
+### `91665b7f` `Pass 658.21`, 2026-11-04: 3D reader texture-set cap, full face charge, framing that skips invisible meshes (`X036`) (1415th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `91665b7f` "fix(3d): cap texture sets, charge corner arrays, skip clear meshes when framing (X036, Pass 658.21)", local `main` after `de68b8c7`. Unreleased; the release follows with `X037` (`Pass 659.0`). Reply `open/reply_X036_3d_face_charges_and_framing_SHIPPED.md`. Decision 215 applied; no new decision.
+- **Adopted from PdfCraft (author `KenM76`):** texture sets per face capped at 8, checked before allocation (`7f302667`); each triangle charged for everything it holds, 2-22 elements, not 1 (`bca0211a`); fully transparent meshes excluded from framing (`c2d8c5f3`). **Written fresh: nothing.**
+- **New pub items:** `Camera::fit_coloured` and `Bounds::of_coloured`, now used by the default view and by the CLI's `3d-render` and `3d-views`. `docs/core-api/` updated.
+- **Engineer-reported tests:** `pdfcer-3d` 398 unit (default features) / 252 (no default features) / 26 doc, green (these counts cover both Passes); 53 `pdfcer-cli` 3d/render tests green; every new test sabotage-verified (removing the texture cap = a 103 GB allocation abort).
+- **Boxes:** core `[x]`, cli `[x]`, gui not ticked. FEATURES: new row "3D drawing and reading hold up against hostile models; framing skips invisible meshes" (shared with `658.20`).
+
+### `de68b8c7` `Pass 658.20`, 2026-11-04: overflow-free 3D projection, edges and framing; shared near cuts; decode ceiling (`X035`) (1415th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `de68b8c7` "fix(3d): overflow-free projection, edges and framing; shared near cuts; decode ceiling", local `main`. Core only (`crates/pdfcer-3d`); cli `—`, gui `—`. Reply `open/reply_X035_3d_raster_scale_bounds_SHIPPED.md`. Decision 215 applied; no new decision.
+- **Adopted from PdfCraft `51b68a8b` (author `KenM76`):** order-independent near-plane cut, divide-before-multiply perspective, two-step orthographic, half-scale edge when the difference overflows, and a whole-file decode ceiling pdfcer lacked.
+- **Written fresh in pdfcer, for PdfCraft to port:** framing a model wider than `f64::MAX`.
+- **Correction to the request's own acceptance, recorded:** its orthographic example (half-height 1e-300, aspect 1e10) did not overflow under the old code, so the tests use 7.5e307 at aspect 3 and 1e-300 at aspect 1e-30, which do fail without the fix.
+- **Tests and boxes:** counts shared with `658.21` (see that entry); each new test sabotage-verified. core `[x]`; FEATURES row shared with `658.21`.
+
 ### `b5cb78eb` `v0.126.0` PUBLISHED, 2026-11-04, with `1035130f` rustdoc fix; **CI RED at the tag commit** (1413th filing)
 
 Engineer-reported; no shell here, nothing checked from here (GitHub, crates.io, OneDrive and git state all as reported). Carries `Pass 658.17` (`fb98413e`, `X033`), `Pass 658.18` (`21800243`, `G265`) and `Pass 658.19` (`d481d708`, `X034`), all filed earlier (1410th-1412th).
@@ -27778,46 +27794,23 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > `Pass 658.18` (`G265`) SHIPPED and has left this section (1412th filing, `21800243`); full entry at the top of *Shipped*.
 
-### `Pass 658.20` — 3D software raster: order-independent near-plane cut, divide-first projection, overflow-safe face-normal edge (`X035`) (NOT STARTED; filed 1414th filing)
+> `Pass 658.20` (`X035`) and `Pass 658.21` (`X036`) SHIPPED and have left this section (1415th filing, `de68b8c7`, `91665b7f`); full entries at the top of *Shipped*.
 
-Inbound request `X035` from PdfCraft ("operator (crates consumer)"), 2026-11-04, read there at pdfcer `8cb6bfbe`: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X035_3d_raster_projection_and_edge_scale.md`. All four items reach every picture drawn through `render_model`. Crate: `pdfcer-3d` (`raster.rs`, `render.rs`). **Delivers core only**; no CLI or GUI surface change expected (boxes: core `[ ]`, cli `—`, gui `—` until built).
+### `Pass 659.0` — CLI Windows clipboard: checked DIBV5 header sizes, release-build header length, all-or-nothing placement, short wait between open attempts (`X037`) (IN PROGRESS; filed 1415th filing)
 
-**Approach (decision 215):** being implemented by adapting fixes PdfCraft already wrote, PdfCraft commits `51b68a8b`, `c2d8c5f3`, `bca0211a` in `D:\Dev\PdfCraft\upstream` (author `KenM76`); anything PdfCraft has not written, pdfcer writes and PdfCraft ports. Which commit covers which item is not stated in the request and not checked from here. The `SHIPPED` reply must say which parts were adopted and which written fresh, and cite the commits.
+Inbound request `X037` from PdfCraft ("operator (crates consumer)"): `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X037_clipboard_dib_sizes_and_atomic_place.md`. Crate: `pdfcer-cli` (Windows clipboard code). Boxes: core `—`, cli `[ ]`, gui `—` until built.
 
-**Wanted (request's list):**
-1. A near-plane cut point for an edge is the same whichever triangle cuts it (`View::clip`, `raster.rs` ~118-122; today it interpolates from `p` towards `q`). Suggested: always interpolate from the endpoint that sorts first by x, then y, then z.
-2. Perspective projection divides first: `(x / z) * (focal / aspect)` and `(y / z) * focal` (`raster.rs` ~156), finite whenever the true result is finite.
-3. Orthographic projection divides by `half_height`, then by `aspect`, in two steps (`raster.rs` ~161).
-4. The face-normal edge survives overflow (`render.rs` ~665-667): when `b - a` is not finite, use `b/2 - a/2`; only the direction matters to `unit_cross`.
-5. Never panics.
+**Approach (decision 215):** PdfCraft has no fix of its own for this, so pdfcer writes it and PdfCraft ports it; the `SHIPPED` reply names the pdfcer commit and says all of it was written fresh.
 
-**Acceptance (synthetic only, built in the test; each test fails with its fix reverted):**
-- Two triangles sharing an edge that crosses the near plane get bit-identical cut points for that edge.
-- A triangle on screen under a perspective camera with a field of view of 1e-298 degrees is drawn; under an orthographic camera with half-height near 1e-300 and aspect 1e10, an on-screen triangle is drawn.
-- A triangle with corners `[-f64::MAX/1.5, 0, 0]`, `[f64::MAX/1.5, 0, 0]`, `[0, f64::MAX/1.5, 0]` is drawn after framing.
-- When it lands, cut a release and name it in the reply (release slot: OneDrive `pdfcer1`, `pdfcer2` holds 0.126.0, per the 1413th filing, engineer-reported). Order and timing are pdfcer's call.
+**Wanted (request's list, as relayed by the engineer; the request file is the authority):**
+1. DIBV5 header sizes computed with checked arithmetic, and refused rather than truncated.
+2. The header length guaranteed in release builds, not only in debug builds.
+3. Placement all-or-nothing as seen by a reader of the clipboard.
+4. A short wait between clipboard-open attempts.
 
-**Invariants to verify at close:** `cargo tree -p pdfcer-core` / `-p pdfcer-render` unchanged (no manifest edit expected); clippy and fmt clean; `check-core-api-verbs`; structure gate no new violation. FEATURES: no row changed at filing.
+**Note, not a pdfcer Pass:** request `X038` (the same defect in `pdfcer-gui`'s `gui-base`) is addressed to `pdfcer-gui`; nothing filed here for it.
 
-### `Pass 658.21` — 3D reader and framing: texture-set count cap, full face charge, framing that matches what `render_coloured` draws (`X036`) (NOT STARTED; filed 1414th filing)
-
-Inbound request `X036` from PdfCraft ("operator (crates consumer)"), 2026-11-04, read there at pdfcer `8cb6bfbe`: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X036_3d_face_charges_and_transparent_framing.md`. Items 1-2 reach every model that is opened; item 3 reaches every caller that frames coloured meshes with `fit_meshes`. Crate: `pdfcer-3d` (`tess.rs`, `tess_face.rs`, `bounds.rs`, `render.rs`). Boxes: core `[ ]`; cli and gui not expected to change (`—`, to be confirmed at close; item 3 adds a public framing entry point, so the `check-core-api-verbs` gate and `docs/core-api/` are in scope).
-
-**Approach (decision 215):** same as `Pass 658.20`: adapt what PdfCraft already wrote (commits `51b68a8b`, `c2d8c5f3`, `bca0211a`, `D:\Dev\PdfCraft\upstream`, author `KenM76`), write fresh what it has not, name the pdfcer commit in the `SHIPPED` reply for PdfCraft to port, and say which parts were adopted vs written fresh.
-
-**Wanted (request's list):**
-1. Cap a face's texture-set count at a small fixed number (request suggests 8); a larger count is `Malformed`, checked before any allocation (`tess.rs` ~634; `tess_face.rs` ~216-236 allocates `vec![Vec::with_capacity(points); t]` per entity, and the guard `points * (t + 1) > indices.len()` passes when `points` is 0).
-2. Before triangulating a face, charge it for everything its triangles will hold: corners, normal slots, one texture triple per set any face uses, and the padding (`tess_face.rs` ~234 charges one element per triangle only; the `vec![None; before]` padding at ~283 is uncharged).
-3. A way to fit to exactly what `render_coloured` draws (`bounds.rs` ~56-62 `drawn_corners`; `render.rs` ~121-131 `fit_meshes`; `render_coloured` ~438 skips fully transparent meshes): `fit_meshes` takes the same colours, or a sibling does, so fully transparent meshes are excluded from the fit.
-4. Never panics.
-
-**Acceptance (synthetic only, built in the test; each test fails with its fix reverted):**
-- A face declaring 2^32 - 1 texture sets with an empty fan is refused quickly, without a large allocation.
-- Many faces reusing one textured index range are refused once their total corner-array cost passes the allowance; a normal textured model still opens.
-- A drawn unit triangle plus a fully transparent triangle at 1e6 fits to the drawn one only.
-- When it lands, cut a release and name it in the reply. Order and timing are pdfcer's call.
-
-**Invariants to verify at close:** as `Pass 658.20`; additionally the real-file regression check used for `658.17`/`658.18` (real files unchanged against the previous release) since items 1-2 tighten the reader. FEATURES: no row changed at filing.
+**Acceptance and invariants:** not yet stated here beyond the request file; to be filled in when the engineer reports the shape. FEATURES: no row changed at filing (a hardening of the existing clipboard path; confirm at ship time which row it touches).
 
 ### Known limits recorded from the gap audit (NOT being done)
 

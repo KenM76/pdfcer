@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-04 (1415th filing) — `Pass 658.20` (`de68b8c7`, `X035`) and `Pass 658.21` (`91665b7f`, `X036`) shipped; `Pass 659.0` (`X037`) opened
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, I commit nothing):**
+- **`Pass 658.20` (`de68b8c7`):** core only. Adopted from PdfCraft `51b68a8b`: order-independent near cut, divide-first perspective, two-step orthographic, half-scale edge, whole-file decode ceiling. Written fresh: framing a model wider than `f64::MAX`. The request's orthographic example did not overflow under the old code; tests use 7.5e307 at aspect 3 and 1e-300 at aspect 1e-30.
+- **`Pass 658.21` (`91665b7f`):** core + cli. Texture sets capped at 8 before allocation (`7f302667`); per-triangle charge 2-22 elements (`bca0211a`); transparent meshes out of framing (`c2d8c5f3`) via `Camera::fit_coloured` / `Bounds::of_coloured`, used by default view, `3d-render`, `3d-views`. Nothing fresh. `docs/core-api/` updated.
+- **Engineer-reported tests:** `pdfcer-3d` 398 unit / 252 no-default / 26 doc; 53 CLI 3d/render tests; all new tests sabotage-verified (texture cap removed = 103 GB allocation abort).
+- **Replies:** `reply_X035_3d_raster_scale_bounds_SHIPPED.md`, `reply_X036_3d_face_charges_and_framing_SHIPPED.md`. Unreleased; release follows with `X037`.
+- **`Pass 659.0` (`X037`)** opened, IN PROGRESS: CLI Windows clipboard DIBV5 header sizes (checked arithmetic, refuse not truncate), header length in release builds, all-or-nothing placement, short wait between open attempts. PdfCraft has no fix, so pdfcer writes it (decision 215). `X038` (same defect in `pdfcer-gui` `gui-base`) is addressed to `pdfcer-gui`: noted only, not a pdfcer Pass. The ID `659.0` was grepped across `docs/*.md` before filing: no prior use (not run through `check-ledger-numbers.py`).
+- **FEATURES:** one new Implemented row (core `[x]`, cli `[x]`, gui `[ ]`); the 1414th filing's Next up entries for both Passes were replaced by a shipped banner.
+
+**Owed / open:** the `659.0` acceptance criteria are only as relayed; the request file is the authority. Doc-comment survivors not checked from here; backup currency not verifiable from here. Next filing 1416th.
+
 ## 2026-11-04 (1414th filing) — `Pass 658.20` (`X035`) and `Pass 658.21` (`X036`) opened; decision 215 (share PdfCraft fixes); FeatureRequests watch hook
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed by me; nothing shipped, no FEATURES change):**
