@@ -314,6 +314,9 @@ pub struct RenderOptions {
     /// ([`DEFAULT_LAMP_SHADOW_MAP_SIZE`](crate::DEFAULT_LAMP_SHADOW_MAP_SIZE)),
     /// clamped to 64–[`MAX_LAMP_SHADOW_MAP_SIZE`](crate::MAX_LAMP_SHADOW_MAP_SIZE).
     pub lamp_shadow_map_size: u32,
+    /// Where a model's point and spot lights stop, for speed
+    /// ([`LampCut::Auto`](crate::LampCut::Auto), which changes no pixel).
+    pub lamp_cut: crate::LampCut,
     /// Which directional lights cast ([`ShadowCasters::EveryLight`] by
     /// default, up to [`MAX_SHADOW_CASTERS`](crate::MAX_SHADOW_CASTERS), each shadow taking
     /// only its own light). Lights at the camera never cast.
@@ -357,6 +360,7 @@ impl Default for RenderOptions {
             ambient_occlusion: true,
             lamp_shadows: true,
             lamp_shadow_map_size: crate::DEFAULT_LAMP_SHADOW_MAP_SIZE,
+            lamp_cut: crate::LampCut::Auto,
             shadow_casters: ShadowCasters::EveryLight,
             shadow_alpha: ShadowAlpha::Transmit,
             shininess: crate::ShininessScale::Auto,

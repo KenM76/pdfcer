@@ -3489,6 +3489,19 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `DEFAULT_LAMP_SHADOW_MAP_SIZE` 512, clamped 64..=`MAX_LAMP_SHADOW_MAP_SIZE`
   4096; 3 × 3 filtered, built once per frame across the worker threads).
   CLI: `--no-lamp-shadows --lamp-shadow-map-size N --shadow-map-size N`.
+  Lamp reach (speed): `RenderOptions::lamp_cut: LampCut::{Auto (default),
+  Threshold(u16), Off}` — each point/spot light stops at the distance where
+  it has faded to its share (cut ÷ lamp count) of the cut, so the lamps
+  stopped leave at most the cut out of any point (material colours ≤ 1),
+  and a fragment skips them unread. `Auto` = `LampCut::AUTO_HUNDREDTHS`
+  (50, half an 8-bit level: no pixel changes), set per model from its own
+  lamps; `Threshold(h)` = h hundredths of a level (larger: faster on a
+  many-lamp model, darker far from the lamps; 0 = `Off`); `Off` = every
+  lamp reaches everywhere. `cut.hundredths() -> u16`. Same on CPU and GPU;
+  each lamp's distance is `FrameLights::local_reach` (`f32::MAX` = never
+  stops). Suits a fast navigation setting beside an exact (`Off` or
+  `Auto`) screenshot setting. CLI: `--lamp-cut auto|off|<levels 0-255>`,
+  disclosed as `note: lamp reach: …`.
   Every directional light: `RenderOptions::shadow_casters:
   ShadowCasters::{EveryLight (default), KeyLight}` — under a scheme or a
   model's own lights, each directional light lighting the frame casts its
@@ -3634,7 +3647,8 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     `FrameLights::for_model(&camera, &options, &model.lights)` to draw a
     model's own lights under Artwork, which also fills the point/spot
     lights (`local_count` → `u_local_count`, `local_positions`,
-    `local_colours`, `local_attenuation`, `local_cones`). Both fill
+    `local_colours`, `local_attenuation`, `local_cones`, `local_reach`).
+    Both fill
     `specular` and `local_specular`, the lights' highlight colours.
     `FrameLights` is `Clone`, not `Copy`; its light lists are `Vec`s, up to
     `MAX_LIGHTS` (1024) of each kind, with `dropped` counting any past that
@@ -3644,8 +3658,11 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     `light_table_rows()` high, `NEAREST`, no mipmaps, on its own texture
     unit. Rows `0..count` are directional lights (texel 0 direction, 1
     colour, 2 specular); rows `count..count + local_count` are point/spot
-    lights (0 position with w = cos cut-off or −2, 1 colour, 2 specular, 3
-    attenuation, 4 cone). There are no per-light uniform arrays (no `u_light_dir`,
+    lights (0 position with w = reach, 1 colour, 2 specular, 3 attenuation
+    with w = cone exponent, 4 cone direction with w = cos cut-off or −2),
+    ordered so the fragment shader drops a lamp past its reach or outside
+    its cone after two fetches. The table layout is the engine's; upload it
+    opaquely. There are no per-light uniform arrays (no `u_light_dir`,
     `u_light_colour`, `u_light_specular` or `u_local_*`). Both
     shaders also take `u_mode`, `u_ambient`, `u_count`,
     `u_eye`, `u_forward` (the vertex shader's values), and

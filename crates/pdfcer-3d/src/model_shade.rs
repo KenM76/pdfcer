@@ -29,6 +29,8 @@ pub(crate) struct Local {
     pub(crate) attenuation: [f64; 3],
     /// A spot's cone.
     pub(crate) cone: Option<Cone>,
+    /// The distance past which the light adds nothing ([`reach_limit`]).
+    pub(crate) reach: f64,
 }
 
 /// A spot light's cone.
@@ -58,6 +60,9 @@ impl Local {
         let to_light = sub(self.position, p);
         let d = length(to_light);
         let l = unit(to_light)?;
+        if d > self.reach {
+            return Some((l, 0.0));
+        }
         let [c, k1, k2] = self.attenuation;
         let denominator = c + k1 * d + k2 * d * d;
         let fade = if denominator > 0.0 && denominator.is_finite() {
@@ -110,12 +115,12 @@ impl Shader {
         basis: &[[f64; 3]; 3],
     ) -> Shader {
         if options.lighting == LightingScheme::Artwork && !model.is_empty() {
-            return Shader::from_model(model, options.artwork_headlight);
+            return Shader::from_model(model, options.artwork_headlight, options.lamp_cut);
         }
         Shader::new(options.lighting.lights(), options.light_frame, basis)
     }
 
-    fn from_model(model: &[ModelLight], headlight: bool) -> Shader {
+    fn from_model(model: &[ModelLight], headlight: bool, cut: LampCut) -> Shader {
         let mut ambient = [0.0; 3];
         let mut lights = Vec::new();
         let mut local = Vec::new();
@@ -142,6 +147,7 @@ impl Shader {
                     colour,
                     attenuation,
                     cone: None,
+                    reach: f64::INFINITY,
                 }),
                 ModelLightKind::Spot {
                     position,
@@ -162,9 +168,11 @@ impl Shader {
                         },
                         exponent,
                     }),
+                    reach: f64::INFINITY,
                 }),
             }
         }
+        set_reach(&mut local, model, cut);
         if headlight {
             add(&mut ambient, [HEADLIGHT_AMBIENT; 3]);
             lights.push((None, [HEADLIGHT; 3]));
@@ -177,6 +185,86 @@ impl Shader {
     }
 }
 
+/// Where a model's point and spot lights stop
+/// ([`RenderOptions::lamp_cut`]). Each lamp stops at the distance where its
+/// fade times its brightest channel falls to the cut divided by the
+/// model's lamp count, so the lamps stopped remove at most the cut from
+/// any point together (for material colours of at most 1), and a fragment
+/// skips the lamps out of reach without reading them. Each lamp's distance
+/// is [`FrameLights::local_reach`](crate::FrameLights::local_reach).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum LampCut {
+    /// The cut that changes no pixel, half an 8-bit level
+    /// ([`LampCut::AUTO_HUNDREDTHS`]), set for the loaded model's lamps.
+    #[default]
+    Auto,
+    /// The most light to leave out, in hundredths of an 8-bit level: larger
+    /// draws a model with many lamps faster, and darker far from them.
+    /// 0 stops no lamp.
+    Threshold(u16),
+    /// Every lamp reaches everywhere.
+    Off,
+}
+
+impl LampCut {
+    /// [`LampCut::Auto`]'s cut: half an 8-bit level.
+    pub const AUTO_HUNDREDTHS: u16 = 50;
+
+    /// The most light left out, in hundredths of an 8-bit level; 0 for
+    /// [`LampCut::Off`].
+    #[must_use]
+    pub fn hundredths(self) -> u16 {
+        match self {
+            LampCut::Auto => LampCut::AUTO_HUNDREDTHS,
+            LampCut::Threshold(h) => h,
+            LampCut::Off => 0,
+        }
+    }
+}
+
+/// Give each of `local` its [`Local::reach`]: the distance where its
+/// fade times its brightest diffuse or specular channel ([`ModelLight::specular`],
+/// walked in `model`'s order) falls to its share of `cut` ([`LampCut`]).
+fn set_reach(local: &mut [Local], model: &[ModelLight], cut: LampCut) {
+    let cut = cut.hundredths();
+    if cut == 0 {
+        return;
+    }
+    let floor = f64::from(cut) / (100.0 * 255.0) / local.len().max(1) as f64;
+    let specular = model
+        .iter()
+        .filter(|l| {
+            matches!(
+                l.kind,
+                ModelLightKind::Point { .. } | ModelLightKind::Spot { .. }
+            )
+        })
+        .map(|l| l.specular.map_or(0.0, |s| max3(s) * l.intensity.max(0.0)));
+    for (l, s) in local.iter_mut().zip(specular) {
+        l.reach = reach_limit(l.attenuation, max3(l.colour).max(s), floor);
+    }
+}
+
+/// The distance where `bright / (c + l·d + q·d²)` falls to `floor`;
+/// infinite when it never does.
+pub(crate) fn reach_limit([c, k1, k2]: [f64; 3], bright: f64, floor: f64) -> f64 {
+    let k = bright / floor - c;
+    let d = if k <= 0.0 {
+        0.0
+    } else if k2 > 0.0 {
+        (-k1 + k1.mul_add(k1, 4.0 * k2 * k).sqrt()) / (2.0 * k2)
+    } else if k1 > 0.0 {
+        k / k1
+    } else {
+        f64::INFINITY
+    };
+    if d.is_nan() { f64::INFINITY } else { d }
+}
+
+fn max3(c: [f64; 3]) -> f64 {
+    c.iter().fold(0.0, |a, &v| a.max(v))
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)] // Tests fail loudly by design.
 mod tests {
@@ -187,6 +275,74 @@ mod tests {
 
     fn shader(model: &[ModelLight]) -> Shader {
         Shader::for_frame(&RenderOptions::default(), model, &BASIS)
+    }
+
+    fn lamps(shader: Shader) -> Vec<Local> {
+        match shader {
+            Shader::Set { local, .. } => Some(local),
+            _ => None,
+        }
+        .unwrap()
+    }
+
+    #[test]
+    fn a_lamps_reach_is_where_its_light_falls_to_the_floor() {
+        let close = |a: f64, b: f64| (a - b).abs() < 1e-9 * b.max(1.0);
+        assert!(close(reach_limit([1.0, 0.0, 1.0], 1.0, 0.01), 99f64.sqrt()));
+        assert!(close(reach_limit([1.0, 1.0, 0.0], 1.0, 0.01), 99.0));
+        assert_eq!(reach_limit([1.0, 0.0, 0.0], 1.0, 0.01), f64::INFINITY);
+        assert_eq!(reach_limit([1.0, 1.0, 1.0], 0.001, 0.01), 0.0);
+        assert_eq!(reach_limit([0.0; 3], 1.0, 0.01), f64::INFINITY);
+    }
+
+    #[test]
+    fn the_lamps_past_their_reach_together_remove_under_half_a_level() {
+        let model: Vec<ModelLight> = (0..64)
+            .map(|i| {
+                let position = [f64::from(i) * 10.0, 0.0, 1.0];
+                let kind = ModelLightKind::Point {
+                    position,
+                    attenuation: [0.0, 0.0, 1.0],
+                };
+                ModelLight::new(kind, [1.0, 0.0, 0.0])
+            })
+            .collect();
+        let local = lamps(shader(&model));
+        assert_eq!(local.len(), 64);
+        let p = [0.0; 3];
+        let mut cut = 0.0;
+        for l in &local {
+            let (_, k) = l.reach(p).unwrap();
+            let d = length(sub(l.position, p));
+            if d > l.reach {
+                assert_eq!(k, 0.0);
+                cut += 1.0 / (d * d);
+            } else {
+                assert!(k > 0.0);
+            }
+        }
+        assert!(cut > 0.0, "some lamps are cut");
+        let reach = |lamp_cut| {
+            let options = RenderOptions {
+                lamp_cut,
+                ..RenderOptions::default()
+            };
+            lamps(Shader::for_frame(&options, &model, &BASIS))
+                .first()
+                .unwrap()
+                .reach
+        };
+        assert_eq!(reach(LampCut::Off), f64::INFINITY, "off stops no lamp");
+        assert_eq!(reach(LampCut::Threshold(0)), f64::INFINITY);
+        assert_eq!(reach(LampCut::Threshold(50)), reach(LampCut::Auto));
+        assert!(
+            reach(LampCut::Threshold(800)) < local.first().unwrap().reach,
+            "a larger cut stops lamps sooner"
+        );
+        assert!(
+            cut < f64::from(LampCut::AUTO_HUNDREDTHS) / 25_500.0,
+            "{cut}"
+        );
     }
 
     fn close(a: [f64; 3], b: [f64; 3]) -> bool {

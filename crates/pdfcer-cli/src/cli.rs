@@ -3324,6 +3324,14 @@ pub(crate) enum Command {
         /// 4096 (default 512); larger is sharper and slower.
         #[arg(long, default_value_t = 512, value_parser = clap::value_parser!(u32).range(64..=4096))]
         lamp_shadow_map_size: u32,
+        /// Where a model's point and spot lights stop, for speed: `auto`
+        /// (default; set for the model so no pixel changes), `off` (every
+        /// lamp reaches everywhere), or the most light to leave out of any
+        /// point, in 8-bit levels from 0 to 255, such as `4`: larger draws
+        /// a model with many lamps faster, and darker far from them. Each
+        /// lamp stops where it has faded to its share of that.
+        #[arg(long, default_value = "auto", value_parser = crate::threed_cmd::parse_lamp_cut)]
+        lamp_cut: pdfcer_3d::LampCut,
         /// Width in pixels, 1 to 16 (default 1), of the lines drawn: a PRC
         /// model's wires, unlit in their own colours and hidden behind
         /// nearer surfaces.

@@ -304,3 +304,74 @@ fn a_render_mode_is_reported_and_drawn() {
     );
     assert_ne!(glow, dim, "--emissive reaches the renderer");
 }
+
+/// `--lamp-cut` reaches the renderer and is disclosed: a coarse threshold
+/// darkens what `off` lights, and each setting names itself.
+#[test]
+fn a_lamp_cut_is_reported_and_drawn() {
+    let s = Scratch::new("lampcut");
+    std::fs::write(s.path("m.glb"), lamp_over_floor()).unwrap();
+    let pdf = format!(
+        "{}/../../fixtures/synthetic/minimal.pdf",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let (m, out) = (s.path("m.glb"), s.path("out.pdf"));
+    let args = ["3d-embed", &pdf, "--model", &m, "--page", "1"];
+    stdout(&run(&[
+        &args[..],
+        &["--rect", "10,10,190,190", "--apply", "-o", &out],
+    ]
+    .concat()));
+    let render = |tag: &str, extra: &[&str]| {
+        let png = s.path(&format!("{tag}.png"));
+        let mut args = vec!["3d-render", &out, "--index", "0", "--eye=1,-3,4"];
+        args.extend_from_slice(&["--no-ambient-occlusion", "--no-shadows"]);
+        args.extend_from_slice(&["--width", "120", "--height", "80", "-o", &png]);
+        args.extend_from_slice(extra);
+        (stdout(&run(&args)), std::fs::read(&png).unwrap())
+    };
+    let (auto_note, _) = render("auto", &[]);
+    assert!(
+        auto_note.contains("note: lamp reach: each of 1 lamps stops where the rest of its light would change no pixel (--lamp-cut auto)"),
+        "{auto_note}"
+    );
+    let (off_note, off) = render("off", &["--lamp-cut", "off"]);
+    assert!(
+        off_note.contains("note: lamp reach: every one of 1 lamps reaches everywhere"),
+        "{off_note}"
+    );
+    let (cut_note, cut) = render("cut", &["--lamp-cut", "128"]);
+    assert!(
+        cut_note.contains("its share of 128 8-bit levels"),
+        "{cut_note}"
+    );
+    assert_ne!(off, cut, "a coarse cut leaves light out");
+    let bad = run(&[
+        "3d-render",
+        &out,
+        "--lamp-cut",
+        "300",
+        "-o",
+        &s.path("x.png"),
+    ]);
+    assert_eq!(bad.status.code(), Some(2), "300 is past 255");
+}
+
+/// [`floor_and_square`]'s floor alone, with a point light half a unit above
+/// its centre.
+fn lamp_over_floor() -> Vec<u8> {
+    glb_of(
+        r#"{"asset":{"version":"2.0"},"scene":0,
+  "extensionsUsed":["KHR_lights_punctual"],
+  "extensions":{"KHR_lights_punctual":{"lights":[{"type":"point","color":[1,1,1],"intensity":5}]}},
+  "buffers":[{"byteLength":60}],
+  "bufferViews":[{"buffer":0,"byteLength":48},{"buffer":0,"byteOffset":48,"byteLength":12}],
+  "accessors":[{"bufferView":0,"componentType":5126,"count":4,"type":"VEC3"},
+    {"bufferView":1,"componentType":5123,"count":6,"type":"SCALAR"}],
+  "meshes":[{"primitives":[{"attributes":{"POSITION":0},"indices":1}]}],
+  "nodes":[{"name":"floor","mesh":0,"translation":[-2,0,-2],"rotation":[0.70710678,0,0,0.70710678],"scale":[4,4,1]},
+    {"name":"lamp","translation":[0,0.5,0],"extensions":{"KHR_lights_punctual":{"light":0}}}],
+  "scenes":[{"nodes":[0,1]}]}"#
+            .to_owned(),
+    )
+}

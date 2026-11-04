@@ -407,6 +407,7 @@ mod tests {
             colour: [1.0; 3],
             attenuation: [1.0, 0.0, 0.0],
             cone: None,
+            reach: f64::INFINITY,
         };
         let shadows = LampShadows::build(&[lamp], &bounds, 256, (&casts, false), 3);
         let up = [0.0, 0.0, 1.0];

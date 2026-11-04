@@ -168,6 +168,8 @@ pub use model::{
 #[cfg(feature = "render")]
 pub use model::{default_view_camera, render_default_view, render_model};
 pub use model_light::{ModelLight, ModelLightKind, ViewLightUse, ViewLights};
+#[cfg(feature = "render")]
+pub use model_shade::LampCut;
 pub use named_view::{NamedView, UnknownName, UpAxis};
 pub use node_box::NodeBox;
 #[cfg(feature = "render")]

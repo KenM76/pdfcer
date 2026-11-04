@@ -462,6 +462,7 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) shadows: bool,
     pub(crate) lamp_shadows: bool,
     pub(crate) lamp_shadow_map_size: u32,
+    pub(crate) lamp_cut: pdfcer_3d::LampCut,
     pub(crate) line_width: u32,
     pub(crate) mode: RenderModeArgs,
     pub(crate) shadow_map_size: u32,
@@ -621,6 +622,7 @@ fn render_from_bytes(
         shadows: a.shadows,
         lamp_shadows: a.lamp_shadows,
         lamp_shadow_map_size: a.lamp_shadow_map_size,
+        lamp_cut: a.lamp_cut,
         line_width: a.line_width,
         render_mode: mode.mode,
         shadow_map_size: a.shadow_map_size,
@@ -765,4 +767,22 @@ fn render_from_bytes(
     _saved: Option<&pdfcer_core::threed::ThreeDSavedView>,
 ) -> u8 {
     no_3d_feature(a.input, a.index, "3d-render")
+}
+
+/// `--lamp-cut`: `auto`, `off`, or 8-bit levels from 0 to 255.
+pub(crate) fn parse_lamp_cut(s: &str) -> Result<pdfcer_3d::LampCut, String> {
+    match s.trim() {
+        "auto" => return Ok(pdfcer_3d::LampCut::Auto),
+        "off" => return Ok(pdfcer_3d::LampCut::Off),
+        _ => {}
+    }
+    let levels: f64 = s
+        .trim()
+        .parse()
+        .map_err(|_| format!("`{s}` is not auto, off or a number of levels"))?;
+    if !(0.0..=255.0).contains(&levels) {
+        return Err(format!("{s} is outside 0 to 255"));
+    }
+    let hundredths = u16::try_from((levels * 100.0).round() as i64).map_err(|e| e.to_string())?;
+    Ok(pdfcer_3d::LampCut::Threshold(hundredths))
 }

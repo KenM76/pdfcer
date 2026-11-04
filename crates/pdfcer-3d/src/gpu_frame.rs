@@ -97,6 +97,12 @@ pub struct FrameLights {
     /// (`cone = max(−l·direction, 0)^w` inside the cut-off, 1 when `w` is
     /// 0); zero for a point light.
     pub local_cones: Vec<[f32; 4]>,
+    /// The distance past which each lamp adds nothing: where its fade
+    /// times its brightest channel falls to
+    /// [`RenderOptions::lamp_cut`](crate::RenderOptions::lamp_cut) divided by
+    /// `local_count` ([`LampCut`](crate::LampCut)). `f32::MAX` when its fade
+    /// never falls that far or nothing is cut.
+    pub local_reach: Vec<f32>,
     /// Lights beyond [`MAX_LIGHTS`] in either list, not drawn; for the host
     /// to disclose.
     pub dropped: usize,
@@ -143,6 +149,7 @@ impl FrameLights {
             local_specular: Vec::new(),
             local_attenuation: Vec::new(),
             local_cones: Vec::new(),
+            local_reach: Vec::new(),
             dropped: 0,
         };
         let options = &crate::render_mode::frame_options(options);
@@ -191,8 +198,11 @@ impl FrameLights {
     /// Rows `0..count` are the directional lights: texel 0 its direction
     /// (as `directions`), 1 its colour, 2 its specular colour. Rows
     /// `count..count + local_count` are the point and spot lights: texel 0
-    /// its position, 1 its colour, 2 its specular colour, 3 its
-    /// attenuation, 4 its cone. Unused channels and texels are zero.
+    /// its position and reach (`local_reach`), 1 its colour, 2 its specular
+    /// colour, 3 its attenuation and cone exponent, 4 its cone direction
+    /// and cut-off cosine (`local_positions`' `w`). A lamp's reach and cone
+    /// sit in the texels read first, so the shader skips a lamp that cannot
+    /// light a point after two reads. Unused channels and texels are zero.
     #[must_use]
     pub fn light_table(&self) -> Vec<f32> {
         let mut out = vec![0.0; self.light_table_rows() * LIGHT_TABLE_WIDTH * 4];
@@ -207,12 +217,17 @@ impl FrameLights {
             ]
         });
         let near = (0..self.local_count).map(|i| {
+            let at = self.local_positions.get(i);
+            let cone = self.local_cones.get(i);
+            let reach = self.local_reach.get(i).copied().unwrap_or(f32::MAX);
             [
-                self.local_positions.get(i).copied(),
+                at.map(|p| [p[0], p[1], p[2], reach]),
                 self.local_colours.get(i).map(three),
                 self.local_specular.get(i).map(three),
-                self.local_attenuation.get(i).map(three),
-                self.local_cones.get(i).copied(),
+                self.local_attenuation
+                    .get(i)
+                    .map(|a| [a[0], a[1], a[2], cone.map_or(0.0, |c| c[3])]),
+                cone.map(|c| [c[0], c[1], c[2], at.map_or(-2.0, |p| p[3])]),
             ]
         });
         for (row, texels) in out
@@ -239,6 +254,11 @@ impl FrameLights {
             self.local_colours.push(f(l.colour));
             self.local_attenuation.push(f(l.attenuation));
             self.local_cones.push([dx, dy, dz, e]);
+            self.local_reach.push(if l.reach < f64::from(f32::MAX) {
+                l.reach as f32
+            } else {
+                f32::MAX
+            });
         }
         self.local_count = self.local_positions.len();
     }
@@ -609,14 +629,17 @@ mod tests {
         }
         for i in 0..l.local_count {
             let r = l.count + i;
-            let [x, y, z, cut] = texel(r, 0);
+            let [x, y, z, reach] = texel(r, 0);
             let to = [x - p[0], y - p[1], z - p[2]];
             let d = dot(to, to).sqrt();
+            if d > reach {
+                continue;
+            }
             let u = to.map(|c| c / d);
-            let [a, b, c, _] = texel(r, 3);
+            let [a, b, c, e] = texel(r, 3);
             let den = a + b * d + c * d * d;
             let mut k = if den > 0.0 { 1.0 / den } else { 1.0 };
-            let [dx, dy, dz, e] = texel(r, 4);
+            let [dx, dy, dz, cut] = texel(r, 4);
             if cut > -1.5 {
                 let c = -dot(u, [dx, dy, dz]);
                 k *= if c < cut {

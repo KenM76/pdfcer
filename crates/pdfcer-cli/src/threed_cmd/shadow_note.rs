@@ -3,7 +3,7 @@
 use super::RenderThreeDArgs;
 use crate::{ShadowAlphaArg, ShadowCastersArg, ShadowLightArg};
 use pdfcer_3d::{
-    AssembledModel, Bounds, Camera, FrameExtraShadows, FrameLampShadows, RenderOptions,
+    AssembledModel, Bounds, Camera, FrameExtraShadows, FrameLampShadows, LampCut, RenderOptions,
     ShadowAlpha, ShadowCasters,
 };
 
@@ -41,6 +41,31 @@ pub(super) fn print(
         "note: lamp shadows: {}",
         lamp_shadows(a, model, camera, options)
     );
+    if let Some(reach) = lamp_reach(model, camera, options) {
+        println!("note: lamp reach: {reach}");
+    }
+}
+
+/// The `lamp reach` note: how far the model's point and spot lights carry
+/// (`--lamp-cut`); `None` without any.
+fn lamp_reach(model: &AssembledModel, camera: &Camera, options: &RenderOptions) -> Option<String> {
+    let lights = pdfcer_3d::FrameLights::for_model(camera, options, &model.lights).ok()?;
+    let n = lights.local_count;
+    if n == 0 {
+        return None;
+    }
+    Some(match options.lamp_cut {
+        LampCut::Off => format!("every one of {n} lamps reaches everywhere (--lamp-cut off)"),
+        LampCut::Auto => format!(
+            "each of {n} lamps stops where the rest of its light would change no pixel \
+             (--lamp-cut auto)"
+        ),
+        LampCut::Threshold(h) => format!(
+            "each of {n} lamps stops where it has faded to its share of {} 8-bit levels, \
+             so up to that much of their light is left out of any point (--lamp-cut)",
+            f64::from(h) / 100.0
+        ),
+    })
 }
 
 fn lamp_shadows(
