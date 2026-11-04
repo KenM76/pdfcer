@@ -112,6 +112,24 @@ wherever it appears.*
 
 ## Shipped
 
+### `7760a3bf` `Pass 663.0`, 2026-11-04: the rich copy writer is hardened against hostile font names, controls, sizes and size (`X040`) (1421st filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `7760a3bf` "fix(copy): harden the rich copy writer against hostile font names, controls, sizes and size (X040, Pass 663.0)", local `main`. Core + CLI `copy-text`; gui is `pdfcer-gui`'s (FEATURES gui box left as it was). Written fresh in pdfcer: no PdfCraft fix existed; PdfCraft ports it (decision 215). Carried by `v0.128.0`, which is being cut (not yet filed as published).
+- **Hardened:** font names escaped in HTML style text and the RTF font table; C0 controls stripped except tab and newline; font sizes finite, clamped to 1-1638 pt, fallback 12; arithmetic checked; no panic path.
+- **Caps:** 10,000 paragraphs, 10,000 spans, 1 MiB of text, 32 MiB of output per format. Over a cap, output is truncated at a whole span and stays well-formed.
+- **API:** new `RichTextOutcome.truncated` and seven `RICH_COPY_*` constants. CLI copy prints `truncated=` and a stderr note (disclosed, rule 4).
+- **Engineer-reported tests:** 9 synthetic tests, each sabotage-verified. `docs/core-api` §8.4.4c updated.
+- **Boxes:** FEATURES "Copy text with its formatting and paragraphs" row: pointer replaced by the shipped description; core `[x]`, cli `[x]`, gui unchanged.
+
+### `d77620b6` `Pass 660.0`, 2026-11-04: `/Info` entries of any name, `/Creator`, XMP kept in step (`G266`) (1421st filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `d77620b6` "feat(edit): /Info entries of any name, /Creator, XMP kept in step", local `main`. Core + CLI; gui is `pdfcer-gui`'s. Operator request `O381`; not PdfCraft-originated. Built from the spec-RAG `xmp__ref__info_to_xmp_mapping.md` and `xmp__ref__packet_and_dates.md`.
+- **Core:** `EditSession::set_info_entry(key, Option<&str>)` sets or removes any `/Info` key; refuses Producer, CreationDate, ModDate, Trapped, empty keys, keys with a NUL, keys over 127 bytes. `InfoField::Creator`; `info_entries()`; `set_xmp_sync` / `xmp_sync`. `set_info_field` now returns `InfoEditOutcome`, stating why the XMP packet was skipped (off, signed, PDF/A custom key, unrepresentable, unreadable).
+- **Defaults:** mirroring on. A signed document's packet is left alone and reported. Other-language alternates that repeated the old value are dropped. Author is one whole entry, with an option to split on `;`. Custom keys skipped on PDF/A-1/2/3, allowed on PDF/A-4. Dates are never auto-set.
+- **CLI:** `set-info` gains `--creator`, `--set KEY=VALUE`, `--remove KEY` and four `--xmp*` options, and prints every skipped sync. New `list-info [--json]`. README now counts 244 subcommands.
+- **Engineer-reported tests:** 16 core unit, 10 core integration, 3 new CLI integration. One undo step per edit restores `/Info` and the packet byte-identically. `docs/core-api/02` updated.
+- **Boxes:** FEATURES Planned row removed; folded into the Implemented "Edit document metadata (`/Info`)" row (core `[x]`, cli `[x]`; gui stays as it was, with the new parts stated as owed to `pdfcer-gui`).
+
 ### `f8da53ad` `Pass 662.0`, 2026-11-04: a surface at a multisampled silhouette's edge samples survives the depth prepass (1420th filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `f8da53ad` "fix(3d): keep a surface at a multisampled silhouette's edge samples under the depth prepass (Pass 662.0)", local `main`, not pushed at filing, after `5a1dd9ac`. Opened and shipped in one session. Core only (`pdfcer-3d` engine shader); cli `—`; gui follows when `pdfcer-gui` bumps. Unreleased.
@@ -119,7 +137,7 @@ Engineer-reported; no shell here, git state not checked from here. Commit `f8da5
 - **Cause:** `prepass_hidden` in `pdfcer_3d::GLSL_ES_300_FRAGMENT` compared a fragment with the nearest prepass depth over its 3x3 neighbourhood. On a multisampled target, a surface showing only at silhouette edge samples was discarded and the clear colour showed through.
 - **Fix:** each neighbour is compared with the fragment's own depth extrapolated along `dFdx`/`dFdy`, tolerance 2^-20 + 0.25·|slope|. Single-sample output unchanged; host contract unchanged; no manifest change.
 - **Engineer-reported tests:** new `a_neighbour_is_compared_with_this_surface_carried_along_its_slope`; 31 `pdfcer-3d` `gpu_` tests pass; clippy `-D warnings`, fmt, code-structure clean. The `gpu_prepass` module docs no longer quote the old 2,582-pixel residual.
-- **Not GPU-measured here** (operator using the PC; no shader compiler in the workspace). `pdfcer-gui` asked, via `notice_2026-11-04_prepass_silhouette_outline_fixed.md`, to re-run ui-verify `model_skip_hidden` at 4x MSAA.
+- **GPU-measured (1421st filing, engineer-reported, recorded in `ccf24788`; replaces the 1420th "not GPU-measured"):** moderngl harness compiling the shipped GLSL, headless, Bancroft plan at 1280x800, Intel Arc. At 4x MSAA, spread 1: 331 of 1,024,000 pixels differ (max 44/255), against 2,582 pixels (max 120) before. Frame time 11.37 -> 3.23 ms. Single-sample output identical. `pdfcer-gui` was asked, via `notice_2026-11-04_prepass_silhouette_outline_fixed.md`, to re-run ui-verify `model_skip_hidden` at 4x MSAA.
 - **Boxes:** FEATURES row "GPU depth prepass" (`Pass 658.12`) amended in place: its "4x MSAA silhouettes can differ" caveat replaced by this fix; core `[x]`, gui stays `[ ]`.
 
 ### `a6a1ed44` `Pass 661.0`, 2026-11-04: an object stream that fails to decode is tried once per load (`X039`) (1419th filing)
@@ -25894,24 +25912,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Head (1420th filing): `Pass 660.0` (`G266`) and `Pass 663.0` (`X040`), below. `Pass 661.0` (`X039`, `a6a1ed44`) and `Pass 662.0` (`f8da53ad`) are SHIPPED (see *Shipped*). The next release (`v0.127.1` or `v0.128.0`, writes OneDrive `pdfcer2`; `v0.127.0` PUBLISHED) waits on `G266` / `Pass 660.0` and `X040` / `Pass 663.0`.** The older banners that follow are history.
-
-> **`Pass 663.0` (`X040`): rich copy writer hardening**
->
-> IN PROGRESS (a worker is implementing it). Request file `open/request_X040_rich_copy_writer_hardening.md` is the authority. Written fresh in pdfcer: PdfCraft has no fix for it (decision 215). ID `663.0` grepped across `docs/*.md` before filing: no prior use.
-> - **Scope:** the rich copy writers (HTML, CF_HTML, RTF): CSS-escape font families; drop C0 controls and NUL; escape `;` and `{}\` in the RTF font table; sizes finite and clamped to 1-1638 pt; checked sums; span, paragraph and output-byte caps with well-formed truncation; never panic.
-> - **Surfaces:** core (`EditableTextModel::rich_text`); the CLI `copy-text` reaches it unchanged. gui is `pdfcer-gui`'s.
-> - **FEATURES:** the existing "Copy text with its formatting and paragraphs" row carries a pointer; no new row.
-
-> **`Pass 660.0` (`G266`, operator `O381`): custom `/Info` entries, `/Creator`, and XMP kept in step with `/Info`**
->
-> NOT STARTED. From `pdfcer-gui` (request file `open/request_G266_metadata_custom_entries_and_xmp_in_step.md` is the authority; criteria here are as relayed). Not PdfCraft-originated, so decision 215 does not apply. ID `660.0` grepped across `docs/*.md` before filing: no prior use (not run through `check-ledger-numbers.py`). Spec: ISO 32000-1 §14.3.2 (XMP `/Metadata`). **Spec-librarian has delivered (1418th filing):** `D:\Dev\Rag-Specialized\PDF_Spec\xmp\xmp__ref__info_to_xmp_mapping.md` and `xmp__ref__packet_and_dates.md` (the `/Info`-to-XMP mapping and packet/date rules the build must follow), and corrected `iso32000__s__14.3.md`. Build from those files, not memory (rule 1).
-> - **Write:** `/Info` entries of any name, plus `/Creator`: set, rename, remove. Refused, named in `EditError`: `Producer`, `CreationDate`, `ModDate`, `Trapped`, and non-name keys. One undo entry per edit; a no-op records nothing.
-> - **Read:** the full value of every `/Info` entry, including unsaved edits.
-> - **XMP in step:** `/Metadata` updated in the same undo entry as the `/Info` edit, or an outcome saying why it could not be. Custom keys map to `pdfx:<key>`. Disclosed, never silent (rule 4).
-> - **Acceptance:** (1) a title set on a file with XMP reads back new from both `/Info` and `dc:title`; (2) a custom entry added, edited and removed round-trips save + reopen; (3) each of those is one undo.
-> - **Surfaces:** core (+ `docs/core-api/`); CLI subcommand per rule 11. gui is `pdfcer-gui`'s.
-> - **FEATURES:** Planned row added (core/cli/gui unticked).
+> **Head (1421st filing): no open Pass at the head. `Pass 660.0` (`G266`, `d77620b6`), `661.0` (`X039`), `662.0` (`f8da53ad`) and `663.0` (`X040`, `7760a3bf`) are SHIPPED (see *Shipped*). `v0.128.0` is BEING CUT (bump `7d02540a`), carrying `X039`, `662.0`, `G266` and `X040`; not yet tagged or published as far as this filing knows; the release filing comes later. Release slot: OneDrive `pdfcer2` per the earlier banner (not re-verified here).** The older banners that follow are history.
 
 > **Next up head (rewritten 1355th filing; `Pass 647.3e` `53f4e938` and `Pass 647.2c` `ead2642a` SHIPPED and released in `v0.111.0`, published): `Pass 648.6` (`G245` part 2, /MA measurements, spec-RAG check first).** `Pass 647.3f` (dataRef-bound and subform-set instances, residue of `647.3e`) and `Pass 647.4` stay in the Backlog, not yet ordered. Release slot: next release writes `pdfcer1` (`pdfcer2` holds 0.111.0, `pdfcer1` holds 0.110.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
 

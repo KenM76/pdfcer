@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-04 (1421st filing) — `Pass 660.0` (`G266`) and `Pass 663.0` (`X040`) shipped; `662.0` measured; `v0.128.0` being cut
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, I commit nothing):**
+- **`Pass 660.0` SHIPPED `d77620b6`:** custom `/Info` entries, `/Creator`, XMP kept in step; `set-info` options, new `list-info`; 16 + 10 + 3 tests. Details in ROADMAP *Shipped*. FEATURES: Planned row removed, folded into the Implemented metadata row (core/cli `[x]`, gui not ticked for the new parts).
+- **`Pass 663.0` SHIPPED `7760a3bf`:** rich copy writer hardening, written fresh (decision 215; PdfCraft ports it). 9 sabotage-verified tests. FEATURES rich-copy row: pointer replaced; gui box unchanged.
+- **`Pass 662.0` correction:** "not GPU-measured" replaced by the measurement from `ccf24788` (331 vs 2,582 differing pixels of 1,024,000; frame 11.37 -> 3.23 ms; single-sample identical) in ROADMAP and the FEATURES depth-prepass row.
+- **Release:** `v0.128.0` being cut (bump `7d02540a`), carrying `X039`, `662.0`, `G266`, `X040`. Not recorded as published; release filing later.
+- **`X041`:** arrived addressed to `pdfcer-gui` (its gui-base clipboard); pdfcer has no Pass for it. Mentioned here only.
+- **Files:** `ROADMAP.md`, `FEATURES.md`, `SESSION_LOG.md`.
+
+**Owed / open:** `tools/check-register-entry-size.py` and `check-ledger-numbers.py` not run from here; run them. Doc-comment survivors of the old "not GPU-measured" claim not swept beyond ROADMAP/FEATURES. FEATURES.md has 75 long lines by raw grep (pre-existing noisy proxy). Backup currency not verifiable from here. Next filing 1422nd.
+
 ## 2026-11-04 (1420th filing) — `Pass 662.0` (`f8da53ad`) shipped; `Pass 663.0` (`X040`) opened
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, I commit nothing):**
