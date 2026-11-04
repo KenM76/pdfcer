@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `b5cb78eb` `v0.126.0` PUBLISHED, 2026-11-04, with `1035130f` rustdoc fix; **CI RED at the tag commit** (1413th filing)
+
+Engineer-reported; no shell here, nothing checked from here (GitHub, crates.io, OneDrive and git state all as reported). Carries `Pass 658.17` (`fb98413e`, `X033`), `Pass 658.18` (`21800243`, `G265`) and `Pass 658.19` (`d481d708`, `X034`), all filed earlier (1410th-1412th).
+- **Bump:** `b5cb78eb` "chore: release v0.126.0". **Tag:** `v0.126.0` on `b5cb78eb`.
+- **CI RED at the tag commit, stated honestly:** run `41797526556`, single failing job "cargo doc, broken intra-doc links denied": the link to `Tessellation::Compressed` in `crates/pdfcer-3d/src/model.rs` (line 39) did not resolve. **Fixed in `1035130f`** "fix(3d): resolve the Tessellation::Compressed intra-doc link in model.rs": the link is now `[`Tessellation::Compressed`](crate::tess::Tessellation::Compressed)`. Engineer-reported check: `RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links" cargo doc --workspace --no-deps` gives 0 errors. Doc comment only: no code change, no test change, no FEATURES row affected. **The tag was NOT moved** (moving a published tag needs operator approval), so `v0.126.0` points at the red commit and the fix is one commit after it. CI green at `1035130f` is not recorded here.
+- **Process miss, a RECURRENCE of the `v0.123.0` class:** the local release sweep ran tests, fmt and clippy but not the CI rustdoc-link-deny job. `v0.123.0` (1404th) was red on a different CI job (CLI `--no-default-features`), but the cause is the same: the local sweep did not run every job CI runs. CI's job list is the authority, and `tools/run-gates.sh` is the sweep that is meant to mirror it (existing engineer memory "a gate sweep certifies the tree it ran on"). No new rule minted by this filing. Open question for the engineer: whether `run-gates.sh` should include the rustdoc deny job.
+- **GitHub release:** 8 assets (portable zip + sha256, three OCR add-on zips + sha256).
+- **OneDrive:** CLI slot `pdfcer2` = 0.126.0; `pdfcer1` keeps 0.125.0. **The next release writes `pdfcer1`.**
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.126.0 published (engineer-verified via the crates.io API).
+- **Fresh-folder smoke** (`/d/builds/smoke-v0.126.0`): `--version` 0.126.0; `3d-mesh` on the Bancroft 3D plan OK; bookmark paste OK.
+- **Notice:** `FeatureRequests open/notice_2026-11-04_v0.126.0_released.md`, INDEX row added.
+- No box changes. Nothing minted. No `Cargo.toml` dependency change. Ledgers: no decision; next filing 1414th.
+
 ### `21800243` `Pass 658.18`, 2026-11-04: draw what survives of a damaged 3D model, disclose the loss (`G265`, operator `O374`) (1412th filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `21800243` "feat(3d): draw what survives of a damaged PRC model, disclose the loss (G265)", cherry-picked onto local `main` from agent commit `dea8fbce`, not pushed; rides `v0.126.0` with `658.17` (`fb98413e`) and `658.19` (`d481d708`) if it lands. Inbound request `G265` (reply `open/reply_G265_damaged_model_salvage_SHIPPED.md`, being written by the operator). No decision record.

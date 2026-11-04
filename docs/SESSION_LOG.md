@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-04 (1413th filing) — `v0.126.0` published; CI red at the tag, fixed in `1035130f`
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed by me; no new Passes, no FEATURES change):**
+- **`v0.126.0`:** bump and tag commit `b5cb78eb`. Carries `Pass 658.17` (`fb98413e`, `X033`), `658.18` (`21800243`, `G265`), `658.19` (`d481d708`, `X034`). GitHub release with 8 assets; OneDrive CLI slot `pdfcer2` = 0.126.0 (`pdfcer1` keeps 0.125.0, so the NEXT release goes to `pdfcer1`); crates.io `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.126.0 (engineer-verified via the crates.io API). Fresh-folder smoke from `/d/builds/smoke-v0.126.0`: version 0.126.0, `3d-mesh` on the Bancroft 3D plan OK, bookmark paste OK. Notice `FeatureRequests open/notice_2026-11-04_v0.126.0_released.md`, INDEX row added.
+- **CI RED at tag `b5cb78eb`:** run `41797526556`, one job, "cargo doc, broken intra-doc links denied". Cause: unresolved `Tessellation::Compressed` link at `crates/pdfcer-3d/src/model.rs:39`. Fix `1035130f` (path-qualified link); workspace `RUSTDOCFLAGS="-D rustdoc::broken_intra_doc_links" cargo doc --workspace --no-deps` gives 0 errors (engineer-reported). Doc comment only. **Tag not moved** (needs operator approval); CI result for `1035130f` not recorded here.
+- **Recurrence:** same class as `v0.123.0` (1404th): the local release sweep did not run every job CI runs (here the rustdoc link-deny job; there the CLI `--no-default-features` build). Different job, same gap. No rule minted.
+- **ROADMAP:** release entry added at the top of Shipped. FEATURES: no row change.
+
+**Owed / open:** whether `tools/run-gates.sh` should include the rustdoc deny job (engineer to decide); the earlier stray uncommitted local files (agent-memory, stray `-` file, `docs/research/request-*.md`) were still untracked in the session-start git status; `crates/` doc-comment survivors not checked from here. Backup currency not verifiable from here. Next filing 1414th.
+
 ## 2026-11-04 (1412th filing) — `Pass 658.18` (`21800243`, `G265`): damaged 3D models draw, loss disclosed
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed by me):**
