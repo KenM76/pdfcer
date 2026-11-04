@@ -686,6 +686,7 @@ the model or verb exists and only the named shell is missing. The
 | core | cli | gui | Acrobat | Feature |
 |:----:|:---:|:---:|:-------:|---------|
 | [ ] | [ ] | [ ] | ? | **Custom document-info entries and XMP kept in step** — `/Info` entries of any name plus `/Creator` set, renamed, removed (Producer, CreationDate, ModDate, Trapped refused); full-value read including unsaved edits; XMP (`/Metadata`) updated in the same undo entry, or the reason it could not be. `Pass 660.0` (`G266`), *Next up*. |
+| [ ] | — | — | — | **A damaged object stream is tried once per load** — an object stream that fails to decode is not re-decoded for every object inside it. Core only (no verb). `Pass 661.0` (`X039`), in progress. |
 | [ ] | [ ] | [ ] | ? | **Make a 3D PDF from an OBJ or STL mesh** — same PRC writer as the glTF row (shipped, `Pass 648.0`); OBJ/MTL colours, STL uncoloured (default disclosed). `Pass 648.1`, *Next up*, after 648.0. |
 | [ ] | [ ] | [ ] | ? | **3D units and the other measurement kinds** — 3D units `/3DU` (Table 325); `3d-views --measure` for perpendicular, angular, radial and comment measurements (the core writes them; the CLI writes linear only); comment-linked measurements. `Pass 648.7`, Backlog. |
 | [x] | — | [ ] | [x] | **Insert a page named twice as separate copies** — a repeated source index in `insert_pages` now gets its own independent copy, as Acrobat does (was a page-tree cycle). Defect fixed, `Pass 567.0` (`G185`). GUI: `pdfcer-gui` still has a workaround to delete. |

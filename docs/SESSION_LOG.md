@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-04 (1418th filing) — `v0.127.0` published (tag on `7d8aedb8`); `Pass 661.0` (`X039`) opened; `Pass 660.0` names its spec deliverables
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, I commit nothing):**
+- **`v0.127.0` PUBLISHED:** tag on `7d8aedb8`, bump `bfbbe9f6`; carries `658.20` (`de68b8c7`), `658.21` (`91665b7f` + `9248293f`), `659.0` (`c102b748`). Package `D:\builds\pdfcer-20261104-0949-7d8aedb` (57,958,721 bytes), fresh-folder smoke ok; GitHub release 8 assets; OneDrive `pdfcer1` written (77,580,763 bytes), `pdfcer2` keeps 0.126.0, so the NEXT release writes `pdfcer2`; crates.io `pdfcer-color`/`-model`/`-pkix` 0.127.0; channel notice + INDEX row. `verify-release.py` all ok incl. CI green at the tag, except "working tree clean" (expected).
+- **Pre-tag, two gate failures found and fixed before tagging** (CLI zero-alpha 3D test via `9248293f`; FEATURES `copy-page` row size). The local sweep this time covered the rustdoc-deny and no-default-features jobs, the two that turned `v0.123.0` and `v0.126.0` red; no rule minted.
+- **Housekeeping, operator-asked ("keep load light"):** ~38 GB `target/debug/incremental`, two superseded builds and the publish target dir deleted; D: free 28 GB to 96 GB; builds now `CARGO_BUILD_JOBS=2`, `CARGO_INCREMENTAL=0`.
+- **`Pass 661.0` (`X039`)** opened IN PROGRESS: object stream that fails to decode is tried once per load. From PdfCraft; decision 215 applied as "write fresh" (PdfCraft's `perf/failed-object-cache` fix is in its own `cos` parser). `661.0` grepped across `docs/` before filing: unused (not run through `check-ledger-numbers.py`). New FEATURES Planned row: core `[ ]`, cli `—`, gui `—` (I read "cli/gui unticked" as no verb; change to `[ ]` if a CLI surface is intended).
+- **`Pass 660.0` (`G266`)** entry now names the spec-librarian's deliverables: `PDF_Spec/xmp/xmp__ref__info_to_xmp_mapping.md`, `xmp__ref__packet_and_dates.md`, and the corrected `iso32000__s__14.3.md`. Files not opened from here.
+
+**Owed / open:** `tools/check-register-entry-size.py` not run from here; re-run it. Doc-comment survivors not checked; backup currency not verifiable from here. Next filing 1419th.
+
 ## 2026-11-04 (1417th filing) — `9248293f` (658.21 follow-up) filed; `v0.127.0` bump `bfbbe9f6` recorded; FEATURES row trimmed; `Pass 660.0` (`G266`) opened
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, I commit nothing):**

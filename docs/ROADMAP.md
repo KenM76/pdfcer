@@ -112,7 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
-### `bfbbe9f6` `v0.127.0` version bump filed, 2026-11-04; release PENDING (1417th filing)
+### `7d8aedb8` `v0.127.0` PUBLISHED, 2026-11-04 (1418th filing)
+
+Engineer-reported; no shell here, nothing checked from here (GitHub, crates.io, OneDrive, CI and git state all as reported). Tag `v0.127.0` on `7d8aedb8` (the 1417th filing commit); version bump `bfbbe9f6`. Carries `Pass 658.20` (`de68b8c7`), `Pass 658.21` (`91665b7f` + `9248293f`), `Pass 659.0` (`c102b748`), all filed earlier (1415th-1417th).
+- **Pre-tag, two `run-gates.sh` failures, both fixed before tagging:** CLI test `three_d::a_zero_material_alpha_is_drawn_opaque_by_default_and_disclosed` (fixed by `9248293f`); `check-register-entry-size` on the FEATURES `copy-page` row (trimmed in the 1417th). Then `cargo test --workspace --no-fail-fast` green (38 test binaries ok); rustdoc with `-D rustdoc::broken_intra_doc_links` clean; `cargo check -p pdfcer-cli --target x86_64-unknown-linux-gnu` clean; CI no-default-features steps for the changed crates green (clippy `pdfcer-cli`; `pdfcer-3d` 252 tests; `pdfcer-cli` bin 91 tests). This time the local sweep included the rustdoc-deny and no-default-features jobs (the two jobs that turned `v0.123.0` and `v0.126.0` red).
+- **Package:** `D:\builds\pdfcer-20261104-0949-7d8aedb` (57,958,721 bytes). Fresh-folder smoke: `--version` = 0.127.0; `render-page` on a fixture wrote a PNG; `3d-render --help` ok.
+- **GitHub release `v0.127.0`:** 8 assets (`pdfcer-v0.127.0-windows-x64.zip` + 3 OCR add-on zips, each with `.sha256`), uploaded at local sizes.
+- **OneDrive:** `pdfcer1` = 0.127.0 (77,580,763 bytes); `pdfcer2` keeps 0.126.0. **The next release writes `pdfcer2`.**
+- **`verify-release.py`:** all ok, CI GREEN at the tagged commit, except "working tree clean" (expected: in-flight `X039` worker and excluded local files).
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.127.0 published, from a detached worktree.
+- **Channel:** `open/notice_2026-11-04_v0.127.0_released.md` + INDEX row; `X035`-`X037` rows now say "released in v0.127.0".
+- **Housekeeping (operator: "keep load light; free up space from old builds"):** deleted `target/debug/incremental` (~38 GB), two superseded builds in `D:\builds` (`20261103-2020-912437c`, `20261103-2347-88cfe53`, with their add-on zips) and the publish target dir; D: free 28 GB to 96 GB. Builds now run with `CARGO_BUILD_JOBS=2`, `CARGO_INCREMENTAL=0`.
+- No box changes. Nothing minted.
+
+### `bfbbe9f6` `v0.127.0` version bump filed, 2026-11-04; release PENDING (1417th filing; PUBLISHED, see the entry above, 1418th)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `bfbbe9f6` "chore: release v0.127.0" (version bump to 0.127.0). **Not yet published:** no tag, GitHub release, crates.io or OneDrive write is recorded here; a later filing records them. The tag will go on the HEAD after this filing. Carries (unreleased since `v0.126.0`): `Pass 658.20` (`de68b8c7`), `Pass 658.21` (`91665b7f`, with follow-up `9248293f` after the bump), `Pass 659.0` (`c102b748`). The next release writes OneDrive `pdfcer1` (`pdfcer2` holds 0.126.0). No box changes.
 
@@ -25861,11 +25874,16 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Head (1417th filing): `Pass 660.0` (`G266`), below.** The older banners that follow are history.
+> **Head (1418th filing): `Pass 660.0` (`G266`), then `Pass 661.0` (`X039`, IN PROGRESS), both below; both ride the next release (`v0.128.0` or later, writes OneDrive `pdfcer2`; `v0.127.0` PUBLISHED, see *Shipped*).** The older banners that follow are history.
+
+> **`Pass 661.0` (`X039`): an object stream that fails to decode is tried once per load, not once per object**
+>
+> IN PROGRESS (engineer). From PdfCraft ("operator (crates consumer)"). Core. ID `661.0` grepped across `docs/*.md` before filing: no prior use (not run through `check-ledger-numbers.py`). **Decision 215 applied, and it comes out "write fresh":** PdfCraft's fix is on its branch `perf/failed-object-cache`, but it lives in PdfCraft's own `cos` parser, which pdfcer does not have, so there is nothing to adopt; pdfcer writes it in its own loader and the `SHIPPED` reply states that. Acceptance beyond the title is as relayed; the request file is the authority.
+> - **FEATURES:** Planned row added (core only; cli/gui not applicable, no verb).
 
 > **`Pass 660.0` (`G266`, operator `O381`): custom `/Info` entries, `/Creator`, and XMP kept in step with `/Info`**
 >
-> NOT STARTED. From `pdfcer-gui` (request file `open/request_G266_metadata_custom_entries_and_xmp_in_step.md` is the authority; criteria here are as relayed). Not PdfCraft-originated, so decision 215 does not apply. ID `660.0` grepped across `docs/*.md` before filing: no prior use (not run through `check-ledger-numbers.py`). Spec: ISO 32000-1 §14.3.2 (XMP `/Metadata`); dispatch `pdfcer-spec-librarian` before building the `/Info`-to-XMP mapping.
+> NOT STARTED. From `pdfcer-gui` (request file `open/request_G266_metadata_custom_entries_and_xmp_in_step.md` is the authority; criteria here are as relayed). Not PdfCraft-originated, so decision 215 does not apply. ID `660.0` grepped across `docs/*.md` before filing: no prior use (not run through `check-ledger-numbers.py`). Spec: ISO 32000-1 §14.3.2 (XMP `/Metadata`). **Spec-librarian has delivered (1418th filing):** `D:\Dev\Rag-Specialized\PDF_Spec\xmp\xmp__ref__info_to_xmp_mapping.md` and `xmp__ref__packet_and_dates.md` (the `/Info`-to-XMP mapping and packet/date rules the build must follow), and corrected `iso32000__s__14.3.md`. Build from those files, not memory (rule 1).
 > - **Write:** `/Info` entries of any name, plus `/Creator`: set, rename, remove. Refused, named in `EditError`: `Producer`, `CreationDate`, `ModDate`, `Trapped`, and non-name keys. One undo entry per edit; a no-op records nothing.
 > - **Read:** the full value of every `/Info` entry, including unsaved edits.
 > - **XMP in step:** `/Metadata` updated in the same undo entry as the `/Info` edit, or an outcome saying why it could not be. Custom keys map to `pdfx:<key>`. Disclosed, never silent (rule 4).
