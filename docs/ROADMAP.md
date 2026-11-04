@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `906896b2` `Pass 658.16`, 2026-11-03: mesh winding and normal sign follow the full 4x4 determinant (`X032`) (1408th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `906896b2` "fix(3d): mesh winding and normal sign follow the full 4x4 determinant (X032)". Inbound request `X032` (operator as crates consumer; reply `reply_X032_mesh_transform_winding_by_full_determinant_SHIPPED.md` in the FeatureRequests `open/` folder). Local `main`; ships in `v0.125.0` (not yet tagged). No decision record. Pass number `658.16` assigned at this filing (grep of `docs/` for `658.16` found none before filing).
+- **Fixed:** `TriangleMesh::transformed` (`pdfcer-3d`, `src/tree/geometry.rs`) took its mirror test from the 3x3 determinant while `transform_point` divides by w, so a last row `(0,0,0,-1)` left triangles inside out and normals inverted. The flip and the normal sign now use sign(det4) (the projective map's Jacobian is det(M)/w^4, so orientation is sign(det M) on both sides of w=0). A zero last row or NaN keeps the 3x3 rule. No pub signature change; doc comment updated.
+- **Departure from the request's acceptance, recorded here:** the request expected row `(0,0,1,-3)` to flip only for z<3. Its det is -3, so it mirrors on both sides; the test pins that. `(0,0,-1,3)` (det +3) flips for neither.
+- **Tests:** 3 new synthetic, sabotage-verified with two sabotages (engineer-reported). `pdfcer-3d` lib 375 passed (default features), 240 (`--no-default-features`); clippy `-D warnings` clean for `pdfcer-3d` and `pdfcer-cli` in both feature sets; fmt and code-structure clean.
+- **Boxes:** core `[x]`, cli `—` (`3d-render` / `3d-mesh` inherit), gui untouched. FEATURES: no row change (no row describes mesh mirroring).
+- **Full gate run at `e320e645` (after the 1407th filing), engineer-reported:** `run-gates.sh` 48/49 green. The one failure was `check-register-entry-size`: the 1407th filing's added clause put the FEATURES row "Export an embedded PRC 3D model's tessellation as a mesh (STL/OBJ)" at 1,233 characters (cap 1,200). The engineer trimmed that row in the working tree; the trim is kept and not re-lengthened here.
+
 ### `e320e645` `v0.125.0` version bump filed, 2026-11-03; release PENDING (1407th filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `e320e645` "chore: bump version to 0.125.0". Carries `Pass 658.13` (`eb91233d`, `X031`), `Pass 658.14` (`bafc19d4`, `X030`), `Pass 658.15` (`3f86c024`, `X029`), filed in this same 1407th filing. No `Cargo.toml` dependency change, so `cargo tree` is unaffected.

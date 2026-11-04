@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1408th filing) — `Pass 658.16` (`906896b2`, `X032`): mesh winding by full 4x4 determinant; release PENDING
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed by me):**
+- **`Pass 658.16` (`906896b2`, `X032`):** `TriangleMesh::transformed` now takes the triangle flip and normal sign from sign(det4), not the 3x3 determinant, so a last row `(0,0,0,-1)` no longer leaves triangles inside out. Zero last row or NaN keeps the 3x3 rule. No pub signature change. **Departure from the request:** row `(0,0,1,-3)` has det -3 so it mirrors on both sides of w=0 (the request expected z<3 only); `(0,0,-1,3)` flips for neither; tests pin both. 3 tests, two sabotages verified.
+- **Engineer-reported figures:** `pdfcer-3d` lib 375 passed (default), 240 (`--no-default-features`); clippy `-D warnings` clean for `pdfcer-3d` and `pdfcer-cli` both feature sets; fmt and structure gate clean.
+- **Gate note:** `run-gates.sh` at `e320e645` was 48/49; failure `check-register-entry-size`, the PRC tessellation-export FEATURES row at 1,233 chars (cap 1,200) from the 1407th filing's clause. Engineer trimmed it (uncommitted); kept, not re-lengthened.
+- **Boxes:** core `[x]`, cli `—`, gui untouched. FEATURES: no row change.
+- **Ledgers:** no decision. Next filing 1409th.
+
+**Owed / open:** `v0.124.0` and `v0.125.0` tag and release not recorded as done; `crates/` doc-comment survivors not checked from here. Backup currency not verifiable from here.
+
 ## 2026-11-03 (1407th filing) — `Pass 658.13`/`658.14`/`658.15` (`X031`/`X030`/`X029`) and `v0.125.0` bump `e320e645`; release PENDING
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed by me):**
