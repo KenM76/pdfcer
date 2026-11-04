@@ -112,6 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
+### `ece1c15e` `Pass 658.11`, 2026-11-03: bounded per-fragment lamp work, with a lamp-cut setting (`G263`) (1403rd filing)
+
+Engineer-reported (measured); no shell here, git state not checked from here. Commit `ece1c15efe76c26f340d8db5f9f3a4bf0b804c6b` "perf(3d): bounded per-fragment lamp work, with a lamp-cut setting (Pass 658.11, G263)". Request from `pdfcer-gui` (`request_G263_every_fragment_shades_every_lamp.md`; reply `reply_G263_bounded_lamp_work_and_lamp_cut_SHIPPED.md`). Local `main`; release `v0.123.0` follows carrying it (filed separately). No decision record; reasoning is in the commit message.
+- **Operator direction (Ken, 2026-11-03):** the cut must be per-file automatic AND a manual setting: "a gradient setting not just an on off switch ... We want an automatic setting, but also a threshold setting and an off setting." Purpose: the GUI will have separate render settings for navigation and for screenshots of views (screenshots super high quality); each `RenderOptions` carries its own `lamp_cut`.
+- **Shader (`GLSL_ES_300_FRAGMENT`):** one fused lamp loop (diffuse and specular together), so each lamp's fade, cone and 9-tap lamp shadow are computed once instead of twice. Light-table lamp rows reordered so a lamp past its reach or outside its cone is rejected after 2 fetches: texel 0 `[pos xyz, reach]`, 1 colour, 2 specular, 3 `[attenuation c,l,q, cone exponent]`, 4 `[cone dir xyz, cut cos or -2]`. The GUI uploads `light_table()` opaquely, so this is non-breaking for it.
+- **API (`pdfcer-3d`):** `pub enum LampCut { Auto (default), Threshold(u16 hundredths of an 8-bit level), Off }`, `LampCut::AUTO_HUNDREDTHS` = 50, `LampCut::hundredths()`; new `RenderOptions::lamp_cut`; new `FrameLights::local_reach: Vec<f32>`. Each lamp stops where fade x brightest diffuse/specular channel falls to cut / lamp count, so stopped lamps together leave at most the cut out of any point (material colours <= 1). `Auto` = half a level (no pixel changes), computed per loaded model from its own lamps. CPU (`model_shade` `Local::reach`) and GPU apply the same cut.
+- **CLI:** `pdfcer 3d-render --lamp-cut auto|off|<levels 0-255>`, disclosed as `note: lamp reach: ...` (a `Threshold` states its bound; fuzzy-never-sneaky).
+- **Core-api:** `docs/core-api/01-reading-and-model.md` updated (`LampCut`, `local_reach`, table layout); `index.md` line count 4,850.
+- **Measured:** Bancroft_3D_plan (64 lamps): about 33 lamps reach the average point even at `Auto`, so `Auto`'s gain there is the fused loop and early rejects; `Threshold` is the speed lever. Not timed on an Adreno (SwiftShader harness only). GPU parity WebGL 2 vs CPU (40 suns + 40 lamps, headless Edge SwiftShader): mean 0.018 levels, unchanged.
+- **Tests (engineer-reported):** `pdfcer-3d` 350 lib + 3 + 25 (default features), 225 + 3 + 14 (`--no-default-features`); `pdfcer-cli` `--bin pdfcer` 85, `--test all` 1,031 passed (2 ignored), including new `a_lamp_cut_is_reported_and_drawn` (out-of-crate; proves the flag reaches the renderer). New unit tests in `model_shade`: `a_lamps_reach_is_where_its_light_falls_to_the_floor`, `the_lamps_past_their_reach_together_remove_under_half_a_level`.
+- **Gates (engineer-reported):** clippy `-D warnings` clean (default and `--no-default-features`), fmt clean, `cargo doc` clean, check-code-structure, check-core-api-verbs, check-public-fns-documented, check-suite-name-absent, check-panic-allows clean. No manifest change, so `cargo tree` unaffected. Gotcha: the `LampCut` re-export needed `#[cfg(feature = "render")]`; the `--no-default-features` build caught it.
+- **Boxes:** core `[x]`, cli `[x]`, gui `[ ]` (`pdfcer-gui` has not wired it). New FEATURES row after the lamp-shadow row.
+- **Filed:** Backlog `Pass 658.12` (overdraw; awaiting the GUI's choice).
+- **Meaning change swept:** the "up to 16 / every lamp shades in full" wording: FEATURES rows 556-557 describe lamp counts and shadows, not per-fragment cost, left. Survivors in `crates/` (shader and rustdoc describing the old two-loop or old texel order) not checked from here: engineer should grep `crates/pdfcer-3d` for the old light-table row layout.
+
 ### `v0.122.0` PUBLISHED, 2026-11-03 (1402nd filing); tag on `c7226cd8`, CI green at the commit
 
 Engineer-reported; no shell here, nothing checked from here (tag, release, crates, OneDrive and CI are the engineer's report, not looked at by me). Carries only `Pass 658.9` (`G262`).
@@ -36722,6 +36737,10 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### `Pass 658.12` — overdraw: the fragment shader's `gl_FragDepth` write disables early-Z (BACKLOG; filed 1403rd filing; residue of `Pass 658.11`)
+
+Not started; **awaiting the `pdfcer-gui` choice** between the two options the engineer offered it. The GPU fragment shader writes `gl_FragDepth` (log depth), which disables early-Z / LRZ on tile GPUs, so every overlapping fragment is shaded in full before the depth test. Options: (1) a depth prepass, then shade with an EQUAL depth test; (2) a non-log-depth navigation variant (re-opens coplanar z-fighting). `Pass 658.12` was grep-checked unused in `docs/` before filing.
 
 ### `Pass 658.10` — render-time exposure (`RenderOptions`) (BACKLOG; filed 1401st filing; residue of `Pass 658.9`)
 

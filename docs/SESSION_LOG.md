@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-03 (1403rd filing) — `Pass 658.11` (`ece1c15e`): bounded per-fragment lamp work, with a lamp-cut setting
+
+**Filed (engineer-reported, measured; no shell here, git state not checked from here; docs only, nothing committed by me):**
+- **`Pass 658.11` (`G263`, from `pdfcer-gui`):** fused diffuse+specular lamp loop; light-table lamp rows reordered for 2-fetch early rejection; new `LampCut { Auto, Threshold(u16), Off }`, `RenderOptions::lamp_cut`, `FrameLights::local_reach`; CLI `3d-render --lamp-cut auto|off|<levels>` with `note: lamp reach:`. `Auto` = half a level per loaded model (no pixel changes).
+- **Operator direction (Ken):** per-file automatic AND manual threshold AND off, "not just an on off switch"; GUI will have separate navigation and screenshot render settings.
+- **Measured:** Bancroft (64 lamps) about 33 reach the average point at `Auto`; `Threshold` is the speed lever. GPU vs CPU parity 0.018 levels mean, unchanged. No Adreno timing.
+- **Tests/gates:** per the ROADMAP entry (engineer-reported, all passing, no manifest change).
+- **Boxes:** new FEATURES row after the lamp-shadow row: core `[x]`, cli `[x]`, gui `[ ]`.
+- **Filed:** Backlog `Pass 658.12` (overdraw: `gl_FragDepth` disables early-Z; awaiting GUI choice of depth prepass vs non-log-depth variant). Release `v0.123.0` to follow, filed separately.
+- **Owed / not done:** `crates/` survivor sweep for the old light-table texel order and two-loop wording not done from here; the earlier "normalise default" and "16" sweeps remain open. Backup currency not verifiable from here.
+
 ## 2026-11-03 (1402nd filing) — `v0.122.0` PUBLISHED (tag on `c7226cd8`)
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, nothing committed by me):**
