@@ -10,7 +10,6 @@ dup pdfcer-core::rect_object in pdfcer-core/src/annot_author.rs, pdfcer-core/src
 dup pdfcer-core::stage in pdfcer-core/src/redact.rs, pdfcer-core/src/text_edit/edit.rs
 dup pdfcer-image-codec::geometry_disagrees in pdfcer-image-codec/src/ccitt.rs, pdfcer-image-codec/src/jbig2.rs
 dup pdfcer-render::_types in pdfcer-render/src/emf.rs, pdfcer-render/src/svg.rs
-file pdfcer-3d/src/tess.rs
 file pdfcer-cli/src/annot_edit.rs
 file pdfcer-cli/src/arg_types.rs
 file pdfcer-cli/src/cli.rs

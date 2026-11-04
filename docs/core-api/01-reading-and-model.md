@@ -3405,10 +3405,11 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   Show clear or Removed set (WD 7.2.4.2) removes that face's triangles from
   the placed mesh, whatever its style; a shown one reveals a face an inner
   occurrence hid. Hidden faces are not counted in `overridden`.
-- **Assembly refusals.** A placement naming a tessellation its file
-  structure does not hold is `AssembleError::Prc(PrcError::Malformed)`
-  (wire, markup and compressed tessellations left out are still skipped
-  and counted). Placing copies each shared mesh once per placement, so the
+- **Assembly refusals.** Under `MeshFit::Unique`, a placement naming a
+  tessellation its file structure does not hold is
+  `AssembleError::Prc(PrcError::Malformed)`; under every other fit it is
+  damage (next bullet). Wire, markup and compressed tessellations left out
+  are skipped and counted. Placing copies each shared mesh once per placement, so the
   totals are capped before each copy: `AssembleError::PlacedTooLarge {
   what: &'static str, limit: usize }` past `pdfcer_3d::MAX_PLACED_TRIANGLES`
   (2^25) triangles or `MAX_PLACED_ATTRIBUTES` (2^25) vertex attributes
@@ -3417,6 +3418,27 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   Fixture: `fixtures/synthetic/prc/overridden.prc` — three copies; the
   first recoloured translucent blue, the second face 0 only, the third
   hidden. CLI: `3d-render --entity-overrides subtree|everywhere|ignore`.
+- **Damaged models draw what survives.** Under any `MeshFit` but `Unique`
+  (which refuses with `PrcError::Malformed`, as before), each defect drops
+  the smallest unit it corrupts and the rest draws: a point missing a
+  coordinate drops that point and every triangle or polyline using it; a
+  face behaviour wider than 16 bits drops the face; any other malformed
+  tessellation (a Huffman code prefixing another, a bad index) drops that
+  tessellation, and, since PRC entities carry no length, every later one in
+  its section; a placement naming a missing tessellation drops the
+  placement; a model-file end past the data is read to the data end.
+  Disclosure, additive and apart from the compressed-mesh fields:
+  `AssembledModel::damaged: usize` (units dropped),
+  `damaged_why: Vec<(String, usize)>` (each `defect: what is left out`
+  with its count; counts sum to `damaged`) and `damaged_parts:
+  Vec<String>` (labelled as `left_out_parts`). **Show `damaged_why` and
+  `damaged_parts` beside the model.** When nothing draws once damage is
+  dropped, assembly fails with `AssembleError::Damaged { count: usize,
+  reasons: String }`. Resource ceilings (`TooLarge`, `TooManyElements`,
+  `PlacedTooLarge`, `MAX_INFLATED_BYTES`, `TooMuchWork`, the schema's step
+  and nesting ceilings) stay refusals under every fit. The CLI prints
+  `note: N damaged unit(s): <why>` per reason and `note: parts missing
+  damaged data (K): ...`.
 - **Lighting** (ISO 32000-1 §13.6.4.5, Table 310; `pdfcer-3d`'s `render`
   feature). `RenderOptions::lighting: LightingScheme` (`Copy`,
   `#[non_exhaustive]`, default `Artwork`; `ALL`, `name()` gives the PDF

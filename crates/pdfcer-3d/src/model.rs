@@ -1,9 +1,10 @@
 //! A PRC file assembled into placed, coloured triangle meshes: what mesh
 //! export, rendering and the default 3D poster all draw.
 
+use crate::mesh_decode::{self, Flagged, decode_meshes, part_labels};
 use crate::{
-    EntityOverrides, PictureFiles, PrcError, PrcFile, StyleAlpha, Tessellation, TextureOrigin,
-    TriangleMesh, WrapBase,
+    EntityOverrides, PictureFiles, PrcError, PrcFile, StyleAlpha, TextureOrigin, TriangleMesh,
+    WrapBase,
 };
 
 /// A PRC model's triangle meshes, placed where its assembly tree draws them,
@@ -65,6 +66,19 @@ pub struct AssembledModel {
     /// The parts that draw a best-fit mesh (see [`Self::best_fit`]), labelled
     /// as [`Self::left_out_parts`].
     pub best_fit_parts: Vec<String>,
+    /// Units of damaged data left out so the rest draws, under any
+    /// [`MeshFit`] but [`MeshFit::Unique`], which refuses the model
+    /// instead: a point, face, tessellation or placement, or a section's
+    /// tail read past.
+    pub damaged: usize,
+    /// Each distinct damage reason, `defect: what is left out`, with its
+    /// count of units; the counts sum to [`Self::damaged`]. Kept apart from
+    /// [`Self::skipped_why`] and [`Self::partial_why`], which describe
+    /// sound data pdfcer does not rebuild.
+    pub damaged_why: Vec<(String, usize)>,
+    /// The parts that draw a damaged or left-out unit, labelled as
+    /// [`Self::left_out_parts`].
+    pub damaged_parts: Vec<String>,
     /// Why placements were not applied (each mesh is then drawn once in its
     /// own coordinates), or `None` when they were.
     pub unplaced: Option<String>,
@@ -162,7 +176,8 @@ pub enum MeshFit {
     /// [`AssembledModel::best_fit`].
     #[default]
     BestFit,
-    /// Leave it out: draw only meshes the arrays determine.
+    /// Leave it out: draw only meshes the arrays determine. Damaged data
+    /// is refused, not left out ([`AssembledModel::damaged`]).
     Unique,
     /// Also draw, of a mesh no fit rebuilds, the triangles that decoded
     /// before its arrays stopped fitting ([`crate::PartialMesh::sound`]), counted
@@ -176,13 +191,13 @@ pub enum MeshFit {
 
 impl MeshFit {
     /// Whether a mesh no fit rebuilds is drawn in part.
-    fn draws_partial(self) -> bool {
+    pub(crate) fn draws_partial(self) -> bool {
         matches!(self, Self::Partial | Self::Continue)
     }
 }
 
 /// Why a best-fit mesh is left out under [`MeshFit::Unique`].
-const BEST_FIT_REFUSED: &str =
+pub(crate) const BEST_FIT_REFUSED: &str =
     "only a best-fit search rebuilds it, and the strict mesh-fit setting draws unique fits only";
 
 /// Why [`assemble`] found nothing to draw.
@@ -208,6 +223,14 @@ pub enum AssembleError {
     /// The model holds no triangle tessellation at all.
     #[error("the model holds no triangle tessellation")]
     NoTriangles,
+    /// Nothing drawable survives once the damaged units are left out.
+    #[error("nothing in the model draws once its damaged data is left out ({reasons})")]
+    Damaged {
+        /// Units left out, as [`AssembledModel::damaged`].
+        count: usize,
+        /// Their distinct reasons, `; `-joined.
+        reasons: String,
+    },
     /// Placing the model's meshes would copy more than a fixed ceiling of
     /// `what`: [`MAX_PLACED_TRIANGLES`] triangles or
     /// [`MAX_PLACED_ATTRIBUTES`] vertex attributes. Checked before each
@@ -289,163 +312,45 @@ pub fn assemble_with_options(
     if !data.starts_with(b"PRC") {
         return Err(AssembleError::NotPrc);
     }
-    let prc = PrcFile::parse(data)?;
     let mut model = AssembledModel::default();
+    let prc = mesh_decode::parse(data, options.mesh_fit, &mut model)?;
     let mut flagged = Flagged::default();
     let by_index = decode_meshes(&prc, options.mesh_fit, &mut model, &mut flagged)?;
-    place(&prc, (by_index, &flagged.wires), options, &mut model)?;
+    place(&prc, by_index, &mut flagged, options, &mut model)?;
     model.left_out_parts = part_labels(&prc, &flagged.left_out);
     model.best_fit_parts = part_labels(&prc, &flagged.best_fit);
     model.partial_parts = part_labels(&prc, &flagged.partial);
+    if model.damaged > 0 {
+        model.damaged_parts = mesh_decode::part_labels_where(&prc, |k| flagged.is_damaged(k));
+    }
     model.triangles = model.meshes.iter().map(|m| m.triangles.len()).sum();
     model.units = prc.units().ok().flatten();
     if model.triangles == 0 {
-        return Err(if model.compressed > 0 {
-            let why: Vec<&str> = model.skipped_why.iter().map(|(w, _)| w.as_str()).collect();
-            AssembleError::CompressedOnly {
-                count: model.compressed,
-                reasons: why.join("; "),
-            }
-        } else {
-            AssembleError::NoTriangles
-        });
+        return Err(nothing_drawn(&model));
     }
     Ok(model)
 }
 
-/// Per file structure, each tessellation's triangle mesh (if it has one),
-/// counting what is not drawn into `model`.
-pub(crate) fn decode_meshes(
-    prc: &PrcFile,
-    fit: MeshFit,
-    model: &mut AssembledModel,
-    flagged: &mut Flagged,
-) -> Result<Vec<Vec<Option<TriangleMesh>>>, PrcError> {
-    let mut by_index = Vec::new();
-    for (f, fs) in prc.file_structures.iter().enumerate() {
-        let tess = fs.tessellations()?;
-        let mut row = Vec::with_capacity(tess.len());
-        for (i, t) in tess.into_iter().enumerate() {
-            row.push(match t {
-                Tessellation::Mesh(m) => Some(m),
-                Tessellation::Wire(w) => {
-                    model.wires += 1;
-                    flagged.wires.push(((f, i), w));
-                    None
-                }
-                Tessellation::Compressed {
-                    mesh: Some(m),
-                    best_fit,
-                    ..
-                } if !best_fit || fit == MeshFit::BestFit => {
-                    model.rebuilt += 1;
-                    model.best_fit += usize::from(best_fit);
-                    if best_fit {
-                        flagged.best_fit.push((f, i));
-                    }
-                    Some(m)
-                }
-                Tessellation::Compressed {
-                    mesh: None,
-                    partial: Some(p),
-                    ..
-                } if fit.draws_partial() => {
-                    let p = *p;
-                    model.partial += 1;
-                    flagged.partial.push((f, i));
-                    let m = if fit == MeshFit::Continue {
-                        p.mesh
-                    } else {
-                        p.sound_mesh()
-                    };
-                    model.partial_triangles.0 += m.triangles.len();
-                    model.partial_triangles.1 += p.total;
-                    count_why(&mut model.partial_why, p.why);
-                    Some(m)
-                }
-                Tessellation::Compressed {
-                    mesh, not_rebuilt, ..
-                } => {
-                    model.compressed += 1;
-                    flagged.left_out.push((f, i));
-                    let why = match mesh {
-                        Some(_) => BEST_FIT_REFUSED.to_owned(),
-                        None => not_rebuilt.unwrap_or_default(),
-                    };
-                    count_why(&mut model.skipped_why, why);
-                    None
-                }
-                _ => {
-                    model.markups += 1;
-                    None
-                }
-            });
-        }
-        by_index.push(row);
-    }
-    Ok(by_index)
-}
-
-/// Adds one occurrence of `why` to a `(reason, count)` tally.
-fn count_why(tally: &mut Vec<(String, usize)>, why: String) {
-    match tally.iter_mut().find(|(w, _)| *w == why) {
-        Some((_, n)) => *n += 1,
-        None => tally.push((why, 1)),
-    }
-}
-
-/// Compressed tessellations, as (file structure, tessellation) indices,
-/// that [`decode_meshes`] left out, rebuilt by best fit or drew in part,
-/// and the wires it found.
-#[derive(Default)]
-pub(crate) struct Flagged {
-    left_out: Vec<(usize, usize)>,
-    best_fit: Vec<(usize, usize)>,
-    partial: Vec<(usize, usize)>,
-    wires: crate::wire::Wires,
-}
-
-/// The labels of the parts whose placements draw one of `tess`: for each
-/// such placement, the deepest tree node whose range holds it. A label
-/// several such nodes share is listed once, as `label xN`.
-pub(crate) fn part_labels(prc: &PrcFile, tess: &[(usize, usize)]) -> Vec<String> {
-    if tess.is_empty() {
-        return Vec::new();
-    }
-    let (Ok(nodes), Ok(placements)) = (prc.model_tree(), prc.placements()) else {
-        return Vec::new();
+/// Why a model that draws no triangle is refused: damage first, as the
+/// likeliest cause, then compressed meshes left out.
+fn nothing_drawn(model: &AssembledModel) -> AssembleError {
+    let join = |tally: &[(String, usize)]| {
+        let why: Vec<&str> = tally.iter().map(|(w, _)| w.as_str()).collect();
+        why.join("; ")
     };
-    let mut owners: Vec<usize> = Vec::new();
-    for (p, pl) in placements.iter().enumerate() {
-        if !tess.contains(&(pl.file_structure, pl.tessellation)) {
-            continue;
+    if model.damaged > 0 {
+        AssembleError::Damaged {
+            count: model.damaged,
+            reasons: join(&model.damaged_why),
         }
-        let owner = nodes
-            .iter()
-            .enumerate()
-            .filter(|(_, n)| n.placements.contains(&p))
-            .max_by_key(|(_, n)| n.depth)
-            .map(|(k, _)| k);
-        if let Some(k) = owner.filter(|k| !owners.contains(k)) {
-            owners.push(k);
+    } else if model.compressed > 0 {
+        AssembleError::CompressedOnly {
+            count: model.compressed,
+            reasons: join(&model.skipped_why),
         }
+    } else {
+        AssembleError::NoTriangles
     }
-    owners.sort_unstable();
-    let mut counted: Vec<(String, usize)> = Vec::new();
-    for label in owners
-        .into_iter()
-        .filter_map(|k| nodes.get(k))
-        .map(crate::ModelNode::label)
-    {
-        match counted.iter_mut().find(|(l, _)| *l == label) {
-            Some((_, n)) => *n += 1,
-            None => counted.push((label, 1)),
-        }
-    }
-    counted
-        .into_iter()
-        .map(|(l, n)| if n == 1 { l } else { format!("{l} x{n}") })
-        .collect()
 }
 
 /// A 0-1 colour as 8-bit straight RGBA.
@@ -464,7 +369,8 @@ type Look = (
 /// Place each mesh where the assembly tree draws it, split by face look.
 pub(crate) fn place(
     prc: &PrcFile,
-    (by_index, wires): (Vec<Vec<Option<TriangleMesh>>>, &crate::wire::Wires),
+    by_index: Vec<Vec<Option<TriangleMesh>>>,
+    flagged: &mut Flagged,
     options: &AssembleOptions,
     model: &mut AssembledModel,
 ) -> Result<(), AssembleError> {
@@ -486,7 +392,7 @@ pub(crate) fn place(
                 None => lights,
             };
             model.view_lights = views;
-            let textures = place_all(&placements, (&by_index, wires), model)?;
+            let textures = place_all(&placements, (&by_index, flagged), model)?;
             model.tree = tree;
             model.textures = textures.drawn;
             model.texture_notes = textures.notes;
@@ -510,33 +416,44 @@ pub(crate) fn place(
             .iter()
             .filter_map(|m| crate::NodeBox::of(m, &crate::IDENTITY, None))
             .collect();
-        crate::wire::unplaced(wires, model);
+        crate::wire::unplaced(&flagged.wires, model);
     }
     model.textured = model.mesh_textures.iter().flatten().count();
     Ok(())
 }
 
 /// Places each mesh and wire `placements` draw. A placement naming a
-/// tessellation its structure does not hold is malformed; one naming a
-/// wire, a markup or a compressed tessellation left out draws no mesh.
+/// tessellation its structure does not hold is malformed, or, while
+/// `flagged` is lenient, left out and counted; one naming a wire, a markup
+/// or a tessellation left out draws no mesh.
 fn place_all<'p>(
     placements: impl IntoIterator<Item = &'p crate::Placement>,
-    (by_index, wires): (&[Vec<Option<TriangleMesh>>], &crate::wire::Wires),
+    (by_index, flagged): (&[Vec<Option<TriangleMesh>>], &mut Flagged),
     model: &mut AssembledModel,
 ) -> Result<Textures, AssembleError> {
     let mut textures = Textures::default();
     let mut budget = Budget::default();
     for (k, p) in placements.into_iter().enumerate() {
-        budget.take(0, crate::wire::points(p, wires))?;
-        crate::wire::place(p, k, wires, model);
+        budget.take(0, crate::wire::points(p, &flagged.wires))?;
+        crate::wire::place(p, k, &flagged.wires, model);
         let slot = by_index
             .get(p.file_structure)
             .and_then(|row| row.get(p.tessellation));
         let Some(slot) = slot else {
-            return Err(AssembleError::Prc(PrcError::Malformed(format!(
-                "a placement draws tessellation {} of file structure {}, which does not exist",
-                p.tessellation, p.file_structure
-            ))));
+            let at = (p.file_structure, p.tessellation);
+            if !flagged.lenient {
+                return Err(AssembleError::Prc(PrcError::Malformed(format!(
+                    "a placement draws tessellation {} of file structure {}, which does not exist",
+                    at.1, at.0
+                ))));
+            }
+            // A tessellation lost after unreadable data is counted already.
+            if !flagged.is_lost(at) {
+                let why = mesh_decode::MISSING_TESSELLATION.to_owned();
+                mesh_decode::damage(model, why, 1);
+                flagged.damaged.push(at);
+            }
+            continue;
         };
         let Some(mesh) = slot else { continue };
         model.overridden += usize::from(p.item_override.is_some() || !p.face_overrides.is_empty());
@@ -879,7 +796,7 @@ mod tests {
             // Guards the machine when the ceiling is missing.
             assert!(placed <= 400, "no ceiling after {placed} placements");
         });
-        let err = place_all(placements, (&by_index, &Vec::new()), &mut model).err();
+        let err = place_all(placements, (&by_index, &mut Flagged::default()), &mut model).err();
         assert_eq!(
             err,
             Some(AssembleError::PlacedTooLarge {
@@ -979,7 +896,8 @@ mod tests {
         }
         place(
             &prc,
-            (by_index, &Vec::new()),
+            by_index,
+            &mut Flagged::default(),
             &AssembleOptions::default(),
             &mut model,
         )

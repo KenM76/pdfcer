@@ -1425,9 +1425,9 @@ mod tests {
         .unwrap();
         let tess = compressed.file_structures[0].section(crate::SectionKind::Tessellation);
         let prc = crate::PrcFile::parse(&placed(tess, &occs)).unwrap();
-        let labels = crate::model::part_labels(&prc, &[(0, 0)]);
+        let labels = crate::mesh_decode::part_labels(&prc, &[(0, 0)]);
         assert_eq!(labels, ["Bolt x2", "occurrence 0:3"]);
-        assert!(crate::model::part_labels(&prc, &[(0, 1)]).is_empty());
+        assert!(crate::mesh_decode::part_labels(&prc, &[(0, 1)]).is_empty());
         let square = crate::assemble(&assembly_prc()).unwrap();
         assert!(square.left_out_parts.is_empty());
     }
@@ -2008,8 +2008,8 @@ mod tests {
     }
 
     /// An item naming tessellation 1 (0-based) of a section holding one is
-    /// malformed: assembly refuses it rather than drawing the model with
-    /// the part missing.
+    /// malformed: a strict fit refuses it; a lenient one leaves that
+    /// placement out, counts it, and refuses only when nothing else draws.
     #[test]
     fn a_placement_naming_a_missing_tessellation_is_refused() {
         let tess = square_tess();
@@ -2020,13 +2020,67 @@ mod tests {
                 &tree_on(&occs, (0, tess_index), false, None, None).bytes(),
             )
         };
-        assert!(crate::assemble(&file(1)).is_ok());
-        let err = crate::assemble(&file(2)).unwrap_err();
+        let strict = crate::AssembleOptions {
+            mesh_fit: crate::MeshFit::Unique,
+            ..Default::default()
+        };
+        assert!(crate::assemble_with_options(&file(1), &strict).is_ok());
+        let err = crate::assemble_with_options(&file(2), &strict).unwrap_err();
         assert!(
             matches!(&err, crate::AssembleError::Prc(PrcError::Malformed(why))
                 if why.contains("tessellation 1")),
             "{err:?}"
         );
+        let err = crate::assemble(&file(2)).unwrap_err();
+        assert!(
+            matches!(&err, crate::AssembleError::Damaged { count: 1, .. }),
+            "{err:?}"
+        );
+    }
+
+    /// Of two parts, the one naming a tessellation the section does not
+    /// hold is left out under the default fit and counted with its label;
+    /// the other draws.
+    #[test]
+    fn a_placement_naming_a_missing_tessellation_is_left_out_when_lenient() {
+        let tess = square_tess();
+        let mut w = W::default();
+        w.uint(FILE_STRUCTURE_TREE);
+        base(&mut w);
+        w.uint(2);
+        part(&mut w, (0, 1), false, None, None);
+        part(&mut w, (0, 2), false, None, None);
+        let occs = [
+            Occ {
+                sons: &[1, 2],
+                ..OCC
+            },
+            Occ {
+                part: 1,
+                name: Some(Some("Kept")),
+                ..OCC
+            },
+            Occ {
+                part: 2,
+                name: Some(Some("Broken")),
+                ..OCC
+            },
+        ];
+        w.uint(occs.len() as u32);
+        for o in &occs {
+            occurrence(&mut w, o, false);
+        }
+        w.uint(FILE_STRUCTURE);
+        base(&mut w);
+        w.uint(100).uint(1).uint(0);
+        let m = crate::assemble(&placed_tree(&tess, &w.bytes())).unwrap();
+        assert_eq!(m.triangles, 2);
+        assert_eq!(m.damaged, 1);
+        assert_eq!(
+            m.damaged_why,
+            [(crate::mesh_decode::MISSING_TESSELLATION.to_owned(), 1)]
+        );
+        assert_eq!(m.damaged_parts, ["Broken"]);
     }
 
     /// A topology reference to face 0 of a two-face B-rep with Show clear,

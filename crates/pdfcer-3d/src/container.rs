@@ -377,6 +377,16 @@ impl PrcFile {
     /// # Errors
     /// As [`Self::parse`]; [`PrcError::TooLarge`] carries `limit`.
     pub fn parse_with_limit(data: &[u8], limit: usize) -> Result<Self, PrcError> {
+        Ok(Self::parse_inner(data, limit, false)?.0)
+    }
+
+    /// [`Self::parse`], except that a model-file end past the data is read
+    /// to the data's end instead of refused; `true` says it was.
+    pub(crate) fn parse_clipping(data: &[u8]) -> Result<(Self, bool), PrcError> {
+        Self::parse_inner(data, MAX_INFLATED_BYTES, true)
+    }
+
+    fn parse_inner(data: &[u8], limit: usize, clip: bool) -> Result<(Self, bool), PrcError> {
         let mut r = Bytes { data, pos: 0 };
         r.magic()?;
         let header = PrcHeader {
@@ -408,19 +418,23 @@ impl PrcFile {
         }
         // The header states the model file's end [WD 6.1.1]; a container
         // that claims more bytes than it holds is damaged, not clipped.
-        if mf_end > data.len() {
+        let short = mf_end > data.len();
+        if short && !clip {
             return Err(PrcError::Malformed(format!(
                 "model file ends at {mf_end}, past the {}-byte data",
                 data.len()
             )));
         }
+        let mf_end = mf_end.min(data.len());
+        let mf_start = mf_start.min(mf_end);
         let model_file = inflate(data, (mf_start, mf_end), "model file", &mut budget, limit)?;
-        Ok(PrcFile {
+        let file = PrcFile {
             header,
             file_structures,
             model_file,
             uncompressed_files,
-        })
+        };
+        Ok((file, short))
     }
 }
 

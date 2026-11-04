@@ -14,6 +14,25 @@ use crate::PrcError;
 use crate::arrays;
 use crate::bits::BitReader;
 use crate::schema::Schema;
+use crate::tess_face::{
+    Corners, Face, face_graphics, points, stored_normals, stored_uvs, triangulate,
+};
+use crate::tess_wire::{split_like, unflagged, wire_colour_count, wire_polylines};
+
+/// Lenient-read reasons, each `defect: what is left out`.
+pub(crate) const PARTIAL_POINT: &str =
+    "a point missing a coordinate: the point and every triangle or wire using it are left out";
+pub(crate) const WIDE_BEHAVIOUR: &str = "a face behaviour wider than 16 bits: the face is left out";
+
+/// A `TESS_3D`'s fields, read whole, that its triangles are built from.
+struct Tess3d {
+    coords: Vec<f64>,
+    recalc: bool,
+    normal_coords: Vec<f64>,
+    indices: Vec<u32>,
+    faces: Vec<Face>,
+    texture: Vec<f64>,
+}
 
 const ATTRIBUTE: u32 = 201;
 const FILE_STRUCTURE_TESSELLATION: u32 = 305;
@@ -31,16 +50,6 @@ const HAS_LOOPS_FROM: u32 = 7039;
 /// `must_recalculate_normals` exists from this version [PRCRS].
 const RECALCULATE_FROM: u32 = 7047;
 
-/// A fan/strip count's point-count bits; bit 30 is `NORMAL_Single`
-/// [WD 7.8.6.2].
-const COUNT_MASK: u32 = 0x3FFF_FFFF;
-const NORMAL_SINGLE: u32 = 0x4000_0000;
-
-/// A wire header's count bits; the top four are flags [WD 7.8.7.5].
-const WIRE_COUNT_MASK: u32 = 0x0FFF_FFFF;
-const WIRE_IS_CLOSING: u32 = 0x1000_0000;
-const WIRE_IS_CONTINUOUS: u32 = 0x2000_0000;
-
 /// A `TESS_3D_Wire` [WD 7.8.7]: its polylines, each point in the
 /// tessellation's own coordinates, a closing wire ending on a repeat of its
 /// first point and a continuous one already joined to the wire before it.
@@ -53,19 +62,6 @@ pub struct WireTessellation {
     /// colour [WD 7.8.7.2] given to both its points, RGB read opaque), or
     /// empty when the wire has none or their count does not match.
     pub colours: Vec<Vec<[u8; 4]>>,
-}
-
-/// `flat` cut into runs as long as each of `wires`, or nothing when the
-/// lengths disagree.
-fn split_like(wires: &[Vec<[f64; 3]>], flat: Vec<[u8; 4]>) -> Vec<Vec<[u8; 4]>> {
-    if flat.len() != wires.iter().map(Vec::len).sum::<usize>() {
-        return Vec::new();
-    }
-    let mut rest = flat.into_iter();
-    wires
-        .iter()
-        .map(|w| rest.by_ref().take(w.len()).collect())
-        .collect()
 }
 
 /// One entry of the tessellation array; a representation item's
@@ -168,6 +164,11 @@ pub(crate) struct Ctx<'a, 's> {
     /// An entity reference read so far names a local coordinate system
     /// [WD 7.4.10], so the globals' reference systems are needed.
     pub(crate) names_cs: bool,
+    /// Damage contained to one point or face is left out and noted in
+    /// `notes` instead of refusing the tessellation.
+    pub(crate) lenient: bool,
+    /// One reason per unit left out while `lenient`.
+    pub(crate) notes: Vec<&'static str>,
 }
 
 impl<'a, 's> Ctx<'a, 's> {
@@ -184,6 +185,8 @@ impl<'a, 's> Ctx<'a, 's> {
             schema_steps: 0,
             elements: 0,
             names_cs: false,
+            lenient: false,
+            notes: Vec::new(),
         }
     }
 }
@@ -325,43 +328,61 @@ impl Ctx<'_, '_> {
 
     /// `FileStructureTessellation` (305) [WD 7.3.7].
     pub(crate) fn file_structure_tessellation(&mut self) -> Result<Vec<Tessellation>, PrcError> {
-        self.expect_type(FILE_STRUCTURE_TESSELLATION)?;
-        self.content_prc_base()?;
-        let n = self.count(1, "tessellations")?;
+        let n = self.tessellation_count()?;
         let mut out = Vec::with_capacity(n.min(1024));
         for _ in 0..n {
-            let t = self.r.unsigned_integer()?;
-            out.push(match t {
-                TESS_3D => Tessellation::Mesh(self.tess_3d()?),
-                TESS_3D_WIRE => Tessellation::Wire(self.wire()?),
-                TESS_MARKUP => {
-                    self.markup()?;
-                    Tessellation::Markup
-                }
-                TESS_3D_COMPRESSED => {
-                    let (triangles, rebuilt) = self.tess_3d_compressed()?;
-                    let (mesh, not_rebuilt, best_fit, partial) = match rebuilt {
-                        Ok((m, best)) => (Some(m), None, best, None),
-                        Err(e) => (None, Some(e.why), false, e.partial),
-                    };
-                    Tessellation::Compressed {
-                        triangles,
-                        mesh,
-                        not_rebuilt,
-                        best_fit,
-                        partial,
-                    }
-                }
-                t => {
-                    return Err(malformed(format!(
-                        "entity type {t} in the tessellation array"
-                    )));
-                }
-            });
+            out.push(self.tessellation()??);
         }
-        self.skip_added(FILE_STRUCTURE_TESSELLATION)?;
-        self.user_data()?;
+        self.tessellation_end()?;
         Ok(out)
+    }
+
+    /// The section's leading fields; returns its tessellation count.
+    pub(crate) fn tessellation_count(&mut self) -> Result<usize, PrcError> {
+        self.expect_type(FILE_STRUCTURE_TESSELLATION)?;
+        self.content_prc_base()?;
+        self.count(1, "tessellations")
+    }
+
+    /// The section's trailing fields, after its last tessellation.
+    pub(crate) fn tessellation_end(&mut self) -> Result<(), PrcError> {
+        self.skip_added(FILE_STRUCTURE_TESSELLATION)?;
+        self.user_data()
+    }
+
+    /// One tessellation entry. Entities are not length-prefixed, so the
+    /// outer error means the reader no longer knows where the next entry
+    /// starts; the inner one is damage found after the entity was read
+    /// whole, which leaves the reader at the next entry.
+    pub(crate) fn tessellation(&mut self) -> Result<Result<Tessellation, PrcError>, PrcError> {
+        let t = self.r.unsigned_integer()?;
+        Ok(match t {
+            TESS_3D => self.tess_3d()?.map(Tessellation::Mesh),
+            TESS_3D_WIRE => self.wire()?.map(Tessellation::Wire),
+            TESS_MARKUP => {
+                self.markup()?;
+                Ok(Tessellation::Markup)
+            }
+            TESS_3D_COMPRESSED => {
+                let (triangles, rebuilt) = self.tess_3d_compressed()?;
+                let (mesh, not_rebuilt, best_fit, partial) = match rebuilt {
+                    Ok((m, best)) => (Some(m), None, best, None),
+                    Err(e) => (None, Some(e.why), false, e.partial),
+                };
+                Ok(Tessellation::Compressed {
+                    triangles,
+                    mesh,
+                    not_rebuilt,
+                    best_fit,
+                    partial,
+                })
+            }
+            t => {
+                return Err(malformed(format!(
+                    "entity type {t} in the tessellation array"
+                )));
+            }
+        })
     }
 
     /// `ContentBaseTessData` [WD 7.8.4]: `is_calculated`, then coordinates.
@@ -510,7 +531,7 @@ impl Ctx<'_, '_> {
     }
 
     /// `TESS_3D` (172) after its type code [WD 7.8.5].
-    fn tess_3d(&mut self) -> Result<TriangleMesh, PrcError> {
+    fn tess_3d(&mut self) -> Result<Result<TriangleMesh, PrcError>, PrcError> {
         let coords = self.base_tess_data()?;
         let _has_faces = self.r.bit()?;
         if self.version >= HAS_LOOPS_FROM {
@@ -532,22 +553,40 @@ impl Ctx<'_, '_> {
         }
         let texture = self.doubles("texture coordinates")?;
         self.skip_added(TESS_3D)?;
+        Ok(self.build_mesh(&Tess3d {
+            coords,
+            recalc,
+            normal_coords,
+            indices,
+            faces,
+            texture,
+        }))
+    }
 
-        let positions = points(&coords, "position")?;
+    /// A `TESS_3D` read whole, triangulated. While lenient, a damaged face
+    /// keeps an empty range and a partial last point takes every triangle
+    /// naming it out with it.
+    fn build_mesh(&mut self, t: &Tess3d) -> Result<TriangleMesh, PrcError> {
+        let (positions, partial) = self.whole_points(&t.coords, "position")?;
+        let whole = positions.len();
         let mut mesh = TriangleMesh {
             positions,
-            normals_recalculated: recalc,
+            normals_recalculated: t.recalc,
             ..TriangleMesh::default()
         };
-        let styled = faces.iter().any(|f| !f.styles.is_empty());
+        let styled = t.faces.iter().any(|f| !f.styles.is_empty());
         let mut corners = Corners::default();
-        for f in &faces {
+        for f in &t.faces {
             let start = mesh.triangles.len();
+            if f.damaged {
+                mesh.faces.push(start..start);
+                continue;
+            }
             let entities = triangulate(
                 f,
-                &indices,
-                !recalc,
-                mesh.positions.len(),
+                &t.indices,
+                !t.recalc,
+                whole + usize::from(partial),
                 &mut mesh.triangles,
                 &mut corners,
                 &mut self.elements,
@@ -558,9 +597,30 @@ impl Ctx<'_, '_> {
             }
         }
         (mesh.normals, mesh.triangle_normals) =
-            stored_normals(&normal_coords, &corners.normals, mesh.triangles.len());
-        (mesh.uvs, mesh.triangle_uvs) = stored_uvs(&texture, corners.textures);
+            stored_normals(&t.normal_coords, &corners.normals, mesh.triangles.len());
+        (mesh.uvs, mesh.triangle_uvs) = stored_uvs(&t.texture, corners.textures);
+        if partial {
+            let lost = u32::try_from(whole).unwrap_or(u32::MAX);
+            let keep: Vec<bool> = mesh.triangles.iter().map(|t| !t.contains(&lost)).collect();
+            mesh = crate::tess_face::keep_triangles(&mesh, &keep);
+        }
         Ok(mesh)
+    }
+
+    /// `coords` as whole points. A partial last point is an error unless
+    /// lenient, when it is left off, noted, and `true` says so.
+    fn whole_points(
+        &mut self,
+        coords: &[f64],
+        what: &str,
+    ) -> Result<(Vec<[f64; 3]>, bool), PrcError> {
+        let cut = coords.len() % 3;
+        if cut == 0 || !self.lenient {
+            return Ok((points(coords, what)?, false));
+        }
+        self.notes.push(PARTIAL_POINT);
+        let whole = coords.get(..coords.len() - cut).unwrap_or(&[]);
+        Ok((points(whole, what)?, true))
     }
 
     /// `TESS_Face` (174) after its type code [WD 7.8.6].
@@ -579,6 +639,7 @@ impl Ctx<'_, '_> {
             textures,
             styles: line_attributes,
             behaviour: 0,
+            damaged: false,
         };
         if self.r.bit()? {
             let n = face.point_count()?;
@@ -586,59 +647,54 @@ impl Ctx<'_, '_> {
         }
         if !face.styles.is_empty() {
             // Behaviour bits are 16 wide [WD 7.2.4.2: two Characters]; a
-            // wider value would lose its inherit flags if cut.
+            // wider value would lose its inherit flags if cut, so a lenient
+            // read leaves the face out rather than guess them.
             let b = self.r.unsigned_integer()?;
-            face.behaviour = u16::try_from(b)
-                .map_err(|_| malformed(format!("face behaviour {b:#x} wider than 16 bits")))?;
+            match u16::try_from(b) {
+                Ok(bits) => face.behaviour = bits,
+                Err(_) if self.lenient => {
+                    face.damaged = true;
+                    self.notes.push(WIDE_BEHAVIOUR);
+                }
+                Err(_) => {
+                    return Err(malformed(format!(
+                        "face behaviour {b:#x} wider than 16 bits"
+                    )));
+                }
+            }
         }
         self.skip_added(TESS_FACE)?;
         Ok(face)
     }
 
     /// `TESS_3D_Wire` (175) after its type code [WD 7.8.7].
-    fn wire(&mut self) -> Result<WireTessellation, PrcError> {
-        let pts = points(&self.base_tess_data()?, "wire")?;
+    fn wire(&mut self) -> Result<Result<WireTessellation, PrcError>, PrcError> {
+        let coords = self.base_tess_data()?;
+        let (pts, partial) = self.whole_points(&coords, "wire")?;
         let words = self.uints("wire indices")?;
-        let mut wires: Vec<Vec<[f64; 3]>> = Vec::new();
-        let mut colours = 0usize;
-        if words.is_empty() {
-            colours = pts.len();
-            if !pts.is_empty() {
-                wires.push(pts.clone());
-            }
-        }
-        let mut it = words.iter().copied();
-        while let Some(header) = it.next() {
-            let n = (header & WIRE_COUNT_MASK) as usize;
-            let mut wire = Vec::with_capacity(n.min(words.len()));
-            for _ in 0..n {
-                let idx = it
-                    .next()
-                    .ok_or_else(|| malformed("wire runs past its indices".into()))?;
-                wire.push(point_at(&pts, idx)?);
-            }
-            colours += n;
-            if header & WIRE_IS_CLOSING != 0 {
-                colours += 1;
-                if let Some(&first) = wire.first() {
-                    wire.push(first);
-                }
-            }
-            match wires.last_mut() {
-                Some(prev) if header & WIRE_IS_CONTINUOUS != 0 => prev.extend(wire),
-                _ => wires.push(wire),
-            }
-        }
-        let flat = if self.r.bit()? {
+        // Strict reads fail here, before the colours, as they always have;
+        // a lenient one reads past the colours so the next entry decodes.
+        let built = match wire_polylines(&pts, partial, &words) {
+            Err(e) if !self.lenient => return Err(e),
+            b => b,
+        };
+        let colours = wire_colour_count(&words, pts.len() + usize::from(partial));
+        let mut flat = if self.r.bit()? {
             self.vertex_colors(colours, true)?
         } else {
             Vec::new()
         };
         self.skip_added(TESS_3D_WIRE)?;
-        Ok(WireTessellation {
-            colours: split_like(&wires, flat),
-            polylines: wires,
-        })
+        if words.is_empty() {
+            flat.truncate(pts.len());
+        }
+        Ok(built.map(|(wires, bad)| {
+            let colours = split_like(&wires, flat);
+            WireTessellation {
+                colours: unflagged(colours, &bad),
+                polylines: unflagged(wires, &bad),
+            }
+        }))
     }
 
     /// `TESS_Markup` (176) after its type code [WD 7.8.8], read past.
@@ -652,90 +708,6 @@ impl Ctx<'_, '_> {
         self.r.string()?;
         self.r.character()?;
         self.skip_added(TESS_MARKUP)
-    }
-}
-
-/// The normal array and each triangle's corner normals, or both empty when
-/// any slot fails to name a normal or the array ends in a partial triple: a
-/// mesh shades from its stored normals wholly or not at all.
-fn stored_normals(
-    coords: &[f64],
-    slots: &[[u32; 3]],
-    triangles: usize,
-) -> (Vec<[f64; 3]>, Vec<[u32; 3]>) {
-    let Ok(normals) = points(coords, "normal") else {
-        return (Vec::new(), Vec::new());
-    };
-    let named = |k: u32| k.is_multiple_of(3) && (k as usize / 3) < normals.len();
-    if normals.is_empty() || slots.len() != triangles || !slots.iter().flatten().all(|&k| named(k))
-    {
-        return (Vec::new(), Vec::new());
-    }
-    let corners = slots.iter().map(|t| t.map(|k| k / 3)).collect();
-    (normals, corners)
-}
-
-/// `coords` as (x, y, z) triples [WD 7.8.4: a TESS_3D's or wire's Doubles
-/// are triples]; Malformed when the length is not a multiple of 3, as no
-/// reading of a partial last point is defined. `what` names the array.
-fn points(coords: &[f64], what: &str) -> Result<Vec<[f64; 3]>, PrcError> {
-    if !coords.len().is_multiple_of(3) {
-        return Err(malformed(format!(
-            "{} {what} coordinates are not whole points",
-            coords.len()
-        )));
-    }
-    Ok(coords
-        .chunks_exact(3)
-        .map(|c| match c {
-            [x, y, z] => [*x, *y, *z],
-            _ => [0.0; 3],
-        })
-        .collect())
-}
-
-/// The point a Double-offset index names [WD 7.8.5.2: multiples of 3].
-fn point_at(pts: &[[f64; 3]], idx: u32) -> Result<[f64; 3], PrcError> {
-    if !idx.is_multiple_of(3) {
-        return Err(malformed(format!(
-            "point index {idx} is not a multiple of 3"
-        )));
-    }
-    pts.get(idx as usize / 3)
-        .copied()
-        .ok_or_else(|| malformed(format!("point index {idx} past the coordinates")))
-}
-
-struct Face {
-    flags: u32,
-    start: usize,
-    data: Vec<u32>,
-    textures: usize,
-    /// `line_attributes`, each a style index + 1: none = the owner's
-    /// graphics, one = the whole face's, more = one per triangulation
-    /// entity [WD 7.8.6].
-    styles: Vec<u32>,
-    /// The behaviour bits read when `styles` is not empty.
-    behaviour: u16,
-}
-
-/// Append one [`Graphics`](crate::tree::Graphics) per triangle of `face`,
-/// whose entities emitted `entities[i]` triangles each. Entities past the
-/// face's styles inherit (style 0).
-fn face_graphics(face: &Face, entities: &[usize], out: &mut Vec<crate::tree::Graphics>) {
-    let g = |style: u32| crate::tree::Graphics {
-        style,
-        bits: face.behaviour,
-        fs: 0,
-    };
-    let whole = match face.styles.as_slice() {
-        [] => Some(0),
-        [one] => Some(*one),
-        _ => None,
-    };
-    for (i, &n) in entities.iter().enumerate() {
-        let style = whole.unwrap_or_else(|| face.styles.get(i).copied().unwrap_or(0));
-        out.extend(std::iter::repeat_n(g(style), n));
     }
 }
 
@@ -784,255 +756,6 @@ fn compressed_graphics(
         .collect()
 }
 
-/// A `used_entities_flag` block's shape [WD 7.8.5.5].
-#[derive(Clone, Copy)]
-enum Shape {
-    Triangles,
-    Fan,
-    Strip,
-}
-
-/// Per block: `(bit, shape, one normal per entity, textured)`, low bit first.
-const BLOCKS: [(u32, Shape, bool, bool); 12] = [
-    (0x0002, Shape::Triangles, false, false),
-    (0x0004, Shape::Fan, false, false),
-    (0x0008, Shape::Strip, false, false),
-    (0x0020, Shape::Triangles, true, false),
-    (0x0040, Shape::Fan, true, false),
-    (0x0080, Shape::Strip, true, false),
-    (0x0200, Shape::Triangles, false, true),
-    (0x0400, Shape::Fan, false, true),
-    (0x0800, Shape::Strip, false, true),
-    (0x2000, Shape::Triangles, true, true),
-    (0x4000, Shape::Fan, true, true),
-    (0x8000, Shape::Strip, true, true),
-];
-
-impl Face {
-    /// Entity sizes per set block: `(block, [points per entity])`, from
-    /// `TriangulatedData` [WD 7.8.6]. A triangle block is one entity of
-    /// `3 × count` points; fans and strips list a vertex count each.
-    fn entities(&self) -> Result<Vec<(usize, Vec<u32>)>, PrcError> {
-        let mut d = self.data.iter().copied();
-        let mut next = || {
-            d.next()
-                .ok_or_else(|| malformed("triangulated data ends early".into()))
-        };
-        let mut out = Vec::new();
-        for (i, (bit, shape, ..)) in BLOCKS.iter().enumerate() {
-            if self.flags & bit == 0 {
-                continue;
-            }
-            let sizes = match shape {
-                Shape::Triangles => vec![next()?],
-                Shape::Fan | Shape::Strip => {
-                    let n = next()? as usize;
-                    if n > self.data.len() {
-                        return Err(malformed("triangulated data ends early".into()));
-                    }
-                    (0..n).map(|_| next()).collect::<Result<_, _>>()?
-                }
-            };
-            out.push((i, sizes));
-        }
-        Ok(out)
-    }
-
-    /// Points the face's index slots name: the vertex-colour count
-    /// [ISS #820].
-    fn point_count(&self) -> Result<usize, PrcError> {
-        let mut n = 0usize;
-        for (i, sizes) in self.entities()? {
-            let tri = matches!(BLOCKS.get(i), Some((_, Shape::Triangles, ..)));
-            for s in sizes {
-                let s = (s & COUNT_MASK) as usize;
-                n = n.saturating_add(if tri { s.saturating_mul(3) } else { s });
-            }
-        }
-        Ok(n)
-    }
-}
-
-/// One triangulation entity's index slots: per point its position, normal
-/// slot (when the array stores normals) and texture slots.
-#[derive(Default)]
-struct Slots {
-    verts: Vec<u32>,
-    normals: Vec<u32>,
-    /// Per texture set, each point's slot.
-    textures: Vec<Vec<u32>>,
-}
-
-/// What a face's triangles carry besides positions, built in step with
-/// them: corner normal slots and, per texture set, corner texture slots
-/// (`None` for a triangle whose face stores fewer sets).
-#[derive(Default)]
-struct Corners {
-    normals: Vec<[u32; 3]>,
-    textures: Vec<Vec<Option<[u32; 3]>>>,
-}
-
-/// Emit a face's triangles; `normals` = the index array stores normal slots,
-/// in which case each triangle's corner normal slots go to `corners`, as do
-/// its corner texture slots. Returns the triangles each triangulation entity
-/// emitted, in order: one entity per triangle of a triangle block, per fan,
-/// per strip [WD 7.8.6].
-///
-/// Each triangle is charged to `elements` before its entity is built. Faces
-/// may start anywhere in the index array, so F faces over one range of k
-/// triangles cost F x k: the input bounds each entity, not their sum.
-fn triangulate(
-    face: &Face,
-    indices: &[u32],
-    normals: bool,
-    n_points: usize,
-    out: &mut Vec<[u32; 3]>,
-    corners: &mut Corners,
-    elements: &mut u64,
-) -> Result<Vec<usize>, PrcError> {
-    let mut entities = Vec::new();
-    let mut slots = indices.get(face.start..).unwrap_or(&[]).iter().copied();
-    let mut take = || {
-        slots
-            .next()
-            .ok_or_else(|| malformed("face runs past the triangulated index array".into()))
-    };
-    for (i, sizes) in face.entities()? {
-        let Some(&(_, shape, one_normal, textured)) = BLOCKS.get(i) else {
-            continue;
-        };
-        let t = if textured { face.textures } else { 0 };
-        for word in sizes {
-            let count = (word & COUNT_MASK) as usize;
-            // Points in this entity, and whether each point carries its own
-            // normal slot.
-            let (points, per_point_normal) = match shape {
-                Shape::Triangles => (count.saturating_mul(3), !one_normal),
-                Shape::Fan | Shape::Strip => (count, !one_normal || word & NORMAL_SINGLE == 0),
-            };
-            if points.saturating_mul(t + 1) > indices.len() {
-                return Err(malformed(
-                    "face runs past the triangulated index array".into(),
-                ));
-            }
-            let triangles = match shape {
-                Shape::Triangles => count,
-                Shape::Fan | Shape::Strip => points.saturating_sub(2),
-            };
-            crate::elements::charge(elements, triangles as u64)?;
-            let mut s = Slots {
-                textures: vec![Vec::with_capacity(points); t],
-                ..Slots::default()
-            };
-            let mut current = 0;
-            for k in 0..points {
-                let new_entity = match shape {
-                    Shape::Triangles => k % 3 == 0,
-                    _ => k == 0,
-                };
-                if normals && (per_point_normal || new_entity) {
-                    current = take()?;
-                }
-                if normals {
-                    s.normals.push(current);
-                }
-                for set in &mut s.textures {
-                    set.push(take()?);
-                }
-                let p = take()?;
-                if p % 3 != 0 || p as usize / 3 >= n_points {
-                    return Err(malformed(format!("point index {p} is not a point")));
-                }
-                s.verts.push(p / 3);
-            }
-            let made = emit(shape, &s, out, corners);
-            match shape {
-                Shape::Triangles => entities.extend(std::iter::repeat_n(1, made)),
-                Shape::Fan | Shape::Strip => entities.push(made),
-            }
-        }
-    }
-    Ok(entities)
-}
-
-/// Append the triangles of one entity's `slots` to `out` and `corners`,
-/// keeping every texture set as long as `out`. Returns how many it made.
-fn emit(shape: Shape, slots: &Slots, out: &mut Vec<[u32; 3]>, corners: &mut Corners) -> usize {
-    let before = out.len();
-    assemble(shape, &slots.verts, out);
-    assemble(shape, &slots.normals, &mut corners.normals);
-    let made = out.len() - before;
-    while corners.textures.len() < slots.textures.len() {
-        corners.textures.push(vec![None; before]);
-    }
-    for (k, set) in corners.textures.iter_mut().enumerate() {
-        match slots.textures.get(k) {
-            Some(own) => {
-                let mut tris = Vec::with_capacity(made);
-                assemble(shape, own, &mut tris);
-                set.extend(tris.into_iter().map(Some));
-            }
-            None => set.extend(std::iter::repeat_n(None, made)),
-        }
-    }
-    made
-}
-
-/// Per texture-coordinate set, each triangle's corner pair indices.
-type UvSets = Vec<Vec<Option<[u32; 3]>>>;
-
-/// The texture coordinates as (u, v) pairs, and per set the corner slots
-/// turned into pair indices [`prc__8137__tess_3d.md` §9: a slot is a Double
-/// offset, so even]; a triangle with a slot naming no pair is `None`.
-fn stored_uvs(coords: &[f64], sets: UvSets) -> (Vec<[f64; 2]>, UvSets) {
-    let uvs: Vec<[f64; 2]> = coords
-        .chunks_exact(2)
-        .map(|c| match c {
-            [u, v] => [*u, *v],
-            _ => [0.0; 2],
-        })
-        .collect();
-    if uvs.is_empty() {
-        return (Vec::new(), Vec::new());
-    }
-    let pair = |k: u32| (k.is_multiple_of(2) && (k as usize / 2) < uvs.len()).then_some(k / 2);
-    let sets = sets
-        .into_iter()
-        .map(|set| {
-            set.into_iter()
-                .map(|tri| {
-                    let [a, b, c] = tri?;
-                    Some([pair(a)?, pair(b)?, pair(c)?])
-                })
-                .collect()
-        })
-        .collect();
-    (uvs, sets)
-}
-
-/// Append the triangles `shape` makes of `verts`.
-fn assemble(shape: Shape, verts: &[u32], out: &mut Vec<[u32; 3]>) {
-    match shape {
-        Shape::Triangles => out.extend(verts.chunks_exact(3).filter_map(|c| match c {
-            [a, b, c] => Some([*a, *b, *c]),
-            _ => None,
-        })),
-        Shape::Fan => {
-            if let Some((&c, rim)) = verts.split_first() {
-                out.extend(rim.windows(2).filter_map(|w| match w {
-                    [a, b] => Some([c, *a, *b]),
-                    _ => None,
-                }));
-            }
-        }
-        Shape::Strip => out.extend(verts.windows(3).enumerate().filter_map(|(k, w)| match w {
-            [a, b, c] if k % 2 == 0 => Some([*a, *b, *c]),
-            [a, b, c] => Some([*b, *a, *c]),
-            _ => None,
-        })),
-    }
-}
-
 #[cfg(test)]
 #[allow(clippy::unreachable)] // tests: an unreachable arm failing IS the report
 #[allow(
@@ -1043,6 +766,8 @@ fn assemble(shape: Shape, verts: &[u32], out: &mut Vec<[u32; 3]>) {
 )]
 pub(crate) mod tests {
     use super::*;
+    use crate::tess_face::NORMAL_SINGLE;
+    use crate::tess_wire::{WIRE_IS_CLOSING, WIRE_IS_CONTINUOUS};
     use crate::testw::W;
 
     const SQUARE: [f64; 12] = [0., 0., 0., 1., 0., 0., 1., 1., 0., 0., 1., 0.];
@@ -1408,6 +1133,21 @@ pub(crate) mod tests {
                 limit: crate::MAX_DECODED_ELEMENTS
             }
         );
+        // A lenient read contains damage, never a ceiling.
+        let mut ctx = Ctx::new(BitReader::new(&bytes), &schema, 8137);
+        ctx.elements = room + 1;
+        ctx.lenient = true;
+        let n = ctx.tessellation_count().unwrap();
+        let mut model = crate::AssembledModel::default();
+        let mut flagged = crate::mesh_decode::Flagged::default();
+        let got = crate::mesh_decode::read_entries(&mut ctx, (0, n), &mut model, &mut flagged);
+        assert_eq!(
+            got.unwrap_err(),
+            PrcError::TooManyElements {
+                limit: crate::MAX_DECODED_ELEMENTS
+            }
+        );
+        assert_eq!(model.damaged, 0);
     }
 
     /// A wire over [`SQUARE`]: an open two-point wire continued by a closing
@@ -2299,5 +2039,138 @@ pub(crate) mod tests {
             );
             assert!(model.skipped_why.is_empty() && model.left_out_parts.is_empty());
         }
+    }
+
+    /// `bytes` refused under a strict fit with `Malformed`, and assembled
+    /// under the default (lenient) fit with one damaged unit for `why`.
+    fn salvaged(bytes: &[u8], why: &str) -> crate::AssembledModel {
+        let strict = crate::AssembleOptions {
+            mesh_fit: crate::MeshFit::Unique,
+            ..Default::default()
+        };
+        let err = crate::assemble_with_options(bytes, &strict).unwrap_err();
+        assert!(
+            matches!(err, crate::AssembleError::Prc(PrcError::Malformed(_))),
+            "{err:?}"
+        );
+        let m = crate::assemble(bytes).unwrap();
+        assert_eq!(m.damaged, 1, "{:?}", m.damaged_why);
+        assert_eq!(m.damaged_why.len(), 1);
+        assert!(m.damaged_why[0].0.contains(why), "{:?}", m.damaged_why);
+        assert!(m.partial_why.is_empty() && m.skipped_why.is_empty());
+        m
+    }
+
+    #[test]
+    fn a_partial_mesh_point_leaves_out_the_triangles_using_it() {
+        let coords: Vec<f64> = SQUARE.iter().copied().chain([0.0]).collect();
+        let m = Mesh {
+            recalc: false,
+            indices: &[3, 0, 0, 3, 3, 6, 3, 0, 3, 6, 0, 12],
+            faces: &[(0x2, 0, &[2])],
+            textures: 0,
+            uvs: &[],
+        };
+        let mut b = W::default();
+        tess_3d_over(&mut b, 8137, &m, &coords, &NORMALS);
+        wire(&mut b, false);
+        let model = salvaged(&prc_file(&section(2, &b)), PARTIAL_POINT);
+        assert_eq!(model.triangles, 1);
+        assert_eq!(model.wires, 1);
+    }
+
+    #[test]
+    fn a_partial_wire_point_leaves_out_the_polyline_using_it() {
+        let coords: Vec<f64> = SQUARE.iter().copied().chain([0.0; 2]).collect();
+        let mut b = W::default();
+        tess_3d(
+            &mut b,
+            8137,
+            &Mesh {
+                recalc: false,
+                indices: &[3, 0, 0, 3, 3, 6],
+                faces: &[(0x2, 0, &[1])],
+                textures: 0,
+                uvs: &[],
+            },
+        );
+        coordinates(&mut b, 175, &coords);
+        uints(&mut b, &[2, 0, 3, 2, 6, 12]);
+        b.bit(false);
+        let model = salvaged(&prc_file(&section(2, &b)), PARTIAL_POINT);
+        assert_eq!((model.triangles, model.wires), (1, 1));
+        assert_eq!(model.lines.len(), 1);
+        assert_eq!(model.lines[0].points.len(), 2);
+    }
+
+    /// Two one-triangle faces over [`SQUARE`]; the second's behaviour is
+    /// written as `bits`.
+    fn two_faces(bits: u32) -> Vec<u8> {
+        let mut b = W::default();
+        square(&mut b, 172);
+        b.bit(true).bit(false).bit(false).uint(0).uint(0);
+        uints(&mut b, &[0, 0, 0, 3, 0, 6, 0, 0, 0, 6, 0, 9]);
+        b.uint(2);
+        for (start, bits) in [(0, 0x30), (6, bits)] {
+            b.uint(174);
+            uints(&mut b, &[5]);
+            b.uint(0).uint(0).uint(0x2).uint(start);
+            uints(&mut b, &[1]);
+            b.uint(0).bit(false).uint(bits);
+        }
+        b.uint(0);
+        prc_file(&section(1, &b))
+    }
+
+    #[test]
+    fn a_face_behaviour_wider_than_16_bits_leaves_out_that_face() {
+        let whole = crate::assemble(&two_faces(0x30)).unwrap();
+        assert_eq!((whole.triangles, whole.damaged), (2, 0));
+        let model = salvaged(&two_faces(0x1_0000 | 0x0008), WIDE_BEHAVIOUR);
+        assert_eq!(model.triangles, 1);
+    }
+
+    #[test]
+    fn a_huffman_prefix_pair_leaves_out_its_tessellation() {
+        let mut b = W::default();
+        tess_3d(
+            &mut b,
+            8137,
+            &Mesh {
+                recalc: false,
+                indices: &[3, 0, 0, 3, 3, 6],
+                faces: &[(0x2, 0, &[1])],
+                textures: 0,
+                uvs: &[],
+            },
+        );
+        // A compressed tessellation whose edge-status table stores `10`
+        // and `100`: the reader loses its place there.
+        b.uint(173).bit(false).bit(true).double(0.001);
+        b.put(0, 32).put(0, 32).put(0, 32);
+        b.bit(false).uint(9);
+        for _ in 0..9 {
+            b.put(2, 8);
+        }
+        for _ in 0..9 {
+            b.bit(false).bit(true);
+        }
+        b.bit(true)
+            .huffman(2, 2, &[(0, 0b10, 2), (1, 0b100, 3)], &[0, 1, 0]);
+        let model = salvaged(&prc_file(&section(2, &b)), "prefix of another");
+        assert_eq!(model.triangles, 1);
+        assert_eq!(model.compressed, 0);
+    }
+
+    #[test]
+    fn a_model_file_end_past_the_data_is_read_to_the_data_end() {
+        let mut bytes = square_prc();
+        let len = bytes.len() as u32;
+        let at = (0..120)
+            .find(|&i| bytes[i..i + 4] == len.to_le_bytes())
+            .unwrap();
+        bytes[at..at + 4].copy_from_slice(&(len + 1).to_le_bytes());
+        let model = salvaged(&bytes, crate::mesh_decode::SHORT_FILE);
+        assert_eq!(model.triangles, 2);
     }
 }

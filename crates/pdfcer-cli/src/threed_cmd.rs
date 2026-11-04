@@ -312,7 +312,11 @@ fn print_assembly_notes(a: &pdfcer_3d::AssembledModel, drawn: &str) {
     for (why, n) in &a.skipped_why {
         println!("note: {n} compressed mesh(es) left out: {why}");
     }
+    for (why, n) in &a.damaged_why {
+        println!("note: {n} damaged unit(s): {why}");
+    }
     print_parts("parts missing a left-out mesh", &a.left_out_parts);
+    print_parts("parts missing damaged data", &a.damaged_parts);
     print_parts("parts drawn by a best-fit mesh", &a.best_fit_parts);
     print_parts("parts drawn by a partial mesh", &a.partial_parts);
 }

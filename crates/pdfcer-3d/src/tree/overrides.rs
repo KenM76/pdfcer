@@ -185,32 +185,6 @@ impl crate::Placement {
         if keep.iter().all(|&k| k) {
             return Cow::Borrowed(mesh);
         }
-        Cow::Owned(keep_triangles(mesh, &keep))
+        Cow::Owned(crate::tess_face::keep_triangles(mesh, &keep))
     }
-}
-
-/// `mesh` with only the triangles `keep` marks, each per-triangle array and
-/// face range following.
-fn keep_triangles(mesh: &crate::TriangleMesh, keep: &[bool]) -> crate::TriangleMesh {
-    fn pick<T: Clone>(from: &[T], keep: &[bool]) -> Vec<T> {
-        from.iter()
-            .zip(keep)
-            .filter(|(_, k)| **k)
-            .map(|(t, _)| t.clone())
-            .collect()
-    }
-    let mut out = mesh.clone();
-    out.triangles = pick(&mesh.triangles, keep);
-    out.triangle_normals = pick(&mesh.triangle_normals, keep);
-    out.triangle_graphics = pick(&mesh.triangle_graphics, keep);
-    out.triangle_faces = pick(&mesh.triangle_faces, keep);
-    out.triangle_uvs = mesh.triangle_uvs.iter().map(|s| pick(s, keep)).collect();
-    let mut before = Vec::with_capacity(keep.len() + 1);
-    before.push(0);
-    for &k in keep {
-        before.push(before.last().copied().unwrap_or(0) + usize::from(k));
-    }
-    let at = |i: usize| before.get(i.min(keep.len())).copied().unwrap_or(0);
-    out.faces = mesh.faces.iter().map(|r| at(r.start)..at(r.end)).collect();
-    out
 }

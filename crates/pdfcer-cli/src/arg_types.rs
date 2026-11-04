@@ -84,7 +84,8 @@ pub(crate) enum MeshFitArg {
     /// Draw a mesh only a best-fit search rebuilds, and say so. Default.
     #[default]
     Best,
-    /// Leave it out: draw only meshes the stored arrays determine.
+    /// Leave it out: draw only meshes the stored arrays determine. Also
+    /// refuse a damaged model instead of leaving its damaged parts out.
     Unique,
     /// Also draw, of a mesh no fit rebuilds, the triangles decoded before
     /// its arrays stopped fitting.

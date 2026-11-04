@@ -161,11 +161,12 @@ pub(crate) fn assemble_two_faced(
 ) -> Result<crate::AssembledModel, crate::AssembleError> {
     let prc = crate::PrcFile::parse(bytes)?;
     let mut model = crate::AssembledModel::default();
-    let mut by_index = crate::model::decode_meshes(
+    let mut flagged = crate::mesh_decode::Flagged::default();
+    let mut by_index = crate::mesh_decode::decode_meshes(
         &prc,
         crate::MeshFit::default(),
         &mut model,
-        &mut crate::model::Flagged::default(),
+        &mut flagged,
     )?;
     for mesh in by_index.iter_mut().flatten().flatten() {
         let n = mesh.triangles.len();
@@ -179,7 +180,8 @@ pub(crate) fn assemble_two_faced(
     }
     crate::model::place(
         &prc,
-        (by_index, &Vec::new()),
+        by_index,
+        &mut crate::mesh_decode::Flagged::default(),
         &crate::AssembleOptions::default(),
         &mut model,
     )?;

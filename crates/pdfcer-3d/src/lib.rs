@@ -77,6 +77,7 @@ mod lamp_shadow;
 mod lighting;
 #[cfg(feature = "render")]
 mod lines;
+mod mesh_decode;
 #[cfg(feature = "render")]
 mod mode_frame;
 #[cfg(feature = "render")]
@@ -111,6 +112,8 @@ mod shadow_set;
 #[cfg(all(test, feature = "render"))]
 mod shadow_tests;
 mod tess;
+mod tess_face;
+mod tess_wire;
 #[cfg(test)]
 mod testw;
 mod texture;
