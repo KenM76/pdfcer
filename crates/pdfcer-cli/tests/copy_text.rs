@@ -101,7 +101,7 @@ fn text_is_one_line_per_paragraph_with_the_wrap_joined() {
     assert!(
         line.starts_with("copied paragraphs=3 weights_derived=")
             && line
-                .contains("families_missing=0 colours_dropped=0 decoration_forms_unread=0 to=file"),
+                .contains("families_missing=0 colours_dropped=0 decoration_forms_unread=0 truncated=false to=file"),
         "{line}"
     );
 }

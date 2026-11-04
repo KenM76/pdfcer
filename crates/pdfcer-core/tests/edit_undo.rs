@@ -504,8 +504,8 @@ fn clearing_a_field_removes_it_from_the_saved_file() {
 #[test]
 fn several_edits_to_one_object_produce_one_object_in_the_update() {
     // Coalescing is structural (a map keyed by object id), and the
-    // observable consequence is here: four field edits, one object
-    // definition appended, not four.
+    // observable consequence is here: one edit per field, one object
+    // definition appended, not one per edit.
     let base = classic_pdf(true, true);
     let mut s = session(&base);
     for field in InfoField::all().iter().copied() {
@@ -513,7 +513,7 @@ fn several_edits_to_one_object_produce_one_object_in_the_update() {
     }
     let (out, report) = s.to_incremental_bytes(&SaveOptions::identity()).unwrap();
     assert_eq!(report.objects_written, 1);
-    assert_eq!(s.undo_depth(), 4);
+    assert_eq!(s.undo_depth(), InfoField::all().len());
 
     // ...and the appended revision really does define it once.
     let tail = out.get(base.len()..).unwrap();
