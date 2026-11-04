@@ -138,24 +138,26 @@ fn append(acc: &mut RichText, more: RichText) {
     a.decoration_forms_unread += b.decoration_forms_unread;
 }
 
-/// Place HTML, RTF and plain text in one clipboard transaction.
+/// Place HTML, RTF and plain text, all or nothing (`clipboard::fill`).
 #[cfg(windows)]
 fn place(rich: &RichText) -> Result<String, String> {
-    use clipboard_win::{Clipboard, options::NoClear, raw};
-    let _guard = Clipboard::new_attempts(10).map_err(|_| "the clipboard is busy".to_owned())?;
-    raw::empty().map_err(|_| "the clipboard could not be emptied".to_owned())?;
-    for (name, bytes) in [
-        ("HTML Format", rich.to_cf_html()),
-        ("Rich Text Format", rich.to_rtf()),
-    ] {
-        let id = raw::register_format(name).ok_or_else(|| format!("could not register {name}"))?;
-        let mut data = bytes.into_bytes();
-        data.push(0);
-        raw::set_without_clear(id.get(), &data).map_err(|_| format!("could not place {name}"))?;
-    }
-    raw::set_string_with(&rich.plain_text(), NoClear)
-        .map_err(|_| "could not place CF_UNICODETEXT".to_owned())?;
-    Ok("HTML Format,Rich Text Format,CF_UNICODETEXT".to_owned())
+    use crate::clipboard::{self, CF_UNICODETEXT, ClipboardEntry, EntryKind};
+    let nul = |s: String| {
+        let mut v = s.into_bytes();
+        v.push(0);
+        v
+    };
+    let entries = [
+        ClipboardEntry::registered("HTML Format", nul(rich.to_cf_html())),
+        ClipboardEntry::registered("Rich Text Format", nul(rich.to_rtf())),
+        ClipboardEntry {
+            name: "CF_UNICODETEXT",
+            kind: EntryKind::Standard(CF_UNICODETEXT),
+            bytes: clipboard::unicode_text_payload(&rich.plain_text()),
+        },
+    ];
+    let placed = clipboard::place_entries(&entries).map_err(|e| e.to_string())?;
+    Ok(placed.formats.join(","))
 }
 
 #[cfg(not(windows))]
