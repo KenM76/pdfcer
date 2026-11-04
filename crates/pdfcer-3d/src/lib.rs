@@ -59,6 +59,8 @@ mod gpu_lamp_shadow;
 #[cfg(feature = "render")]
 mod gpu_lines;
 #[cfg(feature = "render")]
+mod gpu_prepass;
+#[cfg(feature = "render")]
 mod gpu_shader;
 #[cfg(feature = "render")]
 mod gpu_shadow;
@@ -145,6 +147,8 @@ pub use gpu_lamp_shadow::{
 };
 #[cfg(feature = "render")]
 pub use gpu_lines::{GLSL_ES_300_LINE_FRAGMENT, GLSL_ES_300_LINE_VERTEX, LINE_VERTEX_FLOATS};
+#[cfg(feature = "render")]
+pub use gpu_prepass::{GLSL_ES_300_PREPASS_FRAGMENT, GLSL_ES_300_PREPASS_VERTEX};
 #[cfg(feature = "render")]
 pub use gpu_shader::{GLSL_ES_300_FRAGMENT, GLSL_ES_300_VERTEX};
 #[cfg(feature = "render")]

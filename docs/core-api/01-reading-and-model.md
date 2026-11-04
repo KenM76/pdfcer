@@ -3675,7 +3675,22 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     depth would give `w²/(near·2^24)` (9 mm at 10 m for a walker's 0.6 mm
     near plane). Assumes a depth buffer of at least 24 bits, cleared to 1.0;
     a 16-bit buffer is 256 times coarser. Writing `gl_FragDepth` disables
-    early-Z.
+    early-Z; the optional depth prepass below restores the saving.
+  - Depth prepass (optional, recommended): `GLSL_ES_300_PREPASS_VERTEX` /
+    `GLSL_ES_300_PREPASS_FRAGMENT` draw every opaque draw (never a
+    translucent draw or a line) into a single-sample `DEPTH_COMPONENT24` or
+    `DEPTH_COMPONENT32F` texture the target's pixel size, `NEAREST`, no
+    compare mode, cleared to 1.0, `LESS`, depth writes on, no colour, with
+    the main pass's `u_view`, `u_projection`, `u_depth_range`,
+    `u_orthographic`. Then draw the main pass unchanged with that texture as
+    `u_prepass_depth`, `u_prepass = true`, and `u_prepass_spread` 0
+    (single-sample) or 1 (multisampled); `u_prepass = false` draws without
+    it. The main shader skips lighting for fragments more than 2⁻²⁰ behind
+    the prepass depth. Single-sample output is pixel-identical (Bancroft
+    plan, 181k triangles, 64 lamps: 9.1 ms → 3.0 ms). With MSAA about 0.25%
+    of pixels, all on silhouettes, differ by up to one sample's share
+    (4×: 9.8 → 3.6 ms); draw screenshots without the prepass when exact
+    edges matter. Full contract in the `gpu_prepass` module doc.
   - `GLSL_ES_300_VERTEX` / `GLSL_ES_300_FRAGMENT`: the reference shader,
     which reproduces the CPU lighting and texture functions;
     `TextureFunction::shader_code()` gives `u_function` and

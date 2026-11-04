@@ -41,6 +41,7 @@ out float v_w;
 out vec3 v_world;
 out vec3 v_normal;
 flat out vec3 v_flat_normal;
+invariant gl_Position;
 
 // Texel t of light table row r.
 vec4 light(int r, int t) {
@@ -110,7 +111,10 @@ void main() {
 /// the fragment shader also reads the vertex shader's `u_mode`,
 /// `u_ambient`, `u_count`, `u_lights`, `u_eye`, `u_forward`,
 /// `u_shadow_light` and `u_shadow_dim` (its ints declared `highp`, as the
-/// vertex stage's default). Writes straight RGBA.
+/// vertex stage's default). With a depth prepass
+/// ([`crate::GLSL_ES_300_PREPASS_FRAGMENT`]), `u_prepass` true,
+/// `u_prepass_depth` and `u_prepass_spread` skip the lighting of fragments
+/// it shows hidden. Writes straight RGBA.
 ///
 /// It writes `gl_FragDepth`: logarithmic in perspective (see
 /// [`crate::Camera::depth_range`] for the precision), the matrix's linear
@@ -173,7 +177,33 @@ uniform vec3 u_material_ambient;
 uniform vec3 u_specular;
 uniform vec3 u_emissive;
 uniform float u_shininess;
+uniform bool u_prepass;
+uniform highp sampler2D u_prepass_depth;
+uniform highp int u_prepass_spread;
 out vec4 o_colour;
+
+// The depth this fragment writes; the prepass writes the same.
+float frag_depth() {
+    return u_orthographic
+        ? gl_FragCoord.z
+        : clamp(log2(v_w / u_depth_range.x) / log2(u_depth_range.y / u_depth_range.x), 0.0, 1.0);
+}
+
+// True when the prepass puts an opaque surface in front of depth d at this
+// pixel and its u_prepass_spread neighbours, so nothing here can show.
+bool prepass_hidden(float d) {
+    if (!u_prepass) return false;
+    ivec2 last = textureSize(u_prepass_depth, 0) - 1;
+    ivec2 c = ivec2(gl_FragCoord.xy);
+    float m = 0.0;
+    for (int y = -u_prepass_spread; y <= u_prepass_spread; y++) {
+        for (int x = -u_prepass_spread; x <= u_prepass_spread; x++) {
+            ivec2 q = clamp(c + ivec2(x, y), ivec2(0), last);
+            m = max(m, texelFetch(u_prepass_depth, q, 0).r);
+        }
+    }
+    return d > m + 1.0 / 1048576.0;
+}
 
 // Texel t of light table row r.
 vec4 light(int r, int t) {
@@ -392,6 +422,8 @@ void main() {
     vec3 f = cross(dFdx(v_world), dFdy(v_world));
     float fl = length(f);
     f = fl > 0.0 ? f / fl : vec3(0.0);
+    float depth = frag_depth();
+    if (prepass_hidden(depth)) discard;
     vec3 s = v_flat > 0.5 ? v_flat_shade : v_shade;
     float sh = u_shadows ? lit(f) : 1.0;
     if (u_shadows) s += sh * (v_flat > 0.5 ? v_flat_key : v_key);
@@ -409,9 +441,7 @@ void main() {
     vec3 rgb = base.rgb * s;
     if (u_finished && u_mode != 1) rgb = finish(rgb, base.rgb, f, sh, lamp_spec);
     o_colour = vec4(clamp(rgb, 0.0, 1.0), base.a);
-    gl_FragDepth = u_orthographic
-        ? gl_FragCoord.z
-        : clamp(log2(v_w / u_depth_range.x) / log2(u_depth_range.y / u_depth_range.x), 0.0, 1.0);
+    gl_FragDepth = depth;
 }
 ";
 
