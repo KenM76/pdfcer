@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-04 (1419th filing) — `Pass 661.0` (`X039`, `a6a1ed44`) shipped
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, I commit nothing):**
+- **`Pass 661.0` SHIPPED `a6a1ed44`** (core, `pdfcer-model`): a failed object-stream container is decoded once per load; later members reported as `ObjectUnreadable` with the same reason. Strict mode unchanged. Written fresh (decision 215; PdfCraft's fix is in another parser). Test `a_failed_object_stream_is_decoded_once_per_load`, sabotage-verified; 429 unit / 39 integration / 27 doc pass; gates clean; `load_compressed` baseline entry deleted. No API or manifest change.
+- **Files:** `ROADMAP.md` (Shipped entry added; Next-up `661.0` banner deleted, head rewritten); `FEATURES.md` row moved Planned to Implemented (core `[x]`, cli/gui `—`).
+- Local `main`, not pushed at filing; next release after `Pass 660.0`, writes `pdfcer2`.
+
+**Owed / open:** `tools/check-register-entry-size.py` not run from here; re-run it. Doc-comment survivors not checked; backup currency not verifiable from here. Next filing 1420th.
+
 ## 2026-11-04 (1418th filing) — `v0.127.0` published (tag on `7d8aedb8`); `Pass 661.0` (`X039`) opened; `Pass 660.0` names its spec deliverables
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, I commit nothing):**

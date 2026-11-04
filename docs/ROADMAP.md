@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `a6a1ed44` `Pass 661.0`, 2026-11-04: an object stream that fails to decode is tried once per load (`X039`) (1419th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `a6a1ed44` "fix(model): an object stream that fails to decode is tried once per load (X039, Pass 661.0)", local `main`, not pushed at filing, after `07f1a35f`. Core only (`pdfcer-model`); cli `—`, gui `—`. Reply `open/reply_X039_bad_object_stream_decoded_once_SHIPPED.md`. Unreleased; next release (`v0.127.1` or `v0.128.0`, OneDrive `pdfcer2`) follows `Pass 660.0`.
+- **Decision 215: written fresh in pdfcer.** PdfCraft's fix is in a different parser (its `cos`), used as behavioural reference only; nothing adopted. No new decision.
+- **Change:** `Document::load_compressed` keeps a per-load map of failed object-stream containers (object number to anomaly reason). Later members are recorded as `LoadAnomaly::ObjectUnreadable` with the same reason, without re-decoding. Anomaly report unchanged (one entry per member). Strict policy: the first failure is still the hard error. Cheap refusals (container missing, not a stream, data outside the file) are remembered too.
+- **API:** no public change; `docs/core-api/` untouched. No manifest change, so `cargo tree` is unaffected.
+- **Structure:** `load_compressed` split (helpers `decode_container`, `member_at`) to 75 lines; its entry deleted from `tools/code-structure-baseline.txt`.
+- **Engineer-reported tests:** new `a_failed_object_stream_is_decoded_once_per_load` (one object stream with an unknown filter, 10 members in an xref stream; decode counted once via a test-only counter; all 10 reported with the same reason; strict mode returns the `ObjectStream` error). Sabotage: removing the record line gave 10 decodes and a failing test; restored and rebuilt, passes. `pdfcer-model` 429 unit, 39 integration, 27 doc pass; clippy `-D warnings`, fmt, code-structure gate clean.
+- **Boxes:** FEATURES row "A damaged object stream is tried once per load" moved Planned to Implemented, core `[x]`, cli/gui `—`.
+
 ### `7d8aedb8` `v0.127.0` PUBLISHED, 2026-11-04 (1418th filing)
 
 Engineer-reported; no shell here, nothing checked from here (GitHub, crates.io, OneDrive, CI and git state all as reported). Tag `v0.127.0` on `7d8aedb8` (the 1417th filing commit); version bump `bfbbe9f6`. Carries `Pass 658.20` (`de68b8c7`), `Pass 658.21` (`91665b7f` + `9248293f`), `Pass 659.0` (`c102b748`), all filed earlier (1415th-1417th).
@@ -25874,12 +25884,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 ## Next up
 
-> **Head (1418th filing): `Pass 660.0` (`G266`), then `Pass 661.0` (`X039`, IN PROGRESS), both below; both ride the next release (`v0.128.0` or later, writes OneDrive `pdfcer2`; `v0.127.0` PUBLISHED, see *Shipped*).** The older banners that follow are history.
-
-> **`Pass 661.0` (`X039`): an object stream that fails to decode is tried once per load, not once per object**
->
-> IN PROGRESS (engineer). From PdfCraft ("operator (crates consumer)"). Core. ID `661.0` grepped across `docs/*.md` before filing: no prior use (not run through `check-ledger-numbers.py`). **Decision 215 applied, and it comes out "write fresh":** PdfCraft's fix is on its branch `perf/failed-object-cache`, but it lives in PdfCraft's own `cos` parser, which pdfcer does not have, so there is nothing to adopt; pdfcer writes it in its own loader and the `SHIPPED` reply states that. Acceptance beyond the title is as relayed; the request file is the authority.
-> - **FEATURES:** Planned row added (core only; cli/gui not applicable, no verb).
+> **Head (1419th filing): `Pass 660.0` (`G266`), below; `Pass 661.0` (`X039`) is SHIPPED `a6a1ed44` (see *Shipped*). Both ride the next release (`v0.127.1` or `v0.128.0`, writes OneDrive `pdfcer2`; `v0.127.0` PUBLISHED).** The older banners that follow are history.
 
 > **`Pass 660.0` (`G266`, operator `O381`): custom `/Info` entries, `/Creator`, and XMP kept in step with `/Info`**
 >
