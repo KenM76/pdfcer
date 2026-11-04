@@ -152,3 +152,36 @@ pub(crate) fn check_fixture(name: &str, bytes: &[u8]) {
         "{name}: rerun with PDFCER_WRITE_FIXTURES=1"
     );
 }
+
+/// `bytes` assembled with each mesh made two faces: face 0 its triangles,
+/// face 1 the same triangles wound the other way, so either face's
+/// triangles can be told apart.
+pub(crate) fn assemble_two_faced(
+    bytes: &[u8],
+) -> Result<crate::AssembledModel, crate::AssembleError> {
+    let prc = crate::PrcFile::parse(bytes)?;
+    let mut model = crate::AssembledModel::default();
+    let mut by_index = crate::model::decode_meshes(
+        &prc,
+        crate::MeshFit::default(),
+        &mut model,
+        &mut crate::model::Flagged::default(),
+    )?;
+    for mesh in by_index.iter_mut().flatten().flatten() {
+        let n = mesh.triangles.len();
+        let back: Vec<[u32; 3]> = mesh.triangles.iter().map(|&[a, b, c]| [a, c, b]).collect();
+        mesh.triangles.extend(back);
+        mesh.triangle_normals.clear();
+        mesh.normals.clear();
+        mesh.triangle_uvs.clear();
+        mesh.uvs.clear();
+        mesh.faces = vec![0..n, n..2 * n];
+    }
+    crate::model::place(
+        &prc,
+        (by_index, &Vec::new()),
+        &crate::AssembleOptions::default(),
+        &mut model,
+    )?;
+    Ok(model)
+}

@@ -69,6 +69,8 @@ pub(crate) struct Reached {
     pub(crate) local: Option<(usize, u32)>,
     /// Per face index, graphics replacing that face's style.
     pub(crate) faces: Vec<(u32, Graphics)>,
+    /// Face indices a topology reference hides, sorted.
+    pub(crate) hidden_faces: Vec<u32>,
 }
 
 impl Reached {
@@ -109,18 +111,29 @@ impl Reached {
                     if !in_fs || *kind != TOPO_FACE || item.brep != Some(*brep) {
                         continue;
                     }
-                    if ov.graphics.style == 0 {
-                        continue;
-                    }
                     for &f in indices {
-                        r.faces.retain(|(i, _)| *i != f);
-                        r.faces.push((f, g));
+                        r.face(f, ov.hidden, (ov.graphics.style != 0).then_some(g));
                     }
                 }
             }
         }
         r.faces.sort_unstable_by_key(|(i, _)| *i);
+        r.hidden_faces.sort_unstable();
         r
+    }
+
+    /// One topology reference reaching face `f`. Show clear or Removed set
+    /// hides the face whatever its style [WD 7.2.4.2, 7.4.7]; a shown one
+    /// reveals it, as [`Target::Entity`]'s visibility does, and a non-zero
+    /// style recolours it.
+    fn face(&mut self, f: u32, hidden: bool, style: Option<Graphics>) {
+        self.hidden_faces.retain(|&i| i != f);
+        if hidden {
+            self.hidden_faces.push(f);
+        } else if let Some(g) = style {
+            self.faces.retain(|(i, _)| *i != f);
+            self.faces.push((f, g));
+        }
     }
 }
 
@@ -150,5 +163,54 @@ pub(crate) fn triangle_faces(mesh: &crate::TriangleMesh) -> Vec<u32> {
             *f = i as u32;
         }
     }
+    out
+}
+
+impl crate::Placement {
+    /// `mesh` without the triangles of the faces a topology reference
+    /// hides here; borrowed when it hides none of them.
+    pub(crate) fn shown<'m>(
+        &self,
+        mesh: &'m crate::TriangleMesh,
+    ) -> std::borrow::Cow<'m, crate::TriangleMesh> {
+        use std::borrow::Cow;
+        if self.hidden_faces.is_empty() {
+            return Cow::Borrowed(mesh);
+        }
+        let faces = triangle_faces(mesh);
+        let keep: Vec<bool> = faces
+            .iter()
+            .map(|f| self.hidden_faces.binary_search(f).is_err())
+            .collect();
+        if keep.iter().all(|&k| k) {
+            return Cow::Borrowed(mesh);
+        }
+        Cow::Owned(keep_triangles(mesh, &keep))
+    }
+}
+
+/// `mesh` with only the triangles `keep` marks, each per-triangle array and
+/// face range following.
+fn keep_triangles(mesh: &crate::TriangleMesh, keep: &[bool]) -> crate::TriangleMesh {
+    fn pick<T: Clone>(from: &[T], keep: &[bool]) -> Vec<T> {
+        from.iter()
+            .zip(keep)
+            .filter(|(_, k)| **k)
+            .map(|(t, _)| t.clone())
+            .collect()
+    }
+    let mut out = mesh.clone();
+    out.triangles = pick(&mesh.triangles, keep);
+    out.triangle_normals = pick(&mesh.triangle_normals, keep);
+    out.triangle_graphics = pick(&mesh.triangle_graphics, keep);
+    out.triangle_faces = pick(&mesh.triangle_faces, keep);
+    out.triangle_uvs = mesh.triangle_uvs.iter().map(|s| pick(s, keep)).collect();
+    let mut before = Vec::with_capacity(keep.len() + 1);
+    before.push(0);
+    for &k in keep {
+        before.push(before.last().copied().unwrap_or(0) + usize::from(k));
+    }
+    let at = |i: usize| before.get(i.min(keep.len())).copied().unwrap_or(0);
+    out.faces = mesh.faces.iter().map(|r| at(r.start)..at(r.end)).collect();
     out
 }

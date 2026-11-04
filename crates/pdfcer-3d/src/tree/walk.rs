@@ -355,6 +355,7 @@ impl<'t> Walk<'t> {
                 chain,
                 item_override: reached.item,
                 face_overrides: reached.faces,
+                hidden_faces: reached.hidden_faces,
             });
         }
         Ok(())

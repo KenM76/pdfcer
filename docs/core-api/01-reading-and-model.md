@@ -3398,8 +3398,19 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   as a setting. `AssembledModel::overridden: usize` counts the placements
   an override recoloured; disclose it — `3d-render` prints `note: N
   placement(s) drawn in a colour an enclosing assembly overrides them with
-  (`--entity-overrides ignore` draws their own)`. A hidden face override
-  is not applied (the whole item is hidden only by an item override).
+  (`--entity-overrides ignore` draws their own)`. A face reference with
+  Show clear or Removed set (WD 7.2.4.2) removes that face's triangles from
+  the placed mesh, whatever its style; a shown one reveals a face an inner
+  occurrence hid. Hidden faces are not counted in `overridden`.
+- **Assembly refusals.** A placement naming a tessellation its file
+  structure does not hold is `AssembleError::Prc(PrcError::Malformed)`
+  (wire, markup and compressed tessellations left out are still skipped
+  and counted). Placing copies each shared mesh once per placement, so the
+  totals are capped before each copy: `AssembleError::PlacedTooLarge {
+  what: &'static str, limit: usize }` past `pdfcer_3d::MAX_PLACED_TRIANGLES`
+  (2^25) triangles or `MAX_PLACED_ATTRIBUTES` (2^25) vertex attributes
+  (positions, normals, texture coordinates and wire points, counted once
+  per look a placement splits into plus the transform's copy).
   Fixture: `fixtures/synthetic/prc/overridden.prc` — three copies; the
   first recoloured translucent blue, the second face 0 only, the third
   hidden. CLI: `3d-render --entity-overrides subtree|everywhere|ignore`.

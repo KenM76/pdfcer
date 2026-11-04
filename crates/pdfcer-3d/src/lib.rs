@@ -167,7 +167,8 @@ pub use lamp_shadow::{DEFAULT_LAMP_SHADOW_MAP_SIZE, MAX_LAMP_SHADOW_MAP_SIZE};
 pub use lighting::{Light, LightFrame, LightSet, LightingScheme, Lights};
 pub use model::{
     AssembleError, AssembleOptions, AssembledModel, DEFAULT_VIEW_DIRECTION, DEFAULT_VIEW_UP,
-    MeshFit, StoredVisibility, assemble, assemble_with, assemble_with_options,
+    MAX_PLACED_ATTRIBUTES, MAX_PLACED_TRIANGLES, MeshFit, StoredVisibility, assemble,
+    assemble_with, assemble_with_options,
 };
 #[cfg(feature = "render")]
 pub use model::{default_view_camera, render_default_view, render_model};

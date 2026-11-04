@@ -58,6 +58,18 @@ pub(crate) fn place(p: &Placement, k: usize, wires: &Wires, model: &mut Assemble
     );
 }
 
+/// The points (and their colours) [`place`] copies for `p`.
+pub(crate) fn points(p: &Placement, wires: &Wires) -> usize {
+    let key = (p.file_structure, p.tessellation);
+    let Ok(at) = wires.binary_search_by_key(&key, |(i, _)| *i) else {
+        return 0;
+    };
+    wires.get(at).map_or(0, |(_, w)| {
+        w.polylines.iter().map(Vec::len).sum::<usize>()
+            + w.colours.iter().map(Vec::len).sum::<usize>()
+    })
+}
+
 /// Adds every wire once, in its own coordinates, uncoloured by a tree.
 pub(crate) fn unplaced(wires: &Wires, model: &mut AssembledModel) {
     for (_, wire) in wires {

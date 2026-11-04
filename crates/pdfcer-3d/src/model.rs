@@ -208,7 +208,30 @@ pub enum AssembleError {
     /// The model holds no triangle tessellation at all.
     #[error("the model holds no triangle tessellation")]
     NoTriangles,
+    /// Placing the model's meshes would copy more than a fixed ceiling of
+    /// `what`: [`MAX_PLACED_TRIANGLES`] triangles or
+    /// [`MAX_PLACED_ATTRIBUTES`] vertex attributes. Checked before each
+    /// copy, so nothing past the ceiling is allocated.
+    #[error("placing the model needs more than {limit} {what}")]
+    PlacedTooLarge {
+        /// `"triangles"` or `"vertex attributes"`.
+        what: &'static str,
+        /// The ceiling that was hit.
+        limit: usize,
+    },
 }
+
+/// Ceiling on the triangles every placement together draws. A shared part
+/// is copied once per placement, and the tree may place one up to 2^20
+/// times, so a small file can describe more geometry than memory holds.
+/// 2^25 triangles (with their corner indices about 0.8 GB) is several
+/// times a large CAD assembly.
+pub const MAX_PLACED_TRIANGLES: usize = 1 << 25;
+
+/// Ceiling on the vertex attributes (positions, normals, texture
+/// coordinates and wire points) every placement together copies: 2^25,
+/// about 0.8 GB of positions.
+pub const MAX_PLACED_ATTRIBUTES: usize = 1 << 25;
 
 /// Decode a PRC model and place its meshes.
 ///
@@ -270,7 +293,7 @@ pub fn assemble_with_options(
     let mut model = AssembledModel::default();
     let mut flagged = Flagged::default();
     let by_index = decode_meshes(&prc, options.mesh_fit, &mut model, &mut flagged)?;
-    place(&prc, (by_index, &flagged.wires), options, &mut model);
+    place(&prc, (by_index, &flagged.wires), options, &mut model)?;
     model.left_out_parts = part_labels(&prc, &flagged.left_out);
     model.best_fit_parts = part_labels(&prc, &flagged.best_fit);
     model.partial_parts = part_labels(&prc, &flagged.partial);
@@ -292,7 +315,7 @@ pub fn assemble_with_options(
 
 /// Per file structure, each tessellation's triangle mesh (if it has one),
 /// counting what is not drawn into `model`.
-fn decode_meshes(
+pub(crate) fn decode_meshes(
     prc: &PrcFile,
     fit: MeshFit,
     model: &mut AssembledModel,
@@ -375,7 +398,7 @@ fn count_why(tally: &mut Vec<(String, usize)>, why: String) {
 /// that [`decode_meshes`] left out, rebuilt by best fit or drew in part,
 /// and the wires it found.
 #[derive(Default)]
-struct Flagged {
+pub(crate) struct Flagged {
     left_out: Vec<(usize, usize)>,
     best_fit: Vec<(usize, usize)>,
     partial: Vec<(usize, usize)>,
@@ -439,12 +462,12 @@ type Look = (
 );
 
 /// Place each mesh where the assembly tree draws it, split by face look.
-fn place(
+pub(crate) fn place(
     prc: &PrcFile,
     (by_index, wires): (Vec<Vec<Option<TriangleMesh>>>, &crate::wire::Wires),
     options: &AssembleOptions,
     model: &mut AssembledModel,
-) {
+) -> Result<(), AssembleError> {
     let rules = crate::tree::TextureRules {
         files: options.picture_files,
         wrap: options.wrap_base,
@@ -463,23 +486,7 @@ fn place(
                 None => lights,
             };
             model.view_lights = views;
-            let mut textures = Textures::default();
-            for (k, p) in placements.iter().enumerate() {
-                crate::wire::place(p, k, wires, model);
-                let mesh = by_index
-                    .get(p.file_structure)
-                    .and_then(|row| row.get(p.tessellation))
-                    .and_then(Option::as_ref);
-                if let Some(mesh) = mesh {
-                    model.overridden +=
-                        usize::from(p.item_override.is_some() || !p.face_overrides.is_empty());
-                    place_one(p, mesh, &mut textures, model);
-                    model
-                        .boxes
-                        .extend(crate::NodeBox::of(mesh, &p.matrix, Some(k)));
-                    model.mesh_placements.resize(model.meshes.len(), k);
-                }
-            }
+            let textures = place_all(&placements, (&by_index, wires), model)?;
             model.tree = tree;
             model.textures = textures.drawn;
             model.texture_notes = textures.notes;
@@ -506,6 +513,69 @@ fn place(
         crate::wire::unplaced(wires, model);
     }
     model.textured = model.mesh_textures.iter().flatten().count();
+    Ok(())
+}
+
+/// Places each mesh and wire `placements` draw. A placement naming a
+/// tessellation its structure does not hold is malformed; one naming a
+/// wire, a markup or a compressed tessellation left out draws no mesh.
+fn place_all<'p>(
+    placements: impl IntoIterator<Item = &'p crate::Placement>,
+    (by_index, wires): (&[Vec<Option<TriangleMesh>>], &crate::wire::Wires),
+    model: &mut AssembledModel,
+) -> Result<Textures, AssembleError> {
+    let mut textures = Textures::default();
+    let mut budget = Budget::default();
+    for (k, p) in placements.into_iter().enumerate() {
+        budget.take(0, crate::wire::points(p, wires))?;
+        crate::wire::place(p, k, wires, model);
+        let slot = by_index
+            .get(p.file_structure)
+            .and_then(|row| row.get(p.tessellation));
+        let Some(slot) = slot else {
+            return Err(AssembleError::Prc(PrcError::Malformed(format!(
+                "a placement draws tessellation {} of file structure {}, which does not exist",
+                p.tessellation, p.file_structure
+            ))));
+        };
+        let Some(mesh) = slot else { continue };
+        model.overridden += usize::from(p.item_override.is_some() || !p.face_overrides.is_empty());
+        let shown = p.shown(mesh);
+        place_one(p, &shown, &mut textures, &mut budget, model)?;
+        model
+            .boxes
+            .extend(crate::NodeBox::of(&shown, &p.matrix, Some(k)));
+        model.mesh_placements.resize(model.meshes.len(), k);
+    }
+    Ok(textures)
+}
+
+/// What the placements copied so far, against [`MAX_PLACED_TRIANGLES`] and
+/// [`MAX_PLACED_ATTRIBUTES`].
+#[derive(Default)]
+struct Budget {
+    triangles: usize,
+    attributes: usize,
+}
+
+impl Budget {
+    /// Counts `triangles` and `attributes` about to be copied, refusing
+    /// before a ceiling is passed.
+    fn take(&mut self, triangles: usize, attributes: usize) -> Result<(), AssembleError> {
+        let add = |have: usize, more: usize, limit: usize, what| {
+            have.checked_add(more)
+                .filter(|&n| n <= limit)
+                .ok_or(AssembleError::PlacedTooLarge { what, limit })
+        };
+        self.triangles = add(self.triangles, triangles, MAX_PLACED_TRIANGLES, "triangles")?;
+        self.attributes = add(
+            self.attributes,
+            attributes,
+            MAX_PLACED_ATTRIBUTES,
+            "vertex attributes",
+        )?;
+        Ok(())
+    }
 }
 
 /// Draw `mesh` once where `p` places it, one mesh per distinct look.
@@ -513,9 +583,9 @@ fn place_one(
     p: &crate::Placement,
     mesh: &TriangleMesh,
     textures: &mut Textures,
+    budget: &mut Budget,
     model: &mut AssembledModel,
-) {
-    let placed = mesh.transformed(&p.matrix);
+) -> Result<(), AssembleError> {
     let looks = p.triangle_looks(mesh);
     let mut notes = Vec::new();
     let mut unset: Vec<Look> = Vec::new();
@@ -542,6 +612,19 @@ fn place_one(
     for why in notes {
         textures.note(why);
     }
+    let mut distinct: Vec<&Look> = Vec::new();
+    for look in &per {
+        if !distinct.contains(&look) {
+            distinct.push(look);
+        }
+    }
+    // Each look's part copies every vertex attribute; the transform one more.
+    let attributes = mesh.positions.len() + mesh.normals.len() + mesh.uvs.len();
+    budget.take(
+        mesh.triangles.len(),
+        attributes.saturating_mul(distinct.len().max(1) + 1),
+    )?;
+    let placed = mesh.transformed(&p.matrix);
     for (part, look) in split_by_look(&placed, &per) {
         model.alpha_unset += usize::from(unset.contains(&look));
         model.meshes.push(part);
@@ -549,6 +632,7 @@ fn place_one(
         model.mesh_textures.push(look.1);
         model.finishes.push(look.2);
     }
+    Ok(())
 }
 
 /// The textures drawn so far, shared by every placement that uses them,
@@ -760,6 +844,67 @@ mod tests {
         assert_eq!(parts[1].0.triangle_normals, [[1, 1, 1]]);
     }
 
+    /// A placement with no style, override or transform.
+    fn bare_placement() -> crate::Placement {
+        crate::Placement {
+            file_structure: 0,
+            tessellation: 0,
+            matrix: crate::IDENTITY,
+            colour: None,
+            chain: Vec::new(),
+            palettes: std::sync::Arc::from(Vec::new()),
+            skins: std::sync::Arc::from(Vec::new()),
+            item_override: None,
+            face_overrides: Vec::new(),
+            hidden_faces: Vec::new(),
+        }
+    }
+
+    /// One triangle over 100k positions placed 2^20 times stops at the
+    /// attribute ceiling, after a few hundred copies, rather than asking
+    /// for terabytes.
+    #[test]
+    fn placing_past_the_attribute_ceiling_is_refused_before_the_copy() {
+        let mesh = TriangleMesh {
+            positions: vec![[0.0; 3]; 100_000],
+            triangles: vec![[0, 1, 2]],
+            ..TriangleMesh::default()
+        };
+        let p = bare_placement();
+        let by_index = vec![vec![Some(mesh)]];
+        let mut model = AssembledModel::default();
+        let mut placed = 0usize;
+        let placements = std::iter::repeat_n(&p, 1 << 20).inspect(|_| {
+            placed += 1;
+            // Guards the machine when the ceiling is missing.
+            assert!(placed <= 400, "no ceiling after {placed} placements");
+        });
+        let err = place_all(placements, (&by_index, &Vec::new()), &mut model).err();
+        assert_eq!(
+            err,
+            Some(AssembleError::PlacedTooLarge {
+                what: "vertex attributes",
+                limit: MAX_PLACED_ATTRIBUTES,
+            })
+        );
+        let copied: usize = model.meshes.iter().map(|m| m.positions.len()).sum();
+        assert!(copied <= MAX_PLACED_ATTRIBUTES);
+    }
+
+    #[test]
+    fn the_triangle_ceiling_refuses_the_triangle_past_it() {
+        let mut budget = Budget::default();
+        assert!(budget.take(MAX_PLACED_TRIANGLES, 0).is_ok());
+        assert_eq!(
+            budget.take(1, 0),
+            Err(AssembleError::PlacedTooLarge {
+                what: "triangles",
+                limit: MAX_PLACED_TRIANGLES,
+            })
+        );
+        assert!(budget.take(0, usize::MAX).is_err(), "no overflow");
+    }
+
     fn fixture(name: &str) -> Vec<u8> {
         let path = format!(
             "{}/../../fixtures/synthetic/prc/{name}",
@@ -837,7 +982,8 @@ mod tests {
             (by_index, &Vec::new()),
             &AssembleOptions::default(),
             &mut model,
-        );
+        )
+        .unwrap();
         assert_eq!(model.mesh_placements, [0, 1, 1]);
         assert_eq!(model.meshes.len(), 3);
         assert_ne!(model.colours[1], model.colours[2]);

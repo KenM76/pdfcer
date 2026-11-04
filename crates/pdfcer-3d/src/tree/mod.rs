@@ -115,6 +115,9 @@ pub struct Placement {
     pub(crate) item_override: Option<Graphics>,
     /// Per face index, an entity reference replacing that face's style.
     pub(crate) face_overrides: Vec<(u32, Graphics)>,
+    /// Face indices an entity reference hides, sorted; their triangles are
+    /// not drawn ([`Self::shown`]).
+    pub(crate) hidden_faces: Vec<u32>,
 }
 
 /// Per file structure, entry `b` is the colour of biased style index `b`.
@@ -814,10 +817,16 @@ mod tests {
         w.uint(0).uint(0).uint(0).uint(0).uint(0);
     }
 
-    /// A part with one item on tessellation 1, local CS `cs`: a poly-BRep,
-    /// or with `brep` a B-rep model of that `(context, body)`. Items have
-    /// PRC unique id 7.
-    fn part(w: &mut W, cs: u32, extra: bool, name: Option<Option<&str>>, brep: Option<(u32, u32)>) {
+    /// A part with one item on tessellation `tess` (biased), local CS
+    /// `cs`: a poly-BRep, or with `brep` a B-rep model of that `(context,
+    /// body)`. Items have PRC unique id 7.
+    fn part(
+        w: &mut W,
+        (cs, tess): (u32, u32),
+        extra: bool,
+        name: Option<Option<&str>>,
+        brep: Option<(u32, u32)>,
+    ) {
         w.uint(PART_DEFINITION);
         graphics_named(w, name, None, extra);
         for c in [1.0, 0.0, 0.0, -1.0, 0.0, 0.0] {
@@ -827,12 +836,12 @@ mod tests {
             None => {
                 w.uint(1).uint(RI_POLY_BREP_MODEL);
                 graphics(w, None, extra);
-                w.uint(cs).uint(1).bit(false).uint(0);
+                w.uint(cs).uint(tess).bit(false).uint(0);
             }
             Some((context, body)) => {
                 w.uint(1).uint(RI_BREP_MODEL);
                 graphics(w, None, extra);
-                w.uint(cs).uint(1).bit(true).uint(context).uint(body);
+                w.uint(cs).uint(tess).bit(true).uint(context).uint(body);
                 w.bit(false).uint(0);
             }
         }
@@ -979,11 +988,22 @@ mod tests {
         part_name: Option<Option<&str>>,
         brep: Option<(u32, u32)>,
     ) -> W {
+        tree_on(occs, (cs, 1), extra, part_name, brep)
+    }
+
+    /// [`tree_with`], its item on tessellation `tess` (biased).
+    fn tree_on(
+        occs: &[Occ<'_>],
+        (cs, tess): (u32, u32),
+        extra: bool,
+        part_name: Option<Option<&str>>,
+        brep: Option<(u32, u32)>,
+    ) -> W {
         let mut w = W::default();
         w.uint(FILE_STRUCTURE_TREE);
         base(&mut w);
         w.uint(1);
-        part(&mut w, cs, extra, part_name, brep);
+        part(&mut w, (cs, tess), extra, part_name, brep);
         w.uint(occs.len() as u32);
         for o in occs {
             occurrence(&mut w, o, extra);
@@ -1668,6 +1688,7 @@ mod tests {
             skins: std::sync::Arc::from(Vec::new()),
             item_override: None,
             face_overrides: Vec::new(),
+            hidden_faces: Vec::new(),
         };
         let mut mesh = crate::TriangleMesh::default();
         let item = placement(vec![g(1, 0)]);
@@ -1984,6 +2005,61 @@ mod tests {
             [Some([255, 0, 0, 255]), Some([0, 0, 255, 128]), None]
         );
         crate::testw::check_fixture("coloured.prc", &bytes);
+    }
+
+    /// An item naming tessellation 1 (0-based) of a section holding one is
+    /// malformed: assembly refuses it rather than drawing the model with
+    /// the part missing.
+    #[test]
+    fn a_placement_naming_a_missing_tessellation_is_refused() {
+        let tess = square_tess();
+        let occs = [Occ { part: 1, ..OCC }];
+        let file = |tess_index| {
+            placed_tree(
+                &tess,
+                &tree_on(&occs, (0, tess_index), false, None, None).bytes(),
+            )
+        };
+        assert!(crate::assemble(&file(1)).is_ok());
+        let err = crate::assemble(&file(2)).unwrap_err();
+        assert!(
+            matches!(&err, crate::AssembleError::Prc(PrcError::Malformed(why))
+                if why.contains("tessellation 1")),
+            "{err:?}"
+        );
+    }
+
+    /// A topology reference to face 0 of a two-face B-rep with Show clear,
+    /// or Removed set, removes face 0's triangles whatever its style and
+    /// keeps face 1's; with Show set and no style it changes nothing
+    /// [WD 7.2.4.2, 7.4.7].
+    #[test]
+    fn a_topology_reference_that_hides_a_face_removes_its_triangles() {
+        let tess = square_tess();
+        let assemble = |g: (u32, u16)| {
+            let refs = [Er::Faces { g, faces: &[0] }];
+            let occs = [Occ {
+                part: 1,
+                refs: &refs,
+                ..OCC
+            }];
+            let tree = tree_on(&occs, (0, 1), false, None, Some((1, 1)));
+            let bytes = placed_tree(&tess, &tree.bytes());
+            crate::testw::assemble_two_faced(&bytes).unwrap()
+        };
+        let all = |m: &crate::AssembledModel| -> Vec<[u32; 3]> {
+            m.meshes.iter().flat_map(|m| m.triangles.clone()).collect()
+        };
+        let shown = assemble((0, SHOW));
+        let both = all(&shown);
+        let n = both.len() / 2;
+        assert!(n > 0 && both.len() == 2 * n);
+        assert_ne!(both[..n], both[n..], "Show set keeps both faces");
+        for g in [(0, 0), (0, REMOVED | SHOW), (1, 0)] {
+            let m = assemble(g);
+            assert_eq!(all(&m), both[n..], "{g:?} keeps only face 1");
+            assert_eq!(m.mesh_placements.len(), m.meshes.len());
+        }
     }
 
     /// The unit square as B-rep `(1, 1)` in structure A, placed at x 0, 2
