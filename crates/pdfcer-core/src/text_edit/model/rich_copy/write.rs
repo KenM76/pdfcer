@@ -2,10 +2,42 @@
 
 use std::fmt::Write as _;
 
-use super::{RichParagraph, RichSpan, RichText, SpanStyle};
+use super::{
+    RICH_COPY_MAX_OUTPUT_BYTES, RICH_COPY_MAX_PARAGRAPHS, RICH_COPY_MAX_SPANS,
+    RICH_COPY_MAX_TEXT_BYTES, RichParagraph, RichSpan, RichText, SpanStyle, font_size_pt, space_pt,
+};
 
-const START_FRAGMENT: &str = "<!--StartFragment-->";
-const END_FRAGMENT: &str = "<!--EndFragment-->";
+pub(super) const START_FRAGMENT: &str = "<!--StartFragment-->";
+pub(super) const END_FRAGMENT: &str = "<!--EndFragment-->";
+
+/// Most characters of a font family written; a longer name is cut.
+pub(super) const MAX_FAMILY_CHARS: usize = 64;
+/// Upper bound on the bytes one run adds beyond its text, in either format:
+/// its HTML `<span>` with every style and a [`MAX_FAMILY_CHARS`] family, or
+/// its RTF group plus its own font-table and colour-table entries.
+/// `worst_span_fits_its_bound` measures it.
+pub(super) const SPAN_BYTES_MAX: usize = 2048;
+/// Most output bytes one input text byte becomes (`&nbsp;`, `\line `).
+const TEXT_EXPANSION_MAX: usize = 6;
+/// Upper bound on one paragraph's markup without its runs.
+const PARAGRAPH_BYTES_MAX: usize = 128;
+/// Upper bound on a document's fixed head and tail, `CF_HTML` header
+/// included.
+const DOCUMENT_BYTES_MAX: usize = 1024;
+/// The writer checks [`WRITE_LIMIT`] before each paragraph, run and
+/// character, so one run's markup and the closing tail may follow the last
+/// check; this much is kept free for them.
+const RESERVE: usize = 64 * 1024;
+const WRITE_LIMIT: usize = RICH_COPY_MAX_OUTPUT_BYTES - RESERVE;
+
+// A copy within the paragraph, run and text caps never reaches the limit.
+const _: () = assert!(
+    RICH_COPY_MAX_SPANS * SPAN_BYTES_MAX
+        + RICH_COPY_MAX_TEXT_BYTES * TEXT_EXPANSION_MAX
+        + RICH_COPY_MAX_PARAGRAPHS * PARAGRAPH_BYTES_MAX
+        + DOCUMENT_BYTES_MAX
+        <= WRITE_LIMIT
+);
 
 impl RichText {
     /// The text with paragraphs separated by `\n`, a wrapped line joined by
@@ -26,8 +58,11 @@ impl RichText {
     pub fn to_html(&self) -> String {
         let mut out = String::from("<html><head><meta charset=\"utf-8\"></head><body>\n");
         out.push_str(START_FRAGMENT);
-        for p in &self.paragraphs {
-            html_paragraph(&mut out, p);
+        for (p, spans) in capped(&self.paragraphs) {
+            if full(&out) {
+                break;
+            }
+            html_paragraph(&mut out, p, spans);
         }
         out.push_str(END_FRAGMENT);
         out.push_str("\n</body></html>\n");
@@ -63,7 +98,7 @@ impl RichText {
     pub fn to_rtf(&self) -> String {
         let mut fonts: Vec<&str> = Vec::new();
         let mut colors: Vec<[u8; 3]> = Vec::new();
-        for s in self.paragraphs.iter().flat_map(|p| &p.spans) {
+        for s in capped(&self.paragraphs).flat_map(|(_, spans)| spans) {
             if let Some(f) = s.style.family.as_deref()
                 && !fonts.contains(&f)
             {
@@ -81,7 +116,7 @@ impl RichText {
         }
         for (i, f) in fonts.iter().enumerate() {
             let _ = write!(out, "{{\\f{i}\\fnil ");
-            rtf_text(&mut out, f);
+            rtf_font_name(&mut out, f);
             out.push_str(";}");
         }
         out.push_str("}{\\colortbl;");
@@ -89,8 +124,11 @@ impl RichText {
             let _ = write!(out, "\\red{r}\\green{g}\\blue{b};");
         }
         out.push_str("}\n");
-        for p in &self.paragraphs {
-            rtf_paragraph(&mut out, p, &fonts, &colors);
+        for (p, spans) in capped(&self.paragraphs) {
+            if full(&out) {
+                break;
+            }
+            rtf_paragraph(&mut out, p, spans, &fonts, &colors);
         }
         out.push('}');
         out
@@ -103,14 +141,54 @@ fn cf_header(start_html: usize, end_html: usize, start_frag: usize, end_frag: us
     )
 }
 
-fn html_paragraph(out: &mut String, p: &RichParagraph) {
-    let _ = write!(out, "<p style=\"margin:0 0 {}pt 0", num(p.space_after));
-    if p.spans.is_empty() {
-        let _ = writeln!(out, ";font-size:{}pt\">&nbsp;</p>", num(p.size));
+/// Whether `out` has reached the writer's limit.
+fn full(out: &str) -> bool {
+    out.len() >= WRITE_LIMIT
+}
+
+/// The paragraphs a writer serialises, each with the runs of it written: at
+/// most [`RICH_COPY_MAX_PARAGRAPHS`], and [`RICH_COPY_MAX_SPANS`] runs in all.
+/// A paragraph whose runs are all past the run cap ends the sequence.
+fn capped(paragraphs: &[RichParagraph]) -> impl Iterator<Item = (&RichParagraph, &[RichSpan])> {
+    let mut left = RICH_COPY_MAX_SPANS;
+    paragraphs
+        .iter()
+        .take(RICH_COPY_MAX_PARAGRAPHS)
+        .map_while(move |p| {
+            if left == 0 && !p.spans.is_empty() {
+                return None;
+            }
+            let n = p.spans.len().min(left);
+            left -= n;
+            Some((p, p.spans.get(..n).unwrap_or_default()))
+        })
+}
+
+/// A C0 or C1 control character other than tab and line feed: never
+/// written as text (a NUL ends the text for some clipboard readers).
+fn is_dropped(c: char) -> bool {
+    c.is_control() && c != '\t' && c != '\n'
+}
+
+fn html_paragraph(out: &mut String, p: &RichParagraph, spans: &[RichSpan]) {
+    let _ = write!(
+        out,
+        "<p style=\"margin:0 0 {}pt 0",
+        num(space_pt(p.space_after))
+    );
+    if spans.is_empty() {
+        let _ = writeln!(
+            out,
+            ";font-size:{}pt\">&nbsp;</p>",
+            num(font_size_pt(p.size))
+        );
         return;
     }
     out.push_str("\">");
-    for s in &p.spans {
+    for s in spans {
+        if full(out) {
+            break;
+        }
         html_span(out, s);
     }
     out.push_str("</p>\n");
@@ -121,10 +199,10 @@ fn html_span(out: &mut String, s: &RichSpan) {
     out.push_str("<span style=\"");
     if let Some(f) = &st.family {
         out.push_str("font-family:'");
-        html_text(out, &f.replace('\'', ""));
+        css_family(out, f);
         out.push_str("';");
     }
-    let _ = write!(out, "font-size:{}pt", num(st.size));
+    let _ = write!(out, "font-size:{}pt", num(font_size_pt(st.size)));
     if st.bold {
         out.push_str(";font-weight:bold");
     }
@@ -145,12 +223,38 @@ fn html_span(out: &mut String, s: &RichSpan) {
     out.push_str("</span>");
 }
 
-/// Escape for HTML text; `\n` becomes `<br>` and a run of spaces keeps its
-/// width with `&nbsp;`.
+/// `family` as the body of a single-quoted CSS string inside a
+/// double-quoted `style` attribute. Control characters are dropped and the
+/// name cut at [`MAX_FAMILY_CHARS`]; letters, digits, `-`, `_`, `.`, space
+/// and non-ASCII are written as they are, and every other ASCII character
+/// (quotes, `\`, `&`, `<`, `>`, `;`) as a CSS hex escape `\HH ` with its
+/// terminating space (CSS Syntax Level 3 §4.3.7, §2.1 serialisation), so
+/// neither the string nor the attribute can end early.
+fn css_family(out: &mut String, family: &str) {
+    for c in family
+        .chars()
+        .filter(|c| !c.is_control())
+        .take(MAX_FAMILY_CHARS)
+    {
+        if c.is_ascii_alphanumeric() || matches!(c, ' ' | '-' | '_' | '.') || !c.is_ascii() {
+            out.push(c);
+        } else {
+            let _ = write!(out, "\\{:x} ", u32::from(c));
+        }
+    }
+}
+
+/// Escape for HTML text; `\n` becomes `<br>`, a run of spaces keeps its
+/// width with `&nbsp;`, and [`is_dropped`] characters are left out. Stops
+/// at the writer's limit.
 fn html_text(out: &mut String, text: &str) {
     let mut prev_space = false;
     for c in text.chars() {
+        if full(out) {
+            return;
+        }
         match c {
+            c if is_dropped(c) => continue,
             '&' => out.push_str("&amp;"),
             '<' => out.push_str("&lt;"),
             '>' => out.push_str("&gt;"),
@@ -163,13 +267,22 @@ fn html_text(out: &mut String, text: &str) {
     }
 }
 
-fn rtf_paragraph(out: &mut String, p: &RichParagraph, fonts: &[&str], colors: &[[u8; 3]]) {
+fn rtf_paragraph(
+    out: &mut String,
+    p: &RichParagraph,
+    spans: &[RichSpan],
+    fonts: &[&str],
+    colors: &[[u8; 3]],
+) {
     let _ = write!(out, "\\pard\\sa{}", twips(p.space_after));
-    if p.spans.is_empty() {
+    if spans.is_empty() {
         let _ = writeln!(out, "\\fs{}\\par", half_points(p.size));
         return;
     }
-    for s in &p.spans {
+    for s in spans {
+        if full(out) {
+            break;
+        }
         out.push('{');
         rtf_style(out, &s.style, fonts, colors);
         out.push(' ');
@@ -203,16 +316,34 @@ fn rtf_style(out: &mut String, st: &SpanStyle, fonts: &[&str], colors: &[[u8; 3]
     }
 }
 
-/// Escape for RTF text: `\ { }` escaped, `\n` as `\line`, non-ASCII as
-/// signed 16-bit `\uN?` per UTF-16 unit.
+/// A font-table name: [`rtf_text`] without control characters or `;` (which
+/// ends a font-table entry, RTF 1.9.1 `\fonttbl`), cut at
+/// [`MAX_FAMILY_CHARS`], so the table keeps one entry per font.
+fn rtf_font_name(out: &mut String, family: &str) {
+    let name: String = family
+        .chars()
+        .filter(|&c| !c.is_control() && c != ';')
+        .take(MAX_FAMILY_CHARS)
+        .collect();
+    rtf_text(out, &name);
+}
+
+/// Escape for RTF text: `\ { }` escaped, `\n` as `\line`, `\t` as `\tab`,
+/// [`is_dropped`] characters left out, non-ASCII as signed 16-bit `\uN?`
+/// per UTF-16 unit. Stops at the writer's limit.
 fn rtf_text(out: &mut String, text: &str) {
     for c in text.chars() {
+        if full(out) {
+            return;
+        }
         match c {
+            c if is_dropped(c) => {}
             '\\' | '{' | '}' => {
                 out.push('\\');
                 out.push(c);
             }
             '\n' => out.push_str("\\line "),
+            '\t' => out.push_str("\\tab "),
             c if c.is_ascii() => out.push(c),
             c => {
                 let mut units = [0u16; 2];
@@ -225,18 +356,22 @@ fn rtf_text(out: &mut String, text: &str) {
     }
 }
 
-#[allow(clippy::cast_possible_truncation)] // a paragraph space or font size
+#[allow(clippy::cast_possible_truncation)] // space_pt bounds it to 0..=32760
 fn twips(pt: f32) -> i32 {
-    (pt * 20.0).round() as i32
+    (space_pt(pt) * 20.0).round() as i32
 }
 
-#[allow(clippy::cast_possible_truncation)] // a font size
+#[allow(clippy::cast_possible_truncation)] // font_size_pt bounds it to 2..=3276
 fn half_points(pt: f32) -> i32 {
-    (pt * 2.0).round().max(2.0) as i32
+    (font_size_pt(pt) * 2.0).round() as i32
 }
 
-/// A number with at most one decimal and no trailing `.0`.
+/// A number with at most one decimal and no trailing `.0`; `0` for a
+/// value that is not finite (callers pass clamped values).
 fn num(v: f32) -> String {
+    if !v.is_finite() {
+        return "0".to_owned();
+    }
     let r = (v * 10.0).round() / 10.0;
     if r.fract() == 0.0 {
         format!("{r:.0}")

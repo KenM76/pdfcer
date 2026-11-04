@@ -9,11 +9,15 @@
 //! [`RichTextOutcome`] counts what was guessed or could not be carried.
 
 mod fonts;
+#[cfg(test)]
+mod tests;
 mod write;
 
 pub use fonts::{FontFace, PageFonts};
 
-use super::{EditableTextModel, GlyphRef, LineEnd, TextPosition, lists::derived_space_between};
+use super::{
+    Block, EditableTextModel, GlyphRef, LineEnd, TextPosition, lists::derived_space_between,
+};
 use crate::text_edit::decoration::PageDecorations;
 use crate::text_extract::{TextColor, WeightSource};
 
@@ -110,6 +114,50 @@ pub struct RichTextOutcome {
     /// XObjects whose underline and strikethrough could not be read, so their
     /// text pastes undecorated. Zero when no decorations were supplied.
     pub decoration_forms_unread: usize,
+    /// The copy stopped at a cap: [`RICH_COPY_MAX_PARAGRAPHS`] paragraphs,
+    /// [`RICH_COPY_MAX_SPANS`] runs or [`RICH_COPY_MAX_TEXT_BYTES`] bytes of text. What it holds
+    /// is complete up to the last glyph written; the rest of the range is
+    /// not in it.
+    pub truncated: bool,
+}
+
+/// Most paragraphs one formatted copy holds, and that a writer serialises.
+pub const RICH_COPY_MAX_PARAGRAPHS: usize = 10_000;
+/// Most styled runs one formatted copy holds in total, and that a writer
+/// serialises.
+pub const RICH_COPY_MAX_SPANS: usize = 10_000;
+/// Most bytes of UTF-8 text one formatted copy holds.
+pub const RICH_COPY_MAX_TEXT_BYTES: usize = 1 << 20;
+/// Most bytes [`RichText::to_html`], [`RichText::to_cf_html`] or
+/// [`RichText::to_rtf`] returns. A copy within the other caps always fits
+/// (checked at compile time in the writer), so only a hand-built
+/// [`RichText`] is cut here; the cut falls between characters and every tag
+/// or group opened is closed.
+pub const RICH_COPY_MAX_OUTPUT_BYTES: usize = 32 << 20;
+/// The size written for a run or paragraph whose size is not finite.
+pub const RICH_COPY_DEFAULT_SIZE_PT: f32 = 12.0;
+/// Smallest size written, in points.
+pub const RICH_COPY_MIN_SIZE_PT: f32 = 1.0;
+/// Largest size written, in points (Word's limit; RTF `\fs3276`).
+pub const RICH_COPY_MAX_SIZE_PT: f32 = 1638.0;
+
+/// `pt` clamped to [`RICH_COPY_MIN_SIZE_PT`]..=[`RICH_COPY_MAX_SIZE_PT`], or [`RICH_COPY_DEFAULT_SIZE_PT`]
+/// when it is not finite.
+fn font_size_pt(pt: f32) -> f32 {
+    if pt.is_finite() {
+        pt.clamp(RICH_COPY_MIN_SIZE_PT, RICH_COPY_MAX_SIZE_PT)
+    } else {
+        RICH_COPY_DEFAULT_SIZE_PT
+    }
+}
+
+/// A paragraph space clamped to `0..=RICH_COPY_MAX_SIZE_PT`, or 0 when not finite.
+fn space_pt(pt: f32) -> f32 {
+    if pt.is_finite() {
+        pt.clamp(0.0, RICH_COPY_MAX_SIZE_PT)
+    } else {
+        0.0
+    }
 }
 
 /// A formatted copy. Serialise it with [`Self::to_html`], [`Self::to_rtf`],
@@ -147,36 +195,15 @@ impl EditableTextModel<'_> {
             (a.min(b), a.max(b))
         });
         let mut out = RichText::default();
+        let mut budget = Budget::default();
         let mut columns: Vec<(usize, f32, usize)> = Vec::new();
         for block in &self.blocks {
-            let mut para = Paragraph::default();
-            let ends = self.line_ends(block);
-            for (k, &li) in block.line_indices.iter().enumerate() {
-                let Some(line) = self.lines.get(li) else {
-                    continue;
-                };
-                para.size = para.size.max(line.size);
-                let mut prev: Option<GlyphRef> = None;
-                for &g in &line.glyphs {
-                    if !self.inside(g, bounds) {
-                        continue;
-                    }
-                    para.touched = true;
-                    if prev.is_some_and(|p| derived_space_between(self.page, p, g)) {
-                        para.push_text(" ");
-                    }
-                    prev = Some(g);
-                    self.push_glyph(&mut para, g, sources, &mut out.outcome);
-                }
-                if prev.is_some() {
-                    para.pending = match ends.get(k) {
-                        Some(LineEnd::Break) => Some("\n"),
-                        Some(LineEnd::Wrap) => Some(" "),
-                        _ => None,
-                    };
-                }
-            }
+            let para = self.rich_block(block, bounds, sources, &mut out.outcome, &mut budget);
             if para.touched {
+                if out.paragraphs.len() >= RICH_COPY_MAX_PARAGRAPHS {
+                    budget.truncated = true;
+                    break;
+                }
                 columns.push((block.column, block.bbox.lly as f32, out.paragraphs.len()));
                 set_space_after(
                     &mut out.paragraphs,
@@ -184,12 +211,62 @@ impl EditableTextModel<'_> {
                     block.column,
                     block.bbox.ury as f32,
                 );
+                budget.close(&para);
                 out.paragraphs.push(para.finish());
             }
+            if budget.truncated {
+                break;
+            }
         }
+        out.outcome.truncated = budget.truncated;
         out.outcome.paragraphs = out.paragraphs.len();
         out.outcome.decoration_forms_unread = sources.decorations.map_or(0, |d| d.forms_unread);
         out
+    }
+
+    /// One block's included glyphs as a paragraph, stopping (and marking
+    /// `budget` truncated) before a glyph that would pass a cap.
+    fn rich_block(
+        &self,
+        block: &Block,
+        bounds: Option<((usize, usize), (usize, usize))>,
+        sources: &RichTextSources<'_>,
+        outcome: &mut RichTextOutcome,
+        budget: &mut Budget,
+    ) -> Paragraph {
+        let mut para = Paragraph::default();
+        let ends = self.line_ends(block);
+        for (k, &li) in block.line_indices.iter().enumerate() {
+            let Some(line) = self.lines.get(li) else {
+                continue;
+            };
+            para.size = para.size.max(line.size);
+            let mut prev: Option<GlyphRef> = None;
+            for &g in &line.glyphs {
+                if !self.inside(g, bounds) {
+                    continue;
+                }
+                let len = self.glyph(g).map_or(0, |glyph| glyph.text_len as usize);
+                if !budget.admits(&para, len) {
+                    budget.truncated = true;
+                    return para;
+                }
+                para.touched = true;
+                if prev.is_some_and(|p| derived_space_between(self.page, p, g)) {
+                    para.push_text(" ");
+                }
+                prev = Some(g);
+                self.push_glyph(&mut para, g, sources, outcome);
+            }
+            if prev.is_some() {
+                para.pending = match ends.get(k) {
+                    Some(LineEnd::Break) => Some("\n"),
+                    Some(LineEnd::Wrap) => Some(" "),
+                    _ => None,
+                };
+            }
+        }
+        para
     }
 
     fn inside(&self, g: GlyphRef, bounds: Option<((usize, usize), (usize, usize))>) -> bool {
@@ -200,7 +277,10 @@ impl EditableTextModel<'_> {
             return false;
         };
         let start = glyph.text_start as usize;
-        (g.run, start) >= lo && (g.run, start + glyph.text_len as usize) <= hi
+        let Some(end) = start.checked_add(glyph.text_len as usize) else {
+            return false;
+        };
+        (g.run, start) >= lo && (g.run, end) <= hi
     }
 
     fn push_glyph(
@@ -214,7 +294,8 @@ impl EditableTextModel<'_> {
             return;
         };
         let start = glyph.text_start as usize;
-        let Some(text) = run.text.get(start..start + glyph.text_len as usize) else {
+        let end = start.saturating_add(glyph.text_len as usize);
+        let Some(text) = run.text.get(start..end) else {
             return;
         };
         if matches!(
@@ -243,7 +324,7 @@ impl EditableTextModel<'_> {
         };
         let style = SpanStyle {
             family: face.map(|f| f.family.clone()),
-            size: (glyph.size * 2.0).round() / 2.0,
+            size: font_size_pt((glyph.size * 2.0).round() / 2.0),
             bold: glyph.weight.is_bold(),
             italic: face.is_some_and(|f| f.italic),
             underline: deco.is_some_and(|d| d.underline),
@@ -279,11 +360,44 @@ fn set_space_after(
     }
 }
 
+/// What a copy has spent of its caps.
+#[derive(Default)]
+struct Budget {
+    /// Runs in the paragraphs already finished.
+    spans: usize,
+    /// Text bytes in the paragraphs already finished.
+    bytes: usize,
+    truncated: bool,
+}
+
+impl Budget {
+    /// Whether `para` may take one more glyph of `len` bytes (plus a
+    /// one-byte separator) and still be within [`RICH_COPY_MAX_SPANS`] and
+    /// [`RICH_COPY_MAX_TEXT_BYTES`] once finished. Conservative: a glyph that would
+    /// merge into the last run is refused at the run cap too.
+    fn admits(&self, para: &Paragraph, len: usize) -> bool {
+        let spans = self.spans.saturating_add(para.spans.len());
+        let bytes = self
+            .bytes
+            .saturating_add(para.bytes)
+            .saturating_add(len)
+            .saturating_add(1);
+        spans < RICH_COPY_MAX_SPANS && bytes <= RICH_COPY_MAX_TEXT_BYTES
+    }
+
+    fn close(&mut self, para: &Paragraph) {
+        self.spans = self.spans.saturating_add(para.spans.len());
+        self.bytes = self.bytes.saturating_add(para.bytes);
+    }
+}
+
 /// A paragraph being built.
 #[derive(Default)]
 struct Paragraph {
     spans: Vec<RichSpan>,
     size: f32,
+    /// Text bytes pushed so far (an upper bound on the finished text).
+    bytes: usize,
     /// The separator owed before the next included glyph.
     pending: Option<&'static str>,
     touched: bool,
@@ -297,6 +411,7 @@ impl Paragraph {
             }
             self.push_text(sep);
         }
+        self.bytes = self.bytes.saturating_add(text.len());
         match self.spans.last_mut() {
             Some(last) if last.style == style => last.text.push_str(text),
             _ => self.spans.push(RichSpan {
@@ -309,6 +424,7 @@ impl Paragraph {
     /// Text in the previous run's style.
     fn push_text(&mut self, text: &str) {
         if let Some(last) = self.spans.last_mut() {
+            self.bytes = self.bytes.saturating_add(text.len());
             last.text.push_str(text);
         }
     }

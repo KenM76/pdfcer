@@ -115,7 +115,9 @@ pub use line_ends::{LineEnd, LineEndSource};
 pub use line_marks::{BREAK_TAG, LineMarks, TEXT_BLOCK_TAG};
 pub(crate) use lists::{Hanging, derived_space_between, glyph_text, hanging};
 pub use rich_copy::{
-    FontFace, PageFonts, RichParagraph, RichSpan, RichText, RichTextOutcome, RichTextSources,
+    FontFace, PageFonts, RICH_COPY_DEFAULT_SIZE_PT, RICH_COPY_MAX_OUTPUT_BYTES,
+    RICH_COPY_MAX_PARAGRAPHS, RICH_COPY_MAX_SIZE_PT, RICH_COPY_MAX_SPANS, RICH_COPY_MAX_TEXT_BYTES,
+    RICH_COPY_MIN_SIZE_PT, RichParagraph, RichSpan, RichText, RichTextOutcome, RichTextSources,
     SpanStyle,
 };
 

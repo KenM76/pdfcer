@@ -5,7 +5,10 @@
 //! ([`EditableTextModel::rich_text`]); this module only places them.
 
 use super::*;
-use pdfcer_core::text_edit::model::{PageFonts, RichText, RichTextSources};
+use pdfcer_core::text_edit::model::{
+    PageFonts, RICH_COPY_MAX_PARAGRAPHS, RICH_COPY_MAX_SPANS, RICH_COPY_MAX_TEXT_BYTES, RichText,
+    RichTextSources,
+};
 use pdfcer_core::text_edit::{EditableTextModel, reflow_recognition_options};
 use pdfcer_core::text_extract::{self, ExtractOptions};
 
@@ -57,13 +60,19 @@ pub(crate) fn cmd_copy_text(
     };
     let o = rich.outcome;
     println!(
-        "copied paragraphs={} weights_derived={} families_missing={} colours_dropped={} decoration_forms_unread={} to={placed}",
+        "copied paragraphs={} weights_derived={} families_missing={} colours_dropped={} decoration_forms_unread={} truncated={} to={placed}",
         o.paragraphs,
         o.weights_derived,
         o.families_missing,
         o.colours_dropped,
-        o.decoration_forms_unread
+        o.decoration_forms_unread,
+        o.truncated
     );
+    if o.truncated {
+        eprintln!(
+            "pdfcer: note: the copy reached a size cap and stops at the last character written; copy a smaller range for the rest."
+        );
+    }
     if o.decoration_forms_unread > 0 {
         eprintln!(
             "pdfcer: note: {} form XObject(s) could not be read for underline and strikethrough; their text pastes undecorated.",
@@ -136,6 +145,19 @@ fn append(acc: &mut RichText, more: RichText) {
     a.families_missing += b.families_missing;
     a.colours_dropped += b.colours_dropped;
     a.decoration_forms_unread += b.decoration_forms_unread;
+    // Each page is within the caps; together they may not be, and the
+    // writers then cut, so that is disclosed as a truncation too.
+    let spans: usize = acc.paragraphs.iter().map(|p| p.spans.len()).sum();
+    let bytes: usize = acc
+        .paragraphs
+        .iter()
+        .flat_map(|p| &p.spans)
+        .map(|s| s.text.len())
+        .sum();
+    acc.outcome.truncated |= b.truncated
+        || acc.paragraphs.len() > RICH_COPY_MAX_PARAGRAPHS
+        || spans > RICH_COPY_MAX_SPANS
+        || bytes > RICH_COPY_MAX_TEXT_BYTES;
 }
 
 /// Place HTML, RTF and plain text, all or nothing (`clipboard::fill`).

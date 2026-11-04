@@ -1625,11 +1625,14 @@ slant, family, underline/strikethrough and colour.
 | `PageFonts::read(&DocumentView, &Page) -> PageFonts`; `face(stream, resource) -> Option<&FontFace>` | Every `/Font` resource of the page and of the forms it paints. `FontFace { family, italic }`: family is `/FontDescriptor /FontFamily`, else DERIVED from `/BaseFont` (subset tag, style suffix and `PSMT`/`MT`/`PS` removed, camel case spaced: `ABCDEF+TimesNewRomanPSMT` → `Times New Roman`); italic is the descriptor Italic flag (bit 7), a non-zero `/ItalicAngle`, or `Italic`/`Oblique` in the name. |
 | `SpanStyle { family, size, bold, italic, underline, strikethrough, color }` | Size to the nearest half point; bold is `FontWeight::is_bold`; `color` is 8-bit RGB for DeviceGray/DeviceRGB fills only (the engine converts no colour), `None` otherwise. |
 | `RichParagraph { spans, size, space_after }` | `space_after` (pt, DERIVED): the gap to the next block of the same column beyond 0.2 em of leading, when over half an em. |
-| `RichTextOutcome { paragraphs, weights_derived, families_missing, colours_dropped, decoration_forms_unread }` | The disclosure (rule 4): glyphs whose weight came from a font name or fill-and-stroke, glyphs with no family, glyphs whose fill colour space is not carried (they paste in the target's default colour), and the supplied decorations' `forms_unread` (forms whose underline/strikethrough could not be read; 0 without decorations). |
+| `RichTextOutcome { paragraphs, weights_derived, families_missing, colours_dropped, decoration_forms_unread, truncated }` | The disclosure (rule 4): glyphs whose weight came from a font name or fill-and-stroke, glyphs with no family, glyphs whose fill colour space is not carried (they paste in the target's default colour), the supplied decorations' `forms_unread` (forms whose underline/strikethrough could not be read; 0 without decorations), and `truncated`: the copy stopped at a cap and holds the range only up to the last glyph written. |
+| Caps: `RICH_COPY_MAX_PARAGRAPHS` (10 000), `RICH_COPY_MAX_SPANS` (10 000 runs in all), `RICH_COPY_MAX_TEXT_BYTES` (1 MiB), `RICH_COPY_MAX_OUTPUT_BYTES` (32 MiB) | `rich_text` stops before the glyph that would pass the first three and sets `truncated`. The writers apply the paragraph and run caps too and never return more than the output cap; a copy from `rich_text` always fits (a compile-time bound), so only a hand-built `RichText` is cut there, between characters, with every tag and RTF group closed and no flag. |
+| Sizes: `RICH_COPY_MIN_SIZE_PT` (1), `RICH_COPY_MAX_SIZE_PT` (1638), `RICH_COPY_DEFAULT_SIZE_PT` (12) | Every size written (and `SpanStyle::size`) is clamped to 1-1638 pt; a NaN or infinite size becomes 12 pt. A NaN or infinite `space_after` is written as 0. |
 | `RichText::plain_text()` | Paragraphs joined by `\n`. |
 | `RichText::to_html()` | UTF-8 HTML: `<p>` per paragraph with inline-styled `<span>`s, between `<!--StartFragment-->` and `<!--EndFragment-->`. |
 | `RichText::to_cf_html()` | `to_html` behind the Windows `CF_HTML` header (`Version:0.9`, ten-digit `StartHTML`/`EndHTML`/`StartFragment`/`EndFragment` byte offsets); clipboard format name `HTML Format`. |
-| `RichText::to_rtf()` | RTF with font and colour tables, `\pard\saN … \par` per paragraph, `\line` for a break, non-ASCII as `\uN?`; clipboard format name `Rich Text Format`. |
+| `RichText::to_rtf()` | RTF with font and colour tables, `\pard\saN … \par` per paragraph, `\line` for a break, `\tab` for a tab, non-ASCII as `\uN?`; clipboard format name `Rich Text Format`. A font-table name loses `;` and control characters and keeps `\ { }` escaped, so the table has one entry per font. |
+| Text from the file | HTML and RTF both leave out C0 and C1 control characters other than tab and line feed (NUL included). In HTML a family is cut at 64 characters, control characters dropped, and every ASCII character other than letters, digits, space, `-`, `_` and `.` written as a CSS hex escape `\HH ` (CSS Syntax 3 §4.3.7), so neither the CSS string nor the `style` attribute can end early. `plain_text` is the model's text unchanged. |
 
 A shell offering formatted copy puts `to_cf_html`, `to_rtf` and
 `plain_text` on the clipboard together, and shows the outcome counts
@@ -1638,8 +1641,9 @@ off-canvas when any is non-zero.
 CLI: `copy-text f.pdf --pages 1-3` places those three formats (Windows);
 `-o file --format html|cf-html|rtf|text` writes one. The result line is
 `copied paragraphs= weights_derived= families_missing= colours_dropped=
-decoration_forms_unread= to=`, with a stderr note when the last count is
-non-zero.
+decoration_forms_unread= truncated= to=`, with a stderr note when
+`decoration_forms_unread` or `colours_dropped` is non-zero or the copy was
+truncated.
 
 ### 8.4.5 Tagged layout — blocks and tables from the structure tree (`Pass 395.0`)
 
