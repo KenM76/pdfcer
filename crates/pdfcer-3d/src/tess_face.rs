@@ -10,6 +10,11 @@ use crate::tess::malformed;
 const COUNT_MASK: u32 = 0x3FFF_FFFF;
 pub(crate) const NORMAL_SINGLE: u32 = 0x4000_0000;
 
+/// Texture-coordinate sets a face may carry. Each set costs a slot per
+/// point and a corner triple per triangle of the whole mesh, so the count
+/// is capped; a face past it is Malformed.
+pub(crate) const MAX_TEXTURE_SETS: usize = 8;
+
 /// The normal array and each triangle's corner normals, or both empty when
 /// any slot fails to name a normal or the array ends in a partial triple: a
 /// mesh shades from its stored normals wholly or not at all.
@@ -150,6 +155,20 @@ impl Face {
         Ok(out)
     }
 
+    /// Texture sets the face's triangles carry: its count when one of its
+    /// blocks is textured, at most [`MAX_TEXTURE_SETS`] (a face past it is
+    /// refused by [`triangulate`]).
+    pub(crate) fn texture_sets(&self) -> usize {
+        let textured = BLOCKS
+            .iter()
+            .any(|&(bit, _, _, textured)| textured && self.flags & bit != 0);
+        if textured {
+            self.textures.min(MAX_TEXTURE_SETS)
+        } else {
+            0
+        }
+    }
+
     /// Points the face's index slots name: the vertex-colour count
     /// [ISS #820].
     pub(crate) fn point_count(&self) -> Result<usize, PrcError> {
@@ -190,9 +209,11 @@ pub(crate) struct Corners {
 /// emitted, in order: one entity per triangle of a triangle block, per fan,
 /// per strip [WD 7.8.6].
 ///
-/// Each triangle is charged to `elements` before its entity is built. Faces
-/// may start anywhere in the index array, so F faces over one range of k
-/// triangles cost F x k: the input bounds each entity, not their sum.
+/// Each triangle is charged `charge.per_triangle` elements before its
+/// entity is built. Faces may start anywhere in the index array, so F faces
+/// over one range of k triangles cost F x k: the input bounds each entity,
+/// not their sum. A face declaring more than [`MAX_TEXTURE_SETS`] sets is
+/// Malformed before anything is allocated.
 pub(crate) fn triangulate(
     face: &Face,
     indices: &[u32],
@@ -200,8 +221,14 @@ pub(crate) fn triangulate(
     n_points: usize,
     out: &mut Vec<[u32; 3]>,
     corners: &mut Corners,
-    elements: &mut u64,
+    charge: Charge<'_>,
 ) -> Result<Vec<usize>, PrcError> {
+    if face.textures > MAX_TEXTURE_SETS {
+        return Err(malformed(format!(
+            "{} texture-coordinate sets on a face",
+            face.textures
+        )));
+    }
     let mut entities = Vec::new();
     let mut slots = indices.get(face.start..).unwrap_or(&[]).iter().copied();
     let mut take = || {
@@ -231,7 +258,8 @@ pub(crate) fn triangulate(
                 Shape::Triangles => count,
                 Shape::Fan | Shape::Strip => points.saturating_sub(2),
             };
-            crate::elements::charge(elements, triangles as u64)?;
+            let cost = (triangles as u64).saturating_mul(charge.per_triangle);
+            crate::elements::charge(charge.spent, cost)?;
             let mut s = Slots {
                 textures: vec![Vec::with_capacity(points); t],
                 ..Slots::default()
@@ -265,6 +293,34 @@ pub(crate) fn triangulate(
         }
     }
     Ok(entities)
+}
+
+/// The decoded-element allowance a face's triangles are charged to.
+pub(crate) struct Charge<'a> {
+    pub(crate) spent: &'a mut u64,
+    /// Elements one triangle costs ([`triangle_elements`]).
+    pub(crate) per_triangle: u64,
+}
+
+/// The 8-byte elements of [`crate::MAX_DECODED_ELEMENTS`] one `TESS_3D`
+/// triangle holds: its corners, its normal-slot corners when the index
+/// array stores them, a corner triple per texture set any face of the mesh
+/// uses (the [`Corners`] padding gives every triangle one) and its
+/// graphics when the mesh is styled.
+pub(crate) fn triangle_elements(normals: bool, sets: usize, styled: bool) -> u64 {
+    let units = |bytes: usize| bytes.div_ceil(8) as u64;
+    let corners = units(size_of::<[u32; 3]>());
+    let normals = if normals { corners } else { 0 };
+    let texture = units(size_of::<Option<[u32; 3]>>()).saturating_mul(sets as u64);
+    let style = if styled {
+        units(size_of::<crate::tree::Graphics>())
+    } else {
+        0
+    };
+    corners
+        .saturating_add(normals)
+        .saturating_add(texture)
+        .saturating_add(style)
 }
 
 /// Append the triangles of one entity's `slots` to `out` and `corners`,

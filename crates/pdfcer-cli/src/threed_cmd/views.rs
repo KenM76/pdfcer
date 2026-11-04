@@ -161,9 +161,15 @@ fn fitted_views(
         .map(|v| {
             let named = v.named();
             let (direction, up) = named.direction(a.up.axis());
-            let camera =
-                pdfcer_3d::Camera::fit_meshes(&model.meshes, direction, up, !a.ortho, aspect)
-                    .map_err(|err| refuse(err.to_string()))?;
+            let camera = pdfcer_3d::Camera::fit_coloured(
+                &model.meshes,
+                &model.colours,
+                direction,
+                up,
+                !a.ortho,
+                aspect,
+            )
+            .map_err(|err| refuse(err.to_string()))?;
             let view =
                 ThreeDSavedView::from_camera(named.label(), &camera, aspect).ok_or_else(|| {
                     refuse(format!("the {} view has no usable camera", named.label()))

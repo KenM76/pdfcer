@@ -15,7 +15,8 @@ use crate::arrays;
 use crate::bits::BitReader;
 use crate::schema::Schema;
 use crate::tess_face::{
-    Corners, Face, face_graphics, points, stored_normals, stored_uvs, triangulate,
+    Charge, Corners, Face, face_graphics, points, stored_normals, stored_uvs, triangle_elements,
+    triangulate,
 };
 use crate::tess_wire::{split_like, unflagged, wire_colour_count, wire_polylines};
 
@@ -576,6 +577,10 @@ impl Ctx<'_, '_> {
         };
         let styled = t.faces.iter().any(|f| !f.styles.is_empty());
         let mut corners = Corners::default();
+        // Every triangle carries a corner triple per texture set any face
+        // uses, so each is charged for what it holds.
+        let sets = t.faces.iter().map(Face::texture_sets).max().unwrap_or(0);
+        let per_triangle = triangle_elements(!t.recalc, sets, styled);
         for f in &t.faces {
             let start = mesh.triangles.len();
             if f.damaged {
@@ -589,7 +594,10 @@ impl Ctx<'_, '_> {
                 whole + usize::from(partial),
                 &mut mesh.triangles,
                 &mut corners,
-                &mut self.elements,
+                Charge {
+                    spent: &mut self.elements,
+                    per_triangle,
+                },
             )?;
             mesh.faces.push(start..mesh.triangles.len());
             if styled {
@@ -1123,9 +1131,11 @@ pub(crate) mod tests {
         };
         let (got, spent) = run(0);
         assert_eq!(mesh(&got.unwrap()[0]).triangles.len() as u64, F * K);
-        assert_eq!(spent, F * K);
-        // Room for exactly F x k fits; one element less is refused.
-        let room = crate::MAX_DECODED_ELEMENTS - F * K;
+        // Each triangle holds its corners and its normal-slot corners.
+        let cost = F * K * 4;
+        assert_eq!(spent, cost);
+        // Room for exactly that fits; one element less is refused.
+        let room = crate::MAX_DECODED_ELEMENTS - cost;
         assert!(run(room).0.is_ok());
         assert_eq!(
             run(room + 1).0.unwrap_err(),
@@ -1148,6 +1158,90 @@ pub(crate) mod tests {
             }
         );
         assert_eq!(model.damaged, 0);
+    }
+
+    /// An empty textured fan declaring `textures` texture sets.
+    fn empty_fan(textures: u32) -> Result<Vec<Tessellation>, PrcError> {
+        let mut b = W::default();
+        tess_3d(
+            &mut b,
+            8137,
+            &Mesh {
+                recalc: false,
+                indices: &[0],
+                faces: &[(0x400, 0, &[1, 0])],
+                textures,
+                uvs: &[],
+            },
+        );
+        decode(&section(1, &b), &Schema::default(), 8137)
+    }
+
+    #[test]
+    fn too_many_texture_sets_are_refused_before_anything_is_allocated() {
+        match empty_fan(u32::MAX) {
+            Err(PrcError::Malformed(why)) => {
+                assert!(why.contains("4294967295 texture-coordinate sets"), "{why}");
+            }
+            other => panic!("not refused: {other:?}"),
+        }
+        let at_cap = crate::tess_face::MAX_TEXTURE_SETS as u32;
+        assert!(empty_fan(at_cap).is_ok());
+        assert!(matches!(empty_fan(at_cap + 1), Err(PrcError::Malformed(_))));
+    }
+
+    #[test]
+    fn reused_textured_faces_are_charged_for_their_corner_arrays() {
+        // F faces, each one triangle with 8 texture sets, over one range.
+        const F: u64 = 6;
+        let sets = crate::tess_face::MAX_TEXTURE_SETS;
+        let vertex = |p: u32| {
+            let mut v = vec![0];
+            v.extend(std::iter::repeat_n(0, sets));
+            v.push(p);
+            v
+        };
+        let indices: Vec<u32> = [0, 3, 6].into_iter().flat_map(vertex).collect();
+        let faces = vec![(0x200, 0, &[1][..]); F as usize];
+        let m = Mesh {
+            recalc: false,
+            indices: &indices,
+            faces: &faces,
+            textures: sets as u32,
+            uvs: &[0.0, 0.0],
+        };
+        let mut b = W::default();
+        tess_3d(&mut b, 8137, &m);
+        let bytes = section(1, &b).bytes();
+        let schema = Schema::default();
+        let run = |already: u64| {
+            let mut ctx = Ctx::new(BitReader::new(&bytes), &schema, 8137);
+            ctx.elements = already;
+            let got = ctx.file_structure_tessellation();
+            (got, ctx.elements)
+        };
+        let (got, spent) = run(0);
+        let t = got.unwrap();
+        assert_eq!(mesh(&t[0]).triangles.len() as u64, F);
+        assert_eq!(mesh(&t[0]).triangle_uvs.len(), sets);
+        // Corners 2, normal slots 2, 2 per texture set: 20 per triangle.
+        let cost = F * (2 + 2 + 2 * sets as u64);
+        assert_eq!(spent, cost);
+        let room = crate::MAX_DECODED_ELEMENTS - cost;
+        assert!(run(room).0.is_ok());
+        assert_eq!(
+            run(room + 1).0.unwrap_err(),
+            PrcError::TooManyElements {
+                limit: crate::MAX_DECODED_ELEMENTS
+            }
+        );
+        // A real textured model still opens from an empty allowance.
+        let square = textured_square_section();
+        assert!(
+            Ctx::new(BitReader::new(&square), &Schema::default(), 8137)
+                .file_structure_tessellation()
+                .is_ok()
+        );
     }
 
     /// A wire over [`SQUARE`]: an open two-point wire continued by a closing

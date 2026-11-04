@@ -32,7 +32,8 @@ pub enum PrcError {
         limit: usize,
     },
     /// One file structure would decode to more elements (schema entries,
-    /// triangles) than [`crate::MAX_DECODED_ELEMENTS`].
+    /// triangles weighted by their corner arrays) than
+    /// [`crate::MAX_DECODED_ELEMENTS`].
     #[error("PRC data decodes past the {limit}-element ceiling")]
     TooManyElements {
         /// The ceiling that was hit.

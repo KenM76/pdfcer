@@ -587,14 +587,21 @@ fn render_from_bytes(
         Ok(model) => model,
         Err(why) => return refuse(why),
     };
-    let Some(bounds) = Bounds::of(&model.meshes) else {
+    let Some(bounds) = Bounds::of_coloured(&model.meshes, &model.colours) else {
         return refuse("the model has no finite vertex to draw".to_owned());
     };
     let target = a.target.unwrap_or_else(|| bounds.centre());
     let aim = aim_camera(a, target, saved);
     let (direction, up) = (aim.direction, aim.up);
     let aspect = f64::from(a.width) / f64::from(a.height.max(1));
-    let mut camera = match Camera::fit_meshes(&model.meshes, direction, up, !aim.ortho, aspect) {
+    let mut camera = match Camera::fit_coloured(
+        &model.meshes,
+        &model.colours,
+        direction,
+        up,
+        !aim.ortho,
+        aspect,
+    ) {
         Ok(camera) => camera,
         Err(err) => return refuse(err.to_string()),
     };

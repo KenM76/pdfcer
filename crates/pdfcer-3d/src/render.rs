@@ -125,10 +125,30 @@ impl Camera {
         perspective: bool,
         aspect: f64,
     ) -> Result<Camera, RenderError> {
-        let bounds = Bounds::of(meshes).ok_or(RenderError::Camera("the model has no vertex"))?;
+        Camera::fit_coloured(meshes, &[], direction, up, perspective, aspect)
+    }
+
+    /// [`Camera::fit_meshes`] for meshes drawn in `colours`, as
+    /// [`render_coloured`] takes them: a fully transparent mesh (alpha 0)
+    /// is not drawn, so it is not framed ([`Bounds::of_coloured`]).
+    ///
+    /// # Errors
+    ///
+    /// As for [`Camera::fit_meshes`]; "no vertex" also when every mesh
+    /// with one is fully transparent.
+    pub fn fit_coloured(
+        meshes: &[TriangleMesh],
+        colours: &[Option<[u8; 4]>],
+        direction: [f64; 3],
+        up: [f64; 3],
+        perspective: bool,
+        aspect: f64,
+    ) -> Result<Camera, RenderError> {
+        let bounds = Bounds::of_coloured(meshes, colours)
+            .ok_or(RenderError::Camera("the model has no vertex"))?;
         Camera::frame(
             &bounds,
-            drawn_corners(meshes),
+            drawn_corners(meshes, colours),
             direction,
             up,
             perspective,
@@ -1167,6 +1187,35 @@ mod tests {
         let b = Bounds::of(&m).unwrap();
         assert!(Camera::fit(&b, [0.0; 3], [0.0, 1.0, 0.0], true, 1.0).is_err());
         assert!(Camera::fit(&b, [0.0, 0.0, 1.0], [0.0, 1.0, 0.0], true, 0.0).is_err());
+    }
+
+    #[test]
+    fn a_fully_transparent_mesh_does_not_widen_the_box_or_the_fit() {
+        let unit = TriangleMesh {
+            positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+            triangles: vec![[0, 1, 2]],
+            ..TriangleMesh::default()
+        };
+        let far = TriangleMesh {
+            positions: vec![[1e6, 0.0, 0.0], [1e6, 1.0, 0.0], [0.0, 1.0, 0.0]],
+            ..unit.clone()
+        };
+        let both = [unit.clone(), far];
+        let colours = [None, Some([10, 20, 30, 0])];
+        let b = Bounds::of_coloured(&both, &colours).unwrap();
+        assert_eq!((b.min, b.max), ([0.0; 3], [1.0, 1.0, 0.0]));
+        let (dir, up) = ([0.0, 0.0, -1.0], [0.0, 1.0, 0.0]);
+        for perspective in [true, false] {
+            let alone = Camera::fit_meshes(std::slice::from_ref(&unit), dir, up, perspective, 1.0);
+            let clear = Camera::fit_coloured(&both, &colours, dir, up, perspective, 1.0);
+            assert_eq!(clear.unwrap(), alone.unwrap());
+        }
+        // A translucent mesh is drawn, so it is framed.
+        let faint = [None, Some([10, 20, 30, 1])];
+        assert_eq!(Bounds::of_coloured(&both, &faint).unwrap().max[0], 1e6);
+        // Nothing drawn: nothing to frame.
+        let none = Camera::fit_coloured(&both[1..], &colours[1..], dir, up, true, 1.0);
+        assert!(matches!(none, Err(RenderError::Camera(_))));
     }
 
     #[test]

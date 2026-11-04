@@ -664,7 +664,8 @@ pub const DEFAULT_VIEW_UP: [f64; 3] = [0.0, 0.0, 1.0];
 
 /// The camera [`render_default_view`] draws `model` with in an image of
 /// `aspect` (width / height): looking along [`DEFAULT_VIEW_DIRECTION`] with
-/// [`DEFAULT_VIEW_UP`] upward, in perspective, fitted to the meshes.
+/// [`DEFAULT_VIEW_UP`] upward, in perspective, fitted to the meshes its
+/// colours draw (a fully transparent mesh is not framed).
 ///
 /// # Errors
 ///
@@ -675,8 +676,9 @@ pub fn default_view_camera(
     model: &AssembledModel,
     aspect: f64,
 ) -> Result<crate::Camera, crate::RenderError> {
-    crate::Camera::fit_meshes(
+    crate::Camera::fit_coloured(
         &model.meshes,
+        &model.colours,
         DEFAULT_VIEW_DIRECTION,
         DEFAULT_VIEW_UP,
         true,

@@ -3006,7 +3006,8 @@ f.eval_into(&inputs, &mut buf)?;                           // function.rs
 | Type-4 brace nesting | `MAX_PS_NESTING` = 32 | `PostScriptNestingTooDeep{limit}` |
 | Type-0 input dimensions | `MAX_SAMPLED_INPUTS` = 8 | `TooManyInputs{got,limit}` |
 | Type-3 recursion (also catches `/Functions` cycles) | `MAX_FUNCTION_DEPTH` = 8 | `NestingTooDeep{limit}` |
-| PRC decoded elements per file structure per reading pass (schema entries + tokens, triangles; faces reusing one index range charged per face) | `pdfcer_3d::MAX_DECODED_ELEMENTS` = 8,388,608 | `PrcError::TooManyElements{limit}` |
+| PRC decoded elements per file structure per reading pass (schema entries + tokens, triangles; a `TESS_3D` triangle costs what its corner arrays hold in 8-byte units, 2–22: corners 2, normal slots 2, 2 per texture set any face of the mesh uses, graphics 2; faces reusing one index range charged per face) | `pdfcer_3d::MAX_DECODED_ELEMENTS` = 8,388,608 | `PrcError::TooManyElements{limit}` |
+| PRC texture-coordinate sets per `TESS_3D` face | `tess_face::MAX_TEXTURE_SETS` = 8 *(private)* | `PrcError::Malformed` |
 | PRC decoded bytes per stream (inflated sections + copied uncompressed blocks, each block charged once per file structure that copies it) | `pdfcer_3d::MAX_INFLATED_BYTES` = 512 MiB | `PrcError::TooLarge{limit}` |
 | 3D render pixel/texel-centre tests per frame (each triangle's box clipped to the image or shadow map, charged before anything is scanned) | `pdfcer_3d::MAX_RENDER_PIXEL_TESTS` = 2^37 | `RenderError::TooMuchWork{limit}` |
 
@@ -3309,8 +3310,8 @@ let tess = prc.file_structures[0].tessellations()?;   // Vec<Tessellation>, per 
 let placements = prc.placements()?;                   // Vec<Placement { file_structure, tessellation, matrix, colour }>
 // meshes = each placement's Tessellation::Mesh (or rebuilt Compressed { mesh: Some(..) })
 //          .transformed(&placement.matrix)
-let camera = Camera::fit_meshes(&meshes, view_dir, up, /*perspective*/ true, w as f64 / h as f64)?;
 // colours[i]: placement.colour as straight RGBA bytes, None = RenderOptions::colour
+let camera = Camera::fit_coloured(&meshes, &colours, view_dir, up, /*perspective*/ true, w as f64 / h as f64)?;
 let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: w, height: h, ..Default::default() })?;
 // image.rgba: w*h*4 straight RGBA, row-major from the top
 ```
@@ -3898,7 +3899,13 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   of the limiting axis), aimed at the middle of the projected model; it errs
   `Camera` when there is no vertex. `Camera::fit(&Bounds, ..)` frames the
   box's eight corners instead (looser in oblique views; cheap for a huge
-  model). Move `eye` afterwards to orbit.
+  model). Move `eye` afterwards to orbit. `Camera::fit_coloured(meshes,
+  colours, ..)` and `Bounds::of_coloured(meshes, colours)` take the
+  `render_coloured` colours and skip a mesh whose colour has alpha 0 (it is
+  not drawn); use them when drawing in model colours
+  (`AssembledModel::colours`), as `default_view_camera` and `3d-render` do,
+  so a clear distant mesh does not shrink the visible model. `fit_meshes` /
+  `of` are the same with no colours.
 - `RenderError::Size` past `MAX_RENDER_PIXELS` (64M) or a zero side;
   `RenderError::Camera` for a degenerate or non-finite camera;
   `RenderError::TooMuchWork { limit }` when the frame's triangles would
