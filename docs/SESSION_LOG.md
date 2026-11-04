@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-04 (1417th filing) — `9248293f` (658.21 follow-up) filed; `v0.127.0` bump `bfbbe9f6` recorded; FEATURES row trimmed; `Pass 660.0` (`G266`) opened
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, I commit nothing):**
+- **`9248293f`:** added to `Pass 658.21`'s Shipped entry. `91665b7f` framed only drawn meshes, so `3d-render` refused a model whose every mesh is fully transparent (zero alpha under `--style-alpha style`); the CLI now frames by all geometry when nothing is drawn (`3d-render`, `3d-views`). Core `Camera::fit_coloured` still refuses. Caught by `run-gates`; CLI 3D tests 40/40.
+- **`bfbbe9f6`:** `v0.127.0` version bump recorded as PENDING (not tagged or published as far as this filing knows).
+- **FEATURES:** the `copy-page` row was 1313 chars (cap 1200; grown by the 1416th filing); trimmed (verdict kept, hashes kept, the `native-clipboard` workspace-member aside and measurement asides cut). A whole-file `^.{1201,}$` grep no longer lists it or the `copy-text` row (both under the cap; 75 other rows exceed 1200 and are pre-existing). New Planned row for `G266`.
+- **`Pass 660.0` (`G266`, `O381`)** opened NOT STARTED: custom `/Info` entries, `/Creator`, XMP in step. `660.0` grepped across `docs/*.md`: unused.
+
+**Owed / open:** `tools/check-register-entry-size.py` not run from here; re-run it. Doc-comment survivors not checked; backup currency not verifiable from here. Next filing 1418th.
+
 ## 2026-11-04 (1416th filing) — `Pass 659.0` (`c102b748`, `X037`) shipped; clipboard-win retry finding to the Rust RAG
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, I commit nothing):**

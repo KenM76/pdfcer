@@ -112,6 +112,10 @@ wherever it appears.*
 
 ## Shipped
 
+### `bfbbe9f6` `v0.127.0` version bump filed, 2026-11-04; release PENDING (1417th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `bfbbe9f6` "chore: release v0.127.0" (version bump to 0.127.0). **Not yet published:** no tag, GitHub release, crates.io or OneDrive write is recorded here; a later filing records them. The tag will go on the HEAD after this filing. Carries (unreleased since `v0.126.0`): `Pass 658.20` (`de68b8c7`), `Pass 658.21` (`91665b7f`, with follow-up `9248293f` after the bump), `Pass 659.0` (`c102b748`). The next release writes OneDrive `pdfcer1` (`pdfcer2` holds 0.126.0). No box changes.
+
 ### `c102b748` `Pass 659.0`, 2026-11-04: CLI clipboard: checked DIBV5 sizes, all-or-nothing placement, timed open retry (`X037`) (1416th filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `c102b748` "fix(cli): checked DIBV5 sizes, all-or-nothing clipboard placement (X037, Pass 659.0)", local `main` after `91665b7f`. CLI only (`crates/pdfcer-cli/src/clipboard.rs`, `copy_text.rs`); core `—`, gui `—`. Reply `open/reply_X037_clipboard_dib_sizes_and_atomic_place_SHIPPED.md`. Decision 215 applied; no new decision. Unreleased; release `v0.127.0` follows.
@@ -130,6 +134,7 @@ Engineer-reported; no shell here, git state not checked from here. Commit `91665
 - **New pub items:** `Camera::fit_coloured` and `Bounds::of_coloured`, now used by the default view and by the CLI's `3d-render` and `3d-views`. `docs/core-api/` updated.
 - **Engineer-reported tests:** `pdfcer-3d` 398 unit (default features) / 252 (no default features) / 26 doc, green (these counts cover both Passes); 53 `pdfcer-cli` 3d/render tests green; every new test sabotage-verified (removing the texture cap = a 103 GB allocation abort).
 - **Boxes:** core `[x]`, cli `[x]`, gui not ticked. FEATURES: new row "3D drawing and reading hold up against hostile models; framing skips invisible meshes" (shared with `658.20`).
+- **Follow-up `9248293f`** "fix(cli): frame an all-transparent 3D model by its geometry, not refuse it" (1417th filing, engineer-reported): `91665b7f` framed only drawn meshes, so `3d-render` refused ("no finite vertex to draw") a model whose every mesh is fully transparent (zero material alpha under `--style-alpha style`), which had rendered blank before. The CLI (`3d-render`, `3d-views`) now frames by all geometry when nothing is drawn. Core `Camera::fit_coloured` still refuses when nothing is drawn. Caught by `run-gates` (`three_d::a_zero_material_alpha_is_drawn_opaque_by_default_and_disclosed` failed before, passes after); CLI 3D tests 40/40 (engineer-reported). No box change.
 
 ### `de68b8c7` `Pass 658.20`, 2026-11-04: overflow-free 3D projection, edges and framing; shared near cuts; decode ceiling (`X035`) (1415th filing)
 
@@ -25855,6 +25860,18 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> **Head (1417th filing): `Pass 660.0` (`G266`), below.** The older banners that follow are history.
+
+> **`Pass 660.0` (`G266`, operator `O381`): custom `/Info` entries, `/Creator`, and XMP kept in step with `/Info`**
+>
+> NOT STARTED. From `pdfcer-gui` (request file `open/request_G266_metadata_custom_entries_and_xmp_in_step.md` is the authority; criteria here are as relayed). Not PdfCraft-originated, so decision 215 does not apply. ID `660.0` grepped across `docs/*.md` before filing: no prior use (not run through `check-ledger-numbers.py`). Spec: ISO 32000-1 §14.3.2 (XMP `/Metadata`); dispatch `pdfcer-spec-librarian` before building the `/Info`-to-XMP mapping.
+> - **Write:** `/Info` entries of any name, plus `/Creator`: set, rename, remove. Refused, named in `EditError`: `Producer`, `CreationDate`, `ModDate`, `Trapped`, and non-name keys. One undo entry per edit; a no-op records nothing.
+> - **Read:** the full value of every `/Info` entry, including unsaved edits.
+> - **XMP in step:** `/Metadata` updated in the same undo entry as the `/Info` edit, or an outcome saying why it could not be. Custom keys map to `pdfx:<key>`. Disclosed, never silent (rule 4).
+> - **Acceptance:** (1) a title set on a file with XMP reads back new from both `/Info` and `dc:title`; (2) a custom entry added, edited and removed round-trips save + reopen; (3) each of those is one undo.
+> - **Surfaces:** core (+ `docs/core-api/`); CLI subcommand per rule 11. gui is `pdfcer-gui`'s.
+> - **FEATURES:** Planned row added (core/cli/gui unticked).
 
 > **Next up head (rewritten 1355th filing; `Pass 647.3e` `53f4e938` and `Pass 647.2c` `ead2642a` SHIPPED and released in `v0.111.0`, published): `Pass 648.6` (`G245` part 2, /MA measurements, spec-RAG check first).** `Pass 647.3f` (dataRef-bound and subform-set instances, residue of `647.3e`) and `Pass 647.4` stay in the Backlog, not yet ordered. Release slot: next release writes `pdfcer1` (`pdfcer2` holds 0.111.0, `pdfcer1` holds 0.110.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.
 
