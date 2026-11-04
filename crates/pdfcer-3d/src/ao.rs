@@ -10,7 +10,7 @@
 
 use crate::parallel;
 use crate::raster::{View, at};
-use crate::vec3::{cross, dot, length, normalize, scale, sub};
+use crate::vec3::{dot, length, scale, sub, unit_cross};
 
 /// Samples per pixel.
 pub(crate) const SAMPLES: usize = 16;
@@ -135,7 +135,7 @@ impl Depths<'_> {
         };
         let dx = side(self.point(x + 1, y), self.point(x - 1, y))?;
         let dy = side(self.point(x, y + 1), self.point(x, y - 1))?;
-        let n = normalize(cross(dx, dy))?;
+        let n = unit_cross(dx, dy)?;
         let eye = if self.screen.orthographic {
             [0.0, 0.0, 1.0]
         } else {

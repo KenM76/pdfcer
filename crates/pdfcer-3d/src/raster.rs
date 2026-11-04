@@ -61,8 +61,9 @@ pub(crate) enum View {
 
 impl View {
     /// The projection for `camera` at width/height `aspect`; refuses a
-    /// field of view outside (0, 180) degrees or a non-positive
-    /// orthographic height.
+    /// field of view outside (0, 180) degrees or too small for a finite
+    /// focal length, or a non-positive orthographic height. The near plane
+    /// is 1e-4 of the eye-to-target distance.
     pub(crate) fn new(camera: &Camera, aspect: f64) -> Result<View, RenderError> {
         match camera.projection {
             Projection::Perspective { fov_y } => {
@@ -71,9 +72,15 @@ impl View {
                         "the field of view is not between 0 and 180 degrees",
                     ));
                 }
+                let focal = 1.0 / (fov_y.to_radians() / 2.0).tan();
+                if !focal.is_finite() {
+                    return Err(RenderError::Camera(
+                        "the field of view is too small to give a finite focal length",
+                    ));
+                }
                 let distance = length(sub(camera.target, camera.eye));
                 Ok(View::Perspective {
-                    focal: 1.0 / (fov_y.to_radians() / 2.0).tan(),
+                    focal,
                     aspect,
                     near: (distance * 1e-4).max(f64::MIN_POSITIVE),
                 })
@@ -238,6 +245,7 @@ impl Target<'_> {
             return;
         };
         let q = corners.map(|k| view.uv_weight(&k));
+        let owned = owned_edges(&corners, area);
         for y in y0..=y1 {
             for x in x0..=x1 {
                 let p = [f64::from(x) + 0.5, f64::from(y) + 0.5, 0.0];
@@ -247,23 +255,16 @@ impl Target<'_> {
                     edge(a.at, b.at, p),
                 ]
                 .map(|e| e / area);
-                if w.iter().any(|&k| k < 0.0) {
+                if !covers(w, owned) {
                     continue;
                 }
-                let mix = |f: &dyn Fn(&Corner) -> f64| {
-                    w.iter().zip(&corners).map(|(k, c)| k * f(c)).sum::<f64>()
-                };
-                let key = mix(&|c| at(c.at, 2));
+                let key: f64 = w.iter().zip(&corners).map(|(k, c)| k * at(c.at, 2)).sum();
                 let i = (y - self.top) as usize * self.width as usize + x as usize;
                 if self.depth.get(i).is_none_or(|&d| key <= d) {
                     continue;
                 }
-                let mut shade = if a.shade == b.shade && b.shade == c.shade {
-                    a.shade
-                } else {
-                    [0, 1, 2].map(|j| mix(&|c| at(c.shade, j)))
-                };
                 let qw: f64 = w.iter().zip(q).map(|(k, q)| k * q).sum();
+                // Every attribute but the depth key is perspective-correct.
                 let correct = |f: &dyn Fn(&Corner) -> f64| {
                     let s: f64 = w
                         .iter()
@@ -273,11 +274,16 @@ impl Target<'_> {
                         .sum();
                     s / qw
                 };
+                let mut shade = if a.shade == b.shade && b.shade == c.shade {
+                    a.shade
+                } else {
+                    [0, 1, 2].map(|j| correct(&|c| at(c.shade, j)))
+                };
                 if let Some(map) = shadow
                     && corners.iter().any(|c| c.key != [0.0; 3])
                 {
                     let lit = map.visibility([0, 1, 2].map(|j| correct(&|c| at(c.light, j))));
-                    let key = [0, 1, 2].map(|j| mix(&|c| at(c.key, j)));
+                    let key = [0, 1, 2].map(|j| correct(&|c| at(c.key, j)));
                     for (s, k) in shade.iter_mut().zip(key) {
                         *s += lit * k;
                     }
@@ -386,13 +392,43 @@ pub(crate) fn edge(a: [f64; 3], b: [f64; 3], p: [f64; 3]) -> f64 {
     (at(b, 0) - at(a, 0)) * (at(p, 1) - at(a, 1)) - (at(b, 1) - at(a, 1)) * (at(p, 0) - at(a, 0))
 }
 
+/// Whether a pixel centre at barycentric weights `w` belongs to the
+/// triangle: every weight positive, or zero on an edge it `owns`.
+fn covers(w: [f64; 3], owns: [bool; 3]) -> bool {
+    w.iter()
+        .zip(owns)
+        .all(|(&k, own)| k > 0.0 || (k == 0.0 && own) || k.is_nan())
+}
+
+/// The top-left fill rule: for each edge opposite corner 0, 1 and 2,
+/// whether a pixel centre exactly on it is the triangle's. An edge is owned
+/// when the triangle lies to its right (a left edge) or, horizontal, below
+/// it (a top edge), with y pointing down the image. A neighbour sharing
+/// the edge sees the exact negation ([`edge`]), so exactly one owns it.
+fn owned_edges(corners: &[Corner; 3], area: f64) -> [bool; 3] {
+    let [a, b, c] = corners.map(|k| k.at);
+    [(b, c), (c, a), (a, b)].map(|(p, q)| {
+        let [gx, gy] = edge_gradient(p, q).map(|g| g * area.signum());
+        gx > 0.0 || (gx == 0.0 && gy > 0.0)
+    })
+}
+
+/// The x and y gradient of [`edge`]`(a, b, ·)`, in the same canonical
+/// order, so the two orders give exact negations.
+fn edge_gradient(a: [f64; 3], b: [f64; 3]) -> [f64; 2] {
+    if (at(a, 0), at(a, 1)) > (at(b, 0), at(b, 1)) {
+        return edge_gradient(b, a).map(|g| -g);
+    }
+    [at(a, 1) - at(b, 1), at(b, 0) - at(a, 0)]
+}
+
 /// Component `i` of `v`, 0.0 out of range; the crate denies indexing.
 pub(crate) fn at(v: [f64; 3], i: usize) -> f64 {
     v.get(i).copied().unwrap_or(0.0)
 }
 
 #[cfg(test)]
-#[allow(clippy::indexing_slicing)] // Tests fail loudly by design.
+#[allow(clippy::indexing_slicing, clippy::unwrap_used)] // Tests fail loudly by design.
 mod tests {
     use super::*;
     use crate::{TextureFunction, TextureOrigin, TextureWrap};
@@ -470,5 +506,210 @@ mod tests {
             let [a, b, p] = [a, b, p].map(|[x, y]| [x, y, 0.0]);
             assert_eq!(edge(a, b, p), -edge(b, a, p), "{a:?} {b:?} {p:?}");
         }
+    }
+
+    fn plain(at: [f64; 3]) -> Corner {
+        Corner {
+            at,
+            shade: [1.0; 3],
+            uv: [0.0; 2],
+            key: [0.0; 3],
+            light: [0.0; 3],
+            model: [[0.0; 3]; 2],
+        }
+    }
+
+    /// `corners` filled into an empty 8 × 8 image under `view`.
+    fn fill_all(
+        view: &View,
+        tris: &[[Corner; 3]],
+        colour: [u8; 4],
+        lights: PixelLights,
+    ) -> Vec<u8> {
+        let (mut rgba, mut depth) = (vec![0; 8 * 8 * 4], vec![f64::NEG_INFINITY; 64]);
+        let mut target = Target {
+            width: 8,
+            height: 8,
+            top: 0,
+            rgba: &mut rgba,
+            depth: &mut depth,
+        };
+        let paint = Paint {
+            colour,
+            texture: None,
+        };
+        for &t in tris {
+            target.fill(view, t, paint, lights);
+        }
+        rgba
+    }
+
+    const ORTHO: View = View::Orthographic {
+        half_height: 1.0,
+        aspect: 1.0,
+    };
+
+    #[test]
+    fn translucent_triangles_sharing_a_diagonal_blend_once() {
+        // A 4 × 4 square split along a diagonal through pixel centres, in
+        // both windings and both diagonals.
+        let p = |x: f64, y: f64| plain([x, y, 1.0]);
+        let squares = [
+            [
+                [p(0.0, 0.0), p(4.0, 0.0), p(4.0, 4.0)],
+                [p(0.0, 0.0), p(4.0, 4.0), p(0.0, 4.0)],
+            ],
+            [
+                [p(0.0, 0.0), p(4.0, 4.0), p(4.0, 0.0)],
+                [p(0.0, 4.0), p(4.0, 4.0), p(0.0, 0.0)],
+            ],
+            [
+                [p(4.0, 0.0), p(0.0, 4.0), p(0.0, 0.0)],
+                [p(4.0, 0.0), p(4.0, 4.0), p(0.0, 4.0)],
+            ],
+        ];
+        for tris in squares {
+            let rgba = fill_all(&ORTHO, &tris, [200, 100, 50, 128], PixelLights::default());
+            let first = rgba[..4].to_vec();
+            assert_eq!(first[3], 128);
+            for y in 0..4 {
+                for x in 0..4 {
+                    let i = (y * 8 + x) * 4;
+                    assert_eq!(rgba[i..i + 4], first[..], "pixel {x},{y}");
+                }
+            }
+        }
+    }
+
+    /// A triangle whose corner 1 is three times as far as the others (depth
+    /// key 1/3), carrying `lit`; pixel (3, 1)'s centre sits at screen
+    /// weights (0.5, 0.375, 0.125), surface weight 1/6 for corner 1.
+    fn far_corner(lit: impl Fn(&mut Corner)) -> [Corner; 3] {
+        let mut far = plain([8.5, 0.5, 1.0 / 3.0]);
+        let near = |x: f64, y: f64| {
+            let mut c = plain([x, y, 1.0]);
+            c.shade = [0.0; 3];
+            c
+        };
+        let (a, c) = (near(0.5, 0.5), near(0.5, 8.5));
+        far.shade = [0.0; 3];
+        lit(&mut far);
+        [a, far, c]
+    }
+
+    const PERSPECTIVE: View = View::Perspective {
+        focal: 1.0,
+        aspect: 1.0,
+        near: 0.1,
+    };
+
+    #[test]
+    fn shade_is_perspective_correct() {
+        let tri = far_corner(|c| c.shade = [1.0; 3]);
+        let rgba = fill_all(
+            &PERSPECTIVE,
+            &[tri],
+            [240, 240, 240, 255],
+            PixelLights::default(),
+        );
+        let i = (8 + 3) * 4;
+        // 240 / 6, not 240 × 0.375 = 90.
+        assert_eq!(rgba[i..i + 4], [40, 40, 40, 255]);
+    }
+
+    #[test]
+    fn the_shadow_key_is_perspective_correct() {
+        use crate::shadow::{LightView, ShadowMap};
+        let bounds = crate::Bounds {
+            min: [-1.0; 3],
+            max: [1.0; 3],
+        };
+        let view = LightView::new([0.0, 0.0, 1.0], &bounds, 16).unwrap();
+        let map = ShadowMap::build(view, &[], false, 1);
+        // Every lookup point off the map, so fully lit.
+        let mut tri = far_corner(|c| c.key = [1.0; 3]);
+        for c in &mut tri {
+            c.light = [-100.0, -100.0, 0.0];
+        }
+        let lights = PixelLights {
+            shadow: Some(&map),
+            ..PixelLights::default()
+        };
+        let rgba = fill_all(&PERSPECTIVE, &[tri], [240, 240, 240, 255], lights);
+        let i = (8 + 3) * 4;
+        assert_eq!(rgba[i..i + 4], [40, 40, 40, 255]);
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::indexing_slicing, clippy::unwrap_used)] // Tests fail loudly by design.
+mod camera_tests {
+    use crate::{Bounds, Camera, Projection, RenderError, RenderOptions, TriangleMesh, render};
+
+    fn triangle(scale: f64, z: f64) -> Vec<TriangleMesh> {
+        vec![TriangleMesh {
+            positions: vec![[-scale, -scale, z], [scale, -scale, z], [0.0, scale, z]],
+            triangles: vec![[0, 1, 2]],
+            ..TriangleMesh::default()
+        }]
+    }
+
+    fn camera(eye_z: f64, fov_y: f64) -> Camera {
+        Camera {
+            eye: [0.0, 0.0, eye_z],
+            target: [0.0, 0.0, 0.0],
+            up: [0.0, 1.0, 0.0],
+            projection: Projection::Perspective { fov_y },
+        }
+    }
+
+    const BACKGROUND: [u8; 4] = [1, 2, 3, 255];
+
+    /// The centre pixel of `meshes` drawn 16 × 16 from `camera`.
+    fn centre(meshes: &[TriangleMesh], camera: &Camera) -> [u8; 4] {
+        let options = RenderOptions {
+            width: 16,
+            height: 16,
+            background: BACKGROUND,
+            ..RenderOptions::default()
+        };
+        let image = render(meshes, camera, &options).unwrap();
+        let i = (8 * 16 + 8) * 4;
+        image.rgba[i..i + 4].try_into().unwrap()
+    }
+
+    #[test]
+    fn a_subnormal_field_of_view_is_a_camera_error() {
+        let meshes = triangle(1.0, 0.0);
+        let cam = camera(-3.0, 1e-310);
+        let options = RenderOptions {
+            width: 8,
+            height: 8,
+            ..RenderOptions::default()
+        };
+        assert!(matches!(
+            render(&meshes, &cam, &options),
+            Err(RenderError::Camera(_))
+        ));
+        let bounds = Bounds::of(&meshes).unwrap();
+        assert!(matches!(
+            cam.projection_matrix(1.0, &bounds),
+            Err(RenderError::Camera(_))
+        ));
+    }
+
+    #[test]
+    fn a_triangle_with_edges_near_1e160_is_drawn() {
+        let meshes = triangle(1e160, 0.0);
+        assert_ne!(centre(&meshes, &camera(-3e160, 60.0)), BACKGROUND);
+    }
+
+    #[test]
+    fn a_triangle_nearer_than_the_near_plane_is_not_drawn() {
+        // Eye-to-target distance 1, so the near plane is at 1e-4.
+        let cam = camera(-1.0, 60.0);
+        let at = |d: f64| triangle(1.0, -1.0 + d);
+        assert_eq!(centre(&at(0.5e-4), &cam), BACKGROUND);
+        assert_ne!(centre(&at(2e-4), &cam), BACKGROUND, "drawn past it");
     }
 }

@@ -293,7 +293,8 @@ impl Camera {
     /// # Errors
     ///
     /// [`RenderError::Camera`] for a field of view outside (0, 180)
-    /// degrees, a non-positive orthographic height, or a degenerate camera.
+    /// degrees or too small for a finite focal length, a non-positive
+    /// orthographic height, or a degenerate camera.
     pub fn projection_matrix(
         &self,
         aspect: f64,

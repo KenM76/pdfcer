@@ -17,7 +17,7 @@ use crate::raster::{Corner, Paint, PixelLights, Target, View, ViewCorner, at};
 use crate::shadow::{Caster, DEFAULT_SHADOW_MAP_SIZE, LightSense, ShadowLight, ShadowMap};
 use crate::shadow_cast::{ShadowAlpha, ShadowCasters};
 use crate::shadow_set::{ExtraShadows, Shadows};
-use crate::vec3::{cross, dot, length, normalize, scale, sub};
+use crate::vec3::{cross, dot, length, normalize, scale, sub, unit_cross};
 
 /// The largest image [`render`] draws, in pixels (width × height).
 pub const MAX_RENDER_PIXELS: u64 = 64 * 1024 * 1024;
@@ -404,14 +404,21 @@ pub enum RenderError {
 /// Every triangle is filled in [`RenderOptions::colour`], lit per
 /// [`RenderOptions::lighting`] by the angle between its face and each light;
 /// nearer surfaces hide farther ones. Triangles with a non-finite or
-/// out-of-range vertex are skipped. A perspective camera clips what lies behind it.
+/// out-of-range vertex are skipped.
+///
+/// A perspective camera clips at a near plane 1e-4 of the eye-to-target
+/// distance in front of the eye: whatever is nearer, behind the camera
+/// included, is not drawn, and a triangle crossing the plane is cut along
+/// it. An orthographic camera does not clip; geometry behind the eye draws
+/// as if in front of it.
 ///
 /// # Errors
 ///
 /// [`RenderError::Size`] for an empty or over-ceiling image;
 /// [`RenderError::Camera`] for a camera that cannot form a view (eye on the
-/// target, `up` parallel to the view, a field of view outside 0–180°, a
-/// non-positive orthographic height).
+/// target, `up` parallel to the view, a field of view outside 0–180° or so
+/// small its focal length is not finite, a non-positive orthographic
+/// height).
 ///
 /// ```
 /// use pdfcer_3d::{Bounds, Camera, RenderOptions, TriangleMesh, render};
@@ -683,10 +690,10 @@ impl Scene<'_> {
         let Some(world) = mesh.triangles.get(t).and_then(|tri| corners(mesh, tri)) else {
             return;
         };
-        let Some(face) = normalize(cross(
+        let Some(face) = unit_cross(
             sub(at3(&world, 1), at3(&world, 0)),
             sub(at3(&world, 2), at3(&world, 0)),
-        )) else {
+        ) else {
             return;
         };
         let stored = stored_normals(mesh, t);

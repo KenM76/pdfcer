@@ -5,7 +5,7 @@
 
 use crate::raster::Paint;
 use crate::render::{RenderOptions, at3, corners, stored_normals, triangle_uvs};
-use crate::vec3::{cross, normalize, sub};
+use crate::vec3::{sub, unit_cross};
 use crate::{AssembledModel, PreparedModel, Texture, TextureOrigin, TriangleMesh};
 
 /// Floats per vertex in [`DrawData::vertices`].
@@ -161,10 +161,10 @@ fn push_mesh(out: &mut Vec<f32>, mesh: &TriangleMesh, paint: &Paint<'_>) {
         let Some(world) = corners(mesh, tri) else {
             continue;
         };
-        let Some(face) = normalize(cross(
+        let Some(face) = unit_cross(
             sub(at3(&world, 1), at3(&world, 0)),
             sub(at3(&world, 2), at3(&world, 0)),
-        )) else {
+        ) else {
             continue;
         };
         let stored = stored_normals(mesh, t);
@@ -234,6 +234,20 @@ mod tests {
         assert_eq!(d.vertices.len(), 6 * VERTEX_FLOATS);
         // The opaque mesh's first vertex is corner 1, at z = 1.
         assert_eq!(&d.vertices[..3], &[1.0, 0.0, 1.0]);
+    }
+
+    #[test]
+    fn a_triangle_with_edges_near_1e160_is_emitted() {
+        // Its cross product overflows; the face normal must not.
+        let mut mesh = triangle(0.0);
+        mesh.positions = vec![[0.0; 3], [1e160, 0.0, 0.0], [0.0, 1e160, 0.0]];
+        let model = AssembledModel {
+            meshes: vec![mesh],
+            ..AssembledModel::default()
+        };
+        let d = data(&model);
+        assert_eq!(d.vertices.len(), 3 * VERTEX_FLOATS);
+        assert_eq!(&d.vertices[3..6], &[0.0, 0.0, 1.0], "the face normal");
     }
 
     #[test]

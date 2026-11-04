@@ -4,7 +4,7 @@
 
 use crate::raster::View;
 use crate::render::corners;
-use crate::vec3::{add, cross, dot, normalize, scale, sub};
+use crate::vec3::{add, cross, dot, normalize, scale, sub, unit_cross};
 use crate::{Camera, RenderError, TriangleMesh};
 
 /// A half-line through the scene, in model coordinates.
@@ -140,7 +140,7 @@ pub fn pick(meshes: &[TriangleMesh], ray: &Ray) -> Option<Hit> {
 pub(crate) fn intersect(c: &[[f64; 3]; 3], ray: &Ray) -> Option<Hit> {
     let e1 = sub(c[1], c[0]);
     let e2 = sub(c[2], c[0]);
-    let normal = normalize(cross(e1, e2))?;
+    let normal = unit_cross(e1, e2)?;
     let p = cross(ray.direction, e2);
     let det = dot(e1, p);
     if det.abs() < f64::EPSILON * dot(e1, e1).max(dot(e2, e2)) {
