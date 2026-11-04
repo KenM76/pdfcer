@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-04 (1409th filing) — release publication facts: `v0.124.0` tag only, `v0.125.0` published
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed by me; no new Passes, no FEATURES change):**
+- **`v0.124.0`:** annotated tag on the filing commit carrying `Pass 658.12` (`69da19d3`). Tag only: no GitHub release, no OneDrive deploy, no crates.io publish, no notice. Superseded by `v0.125.0`.
+- **`v0.125.0`:** annotated tag (object `7af6d255`) on `88cfe533` (1408th filing); bump `e320e645`. Carries `658.12` (`69da19d3`), `658.13` X031 (`eb91233d`), `658.14` X030 (`bafc19d4`), `658.15` X029 (`3f86c024`), `658.16` X032 (`906896b2`). GitHub release with 8 assets; CI green at the tag; OneDrive CLI slot `pdfcer1`, so the NEXT release goes to `pdfcer2` (still 0.123.0); crates.io `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.125.0 (0.124.0 never published there). `verify-release.py` OK except "working tree clean" FAIL, caused only by never-committed local files (agent-memory, stray `-` file, `docs/research/request-*.md`). Notice: `FeatureRequests open/notice_2026-11-04_v0.125.0_released.md`.
+- **ROADMAP:** release-status bullets appended under the 1406th (`v0.124.0`) and 1407th (`v0.125.0`) entries; the original "NOT claimed done" plan lines are kept, amended not rewritten.
+
+**In flight (NOT shipped):** inbound `X033` (3D reader/raster scale and work bounds, seven items in `pdfcer-3d`), being implemented for `v0.126.0`.
+
+**Owed / open:** the stray uncommitted local files above remain; the engineer commits or removes them. Backup currency not verifiable from here. Next filing 1410th.
+
 ## 2026-11-03 (1408th filing) — `Pass 658.16` (`906896b2`, `X032`): mesh winding by full 4x4 determinant; release PENDING
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed by me):**

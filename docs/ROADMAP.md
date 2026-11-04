@@ -125,6 +125,7 @@ Engineer-reported; no shell here, git state not checked from here. Commit `90689
 
 Engineer-reported; no shell here, git state not checked from here. Commit `e320e645` "chore: bump version to 0.125.0". Carries `Pass 658.13` (`eb91233d`, `X031`), `Pass 658.14` (`bafc19d4`, `X030`), `Pass 658.15` (`3f86c024`, `X029`), filed in this same 1407th filing. No `Cargo.toml` dependency change, so `cargo tree` is unaffected.
 - **Release plan, NOT claimed done:** `v0.125.0` is to be tagged on the commit containing this filing. Tag, GitHub release, OneDrive slot and crates are not done; a later filing records them. `v0.124.0` (`d787bf98`) was filed at the 1406th and its release is likewise not recorded as done here.
+- **Release status, amended 2026-11-04 (1409th filing; engineer-reported, no shell here, not checked from here):** `v0.125.0` is an annotated tag (object `7af6d255`) on `88cfe533` (the 1408th filing commit), not on this filing's commit as planned above. It carries `658.12` (`69da19d3`), `658.13` (`eb91233d`), `658.14` (`bafc19d4`), `658.15` (`3f86c024`) and `658.16` (`906896b2`, `X032`). Published: GitHub release with 8 assets; CI green at the tag; OneDrive CLI slot `pdfcer1` (`pdfcer2` keeps 0.123.0, so the NEXT release goes to `pdfcer2`); crates.io `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.125.0. `verify-release.py` OK except a "working tree clean" FAIL caused only by never-committed local files (agent-memory, a stray `-` file, `docs/research/request-*.md`). Release notice: `FeatureRequests open/notice_2026-11-04_v0.125.0_released.md`.
 - Ledgers: no decision; next filing 1408th.
 
 ### `3f86c024` `Pass 658.15`, 2026-11-03: the PRC reader refuses prefix codes, lying lengths, wide behaviours and partial arrays, and bounds decoded elements (`X029`) (1407th filing)
@@ -158,6 +159,7 @@ Engineer-reported; no shell here, git state not checked from here. Commit `eb912
 
 Engineer-reported; no shell here, git state not checked from here. Commit `d787bf98` "chore: bump version to 0.124.0": `Cargo.toml` workspace version and the `pdfcer-model` dependency version, `Cargo.lock`, `fuzz/Cargo.lock`. No dependency-set change, so no `cargo tree` or `THIRD_PARTY_LICENSES.md` change. Carries `Pass 658.12` (`69da19d3`, filed at the 1405th as `3221fadb`).
 - **Release plan, NOT claimed done:** `v0.124.0` is to be tagged on the commit that contains this filing. Tag, GitHub release, OneDrive slot `pdfcer1` (`pdfcer2` keeps 0.123.0) and crates are not done; a later filing records them.
+- **Release status, amended 2026-11-04 (1409th filing; engineer-reported):** `v0.124.0` is an annotated TAG ONLY, on the filing commit carrying `Pass 658.12` (`69da19d3`). No GitHub release, no OneDrive deploy, no crates.io publish, no notice. Superseded by `v0.125.0` (see the 1407th entry above), which carries its change; `0.124.0` was never published to crates.io.
 - `FEATURES.md`: no row changes. Ledgers: no decision; next filing 1407th.
 
 ### `69da19d3` `Pass 658.12`, 2026-11-03: depth prepass so the GPU shader skips hidden fragments (`G264`) (1405th filing)
