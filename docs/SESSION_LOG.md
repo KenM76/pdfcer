@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-04 (1411th filing) — `Pass 658.19` (`d481d708`, `X034`): `OutlineClip` reports what it drops
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed by me):**
+- **`Pass 658.19` (`d481d708`, `X034`):** `OutlineClip::to_bytes_with_loss` / `from_bytes_with_loss` and `OutlineClipLoss { cut_at_depth, skipped_malformed }`; CLI `bookmark-copy`/`-cut`/`-paste` print a stderr line when either count is nonzero. Guards unchanged. Filed directly as Shipped (never in Next up). Details in ROADMAP Shipped.
+- **Engineer-reported figures:** +2 out-of-crate tests (10/10), +1 in-crate (29/29), sabotage fails all three; clippy, structure gate, `check-core-api-verbs` clean; no manifest change.
+- **Boxes:** core `[x]`, cli `[x]`, gui not ticked. FEATURES bookmark copy/cut/paste row gained one sentence.
+- **Inbound:** reply `reply_X034_outline_clip_reports_what_it_drops_SHIPPED.md` in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`; INDEX row SHIPPED.
+
+**Still in flight:** `Pass 658.18` (`G265`) unchanged. `v0.126.0` would carry `658.17`, `658.19` and `658.18` if it lands; not tagged, not published, not pushed. Crates doc-comment survivors not checked from here; backup currency not verifiable from here.
+
 ## 2026-11-04 (1410th filing) — `Pass 658.17` (`fb98413e`, `X033`): render work ceiling and reader bounds; release PENDING
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed by me):**

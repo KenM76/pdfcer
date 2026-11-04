@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `d481d708` `Pass 658.19`, 2026-11-04: `OutlineClip` reports what its depth guard and malformed-entry skip leave out (`X034`) (1411th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `d481d708` "feat(outline): OutlineClip reports what its depth guard and malformed-entry skip leave out (X034)", local `main` after `91ad38f3`, not pushed; rides `v0.126.0` with `658.17` and `658.18` if it lands. Inbound request `X034` (reply `reply_X034_outline_clip_reports_what_it_drops_SHIPPED.md` in the FeatureRequests `open/` folder; INDEX row SHIPPED). Never opened in Next up; filed directly as Shipped. No decision record.
+- **New pub items (`pdfcer-core` `outline.rs`):** `OutlineClip::to_bytes_with_loss(&self) -> (Vec<u8>, OutlineClipLoss)`; `OutlineClip::from_bytes_with_loss(&[u8]) -> Result<(OutlineClip, OutlineClipLoss), OutlineClipError>`; `pub struct OutlineClipLoss { cut_at_depth, skipped_malformed }` (`#[non_exhaustive]`, Copy/Default/Eq/Hash, `is_empty()`).
+- **Meaning:** `cut_at_depth` = bookmarks at `MAX_OUTLINE_DEPTH` that have children written/read without them (one per cut subtree). `skipped_malformed` = non-dictionary entries skipped on read at any level, including the top-level array. Guards unchanged; `to_bytes`/`from_bytes` delegate and drop the report.
+- **CLI (`navigation.rs`):** `bookmark-copy`, `bookmark-cut`, `bookmark-paste` print a stderr line when either count is nonzero; stdout unchanged.
+- **Engineer-reported tests:** +2 out-of-crate (`crates/pdfcer-core/tests/outline_clipboard.rs`, `all` binary, 10/10), +1 in-crate (`outline::tests`, 29/29); sabotage (zeroing the increments) fails all three. clippy `-D warnings` clean core+cli; `check-code-structure` clean; `check-core-api-verbs` rc=0. `docs/core-api/02-editing-and-saving.md` and `index.md` line count updated.
+- **Invariants:** no manifest change, so no `cargo tree` change.
+- **Boxes:** core `[x]`, cli `[x]` (stderr disclosure), gui unchanged (not ticked).
+
 ### `fb98413e` `Pass 658.17`, 2026-11-04: a per-frame render work ceiling, finite camera fit, checked schema and per-copy block charge (`X033`) (1410th filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `fb98413e` "fix(3d): raster work ceiling, finite fit, checked schema, per-copy block charge, balanced mirror test (X033)". Inbound request `X033` (operator as crates consumer; reply `reply_X033_3d_reader_and_raster_scale_and_work_bounds_SHIPPED.md` in the FeatureRequests `open/` folder; INDEX row SHIPPED). Local `main`. No decision record. Pass number `658.17` assigned at this filing (grep of `docs/` for `658.17` found none before filing).
