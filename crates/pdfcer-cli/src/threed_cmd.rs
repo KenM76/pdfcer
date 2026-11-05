@@ -450,7 +450,8 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) eye: Option<[f64; 3]>,
     pub(crate) target: Option<[f64; 3]>,
     pub(crate) ortho: bool,
-    pub(crate) fov: f64,
+    pub(crate) lens: LensArg,
+    pub(crate) fov: Option<f64>,
     pub(crate) width: u32,
     pub(crate) height: u32,
     pub(crate) transparent: bool,
@@ -574,7 +575,7 @@ fn render_from_bytes(
     data: &[u8],
     saved: Option<&pdfcer_core::threed::ThreeDSavedView>,
 ) -> u8 {
-    use pdfcer_3d::{Bounds, Camera, Projection, RenderOptions, render_model};
+    use pdfcer_3d::{Bounds, RenderOptions, render_model};
     let refuse = |why: String| {
         eprintln!(
             "pdfcer: {}: 3D artwork {}: {why}",
@@ -593,23 +594,10 @@ fn render_from_bytes(
     };
     let target = a.target.unwrap_or_else(|| bounds.centre());
     let aim = aim_camera(a, target, saved);
-    let (direction, up) = (aim.direction, aim.up);
-    let aspect = f64::from(a.width) / f64::from(a.height.max(1));
-    let mut camera =
-        match Camera::fit_coloured(&model.meshes, framed, direction, up, !aim.ortho, aspect) {
-            Ok(camera) => camera,
-            Err(err) => return refuse(err.to_string()),
-        };
-    if let Some(eye) = a.eye {
-        camera.eye = eye;
-        camera.target = target;
-    }
-    if let Some(saved) = &aim.framing {
-        saved.frame(&mut camera);
-    }
-    if let Projection::Perspective { fov_y } = &mut camera.projection {
-        *fov_y = a.fov;
-    }
+    let camera = match aim::place_camera(a, (&model.meshes, framed), target, &aim) {
+        Ok(camera) => camera,
+        Err(err) => return refuse(err.to_string()),
+    };
     let lighting = render_lighting(a.lighting, saved);
     let mode = mode::render_mode(&a.mode, saved);
     let options = RenderOptions {
@@ -699,10 +687,7 @@ fn render_from_bytes(
         model.compressed,
         a.width,
         a.height,
-        match camera.projection {
-            Projection::Perspective { .. } => "perspective",
-            _ => "orthographic",
-        },
+        aim::projection_name(camera.projection),
         fmt3(camera.eye),
         fmt3(camera.target),
         a.output.display()

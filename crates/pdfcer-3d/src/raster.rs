@@ -62,8 +62,9 @@ pub(crate) enum View {
 impl View {
     /// The projection for `camera` at width/height `aspect`; refuses a
     /// field of view outside (0, 180) degrees or too small for a finite
-    /// focal length, or a non-positive orthographic height. The near plane
-    /// is 1e-4 of the eye-to-target distance.
+    /// focal length, or a non-positive orthographic height, and every
+    /// fisheye: a lens is drawn as planar faces ([`crate::lens`]). The near
+    /// plane is 1e-4 of the eye-to-target distance.
     pub(crate) fn new(camera: &Camera, aspect: f64) -> Result<View, RenderError> {
         match camera.projection {
             Projection::Perspective { fov_y } => {
@@ -96,6 +97,9 @@ impl View {
                     aspect,
                 })
             }
+            Projection::Fisheye { .. } => Err(RenderError::Camera(
+                "a fisheye lens has no single planar view",
+            )),
         }
     }
 

@@ -10,7 +10,7 @@ use crate::{Camera, RenderError, TriangleMesh};
 /// A half-line through the scene, in model coordinates.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Ray {
-    /// Where the ray starts: the eye (perspective) or the point on the
+    /// Where the ray starts: the eye (perspective, fisheye) or the point on the
     /// image plane through the eye (orthographic).
     pub origin: [f64; 3],
     /// The unit direction.
@@ -50,7 +50,12 @@ impl Camera {
     /// # Errors
     ///
     /// [`RenderError::Camera`] for a camera [`crate::render`] refuses, and
-    /// [`RenderError::Size`] for a zero `width` or `height`.
+    /// [`RenderError::Size`] for a zero `width` or `height`. Under a
+    /// fisheye: [`RenderError::FisheyeField`] for a refused field, and
+    /// [`RenderError::OutsideLens`] for a position outside the picture
+    /// circle, which shows only background. A fisheye ray starts at the
+    /// eye and its [`Ray::min_distance`] is the near plane of the lens face
+    /// drawing that pixel ([`crate::FrameLens`]).
     ///
     /// # Examples
     ///
@@ -69,6 +74,9 @@ impl Camera {
     pub fn ray_through(&self, x: f64, y: f64, width: u32, height: u32) -> Result<Ray, RenderError> {
         if width == 0 || height == 0 {
             return Err(RenderError::Size { width, height });
+        }
+        if let Some(lens) = crate::lens::Lens::for_camera(self, width, height)? {
+            return lens.ray(self, x, y);
         }
         let aspect = f64::from(width) / f64::from(height);
         let view = View::new(self, aspect)?;

@@ -205,11 +205,26 @@ pub(crate) fn parse_hex_rgb(s: &str) -> Result<[u8; 3], String> {
 /// Clap parser for `--fov`: degrees, above 0 and below 180.
 pub(crate) fn parse_fov(s: &str) -> Result<f64, String> {
     match s.parse::<f64>() {
-        Ok(v) if v > 0.0 && v < 180.0 => Ok(v),
+        Ok(v) if v > 0.0 && v <= 360.0 => Ok(v),
         _ => Err(format!(
-            "a field of view is degrees above 0 and below 180, not {s}"
+            "a field of view is degrees above 0 and at most 360, not {s}"
         )),
     }
+}
+
+/// The lens `3d-render --lens` draws through.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, clap::ValueEnum)]
+pub(crate) enum LensArg {
+    /// An ordinary perspective lens: straight lines stay straight.
+    #[default]
+    Flat,
+    /// A fisheye whose distance from the picture centre is proportional to
+    /// the angle off the view axis; reaches 360 degrees, the picture circle
+    /// shrinking inside the frame past 180.
+    Equidistant,
+    /// A fisheye that keeps small shapes their shape; below 360 degrees,
+    /// always fills the frame.
+    Stereographic,
 }
 
 /// The mesh file format `3d-mesh` writes.

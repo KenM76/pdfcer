@@ -3292,11 +3292,18 @@ pub(crate) enum Command {
         #[arg(long, value_name = "X,Y,Z", value_parser = parse_point3, allow_hyphen_values = true)]
         target: Option<[f64; 3]>,
         /// Parallel (orthographic) projection instead of perspective.
-        #[arg(long)]
+        #[arg(long, conflicts_with = "lens")]
         ortho: bool,
-        /// Perspective vertical field of view, degrees.
-        #[arg(long, default_value_t = 30.0, value_parser = parse_fov)]
-        fov: f64,
+        /// The lens: `flat` (default, perspective), or a fisheye,
+        /// `equidistant` or `stereographic`. Outside a fisheye's picture
+        /// circle the background is drawn; `--pick` there is refused.
+        #[arg(long, value_enum, default_value_t)]
+        lens: LensArg,
+        /// Field of view across the image's height, degrees. Default: 30
+        /// for `flat`, which must stay below 180; 180 for a fisheye, which
+        /// reaches 360 (`equidistant`) or below 360 (`stereographic`).
+        #[arg(long, value_parser = parse_fov)]
+        fov: Option<f64>,
         /// Image width, pixels.
         #[arg(long, default_value_t = 1024)]
         width: u32,

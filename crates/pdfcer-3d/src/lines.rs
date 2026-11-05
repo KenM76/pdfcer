@@ -9,10 +9,17 @@
 //! its size of it. Both are pulled towards the eye by a bias in model units
 //! so an edge lying on a surface is not lost to it, then depth-tested
 //! nearer-or-equal and written as a face pixel is ([`Target::blend`]).
+//!
+//! Under a fisheye a segment is cut into [`crate::LENS_LINE_PIECES`]
+//! pieces, each end lens-projected with depth key 1 / its distance from the
+//! eye and the piece rasterised straight, as the GPU lens line shader draws
+//! it; a piece reaching nearer the eye than the lens's near distance, or
+//! crossing behind the eye between two sides of the back pole, is dropped.
 
+use crate::lens::Lens;
 use crate::raster::{Target, View, ViewCorner, at, view_point};
 use crate::render::{Camera, RenderError};
-use crate::vec3::{add, dot, normalize, scale, sub};
+use crate::vec3::{add, dot, length, normalize, scale, sub};
 use crate::{AssembledModel, ModelLine};
 
 /// A segment in model space, a straight-RGBA colour at each end.
@@ -22,9 +29,15 @@ pub(crate) struct Stroke {
     pub(crate) colours: [[u8; 4]; 2],
 }
 
+/// How strokes reach the image.
+enum Projector {
+    Flat(View),
+    Lens(Lens),
+}
+
 /// The camera a frame's strokes are projected through.
 pub(crate) struct Overlay {
-    view: View,
+    view: Projector,
     /// Right, up and forward.
     basis: [[f64; 3]; 3],
     eye: [f64; 3],
@@ -40,8 +53,12 @@ impl Overlay {
         bias: f64,
     ) -> Result<Self, RenderError> {
         let aspect = f64::from(width) / f64::from(height);
+        let view = match Lens::for_camera(camera, width, height)? {
+            Some(lens) => Projector::Lens(lens),
+            None => Projector::Flat(View::new(camera, aspect)?),
+        };
         Ok(Overlay {
-            view: View::new(camera, aspect)?,
+            view,
             basis: camera.basis()?,
             eye: camera.eye,
             bias,
@@ -52,8 +69,8 @@ impl Overlay {
     /// eye in perspective, against the view direction in orthographic.
     pub(crate) fn towards(&self, p: [f64; 3]) -> [f64; 3] {
         match self.view {
-            View::Perspective { .. } => normalize(sub(self.eye, p)).unwrap_or([0.0; 3]),
-            View::Orthographic { .. } => scale(self.basis[2], -1.0),
+            Projector::Flat(View::Orthographic { .. }) => scale(self.basis[2], -1.0),
+            _ => normalize(sub(self.eye, p)).unwrap_or([0.0; 3]),
         }
     }
 
@@ -67,33 +84,29 @@ impl Overlay {
     /// Draws a `size`-pixel square point at `p` in `rgba`.
     pub(crate) fn point(&self, target: &mut Target, p: [f64; 3], rgba: [u8; 4], size: u32) {
         let v = self.view_of(p);
-        if let View::Perspective { near, .. } = self.view
-            && v.get(2).is_none_or(|&z| z < near || z.is_nan())
-        {
-            return;
-        }
-        let c = self.view.project(v, target.width, target.height).at;
-        if !c.iter().all(|x| x.is_finite()) {
-            return;
-        }
-        let half = f64::from(size.max(1)) / 2.0;
-        let span = |centre: f64| ((centre - half - 0.5).ceil(), centre + half - 0.5);
-        let ((x0, x1), (y0, y1)) = (span(at(c, 0)), span(at(c, 1)));
-        let mut y = y0.max(0.0);
-        while y < y1 && y < f64::from(target.height) {
-            let mut x = x0.max(0.0);
-            while x < x1 && x < f64::from(target.width) {
-                put(target, (x, y), at(c, 2), rgba);
-                x += 1.0;
+        let c = match &self.view {
+            Projector::Flat(view) => {
+                if let View::Perspective { near, .. } = *view
+                    && v.get(2).is_none_or(|&z| z < near || z.is_nan())
+                {
+                    return;
+                }
+                view.project(v, target.width, target.height).at
             }
-            y += 1.0;
+            Projector::Lens(lens) => match lens_corner(lens, xyz(v)) {
+                Some(c) => c,
+                None => return,
+            },
+        };
+        if c.iter().all(|x| x.is_finite()) {
+            square(target, c, rgba, size);
         }
     }
 
     /// The part of the segment `a`–`b` (view space) in front of the near
     /// plane, as model-segment parameters.
     fn clip(&self, a: ViewCorner, b: ViewCorner) -> Option<[f64; 2]> {
-        let View::Perspective { near, .. } = self.view else {
+        let Projector::Flat(View::Perspective { near, .. }) = self.view else {
             return Some([0.0, 1.0]);
         };
         let (za, zb) = (a.get(2).copied()?, b.get(2).copied()?);
@@ -108,56 +121,133 @@ impl Overlay {
     /// Draws `stroke` `width` pixels wide into `target`.
     pub(crate) fn line(&self, target: &mut Target, stroke: &Stroke, width: u32) {
         let [a, b] = stroke.ends.map(|p| self.view_of(p));
+        let view = match &self.view {
+            Projector::Flat(view) => view,
+            Projector::Lens(lens) => return lens_line(lens, target, (a, b), stroke, width),
+        };
         let Some([s0, s1]) = self.clip(a, b) else {
             return;
         };
-        let along = |s: f64| -> ViewCorner {
-            let mut v = a;
-            for (c, d) in v.iter_mut().zip(b) {
-                *c += s * (d - *c);
-            }
-            v
-        };
         let (w, h) = (target.width, target.height);
-        let p = self.view.project(along(s0), w, h).at;
-        let q = self.view.project(along(s1), w, h).at;
+        let p = view.project(along(a, b, s0), w, h).at;
+        let q = view.project(along(a, b, s1), w, h).at;
         if !p.iter().chain(&q).all(|c| c.is_finite()) {
             return;
         }
-        let model_param = |t: f64| {
-            let t = match self.view {
-                View::Perspective { .. } => {
-                    let (kp, kq) = (at(p, 2), at(q, 2));
-                    t * kq / ((1.0 - t) * kp + t * kq)
-                }
-                View::Orthographic { .. } => t,
-            };
-            s0 + t * (s1 - s0)
+        let perspective = matches!(view, View::Perspective { .. });
+        let colour = |t: f64| {
+            let t = if perspective { correct(t, p, q) } else { t };
+            mix(stroke.colours, s0 + t * (s1 - s0))
         };
-        let colour = |t: f64| mix(stroke.colours, model_param(t));
-        let x_major = (at(q, 0) - at(p, 0)).abs() >= (at(q, 1) - at(p, 1)).abs();
-        let (major, minor) = if x_major { (0, 1) } else { (1, 0) };
-        let (m0, m1) = (at(p, major), at(q, major));
-        if m0 == m1 {
-            return;
+        raster(target, (p, q), colour, width);
+    }
+}
+
+/// The view corner a fraction `s` of the way from `a` to `b`.
+fn along(a: ViewCorner, b: ViewCorner, s: f64) -> ViewCorner {
+    let mut v = a;
+    for (c, d) in v.iter_mut().zip(b) {
+        *c += s * (d - *c);
+    }
+    v
+}
+
+/// View corner `v`'s position.
+fn xyz(v: ViewCorner) -> [f64; 3] {
+    [0, 1, 2].map(|i| v.get(i).copied().unwrap_or(f64::NAN))
+}
+
+/// The fraction along a segment between screen corners `p` and `q` (depth
+/// key 1 / depth) that a fraction `t` of the way across the screen shows.
+fn correct(t: f64, p: [f64; 3], q: [f64; 3]) -> f64 {
+    let (kp, kq) = (at(p, 2), at(q, 2));
+    t * kq / ((1.0 - t) * kp + t * kq)
+}
+
+/// Camera-space point `c`'s screen corner through `lens`, key 1 / its
+/// distance; `None` nearer than the lens's near distance or unmappable.
+fn lens_corner(lens: &Lens, c: [f64; 3]) -> Option<[f64; 3]> {
+    let t = length(c);
+    if t.is_nan() || t < lens.near {
+        return None;
+    }
+    let [x, y] = lens.pixel(c)?;
+    Some([x, y, 1.0 / t])
+}
+
+/// [`Overlay::line`] through `lens`, view-space ends `a` and `b`.
+fn lens_line(
+    lens: &Lens,
+    target: &mut Target,
+    (a, b): (ViewCorner, ViewCorner),
+    stroke: &Stroke,
+    width: u32,
+) {
+    let pieces = f64::from(crate::LENS_LINE_PIECES);
+    let point = |s: f64| xyz(along(a, b, s));
+    for k in 0..crate::LENS_LINE_PIECES {
+        let (s0, s1) = (f64::from(k) / pieces, f64::from(k + 1) / pieces);
+        let (ca, cb) = (point(s0), point(s1));
+        if ca[2] < 0.0 && cb[2] < 0.0 && ca[0] * cb[0] + ca[1] * cb[1] < 0.0 {
+            continue;
         }
-        let limit = f64::from(if x_major { w } else { h });
-        let first = (m0.min(m1) - 0.5).ceil().max(0.0);
-        let end = m0.max(m1).min(limit);
-        let mut m = first;
-        while m + 0.5 < end {
-            let t = (m + 0.5 - m0) / (m1 - m0);
-            let across = (at(p, minor) + t * (at(q, minor) - at(p, minor))).floor();
-            let key = at(p, 2) + t * (at(q, 2) - at(p, 2));
-            let rgba = colour(t);
-            let lo = across - f64::from((width.max(1) - 1) / 2);
-            for k in 0..width.max(1) {
-                let n = lo + f64::from(k);
-                let (x, y) = if x_major { (m, n) } else { (n, m) };
-                put(target, (x, y), key, rgba);
-            }
-            m += 1.0;
+        let (Some(p), Some(q)) = (lens_corner(lens, ca), lens_corner(lens, cb)) else {
+            continue;
+        };
+        let colour = |t: f64| mix(stroke.colours, s0 + correct(t, p, q) * (s1 - s0));
+        raster(target, (p, q), colour, width);
+    }
+}
+
+/// Rasterises the screen segment `p`–`q` `width` pixels wide as an aliased
+/// OpenGL line: key linear in screen space, colour from `colour` at the
+/// screen fraction.
+fn raster(
+    target: &mut Target,
+    (p, q): ([f64; 3], [f64; 3]),
+    colour: impl Fn(f64) -> [u8; 4],
+    width: u32,
+) {
+    let (w, h) = (target.width, target.height);
+    let x_major = (at(q, 0) - at(p, 0)).abs() >= (at(q, 1) - at(p, 1)).abs();
+    let (major, minor) = if x_major { (0, 1) } else { (1, 0) };
+    let (m0, m1) = (at(p, major), at(q, major));
+    if m0 == m1 {
+        return;
+    }
+    let limit = f64::from(if x_major { w } else { h });
+    let first = (m0.min(m1) - 0.5).ceil().max(0.0);
+    let end = m0.max(m1).min(limit);
+    let mut m = first;
+    while m + 0.5 < end {
+        let t = (m + 0.5 - m0) / (m1 - m0);
+        let across = (at(p, minor) + t * (at(q, minor) - at(p, minor))).floor();
+        let key = at(p, 2) + t * (at(q, 2) - at(p, 2));
+        let rgba = colour(t);
+        let lo = across - f64::from((width.max(1) - 1) / 2);
+        for k in 0..width.max(1) {
+            let n = lo + f64::from(k);
+            let (x, y) = if x_major { (m, n) } else { (n, m) };
+            put(target, (x, y), key, rgba);
         }
+        m += 1.0;
+    }
+}
+
+/// Fills the square of pixel centres within half `size` of screen corner
+/// `c` with `rgba` at `c`'s depth key.
+fn square(target: &mut Target, c: [f64; 3], rgba: [u8; 4], size: u32) {
+    let half = f64::from(size.max(1)) / 2.0;
+    let span = |centre: f64| ((centre - half - 0.5).ceil(), centre + half - 0.5);
+    let ((x0, x1), (y0, y1)) = (span(at(c, 0)), span(at(c, 1)));
+    let mut y = y0.max(0.0);
+    while y < y1 && y < f64::from(target.height) {
+        let mut x = x0.max(0.0);
+        while x < x1 && x < f64::from(target.width) {
+            put(target, (x, y), at(c, 2), rgba);
+            x += 1.0;
+        }
+        y += 1.0;
     }
 }
 

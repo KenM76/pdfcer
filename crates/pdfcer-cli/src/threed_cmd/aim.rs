@@ -2,6 +2,8 @@
 //! opening view (ISO 32000-1 §13.6.4–13.6.5, Tables 304–305).
 
 use super::RenderThreeDArgs;
+use crate::LensArg;
+use pdfcer_3d::{Camera, FisheyeMapping, Projection, RenderError, TriangleMesh};
 use pdfcer_core::threed::{SavedViewAim, ThreeDSavedView, ViewFit};
 
 /// The camera `3d-render` uses, and a sentence saying why.
@@ -69,5 +71,53 @@ pub(super) fn aim_camera(
         ortho: a.ortho || saved.orthographic,
         source: saved.source(),
         framing: Some(saved),
+    }
+}
+
+/// The camera `3d-render` draws through: fitted to the model along `aim`
+/// (in perspective for a fisheye), moved to `--eye`, placed by the opening
+/// view's framing (an orthographic placement, so not under a fisheye), then
+/// given `--lens` and `--fov`.
+pub(super) fn place_camera(
+    a: &RenderThreeDArgs<'_>,
+    (meshes, framed): (&[TriangleMesh], &[Option<[u8; 4]>]),
+    target: [f64; 3],
+    aim: &Aim,
+) -> Result<Camera, RenderError> {
+    let aspect = f64::from(a.width) / f64::from(a.height.max(1));
+    let mapping = match a.lens {
+        LensArg::Flat => None,
+        LensArg::Equidistant => Some(FisheyeMapping::Equidistant),
+        LensArg::Stereographic => Some(FisheyeMapping::Stereographic),
+    };
+    let perspective = !aim.ortho || mapping.is_some();
+    let mut camera =
+        Camera::fit_coloured(meshes, framed, aim.direction, aim.up, perspective, aspect)?;
+    if let Some(eye) = a.eye {
+        camera.eye = eye;
+        camera.target = target;
+    }
+    if let (Some(saved), None) = (&aim.framing, mapping) {
+        saved.frame(&mut camera);
+    }
+    if let Some(mapping) = mapping {
+        let fov = a.fov.unwrap_or(180.0);
+        camera.projection = Projection::Fisheye { fov, mapping };
+    } else if let Projection::Perspective { fov_y } = &mut camera.projection {
+        *fov_y = a.fov.unwrap_or(30.0);
+    }
+    Ok(camera)
+}
+
+/// The summary line's `projection=` value.
+pub(super) fn projection_name(projection: Projection) -> &'static str {
+    match projection {
+        Projection::Perspective { .. } => "perspective",
+        Projection::Orthographic { .. } => "orthographic",
+        Projection::Fisheye {
+            mapping: FisheyeMapping::Stereographic,
+            ..
+        } => "fisheye-stereographic",
+        Projection::Fisheye { .. } => "fisheye-equidistant",
     }
 }

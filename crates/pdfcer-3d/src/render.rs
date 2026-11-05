@@ -15,7 +15,9 @@ use crate::gloss::Gloss;
 use crate::lamp_shadow::LampShadows;
 use crate::lighting::{LightFrame, LightingScheme, Shader};
 use crate::parallel;
+pub use crate::projection::{FisheyeMapping, Projection};
 use crate::raster::{Corner, Paint, PixelLights, Target, View, ViewCorner, at};
+pub use crate::render_error::RenderError;
 use crate::shadow::{Caster, DEFAULT_SHADOW_MAP_SIZE, LightSense, ShadowLight, ShadowMap};
 use crate::shadow_cast::{ShadowAlpha, ShadowCasters};
 use crate::shadow_set::{ExtraShadows, Shadows};
@@ -31,23 +33,6 @@ const FIT_MARGIN: f64 = 1.1;
 /// coordinate: the view direction then survives the eye's rounding to
 /// within about 2^-22 radians.
 const EYE_SHARE: f64 = 1.0 / (1u64 << 30) as f64;
-
-/// How the camera projects the scene onto the image.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Projection {
-    /// A pinhole camera with this vertical field of view, in degrees
-    /// (exclusive range 0–180).
-    Perspective {
-        /// Vertical field of view, degrees.
-        fov_y: f64,
-    },
-    /// A parallel projection showing this much of the scene vertically, in
-    /// model units.
-    Orthographic {
-        /// Visible height, model units.
-        height: f64,
-    },
-}
 
 /// Where the camera is and where it looks, in model coordinates.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -382,30 +367,6 @@ pub struct Image {
     pub rgba: Vec<u8>,
 }
 
-/// Why [`render`] or [`Camera::fit`] refused.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-#[non_exhaustive]
-pub enum RenderError {
-    /// The image is empty or larger than [`MAX_RENDER_PIXELS`].
-    #[error("a {width}x{height} image is empty or larger than the render ceiling")]
-    Size {
-        /// Requested width.
-        width: u32,
-        /// Requested height.
-        height: u32,
-    },
-    /// The camera cannot form a view.
-    #[error("invalid camera: {0}")]
-    Camera(&'static str),
-    /// Drawing would test more pixel and texel centres than `limit`
-    /// ([`crate::MAX_RENDER_PIXEL_TESTS`]).
-    #[error("drawing the model would take more than {limit} pixel tests")]
-    TooMuchWork {
-        /// The ceiling passed.
-        limit: u64,
-    },
-}
-
 /// Draw `meshes` as seen by `camera`.
 ///
 /// Every triangle is filled in [`RenderOptions::colour`], lit per
@@ -509,23 +470,49 @@ pub(crate) fn render_painted(
 }
 
 /// [`render_painted`], each mesh drawn with its `finishes` entry, with each
-/// pixel's depth key ([`View::project`]), `NEG_INFINITY` where nothing
-/// opaque was drawn.
+/// pixel's depth key ([`View::project`]; under a fisheye 1 / the distance
+/// from the eye), `NEG_INFINITY` where nothing opaque was drawn.
 pub(crate) fn render_finished(
-    (meshes, model_lights, finishes): crate::gloss::Model<'_>,
+    model: crate::gloss::Model<'_>,
     paints: &[Paint<'_>],
     opaque: &[bool],
     camera: &Camera,
     options: &RenderOptions,
 ) -> Result<(Image, Vec<f64>), RenderError> {
+    let (width, height) = checked_size(options)?;
+    if let Some(lens) = crate::lens::Lens::for_camera(camera, width, height)? {
+        return crate::lens_frame::render(model, paints, opaque, (camera, &lens), options);
+    }
+    render_view(model, paints, opaque, camera, options, None)
+}
+
+/// `options`' image size, refused when empty or over the ceiling.
+fn checked_size(options: &RenderOptions) -> Result<(u32, u32), RenderError> {
     let (width, height) = (options.width, options.height);
     let pixels = u64::from(width) * u64::from(height);
     if pixels == 0 || pixels > MAX_RENDER_PIXELS {
         return Err(RenderError::Size { width, height });
     }
+    Ok((width, height))
+}
+
+/// [`render_finished`] for a planar `camera`, its camera-fixed lights and
+/// shadow caster placed by `light_basis` (a fisheye's, when this draws one
+/// of its faces) or else by the camera's own basis.
+pub(crate) fn render_view(
+    (meshes, model_lights, finishes): crate::gloss::Model<'_>,
+    paints: &[Paint<'_>],
+    opaque: &[bool],
+    camera: &Camera,
+    options: &RenderOptions,
+    light_basis: Option<&[[f64; 3]; 3]>,
+) -> Result<(Image, Vec<f64>), RenderError> {
+    let (width, height) = checked_size(options)?;
+    let pixels = u64::from(width) * u64::from(height);
     let aspect = f64::from(width) / f64::from(height);
     let basis = camera.basis()?;
-    let shader = Shader::for_frame(options, model_lights, &basis);
+    let lights = light_basis.copied().unwrap_or(basis);
+    let shader = Shader::for_frame(options, model_lights, &lights);
     let bounds = Bounds::of(meshes);
     let workers = parallel::workers(options.threads);
     let view = View::new(camera, aspect)?;
@@ -533,7 +520,7 @@ pub(crate) fn render_finished(
     let drawn = crate::frame::drawn(meshes, paints, opaque).map(|(m, t, _)| (m, t));
     charge_frame(&mut work, (camera, &basis, &view), drawn, (width, height))?;
     let shadows = Shadows::build(
-        (options, &shader, &basis),
+        (options, &shader, &lights),
         bounds.as_ref(),
         (meshes, paints, opaque),
         (workers, &mut work),
@@ -1028,7 +1015,7 @@ mod tests {
         let (dir, up) = ([0.0, 0.0, -1.0], [1.0, -1.0, 0.0]);
         let height = |c: Camera| match c.projection {
             Projection::Orthographic { height } => height,
-            Projection::Perspective { .. } => unreachable!(),
+            _ => unreachable!(),
         };
         let boxed =
             height(Camera::fit(&Bounds::of(&meshes).unwrap(), dir, up, false, 2.0).unwrap());

@@ -60,6 +60,8 @@ mod gpu_frame;
 #[cfg(feature = "render")]
 mod gpu_lamp_shadow;
 #[cfg(feature = "render")]
+mod gpu_lens;
+#[cfg(feature = "render")]
 mod gpu_lines;
 #[cfg(feature = "render")]
 mod gpu_prepass;
@@ -73,6 +75,12 @@ mod gpu_shadow_set;
 mod gpu_wide_lines;
 #[cfg(feature = "render")]
 mod lamp_shadow;
+#[cfg(feature = "render")]
+mod lens;
+#[cfg(feature = "render")]
+mod lens_frame;
+#[cfg(all(test, feature = "render"))]
+mod lens_tests;
 #[cfg(feature = "render")]
 mod lighting;
 #[cfg(feature = "render")]
@@ -97,9 +105,13 @@ mod pick_index;
 #[cfg(feature = "render")]
 mod prepared;
 #[cfg(feature = "render")]
+mod projection;
+#[cfg(feature = "render")]
 mod raster;
 #[cfg(feature = "render")]
 mod render;
+#[cfg(feature = "render")]
+mod render_error;
 #[cfg(feature = "render")]
 mod render_mode;
 mod schema;
@@ -155,6 +167,10 @@ pub use gpu_lamp_shadow::{
     FrameLampShadows, GLSL_ES_300_LAMP_SHADOW_FRAGMENT, GLSL_ES_300_LAMP_SHADOW_VERTEX,
 };
 #[cfg(feature = "render")]
+pub use gpu_lens::{
+    GLSL_ES_300_LENS_LINE_VERTEX, GLSL_ES_300_LENS_POINT_VERTEX, GLSL_ES_300_LENS_RESAMPLE_FRAGMENT,
+};
+#[cfg(feature = "render")]
 pub use gpu_lines::{GLSL_ES_300_LINE_FRAGMENT, GLSL_ES_300_LINE_VERTEX, LINE_VERTEX_FLOATS};
 #[cfg(feature = "render")]
 pub use gpu_prepass::{GLSL_ES_300_PREPASS_FRAGMENT, GLSL_ES_300_PREPASS_VERTEX};
@@ -172,6 +188,8 @@ pub use gpu_shadow_set::{
 pub use gpu_wide_lines::GLSL_ES_300_WIDE_LINE_VERTEX;
 #[cfg(feature = "render")]
 pub use lamp_shadow::{DEFAULT_LAMP_SHADOW_MAP_SIZE, MAX_LAMP_SHADOW_MAP_SIZE};
+#[cfg(feature = "render")]
+pub use lens::{FrameLens, LENS_LINE_PIECES, LensFace};
 #[cfg(feature = "render")]
 pub use lighting::{Light, LightFrame, LightSet, LightingScheme, Lights};
 pub use model::{
@@ -194,8 +212,8 @@ pub use pick_index::PickIndex;
 pub use prepared::PreparedModel;
 #[cfg(feature = "render")]
 pub use render::{
-    Bounds, Camera, Image, MAX_RENDER_PIXELS, Projection, RenderError, RenderOptions, render,
-    render_coloured,
+    Bounds, Camera, FisheyeMapping, Image, MAX_RENDER_PIXELS, Projection, RenderError,
+    RenderOptions, render, render_coloured,
 };
 #[cfg(feature = "render")]
 pub use render_mode::{EdgeSet, FaceColour, RenderMode, RenderModeKind};

@@ -3,7 +3,7 @@
 
 use crate::lighting::Shader;
 use crate::raster::View;
-use crate::render::{Bounds, Camera, RenderError, RenderOptions};
+use crate::render::{Bounds, Camera, Projection, RenderError, RenderOptions};
 use crate::vec3::{dot, length, sub};
 
 /// The most directional lights, and separately the most point and spot
@@ -294,7 +294,8 @@ impl Camera {
     ///
     /// [`RenderError::Camera`] for a field of view outside (0, 180)
     /// degrees or too small for a finite focal length, a non-positive
-    /// orthographic height, or a degenerate camera.
+    /// orthographic height, a degenerate camera, or a fisheye lens, which
+    /// no matrix draws ([`crate::FrameLens`] draws it).
     pub fn projection_matrix(
         &self,
         aspect: f64,
@@ -336,12 +337,32 @@ impl Camera {
     /// the wall behind it fight. Orthographic depth is already linear and is
     /// left as the matrix gives it.
     ///
+    /// A fisheye camera has no projection matrix; its range is of the
+    /// distance from the eye, which the lens resample and line shaders
+    /// write in place of `w` ([`crate::FrameLens`]).
+    ///
     /// # Errors
     ///
-    /// As [`Camera::projection_matrix`].
+    /// As [`Camera::projection_matrix`], but a fisheye camera is accepted
+    /// unless its field is refused ([`RenderError::FisheyeField`]).
     pub fn depth_range(&self, aspect: f64, bounds: &Bounds) -> Result<[f32; 2], RenderError> {
+        if let Projection::Fisheye { .. } = self.projection {
+            return self.lens_range(bounds);
+        }
         let (_, near, far) = self.clip_range(aspect, bounds)?;
         Ok([near as f32, far as f32])
+    }
+
+    /// [`Camera::depth_range`] for a fisheye: the lens's near distance
+    /// unless the whole model lies further from the eye.
+    fn lens_range(&self, bounds: &Bounds) -> Result<[f32; 2], RenderError> {
+        self.basis()?;
+        let lens = crate::lens::Lens::for_camera(self, 1, 1)?
+            .ok_or(RenderError::Camera("the camera is not a fisheye"))?;
+        let centre = length(sub(bounds.centre(), self.eye));
+        let reach = bounds.radius() * 1.01 + length(sub(self.target, self.eye)) * 1e-6;
+        let near = lens.near.max(centre - reach);
+        Ok([near as f32, (centre + reach).max(near * 2.0) as f32])
     }
 
     /// The CPU path's view and the depth range enclosing `bounds`. The
@@ -498,7 +519,7 @@ mod tests {
             let basis = camera.basis().unwrap();
             let towards = match camera.projection {
                 Projection::Orthographic { .. } => basis[2].map(|c| -c),
-                Projection::Perspective { .. } => normalize(sub(camera.eye, [0.0; 3])).unwrap(),
+                _ => normalize(sub(camera.eye, [0.0; 3])).unwrap(),
             };
             for scheme in LightingScheme::ALL {
                 for frame in [LightFrame::Camera, LightFrame::World] {

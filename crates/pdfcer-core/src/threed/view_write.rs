@@ -121,10 +121,13 @@ impl ThreeDSavedView {
     /// as CAD exports write), its translation the eye.
     ///
     /// `None` when the eye is on the target, `up` is parallel to the look
-    /// direction, `aspect` is not positive, or a number is not finite.
+    /// direction, `aspect` is not positive, a number is not finite, or the
+    /// camera is a fisheye: a 3D view's projection `/Subtype` is only `O`
+    /// or `P` (ISO 32000-1:2008 Table 305), so no saved view
+    /// carries a lens.
     ///
     /// ```
-    /// use pdfcer_3d::{Bounds, Camera, NamedView, UpAxis};
+    /// use pdfcer_3d::{Bounds, Camera, FisheyeMapping, NamedView, Projection, UpAxis};
     /// use pdfcer_core::threed::ThreeDSavedView;
     /// let bounds = Bounds { min: [-1.0; 3], max: [1.0; 3] };
     /// let (dir, up) = NamedView::Front.direction(UpAxis::Z);
@@ -132,6 +135,10 @@ impl ThreeDSavedView {
     /// let view = ThreeDSavedView::from_camera("Front", &camera, 1.0).expect("a view");
     /// let aim = view.aim(1.0).expect("a matrix");
     /// assert!((aim.direction[1] - 1.0).abs() < 1e-12 && (aim.up[2] - 1.0).abs() < 1e-12);
+    ///
+    /// let mapping = FisheyeMapping::Equidistant;
+    /// let lens = Camera { projection: Projection::Fisheye { fov: 180.0, mapping }, ..camera };
+    /// assert!(ThreeDSavedView::from_camera("Lens", &lens, 1.0).is_none());
     /// # Ok::<(), pdfcer_3d::RenderError>(())
     /// ```
     #[must_use]
@@ -165,6 +172,7 @@ impl ThreeDSavedView {
             }
             pdfcer_3d::Projection::Orthographic { height } => (height.is_finite() && height > 0.0)
                 .then(|| view.with_orthographic(1.0 / height, OrthoBinding::Height)),
+            pdfcer_3d::Projection::Fisheye { .. } => None,
         }
     }
 }

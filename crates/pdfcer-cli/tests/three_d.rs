@@ -1512,3 +1512,86 @@ fn render_lighting_is_reported_and_threads_draw_the_same_image() {
     let (_, many) = render("night0", &["--lighting", "night", "--threads", "0"]);
     assert_eq!(one, many, "the thread count changes no pixel");
 }
+
+/// `3d-render --lens` with `--width 160 --height 100` and `extra`.
+#[cfg(feature = "3d")]
+fn lens_render(tag: &str, extra: &[&str]) -> (Output, PathBuf) {
+    let input = with_prc("render_lens", "assembly.prc");
+    let output = input.with_extension(format!("{tag}.png"));
+    let mut args = vec![
+        "3d-render",
+        input.to_str().unwrap(),
+        "--index",
+        "2",
+        "--view",
+        "top",
+        "--width",
+        "160",
+        "--height",
+        "100",
+        "-o",
+        output.to_str().unwrap(),
+    ];
+    args.extend_from_slice(extra);
+    let out = run(&args);
+    (out, output)
+}
+
+/// A fisheye render names its lens, draws the background outside the
+/// picture circle and refuses a pick there by name.
+#[cfg(feature = "3d")]
+#[test]
+fn a_fisheye_render_names_its_lens_and_leaves_the_rim_background() {
+    let (out, output) = lens_render(
+        "equi",
+        &["--lens", "equidistant", "--fov", "360", "--pick", "0.5,0.5"],
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("projection=fisheye-equidistant"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("pick x=0.5 y=0.5 refused: the pixel lies outside the fisheye lens"),
+        "{stdout}"
+    );
+    let decoder = png::Decoder::new(std::fs::File::open(&output).unwrap());
+    let mut reader = decoder.read_info().unwrap();
+    let mut buf = vec![0; reader.output_buffer_size()];
+    reader.next_frame(&mut buf).unwrap();
+    assert_eq!(&buf[..4], &[255, 255, 255, 255], "the corner is background");
+
+    let (out, _) = lens_render("stereo", &["--lens", "stereographic"]);
+    assert!(out.status.success());
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("projection=fisheye-stereographic"),
+        "{stdout}"
+    );
+}
+
+/// A field the lens cannot draw is refused with exit 9 and its reason; a
+/// fisheye cannot also be orthographic.
+#[cfg(feature = "3d")]
+#[test]
+fn a_fisheye_field_out_of_range_is_refused() {
+    let (out, output) = lens_render("refused", &["--lens", "stereographic", "--fov", "360"]);
+    assert_eq!(out.status.code(), Some(9));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("a Stereographic fisheye's field of view must be above 0"),
+        "{stderr}"
+    );
+    assert!(!output.exists());
+
+    let (out, _) = lens_render("flat_wide", &["--fov", "200"]);
+    assert_eq!(out.status.code(), Some(9), "a flat lens stays below 180");
+
+    let (out, _) = lens_render("ortho", &["--lens", "equidistant", "--ortho"]);
+    assert_eq!(out.status.code(), Some(2));
+}

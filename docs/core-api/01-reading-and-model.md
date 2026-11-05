@@ -3332,6 +3332,11 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   the nearest triangle, both faces counted as the renderer draws both.
   `Ray { origin, direction (unit), min_distance }` — the near plane under
   perspective, `-inf` under orthographic (which draws behind the eye).
+  Under a fisheye (`G268`) the ray inverts the lens exactly: origin the
+  eye, `min_distance` the near distance along the drawing face's axis, and
+  a pixel outside the lens's picture circle is
+  `Err(RenderError::OutsideLens)` (the CLI prints `pick x= y= refused:
+  the pixel lies outside the fisheye lens's picture circle`).
   `Hit { mesh, triangle, point, normal, distance }`: `mesh` indexes the
   slice passed (e.g. `AssembledModel::meshes`), `normal` is the unit face
   normal from the winding, not turned towards the viewer. Pass the camera
@@ -3679,6 +3684,24 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     `MaterialFinish` already read through `RenderOptions::shininess`: set
     `u_finished` true and `u_material_ambient`, `u_specular`, `u_emissive`,
     `u_shininess` from it; `None` sets `u_finished` false.
+  - Fisheye frames (`G268`): `FrameLens::new(&camera, width, height) ->
+    Result<FrameLens, RenderError>` (`#[non_exhaustive]`; `mapping` →
+    `u_lens_mapping`, `focal` → `u_lens_focal`, `near` → `u_lens_near`,
+    `faces: Vec<LensFace>`). Draw each `LensFace { camera, width, height,
+    face, axes, scale }` as an ordinary perspective frame (prepass,
+    shading, shadows, AO) offscreen at its size, from its camera's matrices
+    and depth range but with `FrameLights` / `FrameShadow` built from the
+    fisheye camera; then compose with `GLSL_ES_300_SCREEN_VERTEX` +
+    `GLSL_ES_300_LENS_RESAMPLE_FRAGMENT` once per face (depth test off,
+    depth writes on), and draw lines and points straight into the picture
+    with `GLSL_ES_300_LENS_LINE_VERTEX` (instanced `LENS_LINE_PIECES` = 16
+    chords per segment) / `GLSL_ES_300_LENS_POINT_VERTEX`, each with
+    `GLSL_ES_300_LINE_FRAGMENT`. Uniforms are listed on each constant.
+    Cost: one face of about the picture's size within 90° of the axis;
+    otherwise up to six square faces of up to (2·max(width, height))² px
+    (cap 4096) plus one resample pass each. AO can differ slightly across a
+    face seam. The CPU path composes the same faces; the GLSL has not been
+    executed by pdfcer's tests (string checks and the CPU mirror only).
   - Per frame: `camera.view_matrix()` and `camera.projection_matrix(aspect,
     &bounds)` (column-major `[f32; 16]`; `bounds` = `Bounds::of(&model.meshes)`,
     sizing the depth range), and `FrameLights::new(&camera, &options)` for
@@ -3901,7 +3924,21 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   (degrees) or `Orthographic { height }` (model units). `Camera::fit_meshes`
   frames every vertex as seen along `direction` (about 5% clear on each side
   of the limiting axis), aimed at the middle of the projected model; it errs
-  `Camera` when there is no vertex. `Camera::fit(&Bounds, ..)` frames the
+  `Camera` when there is no vertex.
+  `Projection::Fisheye { fov, mapping: FisheyeMapping }` (`G268`) is a
+  curved lens: `fov` is degrees across the picture's **height** (as
+  `fov_y`), above 0 and up to 360 for `FisheyeMapping::Equidistant` (r =
+  f·θ; pixels past 180° off the axis are the background colour and have
+  no ray), below 360 for `Stereographic` (r = 2f·tan(θ/2); always fills
+  the frame); anything else is `RenderError::FisheyeField { mapping }`.
+  `render_model` / `render_coloured` draw it with lights, shadows, AO,
+  gloss, lines and points following the lens. `Projection` is not
+  `#[non_exhaustive]`: a shell matching it exhaustively must add the arm.
+  `camera.depth_range` for a fisheye is the model's distance span around
+  the eye; `camera.projection_matrix` errs `Camera` (no matrix is a lens;
+  use `FrameLens`). `ThreeDSavedView::from_camera` returns `None` for a
+  fisheye (a PDF 3D view's `/P /Subtype` is only `O` or `P`, ISO 32000-1
+  Table 305). `Camera::fit(&Bounds, ..)` frames the
   box's eight corners instead (looser in oblique views; cheap for a huge
   model). Move `eye` afterwards to orbit. `Camera::fit_coloured(meshes,
   colours, ..)` and `Bounds::of_coloured(meshes, colours)` take the
@@ -3912,6 +3949,9 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `of` are the same with no colours.
 - `RenderError::Size` past `MAX_RENDER_PIXELS` (64M) or a zero side;
   `RenderError::Camera` for a degenerate or non-finite camera;
+  `RenderError::FisheyeField { mapping }` for a fisheye field its mapping
+  does not draw; `RenderError::OutsideLens` from `ray_through` outside the
+  picture circle;
   `RenderError::TooMuchWork { limit }` when the frame's triangles would
   test more than `MAX_RENDER_PIXEL_TESTS` pixel and texel centres (image
   plus shadow maps, refused before drawing). Non-finite vertices and
@@ -3973,6 +4013,7 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `note: parts drawn by a best-fit mesh (K): ...`.
 - CLI: `3d-mesh -o FILE.stl|.obj`, `3d-render -o FILE.png [--view iso|front|..]
   [--up x|y|z] [--eye X,Y,Z] [--target X,Y,Z] [--ortho] [--fov DEG]
+  [--lens flat|equidistant|stereographic]
   [--style-alpha zero-unset|style|multiply] [--texture-origin bottom|top]
   [--texture-wrap-base zero|one] [--texture-pictures structure|header]
   [--mesh-fit best|unique|partial|continue]`; `3d-mesh` also takes
