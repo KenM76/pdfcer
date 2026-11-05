@@ -4178,7 +4178,18 @@ stream; layout in `ARCHITECTURE.md` decision 210.
   origin, sampler wrap modes kept, and texture alpha used under BLEND and a
   cut MASK. A texture is stored as read unless it is baked; identical
   bakes share one texture.
-  `GltfError` (`#[non_exhaustive]`): `NotGltf(why)`, `Json`,
+  Memory ceilings per import, each a `notes` line when hit: 4·10^7
+  accessor components over every read (re-reading one accessor pays
+  again; the primitive is skipped, `accessor N would pass the import's
+  limit of … components read`), 512 MiB of image files over every
+  `images` entry (each entry pays for its copy; later textures `dropped:
+  the import's limit on image bytes is reached`), and 1 GiB of pictures in
+  `scene.textures` (`texture dropped: the import's limit of … bytes of
+  scene textures is reached`). The JSON is capped at
+  `pdfcer_json::MAX_VALUES` values (an error, below).
+  `GltfError` (`#[non_exhaustive]`): `NotGltf(why)`, `Json` (its
+  `JsonError::kind` is `JsonErrorKind::{Malformed, TooDeep,
+  TooManyValues}`),
   `RequiredExtension(name)` (only `KHR_mesh_quantization` and
   `KHR_texture_transform` are honoured),
   `Buffer { index, why }`. One bad primitive is a note, not an error.

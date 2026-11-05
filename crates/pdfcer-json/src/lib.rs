@@ -1,7 +1,8 @@
 //! A minimal JSON reader (RFC 8259) shared by the PaddleOCR-VL tokenizer
 //! (`pdfcer-core`) and glTF import (`pdfcer-3d`), so neither needs a serde
-//! stack. Values only, no serialisation. Bounded by [`MAX_DEPTH`]; the
-//! caller bounds the input size. No GUI, network or thread dependency.
+//! stack. Values only, no serialisation. Bounded by [`MAX_DEPTH`] and
+//! [`MAX_VALUES`] (or a caller's [`Limits`]); the caller bounds the input
+//! size. No GUI, network or thread dependency.
 
 #![forbid(unsafe_code)]
 // Panic-free: this crate reads untrusted input. Tests opt out.
@@ -15,8 +16,43 @@
     clippy::unimplemented
 )]
 
-/// Deepest array/object nesting accepted.
+/// Deepest array/object nesting accepted by [`parse`].
 pub const MAX_DEPTH: usize = 64;
+
+/// Most values accepted by [`parse`]: every scalar, string, array and
+/// object counts one, the top-level value included; an object member
+/// counts as its value, its name not separately. Checked as each value
+/// begins, so a flat document is refused before its tree grows past the
+/// cap.
+pub const MAX_VALUES: usize = 10_000_000;
+
+/// Ceilings for [`parse_with_limits`]; [`Limits::default`] is
+/// [`MAX_DEPTH`] and [`MAX_VALUES`].
+///
+/// ```
+/// let mut limits = pdfcer_json::Limits::default();
+/// limits.max_values = 3;
+/// assert!(pdfcer_json::parse_with_limits(b"[1, 2]", limits).is_ok());
+/// let err = pdfcer_json::parse_with_limits(b"[1, 2, 3]", limits).unwrap_err();
+/// assert_eq!(err.kind, pdfcer_json::JsonErrorKind::TooManyValues);
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct Limits {
+    /// Deepest array/object nesting accepted.
+    pub max_depth: usize,
+    /// Most values accepted, counted as for [`MAX_VALUES`].
+    pub max_values: usize,
+}
+
+impl Default for Limits {
+    fn default() -> Self {
+        Self {
+            max_depth: MAX_DEPTH,
+            max_values: MAX_VALUES,
+        }
+    }
+}
 
 /// A parsed JSON value. Objects keep their members in file order, duplicates
 /// included; [`Json::get`] returns the first.
@@ -44,6 +80,21 @@ pub struct JsonError {
     pub offset: usize,
     /// What was wrong.
     pub reason: &'static str,
+    /// Which kind of refusal `reason` describes.
+    pub kind: JsonErrorKind,
+}
+
+/// The kind of a [`JsonError`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum JsonErrorKind {
+    /// Not well-formed JSON (RFC 8259).
+    Malformed,
+    /// Nesting deeper than the depth limit.
+    TooDeep,
+    /// More values than the value limit; refused as the first value past
+    /// it begins, so the tree never holds more.
+    TooManyValues,
 }
 
 impl Json {
@@ -112,14 +163,29 @@ impl Json {
     }
 }
 
-/// Parse one JSON text; trailing non-whitespace is an error.
+/// Parse one JSON text under [`Limits::default`]; trailing non-whitespace
+/// is an error.
 ///
 /// # Errors
 ///
-/// [`JsonError`] naming the byte offset of the first malformation, or nesting
-/// beyond [`MAX_DEPTH`].
+/// [`JsonError`] naming the byte offset of the first malformation, nesting
+/// beyond [`MAX_DEPTH`], or the first value past [`MAX_VALUES`].
 pub fn parse(bytes: &[u8]) -> Result<Json, JsonError> {
-    let mut p = Parser { s: bytes, i: 0 };
+    parse_with_limits(bytes, Limits::default())
+}
+
+/// [`parse`] under the caller's `limits`.
+///
+/// # Errors
+///
+/// As [`parse`], with `limits` in place of the defaults.
+pub fn parse_with_limits(bytes: &[u8], limits: Limits) -> Result<Json, JsonError> {
+    let mut p = Parser {
+        s: bytes,
+        i: 0,
+        limits,
+        values: 0,
+    };
     let v = p.value(0)?;
     p.ws();
     if p.i != bytes.len() {
@@ -131,13 +197,21 @@ pub fn parse(bytes: &[u8]) -> Result<Json, JsonError> {
 struct Parser<'a> {
     s: &'a [u8],
     i: usize,
+    limits: Limits,
+    /// Values begun so far.
+    values: usize,
 }
 
 impl Parser<'_> {
     fn err(&self, reason: &'static str) -> JsonError {
+        self.err_of(JsonErrorKind::Malformed, reason)
+    }
+
+    fn err_of(&self, kind: JsonErrorKind, reason: &'static str) -> JsonError {
         JsonError {
             offset: self.i,
             reason,
+            kind,
         }
     }
 
@@ -160,10 +234,14 @@ impl Parser<'_> {
     }
 
     fn value(&mut self, depth: usize) -> Result<Json, JsonError> {
-        if depth > MAX_DEPTH {
-            return Err(self.err("nesting too deep"));
+        if depth > self.limits.max_depth {
+            return Err(self.err_of(JsonErrorKind::TooDeep, "nesting too deep"));
         }
         self.ws();
+        if self.values >= self.limits.max_values {
+            return Err(self.err_of(JsonErrorKind::TooManyValues, "too many values"));
+        }
+        self.values += 1;
         match self.peek() {
             Some(b'{') => self.object(depth),
             Some(b'[') => self.array(depth),
@@ -384,11 +462,39 @@ mod tests {
     #[test]
     fn nesting_is_bounded() {
         let deep = "[".repeat(MAX_DEPTH + 2) + &"]".repeat(MAX_DEPTH + 2);
-        assert_eq!(
-            parse(deep.as_bytes()).unwrap_err().reason,
-            "nesting too deep"
-        );
+        let err = parse(deep.as_bytes()).unwrap_err();
+        assert_eq!(err.reason, "nesting too deep");
+        assert_eq!(err.kind, JsonErrorKind::TooDeep);
         let ok = "[".repeat(MAX_DEPTH) + &"]".repeat(MAX_DEPTH);
         assert!(parse(ok.as_bytes()).is_ok());
+        assert_eq!(parse(b"[1,]").unwrap_err().kind, JsonErrorKind::Malformed);
+    }
+
+    fn capped(n: usize) -> Limits {
+        Limits {
+            max_values: n,
+            ..Limits::default()
+        }
+    }
+
+    #[test]
+    fn values_past_the_cap_are_refused_while_parsing() {
+        // The array and its four elements are five values.
+        let five = b"[1, 2, 3, 4]";
+        assert!(parse_with_limits(five, capped(5)).is_ok());
+        let err = parse_with_limits(five, capped(4)).unwrap_err();
+        assert_eq!(err.kind, JsonErrorKind::TooManyValues);
+        // Refused as the fourth element begins, before the rest is read.
+        assert_eq!(err.offset, 10);
+        // An object member counts as its value, not its name too.
+        assert!(parse_with_limits(br#"{"a":1,"b":[]}"#, capped(3)).is_ok());
+        assert!(parse_with_limits(br#"{"a":1,"b":[]}"#, capped(2)).is_err());
+    }
+
+    #[test]
+    fn commas_inside_strings_are_not_values() {
+        let text = format!(r#"["{}", 1]"#, ",".repeat(1000));
+        let v = parse_with_limits(text.as_bytes(), capped(3)).unwrap();
+        assert_eq!(v.as_array().map(<[Json]>::len), Some(2));
     }
 }

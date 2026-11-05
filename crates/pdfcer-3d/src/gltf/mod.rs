@@ -164,6 +164,13 @@ const SUPPORTED_EXTENSIONS: &[&str] = &[
 /// opens no files. Embedded (`data:`) and GLB buffers and images need no
 /// resolver. An image that cannot be read is a note, not an error.
 ///
+/// One import reads at most 4·10^7 accessor components in total (a
+/// primitive whose read would pass it is skipped with a note), loads at
+/// most 512 MiB of image files (later images are dropped with a note) and
+/// puts at most 1 GiB of pictures into the scene's textures (later
+/// textures are dropped with a note); the JSON holds at most
+/// [`pdfcer_json::MAX_VALUES`] values.
+///
 /// # Errors
 ///
 /// [`GltfError`] when the container, JSON, version or a buffer is bad, or
@@ -197,7 +204,47 @@ pub fn read_gltf<R>(
 where
     R: FnMut(&str) -> Option<Vec<u8>>,
 {
-    let (doc, bin) = container::split(data)?;
+    read_gltf_within(data, resolve, options, Budgets::DEFAULT)
+}
+
+/// Memory ceilings for one [`read_gltf`]: each bounds what a small file
+/// can make the import allocate by naming the same large data many times.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Budgets {
+    /// JSON values, counted as for [`pdfcer_json::MAX_VALUES`].
+    pub(crate) json_values: usize,
+    /// Components (8-byte `f64`s) read from accessors, over every read.
+    pub(crate) components: usize,
+    /// Image file bytes loaded, over every `images` entry.
+    pub(crate) image_bytes: usize,
+    /// Picture bytes put into the scene's textures, over every texture.
+    pub(crate) texture_bytes: usize,
+}
+
+impl Budgets {
+    /// 10^7 JSON values, 4·10^7 components (320 MB), 512 MiB of images,
+    /// 1 GiB of textures.
+    pub(crate) const DEFAULT: Self = Self {
+        json_values: pdfcer_json::MAX_VALUES,
+        components: 40_000_000,
+        image_bytes: 512 << 20,
+        texture_bytes: 1 << 30,
+    };
+}
+
+/// [`read_gltf`] under `budgets`.
+fn read_gltf_within<R>(
+    data: &[u8],
+    resolve: &mut R,
+    options: GltfOptions,
+    budgets: Budgets,
+) -> Result<GltfImport, GltfError>
+where
+    R: FnMut(&str) -> Option<Vec<u8>>,
+{
+    let mut limits = pdfcer_json::Limits::default();
+    limits.max_values = budgets.json_values;
+    let (doc, bin) = container::split(data, limits)?;
     let version = doc
         .get("asset")
         .and_then(|a| a.get("version"))
@@ -214,8 +261,15 @@ where
         return Err(GltfError::RequiredExtension(ext.to_owned()));
     }
     let buffers = container::buffers(&doc, bin, resolve)?;
-    let images = textures::images(&doc, &buffers, resolve);
-    Ok(build::scene(&doc, &buffers, &images, options))
+    let images = textures::images(&doc, &buffers, resolve, budgets.image_bytes);
+    let data = accessor::Data::new(&buffers, budgets.components);
+    Ok(build::scene(
+        &doc,
+        &data,
+        &images,
+        options,
+        budgets.texture_bytes,
+    ))
 }
 
 /// `v[key]` as an array; empty when missing or not an array.

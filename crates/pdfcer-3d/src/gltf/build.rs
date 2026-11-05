@@ -3,7 +3,7 @@
 
 use pdfcer_json::Json;
 
-use super::accessor::{self, Refusal};
+use super::accessor::{self, Data, Refusal};
 use super::bake::Alpha;
 use super::maps::{self, Inputs, Unread};
 use super::textures::{Images, TextureUse, Textures};
@@ -50,9 +50,10 @@ pub(super) fn srgb(c: f64) -> f64 {
 /// The scene the document names, in metres.
 pub(super) fn scene(
     doc: &Json,
-    buffers: &[Vec<u8>],
+    data: &Data<'_>,
     images: &Images,
     options: GltfOptions,
+    texture_bytes: usize,
 ) -> GltfImport {
     let mut out = GltfImport {
         scene: MeshScene {
@@ -62,8 +63,9 @@ pub(super) fn scene(
         notes: Vec::new(),
         inferred: Vec::new(),
     };
-    let uses = materials(doc, images, options, &mut out);
-    meshes(doc, buffers, &uses, &mut out);
+    let mut textures = Textures::new(texture_bytes);
+    let uses = materials(doc, images, options, &mut textures, &mut out);
+    meshes(doc, data, &uses, &mut out);
     nodes(doc, &mut out);
     roots(doc, options, &mut out);
     let linear = options.colours == GltfColours::Linear;
@@ -76,9 +78,9 @@ fn materials(
     doc: &Json,
     images: &Images,
     options: GltfOptions,
+    textures: &mut Textures,
     out: &mut GltfImport,
 ) -> Vec<Option<TextureUse>> {
-    let mut textures = Textures::default();
     let mut unread = Unread::default();
     let cx = Inputs {
         doc,
@@ -103,7 +105,7 @@ fn materials(
             },
             _ => Alpha::Opaque,
         };
-        let drawn = maps::texture(&cx, m, (&label, alpha), &mut textures, out);
+        let drawn = maps::texture(&cx, m, (&label, alpha), textures, out);
         rgba[3] = opacity(alpha, rgba[3], drawn.is_some_and(|d| d.cut), &label, out);
         unread.count(m);
         uses.push(drawn.map(|d| d.using));
@@ -150,15 +152,15 @@ fn opacity(alpha: Alpha, given: f64, cut: bool, label: &str, out: &mut GltfImpor
     }
 }
 
-fn meshes(doc: &Json, buffers: &[Vec<u8>], uses: &[Option<TextureUse>], out: &mut GltfImport) {
+fn meshes(doc: &Json, data: &Data<'_>, uses: &[Option<TextureUse>], out: &mut GltfImport) {
     let default_material = out.scene.materials.len();
     let mut used_default = false;
     for (m, mesh) in member(doc, "meshes").iter().enumerate() {
         let mut primitives = Vec::new();
         for (p, prim) in member(mesh, "primitives").iter().enumerate() {
-            match primitive(doc, buffers, prim) {
+            match primitive(doc, data, prim) {
                 Ok(mut sp) => {
-                    texture_coordinates(doc, buffers, prim, uses, &mut sp, (m, p), out);
+                    texture_coordinates(doc, data, prim, uses, &mut sp, (m, p), out);
                     if sp.material.is_none() {
                         sp.material = Some(default_material);
                         used_default = true;
@@ -190,7 +192,7 @@ fn meshes(doc: &Json, buffers: &[Vec<u8>], uses: &[Option<TextureUse>], out: &mu
 /// primitive without them is drawn in the base colour, with a note.
 fn texture_coordinates(
     doc: &Json,
-    buffers: &[Vec<u8>],
+    data: &Data<'_>,
     prim: &Json,
     uses: &[Option<TextureUse>],
     sp: &mut ScenePrimitive,
@@ -203,7 +205,7 @@ fn texture_coordinates(
     let Some(attrs) = prim.get("attributes") else {
         return;
     };
-    match super::textures::coordinates(doc, buffers, attrs, using, sp.positions.len()) {
+    match super::textures::coordinates(doc, data, attrs, using, sp.positions.len()) {
         Ok(uvs) => sp.uvs = uvs,
         Err(why) => out.notes.push(format!(
             "mesh {m} primitive {p}: texture not drawn ({why}); drawn in its base colour"
@@ -218,7 +220,7 @@ fn vec3s(flat: &[f64]) -> Vec<[f64; 3]> {
 }
 
 /// One primitive as triangles; strips and fans are unrolled [§3.7.2.1].
-fn primitive(doc: &Json, buffers: &[Vec<u8>], prim: &Json) -> Result<ScenePrimitive, Refusal> {
+fn primitive(doc: &Json, data: &Data<'_>, prim: &Json) -> Result<ScenePrimitive, Refusal> {
     let mode = prim.get("mode").and_then(Json::as_u32).unwrap_or(4);
     if !(4..=6).contains(&mode) {
         return Err(format!("mode {mode} draws points or lines, not triangles"));
@@ -226,16 +228,16 @@ fn primitive(doc: &Json, buffers: &[Vec<u8>], prim: &Json) -> Result<ScenePrimit
     let attrs = prim.get("attributes");
     let at = |k| attrs.and_then(|a| index(a, k));
     let position = at("POSITION").ok_or("it has no POSITION")?;
-    let positions = vec3s(&accessor::read(doc, buffers, position, 3)?);
+    let positions = vec3s(&accessor::read(doc, data, position, 3)?);
     let normals = match at("NORMAL") {
-        Some(n) => vec3s(&accessor::read(doc, buffers, n, 3)?),
+        Some(n) => vec3s(&accessor::read(doc, data, n, 3)?),
         None => Vec::new(),
     };
     if !normals.is_empty() && normals.len() != positions.len() {
         return Err("its NORMAL and POSITION counts differ".into());
     }
     let corners = match index(prim, "indices") {
-        Some(i) => accessor::indices(doc, buffers, i)?,
+        Some(i) => accessor::indices(doc, data, i)?,
         None => (0..u32::try_from(positions.len()).map_err(|_| "it is too large")?).collect(),
     };
     if let Some(&v) = corners.iter().find(|&&v| v as usize >= positions.len()) {

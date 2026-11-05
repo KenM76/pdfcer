@@ -52,7 +52,7 @@ pub(super) fn texture(
             alpha,
         };
         match bake::bake(&recipe) {
-            Ok(png) => return Some(baked(png, &recipe, (base, occlusion), label, textures, out)),
+            Ok(png) => return baked(png, &recipe, (base, occlusion), label, textures, out),
             Err(why) => {
                 let what = match (occlusion.is_some(), cut) {
                     (true, true) => "occlusion texture and alpha mask cut-out",
@@ -72,7 +72,7 @@ pub(super) fn texture(
         alpha: keep,
     };
     Some(Drawn {
-        texture: textures.add(key, make, out),
+        texture: textures.add((key, b.image.len()), label, make, out)?,
         using: b.using,
         cut: false,
     })
@@ -108,7 +108,8 @@ fn occlusion<'a>(
     Some((o, strength.clamp(0.0, 1.0)))
 }
 
-/// A baked picture added to the scene, with the inferences it rests on.
+/// A baked picture added to the scene, with the inferences it rests on;
+/// `None` when the texture-byte limit drops it.
 fn baked(
     png: Vec<u8>,
     recipe: &Recipe<'_>,
@@ -116,8 +117,23 @@ fn baked(
     label: &str,
     textures: &mut Textures,
     out: &mut GltfImport,
-) -> Drawn {
+) -> Option<Drawn> {
     let cut = matches!(recipe.alpha, Alpha::Mask { .. }) && base.is_some();
+    let lead = base.or(occlusion.map(|(o, _)| o));
+    let key: Key = (
+        base.map(|b| b.texture),
+        occlusion.map(|(o, s)| (o.texture, s.to_bits())),
+        alpha_key(recipe.alpha, cut),
+    );
+    let wrap = lead.map_or([crate::TextureWrap::Repeat; 2], |l| l.wrap);
+    let alpha = recipe.keeps_alpha();
+    let bytes = png.len();
+    let make = || SceneTexture {
+        image: png,
+        wrap,
+        alpha,
+    };
+    let texture = textures.add((key, bytes), label, make, out)?;
     if let Some((_, s)) = occlusion {
         let into = if base.is_some() {
             "the base colour texture"
@@ -137,21 +153,8 @@ fn baked(
              cut edges are filtered, not hard"
         ));
     }
-    let lead = base.or(occlusion.map(|(o, _)| o));
-    let key: Key = (
-        base.map(|b| b.texture),
-        occlusion.map(|(o, s)| (o.texture, s.to_bits())),
-        alpha_key(recipe.alpha, cut),
-    );
-    let wrap = lead.map_or([crate::TextureWrap::Repeat; 2], |l| l.wrap);
-    let alpha = recipe.keeps_alpha();
-    let make = || SceneTexture {
-        image: png,
-        wrap,
-        alpha,
-    };
-    Drawn {
-        texture: textures.add(key, make, out),
+    Some(Drawn {
+        texture,
         using: lead.map_or(
             TextureUse {
                 set: 0,
@@ -160,7 +163,7 @@ fn baked(
             |l| l.using,
         ),
         cut,
-    }
+    })
 }
 
 /// The alpha handling as part of a texture [`Key`].

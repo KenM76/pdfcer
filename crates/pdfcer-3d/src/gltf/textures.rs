@@ -1,9 +1,11 @@
 //! glTF textures as [`SceneTexture`]s, and the coordinates
 //! that draw them [glTF 2.0 §3.8, §3.9.2; `KHR_texture_transform`].
 
+use std::borrow::Cow;
+
 use pdfcer_json::Json;
 
-use super::accessor::{self, Refusal};
+use super::accessor::{self, Data, Refusal};
 use super::container::{data_uri, percent_decode};
 use super::{GltfImport, member};
 use crate::{SceneTexture, TextureWrap};
@@ -15,37 +17,48 @@ const MAX_IMAGE: usize = 1 << 30;
 pub(super) type Images = Vec<Result<Vec<u8>, &'static str>>;
 
 /// Every image, from a `data:` URI, the resolver or a buffer view
-/// [§3.8.2]. A failure is held for the materials that use the image.
-pub(super) fn images<R>(doc: &Json, buffers: &[Vec<u8>], resolve: &mut R) -> Images
+/// [§3.8.2], keeping at most `budget` bytes of them in all: each entry
+/// pays for its own copy, even of a buffer view another entry names. A
+/// failure is held for the materials that use the image.
+pub(super) fn images<R>(doc: &Json, buffers: &[Vec<u8>], resolve: &mut R, budget: usize) -> Images
 where
     R: FnMut(&str) -> Option<Vec<u8>>,
 {
     let views = member(doc, "bufferViews");
     let image = |im: &Json, resolve: &mut R| match im.get("uri").and_then(Json::as_str) {
-        Some(uri) if uri.starts_with("data:") => data_uri(uri).ok_or("a bad data URI"),
-        Some(uri) => resolve(&percent_decode(uri)).ok_or("its file could not be read"),
+        Some(uri) if uri.starts_with("data:") => {
+            data_uri(uri).map(Cow::Owned).ok_or("a bad data URI")
+        }
+        Some(uri) => resolve(&percent_decode(uri))
+            .map(Cow::Owned)
+            .ok_or("its file could not be read"),
         None => im
             .get("bufferView")
             .and_then(Json::as_u32)
             .and_then(|v| views.get(v as usize))
             .and_then(|v| accessor::view_bytes(v, buffers))
-            .map(<[u8]>::to_vec)
+            .map(Cow::Borrowed)
             .ok_or("its buffer view is out of range"),
     };
+    let mut left = budget;
     member(doc, "images")
         .iter()
-        .map(|im| image(im, resolve).and_then(|b| checked(b)))
+        .map(|im| image(im, resolve).and_then(|b| checked(b, &mut left)))
         .collect()
 }
 
-fn checked(b: Vec<u8>) -> Result<Vec<u8>, &'static str> {
+/// `b` as a kept image, its length taken from `left` before it is copied.
+fn checked(b: Cow<'_, [u8]>, left: &mut usize) -> Result<Vec<u8>, &'static str> {
     if b.len() > MAX_IMAGE {
         return Err("it is too large");
     }
-    match crate::write::picture_info(&b) {
-        Some(_) => Ok(b),
-        None => Err("it is not a PNG or JPEG file"),
+    if crate::write::picture_info(&b).is_none() {
+        return Err("it is not a PNG or JPEG file");
     }
+    *left = left
+        .checked_sub(b.len())
+        .ok_or("the import's limit on image bytes is reached")?;
+    Ok(b.into_owned())
 }
 
 /// How one material draws a texture.
@@ -74,13 +87,23 @@ pub(super) struct Source<'a> {
 pub(super) type Key = (Option<usize>, Option<(usize, u64)>, (u8, u64, u64));
 
 /// The glTF texture-to-scene map: one [`SceneTexture`] per distinct
-/// [`Key`].
-#[derive(Debug, Default)]
+/// [`Key`], holding at most `budget` picture bytes in all.
+#[derive(Debug)]
 pub(super) struct Textures {
     seen: Vec<(Key, usize)>,
+    budget: usize,
+    left: usize,
 }
 
 impl Textures {
+    pub(super) fn new(budget: usize) -> Self {
+        Self {
+            seen: Vec::new(),
+            budget,
+            left: budget,
+        }
+    }
+
     /// Material `label`'s `kind` texture `info` ("base colour",
     /// "occlusion"). `None`, with a note ending in `fallback`, when it
     /// cannot be drawn.
@@ -125,20 +148,32 @@ impl Textures {
         }
     }
 
-    /// The scene texture for `key`, made by `make` the first time.
+    /// The scene texture for `key`, made by `make` the first time from a
+    /// picture of `bytes` bytes. `None`, with a note naming material
+    /// `label`, when that would pass the import's texture-byte limit.
     pub(super) fn add(
         &mut self,
-        key: Key,
+        (key, bytes): (Key, usize),
+        label: &str,
         make: impl FnOnce() -> SceneTexture,
         out: &mut GltfImport,
-    ) -> usize {
+    ) -> Option<usize> {
         if let Some(&(_, k)) = self.seen.iter().find(|(seen, _)| *seen == key) {
-            return k;
+            return Some(k);
         }
+        let Some(left) = self.left.checked_sub(bytes) else {
+            out.notes.push(format!(
+                "{label}: texture dropped: the import's limit of {} bytes of scene textures \
+                 is reached; drawn in its base colour",
+                self.budget
+            ));
+            return None;
+        };
+        self.left = left;
         let k = out.scene.textures.len();
         out.scene.textures.push(make());
         self.seen.push((key, k));
-        k
+        Some(k)
     }
 }
 
@@ -192,7 +227,7 @@ fn uses(info: &Json) -> TextureUse {
 /// count.
 pub(super) fn coordinates(
     doc: &Json,
-    buffers: &[Vec<u8>],
+    data: &Data<'_>,
     attrs: &Json,
     using: TextureUse,
     count: usize,
@@ -201,7 +236,7 @@ pub(super) fn coordinates(
     let Some(a) = attrs.get(&key).and_then(Json::as_u32) else {
         return Err(format!("it has no {key}"));
     };
-    let flat = accessor::read(doc, buffers, a as usize, 2)?;
+    let flat = accessor::read(doc, data, a as usize, 2)?;
     if flat.len() != 2 * count {
         return Err(format!("its {key} and POSITION counts differ"));
     }

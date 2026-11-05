@@ -491,3 +491,132 @@ fn without_decoders_occlusion_is_a_note() {
         import.notes
     );
 }
+
+fn within(data: &[u8], budgets: Budgets) -> Result<GltfImport, GltfError> {
+    read_gltf_within(data, &mut |_| None, GltfOptions::default(), budgets)
+}
+
+#[test]
+fn every_accessor_read_of_an_import_shares_one_budget() {
+    // Three primitives over one 12-component accessor, no indices.
+    let prim = r#"{"attributes":{"POSITION":0}}"#;
+    let json = format!(
+        r#"{{"asset":{{"version":"2.0"}},"buffers":[{{"byteLength":48}}],
+  "bufferViews":[{{"buffer":0,"byteLength":48}}],
+  "accessors":[{{"bufferView":0,"componentType":5126,"count":4,"type":"VEC3"}}],
+  "meshes":[{{"primitives":[{prim},{prim},{prim}]}}],
+  "nodes":[{{"mesh":0}}],"scenes":[{{"nodes":[0]}}]}}"#
+    );
+    let file = glb(&json, &payload(&QUAD, &[]));
+    let budgets = Budgets {
+        components: 24,
+        ..Budgets::DEFAULT
+    };
+    let import = within(&file, budgets).unwrap();
+    assert_eq!(import.scene.meshes[0].primitives.len(), 2);
+    assert_eq!(
+        import.notes,
+        [
+            "mesh 0 primitive 2 skipped: accessor 0 would pass the import's limit of 24 components read"
+        ]
+    );
+    let all = within(&file, Budgets::DEFAULT).unwrap();
+    assert_eq!(all.scene.meshes[0].primitives.len(), 3);
+}
+
+#[test]
+fn json_past_the_value_cap_is_refused() {
+    let text = br#"{"asset":{"version":"2.0"},"extras":[1,2,3,4,5,6,7,8]}"#;
+    let budgets = Budgets {
+        json_values: 8,
+        ..Budgets::DEFAULT
+    };
+    let refused = within(text, budgets).unwrap_err();
+    assert!(
+        matches!(&refused, GltfError::Json(e) if e.kind == pdfcer_json::JsonErrorKind::TooManyValues),
+        "{refused:?}"
+    );
+    assert!(within(text, Budgets::DEFAULT).is_ok());
+}
+
+/// The quad with `TEXCOORD_0` and `PNG_HEADER` in buffer view 3, which
+/// two images name; materials `a` and `b` draw textures 0 and 1, over
+/// images 0 and `second`.
+fn two_images_glb(second: u32) -> Vec<u8> {
+    let uvs = [0.0f32; 8];
+    let mut bin = payload(&QUAD, &QUAD_INDICES);
+    bin.extend(uvs.iter().flat_map(|f| f.to_le_bytes()));
+    bin.extend(PNG_HEADER);
+    let tex = |name: &str, t: u32| {
+        format!(
+            r#"{{"name":"{name}","pbrMetallicRoughness":{{"baseColorTexture":{{"index":{t}}}}}}}"#
+        )
+    };
+    let json = format!(
+        r#"{{"asset":{{"version":"2.0"}},"buffers":[{{"byteLength":{}}}],
+  "bufferViews":[{{"buffer":0,"byteLength":48}},{{"buffer":0,"byteOffset":48,"byteLength":12}},
+    {{"buffer":0,"byteOffset":60,"byteLength":32}},{{"buffer":0,"byteOffset":92,"byteLength":{}}}],
+  "accessors":[{{"bufferView":0,"componentType":5126,"count":4,"type":"VEC3"}},
+    {{"bufferView":1,"componentType":5123,"count":6,"type":"SCALAR"}},
+    {{"bufferView":2,"componentType":5126,"count":4,"type":"VEC2"}}],
+  "images":[{{"bufferView":3}},{{"bufferView":3}}],
+  "textures":[{{"source":0}},{{"source":{second}}}],
+  "materials":[{},{}],
+  "meshes":[{{"primitives":[{{"attributes":{{"POSITION":0,"TEXCOORD_0":2}},"indices":1,"material":0}},
+    {{"attributes":{{"POSITION":0,"TEXCOORD_0":2}},"indices":1,"material":1}}]}}],
+  "nodes":[{{"mesh":0}}],"scenes":[{{"nodes":[0]}}]}}"#,
+        bin.len(),
+        PNG_HEADER.len(),
+        tex("a", 0),
+        tex("b", 1),
+    );
+    glb(&json, &bin)
+}
+
+#[test]
+fn image_bytes_are_capped_over_the_whole_import() {
+    let budgets = Budgets {
+        image_bytes: PNG_HEADER.len(),
+        ..Budgets::DEFAULT
+    };
+    let import = within(&two_images_glb(1), budgets).unwrap();
+    let s = &import.scene;
+    assert_eq!(s.textures.len(), 1, "the second image is not copied");
+    assert_eq!(
+        (s.materials[0].texture, s.materials[1].texture),
+        (Some(0), None)
+    );
+    assert_eq!(
+        import.notes,
+        [
+            "b: base colour texture dropped: the import's limit on image bytes is reached; \
+          drawn in its base colour"
+        ]
+    );
+    let both = within(&two_images_glb(1), Budgets::DEFAULT).unwrap();
+    assert_eq!(both.scene.textures.len(), 2);
+}
+
+#[test]
+fn scene_texture_bytes_are_capped_over_the_whole_import() {
+    // One image, two textures over it: two scene textures, one budget.
+    let budgets = Budgets {
+        texture_bytes: PNG_HEADER.len(),
+        ..Budgets::DEFAULT
+    };
+    let import = within(&two_images_glb(0), budgets).unwrap();
+    let s = &import.scene;
+    assert_eq!(s.textures.len(), 1);
+    assert_eq!(
+        (s.materials[0].texture, s.materials[1].texture),
+        (Some(0), None)
+    );
+    assert_eq!(
+        import.notes,
+        [format!(
+            "b: texture dropped: the import's limit of {} bytes of scene textures is \
+             reached; drawn in its base colour",
+            PNG_HEADER.len()
+        )]
+    );
+}

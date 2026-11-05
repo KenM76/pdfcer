@@ -1,7 +1,7 @@
 //! The glTF container: a JSON text or a GLB binary [glTF 2.0 §4.4], and
 //! the buffers it names, embedded, data-URI or external [§3.6.1].
 
-use pdfcer_json::Json;
+use pdfcer_json::{Json, Limits};
 
 use super::{GltfError, member};
 
@@ -16,11 +16,12 @@ fn u32_at(data: &[u8], at: usize) -> Option<u32> {
     b.try_into().ok().map(u32::from_le_bytes)
 }
 
-/// The JSON document and the GLB binary chunk, when there is one.
-pub(super) fn split(data: &[u8]) -> Result<(Json, Option<&[u8]>), GltfError> {
+/// The JSON document, parsed under `limits`, and the GLB binary chunk,
+/// when there is one.
+pub(super) fn split(data: &[u8], limits: Limits) -> Result<(Json, Option<&[u8]>), GltfError> {
     if !data.starts_with(GLB_MAGIC) {
         let text = data.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(data);
-        return Ok((pdfcer_json::parse(text)?, None));
+        return Ok((pdfcer_json::parse_with_limits(text, limits)?, None));
     }
     let not = GltfError::NotGltf;
     if u32_at(data, 4) != Some(2) {
@@ -32,22 +33,22 @@ pub(super) fn split(data: &[u8]) -> Result<(Json, Option<&[u8]>), GltfError> {
         .ok_or(not("a GLB shorter than its header says"))?;
     let chunk = |at: usize| -> Option<(u32, &[u8], usize)> {
         let len = u32_at(data, at)? as usize;
-        let kind = u32_at(data, at + 4)?;
+        let kind = u32_at(data, at.checked_add(4)?)?;
         let start = at.checked_add(8)?;
-        let body = data.get(start..start.checked_add(len)?)?;
-        Some((kind, body, start + len))
+        let end = start.checked_add(len)?;
+        let body = data.get(start..end)?;
+        Some((kind, body, end))
     };
     let (kind, json, next) = chunk(12).ok_or(not("a truncated GLB chunk"))?;
     if kind != CHUNK_JSON {
         return Err(not("a GLB whose first chunk is not JSON"));
     }
     // Chunks are 4-byte aligned; the JSON chunk is space-padded.
-    let next = next.next_multiple_of(4);
-    let bin = match chunk(next) {
+    let bin = match next.checked_next_multiple_of(4).and_then(chunk) {
         Some((CHUNK_BIN, body, _)) => Some(body),
         _ => None,
     };
-    Ok((pdfcer_json::parse(json)?, bin))
+    Ok((pdfcer_json::parse_with_limits(json, limits)?, bin))
 }
 
 /// Every buffer's bytes, cut to its `byteLength`.
@@ -176,11 +177,17 @@ mod tests {
         glb.extend(4u32.to_le_bytes());
         glb.extend(CHUNK_BIN.to_le_bytes());
         glb.extend([1, 2, 3, 4]);
-        let (doc, bin) = split(&glb).unwrap();
+        let (doc, bin) = split(&glb, Limits::default()).unwrap();
         assert_eq!(doc.get("a").and_then(Json::as_u32), Some(1));
         assert_eq!(bin, Some(&[1u8, 2, 3, 4][..]));
         glb[4] = 1;
-        assert!(matches!(split(&glb), Err(GltfError::NotGltf(_))));
-        assert!(matches!(split(&glb[..10]), Err(GltfError::NotGltf(_))));
+        assert!(matches!(
+            split(&glb, Limits::default()),
+            Err(GltfError::NotGltf(_))
+        ));
+        assert!(matches!(
+            split(&glb[..10], Limits::default()),
+            Err(GltfError::NotGltf(_))
+        ));
     }
 }
