@@ -81,8 +81,8 @@ pub(crate) fn extras(
     (out.into_iter().map(|(_, e)| e).collect(), dropped)
 }
 
-/// Each of the frame's lamps, `None` for one casting no shadow
-/// ([`crate::lamp_view::shadow_slots`], as [`crate::FrameLampShadows`] on
+/// Each of the frame's lamps, `None` for one casting no shadow (its slot,
+/// [`crate::lamp_view::shadow_slots`], as [`crate::FrameLampShadows`] on
 /// the GPU); those light unshadowed.
 pub(crate) fn lamp_casters(shader: &Shader) -> Vec<Option<crate::model_shade::Local>> {
     let lamps = shader.local();

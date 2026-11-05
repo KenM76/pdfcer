@@ -3609,8 +3609,10 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   to every pixel, so the picture is byte-identical; reach is fixed from the
   model's whole lamp count before the cull. Same on CPU and GPU. The GPU
   path culls at `options.width / options.height`: set them to the
-  viewport. Counts: `LampStats { in_model, in_view, lit_this_frame }`
-  (`#[non_exhaustive]`, `Default`) from `LampStats::for_model(&camera,
+  viewport. Counts: `LampStats { in_model, in_view, lit_this_frame,
+  would_cast, casting }` (`#[non_exhaustive]`, `Default`; `would_cast` is
+  `lit_this_frame` while shadows and lamp shadows are on, else 0, and
+  `casting` at most `MAX_LAMP_SHADOWS` of it) from `LampStats::for_model(&camera,
   &options, &model.lights) -> Result<LampStats, RenderError>` (CPU) or
   `FrameLights::lamps` (GPU), equal for the same arguments.
   Cheap mode (changes the picture): `RenderOptions::lamp_cost:
@@ -3621,7 +3623,9 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   automatically; a separate setting from `lamp_cut` (which bounds light
   left out) because it can darken by any amount. Disclose it.
   CLI: `--lamp-cost full|nearest:N`, counts disclosed as `note: lighting:
-  lamps: N in the model, N reaching the view, N lit this frame`.
+  lamps: N in the model, N reaching the view, N lit this frame`; lamp
+  shadow counts as `note: lamp shadows: …; C of W lamps lit this frame
+  casting; D more past the limit of 16, …`.
   Tiled per-tile lamp lists on the GPU are not shipped: the shader loops
   over the frame's culled lamps.
   Every directional light: `RenderOptions::shadow_casters:
@@ -3885,14 +3889,28 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     `u_lamp_matrix`, `far[i]` → `u_lamp_far`; depth cleared to 1.0, `LESS`,
     no culling). Bind it as the main pass's `u_lamp_shadow_map` with
     `u_lamp_shadows` true, `u_lamp_shadow_size` = `size` (float) and
-    `u_lamp_far[16]` = `far`. Slot `i` holds the model's lamp `i` while it
-    meets the view, so only the model's first `MAX_SHADOW_CASTERS` (16)
-    lamps cast, on both paths; the frame's other lamps light without a
-    shadow, counted in `dropped` (disclose it). The shader finds a lamp's
-    slot in its light-table row (`FrameLights::local_slots`), not by its
-    row number. A slot empties when its lamp leaves the view: redraw the
-    faces whenever the `FrameLampShadows` value changes (`PartialEq`).
-    6 MiB per slot at 512. WebGL 2 run (point
+    `u_lamp_far[16]` = `far`. Up to `MAX_LAMP_SHADOWS` (16: 96 MiB and
+    96 layers at 512; WebGL 2 guarantees 256 layers) lamps cast, on both
+    paths: among the lamps lit this frame, those scoring highest by
+    luminance (Rec. 709 over colour × intensity × gain) over squared
+    distance to the camera target, that distance held to at least 1% of
+    the eye's; ties to model order; slot 0 the highest. `lamps[slot]` is
+    each slot's lamp (index among the model's point and spot lights);
+    `would_cast` and `casting` are `LampStats`'; the rest light without a
+    shadow, counted in `dropped` = `would_cast − casting` (disclose it).
+    The shader finds a lamp's slot in its light-table row
+    (`FrameLights::local_slots`), not by its row number. Live view:
+    `FrameLampShadows::for_model_after(&camera, &options, &bounds,
+    &model.lights, previous: Option<&FrameLampShadows>)` keeps each lamp
+    casting in `previous` in its slot while it ranks within the top 16 + 4,
+    joiners taking the lowest free slots; then call
+    `FrameLights::use_lamp_shadows(&mut self, &shadows)` so the table rows
+    name those slots. This can differ from `render_model`'s picture, which
+    always chooses afresh (`for_model` is `for_model_after(.., None)` and
+    matches `FrameLights::for_model`). A slot empties when its lamp leaves
+    the view or the ranking: redraw the faces whenever the
+    `FrameLampShadows` value changes (`PartialEq`). 6 MiB per slot at
+    512. WebGL 2 run (point
     lamp and spot over a floor and two boxes): GPU vs CPU 0.026 levels mean,
     0.02% of pixels over 8 levels.
   - Further directional casters: `FrameExtraShadows::for_model(&camera,

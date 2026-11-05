@@ -294,7 +294,9 @@ pub struct RenderOptions {
     /// Whether a model's point and spot lights cast shadows too (the
     /// default), each lamp seeing the model through a cube of six depth
     /// maps around it. Only with [`RenderOptions::shadows`]. A lamp inside
-    /// a closed mesh, such as a bulb in its shade, is shadowed by it.
+    /// a closed mesh, such as a bulb in its shade, is shadowed by it. Up
+    /// to [`MAX_LAMP_SHADOWS`](crate::MAX_LAMP_SHADOWS) cast, those adding
+    /// most at the camera target ([`crate::FrameLampShadows`]).
     pub lamp_shadows: bool,
     /// Each lamp shadow cube face's side, texels
     /// ([`DEFAULT_LAMP_SHADOW_MAP_SIZE`](crate::DEFAULT_LAMP_SHADOW_MAP_SIZE)),

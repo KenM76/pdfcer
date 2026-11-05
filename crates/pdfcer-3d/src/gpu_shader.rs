@@ -96,8 +96,8 @@ void main() {
 /// `u_shadow_to_light`, `u_shadow_offset` and `u_shadow_bias`; from
 /// [`crate::FrameLights`], the point and spot lights, added per pixel:
 /// `u_local_count` and their rows of `u_lights`; and from
-/// [`crate::FrameLampShadows`] the first
-/// [`MAX_SHADOW_CASTERS`](crate::MAX_SHADOW_CASTERS) lamps' shadows:
+/// [`crate::FrameLampShadows`] up to
+/// [`MAX_LAMP_SHADOWS`](crate::MAX_LAMP_SHADOWS) lamps' shadows:
 /// `u_lamp_shadows` (false without one), `u_lamp_shadow_map`,
 /// `u_lamp_shadow_size`, `u_lamp_far[16]`; and from [`crate::FrameExtraShadows`] the further
 /// casters and the see-through layers: `u_shadow_extra` (0 without one),
@@ -514,7 +514,7 @@ mod tests {
             );
         }
         // The lamp shadows stop where FrameLampShadows does.
-        let casters = crate::MAX_SHADOW_CASTERS;
+        let casters = crate::MAX_LAMP_SHADOWS;
         assert!(GLSL_ES_300_FRAGMENT.contains(&format!(" u_lamp_far[{casters}];")));
         assert!(GLSL_ES_300_FRAGMENT.contains(&format!("i >= {casters})")));
         assert!(GLSL_ES_300_FRAGMENT.contains("int i = int(light(r, 1).w) - 1;"));

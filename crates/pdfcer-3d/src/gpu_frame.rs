@@ -11,12 +11,19 @@ use crate::vec3::{dot, length, sub};
 /// stays within the 2,048 rows WebGL 2 guarantees a texture.
 pub const MAX_LIGHTS: usize = 1024;
 
-/// The most lights casting a shadow in one frame, on both paths: the key
-/// light and [`crate::MAX_EXTRA_SHADOWS`] further directional lights, and
-/// separately the first this many point and spot lights
-/// ([`crate::FrameLampShadows`]). Each caster holds depth maps of its own,
-/// so this bounds memory, not the shader.
+/// The most directional lights casting a shadow in one frame, on both
+/// paths: the key light and [`crate::MAX_EXTRA_SHADOWS`] further ones. Each
+/// caster holds a depth map of its own, so this bounds memory, not the
+/// shader.
 pub const MAX_SHADOW_CASTERS: usize = 16;
+
+/// The most point and spot lights casting a shadow in one frame, on both
+/// paths: those, among the lamps reaching the view, adding most at the
+/// camera target ([`crate::FrameLampShadows`]). Each holds a six-face depth
+/// cube, 6 MiB at the default 512 texels, so 16 bounds a frame's lamp
+/// shadows to 96 MiB and 96 array layers (WebGL 2 guarantees 256); the
+/// shader declares `u_lamp_far[16]` from it.
+pub const MAX_LAMP_SHADOWS: usize = 16;
 
 /// Texels per row of [`FrameLights::light_table`].
 pub const LIGHT_TABLE_WIDTH: usize = 5;
@@ -88,7 +95,8 @@ pub struct FrameLights {
     pub local_count: usize,
     /// Each lamp's index among the model's point and spot lights.
     pub local_lamps: Vec<usize>,
-    /// The [`crate::FrameLampShadows`] slot whose cube each lamp tests,
+    /// The [`crate::FrameLampShadows`] slot whose cube each lamp tests
+    /// (`None` with lamp shadows off),
     /// `None` for a lamp casting no shadow; in the table, texel 1's `w` is
     /// the slot + 1, 0 for none.
     pub local_slots: Vec<Option<usize>>,
@@ -288,6 +296,16 @@ impl FrameLights {
         self.local_count = self.local_positions.len();
         self.local_slots =
             crate::lamp_view::shadow_slots(local.get(..self.local_count).unwrap_or(local));
+    }
+
+    /// Point each lamp row at its slot in `shadows`, for lamp shadows a
+    /// host chose with [`crate::FrameLampShadows::for_model_after`]: a lamp
+    /// `shadows` leaves out casts none. [`FrameLights::for_model`] already
+    /// matches [`crate::FrameLampShadows::for_model`].
+    pub fn use_lamp_shadows(&mut self, shadows: &crate::FrameLampShadows) {
+        self.local_slots = (self.local_lamps.iter())
+            .map(|&m| shadows.lamps.iter().position(|s| *s == Some(m)))
+            .collect();
     }
 }
 

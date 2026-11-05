@@ -451,6 +451,7 @@ mod tests {
             cone: None,
             reach: f64::INFINITY,
             model: 0,
+            slot: Some(0),
         };
         let shadows = LampShadows::build(&[Some(lamp)], &bounds, 256, (&casts, false), 3);
         let up = [0.0, 0.0, 1.0];

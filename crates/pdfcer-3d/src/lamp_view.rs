@@ -8,6 +8,7 @@
 //! pixel on either path. Reach is fixed from the model's whole lamp count
 //! before the cull, so the cull cannot move it.
 
+use crate::lamp_choice::{NO_SLOTS, Slots};
 use crate::lighting::Shader;
 use crate::model_shade::Local;
 use crate::raster::View;
@@ -46,6 +47,14 @@ pub struct LampStats {
     pub in_view: usize,
     /// Those drawn: `in_view`, or fewer under [`LampCost::NearestPerFrame`].
     pub lit_this_frame: usize,
+    /// Those that would cast a shadow with no cap on lamp shadows: every
+    /// lamp drawn while [`RenderOptions::shadows`] and
+    /// [`RenderOptions::lamp_shadows`] are on, else 0.
+    pub would_cast: usize,
+    /// Those casting one: at most [`crate::MAX_LAMP_SHADOWS`] of
+    /// `would_cast`, the ones adding most at the camera target
+    /// ([`crate::FrameLampShadows`]).
+    pub casting: usize,
 }
 
 impl LampStats {
@@ -93,11 +102,25 @@ pub(crate) fn aspect(options: &RenderOptions) -> f64 {
 /// are placed by the whole camera's basis, and the lamps are counted and
 /// ranked for the whole camera, so every face of a fisheye draws the same
 /// lamps; each face then leaves out the lamps its own frustum misses.
+/// Lamp shadow slots are chosen afresh ([`frame_shader_after`]).
 pub(crate) fn frame_shader(
     options: &RenderOptions,
     model: &[crate::ModelLight],
     camera: &Camera,
     parent: Option<&Camera>,
+) -> Result<(Shader, LampStats), RenderError> {
+    frame_shader_after(options, model, camera, parent, &NO_SLOTS)
+}
+
+/// [`frame_shader`], lamp shadow slots going to the lamps drawn
+/// ([`crate::lamp_choice::choose`] after `previous`, the frame before's)
+/// before the face cull.
+pub(crate) fn frame_shader_after(
+    options: &RenderOptions,
+    model: &[crate::ModelLight],
+    camera: &Camera,
+    parent: Option<&Camera>,
+    previous: &Slots,
 ) -> Result<(Shader, LampStats), RenderError> {
     let whole = parent.unwrap_or(camera);
     let mut shader = Shader::for_frame(options, model, &whole.basis()?)?;
@@ -111,6 +134,11 @@ pub(crate) fn frame_shader(
         keep_nearest(local, whole.target, usize::from(n));
     }
     let lit_this_frame = local.len();
+    let (would_cast, casting) = if options.shadows && options.lamp_shadows {
+        assign_slots(local, whole, previous)
+    } else {
+        (0, 0)
+    };
     if parent.is_some() {
         retain_in_view(local, camera, aspect(options));
     }
@@ -118,19 +146,35 @@ pub(crate) fn frame_shader(
         in_model,
         in_view,
         lit_this_frame,
+        would_cast,
+        casting,
     };
     Ok((shader, stats))
 }
 
+/// Give each of `local` its shadow slot seen from `camera`, the lamps
+/// ranked by [`crate::lamp_choice::score`]; the candidates and the slots
+/// filled.
+fn assign_slots(local: &mut [Local], camera: &Camera, previous: &Slots) -> (usize, usize) {
+    let candidates: Vec<(usize, f64)> = (local.iter())
+        .map(|l| {
+            (
+                l.model,
+                crate::lamp_choice::score(l, camera.target, camera.eye),
+            )
+        })
+        .collect();
+    let slots = crate::lamp_choice::choose(&candidates, previous);
+    for l in local.iter_mut() {
+        l.slot = slots.iter().position(|s| *s == Some(l.model));
+    }
+    (candidates.len(), slots.iter().flatten().count())
+}
+
 /// The shadow slot each of a frame's lamps casts into, `None` for a lamp
-/// casting none: its model index, among the first
-/// [`crate::MAX_SHADOW_CASTERS`] of the model's lamps, so a lamp keeps its
-/// slot as the view moves. The same on both paths.
+/// casting none ([`assign_slots`]). The same on both paths.
 pub(crate) fn shadow_slots(local: &[Local]) -> Vec<Option<usize>> {
-    local
-        .iter()
-        .map(|l| (l.model < crate::MAX_SHADOW_CASTERS).then_some(l.model))
-        .collect()
+    local.iter().map(|l| l.slot).collect()
 }
 
 /// Leave out of `local` each lamp whose reach misses `camera`'s view at

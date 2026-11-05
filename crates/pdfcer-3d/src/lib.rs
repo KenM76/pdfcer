@@ -74,6 +74,8 @@ mod gpu_shadow_set;
 #[cfg(feature = "render")]
 mod gpu_wide_lines;
 #[cfg(feature = "render")]
+mod lamp_choice;
+#[cfg(feature = "render")]
 mod lamp_shadow;
 #[cfg(feature = "render")]
 mod lamp_view;
@@ -169,7 +171,9 @@ pub use gpu_ao::{
 #[cfg(feature = "render")]
 pub use gpu_finish::DrawFinish;
 #[cfg(feature = "render")]
-pub use gpu_frame::{FrameLights, LIGHT_TABLE_WIDTH, MAX_LIGHTS, MAX_SHADOW_CASTERS, ShadeMode};
+pub use gpu_frame::{
+    FrameLights, LIGHT_TABLE_WIDTH, MAX_LAMP_SHADOWS, MAX_LIGHTS, MAX_SHADOW_CASTERS, ShadeMode,
+};
 #[cfg(feature = "render")]
 pub use gpu_lamp_shadow::{
     FrameLampShadows, GLSL_ES_300_LAMP_SHADOW_FRAGMENT, GLSL_ES_300_LAMP_SHADOW_VERTEX,

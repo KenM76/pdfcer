@@ -122,13 +122,13 @@ fn fnv(h: u64, bytes: impl IntoIterator<Item = u8>) -> u64 {
         .fold(h, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
 }
 
-/// FNV-1a over [`model`]'s frames from both cameras, lamp shadows on and
-/// off.
-pub(crate) fn cpu_digest() -> u64 {
-    let model = model(lamps());
+/// FNV-1a over [`model`]'s frames of `lights` from both cameras, at each
+/// of `shadows` for lamp shadows.
+fn cpu_digest(lights: Vec<ModelLight>, which: &[bool]) -> u64 {
+    let model = model(lights);
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     for camera in cameras() {
-        for shadows in [true, false] {
+        for &shadows in which {
             h = fnv(
                 h,
                 render_model(&model, &camera, &options(shadows))
@@ -142,7 +142,7 @@ pub(crate) fn cpu_digest() -> u64 {
 
 /// FNV-1a over the lamp rows of the light table, from the first camera,
 /// texel 1's `w` left out.
-pub(crate) fn table_digest(lights: &FrameLights, rows: &[usize]) -> u64 {
+fn table_digest(lights: &FrameLights, rows: &[usize]) -> u64 {
     let table = lights.light_table();
     let row = LIGHT_TABLE_WIDTH * 4;
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
@@ -154,14 +154,29 @@ pub(crate) fn table_digest(lights: &FrameLights, rows: &[usize]) -> u64 {
     h
 }
 
-/// [`cpu_digest`] on the tree before the cull.
-const CPU_DIGEST_BEFORE_THE_CULL: u64 = 0xd0dc_f229_d5f0_4881;
+/// [`cpu_digest`] of [`lamps`], lamp shadows off, on the tree before the
+/// cull.
+const CPU_DIGEST_BEFORE_THE_CULL: u64 = 0x30aa_ee86_1e27_5b96;
+/// [`cpu_digest`] of [`few`], lamp shadows on, on the tree before the cull
+/// and the lamp shadow choice: each of its five lamps cast there too.
+const FEW_DIGEST_BEFORE_THE_CULL: u64 = 0xe4aa_9c3e_b3cf_53e9;
 /// [`table_digest`] of the full table's [`IN_VIEW`] rows before the cull.
 const TABLE_DIGEST_BEFORE_THE_CULL: u64 = 0x2a3f_0202_cdbe_27ba;
 
+/// [`IN_VIEW`]'s lamps and the sun alone.
+fn few() -> Vec<ModelLight> {
+    let all = lamps();
+    let mut out: Vec<ModelLight> = IN_VIEW.iter().map(|&i| all[i].clone()).collect();
+    out.extend(all.last().cloned());
+    out
+}
+
 #[test]
 fn the_cull_draws_every_pixel_as_before_it() {
-    assert_eq!(cpu_digest(), CPU_DIGEST_BEFORE_THE_CULL);
+    assert_eq!(cpu_digest(lamps(), &[false]), CPU_DIGEST_BEFORE_THE_CULL);
+    // Five lamps under the cap: choosing the casters by their claim casts
+    // all five, as before, whatever slots they take.
+    assert_eq!(cpu_digest(few(), &[true]), FEW_DIGEST_BEFORE_THE_CULL);
 }
 
 #[test]
@@ -173,25 +188,35 @@ fn culled_lamps_never_reach_the_light_table() {
     assert_eq!(lights.light_table_rows(), lights.count + IN_VIEW.len());
     let rows: Vec<usize> = (0..IN_VIEW.len()).collect();
     assert_eq!(table_digest(&lights, &rows), TABLE_DIGEST_BEFORE_THE_CULL);
-    // Each row names its lamp's shadow slot: its model index, under 16.
-    assert_eq!(lights.local_slots, [Some(2), Some(7), None, None, None]);
+    // Each row names its lamp's shadow slot, brightest at the target
+    // first: lamp 2 above it, the spot (90), 120, 50, then 7 far off.
+    assert_eq!(
+        lights.local_slots,
+        [Some(0), Some(4), Some(3), Some(1), Some(2)]
+    );
     let table = lights.light_table();
     let w: Vec<f32> = rows
         .iter()
         .map(|r| table[(lights.count + r) * LIGHT_TABLE_WIDTH * 4 + 7])
         .collect();
-    assert_eq!(w, [3.0, 8.0, 0.0, 0.0, 0.0]);
+    assert_eq!(w, [1.0, 5.0, 4.0, 2.0, 3.0]);
 }
 
 #[test]
 fn the_counts_say_what_was_culled_on_both_paths() {
     for camera in cameras() {
         let o = options(true);
-        let want = (126, IN_VIEW.len(), IN_VIEW.len());
+        let n = IN_VIEW.len();
         let gpu = FrameLights::for_model(&camera, &o, &lamps()).unwrap().lamps;
         let cpu = LampStats::for_model(&camera, &o, &lamps()).unwrap();
         assert_eq!(cpu, gpu);
-        assert_eq!((cpu.in_model, cpu.in_view, cpu.lit_this_frame), want);
+        assert_eq!((cpu.in_model, cpu.in_view, cpu.lit_this_frame), (126, n, n));
+        assert_eq!((cpu.would_cast, cpu.casting), (n, n));
+        let bounds = crate::Bounds::of(&model(lamps()).meshes).unwrap();
+        let shadows = crate::FrameLampShadows::for_model(&camera, &o, &bounds, &lamps())
+            .unwrap()
+            .unwrap();
+        assert_eq!((shadows.would_cast, shadows.casting), (n, n));
     }
     // A fisheye has no single frustum: nothing is culled.
     let fisheye = Camera {
@@ -203,6 +228,8 @@ fn the_counts_say_what_was_culled_on_both_paths() {
     };
     let s = LampStats::for_model(&fisheye, &options(true), &lamps()).unwrap();
     assert_eq!((s.in_model, s.in_view), (126, 126));
+    // Every lamp would cast; the cap holds.
+    assert_eq!((s.would_cast, s.casting), (126, crate::MAX_LAMP_SHADOWS));
 }
 
 #[test]

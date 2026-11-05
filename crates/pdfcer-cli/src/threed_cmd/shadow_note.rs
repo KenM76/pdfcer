@@ -80,17 +80,24 @@ fn lamp_shadows(
     let mut out = "cast by the model's own point and spot lights, if any \
                    (`--no-lamp-shadows` turns them off)"
         .to_owned();
-    let dropped = Bounds::of(&model.meshes)
-        .and_then(|bounds| {
-            FrameLampShadows::for_model(camera, options, &bounds, &model.lights)
-                .ok()
-                .flatten()
-        })
-        .map_or(0, |l| l.dropped);
-    if dropped > 0 {
+    let frame = Bounds::of(&model.meshes).and_then(|bounds| {
+        FrameLampShadows::for_model(camera, options, &bounds, &model.lights)
+            .ok()
+            .flatten()
+    });
+    let Some(frame) = frame else {
+        return out;
+    };
+    out.push_str(&format!(
+        "; {} of {} lamps lit this frame casting",
+        frame.casting, frame.would_cast
+    ));
+    if frame.dropped > 0 {
         out.push_str(&format!(
-            "; {dropped} more past the limit of {} light without a shadow",
-            pdfcer_3d::MAX_SHADOW_CASTERS
+            "; {} more past the limit of {}, those adding least at the view's target, \
+             light without a shadow",
+            frame.dropped,
+            pdfcer_3d::MAX_LAMP_SHADOWS
         ));
     }
     out

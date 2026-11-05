@@ -454,6 +454,62 @@ fn the_lamp_counts_are_noted_and_nearest_is_a_choice() {
     assert_eq!(bad.status.code(), Some(2));
 }
 
+#[test]
+fn the_lamp_shadow_note_counts_the_casters_and_the_cap() {
+    let s = Scratch::new("lampcast");
+    let n = 18; // MAX_LAMP_SHADOWS + 2
+    let lamps: String = (0..n)
+        .map(|k| {
+            format!(
+                r#",{{"translation":[{},0.5,0],"extensions":{{"KHR_lights_punctual":{{"light":0}}}}}}"#,
+                0.05 * k as f64
+            )
+        })
+        .collect();
+    let nodes: Vec<String> = (0..=n + 1).map(|k| k.to_string()).collect();
+    let json = lamp_over_floor_json()
+        .replace(
+            r#""scenes":[{"nodes":[0,1]}]"#,
+            &format!(r#""scenes":[{{"nodes":[0,{}]}}]"#, nodes[1..].join(",")),
+        )
+        .replace(
+            r#"{"KHR_lights_punctual":{"light":0}}}],"#,
+            &format!(r#"{{"KHR_lights_punctual":{{"light":0}}}}}}{lamps}],"#),
+        );
+    std::fs::write(s.path("m.glb"), glb_of(json)).unwrap();
+    let pdf = format!(
+        "{}/../../fixtures/synthetic/minimal.pdf",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let (m, out) = (s.path("m.glb"), s.path("out.pdf"));
+    let args = ["3d-embed", &pdf, "--model", &m, "--page", "1"];
+    stdout(&run(&[
+        &args[..],
+        &["--rect", "10,10,190,190", "--apply", "-o", &out],
+    ]
+    .concat()));
+    let png = s.path("x.png");
+    let note = stdout(&run(&[
+        "3d-render",
+        &out,
+        "--index",
+        "0",
+        "--eye=1,-3,4",
+        "--no-ambient-occlusion",
+        "--lamp-shadow-map-size",
+        "64",
+        "--width",
+        "60",
+        "--height",
+        "40",
+        "-o",
+        &png,
+    ]));
+    // The floor's own lamp and the n added: 19, 3 past the cap.
+    let want = "; 16 of 19 lamps lit this frame casting; 3 more past the limit of 16,";
+    assert!(note.contains(want), "{note}");
+}
+
 /// [`floor_and_square`]'s floor alone, with a point light half a unit above
 /// its centre.
 fn lamp_over_floor() -> Vec<u8> {

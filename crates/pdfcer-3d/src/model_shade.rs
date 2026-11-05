@@ -33,6 +33,8 @@ pub(crate) struct Local {
     pub(crate) reach: f64,
     /// Its index among the model's point and spot lights, in model order.
     pub(crate) model: usize,
+    /// Its lamp-shadow slot this frame ([`crate::lamp_choice`]).
+    pub(crate) slot: Option<usize>,
 }
 
 /// A spot light's cone.
@@ -170,6 +172,7 @@ impl Shader {
                     cone: None,
                     reach: f64::INFINITY,
                     model: local.len(),
+                    slot: None,
                 }),
                 ModelLightKind::Spot {
                     position,
@@ -192,6 +195,7 @@ impl Shader {
                     }),
                     reach: f64::INFINITY,
                     model: local.len(),
+                    slot: None,
                 }),
             }
         }
