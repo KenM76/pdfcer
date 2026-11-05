@@ -237,6 +237,7 @@ fn worst_span_fits_its_bound() {
     worst.style.underline = true;
     worst.style.strikethrough = true;
     worst.style.color = Some([255, 255, 255]);
+    worst.style.family_as_named = Some("\\".repeat(MAX_FAMILY_CHARS));
     let empty = copy(vec![vec![]]);
     let one = copy(vec![vec![worst]]);
     for (a, b) in [
@@ -365,4 +366,80 @@ fn a_copy_under_the_caps_is_not_marked_truncated() {
     let rich = model.rich_text(None, &RichTextSources::default());
     assert_eq!(rich.plain_text(), "Hello");
     assert!(!rich.outcome.truncated);
+}
+
+/// The HTML between the fragment markers, `&nbsp;` read as a space and
+/// tags removed: what a paste target shows.
+fn pasted(html: &str) -> String {
+    let mut out = String::new();
+    let mut in_tag = false;
+    let body = html.replace("<br>", "\n").replace("&nbsp;", "\u{a0}");
+    for c in body.chars() {
+        match c {
+            '<' => in_tag = true,
+            '>' => in_tag = false,
+            c if !in_tag => out.push(c),
+            _ => {}
+        }
+    }
+    out
+}
+
+#[test]
+fn spaces_split_across_runs_and_after_a_break_keep_their_width() {
+    let mut bold = span(" b", None, 12.0);
+    bold.style.bold = true;
+    let html = copy(vec![vec![
+        span("a ", None, 12.0),
+        bold,
+        span("\n c", None, 12.0),
+    ]])
+    .to_html();
+    let text = pasted(&html);
+    // In HTML a plain space after a space or a line start collapses; every
+    // such space must be a non-breaking one.
+    assert!(text.contains("a \u{a0}b"), "{html}");
+    assert!(text.contains("\n\u{a0}c"), "{html}");
+    let lead = copy(vec![vec![span(" x", None, 12.0)]]).to_html();
+    assert!(pasted(&lead).contains("\u{a0}x"), "{lead}");
+}
+
+#[test]
+fn a_hyphen_splits_the_family_only_before_a_style_word() {
+    for (base, family, spelt, style) in [
+        ("MS-Gothic", "MS Gothic", "MS-Gothic", ""),
+        ("Arial-BoldMT", "Arial", "Arial", "BoldMT"),
+        (
+            "ABCDEF+Helvetica-Oblique",
+            "Helvetica",
+            "Helvetica",
+            "Oblique",
+        ),
+        ("Times-Roman", "Times", "Times", "Roman"),
+        ("TimesNewRomanPSMT", "Times New Roman", "TimesNewRoman", ""),
+        ("Arial,BoldItalic", "Arial", "Arial", "BoldItalic"),
+        ("Foo-Blackadder", "Foo Blackadder", "Foo-Blackadder", ""),
+        ("SimSun", "Sim Sun", "SimSun", ""),
+    ] {
+        assert_eq!(
+            fonts::split_base_font(base),
+            (family.to_owned(), spelt.to_owned(), style.to_owned()),
+            "{base}"
+        );
+    }
+}
+
+#[test]
+fn html_names_the_spaced_family_then_the_spelt_one() {
+    let mut s = span("x", Some("Sim Sun"), 12.0);
+    s.style.family_as_named = Some("SimSun".to_owned());
+    let html = copy(vec![vec![s]]).to_html();
+    assert!(html.contains("font-family:'Sim Sun','SimSun';"), "{html}");
+    assert!(
+        copy(vec![vec![span("x", Some("Sim Sun"), 12.0)]])
+            .to_rtf()
+            .contains("Sim Sun;")
+    );
+    let same = copy(vec![vec![span("x", Some("Arial"), 12.0)]]).to_html();
+    assert!(same.contains("font-family:'Arial';"), "{same}");
 }

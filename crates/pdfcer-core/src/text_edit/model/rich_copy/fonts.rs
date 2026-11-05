@@ -19,8 +19,12 @@ pub struct FontFace {
     /// The family: `/FontDescriptor /FontFamily` when present (Table 122),
     /// else DERIVED from `/BaseFont` — subset tag and style suffix removed,
     /// `MT`/`PS` dropped, camel case spaced (`TimesNewRomanPSMT` →
-    /// `Times New Roman`).
+    /// `Times New Roman`; `MS-Gothic` → `MS Gothic`).
     pub family: String,
+    /// The family as `/BaseFont` spells it (`SimSun`, `MS-Gothic`), when
+    /// [`Self::family`] was derived and differs from it; `None` otherwise.
+    /// A paste target that knows a font only by its spelt name needs it.
+    pub family_as_named: Option<String>,
     /// Descriptor Italic flag, a non-zero `/ItalicAngle`, or an `Italic` /
     /// `Oblique` style word in `/BaseFont`.
     pub italic: bool,
@@ -95,8 +99,14 @@ fn face_of(view: &DocumentView<'_>, font: &Dict) -> Option<FontFace> {
             _ => None,
         })
         .filter(|f| !f.is_empty());
-    let (family, style) = split_base_font(&base);
-    let family = declared.unwrap_or(family);
+    let (derived, as_named, style) = split_base_font(&base);
+    let (family, family_as_named) = match declared {
+        Some(d) => (d, None),
+        None => {
+            let alt = (as_named != derived && !as_named.is_empty()).then_some(as_named);
+            (derived, alt)
+        }
+    };
     if family.is_empty() {
         return None;
     }
@@ -112,6 +122,7 @@ fn face_of(view: &DocumentView<'_>, font: &Dict) -> Option<FontFace> {
     let named = style.contains("Italic") || style.contains("Oblique");
     Some(FontFace {
         family,
+        family_as_named,
         italic: flagged || angled || named,
     })
 }
@@ -136,14 +147,63 @@ fn descriptor<'a>(view: &'a DocumentView<'a>, font: &'a Dict) -> Option<&'a Dict
     })
 }
 
-/// `(family, style)` from a `/BaseFont`: `ABCDEF+Arial-BoldItalicMT` →
-/// `("Arial", "BoldItalicMT")`.
-pub(super) fn split_base_font(base: &str) -> (String, String) {
+/// Words that open a `/BaseFont` style suffix after `-`
+/// (`Arial-BoldMT`, `Helvetica-Oblique`, `Times-Roman`).
+const STYLE_WORDS: &[&str] = &[
+    "Bold",
+    "Italic",
+    "Oblique",
+    "Regular",
+    "Roman",
+    "Light",
+    "Medium",
+    "Black",
+    "Heavy",
+    "Thin",
+    "Book",
+    "Demi",
+    "Semi",
+    "Extra",
+    "Ultra",
+    "Condensed",
+    "Narrow",
+    "Expanded",
+    "Wide",
+    "Normal",
+    "Plain",
+    "MT",
+    "PS",
+];
+
+/// `suffix` starts with a [`STYLE_WORDS`] word that is not the start of a
+/// longer lowercase word (`Blackadder` is not `Black`).
+fn is_style_suffix(suffix: &str) -> bool {
+    STYLE_WORDS.iter().any(|w| {
+        suffix
+            .strip_prefix(w)
+            .is_some_and(|rest| !rest.starts_with(|c: char| c.is_ascii_lowercase()))
+    })
+}
+
+/// `(family, family as spelt, style)` from a `/BaseFont`:
+/// `ABCDEF+Arial-BoldItalicMT` → `("Arial", "Arial", "BoldItalicMT")`,
+/// `MS-Gothic` → `("MS Gothic", "MS-Gothic", "")`, `SimSun` →
+/// `("Sim Sun", "SimSun", "")`. A `,` always opens the style; a `-` only
+/// before a style word, otherwise it is part of the family.
+pub(super) fn split_base_font(base: &str) -> (String, String, String) {
     let name = match base.split_once('+') {
         Some((tag, rest)) if tag.len() == 6 && tag.bytes().all(|b| b.is_ascii_uppercase()) => rest,
         _ => base,
     };
-    let (family, style) = name.split_once([',', '-']).unwrap_or((name, ""));
+    let (name, style) = name.split_once(',').unwrap_or((name, ""));
+    let cut = name
+        .match_indices('-')
+        .map(|(i, _)| i)
+        .find(|&i| name.get(i + 1..).is_some_and(is_style_suffix));
+    let (family, style) = match cut {
+        Some(i) => (&name[..i], name.get(i + 1..).unwrap_or_default()),
+        None => (name, style),
+    };
     let family = family
         .strip_suffix("PSMT")
         .or_else(|| family.strip_suffix("MT"))
@@ -152,11 +212,16 @@ pub(super) fn split_base_font(base: &str) -> (String, String) {
     let mut spaced = String::with_capacity(family.len() + 4);
     let mut prev_lower = false;
     for c in family.chars() {
+        if c == '-' {
+            spaced.push(' ');
+            prev_lower = false;
+            continue;
+        }
         if prev_lower && c.is_ascii_uppercase() {
             spaced.push(' ');
         }
         prev_lower = c.is_ascii_lowercase();
         spaced.push(c);
     }
-    (spaced, style.to_owned())
+    (spaced, family.to_owned(), style.to_owned())
 }

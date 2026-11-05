@@ -56,6 +56,10 @@ impl<'s> RichTextSources<'s> {
 pub struct SpanStyle {
     /// Font family, when [`RichTextSources::fonts`] named one.
     pub family: Option<String>,
+    /// The family as the font spells it, when that differs from
+    /// [`Self::family`] ([`FontFace::family_as_named`]); HTML names it
+    /// second in `font-family`, RTF uses [`Self::family`] only.
+    pub family_as_named: Option<String>,
     /// Drawn size in points, to the nearest half point.
     pub size: f32,
     /// Weight 600 or more ([`FontWeight::is_bold`](crate::text_extract::FontWeight::is_bold)).
@@ -324,6 +328,7 @@ impl EditableTextModel<'_> {
         };
         let style = SpanStyle {
             family: face.map(|f| f.family.clone()),
+            family_as_named: face.and_then(|f| f.family_as_named.clone()),
             size: font_size_pt((glyph.size * 2.0).round() / 2.0),
             bold: glyph.weight.is_bold(),
             italic: face.is_some_and(|f| f.italic),

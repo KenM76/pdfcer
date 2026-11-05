@@ -193,22 +193,29 @@ fn html_paragraph(out: &mut String, p: &RichParagraph, spans: &[RichSpan]) {
         return;
     }
     out.push_str("\">");
+    let mut prev_space = true;
     for s in spans {
         if full(out) {
             break;
         }
-        html_span(out, s);
+        html_span(out, s, &mut prev_space);
     }
     out.push_str("</p>\n");
 }
 
-fn html_span(out: &mut String, s: &RichSpan) {
+fn html_span(out: &mut String, s: &RichSpan, prev_space: &mut bool) {
     let st = &s.style;
     out.push_str("<span style=\"");
     if let Some(f) = &st.family {
         out.push_str("font-family:'");
         css_family(out, f);
-        out.push_str("';");
+        out.push('\'');
+        if let Some(alt) = st.family_as_named.as_deref().filter(|a| a != f) {
+            out.push_str(",'");
+            css_family(out, alt);
+            out.push('\'');
+        }
+        out.push(';');
     }
     let _ = write!(out, "font-size:{}pt", num(font_size_pt(st.size)));
     if st.bold {
@@ -227,7 +234,7 @@ fn html_span(out: &mut String, s: &RichSpan) {
         let _ = write!(out, ";color:#{r:02x}{g:02x}{b:02x}");
     }
     out.push_str("\">");
-    html_text(out, &s.text);
+    html_text(out, &s.text, prev_space);
     out.push_str("</span>");
 }
 
@@ -252,11 +259,12 @@ fn css_family(out: &mut String, family: &str) {
     }
 }
 
-/// Escape for HTML text; `\n` becomes `<br>`, a run of spaces keeps its
-/// width with `&nbsp;`, and [`is_dropped`] characters are left out. Stops
-/// at the writer's limit.
-fn html_text(out: &mut String, text: &str) {
-    let mut prev_space = false;
+/// Escape for HTML text; `\n` becomes `<br>`, and [`is_dropped`]
+/// characters are left out. A space after a space, a `<br>` or the
+/// paragraph start is `&nbsp;`, so no space collapses when pasted;
+/// `prev_space` carries that across the paragraph's runs. Stops at the
+/// writer's limit.
+fn html_text(out: &mut String, text: &str, prev_space: &mut bool) {
     for c in text.chars() {
         if full(out) {
             return;
@@ -268,10 +276,10 @@ fn html_text(out: &mut String, text: &str) {
             '>' => out.push_str("&gt;"),
             '"' => out.push_str("&quot;"),
             '\n' => out.push_str("<br>"),
-            ' ' if prev_space => out.push_str("&nbsp;"),
+            ' ' if *prev_space => out.push_str("&nbsp;"),
             c => out.push(c),
         }
-        prev_space = c == ' ';
+        *prev_space = c == ' ' || c == '\n';
     }
 }
 
