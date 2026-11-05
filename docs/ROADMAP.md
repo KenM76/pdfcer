@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `336f7c76` `Pass 666.0`, 2026-11-05: fisheye lens for the 3D camera (`G268`) (1426th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `336f7c76` on `main` (cherry-picked from the worker's `5c8e02f9`); version bump `7b6664fd` (0.129.0). Rides `v0.129.0` with `Pass 665.0`. Request `G268` (`pdfcer-gui`, operator ask `O391`). Core and CLI; the GUI Lens option is `pdfcer-gui`'s.
+- **API:** `Projection::Fisheye { fov, mapping }` in `pdfcer-3d`. Mappings `Equidistant` (r = f·θ) and `Stereographic` (r = 2f·tan(θ/2)). `fov` is degrees across the picture HEIGHT (as `Perspective` `fov_y`). Range: equidistant (0, 360], stereographic (0, 360).
+- **Strategy:** the lens picture is resampled (nearest texel) from ordinary perspective faces: one forward face when within 90° of the axis, else up to six 90° cube faces. Face side = 2x the lens's px/rad at the widest angle, capped at 2·max(W,H) and 4096. **Cost:** up to six shaded frames of up to (2·max(W,H))² px, plus one resample pass per face. CPU path and GPU path (`FrameLens` / `gpu_lens` shaders) share the design.
+- **GPU caveat:** the GPU shaders were NOT executed (no GL context in the worker's environment); checked only by string tests and CPU parity of the code. The first real GPU run is their first test.
+- **Follows the lens:** AO, gloss, depth prepass, shadows (each face is a normal frame); lights and shadow casters use the fisheye camera's orientation; lines and wires cut into 16 chords; points placed through the lens; outside the equidistant circle = background colour; `ray_through` inverts the lens exactly; `depth_range` = model distance span around the eye.
+- **Documented limits:** AO may differ slightly across a face seam; the equidistant rim near 180° is undersampled by the face cap; a line piece crossing directly behind the eye between two sides is dropped.
+- **Named refusals:** `RenderError::FisheyeField { mapping }`; `RenderError::OutsideLens` (CLI `--pick` prints "refused: the pixel lies outside the fisheye lens's picture circle"); `RenderError::Camera` for `projection_matrix` / `View::new` on a fisheye, `FrameLens::new` on a flat camera, and CLI `--fov` >= 180 with a flat lens (exit 9). `ThreeDSavedView::from_camera` returns `None` for a fisheye (ISO 32000-1 Table 305: a PDF 3D view projection is orthographic or perspective only). `--lens` with `--ortho` is a clap conflict (exit 2).
+- **CLI:** `3d-render --lens flat|equidistant|stereographic`; `--fov` now means the field across image height (default 30 flat, 180 fisheye); the summary prints `projection=fisheye-equidistant|fisheye-stereographic`; a saved view's framing is not applied under a lens.
+- **Tests (worker-reported):** 13 lens unit tests (`lens_tests.rs`), 2 CLI integration tests, 1 doctest; 14 sabotages each caught. Totals `pdfcer-3d` 447, `pdfcer-core` 5774, `pdfcer-cli` 1130, 0 failed. Gates: fmt, `clippy -D warnings` on 3d/core/cli, code-structure clean, `cargo doc` broken links denied, Linux check of `pdfcer-3d`, `check-core-api-verbs` PASS. `docs/core-api/01-reading-and-model.md` and `index.md` updated. No manifest change.
+- **Consumer note:** `Projection` is NOT `#[non_exhaustive]`; `pdfcer-gui`'s exhaustive matches (`orbit.rs`, `picture.rs`, `walk.rs`) need a `Fisheye` arm when it bumps.
+- **Boxes:** FEATURES fisheye row moved to Implemented-shaped state: core `[x]`, cli `[x]`, gui `[ ]`.
+
 ### `94e4eaad` `Pass 665.0`, 2026-11-05: rich copy keeps every space and names hyphenated and spelt families (`X042`) (1425th filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `94e4eaad` "fix(copy): rich copy keeps every space and names hyphenated and spelt families (X042)", local `main` as far as this filing knows. Request `X042` (crates consumer). Written fresh in pdfcer: PdfCraft's rich copy is its own `pdfcraft_export` code, nothing to adopt (decision 215). Core; CLI `copy-text` inherits it; gui is `pdfcer-gui`'s. NOT yet released; rides the next release (`v0.129.0`) together with `Pass 666.0` (`G268`).
@@ -25946,13 +25960,6 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
-
-> **`Pass 666.0` (`G268`, request from `pdfcer-gui`, operator ask `O391`): a fisheye lens for the 3D camera. IN FLIGHT (1425th filing): a worker is implementing it now in `pdfcer-3d`; NOT shipped, nothing committed as far as this filing knows.** Engine pin `eba71f2f` (`v0.128.0`). Wanted, from the request:
-> 1. A third `Projection` variant, say `Fisheye { fov, mapping }`, `fov` up to at least 180 degrees (diagonal or longer side: the engine's choice, documented); `mapping` at least equidistant and stereographic, or one with the reason.
-> 2. Drawn identically on the CPU (`PreparedScene::render`) and GPU (`gpu_frame`) paths to today's pixel tolerance; how a curved projection avoids bent-edge error (tessellation, per-fragment ray casting, cube-map) is the engine's decision, cost stated.
-> 3. `Camera::ray_through`, picking, walking collision, AO, gloss, depth prepass, shadows and edge lines follow the lens, or a named refusal says which does not.
-> 4. Outside the lens circle drawn in the background colour (or the variant documents that it fills the frame). 5. A named refusal, not a panic, for an out-of-range `fov`.
-> GUI follow-up (`pdfcer-gui`): Lens Flat / Fisheye option, remembered; no GUI-side warp. Rides `v0.129.0` with `Pass 665.0`. FEATURES: *Planned* row added, all boxes unticked. Request: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G268_fisheye_lens_for_the_3d_camera.md`.
 
 > **Head (1421st filing): no open Pass at the head. `Pass 660.0` (`G266`, `d77620b6`), `661.0` (`X039`), `662.0` (`f8da53ad`) and `663.0` (`X040`, `7760a3bf`) are SHIPPED (see *Shipped*). `v0.128.0` is BEING CUT (bump `7d02540a`), carrying `X039`, `662.0`, `G266` and `X040`; not yet tagged or published as far as this filing knows; the release filing comes later. Release slot: OneDrive `pdfcer2` per the earlier banner (not re-verified here).** The older banners that follow are history.
 

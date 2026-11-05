@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-05 (1426th filing) — `Pass 666.0` (`G268`, `336f7c76`) shipped
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only):**
+- **`Pass 666.0` SHIPPED, `336f7c76`** (cherry-pick of worker `5c8e02f9`; bump `7b6664fd` 0.129.0): `Projection::Fisheye { fov, mapping }`, equidistant and stereographic, `3d-render --lens`; cube-face resampling, CPU and GPU. Detail is in the ROADMAP Shipped entry. Rides `v0.129.0` with `Pass 665.0`.
+- **Open:** GPU lens shaders never executed (no GL context); first real GPU run is their first test. `pdfcer-gui` needs a `Fisheye` arm in `orbit.rs`, `picture.rs`, `walk.rs` (`Projection` not `#[non_exhaustive]`).
+- **Boxes:** FEATURES fisheye row core `[x]`, cli `[x]`, gui `[ ]`, left in *Planned* (gui open). Next-up banner removed.
+- **Files:** `ROADMAP.md`, `FEATURES.md`, `SESSION_LOG.md`. Backup currency not verifiable from here. Next filing 1427th.
+
 ## 2026-11-05 (1425th filing) — `Pass 665.0` (`X042`, `94e4eaad`) shipped; `Pass 666.0` (`G268`) filed IN FLIGHT
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, I commit nothing):**

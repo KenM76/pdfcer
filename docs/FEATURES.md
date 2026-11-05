@@ -686,7 +686,7 @@ the model or verb exists and only the named shell is missing. The
 
 | core | cli | gui | Acrobat | Feature |
 |:----:|:---:|:---:|:-------:|---------|
-| [ ] | [ ] | [ ] | ? | **Fisheye lens for the 3D camera** — a third `Projection` (equidistant and/or stereographic, past 180 degrees), same on the CPU and GPU paths; picking and `ray_through` follow it. `Pass 666.0` IN FLIGHT (`G268`, worker implementing in `pdfcer-3d`). |
+| [x] | [x] | [ ] | ? | **Fisheye lens for the 3D camera** — `Projection::Fisheye` (equidistant, stereographic; `3d-render --lens`), CPU and GPU paths, picking and `ray_through` follow it. GPU shaders not yet run on a real GL context. GUI Lens option is `pdfcer-gui`'s. `Pass 666.0` shipped (`G268`). |
 | [ ] | [ ] | [ ] | ? | **Make a 3D PDF from an OBJ or STL mesh** — same PRC writer as the glTF row (shipped, `Pass 648.0`); OBJ/MTL colours, STL uncoloured (default disclosed). `Pass 648.1`, *Next up*, after 648.0. |
 | [ ] | [ ] | [ ] | ? | **3D units and the other measurement kinds** — 3D units `/3DU` (Table 325); `3d-views --measure` for perpendicular, angular, radial and comment measurements (the core writes them; the CLI writes linear only); comment-linked measurements. `Pass 648.7`, Backlog. |
 | [x] | — | [ ] | [x] | **Insert a page named twice as separate copies** — a repeated source index in `insert_pages` now gets its own independent copy, as Acrobat does (was a page-tree cycle). Defect fixed, `Pass 567.0` (`G185`). GUI: `pdfcer-gui` still has a workaround to delete. |
