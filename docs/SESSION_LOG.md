@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-05 (1430th filing) — `Pass 669.0` (`G271`, `11b64a94`) and `670.0` (`G272`, `1221e5a1`) shipped
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only):**
+- **`Pass 669.0` SHIPPED, `11b64a94`:** lamps wholly outside the view frustum are culled each frame, picture byte-identical (126-lamp fixture, two cameras, shadows on and off); `LampStats`, `LampCost::{Full, NearestPerFrame(u16)}`, `3d-render --lamp-cost`; GPU light table carries only culled lamps (breaking for `pdfcer-gui`). Also fixed the `--no-default-features` clippy break from `c60a6613`. Sabotage 10/10.
+- **`Pass 670.0` SHIPPED, `1221e5a1`:** up to 16 shadow casters (`MAX_LAMP_SHADOWS`) chosen by luminance over squared distance to the target, hysteresis margin 4; slot is not model index (breaking); CLI note adds casting counts. Sabotage 12/12.
+- **Hashes:** cherry-picked from a worker branch; the engineer supplied `11b64a94`/`1221e5a1` as the ones to cite, not `84d75e39`/`49e1a59a`. Unreleased; both ship in `v0.130.0` with `667.0`, `668.0`, `671.0`, `672.0`.
+- **Tests (engineer-reported):** `pdfcer-3d` lib 445, CLI `three_d` 59 + bin `threed` 6, clippy clean; `check-core-api-verbs.py` PASS; no dependency change.
+- **FEATURES:** the two Planned rows (lamp culling, shadow-caster choice) were in *Planned* marked in flight; removed there and added to *Implemented* (after the 3D sun row) as core `[x]` cli `[x]` gui `[ ]`. Checked by grep that no stray copy remains in *Planned*.
+- **ROADMAP:** two *Shipped* entries; both in-flight Next up banners replaced by a 1430th note; new Backlog `Pass 669.1` (tiled per-tile light lists, residue; zero hits by grep, not `check-ledger-numbers.py`).
+- **Hard rule 11 sweep:** claims that changed meaning (the shader loops all lamps; "casters are model-indexed"; the `u_lights` contents) are in `crates/` doc comments and `docs/core-api`; the engineer updated core-api. Survivor check in `crates/` is outside my remit and not done.
+- **Requests:** `G271`, `G272` replies written, INDEX rows SHIPPED (engineer-reported). Backup currency not verifiable from here. Next filing 1431st.
+
 ## 2026-11-05 (1429th filing) — `Pass 671.0` (`X043`, `c478faef`) and `672.0` (`G268` GPU, `5513fe01`) shipped
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only):**

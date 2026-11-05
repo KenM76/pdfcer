@@ -112,6 +112,28 @@ wherever it appears.*
 
 ## Shipped
 
+### `1221e5a1` `Pass 670.0`, 2026-11-05: up to 16 lamp shadows, chosen by their claim at the target (`G272`) (1430th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `1221e5a1` on `main` (cherry-picked from a worker branch; not `49e1a59a`). Request `G272` (`pdfcer-gui`). `pdfcer-3d` core and `pdfcer` CLI; gui is `pdfcer-gui`'s. Unreleased; ships in `v0.130.0`.
+- **Behaviour:** casters are chosen among lamps lit this frame. Score = Rec.709 luminance(colour x intensity x gain) / max(dist_to_target^2, (1% of eye-target distance)^2); NaN scores 0; ties go to model order. Hysteresis keeps a previous caster while it stays within the top 16+4 (`MARGIN`); live entry only.
+- **API (`pdfcer-3d`):** new `const MAX_LAMP_SHADOWS = 16` (why: 6 MiB per 512 cube x 16 = 96 MiB, 96 of WebGL2's guaranteed 256 layers; matches `u_lamp_far[16]`); `FrameLampShadows` gains `lamps: [Option<usize>; 16]`, `would_cast`, `casting` (`far` now `[f32; MAX_LAMP_SHADOWS]`); `FrameLampShadows::for_model_after(.., previous)`; `FrameLights::use_lamp_shadows`; `LampStats` gains `would_cast`, `casting`. New file `lamp_choice.rs`.
+- **Breaking for `pdfcer-gui`:** shadow slot is not the model index (read `lamps[]`). No uniform, texture or shader text change versus `Pass 669.0`.
+- **CLI:** the lighting note adds "C of W lamps lit this frame casting" and, past the cap, "D more past the limit of 16 ...".
+- **Tests (engineer-reported, merged main):** `pdfcer-3d` lib 445; `pdfcer-cli --test all three_d` 59; `--bin pdfcer threed` 6; clippy `-D warnings` clean for `pdfcer-3d` and `pdfcer-cli`; sabotage 12/12 caught. No `Cargo.toml` change, so `cargo tree` unaffected. `docs/core-api` updated; `tools/check-core-api-verbs.py` PASS.
+- **Request:** reply `open/reply_G272_which_lamps_cast_shadows_SHIPPED.md`; INDEX row SHIPPED. FEATURES: "3D shadow-caster choice" moved to *Implemented*, core `[x]` cli `[x]` gui `[ ]`.
+
+### `11b64a94` `Pass 669.0`, 2026-11-05: cull lamps out of view; count them; a nearest-N cheap mode (`G271`) (1430th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `11b64a94` on `main` (cherry-picked from a worker branch; not `84d75e39`). Request `G271` (`pdfcer-gui`, Adreno 643). `pdfcer-3d` core and `pdfcer` CLI. Unreleased; ships in `v0.130.0` with `667.0`, `668.0`, `670.0`-`672.0`.
+- **Behaviour:** every frame drops point and spot lights whose reach sphere lies wholly outside the view frustum (perspective: sides + near; ortho: sides; fisheye: per cube face, counted by the whole camera). Picture byte-identical: 126-lamp fixture, two cameras, shadows on and off, light-table rows hashed against the pre-change tree.
+- **One source:** `lamp_view::frame_shader` feeds `render_view`, `FrameLights::for_model`, `FrameLampShadows::for_model` and `LampStats::for_model`.
+- **API (`pdfcer-3d`):** `LampStats { in_model, in_view, lit_this_frame }` + `LampStats::for_model`; `LampCost::{Full (default), NearestPerFrame(u16)}` via `RenderOptions::lamp_cost` (changes the picture, never automatic, separate from `LampCut`); `FrameLights::local_lamps`, `local_slots`, `lamps`.
+- **GPU, breaking for `pdfcer-gui`:** `u_lights` carries only culled lamps; light-table texel 1 `.w` = shadow slot + 1; host must set `options.width`/`height` to the viewport; redraw cube faces when `FrameLampShadows` changes.
+- **CLI:** `3d-render --lamp-cost full|nearest:N`; note "lighting: lamps: N in the model, N reaching the view, N lit this frame".
+- **Also fixed:** the pre-existing `--no-default-features` clippy break from `c60a6613` (`ShadowLightArg` import now gated on feature `3d`).
+- **Not done / not measured:** tiled or clustered per-tile light lists (the shader still loops every culled lamp per pixel), filed as `Pass 669.1` in *Backlog*. GPU pixel agreement for the cull is unmeasured: shaders compile and link on SwiftShader only.
+- **Tests:** shared with `Pass 670.0` above; sabotage 10/10 caught. **Request:** reply `open/reply_G271_model_lamps_cost_every_pixel_on_a_phone_SHIPPED.md`; INDEX row SHIPPED. FEATURES: "3D lamp culling" moved to *Implemented*, core `[x]` cli `[x]` gui `[ ]`.
+
 ### `5513fe01` `Pass 672.0`, 2026-11-05: the fisheye lens works on the GPU (`G268` follow-up) (1429th filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `5513fe01` on `main`. Operator ask (Ken): "Please get the fisheye lens working on the GPU as well." Follows `Pass 666.0` (`336f7c76`), whose GPU shaders had never run.
@@ -26021,9 +26043,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **1429th filing: `Pass 671.0` (`X043`, `c478faef`) and `Pass 672.0` (`G268` GPU follow-up, `5513fe01`) are SHIPPED (see *Shipped*); their FEATURES rows moved to *Implemented*. Still in flight: `Pass 669.0` (`G271`), `670.0` (`G272`). `672` had zero hits across the three docs by grep (no shell; not run through `tools/check-ledger-numbers.py`).**
 
-> **`Pass 669.0` (`G271`, IN FLIGHT): model lamps cost every pixel on a phone (Adreno 643).** Cull lamps whose reach misses the view before the fragment program, preferably tiled or clustered per-pixel lists; the picture stays the same as now; lamps-in-model and lamps-lit-this-frame counts for disclosure; a named cheaper mode if a bound remains. Capability row: FEATURES Planned "3D lamp culling".
-
-> **`Pass 670.0` (`G272`, IN FLIGHT): which lamps cast shadows.** Choose the 16 shadow-casting lamps by contribution to the current view (reach covering the view, then brightness, then nearness), re-chosen when the view moves enough, maps kept while chosen; the cap is a constant beside `MAX_SHADOW_CASTERS` with its why; CPU and GPU choose the same lamps; would-cast and casting counts for disclosure. Capability row: FEATURES Planned "3D shadow-caster choice".
+> **1430th filing: `Pass 669.0` (`G271`, `11b64a94`) and `Pass 670.0` (`G272`, `1221e5a1`) are SHIPPED (see *Shipped*), unreleased; they ship in `v0.130.0` with `667.0`, `668.0`, `671.0`, `672.0`. Their FEATURES rows are in *Implemented*. Residue `Pass 669.1` (tiled per-tile light lists) is in *Backlog*. No open Pass at the head. `669.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`).**
 
 > **Head (1421st filing): no open Pass at the head. `Pass 660.0` (`G266`, `d77620b6`), `661.0` (`X039`), `662.0` (`f8da53ad`) and `663.0` (`X040`, `7760a3bf`) are SHIPPED (see *Shipped*). `v0.128.0` is BEING CUT (bump `7d02540a`), carrying `X039`, `662.0`, `G266` and `X040`; not yet tagged or published as far as this filing knows; the release filing comes later. Release slot: OneDrive `pdfcer2` per the earlier banner (not re-verified here).** The older banners that follow are history.
 
@@ -37087,6 +37107,10 @@ overrides the image dictionary; `/ColorSpace` optional,
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### `Pass 669.1` — tiled or clustered per-tile light lists (BACKLOG; filed 1430th filing; residue of `Pass 669.0`, `G271`)
+
+`669.0` culls lamps against the view, but the fragment shader still loops every surviving lamp for every pixel. Build per-tile (or clustered) light lists so a pixel visits only the lamps reaching its tile; the picture must stay byte-identical to `669.0`. Needs a GPU pixel-agreement measurement for the cull as well (unmeasured: shaders compile and link on SwiftShader only). Capability row: none new; extends FEATURES "3D lamp culling".
 
 ### `Pass 658.10` — render-time exposure (`RenderOptions`) (BACKLOG; filed 1401st filing; residue of `Pass 658.9`)
 
