@@ -112,9 +112,25 @@ wherever it appears.*
 
 ## Shipped
 
+### `5f9657e7` `v0.130.0` PUBLISHED, 2026-11-05 (1431st filing); CI red at the tag, fixed forward by `30d93f57`
+
+Engineer-reported; no shell here, nothing checked from here (GitHub, crates.io, OneDrive, CI and git state all as reported). Tag `v0.130.0` on `5f9657e7` ("chore: release v0.130.0", the bump commit, directly after the 1430th filing `5a1240a5`). Pushed with `main`. Carries `Pass 667.0` (`G269`, `c023645c`), `668.0` (`G270`, `c60a6613`), `669.0` (`G271`, `11b64a94`), `670.0` (`G272`, `1221e5a1`), `671.0` (`X043`, `c478faef`) and `672.0` (`G268` GPU fisheye fix, `5513fe01`).
+- **GitHub release:** 8 assets: `pdfcer-v0.130.0-windows-x64.zip` (28,784,208 bytes), `ocr-addon-{ocrcer,ocrs,tesseract}.zip`, each with a `.sha256`. `gh-release.py` PASS.
+- **OneDrive:** CLI written to `pdfcer2`; `pdfcer1` keeps 0.129.0. **The next release writes `pdfcer1`.**
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.130.0 published.
+- **Build folder:** `D:\builds\pdfcer-20261105-1402-5f9657e`.
+- **Gates (change-scoped per `R263`) run before tagging:** `pdfcer-3d` lib 445; CLI `three_d` 59 and bin `threed` 6; clippy `-D warnings` with default features and with `--no-default-features`; fmt; `cargo doc` with `RUSTDOCFLAGS` rustdoc link-deny on `pdfcer-3d`, `pdfcer-json`, `pdfcer-cli`; Linux cross-check; `check-ledger-numbers`, `check-commits-filed`, `check-code-structure`, `check-suite-name-absent` all clean.
+- **Fresh-folder smoke test passed:** `--version` 0.130.0; glTF, then `3d-convert`, `3d-embed --apply`, `3d-render` with `--light-gain`, `--lamp-cost nearest:1` and `--sun-azimuth`/`--sun-elevation`/`--sun-kelvin`. The lamp counts note was printed.
+- **CI was RED at the tag.** Only the "repository audits (32 checks)" job failed, on `check-public-fns-documented.py`: four undocumented helper fns (`gltf/accessor.rs` `Data::new` and `gltf/textures.rs` `Textures::new` from `X043`; `lamp_view_tests.rs` `cameras` and `options` from `G271`). Every other job was green at `5f9657e7`. CI had also been red on the round's three earlier pushes (`6909f891`, `67393c89`, `ca265319`: clippy `--no-default-features`, the ubuntu tests and the audits).
+- **Fix forward `30d93f57`** "docs(3d): doc comments on four helper fns the public-fn audit flagged": comment-only, so the shipped binary is unaffected. On `main` after the tag. **The tag was NOT moved**; moving a published tag needs Ken's go-ahead. No new Pass number (same convention as `7d0ef09d` and `1035130f`).
+- **`verify-release.py`** reported 2 problems: "working tree clean" (the deliberate uncommitted agent-memory files) and "CI GREEN at the tagged commit" (the item above).
+- **Lesson (fourth recurrence of "a CI step my scoped list did not contain"; no rule number minted):** the change-scoped release set (`R263`) must also run every `run: python tools/...` line from `.github/workflows/*.yml` (a 30-second loop, no build), and the CI colour of the round's earlier pushes must be read before tagging. Earlier instances: `v0.115.0`, `v0.117.0`, `v0.123.0`, `v0.126.0`.
+- **GUI notified:** `FeatureRequests` `open/notice_2026-11-05_v0.130.0_released.md`, with an INDEX row.
+- **FEATURES:** no box changed; no row carried "unreleased" wording (checked by grep).
+
 ### `1221e5a1` `Pass 670.0`, 2026-11-05: up to 16 lamp shadows, chosen by their claim at the target (`G272`) (1430th filing)
 
-Engineer-reported; no shell here, git state not checked from here. Commit `1221e5a1` on `main` (cherry-picked from a worker branch; not `49e1a59a`). Request `G272` (`pdfcer-gui`). `pdfcer-3d` core and `pdfcer` CLI; gui is `pdfcer-gui`'s. Unreleased; ships in `v0.130.0`.
+Engineer-reported; no shell here, git state not checked from here. Commit `1221e5a1` on `main` (cherry-picked from a worker branch; not `49e1a59a`). Request `G272` (`pdfcer-gui`). `pdfcer-3d` core and `pdfcer` CLI; gui is `pdfcer-gui`'s. **Released in `v0.130.0`** (1431st filing; the "unreleased" wording describes the commit at its filing).
 - **Behaviour:** casters are chosen among lamps lit this frame. Score = Rec.709 luminance(colour x intensity x gain) / max(dist_to_target^2, (1% of eye-target distance)^2); NaN scores 0; ties go to model order. Hysteresis keeps a previous caster while it stays within the top 16+4 (`MARGIN`); live entry only.
 - **API (`pdfcer-3d`):** new `const MAX_LAMP_SHADOWS = 16` (why: 6 MiB per 512 cube x 16 = 96 MiB, 96 of WebGL2's guaranteed 256 layers; matches `u_lamp_far[16]`); `FrameLampShadows` gains `lamps: [Option<usize>; 16]`, `would_cast`, `casting` (`far` now `[f32; MAX_LAMP_SHADOWS]`); `FrameLampShadows::for_model_after(.., previous)`; `FrameLights::use_lamp_shadows`; `LampStats` gains `would_cast`, `casting`. New file `lamp_choice.rs`.
 - **Breaking for `pdfcer-gui`:** shadow slot is not the model index (read `lamps[]`). No uniform, texture or shader text change versus `Pass 669.0`.
@@ -124,7 +140,7 @@ Engineer-reported; no shell here, git state not checked from here. Commit `1221e
 
 ### `11b64a94` `Pass 669.0`, 2026-11-05: cull lamps out of view; count them; a nearest-N cheap mode (`G271`) (1430th filing)
 
-Engineer-reported; no shell here, git state not checked from here. Commit `11b64a94` on `main` (cherry-picked from a worker branch; not `84d75e39`). Request `G271` (`pdfcer-gui`, Adreno 643). `pdfcer-3d` core and `pdfcer` CLI. Unreleased; ships in `v0.130.0` with `667.0`, `668.0`, `670.0`-`672.0`.
+Engineer-reported; no shell here, git state not checked from here. Commit `11b64a94` on `main` (cherry-picked from a worker branch; not `84d75e39`). Request `G271` (`pdfcer-gui`, Adreno 643). `pdfcer-3d` core and `pdfcer` CLI. **Released in `v0.130.0`** with `667.0`, `668.0`, `670.0`-`672.0` (1431st filing; the "unreleased" wording describes the commit at its filing).
 - **Behaviour:** every frame drops point and spot lights whose reach sphere lies wholly outside the view frustum (perspective: sides + near; ortho: sides; fisheye: per cube face, counted by the whole camera). Picture byte-identical: 126-lamp fixture, two cameras, shadows on and off, light-table rows hashed against the pre-change tree.
 - **One source:** `lamp_view::frame_shader` feeds `render_view`, `FrameLights::for_model`, `FrameLampShadows::for_model` and `LampStats::for_model`.
 - **API (`pdfcer-3d`):** `LampStats { in_model, in_view, lit_this_frame }` + `LampStats::for_model`; `LampCost::{Full (default), NearestPerFrame(u16)}` via `RenderOptions::lamp_cost` (changes the picture, never automatic, separate from `LampCut`); `FrameLights::local_lamps`, `local_slots`, `lamps`.
@@ -26044,6 +26060,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **1429th filing: `Pass 671.0` (`X043`, `c478faef`) and `Pass 672.0` (`G268` GPU follow-up, `5513fe01`) are SHIPPED (see *Shipped*); their FEATURES rows moved to *Implemented*. Still in flight: `Pass 669.0` (`G271`), `670.0` (`G272`). `672` had zero hits across the three docs by grep (no shell; not run through `tools/check-ledger-numbers.py`).**
 
 > **1430th filing: `Pass 669.0` (`G271`, `11b64a94`) and `Pass 670.0` (`G272`, `1221e5a1`) are SHIPPED (see *Shipped*), unreleased; they ship in `v0.130.0` with `667.0`, `668.0`, `671.0`, `672.0`. Their FEATURES rows are in *Implemented*. Residue `Pass 669.1` (tiled per-tile light lists) is in *Backlog*. No open Pass at the head. `669.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`).**
+
+> **1431st filing: `v0.130.0` is PUBLISHED (see *Shipped*), carrying `Pass 667.0`-`672.0`; OneDrive `pdfcer2`, so the next release writes `pdfcer1`. CI was red at the tag on `check-public-fns-documented.py` only; fixed forward by `30d93f57`, tag not moved. Open follow-ups: `Pass 669.1` (tiled per-tile light lists; GPU pixel agreement for the cull unmeasured) and real-hardware checks of the GPU lens and lamps. No open request addressed to pdfcer.**
 
 > **Head (1421st filing): no open Pass at the head. `Pass 660.0` (`G266`, `d77620b6`), `661.0` (`X039`), `662.0` (`f8da53ad`) and `663.0` (`X040`, `7760a3bf`) are SHIPPED (see *Shipped*). `v0.128.0` is BEING CUT (bump `7d02540a`), carrying `X039`, `662.0`, `G266` and `X040`; not yet tagged or published as far as this filing knows; the release filing comes later. Release slot: OneDrive `pdfcer2` per the earlier banner (not re-verified here).** The older banners that follow are history.
 

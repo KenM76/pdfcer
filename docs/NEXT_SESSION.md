@@ -5,7 +5,9 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**2026-11-05 update (release v0.129.0, latest).** **v0.129.0 is the latest release** (tag on `56ee4f85`, 8 assets, CI green, OneDrive `pdfcer1`; `pdfcer2` keeps 0.128.0; crates color/model/pkix 0.129.0). **The next release writes pdfcer2.** It carries X042 / 665.0 (`94e4eaad`, rich copy keeps spaces; hyphenated families stay whole; `SpanStyle::family_as_named`; written fresh, no PdfCraft fix existed) and G268 / 666.0 (`336f7c76`, `Projection::Fisheye`, CPU and GPU, `3d-render --lens`; GPU lens shaders not yet run on a real context; `Projection` is not non-exhaustive, so the GUI adds Fisheye arms). Notice `open/notice_2026-11-05_v0.129.0_released.md`. **In flight:** G269 / 667.0 (light gain) and G270 / 668.0 (aimed, coloured sun) with a worktree worker; **queued behind them (same GPU files):** G271 / 669.0 (lamp cost per pixel on a phone: cull/cluster lamps, counts, a named cheap mode) and G272 / 670.0 (shadow-casting lamps chosen by the view, cap as a constant, counts). Release when all four ship. `gh run list --commit` needs the FULL sha; a short one returns `[]` forever.
+**2026-11-05 update (release v0.130.0, latest).** **v0.130.0 is the latest release** (tag on `5f9657e7`, 8 assets, OneDrive `pdfcer2`; `pdfcer1` keeps 0.129.0; crates color/model/pkix 0.130.0). **The next release writes pdfcer1.** It carries 667.0 (G269 light gain), 668.0 (G270 aimed, coloured sun), 669.0 (G271 lamp culling and counts), 670.0 (G272 shadow-caster choice), 671.0 (X043 glTF memory bounds) and 672.0 (G268 GPU fisheye fix). **CI was red at the tag on the doc audit only** (`check-public-fns-documented.py`: four undocumented helper fns); fixed forward by `30d93f57` (comment-only), tag not moved. Notice `open/notice_2026-11-05_v0.130.0_released.md`. **Open follow-ups:** Pass 669.1 (tiled per-tile light lists; GPU pixel agreement for the cull is unmeasured) and real-hardware checks of the GPU lens and lamps. **No open request addressed to pdfcer remains** (X041 and X038 are addressed to pdfcer-gui). **Next: wait for the next request round.** `gh run list --commit` needs the FULL sha; a short one returns `[]` forever.
+
+**2026-11-05 update (release v0.129.0).** v0.129.0 was the release then (tag on `56ee4f85`, 8 assets, CI green, OneDrive `pdfcer1`; `pdfcer2` kept 0.128.0). It carried X042 / 665.0 (`94e4eaad`, rich copy keeps spaces) and G268 / 666.0 (`336f7c76`, `Projection::Fisheye`, `3d-render --lens`).
 
 **2026-11-04 update (release v0.128.0).** **v0.128.0 was released** (tag on `eba71f2f`, 8 assets, OneDrive `pdfcer2`; `pdfcer1` keeps 0.127.0). **The next release writes pdfcer1.** It carries X039 / 661.0 (`a6a1ed44`), 662.0 (`f8da53ad`, the prepass silhouette outline Ken reported, measured headless in `ccf24788`), G266 / 660.0 (`d77620b6`, metadata), X040 / 663.0 (`7760a3bf`, rich-copy hardening) and G267 / 664.0 (`517f96d9`, plain text drops controls). The full gate run caught two stale tests (`eba71f2f`). **Standing rule R263 (decision 216, Ken):** test only what changed when it is safe to; rerun only the failed test binaries when a fix touched only tests; the cheap filing, doc, Linux and feature-variant gates always run. **Ken lifted the build load cap** ("build this as fast as you can"). X041 is pdfcer-gui's (clipboard cap and NUL); the engine side is in this tag. Notice `open/notice_2026-11-04_v0.128.0_released.md`. **Next: wait for the next request round.**
 
@@ -115,7 +117,10 @@ failure classes, probe recipes, release recipe detail) is in git:
   the crates changed since the last tag + the filing gates + the fresh-folder
   smoke; `run-gates.sh` is CI's job. `verify-release` fails only "working tree
   clean", on the uncommitted spec-librarian memory files (deliberate).
-  Recipe: bump `Cargo.toml` + `cargo update -w` (root and `fuzz/`), librarian
+  Recipe: bump `Cargo.toml` + `cargo update -w` (root and `fuzz/`), run every
+  CI `python tools/` audit (each `run: python tools/...` line in
+  `.github/workflows/*.yml`) and check the round's CI colour before tagging
+  (v0.130.0 went out red on a doc audit the scoped list lacked), librarian
   files the bump, tag the FILING commit, push both, `package-portable.py
   --note`, zip with Python, `sha256sum`, `gh-release.py`, `deploy-onedrive.py
   --build`, `verify-release.py`, notify pdfcer-gui. Move untracked probe `.rs`

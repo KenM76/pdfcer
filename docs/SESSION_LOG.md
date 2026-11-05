@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-05 (1431st filing) — `v0.130.0` PUBLISHED; CI red at the tag, fixed forward by `30d93f57`
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only):**
+- **`v0.130.0` PUBLISHED:** tag on `5f9657e7` (the bump commit, directly after the 1430th filing `5a1240a5`), pushed with `main`. 8 GitHub assets (portable zip 28,784,208 bytes; three OCR add-on zips; `.sha256` each), `gh-release.py` PASS. Crates `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.130.0. OneDrive CLI in `pdfcer2`; `pdfcer1` keeps 0.129.0; **the next release writes `pdfcer1`**. Build folder `D:\builds\pdfcer-20261105-1402-5f9657e`. Fresh-folder smoke test passed (glTF to `3d-render` with `--light-gain`, `--lamp-cost nearest:1`, `--sun-*`; lamp counts note printed).
+- **Carries** `Pass 667.0`-`672.0` (`G269`, `G270`, `G271`, `G272`, `X043`, `G268` GPU fix). "Unreleased; ships in `v0.130.0`" in the `669.0` and `670.0` Shipped entries amended to released; no other ROADMAP entry and no FEATURES row carried the wording (grep).
+- **CI red at the tag:** only "repository audits (32 checks)", on `check-public-fns-documented.py` (four undocumented helper fns from `X043` and `G271`). The round's three earlier pushes (`6909f891`, `67393c89`, `ca265319`) were also red (clippy `--no-default-features`, ubuntu tests, audits). Fixed forward by `30d93f57` (comment-only; shipped binary unaffected). Tag not moved (needs Ken's go-ahead). `verify-release.py`: 2 problems, the deliberate dirty memory files and this CI colour.
+- **Lesson (fourth recurrence of "a CI step my scoped list did not contain"):** the `R263` release set must also run every `run: python tools/...` line from `.github/workflows/*.yml` (30 seconds, no build) and read the CI colour of the round's earlier pushes before tagging. Recorded in the `ROADMAP.md` release entry and `docs/NEXT_SESSION.md`; no rule number minted (the engineer decides whether it graduates to a rule).
+- **Open follow-ups:** `Pass 669.1` (tiled per-tile light lists), real-hardware checks of the GPU lens and lamps. No open request addressed to pdfcer (`X041`, `X038` are `pdfcer-gui`'s).
+- **Files:** `ROADMAP.md`, `SESSION_LOG.md`, `NEXT_SESSION.md` (written at the engineer's request). GUI notice `notice_2026-11-05_v0.130.0_released.md` written by the engineer. Backup currency not verifiable from here. Next filing 1432nd.
+
 ## 2026-11-05 (1430th filing) — `Pass 669.0` (`G271`, `11b64a94`) and `670.0` (`G272`, `1221e5a1`) shipped
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only):**
