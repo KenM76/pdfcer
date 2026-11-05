@@ -260,6 +260,45 @@ fn a_sun_shadow_light_is_reported_and_drawn() {
     assert_ne!(sun, sun_x, "the sun follows --up");
 }
 
+/// `--sun-azimuth` aims a sun, says where, and swings its shadow across
+/// the floor; a bearing that is not finite is refused.
+#[test]
+fn sun_azimuth_aims_the_sun() {
+    let s = Scratch::new("sun_azimuth");
+    std::fs::write(s.path("m.glb"), floor_and_square()).unwrap();
+    let pdf = format!(
+        "{}/../../fixtures/synthetic/minimal.pdf",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let (m, out) = (s.path("m.glb"), s.path("out.pdf"));
+    let args = ["3d-embed", &pdf, "--model", &m, "--page", "1"];
+    stdout(&run(&[
+        &args[..],
+        &["--rect", "10,10,190,190", "--apply", "-o", &out],
+    ]
+    .concat()));
+    let render = |azimuth: &str| {
+        let png = s.path(&format!("az{azimuth}.png"));
+        let mut args = vec!["3d-render", &out, "--index", "0", "--eye=1,-3,4"];
+        args.extend_from_slice(&["--no-ambient-occlusion", "--width", "120"]);
+        args.extend_from_slice(&["--height", "80", "-o", &png]);
+        args.extend_from_slice(&["--sun-azimuth", azimuth]);
+        let o = run(&args);
+        let pixels = std::fs::read(&png).unwrap_or_default();
+        (o, pixels)
+    };
+    let (o, front) = render("0");
+    let note = stdout(&o);
+    assert!(
+        note.contains("note: shadows: cast by a sun aimed at azimuth 0°, elevation 45°"),
+        "{note}"
+    );
+    let (_, right) = render("90");
+    assert_ne!(front, right, "the shadow turns with the sun");
+    let (o, _) = render("inf");
+    assert_eq!(o.status.code(), Some(2));
+}
+
 /// `--render-mode` reaches the renderer and is disclosed with its source;
 /// `auto` on a view naming no mode draws solid.
 #[test]

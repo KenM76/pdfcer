@@ -70,6 +70,11 @@ pub enum ShadowLight {
         /// axis after `up` (X to Y, Y to Z, Z to X).
         negative: bool,
     },
+    /// A sun the operator aims ([`crate::SunLight`]), added to the scheme
+    /// as one more directional light and casting as the key light: its own
+    /// share is removed where blocked. Fixed in the model, so a GPU shadow
+    /// map is redrawn only when the sun or the model changes.
+    AimedSun(crate::SunLight),
 }
 
 /// How the casting light's shadow changes a corner's shade.
@@ -156,6 +161,14 @@ impl Caster {
             }),
             ShadowLight::Sun { .. } => None,
             ShadowLight::FollowsScheme => Self::choose(shader, sense, basis),
+            // `Shader::for_frame` added the sun as the last light.
+            ShadowLight::AimedSun(sun) => match shader {
+                Shader::Set { lights, .. } => lights.len().checked_sub(1).map(|i| Caster {
+                    to_light: sun.direction(),
+                    kind: CasterKind::Light(i),
+                }),
+                _ => None,
+            },
         }
     }
 
@@ -198,16 +211,19 @@ fn sun(up: UpAxis, negative: bool) -> Option<[f64; 3]> {
     let forward = normalize(dir)?;
     let right = normalize(cross(forward, image_up))?;
     let v = shadow_key(&[right, cross(right, forward), forward])?;
-    if !negative {
-        return Some(v);
-    }
+    Some(if negative { turned(up, v) } else { v })
+}
+
+/// `v` turned half a revolution about the axis after `up` (X to Y, Y to
+/// Z, Z to X): a sun's place for a model whose up is minus `up`.
+pub(crate) fn turned(up: UpAxis, v: [f64; 3]) -> [f64; 3] {
     let a = match up {
         UpAxis::X => 1,
         UpAxis::Y => 2,
         UpAxis::Z => 0,
     };
     // v' = 2(a.v)a - v for the unit axis a.
-    Some([0, 1, 2].map(|i| if i == a { at(v, i) } else { -at(v, i) }))
+    [0, 1, 2].map(|i| if i == a { at(v, i) } else { -at(v, i) })
 }
 
 /// The orthographic view from the casting light over the model's bounding

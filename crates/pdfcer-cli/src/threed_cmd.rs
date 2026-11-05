@@ -632,17 +632,9 @@ fn render_from_bytes(
             LightSenseArg::Towards => pdfcer_3d::LightSense::TowardsLight,
             LightSenseArg::Emitted => pdfcer_3d::LightSense::Emitted,
         },
-        shadow_light: match a.shadow_light {
-            ShadowLightArg::Scheme => pdfcer_3d::ShadowLight::FollowsScheme,
-            ShadowLightArg::Sun => pdfcer_3d::ShadowLight::Sun {
-                up: a.up.unwrap_or_default().axis(),
-                negative: false,
-            },
-            ShadowLightArg::SunNegative => pdfcer_3d::ShadowLight::Sun {
-                up: a.up.unwrap_or_default().axis(),
-                negative: true,
-            },
-        },
+        shadow_light: a
+            .light
+            .shadow_light(a.shadow_light, a.up.unwrap_or_default().axis()),
         shadow_casters: shadow_note::casters(a.shadow_casters),
         shadow_alpha: shadow_note::alpha(a.shadow_alpha, a.shadow_cutoff),
         threads: a.threads,

@@ -125,6 +125,8 @@ mod shadow_cast;
 mod shadow_set;
 #[cfg(all(test, feature = "render"))]
 mod shadow_tests;
+#[cfg(feature = "render")]
+mod sun;
 mod tess;
 mod tess_face;
 mod tess_wire;
@@ -226,6 +228,8 @@ pub use schema::Schema;
 pub use shadow::{DEFAULT_SHADOW_MAP_SIZE, LightSense, MAX_SHADOW_MAP_SIZE, ShadowLight};
 #[cfg(feature = "render")]
 pub use shadow_cast::{DEFAULT_SHADOW_CUTOFF, ShadowAlpha, ShadowCasters};
+#[cfg(feature = "render")]
+pub use sun::{MAX_SUN_KELVIN, MIN_SUN_KELVIN, SunColour, SunLight, kelvin_rgb};
 pub use tess::{Tessellation, TriangleMesh, WireTessellation};
 pub use texture::{MAX_TEXTURE_PIXELS, Texture, TextureFunction, TextureOrigin, TextureWrap};
 pub use tree::{

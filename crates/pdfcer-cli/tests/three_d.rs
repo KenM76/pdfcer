@@ -1642,3 +1642,65 @@ fn light_gain_brightens_the_render_and_is_noted() {
         assert!(!output.exists());
     }
 }
+
+/// The red and blue sums of `rgba`.
+#[cfg(feature = "3d")]
+fn red_blue(rgba: &[u8]) -> (u64, u64) {
+    rgba.chunks(4).fold((0, 0), |(r, b), p| {
+        (r + u64::from(p[0]), b + u64::from(p[2]))
+    })
+}
+
+/// `--sun-elevation` raises the sun; outside 0 to 90 is refused.
+#[cfg(feature = "3d")]
+#[test]
+fn sun_elevation_raises_the_sun() {
+    let (note, low) = lit_render("sun_el10", &["--sun-elevation", "10"]);
+    assert!(note.contains("elevation 10°"), "{note}");
+    let (_, high) = lit_render("sun_el80", &["--sun-elevation", "80"]);
+    assert_ne!(low, high);
+    for bad in ["-1", "91"] {
+        let (out, _) = lens_render("sun_el_bad", &["--sun-elevation", bad]);
+        assert_eq!(out.status.code(), Some(2), "{bad}");
+    }
+}
+
+/// `--sun-kelvin` colours the sun: 2000 K draws redder than 6500 K.
+#[cfg(feature = "3d")]
+#[test]
+fn sun_kelvin_colours_the_sun() {
+    let (note, warm) = lit_render("sun_k2000", &["--sun-kelvin", "2000"]);
+    assert!(note.contains("2000 K"), "{note}");
+    let (_, white) = lit_render("sun_k6500", &["--sun-kelvin", "6500"]);
+    let ((wr, wb), (r, b)) = (red_blue(&warm), red_blue(&white));
+    assert!(wr * b > r * wb, "{wr}/{wb} {r}/{b}");
+    let (out, _) = lens_render("sun_k_bad", &["--sun-kelvin", "999"]);
+    assert_eq!(out.status.code(), Some(2));
+}
+
+/// `--sun-colour from-elevation` names the temperature it chose, and
+/// cannot be given with `--sun-kelvin`.
+#[cfg(feature = "3d")]
+#[test]
+fn sun_colour_from_elevation_says_its_temperature() {
+    let args = ["--sun-colour", "from-elevation", "--sun-elevation", "90"];
+    let (note, _) = lit_render("sun_from_el", &args);
+    assert!(note.contains("5500 K, from its elevation"), "{note}");
+    let both = ["--sun-colour", "from-elevation", "--sun-kelvin", "3000"];
+    let (out, _) = lens_render("sun_both", &both);
+    assert_eq!(out.status.code(), Some(2));
+}
+
+/// `--sun-gain` scales the sun alone; with no sun option there is no sun.
+#[cfg(feature = "3d")]
+#[test]
+fn sun_gain_scales_the_sun() {
+    let sum = |p: &[u8]| p.iter().map(|&c| u64::from(c)).sum::<u64>();
+    let (note, plain) = lit_render("sun_none", &[]);
+    assert!(!note.contains("a sun aimed"), "{note}");
+    let (_, dim) = lit_render("sun_g025", &["--sun-gain", "0.25"]);
+    let (_, bright) = lit_render("sun_g2", &["--sun-gain", "2"]);
+    assert!(sum(&plain) < sum(&dim) && sum(&dim) < sum(&bright));
+    let (out, _) = lens_render("sun_g_bad", &["--sun-gain", "5"]);
+    assert_eq!(out.status.code(), Some(2));
+}

@@ -3522,6 +3522,41 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   the shaders read -- re-upload `u_ambient`, `u_count` and the light table
   for Headlight frames too. CLI: `3d-render --light-gain F` (prints a
   `note: lighting: every light times F` line when F is not 1).
+- **Aimed sun** (`G270`, `render` feature): `RenderOptions::shadow_light =
+  ShadowLight::AimedSun(SunLight { up: UpAxis, negative: bool,
+  azimuth_deg: f64, elevation_deg: f64, colour: SunColour, gain: f64 })`
+  ADDS one directional light, fixed in the model, to the scheme's lights
+  (appended last; under `Headlight` the frame becomes the 0.3 ambient +
+  0.7 camera light plus the sun; `Unlit` stays unlit, no sun, no shadow).
+  The sun is the key light: it casts the shadow and only its own share is
+  removed where blocked; under `ShadowCasters::EveryLight` the scheme's
+  other directional lights cast too. Aim: in the Z-up frame the direction
+  towards the sun is `(sin a·cos e, −cos a·cos e, sin e)` — azimuth 0 is
+  the model's front (−Y), 90 its right (+X), counter-clockwise seen from
+  above `up` — then carried to `up` like `Sun` (Y up: front +Z; X up:
+  front −Z, right +Y); `negative` applies `Sun`'s half-turn.
+  `SunLight::direction()` returns it. Colour: `SunColour::Kelvin(k)`
+  (`MIN_SUN_KELVIN` 1000 ..= `MAX_SUN_KELVIN` 40000) or
+  `SunColour::FromElevation` (`2000 + 3500·√(sin e)` K: 2000 on the
+  horizon, 5500 overhead; `SunLight::kelvin()` gives the value used).
+  `kelvin_rgb(k)` is the Tanner Helland blackbody fit divided per channel
+  by its 6500 K value, so 6500 K is `[1,1,1]` and lower is warmer; the
+  light's colour is `kelvin_rgb × gain × light_gain` (`SunLight::rgb()`
+  omits `light_gain`). Refused with `RenderError::Sun(reason)` from
+  `render*`, `FrameLights::for_model` and the frame-shadow constructors
+  when the azimuth is not finite, the elevation is outside 0..=90, the
+  kelvin is outside its range, or the gain is outside 0.25..=4. Off
+  (`FollowsScheme`, `Sun`) draws byte-identically to before. `SunLight` and
+  `SunColour` compare and hash by bits, so `ShadowLight` stays `Eq + Hash`;
+  `SunColour` is `#[non_exhaustive]`, `SunLight` is not (build it with
+  every field). GPU: the sun is a `FrameLights` row like any other and
+  `FrameShadow::light` is its index; the shadow map only needs redrawing
+  when the sun or the model changes. CLI: `3d-render --sun-azimuth DEG
+  --sun-elevation DEG --sun-kelvin K | --sun-colour from-elevation
+  --sun-gain G` (any of them adds the sun, defaults 45°, 45°,
+  from-elevation, 1; `--shadow-light sun-negative` sets `negative`); the
+  shadows note names it (`cast by a sun aimed at azimuth A°, elevation
+  E°, K K[, from its elevation], strength G, added to the lights`).
 - **Shadows and ambient occlusion** (`render` feature; the standard
   defines neither, so both are pdfcer's and disclosed). On by default.
   `RenderOptions::shadows: bool` — the key light casts: the scheme's brightest
@@ -3973,6 +4008,7 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   picture circle;
   `RenderError::LightGain` for a `light_gain` that is not finite or is
   outside 0.25..=4;
+  `RenderError::Sun(reason)` for an aimed sun out of range (see Aimed sun);
   `RenderError::TooMuchWork { limit }` when the frame's triangles would
   test more than `MAX_RENDER_PIXEL_TESTS` pixel and texel centres (image
   plus shadow maps, refused before drawing). Non-finite vertices and

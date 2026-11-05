@@ -43,4 +43,8 @@ pub enum RenderError {
     /// [`crate::MIN_LIGHT_GAIN`]–[`crate::MAX_LIGHT_GAIN`].
     #[error("the light gain must be a number from 0.25 to 4")]
     LightGain,
+    /// A [`crate::ShadowLight::AimedSun`] number the sun does not draw:
+    /// which one, and its range.
+    #[error("invalid sun: {0}")]
+    Sun(&'static str),
 }

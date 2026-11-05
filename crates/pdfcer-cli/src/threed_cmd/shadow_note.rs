@@ -96,43 +96,56 @@ fn lamp_shadows(
     out
 }
 
+/// How several casters share the shadows, and any past the limit.
+fn extras_tail(e: &FrameExtraShadows) -> String {
+    let mut tail = ", each shadow taking only its own light".to_owned();
+    if e.dropped > 0 {
+        tail.push_str(&format!(
+            "; {} more directional light(s) past the limit of {} casters light without a \
+             shadow",
+            e.dropped,
+            pdfcer_3d::MAX_SHADOW_CASTERS
+        ));
+    }
+    tail
+}
+
 fn shadows(
     a: &RenderThreeDArgs<'_>,
     model: &AssembledModel,
     camera: &Camera,
     options: &RenderOptions,
 ) -> String {
-    let who = match a.shadow_light {
-        _ if !a.shadows => return "off".to_owned(),
-        ShadowLightArg::Sun => "a sun fixed above the model on the `--up` axis".to_owned(),
-        ShadowLightArg::SunNegative => {
-            "a sun fixed on the negative side of the `--up` axis".to_owned()
-        }
-        ShadowLightArg::Scheme => {
-            let extra = Bounds::of(&model.meshes).and_then(|bounds| {
-                FrameExtraShadows::for_model(camera, options, &bounds, &model.lights)
-                    .ok()
-                    .flatten()
-            });
-            match extra {
-                None => "one of the lights in use".to_owned(),
-                Some(e) => {
-                    let mut who = format!(
-                        "{} of the lights in use, each shadow taking only its own light",
-                        e.count + 1
-                    );
-                    if e.dropped > 0 {
-                        who.push_str(&format!(
-                            "; {} more directional light(s) past the limit of {} casters \
-                             light without a shadow",
-                            e.dropped,
-                            pdfcer_3d::MAX_SHADOW_CASTERS
-                        ));
-                    }
-                    who
-                }
+    if !a.shadows {
+        return "off".to_owned();
+    }
+    let extra = || {
+        Bounds::of(&model.meshes).and_then(|bounds| {
+            FrameExtraShadows::for_model(camera, options, &bounds, &model.lights)
+                .ok()
+                .flatten()
+        })
+    };
+    let who = match (options.shadow_light, a.shadow_light) {
+        (pdfcer_3d::ShadowLight::AimedSun(sun), _) => {
+            let sun = super::light_args::sun_note(&sun);
+            match extra() {
+                None => sun,
+                Some(e) => format!(
+                    "{sun}, and {} more of the lights in use{}",
+                    e.count,
+                    extras_tail(&e)
+                ),
             }
         }
+        (_, ShadowLightArg::Sun) => "a sun fixed above the model on the `--up` axis".to_owned(),
+        (_, ShadowLightArg::SunNegative) => {
+            "a sun fixed on the negative side of the `--up` axis".to_owned()
+        }
+        (_, ShadowLightArg::Scheme) => match extra() {
+            None => "one of the lights in use".to_owned(),
+            Some(e) => format!("{} of the lights in use{}", e.count + 1, extras_tail(&e)),
+        },
     };
     let see_through = match options.shadow_alpha {
         ShadowAlpha::Transmit => {

@@ -13,7 +13,7 @@ use crate::lighting::{LightingScheme, Shader};
 use crate::model_light::unit;
 use crate::render::{RenderError, RenderOptions};
 use crate::vec3::{dot, length, sub};
-use crate::{ModelLight, ModelLightKind};
+use crate::{ModelLight, ModelLightKind, ShadowLight};
 
 /// The headlight [`RenderOptions::artwork_headlight`] adds: the default
 /// light's `0.3 + 0.7·|n·v|`.
@@ -114,18 +114,28 @@ impl Shader {
     ///
     /// # Errors
     ///
-    /// [`RenderError::LightGain`] for a gain out of range.
+    /// [`RenderError::LightGain`] for a gain out of range;
+    /// [`RenderError::Sun`] for an aimed sun out of range, which is added
+    /// as the last directional light.
     pub(crate) fn for_frame(
         options: &RenderOptions,
         model: &[ModelLight],
         basis: &[[f64; 3]; 3],
     ) -> Result<Shader, RenderError> {
         let gain = crate::light_gain::checked_gain(options)?;
-        if options.lighting == LightingScheme::Artwork && !model.is_empty() {
+        let shader = if options.lighting == LightingScheme::Artwork && !model.is_empty() {
             let headlight = options.artwork_headlight;
-            return Ok(Shader::from_model(model, headlight, options.lamp_cut, gain));
+            Shader::from_model(model, headlight, options.lamp_cut, gain)
+        } else {
+            Shader::new(options.lighting.lights(), options.light_frame, basis).gained(gain)
+        };
+        match options.shadow_light {
+            ShadowLight::AimedSun(sun) => {
+                sun.check()?;
+                Ok(shader.with_sun(&sun, gain))
+            }
+            _ => Ok(shader),
         }
-        Ok(Shader::new(options.lighting.lights(), options.light_frame, basis).gained(gain))
     }
 
     /// `model`'s lights times `gain`, so each lamp's reach is its own.

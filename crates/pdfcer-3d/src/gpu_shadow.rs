@@ -38,7 +38,8 @@ void main() {}
 /// true and the uniforms named on each field. A light in
 /// [`crate::LightFrame::Camera`] moves with the eye, so the map is redrawn
 /// whenever the camera moves; in [`crate::LightFrame::World`], or with
-/// [`crate::ShadowLight::Sun`], only when the model or options change.
+/// [`crate::ShadowLight::Sun`] or [`crate::ShadowLight::AimedSun`], only
+/// when the model or options (the sun among them) change.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
 pub struct FrameShadow {
