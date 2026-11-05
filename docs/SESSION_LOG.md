@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-05 (1425th filing) — `Pass 665.0` (`X042`, `94e4eaad`) shipped; `Pass 666.0` (`G268`) filed IN FLIGHT
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, I commit nothing):**
+- **`Pass 665.0` SHIPPED, `94e4eaad`:** rich copy HTML keeps every space across runs and line breaks; `split_base_font` splits a hyphen only before a style word (`MS-Gothic` stays whole); new `family_as_named` fields on `FontFace` and `SpanStyle` (both `#[non_exhaustive]`), HTML lists `'Sim Sun','SimSun'`, RTF one name. Tests: 3 new, 4 sabotages each fail; `pdfcer-core` lib 2335 passed / 2 ignored, `copy_text` 3 passed, clippy/fmt/structure/`cargo doc` clean (all engineer-reported, change-scoped per `R263`). Not released; rides `v0.129.0`.
+- **`Pass 666.0` filed in *Next up*, IN FLIGHT (`G268`, fisheye lens, `pdfcer-3d`):** a worker is implementing it; not shipped. Banner block, not a `###` heading.
+- **Number assignment:** next free Pass by grep of `docs/` and `*.md/py/sh/rs` for `Pass 665`-`669` (zero hits): `665.0` and `666.0`. Next free `667.0`. Not checked with `tools/check-ledger-numbers.py` (no shell).
+- **Files:** `ROADMAP.md` (Shipped entry, Next up banner), `FEATURES.md` (copy row clause tightened; Planned fisheye row), `SESSION_LOG.md`.
+
+**Owed / open:** run `check-register-entry-size.py` (the FEATURES copy row was shortened, not lengthened), `check-ledger-numbers.py`, `check-commits-filed.py`. Both request files remain in `open/`; moving `X042` to done is the requester channel's call. When `666.0` lands: move the banner to *Shipped*, update the FEATURES row. Backup currency not verifiable from here. Next filing 1426th.
+
 ## 2026-11-04 (1424th filing) — `v0.128.0` PUBLISHED
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, I commit nothing):**

@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `94e4eaad` `Pass 665.0`, 2026-11-05: rich copy keeps every space and names hyphenated and spelt families (`X042`) (1425th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `94e4eaad` "fix(copy): rich copy keeps every space and names hyphenated and spelt families (X042)", local `main` as far as this filing knows. Request `X042` (crates consumer). Written fresh in pdfcer: PdfCraft's rich copy is its own `pdfcraft_export` code, nothing to adopt (decision 215). Core; CLI `copy-text` inherits it; gui is `pdfcer-gui`'s. NOT yet released; rides the next release (`v0.129.0`) together with `Pass 666.0` (`G268`).
+- **Spaces:** HTML space state now carries across a paragraph's runs, set at paragraph start and after `<br>`, so a run of spaces split across spans, or a line starting with a space after a break, no longer collapses when pasted.
+- **`split_base_font`:** a comma always opens the style; a hyphen only before a style word (Bold, Italic, Oblique, Regular, Roman, Light, Medium, Black, Heavy, Thin, Book, Demi, Semi, Extra, Ultra, Condensed, Narrow, Expanded, Wide, Normal, Plain, MT, PS), and not when the word continues in lowercase (`Blackadder`). `MS-Gothic` gives `MS Gothic`; `Arial-BoldMT` gives `Arial`.
+- **API:** new pub fields `FontFace::family_as_named` and `SpanStyle::family_as_named`; both structs are `#[non_exhaustive]`, so non-breaking. HTML `font-family` lists the spaced form then the as-spelt name when they differ (`'Sim Sun','SimSun'`); RTF keeps one name. `docs/core-api/01-reading-and-model.md` §8.4.4c rows updated; `check-core-api-verbs` PASS.
+- **Engineer-reported tests (change-scoped per `R263`):** 3 new tests plus the worst-span bound extended; 4 sabotages each fail. `pdfcer-core` lib 2335 passed / 2 ignored; `pdfcer-cli` `copy_text` 3 passed; `clippy -D warnings`, `fmt`, code-structure clean; `cargo doc` `broken_intra_doc_links` 0 errors. No `Cargo.toml` change (`cargo tree` N/A).
+- **Boxes:** FEATURES "Copy text with its formatting and paragraphs" row: one clause added; boxes unchanged (core `[x]`, cli `[x]`, gui `[ ]` is `pdfcer-gui`'s).
+
 ### `eba71f2f` `v0.128.0` PUBLISHED, 2026-11-04 (1424th filing)
 
 Engineer-reported; no shell here, nothing checked from here (GitHub, crates.io, OneDrive, CI and git state all as reported). Tag `v0.128.0` on `eba71f2f`; version bump `7d02540a`. Pushed. Carries `Pass 660.0` (`G266`, `d77620b6`), `Pass 663.0` (`X040`, `7760a3bf`), `Pass 664.0` (`G267`, `517f96d9`), test fix `eba71f2f`, plus the earlier-filed `Pass 661.0` (`X039`) and `Pass 662.0` per the 1421st/1422nd filings; standing rule `R263` / decision 216 (`a469d379`) landed in the same window. All filed earlier (1421st-1423rd).
@@ -25937,6 +25946,13 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> **`Pass 666.0` (`G268`, request from `pdfcer-gui`, operator ask `O391`): a fisheye lens for the 3D camera. IN FLIGHT (1425th filing): a worker is implementing it now in `pdfcer-3d`; NOT shipped, nothing committed as far as this filing knows.** Engine pin `eba71f2f` (`v0.128.0`). Wanted, from the request:
+> 1. A third `Projection` variant, say `Fisheye { fov, mapping }`, `fov` up to at least 180 degrees (diagonal or longer side: the engine's choice, documented); `mapping` at least equidistant and stereographic, or one with the reason.
+> 2. Drawn identically on the CPU (`PreparedScene::render`) and GPU (`gpu_frame`) paths to today's pixel tolerance; how a curved projection avoids bent-edge error (tessellation, per-fragment ray casting, cube-map) is the engine's decision, cost stated.
+> 3. `Camera::ray_through`, picking, walking collision, AO, gloss, depth prepass, shadows and edge lines follow the lens, or a named refusal says which does not.
+> 4. Outside the lens circle drawn in the background colour (or the variant documents that it fills the frame). 5. A named refusal, not a panic, for an out-of-range `fov`.
+> GUI follow-up (`pdfcer-gui`): Lens Flat / Fisheye option, remembered; no GUI-side warp. Rides `v0.129.0` with `Pass 665.0`. FEATURES: *Planned* row added, all boxes unticked. Request: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_G268_fisheye_lens_for_the_3d_camera.md`.
 
 > **Head (1421st filing): no open Pass at the head. `Pass 660.0` (`G266`, `d77620b6`), `661.0` (`X039`), `662.0` (`f8da53ad`) and `663.0` (`X040`, `7760a3bf`) are SHIPPED (see *Shipped*). `v0.128.0` is BEING CUT (bump `7d02540a`), carrying `X039`, `662.0`, `G266` and `X040`; not yet tagged or published as far as this filing knows; the release filing comes later. Release slot: OneDrive `pdfcer2` per the earlier banner (not re-verified here).** The older banners that follow are history.
 
