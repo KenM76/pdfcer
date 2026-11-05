@@ -81,8 +81,11 @@ bool kept(vec3 n1, vec3 n2, float kind, vec3 mid) {
 }
 
 /// The lens resample fragment shader: draw [`GLSL_ES_300_SCREEN_VERTEX`]
-/// over the whole picture once per [`LensFace`], depth test off, depth
-/// writes on, with that face's colour and depth targets bound.
+/// over the whole picture once per [`LensFace`], with that face's colour
+/// and depth targets bound, the depth test **on** with `depthFunc(ALWAYS)`
+/// and depth writes on. GL writes no depth while the depth test is
+/// disabled, which would leave the picture's depth cleared and draw every
+/// lens line and point over the surfaces in front of it.
 ///
 /// Uniforms: `u_face_colour` and `u_face_depth` (the face's colour and
 /// depth textures, read by `texelFetch`), `u_face` ([`LensFace::face`]),
@@ -163,8 +166,8 @@ void main() {
 /// `drawArraysInstanced(TRIANGLE_STRIP, 0, 4, segments * LENS_LINE_PIECES)`:
 /// instance `k` draws piece `k % LENS_LINE_PIECES` of its segment, whose
 /// ends are lens-projected and joined straight, widened as the wide line
-/// is. Uniforms: `u_eye`, `u_right`, `u_up`, `u_forward` (the fisheye
-/// camera's position and basis), `u_lens_mapping`, `u_lens_focal`,
+/// is. Uniforms: `u_eye`, `u_right`, `u_up`, `u_forward`
+/// ([`FrameLens::eye`], [`FrameLens::basis`]), `u_lens_mapping`, `u_lens_focal`,
 /// `u_lens_near` ([`FrameLens`]), `u_viewport`, `u_bias`, `u_crease_cos`,
 /// `u_line_width` (as the wide line's).
 ///

@@ -301,15 +301,21 @@ fn face_size(lens: &Lens, layout: Layout) -> (f64, u32, u32) {
 /// [`LensFace::camera`]'s view and projection matrices and depth range,
 /// **but with [`crate::FrameLights`], [`crate::FrameShadow`] and the other
 /// shadow sets built from the fisheye camera**, so camera-fixed lights and
-/// the shadow caster do not turn with each face. It then draws
+/// the shadow caster do not turn with each face. Ambient occlusion is the
+/// exception: [`crate::FrameAmbientOcclusion`] is built per face from
+/// [`LensFace::camera`] at the face's size. The host then draws
 /// [`crate::GLSL_ES_300_SCREEN_VERTEX`] with
 /// [`crate::GLSL_ES_300_LENS_RESAMPLE_FRAGMENT`] once per face into the
 /// picture, each pass writing only the pixels that face owns, with the
-/// fisheye camera's depth range ([`Camera::depth_range`]). Lines and
-/// points are drawn afterwards straight into the picture with
-/// [`crate::GLSL_ES_300_LENS_LINE_VERTEX`] and
+/// fisheye camera's depth range ([`Camera::depth_range`]) and the depth
+/// test **on** with `depthFunc(ALWAYS)` and depth writes on: GL writes no
+/// depth while the test is disabled, and the picture's depth is what hides
+/// lines and points behind surfaces. Lines and points are drawn afterwards
+/// straight into the picture (depth test `LEQUAL`, the planar paths'
+/// blending) with [`crate::GLSL_ES_300_LENS_LINE_VERTEX`] and
 /// [`crate::GLSL_ES_300_LENS_POINT_VERTEX`], each segment instanced
-/// [`LENS_LINE_PIECES`] times.
+/// [`LENS_LINE_PIECES`] times, `u_eye` and `u_right`/`u_up`/`u_forward`
+/// from [`FrameLens::eye`] and [`FrameLens::basis`].
 ///
 /// The CPU renderer ([`crate::render`]) composes the same faces and
 /// matches this to the planar paths' tolerance.
@@ -338,6 +344,13 @@ pub struct FrameLens {
     /// `u_lens_near`: the distance from the eye inside which a line or
     /// point is not drawn, model units.
     pub near: f32,
+    /// `u_eye` for the lens line and point shaders: the fisheye camera's
+    /// eye.
+    pub eye: [f32; 3],
+    /// `u_right`, `u_up`, `u_forward` for the lens line and point shaders:
+    /// the fisheye camera's unit basis in model space (the rows of its
+    /// [`Camera::view_matrix`], forward negated).
+    pub basis: [[f32; 3]; 3],
     /// The faces to draw, the forward face first.
     pub faces: Vec<LensFace>,
 }
@@ -401,6 +414,8 @@ impl FrameLens {
             mapping: lens.mapping.code(),
             focal: lens.focal as f32,
             near: lens.near as f32,
+            eye: camera.eye.map(|c| c as f32),
+            basis: narrow(camera.basis()?),
             faces: faces
                 .into_iter()
                 .map(|f| LensFace {

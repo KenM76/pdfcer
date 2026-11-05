@@ -3741,21 +3741,36 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   - Fisheye frames (`G268`): `FrameLens::new(&camera, width, height) ->
     Result<FrameLens, RenderError>` (`#[non_exhaustive]`; `mapping` →
     `u_lens_mapping`, `focal` → `u_lens_focal`, `near` → `u_lens_near`,
+    `eye` → `u_eye`, `basis` → `u_right` / `u_up` / `u_forward`,
     `faces: Vec<LensFace>`). Draw each `LensFace { camera, width, height,
     face, axes, scale }` as an ordinary perspective frame (prepass,
-    shading, shadows, AO) offscreen at its size, from its camera's matrices
-    and depth range but with `FrameLights` / `FrameShadow` built from the
-    fisheye camera; then compose with `GLSL_ES_300_SCREEN_VERTEX` +
-    `GLSL_ES_300_LENS_RESAMPLE_FRAGMENT` once per face (depth test off,
-    depth writes on), and draw lines and points straight into the picture
-    with `GLSL_ES_300_LENS_LINE_VERTEX` (instanced `LENS_LINE_PIECES` = 16
-    chords per segment) / `GLSL_ES_300_LENS_POINT_VERTEX`, each with
-    `GLSL_ES_300_LINE_FRAGMENT`. Uniforms are listed on each constant.
-    Cost: one face of about the picture's size within 90° of the axis;
-    otherwise up to six square faces of up to (2·max(width, height))² px
-    (cap 4096) plus one resample pass each. AO can differ slightly across a
-    face seam. The CPU path composes the same faces; the GLSL has not been
-    executed by pdfcer's tests (string checks and the CPU mirror only).
+    shading, shadows, AO) offscreen at its size into an RGBA8 colour +
+    depth target, from its camera's matrices and depth range but with
+    `FrameLights` / `FrameShadow` (and the other shadow sets) built from
+    the fisheye camera; `FrameAmbientOcclusion` is built from the face's
+    camera at the face's size (it refuses a fisheye camera). Then compose
+    with `GLSL_ES_300_SCREEN_VERTEX` + `GLSL_ES_300_LENS_RESAMPLE_FRAGMENT`
+    once per face, face colour and depth bound as textures, **depth test
+    enabled with `depthFunc(ALWAYS)` and depth writes on** — GL writes no
+    depth with the test disabled, and without the picture's depth every
+    line and point draws over the surfaces in front of it. Then draw
+    lines and points straight into the picture (depth `LEQUAL`, the
+    planar paths' blending) with `GLSL_ES_300_LENS_LINE_VERTEX` (stride
+    and attributes as the wide line, divisor `LENS_LINE_PIECES` = 16,
+    `drawArraysInstanced(TRIANGLE_STRIP, 0, 4, segments * 16)`) /
+    `GLSL_ES_300_LENS_POINT_VERTEX` (`GL_POINTS`), each with
+    `GLSL_ES_300_LINE_FRAGMENT` (`u_depth_range` the fisheye camera's).
+    Uniforms are listed on each constant. As everywhere, bind every
+    sampler of a program to its own unit: WebGL refuses a draw whose
+    `sampler2D` and `sampler2DArray` uniforms share one (unset samplers
+    all default to unit 0). Cost: one face of about the picture's size
+    within 90° of the axis; otherwise up to six square faces of up to
+    (2·max(width, height))² px (cap 4096) plus one resample pass each. AO
+    can differ slightly across a face seam. Verified in headless WebGL2
+    (SwiftShader) against the CPU path, equidistant and stereographic at
+    60–360°, wireframe and vertex modes: mean difference ≤ 0.06 levels.
+    Not verified there: shadows, AO, textures and translucency under the
+    lens.
   - Per frame: `camera.view_matrix()` and `camera.projection_matrix(aspect,
     &bounds)` (column-major `[f32; 16]`; `bounds` = `Bounds::of(&model.meshes)`,
     sizing the depth range), and `FrameLights::new(&camera, &options)` for

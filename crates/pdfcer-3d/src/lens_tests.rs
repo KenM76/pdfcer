@@ -332,6 +332,29 @@ fn the_host_face_set_covers_every_owned_face() {
     }
 }
 
+/// The lens line and point uniforms a host reads from the frame are the
+/// fisheye camera's eye and the basis its view matrix encodes.
+#[test]
+fn the_lens_frame_carries_the_fisheye_eye_and_basis() {
+    let mut camera = camera(200.0, STEREO);
+    camera.eye = [-3.0, 2.2, 2.0];
+    camera.target = [1.0, -1.3, 0.3];
+    camera.up = [0.1, 0.2, 1.0];
+    let frame = FrameLens::new(&camera, 120, 90).unwrap();
+    assert_eq!(frame.eye, [-3.0, 2.2, 2.0]);
+    let m = camera.view_matrix().unwrap();
+    let rows = [
+        [m[0], m[4], m[8]],
+        [m[1], m[5], m[9]],
+        [-m[2], -m[6], -m[10]],
+    ];
+    for (axis, row) in frame.basis.iter().zip(rows) {
+        for (a, b) in axis.iter().zip(row) {
+            assert!((a - b).abs() < 1e-6, "{:?} vs {rows:?}", frame.basis);
+        }
+    }
+}
+
 #[test]
 fn a_planar_camera_has_no_lens_frame() {
     let mut camera = camera(180.0, EQUI);
