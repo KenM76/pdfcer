@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-05 (1429th filing) — `Pass 671.0` (`X043`, `c478faef`) and `672.0` (`G268` GPU, `5513fe01`) shipped
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only):**
+- **`Pass 671.0` SHIPPED, `c478faef`:** glTF import memory bounds: accessor budget 4x10^7 components (checked `count*want`), `pdfcer-json` `MAX_VALUES` 10^7 with `Limits`, `parse_with_limits`, `JsonErrorKind`; image caps 512 MiB loaded, 1 GiB into textures; checked GLB arithmetic. Past-cap items skipped with a note, never a panic. `pdfcer-3d` lib 434, `pdfcer-json` 6+1, sabotage 5/5; fuzz target builds, not run.
+- **`Pass 672.0` SHIPPED, `5513fe01`:** fisheye on the GPU (Ken's ask). Host recipe's depth-test-off drew lens lines and points through surfaces; fixed to depth test on (`ALWAYS`, writes on; lines and points `LEQUAL`); new `FrameLens::eye` and `basis`. First run of all four lens programs, on SwiftShader WebGL 2 at 400x300: at most 0.055 mean levels vs CPU after the fix (4.41 before). Shadows, AO, textures, translucency under the lens and real hardware not checked. GUI notice filed by the engineer.
+- **FEATURES:** moved "Fisheye lens", "3D light gain", "3D sun" out of *Planned* into *Implemented* (Reading, navigation & printing, after the 3D opening-view row), because core and cli are `[x]` and only the gui box is open, as for the neighbouring 3D rows; added "Fisheye lens on the GPU draws correctly" and moved "glTF import memory bounds" (core `[x]`, cli and gui `—`). The fisheye row's "GPU shaders not yet run" caveat removed (hard rule 11: a claim that changed meaning). Survivor, correct and left: the sun row still says its GPU shader is unrun (only the lens programs were run). Not swept in `crates/` (outside remit): any rustdoc saying the lens shaders are unexecuted.
+- **ROADMAP:** two *Shipped* entries; the `671` Next up banner replaced by a 1429th note. `672` had zero hits by grep, not `tools/check-ledger-numbers.py`.
+- **Still in flight:** `Pass 669.0` (`G271`), `670.0` (`G272`). Backup currency not verifiable from here. Next filing 1430th.
+
 ## 2026-11-05 (1428th filing) — `Pass 667.0` (`G269`, `c023645c`) and `668.0` (`G270`, `c60a6613`) shipped; `Pass 671.0` (`X043`) filed IN FLIGHT
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only):**

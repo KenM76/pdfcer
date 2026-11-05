@@ -112,6 +112,28 @@ wherever it appears.*
 
 ## Shipped
 
+### `5513fe01` `Pass 672.0`, 2026-11-05: the fisheye lens works on the GPU (`G268` follow-up) (1429th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `5513fe01` on `main`. Operator ask (Ken): "Please get the fisheye lens working on the GPU as well." Follows `Pass 666.0` (`336f7c76`), whose GPU shaders had never run.
+- **Defect:** the documented host recipe composed each lens face with "depth test off, depth writes on". GL writes no depth with the test off, so lens lines and points drew through surfaces.
+- **Fix:** depth test on with `depthFunc(ALWAYS)` and writes on for the face; lines and points `LEQUAL`.
+- **API (`pdfcer-3d`):** new pub fields `FrameLens::eye` and `FrameLens::basis` (camera basis for `u_right`, `u_up`, `u_forward`), tested against the view matrix; sabotage caught.
+- **Docs corrected:** `FrameLens`, `resample` and lens-line doc comments, and `docs/core-api/01-reading-and-model.md` (AO is built per face from the face camera; every sampler on its own texture unit).
+- **Verified for the first time:** all four lens programs compile, link and run on headless Edge + SwiftShader WebGL 2. Against the CPU at 400x300 across equidistant 60/120/180/270/360, stereographic 120/180/270, off-axis, wireframe width 3 and vertex points: fixed path at most 0.055 mean levels and at most 0.04% of pixels over 8; the shipped recipe was up to 4.41 mean levels and 3.60% of pixels.
+- **Not verified:** shadows, AO, textures and translucency under the lens; real hardware.
+- **GUI:** notice `open/notice_2026-11-05_fisheye_on_the_gpu.md`. FEATURES: new row "Fisheye lens on the GPU draws correctly" core `[x]`; gui stays `[ ]` until `pdfcer-gui` draws it. The `Pass 666.0` row lost its "GPU shaders not yet run" caveat.
+
+### `c478faef` `Pass 671.0`, 2026-11-05: glTF import memory bounds (`X043`) (1429th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `c478faef` on `main`. Operator as `crates` consumer, written fresh; no PdfCraft fix exists. Core only.
+- **Behaviour:** per import, every item past a cap is skipped or dropped with a note, never a panic; existing notes unchanged. `read_gltf` signature unchanged.
+- **Accessor budget:** one shared component budget of 4x10^7, charged `count*want` (checked) before allocation; re-reads are charged again; the primitive is skipped with "accessor N would pass the import's limit of B components read".
+- **JSON cap (`pdfcer-json`):** `MAX_VALUES` 10^7 enforced while parsing (every scalar, string, array and object counts; member names and commas inside strings do not); `JsonErrorKind::TooManyValues`. New pub items (crate is `publish = false`): `Limits { max_depth, max_values }` (`#[non_exhaustive]`, `Default`), `parse_with_limits`, `JsonError::kind`, `JsonErrorKind { Malformed, TooDeep, TooManyValues }` (`#[non_exhaustive]`). `parse` unchanged.
+- **Images:** bytes loaded capped at 512 MiB (checked before the copy); bytes copied into scene textures capped at 1 GiB (texture dropped with a note, base colour drawn).
+- **GLB:** container chunk end and alignment by checked arithmetic (untested: unreachable on 64-bit).
+- **Tests (engineer-reported):** `pdfcer-3d` lib 434 on main after the pick, `pdfcer-json` 6+1; sabotage of all 5 fixes caught. The gltf fuzz target builds, not run.
+- **Boxes:** FEATURES "glTF import memory bounds" core `[x]`, cli and gui `—`; moved to *Implemented*.
+
 ### `c60a6613` `Pass 668.0`, 2026-11-05: an aimed, coloured sun that lights and casts (`G270`) (1428th filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `c60a6613` on `main`. Request `G270` (`pdfcer-gui`). Core and CLI; the GUI binding is `pdfcer-gui`'s.
@@ -25997,7 +26019,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **1428th filing: `Pass 667.0` (`G269`, `c023645c`) and `Pass 668.0` (`G270`, `c60a6613`) are SHIPPED (see *Shipped*); `Pass 669.0` (`G271`) and `670.0` (`G272`) are now IN FLIGHT; `Pass 671.0` (`X043`) filed IN FLIGHT below. `671` had zero hits across `ROADMAP.md`/`FEATURES.md`/`SESSION_LOG.md` by grep (no shell; not run through `tools/check-ledger-numbers.py`).**
 
-> **`Pass 671.0` (`X043`, IN FLIGHT; operator as `crates` consumer, written fresh, no PdfCraft fix exists): glTF import memory bounds.** (1) One shared accessor component budget per import; a refused read skips the primitive with a note. (2) A JSON value cap in `pdfcer-json`, checked while parsing, with a named error. (3) Total caps on image bytes loaded and on bytes copied into scene textures; over-cap images are dropped with a note. (4) Checked arithmetic in the GLB container. Capability row: FEATURES Planned "glTF import memory bounds".
+> **1429th filing: `Pass 671.0` (`X043`, `c478faef`) and `Pass 672.0` (`G268` GPU follow-up, `5513fe01`) are SHIPPED (see *Shipped*); their FEATURES rows moved to *Implemented*. Still in flight: `Pass 669.0` (`G271`), `670.0` (`G272`). `672` had zero hits across the three docs by grep (no shell; not run through `tools/check-ledger-numbers.py`).**
 
 > **`Pass 669.0` (`G271`, IN FLIGHT): model lamps cost every pixel on a phone (Adreno 643).** Cull lamps whose reach misses the view before the fragment program, preferably tiled or clustered per-pixel lists; the picture stays the same as now; lamps-in-model and lamps-lit-this-frame counts for disclosure; a named cheaper mode if a bound remains. Capability row: FEATURES Planned "3D lamp culling".
 
