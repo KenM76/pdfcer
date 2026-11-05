@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `56ee4f85` `v0.129.0` PUBLISHED, 2026-11-05 (1427th filing)
+
+Engineer-reported; no shell here, nothing checked from here (GitHub, crates.io, OneDrive, CI and git state all as reported). Tag `v0.129.0` on `56ee4f85` (`main`; itself the 1426th filing); version bump `7b6664fd`. Carries `Pass 665.0` (`X042`, `94e4eaad`) and `Pass 666.0` (`G268`, `336f7c76`), both filed earlier (1425th, 1426th).
+- **GitHub release:** 8 assets (portable zip, `.sha256` files, `ocr-addon-{ocrcer,ocrs,tesseract}.zip`).
+- **OneDrive:** CLI slot `pdfcer1` now holds 0.129.0; `pdfcer2` keeps 0.128.0. **The next release writes `pdfcer2`.**
+- **crates.io:** `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` 0.129.0 published.
+- **CI:** green at `56ee4f85`.
+- **Gates:** change-scoped per `R263` / decision 216 (`pdfcer-core` text_edit, `pdfcer-3d`, `pdfcer-cli`), plus filing gates, `cargo doc` broken-link check, Linux check of the touched crates.
+- **Fresh-folder smoke test passed:** `3d-render --lens equidistant|stereographic|flat` rendered; flat `--fov 200` refused (exit 9); `--lens` with `--ortho` exit 2.
+- **`verify-release.py`:** all checks ok except "working tree clean", which flags only untracked agent-memory and research scratch files that are never committed (expected).
+
 ### `336f7c76` `Pass 666.0`, 2026-11-05: fisheye lens for the 3D camera (`G268`) (1426th filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `336f7c76` on `main` (cherry-picked from the worker's `5c8e02f9`); version bump `7b6664fd` (0.129.0). Rides `v0.129.0` with `Pass 665.0`. Request `G268` (`pdfcer-gui`, operator ask `O391`). Core and CLI; the GUI Lens option is `pdfcer-gui`'s.
@@ -25960,6 +25971,16 @@ closes out the *prior* filing's business rather than opening this one's.
 ---
 
 ## Next up
+
+> **1427th filing: `v0.129.0` PUBLISHED (see *Shipped*); the next release writes OneDrive `pdfcer2`. Four `pdfcer-gui` 3D requests filed (operator asks `O392`/`O393`, 2026-11-05, engine pin `56ee4f85`): `Pass 667.0` and `668.0` IN FLIGHT, `669.0` and `670.0` queued behind them (same GPU files). Numbers by grep of the repo (`Pass 667`-`670`: zero hits), not `tools/check-ledger-numbers.py` (no shell); last used was `666.0`.**
+
+> **`Pass 667.0` (`G269`, IN FLIGHT): a brightness gain for every 3D lighting scheme.** `RenderOptions::light_gain` (default 1, range 0.25-4) multiplies every light, model lamp, the headlight and ambient; per-channel clamp; a named refusal out of range; the GPU `FrameLights` carries it; gain 1 is byte-identical to today. Capability row: FEATURES Planned "3D light gain".
+
+> **`Pass 668.0` (`G270`, IN FLIGHT): an aimed, coloured sun.** Azimuth and elevation; colour by kelvin or derived from elevation; lights the model as an added directional light and casts the shadow from the same direction; CPU and GPU; named refusals; sun off is byte-identical. Capability row: FEATURES Planned "3D sun".
+
+> **`Pass 669.0` (`G271`, queued behind 667.0/668.0): model lamps cost every pixel on a phone (Adreno 643).** Cull lamps whose reach misses the view before the fragment program, preferably tiled or clustered per-pixel lists; the picture stays the same as now; lamps-in-model and lamps-lit-this-frame counts for disclosure; a named cheaper mode if a bound remains. Capability row: FEATURES Planned "3D lamp culling".
+
+> **`Pass 670.0` (`G272`, queued behind 669.0): which lamps cast shadows.** Choose the 16 shadow-casting lamps by contribution to the current view (reach covering the view, then brightness, then nearness), re-chosen when the view moves enough, maps kept while chosen; the cap is a constant beside `MAX_SHADOW_CASTERS` with its why; CPU and GPU choose the same lamps; would-cast and casting counts for disclosure. Capability row: FEATURES Planned "3D shadow-caster choice".
 
 > **Head (1421st filing): no open Pass at the head. `Pass 660.0` (`G266`, `d77620b6`), `661.0` (`X039`), `662.0` (`f8da53ad`) and `663.0` (`X040`, `7760a3bf`) are SHIPPED (see *Shipped*). `v0.128.0` is BEING CUT (bump `7d02540a`), carrying `X039`, `662.0`, `G266` and `X040`; not yet tagged or published as far as this filing knows; the release filing comes later. Release slot: OneDrive `pdfcer2` per the earlier banner (not re-verified here).** The older banners that follow are history.
 

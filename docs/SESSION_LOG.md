@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-05 (1427th filing) — `v0.129.0` PUBLISHED; `Pass 667.0`-`670.0` (`G269`-`G272`) filed
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only):**
+- **`v0.129.0` PUBLISHED:** tag on `56ee4f85` (bump `7b6664fd`), carries `Pass 665.0` and `666.0`. 8 GitHub assets; OneDrive `pdfcer1` (next release writes `pdfcer2`); crates.io `pdfcer-color`/`-model`/`-pkix` 0.129.0; CI green at the tag; change-scoped gates per `R263`; fresh-folder smoke test passed; `verify-release.py` ok except "working tree clean" (untracked scratch files, expected). Detail in the ROADMAP Shipped entry.
+- **Four `pdfcer-gui` requests filed (`O392`/`O393`, engine pin `56ee4f85`):** `667.0` light gain and `668.0` aimed sun IN FLIGHT; `669.0` lamp culling (Adreno 643) and `670.0` shadow-caster choice queued. Banner blocks in *Next up*; four Planned rows in FEATURES, all `[ ]`. The existing "3D view lighting" Implemented row was left untouched.
+- **Numbers:** `Pass 667`-`670` have zero hits across repo `*.md/py/sh/rs`; ceiling was `666.0`. Not run through `tools/check-ledger-numbers.py`.
+- **Files:** `ROADMAP.md`, `FEATURES.md`, `SESSION_LOG.md`. Backup currency not verifiable from here. Next filing 1428th.
+
 ## 2026-11-05 (1426th filing) — `Pass 666.0` (`G268`, `336f7c76`) shipped
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only):**
