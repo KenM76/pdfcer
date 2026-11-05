@@ -92,6 +92,7 @@ pub(crate) fn model(lights: Vec<ModelLight>) -> AssembledModel {
     }
 }
 
+/// A perspective and an orthographic camera on the same eye, so a test covers both cull shapes.
 pub(crate) fn cameras() -> [Camera; 2] {
     let at = |projection| Camera {
         eye: [3.0, -4.0, 12.0],
@@ -105,6 +106,7 @@ pub(crate) fn cameras() -> [Camera; 2] {
     ]
 }
 
+/// Small render options with lamp shadows on or off, shared by the cull tests.
 pub(crate) fn options(lamp_shadows: bool) -> RenderOptions {
     RenderOptions {
         width: 96,

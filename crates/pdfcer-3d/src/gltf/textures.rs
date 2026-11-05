@@ -96,6 +96,7 @@ pub(super) struct Textures {
 }
 
 impl Textures {
+    /// An empty cache that holds at most `budget` picture bytes.
     pub(super) fn new(budget: usize) -> Self {
         Self {
             seen: Vec::new(),

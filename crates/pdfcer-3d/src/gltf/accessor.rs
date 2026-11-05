@@ -20,6 +20,7 @@ pub(super) struct Data<'a> {
 }
 
 impl<'a> Data<'a> {
+    /// Read from `buffers`, refusing once `budget` components have been read in all.
     pub(super) fn new(buffers: &'a [Vec<u8>], budget: usize) -> Self {
         Self {
             buffers,
