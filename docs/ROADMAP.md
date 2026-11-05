@@ -112,6 +112,27 @@ wherever it appears.*
 
 ## Shipped
 
+### `c60a6613` `Pass 668.0`, 2026-11-05: an aimed, coloured sun that lights and casts (`G270`) (1428th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `c60a6613` on `main`. Request `G270` (`pdfcer-gui`). Core and CLI; the GUI binding is `pdfcer-gui`'s.
+- **API (`pdfcer-3d`, new module `sun.rs`):** `ShadowLight::AimedSun(SunLight)`; `SunLight { up, negative, azimuth_deg, elevation_deg, colour, gain }` with `kelvin()`, `rgb()`, `direction()`; `SunColour::{Kelvin(f64), FromElevation}`; `kelvin_rgb`; `MIN_SUN_KELVIN` 1000, `MAX_SUN_KELVIN` 40000; `RenderError::Sun(&'static str)`. Elevation 0-90. 6500 K is exactly white.
+- **Behaviour:** the sun is added to the scheme's lights as a directional light (colour x gain x `light_gain`) and casts the shadow from the same direction. Existing `ShadowLight::Sun` and `FollowsScheme` are byte-identical (digests taken before the change).
+- **Types:** `SunLight` is exhaustive with pub fields; `ShadowLight`, `SunColour`, `RenderError` are `#[non_exhaustive]`.
+- **CLI:** `3d-render --sun-azimuth`, `--sun-elevation`, `--sun-kelvin` (conflicts with `--sun-colour from-elevation`), `--sun-gain` (0.25-4); any `--sun-*` adds the sun; `--shadow-light sun-negative` puts it on the minus side.
+- **Tests (engineer-reported):** 429 `pdfcer-3d` lib, 57 CLI `three_d`; sabotage 14/14 caught.
+- **Not covered:** GLSL not run on a GPU (the sun reaches it as an ordinary light row); the sun's light index past the GPU table limit with very many lights is untested.
+- **Boxes:** FEATURES "3D sun" core `[x]`, cli `[x]`, gui `[ ]` (stays in Planned).
+
+### `c023645c` `Pass 667.0`, 2026-11-05: one light gain on every 3D light, CPU and GPU (`G269`) (1428th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `c023645c` on `main`. Request `G269` (`pdfcer-gui`).
+- **API (`pdfcer-3d`, new module `light_gain.rs`):** `RenderOptions::light_gain` (default 1, `MIN_LIGHT_GAIN` 0.25, `MAX_LIGHT_GAIN` 4) multiplies every light of every scheme, the model's lamps, the headlight and the ambient. Per-channel clamp after shading, CPU and GPU. Out of range or non-finite gives `RenderError::LightGain`. Gain 1 is byte-identical. A material's own glow (emissive) is deliberately NOT scaled.
+- **GPU:** `FrameLights` carries the gain. Under Headlight, `FrameLights` now has count 1, ambient 0.3 x gain and one light row, so the GUI must re-upload `u_ambient`, `u_count` and the light table for Headlight frames.
+- **CLI:** `3d-render --light-gain F` (new `threed_cmd/light_args.rs`).
+- **Breaking for `pdfcer-gui`:** new `RenderOptions` field; build it with `..Default::default()`.
+- **Tests:** sabotage 7/7 caught (engineer-reported).
+- **Boxes:** FEATURES "3D light gain" core `[x]`, cli `[x]`, gui `[ ]` (the gui column tracks `pdfcer-gui`, which has not bound it; stays in Planned).
+
 ### `56ee4f85` `v0.129.0` PUBLISHED, 2026-11-05 (1427th filing)
 
 Engineer-reported; no shell here, nothing checked from here (GitHub, crates.io, OneDrive, CI and git state all as reported). Tag `v0.129.0` on `56ee4f85` (`main`; itself the 1426th filing); version bump `7b6664fd`. Carries `Pass 665.0` (`X042`, `94e4eaad`) and `Pass 666.0` (`G268`, `336f7c76`), both filed earlier (1425th, 1426th).
@@ -25974,13 +25995,13 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **1427th filing: `v0.129.0` PUBLISHED (see *Shipped*); the next release writes OneDrive `pdfcer2`. Four `pdfcer-gui` 3D requests filed (operator asks `O392`/`O393`, 2026-11-05, engine pin `56ee4f85`): `Pass 667.0` and `668.0` IN FLIGHT, `669.0` and `670.0` queued behind them (same GPU files). Numbers by grep of the repo (`Pass 667`-`670`: zero hits), not `tools/check-ledger-numbers.py` (no shell); last used was `666.0`.**
 
-> **`Pass 667.0` (`G269`, IN FLIGHT): a brightness gain for every 3D lighting scheme.** `RenderOptions::light_gain` (default 1, range 0.25-4) multiplies every light, model lamp, the headlight and ambient; per-channel clamp; a named refusal out of range; the GPU `FrameLights` carries it; gain 1 is byte-identical to today. Capability row: FEATURES Planned "3D light gain".
+> **1428th filing: `Pass 667.0` (`G269`, `c023645c`) and `Pass 668.0` (`G270`, `c60a6613`) are SHIPPED (see *Shipped*); `Pass 669.0` (`G271`) and `670.0` (`G272`) are now IN FLIGHT; `Pass 671.0` (`X043`) filed IN FLIGHT below. `671` had zero hits across `ROADMAP.md`/`FEATURES.md`/`SESSION_LOG.md` by grep (no shell; not run through `tools/check-ledger-numbers.py`).**
 
-> **`Pass 668.0` (`G270`, IN FLIGHT): an aimed, coloured sun.** Azimuth and elevation; colour by kelvin or derived from elevation; lights the model as an added directional light and casts the shadow from the same direction; CPU and GPU; named refusals; sun off is byte-identical. Capability row: FEATURES Planned "3D sun".
+> **`Pass 671.0` (`X043`, IN FLIGHT; operator as `crates` consumer, written fresh, no PdfCraft fix exists): glTF import memory bounds.** (1) One shared accessor component budget per import; a refused read skips the primitive with a note. (2) A JSON value cap in `pdfcer-json`, checked while parsing, with a named error. (3) Total caps on image bytes loaded and on bytes copied into scene textures; over-cap images are dropped with a note. (4) Checked arithmetic in the GLB container. Capability row: FEATURES Planned "glTF import memory bounds".
 
-> **`Pass 669.0` (`G271`, queued behind 667.0/668.0): model lamps cost every pixel on a phone (Adreno 643).** Cull lamps whose reach misses the view before the fragment program, preferably tiled or clustered per-pixel lists; the picture stays the same as now; lamps-in-model and lamps-lit-this-frame counts for disclosure; a named cheaper mode if a bound remains. Capability row: FEATURES Planned "3D lamp culling".
+> **`Pass 669.0` (`G271`, IN FLIGHT): model lamps cost every pixel on a phone (Adreno 643).** Cull lamps whose reach misses the view before the fragment program, preferably tiled or clustered per-pixel lists; the picture stays the same as now; lamps-in-model and lamps-lit-this-frame counts for disclosure; a named cheaper mode if a bound remains. Capability row: FEATURES Planned "3D lamp culling".
 
-> **`Pass 670.0` (`G272`, queued behind 669.0): which lamps cast shadows.** Choose the 16 shadow-casting lamps by contribution to the current view (reach covering the view, then brightness, then nearness), re-chosen when the view moves enough, maps kept while chosen; the cap is a constant beside `MAX_SHADOW_CASTERS` with its why; CPU and GPU choose the same lamps; would-cast and casting counts for disclosure. Capability row: FEATURES Planned "3D shadow-caster choice".
+> **`Pass 670.0` (`G272`, IN FLIGHT): which lamps cast shadows.** Choose the 16 shadow-casting lamps by contribution to the current view (reach covering the view, then brightness, then nearness), re-chosen when the view moves enough, maps kept while chosen; the cap is a constant beside `MAX_SHADOW_CASTERS` with its why; CPU and GPU choose the same lamps; would-cast and casting counts for disclosure. Capability row: FEATURES Planned "3D shadow-caster choice".
 
 > **Head (1421st filing): no open Pass at the head. `Pass 660.0` (`G266`, `d77620b6`), `661.0` (`X039`), `662.0` (`f8da53ad`) and `663.0` (`X040`, `7760a3bf`) are SHIPPED (see *Shipped*). `v0.128.0` is BEING CUT (bump `7d02540a`), carrying `X039`, `662.0`, `G266` and `X040`; not yet tagged or published as far as this filing knows; the release filing comes later. Release slot: OneDrive `pdfcer2` per the earlier banner (not re-verified here).** The older banners that follow are history.
 

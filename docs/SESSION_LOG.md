@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-05 (1428th filing) — `Pass 667.0` (`G269`, `c023645c`) and `668.0` (`G270`, `c60a6613`) shipped; `Pass 671.0` (`X043`) filed IN FLIGHT
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only):**
+- **`Pass 667.0` SHIPPED, `c023645c`:** `RenderOptions::light_gain` (0.25-4, default 1) scales every light, lamp, headlight and ambient, CPU and GPU; emissive deliberately not scaled; `RenderError::LightGain`; gain 1 byte-identical; `3d-render --light-gain`. Sabotage 7/7. **Breaking for `pdfcer-gui`:** new `RenderOptions` field; Headlight frames now need `u_ambient`, `u_count` and the light table re-uploaded.
+- **`Pass 668.0` SHIPPED, `c60a6613`:** `ShadowLight::AimedSun(SunLight)` with kelvin or from-elevation colour, added as a directional light and casting the shadow; `RenderError::Sun`; `3d-render --sun-*`; old `Sun`/`FollowsScheme` byte-identical. 429 `pdfcer-3d` lib + 57 CLI `three_d` tests; sabotage 14/14. GLSL never run on a GPU; sun index past the GPU light-table limit untested.
+- **`Pass 671.0` (`X043`) filed IN FLIGHT:** glTF import memory bounds (shared accessor budget, JSON value cap in `pdfcer-json`, image and texture byte caps, checked GLB arithmetic). Banner in *Next up*. `671` had zero hits by grep of the three docs; not run through `tools/check-ledger-numbers.py`.
+- **Now in flight:** `Pass 669.0` (`G271`), `670.0` (`G272`) (were queued).
+- **FEATURES:** "3D light gain" and "3D sun" rows core `[x]` cli `[x]` gui `[ ]`, left in *Planned* (gui open); new Planned row "glTF import memory bounds"; 669/670 rows say in flight.
+- **Files:** `ROADMAP.md`, `FEATURES.md`, `SESSION_LOG.md`. Backup currency not verifiable from here. Next filing 1429th.
+
 ## 2026-11-05 (1427th filing) — `v0.129.0` PUBLISHED; `Pass 667.0`-`670.0` (`G269`-`G272`) filed
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only):**

@@ -687,10 +687,11 @@ the model or verb exists and only the named shell is missing. The
 | core | cli | gui | Acrobat | Feature |
 |:----:|:---:|:---:|:-------:|---------|
 | [x] | [x] | [ ] | ? | **Fisheye lens for the 3D camera** — `Projection::Fisheye` (equidistant, stereographic; `3d-render --lens`), CPU and GPU paths, picking and `ray_through` follow it. GPU shaders not yet run on a real GL context. GUI Lens option is `pdfcer-gui`'s. `Pass 666.0` shipped (`G268`). |
-| [ ] | [ ] | [ ] | ? | **3D light gain** — `RenderOptions::light_gain` (0.25-4) scales every light, lamp, headlight and ambient. `Pass 667.0` (`G269`), in flight. |
-| [ ] | [ ] | [ ] | ? | **3D sun** — aimed, coloured (kelvin) directional light that also casts the shadow. `Pass 668.0` (`G270`), in flight. |
-| [ ] | [ ] | [ ] | ? | **3D lamp culling** — skip lamps that miss the view, so many-lamp models stay fast on phones; counts disclosed. `Pass 669.0` (`G271`), Next up. |
-| [ ] | [ ] | [ ] | ? | **3D shadow-caster choice** — pick the 16 shadow-casting lamps by contribution to the view; counts disclosed. `Pass 670.0` (`G272`), Next up. |
+| [x] | [x] | [ ] | ? | **3D light gain** — `RenderOptions::light_gain` (0.25-4) scales every light, lamp, headlight and ambient (not a material's own glow); `3d-render --light-gain`. GUI binding is `pdfcer-gui`'s. `Pass 667.0` shipped (`G269`). |
+| [x] | [x] | [ ] | ? | **3D sun** — aimed, coloured (kelvin) directional light that also casts the shadow; `3d-render --sun-*`. GPU shader not yet run on a real GL context. GUI binding is `pdfcer-gui`'s. `Pass 668.0` shipped (`G270`). |
+| [ ] | [ ] | [ ] | ? | **3D lamp culling** — skip lamps that miss the view, so many-lamp models stay fast on phones; counts disclosed. `Pass 669.0` (`G271`), in flight. |
+| [ ] | [ ] | [ ] | ? | **3D shadow-caster choice** — pick the 16 shadow-casting lamps by contribution to the view; counts disclosed. `Pass 670.0` (`G272`), in flight. |
+| [ ] | — | — | ? | **glTF import memory bounds** — shared accessor budget, JSON value cap, image and texture byte caps, checked GLB arithmetic; skipped or dropped items disclosed. `Pass 671.0` (`X043`), in flight. |
 | [ ] | [ ] | [ ] | ? | **Make a 3D PDF from an OBJ or STL mesh** — same PRC writer as the glTF row (shipped, `Pass 648.0`); OBJ/MTL colours, STL uncoloured (default disclosed). `Pass 648.1`, *Next up*, after 648.0. |
 | [ ] | [ ] | [ ] | ? | **3D units and the other measurement kinds** — 3D units `/3DU` (Table 325); `3d-views --measure` for perpendicular, angular, radial and comment measurements (the core writes them; the CLI writes linear only); comment-linked measurements. `Pass 648.7`, Backlog. |
 | [x] | — | [ ] | [x] | **Insert a page named twice as separate copies** — a repeated source index in `insert_pages` now gets its own independent copy, as Acrobat does (was a page-tree cycle). Defect fixed, `Pass 567.0` (`G185`). GUI: `pdfcer-gui` still has a workaround to delete. |
