@@ -3602,6 +3602,28 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   stops). Suits a fast navigation setting beside an exact (`Off` or
   `Auto`) screenshot setting. CLI: `--lamp-cut auto|off|<levels 0-255>`,
   disclosed as `note: lamp reach: …`.
+  Lamp cull (always on, exact): each frame leaves out every lamp whose
+  reach sphere lies wholly outside the view frustum (perspective: sides and
+  near plane; orthographic: sides; a fisheye culls each cube face by its
+  own frustum and counts by the whole camera). Such a lamp adds exactly 0
+  to every pixel, so the picture is byte-identical; reach is fixed from the
+  model's whole lamp count before the cull. Same on CPU and GPU. The GPU
+  path culls at `options.width / options.height`: set them to the
+  viewport. Counts: `LampStats { in_model, in_view, lit_this_frame }`
+  (`#[non_exhaustive]`, `Default`) from `LampStats::for_model(&camera,
+  &options, &model.lights) -> Result<LampStats, RenderError>` (CPU) or
+  `FrameLights::lamps` (GPU), equal for the same arguments.
+  Cheap mode (changes the picture): `RenderOptions::lamp_cost:
+  LampCost::{Full (default), NearestPerFrame(u16)}` (`#[non_exhaustive]`).
+  `NearestPerFrame(n)` draws only the `n` lamps meeting the view that add
+  most at the camera target (brightest channel × fade × cone there; ties
+  to model order), kept in model order; 0 draws none. Never chosen
+  automatically; a separate setting from `lamp_cut` (which bounds light
+  left out) because it can darken by any amount. Disclose it.
+  CLI: `--lamp-cost full|nearest:N`, counts disclosed as `note: lighting:
+  lamps: N in the model, N reaching the view, N lit this frame`.
+  Tiled per-tile lamp lists on the GPU are not shipped: the shader loops
+  over the frame's culled lamps.
   Every directional light: `RenderOptions::shadow_casters:
   ShadowCasters::{EveryLight (default), KeyLight}` — under a scheme or a
   model's own lights, each directional light lighting the frame casts its
@@ -3780,7 +3802,11 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     `FrameLights::for_model(&camera, &options, &model.lights)` to draw a
     model's own lights under Artwork, which also fills the point/spot
     lights (`local_count` → `u_local_count`, `local_positions`,
-    `local_colours`, `local_attenuation`, `local_cones`, `local_reach`).
+    `local_colours`, `local_attenuation`, `local_cones`, `local_reach`),
+    only the lamps the frame lights (the cull above): `local_lamps[i]` is
+    row `i`'s index among the model's point and spot lights,
+    `local_slots[i]` its lamp-shadow slot (`Option<usize>`), `lamps` the
+    frame's `LampStats`.
     Both fill
     `specular` and `local_specular`, the lights' highlight colours.
     `FrameLights` is `Clone`, not `Copy`; its light lists are `Vec`s, up to
@@ -3791,7 +3817,8 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     `light_table_rows()` high, `NEAREST`, no mipmaps, on its own texture
     unit. Rows `0..count` are directional lights (texel 0 direction, 1
     colour, 2 specular); rows `count..count + local_count` are point/spot
-    lights (0 position with w = reach, 1 colour, 2 specular, 3 attenuation
+    lights (0 position with w = reach, 1 colour with w = shadow slot + 1
+    or 0, 2 specular, 3 attenuation
     with w = cone exponent, 4 cone direction with w = cos cut-off or −2),
     ordered so the fragment shader drops a lamp past its reach or outside
     its cone after two fetches. The table layout is the engine's; upload it
@@ -3850,18 +3877,22 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   - Lamp shadows: `FrameLampShadows::for_model(&camera, &options, &bounds,
     &model.lights) -> Result<Option<FrameLampShadows>, RenderError>`
     (`None` when shadows or lamp shadows are off, or there is no point or
-    spot light). Allocate a `size` × `size` × `layers()` `DEPTH_COMPONENT32F`
-    `TEXTURE_2D_ARRAY` (`NEAREST`, no compare mode). For each lamp `i` <
-    `count` with `far[i]` > 0 and each face 0–5, draw every non-translucent
+    spot light lights the frame). Allocate a `size` × `size` × `layers()`
+    `DEPTH_COMPONENT32F` `TEXTURE_2D_ARRAY` (`NEAREST`, no compare mode).
+    For each slot `i` < `count` with `far[i]` > 0 and each face 0–5, draw every non-translucent
     draw into layer `6 i + face` with `GLSL_ES_300_LAMP_SHADOW_VERTEX` /
     `GLSL_ES_300_LAMP_SHADOW_FRAGMENT` (`face_matrix(i, face)` →
     `u_lamp_matrix`, `far[i]` → `u_lamp_far`; depth cleared to 1.0, `LESS`,
     no culling). Bind it as the main pass's `u_lamp_shadow_map` with
     `u_lamp_shadows` true, `u_lamp_shadow_size` = `size` (float) and
-    `u_lamp_far[16]` = `far`. Only the first `MAX_SHADOW_CASTERS` (16)
-    lamps cast, on both paths; the rest light without a shadow, counted in
-    `dropped` (disclose it). Lamps are fixed in the model: redraw only when
-    the model or options change. 6 MiB per lamp at 512. WebGL 2 run (point
+    `u_lamp_far[16]` = `far`. Slot `i` holds the model's lamp `i` while it
+    meets the view, so only the model's first `MAX_SHADOW_CASTERS` (16)
+    lamps cast, on both paths; the frame's other lamps light without a
+    shadow, counted in `dropped` (disclose it). The shader finds a lamp's
+    slot in its light-table row (`FrameLights::local_slots`), not by its
+    row number. A slot empties when its lamp leaves the view: redraw the
+    faces whenever the `FrameLampShadows` value changes (`PartialEq`).
+    6 MiB per slot at 512. WebGL 2 run (point
     lamp and spot over a floor and two boxes): GPU vs CPU 0.026 levels mean,
     0.02% of pixels over 8 levels.
   - Further directional casters: `FrameExtraShadows::for_model(&camera,

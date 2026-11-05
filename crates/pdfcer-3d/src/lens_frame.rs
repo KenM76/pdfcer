@@ -19,7 +19,7 @@ pub(crate) fn render(
     options: &RenderOptions,
 ) -> Result<(Image, Vec<f64>), RenderError> {
     let (width, height) = (options.width, options.height);
-    let basis = camera.basis()?;
+    camera.basis()?;
     let layout = lens.layout();
     let owners = owners(lens, layout, width, height);
     let mut present = [false; 6];
@@ -44,7 +44,7 @@ pub(crate) fn render(
             opaque,
             &face.camera,
             &face_options,
-            Some(&basis),
+            Some(camera),
         )?;
         resample(
             (&face, &image, &keys),

@@ -81,11 +81,17 @@ pub(crate) fn extras(
     (out.into_iter().map(|(_, e)| e).collect(), dropped)
 }
 
-/// The lamps casting a shadow: the first [`MAX_SHADOW_CASTERS`], as
-/// [`crate::FrameLampShadows`] on the GPU; the rest light unshadowed.
-pub(crate) fn lamp_casters(shader: &Shader) -> &[crate::model_shade::Local] {
+/// Each of the frame's lamps, `None` for one casting no shadow
+/// ([`crate::lamp_view::shadow_slots`], as [`crate::FrameLampShadows`] on
+/// the GPU); those light unshadowed.
+pub(crate) fn lamp_casters(shader: &Shader) -> Vec<Option<crate::model_shade::Local>> {
     let lamps = shader.local();
-    lamps.get(..MAX_SHADOW_CASTERS).unwrap_or(lamps)
+    let slots = crate::lamp_view::shadow_slots(lamps);
+    lamps
+        .iter()
+        .zip(slots)
+        .map(|(l, s)| s.map(|_| *l))
+        .collect()
 }
 
 /// The further casters' maps for one frame.
@@ -198,7 +204,7 @@ impl Shadows {
         if let Some(bounds) = bounds {
             let maps = key_view.as_ref().map_or(0, |v| ShadowMap::tests(v, &casts));
             let extra = ExtraShadows::tests(&list, bounds, size, &casts);
-            let cubes = lamps_cast.then(|| LampShadows::tests(lamps, bounds, lamp_size, &casts));
+            let cubes = lamps_cast.then(|| LampShadows::tests(&lamps, bounds, lamp_size, &casts));
             work.charge(
                 maps.saturating_add(extra)
                     .saturating_add(cubes.unwrap_or(0)),
@@ -211,7 +217,7 @@ impl Shadows {
                 .filter(|_| !list.is_empty())
                 .map(|bounds| ExtraShadows::build(&list, bounds, size, (&casts, veil), workers)),
             lamps: bounds.filter(|_| lamps_cast).map(|bounds| {
-                LampShadows::build(lamps, bounds, lamp_size, (&casts, veil), workers)
+                LampShadows::build(&lamps, bounds, lamp_size, (&casts, veil), workers)
             }),
         })
     }

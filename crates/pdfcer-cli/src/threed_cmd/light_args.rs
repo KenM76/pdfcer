@@ -1,6 +1,8 @@
-//! `3d-render --light-gain` and the `--sun-*` options: one brightness on
-//! every light, and a sun the operator aims.
+//! `3d-render --light-gain`, the `--sun-*` options and `--lamp-cost`: one
+//! brightness on every light, a sun the operator aims, and how many lamps
+//! a frame draws.
 
+#[cfg(feature = "3d")]
 use crate::ShadowLightArg;
 
 /// The sun's colour, `--sun-colour`.
@@ -11,7 +13,17 @@ pub(crate) enum SunColourArg {
     FromElevation,
 }
 
-/// The `3d-render` options that scale the lights and aim a sun.
+/// `--lamp-cost`: every lamp reaching the view, or only the nearest few.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LampCostArg {
+    /// `full`.
+    Full,
+    /// `nearest:N`.
+    Nearest(u16),
+}
+
+/// The `3d-render` options that scale the lights, aim a sun and choose the
+/// lamps drawn.
 #[derive(Clone, Copy, Debug, PartialEq, clap::Args)]
 pub(crate) struct LightArgs {
     /// Multiply every light by this, 0.25 to 4 (default 1): the scheme's
@@ -45,18 +57,45 @@ pub(crate) struct LightArgs {
     /// `--light-gain`.
     #[arg(long, value_parser = parse_gain)]
     pub(crate) sun_gain: Option<f64>,
+    /// Which of the model's point and spot lights each frame draws. `full`
+    /// (the default) draws every lamp whose light reaches the view: the
+    /// same picture as drawing them all, as a lamp out of reach adds
+    /// nothing. `nearest:N` draws only the N adding most light at the
+    /// camera's target: faster with many lamps, but darker wherever the
+    /// lamps left out shone, so it changes the picture. Never chosen for
+    /// you.
+    #[arg(long, default_value = "full", value_parser = parse_lamp_cost)]
+    pub(crate) lamp_cost: LampCostArg,
 }
 
 #[cfg(feature = "3d")]
 impl LightArgs {
-    /// The `note: lighting:` line for a gain other than 1.
-    pub(crate) fn print_note(&self) {
+    /// The `note: lighting:` lines: a gain other than 1, and how many of a
+    /// model's lamps the frame drew.
+    pub(crate) fn print_note(
+        &self,
+        model: &pdfcer_3d::AssembledModel,
+        camera: &pdfcer_3d::Camera,
+        options: &pdfcer_3d::RenderOptions,
+    ) {
         if self.light_gain != 1.0 {
             println!(
                 "note: lighting: every light times {} (--light-gain); each channel \
                  stops at full brightness",
                 self.light_gain
             );
+        }
+        let lamps = pdfcer_3d::LampStats::for_model(camera, options, &model.lights);
+        if let Some(line) = lamps.ok().as_ref().and_then(lamp_note) {
+            println!("note: lighting: {line}");
+        }
+    }
+
+    /// `--lamp-cost` as the engine's setting.
+    pub(crate) fn lamp_cost(&self) -> pdfcer_3d::LampCost {
+        match self.lamp_cost {
+            LampCostArg::Full => pdfcer_3d::LampCost::Full,
+            LampCostArg::Nearest(n) => pdfcer_3d::LampCost::NearestPerFrame(n),
         }
     }
 
@@ -93,6 +132,26 @@ impl LightArgs {
     }
 }
 
+/// The lamp counts line; `None` for a model without lamps.
+#[cfg(feature = "3d")]
+fn lamp_note(s: &pdfcer_3d::LampStats) -> Option<String> {
+    if s.in_model == 0 {
+        return None;
+    }
+    let mut line = format!(
+        "lamps: {} in the model, {} reaching the view, {} lit this frame",
+        s.in_model, s.in_view, s.lit_this_frame
+    );
+    if s.lit_this_frame < s.in_view {
+        line.push_str(&format!(
+            "; --lamp-cost nearest left out {} reaching the view, so the picture is darker \
+             than with every lamp",
+            s.in_view - s.lit_this_frame
+        ));
+    }
+    Some(line)
+}
+
 /// How the shadows note names an aimed sun.
 #[cfg(feature = "3d")]
 pub(crate) fn sun_note(sun: &pdfcer_3d::SunLight) -> String {
@@ -108,6 +167,17 @@ pub(crate) fn sun_note(sun: &pdfcer_3d::SunLight) -> String {
         sun.kelvin(),
         sun.gain
     )
+}
+
+fn parse_lamp_cost(s: &str) -> Result<LampCostArg, String> {
+    let t = s.trim();
+    if t == "full" {
+        return Ok(LampCostArg::Full);
+    }
+    t.strip_prefix("nearest:")
+        .and_then(|n| n.trim().parse::<u16>().ok())
+        .map(LampCostArg::Nearest)
+        .ok_or_else(|| format!("`{s}`: expected `full` or `nearest:N`, N from 0 to 65535"))
 }
 
 fn parse_gain(s: &str) -> Result<f64, String> {
@@ -156,5 +226,11 @@ mod tests {
         );
         assert!(super::parse_elevation("90").is_ok() && super::parse_elevation("90.5").is_err());
         assert!(super::parse_azimuth("-720").is_ok() && super::parse_azimuth("inf").is_err());
+        use super::LampCostArg::{Full, Nearest};
+        assert_eq!(super::parse_lamp_cost("full"), Ok(Full));
+        assert_eq!(super::parse_lamp_cost("nearest:8"), Ok(Nearest(8)));
+        for bad in ["nearest", "nearest:-1", "nearest:70000", "all"] {
+            assert!(super::parse_lamp_cost(bad).is_err(), "{bad}");
+        }
     }
 }

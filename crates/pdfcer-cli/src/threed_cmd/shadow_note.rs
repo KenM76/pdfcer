@@ -50,7 +50,7 @@ pub(super) fn print(
 /// (`--lamp-cut`); `None` without any.
 fn lamp_reach(model: &AssembledModel, camera: &Camera, options: &RenderOptions) -> Option<String> {
     let lights = pdfcer_3d::FrameLights::for_model(camera, options, &model.lights).ok()?;
-    let n = lights.local_count;
+    let n = lights.lamps.in_model;
     if n == 0 {
         return None;
     }

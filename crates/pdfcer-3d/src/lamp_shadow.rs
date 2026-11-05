@@ -174,12 +174,13 @@ pub(crate) struct LampShadows {
 }
 
 impl LampShadows {
-    /// `occluders` drawn into each face of each of `lamps`' cubes, with
+    /// `occluders` drawn into each face of each of `lamps`' cubes (none for
+    /// a `None`, keeping the cubes parallel to the frame's lamps), with
     /// veil layers when `veiled`, faces on `workers` threads; each texel
     /// keeps its nearest depth and multiplies its transmission, so the maps
     /// are the same at any count.
     pub(crate) fn build(
-        lamps: &[Local],
+        lamps: &[Option<Local>],
         bounds: &Bounds,
         size: u32,
         (occluders, veiled): (&[Occluder<'_>], bool),
@@ -190,6 +191,7 @@ impl LampShadows {
         let mut cubes: Vec<Option<LampCube>> = lamps
             .iter()
             .map(|l| {
+                let l = l.as_ref()?;
                 Some(LampCube {
                     position: l.position,
                     far: reach(l.position, bounds)?,
@@ -227,7 +229,7 @@ impl LampShadows {
     /// The texel tests [`Self::build`] makes drawing `occluders` into each
     /// of `lamps`' cubes over `bounds`, `size` texels a face side.
     pub(crate) fn tests(
-        lamps: &[Local],
+        lamps: &[Option<Local>],
         bounds: &Bounds,
         size: u32,
         occluders: &[Occluder<'_>],
@@ -235,6 +237,7 @@ impl LampShadows {
         let size = face_size(size);
         lamps
             .iter()
+            .flatten()
             .filter_map(|l| reach(l.position, bounds).map(|far| (l.position, far)))
             .fold(0u64, |sum, cube| {
                 sum.saturating_add(cube_tests(size, cube, occluders))
@@ -447,8 +450,9 @@ mod tests {
             attenuation: [1.0, 0.0, 0.0],
             cone: None,
             reach: f64::INFINITY,
+            model: 0,
         };
-        let shadows = LampShadows::build(&[lamp], &bounds, 256, (&casts, false), 3);
+        let shadows = LampShadows::build(&[Some(lamp)], &bounds, 256, (&casts, false), 3);
         let up = [0.0, 0.0, 1.0];
         // Under the card's centre, and its shadow's edge at x = 1.0.
         assert_eq!(shadows.visibility(0, [0.0, 0.0, 0.0], up), 0.0);
@@ -458,7 +462,7 @@ mod tests {
         // The card's top faces the lamp.
         assert_eq!(shadows.visibility(0, [0.2, 0.2, 1.0], up), 1.0);
         // The same at one worker.
-        let one = LampShadows::build(&[lamp], &bounds, 256, (&casts, false), 1);
+        let one = LampShadows::build(&[Some(lamp)], &bounds, 256, (&casts, false), 1);
         let (a, b) = (&shadows.cubes[0], &one.cubes[0]);
         assert!(a.as_ref().unwrap().depth == b.as_ref().unwrap().depth);
     }

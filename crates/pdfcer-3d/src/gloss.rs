@@ -18,6 +18,7 @@
 
 use crate::lighting::{LightingScheme, Shader};
 use crate::model_light::unit;
+use crate::model_shade::Local;
 use crate::raster::{Corner, PixelLights, View};
 use crate::render::{Camera, RenderOptions};
 use crate::shadow::{CasterKind, SHADOW_DIM};
@@ -73,7 +74,7 @@ impl GlossLights {
                     ambient: *ambient,
                 };
                 if options.lighting == LightingScheme::Artwork {
-                    out.take_model_specular(model, options.light_gain);
+                    out.take_model_specular(model, options.light_gain, local);
                 }
                 out
             }
@@ -82,8 +83,14 @@ impl GlossLights {
 
     /// Replace light colours by the model lights' own specular colours,
     /// walking `model` in the order `Shader::from_model` lists them, times
-    /// `gain`.
-    fn take_model_specular(&mut self, model: &[ModelLight], gain: f64) {
+    /// `gain`; a lamp's goes to the entry of `local` it became, if any.
+    fn take_model_specular(&mut self, model: &[ModelLight], gain: f64, local: &[Local]) {
+        let mut entry = vec![None; local.iter().map(|l| l.model + 1).max().unwrap_or(0)];
+        for (i, l) in local.iter().enumerate() {
+            if let Some(slot) = entry.get_mut(l.model) {
+                *slot = Some(i);
+            }
+        }
         let (mut far, mut near) = (0, 0);
         for l in model {
             let k = l.intensity.max(0.0) * gain;
@@ -99,7 +106,8 @@ impl GlossLights {
                 }
                 ModelLightKind::Point { .. } | ModelLightKind::Spot { .. } => {
                     near += 1;
-                    self.near.get_mut(near - 1)
+                    let i = entry.get(near - 1).copied().flatten();
+                    i.and_then(|i| self.near.get_mut(i))
                 }
             };
             if let (Some(slot), Some(s)) = (slot, specular) {

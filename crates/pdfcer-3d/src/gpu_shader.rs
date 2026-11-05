@@ -221,14 +221,16 @@ float through(bool on, highp sampler2DArray veil, highp sampler2DArray transmit,
     return texelFetch(transmit, q, 0).r;
 }
 
-// Lamp i's lit share, 0-1, at p on a face with unit normal f: 3 x 3 texels
-// of its cube face around the point moved off its face towards the lamp,
-// clamped to that face. Lamps past the first 16 cast none.
-float lamp_lit(int i, vec3 p, vec3 f) {
-    if (!u_lamp_shadows || i >= 16) return 1.0;
+// Lamp row r's lit share, 0-1, at p on a face with unit normal f: 3 x 3
+// texels of its slot's cube face around the point moved off its face
+// towards the lamp, clamped to that face. A lamp with no slot (texel 1's
+// w, the slot + 1, is 0) casts none.
+float lamp_lit(int r, vec3 p, vec3 f) {
+    int i = int(light(r, 1).w) - 1;
+    if (!u_lamp_shadows || i < 0 || i >= 16) return 1.0;
     float far = u_lamp_far[i];
     if (far <= 0.0) return 1.0;
-    vec3 o = p - light(u_count + i, 0).xyz;
+    vec3 o = p - light(r, 0).xyz;
     vec3 m = abs(o);
     float z0 = max(m.x, max(m.y, m.z));
     if (z0 <= 0.0) return 1.0;
@@ -299,7 +301,7 @@ vec3 local(vec3 p, vec3 n, vec3 f, bool shiny, vec3 v, vec3 nv, out vec3 spec) {
         vec3 l = to_light / d;
         float k = reach(r, at, l, d);
         if (k <= 0.0) continue;
-        float lit = lamp_lit(i, p, f);
+        float lit = lamp_lit(r, p, f);
         s += light(r, 1).rgb * (k * abs(dot(n, l)) * lit);
         if (shiny && dot(nv, l) > 0.0) spec += light(r, 2).rgb * ((k * lit) * blinn(nv, v, l));
     }
@@ -515,6 +517,7 @@ mod tests {
         let casters = crate::MAX_SHADOW_CASTERS;
         assert!(GLSL_ES_300_FRAGMENT.contains(&format!(" u_lamp_far[{casters}];")));
         assert!(GLSL_ES_300_FRAGMENT.contains(&format!("i >= {casters})")));
+        assert!(GLSL_ES_300_FRAGMENT.contains("int i = int(light(r, 1).w) - 1;"));
     }
 
     /// Every `light(row, t)` read, `t` as written.

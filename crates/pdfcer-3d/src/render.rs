@@ -303,6 +303,9 @@ pub struct RenderOptions {
     /// Where a model's point and spot lights stop, for speed
     /// ([`LampCut::Auto`](crate::LampCut::Auto), which changes no pixel).
     pub lamp_cut: crate::LampCut,
+    /// How many lamps a frame draws ([`LampCost::Full`](crate::LampCost::Full),
+    /// every lamp meeting the view, which changes no pixel).
+    pub lamp_cost: crate::LampCost,
     /// Which directional lights cast ([`ShadowCasters::EveryLight`] by
     /// default, up to [`MAX_SHADOW_CASTERS`](crate::MAX_SHADOW_CASTERS), each shadow taking
     /// only its own light). Lights at the camera never cast.
@@ -354,6 +357,7 @@ impl Default for RenderOptions {
             lamp_shadows: true,
             lamp_shadow_map_size: crate::DEFAULT_LAMP_SHADOW_MAP_SIZE,
             lamp_cut: crate::LampCut::Auto,
+            lamp_cost: crate::LampCost::Full,
             shadow_casters: ShadowCasters::EveryLight,
             shadow_alpha: ShadowAlpha::Transmit,
             shininess: crate::ShininessScale::Auto,
@@ -505,23 +509,23 @@ fn checked_size(options: &RenderOptions) -> Result<(u32, u32), RenderError> {
     Ok((width, height))
 }
 
-/// [`render_finished`] for a planar `camera`, its camera-fixed lights and
-/// shadow caster placed by `light_basis` (a fisheye's, when this draws one
-/// of its faces) or else by the camera's own basis.
+/// [`render_finished`] for a planar `camera`, its camera-fixed lights,
+/// shadow caster and lamps placed by `parent` (a fisheye, when this draws
+/// one of its faces; [`crate::lamp_view::frame_shader`]) or else by it.
 pub(crate) fn render_view(
     (meshes, model_lights, finishes): crate::gloss::Model<'_>,
     paints: &[Paint<'_>],
     opaque: &[bool],
     camera: &Camera,
     options: &RenderOptions,
-    light_basis: Option<&[[f64; 3]; 3]>,
+    parent: Option<&Camera>,
 ) -> Result<(Image, Vec<f64>), RenderError> {
     let (width, height) = checked_size(options)?;
     let pixels = u64::from(width) * u64::from(height);
     let aspect = f64::from(width) / f64::from(height);
     let basis = camera.basis()?;
-    let lights = light_basis.copied().unwrap_or(basis);
-    let shader = Shader::for_frame(options, model_lights, &lights)?;
+    let lights = parent.unwrap_or(camera).basis()?;
+    let (shader, _) = crate::lamp_view::frame_shader(options, model_lights, camera, parent)?;
     let bounds = Bounds::of(meshes);
     let workers = parallel::workers(options.threads);
     let view = View::new(camera, aspect)?;

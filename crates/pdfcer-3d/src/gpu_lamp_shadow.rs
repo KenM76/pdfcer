@@ -4,7 +4,6 @@
 
 use crate::gpu_frame::MAX_SHADOW_CASTERS;
 use crate::lamp_shadow::{FACES, face_matrix, face_size, reach};
-use crate::lighting::Shader;
 use crate::render::{Bounds, Camera, RenderError, RenderOptions};
 
 /// The lamp depth pass's vertex shader: location 0 position (vec3) from
@@ -40,7 +39,7 @@ void main() {
 ///
 /// The host allocates a `size` × `size` × [`FrameLampShadows::layers`]
 /// `DEPTH_COMPONENT32F` 2D array texture (`NEAREST` both ways, no compare
-/// mode). For each lamp `i` below `count` whose `far[i]` is above zero and
+/// mode). For each slot `i` below `count` whose `far[i]` is above zero and
 /// each face `f` in 0–5, it draws every draw whose
 /// [`crate::Draw::translucent`] is false into layer `6 i + f` with
 /// [`GLSL_ES_300_LAMP_SHADOW_VERTEX`] / [`GLSL_ES_300_LAMP_SHADOW_FRAGMENT`],
@@ -48,23 +47,25 @@ void main() {
 /// `u_lamp_far` = `far[i]`: viewport `size` × `size`, depth cleared to 1.0,
 /// `LESS`, no culling. The main pass binds it as `u_lamp_shadow_map` with
 /// `u_lamp_shadows` true, `u_lamp_shadow_size` = `size` (a float) and
-/// `u_lamp_far[16]` = `far`; the lamp positions are
-/// [`crate::FrameLights::local_positions`]. Lamps are fixed in the model,
-/// so the faces are redrawn only when the model or options change. At the
-/// default 512 texels each lamp takes 6 MiB.
+/// `u_lamp_far[16]` = `far`; each lamp's row of
+/// [`crate::FrameLights::light_table`] names its slot
+/// ([`crate::FrameLights::local_slots`]). A slot holds a lamp only while
+/// its reach meets the view, so redraw the faces whenever this value
+/// changes (it is `PartialEq`), not only when the model or options do. At
+/// the default 512 texels each slot takes 6 MiB.
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[non_exhaustive]
 pub struct FrameLampShadows {
     /// Each face's side, texels.
     pub size: u32,
-    /// How many lamps cast, the first of [`crate::FrameLights::local_count`],
-    /// at most [`MAX_SHADOW_CASTERS`].
+    /// The slots in use, at most [`MAX_SHADOW_CASTERS`]: one past the
+    /// highest slot holding a lamp.
     pub count: usize,
-    /// Each lamp's reach, model units: the depth a face stores is its view
-    /// depth over this. Zero for a lamp casting no shadow (`u_lamp_far[16]`).
+    /// Each slot's lamp's reach, model units: the depth a face stores is its
+    /// view depth over this. Zero for a slot casting no shadow
+    /// (`u_lamp_far[16]`).
     pub far: [f32; MAX_SHADOW_CASTERS],
-    /// Lamps past the first [`MAX_SHADOW_CASTERS`], lit without a shadow;
-    /// for the host to disclose.
+    /// The frame's lamps lit without a shadow, for the host to disclose.
     pub dropped: usize,
     positions: [[f64; 3]; MAX_SHADOW_CASTERS],
 }
@@ -73,7 +74,8 @@ impl FrameLampShadows {
     /// The lamp shadows `options` casts over a model of `bounds` with
     /// `lights`, its own, seen from `camera`; `None` when
     /// [`RenderOptions::shadows`] or [`RenderOptions::lamp_shadows`] is
-    /// off or no point or spot light lights the frame.
+    /// off or no point or spot light lights the frame. Its slots are
+    /// [`crate::FrameLights::local_slots`] for the same arguments.
     ///
     /// # Errors
     ///
@@ -84,28 +86,30 @@ impl FrameLampShadows {
         bounds: &Bounds,
         lights: &[crate::ModelLight],
     ) -> Result<Option<Self>, RenderError> {
-        let basis = camera.basis()?;
+        camera.basis()?;
         if !(options.shadows && options.lamp_shadows) {
             return Ok(None);
         }
-        let shader = Shader::for_frame(options, lights, &basis)?;
+        let options = crate::render_mode::frame_options(options);
+        let (shader, _) = crate::lamp_view::frame_shader(&options, lights, camera, None)?;
         let lamps = shader.local();
         if lamps.is_empty() {
             return Ok(None);
         }
+        let slots = crate::lamp_view::shadow_slots(lamps);
         let mut out = FrameLampShadows {
             size: face_size(options.lamp_shadow_map_size),
             count: 0,
             far: [0.0; MAX_SHADOW_CASTERS],
-            dropped: lamps.len().saturating_sub(MAX_SHADOW_CASTERS),
+            dropped: slots.iter().filter(|s| s.is_none()).count(),
             positions: [[0.0; 3]; MAX_SHADOW_CASTERS],
         };
-        for (i, lamp) in lamps.iter().take(MAX_SHADOW_CASTERS).enumerate() {
+        for (lamp, i) in lamps.iter().zip(slots).filter_map(|(l, s)| Some((l, s?))) {
             if let (Some(far), Some(position)) = (out.far.get_mut(i), out.positions.get_mut(i)) {
                 *far = reach(lamp.position, bounds).map_or(0.0, |r| r as f32);
                 *position = lamp.position;
             }
-            out.count = i + 1;
+            out.count = out.count.max(i + 1);
         }
         Ok(Some(out))
     }
@@ -131,6 +135,7 @@ impl FrameLampShadows {
 #[allow(clippy::indexing_slicing, clippy::unwrap_used)] // Tests fail loudly by design.
 mod tests {
     use super::*;
+    use crate::lighting::Shader;
     use crate::{GLSL_ES_300_FRAGMENT, ModelLight, ModelLightKind, Projection};
 
     fn camera() -> Camera {
@@ -199,7 +204,7 @@ mod tests {
         let basis = camera().basis().unwrap();
         let shader = Shader::for_frame(&options, &lights, &basis).unwrap();
         let cpu = crate::shadow_set::lamp_casters(&shader);
-        assert_eq!(cpu.len(), MAX_SHADOW_CASTERS);
+        assert_eq!(cpu.iter().flatten().count(), MAX_SHADOW_CASTERS);
         // Every lamp still lights the GPU frame.
         let drawn = crate::FrameLights::for_model(&camera(), &options, &lights).unwrap();
         assert_eq!(drawn.local_count, MAX_SHADOW_CASTERS + 4);

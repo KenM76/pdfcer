@@ -641,6 +641,7 @@ fn render_from_bytes(
         artwork_headlight: a.artwork_headlight,
         shininess: lights::shininess_scale(a.shininess_scale),
         light_gain: a.light.light_gain,
+        lamp_cost: a.light.lamp_cost(),
         ..RenderOptions::default()
     };
     let image = match render_model(&model, &camera, &options) {
@@ -703,7 +704,7 @@ fn render_from_bytes(
          drawn grey"
     );
     lighting.print_note(&model, a.artwork_headlight);
-    a.light.print_note();
+    a.light.print_note(&model, &camera, &options);
     mode.print_note();
     shadow_note::print(a, &model, &camera, &options);
     lights::print_finish_note(&model, &options);

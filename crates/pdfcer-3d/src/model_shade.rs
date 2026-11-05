@@ -31,6 +31,8 @@ pub(crate) struct Local {
     pub(crate) cone: Option<Cone>,
     /// The distance past which the light adds nothing ([`reach_limit`]).
     pub(crate) reach: f64,
+    /// Its index among the model's point and spot lights, in model order.
+    pub(crate) model: usize,
 }
 
 /// A spot light's cone.
@@ -167,6 +169,7 @@ impl Shader {
                     attenuation,
                     cone: None,
                     reach: f64::INFINITY,
+                    model: local.len(),
                 }),
                 ModelLightKind::Spot {
                     position,
@@ -188,6 +191,7 @@ impl Shader {
                         exponent,
                     }),
                     reach: f64::INFINITY,
+                    model: local.len(),
                 }),
             }
         }

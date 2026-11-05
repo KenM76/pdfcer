@@ -82,8 +82,18 @@ pub struct FrameLights {
     /// model's lamps under [`crate::LightingScheme::Artwork`]
     /// ([`FrameLights::for_model`]), each adding `colour·fade·cone·|n·l|`
     /// with `l` the unit direction from the surface point to the light,
-    /// added per pixel by the fragment shader.
+    /// added per pixel by the fragment shader. Only the lamps the frame
+    /// lights ([`LampStats::lit_this_frame`](crate::LampStats)): a lamp
+    /// whose reach misses the view is left out, which changes no pixel.
     pub local_count: usize,
+    /// Each lamp's index among the model's point and spot lights.
+    pub local_lamps: Vec<usize>,
+    /// The [`crate::FrameLampShadows`] slot whose cube each lamp tests,
+    /// `None` for a lamp casting no shadow; in the table, texel 1's `w` is
+    /// the slot + 1, 0 for none.
+    pub local_slots: Vec<Option<usize>>,
+    /// The frame's lamp counts.
+    pub lamps: crate::LampStats,
     /// Model-space position in xyz; `w` the cosine of a spot's cut-off
     /// half-angle (a point with `−l·direction` below it gets nothing), −2
     /// for a point light.
@@ -146,6 +156,9 @@ impl FrameLights {
             forward: forward.map(|c| c as f32),
             orthographic: matches!(camera.projection, crate::Projection::Orthographic { .. }),
             local_count: 0,
+            local_lamps: Vec::new(),
+            local_slots: Vec::new(),
+            lamps: crate::LampStats::default(),
             local_positions: Vec::new(),
             local_colours: Vec::new(),
             local_specular: Vec::new(),
@@ -155,7 +168,8 @@ impl FrameLights {
             dropped: 0,
         };
         let options = &crate::render_mode::frame_options(options);
-        let shader = Shader::for_frame(options, lights, &basis)?;
+        let (shader, lamps) = crate::lamp_view::frame_shader(options, lights, camera, None)?;
+        out.lamps = lamps;
         let gloss = crate::gloss::GlossLights::new(&shader, options, lights);
         match shader {
             Shader::Headlight { gain } => {
@@ -205,7 +219,8 @@ impl FrameLights {
     /// Rows `0..count` are the directional lights: texel 0 its direction
     /// (as `directions`), 1 its colour, 2 its specular colour. Rows
     /// `count..count + local_count` are the point and spot lights: texel 0
-    /// its position and reach (`local_reach`), 1 its colour, 2 its specular
+    /// its position and reach (`local_reach`), 1 its colour and shadow
+    /// slot + 1 (`local_slots`), 2 its specular
     /// colour, 3 its attenuation and cone exponent, 4 its cone direction
     /// and cut-off cosine (`local_positions`' `w`). A lamp's reach and cone
     /// sit in the texels read first, so the shader skips a lamp that cannot
@@ -224,12 +239,14 @@ impl FrameLights {
             ]
         });
         let near = (0..self.local_count).map(|i| {
+            let slot = self.local_slots.get(i).copied().flatten();
+            let slot = slot.map_or(0.0, |s| (s + 1) as f32);
             let at = self.local_positions.get(i);
             let cone = self.local_cones.get(i);
             let reach = self.local_reach.get(i).copied().unwrap_or(f32::MAX);
             [
                 at.map(|p| [p[0], p[1], p[2], reach]),
-                self.local_colours.get(i).map(three),
+                self.local_colours.get(i).map(|c| [c[0], c[1], c[2], slot]),
                 self.local_specular.get(i).map(three),
                 self.local_attenuation
                     .get(i)
@@ -259,6 +276,7 @@ impl FrameLights {
             });
             self.local_positions.push([x, y, z, cut]);
             self.local_colours.push(f(l.colour));
+            self.local_lamps.push(l.model);
             self.local_attenuation.push(f(l.attenuation));
             self.local_cones.push([dx, dy, dz, e]);
             self.local_reach.push(if l.reach < f64::from(f32::MAX) {
@@ -268,6 +286,8 @@ impl FrameLights {
             });
         }
         self.local_count = self.local_positions.len();
+        self.local_slots =
+            crate::lamp_view::shadow_slots(local.get(..self.local_count).unwrap_or(local));
     }
 }
 

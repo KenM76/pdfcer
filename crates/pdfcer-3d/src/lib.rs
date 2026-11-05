@@ -76,6 +76,10 @@ mod gpu_wide_lines;
 #[cfg(feature = "render")]
 mod lamp_shadow;
 #[cfg(feature = "render")]
+mod lamp_view;
+#[cfg(all(test, feature = "render"))]
+mod lamp_view_tests;
+#[cfg(feature = "render")]
 mod lens;
 #[cfg(feature = "render")]
 mod lens_frame;
@@ -192,6 +196,8 @@ pub use gpu_shadow_set::{
 pub use gpu_wide_lines::GLSL_ES_300_WIDE_LINE_VERTEX;
 #[cfg(feature = "render")]
 pub use lamp_shadow::{DEFAULT_LAMP_SHADOW_MAP_SIZE, MAX_LAMP_SHADOW_MAP_SIZE};
+#[cfg(feature = "render")]
+pub use lamp_view::{LampCost, LampStats};
 #[cfg(feature = "render")]
 pub use lens::{FrameLens, LENS_LINE_PIECES, LensFace};
 #[cfg(feature = "render")]

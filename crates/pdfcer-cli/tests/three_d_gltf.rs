@@ -396,11 +396,73 @@ fn a_lamp_cut_is_reported_and_drawn() {
     assert_eq!(bad.status.code(), Some(2), "300 is past 255");
 }
 
+/// `--lamp-cost` and the lamp counts: a lamp far out of view is culled
+/// without changing a pixel, and `nearest:0` darkens and says so.
+#[test]
+fn the_lamp_counts_are_noted_and_nearest_is_a_choice() {
+    let s = Scratch::new("lampcost");
+    let far = lamp_over_floor_json()
+        .replace(
+            r#""scenes":[{"nodes":[0,1]}]"#,
+            r#""scenes":[{"nodes":[0,1,2]}]"#,
+        )
+        .replace(
+            r#"{"KHR_lights_punctual":{"light":0}}}],"#,
+            r#"{"KHR_lights_punctual":{"light":0}}},
+    {"name":"far","translation":[5000,0,0],"extensions":{"KHR_lights_punctual":{"light":0}}}],"#,
+        );
+    std::fs::write(s.path("m.glb"), glb_of(far)).unwrap();
+    let pdf = format!(
+        "{}/../../fixtures/synthetic/minimal.pdf",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let (m, out) = (s.path("m.glb"), s.path("out.pdf"));
+    let args = ["3d-embed", &pdf, "--model", &m, "--page", "1"];
+    stdout(&run(&[
+        &args[..],
+        &["--rect", "10,10,190,190", "--apply", "-o", &out],
+    ]
+    .concat()));
+    let render = |tag: &str, extra: &[&str]| {
+        let png = s.path(&format!("{tag}.png"));
+        let mut args = vec!["3d-render", &out, "--index", "0", "--eye=1,-3,4"];
+        args.extend_from_slice(&["--no-ambient-occlusion", "--no-shadows"]);
+        args.extend_from_slice(&["--width", "120", "--height", "80", "-o", &png]);
+        args.extend_from_slice(extra);
+        (stdout(&run(&args)), std::fs::read(&png).unwrap())
+    };
+    let (note, full) = render("full", &[]);
+    let counts = "note: lighting: lamps: 2 in the model, 1 reaching the view, 1 lit this frame";
+    assert!(note.contains(counts), "{note}");
+    assert!(!note.contains("left out"), "{note}");
+    let (_, named) = render("named", &["--lamp-cost", "full"]);
+    assert_eq!(full, named, "full is the default");
+    let (note, none) = render("none", &["--lamp-cost", "nearest:0"]);
+    assert!(
+        note.contains("1 reaching the view, 0 lit this frame; --lamp-cost nearest left out 1"),
+        "{note}"
+    );
+    assert_ne!(full, none, "nearest changes the picture");
+    let bad = run(&[
+        "3d-render",
+        &out,
+        "--lamp-cost",
+        "near",
+        "-o",
+        &s.path("x.png"),
+    ]);
+    assert_eq!(bad.status.code(), Some(2));
+}
+
 /// [`floor_and_square`]'s floor alone, with a point light half a unit above
 /// its centre.
 fn lamp_over_floor() -> Vec<u8> {
-    glb_of(
-        r#"{"asset":{"version":"2.0"},"scene":0,
+    glb_of(lamp_over_floor_json())
+}
+
+/// [`lamp_over_floor`]'s glTF.
+fn lamp_over_floor_json() -> String {
+    r#"{"asset":{"version":"2.0"},"scene":0,
   "extensionsUsed":["KHR_lights_punctual"],
   "extensions":{"KHR_lights_punctual":{"lights":[{"type":"point","color":[1,1,1],"intensity":5}]}},
   "buffers":[{"byteLength":60}],
@@ -411,6 +473,5 @@ fn lamp_over_floor() -> Vec<u8> {
   "nodes":[{"name":"floor","mesh":0,"translation":[-2,0,-2],"rotation":[0.70710678,0,0,0.70710678],"scale":[4,4,1]},
     {"name":"lamp","translation":[0,0.5,0],"extensions":{"KHR_lights_punctual":{"light":0}}}],
   "scenes":[{"nodes":[0,1]}]}"#
-            .to_owned(),
-    )
+        .to_owned()
 }
