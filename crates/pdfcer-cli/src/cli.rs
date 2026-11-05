@@ -3396,6 +3396,8 @@ pub(crate) enum Command {
         line_width: u32,
         #[command(flatten)]
         mode: crate::threed_cmd::RenderModeArgs,
+        #[command(flatten)]
+        light: crate::threed_cmd::LightArgs,
         /// Draw without ambient occlusion. By default creases, corners and
         /// contacts are darkened by how much nearby surface rises around
         /// them, read from the depth of the finished picture; an unlit

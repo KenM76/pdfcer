@@ -49,7 +49,7 @@ vec4 light(int r, int t) {
 }
 
 vec3 shade(vec3 n, vec3 v) {
-    if (u_mode == 0) return vec3(0.3 + 0.7 * abs(dot(n, v)));
+    if (u_mode == 0) return u_ambient + light(0, 1).rgb * abs(dot(n, v));
     if (u_mode == 1) return vec3(1.0);
     vec3 s = u_ambient;
     for (int i = 0; i < u_count; i++) {
@@ -382,7 +382,7 @@ vec3 highlights(vec3 p, vec3 n, vec3 f, float sh, vec3 lamp_spec) {
     vec3 v = view_at(p);
     if (v == vec3(0.0)) return vec3(0.0);
     if (dot(n, v) < 0.0) n = -n;
-    if (u_mode == 0) return vec3(0.7 * blinn(n, v, v));
+    if (u_mode == 0) return light(0, 2).rgb * blinn(n, v, v);
     vec3 s = vec3(0.0);
     for (int i = 0; i < u_count; i++) {
         vec4 d = light(i, 0);

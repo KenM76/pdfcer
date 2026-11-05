@@ -1595,3 +1595,50 @@ fn a_fisheye_field_out_of_range_is_refused() {
     let (out, _) = lens_render("ortho", &["--lens", "equidistant", "--ortho"]);
     assert_eq!(out.status.code(), Some(2));
 }
+
+/// The RGBA pixels of the PNG at `path`.
+#[cfg(feature = "3d")]
+fn png_pixels(path: &Path) -> Vec<u8> {
+    let decoder = png::Decoder::new(std::fs::File::open(path).unwrap());
+    let mut reader = decoder.read_info().unwrap();
+    let mut buf = vec![0; reader.output_buffer_size()];
+    reader.next_frame(&mut buf).unwrap();
+    buf
+}
+
+/// `lens_render` that must succeed: its stdout and pixels.
+#[cfg(feature = "3d")]
+fn lit_render(tag: &str, extra: &[&str]) -> (String, Vec<u8>) {
+    let (out, output) = lens_render(tag, extra);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout).into_owned();
+    (stdout, png_pixels(&output))
+}
+
+/// `--light-gain` brightens the picture and says so; 1 is the default
+/// frame; outside 0.25 to 4 is refused before drawing.
+#[cfg(feature = "3d")]
+#[test]
+fn light_gain_brightens_the_render_and_is_noted() {
+    let sum = |p: &[u8]| p.iter().map(|&c| u64::from(c)).sum::<u64>();
+    let (plain_note, plain) = lit_render("gain_default", &["--lighting", "cad"]);
+    let (one_note, one) = lit_render("gain_1", &["--lighting", "cad", "--light-gain", "1"]);
+    assert_eq!(plain, one, "a gain of 1 is the default frame");
+    assert!(!plain_note.contains("--light-gain") && !one_note.contains("--light-gain"));
+    let (note, dim) = lit_render("gain_half", &["--lighting", "cad", "--light-gain", "0.5"]);
+    assert!(
+        note.contains("note: lighting: every light times 0.5 (--light-gain)"),
+        "{note}"
+    );
+    let (_, bright) = lit_render("gain_2", &["--lighting", "cad", "--light-gain", "2"]);
+    assert!(sum(&dim) < sum(&one) && sum(&one) < sum(&bright));
+    for bad in ["0.2", "4.5", "nan"] {
+        let (out, output) = lens_render("gain_bad", &["--light-gain", bad]);
+        assert_eq!(out.status.code(), Some(2), "{bad}");
+        assert!(!output.exists());
+    }
+}

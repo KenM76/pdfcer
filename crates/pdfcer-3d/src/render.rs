@@ -244,8 +244,9 @@ fn basis_along(forward: [f64; 3], up: [f64; 3]) -> Result<[[f64; 3]; 3], RenderE
     Ok([right, cross(right, forward), forward])
 }
 
-/// What [`render`] draws.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// What [`render`] draws. Equal (and [`Eq`]) field by field, with
+/// [`RenderOptions::light_gain`] compared by its bits.
+#[derive(Debug, Clone, Copy)]
 pub struct RenderOptions {
     /// Image width, pixels.
     pub width: u32,
@@ -323,6 +324,13 @@ pub struct RenderOptions {
     /// `/RM`); [`RenderMode::default`](crate::RenderMode::default) is
     /// Solid, the frame this crate always drew.
     pub render_mode: crate::RenderMode,
+    /// One multiplier on every light (1, the default): each scheme light,
+    /// the model's lights and lamps, the headlight and the ambient, diffuse
+    /// and specular alike, not a material's own emission. Each channel is
+    /// clamped to 1 after shading, on both paths. Outside
+    /// [`MIN_LIGHT_GAIN`](crate::MIN_LIGHT_GAIN)–[`MAX_LIGHT_GAIN`](crate::MAX_LIGHT_GAIN)
+    /// or not finite: [`RenderError::LightGain`].
+    pub light_gain: f64,
 }
 
 impl Default for RenderOptions {
@@ -351,6 +359,7 @@ impl Default for RenderOptions {
             shininess: crate::ShininessScale::Auto,
             line_width: 1,
             render_mode: crate::RenderMode::default(),
+            light_gain: 1.0,
         }
     }
 }
@@ -512,7 +521,7 @@ pub(crate) fn render_view(
     let aspect = f64::from(width) / f64::from(height);
     let basis = camera.basis()?;
     let lights = light_basis.copied().unwrap_or(basis);
-    let shader = Shader::for_frame(options, model_lights, &lights);
+    let shader = Shader::for_frame(options, model_lights, &lights)?;
     let bounds = Bounds::of(meshes);
     let workers = parallel::workers(options.threads);
     let view = View::new(camera, aspect)?;

@@ -39,4 +39,8 @@ pub enum RenderError {
     /// is drawn there ([`Camera::ray_through`]).
     #[error("the pixel lies outside the fisheye lens's picture circle")]
     OutsideLens,
+    /// [`crate::RenderOptions::light_gain`] is not finite or lies outside
+    /// [`crate::MIN_LIGHT_GAIN`]–[`crate::MAX_LIGHT_GAIN`].
+    #[error("the light gain must be a number from 0.25 to 4")]
+    LightGain,
 }

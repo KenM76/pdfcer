@@ -27,7 +27,9 @@ pub const LIGHT_TABLE_WIDTH: usize = 5;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ShadeMode {
-    /// `0.3 + 0.7·|n·v|` on every channel.
+    /// `ambient + colour₀·|n·v|`: `0.3 + 0.7·|n·v|` on every channel, both
+    /// terms times [`crate::RenderOptions::light_gain`], with one light
+    /// along the line of sight carrying the `0.7` and its highlight.
     Headlight,
     /// 1 on every channel.
     Unlit,
@@ -56,7 +58,7 @@ impl ShadeMode {
 pub struct FrameLights {
     /// The formula.
     pub mode: ShadeMode,
-    /// The ambient term, for [`ShadeMode::Lights`].
+    /// The ambient term.
     pub ambient: [f32; 3],
     /// How many directional lights: the length of `directions`, `colours`
     /// and `specular`.
@@ -153,10 +155,15 @@ impl FrameLights {
             dropped: 0,
         };
         let options = &crate::render_mode::frame_options(options);
-        let shader = Shader::for_frame(options, lights, &basis);
+        let shader = Shader::for_frame(options, lights, &basis)?;
         let gloss = crate::gloss::GlossLights::new(&shader, options, lights);
         match shader {
-            Shader::Headlight => {}
+            Shader::Headlight { gain } => {
+                out.ambient = [(0.3 * gain) as f32; 3];
+                out.directions.push([0.0, 0.0, 0.0, 1.0]);
+                out.colours.push([(0.7 * gain) as f32; 3]);
+                out.count = 1;
+            }
             Shader::Unlit => out.mode = ShadeMode::Unlit,
             Shader::Set {
                 ambient,
@@ -621,7 +628,7 @@ mod tests {
             (l.mode, l.count, l.local_count, l.dropped),
             (ShadeMode::Lights, 0, 2, 0)
         );
-        let shader = Shader::for_frame(&options, &lights, &basis);
+        let shader = Shader::for_frame(&options, &lights, &basis).unwrap();
         let n = normalize([0.3, -0.5, 0.8]).unwrap();
         for p in [[0.0; 3], [1.0, 0.1, 0.0], [1.5, 0.0, 0.2], [-1.0, 2.0, 0.5]] {
             let want = shader.shade(p, n, None);
@@ -723,7 +730,7 @@ mod tests {
         assert_eq!((l.count, l.local_count, l.dropped), (40, 40, 0));
         assert_eq!(l.light_table().len(), 80 * LIGHT_TABLE_WIDTH * 4);
         assert_eq!(l.light_table_rows(), 80);
-        let shader = Shader::for_frame(&options, &lights, &basis);
+        let shader = Shader::for_frame(&options, &lights, &basis).unwrap();
         let n = normalize([0.3, -0.5, 0.8]).unwrap();
         let v = normalize(sub(camera.eye, [0.0; 3])).unwrap();
         for p in [[0.0; 3], [1.0, 0.1, 0.0], [-0.5, 0.7, 0.2]] {

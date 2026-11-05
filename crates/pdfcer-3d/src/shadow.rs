@@ -104,7 +104,7 @@ impl Caster {
         let forward = basis[2];
         let lights: &[(Option<[f64; 3]>, [f64; 3])] = match shader {
             Shader::Unlit => return None,
-            Shader::Headlight => &[],
+            Shader::Headlight { .. } => &[],
             Shader::Set { lights, .. } => lights,
         };
         let brightness = |c: &[f64; 3]| c.iter().sum::<f64>();

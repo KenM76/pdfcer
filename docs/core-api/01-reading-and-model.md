@@ -3503,6 +3503,25 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   used=yes|no index=… kind=…` line per view light, after a note naming the
   view whose lights are used. CLI: `3d-render --artwork-headlight
   --no-view-lights`. U3D has no reader yet, so its lights are not read.
+- **Light gain** (`G269`, `render` feature): `RenderOptions::light_gain: f64`
+  (default 1.0) is ONE multiplier on every light of every scheme -- the
+  scheme's lights, the model's lights and lamps, the camera headlight and
+  the ambient, diffuse and specular alike; a material's emission is not a
+  light and is not scaled. Each colour channel is clamped after shading,
+  the same on CPU and GPU, so a high gain washes bright areas to white.
+  Outside `MIN_LIGHT_GAIN` (0.25) ..= `MAX_LIGHT_GAIN` (4.0), or not finite,
+  it is `RenderError::LightGain` from `render*`, `FrameLights::for_model`
+  and every frame-shadow constructor (a refusal, never a clamp). 1.0 draws
+  byte-identically to the engine before the field. `RenderOptions` stays
+  `Eq` (the gain compares by bits); adding the field breaks an exhaustive
+  struct literal outside the crate -- use `..RenderOptions::default()`.
+  The GPU carries the gain in `FrameLights` (`ambient`, `colours`,
+  `specular`, `local_colours`, `local_specular`), so no new uniform: under
+  `ShadeMode::Headlight` the frame now has `count` 1, `ambient` 0.3·gain and
+  one light row (direction `[0,0,0,1]`, colour and specular 0.7·gain) that
+  the shaders read -- re-upload `u_ambient`, `u_count` and the light table
+  for Headlight frames too. CLI: `3d-render --light-gain F` (prints a
+  `note: lighting: every light times F` line when F is not 1).
 - **Shadows and ambient occlusion** (`render` feature; the standard
   defines neither, so both are pdfcer's and disclosed). On by default.
   `RenderOptions::shadows: bool` — the key light casts: the scheme's brightest
@@ -3952,6 +3971,8 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `RenderError::FisheyeField { mapping }` for a fisheye field its mapping
   does not draw; `RenderError::OutsideLens` from `ray_through` outside the
   picture circle;
+  `RenderError::LightGain` for a `light_gain` that is not finite or is
+  outside 0.25..=4;
   `RenderError::TooMuchWork { limit }` when the frame's triangles would
   test more than `MAX_RENDER_PIXEL_TESTS` pixel and texel centres (image
   plus shadow maps, refused before drawing). Non-finite vertices and

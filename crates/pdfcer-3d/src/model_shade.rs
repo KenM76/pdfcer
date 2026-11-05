@@ -11,7 +11,7 @@
 
 use crate::lighting::{LightingScheme, Shader};
 use crate::model_light::unit;
-use crate::render::RenderOptions;
+use crate::render::{RenderError, RenderOptions};
 use crate::vec3::{dot, length, sub};
 use crate::{ModelLight, ModelLightKind};
 
@@ -109,18 +109,27 @@ pub(crate) fn add_local(
 impl Shader {
     /// The shader a frame uses: the model's lights for
     /// [`LightingScheme::Artwork`] when it has any, else the scheme's.
+    ///
+    /// Every light is times [`RenderOptions::light_gain`].
+    ///
+    /// # Errors
+    ///
+    /// [`RenderError::LightGain`] for a gain out of range.
     pub(crate) fn for_frame(
         options: &RenderOptions,
         model: &[ModelLight],
         basis: &[[f64; 3]; 3],
-    ) -> Shader {
+    ) -> Result<Shader, RenderError> {
+        let gain = crate::light_gain::checked_gain(options)?;
         if options.lighting == LightingScheme::Artwork && !model.is_empty() {
-            return Shader::from_model(model, options.artwork_headlight, options.lamp_cut);
+            let headlight = options.artwork_headlight;
+            return Ok(Shader::from_model(model, headlight, options.lamp_cut, gain));
         }
-        Shader::new(options.lighting.lights(), options.light_frame, basis)
+        Ok(Shader::new(options.lighting.lights(), options.light_frame, basis).gained(gain))
     }
 
-    fn from_model(model: &[ModelLight], headlight: bool, cut: LampCut) -> Shader {
+    /// `model`'s lights times `gain`, so each lamp's reach is its own.
+    fn from_model(model: &[ModelLight], headlight: bool, cut: LampCut, gain: f64) -> Shader {
         let mut ambient = [0.0; 3];
         let mut lights = Vec::new();
         let mut local = Vec::new();
@@ -130,8 +139,8 @@ impl Shader {
             }
         };
         for l in model {
-            let colour = l.colour.map(|c| c.max(0.0) * l.intensity.max(0.0));
-            add(&mut ambient, l.ambient.map(|c| c.max(0.0)));
+            let colour = l.colour.map(|c| c.max(0.0) * l.intensity.max(0.0) * gain);
+            add(&mut ambient, l.ambient.map(|c| c.max(0.0) * gain));
             match l.kind {
                 ModelLightKind::Ambient => add(&mut ambient, colour),
                 ModelLightKind::Directional { direction } => {
@@ -172,10 +181,10 @@ impl Shader {
                 }),
             }
         }
-        set_reach(&mut local, model, cut);
+        set_reach(&mut local, model, cut, gain);
         if headlight {
-            add(&mut ambient, [HEADLIGHT_AMBIENT; 3]);
-            lights.push((None, [HEADLIGHT; 3]));
+            add(&mut ambient, [HEADLIGHT_AMBIENT * gain; 3]);
+            lights.push((None, [HEADLIGHT * gain; 3]));
         }
         Shader::Set {
             ambient,
@@ -225,7 +234,7 @@ impl LampCut {
 /// Give each of `local` its [`Local::reach`]: the distance where its
 /// fade times its brightest diffuse or specular channel ([`ModelLight::specular`],
 /// walked in `model`'s order) falls to its share of `cut` ([`LampCut`]).
-fn set_reach(local: &mut [Local], model: &[ModelLight], cut: LampCut) {
+fn set_reach(local: &mut [Local], model: &[ModelLight], cut: LampCut, gain: f64) {
     let cut = cut.hundredths();
     if cut == 0 {
         return;
@@ -239,7 +248,10 @@ fn set_reach(local: &mut [Local], model: &[ModelLight], cut: LampCut) {
                 ModelLightKind::Point { .. } | ModelLightKind::Spot { .. }
             )
         })
-        .map(|l| l.specular.map_or(0.0, |s| max3(s) * l.intensity.max(0.0)));
+        .map(|l| {
+            l.specular
+                .map_or(0.0, |s| max3(s) * l.intensity.max(0.0) * gain)
+        });
     for (l, s) in local.iter_mut().zip(specular) {
         l.reach = reach_limit(l.attenuation, max3(l.colour).max(s), floor);
     }
@@ -274,7 +286,7 @@ mod tests {
     const UP: [f64; 3] = [0.0, 0.0, 1.0];
 
     fn shader(model: &[ModelLight]) -> Shader {
-        Shader::for_frame(&RenderOptions::default(), model, &BASIS)
+        Shader::for_frame(&RenderOptions::default(), model, &BASIS).unwrap()
     }
 
     fn lamps(shader: Shader) -> Vec<Local> {
@@ -327,7 +339,7 @@ mod tests {
                 lamp_cut,
                 ..RenderOptions::default()
             };
-            lamps(Shader::for_frame(&options, &model, &BASIS))
+            lamps(Shader::for_frame(&options, &model, &BASIS).unwrap())
                 .first()
                 .unwrap()
                 .reach
@@ -407,20 +419,20 @@ mod tests {
 
     #[test]
     fn no_model_lights_keeps_the_headlight_and_the_option_adds_it() {
-        assert!(matches!(shader(&[]), Shader::Headlight));
+        assert!(matches!(shader(&[]), Shader::Headlight { .. }));
         let fill = ModelLight::new(ModelLightKind::Ambient, [0.2; 3]);
         let options = RenderOptions {
             artwork_headlight: true,
             ..RenderOptions::default()
         };
-        let s = Shader::for_frame(&options, std::slice::from_ref(&fill), &BASIS);
+        let s = Shader::for_frame(&options, std::slice::from_ref(&fill), &BASIS).unwrap();
         assert!(close(s.shade([0.0; 3], UP, Some(UP)), [1.2; 3]));
         // Another scheme ignores the model's lights.
         let day = RenderOptions {
             lighting: LightingScheme::Day,
             ..RenderOptions::default()
         };
-        let s = Shader::for_frame(&day, &[fill], &BASIS);
+        let s = Shader::for_frame(&day, &[fill], &BASIS).unwrap();
         assert!(matches!(s, Shader::Set { ref local, .. } if local.is_empty()));
     }
 }

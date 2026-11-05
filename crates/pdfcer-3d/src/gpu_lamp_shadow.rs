@@ -88,7 +88,7 @@ impl FrameLampShadows {
         if !(options.shadows && options.lamp_shadows) {
             return Ok(None);
         }
-        let shader = Shader::for_frame(options, lights, &basis);
+        let shader = Shader::for_frame(options, lights, &basis)?;
         let lamps = shader.local();
         if lamps.is_empty() {
             return Ok(None);
@@ -197,7 +197,7 @@ mod tests {
             .unwrap();
         assert_eq!((gpu.count, gpu.dropped), (MAX_SHADOW_CASTERS, 4));
         let basis = camera().basis().unwrap();
-        let shader = Shader::for_frame(&options, &lights, &basis);
+        let shader = Shader::for_frame(&options, &lights, &basis).unwrap();
         let cpu = crate::shadow_set::lamp_casters(&shader);
         assert_eq!(cpu.len(), MAX_SHADOW_CASTERS);
         // Every lamp still lights the GPU frame.

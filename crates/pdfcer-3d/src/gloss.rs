@@ -12,7 +12,7 @@
 //!
 //! clamped per channel. The ambient correction is left out for a textured
 //! pixel, whose colour is a texel's; a local light behind the surface
-//! adds no highlight. [`Shader::Headlight`] has no ambient light (its 0.3
+//! adds no highlight. [`Shader::Headlight`] has no ambient light (its 0.3·gain
 //! is the default light's fixed floor) and one light along `v`;
 //! [`Shader::Unlit`] draws no finish at all.
 
@@ -57,8 +57,8 @@ impl GlossLights {
     /// unless a model light names another.
     pub(crate) fn new(shader: &Shader, options: &RenderOptions, model: &[ModelLight]) -> Self {
         match shader {
-            Shader::Headlight => GlossLights {
-                far: vec![(None, [HEADLIGHT; 3])],
+            Shader::Headlight { gain } => GlossLights {
+                far: vec![(None, [HEADLIGHT * gain; 3])],
                 ..GlossLights::default()
             },
             Shader::Unlit => GlossLights::default(),
@@ -73,7 +73,7 @@ impl GlossLights {
                     ambient: *ambient,
                 };
                 if options.lighting == LightingScheme::Artwork {
-                    out.take_model_specular(model);
+                    out.take_model_specular(model, options.light_gain);
                 }
                 out
             }
@@ -81,11 +81,12 @@ impl GlossLights {
     }
 
     /// Replace light colours by the model lights' own specular colours,
-    /// walking `model` in the order `Shader::from_model` lists them.
-    fn take_model_specular(&mut self, model: &[ModelLight]) {
+    /// walking `model` in the order `Shader::from_model` lists them, times
+    /// `gain`.
+    fn take_model_specular(&mut self, model: &[ModelLight], gain: f64) {
         let (mut far, mut near) = (0, 0);
         for l in model {
-            let k = l.intensity.max(0.0);
+            let k = l.intensity.max(0.0) * gain;
             let specular = l.specular.map(|s| s.map(|c| c.max(0.0) * k));
             let slot = match l.kind {
                 ModelLightKind::Ambient => continue,

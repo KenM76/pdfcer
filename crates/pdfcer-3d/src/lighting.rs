@@ -217,7 +217,10 @@ impl LightingScheme {
 /// A scheme resolved against one camera: unit light directions in model
 /// space, ready to shade a corner.
 pub(crate) enum Shader {
-    Headlight,
+    /// `gain · (0.3 + 0.7·|n·v|)` on every channel.
+    Headlight {
+        gain: f64,
+    },
     Unlit,
     Set {
         ambient: [f64; 3],
@@ -234,7 +237,7 @@ impl Shader {
     pub(crate) fn new(lights: Lights, frame: LightFrame, basis: &[[f64; 3]; 3]) -> Shader {
         use crate::vec3::normalize;
         match lights {
-            Lights::Headlight => Shader::Headlight,
+            Lights::Headlight => Shader::Headlight { gain: 1.0 },
             Lights::Unlit => Shader::Unlit,
             Lights::Set(set) => {
                 let to_model = |d: [f64; 3]| match frame {
@@ -289,7 +292,7 @@ impl Shader {
         use crate::vec3::dot;
         let facing = |d: Option<[f64; 3]>| d.map_or(0.0, |l| dot(normal, l).abs());
         match self {
-            Shader::Headlight => [0.3 + 0.7 * facing(towards); 3],
+            Shader::Headlight { gain } => [(0.3 + 0.7 * facing(towards)) * gain; 3],
             Shader::Unlit => [1.0; 3],
             Shader::Set {
                 ambient, lights, ..

@@ -165,7 +165,7 @@ impl FrameExtraShadows {
         if !options.shadows {
             return Ok(None);
         }
-        let shader = Shader::for_frame(options, lights, &basis);
+        let shader = Shader::for_frame(options, lights, &basis)?;
         let size = options.shadow_map_size;
         let caster = Caster::for_light(options.shadow_light, &shader, options.light_sense, &basis)
             .filter(|c| LightView::new(c.to_light, bounds, size).is_some());

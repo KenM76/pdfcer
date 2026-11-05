@@ -8,6 +8,7 @@ use pdfcer_core::threed::{ThreeDArtwork, ThreeDSource, extract_3d, list_3d_with_
 mod aim;
 mod embed;
 mod gltf;
+mod light_args;
 mod lights;
 mod mode;
 #[cfg(feature = "3d")]
@@ -20,6 +21,7 @@ mod views;
 use aim::aim_camera;
 pub(crate) use embed::{EmbedThreeDArgs, PosterThreeDArgs, cmd_embed_3d, cmd_set_3d_poster};
 pub(crate) use gltf::{GltfHow, cmd_convert_3d};
+pub(crate) use light_args::LightArgs;
 pub(crate) use lights::{LightArg, parse_light};
 pub(crate) use mode::RenderModeArgs;
 pub(crate) use tree::cmd_tree_3d;
@@ -470,6 +472,7 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) lamp_cut: LampCutArg,
     pub(crate) line_width: u32,
     pub(crate) mode: RenderModeArgs,
+    pub(crate) light: LightArgs,
     pub(crate) shadow_map_size: u32,
     pub(crate) ambient_occlusion: bool,
     pub(crate) artwork_headlight: bool,
@@ -645,6 +648,7 @@ fn render_from_bytes(
         threads: a.threads,
         artwork_headlight: a.artwork_headlight,
         shininess: lights::shininess_scale(a.shininess_scale),
+        light_gain: a.light.light_gain,
         ..RenderOptions::default()
     };
     let image = match render_model(&model, &camera, &options) {
@@ -707,6 +711,7 @@ fn render_from_bytes(
          drawn grey"
     );
     lighting.print_note(&model, a.artwork_headlight);
+    a.light.print_note();
     mode.print_note();
     shadow_note::print(a, &model, &camera, &options);
     lights::print_finish_note(&model, &options);

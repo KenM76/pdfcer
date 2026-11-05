@@ -82,6 +82,8 @@ mod lens_frame;
 #[cfg(all(test, feature = "render"))]
 mod lens_tests;
 #[cfg(feature = "render")]
+mod light_gain;
+#[cfg(feature = "render")]
 mod lighting;
 #[cfg(feature = "render")]
 mod lines;
@@ -190,6 +192,8 @@ pub use gpu_wide_lines::GLSL_ES_300_WIDE_LINE_VERTEX;
 pub use lamp_shadow::{DEFAULT_LAMP_SHADOW_MAP_SIZE, MAX_LAMP_SHADOW_MAP_SIZE};
 #[cfg(feature = "render")]
 pub use lens::{FrameLens, LENS_LINE_PIECES, LensFace};
+#[cfg(feature = "render")]
+pub use light_gain::{MAX_LIGHT_GAIN, MIN_LIGHT_GAIN};
 #[cfg(feature = "render")]
 pub use lighting::{Light, LightFrame, LightSet, LightingScheme, Lights};
 pub use model::{
