@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1439th filing)
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, engineer commits):**
+- **`v0.132.0` release commit `02c33826` (`02c3382`): IN PROGRESS.** Version bump of `[workspace.package]` and the five `[workspace.dependencies]` lines (`pdfcer-model`, `-vec3`, `-json`, `-3d`, `-3d-nav`) 0.131.0 to 0.132.0, plus `Cargo.lock` and `fuzz/Cargo.lock`; on top of `9b668449`. Tag `v0.132.0` being cut on it. Carries `Pass 676.0` (`X050`).
+- **Pending:** package, GitHub release, OneDrive (`pdfcer2`), crates.io publish.
+- **ROADMAP:** new *Shipped* entry. FEATURES unchanged (no capability change).
+- **Next:** 1440th filing marks it PUBLISHED with assets and sha.
+
 ## 2026-11-06 (1438th filing) — `Pass 676.0` (`X050`, `9b668449`) SHIPPED
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, engineer commits):**

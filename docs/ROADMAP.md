@@ -112,6 +112,10 @@ wherever it appears.*
 
 ## Shipped
 
+### `02c33826` `v0.132.0` release commit: IN PROGRESS (tagged; package, GitHub release, OneDrive and crates.io publish pending), 2026-11-06 (1439th filing)
+
+Engineer-reported; no shell here, nothing checked from here (git, tag, CI, GitHub, crates.io, OneDrive all as reported). Version bump commit `02c33826` (short `02c3382`) "chore(release): v0.132.0": `[workspace.package]` version and the five `[workspace.dependencies]` version lines (`pdfcer-model`, `-vec3`, `-json`, `-3d`, `-3d-nav`) from 0.131.0 to 0.132.0, `Cargo.lock`, `fuzz/Cargo.lock`. On top of `9b668449`. Tag `v0.132.0` being cut on it. Carries `Pass 676.0` (`X050`, `9b668449`). The 1440th filing marks it PUBLISHED with assets and sha. Per the 1437th entry, the OneDrive CLI goes to `pdfcer2`.
+
 ### `9b668449` `Pass 676.0`, 2026-11-06: 3D picking refuses non-finite rays and hits (`X050`) (1438th filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `9b668449` on `main` "fix(3d-pick): refuse non-finite rays and hits, overflow-safe centroid (X050)". Unreleased; rides `v0.132.0`. Code ported from the request's own (decision 218), adapted only for lints. `676` had zero hits by grep before filing (not run through `tools/check-ledger-numbers.py`).
