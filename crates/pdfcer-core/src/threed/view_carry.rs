@@ -17,10 +17,12 @@ use super::view_write::view_dict;
 pub(crate) struct ViewSource(Option<Arc<Dict>>);
 
 impl ViewSource {
+    /// Remember `dict`, the view dictionary as the file wrote it.
     pub(super) fn of(dict: &Dict) -> Self {
         Self(Some(Arc::new(dict.clone())))
     }
 
+    /// The remembered dictionary; `None` for a view built rather than read.
     pub(crate) fn dict(&self) -> Option<&Dict> {
         self.0.as_deref()
     }
