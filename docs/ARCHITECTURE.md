@@ -499,6 +499,13 @@ D:\Dev\pdfcer\
                                    its own `cargo tree` CI step. Published
                                    with `pdfcer-3d` and `pdfcer-json` (§12
                                    decision 217).
+    pdfcer-vec3\                  <- (`Pass 674.0`, X046) `[f64; 3]` vector
+                                   arithmetic, the one copy shared by
+                                   `pdfcer-3d` (re-exported as
+                                   `pdfcer_3d::vec3`) and `pdfcer-core`
+                                   (which needs it without the `3d`
+                                   feature). Zero dependencies; published
+                                   with the 3D crates (decision 217).
     pdfcer-json\                  <- (`Pass 648.0`, 2026-10-29, §12 decision
                                    210) shared minimal JSON reader, moved
                                    out of `pdfcer-core`'s `ocr/json_lite.rs`

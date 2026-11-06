@@ -6,8 +6,13 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
-publish.workspace = true
+publish = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["pdf", "prc", "gltf", "3d", "rasterizer"]
+categories = ["graphics", "rendering", "parser-implementations"]
 
 [features]
 default = ["render"]
@@ -21,9 +26,9 @@ textures = ["dep:png", "dep:zune-jpeg"]
 
 [dependencies]
 # pdfcer-json: glTF's JSON chunk (Pass 648.0).
-pdfcer-json = { path = "../pdfcer-json" }
+pdfcer-json.workspace = true
 # pdfcer-vec3: the vector arithmetic, re-exported as `vec3` (X046).
-pdfcer-vec3 = { path = "../pdfcer-vec3" }
+pdfcer-vec3.workspace = true
 # thiserror: C-GOOD-ERR error derives. MIT OR Apache-2.0.
 thiserror = "2"
 # flate2: PRC sections are zlib streams (RFC 1950/1951). Pure-Rust backend
@@ -33,7 +38,10 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 # png: PRC texture pictures in PNG [WD 7.5.5.2]. MIT OR Apache-2.0.
 png = { version = "0.17", optional = true }
 # zune-jpeg: PRC texture pictures in JPEG; pure Rust. MIT OR Apache-2.0 OR Zlib.
-zune-jpeg = { git = "https://github.com/etemesi254/zune-image", rev = "c1c7f49776ee32928ed329f4436ae63a595b6283", default-features = false, features = ["std"], optional = true }
+# The registry requirement beside the git source is what `cargo package`
+# publishes (decision 217); a consumer also pulling `image` (zune-jpeg ^0.5,
+# stable 0.5.15) conflicts until 0.5.16 is released.
+zune-jpeg = { git = "https://github.com/etemesi254/zune-image", rev = "c1c7f49776ee32928ed329f4436ae63a595b6283", version = ">=0.5.16-rc3, <0.6", default-features = false, features = ["std"], optional = true }
 
 [[test]]
 name = "all"

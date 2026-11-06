@@ -5,8 +5,13 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
-publish.workspace = true
+publish = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["vector", "3d", "geometry", "math"]
+categories = ["mathematics", "graphics"]
 
 # No dependencies, deliberately: pdfcer-core reaches this unconditionally
 # (its 3D measurement builder is not behind the `3d` feature), so anything

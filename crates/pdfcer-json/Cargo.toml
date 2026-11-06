@@ -5,8 +5,13 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
-publish.workspace = true
+publish = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["json", "parser", "rfc8259", "pdfcer"]
+categories = ["parser-implementations", "encoding"]
 
 [dependencies]
 # thiserror: C-GOOD-ERR error derives. MIT OR Apache-2.0.

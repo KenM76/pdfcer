@@ -6,10 +6,13 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
-# Unpublished because its one dependency, pdfcer-3d, is (only pdfcer-color,
-# -model and -pkix go to crates.io).
-publish = false
+publish = true
 license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["3d", "camera", "orbit", "viewer", "navigation"]
+categories = ["graphics", "rendering"]
 
 [dependencies]
 pdfcer-3d.workspace = true

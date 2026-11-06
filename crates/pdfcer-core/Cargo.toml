@@ -180,10 +180,10 @@ pdfcer-color = { path = "../pdfcer-color" }
 pdfcer-text = { path = "../pdfcer-text" }
 # pdfcer-json: the JSON reader, shared with pdfcer-3d (Pass 648.0); re-exported
 # at `ocr::json_lite`.
-pdfcer-json = { path = "../pdfcer-json" }
+pdfcer-json.workspace = true
 # pdfcer-vec3: vector arithmetic shared with pdfcer-3d (X046). Unconditional
 # because the 3D measurement builder is not behind the `3d` feature.
-pdfcer-vec3 = { path = "../pdfcer-vec3" }
+pdfcer-vec3.workspace = true
 # pdfcer-function: split out and re-exported at the old path (Pass 325.0 step 3).
 pdfcer-function = { path = "../pdfcer-function" }
 

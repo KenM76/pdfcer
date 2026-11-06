@@ -124,7 +124,8 @@ publish = false
 # retained deliberately: pdfcer ships as source + binaries, not a crates.io
 # registry package, so the workspace stays unpublished even under a license.
 # pdfcer-color, -model and -pkix override this with `publish = true`: they
-# are published to crates.io on the operator's go-ahead (Pass 637.0).
+# are published to crates.io on the operator's go-ahead (Pass 637.0), as are
+# pdfcer-vec3, -json, -3d and -3d-nav (decision 217).
 license = "MIT"
 
 [workspace.dependencies]
@@ -146,9 +147,12 @@ pdfcer-model = { path = "crates/pdfcer-model", version = "0.130.0" }
 pdfcer-core = { path = "crates/pdfcer-core", default-features = false }
 pdfcer-render = { path = "crates/pdfcer-render", default-features = false }
 pdfcer-print = { path = "crates/pdfcer-print" }
-pdfcer-vec3 = { path = "crates/pdfcer-vec3" }
-pdfcer-3d = { path = "crates/pdfcer-3d" }
-pdfcer-3d-nav = { path = "crates/pdfcer-3d-nav" }
+# Published with versions beside their paths (decision 217); bump with
+# [workspace.package] version like pdfcer-model above.
+pdfcer-vec3 = { path = "crates/pdfcer-vec3", version = "0.130.0" }
+pdfcer-json = { path = "crates/pdfcer-json", version = "0.130.0" }
+pdfcer-3d = { path = "crates/pdfcer-3d", version = "0.130.0" }
+pdfcer-3d-nav = { path = "crates/pdfcer-3d-nav", version = "0.130.0" }
 # OCR hosting for the shells, including program add-ons (decision 184).
 pdfcer-ocr-host = { path = "crates/pdfcer-ocr-host", default-features = false }
 # Network code for operator-initiated downloads. `default-features = false`
