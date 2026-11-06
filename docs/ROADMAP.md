@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `fc3f7e1d` `v0.134.0` release commit: IN PROGRESS (CI, packaging, GitHub release, OneDrive and crates.io publish not done), 2026-11-06 (1448th filing)
+
+Engineer-reported; no shell here, nothing checked from here (git, tag, push, CI all as reported or not stated). Commit `fc3f7e1d` "chore(release): v0.134.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` only. Carries `Pass 679.0` (`X058`), `680.0` (`X056`), `681.0` (`X055`), `682.0` (`X057`), `683.0` (`X059`, including the revision `8b3464ef`).
+- **Before bumping (as reported):** change-scoped gates per R263; `cargo test` green on `pdfcer-3d-nav`, `pdfcer-3d`, `pdfcer-core`, `pdfcer-cli` (core lib 3170 passed, 2 ignored; `3d-nav` lib 67 was measured after `8b3464ef`); `check-commits-filed` clean.
+- **Pending:** CI, packaging, GitHub release, OneDrive deploy, crates.io publish. Whether the tag exists or `main` is pushed is not stated in the dispatch. A later PUBLISHED filing closes this.
+- **FEATURES:** unchanged (a version bump adds no capability; no box touched; the rows for `679.0`-`683.0` stay "unreleased" until published).
+
 ### `72f43743` `Pass 683.0`, 2026-11-06: a ramp or step under a low ceiling no longer carries the walker through it; long steps and descents (`X059`) (1446th filing)
 
 Engineer-reported; no shell here, git state not checked from here (local `main`, not pushed, as reported). Commit `72f43743`; docs in `13efcccf`. Rides `v0.134.0` (not yet released). Inbound request `X059` from the operator (crates consumer); `pdfcer-gui` FYI. Never opened in Next up; filed directly as Shipped. No decision record.
@@ -26242,6 +26249,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **1443rd filing: `v0.132.0` is PUBLISHED (see *Shipped*; OneDrive `pdfcer2`; CI red at the tag from a `check-commits-filed` process slip, code unaffected). 1444th filing: `v0.133.0` release commit `50d0135f` is tagged and pushed, IN PROGRESS (CI on the tag, packaging, GitHub release, OneDrive, crates.io pending); its PUBLISHED filing is next. No open Pass at the head. 1445th filing: `v0.133.0` is PUBLISHED (see *Shipped*; OneDrive `pdfcer1`, CI green at the tag, all crates at 0.133.0). No open Pass at the head.**
 >
 > **1446th filing: `Pass 679.0`-`683.0` (`X055`-`X059`) are SHIPPED (see *Shipped*), unreleased, filed directly as Shipped; they ride `v0.134.0` (not yet released). No open Pass at the head.**
+>
+> **1448th filing: `v0.134.0` release commit `fc3f7e1d` is IN PROGRESS (CI, packaging, GitHub release, OneDrive, crates.io pending); its PUBLISHED filing is next. No open Pass at the head.**
 
 > **1433rd filing: `Pass 675.1` (QUEUED after `675.0`) - publish `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav` to crates.io at the next release** (decision 217; Ken, 2026-11-06: "Yes publish them"). `675.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`).
 > - the three join `pdfcer-color`, `-model`, `-pkix` (`Pass 637.0`); `pdfcer-json` is included because `pdfcer-3d` depends on it;

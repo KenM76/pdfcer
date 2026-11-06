@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1448th filing) — `v0.134.0` release commit `fc3f7e1d`: IN PROGRESS
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **Commit `fc3f7e1d` "chore(release): v0.134.0"** (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` only). Carries `Pass 679.0` (`X058`), `680.0` (`X056`), `681.0` (`X055`), `682.0` (`X057`), `683.0` (`X059`, with revision `8b3464ef`). Whether the tag exists or `main` is pushed is not stated in the dispatch.
+- **Before the bump (as reported):** change-scoped gates per R263; `cargo test` green on `pdfcer-3d-nav`, `pdfcer-3d`, `pdfcer-core`, `pdfcer-cli` (core lib 3170 passed, 2 ignored; `3d-nav` lib 67, measured after `8b3464ef`); `check-commits-filed` clean.
+- **Pending:** CI, packaging, GitHub release, OneDrive, crates.io. A later PUBLISHED filing closes this.
+- **ROADMAP:** new Shipped entry plus banner. **FEATURES:** unchanged (no capability, no box; no current-version line to update).
+- **Next:** finish the `v0.134.0` publish. Next filing 1449th.
+
 ## 2026-11-06 (1447th filing) — `Pass 683.0` (`X059`) follow-up `8b3464ef`
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, engineer commits):**
