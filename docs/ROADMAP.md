@@ -26152,6 +26152,22 @@ closes out the *prior* filing's business rather than opening this one's.
 > **1437th filing: `v0.131.0` is PUBLISHED (see *Shipped*), carrying `Pass 673.0`, `674.0`, `675.0` and the `675.1` publish; OneDrive `pdfcer1`, so the next release writes `pdfcer2`. `Pass 675.1` is COMPLETE (seven crates on crates.io at 0.131.0). `X049` is addressed to `pdfcer-gui` (not ours). `Pass 676.0` (`X050`) opened below, IN PROGRESS.**
 >
 > **1438th filing: `Pass 676.0` (`X050`, `9b668449`) is SHIPPED (see *Shipped*), unreleased; it rides `v0.132.0`, which writes OneDrive `pdfcer2` and is a separate filing. Its Next up block is removed. No open Pass at the head. `X049` is addressed to `pdfcer-gui` (not ours).**
+>
+> **1440th filing: two new Passes, both targeting `v0.133.0` (the release after `v0.132.0`, which is tagged on `02c33826` and still being published; its PUBLISHED filing is separate). `677`, `678` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`); last used `676.0`.**
+>
+> **`Pass 677.0` (`X051`, `X052`, `X053`; from `pdfcer-gui`), QUEUED:** three `pdfcer-3d-nav` / `pdfcer-core` items, code ported from `pdfcer-gui` `4cc231ac` (decision 218).
+> - **`X051`:** `pub const PAN_LIMIT: f64 = 1e3` and `Orbit::set_pan`, which ignores non-finite input and clamps each component to +-`PAN_LIMIT`; optionally `Orbit::pan_by`. The GUI's `navorbit::drag_pan` guard moves into the crate.
+> - **`X052`:** named Top/Bottom view pitch. The crate uses `PITCH_LIMIT` (pi/2 - 0.01); the GUI's original used 89 degrees. Engineer's ruling: restore 89 degrees for the named views, as ported verbatim from the GUI source the crate came from, and record the choice on the symbol's doc.
+> - **`X053`:** engine-side conversion from `pdfcer_core::threed::ThreeDSavedView` to `pdfcer_3d_nav::SavedAim` and `ViewFrame`, reading the `/C2W` translation in the engine; ported from the GUI's `fileview::saved_aim` / `fileview::frame`. `pdfcer-core`'s `3d` feature gains `pdfcer-3d-nav`.
+> - Shells: core only. cli and gui are `—` (the GUI's caller is `pdfcer-gui`'s).
+>
+> **`Pass 678.0` (operator request, Ken, 2026-11-06), QUEUED:** *"Can we add 360 degree capability to our screen capture? The kind that opens in photo viewers as a picture you can look around in?"* and *"Add it to this release and inform pdfcer-gui of this new feature to add to the screenshot render options."*
+> - An equirectangular full-sphere lens for the 3D renderer, `FisheyeMapping::Equirectangular`, CPU and GPU.
+> - Google Photo Sphere (GPano) XMP embedded in JPEG output, so photo viewers open it as a look-around picture.
+> - `pdfcer 3d-render` lens token `equirectangular` (and possibly `--360`).
+> - Out of scope: flat PDF pages (nothing behind the camera).
+> - A notice to `pdfcer-gui` (`FeatureRequests`) to add it to its screenshot render options is owed by the engineer.
+> - Shells: core, cli, gui all unbuilt; gui is `pdfcer-gui`'s work.
 
 > **1433rd filing: `Pass 675.1` (QUEUED after `675.0`) - publish `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav` to crates.io at the next release** (decision 217; Ken, 2026-11-06: "Yes publish them"). `675.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`).
 > - the three join `pdfcer-color`, `-model`, `-pkix` (`Pass 637.0`); `pdfcer-json` is included because `pdfcer-3d` depends on it;

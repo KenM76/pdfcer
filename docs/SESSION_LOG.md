@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1440th filing)
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, engineer commits):**
+- **`Pass 677.0`** QUEUED, from `pdfcer-gui`: `X051` (`PAN_LIMIT`, `Orbit::set_pan`), `X052` (named Top/Bottom pitch restored to 89 degrees, recorded on the symbol's doc), `X053` (`ThreeDSavedView` to `SavedAim`/`ViewFrame` in the engine; `pdfcer-core` `3d` feature gains `pdfcer-3d-nav`). Ported from `pdfcer-gui` `4cc231ac` (decision 218).
+- **`Pass 678.0`** QUEUED, operator request (Ken): 360-degree capture. `FisheyeMapping::Equirectangular` (CPU and GPU), GPano XMP in JPEG output, `3d-render` lens token `equirectangular`. Flat pages out of scope. Notice to `pdfcer-gui` owed (engineer).
+- Both target `v0.133.0`. Numbers `677`, `678` free by grep of `docs/` (zero hits); `tools/check-ledger-numbers.py` not run (no shell).
+- **`v0.132.0`** (tag on `02c33826`) is still being published; its PUBLISHED filing is separate.
+- **FEATURES:** two Planned rows (3D section), all boxes unticked except where `—`.
+
 ## 2026-11-06 (1439th filing)
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, engineer commits):**

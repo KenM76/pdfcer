@@ -696,6 +696,8 @@ the model or verb exists and only the named shell is missing. The
 
 | core | cli | gui | Acrobat | Feature |
 |:----:|:---:|:---:|:-------:|---------|
+| [ ] | — | — | ? | **3D navigation: pan limit, named-view pitch, saved view to aim** — `Orbit::set_pan` clamps to `PAN_LIMIT` and ignores non-finite input; Top/Bottom named views use 89 degrees; `ThreeDSavedView` converts to `SavedAim`/`ViewFrame` in the engine. `Pass 677.0` (`X051`-`X053`), *Next up*, targets `v0.133.0`. cli and gui `—`: the GUI's caller is `pdfcer-gui`'s. |
+| [ ] | [ ] | [ ] | ? | **360-degree 3D capture** — equirectangular full-sphere lens (`FisheyeMapping::Equirectangular`, CPU and GPU), GPano XMP in JPEG output so photo viewers open it as a look-around picture; `3d-render` lens `equirectangular`. Flat pages out of scope. `Pass 678.0` (operator), *Next up*, targets `v0.133.0`. gui is `pdfcer-gui`'s screenshot options. |
 | [ ] | [ ] | [ ] | ? | **Make a 3D PDF from an OBJ or STL mesh** — same PRC writer as the glTF row (shipped, `Pass 648.0`); OBJ/MTL colours, STL uncoloured (default disclosed). `Pass 648.1`, *Next up*, after 648.0. |
 | [ ] | [ ] | [ ] | ? | **3D units and the other measurement kinds** — 3D units `/3DU` (Table 325); `3d-views --measure` for perpendicular, angular, radial and comment measurements (the core writes them; the CLI writes linear only); comment-linked measurements. `Pass 648.7`, Backlog. |
 | [x] | — | [ ] | [x] | **Insert a page named twice as separate copies** — a repeated source index in `insert_pages` now gets its own independent copy, as Acrobat does (was a page-tree cycle). Defect fixed, `Pass 567.0` (`G185`). GUI: `pdfcer-gui` still has a workaround to delete. |
