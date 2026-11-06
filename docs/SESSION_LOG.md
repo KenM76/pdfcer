@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1449th filing) — `v0.134.1` release commit `c2dca228`: IN PROGRESS; `v0.134.0` never published
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **`7a4c6d52`** (tools only): `check-clap-help` now walks back over a multi-line attribute. `13efcccf` gave `3d-views` a two-line `#[command(group = ...)]`; the gate read its last line as code. CI "repository audits" red at `ceeb969d` (run 42268622415), the only failing job of 12. Help text was never wrong. Sabotage caught; 246 of 246 pass restored.
+- **`c2dca228` "chore(release): v0.134.1"** (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`): carries `Pass 679.0`-`683.0` plus `7a4c6d52`. IN PROGRESS.
+- **`v0.134.0` is not a release:** tag pushed at `fc3f7e1d` before CI finished; it stays (moving it needs the operator's go-ahead). No assets, crates or OneDrive build. ROADMAP 1448th entry amended to say superseded/never published.
+- **Lesson:** the tag went on before CI's colour was known. `v0.134.1` is tagged only after CI is green.
+- **Stale citation fix (the one permitted edit to old entries):** `e40fdfb3` was a worker's worktree commit, never on `main`, so `tools/check-cited-commits-exist.py` failed locally. Changed to "the worker's commit was cherry-picked into `209b61e5`" in ROADMAP (Pass 678.0 entry) and in the 1442nd entry below.
+- **Git push state:** not pushed as of filing (nothing since `ceeb969d`).
+- **FEATURES:** unchanged (no capability, no box, no version line).
+- **Next:** CI green, then tag and publish `v0.134.1`. Next filing 1450th.
+
 ## 2026-11-06 (1448th filing) — `v0.134.0` release commit `fc3f7e1d`: IN PROGRESS
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
@@ -69,7 +81,7 @@ the affected entry. Maintained by `pdfce-librarian`.
 ## 2026-11-06 (1442nd filing) — `Pass 678.0` (`209b61e5`) SHIPPED
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, engineer commits):**
-- **`Pass 678.0` SHIPPED, unreleased (ships in `v0.133.0` with `677.0`):** `FisheyeMapping::Equirectangular` (CPU and GPU, seam-cut lines), `photo_sphere_xmp`/`insert_jpeg_xmp` GPano XMP in JPEG, `pdfcer 3d-render --360`. Worker `e40fdfb3` cherry-picked; engineer fixed cube-face density cap and the seam split.
+- **`Pass 678.0` SHIPPED, unreleased (ships in `v0.133.0` with `677.0`):** `FisheyeMapping::Equirectangular` (CPU and GPU, seam-cut lines), `photo_sphere_xmp`/`insert_jpeg_xmp` GPano XMP in JPEG, `pdfcer 3d-render --360`. The worker's commit was cherry-picked into `209b61e5`; engineer fixed cube-face density cap and the seam split.
 - **Verified (as reported):** `pdfcer-3d` 460 lib, `pdfcer-3d-nav` 47+1+2, render export 9 + 2 doctests, cli three_d 62; sabotage fails both fixes' tests; fmt, clippy, structure, public-fns, reexport, core-api-verbs clean; `cargo tree -p pdfcer-render` clean.
 - **FEATURES:** Planned row moved to Implemented: core `[x]`, cli `[x]`, gui `[ ]` (`X054` sent). **ROADMAP:** new Shipped entry; Next up `678.0` block replaced by a 1442nd banner.
 - **Next:** release `v0.133.0` (carries `677.0`, `678.0`). Next filing 1443rd.

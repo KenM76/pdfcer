@@ -112,7 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
-### `fc3f7e1d` `v0.134.0` release commit: IN PROGRESS (CI, packaging, GitHub release, OneDrive and crates.io publish not done), 2026-11-06 (1448th filing)
+### `c2dca228` `v0.134.1` release commit: IN PROGRESS (tag only after CI green; CI, packaging, GitHub release, OneDrive and crates.io publish not done), 2026-11-06 (1449th filing)
+
+Engineer-reported; no shell here, nothing checked from here. Commit `c2dca228` "chore(release): v0.134.1": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` only. Carries everything the 1448th entry below lists for `v0.134.0` (`Pass 679.0` to `683.0`) plus `7a4c6d52`. Not pushed as of filing (nothing since `ceeb969d` is). A later PUBLISHED filing closes this.
+- **`7a4c6d52` "fix(gates): check-clap-help walks back over a multi-line attribute" (tools only):** `13efcccf` gave the `3d-views` subcommand a two-line `#[command(group = ...)]`; the gate took the attribute's last line for code and reported no help text. CI's "repository audits" job went red at `ceeb969d` (run 42268622415), the only failing job (the other 11 passed). The help text was intact and `--help` never wrong. Sabotage: deleting the `3d-views` doc block still fails the gate; 246 of 246 pass restored.
+- **Lesson:** the `v0.134.0` tag went on before CI's colour was known. `v0.134.1` is tagged only after CI is green.
+
+### `fc3f7e1d` `v0.134.0` release commit: SUPERSEDED by `v0.134.1` (`c2dca228`), NEVER PUBLISHED, 2026-11-06 (1448th filing; amended 1449th)
+
+**Amended 1449th filing:** tag `v0.134.0` was pushed at `fc3f7e1d` before CI finished and stays there (moving a pushed tag needs the operator's go-ahead). It is not a release: no assets, no crates, no OneDrive build were published for it. Its contents shipped in `v0.134.1`. The text below is the original 1448th entry, kept as filed.
 
 Engineer-reported; no shell here, nothing checked from here (git, tag, push, CI all as reported or not stated). Commit `fc3f7e1d` "chore(release): v0.134.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` only. Carries `Pass 679.0` (`X058`), `680.0` (`X056`), `681.0` (`X055`), `682.0` (`X057`), `683.0` (`X059`, including the revision `8b3464ef`).
 - **Before bumping (as reported):** change-scoped gates per R263; `cargo test` green on `pdfcer-3d-nav`, `pdfcer-3d`, `pdfcer-core`, `pdfcer-cli` (core lib 3170 passed, 2 ignored; `3d-nav` lib 67 was measured after `8b3464ef`); `check-commits-filed` clean.
@@ -181,7 +189,7 @@ Engineer-reported; no shell here, nothing checked from here. Supersedes the IN P
 
 ### `209b61e5` `Pass 678.0`, 2026-11-06: 360-degree photo-sphere 3D render (1442nd filing)
 
-Engineer-reported; no shell here, git state not checked from here (not pushed, as reported). Commit `209b61e5` on `main` "feat(3d): 360-degree photo-sphere render, equirectangular lens + GPano XMP (Pass 678.0, X054)". Unreleased; ships in `v0.133.0` with `Pass 677.0`. Operator request (Ken, 2026-11-06). Worker commit `e40fdfb3` (worktree) cherry-picked; engineer fixes on top: cube-face density cap, seam split on both paths. Notice to `pdfcer-gui`: `X054` (not built in the GUI).
+Engineer-reported; no shell here, git state not checked from here (not pushed, as reported). Commit `209b61e5` on `main` "feat(3d): 360-degree photo-sphere render, equirectangular lens + GPano XMP (Pass 678.0, X054)". Unreleased; ships in `v0.133.0` with `Pass 677.0`. Operator request (Ken, 2026-11-06). The worker's commit was cherry-picked into `209b61e5`; engineer fixes on top: cube-face density cap, seam split on both paths. Notice to `pdfcer-gui`: `X054` (not built in the GUI).
 - **`pdfcer-3d`:** `FisheyeMapping::Equirectangular` (fov must be exactly 360), the full sphere as a 2:1 panorama composed from all six cube faces, CPU and GPU (`FrameLens` `u_lens_mapping` 2). Lines and wires crossing the left/right seam behind the eye are cut at the seam on both paths (pieces re-split so one ends on the seam).
 - **`pdfcer-render`:** `photo_sphere_xmp(width, height)`, `insert_jpeg_xmp(jpeg, xmp)`, `MAX_JPEG_XMP_PACKET`; GPano XMP as a JPEG APP1 segment; new `ExportError::Metadata` variant.
 - **CLI:** `pdfcer 3d-render --360` (= `--lens equirectangular`), default 2048x1024. `.jpg` carries the GPano tag; PNG prints a no-tag note; non-2:1 prints a note; `--transparent` into JPEG refused (exit 9).
@@ -26251,6 +26259,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **1446th filing: `Pass 679.0`-`683.0` (`X055`-`X059`) are SHIPPED (see *Shipped*), unreleased, filed directly as Shipped; they ride `v0.134.0` (not yet released). No open Pass at the head.**
 >
 > **1448th filing: `v0.134.0` release commit `fc3f7e1d` is IN PROGRESS (CI, packaging, GitHub release, OneDrive, crates.io pending); its PUBLISHED filing is next. No open Pass at the head.**
+>
+> **1449th filing: `v0.134.0` was never published (tag pushed at `fc3f7e1d` before CI finished; superseded). `v0.134.1` release commit `c2dca228` is IN PROGRESS, to be tagged only after CI is green; not pushed as of filing. No open Pass at the head.**
 
 > **1433rd filing: `Pass 675.1` (QUEUED after `675.0`) - publish `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav` to crates.io at the next release** (decision 217; Ken, 2026-11-06: "Yes publish them"). `675.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`).
 > - the three join `pdfcer-color`, `-model`, `-pkix` (`Pass 637.0`); `pdfcer-json` is included because `pdfcer-3d` depends on it;
