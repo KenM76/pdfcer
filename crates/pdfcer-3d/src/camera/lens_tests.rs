@@ -486,3 +486,78 @@ fn a_vertex_point_lands_where_the_lens_puts_it() {
         assert_eq!(rgba[p..p + 4], BLUE, "{vertex:?} at {x},{y}");
     }
 }
+
+/// `pixel_of` takes a point on the ray through a pixel back to that pixel,
+/// under every lens.
+#[test]
+fn pixel_of_inverts_ray_through_under_every_lens() {
+    for (mapping, fov) in [
+        (EQUI, 90.0),
+        (EQUI, 220.0),
+        (EQUI, 360.0),
+        (STEREO, 120.0),
+        (STEREO, 330.0),
+        (FisheyeMapping::Equirectangular, 360.0),
+    ] {
+        let camera = camera(fov, mapping);
+        let mut seen = 0;
+        for (x, y) in [(60.5, 45.5), (45.25, 30.75), (70.5, 60.5), (95.5, 15.5)] {
+            let Ok(ray) = camera.ray_through(x, y, 120, 90) else {
+                continue;
+            };
+            let point = std::array::from_fn(|i| ray.origin[i] + ray.direction[i] * 3.0);
+            let [px, py] = camera.pixel_of(point, 120, 90).unwrap();
+            assert!(
+                (px - x).abs() < 1e-6 && (py - y).abs() < 1e-6,
+                "{mapping:?} {fov}: ({x}, {y}) came back as ({px}, {py})"
+            );
+            seen += 1;
+        }
+        assert!(
+            seen >= 2,
+            "{mapping:?} {fov}: only {seen} pixels on the lens"
+        );
+    }
+}
+
+/// The 360° picture has a position for every direction: straight behind is
+/// on the seam, the zenith on the top edge, and the eye itself on nothing.
+#[test]
+fn pixel_of_under_the_panorama_wraps_and_reaches_the_poles() {
+    let camera = Camera {
+        eye: [0.0; 3],
+        target: [0.0, 1.0, 0.0],
+        up: [0.0, 0.0, 1.0],
+        projection: Projection::Fisheye {
+            fov: 360.0,
+            mapping: FisheyeMapping::Equirectangular,
+        },
+    };
+    let at = |p| camera.pixel_of(p, 200, 100);
+    assert_eq!(at([0.0, 5.0, 0.0]), Some([100.0, 50.0]));
+    let [x, y] = at([0.0, -5.0, 0.0]).unwrap();
+    assert!(x == 0.0 || x == 200.0, "{x}");
+    assert_eq!(y, 50.0);
+    assert_eq!(at([0.0, 0.0, 5.0]).unwrap()[1], 0.0);
+    assert_eq!(at([0.0, 0.0, -5.0]).unwrap()[1], 100.0);
+    assert_eq!(at([0.0; 3]), None);
+}
+
+/// A radial fisheye gives a point outside its circle a position past the
+/// circle, and nothing for the one direction with no position at all.
+#[test]
+fn pixel_of_under_a_radial_fisheye_runs_past_the_circle() {
+    let camera = Camera {
+        eye: [0.0; 3],
+        target: [0.0, 0.0, 1.0],
+        up: [0.0, 1.0, 0.0],
+        projection: Projection::Fisheye {
+            fov: 90.0,
+            mapping: EQUI,
+        },
+    };
+    let [x, y] = camera.pixel_of([0.0, 5.0, 0.1], 100, 100).unwrap();
+    assert_eq!(x, 50.0);
+    assert!(y < 0.0, "{y}");
+    assert_eq!(camera.pixel_of([0.0, 0.0, -5.0], 100, 100), None);
+}

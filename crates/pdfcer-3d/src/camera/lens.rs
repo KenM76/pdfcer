@@ -170,6 +170,16 @@ impl Lens {
         out.iter().all(|c| c.is_finite()).then_some(out)
     }
 
+    /// The distance camera-space point `c` reaches along the axis of the
+    /// view that draws it, which that view's near plane is tested against:
+    /// the forward axis of a narrow picture, the largest axis of a cube.
+    pub(crate) fn reach_of(&self, [x, y, z]: [f64; 3]) -> f64 {
+        match self.layout() {
+            Layout::Narrow { .. } => z,
+            Layout::Cube { .. } => x.abs().max(y.abs()).max(z.abs()),
+        }
+    }
+
     /// [`Self::pixel`] for the panorama: longitude atan2(x, z) across,
     /// latitude up; straight behind lands on the right edge.
     fn panorama_pixel(&self, [x, y, z]: [f64; 3]) -> Option<[f64; 2]> {

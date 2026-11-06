@@ -41,6 +41,64 @@ pub struct Hit {
 }
 
 impl Camera {
+    /// The image position `point` is drawn at in a `width` × `height`
+    /// rendering from this camera, y down: the inverse of
+    /// [`Self::ray_through`], through the projection [`crate::render`] draws
+    /// with.
+    ///
+    /// `None` when nothing is drawn for it: nearer than the near plane or
+    /// behind the eye, at the eye, straight behind a radial fisheye, a point
+    /// that is not finite, a zero size, a camera the renderer refuses, or a
+    /// position that overflows. Orthographic draws behind the eye too, so it
+    /// is only `None` for the reasons that are not about depth.
+    ///
+    /// A point in front of the camera but outside the picture, or past a
+    /// fisheye's circle, is not `None`: it gets its position past the edge or
+    /// circle, so a caller can clip a line that leaves the picture.
+    ///
+    /// Under the 360° panorama every direction has a position. Longitude
+    /// runs across and latitude up, so a point straight behind the eye lands
+    /// on the right edge (x = `width`; on the left edge, x = 0, when its
+    /// camera-space x is -0), and a point straight up or down lands on the
+    /// top or bottom edge. The picture wraps: when two points' positions are
+    /// more than half the width apart, the line between them crosses the
+    /// left/right seam, and the caller must split it there rather than draw
+    /// across the picture.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_3d::{Camera, Projection};
+    /// let camera = Camera {
+    ///     eye: [0.0, 0.0, 10.0],
+    ///     target: [0.0; 3],
+    ///     up: [0.0, 1.0, 0.0],
+    ///     projection: Projection::Perspective { fov_y: 30.0 },
+    /// };
+    /// assert_eq!(camera.pixel_of([0.0; 3], 100, 100), Some([50.0, 50.0]));
+    /// assert_eq!(camera.pixel_of([0.0, 0.0, 20.0], 100, 100), None);
+    /// ```
+    #[must_use]
+    pub fn pixel_of(&self, point: [f64; 3], width: u32, height: u32) -> Option<[f64; 2]> {
+        if width == 0 || height == 0 || !point.iter().all(|c| c.is_finite()) {
+            return None;
+        }
+        let [right, up, forward] = self.basis().ok()?;
+        let from_eye = sub(point, self.eye);
+        let c = [
+            dot(from_eye, right),
+            dot(from_eye, up),
+            dot(from_eye, forward),
+        ];
+        let lens = crate::camera::lens::Lens::for_camera(self, width, height).ok()?;
+        let out = match lens {
+            Some(lens) if lens.reach_of(c) >= lens.near => lens.pixel(c)?,
+            Some(_) => return None,
+            None => planar_pixel(self, c, width, height)?,
+        };
+        out.iter().all(|v| v.is_finite()).then_some(out)
+    }
+
     /// The ray through image position (`x`, `y`) of a `width` × `height`
     /// rendering from this camera: pixel `(i, j)`'s centre is
     /// `(i + 0.5, j + 0.5)`, y down. The inverse of the projection
@@ -195,8 +253,33 @@ pub(crate) fn intersect(c: &[[f64; 3]; 3], ray: &Ray) -> Option<Hit> {
     })
 }
 
+/// The picture position of camera-space point `[x, y, z]` under a planar
+/// projection, as the rasterizer places a corner: divided before multiplied,
+/// so an on-screen point's intermediate values stay finite.
+fn planar_pixel(camera: &Camera, [x, y, z]: [f64; 3], width: u32, height: u32) -> Option<[f64; 2]> {
+    let aspect = f64::from(width) / f64::from(height);
+    let (nx, ny) = match View::new(camera, aspect).ok()? {
+        View::Perspective { focal, near, .. } => {
+            if z < near {
+                return None;
+            }
+            (x / z * (focal / aspect), y / z * focal)
+        }
+        View::Orthographic { half_height, .. } => (x / half_height / aspect, y / half_height),
+    };
+    Some([
+        (nx + 1.0) / 2.0 * f64::from(width),
+        (1.0 - ny) / 2.0 * f64::from(height),
+    ])
+}
+
 #[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used, clippy::indexing_slicing)] // Tests fail loudly by design.
+#[allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::indexing_slicing
+)] // Tests fail loudly by design.
 #[allow(clippy::single_range_in_vec_init)] // One face spanning every triangle is intended.
 mod tests {
     use super::*;
@@ -360,5 +443,65 @@ mod tests {
             far.ray_through(9.5, 5.0, 10, 10),
             Err(RenderError::Camera(_))
         ));
+    }
+
+    /// `pixel_of` is the renderer's own placement: a picked point goes back
+    /// to its pixel under both planar projections and a non-square image.
+    #[test]
+    fn pixel_of_inverts_the_pick_under_a_planar_projection() {
+        let eye = [6.0, 5.0, 8.0];
+        for projection in [
+            Projection::Perspective { fov_y: 40.0 },
+            Projection::Orthographic { height: 4.0 },
+        ] {
+            let cam = camera(eye, projection);
+            let (w, h) = (160, 90);
+            for (x, y) in [(80.5, 45.5), (75.5, 40.5), (88.5, 50.5)] {
+                let ray = cam.ray_through(x, y, w, h).unwrap();
+                let hit = pick(&[cube()], &ray).expect("hits");
+                let at = cam.pixel_of(hit.point, w, h).expect("drawn");
+                assert!(
+                    (at[0] - x).abs() < 1e-6 && (at[1] - y).abs() < 1e-6,
+                    "{at:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn pixel_of_is_none_only_where_nothing_is_drawn() {
+        let flat = camera([0.0, 0.0, 10.0], Projection::Perspective { fov_y: 30.0 });
+        assert_eq!(flat.pixel_of([0.0; 3], 100, 100), Some([50.0, 50.0]));
+        // Outside the picture is still a position.
+        let [x, _] = flat.pixel_of([100.0, 0.0, 0.0], 100, 100).unwrap();
+        assert!(x > 100.0, "{x}");
+        for (point, w, h) in [
+            ([0.0, 0.0, 20.0], 100, 100),
+            ([0.0, 0.0, 10.0], 100, 100),
+            ([f64::NAN, 0.0, 0.0], 100, 100),
+            ([f64::INFINITY, 0.0, 0.0], 100, 100),
+            ([0.0; 3], 0, 100),
+            ([0.0; 3], 100, 0),
+        ] {
+            assert_eq!(flat.pixel_of(point, w, h), None, "{point:?} {w}x{h}");
+        }
+        let View::Perspective { near, .. } = View::new(&flat, 1.0).unwrap() else {
+            panic!("a perspective view");
+        };
+        assert_eq!(flat.pixel_of([0.0, 0.0, 10.0 - near / 2.0], 100, 100), None);
+        assert!(
+            flat.pixel_of([0.0, 0.0, 10.0 - near * 2.0], 100, 100)
+                .is_some()
+        );
+        let mut refused = flat;
+        refused.target = refused.eye;
+        assert_eq!(refused.pixel_of([0.0; 3], 100, 100), None);
+
+        // Orthographic draws behind the eye too.
+        let ortho = camera([0.0, 0.0, 10.0], Projection::Orthographic { height: 4.0 });
+        assert_eq!(
+            ortho.pixel_of([0.0, 0.0, 20.0], 100, 100),
+            Some([50.0, 50.0])
+        );
     }
 }

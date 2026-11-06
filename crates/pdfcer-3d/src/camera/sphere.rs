@@ -3,8 +3,8 @@
 //! viewer (`pdfcer-3d-nav`), safe for any finite model.
 
 use crate::camera::{EYE_SHARE, basis_along, eye_at};
-use crate::vec3::{length, normalize, span, sub};
-use crate::{Camera, Projection, RenderError};
+use crate::vec3::{add, dot, length, normalize, scale, span, sub};
+use crate::{Camera, FisheyeMapping, Projection, RenderError};
 
 /// The vertical field of view, in degrees, of every perspective camera the
 /// engine fits ([`Camera::fit`], [`Camera::fit_meshes`],
@@ -17,6 +17,66 @@ pub const DEFAULT_FOV_Y: f64 = 30.0;
 const WIDEST_MEASURED: f64 = 179.0;
 
 impl Camera {
+    /// This camera as a 360° panorama with a flat horizon: the same eye and
+    /// the same distance to the target, the target turned level with `up`,
+    /// and `up` as the camera's up. A photo viewer takes a panorama's top
+    /// edge as straight up, so a pitched camera's panorama shows a horizon
+    /// that waves across the picture; the Photo Sphere tag states no pose
+    /// that would correct it.
+    ///
+    /// `front` is the heading when this camera looks straight along `up` and
+    /// so has none. Neither vector need be unit length.
+    ///
+    /// `None` when `up` is zero or not finite, the eye and target coincide,
+    /// or the camera has no heading and `front` is along `up`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use pdfcer_3d::{Camera, FisheyeMapping, Projection};
+    /// let pitched = Camera {
+    ///     eye: [0.0, -3.0, 4.0],
+    ///     target: [0.0; 3],
+    ///     up: [0.0, 0.8, 0.6],
+    ///     projection: Projection::Perspective { fov_y: 30.0 },
+    /// };
+    /// let up = [0.0, 0.0, 1.0];
+    /// let level = pitched.levelled_panorama(up, [0.0, 1.0, 0.0]).expect("a heading");
+    /// assert_eq!(level.target, [0.0, 2.0, 4.0]);
+    /// assert_eq!(level.up, up);
+    /// assert_eq!(
+    ///     level.projection,
+    ///     Projection::Fisheye { fov: 360.0, mapping: FisheyeMapping::Equirectangular },
+    /// );
+    /// ```
+    #[must_use]
+    pub fn levelled_panorama(mut self, up: [f64; 3], front: [f64; 3]) -> Option<Camera> {
+        let up = normalize(up)?;
+        let flat = |v: [f64; 3]| sub(v, scale(up, dot(v, up)));
+        let look = sub(self.target, self.eye);
+        let gap = length(look);
+        if !(gap.is_finite() && gap > 0.0) {
+            return None;
+        }
+        let level = flat(look);
+        let ahead = if length(level) > gap * 1e-6 {
+            normalize(level)?
+        } else {
+            let heading = flat(front);
+            if length(heading) <= length(front) * 1e-6 {
+                return None;
+            }
+            normalize(heading)?
+        };
+        self.target = add(self.eye, scale(ahead, gap));
+        self.up = up;
+        self.projection = Projection::Fisheye {
+            fov: 360.0,
+            mapping: FisheyeMapping::Equirectangular,
+        };
+        Some(self)
+    }
+
     /// A camera looking along `direction` at `centre` that frames the
     /// sphere of radius `reach` about it exactly (no margin; scale `reach`
     /// up for one), in an image of the given aspect ratio (width / height).
@@ -251,5 +311,85 @@ mod tests {
             ..c
         };
         assert!((near.visible_height() - 2.0).abs() < 1e-12);
+    }
+
+    const EYE: [f64; 3] = [1.0, 2.0, 3.0];
+    const FRONT: [f64; 3] = [0.0, 1.0, 0.0];
+
+    fn pitched(look: [f64; 3]) -> Camera {
+        Camera {
+            eye: EYE,
+            target: add(EYE, look),
+            up: [0.3, 0.0, 0.95],
+            projection: Projection::Perspective { fov_y: 40.0 },
+        }
+    }
+
+    #[test]
+    fn a_pitched_view_is_levelled_and_keeps_its_heading_and_eye() {
+        let look = add(scale(FRONT, 3.0), scale(UP, -4.0));
+        let done = pitched(look).levelled_panorama(UP, FRONT).unwrap();
+        assert_eq!(done.eye, EYE);
+        assert_eq!(done.up, UP);
+        let d = sub(done.target, done.eye);
+        assert!(dot(d, UP).abs() < 1e-12, "{d:?}");
+        assert!((dot(d, FRONT) - 5.0).abs() < 1e-12, "{d:?}");
+        assert!(matches!(
+            done.projection,
+            Projection::Fisheye { fov, mapping: FisheyeMapping::Equirectangular } if fov == 360.0
+        ));
+    }
+
+    #[test]
+    fn a_view_straight_down_looks_to_the_front() {
+        let done = pitched(scale(UP, -2.0))
+            .levelled_panorama(UP, FRONT)
+            .unwrap();
+        let d = sub(done.target, done.eye);
+        assert!((dot(d, FRONT) - 2.0).abs() < 1e-12, "{d:?}");
+    }
+
+    /// What the levelling is for: a ring of points at the eye's height all
+    /// land on the picture's middle row, and a pitched camera's do not.
+    #[test]
+    fn a_levelled_panorama_has_a_flat_horizon() {
+        let look = add(scale(FRONT, 3.0), scale(UP, -4.0));
+        let mut wavy = pitched(look);
+        wavy.projection = Projection::Fisheye {
+            fov: 360.0,
+            mapping: FisheyeMapping::Equirectangular,
+        };
+        let done = pitched(look).levelled_panorama(UP, FRONT).unwrap();
+        let ring = |camera: &Camera| -> Vec<f64> {
+            (0..16)
+                .map(|i| {
+                    let turn = f64::from(i) * std::f64::consts::TAU / 16.0 + 0.1;
+                    let round = [5.0 * turn.cos(), 5.0 * turn.sin(), 0.0];
+                    camera.pixel_of(add(EYE, round), 200, 100).unwrap()[1]
+                })
+                .collect()
+        };
+        assert!(ring(&done).iter().all(|y| (y - 50.0).abs() < 1e-9));
+        assert!(ring(&wavy).iter().any(|y| (y - 50.0).abs() > 5.0));
+    }
+
+    #[test]
+    fn an_up_of_any_length_is_made_unit() {
+        let done = pitched(FRONT)
+            .levelled_panorama([0.0, 0.0, 7.0], FRONT)
+            .unwrap();
+        assert_eq!(done.up, UP);
+    }
+
+    #[test]
+    fn a_camera_with_no_level_heading_is_refused() {
+        let along = pitched(scale(UP, -2.0));
+        assert_eq!(along.levelled_panorama([0.0; 3], FRONT), None);
+        assert_eq!(along.levelled_panorama([f64::NAN, 0.0, 1.0], FRONT), None);
+        assert_eq!(along.levelled_panorama(UP, scale(UP, 3.0)), None);
+        assert_eq!(along.levelled_panorama(UP, [0.0; 3]), None);
+        let mut nowhere = along;
+        nowhere.target = nowhere.eye;
+        assert_eq!(nowhere.levelled_panorama(UP, FRONT), None);
     }
 }
