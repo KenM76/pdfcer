@@ -1596,6 +1596,139 @@ fn a_fisheye_field_out_of_range_is_refused() {
     assert_eq!(out.status.code(), Some(2));
 }
 
+/// `3d-render` of the lens fixture's model to `<tag>.<ext>`, sized only by
+/// `extra`.
+#[cfg(feature = "3d")]
+fn panorama_render(tag: &str, ext: &str, extra: &[&str]) -> (Output, PathBuf) {
+    let input = with_prc("render_pano", "assembly.prc");
+    let output = input.with_extension(format!("{tag}.{ext}"));
+    let mut args = vec![
+        "3d-render",
+        input.to_str().unwrap(),
+        "--index",
+        "2",
+        "--view",
+        "top",
+        "-o",
+        output.to_str().unwrap(),
+    ];
+    args.extend_from_slice(extra);
+    (run(&args), output)
+}
+
+/// Whether `needle` occurs in `hay`.
+#[cfg(feature = "3d")]
+fn holds(hay: &[u8], needle: &str) -> bool {
+    hay.windows(needle.len()).any(|w| w == needle.as_bytes())
+}
+
+/// `--360` into a `.jpg` draws a 2:1 panorama, names its projection and
+/// carries the photo-sphere tag right after the JPEG's opening segments.
+#[cfg(feature = "3d")]
+#[test]
+fn a_360_jpeg_is_a_two_to_one_photo_sphere_tagged_for_photo_viewers() {
+    let (out, output) = panorama_render("sphere", "jpg", &["--360", "--height", "40"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("width=80 height=40 projection=equirectangular"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("note: photo sphere: the JPEG carries"),
+        "{stdout}"
+    );
+    let bytes = std::fs::read(&output).unwrap();
+    assert_eq!(&bytes[..2], &[0xFF, 0xD8]);
+    assert!(holds(&bytes, "http://ns.adobe.com/xap/1.0/\0"));
+    for field in [
+        "<GPano:ProjectionType>equirectangular</GPano:ProjectionType>",
+        "<GPano:FullPanoWidthPixels>80</GPano:FullPanoWidthPixels>",
+        "<GPano:FullPanoHeightPixels>40</GPano:FullPanoHeightPixels>",
+    ] {
+        assert!(holds(&bytes, field), "{field}");
+    }
+
+    let (out, _) = panorama_render(
+        "lens",
+        "jpeg",
+        &["--lens", "equirectangular", "--width", "60"],
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("width=60 height=30 projection=equirectangular"),
+        "{stdout}"
+    );
+}
+
+/// A flat JPEG carries no photo-sphere tag; a panorama PNG carries none
+/// and says so, as it says a picture is not 2:1.
+#[cfg(feature = "3d")]
+#[test]
+fn only_a_panorama_jpeg_is_tagged_and_a_png_panorama_says_it_is_not() {
+    let (out, output) = panorama_render("flat", "jpg", &["--width", "40", "--height", "30"]);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let bytes = std::fs::read(&output).unwrap();
+    assert_eq!(&bytes[..2], &[0xFF, 0xD8]);
+    assert!(!holds(&bytes, "GPano"));
+    assert!(!String::from_utf8_lossy(&out.stdout).contains("photo sphere"));
+
+    let extra = ["--360", "--width", "50", "--height", "40"];
+    let (out, output) = panorama_render("sphere_png", "png", &extra);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("the PNG is a 360-degree panorama but carries no"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("the picture is 50x40, not twice as wide"),
+        "{stdout}"
+    );
+    assert!(!holds(&std::fs::read(&output).unwrap(), "GPano"));
+}
+
+/// A JPEG cannot be transparent, and `--360` takes no other lens or field.
+#[cfg(feature = "3d")]
+#[test]
+fn a_transparent_jpeg_and_a_360_with_another_lens_are_refused() {
+    let (out, output) = panorama_render("clear", "jpg", &["--360", "--transparent"]);
+    assert_eq!(out.status.code(), Some(9));
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("--transparent cannot be honoured for a JPEG"),
+        "{stderr}"
+    );
+    assert!(!output.exists());
+    for extra in [["--360", "--fov", "200"], ["--360", "--lens", "flat"]] {
+        let (out, _) = panorama_render("conflict", "jpg", &extra);
+        assert_eq!(out.status.code(), Some(2), "{extra:?}");
+    }
+    let (out, _) = panorama_render(
+        "field",
+        "jpg",
+        &["--lens", "equirectangular", "--fov", "200"],
+    );
+    assert_eq!(out.status.code(), Some(9), "a panorama's field is 360");
+}
+
 /// The RGBA pixels of the PNG at `path`.
 #[cfg(feature = "3d")]
 fn png_pixels(path: &Path) -> Vec<u8> {

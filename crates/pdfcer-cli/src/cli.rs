@@ -3244,7 +3244,8 @@ pub(crate) enum Command {
         json: bool,
     },
 
-    /// **Render a 3D model to a PNG** from a camera, without a 3D viewer.
+    /// **Render a 3D model to a PNG or JPEG** from a camera, without a 3D
+    /// viewer, or as a 360-degree panorama to look around in.
     ///
     /// Decodes and assembles the PRC model the way `3d-mesh` does, then
     /// draws it: each part, and each face styled on its own, in the colour
@@ -3266,8 +3267,16 @@ pub(crate) enum Command {
     /// point and the face's outward normal in model units, and the distance
     /// from the camera, or `miss` when the background is drawn there.
     ///
-    /// Refuses a U3D model, a model with no triangles, and an image larger
-    /// than 64 megapixels. Exit 9 when refused, with the reason.
+    /// `--360` draws the whole sphere around the camera as an
+    /// equirectangular panorama (2048 x 1024 unless a size is given); a
+    /// `.jpg` output carries the Google Photo Sphere (GPano) XMP tag, so
+    /// photo viewers open it as a picture to look around in. A PNG carries
+    /// no such tag and shows flat. Place the camera inside the model with
+    /// `--eye` for a walk-through panorama.
+    ///
+    /// Refuses a U3D model, a model with no triangles, an image larger
+    /// than 64 megapixels, and `--transparent` into a JPEG. Exit 9 when
+    /// refused, with the reason.
     #[command(name = "3d-render")]
     ThreeDRender {
         /// Input PDF.
@@ -3275,7 +3284,8 @@ pub(crate) enum Command {
         /// Which model, by the index `3d-list` prints.
         #[arg(long)]
         index: usize,
-        /// Where to write the PNG.
+        /// Where to write the picture: a JPEG when named `.jpg` or
+        /// `.jpeg`, else a PNG.
         #[arg(long, short)]
         output: PathBuf,
         /// The named direction to look from. Default: the file's opening
@@ -3294,22 +3304,30 @@ pub(crate) enum Command {
         /// Parallel (orthographic) projection instead of perspective.
         #[arg(long, conflicts_with = "lens")]
         ortho: bool,
+        /// A 360-degree panorama: the same as `--lens equirectangular`,
+        /// 2048 x 1024 unless `--width` or `--height` is given.
+        #[arg(long = "360", conflicts_with_all = ["lens", "ortho", "fov"])]
+        sphere: bool,
         /// The lens: `flat` (default, perspective), or a fisheye,
-        /// `equidistant` or `stereographic`. Outside a fisheye's picture
+        /// `equidistant` or `stereographic`, or `equirectangular`, the
+        /// 360-degree panorama `--360` draws. Outside a fisheye's picture
         /// circle the background is drawn; `--pick` there is refused.
         #[arg(long, value_enum, default_value_t)]
         lens: LensArg,
         /// Field of view across the image's height, degrees. Default: 30
         /// for `flat`, which must stay below 180; 180 for a fisheye, which
-        /// reaches 360 (`equidistant`) or below 360 (`stereographic`).
+        /// reaches 360 (`equidistant`) or below 360 (`stereographic`);
+        /// exactly 360, the default, for `equirectangular`.
         #[arg(long, value_parser = parse_fov)]
         fov: Option<f64>,
-        /// Image width, pixels.
-        #[arg(long, default_value_t = 1024)]
-        width: u32,
-        /// Image height, pixels.
-        #[arg(long, default_value_t = 768)]
-        height: u32,
+        /// Image width, pixels. Default: 1024; for a panorama, twice the
+        /// height (2048 when neither is given).
+        #[arg(long)]
+        width: Option<u32>,
+        /// Image height, pixels. Default: 768; for a panorama, half the
+        /// width (1024 when neither is given).
+        #[arg(long)]
+        height: Option<u32>,
         /// Leave the background transparent instead of white.
         #[arg(long)]
         transparent: bool,

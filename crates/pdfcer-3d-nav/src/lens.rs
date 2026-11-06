@@ -37,7 +37,9 @@ impl LensKind {
     pub const ALL: [LensKind; 3] = [LensKind::Flat, LensKind::Fisheye, LensKind::Auto];
 }
 
-/// Every fisheye curve offered, in the order a choice lists them.
+/// Every fisheye curve offered, in the order a choice lists them. The
+/// 360° panorama ([`FisheyeMapping::Equirectangular`]) is not among them:
+/// it has no field to zoom, so it suits a still capture better than a walk.
 pub const CURVES: [FisheyeMapping; 2] =
     [FisheyeMapping::Stereographic, FisheyeMapping::Equidistant];
 
@@ -47,6 +49,8 @@ pub struct Lens {
     /// Which lens.
     pub kind: LensKind,
     /// The fisheye's curve, for Fisheye and for Auto past its change point.
+    /// [`FisheyeMapping::Equirectangular`] draws the whole 360° sphere
+    /// whatever the field asked for.
     pub curve: FisheyeMapping,
     /// Auto's change point: the vertical field, degrees, past which it
     /// draws a fisheye (meant to lie in [`AUTO_RANGE`]).
@@ -83,9 +87,15 @@ impl Lens {
         }
     }
 
-    /// The projection for a vertical field of `fov` degrees.
+    /// The projection for a vertical field of `fov` degrees; a panorama
+    /// curve's field is always 360°, the only one it draws.
     pub fn projection(&self, fov: f64) -> Projection {
         if self.fisheye_at(fov) {
+            let fov = if self.curve == FisheyeMapping::Equirectangular {
+                360.0
+            } else {
+                fov
+            };
             Projection::Fisheye {
                 fov,
                 mapping: self.curve,
@@ -150,6 +160,26 @@ mod tests {
         ortho.projection = Projection::Orthographic { height: 3.0 };
         assert_eq!(fisheye.applied(ortho), ortho);
         assert!(is_fisheye(&fisheye.applied(camera(30.0))));
+    }
+
+    #[test]
+    fn a_panorama_curve_always_draws_the_whole_sphere() {
+        let lens = Lens {
+            kind: LensKind::Fisheye,
+            curve: FisheyeMapping::Equirectangular,
+            ..Lens::default()
+        };
+        for fov in [30.0, 120.0, 180.0] {
+            let camera = lens.applied(camera(fov));
+            assert_eq!(
+                camera.projection,
+                Projection::Fisheye {
+                    fov: 360.0,
+                    mapping: FisheyeMapping::Equirectangular
+                }
+            );
+            assert!(camera.ray_through(10.0, 5.0, 20, 10).is_ok());
+        }
     }
 
     #[test]

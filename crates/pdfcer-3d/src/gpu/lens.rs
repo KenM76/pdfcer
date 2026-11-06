@@ -21,6 +21,11 @@ float lens_radius(float theta) {
 bool lens_ndc(vec3 c, out vec2 ndc) {
     float rho = length(c.xy);
     ndc = vec2(0.0);
+    if (u_lens_mapping == 2) {
+        if (length(c) == 0.0) return false;
+        ndc = vec2(atan(c.x, c.z), 2.0 * atan(c.y, length(c.xz))) / 3.14159265358979;
+        return true;
+    }
     if (rho == 0.0) return c.z > 0.0;
     float r = u_lens_focal * lens_radius(atan(rho, c.z));
     ndc = r * c.xy / rho * 2.0 / u_viewport;
@@ -28,6 +33,12 @@ bool lens_ndc(vec3 c, out vec2 ndc) {
 }
 
 bool lens_direction(vec2 px, out vec3 d) {
+    if (u_lens_mapping == 2) {
+        float lambda = (px.x / u_viewport.x - 0.5) * 6.28318530717959;
+        float phi = (0.5 - px.y / u_viewport.y) * 3.14159265358979;
+        d = vec3(cos(phi) * sin(lambda), sin(phi), cos(phi) * cos(lambda));
+        return true;
+    }
     vec2 o = vec2(px.x - 0.5 * u_viewport.x, 0.5 * u_viewport.y - px.y);
     float r = length(o);
     float q = r / u_lens_focal;
@@ -172,7 +183,9 @@ void main() {
 /// `u_line_width` (as the wide line's).
 ///
 /// A piece with an end nearer the eye than `u_lens_near`, or crossing
-/// behind the eye between two sides of the back pole, is not drawn.
+/// behind the eye between two sides of the back pole, is not drawn. Under
+/// the panorama a segment crossing the seam is split so a piece ends
+/// exactly on it, on the picture edge of that piece's side.
 pub const GLSL_ES_300_LENS_LINE_VERTEX: &str = concat!(
     lens_line_head!(),
     r"layout(location = 0) in vec3 a_p0;
@@ -195,11 +208,24 @@ vec4 shade(vec4 c, vec3 n, vec3 p) {
     return c;
 }
 
+float piece_end(float seam, int m, int k) {
+    if (seam < 0.0) return float(k) / float(PIECES);
+    if (k <= m) return seam * float(k) / float(m);
+    return seam + (1.0 - seam) * float(k - m) / float(PIECES - m);
+}
+
 void main() {
-    float s0 = float(gl_InstanceID % PIECES) / float(PIECES);
-    float s1 = float(gl_InstanceID % PIECES + 1) / float(PIECES);
     vec3 ea = camera_of(a_p0);
     vec3 eb = camera_of(a_p1);
+    float seam = -1.0;
+    if (u_lens_mapping == 2 && ea.x * eb.x < 0.0) {
+        float s = ea.x / (ea.x - eb.x);
+        if (mix(ea, eb, s).z < 0.0) seam = s;
+    }
+    int m = int(clamp(floor(seam * float(PIECES) + 0.5), 1.0, float(PIECES - 1)));
+    int piece = gl_InstanceID % PIECES;
+    float s0 = piece_end(seam, m, piece);
+    float s1 = piece_end(seam, m, piece + 1);
     vec3 pa = mix(ea, eb, s0);
     vec3 pb = mix(ea, eb, s1);
     vec4 c0 = shade(a_c0, a_n1, a_p0);
@@ -211,10 +237,13 @@ void main() {
     float ta = length(pa);
     float tb = length(pb);
     if (ta < u_lens_near || tb < u_lens_near) return;
-    if (pa.z < 0.0 && pb.z < 0.0 && dot(pa.xy, pb.xy) < 0.0) return;
+    if (u_lens_mapping != 2 && pa.z < 0.0 && pb.z < 0.0 && dot(pa.xy, pb.xy) < 0.0) return;
     vec2 na;
     vec2 nb;
     if (!lens_ndc(pa, na) || !lens_ndc(pb, nb)) return;
+    if (seam >= 0.0 && piece + 1 == m) nb.x = na.x < 0.0 ? -1.0 : 1.0;
+    if (seam >= 0.0 && piece == m) na.x = nb.x < 0.0 ? -1.0 : 1.0;
+    if (u_lens_mapping == 2 && abs(na.x - nb.x) > 1.0) return;
     vec2 d = (nb - na) * u_viewport;
     float w = max(u_line_width, 1.0);
     float k = floor((w - 1.0) / 2.0);
@@ -318,6 +347,22 @@ mod tests {
     fn the_line_shader_cuts_as_many_pieces_as_the_cpu_path() {
         let decl = format!("const int PIECES = {LENS_LINE_PIECES};");
         assert!(GLSL_ES_300_LENS_LINE_VERTEX.contains(&decl));
+    }
+
+    #[test]
+    fn every_shader_carries_the_panorama_branch_the_cpu_lens_has() {
+        for s in [
+            GLSL_ES_300_LENS_RESAMPLE_FRAGMENT,
+            GLSL_ES_300_LENS_LINE_VERTEX,
+            GLSL_ES_300_LENS_POINT_VERTEX,
+        ] {
+            assert_eq!(s.matches("if (u_lens_mapping == 2) {").count(), 2);
+        }
+        assert_eq!(crate::FisheyeMapping::Equirectangular.code(), 2);
+        // The seam cut mirrors `Lens::splits`: half the picture is 1 in NDC.
+        let line = GLSL_ES_300_LENS_LINE_VERTEX;
+        assert!(line.contains("u_lens_mapping == 2 && abs(na.x - nb.x) > 1.0"));
+        assert!(line.contains("u_lens_mapping != 2 && pa.z < 0.0"));
     }
 
     #[test]

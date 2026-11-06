@@ -2,6 +2,8 @@
 //! framing a model, picking, the lens and the bounds it frames.
 
 pub(crate) mod bounds;
+#[cfg(test)]
+mod equirect_tests;
 pub(crate) mod lens;
 pub(crate) mod lens_frame;
 #[cfg(test)]

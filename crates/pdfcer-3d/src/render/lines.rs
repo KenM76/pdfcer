@@ -17,7 +17,7 @@
 //! crossing behind the eye between two sides of the back pole, is dropped.
 
 use crate::camera::Camera;
-use crate::camera::lens::Lens;
+use crate::camera::lens::{Lens, piece_span, seam_piece};
 use crate::render::RenderError;
 use crate::render::raster::{Target, View, ViewCorner, at, view_point};
 use crate::vec3::{add, dot, length, normalize, scale, sub};
@@ -184,17 +184,25 @@ fn lens_line(
     stroke: &Stroke,
     width: u32,
 ) {
-    let pieces = f64::from(crate::LENS_LINE_PIECES);
     let point = |s: f64| xyz(along(a, b, s));
+    let seam = lens.seam(xyz(a), xyz(b));
+    let seam_at = seam.map(seam_piece);
     for k in 0..crate::LENS_LINE_PIECES {
-        let (s0, s1) = (f64::from(k) / pieces, f64::from(k + 1) / pieces);
+        let (s0, s1) = piece_span(seam, k);
         let (ca, cb) = (point(s0), point(s1));
-        if ca[2] < 0.0 && cb[2] < 0.0 && ca[0] * cb[0] + ca[1] * cb[1] < 0.0 {
-            continue;
-        }
-        let (Some(p), Some(q)) = (lens_corner(lens, ca), lens_corner(lens, cb)) else {
+        let (Some(mut p), Some(mut q)) = (lens_corner(lens, ca), lens_corner(lens, cb)) else {
             continue;
         };
+        // The end on the seam lands on the edge its piece's other end is
+        // nearer, not wherever rounding puts it.
+        if seam_at == Some(k + 1) {
+            q[0] = lens.seam_edge(p[0]);
+        } else if seam_at == Some(k) {
+            p[0] = lens.seam_edge(q[0]);
+        }
+        if lens.splits((ca, cb), ([p[0], p[1]], [q[0], q[1]])) {
+            continue;
+        }
         let colour = |t: f64| mix(stroke.colours, s0 + correct(t, p, q) * (s1 - s0));
         raster(target, (p, q), colour, width);
     }

@@ -4696,6 +4696,7 @@ supported!)"*. SVG is `Pass 248.1`; this section is the raster half.
 | a PNG that is see-through where nothing was painted | render with `RenderOptions::default().with_backdrop(PageBackdrop::Transparent)`, then `pdfcer_render::export::encode_png(&rendered.pixmap, Some(dpi))` |
 | the ordinary white-backed PNG, but with a `pHYs` DPI so Word/PowerPoint place it at physical size | render with the default backdrop, `encode_png(&pixmap, Some(dpi))` |
 | a JPEG | render (either backdrop — the encoder flattens), `encode_jpeg(&pixmap, &JpegOptions { quality, background, dpi })` — `JpegOptions` is `#[non_exhaustive]`: `let mut o = JpegOptions::default(); o.quality = 92;` |
+| a 360° panorama JPEG photo viewers open as a photo sphere | render with `Projection::Fisheye { fov: 360.0, mapping: FisheyeMapping::Equirectangular }` (2:1), `encode_jpeg`, then `export::insert_jpeg_xmp(&jpeg, &export::photo_sphere_xmp(width, height))` — the GPano XMP packet in an APP1 segment after SOI/APP0 (and an Exif APP1); errs `ExportError::Metadata` on a truncated JPEG, one already carrying XMP, or a packet over `MAX_JPEG_XMP_PACKET` (65 502 bytes). No PNG equivalent is claimed. CLI: `3d-render --360 -o pano.jpg` |
 | flatten a transparent raster onto a colour myself | `export::flatten_over(&pixmap, Rgb { r, g, b })` — returns `Cow::Borrowed` when every pixel was already opaque |
 | parse an operator's `#rrggbb` | `export::Rgb::parse_hex` (six digits only — no `#abc` shorthand, deliberately) |
 

@@ -13,6 +13,7 @@ mod lights;
 mod mode;
 #[cfg(feature = "3d")]
 mod pick;
+mod picture;
 #[cfg(feature = "3d")]
 mod shadow_note;
 mod tree;
@@ -24,6 +25,7 @@ pub(crate) use gltf::{GltfHow, cmd_convert_3d};
 pub(crate) use light_args::LightArgs;
 pub(crate) use lights::{LightArg, parse_light};
 pub(crate) use mode::RenderModeArgs;
+pub(crate) use picture::picture_size;
 pub(crate) use tree::cmd_tree_3d;
 pub(crate) use views::{ViewsThreeDArgs, cmd_views_3d};
 
@@ -563,8 +565,12 @@ impl RenderLighting {
     }
 }
 
-/// `3d-render` — draw one PRC model to a PNG from a camera.
+/// `3d-render` — draw one PRC model to a PNG or JPEG from a camera.
 pub(crate) fn cmd_render_3d(a: &RenderThreeDArgs<'_>) -> u8 {
+    if let Some(why) = picture::refusal(a) {
+        eprintln!("pdfcer: {}: {why}", a.output.display());
+        return exit::EDIT_REFUSED;
+    }
     let (data, saved) = match artwork_bytes(a.input, a.index) {
         Ok(found) => found,
         Err(code) => return code,
@@ -648,24 +654,8 @@ fn render_from_bytes(
         Ok(image) => image,
         Err(err) => return refuse(err.to_string()),
     };
-    // The pixmap holds premultiplied alpha; glass over a transparent
-    // background leaves partly transparent pixels.
-    let mut rgba = image.rgba;
-    for px in rgba.chunks_exact_mut(4) {
-        if let [r, g, b, alpha] = px {
-            for c in [r, g, b] {
-                *c = (u16::from(*c) * u16::from(*alpha)).div_ceil(255) as u8;
-            }
-        }
-    }
-    let png = pdfcer_render::tiny_skia::IntSize::from_wh(image.width, image.height)
-        .and_then(|size| pdfcer_render::tiny_skia::Pixmap::from_vec(rgba, size))
-        .ok_or_else(|| "the rendered image has an invalid size".to_owned())
-        .and_then(|pixmap| {
-            pdfcer_render::export::encode_png(&pixmap, None).map_err(|err| err.to_string())
-        });
-    let png = match png {
-        Ok(png) => png,
+    let png = match picture::encode(a, image.rgba, (image.width, image.height)) {
+        Ok(bytes) => bytes,
         Err(why) => return refuse(why),
     };
     if let Err(err) = write_output(a.output, &png) {
@@ -691,6 +681,7 @@ fn render_from_bytes(
     );
     print_assembly_notes(&model, "drawn");
     println!("note: camera: {}", aim.source);
+    picture::print_note(a);
     let uncoloured = model.meshes.len() - model.colours.iter().flatten().count();
     let translucent = model
         .colours

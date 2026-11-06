@@ -6,19 +6,49 @@
 //! pixel is y down with pixel `(i, j)`'s centre at `(i + 0.5, j + 0.5)`. A
 //! direction θ off the axis lands at r = f·g(θ) from the picture centre
 //! ([`FisheyeMapping`]), f fixed by the field across the picture's height.
+//! The equirectangular panorama is the one map that is not radial: it maps
+//! longitude across and latitude up, f being its denser axis's pixels per
+//! radian.
 
 use crate::camera::Camera;
 use crate::camera::pick::Ray;
 use crate::render::raster::View;
 use crate::render::{FisheyeMapping, Projection, RenderError};
 use crate::vec3::{add, dot, length, normalize, scale, sub};
-use std::f64::consts::{FRAC_PI_2, PI};
+use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
 /// How many straight pieces a line or wire segment is cut into under a
 /// fisheye lens: each piece's ends are lens-projected exactly and the
 /// piece is drawn straight between them, so a long line bends in up to
 /// this many chords.
 pub const LENS_LINE_PIECES: u32 = 16;
+
+/// The piece of a lens line that crosses the panorama's seam at fraction
+/// `seam`: the pieces before it end exactly on the seam, so none crosses.
+pub(crate) fn seam_piece(seam: f64) -> u32 {
+    let n = f64::from(LENS_LINE_PIECES);
+    (seam * n).round().clamp(1.0, n - 1.0) as u32
+}
+
+/// Fractions along a segment where lens line piece `k` starts and ends:
+/// equal steps, or, for a segment crossing the seam at `seam`, equal steps
+/// either side of it with piece [`seam_piece`] starting on it.
+/// [`crate::GLSL_ES_300_LENS_LINE_VERTEX`] splits the same way.
+pub(crate) fn piece_span(seam: Option<f64>, k: u32) -> (f64, f64) {
+    let n = LENS_LINE_PIECES;
+    let at = |k: u32| match seam {
+        None => f64::from(k) / f64::from(n),
+        Some(s) => {
+            let m = seam_piece(s);
+            if k <= m {
+                s * f64::from(k) / f64::from(m)
+            } else {
+                s + (1.0 - s) * f64::from(k - m) / f64::from(n - m)
+            }
+        }
+    };
+    (at(k), at(k + 1))
+}
 
 /// The largest side of a lens's 90° faces, pixels.
 const MAX_FACE_SIDE: u32 = 4096;
@@ -80,7 +110,11 @@ impl Lens {
         if !mapping.accepts(fov) {
             return Err(refused);
         }
-        let focal = f64::from(height) / 2.0 / mapping.radius(fov.to_radians() / 2.0);
+        let focal = if mapping == FisheyeMapping::Equirectangular {
+            (f64::from(width) / TAU).max(f64::from(height) / PI)
+        } else {
+            f64::from(height) / 2.0 / mapping.radius(fov.to_radians() / 2.0)
+        };
         if !(focal.is_finite() && focal > 0.0) {
             return Err(refused);
         }
@@ -95,8 +129,18 @@ impl Lens {
     }
 
     /// The unit camera-space direction drawn at picture position (`x`,
-    /// `y`), `None` outside the lens's picture circle.
+    /// `y`), `None` outside the lens's picture circle (never for the
+    /// panorama).
     pub(crate) fn direction(&self, x: f64, y: f64) -> Option<[f64; 3]> {
+        if self.mapping == FisheyeMapping::Equirectangular {
+            let lambda = (x / self.width - 0.5) * TAU;
+            let phi = (0.5 - y / self.height) * PI;
+            return Some([
+                phi.cos() * lambda.sin(),
+                phi.sin(),
+                phi.cos() * lambda.cos(),
+            ]);
+        }
         let (dx, dy) = (x - self.width / 2.0, self.height / 2.0 - y);
         let r = dx.hypot(dy);
         let theta = self
@@ -113,6 +157,9 @@ impl Lens {
     /// The picture position camera-space point `c` is drawn at; `None`
     /// straight behind the eye, at the eye, or not finite.
     pub(crate) fn pixel(&self, [x, y, z]: [f64; 3]) -> Option<[f64; 2]> {
+        if self.mapping == FisheyeMapping::Equirectangular {
+            return self.panorama_pixel([x, y, z]);
+        }
         let (cx, cy) = (self.width / 2.0, self.height / 2.0);
         let rho = x.hypot(y);
         if rho == 0.0 {
@@ -123,9 +170,64 @@ impl Lens {
         out.iter().all(|c| c.is_finite()).then_some(out)
     }
 
+    /// [`Self::pixel`] for the panorama: longitude atan2(x, z) across,
+    /// latitude up; straight behind lands on the right edge.
+    fn panorama_pixel(&self, [x, y, z]: [f64; 3]) -> Option<[f64; 2]> {
+        let rho = x.hypot(z);
+        if !(rho.is_finite() && y.is_finite()) || (rho == 0.0 && y == 0.0) {
+            return None;
+        }
+        let (lambda, phi) = (x.atan2(z), y.atan2(rho));
+        Some([
+            (lambda / TAU + 0.5) * self.width,
+            (0.5 - phi / PI) * self.height,
+        ])
+    }
+
+    /// Whether the piece from camera-space `ca` to `cb`, drawn at pixels
+    /// `p` and `q`, must not be drawn as one chord: under a radial lens
+    /// when it passes behind the eye, where its pixels lie on opposite
+    /// sides of the centre; under the panorama when it crosses the
+    /// left/right seam, where its pixels lie more than half the picture
+    /// apart.
+    pub(crate) fn splits(
+        &self,
+        (ca, cb): ([f64; 3], [f64; 3]),
+        (p, q): ([f64; 2], [f64; 2]),
+    ) -> bool {
+        if self.mapping == FisheyeMapping::Equirectangular {
+            return (p[0] - q[0]).abs() > self.width / 2.0;
+        }
+        ca[2] < 0.0 && cb[2] < 0.0 && ca[0] * cb[0] + ca[1] * cb[1] < 0.0
+    }
+
+    /// The fraction along camera-space segment `a`–`b` at which it crosses
+    /// the panorama's seam, the half-plane straight behind the eye (x = 0,
+    /// z < 0); `None` for any other lens or a segment that does not cross.
+    pub(crate) fn seam(&self, a: [f64; 3], b: [f64; 3]) -> Option<f64> {
+        if self.mapping != FisheyeMapping::Equirectangular || a[0] * b[0] >= 0.0 {
+            return None;
+        }
+        let s = a[0] / (a[0] - b[0]);
+        (a[2] + s * (b[2] - a[2]) < 0.0 && s.is_finite()).then_some(s)
+    }
+
+    /// The picture x of the seam edge on the side of picture x `x`.
+    pub(crate) fn seam_edge(&self, x: f64) -> f64 {
+        if x < self.width / 2.0 {
+            0.0
+        } else {
+            self.width
+        }
+    }
+
     /// The angle off the axis at the picture's corners; `None` when they
-    /// lie outside the picture circle.
+    /// lie outside the picture circle. The panorama's corners are straight
+    /// up and down, but it shows straight behind, so it reads as π.
     fn corner_angle(&self) -> Option<f64> {
+        if self.mapping == FisheyeMapping::Equirectangular {
+            return Some(PI);
+        }
         let rc = (self.width / 2.0).hypot(self.height / 2.0);
         self.mapping.angle(rc / self.focal)
     }
@@ -337,10 +439,12 @@ fn face_size(lens: &Lens, layout: Layout) -> (f64, u32, u32) {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct FrameLens {
-    /// `u_lens_mapping`: 0 equidistant, 1 stereographic.
+    /// `u_lens_mapping`: 0 equidistant, 1 stereographic, 2 equirectangular.
     pub mapping: i32,
     /// `u_lens_focal`: pixels per unit of g(θ), where a direction θ off the
-    /// axis lands f·g(θ) from the picture centre.
+    /// axis lands f·g(θ) from the picture centre. The equirectangular
+    /// shaders do not read it: the panorama fills the picture whatever its
+    /// size.
     pub focal: f32,
     /// `u_lens_near`: the distance from the eye inside which a line or
     /// point is not drawn, model units.

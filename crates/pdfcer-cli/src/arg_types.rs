@@ -202,7 +202,7 @@ pub(crate) fn parse_hex_rgb(s: &str) -> Result<[u8; 3], String> {
     }
 }
 
-/// Clap parser for `--fov`: degrees, above 0 and below 180.
+/// Clap parser for `--fov`: degrees, above 0 and at most 360.
 pub(crate) fn parse_fov(s: &str) -> Result<f64, String> {
     match s.parse::<f64>() {
         Ok(v) if v > 0.0 && v <= 360.0 => Ok(v),
@@ -225,6 +225,10 @@ pub(crate) enum LensArg {
     /// A fisheye that keeps small shapes their shape; below 360 degrees,
     /// always fills the frame.
     Stereographic,
+    /// A 360-degree panorama (equirectangular): the whole sphere around
+    /// the camera, left to right and top to bottom, the picture a photo
+    /// viewer opens to look around in. Best at twice as wide as tall.
+    Equirectangular,
 }
 
 /// The mesh file format `3d-mesh` writes.

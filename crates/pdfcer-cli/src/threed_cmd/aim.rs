@@ -89,6 +89,7 @@ pub(super) fn place_camera(
         LensArg::Flat => None,
         LensArg::Equidistant => Some(FisheyeMapping::Equidistant),
         LensArg::Stereographic => Some(FisheyeMapping::Stereographic),
+        LensArg::Equirectangular => Some(FisheyeMapping::Equirectangular),
     };
     let perspective = !aim.ortho || mapping.is_some();
     let mut camera =
@@ -101,7 +102,12 @@ pub(super) fn place_camera(
         saved.frame(&mut camera);
     }
     if let Some(mapping) = mapping {
-        let fov = a.fov.unwrap_or(180.0);
+        let whole = if mapping == FisheyeMapping::Equirectangular {
+            360.0
+        } else {
+            180.0
+        };
+        let fov = a.fov.unwrap_or(whole);
         camera.projection = Projection::Fisheye { fov, mapping };
     } else if let Projection::Perspective { fov_y } = &mut camera.projection {
         *fov_y = a.fov.unwrap_or(30.0);
@@ -118,6 +124,10 @@ pub(super) fn projection_name(projection: Projection) -> &'static str {
             mapping: FisheyeMapping::Stereographic,
             ..
         } => "fisheye-stereographic",
+        Projection::Fisheye {
+            mapping: FisheyeMapping::Equirectangular,
+            ..
+        } => "equirectangular",
         Projection::Fisheye { .. } => "fisheye-equidistant",
     }
 }

@@ -34,8 +34,9 @@ pub enum Projection {
     /// switching lens keeps the content at those edges. The width shows
     /// `fov` × width / height under [`FisheyeMapping::Equidistant`] and
     /// a little less under [`FisheyeMapping::Stereographic`]. Range: above
-    /// 0 and up to 360 for `Equidistant`, below 360 for `Stereographic`;
-    /// anything else (or not finite) is refused with
+    /// 0 and up to 360 for `Equidistant`, below 360 for `Stereographic`,
+    /// exactly 360 for [`FisheyeMapping::Equirectangular`]; anything else
+    /// (or not finite) is refused with
     /// [`RenderError::FisheyeField`](crate::RenderError::FisheyeField).
     ///
     /// The lens sees every direction but the one straight behind the eye.
@@ -44,7 +45,8 @@ pub enum Projection {
     /// lie past the disc) is drawn in the background colour and has no
     /// [`Camera::ray_through`](crate::Camera::ray_through) ray.
     /// `Stereographic` maps the whole sphere onto the plane, so it always
-    /// fills the frame.
+    /// fills the frame. `Equirectangular` is not round about the centre:
+    /// it is the 360° panorama its own documentation describes.
     ///
     /// How it is drawn, and its cost, is [`crate::FrameLens`]'s contract.
     Fisheye {
@@ -69,22 +71,44 @@ pub enum FisheyeMapping {
     /// the picture; the least stretched-looking for buildings and rooms.
     /// Enlarges towards the rim instead.
     Stereographic,
+    /// The full sphere as a 360° × 180° panorama, the picture photo
+    /// viewers open as a photo sphere you can look around in: longitude
+    /// runs across the width, latitude up the height. Pixel position (x,
+    /// y) of a w × h picture shows longitude λ = (x/w − ½)·2π to the
+    /// camera's right of its look direction and latitude φ = (½ − y/h)·π
+    /// above it, so the picture's centre is the look direction, its top
+    /// and bottom rows are straight up and down along the camera's up, and
+    /// its left and right edges meet straight behind the eye.
+    ///
+    /// Not radial, so "r from the centre" does not apply. The field must
+    /// be exactly 360; the picture should be twice as wide as it is tall,
+    /// which is what viewers expect, but any size draws (the panorama is
+    /// stretched to fit). Every pixel has a direction and a
+    /// [`Camera::ray_through`](crate::Camera::ray_through) ray. Lines and
+    /// wires are cut where they cross the left/right seam rather than drawn
+    /// across the picture.
+    Equirectangular,
 }
 
 impl FisheyeMapping {
-    /// r / f for a direction `theta` radians off the axis.
+    /// r / f for a direction `theta` radians off the axis. The panorama
+    /// is not radial; callers branch on it first, and it reads as
+    /// equidistant here.
     pub(crate) fn radius(self, theta: f64) -> f64 {
         match self {
-            FisheyeMapping::Equidistant => theta,
+            FisheyeMapping::Equidistant | FisheyeMapping::Equirectangular => theta,
             FisheyeMapping::Stereographic => 2.0 * (theta / 2.0).tan(),
         }
     }
 
     /// The angle off the axis, radians, drawn at `r` / f = `ratio`; `None`
-    /// past the equidistant disc (θ > π).
+    /// past the equidistant disc (θ > π). As [`Self::radius`] for the
+    /// panorama.
     pub(crate) fn angle(self, ratio: f64) -> Option<f64> {
         match self {
-            FisheyeMapping::Equidistant => (ratio <= std::f64::consts::PI).then_some(ratio),
+            FisheyeMapping::Equidistant | FisheyeMapping::Equirectangular => {
+                (ratio <= std::f64::consts::PI).then_some(ratio)
+            }
             FisheyeMapping::Stereographic => Some(2.0 * (ratio / 2.0).atan()),
         }
     }
@@ -98,6 +122,9 @@ impl FisheyeMapping {
             FisheyeMapping::Equidistant => 1.0,
             // Conformal: sec²(θ/2) both ways.
             FisheyeMapping::Stereographic => 1.0 / (theta / 2.0).cos().powi(2),
+            // A row at latitude φ spends f / cos φ around, unbounded at the
+            // poles, so the faces take the size cap as the equidistant rim does.
+            FisheyeMapping::Equirectangular => f64::INFINITY,
         }
     }
 
@@ -106,6 +133,7 @@ impl FisheyeMapping {
         match self {
             FisheyeMapping::Equidistant => 0,
             FisheyeMapping::Stereographic => 1,
+            FisheyeMapping::Equirectangular => 2,
         }
     }
 
@@ -116,6 +144,7 @@ impl FisheyeMapping {
             && match self {
                 FisheyeMapping::Equidistant => fov <= 360.0,
                 FisheyeMapping::Stereographic => fov < 360.0,
+                FisheyeMapping::Equirectangular => fov == 360.0,
             }
     }
 }

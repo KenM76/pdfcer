@@ -3772,7 +3772,7 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     `u_shininess` from it; `None` sets `u_finished` false.
   - Fisheye frames (`G268`): `FrameLens::new(&camera, width, height) ->
     Result<FrameLens, RenderError>` (`#[non_exhaustive]`; `mapping` →
-    `u_lens_mapping`, `focal` → `u_lens_focal`, `near` → `u_lens_near`,
+    `u_lens_mapping` (0 equidistant, 1 stereographic, 2 equirectangular), `focal` → `u_lens_focal`, `near` → `u_lens_near`,
     `eye` → `u_eye`, `basis` → `u_right` / `u_up` / `u_forward`,
     `faces: Vec<LensFace>`). Draw each `LensFace { camera, width, height,
     face, axes, scale }` as an ordinary perspective frame (prepass,
@@ -3802,7 +3802,9 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
     (SwiftShader) against the CPU path, equidistant and stereographic at
     60–360°, wireframe and vertex modes: mean difference ≤ 0.06 levels.
     Not verified there: shadows, AO, textures and translucency under the
-    lens.
+    lens, and the equirectangular panorama (its shader branch mirrors the
+    CPU lens; a panorama always draws all six faces and every pixel has a
+    ray).
   - Per frame: `camera.view_matrix()` and `camera.projection_matrix(aspect,
     &bounds)` (column-major `[f32; 16]`; `bounds` = `Bounds::of(&model.meshes)`,
     sizing the depth range), and `FrameLights::new(&camera, &options)` for
@@ -4054,7 +4056,14 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `fov_y`), above 0 and up to 360 for `FisheyeMapping::Equidistant` (r =
   f·θ; pixels past 180° off the axis are the background colour and have
   no ray), below 360 for `Stereographic` (r = 2f·tan(θ/2); always fills
-  the frame); anything else is `RenderError::FisheyeField { mapping }`.
+  the frame), exactly 360 for `Equirectangular` (the 360° panorama photo
+  viewers open to look around in: pixel (x, y) of a w × h picture looks
+  along longitude λ = (x/w − 0.5)·2π, latitude φ = (0.5 − y/h)·π,
+  direction [cos φ sin λ, sin φ, cos φ cos λ] in the camera's right, up,
+  forward basis; 2:1 recommended, not enforced; every pixel has a ray;
+  lines crossing the seam behind the eye are cut there); anything else is
+  `RenderError::FisheyeField { mapping }`. `FisheyeMapping` is
+  `#[non_exhaustive]`.
   `render_model` / `render_coloured` draw it with lights, shadows, AO,
   gloss, lines and points following the lens. `Projection` is not
   `#[non_exhaustive]`: a shell matching it exhaustively must add the arm.
@@ -4140,7 +4149,7 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   `note: parts drawn by a best-fit mesh (K): ...`.
 - CLI: `3d-mesh -o FILE.stl|.obj`, `3d-render -o FILE.png [--view iso|front|..]
   [--up x|y|z] [--eye X,Y,Z] [--target X,Y,Z] [--ortho] [--fov DEG]
-  [--lens flat|equidistant|stereographic]
+  [--lens flat|equidistant|stereographic|equirectangular] [--360]
   [--style-alpha zero-unset|style|multiply] [--texture-origin bottom|top]
   [--texture-wrap-base zero|one] [--texture-pictures structure|header]
   [--mesh-fit best|unique|partial|continue]`; `3d-mesh` also takes

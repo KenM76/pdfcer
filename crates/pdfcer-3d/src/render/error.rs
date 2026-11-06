@@ -29,7 +29,8 @@ pub enum RenderError {
     /// A [`crate::Projection::Fisheye`] field of view outside what
     /// `mapping` draws: not finite, not above 0, or above 360° (at or
     /// above 360° for [`FisheyeMapping::Stereographic`], whose scale is
-    /// infinite there).
+    /// infinite there; anything but exactly 360° for
+    /// [`FisheyeMapping::Equirectangular`]).
     #[error("a {mapping:?} fisheye's field of view must be above 0 and within its range")]
     FisheyeField {
         /// The lens asked for.

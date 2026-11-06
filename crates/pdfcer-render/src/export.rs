@@ -57,6 +57,9 @@ use std::fmt::Write as _;
 
 use tiny_skia::Pixmap;
 
+mod xmp;
+pub use xmp::{MAX_JPEG_XMP_PACKET, insert_jpeg_xmp, photo_sphere_xmp};
+
 /// A DPI value the file formats can carry. Both write it as an integer
 /// (pixels per metre for PNG, dots per inch for JFIF), so the same
 /// rounding is applied once, here.
@@ -173,6 +176,15 @@ pub enum ExportError {
         format: &'static str,
         /// The encoder's own message.
         detail: String,
+    },
+    /// Metadata could not be added to an encoded file
+    /// ([`insert_jpeg_xmp`]): the bytes are not a JPEG, a leading segment
+    /// is truncated, an XMP packet is already there, or the packet is too
+    /// long for one segment.
+    #[error("cannot add the metadata: {detail}")]
+    Metadata {
+        /// What was wrong.
+        detail: &'static str,
     },
 }
 

@@ -15,8 +15,8 @@ use crate::{
 
 const EQUI: FisheyeMapping = FisheyeMapping::Equidistant;
 const STEREO: FisheyeMapping = FisheyeMapping::Stereographic;
-const BACKGROUND: [u8; 4] = [1, 2, 3, 255];
-const WALLS: [[u8; 4]; 6] = [
+pub(super) const BACKGROUND: [u8; 4] = [1, 2, 3, 255];
+pub(super) const WALLS: [[u8; 4]; 6] = [
     [200, 0, 0, 255],
     [0, 200, 0, 255],
     [0, 0, 200, 255],
@@ -26,7 +26,7 @@ const WALLS: [[u8; 4]; 6] = [
 ];
 
 /// The wall of the room |p| ≤ 5 at coordinate `axis` = `sign` · 5.
-fn wall(axis: usize, sign: f64) -> TriangleMesh {
+pub(super) fn wall(axis: usize, sign: f64) -> TriangleMesh {
     let (u, v) = ((axis + 1) % 3, (axis + 2) % 3);
     let corner = |a: f64, b: f64| {
         let mut p = [0.0; 3];
@@ -47,7 +47,8 @@ fn wall(axis: usize, sign: f64) -> TriangleMesh {
     }
 }
 
-fn room() -> Vec<TriangleMesh> {
+/// The six walls of a box around the origin, each its own colour.
+pub(super) fn room() -> Vec<TriangleMesh> {
     (0..6)
         .map(|i| wall(i / 2, if i % 2 == 0 { 1.0 } else { -1.0 }))
         .collect()
@@ -55,7 +56,7 @@ fn room() -> Vec<TriangleMesh> {
 
 /// A fisheye off the room's centre, looking past its walls' axes so face
 /// seams cross the walls obliquely.
-fn camera(fov: f64, mapping: FisheyeMapping) -> Camera {
+pub(super) fn camera(fov: f64, mapping: FisheyeMapping) -> Camera {
     Camera {
         eye: [0.3, -0.2, 0.1],
         target: [3.3, 0.6, 1.0],
@@ -64,7 +65,8 @@ fn camera(fov: f64, mapping: FisheyeMapping) -> Camera {
     }
 }
 
-fn options(lighting: LightingScheme) -> RenderOptions {
+/// Small-picture render options under `lighting`.
+pub(super) fn options(lighting: LightingScheme) -> RenderOptions {
     RenderOptions {
         width: 120,
         height: 90,
@@ -78,7 +80,7 @@ fn options(lighting: LightingScheme) -> RenderOptions {
 }
 
 /// The room drawn through `camera`: the picture and its depth keys.
-fn draw(camera: &Camera, options: &RenderOptions) -> (Vec<u8>, Vec<f64>) {
+pub(super) fn draw(camera: &Camera, options: &RenderOptions) -> (Vec<u8>, Vec<f64>) {
     let meshes = room();
     let paints: Vec<Paint> = WALLS
         .iter()
@@ -117,7 +119,8 @@ fn interior(walls: &[Option<Option<(usize, f64)>>], i: i64, j: i64) -> bool {
     })
 }
 
-fn picks(camera: &Camera) -> Vec<Option<Option<(usize, f64)>>> {
+/// The wall and depth hit at every pixel of a 120 x 90 picture, row by row.
+pub(super) fn picks(camera: &Camera) -> Vec<Option<Option<(usize, f64)>>> {
     (0..90)
         .flat_map(|j| (0..120).map(move |i| (i, j)))
         .map(|(i, j)| wall_at(camera, i, j))
@@ -126,7 +129,7 @@ fn picks(camera: &Camera) -> Vec<Option<Option<(usize, f64)>>> {
 
 /// Every pixel away from a wall edge shows the wall its ray meets, at that
 /// wall's depth; every pixel outside the lens is background.
-fn check_composition(fov: f64, mapping: FisheyeMapping, cube: bool) {
+pub(super) fn check_composition(fov: f64, mapping: FisheyeMapping, cube: bool) {
     let camera = camera(fov, mapping);
     let lens = Lens::for_camera(&camera, 120, 90).unwrap().unwrap();
     assert_eq!(
@@ -151,7 +154,11 @@ fn check_composition(fov: f64, mapping: FisheyeMapping, cube: bool) {
                 Some(Some((mesh, distance))) if interior(&walls, i, j) => {
                     assert_eq!(px, WALLS[mesh], "{mapping:?} {fov} at {i},{j}");
                     let key = 1.0 / distance;
-                    assert!((depth[p] / key - 1.0).abs() < 0.01, "{} vs {key}", depth[p]);
+                    assert!(
+                        (depth[p] / key - 1.0).abs() < 0.01,
+                        "{mapping:?} {fov} at {i},{j}: {} vs {key}",
+                        depth[p]
+                    );
                     checked += 1;
                 }
                 Some(Some(_)) => {}
@@ -212,6 +219,7 @@ fn ray_through_inverts_the_lens() {
         (EQUI, 360.0),
         (STEREO, 120.0),
         (STEREO, 330.0),
+        (FisheyeMapping::Equirectangular, 360.0),
     ] {
         let camera = camera(fov, mapping);
         let lens = Lens::for_camera(&camera, 120, 90).unwrap().unwrap();
