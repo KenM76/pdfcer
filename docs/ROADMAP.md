@@ -119,6 +119,7 @@ Engineer-reported; no shell here, git state not checked from here (local `main`,
 - **Honest limit:** sub-steps fix which floors are sampled, not time in the air, so a 30-wide gap at that pace still falls only 0.024 s worth.
 - **Tests (as reported):** `pdfcer-3d-nav` lib 65 passed (shared with `679.0`). Each new test sabotage-checked (17 cases across the five Passes, all caught; "snap while falling" needed its test strengthened first).
 - **FEATURES:** new row "3D walker": core `[x]`, cli `[ ]`, gui `[ ]`.
+- **Revision, commit `8b3464ef` (1447th filing; engineer-reported, not checked from here):** the request was revised after `72f43743`. The overhead clearance on `head_room` is now 1% of eye height (`HEAD_CLEARANCE`), not the 25% walls get, since 25% stopped a walker for good at a 2 cm threshold under a door header. Revised acceptance cases pass (ramp and ceiling below 1.2 and past 1.6; threshold crossed). **`pdfcer-3d-nav` lib now 67 passed (was 65).** Sabotage with clearance 0 and clearance 25% both caught. Still rides `v0.134.0`, unreleased.
 
 ### `835db164` `Pass 679.0`, 2026-11-06: a solid walker climbs a walkable ramp at any pace; a very large turn stays finite (`X058`) (1446th filing)
 

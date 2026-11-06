@@ -4,6 +4,13 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1447th filing) — `Pass 683.0` (`X059`) follow-up `8b3464ef`
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, engineer commits):**
+- Request revised after `72f43743`: overhead clearance on `head_room` is 1% of eye height (`HEAD_CLEARANCE`), not walls' 25%, which stopped a walker for good at a 2 cm threshold under a door header. Revised acceptance cases pass. `pdfcer-3d-nav` lib 67 passed (was 65). Sabotage (clearance 0, clearance 25%) both caught.
+- ROADMAP `Pass 683.0` entry gained a revision line. FEATURES unchanged (the walker row states no 25% figure). Still rides `v0.134.0`, unreleased.
+- **Next:** release `v0.134.0` when asked. Next filing 1448th.
+
 ## 2026-11-06 (1446th filing) — `Pass 679.0`-`683.0` (`X055`-`X059`) SHIPPED, unreleased
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, engineer commits):**
