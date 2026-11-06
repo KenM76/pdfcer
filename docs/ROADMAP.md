@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `3db3e31c` `Pass 677.0`, 2026-11-06: bounded orbit pan, 89-degree named Top/Bottom, saved view to aim (`X051`-`X053`) (1441st filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `3db3e31c` on `main` "feat(3d-nav): bounded pan, 89-degree named Top/Bottom, saved-view aim (X051-X053)". Unreleased; ships in `v0.133.0` with `Pass 678.0` (still in progress). Ported from `pdfcer-gui` `4cc231ac` (decision 218: port, never rewrite). Requests: `request_X051_orbit_pan_setter_and_bound.md`, `request_X052_named_top_view_pitch.md`, `request_X053_saved_view_to_saved_aim.md`; replies `reply_X051_orbit_pan_setter_and_bound_SHIPPED.md`, `reply_X052_named_top_view_pitch_SHIPPED.md`, `reply_X053_saved_view_to_saved_aim_SHIPPED.md` in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\` (INDEX rows updated, as reported).
+- **`X051`:** `pdfcer_3d_nav::Orbit::set_pan` and `pan_by`, plus `pub const PAN_LIMIT = 1e3` (model radii). A non-finite pan is ignored; a finite one is clamped. Test `a_pan_that_is_not_finite_is_ignored_and_a_huge_one_is_held`.
+- **`X052`:** `Orbit::named` Top and Bottom pitch to `±NAMED_PITCH` (`pub const`, 89 degrees, the GUI viewer's value) instead of `PITCH_LIMIT` (about 89.43 degrees). The choice is recorded on the doc comment. A free orbit drag still uses `PITCH_LIMIT`. Test `the_named_top_and_bottom_views_pitch_89_degrees`.
+- **`X053`:** `pdfcer_core::threed::ThreeDSavedView::saved_aim() -> Option<SavedAim>` and `view_frame(aspect) -> Option<ViewFrame>`, under `#[cfg(feature = "3d")]`; the `3d` feature now also enables the optional dependency `pdfcer-3d-nav`. Tests `a_framed_orthographic_view_gives_its_aim_and_frame` and `a_perspective_view_gives_its_position_and_no_frame`.
+- **Results (as reported):** `pdfcer-3d-nav` 46 lib + 1 + 2 tests pass; `pdfcer-core view_aim` 6 tests pass. Sabotage: the pan-clamp and 89-degree tests both fail with their fix reverted. `clippy -D warnings` clean on `pdfcer-3d-nav` (all targets) and `pdfcer-core --lib --features 3d`. `check-code-structure`, `check-public-fns-documented`, `check-reexport-closure` clean. `cargo tree -p pdfcer-core --features 3d`: no GUI or network crates. `docs/core-api` (01, 04, index) updated; `check-core-api-verbs.py` clean.
+- **FEATURES:** the *Planned* row moved to *Implemented* (3D block): core `[x]`, cli `[ ]` (no caller added), gui `[ ]` (`pdfcer-gui` adopts it).
+
 ### `02c33826` `v0.132.0` release commit: IN PROGRESS (tagged; package, GitHub release, OneDrive and crates.io publish pending), 2026-11-06 (1439th filing)
 
 Engineer-reported; no shell here, nothing checked from here (git, tag, CI, GitHub, crates.io, OneDrive all as reported). Version bump commit `02c33826` (short `02c3382`) "chore(release): v0.132.0": `[workspace.package]` version and the five `[workspace.dependencies]` version lines (`pdfcer-model`, `-vec3`, `-json`, `-3d`, `-3d-nav`) from 0.131.0 to 0.132.0, `Cargo.lock`, `fuzz/Cargo.lock`. On top of `9b668449`. Tag `v0.132.0` being cut on it. Carries `Pass 676.0` (`X050`, `9b668449`). The 1440th filing marks it PUBLISHED with assets and sha. Per the 1437th entry, the OneDrive CLI goes to `pdfcer2`.
@@ -26155,11 +26164,7 @@ closes out the *prior* filing's business rather than opening this one's.
 >
 > **1440th filing: two new Passes, both targeting `v0.133.0` (the release after `v0.132.0`, which is tagged on `02c33826` and still being published; its PUBLISHED filing is separate). `677`, `678` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`); last used `676.0`.**
 >
-> **`Pass 677.0` (`X051`, `X052`, `X053`; from `pdfcer-gui`), QUEUED:** three `pdfcer-3d-nav` / `pdfcer-core` items, code ported from `pdfcer-gui` `4cc231ac` (decision 218).
-> - **`X051`:** `pub const PAN_LIMIT: f64 = 1e3` and `Orbit::set_pan`, which ignores non-finite input and clamps each component to +-`PAN_LIMIT`; optionally `Orbit::pan_by`. The GUI's `navorbit::drag_pan` guard moves into the crate.
-> - **`X052`:** named Top/Bottom view pitch. The crate uses `PITCH_LIMIT` (pi/2 - 0.01); the GUI's original used 89 degrees. Engineer's ruling: restore 89 degrees for the named views, as ported verbatim from the GUI source the crate came from, and record the choice on the symbol's doc.
-> - **`X053`:** engine-side conversion from `pdfcer_core::threed::ThreeDSavedView` to `pdfcer_3d_nav::SavedAim` and `ViewFrame`, reading the `/C2W` translation in the engine; ported from the GUI's `fileview::saved_aim` / `fileview::frame`. `pdfcer-core`'s `3d` feature gains `pdfcer-3d-nav`.
-> - Shells: core only. cli and gui are `—` (the GUI's caller is `pdfcer-gui`'s).
+> **1441st filing: `Pass 677.0` (`X051`-`X053`, `3db3e31c`) is SHIPPED (see *Shipped*), unreleased; it ships in `v0.133.0` with `Pass 678.0`. Its Next up block is removed.**
 >
 > **`Pass 678.0` (operator request, Ken, 2026-11-06), QUEUED:** *"Can we add 360 degree capability to our screen capture? The kind that opens in photo viewers as a picture you can look around in?"* and *"Add it to this release and inform pdfcer-gui of this new feature to add to the screenshot render options."*
 > - An equirectangular full-sphere lens for the 3D renderer, `FisheyeMapping::Equirectangular`, CPU and GPU.

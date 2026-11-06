@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1441st filing) — `Pass 677.0` (`X051`-`X053`, `3db3e31c`) SHIPPED
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, engineer commits):**
+- **`Pass 677.0` SHIPPED, unreleased (ships in `v0.133.0` with `Pass 678.0`):** `Orbit::set_pan`/`pan_by` and `PAN_LIMIT` (`X051`); named Top/Bottom pitch `±NAMED_PITCH`, 89 degrees, recorded on the doc (`X052`); `ThreeDSavedView::saved_aim`/`view_frame` behind core's `3d` feature, which now enables `pdfcer-3d-nav` (`X053`). Ported from `pdfcer-gui` `4cc231ac` (decision 218).
+- **Verified (as reported):** `pdfcer-3d-nav` 46 + 1 + 2 tests, `pdfcer-core view_aim` 6; sabotage fails both pan and pitch tests; clippy, structure, public-fns-documented, reexport-closure, core-api-verbs gates clean; `cargo tree -p pdfcer-core --features 3d` has no GUI or network crates.
+- **FEATURES:** *Planned* row moved to *Implemented*: core `[x]`, cli `[ ]`, gui `[ ]`. **ROADMAP:** new *Shipped* entry; Next up `677.0` block replaced by a 1441st banner. Replies to `X051`-`X053` filed by the engineer in `FeatureRequests/open/`.
+- **Next:** `Pass 678.0` (360-degree capture), then `v0.133.0`. Next filing 1442nd.
+
 ## 2026-11-06 (1440th filing)
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, engineer commits):**
