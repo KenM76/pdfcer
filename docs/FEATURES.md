@@ -822,7 +822,7 @@ the model or verb exists and only the named shell is missing. The
 | [ ] | — | [ ] | — | Non-Latin UI font coverage. |
 | [ ] | — | [ ] | ? | Autosave and crash recovery, then true in-place save. |
 | [ ] | [ ] | — | — | Release and distribution channel. |
-| [ ] | — | — | — | **Engine crates on crates.io** — `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` first; `pdfcer-core` and `pdfcer-render` blocked by git dependencies (zune-jpeg, icccer). `pdfcer-color`, `pdfcer-model` and `pdfcer-pkix` are published at 0.101.0; `pdfcer-core`, `pdfcer-render`, `pdfcer-image-codec` and `pdfcer-3d` are not. `Pass 637.0` (`X001`). |
+| [ ] | — | — | — | **Engine crates on crates.io** — `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix` first; `pdfcer-core` and `pdfcer-render` blocked by git dependencies (zune-jpeg, icccer). `pdfcer-color`, `pdfcer-model` and `pdfcer-pkix` are published at 0.101.0; `pdfcer-core`, `pdfcer-render`, `pdfcer-image-codec` and `pdfcer-3d` are not. `Pass 637.0` (`X001`). Publish prep for `pdfcer-vec3`, `-json`, `-3d`, `-3d-nav` is done (`Pass 675.1`, `bafb8667`); none is published until the next release. |
 | [ ] | [ ] | [ ] | ? | **Non-embedded CJK fonts draw** — bundle the predefined CJK CMaps and substitute a face per ordering, disclosed. `Pass 649.0` (`X014`); licence check required. |
 | [ ] | [ ] | [ ] | ? | **Dynamic XFA text outside WinAnsi** — drawn through an embedded Unicode-capable face. Rides `Pass 647.4` (`X014`); licence check required. |
 | [ ] | [ ] | [ ] | ? | **Spell check** in form text fields and comments — underline, suggestions, per-language dictionaries. `Pass 649.1` (`X014`); licence check required. |

@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1436th filing) — `Pass 674.0` (`X046`, `dfda998c` + `e8bb651d`) SHIPPED; `Pass 675.1` publish prep (`bafb8667`)
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed):**
+- **`Pass 674.0` SHIPPED:** one `vec3` in new zero-dependency crate `pdfcer-vec3` (re-exported as `pdfcer_3d::vec3`); copies removed from core `threed` and `pdfcer-3d` `compressed.rs`; two non-equivalent `unit` copies kept on purpose. `pdfcer-3d` grouped into private modules, tests out of line, public paths unchanged; structure baseline lost one entry; largest files 749 and 748 of 800. Also fixed `tools/check-ci-crate-lists.py` for digit-ending crate names, four rustdoc links, three stale paths in `docs/core-api/01-reading-and-model.md`.
+- **Tests:** `pdfcer-3d` lib 451 + `pdfcer-vec3` 5 = 456 = the pre-refactor 456; `pdfcer-3d-nav` 44 lib green; core `threed` 16; fmt clean; `cargo tree` clean on four crates.
+- **`Pass 675.1` prep SHIPPED, publish NOT done:** `bafb8667` makes `pdfcer-vec3`, `-json`, `-3d`, `-3d-nav` publishable (metadata, READMEs, workspace versions, `zune-jpeg` registry requirement, two CI package steps). `cargo publish` waits for `v0.131.0`. `cargo package --list` files: vec3 6, json 6, 3d 127, 3d-nav 18.
+- **Decision 217 amended** (ARCHITECTURE §12, dated line, no new number): `pdfcer-vec3` joins the publish list; order vec3, json, 3d, 3d-nav.
+- **Release-recipe note:** the bump now has five `version = "0.130.0"` lines in `[workspace.dependencies]` plus `[workspace.package]`.
+- **FEATURES:** no box changed. `Engine crates on crates.io` row (`[ ]`) gained a prep pointer; `674.0` affects no row.
+- **ROADMAP:** two *Shipped* entries added; `674.0` Next up block replaced by a one-line banner; `675.1` banner records prep done and the remaining publish.
+- **Numbers:** no new Pass, decision or R minted. Backup currency not verifiable from here. Next filing 1437th.
+
 ## 2026-11-06 (1435th filing) — `Pass 675.0` (`X047`, `6de701d9` + `b745aaed`) SHIPPED
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed):**

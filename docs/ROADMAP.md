@@ -112,6 +112,29 @@ wherever it appears.*
 
 ## Shipped
 
+### `bafb8667` `Pass 675.1` (PREP ONLY), 2026-11-06: publish preparation for the 3D crates (decision 217) (1436th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `bafb8667` on `main` "build(publish): pdfcer-vec3, -json, -3d and -3d-nav made publishable (decision 217)". **The publish itself is NOT done and `Pass 675.1` stays open:** `cargo publish` happens with the next release (`v0.131.0`) and will be filed then. Nothing is on crates.io from this Pass.
+- **Four crates, not three:** `pdfcer-vec3` joins the list because `pdfcer-3d` now depends on it (`674.0`). Publish order: `pdfcer-vec3`, `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav`. Decision 217 carries a dated amendment line.
+- **Manifests:** `publish = true`, repository/homepage/readme/keywords/categories and a `README.md` on each of the four.
+- **Versions:** `[workspace.dependencies]` gives each a `version = "0.130.0"` beside its path, bumped with the workspace version like `pdfcer-model`; `pdfcer-3d` and `pdfcer-core` reference `pdfcer-json` / `pdfcer-vec3` via `.workspace = true`.
+- **`zune-jpeg`:** `pdfcer-3d` keeps the git source (rev `c1c7f497`) plus a registry requirement `">=0.5.16-rc3, <0.6"`; 0.5.16-rc3 verified present on crates.io. **Disclosed cost:** a consumer that also pulls `image`/`tiff` (`zune-jpeg ^0.5`, stable 0.5.15) cannot resolve both until zune-jpeg 0.5.16 is stable.
+- **CI:** two new steps, `vec3` + `json` with `cargo package` build-verified, `3d` + `3d-nav` with `--no-verify --exclude-lockfile` (manifest only); mirrored in `tools/check-ci-parity.py` (clean). A stale CI comment ("nothing is published") corrected.
+- **`cargo package --list` file counts:** vec3 6, json 6, 3d 127, 3d-nav 18 (counts, not sizes).
+- **Release recipe, for the next release:** the version bump now touches five `version = "0.130.0"` lines in root `Cargo.toml` `[workspace.dependencies]` (`pdfcer-model`, `-vec3`, `-json`, `-3d`, `-3d-nav`) plus `[workspace.package]` `version`.
+- **FEATURES:** no box changed; the *Engine crates on crates.io* row (still `[ ]`) gained a pointer to the prep.
+
+### `dfda998c` + `e8bb651d` `Pass 674.0`, 2026-11-06: 3D vector helpers and module layout (`X046`) (1436th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Two commits on `main`: `dfda998c` "refactor(3d): one vec3, in a new zero-dependency crate pdfcer-vec3" and `e8bb651d` "refactor(3d): group pdfcer-3d into prc/model/camera/lighting/shadow/gpu/render modules, tests out of line". Request `X046` (PdfCraft workspace, crates consumer, decision 215). No behaviour change. **Unreleased:** ships with `673.0`, `675.0` and the `675.1` publish.
+- **`dfda998c`:** new zero-dependency crate `pdfcer-vec3`. `pdfcer-3d` re-exports it as `pdfcer_3d::vec3` (consumer path unchanged); `pdfcer-core` depends on it directly because `ThreeDMeasurement::linear` is not behind core's `3d` feature. Copies removed from core `threed/view_aim.rs`, `threed/view_write.rs`, `threed/measure.rs` and `pdfcer-3d` `compressed.rs`. **Two non-equivalent copies kept on purpose:** `model::light::unit` (divides; refuses tiny and huge) and `prc::compressed::unit` (returns its input on zero).
+- **`e8bb651d`:** `pdfcer-3d` grouped into private modules `prc`, `model`, `camera`, `lighting`, `shadow`, `gpu`, `render`; every public item stays at the crate root, so no consumer path changes. Inline tests moved to `<module>/tests.rs` / `<module>/tests/*.rs`. Structure baseline lost `fn pdfcer-3d/src/tess.rs::tess_3d_compressed` (debt shrank by one). Largest files now `prc/tree/mod.rs` 749 and `prc/compressed.rs` 748 lines (limit 800).
+- **Also fixed in `e8bb651d`:** `tools/check-ci-crate-lists.py` now reads crate names ending in a digit (it had missed `pdfcer-3d`-style names); four rustdoc links; three stale paths in `docs/core-api/01-reading-and-model.md`.
+- **Tests (engineer-reported):** `pdfcer-3d` lib 451 + `pdfcer-vec3` lib 5 = 456, equal to the pre-refactor `pdfcer-3d` lib count of 456 (the 5 vec3 tests moved with the code). `pdfcer-3d-nav` 44 lib + integration green. Core `threed` filter 16 green. `cargo fmt --check` clean.
+- **Invariants:** `cargo tree` for `pdfcer-core`, `pdfcer-3d`, `pdfcer-vec3`, `pdfcer-3d-nav`: no GUI, windowing or network crate.
+- **Request:** reply `FeatureRequests/pdfce_FeatureRequests/open/reply_X046_3d_vector_helpers_and_module_layout_SHIPPED.md`; INDEX row SHIPPED.
+- **FEATURES:** no rows affected (pure refactor; no row names the 3D crate layout).
+
 ### `6de701d9` + `b745aaed` `Pass 675.0`, 2026-11-06: headless 3D navigation crate `pdfcer-3d-nav` (`X047`) (1435th filing)
 
 Engineer-reported; no shell here, git state not checked from here. Two commits on `main`: `6de701d9` "feat(3d): public vec3, Camera::fit_sphere / looking_at / visible_height, DEFAULT_FOV_Y (X047)" and `b745aaed` "feat(3d-nav): the model viewer's navigation as a GUI-free crate (X047)", cherry-picked from worker commits `83c7b489` and `3564b080`. A `docs/core-api/index.md` line-count conflict was resolved on the cherry-pick; `check-core-api-verbs` PASSes. Request `X047` (PdfCraft workspace). **Unreleased:** ships with `674.0` and `675.1`.
@@ -26095,12 +26118,7 @@ closes out the *prior* filing's business rather than opening this one's.
 >
 > **1435th filing: `Pass 675.0` (`X047`, `6de701d9` + `b745aaed`) is SHIPPED (see *Shipped*), unreleased; `publish = false` on `pdfcer-3d-nav` stays until `Pass 675.1`.**
 >
-> **`Pass 674.0` (`X046`, IN FLIGHT with a worker as of the 1435th filing; `673.0` and `675.0` have landed) - 3D vector helpers and module layout** (`request_X046_3d_vector_helpers_and_module_layout.md`). No behaviour change.
-> - `pdfcer-3d`'s `vec3` public (landed in `675.0`); the copies in `pdfcer-core` `threed` (`view_aim`, `view_write`, `measure`) and in `model_light` call it;
-> - inline tests of `tree/mod.rs`, `tess.rs`, `compressed.rs` and `render.rs` moved to `<module>/tests.rs`;
-> - flat modules grouped into submodules (`camera/`, `decode/`, `gpu/`, `shadow/`, `light/`), public re-exports kept;
-> - a Cargo `description` that matches what the crate holds.
-> - **Acceptance:** the structure gate (`tools/check-code-structure.py`) passes, with no 3D file within 50 lines of the limit.
+> **1436th filing: `Pass 674.0` (`X046`, `dfda998c` + `e8bb651d`) is SHIPPED (see *Shipped*), unreleased. Its Next up block is removed.** `Pass 675.1` publish PREP landed in `bafb8667` (see *Shipped*); the `cargo publish` itself is still open and is done at `v0.131.0`.
 >
 > **Not ours, recorded for traceability:** `X045` (viewer orbit fit and resource containment) and `X048` (viewer onto the shared crate; `model3d.rs` split; `options.rs` clamp panic) are addressed to `pdfcer-gui`. `X048` depends on `675.0`.
 
@@ -26110,6 +26128,7 @@ closes out the *prior* filing's business rather than opening this one's.
 > - **blocker, resolved in the same release:** `pdfcer-3d`'s `zune-jpeg` is a git dependency (rev `c1c7f497`, the 0.5.16-rc3 cut) and cannot be packaged. Give it a registry requirement `>=0.5.16-rc3, <0.6` beside the git source: the workspace build keeps the git rev; the published crate resolves crates.io's 0.5.16-rc3, or stable 0.5.16 once it ships;
 > - **cost, disclosed:** a consumer that also pulls `image`/`tiff` (`zune-jpeg ^0.5` resolving to 0.5.15) cannot resolve both while 0.5.16 is unreleased. `^0.5` was rejected because it would ship 0.5.15's one-scan-per-component JPEG decode bug to published consumers;
 > - verify with `cargo package` / `cargo publish --dry-run` per crate, and `cargo tree -p pdfcer-3d-nav` for GUI-core separation.
+> - **1436th filing, prep done in `bafb8667` (see *Shipped*); REMAINING: the real `cargo publish` at `v0.131.0`, in order `pdfcer-vec3`, `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav`.** The list is four crates, not three: `pdfcer-vec3` joined (decision 217 amendment). `publish = false` is already removed.
 
 > **Head (1421st filing): no open Pass at the head. `Pass 660.0` (`G266`, `d77620b6`), `661.0` (`X039`), `662.0` (`f8da53ad`) and `663.0` (`X040`, `7760a3bf`) are SHIPPED (see *Shipped*). `v0.128.0` is BEING CUT (bump `7d02540a`), carrying `X039`, `662.0`, `G266` and `X040`; not yet tagged or published as far as this filing knows; the release filing comes later. Release slot: OneDrive `pdfcer2` per the earlier banner (not re-verified here).** The older banners that follow are history.
 

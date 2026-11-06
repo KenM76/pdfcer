@@ -13776,6 +13776,8 @@ Operator ruling (Ken, 2026-11-06), verbatim: *"Yes publish them"*. Answers the o
 
 **Body-section effect.** None found by name (not grepped for the crate list in §3 from here; engineer to confirm whether the published-crate list in the body needs the three names). **Decision ceiling.** Fills `217`; next free decision `218` (taken below). **New standing rule.** None.
 
+**Amendment, 2026-11-06 (1436th filing; original above left as written).** Scope item 1 is widened: `pdfcer-vec3` joins the publish list, because `pdfcer-3d` now depends on it (`Pass 674.0`, `dfda998c`). The list is four crates, published in order `pdfcer-vec3`, `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav`. Publish preparation landed in `bafb8667` (`publish = true`, metadata, READMEs, `version = "0.130.0"` beside each path in `[workspace.dependencies]`, CI package steps); the `cargo publish` itself is at `v0.131.0`. `zune-jpeg` resolution (items 3 and 4) unchanged; `0.5.16-rc3` confirmed present on crates.io (engineer-reported). No new decision number; the `§3` entry for `pdfcer-vec3` was written by the engineer in `bafb8667`.
+
 ### 2026-11-06 (1433rd filing) — decision 218: port, never rewrite, from Ken's own projects; widens decision 215
 
 Operator ruling (Ken, 2026-11-06), verbatim: *"remember to port work from pdfcer-gui and anything we write for pdfcraft that you can without rewriting it. No reason we can't use the snippets of code for pdfcraft we wrote."* Engineer-reported; no `docs/decisions/218-*.md` (this entry is the record). Widens decision 215 (above, left as written); a new number rather than an amendment line, since 215's scope was PdfCraft `X`-series requests only and this adds `pdfcer-gui`.
