@@ -513,6 +513,7 @@ pub(crate) fn run() -> ExitCode {
             shininess_scale,
             threads,
             pick,
+            project,
         } => {
             let lens = if sphere {
                 crate::LensArg::Equirectangular
@@ -562,6 +563,7 @@ pub(crate) fn run() -> ExitCode {
                 shininess_scale,
                 threads,
                 pick: &pick,
+                project: &project,
             })
         }
         Command::ThreeDEmbed {
@@ -630,6 +632,10 @@ pub(crate) fn run() -> ExitCode {
             ortho,
             default,
             measures,
+            perpendiculars,
+            angles,
+            radii,
+            notes,
             units,
             clear,
             apply,
@@ -643,6 +649,10 @@ pub(crate) fn run() -> ExitCode {
             ortho,
             default,
             measures: &measures,
+            perpendiculars: &perpendiculars,
+            angles: &angles,
+            radii: &radii,
+            notes: &notes,
             units: units.as_deref().unwrap_or_default(),
             clear,
             apply,

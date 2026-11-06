@@ -178,6 +178,26 @@ pub(crate) fn parse_segment3(s: &str) -> Result<[[f64; 3]; 2], String> {
     Ok([parse_point3(a)?, parse_point3(b)?])
 }
 
+/// Clap parser for three model points `X,Y,Z:X,Y,Z:X,Y,Z`.
+pub(crate) fn parse_triple3(s: &str) -> Result<[[f64; 3]; 3], String> {
+    let bad = || format!("`{s}` is not three points like 0,0,0:10,0,0:0,10,0");
+    let points: Vec<[f64; 3]> = s
+        .split(':')
+        .map(parse_point3)
+        .collect::<Result<_, _>>()
+        .map_err(|_| bad())?;
+    <[[f64; 3]; 3]>::try_from(points).map_err(|_| bad())
+}
+
+/// Clap parser for a note on a model point, `X,Y,Z:TEXT`; the text may hold
+/// colons.
+pub(crate) fn parse_note3(s: &str) -> Result<([f64; 3], String), String> {
+    let (at, text) = s
+        .split_once(':')
+        .ok_or_else(|| format!("`{s}` is not a point and a note like 0,0,0:check this"))?;
+    Ok((parse_point3(at)?, text.to_owned()))
+}
+
 /// Clap parser for an image position `X,Y` (two finite numbers).
 pub(crate) fn parse_point2(s: &str) -> Result<[f64; 2], String> {
     let bad = || format!("`{s}` is not two numbers like 80,45.5");

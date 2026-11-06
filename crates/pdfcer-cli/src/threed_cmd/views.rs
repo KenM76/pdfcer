@@ -17,6 +17,10 @@ pub(crate) struct ViewsThreeDArgs<'a> {
     pub(crate) ortho: bool,
     pub(crate) default: Option<ThreeDView>,
     pub(crate) measures: &'a [[[f64; 3]; 2]],
+    pub(crate) perpendiculars: &'a [[[f64; 3]; 3]],
+    pub(crate) angles: &'a [[[f64; 3]; 3]],
+    pub(crate) radii: &'a [[[f64; 3]; 3]],
+    pub(crate) notes: &'a [([f64; 3], String)],
     pub(crate) units: &'a str,
     pub(crate) clear: bool,
     pub(crate) apply: bool,
@@ -174,28 +178,63 @@ fn fitted_views(
                 ThreeDSavedView::from_camera(named.label(), &camera, aspect).ok_or_else(|| {
                     refuse(format!("the {} view has no usable camera", named.label()))
                 })?;
-            with_measures(view, a.measures, a.units).map_err(refuse)
+            with_measures(view, a).map_err(refuse)
         })
         .collect()
 }
 
-/// `view` with one linear measurement per segment, in the plane facing its
-/// camera (normal = the camera's z axis); a segment along that axis is
-/// drawn in the plane holding the camera's up axis instead.
+/// `view` with every measurement asked for, in the plane facing its camera
+/// (normal = the camera's z axis); a distance that plane cannot draw is drawn
+/// in the plane holding the camera's up axis instead.
 #[cfg(feature = "3d")]
 fn with_measures(
     mut view: ThreeDSavedView,
-    segments: &[[[f64; 3]; 2]],
-    units: &str,
+    a: &ViewsThreeDArgs<'_>,
 ) -> Result<ThreeDSavedView, String> {
     let Some(c2w) = view.camera_to_world else {
         return Ok(view);
     };
     let (facing, up) = ([c2w[6], c2w[7], c2w[8]], [c2w[3], c2w[4], c2w[5]]);
-    for (i, [p, q]) in segments.iter().enumerate() {
+    let units = a.units;
+    for (i, [p, q]) in a.measures.iter().enumerate() {
         let m = ThreeDMeasurement::linear(*p, *q, facing, units)
             .or_else(|| ThreeDMeasurement::linear(*p, *q, up, units))
             .ok_or_else(|| format!("--measure {}: its two points coincide", i + 1))?;
+        view = view.with_measurement(m);
+    }
+    for (i, [p, q, along]) in a.perpendiculars.iter().enumerate() {
+        let m = ThreeDMeasurement::perpendicular(*p, *q, *along, facing, units)
+            .or_else(|| ThreeDMeasurement::perpendicular(*p, *q, *along, up, units))
+            .ok_or_else(|| {
+                format!(
+                    "--measure-perpendicular {}: the points have no distance along its direction",
+                    i + 1
+                )
+            })?;
+        view = view.with_measurement(m);
+    }
+    for (i, [vertex, p, q]) in a.angles.iter().enumerate() {
+        let m = ThreeDMeasurement::angular(*vertex, *p, *q, facing).ok_or_else(|| {
+            format!(
+                "--measure-angle {}: its lines are parallel or a point is on the vertex",
+                i + 1
+            )
+        })?;
+        view = view.with_measurement(m);
+    }
+    for (i, [p, q, r]) in a.radii.iter().enumerate() {
+        let m = ThreeDMeasurement::radial(*p, *q, *r, units).ok_or_else(|| {
+            format!(
+                "--measure-radius {}: its points are collinear or coincide, so no circle \
+                 passes through them",
+                i + 1
+            )
+        })?;
+        view = view.with_measurement(m);
+    }
+    for (i, (at, text)) in a.notes.iter().enumerate() {
+        let m = ThreeDMeasurement::comment(*at, text.as_str())
+            .ok_or_else(|| format!("--note {}: the note is empty", i + 1))?;
         view = view.with_measurement(m);
     }
     Ok(view)

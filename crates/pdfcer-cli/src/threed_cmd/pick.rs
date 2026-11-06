@@ -1,5 +1,5 @@
-//! `3d-render --pick`: the model point drawn at an image position, through
-//! the camera the image was rendered with.
+//! `3d-render --pick` and `--project`: the model point drawn at an image
+//! position and the way back, through the camera the image was rendered with.
 
 use super::RenderThreeDArgs;
 use pdfcer_3d::{Camera, TriangleMesh, pick};
@@ -22,6 +22,17 @@ pub(super) fn print_picks(a: &RenderThreeDArgs<'_>, meshes: &[TriangleMesh], cam
                     hit.distance
                 ),
             },
+        }
+    }
+}
+
+/// One `project` line per `--project`: the image position, or `not drawn`.
+pub(super) fn print_projects(a: &RenderThreeDArgs<'_>, camera: &Camera) {
+    for &point in a.project {
+        let at = format!("project point={}", point.map(|c| c.to_string()).join(","));
+        match camera.pixel_of(point, a.width, a.height) {
+            None => println!("{at} not drawn"),
+            Some([x, y]) => println!("{at} x={x:.6} y={y:.6}"),
         }
     }
 }

@@ -488,6 +488,8 @@ pub(crate) struct RenderThreeDArgs<'a> {
     pub(crate) threads: usize,
     /// Image positions to report the model point under (`--pick`).
     pub(crate) pick: &'a [[f64; 2]],
+    /// Model points to report the image position of (`--project`).
+    pub(crate) project: &'a [[f64; 3]],
 }
 
 /// The scheme `3d-render` lights with, and where it came from.
@@ -682,6 +684,7 @@ fn render_from_bytes(
     print_assembly_notes(&model, "drawn");
     println!("note: camera: {}", aim.source);
     picture::print_note(a);
+    aim::print_level_note(a, &camera);
     let uncoloured = model.meshes.len() - model.colours.iter().flatten().count();
     let translucent = model
         .colours
@@ -713,6 +716,7 @@ fn render_from_bytes(
     );
     print_texture_notes(model.textured, &model.texture_notes);
     pick::print_picks(a, &model.meshes, &camera);
+    pick::print_projects(a, &camera);
     if model.overridden > 0 {
         println!(
             "note: {} placement(s) drawn in a colour an enclosing assembly overrides them with \

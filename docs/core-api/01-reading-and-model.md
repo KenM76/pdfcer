@@ -162,6 +162,8 @@ builds `--no-default-features`, so both configurations compile.
 | Turn a saved 3D view into a camera (`pdfcer_3d::Camera`) | `ThreeDSavedView::aim(aspect)` → `SavedViewAim::camera(&Bounds, aspect)` / `frame` — `threed/view_aim.rs` | §12.2 |
 | Turn a saved 3D view into navigation input (`pdfcer_3d_nav::SavedAim` / `ViewFrame`) | `ThreeDSavedView::saved_aim()` / `view_frame(aspect)` — `threed/view_aim.rs` | §12.2 |
 | The model point under a pixel of a 3D render (`G245`) | `Camera::ray_through(x, y, w, h)` → `pdfcer_3d::pick(&meshes, &ray) -> Option<Hit>` — `pdfcer-3d/src/camera/pick.rs` | §12.2 |
+| The image position of a model point (`X056`): draw a measurement, label or marker over a render | `Camera::pixel_of(point, width, height) -> Option<[f64; 2]>`, y down, the inverse of `ray_through` under every projection and lens. `None`: nearer than the near plane or behind the eye (orthographic draws behind it), at the eye, straight behind a radial fisheye, a non-finite point, a zero size, or a camera the renderer refuses. Outside the picture or past a fisheye's circle is a position, not `None`, so a line can be clipped. Under the 360° panorama every direction has a position: straight behind lands on the left or right edge, straight up or down on the top or bottom edge, and two positions more than half the width apart mean the line between them crosses the seam and must be split there — `pdfcer-3d/src/camera/pick.rs` | §12.2 |
+| Level a camera for a 360° picture (`X055`) | `Camera::levelled_panorama(self, up, front) -> Option<Camera>`: same eye and distance, target turned level with `up`, `up` as the camera's up, projection `Fisheye { fov: 360, Equirectangular }`, so the horizon is flat. `front` is the heading when the camera looks straight along `up`. Neither need be unit. `None`: `up` zero or not finite, eye equals target, or no heading and `front` along `up` — `pdfcer-3d/src/camera/sphere.rs` | §12.2 |
 | Repeated picks on one model, skipping hidden parts (`G251`) | `PickIndex::new(&meshes)` once, then `index.pick(&ray)` or `index.pick_where(&ray, max_distance, |mesh| visible[mesh])` -> `Option<Hit>`; same answers as `pick`, ties to the lower (mesh, triangle); rebuild when the meshes change — `pdfcer-3d/src/camera/pick_index.rs` | §12.2 |
 | Orbit, walk, lens and fit for an interactive 3D viewer (`X047`) | the `pdfcer-3d-nav` crate — see [`04-3d-navigation.md`](04-3d-navigation.md) | — |
 | Enumerate optional-content layers + default visibility | `layers::read_layers(&graph)` — `layers.rs` | §12.3 |
@@ -3264,11 +3266,34 @@ DeviceRGB, default white), `value` (`/V`), `units` (`/U`), `places: Option<u32>`
 `has_comment: bool` is whether `/S` links a Projection annotation (read only).
 Points are world space. **`/V` is the stored value; pdfcer never re-measures.**
 `value_text()` formats it as pdfcer shows it (`/V` to `/P` places, then
-` /U`, then `/UT`; a `Comment` returns `/UT`; the spec leaves formatting to the
-reader). `ThreeDMeasurement::linear(a1, a2, plane, units) -> Option<Self>`
-builds a writable linear one: value = distance, text at the midpoint, up =
-`plane × (a2 - a1)` normalised; `None` when the points coincide, the line is
-along `plane`, or a number is not finite. 3D units (`/3DU`, Table 325) are not
+` /U`, then `/UT`; a `Radial` value is preceded by `R`, or `⌀` when `/R` is
+false; an `Angular` value with no `/U` is followed by `°`, or ` rad` when `/DR`
+is false; a `Comment` returns `/UT`; the spec leaves the rest of the formatting
+to the reader). Builders, each `#[must_use]` and returning a measurement that
+passes `set_3d_views`, or `None` when a number is not finite or what follows
+holds; the value is computed from the points and never re-measured:
+
+- `linear(a1, a2, plane, units)`: value = distance, text at the midpoint, up =
+  `plane × (a2 - a1)` normalised. `None`: the points coincide or the line is
+  along `plane`.
+- `perpendicular(a1, a2, normal, plane, units)`: value = `|(a2 - a1) · normal|`
+  with `normal` made unit. `/AP` is the plane holding `normal` nearest `plane`,
+  since the drawn line must lie in it to be as long as the value, so `plane` is
+  a preference (the direction facing the camera); `/D1 = /AP × normal`. `None`:
+  no separation along `normal`, `plane` parallel to `normal`, or either zero.
+- `angular(vertex, a1, a2, plane)`: value in degrees at `vertex` (0–180), `/D1`
+  and `/D2` the unit directions to `a1` and `a2`. The arc lies in the plane of
+  the three points; `plane` only chooses which way `/AP` faces, as a facing
+  direction must not tilt a true angle. Text inside the angle at the nearer
+  anchor's distance. No `/U`, so `value_text` says `°`. `None`: an anchor on the
+  vertex, the lines parallel or opposed, or `plane` zero.
+- `radial(p1, p2, p3, units)`: the circle through three points on the feature.
+  `/A1` is the centre, `/A2` is `p2`, `/A3` and `/A4` are `p1` and `p3`, value =
+  radius, `/AP` the circle's plane. `None`: the points are collinear or coincide.
+- `comment(at, text)`: `/UT` at `at`, nothing measured. `None`: empty text.
+
+Each leaves the markup colour unset, which a reader takes as white (the `/C`
+default), so set `color` for a light background. 3D units (`/3DU`, Table 325) are not
 read. The write side of these fields is
 `EditSession::set_3d_views` (`02-editing-and-saving.md`).
 
@@ -3347,6 +3372,11 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   slice passed (e.g. `AssembledModel::meshes`), `normal` is the unit face
   normal from the winding, not turned towards the viewer. Pass the camera
   the image was drawn with and the hit is the surface shown at that pixel.
+  CLI: `3d-render … --360` levels the camera and prints `note: photo sphere: the
+  camera was levelled with <axis> up (<how>), keeping its eye and heading, so the
+  horizon is flat`.
+  CLI: `3d-render … --project X,Y,Z` (repeatable) prints `project point=x,y,z
+  x= y=`, or `not drawn`, from `Camera::pixel_of`.
   CLI: `3d-render … --pick X,Y` (repeatable) prints `pick x= y= mesh=
   triangle= point= normal= distance=` or `pick x= y= miss`.
 - `Placement::colour: Option<[f64; 4]>` is the part's colour from its tree

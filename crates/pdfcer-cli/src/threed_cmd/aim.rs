@@ -108,11 +108,67 @@ pub(super) fn place_camera(
             180.0
         };
         let fov = a.fov.unwrap_or(whole);
+        if mapping == FisheyeMapping::Equirectangular {
+            camera = levelled(camera, a, aim);
+        }
         camera.projection = Projection::Fisheye { fov, mapping };
     } else if let Projection::Perspective { fov_y } = &mut camera.projection {
         *fov_y = a.fov.unwrap_or(30.0);
     }
     Ok(camera)
+}
+
+/// `camera` turned level for a 360° picture, whose top edge a photo viewer
+/// takes as straight up: onto `--up`; else, from the file's opening view, the
+/// model axis nearest that view's up, since the file may be y-up; else the
+/// default `--up`. Its own up is the heading when it looks straight along
+/// that axis. A camera that cannot be levelled is left for the renderer to
+/// refuse.
+fn levelled(camera: Camera, a: &RenderThreeDArgs<'_>, aim: &Aim) -> Camera {
+    let up = match a.up {
+        None if aim.framing.is_some() => nearest_axis(camera.up),
+        up => up.unwrap_or_default().vector(),
+    };
+    camera.levelled_panorama(up, camera.up).unwrap_or(camera)
+}
+
+/// The signed model axis nearest `up`, z winning ties, then y.
+fn nearest_axis([x, y, z]: [f64; 3]) -> [f64; 3] {
+    let (ax, ay, az) = (x.abs(), y.abs(), z.abs());
+    if az >= ax && az >= ay {
+        [0.0, 0.0, 1f64.copysign(z)]
+    } else if ay >= ax {
+        [0.0, 1f64.copysign(y), 0.0]
+    } else {
+        [1f64.copysign(x), 0.0, 0.0]
+    }
+}
+
+/// The `note:` disclosing that a 360° picture's camera was levelled, and
+/// which way up was chosen when the operator did not say.
+pub(super) fn print_level_note(a: &RenderThreeDArgs<'_>, camera: &Camera) {
+    if a.lens != LensArg::Equirectangular {
+        return;
+    }
+    let [x, y, z] = camera.up;
+    let axis = if z != 0.0 {
+        if z > 0.0 { "+z" } else { "-z" }
+    } else if y != 0.0 {
+        if y > 0.0 { "+y" } else { "-y" }
+    } else if x > 0.0 {
+        "+x"
+    } else {
+        "-x"
+    };
+    let how = if a.up.is_some() {
+        "as --up asked"
+    } else {
+        "--up chooses another"
+    };
+    println!(
+        "note: photo sphere: the camera was levelled with {axis} up ({how}), keeping its eye \
+         and heading, so the horizon is flat"
+    );
 }
 
 /// The summary line's `projection=` value.

@@ -1837,3 +1837,167 @@ fn sun_gain_scales_the_sun() {
     let (out, _) = lens_render("sun_g_bad", &["--sun-gain", "5"]);
     assert_eq!(out.status.code(), Some(2));
 }
+
+/// `--project` goes back from a model point to the image position `--pick`
+/// reports, and says when nothing is drawn.
+#[cfg(feature = "3d")]
+#[test]
+fn project_reports_the_image_position_of_a_model_point() {
+    let input = with_prc("render_project", "assembly.prc");
+    let output = input.with_extension("project.png");
+    let out = run(&[
+        "3d-render",
+        input.to_str().unwrap(),
+        "--index",
+        "2",
+        "--eye",
+        "0,0,10",
+        "--target",
+        "0,0,0",
+        "--up",
+        "y",
+        "--width",
+        "100",
+        "--height",
+        "100",
+        "--project",
+        "0,0,0",
+        "--project",
+        "0,0,20",
+        "-o",
+        output.to_str().unwrap(),
+    ]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        stdout.contains("project point=0,0,0 x=50.000000 y=50.000000"),
+        "{stdout}"
+    );
+    assert!(
+        stdout.contains("project point=0,0,20 not drawn"),
+        "{stdout}"
+    );
+}
+
+/// A 360° picture is levelled, and says so: a pitched view keeps its eye and
+/// looks along the horizon.
+#[cfg(feature = "3d")]
+#[test]
+fn a_360_render_levels_a_pitched_view_and_discloses_it() {
+    let (out, _) = panorama_render("level", "png", &["--360", "--height", "20", "--up", "y"]);
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(
+        stdout.contains("the camera was levelled with +y up (as --up asked)"),
+        "{stdout}"
+    );
+    let flat_render = panorama_render("flat", "png", &["--width", "20", "--height", "20"]);
+    assert!(
+        !String::from_utf8_lossy(&flat_render.0.stdout).contains("levelled"),
+        "a flat picture is not levelled"
+    );
+}
+
+/// Every measurement kind goes in from the command line and reads back.
+#[cfg(feature = "3d")]
+#[test]
+fn views_write_every_measurement_kind() {
+    let input = with_prc_square("views_measure_all");
+    let output = input.with_extension("all.pdf");
+    let out = views_3d(
+        &input,
+        &[
+            "--view",
+            "front",
+            "--measure-perpendicular",
+            "0,0,0:1,2,3:0,1,0",
+            "--measure-angle",
+            "0,0,0:1,0,0:1,1,0",
+            "--measure-radius",
+            "1,0,0:0,1,0:-1,0,0",
+            "--note",
+            "1,2,3:see: this",
+            "--units",
+            "mm",
+            "--apply",
+            "-o",
+            output.to_str().unwrap(),
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let listed = run(&["3d-list", output.to_str().unwrap()]);
+    let listed = String::from_utf8_lossy(&listed.stdout);
+    for (kind, value) in [
+        ("perpendicular", "2.000 mm"),
+        ("angular", "45.000°"),
+        ("radial", "R1.000 mm"),
+        ("comment", "see: this"),
+    ] {
+        assert!(
+            listed.lines().any(|l| l.contains(&format!("kind={kind}"))
+                && l.contains(&format!("value=\"{value}\""))),
+            "{kind} {value}: {listed}"
+        );
+    }
+}
+
+/// An angle and a note need no units; a distance and a radius do, and a
+/// measurement that cannot be drawn is refused by name.
+#[cfg(feature = "3d")]
+#[test]
+fn measurement_flags_ask_for_units_and_refuse_what_cannot_be_drawn() {
+    let input = with_prc_square("views_measure_more_bad");
+    for flag in [
+        ["--measure-perpendicular", "0,0,0:1,2,3:0,1,0"],
+        ["--measure-radius", "1,0,0:0,1,0:-1,0,0"],
+    ] {
+        let out = views_3d(&input, &["--view", "front", flag[0], flag[1]]);
+        assert_eq!(out.status.code(), Some(2), "{flag:?} needs --units");
+    }
+    let out = views_3d(
+        &input,
+        &["--view", "front", "--measure-angle", "0,0,0:1,0,0:1,1,0"],
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let out = views_3d(&input, &["--view", "front", "--units", "mm"]);
+    assert_eq!(out.status.code(), Some(2), "--units alone measures nothing");
+    for (flag, value, why, units) in [
+        (
+            "--measure-angle",
+            "0,0,0:1,0,0:2,0,0",
+            "--measure-angle 1",
+            "",
+        ),
+        (
+            "--measure-radius",
+            "0,0,0:1,0,0:2,0,0",
+            "--measure-radius 1",
+            "mm",
+        ),
+        ("--note", "0,0,0:", "--note 1", ""),
+    ] {
+        let mut args = vec!["--view", "front", flag, value];
+        if !units.is_empty() {
+            args.extend(["--units", units]);
+        }
+        let out = views_3d(&input, &args);
+        assert_eq!(out.status.code(), Some(9), "{flag}");
+        assert!(String::from_utf8_lossy(&out.stderr).contains(why), "{flag}");
+    }
+}
