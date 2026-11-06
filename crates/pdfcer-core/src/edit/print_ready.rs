@@ -15,39 +15,6 @@ use crate::object::{ObjId, Object};
 use crate::writer::{self, RebuildOptions, SaveOptions, WriteError};
 use crate::xfa::XfaFormKind;
 
-/// The annotation types ISO 32000 Table 171 defines. §12.5.3's Invisible flag
-/// applies only to a type outside this set.
-const STANDARD_SUBTYPES: [&[u8]; 28] = [
-    b"Text",
-    b"Link",
-    b"FreeText",
-    b"Line",
-    b"Square",
-    b"Circle",
-    b"Polygon",
-    b"PolyLine",
-    b"Highlight",
-    b"Underline",
-    b"Squiggly",
-    b"StrikeOut",
-    b"Caret",
-    b"Stamp",
-    b"Ink",
-    b"Popup",
-    b"FileAttachment",
-    b"Sound",
-    b"Movie",
-    b"Screen",
-    b"Widget",
-    b"PrinterMark",
-    b"TrapNet",
-    b"Watermark",
-    b"3D",
-    b"Redact",
-    b"Projection",
-    b"RichMedia",
-];
-
 /// What [`EditSession::to_print_ready_bytes`] produced.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -286,7 +253,7 @@ impl EditSession {
         if a.is_popup || a.subtype == b"Popup" {
             return None;
         }
-        if !prints(a) {
+        if !a.prints() {
             report.not_printing += 1;
             return None;
         }
@@ -374,7 +341,7 @@ impl EditSession {
 
 /// Table 22, for a document opened with a user password. The owner password
 /// allows everything.
-fn check_print_permission(doc: &Document) -> Result<(), PrintReadyError> {
+pub fn check_print_permission(doc: &Document) -> Result<(), PrintReadyError> {
     let Some(enc) = doc.encryption() else {
         return Ok(());
     };
@@ -392,14 +359,6 @@ fn check_print_permission(doc: &Document) -> Result<(), PrintReadyError> {
         return Err(PrintReadyError::LowQualityPrintingOnly);
     }
     Ok(())
-}
-
-/// §12.5.3 Table 165.
-fn prints(a: &Annotation) -> bool {
-    if a.flags.hidden() || !a.flags.print() {
-        return false;
-    }
-    !a.flags.invisible() || STANDARD_SUBTYPES.contains(&a.subtype.as_slice())
 }
 
 fn disclosures(report: &PrintReadyReport) -> Vec<String> {

@@ -125,6 +125,9 @@ fn prepare(input: &Path, job: &RemoteJob<'_>) -> Result<Prepared, u8> {
         code
     };
     let doc = open_document(input).map_err(|e| fail(&e, exit_code_for_doc(&e)))?;
+    // The printer gets the file itself, so a low-quality-only permission
+    // cannot be honoured by lowering a resolution here.
+    pdfcer_core::edit::check_print_permission(&doc).map_err(|e| fail(&e, exit::EDIT_REFUSED))?;
     let presets = pdfcer_core::print_presets::print_presets(&doc);
     let mut session = pdfcer_core::edit::EditSession::new(doc);
     let name = input

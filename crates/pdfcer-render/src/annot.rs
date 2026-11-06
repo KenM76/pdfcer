@@ -585,8 +585,14 @@ pub(crate) fn survey_page_annotations(
         }
 
         // §12.5.3 Table 165 (R50): Hidden (screen+print) and NoView
-        // (screen) suppress on-screen painting — honoured AND counted.
-        if annot.flags.suppressed_on_screen() {
+        // (screen) suppress on-screen painting, and a print answers to the
+        // Print flag instead — honoured AND counted.
+        let shown = if policy.print_intent {
+            annot.prints()
+        } else {
+            !annot.flags.suppressed_on_screen()
+        };
+        if !shown {
             diag.annotations_hidden += 1;
             continue;
         }

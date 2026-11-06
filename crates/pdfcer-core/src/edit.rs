@@ -159,7 +159,9 @@ mod ocr_layer_write;
 mod page_import;
 mod print_decoration;
 mod print_ready;
-pub use print_ready::{PrintReadyCopy, PrintReadyError, PrintReadyLoss, PrintReadyReport};
+pub use print_ready::{
+    PrintReadyCopy, PrintReadyError, PrintReadyLoss, PrintReadyReport, check_print_permission,
+};
 mod printer_marks;
 mod restack;
 mod running_text;

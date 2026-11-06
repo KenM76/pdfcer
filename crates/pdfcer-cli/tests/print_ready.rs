@@ -123,3 +123,40 @@ fn a_password_that_may_not_print_exits_edit_refused_and_writes_nothing() {
         let _ = std::fs::remove_file(f);
     }
 }
+
+/// `print` refuses before it looks for a printer, on the same permission.
+#[cfg(windows)]
+#[test]
+fn print_refuses_a_password_that_may_not_print() {
+    let input = fixture("print-refused", 5);
+    let locked = input.with_extension("locked.pdf");
+    let encrypted = Command::new(BIN)
+        .args(["encrypt"])
+        .arg(&input)
+        .arg(&locked)
+        .args([
+            "--user-password",
+            "u",
+            "--owner-password",
+            "o",
+            "--allow",
+            "copy",
+        ])
+        .output()
+        .unwrap();
+    assert!(encrypted.status.success(), "{encrypted:?}");
+    let out = Command::new(BIN)
+        .args(["--open-password", "u", "print"])
+        .arg(&locked)
+        .args(["--printer", "no-such-printer-pdfcer-test"])
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(9), "{out:?}");
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("does not allow printing"),
+        "{out:?}"
+    );
+    for f in [input, locked] {
+        let _ = std::fs::remove_file(f);
+    }
+}

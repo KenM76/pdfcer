@@ -96,6 +96,8 @@
 //!   note. A consumer that wants the resolved view builds it from the
 //!   links.
 
+mod prints;
+
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::graph::ObjectGraph;

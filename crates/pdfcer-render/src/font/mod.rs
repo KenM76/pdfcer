@@ -586,6 +586,12 @@ pub struct RenderOptions {
     /// directly: this field alone does not account for the
     /// [`Self::annotations`] gate.
     pub annotation_scope: AnnotationScope,
+    /// Paint annotations as a print of the page does rather than as a screen
+    /// shows it (ISO 32000-1 §12.5.3 Table 165): an annotation appears when
+    /// [`pdfcer_core::annot::Annotation::prints`] says so, so Print clear
+    /// leaves it out and NoView does not. Default `false`. Which classes are
+    /// painted is still [`Self::annotation_scope`].
+    pub print_intent: bool,
     /// An optional flag the render polls between operators so a caller
     /// can abandon it in flight ([`crate::cancel::RenderCancel`]).
     ///
@@ -1015,6 +1021,8 @@ pub struct RenderPolicy<'a> {
     /// See [`RenderOptions::stroke_display`]. Carried so the interpreter's
     /// `stroke_params` can cap the device width without reaching for options.
     pub stroke_display: StrokeDisplay,
+    /// See [`RenderOptions::print_intent`]. Read by the annotation walk.
+    pub print_intent: bool,
     /// See [`RenderOptions::omit_annotations`]. Read by the annotation walk.
     pub omit_annotations: &'a [pdfcer_core::object::ObjId],
     /// See [`RenderOptions::invisible_text`].
@@ -1180,6 +1188,7 @@ impl Default for RenderOptions {
             // `render_page` has always drawn, not a choice of which product
             // to imitate.
             annotation_scope: AnnotationScope::default(),
+            print_intent: false,
             cancel: None,
             // Every R169 knob reads its default off the enum that models
             // the choice, never a literal — so `RenderOptions::default()`,
@@ -1252,6 +1261,13 @@ impl RenderOptions {
     #[must_use]
     pub fn with_annotation_scope(mut self, scope: AnnotationScope) -> Self {
         self.annotation_scope = scope;
+        self
+    }
+
+    /// Paint annotations as a print does ([`Self::print_intent`]).
+    #[must_use]
+    pub fn with_print_intent(mut self, print_intent: bool) -> Self {
+        self.print_intent = print_intent;
         self
     }
 
@@ -1673,6 +1689,7 @@ impl RenderOptions {
             view_magnification: self.view_magnification,
             subpixel_culling: self.subpixel_culling,
             stroke_display: self.stroke_display,
+            print_intent: self.print_intent,
             omit_annotations: self.omit_annotations.as_slice(),
             invisible_text: self.invisible_text,
             overprint_preview: self.overprint_preview,

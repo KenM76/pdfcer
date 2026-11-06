@@ -4290,7 +4290,9 @@ pub(crate) enum Command {
         /// pdfcer has no flag for rather than overriding the ones it has.
         #[arg(long, value_name = "PATH")]
         printer_config: Option<PathBuf>,
-        /// Which annotation classes print.
+        /// Which annotation classes print. Within them an annotation still
+        /// answers to its own flags: one set not to print stays off the
+        /// paper, and one hidden on screen but set to print comes out.
         #[arg(long, value_enum, default_value_t = CommentsArg::Document)]
         comments: CommentsArg,
         /// Print several pages per sheet (2, 4, 6, 9, 16, …).

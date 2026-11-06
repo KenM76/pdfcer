@@ -4021,7 +4021,7 @@ builders**): `fonts: FontEnvironment`, `annotations: bool`
 , `layers: Option<LayerVisibility>`, `view_magnification: Option<f32>`
 , `cmyk_intent`, `mask_resample`, `image_minify`, `image_magnify`,
 `cmyk_jpeg_polarity`, `missing_as`, `overprint_preview`. Builders:
-`with_annotations`, `with_annotation_scope`, `with_cmyk_intent`
+`with_annotations`, `with_annotation_scope`, `with_print_intent`, `with_cmyk_intent`
 , `with_cancel`, `with_mask_resample`, `with_image_minify`, `with_image_magnify`
 , `with_cmyk_jpeg_polarity`, `with_layers`,
 `with_view_magnification`, `with_missing_as`,
@@ -4033,7 +4033,7 @@ question rather than changing what is drawn), and **`with_backdrop`**
 keeps the page group's own alpha instead of compositing it onto paper. See
 **§7.7**; a canvas should never set it, an *export* is what it is for).
 
-`omit_annotations: Vec<ObjId>` / **`with_omit_annotations(ids)`** (request
+`print_intent: bool` / **`with_print_intent(bool)`** paints annotations as a print does (ISO 32000-1 §12.5.3 Table 165, `Annotation::prints`): Print clear leaves one out, NoView does not; default `false`, the screen rule. A print route also calls `pdfcer_core::edit::check_print_permission(&doc)`. `omit_annotations: Vec<ObjId>` / **`with_omit_annotations(ids)`** (request
 G052) leaves the named annotations out of this render; default empty. For a
 drag preview that SHRINKS an annotation: re-render the region under it with
 its id omitted, then composite the preview over that. An omitted annotation

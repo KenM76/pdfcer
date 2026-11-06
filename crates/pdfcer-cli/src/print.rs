@@ -286,6 +286,10 @@ pub(crate) fn cmd_print(
             return exit_code_for_doc(&err);
         }
     };
+    let dpi_cap = match printable_dpi_cap(input, &doc, dpi_cap) {
+        Ok(cap) => cap,
+        Err(code) => return code,
+    };
     let name = match print_target(printer) {
         Ok(name) => name,
         Err(code) => return code,
@@ -1282,6 +1286,37 @@ pub(crate) fn poster_sheets_for_page(
     Ok((sheets, route))
 }
 
+/// The most a low-quality-only permission lets a page print at, the level
+/// ISO 32000-1 Table 22 bit 3 means without bit 12.
+#[cfg(windows)]
+const LOW_QUALITY_DPI: u32 = 150;
+
+/// `dpi_cap`, lowered and said out loud when the password only allows
+/// low-quality printing; a refusal when it does not allow printing at all.
+#[cfg(windows)]
+fn printable_dpi_cap(
+    input: &Path,
+    doc: &pdfcer_core::document::Document,
+    dpi_cap: u32,
+) -> Result<u32, u8> {
+    use pdfcer_core::edit::{PrintReadyError, check_print_permission};
+    match check_print_permission(doc) {
+        Ok(()) => Ok(dpi_cap),
+        Err(PrintReadyError::LowQualityPrintingOnly) => {
+            let cap = dpi_cap.min(LOW_QUALITY_DPI);
+            eprintln!(
+                "pdfcer: {}: this password allows low-quality printing only; printing at {cap} DPI or less.",
+                input.display()
+            );
+            Ok(cap)
+        }
+        Err(err) => {
+            eprintln!("pdfcer: {}: {err}", input.display());
+            Err(exit::EDIT_REFUSED)
+        }
+    }
+}
+
 /// The render options every page of a print job uses: the comment scope, and
 /// with `--line-width` every stroke fixed at that many millimetres at `dpi`.
 #[cfg(windows)]
@@ -1290,8 +1325,9 @@ pub(crate) fn print_render_options(
     line_width_mm: Option<f64>,
     dpi: u32,
 ) -> pdfcer_render::RenderOptions {
-    let mut options =
-        pdfcer_render::RenderOptions::default().with_annotation_scope(comments.to_scope());
+    let mut options = pdfcer_render::RenderOptions::default()
+        .with_annotation_scope(comments.to_scope())
+        .with_print_intent(true);
     if let Some(mm) = line_width_mm {
         #[allow(clippy::cast_possible_truncation)]
         let device_px = (mm / 25.4 * f64::from(dpi)) as f32;
@@ -2703,6 +2739,10 @@ mod poster_marks_tests {
             pdfcer_render::StrokeDisplay::Fixed { device_px: 300.0 }
         );
         let options = print_render_options(CommentsArg::Document, None, 300);
+        assert!(
+            options.print_intent,
+            "a print job answers to the Print flag"
+        );
         assert_eq!(
             options.stroke_display,
             pdfcer_render::StrokeDisplay::default()
