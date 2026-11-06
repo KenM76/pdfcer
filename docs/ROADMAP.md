@@ -26063,6 +26063,34 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **1431st filing: `v0.130.0` is PUBLISHED (see *Shipped*), carrying `Pass 667.0`-`672.0`; OneDrive `pdfcer2`, so the next release writes `pdfcer1`. CI was red at the tag on `check-public-fns-documented.py` only; fixed forward by `30d93f57`, tag not moved. Open follow-ups: `Pass 669.1` (tiled per-tile light lists; GPU pixel agreement for the cull unmeasured) and real-hardware checks of the GPU lens and lamps. No open request addressed to pdfcer.**
 
+> **1432nd filing: three operator requests from the PdfCraft workspace (crates consumer, decision 215) filed from `FeatureRequests/pdfce_FeatureRequests/open/`. `673`, `674`, `675` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`); last used `672.0`, `669.1`. Order: `673.0` and `675.0` are IN FLIGHT with workers; `674.0` is queued after both because it moves the files they touch.**
+>
+> **`Pass 673.0` (`X044`, IN FLIGHT) - glTF import and PRC writer fixes** (`request_X044_gltf_import_notes_and_linear_lookups.md`). Being ported from `KenM76`'s PdfCraft commit `5b14a98c` (decision 215 adoption); the CLI link check is written fresh. Release when it lands (the request asks for it).
+> - percent-decode `data:` URIs before base64 (RFC 2397 section 3);
+> - refuse `asset.minVersion` other than "2.0" (glTF section 3.2);
+> - refuse non-finite accessor values, per primitive;
+> - notes (disclosed, never silent) for animations, `COLOR_0`, morph targets, an absent material and an absent mesh;
+> - keyed and ranged lookups instead of quadratic ones;
+> - zero-size pictures refused;
+> - the CLI resolver refuses resources whose real path (after following links) is outside the model's folder.
+>
+> **`Pass 675.0` (`X047`, IN FLIGHT) - headless 3D navigation crate** (`request_X047_headless_3d_navigation_crate.md`). New GUI-free workspace crate `pdfcer-3d-nav`, depending only on `pdfcer-3d`.
+> - holds orbit, walk/fly, axes (on `UpAxis`/`NamedView`), the lens policy, `eye_inside`, the stick response curve and visibility-filtered picking, moved from `pdfcer-gui`'s `dialogs/model3d/` with their tests;
+> - already includes `X045`'s overflow-safe fits and finite-eye fixes;
+> - `pdfcer-3d` gains `Camera::fit_sphere`, `Camera::visible_height`, a public FOV constant, a reach function and `pub mod vec3` (this is where `vec3` goes public, which `674.0` relies on);
+> - `publish = false` for now: `pdfcer-3d` is not published, so the nav crate cannot be.
+> - **OPEN QUESTION FOR KEN (not a decision):** publish `pdfcer-3d` + `pdfcer-3d-nav`?
+> - Verify with `cargo tree -p pdfcer-3d-nav` that no GUI dependency appears (GUI-core separation).
+>
+> **`Pass 674.0` (`X046`, QUEUED after `673.0` and `675.0`) - 3D vector helpers and module layout** (`request_X046_3d_vector_helpers_and_module_layout.md`). No behaviour change.
+> - `pdfcer-3d`'s `vec3` public (lands in `675.0`); the copies in `pdfcer-core` `threed` (`view_aim`, `view_write`, `measure`) and in `model_light` call it;
+> - inline tests of `tree/mod.rs`, `tess.rs`, `compressed.rs` and `render.rs` moved to `<module>/tests.rs`;
+> - flat modules grouped into submodules (`camera/`, `decode/`, `gpu/`, `shadow/`, `light/`), public re-exports kept;
+> - a Cargo `description` that matches what the crate holds.
+> - **Acceptance:** the structure gate (`tools/check-code-structure.py`) passes, with no 3D file within 50 lines of the limit.
+>
+> **Not ours, recorded for traceability:** `X045` (viewer orbit fit and resource containment) and `X048` (viewer onto the shared crate; `model3d.rs` split; `options.rs` clamp panic) are addressed to `pdfcer-gui`. `X048` depends on `675.0`.
+
 > **Head (1421st filing): no open Pass at the head. `Pass 660.0` (`G266`, `d77620b6`), `661.0` (`X039`), `662.0` (`f8da53ad`) and `663.0` (`X040`, `7760a3bf`) are SHIPPED (see *Shipped*). `v0.128.0` is BEING CUT (bump `7d02540a`), carrying `X039`, `662.0`, `G266` and `X040`; not yet tagged or published as far as this filing knows; the release filing comes later. Release slot: OneDrive `pdfcer2` per the earlier banner (not re-verified here).** The older banners that follow are history.
 
 > **Next up head (rewritten 1355th filing; `Pass 647.3e` `53f4e938` and `Pass 647.2c` `ead2642a` SHIPPED and released in `v0.111.0`, published): `Pass 648.6` (`G245` part 2, /MA measurements, spec-RAG check first).** `Pass 647.3f` (dataRef-bound and subform-set instances, residue of `647.3e`) and `Pass 647.4` stay in the Backlog, not yet ordered. Release slot: next release writes `pdfcer1` (`pdfcer2` holds 0.111.0, `pdfcer1` holds 0.110.0 as previous). Dynamic XFA arc (decision 204) is operator-paced. Next-free Pass, decision and R numbers: not re-derived here (no shell); run `tools/check-ledger-numbers.py` before minting. The dated parenthetical notes below this banner are history, newest first, and were not rewritten.

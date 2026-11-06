@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1432nd filing) — `Pass 673.0` (`X044`), `674.0` (`X046`), `675.0` (`X047`) filed
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed):**
+- **Source:** three operator requests from the PdfCraft workspace (crates consumer, decision 215), `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\`.
+- **`Pass 673.0` (`X044`) IN FLIGHT:** glTF import and PRC writer fixes, ported from PdfCraft `5b14a98c`; CLI link check written fresh; release when it lands.
+- **`Pass 675.0` (`X047`) IN FLIGHT:** new `pdfcer-3d-nav` crate (GUI-free, depends only on `pdfcer-3d`); `publish = false`. **Open question for Ken:** publish `pdfcer-3d` + nav? Recorded as a question, not a decision.
+- **`Pass 674.0` (`X046`) QUEUED** after 673.0 and 675.0 (moves their files); no behaviour change; `vec3` goes public in 675.0.
+- **Not ours:** `X045`, `X048` are `pdfcer-gui`'s; `X048` depends on 675.0.
+- **Numbers:** `673`, `674`, `675` zero hits across `docs/` by grep; `tools/check-ledger-numbers.py` not run (no shell).
+- **Files:** `ROADMAP.md` (Next up banner block, no `###`), `FEATURES.md` (two Planned rows, all boxes `[ ]`; `674.0` shares the nav row because it is a refactor with no capability of its own), this entry. Request INDEX rows and replies not touched. Backup currency not verifiable from here. Next filing 1433rd.
+
 ## 2026-11-05 (1431st filing) — `v0.130.0` PUBLISHED; CI red at the tag, fixed forward by `30d93f57`
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only):**
