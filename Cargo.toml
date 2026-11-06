@@ -98,7 +98,7 @@ exclude = [
 # Fields inherited by every member via `<field>.workspace = true`, so the
 # version/edition/MSRV are set in exactly one place.
 [workspace.package]
-version = "0.134.0"
+version = "0.134.1"
 edition = "2024"
 # MSRV (minimum supported Rust version) — docs/ARCHITECTURE.md §2.1a asked
 # for this to be set at Pass 0, and to be re-checked against the candidate
@@ -131,7 +131,7 @@ license = "MIT"
 [workspace.dependencies]
 # A version beside the path is what `cargo package` needs; bump it with
 # [workspace.package] version or the next build fails to resolve.
-pdfcer-model = { path = "crates/pdfcer-model", version = "0.134.0" }
+pdfcer-model = { path = "crates/pdfcer-model", version = "0.134.1" }
 # Internal path dependencies, declared once here and referenced by members
 # with `pdfcer-core.workspace = true` etc. External crates (thiserror, eframe,
 # rfd, clap) are declared in the individual member manifests that use them.
@@ -149,10 +149,10 @@ pdfcer-render = { path = "crates/pdfcer-render", default-features = false }
 pdfcer-print = { path = "crates/pdfcer-print" }
 # Published with versions beside their paths (decision 217); bump with
 # [workspace.package] version like pdfcer-model above.
-pdfcer-vec3 = { path = "crates/pdfcer-vec3", version = "0.134.0" }
-pdfcer-json = { path = "crates/pdfcer-json", version = "0.134.0" }
-pdfcer-3d = { path = "crates/pdfcer-3d", version = "0.134.0" }
-pdfcer-3d-nav = { path = "crates/pdfcer-3d-nav", version = "0.134.0" }
+pdfcer-vec3 = { path = "crates/pdfcer-vec3", version = "0.134.1" }
+pdfcer-json = { path = "crates/pdfcer-json", version = "0.134.1" }
+pdfcer-3d = { path = "crates/pdfcer-3d", version = "0.134.1" }
+pdfcer-3d-nav = { path = "crates/pdfcer-3d-nav", version = "0.134.1" }
 # OCR hosting for the shells, including program add-ons (decision 184).
 pdfcer-ocr-host = { path = "crates/pdfcer-ocr-host", default-features = false }
 # Network code for operator-initiated downloads. `default-features = false`
