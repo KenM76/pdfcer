@@ -9909,6 +9909,36 @@ pub(crate) enum Command {
         free_text_c: Option<crate::viewer_preview::FreeTextCArg>,
     },
 
+    /// Write a copy made to be handed to a print service.
+    ///
+    /// Every annotation and form field set to print, 3D posters included,
+    /// becomes page content; everything set not to print is left out; no
+    /// interactive form, signature or encryption carries over. Use it when
+    /// the print service takes one PDF and may not draw annotations itself.
+    /// The input is not changed. The copy is renumbered, so it is not an
+    /// edit of the input and cannot be appended to it.
+    ///
+    /// An encrypted input needs --open-password. The copy is NOT encrypted,
+    /// so send it and delete it. The input is refused (exit 9) when its
+    /// password does not allow printing, or allows only low-quality printing,
+    /// and when a redaction is staged.
+    ///
+    /// Prints the counts and one `disclosure:` line per fact, and
+    /// exits 0 even when an annotation set to print had nothing to paint.
+    PrintReady {
+        /// Input PDF.
+        input: PathBuf,
+        /// Output path.
+        #[arg(short, long)]
+        output: PathBuf,
+        /// What a text box's colour paints when it has no interior colour
+        /// and pdfcer has to draw it: fill (as Acrobat reads it) fills the
+        /// box; border draws the outline. Without the flag, the settings
+        /// file's `free_text_c` is used (fill if unset).
+        #[arg(long, value_enum)]
+        free_text_c: Option<crate::viewer_preview::FreeTextCArg>,
+    },
+
     /// Flatten interactive form fields into page content (Pass 7.1).
     ///
     /// DESTRUCTIVE. Each field's appearance is burned into its page's

@@ -65,6 +65,7 @@ mod overprint_uses_the_calibrated_pair;
 mod page_blend_space_source;
 mod page_content_draws_like_the_stamp;
 mod preview_equals_saved;
+mod print_ready_copy;
 mod redaction_leaves_no_ink;
 mod reflow_kerned_word_pixels;
 mod region_matches_full_page;

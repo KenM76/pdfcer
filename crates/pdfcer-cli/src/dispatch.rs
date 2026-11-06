@@ -2755,6 +2755,11 @@ pub(crate) fn run() -> ExitCode {
             output,
             mode,
         } => cmd_regenerate_appearances(&input, &output, mode),
+        Command::PrintReady {
+            input,
+            output,
+            free_text_c,
+        } => cmd_print_ready(&input, &output, free_text_c),
         Command::BakeAppearances {
             input,
             output,

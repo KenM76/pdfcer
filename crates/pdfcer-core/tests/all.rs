@@ -198,6 +198,7 @@ mod place_artwork;
 mod place_page_content;
 mod place_text;
 mod polyline_endings;
+mod print_ready;
 mod printer_marks;
 mod quad_point_order;
 mod quadding_redraws;
