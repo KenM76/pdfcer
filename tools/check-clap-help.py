@@ -126,6 +126,24 @@ def variants(lines: list[str], start: int) -> list[tuple[str, int, bool]]:
     return out
 
 
+def attribute_start(lines: list[str], k: int) -> int:
+    """The line opening the attribute that ends on line `k`.
+
+    An attribute may span lines (`#[command(group = ...` then `.args(...))]`),
+    and only its first line starts with `#[`. Returns `k` when line `k` does not
+    end an attribute, or when nothing above it opens one.
+    """
+    if not lines[k].strip().endswith("]"):
+        return k
+    for j in range(k, -1, -1):
+        s = lines[j].strip()
+        if s.startswith("#["):
+            return j
+        if not s or s.startswith("/") or s.endswith((",", "{", "}")):
+            return k
+    return k
+
+
 def has_help(lines: list[str], at: int) -> bool:
     """Whether the variant declared on line `at` carries operator help text.
 
@@ -139,6 +157,7 @@ def has_help(lines: list[str], at: int) -> bool:
     """
     k = at - 1
     while k >= 0:
+        k = attribute_start(lines, k)
         s = lines[k].strip()
         if s.startswith("///"):
             return True
@@ -161,6 +180,7 @@ def doc_lines(lines: list[str], at: int) -> list[str]:
     out: list[str] = []
     k = at - 2
     while k >= 0:
+        k = attribute_start(lines, k)
         s = lines[k].strip()
         if s.startswith("///"):
             out.append(s)
