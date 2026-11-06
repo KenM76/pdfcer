@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `713f13b9` `Pass 673.0`, 2026-11-06: glTF import and 3D PDF writer hardening (`X044`) (1434th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `713f13b9` on `main` ("fix(gltf): escaped data URIs, minVersion, non-finite values, what-is-not-drawn notes, linear lookups and a link-safe CLI resolver (X044)"), cherry-picked from worker commit `c0bfdd72`; 13 files, +325/-53. Request `X044` (PdfCraft workspace). **Unreleased:** ships with the rest of the round (`674.0`, `675.0`, `675.1`).
+- **Adopted from PdfCraft `5b14a98c` (KenM76), decisions 215 and 218:** percent-decode of `data:` URIs (RFC 2397 section 3); `asset.minVersion` other than "2.0" refused (glTF 2.0 section 3.2); non-finite accessor values refuse that primitive with a note; notes for animations, `COLOR_0` (counted), morph targets (counted with skins), an absent material and an absent mesh; a HashMap texture cache; zero-size picture refused (`BadTexture`); binary search for textured styles; per-part tessellation ranges; the `KHR_texture_transform` example test.
+- **Written fresh:** the CLI `pdfcer 3d gltf` resolver reads only resources whose canonical path, links followed, is inside the model folder's canonical path (symlink test; skips where a link cannot be made); binary search for glowing styles; an importer-level zero-size picture test; `docs/core-api/01-reading-and-model.md` updates.
+- **Not ported:** PdfCraft's per-material unread-texture note (pdfcer already notes unread maps); the normalize change (already scaled); the annotation and automation changes (those crates are absent).
+- **Tests (engineer-reported):** `pdfcer-3d` lib 450 passed; CLI `--test all gltf` 11 passed; bin `threed` 7 passed. Sabotage caught 13 of 13. fmt and clippy clean with default features and with `--no-default-features`. Every CI python/bash gate passes except `check-fmt-excluded` in the worktree only (a worktree artefact).
+- **Invariants:** public API, no signature change; no manifest touched, so `cargo tree` unaffected.
+- **Request:** reply `FeatureRequests/pdfce_FeatureRequests/open/reply_X044_gltf_import_notes_and_linear_lookups_SHIPPED.md`; INDEX row SHIPPED.
+- **FEATURES:** "glTF import and 3D PDF writer hardening" moved to *Implemented*, core `[x]` cli `[x]` gui `[ ]`. Core holds the importer and writer fixes; cli holds the link check and surfaces the notes.
+- **Also (675.0 banner):** `pdfcer-gui` `e7df858b` built `X045`'s overflow-safe fits; `675.0` must adopt them (decision 218).
+
 ### `5f9657e7` `v0.130.0` PUBLISHED, 2026-11-05 (1431st filing); CI red at the tag, fixed forward by `30d93f57`
 
 Engineer-reported; no shell here, nothing checked from here (GitHub, crates.io, OneDrive, CI and git state all as reported). Tag `v0.130.0` on `5f9657e7` ("chore: release v0.130.0", the bump commit, directly after the 1430th filing `5a1240a5`). Pushed with `main`. Carries `Pass 667.0` (`G269`, `c023645c`), `668.0` (`G270`, `c60a6613`), `669.0` (`G271`, `11b64a94`), `670.0` (`G272`, `1221e5a1`), `671.0` (`X043`, `c478faef`) and `672.0` (`G268` GPU fisheye fix, `5513fe01`).
@@ -26065,16 +26077,8 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **1432nd filing: three operator requests from the PdfCraft workspace (crates consumer, decision 215) filed from `FeatureRequests/pdfce_FeatureRequests/open/`. `673`, `674`, `675` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`); last used `672.0`, `669.1`. Order: `673.0` and `675.0` are IN FLIGHT with workers; `674.0` is queued after both because it moves the files they touch.**
 >
-> **`Pass 673.0` (`X044`, IN FLIGHT) - glTF import and PRC writer fixes** (`request_X044_gltf_import_notes_and_linear_lookups.md`). Being ported from `KenM76`'s PdfCraft commit `5b14a98c` (decision 215 adoption); the CLI link check is written fresh. Release when it lands (the request asks for it).
-> - percent-decode `data:` URIs before base64 (RFC 2397 section 3);
-> - refuse `asset.minVersion` other than "2.0" (glTF section 3.2);
-> - refuse non-finite accessor values, per primitive;
-> - notes (disclosed, never silent) for animations, `COLOR_0`, morph targets, an absent material and an absent mesh;
-> - keyed and ranged lookups instead of quadratic ones;
-> - zero-size pictures refused;
-> - the CLI resolver refuses resources whose real path (after following links) is outside the model's folder.
->
 > **`Pass 675.0` (`X047`, IN FLIGHT) - headless 3D navigation crate** (`request_X047_headless_3d_navigation_crate.md`). New GUI-free workspace crate `pdfcer-3d-nav`, depending only on `pdfcer-3d`.
+> - **Adopt, do not re-derive (added 1434th filing, decision 218):** `pdfcer-gui` commit `e7df858b` has since built `X045`'s overflow-safe `orbit` / `reach` / `eye_at` fixes in its `dialogs/model3d/orbit.rs` and `app/actions/gltf.rs`. This Pass's crate must adopt those, not re-derive them. The engineer checks this at merge (not checked from here).
 > - holds orbit, walk/fly, axes (on `UpAxis`/`NamedView`), the lens policy, `eye_inside`, the stick response curve and visibility-filtered picking, moved from `pdfcer-gui`'s `dialogs/model3d/` with their tests;
 > - already includes `X045`'s overflow-safe fits and finite-eye fixes;
 > - `pdfcer-3d` gains `Camera::fit_sphere`, `Camera::visible_height`, a public FOV constant, a reach function and `pub mod vec3` (this is where `vec3` goes public, which `674.0` relies on);

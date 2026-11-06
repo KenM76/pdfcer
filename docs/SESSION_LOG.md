@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1434th filing) — `Pass 673.0` (`X044`, `713f13b9`) SHIPPED
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed):**
+- **`Pass 673.0` SHIPPED**, `713f13b9` (cherry-picked from `c0bfdd72`; 13 files, +325/-53): glTF import and 3D PDF writer hardening, adopted from PdfCraft `5b14a98c` (decisions 215, 218); CLI link check, glowing-style binary search and importer zero-size picture test written fresh. Tests: `pdfcer-3d` lib 450, CLI `--test all gltf` 11, bin `threed` 7; sabotage 13/13; fmt and clippy clean both feature sets. No API signature change, no manifest touched. Detail in the ROADMAP *Shipped* entry.
+- **Unreleased;** ships with `674.0`, `675.0`, `675.1`.
+- **FEATURES:** the 673.0 row moved Planned to *Implemented*, core `[x]` cli `[x]` gui `[ ]`.
+- **ROADMAP:** the 673.0 block removed from the Next up banner; the `675.0` block gained the note that `pdfcer-gui` `e7df858b` built `X045`'s overflow-safe `orbit`/`reach`/`eye_at` fixes and the nav crate must adopt them (decision 218); engineer checks at merge.
+- **Numbers:** no new Pass, decision or R minted. Backup currency not verifiable from here. Next filing 1435th.
+
 ## 2026-11-06 (1433rd filing) — decisions 217 (publish the 3D crates) and 218 (port from Ken's own projects); `Pass 675.1` filed
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed):**
