@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `9b668449` `Pass 676.0`, 2026-11-06: 3D picking refuses non-finite rays and hits (`X050`) (1438th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `9b668449` on `main` "fix(3d-pick): refuse non-finite rays and hits, overflow-safe centroid (X050)". Unreleased; rides `v0.132.0`. Code ported from the request's own (decision 218), adapted only for lints. `676` had zero hits by grep before filing (not run through `tools/check-ledger-numbers.py`).
+- **`Camera::ray_through`** (`camera/pick.rs`) refuses a non-finite image position, and a ray whose origin or direction overflowed (lens path included), with `RenderError::Camera`.
+- **`intersect`** returns `None` for a non-finite hit point. **A guard with no reproducer:** the request's repro is already refused before the fix (the determinant overflows to inf) and a 200k-case search found no reaching case, so the request's hit-point test was NOT added.
+- **`pick_index` centroid** divides each corner by 3 before summing; corners are destructured rather than indexed (`clippy::indexing_slicing`).
+- **Tests:** `a_degenerate_position_is_refused` and `a_centroid_near_the_float_range_is_finite`, both sabotage-verified (fail with their fix reverted).
+- **Results:** `pdfcer-3d` 453 lib tests pass; `clippy -D warnings` clean with and without default features. No `pub` API change, so no `docs/core-api` change; no manifest change, so `cargo tree` not applicable.
+- **FEATURES:** the *Planned* row moved to *Implemented*: core `[x]`, cli and gui `—` (library defect fix, no verb or UI).
+- **Amended:** the 1437th-filing *Inbound* line below says "in progress"; that describes its filing.
+
 ### `ec81929c` `v0.131.0` PUBLISHED, 2026-11-06 (1437th filing); `Pass 675.1` COMPLETE
 
 Engineer-reported; no shell here, nothing checked from here (GitHub, crates.io, OneDrive, CI and git state all as reported). Version bump commit `ec81929c` "chore(release): v0.131.0" (`[workspace.package]` version and the five `[workspace.dependencies]` version lines, `Cargo.lock`, `fuzz/Cargo.lock`); tag `v0.131.0` on it. CI green on the parent docs commit `c13ce318` before tagging. Carries `Pass 673.0` (`X044`, `713f13b9`), `675.0` (`X047`, `6de701d9`, `b745aaed`), `674.0` (`X046`, `dfda998c`, `e8bb651d`) and the `675.1` publish prep (`bafb8667`).
@@ -26136,12 +26147,7 @@ closes out the *prior* filing's business rather than opening this one's.
 >
 > **1437th filing: `v0.131.0` is PUBLISHED (see *Shipped*), carrying `Pass 673.0`, `674.0`, `675.0` and the `675.1` publish; OneDrive `pdfcer1`, so the next release writes `pdfcer2`. `Pass 675.1` is COMPLETE (seven crates on crates.io at 0.131.0). `X049` is addressed to `pdfcer-gui` (not ours). `Pass 676.0` (`X050`) opened below, IN PROGRESS.**
 >
-> **`Pass 676.0` (`X050`, IN PROGRESS, 1437th filing): 3D picking returns non-finite rays and hits as valid.** `676` had zero hits across `ROADMAP.md`/`FEATURES.md`/`SESSION_LOG.md` by grep (no shell; not run through `tools/check-ledger-numbers.py`). Request `open/request_X050_pick_ray_and_hit_finite.md`, from the PdfCraft workspace; the requester supplied fix code, ported verbatim (decision 218).
-> - `Camera::ray_through` refuses a non-finite position and a ray whose origin or direction is not finite, with `RenderError::Camera`;
-> - `intersect` returns `None` for a non-finite hit point;
-> - `pdfcer-3d` `pick_index` `centroid` divides before summing (no overflow in the sum);
-> - each change carries a test that fails with the fix reverted.
-> - Core only; cli and gui `—` (library defect, no verb or UI). FEATURES *Planned* row added.
+> **1438th filing: `Pass 676.0` (`X050`, `9b668449`) is SHIPPED (see *Shipped*), unreleased; it rides `v0.132.0`, which writes OneDrive `pdfcer2` and is a separate filing. Its Next up block is removed. No open Pass at the head. `X049` is addressed to `pdfcer-gui` (not ours).**
 
 > **1433rd filing: `Pass 675.1` (QUEUED after `675.0`) - publish `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav` to crates.io at the next release** (decision 217; Ken, 2026-11-06: "Yes publish them"). `675.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`).
 > - the three join `pdfcer-color`, `-model`, `-pkix` (`Pass 637.0`); `pdfcer-json` is included because `pdfcer-3d` depends on it;

@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1438th filing) — `Pass 676.0` (`X050`, `9b668449`) SHIPPED
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, engineer commits):**
+- **`Pass 676.0` SHIPPED, unreleased (rides `v0.132.0`, OneDrive `pdfcer2`):** in `pdfcer-3d`, `Camera::ray_through` refuses a non-finite position and an overflowed ray (lens path included) with `RenderError::Camera`; `intersect` returns `None` for a non-finite hit point; `pick_index` centroid divides by 3 before summing. Code ported from the request's own (decision 218), lint adaptations only.
+- **Disclosed:** the `intersect` guard has no reproducer (the request's repro is refused earlier, determinant overflows to inf; a 200k-case search found none), so the request's hit-point test was not added.
+- **Tests:** `a_degenerate_position_is_refused`, `a_centroid_near_the_float_range_is_finite`, sabotage-verified. `pdfcer-3d` 453 lib tests pass; clippy `-D warnings` clean with and without default features. No pub API change (no `core-api` change); no manifest change (`cargo tree` n/a).
+- **FEATURES:** *Planned* row moved to *Implemented* (3D block): core `[x]`, cli and gui `—`. **ROADMAP:** new *Shipped* entry; the Next up `676.0` block replaced by a 1438th banner. **NEXT_SESSION:** short top update.
+- **Inbound:** `X049` is addressed to `pdfcer-gui`, not ours. 1437th filing committed as `f00ccbe1` and pushed (as reported).
+- **Next:** release `v0.132.0`. Next filing 1439th.
+
 ## 2026-11-06 (1437th filing) — `v0.131.0` PUBLISHED (bump `ec81929c`); `Pass 675.1` COMPLETE; `Pass 676.0` (`X050`) opened
 
 **Filed (engineer-reported; no shell here, nothing checked from here: GitHub, crates.io, OneDrive, CI and git state all as reported; docs only, engineer commits):**
