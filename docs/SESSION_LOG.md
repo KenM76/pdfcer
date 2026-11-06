@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1437th filing) — `v0.131.0` PUBLISHED (bump `ec81929c`); `Pass 675.1` COMPLETE; `Pass 676.0` (`X050`) opened
+
+**Filed (engineer-reported; no shell here, nothing checked from here: GitHub, crates.io, OneDrive, CI and git state all as reported; docs only, engineer commits):**
+- **Release:** bump `ec81929c` "chore(release): v0.131.0"; tag `v0.131.0` on it; CI green on parent `c13ce318` before tagging. GitHub release 8 assets (windows-x64 zip 28,790,191 bytes, sha256 `9b9ad580ee88…` as supplied, three OCR add-on zips, four `.sha256`). Build `D:\builds\pdfcer-20261106-0507-ec81929`. Smoke test: `--version` 0.131.0; `3d-embed` of `prc/assembly.prc` into `hello.pdf`, `3d-list` reads it back (PRC, poster yes). OneDrive `pdfcer1`; `pdfcer2` keeps 0.130.0; next release writes `pdfcer2`.
+- **Carries** `Pass 673.0` (`X044`, `713f13b9`), `675.0` (`X047`, `6de701d9`, `b745aaed`), `674.0` (`X046`, `dfda998c`, `e8bb651d`), `675.1` prep (`bafb8667`).
+- **`Pass 675.1` COMPLETE:** `cargo publish` from a detached worktree at the tag, in order: `pdfcer-color`, `-model`, `-pkix`, `-vec3`, `-json`, `-3d`, `-3d-nav`, all 0.131.0. Four are on crates.io for the first time. Decision 217 got a second dated amendment line (no new number).
+- **FEATURES:** *Engine crates on crates.io* text lists the seven crates; box left `[ ]` (core, render, image-codec unpublished; no cli/gui box rounded up). "Unreleased" on the `X044` and `X047` rows changed to released. New *Planned* row for `676.0`.
+- **ROADMAP:** new *Shipped* entry for the release; "Unreleased" amended to released in the `673.0`, `674.0`, `675.0` entries; `675.1` Shipped entry amended COMPLETE; Next up gained a 1437th banner and the `676.0` block (`>` banner, not a heading).
+- **Inbound:** `X049` addressed to `pdfcer-gui`, not ours. `X050` ours -> `Pass 676.0`, IN PROGRESS: refuse non-finite pick rays/hits, `pick_index` centroid divides before summing; requester's code ported verbatim (decision 218). `676` zero hits by grep; not run through `tools/check-ledger-numbers.py`.
+- **GUI notified:** `open/notice_2026-11-06_v0.131.0_released.md` (INDEX row); `X048` item 1 unblocked.
+- **Also:** `docs/NEXT_SESSION.md` got one minimal state update at the engineer's request. Backup currency not verifiable from here. Next filing 1438th.
+
 ## 2026-11-06 (1436th filing) — `Pass 674.0` (`X046`, `dfda998c` + `e8bb651d`) SHIPPED; `Pass 675.1` publish prep (`bafb8667`)
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed):**

@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `ec81929c` `v0.131.0` PUBLISHED, 2026-11-06 (1437th filing); `Pass 675.1` COMPLETE
+
+Engineer-reported; no shell here, nothing checked from here (GitHub, crates.io, OneDrive, CI and git state all as reported). Version bump commit `ec81929c` "chore(release): v0.131.0" (`[workspace.package]` version and the five `[workspace.dependencies]` version lines, `Cargo.lock`, `fuzz/Cargo.lock`); tag `v0.131.0` on it. CI green on the parent docs commit `c13ce318` before tagging. Carries `Pass 673.0` (`X044`, `713f13b9`), `675.0` (`X047`, `6de701d9`, `b745aaed`), `674.0` (`X046`, `dfda998c`, `e8bb651d`) and the `675.1` publish prep (`bafb8667`).
+- **GitHub release:** 8 assets: `pdfcer-v0.131.0-windows-x64.zip` (28,790,191 bytes, sha256 `9b9ad580ee88…`, truncated as supplied), the `ocrcer`/`ocrs`/`tesseract` add-on zips, and four `.sha256` files.
+- **Build folder:** `D:\builds\pdfcer-20261106-0507-ec81929`. **Fresh-folder smoke test:** `pdfcer --version` 0.131.0; `3d-embed` of `fixtures/synthetic/prc/assembly.prc` into `fixtures/synthetic/hello.pdf` wrote a file that `3d-list` reads back (format=PRC, poster=yes).
+- **OneDrive:** CLI written to `pdfcer1`; `pdfcer2` keeps 0.130.0. **The next release writes `pdfcer2`.**
+- **crates.io (`Pass 675.1` complete):** from a detached worktree at the tag, `cargo publish` succeeded for `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix`, `pdfcer-vec3`, `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav`, all 0.131.0, in that order. `pdfcer-vec3`, `-json`, `-3d` and `-3d-nav` are on crates.io for the first time. Decision 217 amended (dated line).
+- **GUI notified:** `FeatureRequests` `open/notice_2026-11-06_v0.131.0_released.md` (INDEX row added): `pdfcer-gui` `X048` item 1 is unblocked.
+- **FEATURES:** *Engine crates on crates.io* row text lists the seven crates; box left `[ ]` (`pdfcer-core`, `-render`, `-image-codec` unpublished; core-library row, no cli or gui box rounded up). "Unreleased" wording on the `X044` and `X047` rows changed to released.
+- **Inbound since the last filing:** `X049` is addressed to `pdfcer-gui` (not ours). `X050` is ours: filed as `Pass 676.0`, in progress (see *Next up*).
+
 ### `bafb8667` `Pass 675.1` (PREP ONLY), 2026-11-06: publish preparation for the 3D crates (decision 217) (1436th filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `bafb8667` on `main` "build(publish): pdfcer-vec3, -json, -3d and -3d-nav made publishable (decision 217)". **The publish itself is NOT done and `Pass 675.1` stays open:** `cargo publish` happens with the next release (`v0.131.0`) and will be filed then. Nothing is on crates.io from this Pass.
@@ -123,10 +134,11 @@ Engineer-reported; no shell here, git state not checked from here. Commit `bafb8
 - **`cargo package --list` file counts:** vec3 6, json 6, 3d 127, 3d-nav 18 (counts, not sizes).
 - **Release recipe, for the next release:** the version bump now touches five `version = "0.130.0"` lines in root `Cargo.toml` `[workspace.dependencies]` (`pdfcer-model`, `-vec3`, `-json`, `-3d`, `-3d-nav`) plus `[workspace.package]` `version`.
 - **FEATURES:** no box changed; the *Engine crates on crates.io* row (still `[ ]`) gained a pointer to the prep.
+- **Amended 1437th filing: COMPLETE.** The publish happened at `v0.131.0`; see the `ec81929c` entry above. The "NOT done" wording describes this commit at its filing.
 
 ### `dfda998c` + `e8bb651d` `Pass 674.0`, 2026-11-06: 3D vector helpers and module layout (`X046`) (1436th filing)
 
-Engineer-reported; no shell here, git state not checked from here. Two commits on `main`: `dfda998c` "refactor(3d): one vec3, in a new zero-dependency crate pdfcer-vec3" and `e8bb651d` "refactor(3d): group pdfcer-3d into prc/model/camera/lighting/shadow/gpu/render modules, tests out of line". Request `X046` (PdfCraft workspace, crates consumer, decision 215). No behaviour change. **Unreleased:** ships with `673.0`, `675.0` and the `675.1` publish.
+Engineer-reported; no shell here, git state not checked from here. Two commits on `main`: `dfda998c` "refactor(3d): one vec3, in a new zero-dependency crate pdfcer-vec3" and `e8bb651d` "refactor(3d): group pdfcer-3d into prc/model/camera/lighting/shadow/gpu/render modules, tests out of line". Request `X046` (PdfCraft workspace, crates consumer, decision 215). No behaviour change. **Released in `v0.131.0`** with `673.0`, `675.0` and the `675.1` publish (1437th filing; "unreleased" described the commits at their filing).
 - **`dfda998c`:** new zero-dependency crate `pdfcer-vec3`. `pdfcer-3d` re-exports it as `pdfcer_3d::vec3` (consumer path unchanged); `pdfcer-core` depends on it directly because `ThreeDMeasurement::linear` is not behind core's `3d` feature. Copies removed from core `threed/view_aim.rs`, `threed/view_write.rs`, `threed/measure.rs` and `pdfcer-3d` `compressed.rs`. **Two non-equivalent copies kept on purpose:** `model::light::unit` (divides; refuses tiny and huge) and `prc::compressed::unit` (returns its input on zero).
 - **`e8bb651d`:** `pdfcer-3d` grouped into private modules `prc`, `model`, `camera`, `lighting`, `shadow`, `gpu`, `render`; every public item stays at the crate root, so no consumer path changes. Inline tests moved to `<module>/tests.rs` / `<module>/tests/*.rs`. Structure baseline lost `fn pdfcer-3d/src/tess.rs::tess_3d_compressed` (debt shrank by one). Largest files now `prc/tree/mod.rs` 749 and `prc/compressed.rs` 748 lines (limit 800).
 - **Also fixed in `e8bb651d`:** `tools/check-ci-crate-lists.py` now reads crate names ending in a digit (it had missed `pdfcer-3d`-style names); four rustdoc links; three stale paths in `docs/core-api/01-reading-and-model.md`.
@@ -137,7 +149,7 @@ Engineer-reported; no shell here, git state not checked from here. Two commits o
 
 ### `6de701d9` + `b745aaed` `Pass 675.0`, 2026-11-06: headless 3D navigation crate `pdfcer-3d-nav` (`X047`) (1435th filing)
 
-Engineer-reported; no shell here, git state not checked from here. Two commits on `main`: `6de701d9` "feat(3d): public vec3, Camera::fit_sphere / looking_at / visible_height, DEFAULT_FOV_Y (X047)" and `b745aaed` "feat(3d-nav): the model viewer's navigation as a GUI-free crate (X047)", cherry-picked from worker commits `83c7b489` and `3564b080`. A `docs/core-api/index.md` line-count conflict was resolved on the cherry-pick; `check-core-api-verbs` PASSes. Request `X047` (PdfCraft workspace). **Unreleased:** ships with `674.0` and `675.1`.
+Engineer-reported; no shell here, git state not checked from here. Two commits on `main`: `6de701d9` "feat(3d): public vec3, Camera::fit_sphere / looking_at / visible_height, DEFAULT_FOV_Y (X047)" and `b745aaed` "feat(3d-nav): the model viewer's navigation as a GUI-free crate (X047)", cherry-picked from worker commits `83c7b489` and `3564b080`. A `docs/core-api/index.md` line-count conflict was resolved on the cherry-pick; `check-core-api-verbs` PASSes. Request `X047` (PdfCraft workspace). **Released in `v0.131.0`** with `674.0` and the `675.1` publish (1437th filing; "unreleased" described the commits at their filing).
 - **Ported, not re-derived (decision 218):** from `pdfcer-gui` `26520dde` `dialogs/model3d/`. Overflow rules match `X045` as built in `pdfcer-gui` `e7df858b`, so `X048` can delete the GUI copies.
 - **New crate `crates/pdfcer-3d-nav`**, depends only on `pdfcer-3d`: `Axis`, `Upright`; `Lens`, `LensKind` and the lens constants; `Axes`, `Anchor`, `Orbit`, `PITCH_LIMIT`, `ZOOM_RANGE`, `FIT_MARGIN`; `reach`, `radius`; `SavedAim`, `ViewFrame`, `NotInside` (`#[non_exhaustive]`); `Solids` (visibility-filtered ray-cast cache); `shaped` (stick curve); `Walk`, `Intent`, `Rules`, `CLIMB`.
 - **New in `pdfcer-3d`:** `pub mod vec3` (scaled norms; `674.0` relies on it), `DEFAULT_FOV_Y = 30.0` (`Camera::fit` now uses it, no behaviour change), `Camera::fit_sphere`, `Camera::looking_at`, `Camera::visible_height`.
@@ -153,7 +165,7 @@ Engineer-reported; no shell here, git state not checked from here. Two commits o
 
 ### `713f13b9` `Pass 673.0`, 2026-11-06: glTF import and 3D PDF writer hardening (`X044`) (1434th filing)
 
-Engineer-reported; no shell here, git state not checked from here. Commit `713f13b9` on `main` ("fix(gltf): escaped data URIs, minVersion, non-finite values, what-is-not-drawn notes, linear lookups and a link-safe CLI resolver (X044)"), cherry-picked from worker commit `c0bfdd72`; 13 files, +325/-53. Request `X044` (PdfCraft workspace). **Unreleased:** ships with the rest of the round (`674.0`, `675.0`, `675.1`).
+Engineer-reported; no shell here, git state not checked from here. Commit `713f13b9` on `main` ("fix(gltf): escaped data URIs, minVersion, non-finite values, what-is-not-drawn notes, linear lookups and a link-safe CLI resolver (X044)"), cherry-picked from worker commit `c0bfdd72`; 13 files, +325/-53. Request `X044` (PdfCraft workspace). **Released in `v0.131.0`** with the rest of the round (`674.0`, `675.0`, `675.1`) (1437th filing; "unreleased" described the commit at its filing).
 - **Adopted from PdfCraft `5b14a98c` (KenM76), decisions 215 and 218:** percent-decode of `data:` URIs (RFC 2397 section 3); `asset.minVersion` other than "2.0" refused (glTF 2.0 section 3.2); non-finite accessor values refuse that primitive with a note; notes for animations, `COLOR_0` (counted), morph targets (counted with skins), an absent material and an absent mesh; a HashMap texture cache; zero-size picture refused (`BadTexture`); binary search for textured styles; per-part tessellation ranges; the `KHR_texture_transform` example test.
 - **Written fresh:** the CLI `pdfcer 3d gltf` resolver reads only resources whose canonical path, links followed, is inside the model folder's canonical path (symlink test; skips where a link cannot be made); binary search for glowing styles; an importer-level zero-size picture test; `docs/core-api/01-reading-and-model.md` updates.
 - **Not ported:** PdfCraft's per-material unread-texture note (pdfcer already notes unread maps); the normalize change (already scaled); the annotation and automation changes (those crates are absent).
@@ -26121,6 +26133,15 @@ closes out the *prior* filing's business rather than opening this one's.
 > **1436th filing: `Pass 674.0` (`X046`, `dfda998c` + `e8bb651d`) is SHIPPED (see *Shipped*), unreleased. Its Next up block is removed.** `Pass 675.1` publish PREP landed in `bafb8667` (see *Shipped*); the `cargo publish` itself is still open and is done at `v0.131.0`.
 >
 > **Not ours, recorded for traceability:** `X045` (viewer orbit fit and resource containment) and `X048` (viewer onto the shared crate; `model3d.rs` split; `options.rs` clamp panic) are addressed to `pdfcer-gui`. `X048` depends on `675.0`.
+>
+> **1437th filing: `v0.131.0` is PUBLISHED (see *Shipped*), carrying `Pass 673.0`, `674.0`, `675.0` and the `675.1` publish; OneDrive `pdfcer1`, so the next release writes `pdfcer2`. `Pass 675.1` is COMPLETE (seven crates on crates.io at 0.131.0). `X049` is addressed to `pdfcer-gui` (not ours). `Pass 676.0` (`X050`) opened below, IN PROGRESS.**
+>
+> **`Pass 676.0` (`X050`, IN PROGRESS, 1437th filing): 3D picking returns non-finite rays and hits as valid.** `676` had zero hits across `ROADMAP.md`/`FEATURES.md`/`SESSION_LOG.md` by grep (no shell; not run through `tools/check-ledger-numbers.py`). Request `open/request_X050_pick_ray_and_hit_finite.md`, from the PdfCraft workspace; the requester supplied fix code, ported verbatim (decision 218).
+> - `Camera::ray_through` refuses a non-finite position and a ray whose origin or direction is not finite, with `RenderError::Camera`;
+> - `intersect` returns `None` for a non-finite hit point;
+> - `pdfcer-3d` `pick_index` `centroid` divides before summing (no overflow in the sum);
+> - each change carries a test that fails with the fix reverted.
+> - Core only; cli and gui `—` (library defect, no verb or UI). FEATURES *Planned* row added.
 
 > **1433rd filing: `Pass 675.1` (QUEUED after `675.0`) - publish `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav` to crates.io at the next release** (decision 217; Ken, 2026-11-06: "Yes publish them"). `675.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`).
 > - the three join `pdfcer-color`, `-model`, `-pkix` (`Pass 637.0`); `pdfcer-json` is included because `pdfcer-3d` depends on it;
@@ -26128,7 +26149,7 @@ closes out the *prior* filing's business rather than opening this one's.
 > - **blocker, resolved in the same release:** `pdfcer-3d`'s `zune-jpeg` is a git dependency (rev `c1c7f497`, the 0.5.16-rc3 cut) and cannot be packaged. Give it a registry requirement `>=0.5.16-rc3, <0.6` beside the git source: the workspace build keeps the git rev; the published crate resolves crates.io's 0.5.16-rc3, or stable 0.5.16 once it ships;
 > - **cost, disclosed:** a consumer that also pulls `image`/`tiff` (`zune-jpeg ^0.5` resolving to 0.5.15) cannot resolve both while 0.5.16 is unreleased. `^0.5` was rejected because it would ship 0.5.15's one-scan-per-component JPEG decode bug to published consumers;
 > - verify with `cargo package` / `cargo publish --dry-run` per crate, and `cargo tree -p pdfcer-3d-nav` for GUI-core separation.
-> - **1436th filing, prep done in `bafb8667` (see *Shipped*); REMAINING: the real `cargo publish` at `v0.131.0`, in order `pdfcer-vec3`, `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav`.** The list is four crates, not three: `pdfcer-vec3` joined (decision 217 amendment). `publish = false` is already removed.
+> - **1437th filing: COMPLETE. The publish happened at `v0.131.0` (see *Shipped*, `ec81929c`); nothing remains.** *(1436th filing, history: prep done in `bafb8667`; REMAINING was the real `cargo publish` at `v0.131.0`, in order `pdfcer-vec3`, `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav`.)* The list is four crates, not three: `pdfcer-vec3` joined (decision 217 amendment). `publish = false` is already removed.
 
 > **Head (1421st filing): no open Pass at the head. `Pass 660.0` (`G266`, `d77620b6`), `661.0` (`X039`), `662.0` (`f8da53ad`) and `663.0` (`X040`, `7760a3bf`) are SHIPPED (see *Shipped*). `v0.128.0` is BEING CUT (bump `7d02540a`), carrying `X039`, `662.0`, `G266` and `X040`; not yet tagged or published as far as this filing knows; the release filing comes later. Release slot: OneDrive `pdfcer2` per the earlier banner (not re-verified here).** The older banners that follow are history.
 
