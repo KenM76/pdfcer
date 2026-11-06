@@ -239,12 +239,16 @@ fn bounds_of(points: impl Iterator<Item = [f64; 3]>) -> Bounds {
     b
 }
 
-fn centroid(c: &[[f64; 3]; 3]) -> [f64; 3] {
-    let [a, b, d] = *c;
+/// Each corner is divided before summing, so corners near the float range
+/// cannot overflow the sum.
+fn centroid(&[a, b, c]: &[[f64; 3]; 3]) -> [f64; 3] {
+    let [ax, ay, az] = a;
+    let [bx, by, bz] = b;
+    let [cx, cy, cz] = c;
     [
-        (a[0] + b[0] + d[0]) / 3.0,
-        (a[1] + b[1] + d[1]) / 3.0,
-        (a[2] + b[2] + d[2]) / 3.0,
+        ax / 3.0 + bx / 3.0 + cx / 3.0,
+        ay / 3.0 + by / 3.0 + cy / 3.0,
+        az / 3.0 + bz / 3.0 + cz / 3.0,
     ]
 }
 
@@ -312,6 +316,12 @@ mod tests {
             }
         }
         out
+    }
+
+    #[test]
+    fn a_centroid_near_the_float_range_is_finite() {
+        let m = [f64::MAX / 1.5; 3];
+        assert!(centroid(&[m, m, m]).iter().all(|c| c.is_finite()));
     }
 
     #[test]

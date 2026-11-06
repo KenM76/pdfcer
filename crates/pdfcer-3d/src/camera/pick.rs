@@ -49,8 +49,9 @@ impl Camera {
     ///
     /// # Errors
     ///
-    /// [`RenderError::Camera`] for a camera [`crate::render`] refuses, and
-    /// [`RenderError::Size`] for a zero `width` or `height`. Under a
+    /// [`RenderError::Camera`] for a camera [`crate::render`] refuses, a
+    /// position that is not finite, or a ray whose origin or direction
+    /// overflows the float range; [`RenderError::Size`] for a zero `width` or `height`. Under a
     /// fisheye: [`RenderError::FisheyeField`] for a refused field, and
     /// [`RenderError::OutsideLens`] for a position outside the picture
     /// circle, which shows only background. A fisheye ray starts at the
@@ -75,15 +76,20 @@ impl Camera {
         if width == 0 || height == 0 {
             return Err(RenderError::Size { width, height });
         }
+        if !(x.is_finite() && y.is_finite()) {
+            return Err(RenderError::Camera(
+                "the image position is not a finite number",
+            ));
+        }
         if let Some(lens) = crate::camera::lens::Lens::for_camera(self, width, height)? {
-            return lens.ray(self, x, y);
+            return finite_ray(lens.ray(self, x, y)?);
         }
         let aspect = f64::from(width) / f64::from(height);
         let view = View::new(self, aspect)?;
         let [right, up, forward] = self.basis()?;
         let nx = x / f64::from(width) * 2.0 - 1.0;
         let ny = 1.0 - y / f64::from(height) * 2.0;
-        Ok(match view {
+        let ray = match view {
             View::Perspective { focal, near, .. } => {
                 let along = add(
                     add(scale(right, nx * aspect / focal), scale(up, ny / focal)),
@@ -109,7 +115,22 @@ impl Camera {
                     min_distance: f64::NEG_INFINITY,
                 }
             }
-        })
+        };
+        finite_ray(ray)
+    }
+}
+
+/// `ray`, refused when its origin or direction overflowed the float range.
+fn finite_ray(ray: Ray) -> Result<Ray, RenderError> {
+    if ray
+        .origin
+        .iter()
+        .chain(&ray.direction)
+        .all(|c| c.is_finite())
+    {
+        Ok(ray)
+    } else {
+        Err(RenderError::Camera("the image position is out of range"))
     }
 }
 
@@ -160,10 +181,15 @@ pub(crate) fn intersect(c: &[[f64; 3]; 3], ray: &Ray) -> Option<Hit> {
     let v = dot(ray.direction, q) / det;
     let distance = dot(e2, q) / det;
     let inside = (0.0..=1.0).contains(&u) && v >= 0.0 && u + v <= 1.0;
-    (inside && distance.is_finite() && distance >= ray.min_distance).then(|| Hit {
+    let point = add(ray.origin, scale(ray.direction, distance));
+    (inside
+        && distance.is_finite()
+        && distance >= ray.min_distance
+        && point.iter().all(|c| c.is_finite()))
+    .then_some(Hit {
         mesh: 0,
         triangle: 0,
-        point: add(ray.origin, scale(ray.direction, distance)),
+        point,
         normal,
         distance,
     })
@@ -314,6 +340,25 @@ mod tests {
         assert!(matches!(
             cam.ray_through(0.0, 0.0, 0, 10),
             Err(RenderError::Size { .. })
+        ));
+    }
+
+    #[test]
+    fn a_degenerate_position_is_refused() {
+        let ortho = camera([0.0, 0.0, 10.0], Projection::Orthographic { height: 4.0 });
+        for (x, y) in [(f64::NAN, 1.0), (1.0, f64::INFINITY)] {
+            assert!(matches!(
+                ortho.ray_through(x, y, 10, 10),
+                Err(RenderError::Camera(_))
+            ));
+        }
+        let far = camera(
+            [f64::MAX, 0.0, f64::MAX],
+            Projection::Orthographic { height: f64::MAX },
+        );
+        assert!(matches!(
+            far.ray_through(9.5, 5.0, 10, 10),
+            Err(RenderError::Camera(_))
         ));
     }
 }
