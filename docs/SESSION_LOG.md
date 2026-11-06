@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1433rd filing) — decisions 217 (publish the 3D crates) and 218 (port from Ken's own projects); `Pass 675.1` filed
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed):**
+- **Decision 217:** Ken, "Yes publish them". `pdfcer-3d-nav`, `pdfcer-3d`, `pdfcer-json` go to crates.io at the next release. `zune-jpeg` (git rev `c1c7f497`, 0.5.16-rc3) gets `>=0.5.16-rc3, <0.6` beside the git source. Cost disclosed: a consumer also pulling `image`/`tiff` (`zune-jpeg ^0.5`, 0.5.15) cannot resolve both until 0.5.16 ships; `^0.5` rejected (0.5.15's one-scan-per-component JPEG bug).
+- **Decision 218:** Ken, "remember to port work from pdfcer-gui and anything we write for pdfcraft that you can without rewriting it." Widens 215 as a new number (215 left as written). Source named in commits and replies; non-KenM76 upstream stays behavioural reference (204).
+- **`Pass 675.1` (publish the three crates), QUEUED after 675.0:** Next up banner block (no `###`); the `675.0` banner's open question amended to answered. FEATURES: no row change (as instructed).
+- **ROADMAP Standing rules index:** the 215 one-liner gained a "Widened 2026-11-06 (decision 218)" clause.
+- **Numbers:** decisions `217`, `218` and Pass `675.1` had zero hits as new numbers by grep (`217` appeared only as "next free decision"); `tools/check-ledger-numbers.py` not run. Decision ceiling `216` -> `218`; next free `219`. No `R` minted.
+- **Open:** whether ARCHITECTURE body §3's published-crate list needs the three names (not grepped from here). Backup currency not verifiable from here. Next filing 1434th.
+
 ## 2026-11-06 (1432nd filing) — `Pass 673.0` (`X044`), `674.0` (`X046`), `675.0` (`X047`) filed
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed):**

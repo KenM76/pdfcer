@@ -26079,7 +26079,7 @@ closes out the *prior* filing's business rather than opening this one's.
 > - already includes `X045`'s overflow-safe fits and finite-eye fixes;
 > - `pdfcer-3d` gains `Camera::fit_sphere`, `Camera::visible_height`, a public FOV constant, a reach function and `pub mod vec3` (this is where `vec3` goes public, which `674.0` relies on);
 > - `publish = false` for now: `pdfcer-3d` is not published, so the nav crate cannot be.
-> - **OPEN QUESTION FOR KEN (not a decision):** publish `pdfcer-3d` + `pdfcer-3d-nav`?
+> - **Publish question ANSWERED 2026-11-06 (1433rd filing): Ken, "Yes publish them" (decision 217).** `publish = false` is temporary; see `Pass 675.1` below.
 > - Verify with `cargo tree -p pdfcer-3d-nav` that no GUI dependency appears (GUI-core separation).
 >
 > **`Pass 674.0` (`X046`, QUEUED after `673.0` and `675.0`) - 3D vector helpers and module layout** (`request_X046_3d_vector_helpers_and_module_layout.md`). No behaviour change.
@@ -26090,6 +26090,13 @@ closes out the *prior* filing's business rather than opening this one's.
 > - **Acceptance:** the structure gate (`tools/check-code-structure.py`) passes, with no 3D file within 50 lines of the limit.
 >
 > **Not ours, recorded for traceability:** `X045` (viewer orbit fit and resource containment) and `X048` (viewer onto the shared crate; `model3d.rs` split; `options.rs` clamp panic) are addressed to `pdfcer-gui`. `X048` depends on `675.0`.
+
+> **1433rd filing: `Pass 675.1` (QUEUED after `675.0`) - publish `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav` to crates.io at the next release** (decision 217; Ken, 2026-11-06: "Yes publish them"). `675.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`).
+> - the three join `pdfcer-color`, `-model`, `-pkix` (`Pass 637.0`); `pdfcer-json` is included because `pdfcer-3d` depends on it;
+> - `publish = false` removed from `pdfcer-3d-nav` once `675.0` lands;
+> - **blocker, resolved in the same release:** `pdfcer-3d`'s `zune-jpeg` is a git dependency (rev `c1c7f497`, the 0.5.16-rc3 cut) and cannot be packaged. Give it a registry requirement `>=0.5.16-rc3, <0.6` beside the git source: the workspace build keeps the git rev; the published crate resolves crates.io's 0.5.16-rc3, or stable 0.5.16 once it ships;
+> - **cost, disclosed:** a consumer that also pulls `image`/`tiff` (`zune-jpeg ^0.5` resolving to 0.5.15) cannot resolve both while 0.5.16 is unreleased. `^0.5` was rejected because it would ship 0.5.15's one-scan-per-component JPEG decode bug to published consumers;
+> - verify with `cargo package` / `cargo publish --dry-run` per crate, and `cargo tree -p pdfcer-3d-nav` for GUI-core separation.
 
 > **Head (1421st filing): no open Pass at the head. `Pass 660.0` (`G266`, `d77620b6`), `661.0` (`X039`), `662.0` (`f8da53ad`) and `663.0` (`X040`, `7760a3bf`) are SHIPPED (see *Shipped*). `v0.128.0` is BEING CUT (bump `7d02540a`), carrying `X039`, `662.0`, `G266` and `X040`; not yet tagged or published as far as this filing knows; the release filing comes later. Release slot: OneDrive `pdfcer2` per the earlier banner (not re-verified here).** The older banners that follow are history.
 
@@ -50851,7 +50858,7 @@ not a judgment call:**
 - **No network calls without explicit user opt-in, ever.**
 - **Solo by default.**
 - **KenAgent decision routing (operator process rule, 2026-07-30).**
-- **PdfCraft fixes are shared, not duplicated (operator process rule, 2026-11-04, decision 215; judgment call, no gate, no `R` number).** For any `X`-series request from PdfCraft, check its `docs/ROADMAP.md` row and its fork at `D:\Dev\PdfCraft\upstream` first; adapt a fix it already wrote (only `KenM76`-authored commits) and cite the commit, else write it and name the commit in the `SHIPPED` reply for PdfCraft to port; the reply says adopted vs fresh. Other upstream contributors' code stays behavioural reference only. Narrows decision 204's "no code copying" for our own code.
+- **PdfCraft fixes are shared, not duplicated (operator process rule, 2026-11-04, decision 215; judgment call, no gate, no `R` number).** For any `X`-series request from PdfCraft, check its `docs/ROADMAP.md` row and its fork at `D:\Dev\PdfCraft\upstream` first; adapt a fix it already wrote (only `KenM76`-authored commits) and cite the commit, else write it and name the commit in the `SHIPPED` reply for PdfCraft to port; the reply says adopted vs fresh. Other upstream contributors' code stays behavioural reference only. Narrows decision 204's "no code copying" for our own code. **Widened 2026-11-06 (decision 218):** port, never rewrite, from any of Ken's own projects (KenM76-authored PdfCraft commits and `pdfcer-gui`, all his and MIT) wherever the shapes match; name the source in the commit and the reply.
 - **i18n/l10n discipline R1–R8 (decision 002, 2026-07-30).**
 - **Distribution-posture discipline R9–R16 (decision 003, 2026-07-30).**
 - **Text-rendering/font discipline R17–R22 (decision 004, 2026-07-30).**

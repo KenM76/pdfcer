@@ -13744,3 +13744,27 @@ Operator ruling (Ken, 2026-11-04), verbatim: *"can we make it a standing rule th
 **Number correction.** The operator-side dispatch named the rule `R251`; `R251` is already the re-export-closure rule (`check-reexport-closure.py`), and the live ceiling is `R262`. Minted as `R263` after grepping ROADMAP, ARCHITECTURE and `tools/`.
 
 **Body-section effect.** None. **Decision ceiling.** Fills `216`; next free decision `217`. **New standing rule.** `R263`; next free `R264`. No gate: whether a change touched shared plumbing is a judgment, not a mechanical test.
+
+### 2026-11-06 (1433rd filing, `Pass 675.1`) — decision 217: the 3D crates are published (`pdfcer-3d-nav`, `pdfcer-3d`, `pdfcer-json`), with `zune-jpeg` given a registry requirement beside its git source
+
+Operator ruling (Ken, 2026-11-06), verbatim: *"Yes publish them"*. Answers the open question filed in the 1432nd filing under `Pass 675.0` ("publish `pdfcer-3d` + `pdfcer-3d-nav`?"). Engineer-reported; no `docs/decisions/217-*.md` written (this entry is the record). Nothing checked from here.
+
+**Decides.**
+1. **Scope.** At the next release `pdfcer-3d-nav` and `pdfcer-3d` go to crates.io, plus `pdfcer-json` because `pdfcer-3d` depends on it. They join `pdfcer-color`, `-model`, `-pkix` (`Pass 637.0`).
+2. **Blocker.** `pdfcer-3d`'s `zune-jpeg` is a git dependency (rev `c1c7f497`, the 0.5.16-rc3 cut); a git dependency cannot be packaged.
+3. **Resolution (engineer's).** Give the dependency a registry requirement `>=0.5.16-rc3, <0.6` beside the git source. The workspace build keeps the git rev; the published crate takes crates.io's 0.5.16-rc3, or stable 0.5.16 once it ships.
+4. **Cost, disclosed.** A consumer that also pulls `image`/`tiff` (`zune-jpeg ^0.5`, resolving to 0.5.15) cannot resolve both while 0.5.16 is unreleased. The alternative `^0.5` was rejected: it would ship 0.5.15's one-scan-per-component JPEG decode bug to published consumers.
+5. **Filed as** `Pass 675.1`, queued after `675.0`. No FEATURES row change.
+
+**Body-section effect.** None found by name (not grepped for the crate list in §3 from here; engineer to confirm whether the published-crate list in the body needs the three names). **Decision ceiling.** Fills `217`; next free decision `218` (taken below). **New standing rule.** None.
+
+### 2026-11-06 (1433rd filing) — decision 218: port, never rewrite, from Ken's own projects; widens decision 215
+
+Operator ruling (Ken, 2026-11-06), verbatim: *"remember to port work from pdfcer-gui and anything we write for pdfcraft that you can without rewriting it. No reason we can't use the snippets of code for pdfcraft we wrote."* Engineer-reported; no `docs/decisions/218-*.md` (this entry is the record). Widens decision 215 (above, left as written); a new number rather than an amendment line, since 215's scope was PdfCraft `X`-series requests only and this adds `pdfcer-gui`.
+
+**Decides.**
+1. **Port, do not re-derive.** Code Ken's projects already hold (`KenM76`-authored PdfCraft commits; `pdfcer-gui`, all his and MIT) is ported verbatim where the shapes match, not rewritten.
+2. **Name the source** in the commit and in any `SHIPPED` reply.
+3. **Unchanged.** Code by non-`KenM76` upstream authors stays behavioural reference only (decision 204); GPL/AGPL stays out. Decision 215's check-first and hand-over steps stand.
+
+**Body-section effect.** None. **Decision ceiling.** Fills `218`; next free decision `219`. **New standing rule.** None numbered; the ROADMAP Standing rules index one-liner for 215 gained a widening clause.
