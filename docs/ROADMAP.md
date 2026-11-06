@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `aedc7507` `v0.135.0` release commit: IN PROGRESS (tag, assets and publication not done), 2026-11-06 (1453rd filing)
+
+Engineer-reported; no shell here, nothing checked from here (git, tests, tag, push all as reported). Commit `aedc7507` "chore(release): v0.135.0" (version bump), preceded by `772cdb81`. Carries `Pass 684.0` (`G273`), `685.0`, `686.0` (`G274`), `687.0` (`G275`) and `688.0`. A later PUBLISHED filing closes this.
+- **`772cdb81` "fix(release): ..." (found by the release gates):** `print-ready` added to the CLI's `NOT_IN_PLACE` list (a throwaway copy for a print service: burned in, unprotected, unsigned, so no `--in-place`); doc comments on the two `ViewSource` accessors from `Pass 686.0`. No new Pass number; it belongs to the release.
+- **Why missed:** `Pass 684.0` ran `--test all` targets, which do not compile the CLI bin's own tests.
+- **Gates so far (as reported):** `pdfcer-core`, `-3d`, `-render`, `-cli` all tests pass (`--no-fail-fast`, `--all-features`): core integration 3204, CLI 1059, `3d` lib 478.
+- **OneDrive:** this release writes `pdfcer1` (`pdfcer2` holds 0.134.1).
+- **FEATURES:** unchanged.
+
 ### `41a54081` `Pass 688.0`, 2026-11-06: a viewer's print applies layer Print usage over the current state (1452nd filing)
 
 Engineer-reported; no shell here, git state not checked from here (local `main`; a following docs commit). Commit `41a54081`. Unreleased, rides the next release. Never opened in Next up. No decision record.
@@ -26327,6 +26336,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **1450th filing: `v0.134.1` PUBLISHED (tag `c2dca228`; CI green on all 12 jobs at `6c848ffc`; GitHub release, crates.io, OneDrive `pdfcer2`). Next release writes `pdfcer1`. No open Pass at the head.**
 
 > **1451st filing: `Pass 684.0` (`G273`, `6b5c87a6`), `685.0` (`149581d8`, `0980c3b2`), `686.0` (`G274`, `8ccfeb04`) and `687.0` (`G275`, `4b2b1e54`) are SHIPPED (see *Shipped*), on local `main`, unreleased; the next release carries them. Filed directly as Shipped, never opened here. `684`-`687` had zero hits across `docs/*.md` by grep (no shell; not run through `tools/check-ledger-numbers.py`). Open follow-up: a layer's `/Print` usage on the print route is being looked at next and is NOT done. No open Pass at the head.**
+
+> **1453rd filing: `v0.135.0` release commit `aedc7507` is IN PROGRESS (tag, assets and publication follow in the PUBLISHED filing). Carries `Pass 684.0`-`688.0`. OneDrive slot `pdfcer1`. No open Pass at the head; next Pass 689.0.**
 
 > **1433rd filing: `Pass 675.1` (QUEUED after `675.0`) - publish `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav` to crates.io at the next release** (decision 217; Ken, 2026-11-06: "Yes publish them"). `675.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`).
 > - the three join `pdfcer-color`, `-model`, `-pkix` (`Pass 637.0`); `pdfcer-json` is included because `pdfcer-3d` depends on it;

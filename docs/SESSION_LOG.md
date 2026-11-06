@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1453rd filing) — `v0.135.0` release commit `aedc7507`: IN PROGRESS
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **`772cdb81`** (found by the release gates): `print-ready` added to the CLI's `NOT_IN_PLACE` list (throwaway copy for a print service: burned in, unprotected, unsigned, so no `--in-place`); doc comments on the two `ViewSource` accessors from `Pass 686.0`. No new Pass number. **Why missed:** `Pass 684.0` ran `--test all` targets, which do not compile the CLI bin's own tests.
+- **`aedc7507` "chore(release): v0.135.0"** (version bump): carries `Pass 684.0`-`688.0` (`G273`, `G274`, `G275`). IN PROGRESS; tag, assets and publication follow in the PUBLISHED filing.
+- **Gates so far (as reported):** `pdfcer-core`, `-3d`, `-render`, `-cli` all pass (`--no-fail-fast`, `--all-features`): core integration 3204, CLI 1059, `3d` lib 478.
+- **OneDrive:** release writes `pdfcer1`.
+- **ROADMAP:** new Shipped entry plus banner. **FEATURES:** unchanged.
+- **Next:** finish the `v0.135.0` publish. Next filing 1454th; next Pass 689.0.
+
 ## 2026-11-06 (1452nd filing) — `Pass 688.0` SHIPPED, unreleased
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, engineer commits):**
