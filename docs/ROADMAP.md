@@ -112,6 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
+### `6de701d9` + `b745aaed` `Pass 675.0`, 2026-11-06: headless 3D navigation crate `pdfcer-3d-nav` (`X047`) (1435th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Two commits on `main`: `6de701d9` "feat(3d): public vec3, Camera::fit_sphere / looking_at / visible_height, DEFAULT_FOV_Y (X047)" and `b745aaed` "feat(3d-nav): the model viewer's navigation as a GUI-free crate (X047)", cherry-picked from worker commits `83c7b489` and `3564b080`. A `docs/core-api/index.md` line-count conflict was resolved on the cherry-pick; `check-core-api-verbs` PASSes. Request `X047` (PdfCraft workspace). **Unreleased:** ships with `674.0` and `675.1`.
+- **Ported, not re-derived (decision 218):** from `pdfcer-gui` `26520dde` `dialogs/model3d/`. Overflow rules match `X045` as built in `pdfcer-gui` `e7df858b`, so `X048` can delete the GUI copies.
+- **New crate `crates/pdfcer-3d-nav`**, depends only on `pdfcer-3d`: `Axis`, `Upright`; `Lens`, `LensKind` and the lens constants; `Axes`, `Anchor`, `Orbit`, `PITCH_LIMIT`, `ZOOM_RANGE`, `FIT_MARGIN`; `reach`, `radius`; `SavedAim`, `ViewFrame`, `NotInside` (`#[non_exhaustive]`); `Solids` (visibility-filtered ray-cast cache); `shaped` (stick curve); `Walk`, `Intent`, `Rules`, `CLIMB`.
+- **New in `pdfcer-3d`:** `pub mod vec3` (scaled norms; `674.0` relies on it), `DEFAULT_FOV_Y = 30.0` (`Camera::fit` now uses it, no behaviour change), `Camera::fit_sphere`, `Camera::looking_at`, `Camera::visible_height`.
+- **Defects fixed while porting:** `Orbit::saved` lost the pitch when the file's up was not square to the view; orthographic height went infinite at zoom 0.05 and aspect 1e-9 (now capped at `f64::MAX`); `visible_height` multiplied before applying the angle and overflowed near `MAX`.
+- **Stays GUI-side (egui-bound):** `nav.rs` UI/prefs/gimbal, the `navorbit`/`navwalk` input mapping, and the `gpu*`, drone, gimbal, options and window files.
+- **Docs:** new `docs/core-api/04-3d-navigation.md`, an index row and a routing row in `01`. `ci.yml` extended for the new crate.
+- **Tests (engineer-reported):** `pdfcer-3d-nav` 44 unit, 1 out-of-crate consumer test, 2 doctests; `pdfcer-3d` lib 456 passed on merged main (6 new `camera_sphere`). `X045` acceptance holds in the crate: +-1e200 and +-1e-200 boxes fit at a finite positive distance; `f64::MAX` boxes give a finite eye at 36 aspects from 1e9 to 1e-9. Sabotage caught 18 of 20; the 2 survivors are each covered by another guard (`looking_at`'s halving always yields a finite eye; walk's `move_to` and settle checks cover its finite-motion guard).
+- **Gates on merged main:** fmt clean; clippy `-D warnings` clean for `pdfcer-3d`, `pdfcer-3d-nav`, `pdfcer-cli` all-targets.
+- **Invariants:** `cargo tree -p pdfcer-3d-nav`: 0 egui/eframe/winit/wgpu matches; checks for wasm32.
+- **Request:** reply `FeatureRequests/pdfce_FeatureRequests/open/reply_X047_headless_3d_navigation_crate_SHIPPED.md`; INDEX row SHIPPED.
+- **FEATURES:** "Headless 3D navigation crate" moved to *Implemented*, core `[x]` cli `[ ]` (no CLI verb uses it) gui `[ ]` (`pdfcer-gui` `X048` moves onto it).
+- **Not here:** publishing is `Pass 675.1` (decision 217), done at the release; stays in Next up.
+
 ### `713f13b9` `Pass 673.0`, 2026-11-06: glTF import and 3D PDF writer hardening (`X044`) (1434th filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `713f13b9` on `main` ("fix(gltf): escaped data URIs, minVersion, non-finite values, what-is-not-drawn notes, linear lookups and a link-safe CLI resolver (X044)"), cherry-picked from worker commit `c0bfdd72`; 13 files, +325/-53. Request `X044` (PdfCraft workspace). **Unreleased:** ships with the rest of the round (`674.0`, `675.0`, `675.1`).
@@ -26077,17 +26093,10 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **1432nd filing: three operator requests from the PdfCraft workspace (crates consumer, decision 215) filed from `FeatureRequests/pdfce_FeatureRequests/open/`. `673`, `674`, `675` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`); last used `672.0`, `669.1`. Order: `673.0` and `675.0` are IN FLIGHT with workers; `674.0` is queued after both because it moves the files they touch.**
 >
-> **`Pass 675.0` (`X047`, IN FLIGHT) - headless 3D navigation crate** (`request_X047_headless_3d_navigation_crate.md`). New GUI-free workspace crate `pdfcer-3d-nav`, depending only on `pdfcer-3d`.
-> - **Adopt, do not re-derive (added 1434th filing, decision 218):** `pdfcer-gui` commit `e7df858b` has since built `X045`'s overflow-safe `orbit` / `reach` / `eye_at` fixes in its `dialogs/model3d/orbit.rs` and `app/actions/gltf.rs`. This Pass's crate must adopt those, not re-derive them. The engineer checks this at merge (not checked from here).
-> - holds orbit, walk/fly, axes (on `UpAxis`/`NamedView`), the lens policy, `eye_inside`, the stick response curve and visibility-filtered picking, moved from `pdfcer-gui`'s `dialogs/model3d/` with their tests;
-> - already includes `X045`'s overflow-safe fits and finite-eye fixes;
-> - `pdfcer-3d` gains `Camera::fit_sphere`, `Camera::visible_height`, a public FOV constant, a reach function and `pub mod vec3` (this is where `vec3` goes public, which `674.0` relies on);
-> - `publish = false` for now: `pdfcer-3d` is not published, so the nav crate cannot be.
-> - **Publish question ANSWERED 2026-11-06 (1433rd filing): Ken, "Yes publish them" (decision 217).** `publish = false` is temporary; see `Pass 675.1` below.
-> - Verify with `cargo tree -p pdfcer-3d-nav` that no GUI dependency appears (GUI-core separation).
+> **1435th filing: `Pass 675.0` (`X047`, `6de701d9` + `b745aaed`) is SHIPPED (see *Shipped*), unreleased; `publish = false` on `pdfcer-3d-nav` stays until `Pass 675.1`.**
 >
-> **`Pass 674.0` (`X046`, QUEUED after `673.0` and `675.0`) - 3D vector helpers and module layout** (`request_X046_3d_vector_helpers_and_module_layout.md`). No behaviour change.
-> - `pdfcer-3d`'s `vec3` public (lands in `675.0`); the copies in `pdfcer-core` `threed` (`view_aim`, `view_write`, `measure`) and in `model_light` call it;
+> **`Pass 674.0` (`X046`, IN FLIGHT with a worker as of the 1435th filing; `673.0` and `675.0` have landed) - 3D vector helpers and module layout** (`request_X046_3d_vector_helpers_and_module_layout.md`). No behaviour change.
+> - `pdfcer-3d`'s `vec3` public (landed in `675.0`); the copies in `pdfcer-core` `threed` (`view_aim`, `view_write`, `measure`) and in `model_light` call it;
 > - inline tests of `tree/mod.rs`, `tess.rs`, `compressed.rs` and `render.rs` moved to `<module>/tests.rs`;
 > - flat modules grouped into submodules (`camera/`, `decode/`, `gpu/`, `shadow/`, `light/`), public re-exports kept;
 > - a Cargo `description` that matches what the crate holds.
@@ -26097,7 +26106,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **1433rd filing: `Pass 675.1` (QUEUED after `675.0`) - publish `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav` to crates.io at the next release** (decision 217; Ken, 2026-11-06: "Yes publish them"). `675.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`).
 > - the three join `pdfcer-color`, `-model`, `-pkix` (`Pass 637.0`); `pdfcer-json` is included because `pdfcer-3d` depends on it;
-> - `publish = false` removed from `pdfcer-3d-nav` once `675.0` lands;
+> - `publish = false` removed from `pdfcer-3d-nav` (`675.0` has landed, 1435th filing);
 > - **blocker, resolved in the same release:** `pdfcer-3d`'s `zune-jpeg` is a git dependency (rev `c1c7f497`, the 0.5.16-rc3 cut) and cannot be packaged. Give it a registry requirement `>=0.5.16-rc3, <0.6` beside the git source: the workspace build keeps the git rev; the published crate resolves crates.io's 0.5.16-rc3, or stable 0.5.16 once it ships;
 > - **cost, disclosed:** a consumer that also pulls `image`/`tiff` (`zune-jpeg ^0.5` resolving to 0.5.15) cannot resolve both while 0.5.16 is unreleased. `^0.5` was rejected because it would ship 0.5.15's one-scan-per-component JPEG decode bug to published consumers;
 > - verify with `cargo package` / `cargo publish --dry-run` per crate, and `cargo tree -p pdfcer-3d-nav` for GUI-core separation.

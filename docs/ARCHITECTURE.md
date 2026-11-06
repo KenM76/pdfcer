@@ -488,6 +488,17 @@ D:\Dev\pdfcer\
                                    crate still opens no files (external
                                    glTF buffers arrive through a caller
                                    resolver). Also depends on `pdfcer-json`.
+    pdfcer-3d-nav\                <- (`Pass 675.0`, X047) a 3D viewer's
+                                   navigation without a GUI: orbit, walk,
+                                   lens policy, up/front axes, saved-view
+                                   eye checks, sphere fit, the stick curve
+                                   and visibility-filtered picking, so every
+                                   shell (pdfcer-gui, the web fork) drives one
+                                   copy. Depends on `pdfcer-3d` only; zero
+                                   GUI/network deps (rule 2), wasm32-clean,
+                                   its own `cargo tree` CI step. Published
+                                   with `pdfcer-3d` and `pdfcer-json` (§12
+                                   decision 217).
     pdfcer-json\                  <- (`Pass 648.0`, 2026-10-29, §12 decision
                                    210) shared minimal JSON reader, moved
                                    out of `pdfcer-core`'s `ocr/json_lite.rs`

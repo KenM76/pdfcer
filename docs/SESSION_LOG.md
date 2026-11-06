@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1435th filing) — `Pass 675.0` (`X047`, `6de701d9` + `b745aaed`) SHIPPED
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed):**
+- **`Pass 675.0` SHIPPED:** new GUI-free crate `pdfcer-3d-nav` (orbit, walk/fly, axes, lens policy, stick curve, visibility-filtered picking) ported from `pdfcer-gui` `26520dde` (decision 218); `pdfcer-3d` gained `pub mod vec3`, `DEFAULT_FOV_Y`, `Camera::fit_sphere`/`looking_at`/`visible_height`. Cherry-picked from `83c7b489` and `3564b080`; a `docs/core-api/index.md` conflict resolved, `check-core-api-verbs` PASS. Detail in the ROADMAP *Shipped* entry.
+- **Tests:** nav crate 44 unit + 1 consumer + 2 doctests; `pdfcer-3d` lib 456; sabotage 18 of 20 (2 survivors covered by other guards). `cargo tree -p pdfcer-3d-nav`: 0 GUI matches.
+- **Defects fixed in the port:** `Orbit::saved` lost pitch; orthographic height infinite at zoom 0.05 / aspect 1e-9; `visible_height` overflow near `MAX`.
+- **FEATURES:** the Planned row moved to *Implemented*: core `[x]`, cli `[ ]` (no verb uses it), gui `[ ]` (`X048`). Acrobat column `—`.
+- **ROADMAP:** the `675.0` Next up block replaced by a one-line shipped pointer; `674.0` banner now IN FLIGHT with a worker; `675.1` stays queued (publish at the release).
+- **Numbers:** no new Pass, decision or R minted. Backup currency not verifiable from here. Next filing 1436th.
+
 ## 2026-11-06 (1434th filing) — `Pass 673.0` (`X044`, `713f13b9`) SHIPPED
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, nothing committed):**
