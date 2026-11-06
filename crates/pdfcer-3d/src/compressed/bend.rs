@@ -11,7 +11,7 @@
 //! it; walked on, it surfaced hundreds of triangles later or never.
 
 use super::normals::NormalArrays;
-use super::{V, add, cross, dot, mul, sub, unit};
+use super::{V, add, cross, dot, scale, sub, unit};
 
 /// How far, in tolerances, a new vertex may stray from its planar face's
 /// running plane at the face's centroid.
@@ -87,7 +87,7 @@ impl Planes {
         if plane.count > 0 && ww > 0.0 {
             let normal = unit(plane.area);
             #[allow(clippy::cast_precision_loss)] // A face's triangle count.
-            let centre = mul(plane.corners, 1.0 / (3 * plane.count) as f64);
+            let centre = scale(plane.corners, 1.0 / (3 * plane.count) as f64);
             let diameter = ww.sqrt().sqrt();
             for v in t {
                 let off = sub(v, centre);
@@ -99,7 +99,7 @@ impl Planes {
         }
         let mut area = cross(sub(t[1], t[0]), sub(t[2], t[0]));
         if dot(area, plane.area) < 0.0 {
-            area = mul(area, -1.0);
+            area = scale(area, -1.0);
         }
         let corners = add(t[0], add(t[1], t[2]));
         if let Some(e) = self.faces.get_mut(f) {

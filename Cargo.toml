@@ -36,6 +36,7 @@ resolver = "3"
 members = [
     "crates/pdfcer-model",
     "crates/pdfcer-json",
+    "crates/pdfcer-vec3",
     "crates/pdfcer-image-codec",
     "crates/pdfcer-fonts",
     "crates/pdfcer-pkix",
@@ -145,6 +146,7 @@ pdfcer-model = { path = "crates/pdfcer-model", version = "0.130.0" }
 pdfcer-core = { path = "crates/pdfcer-core", default-features = false }
 pdfcer-render = { path = "crates/pdfcer-render", default-features = false }
 pdfcer-print = { path = "crates/pdfcer-print" }
+pdfcer-vec3 = { path = "crates/pdfcer-vec3" }
 pdfcer-3d = { path = "crates/pdfcer-3d" }
 pdfcer-3d-nav = { path = "crates/pdfcer-3d-nav" }
 # OCR hosting for the shells, including program add-ons (decision 184).

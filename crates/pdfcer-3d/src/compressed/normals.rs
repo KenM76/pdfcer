@@ -16,7 +16,7 @@
 //! Read in step with the walk, the records also orient it: see
 //! [`Orientation`].
 
-use super::{V, add, cross, dot, mul, sub, unit};
+use super::{V, add, cross, dot, scale, sub, unit};
 
 /// The stored-normal arrays of a mesh that does not ask for recalculation
 /// [WD 7.8.9.3].
@@ -329,26 +329,26 @@ fn decode(pos: &[V], r: &Record, step: f64) -> V {
     let angle = |a: V, b: V| dot(a, b).clamp(-1.0, 1.0).acos() - half;
     let (t1, t2, t3) = (
         angle(v1, v2),
-        angle(v3, mul(v1, -1.0)),
-        angle(mul(v2, -1.0), mul(v3, -1.0)),
+        angle(v3, scale(v1, -1.0)),
+        angle(scale(v2, -1.0), scale(v3, -1.0)),
     );
     let (x, z) = if t1 < t2 && t1 < t3 {
         (v1, cross(v1, v2))
     } else if t2 < t3 {
-        (v3, mul(cross(v3, v1), -1.0))
+        (v3, scale(cross(v3, v1), -1.0))
     } else {
-        (mul(v2, -1.0), cross(v2, v3))
+        (scale(v2, -1.0), cross(v2, v3))
     };
     let z = unit(z);
     if dot(z, z) < 0.5 {
         return [0.0; 3];
     }
-    let z = if rev { mul(z, -1.0) } else { z };
+    let z = if rev { scale(z, -1.0) } else { z };
     let y = cross(z, x);
     let (th, ph) = (f64::from(th) * step, f64::from(ph) * step);
     let lx = ph.cos() * th.cos() * if xr { -1.0 } else { 1.0 };
     let ly = ph.cos() * th.sin() * if yr { -1.0 } else { 1.0 };
-    add(add(mul(x, lx), mul(y, ly)), mul(z, ph.sin()))
+    add(add(scale(x, lx), scale(y, ly)), scale(z, ph.sin()))
 }
 
 #[cfg(test)]

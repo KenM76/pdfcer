@@ -1,6 +1,9 @@
 //! A saved 3D view as a camera aim (ISO 32000-1 §13.6.4 Table 304 `/C2W`,
 //! §13.6.5 Table 305 `/P`), shared by `3d-render` and any viewer.
 
+#[cfg(feature = "3d")]
+use pdfcer_vec3::{add, dot, scale, sub};
+
 use super::view::{OrthoBinding, ThreeDSavedView};
 
 /// Where a saved view looks from, as a renderer needs it.
@@ -158,26 +161,6 @@ impl SavedViewAim {
         camera.eye = sub(camera.target, d);
         camera.projection = pdfcer_3d::Projection::Orthographic { height };
     }
-}
-
-#[cfg(feature = "3d")]
-fn sub([a, b, c]: [f64; 3], [x, y, z]: [f64; 3]) -> [f64; 3] {
-    [a - x, b - y, c - z]
-}
-
-#[cfg(feature = "3d")]
-fn add([a, b, c]: [f64; 3], [x, y, z]: [f64; 3]) -> [f64; 3] {
-    [a + x, b + y, c + z]
-}
-
-#[cfg(feature = "3d")]
-fn scale([a, b, c]: [f64; 3], k: f64) -> [f64; 3] {
-    [a * k, b * k, c * k]
-}
-
-#[cfg(feature = "3d")]
-fn dot([a, b, c]: [f64; 3], [x, y, z]: [f64; 3]) -> f64 {
-    a * x + b * y + c * z
 }
 
 /// Visible model-space height of an orthographic view at `aspect`, or

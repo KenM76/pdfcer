@@ -2,6 +2,8 @@
 //! 304, Table 305 projection), the write side of [`super::view`].
 
 use crate::object::{Dict, Name, ObjId, Object};
+#[cfg(feature = "3d")]
+use pdfcer_vec3::{cross, dot, scale, sub};
 
 use super::ThreeDEmbedError;
 use super::measure::{MAX_3D_MEASUREMENTS, ThreeDMeasurement, check_measurement, measurement_dict};
@@ -177,30 +179,18 @@ impl ThreeDSavedView {
     }
 }
 
-#[cfg(feature = "3d")]
-fn sub([a0, a1, a2]: [f64; 3], [b0, b1, b2]: [f64; 3]) -> [f64; 3] {
-    [a0 - b0, a1 - b1, a2 - b2]
-}
-
-#[cfg(feature = "3d")]
-fn scale(a: [f64; 3], s: f64) -> [f64; 3] {
-    a.map(|c| c * s)
-}
-
-#[cfg(feature = "3d")]
-fn dot([a0, a1, a2]: [f64; 3], [b0, b1, b2]: [f64; 3]) -> f64 {
-    a0 * b0 + a1 * b1 + a2 * b2
-}
-
-/// The cross product `a × b`; shared with the measurement builder.
-pub(super) fn cross([a0, a1, a2]: [f64; 3], [b0, b1, b2]: [f64; 3]) -> [f64; 3] {
-    [a1 * b2 - a2 * b1, a2 * b0 - a0 * b2, a0 * b1 - a1 * b0]
-}
-
+/// `a`'s direction when its unscaled length is finite and above `1e-12`
+/// (a camera whose eye-to-target square overflows is refused, not
+/// rescued). Over that range [`pdfcer_vec3::normalize`] is exactly
+/// `a * (1 / |a|)`.
 #[cfg(feature = "3d")]
 fn unit(a: [f64; 3]) -> Option<[f64; 3]> {
-    let len = dot(a, a).sqrt();
-    (len.is_finite() && len > 1e-12).then(|| scale(a, 1.0 / len))
+    let len = pdfcer_vec3::dot(a, a).sqrt();
+    if len.is_finite() && len > 1e-12 {
+        pdfcer_vec3::normalize(a)
+    } else {
+        None
+    }
 }
 
 /// Why view `index` cannot be written, if it cannot.

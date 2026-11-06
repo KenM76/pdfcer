@@ -9,7 +9,7 @@ use crate::graph::ObjectGraph;
 use crate::object::{Dict, Name, Object};
 use crate::textstring::{decode_text_string, encode_text_string};
 
-use super::view_write::cross;
+use pdfcer_vec3::{cross, dot, sub};
 
 /// Most `/MA` entries read or written per view (a pdfcer guard; the spec
 /// sets none).
@@ -173,10 +173,11 @@ impl ThreeDMeasurement {
         plane: [f64; 3],
         units: impl Into<String>,
     ) -> Option<Self> {
-        let d = [a2[0] - a1[0], a2[1] - a1[1], a2[2] - a1[2]];
-        let len = norm(d);
+        // Unscaled lengths: a square that overflows is refused below.
+        let d = sub(a2, a1);
+        let len = dot(d, d).sqrt();
         let up = cross(plane, d);
-        let up_len = norm(up);
+        let up_len = dot(up, up).sqrt();
         if !(len.is_finite() && len > 0.0 && up_len.is_finite() && up_len > 1e-12 * len) {
             return None;
         }
@@ -213,10 +214,6 @@ impl ThreeDMeasurement {
         }
         Some(s)
     }
-}
-
-fn norm([x, y, z]: [f64; 3]) -> f64 {
-    (x * x + y * y + z * z).sqrt()
 }
 
 /// The `/MA` measurements of view dictionary `view`. An entry that is not a

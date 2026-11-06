@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use super::normals::NormalArrays;
 use super::{
-    Arrays, MAX_BEND, Mark, NormalReader, TriangleMesh, V, Walk, add, cross, dot, mesh, mul, sub,
+    Arrays, MAX_BEND, Mark, NormalReader, TriangleMesh, V, Walk, add, cross, dot, mesh, scale, sub,
     unit,
 };
 
@@ -65,7 +65,7 @@ pub(super) fn flat(a: &Arrays<'_>, pos: &[V], tris: &[[u32; 3]], from: usize) ->
             normal = add(
                 normal,
                 if dot(w, normal) < 0.0 {
-                    mul(w, -1.0)
+                    scale(w, -1.0)
                 } else {
                     w
                 },
@@ -76,7 +76,7 @@ pub(super) fn flat(a: &Arrays<'_>, pos: &[V], tris: &[[u32; 3]], from: usize) ->
             return true;
         }
         #[allow(clippy::cast_precision_loss)] // A face's triangle count.
-        let centre = mul(centre, 1.0 / (3 * ts.len()) as f64);
+        let centre = scale(centre, 1.0 / (3 * ts.len()) as f64);
         let normal = unit(normal);
         ts.iter()
             .flatten()

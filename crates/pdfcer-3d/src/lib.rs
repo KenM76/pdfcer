@@ -142,7 +142,8 @@ mod tess_wire;
 mod testw;
 mod texture;
 mod tree;
-pub mod vec3;
+/// Vector arithmetic on `[f64; 3]`: the `pdfcer-vec3` crate.
+pub use pdfcer_vec3 as vec3;
 mod wire;
 #[cfg(feature = "render")]
 mod work;

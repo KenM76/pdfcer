@@ -72,7 +72,7 @@
 use std::collections::HashMap;
 
 use crate::TriangleMesh;
-use crate::vec3::{cross, dot};
+use crate::vec3::{add, cross, dot, scale, sub};
 
 mod bend;
 mod decide;
@@ -130,18 +130,13 @@ fn plane_height(s: f64, n: V, edges: [V; 3]) -> f64 {
 /// accidental fits bend by 96 and more.
 const MAX_BEND: f64 = 20.0;
 
-fn sub(a: V, b: V) -> V {
-    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
-}
-fn add(a: V, b: V) -> V {
-    [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
-}
-fn mul(a: V, s: f64) -> V {
-    [a[0] * s, a[1] * s, a[2] * s]
-}
+/// `a` over its unscaled length, or `a` itself when that is zero; kept
+/// apart from [`crate::vec3::normalize`], which pre-scales vectors below
+/// `1e-140` or above about `1e154`, so the walk's arithmetic stays as
+/// measured against the encoders.
 fn unit(a: V) -> V {
     let l = dot(a, a).sqrt();
-    if l > 0.0 { mul(a, 1.0 / l) } else { a }
+    if l > 0.0 { scale(a, 1.0 / l) } else { a }
 }
 fn key(a: u32, b: u32) -> (u32, u32) {
     if a < b { (a, b) } else { (b, a) }
@@ -207,7 +202,7 @@ fn make_ortho_rep_z(x: V) -> Option<V> {
 /// (PDF_Spec `prc__8137__tess_3d_compressed.md` X18). `invert` reverses the
 /// choice, for the search.
 fn apex(lo: V, hi: V, w: V, d: V, turned: bool, invert: bool) -> (V, bool) {
-    let o = mul(add(lo, hi), 0.5);
+    let o = scale(add(lo, hi), 0.5);
     let x = sub(lo, hi);
     let x = unitize(x).unwrap_or(x);
     let residue = cross(sub(w, o), x);
@@ -221,14 +216,14 @@ fn apex(lo: V, hi: V, w: V, d: V, turned: bool, invert: bool) -> (V, bool) {
                     let along = dot(residue, z);
                     let turn = if along == 0.0 { turned } else { along < 0.0 };
                     if turn != invert {
-                        (mul(y, -1.0), mul(z, -1.0))
+                        (scale(y, -1.0), scale(z, -1.0))
                     } else {
                         (y, z)
                     }
                 })
         })
         .unwrap_or_default();
-    let p = sub(sub(add(o, mul(x, d[0])), mul(y, d[1])), mul(z, d[2]));
+    let p = sub(sub(add(o, scale(x, d[0])), scale(y, d[1])), scale(z, d[2]));
     (p, degenerate)
 }
 
@@ -444,7 +439,7 @@ impl<'a> Walk<'a> {
                     let p = match k {
                         0 => add(a.origin, d),
                         1 => add(self.get(v[0])?, d),
-                        _ => add(mul(add(self.get(v[0])?, self.get(v[1])?), 0.5), d),
+                        _ => add(scale(add(self.get(v[0])?, self.get(v[1])?), 0.5), d),
                     };
                     self.pos.push(p);
                     (self.pos.len() - 1) as u32
@@ -535,7 +530,7 @@ impl<'a> Walk<'a> {
         {
             let t = [self.get(ta)?, self.get(tb)?, self.get(tc)?];
             let w = cross(sub(t[1], t[0]), sub(t[2], t[0]));
-            let oriented = (!self.weak).then(|| if fold != flip { mul(w, -1.0) } else { w });
+            let oriented = (!self.weak).then(|| if fold != flip { scale(w, -1.0) } else { w });
             self.planes
                 .place(n, self.tris.len(), t, a.tolerance, oriented)?;
         }
@@ -1122,9 +1117,9 @@ mod tests {
     #[test]
     fn a_degenerate_frame_takes_y_from_its_own_x() {
         let (lo, hi) = ([0.1, 0.2, 0.3], [0.7, -0.4, 0.9]);
-        let o = mul(add(lo, hi), 0.5);
+        let o = scale(add(lo, hi), 0.5);
         let x = unitize(sub(lo, hi)).unwrap();
-        let w = add(o, mul(x, 0.37));
+        let w = add(o, scale(x, 0.37));
         let d = [1.0, 2.0, 3.0];
         let z = make_ortho_rep_z(x).unwrap();
         let (p, degenerate) = apex(lo, hi, w, d, false, false);
@@ -1139,8 +1134,8 @@ mod tests {
         };
         let expect = |y: V| {
             sub(
-                sub(add(o, mul(x, d[0])), mul(y, sign * d[1])),
-                mul(z, sign * d[2]),
+                sub(add(o, scale(x, d[0])), scale(y, sign * d[1])),
+                scale(z, sign * d[2]),
             )
         };
         assert_eq!(p, expect(own));
@@ -1199,7 +1194,7 @@ mod tests {
             let base = match i {
                 0 => [0.0; 3],
                 1 => work[0],
-                _ => mul(add(work[0], work[1]), 0.5),
+                _ => scale(add(work[0], work[1]), 0.5),
             };
             let d = [0, 1, 2].map(|c| round(target[c] - base[c]));
             points.extend(d);
@@ -1211,7 +1206,7 @@ mod tests {
         status[0] = 2;
         for k in 1..n - 2 {
             let (lo, hi, w) = (work[k], work[k + 1], work[k - 1]);
-            let o = mul(add(hi, lo), 0.5);
+            let o = scale(add(hi, lo), 0.5);
             let x = unitized(sub(lo, hi));
             let z = unitized(cross(sub(w, o), x));
             let y = unitized(cross(z, x));
@@ -1219,7 +1214,7 @@ mod tests {
             let d = [round(dot(r, x)), round(-dot(r, y)), round(-dot(r, z))];
             points.extend(d);
             let [dx, dy, dz] = d.map(|c| c as f64 * tol);
-            work.push(sub(sub(add(o, mul(x, dx)), mul(y, dy)), mul(z, dz)));
+            work.push(sub(sub(add(o, scale(x, dx)), scale(y, dy)), scale(z, dz)));
             if k < n - 3 {
                 let fold = d[2] == 0 && d[1] > 0;
                 status[k] = if (k % 2 == 1) != fold { 1 } else { 2 };

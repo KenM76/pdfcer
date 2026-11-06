@@ -218,9 +218,13 @@ impl StoredView {
     }
 }
 
-/// `v` scaled to length 1; `None` for a zero or non-finite vector.
+/// `v` scaled to length 1; `None` for a zero or non-finite vector, or one
+/// whose unscaled square overflows or underflows to zero. Not
+/// [`crate::vec3::normalize`]: this divides by the length where that
+/// multiplies by its reciprocal (they can differ in the last bit), and it
+/// refuses the tiny and huge vectors that one rescues.
 pub(crate) fn unit(v: [f64; 3]) -> Option<[f64; 3]> {
-    let n = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+    let n = crate::vec3::dot(v, v).sqrt();
     (n.is_finite() && n > 0.0).then(|| v.map(|c| c / n))
 }
 

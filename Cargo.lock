@@ -835,6 +835,7 @@ version = "0.130.0"
 dependencies = [
  "flate2",
  "pdfcer-json",
+ "pdfcer-vec3",
  "png",
  "thiserror",
  "zune-jpeg",
@@ -892,6 +893,7 @@ dependencies = [
  "pdfcer-model",
  "pdfcer-pkix",
  "pdfcer-text",
+ "pdfcer-vec3",
  "rand_core",
  "rc2",
  "roxmltree",
@@ -1019,6 +1021,10 @@ dependencies = [
  "pdfcer-model",
  "thiserror",
 ]
+
+[[package]]
+name = "pdfcer-vec3"
+version = "0.130.0"
 
 [[package]]
 name = "pem-rfc7468"

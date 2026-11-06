@@ -1,11 +1,24 @@
-//! Three-component vector arithmetic shared by the decoder, the scene walk,
-//! the exporters, the rasterizer and the navigation crate `pdfcer-3d-nav`.
+//! Three-component vector arithmetic shared by `pdfcer-3d` (the decoder,
+//! the scene walk, the exporters, the rasterizer), the navigation crate
+//! `pdfcer-3d-nav` and `pdfcer-core`'s 3D view and measurement code.
+//! `pdfcer-3d` re-exports it as `pdfcer_3d::vec3`.
 //!
 //! Plain `[f64; 3]` arrays, componentwise IEEE 754 arithmetic. [`length`],
 //! [`normalize`] and [`unit_cross`] scale before squaring, so they are
 //! correct for any finite input from `±f64::MAX` down to subnormals; [`dot`]
 //! and [`cross`] are not, and overflow to infinity for components beyond
 //! about `1e154`.
+
+#![forbid(unsafe_code)]
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented
+)]
 
 /// A point or direction in model space, `[x, y, z]`.
 pub type Vec3 = [f64; 3];
@@ -73,7 +86,7 @@ pub fn length(a: Vec3) -> f64 {
 /// large or small.
 ///
 /// ```
-/// use pdfcer_3d::vec3::normalize;
+/// use pdfcer_vec3::normalize;
 /// assert_eq!(normalize([1e200, 0.0, 0.0]), Some([1.0, 0.0, 0.0]));
 /// assert_eq!(normalize([0.0; 3]), None);
 /// ```
