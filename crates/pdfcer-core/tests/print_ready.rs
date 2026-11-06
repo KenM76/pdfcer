@@ -3,13 +3,18 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use pdfcer_core::annot::page_annotations;
+use std::collections::BTreeSet;
+
+use pdfcer_core::annot::{
+    apply_print_usage, apply_view_usage, optional_content_default_off, page_annotations,
+};
 use pdfcer_core::annot_author::FreeTextC;
 use pdfcer_core::crypto::PermissionBit;
 use pdfcer_core::document::Document;
 use pdfcer_core::edit::MarkupOptions;
 use pdfcer_core::edit::{EditSession, EncryptionSettings, PrintReadyCopy, PrintReadyError};
 use pdfcer_core::graph::ObjectGraph as _;
+use pdfcer_core::object::{ObjId, Object};
 use pdfcer_core::threed::ThreeDSpec;
 use pdfcer_core::writer::{SaveOptions, WriteError};
 
@@ -377,4 +382,141 @@ fn an_unapplied_redaction_mark_prints_and_says_nothing_was_removed() {
             .iter()
             .any(|d| d.contains("still in this copy"))
     );
+}
+
+/// Groups: 4 Print OFF, 5 Print ON but off by default, 6 no setting, 7 has a
+/// print setting no `/AS` names. A View entry turns 4 on: it must not count.
+fn layered() -> Vec<u8> {
+    let group = |name: &str, usage: &str| format!("<< /Type /OCG /Name ({name}) {usage} >>");
+    let print = |state: &str| format!("/Usage << /Print << /PrintState /{state} >> >>");
+    assemble(&[
+        "<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [4 0 R 5 0 R 6 0 R 7 0 R] \
+         /D << /OFF [5 0 R] /AS [\
+         << /Event /Print /Category [/Print] /OCGs [4 0 R 5 0 R 6 0 R] >> \
+         << /Event /View /Category [/View] /OCGs [4 0 R] >>] >> >> >>"
+            .to_owned(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] >>".to_owned(),
+        group(
+            "noprint",
+            &(print("OFF").replace(">> >>", ">> /View << /ViewState /ON >> >>")),
+        ),
+        group("printed", &print("ON")),
+        group("plain", ""),
+        group("unlisted", &print("OFF")),
+    ])
+}
+
+/// The names of the layers `bytes` hides by default, and whether `/AS` is there.
+fn state_of(bytes: Vec<u8>) -> (Vec<String>, bool) {
+    let session = EditSession::new(Document::from_bytes(bytes.clone()).unwrap());
+    let graph = session.graph();
+    let mut off: Vec<String> = optional_content_default_off(&graph)
+        .into_iter()
+        .map(|id| {
+            let group = graph.resolved(id);
+            let Some(Object::String(name)) = group.as_dict().unwrap().get(b"Name") else {
+                panic!("a named group");
+            };
+            String::from_utf8_lossy(name).into_owned()
+        })
+        .collect();
+    off.sort();
+    (off, has(&bytes, b"/AS"))
+}
+
+#[test]
+fn a_batch_copy_keeps_the_default_layers_and_says_so() {
+    let copy = copy_of(layered());
+    assert_eq!(copy.report.layers_with_print_setting, 3);
+    assert_eq!(copy.report.layers_changed_for_print, 0);
+    assert!(
+        copy.report
+            .disclosures
+            .iter()
+            .any(|d| d.contains("not applied")),
+        "{:?}",
+        copy.report.disclosures
+    );
+    let (off, usage_kept) = state_of(copy.bytes);
+    assert_eq!(off, ["printed"]);
+    assert!(usage_kept);
+}
+
+#[test]
+fn a_viewers_copy_applies_print_usage_over_what_is_hidden_now() {
+    let session = EditSession::new(Document::from_bytes(layered()).unwrap());
+    // The operator hid "plain" by hand and "printed" is off by default.
+    let current = BTreeSet::from([ObjId::new(5, 0), ObjId::new(6, 0)]);
+    let copy = session
+        .to_print_ready_bytes_with_layers(FreeTextC::default(), &current)
+        .unwrap();
+    // noprint goes off, printed comes on, plain stays as the operator left it,
+    // and unlisted, which no /AS names, keeps its state.
+    let (off, usage_kept) = state_of(copy.bytes);
+    assert_eq!(off, ["noprint", "plain"]);
+    assert!(!usage_kept, "a print service has nothing left to decide");
+    assert_eq!(copy.report.layers_with_print_setting, 0);
+    assert_eq!(copy.report.layers_changed_for_print, 3);
+    assert!(
+        copy.report
+            .disclosures
+            .iter()
+            .any(|d| d.contains("differently"))
+    );
+    let graph = session.graph();
+    assert_eq!(
+        optional_content_default_off(&graph),
+        BTreeSet::from([ObjId::new(5, 0)]),
+        "the open document is untouched"
+    );
+}
+
+#[test]
+fn print_usage_answers_only_to_print_entries() {
+    let session = EditSession::new(Document::from_bytes(layered()).unwrap());
+    let graph = session.graph();
+    let mut off = optional_content_default_off(&graph);
+    let notes = apply_print_usage(&graph, &mut off);
+    assert_eq!(off, BTreeSet::from([ObjId::new(4, 0)]));
+    assert_eq!((notes.applications, notes.non_view_events), (1, 1));
+    // Group 6 has no /Usage, so no verdict; 4 and 5 are managed.
+    assert_eq!(notes.groups_managed, 2);
+
+    let mut viewed = optional_content_default_off(&graph);
+    let _ = apply_view_usage(&graph, &mut viewed, 1.0);
+    assert_eq!(
+        viewed,
+        BTreeSet::from([ObjId::new(5, 0)]),
+        "the Print entry has no say"
+    );
+}
+
+#[test]
+fn a_base_state_of_off_does_not_survive_into_the_fixed_state() {
+    let bytes = assemble(&[
+        "<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [4 0 R 5 0 R] \
+         /D << /BaseState /OFF /ON [4 0 R] >> >> >>"
+            .to_owned(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] >>".to_owned(),
+        "<< /Type /OCG /Name (shown) >>".to_owned(),
+        "<< /Type /OCG /Name (hidden) >>".to_owned(),
+    ]);
+    let session = EditSession::new(Document::from_bytes(bytes).unwrap());
+    let current = optional_content_default_off(&session.graph());
+    assert_eq!(current, BTreeSet::from([ObjId::new(5, 0)]));
+    let copy = session
+        .to_print_ready_bytes_with_layers(FreeTextC::default(), &current)
+        .unwrap();
+    let reopened = EditSession::new(Document::from_bytes(copy.bytes.clone()).unwrap());
+    let graph = reopened.graph();
+    let catalog = graph.catalog_dict().unwrap();
+    let properties = graph.resolve(catalog.get(b"OCProperties").unwrap());
+    let default = graph.resolve(properties.as_dict().unwrap().get(b"D").unwrap());
+    assert!(
+        default.as_dict().unwrap().get(b"ON").is_none(),
+        "a stale /ON could contradict /OFF"
+    );
+    assert_eq!(state_of(copy.bytes).0, ["hidden"]);
 }

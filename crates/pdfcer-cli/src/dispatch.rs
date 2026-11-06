@@ -2770,7 +2770,8 @@ pub(crate) fn run() -> ExitCode {
             input,
             output,
             free_text_c,
-        } => cmd_print_ready(&input, &output, free_text_c),
+            apply_print_usage,
+        } => cmd_print_ready(&input, &output, free_text_c, apply_print_usage),
         Command::BakeAppearances {
             input,
             output,

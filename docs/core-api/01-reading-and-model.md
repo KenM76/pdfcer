@@ -170,6 +170,7 @@ builds `--no-default-features`, so both configurations compile.
 | Whether anything still draws on a layer | `layers::group_in_use(&DocumentView, group: ObjId) -> bool` (G173): page content in an `/OC` section bound to it, an annotation or XObject whose `/OC` names it (directly or via a membership dictionary), or a form that binds it; undecodable content counts as using it — `ocr/group.rs` | §8.11.2.2, §8.11.3.2 |
 | Compute hidden layers, correctly for print/export | `annot::optional_content_default_off(&graph)` — `annot.rs` | §12.3 |
 | Refine layer visibility for on-screen view only | `annot::apply_view_usage(&graph, …)` — `annot.rs` **(never on a print path — T-12.8)** | §12.3 |
+| Layer state for an interactive viewer's print | `annot::apply_print_usage(&graph, &mut off)` over the current hidden set — `annot.rs`; never on a batch print | T-12.8 |
 | List annotations on a page with their rects | `annot::page_annotations(&graph, page.id)` — `annot.rs` | §12.4 |
 | Make hyperlinks clickable | `annot::page_link_destinations(&graph, page.id, &reader)` — `annot.rs`, with `outline::DestinationReader::new(&graph)` — `outline.rs` built ONCE per document. Returns rect + fully resolved `Destination` per `/Link`. **`Pass 222.0` — this row previously said "no direct API"; that is obsolete.** | §12.4, §12.6.4 |
 | Resolve where ONE annotation goes (incl. a `/Widget` pushbutton) | `Annotation::destination(&graph, &reader)` — `annot.rs`. Needs `Annotation::id`; use `page_link_destinations` when completeness matters. | §12.5.6.5 |
@@ -4901,7 +4902,10 @@ you are writing that yourself.
   dictionaries."* `optional_content_default_off` is the complete and correct
   answer for printing. Calling `apply_view_usage` there *"would violate the
   standard rather than merely differ from it."* It is view-only and must be
-  re-run on magnification change.
+  re-run on magnification change. An **interactive** viewer's print has its
+  own rule in the same clause: `Print`-event usage applies over the current
+  states, for the print only (`annot::apply_print_usage`). A batch print, such
+  as `pdfcer print`, uses the default state alone.
 - **★ T-12.9 `pdfcer_render::LayerVisibility` REPLACES the document's
   default configuration, it does not merge with it.** (`ARCHITECTURE.md`
   §16229-16267.) You compute the **complete** hidden set — start from

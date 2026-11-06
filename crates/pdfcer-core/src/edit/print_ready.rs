@@ -7,11 +7,13 @@ use super::{
     AnnotBurn, AnnotFlattenOutcome, AnnotFlattenRefusalReason, Command, CommandKind, EditError,
     EditSession, ObjectWrite, PageSlot, Removal,
 };
-use crate::annot::Annotation;
+use crate::annot::{Annotation, apply_print_usage, optional_content_default_off};
 use crate::annot_author::FreeTextC;
 use crate::crypto::PermissionBit;
 use crate::document::Document;
-use crate::object::{ObjId, Object};
+use crate::edit::LayerOutputState;
+use crate::graph::ObjectGraph as _;
+use crate::object::{Dict, Name, ObjId, Object};
 use crate::writer::{self, RebuildOptions, SaveOptions, WriteError};
 use crate::xfa::XfaFormKind;
 
@@ -64,9 +66,13 @@ pub struct PrintReadyReport {
     /// Signatures and certifications in the source, which this copy does not
     /// carry.
     pub signatures_dropped: usize,
-    /// Layers with their own print setting, which this copy leaves to the
-    /// print service.
+    /// Layers with their own print setting that this copy did not apply: the
+    /// document's default layer state stands, as for a batch print. Zero from
+    /// [`EditSession::to_print_ready_bytes_with_layers`], which applies them.
     pub layers_with_print_setting: usize,
+    /// Layers this copy shows or hides differently from the document's
+    /// default, from [`EditSession::to_print_ready_bytes_with_layers`].
+    pub layers_changed_for_print: usize,
     /// The source is a dynamic XFA form, so its pages hold only the
     /// placeholder written for viewers without an XFA engine.
     pub dynamic_xfa: bool,
@@ -122,7 +128,11 @@ impl EditSession {
     /// print service cannot take a password. It is for the print job: hand it
     /// over, then drop it. The permissions travelled with the encryption, so
     /// that is disclosed. Permission to print is honoured as the one check.
-    /// Layers with their own print setting are disclosed, not resolved.
+    ///
+    /// **Layers.** The document's default layer state stands, as ISO 32000-1
+    /// §8.11.4.5 requires of a printing application that interacts with no
+    /// one; layers with a print setting are counted. An interactive viewer
+    /// calls [`Self::to_print_ready_bytes_with_layers`].
     ///
     /// # Errors
     ///
@@ -137,6 +147,33 @@ impl EditSession {
         &self,
         free_text_c: FreeTextC,
     ) -> Result<PrintReadyCopy, PrintReadyError> {
+        self.print_ready(free_text_c, None)
+    }
+
+    /// [`Self::to_print_ready_bytes`] for an interactive viewer: `current_off`
+    /// is the set of layers hidden on screen now, the operator's toggles
+    /// included, and the document's `Print` usage settings apply over it
+    /// (ISO 32000-1 §8.11.4.5, [`apply_print_usage`]). The result is written
+    /// as the copy's default state with its `/AS` removed, so a print service
+    /// has nothing left to decide. The open document is untouched. Pass
+    /// [`optional_content_default_off`] for a viewer with no layer panel.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::to_print_ready_bytes`].
+    pub fn to_print_ready_bytes_with_layers(
+        &self,
+        free_text_c: FreeTextC,
+        current_off: &BTreeSet<ObjId>,
+    ) -> Result<PrintReadyCopy, PrintReadyError> {
+        self.print_ready(free_text_c, Some(current_off))
+    }
+
+    fn print_ready(
+        &self,
+        free_text_c: FreeTextC,
+        current_off: Option<&BTreeSet<ObjId>>,
+    ) -> Result<PrintReadyCopy, PrintReadyError> {
         if self.redaction_pending {
             return Err(WriteError::RedactionPending.into());
         }
@@ -148,23 +185,70 @@ impl EditSession {
             found.signatures.max(found.certifications)
         };
         report.dynamic_xfa = crate::xfa::form_kind(&fork.graph()) == XfaFormKind::Dynamic;
-        report.layers_with_print_setting = crate::layers::read_layers(&fork.graph())
-            .layers
-            .iter()
-            .filter(|l| l.print.is_some())
-            .count();
+        if current_off.is_none() {
+            report.layers_with_print_setting = crate::layers::read_layers(&fork.graph())
+                .layers
+                .iter()
+                .filter(|l| !matches!(l.print, Some(LayerOutputState::WhenVisible)))
+                .count();
+        }
         if self.base.encryption().is_some() {
             std::sync::Arc::make_mut(&mut fork.base).clear_encryption();
             fork.trailer.remove(b"Encrypt");
             report.decrypted = true;
         }
         fork.catalog_without(&[b"Perms"])?;
+        if let Some(current) = current_off {
+            report.layers_changed_for_print = fork.fix_print_layers(current);
+        }
         fork.draw_missing_looks(free_text_c, &mut report)?;
         fork.burn_every_page(&mut report)?;
         fork.catalog_without(&[b"AcroForm"])?;
         report.disclosures = disclosures(&report);
         let bytes = fork.print_ready_file(report.decrypted)?;
         Ok(PrintReadyCopy { bytes, report })
+    }
+
+    /// Apply the `Print` usage settings over `current` and write the result as
+    /// `/OCProperties /D`, with no `/AS` left to change it. The count of groups
+    /// that differ from the document's own default.
+    fn fix_print_layers(&mut self, current: &BTreeSet<ObjId>) -> usize {
+        let Some(id) = self.trailer.get(b"Root").and_then(Object::as_reference) else {
+            return 0;
+        };
+        let graph = self.graph();
+        let mut off = current.clone();
+        let _ = apply_print_usage(&graph, &mut off);
+        let changed = off
+            .symmetric_difference(&optional_content_default_off(&graph))
+            .count();
+        let Some(mut catalog) = graph.catalog_dict().cloned() else {
+            return 0;
+        };
+        let entry = |dict: &Dict, key: &[u8]| {
+            let value = dict.get(key).unwrap_or(&Object::Null);
+            graph.resolve(value).as_dict().cloned()
+        };
+        let Some(mut properties) = entry(&catalog, b"OCProperties") else {
+            return 0;
+        };
+        let Some(mut default) = entry(&properties, b"D") else {
+            return 0;
+        };
+        default.remove(b"AS");
+        default.remove(b"ON");
+        default.insert(Name::from(b"BaseState"), Object::Name(Name::from(b"ON")));
+        let off = off.into_iter().map(Object::Reference).collect();
+        default.insert(Name::from(b"OFF"), Object::Array(off));
+        properties.insert(Name::from(b"D"), Object::Dict(default));
+        catalog.insert(Name::from(b"OCProperties"), Object::Dict(properties));
+        let write = ObjectWrite {
+            id,
+            before: self.state.get(&id).cloned(),
+            after: Some(Object::Dict(catalog)),
+        };
+        self.commit_print_step(vec![write], Vec::new());
+        changed
     }
 
     /// Commit the catalog with `keys` removed, if any is present.
@@ -394,7 +478,11 @@ fn disclosures(report: &PrintReadyReport) -> Vec<String> {
     );
     say(
         report.layers_with_print_setting,
-        "layer(s) have their own print setting, which the print service decides",
+        "layer(s) have their own print setting, not applied: the document's default layer state stands",
+    );
+    say(
+        report.layers_changed_for_print,
+        "layer(s) print shown or hidden differently from the document's default",
     );
     for loss in &report.lost {
         out.push(format!(

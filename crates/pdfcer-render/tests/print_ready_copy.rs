@@ -131,3 +131,60 @@ fn a_print_answers_to_the_print_flag_and_a_screen_to_noview() {
         "screen"
     );
 }
+
+/// A page painted red inside a layer set not to print.
+fn layered() -> Vec<u8> {
+    let content = "/OC /L BDC 1 0 0 rg 0 0 100 100 re f EMC";
+    let bodies = [
+        "<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [4 0 R] /D << /AS \
+         [<< /Event /Print /Category [/Print] /OCGs [4 0 R] >>] >> >> >>"
+            .to_owned(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] /Contents 5 0 R \
+         /Resources << /Properties << /L 4 0 R >> >> >>"
+            .to_owned(),
+        "<< /Type /OCG /Name (L) /Usage << /Print << /PrintState /OFF >> >> >>".to_owned(),
+        format!(
+            "<< /Length {} >>\nstream\n{content}\nendstream",
+            content.len()
+        ),
+    ];
+    let mut buf = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in bodies.iter().enumerate() {
+        offsets.push(buf.len());
+        buf.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref_at = buf.len();
+    let size = bodies.len() + 1;
+    buf.extend_from_slice(format!("xref\n0 {size}\n0000000000 65535 f \n").as_bytes());
+    for off in &offsets {
+        buf.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    buf.extend_from_slice(
+        format!("trailer\n<< /Size {size} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n")
+            .as_bytes(),
+    );
+    buf
+}
+
+fn centre_of(bytes: Vec<u8>) -> [u8; 3] {
+    let doc = Document::from_bytes(bytes).unwrap();
+    let pages = page_tree::pages(&doc).unwrap();
+    let out = render_page_with(&doc, &pages[0], 1.0, &RenderOptions::default()).unwrap();
+    let at = (out.pixmap.width() as usize * 50 + 50) * 4;
+    let d = out.pixmap.data();
+    [d[at], d[at + 1], d[at + 2]]
+}
+
+#[test]
+fn a_viewers_copy_leaves_a_layer_set_not_to_print_off_the_page() {
+    let session = EditSession::new(Document::from_bytes(layered()).unwrap());
+    let off = pdfcer_core::annot::optional_content_default_off(&session.graph());
+    let viewer = session
+        .to_print_ready_bytes_with_layers(FreeTextC::default(), &off)
+        .unwrap();
+    assert_eq!(centre_of(viewer.bytes), [255, 255, 255]);
+    let batch = session.to_print_ready_bytes(FreeTextC::default()).unwrap();
+    assert_eq!(centre_of(batch.bytes), [255, 0, 0]);
+}

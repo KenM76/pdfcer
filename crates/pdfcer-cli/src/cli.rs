@@ -9950,6 +9950,12 @@ pub(crate) enum Command {
         /// file's `free_text_c` is used (fill if unset).
         #[arg(long, value_enum)]
         free_text_c: Option<crate::viewer_preview::FreeTextCArg>,
+        /// Apply the document's print settings for its layers, as a viewer's
+        /// print does, and fix the result in the copy. Without this the
+        /// document's default layer state stands, which is what the standard
+        /// asks of a batch print.
+        #[arg(long)]
+        apply_print_usage: bool,
     },
 
     /// Flatten interactive form fields into page content (Pass 7.1).

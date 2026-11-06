@@ -160,3 +160,56 @@ fn print_refuses_a_password_that_may_not_print() {
         let _ = std::fs::remove_file(f);
     }
 }
+
+#[test]
+fn the_print_usage_flag_applies_a_layers_print_setting() {
+    let bodies = [
+        "<< /Type /Catalog /Pages 2 0 R /OCProperties << /OCGs [4 0 R] /D << /AS \
+         [<< /Event /Print /Category [/Print] /OCGs [4 0 R] >>] >> >> >>",
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 100 100] >>",
+        "<< /Type /OCG /Name (L) /Usage << /Print << /PrintState /OFF >> >> >>",
+    ];
+    let mut buf = b"%PDF-1.7\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in bodies.iter().enumerate() {
+        offsets.push(buf.len());
+        buf.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref_at = buf.len();
+    let size = bodies.len() + 1;
+    buf.extend_from_slice(format!("xref\n0 {size}\n0000000000 65535 f \n").as_bytes());
+    for off in &offsets {
+        buf.extend_from_slice(format!("{off:010} 00000 n \n").as_bytes());
+    }
+    buf.extend_from_slice(
+        format!("trailer\n<< /Size {size} /Root 1 0 R >>\nstartxref\n{xref_at}\n%%EOF\n")
+            .as_bytes(),
+    );
+    let input = std::env::temp_dir().join(format!("pdfcer_pr_layers_{}.pdf", std::process::id()));
+    std::fs::write(&input, buf).unwrap();
+    let output = input.with_extension("out.pdf");
+    let run = |flag: Option<&str>| {
+        let mut command = Command::new(BIN);
+        command
+            .arg("print-ready")
+            .arg(&input)
+            .arg("-o")
+            .arg(&output);
+        command.args(flag);
+        let out = command.output().unwrap();
+        assert!(out.status.success(), "{out:?}");
+        String::from_utf8_lossy(&out.stdout).into_owned()
+    };
+    let batch = run(None);
+    assert!(batch.contains("not applied"), "{batch}");
+    let viewer = run(Some("--apply-print-usage"));
+    assert!(viewer.contains("differently"), "{viewer}");
+    let written = std::fs::read(&output).unwrap();
+    assert!(
+        !written.windows(3).any(|w| w == b"/AS"),
+        "usage is fixed in the copy"
+    );
+    let _ = std::fs::remove_file(&input);
+    let _ = std::fs::remove_file(&output);
+}

@@ -9,6 +9,7 @@ pub(crate) fn cmd_print_ready(
     input: &Path,
     output: &Path,
     free_text_c: Option<crate::viewer_preview::FreeTextCArg>,
+    apply_print_usage: bool,
 ) -> u8 {
     let (_source, session) = match open_for_edit(input) {
         Ok(pair) => pair,
@@ -23,7 +24,13 @@ pub(crate) fn cmd_print_ready(
             settings.free_text_c
         }
     };
-    let copy = match session.to_print_ready_bytes(free_text_c) {
+    let made = if apply_print_usage {
+        let off = pdfcer_core::annot::optional_content_default_off(&session.graph());
+        session.to_print_ready_bytes_with_layers(free_text_c, &off)
+    } else {
+        session.to_print_ready_bytes(free_text_c)
+    };
+    let copy = match made {
         Ok(copy) => copy,
         Err(PrintReadyError::Edit(err)) => return report_edit_error(input, &err),
         Err(err) => {

@@ -1949,7 +1949,8 @@ page-tree walk (`annot.rs`). Bounded by
 
 Optional content: `optional_content_default_off(graph) -> BTreeSet<ObjId>`
 (`annot.rs`), `oc_is_hidden(graph, oc, &off)` (`annot.rs`),
-`apply_view_usage(graph, &mut off, magnification) -> UsageNotes`
+`apply_view_usage(graph, &mut off, magnification) -> UsageNotes`,
+`apply_print_usage(graph, &mut off) -> UsageNotes` (interactive print only)
 (`annot.rs`).
 
 **Pure builders** (no document, no allocation — R47,

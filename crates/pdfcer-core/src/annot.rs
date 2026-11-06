@@ -2040,7 +2040,7 @@ pub fn oc_is_hidden<G: ObjectGraph + ?Sized>(graph: &G, oc: ObjId, off: &BTreeSe
 /// ignoring `/AS` entirely.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct UsageNotes {
-    /// `View`-event usage application dictionaries examined.
+    /// Usage application dictionaries of the applied event examined.
     pub applications: usize,
     /// Groups whose state a category actually decided.
     pub groups_managed: usize,
@@ -2049,9 +2049,9 @@ pub struct UsageNotes {
     /// identity), and `CreatorInfo`/`PageElement` (§8.11.4.4 defines no
     /// behaviour for them at all — `DA-N13`).
     pub categories_unevaluable: usize,
-    /// `/AS` entries whose `/Event` is not `View`. Counted, not applied:
-    /// §8.11.4.5 scopes the viewer's examination to `Event` `View`, and
-    /// `Print`/`Export` apply only for the duration of that operation.
+    /// `/AS` entries of another `/Event`. Counted, not applied: §8.11.4.5
+    /// scopes the viewer's examination to `Event` `View`, and `Print`/`Export`
+    /// apply only for the duration of that operation.
     pub non_view_events: usize,
 }
 
@@ -2190,7 +2190,8 @@ fn number<G: ObjectGraph + ?Sized>(graph: &G, obj: Option<&Object>) -> Option<f3
 /// for aggregation, and calling this on the way to a printed page would
 /// violate the standard rather than merely differ from it. The two are
 /// separate functions so that the print path cannot acquire this one by
-/// accident.
+/// accident. An interactive viewer's print has its own rule:
+/// [`apply_print_usage`].
 ///
 /// # It must be re-run when the magnification changes
 ///
@@ -2239,6 +2240,41 @@ pub fn apply_view_usage<G: ObjectGraph + ?Sized>(
     off: &mut BTreeSet<ObjId>,
     magnification: f32,
 ) -> UsageNotes {
+    apply_event_usage(graph, off, b"View", magnification)
+}
+
+/// Apply the `Print`-event `/AS` usage applications over `off`, the state an
+/// interactive viewer's layers are in as it prints (§8.11.4.5).
+///
+/// **For an interactive print only.** §8.11.4.5 gives printing two answers:
+/// a printing application that interacts with no one uses the `/D`-initial
+/// state and *"shall not apply"* usage applications
+/// ([`optional_content_default_off`] is its whole answer), while *"when a
+/// document is printed by an interactive PDF processor, usage application
+/// dictionaries with an event type `Print` shall be applied over the current
+/// states"*. The change lasts for the print, so `off` is the caller's copy.
+///
+/// `Event` and `Category` are independent, so a `Zoom` category under a
+/// `Print` event is legal; the standard names no magnification for a print and
+/// this reads it as 1.0, actual size. `/PrintState` absent leaves a group
+/// unchanged. In the returned notes, `non_view_events` counts entries whose
+/// `/Event` is not `Print`.
+#[must_use]
+pub fn apply_print_usage<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    off: &mut BTreeSet<ObjId>,
+) -> UsageNotes {
+    apply_event_usage(graph, off, b"Print", 1.0)
+}
+
+/// Apply `/AS` entries of `event` over `off`. §8.11.4.4's conjunction runs over
+/// those entries alone (`DA-A14`): a `Print` entry cannot veto a group on screen.
+fn apply_event_usage<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    off: &mut BTreeSet<ObjId>,
+    event: &[u8],
+    magnification: f32,
+) -> UsageNotes {
     let mut notes = UsageNotes::default();
     let Some(catalog) = graph.catalog_dict() else {
         return notes;
@@ -2259,69 +2295,25 @@ pub fn apply_view_usage<G: ObjectGraph + ?Sized>(
         return notes;
     };
 
-    // Accumulated across EVERY View-event application before anything is
-    // written back, because the rule is a conjunction over all of them —
-    // writing per-application would make the outcome depend on order.
+    // Accumulated across every application before anything is written back,
+    // because the rule is a conjunction: writing per-application would make
+    // the outcome depend on order.
     let mut verdicts: BTreeMap<ObjId, bool> = BTreeMap::new();
-
     for app in applications {
         let Some(app) = graph.resolve(app).as_dict() else {
             continue;
         };
-        // Table 103: `/Event` is Required and shall be View, Print or
-        // Export. §8.11.4.5 scopes the viewer to View.
-        let event = graph
+        // Table 103: `/Event` is Required and shall be View, Print or Export.
+        let this_event = graph
             .resolve(app.get(b"Event").unwrap_or(&Object::Null))
             .as_name()
             .map(|n| n.as_bytes().to_vec());
-        if event.as_deref() != Some(b"View".as_slice()) {
+        if this_event.as_deref() != Some(event) {
             notes.non_view_events += 1;
             continue;
         }
         notes.applications += 1;
-
-        // NOTE 3's trap: `Event` and `Category` share the names View,
-        // Print and Export and are INDEPENDENT. `<< /Event /View
-        // /Category [/Zoom] >>` is legal and common, so the categories
-        // are read from `/Category` and never inferred from the event.
-        let categories: Vec<Vec<u8>> = match app.get(b"Category").map(|o| graph.resolve(o)) {
-            Some(Object::Array(items)) => items
-                .iter()
-                .map(|o| graph.resolve(o))
-                .filter_map(Object::as_name)
-                .map(|n| n.as_bytes().to_vec())
-                .collect(),
-            _ => Vec::new(),
-        };
-
-        // Table 103: `/OCGs` default is an empty array, "indicating that
-        // no groups shall be affected".
-        for group in oc_refs(graph, app.get(b"OCGs")) {
-            let Some(usage) = graph.resolved(group).as_dict().and_then(|g| {
-                graph
-                    .resolve(g.get(b"Usage").unwrap_or(&Object::Null))
-                    .as_dict()
-            }) else {
-                continue;
-            };
-            for category in &categories {
-                if matches!(
-                    category.as_slice(),
-                    b"Language" | b"User" | b"CreatorInfo" | b"PageElement"
-                ) {
-                    notes.categories_unevaluable += 1;
-                    continue;
-                }
-                if let Some(recommended) =
-                    usage_recommendation(graph, usage, category, magnification)
-                {
-                    // Conjunction: once any category anywhere says OFF,
-                    // no later ON can revive it.
-                    let slot = verdicts.entry(group).or_insert(true);
-                    *slot &= recommended;
-                }
-            }
-        }
+        usage_application(graph, app, magnification, &mut notes, &mut verdicts);
     }
 
     notes.groups_managed = verdicts.len();
@@ -2333,6 +2325,56 @@ pub fn apply_view_usage<G: ObjectGraph + ?Sized>(
         }
     }
     notes
+}
+
+/// One usage application dictionary's verdicts, joined into `verdicts`.
+fn usage_application<G: ObjectGraph + ?Sized>(
+    graph: &G,
+    app: &Dict,
+    magnification: f32,
+    notes: &mut UsageNotes,
+    verdicts: &mut BTreeMap<ObjId, bool>,
+) {
+    // NOTE 3's trap: `Event` and `Category` share the names View, Print and
+    // Export and are independent. `<< /Event /View /Category [/Zoom] >>` is
+    // legal and common, so the categories are read from `/Category` and never
+    // inferred from the event.
+    let categories: Vec<Vec<u8>> = match app.get(b"Category").map(|o| graph.resolve(o)) {
+        Some(Object::Array(items)) => items
+            .iter()
+            .map(|o| graph.resolve(o))
+            .filter_map(Object::as_name)
+            .map(|n| n.as_bytes().to_vec())
+            .collect(),
+        _ => Vec::new(),
+    };
+
+    // Table 103: `/OCGs` default is an empty array, "indicating that no groups
+    // shall be affected".
+    for group in oc_refs(graph, app.get(b"OCGs")) {
+        let Some(usage) = graph.resolved(group).as_dict().and_then(|g| {
+            graph
+                .resolve(g.get(b"Usage").unwrap_or(&Object::Null))
+                .as_dict()
+        }) else {
+            continue;
+        };
+        for category in &categories {
+            if matches!(
+                category.as_slice(),
+                b"Language" | b"User" | b"CreatorInfo" | b"PageElement"
+            ) {
+                notes.categories_unevaluable += 1;
+                continue;
+            }
+            if let Some(recommended) = usage_recommendation(graph, usage, category, magnification) {
+                // Conjunction: once any category anywhere says OFF, no later
+                // ON can revive it.
+                let slot = verdicts.entry(group).or_insert(true);
+                *slot &= recommended;
+            }
+        }
+    }
 }
 
 /// Collect the OCG references an `/OCGs`/`/ON`/`/OFF` entry names — either a
