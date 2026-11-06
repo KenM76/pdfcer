@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1445th filing) — `v0.133.0` PUBLISHED (tag `50d0135f`); CI green
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **`v0.133.0` PUBLISHED:** tag on `50d0135f`; CI success at the tag commit (run 42234007115); GitHub release, 8 assets at their local sizes; seven crates (`pdfcer-color`, `-model`, `-pkix`, `-vec3`, `-json`, `-3d`, `-3d-nav`) at 0.133.0 on crates.io, rc 0; CLI on OneDrive **`pdfcer1`** (`pdfcer2` keeps 0.132.0). Carries `X051`-`X053` (`3db3e31c`, `Pass 677.0`) and `X054` (`209b61e5`, `Pass 678.0`). Notice `notice_2026-11-06_v0.133.0_released.md` in `FeatureRequests/open/` plus INDEX row; asks `pdfcer-gui` to add the "360° (photo sphere)" screenshot option.
+- **Slot:** supplies what the 1444th entry said was not stated.
+- **Smoke test (as reported):** folder `pdfcer-20261106-0940-50d0135`; `--version` 0.133.0 (shows `v0.133.0-1-gee6e1472` because docs-only `ee6e1472` follows the binaries' commit); `3d-embed` of `square.prc` into `hello.pdf`; `3d-render --index 0 --360 -o s.jpg` rc 0, JPEG with GPano XMP (`FullPanoWidthPixels` 2048); `--transparent` into JPEG refused, exit 9; PNG prints the no-tag note.
+- **`verify-release.py` (as reported):** all ok except "working tree clean", expected (agent-memory, stray `-` file, `docs/research/request-*.md`; none in the build).
+- **FEATURES:** `Pass 677.0` and `Pass 678.0` rows now "released in `v0.133.0`"; crates.io row seven crates at 0.133.0. No box changed (360 row stays core `[x]`, cli `[x]`, gui `[ ]`).
+- **ROADMAP:** new Shipped entry plus banner line.
+- **Next:** no open Pass at the head; `pdfcer-gui` adopts `X051`-`X054`. Next filing 1446th.
+
 ## 2026-11-06 (1444th filing) — `v0.133.0` release commit `50d0135f`: IN PROGRESS
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**

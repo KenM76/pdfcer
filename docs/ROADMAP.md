@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `50d0135f` `v0.133.0` PUBLISHED, 2026-11-06 (1445th filing)
+
+Engineer-reported; no shell here, nothing checked from here (git, CI, GitHub, crates.io, OneDrive all as reported). Supersedes the IN PROGRESS entry below (1444th). Tag `v0.133.0` on `50d0135f`; CI success at the tag commit (run 42234007115); GitHub release with 8 assets, uploaded at their local sizes; crates `pdfcer-color`, `-model`, `-pkix`, `-vec3`, `-json`, `-3d`, `-3d-nav` 0.133.0 on crates.io (all published, rc 0); CLI on OneDrive slot **`pdfcer1`** (`pdfcer2` keeps 0.132.0 as the previous version; the 1444th entry said the slot was not stated). Carries `X051`, `X052`, `X053` (`Pass 677.0`, `3db3e31c`) and `X054` (`Pass 678.0`, `209b61e5`). Notice: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-06_v0.133.0_released.md` plus its INDEX row; it asks `pdfcer-gui` to add the "360° (photo sphere)" screenshot option.
+- **Fresh-folder smoke test (as reported):** build folder `pdfcer-20261106-0940-50d0135`; `pdfcer --version` 0.133.0 (binaries are commit `50d0135`, docs-only `ee6e1472` after it, so `--version` shows `v0.133.0-1-gee6e1472`); `3d-embed` of `fixtures/synthetic/prc/square.prc` into `hello.pdf`; `3d-render --index 0 --360 -o s.jpg` rc 0, a JPEG with GPano XMP (`FullPanoWidthPixels` 2048); `--transparent` into a JPEG refused, exit 9; PNG output prints the no-tag note.
+- **`verify-release.py v0.133.0` (as reported):** every check ok except "working tree clean", expected: uncommitted paths are only agent-memory, the stray `-` file and `docs/research/request-*.md`, none in the build. CI green at the tag: the 1443rd process-slip rule held.
+- **FEATURES:** the `Pass 677.0` and `Pass 678.0` rows now read released in `v0.133.0`; the crates.io row reads seven crates at 0.133.0. No box changed: the 360-degree row stays core `[x]`, cli `[x]`, gui `[ ]`.
+
 ### `50d0135f` `v0.133.0` release commit: IN PROGRESS (tagged and pushed; CI, packaging, GitHub release, OneDrive and crates.io publish pending), 2026-11-06 (1444th filing)
 
 Engineer-reported; no shell here, nothing checked from here (git, tag, CI, GitHub, crates.io, OneDrive all as reported). Commit `50d0135f` "chore(release): v0.133.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` only. Tag `v0.133.0` pushed with `main`. Carries `Pass 677.0` (`3db3e31c`; `X051`-`X053`) and `Pass 678.0` (`209b61e5`; `X054`).
@@ -26193,7 +26200,7 @@ closes out the *prior* filing's business rather than opening this one's.
 >
 > **1442nd filing: `Pass 678.0` (360-degree photo-sphere render, `209b61e5`) is SHIPPED (see *Shipped*), unreleased; it ships in `v0.133.0` with `677.0`. Its Next up block is removed. No open Pass at the head.**
 >
-> **1443rd filing: `v0.132.0` is PUBLISHED (see *Shipped*; OneDrive `pdfcer2`; CI red at the tag from a `check-commits-filed` process slip, code unaffected). 1444th filing: `v0.133.0` release commit `50d0135f` is tagged and pushed, IN PROGRESS (CI on the tag, packaging, GitHub release, OneDrive, crates.io pending); its PUBLISHED filing is next. No open Pass at the head.**
+> **1443rd filing: `v0.132.0` is PUBLISHED (see *Shipped*; OneDrive `pdfcer2`; CI red at the tag from a `check-commits-filed` process slip, code unaffected). 1444th filing: `v0.133.0` release commit `50d0135f` is tagged and pushed, IN PROGRESS (CI on the tag, packaging, GitHub release, OneDrive, crates.io pending); its PUBLISHED filing is next. No open Pass at the head. 1445th filing: `v0.133.0` is PUBLISHED (see *Shipped*; OneDrive `pdfcer1`, CI green at the tag, all crates at 0.133.0). No open Pass at the head.**
 
 > **1433rd filing: `Pass 675.1` (QUEUED after `675.0`) - publish `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav` to crates.io at the next release** (decision 217; Ken, 2026-11-06: "Yes publish them"). `675.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`).
 > - the three join `pdfcer-color`, `-model`, `-pkix` (`Pass 637.0`); `pdfcer-json` is included because `pdfcer-3d` depends on it;

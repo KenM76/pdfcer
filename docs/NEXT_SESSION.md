@@ -5,7 +5,9 @@ Engineer-owned; replaced each session. The previous long-form handoff (mesh
 failure classes, probe recipes, release recipe detail) is in git:
 `git show 40e7d1d7:docs/NEXT_SESSION.md`. Grep it; do not re-adopt it wholesale.
 
-**2026-11-06 update (1438th filing, newest).** **Pass 676.0 (X050) SHIPPED** in `9b668449` (non-finite pick rays/hits refused; unreleased). **Next: release v0.132.0** (writes pdfcer2). X049 belongs to pdfcer-gui, not us. No open Pass at the head.
+**2026-11-06 update (release v0.133.0, newest).** **v0.133.0 is the latest release** (tag on `50d0135f`, CI green at the tag, 8 assets, OneDrive `pdfcer1`; `pdfcer2` keeps 0.132.0; crates color/model/pkix/vec3/json/3d/3d-nav 0.133.0 published; filed 1445th). **The next release writes pdfcer2.** It carried X051-X053 / 677.0 (`3db3e31c`) and X054 / 678.0 (`209b61e5`, 360-degree photo sphere: `FisheyeMapping::Equirectangular`, `photo_sphere_xmp`, `insert_jpeg_xmp`, `3d-render --360`). Notice `open/notice_2026-11-06_v0.133.0_released.md` asks pdfcer-gui for the "360° (photo sphere)" screenshot option. v0.132.0 went out with CI red on `check-commits-filed.py` only (X050 filed one commit late), so **run that gate before the version bump as well as before the push**. No open Pass at the head. **Next: wait for the next request round.**
+
+**2026-11-06 update (1438th filing, previous).** **Pass 676.0 (X050) SHIPPED** in `9b668449` (non-finite pick rays/hits refused). *(Superseded: released in v0.132.0.)* X049 belongs to pdfcer-gui, not us.
 
 **2026-11-06 update (release v0.131.0, previous).** **v0.131.0 is the latest release** (tag on `ec81929c`, 8 assets, CI green on parent `c13ce318`, OneDrive `pdfcer1`; `pdfcer2` keeps 0.130.0; crates color/model/pkix/vec3/json/3d/3d-nav 0.131.0 published, Pass 675.1 complete). **The next release writes pdfcer2.** It carried X044 / 673.0, X046 / 674.0, X047 / 675.0. Notice `open/notice_2026-11-06_v0.131.0_released.md`; pdfcer-gui X048 item 1 is unblocked. **In progress: Pass 676.0 (X050, non-finite pick rays/hits; requester's code ported verbatim).** X049 is pdfcer-gui's.
 
