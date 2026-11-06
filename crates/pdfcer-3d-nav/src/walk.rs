@@ -53,6 +53,11 @@ const REACH: f64 = 0.25;
 /// Gravity, in eye heights per second squared: about Earth's for a 1.6 m
 /// eye.
 const GRAVITY: f64 = 6.0;
+/// What an eye keeps clear above it when it stands higher, as a share of eye
+/// height. Some, or an eye landing exactly on a ceiling's height ignores it and
+/// passes through; not [`REACH`], or a low threshold under a door header stops
+/// the walker for good.
+const HEAD_CLEARANCE: f64 = 0.01;
 /// The most parts a solid step is split into, however long it is.
 const MOST_PARTS: u32 = 64;
 
@@ -329,12 +334,7 @@ impl Walk {
         }
     }
 
-    /// How far an eye keeps from what it might meet, as walls do.
-    fn clearance(&self) -> f64 {
-        self.body() * REACH
-    }
-
-    /// Whether nothing lies within `rise` and the clearance straight above
+    /// Whether nothing lies within `rise` and [`HEAD_CLEARANCE`] straight above
     /// `origin`, ignoring a surface the point is exactly on, so a walker
     /// placed on the floor can stand up from it.
     fn head_room(
@@ -348,7 +348,7 @@ impl Walk {
             direction: self.axes.up(),
             min_distance: 1e-9,
         })
-        .is_none_or(|hit| hit.distance > rise + self.clearance())
+        .is_none_or(|hit| hit.distance > rise + self.body() * HEAD_CLEARANCE)
     }
 
     /// Whether the eye's straight way to `to` is clear. A plate narrower than

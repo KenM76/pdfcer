@@ -574,8 +574,8 @@ fn a_ramp_under_a_low_ceiling_stops_below_it() {
     let mut walk = walker([0.0, 0.0, 0.8]);
     stride(&mut walk, 3.0, 0.05, false, SOLID, &meshes);
     let [x, _, z] = walk.eye;
-    assert!(z < 1.0, "not clear of the ceiling: {:?}", walk.eye);
-    assert!(x > 1.25, "stopped too soon: {:?}", walk.eye);
+    assert!(z < 1.2, "through the ceiling: {:?}", walk.eye);
+    assert!(x > 1.6, "stopped too soon: {:?}", walk.eye);
     assert!((z - 0.8 - (x - 1.0) * 0.5).abs() < 1e-9, "{:?}", walk.eye);
     let there = walk.eye;
     stride(&mut walk, 3.0, 0.05, false, SOLID, &meshes);
@@ -587,6 +587,34 @@ fn a_step_under_a_low_ceiling_is_not_climbed() {
     let meshes = floor_with(vec![sheet(2.0, 3.0, 0.2, 0.0), ceiling(-10.0, 10.0, 0.9)]);
     let mut walk = walker([0.0, 0.0, 0.8]);
     stride(&mut walk, 3.0, 0.05, false, CLIMBING, &meshes);
+    assert!(walk.eye[0] < 2.0, "{:?}", walk.eye);
+    assert!((walk.eye[2] - 0.8).abs() < 1e-9, "{:?}", walk.eye);
+}
+
+#[test]
+fn a_low_threshold_under_a_door_header_is_crossed() {
+    let meshes = floor_with(vec![
+        sheet(2.0, 3.0, 0.02, 0.0),
+        ceiling(-10.0, 10.0, 0.972),
+    ]);
+    let mut walk = walker([0.0, 0.0, 0.8]);
+    stride(&mut walk, 1.0, 0.05, false, SOLID, &meshes);
+    assert!(walk.eye[0] > 2.1, "{:?}", walk.eye);
+    assert!((walk.eye[2] - 0.82).abs() < 1e-9, "{:?}", walk.eye);
+}
+
+/// A ceiling a hair above where the first step stands the eye: there, the
+/// rays ignore it as a surface the eye is on, so the second step goes through.
+#[test]
+fn a_ceiling_a_hair_above_the_new_height_is_not_passed() {
+    let top = 0.82 + 1e-10;
+    let meshes = floor_with(vec![
+        sheet(2.0, 3.0, 0.02, 0.0),
+        sheet(3.0, 9.0, 0.05, 0.0),
+        ceiling(-10.0, 10.0, top),
+    ]);
+    let mut walk = walker([0.0, 0.0, 0.8]);
+    stride(&mut walk, 2.0, 0.05, false, SOLID, &meshes);
     assert!(walk.eye[0] < 2.0, "{:?}", walk.eye);
     assert!((walk.eye[2] - 0.8).abs() < 1e-9, "{:?}", walk.eye);
 }
