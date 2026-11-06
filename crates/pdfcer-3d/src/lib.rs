@@ -36,6 +36,8 @@ mod arrays;
 pub mod bits;
 #[cfg(feature = "render")]
 mod bounds;
+#[cfg(feature = "render")]
+mod camera_sphere;
 mod compressed;
 mod container;
 #[cfg(feature = "render")]
@@ -140,14 +142,14 @@ mod tess_wire;
 mod testw;
 mod texture;
 mod tree;
-// Some helpers serve only the rasterizer.
-#[cfg_attr(not(feature = "render"), allow(dead_code))]
-mod vec3;
+pub mod vec3;
 mod wire;
 #[cfg(feature = "render")]
 mod work;
 mod write;
 
+#[cfg(feature = "render")]
+pub use camera_sphere::DEFAULT_FOV_Y;
 pub use compressed::PartialMesh;
 pub use container::{
     FileStructure, MAX_FILE_STRUCTURES, MAX_INFLATED_BYTES, ModelUnits, PRC_READER_VERSION,

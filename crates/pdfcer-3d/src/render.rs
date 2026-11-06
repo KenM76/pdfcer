@@ -32,7 +32,7 @@ const FIT_MARGIN: f64 = 1.1;
 /// The least eye-to-target distance a fit uses, over the target's largest
 /// coordinate: the view direction then survives the eye's rounding to
 /// within about 2^-22 radians.
-const EYE_SHARE: f64 = 1.0 / (1u64 << 30) as f64;
+pub(crate) const EYE_SHARE: f64 = 1.0 / (1u64 << 30) as f64;
 
 /// Where the camera is and where it looks, in model coordinates.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -50,8 +50,9 @@ pub struct Camera {
 
 impl Camera {
     /// A camera looking along `direction` that fits `bounds` in an image of
-    /// the given aspect ratio (width / height), with a 30° perspective or an
-    /// orthographic projection.
+    /// the given aspect ratio (width / height), with a
+    /// [`DEFAULT_FOV_Y`](crate::DEFAULT_FOV_Y) perspective or an orthographic
+    /// projection.
     ///
     /// The box's eight corners are framed as they project from this
     /// direction, aimed at the box's centre, with about 5% clear on each
@@ -181,7 +182,7 @@ impl Camera {
         let target = [0, 1, 2].map(|i| at(centre, i) + mx * at(right, i) + my * at(upward, i));
         let floor = radius * 1e-3;
         let (projection, distance) = if perspective {
-            let fov_y: f64 = 30.0;
+            let fov_y = crate::camera_sphere::DEFAULT_FOV_Y;
             let ty = (fov_y.to_radians() / 2.0).tan() / FIT_MARGIN;
             let tx = ty * aspect;
             // A point at lateral (x, y) from the target and depth f past it
@@ -223,7 +224,7 @@ impl Camera {
 /// The point `distance` back from `target` along unit `dir`, brought
 /// nearer (halving, at most 64 times) until it is finite, so a model
 /// near the largest float still gets an eye.
-fn eye_at(target: [f64; 3], dir: [f64; 3], distance: f64) -> [f64; 3] {
+pub(crate) fn eye_at(target: [f64; 3], dir: [f64; 3], distance: f64) -> [f64; 3] {
     let mut d = distance.min(f64::MAX);
     let mut eye = sub(target, scale(dir, d));
     for _ in 0..64 {
@@ -237,7 +238,7 @@ fn eye_at(target: [f64; 3], dir: [f64; 3], distance: f64) -> [f64; 3] {
 }
 
 /// Right, up and forward unit vectors looking along unit `forward`.
-fn basis_along(forward: [f64; 3], up: [f64; 3]) -> Result<[[f64; 3]; 3], RenderError> {
+pub(crate) fn basis_along(forward: [f64; 3], up: [f64; 3]) -> Result<[[f64; 3]; 3], RenderError> {
     let right = normalize(cross(forward, up)).ok_or(RenderError::Camera(
         "the up direction is zero or parallel to the view direction",
     ))?;

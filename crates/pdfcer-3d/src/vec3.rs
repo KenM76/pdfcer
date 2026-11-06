@@ -1,22 +1,29 @@
 //! Three-component vector arithmetic shared by the decoder, the scene walk,
-//! the exporters and the rasterizer.
+//! the exporters, the rasterizer and the navigation crate `pdfcer-3d-nav`.
+//!
+//! Plain `[f64; 3]` arrays, componentwise IEEE 754 arithmetic. [`length`],
+//! [`normalize`] and [`unit_cross`] scale before squaring, so they are
+//! correct for any finite input from `±f64::MAX` down to subnormals; [`dot`]
+//! and [`cross`] are not, and overflow to infinity for components beyond
+//! about `1e154`.
 
 /// A point or direction in model space, `[x, y, z]`.
-pub(crate) type Vec3 = [f64; 3];
+pub type Vec3 = [f64; 3];
 
-/// `a + b`.
-pub(crate) fn add(a: Vec3, b: Vec3) -> Vec3 {
+/// `a + b`, componentwise; a component may overflow to infinity.
+pub fn add(a: Vec3, b: Vec3) -> Vec3 {
     [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
 }
 
-/// `a - b`.
-pub(crate) fn sub(a: Vec3, b: Vec3) -> Vec3 {
+/// `a - b`, componentwise; a component may overflow to infinity.
+pub fn sub(a: Vec3, b: Vec3) -> Vec3 {
     [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
 }
 
 /// The direction from `from` to `to`: `to - from`, halved when the full
-/// difference overflows (the direction is unchanged).
-pub(crate) fn span(from: Vec3, to: Vec3) -> Vec3 {
+/// difference overflows (the direction is unchanged, the length is half).
+/// Finite for any finite `from` and `to`.
+pub fn span(from: Vec3, to: Vec3) -> Vec3 {
     let d = sub(to, from);
     if d.iter().all(|c| c.is_finite()) {
         d
@@ -25,18 +32,18 @@ pub(crate) fn span(from: Vec3, to: Vec3) -> Vec3 {
     }
 }
 
-/// `a` times `s`.
-pub(crate) fn scale(a: Vec3, s: f64) -> Vec3 {
+/// `a` times `s`, componentwise.
+pub fn scale(a: Vec3, s: f64) -> Vec3 {
     a.map(|c| c * s)
 }
 
-/// The dot product `a · b`.
-pub(crate) fn dot(a: Vec3, b: Vec3) -> f64 {
+/// The dot product `a · b`. Unscaled: infinite when a product overflows.
+pub fn dot(a: Vec3, b: Vec3) -> f64 {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
-/// The right-handed cross product `a × b`.
-pub(crate) fn cross(a: Vec3, b: Vec3) -> Vec3 {
+/// The right-handed cross product `a × b`. Unscaled, like [`dot`].
+pub fn cross(a: Vec3, b: Vec3) -> Vec3 {
     [
         a[1] * b[2] - a[2] * b[1],
         a[2] * b[0] - a[0] * b[2],
@@ -48,8 +55,9 @@ pub(crate) fn cross(a: Vec3, b: Vec3) -> Vec3 {
 const SMALL_LENGTH: f64 = 1e-140;
 
 /// The Euclidean length of `a`, correct for any finite `a`: components
-/// whose squares would overflow or underflow are scaled first.
-pub(crate) fn length(a: Vec3) -> f64 {
+/// whose squares would overflow or underflow are scaled first. Infinite
+/// or NaN only when a component is.
+pub fn length(a: Vec3) -> f64 {
     let l = dot(a, a).sqrt();
     if l.is_nan() || (l.is_finite() && l > SMALL_LENGTH) {
         return l;
@@ -60,9 +68,16 @@ pub(crate) fn length(a: Vec3) -> f64 {
     }
 }
 
-/// `a` scaled to unit length; `None` when its length is zero or not finite.
-/// Any finite non-zero `a` normalizes, however large or small.
-pub(crate) fn normalize(a: Vec3) -> Option<Vec3> {
+/// `a` scaled to unit length; `None` when its length is zero or any
+/// component is not finite. Any finite non-zero `a` normalizes, however
+/// large or small.
+///
+/// ```
+/// use pdfcer_3d::vec3::normalize;
+/// assert_eq!(normalize([1e200, 0.0, 0.0]), Some([1.0, 0.0, 0.0]));
+/// assert_eq!(normalize([0.0; 3]), None);
+/// ```
+pub fn normalize(a: Vec3) -> Option<Vec3> {
     let l = dot(a, a).sqrt();
     if l.is_finite() && l > SMALL_LENGTH {
         return Some(scale(a, 1.0 / l));
@@ -73,8 +88,9 @@ pub(crate) fn normalize(a: Vec3) -> Option<Vec3> {
 }
 
 /// The unit normal of the plane through `a` and `b` (the direction of
-/// `a × b`), each scaled first so edges far beyond `1e154` still give one.
-pub(crate) fn unit_cross(a: Vec3, b: Vec3) -> Option<Vec3> {
+/// `a × b`), each scaled first so edges far beyond `1e154` still give one;
+/// `None` when either is zero or not finite, or they are parallel.
+pub fn unit_cross(a: Vec3, b: Vec3) -> Option<Vec3> {
     let (_, a) = unit_scaled(a)?;
     let (_, b) = unit_scaled(b)?;
     normalize(cross(a, b))
