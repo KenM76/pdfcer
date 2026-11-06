@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1442nd filing) — `Pass 678.0` (`209b61e5`) SHIPPED
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, engineer commits):**
+- **`Pass 678.0` SHIPPED, unreleased (ships in `v0.133.0` with `677.0`):** `FisheyeMapping::Equirectangular` (CPU and GPU, seam-cut lines), `photo_sphere_xmp`/`insert_jpeg_xmp` GPano XMP in JPEG, `pdfcer 3d-render --360`. Worker `e40fdfb3` cherry-picked; engineer fixed cube-face density cap and the seam split.
+- **Verified (as reported):** `pdfcer-3d` 460 lib, `pdfcer-3d-nav` 47+1+2, render export 9 + 2 doctests, cli three_d 62; sabotage fails both fixes' tests; fmt, clippy, structure, public-fns, reexport, core-api-verbs clean; `cargo tree -p pdfcer-render` clean.
+- **FEATURES:** Planned row moved to Implemented: core `[x]`, cli `[x]`, gui `[ ]` (`X054` sent). **ROADMAP:** new Shipped entry; Next up `678.0` block replaced by a 1442nd banner.
+- **Next:** release `v0.133.0` (carries `677.0`, `678.0`). Next filing 1443rd.
+
 ## 2026-11-06 (1441st filing) — `Pass 677.0` (`X051`-`X053`, `3db3e31c`) SHIPPED
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, engineer commits):**

@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `209b61e5` `Pass 678.0`, 2026-11-06: 360-degree photo-sphere 3D render (1442nd filing)
+
+Engineer-reported; no shell here, git state not checked from here (not pushed, as reported). Commit `209b61e5` on `main` "feat(3d): 360-degree photo-sphere render, equirectangular lens + GPano XMP (Pass 678.0, X054)". Unreleased; ships in `v0.133.0` with `Pass 677.0`. Operator request (Ken, 2026-11-06). Worker commit `e40fdfb3` (worktree) cherry-picked; engineer fixes on top: cube-face density cap, seam split on both paths. Notice to `pdfcer-gui`: `X054` (not built in the GUI).
+- **`pdfcer-3d`:** `FisheyeMapping::Equirectangular` (fov must be exactly 360), the full sphere as a 2:1 panorama composed from all six cube faces, CPU and GPU (`FrameLens` `u_lens_mapping` 2). Lines and wires crossing the left/right seam behind the eye are cut at the seam on both paths (pieces re-split so one ends on the seam).
+- **`pdfcer-render`:** `photo_sphere_xmp(width, height)`, `insert_jpeg_xmp(jpeg, xmp)`, `MAX_JPEG_XMP_PACKET`; GPano XMP as a JPEG APP1 segment; new `ExportError::Metadata` variant.
+- **CLI:** `pdfcer 3d-render --360` (= `--lens equirectangular`), default 2048x1024. `.jpg` carries the GPano tag; PNG prints a no-tag note; non-2:1 prints a note; `--transparent` into JPEG refused (exit 9).
+- **Docs:** `docs/core-api` 01, 03, 04, index updated; `check-core-api-verbs` PASS.
+- **Results (as reported):** `pdfcer-3d` lib 460 passed (6 equirectangular); `pdfcer-3d-nav` 47 + 1 + 2; `pdfcer-render` export 9 + 2 xmp doctests; `pdfcer-cli` three_d 62. Sabotage: the tests for both engineer fixes fail with the fix reverted. `fmt`, `clippy -D warnings` clean; structure, public-fns, reexport gates clean. `cargo tree -p pdfcer-render`: no GUI or network crates.
+- **FEATURES:** *Planned* row moved to *Implemented*: core `[x]`, cli `[x]`, gui `[ ]` (`pdfcer-gui` adopts it via `X054`).
+
 ### `3db3e31c` `Pass 677.0`, 2026-11-06: bounded orbit pan, 89-degree named Top/Bottom, saved view to aim (`X051`-`X053`) (1441st filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `3db3e31c` on `main` "feat(3d-nav): bounded pan, 89-degree named Top/Bottom, saved-view aim (X051-X053)". Unreleased; ships in `v0.133.0` with `Pass 678.0` (still in progress). Ported from `pdfcer-gui` `4cc231ac` (decision 218: port, never rewrite). Requests: `request_X051_orbit_pan_setter_and_bound.md`, `request_X052_named_top_view_pitch.md`, `request_X053_saved_view_to_saved_aim.md`; replies `reply_X051_orbit_pan_setter_and_bound_SHIPPED.md`, `reply_X052_named_top_view_pitch_SHIPPED.md`, `reply_X053_saved_view_to_saved_aim_SHIPPED.md` in `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\` (INDEX rows updated, as reported).
@@ -26166,13 +26176,7 @@ closes out the *prior* filing's business rather than opening this one's.
 >
 > **1441st filing: `Pass 677.0` (`X051`-`X053`, `3db3e31c`) is SHIPPED (see *Shipped*), unreleased; it ships in `v0.133.0` with `Pass 678.0`. Its Next up block is removed.**
 >
-> **`Pass 678.0` (operator request, Ken, 2026-11-06), QUEUED:** *"Can we add 360 degree capability to our screen capture? The kind that opens in photo viewers as a picture you can look around in?"* and *"Add it to this release and inform pdfcer-gui of this new feature to add to the screenshot render options."*
-> - An equirectangular full-sphere lens for the 3D renderer, `FisheyeMapping::Equirectangular`, CPU and GPU.
-> - Google Photo Sphere (GPano) XMP embedded in JPEG output, so photo viewers open it as a look-around picture.
-> - `pdfcer 3d-render` lens token `equirectangular` (and possibly `--360`).
-> - Out of scope: flat PDF pages (nothing behind the camera).
-> - A notice to `pdfcer-gui` (`FeatureRequests`) to add it to its screenshot render options is owed by the engineer.
-> - Shells: core, cli, gui all unbuilt; gui is `pdfcer-gui`'s work.
+> **1442nd filing: `Pass 678.0` (360-degree photo-sphere render, `209b61e5`) is SHIPPED (see *Shipped*), unreleased; it ships in `v0.133.0` with `677.0`. Its Next up block is removed. No open Pass at the head.**
 
 > **1433rd filing: `Pass 675.1` (QUEUED after `675.0`) - publish `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav` to crates.io at the next release** (decision 217; Ken, 2026-11-06: "Yes publish them"). `675.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`).
 > - the three join `pdfcer-color`, `-model`, `-pkix` (`Pass 637.0`); `pdfcer-json` is included because `pdfcer-3d` depends on it;
