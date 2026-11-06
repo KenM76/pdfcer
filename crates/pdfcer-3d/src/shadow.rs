@@ -102,6 +102,13 @@ pub(crate) struct Caster {
 }
 
 impl Caster {
+    /// Whether this is a directional light behind a face whose unit normal
+    /// `seen` is on the viewer's side, so the seen side takes none of it.
+    /// The shadow key is not a light's share and is never behind.
+    pub(crate) fn is_behind(&self, seen: [f64; 3]) -> bool {
+        matches!(self.kind, CasterKind::Light(_)) && dot(seen, self.to_light) < 0.0
+    }
+
     /// The scheme's brightest light on the viewer's side, else its brightest,
     /// not counting lights at the camera; the shadow key when every light is
     /// at the camera; `None` unlit. Only the first

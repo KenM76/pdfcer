@@ -3383,7 +3383,10 @@ pub(crate) enum Command {
         /// (the scheme's brightest light on the viewer's side, or, when
         /// every light is at the camera, a fixed light above-left that
         /// halves the shade where blocked), and so does every other
-        /// directional light; `--shadow-casters` limits it to the key.
+        /// directional light; `--shadow-casters` limits it to the key. A
+        /// casting light behind a surface gives the side you see none of its
+        /// light, so a sun does not light a room through a thin ceiling. With
+        /// this flag every light lights both sides of every surface.
         #[arg(long)]
         no_shadows: bool,
         /// Draw without the shadows a model's own point and spot lights

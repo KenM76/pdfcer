@@ -341,10 +341,11 @@ mod tests {
         h
     }
 
-    /// [`digest`]s taken on the tree before the aimed sun existed.
+    /// [`digest`]s of the tree before the aimed sun existed, with the far
+    /// side of a face taking no casting light.
     #[test]
     fn no_aimed_sun_draws_as_before_it() {
-        assert_eq!(digest(ShadowLight::FollowsScheme), 0xf2df_b66c_3672_7688);
+        assert_eq!(digest(ShadowLight::FollowsScheme), 0x15ba_6f3d_ac07_197e);
         let fixed = |up, negative| ShadowLight::Sun { up, negative };
         assert_eq!(digest(fixed(UpAxis::Z, false)), 0x4956_5dfe_10e5_620e);
         assert_eq!(digest(fixed(UpAxis::Y, true)), 0xbfb3_7b24_4bf7_d473);

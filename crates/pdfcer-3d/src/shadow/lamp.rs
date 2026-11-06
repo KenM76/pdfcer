@@ -244,10 +244,11 @@ impl LampShadows {
             })
     }
 
-    /// Lamp `i`'s lit share at `p` on a face with normal `face`; 1 when it
-    /// has no cube.
+    /// Lamp `i`'s lit share at `p` on a face whose normal `face` is on the
+    /// viewer's side; 1 when it has no cube, 0 from behind the face.
     pub(crate) fn visibility(&self, i: usize, p: [f64; 3], face: [f64; 3]) -> f64 {
         match self.cubes.get(i) {
+            Some(Some(cube)) if dot(face, sub(cube.position, p)) < 0.0 => 0.0,
             Some(Some(cube)) => cube.visibility(p, face),
             _ => 1.0,
         }

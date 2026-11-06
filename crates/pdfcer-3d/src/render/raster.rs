@@ -220,16 +220,31 @@ pub(crate) struct Target<'b> {
 pub(crate) struct PixelLights<'a> {
     /// The casting light's map.
     pub(crate) shadow: Option<&'a ShadowMap>,
+    /// Whether the casting light is behind the seen face, so none of it
+    /// reaches the seen side whatever the map holds.
+    pub(crate) key_far: bool,
     /// Point and spot lights, added per pixel.
     pub(crate) local: &'a [Local],
     /// Their shadows.
     pub(crate) lamps: Option<&'a LampShadows>,
     /// The further directional lights' shadows.
     pub(crate) extra: Option<&'a ExtraShadows>,
-    /// The triangle's unit normal.
+    /// The triangle's unit normal, on the viewer's side of it.
     pub(crate) face: [f64; 3],
     /// The frame's finishes and the triangle's own, when it has one.
     pub(crate) gloss: Option<(&'a Gloss, &'a Resolved)>,
+}
+
+impl PixelLights<'_> {
+    /// The casting light's lit share at map point `at`: 1 without a map, 0
+    /// from behind the seen face.
+    pub(crate) fn key_lit(&self, at: [f64; 3]) -> f64 {
+        match self.shadow {
+            Some(_) if self.key_far => 0.0,
+            Some(map) => map.visibility(at),
+            None => 1.0,
+        }
+    }
 }
 
 impl Target<'_> {
@@ -300,10 +315,8 @@ impl Target<'_> {
                 } else {
                     [0, 1, 2].map(|j| correct(&|c| at(c.shade, j)))
                 };
-                if let Some(map) = shadow
-                    && corners.iter().any(|c| c.key != [0.0; 3])
-                {
-                    let lit = map.visibility([0, 1, 2].map(|j| correct(&|c| at(c.light, j))));
+                if shadow.is_some() && corners.iter().any(|c| c.key != [0.0; 3]) {
+                    let lit = lights.key_lit([0, 1, 2].map(|j| correct(&|c| at(c.light, j))));
                     let key = [0, 1, 2].map(|j| correct(&|c| at(c.key, j)));
                     for (s, k) in shade.iter_mut().zip(key) {
                         *s += lit * k;

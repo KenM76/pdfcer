@@ -208,9 +208,7 @@ impl Gloss {
         model: Field<'_>,
     ) -> [u8; 4] {
         let p = model(|c| c.model[0]);
-        let lit = lights
-            .shadow
-            .map_or(1.0, |m| m.visibility(model(|c| c.light)));
+        let lit = lights.key_lit(model(|c| c.light));
         let dim = match self.caster {
             Some(CasterKind::Dim) => SHADOW_DIM + (1.0 - SHADOW_DIM) * lit,
             _ => 1.0,
@@ -430,7 +428,7 @@ mod tests {
     fn a_model_light_brings_its_own_specular_colour() {
         let mut sun = ModelLight::new(
             ModelLightKind::Directional {
-                direction: [0.0, 0.0, -1.0],
+                direction: [0.0, 0.0, 1.0],
             },
             [1.0; 3],
         );

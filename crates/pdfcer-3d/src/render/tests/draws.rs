@@ -405,7 +405,13 @@ fn a_scheme_lights_each_channel() {
     // A face square to the camera: ambient .1 plus the camera light.
     assert_eq!(lit(LightingScheme::Headlamp), [171, 173, 200, 255]);
     assert_eq!(lit(LightingScheme::Artwork), [190, 192, 200, 255]);
-    assert_eq!(lit(LightingScheme::Hard)[0], 255, "over-bright saturates");
+    let unshadowed = RenderOptions {
+        lighting: LightingScheme::Hard,
+        shadows: false,
+        ..small()
+    };
+    let image = render(&[quad(0.0, 1.0, 0.0)], &ortho(4.0), &unshadowed).unwrap();
+    assert_eq!(pixel(&image, 20, 20)[0], 255, "over-bright saturates");
 }
 
 #[test]

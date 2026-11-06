@@ -3603,7 +3603,11 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   points (the standard does not say; offer it as a setting).
   `RenderOptions::shadow_map_size: u32` (default `DEFAULT_SHADOW_MAP_SIZE`
   2048, clamped 64..=`MAX_SHADOW_MAP_SIZE` 8192): an orthographic depth map
-  over the bounding sphere, 3 × 3 filtered. `RenderOptions::
+  over the bounding sphere, 3 × 3 filtered. A casting light or lamp on the
+  far side of a face from the viewer gives the side seen none of its light,
+  at any map size, so a sun does not light a room through a thin ceiling;
+  the fixed shadow key is not a light and is unaffected, and `shadows: false`
+  keeps two-sided lighting. `RenderOptions::
   shadow_light: ShadowLight::{FollowsScheme (default), Sun { up: UpAxis,
   negative: bool }}` — `Sun` is the same above-left light (dim
   `SHADOW_DIM`) fixed in the model, placed from the iso view about `up`

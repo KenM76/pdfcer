@@ -196,8 +196,9 @@ mod tests {
         h
     }
 
-    /// [`digest`] of the tree before `light_gain` existed.
-    const DIGEST_BEFORE_THE_GAIN: u64 = 0x0dc6_d669_d217_3d6b;
+    /// [`digest`] of the tree before `light_gain` existed, with the far side
+    /// of a face taking no casting light.
+    const DIGEST_BEFORE_THE_GAIN: u64 = 0xa4e6_ef80_a0ca_b953;
 
     #[test]
     fn a_gain_of_one_draws_every_scheme_as_before_the_gain() {

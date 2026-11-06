@@ -127,26 +127,26 @@ impl ExtraShadows {
             })
     }
 
-    /// Light `light`'s visibility at model point `p` on a face of unit
-    /// normal `face`: 1 when it casts no map here.
+    /// Light `light`'s visibility at model point `p` on a face whose unit
+    /// normal `face` is on the viewer's side: 1 when it casts no map here,
+    /// 0 from behind the face.
     pub(crate) fn visibility(&self, light: usize, p: [f64; 3], face: [f64; 3]) -> f64 {
         self.maps
             .iter()
             .find(|(e, _)| e.light == light)
-            .map_or(1.0, |(_, map)| {
-                map.visibility(map.view.lookup_point(p, face))
-            })
+            .map_or(1.0, |(e, map)| lit_share(e, map, p, face))
     }
 
     /// Removes from `shade`, at model point `p` with (unnormalised) normal
-    /// `n` on a face of unit normal `face`, each caster's light where its
-    /// map shadows the point: `(1 − lit) · colour · |n · d|`.
+    /// `n` on a face whose unit normal `face` is on the viewer's side, each
+    /// caster's light where it does not reach the point:
+    /// `(1 − lit) · colour · |n · d|`.
     pub(crate) fn darken(&self, shade: &mut [f64; 3], p: [f64; 3], n: [f64; 3], face: [f64; 3]) {
         let Some(n) = normalize(n) else {
             return;
         };
         for (e, map) in &self.maps {
-            let lit = map.visibility(map.view.lookup_point(p, face));
+            let lit = lit_share(e, map, p, face);
             if lit >= 1.0 {
                 continue;
             }
@@ -156,6 +156,14 @@ impl ExtraShadows {
             }
         }
     }
+}
+
+/// `e`'s lit share at `p` on the seen face `face`.
+fn lit_share(e: &Extra, map: &ShadowMap, p: [f64; 3], face: [f64; 3]) -> f64 {
+    if dot(face, e.to_light) < 0.0 {
+        return 0.0;
+    }
+    map.visibility(map.view.lookup_point(p, face))
 }
 
 /// A frame's cast shadows on the CPU: the key light and its map, the

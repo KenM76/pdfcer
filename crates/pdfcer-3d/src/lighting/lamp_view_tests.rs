@@ -158,10 +158,11 @@ fn table_digest(lights: &FrameLights, rows: &[usize]) -> u64 {
 
 /// [`cpu_digest`] of [`lamps`], lamp shadows off, on the tree before the
 /// cull.
-const CPU_DIGEST_BEFORE_THE_CULL: u64 = 0x30aa_ee86_1e27_5b96;
+const CPU_DIGEST_BEFORE_THE_CULL: u64 = 0xfff0_d35f_4ab0_2184;
+/// Both CPU digests have the far side of a face taking no casting light.
 /// [`cpu_digest`] of [`few`], lamp shadows on, on the tree before the cull
 /// and the lamp shadow choice: each of its five lamps cast there too.
-const FEW_DIGEST_BEFORE_THE_CULL: u64 = 0xe4aa_9c3e_b3cf_53e9;
+const FEW_DIGEST_BEFORE_THE_CULL: u64 = 0x54d6_8adf_b218_e231;
 /// [`table_digest`] of the full table's [`IN_VIEW`] rows before the cull.
 const TABLE_DIGEST_BEFORE_THE_CULL: u64 = 0x2a3f_0202_cdbe_27ba;
 

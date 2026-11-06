@@ -221,6 +221,19 @@ float through(bool on, highp sampler2DArray veil, highp sampler2DArray transmit,
     return texelFetch(transmit, q, 0).r;
 }
 
+// The unit view direction at p; zero with the eye at p.
+vec3 view_at(vec3 p) {
+    vec3 tv = u_orthographic ? -u_forward : u_eye - p;
+    float vl = length(tv);
+    return vl > 0.0 ? tv / vl : vec3(0.0);
+}
+
+// Whether a casting light towards l is on the far side of the face through
+// p with normal f from the viewer, so the seen side takes none of it.
+bool far_side(vec3 p, vec3 f, vec3 l) {
+    return dot(f, view_at(p)) * dot(f, l) < 0.0;
+}
+
 // Lamp row r's lit share, 0-1, at p on a face with unit normal f: 3 x 3
 // texels of its slot's cube face around the point moved off its face
 // towards the lamp, clamped to that face. A lamp with no slot (texel 1's
@@ -231,6 +244,7 @@ float lamp_lit(int r, vec3 p, vec3 f) {
     float far = u_lamp_far[i];
     if (far <= 0.0) return 1.0;
     vec3 o = p - light(r, 0).xyz;
+    if (far_side(p, f, -o)) return 0.0;
     vec3 m = abs(o);
     float z0 = max(m.x, max(m.y, m.z));
     if (z0 <= 0.0) return 1.0;
@@ -308,13 +322,6 @@ vec3 local(vec3 p, vec3 n, vec3 f, bool shiny, vec3 v, vec3 nv, out vec3 spec) {
     return s;
 }
 
-// The unit view direction at p; zero with the eye at p.
-vec3 view_at(vec3 p) {
-    vec3 tv = u_orthographic ? -u_forward : u_eye - p;
-    float vl = length(tv);
-    return vl > 0.0 ? tv / vl : vec3(0.0);
-}
-
 // The lit share, 0-1, at map point p (0-1 each way) of directional map l
 // (0 the key light's, 1 + e extra map e): 3 x 3 texels; a texel off the
 // map is lit.
@@ -339,6 +346,7 @@ float pcf(vec3 p, int l) {
 // The key light's lit share on a face with unit normal f, looked up at the
 // point moved off its face towards the light.
 float lit(vec3 f) {
+    if (u_shadow_light >= 0 && far_side(v_world, f, u_shadow_to_light)) return 0.0;
     if (dot(f, u_shadow_to_light) < 0.0) f = -f;
     vec4 c = u_shadow_matrix * vec4(v_world + f * u_shadow_offset, 1.0);
     return pcf((c.xyz + 1.0) * 0.5, 0);
@@ -348,6 +356,7 @@ float lit(vec3 f) {
 // the key map's frame turned to its light.
 float extra_lit(int e, vec3 f) {
     vec3 l = u_shadow_extra_to_light[e];
+    if (far_side(v_world, f, l)) return 0.0;
     vec3 g = dot(f, l) < 0.0 ? -f : f;
     vec3 d = v_world + g * u_shadow_offset - u_shadow_extra_centre;
     vec3 r = normalize(cross(abs(l.z) < 0.9 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0), l));
@@ -518,6 +527,38 @@ mod tests {
         assert!(GLSL_ES_300_FRAGMENT.contains(&format!(" u_lamp_far[{casters}];")));
         assert!(GLSL_ES_300_FRAGMENT.contains(&format!("i >= {casters})")));
         assert!(GLSL_ES_300_FRAGMENT.contains("int i = int(light(r, 1).w) - 1;"));
+    }
+
+    /// The body of the fragment function declared `head`; empty if there is
+    /// none, which fails every `contains` asked of it.
+    fn body(head: &str) -> &'static str {
+        let (_, rest) = GLSL_ES_300_FRAGMENT.split_once(head).unwrap_or_default();
+        rest.split("\n}\n").next().unwrap_or_default()
+    }
+
+    /// No GL compiler runs here, so the CPU's far-side rule is pinned as text:
+    /// each casting light's lookup answers 0 before it reads a map, and the
+    /// shadow key (`u_shadow_light` below 0) is not a light's share.
+    #[test]
+    fn every_casting_light_asks_which_side_the_viewer_is_on() {
+        let s = GLSL_ES_300_FRAGMENT;
+        assert!(s.find("vec3 view_at(vec3 p)") < s.find("bool far_side("));
+        assert!(body("bool far_side(").contains("return dot(f, view_at(p)) * dot(f, l) < 0.0;"));
+        let key = body("float lit(vec3 f)");
+        let check =
+            "if (u_shadow_light >= 0 && far_side(v_world, f, u_shadow_to_light)) return 0.0;";
+        assert!(key.find(check) < key.find("pcf("), "{key}");
+        assert!(key.contains(check), "{key}");
+        let further = body("float extra_lit(int e, vec3 f)");
+        let check = "if (far_side(v_world, f, l)) return 0.0;";
+        assert!(further.contains(check) && further.find(check) < further.find("pcf("));
+        let lamp = body("float lamp_lit(int r, vec3 p, vec3 f)");
+        let check = "if (far_side(p, f, -o)) return 0.0;";
+        assert!(lamp.contains(check) && lamp.find(check) < lamp.find("texelFetch"));
+        assert!(
+            lamp.find("if (far <= 0.0)") < lamp.find(check),
+            "no slot casts nothing"
+        );
     }
 
     /// Every `light(row, t)` read, `t` as written.

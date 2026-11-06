@@ -70,7 +70,11 @@ pub struct RenderOptions {
     /// whose lights are all at the camera, such as the default, instead
     /// halves the shade where a fixed light above, left of and in front of
     /// the view is blocked. The other directional lights cast too, per
-    /// [`shadow_casters`](Self::shadow_casters). No effect unlit.
+    /// [`shadow_casters`](Self::shadow_casters). A casting light on the far
+    /// side of a face from the viewer gives none of its light to the side
+    /// seen, at any [`shadow_map_size`](Self::shadow_map_size), so a sun does
+    /// not light a room through a thin ceiling. Off, every light lights both
+    /// sides of every face. No effect unlit.
     pub shadows: bool,
     /// Which way the scheme's light directions point, for shadows.
     pub light_sense: LightSense,
@@ -89,7 +93,8 @@ pub struct RenderOptions {
     /// Whether a model's point and spot lights cast shadows too (the
     /// default), each lamp seeing the model through a cube of six depth
     /// maps around it. Only with [`RenderOptions::shadows`]. A lamp inside
-    /// a closed mesh, such as a bulb in its shade, is shadowed by it. Up
+    /// a closed mesh, such as a bulb in its shade, is shadowed by it, and a
+    /// casting lamp on the far side of a face gives the side seen nothing. Up
     /// to [`MAX_LAMP_SHADOWS`](crate::MAX_LAMP_SHADOWS) cast, those adding
     /// most at the camera target ([`crate::FrameLampShadows`]).
     pub lamp_shadows: bool,
@@ -433,14 +438,47 @@ impl Scene<'_> {
         Some((lo, hi))
     }
 
+    /// The unit direction from model point `p` to the viewer; `None` with
+    /// the eye at `p`.
+    fn towards(&self, p: [f64; 3]) -> Option<[f64; 3]> {
+        match self.view {
+            View::Perspective { .. } => normalize(sub(self.camera.eye, p)),
+            View::Orthographic { .. } => Some(scale(at3(&self.basis, 2), -1.0)),
+        }
+    }
+
+    /// What lights the pixels of a triangle of `mesh` through model point
+    /// `p` with unit normal `face`. The viewer is on one side of its plane
+    /// everywhere, so one point decides which face of it is seen.
+    fn pixel_lights<'m>(
+        &'m self,
+        mesh: &'m TriangleMesh,
+        face: [f64; 3],
+        p: [f64; 3],
+    ) -> PixelLights<'m> {
+        let seen = match self.towards(p) {
+            Some(t) if dot(face, t) < 0.0 => scale(face, -1.0),
+            _ => face,
+        };
+        PixelLights {
+            shadow: self.shadow.as_ref(),
+            key_far: self.caster.is_some_and(|c| c.is_behind(seen)),
+            local: self.shader.local(),
+            lamps: self.lamps.as_ref(),
+            extra: self.extra.as_ref(),
+            face: seen,
+            gloss: self
+                .gloss
+                .as_ref()
+                .and_then(|g| Some((g, g.finish_of(mesh)?))),
+        }
+    }
+
     /// The shade at model point `p` with normal `n`, but for the point and
     /// spot lights [`Target::fill`] adds per pixel, and the share of it the
     /// shadow caster supplies.
     fn shade(&self, p: [f64; 3], n: [f64; 3]) -> ([f64; 3], [f64; 3]) {
-        let towards = match self.view {
-            View::Perspective { .. } => normalize(sub(self.camera.eye, p)),
-            View::Orthographic { .. } => Some(scale(at3(&self.basis, 2), -1.0)),
-        };
+        let towards = self.towards(p);
         match &self.caster {
             Some(c) => c.split(&self.shader, n, towards),
             None => (self.shader.shade_far(n, towards), [0.0; 3]),
@@ -533,19 +571,9 @@ impl Scene<'_> {
             .map(|v| self.view.project(v, width, height))
             .collect();
         if let Some((&a, rest)) = screen.split_first() {
+            let lights = self.pixel_lights(mesh, face, at3(&world, 0));
             for pair in rest.windows(2) {
                 if let [b, c] = pair {
-                    let lights = PixelLights {
-                        shadow: self.shadow.as_ref(),
-                        local: self.shader.local(),
-                        lamps: self.lamps.as_ref(),
-                        extra: self.extra.as_ref(),
-                        face,
-                        gloss: self
-                            .gloss
-                            .as_ref()
-                            .and_then(|g| Some((g, g.finish_of(mesh)?))),
-                    };
                     target.fill(&self.view, [a, *b, *c], paint, lights);
                 }
             }

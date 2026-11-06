@@ -63,3 +63,4 @@ fn drawn(image: &Image) -> usize {
 
 mod draws;
 mod far_models;
+mod far_side;
