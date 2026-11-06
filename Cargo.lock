@@ -841,6 +841,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "pdfcer-3d-nav"
+version = "0.130.0"
+dependencies = [
+ "pdfcer-3d",
+]
+
+[[package]]
 name = "pdfcer-cli"
 version = "0.130.0"
 dependencies = [

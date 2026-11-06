@@ -6,16 +6,17 @@ consumer). Written 2026-08-13; **the figures in the table below were last
 re-derived at `e194b46`, 2026-08-18** — see the note under it.
 
 This is **not** rustdoc. Rustdoc already exists and is good at *"what does
-this function do."* These three files answer the question rustdoc cannot:
+this function do."* These files answer the question rustdoc cannot:
 ***"I want to do X — what do I call, in what order, and what will bite
 me?"*** Every section leads with a grep-able *"I want to…" → "call this"*
 index and ends with **Traps**.
 
 | file | covers | size |
 |---|---|---|
-| [`01-reading-and-model.md`](01-reading-and-model.md) | loading, the COS object model, pages, content streams, text extraction, fonts, vector picking/snapping, filters, colour, navigation, metadata | 5,101 lines · 264 clauses cited |
+| [`01-reading-and-model.md`](01-reading-and-model.md) | loading, the COS object model, pages, content streams, text extraction, fonts, vector picking/snapping, filters, colour, navigation, metadata | 5,102 lines · 264 clauses cited |
 | [`02-editing-and-saving.md`](02-editing-and-saving.md) | `EditSession` end to end — **all 396 public verbs**, the command/undo contract, the dirty set, the save path, the guard/refusal model, `EditError`'s 192 variants | 6,750 lines · 324 clauses cited |
-| [`03-capabilities.md`](03-capabilities.md) | ce dimensions, forms, markup, redaction, **off-canvas content**, OCR, print/imposition, rasterising, raster export, space audit, optimize, prepress (overprint use, PDF/X claim) — each with **★ what the UI must disclose** | 6003 lines · 173 clauses cited |
+| [`03-capabilities.md`](03-capabilities.md) | ce dimensions, forms, markup, redaction, **off-canvas content**, OCR, print/imposition, rasterising, raster export, space audit, optimize, prepress (overprint use, PDF/X claim) — each with **★ what the UI must disclose** | 6,003 lines · 173 clauses cited |
+| [`04-3d-navigation.md`](04-3d-navigation.md) | `pdfcer-3d-nav`: a 3D viewer's orbit, walk, lens, up axis, saved view and fit, plus the `pdfcer-3d` camera and vector helpers it uses — every `pub` item | 100 lines · 0 clauses cited |
 
 > ### ★ Every figure above was stale, and the verb count caused an incident
 >

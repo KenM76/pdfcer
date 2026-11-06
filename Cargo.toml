@@ -48,6 +48,7 @@ members = [
     "crates/pdfcer-print",
     "crates/pdfcer-fetch",
     "crates/pdfcer-3d",
+    "crates/pdfcer-3d-nav",
     "crates/pdfcer-ocr-host",
 ]
 # tools/difftest is the OUT-OF-TREE differential test oracle mandated by
@@ -145,6 +146,7 @@ pdfcer-core = { path = "crates/pdfcer-core", default-features = false }
 pdfcer-render = { path = "crates/pdfcer-render", default-features = false }
 pdfcer-print = { path = "crates/pdfcer-print" }
 pdfcer-3d = { path = "crates/pdfcer-3d" }
+pdfcer-3d-nav = { path = "crates/pdfcer-3d-nav" }
 # OCR hosting for the shells, including program add-ons (decision 184).
 pdfcer-ocr-host = { path = "crates/pdfcer-ocr-host", default-features = false }
 # Network code for operator-initiated downloads. `default-features = false`

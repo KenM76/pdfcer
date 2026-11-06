@@ -1,0 +1,19 @@
+[package]
+autotests = false
+name = "pdfcer-3d-nav"
+description = "pdfcer 3D model viewer navigation: orbit, walk, lens and saved-view logic, GUI-free"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+# Unpublished because its one dependency, pdfcer-3d, is (only pdfcer-color,
+# -model and -pkix go to crates.io).
+publish = false
+license.workspace = true
+
+[dependencies]
+pdfcer-3d.workspace = true
+
+[[test]]
+name = "all"
+path = "tests/all.rs"

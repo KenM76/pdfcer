@@ -162,6 +162,7 @@ builds `--no-default-features`, so both configurations compile.
 | Turn a saved 3D view into a camera (`pdfcer_3d::Camera`) | `ThreeDSavedView::aim(aspect)` → `SavedViewAim::camera(&Bounds, aspect)` / `frame` — `threed/view_aim.rs` | §12.2 |
 | The model point under a pixel of a 3D render (`G245`) | `Camera::ray_through(x, y, w, h)` → `pdfcer_3d::pick(&meshes, &ray) -> Option<Hit>` — `pdfcer-3d/src/pick.rs` | §12.2 |
 | Repeated picks on one model, skipping hidden parts (`G251`) | `PickIndex::new(&meshes)` once, then `index.pick(&ray)` or `index.pick_where(&ray, max_distance, |mesh| visible[mesh])` -> `Option<Hit>`; same answers as `pick`, ties to the lower (mesh, triangle); rebuild when the meshes change — `pdfcer-3d/src/pick_index.rs` | §12.2 |
+| Orbit, walk, lens and fit for an interactive 3D viewer (`X047`) | the `pdfcer-3d-nav` crate — see [`04-3d-navigation.md`](04-3d-navigation.md) | — |
 | Enumerate optional-content layers + default visibility | `layers::read_layers(&graph)` — `layers.rs` | §12.3 |
 | Whether anything still draws on a layer | `layers::group_in_use(&DocumentView, group: ObjId) -> bool` (G173): page content in an `/OC` section bound to it, an annotation or XObject whose `/OC` names it (directly or via a membership dictionary), or a form that binds it; undecodable content counts as using it — `ocr/group.rs` | §8.11.2.2, §8.11.3.2 |
 | Compute hidden layers, correctly for print/export | `annot::optional_content_default_off(&graph)` — `annot.rs` | §12.3 |
