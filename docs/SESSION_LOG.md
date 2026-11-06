@@ -11,7 +11,7 @@ the affected entry. Maintained by `pdfce-librarian`.
 - **`c2dca228` "chore(release): v0.134.1"** (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`): carries `Pass 679.0`-`683.0` plus `7a4c6d52`. IN PROGRESS.
 - **`v0.134.0` is not a release:** tag pushed at `fc3f7e1d` before CI finished; it stays (moving it needs the operator's go-ahead). No assets, crates or OneDrive build. ROADMAP 1448th entry amended to say superseded/never published.
 - **Lesson:** the tag went on before CI's colour was known. `v0.134.1` is tagged only after CI is green.
-- **Stale citation fix (the one permitted edit to old entries):** `e40fdfb3` was a worker's worktree commit, never on `main`, so `tools/check-cited-commits-exist.py` failed locally. Changed to "the worker's commit was cherry-picked into `209b61e5`" in ROADMAP (Pass 678.0 entry) and in the 1442nd entry below.
+- **Stale citation fix (the one permitted edit to old entries):** the cited hash was the worker's worktree commit, never on `main`, so `tools/check-cited-commits-exist.py` failed locally. Changed to "the worker's commit was cherry-picked into `209b61e5`" in ROADMAP (Pass 678.0 entry) and in the 1442nd entry below.
 - **Git push state:** not pushed as of filing (nothing since `ceeb969d`).
 - **FEATURES:** unchanged (no capability, no box, no version line).
 - **Next:** CI green, then tag and publish `v0.134.1`. Next filing 1450th.
