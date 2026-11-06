@@ -4,7 +4,9 @@
 //! it, and falls onto the floor under it; with nothing under it, it keeps
 //! its height. It cannot rise or sink by itself: stair climbing, when on, is
 //! the only way up, over anything lower than [`CLIMB`] of its eye height;
-//! off, only a floor seam. Ghosting, it flies through everything and rises
+//! off, only a floor seam, and nothing raises it into what is above it. It
+//! comes down a walkable slope as it goes up one, standing on it. Ghosting,
+//! it flies through everything and rises
 //! and sinks as asked. Moving is horizontal when solid or level; a ghost
 //! that is not level flies where it looks.
 //!
@@ -51,6 +53,23 @@ const REACH: f64 = 0.25;
 /// Gravity, in eye heights per second squared: about Earth's for a 1.6 m
 /// eye.
 const GRAVITY: f64 = 6.0;
+/// The most parts a solid step is split into, however long it is.
+const MOST_PARTS: u32 = 64;
+
+/// `world`, answering a ray that is not finite with a miss. An eye near the
+/// largest number can make one.
+fn finite_rays<W: FnMut(&Ray) -> Option<Hit>>(
+    world: &mut W,
+) -> impl FnMut(&Ray) -> Option<Hit> + use<'_, W> {
+    move |ray| {
+        let finite = ray
+            .origin
+            .iter()
+            .chain(&ray.direction)
+            .all(|c| c.is_finite());
+        if finite { world(ray) } else { None }
+    }
+}
 
 /// What the operator asks for this frame. `forward`, `right` and `rise` run
 /// from -1 to 1 (a stick's tilt, or a held key's 1).
@@ -225,6 +244,13 @@ impl Walk {
     /// only when solid. A solid walker ignores [`Intent::rise`], so it can
     /// never lift itself over what it would meet. A move that would not
     /// leave the eye finite is not made.
+    ///
+    /// A solid step longer than the eye height is made in parts no longer
+    /// than it, up to 64, since the floor is only looked at where a part
+    /// ends: pace is a share of the model and a set eye height is not. Past
+    /// that cap, in a long enough step, a floor can still be stepped over.
+    /// `world` is never asked about a ray that is not finite: that counts as
+    /// a miss.
     pub fn step(
         &mut self,
         intent: Intent,
@@ -232,27 +258,39 @@ impl Walk {
         rules: Rules,
         world: &mut impl FnMut(&Ray) -> Option<Hit>,
     ) {
+        let world = &mut finite_rays(world);
         let pace = self.scale * PACE * rules.speed * if intent.run { RUN } else { 1.0 };
-        self.travel(
-            [intent.forward * pace * dt, intent.right * pace * dt],
-            rules,
-            world,
-        );
-        if rules.solid {
-            self.settle(dt, world);
-        } else {
+        let [forward, right] = [intent.forward * pace * dt, intent.right * pace * dt];
+        if !rules.solid {
+            self.travel([forward, right], rules, world);
             self.move_to(along(self.eye, self.axes.up(), intent.rise * pace * dt));
+            return;
+        }
+        let parts = self.parts(forward.hypot(right));
+        let share = 1.0 / f64::from(parts);
+        for _ in 0..parts {
+            let from = self.eye;
+            self.travel([forward * share, right * share], rules, world);
+            self.settle(dt * share, length(sub(self.eye, from)), world);
         }
     }
 
+    /// How many parts of at most one eye height make up `distance`.
+    fn parts(&self, distance: f64) -> u32 {
+        (1..MOST_PARTS)
+            .find(|parts| distance <= self.body() * f64::from(*parts))
+            .unwrap_or(MOST_PARTS)
+    }
+
     /// Move `forward` and `right` model units, sliding along any wall met
-    /// when solid.
+    /// when solid. `world` is never asked about a ray that is not finite.
     pub fn travel(
         &mut self,
         [forward, right]: [f64; 2],
         rules: Rules,
         world: &mut impl FnMut(&Ray) -> Option<Hit>,
     ) {
+        let world = &mut finite_rays(world);
         let up = self.axes.up();
         let flat = self.axes.look(self.yaw, 0.0);
         let ahead = if rules.solid || rules.level {
@@ -291,37 +329,89 @@ impl Walk {
         }
     }
 
-    /// Whether `motion` would raise the eye by more than the walkable floors
-    /// under its two ends explain (at least `step` of its height), and above
-    /// where standing here puts it. The wall rays see only two heights, so a
-    /// slab between them passes them; the floor under the destination does
-    /// not. Both ends count: at a ramp's foot only the far floor is tilted,
-    /// and over a crest onto a gentler slope only the near one explains the
-    /// rise.
+    /// How far an eye keeps from what it might meet, as walls do.
+    fn clearance(&self) -> f64 {
+        self.body() * REACH
+    }
+
+    /// Whether nothing lies within `rise` and the clearance straight above
+    /// `origin`, ignoring a surface the point is exactly on, so a walker
+    /// placed on the floor can stand up from it.
+    fn head_room(
+        &self,
+        origin: [f64; 3],
+        rise: f64,
+        world: &mut impl FnMut(&Ray) -> Option<Hit>,
+    ) -> bool {
+        world(&Ray {
+            origin,
+            direction: self.axes.up(),
+            min_distance: 1e-9,
+        })
+        .is_none_or(|hit| hit.distance > rise + self.clearance())
+    }
+
+    /// Whether the eye's straight way to `to` is clear. A plate narrower than
+    /// a stride lies between the two ends.
+    fn way_clear(&self, to: [f64; 3], world: &mut impl FnMut(&Ray) -> Option<Hit>) -> bool {
+        let way = sub(to, self.eye);
+        let Some(direction) = normalize(way) else {
+            return true;
+        };
+        world(&Ray {
+            origin: self.eye,
+            direction,
+            min_distance: 1e-9,
+        })
+        .is_none_or(|hit| hit.distance > length(way))
+    }
+
+    /// Whether `motion` must not be made because of the ground at its far
+    /// end: higher than here, and either rising by more than the walkable
+    /// floors under its two ends explain (at least `step` of its height) or
+    /// standing the eye up into something above or on its way there. The wall
+    /// rays see only two heights, so a slab between them passes them; the
+    /// floor under the destination does not. Both ends count: at a ramp's
+    /// foot only the far floor is tilted, and over a crest onto a gentler
+    /// slope only the near one explains the rise. Ground no higher than here
+    /// is never refused, so a walker under a ceiling lower than its height
+    /// can walk out.
     fn lifts(
         &self,
         motion: [f64; 3],
         step: f64,
         world: &mut impl FnMut(&Ray) -> Option<Hit>,
     ) -> bool {
-        let mut down = |origin: [f64; 3]| {
-            world(&Ray {
-                origin,
-                direction: scale(self.axes.up(), -1.0),
-                min_distance: 0.0,
-            })
-        };
-        let here = down(self.eye);
-        let Some(there) = down(add(self.eye, motion)) else {
+        let down = scale(self.axes.up(), -1.0);
+        let to = add(self.eye, motion);
+        let here = world(&Ray {
+            origin: self.eye,
+            direction: down,
+            min_distance: 0.0,
+        });
+        let Some(there) = world(&Ray {
+            origin: to,
+            direction: down,
+            min_distance: 0.0,
+        }) else {
             return false;
         };
+        if here
+            .as_ref()
+            .is_some_and(|floor| there.distance >= floor.distance - 1e-9)
+        {
+            return false;
+        }
         let slope = here
             .as_ref()
             .map_or(0.0, |floor| self.slope(floor))
             .max(self.slope(&there));
         let allowed = (step * self.body()).max(length(motion) * slope);
         let rise = self.body() - there.distance;
-        rise > allowed + 1e-9 && here.is_none_or(|h| there.distance < h.distance - 1e-9)
+        let up = self.axes.up();
+        rise > allowed + 1e-9
+            || (rise > 0.0
+                && !(self.head_room(to, rise, world) && self.way_clear(along(to, up, rise), world)))
     }
 
     /// `motion` cut where it would bring the eye or the top of a step within
@@ -382,9 +472,11 @@ impl Walk {
     }
 
     /// Stand on the floor under the eye, falling onto it from above it and
-    /// stepping up onto it from below. With no floor under it the walker
-    /// keeps its height.
-    fn settle(&mut self, dt: f64, world: &mut impl FnMut(&Ray) -> Option<Hit>) {
+    /// stepping up onto it from below, unless something above is in the way.
+    /// A walker not already falling that has `moved` this far stays on a
+    /// slope going down, when the floor's slope accounts for the drop. With
+    /// no floor under it the walker keeps its height.
+    fn settle(&mut self, dt: f64, moved: f64, world: &mut impl FnMut(&Ray) -> Option<Hit>) {
         let up = self.axes.up();
         let floor = world(&Ray {
             origin: self.eye,
@@ -397,8 +489,14 @@ impl Walk {
         };
         let above = floor.distance - self.body();
         if above <= 0.0 {
-            self.move_to(along(self.eye, up, -above));
+            if self.head_room(self.eye, -above, world) {
+                self.move_to(along(self.eye, up, -above));
+            }
             self.fall = 0.0;
+            return;
+        }
+        if self.fall == 0.0 && above <= moved * self.slope(&floor) + 1e-9 {
+            self.move_to(along(self.eye, up, -above));
             return;
         }
         let fall = self.fall + GRAVITY * self.body() * dt;

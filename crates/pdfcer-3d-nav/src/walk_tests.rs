@@ -557,3 +557,174 @@ fn turning_by_the_largest_angle_keeps_the_direction_finite() {
     }
     assert!(walk.yaw.abs() <= std::f64::consts::PI, "{}", walk.yaw);
 }
+
+const CLIMBING: Rules = Rules {
+    stairs: true,
+    ..SOLID
+};
+
+/// A ceiling at height `z` over x = `from`..`to`.
+fn ceiling(from: f64, to: f64, z: f64) -> TriangleMesh {
+    sheet(from, to, z, 0.0)
+}
+
+#[test]
+fn a_ramp_under_a_low_ceiling_stops_below_it() {
+    let meshes = floor_with(vec![sheet(1.0, 9.0, 0.0, 0.5), ceiling(-10.0, 10.0, 1.2)]);
+    let mut walk = walker([0.0, 0.0, 0.8]);
+    stride(&mut walk, 3.0, 0.05, false, SOLID, &meshes);
+    let [x, _, z] = walk.eye;
+    assert!(z < 1.0, "not clear of the ceiling: {:?}", walk.eye);
+    assert!(x > 1.25, "stopped too soon: {:?}", walk.eye);
+    assert!((z - 0.8 - (x - 1.0) * 0.5).abs() < 1e-9, "{:?}", walk.eye);
+    let there = walk.eye;
+    stride(&mut walk, 3.0, 0.05, false, SOLID, &meshes);
+    assert_eq!(walk.eye, there);
+}
+
+#[test]
+fn a_step_under_a_low_ceiling_is_not_climbed() {
+    let meshes = floor_with(vec![sheet(2.0, 3.0, 0.2, 0.0), ceiling(-10.0, 10.0, 0.9)]);
+    let mut walk = walker([0.0, 0.0, 0.8]);
+    stride(&mut walk, 3.0, 0.05, false, CLIMBING, &meshes);
+    assert!(walk.eye[0] < 2.0, "{:?}", walk.eye);
+    assert!((walk.eye[2] - 0.8).abs() < 1e-9, "{:?}", walk.eye);
+}
+
+#[test]
+fn a_walker_under_a_ceiling_lower_than_its_height_walks_out_and_stands_up() {
+    let meshes = floor_with(vec![ceiling(-10.0, 1.0, 0.6)]);
+    let mut walk = walker([-5.0, 0.0, 0.5]);
+    stride(&mut walk, 1.0, 0.05, false, SOLID, &meshes);
+    assert_eq!(walk.eye[2], 0.5, "{:?}", walk.eye);
+    assert!(walk.eye[0] > -3.0, "it did not walk: {:?}", walk.eye);
+    stride(&mut walk, 3.0, 0.05, false, SOLID, &meshes);
+    assert!(walk.eye[0] > 1.0, "{:?}", walk.eye);
+    assert!((walk.eye[2] - 0.8).abs() < 1e-9, "{:?}", walk.eye);
+}
+
+#[test]
+fn a_walker_exactly_on_the_floor_stands_up() {
+    let meshes = floor_with(vec![]);
+    let mut walk = walker([0.0, 0.0, 0.0]);
+    stride(&mut walk, 0.05, 0.05, false, SOLID, &meshes);
+    assert!((walk.eye[2] - 0.8).abs() < 1e-9, "{:?}", walk.eye);
+}
+
+/// A small eye in a large model: one step is many eye heights long.
+fn tiny_walker() -> Walk {
+    let mut walk = walker([0.0, 0.0, 1.6]);
+    walk.scale = 5000.0;
+    walk.height = Some(1.6);
+    walk
+}
+
+#[test]
+fn a_stride_many_eye_heights_long_still_meets_a_slab_inside_it() {
+    let meshes = vec![
+        sheet(-1000.0, 1000.0, 0.0, 0.0),
+        sheet(30.0, 45.0, 1.0, 0.0),
+    ];
+    let mut walk = tiny_walker();
+    stride(&mut walk, 0.05, 0.05, false, SOLID, &meshes);
+    assert!(walk.eye[0] < 30.0, "{:?}", walk.eye);
+    assert!(walk.eye[0] > 25.0, "{:?}", walk.eye);
+}
+
+#[test]
+fn a_long_stride_is_all_made_when_nothing_is_in_the_way() {
+    let meshes = vec![sheet(-1000.0, 1000.0, 0.0, 0.0)];
+    let mut walk = tiny_walker();
+    stride(&mut walk, 0.05, 0.05, false, SOLID, &meshes);
+    assert!((walk.eye[0] - 62.5).abs() < 1e-9, "{:?}", walk.eye);
+    assert_eq!(walk.parts(62.5), 40);
+    assert_eq!(walk.parts(0.0), 1);
+    assert_eq!(walk.parts(1e9), MOST_PARTS);
+    assert_eq!(walk.parts(f64::INFINITY), MOST_PARTS);
+    assert_eq!(walk.parts(f64::NAN), MOST_PARTS);
+}
+
+#[test]
+fn walking_down_a_ramp_stays_on_it() {
+    for (slope, dt, run) in [(-0.5, 0.05, false), (-0.25, 0.1, false), (-0.9, 0.05, true)] {
+        let meshes = floor_with(vec![sheet(0.0, 8.0, 7.2, slope)]);
+        let mut walk = walker([0.5, 0.0, 7.2 + 0.5 * slope + 0.8]);
+        for _ in 0..8 {
+            stride(&mut walk, dt, dt, run, SOLID, &meshes);
+            let [x, _, z] = walk.eye;
+            if x >= 8.0 {
+                break;
+            }
+            let on = 7.2 + x * slope + 0.8;
+            assert!((z - on).abs() < 1e-9, "{slope} {dt} at {x}: {z} not {on}");
+            assert!(!walk.falling());
+        }
+    }
+}
+
+#[test]
+fn walking_off_a_ledge_still_falls() {
+    let meshes = floor_with(vec![sheet(-10.0, 2.0, 3.0, 0.0)]);
+    let mut walk = walker([1.95, 0.0, 3.8]);
+    stride(&mut walk, 0.05, 0.05, false, SOLID, &meshes);
+    assert!(walk.falling(), "{:?}", walk.eye);
+    assert!(walk.eye[2] > 3.5, "{:?}", walk.eye);
+}
+
+/// A plate just above where the eye will be, narrower than the longest
+/// stride, wherever the strides happen to land.
+#[test]
+fn a_plate_narrower_than_a_stride_stops_a_walker_on_a_ramp() {
+    for n in 0..30 {
+        let x0 = 1.5 + 0.03 * f64::from(n);
+        let z0 = 0.9 + 0.5 * (x0 - 1.0);
+        for (dt, run) in [(0.05, false), (0.05, true), (0.1, true)] {
+            let meshes = floor_with(vec![
+                sheet(1.0, 9.0, 0.0, 0.5),
+                sheet(x0, x0 + 0.4, z0, 0.0),
+            ]);
+            let mut walk = walker([0.0, 0.0, 0.8]);
+            stride(&mut walk, 3.0, dt, run, SOLID, &meshes);
+            let [x, _, z] = walk.eye;
+            assert!(x < x0 + 0.2, "{x0} {dt} {run}: at {x}");
+            assert!(z < z0, "{x0} {dt} {run}: at {z}");
+        }
+    }
+}
+
+#[test]
+fn the_model_is_never_asked_about_a_ray_that_is_not_finite() {
+    let mut walk = walker([f64::MAX, f64::MAX / 2.0, f64::MAX]);
+    walk.scale = f64::MAX;
+    let mut asked = 0;
+    let mut world = |ray: &Ray| {
+        asked += 1;
+        let finite = ray
+            .origin
+            .iter()
+            .chain(&ray.direction)
+            .all(|c| c.is_finite());
+        assert!(finite, "{ray:?}");
+        None
+    };
+    let intent = Intent {
+        forward: 1.0,
+        ..Intent::default()
+    };
+    walk.step(intent, 0.05, SOLID, &mut world);
+    walk.travel([f64::MAX, 0.0], SOLID, &mut world);
+    assert!(walk.eye.iter().all(|c| c.is_finite()));
+}
+
+/// Coming down onto a ramp is a fall all the way, however close the ramp is:
+/// only a walker already standing is carried down the slope.
+#[test]
+fn a_falling_walker_is_not_snapped_onto_a_slope() {
+    let meshes = floor_with(vec![sheet(0.0, 8.0, 7.2, -0.5)]);
+    let mut walk = walker([1.0, 0.0, 7.2 - 0.5 + 0.8]);
+    walk.fall = 1e-6;
+    stride(&mut walk, 0.05, 0.05, false, SOLID, &meshes);
+    let [x, _, z] = walk.eye;
+    assert!(z > 7.2 - 0.5 * x + 0.8 + 0.01, "{:?}", walk.eye);
+    assert!(walk.falling(), "{:?}", walk.eye);
+}
