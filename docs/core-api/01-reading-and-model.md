@@ -4181,14 +4181,18 @@ stream; layout in `ARCHITECTURE.md` decision 210.
   `Empty`, `BadIndex { what, index }` (including a missing texture or a
   `uvs` count unequal to `positions`), `NotATree(why)` (two parents, a
   parented root, nesting beyond `MAX_DEPTH` 1024), `BadNumber(what)`,
-  `TooLarge`, `BadTexture { index }` (not a PNG or JPEG whose size reads).
+  `TooLarge`, `BadTexture { index }` (not a PNG or JPEG whose size reads, or one
+  0 pixels wide or high).
 - `read_gltf(data, &mut resolve, GltfOptions) -> Result<GltfImport,
   GltfError>` reads a `.gltf` text or `.glb` into a `MeshScene` in metres
   (`units_in_mm` 1000). The engine opens no files: `resolve(uri) ->
   Option<Vec<u8>>` gets each external buffer's and image's percent-decoded
   relative URI;
-  refuse absolute paths, `..` and anything with `:` (the CLI does). `data:`
-  and GLB buffers need no resolver.
+  refuse absolute paths, `..` and anything with `:`, and read only a file
+  whose real path (links followed) is inside the model's folder (the CLI
+  does all four, and refuses the whole conversion, naming the resource,
+  when a link leads out). `data:` and GLB buffers need no resolver; a
+  `data:` payload's `%XX` escapes are resolved before base64 (RFC 2397 §3).
 - `GltfOptions` (`#[non_exhaustive]`, `Default`; set fields on a default)
   holds the readings files differ on — offer each as a setting:
   `colours: GltfColours::{Linear (default: glTF's linear base colour
@@ -4230,7 +4234,12 @@ stream; layout in `ARCHITECTURE.md` decision 210.
 - `GltfImport { scene, notes, inferred }`: show every `notes` line (what was
   dropped: a base-colour texture that cannot be drawn (no PNG/JPEG source,
   an unreadable image, no `TEXCOORD_n`), an occlusion map not baked,
-  points/lines, skins and morphs at rest pose, a bad primitive, a second
+  points/lines, skins and morphs at rest pose (a node whose mesh has
+  primitive `targets` counts as morphed), a bad primitive (including an
+  accessor holding a NaN or infinity: `accessor N holds a number that is
+  not finite`, only that primitive skipped), animations, `COLOR_0` vertex
+  colours (counted), a `primitive.material` that does not exist (drawn in
+  the default white), nodes naming a mesh that does not exist (counted), a second
   scene, no scene, and one aggregate `materials: …` line counting normal
   maps, metallic-roughness maps and emission, which PRC's diffuse-only
   material cannot carry) and every `inferred` line (an occlusion bake; an
@@ -4251,7 +4260,8 @@ stream; layout in `ARCHITECTURE.md` decision 210.
   `scene.textures` (`texture dropped: the import's limit of … bytes of
   scene textures is reached`). The JSON is capped at
   `pdfcer_json::MAX_VALUES` values (an error, below).
-  `GltfError` (`#[non_exhaustive]`): `NotGltf(why)`, `Json` (its
+  `GltfError` (`#[non_exhaustive]`): `NotGltf(why)` (including
+  `asset.minVersion` other than "2.0", glTF 2.0 §3.2), `Json` (its
   `JsonError::kind` is `JsonErrorKind::{Malformed, TooDeep,
   TooManyValues}`),
   `RequiredExtension(name)` (only `KHR_mesh_quantization` and

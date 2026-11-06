@@ -68,6 +68,10 @@ pub(super) fn scene(
     meshes(doc, data, &uses, &mut out);
     nodes(doc, &mut out);
     roots(doc, options, &mut out);
+    if !member(doc, "animations").is_empty() {
+        out.notes
+            .push("animations not imported; the scene is drawn still".into());
+    }
     let linear = options.colours == GltfColours::Linear;
     super::lights::lights(doc, options.lights, linear, &mut out);
     out
@@ -155,11 +159,22 @@ fn opacity(alpha: Alpha, given: f64, cut: bool, label: &str, out: &mut GltfImpor
 fn meshes(doc: &Json, data: &Data<'_>, uses: &[Option<TextureUse>], out: &mut GltfImport) {
     let default_material = out.scene.materials.len();
     let mut used_default = false;
+    let mut coloured = 0usize;
     for (m, mesh) in member(doc, "meshes").iter().enumerate() {
         let mut primitives = Vec::new();
         for (p, prim) in member(mesh, "primitives").iter().enumerate() {
             match primitive(doc, data, prim) {
                 Ok(mut sp) => {
+                    if sp.material.is_none() && prim.get("material").is_some() {
+                        out.notes.push(format!(
+                            "mesh {m} primitive {p}: its material does not exist; drawn in the default white"
+                        ));
+                    }
+                    coloured += usize::from(
+                        prim.get("attributes")
+                            .and_then(|a| a.get("COLOR_0"))
+                            .is_some(),
+                    );
                     texture_coordinates(doc, data, prim, uses, &mut sp, (m, p), out);
                     if sp.material.is_none() {
                         sp.material = Some(default_material);
@@ -176,6 +191,11 @@ fn meshes(doc: &Json, data: &Data<'_>, uses: &[Option<TextureUse>], out: &mut Gl
             name: name(mesh),
             primitives,
         });
+    }
+    if coloured > 0 {
+        out.notes.push(format!(
+            "the vertex colours (COLOR_0) of {coloured} primitives not drawn"
+        ));
     }
     if used_default {
         // The glTF default material: opaque white [§3.9.6].
@@ -305,8 +325,18 @@ fn trs(t: [f64; 3], q: [f64; 4], s: [f64; 3]) -> [f64; 16] {
     m
 }
 
+/// The nodes; a skinned or morphed node is drawn in its rest pose and a node naming no
+/// existing mesh is drawn without one, each counted in a note.
 fn nodes(doc: &Json, out: &mut GltfImport) {
-    let mut skinned = 0;
+    let meshes = member(doc, "meshes");
+    let morphed = |k: usize| {
+        meshes.get(k).is_some_and(|mesh| {
+            member(mesh, "primitives")
+                .iter()
+                .any(|p| p.get("targets").is_some())
+        })
+    };
+    let (mut skinned, mut missing) = (0, 0);
     for n in member(doc, "nodes") {
         let matrix = numbers::<16>(n.get("matrix")).or_else(|| {
             let (t, r, s) = (n.get("translation"), n.get("rotation"), n.get("scale"));
@@ -318,17 +348,26 @@ fn nodes(doc: &Json, out: &mut GltfImport) {
                 )
             })
         });
-        skinned += usize::from(n.get("skin").is_some() || n.get("weights").is_some());
+        let mesh = index(n, "mesh").filter(|&m| m < out.scene.meshes.len());
+        skinned += usize::from(
+            n.get("skin").is_some() || n.get("weights").is_some() || mesh.is_some_and(morphed),
+        );
+        missing += usize::from(mesh.is_none() && n.get("mesh").is_some());
         out.scene.nodes.push(SceneNode {
             name: name(n),
             matrix,
-            mesh: index(n, "mesh").filter(|&m| m < out.scene.meshes.len()),
+            mesh,
             children: indices(n, "children"),
         });
     }
     if skinned > 0 {
         out.notes.push(format!(
             "{skinned} skinned or morphed nodes drawn in their rest pose"
+        ));
+    }
+    if missing > 0 {
+        out.notes.push(format!(
+            "{missing} nodes name a mesh that does not exist; drawn without one"
         ));
     }
 }

@@ -253,6 +253,16 @@ where
     if version.split('.').next() != Some("2") {
         return Err(GltfError::NotGltf("a version other than 2"));
     }
+    // A file needing a later 2.x reader names it in asset.minVersion (glTF 2.0 §3.2); this
+    // importer reads 2.0.
+    if let Some(min) = doc
+        .get("asset")
+        .and_then(|a| a.get("minVersion"))
+        .and_then(Json::as_str)
+        && min != "2.0"
+    {
+        return Err(GltfError::NotGltf("a minVersion other than 2.0"));
+    }
     if let Some(ext) = member(&doc, "extensionsRequired")
         .iter()
         .filter_map(Json::as_str)

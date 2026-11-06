@@ -2,6 +2,7 @@
 //! that draw them [glTF 2.0 §3.8, §3.9.2; `KHR_texture_transform`].
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 
 use pdfcer_json::Json;
 
@@ -90,7 +91,7 @@ pub(super) type Key = (Option<usize>, Option<(usize, u64)>, (u8, u64, u64));
 /// [`Key`], holding at most `budget` picture bytes in all.
 #[derive(Debug)]
 pub(super) struct Textures {
-    seen: Vec<(Key, usize)>,
+    seen: HashMap<Key, usize>,
     budget: usize,
     left: usize,
 }
@@ -99,7 +100,7 @@ impl Textures {
     /// An empty cache that holds at most `budget` picture bytes.
     pub(super) fn new(budget: usize) -> Self {
         Self {
-            seen: Vec::new(),
+            seen: HashMap::new(),
             budget,
             left: budget,
         }
@@ -159,7 +160,7 @@ impl Textures {
         make: impl FnOnce() -> SceneTexture,
         out: &mut GltfImport,
     ) -> Option<usize> {
-        if let Some(&(_, k)) = self.seen.iter().find(|(seen, _)| *seen == key) {
+        if let Some(&k) = self.seen.get(&key) {
             return Some(k);
         }
         let Some(left) = self.left.checked_sub(bytes) else {
@@ -173,7 +174,7 @@ impl Textures {
         self.left = left;
         let k = out.scene.textures.len();
         out.scene.textures.push(make());
-        self.seen.push((key, k));
+        self.seen.insert(key, k);
         Some(k)
     }
 }
@@ -277,5 +278,24 @@ mod tests {
         let plain = uses(&pdfcer_json::parse(br#"{"index":0}"#).unwrap());
         assert_eq!(plain.set, 0);
         assert_eq!(plain.matrix, [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]]);
+    }
+
+    /// The KHR_texture_transform README's example (offset (0, 1), a quarter turn, half scale),
+    /// which its caption says draws only the image's lower-left quadrant; v runs down.
+    #[test]
+    fn the_extensions_own_example_draws_the_lower_left_quadrant() {
+        let info = pdfcer_json::parse(
+            br#"{"index":0,"extensions":{"KHR_texture_transform":
+                {"offset":[0,1],"rotation":1.57079632679,"scale":[0.5,0.5]}}}"#,
+        )
+        .unwrap();
+        let [m0, m1] = uses(&info).matrix;
+        for [u, v] in [[0.0, 0.0], [1.0, 0.0], [0.0, 1.0], [1.0, 1.0]] {
+            let (tu, tv) = (m0[0] * u + m0[1] * v + m0[2], m1[0] * u + m1[1] * v + m1[2]);
+            assert!(
+                (-1e-9..=0.5 + 1e-9).contains(&tu) && (0.5 - 1e-9..=1.0 + 1e-9).contains(&tv),
+                "({u}, {v}) to ({tu}, {tv})"
+            );
+        }
     }
 }

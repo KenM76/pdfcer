@@ -175,7 +175,8 @@ pub enum PrcWriteError {
     /// (32-bit counts and offsets).
     #[error("the scene is too large for a PRC stream")]
     TooLarge,
-    /// Texture `index` is not a PNG or JPEG file whose size can be read.
+    /// Texture `index` is not a PNG or JPEG file whose size can be read, or
+    /// it is 0 pixels wide or high.
     #[error("texture {index} is not a readable PNG or JPEG file")]
     BadTexture {
         /// Index into [`MeshScene::textures`].

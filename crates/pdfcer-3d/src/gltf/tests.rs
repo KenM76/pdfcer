@@ -620,3 +620,76 @@ fn scene_texture_bytes_are_capped_over_the_whole_import() {
         )]
     );
 }
+
+/// A picture declaring no pixels is dropped by the importer, like any picture it cannot read.
+#[test]
+fn a_picture_with_no_pixels_is_a_note() {
+    let mut empty = PNG_HEADER.to_vec();
+    empty[16..20].copy_from_slice(&[0; 4]);
+    let import = read(&textured_glb(&empty, PLAIN), GltfOptions::default());
+    assert!(import.scene.textures.is_empty());
+    assert_eq!(import.scene.materials[0].texture, None);
+}
+
+/// A quad drawn, a copy of it holding a NaN skipped, and each loss named.
+#[test]
+fn what_is_not_drawn_is_a_note() {
+    let mut positions = QUAD.to_vec();
+    positions.extend(QUAD);
+    positions[13] = f32::NAN;
+    let bin = payload(&positions, &QUAD_INDICES);
+    let json = r#"{"asset":{"version":"2.0"},
+      "buffers":[{"byteLength":108}],
+      "bufferViews":[{"buffer":0,"byteLength":48},{"buffer":0,"byteOffset":48,"byteLength":48},
+        {"buffer":0,"byteOffset":96,"byteLength":12}],
+      "accessors":[{"bufferView":0,"componentType":5126,"count":4,"type":"VEC3"},
+        {"bufferView":1,"componentType":5126,"count":4,"type":"VEC3"},
+        {"bufferView":2,"componentType":5123,"count":6,"type":"SCALAR"}],
+      "materials":[{"name":"paint"}],
+      "meshes":[{"primitives":[{"attributes":{"POSITION":0,"COLOR_0":0},"indices":2,"material":7,
+          "targets":[{"POSITION":0}]}]},
+        {"primitives":[{"attributes":{"POSITION":1},"indices":2,"material":0}]}],
+      "nodes":[{"mesh":0},{"mesh":1},{"mesh":9}],
+      "animations":[{"channels":[],"samplers":[]}],
+      "scenes":[{"nodes":[0,1,2]}]}"#;
+    let import = read(&glb(json, &bin), GltfOptions::default());
+    let notes = import.notes.join("\n");
+    for noted in [
+        "animations not imported; the scene is drawn still",
+        "mesh 0 primitive 0: its material does not exist; drawn in the default white",
+        "the vertex colours (COLOR_0) of 1 primitives not drawn",
+        "1 skinned or morphed nodes drawn in their rest pose",
+        "1 nodes name a mesh that does not exist; drawn without one",
+        "mesh 1 primitive 0 skipped: accessor 1 holds a number that is not finite",
+    ] {
+        assert!(notes.contains(noted), "{noted:?} not in {notes}");
+    }
+    assert_eq!(
+        write_prc(&import.scene).unwrap().triangles,
+        2,
+        "the finite quad is still drawn"
+    );
+}
+
+/// glTF 2.0 §3.2: asset.minVersion names the oldest reader that can load the file.
+#[test]
+fn a_file_needing_a_later_reader_is_refused() {
+    let file = |min: &str| format!(r#"{{"asset":{{"version":"2.0","minVersion":"{min}"}}}}"#);
+    let later = read_gltf(
+        file("2.1").as_bytes(),
+        &mut |_| None,
+        GltfOptions::default(),
+    );
+    assert!(matches!(
+        later,
+        Err(GltfError::NotGltf("a minVersion other than 2.0"))
+    ));
+    assert!(
+        read_gltf(
+            file("2.0").as_bytes(),
+            &mut |_| None,
+            GltfOptions::default()
+        )
+        .is_ok()
+    );
+}

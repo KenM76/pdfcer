@@ -35,39 +35,37 @@ pub(crate) struct Converted {
 }
 
 /// Convert the glTF `data` read from `path`, or the exit code after the
-/// reason. External buffers are read beside `path`; a URI that is absolute
-/// or climbs out of that folder is refused.
+/// reason. External buffers and images are read beside `path`; a URI that
+/// is absolute or climbs out of that folder is refused, and so is a file
+/// whose real path (links followed) lies outside it.
 #[cfg(feature = "3d")]
 pub(crate) fn to_prc(path: &Path, data: &[u8], how: GltfHow<'_>) -> Result<Converted, u8> {
-    use pdfcer_3d::{
-        GltfColours, GltfLights, GltfOcclusion, GltfOptions, GltfUpAxis, read_gltf, write_prc,
+    use pdfcer_3d::{read_gltf, write_prc};
+    let dir = path
+        .parent()
+        .filter(|d| !d.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let real_dir = dir.canonicalize().ok();
+    let mut outside = Vec::new();
+    let mut resolve = |uri: &str| match read_beside(dir, real_dir.as_deref(), uri) {
+        Ok(bytes) => Some(bytes),
+        Err(Unread::Outside) => {
+            outside.push(uri.to_owned());
+            None
+        }
+        Err(Unread::Missing) => None,
     };
-    let mut options = GltfOptions::default();
-    options.occlusion = match how.occlusion {
-        GltfOcclusionArg::Bake => GltfOcclusion::Bake,
-        GltfOcclusionArg::Drop => GltfOcclusion::Drop,
-    };
-    options.colours = match how.colours {
-        GltfColoursArg::Linear => GltfColours::Linear,
-        GltfColoursArg::AsStored => GltfColours::AsStored,
-    };
-    options.up_axis = match how.up {
-        GltfUpArg::Z => GltfUpAxis::ZUp,
-        GltfUpArg::AsStored => GltfUpAxis::AsStored,
-    };
-    options.lights = match how.lights {
-        GltfLightsArg::Exposure => GltfLights::Exposure,
-        GltfLightsArg::Normalise => GltfLights::Normalise,
-        GltfLightsArg::Stored => GltfLights::Stored,
-        GltfLightsArg::Drop => GltfLights::Drop,
-    };
-    let dir = path.parent().unwrap_or(Path::new("."));
-    let mut resolve = |uri: &str| beside(dir, uri).and_then(|p| std::fs::read(p).ok());
     let refuse = |err: &dyn std::fmt::Display| {
         eprintln!("pdfcer: {}: {err}", path.display());
         exit::EDIT_REFUSED
     };
-    let mut import = read_gltf(data, &mut resolve, options).map_err(|e| refuse(&e))?;
+    let read = read_gltf(data, &mut resolve, options(how));
+    if let Some(uri) = outside.first() {
+        return Err(refuse(&format!(
+            "{uri} leads outside the model's folder (through a link), so it was not read"
+        )));
+    }
+    let mut import = read.map_err(|e| refuse(&e))?;
     let lights = &mut import.scene.lights;
     lights.extend(how.added.iter().map(super::LightArg::to_model));
     let lights = lights.len();
@@ -140,6 +138,56 @@ fn beside(dir: &Path, uri: &str) -> Option<PathBuf> {
     plain.then(|| dir.join(rel))
 }
 
+/// The importer settings `how` asks for.
+#[cfg(feature = "3d")]
+fn options(how: GltfHow<'_>) -> pdfcer_3d::GltfOptions {
+    use pdfcer_3d::{GltfColours, GltfLights, GltfOcclusion, GltfOptions, GltfUpAxis};
+    let mut options = GltfOptions::default();
+    options.occlusion = match how.occlusion {
+        GltfOcclusionArg::Bake => GltfOcclusion::Bake,
+        GltfOcclusionArg::Drop => GltfOcclusion::Drop,
+    };
+    options.colours = match how.colours {
+        GltfColoursArg::Linear => GltfColours::Linear,
+        GltfColoursArg::AsStored => GltfColours::AsStored,
+    };
+    options.up_axis = match how.up {
+        GltfUpArg::Z => GltfUpAxis::ZUp,
+        GltfUpArg::AsStored => GltfUpAxis::AsStored,
+    };
+    options.lights = match how.lights {
+        GltfLightsArg::Exposure => GltfLights::Exposure,
+        GltfLightsArg::Normalise => GltfLights::Normalise,
+        GltfLightsArg::Stored => GltfLights::Stored,
+        GltfLightsArg::Drop => GltfLights::Drop,
+    };
+    options
+}
+
+/// Why a resource beside the model was not read.
+#[cfg(feature = "3d")]
+#[derive(Debug, PartialEq, Eq)]
+enum Unread {
+    /// Refused by [`beside`], or the file could not be read.
+    Missing,
+    /// Its real path lies outside the model's folder: a link leads out.
+    Outside,
+}
+
+/// The bytes of `uri` beside the model in `dir`, whose real path is
+/// `real_dir`. The resource is read only when its real path, links
+/// followed, starts with `real_dir`, so a link beside the model cannot
+/// lead out of its folder.
+#[cfg(feature = "3d")]
+fn read_beside(dir: &Path, real_dir: Option<&Path>, uri: &str) -> Result<Vec<u8>, Unread> {
+    let joined = beside(dir, uri).ok_or(Unread::Missing)?;
+    let real = joined.canonicalize().map_err(|_| Unread::Missing)?;
+    if !real_dir.is_some_and(|d| real.starts_with(d)) {
+        return Err(Unread::Outside);
+    }
+    std::fs::read(real).map_err(|_| Unread::Missing)
+}
+
 /// `3d-convert`: write the PRC a glTF model converts to.
 pub(crate) fn cmd_convert_3d(input: &Path, output: &Path, how: GltfHow<'_>) -> u8 {
     let data = match std::fs::read(input) {
@@ -185,6 +233,44 @@ mod tests {
         assert_eq!(beside(dir, "/etc/passwd"), None);
         assert_eq!(beside(dir, "C:/x.bin"), None);
         assert_eq!(beside(dir, "file://x"), None);
+    }
+
+    /// Makes a file link at `link` to `target`; false where links cannot be made (Windows
+    /// without developer mode).
+    #[cfg(feature = "3d")]
+    fn link(target: &Path, link: &Path) -> bool {
+        #[cfg(windows)]
+        let made = std::os::windows::fs::symlink_file(target, link);
+        #[cfg(unix)]
+        let made = std::os::unix::fs::symlink(target, link);
+        #[cfg(not(any(windows, unix)))]
+        let made: std::io::Result<()> = Err(std::io::ErrorKind::Unsupported.into());
+        made.is_ok()
+    }
+
+    #[cfg(feature = "3d")]
+    #[test]
+    fn a_link_beside_the_model_cannot_lead_out_of_its_folder() {
+        let root = std::env::temp_dir().join(format!("pdfcer-gltf-link-{}", std::process::id()));
+        let (model, elsewhere) = (root.join("model"), root.join("elsewhere"));
+        std::fs::create_dir_all(&model).unwrap();
+        std::fs::create_dir_all(&elsewhere).unwrap();
+        std::fs::write(elsewhere.join("secret.bin"), b"secret").unwrap();
+        std::fs::write(model.join("mesh.bin"), b"mesh").unwrap();
+        let real = model.canonicalize().unwrap();
+        assert_eq!(
+            read_beside(&model, Some(&real), "mesh.bin"),
+            Ok(b"mesh".to_vec())
+        );
+        if link(&elsewhere.join("secret.bin"), &model.join("link.bin")) {
+            assert_eq!(
+                read_beside(&model, Some(&real), "link.bin"),
+                Err(Unread::Outside)
+            );
+        } else {
+            eprintln!("SKIP: links cannot be made here");
+        }
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]
