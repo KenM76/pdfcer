@@ -1811,6 +1811,7 @@ mod render_policy_tests {
                 markup_without_ap: crate::MarkupWithoutAp::Blank,
                 // NOT the default (`Fill`).
                 free_text_c: crate::FreeTextC::Border,
+                print_intent: false,
             }
         );
         assert_ne!(options.policy(), RenderPolicy::default());
