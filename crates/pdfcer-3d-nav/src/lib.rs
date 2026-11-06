@@ -36,7 +36,7 @@ mod walk;
 
 pub use axes::{Axis, Upright};
 pub use lens::{AUTO_RANGE, CURVES, FISHEYE_WIDEST, FLAT_WIDEST, Lens, LensKind, is_fisheye};
-pub use orbit::{Anchor, Axes, FIT_MARGIN, Orbit, PITCH_LIMIT, ZOOM_RANGE};
+pub use orbit::{Anchor, Axes, FIT_MARGIN, NAMED_PITCH, Orbit, PAN_LIMIT, PITCH_LIMIT, ZOOM_RANGE};
 pub use reach::{radius, reach};
 pub use saved::{NotInside, SavedAim, ViewFrame};
 pub use solids::Solids;

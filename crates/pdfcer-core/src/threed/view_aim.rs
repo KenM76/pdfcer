@@ -97,6 +97,41 @@ impl ThreeDSavedView {
     }
 }
 
+#[cfg(feature = "3d")]
+impl ThreeDSavedView {
+    /// This view as the navigation crate's [`pdfcer_3d_nav::SavedAim`]:
+    /// the `/C2W` z column as the direction, its y column as up and its
+    /// translation as the position (ISO 32000-1 §13.6.4 Table 304). `framed`
+    /// is whether an orthographic view fixes its own framing
+    /// ([`ViewFit::Framed`]); that does not depend on the picture's aspect.
+    /// `None` when the view carries no camera matrix.
+    #[must_use]
+    pub fn saved_aim(&self) -> Option<pdfcer_3d_nav::SavedAim> {
+        let aim = self.aim(1.0)?;
+        let [.., tx, ty, tz] = self.camera_to_world?;
+        Some(pdfcer_3d_nav::SavedAim {
+            direction: aim.direction,
+            up: aim.up,
+            position: [tx, ty, tz],
+            orthographic: aim.orthographic,
+            framed: matches!(aim.fit, ViewFit::Framed { .. }),
+        })
+    }
+
+    /// The framing this view fixes for a picture of `aspect` (width /
+    /// height), as [`pdfcer_3d_nav::ViewFrame`]: `None` for a perspective
+    /// view, one with no usable `/OS`, or one with no camera matrix.
+    #[must_use]
+    pub fn view_frame(&self, aspect: f64) -> Option<pdfcer_3d_nav::ViewFrame> {
+        match self.aim(aspect)?.fit {
+            ViewFit::Framed { position, height } => {
+                Some(pdfcer_3d_nav::ViewFrame { position, height })
+            }
+            ViewFit::FittedToModel => None,
+        }
+    }
+}
+
 impl SavedViewAim {
     /// The sentence `3d-render` prints for where it looks from, naming the
     /// view and disclosing how its scale was read.
@@ -260,6 +295,38 @@ mod tests {
         );
         assert!(aim.source().contains("\"Front\""));
         assert!(aim.source().contains("4.000000 model units high"));
+    }
+
+    #[cfg(feature = "3d")]
+    #[test]
+    fn a_framed_orthographic_view_gives_its_aim_and_frame() {
+        let view = front();
+        let aim = view.saved_aim().expect("a matrix");
+        assert_eq!(aim.direction, [0., -1., 0.]);
+        assert_eq!(aim.up, [0., 0., 1.]);
+        assert_eq!(aim.position, [1., 10., 2.]);
+        assert!(aim.orthographic && aim.framed);
+        assert_eq!(
+            view.view_frame(2.0),
+            Some(pdfcer_3d_nav::ViewFrame {
+                position: [1., 10., 2.],
+                height: 4.0
+            })
+        );
+    }
+
+    #[cfg(feature = "3d")]
+    #[test]
+    fn a_perspective_view_gives_its_position_and_no_frame() {
+        let view = ThreeDSavedView {
+            orthographic: false,
+            ..front()
+        };
+        let aim = view.saved_aim().expect("a matrix");
+        assert_eq!(aim.position, [1., 10., 2.]);
+        assert!(!aim.orthographic && !aim.framed);
+        assert_eq!(view.view_frame(2.0), None);
+        assert!(ThreeDSavedView::default().saved_aim().is_none());
     }
 
     #[cfg(feature = "3d")]

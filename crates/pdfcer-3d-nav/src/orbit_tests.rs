@@ -154,6 +154,41 @@ fn with_y_up_the_named_views_turn_about_y() {
 }
 
 #[test]
+fn the_named_top_and_bottom_views_pitch_89_degrees() {
+    for (view, sign) in [(NamedView::Top, 1.0), (NamedView::Bottom, -1.0)] {
+        let orbit = Orbit::named(view, false, Upright::default());
+        assert!(
+            (orbit.pitch - sign * NAMED_PITCH).abs() < 1e-12,
+            "{view:?}: {}",
+            orbit.pitch.to_degrees()
+        );
+    }
+    assert!((NAMED_PITCH.to_degrees() - 89.0).abs() < 1e-12);
+}
+
+#[test]
+fn a_pan_that_is_not_finite_is_ignored_and_a_huge_one_is_held() {
+    let mut orbit = Orbit::named(NamedView::Iso, true, Upright::default());
+    orbit.pan_by([0.25, -0.5]);
+    assert_eq!(orbit.pan, [0.25, -0.5]);
+    orbit.pan_by([f64::NAN, 0.0]);
+    orbit.set_pan([0.0, f64::INFINITY]);
+    assert_eq!(orbit.pan, [0.25, -0.5]);
+    // A drag that would pan a billion radii.
+    orbit.pan_by([1e9, 1e9]);
+    assert_eq!(orbit.pan, [PAN_LIMIT, PAN_LIMIT]);
+    orbit.set_pan([-1e300, 2.0]);
+    assert_eq!(orbit.pan, [-PAN_LIMIT, 2.0]);
+    for zoom in [0.05, 1.0, 50.0] {
+        orbit.zoom = zoom;
+        let camera = orbit
+            .camera(&cube(), radius(&cube()), 1.0, None)
+            .expect("a view forms");
+        assert!(finite_camera(&camera), "zoom {zoom}");
+    }
+}
+
+#[test]
 fn the_files_view_looks_along_its_own_axis_with_its_own_up() {
     let orbit = Orbit::saved(&corner()).expect("a camera matrix");
     assert!(orbit.perspective && !orbit.framed);

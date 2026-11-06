@@ -160,6 +160,7 @@ builds `--no-default-features`, so both configurations compile.
 | List a PRC model's assembly tree (names, hierarchy, stored visibility, markup and view counts) | `pdfcer_3d::PrcFile::model_tree() -> Result<Vec<ModelNode>, PrcError>` — `pdfcer-3d/src/prc/container.rs` (the walk: `pdfcer-3d/src/prc/tree/`). `ModelNode::markups` / `views` count the PMI markups and views the occurrence and its part carry; the tree reads past them (and past scene lights and clipping planes) rather than refusing the file. | §12.2 |
 | Build a PRC model from triangle meshes, or from a glTF 2.0 / GLB file | `pdfcer_3d::write_prc(&MeshScene) -> Result<PrcWriteReport, PrcWriteError>`; `pdfcer_3d::read_gltf(data, &mut resolve, GltfOptions) -> Result<GltfImport, GltfError>` — `pdfcer-3d/src/write/`, `pdfcer-3d/src/gltf/` | §12.2 |
 | Turn a saved 3D view into a camera (`pdfcer_3d::Camera`) | `ThreeDSavedView::aim(aspect)` → `SavedViewAim::camera(&Bounds, aspect)` / `frame` — `threed/view_aim.rs` | §12.2 |
+| Turn a saved 3D view into navigation input (`pdfcer_3d_nav::SavedAim` / `ViewFrame`) | `ThreeDSavedView::saved_aim()` / `view_frame(aspect)` — `threed/view_aim.rs` | §12.2 |
 | The model point under a pixel of a 3D render (`G245`) | `Camera::ray_through(x, y, w, h)` → `pdfcer_3d::pick(&meshes, &ray) -> Option<Hit>` — `pdfcer-3d/src/camera/pick.rs` | §12.2 |
 | Repeated picks on one model, skipping hidden parts (`G251`) | `PickIndex::new(&meshes)` once, then `index.pick(&ray)` or `index.pick_where(&ray, max_distance, |mesh| visible[mesh])` -> `Option<Hit>`; same answers as `pick`, ties to the lower (mesh, triangle); rebuild when the meshes change — `pdfcer-3d/src/camera/pick_index.rs` | §12.2 |
 | Orbit, walk, lens and fit for an interactive 3D viewer (`X047`) | the `pdfcer-3d-nav` crate — see [`04-3d-navigation.md`](04-3d-navigation.md) | — |
@@ -3297,7 +3298,11 @@ then applies `aim.frame(&mut camera)`, which moves any fitted camera onto a
 `Framed` view's axis and height (no-op for `FittedToModel`). `target - eye`
 is parallel to `direction`; `up` is `up`. To ignore the view's own framing
 (e.g. the operator picked a target), set `aim.fit = ViewFit::FittedToModel`
-— `source()` then says "zoomed to fit the model". CLI: `3d-render` with no
+— `source()` then says "zoomed to fit the model". Also behind `3d`:
+`view.saved_aim() -> Option<pdfcer_3d_nav::SavedAim>` (direction, up,
+the `/C2W` translation as `position`, `orthographic`, `framed`) and
+`view.view_frame(aspect) -> Option<pdfcer_3d_nav::ViewFrame>` (`None`
+unless the fit is `Framed`), the input `Orbit::saved` and `Walk` take. CLI: `3d-render` with no
 camera option uses exactly this (fitting the meshes rather than the box, via
 `Camera::fit_meshes`, then `frame`) and prints `note: camera:` with
 `source()`.

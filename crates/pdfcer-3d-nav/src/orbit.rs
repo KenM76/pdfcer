@@ -14,7 +14,7 @@
 //! [`Camera::looking_at`], so a model of any finite size gives a finite
 //! camera or an error, never a non-finite one.
 
-use std::f64::consts::FRAC_PI_2;
+use std::f64::consts::{FRAC_PI_2, PI};
 
 use pdfcer_3d::vec3::{add, cross, dot, normalize, scale, span, sub, unit_cross};
 use pdfcer_3d::{Bounds, Camera, DEFAULT_FOV_Y, NamedView, Projection, RenderError, UpAxis};
@@ -30,6 +30,13 @@ pub const PITCH_LIMIT: f64 = FRAC_PI_2 - 0.01;
 pub const ZOOM_RANGE: (f64, f64) = (0.05, 50.0);
 /// The clear space round the fitted sphere, as a multiple of its radius.
 pub const FIT_MARGIN: f64 = 1.05;
+/// The farthest pan, in model radii along each picture axis; a pan set
+/// through [`Orbit::set_pan`] or [`Orbit::pan_by`] stays inside it.
+pub const PAN_LIMIT: f64 = 1e3;
+/// The pitch of the named Top and Bottom views, radians: 89°, the value of
+/// the viewer this crate was ported from, chosen over [`PITCH_LIMIT`] so a
+/// named view keeps a visible tilt off straight down.
+pub const NAMED_PITCH: f64 = 89.0 * PI / 180.0;
 
 /// The model point an orbit turns about, its depth along the look, and
 /// where it sits off the picture's centre. An orthographic view shows the
@@ -170,7 +177,7 @@ impl Orbit {
         let (yaw, pitch) = axes.angles(look).unwrap_or((0.0, 0.0));
         Self {
             yaw,
-            pitch,
+            pitch: pitch.clamp(-NAMED_PITCH, NAMED_PITCH),
             zoom: 1.0,
             pan: [0.0, 0.0],
             perspective,
@@ -178,6 +185,21 @@ impl Orbit {
             framed: false,
             anchor: None,
         }
+    }
+
+    /// Sets the pan, each component held inside ±[`PAN_LIMIT`]; a pan that
+    /// is not finite changes nothing.
+    pub fn set_pan(&mut self, pan: [f64; 2]) {
+        if pan.iter().all(|c| c.is_finite()) {
+            self.pan = pan.map(|c| c.clamp(-PAN_LIMIT, PAN_LIMIT));
+        }
+    }
+
+    /// Moves the pan by `delta` model radii, as [`Orbit::set_pan`] does.
+    pub fn pan_by(&mut self, delta: [f64; 2]) {
+        let [x, y] = self.pan;
+        let [dx, dy] = delta;
+        self.set_pan([x + dx, y + dy]);
     }
 
     /// A file's view, turned about its own up; an up not square to the

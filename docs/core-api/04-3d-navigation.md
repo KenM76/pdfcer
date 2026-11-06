@@ -31,7 +31,7 @@ halved until the eye is finite), and nothing is indexed by a number.
 | Turn about the point the pointer pressed | `orbit.anchor_at(&camera, point)` (ignored for a non-finite point); `orbit.refit()` forgets it | `orbit.rs` |
 | Double-click a point to centre on it | `orbit.centre_on(&bounds, point)` | `orbit.rs` |
 | Wheel-zoom keeping the point under the pointer still | `orbit.zoom_at(&bounds, reach, aspect, factor, offset, frame)`; `offset` in picture heights from the centre | `orbit.rs` |
-| Pan | set `orbit.pan` (picture right/up, in model radii) | `orbit.rs` |
+| Pan | `orbit.set_pan([x, y])` / `orbit.pan_by([dx, dy])` (picture right/up, in model radii; each component held to `±PAN_LIMIT`, a non-finite pan ignored) | `orbit.rs` |
 | Look along a picked direction, refitted | `orbit.look_along(direction)` | `orbit.rs` |
 | The axes a turn is measured in | `orbit.axes() -> Axes`; `Axes::upright(Upright)`, `Axes::from_look(direction, up)`, `front()`, `up()`, `right()`, `look(yaw, pitch)`, `angles(direction)` | `orbit.rs` |
 | Choose the up axis and the front | `Upright { up, front }`, `with_up(Axis)`, `with_front(Axis)`, `fronts()` (the four fronts square to `up`) | `axes.rs` |
@@ -54,7 +54,7 @@ halved until the eye is finite), and nothing is indexed by a number.
 | Lens limits | `FLAT_WIDEST` (100°), `FISHEYE_WIDEST` (180°), `AUTO_RANGE` (40°..=100°), `CURVES` (the offered fisheye mappings), `LensKind::ALL` | `lens.rs` |
 | Can I walk from the saved view's eye? | `aim.eye_inside(&bounds) -> Result<[f64; 3], NotInside>` | `saved.rs` |
 | Keep a framed saved view's scale | pass `Some(ViewFrame { position, height })` to `camera` / `zoom_at`; applied only while orthographic and `orbit.framed` | `saved.rs` |
-| Orbit limits | `PITCH_LIMIT` (just under 90°), `ZOOM_RANGE` (0.05..50), `FIT_MARGIN` (1.05) | `orbit.rs` |
+| Orbit limits | `PITCH_LIMIT` (just under 90°), `NAMED_PITCH` (89°: the named Top and Bottom views), `PAN_LIMIT` (1e3 model radii), `ZOOM_RANGE` (0.05..50), `FIT_MARGIN` (1.05) | `orbit.rs` |
 
 ## In `pdfcer-3d` (used by this crate, public for any shell)
 
@@ -78,13 +78,12 @@ halved until the eye is finite), and nothing is indexed by a number.
 
 ## Traps
 
-- **Filling `SavedAim` from `pdfcer-core`.** `ThreeDSavedView::aim(aspect)`
-  gives a `SavedViewAim`: `direction` = the C2W matrix's z column, `up` =
-  its y column **as is** (not negated), `position` = the camera position,
-  `orthographic` from the projection, `framed` = its fit is
-  `ViewFit::Framed`. The `ViewFrame` is that fit's `position` and `height`.
-  An `up` not square to `direction` is accepted: it becomes the turning
-  axis and the view is pitched off it.
+- **Filling `SavedAim` from `pdfcer-core`.** Call
+  `ThreeDSavedView::saved_aim()` and `ThreeDSavedView::view_frame(aspect)`
+  (feature `3d`); they read the C2W z column as `direction`, its y column
+  **as is** (not negated) as `up`, and its translation as `position`. Do not
+  rebuild them from `aim(aspect)`. An `up` not square to `direction` is
+  accepted: it becomes the turning axis and the view is pitched off it.
 - **`Orbit::camera` can fail** for a look along the up axis or a model with
   no finite eye. Keep the last good camera and draw that; do not unwrap.
 - **`frame` is ignored** unless the orbit is orthographic, `framed`, and has

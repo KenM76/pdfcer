@@ -885,6 +885,7 @@ dependencies = [
  "p384",
  "pbkdf2",
  "pdfcer-3d",
+ "pdfcer-3d-nav",
  "pdfcer-color",
  "pdfcer-fonts",
  "pdfcer-function",

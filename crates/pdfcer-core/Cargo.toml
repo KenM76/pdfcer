@@ -150,7 +150,9 @@ ocr-vl = ["dep:rten", "dep:rten-tensor"]
 # (`PlaceholderReason::NoDecoder`). `pdfcer-3d` is MIT, pure Rust,
 # no GUI/network/thread dependency, wasm32-clean; its own deps are
 # `thiserror` and `flate2`, already here. Decision 180.
-3d = ["dep:pdfcer-3d", "pdfcer-3d/render"]
+# The saved-view conversion to `pdfcer-3d-nav`'s `SavedAim`/`ViewFrame`
+# (X053) needs that crate; it depends only on `pdfcer-3d`.
+3d = ["dep:pdfcer-3d", "pdfcer-3d/render", "dep:pdfcer-3d-nav"]
 
 # SVG import (decision 186): usvg parses SVG to a simplified tree; text
 # shaping, system fonts and file access stay off.
@@ -412,6 +414,7 @@ rten-tensor = { version = "0.24", optional = true }
 # pdfcer-3d: PRC decoding and rendering for the default 3D poster (`3d`
 # feature). MIT, in-workspace.
 pdfcer-3d = { workspace = true, optional = true }
+pdfcer-3d-nav = { workspace = true, optional = true }
 # Apache-2.0 OR MIT. Pinned to the version pdfcer-render already tests with.
 usvg = { version = "=0.45.1", default-features = false, optional = true }
 
