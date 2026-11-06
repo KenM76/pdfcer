@@ -112,6 +112,45 @@ wherever it appears.*
 
 ## Shipped
 
+### `4b2b1e54` `Pass 687.0`, 2026-11-06: a casting light behind a surface gives the side seen none of it (`G275`) (1451st filing)
+
+Engineer-reported; no shell here, git state not checked from here (local `main`, not pushed, as reported). Commit `4b2b1e54`. Inbound request `G275` from `pdfcer-gui`, an operator report. Unreleased. Never opened in Next up. No decision record.
+- **Cause:** an aimed sun lit a room through a slab thinner than the shadow map's depth offset, by an amount that depended on the map size.
+- **Rule:** a casting directional light or casting lamp on the far side of a face from the viewer contributes nothing to the side seen, on the CPU key (fill and gloss), the further-lights and lamp routes, and their GLSL counterparts. **Scope chosen by the engineer:** every casting light, not only the aimed sun, since closed solids already get this answer from the map.
+- **Consequences recorded:** an open sheet loses a scheme light from behind (Hard's back light); a sheet lit only from behind goes dark; `shadows: false` / `--no-shadows` keeps two-sided lighting; non-casting lights stay two-sided; a see-through surface below `shadow_alpha` loses the key on its far side; the fixed shadow key is unchanged.
+- **Measured (as reported), real office file at 800x500:** ceiling patches identical with and without the sun at map sizes 2048, 4096, 8192 (112/106/91, 122/114/97, 171/155/127). Before the fix the request's band read 212.5 / 183.7 / 127.1 against 121.7 with no sun. A 5.4 difference remains in the top band and is walls: an aimed sun replaces the shadow key, and the sun render's wall patches equal the no-sun `shadows: false` render exactly.
+- **Tests (as reported):** `render/tests/far_side.rs` 7 tests plus one shader string pin; `pdfcer-3d --lib` 478 passed; three digests re-pinned (ablating the rule returned each to its old value); all CPU and GLSL sabotage caught. **Limit:** no GLSL compiler here; the GUI confirms by running. `cargo tree -p pdfcer-render`: no GUI crate.
+- **FEATURES:** new row "A casting light behind a surface lights nothing on the side seen": core `[x]`, cli `[x]`, gui `[ ]`. **Lesson filed:** `personal_rag/pdf` thin-slab lesson (1451st).
+
+### `8ccfeb04` `Pass 686.0`, 2026-11-06: write one saved 3D view's measurements, leaving the rest alone (`G274`) (1451st filing)
+
+Engineer-reported; no shell here, git state not checked from here (local `main`, not pushed). Commit `8ccfeb04`. Inbound request `G274` from `pdfcer-gui`. Unreleased. Never opened in Next up. No decision record.
+- **`pdfcer-core`:** `EditSession::set_3d_view_measurements` replaces the `/MA` of one saved view (ISO 32000-2 13.6.4), leaving other views and other keys as the file had them. **CLI:** `3d-view-measures`, with `--remove`, `--clear` and the same measurement arguments as `3d-measure`.
+- **The request left verb-versus-carrying-rewrite open; both shipped:** `set_3d_views` now carries unknown keys, unreadable `/MA` entries and kept measurements as written.
+- **Defect found and fixed:** an existing non-conforming measurement refused every edit of its view. Only entries written anew are validated now.
+- **Tests (as reported):** CLI `three_d` 56 passed; sabotage all caught.
+- **FEATURES:** new row "Write one saved 3D view's measurements": core `[x]`, cli `[x]`, gui `[ ]` until `pdfcer-gui` calls the verb.
+
+### `149581d8` `Pass 685.0`, 2026-11-06: `pdfcer print` answers to the Print flag and the print permission (found while building `G273`) (1451st filing)
+
+Engineer-reported; no shell here, git state not checked from here (local `main`, not pushed). Commits `149581d8`, then follow-up `0980c3b2` (policy test field; index clause count). Unreleased. Never opened in Next up. No decision record.
+- **Defect:** the print route used the screen rule for annotations, wrong in both directions against ISO 32000-1 Table 165.
+- **Fix:** `RenderOptions::print_intent` (default false keeps the screen rule) paints by `Annotation::prints`; `print_render_options` sets it for every sheet layout. `check_print_permission` is now public. `print` refuses a password without Table 22 bit 3 before looking for a printer; without bit 12 it caps at 150 DPI with a stderr disclosure, and refuses a network printer in that case because the file itself goes to it.
+- **NOT done:** a layer's `/Print` usage is unchanged on this route; it is being looked at next. Do not read this entry as covering it.
+- **Tests (as reported):** a render test pinning both sides of both rules; a CLI refusal test; a unit assertion on the job intent; 4 sabotage mutations caught.
+- **FEATURES:** new row "Print answers to the Print flag and the print permission": core `[x]`, cli `[x]`, gui `[ ]`. The annotation-render row (`Render and count annotations ...`) is over the row-size cap and was left unedited; the new row carries the print-route clause.
+
+### `6b5c87a6` `Pass 684.0`, 2026-11-06: a print-ready copy with everything that prints burned in (`G273`) (1451st filing)
+
+Engineer-reported; no shell here, git state not checked from here (local `main`, not pushed). Commit `6b5c87a6`. Inbound request `G273` from `pdfcer-gui`. Unreleased. Never opened in Next up. No decision record. **The request's open question is answered: it lives in `pdfcer-core`.**
+- **Purpose:** `EditSession::to_print_ready_bytes` returns one finished PDF for a print service that takes a file and may not draw annotations itself (Android `PrintManager`).
+- **What prints:** by ISO 32000-1 12.5.3 Table 165 (Hidden clear and Print set, whatever NoView says, unless Invisible applies to a non-standard type). Burned over the page in `/Annots` order, all types including the 3D poster and widgets, keeping `/CA`, `/OC` and NoRotate placement.
+- **The copy:** no `/Annots`, `/AcroForm`, `/Perms`; rebuilt without object streams or anything unreachable. Encrypted input gives an unencrypted copy; a non-owner password without Table 22 bit 3 is refused `PrintingForbidden`, without bit 12 `LowQualityPrintingOnly`.
+- **Report fields:** burned, printed_not_on_screen, redaction_marks, not_printing, lost, appearances_drawn, fields_generated, decrypted, signatures_dropped, layers_with_print_setting, dynamic_xfa, disclosures.
+- **Refactor:** `annot_burn_placement`, `annot_burn_of`, `burn_overlay` moved to `edit/annot_burn.rs`. **CLI:** `pdfcer print-ready INPUT -o OUTPUT [--free-text-c ...]`; refusals exit 9.
+- **Tests (as reported):** 12 core, 1 render, 2 CLI; 29 flatten regressions pass; 8 sabotage mutations caught. **Invariant:** `cargo tree -p pdfcer-render` shows no GUI crate.
+- **FEATURES:** new row "Print-ready copy": core `[x]`, cli `[x]`, gui `[ ]`.
+
 ### `c2dca228` `v0.134.1` PUBLISHED, 2026-11-06 (1450th filing)
 
 Engineer-reported; no shell here, nothing checked from here (git, CI, GitHub, crates.io, OneDrive all as reported). Supersedes the IN PROGRESS entry below (1449th). Tag `v0.134.1` on `c2dca228`, pushed. HEAD at publish `6c848ffc`, a docs-only descendant; CI run 42274977149 green on all 12 jobs at `6c848ffc`. Carries `Pass 679.0` to `683.0` (`X058`, `X056`, `X055`, `X057`, `X059`) and `7a4c6d52`. Tag `v0.134.0` (`fc3f7e1d`) stays, never published (filed superseded in the 1449th).
@@ -26275,6 +26314,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **1449th filing: `v0.134.0` was never published (tag pushed at `fc3f7e1d` before CI finished; superseded). `v0.134.1` release commit `c2dca228` is IN PROGRESS, to be tagged only after CI is green; not pushed as of filing. No open Pass at the head.**
 
 > **1450th filing: `v0.134.1` PUBLISHED (tag `c2dca228`; CI green on all 12 jobs at `6c848ffc`; GitHub release, crates.io, OneDrive `pdfcer2`). Next release writes `pdfcer1`. No open Pass at the head.**
+
+> **1451st filing: `Pass 684.0` (`G273`, `6b5c87a6`), `685.0` (`149581d8`, `0980c3b2`), `686.0` (`G274`, `8ccfeb04`) and `687.0` (`G275`, `4b2b1e54`) are SHIPPED (see *Shipped*), on local `main`, unreleased; the next release carries them. Filed directly as Shipped, never opened here. `684`-`687` had zero hits across `docs/*.md` by grep (no shell; not run through `tools/check-ledger-numbers.py`). Open follow-up: a layer's `/Print` usage on the print route is being looked at next and is NOT done. No open Pass at the head.**
 
 > **1433rd filing: `Pass 675.1` (QUEUED after `675.0`) - publish `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav` to crates.io at the next release** (decision 217; Ken, 2026-11-06: "Yes publish them"). `675.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`).
 > - the three join `pdfcer-color`, `-model`, `-pkix` (`Pass 637.0`); `pdfcer-json` is included because `pdfcer-3d` depends on it;

@@ -4,6 +4,22 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1451st filing) — `Pass 684.0`-`687.0` (`G273`, `G274`, `G275`) SHIPPED, unreleased
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, engineer commits):**
+- **Four Passes, all on local `main`, no version yet (the next release files separately); none opened in Next up, filed directly as Shipped:**
+  - `Pass 684.0`, `G273`, `6b5c87a6`: `EditSession::to_print_ready_bytes`, one finished PDF with everything that prints burned in (ISO 32000-1 Table 165); CLI `print-ready`. Lives in `pdfcer-core` (the request's open question).
+  - `Pass 685.0`, found while building `G273`, `149581d8` + `0980c3b2`: `pdfcer print` paints by the Print flag (`RenderOptions::print_intent`) and answers to the print permission (refuse without bit 3; 150 DPI cap without bit 12; no network printer then).
+  - `Pass 686.0`, `G274`, `8ccfeb04`: `EditSession::set_3d_view_measurements`; CLI `3d-view-measures`; `set_3d_views` carries unknown keys and unreadable `/MA` entries; an existing non-conforming measurement no longer blocks an edit of its view.
+  - `Pass 687.0`, `G275`, `4b2b1e54`: a casting light behind a surface contributes nothing to the side seen (every casting light, not only the sun).
+- **Tests (as reported):** `684.0` 12 core, 1 render, 2 CLI, 29 flatten regressions, 8 sabotage mutations caught; `685.0` render test on both sides of both rules, CLI refusal, job-intent assertion, 4 sabotage caught; `686.0` CLI `three_d` 56 passed, sabotage all caught; `687.0` `far_side.rs` 7 tests plus a shader string pin, `pdfcer-3d --lib` 478 passed, three digests re-pinned (ablating the rule returned each to its old value), CPU and GLSL sabotage all caught. `cargo tree -p pdfcer-render`: no GUI crate (`684.0`, `687.0`).
+- **`687.0` measured (as reported):** real office file at 800x500, ceiling patches identical with and without the sun at map sizes 2048/4096/8192 (112/106/91, 122/114/97, 171/155/127); before, the request's band read 212.5 / 183.7 / 127.1 against 121.7 with no sun. The 5.4 left in the top band is walls (an aimed sun replaces the shadow key).
+- **Decisions:** none new, so no `ARCHITECTURE.md` §12 entry. `684.0` answers where the verb lives; `687.0`'s scope (every casting light) is a Pass-level choice recorded in the ROADMAP entry with its consequences.
+- **Still open, NOT done:** a layer's `/Print` usage on the print route (`685.0` did not change it; being looked at next). `687.0`'s GLSL has no compiler here; `pdfcer-gui` confirms by running.
+- **FEATURES:** four new rows (print-ready copy; print flag and permission; write one saved view's measurements; casting light behind a surface), each core `[x]` cli `[x]` gui `[ ]`. The annotation-render row is over the size cap and was not edited.
+- **RAG:** new `personal_rag/pdf` lesson on thin slabs and two-sided shading (subject and master indexes updated).
+- **Next:** the `/Print` layer follow-up; the next release carries `684.0`-`687.0`. Next filing 1452nd.
+
 ## 2026-11-06 (1450th filing) — `v0.134.1` PUBLISHED (tag `c2dca228`); CI green
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
