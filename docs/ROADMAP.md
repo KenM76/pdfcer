@@ -112,6 +112,44 @@ wherever it appears.*
 
 ## Shipped
 
+### `72f43743` `Pass 683.0`, 2026-11-06: a ramp or step under a low ceiling no longer carries the walker through it; long steps and descents (`X059`) (1446th filing)
+
+Engineer-reported; no shell here, git state not checked from here (local `main`, not pushed, as reported). Commit `72f43743`; docs in `13efcccf`. Rides `v0.134.0` (not yet released). Inbound request `X059` from the operator (crates consumer); `pdfcer-gui` FYI. Never opened in Next up; filed directly as Shipped. No decision record.
+- **Section 1** (the requester's own code, ported): a ramp or step under a low ceiling no longer carries the walker through the ceiling. **Sections 2 and 3, only suggested in the request, also implemented:** a solid step is split into parts of at most one eye height (capped at 64), and a standing walker follows a descending ramp.
+- **Honest limit:** sub-steps fix which floors are sampled, not time in the air, so a 30-wide gap at that pace still falls only 0.024 s worth.
+- **Tests (as reported):** `pdfcer-3d-nav` lib 65 passed (shared with `679.0`). Each new test sabotage-checked (17 cases across the five Passes, all caught; "snap while falling" needed its test strengthened first).
+- **FEATURES:** new row "3D walker": core `[x]`, cli `[ ]`, gui `[ ]`.
+
+### `835db164` `Pass 679.0`, 2026-11-06: a solid walker climbs a walkable ramp at any pace; a very large turn stays finite (`X058`) (1446th filing)
+
+Engineer-reported; no shell here, git state not checked from here (local `main`, not pushed). Commit `835db164`. Rides `v0.134.0` (not yet released). Inbound request `X058` from the operator (crates consumer). Never opened in Next up. No decision record. Scope expanded by the engineer to cover the turn (yaw) wrap.
+- `pdfcer-3d-nav`: the walker climbs a walkable ramp at any pace; a very large yaw stays finite. Tests in the `pdfcer-3d-nav` lib count above. **FEATURES:** same "3D walker" row.
+
+### `13efcccf` `Pass 682.0`, 2026-11-06: perpendicular, angular, radial and comment 3D measurements, core and CLI (`X057`) (1446th filing)
+
+Engineer-reported; no shell here, git state not checked from here (not pushed). Commits `d182add9` (core), `13efcccf` (CLI + `docs/core-api`). Rides `v0.134.0` (not yet released). Inbound request `X057` from `pdfcer-gui`; expanded by the engineer to the CLI. Never opened in Next up. No decision record.
+- **`pdfcer-core`:** `ThreeDMeasurement::perpendicular`, `angular`, `radial`, `comment` builders join `linear`; `value_text` shows R, a diameter sign, degrees or rad.
+- **CLI:** `3d-views --measure-perpendicular`, `--measure-angle`, `--measure-radius`, `--note`.
+- **Tests (as reported):** `threed::measure` 17 passed, `threed_views` 17 passed, CLI `three_d` 54 passed, 5 doctests for the builders.
+- **Closes** the CLI-writing piece of Backlog `Pass 648.7`; its `/3DU` and comment-linked pieces stay Backlog.
+- **FEATURES:** the `/MA` measurements row now names the builders and the CLI flags (core `[x]`, cli `[x]`, gui `[ ]`); the Planned `648.7` row narrowed.
+
+### `13efcccf` `Pass 681.0`, 2026-11-06: levelled 360 camera (`X055`) (1446th filing)
+
+Engineer-reported; no shell here, git state not checked from here (not pushed). Commits `c3af1a0d` (library), `13efcccf` (CLI + docs). Rides `v0.134.0` (not yet released). Inbound request `X055` from `pdfcer-gui`. Never opened in Next up. **Decision 218 applies: a port** of `pdfcer-gui` `crates/pdfcer-gui/src/dialogs/model3d/sphere.rs` `levelled`, not a rewrite.
+- **`pdfcer-3d`:** `Camera::levelled_panorama(self, up, front) -> Option<Camera>`; the 360 render's horizon is flat on a pitched view.
+- **CLI (rule 4):** `3d-render --360` levels the camera and prints a note saying so.
+- **Notice:** the GUI has its own levelling and has been told to delete it and call this. **FEATURES:** new row, core `[x]`, cli `[x]`, gui `[ ]`.
+
+### `13efcccf` `Pass 680.0`, 2026-11-06: model point to image position, `Camera::pixel_of` (`X056`) (1446th filing)
+
+Engineer-reported; no shell here, git state not checked from here (not pushed). Commits `c3af1a0d` (library), `13efcccf` (CLI + docs). Rides `v0.134.0` (not yet released). Inbound request `X056` from `pdfcer-gui`. Never opened in Next up. No decision record.
+- **`pdfcer-3d`:** `Camera::pixel_of(point, width, height) -> Option<[f64; 2]>`, the inverse of `ray_through`, under every projection and lens. Modification to the request: a point past a fisheye's circle or outside the picture returns a position, not `None`; under the 360 panorama every direction has a position, and two more than half a width apart cross the seam.
+- **CLI:** `3d-render --project X,Y,Z`.
+- **Tests (as reported):** `pdfcer-3d` `camera::` 47 passed (shared with `681.0`).
+- **Gates for the batch (as reported):** clippy `-D warnings` and fmt clean on `pdfcer-3d`, `-3d-nav`, `-core`, `-cli`; `cargo tree -p pdfcer-render` shows no GUI or network crate, and `pdfcer-core`'s and `pdfcer-render`'s manifests were not touched; `check-code-structure` clean; `check-core-api-verbs` PASS.
+- **FEATURES:** new row, core `[x]`, cli `[x]`, gui `[ ]`.
+
 ### `50d0135f` `v0.133.0` PUBLISHED, 2026-11-06 (1445th filing)
 
 Engineer-reported; no shell here, nothing checked from here (git, CI, GitHub, crates.io, OneDrive all as reported). Supersedes the IN PROGRESS entry below (1444th). Tag `v0.133.0` on `50d0135f`; CI success at the tag commit (run 42234007115); GitHub release with 8 assets, uploaded at their local sizes; crates `pdfcer-color`, `-model`, `-pkix`, `-vec3`, `-json`, `-3d`, `-3d-nav` 0.133.0 on crates.io (all published, rc 0); CLI on OneDrive slot **`pdfcer1`** (`pdfcer2` keeps 0.132.0 as the previous version; the 1444th entry said the slot was not stated). Carries `X051`, `X052`, `X053` (`Pass 677.0`, `3db3e31c`) and `X054` (`Pass 678.0`, `209b61e5`). Notice: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-06_v0.133.0_released.md` plus its INDEX row; it asks `pdfcer-gui` to add the "360° (photo sphere)" screenshot option.
@@ -26201,6 +26239,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **1442nd filing: `Pass 678.0` (360-degree photo-sphere render, `209b61e5`) is SHIPPED (see *Shipped*), unreleased; it ships in `v0.133.0` with `677.0`. Its Next up block is removed. No open Pass at the head.**
 >
 > **1443rd filing: `v0.132.0` is PUBLISHED (see *Shipped*; OneDrive `pdfcer2`; CI red at the tag from a `check-commits-filed` process slip, code unaffected). 1444th filing: `v0.133.0` release commit `50d0135f` is tagged and pushed, IN PROGRESS (CI on the tag, packaging, GitHub release, OneDrive, crates.io pending); its PUBLISHED filing is next. No open Pass at the head. 1445th filing: `v0.133.0` is PUBLISHED (see *Shipped*; OneDrive `pdfcer1`, CI green at the tag, all crates at 0.133.0). No open Pass at the head.**
+>
+> **1446th filing: `Pass 679.0`-`683.0` (`X055`-`X059`) are SHIPPED (see *Shipped*), unreleased, filed directly as Shipped; they ride `v0.134.0` (not yet released). No open Pass at the head.**
 
 > **1433rd filing: `Pass 675.1` (QUEUED after `675.0`) - publish `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav` to crates.io at the next release** (decision 217; Ken, 2026-11-06: "Yes publish them"). `675.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`).
 > - the three join `pdfcer-color`, `-model`, `-pkix` (`Pass 637.0`); `pdfcer-json` is included because `pdfcer-3d` depends on it;
@@ -37285,7 +37325,7 @@ Not started; **not requested by the operator.** `pdfcer-gui` (`G262`) offered it
 
 Not started. `Pass 648.7` was grep-checked unused in `docs/` before filing. Three pieces `648.6` left out, none requested separately yet:
 - **3D units `/3DU`** (ISO 32000-2 Table 325): the unit dictionary on a 3D view or node. Not read or written; a measurement's `/V` is shown as written, in whatever unit its own `/U` names. Spec-RAG check first (rule 1).
-- **CLI writing of perpendicular, angular, radial and comment measurements.** The core writes any kind (`ThreeDSavedView::with_measurement`); `3d-views --measure` writes linear only.
+- **CLI writing of perpendicular, angular, radial and comment measurements.** *(SHIPPED 1446th filing as `Pass 682.0`: `3d-views --measure-perpendicular`, `--measure-angle`, `--measure-radius`, `--note`. The remaining two pieces stay Backlog.)*
 - **Comment-linked measurements** (a `3DC` comment whose link is a Projection annotation): the link is dropped on write today, with a disclosure.
 - **FEATURES:** Planned row added (all three boxes `[ ]`).
 

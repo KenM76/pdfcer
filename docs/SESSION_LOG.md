@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1446th filing) — `Pass 679.0`-`683.0` (`X055`-`X059`) SHIPPED, unreleased
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, engineer commits):**
+- **Five Passes, all on local `main`, not pushed, rides `v0.134.0` (not yet released); none opened in Next up, filed directly as Shipped (as `X034` was):**
+  - `Pass 679.0`, `X058`, `835db164`: `pdfcer-3d-nav` walker climbs a walkable ramp at any pace; a very large yaw stays finite.
+  - `Pass 680.0`, `X056`, `c3af1a0d` + `13efcccf`: `Camera::pixel_of`, inverse of `ray_through`, every projection and lens; `3d-render --project X,Y,Z`.
+  - `Pass 681.0`, `X055`, `c3af1a0d` + `13efcccf`: `Camera::levelled_panorama`; `3d-render --360` levels and prints a note. A port under decision 218.
+  - `Pass 682.0`, `X057`, `d182add9` + `13efcccf`: `ThreeDMeasurement::perpendicular`/`angular`/`radial`/`comment`; `3d-views --measure-perpendicular`/`--measure-angle`/`--measure-radius`/`--note`.
+  - `Pass 683.0`, `X059`, `72f43743` + `13efcccf`: walker blocked by a low ceiling over a ramp or step; solid steps split to at most one eye height (cap 64); standing walker follows a descending ramp. Limit: sub-steps fix which floors are sampled, not time in the air.
+- **Tests (as reported):** `pdfcer-3d-nav` lib 65; `pdfcer-3d` `camera::` 47; `threed::measure` 17; `threed_views` 17; CLI `three_d` 54; 5 measure-builder doctests. 17 sabotage cases, all caught (one test strengthened first). clippy `-D warnings`, fmt clean on `-3d`, `-3d-nav`, `-core`, `-cli`; `cargo tree -p pdfcer-render` no GUI or network crate; core and render manifests untouched; structure and core-api-verbs clean.
+- **FEATURES:** three new rows (walker, `pixel_of`, levelled 360) and the `/MA` measurements row updated; Planned `648.7` row narrowed. No gui box ticked.
+- **ROADMAP:** five Shipped entries, a banner, and the Backlog `Pass 648.7` CLI piece marked shipped (its `/3DU` and comment-linked pieces stay).
+- **Flagged, not resolved:** the 1442nd entry reported CLI `three_d` 62; this dispatch reports 54. Not reconciled from here (could be a different filter).
+- **Next:** release `v0.134.0` when asked; `pdfcer-gui` adopts `X055`-`X059`. Next filing 1447th.
+
 ## 2026-11-06 (1445th filing) — `v0.133.0` PUBLISHED (tag `50d0135f`); CI green
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
