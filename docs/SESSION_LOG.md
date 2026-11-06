@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1452nd filing) — `Pass 688.0` SHIPPED, unreleased
+
+**Filed (engineer-reported; no shell here, git state not checked from here; docs only, engineer commits):**
+- **`Pass 688.0`, `41a54081` (+ following docs commit), local `main`:** ISO 32000-1 §8.11.4.5: a non-interactive printer uses `/D`; an interactive processor applies Print usage over current states. `pdfcer print` and the default print-ready copy stay on `/D` (correct). **Resolves the 1451st filing's "Still open: layer `/Print` usage" item: not a gap.** New core `apply_print_usage`, `to_print_ready_bytes_with_layers`, report `layers_changed_for_print`; CLI `print-ready --apply-print-usage`.
+- **Defect fixed (unreleased `684.0` surface):** `layers_with_print_setting` counted every layer (left 4, right 3).
+- **Tests (as reported):** core `print_ready` 16; core integration 3204 passed (2 ignored); annot lib 132; CLI print 48; render print 33; 10 sabotages caught (one pinned after surviving). `cargo tree`: no GUI crates.
+- **Decisions:** none; no §12 entry. **FEATURES:** "Print-ready copy" row extended; gui `[ ]`.
+- **Next:** no open Pass; next release carries `684.0`-`688.0`. Next filing 1453rd; next Pass 689.0.
+
 ## 2026-11-06 (1451st filing) — `Pass 684.0`-`687.0` (`G273`, `G274`, `G275`) SHIPPED, unreleased
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, engineer commits):**

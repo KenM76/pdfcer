@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `41a54081` `Pass 688.0`, 2026-11-06: a viewer's print applies layer Print usage over the current state (1452nd filing)
+
+Engineer-reported; no shell here, git state not checked from here (local `main`; a following docs commit). Commit `41a54081`. Unreleased, rides the next release. Never opened in Next up. No decision record.
+- **Spec (ISO 32000-1 §8.11.4.5) gives printing two answers:** a printing application interacting with no one uses `/D` and shall not apply usage applications; an interactive PDF processor applies Print-event usage over the current states for the duration of the print. So `pdfcer print` and the default print-ready copy correctly stay on `/D`. **This resolves the `Pass 685.0` "looked at next" note: that route is correct, not a gap.**
+- **Core:** `annot::apply_print_usage(graph, &mut off) -> UsageNotes`; `EditSession::to_print_ready_bytes_with_layers(free_text_c, current_off)` takes the viewer's hidden set, applies Print usage over it, writes the result as the copy's `/D` with `/AS` and `/ON` removed and BaseState ON. The open document is untouched. Report field `layers_changed_for_print`.
+- **CLI:** `pdfcer print-ready --apply-print-usage`, starting from the document's default state.
+- **Defect fixed in the unreleased `684.0` surface:** `layers_with_print_setting` counted every layer, because `Layer::print` reads WhenVisible for a layer with no PrintState. Found by the new test (left 4, right 3).
+- **Structure:** `apply_view_usage` left the baseline (`tools/code-structure-baseline.txt`); entry count not verified from here.
+- **Tests (as reported):** core `print_ready` 16; full core integration suite 3204 passed before the last test edit (2 ignored); annot lib 132; CLI print filter 48; render print filter 33. 10 sabotages all caught; one (`/ON` kept) survived the first run and was pinned by an added assertion. `cargo tree -p pdfcer-core`: no GUI crates. No manifest touched.
+- **FEATURES:** the "Print-ready copy" row extended; core `[x]`, cli `[x]`, gui `[ ]` (not consumed by the GUI).
+
 ### `4b2b1e54` `Pass 687.0`, 2026-11-06: a casting light behind a surface gives the side seen none of it (`G275`) (1451st filing)
 
 Engineer-reported; no shell here, git state not checked from here (local `main`, not pushed, as reported). Commit `4b2b1e54`. Inbound request `G275` from `pdfcer-gui`, an operator report. Unreleased. Never opened in Next up. No decision record.
@@ -136,7 +147,7 @@ Engineer-reported; no shell here, git state not checked from here (local `main`,
 Engineer-reported; no shell here, git state not checked from here (local `main`, not pushed). Commits `149581d8`, then follow-up `0980c3b2` (policy test field; index clause count). Unreleased. Never opened in Next up. No decision record.
 - **Defect:** the print route used the screen rule for annotations, wrong in both directions against ISO 32000-1 Table 165.
 - **Fix:** `RenderOptions::print_intent` (default false keeps the screen rule) paints by `Annotation::prints`; `print_render_options` sets it for every sheet layout. `check_print_permission` is now public. `print` refuses a password without Table 22 bit 3 before looking for a printer; without bit 12 it caps at 150 DPI with a stderr disclosure, and refuses a network printer in that case because the file itself goes to it.
-- **NOT done:** a layer's `/Print` usage is unchanged on this route; it is being looked at next. Do not read this entry as covering it.
+- **Layer `/Print` usage (resolved, 1452nd filing):** `pdfcer print` staying on `/D` is correct, not a gap (ISO 32000-1 §8.11.4.5; see `Pass 688.0`). Original note: unchanged on this route, "looked at next".
 - **Tests (as reported):** a render test pinning both sides of both rules; a CLI refusal test; a unit assertion on the job intent; 4 sabotage mutations caught.
 - **FEATURES:** new row "Print answers to the Print flag and the print permission": core `[x]`, cli `[x]`, gui `[ ]`. The annotation-render row (`Render and count annotations ...`) is over the row-size cap and was left unedited; the new row carries the print-route clause.
 
