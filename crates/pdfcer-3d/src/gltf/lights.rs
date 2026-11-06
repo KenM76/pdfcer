@@ -175,7 +175,7 @@ fn walk<'a>(
             Some(Some(def)) => placed.push(Placed {
                 def,
                 position: apply(&m, [0.0; 3], 1.0),
-                direction: crate::model_light::unit(apply(&m, [0.0, 0.0, -1.0], 0.0))
+                direction: crate::model::light::unit(apply(&m, [0.0, 0.0, -1.0], 0.0))
                     .unwrap_or([0.0, 0.0, -1.0]),
                 linear: true,
             }),

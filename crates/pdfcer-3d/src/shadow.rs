@@ -1,16 +1,23 @@
 //! Cast shadows from the key directional light: which light is the key, the
 //! orthographic light view fitted to the model, and the CPU shadow map.
-//! Further directional casters are in `shadow_set`.
+//! Further directional casters are in `set`.
 //! [`crate::FrameShadow`] publishes the same numbers to a GPU, so both paths
 //! test the same texels with the same arithmetic. Design:
 //! `docs/research/3d-shadows-and-occlusion-design.md`.
 
+pub(crate) mod cast;
+pub(crate) mod lamp;
+pub(crate) mod lamp_choice;
+pub(crate) mod set;
+#[cfg(test)]
+mod shadow_tests;
+
 use crate::lighting::Shader;
-use crate::raster::{at, edge};
+use crate::render::raster::{at, edge};
+use crate::render::work::box_tests;
 use crate::render::{Bounds, at3};
-use crate::shadow_cast::{Cast, Occluder, Surface, Texels, Veil, runs};
+use crate::shadow::cast::{Cast, Occluder, Surface, Texels, Veil, runs};
 use crate::vec3::{cross, dot, normalize, sub};
-use crate::work::box_tests;
 use crate::{NamedView, UpAxis};
 
 /// [`crate::RenderOptions::shadow_map_size`]'s default, texels per side.
@@ -98,7 +105,7 @@ impl Caster {
     /// The scheme's brightest light on the viewer's side, else its brightest,
     /// not counting lights at the camera; the shadow key when every light is
     /// at the camera; `None` unlit. Only the first
-    /// [`crate::gpu_frame::MAX_LIGHTS`] lights are candidates, the ones a GPU
+    /// [`crate::gpu::frame::MAX_LIGHTS`] lights are candidates, the ones a GPU
     /// frame draws, so both paths shadow the same light. `basis` is the
     /// camera's right, up and forward.
     pub(crate) fn choose(
@@ -115,7 +122,7 @@ impl Caster {
         let brightness = |c: &[f64; 3]| c.iter().sum::<f64>();
         let candidates = lights
             .iter()
-            .take(crate::gpu_frame::MAX_LIGHTS)
+            .take(crate::gpu::frame::MAX_LIGHTS)
             .enumerate()
             .filter_map(|(i, (dir, colour))| {
                 let d = (*dir)?;
@@ -368,7 +375,7 @@ impl ShadowMap {
                 job.push((k * rows, band));
             }
         }
-        crate::parallel::run_each(jobs, &|job| {
+        crate::render::parallel::run_each(jobs, &|job| {
             for (top, mut band) in job {
                 for (t, surface) in &tris {
                     fill(&mut band, side, top, *t, surface.as_ref());
@@ -458,8 +465,8 @@ mod tests {
     use super::*;
     use crate::LightingScheme;
     use crate::TriangleMesh;
-    use crate::raster::Paint;
-    use crate::shadow_cast::{ShadowAlpha, occluders};
+    use crate::render::raster::Paint;
+    use crate::shadow::cast::{ShadowAlpha, occluders};
 
     const BASIS: [[f64; 3]; 3] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
 
@@ -472,7 +479,7 @@ mod tests {
     #[test]
     fn the_key_light_is_one_the_gpu_draws() {
         let dim = (Some([0.0, 0.0, -1.0]), [0.1; 3]);
-        let mut lights = vec![dim; crate::gpu_frame::MAX_LIGHTS];
+        let mut lights = vec![dim; crate::gpu::frame::MAX_LIGHTS];
         lights.push((Some([0.0, 0.0, -1.0]), [1.0; 3]));
         lights[3].1 = [0.5; 3];
         let shader = crate::lighting::Shader::Set {

@@ -3,7 +3,19 @@
 //! dependency lives here; the host makes every graphics call. Design:
 //! `docs/research/gpu-3d-draw-data-design.md`.
 
-use crate::raster::Paint;
+pub(crate) mod ao;
+pub(crate) mod finish;
+pub(crate) mod frame;
+pub(crate) mod lamp_shadow;
+pub(crate) mod lens;
+pub(crate) mod lines;
+pub(crate) mod prepass;
+pub(crate) mod shader;
+pub(crate) mod shadow;
+pub(crate) mod shadow_set;
+pub(crate) mod wide_lines;
+
+use crate::render::raster::Paint;
 use crate::render::{RenderOptions, at3, corners, stored_normals, triangle_uvs};
 use crate::vec3::{span, unit_cross};
 use crate::{AssembledModel, PreparedModel, Texture, TextureOrigin, TriangleMesh};
@@ -105,15 +117,15 @@ impl PreparedModel {
     /// are in [`DrawData::lines`] and [`DrawData::points`].
     #[must_use]
     pub fn draw_data(&self, model: &AssembledModel, options: &RenderOptions) -> DrawData {
-        let plan = crate::render_mode::Plan::of(options);
+        let plan = crate::render::mode::Plan::of(options);
         let painted = self.paints(model, options);
         let colours: Vec<[u8; 4]> = painted.0.iter().map(|p| p.colour).collect();
         // Finishes index the model's own meshes, drawn in their own colour.
         let finished = matches!(
             plan.faces,
-            crate::render_mode::Faces::Painted | crate::render_mode::Faces::Translucent(_)
+            crate::render::mode::Faces::Painted | crate::render::mode::Faces::Translucent(_)
         );
-        let faces = crate::mode_frame::face_pass(&plan, model, painted);
+        let faces = crate::render::mode_frame::face_pass(&plan, model, painted);
         let (paints, opaque) = (&faces.paints, &faces.opaque);
         let mut data = DrawData::default();
         for pass in [true, false] {
@@ -149,7 +161,7 @@ impl PreparedModel {
                 });
             }
         }
-        crate::gpu_lines::add_overlays(&mut data, model, options, &colours);
+        crate::gpu::lines::add_overlays(&mut data, model, options, &colours);
         data.emissive = plan.emissive as f32;
         data
     }

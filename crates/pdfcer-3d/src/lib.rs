@@ -27,190 +27,102 @@
     clippy::unimplemented
 )]
 
-mod acof;
 #[cfg(feature = "render")]
-mod ao;
-mod arrays;
-// Public only so the fuzz target can drive the bit reader directly.
-#[doc(hidden)]
-pub mod bits;
-#[cfg(feature = "render")]
-mod bounds;
-#[cfg(feature = "render")]
-mod camera_sphere;
-mod compressed;
-mod container;
-#[cfg(feature = "render")]
-mod edges;
-mod elements;
+mod camera;
 mod error;
-mod export;
 mod finish;
-#[cfg(feature = "render")]
-mod frame;
-#[cfg(feature = "render")]
-mod gloss;
 mod gltf;
 #[cfg(feature = "render")]
 mod gpu;
 #[cfg(feature = "render")]
-mod gpu_ao;
-#[cfg(feature = "render")]
-mod gpu_finish;
-#[cfg(feature = "render")]
-mod gpu_frame;
-#[cfg(feature = "render")]
-mod gpu_lamp_shadow;
-#[cfg(feature = "render")]
-mod gpu_lens;
-#[cfg(feature = "render")]
-mod gpu_lines;
-#[cfg(feature = "render")]
-mod gpu_prepass;
-#[cfg(feature = "render")]
-mod gpu_shader;
-#[cfg(feature = "render")]
-mod gpu_shadow;
-#[cfg(feature = "render")]
-mod gpu_shadow_set;
-#[cfg(feature = "render")]
-mod gpu_wide_lines;
-#[cfg(feature = "render")]
-mod lamp_choice;
-#[cfg(feature = "render")]
-mod lamp_shadow;
-#[cfg(feature = "render")]
-mod lamp_view;
-#[cfg(all(test, feature = "render"))]
-mod lamp_view_tests;
-#[cfg(feature = "render")]
-mod lens;
-#[cfg(feature = "render")]
-mod lens_frame;
-#[cfg(all(test, feature = "render"))]
-mod lens_tests;
-#[cfg(feature = "render")]
-mod light_gain;
-#[cfg(feature = "render")]
 mod lighting;
-#[cfg(feature = "render")]
-mod lines;
-mod mesh_decode;
-#[cfg(feature = "render")]
-mod mode_frame;
-#[cfg(feature = "render")]
-mod mode_lines;
 mod model;
-mod model_light;
-#[cfg(feature = "render")]
-mod model_shade;
-mod named_view;
-mod node_box;
-#[cfg(feature = "render")]
-mod parallel;
-#[cfg(feature = "render")]
-mod pick;
-#[cfg(feature = "render")]
-mod pick_index;
-#[cfg(feature = "render")]
-mod prepared;
-#[cfg(feature = "render")]
-mod projection;
-#[cfg(feature = "render")]
-mod raster;
+mod prc;
 #[cfg(feature = "render")]
 mod render;
 #[cfg(feature = "render")]
-mod render_error;
-#[cfg(feature = "render")]
-mod render_mode;
-mod schema;
-#[cfg(feature = "render")]
 mod shadow;
-#[cfg(feature = "render")]
-mod shadow_cast;
-#[cfg(feature = "render")]
-mod shadow_set;
-#[cfg(all(test, feature = "render"))]
-mod shadow_tests;
-#[cfg(feature = "render")]
-mod sun;
-mod tess;
-mod tess_face;
-mod tess_wire;
-#[cfg(test)]
-mod testw;
 mod texture;
-mod tree;
 /// Vector arithmetic on `[f64; 3]`: the `pdfcer-vec3` crate.
 pub use pdfcer_vec3 as vec3;
-mod wire;
-#[cfg(feature = "render")]
-mod work;
 mod write;
 
+// Public only so the fuzz target can drive the bit reader directly.
+#[doc(hidden)]
+pub use prc::bits;
+
 #[cfg(feature = "render")]
-pub use camera_sphere::DEFAULT_FOV_Y;
-pub use compressed::PartialMesh;
-pub use container::{
-    FileStructure, MAX_FILE_STRUCTURES, MAX_INFLATED_BYTES, ModelUnits, PRC_READER_VERSION,
-    PrcFile, PrcHeader, SectionKind, UniqueId,
-};
-pub use elements::MAX_DECODED_ELEMENTS;
+pub use camera::Camera;
+#[cfg(feature = "render")]
+pub use camera::bounds::Bounds;
+#[cfg(feature = "render")]
+pub use camera::lens::{FrameLens, LENS_LINE_PIECES, LensFace};
+#[cfg(feature = "render")]
+pub use camera::pick::{Hit, Ray, pick};
+#[cfg(feature = "render")]
+pub use camera::pick_index::PickIndex;
+#[cfg(feature = "render")]
+pub use camera::projection::{FisheyeMapping, Projection};
+#[cfg(feature = "render")]
+pub use camera::sphere::DEFAULT_FOV_Y;
 pub use error::PrcError;
-pub use export::{to_obj, to_stl};
 pub use finish::{MaterialFinish, ShininessScale};
 pub use gltf::{
     GltfColours, GltfError, GltfImport, GltfLights, GltfOcclusion, GltfOptions, GltfUpAxis,
     read_gltf,
 };
 #[cfg(feature = "render")]
-pub use gpu::{Draw, DrawData, VERTEX_FLOATS};
-#[cfg(feature = "render")]
-pub use gpu_ao::{
+pub use gpu::ao::{
     FrameAmbientOcclusion, GLSL_ES_300_AO_COMPOSITE_FRAGMENT, GLSL_ES_300_AO_FRAGMENT,
     GLSL_ES_300_SCREEN_VERTEX,
 };
 #[cfg(feature = "render")]
-pub use gpu_finish::DrawFinish;
+pub use gpu::finish::DrawFinish;
 #[cfg(feature = "render")]
-pub use gpu_frame::{
+pub use gpu::frame::{
     FrameLights, LIGHT_TABLE_WIDTH, MAX_LAMP_SHADOWS, MAX_LIGHTS, MAX_SHADOW_CASTERS, ShadeMode,
 };
 #[cfg(feature = "render")]
-pub use gpu_lamp_shadow::{
+pub use gpu::lamp_shadow::{
     FrameLampShadows, GLSL_ES_300_LAMP_SHADOW_FRAGMENT, GLSL_ES_300_LAMP_SHADOW_VERTEX,
 };
 #[cfg(feature = "render")]
-pub use gpu_lens::{
+pub use gpu::lens::{
     GLSL_ES_300_LENS_LINE_VERTEX, GLSL_ES_300_LENS_POINT_VERTEX, GLSL_ES_300_LENS_RESAMPLE_FRAGMENT,
 };
 #[cfg(feature = "render")]
-pub use gpu_lines::{GLSL_ES_300_LINE_FRAGMENT, GLSL_ES_300_LINE_VERTEX, LINE_VERTEX_FLOATS};
+pub use gpu::lines::{GLSL_ES_300_LINE_FRAGMENT, GLSL_ES_300_LINE_VERTEX, LINE_VERTEX_FLOATS};
 #[cfg(feature = "render")]
-pub use gpu_prepass::{GLSL_ES_300_PREPASS_FRAGMENT, GLSL_ES_300_PREPASS_VERTEX};
+pub use gpu::prepass::{GLSL_ES_300_PREPASS_FRAGMENT, GLSL_ES_300_PREPASS_VERTEX};
 #[cfg(feature = "render")]
-pub use gpu_shader::{GLSL_ES_300_FRAGMENT, GLSL_ES_300_VERTEX};
+pub use gpu::shader::{GLSL_ES_300_FRAGMENT, GLSL_ES_300_VERTEX};
 #[cfg(feature = "render")]
-pub use gpu_shadow::{FrameShadow, GLSL_ES_300_SHADOW_FRAGMENT, GLSL_ES_300_SHADOW_VERTEX};
+pub use gpu::shadow::{FrameShadow, GLSL_ES_300_SHADOW_FRAGMENT, GLSL_ES_300_SHADOW_VERTEX};
 #[cfg(feature = "render")]
-pub use gpu_shadow_set::{
+pub use gpu::shadow_set::{
     FrameExtraShadows, GLSL_ES_300_LAMP_SHADOW_ALPHA_FRAGMENT,
     GLSL_ES_300_LAMP_SHADOW_ALPHA_VERTEX, GLSL_ES_300_SHADOW_ALPHA_FRAGMENT,
     GLSL_ES_300_SHADOW_ALPHA_VERTEX, MAX_EXTRA_SHADOWS,
 };
 #[cfg(feature = "render")]
-pub use gpu_wide_lines::GLSL_ES_300_WIDE_LINE_VERTEX;
+pub use gpu::wide_lines::GLSL_ES_300_WIDE_LINE_VERTEX;
 #[cfg(feature = "render")]
-pub use lamp_shadow::{DEFAULT_LAMP_SHADOW_MAP_SIZE, MAX_LAMP_SHADOW_MAP_SIZE};
+pub use gpu::{Draw, DrawData, VERTEX_FLOATS};
 #[cfg(feature = "render")]
-pub use lamp_view::{LampCost, LampStats};
+pub use lighting::gain::{MAX_LIGHT_GAIN, MIN_LIGHT_GAIN};
 #[cfg(feature = "render")]
-pub use lens::{FrameLens, LENS_LINE_PIECES, LensFace};
+pub use lighting::lamp_view::{LampCost, LampStats};
 #[cfg(feature = "render")]
-pub use light_gain::{MAX_LIGHT_GAIN, MIN_LIGHT_GAIN};
+pub use lighting::shade::LampCut;
+#[cfg(feature = "render")]
+pub use lighting::sun::{MAX_SUN_KELVIN, MIN_SUN_KELVIN, SunColour, SunLight, kelvin_rgb};
 #[cfg(feature = "render")]
 pub use lighting::{Light, LightFrame, LightSet, LightingScheme, Lights};
+pub use model::export::{to_obj, to_stl};
+pub use model::light::{ModelLight, ModelLightKind, ViewLightUse, ViewLights};
+pub use model::named_view::{NamedView, UnknownName, UpAxis};
+pub use model::node_box::NodeBox;
+pub use model::wire::ModelLine;
 pub use model::{
     AssembleError, AssembleOptions, AssembledModel, DEFAULT_VIEW_DIRECTION, DEFAULT_VIEW_UP,
     MAX_PLACED_ATTRIBUTES, MAX_PLACED_TRIANGLES, MeshFit, StoredVisibility, assemble,
@@ -218,40 +130,35 @@ pub use model::{
 };
 #[cfg(feature = "render")]
 pub use model::{default_view_camera, render_default_view, render_model};
-pub use model_light::{ModelLight, ModelLightKind, ViewLightUse, ViewLights};
-#[cfg(feature = "render")]
-pub use model_shade::LampCut;
-pub use named_view::{NamedView, UnknownName, UpAxis};
-pub use node_box::NodeBox;
-#[cfg(feature = "render")]
-pub use pick::{Hit, Ray, pick};
-#[cfg(feature = "render")]
-pub use pick_index::PickIndex;
-#[cfg(feature = "render")]
-pub use prepared::PreparedModel;
-#[cfg(feature = "render")]
-pub use render::{
-    Bounds, Camera, FisheyeMapping, Image, MAX_RENDER_PIXELS, Projection, RenderError,
-    RenderOptions, render, render_coloured,
+pub use prc::compressed::PartialMesh;
+pub use prc::container::{
+    FileStructure, MAX_FILE_STRUCTURES, MAX_INFLATED_BYTES, ModelUnits, PRC_READER_VERSION,
+    PrcFile, PrcHeader, SectionKind, UniqueId,
 };
-#[cfg(feature = "render")]
-pub use render_mode::{EdgeSet, FaceColour, RenderMode, RenderModeKind};
-pub use schema::Schema;
-#[cfg(feature = "render")]
-pub use shadow::{DEFAULT_SHADOW_MAP_SIZE, LightSense, MAX_SHADOW_MAP_SIZE, ShadowLight};
-#[cfg(feature = "render")]
-pub use shadow_cast::{DEFAULT_SHADOW_CUTOFF, ShadowAlpha, ShadowCasters};
-#[cfg(feature = "render")]
-pub use sun::{MAX_SUN_KELVIN, MIN_SUN_KELVIN, SunColour, SunLight, kelvin_rgb};
-pub use tess::{Tessellation, TriangleMesh, WireTessellation};
-pub use texture::{MAX_TEXTURE_PIXELS, Texture, TextureFunction, TextureOrigin, TextureWrap};
-pub use tree::{
+pub use prc::elements::MAX_DECODED_ELEMENTS;
+pub use prc::schema::Schema;
+pub use prc::tess::{Tessellation, TriangleMesh, WireTessellation};
+pub use prc::tree::{
     EntityOverrides, IDENTITY, Matrix, ModelNode, NameSource, PictureFiles, Placement, StyleAlpha,
     WrapBase, multiply, transform_point,
 };
-pub use wire::ModelLine;
 #[cfg(feature = "render")]
-pub use work::MAX_RENDER_PIXEL_TESTS;
+pub use render::error::RenderError;
+#[cfg(feature = "render")]
+pub use render::mode::{EdgeSet, FaceColour, RenderMode, RenderModeKind};
+#[cfg(feature = "render")]
+pub use render::prepared::PreparedModel;
+#[cfg(feature = "render")]
+pub use render::work::MAX_RENDER_PIXEL_TESTS;
+#[cfg(feature = "render")]
+pub use render::{Image, MAX_RENDER_PIXELS, RenderOptions, render, render_coloured};
+#[cfg(feature = "render")]
+pub use shadow::cast::{DEFAULT_SHADOW_CUTOFF, ShadowAlpha, ShadowCasters};
+#[cfg(feature = "render")]
+pub use shadow::lamp::{DEFAULT_LAMP_SHADOW_MAP_SIZE, MAX_LAMP_SHADOW_MAP_SIZE};
+#[cfg(feature = "render")]
+pub use shadow::{DEFAULT_SHADOW_MAP_SIZE, LightSense, MAX_SHADOW_MAP_SIZE, ShadowLight};
+pub use texture::{MAX_TEXTURE_PIXELS, Texture, TextureFunction, TextureOrigin, TextureWrap};
 pub use write::{
     MAX_DEPTH, MeshScene, PrcWriteError, PrcWriteReport, SceneMaterial, SceneMesh, SceneNode,
     ScenePrimitive, SceneTexture, write_prc,

@@ -41,7 +41,8 @@ def scan(wf: Path, need: set[str]) -> list[str]:
     for n, line in enumerate(wf.read_text(encoding="utf-8").splitlines(), 1):
         if not is_list(line):
             continue
-        named = set(re.findall(r"(?<![\w-])(pdfcer-[a-z-]+[a-z])", line))
+        # A name may end in a digit (`pdfcer-vec3`); trailing `-` or `/` is punctuation.
+        named = set(re.findall(r"(?<![\w-])(pdfcer-[a-z0-9-]*[a-z0-9])", line))
         missing = sorted(need - named)
         if missing:
             bad.append(f"{wf.name}:{n} lacks {', '.join(missing)}")

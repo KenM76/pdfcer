@@ -6,6 +6,14 @@
 //! a light's direction counts only up to sign: the standard does not say
 //! whether its vectors point from the light or towards it.
 
+pub(crate) mod gain;
+pub(crate) mod gloss;
+pub(crate) mod lamp_view;
+#[cfg(test)]
+mod lamp_view_tests;
+pub(crate) mod shade;
+pub(crate) mod sun;
+
 /// A lighting scheme: the `Subtype` of a `/3DLightingScheme` dictionary
 /// (ISO 32000-1 Table 309), as [`crate::RenderOptions::lighting`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -227,7 +235,7 @@ pub(crate) enum Shader {
         /// Unit direction (`None`: along the line of sight) and colour.
         lights: Vec<(Option<[f64; 3]>, [f64; 3])>,
         /// A model's point and spot lights.
-        local: Vec<crate::model_shade::Local>,
+        local: Vec<crate::lighting::shade::Local>,
     },
 }
 
@@ -274,12 +282,12 @@ impl Shader {
         towards: Option<[f64; 3]>,
     ) -> [f64; 3] {
         let mut out = self.shade_far(normal, towards);
-        crate::model_shade::add_local(&mut out, self.local(), (p, normal), &|_| 1.0);
+        crate::lighting::shade::add_local(&mut out, self.local(), (p, normal), &|_| 1.0);
         out
     }
 
     /// The point and spot lights, which the renderers apply per pixel.
-    pub(crate) fn local(&self) -> &[crate::model_shade::Local] {
+    pub(crate) fn local(&self) -> &[crate::lighting::shade::Local] {
         match self {
             Shader::Set { local, .. } => local,
             _ => &[],

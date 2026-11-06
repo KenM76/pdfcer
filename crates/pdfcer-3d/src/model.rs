@@ -1,7 +1,13 @@
 //! A PRC file assembled into placed, coloured triangle meshes: what mesh
 //! export, rendering and the default 3D poster all draw.
 
-use crate::mesh_decode::{self, Flagged, decode_meshes, part_labels};
+pub(crate) mod export;
+pub(crate) mod light;
+pub(crate) mod named_view;
+pub(crate) mod node_box;
+pub(crate) mod wire;
+
+use crate::prc::mesh::{self as mesh_decode, Flagged, decode_meshes, part_labels};
 use crate::{
     EntityOverrides, PictureFiles, PrcError, PrcFile, StyleAlpha, TextureOrigin, TriangleMesh,
     WrapBase,
@@ -36,7 +42,7 @@ pub struct AssembledModel {
     /// Compressed tessellations rebuilt into triangles.
     pub rebuilt: usize,
     /// Of [`Self::rebuilt`], those only a best-fit search rebuilt (see
-    /// [`Tessellation::Compressed`](crate::tess::Tessellation::Compressed)): the shape drawn consumes every stored
+    /// [`Tessellation::Compressed`](crate::prc::tess::Tessellation::Compressed)): the shape drawn consumes every stored
     /// array, but another shape might as well.
     pub best_fit: usize,
     /// Compressed tessellations drawn in part under [`MeshFit::Partial`]
@@ -376,7 +382,7 @@ pub(crate) fn place(
     options: &AssembleOptions,
     model: &mut AssembledModel,
 ) -> Result<(), AssembleError> {
-    let rules = crate::tree::TextureRules {
+    let rules = crate::prc::tree::TextureRules {
         files: options.picture_files,
         wrap: options.wrap_base,
         origin: options.texture_origin,
@@ -418,7 +424,7 @@ pub(crate) fn place(
             .iter()
             .filter_map(|m| crate::NodeBox::of(m, &crate::IDENTITY, None))
             .collect();
-        crate::wire::unplaced(&flagged.wires, model);
+        crate::model::wire::unplaced(&flagged.wires, model);
     }
     model.textured = model.mesh_textures.iter().flatten().count();
     Ok(())
@@ -436,8 +442,8 @@ fn place_all<'p>(
     let mut textures = Textures::default();
     let mut budget = Budget::default();
     for (k, p) in placements.into_iter().enumerate() {
-        budget.take(0, crate::wire::points(p, &flagged.wires))?;
-        crate::wire::place(p, k, &flagged.wires, model);
+        budget.take(0, crate::model::wire::points(p, &flagged.wires))?;
+        crate::model::wire::place(p, k, &flagged.wires, model);
         let slot = by_index
             .get(p.file_structure)
             .and_then(|row| row.get(p.tessellation));
@@ -578,12 +584,12 @@ impl Textures {
     /// pushed to `notes`) when it draws its base colour.
     fn index(
         &mut self,
-        skin: &crate::tree::Skin,
+        skin: &crate::prc::tree::Skin,
         mesh: &TriangleMesh,
         k: usize,
         notes: &mut Vec<&'static str>,
     ) -> Option<usize> {
-        use crate::tree::{Skin, why};
+        use crate::prc::tree::{Skin, why};
         let (texture, more) = match skin {
             Skin::Drawn { texture, more } => (texture, *more),
             Skin::Undrawn(why) => {

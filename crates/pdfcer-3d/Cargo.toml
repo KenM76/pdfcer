@@ -1,7 +1,7 @@
 [package]
 autotests = false
 name = "pdfcer-3d"
-description = "pdfcer 3D model decoding: PRC (Adobe 8137 / ISO 14739-1) container, bit primitives and tessellation read, for mesh export and poster generation. Optional: shells enable it with their `3d` feature (docs/ROADMAP.md Pass 419.2)."
+description = "pdfcer 3D models: PRC (Adobe 8137 / ISO 14739-1) and glTF 2.0 / GLB reading, PRC writing, a headless CPU rasterizer, draw data for a host's GPU, lights and cast shadows, and the camera (framing, projection, picking). Pure Rust, no GUI or network dependency, builds for wasm32."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

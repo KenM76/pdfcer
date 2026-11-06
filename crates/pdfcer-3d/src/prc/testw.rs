@@ -1,0 +1,185 @@
+//! Test-only PRC bit writer: the inverse of [`crate::prc::bits::BitReader`].
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
+
+pub(crate) use crate::write::BitWriter as W;
+
+impl W {
+    /// A Huffman container: `leaves` are `(symbol, stored code, length)`,
+    /// each value is emitted as its leaf's code.
+    pub(crate) fn huffman(
+        &mut self,
+        nbits: u32,
+        len_width: u32,
+        leaves: &[(u32, u32, u32)],
+        values: &[i32],
+    ) -> &mut Self {
+        let mask = (1u32 << nbits) - 1;
+        let codes: Vec<(u32, u32)> = values
+            .iter()
+            .map(|&v| {
+                let l = leaves
+                    .iter()
+                    .find(|l| l.0 & mask == v as u32 & mask)
+                    .expect("a leaf per value");
+                (l.1, l.2)
+            })
+            .collect();
+        self.huffman_raw(nbits, len_width, leaves, &codes)
+    }
+
+    /// As [`Self::huffman`] with each element's `(code, length)` given.
+    pub(crate) fn huffman_raw(
+        &mut self,
+        nbits: u32,
+        len_width: u32,
+        leaves: &[(u32, u32, u32)],
+        codes: &[(u32, u32)],
+    ) -> &mut Self {
+        let mut blob = Vec::new();
+        let lsb = |blob: &mut Vec<bool>, v: u32, n: u32| {
+            for i in 0..n {
+                blob.push((v >> i) & 1 == 1);
+            }
+        };
+        lsb(&mut blob, leaves.len() as u32, nbits + 1);
+        lsb(&mut blob, len_width, 8);
+        for &(s, c, l) in leaves {
+            lsb(&mut blob, s, nbits);
+            lsb(&mut blob, l, len_width);
+            lsb(&mut blob, c, l);
+        }
+        lsb(&mut blob, codes.len() as u32, 32);
+        for &(c, l) in codes {
+            for i in (0..l).rev() {
+                blob.push((c >> i) & 1 == 1);
+            }
+        }
+        let bits = blob.len();
+        let words = bits.div_ceil(32);
+        blob.resize(words * 32, false);
+        self.uint(words as u32);
+        for byte in blob.chunks(8) {
+            let b = byte
+                .iter()
+                .enumerate()
+                .fold(0u32, |a, (i, &x)| a | (u32::from(x) << i));
+            self.put(u64::from(b), 8);
+        }
+        self.uint((bits - (words - 1) * 32) as u32)
+    }
+}
+
+/// A one-file-structure PRC stream holding the given section bytes and
+/// model file. The file structure's id is `[5, 6, 7, 8]`.
+pub(crate) fn prc_container(globals: &[u8], tree: &[u8], tess: &[u8], model: &[u8]) -> Vec<u8> {
+    prc_container_n(&[[globals, tree, tess]], model)
+}
+
+/// A PRC stream with one file structure per `[globals, tree, tess]`, the
+/// k-th with id `[5, 6, 7, 8 + k]`.
+pub(crate) fn prc_container_n(structures: &[[&[u8]; 3]], model: &[u8]) -> Vec<u8> {
+    prc_container_files(structures, model, &[])
+}
+
+/// [`prc_container_n`] with `files` as the header's uncompressed files.
+pub(crate) fn prc_container_files(
+    structures: &[[&[u8]; 3]],
+    model: &[u8],
+    files: &[&[u8]],
+) -> Vec<u8> {
+    use std::io::Write as _;
+    let zlib = |data: &[u8]| {
+        let mut e = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+        e.write_all(data).unwrap();
+        e.finish().unwrap()
+    };
+    let le = |out: &mut Vec<u8>, vs: &[u32]| {
+        vs.iter()
+            .for_each(|v| out.extend_from_slice(&v.to_le_bytes()));
+    };
+    let fixed = 59 + 48 * structures.len();
+    let header_len = fixed + files.iter().map(|f| 4 + f.len()).sum::<usize>();
+    let mut body = Vec::new();
+    let mut descriptions = Vec::new();
+    for (k, &[globals, tree, tess]) in structures.iter().enumerate() {
+        let id = [5, 6, 7, 8 + k as u32];
+        let start = (header_len + body.len()) as u32;
+        body.extend_from_slice(b"PRC");
+        le(&mut body, &[8137, 8137]);
+        le(&mut body, &id);
+        le(&mut body, &[0, 0, 0, 0, 0]);
+        le(&mut descriptions, &id);
+        le(&mut descriptions, &[0, 6, start]);
+        for s in [globals, tree, tess, &[], &[]] {
+            le(&mut descriptions, &[(header_len + body.len()) as u32]);
+            body.extend(zlib(s));
+        }
+    }
+    let mf_start = (header_len + body.len()) as u32;
+    body.extend(zlib(model));
+    let mf_end = (header_len + body.len()) as u32;
+
+    let mut out = b"PRC".to_vec();
+    le(&mut out, &[8137, 8137, 1, 2, 3, 4, 0, 0, 0, 0]);
+    le(&mut out, &[structures.len() as u32]);
+    out.extend(descriptions);
+    le(&mut out, &[mf_start, mf_end]);
+    assert_eq!(out.len() + 4, fixed);
+    le(&mut out, &[files.len() as u32]);
+    for f in files {
+        le(&mut out, &[f.len() as u32]);
+        out.extend_from_slice(f);
+    }
+    assert_eq!(out.len(), header_len);
+    out.extend(body);
+    out
+}
+
+/// Asserts `fixtures/synthetic/prc/{name}` holds `bytes`;
+/// `PDFCER_WRITE_FIXTURES=1` rewrites it.
+pub(crate) fn check_fixture(name: &str, bytes: &[u8]) {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../fixtures/synthetic/prc")
+        .join(name);
+    if std::env::var_os("PDFCER_WRITE_FIXTURES").is_some() {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, bytes).unwrap();
+    }
+    assert_eq!(
+        std::fs::read(&path).unwrap(),
+        bytes,
+        "{name}: rerun with PDFCER_WRITE_FIXTURES=1"
+    );
+}
+
+/// `bytes` assembled with each mesh made two faces: face 0 its triangles,
+/// face 1 the same triangles wound the other way, so either face's
+/// triangles can be told apart.
+pub(crate) fn assemble_two_faced(
+    bytes: &[u8],
+) -> Result<crate::AssembledModel, crate::AssembleError> {
+    let prc = crate::PrcFile::parse(bytes)?;
+    let mut model = crate::AssembledModel::default();
+    let mut flagged = crate::prc::mesh::Flagged::default();
+    let mut by_index =
+        crate::prc::mesh::decode_meshes(&prc, crate::MeshFit::default(), &mut model, &mut flagged)?;
+    for mesh in by_index.iter_mut().flatten().flatten() {
+        let n = mesh.triangles.len();
+        let back: Vec<[u32; 3]> = mesh.triangles.iter().map(|&[a, b, c]| [a, c, b]).collect();
+        mesh.triangles.extend(back);
+        mesh.triangle_normals.clear();
+        mesh.normals.clear();
+        mesh.triangle_uvs.clear();
+        mesh.uvs.clear();
+        mesh.faces = vec![0..n, n..2 * n];
+    }
+    crate::model::place(
+        &prc,
+        by_index,
+        &mut crate::prc::mesh::Flagged::default(),
+        &crate::AssembleOptions::default(),
+        &mut model,
+    )?;
+    Ok(model)
+}

@@ -1,8 +1,8 @@
 //! The bit-level writer for PRC compressed sections: the inverse of
-//! [`crate::bits::BitReader`] for the types the writer emits [WD 10.3,
+//! [`crate::prc::bits::BitReader`] for the types the writer emits [WD 10.3,
 //! 11.1-11.17].
 
-use crate::acof;
+use crate::prc::acof;
 
 /// An MSB-first bit sink.
 ///
@@ -149,7 +149,7 @@ impl BitWriter {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use crate::bits::BitReader;
+    use crate::prc::bits::BitReader;
 
     #[test]
     fn every_type_reads_back() {
