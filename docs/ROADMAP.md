@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `c2dca228` `v0.134.1` PUBLISHED, 2026-11-06 (1450th filing)
+
+Engineer-reported; no shell here, nothing checked from here (git, CI, GitHub, crates.io, OneDrive all as reported). Supersedes the IN PROGRESS entry below (1449th). Tag `v0.134.1` on `c2dca228`, pushed. HEAD at publish `6c848ffc`, a docs-only descendant; CI run 42274977149 green on all 12 jobs at `6c848ffc`. Carries `Pass 679.0` to `683.0` (`X058`, `X056`, `X055`, `X057`, `X059`) and `7a4c6d52`. Tag `v0.134.0` (`fc3f7e1d`) stays, never published (filed superseded in the 1449th).
+- **Package:** built from `6c848ffc` (differs from the tag in docs only); `pdfcer.exe` 42,363,904 bytes. **Fresh-folder smoke (as reported):** `--version` reports 0.134.1; `3d-embed`, `3d-render` with `--project`, `3d-render --360`, `3d-views` with `--measure-angle` and `--note` (dry run) all worked.
+- **GitHub release:** 8 assets uploaded at local sizes (portable zip 28,796,435 bytes; three OCR add-on zips; each with `.sha256`).
+- **OneDrive:** wrote `pdfcer2` (77,911,527 bytes); `pdfcer1` keeps 0.133.0 as the previous version. The next release writes `pdfcer1`.
+- **crates.io 0.134.1:** `pdfcer-color`, `-model`, `-pkix`, `-vec3`, `-json`, `-3d`, `-3d-nav`.
+- **`verify-release.py v0.134.1` (as reported):** all ok except the expected "working tree clean" (20 uncommitted paths: agent memory and local-only research files, none reach the compiler).
+- **Notices to `pdfcer-gui`:** `open/notice_2026-11-06_v0.134.1_released.md` in the FeatureRequests folder; also `open/notice_android_print_network_permission.md` (the operator raised Android print network permission; `pdfcer-gui`'s manifest declares no permissions and no Android print route exists; no engine work owed).
+- **Lesson:** tag only after CI is green on the bump, and run the audits from `python tools/check-ci-parity.py --list` before tagging.
+- **FEATURES:** unchanged; the `X055`-`X059` boxes were filed in the 1446th/1447th and no box moved.
+
 ### `c2dca228` `v0.134.1` release commit: IN PROGRESS (tag only after CI green; CI, packaging, GitHub release, OneDrive and crates.io publish not done), 2026-11-06 (1449th filing)
 
 Engineer-reported; no shell here, nothing checked from here. Commit `c2dca228` "chore(release): v0.134.1": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` only. Carries everything the 1448th entry below lists for `v0.134.0` (`Pass 679.0` to `683.0`) plus `7a4c6d52`. Not pushed as of filing (nothing since `ceeb969d` is). A later PUBLISHED filing closes this.
@@ -26261,6 +26273,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **1448th filing: `v0.134.0` release commit `fc3f7e1d` is IN PROGRESS (CI, packaging, GitHub release, OneDrive, crates.io pending); its PUBLISHED filing is next. No open Pass at the head.**
 >
 > **1449th filing: `v0.134.0` was never published (tag pushed at `fc3f7e1d` before CI finished; superseded). `v0.134.1` release commit `c2dca228` is IN PROGRESS, to be tagged only after CI is green; not pushed as of filing. No open Pass at the head.**
+
+> **1450th filing: `v0.134.1` PUBLISHED (tag `c2dca228`; CI green on all 12 jobs at `6c848ffc`; GitHub release, crates.io, OneDrive `pdfcer2`). Next release writes `pdfcer1`. No open Pass at the head.**
 
 > **1433rd filing: `Pass 675.1` (QUEUED after `675.0`) - publish `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav` to crates.io at the next release** (decision 217; Ken, 2026-11-06: "Yes publish them"). `675.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`).
 > - the three join `pdfcer-color`, `-model`, `-pkix` (`Pass 637.0`); `pdfcer-json` is included because `pdfcer-3d` depends on it;

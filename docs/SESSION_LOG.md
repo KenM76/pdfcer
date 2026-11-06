@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1450th filing) — `v0.134.1` PUBLISHED (tag `c2dca228`); CI green
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **`v0.134.1` PUBLISHED:** tag on `c2dca228`, pushed; HEAD at publish `6c848ffc` (docs-only descendant); CI run 42274977149 green on all 12 jobs at `6c848ffc`. Carries `Pass 679.0`-`683.0` (`X058`, `X056`, `X055`, `X057`, `X059`) and `7a4c6d52`. Tag `v0.134.0` (`fc3f7e1d`) stays, never published.
+- **Package** built from `6c848ffc`; `pdfcer.exe` 42,363,904 bytes. Fresh-folder smoke passed: `--version` 0.134.1, `3d-embed`, `3d-render --project`, `3d-render --360`, `3d-views --measure-angle` and `--note` (dry run).
+- **GitHub release:** 8 assets at local sizes (portable zip 28,796,435 bytes; three OCR add-on zips; each with `.sha256`).
+- **OneDrive:** `pdfcer2` written (77,911,527 bytes); `pdfcer1` keeps 0.133.0. Next release writes `pdfcer1`.
+- **crates.io 0.134.1:** `pdfcer-color`, `-model`, `-pkix`, `-vec3`, `-json`, `-3d`, `-3d-nav`.
+- **`verify-release.py`:** all ok except expected "working tree clean" (20 uncommitted paths: agent memory, local-only research; none reach the compiler).
+- **Notices to `pdfcer-gui`:** `notice_2026-11-06_v0.134.1_released.md`; also `notice_android_print_network_permission.md` (manifest declares no permissions, no Android print route exists; no engine work owed).
+- **Lesson:** tag only after CI green on the bump; run the audits from `python tools/check-ci-parity.py --list` before tagging.
+- **ROADMAP:** new Shipped entry plus banner. **FEATURES:** unchanged (no box moved).
+- **Next:** no open Pass at the head; `pdfcer-gui` adopts `X055`-`X059`. Next filing 1451st.
+
 ## 2026-11-06 (1449th filing) — `v0.134.1` release commit `c2dca228`: IN PROGRESS; `v0.134.0` never published
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
