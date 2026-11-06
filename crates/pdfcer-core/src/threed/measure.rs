@@ -11,6 +11,8 @@ use crate::textstring::{decode_text_string, encode_text_string};
 
 use pdfcer_vec3::{cross, dot, sub};
 
+mod build;
+
 /// Most `/MA` entries read or written per view (a pdfcer guard; the spec
 /// sets none).
 pub const MAX_3D_MEASUREMENTS: usize = 4096;
@@ -195,8 +197,11 @@ impl ThreeDMeasurement {
 
     /// The text a reader shows, as pdfcer formats it: `/V` to `/P` places
     /// (default 3), then `/U` after a space, then `/UT`; a comment note's
-    /// is its `/UT`. ISO 32000-2 leaves the formatting to the reader.
-    /// `None` without a value (or, for a note, text).
+    /// is its `/UT`. A radial value is preceded by `R`, or `⌀` for a
+    /// diameter (`/R` false), and an angle with no `/U` is followed by `°`,
+    /// or ` rad` when `/DR` is false (§13.6.7.3.4–5). ISO 32000-2 leaves the
+    /// rest of the formatting to the reader. `None` without a value (or, for
+    /// a note, text).
     #[must_use]
     pub fn value_text(&self) -> Option<String> {
         if self.kind == ThreeDMeasureKind::Comment {
@@ -204,10 +209,21 @@ impl ThreeDMeasurement {
         }
         let v = self.value.filter(|v| v.is_finite())?;
         let places = self.places.unwrap_or(3).min(15) as usize;
-        let mut s = format!("{v:.places$}");
+        let prefix = match (self.kind, self.radius) {
+            (ThreeDMeasureKind::Radial, Some(false)) => "⌀",
+            (ThreeDMeasureKind::Radial, _) => "R",
+            _ => "",
+        };
+        let mut s = format!("{prefix}{v:.places$}");
         if let Some(u) = self.units.as_deref().filter(|u| !u.is_empty()) {
             s.push(' ');
             s.push_str(u);
+        } else if self.kind == ThreeDMeasureKind::Angular {
+            s.push_str(if self.degrees == Some(false) {
+                " rad"
+            } else {
+                "°"
+            });
         }
         if let Some(t) = &self.user_text {
             s.push_str(t);
@@ -403,5 +419,5 @@ pub(super) fn measurement_dict(m: &ThreeDMeasurement) -> Dict {
 
 #[cfg(test)]
 // A panic on a missing value is the failure these tests report.
-#[allow(clippy::expect_used, clippy::indexing_slicing)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests;

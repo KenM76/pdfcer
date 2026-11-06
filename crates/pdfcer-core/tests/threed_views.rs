@@ -166,6 +166,34 @@ fn a_linear_measurement_reads_back_its_anchors_and_value() {
 }
 
 #[test]
+fn every_built_measurement_is_written_and_reads_back() {
+    let plane = [0., 0., 1.];
+    let built = vec![
+        ThreeDMeasurement::perpendicular([0.; 3], [1., 2., 3.], [0., 1., 0.], plane, "mm"),
+        ThreeDMeasurement::angular([0.; 3], [1., 0., 0.], [1., 1., 0.], plane),
+        ThreeDMeasurement::radial([1., 0., 0.], [0., 1., 0.], [-1., 0., 0.], "mm"),
+        ThreeDMeasurement::comment([1., 2., 3.], "check this"),
+    ];
+    let built: Vec<_> = built.into_iter().map(|m| m.expect("built")).collect();
+    let mut view = ThreeDSavedView::new("Back", BACK);
+    for m in &built {
+        view = view.with_measurement(m.clone());
+    }
+    let mut session = EditSession::new(doc());
+    session
+        .set_3d_views(0, ANNOT, &[view], Some(0))
+        .expect("writes");
+    let back = saved(&session);
+    let read = default_3d_view(&back, &list_3d(&back)[0]).expect("a default view");
+    assert_eq!(read.measurements, built);
+    let shown: Vec<_> = read.measurements.iter().map(|m| m.value_text()).collect();
+    assert_eq!(
+        shown,
+        ["2.000 mm", "45.000°", "R1.000 mm", "check this"].map(|s| Some(s.to_owned()))
+    );
+}
+
+#[test]
 fn a_measurement_missing_a_required_key_is_refused() {
     let mut m = ThreeDMeasurement::linear([0.; 3], [1., 0., 0.], [0., 0., 1.], "mm")
         .expect("a measurement");
