@@ -4,6 +4,26 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1444th filing) — `v0.133.0` release commit `50d0135f`: IN PROGRESS
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **Commit `50d0135f` "chore(release): v0.133.0"** (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` only); tag `v0.133.0` pushed with `main`. Carries `Pass 677.0` (`3db3e31c`, `X051`-`X053`) and `Pass 678.0` (`209b61e5`, `X054`).
+- **Before the bump (as reported):** CI green on `45bbafc0` (run 42228865430); `check-commits-filed` clean over 1893 code commits; `check-suite-name-absent` clean. The new rule from the 1443rd entry, applied.
+- **Change-scoped tests (as reported):** `pdfcer-3d` lib 460; `3d-nav` 47+1+2; `render` lib 540; `core --features 3d` threed 18; `cli` three_d 62; xmp doctests 2; `cargo doc` intra-doc links clean for `3d`, `3d-nav`, `render`.
+- **Pending:** CI on the tag commit (run 42234007115), packaging, GitHub release, OneDrive, crates.io. PUBLISHED filing is next.
+- **ROADMAP:** new Shipped entry plus banner. **FEATURES:** unchanged (the `677.0` and `678.0` rows stay "unreleased" until published; no box touched).
+- **Next:** finish the `v0.133.0` publish. Next filing 1445th.
+
+## 2026-11-06 (1443rd filing) — `v0.132.0` PUBLISHED (tag `02c33826`); CI red at the tag (process slip)
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **`v0.132.0` PUBLISHED:** tag on `02c33826`; GitHub release, 8 assets; seven crates (`pdfcer-color`, `-model`, `-pkix`, `-vec3`, `-json`, `-3d`, `-3d-nav`) at 0.132.0 on crates.io, published from the detached worktree `D:\builds\pub-v0.132.0`; CLI on OneDrive `pdfcer2` (`pdfcer1` keeps 0.131.0). Carries `X050` (`9b668449`, `Pass 676.0`). `pdfcer-gui` already consumed it (`v0.5.0-dev.20261106.2`); notice `notice_2026-11-06_v0.132.0_released.md` in `FeatureRequests/open/`.
+- **`verify-release.py` (as reported):** all ok except working tree not clean (agent-memory and untracked scratch, never committed) and **CI RED at the tag**: run 42209460304, job "repository audits", step `check-commits-filed`: `9b668449` was in no filing at the tag, its filing (`68ce2599`) having landed one commit after the release commit. Code at the tag unaffected; CI green on `3ad16db3` and `45bbafc0`.
+- **Process slip, plainly:** tagged before the last code commit was filed. **Going forward: run `check-commits-filed.py` before the version bump, not only before the push.**
+- **FEATURES:** `Pass 676.0` row now "released in `v0.132.0`"; crates.io row now seven crates at 0.132.0. No box changed.
+- **Amends** the 1439th entry's pointer (it said the 1440th would mark PUBLISHED; the 1440th queued `677`/`678`).
+- **Next:** `v0.133.0` (1444th entry). 
+
 ## 2026-11-06 (1442nd filing) — `Pass 678.0` (`209b61e5`) SHIPPED
 
 **Filed (engineer-reported; no shell here, git state not checked from here; docs only, engineer commits):**

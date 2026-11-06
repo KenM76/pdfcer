@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `50d0135f` `v0.133.0` release commit: IN PROGRESS (tagged and pushed; CI, packaging, GitHub release, OneDrive and crates.io publish pending), 2026-11-06 (1444th filing)
+
+Engineer-reported; no shell here, nothing checked from here (git, tag, CI, GitHub, crates.io, OneDrive all as reported). Commit `50d0135f` "chore(release): v0.133.0": `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` only. Tag `v0.133.0` pushed with `main`. Carries `Pass 677.0` (`3db3e31c`; `X051`-`X053`) and `Pass 678.0` (`209b61e5`; `X054`).
+- **Before bumping (as reported):** CI green on `45bbafc0` (run 42228865430); `check-commits-filed` clean (1893 code commits); `check-suite-name-absent` clean. This is the rule from the 1443rd entry applied: filing check before the bump.
+- **Change-scoped local tests since `v0.132.0` (as reported):** `pdfcer-3d` lib 460; `pdfcer-3d-nav` 47+1+2; `pdfcer-render` lib 540; `pdfcer-core --features 3d` threed 18; `pdfcer-cli` three_d 62; xmp doctests 2. `cargo doc` broken-intra-doc-links clean for `3d`, `3d-nav`, `render`.
+- **Pending:** CI on the tag commit (run 42234007115), packaging, GitHub release, OneDrive deploy (slot not stated in the dispatch; `pdfcer2` holds 0.132.0), crates.io publish. The PUBLISHED filing is separate.
+
+### `02c33826` `v0.132.0` PUBLISHED, 2026-11-06 (1443rd filing)
+
+Engineer-reported; no shell here, nothing checked from here. Supersedes the IN PROGRESS entry below (1439th). Tag `v0.132.0` on `02c33826`; GitHub release with 8 assets; crates `pdfcer-color`, `-model`, `-pkix`, `-vec3`, `-json`, `-3d`, `-3d-nav` 0.132.0 published on crates.io from the detached worktree `D:\builds\pub-v0.132.0`; CLI on OneDrive slot `pdfcer2` (`pdfcer1` keeps 0.131.0). Carries `X050` (`9b668449`, `Pass 676.0`). `pdfcer-gui` has already consumed it (its `v0.5.0-dev.20261106.2`). Notice: `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\notice_2026-11-06_v0.132.0_released.md`.
+- **`verify-release.py v0.132.0` (as reported):** all ok except (a) working tree not clean (agent-memory and untracked scratch only, never committed) and (b) **CI RED at the tagged commit**: run 42209460304, job "repository audits", step `check-commits-filed`: `9b668449` was in no filing at the tag, because its filing (`68ce2599`) landed one commit after the release commit. Code at the tag is unaffected; CI is green on the later commits `3ad16db3` and `45bbafc0`.
+- **PROCESS SLIP, recorded plainly:** the release was tagged before its last code commit was filed. **Rule going forward: run `check-commits-filed.py` before the version bump, not only before the push.** (Applied at `v0.133.0`, 1444th entry.)
+- **FEATURES:** the `Pass 676.0` row now reads released in `v0.132.0`; the crates.io row reads seven crates at 0.132.0. No box changed.
+
 ### `209b61e5` `Pass 678.0`, 2026-11-06: 360-degree photo-sphere 3D render (1442nd filing)
 
 Engineer-reported; no shell here, git state not checked from here (not pushed, as reported). Commit `209b61e5` on `main` "feat(3d): 360-degree photo-sphere render, equirectangular lens + GPano XMP (Pass 678.0, X054)". Unreleased; ships in `v0.133.0` with `Pass 677.0`. Operator request (Ken, 2026-11-06). Worker commit `e40fdfb3` (worktree) cherry-picked; engineer fixes on top: cube-face density cap, seam split on both paths. Notice to `pdfcer-gui`: `X054` (not built in the GUI).
@@ -134,6 +148,7 @@ Engineer-reported; no shell here, git state not checked from here. Commit `3db3e
 ### `02c33826` `v0.132.0` release commit: IN PROGRESS (tagged; package, GitHub release, OneDrive and crates.io publish pending), 2026-11-06 (1439th filing)
 
 Engineer-reported; no shell here, nothing checked from here (git, tag, CI, GitHub, crates.io, OneDrive all as reported). Version bump commit `02c33826` (short `02c3382`) "chore(release): v0.132.0": `[workspace.package]` version and the five `[workspace.dependencies]` version lines (`pdfcer-model`, `-vec3`, `-json`, `-3d`, `-3d-nav`) from 0.131.0 to 0.132.0, `Cargo.lock`, `fuzz/Cargo.lock`. On top of `9b668449`. Tag `v0.132.0` being cut on it. Carries `Pass 676.0` (`X050`, `9b668449`). The 1440th filing marks it PUBLISHED with assets and sha. Per the 1437th entry, the OneDrive CLI goes to `pdfcer2`.
+- *Amendment 2026-11-06 (1443rd filing): the PUBLISHED filing is the 1443rd, not the 1440th (the 1440th queued `677`/`678`); see the entry above.*
 
 ### `9b668449` `Pass 676.0`, 2026-11-06: 3D picking refuses non-finite rays and hits (`X050`) (1438th filing)
 
@@ -26177,6 +26192,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **1441st filing: `Pass 677.0` (`X051`-`X053`, `3db3e31c`) is SHIPPED (see *Shipped*), unreleased; it ships in `v0.133.0` with `Pass 678.0`. Its Next up block is removed.**
 >
 > **1442nd filing: `Pass 678.0` (360-degree photo-sphere render, `209b61e5`) is SHIPPED (see *Shipped*), unreleased; it ships in `v0.133.0` with `677.0`. Its Next up block is removed. No open Pass at the head.**
+>
+> **1443rd filing: `v0.132.0` is PUBLISHED (see *Shipped*; OneDrive `pdfcer2`; CI red at the tag from a `check-commits-filed` process slip, code unaffected). 1444th filing: `v0.133.0` release commit `50d0135f` is tagged and pushed, IN PROGRESS (CI on the tag, packaging, GitHub release, OneDrive, crates.io pending); its PUBLISHED filing is next. No open Pass at the head.**
 
 > **1433rd filing: `Pass 675.1` (QUEUED after `675.0`) - publish `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav` to crates.io at the next release** (decision 217; Ken, 2026-11-06: "Yes publish them"). `675.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`).
 > - the three join `pdfcer-color`, `-model`, `-pkix` (`Pass 637.0`); `pdfcer-json` is included because `pdfcer-3d` depends on it;
