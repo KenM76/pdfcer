@@ -6,6 +6,7 @@ use crate::object::{Dict, Object};
 use crate::textstring::decode_text_string;
 
 use super::measure::read_measurements;
+use super::view_carry::ViewSource;
 use super::{
     ThreeDArtwork, ThreeDLighting, ThreeDMeasurement, ThreeDRenderMode, name_of, stream_at,
 };
@@ -61,6 +62,9 @@ pub struct ThreeDSavedView {
     /// while this view is active, in file order; at most
     /// [`super::MAX_3D_MEASUREMENTS`] are read.
     pub measurements: Vec<ThreeDMeasurement>,
+    /// The dictionary [`super::saved_3d_views`] read this from, so writing it
+    /// back keeps what these fields do not hold.
+    pub(crate) source: ViewSource,
 }
 
 impl Default for ThreeDSavedView {
@@ -79,6 +83,7 @@ impl Default for ThreeDSavedView {
             lighting: None,
             render_mode: None,
             measurements: Vec::new(),
+            source: ViewSource::default(),
         }
     }
 }
@@ -274,6 +279,7 @@ pub(super) fn read_view<G: ObjectGraph + ?Sized>(graph: &G, view: &Dict) -> Thre
         lighting,
         render_mode: super::render_mode::read_render_mode(graph, view),
         measurements: read_measurements(graph, view),
+        source: ViewSource::default(),
     }
 }
 

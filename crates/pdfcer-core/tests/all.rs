@@ -284,6 +284,7 @@ mod text_run_width;
 mod threed;
 mod threed_opening;
 mod threed_poster;
+mod threed_view_measures;
 mod threed_views;
 mod tounicode_partial_inverse;
 mod transform_objects;

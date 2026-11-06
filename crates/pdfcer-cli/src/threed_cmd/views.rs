@@ -3,9 +3,7 @@
 
 use super::*;
 use pdfcer_core::document::Document;
-#[cfg(feature = "3d")]
-use pdfcer_core::threed::ThreeDMeasurement;
-use pdfcer_core::threed::{ThreeDArtwork, ThreeDSavedView, ThreeDViewsOutcome};
+use pdfcer_core::threed::{ThreeDArtwork, ThreeDMeasurement, ThreeDSavedView, ThreeDViewsOutcome};
 
 /// The arguments of `3d-views`, borrowed from the parsed command.
 #[cfg_attr(not(feature = "3d"), allow(dead_code))]
@@ -16,12 +14,7 @@ pub(crate) struct ViewsThreeDArgs<'a> {
     pub(crate) up: Axis3,
     pub(crate) ortho: bool,
     pub(crate) default: Option<ThreeDView>,
-    pub(crate) measures: &'a [[[f64; 3]; 2]],
-    pub(crate) perpendiculars: &'a [[[f64; 3]; 3]],
-    pub(crate) angles: &'a [[[f64; 3]; 3]],
-    pub(crate) radii: &'a [[[f64; 3]; 3]],
-    pub(crate) notes: &'a [([f64; 3], String)],
-    pub(crate) units: &'a str,
+    pub(crate) measures: &'a ThreeDMeasureArgs,
     pub(crate) clear: bool,
     pub(crate) apply: bool,
     pub(crate) output: Option<&'a Path>,
@@ -39,18 +32,9 @@ pub(crate) fn cmd_views_3d(a: &ViewsThreeDArgs<'_>) -> u8 {
         }
     };
     let found = pdfcer_core::threed::list_3d(&doc);
-    let Some((art, annot_id)) = found.get(a.index).and_then(|art| match art.source {
-        ThreeDSource::Stream { .. } => art.annot_id.map(|id| (art, id)),
-        _ => None,
-    }) else {
-        eprintln!(
-            "pdfcer: {}: index {} is not a 3D annotation (the document has {} 3D artwork(s); \
-             a RichMedia model has no 3D views). Run `pdfcer 3d-list` to see them.",
-            a.input.display(),
-            a.index,
-            found.len()
-        );
-        return exit::EDIT_REFUSED;
+    let (art, annot_id) = match stream_annotation(a.input, a.index, &found) {
+        Ok(hit) => hit,
+        Err(code) => return code,
     };
     let views = if a.clear {
         Vec::new()
@@ -76,6 +60,30 @@ pub(crate) fn cmd_views_3d(a: &ViewsThreeDArgs<'_>) -> u8 {
         return exit::SUCCESS;
     }
     finish_attachment_save(a.input, &mut session, a.output, a.mode)
+}
+
+/// Artwork `index` of `found` and its annotation, when it is a `/3D`
+/// annotation; else the exit code, after saying so.
+pub(super) fn stream_annotation<'f>(
+    input: &Path,
+    index: usize,
+    found: &'f [ThreeDArtwork],
+) -> Result<(&'f ThreeDArtwork, pdfcer_core::object::ObjId), u8> {
+    found
+        .get(index)
+        .and_then(|art| match art.source {
+            ThreeDSource::Stream { .. } => art.annot_id.map(|id| (art, id)),
+            _ => None,
+        })
+        .ok_or_else(|| {
+            eprintln!(
+                "pdfcer: {}: index {index} is not a 3D annotation (the document has {} 3D \
+                 artwork(s); a RichMedia model has no 3D views). Run `pdfcer 3d-list` to see them.",
+                input.display(),
+                found.len()
+            );
+            exit::EDIT_REFUSED
+        })
 }
 
 /// The view a reader opens on: `--default`'s first match, else the first.
@@ -178,7 +186,7 @@ fn fitted_views(
                 ThreeDSavedView::from_camera(named.label(), &camera, aspect).ok_or_else(|| {
                     refuse(format!("the {} view has no usable camera", named.label()))
                 })?;
-            with_measures(view, a).map_err(refuse)
+            with_measures(view, a.measures).map_err(refuse)
         })
         .collect()
 }
@@ -186,16 +194,24 @@ fn fitted_views(
 /// `view` with every measurement asked for, in the plane facing its camera
 /// (normal = the camera's z axis); a distance that plane cannot draw is drawn
 /// in the plane holding the camera's up axis instead.
-#[cfg(feature = "3d")]
-fn with_measures(
+pub(super) fn with_measures(
     mut view: ThreeDSavedView,
-    a: &ViewsThreeDArgs<'_>,
+    a: &ThreeDMeasureArgs,
 ) -> Result<ThreeDSavedView, String> {
     let Some(c2w) = view.camera_to_world else {
-        return Ok(view);
+        let nothing_asked = a.measures.is_empty()
+            && a.perpendiculars.is_empty()
+            && a.angles.is_empty()
+            && a.radii.is_empty()
+            && a.notes.is_empty();
+        return if nothing_asked {
+            Ok(view)
+        } else {
+            Err("the view has no camera for a measurement to face".to_owned())
+        };
     };
     let (facing, up) = ([c2w[6], c2w[7], c2w[8]], [c2w[3], c2w[4], c2w[5]]);
-    let units = a.units;
+    let units = a.units.as_deref().unwrap_or_default();
     for (i, [p, q]) in a.measures.iter().enumerate() {
         let m = ThreeDMeasurement::linear(*p, *q, facing, units)
             .or_else(|| ThreeDMeasurement::linear(*p, *q, up, units))

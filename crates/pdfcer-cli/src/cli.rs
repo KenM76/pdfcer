@@ -3706,8 +3706,6 @@ pub(crate) enum Command {
     /// `--note` add the other kinds the same way: each value is computed from
     /// the points given and written as is.
     #[command(name = "3d-views")]
-    #[command(group = clap::ArgGroup::new("measures-with-units")
-        .args(["measures", "perpendiculars", "radii"]).multiple(true))]
     ThreeDViews {
         /// Input PDF.
         input: PathBuf,
@@ -3726,40 +3724,50 @@ pub(crate) enum Command {
         /// The view the reader opens on. Default: the first `--view`.
         #[arg(long, value_enum)]
         default: Option<ThreeDView>,
-        /// A linear measurement from one model point to another, added to
-        /// every view; repeat for several.
-        #[arg(long = "measure", value_name = "X,Y,Z:X,Y,Z", value_parser = parse_segment3,
-              allow_hyphen_values = true, requires = "units")]
-        measures: Vec<[[f64; 3]; 2]>,
-        /// A perpendicular distance added to every view: from the first
-        /// point to the second, measured along the third, a direction such
-        /// as a face's normal. Repeatable.
-        #[arg(long = "measure-perpendicular", value_name = "X,Y,Z:X,Y,Z:X,Y,Z",
-              value_parser = parse_triple3, allow_hyphen_values = true, requires = "units")]
-        perpendiculars: Vec<[[f64; 3]; 3]>,
-        /// An angle added to every view: at the first point, between the
-        /// lines to the second and third, in degrees. Repeatable.
-        #[arg(long = "measure-angle", value_name = "X,Y,Z:X,Y,Z:X,Y,Z",
-              value_parser = parse_triple3, allow_hyphen_values = true)]
-        angles: Vec<[[f64; 3]; 3]>,
-        /// A radius added to every view: of the circle through three points,
-        /// taken as an arc from the first through the second to the third.
-        /// Repeatable.
-        #[arg(long = "measure-radius", value_name = "X,Y,Z:X,Y,Z:X,Y,Z",
-              value_parser = parse_triple3, allow_hyphen_values = true, requires = "units")]
-        radii: Vec<[[f64; 3]; 3]>,
-        /// A note on a model point added to every view. Everything after the
-        /// first colon is the note. Repeatable.
-        #[arg(long = "note", value_name = "X,Y,Z:TEXT", value_parser = parse_note3,
-              allow_hyphen_values = true)]
-        notes: Vec<([f64; 3], String)>,
-        /// The units label shown after each measured distance or radius,
-        /// e.g. `mm`. An angle takes none.
-        #[arg(long, requires = "measures-with-units")]
-        units: Option<String>,
+        #[command(flatten)]
+        measures: ThreeDMeasureArgs,
         /// Remove every view instead.
         #[arg(long, conflicts_with_all = ["views", "default", "ortho", "measures",
               "perpendiculars", "angles", "radii", "notes"])]
+        clear: bool,
+        /// Actually write the output. Without it this is a DRY RUN.
+        #[arg(long)]
+        apply: bool,
+        /// Output path. Required with `--apply`.
+        #[arg(long, short)]
+        output: Option<PathBuf>,
+        /// Which save path to use.
+        #[arg(long, value_enum, default_value_t = SaveMode::Incremental)]
+        mode: SaveMode,
+    },
+
+    /// **Change the measurements of one saved view of a 3D annotation**
+    /// (ISO 32000-2 §13.6.7.3), keeping everything else in that view and
+    /// every other view.
+    ///
+    /// `--view` is the index `3d-list` prints on the `view` line, and
+    /// `--remove` the index on a `measure` line. Removals happen first, then
+    /// additions go on the end, facing the view's camera. `--clear` removes
+    /// all the measurements pdfcer can read; an entry it cannot read always
+    /// stays, and a `note:` line says so. Measurements are a PDF 2.0 feature,
+    /// which a `note:` line also says. A DRY RUN unless `--apply`.
+    #[command(name = "3d-view-measures")]
+    ThreeDViewMeasures {
+        /// Input PDF.
+        input: PathBuf,
+        /// Which 3D artwork, as numbered by `3d-list`.
+        #[arg(long)]
+        index: usize,
+        /// Which saved view of it, as numbered by `3d-list`.
+        #[arg(long)]
+        view: usize,
+        #[command(flatten)]
+        measures: ThreeDMeasureArgs,
+        /// Remove the measurement `3d-list` numbers this; repeat for several.
+        #[arg(long, value_name = "I")]
+        remove: Vec<usize>,
+        /// Remove every measurement pdfcer can read before adding any.
+        #[arg(long, conflicts_with = "remove")]
         clear: bool,
         /// Actually write the output. Without it this is a DRY RUN.
         #[arg(long)]
@@ -14194,4 +14202,41 @@ pub(crate) enum Command {
         #[arg(long)]
         verify_undo: bool,
     },
+}
+
+/// The measurements `3d-views` and `3d-view-measures` add.
+#[derive(clap::Args, Debug, Clone)]
+#[group(skip)]
+#[command(group = clap::ArgGroup::new("measures-with-units")
+    .args(["measures", "perpendiculars", "radii"]).multiple(true))]
+pub(crate) struct ThreeDMeasureArgs {
+    /// A linear measurement from one model point to another; repeat for
+    /// several.
+    #[arg(long = "measure", value_name = "X,Y,Z:X,Y,Z", value_parser = parse_segment3,
+          allow_hyphen_values = true, requires = "units")]
+    pub(crate) measures: Vec<[[f64; 3]; 2]>,
+    /// A perpendicular distance: from the first point to the second, measured
+    /// along the third, a direction such as a face's normal. Repeatable.
+    #[arg(long = "measure-perpendicular", value_name = "X,Y,Z:X,Y,Z:X,Y,Z",
+          value_parser = parse_triple3, allow_hyphen_values = true, requires = "units")]
+    pub(crate) perpendiculars: Vec<[[f64; 3]; 3]>,
+    /// An angle: at the first point, between the lines to the second and
+    /// third, in degrees. Repeatable.
+    #[arg(long = "measure-angle", value_name = "X,Y,Z:X,Y,Z:X,Y,Z",
+          value_parser = parse_triple3, allow_hyphen_values = true)]
+    pub(crate) angles: Vec<[[f64; 3]; 3]>,
+    /// A radius: of the circle through three points, taken as an arc from the
+    /// first through the second to the third. Repeatable.
+    #[arg(long = "measure-radius", value_name = "X,Y,Z:X,Y,Z:X,Y,Z",
+          value_parser = parse_triple3, allow_hyphen_values = true, requires = "units")]
+    pub(crate) radii: Vec<[[f64; 3]; 3]>,
+    /// A note on a model point. Everything after the first colon is the
+    /// note. Repeatable.
+    #[arg(long = "note", value_name = "X,Y,Z:TEXT", value_parser = parse_note3,
+          allow_hyphen_values = true)]
+    pub(crate) notes: Vec<([f64; 3], String)>,
+    /// The units label shown after each measured distance or radius, e.g.
+    /// `mm`. An angle takes none.
+    #[arg(long, requires = "measures-with-units")]
+    pub(crate) units: Option<String>,
 }

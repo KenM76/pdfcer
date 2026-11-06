@@ -6,6 +6,7 @@ use crate::object::{Dict, Object};
 use crate::textstring::decode_text_string;
 
 use super::view::{MAX_VIEWS_SEARCHED, internal_name, read_view, view_box, views_of};
+use super::view_carry::ViewSource;
 use super::{ThreeDArtwork, ThreeDSavedView};
 
 /// An artwork's `/VA` views and which one the file names as its default.
@@ -26,8 +27,8 @@ pub struct SavedViews {
 /// Every saved view of `artwork`, with the index of its named default.
 ///
 /// Empty for a RichMedia asset (no 3D stream dictionary) or a stream
-/// without `/VA`. [`crate::edit::EditSession::set_3d_views`] writes the
-/// list back; reading, editing one entry and writing keeps the others.
+/// without `/VA`. [`crate::edit::EditSession::set_3d_views`] writes the list
+/// back and keeps what a listed view holds beyond these fields.
 ///
 /// # Examples
 ///
@@ -45,16 +46,17 @@ pub fn saved_3d_views<G: ObjectGraph + ?Sized>(graph: &G, artwork: &ThreeDArtwor
     let (stream, entries) = views_of(graph, artwork);
     let annot = artwork.annot_id.and_then(|id| graph.resolved(id).as_dict());
     let view_box = annot.and_then(|a| view_box(graph, a));
-    let mut views = Vec::new();
-    let mut slots = Vec::new();
-    for (i, entry) in entries.iter().take(MAX_VIEWS_SEARCHED).enumerate() {
-        if let Some(d) = graph.resolve(entry).as_dict() {
+    let slots = view_slots(graph, entries);
+    let views = slots
+        .iter()
+        .filter_map(|i| graph.resolve(entries.get(*i)?).as_dict())
+        .map(|d| {
             let mut v = read_view(graph, d);
             v.view_box = view_box;
-            views.push(v);
-            slots.push(i);
-        }
-    }
+            v.source = ViewSource::of(d);
+            v
+        })
+        .collect();
     let choice = annot
         .and_then(|a| a.get(b"3DV"))
         .filter(|c| graph.resolve(c).as_name().map(|n| n.as_bytes()) != Some(b"D"))
@@ -63,6 +65,17 @@ pub fn saved_3d_views<G: ObjectGraph + ?Sized>(graph: &G, artwork: &ThreeDArtwor
         .and_then(|c| entry_index(graph, c, entries))
         .and_then(|i| slots.iter().position(|s| *s == i));
     SavedViews { views, default }
+}
+
+/// The `/VA` position of each entry [`SavedViews::views`] lists.
+pub(crate) fn view_slots<G: ObjectGraph + ?Sized>(graph: &G, entries: &[Object]) -> Vec<usize> {
+    entries
+        .iter()
+        .take(MAX_VIEWS_SEARCHED)
+        .enumerate()
+        .filter(|(_, entry)| graph.resolve(entry).as_dict().is_some())
+        .map(|(i, _)| i)
+        .collect()
 }
 
 /// The `/VA` index a view selector names, if it names one.

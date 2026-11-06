@@ -17,6 +17,7 @@ mod picture;
 #[cfg(feature = "3d")]
 mod shadow_note;
 mod tree;
+mod view_measures;
 mod views;
 #[cfg(feature = "3d")]
 use aim::aim_camera;
@@ -27,6 +28,7 @@ pub(crate) use lights::{LightArg, parse_light};
 pub(crate) use mode::RenderModeArgs;
 pub(crate) use picture::picture_size;
 pub(crate) use tree::cmd_tree_3d;
+pub(crate) use view_measures::{ViewMeasuresArgs, cmd_view_measures_3d};
 pub(crate) use views::{ViewsThreeDArgs, cmd_views_3d};
 
 /// One `measure` line per 3D measurement of the view named `view`.

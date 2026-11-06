@@ -195,6 +195,13 @@ fn unit(a: [f64; 3]) -> Option<[f64; 3]> {
 
 /// Why view `index` cannot be written, if it cannot.
 pub(crate) fn check_view(index: usize, v: &ThreeDSavedView) -> Result<(), ThreeDEmbedError> {
+    check_view_fields(index, v)?;
+    let all: Vec<usize> = (0..v.measurements.len()).collect();
+    check_new_measurements(index, &v.measurements, &all)
+}
+
+/// [`check_view`] without the measurements.
+pub(crate) fn check_view_fields(index: usize, v: &ThreeDSavedView) -> Result<(), ThreeDEmbedError> {
     let invalid = |why: &str| ThreeDEmbedError::ViewInvalid {
         index,
         why: why.to_owned(),
@@ -225,13 +232,27 @@ pub(crate) fn check_view(index: usize, v: &ThreeDSavedView) -> Result<(), ThreeD
     {
         return Err(invalid("its field of view is outside 0-180 degrees"));
     }
-    if v.measurements.len() > MAX_3D_MEASUREMENTS {
+    Ok(())
+}
+
+/// Why `measurements` cannot go into view `index`, if they cannot. Only the
+/// positions in `new` are written anew and checked: an entry a file already
+/// holds stays as it is, whether or not it has every key its kind requires.
+pub(crate) fn check_new_measurements(
+    index: usize,
+    measurements: &[ThreeDMeasurement],
+    new: &[usize],
+) -> Result<(), ThreeDEmbedError> {
+    let invalid = |why: String| ThreeDEmbedError::ViewInvalid { index, why };
+    if measurements.len() > MAX_3D_MEASUREMENTS {
         return Err(invalid(
-            "it has more 3D measurements than pdfcer writes (4096)",
+            "it has more 3D measurements than pdfcer writes (4096)".to_owned(),
         ));
     }
-    for (k, m) in v.measurements.iter().enumerate() {
-        check_measurement(m).map_err(|why| invalid(&format!("its measurement {k}: {why}")))?;
+    for k in new {
+        if let Some(m) = measurements.get(*k) {
+            check_measurement(m).map_err(|why| invalid(format!("its measurement {k}: {why}")))?;
+        }
     }
     Ok(())
 }

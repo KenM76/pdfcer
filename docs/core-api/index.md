@@ -14,7 +14,7 @@ index and ends with **Traps**.
 | file | covers | size |
 |---|---|---|
 | [`01-reading-and-model.md`](01-reading-and-model.md) | loading, the COS object model, pages, content streams, text extraction, fonts, vector picking/snapping, filters, colour, navigation, metadata | 5,146 lines · 267 clauses cited |
-| [`02-editing-and-saving.md`](02-editing-and-saving.md) | `EditSession` end to end — **all 397 public verbs**, the command/undo contract, the dirty set, the save path, the guard/refusal model, `EditError`'s 192 variants | 6,751 lines · 325 clauses cited |
+| [`02-editing-and-saving.md`](02-editing-and-saving.md) | `EditSession` end to end — **all 398 public verbs**, the command/undo contract, the dirty set, the save path, the guard/refusal model, `EditError`'s 192 variants | 6,752 lines · 327 clauses cited |
 | [`03-capabilities.md`](03-capabilities.md) | ce dimensions, forms, markup, redaction, **off-canvas content**, OCR, print/imposition, rasterising, raster export, space audit, optimize, prepress (overprint use, PDF/X claim) — each with **★ what the UI must disclose** | 6,004 lines · 174 clauses cited |
 | [`04-3d-navigation.md`](04-3d-navigation.md) | `pdfcer-3d-nav`: a 3D viewer's orbit, walk, lens, up axis, saved view and fit, plus the `pdfcer-3d` camera and vector helpers it uses — every `pub` item | 99 lines · 0 clauses cited |
 

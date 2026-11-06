@@ -238,13 +238,32 @@ pub(super) fn read_measurements<G: ObjectGraph + ?Sized>(
     graph: &G,
     view: &Dict,
 ) -> Vec<ThreeDMeasurement> {
-    let Some(list) = view.get(b"MA").and_then(|o| graph.resolve(o).as_array()) else {
-        return Vec::new();
-    };
+    measurement_entries(graph, view)
+        .into_iter()
+        .filter_map(|(_, m)| m)
+        .collect()
+}
+
+/// Every `/MA` entry of `view`, with what it reads as; `None` for one
+/// [`read_measurements`] skips, or past [`MAX_3D_MEASUREMENTS`].
+pub(super) fn measurement_entries<'a, G: ObjectGraph + ?Sized>(
+    graph: &'a G,
+    view: &'a Dict,
+) -> Vec<(&'a Object, Option<ThreeDMeasurement>)> {
+    let list = view
+        .get(b"MA")
+        .and_then(|o| graph.resolve(o).as_array())
+        .unwrap_or_default();
     list.iter()
-        .take(MAX_3D_MEASUREMENTS)
-        .filter_map(|o| graph.resolve(o).as_dict())
-        .filter_map(|d| read_one(graph, d))
+        .enumerate()
+        .map(|(i, o)| {
+            let read = graph
+                .resolve(o)
+                .as_dict()
+                .filter(|_| i < MAX_3D_MEASUREMENTS)
+                .and_then(|d| read_one(graph, d));
+            (o, read)
+        })
         .collect()
 }
 

@@ -38,6 +38,7 @@ mod poster;
 mod render_mode;
 mod view;
 mod view_aim;
+mod view_carry;
 mod view_list;
 mod view_write;
 pub use activation::ThreeDActivation;
@@ -50,9 +51,12 @@ pub use poster::{PlaceholderReason, RenderedPoster, ThreeDPoster, ThreeDPosterOu
 pub use render_mode::{ThreeDRenderMode, ThreeDRenderModeKind};
 pub use view::{OrthoBinding, ThreeDSavedView, default_3d_view};
 pub use view_aim::{SavedViewAim, ViewFit};
+pub use view_carry::ThreeDViewMeasuresOutcome;
+pub(crate) use view_carry::{MeasureMerge, carry_view, merge_measurements, put_measurements};
+pub(crate) use view_list::view_slots;
 pub use view_list::{SavedViews, saved_3d_views};
 pub use view_write::{MAX_3D_VIEWS, ThreeDViewsOutcome};
-pub(crate) use view_write::{check_view, view_dict};
+pub(crate) use view_write::{check_new_measurements, check_view, check_view_fields, view_dict};
 
 /// Ceiling on how many artworks one listing reports (a pdfcer guard; the
 /// spec sets none).
@@ -579,6 +583,15 @@ pub enum ThreeDEmbedError {
         /// The default asked for.
         index: usize,
         /// How many views were given.
+        count: usize,
+    },
+    /// [`crate::edit::EditSession::set_3d_view_measurements`]: the artwork
+    /// has no saved view at that index.
+    #[error("3D view {index} is not one of the artwork's {count} saved views")]
+    ViewIndexOutOfRange {
+        /// The view asked for.
+        index: usize,
+        /// How many saved views there are.
         count: usize,
     },
     /// [`crate::edit::EditSession::set_3d_views`]: more than

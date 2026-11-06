@@ -2001,3 +2001,155 @@ fn measurement_flags_ask_for_units_and_refuse_what_cannot_be_drawn() {
         assert!(String::from_utf8_lossy(&out.stderr).contains(why), "{flag}");
     }
 }
+
+#[cfg(feature = "3d")]
+fn two_written_views(tag: &str) -> PathBuf {
+    let input = with_prc_square(tag);
+    let output = input.with_extension("views.pdf");
+    let out = views_3d(
+        &input,
+        &[
+            "--view",
+            "front",
+            "--view",
+            "top",
+            "--apply",
+            "-o",
+            output.to_str().unwrap(),
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    output
+}
+
+#[cfg(feature = "3d")]
+fn view_measures(input: &Path, extra: &[&str]) -> Output {
+    let mut args = vec!["3d-view-measures", input.to_str().unwrap(), "--index", "2"];
+    args.extend_from_slice(extra);
+    run(&args)
+}
+
+/// The `3d-list` lines for measurements, each as its view's name and index.
+#[cfg(feature = "3d")]
+fn listed_measures(input: &Path) -> Vec<String> {
+    let out = run(&["3d-list", input.to_str().unwrap()]);
+    String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter(|l| l.trim_start().starts_with("measure view="))
+        .map(|l| l.split_whitespace().take(3).collect::<Vec<_>>().join(" "))
+        .collect()
+}
+
+#[cfg(feature = "3d")]
+#[test]
+fn one_views_measurements_change_and_the_other_view_keeps_its_own() {
+    let input = two_written_views("view_measures");
+    let dry = view_measures(
+        &input,
+        &["--view", "1", "--measure", "0,0,0:1,0,0", "--units", "mm"],
+    );
+    assert!(
+        dry.status.success(),
+        "{}",
+        String::from_utf8_lossy(&dry.stderr)
+    );
+    let said = String::from_utf8_lossy(&dry.stdout);
+    assert!(said.contains("measurements=0 -> 1"), "{said}");
+    assert!(said.contains("applied=0"), "{said}");
+    assert!(String::from_utf8_lossy(&dry.stderr).contains("PDF 2.0"));
+    assert!(
+        listed_measures(&input).is_empty(),
+        "a dry run writes nothing"
+    );
+
+    let one = input.with_extension("one.pdf");
+    let out = view_measures(
+        &input,
+        &[
+            "--view",
+            "1",
+            "--measure",
+            "0,0,0:1,0,0",
+            "--note",
+            "0,0,0:hello",
+            "--units",
+            "mm",
+            "--apply",
+            "-o",
+            one.to_str().unwrap(),
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(
+        listed_measures(&one),
+        [
+            "measure view=\"Top\" index=0",
+            "measure view=\"Top\" index=1"
+        ]
+    );
+
+    let two = input.with_extension("two.pdf");
+    let out = view_measures(
+        &one,
+        &[
+            "--view",
+            "1",
+            "--remove",
+            "0",
+            "--apply",
+            "-o",
+            two.to_str().unwrap(),
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(listed_measures(&two), ["measure view=\"Top\" index=0"]);
+    let list = run(&["3d-list", two.to_str().unwrap()]);
+    assert!(String::from_utf8_lossy(&list.stdout).contains("kind=comment"));
+
+    let three = input.with_extension("three.pdf");
+    let out = view_measures(
+        &two,
+        &[
+            "--view",
+            "1",
+            "--clear",
+            "--apply",
+            "-o",
+            three.to_str().unwrap(),
+        ],
+    );
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert!(listed_measures(&three).is_empty());
+}
+
+#[cfg(feature = "3d")]
+#[test]
+fn a_view_measures_request_that_makes_no_sense_is_refused() {
+    let input = two_written_views("view_measures_refused");
+    for (extra, says) in [
+        (&["--view", "9", "--clear"][..], "no view 9"),
+        (&["--view", "0", "--remove", "0"][..], "--remove 0"),
+        (&["--view", "0"][..], "nothing was asked for"),
+    ] {
+        let out = view_measures(&input, extra);
+        assert!(!out.status.success(), "{extra:?}");
+        let err = String::from_utf8_lossy(&out.stderr);
+        assert!(err.contains(says), "{extra:?}: {err}");
+    }
+}
