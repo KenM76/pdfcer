@@ -407,3 +407,153 @@ fn a_nonsense_step_or_a_walker_at_the_edge_of_the_floats_stays_finite() {
     far.step(up, 1.0, ghost, &mut |_| None);
     assert!(far.eye.iter().all(|v| v.is_finite()), "{:?}", far.eye);
 }
+
+/// A surface over x = `from`..`to` across the room, at height `start` at
+/// `from` and rising `slope` per unit.
+fn sheet(from: f64, to: f64, start: f64, slope: f64) -> TriangleMesh {
+    let top = start + (to - from) * slope;
+    let mut sheet = TriangleMesh::default();
+    sheet.positions = vec![
+        [from, -10.0, start],
+        [to, -10.0, top],
+        [to, 10.0, top],
+        [from, 10.0, start],
+    ];
+    sheet.triangles = vec![[0, 1, 2], [0, 2, 3]];
+    sheet
+}
+
+/// The room's floor with `sheets` on it; no wall, so a walker can keep going.
+fn floor_with(sheets: Vec<TriangleMesh>) -> Vec<TriangleMesh> {
+    let mut meshes = room();
+    meshes.truncate(1);
+    meshes.extend(sheets);
+    meshes
+}
+
+/// Walk ahead for `seconds`, in steps of `dt`.
+fn stride(
+    walk: &mut Walk,
+    seconds: f64,
+    dt: f64,
+    run: bool,
+    rules: Rules,
+    meshes: &[TriangleMesh],
+) {
+    let intent = Intent {
+        forward: 1.0,
+        run,
+        ..Intent::default()
+    };
+    for _ in 0..(seconds / dt).round() as usize {
+        walk.step(intent, dt, rules, &mut |ray| pick(meshes, ray));
+    }
+}
+
+#[test]
+fn a_walkable_ramp_is_climbed_at_any_pace_and_time_step() {
+    for slope in [0.25, 0.5, 0.9] {
+        let meshes = floor_with(vec![sheet(1.0, 9.0, 0.0, slope)]);
+        let paces = [
+            (0.02, false),
+            (0.05, false),
+            (0.1, false),
+            (0.05, true),
+            (0.1, true),
+        ];
+        for (dt, run) in paces {
+            let mut walk = walker([0.0, 0.0, 0.8]);
+            stride(&mut walk, 1.0, dt, run, SOLID, &meshes);
+            let x = walk.eye[0];
+            assert!(x > 2.0, "slope {slope} at {dt} s, run {run}: x = {x}");
+            let above = walk.eye[2] - (x - 1.0) * slope;
+            assert!(
+                (above - 0.8).abs() < 1e-6,
+                "slope {slope} at {dt} s, run {run}: {above} above the ramp"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_crest_onto_a_gentler_slope_is_crossed_at_a_run() {
+    let meshes = floor_with(vec![sheet(1.0, 2.0, 0.0, 0.9), sheet(2.0, 9.0, 0.9, 0.1)]);
+    let mut walk = walker([0.0, 0.0, 0.8]);
+    stride(&mut walk, 2.0, 0.05, true, SOLID, &meshes);
+    assert!(walk.eye[0] > 3.0, "{:?}", walk.eye);
+}
+
+#[test]
+fn a_slope_too_steep_to_stand_on_is_a_wall() {
+    let meshes = floor_with(vec![sheet(1.0, 9.0, 0.0, 2.0)]);
+    let mut walk = walker([0.0, 0.0, 0.8]);
+    stride(&mut walk, 2.0, 0.05, false, SOLID, &meshes);
+    assert!(walk.eye[0] < 1.1, "{:?}", walk.eye);
+    assert!((walk.eye[2] - 0.8).abs() < 1e-9, "{:?}", walk.eye);
+}
+
+#[test]
+fn a_steep_sheet_whose_edge_passes_between_the_wall_rays_is_still_a_wall() {
+    // The edge at z = 0.1 clears the knee ray at z = 0.04 and is far below
+    // the eye, so only the floor under the destination can refuse it. From
+    // x = 0 a long stride ends just past the edge, where the rise is less
+    // than the stride times the slope: only "not walkable" refuses that.
+    for (from, edge) in [(0.06, 0.1), (0.0, 0.4)] {
+        for dt in [0.02, 0.05, 0.1] {
+            let meshes = floor_with(vec![sheet(edge, 9.0, 0.1, 2.0)]);
+            let mut walk = walker([from, 0.0, 0.8]);
+            stride(&mut walk, 2.0, dt, false, SOLID, &meshes);
+            assert!(walk.eye[0] < edge + 1e-9, "at {dt} s: {:?}", walk.eye);
+            assert!(
+                (walk.eye[2] - 0.8).abs() < 1e-9,
+                "at {dt} s: {:?}",
+                walk.eye
+            );
+        }
+    }
+}
+
+#[test]
+fn a_gentle_top_that_starts_too_high_is_not_stepped_onto() {
+    let meshes = floor_with(vec![sheet(1.0, 9.0, 0.35, 0.25)]);
+    for stairs in [false, true] {
+        let rules = Rules { stairs, ..SOLID };
+        for (dt, run) in [(0.05, false), (0.1, false), (0.05, true), (0.1, true)] {
+            let mut walk = walker([0.0, 0.0, 0.8]);
+            stride(&mut walk, 2.0, dt, run, rules, &meshes);
+            assert!(
+                walk.eye[0] <= 1.0,
+                "stairs {stairs}, {dt} s, run {run}: {:?}",
+                walk.eye
+            );
+            assert!((walk.eye[2] - 0.8).abs() < 1e-9, "{:?}", walk.eye);
+        }
+    }
+}
+
+#[test]
+fn wrap_stays_in_range_for_any_finite_angle() {
+    use std::f64::consts::PI;
+    let mut magnitude = 1.0f64;
+    for _ in 0..1000 {
+        magnitude *= 1.37;
+        if !magnitude.is_finite() {
+            break;
+        }
+        for angle in [magnitude, -magnitude] {
+            let wrapped = wrap(angle);
+            assert!((-PI..=PI).contains(&wrapped), "wrap({angle}) = {wrapped}");
+        }
+    }
+}
+
+#[test]
+fn turning_by_the_largest_angle_keeps_the_direction_finite() {
+    let mut walk = walker([0.0, 0.0, 0.8]);
+    for _ in 0..1000 {
+        walk.turn(f64::MAX, 0.0);
+        walk.look(f64::MAX, 0.0);
+        assert!(walk.direction().iter().all(|c| c.is_finite()));
+    }
+    assert!(walk.yaw.abs() <= std::f64::consts::PI, "{}", walk.yaw);
+}

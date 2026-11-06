@@ -17,7 +17,7 @@
 //! bracket walk alike, except an eye height the operator set
 //! ([`Walk::height`]). Model units throughout.
 
-use pdfcer_3d::vec3::{add, cross, dot, normalize, scale, span, sub};
+use pdfcer_3d::vec3::{add, cross, dot, length, normalize, scale, span, sub};
 use pdfcer_3d::{Camera, Hit, Ray};
 
 use crate::lens::Lens;
@@ -185,7 +185,7 @@ impl Walk {
     /// Turn the body by `yaw` and the camera's pitch by `pitch` radians;
     /// pitch stops short of straight up or down.
     pub fn turn(&mut self, yaw: f64, pitch: f64) {
-        self.yaw += yaw;
+        self.yaw = wrap(self.yaw + yaw);
         self.tilt(pitch);
     }
 
@@ -267,7 +267,7 @@ impl Walk {
         }
         if rules.solid {
             motion = self.slide(motion, rules.step(), world);
-            if self.lifts(add(self.eye, motion), rules.step(), world) {
+            if self.lifts(motion, rules.step(), world) {
                 motion = [0.0; 3];
             }
         }
@@ -280,25 +280,48 @@ impl Walk {
         }
     }
 
-    /// Whether standing at `to` would raise the eye by more than `step` of
-    /// its height, and above where standing here puts it. The wall rays see
-    /// only two heights, so a slab between them passes them; the floor
-    /// under the destination does not.
-    fn lifts(&self, to: [f64; 3], step: f64, world: &mut impl FnMut(&Ray) -> Option<Hit>) -> bool {
+    /// The rise per unit of horizontal travel of a walkable floor; 0 for any
+    /// other surface.
+    fn slope(&self, floor: &Hit) -> f64 {
+        let flat = dot(floor.normal, self.axes.up()).abs();
+        if flat < WALKABLE {
+            0.0
+        } else {
+            (1.0 - flat * flat).max(0.0).sqrt() / flat
+        }
+    }
+
+    /// Whether `motion` would raise the eye by more than the walkable floors
+    /// under its two ends explain (at least `step` of its height), and above
+    /// where standing here puts it. The wall rays see only two heights, so a
+    /// slab between them passes them; the floor under the destination does
+    /// not. Both ends count: at a ramp's foot only the far floor is tilted,
+    /// and over a crest onto a gentler slope only the near one explains the
+    /// rise.
+    fn lifts(
+        &self,
+        motion: [f64; 3],
+        step: f64,
+        world: &mut impl FnMut(&Ray) -> Option<Hit>,
+    ) -> bool {
         let mut down = |origin: [f64; 3]| {
             world(&Ray {
                 origin,
                 direction: scale(self.axes.up(), -1.0),
                 min_distance: 0.0,
             })
-            .map(|hit| hit.distance)
         };
         let here = down(self.eye);
-        let Some(there) = down(to) else {
+        let Some(there) = down(add(self.eye, motion)) else {
             return false;
         };
-        let rise = self.body() - there;
-        rise > step * self.body() + 1e-9 && here.is_none_or(|h| there < h - 1e-9)
+        let slope = here
+            .as_ref()
+            .map_or(0.0, |floor| self.slope(floor))
+            .max(self.slope(&there));
+        let allowed = (step * self.body()).max(length(motion) * slope);
+        let rise = self.body() - there.distance;
+        rise > allowed + 1e-9 && here.is_none_or(|h| there.distance < h.distance - 1e-9)
     }
 
     /// `motion` cut where it would bring the eye or the top of a step within
@@ -414,10 +437,11 @@ impl Walk {
     }
 }
 
-/// `angle` in [-π, π).
+/// `angle` from -π to π, for any finite angle: the remainder is exact, where
+/// subtracting a multiple of a turn loses it to rounding on a large angle.
 fn wrap(angle: f64) -> f64 {
-    let turn = std::f64::consts::TAU;
-    angle - turn * ((angle + std::f64::consts::PI) / turn).floor()
+    use std::f64::consts::{PI, TAU};
+    (angle + PI).rem_euclid(TAU) - PI
 }
 
 fn along(point: [f64; 3], direction: [f64; 3], distance: f64) -> [f64; 3] {
