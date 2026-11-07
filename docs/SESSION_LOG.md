@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1454th filing) — `v0.135.0` still IN PROGRESS: CI audit fix (`print_ready.rs` bypass marker)
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **Failure:** CI on `df96d03e` failed the repository audits job at `tools/check-bypass-paths.sh`, which refused `writer::save_full` in `crates/pdfcer-core/src/edit/print_ready.rs` (`print_ready_file`).
+- **Fix (commit `8030fb34`, "fix(release): the print copy's full save is named as a sanctioned writer call"):** comment-only `bypass-exempt:` marker with the reason (EditSession saving its own state; a print copy must be a full rewrite so nothing removed stays in a prior revision). No behaviour change.
+- **Why it reached CI:** the engineer's hand-written local audit list omitted the two shell gates (`check-bypass-paths.sh`, `check-string-gaps.sh`). Same failure mode as the standing note that a hand list missed shell gates; the list has been extended.
+- **Release:** the `v0.135.0` tag was NOT pushed, so no version change; the release stays `v0.135.0` (still IN PROGRESS, `aedc7507` plus this fix).
+- **ROADMAP:** note added to the 1453rd Shipped entry and banner. **FEATURES:** unchanged. No decision-log entry.
+- **Next:** finish the `v0.135.0` publish. Next filing 1455th; next Pass 689.0.
+
 ## 2026-11-06 (1453rd filing) — `v0.135.0` release commit `aedc7507`: IN PROGRESS
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**

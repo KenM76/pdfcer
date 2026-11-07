@@ -120,6 +120,7 @@ Engineer-reported; no shell here, nothing checked from here (git, tests, tag, pu
 - **Gates so far (as reported):** `pdfcer-core`, `-3d`, `-render`, `-cli` all tests pass (`--no-fail-fast`, `--all-features`): core integration 3204, CLI 1059, `3d` lib 478.
 - **OneDrive:** this release writes `pdfcer1` (`pdfcer2` holds 0.134.1).
 - **FEATURES:** unchanged.
+- **1454th filing note:** CI on `df96d03e` failed `tools/check-bypass-paths.sh` on `writer::save_full` in `print_ready_file` (`crates/pdfcer-core/src/edit/print_ready.rs`). Fix is a comment-only `bypass-exempt:` marker (reason: a print copy must be a full rewrite so nothing removed stays in a prior revision); no behaviour change; fix commit `8030fb34`. Cause: the engineer's hand-written local audit list omitted the shell gates `check-bypass-paths.sh` and `check-string-gaps.sh` (now added). The `v0.135.0` tag was NOT pushed; the release stays `v0.135.0`.
 
 ### `41a54081` `Pass 688.0`, 2026-11-06: a viewer's print applies layer Print usage over the current state (1452nd filing)
 
@@ -26338,6 +26339,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > **1451st filing: `Pass 684.0` (`G273`, `6b5c87a6`), `685.0` (`149581d8`, `0980c3b2`), `686.0` (`G274`, `8ccfeb04`) and `687.0` (`G275`, `4b2b1e54`) are SHIPPED (see *Shipped*), on local `main`, unreleased; the next release carries them. Filed directly as Shipped, never opened here. `684`-`687` had zero hits across `docs/*.md` by grep (no shell; not run through `tools/check-ledger-numbers.py`). Open follow-up: a layer's `/Print` usage on the print route is being looked at next and is NOT done. No open Pass at the head.**
 
 > **1453rd filing: `v0.135.0` release commit `aedc7507` is IN PROGRESS (tag, assets and publication follow in the PUBLISHED filing). Carries `Pass 684.0`-`688.0`. OneDrive slot `pdfcer1`. No open Pass at the head; next Pass 689.0.**
+
+> **1454th filing: `v0.135.0` still IN PROGRESS; CI audit failure (`check-bypass-paths.sh` on `print_ready.rs`) fixed by a comment-only `bypass-exempt:` marker; tag not pushed, version unchanged. No behaviour change; FEATURES unchanged.**
 
 > **1433rd filing: `Pass 675.1` (QUEUED after `675.0`) - publish `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav` to crates.io at the next release** (decision 217; Ken, 2026-11-06: "Yes publish them"). `675.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`).
 > - the three join `pdfcer-color`, `-model`, `-pkix` (`Pass 637.0`); `pdfcer-json` is included because `pdfcer-3d` depends on it;
