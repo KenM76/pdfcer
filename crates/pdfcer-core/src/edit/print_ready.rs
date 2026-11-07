@@ -405,6 +405,8 @@ impl EditSession {
     fn print_ready_file(&self, decrypted: bool) -> Result<Vec<u8>, WriteError> {
         let options = SaveOptions::default();
         let dirty = self.save_dirty_set(&options);
+        // bypass-exempt: this is `EditSession` saving its own state; a print copy
+        // must be a full rewrite so nothing it removed stays in a prior revision.
         let (full, _) = if decrypted {
             writer::save_full_decrypted(&self.base, &dirty, &options)?
         } else {
