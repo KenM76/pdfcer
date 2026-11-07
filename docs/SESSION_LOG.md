@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-06 (1455th filing) — `v0.135.0` PUBLISHED (tag on `2ee0a6bd`); CI green
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **`v0.135.0` PUBLISHED:** annotated tag on `2ee0a6bd`, pushed; CI run 42319929898 green at the tag. Carries `G273`, `G274`, `G275`, `Pass 688.0`, the `pdfcer print` flag fix (`149581d8`, `0980c3b2`), and the fixes `772cdb81` and `8030fb34`.
+- **Prior CI failure:** run 42315386289 on `df96d03e` failed the bypass-paths audit (the 1454th filing); no tag had been pushed, so the version did not change.
+- **Package:** build folder `pdfcer-20261106-1933-2ee0a6b`. Fresh-folder smoke passed: `--version` 0.135.0, `print-ready` writes a copy, `render-page` renders it.
+- **GitHub release:** 8 assets.
+- **OneDrive:** `pdfcer1` written; `pdfcer2` keeps 0.134.1. The next release writes `pdfcer2`.
+- **crates.io 0.135.0:** `pdfcer-color`, `-model`, `-pkix`, `-vec3`, `-json`, `-3d`, `-3d-nav`.
+- **`verify-release.py`:** every check ok except "working tree clean" (expected: untracked and uncommitted local files).
+- **Tests at release (as reported, `--no-fail-fast --all-features`):** core integration 3204, CLI 1059, `3d` lib 478, all passing. `cargo tree`: `pdfcer-core` and `pdfcer-render` 0 GUI crates.
+- **Notice:** `pdfcer-gui` has been sent a notice to release on this engine.
+- **ROADMAP:** new Shipped entry; 1453rd/1454th banners and entry marked no longer in progress. **FEATURES:** unchanged (no box moved; the `G273`-`G275` and `688.0` rows checked for pending-release wording below). No decision-log entry.
+- **Next:** no open Pass at the head. Next filing 1456th; next Pass 689.0.
+
 ## 2026-11-06 (1454th filing) — `v0.135.0` still IN PROGRESS: CI audit fix (`print_ready.rs` bypass marker)
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**

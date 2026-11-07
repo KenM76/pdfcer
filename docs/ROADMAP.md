@@ -112,9 +112,21 @@ wherever it appears.*
 
 ## Shipped
 
-### `aedc7507` `v0.135.0` release commit: IN PROGRESS (tag, assets and publication not done), 2026-11-06 (1453rd filing)
+### `2ee0a6bd` `v0.135.0` PUBLISHED, 2026-11-06 (1455th filing)
 
-Engineer-reported; no shell here, nothing checked from here (git, tests, tag, push all as reported). Commit `aedc7507` "chore(release): v0.135.0" (version bump), preceded by `772cdb81`. Carries `Pass 684.0` (`G273`), `685.0`, `686.0` (`G274`), `687.0` (`G275`) and `688.0`. A later PUBLISHED filing closes this.
+Engineer-reported; no shell here, nothing checked from here (git, CI, GitHub, crates.io, OneDrive all as reported). Supersedes the IN PROGRESS entry below (1453rd, noted 1454th). Annotated tag `v0.135.0` on `2ee0a6bd`, pushed; CI run 42319929898 green at the tag. Carries `Pass 684.0` (`G273`), `685.0` (`149581d8`, `0980c3b2`), `686.0` (`G274`), `687.0` (`G275`), `688.0`, and the fixes `772cdb81` and `8030fb34`. Prior CI run 42315386289 on `df96d03e` failed the bypass-paths audit; no tag had been pushed, so the version did not change.
+- **Package:** build folder `pdfcer-20261106-1933-2ee0a6b`. **Fresh-folder smoke (as reported):** `--version` reports 0.135.0; `print-ready` writes a copy; `render-page` renders it.
+- **GitHub release:** 8 assets.
+- **OneDrive:** wrote `pdfcer1`; `pdfcer2` keeps 0.134.1. The next release writes `pdfcer2`.
+- **crates.io 0.135.0:** `pdfcer-color`, `-model`, `-pkix`, `-vec3`, `-json`, `-3d`, `-3d-nav`.
+- **`verify-release.py` (as reported):** every check ok except "working tree clean" (expected: untracked and uncommitted local files).
+- **Tests at release (as reported, `--no-fail-fast --all-features`):** core integration 3204, CLI 1059, `3d` lib 478, all passing. `cargo tree`: `pdfcer-core` and `pdfcer-render` show 0 GUI crates.
+- **Notice:** `pdfcer-gui` sent a notice to release on this engine.
+- **FEATURES:** unchanged; no box moved. No decision record.
+
+### `aedc7507` `v0.135.0` release commit: superseded by the PUBLISHED entry above (was IN PROGRESS), 2026-11-06 (1453rd filing)
+
+Engineer-reported; no shell here, nothing checked from here (git, tests, tag, push all as reported). Commit `aedc7507` "chore(release): v0.135.0" (version bump), preceded by `772cdb81`. Carries `Pass 684.0` (`G273`), `685.0`, `686.0` (`G274`), `687.0` (`G275`) and `688.0`. Closed by the PUBLISHED filing above (1455th): the release is no longer in progress.
 - **`772cdb81` "fix(release): ..." (found by the release gates):** `print-ready` added to the CLI's `NOT_IN_PLACE` list (a throwaway copy for a print service: burned in, unprotected, unsigned, so no `--in-place`); doc comments on the two `ViewSource` accessors from `Pass 686.0`. No new Pass number; it belongs to the release.
 - **Why missed:** `Pass 684.0` ran `--test all` targets, which do not compile the CLI bin's own tests.
 - **Gates so far (as reported):** `pdfcer-core`, `-3d`, `-render`, `-cli` all tests pass (`--no-fail-fast`, `--all-features`): core integration 3204, CLI 1059, `3d` lib 478.
@@ -26340,7 +26352,9 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **1453rd filing: `v0.135.0` release commit `aedc7507` is IN PROGRESS (tag, assets and publication follow in the PUBLISHED filing). Carries `Pass 684.0`-`688.0`. OneDrive slot `pdfcer1`. No open Pass at the head; next Pass 689.0.**
 
-> **1454th filing: `v0.135.0` still IN PROGRESS; CI audit failure (`check-bypass-paths.sh` on `print_ready.rs`) fixed by a comment-only `bypass-exempt:` marker; tag not pushed, version unchanged. No behaviour change; FEATURES unchanged.**
+> **1454th filing: `v0.135.0` was still IN PROGRESS (now closed, see 1455th); CI audit failure (`check-bypass-paths.sh` on `print_ready.rs`) fixed by a comment-only `bypass-exempt:` marker; tag not pushed, version unchanged. No behaviour change; FEATURES unchanged.**
+
+> **1455th filing: `v0.135.0` PUBLISHED (tag on `2ee0a6bd`; CI run 42319929898 green; GitHub release 8 assets, crates.io, OneDrive `pdfcer1`). Next release writes `pdfcer2`. No open Pass at the head; next Pass 689.0.**
 
 > **1433rd filing: `Pass 675.1` (QUEUED after `675.0`) - publish `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav` to crates.io at the next release** (decision 217; Ken, 2026-11-06: "Yes publish them"). `675.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`).
 > - the three join `pdfcer-color`, `-model`, `-pkix` (`Pass 637.0`); `pdfcer-json` is included because `pdfcer-3d` depends on it;
