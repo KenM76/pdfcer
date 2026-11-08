@@ -916,10 +916,10 @@ impl EncryptionConfig {
         if self.revision >= 3 {
             // (h) — 50 rounds, truncating to n each time. T9.
             for _ in 0..50 {
-                digest = md5(&digest[..self.key_len]);
+                digest = md5(&digest[..self.key_len.min(digest.len())]);
             }
         }
-        digest[..self.key_len].to_vec() // (i)
+        digest[..self.key_len.min(digest.len())].to_vec() // (i)
     }
 
     /// Algorithm 3 steps (a)–(d) — the RC4 key derived from an *owner*
@@ -940,7 +940,7 @@ impl EncryptionConfig {
                 digest = md5(&digest);
             }
         }
-        digest[..self.key_len].to_vec() // (d)
+        digest[..self.key_len.min(digest.len())].to_vec() // (d)
     }
 
     /// Algorithms 4 and 5 — compute what `/U` should be for a given file key.

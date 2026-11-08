@@ -157,7 +157,7 @@ impl RsaPublicKey {
     /// whose `hash` digest is `digest`, with MGF1 over `mgf_hash` and the
     /// signer's `salt_len`.
     ///
-    /// Every slice is bounded by the `em_len < h_len + salt_len + 2` check
+    /// Every slice is bounded by the overflow-checked `h_len + salt_len + 2 ≤ em_len`
     /// and by `em_len ≤ k` (`emBits = modBits − 1`), which the two early
     /// returns establish before any index is formed.
     #[must_use]
@@ -183,7 +183,13 @@ impl RsaPublicKey {
         // RSAVP1 gave k bytes; the encoded message is the low emLen of them.
         let em = &em[k - em_len..];
         let h_len = hash.len();
-        if em_len < h_len + salt_len + 2 {
+        // `salt_len` comes from the signature's PSS parameters: a hostile value
+        // must not wrap this sum (and later `ps_len`) into a passing check.
+        if h_len
+            .checked_add(salt_len)
+            .and_then(|x| x.checked_add(2))
+            .is_none_or(|need| em_len < need)
+        {
             return false;
         }
         if em.last() != Some(&0xBC) {
@@ -272,6 +278,25 @@ mod tests {
             assert_eq!(usize::from(p[1]), p.len() - 2 + h.len(), "{}", h.name());
             // Last two bytes: OCTET STRING tag and the hash length.
             assert_eq!(&p[p.len() - 2..], &[0x04, h.len() as u8]);
+        }
+    }
+
+    /// A hostile PSS salt length near `usize::MAX` once wrapped the length
+    /// check and panicked slicing `DB`; it is a failed verification. With
+    /// `e = 1` (the certificate is attacker-supplied) `EM` is the signature
+    /// itself, so it passes the trailer and top-bit checks first.
+    #[test]
+    fn a_hostile_pss_salt_length_fails_verification_without_panicking() {
+        let key = RsaPublicKey {
+            n: Uint::from_be_bytes(&[0xFF; 256]),
+            e: Uint::from_u64(1),
+        };
+        let mut sig = vec![0u8; 256];
+        sig[0] = 0x7F;
+        sig[255] = 0xBC;
+        let digest = vec![0u8; 32];
+        for salt_len in [usize::MAX, usize::MAX - 33, usize::MAX - 32, 300] {
+            assert!(!key.verify_pss(Hash::Sha256, Hash::Sha256, salt_len, &digest, &sig));
         }
     }
 
