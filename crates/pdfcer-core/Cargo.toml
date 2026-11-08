@@ -5,7 +5,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
-publish.workspace = true
+publish = true
 repository.workspace = true
 # OCR weights are a runtime download (`ocr::models`), never package content.
 exclude = ["assets/models/*/*.onnx", "assets/models/*/*.rten"]
@@ -169,20 +169,20 @@ svg-import = ["dep:usvg"]
 [dependencies]
 # pdfcer-model: the COS model layer, split out of this crate and re-exported
 # at its old module paths (docs/ARCHITECTURE.md §3).
-pdfcer-model = { path = "../pdfcer-model" }
+pdfcer-model.workspace = true
 # pdfcer-image-codec: the terminal image codecs (DCT, CCITT, JBIG2, JPX),
 # split out of this crate and re-exported as `image_codec` (Pass 325.0 step 3).
-pdfcer-image-codec = { path = "../pdfcer-image-codec", default-features = false }
+pdfcer-image-codec.workspace = true
 # pdfcer-fonts: font data, inventory, embedding, text strings and variable
 # text, split out and re-exported at the old paths (Pass 325.0 step 3).
-pdfcer-fonts = { path = "../pdfcer-fonts" }
+pdfcer-fonts.workspace = true
 # pdfcer-pkix: DER, CMS/X.509 parsing, chain validation and the trust store,
 # split out and re-exported at the old paths (Pass 325.0 step 3).
-pdfcer-pkix = { path = "../pdfcer-pkix" }
+pdfcer-pkix.workspace = true
 # pdfcer-color: split out and re-exported at the old paths (Pass 325.0 step 3).
-pdfcer-color = { path = "../pdfcer-color" }
+pdfcer-color.workspace = true
 # pdfcer-text: split out and re-exported at the old paths (Pass 325.0 step 3).
-pdfcer-text = { path = "../pdfcer-text" }
+pdfcer-text.workspace = true
 # pdfcer-json: the JSON reader, shared with pdfcer-3d (Pass 648.0); re-exported
 # at `ocr::json_lite`.
 pdfcer-json.workspace = true
@@ -190,7 +190,7 @@ pdfcer-json.workspace = true
 # because the 3D measurement builder is not behind the `3d` feature.
 pdfcer-vec3.workspace = true
 # pdfcer-function: split out and re-exported at the old path (Pass 325.0 step 3).
-pdfcer-function = { path = "../pdfcer-function" }
+pdfcer-function.workspace = true
 
 # thiserror: the ecosystem-standard derive for well-behaved error types
 # (Rust API Guidelines C-GOOD-ERR — errors implement std::error::Error and

@@ -6,13 +6,13 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
-publish.workspace = true
+publish = true
 repository.workspace = true
 license.workspace = true
 
 [dependencies]
-pdfcer-fonts = { path = "../pdfcer-fonts" }
-pdfcer-model = { path = "../pdfcer-model" }
+pdfcer-fonts.workspace = true
+pdfcer-model.workspace = true
 # thiserror: C-GOOD-ERR error derives. MIT OR Apache-2.0.
 thiserror = "2"
 

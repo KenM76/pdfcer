@@ -5,7 +5,7 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
-publish.workspace = true
+publish = true
 repository.workspace = true
 license.workspace = true
 
@@ -15,7 +15,7 @@ default = ["jpx"]
 jpx = ["dep:hayro-jpeg2000"]
 
 [dependencies]
-pdfcer-model = { path = "../pdfcer-model" }
+pdfcer-model.workspace = true
 thiserror = "2"
 
 # zune-jpeg: DCTDecode (§7.4.8), the highest-value single codec —
