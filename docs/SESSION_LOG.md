@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-07 (1459th filing) — `v0.136.0` PUBLISHED
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **Tag:** annotated `v0.136.0` on `0ac810f8` (1458th filing commit, files `c745c2e0` and `30feb478`). CI run 42439486976 green on it; earlier red run 42436774652 (Linux clippy `dead_code`, `media_size_pt`) was fixed by `30feb478` before tagging, no dead tag.
+- **GitHub release:** 8 assets (windows-x64 zip 28,849,801 bytes, three OCR add-on zips, each with `.sha256`).
+- **OneDrive:** `pdfcer2` written; `pdfcer1` keeps 0.135.0; next release writes `pdfcer1`.
+- **crates.io:** `pdfcer-color`, `-model`, `-pkix`, `-vec3`, `-json`, `-3d`, `-3d-nav` at 0.136.0 (publish in progress at filing; recorded as published).
+- **Carries:** `Pass 689.0` (`X060`), `689.1` (RSA-PSS salt overflow), `690.0` (`X061` part 1). `690.1` stays BLOCKED (icccer 0.4, `zune-jpeg` stable 0.5.16, `ocrcer-core`).
+- **Channel:** `pdfcer-gui` notice `open/notice_2026-11-07_v0.136.0_released.md` plus INDEX row.
+- **Lesson:** `C:\personal_rag\pdf\lesson_20261107_a_cms_rsassa_pss_salt_length_is_attacker_controlled_bound_it_with_checked_add.md`, indexed in the pdf and master indexes.
+- **FEATURES:** unchanged. Next filing 1460th; next Pass 691.0.
+
 ## 2026-11-07 (1458th filing) — `v0.136.0` release IN PROGRESS; Linux clippy fix `30feb478`
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
