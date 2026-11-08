@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-07 (1458th filing) — `v0.136.0` release IN PROGRESS; Linux clippy fix `30feb478`
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **`c745c2e0`:** `chore(release): v0.136.0`, workspace 0.135.0 to 0.136.0 (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`). Carries `Pass 689.0` (`a14f3032`), `689.1` (`692fbc93`), `690.0` (`fa2ffccf`).
+- **`30feb478`:** `media_size_pt` in `pdfcer-cli/src/print.rs` gains `#[cfg(windows)]`; CI run 42436774652 on `c745c2e0` failed Linux clippy with `dead_code` (callers are Windows-only print paths). Verified by Linux-target and Windows `--all-features` clippy, both clean. Recurrence of the cross-target lesson; not tagged before CI answered, so no dead tag.
+- **Pre-release gates on `c745c2e0`'s tree (as reported):** 9235 tests passed, 0 failed (`--no-fail-fast`, change-scoped); all CI audit scripts green; rustdoc intra-doc links clean; lite CLI clippy clean.
+- **In progress:** push, CI green, tag `v0.136.0`, fresh-folder smoke, GitHub release, OneDrive `pdfcer2`, `verify-release.py`, notice to `pdfcer-gui`.
+- **FEATURES:** unchanged. Next filing 1459th; next Pass 691.0.
+
 ## 2026-11-07 (1457th filing) — `Pass 690.0` (`X061` part 1) shipped; `690.1` stays blocked
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**

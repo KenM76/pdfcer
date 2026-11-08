@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `30feb478` fix, 2026-11-07: `media_size_pt` is Windows-only like its callers (1458th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `30feb478771a183cc1e60de73cd1314c37a28198`. No Pass, no decision record. Companion release commit `c745c2e0f7c26442d994c6d879bf90f2835f47f0` (`chore(release): v0.136.0`: workspace 0.135.0 to 0.136.0 in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`); the release is IN PROGRESS, not tagged.
+- **Defect:** `media_size_pt` (`crates/pdfcer-cli/src/print.rs`), added by `a14f3032`, is called only from `cfg(windows)` print paths. CI run 42436774652 (on `c745c2e0`) failed the Linux `cargo clippy --workspace --all-targets --all-features -D warnings` job with `dead_code`. Local Windows gates were green.
+- **Fix:** `#[cfg(windows)]` on the function. Verified clean: `cargo clippy -p pdfcer-cli --all-targets --target x86_64-unknown-linux-gnu -- -D warnings`, and Windows `--all-features` clippy.
+- **Lesson:** a recurrence of the cross-target check (engineer memory `feedback_cross_target_check_the_cli_before_pushing`): a Windows-only caller set hides a Linux break. No tag existed when CI answered, so no dead tag.
+- **Pre-release gates (on `c745c2e0`'s tree, as reported):** change-scoped tests `--no-fail-fast` (model, render, core, text, fonts, function, image-codec all-features; cli `--bin pdfcer`; cli all-features) 9235 passed, 0 failed; every CI audit script from `check-ci-parity.py --list` green; `cargo doc --workspace --no-deps` with `-D rustdoc::broken_intra_doc_links` clean; lite CLI clippy clean.
+- **FEATURES:** unchanged.
+
 ### `fa2ffccf` `Pass 690.0`, 2026-11-07: a lean `pdfcer-render` consumer gets runnable examples and a guarded graph (`X061` part 1) (1457th filing)
 
 Engineer-reported; no shell here, git state not checked from here (local `main`, not pushed; rides `v0.136.0`, not yet tagged). Commit `fa2ffccfd7c68f293e4e573013528a2abbb7bec8`. Reply: `open/reply_X061_lean_render_build_SHIPPED_publish_BLOCKED.md`; INDEX `X061` row = PARTIAL. Filed from the 1456th filing's IN PROGRESS banner. No decision record.
@@ -26396,6 +26405,8 @@ closes out the *prior* filing's business rather than opening this one's.
 > 2. `pdfcer-image-codec` pins `zune-jpeg` by git (rev `c1c7f497`); newest crates.io release is 0.5.16-rc3 and the manifest comment says stable 0.5.16 is needed first.
 > 3. `pdfcer-core`'s optional `ocrcer-core` is a vendored path dependency; `cargo publish` needs a version even for optional dependencies, so either `ocrcer-core` is published (a request to OCRcer's channel) or the feature is removed from the published manifest. That choice is open and recorded.
 > - Also part of 690.1: a lean `THIRD_PARTY_LICENSES` generated from the `--no-default-features` graph, at publish time.
+>
+> **1458th filing: `v0.136.0` release IN PROGRESS, NOT tagged.** Release commit `c745c2e0` (0.135.0 to 0.136.0) carries `Pass 689.0`, `689.1`, `690.0`. CI run 42436774652 on it failed the Linux clippy job (dead_code); fixed forward by `30feb478` (see *Shipped*). Remaining: push, CI green, tag, fresh-folder smoke, GitHub release, OneDrive `pdfcer2`, `verify-release.py`, notice to `pdfcer-gui`. Its PUBLISHED filing is next. Next Pass 691.0.
 
 > **1433rd filing: `Pass 675.1` (QUEUED after `675.0`) - publish `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav` to crates.io at the next release** (decision 217; Ken, 2026-11-06: "Yes publish them"). `675.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`).
 > - the three join `pdfcer-color`, `-model`, `-pkix` (`Pass 637.0`); `pdfcer-json` is included because `pdfcer-3d` depends on it;
