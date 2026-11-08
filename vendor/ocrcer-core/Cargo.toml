@@ -2,10 +2,18 @@
 # edit in OCRcer and re-sync. Source commit: vendor/ocrcer-core/VENDORED.
 [package]
 name = "ocrcer-core"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 license = "MIT"
 rust-version = "1.97"
+description = "Pure-Rust OCR engine for printed documents and CAD drawing text: prototype matching, a lattice decoder and calibrated per-word confidence. Zero dependencies, no unsafe, wasm32-ready."
+repository = "https://github.com/KenM76/ocrcer"
+readme = "README.md"
+keywords = ["ocr", "text-recognition", "pdf", "wasm", "no-dependencies"]
+categories = ["computer-vision", "text-processing", "wasm"]
+# Code only. The model (`ocrcer.ocrw`) is a separate release asset, and the
+# tests read workspace fixtures that do not travel with the crate.
+include = ["src/**/*.rs", "Cargo.toml", "README.md", "LICENSE"]
 
 [dependencies]
 

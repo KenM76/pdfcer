@@ -658,8 +658,9 @@ dependencies = [
 
 [[package]]
 name = "icccer-cmm"
-version = "0.4.1"
-source = "git+https://github.com/KenM76/icccer.git?rev=7002353e557d5a2af0815098c2a6de436e3648c5#7002353e557d5a2af0815098c2a6de436e3648c5"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4b1aa1aa1785d102028c93145d80628a738a73ae40d12aa69f174736320f8e06"
 dependencies = [
  "icccer-color",
  "icccer-profile",
@@ -667,13 +668,15 @@ dependencies = [
 
 [[package]]
 name = "icccer-color"
-version = "0.4.1"
-source = "git+https://github.com/KenM76/icccer.git?rev=7002353e557d5a2af0815098c2a6de436e3648c5#7002353e557d5a2af0815098c2a6de436e3648c5"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4b784a4cf599abbc6b03605a4709dbd4015480da8d619079ac7d8e9fc9b32eec"
 
 [[package]]
 name = "icccer-profile"
-version = "0.4.1"
-source = "git+https://github.com/KenM76/icccer.git?rev=7002353e557d5a2af0815098c2a6de436e3648c5#7002353e557d5a2af0815098c2a6de436e3648c5"
+version = "0.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13e234c33d93ec4509e2219e25b6c36b11ec63bf2f638ab4fd764acec554c1a8"
 
 [[package]]
 name = "imagesize"
@@ -763,7 +766,7 @@ dependencies = [
 
 [[package]]
 name = "ocrcer-core"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "ocrs"

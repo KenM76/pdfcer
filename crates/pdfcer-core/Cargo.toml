@@ -432,7 +432,7 @@ roxmltree = "0.20"
 # fails `tools/check-ocrcer-vendored.py`. Never a path into `../OCRcer`: Cargo
 # reads every path dependency's manifest, so a clone without it (CI) would not
 # resolve.
-ocrcer-core = { path = "../../vendor/ocrcer-core", optional = true }
+ocrcer-core = { path = "../../vendor/ocrcer-core", version = "=0.2.0", optional = true }
 
 [[test]]
 name = "all"

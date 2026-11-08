@@ -1,5 +1,5 @@
 source = https://github.com/KenM76/ocrcer (local checkout)
-commit = f87a392674255fb3ca5718cc25193d7a15f31b61
+commit = b3ac67c469e73ee6fa0dfe87a52661b0e1cba51f
 synced-by = tools/sync-ocrcer.py
 model-container-version = 1
 model-kind-recogniser = 1
