@@ -17,6 +17,7 @@ pub(crate) struct BitReader<'a> {
 }
 
 impl<'a> BitReader<'a> {
+    /// A reader positioned at the first byte of `data`.
     pub(crate) fn new(data: &'a [u8]) -> Self {
         Self {
             data,
@@ -66,6 +67,7 @@ impl<'a> BitReader<'a> {
         v
     }
 
+    /// The next single bit.
     pub(crate) fn bit(&mut self) -> u32 {
         self.bits(1)
     }
@@ -127,6 +129,7 @@ impl BitWriter {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
 

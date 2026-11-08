@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
+
 use crate::{RemuxError, interleave};
 use jpeg_encoder::{ColorType, Encoder, SamplingFactor};
 use zune_jpeg::JpegDecoder;

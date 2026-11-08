@@ -37,14 +37,20 @@ impl Decoder {
             vals: spec.vals.clone(),
         };
         let (mut code, mut k) = (0i32, 0i32);
-        for l in 1..=16 {
-            let n = i32::from(spec.bits[l - 1]);
+        let slots = d
+            .valptr
+            .iter_mut()
+            .zip(d.mincode.iter_mut())
+            .zip(d.maxcode.iter_mut())
+            .skip(1);
+        for (l, (&count, ((vp, mn), mx))) in (1u32..).zip(spec.bits.iter().zip(slots)) {
+            let n = i32::from(count);
             if n > 0 {
-                d.valptr[l] = k;
-                d.mincode[l] = code;
+                *vp = k;
+                *mn = code;
                 code += n;
                 k += n;
-                d.maxcode[l] = code - 1;
+                *mx = code - 1;
                 if code > (1 << l) {
                     return Err(RemuxError::Malformed("DHT over-fills the code space"));
                 }
@@ -57,10 +63,13 @@ impl Decoder {
     /// T.81 F.2.2.3 `DECODE`.
     pub(crate) fn decode(&self, r: &mut BitReader<'_>) -> Result<u8, RemuxError> {
         let mut code = r.bit() as i32;
-        for l in 1..=16 {
-            if code <= self.maxcode[l] {
-                let i = self.valptr[l] + code - self.mincode[l];
-                return Ok(self.vals[i as usize]);
+        let rows = self.maxcode.iter().zip(&self.valptr).zip(&self.mincode);
+        for ((&max, &ptr), &min) in rows.skip(1) {
+            if code <= max {
+                return usize::try_from(ptr + code - min)
+                    .ok()
+                    .and_then(|i| self.vals.get(i).copied())
+                    .ok_or(RemuxError::Malformed("Huffman code outside its table"));
             }
             code = (code << 1) | r.bit() as i32;
         }
@@ -75,35 +84,39 @@ pub(crate) struct Encoder {
 }
 
 impl Encoder {
+    /// The code table for `spec` (T.81 C.2); symbols past `spec.vals` stay absent.
     pub(crate) fn new(spec: &Spec) -> Self {
         let mut e = Self {
             code: [0; 256],
             size: [0; 256],
         };
-        let (mut code, mut k) = (0u32, 0usize);
-        for l in 1..=16u8 {
-            for _ in 0..spec.bits[usize::from(l) - 1] {
-                let sym = usize::from(spec.vals[k]);
-                e.code[sym] = code as u16;
-                e.size[sym] = l;
+        let mut code = 0u32;
+        let mut vals = spec.vals.iter();
+        for (l, &count) in (1..=16u8).zip(spec.bits.iter()) {
+            for &sym in vals.by_ref().take(usize::from(count)) {
+                let sym = usize::from(sym);
+                if let (Some(c), Some(s)) = (e.code.get_mut(sym), e.size.get_mut(sym)) {
+                    *c = code as u16;
+                    *s = l;
+                }
                 code += 1;
-                k += 1;
             }
             code <<= 1;
         }
         e
     }
 
+    /// Writes `symbol`'s code, refusing a symbol the table does not carry.
     pub(crate) fn put(&self, w: &mut BitWriter, symbol: u8) -> Result<(), RemuxError> {
         let s = usize::from(symbol);
-        match self.size[s] {
-            0 => Err(RemuxError::Malformed(
-                "coefficient outside the output tables",
-            )),
-            n => {
-                w.put(u32::from(self.code[s]), u32::from(n));
+        match (self.size.get(s), self.code.get(s)) {
+            (Some(&n), Some(&code)) if n > 0 => {
+                w.put(u32::from(code), u32::from(n));
                 Ok(())
             }
+            _ => Err(RemuxError::Malformed(
+                "coefficient outside the output tables",
+            )),
         }
     }
 }
@@ -113,8 +126,8 @@ impl Encoder {
 pub(crate) fn parse_dht(mut p: &[u8]) -> Result<Vec<(u8, u8, Spec)>, RemuxError> {
     const BAD: RemuxError = RemuxError::Malformed("truncated DHT segment");
     let mut out = Vec::new();
-    while !p.is_empty() {
-        let (tc, th) = (p[0] >> 4, p[0] & 0x0F);
+    while let Some(&head) = p.first() {
+        let (tc, th) = (head >> 4, head & 0x0F);
         if tc > 1 || th > 3 {
             return Err(RemuxError::Malformed(
                 "DHT class or destination out of range",
@@ -124,7 +137,7 @@ pub(crate) fn parse_dht(mut p: &[u8]) -> Result<Vec<(u8, u8, Spec)>, RemuxError>
         let n: usize = bits.iter().map(|&b| usize::from(b)).sum();
         let vals = p.get(17..17 + n).ok_or(BAD)?.to_vec();
         out.push((tc, th, Spec { bits, vals }));
-        p = &p[17 + n..];
+        p = p.get(17 + n..).ok_or(BAD)?;
     }
     Ok(out)
 }
@@ -184,6 +197,7 @@ pub(crate) fn annex_k() -> [(u8, u8, Spec); 4] {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
 

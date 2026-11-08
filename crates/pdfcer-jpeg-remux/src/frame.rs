@@ -70,7 +70,9 @@ pub(crate) fn read(data: &[u8], max_blocks: usize) -> Result<Option<Parsed<'_>>,
             .checked_sub(2)
             .and_then(|n| data.get(i + 2..i + 2 + n))
             .ok_or(RemuxError::Malformed("segment runs past the data"))?;
-        let segment = &data[i - 2..i + len];
+        let segment = data
+            .get(i - 2..i + len)
+            .ok_or(RemuxError::Malformed("segment runs past the data"))?;
         i += len;
         let step = if marker == 0xDA {
             let (step, end) = w.scan(data, i, payload)?;
@@ -112,9 +114,13 @@ impl<'a> Walk<'a> {
             0xC4 => {
                 for (class, dest, spec) in parse_dht(payload)? {
                     let table = Some(Decoder::new(&spec)?);
-                    match class {
-                        0 => self.dc[usize::from(dest)] = table,
-                        _ => self.ac[usize::from(dest)] = table,
+                    let set = if class == 0 {
+                        &mut self.dc
+                    } else {
+                        &mut self.ac
+                    };
+                    if let Some(slot) = set.get_mut(usize::from(dest)) {
+                        *slot = table;
                     }
                 }
             }
@@ -144,7 +150,10 @@ impl<'a> Walk<'a> {
             return Ok((false, start));
         }
         let end = entropy_end(data, start);
-        scan::decode(&data[start..end], &comps, self.restart, frame)?;
+        let ecs = data
+            .get(start..end)
+            .ok_or(RemuxError::Malformed("scan runs past the data"))?;
+        scan::decode(ecs, &comps, self.restart, frame)?;
         self.scans += 1;
         Ok((true, end))
     }
@@ -183,7 +192,10 @@ fn frame<'a>(p: &[u8], max_blocks: usize) -> Result<Option<Parsed<'a>>, RemuxErr
     let specs = rest.get(5..5 + 3 * nf).ok_or(bad)?;
     let sampling: Vec<(u8, usize, usize)> = specs
         .chunks_exact(3)
-        .map(|c| (c[0], usize::from(c[1] >> 4), usize::from(c[1] & 0x0F)))
+        .filter_map(|c| match *c {
+            [id, hv, _] => Some((id, usize::from(hv >> 4), usize::from(hv & 0x0F))),
+            _ => None,
+        })
         .collect();
     if sampling
         .iter()
@@ -191,9 +203,8 @@ fn frame<'a>(p: &[u8], max_blocks: usize) -> Result<Option<Parsed<'a>>, RemuxErr
     {
         return Err(RemuxError::Malformed("sampling factor outside 1-4"));
     }
-    let uniform = sampling
-        .iter()
-        .all(|&(_, h, v)| (h, v) == (sampling[0].1, sampling[0].2));
+    let first = sampling.first().map(|&(_, h, v)| (h, v));
+    let uniform = sampling.iter().all(|&(_, h, v)| Some((h, v)) == first);
     let mcu_blocks: usize = sampling.iter().map(|&(_, h, v)| h * v).sum();
     // B.2.3: an interleaved MCU holds at most 10 blocks, so a frame over
     // that cannot be written as one scan.
@@ -256,10 +267,13 @@ fn scan_header(
     specs
         .chunks_exact(2)
         .map(|s| {
+            let &[id, tables] = s else {
+                return Err(RemuxError::Malformed("short scan header"));
+            };
             let index = frame
                 .comps
                 .iter()
-                .position(|c| c.id == s[0])
+                .position(|c| c.id == id)
                 .ok_or(RemuxError::Malformed("scan names an unknown component"))?;
             let table = |set: &[Option<Decoder>; 4], t: u8| {
                 set.get(usize::from(t))
@@ -268,8 +282,8 @@ fn scan_header(
             };
             Ok(ScanComp {
                 index,
-                dc: table(dc, s[1] >> 4)?,
-                ac: table(ac, s[1] & 0x0F)?,
+                dc: table(dc, tables >> 4)?,
+                ac: table(ac, tables & 0x0F)?,
             })
         })
         .collect()
@@ -278,14 +292,12 @@ fn scan_header(
 /// Index of the first marker after `start` that is neither stuffing nor
 /// `RSTm` — where the scan's entropy-coded data ends (T.81 B.1.1.5).
 fn entropy_end(data: &[u8], start: usize) -> usize {
-    let mut k = start;
-    while k + 1 < data.len() {
-        if data[k] == 0xFF && !matches!(data[k + 1], 0x00 | 0xD0..=0xD7 | 0xFF) {
-            return k;
-        }
-        k += 1;
-    }
-    data.len()
+    data.get(start..)
+        .and_then(|tail| {
+            tail.windows(2)
+                .position(|w| matches!(w, [0xFF, b] if !matches!(b, 0x00 | 0xD0..=0xD7 | 0xFF)))
+        })
+        .map_or(data.len(), |k| start + k)
 }
 
 /// Fills the blocks past a component's coded extent with copies of the
@@ -297,8 +309,12 @@ fn pad(c: &mut Component, fw: usize, fh: usize) {
             if bx < fw && by < fh {
                 continue;
             }
-            let src = by.min(fh - 1) * c.grid_w + bx.min(fw - 1);
-            c.blocks[by * c.grid_w + bx] = c.blocks[src];
+            let src = by.min(fh.saturating_sub(1)) * c.grid_w + bx.min(fw.saturating_sub(1));
+            if let Some(&block) = c.blocks.get(src)
+                && let Some(dst) = c.blocks.get_mut(by * c.grid_w + bx)
+            {
+                *dst = block;
+            }
         }
     }
 }

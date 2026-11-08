@@ -25,7 +25,7 @@ pub(crate) fn decode(
     frame: &mut Parsed<'_>,
 ) -> Result<(), RemuxError> {
     for sc in comps {
-        if frame.comps[sc.index].filled.is_some() {
+        if frame.comps.get(sc.index).is_none_or(|c| c.filled.is_some()) {
             return Err(RemuxError::Malformed("a component is coded twice"));
         }
     }
@@ -33,7 +33,10 @@ pub(crate) fn decode(
     let mut pred = vec![0i32; comps.len()];
     let (mcus, mcux) = match comps {
         [one] => {
-            let c = &frame.comps[one.index];
+            let c = frame
+                .comps
+                .get(one.index)
+                .ok_or(RemuxError::Malformed("block outside the component grid"))?;
             (c.own_w * c.own_h, c.own_w)
         }
         _ => (frame.mcux * frame.mcuy, frame.mcux),
@@ -45,26 +48,44 @@ pub(crate) fn decode(
         }
         let (mx, my) = (n % mcux, n / mcux);
         for (sc, p) in comps.iter().zip(&mut pred) {
-            let c = &mut frame.comps[sc.index];
+            let c = frame
+                .comps
+                .get_mut(sc.index)
+                .ok_or(RemuxError::Malformed("block outside the component grid"))?;
             if comps.len() == 1 {
                 let at = my * c.grid_w + mx;
-                decode_block(&mut r, sc, p, &mut c.blocks[at])?;
+                decode_block(
+                    &mut r,
+                    sc,
+                    p,
+                    c.blocks
+                        .get_mut(at)
+                        .ok_or(RemuxError::Malformed("block outside the component grid"))?,
+                )?;
                 continue;
             }
             for by in 0..c.v {
                 for bx in 0..c.h {
                     let at = (my * c.v + by) * c.grid_w + mx * c.h + bx;
-                    decode_block(&mut r, sc, p, &mut c.blocks[at])?;
+                    decode_block(
+                        &mut r,
+                        sc,
+                        p,
+                        c.blocks
+                            .get_mut(at)
+                            .ok_or(RemuxError::Malformed("block outside the component grid"))?,
+                    )?;
                 }
             }
         }
     }
     for sc in comps {
-        let c = &mut frame.comps[sc.index];
-        c.filled = Some(match comps {
-            [_] => (c.own_w, c.own_h),
-            _ => (c.grid_w, c.grid_h),
-        });
+        if let Some(c) = frame.comps.get_mut(sc.index) {
+            c.filled = Some(match comps {
+                [_] => (c.own_w, c.own_h),
+                _ => (c.grid_w, c.grid_h),
+            });
+        }
     }
     Ok(())
 }
@@ -81,7 +102,8 @@ fn decode_block(
         return Err(RemuxError::Malformed("DC difference category over 11"));
     }
     *pred += extend(r.bits(t), t);
-    out[0] = i16::try_from(*pred).map_err(|_| RemuxError::Malformed("DC value overflows"))?;
+    let [dc, ac @ ..] = out;
+    *dc = i16::try_from(*pred).map_err(|_| RemuxError::Malformed("DC value overflows"))?;
     let mut k = 1;
     while k < 64 {
         let rs = sc.ac.decode(r)?;
@@ -94,11 +116,11 @@ fn decode_block(
             continue;
         }
         k += run;
-        if k > 63 {
-            return Err(RemuxError::Malformed("AC run passes coefficient 63"));
-        }
+        let slot = ac
+            .get_mut(k - 1)
+            .ok_or(RemuxError::Malformed("AC run passes coefficient 63"))?;
         // s <= 15, so the value fits i16.
-        out[k] = extend(r.bits(s), s) as i16;
+        *slot = extend(r.bits(s), s) as i16;
         k += 1;
     }
     Ok(())
@@ -149,7 +171,11 @@ pub(crate) fn write(p: &Parsed<'_>) -> Result<Vec<u8>, RemuxError> {
                     (&dc_c, &ac_c)
                 };
                 for at in mcu_blocks(c, mx, my) {
-                    encode_block(&mut w, dc, ac, pr, &c.blocks[at])?;
+                    let block = c
+                        .blocks
+                        .get(at)
+                        .ok_or(RemuxError::Malformed("block outside the component grid"))?;
+                    encode_block(&mut w, dc, ac, pr, block)?;
                 }
             }
         }
@@ -159,6 +185,7 @@ pub(crate) fn write(p: &Parsed<'_>) -> Result<Vec<u8>, RemuxError> {
     Ok(out)
 }
 
+/// Appends a marker segment: `FF marker`, the 2-byte length, `payload`.
 pub(crate) fn push_segment(out: &mut Vec<u8>, marker: u8, payload: &[u8]) {
     out.extend([0xFF, marker]);
     out.extend(((payload.len() + 2) as u16).to_be_bytes());
@@ -190,8 +217,9 @@ pub(crate) fn encode_block(
     pred: &mut i32,
     blk: &[i16; 64],
 ) -> Result<(), RemuxError> {
-    let diff = i32::from(blk[0]) - *pred;
-    *pred = i32::from(blk[0]);
+    let [first, rest @ ..] = blk;
+    let diff = i32::from(*first) - *pred;
+    *pred = i32::from(*first);
     let t = category(diff);
     if t > 11 {
         return Err(RemuxError::Malformed("DC difference too large for 8-bit"));
@@ -199,7 +227,7 @@ pub(crate) fn encode_block(
     dc.put(w, t as u8)?;
     put_value(w, diff, t);
     let mut run = 0u8;
-    for &c in &blk[1..] {
+    for &c in rest {
         if c == 0 {
             run += 1;
             continue;

@@ -15,7 +15,19 @@
 //! assert_eq!(to_decode, jpeg, "nothing to rewrite here");
 //! # Ok::<(), pdfcer_jpeg_remux::RemuxError>(())
 //! ```
+// Parses untrusted image data, so a reachable panic is a denial-of-service
+// bug: unwrap/expect/panic!/unchecked indexing are denied crate-wide, and the
+// test module opts out with its own #[allow].
 #![forbid(unsafe_code)]
+#![deny(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::indexing_slicing,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented
+)]
 
 mod bits;
 mod frame;
