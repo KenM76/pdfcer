@@ -112,6 +112,25 @@ wherever it appears.*
 
 ## Shipped
 
+### `692fbc93` `Pass 689.1`, 2026-11-07: a hostile RSA-PSS salt length fails verification and never panics (1456th filing)
+
+Engineer-reported; no shell here, git state not checked from here (local `main`, not pushed; rides `v0.136.0`). Commit `692fbc93f77d37c7967f4f737e2f81d5dac446ea`. Found by the panic-path audit done for `X061`, fixed on discovery. Never opened in Next up. No decision record.
+- **Defect:** `RsaPublicKey::verify_pss` (pdfcer-model `crypto/rsa.rs`). `salt_len` is read from the CMS RSASSA-PSS-params; a value near `usize::MAX` wrapped `h_len + salt_len + 2`, then `db[..ps_len]` panicked. An attacker-supplied certificate with e = 1 lets EM equal the signature. Reached from `signature_verify` and `trust_chain`.
+- **Fix:** the bound is `checked_add` (RFC 8017 §9.1.2). In `standard.rs` the three `digest[..key_len]` slices are clamped to the digest length (a public-field misuse hazard; not reachable from a file).
+- **Test:** `a_hostile_pss_salt_length_fails_verification_without_panicking`; it panics at `rsa.rs:208` with the old check restored.
+- **Audit verdicts (for `X061`):** every other entry in `tools/panic-allows-baseline.txt` on the render, SVG and rich-text paths is proven unable to fire: `build_pdf_doc_encoding` is a `const fn` (a bad index fails the build); the md5/sha1/rc4/r5/bignum/standard entries use fixed-size arrays or are length-guarded before slicing; the render entries `set_sat`, the compositor and `svg base64` use fixed-size arrays.
+- **FEATURES:** signature-verification row notes the robustness fix; no box change.
+
+### `a14f3032` `Pass 689.0`, 2026-11-07: page rendering honours /UserUnit (`X060`) (1456th filing)
+
+Engineer-reported; no shell here, git state not checked from here (local `main`, not pushed; rides `v0.136.0`). Commit `a14f30325ef675099c16719a8b47d81f76462188`. Reply: `FeatureRequests/pdfce_FeatureRequests/open/reply_X060_render_honours_page_user_unit_SHIPPED.md`. Never opened in Next up. No decision record.
+- **Spec:** ISO 32000-1 §14.11.2 Table 30.
+- **Model:** `Page::user_unit: f64`; reads as 1.0 when absent, non-numeric, <= 0 or non-finite.
+- **Render:** `effective_scale(page, scale)` is used by `page_device_geometry` and the region geometry. Display lists record the unit, so `replay_region` matches a fresh region render. `MAX_PIXMAP_EDGE` applies after the unit.
+- **CLI:** the `pdfcer print` media size is box x unit (`media_size_pt`). core-api 01/03 and `index.md` counts updated.
+- **Tests:** `crates/pdfcer-render/tests/render_honours_user_unit.rs`, 5 tests. Sabotaging `effective_scale` fails 4 of them; sabotaging the replay fails the region test. Runs for model/render/cli (as reported): 1057+613+540+429+96+39+28+27 passed, 0 failed. `cargo tree`: manifests unchanged.
+- **FEATURES:** new row "Page /UserUnit honoured in rendering and print sizing": core `[x]`, cli `[x]` (`render-page` and `print` go through it), gui `[ ]` (tracks `pdfcer-gui`; not ticked).
+
 ### `2ee0a6bd` `v0.135.0` PUBLISHED, 2026-11-06 (1455th filing)
 
 Engineer-reported; no shell here, nothing checked from here (git, CI, GitHub, crates.io, OneDrive all as reported). Supersedes the IN PROGRESS entry below (1453rd, noted 1454th). Annotated tag `v0.135.0` on `2ee0a6bd`, pushed; CI run 42319929898 green at the tag. Carries `Pass 684.0` (`G273`), `685.0` (`149581d8`, `0980c3b2`), `686.0` (`G274`), `687.0` (`G275`), `688.0`, and the fixes `772cdb81` and `8030fb34`. Prior CI run 42315386289 on `df96d03e` failed the bypass-paths audit; no tag had been pushed, so the version did not change.
@@ -26355,6 +26374,19 @@ closes out the *prior* filing's business rather than opening this one's.
 > **1454th filing: `v0.135.0` was still IN PROGRESS (now closed, see 1455th); CI audit failure (`check-bypass-paths.sh` on `print_ready.rs`) fixed by a comment-only `bypass-exempt:` marker; tag not pushed, version unchanged. No behaviour change; FEATURES unchanged.**
 
 > **1455th filing: `v0.135.0` PUBLISHED (tag on `2ee0a6bd`; CI run 42319929898 green; GitHub release 8 assets, crates.io, OneDrive `pdfcer1`). Next release writes `pdfcer2`. No open Pass at the head; next Pass 689.0.**
+
+> **1456th filing: `Pass 689.0` (`X060`, `a14f3032`) and `689.1` (`692fbc93`) are SHIPPED (see *Shipped*), unpushed, riding `v0.136.0`. `Pass 690.0` (`X061` part 1) is IN PROGRESS; `690.1` (`X061` part 2) is BLOCKED. Next Pass 691.0. `Pass 69x.` had hits only in this filing's own text by grep of the three docs (no shell; not run through `tools/check-ledger-numbers.py`).**
+>
+> **`Pass 690.0`, `X061` part 1: a lean consumer shape for `pdfcer-render`. IN PROGRESS.** `pdfcer_render` re-exports `pdfcer_core`, so a consumer depending only on `pdfcer-render` reaches `pageops::region` and `text_edit::model::rich_copy`.
+> - Crate-level docs.rs examples run as doctests under `--no-default-features`: render at 300 DPI with a `RenderCancel`; a region as SVG with `SvgText::KeepText`, printing the outcome; a page's rich text.
+> - A CI job builds and doctests `pdfcer-render --no-default-features` and asserts the lean dependency graph has no OCR, signing or 3D crates.
+> - Real descriptions replace the stale "Pass 0 stub" text on render, core, text, fonts, image-codec and function; `repository` metadata; OCR weights (`assets/models/**/*.onnx|*.rten`) excluded from the `pdfcer-core` package; a crate-docs Panics note.
+>
+> **`Pass 690.1`, `X061` part 2: publish `pdfcer-render` and its unpublished dependencies to crates.io. BLOCKED** (related to `X001`), on three things:
+> 1. `pdfcer-render` depends by git on `icccer-profile`, `icccer-cmm`, `icccer-color` (rev `7002353e`); icccer is not on crates.io, so a request goes to icccer's channel.
+> 2. `pdfcer-image-codec` pins `zune-jpeg` by git (rev `c1c7f497`); newest crates.io release is 0.5.16-rc3 and the manifest comment says stable 0.5.16 is needed first.
+> 3. `pdfcer-core`'s optional `ocrcer-core` is a vendored path dependency; `cargo publish` needs a version even for optional dependencies, so either `ocrcer-core` is published (a request to OCRcer's channel) or the feature is removed from the published manifest. That choice is open and recorded.
+> - Also part of 690.1: a lean `THIRD_PARTY_LICENSES` generated from the `--no-default-features` graph, at publish time.
 
 > **1433rd filing: `Pass 675.1` (QUEUED after `675.0`) - publish `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav` to crates.io at the next release** (decision 217; Ken, 2026-11-06: "Yes publish them"). `675.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`).
 > - the three join `pdfcer-color`, `-model`, `-pkix` (`Pass 637.0`); `pdfcer-json` is included because `pdfcer-3d` depends on it;

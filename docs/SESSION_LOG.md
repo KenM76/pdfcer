@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-07 (1456th filing) — `Pass 689.0` (`X060`) and `689.1` shipped; `690.0` in progress, `690.1` blocked
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **`Pass 689.0`, `a14f3032`:** page rendering honours `/UserUnit` (ISO 32000-1 §14.11.2 Table 30). `Page::user_unit`, `effective_scale`, display lists record the unit, print media size = box x unit. 5 tests in `render_honours_user_unit.rs`; sabotage of `effective_scale` fails 4, of the replay fails the region test. Model/render/cli runs 1057+613+540+429+96+39+28+27 passed, 0 failed. Manifests unchanged. Reply to `X060` written (`open/reply_X060_render_honours_page_user_unit_SHIPPED.md`).
+- **`Pass 689.1`, `692fbc93`:** `verify_pss` panicked on a salt length near `usize::MAX` (wrapped `h_len + salt_len + 2`); now `checked_add`. Reached from `signature_verify` and `trust_chain`. Found by the panic-path audit for `X061`, fixed on discovery.
+- **Gotcha (finding):** a PSS salt length read from the CMS RSASSA-PSS-params is attacker-controlled, and an unchecked sum wraps in release builds. No `personal_rag/pdf` lesson written this filing (no shell; the lesson is owed if the subject takes security findings, flagged to the engineer).
+- **Audit verdicts `X061` asked for:** every other `tools/panic-allows-baseline.txt` entry on the render, SVG and rich-text paths cannot fire: `build_pdf_doc_encoding` is a `const fn`; md5/sha1/rc4/r5/bignum/standard entries use fixed-size arrays or are length-guarded; `set_sat`, the compositor and `svg base64` use fixed-size arrays.
+- **Filed new:** `Pass 690.0` (`X061` part 1, lean consumer shape for `pdfcer-render`) IN PROGRESS; `Pass 690.1` (`X061` part 2, crates.io publish) BLOCKED on icccer git deps, `zune-jpeg` git pin, optional `ocrcer-core` path dep (choice open).
+- **Unpushed:** both commits ride `v0.136.0`. **FEATURES:** new UserUnit row (core/cli `[x]`, gui `[ ]`); signature row noted; crates.io row names the unpublished crates. No decision-log entry.
+- **Next:** `690.0`. Next filing 1457th; next Pass 691.0.
+
 ## 2026-11-06 (1455th filing) — `v0.135.0` PUBLISHED (tag on `2ee0a6bd`); CI green
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
