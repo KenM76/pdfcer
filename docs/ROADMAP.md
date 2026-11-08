@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `fa2ffccf` `Pass 690.0`, 2026-11-07: a lean `pdfcer-render` consumer gets runnable examples and a guarded graph (`X061` part 1) (1457th filing)
+
+Engineer-reported; no shell here, git state not checked from here (local `main`, not pushed; rides `v0.136.0`, not yet tagged). Commit `fa2ffccfd7c68f293e4e573013528a2abbb7bec8`. Reply: `open/reply_X061_lean_render_build_SHIPPED_publish_BLOCKED.md`; INDEX `X061` row = PARTIAL. Filed from the 1456th filing's IN PROGRESS banner. No decision record.
+- **Docs:** `pdfcer-render` crate docs gain `## Quick start` with three doctests that build under `default-features = false`, on a synthetic one-page PDF built inline: a cancellable 300 DPI `render_page_with_view`; `extract_region` to `export_svg` with `SvgText::KeepText`, printing `SvgTextOutcome`; `EditableTextModel::recognize` to `rich_text`, printing family and size. Plus `## Panics`: the baseline entries on these paths cannot fire (fixed arrays or constant indices, or length-checked; `build_pdf_doc_encoding` is a `const fn`).
+- **Re-export:** `pub use pdfcer_core;` from `pdfcer-render`, so one dependency reaches `Document`, `page_tree`, `region`, `text_edit`.
+- **Manifests:** real `description` and `repository.workspace = true` on core, render, text, fonts, image-codec, function; `pdfcer-core` `exclude = ["assets/models/*/*.onnx", "assets/models/*/*.rten"]`. `cargo package --list` for all six lists no model or font binary.
+- **Gate:** new `tools/check-lean-render-graph.py` fails if any `dep:` name in `pdfcer-core`'s `[features]` appears in `cargo tree -p pdfcer-render --no-default-features -e normal`. Result: 67 crates, none of 17 optional.
+- **CI:** `ci.yml` (strippable-capability section) runs `cargo test -p pdfcer-render --no-default-features --doc` and the new gate; both registered in `tools/check-ci-parity.py` (clean: 49 local sweep, 13 stand-ins, 4 CI-only).
+- **Results (as reported):** lean doctests 31 passed, 0 failed; fmt clean; `clippy -p pdfcer-render --all-targets --all-features -D warnings` clean; code-structure 0; core-api-verbs PASS; reexport-closure, doc-block-spliced, suite-name-absent clean. No dependency change: no `cargo tree` or `THIRD_PARTY_LICENSES` change (the lean graph is a subset of the default graph).
+- **FEATURES:** new row "Lean `pdfcer-render` consumer build": core `[x]`, cli and gui `—`. The crates.io row stays `[ ]`.
+- **Still open:** `Pass 690.1` (publish), BLOCKED, below.
+
 ### `692fbc93` `Pass 689.1`, 2026-11-07: a hostile RSA-PSS salt length fails verification and never panics (1456th filing)
 
 Engineer-reported; no shell here, git state not checked from here (local `main`, not pushed; rides `v0.136.0`). Commit `692fbc93f77d37c7967f4f737e2f81d5dac446ea`. Found by the panic-path audit done for `X061`, fixed on discovery. Never opened in Next up. No decision record.
@@ -26377,10 +26389,7 @@ closes out the *prior* filing's business rather than opening this one's.
 
 > **1456th filing: `Pass 689.0` (`X060`, `a14f3032`) and `689.1` (`692fbc93`) are SHIPPED (see *Shipped*), unpushed, riding `v0.136.0`. `Pass 690.0` (`X061` part 1) is IN PROGRESS; `690.1` (`X061` part 2) is BLOCKED. Next Pass 691.0. `Pass 69x.` had hits only in this filing's own text by grep of the three docs (no shell; not run through `tools/check-ledger-numbers.py`).**
 >
-> **`Pass 690.0`, `X061` part 1: a lean consumer shape for `pdfcer-render`. IN PROGRESS.** `pdfcer_render` re-exports `pdfcer_core`, so a consumer depending only on `pdfcer-render` reaches `pageops::region` and `text_edit::model::rich_copy`.
-> - Crate-level docs.rs examples run as doctests under `--no-default-features`: render at 300 DPI with a `RenderCancel`; a region as SVG with `SvgText::KeepText`, printing the outcome; a page's rich text.
-> - A CI job builds and doctests `pdfcer-render --no-default-features` and asserts the lean dependency graph has no OCR, signing or 3D crates.
-> - Real descriptions replace the stale "Pass 0 stub" text on render, core, text, fonts, image-codec and function; `repository` metadata; OCR weights (`assets/models/**/*.onnx|*.rten`) excluded from the `pdfcer-core` package; a crate-docs Panics note.
+> **1457th filing: `Pass 690.0` (`X061` part 1, `fa2ffccf`) is SHIPPED (see *Shipped*), unpushed, riding `v0.136.0`. `Pass 690.1` stays BLOCKED, re-verified on crates.io 2026-11-07. Next Pass 691.0.** Requests filed: icccer `D:\Dev\FeatureRequests\icccer_FeatureRequests\open\request_publish_icccer_0_4_for_pdfcer_crates.md`; OCRcer `D:\Dev\FeatureRequests\OCRcer_FeatureRequests\request_publish_ocrcer_core_for_pdfcer_crates.md`. `zune-jpeg` waits for stable 0.5.16.
 >
 > **`Pass 690.1`, `X061` part 2: publish `pdfcer-render` and its unpublished dependencies to crates.io. BLOCKED** (related to `X001`), on three things:
 > 1. `pdfcer-render` depends by git on `icccer-profile`, `icccer-cmm`, `icccer-color` (rev `7002353e`); icccer is not on crates.io, so a request goes to icccer's channel.

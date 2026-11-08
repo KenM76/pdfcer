@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-07 (1457th filing) — `Pass 690.0` (`X061` part 1) shipped; `690.1` stays blocked
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **`Pass 690.0`, `fa2ffccf`:** `pdfcer-render` crate docs gain a Quick start of three doctests that build with `default-features = false` (render at 300 DPI with cancel; region to SVG with `SvgText::KeepText`; rich text) and a Panics section; `pub use pdfcer_core;`; real manifest metadata on six crates; model weights excluded from the `pdfcer-core` package; new gate `tools/check-lean-render-graph.py` (67 crates, none of 17 optional) and two CI steps, registered in `check-ci-parity.py`.
+- **Results (as reported):** lean doctests 31 passed, 0 failed; fmt, clippy, code-structure, core-api-verbs, reexport-closure, doc-block-spliced, suite-name-absent all clean. No dependency change.
+- **`Pass 690.1`:** BLOCKED on icccer (not on crates.io; request filed), `zune-jpeg` (newest 0.5.16-rc3; waits for stable), optional `ocrcer-core` (request filed). Verified on crates.io 2026-11-07 per the engineer.
+- **Channel:** reply `reply_X061_lean_render_build_SHIPPED_publish_BLOCKED.md`; INDEX `X061` = PARTIAL.
+- **FEATURES:** new core-only row for the lean consumer build; the crates.io row stays `[ ]`.
+- **Unpushed:** rides `v0.136.0` (not tagged). Next filing 1458th; next Pass 691.0.
+
 ## 2026-11-07 (1456th filing) — `Pass 689.0` (`X060`) and `689.1` shipped; `690.0` in progress, `690.1` blocked
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
