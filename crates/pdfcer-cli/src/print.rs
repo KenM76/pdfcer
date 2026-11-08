@@ -2603,6 +2603,7 @@ mod poster_tiling_tests {
 /// The media box's physical size in points: the box times the page's
 /// `/UserUnit` (ISO 32000-1 §14.11.2 Table 30), which is the size the
 /// renderer rasterises at `dpi / 72`, so placement and pixels agree.
+#[cfg(windows)]
 fn media_size_pt(page: &pdfcer_core::page_tree::Page) -> (f64, f64) {
     let mb = page.media_box;
     (
