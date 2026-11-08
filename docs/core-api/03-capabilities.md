@@ -4009,6 +4009,11 @@ pdfcer_render::render_page_with_view(
 `lib.rs`. Composition (`lib.rs`): translate the resolved **CropBox**
 to the origin → flip y and scale → apply `/Rotate` **clockwise** (the
 opposite sense to §8.3.3's CCW matrices), swapping width/height for 90°/270°.
+`scale` is pixels per 1/72 inch (`dpi / 72`); every geometry function
+multiplies it by `Page::user_unit` first (`effective_scale(page, scale)`,
+`lib.rs`), so a `/UserUnit 2` page renders at twice the pixels of its box and
+a 300-dpi render is 300 dpi of the physical page. A caller sizing a raster
+itself multiplies the box by `user_unit` too, or asks `page_device_geometry`.
 The GUI uses it for hit-testing (`pdfce@cce414e:crates/pdfce-gui/src/object_provider.rs:48`).
 
 **Size guard:** `MAX_PIXMAP_EDGE = 16384` (`lib.rs`); zero or oversized

@@ -337,6 +337,13 @@ pub struct Page {
     /// is worth surfacing to an operator, which is why it is a counted
     /// disclosure and not a silent kindness.
     pub contents_flattened: usize,
+    /// The page's `/UserUnit` (PDF 1.6, ISO 32000-1 §14.11.2 Table 30):
+    /// the size of one default user space unit, in multiples of 1/72 inch.
+    /// The boxes above are in those units, so the page's physical size is
+    /// a box times this. Not inheritable. `1.0` when absent, or when the
+    /// value is not a finite positive number (the supported range is
+    /// implementation-dependent; pdfcer reads such a value as the default).
+    pub user_unit: f64,
 }
 
 /// Page-tree structural errors.
@@ -976,7 +983,16 @@ fn resolve_page<G: ObjectGraph + ?Sized>(
         contents,
         contents_unresolved,
         contents_flattened,
+        user_unit: user_unit_of(doc, page),
     })
+}
+
+/// Table 30 `/UserUnit`, or `1.0` when absent or not a finite positive number.
+fn user_unit_of<G: ObjectGraph + ?Sized>(doc: &G, page: &Dict) -> f64 {
+    page.get(b"UserUnit")
+        .and_then(|o| doc.resolve(o).as_number())
+        .filter(|u| u.is_finite() && *u > 0.0)
+        .unwrap_or(1.0)
 }
 
 impl Page {
@@ -1031,6 +1047,7 @@ impl Page {
             contents: Vec::new(),
             contents_unresolved: 0,
             contents_flattened: 0,
+            user_unit: 1.0,
         }
     }
 }

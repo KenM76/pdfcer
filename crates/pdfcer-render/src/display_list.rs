@@ -601,6 +601,9 @@ pub struct DisplayList {
     page_box: pdfcer_core::page_tree::Rect,
     /// See [`Self::page_box`].
     page_rotate: u16,
+    /// The page's `/UserUnit`, carried for the same reason as
+    /// [`Self::page_box`]: replay must use the scale recording used.
+    page_user_unit: f64,
     ops: Vec<Op>,
     clips: Vec<ClipDef>,
     /// The recorder's running total — see `RecorderState::approx_bytes`.
@@ -731,12 +734,13 @@ impl DisplayList {
         // fact rather than a wish. See that function for the measured
         // table: at a scale of 2.15 M a requested 800x600 viewport came
         // back as 800x512 through the `f32` route.
-        let g =
-            crate::region_base_geometry_of(self.page_box, self.page_rotate, self.key.scale, region)
-                .ok_or(RenderError::BadRasterSize {
-                    width: 0,
-                    height: 0,
-                })?;
+        #[allow(clippy::cast_possible_truncation)] // as `crate::effective_scale`
+        let scale = (f64::from(self.key.scale) * self.page_user_unit) as f32;
+        let g = crate::region_base_geometry_of(self.page_box, self.page_rotate, scale, region)
+            .ok_or(RenderError::BadRasterSize {
+                width: 0,
+                height: 0,
+            })?;
         let (width, height, x0, y0) = (g.width, g.height, g.x0, g.y0);
         if width == 0
             || height == 0
@@ -809,6 +813,7 @@ pub fn record_page(
         // ~128 device pixels.
         page_box: page.crop_box,
         page_rotate: page.rotate,
+        page_user_unit: page.user_unit,
         key: DisplayListKey {
             page: page.id,
             epoch,

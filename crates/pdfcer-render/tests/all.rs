@@ -69,6 +69,7 @@ mod print_ready_copy;
 mod redaction_leaves_no_ink;
 mod reflow_kerned_word_pixels;
 mod region_matches_full_page;
+mod render_honours_user_unit;
 mod rendering_intent;
 mod replacement_faces;
 mod resubset_fonts_render_the_same;

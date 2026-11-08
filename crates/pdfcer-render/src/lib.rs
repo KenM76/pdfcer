@@ -1415,7 +1415,27 @@ pub fn region_base_geometry(
     scale: f32,
     region: pdfcer_core::page_tree::Rect,
 ) -> Option<RegionGeometry> {
-    region_base_geometry_of(page.crop_box, page.rotate, scale, region)
+    region_base_geometry_of(
+        page.crop_box,
+        page.rotate,
+        effective_scale(page, scale),
+        region,
+    )
+}
+
+/// `scale` times the page's `/UserUnit` (ISO 32000-1 §14.11.2 Table 30):
+/// device pixels per **default user space unit**, which is what every
+/// geometry function here multiplies the page box by.
+///
+/// `scale` is pixels per 1/72 inch (`dpi / 72`), so a page with
+/// `/UserUnit 2` renders at twice the pixels of the same box without it,
+/// and a 300-dpi render is 300 dpi of the page's physical size. Exact
+/// (returns `scale` unchanged) for the default `user_unit` of `1.0`.
+#[must_use]
+pub fn effective_scale(page: &Page, scale: f32) -> f32 {
+    #[allow(clippy::cast_possible_truncation)] // a pixel scale fits an f32
+    let s = (f64::from(scale) * page.user_unit) as f32;
+    s
 }
 
 /// Everything a caller needs to rasterise one region of a page.
@@ -1606,7 +1626,7 @@ pub fn page_device_geometry(page: &Page, scale: f32) -> (u32, u32, Transform) {
         crop.urx as f32,
         crop.ury as f32,
     );
-    let s = scale.max(0.0);
+    let s = effective_scale(page, scale).max(0.0);
     let w = ((urx - llx) * s).ceil().max(0.0) as u32;
     let h = ((ury - lly) * s).ceil().max(0.0) as u32;
 

@@ -851,6 +851,7 @@ GUI wants `pages`/`pages_in`.
 | `contents` | `Vec<ObjId>` | in order; concatenate. Empty = empty page, **not** an error |
 | `contents_unresolved` | `usize` | **see below** |
 | `contents_flattened` | `usize` | nested `/Contents` arrays flattened on the way in (damage a pre-`Pass 111.0` pdfcer wrote) |
+| `user_unit` | `f64` | `/UserUnit` (Table 30, not inheritable): one box unit is `user_unit / 72` inch. `1.0` when absent or not a finite positive number. Physical size = box × this; the renderer applies it (§ geometry in `03-capabilities.md`) |
 
 **Building one (fixtures): `Page::with_boxes(id, media_box, crop_box, rotate) -> Page`.**
 The page `pages` resolves for a page that writes no bleed/trim/art box: those
@@ -934,8 +935,8 @@ use pdfcer_core::page_tree;
 
 let pages = page_tree::pages(&doc)?;
 for (i, p) in pages.iter().enumerate() {
-    let w = p.crop_box.width();          // points, user space
-    let h = p.crop_box.height();
+    let w = p.crop_box.width() * p.user_unit;   // physical points
+    let h = p.crop_box.height() * p.user_unit;
     // Swap for display if the page is rotated 90/270.
     let (dw, dh) = if p.rotate % 180 == 90 { (h, w) } else { (w, h) };
     push_thumbnail(i, dw, dh, p.contents_unresolved > 0 /* show a damage pip */);

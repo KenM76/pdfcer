@@ -413,13 +413,7 @@ pub(crate) fn cmd_print(
     // `displayed_page_size` for what went wrong before this.
     let page_sizes: Vec<(f64, f64)> = page_list
         .iter()
-        .map(|p| {
-            let mb = p.media_box;
-            pdfcer_print::displayed_page_size(
-                ((mb.urx - mb.llx).abs(), (mb.ury - mb.lly).abs()),
-                i32::from(p.rotate),
-            )
-        })
+        .map(|p| pdfcer_print::displayed_page_size(media_size_pt(p), i32::from(p.rotate)))
         .collect();
     let spec = pdfcer_print::JobSpec {
         pages: selected.clone(),
@@ -1627,13 +1621,7 @@ pub(crate) fn cmd_print_preview(
     // `displayed_page_size` for what went wrong before this.
     let page_sizes: Vec<(f64, f64)> = page_list
         .iter()
-        .map(|p| {
-            let mb = p.media_box;
-            pdfcer_print::displayed_page_size(
-                ((mb.urx - mb.llx).abs(), (mb.ury - mb.lly).abs()),
-                i32::from(p.rotate),
-            )
-        })
+        .map(|p| pdfcer_print::displayed_page_size(media_size_pt(p), i32::from(p.rotate)))
         .collect();
     let first_page_pt = indices
         .first()
@@ -1684,11 +1672,7 @@ pub(crate) fn cmd_print_preview(
         // …and turned by `/Rotate`, for the reason `displayed_page_size`
         // sets out: the renderer honours it, so planning against the
         // un-turned box would describe a different shape than the pixels.
-        let mb = page.media_box;
-        let size = pdfcer_print::displayed_page_size(
-            ((mb.urx - mb.llx).abs(), (mb.ury - mb.lly).abs()),
-            i32::from(page.rotate),
-        );
+        let size = pdfcer_print::displayed_page_size(media_size_pt(page), i32::from(page.rotate));
         let p = pdfcer_print::place_page(size, device.printable_pt, mode);
         if p.clipped {
             clipped += 1;
@@ -2614,6 +2598,17 @@ mod poster_tiling_tests {
             "the tile covering the page ink must carry ink at 30x, or the region path is producing blank paper and the reachability claim is empty"
         );
     }
+}
+
+/// The media box's physical size in points: the box times the page's
+/// `/UserUnit` (ISO 32000-1 §14.11.2 Table 30), which is the size the
+/// renderer rasterises at `dpi / 72`, so placement and pixels agree.
+fn media_size_pt(page: &pdfcer_core::page_tree::Page) -> (f64, f64) {
+    let mb = page.media_box;
+    (
+        (mb.urx - mb.llx).abs() * page.user_unit,
+        (mb.ury - mb.lly).abs() * page.user_unit,
+    )
 }
 
 #[cfg(test)]

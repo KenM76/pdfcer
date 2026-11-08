@@ -44,7 +44,7 @@
 //! rescale user space to physical space, so a page whose media box is
 //! "A1 in points" is only physically A1 at the default unit. This module
 //! deals in default user space and says nothing about `/UserUnit`; a
-//! caller that cares must read it off the page.
+//! caller that cares multiplies by `Page::user_unit`.
 //!
 //! # Provenance of the numbers
 //!
