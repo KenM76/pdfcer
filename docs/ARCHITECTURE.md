@@ -13543,6 +13543,8 @@ Full record: `docs/decisions/197-zune-jpeg-rc-pin.md`. Recorded at `Pass 620.0` 
 
 **Body-section effect.** None; no body section names zune-jpeg (grep of this file). **Decision ceiling.** Fills `197`; next free decision `198`. **New standing rule.** None; `R263` stays next free.
 
+**Amendment, 2026-11-07 (1461st filing, `719d2127`; original above left as written): the rc pin is superseded.** `zune-jpeg` is now stable `0.5.15` from crates.io, with the one-scan-per-component layout handled before decode by the new workspace crate `pdfcer-jpeg-remux` (lossless rewrite to one interleaved scan, T.81 A.2.3; coefficients and DQT untouched). Stable 0.5.16 is no longer required. Engineer-reported; nothing checked from here. No new decision number.
+
 ### 2026-10-22 (1192nd filing) — decision 198: zune-jpeg rc3 comes from git `c1c7f497`, not the registry; amends 197
 
 Full record: `docs/decisions/198-zune-jpeg-git-source.md`. Recorded at `Pass 630.0` (`32e2bff1`).
@@ -13554,6 +13556,8 @@ Full record: `docs/decisions/198-zune-jpeg-git-source.md`. Recorded at `Pass 630
 **Relation to 197.** 197 rejected "`[patch]` to a git commit" as harder to audit and publish-blocking; this is a dependency-level git source chosen for downstream resolvability, and 197's own note that a pre-release pin fails beside a downstream `^0.5` is the failure that occurred.
 
 **Body-section effect.** None; no body section names zune-jpeg. **Decision ceiling.** Fills `198`; next free decision `199`. **New standing rule.** None; `R263` stays next free.
+
+**Amendment, 2026-11-07 (1461st filing, `719d2127`; original above left as written): the git source is superseded.** All three manifests moved to stable `zune-jpeg 0.5.15` (and `zune-core 0.5.3` left the graph); the "revisit at stable 0.5.16" condition is closed by the remux crate instead (decision 197's amendment). Engineer-reported.
 
 ### 2026-10-24 (1233rd filing) — decision 199: the comparison-result palette and annotation shapes
 
@@ -13779,6 +13783,8 @@ Operator ruling (Ken, 2026-11-06), verbatim: *"Yes publish them"*. Answers the o
 **Amendment, 2026-11-06 (1436th filing; original above left as written).** Scope item 1 is widened: `pdfcer-vec3` joins the publish list, because `pdfcer-3d` now depends on it (`Pass 674.0`, `dfda998c`). The list is four crates, published in order `pdfcer-vec3`, `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav`. Publish preparation landed in `bafb8667` (`publish = true`, metadata, READMEs, `version = "0.130.0"` beside each path in `[workspace.dependencies]`, CI package steps); the `cargo publish` itself is at `v0.131.0`. `zune-jpeg` resolution (items 3 and 4) unchanged; `0.5.16-rc3` confirmed present on crates.io (engineer-reported). No new decision number; the `§3` entry for `pdfcer-vec3` was written by the engineer in `bafb8667`.
 
 **Amendment, 2026-11-06 (1437th filing; both texts above left as written): the publish happened.** From a detached worktree at tag `v0.131.0` (`ec81929c`), `cargo publish` succeeded for `pdfcer-color`, `pdfcer-model`, `pdfcer-pkix`, `pdfcer-vec3`, `pdfcer-json`, `pdfcer-3d`, `pdfcer-3d-nav`, all 0.131.0, in that order (engineer-reported; crates.io not checked from here). `pdfcer-vec3`, `-json`, `-3d` and `-3d-nav` are on crates.io for the first time. Decision 217 is carried out; no new decision number.
+
+**Amendment, 2026-11-07 (1461st filing, `719d2127`; all texts above left as written): the zune-jpeg blocker (items 2 to 4) is gone.** `pdfcer-image-codec`, `pdfcer-3d` and `pdfcer-render` (dev) take stable `zune-jpeg 0.5.15` from crates.io; the `>=0.5.16-rc3, <0.6` requirement beside the git source is no longer in play, and the `image`/`tiff` resolution cost in item 4 no longer applies. See decision 197's amendment. Engineer-reported; nothing checked from here.
 
 ### 2026-11-06 (1433rd filing) — decision 218: port, never rewrite, from Ken's own projects; widens decision 215
 

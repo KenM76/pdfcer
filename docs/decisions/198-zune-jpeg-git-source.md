@@ -2,6 +2,8 @@
 
 Amends decision 197. Recorded at `Pass 630.0` (`32e2bff1`).
 
+> **Superseded 2026-11-07 (`719d2127`):** the git source is replaced by stable `zune-jpeg 0.5.15` from crates.io plus the `pdfcer-jpeg-remux` crate; see decision 197's amendment. Text below left as written.
+
 ## Decision
 
 - `zune-jpeg` in `pdfcer-image-codec`, `pdfcer-3d` (optional) and

@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-07 (1461st filing) — `719d2127`: zune-jpeg 0.5.15 from crates.io via a lossless scan remux (`Pass 690.1`, part)
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **`719d2127c27a003813893af94ab979302b416155`:** new workspace crate `pdfcer-jpeg-remux` 0.136.0 (`interleave`, `RemuxError`) rewrites a one-scan-per-component baseline JPEG to one interleaved scan, lossless, so `zune-jpeg 0.5.15` decodes it correctly. `pdfcer-image-codec`, `pdfcer-3d` and `pdfcer-render` (dev) move from git rev `c1c7f497` (0.5.16-rc3) to stable 0.5.15 on crates.io; `zune-core 0.5.3` leaves the graph. This was the last blocker for `Pass 690.1`.
+- **Decisions:** 197, 198 and 217 each got a dated 2026-11-07 amendment (superseded; originals kept) in `ARCHITECTURE.md` §12; 197 and 198 decision files also annotated. No new decision number.
+- **Gate fix:** `tools/check-ci-crate-lists.py` uses the transitive closure of `pdfcer-core`'s path dependencies; sabotage-verified. Fuzz target `jpeg_remux`: 1,485,751 runs in 61 s (about 41 µs each), 0 crashes.
+- **Gates and test counts:** in the `Pass 690.1` entry in ROADMAP (engineer-reported).
+- **`Pass 690.1` NOT complete:** stays in Next up; the publishing release (`pdfcer-jpeg-remux` first, then `-image-codec`, `-render`, the rest) is outstanding.
+- **FEATURES:** no capability box changes. Row "Engine crates on crates.io" wording corrected (it still said blocked by zune-jpeg and icccer git dependencies); box stays `[ ]`.
+- Next filing 1462nd; next Pass 691.0.
+
 ## 2026-11-07 (1460th filing) — `30aacc52`: icccer and ocrcer-core from crates.io (`Pass 690.1`, part)
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**

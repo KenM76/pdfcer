@@ -66,3 +66,11 @@ mis-rendered too, which only a decoder fix repairs. rc3 reads them within
   the layout, and its SOS assertion fails if the writer stops emitting it.
 - Previously optimized files need no repair path.
 - pdfcer-gui refreshes its lockfile to pick up the fix.
+
+## Amendment, 2026-11-07 (commit `719d2127`; text above left as written)
+
+Superseded: the rc pin (and decision 198's git source) is replaced by stable
+`zune-jpeg 0.5.15` from crates.io plus the new workspace crate
+`pdfcer-jpeg-remux`, which losslessly rewrites a one-scan-per-component
+baseline JPEG to one interleaved scan (T.81 A.2.3) before decode. Stable
+0.5.16 is no longer required, and the publish blocker is gone.
