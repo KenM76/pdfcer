@@ -121,6 +121,11 @@ jobs:
       # The unit tests build the full clap tree, which a check cannot: a
       # listed name whose variant is compiled out panics at every launch.
       - run: cargo test -p pdfcer-cli --no-default-features --bin pdfcer
+      # The crates.io consumer shape (X061): pdfcer-render with
+      # default-features = false. Its crate-level examples must build and run
+      # lean, and its graph must hold none of pdfcer-core's optional crates.
+      - run: cargo test -p pdfcer-render --no-default-features --doc
+      - run: python tools/check-lean-render-graph.py
       # THE FORWARDING GUARD — the other half of the gate above.
       #
       # Cargo will not let a member override an inherited `default-features`,

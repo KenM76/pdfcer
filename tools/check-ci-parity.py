@@ -130,6 +130,10 @@ LOCAL = {
     "cargo test -p pdfcer-cli --no-default-features --bin pdfcer": (
         "cargo test -p pdfcer-cli --no-default-features --bin pdfcer"
     ),
+    "cargo test -p pdfcer-render --no-default-features --doc": (
+        "cargo test -p pdfcer-render --no-default-features --doc"
+    ),
+    "tools/check-lean-render-graph.py": "python tools/check-lean-render-graph.py",
     "tools/check-outcome-disclosed.py": "python tools/check-outcome-disclosed.py",
     "tools/check-commits-filed.py": "python tools/check-commits-filed.py",
     "tools/check-bypass-paths.sh": "bash tools/check-bypass-paths.sh",

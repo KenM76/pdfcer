@@ -1,11 +1,12 @@
 [package]
 name = "pdfcer-render"
-description = "pdfcer headless rasterizer: turns pdfcer-core draw-ops into pixels (planned: tiny-skia, Pass 1). GUI-agnostic — zero windowing dependencies. Pass 0 scope: stub only."
+description = "pdfcer headless PDF renderer: pages and regions to RGBA pixmaps (cancellable), and pages to SVG with real text where possible. Pure Rust CPU rasterizer, no GUI dependencies."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 authors.workspace = true
 publish.workspace = true
+repository.workspace = true
 license.workspace = true
 # One integration-test binary per crate (tests/all.rs); see
 # tools/check-tests-harnessed.py.

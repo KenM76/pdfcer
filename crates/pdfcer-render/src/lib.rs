@@ -10,6 +10,156 @@
 //! here: `iso32000__s__8.3.md` (device space, y-axis, CTM),
 //! `iso32000__s__7.7.3.md` (CropBox clipping, clockwise `/Rotate`).
 //!
+//! ## Quick start
+//!
+//! Everything below is reachable from this crate alone: `pdfcer_core` is
+//! re-exported, and all three examples build with
+//! `default-features = false` (no OCR, signing or 3D code in the graph).
+//!
+//! Render page 1 at 300 DPI with a cancel token another thread may trip:
+//!
+//! ```
+//! # fn one_page_pdf() -> Vec<u8> {
+//! #     let content = "BT /F1 24 Tf 72 700 Td (Hello, pdfcer) Tj ET\n";
+//! #     let objects = [
+//! #         "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+//! #         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+//! #         "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R \
+//! #           /Resources << /Font << /F1 5 0 R >> >> >>".to_owned(),
+//! #         format!("<< /Length {} >>\nstream\n{content}endstream", content.len()),
+//! #         "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_owned(),
+//! #     ];
+//! #     let mut pdf = b"%PDF-1.7\n".to_vec();
+//! #     let mut offsets = Vec::new();
+//! #     for (i, body) in objects.iter().enumerate() {
+//! #         offsets.push(pdf.len());
+//! #         pdf.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+//! #     }
+//! #     let xref = pdf.len();
+//! #     pdf.extend_from_slice(b"xref\n0 6\n0000000000 65535 f \n");
+//! #     for o in offsets {
+//! #         pdf.extend_from_slice(format!("{o:010} 00000 n \n").as_bytes());
+//! #     }
+//! #     pdf.extend_from_slice(
+//! #         format!("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n").as_bytes(),
+//! #     );
+//! #     pdf
+//! # }
+//! use pdfcer_render::pdfcer_core::{document::Document, page_tree};
+//! use pdfcer_render::{RenderOptions, cancel::RenderCancel, render_page_with_view};
+//!
+//! let doc = Document::from_bytes(one_page_pdf())?;
+//! let page = &page_tree::pages(&doc)?[0];
+//! let cancel = RenderCancel::new(); // clone it to the thread that may cancel
+//! let mut options = RenderOptions::default();
+//! options.cancel = Some(cancel.clone());
+//! let rendered = render_page_with_view(&doc.view(), page, 300.0 / 72.0, &options)?;
+//! assert_eq!(rendered.pixmap.width(), 2550); // 8.5 in at 300 DPI
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
+//!
+//! A region of the page as SVG, keeping text as `<text>` where it can, and
+//! what fell back (here the unembedded Helvetica becomes outlines):
+//!
+//! ```
+//! # fn one_page_pdf() -> Vec<u8> {
+//! #     let content = "BT /F1 24 Tf 72 700 Td (Hello, pdfcer) Tj ET\n";
+//! #     let objects = [
+//! #         "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+//! #         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+//! #         "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R \
+//! #           /Resources << /Font << /F1 5 0 R >> >> >>".to_owned(),
+//! #         format!("<< /Length {} >>\nstream\n{content}endstream", content.len()),
+//! #         "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_owned(),
+//! #     ];
+//! #     let mut pdf = b"%PDF-1.7\n".to_vec();
+//! #     let mut offsets = Vec::new();
+//! #     for (i, body) in objects.iter().enumerate() {
+//! #         offsets.push(pdf.len());
+//! #         pdf.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+//! #     }
+//! #     let xref = pdf.len();
+//! #     pdf.extend_from_slice(b"xref\n0 6\n0000000000 65535 f \n");
+//! #     for o in offsets {
+//! #         pdf.extend_from_slice(format!("{o:010} 00000 n \n").as_bytes());
+//! #     }
+//! #     pdf.extend_from_slice(
+//! #         format!("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n").as_bytes(),
+//! #     );
+//! #     pdf
+//! # }
+//! use pdfcer_render::pdfcer_core::{document::Document, page_tree, page_tree::Rect};
+//! use pdfcer_render::pdfcer_core::pageops::region::{RegionExport, extract_region};
+//! use pdfcer_render::RenderOptions;
+//! use pdfcer_render::svg::{SvgOptions, SvgText, export_svg};
+//!
+//! let doc = Document::from_bytes(one_page_pdf())?;
+//! let area = Rect::from_corners(60.0, 680.0, 320.0, 740.0);
+//! let (region_pdf, _report) = extract_region(&doc.view(), 0, area, &RegionExport::new())?;
+//! let region = Document::from_bytes(region_pdf)?;
+//! let page = &page_tree::pages(&region)?[0];
+//! let mut svg = SvgOptions::default();
+//! svg.text = SvgText::KeepText;
+//! let out = export_svg(&region, page, &RenderOptions::default(), &svg)?;
+//! assert!(out.svg.starts_with("<svg"));
+//! let t = &out.outcome.text;
+//! println!("{} runs as text, {} not an embedded font", t.runs_as_text, t.fallback_not_sfnt);
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
+//!
+//! A page's styled text runs (family, size, colour, bold, italic):
+//!
+//! ```
+//! # fn one_page_pdf() -> Vec<u8> {
+//! #     let content = "BT /F1 24 Tf 72 700 Td (Hello, pdfcer) Tj ET\n";
+//! #     let objects = [
+//! #         "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+//! #         "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+//! #         "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R \
+//! #           /Resources << /Font << /F1 5 0 R >> >> >>".to_owned(),
+//! #         format!("<< /Length {} >>\nstream\n{content}endstream", content.len()),
+//! #         "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".to_owned(),
+//! #     ];
+//! #     let mut pdf = b"%PDF-1.7\n".to_vec();
+//! #     let mut offsets = Vec::new();
+//! #     for (i, body) in objects.iter().enumerate() {
+//! #         offsets.push(pdf.len());
+//! #         pdf.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+//! #     }
+//! #     let xref = pdf.len();
+//! #     pdf.extend_from_slice(b"xref\n0 6\n0000000000 65535 f \n");
+//! #     for o in offsets {
+//! #         pdf.extend_from_slice(format!("{o:010} 00000 n \n").as_bytes());
+//! #     }
+//! #     pdf.extend_from_slice(
+//! #         format!("trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n").as_bytes(),
+//! #     );
+//! #     pdf
+//! # }
+//! use pdfcer_render::pdfcer_core::{document::Document, page_tree, text_extract};
+//! use pdfcer_render::pdfcer_core::text_edit::model::{
+//!     BlockRecognitionOptions, EditableTextModel, RichTextSources,
+//! };
+//!
+//! let doc = Document::from_bytes(one_page_pdf())?;
+//! let page = &page_tree::pages(&doc)?[0];
+//! let text = text_extract::extract_page(&doc, page, 0, &text_extract::ExtractOptions::default())?;
+//! let model = EditableTextModel::recognize(&text, &BlockRecognitionOptions::default());
+//! let rich = model.rich_text(None, &RichTextSources::default());
+//! let span = &rich.paragraphs[0].spans[0];
+//! assert!(span.text.contains("Hello"));
+//! println!("{:?} at {} pt", span.style.family, span.style.size);
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
+//!
+//! ## Panics
+//!
+//! Non-test code on these paths does not panic on any input. The few
+//! functions that index slices directly (`tools/panic-allows-baseline.txt`)
+//! use fixed-size arrays with constant indices or check the length first;
+//! `pdfcer-fonts`' PDFDocEncoding table is a `const fn`, so a bad index
+//! fails the build rather than a run.
+//!
 //! ## Load-bearing invariant
 //!
 //! Zero GUI/windowing dependencies (docs/ARCHITECTURE.md §3), verified
@@ -126,6 +276,10 @@ use tiny_skia::{Pixmap, Transform};
 // is re-exported above).
 #[doc(inline)]
 pub use pdfcer_core::view::DocumentView;
+
+/// The engine this crate renders, re-exported so a consumer depending only
+/// on `pdfcer-render` can open documents, cut regions and read text.
+pub use pdfcer_core;
 
 // The annotation scope and its Table 169 classification are named in
 // `RenderOptions`' public surface, so they are re-exported at the crate
