@@ -1,0 +1,25 @@
+[package]
+name = "pdfcer-jpeg-remux"
+description = "Lossless rewrite of a sequential JPEG whose components arrive in separate scans into one interleaved scan (ITU-T T.81 A.2), for decoders that mis-read the non-interleaved layout. No dependencies beyond thiserror; builds for wasm32."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+publish = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+readme = "README.md"
+keywords = ["jpeg", "pdf", "huffman", "lossless"]
+categories = ["multimedia::images", "encoding"]
+
+[dependencies]
+# thiserror: C-GOOD-ERR error derive. MIT OR Apache-2.0.
+thiserror = "2"
+
+[dev-dependencies]
+# jpeg-encoder writes the layout this crate exists for (one scan per
+# component whenever optimized Huffman tables are on). MIT OR Apache-2.0.
+jpeg-encoder = { version = "0.7", default-features = false, features = ["std"] }
+# zune-jpeg: the decoder the tests compare through. MIT OR Apache-2.0 OR Zlib.
+zune-jpeg = { version = "0.5.15", default-features = false, features = ["std"] }

@@ -121,6 +121,10 @@ features = ["jpx"]
 [dependencies.pdfcer-pkix]
 path = "../crates/pdfcer-pkix"
 
+# The JPEG scan rewrite (`jpeg_remux`). No features.
+[dependencies.pdfcer-jpeg-remux]
+path = "../crates/pdfcer-jpeg-remux"
+
 # The PRC reader (`prc_parse`): its own optional crate. No features.
 [dependencies.pdfcer-3d]
 path = "../crates/pdfcer-3d"
@@ -806,3 +810,9 @@ path = "fuzz_targets/ipp_response.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "jpeg_remux"
+path = "fuzz_targets/jpeg_remux.rs"
+test = false
+doc = false

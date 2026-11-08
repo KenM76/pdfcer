@@ -22,7 +22,7 @@ default = ["render"]
 render = ["textures"]
 # PNG and JPEG texture pictures; without it a textured surface whose picture
 # is PNG or JPEG draws its base colour and says so.
-textures = ["dep:png", "dep:zune-jpeg"]
+textures = ["dep:png", "dep:zune-jpeg", "dep:pdfcer-jpeg-remux"]
 
 [dependencies]
 # pdfcer-json: glTF's JSON chunk (Pass 648.0).
@@ -38,10 +38,10 @@ flate2 = { version = "1", default-features = false, features = ["rust_backend"] 
 # png: PRC texture pictures in PNG [WD 7.5.5.2]. MIT OR Apache-2.0.
 png = { version = "0.17", optional = true }
 # zune-jpeg: PRC texture pictures in JPEG; pure Rust. MIT OR Apache-2.0 OR Zlib.
-# The registry requirement beside the git source is what `cargo package`
-# publishes (decision 217); a consumer also pulling `image` (zune-jpeg ^0.5,
-# stable 0.5.15) conflicts until 0.5.16 is released.
-zune-jpeg = { git = "https://github.com/etemesi254/zune-image", rev = "c1c7f49776ee32928ed329f4436ae63a595b6283", version = ">=0.5.16-rc3, <0.6", default-features = false, features = ["std"], optional = true }
+# 0.5.15 mis-decodes the one-scan-per-component subsampled layout, so
+# `texture::jpeg` runs it through pdfcer-jpeg-remux first.
+zune-jpeg = { version = "0.5.15", default-features = false, features = ["std"], optional = true }
+pdfcer-jpeg-remux = { workspace = true, optional = true }
 
 [[test]]
 name = "all"

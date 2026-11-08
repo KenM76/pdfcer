@@ -743,8 +743,8 @@ dependencies = [
  "moxcms",
  "num-traits",
  "png 0.18.1",
- "zune-core 0.5.1",
- "zune-jpeg 0.5.15",
+ "zune-core",
+ "zune-jpeg",
 ]
 
 [[package]]
@@ -888,7 +888,7 @@ dependencies = [
 
 [[package]]
 name = "ocrcer-core"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "ocrs"
@@ -982,21 +982,31 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-3d"
-version = "0.92.0"
+version = "0.136.0"
 dependencies = [
  "flate2",
+ "pdfcer-jpeg-remux",
+ "pdfcer-json",
+ "pdfcer-vec3",
  "png 0.17.16",
  "thiserror",
- "zune-jpeg 0.5.16-rc3",
+ "zune-jpeg",
+]
+
+[[package]]
+name = "pdfcer-3d-nav"
+version = "0.136.0"
+dependencies = [
+ "pdfcer-3d",
 ]
 
 [[package]]
 name = "pdfcer-color"
-version = "0.92.0"
+version = "0.136.0"
 
 [[package]]
 name = "pdfcer-core"
-version = "0.92.0"
+version = "0.136.0"
 dependencies = [
  "aes 0.9.3",
  "cbc 0.2.1",
@@ -1010,15 +1020,19 @@ dependencies = [
  "p384",
  "pbkdf2",
  "pdfcer-3d",
+ "pdfcer-3d-nav",
  "pdfcer-color",
  "pdfcer-fonts",
  "pdfcer-function",
  "pdfcer-image-codec",
+ "pdfcer-json",
  "pdfcer-model",
  "pdfcer-pkix",
  "pdfcer-text",
+ "pdfcer-vec3",
  "rand_core",
  "rc2",
+ "roxmltree",
  "rsa",
  "rten",
  "rten-tensor",
@@ -1032,7 +1046,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-fonts"
-version = "0.92.0"
+version = "0.136.0"
 dependencies = [
  "pdfcer-model",
  "thiserror",
@@ -1040,7 +1054,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-function"
-version = "0.92.0"
+version = "0.136.0"
 dependencies = [
  "pdfcer-model",
  "thiserror",
@@ -1048,19 +1062,34 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-image-codec"
-version = "0.92.0"
+version = "0.136.0"
 dependencies = [
  "hayro-ccitt",
  "hayro-jbig2",
  "hayro-jpeg2000",
+ "pdfcer-jpeg-remux",
  "pdfcer-model",
  "thiserror",
- "zune-jpeg 0.5.16-rc3",
+ "zune-jpeg",
+]
+
+[[package]]
+name = "pdfcer-jpeg-remux"
+version = "0.136.0"
+dependencies = [
+ "thiserror",
+]
+
+[[package]]
+name = "pdfcer-json"
+version = "0.136.0"
+dependencies = [
+ "thiserror",
 ]
 
 [[package]]
 name = "pdfcer-model"
-version = "0.92.0"
+version = "0.136.0"
 dependencies = [
  "aes 0.9.3",
  "brotli",
@@ -1074,7 +1103,7 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-pkix"
-version = "0.92.0"
+version = "0.136.0"
 dependencies = [
  "pdfcer-model",
  "thiserror",
@@ -1082,12 +1111,16 @@ dependencies = [
 
 [[package]]
 name = "pdfcer-text"
-version = "0.92.0"
+version = "0.136.0"
 dependencies = [
  "pdfcer-fonts",
  "pdfcer-model",
  "thiserror",
 ]
+
+[[package]]
+name = "pdfcer-vec3"
+version = "0.136.0"
 
 [[package]]
 name = "pem-rfc7468"
@@ -2067,23 +2100,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cb8a0807f7c01457d0379ba880ba6322660448ddebc890ce29bb64da71fb40f9"
 
 [[package]]
-name = "zune-core"
-version = "0.5.3"
-source = "git+https://github.com/etemesi254/zune-image?rev=c1c7f49776ee32928ed329f4436ae63a595b6283#c1c7f49776ee32928ed329f4436ae63a595b6283"
-
-[[package]]
 name = "zune-jpeg"
 version = "0.5.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27bc9d5b815bc103f142aa054f561d9187d191692ec7c2d1e2b4737f8dbd7296"
 dependencies = [
- "zune-core 0.5.1",
-]
-
-[[package]]
-name = "zune-jpeg"
-version = "0.5.16-rc3"
-source = "git+https://github.com/etemesi254/zune-image?rev=c1c7f49776ee32928ed329f4436ae63a595b6283#c1c7f49776ee32928ed329f4436ae63a595b6283"
-dependencies = [
- "zune-core 0.5.3",
+ "zune-core",
 ]

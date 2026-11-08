@@ -37,6 +37,7 @@ members = [
     "crates/pdfcer-model",
     "crates/pdfcer-json",
     "crates/pdfcer-vec3",
+    "crates/pdfcer-jpeg-remux",
     "crates/pdfcer-image-codec",
     "crates/pdfcer-fonts",
     "crates/pdfcer-pkix",
@@ -151,6 +152,7 @@ pdfcer-print = { path = "crates/pdfcer-print" }
 # [workspace.package] version like pdfcer-model above.
 pdfcer-vec3 = { path = "crates/pdfcer-vec3", version = "0.136.0" }
 pdfcer-json = { path = "crates/pdfcer-json", version = "0.136.0" }
+pdfcer-jpeg-remux = { path = "crates/pdfcer-jpeg-remux", version = "0.136.0" }
 pdfcer-3d = { path = "crates/pdfcer-3d", version = "0.136.0" }
 pdfcer-3d-nav = { path = "crates/pdfcer-3d-nav", version = "0.136.0" }
 # OCR hosting for the shells, including program add-ons (decision 184).

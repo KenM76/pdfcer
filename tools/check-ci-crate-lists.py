@@ -4,7 +4,7 @@
 tree, no-network tree and wasm32 steps. Splitting a crate out of pdfcer-core
 means adding it to each list; a missed one silently drops that crate from the
 check. Every list that names `pdfcer-model` must name every path dependency
-of pdfcer-core (read from its Cargo.toml).
+pdfcer-core reaches (read from the Cargo.toml files).
 
 usage: python tools/check-ci-crate-lists.py
 """
@@ -16,9 +16,30 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 
+DEP = re.compile(r'^(pdfcer-[\w-]+)\s*(?:=\s*\{[^}]*\b(?:path|workspace)\b|\.workspace\s*=\s*true)', re.M)
+
+
+def runtime_deps(crate: str) -> set[str]:
+    """`crate`'s pdfcer path dependencies, dev-dependencies excluded."""
+    toml = (ROOT / "crates" / crate / "Cargo.toml").read_text(encoding="utf-8")
+    found = set()
+    for section in re.split(r"^\[", toml, flags=re.M):
+        header = section.split("]", 1)[0]
+        if header.endswith("dependencies") and "dev-dependencies" not in header:
+            found |= set(DEP.findall(section))
+    return found
+
+
 def lower_crates() -> set[str]:
-    toml = (ROOT / "crates" / "pdfcer-core" / "Cargo.toml").read_text(encoding="utf-8")
-    return set(re.findall(r'^(pdfcer-[\w-]+)\s*=\s*\{\s*path\s*=', toml, re.M))
+    """Every pdfcer crate pdfcer-core reaches, transitively: a crate pulled in
+    through another (pdfcer-jpeg-remux through pdfcer-image-codec) is in the
+    engine graph as much as a direct one."""
+    seen, todo = set(), ["pdfcer-core"]
+    while todo:
+        for dep in runtime_deps(todo.pop()) - seen:
+            seen.add(dep)
+            todo.append(dep)
+    return seen
 
 
 MODEL = re.compile(r"(?<![\w-])pdfcer-model(?![\w-])")

@@ -280,6 +280,11 @@ fn jpeg(bytes: &[u8]) -> Result<(u32, u32, Vec<u8>), Undecoded> {
             .set_max_height(cap)
             .jpeg_set_out_colorspace(out)
     };
+    // zune-jpeg 0.5.15 mis-reads subsampled components coded in separate
+    // scans; the lossless rewrite decodes to the same pixels. 2^21 blocks
+    // is 128 MiB of 8-bit samples.
+    let remuxed = pdfcer_jpeg_remux::interleave(bytes, 1 << 21).ok().flatten();
+    let bytes = remuxed.as_deref().unwrap_or(bytes);
     let mut probe = JpegDecoder::new_with_options(ZCursor::new(bytes), options(ColorSpace::RGB));
     probe.decode_headers().map_err(|_| BAD)?;
     let (out, components) = match probe.input_colorspace() {

@@ -62,7 +62,7 @@ alongside the other licenses harvested from `Cargo.lock`.
 ## License overview
 
 - **Apache License 2.0** — used by 145 crate(s)
-- **MIT License** — used by 20 crate(s)
+- **MIT License** — used by 21 crate(s)
 - **BSD 3-Clause &quot;New&quot; or &quot;Revised&quot; License** — used by 7 crate(s)
 - **ISC License** — used by 3 crate(s)
 - **Boost Software License 1.0** — used by 2 crate(s)
@@ -747,6 +747,8 @@ Used by:
 Used by:
 - [crypto-primes 0.7.2](https://github.com/entropyxyz/crypto-primes)
 - [ureq 3.4.0](https://github.com/algesten/ureq)
+- [zune-core 0.5.3](https://github.com/etemesi254/zune-image)
+- [zune-jpeg 0.5.15](https://github.com/etemesi254/zune-image/tree/dev/crates/zune-jpeg)
 
 ```
                                  Apache License
@@ -3892,8 +3894,6 @@ limitations under the License.
 ### Apache License 2.0
 
 Used by:
-- [zune-core 0.5.3](https://github.com/etemesi254/zune-image)
-- [zune-jpeg 0.5.16-rc3](https://github.com/etemesi254/zune-image/tree/dev/crates/zune-jpeg)
 - [anyhow 1.0.104](https://github.com/dtolnay/anyhow)
 - [fdeflate 0.3.7](https://github.com/image-rs/fdeflate)
 - [flatbuffers 24.12.23](https://github.com/google/flatbuffers)
@@ -4614,6 +4614,7 @@ Used by:
 - [pdfcer-3d 0.136.0](https://github.com/KenM76/pdfcer)
 - [pdfcer-3d-nav 0.136.0](https://github.com/KenM76/pdfcer)
 - [pdfcer-color 0.136.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-jpeg-remux 0.136.0](https://github.com/KenM76/pdfcer)
 - [pdfcer-json 0.136.0](https://github.com/KenM76/pdfcer)
 - [pdfcer-model 0.136.0](https://github.com/KenM76/pdfcer)
 - [pdfcer-pkix 0.136.0](https://github.com/KenM76/pdfcer)

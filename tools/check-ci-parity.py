@@ -112,8 +112,8 @@ LOCAL = {
     "cargo package -p pdfcer-pkix": (
         "cargo package -p pdfcer-pkix --allow-dirty --no-verify --exclude-lockfile"
     ),
-    "cargo package -p pdfcer-vec3 -p pdfcer-json": (
-        "cargo package -p pdfcer-vec3 -p pdfcer-json --allow-dirty"
+    "cargo package -p pdfcer-vec3 -p pdfcer-json -p pdfcer-jpeg-remux": (
+        "cargo package -p pdfcer-vec3 -p pdfcer-json -p pdfcer-jpeg-remux --allow-dirty"
     ),
     "cargo package -p pdfcer-3d -p pdfcer-3d-nav": (
         "cargo package -p pdfcer-3d -p pdfcer-3d-nav --allow-dirty --no-verify --exclude-lockfile"
