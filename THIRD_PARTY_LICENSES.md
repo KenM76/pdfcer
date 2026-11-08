@@ -62,7 +62,7 @@ alongside the other licenses harvested from `Cargo.lock`.
 ## License overview
 
 - **Apache License 2.0** — used by 145 crate(s)
-- **MIT License** — used by 21 crate(s)
+- **MIT License** — used by 27 crate(s)
 - **BSD 3-Clause &quot;New&quot; or &quot;Revised&quot; License** — used by 7 crate(s)
 - **ISC License** — used by 3 crate(s)
 - **Boost Software License 1.0** — used by 2 crate(s)
@@ -310,7 +310,7 @@ Used by:
 
 Used by:
 - [cmov 0.5.4](https://github.com/RustCrypto/utils)
-- [ctutils 0.4.2](https://github.com/RustCrypto/utils)
+- [ctutils 0.4.8](https://github.com/RustCrypto/utils)
 - [kurbo 0.11.3](https://github.com/linebender/kurbo)
 - [ureq-proto 0.6.1](https://github.com/algesten/ureq-proto)
 - [zeroize 1.9.0](https://github.com/RustCrypto/utils)
@@ -2899,7 +2899,7 @@ Used by:
 - [const-oid 0.10.2](https://github.com/RustCrypto/formats)
 - [cpubits 0.1.1](https://github.com/RustCrypto/utils)
 - [cpufeatures 0.3.0](https://github.com/RustCrypto/utils)
-- [crypto-bigint 0.7.5](https://github.com/RustCrypto/crypto-bigint)
+- [crypto-bigint 0.7.10](https://github.com/RustCrypto/crypto-bigint)
 - [crypto-common 0.2.2](https://github.com/RustCrypto/traits)
 - [der 0.8.2](https://github.com/RustCrypto/formats)
 - [digest 0.11.3](https://github.com/RustCrypto/traits)
@@ -4611,14 +4611,20 @@ SOFTWARE.
 ### MIT License
 
 Used by:
-- [pdfcer-3d 0.136.0](https://github.com/KenM76/pdfcer)
-- [pdfcer-3d-nav 0.136.0](https://github.com/KenM76/pdfcer)
-- [pdfcer-color 0.136.0](https://github.com/KenM76/pdfcer)
-- [pdfcer-jpeg-remux 0.136.0](https://github.com/KenM76/pdfcer)
-- [pdfcer-json 0.136.0](https://github.com/KenM76/pdfcer)
-- [pdfcer-model 0.136.0](https://github.com/KenM76/pdfcer)
-- [pdfcer-pkix 0.136.0](https://github.com/KenM76/pdfcer)
-- [pdfcer-vec3 0.136.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-3d 0.137.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-3d-nav 0.137.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-color 0.137.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-core 0.137.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-fonts 0.137.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-function 0.137.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-image-codec 0.137.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-jpeg-remux 0.137.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-json 0.137.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-model 0.137.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-pkix 0.137.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-render 0.137.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-text 0.137.0](https://github.com/KenM76/pdfcer)
+- [pdfcer-vec3 0.137.0](https://github.com/KenM76/pdfcer)
 
 ```
 MIT License
