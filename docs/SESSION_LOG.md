@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-08 (1463rd filing) — `v0.137.0` PUBLISHED, `Pass 690.1` SHIPPED: 14 engine crates on crates.io (`X061`, `X001`)
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **Tag:** annotated `v0.137.0` on `82796a5f613fb245cebe3eecf2f995282e5d39da` (1462nd filing commit; covers `beb08e2b`, `d3c44948`, `47aa7403`). CI run 42452431828 green before tagging.
+- **crates.io:** `cargo publish` succeeded for all 14 at 0.137.0: model, color, pkix, vec3, json, jpeg-remux, 3d, 3d-nav, image-codec, fonts, function, text, core, render. `pdfcer-render` hit a new-crate 429 (retry after 06:37:57 GMT) and published on retry. Consumer check: fresh `cargo new` + `cargo add pdfcer-render@0.137.0 --no-default-features` passes `cargo check`.
+- **Release:** GitHub release, 8 assets; fresh-folder smoke prints 0.137.0 / revision v0.137.0; OneDrive `pdfcer1` = 0.137.0, `pdfcer2` = 0.136.0 (next release writes `pdfcer2`); verify-release fails only "working tree clean" (agent-memory files, expected). `cargo tree` invariant unchanged.
+- **Channel (engineer-done):** X061 reply renamed `..._SHIPPED.md`; INDEX X061 and X001 SHIPPED; notice `open/notice_2026-11-08_v0.137.0_released.md` to `pdfcer-gui` (drop any `zune-jpeg` rc3 pin; no API change).
+- **ROADMAP:** `Pass 690.1` Shipped entry added; the Next up working notes carry a SHIPPED banner (body left as history, trim owed). **FEATURES:** crates.io row moved to Implemented, core `[x]`, cli/gui `—`.
+
+**Gotchas (generalizable):**
+- crates.io rate-limits NEW crate names in a burst (14th new name got 429). Budget a wait or publish in two batches for a first workspace publish; version bumps of existing names did not trip it. (RAG finding owed to `D:\dev\rag\rust\`; not written this filing, no shell and scope was the three docs.)
+- A new engine crate needs the deny block and documented `pub(crate)` fns from commit one; take the pre-push list from `check-ci-parity.py --list`.
+
+**For next session:** commit the three docs; push; Pass 691.0 is next.
+
 ## 2026-11-08 (1462nd filing) — `beb08e2b`, `d3c44948`, `47aa7403`: crates.io versioning and `v0.137.0` (`Pass 690.1`, part)
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
