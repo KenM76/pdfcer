@@ -26400,11 +26400,12 @@ closes out the *prior* filing's business rather than opening this one's.
 >
 > **1457th filing: `Pass 690.0` (`X061` part 1, `fa2ffccf`) is SHIPPED (see *Shipped*), unpushed, riding `v0.136.0`. `Pass 690.1` stays BLOCKED, re-verified on crates.io 2026-11-07. Next Pass 691.0.** Requests filed: icccer `D:\Dev\FeatureRequests\icccer_FeatureRequests\open\request_publish_icccer_0_4_for_pdfcer_crates.md`; OCRcer `D:\Dev\FeatureRequests\OCRcer_FeatureRequests\request_publish_ocrcer_core_for_pdfcer_crates.md`. `zune-jpeg` waits for stable 0.5.16.
 >
-> **`Pass 690.1`, `X061` part 2: publish `pdfcer-render` and its unpublished dependencies to crates.io. BLOCKED** (related to `X001`), on three things:
-> 1. `pdfcer-render` depends by git on `icccer-profile`, `icccer-cmm`, `icccer-color` (rev `7002353e`); icccer is not on crates.io, so a request goes to icccer's channel.
-> 2. `pdfcer-image-codec` pins `zune-jpeg` by git (rev `c1c7f497`); newest crates.io release is 0.5.16-rc3 and the manifest comment says stable 0.5.16 is needed first.
-> 3. `pdfcer-core`'s optional `ocrcer-core` is a vendored path dependency; `cargo publish` needs a version even for optional dependencies, so either `ocrcer-core` is published (a request to OCRcer's channel) or the feature is removed from the published manifest. That choice is open and recorded.
+> **`Pass 690.1`, `X061` part 2: publish `pdfcer-render` and its unpublished dependencies to crates.io. IN PROGRESS, PARTLY DONE (1460th), still BLOCKED on item 2** (related to `X001`):
+> 1. **DONE (`30aacc52`):** `pdfcer-render` now takes `icccer-color`, `icccer-profile`, `icccer-cmm` as `"=0.4.2"` from crates.io (was git rev `7002353e`, icccer v0.4.1; 0.4.2 is `45efa424`, tag v0.4.2, published 2026-11-07, src matches `7002353e`; exact pin keeps colour output reproducible).
+> 2. **STILL BLOCKED:** `pdfcer-image-codec` and `pdfcer-3d` pin `zune-jpeg` by git (rev `c1c7f497`): 0.5.15 mis-decodes a subsampled baseline JPEG written one scan per component, and only 0.5.16-rc3 exists. Operator asked (pending): write a workaround on 0.5.15, or wait for stable 0.5.16.
+> 3. **DONE (`30aacc52`):** `ocrcer-core` re-vendored at OCRcer `b3ac67c4` (0.2.0, published 2026-11-07, tag v0.2.0); `pdfcer-core`'s path dependency carries `version = "=0.2.0"`, so a packaged `pdfcer-core` resolves it from crates.io.
 > - Also part of 690.1: a lean `THIRD_PARTY_LICENSES` generated from the `--no-default-features` graph, at publish time.
+> - Gates on `30aacc52` (engineer-reported): `pdfcer-render` 31+540+613 passed; `pdfcer-core --features ocrcer` ocr-filtered 159+69 passed; clippy `-D warnings` and fmt clean; `check-ocrcer-vendored` OK; `check-lean-render-graph` OK (67 crates); `cargo tree -p pdfcer-core` / `-p pdfcer-render` clean (no GUI or network crates). `THIRD_PARTY_LICENSES.md` regenerated, licence terms unchanged (all MIT).
 >
 > **1458th filing: `v0.136.0` release IN PROGRESS, NOT tagged.** Release commit `c745c2e0` (0.135.0 to 0.136.0) carries `Pass 689.0`, `689.1`, `690.0`. CI run 42436774652 on it failed the Linux clippy job (dead_code); fixed forward by `30feb478` (see *Shipped*). Remaining: push, CI green, tag, fresh-folder smoke, GitHub release, OneDrive `pdfcer2`, `verify-release.py`, notice to `pdfcer-gui`. Its PUBLISHED filing is next. Next Pass 691.0.
 >

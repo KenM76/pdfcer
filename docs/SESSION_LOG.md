@@ -4,6 +4,15 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-07 (1460th filing) — `30aacc52`: icccer and ocrcer-core from crates.io (`Pass 690.1`, part)
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **`30aacc52`:** `pdfcer-render` takes `icccer-color`/`-profile`/`-cmm` as `"=0.4.2"` from crates.io instead of git rev `7002353e` (v0.4.1); 0.4.2 = `45efa424`, tag v0.4.2, published 2026-11-07 on the operator's go-ahead, src identical. `ocrcer-core` re-vendored at OCRcer `b3ac67c4` (0.2.0, published 2026-11-07); `pdfcer-core` path dep now `version = "=0.2.0"`. `THIRD_PARTY_LICENSES.md` regenerated (licence terms unchanged, all MIT); workspace, fuzz and six `tools/*/Cargo.lock` updated.
+- **`Pass 690.1` NOT complete:** stays in Next up, status text updated. Remaining blocker: `zune-jpeg` (git rev `c1c7f497` in `pdfcer-image-codec` and `pdfcer-3d`; 0.5.15 mis-decodes subsampled baseline JPEG written one scan per component; only 0.5.16-rc3 exists). Operator asked whether to write a 0.5.15 workaround or wait for stable 0.5.16; pending.
+- **Gates (as reported):** `pdfcer-render` 31+540+613 passed; `pdfcer-core --features ocrcer` ocr-filtered 159+69 passed; clippy and fmt clean; `check-ocrcer-vendored` OK; `check-lean-render-graph` OK (67 crates); `cargo tree` for core and render clean.
+- **Decision log:** none owed (dependency-source change, no new invariant or boundary).
+- **FEATURES:** no rows change; dependency-source change, no capability change. Next filing 1461st; next Pass 691.0.
+
 ## 2026-11-07 (1459th filing) — `v0.136.0` PUBLISHED
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
