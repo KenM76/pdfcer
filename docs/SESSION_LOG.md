@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-08 (1462nd filing) — `beb08e2b`, `d3c44948`, `47aa7403`: crates.io versioning and `v0.137.0` (`Pass 690.1`, part)
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **`beb08e2be1ae9b8ba312f203900a2cc9f6e9addd`:** no code change. Six crates (image-codec, fonts, function, text, pkix, color) move from path to versioned workspace dependencies; core and render entries gain a version; image-codec, fonts, function, text, core, render become `publish = true`. `cargo package` refuses an unversioned path dependency.
+- **`d3c449487eaa49f009f1b704ad7b70a42acfe91c`:** CI audits red on the push of `719d2127` and `96f1d446`: `check-engine-lint-policy.py` (`pdfcer-jpeg-remux` had no engine deny block) and `check-public-fns-documented.py` (five undocumented helpers). Fixed with the deny block, checked access in place of every production index or slice, documented helpers. Behaviour unchanged: remux 11 tests, image-codec 110, `jpeg_remux` fuzz 746,080 runs in 61 s (about 82 µs each), 0 crashes.
+- **`47aa74039b1236ad90867fd1f1d567f02990eaf3`:** `chore(release): v0.137.0`. Version 0.136.0 to 0.137.0 across workspace and `pdfcer-*` dependencies; `crypto-bigint` 0.7.5 (yanked) to 0.7.10; `ctutils` 0.4.8; `THIRD_PARTY_LICENSES.md` regenerated. 0.137.0 is needed because `pdfcer-3d` 0.136.0 on crates.io pins `zune-jpeg >=0.5.16-rc3`, conflicting with 0.5.15.
+- **Verification:** `cargo package --allow-dirty` on all 14 crates verified at 0.137.0 (core 17.2 MiB raw, 4.7 MiB compressed); all `check-ci-parity.py --list` audits, clippy, fmt, rustdoc link-deny, wasm32 and fuzz checks pass; scoped `--all-features --no-fail-fast` tests pass for 8 crates; `cargo tree` core/render clean.
+- **`Pass 690.1`:** stays in Next up. Status: versioned, released as `v0.137.0`, `cargo publish` of the 14 crates in dependency order to follow the tag. The "lean THIRD_PARTY file" sub-item will not be built (lean graph is a subset of the full file; `X061` reply in the FeatureRequests channel).
+- **FEATURES:** no box changes; "Engine crates on crates.io" stays `[ ]`.
+
+**Gotcha (generalizable, for the engineer memory):** a NEW engine crate must carry the engine `#![deny(...)]` block and documented public fns from its first commit. The scoped pre-push check did not run the CI audit scripts (`check-engine-lint-policy.py`, `check-public-fns-documented.py`), so CI caught it two pushes late. Run `check-ci-parity.py --list` audits before pushing a new crate.
+
+**For next session:** push, CI green, tag `v0.137.0`, then `cargo publish` in dependency order (model, color, pkix, vec3, json, jpeg-remux, 3d, 3d-nav, image-codec, fonts, function, text, core, render); then the release's PUBLISHED filing. Next filing 1463rd; next Pass 691.0.
+
 ## 2026-11-07 (1461st filing) — `719d2127`: zune-jpeg 0.5.15 from crates.io via a lossless scan remux (`Pass 690.1`, part)
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
