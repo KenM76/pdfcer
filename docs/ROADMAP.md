@@ -112,6 +112,19 @@ wherever it appears.*
 
 ## Shipped
 
+### `d11bdd84` `Pass 691.0`, 2026-11-09: area-average image minification is the default; thin lines survive at small zoom (1464th filing)
+
+Engineer-reported; no shell here, git state not checked from here. Commit `d11bdd8479f84aa10ef985e7f72290ebf9902491`. Decision 219 (supersedes the `Pass 622.0` / `7fcee5b9` pin to `Smooth`). Reasoning is in the commit message and decision 219.
+- **Request (verbatim):** "...Page 9 shows how acrobat renders every line at small scales... pdfcer losses lines on the drawings at small scales. Please fix without harming rendering speed." Document: a scanned FOPS certification report, the operator's file, not a fixture.
+- **Default:** `MinifyFilter::default()` (pdfcer-core settings, policy IM-A1) `Smooth` to `AreaAverage`. Evidence tier (c): operator comparison against Acrobat on page 9 at 0.6 zoom; `Smooth` (2x2 bilinear) dropped lines at about 1/3 size or smaller. ISO 32000-2 §8.9.5.3 covers magnification only, so a product default, not a spec reading. Presets pinning `PointSample` for conformance unchanged.
+- **Speed:** `pdfcer-render` `minify::box_reduce` now separable (u16/u32 column sums, then rows, exact reciprocal-multiply rounded divide). 1102x804 at 3:1: 2.3 ms to 1.07 ms, byte-identical to the plain average (old version kept as test oracle). Net cost of the default about 1 ms per minified image; page 9 via CLI about 119 ms vs 124 ms per page, about 63 ms of it process start.
+- **Tests (as reported):** minify lib tests 5 pass, 2 new (`the_fast_reduction_matches_the_plain_average_exactly`, `the_reciprocal_divide_is_exact`). `ambiguity_settings_reach_the_pixels::the_render_default_tracks_the_settings_default` now pairs the default with PointSample (Smooth and AreaAverage both average its stripe fixture). Green: pdfcer-render lib 542, integration binary 613, pdfcer-core settings 44, clippy `-D warnings` on core and render. Audits green: core-api-verbs, code-structure, engine-lint-policy, panic-allows, public-fns-documented, settings-consumed, suite-name-absent, and the rest in the change scope.
+- **Invariant:** `cargo tree` unchanged, no manifest change.
+- **Docs:** `docs/core-api/01-reading-and-model.md` MinifyFilter row lists the variants with AreaAverage as default (engineer-edited).
+- **Caveat:** a saved settings file writes every key, so an old `image_minify = smooth` or `point_sample` keeps pinning the old behaviour. The operator's OneDrive `pdfcer\userdata` and `pdfcer-gui2\userdata` contain `point_sample`.
+- **gui:** not delivered. The `pdfcer-gui` Settings > Images page offers only PointSample and Smooth, so it cannot select AreaAverage yet.
+- **FEATURES:** row "Area-averaged image minification": core `[x]`, cli `[x]`, gui `[ ]` unchanged; the "default stays Smooth" clause replaced.
+
 ### `82796a5f` / tag `v0.137.0` `Pass 690.1`, 2026-11-08: the 14 engine crates are published to crates.io (`X061` part 2, `X001`) (1463rd filing)
 
 Engineer-reported; no shell here, git, crates.io and remote state not checked from here. Annotated tag `v0.137.0` on `82796a5f613fb245cebe3eecf2f995282e5d39da` (the 1462nd filing commit, covering `beb08e2b`, `d3c44948`, `47aa7403`); CI run 42452431828 green on it before tagging. Closes `X061` (publish part) and `X001`. Working notes: the 1460th to 1462nd entries in *Next up* and `SESSION_LOG.md`.

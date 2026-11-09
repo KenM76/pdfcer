@@ -13796,3 +13796,18 @@ Operator ruling (Ken, 2026-11-06), verbatim: *"remember to port work from pdfcer
 3. **Unchanged.** Code by non-`KenM76` upstream authors stays behavioural reference only (decision 204); GPL/AGPL stays out. Decision 215's check-first and hand-over steps stand.
 
 **Body-section effect.** None. **Decision ceiling.** Fills `218`; next free decision `219`. **New standing rule.** None numbered; the ROADMAP Standing rules index one-liner for 215 gained a widening clause.
+
+### 2026-11-09 (1464th filing, `Pass 691.0`, `d11bdd84`) — decision 219: the image-minification default is `AreaAverage`; supersedes the `Pass 622.0` (`7fcee5b9`) pin to `Smooth`
+
+Operator request, verbatim: *"...Page 9 shows how acrobat renders every line at small scales... pdfcer losses lines on the drawings at small scales. Please fix without harming rendering speed."* Document: a scanned FOPS certification report, the operator's own file, not a fixture. Engineer-reported; no `docs/decisions/219-*.md` (this entry is the record). Policy IM-A1.
+
+**Decides.**
+1. **`MinifyFilter::default()` (pdfcer-core settings) is `AreaAverage`**, not `Smooth`. This supersedes the `Pass 622.0` decision that kept the default at `Smooth` and made `AreaAverage` opt-in; that entry stays as written.
+2. **Evidence tier (c):** an operator comparison against Acrobat on page 9 at 0.6 zoom. `AreaAverage` kept every line; `Smooth` (a 2x2 bilinear footprint) dropped lines once an image is drawn at about 1/3 of its size or smaller.
+3. **Not a spec reading.** ISO 32000-2 §8.9.5.3 governs interpolation for magnification only; the minify default is a product choice.
+4. **Unchanged.** Presets that pin `PointSample` for conformance keep it.
+5. **Speed condition met.** `pdfcer-render` `minify::box_reduce` is separable (u16/u32 column sums, then rows, exact reciprocal-multiply rounded divide): 1102x804 at 3:1 went 2.3 ms to 1.07 ms, byte-identical to the plain average (old code kept as a test oracle). Net cost of the new default about 1 ms per minified image; page 9 via the CLI about 119 ms vs 124 ms, of which about 63 ms is process start.
+
+**Known caveat.** A saved settings file writes every key, so an existing `image_minify = smooth` or `point_sample` keeps pinning the old behaviour. The operator's OneDrive `pdfcer\userdata` and `pdfcer-gui2\userdata` contain `point_sample`.
+
+**Body-section effect.** None in this file; `docs/core-api/01-reading-and-model.md` MinifyFilter row updated by the engineer. `docs/core-api/03-capabilities.md` still reads "Smooth" in places (grep it; not checked here as to meaning). **Decision ceiling.** Fills `219`; next free decision `220`. **New standing rule.** None.

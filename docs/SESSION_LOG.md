@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-09 (1464th filing) — `d11bdd84`, `Pass 691.0`: area-average minification is the default (decision 219)
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **Pass 691.0** `d11bdd8479f84aa10ef985e7f72290ebf9902491`: `MinifyFilter::default()` `Smooth` to `AreaAverage`; `box_reduce` made separable (2.3 ms to 1.07 ms on 1102x804 at 3:1, byte-identical). Operator report: page 9 of a scanned FOPS report loses drawing lines at small zoom versus Acrobat.
+- **Decision 219** supersedes the `Pass 622.0` (`7fcee5b9`) pin to `Smooth`. Evidence tier (c) operator comparison; no spec clause governs minification (§8.9.5.3 is magnification).
+- **Tests/gates as reported:** render lib 542, integration 613, core settings 44, minify 5 (2 new), clippy clean, scoped audits green, `cargo tree` unchanged.
+
+**Caveat:** saved settings files write every key; the operator's OneDrive `pdfcer\userdata` and `pdfcer-gui2\userdata` hold `image_minify = point_sample`, so they will not see the change until edited.
+
+**Owed:** `pdfcer-gui` Settings > Images offers only PointSample and Smooth (gui box stays `[ ]`). `docs/core-api/03-capabilities.md` still has "Smooth" wording at lines 5588 and 5590 (hard-rule-11 sweep: not read for meaning here; engineer to check whether it calls Smooth the default).
+
+**For next session:** commit the four docs; push.
+
 ## 2026-11-08 (1463rd filing) — `v0.137.0` PUBLISHED, `Pass 690.1` SHIPPED: 14 engine crates on crates.io (`X061`, `X001`)
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
