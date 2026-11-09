@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-09 (1468th filing) — `v0.138.0` PUBLISHED (tag on `d5061fff`, OneDrive `pdfcer2`)
+
+**Filed (engineer-reported, verified 2026-11-09; no shell here, nothing checked from here; docs only):**
+- Release commit `9ef5f849`, filed in `d5061fff`; tag `v0.138.0` on `d5061fff`, pushed, CI green. Carries `Pass 691.0` (`d11bdd84`), `692.0`/`692.1` (`3e045c4e`, decision 220), `325e41b2`.
+- GitHub release: 8 assets, verified. Portable `D:\builds\pdfcer-20261109-1204-d5061ff`, fresh-folder smoke OK. OneDrive `pdfcer2` has 0.138.0, `pdfcer1` keeps 0.137.0; the NEXT release writes `pdfcer1`. crates.io: 14 engine crates at 0.138.0.
+- `verify-release.py`: all passed except "working tree clean" (uncommitted `Pass 693.0`-`695.0` work; not in the release). `693.0`-`696.0` status untouched, still in progress.
+- Closes the 1467th filing's IN PROGRESS release. ROADMAP Shipped entry added; FEATURES "Engine crates on crates.io" row names `v0.138.0`.
+
+**Flag (engineer-owned, not edited):** `docs/NEXT_SESSION.md` line 8 still says `v0.137.0` is latest and the next release writes `pdfcer2`; now stale.
+
 ## 2026-11-09 (1467th filing) — `325e41b2` test fix (Pass 691.0 follow-up); `v0.138.0` release commit `9ef5f849`, IN PROGRESS
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**

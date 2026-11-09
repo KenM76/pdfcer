@@ -112,6 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `9ef5f849` / tag `v0.138.0`, 2026-11-09: release v0.138.0 published, OneDrive `pdfcer2` (1468th filing)
+
+Engineer-reported (verified 2026-11-09); no shell here, git, crates.io and remote state not checked from here. Version bump `9ef5f849`, filed in `d5061fff`; tag `v0.138.0` sits on `d5061fff` and is pushed; CI green.
+- **Contents since v0.137.0:** `Pass 691.0` (`d11bdd84`), `Pass 692.0`/`692.1` JPEG XL read and import (`3e045c4e`, decision 220), test follow-up `325e41b2`.
+- **Release:** GitHub release with 8 assets, verified. Portable build `D:\builds\pdfcer-20261109-1204-d5061ff`; fresh-folder smoke OK (`extract-text`, `export-image` on `fixtures/synthetic/hello.pdf`).
+- **OneDrive:** deployed to `pdfcer2`; `pdfcer1` keeps 0.137.0. **The NEXT release writes `pdfcer1`.**
+- **crates.io:** all 14 engine crates published at 0.138.0 (model, color, pkix, vec3, json, jpeg-remux, 3d, 3d-nav, image-codec, fonts, function, text, core, render).
+- **verify-release.py:** every check passed except "working tree clean", which failed only because uncommitted `Pass 693.0`-`695.0` work sits in the tree (not part of the release).
+- **FEATURES:** the "Engine crates on crates.io" row now names `v0.138.0`; no box changes.
+
 ### `3e045c4e` `Pass 692.0`, `Pass 692.1`, 2026-11-09: read `/JXLDecode` images and import `.jxl` files (1466th filing)
 
 Engineer-reported; no shell here, git, push and backup state not checked from here. One code commit `3e045c4eb4159194b7f1bda9c1f0f6428e115ae0` on `main`, reported not yet pushed. Decision 220. Reasoning is in the commit message and decision 220. Filed as Next up in `e1a7fcc6`.
