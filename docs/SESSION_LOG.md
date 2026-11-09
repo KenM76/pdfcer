@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-09 (1474th filing) — `v0.139.0` PUBLISHED (tag on `bbc01732`, OneDrive `pdfcer1`)
+
+**Filed (engineer-reported, measured 2026-11-09; no shell here, nothing checked from here; docs only):**
+- Bump `7dbb3760`, filed in `bbc01732`; annotated tag `v0.139.0` on `bbc01732`, pushed, CI green at the tagged commit. Carries `693.0`, `694.0`, `694.1`, `695.0` (`c0ecc300`), `696.0` (`6ed962dc`), `656ee8e7`, `694.2` (`c9468b0c`, `c6bf20e1`), `ec1278fc`, `697.0` (`335e3e2c`).
+- GitHub release: 8 assets, `gh-release.py` PASS. Main zip 31,748,522 bytes, SHA-256 `85a96357...6df70` (full hashes in the ROADMAP entry). Portable `D:\builds\pdfcer-20261109-1720-7dbb376` (built from `bbc01732`), fresh-folder smoke `pdfcer 0.139.0`. OneDrive `pdfcer1` 0.139.0 (85,317,460 bytes); `pdfcer2` keeps 0.138.0; the NEXT release writes `pdfcer2`.
+- crates.io: 14 engine crates at 0.139.0 from a detached worktree at the tag, no rate-limit hits. `verify-release.py`: 8 of 9 ok, only "working tree clean" fails (23 uncommitted local-only paths, accepted precedent). pdfcer-gui notified (`notice_2026-11-09_v0.139.0_released.md`).
+- Closes the 1473rd filing's open release. ROADMAP Shipped entry added; FEATURES "Engine crates on crates.io" row now names `v0.139.0` (a one-token edit, the 1468th precedent; no boxes).
+
+**Lesson (recurrence, second filing in a row):** change-scoped release gates skipped the CI yml's repository audits, so CI went red twice (ci-parity, ci-job-names, code-structure, public-fns-documented) before `ec1278fc` fixed it. The repository audits now run before every push. Existing feedback "repo-scoped gates run before every push" applies; no new rule.
+
+**Flag (engineer-owned, not edited):** `docs/NEXT_SESSION.md` likely still names `v0.138.0` as latest and `pdfcer1` as the next slot; both now stale (not read here).
+
+**Still open:** `696.1`; GUI halves with `pdfcer-gui`.
+
 ## 2026-11-09 (1473rd filing) — `7dbb3760` `chore(release): v0.139.0` version bump filed
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**

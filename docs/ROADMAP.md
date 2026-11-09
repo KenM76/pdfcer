@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `7dbb3760` / tag `v0.139.0`, 2026-11-09: release v0.139.0 published, OneDrive `pdfcer1` (1474th filing)
+
+Engineer-reported (measured 2026-11-09); no shell here, git, crates.io and remote state not checked from here. Version bump `7dbb3760a11d006859506dc709609c12c37ea163`, filed in `bbc01732`; annotated tag `v0.139.0` on `bbc01732`, pushed; CI green at the tagged commit. Closes the 1473rd filing's bump entry above.
+- **Contents since v0.138.0:** `c0ecc300` (`Pass 693.0`, `694.0`, `694.1`, `695.0`), `6ed962dc` (`696.0`), `656ee8e7` (decision renumber 210 to 221), `c9468b0c` + `c6bf20e1` (`694.2`), `ec1278fc` (CI audits), `335e3e2c` (`697.0`, X062).
+- **GitHub release:** 8 assets, `tools/gh-release.py` PASS (all uploaded at local sizes). `pdfcer-v0.139.0-windows-x64.zip` 31,748,522 bytes, SHA-256 `85a96357aeee104d77721c6edb903c56f2ea0b5001508bc582abad8eed26df70`; `ocr-addon-ocrcer.zip` 3,789,155 `1a5df250c4b29d39ff83d6d146f4e3ad83d232d82c261755815f0c2c7f3044bf`; `ocr-addon-ocrs.zip` 11,352,262 `f169cb726f643ae11ea4647882919713f6c5e7535dc8aa5bc252c4bacdb6bc84`; `ocr-addon-tesseract.zip` 4,483,685 `17bde3d1dfdcadb82d24faa36e2001dba0a2fc0f9cf3181620b2904385b11ea0`; each with a `.sha256`.
+- **Portable build:** `D:\builds\pdfcer-20261109-1720-7dbb376` (folder name carries 7dbb376; `pdfcer --version` reports revision `v0.138.0-15-gbbc01732`, i.e. built from `bbc01732`, docs-only after `7dbb3760`). Fresh-folder smoke: copy ran `pdfcer --version` giving `pdfcer 0.139.0`, icccer 0.4.2.
+- **OneDrive:** `pdfcer1` now 0.139.0 (85,317,460 bytes, 6 items); `pdfcer2` keeps 0.138.0. **The NEXT release writes `pdfcer2`.**
+- **crates.io:** all 14 engine crates published at 0.139.0 in order model, color, pkix, vec3, json, jpeg-remux, 3d, 3d-nav, image-codec, fonts, function, text, core, render; no rate-limit hits; from a detached worktree at the tag.
+- **verify-release.py v0.139.0:** 8 of 9 ok; the one FAIL is "working tree clean" (23 uncommitted paths: local-only agent-memory, `docs/research/request-*.md`, the stray `-` file; accepted precedent).
+- **pdfcer-gui notified:** `open/notice_2026-11-09_v0.139.0_released.md` plus INDEX row in `D:\Dev\FeatureRequests\pdfce_FeatureRequests`.
+- **FEATURES:** the "Engine crates on crates.io" row now names `v0.139.0`; no box changes.
+
 ### `7dbb3760` `chore(release): v0.139.0`, 2026-11-09: version bump filed, release not yet tagged (1473rd filing)
 
 Engineer-reported; no shell here, git, tag, push, crates.io and backup state not checked from here. `7dbb3760a11d006859506dc709609c12c37ea163` bumps all 14 workspace crates 0.138.0 to 0.139.0 (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`). Not tagged yet.
