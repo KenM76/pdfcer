@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-09 (1469th filing) — `c0ecc300`, `Pass 693.0`, `694.0`, `694.1`, `695.0` SHIPPED
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- One code commit `c0ecc300dff5486283b7f0daf213f6d3c18d9f38`, reported not yet pushed (goes with `84716404`, `c0763a50`). `693.0` vector underlay for highlights (render + cli); `694.0` `object-delete --rect --select` (cli); `694.1` inverse redaction (core + cli); `695.0` Multiply highlighter shapes (core + cli). gui unticked everywhere: `pdfcer-gui` has the request open.
+- Two shipped names differ from the filed ones: `--select enclosed|touched` (not `--mode`, already the save-mode flag) and `annotate --highlighter` (not `--type highlight --shape`).
+- Tests as reported: workspace green for core, render, cli (also no-default-features); clippy all-targets all-features, wasm32, fmt clean; `check-core-api-verbs` 400 verbs, 193 `EditError` variants; `check-code-structure` clean. No dependency change.
+- ROADMAP: four Backlog entries removed, one Shipped entry added, Next up banner updated. FEATURES: four Planned rows removed, Blend-flattening row edited, three Implemented rows added.
+
+**Repair recorded:** the 1468th filing (`84716404`) accidentally deleted the `## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)` heading in `ROADMAP.md`, which merged Backlog into Next up and failed `check-register-entry-size`. The engineer restored the heading (uncommitted at filing time); verified present by grep on `ROADMAP.md` in this filing and left undisturbed. No `###` headings were added under Next up.
+
+**Still open:** `694.2` crop parity (not started); `696.0` JPEG XL write, draft not wired, blocked on the MSRV bump 1.92 to 1.94 (`jixel` 0.5.7) which needs a dated decision.
+
+**Hard-rule-11 sweep:** not run (no shell). The changed claim is "copy-as-vector rasterises highlights"; docs/core-api and help text mentioning `blends_flattened` or `--flatten-blends` were not swept, owed.
+
 ## 2026-11-09 (1468th filing) — `v0.138.0` PUBLISHED (tag on `d5061fff`, OneDrive `pdfcer2`)
 
 **Filed (engineer-reported, verified 2026-11-09; no shell here, nothing checked from here; docs only):**
