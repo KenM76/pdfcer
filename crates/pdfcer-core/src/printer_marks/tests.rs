@@ -117,3 +117,92 @@ fn clip_is_the_bleed_rectangle() {
         b"q -9 -9 630 810 re W n\n".to_vec()
     );
 }
+
+/// The right edge of the last colour bar, or `None` when none is drawn.
+fn last_bar_end(content: &str) -> Option<f64> {
+    content
+        .lines()
+        .filter(|l| l.ends_with(" re f"))
+        .map(|l| {
+            let v: Vec<f64> = l
+                .split_whitespace()
+                .filter_map(|t| t.parse().ok())
+                .collect();
+            v[4] + v[6]
+        })
+        .reduce(f64::max)
+}
+
+/// Where the page-information line ends: its `Td` x plus its width at the
+/// `Tf` size.
+fn info_end(content: &str) -> f64 {
+    let line = content.lines().find(|l| l.contains(" Tj")).unwrap();
+    let w: Vec<&str> = line.split_whitespace().collect();
+    let size: f64 = w[2].parse().unwrap();
+    let x: f64 = w[4].parse().unwrap();
+    let text = &line[line.find('(').unwrap() + 1..line.rfind(')').unwrap()];
+    x + helvetica_width(&winansi_bytes(text)) * size
+}
+
+#[test]
+fn colour_bars_stop_short_of_the_top_registration_target() {
+    let trim = rect(0.0, 0.0, 200.0, 100.0);
+    let mut m = PrinterMarks::all("");
+    let l = MarksLayout::new(&m, trim, trim);
+    let c = String::from_utf8(marks_content(&m, &l, b"A", b"F", "")).unwrap();
+    assert!(
+        last_bar_end(&c).unwrap() <= 100.0 - target_arm(18.0) + 1e-9,
+        "{c}"
+    );
+    m.registration = false;
+    let c = String::from_utf8(marks_content(&m, &l, b"A", b"F", "")).unwrap();
+    assert_eq!(c.lines().filter(|l| l.ends_with(" re f")).count(), 7);
+}
+
+#[test]
+fn a_shrunk_info_line_stops_short_of_the_bottom_registration_target() {
+    let trim = rect(0.0, 0.0, 200.0, 100.0);
+    let long = "a-very-long-file-name-that-has-to-shrink.pdf   page 1 of 1"; // string-gap-exempt: the page-info separator
+    let mut m = PrinterMarks::none("");
+    m.page_info = true;
+    m.registration = true;
+    let l = MarksLayout::new(&m, trim, trim);
+    let c = String::from_utf8(marks_content(&m, &l, b"A", b"F", long)).unwrap();
+    // The written size is rounded to 4 decimals, so allow a hundredth of a point.
+    assert!(info_end(&c) <= 100.0 - target_arm(18.0) + 0.01, "{c}");
+    m.registration = false;
+    let c = String::from_utf8(marks_content(&m, &l, b"A", b"F", long)).unwrap();
+    let end = info_end(&c);
+    assert!(
+        end <= 100.0 + 0.01 && end > 100.0 - target_arm(18.0),
+        "{end}"
+    );
+}
+
+#[test]
+fn a_line_wider_than_a_third_of_the_mark_is_refused_only_with_targets() {
+    let mut m = PrinterMarks::all("");
+    m.line_width = m.length / 3.0;
+    assert_eq!(m.check(), Ok(()));
+    m.line_width = m.length / 3.0 + 0.5;
+    assert!(matches!(
+        m.check(),
+        Err(PrinterMarksError::Geometry {
+            what: "line width",
+            ..
+        })
+    ));
+    m.registration = false;
+    assert_eq!(m.check(), Ok(()));
+}
+
+#[test]
+fn no_info_line_when_the_target_leaves_no_room() {
+    let trim = rect(0.0, 0.0, 50.0, 50.0);
+    let mut m = PrinterMarks::none("");
+    m.page_info = true;
+    m.registration = true;
+    let l = MarksLayout::new(&m, trim, trim);
+    let c = String::from_utf8(marks_content(&m, &l, b"A", b"F", "x")).unwrap();
+    assert!(!c.contains("Tj"), "{c}");
+}

@@ -104,6 +104,14 @@ impl PrinterMarks {
                 return Err(PrinterMarksError::Geometry { what, value });
             }
         }
+        // A registration circle's inner edge sits `length / 6` inside its
+        // band; a wider half-stroke spills into the gap and past the sheet.
+        if self.registration && self.line_width > self.length / 3.0 {
+            return Err(PrinterMarksError::Geometry {
+                what: "line width",
+                value: self.line_width,
+            });
+        }
         if let Some(c) = self.label.chars().find(|&c| winansi_code(c).is_none()) {
             return Err(PrinterMarksError::Unencodable(c));
         }
@@ -254,13 +262,14 @@ pub(crate) fn marks_content(
         registration_targets(&mut s, layout, marks.length);
     }
     if marks.color_bars {
-        color_bars(&mut s, layout, marks.length);
+        color_bars(&mut s, layout, marks.length, target_clearance(marks));
     }
     if marks.page_info {
         page_info(
             &mut s,
             layout,
             marks.length,
+            target_clearance(marks),
             &String::from_utf8_lossy(font),
             info,
         );
@@ -290,11 +299,27 @@ fn line(s: &mut String, x0: f64, y0: f64, x1: f64, y1: f64) {
     *s += &format!("{} {} m {} {} l S\n", num(x0), num(y0), num(x1), num(y1));
 }
 
+/// How far a registration target's cross reaches from its centre.
+fn target_arm(len: f64) -> f64 {
+    len / 3.0 * 1.4
+}
+
+/// What the top and bottom bands' left-aligned marks leave clear before
+/// the trim's mid-x, where those bands' targets sit.
+fn target_clearance(marks: &PrinterMarks) -> f64 {
+    if marks.registration {
+        target_arm(marks.length)
+    } else {
+        0.0
+    }
+}
+
 /// A circle with a cross through it at the middle of each side's band.
 fn registration_targets(s: &mut String, layout: &MarksLayout, len: f64) {
     let t = layout.trim;
     let mid = layout.gap + len / 2.0;
     let r = len / 3.0;
+    let arm = target_arm(len);
     let (cx, cy) = (f64::midpoint(t.llx, t.urx), f64::midpoint(t.lly, t.ury));
     for (x, y) in [
         (cx, t.ury + mid),
@@ -303,8 +328,8 @@ fn registration_targets(s: &mut String, layout: &MarksLayout, len: f64) {
         (t.urx + mid, cy),
     ] {
         circle(s, x, y, r);
-        line(s, x - r * 1.4, y, x + r * 1.4, y);
-        line(s, x, y - r * 1.4, x, y + r * 1.4);
+        line(s, x - arm, y, x + arm, y);
+        line(s, x, y - arm, x, y + arm);
     }
 }
 
@@ -347,12 +372,13 @@ pub(crate) const BAR_PATCHES: [[f64; 4]; 10] = [
 ];
 
 /// Square patches along the top band, starting a mark-length in from the
-/// left trim edge so they clear the crop marks.
-fn color_bars(s: &mut String, layout: &MarksLayout, len: f64) {
+/// left trim edge so they clear the crop marks, and ending `clear` short of
+/// the trim's mid-x so they clear the top registration target.
+fn color_bars(s: &mut String, layout: &MarksLayout, len: f64, clear: f64) {
     let t = layout.trim;
     let size = len * 0.6;
     let y = t.ury + layout.gap + (len - size) / 2.0;
-    let room = (t.urx - t.llx) / 2.0 - len;
+    let room = (t.urx - t.llx) / 2.0 - len - clear;
     let fit = (room / size).floor().max(0.0);
     let count = BAR_PATCHES.len().min(fit as usize);
     *s += "q /DeviceCMYK cs\n";
@@ -374,13 +400,18 @@ fn color_bars(s: &mut String, layout: &MarksLayout, len: f64) {
 }
 
 /// The information line in the bottom band, left-aligned past the crop
-/// marks; Helvetica, sized to the band.
-fn page_info(s: &mut String, layout: &MarksLayout, len: f64, font: &str, info: &str) {
+/// marks; Helvetica, sized to the band and shrunk to end `clear` short of
+/// the trim's mid-x (the bottom registration target).
+fn page_info(s: &mut String, layout: &MarksLayout, len: f64, clear: f64, font: &str, info: &str) {
     let t = layout.trim;
     let size = (len * 0.4).min(7.0);
     let bytes = winansi_bytes(info);
-    let room = (t.urx - t.llx) / 2.0 - len;
-    let size = if helvetica_width(&bytes) * size > room && room > 0.0 {
+    let room = (t.urx - t.llx) / 2.0 - len - clear;
+    if room <= 0.0 {
+        // No room left of the target: the colour bars draw none here too.
+        return;
+    }
+    let size = if helvetica_width(&bytes) * size > room {
         room / helvetica_width(&bytes).max(f64::EPSILON)
     } else {
         size
