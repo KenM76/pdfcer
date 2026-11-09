@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `3e045c4e` `Pass 692.0`, `Pass 692.1`, 2026-11-09: read `/JXLDecode` images and import `.jxl` files (1466th filing)
+
+Engineer-reported; no shell here, git, push and backup state not checked from here. One code commit `3e045c4eb4159194b7f1bda9c1f0f6428e115ae0` on `main`, reported not yet pushed. Decision 220. Reasoning is in the commit message and decision 220. Filed as Next up in `e1a7fcc6`.
+- **692.0 read:** no PDF spec defines JPEG XL (ISO/IEC 18181 is the codec only), so `/JXLDecode` (PDFium and others' de-facto name) is read as a **non-standard extension and disclosed**. `pdfcer-image-codec` gains `Codec::Jxl` behind feature `jxl`, on by default in image-codec, core, render and cli. Decoder `jxl-oxide` 0.12, `default-features = false` (no rayon, no CMS): single-threaded and wasm32-clean. Without the feature it fails as `FeatureUnsupported` "JXL/not-built".
+- **Rules:** `Codec::is_self_describing()` is true for Jpx and Jxl; render, the soft-mask path and `redact_image` key on it. `/SMaskInData 0` ignores the embedded alpha, any other value uses it; absent, embedded alpha is used unless the dict has `/SMask`. Associated alpha is unpremultiplied. Header-first size ceilings apply; CMYK and frame-less files are refused by name.
+- **Disclosure:** `CodecNotes.jxl_nonstandard`, `RenderDiagnostics.jxl_nonstandard_images`, and a stderr note in `pdfcer render` / export. **Not shipped:** the Next-up clause "conformance validation flags `/JXLDecode` as non-conforming at every PDF version". pdfcer has no conformance validator to hold it (`validate-pdfa` is still `unimplemented_stub`, `dispatch.rs:258`; FEATURES PDF/A row unticked). Moved to the Backlog "Conformance validator" entry as an owed rule.
+- **692.1 import:** `image_import::jxl` takes `.jxl` (bare codestream or container), transcodes to DeviceGray/DeviceRGB Flate; alpha that is not fully opaque becomes an `/SMask` (SoftMask version bump). Disclosed as `SourceCodecNotReusable`, plus `colour_profile_dropped` when the source is not sRGB. CLI help lists JPEG XL.
+- **Tests (as reported):** codec 117 pass (7 JXL); core `image_import` lib 123; render JXL test passes; core `--tests image` 298 + 146; `--no-default-features` clippy and tests for codec + core clean. New fuzz target `image_codec_jxl`, 4 seeds: 52,626 runs in 61 s = about 1.2 ms per run, no crash. Synthetic fixtures from `tools/gen-jxl-fixtures` (`zune-jpegxl`, dev-only, excluded workspace).
+- **Invariant:** `cargo tree`: only new runtime crates are `jxl-oxide` and its sub-crates; no GUI or network crates. The only rayon in core/render is the pre-existing `ocrs`/`rten` OCR one.
+- **Dependencies:** `jxl-oxide` (MIT OR Apache-2.0) adopted; `zune-jpegxl` (MIT OR Apache-2.0 OR Zlib) dev tool only. `PRIOR_ART.md` rows added, `THIRD_PARTY_LICENSES.md` regenerated; none copyleft.
+- **gui:** not delivered; no GUI caller for either read or import.
+- **Residue:** writing JPEG XL stays in the Backlog (blocked on a spec).
+- **FEATURES:** two rows moved from Planned to Implemented (next to "Image codecs"): read and import, core `[x]`, cli `[x]`, gui `[ ]`. The "gated capability" row now names JPEG XL beside JPEG 2000.
+
 ### `d11bdd84` `Pass 691.0`, 2026-11-09: area-average image minification is the default; thin lines survive at small zoom (1464th filing)
 
 Engineer-reported; no shell here, git state not checked from here. Commit `d11bdd8479f84aa10ef985e7f72290ebf9902491`. Decision 219 (supersedes the `Pass 622.0` / `7fcee5b9` pin to `Smooth`). Reasoning is in the commit message and decision 219.
@@ -37508,28 +37522,7 @@ overrides the image dictionary; `/ColorSpace` optional,
 `/ColorSpace`/`/BitsPerComponent` that Table 89 makes optional
 (decision 005 §10 item 3).
 
-> **1465th filing: operator request (2026-11-09), "Did we add support for jpeg-XL already? If not, please download the standard and build." Answer: no JPEG XL support existed (`JXL`/`JPEG XL` had no hit in `FEATURES.md`). Two Passes filed IN FLIGHT below, in order: `Pass 692.0`, then `692.1`. `Pass 692` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`); last used `691.0`.**
-
-### `Pass 692.0` — read `/JXLDecode` images (non-standard, disclosed) (IN FLIGHT; filed 1465th filing)
-
-**No published document defines JPEG XL in PDF** (spec RAG `D:\Dev\Rag-Specialized\PDF_Spec\filters\filter__jxl.md`, 2026-11-09). It is not in ISO 32000-1 or -2, there is no registered extension and no ISO work item; the PDF Association's July 2025 HDR FAQ answers "Not directly" (convert to an existing format). Two de-facto drafts use the filter name `/JXLDecode`: PDFium CL 142070 (unmerged) and PdfCraft PR #5648 (draft, not ours: behavioural reference only, decision 204). ISO/IEC 18181 is paywalled; free stand-ins are staged in the spec RAG. So this is a **non-standard extension, read-only and disclosed** (R4 fuzzy-never-sneaky).
-
-- `pdfcer-image-codec` gains a `jxl` codec behind a `jxl` Cargo feature. Decoder: `jxl-oxide` (pure Rust, MIT OR Apache-2.0), `default-features = false` (keeps rayon out; the engine has no threads). New dependency: classify per `LEGAL.md` §6.1 and check `docs/PRIOR_ART.md` first (rule 13).
-- Follows the **JPXDecode precedent** (ISO 32000-1 §7.4.9 / Table 89, as analogue only):
-  - a present `/ColorSpace` wins; otherwise colour comes from the JXL colour encoding;
-  - `/BitsPerComponent` is ignored; 8 bits are delivered;
-  - Width/Height come from the codestream; a mismatch is counted;
-  - `/SMaskInData` honoured if present; if absent, embedded alpha is used unless the image has `/SMask` (PDFium-compatible);
-  - frame 0 only;
-  - the naked codestream (`FF 0A`) and the ISOBMFF container are both sniffed;
-  - CMYK (a black extra channel) is refused by name.
-- **Disclosure:** every decoded image raises a named codec note saying the filter is non-standard. Conformance validation flags `/JXLDecode` as non-conforming at every PDF version.
-- **Acceptance:** fixture tests from synthetic `.jxl` files we generate ourselves (R7); a fuzz target; `cargo tree -p pdfcer-core` / `-p pdfcer-render` clean; the CLI renders such a page and prints the disclosure.
-- **FEATURES:** Planned row "Read JPEG XL images in PDFs (non-standard `/JXLDecode`)" filed, all three boxes `[ ]`.
-
-### `Pass 692.1` — import `.jxl` files as images (IN FLIGHT after 692.0; filed 1465th filing)
-
-`image_import` accepts JPEG XL, decodes it with the `692.0` codec and writes a conforming `/FlateDecode` XObject (alpha goes to an `/SMask`). **It never writes JXL bytes into the PDF.** The CLI image-add path accepts `.jxl`. Any inferred choice (colour encoding, alpha handling) is printed (R4). **FEATURES:** Planned row "Import JPEG XL image files" filed, all three boxes `[ ]`.
+> **1466th filing: `Pass 692.0` and `692.1` SHIPPED in one commit `3e045c4e` (moved to Shipped). No head of Next up remains from the 692 family; the Backlog residue "Write JPEG XL into PDFs" stays blocked on a spec.**
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 
@@ -48026,6 +48019,13 @@ part of this to Next up — the operator said 'at the bottom'"*) already
 said as much about sequencing; this is the operator's own confirmation of
 that sequencing, not a new scope change. Still unscoped, no Pass ID, not
 promoted to *Next up*. Nothing below this note is superseded by it.
+
+**Owed rule, added 2026-11-09 (1467th filing), from `Pass 692.0`:** `/JXLDecode`
+has no ISO 32000 clause at any PDF version, so the validator (and the PDF/A
+conformance verb `validate-pdfa`, still a stub) must report it as
+**non-conforming**, whatever header version the file claims. `Pass 692.0`'s
+Next-up text promised this and it was not built, because no validator exists
+to hold it. Build it with the first Pass that implements a validator.
 
 **Filed 2026-08-28 (314th filing).** Motivating context, on record because
 it is the reason this exists: the session began with the operator asking

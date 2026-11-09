@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-09 (1466th filing) — `3e045c4e`, `Pass 692.0` and `692.1` SHIPPED: JPEG XL read and import (decision 220)
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **Pass 692.0 + 692.1** in one commit `3e045c4eb4159194b7f1bda9c1f0f6428e115ae0`, reported not pushed. `/JXLDecode` read (non-standard, disclosed) and `.jxl` import to Flate with `/SMask`. core and cli delivered; gui not (`[ ]`).
+- **Decision 220:** `jxl-oxide` 0.12, `default-features = false`, feature `jxl` on by default; nothing encoded.
+- **Tests as reported:** codec 117 (7 JXL), core `image_import` 123, core `--tests image` 298 + 146, render JXL test, `--no-default-features` clean; fuzz `image_codec_jxl` 52,626 runs in 61 s, no crash. `cargo tree`: only `jxl-oxide` and sub-crates new.
+- **RAG written:** `D:\dev\rag\rust\` three findings (heredoc escapes, zune-jpegxl 2-row minimum, jxl-oxide default features); `C:\personal_rag\pdf\` one lesson (JXL in PDF has no clause).
+
+**Hard-rule-11 sweep:** the FEATURES "gated capability" row said JPEG 2000 was the only gated capability; corrected. Not swept (no shell): `docs/core-api/` and `ARCHITECTURE.md` §2/§4 for codec lists ("JPEG 2000", "Image codecs"); engineer to grep for the claim. The Next-up text promised a validation flag for `/JXLDecode`; the report did not include it, so Shipped does not claim it. Decide whether it is owed.
+
+**For next session:** commit; push after `check-commits-filed.py`; `pdfcer-gui` has no caller for read or import.
+
 ## 2026-11-09 (1465th filing) — `Pass 692.0`, `692.1` filed: JPEG XL (operator request)
 
 **Filed (docs only; no shell here, nothing checked from here; engineer commits):**

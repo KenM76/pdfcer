@@ -13811,3 +13811,15 @@ Operator request, verbatim: *"...Page 9 shows how acrobat renders every line at 
 **Known caveat.** A saved settings file writes every key, so an existing `image_minify = smooth` or `point_sample` keeps pinning the old behaviour. The operator's OneDrive `pdfcer\userdata` and `pdfcer-gui2\userdata` contain `point_sample`.
 
 **Body-section effect.** None in this file; `docs/core-api/01-reading-and-model.md` MinifyFilter row updated by the engineer. `docs/core-api/03-capabilities.md` still reads "Smooth" in places (grep it; not checked here as to meaning). **Decision ceiling.** Fills `219`; next free decision `220`. **New standing rule.** None.
+
+### 2026-11-09 (1466th filing, `Pass 692.0` / `692.1`, `3e045c4e`) — decision 220: JPEG XL is decoded with `jxl-oxide` (`default-features = false`), as a disclosed non-standard `/JXLDecode`; nothing is encoded
+
+Operator request: support JPEG XL. Engineer-reported; no `docs/decisions/220-*.md` (this entry is the record).
+
+**Decides.**
+1. **No PDF spec exists.** ISO 32000-1/-2 define no JPEG XL filter; ISO/IEC 18181 is the codec, not its PDF embedding. `/JXLDecode` (PDFium and others' de-facto name) is read as a **non-standard extension and every decode is disclosed** (R4): `CodecNotes.jxl_nonstandard`, `RenderDiagnostics.jxl_nonstandard_images`, CLI stderr. JPXDecode rules are followed as analogue only.
+2. **Decoder:** `jxl-oxide` 0.12, `default-features = false` (no rayon, no CMS), so the engine stays single-threaded and wasm32-clean. Licence MIT OR Apache-2.0 (`PRIOR_ART.md`, `LEGAL.md` §6.1).
+3. **Feature `jxl` is on by default** in image-codec, core, render and cli; `--no-default-features` refuses by name (`FeatureUnsupported`, "JXL/not-built"), never a blank render.
+4. **Nothing is encoded.** Import (`692.1`) transcodes to Flate; JXL bytes are never written into a PDF. Writing stays in the Backlog, blocked on a published spec.
+
+**Body-section effect.** None made here (§2 stack table not edited; engineer to add `jxl-oxide` if that table lists codec crates). **Decision ceiling.** Fills `220`; next free decision `221`. **New standing rule.** None.
