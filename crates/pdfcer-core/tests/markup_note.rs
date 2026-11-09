@@ -142,6 +142,7 @@ fn a_note_survives_beside_an_opacity_without_either_disturbing_the_other() {
         dash: None,
         layer: None,
         hand_signature: None,
+        highlighter: false,
     });
     assert_eq!(a.contents.as_deref(), Some("half visible"));
     assert_eq!(a.title.as_deref(), Some("Ken"));

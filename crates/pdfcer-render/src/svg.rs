@@ -137,6 +137,12 @@ pub struct SvgOptions {
     /// for a consumer that ignores the property (Word, the clipboard),
     /// where an unflattened highlight paints opaque over its text.
     pub flatten_blends: bool,
+    /// Where a blend is flattened, first try keeping it a vector: the mark,
+    /// made source-over, moved beneath the page, taken only where that
+    /// looks the same as the blend (a highlight over black text on white).
+    /// The rest become pixels. On by default; off writes every flattened
+    /// blend as pixels.
+    pub underlay_blends: bool,
 }
 
 /// How an SVG writes text.
@@ -205,6 +211,7 @@ impl Default for SvgOptions {
             background: None,
             text: SvgText::Outlines,
             flatten_blends: false,
+            underlay_blends: true,
         }
     }
 }
@@ -237,6 +244,14 @@ impl SvgOptions {
         self.flatten_blends = flatten;
         self
     }
+
+    /// Keep flattened blends vector where they look the same; see
+    /// [`Self::underlay_blends`].
+    #[must_use]
+    pub fn with_underlay_blends(mut self, underlay: bool) -> Self {
+        self.underlay_blends = underlay;
+        self
+    }
 }
 
 /// What an export produced beside the bytes — the disclosure.
@@ -263,6 +278,10 @@ pub struct SvgOutcome {
     /// Blended ops written as composited pixels under
     /// [`SvgOptions::flatten_blends`].
     pub blends_flattened: usize,
+    /// Of [`Self::blends_flattened`], how many stayed vector: moved beneath
+    /// the page as a source-over shape that looks the same. The rest were
+    /// written as pixels.
+    pub blends_underlaid: usize,
     /// What had to be rasterised or approximated. `is_exact()` when the
     /// whole page went out as geometry.
     pub tally: ExportTally,
@@ -339,10 +358,16 @@ pub fn export_svg_view(
     let keep_text = svg.text == SvgText::KeepText;
     let mut recording = record_page_for_export(view, page, scale, render, keep_text)?;
     let (w, h) = recording.page_size;
-    let blends_flattened = if svg.flatten_blends {
-        crate::blend_flatten::flatten_blends(&mut recording.ops, &recording.clips, w, h)
+    let flattened = if svg.flatten_blends {
+        crate::blend_flatten::flatten_blends(
+            &mut recording.ops,
+            &recording.clips,
+            w,
+            h,
+            svg.underlay_blends,
+        )
     } else {
-        0
+        crate::blend_flatten::Flattened::default()
     };
     let text_plan = keep_text.then(|| crate::svg_text::plan(&recording.ops));
 
@@ -384,7 +409,8 @@ pub fn export_svg_view(
             images_embedded: writer.images,
             dashed_strokes_pre_applied: writer.dashed,
             blend_modes_used: writer.blends,
-            blends_flattened,
+            blends_flattened: flattened.total(),
+            blends_underlaid: flattened.underlaid,
             tally: recording.tally,
             diagnostics: recording.diagnostics,
             text: text_plan

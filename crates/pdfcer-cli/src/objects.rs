@@ -867,6 +867,108 @@ appended={} out_bytes={} undo_verified={} undo_identical={}",
     finish_edit(input, &outcome)
 }
 
+/// `object-delete --rect`: delete every object the region's `select` rule
+/// picks, as one edit (Pass 694.0). Refuses, writing nothing, when the rule
+/// picks no object.
+pub(crate) fn cmd_object_delete_region(
+    input: &Path,
+    page: u32,
+    rect: &str,
+    select: crate::cli::RegionSelect,
+    output: &Path,
+    mode: SaveMode,
+    verify_undo: bool,
+) -> u8 {
+    let region = match crate::annot_parse::rect_from(rect) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("pdfcer: object-delete: --rect: {e}");
+            return 2;
+        }
+    };
+    let page_index = (page.max(1) - 1) as usize;
+    let (source, mut session) = match open_for_edit(input) {
+        Ok(pair) => pair,
+        Err(code) => return code,
+    };
+    let model = match session.page_objects(page_index) {
+        Ok(m) => m,
+        Err(err) => return report_edit_error(input, &err),
+    };
+    let (picked, crossing_kept, select_name) = region_picks(&model, region, select);
+    if picked.is_empty() {
+        eprintln!(
+            "pdfcer: object-delete: no object on page {page} is {select_name} by the region ({crossing_kept} cross its edge); nothing written"
+        );
+        return 1;
+    }
+    if let Err(err) = session.delete_objects(page_index, &picked) {
+        return report_edit_error(input, &err);
+    }
+    let outcome = match save_edited(
+        &mut session,
+        &source,
+        output,
+        mode,
+        ProducerArg::Preserve,
+        verify_undo,
+    ) {
+        Ok(outcome) => outcome,
+        Err(code) => return code,
+    };
+    let r = &outcome.report;
+    println!(
+        "object-delete {} page {page} rect={},{},{},{} select={select_name} deleted={} \
+crossing_kept={crossing_kept} mode={} -> {}; changed={} objects={} appended={} out_bytes={} \
+undo_verified={} undo_identical={}",
+        input.display(),
+        region.llx,
+        region.lly,
+        region.urx,
+        region.ury,
+        picked.len(),
+        mode.name(),
+        output.display(),
+        outcome.changed,
+        r.objects_written,
+        r.bytes_appended,
+        r.bytes_written,
+        u32::from(outcome.undo_verified),
+        u32::from(outcome.undo_identical),
+    );
+    finish_edit(input, &outcome)
+}
+
+/// The objects `select` picks inside `region`, how many touched objects it
+/// leaves, and the rule's output name.
+fn region_picks(
+    model: &pdfcer_core::vector::PageObjects,
+    region: pdfcer_core::page_tree::Rect,
+    select: crate::cli::RegionSelect,
+) -> (Vec<usize>, usize, &'static str) {
+    use pdfcer_core::vector::{Bounds, MarqueeMode, Point, hit_test_rect};
+    let bounds = Bounds {
+        min: Point {
+            x: region.llx,
+            y: region.lly,
+        },
+        max: Point {
+            x: region.urx,
+            y: region.ury,
+        },
+    };
+    let touched = hit_test_rect(model, bounds, MarqueeMode::Touched);
+    let (picked, name) = match select {
+        crate::cli::RegionSelect::Enclosed => (
+            hit_test_rect(model, bounds, MarqueeMode::Enclosed),
+            "enclosed",
+        ),
+        crate::cli::RegionSelect::Touched => (touched.clone(), "touched"),
+    };
+    let crossing = touched.len() - picked.len();
+    (picked, crossing, name)
+}
+
 /// Grouped arguments for `subpath-move` (Pass 28.0).
 pub(crate) struct SubpathMoveArgs<'a> {
     pub(crate) input: &'a Path,

@@ -133,7 +133,8 @@
 //!               promoted=<N>
 //! emf:          emf: ops=<n> rasters=<n> alpha_rasterised=<n> blend_modes_dropped=<n> \
 //!               blends_flattened=<n> gradients_rasterised=<n> images=<n> layers_rasterised=<n> \
-//!               dashed_pre_applied=<n> nonzero_multi_subpath=<n>   (after an EMF export/copy)
+//!               dashed_pre_applied=<n> nonzero_multi_subpath=<n> blends_underlaid=<n>
+//!               (after an EMF export/copy)
 //! copy-page:    copied <input> page <N> -> clipboard formats=<a,b,..> <W>x<H> \
 //!               dpi=<D> background=<#rrggbb|none>; <render-page's counters>
 //! export-image: exported <input> page <N> -> <path> <W>x<H> format=<png|jpeg> \

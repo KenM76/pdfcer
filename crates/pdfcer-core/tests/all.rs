@@ -120,6 +120,7 @@ mod free_text_restyle;
 mod freetext_newline;
 mod hand_signature;
 mod helvetica_page;
+mod highlighter_shapes;
 mod history_transfer;
 mod image_alpha_hit;
 mod image_fade;

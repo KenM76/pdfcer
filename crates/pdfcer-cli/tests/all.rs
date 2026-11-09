@@ -123,6 +123,7 @@ mod recovery_names_what_it_dropped;
 mod redact_absence;
 mod reflow;
 mod refusal_names_a_font;
+mod region_ops;
 mod remove_metadata_cli;
 mod render_page;
 mod reset_form_cli;

@@ -630,6 +630,8 @@ pub(crate) struct AnnotateArgs<'a> {
     pub(crate) opacity: Option<f64>,
     /// `--dash ON,OFF,...` (`Pass 258.0`). `None` authors a solid border.
     pub(crate) dash: Option<&'a str>,
+    /// `--highlighter` (`Pass 695.0`).
+    pub(crate) highlighter: bool,
     /// `--background RRGGBB`: a `freetext` box's fill.
     pub(crate) background: Option<&'a str>,
     pub(crate) text: Option<&'a str>,
@@ -744,6 +746,7 @@ pub(crate) fn cmd_annotate(args: &AnnotateArgs<'_>) -> u8 {
         dash,
         layer,
         hand_signature: args.hand_signature.map(str::to_owned),
+        highlighter: args.highlighter,
     };
     // `Pass 291.0`: the reporting route, because the CLI's whole disclosure
     // mechanism is PRINTING (rule 11 -- the invocation is the commit, there is
@@ -755,6 +758,14 @@ pub(crate) fn cmd_annotate(args: &AnnotateArgs<'_>) -> u8 {
     if args.background.is_some() && args.kind != AnnotKindArg::Freetext {
         eprintln!(
             "pdfcer: {}: --background fills a freetext box; {:?} has no background",
+            input.display(),
+            args.kind
+        );
+        return exit::EDIT_REFUSED;
+    }
+    if args.highlighter && is_text_bearing(args.kind) {
+        eprintln!(
+            "pdfcer: {}: --highlighter applies to square, circle, polygon and ink; {:?} is a text-bearing annotation",
             input.display(),
             args.kind
         );
@@ -863,6 +874,8 @@ undo_verified={} undo_identical={} delinearized={}",
 pub(crate) struct RedactMarkArgs<'a> {
     pub(crate) input: &'a Path,
     pub(crate) rect: Option<&'a str>,
+    /// `--outside`: mark the complement of `rect`.
+    pub(crate) outside: bool,
     pub(crate) search: Option<&'a str>,
     pub(crate) pattern: Option<&'a str>,
     pub(crate) ignore_case: bool,
@@ -921,8 +934,12 @@ pub(crate) fn cmd_redact_mark(args: &RedactMarkArgs<'_>) -> u8 {
                 return exit::EDIT_REFUSED;
             }
         };
-        let spec = appearance.to_spec(vec![Quad::from_rect(rect)]);
-        match session.add_redaction(index, &spec) {
+        let marked = if args.outside {
+            session.mark_redaction_outside(index, rect, &appearance)
+        } else {
+            session.add_redaction(index, &appearance.to_spec(vec![Quad::from_rect(rect)]))
+        };
+        match marked {
             Ok(_) => 1usize,
             Err(err) => return report_edit_error(args.input, &err),
         }

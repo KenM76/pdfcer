@@ -117,7 +117,6 @@ fn pdfcer-cli/src/annot_edit.rs::cmd_rotate_annotation
 fn pdfcer-cli/src/annot_edit.rs::cmd_set_annotation_flags
 fn pdfcer-cli/src/annot_edit.rs::cmd_set_markup_note
 fn pdfcer-cli/src/annot_edit.rs::cmd_set_markup_style
-fn pdfcer-cli/src/annot_parse.rs::build_markup_spec
 fn pdfcer-cli/src/bates_cmd.rs::cmd_bates_stamp
 fn pdfcer-cli/src/dimension.rs::cmd_annotation_vertex
 fn pdfcer-cli/src/dimension.rs::cmd_dimension_add

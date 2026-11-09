@@ -6,12 +6,82 @@ use super::*;
 pub(crate) fn build_markup_spec(
     args: &AnnotateArgs<'_>,
 ) -> Result<pdfcer_core::annot_author::MarkupSpec, String> {
-    use pdfcer_core::annot_author::{Color, LineEnding, MarkupSpec, Quad, TextMarkupKind};
+    use pdfcer_core::annot_author::MarkupSpec;
+    let spec = build_plain_markup_spec(args)?;
+    if !args.highlighter {
+        return Ok(spec);
+    }
+    // `--highlighter` (Pass 695.0): a borderless wash in the mark colour;
+    // the Multiply blend itself is `MarkupOptions::highlighter`.
+    Ok(match spec {
+        MarkupSpec::Square {
+            rect,
+            border,
+            interior,
+            border_width,
+            border_effect,
+        } => MarkupSpec::Square {
+            rect,
+            border: None,
+            interior: interior.or(border),
+            border_width,
+            border_effect,
+        },
+        MarkupSpec::Circle {
+            rect,
+            border,
+            interior,
+            border_width,
+        } => MarkupSpec::Circle {
+            rect,
+            border: None,
+            interior: interior.or(border),
+            border_width,
+        },
+        MarkupSpec::Polygon {
+            vertices,
+            border,
+            interior,
+            width,
+        } => MarkupSpec::Polygon {
+            vertices,
+            border: None,
+            interior: interior.or(border),
+            width,
+        },
+        MarkupSpec::Cloud {
+            vertices,
+            border,
+            interior,
+            width,
+            intensity,
+        } => MarkupSpec::Cloud {
+            vertices,
+            border: None,
+            interior: interior.or(border),
+            width,
+            intensity,
+        },
+        ink @ MarkupSpec::Ink { .. } => ink,
+        _ => {
+            return Err(format!(
+                "--highlighter applies to square, circle, polygon and ink; {:?} is not one",
+                args.kind
+            ));
+        }
+    })
+}
+
+fn build_plain_markup_spec(
+    args: &AnnotateArgs<'_>,
+) -> Result<pdfcer_core::annot_author::MarkupSpec, String> {
+    use pdfcer_core::annot_author::{Color, LineEnding, MarkupSpec};
 
     // Per-subtype default mark colour (pdfcer's own defaults; the Acrobat
     // RAG marks most of these a GAP — highlight yellow is the sourced one).
     let default_color = match args.kind {
         AnnotKindArg::Highlight => Color::Rgb(1.0, 1.0, 0.0),
+        _ if args.highlighter => Color::Rgb(1.0, 1.0, 0.0),
         _ => Color::Rgb(1.0, 0.0, 0.0),
     };
     let color = match args.color {
@@ -33,35 +103,7 @@ pub(crate) fn build_markup_spec(
     };
 
     match args.kind {
-        AnnotKindArg::Square | AnnotKindArg::Circle => {
-            let r = rect_from(args.rect.ok_or("this subtype needs --rect x0,y0,x1,y1")?)?;
-            if matches!(args.kind, AnnotKindArg::Square) {
-                Ok(MarkupSpec::Square {
-                    rect: r,
-                    border: Some(color),
-                    interior,
-                    border_width: args.width,
-                    border_effect: args.cloud,
-                })
-            } else {
-                // `/BE` is legal on `/Circle` per Table 180, but pdfcer does
-                // not author it: an ellipse has no straight edges to
-                // scallop, and the standard describes no curve-following
-                // cloud. Refused by name rather than silently dropped —
-                // a caller who typed --cloud is entitled to know it did
-                // nothing.
-                if args.cloud.is_some() {
-                    return Err("--cloud is not supported on circle: a cloudy border is defined for straight-edged shapes, so use --type square or --type polygon"
-                        .into());
-                }
-                Ok(MarkupSpec::Circle {
-                    rect: r,
-                    border: Some(color),
-                    interior,
-                    border_width: args.width,
-                })
-            }
-        }
+        AnnotKindArg::Square | AnnotKindArg::Circle => square_or_circle(args, color, interior),
         AnnotKindArg::Line => {
             let f = parse_floats(args.line.ok_or("line needs --line x0,y0,x1,y1")?)?;
             let [x0, y0, x1, y1] = <[f64; 4]>::try_from(f)
@@ -84,70 +126,114 @@ pub(crate) fn build_markup_spec(
             })
         }
         AnnotKindArg::Polygon | AnnotKindArg::Polyline => {
-            let verts = parse_points(args.points.ok_or("this subtype needs --points")?)?;
-            if matches!(args.kind, AnnotKindArg::Polygon) {
-                // `--cloud` turns the polygon into a revision cloud. Same
-                // `/Subtype /Polygon` either way — there is no `/Cloud`
-                // subtype in ISO 32000 — so this is one flag, not a
-                // seventh `--type`.
-                if let Some(intensity) = args.cloud {
-                    Ok(MarkupSpec::Cloud {
-                        vertices: verts,
-                        border: Some(color),
-                        interior,
-                        width: args.width,
-                        intensity,
-                    })
-                } else {
-                    Ok(MarkupSpec::Polygon {
-                        vertices: verts,
-                        border: Some(color),
-                        interior,
-                        width: args.width,
-                    })
-                }
-            } else {
-                // Table 181 declares `/BE` on Polygon/PolyLine qualified
-                // "meaningful only for polygon annotations" — verbatim in
-                // both editions. An open polyline cannot carry one.
-                if args.cloud.is_some() {
-                    return Err("--cloud is not supported on polyline: ISO 32000 declares the border effect \"meaningful only for polygon annotations\", so a cloud needs a closed shape (--type polygon or --type square)"
-                        .into());
-                }
-                Ok(MarkupSpec::PolyLine {
-                    vertices: verts,
-                    color,
-                    width: args.width,
-                    endings: endings.unwrap_or((LineEnding::None, LineEnding::None)),
-                    interior,
-                })
-            }
+            polygon_or_polyline(args, color, interior, endings)
         }
         AnnotKindArg::Highlight
         | AnnotKindArg::Underline
         | AnnotKindArg::Strikeout
-        | AnnotKindArg::Squiggly => {
-            let quads = match (args.quads, args.rect) {
-                (Some(q), _) => parse_quads(q)?,
-                (None, Some(r)) => vec![Quad::from_rect(rect_from(r)?)],
-                (None, None) => {
-                    return Err("text markup needs --quads or --rect".to_owned());
-                }
-            };
-            let kind = match args.kind {
-                AnnotKindArg::Highlight => TextMarkupKind::Highlight,
-                AnnotKindArg::Underline => TextMarkupKind::Underline,
-                AnnotKindArg::Strikeout => TextMarkupKind::StrikeOut,
-                _ => TextMarkupKind::Squiggly,
-            };
-            Ok(MarkupSpec::TextMarkup { kind, quads, color })
-        }
+        | AnnotKindArg::Squiggly => text_markup(args, color),
         // The Pass-6.2 text-bearing subtypes take the variable-text path
         // (build_text_annot_spec), never this geometric one.
         AnnotKindArg::Freetext | AnnotKindArg::Text | AnnotKindArg::Stamp => {
             Err("internal: text subtype routed to the geometric path".to_owned())
         }
     }
+}
+
+fn text_markup(
+    args: &AnnotateArgs<'_>,
+    color: pdfcer_core::annot_author::Color,
+) -> Result<pdfcer_core::annot_author::MarkupSpec, String> {
+    use pdfcer_core::annot_author::{MarkupSpec, Quad, TextMarkupKind};
+    let quads = match (args.quads, args.rect) {
+        (Some(q), _) => parse_quads(q)?,
+        (None, Some(r)) => vec![Quad::from_rect(rect_from(r)?)],
+        (None, None) => return Err("text markup needs --quads or --rect".to_owned()),
+    };
+    let kind = match args.kind {
+        AnnotKindArg::Highlight => TextMarkupKind::Highlight,
+        AnnotKindArg::Underline => TextMarkupKind::Underline,
+        AnnotKindArg::Strikeout => TextMarkupKind::StrikeOut,
+        _ => TextMarkupKind::Squiggly,
+    };
+    Ok(MarkupSpec::TextMarkup { kind, quads, color })
+}
+
+fn square_or_circle(
+    args: &AnnotateArgs<'_>,
+    color: pdfcer_core::annot_author::Color,
+    interior: Option<pdfcer_core::annot_author::Color>,
+) -> Result<pdfcer_core::annot_author::MarkupSpec, String> {
+    use pdfcer_core::annot_author::MarkupSpec;
+    let r = rect_from(args.rect.ok_or("this subtype needs --rect x0,y0,x1,y1")?)?;
+    if matches!(args.kind, AnnotKindArg::Square) {
+        return Ok(MarkupSpec::Square {
+            rect: r,
+            border: Some(color),
+            interior,
+            border_width: args.width,
+            border_effect: args.cloud,
+        });
+    }
+    // `/BE` is legal on `/Circle` per Table 180, but pdfcer does not author
+    // it: an ellipse has no straight edges to scallop, and the standard
+    // describes no curve-following cloud. Refused by name, not dropped.
+    if args.cloud.is_some() {
+        return Err("--cloud is not supported on circle: a cloudy border is defined for straight-edged shapes, so use --type square or --type polygon"
+            .into());
+    }
+    Ok(MarkupSpec::Circle {
+        rect: r,
+        border: Some(color),
+        interior,
+        border_width: args.width,
+    })
+}
+
+fn polygon_or_polyline(
+    args: &AnnotateArgs<'_>,
+    color: pdfcer_core::annot_author::Color,
+    interior: Option<pdfcer_core::annot_author::Color>,
+    endings: Option<(
+        pdfcer_core::annot_author::LineEnding,
+        pdfcer_core::annot_author::LineEnding,
+    )>,
+) -> Result<pdfcer_core::annot_author::MarkupSpec, String> {
+    use pdfcer_core::annot_author::{LineEnding, MarkupSpec};
+    let verts = parse_points(args.points.ok_or("this subtype needs --points")?)?;
+    if matches!(args.kind, AnnotKindArg::Polygon) {
+        // `--cloud` turns the polygon into a revision cloud. Same `/Subtype
+        // /Polygon` either way (ISO 32000 has no `/Cloud` subtype), so this
+        // is one flag, not a seventh `--type`.
+        return Ok(match args.cloud {
+            Some(intensity) => MarkupSpec::Cloud {
+                vertices: verts,
+                border: Some(color),
+                interior,
+                width: args.width,
+                intensity,
+            },
+            None => MarkupSpec::Polygon {
+                vertices: verts,
+                border: Some(color),
+                interior,
+                width: args.width,
+            },
+        });
+    }
+    // Table 181 declares `/BE` on Polygon/PolyLine "meaningful only for
+    // polygon annotations", verbatim in both editions.
+    if args.cloud.is_some() {
+        return Err("--cloud is not supported on polyline: ISO 32000 declares the border effect \"meaningful only for polygon annotations\", so a cloud needs a closed shape (--type polygon or --type square)"
+            .into());
+    }
+    Ok(MarkupSpec::PolyLine {
+        vertices: verts,
+        color,
+        width: args.width,
+        endings: endings.unwrap_or((LineEnding::None, LineEnding::None)),
+        interior,
+    })
 }
 
 /// `--background` as a [`FreeTextFrame`](pdfcer_core::annot_author::FreeTextFrame).

@@ -76,6 +76,7 @@ fn author_rich_square(s: &mut EditSession) -> ObjId {
         note: Some(MarkupNote::new("a note that must survive").by("Ken")),
         layer: None,
         hand_signature: None,
+        highlighter: false,
     };
     s.add_markup_with(0, &spec, &opts).expect("author")
 }

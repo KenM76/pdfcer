@@ -298,7 +298,19 @@ fn a_highlight_is_flattened_against_the_ink_under_it() {
         "0 g 20 20 60 20 re f /GS0 gs 1 1 0 rg 10 10 80 40 re f",
     ));
     assert_eq!(out.outcome.blends_flattened, 1);
+    assert_eq!(out.outcome.blends_underlaid, 1);
     assert_eq!(out.outcome.blend_modes_dropped, 0);
+    assert_eq!(out.outcome.rasters_embedded, 0);
+}
+
+#[test]
+fn a_highlight_over_coloured_ink_is_flattened_to_pixels() {
+    let (_, out) = export(page(
+        "/ExtGState << /GS0 << /BM /Multiply >> >>",
+        "0 0 1 rg 20 20 60 20 re f /GS0 gs 1 1 0 rg 10 10 80 40 re f",
+    ));
+    assert_eq!(out.outcome.blends_flattened, 1);
+    assert_eq!(out.outcome.blends_underlaid, 0);
     assert_eq!(out.outcome.rasters_embedded, 1);
 }
 

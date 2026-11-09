@@ -1105,6 +1105,8 @@ pub(crate) struct CopyPageArgs<'a> {
     pub(crate) font_dirs: &'a [PathBuf],
     pub(crate) show_layers: &'a [String],
     pub(crate) hide_layers: &'a [String],
+    /// `--raster-blends`: no vector underlays.
+    pub(crate) raster_blends: bool,
 }
 
 /// `copy-page`: produce the page in every clipboard format the target
@@ -1143,6 +1145,7 @@ pub(crate) fn cmd_copy_page(args: CopyPageArgs<'_>) -> u8 {
         font_dirs,
         show_layers,
         hide_layers,
+        raster_blends,
     } = args;
 
     if !(want_svg || want_emf || want_raster || want_pdf) {
@@ -1237,7 +1240,8 @@ pub(crate) fn cmd_copy_page(args: CopyPageArgs<'_>) -> u8 {
         let svg_options = pdfcer_render::svg::SvgOptions::default()
             .with_raster_dpi(dpi)
             .with_background(background)
-            .with_flatten_blends(true);
+            .with_flatten_blends(true)
+            .with_underlay_blends(!raster_blends);
         match pdfcer_render::svg::export_svg(&doc, page, &render_options, &svg_options) {
             Ok(export) => {
                 size = (
@@ -1260,7 +1264,8 @@ pub(crate) fn cmd_copy_page(args: CopyPageArgs<'_>) -> u8 {
     if want_emf {
         let emf_options = pdfcer_render::emf::EmfOptions::default()
             .with_raster_dpi(dpi)
-            .with_background(background);
+            .with_background(background)
+            .with_underlay_blends(!raster_blends);
         match pdfcer_render::emf::export_emf(&doc, page, &render_options, &emf_options) {
             Ok(export) => {
                 payload.emf = Some(export.emf);
@@ -1348,7 +1353,7 @@ pub(crate) fn cmd_copy_page(args: CopyPageArgs<'_>) -> u8 {
             "svg: ops={} images={} dashed_pre_applied={} blend_modes={} \
 shadings_rasterised={} soft_masks_kept={} overprint_approximated={} \
 nonseparable_approximated={} non_isolated_isolated={} colorant_buffer_on_screen={} exact={} \
-shadings_as_gradients={} blends_flattened={}",
+shadings_as_gradients={} blends_flattened={} blends_underlaid={}",
             o.ops,
             o.images_embedded,
             o.dashed_strokes_pre_applied,
@@ -1361,7 +1366,8 @@ shadings_as_gradients={} blends_flattened={}",
             t.colorant_buffer_on_screen,
             u8::from(t.is_exact()),
             t.shadings_as_gradients,
-            o.blends_flattened
+            o.blends_flattened,
+            o.blends_underlaid
         );
         eprintln!(
             "pdfcer: note: the vector payload carries text as glyph OUTLINES; a paste into Word or Inkscape is editable as shapes, not as words"
@@ -1408,7 +1414,7 @@ pub(crate) fn print_emf_disclosure(
 ) {
     println!(
         "emf: ops={} rasters={} alpha_rasterised={} blend_modes_dropped={} blends_flattened={} gradients_rasterised={} \
-images={} layers_rasterised={} dashed_pre_applied={} nonzero_multi_subpath={}",
+images={} layers_rasterised={} dashed_pre_applied={} nonzero_multi_subpath={} blends_underlaid={}",
         o.ops,
         o.rasters_embedded,
         o.ops_rasterised_for_alpha,
@@ -1418,7 +1424,8 @@ images={} layers_rasterised={} dashed_pre_applied={} nonzero_multi_subpath={}",
         o.images_embedded,
         o.layers_rasterised,
         o.dashed_strokes_pre_applied,
-        o.nonzero_fills_multi_subpath
+        o.nonzero_fills_multi_subpath,
+        o.blends_underlaid
     );
     if keep_text {
         let k = &o.text;
@@ -1504,6 +1511,8 @@ pub(crate) struct ExportImageArgs<'a> {
     pub(crate) svg_text: SvgTextArg,
     /// `--flatten-blends` (SVG only).
     pub(crate) flatten_blends: bool,
+    /// `--raster-blends`: no vector underlays.
+    pub(crate) raster_blends: bool,
     /// Outlines or kept text (EMF only).
     pub(crate) emf_text: SvgTextArg,
     /// `--no-overprint-preview`, `--separation-preview`, `--hide-ink`.
@@ -1561,6 +1570,7 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
         print_state,
         svg_text,
         flatten_blends,
+        raster_blends,
         emf_text,
         preview,
     } = args;
@@ -1733,7 +1743,8 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
             let emf_options = pdfcer_render::emf::EmfOptions::default()
                 .with_raster_dpi(dpi)
                 .with_background(if transparent { None } else { background })
-                .with_text(emf_text.into());
+                .with_text(emf_text.into())
+                .with_underlay_blends(!raster_blends);
             let export =
                 match pdfcer_render::emf::export_emf(&doc, page, &render_options, &emf_options) {
                     Ok(e) => e,
@@ -1780,7 +1791,8 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
                 .with_raster_dpi(dpi)
                 .with_background(if transparent { None } else { background })
                 .with_text(svg_text.into())
-                .with_flatten_blends(flatten_blends);
+                .with_flatten_blends(flatten_blends)
+                .with_underlay_blends(!raster_blends);
             let export =
                 match pdfcer_render::svg::export_svg(&doc, page, &render_options, &svg_options) {
                     Ok(e) => e,
@@ -1820,7 +1832,7 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
                 "svg: ops={} images={} dashed_pre_applied={} blend_modes={} \
 shadings_rasterised={} soft_masks_kept={} overprint_approximated={} \
 nonseparable_approximated={} non_isolated_isolated={} colorant_buffer_on_screen={} exact={} \
-shadings_as_gradients={} blends_flattened={}",
+shadings_as_gradients={} blends_flattened={} blends_underlaid={}",
                 o.ops,
                 o.images_embedded,
                 o.dashed_strokes_pre_applied,
@@ -1833,7 +1845,8 @@ shadings_as_gradients={} blends_flattened={}",
                 t.colorant_buffer_on_screen,
                 u8::from(t.is_exact()),
                 t.shadings_as_gradients,
-                o.blends_flattened
+                o.blends_flattened,
+                o.blends_underlaid
             );
             // Rule 4 in prose, once per page: what is inferred or
             // approximated in the file, by name.

@@ -1461,6 +1461,12 @@ pub(crate) enum Command {
         /// strike-out, squiggly), which draws no `/BS` border.
         #[arg(long, value_name = "ON,OFF,...")]
         dash: Option<String>,
+        /// Draw the shape as a highlighter: a borderless fill (a stroke for
+        /// `ink`) in `--color`, default yellow, painted Multiply so the text
+        /// beneath stays readable. For `square`, `circle`, `polygon` and
+        /// `ink`; refused for every other type (`highlight` already is one).
+        #[arg(long)]
+        highlighter: bool,
         /// A `freetext` box's background as `RRGGBB` hex, painted under the
         /// text across the whole box. Absent leaves it transparent. Refused
         /// on every other type.
@@ -1555,6 +1561,13 @@ pub(crate) enum Command {
         /// `--page`.
         #[arg(long, group = "how")]
         rect: Option<String>,
+        /// With `--rect`: mark everything on the page OUTSIDE the rectangle
+        /// instead, so only the rectangle survives `redact-apply`. The
+        /// outside reaches past the MediaBox to any content drawn beyond
+        /// it, and ignores the crop box, so cropped-away content goes too.
+        /// Content crossing the rectangle's edge is removed on apply.
+        #[arg(long, requires = "rect")]
+        outside: bool,
         /// Mark every occurrence of this exact text (search-and-redact).
         #[arg(long, group = "how")]
         search: Option<String>,
@@ -5853,6 +5866,12 @@ pub(crate) enum Command {
         /// so it is off by default. EMF always does this.
         #[arg(long)]
         flatten_blends: bool,
+        /// SVG (with `--flatten-blends`) and EMF: write every flattened blend (a highlight) as pixels. By default a
+        /// highlight that looks the same moved beneath the text (black ink
+        /// on white paper) stays an editable vector shape; only one over
+        /// coloured ink becomes pixels. Counted as `blends_underlaid=`.
+        #[arg(long)]
+        raster_blends: bool,
         /// EMF only: how text is written. `outlines` (default) draws every
         /// glyph as a path. `keep` writes each line it can as real text in
         /// the INSTALLED font of the same name, each character pinned to
@@ -5980,6 +5999,12 @@ pub(crate) enum Command {
         /// Force a layer HIDDEN by `/Name`. Repeatable.
         #[arg(long = "hide-layer", value_name = "NAME")]
         hide_layers: Vec<String>,
+        /// Write every flattened blend (a highlight) as pixels. By default a
+        /// highlight that looks the same moved beneath the text (black ink
+        /// on white paper) stays an editable vector shape; only one over
+        /// coloured ink becomes pixels. Counted as `blends_underlaid=`.
+        #[arg(long)]
+        raster_blends: bool,
     },
 
     /// List a document's annotations per page (ISO 32000-1 §12.5).
@@ -13077,11 +13102,18 @@ pub(crate) enum Command {
         verify_undo: bool,
     },
 
-    /// **Delete** a vector object: remove an
-    /// object's construction + painting operators from the content stream via
-    /// surgery. Works on any object kind (path/text/image). NOT
-    /// redaction — it removes a drawing object from a page, not covered
-    /// content for security.
+    /// **Delete** page objects: remove their construction and painting
+    /// operators from the content stream. Works on any object kind (path,
+    /// text, image).
+    ///
+    /// Give one object by `--object`, or a region by `--rect`. A region
+    /// deletes every object its `--select` rule picks, as one edit, and
+    /// prints how many crossing objects it kept. Objects are removed whole;
+    /// nothing is cut at the region's edge (that is `redact-mark`).
+    /// Annotations are not touched.
+    ///
+    /// NOT redaction: removing an object leaves nothing hidden behind, but
+    /// it is a drawing edit, not a security operation.
     ObjectDelete {
         /// Input PDF.
         input: PathBuf,
@@ -13089,8 +13121,15 @@ pub(crate) enum Command {
         #[arg(long, default_value_t = 1)]
         page: u32,
         /// 0-based paint-order object index on the page.
-        #[arg(long)]
-        object: usize,
+        #[arg(long, required_unless_present = "rect", conflicts_with = "rect")]
+        object: Option<usize>,
+        /// Delete the objects in this region, in page space (points, y up).
+        #[arg(long, value_name = "X0,Y0,X1,Y1", allow_hyphen_values = true)]
+        rect: Option<String>,
+        /// With `--rect`: `enclosed` deletes objects wholly inside the
+        /// region; `touched` also deletes objects that cross its edge.
+        #[arg(long, value_enum, default_value_t = RegionSelect::Enclosed, requires = "rect")]
+        select: RegionSelect,
         /// Output path.
         #[arg(short, long)]
         output: PathBuf,
@@ -14248,4 +14287,13 @@ pub(crate) struct ThreeDMeasureArgs {
     /// `mm`. An angle takes none.
     #[arg(long, requires = "measures-with-units")]
     pub(crate) units: Option<String>,
+}
+
+/// Which objects a region (`--rect`) picks.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum RegionSelect {
+    /// Objects whose bounds lie wholly inside the region.
+    Enclosed,
+    /// Objects whose bounds overlap the region at all.
+    Touched,
 }

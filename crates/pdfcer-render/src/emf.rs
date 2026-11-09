@@ -28,7 +28,7 @@
 //! |---|---|---|
 //! | solid fill, alpha 255, `Normal` | `CREATEBRUSHINDIRECT` + path bracket + `FILLPATH` | `ops` |
 //! | solid stroke, alpha 255, `Normal` | `EXTCREATEPEN` (`PS_GEOMETRIC`, caps/joins) + bracket + `STROKEPATH`; dash **pre-applied** to the geometry (LibreOffice renders `PS_USERSTYLE` solid) | `ops`, `dashed_strokes_pre_applied` |
-//! | a top-level op or layer with a non-`Normal` blend | first composited against the ops under it and replaced by the resulting pixels (`blend_flatten`), then written as below | `blends_flattened` |
+//! | a top-level op or layer with a non-`Normal` blend | first composited against the ops under it and moved beneath the page as a source-over vector where that looks the same, otherwise replaced by the resulting pixels (`blend_flatten`), then written as below | `blends_flattened`, `blends_underlaid` |
 //! | a solid op with alpha < 255, or a non-`Normal` blend inside a group, or a `Gradient`/`Image` brush | the op is REPLAYED into a transparent scratch, cropped, and written as `EMR_ALPHABLEND` (premultiplied BGRA, the GDI contract) | `rasters_embedded` + one of `ops_rasterised_for_alpha` / `blend_modes_dropped` / `gradients_rasterised` / `images_embedded` |
 //! | `Op::Layer` (group opacity, blend, soft mask) | the whole layer replayed, its mask and opacity applied, one `EMR_ALPHABLEND`; the layer's blend mode against the page is dropped to `Normal` | `layers_rasterised`, `blend_modes_dropped` |
 //! | a clip | `SAVEDC`, one path bracket + `SELECTCLIPPATH RGN_AND` per ancestor, `RESTOREDC` when the clip changes | — |
@@ -107,6 +107,12 @@ pub struct EmfOptions {
     /// Outlines by default: EMF cannot embed a font, so text records draw
     /// with whatever installed face has the recorded name.
     pub text: EmfText,
+    /// Every top-level blend is flattened (EMF has none);, first try keeping it a vector: the mark,
+    /// made source-over, moved beneath the page, taken only where that
+    /// looks the same as the blend (a highlight over black text on white).
+    /// The rest become pixels. On by default; off writes every flattened
+    /// blend as pixels.
+    pub underlay_blends: bool,
 }
 
 /// How an EMF writes text.
@@ -164,6 +170,7 @@ impl Default for EmfOptions {
             raster_dpi: 300.0,
             background: None,
             text: EmfText::Outlines,
+            underlay_blends: true,
         }
     }
 }
@@ -187,6 +194,14 @@ impl EmfOptions {
     #[must_use]
     pub fn with_text(mut self, text: EmfText) -> Self {
         self.text = text;
+        self
+    }
+
+    /// Keep flattened blends vector where they look the same; see
+    /// [`Self::underlay_blends`].
+    #[must_use]
+    pub fn with_underlay_blends(mut self, underlay: bool) -> Self {
+        self.underlay_blends = underlay;
         self
     }
 }
@@ -214,6 +229,10 @@ pub struct EmfOutcome {
     /// what lies under them and written as the resulting pixels, so the
     /// text under a highlight stays visible. Each is one bitmap.
     pub blends_flattened: usize,
+    /// Of [`Self::blends_flattened`], how many stayed vector: moved beneath
+    /// the page as a source-over shape that looks the same. The rest were
+    /// written as pixels.
+    pub blends_underlaid: usize,
     /// Gradient fills (native in the SVG) that became bitmaps here.
     pub gradients_rasterised: usize,
     /// The file's own images, embedded as bitmaps.
@@ -278,8 +297,13 @@ pub fn export_emf_view(
     let keep_text = emf.text == EmfText::KeepText;
     let mut recording = record_page_for_export(view, page, scale, render, keep_text)?;
     let (w_px, h_px) = recording.page_size;
-    let blends_flattened =
-        crate::blend_flatten::flatten_blends(&mut recording.ops, &recording.clips, w_px, h_px);
+    let flattened = crate::blend_flatten::flatten_blends(
+        &mut recording.ops,
+        &recording.clips,
+        w_px,
+        h_px,
+        emf.underlay_blends,
+    );
 
     // Device pixel -> 0.01 mm. A page is at most 14 400 pt = 5 080 mm =
     // 508 000 units; the guard is against a resolution that would overflow
@@ -312,7 +336,8 @@ pub fn export_emf_view(
             rasters_embedded: 0,
             ops_rasterised_for_alpha: 0,
             blend_modes_dropped: 0,
-            blends_flattened,
+            blends_flattened: flattened.total(),
+            blends_underlaid: flattened.underlaid,
             gradients_rasterised: 0,
             images_embedded: 0,
             layers_rasterised: 0,
@@ -1177,6 +1202,7 @@ mod tests {
                 ops_rasterised_for_alpha: 0,
                 blend_modes_dropped: 0,
                 blends_flattened: 0,
+                blends_underlaid: 0,
                 gradients_rasterised: 0,
                 images_embedded: 0,
                 layers_rasterised: 0,

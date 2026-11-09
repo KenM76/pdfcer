@@ -646,6 +646,7 @@ pub fn appearance_options_from_dict<G: ObjectGraph + ?Sized>(
 ) -> AppearanceOptions {
     AppearanceOptions {
         dash: read_border_dash(graph, annot),
+        highlighter: is_highlighter(annot),
         ..AppearanceOptions::default()
     }
 }
@@ -2032,6 +2033,65 @@ pub struct AppearanceOptions {
     /// [`crate::edit::MarkupStyleSupport::takes_border`] rather than
     /// matching on the variant.
     pub dash: Option<BorderDash>,
+    /// Paint the mark as a **highlighter**: `/BM /Multiply` on the
+    /// annotation and a `/GS0 gs` selecting Multiply in its appearance, the
+    /// same pair a `/Highlight` carries, so the ink beneath shows through
+    /// and overlaps do not darken. Honoured by `/Square`, `/Circle`, `/Ink`,
+    /// `/Polygon` and the cloud; ignored by every other subtype (a
+    /// `/Highlight` is always Multiply). Ask [`takes_highlighter`].
+    pub highlighter: bool,
+}
+
+/// Whether [`AppearanceOptions::highlighter`] changes `spec`'s appearance:
+/// the closed or freehand shapes, not lines, polylines or text markup.
+#[must_use]
+pub fn takes_highlighter(spec: &MarkupSpec) -> bool {
+    matches!(
+        spec,
+        MarkupSpec::Square { .. }
+            | MarkupSpec::Circle { .. }
+            | MarkupSpec::Ink { .. }
+            | MarkupSpec::Polygon { .. }
+            | MarkupSpec::Cloud { .. }
+    )
+}
+
+/// Whether an existing annotation is painted as a highlighter: its `/BM`
+/// (ISO 32000-2 Table 166) is `/Multiply`, or an array whose first entry
+/// is. A regenerating edit passes this back as
+/// [`AppearanceOptions::highlighter`] so the mark keeps its blend.
+#[must_use]
+pub fn is_highlighter(annot: &Dict) -> bool {
+    let first = match annot.get(b"BM") {
+        Some(Object::Array(a)) => a.first(),
+        other => other,
+    };
+    matches!(first, Some(Object::Name(n)) if n.0 == b"Multiply")
+}
+
+/// Turn an authored shape into a highlighter (see
+/// [`AppearanceOptions::highlighter`]).
+fn make_highlighter(a: &mut AuthoredAppearance) {
+    a.annot
+        .insert(Name::from(b"BM"), Object::Name(Name::from(b"Multiply")));
+    let mut gs = Dict::new();
+    gs.insert(Name::from(b"Type"), Object::Name(Name::from(b"ExtGState")));
+    gs.insert(Name::from(b"BM"), Object::Name(Name::from(b"Multiply")));
+    let mut resources = match a.ap_dict.get(b"Resources") {
+        Some(Object::Dict(d)) => d.clone(),
+        _ => Dict::new(),
+    };
+    let mut ext = match resources.get(b"ExtGState") {
+        Some(Object::Dict(d)) => d.clone(),
+        _ => Dict::new(),
+    };
+    ext.insert(Name::from(b"GS0"), Object::Dict(gs));
+    resources.insert(Name::from(b"ExtGState"), Object::Dict(ext));
+    a.ap_dict
+        .insert(Name::from(b"Resources"), Object::Dict(resources));
+    let mut content = b"/GS0 gs\n".to_vec();
+    content.extend_from_slice(&a.ap_content);
+    a.ap_content = content;
 }
 
 /// As [`build_appearance`], with explicit cross-cutting cosmetic options.
@@ -2042,7 +2102,11 @@ pub struct AppearanceOptions {
 /// to drift from it.
 #[must_use]
 pub fn build_appearance_opts(spec: &MarkupSpec, opts: &AppearanceOptions) -> AuthoredAppearance {
-    build_appearance_inner(spec, opts)
+    let mut authored = build_appearance_inner(spec, opts);
+    if opts.highlighter && takes_highlighter(spec) {
+        make_highlighter(&mut authored);
+    }
+    authored
 }
 
 /// As [`build_appearance`], with an explicit `/QuadPoints` corner order
@@ -2070,7 +2134,7 @@ pub fn build_appearance_with(spec: &MarkupSpec, order: QuadPointOrder) -> Author
         spec,
         &AppearanceOptions {
             quad_order: order,
-            dash: None,
+            ..AppearanceOptions::default()
         },
     )
 }

@@ -427,7 +427,7 @@ fn svg_is_written_with_its_own_disclosure_line() {
     );
     assert!(lines[1].contains(" exact=1 "), "{}", lines[1]);
     assert!(
-        lines[1].ends_with(" shadings_as_gradients=0 blends_flattened=0"),
+        lines[1].ends_with(" shadings_as_gradients=0 blends_flattened=0 blends_underlaid=0"),
         "{}",
         lines[1]
     );
@@ -556,15 +556,33 @@ fn flatten_blends_bakes_a_highlight_into_the_svg() {
         .unwrap();
     assert_eq!(flat.status.code(), Some(0), "stderr: {}", stderr(&flat));
     assert!(
-        stdout(&flat).contains(" blends_flattened=1"),
+        stdout(&flat).contains(" blends_flattened=1 blends_underlaid=1"),
         "{}",
         stdout(&flat)
     );
+    let svg = std::fs::read_to_string(&out).unwrap();
+    assert!(!svg.contains("mix-blend-mode"));
     assert!(
-        !std::fs::read_to_string(&out)
-            .unwrap()
-            .contains("mix-blend-mode")
+        !svg.contains("<image"),
+        "the highlight stays a shape: {svg}"
     );
+
+    let raster = Command::new(BIN)
+        .args(args(&[
+            "--format",
+            "svg",
+            "--flatten-blends",
+            "--raster-blends",
+        ]))
+        .output()
+        .unwrap();
+    assert_eq!(raster.status.code(), Some(0), "stderr: {}", stderr(&raster));
+    assert!(
+        stdout(&raster).contains(" blends_flattened=1 blends_underlaid=0"),
+        "{}",
+        stdout(&raster)
+    );
+    assert!(std::fs::read_to_string(&out).unwrap().contains("<image"));
 
     let png = Command::new(BIN)
         .args(args(&["--format", "png", "--flatten-blends"]))

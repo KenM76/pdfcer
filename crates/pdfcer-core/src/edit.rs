@@ -163,6 +163,7 @@ pub use print_ready::{
     PrintReadyCopy, PrintReadyError, PrintReadyLoss, PrintReadyReport, check_print_permission,
 };
 mod printer_marks;
+mod redact_outside;
 mod restack;
 mod running_text;
 mod stroke_style;
@@ -6462,6 +6463,10 @@ pub struct MarkupOptions {
     /// content, so the annotation routes refuse it with
     /// [`crate::hand_sig::HandSignatureError::NotPageContent`].
     pub hand_signature: Option<String>,
+    /// Paint a shape as a highlighter (`Pass 695.0`): see
+    /// [`annot_author::AppearanceOptions::highlighter`]. Ignored by
+    /// subtypes [`annot_author::takes_highlighter`] rejects.
+    pub highlighter: bool,
 }
 
 impl MarkupOptions {
@@ -9760,6 +9765,13 @@ pub enum EditError {
     /// edit (an empty page).
     #[error("page {page_index} has no /Contents stream to vector-edit")]
     VectorEditNoContents {
+        /// The 0-based page index.
+        page_index: usize,
+    },
+    /// [`EditSession::mark_redaction_outside`] was given a kept rectangle
+    /// covering the whole page, so nothing lies outside it to mark.
+    #[error("the kept area covers the whole page; nothing lies outside it to redact")]
+    RedactOutsideNothing {
         /// The 0-based page index.
         page_index: usize,
     },
@@ -16589,6 +16601,11 @@ impl EditSession {
                         note,
                         layer: None,
                         hand_signature: None,
+                        highlighter: carry.blend_mode.as_ref().is_some_and(|bm| {
+                            let mut d = Dict::new();
+                            d.insert(Name::from(b"BM"), bm.clone());
+                            annot_author::is_highlighter(&d)
+                        }),
                     };
                     let id = self.add_markup_with(page_index, &moved.0, &opts)?;
                     if let Some(bm) = &carry.blend_mode {
@@ -32918,6 +32935,7 @@ impl EditSession {
             &annot_author::AppearanceOptions {
                 quad_order: self.quad_point_order,
                 dash: options.dash.clone(),
+                highlighter: options.highlighter,
             },
         );
         let clip = markup_content_clip(&authored, options.opacity);
@@ -33001,6 +33019,7 @@ impl EditSession {
             &annot_author::AppearanceOptions {
                 quad_order: self.quad_point_order,
                 dash: options.dash.clone(),
+                highlighter: options.highlighter,
             },
         );
 
@@ -33924,7 +33943,7 @@ impl EditSession {
                 &strike_spec,
                 &annot_author::AppearanceOptions {
                     quad_order: s.quad_point_order,
-                    dash: None,
+                    ..Default::default()
                 },
             );
             let strike_ap_id = ObjId::new(s.alloc_number()?, 0);
@@ -35263,6 +35282,7 @@ impl EditSession {
                             &annot_author::AppearanceOptions {
                                 quad_order: self.quad_point_order,
                                 dash: resize_dash.clone(),
+                                highlighter: annot_author::is_highlighter(dict),
                             },
                         )
                         .ap_content,
@@ -35499,6 +35519,7 @@ impl EditSession {
                         &annot_author::AppearanceOptions {
                             quad_order: self.quad_point_order,
                             dash: resize_dash.clone(),
+                            highlighter: annot_author::is_highlighter(&updated),
                         },
                     );
                     (a.annot, a.ap_dict, a.ap_content)
@@ -38904,6 +38925,7 @@ impl EditSession {
                 &annot_author::AppearanceOptions {
                     quad_order: self.quad_point_order,
                     dash: dash_before.clone(),
+                    highlighter: annot_author::is_highlighter(&current),
                 },
             )
             .ap_content,
@@ -38915,6 +38937,7 @@ impl EditSession {
             &annot_author::AppearanceOptions {
                 quad_order: self.quad_point_order,
                 dash: dash_after.clone(),
+                highlighter: annot_author::is_highlighter(&current),
             },
         );
         let mut regen = self.regenerate_markup_appearance(annot_id, &current, authored)?;
@@ -39086,6 +39109,7 @@ impl EditSession {
                 &annot_author::AppearanceOptions {
                     quad_order: self.quad_point_order,
                     dash: reshape_dash.clone(),
+                    highlighter: annot_author::is_highlighter(&plan.current),
                 },
             )
             .ap_content,
@@ -39499,6 +39523,7 @@ impl EditSession {
                 &annot_author::AppearanceOptions {
                     quad_order: self.quad_point_order,
                     dash: dash.clone(),
+                    highlighter: annot_author::is_highlighter(&current),
                 },
             )
             .ap_content,
@@ -39514,6 +39539,7 @@ impl EditSession {
             &annot_author::AppearanceOptions {
                 quad_order: self.quad_point_order,
                 dash,
+                highlighter: annot_author::is_highlighter(&current),
             },
         );
 
@@ -39599,6 +39625,7 @@ impl EditSession {
             &annot_author::AppearanceOptions {
                 quad_order: self.quad_point_order,
                 dash: annot_author::read_border_dash(&self.graph(), &current),
+                highlighter: annot_author::is_highlighter(&current),
             },
         );
 

@@ -1352,6 +1352,7 @@ pub(crate) fn run() -> ExitCode {
             print_state,
             svg_text,
             flatten_blends,
+            raster_blends,
             emf_text,
             no_overprint_preview,
             separation_preview,
@@ -1381,6 +1382,7 @@ pub(crate) fn run() -> ExitCode {
             print_state,
             svg_text,
             flatten_blends,
+            raster_blends,
             emf_text,
             preview: ViewerPreview::from_flags(no_overprint_preview, separation_preview, hide_ink)
                 .with_no_ap(markup_without_ap, widgets_without_ap)
@@ -1405,6 +1407,7 @@ pub(crate) fn run() -> ExitCode {
             font_dirs,
             show_layers,
             hide_layers,
+            raster_blends,
         } => cmd_copy_page(CopyPageArgs {
             input: &input,
             page,
@@ -1418,6 +1421,7 @@ pub(crate) fn run() -> ExitCode {
             font_dirs: &font_dirs,
             show_layers: &show_layers,
             hide_layers: &hide_layers,
+            raster_blends,
         }),
         Command::ListAnnotations { input, pages } => cmd_list_annotations(&input, &pages),
         Command::TabOrder {
@@ -3882,10 +3886,30 @@ pub(crate) fn run() -> ExitCode {
             input,
             page,
             object,
+            rect,
+            select,
             output,
             mode,
             verify_undo,
-        } => cmd_object_delete(&input, page, object, &output, mode, verify_undo),
+        } => match rect {
+            Some(rect) => crate::objects::cmd_object_delete_region(
+                &input,
+                page,
+                &rect,
+                select,
+                &output,
+                mode,
+                verify_undo,
+            ),
+            None => cmd_object_delete(
+                &input,
+                page,
+                object.unwrap_or_default(),
+                &output,
+                mode,
+                verify_undo,
+            ),
+        },
         Command::UnshareForm {
             input,
             page,
@@ -4272,6 +4296,7 @@ pub(crate) fn run() -> ExitCode {
             line_endings,
             opacity,
             dash,
+            highlighter,
             background,
             note,
             note_author,
@@ -4307,6 +4332,7 @@ pub(crate) fn run() -> ExitCode {
             line_endings: line_endings.as_deref(),
             opacity,
             dash: dash.as_deref(),
+            highlighter,
             background: background.as_deref(),
             note,
             note_author,
@@ -4328,6 +4354,7 @@ pub(crate) fn run() -> ExitCode {
         Command::RedactMark {
             input,
             rect,
+            outside,
             search,
             pattern,
             ignore_case,
@@ -4338,6 +4365,7 @@ pub(crate) fn run() -> ExitCode {
         } => cmd_redact_mark(&RedactMarkArgs {
             input: &input,
             rect: rect.as_deref(),
+            outside,
             search: search.as_deref(),
             pattern: pattern.as_deref(),
             ignore_case,

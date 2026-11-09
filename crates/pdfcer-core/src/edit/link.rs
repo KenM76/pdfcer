@@ -503,6 +503,7 @@ impl EditSession {
             &annot_author::AppearanceOptions {
                 quad_order: self.quad_point_order,
                 dash: border.dash.clone(),
+                ..Default::default()
             },
         );
         for key in [&b"BS"[..], b"C"] {

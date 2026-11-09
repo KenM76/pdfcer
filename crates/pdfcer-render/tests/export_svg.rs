@@ -578,10 +578,12 @@ fn flatten_blends_writes_a_highlight_as_the_pixels_it_makes() {
         &RenderOptions::default(),
         &SvgOptions::default()
             .with_raster_dpi(DPI)
-            .with_flatten_blends(true),
+            .with_flatten_blends(true)
+            .with_underlay_blends(false),
     )
     .expect("svg export");
     assert_eq!(flat.outcome.blends_flattened, 1);
+    assert_eq!(flat.outcome.blends_underlaid, 0);
     assert!(!flat.svg.contains("mix-blend-mode"), "{}", flat.svg);
     // resvg's image decoders are off (module docs), so composite the
     // patch onto resvg's raster by hand.
@@ -604,6 +606,49 @@ fn flatten_blends_writes_a_highlight_as_the_pixels_it_makes() {
     );
     let (bad, worst) = differing(&reference, &raster, 24);
     assert_eq!(bad, 0, "flattened highlight differs (worst {worst})");
+}
+
+/// `content` exported with blends flattened at the default settings.
+fn flattened(content: &str) -> (Pixmap, pdfcer_render::svg::SvgExport) {
+    let bytes = page("/ExtGState << /GS0 << /BM /Multiply >> >>", content, 0);
+    let (reference, _) = export(bytes.clone());
+    let doc = Document::from_bytes(bytes).expect("fixture parses");
+    let p = page_tree::pages(&doc).expect("page tree").remove(0);
+    let flat = export_svg(
+        &doc,
+        &p,
+        &RenderOptions::default(),
+        &SvgOptions::default()
+            .with_raster_dpi(DPI)
+            .with_flatten_blends(true),
+    )
+    .expect("svg export");
+    (reference, flat)
+}
+
+#[test]
+fn a_highlight_over_black_ink_stays_a_vector_shape() {
+    let (reference, flat) = flattened("0 g 20 20 60 20 re f /GS0 gs 1 1 0 rg 10 10 80 40 re f");
+    assert_eq!(flat.outcome.blends_flattened, 1);
+    assert_eq!(flat.outcome.blends_underlaid, 1);
+    assert_eq!(flat.outcome.images_embedded, 0, "{}", flat.svg);
+    assert!(!flat.svg.contains("<image"), "{}", flat.svg);
+    assert!(!flat.svg.contains("mix-blend-mode"), "{}", flat.svg);
+    let raster = rasterise(&flat.svg, reference.width(), reference.height());
+    let (bad, worst) = differing(&reference, &raster, 24);
+    assert_eq!(bad, 0, "underlaid highlight differs (worst {worst})");
+}
+
+#[test]
+fn a_highlight_over_blue_ink_becomes_pixels() {
+    // Multiply yellow over blue is black; blue drawn over yellow is blue, so
+    // the underlay would not look the same and is not taken.
+    let (reference, flat) =
+        flattened("0 0 1 rg 20 20 60 20 re f /GS0 gs 1 1 0 rg 10 10 80 40 re f");
+    assert_eq!(flat.outcome.blends_flattened, 1);
+    assert_eq!(flat.outcome.blends_underlaid, 0);
+    assert!(flat.svg.contains("<image"), "{}", flat.svg);
+    assert!(reference.width() > 0);
 }
 
 /// The first embedded PNG data URI in `svg`, decoded.

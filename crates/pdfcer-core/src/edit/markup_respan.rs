@@ -105,7 +105,7 @@ impl EditSession {
 
         let options = annot_author::AppearanceOptions {
             quad_order: self.quad_point_order,
-            dash: None,
+            ..Default::default()
         };
         let was_pdfces = self.appearance_matches(
             &current,
