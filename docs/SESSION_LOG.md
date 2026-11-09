@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-09 (1472nd filing) — `335e3e2c` `Pass 697.0` SHIPPED (printer's marks clearance, X062); `ec1278fc` CI fix
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- `ec1278fc998f9e3ea19aea243073a462226cf288`: CI "repository audits" was red on `11da6b4f` and `dfa0af9c`. `check-msrv-floor.py` moved from the `cargo test` job to the audits job ("repository audits (33 checks)"), classified LOCAL in `check-ci-parity.py`; `set_page_boxes` (96 lines) split into `sorted_unique` + `page_box_group`, not baselined; `build` test helper in `edit.rs` documented.
+- `335e3e2cf92df40ae65bd91d5607afdb10e9f116`: `Pass 697.0`, request X062. Colour bars and info line stop `target_arm(len) = len/3*1.4` short of mid-x when registration is on; info line omitted when no room; `PrinterMarks::check` refuses `line_width > length/3` (`Geometry "line width"`) only when registration is on, a deliberate departure from the request's unconditional refusal. 4 new tests, each fails with its fix reverted; core lib 2361 passed. No pub API change, no `cargo tree` change.
+- ID: `697.0` was the next free Pass number (highest filed was `696.1`; grepped `Pass 697`/`698`/`699`/`70x.` over `docs/` and the code/tool/CI files: no hits).
+- ROADMAP: two Shipped entries and a banner line. FEATURES: no edit; the Printer's marks row (line 620, core `[x]` cli `[x]` gui `[ ]`) is unchanged, a fix only.
+
+**Lesson (recurrence):** the `694.2` and `696.0` sweeps were change-scoped and skipped the repository-audits python gates, so CI went red on two pushes. Existing feedback "repo-scoped gates run before every push" applies; run the audits and `check-commits-filed.py` before pushing. Not added to `docs/NEXT_SESSION.md` (engineer-owned): owed to the engineer.
+
+**Hard-rule-11 sweep:** claim changed = "colour bars and page-info line span the trim width". Grepped `colou?r bar|page-info|line_width` (case-insensitive) over `docs/core-api/`, `ARCHITECTURE.md`, `FEATURES.md`: no hits. Not swept: `crates/` doc comments and `pdfcer print --help` text (outside my remit); the engineer should check them.
+
+**Still open:** `696.1`; GUI halves with `pdfcer-gui`. Both commits and this filing unpushed per the engineer (not checked).
+
 ## 2026-11-09 (1471st filing) — `c9468b0c`, `Pass 694.2` SHIPPED (crop parity)
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**

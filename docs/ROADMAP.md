@@ -112,6 +112,22 @@ wherever it appears.*
 
 ## Shipped
 
+### `335e3e2c` `Pass 697.0`, 2026-11-09: printer's marks keep clear of the registration targets, request X062 (1472nd filing)
+
+Engineer-reported; no shell here, git, push and backup state not checked from here. Bug fix, no new capability, no decision number. One code commit `335e3e2cf92df40ae65bd91d5607afdb10e9f116` on `main`. Request X062 from the operator as a crates consumer. Reasoning is in the commit message. Filed together with CI fix `ec1278fc998f9e3ea19aea243073a462226cf288` (below).
+- **core `printer_marks`:** with registration targets drawn, colour bars and the page-info line now stop `target_arm(len) = len/3*1.4` short of the trim's mid-x. Before, bars ran into the top cross on trims narrower than about 270 pt, and long labels ran over the bottom cross. The info line is omitted when there is no room.
+- **`PrinterMarks::check`:** refuses `line_width > length/3` with `Geometry "line width"`, only when registration is on. **Deliberate departure** from the request, which asked for an unconditional refusal.
+- **Tests (as reported):** 4 new, each failing with its fix reverted; core lib 2361 passed. No `pub` API change (`docs/core-api/` unchanged); `cargo tree` unchanged.
+- **FEATURES:** the Printer's marks row is a fix only; boxes unchanged (core `[x]`, cli `[x]`, gui `[ ]`).
+
+### `ec1278fc` CI fix (no Pass), 2026-11-09: repository audits green after `Pass 696.0` and `694.2` (1472nd filing)
+
+Engineer-reported, not checked from here. Commit `ec1278fc998f9e3ea19aea243073a462226cf288`. The CI "repository audits" job was red on `11da6b4f` and `dfa0af9c`.
+- `tools/check-msrv-floor.py` (added in `Pass 696.0`) had been placed in the `cargo test` job, which then ran 9 commands under a name declaring no count (`check-ci-job-names`), and `check-ci-parity` had no local runner for it. It now runs in the audits job (renamed "repository audits (33 checks)") and is classified LOCAL in `tools/check-ci-parity.py`.
+- `EditSession::set_page_boxes` (`Pass 694.2`) was 96 lines, over the 80-line limit. Split into `sorted_unique` and `page_box_group`, no behaviour change. Not baselined.
+- The `pub(super)` test helper `build` in `edit.rs` lacked a doc comment (`check-public-fns-documented`).
+- **Lesson:** the `694.2` and `696.0` gate sweeps were change-scoped and skipped the repository-audits python gates. The repo audits must run before every push; the existing feedback "repo-scoped gates run before every push" is recurred, not new.
+
 ### `c9468b0c` `Pass 694.2`, 2026-11-09: crop parity, all four page boxes, odd/even, remove white margins (1471st filing)
 
 Engineer-reported; no shell here, git, push and backup state not checked from here. One code commit `c9468b0ce8246aec764d8cc782ecc66271a6ec74` on `main`, reported unpushed. Operator request of 2026-11-09, filed in `84716404`. No decision number. Reasoning is in the commit message. **gui is not delivered**: the marquee crop UX is with `pdfcer-gui`.
@@ -37580,6 +37596,8 @@ overrides the image dictionary; `/ColorSpace` optional,
 > **1470th filing: `Pass 696.0` SHIPPED (`6ed962dc`, moved to Shipped from *Backlog*; it was never in Next up). Only the encoder and `export-image --format jxl` shipped; the PDF-side write is minted as `Pass 696.1` in *Backlog*. No head of Next up. `694.2` still open.**
 >
 > **1471st filing: `Pass 694.2` SHIPPED (`c9468b0c`, moved to Shipped from *Backlog*; it was never in Next up). No head of Next up remains. Open in *Backlog*: `696.1`.**
+>
+> **1472nd filing: `Pass 697.0` SHIPPED (`335e3e2c`, printer's marks clearance fix, request X062; minted and shipped in one filing, never in Next up) plus CI fix `ec1278fc` (no Pass). No head of Next up. Open in *Backlog*: `696.1`.**
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 
