@@ -1051,52 +1051,21 @@ pub enum MaskResample {
 /// the *up*-scaling smoothing the clause actually defines, and a reader
 /// minifying an image is unconstrained.
 ///
-/// # Default: [`Self::Smooth`] — **EVIDENCE TIER (c)**, flipped 2026-08-25
+/// # Default: [`Self::AreaAverage`], evidence tier (c)
 ///
-/// **This default changed, and it changed because the condition written
-/// into this very comment was met rather than because anybody argued for
-/// it.** The prior text read:
+/// The operator compared pdfcer against Acrobat on a report page whose
+/// drawing is a 1102x804 raster shown near 3:1: Acrobat kept every 1-px
+/// line, [`Self::Smooth`] dropped many of them, and [`Self::AreaAverage`]
+/// matched Acrobat. [`Self::Smooth`] had itself replaced
+/// [`Self::PointSample`] on an earlier operator comparison, so each step is
+/// an observation of the reference viewer, not a reading of the clause.
 ///
-/// > ~~"Default: `PointSample` — EVIDENCE TIER (d). Tier (d): reasoned
-/// > inference only, i.e. **a guess** … A viewer-behaviour check filed to
-/// > `C:\personal_rag\pdf\` would raise this to tier (c) and, if it
-/// > confirms, flip the default. Until then the status quo stands and is
-/// > labelled a guess."~~
+/// The cost is one box pass over the decoded image per minified draw
+/// (about 1 ms for 0.9 Mpx), which the smaller bilinear draw after it
+/// partly repays.
 ///
-/// The check was run. The operator compared pdfcer against **Acrobat
-/// Reader**, on his own CAD drawings, on his own screen, and reported
-/// unprompted that image quality on ordinary pages was *"a little worse
-/// than it was, whereas before it was on par with Acrobat Reader"*.
-///
-/// **The load-bearing detail is that he described the MECHANISM from
-/// the symptom, without being told it existed** — *"an image quality
-/// setting to discard smaller details than the screen sees"* is
-/// [`Self::PointSample`], exactly. A report that names the mechanism
-/// unprompted is a stronger observation than one that agrees with a
-/// hypothesis it was handed, because it cannot have been led.
-///
-/// So this is now tier (c) — *what another major implementation does,
-/// observed* — and tier (c) is the bar this comment set for itself.
-///
-/// # What did NOT happen, recorded so nobody hunts for a commit
-///
-/// **It was not a regression.** `PointSample` had been the shipped default
-/// throughout, and `RenderOptions::default()` carried the same
-/// `MinifyFilter::default()`, so routing the setting through a GUI control
-/// changed no pixels. Both halves were verified before acting. There was
-/// no revert to find; there was a default to decide.
-///
-/// # The residual, stated rather than smoothed over
-///
-/// [`Self::PointSample`] remains the **spec-literal** reading — §8.9.5.3
-/// legislates only magnification, so nothing in the clause is being
-/// contradicted in either direction. What is being chosen is what a viewer
-/// should do where the standard is silent, and the answer is now *"what
-/// the reference viewer visibly does"* instead of *"the narrowest reading
-/// of a switch that governs the other direction"*.
-///
-/// A test that asserts exact pixels on a minified image will change under
-/// this default. That is the point of it, not a side effect.
+/// [`Self::PointSample`] remains the **spec-literal** reading; §8.9.5.3
+/// legislates only magnification, so no default here contradicts it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum MinifyFilter {
@@ -1115,21 +1084,20 @@ pub enum MinifyFilter {
     /// [`Self::AreaAverage`] describes. A magnified or 1:1 Type 3 glyph is
     /// never smoothed under any setting.
     PointSample,
-    /// Smooth when the image is drawn smaller than its pixel grid, while
+    /// Bilinear when the image is drawn smaller than its pixel grid, while
     /// still honouring `/Interpolate` on the way up.
     ///
-    /// **The shipped default** as of 2026-08-25. Removes the aliasing at
-    /// the price of a departure from the clause's stated switch — which is
-    /// legitimate precisely because the clause never legislated this
-    /// direction (§8.9.5.3 defines interpolation for MAGNIFICATION only).
-    #[default]
+    /// Removes point-sampling's shimmer, but bilinear reads only a 2x2
+    /// neighbourhood, so from about 3:1 down it skips texels and drops
+    /// hairlines. Kept for anyone who prefers its softer look.
     Smooth,
     /// Average every texel under each output pixel: box-reduce by the
     /// whole-number minification factor on each axis, then sample
     /// bilinearly (a one-level mipmap). [`Self::Smooth`] reads a 2x2
     /// neighbourhood whatever the scale, so a scan at 4:1 skips 12 of every
     /// 16 texels and its hairlines break up; this reads all of them.
-    /// `/Interpolate` behaves as for `Smooth`.
+    /// `/Interpolate` behaves as for `Smooth`. **The default.**
+    #[default]
     AreaAverage,
 }
 
@@ -2780,12 +2748,11 @@ impl Settings {
              #                  document's own smoothing switch literally asks for;\n\
              #                  thin lines can shimmer or vanish when the picture is\n\
              #                  shrunk a lot.\n\
-             #   smooth       = blend neighbouring pixels (default). Cleaner shrunken\n\
-             #                  photographs; a deliberate departure from the\n\
-             #                  document's switch.\n\
-             #   area_average = average every pixel each dot on screen covers. Keeps\n\
-             #                  thin lines in heavily shrunk scans and drawings that\n\
-             #                  smooth can still break up; a little slower.\n",
+             #   smooth       = blend the 2x2 nearest pixels. Softer, but thin lines\n\
+             #                  break up once a picture is shrunk to a third or less.\n\
+             #   area_average = average every pixel each dot on screen covers\n\
+             #                  (default). Keeps thin lines in shrunk scans and\n\
+             #                  drawings, as Acrobat does.\n",
         );
         let _ = writeln!(out, "image_minify = {}\n", minify_token(self.image_minify));
 
@@ -3386,40 +3353,13 @@ mod tests {
         // pinned to the variant the pre-settings code hard-coded.
         let d = Settings::default();
         assert_eq!(d.mask_resample, MaskResample::Nearest, "mask.rs was NN");
-        // DELIBERATE EXCEPTION #2 — `image_minify`, 2026-08-25, and it is
-        // an OPERATOR OBSERVATION, not a later session flipping a default on
-        // its own authority.
-        //
-        // This line asserted `PointSample` until today, with the reason
-        // "interpret.rs point-sampled in both directions" — true, and the
-        // right pin while the default's own evidence tier was (d), a guess.
-        //
-        // `MinifyFilter`'s doc comment named the exact condition that would
-        // move it: "a viewer-behaviour check filed to `C:\personal_rag\pdf\`
-        // would raise this to tier (c) and, if it confirms, flip the
-        // default." The operator ran that check against Acrobat Reader on
-        // his own drawings and reported pdfcer "a little worse than it was,
-        // whereas before it was on par" — and named the mechanism from the
-        // symptom, unprompted, which is the strongest form the observation
-        // could take.
-        //
-        // WHY THIS DOES NOT WEAKEN THE GUARANTEE THIS TEST EXISTS FOR.
-        // The guarantee is that ADDING A KNOB changes nothing — that a
-        // session cannot smuggle a behaviour change in behind a setting.
-        // It is NOT that a default may never change afterwards on evidence:
-        // that would make every default permanent the moment it shipped,
-        // including the ones this file openly labels guesses, and would turn
-        // an honesty mechanism into a ratchet. The exception is admissible
-        // precisely because it is dated, attributed, and its evidence is
-        // written down where a reader will meet it.
-        //
-        // What a future session may NOT do is add a third exception on its
-        // own reasoning. Two rulings do not make a habit; both of these
-        // carry the operator's own words.
+        // EXCEPTION: `image_minify` moves on operator comparisons with
+        // Acrobat, recorded in `MinifyFilter`'s docs (decision log). A
+        // session may not move it on its own reasoning.
         assert_eq!(
             d.image_minify,
-            MinifyFilter::Smooth,
-            "operator viewer check vs Acrobat, 2026-08-25 — see MinifyFilter's docs"
+            MinifyFilter::AreaAverage,
+            "operator viewer comparisons vs Acrobat; see MinifyFilter's docs"
         );
         assert_eq!(
             d.cmyk_jpeg_polarity,

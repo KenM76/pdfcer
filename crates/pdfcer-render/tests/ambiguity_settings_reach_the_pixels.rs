@@ -424,9 +424,8 @@ fn the_render_default_tracks_the_settings_default() {
     // is a shell for, and it is silent — the pixels simply differ from the
     // ones the settings file describes.
     //
-    // The operator flipped `MinifyFilter::default()` to `Smooth` on
-    // 2026-08-25 (see its own docs for the evidence). Written this way, that
-    // flip needed no edit here, which is the point: a test that has to be
+    // Written this way, an evidence-based flip of `MinifyFilter::default()`
+    // needs no edit here, which is the point: a test that has to be
     // rewritten every time an evidence-based default moves is a test that
     // will eventually be rewritten WITHOUT the evidence.
     let implicit = render(minified_image_page(), &RenderOptions::default());
@@ -443,9 +442,11 @@ fn the_render_default_tracks_the_settings_default() {
     // …and the pairing that stops the above being vacuous. If the two
     // variants rendered identically on this fixture, the assertion would
     // hold for any wiring at all, including none.
+    // PointSample is the only variant that differs from both blending
+    // filters on this stripe fixture; Smooth and AreaAverage both average it.
     let other = match MinifyFilter::default() {
-        MinifyFilter::Smooth => MinifyFilter::PointSample,
-        _ => MinifyFilter::Smooth,
+        MinifyFilter::PointSample => MinifyFilter::Smooth,
+        _ => MinifyFilter::PointSample,
     };
     let differing = render(
         minified_image_page(),

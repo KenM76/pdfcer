@@ -718,7 +718,7 @@ pub struct RenderOptions {
     /// How an image drawn smaller than its own pixel grid is sampled
     /// (spec ambiguity `IM-A1`, §8.9.5.3).
     ///
-    /// **Default [`MinifyFilter::Smooth`]**, matching Acrobat Reader as the
+    /// **Default [`MinifyFilter::AreaAverage`]**, matching Acrobat as the
     /// operator observed it (see the type docs). §8.9.5.3 defines
     /// interpolation only for magnification, so `/Interpolate false` does
     /// not legislate this direction.

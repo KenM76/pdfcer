@@ -14,7 +14,7 @@
 //!
 //! [`MinifyFilter::AreaAverage`]: pdfcer_core::settings::MinifyFilter::AreaAverage
 
-use tiny_skia::{Pixmap, PremultipliedColorU8, Transform};
+use tiny_skia::{Pixmap, Transform};
 
 use crate::image::DecodedImage;
 
@@ -42,36 +42,86 @@ fn axis(texels: u32, device: f32) -> u32 {
 /// `src` averaged over `fx` x `fy` blocks; the last row and column of
 /// blocks average only the pixels that exist. Premultiplied channels are
 /// averaged as stored, which is the correct average for alpha.
+///
+/// Separable: each band of `fy` rows is summed column-wise first (a flat,
+/// vectorisable add), then across `fx` columns. Each block then divides by
+/// a per-band constant through a reciprocal multiply instead of a hardware
+/// divide, which was most of the cost.
 pub(crate) fn box_reduce(src: &Pixmap, fx: u32, fy: u32) -> Option<Pixmap> {
     let (w, h) = (src.width() as usize, src.height() as usize);
-    let (fx, fy) = (fx as usize, fy as usize);
-    let (rw, rh) = (w.div_ceil(fx), h.div_ceil(fy));
+    let (fxu, fyu) = (fx as usize, fy as usize);
+    let (rw, rh) = (w.div_ceil(fxu), h.div_ceil(fyu));
     let mut out = Pixmap::new(u32::try_from(rw).ok()?, u32::try_from(rh).ok()?)?;
-    let mut sums = vec![[0u64; 4]; rw];
-    let rows = src.pixels().chunks_exact(w).collect::<Vec<_>>();
-    for (band, dst_row) in rows.chunks(fy).zip(out.pixels_mut().chunks_exact_mut(rw)) {
-        sums.fill([0; 4]);
-        for row in band {
-            for (block, sum) in row.chunks(fx).zip(sums.iter_mut()) {
-                for p in block {
-                    sum[0] += u64::from(p.red());
-                    sum[1] += u64::from(p.green());
-                    sum[2] += u64::from(p.blue());
-                    sum[3] += u64::from(p.alpha());
-                }
-            }
-        }
-        let tall = band.len() as u64;
-        for (x, (sum, dst)) in sums.iter().zip(dst_row.iter_mut()).enumerate() {
-            let wide = (w - x * fx).min(fx) as u64;
-            let n = wide * tall;
-            let avg = |s: u64| u8::try_from((s + n / 2) / n).unwrap_or(u8::MAX);
-            *dst =
-                PremultipliedColorU8::from_rgba(avg(sum[0]), avg(sum[1]), avg(sum[2]), avg(sum[3]))
-                    .unwrap_or(PremultipliedColorU8::TRANSPARENT);
-        }
+    // A u16 column sum holds up to 257 rows of 255.
+    if fy <= 257 {
+        reduce_bands::<u16>(src.data(), w, (fxu, fyu), out.data_mut());
+    } else {
+        reduce_bands::<u32>(src.data(), w, (fxu, fyu), out.data_mut());
     }
     Some(out)
+}
+
+fn reduce_bands<T>(src: &[u8], w: usize, (fx, fy): (usize, usize), out: &mut [u8])
+where
+    T: Copy + Default + core::ops::AddAssign + From<u8>,
+    u64: From<T>,
+{
+    let stride = w * 4;
+    let mut col = vec![T::default(); stride];
+    let dst_stride = w.div_ceil(fx) * 4;
+    for (band, dst_row) in src
+        .chunks(stride * fy)
+        .zip(out.chunks_exact_mut(dst_stride))
+    {
+        col.fill(T::default());
+        for row in band.chunks_exact(stride) {
+            for (c, &v) in col.iter_mut().zip(row) {
+                *c += T::from(v);
+            }
+        }
+        let tall = (band.len() / stride) as u64;
+        let full = Divisor::new(fx as u64 * tall);
+        for (block, dst) in col.chunks(fx * 4).zip(dst_row.chunks_exact_mut(4)) {
+            let mut sum = [0u64; 4];
+            for px in block.chunks_exact(4) {
+                for (s, &v) in sum.iter_mut().zip(px) {
+                    *s += u64::from(v);
+                }
+            }
+            let n = (block.len() / 4) as u64 * tall;
+            let div = if n == full.n { full } else { Divisor::new(n) };
+            let [r, g, b, a] = sum.map(|s| u8::try_from(div.round(s)).unwrap_or(u8::MAX));
+            // Rounding each channel separately keeps colour <= alpha: the
+            // block sums already satisfy it and rounding is monotonic.
+            dst.copy_from_slice(&[r.min(a), g.min(a), b.min(a), a]);
+        }
+    }
+}
+
+/// Rounded division by a fixed `n`. For `n < 2^24` it multiplies by
+/// `m = ceil(2^64 / n)`; with numerators below `256 n` the error term stays
+/// under `1 / n`, so the quotient is exact (Granlund and Montgomery, 1994).
+#[derive(Clone, Copy)]
+struct Divisor {
+    n: u64,
+    m: Option<u128>,
+}
+
+impl Divisor {
+    fn new(n: u64) -> Self {
+        let n = n.max(1);
+        let m = (n < 1 << 24).then(|| (1u128 << 64).div_ceil(u128::from(n)));
+        Self { n, m }
+    }
+
+    /// `round(s / n)` with halves rounded up, for `s <= 255 n`.
+    fn round(self, s: u64) -> u64 {
+        let num = s + self.n / 2;
+        match self.m {
+            Some(m) => ((u128::from(num) * m) >> 64) as u64,
+            None => num / self.n,
+        }
+    }
 }
 
 /// `decoded` with every pixmap box-reduced by `(fx, fy)`: all of them or,
@@ -102,6 +152,7 @@ mod tests {
     #![allow(clippy::unwrap_used)]
 
     use super::*;
+    use tiny_skia::PremultipliedColorU8;
 
     fn pixmap(w: u32, h: u32, f: impl Fn(u32, u32) -> u8) -> Pixmap {
         let mut p = Pixmap::new(w, h).unwrap();
@@ -111,6 +162,71 @@ mod tests {
             *px = PremultipliedColorU8::from_rgba(v, v, v, 255).unwrap();
         }
         p
+    }
+
+    /// The straightforward per-block average the fast path must reproduce.
+    fn box_reduce_reference(src: &Pixmap, fx: u32, fy: u32) -> Option<Pixmap> {
+        let (w, h) = (src.width() as usize, src.height() as usize);
+        let (fx, fy) = (fx as usize, fy as usize);
+        let (rw, rh) = (w.div_ceil(fx), h.div_ceil(fy));
+        let mut out = Pixmap::new(u32::try_from(rw).ok()?, u32::try_from(rh).ok()?)?;
+        let mut sums = vec![[0u64; 4]; rw];
+        let rows = src.pixels().chunks_exact(w).collect::<Vec<_>>();
+        for (band, dst_row) in rows.chunks(fy).zip(out.pixels_mut().chunks_exact_mut(rw)) {
+            sums.fill([0; 4]);
+            for row in band {
+                for (block, sum) in row.chunks(fx).zip(sums.iter_mut()) {
+                    for p in block {
+                        sum[0] += u64::from(p.red());
+                        sum[1] += u64::from(p.green());
+                        sum[2] += u64::from(p.blue());
+                        sum[3] += u64::from(p.alpha());
+                    }
+                }
+            }
+            let tall = band.len() as u64;
+            for (x, (sum, dst)) in sums.iter().zip(dst_row.iter_mut()).enumerate() {
+                let wide = (w - x * fx).min(fx) as u64;
+                let n = wide * tall;
+                let avg = |s: u64| u8::try_from((s + n / 2) / n).unwrap_or(u8::MAX);
+                *dst = PremultipliedColorU8::from_rgba(
+                    avg(sum[0]),
+                    avg(sum[1]),
+                    avg(sum[2]),
+                    avg(sum[3]),
+                )
+                .unwrap_or(PremultipliedColorU8::TRANSPARENT);
+            }
+        }
+        Some(out)
+    }
+
+    #[test]
+    fn the_fast_reduction_matches_the_plain_average_exactly() {
+        // Premultiplied texels with varied alpha, odd sizes and partial
+        // last blocks on both axes, including a factor past the u16 limit.
+        let (w, h) = (37, 301);
+        let mut src = Pixmap::new(w, h).unwrap();
+        for (i, px) in src.pixels_mut().iter_mut().enumerate() {
+            let a = ((i * 97) % 256) as u8;
+            let c = |k: usize| ((i * k) % 256) as u8 % a.saturating_add(1);
+            *px = PremultipliedColorU8::from_rgba(c(31), c(57), c(13), a).unwrap();
+        }
+        for (fx, fy) in [(2, 2), (3, 3), (5, 7), (7, 1), (1, 9), (36, 300), (4, 260)] {
+            let fast = box_reduce(&src, fx, fy).unwrap();
+            let plain = box_reduce_reference(&src, fx, fy).unwrap();
+            assert_eq!(fast.data(), plain.data(), "{fx} x {fy}");
+        }
+    }
+
+    #[test]
+    fn the_reciprocal_divide_is_exact() {
+        for n in [1u64, 2, 3, 7, 9, 255, 1000, 65_535, (1 << 24) - 1, 1 << 24] {
+            let d = Divisor::new(n);
+            for s in [0, 1, n / 2, n, 128 * n + n / 2, 255 * n] {
+                assert_eq!(d.round(s), (s + n / 2) / n, "{s} / {n}");
+            }
+        }
     }
 
     #[test]

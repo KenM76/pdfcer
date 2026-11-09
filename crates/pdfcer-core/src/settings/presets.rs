@@ -828,9 +828,9 @@ fn entries_for(standard: RenderStandard) -> Vec<PresetEntry> {
     // --- 4. image minification ----------------------------------------------
     //
     // THE ONE AXIS WHERE A PRESET ACTUALLY DIVERGES FROM THE SHIPPED
-    // DEFAULT, as of 2026-08-25. `MinifyFilter::default()` moved to `Smooth`
-    // on the operator's Acrobat comparison — the right answer for looking at
-    // a page. For conformance output the spec-literal reading is the safer
+    // DEFAULT. `MinifyFilter::default()` is `AreaAverage`, from the
+    // operator's Acrobat comparisons — the right answer for looking at a
+    // page. For conformance output the spec-literal reading is the safer
     // one: it resamples nothing it was not told to.
     out.push(PresetEntry {
         key: K::ImageMinify,
