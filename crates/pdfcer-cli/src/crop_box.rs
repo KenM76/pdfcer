@@ -79,7 +79,8 @@ pub(crate) fn crop_request(
     margin: Option<f64>,
 ) -> Result<CropRequest, String> {
     if margin.is_some() && !white_margins {
-        // clap's `requires` is satisfied by the flag's implicit `false`.
+        // clap waives `requires` when its target conflicts with a present
+        // arg (`--rect`, `--reset`), so this pair is checked here.
         return Err("--margin needs --remove-white-margins".into());
     }
     match (rect, reset, white_margins) {
