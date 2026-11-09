@@ -4209,20 +4209,33 @@ pub(crate) fn run() -> ExitCode {
         Command::SetCropBox {
             input,
             pages,
+            odd,
+            even,
+            page_box,
             rect,
             reset,
+            remove_white_margins,
+            margin,
             output,
             mode,
             verify_undo,
-        } => cmd_set_crop_box(
-            &input,
-            &pages,
-            rect.as_deref(),
-            reset,
-            &output,
-            mode,
-            verify_undo,
-        ),
+        } => match crop_request(rect.as_deref(), reset, remove_white_margins, margin) {
+            Ok(request) => cmd_set_crop_box(&SetCropBoxArgs {
+                input: &input,
+                pages: &pages,
+                odd,
+                even,
+                page_box,
+                request,
+                output: &output,
+                mode,
+                verify_undo,
+            }),
+            Err(msg) => {
+                eprintln!("pdfcer: {}: {msg}", input.display());
+                exit::EDIT_REFUSED
+            }
+        },
         Command::ScalePages {
             input,
             pages,

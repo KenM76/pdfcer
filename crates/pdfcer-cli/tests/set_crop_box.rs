@@ -197,3 +197,143 @@ fn set_page_size_notes_a_bleed_box_left_off_the_sheet() {
         "{stderr}"
     );
 }
+
+/// A 300x300 page painting one black square at [100 150 150 210], under
+/// `/Rotate rotate`.
+fn inked(dir: &Path, rotate: u16) -> PathBuf {
+    let path = dir.join(format!("inked-{rotate}.pdf"));
+    let content = "0 0 0 rg 100 150 50 60 re f";
+    std::fs::write(
+        &path,
+        build_pdf(&[
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            &format!(
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 300] /Rotate {rotate} \
+                 /Resources << >> /Contents 4 0 R >>"
+            ),
+            &format!(
+                "<< /Length {} >>\nstream\n{content}\nendstream",
+                content.len()
+            ),
+        ]),
+    )
+    .unwrap();
+    path
+}
+
+#[test]
+fn remove_white_margins_fits_the_crop_to_the_ink_at_every_rotation() {
+    let dir = tmp("white-margins");
+    for rotate in [0_u16, 90, 180, 270] {
+        let input = inked(&dir, rotate);
+        let out = dir.join(format!("fitted-{rotate}.pdf"));
+        let o = run(&[
+            "set-crop-box",
+            input.to_str().unwrap(),
+            "--remove-white-margins",
+            "--margin",
+            "5",
+            "-o",
+            out.to_str().unwrap(),
+        ]);
+        let stderr = String::from_utf8_lossy(&o.stderr);
+        assert!(o.status.success(), "{stderr}");
+        assert!(stderr.contains("content found within"), "{stderr}");
+        assert!(String::from_utf8_lossy(&o.stdout).contains("detected=1 blank=0"));
+        let c = crop_of(&out);
+        let want = [95.0, 145.0, 155.0, 215.0];
+        let got = [c.llx, c.lly, c.urx, c.ury];
+        for (g, w) in got.iter().zip(want) {
+            // One pixel of padding at 2 px/pt, plus antialiasing.
+            assert!((g - w).abs() <= 1.0, "rotate {rotate}: {got:?} vs {want:?}");
+        }
+    }
+}
+
+#[test]
+fn a_blank_page_keeps_its_box_and_says_so() {
+    let dir = tmp("blank");
+    let input = word_shaped(&dir);
+    let out = dir.join("out.pdf");
+    let o = run(&[
+        "set-crop-box",
+        input.to_str().unwrap(),
+        "--remove-white-margins",
+        "-o",
+        out.to_str().unwrap(),
+    ]);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    assert!(String::from_utf8_lossy(&o.stderr).contains("nothing painted"));
+    assert!(String::from_utf8_lossy(&o.stdout).contains("changed=0"));
+}
+
+#[test]
+fn box_and_parity_select_the_trim_box_on_odd_pages() {
+    let dir = tmp("trim-odd");
+    let input = dir.join("three.pdf");
+    let page = "<< /Type /Page /Parent 2 0 R /Resources << >> >>";
+    std::fs::write(
+        &input,
+        build_pdf(&[
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R] /Count 3 /MediaBox [0 0 300 300] >>",
+            page,
+            page,
+            page,
+        ]),
+    )
+    .unwrap();
+    let out = dir.join("out.pdf");
+    let o = run(&[
+        "set-crop-box",
+        input.to_str().unwrap(),
+        "--pages",
+        "all",
+        "--odd",
+        "--box",
+        "trim",
+        "--rect",
+        "9,9,291,291",
+        "-o",
+        out.to_str().unwrap(),
+    ]);
+    assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    let stdout = String::from_utf8_lossy(&o.stdout);
+    assert!(stdout.contains("pages_set=2 explicit=2"), "{stdout}");
+    assert!(stdout.contains("box=trim"), "{stdout}");
+    let bytes = std::fs::read(&out).unwrap();
+    let hits = bytes.windows(9).filter(|w| w == b"/TrimBox ").count()
+        + bytes.windows(9).filter(|w| w == b"/TrimBox[").count();
+    assert_eq!(hits, 2, "two pages carry a trim box");
+    assert_eq!(crop_of(&out), Rect::from_corners(0.0, 0.0, 300.0, 300.0));
+}
+
+#[test]
+fn margin_needs_remove_white_margins_and_rect_conflicts_with_it() {
+    let dir = tmp("conflicts");
+    let input = word_shaped(&dir);
+    let out = dir.join("out.pdf");
+    let (i, o) = (input.to_str().unwrap(), out.to_str().unwrap());
+    let r = run(&[
+        "set-crop-box",
+        i,
+        "--rect",
+        "1,1,9,9",
+        "--margin",
+        "3",
+        "-o",
+        o,
+    ]);
+    assert!(!r.status.success());
+    let r = run(&[
+        "set-crop-box",
+        i,
+        "--rect",
+        "1,1,9,9",
+        "--remove-white-margins",
+        "-o",
+        o,
+    ]);
+    assert!(!r.status.success());
+}

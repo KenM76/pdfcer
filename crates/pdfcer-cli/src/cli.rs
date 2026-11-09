@@ -1128,36 +1128,65 @@ pub(crate) enum Command {
         verify_undo: bool,
     },
 
-    /// Set or reset one or more pages' crop box — the region every reader
-    /// shows (ISO 32000-2 §14.11.2 `/CropBox`).
+    /// Set, reset or trim to content a page box on one or more pages —
+    /// by default the crop box, the region every reader shows
+    /// (ISO 32000-2 §14.11.2).
+    ///
+    /// Cropping hides content; it removes nothing. What lies outside the
+    /// crop box is still in the file and comes back with `--reset`; to
+    /// delete it, use `redact-mark --outside` and `redact-apply`.
     ///
     /// The entry is written on each page object, so siblings that inherit
-    /// a shared value are untouched. Content is not changed: what lies
-    /// outside the crop box is hidden, not removed.
+    /// a shared crop box are untouched. `--box bleed|trim|art` edits that
+    /// print-production box instead; with no entry it defaults to the
+    /// crop box.
     ///
-    /// Give `--rect x0,y0,x1,y1` in points (default user space), or
-    /// `--reset` to show the whole sheet again. A rectangle reaching past
-    /// the sheet is written as given and reported; readers show only the
-    /// part on the sheet. A rectangle with no area, or entirely off the
-    /// sheet, is refused.
+    /// Give one of:
+    ///
+    /// * `--rect x0,y0,x1,y1` in points (default user space);
+    /// * `--reset` to remove the page's own entry (the crop box then
+    ///   shows the whole sheet; the others follow the crop box);
+    /// * `--remove-white-margins` to fit the box to what each page
+    ///   paints, found on a 144 dpi render, grown by `--margin` points.
+    ///   Each page's inferred rectangle is printed; a blank page is left
+    ///   alone and noted.
+    ///
+    /// A rectangle reaching past the sheet is written as given and
+    /// reported; readers use only the part on the sheet. A rectangle with
+    /// no area, or entirely off the sheet, is refused.
     SetCropBox {
         /// Input PDF.
         input: PathBuf,
         /// Which pages, 1-based: `3`, `1,4,7`, `2-5`, or `all`.
         #[arg(long, default_value = "1", value_name = "SPEC")]
         pages: String,
-        /// The crop rectangle `x0,y0,x1,y1` in points.
+        /// Only the odd-numbered pages of --pages.
+        #[arg(long, conflicts_with = "even")]
+        odd: bool,
+        /// Only the even-numbered pages of --pages.
+        #[arg(long)]
+        even: bool,
+        /// Which box to change.
+        #[arg(long = "box", value_enum, default_value_t = PageBoxArg::Crop)]
+        page_box: PageBoxArg,
+        /// The rectangle `x0,y0,x1,y1` in points.
         #[arg(
             long,
             value_name = "X0,Y0,X1,Y1",
             allow_hyphen_values = true,
-            required_unless_present = "reset",
-            conflicts_with = "reset"
+            required_unless_present_any = ["reset", "remove_white_margins"],
+            conflicts_with_all = ["reset", "remove_white_margins"]
         )]
         rect: Option<String>,
-        /// Show the whole sheet: remove the page's own crop box.
-        #[arg(long)]
+        /// Remove the page's own entry for the box.
+        #[arg(long, conflicts_with = "remove_white_margins")]
         reset: bool,
+        /// Fit the box to each page's painted content.
+        #[arg(long)]
+        remove_white_margins: bool,
+        /// Points of white kept around the content (default 0).
+        #[arg(long, value_name = "PT", requires = "remove_white_margins")]
+        margin: Option<f64>,
         /// Output path. Naming the input replaces it; otherwise the input is not modified.
         #[arg(short, long)]
         output: PathBuf,

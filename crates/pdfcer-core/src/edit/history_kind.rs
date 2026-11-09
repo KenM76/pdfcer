@@ -218,6 +218,7 @@ kind_codec! {
     AddSignatureField,
     SetMediaBoxes { count: usize },
     SetCropBoxes { count: usize },
+    SetPageBoxes { count: usize },
     ResizePages { count: usize },
     ScalePages { count: usize },
     DeletePages { count: usize },

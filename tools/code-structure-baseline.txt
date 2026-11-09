@@ -178,7 +178,6 @@ fn pdfcer-cli/src/offpage.rs::cmd_scan_offpage
 fn pdfcer-cli/src/page_edit.rs::cmd_annotate
 fn pdfcer-cli/src/page_edit.rs::cmd_redact_mark
 fn pdfcer-cli/src/page_edit.rs::cmd_scale_pages
-fn pdfcer-cli/src/page_edit.rs::cmd_set_crop_box
 fn pdfcer-cli/src/page_edit.rs::cmd_set_page_size
 fn pdfcer-cli/src/pages.rs::cmd_delete_pages
 fn pdfcer-cli/src/pages.rs::cmd_page_paste

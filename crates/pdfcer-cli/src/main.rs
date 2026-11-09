@@ -53,9 +53,10 @@
 //!   a crop box that showed the whole old sheet to the new one (`G056`).
 //!   Named sizes come from `pdfcer_core::paper`, so the CLI, the GUI and
 //!   any future shell all quote the same numbers. See [`cmd_set_page_size`].
-//! - `set-crop-box <in> -o <out> --pages SPEC (--rect X0,Y0,X1,Y1 |
-//!   --reset)` (`G056`): sets or removes a page's `/CropBox`, the region
-//!   readers show (§14.11.2). See [`cmd_set_crop_box`].
+//! - `set-crop-box <in> -o <out> --pages SPEC [--odd|--even]
+//!   [--box crop|bleed|trim|art] (--rect X0,Y0,X1,Y1 | --reset |
+//!   --remove-white-margins [--margin PT])`: sets, removes or fits to
+//!   content a page box (§14.11.2). See [`cmd_set_crop_box`].
 //! - `scale-pages <in> -o <out> --size NAME|WxH [--scale-mode fit|fill]
 //!   [--orientation match|exact]` (Pass 364.0): scales page content onto a
 //!   new sheet, moving annotations and destinations with it. See
@@ -616,6 +617,8 @@ mod in_place;
 use edit_common::*;
 mod page_edit;
 use page_edit::*;
+mod crop_box;
+use crop_box::*;
 mod text_edit;
 use text_edit::*;
 mod text_place;

@@ -162,8 +162,10 @@ mod print_ready;
 pub use print_ready::{
     PrintReadyCopy, PrintReadyError, PrintReadyLoss, PrintReadyReport, check_print_permission,
 };
+mod page_boxes;
 mod printer_marks;
 mod redact_outside;
+pub use page_boxes::{PageBox, PageBoxChange, PageBoxEdit};
 mod restack;
 mod running_text;
 mod stroke_style;
@@ -534,6 +536,12 @@ pub enum CommandKind {
     /// Pages' `/CropBox` was set or reset in one operation
     /// ([`EditSession::set_crop_boxes`]).
     SetCropBoxes {
+        /// How many page objects were rewritten.
+        count: usize,
+    },
+    /// Pages' crop, bleed, trim or art boxes were set or reset in one
+    /// operation ([`EditSession::set_page_boxes`]).
+    SetPageBoxes {
         /// How many page objects were rewritten.
         count: usize,
     },
@@ -9981,6 +9989,28 @@ pub enum EditError {
     CropBoxEmpty {
         /// The 0-based page the crop box was for.
         page_index: usize,
+    },
+    /// [`EditSession::set_page_boxes`] was asked for a bleed, trim or art
+    /// box with zero area, a non-finite coordinate, or no overlap with the
+    /// page's media box.
+    #[error(
+        "page {page_index}: the requested {} leaves nothing (zero area, a non-finite coordinate, or no overlap with the media box; ISO 32000-2 §14.11.2)",
+        target.key()
+    )]
+    PageBoxEmpty {
+        /// The 0-based page.
+        page_index: usize,
+        /// The box asked for.
+        target: PageBox,
+    },
+    /// [`EditSession::set_page_boxes`] was given two edits for the same box
+    /// on the same page; which should win is not guessed.
+    #[error("page {page_index}: {} is edited twice in one call", target.key())]
+    PageBoxRepeated {
+        /// The 0-based page.
+        page_index: usize,
+        /// The repeated box.
+        target: PageBox,
     },
     /// A page selected for [`EditSession::scale_pages`] carries ce
     /// dimensions.
@@ -63137,7 +63167,7 @@ mod tests {
         )
     }
 
-    fn build(bodies: &[&str], trailer_extra: &str) -> Vec<u8> {
+    pub(super) fn build(bodies: &[&str], trailer_extra: &str) -> Vec<u8> {
         let mut buf = b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n".to_vec();
         let mut offsets = Vec::new();
         for (i, body) in bodies.iter().enumerate() {
