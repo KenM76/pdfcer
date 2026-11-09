@@ -57,6 +57,10 @@ use std::fmt::Write as _;
 
 use tiny_skia::Pixmap;
 
+#[cfg(feature = "jxl-write")]
+mod jxl;
+#[cfg(feature = "jxl-write")]
+pub use jxl::{JxlEncoded, JxlOptions, encode_jxl};
 mod xmp;
 pub use xmp::{MAX_JPEG_XMP_PACKET, insert_jpeg_xmp, photo_sphere_xmp};
 
@@ -172,7 +176,7 @@ pub enum ExportError {
     /// a `Vec`.
     #[error("{format} encoding failed: {detail}")]
     Encoder {
-        /// `"PNG"` or `"JPEG"`.
+        /// `"PNG"`, `"JPEG"` or `"JPEG XL"`.
         format: &'static str,
         /// The encoder's own message.
         detail: String,

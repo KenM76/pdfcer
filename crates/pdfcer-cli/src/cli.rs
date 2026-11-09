@@ -5772,9 +5772,10 @@ pub(crate) enum Command {
         /// Selecting more than one page needs `--output-dir`.
         #[arg(long, default_value = "1")]
         pages: String,
-        /// Output format: `png`, `jpeg` (`jpg`), `svg` (vector —
-        /// transparent by default, with `--dpi` governing only what must be
-        /// embedded as raster inside it) or `emf` (Windows metafile).
+        /// Output format: `png`, `jpeg` (`jpg`), `jxl` (JPEG XL, lossless
+        /// unless `--jxl-distance` is given), `svg` (vector — transparent by
+        /// default, with `--dpi` governing only what must be embedded as
+        /// raster inside it) or `emf` (Windows metafile).
         #[arg(long, value_enum, default_value_t = ImageFormatArg::Png)]
         format: ImageFormatArg,
         /// Pixel density. The render scale is `dpi / 72`; the value is also
@@ -5782,14 +5783,21 @@ pub(crate) enum Command {
         #[arg(long, default_value_t = 150.0)]
         dpi: f32,
         /// Keep the page's transparency instead of compositing it onto
-        /// white (PNG only — refused for JPEG, which has no alpha).
+        /// white (PNG and JPEG XL — refused for JPEG, which has no alpha).
         #[arg(long)]
         transparent: bool,
         /// JPEG quality, 1–100 (default 90; at 90 and above the encoder
         /// stops subsampling chroma, which keeps coloured line art crisp).
-        /// Ignored for PNG, which is lossless.
+        /// Ignored for PNG and JPEG XL.
         #[arg(long, default_value_t = 90)]
         quality: u8,
+        /// Make a JPEG XL lossy at this Butteraugli distance (0.1–25; 1.0
+        /// is visually lossless, larger is smaller and coarser). Without
+        /// it the file is lossless. The result line reports `max_error=`,
+        /// the largest per-sample difference from the page (0–255).
+        /// `--format jxl` only.
+        #[arg(long, value_name = "D")]
+        jxl_distance: Option<f32>,
         /// Opaque background colour (`#rrggbb`) that transparency is
         /// flattened onto. Default white. Cannot be combined with
         /// `--transparent`.

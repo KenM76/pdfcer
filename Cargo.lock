@@ -707,6 +707,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
+name = "jixel"
+version = "0.5.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13cd3bce0467732222e6f78045b40e72ead8723d236f8707211c4b2d75d1b403"
+
+[[package]]
 name = "jpeg-encoder"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1193,6 +1199,7 @@ dependencies = [
  "icccer-cmm",
  "icccer-color",
  "icccer-profile",
+ "jixel",
  "jpeg-encoder",
  "pdfcer-core",
  "png",

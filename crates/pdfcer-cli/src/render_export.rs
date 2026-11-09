@@ -1491,6 +1491,8 @@ pub(crate) struct ExportImageArgs<'a> {
     pub(crate) transparent: bool,
     /// JPEG quality, 1–100.
     pub(crate) quality: u8,
+    /// JPEG XL Butteraugli distance; `None` is lossless.
+    pub(crate) jxl_distance: Option<f32>,
     /// `#rrggbb` the page is flattened onto; `None` means white.
     pub(crate) background: Option<&'a str>,
     /// Single-page destination.
@@ -1555,6 +1557,7 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
         dpi,
         transparent,
         quality,
+        jxl_distance,
         background,
         output,
         output_dir,
@@ -1607,6 +1610,9 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
             input.display()
         );
         return exit::RUNTIME_ERROR;
+    }
+    if let Some(code) = check_jxl_flags(input, format, jxl_distance) {
+        return code;
     }
     if !(1..=100).contains(&quality) {
         eprintln!(
@@ -1926,7 +1932,15 @@ shadings_as_gradients={} blends_flattened={} blends_underlaid={}",
             }
         };
 
+        let mut max_error_token = String::new();
         let bytes = match format {
+            ImageFormatArg::Jxl => encode_jxl_page(
+                &rendered.pixmap,
+                transparent,
+                background,
+                jxl_distance,
+                &mut max_error_token,
+            ),
             ImageFormatArg::Png => {
                 // A non-transparent PNG with a chosen background is
                 // flattened here, over that colour; the white default was
@@ -1966,7 +1980,7 @@ shadings_as_gradients={} blends_flattened={} blends_underlaid={}",
             (false, None) => Rgb::WHITE.to_hex(),
         };
         println!(
-            "exported {} page {page_number} -> {} {}x{} format={} dpi={dpi} transparent={} background={}; {}",
+            "exported {} page {page_number} -> {} {}x{} format={}{max_error_token} dpi={dpi} transparent={} background={}; {}",
             input.display(),
             path.display(),
             rendered.pixmap.width(),
@@ -1992,6 +2006,71 @@ shadings_as_gradients={} blends_flattened={} blends_underlaid={}",
     }
 
     exit::SUCCESS
+}
+
+/// Refuse `--jxl-distance` off `--format jxl`, an out-of-range distance,
+/// and `--format jxl` in a build without the encoder.
+fn check_jxl_flags(input: &Path, format: ImageFormatArg, distance: Option<f32>) -> Option<u8> {
+    let refuse = |msg: String| {
+        eprintln!("pdfcer: {}: {msg}", input.display());
+        Some(exit::RUNTIME_ERROR)
+    };
+    if distance.is_some() && format != ImageFormatArg::Jxl {
+        return refuse("--jxl-distance applies to --format jxl only".into());
+    }
+    if let Some(d) = distance
+        && !(0.1..=25.0).contains(&d)
+    {
+        return refuse(format!("--jxl-distance {d} is outside 0.1..=25"));
+    }
+    if format == ImageFormatArg::Jxl && !cfg!(feature = "jxl-write") {
+        return refuse(
+            "--format jxl needs the `jxl-write` feature, which this build was compiled without"
+                .into(),
+        );
+    }
+    None
+}
+
+/// Encode one rendered page as JPEG XL. A lossy encode writes
+/// ` max_error=<n>` into `token` for the result line.
+#[cfg(feature = "jxl-write")]
+fn encode_jxl_page(
+    pixmap: &pdfcer_render::tiny_skia::Pixmap,
+    transparent: bool,
+    background: Option<pdfcer_render::export::Rgb>,
+    distance: Option<f32>,
+    token: &mut String,
+) -> Result<Vec<u8>, pdfcer_render::export::ExportError> {
+    use pdfcer_render::export::{JxlOptions, Rgb, encode_jxl};
+    let mut opts = JxlOptions::default().with_background(if transparent {
+        None
+    } else {
+        Some(background.unwrap_or(Rgb::WHITE))
+    });
+    if let Some(d) = distance {
+        opts = opts.with_distance(d);
+    }
+    let out = encode_jxl(pixmap, &opts)?;
+    if distance.is_some() {
+        *token = format!(" max_error={}", out.max_error);
+    }
+    Ok(out.bytes)
+}
+
+/// Unreachable: `check_jxl_flags` refuses `--format jxl` in this build.
+#[cfg(not(feature = "jxl-write"))]
+fn encode_jxl_page(
+    _pixmap: &pdfcer_render::tiny_skia::Pixmap,
+    _transparent: bool,
+    _background: Option<pdfcer_render::export::Rgb>,
+    _distance: Option<f32>,
+    _token: &mut String,
+) -> Result<Vec<u8>, pdfcer_render::export::ExportError> {
+    Err(pdfcer_render::export::ExportError::Encoder {
+        format: "JPEG XL",
+        detail: "this build has no JPEG XL encoder".into(),
+    })
 }
 
 /// Resolve `--show-layer` / `--hide-layer` names into a complete

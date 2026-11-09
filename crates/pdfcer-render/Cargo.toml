@@ -36,9 +36,12 @@ profile = []
 # forward. A crate that forgets silently defeats stripping for the entire
 # workspace, and the symptom is a flag that appears to work and changes
 # nothing.
-default = ["jpx", "jxl", "ocrs", "ocrcer", "paddle"]
+default = ["jpx", "jxl", "jxl-write", "ocrs", "ocrcer", "paddle"]
 jpx = ["pdfcer-core/jpx"]
 jxl = ["pdfcer-core/jxl"]
+# JPEG XL export (`Pass 696.0`, decision 210). Implies `jxl`: every encoded
+# file is decoded back with the reader before it is returned.
+jxl-write = ["jxl", "dep:jixel"]
 # The `ocrs` text-recognition engine. Forwarded even though `pdfcer-render`
 # never calls it: the CLI reaches core THROUGH this crate, so a missing rung
 # here would strip OCR from the CLI with no diagnostic anywhere.
@@ -54,6 +57,13 @@ pdfcer-core.workspace = true
 # thiserror: error-type derive, same rationale + license (MIT OR Apache-2.0)
 # as pdfcer-core's entry.
 thiserror = "2"
+
+# jixel: pure-Rust JPEG XL encoder (port of libjxl-tiny), used by
+# `export::encode_jxl` only. License: BSD-3-Clause OR Apache-2.0 (taken as
+# Apache-2.0). Exact pin: encoder output changes only on purpose. Default
+# features off to drop `extraslow` (two metric crates); SIMD paths kept.
+# Always driven with one thread (decision 210).
+jixel = { version = "=0.5.7", default-features = false, features = ["sse", "avx", "neon", "wasm"], optional = true }
 
 # tiny-skia: the Pass 1 rasterizer backend (docs/PRIOR_ART.md selection,
 # reaffirmed by docs/decisions/001 §6.2): pure-Rust CPU path renderer,

@@ -103,18 +103,11 @@ exclude = [
 [workspace.package]
 version = "0.138.0"
 edition = "2024"
-# MSRV (minimum supported Rust version) — docs/ARCHITECTURE.md §2.1a asked
-# for this to be set at Pass 0, and to be re-checked against the candidate
-# dependencies "some of which could force pdfcer's own MSRV higher than
-# expected." That is exactly what happened: the edition-2024 floor is 1.85,
-# but eframe 0.35 (then our largest dependency, the egui application shell;
-# gone with the GUI crate in Pass 247.0 — the floor is kept, not re-derived)
-# needed rustc 1.92, and with the MSRV-aware resolver a lower value would
-# silently pin egui/eframe several versions behind the release. For a new app
-# built on a pinned 1.97.1 toolchain there is no benefit to an artificially
-# low MSRV, so it is set from the real dependency floor. Bump deliberately
-# (dated decision-log entry) when a future dependency upgrade requires it.
-rust-version = "1.92"
+# MSRV: the highest `rust-version` in the default dependency graph
+# (ocrcer-core 1.97; jixel 1.94), decision 210. A lower value would be false
+# and would make the MSRV-aware resolver hold dependencies back.
+# tools/check-msrv-floor.py keeps it true; raise only with a decision entry.
+rust-version = "1.97"
 authors = ["The pdfcer authors"]
 repository = "https://github.com/KenM76/pdfcer"
 homepage = "https://github.com/KenM76/pdfcer"

@@ -19,9 +19,12 @@ path = "src/main.rs"
 # Mirrors `pdfcer-core`'s strippable-capability features so a lighter CLI is
 # one flag rather than a manifest edit. Default ON: `--no-default-features`
 # is the deliberate act, never the accident.
-default = ["jpx", "jxl", "ocrs", "ocrcer", "paddle", "ocr-vl", "signing", "3d", "svg-import"]
+default = ["jpx", "jxl", "jxl-write", "ocrs", "ocrcer", "paddle", "ocr-vl", "signing", "3d", "svg-import"]
 jpx = ["pdfcer-core/jpx", "pdfcer-render/jpx"]
 jxl = ["pdfcer-core/jxl", "pdfcer-render/jxl"]
+# `export-image --format jxl` (`Pass 696.0`). Without it that format refuses
+# by name.
+jxl-write = ["jxl", "pdfcer-render/jxl-write"]
 # The `ocrs` text-recognition engine (`Pass 71.0` slice 3).
 ocrs = ["pdfcer-core/ocrs", "pdfcer-render/ocrs", "pdfcer-ocr-host/ocrs"]
 # The OCRcer engine (`Pass 327.0`), selected with `ocr --ocr-engine ocrcer`.

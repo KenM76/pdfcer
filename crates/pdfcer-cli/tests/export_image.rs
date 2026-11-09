@@ -591,3 +591,105 @@ fn flatten_blends_bakes_a_highlight_into_the_svg() {
     assert_ne!(png.status.code(), Some(0));
     assert!(stderr(&png).contains("--flatten-blends applies to --format svg only"));
 }
+
+/// `--format jxl` (Pass 696.0): the lossless file decodes to exactly the
+/// pixels the PNG export writes, `--transparent` keeps alpha, a lossy run
+/// reports its error, and `--jxl-distance` is refused off JPEG XL.
+#[cfg(feature = "jxl-write")]
+#[test]
+fn jxl_is_lossless_by_default_and_lossy_on_request() {
+    use pdfcer_core::image_codec::jxl::decode_pixels;
+    let dir = TempDir::new("export-image-jxl");
+    let input = dir.write("one.pdf", &multipage_pdf(&[HALF_RED_SQUARE]));
+    let (png, jxl) = (dir.join("p.png"), dir.join("p.jxl"));
+    let i = input.to_str().unwrap();
+    let o = run(&[
+        "export-image",
+        i,
+        "--dpi",
+        "72",
+        "-o",
+        png.to_str().unwrap(),
+    ]);
+    assert_eq!(o.status.code(), Some(0), "stderr: {}", stderr(&o));
+    let o = run(&[
+        "export-image",
+        i,
+        "--format",
+        "jxl",
+        "--dpi",
+        "72",
+        "-o",
+        jxl.to_str().unwrap(),
+    ]);
+    assert_eq!(o.status.code(), Some(0), "stderr: {}", stderr(&o));
+    assert!(stdout(&o).contains(" format=jxl dpi=72 "), "{}", stdout(&o));
+    let (w, h, rgba, _) = decode_png(&png);
+    let back = decode_pixels(&std::fs::read(&jxl).unwrap()).unwrap();
+    assert_eq!(
+        (back.width, back.height, back.alpha.is_none()),
+        (w, h, true)
+    );
+    let rgb: Vec<u8> = rgba
+        .chunks_exact(4)
+        .flat_map(|p| [p[0], p[1], p[2]])
+        .collect();
+    assert_eq!(back.colour, rgb, "lossless JPEG XL differs from the PNG");
+
+    let o = run(&[
+        "export-image",
+        i,
+        "--format",
+        "jxl",
+        "--transparent",
+        "-o",
+        jxl.to_str().unwrap(),
+    ]);
+    assert_eq!(o.status.code(), Some(0), "stderr: {}", stderr(&o));
+    assert!(
+        decode_pixels(&std::fs::read(&jxl).unwrap())
+            .unwrap()
+            .alpha
+            .is_some()
+    );
+
+    let o = run(&[
+        "export-image",
+        i,
+        "--format",
+        "jxl",
+        "--jxl-distance",
+        "2",
+        "-o",
+        jxl.to_str().unwrap(),
+    ]);
+    assert_eq!(o.status.code(), Some(0), "stderr: {}", stderr(&o));
+    assert!(
+        stdout(&o).contains(" format=jxl max_error="),
+        "{}",
+        stdout(&o)
+    );
+
+    let o = run(&[
+        "export-image",
+        i,
+        "--jxl-distance",
+        "2",
+        "-o",
+        png.to_str().unwrap(),
+    ]);
+    assert_ne!(o.status.code(), Some(0));
+    assert!(stderr(&o).contains("--jxl-distance applies to --format jxl only"));
+    let o = run(&[
+        "export-image",
+        i,
+        "--format",
+        "jxl",
+        "--jxl-distance",
+        "99",
+        "-o",
+        jxl.to_str().unwrap(),
+    ]);
+    assert_ne!(o.status.code(), Some(0));
+    assert!(stderr(&o).contains("outside 0.1..=25"));
+}

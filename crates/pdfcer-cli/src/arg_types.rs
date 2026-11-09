@@ -655,9 +655,8 @@ pub(crate) enum RoundTripMode {
 
 /// Which image file `export-image` writes (`Pass 248.0`).
 ///
-/// Two formats, one transparency story: PNG carries alpha and JPEG
-/// cannot, so `--transparent` is legal for exactly one of them and the
-/// refusal for the other is spelled out at the call site rather than
+/// One transparency story: PNG and JPEG XL carry alpha and JPEG cannot,
+/// so `--transparent` is refused for JPEG at the call site rather than
 /// buried in an encoder that would happily flatten.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum ImageFormatArg {
@@ -666,6 +665,9 @@ pub(crate) enum ImageFormatArg {
     /// JPEG — lossy, always opaque. jpg is accepted as a spelling.
     #[value(alias = "jpg")]
     Jpeg,
+    /// JPEG XL — lossless by default (verified by decoding it back),
+    /// lossy with --jxl-distance; keeps transparency with --transparent.
+    Jxl,
     /// EMF — a Windows Enhanced Metafile for LibreOffice 24.x and legacy
     /// Win32 consumers: vectors where EMF has them, alpha bitmaps where it
     /// does not, every substitution counted.
@@ -682,6 +684,7 @@ impl ImageFormatArg {
         match self {
             Self::Png => "png",
             Self::Jpeg => "jpg",
+            Self::Jxl => "jxl",
             Self::Svg => "svg",
             Self::Emf => "emf",
         }
@@ -692,6 +695,7 @@ impl ImageFormatArg {
         match self {
             Self::Png => "png",
             Self::Jpeg => "jpeg",
+            Self::Jxl => "jxl",
             Self::Svg => "svg",
             Self::Emf => "emf",
         }
