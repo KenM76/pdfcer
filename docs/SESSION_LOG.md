@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-09 (1471st filing) — `c9468b0c`, `Pass 694.2` SHIPPED (crop parity)
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- One code commit `c9468b0ce8246aec764d8cc782ecc66271a6ec74`, on `main`, reported unpushed. Core `EditSession::set_page_boxes` (`PageBox::{Crop,Bleed,Trim,Art}`, one undo entry `SetPageBoxes`, new `PageBoxEmpty`/`PageBoxRepeated` errors); CLI `set-crop-box --box --odd --even --remove-white-margins [--margin]`. gui unticked.
+- Rule 4: white-margin rects are inferred, printed on stderr per page, blank page keeps its box and says so.
+- Tests as reported: core lib 2357 (+2 ignored) + doctest; cli 99 unit + 1069 integration (9 in `set_crop_box`); wasm32, clippy, fmt, code-structure green; `check-core-api-verbs` PASS (401 verbs, 195 `EditError`). No dependency change.
+- ROADMAP: `694.2` moved from *Backlog* to Shipped; outbound-GUI-request note updated. FEATURES: Planned "Crop parity" row removed; three Implemented rows added, existing `/CropBox` row left as is. NEXT_SESSION line 8 updated.
+- `cmd_set_crop_box` moved to `crop_box.rs`; its code-structure baseline line deleted.
+
+**Rust RAG:** this is a recurrence of the EXISTING finding `clap_requires_is_waived_when_its_target_conflicts_with_a_present_arg.md`: `--remove-white-margins` conflicts with `--rect`/`--reset`, which waives `--margin`'s `requires`. The engineer appended a "Recurrence (Pass 694.2)" paragraph there. This filing first recorded a separate "bool SetTrue implicit false" finding; the engineer's probe on clap 4.6.4 showed that diagnosis wrong (plain `requires` on a SetTrue flag refuses `--margin 3` alone), so it was retracted the same day and the file deleted. The 15-flag re-audit is NOT owed; those flags were already audited for the conflict shape.
+
+**Second code commit:** `c6bf20e153c1963f8c38dab0929974662d8e6f57`, "fix: correct the --margin guard's stated reason (Pass 694.2)". Comment-only; behaviour unchanged. Engineer-reported, not checked from here.
+
+**Hard-rule-11 sweep:** claim changed = "`set-crop-box` is single-box, `--pages` only" / "694.2 not started". Grepped `694.2` over `docs/`: survivors fixed were ROADMAP's GUI-request paragraph ("still owed") and NEXT_SESSION line 8. The older ROADMAP banner lines (1469th, 1470th) and SESSION_LOG 1469th/1470th "still open" lines say 694.2 open; those are dated history, left as is. Not swept: `crates/` help text and `docs/core-api/` other than what the engineer reported.
+
+**Still open:** `696.1`; GUI halves with `pdfcer-gui`. `c9468b0c` and its filing unpushed per the engineer; run `check-commits-filed.py` before pushing.
+
 ## 2026-11-09 (1470th filing) — `6ed962dc`, `Pass 696.0` SHIPPED (JPEG XL export); decision 221
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**

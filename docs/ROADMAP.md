@@ -112,6 +112,18 @@ wherever it appears.*
 
 ## Shipped
 
+### `c9468b0c` `Pass 694.2`, 2026-11-09: crop parity, all four page boxes, odd/even, remove white margins (1471st filing)
+
+Engineer-reported; no shell here, git, push and backup state not checked from here. One code commit `c9468b0ce8246aec764d8cc782ecc66271a6ec74` on `main`, reported unpushed. Operator request of 2026-11-09, filed in `84716404`. No decision number. Reasoning is in the commit message. **gui is not delivered**: the marquee crop UX is with `pdfcer-gui`.
+- **core:** `EditSession::set_page_boxes(&[PageBoxEdit]) -> Result<Vec<PageBoxChange>, EditError>` in `crates/pdfcer-core/src/edit/page_boxes.rs`. `PageBox::{Crop, Bleed, Trim, Art}` (`non_exhaustive`), `PageBoxEdit::new(page_index, target, CropBoxEdit)`, `PageBoxChange { page_index, target, before, after, entry, overhangs_media_box }`. Each edit carries its own rect. ONE undo entry, `CommandKind::SetPageBoxes { count }`. Bleed, Trim and Art are not inheritable and default to the CropBox (ISO 32000-1 §14.11.2, Table 30), so Reset removes the page's own entry. New `EditError::PageBoxEmpty` and `PageBoxRepeated` (both `{ page_index, target }`), raised before anything commits.
+- **cli `set-crop-box`:** `--box crop|bleed|trim|art` (default crop), `--odd` / `--even`, `--remove-white-margins [--margin PT]`. White margins come from a 144 dpi render (white = every channel >= 250, 1 px pad), mapped back through the crop box and `/Rotate`, then intersected with the crop. **Inferred, so disclosed (rule 4):** every inferred rect is printed on stderr; a blank page keeps its box and says so; the machine line appends `box= detected= blank=`. Help says crop hides content and does not remove it, and points at `redact-mark --outside`. `--margin` without `--remove-white-margins` is refused in code (`--remove-white-margins` conflicts with `--rect`/`--reset`, which waives clap's `requires`; commit `c6bf20e153c1963f8c38dab0929974662d8e6f57` corrected the guard's comment, comment-only).
+- **Structure:** `cmd_set_crop_box` moved to `crates/pdfcer-cli/src/crop_box.rs`; its code-structure baseline line deleted (debt shrank).
+- **core-api:** `docs/core-api/02-editing-and-saving.md` documents the verb: 401 verbs, 195 `EditError` variants; `tools/check-core-api-verbs.py` PASSES (engineer-reported).
+- **Tests (as reported):** core lib 2357 passed (2 ignored) plus the `set_page_boxes` doctest; cli 99 unit + 1069 integration, 9 of them in `set_crop_box` (`/Rotate` 0/90/180/270 within 1 pt, the blank page, trim on odd pages of a 3-page file, flag conflicts); wasm32 `cargo check -p pdfcer-core` ok; clippy `-D warnings` clean (default and no-default-features); fmt and code-structure clean.
+- **Invariant:** no dependency change, so `cargo tree` unchanged and no `cargo-about` regeneration.
+- **RAG:** the existing `D:\dev\rag\rust\clap_requires_is_waived_when_its_target_conflicts_with_a_present_arg.md`, with a "Recurrence (Pass 694.2)" paragraph appended by the engineer. An earlier same-day draft of this filing named a separate bool-SetTrue finding; that diagnosis was wrong, retracted and the file deleted.
+- **FEATURES:** the Planned "Crop parity" row removed; the "Set or remove a page's `/CropBox`" row extended; new Implemented rows for the other page boxes, odd/even, and remove white margins, each core `[x]` cli `[x]` gui `[ ]`.
+
 ### `6ed962dc` `Pass 696.0`, 2026-11-09: JPEG XL export, `export-image --format jxl` (1470th filing)
 
 Engineer-reported; no shell here, git, push and backup state not checked from here. One code commit `6ed962dcb5760227fc4a2570262f746ace2b56c1` on `main`. Operator request of 2026-11-09 (pdfcer-gui channel `request_2026-11-09_marquee_region_highlight_modes_crop.md`, "add write support for JPEG XL too"), filed in `84716404`. Decision **221** (`docs/decisions/221-*.md`; see the number note below). Reasoning is in the commit message and the decision record. **gui is not delivered.**
@@ -37566,18 +37578,14 @@ overrides the image dictionary; `/ColorSpace` optional,
 > **1469th filing: `Pass 693.0`, `694.0`, `694.1`, `695.0` SHIPPED in one commit `c0ecc300` (moved to Shipped). No head of Next up remains from the 693 family. Open in *Backlog*: `694.2` (crop parity, not started) and `696.0` (JPEG XL write, draft not wired, blocked on an MSRV bump).**
 >
 > **1470th filing: `Pass 696.0` SHIPPED (`6ed962dc`, moved to Shipped from *Backlog*; it was never in Next up). Only the encoder and `export-image --format jxl` shipped; the PDF-side write is minted as `Pass 696.1` in *Backlog*. No head of Next up. `694.2` still open.**
+>
+> **1471st filing: `Pass 694.2` SHIPPED (`c9468b0c`, moved to Shipped from *Backlog*; it was never in Next up). No head of Next up remains. Open in *Backlog*: `696.1`.**
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
-
-### `Pass 694.2` — Crop parity (BACKLOG; filed 1468th filing; operator request 2026-11-09)
-
-`set-crop-box` (shipped, `Pass 375.0`: `--pages SPEC`, `--rect`/`--reset`, `/CropBox` only) gains an odd/even filter, a box target (Crop, Art, Trim, Bleed) and remove-white-margins; check what `--pages SPEC` already covers before adding a second range syntax. Remove-white-margins is **inferred** (rule 4) and must be disclosed with the margins it found. Crop hides content and never removes it; the help text says so and points at redaction for removal (`core_ops__crop_pages_margins.md`).
-- *Acceptance:* each target box written only on the selected pages; odd/even composes with the range; remove-white-margins prints the detected rectangle per page and renders exactly as it will save; the help states the hides-not-removes caveat; boxes are kept nested per the spec (Crop within Media; others per ISO 32000 §14.11.2).
-- *FEATURES:* Planned row (the existing "Set or remove a page's `/CropBox`" row stays as is; this Planned row covers only the additions).
 
 ### `Pass 696.1` — JPEG XL written into PDFs (BACKLOG; filed 1470th filing; residue of `Pass 696.0`; operator request 2026-11-09)
 
@@ -37588,7 +37596,7 @@ nothing gets forgotten, not as a commitment to build in this order.
 
 ### GUI request, outbound to `pdfcer-gui` (BACKLOG; filed 1468th filing; operator request 2026-11-09; no channel number assigned yet)
 
-Not a pdfcer Pass; recorded so `FEATURES.md` gui boxes stay honest. **1469th filing:** the engine halves `694.0`, `694.1`, `695.0` have shipped (`c0ecc300`); the request is open as `open/request_2026-11-09_marquee_region_highlight_modes_crop.md` (engineer-reported). `694.2` is still owed.
+Not a pdfcer Pass; recorded so `FEATURES.md` gui boxes stay honest. **1469th filing:** the engine halves `694.0`, `694.1`, `695.0` have shipped (`c0ecc300`); the request is open as `open/request_2026-11-09_marquee_region_highlight_modes_crop.md` (engineer-reported). **1471st filing:** the crop engine half `694.2` has shipped too (`c9468b0c`); all four engine halves are now delivered.
 - **Marquee as general region selection**, no longer snapshot-only, feeding Delete (`694.0`), Redact inside or outside (`694.1`), Crop (`694.2`), Copy and OCR.
 - **Highlight tool modes** Text | Area | Shapes (`695.0`), with Alt forcing Area.
 - **Text-selection runaway fix:** a drag selects only the text runs intersecting the drag rect, not the reading-order range between the endpoints (operator: going over text "starts selecting text all over the page").
