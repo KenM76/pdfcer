@@ -1575,7 +1575,8 @@ pub(crate) fn rewrite_dict(
     let needs_space =
         !is_mask && (dict.get(b"ColorSpace").is_none() || decoded.colorspace_substituted);
     if needs_space {
-        if let (Some(icc), Some(Codec::Jpx)) = (&decoded.icc_profile, decoded.codec) {
+        let self_describing = decoded.codec.is_some_and(Codec::is_self_describing);
+        if let Some(icc) = decoded.icc_profile.as_ref().filter(|_| self_describing) {
             // The codestream's own profile becomes an /ICCBased space, so the
             // colour that Table 89 said came from the codestream still does.
             let mut icc_dict = Dict::new();
@@ -1605,7 +1606,7 @@ pub(crate) fn rewrite_dict(
     }
     // Table 89: /Decode is ignored for JPX unless /ImageMask. Under Flate it
     // would be applied, so it must not travel.
-    if decoded.codec == Some(Codec::Jpx) && !is_mask {
+    if decoded.codec.is_some_and(Codec::is_self_describing) && !is_mask {
         dict.remove(b"Decode");
     }
     if decoded.preblended_alpha_dropped {

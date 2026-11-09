@@ -42,7 +42,7 @@ autotests = false
 # 4. CI builds `--no-default-features` (see .github/workflows/ci.yml), which
 #    is what stops a `cfg` from rotting into something that no longer
 #    compiles when switched off.
-default = ["jpx", "ocrs", "ocrcer", "paddle", "ocr-vl", "signing", "3d", "svg-import"]
+default = ["jpx", "jxl", "ocrs", "ocrcer", "paddle", "ocr-vl", "signing", "3d", "svg-import"]
 
 # Digital SIGNING — the private-key side (PAdES B-B first; `sign` module).
 #
@@ -81,6 +81,10 @@ signing = [
 # Without it, a JPX image is refused by name and everything else in the
 # document still works.
 jpx = ["pdfcer-image-codec/jpx"]
+
+# JPEG XL image decoding (the non-standard `/JXLDecode`; no published PDF
+# document defines it). Without it such an image is refused by name.
+jxl = ["pdfcer-image-codec/jxl"]
 
 # The `ocrs` text-recognition engine (`Pass 71.0` slice 3).
 #

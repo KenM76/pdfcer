@@ -4455,11 +4455,17 @@ them.
 
 #### Source formats and what they leave behind
 
-`image_import::import` accepts **PNG, JPEG, BMP, TIFF and GIF**
+`image_import::import` accepts **PNG, JPEG, BMP, TIFF, GIF and JPEG XL**
 (`image_import::SUPPORTED_FORMATS`; `ImageFormat::Gif` is the new variant).
 A GIF imports its **first frame** composited onto the logical screen, as
 `/Indexed` 8-bit Flate; a Graphic Control Extension transparent index becomes
-an `/SMask` clear at that index. Everything else refuses by name.
+an `/SMask` clear at that index. A **JPEG XL** file (`ImageFormat::Jxl`,
+`jxl` Cargo feature, on by default) imports frame 0 decoded to 8-bit
+`/DeviceGray` or `/DeviceRGB` Flate, alpha to `/SMask`, with
+`recompressed: SourceCodecNotReusable` (ISO 32000 has no JPEG XL filter, so
+pdfcer never writes `/JXLDecode`) and `colour_profile_dropped` when the
+image is not sRGB; built without the feature, `sniff` declines it as
+`UnsupportedFormat { format: "JPEG XL" }`. Everything else refuses by name.
 
 **Pixels already in memory** (a 3D render, a clipboard bitmap) skip the file
 encoding: `ImportedImage::from_rgba8(width: u32, height: u32, rgba: &[u8]) ->

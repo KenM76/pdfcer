@@ -61,8 +61,8 @@ alongside the other licenses harvested from `Cargo.lock`.
 
 ## License overview
 
-- **Apache License 2.0** — used by 145 crate(s)
-- **MIT License** — used by 27 crate(s)
+- **Apache License 2.0** — used by 159 crate(s)
+- **MIT License** — used by 29 crate(s)
 - **BSD 3-Clause &quot;New&quot; or &quot;Revised&quot; License** — used by 7 crate(s)
 - **ISC License** — used by 3 crate(s)
 - **Boost Software License 1.0** — used by 2 crate(s)
@@ -3901,8 +3901,22 @@ Used by:
 - [hayro-jbig2 0.3.0](https://github.com/LaurenzV/hayro)
 - [hayro-jpeg2000 0.4.0](https://github.com/LaurenzV/hayro)
 - [itoa 1.0.18](https://github.com/dtolnay/itoa)
+- [jxl-bitstream 1.1.0](https://github.com/tirr-c/jxl-oxide.git)
+- [jxl-coding 1.0.1](https://github.com/tirr-c/jxl-oxide.git)
+- [jxl-color 0.11.0](https://github.com/tirr-c/jxl-oxide.git)
+- [jxl-frame 0.13.3](https://github.com/tirr-c/jxl-oxide.git)
+- [jxl-grid 0.6.2](https://github.com/tirr-c/jxl-oxide.git)
+- [jxl-image 0.13.0](https://github.com/tirr-c/jxl-oxide.git)
+- [jxl-jbr 0.2.1](https://github.com/tirr-c/jxl-oxide.git)
+- [jxl-modular 0.11.3](https://github.com/tirr-c/jxl-oxide.git)
+- [jxl-oxide-common 1.0.0](https://github.com/tirr-c/jxl-oxide.git)
+- [jxl-oxide 0.12.6](https://github.com/tirr-c/jxl-oxide.git)
+- [jxl-render 0.12.4](https://github.com/tirr-c/jxl-oxide.git)
+- [jxl-threadpool 1.0.0](https://github.com/tirr-c/jxl-oxide.git)
+- [jxl-vardct 0.11.1](https://github.com/tirr-c/jxl-oxide.git)
 - [miniz_oxide 0.8.9](https://github.com/Frommi/miniz_oxide/tree/master/miniz_oxide)
 - [ocrs 0.12.2](https://github.com/robertknight/ocrs)
+- [pin-project-lite 0.2.17](https://github.com/taiki-e/pin-project-lite)
 - [proc-macro2 1.0.107](https://github.com/dtolnay/proc-macro2)
 - [quote 1.0.47](https://github.com/dtolnay/quote)
 - [rten-base 0.24.0](https://github.com/robertknight/rten)
@@ -4461,6 +4475,41 @@ Used by:
 
 ```
 Copyright (c) 2018 Carl Lerche
+
+Permission is hereby granted, free of charge, to any
+person obtaining a copy of this software and associated
+documentation files (the &quot;Software&quot;), to deal in the
+Software without restriction, including without
+limitation the rights to use, copy, modify, merge,
+publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software
+is furnished to do so, subject to the following
+conditions:
+
+The above copyright notice and this permission notice
+shall be included in all copies or substantial portions
+of the Software.
+
+THE SOFTWARE IS PROVIDED &quot;AS IS&quot;, WITHOUT WARRANTY OF
+ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+```
+
+### MIT License
+
+Used by:
+- [tracing-core 0.1.36](https://github.com/tokio-rs/tracing)
+- [tracing 0.1.44](https://github.com/tokio-rs/tracing)
+
+```
+Copyright (c) 2019 Tokio Contributors
 
 Permission is hereby granted, free of charge, to any
 person obtaining a copy of this software and associated

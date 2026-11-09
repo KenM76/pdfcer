@@ -10,9 +10,11 @@ repository.workspace = true
 license.workspace = true
 
 [features]
-default = ["jpx"]
+default = ["jpx", "jxl"]
 # JPEG 2000 (`JPXDecode`). Forwarded from pdfcer-core's `jpx`; see its comment.
 jpx = ["dep:hayro-jpeg2000"]
+# JPEG XL (`/JXLDecode`, non-standard: no published PDF document defines it).
+jxl = ["dep:jxl-oxide"]
 
 [dependencies]
 pdfcer-model.workspace = true
@@ -98,3 +100,9 @@ hayro-jbig2 = { version = "0.3", default-features = false, features = ["std"] }
 # its scaling path shifts by a bit depth a JP2 palette box may declare
 # as large as 128.
 hayro-jpeg2000 = { version = "0.4", default-features = false, features = ["std"], optional = true }
+
+# jxl-oxide: JPEG XL (ISO/IEC 18181) decoder for the de-facto `/JXLDecode`
+# filter. MIT OR Apache-2.0, pure Rust. default-features = false keeps
+# rayon out (the engine runs no threads) and lcms2/moxcms/image out
+# (colour management is icccer's, decision 064).
+jxl-oxide = { version = "0.12", default-features = false, optional = true }

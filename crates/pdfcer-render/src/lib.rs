@@ -1861,6 +1861,12 @@ mod bilevel_fixtures;
 #[path = "../../pdfcer-image-codec/src/fixtures_jpx.rs"]
 mod jpx_fixtures;
 
+#[cfg(all(test, feature = "jxl"))]
+// Shared with the codec crate's tests; this crate uses only some of them.
+#[allow(dead_code)]
+#[path = "../../pdfcer-image-codec/src/fixtures_jxl.rs"]
+mod jxl_fixtures;
+
 #[cfg(test)]
 #[allow(
     clippy::unwrap_used,
@@ -5330,5 +5336,30 @@ mod tests {
             "an image XObject whose own /OC is OFF must not be drawn"
         );
         assert_eq!(out.diagnostics.oc_sections_hidden, 1);
+    }
+
+    #[cfg(feature = "jxl")]
+    #[test]
+    fn jxl_draws_with_no_colour_space_and_is_disclosed_as_nonstandard() {
+        let (doc, page) = doc_with_xobject(
+            &format!("q {FULL_PAGE_CM} /X1 Do Q"),
+            "/Type /XObject /Subtype /Image /Width 2 /Height 2 /Filter /JXLDecode",
+            crate::jxl_fixtures::JXL_RGB_2X2,
+        );
+        let out = render_page(&doc, &page, 1.0).unwrap();
+        assert_eq!(out.diagnostics.images_rendered, 1);
+        assert_eq!(out.diagnostics.jxl_nonstandard_images, 1);
+        assert!(
+            out.diagnostics
+                .image_notes
+                .iter()
+                .any(|n| n.contains("JXLDecode")),
+            "{:?}",
+            out.diagnostics.image_notes
+        );
+        let red = pixel(&out.pixmap, 25, 25);
+        let white = pixel(&out.pixmap, 75, 75);
+        assert!(red.0 > 200 && red.1 < 60 && red.2 < 60, "{red:?}");
+        assert_eq!(white, (255, 255, 255));
     }
 }

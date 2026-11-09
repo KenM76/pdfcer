@@ -2863,16 +2863,28 @@ let img = decode_image_view(&doc.view(), &image_dict, raw, false)?;            /
 // decode_image_view_with(view, dict, raw, inline, CmykJpegPolarity::…)        // lib.rs
 ```
 
-`Codec` — `lib.rs`: `Dct | Ccitt | Jbig2 | Jpx`; `Codec::name`,
-`Codec::allowed_inline` (§8.9.7 — `Jbig2`/`Jpx` are `false`).
+`Codec` — `lib.rs`: `Dct | Ccitt | Jbig2 | Jpx | Jxl`; `Codec::name`,
+`Codec::allowed_inline` (§8.9.7 — `Jbig2`/`Jpx`/`Jxl` are `false`),
+`Codec::is_self_describing` (`Jpx`/`Jxl`: Table 89's JPX dictionary rules —
+`/ColorSpace` optional, `/BitsPerComponent` and `/Decode` ignored). `Jxl` is
+the **non-standard** `/JXLDecode` (JPEG XL; not in ISO 32000; `jxl` feature,
+default on): read, never written.
 `CodedImage` — `lib.rs`, `#[non_exhaustive]`.
 `CodecColorModel` — `lib.rs`: `Gray | Rgb | Untransformed3 | Cmyk |
 Bilevel | Unspecified | Unknown{components}`.
 `CodecNotes` — `lib.rs`: `geometry_mismatch`, `cmyk_image`,
 `cmyk_polarity_unverifiable`, `jpx_smask_in_data_preblended`,
-`lzw_framing_anomalies`.
+`lzw_framing_anomalies`, `jxl_nonstandard` (set on every `/JXLDecode`
+image, decoded or not; render counts it in
+`RenderDiagnostics::jxl_nonstandard_images` and notes it — disclose it).
 `ImageCodecError` — `lib.rs`: `Filter | Unsupported | FeatureUnsupported
 | Corrupt | TooLarge | NotAllowedInline | CodecNotTerminal`.
+
+`image_codec::jxl` exports `is_jxl(&[u8]) -> bool` and
+`decode_pixels(&[u8]) -> Result<JxlPixels, ImageCodecError>` (frame 0, 8-bit,
+alpha split and unpremultiplied; `JxlPixels { width, height, colour_channels,
+colour, alpha, icc_profile, srgb }`, `#[non_exhaustive]`) — the `.jxl` import
+path's decoder.
 
 The per-codec modules (`image_codec::{dct, ccitt, jbig2, jpx}`,
 `lib.rs`) expose no decoder — every `decode` is `pub(super)`, and

@@ -117,6 +117,8 @@ pub mod dct;
 pub mod jbig2;
 #[cfg(feature = "jpx")]
 pub mod jpx;
+#[cfg(feature = "jxl")]
+pub mod jxl;
 
 /// Shared 1-bit sample packing for the two fax codecs. Private: it is an
 /// implementation detail of [`ccitt`] and [`jbig2`], not part of the
@@ -134,6 +136,8 @@ mod fixtures_bilevel;
 // --tests` build is exactly what CI runs to prove the gate is real.
 #[cfg(all(test, feature = "jpx"))]
 mod fixtures_jpx;
+#[cfg(all(test, feature = "jxl"))]
+mod fixtures_jxl;
 
 use pdfcer_model::document::Document;
 use pdfcer_model::filters::{self, FilterError, FilterNotes};
@@ -188,6 +192,10 @@ pub enum Codec {
     Jbig2,
     /// `JPXDecode` (§7.4.9) — JPEG 2000, ITU-T T.800.
     Jpx,
+    /// `JXLDecode` — JPEG XL, ISO/IEC 18181. **Not in ISO 32000**: the
+    /// de-facto name PDFium and PdfCraft read. Every image sets
+    /// [`CodecNotes::jxl_nonstandard`].
+    Jxl,
 }
 
 impl Codec {
@@ -199,7 +207,18 @@ impl Codec {
             Self::Ccitt => "CCITTFaxDecode",
             Self::Jbig2 => "JBIG2Decode",
             Self::Jpx => "JPXDecode",
+            Self::Jxl => "JXLDecode",
         }
+    }
+
+    /// Does the codestream carry its own colour space, bit depth and
+    /// alpha, so that Table 89's `JPXDecode` rules apply: `/ColorSpace`
+    /// optional (the dictionary wins when present), `/BitsPerComponent`
+    /// ignored, `/Decode` ignored unless `/ImageMask`. True for `Jpx`
+    /// and for the non-standard `Jxl`, which readers treat the same way.
+    #[must_use]
+    pub const fn is_self_describing(self) -> bool {
+        matches!(self, Self::Jpx | Self::Jxl)
     }
 
     /// May this codec appear in an **inline image** (`BI`/`ID`/`EI`)?
@@ -214,7 +233,7 @@ impl Codec {
     pub const fn allowed_inline(self) -> bool {
         match self {
             Self::Dct | Self::Ccitt => true,
-            Self::Jbig2 | Self::Jpx => false,
+            Self::Jbig2 | Self::Jpx | Self::Jxl => false,
         }
     }
 
@@ -225,6 +244,7 @@ impl Codec {
             b"CCITTFaxDecode" | b"CCF" => Some(Self::Ccitt),
             b"JBIG2Decode" => Some(Self::Jbig2),
             b"JPXDecode" => Some(Self::Jpx),
+            b"JXLDecode" => Some(Self::Jxl),
             _ => None,
         }
     }
@@ -353,6 +373,10 @@ pub struct CodecNotes {
     /// coloured pixels, and the difference only shows up as the wrong
     /// colour, which nothing downstream can detect.
     pub jpx_palette_left_to_pdf: bool,
+    /// The image used the non-standard `/JXLDecode` filter (JPEG XL). It
+    /// decoded, but a conforming PDF reader need not display it, so the
+    /// shells disclose it; preflight flags it.
+    pub jxl_nonstandard: bool,
     /// LZW framing anomalies seen in the byte-stream prefix of the
     /// chain (see [`FilterNotes::lzw_framing_anomalies`]).
     pub lzw_framing_anomalies: usize,
@@ -695,6 +719,12 @@ pub fn decode_image_view_with(
         Codec::Jpx => Err(ImageCodecError::FeatureUnsupported {
             feature: "JPX/not-built",
         }),
+        #[cfg(feature = "jxl")]
+        Codec::Jxl => jxl::decode(doc, &data, dict, &mut notes),
+        #[cfg(not(feature = "jxl"))]
+        Codec::Jxl => Err(ImageCodecError::FeatureUnsupported {
+            feature: "JXL/not-built",
+        }),
     }
 }
 
@@ -827,6 +857,7 @@ mod tests {
             (b"CCF", Codec::Ccitt),
             (b"JBIG2Decode", Codec::Jbig2),
             (b"JPXDecode", Codec::Jpx),
+            (b"JXLDecode", Codec::Jxl),
         ] {
             let d = dict_with(vec![(b"Filter", name(spelling))]);
             assert_eq!(terminal_codec(&d).unwrap(), Some(want), "{spelling:?}");
@@ -858,6 +889,7 @@ mod tests {
         assert!(Codec::Ccitt.allowed_inline());
         assert!(!Codec::Jbig2.allowed_inline());
         assert!(!Codec::Jpx.allowed_inline());
+        assert!(!Codec::Jxl.allowed_inline());
     }
 
     // -----------------------------------------------------------------
@@ -2235,6 +2267,7 @@ mod tests {
         for (spelling, codec) in [
             (&b"JBIG2Decode"[..], Codec::Jbig2),
             (b"JPXDecode", Codec::Jpx),
+            (b"JXLDecode", Codec::Jxl),
         ] {
             let dict = dict_with(vec![(b"Filter", name(spelling))]);
             assert_eq!(
@@ -2442,5 +2475,94 @@ mod tests {
              `false` keeps the pre-existing behaviour instead of guessing"
         );
         assert!(!with(None), "no /ColorSpace at all");
+    }
+
+    #[cfg(feature = "jxl")]
+    fn jxl_dict(w: i64, h: i64, extra: Vec<(&[u8], Object)>) -> Dict {
+        let mut all: Vec<(&[u8], Object)> = vec![
+            (b"Filter", name(b"JXLDecode")),
+            (b"Width", Object::Integer(w)),
+            (b"Height", Object::Integer(h)),
+        ];
+        all.extend(extra);
+        dict_with(all)
+    }
+
+    #[cfg(feature = "jxl")]
+    #[test]
+    fn jxl_bare_and_boxed_gray_decode_to_the_same_samples() {
+        let dict = jxl_dict(4, 2, vec![]);
+        let bare = decode_fixture(fixtures_jxl::JXL_GRAY_4X2, &dict).unwrap();
+        let boxed = decode_fixture(fixtures_jxl::JXL_GRAY_4X2_BOXED, &dict).unwrap();
+        assert_eq!(bare.codec, Some(Codec::Jxl));
+        assert_eq!((bare.width, bare.height, bare.components), (4, 2, 1));
+        assert_eq!(bare.color_model, CodecColorModel::Gray);
+        assert_eq!(bare.samples, fixtures_jxl::JXL_GRAY_4X2_SAMPLES);
+        assert_eq!(boxed.samples, bare.samples);
+        assert!(bare.notes.jxl_nonstandard);
+        assert!(!bare.notes.geometry_mismatch);
+        assert!(bare.icc_profile.as_ref().is_some_and(|p| !p.is_empty()));
+        assert_eq!(bare.embedded_alpha, None);
+    }
+
+    #[cfg(feature = "jxl")]
+    #[test]
+    fn jxl_rgb_interleaves_in_order_and_counts_a_geometry_disagreement() {
+        let img = decode_fixture(fixtures_jxl::JXL_RGB_2X2, &jxl_dict(2, 2, vec![])).unwrap();
+        assert_eq!(img.color_model, CodecColorModel::Rgb);
+        assert_eq!(img.samples, fixtures_jxl::JXL_RGB_2X2_SAMPLES);
+        let wrong = decode_fixture(fixtures_jxl::JXL_RGB_2X2, &jxl_dict(3, 2, vec![])).unwrap();
+        assert!(wrong.notes.geometry_mismatch);
+        assert_eq!(wrong.width, 2, "the codestream's geometry wins");
+    }
+
+    #[cfg(feature = "jxl")]
+    #[test]
+    fn jxl_alpha_follows_smaskindata_then_a_dictionary_smask() {
+        let rgba = fixtures_jxl::JXL_RGBA_2X2_SAMPLES;
+        let colour: Vec<u8> = rgba.chunks(4).flat_map(|p| p[..3].to_vec()).collect();
+        let alpha: Vec<u8> = rgba.chunks(4).map(|p| p[3]).collect();
+        let decode =
+            |extra| decode_fixture(fixtures_jxl::JXL_RGBA_2X2, &jxl_dict(2, 2, extra)).unwrap();
+        let absent = decode(vec![]);
+        assert_eq!(absent.samples, colour);
+        assert_eq!(absent.embedded_alpha.as_deref(), Some(&alpha[..]));
+        assert_eq!(
+            decode(vec![(b"SMaskInData", Object::Integer(0))]).embedded_alpha,
+            None
+        );
+        let smask = vec![(
+            &b"SMask"[..],
+            Object::Reference(pdfcer_model::object::ObjId::new(9, 0)),
+        )];
+        assert_eq!(
+            decode(smask).embedded_alpha,
+            None,
+            "the dictionary's /SMask wins"
+        );
+        let forced = vec![
+            (
+                &b"SMask"[..],
+                Object::Reference(pdfcer_model::object::ObjId::new(9, 0)),
+            ),
+            (&b"SMaskInData"[..], Object::Integer(1)),
+        ];
+        assert!(decode(forced).embedded_alpha.is_some());
+    }
+
+    #[cfg(feature = "jxl")]
+    #[test]
+    fn jxl_garbage_is_a_codec_error_with_the_note_set() {
+        let err = decode_fixture(b"\xFF\x0Anot really", &jxl_dict(1, 1, vec![])).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                ImageCodecError::Corrupt {
+                    codec: Codec::Jxl,
+                    ..
+                }
+            ),
+            "{err:?}"
+        );
     }
 }

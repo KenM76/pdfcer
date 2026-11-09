@@ -671,7 +671,7 @@ pub fn soft_mask_plane(
             )
             .map_err(|e| MaskRefusal::UnsupportedColorSpace(e.to_string()))?,
         ),
-        None if coded.codec == Some(Codec::Jpx) => None,
+        None if coded.codec.is_some_and(Codec::is_self_describing) => None,
         None => return Err(MaskRefusal::Malformed("/SMask has no /ColorSpace")),
     };
     if let Some(space) = &space

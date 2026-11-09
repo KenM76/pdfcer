@@ -418,6 +418,8 @@ pub struct ImageNotes {
     /// "correct colours, missing transparency", this means "the colours
     /// themselves have a backdrop mixed into them".
     pub jpx_smask_in_data_preblended: bool,
+    /// The image used the non-standard `/JXLDecode` filter (JPEG XL).
+    pub jxl_nonstandard: bool,
     /// LZW framing anomalies in the byte-stream part of the chain — a
     /// stream with no `ClearCode`, or one that ended with no
     /// `EndOfInformation`. Both recovered, both non-conformant.
@@ -789,6 +791,7 @@ pub fn decode(
         dct_cmyk_image: coded.notes.cmyk_image,
         dct_cmyk_polarity_unverifiable: coded.notes.cmyk_polarity_unverifiable,
         jpx_smask_in_data_preblended: coded.notes.jpx_smask_in_data_preblended,
+        jxl_nonstandard: coded.notes.jxl_nonstandard,
         lzw_framing_anomalies: coded.notes.lzw_framing_anomalies,
         ..ImageNotes::default()
     };
@@ -1104,7 +1107,7 @@ fn decode_stencil(
     let data = &coded.samples;
     if let Some(bpc) = dict.get(b"BitsPerComponent").and_then(Object::as_int)
         && bpc != 1
-        && coded.codec != Some(Codec::Jpx)
+        && !coded.codec.is_some_and(Codec::is_self_describing)
     {
         return Err(ImageError::Malformed(
             "/ImageMask true requires /BitsPerComponent 1",
@@ -1223,7 +1226,7 @@ fn decode_sampled(
     let data = &coded.samples;
     // Table 89 makes this filter — and only this filter — able to
     // supply its own colour space, bit depth and (non-)`Decode`.
-    let jpx = coded.codec == Some(Codec::Jpx);
+    let jpx = coded.codec.is_some_and(Codec::is_self_describing);
 
     let space = match dict.get(b"ColorSpace").map(|o| doc.resolve(o)) {
         // `/ColorSpace` present: the DICTIONARY wins, for every filter

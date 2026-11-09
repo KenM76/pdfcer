@@ -7805,7 +7805,7 @@ pub(crate) enum Command {
         /// 0-based page object index of the image to replace.
         #[arg(long)]
         object: usize,
-        /// The new picture: PNG, JPEG, BMP, TIFF or GIF.
+        /// The new picture: PNG, JPEG, BMP, TIFF, GIF or JPEG XL.
         #[arg(long, value_name = "FILE")]
         image: PathBuf,
         /// Fill the old image's area exactly, distorting the new picture if
@@ -13885,7 +13885,7 @@ pub(crate) enum Command {
 
     /// Place a raster image on a page as an image XObject (ISO 32000-1 §8.9.5).
     ///
-    /// PNG, JPEG, BMP, TIFF and GIF are placed. A multi-page TIFF places its
+    /// PNG, JPEG, BMP, TIFF, GIF and JPEG XL are placed. A multi-page TIFF places its
     /// first page and an animated GIF its first frame; the count left behind
     /// is reported. Anything else is refused BY NAME, with a
     /// message saying which formats do work — never a silent failure and
@@ -13921,7 +13921,7 @@ pub(crate) enum Command {
         /// field or certificate signature is touched.
         #[arg(long, value_name = "FIELD")]
         hand_signature: Option<String>,
-        /// The image file to place: PNG, JPEG, BMP, TIFF or GIF.
+        /// The image file to place: PNG, JPEG, BMP, TIFF, GIF or JPEG XL.
         #[arg(long, value_name = "FILE")]
         image: PathBuf,
         /// 1-based page number to place the image on.

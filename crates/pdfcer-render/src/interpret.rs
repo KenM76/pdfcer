@@ -1360,6 +1360,9 @@ pub struct Diagnostics {
     /// which is what it looks like over that backdrop. Counted and
     /// named so the approximation is never silent.
     pub jpx_smask_in_data_preblended: usize,
+    /// Images drawn from the non-standard `/JXLDecode` filter (JPEG XL),
+    /// which ISO 32000 does not define and other readers may not show.
+    pub jxl_nonstandard_images: usize,
     /// LZW streams that did not begin with a `ClearCode`, or that ended
     /// without an `EndOfInformation`. Both are recovered, both are
     /// non-conformant, both are reported.
@@ -1806,6 +1809,12 @@ impl Diagnostics {
 alpha applied, colours stay shifted toward the matte colour"
             ));
         }
+        if notes.jxl_nonstandard {
+            self.jxl_nonstandard_images += 1;
+            self.note_image(
+                "/JXLDecode: JPEG XL image drawn; the filter is not part of ISO 32000 and other readers may not display it",
+            );
+        }
         if notes.jpx_smask_in_data_preblended {
             self.jpx_smask_in_data_preblended += 1;
             self.note_image(
@@ -1953,6 +1962,7 @@ polarity unverifiable (decision 006 R30)",
         self.dct_cmyk_images += other.dct_cmyk_images;
         self.dct_cmyk_polarity_unverifiable += other.dct_cmyk_polarity_unverifiable;
         self.jpx_smask_in_data_preblended += other.jpx_smask_in_data_preblended;
+        self.jxl_nonstandard_images += other.jxl_nonstandard_images;
         self.lzw_framing_anomalies += other.lzw_framing_anomalies;
         self.images_masked += other.images_masked;
         self.images_mask_unsupported += other.images_mask_unsupported;

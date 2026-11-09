@@ -88,7 +88,7 @@ libfuzzer-sys = { version = "0.4", features = ["arbitrary-derive"] }
 # `cargo +nightly fuzz build` is a per-session discipline, not a gate
 # (`R209`).
 #
-# No fuzz target needs OCR. `jpx` is kept because `image_codec_jpx` needs it,
+# No fuzz target needs OCR. `jpx`/`jxl` are kept because `image_codec_jpx`/`_jxl` need them,
 # and it is named explicitly rather than inherited, so a future default that
 # adds another heavyweight capability does not silently re-break this.
 [dependencies.pdfcer-core]
@@ -97,7 +97,7 @@ default-features = false
 # `signing` for the `timestamp_response` target (RFC 3161 responses arrive
 # from the network); pure-Rust crypto, no C toolchain.
 # `svg-import` for the `svg_import` target (decision 186).
-features = ["jpx", "signing", "svg-import"]
+features = ["jpx", "jxl", "signing", "svg-import"]
 
 # pdfcer-render, for the FF-C donor-subsetting target (Pass 21.0). The
 # subsetter lives there, not in core, because producing a subset requires
@@ -202,6 +202,13 @@ bench = false
 [[bin]]
 name = "image_codec_jpx"
 path = "fuzz_targets/image_codec_jpx.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "image_codec_jxl"
+path = "fuzz_targets/image_codec_jxl.rs"
 test = false
 doc = false
 bench = false

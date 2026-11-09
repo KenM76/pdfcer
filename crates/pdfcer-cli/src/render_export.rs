@@ -2309,6 +2309,12 @@ where it is not. Un-premultiplication arrives with the transparency model",
             d.jpx_smask_in_data_preblended
         );
     }
+    if d.jxl_nonstandard_images > 0 {
+        eprintln!(
+            "pdfcer: note: {} JPEG XL image(s) (/JXLDecode) drawn: the filter is not part of ISO 32000, so other PDF readers may show them blank",
+            d.jxl_nonstandard_images
+        );
+    }
     if d.lzw_framing_anomalies > 0 {
         eprintln!(
             "pdfcer: note: {} LZW stream(s) missing a ClearCode or EndOfInformation; \

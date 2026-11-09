@@ -272,9 +272,10 @@ fn apply_one(
         // Image codecs are a TERMINAL stage, not a byte-stream filter
         // (R23). Named separately so the operator-facing message says
         // "wrong entry point", not "unsupported".
-        b"DCTDecode" | b"DCT" | b"CCITTFaxDecode" | b"CCF" | b"JBIG2Decode" | b"JPXDecode" => Err(
-            FilterError::ImageCodec(String::from_utf8_lossy(name).into_owned()),
-        ),
+        b"DCTDecode" | b"DCT" | b"CCITTFaxDecode" | b"CCF" | b"JBIG2Decode" | b"JPXDecode"
+        | b"JXLDecode" => Err(FilterError::ImageCodec(
+            String::from_utf8_lossy(name).into_owned(),
+        )),
         // Anything else: a crypt filter, or a non-standard name.
         // Refused with a precise diagnostic rather than guessed at.
         other => Err(FilterError::UnsupportedFilter(
@@ -356,6 +357,7 @@ mod tests {
             b"CCITTFaxDecode",
             b"JBIG2Decode",
             b"JPXDecode",
+            b"JXLDecode",
         ] {
             let d = dict_with_filter(Object::Name(Name::from(name)));
             let e = decode_stream(&d, b"\xFF\xD8").unwrap_err();

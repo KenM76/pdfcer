@@ -1,0 +1,13 @@
+[package]
+name = "gen-jxl-fixtures"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+# Standalone: not a member of the pdfcer workspace.
+[workspace]
+
+[dependencies]
+# MIT OR Apache-2.0 OR Zlib. A dev-time generator only; never linked into pdfcer.
+zune-core = "0.5"
+zune-jpegxl = "0.5"

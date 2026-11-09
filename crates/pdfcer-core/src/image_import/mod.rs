@@ -230,6 +230,8 @@ pub mod jpeg;
 /// that decision 006 makes load-bearing. Read it before touching the
 /// four-component path.
 pub mod jpeg_encode;
+#[cfg(feature = "jxl")]
+pub mod jxl;
 mod pixels;
 pub mod png;
 pub mod tiff;
@@ -260,6 +262,9 @@ pub enum ImageFormat {
     /// Graphics Interchange Format (`GIF87a` and `GIF89a`): the first frame,
     /// composited onto its logical screen. See [`gif`].
     Gif,
+    /// JPEG XL (ISO/IEC 18181), frame 0, transcoded to Flate: see [`jxl`].
+    /// Only with the `jxl` feature; without it [`sniff`] declines it by name.
+    Jxl,
     /// Samples handed over in memory, not a file:
     /// [`ImportedImage::from_rgba8`]. [`sniff`] never returns it.
     Pixels,
@@ -275,6 +280,7 @@ impl ImageFormat {
             Self::Bmp => "BMP",
             Self::Tiff => "TIFF",
             Self::Gif => "GIF",
+            Self::Jxl => "JPEG XL",
             Self::Pixels => "pixels",
         }
     }
@@ -287,6 +293,10 @@ impl ImageFormat {
 /// day a format is added is the day the third copy of that sentence starts
 /// lying — and a stale "PNG, JPEG or BMP" in one error path is exactly the
 /// kind of drift nothing tests.
+#[cfg(feature = "jxl")]
+pub const SUPPORTED_FORMATS: &str = "PNG, JPEG, BMP, TIFF, GIF and JPEG XL";
+/// The formats [`import`] accepts (built without `jxl`).
+#[cfg(not(feature = "jxl"))]
 pub const SUPPORTED_FORMATS: &str = "PNG, JPEG, BMP, TIFF and GIF";
 
 /// Why an image file could not be turned into a PDF image XObject.
@@ -566,7 +576,8 @@ pub enum RecompressReason {
     ///   `WhiteIsZero` complement, `Predictor 2` un-differencing);
     /// - an extra sample had to be de-interleaved;
     /// - the codec is GIF's LZW, whose least-significant-bit-first codes in
-    ///   length-prefixed sub-blocks are not `LZWDecode`'s MSB-first stream.
+    ///   length-prefixed sub-blocks are not `LZWDecode`'s MSB-first stream;
+    /// - the codec is JPEG XL, which ISO 32000 has no filter for.
     ///
     /// Lossless in every case: the pixels are exactly the source's.
     SourceCodecNotReusable,
@@ -1312,6 +1323,14 @@ pub fn sniff(data: &[u8]) -> Result<ImageFormat, ImageImportError> {
     if data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a") {
         return Ok(ImageFormat::Gif);
     }
+    // ISO/IEC 18181-1 §6.1 codestream, or the 18181-2 signature box.
+    if data.starts_with(&[0xFF, 0x0A]) || data.starts_with(b"\0\0\0\x0cJXL \r\n\x87\n") {
+        return if cfg!(feature = "jxl") {
+            Ok(ImageFormat::Jxl)
+        } else {
+            Err(ImageImportError::UnsupportedFormat { format: "JPEG XL" })
+        };
+    }
 
     let declined = |format| Err(ImageImportError::UnsupportedFormat { format });
     // BigTIFF's magic is 43, and it is a DIFFERENT parse — 8-byte offsets, a
@@ -1458,6 +1477,10 @@ pub fn import_with(
         ImageFormat::Bmp => bmp::import(data)?,
         ImageFormat::Tiff => tiff::import(data)?,
         ImageFormat::Gif => gif::import(data)?,
+        #[cfg(feature = "jxl")]
+        ImageFormat::Jxl => jxl::import(data)?,
+        #[cfg(not(feature = "jxl"))]
+        ImageFormat::Jxl => return Err(ImageImportError::UnsupportedFormat { format: "JPEG XL" }),
         ImageFormat::Pixels => return Err(ImageImportError::NotAnImage),
     };
 

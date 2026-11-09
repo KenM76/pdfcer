@@ -93,6 +93,8 @@ exclude = [
     "tools/render-profile",
     "tools/unembed-sweep",
     "tools/embed-sweep",
+    # Dev-time JPEG XL fixture encoder; never shipped.
+    "tools/gen-jxl-fixtures",
     "fuzz",
 ]
 
