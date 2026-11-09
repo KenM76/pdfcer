@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-09 (1465th filing) — `Pass 692.0`, `692.1` filed: JPEG XL (operator request)
+
+**Filed (docs only; no shell here, nothing checked from here; engineer commits):**
+- Operator asked "Did we add support for jpeg-XL already? If not, please download the standard and build." Answer: no (no `JXL` hit in `FEATURES.md`).
+- **Pass 692.0** read `/JXLDecode` (non-standard, disclosed; `jxl-oxide` behind a `jxl` feature, JPXDecode rules); **Pass 692.1** import `.jxl` as Flate image; **Backlog (blocked on a spec):** write JXL into PDFs. FEATURES: three Planned rows, all `[ ]`.
+- `692` had zero hits across `docs/` by grep (not run through `tools/check-ledger-numbers.py`).
+
+**Findings (spec RAG `filters/filter__jxl.md`):** no published JPEG XL-in-PDF document (not in ISO 32000-1/-2; PDF Association July 2025 FAQ: "Not directly"). Two drafts, PDFium CL 142070 and PdfCraft PR #5648, both `/JXLDecode`; the latter is a behavioural reference only (decision 204). ISO/IEC 18181 is paywalled; free stand-ins staged in the RAG. No decision-log entry filed; the engineer may want one if `jxl-oxide` is adopted (new dependency, rule 13).
+
+**For next session:** classify `jxl-oxide` licence (`LEGAL.md` §6.1, `PRIOR_ART.md`), then build 692.0 then 692.1.
+
 ## 2026-11-09 (1464th filing) — `d11bdd84`, `Pass 691.0`: area-average minification is the default (decision 219)
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**

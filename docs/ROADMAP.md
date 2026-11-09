@@ -37508,11 +37508,38 @@ overrides the image dictionary; `/ColorSpace` optional,
 `/ColorSpace`/`/BitsPerComponent` that Table 89 makes optional
 (decision 005 §10 item 3).
 
+> **1465th filing: operator request (2026-11-09), "Did we add support for jpeg-XL already? If not, please download the standard and build." Answer: no JPEG XL support existed (`JXL`/`JPEG XL` had no hit in `FEATURES.md`). Two Passes filed IN FLIGHT below, in order: `Pass 692.0`, then `692.1`. `Pass 692` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`); last used `691.0`.**
+
+### `Pass 692.0` — read `/JXLDecode` images (non-standard, disclosed) (IN FLIGHT; filed 1465th filing)
+
+**No published document defines JPEG XL in PDF** (spec RAG `D:\Dev\Rag-Specialized\PDF_Spec\filters\filter__jxl.md`, 2026-11-09). It is not in ISO 32000-1 or -2, there is no registered extension and no ISO work item; the PDF Association's July 2025 HDR FAQ answers "Not directly" (convert to an existing format). Two de-facto drafts use the filter name `/JXLDecode`: PDFium CL 142070 (unmerged) and PdfCraft PR #5648 (draft, not ours: behavioural reference only, decision 204). ISO/IEC 18181 is paywalled; free stand-ins are staged in the spec RAG. So this is a **non-standard extension, read-only and disclosed** (R4 fuzzy-never-sneaky).
+
+- `pdfcer-image-codec` gains a `jxl` codec behind a `jxl` Cargo feature. Decoder: `jxl-oxide` (pure Rust, MIT OR Apache-2.0), `default-features = false` (keeps rayon out; the engine has no threads). New dependency: classify per `LEGAL.md` §6.1 and check `docs/PRIOR_ART.md` first (rule 13).
+- Follows the **JPXDecode precedent** (ISO 32000-1 §7.4.9 / Table 89, as analogue only):
+  - a present `/ColorSpace` wins; otherwise colour comes from the JXL colour encoding;
+  - `/BitsPerComponent` is ignored; 8 bits are delivered;
+  - Width/Height come from the codestream; a mismatch is counted;
+  - `/SMaskInData` honoured if present; if absent, embedded alpha is used unless the image has `/SMask` (PDFium-compatible);
+  - frame 0 only;
+  - the naked codestream (`FF 0A`) and the ISOBMFF container are both sniffed;
+  - CMYK (a black extra channel) is refused by name.
+- **Disclosure:** every decoded image raises a named codec note saying the filter is non-standard. Conformance validation flags `/JXLDecode` as non-conforming at every PDF version.
+- **Acceptance:** fixture tests from synthetic `.jxl` files we generate ourselves (R7); a fuzz target; `cargo tree -p pdfcer-core` / `-p pdfcer-render` clean; the CLI renders such a page and prints the disclosure.
+- **FEATURES:** Planned row "Read JPEG XL images in PDFs (non-standard `/JXLDecode`)" filed, all three boxes `[ ]`.
+
+### `Pass 692.1` — import `.jxl` files as images (IN FLIGHT after 692.0; filed 1465th filing)
+
+`image_import` accepts JPEG XL, decodes it with the `692.0` codec and writes a conforming `/FlateDecode` XObject (alpha goes to an `/SMask`). **It never writes JXL bytes into the PDF.** The CLI image-add path accepts `.jxl`. Any inferred choice (colour encoding, alpha handling) is printed (R4). **FEATURES:** Planned row "Import JPEG XL image files" filed, all three boxes `[ ]`.
+
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### Write JPEG XL into PDFs (BACKLOG, BLOCKED ON A SPEC; filed 1465th filing; residue of `Pass 692.0`/`692.1`)
+
+Not started, no Pass ID yet (assign when unblocked). Keep JXL bytes on save, or optimise images to JXL. **Blocked:** it waits on a PDF Association or ISO document defining JPEG XL in PDF; writing a filter no spec defines would produce files other readers cannot be expected to open. Watch pdf-issues Discussion #852. `692.1` deliberately converts to `/FlateDecode` instead. **FEATURES:** Planned row added (all three boxes `[ ]`).
 
 ### `Pass 669.1` — tiled or clustered per-tile light lists (BACKLOG; filed 1430th filing; residue of `Pass 669.0`, `G271`)
 

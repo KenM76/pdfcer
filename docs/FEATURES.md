@@ -708,6 +708,9 @@ the model or verb exists and only the named shell is missing. The
 
 | core | cli | gui | Acrobat | Feature |
 |:----:|:---:|:---:|:-------:|---------|
+| [ ] | [ ] | [ ] | ? | **Read JPEG XL images in PDFs (non-standard `/JXLDecode`)** — no published spec defines JPEG XL in PDF; follows the JPXDecode rules, frame 0 only, CMYK refused, every decode disclosed as non-standard and validation flags it. `Pass 692.0`, *Next up*. |
+| [ ] | [ ] | [ ] | ? | **Import JPEG XL image files** — decoded and written as a normal Flate image (alpha to an `/SMask`); JXL bytes are never written into the PDF. `Pass 692.1`, *Next up*, after 692.0. |
+| [ ] | [ ] | [ ] | ? | **Write JPEG XL into PDFs (keep or optimise to JXL)** — blocked until a PDF Association or ISO document defines it. *Backlog*. |
 | [ ] | [ ] | [ ] | ? | **Make a 3D PDF from an OBJ or STL mesh** — same PRC writer as the glTF row (shipped, `Pass 648.0`); OBJ/MTL colours, STL uncoloured (default disclosed). `Pass 648.1`, *Next up*, after 648.0. |
 | [ ] | [ ] | [ ] | ? | **3D units and comment-linked measurements** — 3D units `/3DU` (Table 325); comment-linked measurements. (The CLI writing of the other measurement kinds shipped as `Pass 682.0`, row above.) `Pass 648.7` residue, Backlog. |
 | [x] | — | [ ] | [x] | **Insert a page named twice as separate copies** — a repeated source index in `insert_pages` now gets its own independent copy, as Acrobat does (was a page-tree cycle). Defect fixed, `Pass 567.0` (`G185`). GUI: `pdfcer-gui` still has a workaround to delete. |
