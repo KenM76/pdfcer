@@ -37524,14 +37524,58 @@ overrides the image dictionary; `/ColorSpace` optional,
 (decision 005 §10 item 3).
 
 > **1466th filing: `Pass 692.0` and `692.1` SHIPPED in one commit `3e045c4e` (moved to Shipped). No head of Next up remains from the 692 family; the Backlog residue "Write JPEG XL into PDFs" stays blocked on a spec.**
-
-## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
+>
+> **1468th filing: operator request of 2026-11-09 filed as `Pass 693.0`-`696.0` (below and in *Backlog*). `693`-`699` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`); last used `692.1`. Only `693.0` is at the head, IN FLIGHT.**
+>
+> **`Pass 693.0` — Copy-as-vector keeps highlights vector (IN FLIGHT, about to ship; render + cli).** Operator report: copy-as-vector turned highlighted markup areas into bitmaps. Cause: `blend_flatten` rasterised every `/Multiply` highlight into a pixel patch on the SVG `--flatten-blends` and `copy-page` clipboard routes and on the EMF route. Change: each blended op first tries an *underlay*, the mark drawn source-over beneath the page, accepted only where it re-renders within 2/255 per channel of the true blend over its box (a highlight over black ink on white); otherwise the old pixel patch. Default on; `--raster-blends` on `export-image` and `copy-page` opts out. New outcome count `blends_underlaid` on the stable `svg:`/`emf:` lines.
+> - *Acceptance:* a yellow Multiply highlight over black text on white exports as a vector path under the page with no embedded raster for that mark; an over-colour-art highlight that fails the 2/255 test still falls back to pixels and is counted in `blends_flattened`, not `blends_underlaid`; `--raster-blends` restores the previous output; `blends_underlaid=` appears on both lines; a test pins the 2/255 acceptance boundary.
+> - *FEATURES:* the copy-page and SVG/EMF export rows (no new capability row; Planned row for tracking, nothing ticked). Hashes arrive with the Shipped move.
 
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
 
-### Write JPEG XL into PDFs (BACKLOG, BLOCKED ON A SPEC; filed 1465th filing; residue of `Pass 692.0`/`692.1`)
+### `Pass 694.0` — Delete in a region (BACKLOG; filed 1468th filing; operator request 2026-11-09)
+
+Core `EditSession` verb plus CLI `object-delete --rect x0,y0,x1,y1 --page N --mode enclosed|intersecting` (default `enclosed`). Removes page content objects and, optionally, annotations by geometry, as one undoable command. Cutting crossing objects stays redaction's job, not this verb's. Acrobat has no delete-in-region: parity-plus (Acrobat RAG `text_edit__region_marquee_operations_matrix.md`), record the divergence.
+- *Acceptance:* `enclosed` removes only objects wholly inside the rect, `intersecting` any touched; one Undo restores all; output lists what was removed and the crossing objects it kept (rule 4: disclosed); annotations are removed only when asked; objects not removed re-emit byte-identical (rule 3); form-XObject leaves are addressed by the existing leaf model, never merged into a flat list.
+- *FEATURES:* Planned row (core/cli/gui `[ ]`).
+
+### `Pass 694.1` — Inverse redaction: redact everything outside a rect (BACKLOG; filed 1468th filing; operator request 2026-11-09)
+
+`redact-mark --rect R --outside` marks the complement of R, then the existing redact-apply applies it. Complement is taken against the MediaBox united with the content's painted bounds, **not** the CropBox, so content hidden outside the crop is not left behind. Scope is one page or an explicit page range, never silently reused across pages. Acrobat has none (`redaction__inverse_keep_only_region.md`): parity-plus. The redaction save confirmation (§11.2) applies unchanged.
+- *Acceptance:* after apply, nothing outside R survives in content streams, annotations or hidden-by-crop areas; everything inside R is byte-identical or minimally changed; the multi-page form requires the range explicitly; the printed report states the complement rectangles actually marked; round-trip test reopens and finds no text outside R.
+- *FEATURES:* Planned row (core/cli/gui `[ ]`). Depends on nothing; GUI half is the marquee request below.
+
+### `Pass 694.2` — Crop parity (BACKLOG; filed 1468th filing; operator request 2026-11-09)
+
+`set-crop-box` (shipped, `Pass 375.0`: `--pages SPEC`, `--rect`/`--reset`, `/CropBox` only) gains an odd/even filter, a box target (Crop, Art, Trim, Bleed) and remove-white-margins; check what `--pages SPEC` already covers before adding a second range syntax. Remove-white-margins is **inferred** (rule 4) and must be disclosed with the margins it found. Crop hides content and never removes it; the help text says so and points at redaction for removal (`core_ops__crop_pages_margins.md`).
+- *Acceptance:* each target box written only on the selected pages; odd/even composes with the range; remove-white-margins prints the detected rectangle per page and renders exactly as it will save; the help states the hides-not-removes caveat; boxes are kept nested per the spec (Crop within Media; others per ISO 32000 §14.11.2).
+- *FEATURES:* Planned row (the existing "Set or remove a page's `/CropBox`" row stays as is; this Planned row covers only the additions).
+
+### `Pass 695.0` — Highlight shapes (BACKLOG; filed 1468th filing; operator request 2026-11-09)
+
+`annotate --type highlight --shape rect|ellipse|polygon|freehand`. `rect` is `/Highlight` with `/QuadPoints`; `ellipse`, `polygon` and `freehand` are `/Circle`, `/Polygon` and `/Ink` with a Multiply highlighter appearance and the highlight colour. Acrobat has no shaped highlight: parity-plus, record the divergence. The text-snap versus area mode switch is GUI-side (request below).
+- *Acceptance:* each shape saves as the named subtype, renders with Multiply so text beneath stays legible, reopens as that subtype with the highlight colour editable; `rect` is unchanged from today; Copy-as-vector keeps all four vector (depends on `693.0`); the divergence from Acrobat is recorded.
+- *FEATURES:* Planned row (core/cli/gui `[ ]`).
+
+### `Pass 696.0` — JPEG XL write (BACKLOG; filed 1468th filing; operator request 2026-11-09; supersedes the "BLOCKED ON A SPEC" entry below)
+
+Encoder candidate: `jixel` 0.5.x (BSD-3-Clause OR Apache-2.0, pure Rust, wasm-clean at `num_threads=1`; a port of libjxl-tiny, so it needs BSD-3 attribution). **Excluded:** `jxl-encoder`/`zenjxl` (AGPL), `jpegxl-rs` (GPL-3). Scope: opt-in Optimize re-encode to `/JXLDecode` (lossless, lossy at a distance, reversible JPEG transcode) plus `export-image --format jxl`. Every encode is decoded back with `jxl-oxide` and checked before it is written; a mismatch writes nothing. Disclose that output may not open in Acrobat (`export__jpeg_xl_status.md`: Acrobat neither reads nor writes JXL), and that no spec defines `/JXLDecode` in PDF.
+- *Acceptance:* default Optimize behaviour unchanged; lossless round-trips pixel-exact; lossy states its distance; JPEG transcode is reversible to the original bytes; the opt-in prints the Acrobat caveat; `docs/PRIOR_ART.md` rows and `THIRD_PARTY_LICENSES.md` regenerated; `cargo tree -p pdfcer-core` still free of GUI dependencies; wasm build still clean.
+- **OPEN NOTE FOR KEN (surfaced, not decided):** none of the candidate crates carries a patent grant (BSD-3 has none; the Apache-2.0 option does carry one, so choosing it in the dual licence matters). Decide before adoption, per rule 13.
+- *FEATURES:* the Planned JXL row is re-pointed here (all three boxes `[ ]`).
+
+### GUI request, outbound to `pdfcer-gui` (BACKLOG; filed 1468th filing; operator request 2026-11-09; no channel number assigned yet)
+
+Not a pdfcer Pass; recorded so `FEATURES.md` gui boxes stay honest.
+- **Marquee as general region selection**, no longer snapshot-only, feeding Delete (`694.0`), Redact inside or outside (`694.1`), Crop (`694.2`), Copy and OCR.
+- **Highlight tool modes** Text | Area | Shapes (`695.0`), with Alt forcing Area.
+- **Text-selection runaway fix:** a drag selects only the text runs intersecting the drag rect, not the reading-order range between the endpoints (operator: going over text "starts selecting text all over the page").
+- **A crop tool.**
+- *Acceptance (theirs to confirm):* each gui box ticks only once reachable in a real build. Depends on `694.0`/`694.1`/`694.2`/`695.0` for the engine halves.
+
+### Write JPEG XL into PDFs (BACKLOG, BLOCKED ON A SPEC; filed 1465th filing; residue of `Pass 692.0`/`692.1`; **1468th filing: operator asked for JXL write 2026-11-09, filed as `Pass 696.0` above, opt-in and disclosed; the missing-spec fact below still stands**)
 
 Not started, no Pass ID yet (assign when unblocked). Keep JXL bytes on save, or optimise images to JXL. **Blocked:** it waits on a PDF Association or ISO document defining JPEG XL in PDF; writing a filter no spec defines would produce files other readers cannot be expected to open. Watch pdf-issues Discussion #852. `692.1` deliberately converts to `/FlateDecode` instead. **FEATURES:** Planned row added (all three boxes `[ ]`).
 
