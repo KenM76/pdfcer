@@ -96,6 +96,7 @@ LOCAL = {
     "cargo fmt --all --check": "cargo fmt --all --check",
     "tools/check-fmt-excluded.py": "python tools/check-fmt-excluded.py",
     "tools/check-shipped-assets.py": "python tools/check-shipped-assets.py",
+    "tools/check-msrv-floor.py": "python tools/check-msrv-floor.py",
     "cargo clippy": "cargo clippy --workspace --all-targets --all-features -- -D warnings",
     # The lite CLI build compiles feature-gated enums with fewer variants, so
     # lints such as `irrefutable_let_patterns` fire only here.

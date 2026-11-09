@@ -126,8 +126,6 @@ jobs:
       # lean, and its graph must hold none of pdfcer-core's optional crates.
       - run: cargo test -p pdfcer-render --no-default-features --doc
       - run: python tools/check-lean-render-graph.py
-      # The declared rust-version is the graph's real floor (decision 221).
-      - run: python tools/check-msrv-floor.py
       # THE FORWARDING GUARD — the other half of the gate above.
       #
       # Cargo will not let a member override an inherited `default-features`,
@@ -365,7 +363,7 @@ jobs:
   # and the COUNT is the part that decays, so the count is the part a gate
   # can falsify.
   audits:
-    name: repository audits (32 checks)
+    name: repository audits (33 checks)
     runs-on: ubuntu-latest
     steps:
       # ★ FULL HISTORY REQUIRED, and its absence was SILENT.
@@ -694,6 +692,9 @@ jobs:
       # grep one YAML is a job people delete.
       - name: check every CI command has a local runner
         run: python tools/check-ci-parity.py
+
+      # The declared rust-version is the graph's real floor (decision 221).
+      - run: python tools/check-msrv-floor.py
 
       # A job's name is the first thing anybody reads when CI goes red, and
       # this job's name described one of its nineteen steps for eighteen days

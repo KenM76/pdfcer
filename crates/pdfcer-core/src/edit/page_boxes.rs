@@ -151,66 +151,14 @@ impl EditSession {
             return Err(EditError::DocumentEncrypted);
         }
         self.check_certification()?;
-        let mut order: Vec<PageBoxEdit> = edits.to_vec();
-        order.sort_by_key(|e| (e.page_index, e.target));
-        if let Some((a, _)) = order
-            .iter()
-            .zip(order.iter().skip(1))
-            .find(|(a, b)| (a.page_index, a.target) == (b.page_index, b.target))
-        {
-            return Err(EditError::PageBoxRepeated {
-                page_index: a.page_index,
-                target: a.target,
-            });
-        }
-
+        let order = sorted_unique(edits)?;
         let slots = self.page_slots()?;
         let pages = self.pages()?;
         let mut changes = Vec::with_capacity(order.len());
         let mut writes: Vec<ObjectWrite> = Vec::new();
         for group in order.chunk_by(|a, b| a.page_index == b.page_index) {
-            let Some(index) = group.first().map(|e| e.page_index) else {
-                continue;
-            };
-            let (Some(slot), Some(page)) = (slots.get(index), pages.get(index)) else {
-                return Err(EditError::PageOutOfRange {
-                    index,
-                    count: slots.len(),
-                });
-            };
-            let id = slot.id;
-            let Some(Object::Dict(current)) = self.value(id) else {
-                return Err(EditError::NotADictionary { id, key: "CropBox" });
-            };
-            let current = current.clone();
-            let mut updated = current.clone();
-            let media = page.media_box;
-            let mut crop = page.crop_box;
-            for e in group {
-                let change = if e.target == PageBox::Crop {
-                    let c = self.crop_box_update(
-                        index,
-                        slot,
-                        &current,
-                        &mut updated,
-                        media,
-                        media,
-                        e.edit,
-                    )?;
-                    crop = c.after;
-                    PageBoxChange::from_crop(c)
-                } else {
-                    let defaults = (page.crop_box, crop);
-                    self.print_box_update(*e, id, &mut updated, media, defaults)?
-                };
-                changes.push(change);
-            }
-            if updated != current {
-                writes.push(ObjectWrite {
-                    id,
-                    before: self.state.get(&id).cloned(),
-                    after: Some(Object::Dict(updated)),
-                });
+            if let Some(w) = self.page_box_group(group, &slots, &pages, &mut changes)? {
+                writes.push(w);
             }
         }
         if !writes.is_empty() {
@@ -224,6 +172,58 @@ impl EditSession {
             });
         }
         Ok(changes)
+    }
+
+    /// Apply one page's edits, pushing a [`PageBoxChange`] per edit; the
+    /// page's write, if anything changed.
+    fn page_box_group(
+        &self,
+        group: &[PageBoxEdit],
+        slots: &[page_tree::PageSlot],
+        pages: &[page_tree::Page],
+        changes: &mut Vec<PageBoxChange>,
+    ) -> Result<Option<ObjectWrite>, EditError> {
+        let Some(index) = group.first().map(|e| e.page_index) else {
+            return Ok(None);
+        };
+        let (Some(slot), Some(page)) = (slots.get(index), pages.get(index)) else {
+            return Err(EditError::PageOutOfRange {
+                index,
+                count: slots.len(),
+            });
+        };
+        let id = slot.id;
+        let Some(Object::Dict(current)) = self.value(id) else {
+            return Err(EditError::NotADictionary { id, key: "CropBox" });
+        };
+        let current = current.clone();
+        let mut updated = current.clone();
+        let media = page.media_box;
+        let mut crop = page.crop_box;
+        for e in group {
+            let change = if e.target == PageBox::Crop {
+                let c = self.crop_box_update(
+                    index,
+                    slot,
+                    &current,
+                    &mut updated,
+                    media,
+                    media,
+                    e.edit,
+                )?;
+                crop = c.after;
+                PageBoxChange::from_crop(c)
+            } else {
+                let defaults = (page.crop_box, crop);
+                self.print_box_update(*e, id, &mut updated, media, defaults)?
+            };
+            changes.push(change);
+        }
+        Ok((updated != current).then(|| ObjectWrite {
+            id,
+            before: self.state.get(&id).cloned(),
+            after: Some(Object::Dict(updated)),
+        }))
     }
 
     /// Apply a bleed, trim or art edit to `updated`. `defaults` is the
@@ -286,6 +286,23 @@ impl EditSession {
             overhangs_media_box: overhangs,
         })
     }
+}
+
+/// `edits` in page-then-box order, refusing two edits to one page's box.
+fn sorted_unique(edits: &[PageBoxEdit]) -> Result<Vec<PageBoxEdit>, EditError> {
+    let mut order: Vec<PageBoxEdit> = edits.to_vec();
+    order.sort_by_key(|e| (e.page_index, e.target));
+    if let Some((a, _)) = order
+        .iter()
+        .zip(order.iter().skip(1))
+        .find(|(a, b)| (a.page_index, a.target) == (b.page_index, b.target))
+    {
+        return Err(EditError::PageBoxRepeated {
+            page_index: a.page_index,
+            target: a.target,
+        });
+    }
+    Ok(order)
 }
 
 #[cfg(test)]

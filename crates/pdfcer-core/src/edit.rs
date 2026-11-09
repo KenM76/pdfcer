@@ -63167,6 +63167,8 @@ mod tests {
         )
     }
 
+    /// A classic-xref PDF from object bodies numbered from 1; shared with
+    /// the page-box tests.
     pub(super) fn build(bodies: &[&str], trailer_extra: &str) -> Vec<u8> {
         let mut buf = b"%PDF-1.4\n%\xE2\xE3\xCF\xD3\n".to_vec();
         let mut offsets = Vec::new();
