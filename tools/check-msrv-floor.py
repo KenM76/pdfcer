@@ -2,7 +2,7 @@
 """Gate: the workspace `rust-version` is not below any dependency's.
 
 The declared MSRV is the highest `rust-version` in the resolved dependency
-graph (decision 210). A dependency upgrade or a vendor sync that raises its
+graph (decision 221). A dependency upgrade or a vendor sync that raises its
 own floor makes the declaration false without any build failing on the
 pinned toolchain; this catches it.
 

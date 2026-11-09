@@ -104,7 +104,7 @@ exclude = [
 version = "0.138.0"
 edition = "2024"
 # MSRV: the highest `rust-version` in the default dependency graph
-# (ocrcer-core 1.97; jixel 1.94), decision 210. A lower value would be false
+# (ocrcer-core 1.97; jixel 1.94), decision 221. A lower value would be false
 # and would make the MSRV-aware resolver hold dependencies back.
 # tools/check-msrv-floor.py keeps it true; raise only with a decision entry.
 rust-version = "1.97"

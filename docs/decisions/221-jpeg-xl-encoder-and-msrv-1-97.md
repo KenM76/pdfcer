@@ -1,4 +1,4 @@
-# Decision 210: JPEG XL encoder and the workspace rust-version (Pass 696.0)
+# Decision 221: JPEG XL encoder and the workspace rust-version (Pass 696.0)
 
 Date: 2026-11-09. Consulted: autonomous-builder.
 

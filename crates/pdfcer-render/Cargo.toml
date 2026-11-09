@@ -39,7 +39,7 @@ profile = []
 default = ["jpx", "jxl", "jxl-write", "ocrs", "ocrcer", "paddle"]
 jpx = ["pdfcer-core/jpx"]
 jxl = ["pdfcer-core/jxl"]
-# JPEG XL export (`Pass 696.0`, decision 210). Implies `jxl`: every encoded
+# JPEG XL export (`Pass 696.0`, decision 221). Implies `jxl`: every encoded
 # file is decoded back with the reader before it is returned.
 jxl-write = ["jxl", "dep:jixel"]
 # The `ocrs` text-recognition engine. Forwarded even though `pdfcer-render`
@@ -62,7 +62,7 @@ thiserror = "2"
 # `export::encode_jxl` only. License: BSD-3-Clause OR Apache-2.0 (taken as
 # Apache-2.0). Exact pin: encoder output changes only on purpose. Default
 # features off to drop `extraslow` (two metric crates); SIMD paths kept.
-# Always driven with one thread (decision 210).
+# Always driven with one thread (decision 221).
 jixel = { version = "=0.5.7", default-features = false, features = ["sse", "avx", "neon", "wasm"], optional = true }
 
 # tiny-skia: the Pass 1 rasterizer backend (docs/PRIOR_ART.md selection,

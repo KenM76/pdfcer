@@ -126,7 +126,7 @@ jobs:
       # lean, and its graph must hold none of pdfcer-core's optional crates.
       - run: cargo test -p pdfcer-render --no-default-features --doc
       - run: python tools/check-lean-render-graph.py
-      # The declared rust-version is the graph's real floor (decision 210).
+      # The declared rust-version is the graph's real floor (decision 221).
       - run: python tools/check-msrv-floor.py
       # THE FORWARDING GUARD — the other half of the gate above.
       #
