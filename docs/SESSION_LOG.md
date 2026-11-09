@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-09 (1470th filing) — `6ed962dc`, `Pass 696.0` SHIPPED (JPEG XL export); decision 221
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- One code commit `6ed962dcb5760227fc4a2570262f746ace2b56c1`. `pdfcer-render` feature `jxl-write` (`jixel =0.5.7`, default on, strippable), `export::encode_jxl`; CLI `export-image --format jxl --jxl-distance D`. Lossless by default, every file decoded back. gui unticked.
+- Workspace `rust-version` 1.92 to 1.97; new gate `tools/check-msrv-floor.py` in CI; `check-lean-render-graph.py` widened.
+- Tests as reported: render lib 546; cli 96 unit + 1064 integration; cli no-default 91; core no-default 2291 + 3118; clippy, wasm32, fmt, three gates green.
+- ROADMAP: `696.0` moved from *Backlog* to Shipped; residue minted as `Pass 696.1` (PDF-side `/JXLDecode` write, grep-checked free). FEATURES: new Export row (core/cli `[x]`, gui `[ ]`); Planned JXL row re-scoped to `696.1`. ARCHITECTURE: §12 decision 221, MSRV body paragraph updated.
+
+**Decision-number collision, caught at filing:** the engineer's record and four citations say "decision 210". Decision 210 is the PRC writer / glTF defaults entry (1297th filing, cited by `pdfcer-3d` and core-api). Ceiling was 220, so this is **221**. **Rename DONE** (engineer, commit `656ee8e712812256375c169c868fe8d6e59eded3`, "chore: renumber the JPEG XL decision 210 -> 221"): `docs/decisions/221-jpeg-xl-encoder-and-msrv-1-97.md` now exists (the `210-` file is gone), and "decision 221" replaced "decision 210" in `Cargo.toml`, `crates/pdfcer-render/Cargo.toml`, `.github/workflows/ci.yml`, `tools/check-msrv-floor.py` and the `docs/PRIOR_ART.md` jixel row; `docs/core-api/` had no citation. Engineer-reported, not checked from here. This supersedes the "owed to the engineer" note originally filed here.
+
+**Open risks (decision 221):** libjxl patent grant reaching a port unverified; `simd128` wasm untested; binary size to measure at next release.
+
+**Rust RAG:** three findings written to `D:\dev\rag\rust\` (msrv gate, jixel threads, lossless-vs-lossy test content).
+
+**Hard-rule-11 sweep:** claim changed = "the workspace MSRV is 1.92 / not decided". Found and fixed: `ARCHITECTURE.md` toolchain section ("not yet decided"). Grepped `1.92` over README, CONTRIBUTING, `docs/core-api/`, `LEGAL.md`, `tools/`, `.github/`: one hit, `docs/NEXT_SESSION.md` line 8 (engineer-owned, not edited; may be a different "1.92", not read in full). Also `FEATURES.md` line "Strip an optional capability at build time" names only `jxl`; `jxl-write` is a second strippable feature, left as is (still true, not complete).
+**Still open:** `694.2` crop parity (not started); `696.1`.
+
 ## 2026-11-09 (1469th filing) — `c0ecc300`, `Pass 693.0`, `694.0`, `694.1`, `695.0` SHIPPED
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**

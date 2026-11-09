@@ -224,11 +224,11 @@ then, not before. Full statement: §5.13 and §12 decision 136.
   stable is installed" — reproducibility matters for a project other
   people will eventually build. Bump deliberately (dated decision-log
   entry), not silently.
-- **MSRV** (minimum supported Rust version): not yet decided — set it
-  at Pass 0 once the toolchain is pinned, document it in `Cargo.toml`'s
-  `rust-version` field, and re-check it against `docs/PRIOR_ART.md`'s
-  candidate dependencies (some crates there have their own MSRV floors
-  that could force pdfcer's own MSRV higher than expected).
+- **MSRV** (minimum supported Rust version): **1.97**, declared as the
+  workspace `rust-version` (decision 221). It is the floor of the whole
+  dependency graph (`ocrcer-core` 1.97, `jixel` 1.94), and
+  `tools/check-msrv-floor.py` fails CI if the declared value is lower
+  than any dependency's.
 - **`Cargo.lock`**: **commit it.** This is an application workspace
   (produces `pdfce-gui`/`pdfcer` binaries), not a pure library —
   the Rust ecosystem convention for binaries is to commit the lockfile
@@ -13823,3 +13823,15 @@ Operator request: support JPEG XL. Engineer-reported; no `docs/decisions/220-*.m
 4. **Nothing is encoded.** Import (`692.1`) transcodes to Flate; JXL bytes are never written into a PDF. Writing stays in the Backlog, blocked on a published spec.
 
 **Body-section effect.** None made here (§2 stack table not edited; engineer to add `jxl-oxide` if that table lists codec crates). **Decision ceiling.** Fills `220`; next free decision `221`. **New standing rule.** None.
+
+### 2026-11-09 (1470th filing, `Pass 696.0`, `6ed962dc`) — decision 221: JPEG XL is encoded with `jixel =0.5.7` behind `jxl-write`; the workspace `rust-version` is 1.97 and a gate keeps it true
+
+Operator request: "add write support for JPEG XL too". Record: `docs/decisions/221-jpeg-xl-encoder-and-msrv-1-97.md`. Engineer-reported. **Numbering:** the engineer wrote this as decision 210, which was already filled (PRC writer, above); filed here as 221 (ceiling was 220); file rename DONE in `656ee8e712812256375c169c868fe8d6e59eded3` (engineer-reported).
+
+**Decides.**
+1. **Encoder:** `jixel =0.5.7` (BSD-3-Clause OR Apache-2.0, taken Apache-2.0), default features off, SIMD features kept, behind `pdfcer-render` feature `jxl-write = ["jxl", "dep:jixel"]` (default on, strippable; `pdfcer-cli` forwards it). Exact pin: an upgrade re-checks its `rust-version`.
+2. **Rules kept:** always `with_num_threads(1)`; lossless by default; every file decoded back with `jxl-oxide` and a lossless mismatch refused; `Speed::ExtraSlow` never offered.
+3. **Workspace `rust-version` 1.92 to 1.97.** 1.92 was already false (`ocrcer-core =0.2.0` declares 1.97; `jixel` 1.94 on every release 0.2.14 to 0.5.7, so the resolver has no older release). `tools/check-msrv-floor.py` (cargo metadata, workspace members excluded) is the guard, run in CI. Rejected: 1.94 workspace-wide (still false), a render-only override, encoder off by default, libjxl via FFI (breaks wasm32 and the portable folder).
+4. **Risks recorded, not settled:** libjxl's patent grant reaching a port is unverified (`jxl-oxide` already carries the same exposure); `simd128` wasm untested; release-binary size to be measured at the next release; an OCRcer vendor sync can raise the floor silently (the gate catches it).
+
+**Body-section effect.** §"MSRV" in the toolchain section updated to name 1.97. **Decision ceiling.** Fills `221`; next free decision `222`. **New standing rule.** None.

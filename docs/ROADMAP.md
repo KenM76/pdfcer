@@ -112,6 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `6ed962dc` `Pass 696.0`, 2026-11-09: JPEG XL export, `export-image --format jxl` (1470th filing)
+
+Engineer-reported; no shell here, git, push and backup state not checked from here. One code commit `6ed962dcb5760227fc4a2570262f746ace2b56c1` on `main`. Operator request of 2026-11-09 (pdfcer-gui channel `request_2026-11-09_marquee_region_highlight_modes_crop.md`, "add write support for JPEG XL too"), filed in `84716404`. Decision **221** (`docs/decisions/221-*.md`; see the number note below). Reasoning is in the commit message and the decision record. **gui is not delivered.**
+- **render:** feature `jxl-write = ["jxl", "dep:jixel"]`, default on, strippable. `pdfcer_render::export::{encode_jxl, JxlOptions, JxlEncoded}`. Lossless by default; lossy by distance. Every encoded file is decoded back with `jxl-oxide`; a lossless file that does not reproduce the pixmap exactly is refused. Always one encoder thread (`jixel` defaults to every core).
+- **cli:** `export-image --format jxl`, `--jxl-distance D` (0.1 to 25, lossy, result line adds `max_error=`), `--transparent` keeps alpha. Refused: `--jxl-distance` with a non-jxl format, out of range, or a build without the feature.
+- **Dependency:** `jixel =0.5.7` (BSD-3-Clause OR Apache-2.0, taken Apache-2.0), default features off, `sse`/`avx`/`neon`/`wasm` kept. `PRIOR_ART.md` row added; `THIRD_PARTY_LICENSES.md` regenerated (cargo-about 0.9.1).
+- **MSRV:** workspace `rust-version` 1.92 to **1.97**. The 1.92 was already false (`ocrcer-core =0.2.0` declares 1.97; `jixel` 1.94 on every release 0.2.14 to 0.5.7). New gate `tools/check-msrv-floor.py` (reads `cargo metadata --locked`, excludes workspace members), added to `.github/workflows/ci.yml`. `check-lean-render-graph.py` now also bans pdfcer-render's own optional deps.
+- **Risks (decision 221):** patent reach of libjxl's grant to a port is **unverified** (`jxl-oxide` carries the same exposure); `simd128` wasm path untested; binary-size impact to be measured at the next release.
+- **Tests (as reported):** render lib 546; cli unit 96 + integration (`--test all`) 1064 including `jxl_is_lossless_by_default_and_lossy_on_request`; cli `--no-default-features` 91; core no-default 2291 + 3118; clippy all-features `-D warnings`, wasm32 check, fmt clean; `check-msrv-floor`, `check-lean-render-graph`, `check-code-structure` green. `cargo tree -p pdfcer-render`: no GUI, windowing or network crate.
+- **core-api:** `docs/core-api/03-capabilities.md` JPEG XL row; `index.md` line count 6,012.
+- **NUMBER NOTE (filing-time correction):** the engineer's record is `docs/decisions/210-jpeg-xl-encoder-and-msrv-1-97.md` and cites "decision 210" in `Cargo.toml`, `ci.yml`, `tools/check-msrv-floor.py`, `pdfcer-render/Cargo.toml`. **210 was already taken** (`ARCHITECTURE.md` §12, 1297th filing, PRC writer layout and glTF defaults; cited by `pdfcer-3d` and core-api). The ledger ceiling was 220, next free 221, so this is filed as **221**. Rename DONE in `656ee8e712812256375c169c868fe8d6e59eded3` (engineer-reported; the record is now `docs/decisions/221-jpeg-xl-encoder-and-msrv-1-97.md`).
+- **Not shipped:** writing JXL into a PDF (opt-in Optimize re-encode, reversible JPEG transcode), minted as `Pass 696.1` in *Backlog*.
+- **FEATURES:** new Implemented row "Export page(s) to JPEG XL" in Export (core `[x]` cli `[x]` gui `[ ]`); the Planned JXL row re-scoped to `Pass 696.1`, still all `[ ]`.
+
 ### `c0ecc300` `Pass 693.0`, `694.0`, `694.1`, `695.0`, 2026-11-09: highlights stay vector, region delete, inverse redaction, highlighter shapes (1469th filing)
 
 Engineer-reported; no shell here, git, push and backup state not checked from here. One code commit `c0ecc300dff5486283b7f0daf213f6d3c18d9f38` on `main`, reported not yet pushed (to go with `84716404` and `c0763a50`). Operator request of 2026-11-09, filed in `84716404`. Reasoning is in the commit message. No decision number. **gui is not delivered for any of the four**: the GUI is `pdfcer-gui`, with `open/request_2026-11-09_marquee_region_highlight_modes_crop.md` open.
@@ -37550,6 +37564,8 @@ overrides the image dictionary; `/ColorSpace` optional,
 > **1468th filing: operator request of 2026-11-09 filed as `Pass 693.0`-`696.0`.**
 >
 > **1469th filing: `Pass 693.0`, `694.0`, `694.1`, `695.0` SHIPPED in one commit `c0ecc300` (moved to Shipped). No head of Next up remains from the 693 family. Open in *Backlog*: `694.2` (crop parity, not started) and `696.0` (JPEG XL write, draft not wired, blocked on an MSRV bump).**
+>
+> **1470th filing: `Pass 696.0` SHIPPED (`6ed962dc`, moved to Shipped from *Backlog*; it was never in Next up). Only the encoder and `export-image --format jxl` shipped; the PDF-side write is minted as `Pass 696.1` in *Backlog*. No head of Next up. `694.2` still open.**
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 
@@ -37563,13 +37579,12 @@ nothing gets forgotten, not as a commitment to build in this order.
 - *Acceptance:* each target box written only on the selected pages; odd/even composes with the range; remove-white-margins prints the detected rectangle per page and renders exactly as it will save; the help states the hides-not-removes caveat; boxes are kept nested per the spec (Crop within Media; others per ISO 32000 §14.11.2).
 - *FEATURES:* Planned row (the existing "Set or remove a page's `/CropBox`" row stays as is; this Planned row covers only the additions).
 
-### `Pass 696.0` — JPEG XL write (BACKLOG; filed 1468th filing; operator request 2026-11-09; supersedes the "BLOCKED ON A SPEC" entry below)
+### `Pass 696.1` — JPEG XL written into PDFs (BACKLOG; filed 1470th filing; residue of `Pass 696.0`; operator request 2026-11-09)
 
-Encoder candidate: `jixel` 0.5.x (BSD-3-Clause OR Apache-2.0, pure Rust, wasm-clean at `num_threads=1`; a port of libjxl-tiny, so it needs BSD-3 attribution). **Excluded:** `jxl-encoder`/`zenjxl` (AGPL), `jpegxl-rs` (GPL-3). Scope: opt-in Optimize re-encode to `/JXLDecode` (lossless, lossy at a distance, reversible JPEG transcode) plus `export-image --format jxl`. Every encode is decoded back with `jxl-oxide` and checked before it is written; a mismatch writes nothing. Disclose that output may not open in Acrobat (`export__jpeg_xl_status.md`: Acrobat neither reads nor writes JXL), and that no spec defines `/JXLDecode` in PDF.
-- *Acceptance:* default Optimize behaviour unchanged; lossless round-trips pixel-exact; lossy states its distance; JPEG transcode is reversible to the original bytes; the opt-in prints the Acrobat caveat; `docs/PRIOR_ART.md` rows and `THIRD_PARTY_LICENSES.md` regenerated; `cargo tree -p pdfcer-core` still free of GUI dependencies; wasm build still clean.
-- **1469th filing status (engineer-reported):** draft not wired. Blocked on an MSRV bump 1.92 to 1.94 that the `jixel` 0.5.7 encoder needs; that needs a dated decision first. `jixel` is BSD-3-Clause OR Apache-2.0 with optional deps.
-- **OPEN NOTE FOR KEN (surfaced, not decided):** none of the candidate crates carries a patent grant (BSD-3 has none; the Apache-2.0 option does carry one, so choosing it in the dual licence matters). Decide before adoption, per rule 13.
-- *FEATURES:* the Planned JXL row is re-pointed here (all three boxes `[ ]`).
+`696.0` shipped the encoder and `export-image --format jxl` (`6ed962dc`, decision 221). Still owed: the opt-in Optimize re-encode of PDF images to `/JXLDecode` (lossless, lossy at a distance, reversible JPEG transcode). Every encode is decoded back with `jxl-oxide` and checked before it is written; a mismatch writes nothing. Disclose that output may not open in Acrobat (`export__jpeg_xl_status.md`: Acrobat neither reads nor writes JXL) and that no spec defines `/JXLDecode` in PDF.
+- *Acceptance:* default Optimize behaviour unchanged; lossless round-trips pixel-exact; lossy states its distance; JPEG transcode is reversible to the original bytes; the opt-in prints the Acrobat caveat; PDF/A conformance reports it as non-conforming.
+- **OPEN NOTE FOR KEN (surfaced, not decided):** whether libjxl's patent grant reaches the `jixel` port is unverified (decision 221 risks; `jxl-oxide` carries the same exposure). Settle before this lands, per rule 13.
+- *FEATURES:* the Planned "Write JPEG XL into PDFs" row points here (all three boxes `[ ]`).
 
 ### GUI request, outbound to `pdfcer-gui` (BACKLOG; filed 1468th filing; operator request 2026-11-09; no channel number assigned yet)
 
