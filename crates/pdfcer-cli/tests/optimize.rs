@@ -1463,11 +1463,16 @@ fn visual_diff_reports_a_lossless_run_unchanged_and_a_lossy_one_changed() {
         "1KB",
         "--visual-diff-dir",
         pictures.to_str().unwrap(),
+        // The image's own 288 ppi, so the render does not shrink it: an
+        // area-averaged 72 dpi render smooths the noise below the threshold
+        // in both files and the lossy damage stops being visible.
+        "--visual-diff-dpi",
+        "288",
     ]);
     let j = text(&o);
     assert!(
         j.contains(
-            "\"visual_diff\":{\"dpi\":72,\"threshold\":8,\"pages\":[{\"page\":1,\"ssim\":0."
+            "\"visual_diff\":{\"dpi\":288,\"threshold\":8,\"pages\":[{\"page\":1,\"ssim\":0."
         ),
         "{j}"
     );
