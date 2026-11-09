@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-09 (1473rd filing) — `7dbb3760` `chore(release): v0.139.0` version bump filed
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- `7dbb3760a11d006859506dc709609c12c37ea163` bumps 14 workspace crates 0.138.0 to 0.139.0 (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`). Not tagged yet.
+- v0.139.0 carries `693.0`, `694.0`, `694.1`, `695.0` (`c0ecc300`), `694.2` (`c9468b0c`, `c6bf20e1`), `696.0` (`6ed962dc`, decision 221, MSRV 1.97), `ec1278fc`, `697.0` (`335e3e2c`).
+- OneDrive slot `pdfcer1` (alternating); `pdfcer2` keeps 0.138.0.
+- ROADMAP: one Shipped entry. FEATURES: no edit.
+
+**Still open:** tag, release, crates.io publish and the OneDrive deploy are not done; they get their own filing.
+
 ## 2026-11-09 (1472nd filing) — `335e3e2c` `Pass 697.0` SHIPPED (printer's marks clearance, X062); `ec1278fc` CI fix
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**

@@ -112,6 +112,13 @@ wherever it appears.*
 
 ## Shipped
 
+### `7dbb3760` `chore(release): v0.139.0`, 2026-11-09: version bump filed, release not yet tagged (1473rd filing)
+
+Engineer-reported; no shell here, git, tag, push, crates.io and backup state not checked from here. `7dbb3760a11d006859506dc709609c12c37ea163` bumps all 14 workspace crates 0.138.0 to 0.139.0 (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`). Not tagged yet.
+- **Contents since v0.138.0:** `Pass 693.0`, `694.0`, `694.1`, `695.0` (all `c0ecc300`); `694.2` (`c9468b0c`, `c6bf20e1`); `696.0` (`6ed962dc`, decision 221, MSRV 1.97); CI audits fix `ec1278fc`; `Pass 697.0` (`335e3e2c`).
+- **OneDrive:** the release writes slot `pdfcer1` (alternating); `pdfcer2` keeps 0.138.0.
+- **FEATURES:** no change. The tag, release and publish get their own entry when done.
+
 ### `335e3e2c` `Pass 697.0`, 2026-11-09: printer's marks keep clear of the registration targets, request X062 (1472nd filing)
 
 Engineer-reported; no shell here, git, push and backup state not checked from here. Bug fix, no new capability, no decision number. One code commit `335e3e2cf92df40ae65bd91d5607afdb10e9f116` on `main`. Request X062 from the operator as a crates consumer. Reasoning is in the commit message. Filed together with CI fix `ec1278fc998f9e3ea19aea243073a462226cf288` (below).
