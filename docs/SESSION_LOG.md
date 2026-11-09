@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-09 (1467th filing) — `325e41b2` test fix (Pass 691.0 follow-up); `v0.138.0` release commit `9ef5f849`, IN PROGRESS
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **`325e41b2`** (`325e41b279ade5b4d5f30b8a2ce85c191e2302f2`), test only, not pushed: CI `cargo test` red on ubuntu and windows for the `d11bdd84` filing push and the `cc0d69a4` push. The CLI visual-diff test compared a 200 px noise image painted into 50 pt at 72 dpi; area-average (`Pass 691.0`) flattened both original and JPEG-40 to grey (max delta 7, threshold 8), 0 changed pixels. Renderer correct; lossy half now uses `--visual-diff-dpi 288`. Recorded as a follow-up bullet under `Pass 691.0` in Shipped. RAG: `D:\dev\rag\rust\` one finding (compare at native resolution), indexed.
+- **`9ef5f849`** (`9ef5f849ef15b566842072cd64014b4ddbad2dcc`) `chore(release): v0.138.0`: versions in `Cargo.toml` and two lockfiles, no dependency change. Carries `Pass 691.0` and `692.0`/`692.1`. Target OneDrive slot `pdfcer2`. **Not tagged, not packaged**; tag after CI is green on these commits. No Shipped entry for the release until it is PUBLISHED.
+- **Release gates as reported (change-scoped: cli, core, image-codec, model, render):** fmt and clippy (all targets, plus cli `--no-default-features`) clean; tests codec 120, model 496, render 1187, core 5831, cli 1057 (one failure, fixed by `325e41b2`, re-run green); no-default-features: core 5673, codec 89, cli bin 91, render doc 31; `cargo doc` with broken-intra-doc-links denied clean; `check-bypass-paths.sh`, `check-string-gaps.sh`, all CI python audits clean.
+
+**Hard-rule-11 sweep:** the claim is "minify default is area-average"; the 1464th filing's owed `docs/core-api/03-capabilities.md` lines (5588, 5590) remain unchecked. Not swept here (no shell).
+
+**For next session:** commit; push after `check-commits-filed.py`; read CI colour; tag `v0.138.0`, package, fresh-folder smoke, `verify-release.py`, OneDrive `pdfcer2`; then file the PUBLISHED entry.
+
 ## 2026-11-09 (1466th filing) — `3e045c4e`, `Pass 692.0` and `692.1` SHIPPED: JPEG XL read and import (decision 220)
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**

@@ -138,6 +138,7 @@ Engineer-reported; no shell here, git state not checked from here. Commit `d11bd
 - **Caveat:** a saved settings file writes every key, so an old `image_minify = smooth` or `point_sample` keeps pinning the old behaviour. The operator's OneDrive `pdfcer\userdata` and `pdfcer-gui2\userdata` contain `point_sample`.
 - **gui:** not delivered. The `pdfcer-gui` Settings > Images page offers only PointSample and Smooth, so it cannot select AreaAverage yet.
 - **FEATURES:** row "Area-averaged image minification": core `[x]`, cli `[x]`, gui `[ ]` unchanged; the "default stays Smooth" clause replaced.
+- **Follow-up `325e41b2`, test only (1467th filing; engineer-reported, not pushed):** CI `cargo test` was red on ubuntu and windows for the `d11bdd84` filing push and the `cc0d69a4` push, nothing else. CLI test `optimize::visual_diff_reports_a_lossless_run_unchanged_and_a_lossy_one_changed` paints a 200 px noise image into 50 pt and compared at 72 dpi; the new default averaged original and JPEG-40 rewrite to near-flat grey (max delta 7, threshold 8), so the lossy run showed 0 changed pixels. Renderer correct, fixture vacuous. The lossy half now passes `--visual-diff-dpi 288` (no minify). Lesson: `D:\dev\rag\rust\a_better_minify_filter_can_make_a_lossy_vs_lossless_visual_diff_test_vacuous_compare_at_the_images_native_resolution.md`.
 
 ### `82796a5f` / tag `v0.137.0` `Pass 690.1`, 2026-11-08: the 14 engine crates are published to crates.io (`X061` part 2, `X001`) (1463rd filing)
 
