@@ -122,6 +122,7 @@ Engineer-reported; no shell here, git, push and backup state not checked from he
 - **Tests (as reported):** 6 new in `pdfcer-print` (CMYK accepted as proof but still refused as printer; CMYK proof dulls out-of-gamut green and keeps white; simulate-paper prints a cream tint, relative does not; grey printer after a proof writes equal channels; unusable proof profiles are named errors; unestimable black point reported not fatal), all three sabotages bit. CLI: 3 unit + 1 integration. `pdfcer-cli` 106 unit + 1073 integration passed (2 ignored); `pdfcer-print` 167 passed.
 - **Gates (as reported):** clippy `-D warnings`, fmt, every CI-listed shell/python audit, Linux cross-check: green. No dependency change, no `Cargo.toml` touched (`cargo tree` n/a). No new subcommand (README count stays 247).
 - **Replies:** `X063`/`X064` channel replies are being amended to cover `699.2`.
+- **Follow-up `b55b0de4`** (`b55b0de4fddbf99083c55b594308005a2197b624`, no new Pass; 1482nd filing; engineer-reported): `fix(print)`: qualify three module-doc links (`MAX_PROFILE_BYTES`, `ProofColour::simulate_paper`, `MAX_FILES`) that rustdoc resolves from the crate root, because the `///` lines on each `pub mod` in `lib.rs` join the module's `//!` docs; caught by the pre-tag `RUSTDOCFLAGS=-D rustdoc::broken_intra_doc_links cargo doc` release gate before `v0.141.0` was tagged.
 
 ### `ca55c343` `Pass 699.0` + `Pass 699.1`, 2026-11-10: print into a printer ICC profile; list installed ICC profiles (1479th filing)
 

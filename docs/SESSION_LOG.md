@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-10 (1482nd filing) — `b55b0de4` docs-link fix in `pdfcer-print` (follow-up to `25417234`, no new Pass)
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- `b55b0de4fddbf99083c55b594308005a2197b624`, `fix(print)`: qualified three module-doc links (`MAX_PROFILE_BYTES`, `ProofColour::simulate_paper`, `MAX_FILES`) that rustdoc resolves from the crate root, because the `///` lines on each `pub mod` in `lib.rs` join the module's `//!` docs. Caught by the pre-tag `RUSTDOCFLAGS=-D rustdoc::broken_intra_doc_links cargo doc` release gate before `v0.141.0` was tagged. Noted on the `Pass 699.2` Shipped entry. No FEATURES change.
+- RAG: existing `D:/dev/rag/rust/a_module_headers_intra_doc_links_resolve_in_the_parent_modules_scope_not_its_own.md` (found by grep, not rewritten) gains an Instance 4 (`pdfcer-print`); no new file, so no index change.
+
+**For next session:** `v0.141.0` tagging/publication, then flip the 699.0/.1/.2 FEATURES rows.
+
 ## 2026-11-10 (1481st filing) — `25417234` `Pass 699.2` SHIPPED (CMYK proof printing on the desk printer)
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
