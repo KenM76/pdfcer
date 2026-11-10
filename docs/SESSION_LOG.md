@@ -4,6 +4,21 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-10 (1487th filing) — `25a2a6f5` `Pass 703.0` PARTIAL (nested-paint and held-content budgets; `X067` F054 F055); stays open
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits; `25a2a6f5` on `main`, not pushed at filing; not in `v0.142.0`, ships `v0.143.0`):**
+- New `pdfcer_render::page_budget`: `MAX_NESTED_PAINTS` = 50,000 (streams at XObject depth >= 2; depths 0 and 1 free), `MAX_PAGE_CONTENT` = 512 MiB (decoded buffer + tokens held at once by streams on the stack, returned on finish). One budget per root render (page content, each annotation appearance, `trace_paths`); covers forms, Type 3 glyph procs, tiling cells, soft masks; forms and Type 3 glyphs check before decoding.
+- `Diagnostics::content_truncated` counter + note; a DIVERGENCE key (`DIVERGENCE_KEYS` 15 to 16); `render-page` metrics line gains `content_truncated=` at the END; CLI stderr warning when non-zero.
+- **Decision:** constants, not `RenderOptions` settings; the X067 ACCEPTED reply was corrected to say so. ROADMAP's Budgets note and invariant line amended in place.
+- Tests (engineer-reported): `page_budget_bounds_fan_out.rs` 3 + `page_budget.rs` 2 unit, within 4 s debug; render 553 lib + 628 integration + 33 doc; CLI `render_page` 30; clippy, fmt, structure, core-api-verbs clean; `docs/core-api/03-capabilities.md` §7.3a2. No manifest change, no `cargo tree`.
+- FEATURES: DIVERGENCE-counter row 15 to 16 keys (+`content_truncated`); Type 3 row's "total cost unbounded" replaced; the Planned robustness-bounds row records the partial in text. **No box ticked** (the legend has no half-box; the row's three boxes stay `[ ]` until it fully lands).
+
+**STILL OWED inside `703.0`:** per-form cost scales with canvas area (debug ~1.6 ms per form at 200 pt vs ~0.08 ms at 20 pt, so 50,000 forms on a full page is bounded but slow); F028 coverage budget (20,000 full-page fills); F152 streamed content past `MAX_DECODED_LEN`; acceptance on the real X067 repros (30 s, ~2 GB, release) not measured.
+
+**Flag, not edited (hard rule 11):** `docs/ARCHITECTURE.md` §10 decompression-bomb prose is per-stream only and now needs a line about the page-wide budgets (decision-log territory: engineer to say whether this warrants a decision entry or a body-text line). `crates/pdfcer-model/src/recover.rs:117` survivor from the 1486th sweep is unchanged.
+
+**For next session:** finish the owed `703.0` items, then `703.1`; push and release `v0.143.0` when the arc batch is ready.
+
 ## 2026-11-10 (1486th filing) — `X067` ACCEPTED as arc `Pass 703.0`-`703.14` (99 renderer, extraction and robustness misses); no code commit
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
