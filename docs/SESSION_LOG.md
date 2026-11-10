@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-10 (1490th filing) — `99f42fe0` `Pass 703.0` second cut: coverage ceiling (`X067` F028); stays PARTIAL
+
+**Filed (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
+- **`99f42fe0a6355c872283ce7c4cc9f63f827080a1`** `feat(render): bound a page's painted area with a coverage ceiling (Pass 703.0, X067 F028)`. In `main`, not in a release (current: `v0.143.0`). `pdfcer-render` only; no manifest or writer change. Ceiling per root render = max(256 x canvas px, 2^33) (`COVERAGE_PER_CANVAS`, `MIN_COVERAGE` in `page_budget`); every fill/stroke/glyph/`sh`/image charged its device reach; stroke-only capped at polygon length x (width + 2); hidden content and clip-only `n` not charged. Past it, later paints are skipped and counted in `content_truncated`. Constants, not settings (`max_coverage` declined). Code: `interpret/coverage.rs`.
+- **Finding:** a real CAD drawing truncated 1,590 paints at scale 8.33 (exporter wraps every stroke in `q 0 0 W H re W n ... Q`; `n` charged a page bbox). Exemption fixed it; 60 then 150 real drawings at scales 1 and 8.33: 0 truncations, 0 timeouts. Filed to `personal_rag/pdf` (index + master index).
+- **Process finding:** new `tests/*.rs` not in `tests/all.rs` (`autotests = false`) never ran through two green runs; `check-tests-harnessed.py` catches it at push. `D:/dev/rag/rust/autotests_false_plus_a_single_tests_all_rs_merges_a_crates_integration_binaries_one_per_crate.md` already covers the pattern (by `Grep`), no new RAG file.
+- **Tests:** render lib 632 + 558 + 33, 0 failed; new 2 + 3 unit, 4 integration (`page_budget_bounds_coverage.rs`); clip-only test sabotage-verified. Clippy, fmt, structure, core-api-verbs green.
+- **Measured (release):** 20,000 full-page fills at scale 10: 5.4 s (was a timeout; `content_truncated=19744`), scale 1: 2.6 s. `F028/doubling_16.pdf` scale 1: 4.2 s, 10 truncated; scale 10: **91.8 s**, 19,061 truncated (bounded, slow; belongs to the per-form canvas-area cost).
+- **`Pass 703.0` stays OPEN.** Owed: F152, per-form cost on large canvases, repro acceptance. `703.1`+ untouched.
+- ROADMAP: new Shipped entry, Next-up banner, Backlog `703.0` row amended. FEATURES: hostile-input row text updated, boxes unticked. `docs/NEXT_SESSION.md` updated. GUI channel `open/reply_X067_F028_SHIPPED.md` written by the engineer.
+
+**For next session:** F152, then per-form cost scaling with canvas area, then `703.1`.
+
 ## 2026-11-10 (1489th filing) — `v0.143.0` PUBLISHED; `3ee18220` architecture §10.1; `f8f0e2d8` target-cache cleaner; `Pass 703.0` stays PARTIAL
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
