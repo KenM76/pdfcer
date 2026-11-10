@@ -261,6 +261,7 @@ mod visual_compare;
 mod visual_diff;
 mod visual_match;
 mod visual_regions;
+mod white_margins;
 pub mod xfa;
 
 use pdfcer_core::content::ContentStream;
@@ -312,6 +313,10 @@ pub use visual_compare::{
 pub use visual_diff::{
     ChangedRegion, PageDiff, VisualDiffError, VisualDiffOptions, diff_heatmap, diff_rendered,
     visual_diff,
+};
+pub use white_margins::{
+    WHITE_MARGIN_SCALE, WHITE_MARGIN_THRESHOLD, WhiteMarginCrop, WhiteMarginError,
+    white_margin_crop,
 };
 // `RenderedPage::pixmap` is a public field of a `tiny_skia` type, so this
 // crate must re-export `tiny_skia` or every consumer has to add its own

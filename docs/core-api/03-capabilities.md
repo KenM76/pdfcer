@@ -4156,6 +4156,40 @@ CLI: `optimize --visual-diff` (also with `--dry-run`),
 changed page and implies `--visual-diff`. The report gains a "visual diff"
 section, and `--json` gains `visual_diff`.
 
+**Remove white margins** (`pdfcer_render`, `Pass 698.0`).
+`white_margin_crop(&DocumentView, &Page, margin_pt: f64) ->
+Result<Option<WhiteMarginCrop>, WhiteMarginError>` renders one page's crop box
+at `WHITE_MARGIN_SCALE` (2 px/pt, 144 dpi) with default `RenderOptions`, so
+annotation appearances count as content. A pixel is paper when R, G and B are
+all ≥ `WHITE_MARGIN_THRESHOLD` (250).
+
+- **Return:** `WhiteMarginCrop { content, crop }`, both in default user space,
+  already mapped back through `/Rotate`. `content` is the box around every
+  non-paper pixel, one pixel wider on each side. `crop` is `content` grown by
+  `margin_pt` and clipped to the page's current crop box: the rectangle to
+  pass to `set_page_boxes` as `CropBoxEdit::Set`.
+- **`Ok(None)`:** the page paints only paper. Leave that page's box alone and
+  count it as blank.
+- **Errors:** `WhiteMarginError::BadMargin(f64)` for a negative or non-finite
+  margin, and `WhiteMarginError::Render(RenderError)`.
+- **Per page:** call once per page in the Odd/Even/range scope, then make one
+  `set_page_boxes` call with all the edits (one undo entry).
+- It lives in `pdfcer_render`, not on `EditSession`, because `pdfcer-core`
+  cannot render. Pass it `session.view()`.
+
+★ **What the UI must disclose** (rule 4, the box is inferred): how many pages
+were blank and left uncropped, and these limits:
+
+- the box is accurate to one render pixel (half a point);
+- a near-white background darker than 250 (a grey scan, a tinted page) counts
+  as content, so such a page may not shrink;
+- only the current crop box is searched, so the result never grows the
+  visible region.
+
+CLI: `set-crop-box --remove-white-margins [--margin PT]` calls this function.
+It prints the found and the set rectangle per page, plus `detected=` and
+`blank=`.
+
 **Visual comparison with page matching (`Pass 645.2`)** (`pdfcer_render`).
 `visual_compare(old, new, &VisualCompareOptions) -> Result<VisualCompareReport,
 VisualCompareError>` compares two *different* documents by appearance; both

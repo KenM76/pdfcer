@@ -65,12 +65,6 @@ pub(crate) struct SetCropBoxArgs<'a> {
     pub(crate) verify_undo: bool,
 }
 
-/// Resolution of the render white margins are measured on: 2 px per point.
-const MARGIN_SCALE: f32 = 2.0;
-/// A channel value at or above this counts as paper, so faint JPEG noise in
-/// a scanned margin is not mistaken for content.
-const WHITE_THRESHOLD: u8 = 250;
-
 /// Turn `--rect` / `--reset` / `--remove-white-margins` into a request.
 pub(crate) fn crop_request(
     rect: Option<&str>,
@@ -204,7 +198,9 @@ fn plan_edits(
             CropRequest::Reset => CropBoxEdit::Reset,
             CropRequest::WhiteMargins { margin } => {
                 let page = pages.get(index).ok_or("page index out of range")?;
-                let Some(found) = content_bounds(session, page)? else {
+                let found = pdfcer_render::white_margin_crop(&session.view(), page, margin)
+                    .map_err(|e| format!("--remove-white-margins: {e}"))?;
+                let Some(found) = found else {
                     plan.blank += 1;
                     eprintln!(
                         "pdfcer: note: page {}: nothing painted; its {} box is left as is.",
@@ -213,96 +209,30 @@ fn plan_edits(
                     );
                     continue;
                 };
-                let grown = Rect::from_corners(
-                    found.llx - margin,
-                    found.lly - margin,
-                    found.urx + margin,
-                    found.ury + margin,
-                );
-                let fitted = grown.intersection(&page.crop_box).unwrap_or(found);
+                let (c, f) = (found.content, found.crop);
                 plan.detected += 1;
                 eprintln!(
                     "pdfcer: note: page {}: content found within [{:.2} {:.2} {:.2} {:.2}] \
                      (inferred from a {} dpi render); the {} box is set to \
                      [{:.2} {:.2} {:.2} {:.2}].",
                     index + 1,
-                    found.llx,
-                    found.lly,
-                    found.urx,
-                    found.ury,
-                    (72.0 * MARGIN_SCALE) as u32,
+                    c.llx,
+                    c.lly,
+                    c.urx,
+                    c.ury,
+                    (72.0 * pdfcer_render::WHITE_MARGIN_SCALE) as u32,
                     a.page_box.name(),
-                    fitted.llx,
-                    fitted.lly,
-                    fitted.urx,
-                    fitted.ury
+                    f.llx,
+                    f.lly,
+                    f.urx,
+                    f.ury
                 );
-                CropBoxEdit::Set(fitted)
+                CropBoxEdit::Set(f)
             }
         };
         plan.edits.push(PageBoxEdit::new(index, target, edit));
     }
     Ok(plan)
-}
-
-/// The user-space rectangle covering every non-white pixel of `page`'s
-/// visible region, one pixel wider on each side; `None` for a blank page.
-fn content_bounds(session: &EditSession, page: &Page) -> Result<Option<Rect>, String> {
-    let options = pdfcer_render::RenderOptions::default();
-    let rendered =
-        pdfcer_render::render_page_with_view(&session.view(), page, MARGIN_SCALE, &options)
-            .map_err(|e| format!("--remove-white-margins: render failed: {e}"))?;
-    let pix = &rendered.pixmap;
-    let (w, h) = (pix.width() as usize, pix.height() as usize);
-    let Some((x0, y0, x1, y1)) = ink_extent(pix.data(), w, h) else {
-        return Ok(None);
-    };
-    let pad = |v: usize, max: usize, grow: bool| {
-        if grow {
-            (v + 1).min(max)
-        } else {
-            v.saturating_sub(1)
-        }
-    };
-    let (x0, y0) = (pad(x0, w, false) as f64, pad(y0, h, false) as f64);
-    let (x1, y1) = (pad(x1, w, true) as f64, pad(y1, h, true) as f64);
-    let c = page.crop_box;
-    let turned = matches!(page.rotate % 360, 90 | 270);
-    let s = w as f64 / if turned { c.height() } else { c.width() };
-    let (a, b) = (
-        device_to_user(c, page.rotate, s, x0, y0),
-        device_to_user(c, page.rotate, s, x1, y1),
-    );
-    Ok(Some(Rect::from_corners(a.0, a.1, b.0, b.1)))
-}
-
-/// Bounds `[x0, x1) × [y0, y1)` of the pixels darker than paper in an RGBA
-/// buffer, or `None` when every pixel is white.
-fn ink_extent(data: &[u8], w: usize, h: usize) -> Option<(usize, usize, usize, usize)> {
-    let mut extent: Option<(usize, usize, usize, usize)> = None;
-    for (i, px) in data.chunks_exact(4).enumerate().take(w * h) {
-        if px[..3].iter().all(|&v| v >= WHITE_THRESHOLD) {
-            continue;
-        }
-        let (x, y) = (i % w, i / w);
-        extent = Some(match extent {
-            None => (x, y, x + 1, y + 1),
-            Some((a, b, c, d)) => (a.min(x), b.min(y), c.max(x + 1), d.max(y + 1)),
-        });
-    }
-    extent
-}
-
-/// Map a device pixel (top-left origin, `s` px per point) on a page framed
-/// by crop box `c` and turned clockwise by `/Rotate` back to user space.
-fn device_to_user(c: Rect, rotate: u16, s: f64, x: f64, y: f64) -> (f64, f64) {
-    let (u, v) = (x / s, y / s);
-    match rotate % 360 {
-        90 => (c.llx + v, c.lly + u),
-        180 => (c.urx - u, c.lly + v),
-        270 => (c.urx - v, c.ury - u),
-        _ => (c.llx + u, c.ury - v),
-    }
 }
 
 #[derive(Default)]
@@ -386,33 +316,6 @@ box={} detected={} blank={}",
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn rect(a: f64, b: f64, c: f64, d: f64) -> Rect {
-        Rect::from_corners(a, b, c, d)
-    }
-
-    #[test]
-    fn each_rotation_maps_the_top_left_pixel_to_the_right_corner() {
-        let c = rect(10.0, 20.0, 110.0, 220.0);
-        assert_eq!(device_to_user(c, 0, 2.0, 0.0, 0.0), (10.0, 220.0));
-        assert_eq!(device_to_user(c, 90, 2.0, 0.0, 0.0), (10.0, 20.0));
-        assert_eq!(device_to_user(c, 180, 2.0, 0.0, 0.0), (110.0, 20.0));
-        assert_eq!(device_to_user(c, 270, 2.0, 0.0, 0.0), (110.0, 220.0));
-        // One point right, two down, at 2 px per point.
-        assert_eq!(device_to_user(c, 0, 2.0, 2.0, 4.0), (11.0, 218.0));
-        assert_eq!(device_to_user(c, 90, 2.0, 2.0, 4.0), (12.0, 21.0));
-    }
-
-    #[test]
-    fn ink_extent_ignores_paper_and_near_white() {
-        let (w, h) = (4, 3);
-        let mut data = vec![255_u8; w * h * 4];
-        assert_eq!(ink_extent(&data, w, h), None);
-        data[(w + 2) * 4] = 252; // near-white noise
-        assert_eq!(ink_extent(&data, w, h), None);
-        data[(2 * w + 1) * 4 + 1] = 0;
-        assert_eq!(ink_extent(&data, w, h), Some((1, 2, 2, 3)));
-    }
 
     #[test]
     fn parity_is_one_based() {
