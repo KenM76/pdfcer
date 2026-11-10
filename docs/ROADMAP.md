@@ -37720,6 +37720,8 @@ overrides the image dictionary; `/ColorSpace` optional,
 > **1484th filing: `Pass 700.0` and `700.1` SHIPPED in one commit `4515067b` (CMYK banding; print edge antialiasing; minted and shipped in one filing, never in Next up); they ride `v0.142.0`. Request `X066` ACCEPTED as the arc `Pass 702.0`-`702.6` (renderer usable without `pdfcer-core`), filed in *Backlog* below; it is the next arc after `v0.142.0`, `702.0` first. No Pass is IN PROGRESS. `702` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`); `701` also had zero hits and is left unused.**
 >
 > **1485th filing: `Pass 701.0` SHIPPED (`a6ac7b8c`, Rust 1.99.1 pin, request `X065`, decision 222; minted and shipped in one filing, never in Next up) and the version bump `f6c8b27c` recorded. `v0.142.0` (`700.0`, `700.1`, `701.0`) is planned, NOT yet published; it writes OneDrive `pdfcer2`. No Pass is IN PROGRESS. Next arc: `Pass 702.0`-`702.6` (`X066`, in *Backlog*), `702.0` first, after the release.**
+>
+> **1486th filing: request `X067` (99 renderer, extraction and robustness misses on synthetic edge-case files, measured at `v0.141.0`) ACCEPTED as the arc `Pass 703.0`-`703.14`, filed in *Backlog* below. `Pass 703.0` (hostile-input budgets) is next after the `v0.142.0` release; it goes AHEAD of the `702.0`-`702.6` arc (`X066`), which follows. This supersedes the 1485th banner's "Next arc: `702.0`". Not in `v0.142.0`; fixes ship batch by batch from `v0.143.0`. No Pass is IN PROGRESS.**
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 
@@ -37727,7 +37729,38 @@ Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
 
-### `Pass 702.0`-`702.6` — renderer usable without `pdfcer-core` (ARC, ACCEPTED, NOT STARTED; filed 1484th filing; request `X066`, operator as crates consumer; next arc after `v0.142.0`)
+### `Pass 703.0`-`703.14` — renderer, extraction and robustness edge cases (ARC, ACCEPTED, NOT STARTED; filed 1486th filing; request `X067`, operator as crates consumer; next arc after `v0.142.0`, ahead of `702.0`-`702.6`)
+
+Request `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X067_renderer_edge_case_misses.md`; reply `open\reply_X067_renderer_edge_case_misses_ACCEPTED.md` (2026-11-10). 213 synthetic PDFs were run through `render-page` and `extract-text` at `v0.141.0`: 101 pass, 7 do not apply, 6 could not be built without a real font program, **59 fail and 40 partly fail = 99 cases**, all triaged below (4+3+12+1+9+4+7+10+8+4+4+9+7+15+2 = 99). Repros: `open\X067_repros\<id>\` (641 synthetic PDFs, about 16 MB; files over 2 MB left out, the request's observed column says how to build each; `F152` ships no file). The per-case expected and observed text is in the request, not copied here. **Hostile input comes first**, as the requester suggested. Each batch gets a SHIPPED reply naming its case ids. **Acceptance for every case:** the repro renders or extracts as the request's expected column says; robustness cases finish within 30 s and about 2 GB without a panic (an error or a blank page is acceptable); each fix carries a regression test built from a synthetic case like the attached one.
+
+| Pass | Cases | Scope |
+|---|---|---|
+| 703.0 | F028 F054 F055 F152 | Per-page paint budget across nested forms, Type 3 glyphs and patterns; a page-wide decoded-content budget; streamed content past the per-stream cap. Past either budget the content is truncated, with a warning. |
+| 703.1 | F079 F080 F078 | Mesh and shading work budgets per page; axial/radial cost. |
+| 703.2 | F068 F188 F208 F210 F212 F213 F214 F215 F217 F219 F220 F221 | JBIG2: a page-wide work allowance, retained-memory and referred-symbol caps, pre-allocation size refusals. A picture whose mask is refused is left out, not drawn unmasked. Refinement and region-location fixes. |
+| 703.3 | F202 | Object streams: duplicate and overlapping member offsets. |
+| 703.4 | F154 F155 F161 F162 F163 F164 F168 F170 F171 | Repair: a stream with no `endstream`, `stream` followed by spaces, generation mismatch on rebuild, `/Prev` as a reference, missing `/Prev`, junk after `%%EOF`, zero-area boxes, a missing MediaBox, UserUnit clamps. |
+| 703.5 | F141 F143 F145 F146 | Encryption: the `/Crypt` filter, attachment-only (`EFOpen`) encryption, PDFDocEncoding retry for R2–R4, SASLprep for R5–R6. |
+| 703.6 | F044 F151 F158 F159 F173 F176 F177 | Content and object lexer recovery: sign runs, bad `#` escapes, stray `)`, operand ring, references inside arrays, reference chains, huge or non-finite numbers. |
+| 703.7 | F017 F018 F022 F023 F096 F153 F182 F186 F191 F192 | Image decode and sampling: predictor row parameters, partial rows, G4 `/Rows`, Indexed hival clamping, refused JPX enums, palette precision, minification and smoothing. |
+| 703.8 | F019 F020 F027 F046 F062 F065 F073 F099 | Compositing: the fill+stroke knockout group, stencil masks with alpha and pattern fills, Default colour spaces, shadings under blend modes, DeviceCMYK luminosity, pattern instances, one-cell tiling. |
+| 703.9 | F041 F042 F043 F048 | Geometry: degenerate subpaths under square caps, zero-area fills and clips, the Highlight `/CA` fallback. |
+| 703.10 | F035 F036 F037 F039 | Annotations: widgets drawn last, Invisible non-standard subtypes, replies (`/IRT`) not drawn, NoRotate exempting Widget and Link. |
+| 703.11 | F109 F110 F112 F113 F114 F115 F116 F117 F197 | Non-embedded composite fonts drawn through a substitute (now skipped), including the Mac-order Arial/Times route; the bundled collection UCS2 maps for extraction. |
+| 703.12 | F105 F124 F125 F131 F132 F133 F134 | Standard-14 stand-ins: advance fitting and narrowing, missing `/Subtype`, the SymbolMT family, composed accents and comma-below, Type 3 without `/Widths`. |
+| 703.13 | F045 F074 F111 F118 F119 F122 F126 F127 F128 F130 F135 F136 F137 F194 F196 | Text extraction: Identity ToUnicode, cid entries, the AGL and numbered names, symbolic and Mac-order TrueType, WinAnsi for non-symbolic TrueType, CMap error tolerance, vertical text, ActualText at 180° and 270°, hidden optional content. |
+| 703.14 | F091 F101 | Colour fallbacks: a failing tint transform paints the alternate space's initial colour; degenerate Lab white points. |
+
+**Modified expectations (the reply's, binding on the Passes):**
+- **F171 / F170.** US Letter is the default for a missing or zero-area MediaBox. It is an inference, so `render-page` and `extract-text` report it (rule 4): "MediaBox missing; assumed 612x792".
+- **Budgets.** Where the request's expected column names another engine's constant (`MAX_NESTED_PAINTS`, `MAX_PAGE_CONTENT` and the like), pdfcer takes the behaviour, not necessarily the number. The ceilings join pdfcer's existing `RenderOptions` limits, so each is configurable. Every truncation is a render warning; the acceptance bound (30 s, about 2 GB, no panic) is the test.
+- **F091.** A failing tint transform paints the alternate space's initial colour, as asked; the fallback warning stays.
+
+- *Invariants to check at each batch:* `cargo tree -p pdfcer-core` / `-p pdfcer-render` show no GUI/windowing dependency (rule 2); spec-governed items (encryption `/Crypt`, SASLprep, ActualText, CMap, JBIG2 clauses) go through `pdfcer-spec-librarian` first (rule 1); the budgets are `RenderOptions` limits, not constants (accounting for the `702.0` split of `RenderOptions` if that lands first).
+- *Interaction with `702.x`:* `702.0` makes `RenderOptions` render-owned; any budget added by `703.0`/`703.1` lands in whichever struct holds the render limits at that time.
+- *FEATURES:* six Planned rows added at the head of *Planned* (robustness bounds; repair; encryption; annotation draw order; non-embedded font rendering; text-extraction Unicode fallbacks), all `[ ]`. Passes `703.7`, `703.8`, `703.9`, `703.14` have no capability row yet (image decode, compositing, geometry, colour fallbacks are fidelity fixes inside existing rows).
+
+### `Pass 702.0`-`702.6` — renderer usable without `pdfcer-core` (ARC, ACCEPTED, NOT STARTED; filed 1484th filing; request `X066`, operator as crates consumer; **1486th filing: `703.0`-`703.14` (`X067`) now goes first after `v0.142.0`; this arc follows**)
 
 Request `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X066_renderer_independent_of_core.md`; reply `open\reply_X066_renderer_independent_of_core_ACCEPTED.md` (2026-11-10). Shape: a rasterizer crate that knows no PDF objects, an interpreter reached through an object-source trait, `pdfcer-core` behind an adapter. `pdfcer-render` (about 71k lines) is split in phases; **each phase is behaviour-neutral**: every render test and pixel-parity check unchanged, and each stands alone if the arc pauses. A channel reply follows each phase with the commit and `cargo tree` output. "Acceptance line N" below numbers the request's own list.
 
