@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `957aab8d` `Pass 698.0`, 2026-11-09: remove white margins as a shared render verb (1475th filing)
+
+Engineer-reported; no shell here, git, push and backup state not checked from here. One code commit `957aab8d10b14dee82408a75f087b1bf4a2aa376` on `main`, after `v0.139.0`, so unreleased (next release `v0.140.0`, OneDrive `pdfcer2`). Source: `pdfcer-gui` request `open/request_remove_white_margins_core.md` (operator ask `O405` section 4). No decision number. Reasoning is in the commit message. **gui is not delivered**: the call site is with `pdfcer-gui`.
+- **Shape changed from the request.** The GUI asked for `EditSession::white_margin_crop(page_index, margin_pt) -> Result<Option<Rect>, EditError>`. Detection needs a render and `pdfcer-core` cannot render, so the verb is a free fn in `pdfcer-render`: `white_margin_crop(view: &DocumentView, page: &Page, margin_pt: f64) -> Result<Option<WhiteMarginCrop>, WhiteMarginError>`. `WhiteMarginCrop { content, crop }`; errors `BadMargin` and `Render`; consts `WHITE_MARGIN_SCALE = 2.0` (144 dpi) and `WHITE_MARGIN_THRESHOLD = 250`. The GUI passes `session.view()`; `Ok(None)` means a blank page. Module `crates/pdfcer-render/src/white_margins.rs`.
+- **cli:** `set-crop-box --remove-white-margins` now calls the shared fn. Its private `ink_extent` and `device_to_user` moved into render, so both shells crop identically. No flag or output change.
+- **Disclosed limits (rule 4):** accuracy is one render pixel (half a point); a near-white background darker than 250 counts as content; only the current crop box is searched, so the result never grows the visible region.
+- **Tests (as reported):** 6 out-of-crate render integration tests (`tests/white_margin_crop.rs`) plus 3 unit tests; CLI `set_crop_box::remove_white_margins_fits_the_crop_to_the_ink_at_every_rotation` and `margin_needs_remove_white_margins_and_rect_conflicts_with_it` pass. Sabotage check: swapping the 90-degree mapping fails `a_rotated_page_maps_back_to_user_space`.
+- **Gates (as reported):** clippy `-D warnings` clean on render and cli; fmt clean; `check-core-api-verbs`, `check-public-fns-documented`, `check-code-structure`, `check-tests-harnessed` green; all repo audits from `check-ci-parity --list` green; `cargo tree -p pdfcer-render` shows no GUI or network crates and no manifest change.
+- **core-api:** `docs/core-api/03-capabilities.md` has a new section "Remove white margins"; the `set_page_boxes` row in `02-editing-and-saving.md` points at it.
+- **FEATURES:** the "Remove white margins" row sentence replaced; boxes core `[x]` (delivered in `pdfcer-render`), cli `[x]`, gui `[ ]` unchanged (the GUI project's to tick).
+
 ### `7dbb3760` / tag `v0.139.0`, 2026-11-09: release v0.139.0 published, OneDrive `pdfcer1` (1474th filing)
 
 Engineer-reported (measured 2026-11-09); no shell here, git, crates.io and remote state not checked from here. Version bump `7dbb3760a11d006859506dc709609c12c37ea163`, filed in `bbc01732`; annotated tag `v0.139.0` on `bbc01732`, pushed; CI green at the tagged commit. Closes the 1473rd filing's bump entry above.

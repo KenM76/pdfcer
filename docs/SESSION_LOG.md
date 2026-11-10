@@ -4,6 +4,25 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-09 (1475th filing) — `957aab8d` `Pass 698.0` SHIPPED (remove white margins, shared render verb)
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- `957aab8d10b14dee82408a75f087b1bf4a2aa376`, after `v0.139.0`, unreleased. `pdfcer_render::white_margin_crop(&DocumentView, &Page, margin_pt) -> Result<Option<WhiteMarginCrop>, WhiteMarginError>`, a free fn rather than the requested `EditSession` verb because `pdfcer-core` cannot render. CLI `set-crop-box --remove-white-margins` now calls it (private `ink_extent`/`device_to_user` moved to render). Source: `pdfcer-gui` request `request_remove_white_margins_core.md`, ask `O405` section 4.
+- Tests (as reported): 6 render integration + 3 unit; the two existing CLI tests pass; the 90-degree mapping sabotage fails `a_rotated_page_maps_back_to_user_space`. Gates and `cargo tree -p pdfcer-render` clean as reported.
+- ID: `Pass 698.0` had no hits in `ROADMAP.md`/`FEATURES.md`/`SESSION_LOG.md` by grep (only `docs/core-api/03-capabilities.md`, the commit's own doc). Added directly as Shipped.
+- ROADMAP: one Shipped entry. FEATURES: "Remove white margins" row sentence replaced; boxes unchanged (core `[x]` cli `[x]` gui `[ ]`).
+
+**Session state (pre-compaction capture):**
+- D: filled to 100% mid-session; deleting `target/debug/incremental` (33 GB) freed 32 GB.
+- `pdfcer-render` clippy denies slicing and `expect` on `Option`, even in unit tests; write test buffers with iterator construction.
+- The next release is `v0.140.0` and writes OneDrive `pdfcer2`.
+
+**Hard-rule-11 sweep:** claim changed = "the CLI owns the white-margin detection". Grepped `remove.white.margins|ink_extent|device_to_user|white margin` (case-insensitive) over `docs/*.md`, `docs/core-api/`, `crates/**/*.rs`. Survivors correct, leave alone: `ROADMAP.md` 1471st entry and `SESSION_LOG.md` 1471st (history), `crop_box.rs`/`dispatch.rs`/`set_crop_box.rs` flag mentions. Not read here: `docs/NEXT_SESSION.md:10` and `docs/core-api/02-editing-and-saving.md:264` (long lines omitted by the tool); the engineer should check them for "CLI-only" wording, and `crop_box.rs` doc comments for a "144 dpi render done here" claim.
+
+**Flag:** `docs/NEXT_SESSION.md` (engineer-owned) likely still names `pdfcer1` as the next OneDrive slot; it is `pdfcer2`.
+
+**Still open:** `696.1`; GUI halves with `pdfcer-gui`, now including the `white_margin_crop` call.
+
 ## 2026-11-09 (1474th filing) — `v0.139.0` PUBLISHED (tag on `bbc01732`, OneDrive `pdfcer1`)
 
 **Filed (engineer-reported, measured 2026-11-09; no shell here, nothing checked from here; docs only):**
