@@ -2,7 +2,7 @@
 //!
 //! Lists the operating system's profile folders so a shell can offer a
 //! printer profile by name ([`crate::icc_output`]). Bounded: one subfolder
-//! level, at most [`MAX_FILES`] files read, each under
+//! level, at most [`MAX_FILES`](crate::icc_profiles::MAX_FILES) files read, each under
 //! [`crate::icc_output::MAX_PROFILE_BYTES`]; files that do not parse are
 //! skipped, not reported as errors.
 

@@ -8,7 +8,7 @@
 //!
 //! The printer leg is media-relative with black point compensation, so the
 //! press's paper prints as the printer's paper white and its black as the
-//! printer's black. With [`ProofColour::simulate_paper`] it is
+//! printer's black. With [`ProofColour::simulate_paper`](crate::icc_proof::ProofColour::simulate_paper) it is
 //! ICC-absolute instead: the press paper's tint is printed, and so is its
 //! weaker black (ICC.1:2022 §6.2.2).
 

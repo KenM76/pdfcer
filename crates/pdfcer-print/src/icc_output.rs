@@ -14,7 +14,7 @@
 //!   colour management.
 //! - **Input (`scnr`), device-link, abstract, colour-space and named-colour
 //!   classes.** None describes a device the page prints on.
-//! - **Files over [`MAX_PROFILE_BYTES`]**, refused from the file length
+//! - **Files over [`MAX_PROFILE_BYTES`](crate::icc_output::MAX_PROFILE_BYTES)**, refused from the file length
 //!   before the contents are read.
 
 use std::collections::HashMap;
