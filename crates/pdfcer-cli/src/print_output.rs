@@ -12,7 +12,7 @@ use pdfcer_print::output_color::{OutputColor, apply_output_color};
 use crate::exit;
 
 /// clap's usage-error code.
-const USAGE: u8 = 2;
+pub(crate) const USAGE: u8 = 2;
 
 /// `--color` on `print`.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
@@ -66,9 +66,14 @@ pub(crate) enum MarkArg {
 }
 
 /// The printed-copy-only options of one `print` run.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default)]
 pub(crate) struct PrintOutput {
     pub color: ColorArg,
+    /// `--printer-profile`, resolved, with the intent it was asked for.
+    pub printer_colour: Option<(
+        pdfcer_print::icc_output::PrinterColour,
+        crate::print_icc::PrinterIntentArg,
+    )>,
     pub header: Option<(String, AlignArg)>,
     pub footer: Option<(String, AlignArg)>,
     pub marks: Vec<MarkArg>,
@@ -154,22 +159,36 @@ impl PrintOutput {
         Ok(notes)
     }
 
-    /// Recolour the rendered sheets. Returns the line saying so, if any.
-    pub(crate) fn recolor(&self, sheets: &mut [pdfcer_print::PageBitmap]) -> Option<String> {
+    /// Recolour the rendered sheets: `--color`, then `--printer-profile`.
+    /// Returns the lines saying so.
+    pub(crate) fn recolor(
+        &self,
+        sheets: &mut [pdfcer_print::PageBitmap],
+    ) -> Result<Vec<String>, pdfcer_print::icc_output::ProfileError> {
+        let mut notes = Vec::new();
         let mode = match self.color {
-            ColorArg::Color => return None,
-            ColorArg::Grayscale => OutputColor::Grayscale,
-            ColorArg::BlackOnly => OutputColor::BlackOnly,
+            ColorArg::Color => None,
+            ColorArg::Grayscale => Some(OutputColor::Grayscale),
+            ColorArg::BlackOnly => Some(OutputColor::BlackOnly),
         };
-        for sheet in sheets {
-            apply_output_color(&mut sheet.rgba, mode);
+        if let Some(mode) = mode {
+            for sheet in sheets.iter_mut() {
+                apply_output_color(&mut sheet.rgba, mode);
+            }
+            notes.push(match mode {
+                OutputColor::BlackOnly => "printed copy only: black-only, every mark that is                                            not white prints solid black (tints and light                                            colours too)."
+                    .to_owned(),
+                _ => "printed copy only: grayscale, each colour as its brightness.".to_owned(),
+            });
         }
-        Some(match mode {
-            OutputColor::BlackOnly => "printed copy only: black-only, every mark that is not \
-                                       white prints solid black (tints and light colours too)."
-                .to_owned(),
-            _ => "printed copy only: grayscale, each colour as its brightness.".to_owned(),
-        })
+        if let Some((colour, intent)) = &self.printer_colour {
+            let transform = colour.compile()?;
+            for sheet in sheets.iter_mut() {
+                transform.apply(&mut sheet.rgba);
+            }
+            notes.push(crate::print_icc::disclosure(colour, *intent));
+        }
+        Ok(notes)
     }
 }
 

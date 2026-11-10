@@ -863,8 +863,9 @@ untiled; {tiled_pages} page(s) were tiled."
     let mut setups: Vec<pdfcer_print::SheetSetup> = Vec::new();
     // Bitmap index -> the page's metafile, for pages printed as vectors.
     let mut vectors: std::collections::HashMap<usize, Vec<u8>> = std::collections::HashMap::new();
-    let vector_wanted =
-        !output.print_as_image && output.color == crate::print_output::ColorArg::Color;
+    let vector_wanted = !output.print_as_image
+        && output.color == crate::print_output::ColorArg::Color
+        && output.printer_colour.is_none();
     if !vector_wanted || n_up.is_some() || booklet || poster || output.separations {
         eprintln!(
             "pdfcer: every sheet prints as an image{}.",
@@ -975,8 +976,12 @@ untiled; {tiled_pages} page(s) were tiled."
         device_settings.orientation,
         spec.first_page_pt(&page_sizes),
     );
-    if let Some(note) = output.recolor(&mut bitmaps) {
-        eprintln!("pdfcer: {note}");
+    match output.recolor(&mut bitmaps) {
+        Ok(notes) => notes.iter().for_each(|n| eprintln!("pdfcer: {n}")),
+        Err(err) => {
+            eprintln!("pdfcer: --printer-profile: {err}");
+            return exit::IO_ERROR;
+        }
     }
     let sheets: Vec<pdfcer_print::Sheet<'_>> = bitmaps
         .iter()

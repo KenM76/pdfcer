@@ -115,6 +115,7 @@ mod paste_radio_member;
 mod pin_span;
 mod place_stamp_as_content;
 mod place_text;
+mod print_icc;
 mod print_ready;
 mod promote_dr_fonts;
 mod rc4_append;

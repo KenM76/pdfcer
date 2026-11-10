@@ -4263,6 +4263,28 @@ pub(crate) enum Command {
         /// not white in solid black. Changes the printed copy only.
         #[arg(long, value_enum, default_value_t = crate::print_output::ColorArg::Color)]
         color: crate::print_output::ColorArg,
+        /// Convert the printed copy into this printer ICC profile: a
+        /// profile file, or the name of an installed profile as
+        /// `list-icc-profiles` reports it.
+        ///
+        /// For a printer whose driver does not manage colour. RGB and grey
+        /// output or display profiles only; a CMYK profile is refused.
+        /// Applied after `--color`, and every sheet prints as an image.
+        #[arg(long, value_name = "PROFILE")]
+        printer_profile: Option<String>,
+        /// The rendering intent for `--printer-profile`.
+        #[arg(
+            long,
+            value_enum,
+            default_value_t = crate::print_icc::PrinterIntentArg::Relative,
+            requires = "printer_profile"
+        )]
+        printer_intent: crate::print_icc::PrinterIntentArg,
+        /// Turn off black point compensation for `--printer-profile`. With
+        /// it on (the default) the darkest greys stay distinct on a
+        /// printer whose black is not fully black.
+        #[arg(long, requires = "printer_profile")]
+        no_printer_bpc: bool,
         /// A line printed at the top of every page. `{page}` becomes the
         /// page number and `{pages}` the page count. Printed copy only; the
         /// file is not changed. Helvetica, so Latin-1 characters only.
@@ -4566,6 +4588,21 @@ pub(crate) enum Command {
         /// delay the answer.
         #[arg(long)]
         names_only: bool,
+    },
+
+    /// **List the ICC profiles installed on this machine** that
+    /// `print --printer-profile` can name.
+    ///
+    /// Read-only. Reads the operating system's colour profile folders and
+    /// one level of subfolders; files that are not ICC profiles are
+    /// skipped. Each line gives the profile's name, colour space, device
+    /// class, whether it can be printed into (`printable=1`: RGB or grey,
+    /// output or display class) and its path, sorted by name.
+    ListIccProfiles {
+        /// List every installed profile, including those `print` cannot
+        /// use (CMYK, input and link profiles).
+        #[arg(long)]
+        all: bool,
     },
 
     /// **Find text in a document's pages**, reporting where each hit is.

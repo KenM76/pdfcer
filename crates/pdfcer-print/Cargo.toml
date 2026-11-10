@@ -16,6 +16,12 @@ thiserror = "2"
 # Reads a printer's Print Schema capabilities document. Already in the tree
 # through pdfcer-core (MIT OR Apache-2.0), so no new licence.
 roxmltree = "0.20"
+# ICC parsing and colour conversion for printing into a printer profile
+# (X063). icccer is the sibling MIT project that owns all colour conversion
+# (decision 064); same pinned versions pdfcer-render already uses, so no new
+# licence or crate enters the tree.
+icccer-profile = "=0.4.2"
+icccer-cmm = "=0.4.2"
 
 # The Win32 printing surface. Confined to this crate on purpose: it is
 # the only place in the workspace that talks to a print spooler, and
@@ -47,3 +53,5 @@ windows = { version = "0.62", features = [
 [dev-dependencies]
 pdfcer-core.workspace = true
 pdfcer-render.workspace = true
+# The X063 tests author a wide-gamut profile from icccer's primaries math.
+icccer-color = "=0.4.2"

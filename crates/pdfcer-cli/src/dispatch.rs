@@ -946,6 +946,7 @@ pub(crate) fn run() -> ExitCode {
             reserve,
         }),
         Command::ListPrinters { names_only } => cmd_list_printers(names_only),
+        Command::ListIccProfiles { all } => crate::print_icc::cmd_list_icc_profiles(all),
         Command::Print {
             input,
             printer,
@@ -981,6 +982,9 @@ pub(crate) fn run() -> ExitCode {
             poster_cut_marks,
             poster_labels,
             color,
+            printer_profile,
+            printer_intent,
+            no_printer_bpc,
             header,
             header_align,
             footer,
@@ -994,8 +998,20 @@ pub(crate) fn run() -> ExitCode {
             fold,
             output_bin,
         } => {
+            let printer_colour = match printer_profile
+                .as_deref()
+                .map(|spec| crate::print_icc::resolve(spec, printer_intent, no_printer_bpc))
+            {
+                None => None,
+                Some(Ok(colour)) => Some((colour, printer_intent)),
+                Some(Err(msg)) => {
+                    eprintln!("pdfcer: {msg}");
+                    return crate::print_output::USAGE.into();
+                }
+            };
             let output = crate::print_output::PrintOutput {
                 color,
+                printer_colour,
                 header: header.map(|t| (t, header_align)),
                 footer: footer.map(|t| (t, footer_align)),
                 marks,
@@ -1030,6 +1046,7 @@ pub(crate) fn run() -> ExitCode {
                     ),
                     ("--separations", separations),
                     ("--print-as-image", print_as_image),
+                    ("--printer-profile", output.printer_colour.is_some()),
                 ]);
                 let job = crate::print_remote::RemoteJob {
                     printer: printer.as_deref(),

@@ -119,6 +119,15 @@ pub mod imposition;
 /// Print-time colour output (composite grey, black-only). Pure, not gated.
 pub mod output_color;
 
+/// Print into a printer's RGB or grey ICC profile (X063). Pure, not gated.
+pub mod icc_output;
+
+/// The ICC profiles installed on this machine (X064). Not gated: each OS
+/// names its own folders.
+pub mod icc_profiles;
+
+mod icc_encode;
+
 /// The IPP message codec for network printers. Pure, not gated.
 pub mod ipp;
 

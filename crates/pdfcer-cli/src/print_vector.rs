@@ -50,6 +50,8 @@ pub(crate) fn why_all_raster(
         " (--color grayscale)"
     } else if output.color == ColorArg::BlackOnly {
         " (--color black-only)"
+    } else if output.printer_colour.is_some() {
+        " (--printer-profile)"
     } else {
         ""
     }

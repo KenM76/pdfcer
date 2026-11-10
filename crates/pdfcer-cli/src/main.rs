@@ -587,6 +587,7 @@ use listing::*;
 mod hand_sig_cmd;
 mod print;
 mod print_finishing;
+mod print_icc;
 mod print_output;
 mod print_plates;
 mod print_presets;

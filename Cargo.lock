@@ -1184,6 +1184,9 @@ dependencies = [
 name = "pdfcer-print"
 version = "0.140.0"
 dependencies = [
+ "icccer-cmm",
+ "icccer-color",
+ "icccer-profile",
  "pdfcer-core",
  "pdfcer-render",
  "roxmltree",

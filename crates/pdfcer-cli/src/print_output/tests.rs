@@ -45,5 +45,5 @@ fn to_file_refuses_several_inputs_before_printing_any() {
 #[test]
 fn colour_keeps_the_bitmap_and_says_nothing() {
     let out = PrintOutput::default();
-    assert_eq!(out.recolor(&mut []), None);
+    assert!(out.recolor(&mut []).unwrap().is_empty());
 }
