@@ -112,6 +112,8 @@ pub(crate) struct PrintOutput {
     pub separations: bool,
     pub print_as_image: bool,
     pub finishing: pdfcer_print::finishing::Finishing,
+    // Read only by the `#[cfg(windows)]` print path.
+    #[cfg_attr(not(windows), allow(dead_code))]
     pub edge_antialiasing: EdgeAaArg,
 }
 
