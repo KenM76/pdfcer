@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-10 (1492nd filing) — `6bb035ad` `Pass 703.0` fourth cut: page content streamed a window at a time (`X067` F152); stays PARTIAL
+
+**Filed (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
+- **`6bb035ad4431b10e1021a4b047d845e2c270fa65`** `feat(render): stream page content a window at a time (Pass 703.0, X067 F152)`. In `main`, not in a release (current `v0.143.0`; `99f42fe0`, `d316a4c8`, this all unreleased). `pdfcer-model` + `pdfcer-render`; no CLI/GUI change, no manifest change. All render content streams go through new `ContentChunks` (about 4 MiB windows, 16-byte hold-back, doubling to 256 MiB) over new `StreamDecoder` (Pull state machines for Flate, Brotli, LZW, RunLength; budget max(256 MiB, 64 x encoded)). Fixes: an over-`MAX_DECODED_LEN` stream no longer aborts the render (huge page draws whole, bomb draws its prefix, `content_truncated`); `MAX_PAGE_CONTENT` now charged per window before it runs.
+- **Tests:** render lib 635 (+2 ignored release tests passing: 300 MiB bomb, 277 MB page), model lib 3208; sabotage of `MARGIN` and the stream separator each fail a test; fuzz target drives `ContentChunks`; clippy, fmt, structure clean; 0/120 pixel differences on 60 real drawings.
+- **Finding (gotcha):** a test sample that fits in one 64 KiB decoder pull never cuts a window mid-stream, so the `MARGIN` guard was untested until the read-edge test was added; sabotage found it.
+- **`Pass 703.0` stays OPEN.** Owed: acceptance on the real X067 repros (30 s, about 2 GB, release), then `703.1`. Backlog (under `703.0`, from the F152 ruling Option B): in-memory byte bound with a typed error in `ContentStream::parse`; streaming text extraction.
+- ROADMAP: new Shipped entry, Next-up banner, Backlog `703.0` row. FEATURES: hostile-input row. `docs/NEXT_SESSION.md` untouched (engineer-owned).
+
+**For next session:** repro acceptance for `703.0`, then `703.1`.
+
 ## 2026-11-10 (1491st filing) — `d316a4c8` `Pass 703.0` third cut: redundant rectangular clip skipped (`X067` large canvases); stays PARTIAL
 
 **Filed (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
