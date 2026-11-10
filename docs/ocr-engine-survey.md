@@ -533,7 +533,7 @@ own vocabulary (§8.3) rather than re-exporting `ocrs` types.
 
 Two smaller notes. **MSRV is moving fast**: `rten` 0.25.0 declares
 `rust-version = "1.94.0"` and `edition = "2024"`, up from 1.89 less than a
-year ago. pdfcer pins 1.97.1, so there is headroom today, but this dependency
+year ago. pdfcer pins 1.99.1 (MSRV 1.97), so there is headroom today, but this dependency
 will pull the pin forward more often than the rest of the graph, and
 `ARCHITECTURE.md` §2.1a requires a dated decision-log entry for every bump.
 And **release-mode is mandatory** — the `ocrs` README warns in bold that debug

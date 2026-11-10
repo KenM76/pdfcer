@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-10 (1485th filing) — `a6ac7b8c` `Pass 701.0` SHIPPED (Rust 1.99.1 pin, `X065`, decision 222); `f6c8b27c` `v0.142.0` version bump (planned, not published)
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- `a6ac7b8c3a14827c60fb599f13ed83b3d8cb6b52`, `chore: pin Rust 1.99.1 and clear its new clippy findings`. `rust-toolchain.toml` and 8 CI `toolchain:` lines 1.97.1 to 1.99.1; MSRV stays 1.97 (decision 221). New lint `chunks_exact_to_as_chunks`: about 110 constant-N sites in about 75 files became `as_chunks::<N>()`, unreachable length guards removed, `sha1.rs` KAT green; `needless_borrows_for_generic_args`: 6 borrows dropped; `cmyk_buffer_refused` rustdoc corrected for banding. Gates on 1.99.1 clean as reported (fmt, clippy workspace and `pdfcer-cli --no-default-features`, every crate's tests 0 failed, `check-ci-parity` audits). No dependency change.
+- Request `X065` answered: reply `reply_X065_toolchain_bump_to_rust_1_99_1_DONE.md` written by the engineer, INDEX row updated.
+- Decision 222 added to `ARCHITECTURE.md` §12 (ceiling was 221 by grep of `docs/` and `docs/decisions/`, not by `check-ledger-numbers.py`; no shell); §2.1a now names the current pin. `Pass 701.0` had zero hits before the 1484th filing and was reserved by it; used here.
+- `f6c8b27cd2343d9f2ca8df99dffffd83c17956cb`, `chore(release): v0.142.0`: workspace version and 14 path-dependency versions in `Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock` (the fuzz lock also picked up `icccer-cmm`/`icccer-profile` edges). Planned `v0.142.0` = `700.0`, `700.1`, `701.0`; NOT published; a later filing records publication; writes OneDrive `pdfcer2`.
+- FEATURES: no capability row for `701.0` (toolchain only; none invented). Correction in place: the "Choose how much memory pdfcer may spend blending a page" row no longer implies a page renders differently at different zooms (banding, `4515067b`, removed that; sRGB fallback only when not one row fits). Closes the 1484th filing's reported survivor; its `cmyk_buffer_refused` rustdoc survivor is closed by `a6ac7b8c` per the engineer.
+
+**Hard-rule-11 sweep (claim: "pdfcer pins Rust 1.97.1"):** keyword grep for `1.97.1` over `docs/` and the rest of the repo outside `docs/` (no hits outside `docs/`). Survivors reported, not edited: `docs/ocr-engine-survey.md:536` ("pdfcer pins 1.97.1, so there is headroom today", present tense, now stale). `docs/NEXT_SESSION.md` is engineer-owned and does not state the pin. Left alone as correct-at-the-time records (dated measurements or historical decisions): `compositor-plan.md:664`, `ocr-engine-survey.md:380,408` (the `cargo +1.97.1` commands are still runnable if that toolchain is installed), `signing-crate-survey.md:13,25`, `ARCHITECTURE.md:2737`, `decisions/001`, `003`, `005`, `221`, and everything under `docs/history/`.
+
+**For next session:** publish `v0.142.0` (run `check-commits-filed.py` and the `check-ci-parity.py --list` audits before the push); then `Pass 702.0` (`X066`).
+
 ## 2026-11-10 (1484th filing) — `4515067b` `Pass 700.0` + `700.1` SHIPPED; `X066` ACCEPTED as arc `702.0`-`702.6`; suite-name scrub
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**

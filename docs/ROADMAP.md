@@ -112,6 +112,23 @@ wherever it appears.*
 
 ## Shipped
 
+### `f6c8b27c` `chore(release): v0.142.0`, 2026-11-10: version bump filed, release NOT yet published (1485th filing)
+
+Engineer-reported; no shell here, git, tag, push, crates.io and backup state not checked from here. `f6c8b27cd2343d9f2ca8df99dffffd83c17956cb` bumps the workspace version and 14 path-dependency versions in `Cargo.toml`, plus `Cargo.lock` and `fuzz/Cargo.lock`; the fuzz lock also picked up `icccer-cmm`/`icccer-profile` edges it had not recorded. Version-only.
+- **Planned contents of `v0.142.0`:** `Pass 700.0` + `700.1` (`4515067b`) and `Pass 701.0` (`a6ac7b8c`). Not tagged, not published; a later filing records publication.
+- **OneDrive:** the release writes `pdfcer2` (alternating; `pdfcer1` holds 0.141.0).
+- **FEATURES:** no change.
+
+### `a6ac7b8c` `Pass 701.0`, 2026-11-10: pin Rust 1.99.1 and clear its new clippy findings (1485th filing)
+
+Engineer-reported; no shell here, git, push and backup state not checked from here. One code commit `a6ac7b8c3a14827c60fb599f13ed83b3d8cb6b52` on `main`, `chore: pin Rust 1.99.1 and clear its new clippy findings (Pass 701.0, X065)`. Answers request `X065` (operator, as a crates consumer): `open/request_X065_toolchain_bump_to_rust_1_99_1.md`; reply `open/reply_X065_toolchain_bump_to_rust_1_99_1_DONE.md` written, INDEX row updated (all in `D:\Dev\FeatureRequests\pdfce_FeatureRequests`). Minted and shipped in one filing, never in Next up. Not yet released; planned for `v0.142.0`. Decision 222 (`ARCHITECTURE.md` §12; §2.1a updated).
+- **Pin:** `rust-toolchain.toml` 1.97.1 to 1.99.1 and the 8 `toolchain:` lines in `.github/workflows/ci.yml`. Workspace `rust-version` (MSRV) stays 1.97 (decision 221): the pin is the dev toolchain, not a floor raise. rustfmt output unchanged.
+- **`chunks_exact_to_as_chunks`:** about 110 constant-N `chunks_exact`/`chunks_exact_mut` sites across about 75 files in all crates became `as_chunks::<N>()`/`as_chunks_mut::<N>()`; the length guards this made unreachable were removed (let-else, match arms, `try_into`, copies into temporary arrays). `pdfcer-model/src/crypto/sha1.rs` uses `(blocks, rest) = data.as_chunks::<64>()` in place of `remainder()`; its KAT is green. No site relied on a short tail. The two non-constant strides (`image_import/tiff.rs`, `render/export/jxl.rs`) stay `chunks_exact`.
+- **`needless_borrows_for_generic_args`:** 6 borrows dropped (`text_edit/cid_augment.rs`, `font_usage.rs`).
+- **Rustdoc fix in the same commit:** `Diagnostics::cmyk_buffer_refused` now describes banding (it fires only when not one row fits). Closes that survivor from the 1484th filing's sweep.
+- **Gates on 1.99.1 (as reported), all clean:** `fmt --check`; clippy `-D warnings` for the workspace (all targets, all features) and for `pdfcer-cli --no-default-features`; tests of every crate (e.g. 3208, 2361, 1073, 625, 551 and 430 passed, 0 failed); the `check-ci-parity` repo audits. No dependency change, so `cargo tree` is unchanged.
+- **FEATURES:** no capability row (toolchain only); none invented. The "Choose how much memory ..." row's wording was corrected in place (banding removed the colours-differ-by-zoom trade).
+
 ### `4515067b` `Pass 700.0` + `Pass 700.1`, 2026-11-10: band oversized CMYK pages; print with hard edges (1484th filing)
 
 Engineer-reported; no shell here, git, push and backup state not checked from here. One code commit `4515067b834c92f691f874d23255ca0bd238082e` on `main` carries both Passes. Origin: the operator's own print test, a CMYK conformance page printed at 600 DPI on 11x17 to an Epson ET-16600 showed the test X's. Minted and shipped in one filing, never in Next up. Not yet released; planned for `v0.142.0` (writes OneDrive `pdfcer2`). Reasoning is in the commit message and the doc comments. **gui not delivered**: `pdfcer-gui` picks it up by an engine pin bump and has not done so.
@@ -37701,6 +37718,8 @@ overrides the image dictionary; `/ColorSpace` optional,
 > **1481st filing: `Pass 699.2` SHIPPED (`25417234`, CMYK proof printing; minted and shipped in one filing, never in Next up); will be in `v0.141.0`, not yet published. No head of Next up. Open in *Backlog*: `696.1`.**
 >
 > **1484th filing: `Pass 700.0` and `700.1` SHIPPED in one commit `4515067b` (CMYK banding; print edge antialiasing; minted and shipped in one filing, never in Next up); they ride `v0.142.0`. Request `X066` ACCEPTED as the arc `Pass 702.0`-`702.6` (renderer usable without `pdfcer-core`), filed in *Backlog* below; it is the next arc after `v0.142.0`, `702.0` first. No Pass is IN PROGRESS. `702` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`); `701` also had zero hits and is left unused.**
+>
+> **1485th filing: `Pass 701.0` SHIPPED (`a6ac7b8c`, Rust 1.99.1 pin, request `X065`, decision 222; minted and shipped in one filing, never in Next up) and the version bump `f6c8b27c` recorded. `v0.142.0` (`700.0`, `700.1`, `701.0`) is planned, NOT yet published; it writes OneDrive `pdfcer2`. No Pass is IN PROGRESS. Next arc: `Pass 702.0`-`702.6` (`X066`, in *Backlog*), `702.0` first, after the release.**
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 

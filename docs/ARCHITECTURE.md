@@ -223,7 +223,9 @@ then, not before. Full statement: §5.13 and §12 decision 136.
   at the workspace root, created at Pass 0. Don't float on "whatever
   stable is installed" — reproducibility matters for a project other
   people will eventually build. Bump deliberately (dated decision-log
-  entry), not silently.
+  entry), not silently. **Current pin: 1.99.1** (decision 222, 2026-11-10;
+  was 1.97.1). The pin is the dev and CI toolchain; the MSRV below is a
+  separate number and did not move.
 - **MSRV** (minimum supported Rust version): **1.97**, declared as the
   workspace `rust-version` (decision 221). It is the floor of the whole
   dependency graph (`ocrcer-core` 1.97, `jixel` 1.94), and
@@ -13835,3 +13837,16 @@ Operator request: "add write support for JPEG XL too". Record: `docs/decisions/2
 4. **Risks recorded, not settled:** libjxl's patent grant reaching a port is unverified (`jxl-oxide` already carries the same exposure); `simd128` wasm untested; release-binary size to be measured at the next release; an OCRcer vendor sync can raise the floor silently (the gate catches it).
 
 **Body-section effect.** §"MSRV" in the toolchain section updated to name 1.97. **Decision ceiling.** Fills `221`; next free decision `222`. **New standing rule.** None.
+
+### 2026-11-10 (1485th filing, `Pass 701.0`, `a6ac7b8c`) — decision 222: the pinned dev toolchain moves 1.97.1 to 1.99.1; the MSRV stays 1.97
+
+Operator request `X065` (as a crates consumer). Engineer-reported; no `docs/decisions/222-*.md` (this entry is the record).
+
+**Decides.**
+1. **Pin:** `rust-toolchain.toml` channel `1.97.1` to `1.99.1`, and the 8 `toolchain:` lines in `.github/workflows/ci.yml`. This is the dev and CI toolchain, not a floor.
+2. **MSRV unchanged at 1.97** (decision 221). A consumer's compiler is not forced up; the pin and the floor are separate numbers and `tools/check-msrv-floor.py` guards the floor only.
+3. **rustfmt output unchanged** on 1.99.1 (`cargo fmt --check` clean with no reformatting).
+4. **New clippy findings cleared in the same commit** (the pin's own comment requires this): `chunks_exact_to_as_chunks` (about 110 constant-N `chunks_exact`/`chunks_exact_mut` sites in about 75 files, all crates, became `as_chunks::<N>()`/`as_chunks_mut::<N>()`; the length guards that made unreachable were removed) and `needless_borrows_for_generic_args` (6 borrows dropped). No site relied on a short tail; `pdfcer-model` `crypto/sha1.rs` now takes `(blocks, rest) = data.as_chunks::<64>()` instead of `remainder()`, KAT green. The two non-constant strides (`image_import/tiff.rs`, `render/export/jxl.rs`) stay `chunks_exact`.
+5. **No dependency change**, so `cargo tree` and `THIRD_PARTY_LICENSES.md` are unaffected.
+
+**Body-section effect.** §2.1a records the current pin (added there). **Decision ceiling.** Fills `222`; next free decision `223`. **New standing rule.** None.
