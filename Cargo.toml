@@ -101,7 +101,7 @@ exclude = [
 # Fields inherited by every member via `<field>.workspace = true`, so the
 # version/edition/MSRV are set in exactly one place.
 [workspace.package]
-version = "0.139.0"
+version = "0.140.0"
 edition = "2024"
 # MSRV: the highest `rust-version` in the default dependency graph
 # (ocrcer-core 1.97; jixel 1.94), decision 221. A lower value would be false
@@ -127,7 +127,7 @@ license = "MIT"
 [workspace.dependencies]
 # A version beside the path is what `cargo package` needs; bump it with
 # [workspace.package] version or the next build fails to resolve.
-pdfcer-model = { path = "crates/pdfcer-model", version = "0.139.0" }
+pdfcer-model = { path = "crates/pdfcer-model", version = "0.140.0" }
 # Internal path dependencies, declared once here and referenced by members
 # with `pdfcer-core.workspace = true` etc. External crates (thiserror, eframe,
 # rfd, clap) are declared in the individual member manifests that use them.
@@ -140,22 +140,22 @@ pdfcer-model = { path = "crates/pdfcer-model", version = "0.139.0" }
 # block — see `pdfcer-core`'s for the strippable-capability convention and
 # why forwarding through every intermediate crate is mandatory rather than
 # tidy.
-pdfcer-core = { path = "crates/pdfcer-core", version = "0.139.0", default-features = false }
-pdfcer-render = { path = "crates/pdfcer-render", version = "0.139.0", default-features = false }
+pdfcer-core = { path = "crates/pdfcer-core", version = "0.140.0", default-features = false }
+pdfcer-render = { path = "crates/pdfcer-render", version = "0.140.0", default-features = false }
 pdfcer-print = { path = "crates/pdfcer-print" }
 # Published with versions beside their paths (decision 217); bump with
 # [workspace.package] version like pdfcer-model above.
-pdfcer-vec3 = { path = "crates/pdfcer-vec3", version = "0.139.0" }
-pdfcer-json = { path = "crates/pdfcer-json", version = "0.139.0" }
-pdfcer-jpeg-remux = { path = "crates/pdfcer-jpeg-remux", version = "0.139.0" }
-pdfcer-image-codec = { path = "crates/pdfcer-image-codec", version = "0.139.0", default-features = false }
-pdfcer-fonts = { path = "crates/pdfcer-fonts", version = "0.139.0" }
-pdfcer-function = { path = "crates/pdfcer-function", version = "0.139.0" }
-pdfcer-text = { path = "crates/pdfcer-text", version = "0.139.0" }
-pdfcer-pkix = { path = "crates/pdfcer-pkix", version = "0.139.0" }
-pdfcer-color = { path = "crates/pdfcer-color", version = "0.139.0" }
-pdfcer-3d = { path = "crates/pdfcer-3d", version = "0.139.0" }
-pdfcer-3d-nav = { path = "crates/pdfcer-3d-nav", version = "0.139.0" }
+pdfcer-vec3 = { path = "crates/pdfcer-vec3", version = "0.140.0" }
+pdfcer-json = { path = "crates/pdfcer-json", version = "0.140.0" }
+pdfcer-jpeg-remux = { path = "crates/pdfcer-jpeg-remux", version = "0.140.0" }
+pdfcer-image-codec = { path = "crates/pdfcer-image-codec", version = "0.140.0", default-features = false }
+pdfcer-fonts = { path = "crates/pdfcer-fonts", version = "0.140.0" }
+pdfcer-function = { path = "crates/pdfcer-function", version = "0.140.0" }
+pdfcer-text = { path = "crates/pdfcer-text", version = "0.140.0" }
+pdfcer-pkix = { path = "crates/pdfcer-pkix", version = "0.140.0" }
+pdfcer-color = { path = "crates/pdfcer-color", version = "0.140.0" }
+pdfcer-3d = { path = "crates/pdfcer-3d", version = "0.140.0" }
+pdfcer-3d-nav = { path = "crates/pdfcer-3d-nav", version = "0.140.0" }
 # OCR hosting for the shells, including program add-ons (decision 184).
 pdfcer-ocr-host = { path = "crates/pdfcer-ocr-host", default-features = false }
 # Network code for operator-initiated downloads. `default-features = false`
