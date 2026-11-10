@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-10 (1488th filing) — `6b8d02fd` clippy dead-code fix; `ba022dcf` `v0.143.0` bump; `v0.142.0` recorded as a DEAD TAG
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- `v0.142.0` (bump `f6c8b27c`, filed 1485th as "planned") was tagged and pushed, but CI on `ccd1a6be` went red: `cargo clippy -D warnings` on ubuntu/macOS, "field `edge_antialiasing` is never read" in `crates/pdfcer-cli/src/print_output.rs` (read only on the `cfg(windows)` print path; introduced by `Pass 700.1`). Never released: no GitHub release, no OneDrive deploy, no crates.io publish. Dead tag, same pattern as `v0.29.0` to `v0.29.1`.
+- `6b8d02fdb48771b017ab849a74871527ee6e4b07`: `#[cfg_attr(not(windows), allow(dead_code))]` plus a comment on the field. Engineer verified: Linux clippy, `cargo check --target aarch64-apple-darwin`, Windows clippy, fmt all clean. No FEATURES row.
+- `ba022dcff59850e805adb2cf42b8cd2cecf975c9`: `chore(release): v0.143.0` (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`). Planned `v0.143.0` = `700.0`, `700.1`, `701.0`, the lint fix, and the `703.0` first cut (`25a2a6f5`). Not yet published.
+- ROADMAP: new Shipped entry; 1488th amendment notes on the 1485th Shipped entry and the `700.0`/`700.1` and `701.0` entries; new Next-up banner. FEATURES: two `planned for v0.142.0` clauses changed to `v0.143.0`; the 702 row's "after v0.142.0" dropped. The 703.0 row's "not in v0.142.0, ships v0.143.0" left as is (still true).
+- **Survivors, NOT edited (historical, per-filing records):** the 1484th/1485th/1486th/1487th entries and banners in this file and ROADMAP still say `v0.142.0` carries those Passes or "publish `v0.142.0`"; they are dated records, superseded by the new banner. `docs/NEXT_SESSION.md` line 8 (engineer-owned) mentions `v0.142.0`: engineer to check it.
+
+**For next session:** run `check-commits-filed.py` and the `check-ci-parity.py --list` audits, push, wait for green CI, then publish `v0.143.0`; then finish the owed `703.0` items.
+
 ## 2026-11-10 (1487th filing) — `25a2a6f5` `Pass 703.0` PARTIAL (nested-paint and held-content budgets; `X067` F054 F055); stays open
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits; `25a2a6f5` on `main`, not pushed at filing; not in `v0.142.0`, ships `v0.143.0`):**
