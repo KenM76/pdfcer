@@ -69,12 +69,20 @@ fn a_ce_dimension_preview_paints_what_the_commit_renders() {
     let page = pdfcer_core::page_tree::pages(&doc).unwrap().remove(0);
     let rendered = render_page_with(&doc, &page, scale, &options).unwrap();
 
-    let ink = |p: &[u8]| p.chunks_exact(4).filter(|px| px[0] < 0xF0).count();
+    let ink = |p: &[u8]| {
+        p.as_chunks::<4>()
+            .0
+            .iter()
+            .filter(|px| px[0] < 0xF0)
+            .count()
+    };
     assert!(ink(painted.data()) > 200, "the preview painted nothing");
     let differing = painted
         .data()
-        .chunks_exact(4)
-        .zip(rendered.pixmap.data().chunks_exact(4))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .zip(rendered.pixmap.data().as_chunks::<4>().0)
         .filter(|(a, b)| a.iter().zip(*b).any(|(x, y)| x.abs_diff(*y) > 2))
         .count();
     assert_eq!(differing, 0, "preview and committed render differ");

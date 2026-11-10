@@ -961,12 +961,11 @@ pub fn parse(input: &ParseInput<'_>, diag: &mut ColorDiagnostics) -> Result<Mesh
         return Err(MeshRefusal::BadDecode);
     }
     let decode: Vec<[f32; 2]> = raw_decode
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .take(2 + ncomp)
-        .filter_map(|p| match *p {
-            [lo, hi] => Some([lo, hi]),
-            _ => None,
-        })
+        .copied()
         .collect();
 
     let params = Params {

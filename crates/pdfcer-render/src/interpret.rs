@@ -893,8 +893,9 @@ pub struct Diagnostics {
     /// worse than one that needs a companion.
     pub cmyk_buffer_engaged: bool,
     /// The page declared a subtractive blending space and pdfcer composited
-    /// it in sRGB **anyway**, because the colorant buffer could not be
-    /// allocated.
+    /// it in sRGB **anyway**, because not even one row of the colorant
+    /// buffer fits the ceiling (larger rasters are banded instead: see
+    /// `cmyk_bands`).
     ///
     /// A refusal, and the honest outcome of a page-size ceiling: see
     /// `crate::cmyk_buffer::MAX_CMYK_BUFFER_BYTES`. Non-zero means the
@@ -4754,13 +4755,16 @@ impl<'a> Interpreter<'a> {
         };
         let (ox, oy) = *self.path_origin.get_or_insert((x0, y0));
         let mut out = [0.0_f32; N];
-        for (o, p) in out.chunks_exact_mut(2).zip(v.chunks_exact(2)) {
-            if let ([x_out, y_out], &[x, y]) = (o, p) {
-                #[allow(clippy::cast_possible_truncation)]
-                {
-                    *x_out = (x - ox) as f32;
-                    *y_out = (y - oy) as f32;
-                }
+        for ([x_out, y_out], &[x, y]) in out
+            .as_chunks_mut::<2>()
+            .0
+            .iter_mut()
+            .zip(v.as_chunks::<2>().0)
+        {
+            #[allow(clippy::cast_possible_truncation)]
+            {
+                *x_out = (x - ox) as f32;
+                *y_out = (y - oy) as f32;
             }
         }
         Some(out)

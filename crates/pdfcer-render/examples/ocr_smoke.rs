@@ -59,7 +59,9 @@ fn main() {
     let grey: Vec<u8> = r
         .pixmap
         .data()
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|p| {
             // Rec.601 luma; the engine wants intensity, not colour.
             ((0.299 * f32::from(p[0])) + (0.587 * f32::from(p[1])) + (0.114 * f32::from(p[2])))

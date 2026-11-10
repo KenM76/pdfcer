@@ -29,10 +29,7 @@ pub fn apply_output_color(rgba: &mut [u8], mode: OutputColor) -> usize {
     if mode == OutputColor::Color {
         return 0;
     }
-    for px in rgba.chunks_exact_mut(4) {
-        let Ok(px): Result<&mut [u8; 4], _> = px.try_into() else {
-            continue;
-        };
+    for px in rgba.as_chunks_mut::<4>().0 {
         let [r, g, b, a] = *px;
         let out = match mode {
             OutputColor::Color => *px,

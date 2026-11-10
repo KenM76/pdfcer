@@ -631,8 +631,10 @@ fn jxl_is_lossless_by_default_and_lossy_on_request() {
         (w, h, true)
     );
     let rgb: Vec<u8> = rgba
-        .chunks_exact(4)
-        .flat_map(|p| [p[0], p[1], p[2]])
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .flat_map(|&[r, g, b, _]| [r, g, b])
         .collect();
     assert_eq!(back.colour, rgb, "lossless JPEG XL differs from the PNG");
 

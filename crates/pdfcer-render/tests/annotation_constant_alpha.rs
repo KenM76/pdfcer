@@ -76,7 +76,12 @@ fn mean_green(doc: &Document) -> f64 {
     let pages = page_tree::pages(doc).expect("page tree");
     let out = render_page(doc, &pages[0], 1.0).expect("rasterises");
     let data = out.pixmap.data();
-    let total: u64 = data.chunks_exact(4).map(|px| u64::from(px[1])).sum();
+    let total: u64 = data
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|px| u64::from(px[1]))
+        .sum();
     let count = data.len() / 4;
     total as f64 / count as f64
 }

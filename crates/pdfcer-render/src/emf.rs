@@ -1060,7 +1060,9 @@ fn logfont_record_body(run: &crate::emf_text::EmfTextRun, unit: f32) -> Vec<u8> 
     b.push(0); // PitchAndFamily
     let mut face = [0u8; 64];
     for (slot, u) in face
-        .chunks_exact_mut(2)
+        .as_chunks_mut::<2>()
+        .0
+        .iter_mut()
         .zip(run.face.encode_utf16().take(31))
     {
         slot.copy_from_slice(&u.to_le_bytes());

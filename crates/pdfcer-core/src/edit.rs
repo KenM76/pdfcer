@@ -16570,7 +16570,9 @@ impl EditSession {
         }
         match self.deref_value(node.get(b"Names")) {
             Some(Object::Array(arr)) => arr
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .any(|pair| matches!(pair, [Object::String(k), _] if k == name)),
             _ => false,
         }
@@ -33257,7 +33259,7 @@ impl EditSession {
                 // instead of to a reader, and clippy is right that the
                 // guarantee should not have to be reconstructed by whoever
                 // reads this next.
-                for pair in arr.chunks_exact(2) {
+                for pair in arr.as_chunks::<2>().0 {
                     if let [Object::String(k), value] = pair {
                         entries.push((k.clone(), value.clone()));
                     }
@@ -34111,7 +34113,7 @@ impl EditSession {
         // objects can be freed.
         let mut kept: Vec<Object> = Vec::with_capacity(arr.len());
         let mut victim: Option<Object> = None;
-        for pair in arr.chunks_exact(2) {
+        for pair in arr.as_chunks::<2>().0 {
             if let [Object::String(k), value] = pair {
                 if k.as_slice() == key {
                     victim = Some(value.clone());
@@ -52001,7 +52003,7 @@ impl EditSession {
                 // states the array has even length, so a trailing orphan key
                 // is possible; `chunks_exact` drops it, which is the
                 // digest's recommended handling.
-                for pair in arr.chunks_exact(2) {
+                for pair in arr.as_chunks::<2>().0 {
                     if let [Object::String(k), value] = pair {
                         entries.push((k.clone(), value.clone()));
                     }

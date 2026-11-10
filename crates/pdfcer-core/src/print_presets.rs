@@ -217,7 +217,7 @@ fn read_ranges<G: ObjectGraph + ?Sized>(out: &mut PrintPresets, o: &Object, grap
         out.ignored
             .push("PrintPageRange: odd number of entries; the last is unused".into());
     }
-    for pair in nums.chunks_exact(2) {
+    for pair in nums.as_chunks::<2>().0 {
         let [a, b] = [pair.first(), pair.get(1)].map(|v| v.copied().flatten());
         match (a, b) {
             (Some(a), Some(b)) if a >= 1 && a <= b => {

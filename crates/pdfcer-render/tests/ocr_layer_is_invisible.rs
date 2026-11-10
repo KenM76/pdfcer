@@ -149,7 +149,9 @@ fn the_pages_existing_text_still_renders_after_ocr() {
     // How much ink the untouched page has, as a baseline. A page that renders
     // completely blank would make the pixel-identity test above vacuous.
     let ink_of = |data: &[u8]| {
-        data.chunks_exact(4)
+        data.as_chunks::<4>()
+            .0
+            .iter()
             .filter(|px| px[3] > 0 && px[0] < 250)
             .count()
     };

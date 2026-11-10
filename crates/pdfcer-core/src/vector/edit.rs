@@ -3749,13 +3749,7 @@ pub fn plan_move_subpath(
             return Err(VectorEditError::MalformedOperand);
         }
         let mut out = Vec::new();
-        for (i, chunk) in nums.chunks_exact(2).enumerate() {
-            // `chunks_exact(2)` guarantees the pair, but destructuring proves
-            // it to the compiler rather than to a reader — the crate forbids
-            // indexing that could panic even where the invariant holds.
-            let &[cx, cy] = chunk else {
-                return Err(VectorEditError::MalformedOperand);
-            };
+        for (i, &[cx, cy]) in nums.as_chunks::<2>().0.iter().enumerate() {
             if i > 0 {
                 out.push(b' ');
             }

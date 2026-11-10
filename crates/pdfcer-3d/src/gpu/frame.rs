@@ -265,11 +265,13 @@ impl FrameLights {
             ]
         });
         for (row, texels) in out
-            .chunks_exact_mut(LIGHT_TABLE_WIDTH * 4)
+            .as_chunks_mut::<{ LIGHT_TABLE_WIDTH * 4 }>()
+            .0
+            .iter_mut()
             .zip(far.chain(near))
         {
-            for (slot, texel) in row.chunks_exact_mut(4).zip(texels) {
-                slot.copy_from_slice(&texel.unwrap_or([0.0; 4]));
+            for (slot, texel) in row.as_chunks_mut::<4>().0.iter_mut().zip(texels) {
+                *slot = texel.unwrap_or([0.0; 4]);
             }
         }
         out

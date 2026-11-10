@@ -855,8 +855,9 @@ pub fn spec_from_dict<G: ObjectGraph + ?Sized>(
             // §12.5.6.10's groups of eight, in whichever corner order the
             // producer used (`Quad::from_quad_points`).
             let quads = nums
-                .chunks_exact(8)
-                .filter_map(|q| <&[f64; 8]>::try_from(q).ok())
+                .as_chunks::<8>()
+                .0
+                .iter()
                 .map(Quad::from_quad_points)
                 .collect();
             let kind = match subtype.as_slice() {
@@ -1420,11 +1421,10 @@ pub(crate) fn pairs_of<G: ObjectGraph + ?Sized>(obj: &Object, graph: &G) -> Vec<
         .iter()
         .filter_map(|o| graph.resolve(o).as_number())
         .collect();
-    nums.chunks_exact(2)
-        .filter_map(|c| match c {
-            &[x, y] => Some((x, y)),
-            _ => None,
-        })
+    nums.as_chunks::<2>()
+        .0
+        .iter()
+        .map(|&[x, y]| (x, y))
         .collect()
 }
 
@@ -1830,15 +1830,14 @@ pub fn decode_spec(obj: &Object) -> Result<MarkupSpec, SpecReadError> {
                 return Err(SpecReadError::BadGeometry { key: "Q" });
             }
             let quads = nums
-                .chunks_exact(8)
-                .filter_map(|q| match q {
-                    &[ulx, uly, urx, ury, llx, lly, lrx, lry] => Some(Quad {
-                        ul: (ulx, uly),
-                        ur: (urx, ury),
-                        ll: (llx, lly),
-                        lr: (lrx, lry),
-                    }),
-                    _ => None,
+                .as_chunks::<8>()
+                .0
+                .iter()
+                .map(|&[ulx, uly, urx, ury, llx, lly, lrx, lry]| Quad {
+                    ul: (ulx, uly),
+                    ur: (urx, ury),
+                    ll: (llx, lly),
+                    lr: (lrx, lry),
                 })
                 .collect();
             MarkupSpec::TextMarkup {
@@ -1935,11 +1934,10 @@ fn points_of(obj: &Object) -> Option<Vec<(f64, f64)>> {
         return None;
     }
     Some(
-        nums.chunks_exact(2)
-            .filter_map(|p| match p {
-                &[x, y] => Some((x, y)),
-                _ => None,
-            })
+        nums.as_chunks::<2>()
+            .0
+            .iter()
+            .map(|&[x, y]| (x, y))
             .collect(),
     )
 }

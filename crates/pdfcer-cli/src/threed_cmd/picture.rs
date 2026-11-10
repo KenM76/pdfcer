@@ -47,11 +47,9 @@ pub(super) fn encode(
     };
     // The pixmap holds premultiplied alpha; glass over a transparent
     // background leaves partly transparent pixels.
-    for px in rgba.chunks_exact_mut(4) {
-        if let [r, g, b, alpha] = px {
-            for c in [r, g, b] {
-                *c = (u16::from(*c) * u16::from(*alpha)).div_ceil(255) as u8;
-            }
+    for [r, g, b, alpha] in rgba.as_chunks_mut::<4>().0 {
+        for c in [r, g, b] {
+            *c = (u16::from(*c) * u16::from(*alpha)).div_ceil(255) as u8;
         }
     }
     let pixmap = pdfcer_render::tiny_skia::IntSize::from_wh(width, height)

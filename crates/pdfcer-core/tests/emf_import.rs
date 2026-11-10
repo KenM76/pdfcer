@@ -275,7 +275,12 @@ fn font(face: &str, em: i32) -> Vec<u8> {
     let mut d = le(&[3, -em, 0, 0, 0, 400]);
     d.extend_from_slice(&[0, 0, 0, 1, 4, 0, 0, 0]);
     let mut name = [0u8; 64];
-    for (slot, u) in name.chunks_exact_mut(2).zip(face.encode_utf16()) {
+    for (slot, u) in name
+        .as_chunks_mut::<2>()
+        .0
+        .iter_mut()
+        .zip(face.encode_utf16())
+    {
         slot.copy_from_slice(&u.to_le_bytes());
     }
     d.extend_from_slice(&name);

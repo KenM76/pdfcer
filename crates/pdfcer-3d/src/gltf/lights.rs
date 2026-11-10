@@ -348,7 +348,7 @@ pub(super) fn spot(p: &Placed, attenuation: [f64; 3]) -> ModelLightKind {
 /// glTF's column-major matrix as a [`Matrix`].
 fn rows(m: &[f64; 16]) -> Matrix {
     let mut out = IDENTITY;
-    for (c, col) in m.chunks_exact(4).enumerate() {
+    for (c, col) in m.as_chunks::<4>().0.iter().enumerate() {
         for (row, v) in out.iter_mut().zip(col) {
             if let Some(cell) = row.get_mut(c) {
                 *cell = *v;

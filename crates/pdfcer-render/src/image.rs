@@ -2082,7 +2082,9 @@ pub(crate) fn decode_pairs(dict: &Dict) -> Option<Vec<(f32, f32)>> {
     }
     Some(
         items
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| {
                 let lo = pair.first().and_then(Object::as_number).unwrap_or(0.0) as f32;
                 let hi = pair.get(1).and_then(Object::as_number).unwrap_or(1.0) as f32;

@@ -1878,8 +1878,7 @@ impl<'a> Walk<'a> {
                         // and stays unslotted, which is the old behaviour
                         // rather than a new regression.
                         //
-                        for (pi, pair) in bytes.chunks_exact(2).enumerate() {
-                            let [hi, lo] = pair else { continue };
+                        for (pi, [hi, lo]) in bytes.as_chunks::<2>().0.iter().enumerate() {
                             let code = u32::from(*hi) << 8 | u32::from(*lo);
                             // `TX-A1` PINNED to the length-preserving
                             // sentinel, not the operator's extraction

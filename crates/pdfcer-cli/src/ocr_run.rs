@@ -246,16 +246,15 @@ fn rasterise_grey(
     let grey = rendered
         .pixmap
         .data()
-        .chunks_exact(4)
-        .map(|px| match *px {
-            [r, g, b, _] => {
-                let (r, g, b) = (u32::from(r), u32::from(g), u32::from(b));
-                #[allow(clippy::cast_possible_truncation)] // a weighted mean of bytes
-                {
-                    ((r * 299 + g * 587 + b * 114) / 1000) as u8
-                }
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|&[r, g, b, _]| {
+            let (r, g, b) = (u32::from(r), u32::from(g), u32::from(b));
+            #[allow(clippy::cast_possible_truncation)] // a weighted mean of bytes
+            {
+                ((r * 299 + g * 587 + b * 114) / 1000) as u8
             }
-            _ => 255,
         })
         .collect();
     Ok((iw, ih, grey))

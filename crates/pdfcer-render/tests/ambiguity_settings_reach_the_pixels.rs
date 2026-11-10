@@ -204,7 +204,10 @@ fn the_mask_resampling_filter_reaches_the_pixels() {
     // pinned in `mask.rs`'s unit tests, this only proves it arrived.
     let row = pixels(&bilinear);
     assert!(
-        row.chunks_exact(4).any(|px| px[0] > 0x10 && px[0] < 0xF0),
+        row.as_chunks::<4>()
+            .0
+            .iter()
+            .any(|px| px[0] > 0x10 && px[0] < 0xF0),
         "bilinear must produce a blended pixel somewhere in {row:?}"
     );
 }
@@ -303,7 +306,12 @@ fn area_averaging_keeps_every_hairline_bilinear_drops() {
         hairline_page(),
         &RenderOptions::default().with_image_minify(MinifyFilter::AreaAverage),
     );
-    let reds: Vec<u8> = pixels(&area).chunks_exact(4).map(|p| p[0]).collect();
+    let reds: Vec<u8> = pixels(&area)
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|p| p[0])
+        .collect();
     assert!(
         reds.iter().all(|&r| r.abs_diff(191) <= 3),
         "every pixel is one quarter hairline: {reds:?}"
@@ -312,7 +320,12 @@ fn area_averaging_keeps_every_hairline_bilinear_drops() {
         hairline_page(),
         &RenderOptions::default().with_image_minify(MinifyFilter::Smooth),
     );
-    let reds: Vec<u8> = pixels(&smooth).chunks_exact(4).map(|p| p[0]).collect();
+    let reds: Vec<u8> = pixels(&smooth)
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|p| p[0])
+        .collect();
     assert!(
         reds.iter().any(|&r| r.abs_diff(191) > 3),
         "the fixture no longer separates the filters: {reds:?}"

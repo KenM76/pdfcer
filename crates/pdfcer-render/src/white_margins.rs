@@ -119,8 +119,8 @@ fn extent_to_user(
 /// buffer, or `None` when every pixel is paper.
 fn ink_extent(data: &[u8], w: usize, h: usize) -> Option<(usize, usize, usize, usize)> {
     let mut extent: Option<(usize, usize, usize, usize)> = None;
-    for (i, px) in data.chunks_exact(4).enumerate().take(w * h) {
-        let [r, g, b, _] = *px else { continue };
+    for (i, px) in data.as_chunks::<4>().0.iter().enumerate().take(w * h) {
+        let [r, g, b, _] = *px;
         if [r, g, b].iter().all(|&v| v >= WHITE_MARGIN_THRESHOLD) {
             continue;
         }

@@ -240,10 +240,8 @@ fn colour_space(data: &[u8], h: &Header) -> Result<(ImportColorSpace, u32, u32),
             // BMP palette entries are BGR + one reserved byte; §8.6.6.3
             // wants consecutive RGB triples.
             let mut lookup = Vec::with_capacity(entries * 3);
-            for e in table.chunks_exact(4) {
-                if let [b, g, r, _] = *e {
-                    lookup.extend_from_slice(&[r, g, b]);
-                }
+            for &[b, g, r, _] in table.as_chunks::<4>().0 {
+                lookup.extend_from_slice(&[r, g, b]);
             }
             let hival = u8::try_from(entries.saturating_sub(1)).unwrap_or(255);
             Ok((
@@ -318,7 +316,7 @@ fn repack(
             .ok_or_else(|| corrupt("row buffer overflow"))?;
         match h.bpp {
             24 => {
-                for (x, px) in dst.chunks_exact_mut(3).enumerate() {
+                for (x, px) in dst.as_chunks_mut::<3>().0.iter_mut().enumerate() {
                     // BGR -> RGB. A short source row cannot happen (the
                     // stride check rules it out) but is left black rather
                     // than allowed to panic.
@@ -331,7 +329,7 @@ fn repack(
                 }
             }
             32 => {
-                for (x, px) in dst.chunks_exact_mut(3).enumerate() {
+                for (x, px) in dst.as_chunks_mut::<3>().0.iter_mut().enumerate() {
                     // BGRX -> RGB. The fourth byte is DROPPED, not read as
                     // alpha — see the module docs.
                     if let Some(&[b, g, r, _]) = src

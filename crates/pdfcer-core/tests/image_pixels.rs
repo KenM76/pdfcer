@@ -26,7 +26,9 @@ fn halves(img: &ImportedImage) -> (Vec<u8>, Option<Vec<u8>>) {
 }
 
 fn interleave(rgb: &[u8], alpha: &[u8]) -> Vec<u8> {
-    rgb.chunks_exact(3)
+    rgb.as_chunks::<3>()
+        .0
+        .iter()
         .zip(alpha)
         .flat_map(|(c, &a)| [c[0], c[1], c[2], a])
         .collect()

@@ -349,7 +349,7 @@ fn the_geometry_rule_composes_and_keeps_the_border_allowance() {
     let verts = nums(&four, &d, b"Vertices");
     let (mut lo_x, mut lo_y) = (f64::INFINITY, f64::INFINITY);
     let (mut hi_x, mut hi_y) = (f64::NEG_INFINITY, f64::NEG_INFINITY);
-    for pair in verts.chunks_exact(2) {
+    for pair in verts.as_chunks::<2>().0 {
         lo_x = lo_x.min(pair[0]);
         lo_y = lo_y.min(pair[1]);
         hi_x = hi_x.max(pair[0]);

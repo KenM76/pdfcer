@@ -109,7 +109,9 @@ fn ink_list(doc: &Document, id: ObjId) -> Vec<Vec<(f64, f64)>> {
             let Object::Array(nums) = view.resolve(s) else {
                 panic!("a stroke is not an array")
             };
-            nums.chunks_exact(2)
+            nums.as_chunks::<2>()
+                .0
+                .iter()
                 .map(|c| {
                     (
                         view.resolve(&c[0]).as_number().expect("x"),

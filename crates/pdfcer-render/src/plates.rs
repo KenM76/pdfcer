@@ -75,8 +75,8 @@ pub fn render_plates(
 /// its darkest channel, fully opaque. A trailing partial pixel is left
 /// alone.
 pub fn to_plate_grey(rgba: &mut [u8]) {
-    for px in rgba.chunks_exact_mut(4) {
-        let [r, g, b, a] = px else { continue };
+    for px in rgba.as_chunks_mut::<4>().0 {
+        let [r, g, b, a] = px;
         let over = |c: u8| c.saturating_add(255 - *a);
         let grey = over(*r).min(over(*g)).min(over(*b));
         px.copy_from_slice(&[grey, grey, grey, 255]);
@@ -183,6 +183,6 @@ mod tests {
     fn a_label_renders() {
         let p = label_pixmap("Magenta", 2.0).expect("label renders");
         assert!(p.width() > 40);
-        assert!(p.data().chunks_exact(4).any(|px| px[0] < 128));
+        assert!(p.data().as_chunks::<4>().0.iter().any(|px| px[0] < 128));
     }
 }

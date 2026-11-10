@@ -369,7 +369,7 @@ pub(crate) fn parse_points(s: &str) -> Result<Vec<(f64, f64)>, String> {
     if f.len() % 2 != 0 {
         return Err("points must be an even count of numbers (x,y pairs)".to_owned());
     }
-    Ok(f.chunks_exact(2).map(|c| (c[0], c[1])).collect())
+    Ok(f.as_chunks::<2>().0.iter().map(|c| (c[0], c[1])).collect())
 }
 
 /// Parse `x,y … | x,y …` into ink strokes (`|` separates strokes).

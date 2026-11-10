@@ -55,10 +55,7 @@ fn walk<G: ObjectGraph + ?Sized>(
         .map(|o| graph.resolve(o))
         .and_then(Object::as_array)
     {
-        for pair in nums.chunks_exact(2) {
-            let [key, value] = pair else {
-                continue;
-            };
+        for [key, value] in nums.as_chunks::<2>().0 {
             let Some(start) = graph
                 .resolve(key)
                 .as_int()

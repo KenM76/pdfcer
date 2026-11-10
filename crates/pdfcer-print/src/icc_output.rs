@@ -380,10 +380,7 @@ impl PrinterTransform {
     pub fn apply(&self, rgba: &mut [u8]) -> usize {
         let mut memo: HashMap<[u8; 3], [u8; 3]> = HashMap::new();
         let mut changed = 0;
-        for px in rgba.chunks_exact_mut(4) {
-            let Ok(px): Result<&mut [u8; 4], _> = px.try_into() else {
-                continue;
-            };
+        for px in rgba.as_chunks_mut::<4>().0 {
             let [r, g, b, a] = *px;
             if a == 0 {
                 continue;

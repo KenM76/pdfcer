@@ -492,7 +492,7 @@ const fn out_components(space: ColorSpace) -> u8 {
 /// and applies to every YCCK file; settled by decision 006: there is
 /// no Adobe inversion; `/Decode` is the sole polarity control (R29).
 fn ycck_to_cmyk_in_place(samples: &mut [u8]) {
-    for pixel in samples.chunks_exact_mut(4) {
+    for pixel in samples.as_chunks_mut::<4>().0 {
         let (Some(&y), Some(&cb), Some(&cr)) = (pixel.first(), pixel.get(1), pixel.get(2)) else {
             continue;
         };

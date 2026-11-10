@@ -191,11 +191,10 @@ fn frame<'a>(p: &[u8], max_blocks: usize) -> Result<Option<Parsed<'a>>, RemuxErr
     let nf = usize::from(nf);
     let specs = rest.get(5..5 + 3 * nf).ok_or(bad)?;
     let sampling: Vec<(u8, usize, usize)> = specs
-        .chunks_exact(3)
-        .filter_map(|c| match *c {
-            [id, hv, _] => Some((id, usize::from(hv >> 4), usize::from(hv & 0x0F))),
-            _ => None,
-        })
+        .as_chunks::<3>()
+        .0
+        .iter()
+        .map(|&[id, hv, _]| (id, usize::from(hv >> 4), usize::from(hv & 0x0F)))
         .collect();
     if sampling
         .iter()
@@ -265,11 +264,10 @@ fn scan_header(
         return Err(RemuxError::Malformed("not a sequential scan header"));
     }
     specs
-        .chunks_exact(2)
-        .map(|s| {
-            let &[id, tables] = s else {
-                return Err(RemuxError::Malformed("short scan header"));
-            };
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|&[id, tables]| {
             let index = frame
                 .comps
                 .iter()

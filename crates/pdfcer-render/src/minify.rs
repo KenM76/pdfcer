@@ -81,9 +81,9 @@ where
         }
         let tall = (band.len() / stride) as u64;
         let full = Divisor::new(fx as u64 * tall);
-        for (block, dst) in col.chunks(fx * 4).zip(dst_row.chunks_exact_mut(4)) {
+        for (block, dst) in col.chunks(fx * 4).zip(dst_row.as_chunks_mut::<4>().0) {
             let mut sum = [0u64; 4];
-            for px in block.chunks_exact(4) {
+            for px in block.as_chunks::<4>().0 {
                 for (s, &v) in sum.iter_mut().zip(px) {
                     *s += u64::from(v);
                 }

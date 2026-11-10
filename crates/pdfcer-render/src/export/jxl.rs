@@ -174,7 +174,7 @@ fn verify(
     let mut max = 0u8;
     for (i, (src, rgb)) in samples
         .chunks_exact(stride)
-        .zip(back.colour.chunks_exact(3))
+        .zip(back.colour.as_chunks::<3>().0)
         .enumerate()
     {
         if let Some(a) = alpha {

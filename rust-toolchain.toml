@@ -14,6 +14,6 @@
 # clippy lints or rustfmt formatting changes that must be reconciled in
 # the same commit.
 [toolchain]
-channel = "1.97.1"
+channel = "1.99.1"
 components = ["rustfmt", "clippy"]
 profile = "default"

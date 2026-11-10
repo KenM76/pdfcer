@@ -527,7 +527,7 @@ pub fn decode_utf16be_bytes(bytes: &[u8]) -> (String, usize) {
 /// unpaired-surrogate count this function has to report.
 fn utf16be_walk(bytes: &[u8], strip_escapes: bool) -> (String, Vec<String>, usize) {
     let mut units: Vec<u16> = Vec::with_capacity(bytes.len() / 2);
-    for pair in bytes.chunks_exact(2) {
+    for pair in bytes.as_chunks::<2>().0 {
         let hi = pair.first().copied().unwrap_or(0);
         let lo = pair.get(1).copied().unwrap_or(0);
         units.push(u16::from_be_bytes([hi, lo]));

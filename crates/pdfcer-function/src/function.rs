@@ -1205,7 +1205,9 @@ fn pairs(
         });
     }
     Ok(Some(
-        flat.chunks_exact(2)
+        flat.as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| {
                 [
                     c.first().copied().unwrap_or(0.0),

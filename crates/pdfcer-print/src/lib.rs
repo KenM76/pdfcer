@@ -2329,7 +2329,7 @@ pub fn printer_forms(printer: &str) -> Result<Vec<PaperForm>, PrintError> {
             )
         };
         if let Ok(n) = usize::try_from(written) {
-            for record in buffer.chunks_exact(NAME_UNITS).take(n) {
+            for record in buffer.as_chunks::<NAME_UNITS>().0.iter().take(n) {
                 let end = record.iter().position(|&c| c == 0).unwrap_or(NAME_UNITS);
                 names.push(String::from_utf16_lossy(
                     record.get(..end).unwrap_or_default(),
@@ -2359,7 +2359,7 @@ pub fn printer_forms(printer: &str) -> Result<Vec<PaperForm>, PrintError> {
             )
         };
         if let Ok(n) = usize::try_from(written) {
-            for point in buffer.chunks_exact(2).take(n) {
+            for point in buffer.as_chunks::<2>().0.iter().take(n) {
                 let tenths_mm_to_pt = |v: i32| {
                     if v > 0 {
                         f64::from(v) * 72.0 / 254.0
@@ -3408,10 +3408,8 @@ fn blit_page(
 
     // RGBA (caller) -> BGRX (GDI).
     let mut bgra = Vec::with_capacity(page.rgba.len());
-    for px in page.rgba.chunks_exact(4) {
-        if let [r, g, b, _] = *px {
-            bgra.extend_from_slice(&[b, g, r, 0]);
-        }
+    for &[r, g, b, _] in page.rgba.as_chunks::<4>().0 {
+        bgra.extend_from_slice(&[b, g, r, 0]);
     }
 
     let header = BITMAPINFOHEADER {

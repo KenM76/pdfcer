@@ -2907,7 +2907,7 @@ fn flatten_name_tree<G: ObjectGraph + ?Sized>(
         .map(|value| graph.resolve(value))
         .and_then(Object::as_array)
     {
-        for pair in pairs.chunks_exact(2) {
+        for pair in pairs.as_chunks::<2>().0 {
             let (Some(key), Some(value)) = (pair.first(), pair.get(1)) else {
                 continue;
             };

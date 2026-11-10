@@ -698,7 +698,9 @@ fn a_textured_prc_model_renders_its_picture() {
     let bottom = render(&[]);
     // Lit and filtered, a texel shows as a pixel its own channel dominates.
     let has = |buf: &[u8], c: usize| {
-        buf.chunks_exact(4)
+        buf.as_chunks::<4>()
+            .0
+            .iter()
             .any(|p| (0..3).all(|k| if k == c { p[k] > 100 } else { p[k] < p[c] / 4 }))
     };
     let top = render(&["--texture-origin", "top"]);
@@ -801,7 +803,12 @@ fn a_zero_material_alpha_is_drawn_opaque_by_default_and_disclosed() {
         let mut reader = decoder.read_info().unwrap();
         let mut buf = vec![0; reader.output_buffer_size()];
         reader.next_frame(&mut buf).unwrap();
-        let inked = buf.chunks_exact(4).filter(|p| p[..3] != [255; 3]).count();
+        let inked = buf
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .filter(|p| p[..3] != [255; 3])
+            .count();
         assert_eq!(inked > 0, drawn, "{extra:?}: {inked} inked pixels");
         let note = "inferred: 1 mesh(es) drawn opaque: each material's alpha is 0";
         assert_eq!(stdout.contains(note), drawn, "{extra:?}: {stdout}");
@@ -896,7 +903,9 @@ fn entity_overrides_recolour_and_hide_the_copies_an_assembly_names() {
         let mut reader = decoder.read_info().unwrap();
         let mut buf = vec![0; reader.output_buffer_size()];
         reader.next_frame(&mut buf).unwrap();
-        let count = |f: &dyn Fn(&[u8]) -> bool| buf.chunks_exact(4).filter(|p| f(&p[..3])).count();
+        let count = |f: &dyn Fn(&[u8]) -> bool| {
+            buf.as_chunks::<4>().0.iter().filter(|p| f(&p[..3])).count()
+        };
         let blue = count(&|p| p[2] > p[0].saturating_add(50));
         let red = count(&|p| p[0] > 100 && p[2] < 30);
         let grey = count(&|p| p != [255; 3] && p.iter().all(|&c| c.abs_diff(p[0]) < 16));

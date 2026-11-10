@@ -207,7 +207,9 @@ fn packet_streams<'a>(
 fn text_of(bytes: &[u8]) -> Result<String, XfaError> {
     let utf16 = |be: bool, body: &[u8]| {
         let units: Vec<u16> = body
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|c| {
                 let pair = [
                     c.first().copied().unwrap_or(0),

@@ -903,7 +903,9 @@ impl ColourKey {
             return Err(MaskRefusal::ColourKeyLength);
         }
         let ranges = items
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|pair| {
                 // Negative bounds are not legal ("in the range 0 to
                 // 2ⁿ−1") but cost nothing to survive: clamping at 0

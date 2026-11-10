@@ -283,13 +283,13 @@ pub(crate) fn finish(
     let new_name = renamed(doc, &old_name, &ext);
     let names = (old_name.as_str(), new_name.as_str());
     let mut augmented =
-        written(doc, &original, &ext, &begun.program, names, "CID").map_err(&whole)?;
-    cid_set(doc, &mut augmented, &ext.added).map_err(&whole)?;
+        written(doc, &original, &ext, &begun.program, names, "CID").map_err(whole)?;
+    cid_set(doc, &mut augmented, &ext.added).map_err(whole)?;
     if let Some(note) = cmap_note {
         augmented.disclosure.push_str(note);
     }
     if stream_map {
-        map_stream(&original, &mut augmented, begun.map.unwrap_or_default()).map_err(&whole)?;
+        map_stream(&original, &mut augmented, begun.map.unwrap_or_default()).map_err(whole)?;
         ext.dict
             .insert(name(b"CIDToGIDMap"), Object::Reference(FRESH_MAP));
         augmented

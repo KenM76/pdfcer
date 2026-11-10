@@ -260,11 +260,8 @@ fn map_pairs(
         return None;
     }
     let mut out = Vec::with_capacity(items.len());
-    for pair in items.chunks_exact(2) {
-        let (x, y) = match pair {
-            [x, y] => (number_of(resolve, x)?, number_of(resolve, y)?),
-            _ => return None,
-        };
+    for [x, y] in items.as_chunks::<2>().0 {
+        let (x, y) = (number_of(resolve, x)?, number_of(resolve, y)?);
         out.push(Object::Real(p.x(x)));
         out.push(Object::Real(p.y(y)));
     }

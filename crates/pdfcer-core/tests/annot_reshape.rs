@@ -91,7 +91,9 @@ fn nums(doc: &Document, d: &pdfcer_core::object::Dict, key: &[u8]) -> Vec<f64> {
 
 fn pairs(doc: &Document, d: &pdfcer_core::object::Dict, key: &[u8]) -> Vec<(f64, f64)> {
     nums(doc, d, key)
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|c| (c[0], c[1]))
         .collect()
 }

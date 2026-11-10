@@ -56,7 +56,9 @@ fn blank_page_doc() -> Document {
 fn non_white(pixmap: &pdfcer_render::tiny_skia::Pixmap) -> usize {
     pixmap
         .data()
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .filter(|px| px[0] != 0xFF || px[1] != 0xFF || px[2] != 0xFF)
         .count()
 }
@@ -66,7 +68,9 @@ fn non_white(pixmap: &pdfcer_render::tiny_skia::Pixmap) -> usize {
 fn reddish(pixmap: &pdfcer_render::tiny_skia::Pixmap) -> usize {
     pixmap
         .data()
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .filter(|px| px[0] > 0x80 && px[1] < 0x80 && px[2] < 0x80)
         .count()
 }
@@ -138,7 +142,9 @@ fn authored_square_paints_after_save_and_reload_r44() {
 fn dark(pixmap: &pdfcer_render::tiny_skia::Pixmap) -> usize {
     pixmap
         .data()
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .filter(|px| px[0] < 0x60 && px[1] < 0x60 && px[2] < 0x60)
         .count()
 }

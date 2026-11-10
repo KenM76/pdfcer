@@ -748,7 +748,9 @@ fn saved_nums(session: &EditSession) -> Vec<(i64, Option<Vec<u8>>, Option<i64>)>
     let Some(Object::Array(nums)) = tree.get(b"Nums").map(|o| doc.resolve(o)) else {
         panic!("tree without /Nums")
     };
-    nums.chunks_exact(2)
+    nums.as_chunks::<2>()
+        .0
+        .iter()
         .map(|pair| {
             let Object::Integer(start) = doc.resolve(&pair[0]) else {
                 panic!("non-integer key")

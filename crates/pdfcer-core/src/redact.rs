@@ -2854,12 +2854,9 @@ fn annot_regions(doc: &Document, dict: &Dict) -> Vec<RegionBox> {
             .filter_map(|o| doc.resolve(o).as_number())
             .collect();
         let mut boxes = Vec::new();
-        for quad in nums.chunks_exact(8) {
-            let [x0, y0, x1, y1, x2, y2, x3, y3] = quad else {
-                continue;
-            };
-            let xs = [*x0, *x1, *x2, *x3];
-            let ys = [*y0, *y1, *y2, *y3];
+        for &[x0, y0, x1, y1, x2, y2, x3, y3] in nums.as_chunks::<8>().0 {
+            let xs = [x0, x1, x2, x3];
+            let ys = [y0, y1, y2, y3];
             boxes.push(RegionBox {
                 min_x: xs.iter().copied().fold(f64::INFINITY, f64::min),
                 min_y: ys.iter().copied().fold(f64::INFINITY, f64::min),

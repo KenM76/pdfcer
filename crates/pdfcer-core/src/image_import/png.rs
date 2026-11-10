@@ -451,8 +451,7 @@ fn colour_key_from_trns(png: &Png, trns: &[u8]) -> Option<Vec<i64>> {
     }
     let max = (1u32 << png.bit_depth) - 1;
     let mut out = Vec::with_capacity(want * 2);
-    for pair in trns.chunks_exact(2).take(want) {
-        let [hi, lo] = *pair else { return None };
+    for &[hi, lo] in trns.as_chunks::<2>().0.iter().take(want) {
         let v = u32::from(u16::from_be_bytes([hi, lo]));
         if v > max {
             return None;

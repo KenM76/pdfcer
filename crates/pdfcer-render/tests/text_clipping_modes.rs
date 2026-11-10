@@ -52,7 +52,9 @@ fn share(content: &str, channel: usize) -> f64 {
     let r = render_page_view(&doc.view(), &pages[0], 1.0).expect("renders");
     let px = r.pixmap.data();
     let hits = px
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .filter(|p| {
             let c = p[channel];
             let others = (0..3)

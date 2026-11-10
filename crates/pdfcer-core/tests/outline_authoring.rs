@@ -758,7 +758,9 @@ one is the malformed shape NT-A1 records"
         panic!("no /Names array")
     };
     let keys: Vec<Vec<u8>> = arr
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .filter_map(|p| match &p[0] {
             Object::String(k) => Some(k.clone()),
             _ => None,

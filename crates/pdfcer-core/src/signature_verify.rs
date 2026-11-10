@@ -711,7 +711,7 @@ fn verify_dict<G: ObjectGraph + ?Sized>(
         .unwrap_or_default();
     let mut ranges: Vec<(u64, u64)> = Vec::new();
     let mut well_formed = nums.len() >= 2 && nums.len().is_multiple_of(2);
-    for pair in nums.chunks_exact(2) {
+    for pair in nums.as_chunks::<2>().0 {
         if let [off, len] = pair
             && *off >= 0
             && *len >= 0

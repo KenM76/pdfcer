@@ -2281,7 +2281,13 @@ fn invisible_text_is_painted_in_the_given_colour_and_can_be_isolated() {
         buf.truncate(info.buffer_size());
         buf
     };
-    let count = |rgba: &[u8], want: [u8; 4]| rgba.chunks_exact(4).filter(|p| *p == want).count();
+    let count = |rgba: &[u8], want: [u8; 4]| {
+        rgba.as_chunks::<4>()
+            .0
+            .iter()
+            .filter(|p| **p == want)
+            .count()
+    };
 
     let plain = render(&[]);
     assert_eq!(

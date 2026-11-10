@@ -219,7 +219,9 @@ pub fn structural_similarity(
 
 /// BT.601 luma of interleaved RGB.
 fn luma(rgb: &[u8]) -> Vec<u8> {
-    rgb.chunks_exact(3)
+    rgb.as_chunks::<3>()
+        .0
+        .iter()
         .map(|p| {
             let [r, g, b] = [0, 1, 2].map(|i| p.get(i).copied().map_or(0.0, f64::from));
             let y = 0.299 * r + 0.587 * g + 0.114 * b;

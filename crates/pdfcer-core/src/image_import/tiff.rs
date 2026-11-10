@@ -1133,7 +1133,7 @@ fn packbits(raw: &[u8], expected: usize) -> Result<Vec<u8>, ImageImportError> {
 /// Swap every 16-bit sample from little-endian to big-endian (§8.9.3:
 /// *"16-bit values are stored high-order byte first"*).
 fn swap16(buf: &mut [u8]) {
-    for pair in buf.chunks_exact_mut(2) {
+    for pair in buf.as_chunks_mut::<2>().0 {
         pair.swap(0, 1);
     }
 }
@@ -1383,13 +1383,10 @@ fn unpremultiply(base: &mut [u8], alpha: &[u8], channels: usize, bits: u32) {
     if bits == 16 {
         for (px, a) in base
             .chunks_exact_mut(channels * 2)
-            .zip(alpha.chunks_exact(2))
+            .zip(alpha.as_chunks::<2>().0)
         {
-            let av = u32::from(u16::from_be_bytes([
-                a.first().copied().unwrap_or(0),
-                a.get(1).copied().unwrap_or(0),
-            ]));
-            for c in px.chunks_exact_mut(2) {
+            let av = u32::from(u16::from_be_bytes(*a));
+            for c in px.as_chunks_mut::<2>().0 {
                 let v = u32::from(u16::from_be_bytes([
                     c.first().copied().unwrap_or(0),
                     c.get(1).copied().unwrap_or(0),

@@ -24,7 +24,7 @@ pub(crate) fn codes_shown(doc: &DocumentView<'_>, font: ObjId) -> Result<BTreeSe
         crate::page_tree::pages_in(doc).map_err(|_| unproven("the page tree is unreadable"))?;
     let mut shown = BTreeSet::new();
     for page in &pages {
-        ensure_plain(doc, &page.resources, font).map_err(&unproven)?;
+        ensure_plain(doc, &page.resources, font).map_err(unproven)?;
         let stream = ContentStream::from_page(doc, page)
             .map_err(|_| unproven("a page's content cannot be parsed"))?;
         collect(doc, &page.resources, &stream, font, &mut shown);
@@ -33,7 +33,7 @@ pub(crate) fn codes_shown(doc: &DocumentView<'_>, font: ObjId) -> Result<BTreeSe
             return Err(unproven("a form XObject cannot be read"));
         }
         for form in &scan.forms {
-            ensure_plain(doc, &form.resources, font).map_err(&unproven)?;
+            ensure_plain(doc, &form.resources, font).map_err(unproven)?;
             if font_names(doc, &form.resources, font).is_empty() {
                 continue;
             }
@@ -41,7 +41,7 @@ pub(crate) fn codes_shown(doc: &DocumentView<'_>, font: ObjId) -> Result<BTreeSe
                 .ok_or_else(|| unproven("a form XObject's content cannot be parsed"))?;
             collect(doc, &form.resources, &stream, font, &mut shown);
         }
-        appearances(doc, page.id, font, &mut shown).map_err(&unproven)?;
+        appearances(doc, page.id, font, &mut shown).map_err(unproven)?;
     }
     Ok(shown)
 }

@@ -168,10 +168,8 @@ fn truetype_cids(
     let raw = view.slice(stream.data_span).ok_or_else(unreadable)?;
     let data = crate::filters::decode_stream(&stream.dict, raw).map_err(|_| unreadable())?;
     let mut out = BTreeSet::from([0]);
-    for (cid, gid) in (0u32..).zip(data.chunks_exact(2)) {
-        if let [hi, lo] = *gid
-            && u32::from(u16::from_be_bytes([hi, lo])) < num_glyphs
-        {
+    for (cid, &[hi, lo]) in (0u32..).zip(data.as_chunks::<2>().0) {
+        if u32::from(u16::from_be_bytes([hi, lo])) < num_glyphs {
             out.insert(cid);
         }
     }

@@ -394,8 +394,7 @@ fn parse_hex32(hex: &str) -> Option<[u8; 32]> {
         return None;
     }
     let mut out = [0u8; 32];
-    for (slot, pair) in out.iter_mut().zip(bytes.chunks_exact(2)) {
-        let &[hi, lo] = pair else { return None };
+    for (slot, &[hi, lo]) in out.iter_mut().zip(bytes.as_chunks::<2>().0) {
         let hi = char::from(hi).to_digit(16)?;
         let lo = char::from(lo).to_digit(16)?;
         *slot = u8::try_from(hi * 16 + lo).ok()?;

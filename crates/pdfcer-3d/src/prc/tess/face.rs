@@ -45,13 +45,7 @@ pub(crate) fn points(coords: &[f64], what: &str) -> Result<Vec<[f64; 3]>, PrcErr
             coords.len()
         )));
     }
-    Ok(coords
-        .chunks_exact(3)
-        .map(|c| match c {
-            [x, y, z] => [*x, *y, *z],
-            _ => [0.0; 3],
-        })
-        .collect())
+    Ok(coords.as_chunks::<3>().0.to_vec())
 }
 
 /// The point a Double-offset index names [WD 7.8.5.2: multiples of 3].
@@ -362,13 +356,7 @@ pub(crate) type UvSets = Vec<Vec<Option<[u32; 3]>>>;
 /// turned into pair indices [`prc__8137__tess_3d.md` §9: a slot is a Double
 /// offset, so even]; a triangle with a slot naming no pair is `None`.
 pub(crate) fn stored_uvs(coords: &[f64], sets: UvSets) -> (Vec<[f64; 2]>, UvSets) {
-    let uvs: Vec<[f64; 2]> = coords
-        .chunks_exact(2)
-        .map(|c| match c {
-            [u, v] => [*u, *v],
-            _ => [0.0; 2],
-        })
-        .collect();
+    let uvs: Vec<[f64; 2]> = coords.as_chunks::<2>().0.to_vec();
     if uvs.is_empty() {
         return (Vec::new(), Vec::new());
     }
@@ -390,10 +378,7 @@ pub(crate) fn stored_uvs(coords: &[f64], sets: UvSets) -> (Vec<[f64; 2]>, UvSets
 /// Append the triangles `shape` makes of `verts`.
 pub(crate) fn assemble(shape: Shape, verts: &[u32], out: &mut Vec<[u32; 3]>) {
     match shape {
-        Shape::Triangles => out.extend(verts.chunks_exact(3).filter_map(|c| match c {
-            [a, b, c] => Some([*a, *b, *c]),
-            _ => None,
-        })),
+        Shape::Triangles => out.extend_from_slice(verts.as_chunks::<3>().0),
         Shape::Fan => {
             if let Some((&c, rim)) = verts.split_first() {
                 out.extend(rim.windows(2).filter_map(|w| match w {

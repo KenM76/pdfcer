@@ -136,8 +136,10 @@ pub(crate) fn render(
 /// (a finite depth key), each channel clamped to 255.
 fn add_emissive(lit: &mut [u8], unlit: &[u8], depth: &[f64], share: f64) {
     for ((px, flat), key) in lit
-        .chunks_exact_mut(4)
-        .zip(unlit.chunks_exact(4))
+        .as_chunks_mut::<4>()
+        .0
+        .iter_mut()
+        .zip(unlit.as_chunks::<4>().0)
         .zip(depth)
     {
         if key.is_finite() {
@@ -190,7 +192,7 @@ mod tests {
     }
 
     fn count(rgba: &[u8], f: impl Fn(&[u8]) -> bool) -> usize {
-        rgba.chunks_exact(4).filter(|p| f(p)).count()
+        rgba.as_chunks::<4>().0.iter().filter(|p| f(*p)).count()
     }
 
     fn mode(kind: RenderModeKind) -> RenderMode {

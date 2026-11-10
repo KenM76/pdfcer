@@ -67,7 +67,7 @@ pub fn recorded_base(edited: &Document) -> Option<Fingerprint> {
     let at = window.windows(MARKER.len()).position(|w| w == MARKER)?;
     let hex = bytes.get(at + MARKER.len()..at + MARKER.len() + 64)?;
     let mut out = [0u8; 32];
-    for (slot, pair) in out.iter_mut().zip(hex.chunks_exact(2)) {
+    for (slot, pair) in out.iter_mut().zip(hex.as_chunks::<2>().0) {
         let text = std::str::from_utf8(pair).ok()?;
         *slot = u8::from_str_radix(text, 16).ok()?;
     }

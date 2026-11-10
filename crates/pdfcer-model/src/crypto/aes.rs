@@ -203,7 +203,9 @@ fn split_iv_and_whole_blocks(data: &[u8]) -> Option<([u8; IV_LEN], &[u8])> {
 /// short final chunk is impossible and `chunks_exact` would silently drop one
 /// if it were not.
 fn blocks_of(body: &[u8]) -> Vec<AesBlock> {
-    body.chunks_exact(BLOCK_LEN)
+    body.as_chunks::<BLOCK_LEN>()
+        .0
+        .iter()
         .map(|c| {
             let mut b = AesBlock::default();
             b.copy_from_slice(c);
@@ -730,7 +732,9 @@ mod tests {
         ));
 
         let mut blocks: Vec<Block<Aes128>> = buf
-            .chunks_exact(BLOCK_LEN)
+            .as_chunks::<BLOCK_LEN>()
+            .0
+            .iter()
             .map(|c| {
                 let mut b = Block::<Aes128>::default();
                 b.copy_from_slice(c);

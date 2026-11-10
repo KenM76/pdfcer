@@ -30,7 +30,7 @@
 #[allow(clippy::indexing_slicing)]
 fn compress(state: &mut [u32; 5], block: &[u8; 64]) {
     let mut w = [0u32; 80];
-    for (i, chunk) in block.chunks_exact(4).enumerate() {
+    for (i, chunk) in block.as_chunks::<4>().0.iter().enumerate() {
         w[i] = u32::from_be_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
     }
     for i in 16..80 {
@@ -76,14 +76,11 @@ pub fn sha1(data: &[u8]) -> [u8; 20] {
         0x1032_5476,
         0xC3D2_E1F0,
     ];
-    let mut blocks = data.chunks_exact(64);
-    for block in &mut blocks {
-        let mut b = [0u8; 64];
-        b.copy_from_slice(block);
-        compress(&mut state, &b);
+    let (blocks, rest) = data.as_chunks::<64>();
+    for block in blocks {
+        compress(&mut state, block);
     }
     // Padding: 0x80, zeros to 56 mod 64, then the bit length big-endian.
-    let rest = blocks.remainder();
     let mut tail = Vec::with_capacity(128);
     tail.extend_from_slice(rest);
     tail.push(0x80);
@@ -91,10 +88,8 @@ pub fn sha1(data: &[u8]) -> [u8; 20] {
         tail.push(0);
     }
     tail.extend_from_slice(&((data.len() as u64) * 8).to_be_bytes());
-    for block in tail.chunks_exact(64) {
-        let mut b = [0u8; 64];
-        b.copy_from_slice(block);
-        compress(&mut state, &b);
+    for block in tail.as_chunks::<64>().0 {
+        compress(&mut state, block);
     }
     let mut out = [0u8; 20];
     for (i, s) in state.iter().enumerate() {

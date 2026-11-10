@@ -970,7 +970,7 @@ pub fn byte_range_coverage<G: ObjectGraph + ?Sized>(
 
         let mut ranges: Vec<(u64, u64)> = Vec::with_capacity(nums.len() / 2);
         let mut well_formed = true;
-        for pair in nums.chunks_exact(2) {
+        for pair in nums.as_chunks::<2>().0 {
             // A negative offset or length is nonsense rather than a small
             // number; clamping would invent a range the file never
             // declared.

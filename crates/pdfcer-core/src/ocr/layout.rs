@@ -265,7 +265,9 @@ impl LayoutRegion {
 #[must_use]
 pub fn decode_rows(rows: &[f32], width: f32, height: f32, threshold: f32) -> Vec<LayoutRegion> {
     let mut found: Vec<LayoutRegion> = rows
-        .chunks_exact(7)
+        .as_chunks::<7>()
+        .0
+        .iter()
         .take(MAX_ROWS)
         .filter_map(|r| decode_row(r, width, height, threshold))
         .collect();

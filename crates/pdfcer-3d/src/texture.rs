@@ -79,7 +79,7 @@ impl Texture {
     /// Whether every texel is opaque.
     #[must_use]
     pub fn is_opaque(&self) -> bool {
-        self.rgba.chunks_exact(4).all(|p| p.get(3) == Some(&255))
+        self.rgba.as_chunks::<4>().0.iter().all(|&[.., a]| a == 255)
     }
 
     /// The texel at stored coordinates `uv`, bilinearly filtered, after
@@ -327,7 +327,7 @@ pub(crate) fn keep_channels(rgba: &mut [u8], channels: u32) {
     if keep & 0xF == 0xF {
         return;
     }
-    for p in rgba.chunks_exact_mut(4) {
+    for p in rgba.as_chunks_mut::<4>().0 {
         for (k, c) in p.iter_mut().enumerate() {
             if keep & (1 << k) == 0 {
                 *c = 255;

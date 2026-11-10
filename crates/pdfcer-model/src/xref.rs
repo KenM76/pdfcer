@@ -1096,7 +1096,7 @@ fn index_pairs(dict: &Dict, size: u32) -> Option<Vec<(u32, usize)>> {
         return None;
     }
     let mut pairs = Vec::with_capacity(items.len() / 2);
-    for pair in items.chunks_exact(2) {
+    for pair in items.as_chunks::<2>().0 {
         let (Some(first), Some(count)) = (pair.first(), pair.get(1)) else {
             return None;
         };

@@ -1015,7 +1015,7 @@ fn walk_name_tree<G: ObjectGraph + ?Sized>(
         if pairs.len() % 2 == 1 {
             notes.malformed_tree_entries += 1;
         }
-        for pair in pairs.chunks_exact(2) {
+        for pair in pairs.as_chunks::<2>().0 {
             let (Some(key), Some(value)) = (pair.first(), pair.get(1)) else {
                 continue;
             };

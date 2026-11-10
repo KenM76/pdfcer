@@ -959,7 +959,9 @@ fn write_u32(bytes: &mut [u8], at: usize, value: u32) {
 /// `dmFormName`).
 fn utf16_field(bytes: &[u8]) -> String {
     let units: Vec<u16> = bytes
-        .chunks_exact(2)
+        .as_chunks::<2>()
+        .0
+        .iter()
         .map(|c| u16::from_le_bytes([*c.first().unwrap_or(&0), *c.get(1).unwrap_or(&0)]))
         .take_while(|&u| u != 0)
         .collect();

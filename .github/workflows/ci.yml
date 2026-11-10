@@ -28,7 +28,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.97.1"
+          toolchain: "1.99.1"
           components: rustfmt
       - run: cargo fmt --all --check
       # `cargo fmt --all` formats WORKSPACE MEMBERS only, so every crate in
@@ -55,7 +55,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.97.1"
+          toolchain: "1.99.1"
           components: clippy
       - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       # A lite CLI build turns 3D/OCR-only helpers into dead code that the
@@ -69,7 +69,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.97.1"
+          toolchain: "1.99.1"
       # A doc link to a renamed or removed item is a contract naming
       # something that does not exist, and rustdoc only warns. Denying the
       # one lint keeps it at zero; the private-link and redundant-target
@@ -100,7 +100,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.97.1"
+          toolchain: "1.99.1"
       - run: cargo test --workspace --all-features
       # THE STRIPPABLE-CAPABILITY GATE.
       #
@@ -157,7 +157,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.97.1"
+          toolchain: "1.99.1"
       # See docs/ARCHITECTURE.md §3 invariant: pdfcer-core and
       # pdfcer-render must never depend on egui/eframe/winit/wgpu (a
       # headless CPU rasterizer like tiny-skia is fine — it's not a
@@ -736,7 +736,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.97.1"
+          toolchain: "1.99.1"
           targets: aarch64-apple-darwin,wasm32-unknown-unknown
       # WHAT THIS PROVES: the workspace type-checks for these targets.
       # WHAT IT DOES NOT PROVE: that it links, runs, or opens a window.
@@ -831,7 +831,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.97.1"
+          toolchain: "1.99.1"
       # ARCHITECTURE.md §1.1 / decision 003 rule R12, AS NARROWED BY THE
       # OPERATOR ON 2026-08-13. Verbatim: "the no network rule was made
       # too broad. all I meant by that is the software itself didn't rely
@@ -901,7 +901,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: "1.97.1"
+          toolchain: "1.99.1"
       # NOTE: the `cli` feature is REQUIRED — without it cargo-about installs
       # no binary (`cargo about` then reports "no such command"). --locked
       # keeps the tool's own build reproducible.
@@ -973,7 +973,7 @@ jobs:
       # so no other job compiles it — without this job, an API drift
       # would go unnoticed until someone next fuzzes locally.
       # libFuzzer needs nightly (-Z sanitizer flags), hence the
-      # separate toolchain from the 1.97.1 jobs above.
+      # separate toolchain from the 1.99.1 jobs above.
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly

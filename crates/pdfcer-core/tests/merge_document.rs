@@ -1102,7 +1102,9 @@ fn labels_in(bytes: Vec<u8>) -> Option<Vec<SavedRange>> {
         _ => String::new(),
     };
     Some(
-        nums.chunks_exact(2)
+        nums.as_chunks::<2>()
+            .0
+            .iter()
             .map(|p| {
                 let d = doc.resolve(&p[1]).as_dict().expect("label dict").clone();
                 (

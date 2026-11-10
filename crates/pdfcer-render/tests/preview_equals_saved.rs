@@ -346,7 +346,13 @@ fn assert_pixmaps_identical(op: &str, preview: &Pixmap, saved: &Pixmap) {
     let width = preview.width() as usize;
     let mut differing = 0usize;
     let mut first: Option<(usize, usize, [u8; 4], [u8; 4])> = None;
-    for (i, (pa, pb)) in a.chunks_exact(4).zip(b.chunks_exact(4)).enumerate() {
+    for (i, (pa, pb)) in a
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .zip(b.as_chunks::<4>().0)
+        .enumerate()
+    {
         if pa != pb {
             differing += 1;
             if first.is_none() {
