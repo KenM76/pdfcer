@@ -4,6 +4,19 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-10 (1479th filing) — `ca55c343` `Pass 699.0` + `Pass 699.1` SHIPPED (print into a printer ICC profile; list installed ICC profiles)
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- One code commit `ca55c343cc1f4330216af4f78c14923163e76c08` carries both Passes (requests `X063`, `X064`); filed as banners in `59d203c4` (1478th), now moved to Shipped. `pdfcer-print` modules `icc_output` and `icc_profiles`; CLI `print --printer-profile/--printer-intent/--no-printer-bpc` and new subcommand `list-icc-profiles [--all]`.
+- Tests as reported: `pdfcer-print` 161 unit + 10 doc (12 new); `pdfcer-cli` 102 unit + 1072 integration (2 ignored), 6 unit + 3 integration new. Sabotage-verified; the intent-mapping mutation survived until a direct mapping test was added. Gates as reported all pass; `pdfcer-core`/`pdfcer-render` untouched; no new crates, no `THIRD_PARTY_LICENSES` regeneration.
+- FEATURES: both rows ticked core and cli, gui left `[ ]`; the 699.1 row's command text corrected to `list-icc-profiles`.
+
+**Decided divergence (699.1 CLI):** filed as `print --list-icc-profiles`; shipped as the subcommand `pdfcer list-icc-profiles [--all]`, because `print` requires an input PDF and `list-printers` is the precedent. Engineer-measured on the operator's machine: 40 profiles, 19 printable.
+
+**Release:** planned as `v0.141.0` (writes OneDrive `pdfcer1`); not bumped or tagged.
+
+**Still open:** `696.1`; GUI halves with `pdfcer-gui`.
+
 ## 2026-11-09 (1477th filing) — `v0.140.0` PUBLISHED (tag on `20d559b8`, OneDrive `pdfcer2`)
 
 **Filed (engineer-reported, measured 2026-11-09; no shell here, nothing checked from here; docs only, engineer commits):**
