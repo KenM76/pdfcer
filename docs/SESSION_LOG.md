@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-10 (1489th filing) — `v0.143.0` PUBLISHED; `3ee18220` architecture §10.1; `f8f0e2d8` target-cache cleaner; `Pass 703.0` stays PARTIAL
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- **`v0.143.0` PUBLISHED** (the 1488th filing's "planned" release is done). Annotated tag `v0.143.0` on `ba022dcff59850e805adb2cf42b8cd2cecf975c9`, pushed, CI green. GitHub release with 8 assets: `pdfcer-v0.143.0-windows-x64.zip` (31,781,805 bytes), its `.sha256`, the OCR add-on zips. Deployed to OneDrive `pdfcer2`; `pdfcer1` keeps 0.141.0, so the next release writes `pdfcer1`. All 14 crates at 0.143.0 on crates.io. `verify-release.py` passed; its only FAIL was "working tree clean" (uncommitted agent-memory files, expected). `v0.142.0` (`f6c8b27c`) stays a dead tag (recorded in the 1488th filing; not re-filed).
+- **`3ee18220`** docs(architecture): a section 10.1 bullet records the page-wide render budgets (`Pass 703.0`, from `25a2a6f5`). This discharges the 1487th filing's flag that section 10 decompression-bomb prose was per-stream only. Docs only; no FEATURES row.
+- **`f8f0e2d88ae9d56edfd75e63036a5d41a39aa588`** fix(tools): `tools/clean-target-cache.py` now finds release-bump commits under both spellings ("chore: bump version" and "chore(release): vN"). Before, only the old spelling matched, so the cutoff sat at v0.124.0 and the cleaner freed nothing. `tools/run-gates.sh` now runs the cleaner automatically, keeping the 2 newest builds' worth. It freed 100 GiB on first run. Ken's request: "clean up old rust cache files ... automatically when you have more than 2 builds worth". Tools only; no FEATURES row.
+- **GUI channel** (`D:\Dev\FeatureRequests\pdfce_FeatureRequests`): new `open/reply_X067_F054_F055_SHIPPED.md` (F054 and F055 shipped in `v0.143.0`; F028 coverage budget, F152 streamed content past `MAX_DECODED_LEN`, and per-form canvas-area cost stay open in `Pass 703.0`) and `open/notice_2026-11-10_v0.143.0_released.md`.
+- **`Pass 703.0` stays OPEN (partial); NOT moved to Shipped.** Still owed: the three items above, plus acceptance on the real X067 repros (30 s, ~2 GB, release; not measured).
+- ROADMAP: new Shipped entry for the publication and the two chore/docs commits; Next-up banner appended; 1488th Shipped entry amended ("not yet published" now published). `docs/NEXT_SESSION.md` line 8 updated from "being released" to published. FEATURES: no change (no box ticked; 703.0 row stays unticked).
+
+**For next session:** finish the owed `703.0` items, then `703.1`; then arc `702.0`-`702.6` (X066).
+
 ## 2026-11-10 (1488th filing) — `6b8d02fd` clippy dead-code fix; `ba022dcf` `v0.143.0` bump; `v0.142.0` recorded as a DEAD TAG
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**

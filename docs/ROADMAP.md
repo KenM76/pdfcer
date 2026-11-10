@@ -112,11 +112,20 @@ wherever it appears.*
 
 ## Shipped
 
+### `v0.143.0` PUBLISHED, 2026-11-10; `3ee18220` architecture section 10.1; `f8f0e2d8` target-cache cleaner (1489th filing)
+
+Engineer-reported; no shell here, nothing checked from here.
+- **Release:** annotated tag `v0.143.0` on `ba022dcff59850e805adb2cf42b8cd2cecf975c9`, pushed, CI green. 8 GitHub assets (portable zip `pdfcer-v0.143.0-windows-x64.zip`, 31,781,805 bytes; `.sha256`; OCR add-on zips). OneDrive `pdfcer2`; `pdfcer1` keeps 0.141.0 (next release writes `pdfcer1`). All 14 crates at 0.143.0 on crates.io. `verify-release.py` passed except "working tree clean" (uncommitted agent-memory files). Carries `700.0`, `700.1`, `701.0`, the `6b8d02fd` lint fix and the `Pass 703.0` first cut (`25a2a6f5`). Dead tag `v0.142.0` stays dead.
+- **`Pass 703.0` stays OPEN (partial).** `v0.143.0` shipped F054 and F055 of `X067`; owed: F028 coverage budget, F152 streamed content past `MAX_DECODED_LEN`, per-form canvas-area cost, repro acceptance. Reply `open/reply_X067_F054_F055_SHIPPED.md` and `open/notice_2026-11-10_v0.143.0_released.md` in the GUI channel.
+- **`3ee18220`** docs(architecture): section 10.1 bullet on the page-wide render budgets.
+- **`f8f0e2d88ae9d56edfd75e63036a5d41a39aa588`** fix(tools): `clean-target-cache.py` matches both release-bump spellings (the old cutoff sat at v0.124.0 and freed nothing); `run-gates.sh` runs it automatically, keeping the 2 newest builds. Freed 100 GiB on first run.
+- **FEATURES:** no change.
+
 ### `6b8d02fd` + `ba022dcf`, 2026-11-10: clippy dead-code fix; `v0.143.0` bump supersedes dead tag `v0.142.0` (1488th filing)
 
 Engineer-reported; no shell here, git, tag, push, CI, crates.io and backup state not checked from here. The `v0.142.0` tag (bump `f6c8b27c`, CI on `ccd1a6be`) was pushed but `cargo clippy -D warnings` failed on ubuntu and macOS: field `edge_antialiasing` is never read (`crates/pdfcer-cli/src/print_output.rs`; read only by the `cfg(windows)` print path, introduced by `Pass 700.1`). `v0.142.0` was NEVER released (no GitHub release, no OneDrive deploy, no crates.io publish): a dead tag, same pattern as `v0.29.0` to `v0.29.1`.
 - **`6b8d02fdb48771b017ab849a74871527ee6e4b07`**, `fix(cli): silence the non-Windows dead-code lint on PrintOutput::edge_antialiasing (Pass 700.1 follow-up)`: one `#[cfg_attr(not(windows), allow(dead_code))]` with a comment. Engineer verified locally: clippy `-p pdfcer-cli --all-targets --target x86_64-unknown-linux-gnu -D warnings` clean, `cargo check --target aarch64-apple-darwin` clean, Windows clippy clean, fmt clean. No Pass ID of its own; attaches to `Pass 700.1`.
-- **`ba022dcff59850e805adb2cf42b8cd2cecf975c9`**, `chore(release): v0.143.0` (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`). Planned `v0.143.0` = `700.0`, `700.1`, `701.0`, the lint fix, and the `Pass 703.0` first cut (`25a2a6f5`, filed 1487th; `703.0` stays OPEN). Not yet published; writes OneDrive `pdfcer2` unless `pdfcer1`/`pdfcer2` alternation says otherwise (engineer to confirm at deploy).
+- **`ba022dcff59850e805adb2cf42b8cd2cecf975c9`**, `chore(release): v0.143.0` (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`). Planned `v0.143.0` = `700.0`, `700.1`, `701.0`, the lint fix, and the `Pass 703.0` first cut (`25a2a6f5`, filed 1487th; `703.0` stays OPEN). **1489th amendment: PUBLISHED (see the entry above).** Was "not yet published"; writes OneDrive `pdfcer2` unless `pdfcer1`/`pdfcer2` alternation says otherwise (engineer to confirm at deploy).
 - **FEATURES:** no row for the lint fix; the two `planned for v0.142.0` clauses (Pass 700.0, 700.1 rows) changed to `v0.143.0`.
 
 ### `f6c8b27c` `chore(release): v0.142.0`, 2026-11-10: version bump filed, release NOT yet published (1485th filing)
@@ -37731,6 +37740,8 @@ overrides the image dictionary; `/ColorSpace` optional,
 > **1486th filing: request `X067` (99 renderer, extraction and robustness misses on synthetic edge-case files, measured at `v0.141.0`) ACCEPTED as the arc `Pass 703.0`-`703.14`, filed in *Backlog* below. `Pass 703.0` (hostile-input budgets) is next after the `v0.142.0` release; it goes AHEAD of the `702.0`-`702.6` arc (`X066`), which follows. This supersedes the 1485th banner's "Next arc: `702.0`". Not in `v0.142.0`; fixes ship batch by batch from `v0.143.0`. No Pass is IN PROGRESS.**
 >
 > **1488th filing: `v0.142.0` is a DEAD TAG, never released (CI red on ubuntu/macOS clippy: `edge_antialiasing` never read; no GitHub release, no OneDrive deploy, no crates.io publish). Fix `6b8d02fd`; replacement bump `ba022dcf` = planned `v0.143.0` carrying `700.0`, `700.1`, `701.0`, the lint fix and the `703.0` first cut; not yet published. Wherever an earlier banner says `v0.142.0` carries those Passes, read `v0.143.0`. `703.0` stays OPEN; no Pass is IN PROGRESS.**
+
+> **1489th filing: `v0.143.0` is PUBLISHED (tag on `ba022dcf`, CI green, 8 assets, OneDrive `pdfcer2`, 14 crates on crates.io); the "not yet published" in the 1488th banner is superseded. `Pass 703.0` stays OPEN (partial): F054/F055 shipped; F028, F152, per-form canvas-area cost and repro acceptance owed. Next release writes `pdfcer1`. No Pass is IN PROGRESS.**
 >
 > **1487th filing: `Pass 703.0` is PARTIAL and stays OPEN (first cut `25a2a6f5`, on `main`, not pushed at filing; NOT in `v0.142.0`, ships `v0.143.0`). Shipped: a nested-paint budget and a held-content budget per root render (new `pdfcer_render::page_budget`), a `content_truncated` DIVERGENCE counter (16 keys), a CLI stderr warning. Still owed inside `703.0`: per-form cost scaling with canvas area, the F028 coverage budget, F152 streamed content, and acceptance against the real X067 repro files. Details: *Backlog*, `Pass 703.0`-`703.14`, status line.**
 
