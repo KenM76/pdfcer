@@ -124,6 +124,7 @@
 
 use crate::device_clip::{FitMask, FitPaint};
 
+mod clip_rect;
 mod coverage;
 mod tiling;
 use std::collections::{BTreeMap, HashMap};
@@ -10081,6 +10082,10 @@ fn intersect_clip(
     // three so a delta measured this way cannot be read as the cost of
     // construction alone (R164).
     if crate::profile::skip_clip_build() {
+        return;
+    }
+    let size = (canvas.width(), canvas.height());
+    if clip_rect::rect_clip_is_identity(path, ctm, state.clip.is_some(), state.clip_bbox, size) {
         return;
     }
     // Sub-phase timing. `timing_enabled()` is a compile-time constant, so

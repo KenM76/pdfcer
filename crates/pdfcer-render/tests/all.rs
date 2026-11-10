@@ -35,6 +35,7 @@ mod ext_gstate_indirect;
 mod external_tools;
 mod fallback_font;
 mod flatten_annotations_look_the_same;
+mod form_bbox_clip_identity;
 mod format_embed_font;
 mod format_style_donor;
 mod fuzz_cmyk_page_reaches_the_buffer;
