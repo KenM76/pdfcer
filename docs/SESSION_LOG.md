@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-10 (1483rd filing) — `v0.141.0` PUBLISHED
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- Tag `v0.141.0` on `1747a9c1cd5250673cf2895a14b795941f730e49`, pushed; CI green at that SHA. GitHub release with 8 assets. All 14 engine crates at 0.141.0 on crates.io (`pdfcer-print` not published; git dependency at the tag). OneDrive `pdfcer1` written; `pdfcer2` keeps 0.140.0; the next release writes `pdfcer2`.
+- `verify-release.py`: all ok except "working tree clean" (23 uncommitted paths, the standing excluded set; none are build inputs).
+- Contents: 699.0, 699.1, 699.2, `b55b0de4`. Channel notice `notice_2026-11-10_v0.141.0_released.md`, INDEX row 15.
+- FEATURES: 699.0/.1/.2 rows now "released in v0.141.0", boxes unchanged (gui not built); crates.io row names v0.141.0. ROADMAP Shipped entry added.
+- NEXT_SESSION updated: also open request `X065` (toolchain bump to Rust 1.99.1, received 2026-11-10), and an operator report under investigation (a licensed print-conformance test file printed from pdfcer-gui at 11x17 duplex on an Epson ET-16600: slow, and test-patch X's visible).
+
+**For next session:** investigate the print-conformance print report; take X065.
+
 ## 2026-11-10 (1482nd filing) — `b55b0de4` docs-link fix in `pdfcer-print` (follow-up to `25417234`, no new Pass)
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**

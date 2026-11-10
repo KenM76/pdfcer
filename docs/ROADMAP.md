@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `1747a9c1` / tag `v0.141.0`, 2026-11-10: release v0.141.0 published, OneDrive `pdfcer1` (1483rd filing)
+
+Engineer-reported (measured 2026-11-10); no shell here, git, crates.io and remote state not checked from here. Annotated tag `v0.141.0` on `1747a9c1cd5250673cf2895a14b795941f730e49` (HEAD of `main`), pushed; CI green at that SHA. Version bump `ccdef5b3` (filed 1480th). Closes the "not yet published" notes on the `699.x` entries below.
+- **Contents since v0.140.0:** `Pass 699.0` (`ca55c343`, ICC printer profile printing), `699.1` (`list-icc-profiles`), `699.2` (`25417234`, CMYK proof printing), plus doc-link fix `b55b0de4`. All released in v0.141.0.
+- **GitHub release:** 8 assets.
+- **OneDrive:** `pdfcer1` now 0.141.0; `pdfcer2` keeps 0.140.0. **The NEXT release writes `pdfcer2`.**
+- **crates.io:** all 14 engine crates published at 0.141.0: model, color, pkix, vec3, json, jpeg-remux, 3d, 3d-nav, image-codec, fonts, function, text, core, render. `pdfcer-print` is not published; consumers take it as a git dependency at the tag.
+- **verify-release.py v0.141.0:** every check ok except "working tree clean" (23 uncommitted paths: `.claude/agent-memory` edits, `docs/research/request-*.md`, the stray `-` file; none are build inputs; accepted precedent).
+- **pdfcer-gui notified:** `open/notice_2026-11-10_v0.141.0_released.md` plus INDEX row 15 in `D:\Dev\FeatureRequests\pdfce_FeatureRequests`.
+- **FEATURES:** rows for 699.0, 699.1, 699.2 flipped from "unreleased" to "released in v0.141.0"; the crates.io row names `v0.141.0`; no box changes (core + cli ticked, gui not built).
+
 ### `25417234` `Pass 699.2`, 2026-11-10: CMYK proof printing on the desk printer (1481st filing)
 
 Engineer-reported; no shell here, git, push and backup state not checked from here. One code commit `25417234ea1a158b358476caf3703937643f91bd` on `main`. Origin: operator question 2026-11-10, *"Aren't we able to support commercial CMYK profiles though?"* (`699.0` refused CMYK printer profiles because the raster route hands the Windows driver RGB). Minted and shipped in one filing, never in Next up. Not yet released; goes into `v0.141.0` (bumped in `ccdef5b3`, not tagged). Reasoning is in the commit message and module docs. **gui not delivered.** Mirrors Acrobat Pro print colour management / Output Preview simulation profile (Acrobat RAG `printing__advanced_output_panel.md`, `prepress__output_preview.md`).
