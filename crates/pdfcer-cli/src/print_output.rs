@@ -26,6 +26,41 @@ pub(crate) enum ColorArg {
     BlackOnly,
 }
 
+/// `--edge-antialiasing` on `print`.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum EdgeAaArg {
+    /// Off at 300 DPI and above, on below. The default.
+    #[default]
+    Auto,
+    /// Smooth every edge, as on screen.
+    On,
+    /// Hard edges at every resolution.
+    Off,
+}
+
+/// The resolution from which `--edge-antialiasing auto` prints hard edges:
+/// at 300 DPI a stair-step is under a tenth of a millimetre, while the
+/// seam antialiasing leaves between abutting shapes stays visible.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub(crate) const EDGE_AA_AUTO_OFF_DPI: u32 = 300;
+
+#[cfg_attr(not(windows), allow(dead_code))]
+impl EdgeAaArg {
+    /// The render setting this choice means at `dpi`.
+    pub(crate) fn at_dpi(self, dpi: u32) -> pdfcer_render::EdgeAntialiasing {
+        let on = match self {
+            Self::Auto => dpi < EDGE_AA_AUTO_OFF_DPI,
+            Self::On => true,
+            Self::Off => false,
+        };
+        if on {
+            pdfcer_render::EdgeAntialiasing::On
+        } else {
+            pdfcer_render::EdgeAntialiasing::Off
+        }
+    }
+}
+
 /// `--header-align` / `--footer-align` on `print`.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
 pub(crate) enum AlignArg {
@@ -77,6 +112,7 @@ pub(crate) struct PrintOutput {
     pub separations: bool,
     pub print_as_image: bool,
     pub finishing: pdfcer_print::finishing::Finishing,
+    pub edge_antialiasing: EdgeAaArg,
 }
 
 // Consumed only by the `#[cfg(windows)]` `cmd_print`; pure, so compiled and

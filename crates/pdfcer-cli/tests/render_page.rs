@@ -705,12 +705,33 @@ fn the_cmyk_buffer_ceiling_is_settable_and_the_outcome_is_disclosed() {
     let out_path = png.to_str().unwrap().to_owned();
 
     // 200x100 pt at scale 1 is 20,000 px = 400,000 bytes of colorant
-    // buffer. The two ceilings straddle that number.
-    let low = run(&[
+    // buffer, 4,000 bytes per row. 128 KiB holds 32 rows, so the page is
+    // composited in ink in four bands; 2 KiB holds not one row, so it
+    // refuses.
+    let banded = run(&[
         "render-page",
         &path,
         "--max-cmyk-buffer-bytes",
         "128kib",
+        "-o",
+        &out_path,
+    ]);
+    assert_eq!(code(&banded), 0, "stderr: {}", stderr(&banded));
+    assert!(
+        stdout(&banded).contains("cmyk_buffer=1 cmyk_buffer_refused=0"),
+        "a ceiling below the raster but above one row must still composite in ink: {}",
+        stdout(&banded)
+    );
+    assert!(
+        stderr(&banded).contains("in 4 ROW BANDS"),
+        "banding must be disclosed with its count: {}",
+        stderr(&banded)
+    );
+    let low = run(&[
+        "render-page",
+        &path,
+        "--max-cmyk-buffer-bytes",
+        "2kib",
         "-o",
         &out_path,
     ]);
@@ -722,7 +743,7 @@ fn the_cmyk_buffer_ceiling_is_settable_and_the_outcome_is_disclosed() {
     );
     assert!(
         stdout(&low).contains("cmyk_buffer=0 cmyk_buffer_refused=1"),
-        "a ceiling below the raster must refuse and SAY so: {}",
+        "a ceiling below one row must refuse and SAY so: {}",
         stdout(&low)
     );
     assert!(

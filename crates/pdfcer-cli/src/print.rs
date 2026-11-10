@@ -487,11 +487,20 @@ pub(crate) fn cmd_print(
 
     // Every render in this job uses these options, so a line-width choice
     // reaches N-up cells, booklet halves and poster tiles alike.
-    let print_options = print_render_options(comments, line_width_mm, dpi);
+    let print_options =
+        print_render_options(comments, line_width_mm, output.edge_antialiasing, dpi);
     if let (Some(mm), pdfcer_render::StrokeDisplay::Fixed { device_px }) =
         (line_width_mm, print_options.stroke_display)
     {
         eprintln!("pdfcer: every line prints {mm} mm wide ({device_px:.2} px at {dpi} dpi).");
+    }
+    if output.edge_antialiasing == crate::print_output::EdgeAaArg::Auto
+        && !print_options.edge_antialiasing.is_on()
+    {
+        eprintln!(
+            "pdfcer: printing hard edges at {dpi} dpi, so shapes that touch leave no seam \
+             (--edge-antialiasing on to smooth them)."
+        );
     }
 
     // ---- N-up: several source pages composited onto one sheet ----
@@ -1322,11 +1331,13 @@ fn printable_dpi_cap(
 pub(crate) fn print_render_options(
     comments: CommentsArg,
     line_width_mm: Option<f64>,
+    edges: crate::print_output::EdgeAaArg,
     dpi: u32,
 ) -> pdfcer_render::RenderOptions {
     let mut options = pdfcer_render::RenderOptions::default()
         .with_annotation_scope(comments.to_scope())
-        .with_print_intent(true);
+        .with_print_intent(true)
+        .with_edge_antialiasing(edges.at_dpi(dpi));
     if let Some(mm) = line_width_mm {
         #[allow(clippy::cast_possible_truncation)]
         let device_px = (mm / 25.4 * f64::from(dpi)) as f32;
@@ -2734,12 +2745,22 @@ mod poster_marks_tests {
 
     #[test]
     fn line_width_becomes_a_fixed_device_width_at_the_job_dpi() {
-        let options = print_render_options(CommentsArg::Document, Some(25.4), 300);
+        let options = print_render_options(
+            CommentsArg::Document,
+            Some(25.4),
+            crate::print_output::EdgeAaArg::Auto,
+            300,
+        );
         assert_eq!(
             options.stroke_display,
             pdfcer_render::StrokeDisplay::Fixed { device_px: 300.0 }
         );
-        let options = print_render_options(CommentsArg::Document, None, 300);
+        let options = print_render_options(
+            CommentsArg::Document,
+            None,
+            crate::print_output::EdgeAaArg::Auto,
+            300,
+        );
         assert!(
             options.print_intent,
             "a print job answers to the Print flag"

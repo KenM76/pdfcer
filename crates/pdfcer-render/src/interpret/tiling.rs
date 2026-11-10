@@ -229,7 +229,7 @@ impl Interpreter<'_> {
         canvas: &Canvas<'_>,
     ) -> Option<(Mask, Region)> {
         let mut mask = Mask::new(canvas.width(), canvas.height())?;
-        mask.fill_path_fit(area.path, area.rule, true, area.ctm);
+        mask.fill_path_fit(area.path, area.rule, self.edge_aa, area.ctm);
         if let Some(old) = self.gs.current.clip.as_deref() {
             for (n, o) in mask.data_mut().iter_mut().zip(old.data()) {
                 *n = ((u16::from(*n) * u16::from(*o)) / 255) as u8;

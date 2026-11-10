@@ -898,8 +898,8 @@ stream
 ///
 /// Three claims are only worth anything together:
 ///
-/// 1. A ceiling too small for the raster **refuses** — the same disclosed
-///    fallback a huge page has always taken, now reachable deliberately.
+/// 1. A ceiling too small for the raster **bands** it, still in ink; one
+///    too small for a single row **refuses**, disclosed.
 /// 2. Raising the ceiling **engages** it again at the same raster size, so
 ///    the setting is a real permission and not a decoration.
 /// 3. [`pdfcer_render::will_composite_in_cmyk`] **predicted both**.
@@ -945,11 +945,14 @@ stream
     // The raster is 20x20 = 400 px, so 8,000 bytes of colorant buffer.
     // Both ceilings below are chosen against that number rather than
     // against a round one, so the test says WHY it expects each answer.
-    for (ceiling, expect_ink) in [
-        (Some(4_000_usize), false),
-        (Some(8_000), true),
-        (None, true),
-        (Some(0), false),
+    // 4,000 bytes holds 10 of the 20 rows, so that page is composited in
+    // two bands — still in ink, but not in one pass, which is what the
+    // predicate answers.
+    for (ceiling, expect_ink, expect_bands) in [
+        (Some(4_000_usize), true, 2),
+        (Some(8_000), true, 0),
+        (None, true, 0),
+        (Some(0), false, 0),
     ] {
         let options = RenderOptions::default().with_max_cmyk_buffer_bytes(ceiling);
         let r = render_page_with(&doc, &p, 1.0, &options).expect("render");
@@ -964,12 +967,66 @@ stream
             usize::from(!expect_ink),
             "a refusal must be DISCLOSED, never silent"
         );
+        assert_eq!(r.diagnostics.cmyk_bands, expect_bands, "at {ceiling:?}");
         assert_eq!(
             pdfcer_render::will_composite_in_cmyk(20, 20, ceiling),
-            expect_ink,
+            expect_ink && expect_bands == 0,
             "the public predicate disagreed with the renderer at {ceiling:?} —              a caller sizing a raster would be told the wrong thing"
         );
     }
+}
+
+/// A page banded under a small ceiling is the SAME raster as the page
+/// composited in one buffer — the fix for a print-resolution page whose
+/// blends and overprints came out in sRGB. The diagonal fill crosses every
+/// band boundary, so a misplaced band origin shows as a seam.
+#[test]
+fn a_banded_render_matches_the_single_pass_render() {
+    let stream = "0 0 0 1 k 0 0 20 20 re f /GS0 gs 0 1 0 0 k 1 1 m 19 19 l 19 14 l 6 1 l f
+1 0 0 0 k 0 13 m 13 0 l 20 0 l 0 20 l f
+";
+    let bytes = build(&[
+        (1, "<< /Type /Catalog /Pages 2 0 R >>"),
+        (
+            2,
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 20 20] >>",
+        ),
+        (
+            3,
+            "<< /Type /Page /Parent 2 0 R /Contents 4 0 R /Group << /S /Transparency /CS /DeviceCMYK >> /Resources << /ExtGState << /GS0 5 0 R >> >> >>",
+        ),
+        (
+            4,
+            &format!(
+                "<< /Length {} >>
+stream
+{stream}endstream",
+                stream.len()
+            ),
+        ),
+        (
+            5,
+            "<< /Type /ExtGState /BM /Difference /OP true /op true /OPM 1 >>",
+        ),
+    ]);
+    let doc = Document::from_bytes(bytes).expect("fixture parses");
+    let p = page_tree::pages(&doc).expect("page tree").remove(0);
+    let one = render_page_with(&doc, &p, 3.0, &RenderOptions::default()).expect("render");
+    // 60x60 px; 12,000 bytes holds 600 px = 10 rows, so six bands.
+    let banded = RenderOptions::default().with_max_cmyk_buffer_bytes(Some(12_000));
+    let six = render_page_with(&doc, &p, 3.0, &banded).expect("render");
+    assert_eq!(one.diagnostics.cmyk_bands, 0);
+    assert_eq!(six.diagnostics.cmyk_bands, 6);
+    assert!(six.diagnostics.cmyk_buffer_engaged);
+    assert_eq!(six.diagnostics.cmyk_buffer_refused, 0);
+    assert_eq!(
+        one.diagnostics.overprint_pixels, six.diagnostics.overprint_pixels,
+        "per-band pixel tallies must sum to the whole page's"
+    );
+    assert!(
+        one.pixmap.data() == six.pixmap.data(),
+        "the banded raster differs from the single-pass raster"
+    );
 }
 
 /// The other half of the switch, and the one that protects every ordinary

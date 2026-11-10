@@ -2263,10 +2263,17 @@ when comparing against another renderer",
     }
     if d.cmyk_buffer_refused > 0 {
         eprintln!(
-            "pdfcer: note: this page's PAGE GROUP declares a SUBTRACTIVE blending colour space, and pdfcer composited it on screen ANYWAY — the four-colorant buffer would have exceeded its allocation ceiling at this raster size. The page rendered; it rendered the way every pdfcer release before this one rendered it, with §11.3.4's complement not applied. ★ TWO WAYS OUT, and the second is new: RE-RENDER AT A LOWER RESOLUTION, or RAISE THE CEILING — it is {} here, which permits {} pixel(s) and this raster wanted {}. Set `max_cmyk_buffer_bytes` in settings.txt or pass --max-cmyk-buffer-bytes; there is no upper limit, it costs 20 bytes per pixel and roughly 50% more time",
+            "pdfcer: note: this page's PAGE GROUP declares a SUBTRACTIVE blending colour space, and pdfcer composited it on screen ANYWAY — not even ONE ROW of the four-colorant buffer fits its allocation ceiling at this raster width, so it could not be composited in bands either. The page rendered; it rendered the way every pdfcer release before this one rendered it, with §11.3.4's complement not applied. ★ TWO WAYS OUT, and the second is new: RE-RENDER AT A LOWER RESOLUTION, or RAISE THE CEILING — it is {} here, which permits {} pixel(s) and this raster wanted {}. Set `max_cmyk_buffer_bytes` in settings.txt or pass --max-cmyk-buffer-bytes; there is no upper limit, it costs 20 bytes per pixel and roughly 50% more time",
             pdfcer_core::settings::format_byte_size(max_cmyk_buffer_bytes),
             pdfcer_render::max_cmyk_composite_pixels(max_cmyk_buffer_bytes),
             raster_pixels
+        );
+    }
+    if d.cmyk_bands > 0 {
+        eprintln!(
+            "pdfcer: note: this raster was too large for one four-colorant buffer ({}), so it was composited IN INK in {} ROW BANDS that each fit, at the cost of interpreting the page once per band. Raise --max-cmyk-buffer-bytes (or `max_cmyk_buffer_bytes` in settings.txt) for fewer bands",
+            pdfcer_core::settings::format_byte_size(max_cmyk_buffer_bytes),
+            d.cmyk_bands
         );
     }
     if d.cmyk_spots_flattened > 0 {

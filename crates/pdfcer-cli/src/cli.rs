@@ -4370,6 +4370,11 @@ pub(crate) enum Command {
         /// The output bin, by the name `list-finishing` reports.
         #[arg(long, value_name = "NAME")]
         output_bin: Option<String>,
+        /// Smooth the edges of shapes and images. auto turns it off at 300
+        /// DPI and above, where smoothing leaves faint seams between shapes
+        /// that touch and the steps it hides are too small to see.
+        #[arg(long, value_enum, value_name = "WHEN", default_value_t = crate::print_output::EdgeAaArg::Auto)]
+        edge_antialiasing: crate::print_output::EdgeAaArg,
         /// Which sheet to print on: a form ID or a form NAME, as
         /// `list-paper-sizes` reports them.
         ///

@@ -218,6 +218,7 @@ pub mod annot;
 /// The four NON-SEPARABLE blend modes (ISO 32000-1 §11.3.5.3, Table 137),
 /// computed by pdfcer because the rasteriser's are measurably wrong —
 /// see the module docs and `ARCHITECTURE.md` §12 decision 066.
+mod banding;
 mod blend_flatten;
 pub mod blend_nonsep;
 pub mod cancel;
@@ -297,8 +298,8 @@ pub use display_list::{
     record_page,
 };
 pub use font::{
-    FallbackKey, FontData, FontEnvironment, GlyphSource, InkProbe, InkProbeSource, PageBackdrop,
-    RenderOptions, RenderPolicy, StrokeDisplay,
+    EdgeAntialiasing, FallbackKey, FontData, FontEnvironment, GlyphSource, InkProbe,
+    InkProbeSource, PageBackdrop, RenderOptions, RenderPolicy, StrokeDisplay,
 };
 pub use interpret::{BlendSpaceFrom, Diagnostics};
 pub use invisible_text::InvisibleTextPaint;
@@ -418,9 +419,10 @@ pub const CMYK_BYTES_PER_PIXEL: usize = cmyk_buffer::BYTES_PER_PIXEL;
 /// The default ceiling on a single subtractive compositing buffer, in bytes.
 ///
 /// At [`CMYK_BYTES_PER_PIXEL`] this permits **13,421,772 pixels** — a
-/// US-Letter page to roughly 379 DPI, or A4 to about 518 % zoom. Past it the
-/// page composites in sRGB instead and **says so** (`cmyk_buffer_refused`),
-/// which is a disclosed approximation rather than a failed render.
+/// US-Letter page to roughly 379 DPI, or A4 to about 518 % zoom, in one
+/// pass. Past it the raster is composited in row bands that each fit
+/// (`Diagnostics::cmyk_bands`); only a raster whose single row exceeds it
+/// composites in sRGB instead and **says so** (`cmyk_buffer_refused`).
 ///
 /// # This is a default, not a limit
 ///
@@ -471,8 +473,14 @@ pub const fn max_cmyk_composite_pixels(max_bytes: Option<usize>) -> u64 {
     (bytes / CMYK_BYTES_PER_PIXEL) as u64
 }
 
-/// Would a raster of `width_px × height_px` composite in ink, or fall back
-/// to sRGB?
+/// Would a raster of `width_px × height_px` composite in ink in ONE pass?
+///
+/// A `false` no longer means sRGB: a raster past the ceiling is composited
+/// in row bands that each fit, still in ink, at the cost of one
+/// interpretation per band (`Diagnostics::cmyk_bands`). Only a raster whose
+/// single row exceeds the ceiling falls back to sRGB and says so
+/// (`cmyk_buffer_refused`). A shell choosing a raster tier for speed asks
+/// this; one asking about colour correctness can rely on banding.
 ///
 /// **This is the question a caller actually has**, which is why it is a
 /// function rather than a constant to divide by: a shell choosing between a
@@ -929,7 +937,7 @@ fn render_impl(
     // tempted to add a hook here should remember that the point is to stop
     // losing the worker, not to stop hearing about it.
     match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        render_impl_rasterize(doc, page, scale, region, options)
+        render_impl_rasterize(doc, page, scale, region, None, options)
     })) {
         Ok(result) => result,
         Err(payload) => Err(RenderError::RasterizerLimit {
@@ -966,6 +974,7 @@ fn render_impl_rasterize(
     page: &Page,
     scale: f32,
     region: Option<pdfcer_core::page_tree::Rect>,
+    band: Option<banding::Band>,
     options: &RenderOptions,
 ) -> Result<RenderedPage, RenderError> {
     let (page_w, page_h, page_ctm) = page_device_geometry(page, scale);
@@ -992,6 +1001,13 @@ fn render_impl_rasterize(
                 });
             };
             (g.width, g.height, g.ctm, g.ctm64)
+        }
+    };
+    let (height, base_ctm, base_ctm64) = match band {
+        None => (height, base_ctm, base_ctm64),
+        Some(b) => {
+            let (ctm, ctm64) = b.ctm(base_ctm64);
+            (b.rows, ctm, ctm64)
         }
     };
 
@@ -1110,6 +1126,15 @@ fn render_impl_rasterize(
     // A page that asked for ink and could not have it. Recorded here, where
     // both facts are in scope, and reported rather than failed.
     let cmyk_refused = usize::from(page_space.is_subtractive() && cmyk.is_none());
+    // A raster too large for one colorant buffer is composited in row
+    // bands that each fit, rather than in sRGB (`banding`).
+    if cmyk_refused == 1
+        && band.is_none()
+        && let Some(bands) = banding::plan(width, height, options)
+    {
+        drop(cmyk);
+        return banding::render_bands(doc, page, scale, region, options, &bands, pixmap);
+    }
     // ONE canvas for the whole page — content first, then annotations over
     // it. Scoped in a block so the mutable borrow of `pixmap` ends before
     // the page-group flatten below, which needs the buffer back.

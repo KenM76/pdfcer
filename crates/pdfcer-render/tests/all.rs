@@ -21,6 +21,7 @@ mod crop_box_frames_within_the_sheet;
 mod deep_zoom_region_renders;
 mod devicen_image_ink;
 mod dimension_preview_paint;
+mod edge_antialiasing_off_leaves_no_seam;
 mod edit_preview_outlines;
 mod edited_view_is_what_renders;
 mod embed_font_roundtrip;

@@ -901,6 +901,11 @@ pub struct Diagnostics {
     /// render is the pre-`Pass 97.1e` approximation and says so, rather
     /// than failing.
     pub cmyk_buffer_refused: usize,
+    /// How many row bands a render was composited in: `0` for
+    /// one pass, `n > 1` when the raster was too large for one colorant buffer
+    /// and was rendered as `n` bands that each fit, so it still composited
+    /// in ink. Costs one interpretation per band.
+    pub cmyk_bands: usize,
     /// Pixels that entered the colorant buffer through the **sRGB bridge**
     /// rather than as authored ink.
     ///
@@ -1922,6 +1927,7 @@ polarity unverifiable (decision 006 R30)",
         self.blend_space_from_output_intent += other.blend_space_from_output_intent;
         self.cmyk_buffer_engaged |= other.cmyk_buffer_engaged;
         self.cmyk_buffer_refused += other.cmyk_buffer_refused;
+        self.cmyk_bands = self.cmyk_bands.max(other.cmyk_bands);
         self.cmyk_bridged_pixels += other.cmyk_bridged_pixels;
         self.cmyk_native_image_pixels += other.cmyk_native_image_pixels;
         self.cmyk_groups_approximated += other.cmyk_groups_approximated;
@@ -2507,6 +2513,7 @@ pub fn trace_paths(
         blend_space: crate::compositor::BlendSpace::Additive,
         path: PathBuilder::new(),
         subpixel_culling: policy.subpixel_culling,
+        edge_aa: policy.edge_antialiasing.is_on(),
         stroke_display: policy.stroke_display,
         path_precise: false,
         path_ctm64: Mat64::IDENTITY,
@@ -2614,6 +2621,7 @@ fn run_nested(
         blend_space,
         path: PathBuilder::new(),
         subpixel_culling: policy.subpixel_culling,
+        edge_aa: policy.edge_antialiasing.is_on(),
         stroke_display: policy.stroke_display,
         path_precise: false,
         path_ctm64: Mat64::IDENTITY,
@@ -2792,6 +2800,7 @@ pub(crate) fn run_form_at_on(
         blend_space: crate::compositor::BlendSpace::Additive,
         path: PathBuilder::new(),
         subpixel_culling: policy.subpixel_culling,
+        edge_aa: policy.edge_antialiasing.is_on(),
         stroke_display: policy.stroke_display,
         path_precise: false,
         path_ctm64: Mat64::IDENTITY,
@@ -3186,6 +3195,9 @@ struct Interpreter<'a> {
     /// [`RenderOptions::subpixel_culling`], carried down so `do_form` can
     /// consult it without reaching back for the options.
     subpixel_culling: bool,
+    /// [`RenderOptions::edge_antialiasing`]: every shape, clip, coverage
+    /// and image edge this interpreter rasterises reads it.
+    edge_aa: bool,
     /// [`RenderOptions::stroke_display`], carried so `stroke_params` can
     /// cap the device width for the CAD "line weights off" mode (Pass 254.0).
     stroke_display: StrokeDisplay,
@@ -4479,6 +4491,7 @@ impl<'a> Interpreter<'a> {
             ctm,
             canvas,
             &mut self.clip_cache,
+            self.edge_aa,
         );
     }
 
@@ -5260,7 +5273,8 @@ impl<'a> Interpreter<'a> {
         if self.oc_hidden() || crate::profile::skip_paint() {
             return;
         }
-        let brush = BrushSpec::solid(paint.to_rgb(), 1.0, tiny_skia::BlendMode::SourceOver);
+        let mut brush = BrushSpec::solid(paint.to_rgb(), 1.0, tiny_skia::BlendMode::SourceOver);
+        brush.anti_alias = self.edge_aa;
         let clip = self.gs.current.clip_ref();
         canvas.fill(path, &brush, FillRule::Winding, ctm, clip);
     }
@@ -6292,6 +6306,7 @@ impl<'a> Interpreter<'a> {
                 form_ctm,
                 canvas,
                 &mut self.clip_cache,
+                self.edge_aa,
             );
         }
 
@@ -6764,7 +6779,8 @@ impl<'a> Interpreter<'a> {
         } else {
             self.gs.current.fill_color
         };
-        let spec = BrushSpec::solid(colour, alpha, blend);
+        let mut spec = BrushSpec::solid(colour, alpha, blend);
+        spec.anti_alias = self.edge_aa;
         let spec = match self.authored_cmyk(stroking) {
             Some(cmyk) => spec.with_cmyk(cmyk),
             None => spec,
@@ -6989,14 +7005,14 @@ impl<'a> Interpreter<'a> {
             return false;
         };
         if let Some(r) = rule {
-            coverage.fill_path_fit(path, r, true, ctm);
+            coverage.fill_path_fit(path, r, self.edge_aa, ctm);
         } else {
             let Some(stroked) =
                 crate::device_clip::stroke_outline(path, &self.stroke_params(), ctm)
             else {
                 return false;
             };
-            coverage.fill_path_fit(&stroked, FillRule::Winding, true, ctm);
+            coverage.fill_path_fit(&stroked, FillRule::Winding, self.edge_aa, ctm);
         }
         if let Some(old) = self.gs.current.clip.as_deref() {
             let old_data = old.data().to_vec();
@@ -7344,14 +7360,14 @@ impl<'a> Interpreter<'a> {
             return false;
         };
         if let Some(r) = rule {
-            coverage.fill_path_fit(path, r, true, ctm);
+            coverage.fill_path_fit(path, r, self.edge_aa, ctm);
         } else {
             let Some(stroked) =
                 crate::device_clip::stroke_outline(path, &self.stroke_params(), ctm)
             else {
                 return false;
             };
-            coverage.fill_path_fit(&stroked, FillRule::Winding, true, ctm);
+            coverage.fill_path_fit(&stroked, FillRule::Winding, self.edge_aa, ctm);
         }
         if let Some(old) = self.gs.current.clip.as_deref() {
             let old_data = old.data().to_vec();
@@ -8134,6 +8150,7 @@ impl<'a> Interpreter<'a> {
                     form_ctm,
                     canvas,
                     &mut self.clip_cache,
+                    self.edge_aa,
                 );
             }
             None => {
@@ -9188,7 +9205,7 @@ impl<'a> Interpreter<'a> {
         // NOT unconditionally true — see `image_edge_needs_antialiasing`.
         // An image's edge is a SAMPLING boundary, not a shape edge, and
         // antialiasing it is what bands abutting tiles.
-        let anti_alias = image_edge_needs_antialiasing(self.gs.current.ctm);
+        let anti_alias = self.edge_aa && image_edge_needs_antialiasing(self.gs.current.ctm);
         let unit = Rect::from_ltrb(0.0, 0.0, 1.0, 1.0)?;
         let path = PathBuilder::from_rect(unit);
         Some(ImageGeometry {
@@ -9865,6 +9882,7 @@ impl<'a> Interpreter<'a> {
                 ctm,
                 canvas,
                 &mut self.clip_cache,
+                self.edge_aa,
             );
         }
     }
@@ -9938,6 +9956,7 @@ fn intersect_clip(
     ctm: Transform,
     canvas: &mut Canvas<'_>,
     cache: &mut crate::clip_cache::ClipCache,
+    anti_alias: bool,
 ) {
     // RECORDING: a clip becomes a DEFINITION, not a mask.
     //
@@ -10056,7 +10075,7 @@ fn intersect_clip(
         return;
     };
     let t1 = timed.then(std::time::Instant::now);
-    mask.fill_path_fit(path, rule, true, ctm);
+    mask.fill_path_fit(path, rule, anti_alias, ctm);
     let t2 = timed.then(std::time::Instant::now);
     if let Some(old) = &state.clip {
         // Multiply ONLY inside the new path's device-space bounds.

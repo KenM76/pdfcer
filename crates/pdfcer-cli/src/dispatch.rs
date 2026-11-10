@@ -1001,6 +1001,7 @@ pub(crate) fn run() -> ExitCode {
             punch_holes,
             fold,
             output_bin,
+            edge_antialiasing,
         } => {
             let icc = crate::print_icc::IccArgs {
                 printer_profile: printer_profile.as_deref(),
@@ -1033,6 +1034,7 @@ pub(crate) fn run() -> ExitCode {
                     fold,
                     output_bin,
                 ),
+                edge_antialiasing,
             };
             if crate::print_remote::routes_here(printer.as_deref()) {
                 let layout_flags = crate::print_remote::set_flags(&[

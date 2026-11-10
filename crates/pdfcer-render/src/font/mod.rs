@@ -556,6 +556,9 @@ pub struct RenderOptions {
     /// CAD drawing rather than like a renderer decision, so the operator
     /// cannot see this one; that is precisely when rule 4 bites.
     pub stroke_display: StrokeDisplay,
+    /// Whether shape, clip and image edges are antialiased. Default
+    /// [`EdgeAntialiasing::On`]; see that type for when `Off` is right.
+    pub edge_antialiasing: EdgeAntialiasing,
     /// Annotations to leave out of this render, by object identity.
     /// **Default empty.**
     ///
@@ -1021,6 +1024,8 @@ pub struct RenderPolicy<'a> {
     /// See [`RenderOptions::stroke_display`]. Carried so the interpreter's
     /// `stroke_params` can cap the device width without reaching for options.
     pub stroke_display: StrokeDisplay,
+    /// See [`RenderOptions::edge_antialiasing`].
+    pub edge_antialiasing: EdgeAntialiasing,
     /// See [`RenderOptions::print_intent`]. Read by the annotation walk.
     pub print_intent: bool,
     /// See [`RenderOptions::omit_annotations`]. Read by the annotation walk.
@@ -1035,6 +1040,40 @@ pub struct RenderPolicy<'a> {
     pub markup_without_ap: crate::MarkupWithoutAp,
     /// See [`RenderOptions::free_text_c`].
     pub free_text_c: crate::FreeTextC,
+}
+
+/// Whether the edges of filled and stroked shapes, clips and images are
+/// antialiased (`Pass 700.1`).
+///
+/// # Why it can be turned off
+///
+/// Antialiasing gives each edge pixel a partial coverage and composites the
+/// shapes one after another. Where two shapes ABUT — a knockout tile beside
+/// its neighbour, a trapped object beside its hole — each covers half of the
+/// shared pixels, and `½ over ½` leaves a quarter of the backdrop showing: a
+/// faint seam the page does not contain. ISO 32000-1 §10.6.5 leaves smoothing
+/// to the device, and at print resolution the stair-step it hides is far
+/// below what the eye resolves, while the seam is not.
+///
+/// `Off` paints each pixel whose centre the shape covers (§10.6.4's scan
+/// conversion rule), so abutting shapes tile exactly. It is a raster choice
+/// only: no export writes it into a file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[non_exhaustive]
+pub enum EdgeAntialiasing {
+    /// Antialias every edge. The default, and right for a screen.
+    #[default]
+    On,
+    /// Hard edges, so abutting shapes leave no seam. For print resolutions.
+    Off,
+}
+
+impl EdgeAntialiasing {
+    /// Whether edges are antialiased.
+    #[must_use]
+    pub const fn is_on(self) -> bool {
+        matches!(self, Self::On)
+    }
 }
 
 /// How strokes are drawn relative to their declared width (`Pass 254.0`).
@@ -1180,6 +1219,7 @@ impl Default for RenderOptions {
             // Faithful widths by default; a shell opts its canvas into
             // hairline display, never an export.
             stroke_display: StrokeDisplay::Actual,
+            edge_antialiasing: EdgeAntialiasing::default(),
             omit_annotations: Vec::new(),
             // Every class painted — the pre-existing "annotations on"
             // behaviour, spelled as a scope. See `AnnotationScope`'s type
@@ -1383,6 +1423,14 @@ impl RenderOptions {
     #[must_use]
     pub fn with_max_cmyk_buffer_bytes(mut self, max_bytes: Option<usize>) -> Self {
         self.max_cmyk_buffer_bytes = max_bytes;
+        self
+    }
+
+    /// Turn edge antialiasing on or off, returning `self` for chaining.
+    /// See [`EdgeAntialiasing`].
+    #[must_use]
+    pub fn with_edge_antialiasing(mut self, edges: EdgeAntialiasing) -> Self {
+        self.edge_antialiasing = edges;
         self
     }
 
@@ -1689,6 +1737,7 @@ impl RenderOptions {
             view_magnification: self.view_magnification,
             subpixel_culling: self.subpixel_culling,
             stroke_display: self.stroke_display,
+            edge_antialiasing: self.edge_antialiasing,
             print_intent: self.print_intent,
             omit_annotations: self.omit_annotations.as_slice(),
             invisible_text: self.invisible_text,
@@ -1801,6 +1850,8 @@ mod render_policy_tests {
                 // Not set by any `with_*` above, so it must still be the
                 // default — same carried-field assertion as its sibling.
                 stroke_display: crate::font::StrokeDisplay::Actual,
+                // Not set by any `with_*` above — same carried-field assertion.
+                edge_antialiasing: crate::font::EdgeAntialiasing::On,
                 omit_annotations: &[],
                 invisible_text: Some(crate::InvisibleTextPaint::new([1, 2, 3]).with_only(true)),
                 // NOT the default (`Simulate`).

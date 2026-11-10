@@ -4349,6 +4349,13 @@ A non-finite or non-positive `device_px` renders as `Actual`. Each changed
 stroke is counted: `Hairline` counts into `Diagnostics::strokes_hairlined`,
 and `Fixed` into `strokes_width_fixed`. The enum is `#[non_exhaustive]`.
 
+`edge_antialiasing: EdgeAntialiasing` (`with_edge_antialiasing`) is `On`
+(the default) or `Off`. `Off` draws shape, clip and image edges hard, so
+shapes that touch leave no seam: smoothed edges give each half of a shared
+pixel half coverage, and `½ over ½` lets 25 % of the backdrop show. Use
+`Off` for print rasters (`pdfcer print` turns it off at 300 DPI and above)
+and keep `On` for a screen. It is a raster setting only; no export writes it.
+
 `AnnotationScope` (`annot.rs`) is the comments-and-forms filter:
 
 | Acrobat's name | variant | paints |
@@ -4373,6 +4380,14 @@ four-component `ICCBased`) is composited in a four-colorant buffer at
 composites in sRGB instead and **says so** (`cmyk_buffer_refused`). Both
 rasters are of the same page; only one of them ran §11.3.4's complement, and
 the difference on transparency patches measured up to **16 levels of 255**.
+
+**Past the ceiling the raster is BANDED, not degraded** (`Pass 700.0`): the
+page is rendered in horizontal row bands that each fit the ceiling and
+stitched, so it still composites in ink, at the cost of re-interpreting the
+page once per band. `Diagnostics::cmyk_bands` is the band count (0 = one
+pass). The sRGB fallback (`cmyk_buffer_refused`) now happens only when not
+even one row fits. `will_composite_in_cmyk` still answers "fits in ONE
+pass", so a tier switch built on it keeps its speed meaning.
 
 **Four public items, and you want the third:**
 
