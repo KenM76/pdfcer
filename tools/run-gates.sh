@@ -233,6 +233,9 @@ if [ "${#skipped[@]}" -gt 0 ]; then
     printf '\n'
 fi
 
+# Every gate run builds; drop outputs a newer release superseded (keeps 2).
+python tools/clean-target-cache.py || true
+
 if [ "${#failed[@]}" -eq 0 ]; then
     printf 'run-gates: PASS — %d command(s), including %d filing gate(s).\n' \
         "$(( ${#main[@]} + ${#filing[@]} + 1 ))" "${#filing[@]}"

@@ -7,7 +7,8 @@ never removes the old. At several releases a day that grew `target/debug/deps`
 past 60 GB. This script removes a crate's output only when BOTH hold:
 
 * it was last written before the cutoff, which is the commit time of the
-  `--keep-versions`-th newest `chore: bump version` commit (default 2: the
+  `--keep-versions`-th newest release commit (`chore(release): vX` or the older
+  `chore: bump version`) (default 2: the
   current and the previous release's outputs are kept); and
 * the same crate has an output written after the cutoff, so it has been
   superseded. A dependency nothing has rebuilt since is still current and is
@@ -22,7 +23,7 @@ it rebuilds it.
 
 Skips a profile whose `.cargo-lock` a running build holds (a build
 mid-write would lose outputs it is producing). Run automatically at the end of
-`package-portable.py`; by hand: `python tools/clean-target-cache.py [--dry-run]`.
+`package-portable.py` and `run-gates.sh`; by hand: `python tools/clean-target-cache.py [--dry-run]`.
 """
 
 from __future__ import annotations
@@ -39,12 +40,15 @@ REPO = Path(__file__).resolve().parent.parent
 HASHED = re.compile(r"^(?:lib)?(?P<stem>.+?)-(?P<hash>[0-9a-f]{16})(?:\..*)?$")
 INCREMENTAL = re.compile(r"^(?P<stem>.+)-(?P<hash>[0-9a-z]+)$")
 PROFILES = ("debug", "release")
+# Both spellings the release commit has used; matching only one silently
+# moved the cutoff back to whichever release last used it.
+BUMP = r"^chore(: bump version|\(release\): v[0-9])"
 
 
 def cutoff_time(keep: int) -> float | None:
     """Commit time of the `keep`-th newest version bump; None if too few."""
     out = subprocess.run(
-        ["git", "log", "--format=%ct", f"-{keep}", "--grep=^chore: bump version"],
+        ["git", "log", "-E", "--format=%ct", f"-{keep}", f"--grep={BUMP}"],
         cwd=REPO, capture_output=True, text=True, check=True,
     ).stdout.split()
     return float(out[-1]) if len(out) >= keep else None
