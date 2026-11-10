@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-10 (1480th filing) — `6ded167c` follow-up fix to `ca55c343`; `ccdef5b3` bump to `v0.141.0` (not yet published)
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- `6ded167cce8be0624b2bfb41ea08141b52f83489`: follow-up to `ca55c343`, no new Pass, attached to the 699.0/699.1 Shipped entry. Three pre-push-audit catches: the black-only `--color` stderr note in `print_output.rs` lost its line-continuation backslashes (`check-string-gaps.sh`; patch applied via Python-in-heredoc, the recurring wrapped-literal failure); `HeaderFacts::of` undocumented (`check-public-fns-documented.py`); README subcommand count 246 to 247 (`check-clap-help.py`).
+- `ccdef5b327f02b0ee336449d9eab09a32e8da326`: version bump to `v0.141.0` (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`). Release is being prepared and is NOT published; FEATURES 699.0/699.1 rows deliberately still read "unreleased (planned v0.141.0)".
+
+**For next session:** a later filing flips those FEATURES rows once publication is confirmed.
+
 ## 2026-11-10 (1479th filing) — `ca55c343` `Pass 699.0` + `Pass 699.1` SHIPPED (print into a printer ICC profile; list installed ICC profiles)
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**

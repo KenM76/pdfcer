@@ -122,6 +122,7 @@ Engineer-reported; no shell here, git, push and backup state not checked from he
 - **Tests (as reported):** `pdfcer-print` 161 unit + 10 doc green, 12 new; `pdfcer-cli` 102 unit + 1072 integration (2 ignored) green, new 6 unit + 3 integration. Sabotage-verified; one mutation (intent mapping) survived at first because matrix/TRC profiles render every intent alike, so a direct mapping test was added and now bites.
 - **Gates (as reported):** clippy `-D warnings`, fmt, `check-code-structure` (no new debt), `check-core-api-verbs`, `check-tests-harnessed`, Linux cross-target `cargo check` of the CLI: all pass.
 - **Invariants:** `pdfcer-core` and `pdfcer-render` untouched. No new crates in the tree (`icccer-profile`, `icccer-cmm`, `icccer-color` 0.4.2 already present via `pdfcer-render`; `pdfcer-print` now depends on them directly); `THIRD_PARTY_LICENSES.md` needs no regeneration.
+- **Follow-up `6ded167c`** (`6ded167cce8be0624b2bfb41ea08141b52f83489`, no new Pass; 1480th filing; engineer-reported), fixing three defects the pre-push audits caught in `ca55c343`: (1) the black-only `--color` stderr note in `print_output.rs` lost its trailing-backslash line continuations and baked long space runs into the string (`check-string-gaps.sh`; the recurring wrapped-literal-loses-backslashes failure, the patch having gone through a Python-in-heredoc); (2) `HeaderFacts::of` in `pdfcer-print` `icc_output` had no doc comment (`check-public-fns-documented.py`); (3) README subcommand count 246 to 247 for `list-icc-profiles` (`check-clap-help.py`).
 
 ### `f554e3bd` / tag `v0.140.0`, 2026-11-09: release v0.140.0 published, OneDrive `pdfcer2` (1477th filing)
 
@@ -37662,6 +37663,8 @@ overrides the image dictionary; `/ColorSpace` optional,
 > **1478th filing: two operator requests (crates consumer, 2026-11-10) filed as `Pass 699.0` and `699.1`.**
 >
 > **1479th filing: `Pass 699.0` and `699.1` SHIPPED in one commit `ca55c343` (moved to Shipped). No head of Next up. Open in *Backlog*: `696.1`.**
+>
+> **1480th filing: follow-up fix `6ded167c` attached to the 699.0/699.1 Shipped entry (no new Pass); version bump `ccdef5b3` (`v0.141.0`) recorded, release being prepared and NOT yet published. No head of Next up. Open in *Backlog*: `696.1`.**
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 
