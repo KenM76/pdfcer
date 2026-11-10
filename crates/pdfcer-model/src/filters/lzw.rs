@@ -206,6 +206,7 @@ pub(super) struct Lzw<'a> {
 }
 
 impl<'a> Lzw<'a> {
+    /// Start decoding `data`; `early_change` is the `/EarlyChange` reading.
     pub(super) fn new(data: std::borrow::Cow<'a, [u8]>, early_change: bool) -> Self {
         // Non-conformant framing #1 (module docs). weezl initializes its
         // table on construction regardless, so decoding proceeds; the

@@ -68,6 +68,7 @@ pub(super) struct Inflate<'a> {
 }
 
 impl<'a> Inflate<'a> {
+    /// Start inflating `data`, one zlib stream.
     pub(super) fn new(data: std::borrow::Cow<'a, [u8]>) -> Self {
         Self {
             data,

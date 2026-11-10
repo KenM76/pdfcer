@@ -141,6 +141,7 @@ pub(super) struct Unbrotli<'a> {
 }
 
 impl<'a> Unbrotli<'a> {
+    /// Start decoding `data`, one complete Brotli stream.
     pub(super) fn new(data: std::borrow::Cow<'a, [u8]>) -> Self {
         // Three allocators, one per arena the decoder keeps (bytes, u32s and
         // Huffman table entries). Spelled with explicit types because the

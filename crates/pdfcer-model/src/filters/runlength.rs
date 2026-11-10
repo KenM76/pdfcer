@@ -94,6 +94,7 @@ pub(super) struct RunLength<'a> {
 }
 
 impl<'a> RunLength<'a> {
+    /// Start decoding `data` from its first run.
     pub(super) fn new(data: std::borrow::Cow<'a, [u8]>) -> Self {
         Self { data, i: 0 }
     }
