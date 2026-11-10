@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-09 (1477th filing) — `v0.140.0` PUBLISHED (tag on `20d559b8`, OneDrive `pdfcer2`)
+
+**Filed (engineer-reported, measured 2026-11-09; no shell here, nothing checked from here; docs only, engineer commits):**
+- Bump `f554e3bd`, filed in `20d559b8` (the 1476th); annotated tag `v0.140.0` (object `1edd2630`) on `20d559b8`, pushed, CI green at the tagged commit. Carries `Pass 698.0` (`957aab8d`); its Shipped entry and the 1476th bump entry are marked released.
+- GitHub release: 8 assets, `gh-release.py` PASS. Main zip 31,756,560 bytes, SHA-256 `5f50b199...3922b` (full hashes in the ROADMAP entry); OCR add-ons ocrcer 3,789,155, ocrs 11,352,262, tesseract 4,483,685 bytes.
+- crates.io: 14 engine crates at 0.140.0, all OK, from a worktree at the tag. `verify-release.py`: 8 of 9 ok, only "working tree clean" fails (accepted precedent). Fresh-folder smoke: `pdfcer 0.140.0`; `set-crop-box --remove-white-margins` ran and disclosed the inferred box; `certified-locked.pdf` refused.
+- OneDrive `pdfcer2` 0.140.0; `pdfcer1` keeps 0.139.0; the NEXT release writes `pdfcer1`. pdfcer-gui notified (`notice_2026-11-09_v0.140.0_released.md`).
+- ROADMAP Shipped entry added; FEATURES "Engine crates on crates.io" row now names `v0.140.0` (one-token edit; no boxes). `docs/NEXT_SESSION.md` untouched (engineer-owned, already updated).
+
+**Still open:** `696.1`; GUI halves with `pdfcer-gui`, including the `white_margin_crop` call.
+
 ## 2026-11-09 (1476th filing) — `f554e3bd` `chore(release): v0.140.0` version bump filed
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
