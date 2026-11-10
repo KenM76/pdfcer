@@ -5427,6 +5427,7 @@ this. Concretely:
   or time budget per page — pathological but syntactically valid
   content streams (e.g. millions of degenerate path segments) must not
   be able to hang the renderer indefinitely.
+- Per-stream ceilings are not enough on their own, so `pdfcer-render` also bounds one root render as a whole (page content, each annotation appearance, `trace_paths`; `Pass 703.0`, `25a2a6f5`): `pdfcer_render::page_budget::MAX_NESTED_PAINTS` = 50,000 content streams at XObject nesting depth >= 2, and `MAX_PAGE_CONTENT` = 512 MiB of decoded content held at once by the streams on the stack. Whatever is skipped is counted in `Diagnostics::content_truncated` (a DIVERGENCE key) and noted, never silent. They are public constants, not `RenderOptions` settings.
 - Object counts / xref table size get a sanity ceiling too (a
   100 MB file claiming 500 million objects is lying).
 - **Concrete instance (added 2026-07-30, Pass 1.1 slice): recursive
