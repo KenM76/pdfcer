@@ -176,7 +176,9 @@ impl PrintOutput {
                 apply_output_color(&mut sheet.rgba, mode);
             }
             notes.push(match mode {
-                OutputColor::BlackOnly => "printed copy only: black-only, every mark that is                                            not white prints solid black (tints and light                                            colours too)."
+                OutputColor::BlackOnly => "printed copy only: black-only, every mark that is \
+                                           not white prints solid black (tints and light \
+                                           colours too)."
                     .to_owned(),
                 _ => "printed copy only: grayscale, each colour as its brightness.".to_owned(),
             });

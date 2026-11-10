@@ -92,6 +92,7 @@ pub(crate) struct HeaderFacts {
 }
 
 impl HeaderFacts {
+    /// Read from the parsed header (ICC.1:2022 §7.2.5, §7.2.6).
     pub(crate) fn of(profile: &icccer_profile::Profile) -> Self {
         Self {
             space: ProfileSpace::from_signature(profile.header.color_space.0),
