@@ -976,11 +976,12 @@ fn record_impl(
             canvas.refuse(PoisonReason::ColorantBuffer);
         }
         let mut diagnostics = if scope.paints_page_content() {
-            let content = crate::ContentStream::from_page(doc, page)?;
+            let mut content = pdfcer_core::content::ContentChunks::from_page(doc, page)?;
+            content.prime()?;
             let initial = crate::gstate::GraphicsState::default_with_ctm(page_ctm);
             let mut diagnostics = crate::interpret::run_on(
                 doc,
-                &content,
+                content,
                 &page.resources,
                 &options.fonts,
                 initial,

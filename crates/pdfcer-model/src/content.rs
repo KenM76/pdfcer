@@ -105,6 +105,10 @@ use crate::page_tree::Page;
 use crate::span::ByteSpan;
 use crate::view::DocumentView;
 
+mod chunked;
+
+pub use chunked::{ChunkTruncation, ContentChunks};
+
 /// One token of a content stream. `span` indexes the DECODED content
 /// buffer the token was parsed from (see module docs).
 #[derive(Debug, Clone, PartialEq)]
@@ -142,7 +146,7 @@ pub enum ContentTokenKind {
 
 /// A parsed content stream: the decoded bytes plus their lossless
 /// token stream.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ContentStream {
     /// The decoded (defiltered, concatenated) content bytes — the
     /// buffer every token span indexes.
@@ -204,6 +208,62 @@ pub enum ContentError {
     /// validation normally prevents this; defensive).
     #[error("page Contents object is not a stream")]
     NotAStream,
+}
+
+/// [`ContentStream::parse_from`]'s tokenizer, appending to `tokens`. On an
+/// error, `tokens` holds every token that ended before it.
+fn tokenize(buf: &[u8], tokens: &mut Vec<ContentToken>, from: usize) -> Result<(), ContentError> {
+    // Sized from the stream's own measured density rather than by
+    // doubling -- see `TokenCapacity`, and the 116 MB of slack that
+    // motivated it.
+    let mut capacity = TokenCapacity::default();
+    let total = buf.len();
+    let mut lexer = Lexer::at(buf, from.min(total));
+    while let Some(tok) = lexer.next_token()? {
+        // Exactly one token is pushed per iteration on every branch
+        // below, so one call here covers all of them. Putting it at the
+        // push sites instead would be six copies of one rule.
+        capacity.grow_if_full(tokens, tok.span.start, total);
+        match tok.kind {
+            TokenKind::Keyword => {
+                if tok.lexeme(buf) == Some(b"BI") {
+                    let (token, resume_at) = parse_inline_image(buf, &tok, &mut lexer)?;
+                    tokens.push(token);
+                    lexer = Lexer::at(buf, resume_at);
+                } else {
+                    // true/false/null are OPERANDS even though the
+                    // lexer classes them as keywords; everything
+                    // else is an operator for the interpreter.
+                    match tok.lexeme(buf) {
+                        Some(b"true") => tokens.push(ContentToken {
+                            kind: ContentTokenKind::Operand(Object::Boolean(true)),
+                            span: tok.span,
+                        }),
+                        Some(b"false") => tokens.push(ContentToken {
+                            kind: ContentTokenKind::Operand(Object::Boolean(false)),
+                            span: tok.span,
+                        }),
+                        Some(b"null") => tokens.push(ContentToken {
+                            kind: ContentTokenKind::Operand(Object::Null),
+                            span: tok.span,
+                        }),
+                        _ => tokens.push(ContentToken {
+                            kind: ContentTokenKind::Operator,
+                            span: tok.span,
+                        }),
+                    }
+                }
+            }
+            _ => {
+                let (object, span) = assemble_operand(buf, tok, &mut lexer, 0)?;
+                tokens.push(ContentToken {
+                    kind: ContentTokenKind::Operand(object),
+                    span,
+                });
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Operand container nesting bound (pdfcer policy, ARCHITECTURE.md
@@ -338,56 +398,7 @@ impl ContentStream {
         mut tokens: Vec<ContentToken>,
         from: usize,
     ) -> Result<Self, ContentError> {
-        // Sized from the stream's own measured density rather than by
-        // doubling -- see `TokenCapacity`, and the 116 MB of slack that
-        // motivated it.
-        let mut capacity = TokenCapacity::default();
-        let total = buf.len();
-        let mut lexer = Lexer::at(&buf, from.min(total));
-        while let Some(tok) = lexer.next_token()? {
-            // Exactly one token is pushed per iteration on every branch
-            // below, so one call here covers all of them. Putting it at the
-            // push sites instead would be six copies of one rule.
-            capacity.grow_if_full(&mut tokens, tok.span.start, total);
-            match tok.kind {
-                TokenKind::Keyword => {
-                    if tok.lexeme(&buf) == Some(b"BI") {
-                        let (token, resume_at) = parse_inline_image(&buf, &tok, &mut lexer)?;
-                        tokens.push(token);
-                        lexer = Lexer::at(&buf, resume_at);
-                    } else {
-                        // true/false/null are OPERANDS even though the
-                        // lexer classes them as keywords; everything
-                        // else is an operator for the interpreter.
-                        match tok.lexeme(&buf) {
-                            Some(b"true") => tokens.push(ContentToken {
-                                kind: ContentTokenKind::Operand(Object::Boolean(true)),
-                                span: tok.span,
-                            }),
-                            Some(b"false") => tokens.push(ContentToken {
-                                kind: ContentTokenKind::Operand(Object::Boolean(false)),
-                                span: tok.span,
-                            }),
-                            Some(b"null") => tokens.push(ContentToken {
-                                kind: ContentTokenKind::Operand(Object::Null),
-                                span: tok.span,
-                            }),
-                            _ => tokens.push(ContentToken {
-                                kind: ContentTokenKind::Operator,
-                                span: tok.span,
-                            }),
-                        }
-                    }
-                }
-                _ => {
-                    let (object, span) = assemble_operand(&buf, tok, &mut lexer, 0)?;
-                    tokens.push(ContentToken {
-                        kind: ContentTokenKind::Operand(object),
-                        span,
-                    });
-                }
-            }
-        }
+        tokenize(&buf, &mut tokens, from)?;
         Ok(Self { buf, tokens })
     }
 

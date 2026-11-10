@@ -106,6 +106,7 @@ builds `--no-default-features`, so both configurations compile.
 | Get a page's MediaBox / CropBox / rotation | `Page::media_box`, `::crop_box`, `::rotate` — `page_tree.rs` | §6 |
 | Build a read view to pass to render/vector/content | `Document::view() -> DocumentView<'_>` — `document.rs` | §5.2 |
 | Decode + tokenize a page's content streams | `ContentStream::from_page(&DocumentView, &Page)` — `content.rs` | §7 |
+| Read a page, form or any content stream a window at a time (no size ceiling; what the renderer uses) | `ContentChunks::from_page` / `::from_form` / `::from_stream`, then `next_chunk()` until `None`; `truncation()` says why it stopped early — `content/chunked.rs` | §7 |
 | Walk content-stream operators semantically | `ContentStream::operations()` — `content.rs`; name via `Operation::operator_name(buf)` — `content.rs` | §7 |
 | Extract all text from one page | `text_extract::extract_page(&Document, &Page, idx, &ExtractOptions)` — `text_extract/mod.rs` | §8 |
 | Extract all text from the whole document | `text_extract::extract_document(&Document, &ExtractOptions)` — `mod.rs` | §8 |
@@ -140,6 +141,7 @@ builds `--no-default-features`, so both configurations compile.
 | Pick a straight edge (CAD-style measuring) | `vector::linepick::pick_line_in_page` — `vector/linepick.rs` | §10.5 |
 | Classify two picked edges as parallel/angled | `vector::linepick::classify_two_lines` — `vector/linepick.rs` | §10.5 |
 | Decode a stream through its `/Filter` chain | `filters::decode_stream(&Dict, &[u8])` — `filters/mod.rs` | §11.1 |
+| Decode one stream a chunk at a time under a ratio budget | `filters::StreamDecoder::new(&Dict, &[u8])`, `read(&mut Vec<u8>) -> ReadStatus` — `filters/stream.rs` | §11.1 |
 | Know which image codec a stream ends in, without decoding | `image_codec::terminal_codec(&Dict)` — `pdfcer-image-codec/src/lib.rs` | §11.2 |
 | Decode an image XObject to samples | `image_codec::decode_image(&Document, &Dict, &[u8], inline)` — `pdfcer-image-codec/src/lib.rs` | §11.2 |
 | Encode 1-bit samples as CCITT Group 4 | `image_codec::ccitt::encode_g4(&[u8], width, height, one_is_black)` — `pdfcer-image-codec/src/ccitt/encode.rs` | §11.2 |
@@ -577,6 +579,7 @@ All are pdfcer policy per `ARCHITECTURE.md` §10.1 unless noted.
 | `xref::MAX_XREF_STREAM_ROW` | 32 | xref-stream row |
 | `objstm::MAX_OBJSTM_OBJECTS` | 1,000,000 | `/N` before allocation |
 | `filters::MAX_DECODED_LEN` | 256 MiB | decompression bomb, enforced **incrementally** |
+| `filters::MAX_DECODE_RATIO` | 64 | windowed decode (`StreamDecoder`, `ContentChunks`): budget is `max(MAX_DECODED_LEN, 64 × encoded length)`; past it the prefix is kept and `ReadStatus::BudgetSpent` / `ChunkTruncation::Budget` reported |
 | `page_tree::MAX_TREE_DEPTH` | 64 | page-tree nesting |
 | `page_tree::MAX_PAGES` | 1,000,000 | page count |
 | `crypto::r5::MAX_PASSWORD_LEN` | 127 B | `/R` 5 truncation (spec) |

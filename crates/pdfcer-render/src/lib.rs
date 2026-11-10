@@ -266,7 +266,6 @@ mod visual_regions;
 mod white_margins;
 pub mod xfa;
 
-use pdfcer_core::content::ContentStream;
 use pdfcer_core::document::Document;
 use pdfcer_core::page_tree::Page;
 use tiny_skia::{Pixmap, Transform};
@@ -1150,7 +1149,8 @@ fn render_impl_rasterize(
             None => canvas::Canvas::paint(&mut pixmap),
         };
         let mut diagnostics = if scope.paints_page_content() {
-            let content = ContentStream::from_page(doc, page)?;
+            let mut content = pdfcer_core::content::ContentChunks::from_page(doc, page)?;
+            content.prime()?;
             let initial = gstate::GraphicsState::default_with_ctm64(base_ctm64);
             // §11.4.7 / §11.3.4 — THE PAGE'S BLENDING COLOUR SPACE, read
             // before anything is painted, because every element on the page
@@ -1165,7 +1165,7 @@ fn render_impl_rasterize(
             // fix and it shipped; a subtractive page composites in ink.
             let mut diagnostics = interpret::run_on(
                 doc,
-                &content,
+                content,
                 &page.resources,
                 &options.fonts,
                 initial,

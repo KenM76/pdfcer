@@ -25,7 +25,7 @@
 //! no new implementation has on day one; weezl 0.2.1's own release note
 //! is a fixed LZW correctness bug ("overflow into low codes in burst
 //! derive") that an in-house decoder would have had to rediscover; and
-//! `decode_bytes(inp, out)` is what makes [`MAX_DECODED_LEN`]
+//! `decode_bytes(inp, out)` is what makes [`super::MAX_DECODED_LEN`]
 //! enforceable **incrementally** rather than as an afterthought.
 //!
 //! ## `/EarlyChange` is the constructor choice and nothing else
@@ -70,7 +70,7 @@
 //! §7.4.4.1 NOTE 2: LZW's best case "approach\[es\] **1365:1** for long
 //! files", so it is a decompression-bomb vector comparable to Flate.
 //! Output accumulates in 64 KiB chunks and the decode aborts the moment
-//! [`MAX_DECODED_LEN`] is crossed — never decompress-then-check.
+//! [`super::MAX_DECODED_LEN`] is crossed — never decompress-then-check.
 //!
 //! ## Encoder: written only on request (rule R28, decision 193)
 //!
@@ -86,7 +86,7 @@ use weezl::BitOrder;
 use weezl::decode::Decoder;
 use weezl::{LzwError, LzwStatus};
 
-use super::{FilterError, FilterNotes, MAX_DECODED_LEN, predictor};
+use super::{FilterError, FilterNotes, predictor};
 use crate::object::Dict;
 
 /// The LZW code width a PDF/TIFF stream starts at, in bits, expressed
@@ -145,7 +145,7 @@ pub fn encode(data: &[u8]) -> Result<Vec<u8>, FilterError> {
 /// # Errors
 ///
 /// [`FilterError::Corrupt`] for an invalid code, [`FilterError::OutputTooLarge`]
-/// when [`MAX_DECODED_LEN`] is crossed mid-decode, and whatever
+/// when [`super::MAX_DECODED_LEN`] is crossed mid-decode, and whatever
 /// [`predictor::unpredict`] reports for inconsistent predictor
 /// parameters or ragged rows.
 pub fn decode(
@@ -174,7 +174,7 @@ pub fn decode(
 /// than refusing the stream, because a producer typo in a parameter
 /// with a well-known default is not a reason to drop an otherwise
 /// decodable image. Only an explicit `0` selects the postponed mode.
-fn early_change(parms: Option<&Dict>) -> bool {
+pub(super) fn early_change(parms: Option<&Dict>) -> bool {
     parms
         .and_then(|d| d.get(b"EarlyChange"))
         .and_then(crate::object::Object::as_int)
@@ -182,41 +182,54 @@ fn early_change(parms: Option<&Dict>) -> bool {
 }
 
 /// Incremental, ceiling-bounded LZW decompression (module docs).
-///
-/// The loop is deliberately shaped like [`super::flate`]'s: a fixed
-/// scratch chunk, the ceiling checked against *produced* bytes before
-/// they are appended, and explicit detection of "no progress possible"
-/// so a truncated stream cannot spin.
 fn decompress_bounded(
     data: &[u8],
     early_change: bool,
     notes: &mut FilterNotes,
 ) -> Result<Vec<u8>, FilterError> {
-    // 64 KiB, matching flate.rs: large enough to amortize the call
-    // overhead, small enough that the ceiling overshoot is negligible.
-    const CHUNK: usize = 64 * 1024;
+    let mut lzw = Lzw::new(std::borrow::Cow::Borrowed(data), early_change);
+    let out = super::drain(&mut lzw);
+    notes.lzw_framing_anomalies += lzw.anomalies;
+    out
+}
 
-    if !begins_with_clear_code(data) {
+/// One LZW stream decoded a chunk at a time ([`super::Pull`]).
+///
+/// [`Lzw::anomalies`] counts the non-conformant framings seen (module
+/// docs); the caller folds it into [`FilterNotes`].
+pub(super) struct Lzw<'a> {
+    data: std::borrow::Cow<'a, [u8]>,
+    decoder: Decoder,
+    chunk: Vec<u8>,
+    consumed: usize,
+    pub(super) anomalies: usize,
+}
+
+impl<'a> Lzw<'a> {
+    pub(super) fn new(data: std::borrow::Cow<'a, [u8]>, early_change: bool) -> Self {
         // Non-conformant framing #1 (module docs). weezl initializes its
         // table on construction regardless, so decoding proceeds; the
         // divergence is reported, not hidden.
-        notes.lzw_framing_anomalies += 1;
+        let anomalies = usize::from(!begins_with_clear_code(&data));
+        let decoder = if early_change {
+            Decoder::with_tiff_size_switch(BitOrder::Msb, LZW_CHARACTER_BITS)
+        } else {
+            Decoder::new(BitOrder::Msb, LZW_CHARACTER_BITS)
+        };
+        Self {
+            data,
+            decoder,
+            chunk: vec![0u8; super::CHUNK],
+            consumed: 0,
+            anomalies,
+        }
     }
+}
 
-    let mut decoder = if early_change {
-        Decoder::with_tiff_size_switch(BitOrder::Msb, LZW_CHARACTER_BITS)
-    } else {
-        Decoder::new(BitOrder::Msb, LZW_CHARACTER_BITS)
-    };
-
-    let mut out: Vec<u8> = Vec::new();
-    let mut chunk = vec![0u8; CHUNK];
-    let mut consumed = 0usize;
-
-    loop {
-        let remaining = data.get(consumed..).unwrap_or(&[]);
-        let result = decoder.decode_bytes(remaining, &mut chunk);
-
+impl super::Pull for Lzw<'_> {
+    fn pull(&mut self, out: &mut Vec<u8>) -> Result<bool, FilterError> {
+        let remaining = self.data.get(self.consumed..).unwrap_or(&[]);
+        let result = self.decoder.decode_bytes(remaining, &mut self.chunk);
         let status = match result.status {
             Ok(status) => status,
             Err(LzwError::InvalidCode) => {
@@ -226,37 +239,28 @@ fn decompress_bounded(
                 });
             }
         };
-
-        if out.len().saturating_add(result.consumed_out) > MAX_DECODED_LEN {
-            return Err(FilterError::OutputTooLarge);
-        }
-        out.extend_from_slice(chunk.get(..result.consumed_out).unwrap_or(&[]));
-        consumed = consumed.saturating_add(result.consumed_in);
-
+        out.extend_from_slice(self.chunk.get(..result.consumed_out).unwrap_or(&[]));
+        self.consumed = self.consumed.saturating_add(result.consumed_in);
         match status {
             // `EndOfInformation` reached — the conformant end.
-            LzwStatus::Done => return Ok(out),
+            LzwStatus::Done => Ok(true),
             // Input exhausted with no end marker, or the decoder cannot
             // advance. Non-conformant framing #2 (module docs): the
             // sourced recovery is to terminate on input exhaustion
             // WITHOUT erroring, because a missing EOI is common in real
             // files and the bytes already produced are correct.
             LzwStatus::NoProgress => {
-                notes.lzw_framing_anomalies += 1;
-                return Ok(out);
+                self.anomalies += 1;
+                Ok(true)
             }
-            LzwStatus::Ok => {
-                if result.consumed_in == 0 && result.consumed_out == 0 {
-                    // Defensive: `Ok` with zero movement would spin.
-                    // weezl reports that as `NoProgress`, so this arm is
-                    // unreachable in practice — but a decoder loop that
-                    // *can* spin on hostile input is exactly the kind of
-                    // thing ARCHITECTURE.md §10 exists to prevent, so
-                    // the guard is not left to the vendor's promise.
-                    notes.lzw_framing_anomalies += 1;
-                    return Ok(out);
-                }
+            // `Ok` with zero movement would spin. weezl reports that as
+            // `NoProgress`, so this is unreachable in practice, but the
+            // guard is not left to the vendor's promise (§10).
+            LzwStatus::Ok if result.consumed_in == 0 && result.consumed_out == 0 => {
+                self.anomalies += 1;
+                Ok(true)
             }
+            LzwStatus::Ok => Ok(false),
         }
     }
 }
@@ -441,7 +445,7 @@ mod tests {
         // LZW's best case is ~1365:1 (§7.4.4.1 NOTE 2). A long run of
         // one byte compresses to a fraction of the ceiling and must
         // abort mid-decode rather than allocate the full claim.
-        let bomb_plain = vec![0u8; MAX_DECODED_LEN + 1024];
+        let bomb_plain = vec![0u8; crate::filters::MAX_DECODED_LEN + 1024];
         let bomb = lzw_encode(&bomb_plain, true);
         assert!(bomb.len() < 4 * 1024 * 1024, "bomb should compress tiny");
         let mut notes = FilterNotes::default();

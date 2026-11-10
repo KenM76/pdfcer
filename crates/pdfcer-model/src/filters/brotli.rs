@@ -60,7 +60,7 @@
 
 use ::brotli::{BrotliDecompressStream, BrotliResult, BrotliState, HeapAlloc, HuffmanCode};
 
-use super::{FilterError, MAX_DECODED_LEN, predictor};
+use super::{FilterError, predictor};
 use crate::object::Dict;
 
 /// Decompress `data` and apply any predictor from `parms`.
@@ -124,83 +124,88 @@ pub fn encode(data: &[u8], quality: u32) -> std::io::Result<Vec<u8>> {
 /// a small window of literals can be repeated across a 16 MB large window —
 /// so an unbounded decoder is a decompression bomb with a very short fuse.
 /// The check is applied **per chunk, before extending**, so a hostile stream
-/// costs at most [`MAX_DECODED_LEN`] plus one chunk rather than whatever it
+/// costs at most [`super::MAX_DECODED_LEN`] plus one chunk rather than whatever it
 /// claimed.
 fn decompress_bounded(data: &[u8]) -> Result<Vec<u8>, FilterError> {
-    // 64 KiB, matching `flate::inflate_bounded`: large enough to amortize the
-    // per-call overhead, small enough that the ceiling overshoot is one chunk.
-    const CHUNK: usize = 64 * 1024;
+    super::drain(&mut Unbrotli::new(std::borrow::Cow::Borrowed(data)))
+}
 
-    // Three allocators, one per arena the decoder keeps (bytes, u32s and
-    // Huffman table entries). Spelled with explicit types because the
-    // `HuffmanCode` arena's default value is a struct rather than a zero, so
-    // inference cannot pick it.
-    let mut state = BrotliState::new(
-        HeapAlloc::<u8>::new(0),
-        HeapAlloc::<u32>::new(0),
-        HeapAlloc::<HuffmanCode>::new(HuffmanCode::default()),
-    );
-    let mut out: Vec<u8> = Vec::new();
-    let mut chunk = vec![0u8; CHUNK];
+/// One Brotli stream decompressed a chunk at a time ([`super::Pull`]).
+pub(super) struct Unbrotli<'a> {
+    data: std::borrow::Cow<'a, [u8]>,
+    state: BrotliState<HeapAlloc<u8>, HeapAlloc<u32>, HeapAlloc<HuffmanCode>>,
+    chunk: Vec<u8>,
+    available_in: usize,
+    input_offset: usize,
+    total_out: usize,
+}
 
-    let mut available_in = data.len();
-    let mut input_offset = 0usize;
-    let mut total_out = 0usize;
+impl<'a> Unbrotli<'a> {
+    pub(super) fn new(data: std::borrow::Cow<'a, [u8]>) -> Self {
+        // Three allocators, one per arena the decoder keeps (bytes, u32s and
+        // Huffman table entries). Spelled with explicit types because the
+        // `HuffmanCode` arena's default value is a struct rather than a zero,
+        // so inference cannot pick it.
+        let state = BrotliState::new(
+            HeapAlloc::<u8>::new(0),
+            HeapAlloc::<u32>::new(0),
+            HeapAlloc::<HuffmanCode>::new(HuffmanCode::default()),
+        );
+        let available_in = data.len();
+        Self {
+            data,
+            state,
+            chunk: vec![0u8; super::CHUNK],
+            available_in,
+            input_offset: 0,
+            total_out: 0,
+        }
+    }
+}
 
-    loop {
-        let mut available_out = CHUNK;
+impl super::Pull for Unbrotli<'_> {
+    fn pull(&mut self, out: &mut Vec<u8>) -> Result<bool, FilterError> {
+        let mut available_out = self.chunk.len();
         let mut output_offset = 0usize;
         let status = BrotliDecompressStream(
-            &mut available_in,
-            &mut input_offset,
-            data,
+            &mut self.available_in,
+            &mut self.input_offset,
+            &self.data,
             &mut available_out,
             &mut output_offset,
-            &mut chunk,
-            &mut total_out,
-            &mut state,
+            &mut self.chunk,
+            &mut self.total_out,
+            &mut self.state,
         );
-
         // `output_offset` is how far into `chunk` this call wrote.
         let produced = output_offset;
-        if out.len().saturating_add(produced) > MAX_DECODED_LEN {
-            return Err(FilterError::OutputTooLarge);
-        }
-        out.extend_from_slice(chunk.get(..produced).unwrap_or(&[]));
-
+        out.extend_from_slice(self.chunk.get(..produced).unwrap_or(&[]));
         match status {
-            BrotliResult::ResultSuccess => return Ok(out),
+            BrotliResult::ResultSuccess => Ok(true),
             // The decoder wants bytes that are not there. Distinguished from
             // corruption deliberately: a truncated stream is the common
             // real-world damage (a clipped download, a bad byte range) and an
             // operator can act on that differently from "these bytes are not
             // Brotli at all".
-            BrotliResult::NeedsMoreInput => {
-                return Err(FilterError::Truncated {
-                    filter: "BrotliDecode",
-                });
-            }
-            BrotliResult::ResultFailure => {
-                return Err(FilterError::Corrupt {
-                    filter: "BrotliDecode",
-                    detail: "brotli stream rejected by the decoder".to_owned(),
-                });
-            }
-            // More output room wanted: loop and give it another chunk. Guarded
-            // against a decoder that asks for room and then writes nothing,
-            // which would otherwise spin forever on a crafted stream — the
-            // ceiling alone would not stop it, because a loop producing zero
-            // bytes never reaches the ceiling.
-            BrotliResult::NeedsMoreOutput => {
-                if produced == 0 {
-                    return Err(FilterError::Corrupt {
-                        filter: "BrotliDecode",
-                        detail: "decoder requested more output room without \
-                                 producing any bytes"
-                            .to_owned(),
-                    });
-                }
-            }
+            BrotliResult::NeedsMoreInput => Err(FilterError::Truncated {
+                filter: "BrotliDecode",
+            }),
+            BrotliResult::ResultFailure => Err(FilterError::Corrupt {
+                filter: "BrotliDecode",
+                detail: "brotli stream rejected by the decoder".to_owned(),
+            }),
+            // More output room wanted: pull again. Guarded against a decoder
+            // that asks for room and then writes nothing, which would
+            // otherwise spin forever on a crafted stream — the ceiling alone
+            // would not stop it, because a loop producing zero bytes never
+            // reaches the ceiling.
+            BrotliResult::NeedsMoreOutput if produced == 0 => Err(FilterError::Corrupt {
+                filter: "BrotliDecode",
+                detail: "decoder requested more output room without \
+                         producing any bytes"
+                    .to_owned(),
+            }),
+            BrotliResult::NeedsMoreOutput => Ok(false),
         }
     }
 }
@@ -304,12 +309,12 @@ mod tests {
 
     /// The ceiling is a real bound, not a comment.
     ///
-    /// A highly-compressible input larger than [`MAX_DECODED_LEN`] must be
+    /// A highly-compressible input larger than [`crate::filters::MAX_DECODED_LEN`] must be
     /// refused rather than allocated — Brotli's expansion ratio makes this the
     /// decompression-bomb case, and it is asserted rather than trusted.
     #[test]
     fn the_output_ceiling_refuses_a_bomb() {
-        let plain = vec![0u8; MAX_DECODED_LEN + (1 << 20)];
+        let plain = vec![0u8; crate::filters::MAX_DECODED_LEN + (1 << 20)];
         let err = decode(&compress_at(&plain, 1), None).unwrap_err();
         assert!(
             matches!(err, FilterError::OutputTooLarge),

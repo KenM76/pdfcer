@@ -85,6 +85,9 @@ pub mod flate;
 pub mod lzw;
 pub mod predictor;
 pub mod runlength;
+mod stream;
+
+pub use stream::{MAX_DECODE_RATIO, ReadStatus, StreamDecoder};
 
 use crate::object::{Dict, Object};
 
@@ -95,6 +98,36 @@ use crate::object::{Dict, Object};
 /// (content streams are KBs; even a 300-DPI A4 uncompressed RGB image
 /// is ~35 MB) while bounding a decompression bomb's blast radius.
 pub const MAX_DECODED_LEN: usize = 256 * 1024 * 1024;
+
+/// Scratch-chunk size every incremental decoder works in: large enough
+/// to amortize the per-call overhead, small enough that a ceiling
+/// overshoots by a negligible amount.
+pub(crate) const CHUNK: usize = 64 * 1024;
+
+/// A decoder that produces its output a chunk at a time.
+///
+/// Both the whole-stream decode ([`drain`]) and the windowed
+/// [`StreamDecoder`] drive the same `pull`, so the two cannot disagree
+/// about a stream's bytes.
+pub(crate) trait Pull {
+    /// Append the next chunk to `out`; `Ok(true)` once the stream has
+    /// ended (anything appended by that call is still output).
+    fn pull(&mut self, out: &mut Vec<u8>) -> Result<bool, FilterError>;
+}
+
+/// Run `p` to its end under [`MAX_DECODED_LEN`].
+pub(crate) fn drain(p: &mut impl Pull) -> Result<Vec<u8>, FilterError> {
+    let mut out = Vec::new();
+    loop {
+        let done = p.pull(&mut out)?;
+        if out.len() > MAX_DECODED_LEN {
+            return Err(FilterError::OutputTooLarge);
+        }
+        if done {
+            return Ok(out);
+        }
+    }
+}
 
 /// A filter-decode error.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

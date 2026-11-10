@@ -127,10 +127,16 @@ use crate::device_clip::{FitMask, FitPaint};
 mod clip_rect;
 mod coverage;
 mod tiling;
+mod windows;
+
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
+pub(crate) use windows::Content;
+use windows::{held_bytes, run_windows};
 
-use pdfcer_core::content::{ContentStream, ContentTokenKind, Operation};
+use pdfcer_core::content::{
+    ContentChunks, ContentError, ContentStream, ContentTokenKind, Operation,
+};
 // decision 018: read paths take a `DocumentView` (graph + byte source), so
 // the same code renders a loaded file or an editing session's unsaved state.
 use pdfcer_core::filters;
@@ -2386,9 +2392,9 @@ fn output_intent_blend_space(doc: &DocumentView<'_>) -> Option<crate::compositor
 /// extra capability arrives as an additional door rather than as a
 /// breaking change to the existing one.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn run_on(
+pub(crate) fn run_on<'c, 'a>(
     doc: &DocumentView<'_>,
-    content: &ContentStream,
+    content: impl Into<Content<'c, 'a>>,
     resources: &Dict,
     fonts: &FontEnvironment,
     initial: GraphicsState,
@@ -2403,7 +2409,7 @@ pub(crate) fn run_on(
 ) -> Diagnostics {
     run_nested(
         doc,
-        content,
+        content.into(),
         resources,
         resources,
         fonts,
@@ -2580,7 +2586,7 @@ pub fn trace_paths(
 #[allow(clippy::too_many_arguments)]
 fn run_nested(
     doc: &DocumentView<'_>,
-    content: &ContentStream,
+    content: Content<'_, '_>,
     resources: &Dict,
     page_resources: &Dict,
     fonts: &FontEnvironment,
@@ -2611,15 +2617,13 @@ fn run_nested(
     // inside one is not permitted and must not perturb anything.
     type3_glyph: Option<crate::type3::GlyphColorSource>,
 ) -> Diagnostics {
-    let held_bytes = content.buf.len() + std::mem::size_of_val(content.tokens.as_slice());
-    let _held = match budget.enter(depth, held_bytes) {
+    let (first, rest) = match content.first_window() {
+        Ok(split) => split,
+        Err(why) => return Diagnostics::truncated(why),
+    };
+    let held = match budget.enter(depth, held_bytes(&first)) {
         Ok(held) => held,
-        Err(why) => {
-            let mut diag = Diagnostics::default();
-            diag.content_truncated += 1;
-            diag.note(why.note());
-            return diag;
-        }
+        Err(why) => return Diagnostics::truncated(why.note()),
     };
     // §8.7.2 PM3/PM5: pattern space anchors to this stream's DEFAULT
     // coordinate system, not to the CTM where the fill occurs. Captured
@@ -2679,23 +2683,7 @@ fn run_nested(
         cancel,
         budget,
     };
-    for op in content.operations() {
-        // THE CANCELLATION POLL. One relaxed load per operator — see
-        // `crate::cancel`'s module docs for why that ordering is correct
-        // rather than merely cheap, and why between-operators is the
-        // right granularity (a single clip costs ~360 us, so the worst
-        // case latency is a third of a millisecond, not the render).
-        //
-        // Breaking rather than returning leaves `interp.diag` intact, so
-        // the caller still learns what was attempted. The half-painted
-        // pixmap is the caller's to discard — `render_page_with_view`
-        // turns a set flag into `RenderError::Cancelled` rather than
-        // handing anyone a partial picture.
-        if interp.cancel.is_some_and(RenderCancel::is_cancelled) {
-            break;
-        }
-        interp.execute(&op, content, canvas);
-    }
+    run_windows(&mut interp, first, held, rest, canvas);
     // Fold the ICC cache's tallies in before handing the diagnostics back.
     // See `IccBridgeCache`'s field docs for why they are counted there and
     // moved here rather than incremented in place.
@@ -4422,16 +4410,15 @@ impl<'a> Interpreter<'a> {
             self.diag.type3_glyphs_missing += 1;
             return;
         };
-        let Ok(bytes) = pdfcer_core::filters::decode_stream(&stream.dict, raw) else {
+        let mut content = ContentChunks::from_stream(&stream.dict, raw);
+        if let Err(e) = content.prime() {
             self.diag.type3_glyphs_missing += 1;
-            self.diag.note(b"Type3(glyph procedure would not decode)");
+            self.diag.note(match e {
+                ContentError::Decode(_) => b"Type3(glyph procedure would not decode)",
+                _ => b"Type3(glyph procedure unparseable)",
+            });
             return;
-        };
-        let Ok(content) = ContentStream::parse(bytes) else {
-            self.diag.type3_glyphs_missing += 1;
-            self.diag.note(b"Type3(glyph procedure unparseable)");
-            return;
-        };
+        }
 
         let Some(tobj) = self.text else {
             return;
@@ -4476,7 +4463,7 @@ impl<'a> Interpreter<'a> {
 
         let nested = run_nested(
             doc,
-            &content,
+            content.into(),
             resources,
             self.page_resources,
             self.fonts,
@@ -6299,8 +6286,8 @@ impl<'a> Interpreter<'a> {
         };
         let g_dict = gs_stream.dict.clone();
         let raw = doc.slice(gs_stream.data_span)?;
-        let bytes = filters::decode_stream(&g_dict, raw).ok()?;
-        let content = ContentStream::parse(bytes).ok()?;
+        let mut content = ContentChunks::from_stream(&g_dict, raw);
+        content.prime().ok()?;
 
         // THE BACKDROP IS COMPOSITED UNDER THE RESULT, NOT PRE-FILLED
         // INTO THE OBJECTS' BACKDROP (`Pass 192.0`).
@@ -6404,7 +6391,7 @@ impl<'a> Interpreter<'a> {
             });
         let nested = run_nested(
             doc,
-            &content,
+            content.into(),
             resources,
             self.page_resources,
             self.fonts,
@@ -8092,18 +8079,25 @@ impl<'a> Interpreter<'a> {
             self.diag.tolerated += 1;
             return;
         };
-        let Ok(bytes) = filters::decode_stream(&stream.dict, raw) else {
+        let mut primed = ContentChunks::from_stream(&stream.dict, raw);
+        if let Err(e) = primed.prime() {
             // A form whose content stream needs an unimplemented filter
             // is content pdfcer cannot show — same honesty posture as an
             // undecodable image.
             self.diag.tolerated += 1;
-            self.diag.note(b"Do(form content stream undecodable)");
+            self.diag.note(match e {
+                ContentError::Decode(_) => b"Do(form content stream undecodable)",
+                _ => b"Do(form content stream unparseable)",
+            });
             return;
-        };
-        let Ok(content) = ContentStream::parse(bytes) else {
-            self.diag.tolerated += 1;
-            self.diag.note(b"Do(form content stream unparseable)");
-            return;
+        }
+        // A group may run its contents twice (`Canvas::group`); the
+        // second run reads the stream afresh.
+        let mut primed = Some(primed);
+        let mut content = || {
+            primed
+                .take()
+                .unwrap_or_else(|| ContentChunks::from_stream(&stream.dict, raw))
         };
 
         // --- (a) save: work on a clone, never on `self.gs` ---
@@ -8492,7 +8486,7 @@ impl<'a> Interpreter<'a> {
                 |sub| {
                     let nested = run_nested(
                         doc,
-                        &content,
+                        content().into(),
                         form_resources,
                         self.page_resources,
                         fonts,
@@ -8557,7 +8551,7 @@ impl<'a> Interpreter<'a> {
                 // paint inline, under the UNMODIFIED outer state.
                 let nested = run_nested(
                     doc,
-                    &content,
+                    content().into(),
                     form_resources,
                     self.page_resources,
                     fonts,

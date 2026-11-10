@@ -9,6 +9,9 @@
 //!    single most dangerous construct in the content grammar: there is
 //!    no `/Length`, so the end of the data is found by computing a
 //!    sample count or by scanning for a filter EOD / a delimited `EI`.
+//! 1a. `ContentChunks` (the renderer's windowed reader) over the same
+//!    bytes raw and as a Flate stream: the window cut, the hold-back
+//!    margin and the later-error path.
 //! 2. `filters::decode_stream(dict, data)` with a stream dictionary
 //!    declaring `/Filter /FlateDecode` and
 //!    `/DecodeParms << /Predictor 12 /Columns 8 >>` — the zlib inflate
@@ -51,7 +54,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use pdfcer_core::content::ContentStream;
+use pdfcer_core::content::{ContentChunks, ContentStream};
 use pdfcer_core::filters::ascii::{decode_85, decode_hex};
 use pdfcer_core::filters::decode_stream;
 use pdfcer_core::object::{Dict, Name, Object};
@@ -59,6 +62,20 @@ use pdfcer_core::object::{Dict, Name, Object};
 fuzz_target!(|data: &[u8]| {
     // 1. Content-stream tokenizer.
     let _ = ContentStream::parse(data.to_vec());
+
+    // 1a. The windowed reader, unfiltered and through Flate.
+    let plain = Dict::new();
+    let mut flate = Dict::new();
+    flate.insert(
+        Name::from(b"Filter"),
+        Object::Name(Name::from(b"FlateDecode")),
+    );
+    for dict in [&plain, &flate] {
+        let mut chunks = ContentChunks::from_stream(dict, data);
+        while let Ok(Some(window)) = chunks.next_chunk() {
+            let _ = window.operations().count();
+        }
+    }
 
     // 2. FlateDecode + Predictor-12 (PNG Up) decode of the same bytes.
     //    Columns 8 / Colors 1 / BitsPerComponent 8 (defaults) gives

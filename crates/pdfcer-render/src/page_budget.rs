@@ -89,12 +89,25 @@ impl PageBudget {
         if self.paints_spent(depth) {
             return Err(Refusal::Paints);
         }
+        let held = self.hold(bytes)?;
+        if depth >= 2 {
+            self.nested_paints.set(paints + 1);
+        }
+        Ok(held)
+    }
+}
+
+impl PageBudget {
+    /// Charge `bytes` of decoded content against [`MAX_PAGE_CONTENT`]
+    /// alone: a later window of a stream already counted by [`Self::enter`].
+    ///
+    /// # Errors
+    ///
+    /// [`Refusal::Content`], charging nothing.
+    pub(crate) fn hold(&self, bytes: usize) -> Result<Held<'_>, Refusal> {
         let held = self.held.get().saturating_add(bytes);
         if held > MAX_PAGE_CONTENT {
             return Err(Refusal::Content);
-        }
-        if depth >= 2 {
-            self.nested_paints.set(paints + 1);
         }
         self.held.set(held);
         Ok(Held {
@@ -102,9 +115,7 @@ impl PageBudget {
             bytes,
         })
     }
-}
 
-impl PageBudget {
     /// Charge a paint reaching `pixels` device pixels on a canvas of
     /// `canvas_pixels`. Returns `false`, charging nothing, once the
     /// render's coverage ceiling is spent; every later paint is refused
@@ -151,6 +162,20 @@ mod tests {
         }
         assert_eq!(budget.enter(5, 0).err(), Some(Refusal::Paints));
         assert!(budget.enter(0, 0).is_ok());
+    }
+
+    #[test]
+    fn a_later_window_is_held_without_counting_a_paint() {
+        let budget = PageBudget::default();
+        let first = budget.enter(3, 10);
+        assert!(first.is_ok());
+        let window = budget.hold(MAX_PAGE_CONTENT - 10);
+        assert!(window.is_ok());
+        assert_eq!(budget.hold(1).err(), Some(Refusal::Content));
+        drop(window);
+        drop(first);
+        assert_eq!(budget.nested_paints.get(), 1);
+        assert!(budget.hold(MAX_PAGE_CONTENT).is_ok());
     }
 
     #[test]

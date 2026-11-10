@@ -2,7 +2,7 @@
 //! §8.7.3): run the cell's content stream into a raster, then tile it
 //! through the path × clip mask. Geometry and ceilings: `crate::tiling`.
 
-use pdfcer_core::content::ContentStream;
+use pdfcer_core::content::ContentChunks;
 use pdfcer_core::graph::ObjectGraph;
 use pdfcer_core::object::{ObjId, Object, Stream};
 use tiny_skia::{FillRule, Mask, Path, Pixmap, Transform};
@@ -111,10 +111,10 @@ impl Interpreter<'_> {
             return None;
         };
         let doc = self.doc;
-        let content = doc
-            .slice(stream.data_span)
-            .and_then(|raw| pdfcer_core::filters::decode_stream(&stream.dict, raw).ok())
-            .and_then(|bytes| ContentStream::parse(bytes).ok());
+        let content = doc.slice(stream.data_span).and_then(|raw| {
+            let mut chunks = ContentChunks::from_stream(&stream.dict, raw);
+            chunks.prime().ok().map(|()| chunks)
+        });
         let Some(content) = content else {
             self.tiling_refused(name, "content stream would not decode");
             return None;
@@ -148,7 +148,7 @@ impl Interpreter<'_> {
         active.extend(id);
         let nested = run_nested(
             doc,
-            &content,
+            content.into(),
             resources,
             self.page_resources,
             self.fonts,

@@ -27,7 +27,7 @@
 
 use flate2::{Compress, Compression, Decompress, FlushCompress, FlushDecompress, Status};
 
-use super::{FilterError, MAX_DECODED_LEN, predictor};
+use super::{FilterError, predictor};
 use crate::object::Dict;
 
 /// Inflate `data` and apply any predictor from `parms` (Table 8:
@@ -47,6 +47,11 @@ pub fn decode(data: &[u8], parms: Option<&Dict>) -> Result<Vec<u8>, FilterError>
 }
 
 /// Incremental, ceiling-bounded zlib inflation (module docs).
+fn inflate_bounded(data: &[u8]) -> Result<Vec<u8>, FilterError> {
+    super::drain(&mut Inflate::new(std::borrow::Cow::Borrowed(data)))
+}
+
+/// One zlib stream inflated a chunk at a time ([`super::Pull`]).
 ///
 /// Uses the raw [`Decompress`] state machine rather than the
 /// `std::io::Read` wrapper deliberately: the wrapper reports a
@@ -56,39 +61,45 @@ pub fn decode(data: &[u8], parms: Option<&Dict>) -> Result<Vec<u8>, FilterError>
 /// explicit: only [`Status::StreamEnd`] (the deflate final block seen
 /// and checksum consumed) is success; input exhaustion before that is
 /// [`FilterError::Truncated`].
-fn inflate_bounded(data: &[u8]) -> Result<Vec<u8>, FilterError> {
-    // 64 KiB chunks: large enough to amortize call overhead, small
-    // enough that the ceiling overshoot is negligible.
-    const CHUNK: usize = 64 * 1024;
+pub(super) struct Inflate<'a> {
+    data: std::borrow::Cow<'a, [u8]>,
+    inflater: Decompress,
+    chunk: Vec<u8>,
+}
 
-    let mut inflater = Decompress::new(true); // true = expect zlib wrapper (RFC 1950)
-    let mut out: Vec<u8> = Vec::new();
-    let mut chunk = [0u8; CHUNK];
-    loop {
+impl<'a> Inflate<'a> {
+    pub(super) fn new(data: std::borrow::Cow<'a, [u8]>) -> Self {
+        Self {
+            data,
+            inflater: Decompress::new(true), // true = expect zlib wrapper (RFC 1950)
+            chunk: vec![0u8; super::CHUNK],
+        }
+    }
+}
+
+impl super::Pull for Inflate<'_> {
+    fn pull(&mut self, out: &mut Vec<u8>) -> Result<bool, FilterError> {
+        let inflater = &mut self.inflater;
         let before_in = inflater.total_in();
         let before_out = inflater.total_out();
         let remaining = usize::try_from(before_in)
             .ok()
-            .and_then(|n| data.get(n..))
+            .and_then(|n| self.data.get(n..))
             .unwrap_or(&[]);
         // FlushDecompress::None, NOT Finish: Finish demands the whole
         // output fit the provided buffer in one call (flate2 contract)
         // and errors otherwise — incompatible with chunked decoding.
         // Stream completion is detected via Status::StreamEnd instead.
         let status = inflater
-            .decompress(remaining, &mut chunk, FlushDecompress::None)
+            .decompress(remaining, &mut self.chunk, FlushDecompress::None)
             .map_err(|e| FilterError::Corrupt {
                 filter: "FlateDecode",
                 detail: e.to_string(),
             })?;
         let produced = usize::try_from(inflater.total_out() - before_out).unwrap_or(0);
-        if out.len().saturating_add(produced) > MAX_DECODED_LEN {
-            return Err(FilterError::OutputTooLarge);
-        }
-        out.extend_from_slice(chunk.get(..produced).unwrap_or(&[]));
-
+        out.extend_from_slice(self.chunk.get(..produced).unwrap_or(&[]));
         match status {
-            Status::StreamEnd => return Ok(out),
+            Status::StreamEnd => Ok(true),
             Status::Ok | Status::BufError => {
                 let consumed = inflater.total_in() - before_in;
                 if consumed == 0 && produced == 0 {
@@ -98,6 +109,7 @@ fn inflate_bounded(data: &[u8]) -> Result<Vec<u8>, FilterError> {
                         filter: "FlateDecode",
                     });
                 }
+                Ok(false)
             }
         }
     }
@@ -236,7 +248,7 @@ mod tests {
     fn decompression_bomb_is_aborted_at_ceiling() {
         // ~300 MiB of zeros compresses to well under 1 MiB; decoding
         // must abort at MAX_DECODED_LEN, not allocate the full claim.
-        let bomb_plain = vec![0u8; super::MAX_DECODED_LEN + 1024];
+        let bomb_plain = vec![0u8; crate::filters::MAX_DECODED_LEN + 1024];
         let bomb = deflate(&bomb_plain);
         assert!(bomb.len() < 1024 * 1024, "bomb should compress tiny");
         assert_eq!(

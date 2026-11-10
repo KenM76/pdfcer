@@ -29,7 +29,7 @@
 //!
 //! §7.4.5 NOTE: best case ~**64:1** (two input bytes → 128 output
 //! bytes), worst case an *expansion* of 127:128. That makes
-//! [`MAX_DECODED_LEN`] a formality here rather than the binding
+//! [`super::MAX_DECODED_LEN`] a formality here rather than the binding
 //! constraint it is for Flate and LZW — but it is still enforced
 //! incrementally, because "this filter cannot bomb" is an argument, and
 //! guards are cheaper than arguments.
@@ -54,7 +54,7 @@
 //! [`encode`] writes the same format, for `pdfcer optimize`'s
 //! `encode=runlength` image target.
 
-use super::{FilterError, MAX_DECODED_LEN};
+use super::FilterError;
 
 /// The length byte that terminates the stream (§7.4.5: "A length value
 /// of 128 shall denote EOD").
@@ -69,7 +69,7 @@ const EOD: u8 = 128;
 /// # Errors
 ///
 /// [`FilterError::Truncated`] when the input ends part-way through a
-/// run; [`FilterError::OutputTooLarge`] when [`MAX_DECODED_LEN`] is
+/// run; [`FilterError::OutputTooLarge`] when [`super::MAX_DECODED_LEN`] is
 /// crossed.
 ///
 /// # Examples
@@ -83,47 +83,57 @@ const EOD: u8 = 128;
 /// assert_eq!(runlength::decode(encoded).unwrap(), b"abczzz");
 /// ```
 pub fn decode(data: &[u8]) -> Result<Vec<u8>, FilterError> {
-    let mut out: Vec<u8> = Vec::new();
-    let mut i = 0usize;
+    super::drain(&mut RunLength::new(std::borrow::Cow::Borrowed(data)))
+}
 
-    loop {
-        // Input exhausted on a run boundary: implicit EOD (module docs).
-        let Some(&length) = data.get(i) else {
-            return Ok(out);
-        };
-        i += 1;
+/// One RunLengthDecode stream decoded about [`super::CHUNK`] bytes at a
+/// time ([`super::Pull`]).
+pub(super) struct RunLength<'a> {
+    data: std::borrow::Cow<'a, [u8]>,
+    i: usize,
+}
 
-        if length == EOD {
-            return Ok(out);
-        }
+impl<'a> RunLength<'a> {
+    pub(super) fn new(data: std::borrow::Cow<'a, [u8]>) -> Self {
+        Self { data, i: 0 }
+    }
+}
 
-        if length < EOD {
-            // Literal run: L + 1 bytes, so 1..=128 — never zero.
-            let count = usize::from(length) + 1;
-            let Some(run) = data.get(i..i + count) else {
-                return Err(FilterError::Truncated {
-                    filter: "RunLengthDecode",
-                });
+impl super::Pull for RunLength<'_> {
+    fn pull(&mut self, out: &mut Vec<u8>) -> Result<bool, FilterError> {
+        let stop = out.len().saturating_add(super::CHUNK);
+        while out.len() < stop {
+            // Input exhausted on a run boundary: implicit EOD (module docs).
+            let Some(&length) = self.data.get(self.i) else {
+                return Ok(true);
             };
-            if out.len().saturating_add(count) > MAX_DECODED_LEN {
-                return Err(FilterError::OutputTooLarge);
+            self.i += 1;
+            if length == EOD {
+                return Ok(true);
             }
-            out.extend_from_slice(run);
-            i += count;
-        } else {
-            // Repeat run: 257 − L copies, so 2..=128 for L in 129..=255.
-            let count = 257 - usize::from(length);
-            let Some(&byte) = data.get(i) else {
-                return Err(FilterError::Truncated {
-                    filter: "RunLengthDecode",
-                });
-            };
-            if out.len().saturating_add(count) > MAX_DECODED_LEN {
-                return Err(FilterError::OutputTooLarge);
+            if length < EOD {
+                // Literal run: L + 1 bytes, so 1..=128 — never zero.
+                let count = usize::from(length) + 1;
+                let Some(run) = self.data.get(self.i..self.i + count) else {
+                    return Err(FilterError::Truncated {
+                        filter: "RunLengthDecode",
+                    });
+                };
+                out.extend_from_slice(run);
+                self.i += count;
+            } else {
+                // Repeat run: 257 − L copies, so 2..=128 for L in 129..=255.
+                let count = 257 - usize::from(length);
+                let Some(&byte) = self.data.get(self.i) else {
+                    return Err(FilterError::Truncated {
+                        filter: "RunLengthDecode",
+                    });
+                };
+                out.resize(out.len() + count, byte);
+                self.i += 1;
             }
-            out.resize(out.len() + count, byte);
-            i += 1;
         }
+        Ok(false)
     }
 }
 

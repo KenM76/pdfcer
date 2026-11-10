@@ -44,6 +44,7 @@ mod grey_image_into_a_cmyk_group;
 mod grey_overprint;
 mod group_spot_planes;
 mod hairline_minimum;
+mod huge_content_streams_draw;
 mod icc_rgb;
 mod image_stamp_transparency;
 mod image_transparency;
