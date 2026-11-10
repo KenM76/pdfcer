@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-09 (1476th filing) — `f554e3bd` `chore(release): v0.140.0` version bump filed
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- `f554e3bdfcdcd03d8cacad2cef6985010d8015f2` bumps 14 workspace crates 0.139.0 to 0.140.0 (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`). Version-only. CI green on `cb3d3cb6` (full sweep); the bump is the only delta since. The tag goes on this filing's commit; not tagged yet.
+- v0.140.0 carries `Pass 698.0` (`957aab8d`, filed in `cb3d3cb6`). Its Shipped entry changed from "unreleased" to "releasing in `v0.140.0`".
+- OneDrive slot `pdfcer2` (alternating); `pdfcer1` keeps 0.139.0.
+- ROADMAP: one Shipped entry plus the 698.0 wording edit. FEATURES: no edit.
+
+**Still open:** tag, release, crates.io publish and the OneDrive deploy are not done; they get their own filing. `696.1`; GUI halves with `pdfcer-gui`.
+
 ## 2026-11-09 (1475th filing) — `957aab8d` `Pass 698.0` SHIPPED (remove white margins, shared render verb)
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**

@@ -112,9 +112,16 @@ wherever it appears.*
 
 ## Shipped
 
+### `f554e3bd` `chore(release): v0.140.0`, 2026-11-09: version bump filed, release not yet tagged (1476th filing)
+
+Engineer-reported; no shell here, git, tag, push, crates.io and backup state not checked from here. `f554e3bdfcdcd03d8cacad2cef6985010d8015f2` bumps all 14 workspace crates 0.139.0 to 0.140.0 (`Cargo.toml`, `Cargo.lock`, `fuzz/Cargo.lock`). Version-only. CI green on `cb3d3cb6c5bbc61425014951ebb531d32a745702` (full sweep); the bump is the only delta since. The tag goes on this filing's commit; not tagged yet.
+- **Contents since v0.139.0:** `Pass 698.0` (`957aab8d`, filed in `cb3d3cb6`).
+- **OneDrive:** the release writes slot `pdfcer2` (alternating); `pdfcer1` keeps 0.139.0.
+- **FEATURES:** no change. The tag, release and publish get their own entry when done.
+
 ### `957aab8d` `Pass 698.0`, 2026-11-09: remove white margins as a shared render verb (1475th filing)
 
-Engineer-reported; no shell here, git, push and backup state not checked from here. One code commit `957aab8d10b14dee82408a75f087b1bf4a2aa376` on `main`, after `v0.139.0`, so unreleased (next release `v0.140.0`, OneDrive `pdfcer2`). Source: `pdfcer-gui` request `open/request_remove_white_margins_core.md` (operator ask `O405` section 4). No decision number. Reasoning is in the commit message. **gui is not delivered**: the call site is with `pdfcer-gui`.
+Engineer-reported; no shell here, git, push and backup state not checked from here. One code commit `957aab8d10b14dee82408a75f087b1bf4a2aa376` on `main`, after `v0.139.0`; releasing in `v0.140.0` (bump `f554e3bd`, filed in the 1476th; OneDrive `pdfcer2`). Source: `pdfcer-gui` request `open/request_remove_white_margins_core.md` (operator ask `O405` section 4). No decision number. Reasoning is in the commit message. **gui is not delivered**: the call site is with `pdfcer-gui`.
 - **Shape changed from the request.** The GUI asked for `EditSession::white_margin_crop(page_index, margin_pt) -> Result<Option<Rect>, EditError>`. Detection needs a render and `pdfcer-core` cannot render, so the verb is a free fn in `pdfcer-render`: `white_margin_crop(view: &DocumentView, page: &Page, margin_pt: f64) -> Result<Option<WhiteMarginCrop>, WhiteMarginError>`. `WhiteMarginCrop { content, crop }`; errors `BadMargin` and `Render`; consts `WHITE_MARGIN_SCALE = 2.0` (144 dpi) and `WHITE_MARGIN_THRESHOLD = 250`. The GUI passes `session.view()`; `Ok(None)` means a blank page. Module `crates/pdfcer-render/src/white_margins.rs`.
 - **cli:** `set-crop-box --remove-white-margins` now calls the shared fn. Its private `ink_extent` and `device_to_user` moved into render, so both shells crop identically. No flag or output change.
 - **Disclosed limits (rule 4):** accuracy is one render pixel (half a point); a near-white background darker than 250 counts as content; only the current crop box is searched, so the result never grows the visible region.
