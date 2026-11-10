@@ -112,6 +112,17 @@ wherever it appears.*
 
 ## Shipped
 
+### `25417234` `Pass 699.2`, 2026-11-10: CMYK proof printing on the desk printer (1481st filing)
+
+Engineer-reported; no shell here, git, push and backup state not checked from here. One code commit `25417234ea1a158b358476caf3703937643f91bd` on `main`. Origin: operator question 2026-11-10, *"Aren't we able to support commercial CMYK profiles though?"* (`699.0` refused CMYK printer profiles because the raster route hands the Windows driver RGB). Minted and shipped in one filing, never in Next up. Not yet released; goes into `v0.141.0` (bumped in `ccdef5b3`, not tagged). Reasoning is in the commit message and module docs. **gui not delivered.** Mirrors Acrobat Pro print colour management / Output Preview simulation profile (Acrobat RAG `printing__advanced_output_panel.md`, `prepress__output_preview.md`).
+- **Core, `pdfcer-print` module `icc_proof`.** `ProofProfile` (`from_bytes`/`read`) accepts RGB, grey or CMYK of class `prtr` or `mntr`; refuses Lab and n-colour spaces, `scnr`/link/abstract classes, non-profiles and over-cap files, each as a named `ProfileError`; test-compiles both legs at choose time. `ProofColour` (`proof`, `intent`, `black_point_compensation`, `simulate_paper`, `printer: Option<PrinterProfile>`); `new` = relative colorimetric, BPC on, paper not simulated, printed as sRGB; `compile` returns a `PrinterTransform`.
+- **Pipeline.** sRGB to proof profile at the chosen intent with optional BPC (press leg), then proof to printer profile (or sRGB) media-relative with BPC (printer leg). With `simulate_paper` the printer leg is ICC-absolute, so the press paper tint and weaker black print (ICC.1:2022 §6.2.2). Values pass between legs unquantised. All conversion is icccer =0.4.2 (decision 064).
+- **`PrinterTransform` now holds legs;** new `black_point_compensation_refused()`: when icccer cannot estimate a profile's black point (e.g. fixture `dest-cmyk.icc`, "outside icccer's named subset (A42)") the chain is built without BPC and the CLI discloses it (rule 4). `ProfileError::Cmyk` now points at the proof route. `InstalledProfile::is_proof_source()`.
+- **CLI.** `print --proof-profile SPEC` (file or installed name), `--proof-intent` (default relative), `--no-proof-bpc`, `--simulate-paper`; all require `--proof-profile`, and `--printer-intent`/`--no-printer-bpc` conflict with it. Combines with `--printer-profile`. Forces the raster route and says so on stderr with a "printed copy only: proof of ..." line. Refused on the remote CUPS/IPP route. `list-icc-profiles` lines gain `proof=0|1`; the default list is printable OR proof-capable profiles (engineer-measured on the operator's machine: all 40 installed profiles are proof=1, including Coated FOGRA39, GRACoL, SWOP).
+- **Tests (as reported):** 6 new in `pdfcer-print` (CMYK accepted as proof but still refused as printer; CMYK proof dulls out-of-gamut green and keeps white; simulate-paper prints a cream tint, relative does not; grey printer after a proof writes equal channels; unusable proof profiles are named errors; unestimable black point reported not fatal), all three sabotages bit. CLI: 3 unit + 1 integration. `pdfcer-cli` 106 unit + 1073 integration passed (2 ignored); `pdfcer-print` 167 passed.
+- **Gates (as reported):** clippy `-D warnings`, fmt, every CI-listed shell/python audit, Linux cross-check: green. No dependency change, no `Cargo.toml` touched (`cargo tree` n/a). No new subcommand (README count stays 247).
+- **Replies:** `X063`/`X064` channel replies are being amended to cover `699.2`.
+
 ### `ca55c343` `Pass 699.0` + `Pass 699.1`, 2026-11-10: print into a printer ICC profile; list installed ICC profiles (1479th filing)
 
 Engineer-reported; no shell here, git, push and backup state not checked from here. One code commit `ca55c343cc1f4330216af4f78c14923163e76c08` on `main` carries both Passes. Requests `X063` and `X064` (crates consumer). Not yet released; planned for `v0.141.0` (writes OneDrive `pdfcer1`). Reasoning is in the commit message and the module docs. Filed in `59d203c4` (1478th). **gui not delivered** (neither row has a GUI half).
@@ -37665,6 +37676,8 @@ overrides the image dictionary; `/ColorSpace` optional,
 > **1479th filing: `Pass 699.0` and `699.1` SHIPPED in one commit `ca55c343` (moved to Shipped). No head of Next up. Open in *Backlog*: `696.1`.**
 >
 > **1480th filing: follow-up fix `6ded167c` attached to the 699.0/699.1 Shipped entry (no new Pass); version bump `ccdef5b3` (`v0.141.0`) recorded, release being prepared and NOT yet published. No head of Next up. Open in *Backlog*: `696.1`.**
+>
+> **1481st filing: `Pass 699.2` SHIPPED (`25417234`, CMYK proof printing; minted and shipped in one filing, never in Next up); will be in `v0.141.0`, not yet published. No head of Next up. Open in *Backlog*: `696.1`.**
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 

@@ -4,6 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-10 (1481st filing) — `25417234` `Pass 699.2` SHIPPED (CMYK proof printing on the desk printer)
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- One code commit `25417234ea1a158b358476caf3703937643f91bd`. Origin: operator question *"Aren't we able to support commercial CMYK profiles though?"*; `699.0` had refused CMYK printer profiles because the raster route hands the driver RGB. Minted and shipped in one filing.
+- `pdfcer-print` module `icc_proof` (`ProofProfile`, `ProofColour`); two-leg chain sRGB to proof to printer/sRGB, optional ICC-absolute printer leg for `--simulate-paper`; all maths icccer =0.4.2. CLI `print --proof-profile/--proof-intent/--no-proof-bpc/--simulate-paper`; `list-icc-profiles` gains `proof=0|1` (all 40 of the operator's installed profiles are proof=1, engineer-measured).
+- Tests as reported: 6 new in `pdfcer-print` (167 pass), CLI 3 unit + 1 integration (106 + 1073 pass, 2 ignored); all three sabotages bit; gates green; no dependency change.
+- FEATURES: new row "CMYK proof printing on the desk printer" core [x] cli [x] gui [ ]; the 699.0 row now points CMYK at it; 699.1 row notes the proof marker. All "unreleased (planned v0.141.0)".
+
+**Disclosure choice:** unestimable black point (e.g. fixture `dest-cmyk.icc`) builds the chain without BPC and the CLI says so, rather than failing (rule 4).
+
+**Channel:** `X063`/`X064` replies are being amended to cover `699.2`.
+
+**For next session:** a later filing flips the 699.0/.1/.2 FEATURES rows once `v0.141.0` publication is confirmed. Open: `696.1`; GUI halves with `pdfcer-gui`.
+
 ## 2026-11-10 (1480th filing) — `6ded167c` follow-up fix to `ca55c343`; `ccdef5b3` bump to `v0.141.0` (not yet published)
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
