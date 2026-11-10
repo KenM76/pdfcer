@@ -50,8 +50,11 @@ pub(crate) fn why_all_raster(
         " (--color grayscale)"
     } else if output.color == ColorArg::BlackOnly {
         " (--color black-only)"
-    } else if output.printer_colour.is_some() {
-        " (--printer-profile)"
+    } else if let Some(icc) = &output.printer_colour {
+        match icc {
+            crate::print_icc::IccPrint::Printer(..) => " (--printer-profile)",
+            crate::print_icc::IccPrint::Proof(..) => " (--proof-profile)",
+        }
     } else {
         ""
     }

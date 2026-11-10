@@ -69,11 +69,8 @@ pub(crate) enum MarkArg {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct PrintOutput {
     pub color: ColorArg,
-    /// `--printer-profile`, resolved, with the intent it was asked for.
-    pub printer_colour: Option<(
-        pdfcer_print::icc_output::PrinterColour,
-        crate::print_icc::PrinterIntentArg,
-    )>,
+    /// `--printer-profile` / `--proof-profile`, resolved.
+    pub printer_colour: Option<crate::print_icc::IccPrint>,
     pub header: Option<(String, AlignArg)>,
     pub footer: Option<(String, AlignArg)>,
     pub marks: Vec<MarkArg>,
@@ -159,7 +156,7 @@ impl PrintOutput {
         Ok(notes)
     }
 
-    /// Recolour the rendered sheets: `--color`, then `--printer-profile`.
+    /// Recolour the rendered sheets: `--color`, then the ICC conversion.
     /// Returns the lines saying so.
     pub(crate) fn recolor(
         &self,
@@ -183,12 +180,12 @@ impl PrintOutput {
                 _ => "printed copy only: grayscale, each colour as its brightness.".to_owned(),
             });
         }
-        if let Some((colour, intent)) = &self.printer_colour {
-            let transform = colour.compile()?;
+        if let Some(icc) = &self.printer_colour {
+            let transform = icc.compile()?;
             for sheet in sheets.iter_mut() {
                 transform.apply(&mut sheet.rgba);
             }
-            notes.push(crate::print_icc::disclosure(colour, *intent));
+            notes.push(icc.disclosure(&transform));
         }
         Ok(notes)
     }

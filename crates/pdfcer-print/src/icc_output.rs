@@ -9,8 +9,9 @@
 //! # What it refuses, and why
 //!
 //! - **CMYK and n-colour destinations.** The raster route hands the driver
-//!   RGB; a four-ink result has nowhere to go. Use the driver's own colour
-//!   management for a CMYK printer.
+//!   RGB; a four-ink result has nowhere to go. A CMYK press is *simulated*
+//!   instead ([`crate::icc_proof`]); a CMYK printer keeps its driver's own
+//!   colour management.
 //! - **Input (`scnr`), device-link, abstract, colour-space and named-colour
 //!   classes.** None describes a device the page prints on.
 //! - **Files over [`MAX_PROFILE_BYTES`]**, refused from the file length
@@ -31,9 +32,10 @@ pub enum ProfileError {
     /// The bytes are not an ICC profile icccer can parse.
     #[error("not a usable ICC profile: {0}")]
     NotAProfile(String),
-    /// The profile's device space is CMYK; the raster route is RGB.
+    /// The profile's device space is CMYK; the raster route is RGB. A CMYK
+    /// condition can be simulated with [`crate::icc_proof`].
     #[error(
-        "CMYK printer profiles are not supported on the raster print route; leave colour to the printer driver"
+        "a CMYK profile cannot be the printer's on the raster print route, which hands the driver RGB; simulate it as a proof instead"
     )]
     Cmyk,
     /// The device space is neither RGB nor grey (n-colour, Lab, ...).
@@ -105,9 +107,19 @@ impl HeaderFacts {
         matches!(self.space, ProfileSpace::Rgb | ProfileSpace::Gray)
             && matches!(&self.class, b"prtr" | b"mntr")
     }
+
+    /// RGB, grey or CMYK, output or display class: a condition a proof can
+    /// simulate ([`crate::icc_proof`]).
+    pub(crate) fn is_proof_source(&self) -> bool {
+        matches!(
+            self.space,
+            ProfileSpace::Rgb | ProfileSpace::Gray | ProfileSpace::Cmyk
+        ) && matches!(&self.class, b"prtr" | b"mntr")
+    }
 }
 
-fn sig_text(sig: [u8; 4]) -> String {
+/// A four-byte ICC signature as text, trailing spaces trimmed.
+pub(crate) fn sig_text(sig: [u8; 4]) -> String {
     String::from_utf8_lossy(&sig).trim_end().to_owned()
 }
 
@@ -192,7 +204,12 @@ impl PrinterProfile {
         };
         // Build once now so a profile icccer cannot convert into is refused
         // when it is chosen, not part-way through a print job.
-        checked.chain(RenderingIntent::RelativeColorimetric, false)?;
+        build_chain(
+            &srgb_profile()?,
+            &checked.profile,
+            RenderingIntent::RelativeColorimetric,
+            false,
+        )?;
         Ok(checked)
     }
 
@@ -214,23 +231,45 @@ impl PrinterProfile {
         self.space
     }
 
-    fn chain(
-        &self,
-        intent: RenderingIntent,
-        bpc: bool,
-    ) -> Result<icccer_cmm::transform::Chain, ProfileError> {
-        let src = icccer_profile::Profile::parse(&crate::icc_encode::srgb_source())
-            .map_err(|e| ProfileError::Transform(e.to_string()))?;
-        let chain = icccer_cmm::transform::Chain::new(&src, &self.profile, intent.to_icccer())
-            .map_err(|e| ProfileError::Transform(e.to_string()))?;
-        // ISO 32000-2 §8.6.5.9 treats BPC as off for absolute colorimetric,
-        // and icccer refuses it there.
-        if !bpc || intent == RenderingIntent::AbsoluteColorimetric {
-            return Ok(chain);
-        }
-        chain
-            .with_bpc()
+    /// The parsed profile, for building a chain into it.
+    pub(crate) fn profile(&self) -> &icccer_profile::Profile {
+        &self.profile
+    }
+
+    /// icccer's sRGB, as a destination: where a proof lands when no printer
+    /// profile is given.
+    pub(crate) fn srgb() -> Result<Self, ProfileError> {
+        Self::from_bytes(&crate::icc_encode::srgb_source())
+    }
+}
+
+/// icccer's sRGB as a parsed source profile.
+pub(crate) fn srgb_profile() -> Result<icccer_profile::Profile, ProfileError> {
+    icccer_profile::Profile::parse(&crate::icc_encode::srgb_source())
+        .map_err(|e| ProfileError::Transform(e.to_string()))
+}
+
+/// One icccer chain `src` → `dst`, with BPC unless off or absolute. The
+/// flag is `true` when BPC was asked for and icccer could not estimate a
+/// black point, so the chain runs without it.
+pub(crate) fn build_chain(
+    src: &icccer_profile::Profile,
+    dst: &icccer_profile::Profile,
+    intent: RenderingIntent,
+    bpc: bool,
+) -> Result<(icccer_cmm::transform::Chain, bool), ProfileError> {
+    let make = || {
+        icccer_cmm::transform::Chain::new(src, dst, intent.to_icccer())
             .map_err(|e| ProfileError::Transform(e.to_string()))
+    };
+    // ISO 32000-2 §8.6.5.9 treats BPC as off for absolute colorimetric,
+    // and icccer refuses it there.
+    if !bpc || intent == RenderingIntent::AbsoluteColorimetric {
+        return Ok((make()?, false));
+    }
+    match make()?.with_bpc() {
+        Ok(chain) => Ok((chain, false)),
+        Err(_) => Ok((make()?, true)),
     }
 }
 
@@ -285,26 +324,35 @@ impl PrinterColour {
 
     /// Build the transform. Do this once per job and reuse it per page.
     pub fn compile(&self) -> Result<PrinterTransform, ProfileError> {
-        let chain = self
-            .profile
-            .chain(self.intent, self.black_point_compensation)?;
+        let (chain, bpc_refused) = build_chain(
+            &srgb_profile()?,
+            &self.profile.profile,
+            self.intent,
+            self.black_point_compensation,
+        )?;
         Ok(PrinterTransform {
             grey: self.profile.space == ProfileSpace::Gray,
-            chain,
+            legs: vec![chain],
+            bpc_refused,
         })
     }
 }
 
-/// A built sRGB → printer transform. See [`PrinterColour::compile`].
+/// A built sRGB → printer transform: one icccer chain, or two for a proof
+/// (sRGB → simulated condition → printer). See [`PrinterColour::compile`].
 pub struct PrinterTransform {
-    chain: icccer_cmm::transform::Chain,
-    grey: bool,
+    pub(crate) legs: Vec<icccer_cmm::transform::Chain>,
+    /// The last leg lands in a grey profile.
+    pub(crate) grey: bool,
+    pub(crate) bpc_refused: bool,
 }
 
 impl std::fmt::Debug for PrinterTransform {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PrinterTransform")
+            .field("legs", &self.legs.len())
             .field("grey", &self.grey)
+            .field("bpc_refused", &self.bpc_refused)
             .finish_non_exhaustive()
     }
 }
@@ -314,6 +362,14 @@ impl std::fmt::Debug for PrinterTransform {
 const MEMO_LIMIT: usize = 1 << 20;
 
 impl PrinterTransform {
+    /// `true` when black point compensation was asked for on some leg but
+    /// icccer could not estimate that profile's black point, so the leg
+    /// runs without it. A shell discloses this.
+    #[must_use]
+    pub fn black_point_compensation_refused(&self) -> bool {
+        self.bpc_refused
+    }
+
     /// Convert `rgba` (RGBA8, premultiplied, as `tiny_skia` renders) in
     /// place. Alpha is kept; a grey destination's one channel is written to
     /// R, G and B. Returns how many pixels changed.
@@ -356,10 +412,14 @@ impl PrinterTransform {
     /// One straight-alpha sRGB colour into the printer's device values.
     /// A chain failure leaves the colour as it was.
     fn convert(&self, rgb: [u8; 3]) -> [u8; 3] {
-        let input = rgb.map(|c| f64::from(c) / 255.0);
-        let Ok(out) = self.chain.convert(&input) else {
-            return rgb;
-        };
+        let mut out = rgb.map(|c| f64::from(c) / 255.0).to_vec();
+        // Values pass between legs unquantised.
+        for leg in &self.legs {
+            let Ok(next) = leg.convert(&out) else {
+                return rgb;
+            };
+            out = next;
+        }
         let byte = |i: usize| to_byte(out.get(i).copied().unwrap_or(0.0));
         if self.grey {
             let y = byte(0);

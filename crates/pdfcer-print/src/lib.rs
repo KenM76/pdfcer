@@ -122,6 +122,10 @@ pub mod output_color;
 /// Print into a printer's RGB or grey ICC profile (X063). Pure, not gated.
 pub mod icc_output;
 
+/// Proof printing: simulate a press (CMYK or other) condition on the
+/// printer. Pure, not gated.
+pub mod icc_proof;
+
 /// The ICC profiles installed on this machine (X064). Not gated: each OS
 /// names its own folders.
 pub mod icc_profiles;

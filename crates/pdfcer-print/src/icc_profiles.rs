@@ -37,6 +37,17 @@ impl InstalledProfile {
         }
         .is_print_destination()
     }
+
+    /// RGB, grey or CMYK, output or display class — usable by
+    /// [`crate::icc_proof::ProofProfile`].
+    #[must_use]
+    pub fn is_proof_source(&self) -> bool {
+        HeaderFacts {
+            space: self.color_space,
+            class: self.class,
+        }
+        .is_proof_source()
+    }
 }
 
 /// The profile folders this OS uses that exist on this machine.

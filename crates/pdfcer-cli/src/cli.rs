@@ -4268,23 +4268,53 @@ pub(crate) enum Command {
         /// `list-icc-profiles` reports it.
         ///
         /// For a printer whose driver does not manage colour. RGB and grey
-        /// output or display profiles only; a CMYK profile is refused.
-        /// Applied after `--color`, and every sheet prints as an image.
+        /// output or display profiles only; a CMYK profile is refused here
+        /// and belongs in `--proof-profile`. Applied after `--color`, and
+        /// every sheet prints as an image.
         #[arg(long, value_name = "PROFILE")]
         printer_profile: Option<String>,
-        /// The rendering intent for `--printer-profile`.
+        /// The rendering intent for `--printer-profile`. Not with
+        /// `--proof-profile`, whose printer step is relative colorimetric
+        /// (absolute with `--simulate-paper`).
         #[arg(
             long,
             value_enum,
             default_value_t = crate::print_icc::PrinterIntentArg::Relative,
-            requires = "printer_profile"
+            requires = "printer_profile",
+            conflicts_with = "proof_profile"
         )]
         printer_intent: crate::print_icc::PrinterIntentArg,
         /// Turn off black point compensation for `--printer-profile`. With
         /// it on (the default) the darkest greys stay distinct on a
         /// printer whose black is not fully black.
-        #[arg(long, requires = "printer_profile")]
+        #[arg(long, requires = "printer_profile", conflicts_with = "proof_profile")]
         no_printer_bpc: bool,
+        /// Proof print: make this printer show how the pages will look in
+        /// another output condition, most often a CMYK press and paper. A
+        /// profile file or an installed profile's name; RGB, grey or CMYK,
+        /// output or display class.
+        ///
+        /// The printed copy is converted into this profile, then into
+        /// `--printer-profile` (or sRGB, without one). Colours the press
+        /// cannot reach print as it would print them. Every sheet prints as
+        /// an image.
+        #[arg(long, value_name = "PROFILE")]
+        proof_profile: Option<String>,
+        /// The rendering intent from the document into `--proof-profile`.
+        #[arg(
+            long,
+            value_enum,
+            default_value_t = crate::print_icc::PrinterIntentArg::Relative,
+            requires = "proof_profile"
+        )]
+        proof_intent: crate::print_icc::PrinterIntentArg,
+        /// Turn off black point compensation into `--proof-profile`.
+        #[arg(long, requires = "proof_profile")]
+        no_proof_bpc: bool,
+        /// Print the proof's paper tint and its black as the press would
+        /// show them, rather than as this printer's paper white and black.
+        #[arg(long, requires = "proof_profile")]
+        simulate_paper: bool,
         /// A line printed at the top of every page. `{page}` becomes the
         /// page number and `{pages}` the page count. Printed copy only; the
         /// file is not changed. Helvetica, so Latin-1 characters only.
@@ -4591,16 +4621,17 @@ pub(crate) enum Command {
     },
 
     /// **List the ICC profiles installed on this machine** that
-    /// `print --printer-profile` can name.
+    /// `print --printer-profile` or `--proof-profile` can name.
     ///
     /// Read-only. Reads the operating system's colour profile folders and
     /// one level of subfolders; files that are not ICC profiles are
     /// skipped. Each line gives the profile's name, colour space, device
     /// class, whether it can be printed into (`printable=1`: RGB or grey,
-    /// output or display class) and its path, sorted by name.
+    /// output or display class), whether it can be proofed (`proof=1`:
+    /// those, and CMYK output profiles) and its path, sorted by name.
     ListIccProfiles {
         /// List every installed profile, including those `print` cannot
-        /// use (CMYK, input and link profiles).
+        /// use (input, link and abstract profiles).
         #[arg(long)]
         all: bool,
     },

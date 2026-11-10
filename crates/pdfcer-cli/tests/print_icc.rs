@@ -30,7 +30,7 @@ fn list_icc_profiles_ends_with_a_count_line() {
             n
         );
         if args.len() == 1 {
-            assert!(!text.contains("printable=0"), "{text}");
+            assert!(!text.contains("printable=0 proof=0"), "{text}");
         }
     }
 }
@@ -56,4 +56,25 @@ fn printer_intent_needs_a_printer_profile() {
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(2), "{out:?}");
+}
+
+#[test]
+fn proof_only_flags_need_a_proof_profile_and_printer_intent_conflicts_with_it() {
+    for args in [
+        &["print", PDF, "--simulate-paper"][..],
+        &["print", PDF, "--proof-intent", "perceptual"],
+        &[
+            "print",
+            PDF,
+            "--proof-profile",
+            CMYK,
+            "--printer-profile",
+            CMYK,
+            "--printer-intent",
+            "perceptual",
+        ],
+    ] {
+        let out = Command::new(BIN).args(args).output().unwrap();
+        assert_eq!(out.status.code(), Some(2), "{args:?} {out:?}");
+    }
 }
