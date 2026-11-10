@@ -4,6 +4,14 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-10 (1493rd filing) — `74a01c9b` doc comments on the streamed filter constructors (`Pass 703.0` F152 follow-up); stays PARTIAL
+
+**Filed (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
+- **`74a01c9b2b4e5c470e7815cb91e19f6624821f8b`** `docs(model): document the streamed filter constructors (Pass 703.0 F152 follow-up)`. One-line doc comment on each of the four `pub(super) fn new` Pull-decoder constructors in `crates/pdfcer-model/src/filters/{brotli,flate,lzw,runlength}.rs`, added by `6bb035ad` (1492nd); `tools/check-public-fns-documented.py` had flagged them. No behaviour, test, `cargo tree` or core/cli/gui box change.
+- ROADMAP: follow-up line on the `6bb035ad` Shipped entry. FEATURES: no change. `Pass 703.0` stays OPEN: acceptance on the real X067 repros owed, then `703.1`.
+
+**For next session:** unchanged, repro acceptance for `703.0`, then `703.1`.
+
 ## 2026-11-10 (1492nd filing) — `6bb035ad` `Pass 703.0` fourth cut: page content streamed a window at a time (`X067` F152); stays PARTIAL
 
 **Filed (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
