@@ -37647,6 +37647,12 @@ overrides the image dictionary; `/ColorSpace` optional,
 > **1471st filing: `Pass 694.2` SHIPPED (`c9468b0c`, moved to Shipped from *Backlog*; it was never in Next up). No head of Next up remains. Open in *Backlog*: `696.1`.**
 >
 > **1472nd filing: `Pass 697.0` SHIPPED (`335e3e2c`, printer's marks clearance fix, request X062; minted and shipped in one filing, never in Next up) plus CI fix `ec1278fc` (no Pass). No head of Next up. Open in *Backlog*: `696.1`.**
+>
+> **1478th filing: two operator requests (crates consumer, 2026-11-10) filed, both OPEN. `699`, `699.1` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`); last shipped `698.0` (`957aab8d`).**
+>
+> **`Pass 699.0` (`X063`, `open/request_X063_print_raster_into_printer_icc_profile.md`): print a raster page into a printer's ICC profile.** Crate `pdfcer-print`, new module `icc_output`. All colour conversion is icccer's (`icccer-profile`/`icccer-cmm`; decision 064 boundary held, pdfcer does no colour math). Source is icccer's constructed sRGB, encoded as a v4 matrix/TRC profile from icccer's own constants so the chain gets the right source white and version. Destination: RGB or grey output/display-class profiles; CMYK, n-colour, input/link/abstract classes and non-ICC bytes refused with a named error; file read size-capped. Rendering intent and black point compensation selectable. CLI: `pdfcer print --printer-profile <path|installed name> --printer-intent <perceptual|relative|saturation|absolute> --no-printer-bpc`. Deviations from the request: a dedicated `ProfileError` rather than new `PrintError` variants; the acceptance grey profile's black lift is 0.03, not 0.08 (at 0.08 the greys 20/40/60 all lie below the printer's black and clip together, so "darkest two clip" is unsatisfiable as written). Disclosed on stderr (fuzzy-never-sneaky).
+>
+> **`Pass 699.1` (`X064`, `open/request_X064_list_installed_icc_profiles.md`): list installed ICC profiles.** Same crate, module `icc_profiles`. Per-OS profile folders, one subfolder level, 2,000-file cap, same per-file size cap, `.icc`/`.icm` case-insensitive, unparseable files skipped. A print-destination filter and lookup by description / file name / stem (feeds `--printer-profile <installed name>`). CLI: `pdfcer print --list-icc-profiles`. Depends on `699.0`.
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 
