@@ -4504,8 +4504,14 @@ for (key, n) in rendered.diagnostics.divergences().filter(|(_, n)| *n > 0) {
 the page's work budget was spent (`pdfcer_render::page_budget`):
 `MAX_NESTED_PAINTS` (50 000) streams at XObject nesting depth 2 or deeper,
 and `MAX_PAGE_CONTENT` (512 MiB) of decoded content held at once by the
-streams on the stack. Depths 0 and 1 are free. Both are constants, not
-`RenderOptions` settings. A non-zero value on a hostile file is the bound
+streams on the stack. Depths 0 and 1 are free. It also counts each
+fill, stroke, glyph, `sh` or image skipped once the page has painted past
+its coverage ceiling: the device area each paint can reach, summed over the
+render, against `COVERAGE_PER_CANVAS` (256) canvases or `MIN_COVERAGE`
+(2^33 pixels), whichever is larger. A stroke is charged no more than its
+length times its width; a clip-only path (`n`) and hidden content are
+not charged. All four are constants, not `RenderOptions`
+settings. A non-zero value on a hostile file is the bound
 working; the raster is missing that content and should say so.
 
 ### 7.3b The ink probe — what is in the colorant buffer, before it stops existing

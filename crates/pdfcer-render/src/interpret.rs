@@ -124,6 +124,7 @@
 
 use crate::device_clip::{FitMask, FitPaint};
 
+mod coverage;
 mod tiling;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -1546,8 +1547,10 @@ pub struct Diagnostics {
     /// Nested content streams left out because the render's
     /// [`crate::page_budget::MAX_NESTED_PAINTS`] was spent, or because
     /// holding them would have passed
-    /// [`crate::page_budget::MAX_PAGE_CONTENT`]. Their content is missing
-    /// from the raster; the reason is in the notes.
+    /// [`crate::page_budget::MAX_PAGE_CONTENT`], plus each fill, stroke,
+    /// glyph, shading or image skipped once the render's coverage ceiling
+    /// ([`crate::page_budget::COVERAGE_PER_CANVAS`]) was spent. Their
+    /// content is missing from the raster; the reason is in the notes.
     pub content_truncated: usize,
     /// Type 3 glyph procedures executed (§9.6.5).
     ///
@@ -4597,6 +4600,17 @@ impl<'a> Interpreter<'a> {
         if invisible {
             return;
         }
+        // Charged before `clip` borrows the state; hidden content is not charged.
+        let over_coverage = !crate::profile::skip_paint()
+            && !self.oc_hidden()
+            && !self.only_invisible_text()
+            && self.path_coverage_spent(
+                &path,
+                ctm,
+                self.gs.current.text.fills(),
+                self.gs.current.text.strokes(),
+                canvas,
+            );
         // BORROWED, never cloned — see `paint_path`'s note. A glyph is
         // one more paint under the same page-sized mask.
         let clip = self.gs.current.clip_ref();
@@ -4620,8 +4634,10 @@ impl<'a> Interpreter<'a> {
         // §8.11.3.1's "text advance still applies" requires. Suppressing
         // the ADVANCE would reflow the visible text around the hidden
         // run, so a layer toggle would move the rest of the line.
-        let skip_paint =
-            crate::profile::skip_paint() || self.oc_hidden() || self.only_invisible_text();
+        let skip_paint = crate::profile::skip_paint()
+            || self.oc_hidden()
+            || self.only_invisible_text()
+            || over_coverage;
         // §11.7.4.3 lists the elementary graphics objects overprint applies
         // to: "fills, strokes, TEXT, images, and shadings". Text is decided
         // here, before the paints, so the counter and the behaviour come
@@ -5512,6 +5528,10 @@ impl<'a> Interpreter<'a> {
         // else still runs — the shading is still resolved and still
         // counted above, exactly as a hidden path is still consumed.
         if self.oc_hidden() || crate::profile::skip_paint() || self.only_invisible_text() {
+            return;
+        }
+        // `sh` paints the whole clip region.
+        if self.coverage_spent(None, None, canvas) {
             return;
         }
 
@@ -8626,6 +8646,13 @@ impl<'a> Interpreter<'a> {
         if self.oc_hidden() || self.only_invisible_text() {
             return;
         }
+        // An image fills its unit square under the CTM (§8.9.4). Charged
+        // before the decode, so a spent budget skips the decode too.
+        let unit = tiny_skia::Rect::from_ltrb(0.0, 0.0, 1.0, 1.0)
+            .and_then(|r| r.transform(self.gs.current.ctm));
+        if self.coverage_spent(unit, None, canvas) {
+            return;
+        }
 
         // THE SECOND GATE, AND IT SHIPPED MISSING TOO (`Pass 300.0`).
         //
@@ -9694,6 +9721,11 @@ impl<'a> Interpreter<'a> {
             });
         }
 
+        // Charged before `clip` borrows the state; hidden content is not charged.
+        let over_coverage = !crate::profile::skip_paint()
+            && !self.oc_hidden()
+            && !self.only_invisible_text()
+            && self.path_coverage_spent(&path, ctm, fill && fill_rule.is_some(), stroke, canvas);
         // Paint under the CURRENT clip (the deferred-W rule: the new
         // clip must NOT affect this paint).
         //
@@ -9732,8 +9764,10 @@ impl<'a> Interpreter<'a> {
         // function still runs: the path is consumed, the CTM is taken,
         // and the pending clip below is applied exactly as if it had
         // been painted (§8.11.3.1).
-        let skip_paint =
-            crate::profile::skip_paint() || self.oc_hidden() || self.only_invisible_text();
+        let skip_paint = crate::profile::skip_paint()
+            || self.oc_hidden()
+            || self.only_invisible_text()
+            || over_coverage;
         // A NON-SEPARABLE BLEND MODE REPLACES the ordinary paint, exactly
         // as overprint does — it is a different compositing rule, not a
         // post-pass over a normal one. Painting normally first would knock

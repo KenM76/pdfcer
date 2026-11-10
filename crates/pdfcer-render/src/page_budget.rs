@@ -4,10 +4,11 @@
 //! recursion, but they do not stop fan-out. Eight distinct forms that each
 //! draw the next one twice are 2^8 paints, and a Type 3 glyph that shows
 //! eight of its own glyphs is 8^64 paints, at every depth the limit allows.
-//! A budget counted across the whole render bounds that. Past it, the
-//! remaining nested content is left out and
-//! [`crate::interpret::Diagnostics::content_truncated`] counts each
-//! stream that was skipped (ARCHITECTURE.md §10.1).
+//! A budget counted across the whole render bounds that, and a coverage
+//! ceiling bounds the pixels painted by streams that do not nest at all.
+//! Past either, the remaining content is left out and
+//! [`crate::interpret::Diagnostics::content_truncated`] counts each stream
+//! or paint that was skipped (ARCHITECTURE.md §10.1).
 
 use std::cell::Cell;
 
@@ -26,6 +27,16 @@ pub const MAX_NESTED_PAINTS: usize = 50_000;
 /// token list count. A finished stream gives its bytes back.
 pub const MAX_PAGE_CONTENT: usize = 512 << 20;
 
+/// How many canvases' worth of device pixels one render may paint, counted
+/// as the area each fill, stroke, shading and image can reach on the
+/// canvas. The ceiling is this many canvases or [`MIN_COVERAGE`], whichever
+/// is larger, so a small canvas still allows thousands of full-page fills.
+pub const COVERAGE_PER_CANVAS: u64 = 256;
+
+/// The smallest coverage ceiling, in device pixels, whatever the canvas
+/// size. About four seconds of full-canvas fills.
+pub const MIN_COVERAGE: u64 = 1 << 33;
+
 /// Why [`PageBudget::enter`] refused a stream.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Refusal {
@@ -33,6 +44,8 @@ pub(crate) enum Refusal {
     Paints,
     /// Holding this stream would pass [`MAX_PAGE_CONTENT`].
     Content,
+    /// The page has painted past its coverage ceiling ([`COVERAGE_PER_CANVAS`]).
+    Coverage,
 }
 
 impl Refusal {
@@ -41,6 +54,7 @@ impl Refusal {
         match self {
             Self::Paints => b"ContentTruncated(nested paints past MAX_NESTED_PAINTS)",
             Self::Content => b"ContentTruncated(decoded content held past MAX_PAGE_CONTENT)",
+            Self::Coverage => b"ContentTruncated(painted area past COVERAGE_PER_CANVAS)",
         }
     }
 }
@@ -51,6 +65,7 @@ impl Refusal {
 pub(crate) struct PageBudget {
     nested_paints: Cell<usize>,
     held: Cell<usize>,
+    coverage: Cell<u64>,
 }
 
 impl PageBudget {
@@ -86,6 +101,24 @@ impl PageBudget {
             budget: self,
             bytes,
         })
+    }
+}
+
+impl PageBudget {
+    /// Charge a paint reaching `pixels` device pixels on a canvas of
+    /// `canvas_pixels`. Returns `false`, charging nothing, once the
+    /// render's coverage ceiling is spent; every later paint is refused
+    /// too, so the rest of the page is left out rather than holes.
+    pub(crate) fn cover(&self, pixels: u64, canvas_pixels: u64) -> bool {
+        let limit = canvas_pixels
+            .saturating_mul(COVERAGE_PER_CANVAS)
+            .max(MIN_COVERAGE);
+        let spent = self.coverage.get();
+        if spent >= limit {
+            return false;
+        }
+        self.coverage.set(spent.saturating_add(pixels));
+        true
     }
 }
 
@@ -132,5 +165,24 @@ mod tests {
         }
         drop(outer);
         assert!(budget.enter(1, MAX_PAGE_CONTENT).is_ok());
+    }
+
+    #[test]
+    fn coverage_refuses_every_paint_after_the_ceiling() {
+        let budget = PageBudget::default();
+        let canvas = MIN_COVERAGE / COVERAGE_PER_CANVAS / 4;
+        assert!(budget.cover(MIN_COVERAGE - 1, canvas));
+        assert!(budget.cover(1, canvas));
+        assert!(!budget.cover(0, canvas));
+        assert!(!budget.cover(1, canvas));
+    }
+
+    #[test]
+    fn a_large_canvas_raises_the_coverage_ceiling() {
+        let budget = PageBudget::default();
+        let canvas = MIN_COVERAGE;
+        assert!(budget.cover(MIN_COVERAGE * 2, canvas));
+        assert!(budget.cover(1, canvas));
+        assert!(!budget.cover(1, MIN_COVERAGE / COVERAGE_PER_CANVAS));
     }
 }
