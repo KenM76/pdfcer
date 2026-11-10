@@ -112,6 +112,15 @@ wherever it appears.*
 
 ## Shipped
 
+### `4515067b` `Pass 700.0` + `Pass 700.1`, 2026-11-10: band oversized CMYK pages; print with hard edges (1484th filing)
+
+Engineer-reported; no shell here, git, push and backup state not checked from here. One code commit `4515067b834c92f691f874d23255ca0bd238082e` on `main` carries both Passes. Origin: the operator's own print test, a CMYK conformance page printed at 600 DPI on 11x17 to an Epson ET-16600 showed the test X's. Minted and shipped in one filing, never in Next up. Not yet released; planned for `v0.142.0` (writes OneDrive `pdfcer2`). Reasoning is in the commit message and the doc comments. **gui not delivered**: `pdfcer-gui` picks it up by an engine pin bump and has not done so.
+- **`Pass 700.0` (CMYK banding).** Before: a page whose group declares a subtractive blending space (ISO 32000-1 §11.4.7, §11.3.4) and whose raster exceeded the CMYK buffer ceiling (`RenderOptions::max_cmyk_buffer_bytes`, 20 B/px, 256 MiB default) fell back to sRGB compositing, which gets overprint and the non-Normal blend modes wrong; that is why the X's printed in other colours. Now: the raster is rendered in row bands, each band being the base CTM translated by its first row, and the bands are stitched. The sRGB fallback remains only when not even one row fits. New `pub` field `Diagnostics::cmyk_bands` (0 = one pass); `render-page` prints a note naming the band count. `will_composite_in_cmyk` still means "fits in one pass".
+- **`Pass 700.1` (edge antialiasing).** New `pub enum EdgeAntialiasing { On (default), Off }` with `is_on()`, re-exported from `pdfcer-render`; wired through `RenderOptions::with_edge_antialiasing` and `RenderPolicy.edge_antialiasing`. `Off` rasterises shape, clip, coverage, pattern-mask and image edges hard, so abutting shapes leave no seam; with antialiasing on, two half coverages composite to 0.75 and let the paper show through. CLI: `pdfcer print --edge-antialiasing auto|on|off`; default `auto` is off at 300 DPI and above and says so on stderr (rule 4 disclosure).
+- **Tests (as reported):** render lib 551, render integration 625 and 33, CLI 106 unit + 1073 integration (2 ignored), all green. New: `a_banded_render_matches_the_single_pass_render`, the ceiling test asserting the band count, a CLI banded `render-page` test, and the `edge_antialiasing_off_leaves_no_seam` pair (On = control shows the seam; Off = 0).
+- **Gates (as reported):** `cargo fmt` and clippy (`-D warnings`, all targets, all features, render + cli) clean; `check-core-api-verbs.py` passes; `docs/core-api/03-capabilities.md` §7.3 and §7.3a updated. No `Cargo.toml` changed, so no new dependency and the `cargo tree` GUI-core invariant is unaffected.
+- **FEATURES:** new rows (banded CMYK render; print edge antialiasing) in *Implemented*, core + cli ticked, gui `[ ]`; the "Banding ... still unbuilt" clause in the Subtractive compositing buffer row corrected in place.
+
 ### `1747a9c1` / tag `v0.141.0`, 2026-11-10: release v0.141.0 published, OneDrive `pdfcer1` (1483rd filing)
 
 Engineer-reported (measured 2026-11-10); no shell here, git, crates.io and remote state not checked from here. Annotated tag `v0.141.0` on `1747a9c1cd5250673cf2895a14b795941f730e49` (HEAD of `main`), pushed; CI green at that SHA. Version bump `ccdef5b3` (filed 1480th). Closes the "not yet published" notes on the `699.x` entries below.
@@ -37690,12 +37699,33 @@ overrides the image dictionary; `/ColorSpace` optional,
 > **1480th filing: follow-up fix `6ded167c` attached to the 699.0/699.1 Shipped entry (no new Pass); version bump `ccdef5b3` (`v0.141.0`) recorded, release being prepared and NOT yet published. No head of Next up. Open in *Backlog*: `696.1`.**
 >
 > **1481st filing: `Pass 699.2` SHIPPED (`25417234`, CMYK proof printing; minted and shipped in one filing, never in Next up); will be in `v0.141.0`, not yet published. No head of Next up. Open in *Backlog*: `696.1`.**
+>
+> **1484th filing: `Pass 700.0` and `700.1` SHIPPED in one commit `4515067b` (CMYK banding; print edge antialiasing; minted and shipped in one filing, never in Next up); they ride `v0.142.0`. Request `X066` ACCEPTED as the arc `Pass 702.0`-`702.6` (renderer usable without `pdfcer-core`), filed in *Backlog* below; it is the next arc after `v0.142.0`, `702.0` first. No Pass is IN PROGRESS. `702` had zero hits across `docs/` by grep (no shell; not run through `tools/check-ledger-numbers.py`); `701` also had zero hits and is left unused.**
 
 ## Backlog (Acrobat-parity feature buckets — not yet scoped to Passes)
 
 Grouped by rough Acrobat Pro feature area. Each bucket gets scoped into
 real Pass entries as the engineer reaches it — this list exists so
 nothing gets forgotten, not as a commitment to build in this order.
+
+### `Pass 702.0`-`702.6` — renderer usable without `pdfcer-core` (ARC, ACCEPTED, NOT STARTED; filed 1484th filing; request `X066`, operator as crates consumer; next arc after `v0.142.0`)
+
+Request `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_X066_renderer_independent_of_core.md`; reply `open\reply_X066_renderer_independent_of_core_ACCEPTED.md` (2026-11-10). Shape: a rasterizer crate that knows no PDF objects, an interpreter reached through an object-source trait, `pdfcer-core` behind an adapter. `pdfcer-render` (about 71k lines) is split in phases; **each phase is behaviour-neutral**: every render test and pixel-parity check unchanged, and each stands alone if the arc pauses. A channel reply follows each phase with the commit and `cargo tree` output. "Acceptance line N" below numbers the request's own list.
+
+| Pass | Delivers | Closes |
+|---|---|---|
+| 702.0 | Cut the convenience reach-ins: `settings`, `view`, `text_edit`, `optimize`, `compare`, `edit`, `pageops` leave render. `RenderOptions` becomes a plain render-owned config; the app maps its settings into it. **First**: pure deletion of coupling, de-risks the rest. | line 3 |
+| 702.1 | Rasterizer crate (working name `pdfcer-raster`): compositor, canvas, display-list types, CMYK and spot buffer, overprint, plates, banding. Depends on `tiny-skia` and `pdfcer-color` only; takes a target region. | line 1, `cargo tree` line 1 |
+| 702.2 | Object-source trait: resolve a reference, a page's contents, resources, boxes, rotation, UserUnit, filter-decode, named-resource lookup; plus the core adapter. | line 2 (trait) |
+| 702.3 | Interpreter crate (working name `pdfcer-interpret`) on the trait, no `pdfcer-core`; in-memory trait test and an interpreter fuzz target driven through the trait. | line 2, `cargo tree` line 2, the test line |
+| 702.4 | Drawing for annotations with no `/AP`, widgets and XFA becomes an optional layer; the page path builds without it. | line 4 |
+| 702.5 | Caller-suppliable font resolver; bundled standard-14 faces behind a default feature, licence and attribution file beside them. | line 5, the bundled-faces line |
+| 702.6 | Per-crate lint, forbid-unsafe, wasm32 and MIT checks; a render-profile non-regression run; the decision-log entry; crates.io publication at the next release. | lines 6, 7, the decision log |
+
+- **Names provisional until 702.1 lands.** `pdfcer-render` stays as the façade so existing callers do not change.
+- **`catch_unwind`** stays at the façade's render entry; the rasterizer and interpreter do not catch panics (their lint blocks forbid them).
+- *Invariants to check at each phase:* `cargo tree -p pdfcer-render` and the new crates show no GUI/windowing dependency (rule 2); render output byte-identical on the existing pixel-parity set.
+- *FEATURES:* one Planned row at the head of the table (all boxes `[ ]`).
 
 ### `Pass 696.1` — JPEG XL written into PDFs (BACKLOG; filed 1470th filing; residue of `Pass 696.0`; operator request 2026-11-09)
 

@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-10 (1484th filing) — `4515067b` `Pass 700.0` + `700.1` SHIPPED; `X066` ACCEPTED as arc `702.0`-`702.6`; suite-name scrub
+
+**Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
+- One code commit `4515067b834c92f691f874d23255ca0bd238082e`, `fix(render): band oversized CMYK pages and print with hard edges`. Origin: operator's own print test (CMYK conformance page, 600 DPI, 11x17, Epson ET-16600) showed the test X's.
+- `Pass 700.0`: pages over the CMYK buffer ceiling (20 B/px, 256 MiB) now render in row bands (base CTM translated by each band's first row) and stitch, instead of falling to sRGB compositing (wrong overprint and non-Normal blends, hence the wrong X colours). sRGB fallback only when not one row fits. New `Diagnostics::cmyk_bands`; `render-page` notes the band count.
+- `Pass 700.1`: `EdgeAntialiasing { On, Off }` through `RenderOptions::with_edge_antialiasing` / `RenderPolicy.edge_antialiasing`; `pdfcer print --edge-antialiasing auto|on|off`, `auto` = off at 300 DPI and above, disclosed on stderr. Off removes the seam between abutting shapes (two half coverages composite to 0.75 with AA on).
+- Tests as reported: render lib 551, render integration 625 + 33, CLI 106 + 1073 (2 ignored), green; new banded-equals-single-pass, band-count ceiling, CLI banded render-page, and `edge_antialiasing_off_leaves_no_seam` pair (On shows the seam, Off 0). fmt and clippy `-D warnings` clean; no `Cargo.toml` change; `check-core-api-verbs.py` passes; `core-api/03-capabilities.md` §7.3/§7.3a updated.
+- Release: planned `v0.142.0` (writes OneDrive `pdfcer2`). gui boxes stay `[ ]` (engine pin bump not done).
+- `X066` (renderer without `pdfcer-core`) ACCEPTED, filed in *Backlog* as the arc `Pass 702.0`-`702.6` with the reply's phase table; next arc after `v0.142.0`, `702.0` first; Next up banner added (no `###` heading, register-entry-size convention). `702` and `701` had zero hits in `docs/` by grep; `701` left unused.
+- FEATURES: two new *Implemented* rows (banded CMYK render; print hard edges), core + cli ticked, gui `[ ]`; one *Planned* row at the head for the 702 arc.
+
+**Correction (scrub, mandatory, blocks push):** commit `4ecb4be4` (committed, unpushed) wrote the banned test-suite maker name into the 1483rd entry of this file (two lines) and into `docs/NEXT_SESSION.md` line 8. Replaced in all three places with "a licensed print-conformance test file" (by `Grep` of `docs/` outside `history/` before and after the edit; the prior hit list was exactly those three). Engineer should run `tools/check-suite-name-absent.py` before pushing, and note the scrubbed text is still in commit `4ecb4be4`'s diff, so the scrub must be amended into or follow that commit before any push (published history is not to be rewritten without a go-ahead; an unpushed commit may be amended).
+
+**Hard-rule-11 sweep (claim: "past the ceiling the page composites in sRGB"):** fixed in `FEATURES.md` Subtractive compositing buffer row (the "Banding ... still unbuilt, see Planned" clause struck and corrected; the "refused composites in sRGB" clause narrowed). **Survivors reported, not edited:** `FEATURES.md` row "Choose how much memory pdfcer may spend blending a page" (ceiling bounds one buffer; its "same page rendered different colours at different zooms" is historical but should now say banding removes the trade); `render-page`'s `cmyk_buffer_refused` note wording and `Diagnostics::cmyk_buffer_refused` rustdoc in `crates/` (engineer to confirm they say "not even one row fits"); the Settings ▸ Colour help text in `pdfcer-gui` for `max_cmyk_buffer_bytes`. Correct and left alone: `will_composite_in_cmyk` ("fits in one pass").
+
+**For next session:** investigate the print report further (X's fixed by banding, hard edges by default at 300+ DPI); `v0.142.0`; `X065`; then `Pass 702.0`.
+
 ## 2026-11-10 (1483rd filing) — `v0.141.0` PUBLISHED
 
 **Filed (engineer-reported; no shell here, nothing checked from here; docs only, engineer commits):**
