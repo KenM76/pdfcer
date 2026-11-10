@@ -4,6 +4,18 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-10 (1491st filing) — `d316a4c8` `Pass 703.0` third cut: redundant rectangular clip skipped (`X067` large canvases); stays PARTIAL
+
+**Filed (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
+- **`d316a4c8527cec91acd4b1cdaa4d7840e053e045`** `perf(render): skip a rectangular clip that already contains the clip in force (Pass 703.0, X067 large canvases)`. In `main`, not in a release (current `v0.143.0`). `pdfcer-render` only; no CLI/GUI/pub-API change, no `Cargo.toml` change. Each form's `/BBox` clip (ISO 32000-2 8.10.1) built a full-canvas mask because each nested interpreter starts a fresh `ClipCache`; `intersect_clip` now returns early via `rect_clip_is_identity` (`interpret/clip_rect.rs`) when the clip is one axis-aligned device rectangle covering every pixel the clip in force passes. Never skipped: unknown bounds, rotated, same-size fractional rect.
+- **Measured (release):** `F028/doubling_16.pdf` scale 10: 91.8 s to 4.2 s (`content_truncated` 19,061 unchanged); empty-leaf variant: 49.4 s to 0.3 s.
+- **Finding (method):** pixel identity on 60 real drawings at scales 1 and 4 = 120 renders: with vs without fast path 0/120 differ; `v0.143.0` vs HEAD 0/120 differ. A PNG byte-hash compare had shown 16 differences with identical pixels; PNG bytes are not a pixel-identity instrument. Not filed to `personal_rag/pdf`: a renderer fact, not a producer quirk (the exporter pattern of page-sized form chains is already in the 1490th lesson).
+- **Tests:** 4 unit (`clip_rect`) + 2 integration (`form_bbox_clip_identity.rs`, in `tests/all.rs`, sabotage-verified). Render lib 562, all 634, doc 33; clippy, fmt, structure (baseline 553, none new), tests-harnessed clean.
+- **`Pass 703.0` stays OPEN.** Done: F054, F055, F028, large-canvas per-form cost. Owed: F152, repro acceptance. `703.1`+ untouched.
+- ROADMAP: new Shipped entry, Next-up banner, Backlog `703.0` row amended. FEATURES: hostile-input row (shipped text; boxes unticked). `docs/NEXT_SESSION.md` updated.
+
+**For next session:** F152 (streamed content past `MAX_DECODED_LEN`), then acceptance on the real X067 repros, then `703.1`.
+
 ## 2026-11-10 (1490th filing) — `99f42fe0` `Pass 703.0` second cut: coverage ceiling (`X067` F028); stays PARTIAL
 
 **Filed (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
