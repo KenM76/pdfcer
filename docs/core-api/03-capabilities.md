@@ -4488,7 +4488,7 @@ not available*, which is a property of the raster.
 `Diagnostics::divergences(&self) -> impl Iterator<Item = (&'static str, u64)>`
 yields every DIVERGENCE counter, zero values included, keyed as `pdfcer
 render`'s metrics line prints it (`overprint_refused`, `color.patterns_unpainted`,
-`shading.refused`, …). `Diagnostics::DIVERGENCE_KEYS: [&str; 15]` is the same
+`shading.refused`, …). `Diagnostics::DIVERGENCE_KEYS: [&str; 16]` is the same
 list in the same order. A non-zero value means part of the page was painted
 differently from what the document asks. Walk the iterator rather than naming
 fields: a counter added later appears without a code change. A unit test in
@@ -4499,6 +4499,14 @@ for (key, n) in rendered.diagnostics.divergences().filter(|(_, n)| *n > 0) {
     println!("{key}={n}");
 }
 ```
+
+**`content_truncated`** counts nested content streams left out because
+the page's work budget was spent (`pdfcer_render::page_budget`):
+`MAX_NESTED_PAINTS` (50 000) streams at XObject nesting depth 2 or deeper,
+and `MAX_PAGE_CONTENT` (512 MiB) of decoded content held at once by the
+streams on the stack. Depths 0 and 1 are free. Both are constants, not
+`RenderOptions` settings. A non-zero value on a hostile file is the bound
+working; the raster is missing that content and should say so.
 
 ### 7.3b The ink probe — what is in the colorant buffer, before it stops existing
 

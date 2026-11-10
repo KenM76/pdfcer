@@ -692,7 +692,7 @@ cmyk_groups_approximated={} cmyk_unbridged_images={} cmyk_native_image_pixels={}
 icc_managed_paints={} icc_unmanaged_paints={} \
 overprint_process_images_unsupported={} annots_icon_painted={} page_resources_defaulted={} \
 page_crop_box_clipped={} page_crop_box_unusable={} cmyk_spots_flattened={} \
-annots_widget_drawn={} annots_geometry_drawn={}",
+annots_widget_drawn={} annots_geometry_drawn={} content_truncated={}",
         d.glyphs_substituted,
         d.glyphs_notdef,
         d.fonts_unsupported,
@@ -1087,6 +1087,8 @@ annots_widget_drawn={} annots_geometry_drawn={}",
         // Appended: form widgets with no /AP drawn from their field data.
         d.annotations_widget_synthesized,
         d.annotations_geometry_drawn.values().sum::<usize>(),
+        // Appended: nested streams left out by the page budget.
+        d.content_truncated,
     )
 }
 
@@ -2459,6 +2461,12 @@ shifted toward the matte colour. The reason is in the image divergences below",
             "pdfcer: note: {} form XObject invocation(s) refused as too deeply nested or \
 cyclic; their content is missing from the raster",
             d.xobject_depth_overflows
+        );
+    }
+    if d.content_truncated > 0 {
+        eprintln!(
+            "pdfcer: warning: content truncated: {} nested content stream(s) left out because the page's paint budget or held-content ceiling was spent; that content is missing from the raster",
+            d.content_truncated
         );
     }
     if d.tolerated > 0 {

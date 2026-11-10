@@ -249,6 +249,7 @@ pub mod mesh;
 pub(crate) mod minify;
 pub mod overprint;
 mod overprint_preview;
+pub mod page_budget;
 pub mod plates;
 pub mod profile;
 mod separation_preview;

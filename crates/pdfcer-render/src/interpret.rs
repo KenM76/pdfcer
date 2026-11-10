@@ -1543,6 +1543,12 @@ pub struct Diagnostics {
     /// [`MAX_XOBJECT_DEPTH`] **or** re-entered a form already on the
     /// stack (a cycle). Their content is missing from the raster.
     pub xobject_depth_overflows: usize,
+    /// Nested content streams left out because the render's
+    /// [`crate::page_budget::MAX_NESTED_PAINTS`] was spent, or because
+    /// holding them would have passed
+    /// [`crate::page_budget::MAX_PAGE_CONTENT`]. Their content is missing
+    /// from the raster; the reason is in the notes.
+    pub content_truncated: usize,
     /// Type 3 glyph procedures executed (§9.6.5).
     ///
     /// A census, not a shortfall: this is how many glyphs pdfcer drew by
@@ -1992,6 +1998,7 @@ polarity unverifiable (decision 006 R30)",
         self.strokes_hairlined += other.strokes_hairlined;
         self.strokes_width_fixed += other.strokes_width_fixed;
         self.xobject_depth_overflows += other.xobject_depth_overflows;
+        self.content_truncated += other.content_truncated;
         self.type3_glyph_procs_run += other.type3_glyph_procs_run;
         self.type3_glyphs_missing += other.type3_glyphs_missing;
         self.type3_colors_ignored += other.type3_colors_ignored;
@@ -2401,6 +2408,7 @@ pub(crate) fn run_on(
         0,
         Vec::new(),
         cancel,
+        &crate::page_budget::PageBudget::default(),
         policy,
         // A page's own content stream has nothing above it to inherit
         // hiddenness from; `/OC` sections inside it start the stack.
@@ -2488,6 +2496,7 @@ pub fn trace_paths(
     // Captured BEFORE the stack is built, because the first `cm` in the
     // stream would otherwise be indistinguishable from the page transform.
     let base_ctm = initial.ctm;
+    let budget = crate::page_budget::PageBudget::default();
     let mut interp = Interpreter {
         policy,
         base_ctm,
@@ -2546,6 +2555,7 @@ pub fn trace_paths(
         // `trace_paths` is a diagnostic walk with no pixels and no
         // operator waiting on it; there is nothing to cancel.
         cancel: None,
+        budget: &budget,
     };
     for op in content.operations() {
         interp.execute(&op, content, &mut Canvas::paint(&mut pixmap));
@@ -2575,6 +2585,7 @@ fn run_nested(
     depth: usize,
     active: Vec<ObjId>,
     cancel: Option<&RenderCancel>,
+    budget: &crate::page_budget::PageBudget,
     policy: RenderPolicy<'_>,
     // `true` if the `Do` that invoked this form sits inside a hidden
     // `/OC` section, or the form's own `/OC` is off.
@@ -2596,6 +2607,16 @@ fn run_nested(
     // inside one is not permitted and must not perturb anything.
     type3_glyph: Option<crate::type3::GlyphColorSource>,
 ) -> Diagnostics {
+    let held_bytes = content.buf.len() + std::mem::size_of_val(content.tokens.as_slice());
+    let _held = match budget.enter(depth, held_bytes) {
+        Ok(held) => held,
+        Err(why) => {
+            let mut diag = Diagnostics::default();
+            diag.content_truncated += 1;
+            diag.note(why.note());
+            return diag;
+        }
+    };
     // §8.7.2 PM3/PM5: pattern space anchors to this stream's DEFAULT
     // coordinate system, not to the CTM where the fill occurs. Captured
     // before the stack is built — after the first `cm` it is unrecoverable.
@@ -2652,6 +2673,7 @@ fn run_nested(
         active,
         trace: None,
         cancel,
+        budget,
     };
     for op in content.operations() {
         // THE CANCELLATION POLL. One relaxed load per operator — see
@@ -2772,6 +2794,7 @@ pub(crate) fn run_form_at_on(
     // coordinate system, not to the CTM where the fill occurs. Captured
     // before the stack is built — after the first `cm` it is unrecoverable.
     let base_ctm = initial.ctm;
+    let budget = crate::page_budget::PageBudget::default();
     let mut interp = Interpreter {
         policy,
         base_ctm,
@@ -2834,6 +2857,7 @@ pub(crate) fn run_form_at_on(
         // being painted onto. `do_form` recurses into `run_nested`, which
         // is where the poll actually lives.
         cancel,
+        budget: &budget,
     };
     interp.do_form(id, stream, canvas, false);
     // Fold the ICC cache's tallies in before handing the diagnostics back.
@@ -3157,6 +3181,9 @@ struct Interpreter<'a> {
     /// nested inside the page stops with it rather than running to
     /// completion inside an abandoned render.
     cancel: Option<&'a RenderCancel>,
+    /// The render-wide paint and held-content ceilings, shared by every
+    /// nested stream ([`crate::page_budget`]).
+    budget: &'a crate::page_budget::PageBudget,
     /// Already-built clip masks, so an identical clip applied again
     /// costs a pointer comparison instead of ~362 µs. Scoped to this
     /// content stream: masks are keyed partly on device size, and a
@@ -4373,6 +4400,11 @@ impl<'a> Interpreter<'a> {
                 .note(b"Type3(glyph procedure nested past MAX_XOBJECT_DEPTH)");
             return;
         }
+        if self.budget.paints_spent(self.depth + 1) {
+            self.diag.content_truncated += 1;
+            self.diag.note(crate::page_budget::Refusal::Paints.note());
+            return;
+        }
 
         let doc = self.doc;
         let Object::Stream(stream) = doc.resolve(proc_obj) else {
@@ -4454,6 +4486,7 @@ impl<'a> Interpreter<'a> {
             // unguarded.
             self.active.clone(),
             self.cancel,
+            self.budget,
             policy,
             self.oc_hidden(),
             self.blend_space,
@@ -6365,6 +6398,7 @@ impl<'a> Interpreter<'a> {
             // itself through a soft mask would recurse unguarded.
             self.active.clone(),
             self.cancel,
+            self.budget,
             self.policy,
             false,
             mask_space,
@@ -7902,6 +7936,11 @@ impl<'a> Interpreter<'a> {
             self.diag.note(b"Do(form nesting past MAX_XOBJECT_DEPTH)");
             return;
         }
+        if self.budget.paints_spent(self.depth + 1) {
+            self.diag.content_truncated += 1;
+            self.diag.note(crate::page_budget::Refusal::Paints.note());
+            return;
+        }
         if let Some(id) = id
             && self.active.contains(&id)
         {
@@ -8374,6 +8413,7 @@ impl<'a> Interpreter<'a> {
         let fonts = self.fonts;
         let depth = self.depth + 1;
         let cancel = self.cancel;
+        let budget = self.budget;
         let policy = self.policy;
         let hidden_here = self.oc_hidden() || oc_off;
         // §11.4.5: the blend mode, constant alpha and soft mask in force at
@@ -8440,6 +8480,7 @@ impl<'a> Interpreter<'a> {
                         depth,
                         nested_active.clone(),
                         cancel,
+                        budget,
                         policy,
                         hidden_here,
                         group_space,
@@ -8504,6 +8545,7 @@ impl<'a> Interpreter<'a> {
                     depth,
                     active,
                     cancel,
+                    budget,
                     policy,
                     hidden_here,
                     group_space,

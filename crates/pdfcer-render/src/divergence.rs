@@ -11,7 +11,7 @@ impl Diagnostics {
     /// DIVERGENCE counter means the page was painted differently from what
     /// the document asks; a non-zero value is a reason the screen may not be
     /// what a press or another conforming reader shows.
-    pub const DIVERGENCE_KEYS: [&'static str; 15] = [
+    pub const DIVERGENCE_KEYS: [&'static str; 16] = [
         "overprint_refused",
         "overprint_images_unsupported",
         "overprint_process_images_unsupported",
@@ -27,6 +27,7 @@ impl Diagnostics {
         "color.tint_transform_not_applied",
         "color.patterns_unpainted",
         "shading.refused",
+        "content_truncated",
     ];
 
     /// Every DIVERGENCE counter as `(key, value)`, zero values included.
@@ -38,10 +39,10 @@ impl Diagnostics {
     /// ```
     /// let d = pdfcer_render::Diagnostics::default();
     /// assert!(d.divergences().all(|(_, n)| n == 0));
-    /// assert_eq!(d.divergences().count(), 15);
+    /// assert_eq!(d.divergences().count(), 16);
     /// ```
     pub fn divergences(&self) -> impl Iterator<Item = (&'static str, u64)> {
-        let values: [u64; 15] = [
+        let values: [u64; 16] = [
             widen(self.overprint_refused),
             widen(self.overprint_images_unsupported),
             widen(self.overprint_process_images_unsupported),
@@ -57,6 +58,7 @@ impl Diagnostics {
             widen(self.color.tint_transform_not_applied),
             widen(self.color.patterns_unpainted),
             widen(self.shading.refused),
+            widen(self.content_truncated),
         ];
         Self::DIVERGENCE_KEYS.into_iter().zip(values)
     }

@@ -157,6 +157,7 @@ impl Interpreter<'_> {
             self.depth + 1,
             active,
             self.cancel,
+            self.budget,
             self.policy,
             false,
             self.blend_space,

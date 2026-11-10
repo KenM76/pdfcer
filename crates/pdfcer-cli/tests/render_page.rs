@@ -590,6 +590,8 @@ fn renders_a_single_page_to_png_with_the_stable_stdout_line() {
             "annots_widget_drawn",
             // Appended: markup annotations with no /AP drawn from geometry.
             "annots_geometry_drawn",
+            // Appended: nested streams left out by the page budget.
+            "content_truncated",
         ],
         "metrics key order is part of the stable contract"
     );
@@ -2376,7 +2378,7 @@ fn markup_without_ap_is_drawn_counted_and_switchable() {
     assert!(line.contains(" annots_no_ap=1 "), "{line:?}");
     assert!(line.contains(" annots_painted=0 "), "{line:?}");
     assert!(
-        line.trim_end().ends_with(" annots_geometry_drawn=1"),
+        line.trim_end().contains(" annots_geometry_drawn=1 "),
         "{line:?}"
     );
     let err = stderr(&drawn);
@@ -2394,7 +2396,7 @@ fn markup_without_ap_is_drawn_counted_and_switchable() {
     assert!(
         stdout(&blank)
             .trim_end()
-            .ends_with(" annots_geometry_drawn=0")
+            .contains(" annots_geometry_drawn=0 ")
     );
 }
 
@@ -2430,7 +2432,7 @@ fn free_text_c_chooses_fill_or_border() {
         assert!(
             stdout(&out)
                 .trim_end()
-                .ends_with(" annots_geometry_drawn=1")
+                .contains(" annots_geometry_drawn=1 ")
         );
         (stderr(&out), std::fs::read(png).unwrap())
     };
