@@ -9,7 +9,7 @@ use pdfcer_print::ipp::{IppAttribute, IppGroup, IppValue, group, tag};
 use super::*;
 
 /// A PDF of `n` empty Letter pages.
-fn pages_pdf(n: usize) -> Vec<u8> {
+pub(crate) fn pages_pdf(n: usize) -> Vec<u8> {
     let kids: Vec<String> = (0..n).map(|i| format!("{} 0 R", i + 3)).collect();
     let mut bodies = vec![
         "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
@@ -130,7 +130,7 @@ fn layout_flags_are_refused_before_anything_is_opened() {
 
 /// Answer each IPP request on `listener` with `reply(request)`, `count`
 /// times, and return the requests' bodies.
-fn serve(
+pub(crate) fn serve(
     listener: TcpListener,
     count: usize,
     reply: fn(&[u8]) -> Vec<u8>,
@@ -173,7 +173,7 @@ fn serve(
 }
 
 /// A printer that takes PDF and accepts every job as job 7.
-fn pdf_printer(request: &[u8]) -> Vec<u8> {
+pub(crate) fn pdf_printer(request: &[u8]) -> Vec<u8> {
     let op = pdfcer_print::ipp::operation_group("ipp://p/", "u");
     let groups = if request[3] == 0x0B {
         vec![
@@ -200,7 +200,8 @@ fn pdf_printer(request: &[u8]) -> Vec<u8> {
     bytes
 }
 
-fn temp_pdf(name: &str, pages: usize) -> std::path::PathBuf {
+/// A `pages`-page PDF written to a per-process temp file named for `name`.
+pub(crate) fn temp_pdf(name: &str, pages: usize) -> std::path::PathBuf {
     let path = std::env::temp_dir().join(format!("pdfcer-{name}-{}.pdf", std::process::id()));
     std::fs::write(&path, pages_pdf(pages)).unwrap();
     path

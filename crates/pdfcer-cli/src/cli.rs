@@ -4187,7 +4187,8 @@ pub(crate) enum Command {
         /// `--paper`, `--scale-percent` and similar) are refused by name;
         /// header, footer and `--marks` still apply. `ipps://` needs a
         /// build with the `download` feature. Exit 17 when the printer
-        /// cannot be reached or `lp` is missing.
+        /// cannot be reached or `lp` is missing. To send the PDF to an
+        /// installed Windows printer instead, see --pdf-direct.
         #[arg(long)]
         printer: Option<String>,
         /// How the page is sized onto the sheet [default: fit, or actual
@@ -4378,6 +4379,29 @@ pub(crate) enum Command {
         /// The file is not changed.
         #[arg(long, value_enum, value_name = "WHEN", default_value_t = crate::print_output::EdgeAaArg::Auto)]
         edge_antialiasing: crate::print_output::EdgeAaArg,
+        /// Send the PDF itself to a Windows printer that reads PDF, instead
+        /// of printing it through the driver. off (the default) always uses
+        /// the driver. auto asks the printer and sends the PDF when it
+        /// reads PDF, and otherwise prints through the driver and says why.
+        /// on sends the PDF or refuses: exit 9 when the printer has no
+        /// network address, does not read PDF, or an option needs the
+        /// driver; exit 17 when it does not answer.
+        ///
+        /// The printer is found from its port: a printer address, a TCP/IP
+        /// port's host, or a WSD device's address, asked at
+        /// ipp://host/ipp/print. Only auto and on contact the printer, and
+        /// a dry run asks it but sends nothing.
+        ///
+        /// N-up, booklet, poster, a paper choice and a percentage scale are
+        /// laid out by pdfcer into a new PDF that is sent and printed at
+        /// actual size. Header, footer and marks still apply. Options only
+        /// the driver can honour (to-file, pick-tray, printer-config,
+        /// print-as-image, separations, line-width, black-only colour,
+        /// colour profiles, comments other than document) keep the job on
+        /// the driver. The report line says route=pdf-direct or, after a
+        /// fallback, route=driver with the reason.
+        #[arg(long, value_enum, value_name = "WHEN", default_value_t = crate::print_direct::PdfDirectArg::Off)]
+        pdf_direct: crate::print_direct::PdfDirectArg,
         /// Which sheet to print on: a form ID or a form NAME, as
         /// `list-paper-sizes` reports them.
         ///

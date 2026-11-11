@@ -115,6 +115,10 @@ pub(crate) struct PrintOutput {
     // Read only by the `#[cfg(windows)]` print path.
     #[cfg_attr(not(windows), allow(dead_code))]
     pub edge_antialiasing: EdgeAaArg,
+    /// `route=driver fallback=<reason>` for a `--pdf-direct auto` job that
+    /// fell back, appended to the driver's report line.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    pub route: Option<String>,
 }
 
 // Consumed only by the `#[cfg(windows)]` `cmd_print`; pure, so compiled and

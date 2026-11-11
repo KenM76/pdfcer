@@ -1069,7 +1069,7 @@ untiled; {tiled_pages} page(s) were tiled."
     }
     println!(
         "print {} printer={name:?} pages={} printed={} dpi={}x{} clipped={} mode={} \
-         settings={} setups={} job={}",
+         settings={} setups={} job={}{}",
         input.display(),
         report.pages,
         u8::from(report.printed),
@@ -1091,6 +1091,11 @@ untiled; {tiled_pages} page(s) were tiled."
         report
             .job_id
             .map_or_else(|| "-".to_owned(), |j| j.to_string()),
+        output
+            .route
+            .as_ref()
+            .map(|r| format!(" {r}"))
+            .unwrap_or_default(),
     );
     exit::SUCCESS
 }

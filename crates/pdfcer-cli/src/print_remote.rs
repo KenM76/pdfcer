@@ -61,12 +61,12 @@ pub(crate) fn set_flags(given: &[(&'static str, bool)]) -> Vec<&'static str> {
 }
 
 /// The document prepared for sending: its bytes and what to ask for.
-struct Prepared {
-    pdf: Vec<u8>,
-    name: String,
-    job: Effective,
+pub(crate) struct Prepared {
+    pub pdf: Vec<u8>,
+    pub name: String,
+    pub job: Effective,
     /// 1-based inclusive page ranges; empty for every page.
-    ranges: Vec<(u32, u32)>,
+    pub ranges: Vec<(u32, u32)>,
 }
 
 /// Print `input` by URI or through CUPS. The exit code.
@@ -118,8 +118,19 @@ pub(crate) fn print_remote(input: &Path, job: &RemoteJob<'_>) -> u8 {
     }
 }
 
-/// Open, stamp and select: the bytes that are sent, and the page ranges.
-fn prepare(input: &Path, job: &RemoteJob<'_>) -> Result<Prepared, u8> {
+/// The document opened, permission-checked, stamped and merged with its
+/// presets: what both the URI route and `--pdf-direct` start from.
+pub(crate) struct Staged {
+    pub session: pdfcer_core::edit::EditSession,
+    pub name: String,
+    pub job: Effective,
+    /// 0-based pages the operator selected, in document order.
+    pub selected: Vec<usize>,
+    pub count: usize,
+}
+
+/// Open, check, stamp and merge `input`. The exit code on failure, reported.
+pub(crate) fn stage(input: &Path, job: &RemoteJob<'_>) -> Result<Staged, u8> {
     let fail = |err: &dyn std::fmt::Display, code| {
         eprintln!("pdfcer: {}: {err}", input.display());
         code
@@ -146,31 +157,57 @@ fn prepare(input: &Path, job: &RemoteJob<'_>) -> Result<Prepared, u8> {
         crate::print_presets::merge(job.requested.clone(), &presets, count, job.ignore_presets);
     merged.notes.iter().for_each(|n| eprintln!("pdfcer: {n}"));
     let selected = parse_pages(&merged.pages, count).map_err(|m| fail(&m, exit::RUNTIME_ERROR))?;
-    let ranges = page_ranges(&selected, job.subset, count);
+    Ok(Staged {
+        session,
+        name,
+        job: merged,
+        selected,
+        count,
+    })
+}
+
+/// The session's bytes: the file itself when nothing was edited.
+pub(crate) fn session_bytes(
+    input: &Path,
+    session: &pdfcer_core::edit::EditSession,
+) -> Result<Vec<u8>, u8> {
+    let fail = |err: &dyn std::fmt::Display, code| {
+        eprintln!("pdfcer: {}: {err}", input.display());
+        code
+    };
+    if !session.is_modified() {
+        return std::fs::read(input).map_err(|e| fail(&e, exit::IO_ERROR));
+    }
+    let options = pdfcer_core::writer::SaveOptions::default();
+    session
+        .to_incremental_bytes(&options)
+        .map(|(bytes, _)| bytes)
+        .map_err(|e| fail(&e, exit::SAVE_REFUSED))
+}
+
+/// Open, stamp and select: the bytes that are sent, and the page ranges.
+fn prepare(input: &Path, job: &RemoteJob<'_>) -> Result<Prepared, u8> {
+    let staged = stage(input, job)?;
+    let ranges = page_ranges(&staged.selected, job.subset, staged.count);
     if ranges.as_ref().is_some_and(Vec::is_empty) {
         eprintln!("pdfcer: {}: no pages left to print", input.display());
         return Err(exit::RUNTIME_ERROR);
     }
-    let pdf = if session.is_modified() {
-        let options = pdfcer_core::writer::SaveOptions::default();
-        session
-            .to_incremental_bytes(&options)
-            .map_err(|e| fail(&e, exit::SAVE_REFUSED))?
-            .0
-    } else {
-        std::fs::read(input).map_err(|e| fail(&e, exit::IO_ERROR))?
-    };
     Ok(Prepared {
-        pdf,
-        name,
-        job: merged,
+        pdf: session_bytes(input, &staged.session)?,
+        name: staged.name,
+        job: staged.job,
         ranges: ranges.unwrap_or_default(),
     })
 }
 
 /// `selected` (0-based) filtered by `subset` (document page numbers) as
 /// 1-based inclusive ranges; `None` when that is every one of `count` pages.
-fn page_ranges(selected: &[usize], subset: SubsetArg, count: usize) -> Option<Vec<(u32, u32)>> {
+pub(crate) fn page_ranges(
+    selected: &[usize],
+    subset: SubsetArg,
+    count: usize,
+) -> Option<Vec<(u32, u32)>> {
     let keep = |i: &usize| match subset {
         SubsetArg::All => true,
         SubsetArg::Odd => i.is_multiple_of(2),
@@ -218,13 +255,14 @@ fn orientation(o: OrientationArg) -> Option<i32> {
 }
 
 /// The requesting user: `USERNAME` or `USER`, else `pdfcer`.
-fn user_name() -> String {
+pub(crate) fn user_name() -> String {
     std::env::var("USERNAME")
         .or_else(|_| std::env::var("USER"))
         .unwrap_or_else(|_| "pdfcer".to_owned())
 }
 
-fn ipp_job(uri: &str, job: &RemoteJob<'_>, p: &Prepared) -> IppJob {
+/// The Print-Job attributes for `p` sent to `uri`, from the merged job.
+pub(crate) fn ipp_job(uri: &str, job: &RemoteJob<'_>, p: &Prepared) -> IppJob {
     let mut out = IppJob::new(uri, &user_name(), &p.name);
     out.copies = p.job.copies;
     out.sides = Some(sides(p.job.duplex));
@@ -300,7 +338,8 @@ impl ipp::IppTransport for CliTransport {
     }
 }
 
-fn transport() -> CliTransport {
+/// The HTTP transport every IPP request from `print` uses, with its timeout.
+pub(crate) fn transport() -> impl ipp::IppTransport {
     CliTransport {
         timeout: IPP_TIMEOUT,
     }
@@ -378,6 +417,37 @@ fn print_ipp(
         Ok(o) => o,
         Err(code) => return code,
     };
+    match send_prepared(uri, &offer, job, finishing, p, send) {
+        Ok(Some(sent)) => {
+            let id = sent
+                .job_id
+                .map(|n| format!(" as job {n}"))
+                .unwrap_or_default();
+            println!("sent {} to {uri}{id} ({})", p.name, sent.summary);
+            exit::SUCCESS
+        }
+        Ok(None) => exit::SUCCESS,
+        Err(code) => code,
+    }
+}
+
+/// What a sent job reported.
+pub(crate) struct Sent {
+    pub job_id: Option<i32>,
+    /// `N bytes, attribute=value, ...`.
+    pub summary: String,
+}
+
+/// Plan `job` against `offer` and (with `send`) print `p`; `None` for a
+/// dry run, which says what it would send. The exit code on failure.
+pub(crate) fn send_prepared(
+    uri: &str,
+    offer: &ipp::PrinterOffer,
+    job: IppJob,
+    finishing: &pdfcer_print::finishing::Finishing,
+    p: &Prepared,
+    send: bool,
+) -> Result<Option<Sent>, u8> {
     eprintln!(
         "pdfcer: printer {uri}{}",
         offer
@@ -386,10 +456,7 @@ fn print_ipp(
             .map(|m| format!(" ({m})"))
             .unwrap_or_default()
     );
-    let plan = match ipp::plan_ipp_job(job, finishing, &offer) {
-        Ok(plan) => plan,
-        Err(e) => return report(&e),
-    };
+    let plan = ipp::plan_ipp_job(job, finishing, offer).map_err(|e| report(&e))?;
     crate::print_finishing::report_notes(&plan.notes, uri);
     let asked: Vec<String> = plan.job.job_attributes().iter().map(describe).collect();
     let summary = format!("{} bytes, {}", p.pdf.len(), asked.join(", "));
@@ -398,24 +465,19 @@ fn print_ipp(
             "pdfcer: dry run: would send {} ({summary}). Pass --send to print.",
             p.name
         );
-        return exit::SUCCESS;
+        return Ok(None);
     }
-    let receipt = match ipp::send_ipp_job(&plan.job, &p.pdf, &mut transport()) {
-        Ok(r) => r,
-        Err(e) => return report(&e),
-    };
-    let id = receipt
-        .job_id
-        .map(|n| format!(" as job {n}"))
-        .unwrap_or_default();
-    println!("sent {} to {uri}{id} ({summary})", p.name);
+    let receipt = ipp::send_ipp_job(&plan.job, &p.pdf, &mut transport()).map_err(|e| report(&e))?;
     if !receipt.ignored.is_empty() {
         eprintln!(
             "pdfcer: the printer ignored or substituted: {}",
             receipt.ignored.join(", ")
         );
     }
-    exit::SUCCESS
+    Ok(Some(Sent {
+        job_id: receipt.job_id,
+        summary,
+    }))
 }
 
 /// `name=value` for a report line.
@@ -480,4 +542,4 @@ fn print_cups(dest: Option<&str>, args: &[String], p: &Prepared, send: bool) -> 
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

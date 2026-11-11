@@ -46,6 +46,9 @@ windows = { version = "0.62", features = [
     # is feature-gated behind Win32_Security even though pdfcer never reads it.
     "Win32_Security",
     "Win32_Storage_Xps",
+    # The port monitors' registry values: a queue's network address for
+    # `print --pdf-direct`. A feature of the crate above, no new licence.
+    "Win32_System_Registry",
 ] }
 
 # The vector-page test plays a real page's metafile and compares it with the

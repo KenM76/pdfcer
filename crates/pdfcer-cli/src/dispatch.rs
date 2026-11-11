@@ -1002,6 +1002,7 @@ pub(crate) fn run() -> ExitCode {
             fold,
             output_bin,
             edge_antialiasing,
+            pdf_direct,
         } => {
             let icc = crate::print_icc::IccArgs {
                 printer_profile: printer_profile.as_deref(),
@@ -1035,6 +1036,7 @@ pub(crate) fn run() -> ExitCode {
                     output_bin,
                 ),
                 edge_antialiasing,
+                route: None,
             };
             if crate::print_remote::routes_here(printer.as_deref()) {
                 let layout_flags = crate::print_remote::set_flags(&[
@@ -1083,11 +1085,11 @@ pub(crate) fn run() -> ExitCode {
                 })
                 .into();
             }
-            crate::print_output::print_each(&input, to_file.as_deref(), |input| {
-                cmd_print(
-                    input,
-                    printer.as_deref(),
-                    crate::print_presets::Requested {
+            let direct = crate::print_direct::DirectJob {
+                mode: pdf_direct,
+                remote: crate::print_remote::RemoteJob {
+                    printer: printer.as_deref(),
+                    requested: crate::print_presets::Requested {
                         scale,
                         scale_percent,
                         pages: pages.clone(),
@@ -1095,32 +1097,95 @@ pub(crate) fn run() -> ExitCode {
                         duplex,
                         pick_tray,
                     },
-                    ignore_document_presets,
+                    ignore_presets: ignore_document_presets,
                     send,
-                    max_dpi,
-                    to_file.clone(),
                     uncollated,
                     subset,
-                    reverse,
                     orientation,
+                    output: &output,
+                    layout_flags: crate::print_remote::set_flags(&[
+                        ("--to-file", to_file.is_some()),
+                        ("--pick-tray", pick_tray),
+                        ("--printer-config", printer_config.is_some()),
+                        ("--comments", comments != CommentsArg::Document),
+                        (
+                            "more than one of --n-up, --booklet and --poster",
+                            u8::from(n_up.is_some()) + u8::from(booklet) + u8::from(poster) > 1,
+                        ),
+                        ("--line-width", line_width.is_some()),
+                        (
+                            "--color black-only",
+                            output.color == crate::print_output::ColorArg::BlackOnly,
+                        ),
+                        ("--separations", separations),
+                        ("--print-as-image", print_as_image),
+                        ("--printer-profile", printer_profile.is_some()),
+                        ("--proof-profile", proof_profile.is_some()),
+                    ]),
+                },
+                reverse,
+                shape: crate::print_direct::shape(
+                    n_up.map(|count| (count, n_up_border)),
+                    booklet.then_some((binding, booklet_subset)),
+                    poster.then_some(pdfcer_print::imposition::PosterSpec {
+                        tile_scale: poster_scale,
+                        overlap_pt: poster_overlap,
+                        cut_marks: poster_cut_marks,
+                        labels: poster_labels,
+                        tile_only_large_pages: poster_large_only,
+                        max_tiles: poster_max_tiles,
+                    }),
+                ),
+                resize: paper.is_some() || paper_size.is_some(),
+                ignored: crate::print_remote::set_flags(&[("--max-dpi", max_dpi != 300)]),
+            };
+            crate::print_output::print_each(&input, to_file.as_deref(), |input| {
+                let mut driver = |input: &Path, output: &crate::print_output::PrintOutput| {
+                    cmd_print(
+                        input,
+                        printer.as_deref(),
+                        crate::print_presets::Requested {
+                            scale,
+                            scale_percent,
+                            pages: pages.clone(),
+                            copies,
+                            duplex,
+                            pick_tray,
+                        },
+                        ignore_document_presets,
+                        send,
+                        max_dpi,
+                        to_file.clone(),
+                        uncollated,
+                        subset,
+                        reverse,
+                        orientation,
+                        paper.as_deref(),
+                        paper_size.as_deref(),
+                        printer_config.as_deref(),
+                        comments,
+                        n_up,
+                        n_up_border,
+                        booklet,
+                        poster,
+                        poster_scale,
+                        poster_overlap,
+                        poster_large_only,
+                        poster_max_tiles,
+                        binding,
+                        booklet_subset,
+                        line_width,
+                        poster_cut_marks,
+                        poster_labels,
+                        output,
+                    )
+                };
+                crate::print_direct::print_direct(
+                    input,
+                    &direct,
                     paper.as_deref(),
                     paper_size.as_deref(),
-                    printer_config.as_deref(),
-                    comments,
-                    n_up,
-                    n_up_border,
-                    booklet,
-                    poster,
-                    poster_scale,
-                    poster_overlap,
-                    poster_large_only,
-                    poster_max_tiles,
-                    binding,
-                    booklet_subset,
-                    line_width,
-                    poster_cut_marks,
-                    poster_labels,
-                    &output,
+                    &mut driver,
                 )
             })
         }

@@ -149,9 +149,11 @@ mod devmode;
 mod listing;
 mod metafile;
 mod probe;
+mod queue_port;
 
 pub use listing::{PrinterName, list_printer_names, list_printers, printer_detail};
 pub use probe::{PrinterProbe, PrinterReport, ReportReader};
+pub use queue_port::queue_port;
 
 pub use devmode::{
     ConfigurationError, ConfigurationSummary, MAX_CUSTOM_SHEET_TENTHS_MM, PaperForm,
