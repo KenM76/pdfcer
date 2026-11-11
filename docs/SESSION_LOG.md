@@ -4,6 +4,30 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1526th filing) — `b4b09e32` `Pass 700.19` SHIPPED: ICCBased CMYK source profile on the screen route (`X074`)
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only; filed together with the 1525th):**
+- `b4b09e326daf299ad86bd4ec32007694f4541ff9` on `main` (cherry-pick of worker `8d08d84c837a389e308b079a14d27ca3b1d6ef13`), local and not pushed, not in a release. Cause: the screen/additive route ignored N=4 source profiles in three places (C=1 gave `[0,174,239]` not `[237,1,140]`, delta-E 103). Detail in the ROADMAP *Shipped* entry.
+- New pub: `Diagnostics::icc_profiles_unmodelled`, `emf::print_export_with`; CLI `pdfcer print` prints the unusable-profile note per page. `ColorBridges` moved to `icc/bridges.rs`.
+- Tests: `iccbased_cmyk_lut_source.rs` 11 tests, six sabotages caught.
+- FEATURES: Planned row moved to Implemented as three rows (screen route core only; print disclosure core+cli; EMF fidelity core only); gui `[ ]` throughout.
+- **Open:** counter per profile not per paint; plates route has no diagnostics carrier; `Diagnostics::merge` line unexercised; additive ICC N4 pages with an output intent render different pixels.
+- Channel: the `X074` SHIPPED reply is to be written by the operator.
+
+**For next session:** remaining order this round: `700.11` (`X072`), `700.17` (crate split into `pdfcer-emf` / `pdfcer-flatten`, with a `pdfcraft` note), `700.13` / `700.14` / `700.15` (flattener), `700.18` (parity report), then the release. `Pass 700.16`'s CI build fix (`962a200b`) was already filed (1524th).
+
+## 2026-11-11 (1525th filing) — `9dbb9f7a` `Pass 700.20` SHIPPED: spot overprint over process and DeviceN with more than four inks (`X075`)
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
+- `9dbb9f7ad025c97459f1f8923eff9e248979cda0` on `main` (cherry-pick of worker `ede0cd26e815ed7b680f865b0b9524e1460a2437`), local and not pushed, not in a release. Banded plan budgets spot planes and re-plans on refusal; EMF counts one spot plane on a subtractive page; DeviceN `/Process` renamed to Cyan..Black; `/Colorants` Separation is the spot's appearance. Detail in the ROADMAP *Shipped* entry.
+- Four new `Diagnostics` counters; CLI `render-page` metrics line and stderr note, `pdfcer print` note per page.
+- Tests: `spot_overprint_routes.rs` 21 cases plus a per-reason test; CLI metrics order and roster note; each fix sabotaged and caught. Suites green (123, 1079 (2 ignored), 576, 686 (3 ignored), 38; 0 failed); fmt, clippy, code-structure, tests-harnessed, public-fns-documented clean.
+- FEATURES: Planned row moved to Implemented: core `[x]`, cli `[x]`, gui `[ ]`.
+- **Disclosed approximations:** unpatched EMF and sRGB fallback still flatten spots through the tint transform; supersample tiles not re-planned; non-CMYK `/Process` left as authored; image and shading `/Colorants` spots not EMF patch sites; per-band max can under-count.
+- Channel: reply `reply_X075_spot_overprint_devicen_SHIPPED.md` written.
+
+**For next session:** as the 1526th entry.
+
 ## 2026-11-11 (1524th filing) — `962a200b` `Pass 700.16` follow-up: print compositor builds without `svg-import` and off Windows
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
