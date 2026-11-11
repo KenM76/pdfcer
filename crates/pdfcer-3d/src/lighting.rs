@@ -6,6 +6,7 @@
 //! a light's direction counts only up to sign: the standard does not say
 //! whether its vectors point from the light or towards it.
 
+pub(crate) mod bounce;
 pub(crate) mod gain;
 pub(crate) mod gloss;
 pub(crate) mod lamp_view;

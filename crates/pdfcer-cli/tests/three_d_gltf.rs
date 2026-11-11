@@ -531,3 +531,36 @@ fn lamp_over_floor_json() -> String {
   "scenes":[{"nodes":[0,1]}]}"#
         .to_owned()
 }
+
+/// `--bounce`: a model lamp bounces by default and the note says so; `off`
+/// draws direct light only, says nothing, and changes the picture.
+#[test]
+fn a_model_lamp_bounces_by_default_and_off_says_nothing() {
+    let s = Scratch::new("bounce");
+    std::fs::write(s.path("m.glb"), glb_of(lamp_over_floor_json())).unwrap();
+    let pdf = format!(
+        "{}/../../fixtures/synthetic/minimal.pdf",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let (m, out) = (s.path("m.glb"), s.path("out.pdf"));
+    let args = ["3d-embed", &pdf, "--model", &m, "--page", "1"];
+    stdout(&run(&[
+        &args[..],
+        &["--rect", "10,10,190,190", "--apply", "-o", &out],
+    ]
+    .concat()));
+    let render = |tag: &str, extra: &[&str]| {
+        let png = s.path(&format!("{tag}.png"));
+        let mut args = vec!["3d-render", &out, "--index", "0", "--eye=1,-3,4"];
+        args.extend_from_slice(&["--no-ambient-occlusion", "--no-shadows"]);
+        args.extend_from_slice(&["--width", "60", "--height", "40", "-o", &png]);
+        args.extend_from_slice(extra);
+        (stdout(&run(&args)), std::fs::read(&png).unwrap())
+    };
+    let (note, on) = render("on", &[]);
+    let line = "note: lighting: bounce: 1 light(s) bounce off the model's surfaces, strength 1";
+    assert!(note.contains(line), "{note}");
+    let (note, off) = render("off", &["--bounce", "off"]);
+    assert!(!note.contains("bounce:"), "{note}");
+    assert_ne!(on, off, "the bounce adds light");
+}

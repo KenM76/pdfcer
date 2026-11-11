@@ -652,6 +652,7 @@ fn render_from_bytes(
         shininess: lights::shininess_scale(a.shininess_scale),
         light_gain: a.light.light_gain,
         lamp_cost: a.light.lamp_cost(),
+        indirect: a.light.indirect(),
         ..RenderOptions::default()
     };
     let image = match render_model(&model, &camera, &options) {

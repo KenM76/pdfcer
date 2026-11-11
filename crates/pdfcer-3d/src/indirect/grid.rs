@@ -98,10 +98,17 @@ impl Grid {
     }
 }
 
+/// The weight left to a probe behind the plane of the surface at a point.
+/// Such a probe cannot see that side of the surface, and what it records
+/// is often the far side of a thin sheet; it counts only where no probe in
+/// front has any weight, so a point never goes black for want of one.
+const BEHIND: f64 = 1e-9;
+
 /// The irradiance at `p` on the side its unit normal `n` faces, blended
 /// from the eight probes around `p`: each weighted by its trilinear share,
 /// by how far it sits in front of the surface, and by whether its depth
-/// moments say it can see `p`. Inactive probes weigh nothing; with none
+/// moments say it can see `p`; a probe behind the surface's plane weighs
+/// almost nothing ([`BEHIND`]). Inactive probes weigh nothing; with none
 /// left the result is zero.
 pub(crate) fn gather(
     grid: &Grid,
@@ -133,6 +140,9 @@ pub(crate) fn gather(
             w *= w * w / 0.04;
         }
         w *= trilinear;
+        if dot(sub(q, p), n) < 0.0 {
+            w *= BEHIND;
+        }
         if w <= 0.0 {
             continue;
         }

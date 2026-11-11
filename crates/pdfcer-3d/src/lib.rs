@@ -35,8 +35,6 @@ mod gltf;
 #[cfg(feature = "render")]
 mod gpu;
 #[cfg(feature = "render")]
-// The renderer starts reading it in Pass 705.2b; until then only its tests do.
-#[allow(dead_code)]
 mod indirect;
 #[cfg(feature = "render")]
 mod lighting;
@@ -112,6 +110,8 @@ pub use gpu::shadow_set::{
 pub use gpu::wide_lines::GLSL_ES_300_WIDE_LINE_VERTEX;
 #[cfg(feature = "render")]
 pub use gpu::{Draw, DrawData, VERTEX_FLOATS};
+#[cfg(feature = "render")]
+pub use lighting::bounce::{Bounce, BounceSky, BounceStats, IndirectOptions, MAX_BOUNCE_STRENGTH};
 #[cfg(feature = "render")]
 pub use lighting::gain::{MAX_LIGHT_GAIN, MIN_LIGHT_GAIN};
 #[cfg(feature = "render")]

@@ -352,3 +352,39 @@ fn sphere_directions_are_unit_and_spread() {
     }
     assert!(crate::vec3::length(mean) < 0.05 * RAYS as f64, "{mean:?}");
 }
+
+#[test]
+fn a_lone_sheet_lit_from_above_leaves_its_underside_dark() {
+    let meshes = vec![quad([
+        [-3., -3., 0.],
+        [3., -3., 0.],
+        [3., 3., 0.],
+        [-3., 3., 0.],
+    ])];
+    let paint = Paint {
+        albedo: vec![[0.5; 3]],
+        holes: vec![],
+    };
+    let sun = Lamp::Far {
+        to_light: [0.0, 0.0, 1.0],
+        colour: [1.0; 3],
+    };
+    for probes in [TEST_PROBES, MAX_PROBES] {
+        let index = PickIndex::new(&meshes);
+        let scene = Scene {
+            meshes: &meshes,
+            index: &index,
+            surfaces: &paint,
+            lamps: &[sun],
+            sky: [0.0; 3],
+        };
+        let mut v = Volume::with_ceiling(&meshes, probes).unwrap();
+        v.build(&scene, 2);
+        let under = v.irradiance([0.1, 0.1, 0.0], [0.0, 0.0, -1.0]);
+        let over = v.irradiance([0.1, 0.1, 0.0], [0.0, 0.0, 1.0]);
+        assert!(under[0] < 1e-6, "{probes}: under {under:?}");
+        // The top faces an empty sky; what it gets is the blur of the
+        // probe maps' 8 by 8 texels, under 1% of the light on the sheet.
+        assert!(over[0] < 0.01 * 0.5, "{probes}: over {over:?}");
+    }
+}

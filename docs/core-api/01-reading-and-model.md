@@ -3686,6 +3686,33 @@ let image = render_coloured(&meshes, &colours, &camera, &RenderOptions { width: 
   casting; D more past the limit of 16, …`.
   Tiled per-tile lamp lists on the GPU are not shipped: the shader loops
   over the frame's culled lamps.
+  Bounce light (decision 224, `render` feature): `RenderOptions::indirect:
+  IndirectOptions { bounce, bounce_strength, bounce_sky }`
+  (`#[non_exhaustive]`: build from `IndirectOptions::default()` and set
+  fields). `bounce: Bounce::{Off, ModelLights (default), EveryLight}` —
+  `ModelLights` bounces the lights fixed in the scene (the model's
+  directional, point and spot lights, an aimed sun, scheme lights in
+  `LightFrame::World`); `EveryLight` adds the headlight and camera-frame
+  scheme lights. Ambient lights and emissive never bounce. A model lit only
+  from the camera (most CAD files) therefore gets **no bounce by default**.
+  `bounce_strength` 0 ..= `MAX_BOUNCE_STRENGTH` (4.0), default 1 (physical);
+  `strength()` is the clamped value drawn, 0 when not finite; 0 draws as
+  `Off`. `bounce_sky: BounceSky::{Dark (default), Background}` — what a ray
+  leaving the model brings back. Built once per `render`/`render_model` call
+  as a probe volume (at most 4096 probes, 64 rays, 3 bounces) from the
+  unculled lights; results are byte-identical at any `threads`. Off, strength
+  0 or no bouncing light draws byte-identical to the direct light alone.
+  Bounce only adds light; it fills shadows, so a test pinning direct-light
+  shadows sets `bounce: Bounce::Off`. Counts for the disclosure:
+  `BounceStats { bouncing, camera_lights }` (`#[non_exhaustive]`, `Default`)
+  from `BounceStats::for_model(&camera, &options, &model.lights) ->
+  Result<BounceStats, RenderError>`; `bouncing` 0 with `camera_lights` > 0
+  means "lit from the camera alone — `EveryLight` would bounce it".
+  **The GPU path (`FrameLights`, the WGSL shader) does not draw bounce
+  yet**: a GPU frame of a model with fixed lights differs from the CPU one
+  by the bounce (decision 223 parity gap, Pass 705.3); disclose it. CLI:
+  `--bounce off|model-lights|every-light`, `--bounce-strength 0-4`,
+  `--bounce-sky dark|background`, disclosed as `note: lighting: bounce: …`.
   Every directional light: `RenderOptions::shadow_casters:
   ShadowCasters::{EveryLight (default), KeyLight}` — under a scheme or a
   model's own lights, each directional light lighting the frame casts its

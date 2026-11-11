@@ -23,6 +23,7 @@ use crate::TriangleMesh;
 use crate::camera::Camera;
 pub use crate::camera::bounds::Bounds;
 pub use crate::camera::projection::{FisheyeMapping, Projection};
+use crate::lighting::bounce::BounceLight;
 use crate::lighting::gloss::Gloss;
 use crate::lighting::{LightFrame, LightingScheme, Shader};
 use crate::shadow::cast::{ShadowAlpha, ShadowCasters};
@@ -136,6 +137,10 @@ pub struct RenderOptions {
     /// [`MIN_LIGHT_GAIN`](crate::MIN_LIGHT_GAIN)–[`MAX_LIGHT_GAIN`](crate::MAX_LIGHT_GAIN)
     /// or not finite: [`RenderError::LightGain`].
     pub light_gain: f64,
+    /// Light bounced between surfaces ([`IndirectOptions`]): on for the
+    /// lights fixed in the model by default, so a model lit only from the
+    /// camera draws as before. The GPU path does not draw it yet.
+    pub indirect: crate::IndirectOptions,
 }
 
 impl Default for RenderOptions {
@@ -166,6 +171,7 @@ impl Default for RenderOptions {
             line_width: 1,
             render_mode: crate::RenderMode::default(),
             light_gain: 1.0,
+            indirect: crate::IndirectOptions::default(),
         }
     }
 }
@@ -295,10 +301,15 @@ pub(crate) fn render_finished(
     options: &RenderOptions,
 ) -> Result<(Image, Vec<f64>), RenderError> {
     let (width, height) = checked_size(options)?;
-    if let Some(lens) = crate::camera::lens::Lens::for_camera(camera, width, height)? {
-        return crate::camera::lens_frame::render(model, paints, opaque, (camera, &lens), options);
+    let lens = crate::camera::lens::Lens::for_camera(camera, width, height)?;
+    // Built once, for every face of a fisheye alike.
+    let bounce = crate::lighting::bounce::frame_bounce(model, paints, camera, options)?;
+    let bounce = bounce.as_ref();
+    if let Some(lens) = lens {
+        let view = (camera, &lens, bounce);
+        return crate::camera::lens_frame::render(model, paints, opaque, view, options);
     }
-    render_view(model, paints, opaque, camera, options, None)
+    render_view(model, paints, opaque, camera, options, (None, bounce))
 }
 
 /// `options`' image size, refused when empty or over the ceiling.
@@ -313,14 +324,15 @@ fn checked_size(options: &RenderOptions) -> Result<(u32, u32), RenderError> {
 
 /// [`render_finished`] for a planar `camera`, its camera-fixed lights,
 /// shadow caster and lamps placed by `parent` (a fisheye, when this draws
-/// one of its faces; [`crate::lighting::lamp_view::frame_shader`]) or else by it.
+/// one of its faces; [`crate::lighting::lamp_view::frame_shader`]) or else by it,
+/// with the frame's `bounce` light.
 pub(crate) fn render_view(
     (meshes, model_lights, finishes): crate::lighting::gloss::Model<'_>,
     paints: &[Paint<'_>],
     opaque: &[bool],
     camera: &Camera,
     options: &RenderOptions,
-    parent: Option<&Camera>,
+    (parent, bounce): (Option<&Camera>, Option<&BounceLight>),
 ) -> Result<(Image, Vec<f64>), RenderError> {
     let (width, height) = checked_size(options)?;
     let pixels = u64::from(width) * u64::from(height);
@@ -359,6 +371,7 @@ pub(crate) fn render_view(
         lamps: shadows.lamps,
         height,
         gloss,
+        bounce,
     };
     let frame = Frame {
         scene: &scene,
@@ -414,6 +427,8 @@ pub(crate) struct Scene<'c> {
     height: u32,
     /// The meshes' material finishes, when any draws one.
     gloss: Option<Gloss>,
+    /// Light bounced between surfaces, when drawn.
+    bounce: Option<&'c BounceLight>,
 }
 
 impl Scene<'_> {
@@ -471,6 +486,7 @@ impl Scene<'_> {
                 .gloss
                 .as_ref()
                 .and_then(|g| Some((g, g.finish_of(mesh)?))),
+            bounce: self.bounce,
         }
     }
 

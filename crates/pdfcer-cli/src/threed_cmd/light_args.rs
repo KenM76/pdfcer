@@ -1,6 +1,7 @@
-//! `3d-render --light-gain`, the `--sun-*` options and `--lamp-cost`: one
-//! brightness on every light, a sun the operator aims, and how many lamps
-//! a frame draws.
+//! `3d-render --light-gain`, the `--sun-*` options, `--lamp-cost` and the
+//! `--bounce*` options: one brightness on every light, a sun the operator
+//! aims, how many lamps a frame draws, and the light that bounces off the
+//! model's surfaces.
 
 #[cfg(feature = "3d")]
 use crate::ShadowLightArg;
@@ -11,6 +12,28 @@ pub(crate) enum SunColourArg {
     /// From the sun's height: 2000 K on the horizon rising to 5500 K
     /// overhead.
     FromElevation,
+}
+
+/// `--bounce`: which lights bounce off the model's surfaces.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum BounceArg {
+    /// No bounced light.
+    Off,
+    /// The lights fixed in the scene: the model's own lights and lamps, an
+    /// aimed sun and scheme lights fixed to the world.
+    ModelLights,
+    /// Those and the lights that follow the camera, the light at the camera
+    /// included.
+    EveryLight,
+}
+
+/// `--bounce-sky`: what light a bounce ray meeting nothing brings back.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub(crate) enum BounceSkyArg {
+    /// None.
+    Dark,
+    /// The background colour's.
+    Background,
 }
 
 /// `--lamp-cost`: every lamp reaching the view, or only the nearest few.
@@ -66,6 +89,24 @@ pub(crate) struct LightArgs {
     /// you.
     #[arg(long, default_value = "full", value_parser = parse_lamp_cost)]
     pub(crate) lamp_cost: LampCostArg,
+    /// Which lights bounce off the model's surfaces onto others, so a lit
+    /// red wall tints the floor beside it and light reaches round corners.
+    /// `model-lights` (the default) bounces the lights fixed in the scene:
+    /// the model's own lights and lamps, an aimed sun and world-fixed
+    /// scheme lights. A model lit only from the camera, as most CAD files
+    /// are, gets no bounce unless `every-light` adds the camera's lights.
+    /// `off` draws direct light only.
+    #[arg(long, value_enum, default_value_t = BounceArg::ModelLights)]
+    pub(crate) bounce: BounceArg,
+    /// How strongly bounced light adds, 0 to 4 (default 1, the physical
+    /// amount); 0 turns it off.
+    #[arg(long, default_value_t = 1.0, value_parser = parse_bounce_strength)]
+    pub(crate) bounce_strength: f64,
+    /// `dark` (the default): a bounce ray that leaves the model brings no
+    /// light back. `background`: it brings the background colour's, so an
+    /// open model is lit a little by its surroundings.
+    #[arg(long, value_enum, default_value_t = BounceSkyArg::Dark)]
+    pub(crate) bounce_sky: BounceSkyArg,
 }
 
 #[cfg(feature = "3d")]
@@ -89,6 +130,27 @@ impl LightArgs {
         if let Some(line) = lamps.ok().as_ref().and_then(lamp_note) {
             println!("note: lighting: {line}");
         }
+        let bounce = pdfcer_3d::BounceStats::for_model(camera, options, &model.lights);
+        if let Some(line) = bounce.ok().and_then(|s| bounce_note(self, s)) {
+            println!("note: lighting: bounce: {line}");
+        }
+    }
+
+    /// The `--bounce*` options as the engine's setting.
+    pub(crate) fn indirect(&self) -> pdfcer_3d::IndirectOptions {
+        use pdfcer_3d::{Bounce, BounceSky};
+        let mut o = pdfcer_3d::IndirectOptions::default();
+        o.bounce = match self.bounce {
+            BounceArg::Off => Bounce::Off,
+            BounceArg::ModelLights => Bounce::ModelLights,
+            BounceArg::EveryLight => Bounce::EveryLight,
+        };
+        o.bounce_strength = self.bounce_strength;
+        o.bounce_sky = match self.bounce_sky {
+            BounceSkyArg::Dark => BounceSky::Dark,
+            BounceSkyArg::Background => BounceSky::Background,
+        };
+        o
     }
 
     /// `--lamp-cost` as the engine's setting.
@@ -152,6 +214,34 @@ fn lamp_note(s: &pdfcer_3d::LampStats) -> Option<String> {
     Some(line)
 }
 
+/// The bounce line; `None` when the operator turned it off.
+#[cfg(feature = "3d")]
+fn bounce_note(a: &LightArgs, s: pdfcer_3d::BounceStats) -> Option<String> {
+    if a.bounce == BounceArg::Off || a.bounce_strength == 0.0 {
+        return None;
+    }
+    if s.bouncing == 0 {
+        return Some(if s.camera_lights > 0 {
+            "none: the model is lit only from the camera, whose lights do not bounce by \
+             default (--bounce every-light bounces them)"
+                .to_owned()
+        } else {
+            "none: nothing lights the model".to_owned()
+        });
+    }
+    let mut line = format!(
+        "{} light(s) bounce off the model's surfaces, strength {}",
+        s.bouncing, a.bounce_strength
+    );
+    if a.bounce == BounceArg::ModelLights && s.camera_lights > 0 {
+        line.push_str(&format!(
+            "; {} following the camera do not (--bounce every-light adds them)",
+            s.camera_lights
+        ));
+    }
+    Some(line)
+}
+
 /// How the shadows note names an aimed sun.
 #[cfg(feature = "3d")]
 pub(crate) fn sun_note(sun: &pdfcer_3d::SunLight) -> String {
@@ -192,6 +282,10 @@ fn parse_elevation(s: &str) -> Result<f64, String> {
     parse_within(s, 0.0, 90.0)
 }
 
+fn parse_bounce_strength(s: &str) -> Result<f64, String> {
+    parse_within(s, 0.0, 4.0)
+}
+
 fn parse_kelvin(s: &str) -> Result<f64, String> {
     parse_within(s, 1000.0, 40000.0)
 }
@@ -229,6 +323,11 @@ mod tests {
         use super::LampCostArg::{Full, Nearest};
         assert_eq!(super::parse_lamp_cost("full"), Ok(Full));
         assert_eq!(super::parse_lamp_cost("nearest:8"), Ok(Nearest(8)));
+        assert_eq!(
+            super::parse_bounce_strength("4").ok(),
+            Some(pdfcer_3d::MAX_BOUNCE_STRENGTH)
+        );
+        assert!(super::parse_bounce_strength("4.1").is_err());
         for bad in ["nearest", "nearest:-1", "nearest:70000", "all"] {
             assert!(super::parse_lamp_cost(bad).is_err(), "{bad}");
         }

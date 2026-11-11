@@ -61,6 +61,7 @@ fn drawn(image: &Image) -> usize {
     image.rgba.chunks(4).filter(|p| *p != [255; 4]).count()
 }
 
+mod bounce;
 mod draws;
 mod far_models;
 mod far_side;

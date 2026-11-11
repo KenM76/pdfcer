@@ -165,6 +165,7 @@ impl Volume {
     }
 
     /// The bounces complete so far.
+    #[cfg(test)]
     pub(crate) fn bounces(&self) -> usize {
         match self.stage {
             Stage::Classify(_) => 0,

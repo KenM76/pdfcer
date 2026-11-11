@@ -3,6 +3,7 @@
 
 use crate::Texture;
 use crate::camera::Camera;
+use crate::lighting::bounce::BounceLight;
 use crate::lighting::gloss::{Gloss, Resolved};
 use crate::lighting::shade::{Local, add_local};
 use crate::render::{Projection, RenderError};
@@ -233,6 +234,8 @@ pub(crate) struct PixelLights<'a> {
     pub(crate) face: [f64; 3],
     /// The frame's finishes and the triangle's own, when it has one.
     pub(crate) gloss: Option<(&'a Gloss, &'a Resolved)>,
+    /// Light bounced between surfaces, added per pixel.
+    pub(crate) bounce: Option<&'a BounceLight>,
 }
 
 impl PixelLights<'_> {
@@ -270,6 +273,7 @@ impl Target<'_> {
             lamps,
             extra,
             face,
+            bounce,
             ..
         } = lights;
         let [a, b, c] = corners;
@@ -322,7 +326,7 @@ impl Target<'_> {
                         *s += lit * k;
                     }
                 }
-                if !local.is_empty() || extra.is_some() {
+                if !local.is_empty() || extra.is_some() || bounce.is_some() {
                     let model =
                         |f: fn(&Corner) -> [f64; 3]| [0, 1, 2].map(|j| correct(&|c| at(f(c), j)));
                     let (p, n) = (model(|c| c.model[0]), model(|c| c.model[1]));
@@ -331,6 +335,9 @@ impl Target<'_> {
                     }
                     let lit = |i: usize| lamps.map_or(1.0, |m| m.visibility(i, p, face));
                     add_local(&mut shade, local, (p, n), &lit);
+                    if let Some(bounce) = bounce {
+                        bounce.add(&mut shade, p, n, face);
+                    }
                 }
                 let colour = match paint.texture {
                     Some(t) => {

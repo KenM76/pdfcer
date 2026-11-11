@@ -50,6 +50,8 @@ fn options(shadow_alpha: ShadowAlpha, shadow_casters: ShadowCasters) -> RenderOp
         ambient_occlusion: false,
         shadow_alpha,
         shadow_casters,
+        // Bounced light fills shadows; these pin the direct light alone.
+        indirect: crate::IndirectOptions::off(),
         ..RenderOptions::default()
     }
 }

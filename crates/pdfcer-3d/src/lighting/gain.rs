@@ -75,6 +75,7 @@ impl PartialEq for RenderOptions {
             line_width,
             render_mode,
             light_gain,
+            indirect,
         } = self;
         (
             width,
@@ -123,6 +124,7 @@ impl PartialEq for RenderOptions {
             &other.line_width,
             &other.render_mode,
         ) && light_gain.to_bits() == other.light_gain.to_bits()
+            && *indirect == other.indirect
     }
 }
 

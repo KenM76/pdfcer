@@ -114,6 +114,8 @@ pub(crate) fn options(lamp_shadows: bool) -> RenderOptions {
         lamp_shadows,
         lamp_shadow_map_size: 64,
         shadow_map_size: 256,
+        // These pin the direct light, digests from before the bounce.
+        indirect: crate::IndirectOptions::off(),
         ..RenderOptions::default()
     }
 }

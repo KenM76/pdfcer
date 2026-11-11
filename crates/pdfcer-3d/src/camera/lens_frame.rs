@@ -5,6 +5,7 @@
 
 use crate::camera::Camera;
 use crate::camera::lens::{Face, Layout, Lens, faces};
+use crate::lighting::bounce::BounceLight;
 use crate::render::raster::Paint;
 use crate::render::{Image, RenderError, RenderOptions, render_view};
 use crate::vec3::dot;
@@ -16,7 +17,7 @@ pub(crate) fn render(
     model: crate::lighting::gloss::Model<'_>,
     paints: &[Paint<'_>],
     opaque: &[bool],
-    (camera, lens): (&Camera, &Lens),
+    (camera, lens, bounce): (&Camera, &Lens, Option<&BounceLight>),
     options: &RenderOptions,
 ) -> Result<(Image, Vec<f64>), RenderError> {
     let (width, height) = (options.width, options.height);
@@ -45,7 +46,7 @@ pub(crate) fn render(
             opaque,
             &face.camera,
             &face_options,
-            Some(camera),
+            (Some(camera), bounce),
         )?;
         resample(
             (&face, &image, &keys),
