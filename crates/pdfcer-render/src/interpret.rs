@@ -4798,21 +4798,13 @@ impl<'a> Interpreter<'a> {
         // defers its composites: `paint_overprint` needs `&mut self`.
         if op_fill && !self.paint_overprint(&path, Some(FillRule::Winding), false, canvas) {
             self.diag.overprint_refused += 1;
-            let paint = self.solid_authored(
-                false,
-                self.gs.current.fill_alpha,
-                self.gs.current.blend_mode,
-            );
+            let paint = self.solid_overprinted(false, canvas);
             let clip = self.gs.current.clip_ref();
             canvas.fill(&path, &paint, FillRule::Winding, ctm, clip);
         }
         if op_stroke && !self.paint_overprint(&path, None, true, canvas) {
             self.diag.overprint_refused += 1;
-            let paint = self.solid_authored(
-                true,
-                self.gs.current.stroke_alpha,
-                self.gs.current.blend_mode,
-            );
+            let paint = self.solid_overprinted(true, canvas);
             let clip = self.gs.current.clip_ref();
             canvas.stroke(&path, &paint, &self.stroke_params(), ctm, clip);
         }
@@ -6927,6 +6919,52 @@ impl<'a> Interpreter<'a> {
             return None;
         }
         crate::overprint::authored_tints(&kind, comps)
+    }
+
+    /// The paint an overprint the canvas could not composite falls back to:
+    /// [`Self::solid_authored`] at the graphics state's alpha and blend, plus,
+    /// on an export recording, [`BrushSpec::overprint_process`] so the plate
+    /// metafiles can still honour Table 149 per plate.
+    fn solid_overprinted(&self, stroking: bool, canvas: &Canvas<'_>) -> BrushSpec {
+        let alpha = if stroking {
+            self.gs.current.stroke_alpha
+        } else {
+            self.gs.current.fill_alpha
+        };
+        let mut spec = self.solid_authored(stroking, alpha, self.gs.current.blend_mode);
+        if canvas.exporting() {
+            spec.overprint_process = self.overprint_process_tints(stroking);
+        }
+        spec
+    }
+
+    /// Table 149 per process plate for the current colour, with every named
+    /// spot on a plate of its own (`cmyk_group_rules_with_planes`, as the
+    /// colorant buffer's composite uses): the source tint where the rule is
+    /// `Source`, `0` where it is `Zero`, `None` where the backdrop survives.
+    fn overprint_process_tints(&self, stroking: bool) -> Option<[Option<f32>; 4]> {
+        use crate::overprint::ComponentRule;
+        let plan = self.overprint_plan(stroking)?;
+        let rules = if self.authored_spot_inks(stroking).is_empty() {
+            plan.rules
+        } else {
+            crate::overprint::cmyk_group_rules_with_planes(
+                &plan.kind,
+                plan.source_cmyk,
+                plan.op,
+                plan.opm,
+                true,
+            )
+        };
+        let mut out = [None; 4];
+        for ((slot, rule), tint) in out.iter_mut().zip(rules).zip(plan.source_cmyk) {
+            *slot = match rule {
+                ComponentRule::Source => Some(tint),
+                ComponentRule::Zero => Some(0.0),
+                ComponentRule::Backdrop => None,
+            };
+        }
+        Some(out)
     }
 
     /// A solid paint at `alpha`, carrying its authored colorants when the
@@ -10059,22 +10097,14 @@ impl<'a> Interpreter<'a> {
             // operator with a knocked-out backdrop and a diagnostic
             // claiming overprint was honoured.
             self.diag.overprint_refused += 1;
-            let paint = self.solid_authored(
-                false,
-                self.gs.current.fill_alpha,
-                self.gs.current.blend_mode,
-            );
+            let paint = self.solid_overprinted(false, canvas);
             let ctm = self.gs.current.ctm;
             let clip = self.gs.current.clip_ref();
             canvas.fill(&path, &paint, rule, ctm, clip);
         }
         if overprint_stroke_pending && !self.paint_overprint(&path, None, true, canvas) {
             self.diag.overprint_refused += 1;
-            let paint = self.solid_authored(
-                true,
-                self.gs.current.stroke_alpha,
-                self.gs.current.blend_mode,
-            );
+            let paint = self.solid_overprinted(true, canvas);
             let ctm = self.gs.current.ctm;
             let clip = self.gs.current.clip_ref();
             canvas.stroke(&path, &paint, &self.stroke_params(), ctm, clip);

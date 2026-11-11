@@ -777,3 +777,105 @@ fn patch_approximations_reaches_the_emf_writer() {
     assert_ne!(png.status.code(), Some(0));
     assert!(stderr(&png).contains("--patch-approximations applies to --format emf only"));
 }
+
+fn one_page(dir: &TempDir, name: &str, content: &str) -> PathBuf {
+    dir.write(
+        name,
+        &build_pdf(&[
+            (1, "<< /Type /Catalog /Pages 2 0 R >>".into()),
+            (
+                2,
+                "<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 100 80] >>".into(),
+            ),
+            (3, "<< /Type /Page /Parent 2 0 R /Contents 4 0 R >>".into()),
+            (
+                4,
+                format!(
+                    "<< /Length {} >>\nstream\n{content}\nendstream",
+                    content.len() + 1
+                ),
+            ),
+        ]),
+    )
+}
+
+/// `--emf-plates` (Pass 700.11) writes one metafile per ink and a line per
+/// plate; `--emf-plates-strict` refuses an image page and writes nothing;
+/// a raster format refuses the flag.
+#[test]
+fn emf_plates_writes_one_metafile_per_ink() {
+    let dir = TempDir::new("export-image-emf-plates");
+    let input = one_page(&dir, "k.pdf", "0.5 0 0 1 k 10 10 30 30 re f");
+    let out = dir.join("p.emf");
+    let i = input.to_str().unwrap();
+    let o = out.to_str().unwrap();
+    let emf = |input: &str, extra: &str, out: &str| -> Output {
+        run(&[
+            "export-image",
+            input,
+            "--format",
+            "emf",
+            "--dpi",
+            "144",
+            extra,
+            "-o",
+            out,
+        ])
+    };
+    let r = emf(i, "--emf-plates", o);
+    assert_eq!(r.status.code(), Some(0), "stderr: {}", stderr(&r));
+    for (ink, ops) in [("Cyan", 1), ("Magenta", 0), ("Yellow", 0), ("Black", 1)] {
+        let path = dir.join(&format!("p_{ink}.emf"));
+        assert!(path.exists(), "{ink} plate written");
+        let line = format!(
+            "plate {ink} -> {} 200x160 format=emf dpi=144; plate: ops={ops} ",
+            path.display()
+        );
+        assert!(stdout(&r).contains(&line), "{}", stdout(&r));
+    }
+    assert!(!out.exists(), "no page metafile beside the plates");
+
+    let image = one_page(
+        &dir,
+        "img.pdf",
+        "q 40 0 0 40 20 20 cm BI /W 2 /H 2 /CS /CMYK /BPC 8 /F /AHx ID \
+         FF000000FF000000FF000000FF000000> EI Q",
+    );
+    let image = image.to_str().unwrap();
+    let strict_out = dir.join("s.emf");
+    let s = strict_out.to_str().unwrap();
+    let r = emf(image, "--emf-plates-strict", s);
+    assert_ne!(r.status.code(), Some(0));
+    assert!(
+        stderr(&r).contains("the Cyan plate needs pixels for image"),
+        "{}",
+        stderr(&r)
+    );
+    assert!(
+        !dir.join("s_Cyan.emf").exists(),
+        "a refused page writes nothing"
+    );
+
+    let r = emf(image, "--emf-plates", s);
+    assert_eq!(r.status.code(), Some(0), "stderr: {}", stderr(&r));
+    let cyan = stdout(&r)
+        .lines()
+        .find(|l| l.contains(" plate Cyan -> "))
+        .map(str::to_owned)
+        .unwrap_or_default();
+    assert!(
+        cyan.ends_with(" images=1 shadings=0 soft_masks=0 transparency=0 rasters=1"),
+        "{}",
+        stdout(&r)
+    );
+
+    let png = run(&[
+        "export-image",
+        i,
+        "--emf-plates",
+        "-o",
+        dir.join("p.png").to_str().unwrap(),
+    ]);
+    assert_ne!(png.status.code(), Some(0));
+    assert!(stderr(&png).contains("--emf-plates applies to --format emf only"));
+}

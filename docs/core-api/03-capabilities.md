@@ -5173,6 +5173,35 @@ font** — kept text is drawn in whatever installed face has the recorded name
 shapes are the consumer's, and Inkscape ignores `Dx` and re-lays the line out.
 For the clipboard, outlines stay the right default.
 
+**Separation plates as vector metafiles (`Pass 700.11`)**
+
+| You want | Call |
+|---|---|
+| one EMF per ink | `emf::export_emf_plates(&doc, &page, &RenderOptions, &EmfOptions) -> Result<EmfPlates, RenderError>`; `export_emf_plates_view` for a live `DocumentView` |
+| refuse a page whose plates would need pixels | `emf::export_emf_plates_strict(&view, &page, &RenderOptions, &EmfOptions) -> Result<EmfPlates, PlateMetafileError>` — `PlateMetafileError::Raster { ink, reason: PlateRaster }` names the first plate and why ("the Cyan plate needs pixels for image"); `::Export(RenderError)` when export failed |
+| the result | `EmfPlates::Separated(Vec<EmfPlate>)` in `plates::render_plates` ink order (Cyan, Magenta, Yellow, Black, then spots in plane order), or `EmfPlates::Composite(Box<EmfExport>)` — the ordinary metafile — when the page has no inks, as `Plates::Composite` (`#[non_exhaustive]`) |
+| one plate | `EmfPlate { ink: String, emf: Vec<u8>, outcome: EmfPlateOutcome }` |
+| what each plate holds | `EmfPlateOutcome` — `width_pt`, `height_pt`, `ops` (vector paths written), `knockouts` (white paths), `knockouts_elided` (white paths dropped because nothing was painted beneath), `overprints_kept` (paints left off this plate so the ink beneath survives), `patches: PlatePatches` |
+| what became pixels, per plate | `PlatePatches` (`#[non_exhaustive]`) — `images`, `shadings`, `soft_masks`, `transparency` (objects per cause that ink this plate), `rasters` (bitmaps written after merging), `cases()`; `PlateRaster::{Image, Shading, SoftMask, Transparency}` with `as_str()` / `Display` |
+
+Each object is a path filled or stroked opaque grey at its tint on that plate
+(`255 × (1 − tint)`; full tint is black). A knockout is paper white; an
+overprinting paint (§11.7.4.3, `OPM` honoured, the same Table 149 rules the
+pixel plates use) is left off the plates it does not paint. An object needing
+pixels — image, shading, soft mask, transparency — becomes one
+`EMR_ALPHABLEND` of the plate's own pixels over its box, counted only on plates
+where the box holds ink; a box that is bare paper is clipped out with no
+bitmap. `EmfOptions::raster_dpi` sets the scale and the patches' resolution;
+the other options apply only to a `Composite` result. The metafiles carry no
+ink label: the caller names them. CLI `export-image --format emf --emf-plates`
+(`--emf-plates-strict` refuses), one `<name>_<ink>.emf` per plate.
+
+**What the UI must disclose:** each plate's counters, by name; that the
+greys in a patch are the plate render's (the ink's darkest channel) while a
+vector path's grey is the exact tint; and that spots beyond the page's plane
+ceiling are not plated (they show on the process plates, as on the pixel
+plates).
+
 **Traps**
 
 - **Do not use `System.Drawing.Imaging.Metafile` as an oracle.** GDI+ has

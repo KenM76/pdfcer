@@ -898,7 +898,7 @@ pub fn record_page(
     epoch: u64,
     options: &RenderOptions,
 ) -> Result<DisplayList, RenderError> {
-    let recorded = record_impl(doc, page, scale, options, false, false)?;
+    let recorded = record_impl(doc, page, scale, options, false, false, false)?;
     if let Some(reason) = recorded.poison {
         return Err(RenderError::PageNotRecordable { reason });
     }
@@ -958,16 +958,35 @@ pub(crate) fn record_page_for_export(
     options: &RenderOptions,
     keep_text: bool,
 ) -> Result<ExportRecording, RenderError> {
-    let recorded = record_impl(doc, page, scale, options, true, keep_text)?;
-    Ok(ExportRecording {
-        ops: recorded.ops,
-        clips: recorded.clips,
-        page_size: recorded.page_size,
-        diagnostics: recorded.diagnostics,
-        tally: recorded.tally,
-        sites: recorded.sites.sites,
-        subtractive_page: recorded.sites.subtractive_page,
-    })
+    let recorded = record_impl(doc, page, scale, options, true, keep_text, false)?;
+    Ok(recorded.into_export())
+}
+
+/// [`record_page_for_export`] with the page composited in ink whatever its
+/// group says, as a separation preview renders it, so overprint is decided
+/// per colorant as the plates it feeds are (`crate::emf::export_emf_plates`).
+pub(crate) fn record_page_for_plates(
+    doc: &DocumentView<'_>,
+    page: &Page,
+    scale: f32,
+    options: &RenderOptions,
+) -> Result<ExportRecording, RenderError> {
+    Ok(record_impl(doc, page, scale, options, true, false, true)?.into_export())
+}
+
+impl Recorded {
+    fn into_export(self) -> ExportRecording {
+        let recorded = self;
+        ExportRecording {
+            ops: recorded.ops,
+            clips: recorded.clips,
+            page_size: recorded.page_size,
+            diagnostics: recorded.diagnostics,
+            tally: recorded.tally,
+            sites: recorded.sites.sites,
+            subtractive_page: recorded.sites.subtractive_page,
+        }
+    }
 }
 
 /// What one recording walk produced, before either caller shapes it.
@@ -993,6 +1012,7 @@ fn record_impl(
     options: &RenderOptions,
     export: bool,
     keep_text: bool,
+    force_ink: bool,
 ) -> Result<Recorded, RenderError> {
     let (page_w, page_h, page_ctm) = crate::page_device_geometry(page, scale);
     // A recording allocates no raster, so the MAX_PIXMAP_EDGE ceiling does
@@ -1064,6 +1084,11 @@ fn record_impl(
         .0
     } else {
         crate::compositor::BlendSpace::Additive
+    };
+    let page_space = if force_ink && scope.paints_page_content() {
+        crate::compositor::BlendSpace::Subtractive
+    } else {
+        page_space
     };
     if page_space.is_subtractive()
         && let Some(e) = recorder.export.as_mut()
@@ -2019,6 +2044,7 @@ mod tests {
                 spots: Vec::new(),
                 process_tints: None,
                 all_colorants: None,
+                overprint_process: None,
             },
             rule: FillRule::Winding,
             ctm: Transform::identity(),

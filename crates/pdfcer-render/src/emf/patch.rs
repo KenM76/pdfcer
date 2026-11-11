@@ -56,13 +56,29 @@ impl EmfPatches {
 }
 
 /// A pixel rectangle, `x0..x1` × `y0..y1`.
-type PxRect = (u32, u32, u32, u32);
+pub(super) type PxRect = (u32, u32, u32, u32);
 
 /// The rectangles to patch and the raster that fills them.
 pub(super) struct Plan {
     rects: Vec<PxRect>,
     truth: Pixmap,
+    /// Per rectangle: excluded from the vector content but written as no
+    /// bitmap, because its true pixels are bare paper.
+    blank: Vec<bool>,
     pub patches: EmfPatches,
+}
+
+impl Plan {
+    /// A plan over already merged `rects`, each filled from `truth` unless
+    /// it is `blank`.
+    pub(super) fn new(rects: Vec<PxRect>, truth: Pixmap, blank: Vec<bool>) -> Self {
+        Self {
+            rects,
+            truth,
+            blank,
+            patches: EmfPatches::default(),
+        }
+    }
 }
 
 /// Plan the patches for `rec` (after [`crate::blend_flatten`]) and drop the
@@ -104,6 +120,7 @@ pub(super) fn plan(
         return Some(Plan {
             rects,
             truth,
+            blank: Vec::new(),
             patches,
         });
     }
@@ -174,7 +191,7 @@ fn drops_blend(op: &Op) -> bool {
 }
 
 /// `b` grown by a pixel of antialiasing each side, clamped to the page.
-fn px_rect(b: DeviceBounds, w: u32, h: u32) -> Option<PxRect> {
+pub(super) fn px_rect(b: DeviceBounds, w: u32, h: u32) -> Option<PxRect> {
     #[allow(
         clippy::cast_possible_truncation,
         clippy::cast_sign_loss,
@@ -200,13 +217,14 @@ fn overlaps(a: PxRect, b: PxRect) -> bool {
     a.0 < b.2 && b.0 < a.2 && a.1 < b.3 && b.1 < a.3
 }
 
-fn contains(outer: PxRect, inner: PxRect) -> bool {
+/// Whether `inner` lies wholly within `outer` (edges inclusive).
+pub(super) fn contains(outer: PxRect, inner: PxRect) -> bool {
     outer.0 <= inner.0 && outer.1 <= inner.1 && inner.2 <= outer.2 && inner.3 <= outer.3
 }
 
 /// Union overlapping rectangles until no two overlap: each pixel is then
 /// written by at most one bitmap.
-fn merge(mut rects: Vec<PxRect>) -> Vec<PxRect> {
+pub(super) fn merge(mut rects: Vec<PxRect>) -> Vec<PxRect> {
     let mut out: Vec<PxRect> = Vec::new();
     while let Some(mut r) = rects.pop() {
         while let Some(i) = out.iter().position(|o| overlaps(*o, r)) {
@@ -270,7 +288,10 @@ impl Writer<'_> {
         self.end_clip();
         self.record(0x22, &super::i32le(-1)); // RESTOREDC -1
         let before = self.outcome.rasters_embedded;
-        for &(x0, y0, x1, y1) in &plan.rects {
+        for (i, &(x0, y0, x1, y1)) in plan.rects.iter().enumerate() {
+            if plan.blank.get(i) == Some(&true) {
+                continue;
+            }
             let r = self.lu_rect(x0, y0, x1, y1);
             let dest = (r.0, r.1, (r.2 - r.0).max(1), (r.3 - r.1).max(1));
             self.bitmap(&plan.truth, (x0, y0, x1 - x0, y1 - y0), dest);

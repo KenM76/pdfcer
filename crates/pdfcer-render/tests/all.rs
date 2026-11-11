@@ -26,6 +26,7 @@ mod edit_preview_outlines;
 mod edited_view_is_what_renders;
 mod embed_font_roundtrip;
 mod emf_import_roundtrip;
+mod emf_plates;
 mod export_emf;
 mod export_emf_keep_text;
 mod export_emf_patches;

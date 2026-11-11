@@ -1460,6 +1460,8 @@ pub(crate) fn run() -> ExitCode {
             raster_blends,
             patch_approximations,
             emf_text,
+            emf_plates,
+            emf_plates_strict,
             no_overprint_preview,
             separation_preview,
             hide_ink,
@@ -1496,6 +1498,8 @@ pub(crate) fn run() -> ExitCode {
             raster_blends,
             patch_approximations,
             emf_text,
+            emf_plates: emf_plates || emf_plates_strict,
+            emf_plates_strict,
             preview: ViewerPreview::from_flags(no_overprint_preview, separation_preview, hide_ink)
                 .with_no_ap(markup_without_ap, widgets_without_ap)
                 .with_need_appearances(need_appearances)

@@ -587,6 +587,8 @@ mod ocr_run;
 use ocr_run::*;
 mod ocr_models;
 use ocr_models::*;
+/// `export-image --emf-plates`: one vector metafile per plate.
+mod export_emf_plates;
 mod render_export;
 /// Overprint and separation preview flags.
 mod viewer_preview;

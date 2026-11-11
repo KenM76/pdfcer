@@ -199,6 +199,12 @@ pub(crate) struct BrushSpec {
     /// process and spot, at this tint (ISO 32000-1 §8.6.6.4), so a
     /// registration mark lands on every plate. `None` for every other paint.
     pub all_colorants: Option<f32>,
+    /// Set only on an export recording, on a paint the interpreter routed
+    /// to overprint (§11.7.4.3) and recorded as a knockout: per process
+    /// plate, the tint Table 149 deposits, `None` where the backdrop
+    /// survives. The plate metafiles (`crate::emf::export_emf_plates`) read
+    /// it; every other writer ignores it.
+    pub overprint_process: Option<[Option<f32>; 4]>,
     /// The paint's colour as **authored subtractive tints**, when the
     /// canvas it lands on composites in a subtractive space.
     ///
@@ -293,6 +299,7 @@ impl BrushSpec {
             spots: Vec::new(),
             process_tints: None,
             all_colorants: None,
+            overprint_process: None,
         }
     }
 
@@ -314,6 +321,7 @@ impl BrushSpec {
             spots: Vec::new(),
             process_tints: None,
             all_colorants: None,
+            overprint_process: None,
         }
     }
 
@@ -459,6 +467,7 @@ impl BrushSpec {
                     spots: self.spots.clone(),
                     process_tints: self.process_tints,
                     all_colorants: self.all_colorants,
+                    overprint_process: self.overprint_process,
                 },
                 f32::from(rgba[3]) / 255.0,
             ),
@@ -707,6 +716,7 @@ impl<'a> Canvas<'a> {
             spots: Vec::new(),
             process_tints: None,
             all_colorants: None,
+            overprint_process: None,
         };
         r.push_masked(
             Op::Fill {
@@ -916,6 +926,7 @@ impl<'a> Canvas<'a> {
                             spots: Vec::new(),
                             process_tints: None,
                             all_colorants: None,
+                            overprint_process: None,
                         },
                         rule: FillRule::Winding,
                         ctm,

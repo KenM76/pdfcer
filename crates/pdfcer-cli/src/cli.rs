@@ -6060,6 +6060,21 @@ pub(crate) enum Command {
         /// outlines and are counted on an `emf-text:` line.
         #[arg(long, value_enum, default_value_t = SvgTextArg::Outlines)]
         emf_text: SvgTextArg,
+        /// EMF only: write one metafile per separation plate instead of
+        /// one for the page, each named `<name>_<ink>.emf`: Cyan, Magenta,
+        /// Yellow, Black, then each spot ink. Every object is a grey path
+        /// at its tint on the plates it inks; a knockout is a white path
+        /// and an overprint is left off. Images, shadings, soft masks and
+        /// transparency become pixel patches, counted per plate on each
+        /// plate's line. A page that cannot be composited in ink writes its
+        /// ordinary metafile and says so.
+        #[arg(long)]
+        emf_plates: bool,
+        /// As --emf-plates, but refuse a page whose plates would need any
+        /// pixel patch, naming the plate and the reason. Nothing of that
+        /// page is written.
+        #[arg(long)]
+        emf_plates_strict: bool,
         /// Draw overprinting marks as ordinary knockouts instead of
         /// simulating overprint, as a viewer with Overprint Preview off
         /// shows them. The file is not changed.

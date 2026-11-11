@@ -46,22 +46,13 @@ pub fn render_plates(
     scale: f32,
     options: &RenderOptions,
 ) -> Result<Plates, RenderError> {
-    let probe = options
-        .clone()
-        .with_separation_preview(Some(SeparationPreview::new()));
-    let first = crate::render_page_with_view(view, page, scale, &probe)?;
-    let inks = first.diagnostics.inks;
+    let (inks, composite) = probe_inks(view, page, scale, options)?;
     if inks.is_empty() {
-        return Ok(Plates::Composite(first.pixmap));
+        return Ok(Plates::Composite(composite));
     }
     let mut plates = Vec::with_capacity(inks.len());
     for ink in &inks {
-        let others = inks.iter().filter(|i| *i != ink).cloned();
-        let only = options
-            .clone()
-            .with_separation_preview(Some(SeparationPreview::new().with_hidden(others)));
-        let mut pixmap = crate::render_page_with_view(view, page, scale, &only)?.pixmap;
-        to_plate_grey(pixmap.data_mut());
+        let mut pixmap = plate_pixmap(view, page, scale, options, &inks, ink)?;
         label(&mut pixmap, ink, scale, page);
         plates.push(Plate {
             ink: ink.clone(),
@@ -69,6 +60,40 @@ pub fn render_plates(
         });
     }
     Ok(Plates::Separated(plates))
+}
+
+/// The page's inks in plate order, from a render under the separation
+/// preview, and that render. No inks: the colorant buffer was refused.
+pub(crate) fn probe_inks(
+    view: &DocumentView<'_>,
+    page: &Page,
+    scale: f32,
+    options: &RenderOptions,
+) -> Result<(Vec<String>, Pixmap), RenderError> {
+    let probe = options
+        .clone()
+        .with_separation_preview(Some(SeparationPreview::new()));
+    let first = crate::render_page_with_view(view, page, scale, &probe)?;
+    Ok((first.diagnostics.inks, first.pixmap))
+}
+
+/// `ink`'s plate as opaque grey, unlabelled: the page with every other of
+/// `inks` hidden, through [`to_plate_grey`].
+pub(crate) fn plate_pixmap(
+    view: &DocumentView<'_>,
+    page: &Page,
+    scale: f32,
+    options: &RenderOptions,
+    inks: &[String],
+    ink: &str,
+) -> Result<Pixmap, RenderError> {
+    let others = inks.iter().filter(|i| *i != ink).cloned();
+    let only = options
+        .clone()
+        .with_separation_preview(Some(SeparationPreview::new().with_hidden(others)));
+    let mut pixmap = crate::render_page_with_view(view, page, scale, &only)?.pixmap;
+    to_plate_grey(pixmap.data_mut());
+    Ok(pixmap)
 }
 
 /// Premultiplied RGBA over white, in place: each pixel becomes the grey of

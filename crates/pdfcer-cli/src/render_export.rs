@@ -1551,6 +1551,10 @@ pub(crate) struct ExportImageArgs<'a> {
     pub(crate) patch_approximations: bool,
     /// Outlines or kept text (EMF only).
     pub(crate) emf_text: SvgTextArg,
+    /// `--emf-plates` or `--emf-plates-strict` (EMF only).
+    pub(crate) emf_plates: bool,
+    /// `--emf-plates-strict`: refuse a plate needing pixels.
+    pub(crate) emf_plates_strict: bool,
     /// `--no-overprint-preview`, `--separation-preview`, `--hide-ink`.
     pub(crate) preview: crate::viewer_preview::ViewerPreview,
 }
@@ -1610,6 +1614,8 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
         raster_blends,
         patch_approximations,
         emf_text,
+        emf_plates,
+        emf_plates_strict,
         preview,
     } = args;
 
@@ -1626,6 +1632,13 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
     if patch_approximations && format != ImageFormatArg::Emf {
         eprintln!(
             "pdfcer: {}: --patch-approximations applies to --format emf only",
+            input.display()
+        );
+        return exit::RUNTIME_ERROR;
+    }
+    if emf_plates && format != ImageFormatArg::Emf {
+        eprintln!(
+            "pdfcer: {}: --emf-plates applies to --format emf only",
             input.display()
         );
         return exit::RUNTIME_ERROR;
@@ -1794,6 +1807,25 @@ pub(crate) fn cmd_export_image(args: ExportImageArgs<'_>) -> u8 {
                 .with_text(emf_text.into())
                 .with_underlay_blends(!raster_blends)
                 .with_patch_approximations(patch_approximations);
+            if emf_plates {
+                let req = crate::export_emf_plates::PlatesPage {
+                    input,
+                    doc: &doc,
+                    page,
+                    page_number,
+                    path: &path,
+                    dpi,
+                    strict: emf_plates_strict,
+                };
+                match crate::export_emf_plates::export_page_plates(
+                    &req,
+                    &render_options,
+                    &emf_options,
+                ) {
+                    Ok(()) => continue,
+                    Err(code) => return code,
+                }
+            }
             let export =
                 match pdfcer_render::emf::export_emf(&doc, page, &render_options, &emf_options) {
                     Ok(e) => e,

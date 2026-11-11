@@ -93,8 +93,13 @@ use crate::interpret::Diagnostics;
 
 mod bitmap;
 mod patch;
+mod plates;
 mod print;
 pub use patch::EmfPatches;
+pub use plates::{
+    EmfPlate, EmfPlateOutcome, EmfPlates, PlateMetafileError, PlatePatches, PlateRaster,
+    export_emf_plates, export_emf_plates_strict, export_emf_plates_view,
+};
 pub use print::{
     PrintMetafileError, RasterReason, print_export_with, print_metafile, print_metafile_with,
 };
@@ -189,6 +194,15 @@ impl Default for EmfOptions {
 }
 
 impl EmfOptions {
+    /// [`Self::raster_dpi`], or 300 when it is not a positive finite number.
+    fn dpi(&self) -> f32 {
+        if self.raster_dpi.is_finite() && self.raster_dpi > 0.0 {
+            self.raster_dpi
+        } else {
+            300.0
+        }
+    }
+
     /// Set the raster/recording resolution.
     #[must_use]
     pub fn with_raster_dpi(mut self, dpi: f32) -> Self {
@@ -319,29 +333,13 @@ pub fn export_emf_view(
     render: &RenderOptions,
     emf: &EmfOptions,
 ) -> Result<EmfExport, RenderError> {
-    let dpi = if emf.raster_dpi.is_finite() && emf.raster_dpi > 0.0 {
-        emf.raster_dpi
-    } else {
-        300.0
-    };
+    let dpi = emf.dpi();
     let scale = dpi / 72.0;
     let keep_text = emf.text == EmfText::KeepText;
     let mut recording = record_page_for_export(view, page, scale, render, keep_text)?;
     let (w_px, h_px) = recording.page_size;
     let (flattened, plan) = flatten_and_plan(&mut recording, view, page, render, emf, scale);
-
-    // Device pixel -> 0.01 mm. A page is at most 14 400 pt = 5 080 mm =
-    // 508 000 units; the guard is against a resolution that would overflow
-    // an i32 through the multiply, not against any real page.
-    let unit = 2540.0 / dpi;
-    #[allow(clippy::cast_precision_loss)]
-    let (w_u, h_u) = ((w_px as f32 * unit).round(), (h_px as f32 * unit).round());
-    if !(1.0..=1.0e8).contains(&w_u) || !(1.0..=1.0e8).contains(&h_u) {
-        return Err(RenderError::BadRasterSize {
-            width: w_px,
-            height: h_px,
-        });
-    }
+    let (unit, size_u) = metafile_units((w_px, h_px), dpi)?;
 
     let mut outcome = EmfOutcome::empty(recording.tally, recording.diagnostics.clone());
     outcome.blends_flattened = flattened.total();
@@ -352,32 +350,29 @@ pub fn export_emf_view(
         outcome.height_pt = h_px as f32 / scale;
     }
     let mut w = Writer::new(&recording.clips, unit, (w_px, h_px), outcome);
-
-    // Header placeholder (108 bytes), back-patched at the end.
-    w.out.resize(108, 0);
-    w.records = 1;
-    w.record(0x11, &u32le(1)); // SETMAPMODE MM_TEXT
-    w.record(0x12, &u32le(1)); // SETBKMODE TRANSPARENT
-
-    if let Some(bg) = emf.background {
-        w.background(bg);
-    }
-    if let Some(plan) = &plan {
-        w.patch_open(plan);
-    }
-    w.write_ops(&recording.ops);
-    w.end_clip();
-    if let Some(plan) = &plan {
-        w.patch_close(plan);
-    }
-    w.record(0x0E, &[u32le(0), u32le(16), u32le(20)].concat()); // EOF
-    #[allow(clippy::cast_possible_truncation)]
-    w.write_header(w_u as i32, h_u as i32);
-
+    w.write_metafile(&recording.ops, plan.as_ref(), emf.background, size_u);
     Ok(EmfExport {
         emf: w.out,
         outcome: w.outcome,
     })
+}
+
+/// Device pixel -> 0.01 mm, and the page in those units. A page is at most
+/// 14 400 pt = 5 080 mm = 508 000 units; the guard is against a resolution
+/// that would overflow an i32 through the multiply, not against any real
+/// page.
+fn metafile_units((w_px, h_px): (u32, u32), dpi: f32) -> Result<(f32, (i32, i32)), RenderError> {
+    let unit = 2540.0 / dpi;
+    #[allow(clippy::cast_precision_loss)]
+    let (w_u, h_u) = ((w_px as f32 * unit).round(), (h_px as f32 * unit).round());
+    if !(1.0..=1.0e8).contains(&w_u) || !(1.0..=1.0e8).contains(&h_u) {
+        return Err(RenderError::BadRasterSize {
+            width: w_px,
+            height: h_px,
+        });
+    }
+    #[allow(clippy::cast_possible_truncation)]
+    Ok((unit, (w_u as i32, h_u as i32)))
 }
 
 /// Flatten top-level blends and, with [`EmfOptions::patch_approximations`],
@@ -493,6 +488,35 @@ impl<'a> Writer<'a> {
 }
 
 impl Writer<'_> {
+    /// The whole metafile: header placeholder, modes, optional background,
+    /// `ops` inside `plan`'s exclusion, the patches, EOF, the header.
+    fn write_metafile(
+        &mut self,
+        ops: &[Op],
+        plan: Option<&patch::Plan>,
+        background: Option<Rgb>,
+        (w_u, h_u): (i32, i32),
+    ) {
+        // Header placeholder (108 bytes), back-patched at the end.
+        self.out.resize(108, 0);
+        self.records = 1;
+        self.record(0x11, &u32le(1)); // SETMAPMODE MM_TEXT
+        self.record(0x12, &u32le(1)); // SETBKMODE TRANSPARENT
+        if let Some(bg) = background {
+            self.background(bg);
+        }
+        if let Some(plan) = plan {
+            self.patch_open(plan);
+        }
+        self.write_ops(ops);
+        self.end_clip();
+        if let Some(plan) = plan {
+            self.patch_close(plan);
+        }
+        self.record(0x0E, &[u32le(0), u32le(16), u32le(20)].concat()); // EOF
+        self.write_header(w_u, h_u);
+    }
+
     /// An opaque rectangle over the whole page.
     fn background(&mut self, bg: Rgb) {
         #[allow(clippy::cast_precision_loss)]
