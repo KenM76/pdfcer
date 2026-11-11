@@ -13851,3 +13851,11 @@ Operator request `X065` (as a crates consumer). Engineer-reported; no `docs/deci
 5. **No dependency change**, so `cargo tree` and `THIRD_PARTY_LICENSES.md` are unaffected.
 
 **Body-section effect.** §2.1a records the current pin (added there). **Decision ceiling.** Fills `222`; next free decision `223`. **New standing rule.** None.
+
+### 2026-11-10 (1496th filing, `Pass 704.0` / `704.1`+) — decision 223: snapshots may be rasterised on the GPU, per part, and must match the CPU picture byte for byte
+
+Full record: `docs/decisions/223-gpu-snapshot-rasterising.md` (autonomous-builder consultation, amended by the operator's ruling "Yes they should match the CPU picture pixel for pixel if possible."). Engineer-reported.
+
+**Decides.** (1) `704.0` first: engine measurement and seam (`tools/render-profile` cost split, `DisplayList: Sync` static-assert, band-stitch byte-identity test); numbers go to the operator. (2) GPU arc `704.1`+ is a `gpu` module in `pdfcer-render` behind a non-default feature, emitting GLSL ES 3.00 text and plain buffers, no new dependency, wasm32-clean; the GUI hosts it on glow. (3) Parts Images, Shadings, Fills & strokes, Transparency, one switch each; colour, CMYK, overprint, separations always CPU; any part off or unsupported means the whole snapshot is CPU, with the reason in the status note. (4) Gate: byte-identical RGBA8 at scale 1, 300 DPI and 50 MP; a disclosed tolerance tier only for a part proven unable to be exact; a part must also beat parallel-band CPU end to end. CLI, Export Image and Print stay CPU. Rejected: vello, GUI-only rasterising.
+
+**Body-section effect.** None (no body section describes a GPU path yet). **Decision ceiling.** Fills `223`; next free decision `224`. **New standing rule.** None.

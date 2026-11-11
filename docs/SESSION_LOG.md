@@ -4,6 +4,16 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-10 (1496th filing) — decision 223 (GPU snapshot rasterising); `Pass 704.0` rewritten, `704.1`+ filed
+
+**Filed (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
+- **Decision 223**, `docs/decisions/223-gpu-snapshot-rasterising.md` (autonomous-builder consultation, amended by Ken's 2026-11-10 ruling "Yes they should match the CPU picture pixel for pixel if possible."). ARCHITECTURE §12 entry added; decision ceiling now fills `223`, next free `224`.
+- **`Pass 704.0` rewritten** from "GPU rasterising, pending decision" to engine measurement and seam: `tools/render-profile` cost split, `DisplayList: Sync` static-assert, band-stitch byte-identity test; results to `docs/render-region-measurements.md` and reported to Ken. **`704.1`+** filed for the GPU arc (`gpu` module in `pdfcer-render`, non-default feature; parts Images, Shadings, Fills & strokes, Transparency). Gate: byte-identical; tolerance tier only where exactness is proven impossible, disclosed. Left in Backlog (Next up is a banner log, no Pass-entry slot). FEATURES GPU row text updated, boxes `[ ]`.
+- **GUI notice** `open/notice_2026-11-10_snapshot_gpu_decision.md` in `D:\Dev\FeatureRequests\pdfce_FeatureRequests`: asks pdfceGUI to move Snapshot Copy off the UI thread now (about 2 s blocked on a dense CAD sheet at 300 DPI).
+- **Correction to the 1495th caveat:** `F080/mesh1000x500` WAS re-run after the fix, 2.33 s (scale 10), down from a timeout. Amended in the ROADMAP `703.1` entry and in the 1495th entry's footer. The hostile-input FEATURES row boxes stay as they are.
+
+**For next session:** `704.0` measurement first, numbers to Ken; `703.1` F078 masks still owed.
+
 ## 2026-11-10 (1495th filing) — `dcadef2d` `Pass 703.1` first cut (mesh charging, opaque gradient fast path); `5dec71ea` CI test-race fix; `Pass 704.0` filed
 
 **Filed (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits; both commits unpushed at filing):**
@@ -15,6 +25,8 @@ the affected entry. Maintained by `pdfce-librarian`.
 - ROADMAP: new Shipped entry, 1495th banner, `703.1` table row, Backlog `Pass 704.0`. FEATURES: hostile-input row text, new Planned row. `docs/NEXT_SESSION.md` untouched (engineer-owned).
 
 **For next session:** finish `703.1` (F078 masks, acceptance on its repros); `Pass 704.0` waits on the design decision. Release when ready (unreleased work since `v0.143.0`).
+
+*Amendment, 1496th filing:* the bullet above saying `F080/mesh1000x500` was not re-run is wrong. It was re-run after the fix at 2.33 s (scale 10), down from the 1494th-filing timeout (engineer-reported). `704.0` is no longer waiting on a decision: decision 223 settled it.
 
 ## 2026-11-10 (1494th filing) — `f9dd61e9` blended-paint weight; `Pass 703.0` SHIPPED COMPLETE
 
