@@ -111,7 +111,9 @@ Corpus: 35 3D models extracted from local test PDFs (18 PRC, 13 U3D, 4 other). "
 - **`texture_mapping_attributes`:** measured on the 3 distinct textured models (60 texture definitions): every one is 0x1 (diffuse), mapping type 1. No environment map was seen, so `producer_environment_maps` has no corpus file to test against yet.
 - **Acrobat (parity reference):** `D:\Dev\Rag-Specialized\Acrobat_Features\markup__3d_lighting_shadows_reflections_indirect_light.md`. Acrobat has no indirect light, global illumination, ambient occlusion or shadows; its reflections are an environment map with a 0-1 per-material strength; among the `/LS` schemes only Headlamp and CAD are camera-attached. pdfcer's bounce is a divergence beyond parity, behind a flag.
 
-**Still open in `705.0`:** (1) the SwiftShader sampler and RGBA32F check; (2) the Adreno 643 lookup timing, from the GUI project.
+**Closed 2026-11-11 (`2a0dbed37efae95767d2bc6f4e48a4e50555fbf5`):** the SwiftShader sampler and RGBA32F check (`tools/3d-measure/webgl/rgba32f_texelfetch.html`): `texelFetch` on RGBA32F is bit-exact against an RGBA32UI copy, 0 mismatches of 409,600 (2D), 6,553,600 (3D) and 6,553,600 (2D array) texels; sabotage-checked. The texelFetch-only design needs no float-filtering extension.
+
+**Still open in `705.0`:** the Adreno 643 lookup timing, from the GUI project. Micro-shader supplied (`tools/3d-measure/webgl/probe_lookup_bench.html`: 40 `texelFetch` per pixel from a 4,096-probe atlas; SwiftShader 17.1 ms a pass at 776x508 = 43 ns per pixel, a CPU rasteriser and not a device estimate). Request E065a filed, reply owed.
 
 ## Scope ("all things 3D")
 

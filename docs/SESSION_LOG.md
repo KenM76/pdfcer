@@ -4,6 +4,23 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-11 (1501st filing) — `2a0dbed3` `Pass 705.0` second PARTIAL: RGBA32F texelFetch check done, Adreno timing still open
+
+**Shipped (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
+- `2a0dbed37efae95767d2bc6f4e48a4e50555fbf5`, `feat(tools): WebGL 2 pages for the RGBA32F texelFetch check and the probe-lookup timing (Pass 705.0)`. Two WebGL 2 pages under `tools/3d-measure/webgl/`. No engine code changed. Follows the 1500th filing (`7aa9cc751fd0d8f8a0dfd3568e5b8819b465d355`).
+
+**Measured:**
+- Open item (1) CLOSED: `rgba32f_texelfetch.html`, headless Edge on SwiftShader (ANGLE Vulkan, Subzero). RGBA32F `texelFetch` bit-exact against an RGBA32UI copy: 0 mismatches of 409,600 (2D 640x640), 6,553,600 (3D 640x640x16), 6,553,600 (2D array). Values: 2^-23 steps near 1, up to 3e38, smallest normals, negatives. Sabotage (one flipped reference bit per 4,000 words) gives exactly 410 / 6,554 / 6,554. Limits: MAX_TEXTURE_SIZE 8192, MAX_3D_TEXTURE_SIZE 2048, MAX_ARRAY_TEXTURE_LAYERS 2048, 32 fragment / 64 combined texture units, MAX_FRAGMENT_UNIFORM_VECTORS 4096; `EXT_color_buffer_float` and `OES_texture_float_linear` present (the latter not relied on).
+- Open item (2) STILL OPEN: `probe_lookup_bench.html` (8 probes, manual trilinear, 40 `texelFetch` per pixel, 4,096-probe RGBA32F atlas). SwiftShader reference 17.1 ms a pass at 776x508 = 43 ns per pixel (CPU rasteriser, not a device estimate). Request `D:\Dev\FeatureRequests\pdfce_FeatureRequests\open\request_E065a_705_0_adreno_probe_lookup_timing.md` filed (INDEX row OPEN, reply owed).
+
+**Findings:** a JavaScript SyntaxError in a headless page (e.g. `-2 ** x`, unary minus before `**`) makes `--dump-dom` print the page with an EMPTY result `<pre>` and no error; empty means the script never parsed, not that WebGL failed, and shrinking the workload does not help. Filed as finding 6 in `D:\dev\rag\egui\headless_edge_swiftshader_runs_webgl2_so_a_gpu_shader_can_be_compared_with_the_cpu_path_without_a_gl_context.md`.
+
+**Decisions:** none new; `docs/decisions/224-indirect-light-and-reflections.md` outcomes section updated. **FEATURES.md: no row change.**
+
+**Still in flight:** `705.0` stays under Next up/Backlog, not Shipped; only the Adreno 643 timing (GUI project, E065a) is open.
+
+**For next session:** on the E065a reply, decide whether the GPU lookup budget holds, close `705.0`, then `705.1`.
+
 ## 2026-11-11 (1500th filing) — `Pass 705.0` PARTIAL: corpus and ray-speed measurements decide both default flips
 
 **Shipped (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
