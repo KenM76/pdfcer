@@ -35,7 +35,7 @@ pub enum WidgetsWithoutAp {
 /// What the renderer does with a text or choice widget's stored `/AP` when
 /// the form's `/NeedAppearances` is true.
 ///
-/// ISO 32000-1 §12.7.2 Table 218: `/NeedAppearances` "specif[ies] whether to
+/// ISO 32000-1 §12.7.2 Table 218: `/NeedAppearances` "specif\[ies\] whether to
 /// construct appearance streams and appearance dictionaries for all widget
 /// annotations in the document"; §12.7.3.3 has the reader construct a
 /// variable-text appearance at viewing time. The redrawn appearance is the
