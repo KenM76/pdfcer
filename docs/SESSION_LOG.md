@@ -4,7 +4,20 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
-## 2026-11-11 (1522nd filing) — `cc74f730` `Pass 700.12` SHIPPED: EMF pixel patches instead of approximations (`X073`)
+## 2026-11-11 (1523rd filing) — `380cdc00` `Pass 700.10` SHIPPED: signature field appearances and an appearance builder (`X071` part 3; `X071` complete)
+
+**Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
+- `380cdc00943813a66f482f055d5098706829cebb` on `main`; engineer reports local only (origin/main at `96241343`), rides the next push and release. Placeholder and signed-name/date view-time drawing, public `widget_draw::signature` builder, `pdfcer sign --appearance-image`. Detail in the ROADMAP *Shipped* entry.
+- Tests: core `sign::` 20, `richtext` 16, `widget_draw` 5; render 6 + 6 + 10; CLI `sign_` 10; doctest 1; sabotage 7 of 7; gates clean; no manifest change.
+- `700.9` residue closed (undecodable stream `/RV` counted in `rich_unreadable`). FEATURES: signature row Planned to Implemented (core `[x]`, cli `[x]`, gui `[ ]`); rich-text row's Open list shortened.
+- **Divergence:** image share is aspect-ratio, capped at half, not the brief's fixed half.
+- **Premise checks:** 1522nd was the newest filing (confirmed in SESSION_LOG); 700.10 was in Next up (confirmed). Ledger-number gate not run (no shell).
+
+**Open:** a field's own `/DR` not read; view-time drawing uses default precedence; gui not wired.
+
+**For next session:** push and release; then `700.11`, `700.13`+.
+
+ — `cc74f730` `Pass 700.12` SHIPPED: EMF pixel patches instead of approximations (`X073`)
 
 **Shipped (engineer-reported; no shell here, git/CI state not checked from here; docs only):**
 - `cc74f730` on `main` (cherry-pick of worker `c12897be2041a3f93fc2d79319d565ce48c54e2d`), not in a release. `EmfOptions::with_patch_approximations`, `EmfOutcome::patches`, `emf::print_metafile_with`, CLI `export-image --format emf --patch-approximations`. Detail in the ROADMAP *Shipped* entry.
