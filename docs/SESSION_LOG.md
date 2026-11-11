@@ -4,6 +4,17 @@ Append-only. One section per session date. Never overwrite or reorder
 a prior entry; corrections get a dated amendment footer appended to
 the affected entry. Maintained by `pdfce-librarian`.
 
+## 2026-11-10 (1497th filing) — decision 224 (indirect light and reflections in 3D); `Pass 705.0`-`705.9` filed
+
+**Filed (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits; HEAD at dispatch stated as `ae5b07b2`, pushed):**
+- **Decision 224**, `docs/decisions/224-indirect-light-and-reflections.md` (autonomous-builder consultation). Operator ask (Ken, 2026-11-10): "I think we are missing reflectivity or diffusion or something so lights reflect off walls and things like that? Need that fully implemented for all things 3D." ARCHITECTURE §12 entry added; ceiling now fills `224`, next free `225`.
+- **`Pass 705.0`-`705.9`** filed in ROADMAP Backlog with acceptance criteria and gates, plus Backlog items `705.B1`-`705.B3` (PRC bake, U3D reflectivity, adaptive probes). Order: measure, ray queries, bounce CPU, bounce GPU, `EveryLight`, reflection inputs, reflections CPU, reflections GPU, traced quality, planar mirrors.
+- **FEATURES:** four Planned rows (bounced light and colour bleed; reflections; traced quality for saved pictures; planar mirrors), all `[ ]`. Bounce row notes: defaults to model-fixed lights; camera-following lights opt-in pending the `705.0` wasm32 rebuild measurement.
+- **GUI heads-up** `open/note_E065_3d_bounced_light_and_reflections.md` in `D:\Dev\FeatureRequests\pdfce_FeatureRequests` (named per the engineer's dispatch; not checked on disk from here).
+- **Number checks (by Grep/Glob on `docs/`):** decision `224` was free (only `221`, `223`, and the new `224` file in `docs/decisions/`; no prior §12 `224`); `705.x` was free (zero matches before filing).
+
+**For next session:** `705.0` measurement; `704.0` numbers to Ken still first in queue.
+
 ## 2026-11-10 (1496th filing) — decision 223 (GPU snapshot rasterising); `Pass 704.0` rewritten, `704.1`+ filed
 
 **Filed (engineer-reported; no shell here, git/push/CI state not checked from here; docs only, engineer commits):**
